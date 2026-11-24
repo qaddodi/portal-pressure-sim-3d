@@ -110,3 +110,8 @@ export function toReference(p: V3, loadedEdit: OrganEdit | undefined, centroid: 
   const u = p[0] - centroid[0] - mv[0], w = p[2] - centroid[2] - mv[2];
   return [centroid[0] + (u * cs - w * sn) / k, centroid[1] + (p[1] - centroid[1] - mv[1]) / k, centroid[2] + (u * sn + w * cs) / k];
 }
+/** A stroke's pull and radius as seen on the built organ (scene units, on screen) back to the reference frame: the stroke acts before scale and turn, so undo both. */
+export function strokeToReference(by: V3, radius: number, loadedEdit: OrganEdit | undefined): { by: V3; radius: number } {
+  const e = clampOrgan(loadedEdit ?? {}), k = e.scale ?? 1, a = e.rotY ?? 0, cs = Math.cos(a), sn = Math.sin(a);
+  return { by: [(by[0] * cs - by[2] * sn) / k, by[1] / k, (by[0] * sn + by[2] * cs) / k], radius: radius / k };
+}

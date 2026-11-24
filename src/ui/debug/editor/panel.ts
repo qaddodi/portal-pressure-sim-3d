@@ -13,7 +13,7 @@ import { ORGAN_LIMITS, type V3 } from '../../../editor/types.ts';
 import { Overlay } from './overlay.ts';
 import { dragDelta, ndcOf, nearest, nearestLine } from './picking.ts';
 import { skeleton, organIds, pointAt, centroidOf, type Skeleton } from './source.ts';
-import { History, PLAN_PER_SCENE, dragToOffsets, toReference, addStroke, clearStrokes, controlOf, exportText, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
+import { History, PLAN_PER_SCENE, dragToOffsets, toReference, strokeToReference, addStroke, clearStrokes, controlOf, exportText, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
 
 type Mode = 'orbit' | 'vessels' | 'organs';
 type Target = { kind: 'node'; id: string } | { kind: 'ctrl'; vid: string; u: number };
@@ -270,7 +270,8 @@ export function mountEditor(): void {
         const by = toLocal(drag.lastHit.clone().add(w)).sub(toLocal(drag.lastHit)).multiplyScalar(strength);
         const hp = toLocal(hit.point), at = toReference([hp.x, hp.y, hp.z], loaded.organs?.[drag.id], centroidOf(drag.id));
         // (a stroke is in the organ's reference frame, organ-apply.ts: the built mesh is the reference with the loaded edit on it, so undo that)
-        edit(addStroke(hist.now, drag.id, { at, radius, by: [by.x, by.y, by.z] }));
+        const st = strokeToReference([by.x, by.y, by.z], radius, loaded.organs?.[drag.id]);
+        edit(addStroke(hist.now, drag.id, { at, radius: st.radius, by: st.by }));
         drag.last = ndc; drag.lastHit = hit.point;
       }
     }

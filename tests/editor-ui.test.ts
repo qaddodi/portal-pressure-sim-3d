@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
-import { dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
+import { strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
 import { dragDelta, ndcOf, nearest, nearestLine } from '../src/ui/debug/editor/picking.ts';
 import { pointAt } from '../src/ui/debug/editor/source.ts';
 import { applyVesselOverrides } from '../src/editor/vessel-apply.ts';
@@ -127,4 +127,14 @@ test('a stroke written from a hit on the built organ lands on the same place in 
     const back = toReference([b.getX(i), b.getY(i), b.getZ(i)], edit, c);
     assert.ok(Math.hypot(back[0] - p.getX(i), back[1] - p.getY(i), back[2] - p.getZ(i)) < 1e-5);
   }
+});
+
+test('a stroke on a rotated and scaled organ moves the vertex by the drag as seen on the built organ', () => {
+  const ref = new BoxGeometry(1, 1, 1, 6, 6, 6), c = organCentroid(ref), edit = { move: [0.03, 0, -0.02] as const, rotY: 0.3, scale: 1.1 };
+  const built = applyOrganEdit(ref.clone(), edit, { centroid: c }), b = built.getAttribute('position');
+  const i = 40, hit: [number, number, number] = [b.getX(i), b.getY(i), b.getZ(i)], drag: [number, number, number] = [0.01, -0.005, 0.006];
+  const st = strokeToReference(drag, 0.2, edit);
+  const edited = applyOrganEdit(ref.clone(), { ...edit, strokes: [{ at: toReference(hit, edit, c), radius: st.radius, by: st.by }] }, { centroid: c }).getAttribute('position');
+  const got = [edited.getX(i) - hit[0], edited.getY(i) - hit[1], edited.getZ(i) - hit[2]];
+  drag.forEach((v, k) => assert.ok(Math.abs(got[k]! - v) < 1e-5, `axis ${k}: ${got[k]} vs ${v}`));
 });
