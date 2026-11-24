@@ -19,12 +19,12 @@ export function xkFor(portrait: boolean, room?: { centre: number; half: number; 
   if (portrait) return kupfferClear(XK.tall, SEED.nucDn);
   if (!room) return kupfferSpot(0, SEED.nucDn, () => true);
   // the room's far end holds the central vein's name and arrow (END_RESERVE px from it); the cell stands left of them, or right of the name just under the arrow (the arrow's tip, ARROW_ROOM px from the end), never over either,
-  // its centre at most XK_SPILL µm past the room's end (only its arms spill, never over a card)
+  // its centre at most XK_SPILL µm past the room's end (the vessel carries on past the room)
   const r = room.centre + room.half, cl = r - END_RESERVE / room.k, ar = r - ARROW_ROOM / room.k;
   return kupfferSpot(room.centre, SEED.nucDn, (x) => x <= r + XK_SPILL && (x + KUP_HALF + 0.5 <= cl || x - KUP_HALF >= ar));
 }
-/** How far past the room's far end (µm) the Kupffer cell's centre may stand: none, so a card there never covers its body. */
-export const XK_SPILL = 0;
+/** How far past the room's far end (µm) the Kupffer cell's centre may stand: its arms and a little of its body may stand past it, where the vessel carries on. */
+export const XK_SPILL = 3;
 /** What the central vein's name and arrow take of the room's far end (px): its widest name and the arrow; the arrow's own length (names.ts shifts the name and arrow left to clear a cell that stands beside them). */
 export const END_RESERVE = 190, ARROW_ROOM = 40;
 
