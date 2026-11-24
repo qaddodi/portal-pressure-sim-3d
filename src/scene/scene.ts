@@ -1224,6 +1224,8 @@ export class CelScene {
     if (this.leavingSet.has(o)) f = Math.min(f, this.lastFade);
     const id = this.fans.get(o);
     if (id !== undefined) f = Math.min(f, this.feeders.liveOf(id));
+    const ed = o.edge ? this.editorFades.get(o.edge.id) : undefined;   // (the anatomy editor's: the tubes it is redrawing as overlay lines)
+    if (ed !== undefined) f = Math.min(f, ed);
     return f;
   }
   /**
@@ -1707,6 +1709,14 @@ export class CelScene {
     this.moving = true; clock.invalidate('editor');
   }
   private editorOverlay: Object3D | null = null;
+  private readonly editorFades = new Map<string, number>();
+  /** The anatomy editor (?editor): these vessels' tubes are drawn at `f` (0..1) while it shows their edited centrelines over them; an empty list puts them back. */
+  setEditorFade(ids: readonly string[], f: number): void {
+    const was = [...this.editorFades].map(([k, v]) => `${k}:${v}`).join(), next = new Map(ids.map((id) => [id, f] as const));
+    if (was === [...next].map(([k, v]) => `${k}:${v}`).join()) return;
+    this.editorFades.clear(); for (const [k, v] of next) this.editorFades.set(k, v);
+    this.pushFades(); this.moving = true; clock.invalidate('editor');
+  }
   /** The body's frame (what the editor's picking and drag convert through). */
   get editorBody(): Object3D { return this.body; }
   /** Draws one of `inspectLayers` as a wireframe (every mesh under it; a part built later, a skin rebuilt, is taken up on the next frame). */

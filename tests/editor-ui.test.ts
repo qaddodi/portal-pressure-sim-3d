@@ -6,6 +6,7 @@ import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
 import type { Stroke } from '../src/editor/types.ts';
 import { strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
 import { dragDelta, ndcOf, nearest, nearestLine } from '../src/ui/debug/editor/picking.ts';
+import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
 import { LiveStrokes } from '../src/ui/debug/editor/strokes.ts';
 import { liveTransform } from '../src/ui/debug/editor/live.ts';
 import { pointAt } from '../src/ui/debug/editor/source.ts';
@@ -154,6 +155,22 @@ test('live: the organ transformed by the draft over its loaded edit equals the o
     assert.ok(Math.hypot(got[0]! - w.getX(i), got[1]! - w.getY(i), got[2]! - w.getZ(i)) < 1e-5);
   }
   assert.deepEqual(liveTransform(loadedE, loadedE, c), { position: [0, 0, 0], rotY: 0, scale: 1 });
+});
+
+test('live vessels: the centreline the editor draws is the one Save builds, and only for what changed', () => {
+  const sk = editableSkeleton(), node = sk.nodes.find((n) => n.arms.length >= 2 && n.arms.every((a) => liveCourses({ version: 1, nodes: { [n.id]: { dx: 9, dy: 0 } } }, EMPTY, sk.vessels).has(a.id)))!;
+  assert.ok(node, 'a node whose arms all have a plan course');
+  const now = setNode(EMPTY, node.id, { dx: 9, dy: -6, dz: 0.02 });
+  const live = liveCourses(now, EMPTY, sk.vessels);
+  assert.deepEqual([...live.keys()].sort(), sk.vessels.filter((v) => v.from === node.id || v.to === node.id).map((v) => v.id).filter((id) => live.has(id)).sort());
+  for (const arm of node.arms) {
+    const v = sk.vessels.find((q) => q.id === arm.id)!, c = live.get(arm.id)!, end = arm.end ? c[c.length - 1]! : c[0]!, was = v.course[arm.end ? v.course.length - 1 : 0]!;
+    assert.ok(Math.abs(end[0] - (was[0] + 9 / 300)) < 1e-6 && Math.abs(end[1] - (was[1] + 6 / 300)) < 1e-6 && Math.abs(end[2] - (was[2] + 0.02)) < 1e-6, `${arm.id} end`);
+  }
+  assert.equal(liveCourses(now, now, sk.vessels).size, 0, 'nothing differs from what was built: nothing is drawn');
+  assert.equal(liveCourses(EMPTY, EMPTY, sk.vessels).size, 0);
+  const d = dotted([[0, 0, 0], [0.1, 0, 0]], 0.01);
+  assert.ok(d.length >= 10 && d.length <= 12);
 });
 
 test('live liquify: strokes on the on-screen geometry equal the organ Save builds, incrementally and after an undo', () => {
