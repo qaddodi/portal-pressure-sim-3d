@@ -10,7 +10,7 @@ change is added here in the same push.
 | Never | Instead |
 |---|---|
 | A pill with a dot (`● Patent`), a status chip, a badge, a coloured dot before words | The state as plain words in its colour: "Patent" in `--ok`. A bar, a rule or the number itself carries the signal |
-| Rows of rounded tiles, segmented pill toggles, icon-per-item grids, three cards in a row | Ruled rows and typography; a choice is underlined words; an action is plain text or a real button |
+| Rows of rounded tiles, segmented pill toggles, icon-per-item grids, three cards in a row | Ruled rows and typography; a choice between words is told by weight or sits in one raised two-part control, never underlined (section 3); an action is plain text or a real button |
 | Hint popups, coach marks, "Tip:" bubbles (owner: "don't half-ass it with popups") | Make the control say what it does. Hover hints stay as they are; nothing new pops up to explain |
 | Anything that snaps, pops in, or steps colour | It glides or fades; colours blend as gradients (section 2) |
 | Selectable text, pinch zoom | Text is not selectable (inputs are); page zoom stays disabled |
@@ -28,7 +28,8 @@ Keep it, but never add new glass surfaces or glows beyond it.
 - Load the `human-designer` (and for words, `human-writer`) skill before any mock.
 - Check every mock against section 0 before sending. A mock with a dot-pill is a failed mock.
 - Mocks use the app's real tokens, fonts and colour functions, and are checked at 4x before they are sent.
-- Match 2D for layout, words, data and behaviour by default; depart only where it is clearly better, and say so.
+- An approved look is the spec: read its sheet in `docs/approved/` and build exactly it. The 2D app is no longer the reference (owner, 22 Nov).
+- Every option in a mock passes section 0 and the self-check in section 7 before the owner sees it. An option that breaks a rule is dropped, never offered and never recommended (owner, 24 Nov, on an underlined-tab option: "basically AI design and NOT humanized design").
 
 ## 2. Motion: everything eases
 
@@ -55,6 +56,7 @@ Keep it, but never add new glass surfaces or glows beyond it.
 - **Settings and editors are ruled sheets** (layout M1, owner 22 Nov): plain rows on hairlines (name left, value and small line right, a chevron), no tiles; a row opens in place with its controls indented under it, no band, no margin line, no
   underline. A choice between words is told by weight (the chosen word heavier and darker), never a pill, thumb or underline; Done and status are plain words. One shared editor (`src/ui/action/stent/`) serves every stent card;
   `.ac-seg` and the stent chart's switch carry the same choice look. Not a grid of toggles.
+- **A choice has two allowed looks, and no others without the owner's pick:** words told by weight (above), or one raised two-part control, as on the Over time side panel's "What to graph / What happened" (owner picked it 24 Nov, d118dc89). Never underlined tabs, underlined words or a pill with a sliding thumb.
 - Room first: the cards take their room and the camera frames the subject in what is left.
 - **The lens legend (key) stands where it reads best, and only when needed** (owner, 22 Nov: "just choose best location", "only use the lens legend when needed").
   It never floats over the figure between cards. A stream lens (Origin, First pass) names what the instrument card beside it counts, so its key is
@@ -79,11 +81,11 @@ Note timing follows length (about 250 ms a word, 3.2-10 s) and a note stays whil
 
 ## 5. The figure
 
-- **Cel shaded:** clear flat bands, bold ink outlines, flat light from the upper left. Organs keep their original look (3-tone organ bands were
+- **Cel shaded:** ink outlines and clean shapes with smooth shading, flat light from the upper left. Never visible tone steps, rings or terraces. Organs keep their original look (3-tone organ bands were
   tried and hated). The cirrhotic liver default is cel15: nodular outline, faint soft face, no drawn cells. Lobule fibrosis has no black ink.
-- **Flow marks are 2D's chevrons**, never bands or stripes: 130 px pitch, calm and laminar in healthy vessels, turbulence only past a real
+- **Flow marks are chevrons**, never bands or stripes: 130 px pitch, calm and laminar in healthy vessels, turbulence only past a real
   narrowing. Bile and lymph carry streaks in their own colours.
-- **Vessels like 2D:** connected, smooth tapers, proper junctions, no gaps, stubs, necks or flat ends. A vessel merging into a faded one fades
+- **Vessels:** connected, smooth tapers, proper junctions, no gaps, stubs, necks or flat ends. A vessel merging into a faded one fades
   on approach so both share the fade at the junction; open ends just fade, no cap.
 - **Highlight is a glow**, in the item's own colour, fading toward both ends. No thicker outline, no recolour.
 - **Devices are realistic, never cartoony**, and light, never dark-shaded: scopes slim, smooth, glossy black with fine white cm marks and a
@@ -106,8 +108,8 @@ Note timing follows length (about 250 ms a word, 3.2-10 s) and a note stays whil
 2. Does anything change in one frame? Make it ease.
 3. Read every on-screen line aloud: would a person say it, would an attending correct a word?
 4. Does colour carry a meaning, and is it backed by words or a shape?
-5. Would this pass for a page of a hand-drawn medical atlas next to the 2D app?
-6. Look at it yourself on `/preview/` in the built-in browser (never headless). Until it has been seen on screen, report it as "pushed, not yet seen".
+5. Would this pass for a page of a hand-drawn medical atlas?
+6. Check it from code and node (a render compared at 4x with the approved reference). No browser, built-in or headless, unless the owner asks. Until he has seen it, report it as "pushed, not yet seen".
 
 ## Known places that still break these rules (fix at the root when touched)
 
