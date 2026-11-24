@@ -92,3 +92,12 @@ test('the tiles\' rows (word, delta) are computed from the slide\'s data in the 
   assert.match(t, /<span className="pzt-r">\{t\.word\}<\/span>\s*\n\s*<span className="pzt-d">\{t\.delta\}<\/span>/, 'both rows are always the tile\'s own words, no blank row reserved');
   assert.match(t, /fit\(\);\s*\n\s*\/\/[^\n]*\n\s*let alive = true;\s*\n\s*if \(typeof document !== 'undefined' && document\.fonts && document\.fonts\.status !== 'loaded'\) void document\.fonts\.ready\.then\(\(\) => \{ if \(alive\) fit\(\); \}\)/);
 });
+
+test('the settle wait is declared before the gate that reads it (a use before its declaration is a ReferenceError at render: no card shows at all, 24 Nov)', () => {
+  const layer = read('src/ui/cards/CardLayer.tsx');
+  const decl = layer.indexOf('const settleLeft ='), use = layer.indexOf('const measured =');
+  assert.ok(decl > 0 && use > 0 && decl < use, 'settleLeft must be declared above `measured`');
+  // and a card is admitted whatever the fonts and the settle say once the give-up passes
+  assert.match(layer, /\(measured \|\| late === pagesKey\)/);
+  assert.match(layer, /clock\.after\(\(\) => setLate\(pagesKey\), GIVE_UP_CARDS_MS\)/);
+});

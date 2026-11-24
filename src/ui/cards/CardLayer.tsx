@@ -201,12 +201,12 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // holds a slide back for good: past GIVE_UP_CARDS_MS the cards come in as they are.
   const fonts = useFontsReady();
   const growing = ladBusy || fitBusy || (tooTall && pages < (view ? capOf(view) : 1)) || tightens;
-  // (and every chart in a card is drawn once at its box: `open` is how many are not, so a chart never reaches its size while its card slides in; the 320 ms give-up is the net)
-  const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig) && (hit(n.slot === 'words' ? wordsKey : dataKey)?.open ?? 0) === 0 && hit(n.slot === 'words' ? wordsKey : dataKey)?.f !== false && settleLeft <= 0) || (plan.docked && n.slot === 'data'));
   // (and its height has stood still for SETTLE_MS: a row or a readout that mounts in the frame after the first measure, from an effect or a second render, has come by then, so the card is let in at the height it keeps)
   const [, setTick] = useState(0);
   const settleLeft = needs.reduce((m, n) => { const e = hit(n.slot === 'words' ? wordsKey : dataKey); return e ? Math.max(m, SETTLE_MS - (clock.now() - e.t)) : m; }, 0);
   useEffect(() => { if (settleLeft <= 0) return; const t = clock.after(() => setTick((k) => k + 1), settleLeft + 1); return () => clock.cancel(t); }, [settleLeft, heights]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // (and every chart in a card is drawn once at its box: `open` is how many are not, so a chart never reaches its size while its card slides in; the 320 ms give-up is the net)
+  const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig) && (hit(n.slot === 'words' ? wordsKey : dataKey)?.open ?? 0) === 0 && hit(n.slot === 'words' ? wordsKey : dataKey)?.f !== false && settleLeft <= 0) || (plan.docked && n.slot === 'data'));
   const [late, setLate] = useState('');
   useEffect(() => { const t = clock.after(() => setLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey]);
   // (the instrument's numbers: a card with a chart waits for its slide's step from the second engine, and asks for it again if the first run failed)
