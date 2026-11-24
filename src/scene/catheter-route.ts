@@ -58,7 +58,7 @@ export function catheterRoute(): Vec3[] {
   return pts.filter((_, i) => i % 3 === 0 || i === pts.length - 1);
 }
 
-/** The placed anatomy (`?anatomy=new`): the HVPG route laid in 3D on the drawn courses (procedures/route-placed.ts), from the neck to where the tip wedges in the lower right hepatic branch, the shaft's
+/** The placed anatomy (`?anatomy=new`): the HVPG route laid in 3D on the drawn courses (procedures/route-placed.ts), from the neck to where the tip wedges in the main right hepatic vein, the shaft's
  *  own rounded path inside the lumen (route3d.ts), sampled about every 3.6 figure units. */
 function placedRoute(): Vec3[] {
   const r3 = route3d('hvpg')!, end = r3.route.free, n = Math.max(2, Math.ceil(end / 3.6) + 1), out: Vec3[] = [];

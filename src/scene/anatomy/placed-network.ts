@@ -29,8 +29,8 @@ export const WHOLE_PIECES: Readonly<Record<string, readonly string[]>> = {
 };
 /** The collaterals and shunts: their own ids are the placement's keys. */
 const OWN = ['C1a', 'C1b', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'EPI_SVC', 'EPI_ILI', 'TIPS', 'DIPS', 'S_PC', 'S_MC', 'S_DSR', 'REX'] as const;
-/** The draw-only branches on a host's end (no engine edge): the host's last (portal, `out`) or first (hepatic, `in`) piece, and which of the two runs on as the through branch (the straighter one; the HVPG wedge
- *  sits in rhvb, so it is the right hepatic vein's through branch, on the catheter's way). */
+/** The draw-only branches on a host's end (no engine edge): the host's last (portal, `out`) or first (hepatic, `in`) piece, and which of the two runs on as the through branch (the straighter one; the HVPG wedges
+ *  in the right hepatic vein's main trunk, short of the fork: Mohammad 24 Nov). */
 export const PLACED_BRANCHES: Readonly<Record<string, { whole: string; out: boolean; through: string; side: string }>> = {
   PVH_R_2: { whole: 'rpv', out: true, through: 'rpvp', side: 'rpva' },
   RHV_IVC_1: { whole: 'rhv', out: false, through: 'rhvb', side: 'rhva' },
