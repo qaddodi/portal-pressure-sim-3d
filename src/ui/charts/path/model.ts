@@ -276,8 +276,9 @@ export function pathLayout(ofIn: string, patientIn: any, W: number, o: PathOpts 
   y += L.footH;
   L.H = Math.ceil(y);
   // (the data card's real room asks for it, as 2D's tool-path.js layout does: the rows stand closer first, at full size; a card that has a real room never draws its words under 12 px,
-  // so what still stands past it gives way to the small map, whose own rows are tight too. A phone's small map keeps its rows: it is the figure's last form.)
-  if (o.room && o.room > 0 && L.H > o.room && (!compact || !phone)) {
+  // so what still stands past it gives way to the small map, whose own rows are tight too. A phone's small map is the last form but it draws tight rows too when the card has no room for the loose ones:
+  // it kept them before and stood 367 px against a room of about 250 (Treating the cause 7, capture 6ec6d323: the instrument stood over half the screen and left the figure a sliver).)
+  if (o.room && o.room > 0 && L.H > o.room) {
     if (!tight) return pathLayout(ofIn, patientIn, W, o, true, small);
     // (2D takes the small map whatever its height; here it is taken only where it is shorter, so the room never makes the picture stand further past it than the chart did)
     if (!compact) { const m = pathLayout(ofIn, patientIn, W, o, true, true); if (m.H < L.H) return m; }

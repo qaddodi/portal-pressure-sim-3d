@@ -212,3 +212,16 @@ test('the first-visit path on a phone keeps its verdict headline and drops the e
   const phone = pathFrame({ of: 'first-visit', patient, opts: { phone: true } }, ctxOf('dark', 392)).h;
   assert.ok(phone < tall - 40, `${phone} vs ${tall}`);
 });
+
+test('a phone\'s small map draws tight rows when the card has no room for the loose ones (Treating the cause 7, capture 6ec6d323: 367 px against a room of ~250 left the figure a sliver)', () => {
+  for (const id of ['stopcarv', 'bleed', 'ascites', 'gastric', 'secprop', 'pvtdur']) {
+    const p = patientOf(id, null, null);
+    for (const W of [320, 380]) {
+      const loose = pathLayout(id, p, W, { phone: true }), short = pathLayout(id, p, W, { phone: true, room: 200 }), roomy = pathLayout(id, p, W, { phone: true, room: loose.H + 40 });
+      assert.equal(loose.compact, true, `${id} ${W}: the phone's map`);
+      assert.equal(short.tight, true, `${id} ${W}: tight rows`);
+      assert.ok(short.H < loose.H - 20, `${id} ${W}: ${short.H} against ${loose.H}`);
+      assert.equal(roomy.H, loose.H, `${id} ${W}: a card with room keeps its loose rows`);
+    }
+  }
+});
