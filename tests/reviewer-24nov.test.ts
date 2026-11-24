@@ -129,3 +129,13 @@ test('A tree\'s root over the middle of an odd row of leaves draws no dot (PVT 3
   assert.equal(overLeaf(tree, tree), true); assert.equal(overLeaf(tree, { id: 'a' }), false);
   assert.equal(overLeaf({ id: 'r', kids: [{ id: 'a' }, { id: 'b' }] }, { id: 'r' }), false); void leaf;
 });
+
+test('a tile\'s status word is one short row under its value, and the README counts pictures and slides from the final list', async () => {
+  const { ratedShown } = await import('../src/ui/cards/tiles-2d.ts');
+  const w = ratedShown('ppg', { ppg: 9.1 } as never, true)[1];
+  assert.equal(w, 'Below 12 mmHg'); assert.ok(w.length <= 14, 'one row in a narrow tile');
+  const { countWords } = await import('../src/ui/capture/capture-model.ts');
+  assert.equal(countWords(53, 43, 10), '53 pictures of 43 slides in 10 talks'); assert.equal(countWords(1, 1, 1), '1 picture of 1 slide in 1 talk');
+  const { readFileSync } = await import('node:fs');
+  assert.match(readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8'), /files\.filter\(\(f\) => f\.name\.endsWith\('\.jpg'\)\)\.length, slidesSeen\.size/);
+});

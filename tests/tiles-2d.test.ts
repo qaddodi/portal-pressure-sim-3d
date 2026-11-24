@@ -23,7 +23,8 @@ function same(a: unknown, b: unknown, at: string): void {
     for (const k of Object.keys(a)) same((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], `${at}.${k}`);
     return;
   }
-  assert.deepEqual(a, b, at);
+  // (the one departure from 2D: the post-TIPS PPG word is "Below 12 mmHg", not "… reference", so it stays on one row of a narrow tile)
+  assert.deepEqual(a, typeof b === 'string' ? b.replace(/( 12 mmHg) reference$/, '$1') : b, at);
 }
 
 function check(d: CopiedDeck, results: { fp: Fp }[], where: string) {
@@ -90,7 +91,7 @@ test('a tile prints, rates and sits on its bar as the 2D tile does', () => {
   assert.equal(tileView('ppg', f).bar!.zones.map((z) => z.rate).join(), 'ok,mid,hi', 'PPG: 6 and 12');
   assert.deepEqual(tileView('ppg', f).bar!.labels.map((l) => l.text), ['6', '12']);
   assert.deepEqual(tileView('hvpg', f).bar!.labels.map((l) => l.text), ['5', '10']);
-  assert.equal(ratedShown('ppg', f, true)[1], 'Above 12 mmHg reference', 'after TIPS the PPG is read against the 12 line');
+  assert.equal(ratedShown('ppg', f, true)[1], 'Above 12 mmHg', 'after TIPS the PPG is read against the 12 line, in words short enough for one row of a narrow tile');
   const moved = tileView('hvpg', f, { ref: { hvpg: 7.4 } });
   assert.equal(moved.delta, 'from 7.4');
   assert.equal(tileView('hvpg', f, { ref: { hvpg: 11.12 } }).delta, 'No change');

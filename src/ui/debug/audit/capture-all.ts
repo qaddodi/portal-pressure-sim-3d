@@ -15,7 +15,7 @@ import { latest } from '../../../engine/index.ts';
 import { figureWaiting } from '../../deck/figure-pending.ts';
 import { drawScreen } from '../../capture/capture.ts';
 import { speedAnimations, sampleRealMs } from './speed.ts';
-import { collageLayout, slidesWord, sheetHeaderLines, slug, stampTime, deliverWay } from '../../capture/capture-model.ts';
+import { collageLayout, countWords, slidesWord, sheetHeaderLines, slug, stampTime, deliverWay } from '../../capture/capture-model.ts';
 import { isSideways } from '../../layout/rules2d.ts';
 import { lastPicked, stopKey, pickWords } from './capture-pick.ts';
 import { zipBlob, type ZipFile } from '../../capture/zip.ts';
@@ -138,6 +138,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   const put = (f: ZipFile): void => { const i = files.findIndex((x) => x.name === f.name); if (i >= 0) files[i] = f; else files.push(f); };
   let waitMs = 0, drawMs = 0, shape0 = { w: 0, h: 0 };
   const pick = ui.pick && ui.pick.size ? ui.pick : null;
+  const slidesSeen = new Set<string>();   // (the slides that have a picture: the README counts these and the pictures apart, a slide on a phone on its side has two)
   let total = pick ? pick.size : decks.reduce((n, d) => n + d.slides.length + 2, 0), done = 0, shots = 0, stopped = false, decksDone = 0;
   try {
     for (const [di, d] of decks.entries()) {
@@ -195,6 +196,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
           encoding.push(jpegP.then((data) => { if (data) put({ name: `${base}.jpg`, data }); }));
           put({ name: `${base}.json`, data: meta });
           thumbs.push({ n: view ? `${n} ${view}` : n, title, img: thumb }); pushed++;
+          slidesSeen.add(`${d.id}/${k}`);
           if (!single || fresh) shots++;
           return true;
         };
@@ -252,7 +254,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   }
   await Promise.all(encoding);
   const secs = Math.round((new Date().getTime() - t0) / 100) / 10;
-  files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x; the pictures are ${shape0.w}x${shape0.h} px`, `${shots} ${shots === 1 ? 'picture' : 'pictures'} in ${decksDone} ${decksDone === 1 ? 'talk' : 'talks'}${stopped ? ' (stopped early)' : ''}${pick ? ` (picked slides: ${pickWords([...pick])})` : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that slide, and the patient, the look, the lens and the view it was taken with).', 'On a phone on its side a slide with both cards has two pictures: -teaching (the words in view) and -instrument (the column swiped up). A random sample counts slides, not pictures.', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
+  files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x; the pictures are ${shape0.w}x${shape0.h} px`, countWords(files.filter((f) => f.name.endsWith('.jpg')).length, slidesSeen.size, decksDone)+`${stopped ? ' (stopped early)' : ''}${pick ? ` (picked slides: ${pickWords([...pick])})` : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that slide, and the patient, the look, the lens and the view it was taken with).', 'On a phone on its side a slide with both cards has two pictures: -teaching (the words in view) and -instrument (the column swiped up). A random sample counts slides, not pictures.', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
   const commit = commitOf(import.meta.env.VITE_BUILD) || 'local';
   const stamp = `${at.getFullYear()}${pad2(at.getMonth() + 1)}${pad2(at.getDate())}-${pad2(at.getHours())}${pad2(at.getMinutes())}${pad2(at.getSeconds())}`;
   return { files, secs, perSlide: { waitMs: shots ? Math.round(waitMs / shots) : 0, drawMs: shots ? Math.round(drawMs / shots) : 0 }, speed, zip: zipBlob(files, at), zipName: `portal-pressure-${ui.only ? slug(ui.only) : 'all-decks'}-${commit}-${stamp}.zip`, collages, shots, decks: decksDone, stopped, notes };

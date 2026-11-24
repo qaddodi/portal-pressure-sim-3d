@@ -129,6 +129,9 @@ export function collageLayout(count: number, shot: { w: number; h: number }): { 
 /** "1 slide", "3 slides": a count with its noun in the right number. */
 export const slidesWord = (n: number): string => `${n} ${n === 1 ? 'slide' : 'slides'}`;
 
+/** The README's totals, from the final image list: "53 pictures of 43 slides in 10 talks" (a slide on a phone on its side has two pictures, so the two numbers differ). */
+export const countWords = (images: number, slides: number, talks: number): string => `${images} ${images === 1 ? 'picture' : 'pictures'} of ${slidesWord(slides)} in ${talks} ${talks === 1 ? 'talk' : 'talks'}`;
+
 /** The contact sheet's header as one or two lines that stay inside `maxW` (a long talk title wraps at a space instead of running off the right edge; a single word too long for a line is cut with an ellipsis). `width` measures a string. */
 export function sheetHeaderLines(text: string, maxW: number, width: (s: string) => number): string[] {
   if (width(text) <= maxW) return [text];

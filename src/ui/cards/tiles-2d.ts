@@ -53,9 +53,9 @@ export function tileVal(k: string, v: number | null | undefined, f: Fp | null = 
   return T?.bp ? bpText(f?.sbp, f?.dbp, v) : fmt(v * (T?.x ?? 1), T?.d ?? 1);
 }
 
-/** The rating of a tile's number as printed (presenter-cards.js ratedShown): the word judges the number the tile shows; after TIPS the PPG is read against its 12 mmHg reference line. */
+/** The rating of a tile's number as printed (presenter-cards.js ratedShown): the word judges the number the tile shows; after TIPS the PPG is read against its 12 mmHg line, in the short words ("Below 12 mmHg": the long "… reference" wrapped to a second row and stood over the value in a narrow tile, TIPS follow-up 25). */
 export function ratedShown(k: string, f: Fp, tips = false): [string | null, string] {
-  const rated = (g: Fp): [string | null, string] => (tips && k === 'ppg' && g.ppg != null ? tipsGoal(g.ppg) : rateOf(k, g)) as [string | null, string];
+  const rated = (g: Fp): [string | null, string] => (tips && k === 'ppg' && g.ppg != null ? tipsGoal(g.ppg, true) : rateOf(k, g)) as [string | null, string];
   return f[k] != null ? rated({ ...f, [k]: tileShown(k, f[k]) }) : rated(f);
 }
 
