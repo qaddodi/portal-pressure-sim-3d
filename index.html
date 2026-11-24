@@ -114,12 +114,12 @@
     #boot .boot-bar b { transform: scaleX(var(--p, 0)); transition: transform 600ms cubic-bezier(.2,.8,.2,1); }
     /* the stage and the percent under the bar (splash style D, 22 Nov): the stage in words on the left, the percent on the right in tabular digits, in the cover's own tokens */
     #boot .boot-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 6px; height: 16px; font: 400 12px/16px var(--ui, system-ui, -apple-system, "Segoe UI", Arial, sans-serif); opacity: 0; animation: boot-bar-in 240ms ease forwards; }
-    #boot .boot-stage { display: grid; color: var(--bt3); white-space: nowrap; }
+    #boot .boot-stage { display: grid; color: var(--bt3); white-space: nowrap; overflow: clip; padding: 3px 0; margin: -3px 0; }
     #boot .boot-stage > span { grid-area: 1 / 1; }
-    #boot .boot-stage > .o { animation: boot-stage-out 160ms ease forwards; }
-    #boot .boot-stage > .n { animation: boot-stage-in 200ms ease 140ms backwards; }
-    @keyframes boot-stage-out { to { opacity: 0; } }
-    @keyframes boot-stage-in { from { opacity: 0; } }
+    #boot .boot-stage > .o { animation: boot-stage-out 380ms cubic-bezier(.5,0,.2,1) forwards; }
+    #boot .boot-stage > .n { animation: boot-stage-in 380ms cubic-bezier(.5,0,.2,1) backwards; }
+    @keyframes boot-stage-out { to { transform: translateY(-115%); opacity: 0; } }
+    @keyframes boot-stage-in { from { transform: translateY(115%); opacity: 0; } }
     #boot .boot-pct { color: var(--bt); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; min-width: 3.4ch; text-align: right; opacity: 0; transition: opacity 200ms ease; }
     #boot[data-det] .boot-pct { opacity: 1; }
     #boot .boot-msg { max-width: min(520px, calc(100vw - 32px)); margin: auto 16px; padding: 22px 24px; border-radius: 14px; background: color-mix(in srgb, var(--bt) 8%, var(--bg, #fff)); color: var(--bt); box-shadow: 0 6px 30px rgba(0,0,0,.12); font: 400 15px/1.5 var(--ui, system-ui, -apple-system, "Segoe UI", Arial, sans-serif); text-align: left; animation: boot-msg-in 240ms cubic-bezier(.2,.8,.2,1) both; }
