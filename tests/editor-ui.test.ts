@@ -191,3 +191,14 @@ test('handles are easy to grab: touch radius at least 22 px and larger than the 
   assert.ok(hitRadius(false) >= 22 && hitRadius(true) > hitRadius(false));
   assert.ok(dotSize(9, true) > dotSize(9, false));
 });
+
+test('a drag on a side view moves the handle in depth, and a lock keeps one axis', () => {
+  const cam = new PerspectiveCamera(30, 1, 0.1, 100); cam.position.set(5, 0, 0); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();   // looking along -x: the screen plane is y-z
+  const w = dragDelta(cam, new Vector3(0, 0, 0), ndcOf(500, 500, 1000, 1000), ndcOf(600, 450, 1000, 1000));
+  assert.ok(Math.abs(w.z) > 0.05 && Math.abs(w.x) < 1e-9, 'the pointer moved along z and y, not x');
+  const free = dragToOffsets({ dx: 0, dy: 0, dz: 0 }, w);
+  assert.ok(Math.abs(free.dz - w.z) < 1e-9 && Math.abs(free.dy + w.y * 300) < 1e-9);
+  assert.deepEqual(dragToOffsets({ dx: 0, dy: 0, dz: 0 }, w, 'z'), { dx: 0, dy: 0, dz: free.dz });
+  assert.equal(dragToOffsets({ dx: 0, dy: 0, dz: 0 }, w, 'y').dz, 0);
+  assert.equal(dragToOffsets({ dx: 0, dy: 0, dz: 0.29 }, { x: 0, y: 0, z: 1 }).dz, 0.3, 'depth is held to its limit');
+});

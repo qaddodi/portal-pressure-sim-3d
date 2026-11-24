@@ -117,9 +117,14 @@ export class History {
   redo(): boolean { const f = this.future.pop(); if (!f) return false; this.past.push(this.now); this.now = f; return true; }
 }
 
-/** A drag's body-frame movement (scene units) added to an offset: x and y become plan units (y down), depth stays what the slider set. This is what vessel-apply.ts reads. */
-export function dragToOffsets(start: { dx: number; dy: number; dz: number }, d: { x: number; y: number }): { dx: number; dy: number; dz: number } {
-  return { dx: start.dx + d.x * PLAN_PER_SCENE, dy: start.dy - d.y * PLAN_PER_SCENE, dz: start.dz };
+export type Lock = 'free' | 'x' | 'y' | 'z';
+export const DZ_LIMIT = 0.3;   // scene units: the most a handle may be pulled in depth
+/** A drag's body-frame movement (scene units) added to an offset, on all three axes: x and y become plan units (y down), z stays scene units (the depth offset). `lock` keeps one axis only.
+ *  Root cause of the old "works only facing the front": z was dropped, so on a side or top view the pointer's movement along the depth axis was lost. */
+export function dragToOffsets(start: { dx: number; dy: number; dz: number }, d: { x: number; y: number; z?: number }, lock: Lock = 'free'): { dx: number; dy: number; dz: number } {
+  const keep = (a: 'x' | 'y' | 'z'): boolean => lock === 'free' || lock === a;
+  const z = Math.min(DZ_LIMIT, Math.max(-DZ_LIMIT, start.dz + (keep('z') ? d.z ?? 0 : 0)));
+  return { dx: start.dx + (keep('x') ? d.x : 0) * PLAN_PER_SCENE, dy: start.dy - (keep('y') ? d.y : 0) * PLAN_PER_SCENE, dz: z };
 }
 /** A point as built (the organ with the edit it was loaded with) back to the organ's reference frame, which is the frame a stroke is written in (organ-apply.ts: strokes first, then scale, turn about Y, move, all about the centroid). */
 export function toReference(p: V3, loadedEdit: OrganEdit | undefined, centroid: V3): V3 {

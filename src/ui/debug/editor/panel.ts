@@ -18,7 +18,7 @@ import { clock } from '../../../clock/frame.ts';
 import { Overlay } from './overlay.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine } from './picking.ts';
 import { skeleton, organIds, pointAt, centroidOf, type Skeleton } from './source.ts';
-import { History, PLAN_PER_SCENE, dragToOffsets, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
+import { History, PLAN_PER_SCENE, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
 
 type Mode = 'orbit' | 'vessels' | 'organs';
 type Target = { kind: 'node'; id: string } | { kind: 'ctrl'; vid: string; u: number };
@@ -36,7 +36,7 @@ export function mountEditor(): void {
   const overlay = new Overlay();
   let mode: Mode = 'orbit', tool: 'move' | 'cage' | 'liquify' = 'cage';
   let target: Target | null = null, selVessel: string | null = null, selOrgan: string | null = organIds()[0] ?? null;
-  let radius = 0.08, strength = 0.5;
+  let radius = 0.08, strength = 0.5, lock: Lock = 'free';
   let msg = '';
 
   const css = document.createElement('style');
@@ -210,6 +210,7 @@ export function mountEditor(): void {
           ? { get: () => nodeOf(hist.now, t.id), put: (m) => edit(setNode(hist.now, t.id, m)) }
           : { get: () => controlOf(hist.now, t.vid, t.u), put: (m) => edit(setControl(hist.now, t.vid, t.u, m)) };
       };
+      dyn.append(bar((['free', 'x', 'y', 'z'] as const).map((l) => ({ label: l === 'free' ? 'Free drag' : `Lock ${l.toUpperCase()}`, on: () => lock === l, run: () => { lock = l; } }))));
       const which = el('div', { className: 'hint' });
       syncers.push(() => { which.textContent = !target ? 'Nothing picked.' : target.kind === 'node' ? `Junction ${target.id}` : `${target.vid} at ${Math.round(target.u * 100)}%`; });
       dyn.append(which);
@@ -352,7 +353,7 @@ export function mountEditor(): void {
       if (!drag.marked) { hist.mark(); drag.marked = true; }
       const w = dragDelta(cel.rig.camera, drag.through, drag.from, ndc);
       const d = toLocal(drag.through.clone().add(w)).sub(toLocal(drag.through));
-      const m = dragToOffsets(drag.start, d);
+      const m = dragToOffsets(drag.start, d, lock);
       edit(drag.t.kind === 'node' ? setNode(hist.now, drag.t.id, m) : setControl(hist.now, drag.t.vid, drag.t.u, m));
     } else if (drag.kind === 'cage') {
       if (!drag.marked) { hist.mark(); drag.marked = true; }
