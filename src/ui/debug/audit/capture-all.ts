@@ -32,6 +32,8 @@ export interface AllResult { /** every file of the zip (name and bytes), for a p
 const sleep = (ms: number) => new Promise<void>((ok) => clock.after(ok, ms));
 const until = async (cond: () => boolean, ms: number) => { const t = clock.now(); while (!cond() && clock.now() - t < ms) await sleep(50); };
 const talkUp = () => talkOn() && useUi.getState().stops.length > 0 && !!document.querySelector('.dk-card[data-phase="in"]');
+/** The cards standing now (not leaving), by id: a Next has reached the screen when this changes or a card starts to leave. */
+const cardIds = (): string => [...document.querySelectorAll('.dk-card[data-card]:not([data-phase="out"])')].map((e) => e.getAttribute('data-card')).sort().join(',');
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const blobOf = (c: HTMLCanvasElement, type: string, q?: number) => new Promise<Blob | null>((ok) => c.toBlob(ok, type, q));
 const bytesOf = async (b: Blob) => new Uint8Array(await b.arrayBuffer());
@@ -158,15 +160,17 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       const entry = liveCatalog().find((e) => e.id === `slide:${d.id}:0`);
       if (!entry) { notes.push(`talk ${d.id} is not in the catalog`); continue; }
       ui.status(`${d.title}: opening`);
+      clock.setDrawing(true);   // (skip mode holds the draw back between slides: a talk always opens with it on)
       await openEntry(entry);
       await until(talkUp, 25000);
+      if (!talkUp()) { notes.push(`${d.title}: the talk did not open the first time; opened again`); if (talkOn()) leaveTalk(); await sleep(real(200)); await openEntry(entry); await until(talkUp, 25000); }
       const stops = useUi.getState().stops.length;
       if (!stops) { notes.push(`${d.title}: the talk did not open (no stops after 25 s)`); continue; }
       total = growCaptureTotal(total, stops, single);   // (the talk's stops are a floor: the steps within them add more as they are met)
       const dir = `${pad2(di + 1)}-${d.id}`, thumbs: { n: string; title: string; img: HTMLCanvasElement }[] = [];
       let shape = { w: innerWidth, h: innerHeight };
       // one picture of what stands now: the talk's own position says which (stop, then the step within it: the case card, each beat, each page, each procedure step and reading)
-      let sub = 0, lastStop = -1, presses = 0, shownNow = '', inStop = 0, inStopAt = -1, lastThumbs = 0;
+      let prevIds = '', sub = 0, lastStop = -1, presses = 0, shownNow = '', inStop = 0, inStopAt = -1, lastThumbs = 0;
       const grab = async (): Promise<void> => {
         const p = useUi.getState().pos, k = p.stop;
         const fresh = k !== lastStop;   // (the first picture of this slide)
@@ -182,12 +186,13 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         if (single && fresh) reached++;
         ui.status(single ? `${reached} of ${pick!.size}: ${d.title} “${title}”` : `${d.title}: ${n} of ${stops} “${title}”`);
         const w0 = new Date().getTime();
+        if (ui.skip && fresh && prevIds) await until(() => cardIds() !== prevIds || !!document.querySelector('.dk-card[data-phase="out"]'), real(1200));   // (skip mode: the press has reached the screen before anything is judged still; else the slide before reads as settled)
         let { moving, words, perpetual } = await stillPage(real, blockedSlide(k), !!ui.skip);
         // (a picture whose figure, strip or menu has not reached the slide's own state shows the case wrong, whatever the cards say: it waits up to a minute more, and if it still has not, the README says the picture FAILED, so it is retaken, never read: One patient, ten years 9, reviewer 24 Nov 2026)
         for (let tries = 0; moving && STATE_WAIT.test(moving) && tries < 11; tries++) ({ moving, words, perpetual } = await stillPage(real, blockedSlide(k), !!ui.skip));
         if (moving) notes.push(STATE_WAIT.test(moving) ? `${d.title} ${n}: CAPTURE FAILED, the picture does not show the slide's own state (${moving}); retake it` : `${d.title} ${n}: still not still after 5 s (${moving}); captured as it was`);
-        shownNow = words;
-        if (ui.skip) { clock.setDrawing(true); await sleep(real(34)); }   // (the landed slide is drawn, a frame or two, before the picture)
+        shownNow = words; prevIds = cardIds();
+        if (ui.skip) { let drawn = 0; const offR = clock.on('render', () => { drawn++; }); clock.setDrawing(true); await until(() => drawn >= 1, real(2000)); offR(); }   // (the landed slide is drawn, a frame or two, before the picture)
         if (perpetual && !seen.has(perpetual)) { seen.add(perpetual); notes.push(`${d.title} ${n}: ${perpetual}; the picture was taken anyway`); }
         // a phone on its side with both cards (the words and the instrument stand in one column that a swipe up slides): two pictures of the slide, the teaching card in view, then the column slid up so the instrument is
         const both = isSideways(innerWidth, innerHeight) && !!useUi.getState().boxes.data && !!useUi.getState().boxes.words;
