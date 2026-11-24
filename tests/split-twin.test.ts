@@ -59,7 +59,8 @@ test('the turn goes toward the patient\'s left, then the other way, then home', 
 });
 
 test('the split is off unless asked for, and every slide it names is in the HVPG deck', () => {
-  assert.equal(splitOf('hvpg', 'presin'), null, 'off without ?split');
+  assert.ok(splitOf('hvpg', 'presin'), 'on by default');
+  assert.equal(splitOf('hvpg', 'route'), null);
   for (const id of splitDecks()) assert.equal(id, HVPG_DECK.id);
   for (const id of ['presin', 'heart']) assert.ok(HVPG_DECK.slides.some((s) => s.id === id), id);
 });
