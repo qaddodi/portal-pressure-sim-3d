@@ -9,6 +9,7 @@ import { commitOf } from '../../../boot/release.ts';
 import type { CaptureMsg } from './capture-child.ts';
 import { readBox } from '../../layout-snap.ts';
 import { clock } from '../../../clock/frame.ts';
+import { saveFiles } from '../../capture/save-files.ts';
 
 /** The address of the app in a capture frame: the same path with the capture flags (and none of the self-test's). */
 export function captureSrc(pathname: string, search: string, o: { speed: number; pick: string[] | null; decks: string[] | null }): string {
@@ -33,7 +34,7 @@ export function addCaptureControls(k: OuterKit): void {
   let stop = false, zip: { blob: Blob; name: string } | null = null;
   const go = b('Capture', () => { void run(); });
   const stopBtn = b('Stop', () => { stop = true; status.textContent = 'Stopping: the frame finishes its slide, then what is done is kept.'; });
-  const save = b('Save zip', () => { if (zip) void import('./capture-all.ts').then((m) => m.saveFiles([new File([zip!.blob], zip!.name, { type: 'application/zip' })])); });
+  const save = b('Save zip', () => { if (zip) void saveFiles([new File([zip.blob], zip.name, { type: 'application/zip' })]); });
   save.hidden = true;
   wrap.append(picker.el, go, stopBtn, save); bar.append(wrap);
 

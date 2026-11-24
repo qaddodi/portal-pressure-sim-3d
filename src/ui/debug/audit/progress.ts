@@ -30,3 +30,6 @@ export function combine(sizes: number, per: ReadonlyMap<string, { n: number; tot
 
 /** Whether the sequential pass (Next and Back one press at a time) runs: `sequence=1` or `0` says so, otherwise Full does and Quick does not. */
 export const sequenceOn = (v: string | null | undefined, depth: 'quick' | 'full'): boolean => (v === '1' ? true : v === '0' ? false : depth === 'full');
+
+/** The capture's total when a talk opens with `stops` stops. A random sample is a fixed count (the slides picked, one step each): the talk's other slides are walked past, not counted. A whole-talk run grows by the talk's stops. (Root cause of "step 5 of about 76" on a 5-slide sample: the stops were added to a sample's total too.) */
+export const growCaptureTotal = (total: number, stops: number, sample: boolean): number => (sample ? total : total + stops);

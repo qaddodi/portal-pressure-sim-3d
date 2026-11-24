@@ -17,9 +17,10 @@ import { beatCardWaiting } from '../../tests/slide/beat-agree.ts';
 import { menuWaiting } from '../../charts/menu/MenuCard.tsx';
 import { drawScreen } from '../../capture/capture.ts';
 import { speedAnimations, sampleRealMs } from './speed.ts';
-import { collageLayout, countWords, slidesWord, sheetHeaderLines, slug, stampTime, deliverWay } from '../../capture/capture-model.ts';
+import { collageLayout, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
 import { isSideways } from '../../layout/rules2d.ts';
 import { lastPicked, stopKey, pickWords } from './capture-pick.ts';
+import { growCaptureTotal } from './progress.ts';
 import { zipBlob, type ZipFile } from '../../capture/zip.ts';
 import { feedbackBuild, commitOf } from '../../../boot/release.ts';
 
@@ -158,7 +159,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       await until(talkUp, 25000);
       const stops = useUi.getState().stops.length;
       if (!stops) { notes.push(`${d.title}: the talk did not open (no stops after 25 s)`); continue; }
-      total += stops;   // (the talk's stops are a floor: the steps within them add more as they are met)
+      total = growCaptureTotal(total, stops, single);   // (the talk's stops are a floor: the steps within them add more as they are met)
       const dir = `${pad2(di + 1)}-${d.id}`, thumbs: { n: string; title: string; img: HTMLCanvasElement }[] = [];
       let shape = { w: innerWidth, h: innerHeight };
       // one picture of what stands now: the talk's own position says which (stop, then the step within it: the case card, each beat, each page, each procedure step and reading)
@@ -268,17 +269,4 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   return { files, secs, perSlide: { waitMs: shots ? Math.round(waitMs / shots) : 0, drawMs: shots ? Math.round(drawMs / shots) : 0 }, speed, zip: zipBlob(files, at), zipName: `portal-pressure-${ui.only ? slug(ui.only) : 'all-decks'}-${commit}-${stamp}.zip`, collages, shots, decks: decksDone, stopped, notes };
 }
 
-/** Hands a file over: the share sheet on a touch device that takes files, otherwise a download. Must be called from a tap (the share sheet asks for one). Resolves false when the person closed the sheet. */
-export async function saveFiles(files: File[]): Promise<boolean> {
-  const way = deliverWay({ touchPoints: navigator.maxTouchPoints || 0, canShareFiles: !!navigator.canShare?.({ files }) });
-  if (way === 'share') {
-    try { await navigator.share({ files }); return true; } catch (e) { if ((e as { name?: string })?.name === 'AbortError') return false; }
-  }
-  for (const f of files) {
-    const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name;
-    document.body.appendChild(a); a.click(); a.remove();
-    clock.after(() => URL.revokeObjectURL(a.href), 20000);
-    if (files.length > 1) await sleep(250);
-  }
-  return true;
-}
+export { saveFiles } from '../../capture/save-files.ts';

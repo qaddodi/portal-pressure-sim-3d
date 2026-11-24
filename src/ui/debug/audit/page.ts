@@ -16,6 +16,7 @@ import type { SequenceProof } from './sequence.ts';
 import { speedOf } from './speed.ts';
 import { SPEEDS } from './outer.ts';
 import { pickerUi } from './capture-pick.ts';
+import { saveFiles } from '../../capture/save-files.ts';
 
 import { clock } from '../../../clock/frame.ts';
 export type Msg = { audit: 'hello' } | { audit: 'progress'; n: number; label: string; total?: number } | { audit: 'partial'; data: AuditData } | { audit: 'done'; data: AuditData } | { audit: 'failed'; why: string };
@@ -114,7 +115,7 @@ export function mountAudit(mode: 'here' | 'run'): void {
       saveRow.hidden = false;
     } catch (e) { status.textContent = `Capture failed: ${String((e as Error)?.message ?? e)}`; } finally { running = false; capStop.hidden = true; }
   };
-  const saveBtn = (label: string, files: () => File[] | null) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = () => { const f = files(); if (f) void import('./capture-all.ts').then((m) => m.saveFiles(f)); }; saveRow.append(b); };
+  const saveBtn = (label: string, files: () => File[] | null) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = () => { const f = files(); if (f) void saveFiles(f); }; saveRow.append(b); };
   saveBtn('Save zip', () => (cap ? [new File([cap.zip], cap.zipName, { type: 'application/zip' })] : null));
   saveBtn('Share contact sheets', () => (cap && cap.collages.length ? cap.collages.map((c) => new File([c.blob], c.name, { type: 'image/png' })) : null));
   if (mode === 'here') { btn('Capture', () => { void goCapture(); }); }

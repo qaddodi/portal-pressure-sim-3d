@@ -6,7 +6,7 @@ import { createClock } from '../src/clock/frame.ts';
 import { fadeEpisodes, fadeFindings, stallWindows } from '../src/ui/debug/audit/judge.ts';
 import { judgeStep, runAudit, type Reads, type Step } from '../src/ui/debug/audit/run.ts';
 import { renderText, groupFindings, lags, transitionOf, type Bundle, type RowGpu } from '../src/ui/debug/audit/report.ts';
-import { estimateSteps, pace, combine } from '../src/ui/debug/audit/progress.ts';
+import { estimateSteps, pace, combine, growCaptureTotal } from '../src/ui/debug/audit/progress.ts';
 import { addressFor, childSrc, SPEEDS } from '../src/ui/debug/audit/outer.ts';
 import { describeEl } from '../src/ui/debug/audit/scan.ts';
 import { speedOf, sampleRealMs, scaledDelay, speedAnimations, MAX_SPEED } from '../src/ui/debug/audit/speed.ts';
@@ -229,4 +229,10 @@ test('walk every press: on for Full, off for Quick, the person can flip it, the 
   assert.equal(addressFor('?audit', { sizes: ['mac'], depth: 'quick', speed: 1, noglass: false, parallel: false, sequence: true }), '?audit&sizes=mac&depth=quick&sequence=1');
   assert.equal(childSrc('/p/', '?audit&sequence=0', 'full', { sequence: true }), '/p/?audit=run&depth=full&sequence=1');
   assert.equal(childSrc('/p/', '?audit', 'full'), '/p/?audit=run&depth=full');
+});
+
+test('capture progress: a random sample of 5 stays "of 5" however many stops its talks have; a whole-talk run grows by the stops', () => {
+  let t = 5; for (const stops of [14, 30, 29]) t = growCaptureTotal(t, stops, true);
+  assert.equal(t, 5); assert.match(pace(3, t, 0, 60000).text, /^step 3 of about 5 · 60% · about 40 s left/);
+  assert.equal(growCaptureTotal(20, 14, false), 34);
 });
