@@ -34,6 +34,8 @@ export function ScopeView({ square, opt, slide }: { square: number; opt: EndoOpt
   const pin = slide ? pinnedVarix() : null, pinRef = useRef(pin); pinRef.current = pin;
   const json = useEngine((s) => { void s.frames; return JSON.stringify(readingsOf(latest.frame, opt, slide ? pinnedVarix() : null)); });
   const r = useMemo(() => (json && json !== 'null' ? JSON.parse(json) as NonNullable<ReturnType<typeof readingsOf>> : null), [json]);
+  // (the readings column stands from the first render, its numbers as dashes until the model has a varix to read: a column that came in with the first frame grew the card on screen, 24 Nov)
+  const rd: NonNullable<ReturnType<typeof readingsOf>> = r ?? { present: false, grade: '—', sev: 'ok', diam: '—', wall: '—', red: W.red.none, redOn: false, bands: 0, pressures: ['—', '—', '—'], label: '' };
   const optRef = useRef(opt); optRef.current = opt;
   const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null);
   const field = useRef(new FieldMotion()), over = useRef(new OverlayMotion());
@@ -95,14 +97,14 @@ export function ScopeView({ square, opt, slide }: { square: number; opt: EndoOpt
         <span className="endo-pos">{W.position}</span>
       </div>
       <div className="chart-side">
-        {r && (
+        {(
           <dl className="endo-read">
-            <div className="endo-chip" data-on={r.bands !== 0}><dt>{W.tiles.bands}<span className="endo-dt-x">{W.tiles.bandsX}</span></dt><dd className="endo-chip-v">{r.bands}</dd></div>
-            <div className="endo-g" title={W.gradeTip}><dt>{W.tiles.grade}</dt><dd className="endo-grade" data-sev={r.sev}><b /><span>{r.grade}</span></dd></div>
-            <div className="endo-tile"><dt>{W.tiles.diameter}</dt><dd className="endo-num">{r.diam}</dd></div>
-            <div className="endo-tile"><dt>{W.tiles.wall}<span className="endo-dt-x">{W.tiles.wallX}</span></dt><dd className="endo-num">{r.wall}</dd></div>
-            {opt.readings && W.pressures.map((p, i) => <div key={p.name} className="endo-tile endo-pr" title={p.title}><dt>{p.name}</dt><dd className="endo-num">{r.pressures[i]}</dd></div>)}
-            <div className="endo-chip endo-red" data-on={r.redOn} title={W.redTip}><dt>{W.tiles.stigmata}</dt><dd className="endo-chip-v" data-long={r.redOn ? '' : undefined}><span>{r.redOn ? W.red.word : W.red.none}</span><span className="endo-more">{r.redOn ? W.red.more : ''}</span></dd></div>
+            <div className="endo-chip" data-on={rd.bands !== 0}><dt>{W.tiles.bands}<span className="endo-dt-x">{W.tiles.bandsX}</span></dt><dd className="endo-chip-v">{rd.bands}</dd></div>
+            <div className="endo-g" title={W.gradeTip}><dt>{W.tiles.grade}</dt><dd className="endo-grade" data-sev={rd.sev}><b /><span>{rd.grade}</span></dd></div>
+            <div className="endo-tile"><dt>{W.tiles.diameter}</dt><dd className="endo-num">{rd.diam}</dd></div>
+            <div className="endo-tile"><dt>{W.tiles.wall}<span className="endo-dt-x">{W.tiles.wallX}</span></dt><dd className="endo-num">{rd.wall}</dd></div>
+            {opt.readings && W.pressures.map((p, i) => <div key={p.name} className="endo-tile endo-pr" title={p.title}><dt>{p.name}</dt><dd className="endo-num">{rd.pressures[i]}</dd></div>)}
+            <div className="endo-chip endo-red" data-on={rd.redOn} title={W.redTip}><dt>{W.tiles.stigmata}</dt><dd className="endo-chip-v" data-long={rd.redOn ? '' : undefined}><span>{rd.redOn ? W.red.word : W.red.none}</span><span className="endo-more">{rd.redOn ? W.red.more : ''}</span></dd></div>
           </dl>
         )}
         <button type="button" className="btn primary" disabled={!present} title={present ? '' : W.noBand} onClick={() => { appEnv.action({ kind: 'band' }); }}>

@@ -78,3 +78,10 @@ test('the instrument panes render their final content on the first paint (audit 
   const load = read('src/ui/talk/tool-card-load.ts');
   for (const pane of ['DopplerPane', 'FibroPane', 'EndoPane']) assert.match(load, new RegExp(`import\\('\\.\\./tests/\\w+/${pane}\\.tsx'\\)`), `${pane} is read in with the charts`);
 });
+
+test('the Endo readings column and the beat card\'s status word stand from the first render', () => {
+  const endo = read('src/ui/tests/endo/EndoPane.tsx');
+  assert.doesNotMatch(endo, /\{r && \(\s*\n\s*<dl className="endo-read">/, 'the readings wait for the model: the card grows when they come');
+  assert.match(endo, /const rd: NonNullable<ReturnType<typeof readingsOf>> = r \?\? \{/);
+  assert.match(read('src/ui/css3d-over-2d.css'), /\[data-kind="beats"\] \.pt-sev \{ min-height: 1\.3em; \}/);
+});

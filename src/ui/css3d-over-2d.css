@@ -241,3 +241,6 @@ html:root :where(.pz-lapse, .tl-speed, .stage-clock, .fps-counter, .tr-pips, .pz
 
 /* The criteria card's "This case" readings are proportional ("82 ×1 0³/µL", capture 2c00c0ce, Pregnancy 7): named, stacked and important so no tabular rule on the row outranks the universal one. */
 .deck-ui.deck-ui .pz-crit .pzc-end.pzc-end, .deck-ui.deck-ui .pz-crit .pzc-end.pzc-end * { font-variant-numeric: lining-nums proportional-nums !important; }
+
+/* The beat card's status word holds its line before the word arrives (the pinned state comes a frame after the card): the card never grows by it (24 Nov). */
+.pz-tool[data-kind="beats"] .pt-sev { min-height: 1.3em; }
