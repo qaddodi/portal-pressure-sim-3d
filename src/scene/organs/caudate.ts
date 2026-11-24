@@ -5,6 +5,8 @@
 import { BufferGeometry, Float32BufferAttribute, Uint16BufferAttribute } from 'three';
 import { x3, y3 } from '../frame2d.ts';
 import { ORGAN_Z } from './z.ts';
+import { overrides } from '../../editor/store.ts';
+import { applyOrganEdit, organCentroid, organCentroids } from '../../editor/organ-apply.ts';
 
 /** anatomy.js CAUDATE.outline: the lobe at its normal size as one smooth closed curve (the convex hull of its two ellipses). */
 export const CAUDATE_OUTLINE = 'M573.0 401.0 C571.7 395.7 573.1 389.5 573.2 383.7 C573.3 377.9 573.3 372.2 573.4 366.4 C573.5 360.6 573.4 354.9 573.6 349.1 C573.7 343.3 573.7 337.5 574.4 331.8 C575.0 326.1 575.6 320.1 577.4 314.8 C579.3 309.5 581.9 301.5 585.6 299.9 C589.4 298.2 596.3 301.5 599.9 304.9 C603.6 308.3 605.4 315.1 607.3 320.5 C609.2 325.9 610.4 331.6 611.5 337.3 C612.6 342.9 613.3 348.7 613.8 354.4 C614.3 360.2 614.5 365.9 614.4 371.7 C614.2 377.5 614.0 383.3 613.1 388.9 C612.2 394.6 611.6 400.9 609.1 405.7 C606.5 410.6 602.7 416.2 598.0 417.9 C593.3 419.5 585.1 418.3 581.0 415.4 C576.8 412.6 574.3 406.3 573.0 401.0 Z';
@@ -53,7 +55,7 @@ const resample = (p: readonly P2[], n: number): P2[] => {
 
 const N = 72, K = 8;
 /** The lobe as a closed pillow in the organs' frame (X=(x-700)/300, Y=-(y-556)/300): 2D's outline from the front, a dome in front of the liver's face and its mirror behind, the rim between them one ring (so the outline smoothing and the cel's ink see a closed surface like every other organ). */
-export function caudateGeometry(): BufferGeometry {
+function buildCaudate(): BufferGeometry {
   const ring = resample(flattenPath(CAUDATE_OUTLINE), N);
   let cx = 0, cy = 0; for (const [x, y] of ring) { cx += x; cy += y; } cx /= N; cy /= N;
   const pos: number[] = [], idx: number[] = [];
@@ -94,3 +96,10 @@ export function caudateGeometry(): BufferGeometry {
 export const caudateAnchor3 = (): [number, number] => [x3(CAUDATE_ANCHOR[0]), y3(CAUDATE_ANCHOR[1])];
 /** The lobe's scale at growth `k` (0 normal to 1 fully grown): 2D's `scale(1 + grow * k)` about the anchor. */
 export const caudateScale = (k: number): [number, number] => [1 + CAUDATE_GROW[0] * k, 1 + CAUDATE_GROW[1] * k];
+
+/** The lobe, with the anatomy editor's edit for it when the overrides name one (the live path; the baked file holds the lobe as made here without one and meshes.ts edits that). */
+export function caudateGeometry(): BufferGeometry {
+  const g = buildCaudate(), origin = [0, 0, ORGAN_Z.caudate ?? 0] as const;
+  organCentroids.caudate ??= organCentroid(g, origin);
+  return applyOrganEdit(g, overrides().organs?.caudate, { origin, centroid: organCentroids.caudate });
+}

@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ORGAN_MESHES, ORGAN_IDS, setOrganData } from '../src/scene/organs/meshes.ts';
 import { applyOrganEdit, organCentroid, wendland } from '../src/editor/organ-apply.ts';
+import { caudateGeometry } from '../src/scene/organs/caudate.ts';
+import { setOverridesForTest, overrides } from '../src/editor/store.ts';
+import { editableOrgans } from '../src/scene/organs/meshes.ts';
 import { LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
 
 const bin = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
@@ -72,4 +75,18 @@ test('a local stroke moves only vertices inside its radius, and exact welds move
     (groups.get(k) ?? groups.set(k, new Set()).get(k)!).add(`${p[i]},${p[i + 1]},${p[i + 2]}`);
   }
   for (const s of groups.values()) assert.equal(s.size, 1);
+});
+
+test('the caudate (built from the 2D outline) takes its edit; empty overrides give identical buffers', () => {
+  const was = overrides();
+  try {
+    setOverridesForTest({ version: 1 });
+    const ref = pos(caudateGeometry());
+    assert.deepEqual(pos(caudateGeometry()), ref);
+    assert.ok(editableOrgans().some((o) => o.id === 'caudate'));
+    setOverridesForTest({ version: 1, organs: { caudate: { move: [0.05, 0, 0], strokes: [{ at: [0, 0, 0], radius: 5, by: [9, 9, 9] }] } } });
+    const p = pos(caudateGeometry());
+    assert.notDeepEqual(p, ref);
+    for (const v of p) assert.ok(Number.isFinite(v));
+  } finally { setOverridesForTest(was); }
 });

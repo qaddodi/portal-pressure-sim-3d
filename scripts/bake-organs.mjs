@@ -20,6 +20,7 @@ if (process.argv.includes('--check')) {
   console.log(ok ? `organs-baked.bin is for ${digest}` : `organs-baked.bin is missing or not for ${digest}`);
   process.exit(ok ? 0 : 1);
 }
+(await import('../src/editor/store.ts')).setOverridesForTest({ version: 1 });   // (the baked file is the organs as the organs file has them: the editor's edits are applied on load, never baked in)
 const { setOrganData, ORGAN_MESHES } = await import('../src/scene/organs/meshes.ts');
 const { caudateGeometry } = await import('../src/scene/organs/caudate.ts');
 const { prepareOrgans } = await import('../src/scene/organs/prepare.ts');

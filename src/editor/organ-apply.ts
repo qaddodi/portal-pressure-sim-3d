@@ -95,3 +95,6 @@ export function organPointMap(edit: OrganEdit | undefined, centroid: V3): ((p: V
     return [c[0] + rx * cs + rz * sn + e.move[0], c[1] + ry + e.move[1], c[2] - rx * sn + rz * cs + e.move[2]];
   };
 }
+
+/** Each organ's reference centre (scene units, before any edit), noted by the places that make the organs; the UI lists them (meshes.ts editableOrgans). */
+export const organCentroids: Record<string, V3> = {};

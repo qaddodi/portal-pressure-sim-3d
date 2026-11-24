@@ -7,7 +7,7 @@ import manifest from './organs-manifest.json' with { type: 'json' };
 import { decodeOrgans, type BakedOrgans } from './baked.ts';
 import { spanAsync } from '../../boot/spans.ts';
 import { overrides } from '../../editor/store.ts';
-import { applyOrganEdit, organCentroid } from '../../editor/organ-apply.ts';
+import { applyOrganEdit, organCentroid, organCentroids as centroids } from '../../editor/organ-apply.ts';
 import type { V3 } from '../../editor/types.ts';
 import { ORGAN_Z } from './z.ts';
 
@@ -39,7 +39,6 @@ export function setBakedOrgans(b: BakedOrgans): void {
 }
 
 // The anatomy editor (src/editor/organ-apply.ts): an organ's edit in overrides.json (or the preview's draft) is applied once, where the geometry is made, so every consumer sees one organ.
-const centroids: Record<string, V3> = {};
 const zOf = (id: string): V3 => [0, 0, ORGAN_Z[id] ?? 0];
 /** A raw (file-frame, before the depth shift) organ with its edit; it turns about the finished organ's centre when that is known. */
 function editedRaw(id: string, g: BufferGeometry): BufferGeometry {
