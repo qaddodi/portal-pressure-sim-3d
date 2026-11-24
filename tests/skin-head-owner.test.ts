@@ -54,10 +54,9 @@ test('?joins=noheads still removes the heads from a skin', () => {
 
 test('a head is whole or gone: its owner share is sharpened (the two arms still sum to 1) and its lateral gate closes at the head\'s own reach (smeared blobs in a fork\'s crotch, 21 Nov)', async () => {
   const m = await import('../src/scene/vessels/skin/shaders.ts');
-  assert.ok(m.SKIN_HEAD_OWN_FROM < 0.5 && m.SKIN_HEAD_OWN_TO === 1 - m.SKIN_HEAD_OWN_FROM, 'symmetric about one half, so two arms\' shares sum to 1');
   assert.ok(m.SKIN_HEAD_GATE_TO <= 1.0 && m.SKIN_HEAD_GATE_TO < m.SKIN_HEAD_LAT_FROM, 'no head past the wall of its own cylinder');
   const main = body(m.SKIN_FS, 'void main(');
-  assert.match(main, /smoothstep\([0-9.]+, [0-9.]+, skinOwner\(i, seamP/);
+  assert.match(main, /max\(skinOwner\(i, seamP/);
 });
 
 // Mohammad, 24 Nov: "chevrons hide under the joins, in every lens". Rendered (software GL, Pressure lens, the portal confluence): with the skins on, the heads along the bent trunks were pale ghosts; with ?joins=old they were whole.
@@ -78,10 +77,11 @@ test('a head centred on the tube\'s side of the seam is finished by the skin who
   const m = await import('../src/scene/vessels/skin/shaders.ts');
   const main = body(m.SKIN_FS, 'void main(');
   assert.match(main, /float aIn = \(chevCentreArc - armArc\[i\]\.x\) \* armArc\[i\]\.y \/ max\(rOwn, 1e-4\);/);
-  assert.match(main, /float ownH = max\(step\(0\.5, smoothstep\([0-9.]+, [0-9.]+, skinOwner\(/);
+  assert.match(main, /float ownH = max\(skinOwner\(/);
   assert.match(main, /, tubeSide\);/);
   assert.ok(m.SKIN_HEAD_TUBE_SIDE > 0 && m.SKIN_HEAD_TUBE_SIDE <= 1.0, 'the tube\'s side ends where a head\'s tail stops reaching the tube (about 0.7 radii past the seam): further in, two arms\' heads would pile up at a node');
-  assert.ok(m.SKIN_HEAD_TIE < m.SKIN_HEAD_WIN && m.SKIN_HEAD_WIN <= 0.15, 'the band where no arm wins a head is narrow: a ghost lives only there');
+  assert.ok(m.SKIN_HEAD_TIE < m.SKIN_HEAD_WIN && m.SKIN_HEAD_WIN >= 0.3, 'ownership eases over a wide band (a head fades over travel, never pops)');
+  assert.ok(!/step\(0\.5, smoothstep/.test(main) && !/ownH = max\(step\(/.test(main), 'no hard cut of a head\'s ownership: it flickered at every join');
 });
 
 // Mohammad, 24 Nov: a pale head on the portal vein under the hepatic artery's leader (render, arm-coloured: drawn by the arm that owns the place, faded by the wall rule). Numbers: the skin's radius at a pixel (vR) blends the arms'

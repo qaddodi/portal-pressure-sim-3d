@@ -76,8 +76,10 @@ export const SKIN_HEAD_LAT_TO = 1.7;
 /** The band about a tie of two arms' shares over which a head's ownership passes from one arm to the other (a head is whole to the winner everywhere else). */
 /** A head whose centre is less than this many of the arm's radii past its seam (or anywhere on the tube's side) is the tube's, and the skin finishes it whole. */
 export const SKIN_HEAD_TUBE_SIDE = 0.8;
-export const SKIN_HEAD_TIE = 0.04, SKIN_HEAD_WIN = 0.12;
-export const SKIN_HEAD_OWN_FROM = 0.3, SKIN_HEAD_OWN_TO = 0.7, SKIN_HEAD_GATE_FROM = 0.75, SKIN_HEAD_GATE_TO = 1.0;
+/** FLICKER AT JOINS (Mohammad, 24 Nov: chevrons flicker as they move toward or through joins). Root cause: a head's ownership was cut by step(0.5, ...) of a share that eased over only 0.04..0.12 of the arms' weights (a few px of travel), so a whole
+ *  head went from full to nothing between two frames as its centre crossed the line; with heads streaming that is a pop per head per pass. Ownership now eases over a wide band (TIE..WIN) so a head fades out on one arm and in on the next over a quarter second or so. */
+export const SKIN_HEAD_TIE = 0.04, SKIN_HEAD_WIN = 0.4;
+export const SKIN_HEAD_GATE_FROM = 0.75, SKIN_HEAD_GATE_TO = 1.0;
 
 /** The weighted sum of a per-arm float uniform array over all the arms (`wAt` and `wAtF` read the two weight attributes). */
 const BLEND = (name: string, w = 'wAt', comp = ''): string => Array.from({ length: SKIN_ARMS }, (_, i) => `${w}(${i}) * ${name}[${i}]${comp}`).join(' + ');
@@ -612,8 +614,8 @@ void main() {
           // under the join (Mohammad, 24 Nov, the left gastric vein's mouth, the portal vein under the bifurcation). Further in, the skin owns it whole by the winner rule, and the tube has no pixel of it.
           float aIn = (chevCentreArc - armArc[i].x) * armArc[i].y / max(rOwn, 1e-4);
           float tubeSide = 1.0 - smoothstep(${F(SKIN_HEAD_TUBE_SIDE - 0.2)}, ${F(SKIN_HEAD_TUBE_SIDE + 0.2)}, aIn);
-          float ownH = max(step(0.5, smoothstep(${F(SKIN_HEAD_OWN_FROM)}, ${F(SKIN_HEAD_OWN_TO)}, skinOwner(i, seamP + tJA[i] * ((chevCentreArc - armArc[i].x) / (armArc[i].y * SKIN_U)), kPx))), tubeSide);
-          hI *= gate * ownH;   // (a head is whole or not this arm's: the owner share is cut at one half, so the centre of a node, where the arms tie, shows no faint head)
+          float ownH = max(skinOwner(i, seamP + tJA[i] * ((chevCentreArc - armArc[i].x) / (armArc[i].y * SKIN_U)), kPx), tubeSide);
+          hI *= gate * ownH;   // (the owner share eases in and out as the head's centre travels: never a cut, so a head never pops at a join)
         }
         else hI = vec4(0.0);
       }
