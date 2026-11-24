@@ -7,6 +7,7 @@ import type { Stroke } from '../src/editor/types.ts';
 import { strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine } from '../src/ui/debug/editor/picking.ts';
 import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
+import { EXPORT_REMIND_MS, exportReminder, noteExported, persistHistory, restorableHistory, clearHistory, type StorageLike } from '../src/ui/debug/editor/session.ts';
 import { LiveStrokes } from '../src/ui/debug/editor/strokes.ts';
 import { liveTransform } from '../src/ui/debug/editor/live.ts';
 import { pointAt } from '../src/ui/debug/editor/source.ts';
@@ -201,4 +202,37 @@ test('a drag on a side view moves the handle in depth, and a lock keeps one axis
   assert.deepEqual(dragToOffsets({ dx: 0, dy: 0, dz: 0 }, w, 'z'), { dx: 0, dy: 0, dz: free.dz });
   assert.equal(dragToOffsets({ dx: 0, dy: 0, dz: 0 }, w, 'y').dz, 0);
   assert.equal(dragToOffsets({ dx: 0, dy: 0, dz: 0.29 }, { x: 0, y: 0, z: 1 }).dz, 0.3, 'depth is held to its limit');
+});
+
+const memory = (): StorageLike & { map: Map<string, string> } => { const map = new Map<string, string>(); return { map, getItem: (k) => map.get(k) ?? null, setItem: (k, v) => { map.set(k, v); }, removeItem: (k) => { map.delete(k); } }; };
+
+test('autosave: the undo history survives a reload, after a Save and after a crash, and only for the page it belongs to', () => {
+  const st = memory();
+  const h = new History(EMPTY);
+  h.commit(setNode(h.now, 'A', { dx: 1, dy: 1 })); h.commit(setNode(h.now, 'B', { dx: 2, dy: 2 }));
+  persistHistory(st, EMPTY, h, 1000);
+  const crash = restorableHistory(st, EMPTY)!;   // (the page was built with EMPTY: unsaved work recovered)
+  assert.ok(crash && isEmpty(crash.past[0]!) && nodeOf(crash.now, 'B').dx === 2);
+  const h2 = new History(EMPTY); h2.restore(crash); assert.equal(h2.undo(), true); assert.equal(nodeOf(h2.now, 'B').dx, 0); assert.equal(h2.canRedo, true);
+  assert.ok(restorableHistory(st, h.now), 'after a Save the page is built with the draft: the history goes on');
+  assert.equal(restorableHistory(st, setNode(EMPTY, 'Z', { dx: 5, dy: 5 })), null, 'another page: not offered');
+  clearHistory(st); assert.equal(restorableHistory(st, EMPTY), null);
+  st.setItem('pps3d.editor.history.v1', '{nonsense'); assert.equal(restorableHistory(st, EMPTY), null);
+});
+
+test('export reminder: said when the edits exist only in this browser, quiet after an Export', () => {
+  const st = memory(), now = setNode(EMPTY, 'A', { dx: 1, dy: 1 });
+  assert.equal(exportReminder(st, EMPTY, EMPTY, 0), null, 'nothing to keep');
+  assert.match(exportReminder(st, now, EMPTY, 0)!, /only in this browser/);
+  noteExported(st, now, 1000);
+  assert.equal(exportReminder(st, now, EMPTY, 1000 + EXPORT_REMIND_MS * 2), null, 'exported and unchanged since');
+  const later = setNode(now, 'B', { dx: 1, dy: 1 });
+  assert.equal(exportReminder(st, later, EMPTY, 2000), null, 'just changed: not yet');
+  assert.match(exportReminder(st, later, EMPTY, 1000 + EXPORT_REMIND_MS + 1)!, /Changed since the last Export/);
+});
+
+test('import: an exported file reads back to the same overrides, and a bad file is refused', () => {
+  const o = setOrgan(setControl(setNode(EMPTY, 'N', { dx: 3, dy: -4, dz: 0.01 }), 'V', 0.4, { dx: 1, dy: 2 }), 'liver', { rotY: 0.1 });
+  assert.deepEqual(parseOverrides(exportText(o)), tidy(o));
+  assert.equal(parseOverrides(''), null); assert.equal(parseOverrides('[]'), null); assert.equal(parseOverrides('{"version":9}'), null);
 });

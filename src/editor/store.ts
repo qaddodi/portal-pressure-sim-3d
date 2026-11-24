@@ -17,6 +17,8 @@ function load(): Overrides {
   const c = committed as Overrides;
   return c?.version === 1 ? c : EMPTY;
 }
+/** The committed file's overrides (never the draft): what the live site is built with. */
+export const committedOverrides = (): Overrides => { const c = committed as Overrides; return c?.version === 1 ? c : EMPTY; };
 let current: Overrides = load();
 /** The overrides this page was built with. */
 export const overrides = (): Overrides => current;

@@ -111,6 +111,10 @@ export class History {
   }
   /** Starts an undo step now. */
   mark(): void { this.past.push(this.now); if (this.past.length > 200) this.past.shift(); this.future = []; }
+  get pastList(): readonly Overrides[] { return this.past; }
+  get futureList(): readonly Overrides[] { return this.future; }
+  /** Takes a saved history (session.ts) back. */
+  restore(p: { now: Overrides; past: readonly Overrides[]; future: readonly Overrides[] }): void { this.now = p.now; this.past = [...p.past]; this.future = [...p.future]; }
   get canUndo(): boolean { return this.past.length > 0; }
   get canRedo(): boolean { return this.future.length > 0; }
   undo(): boolean { const p = this.past.pop(); if (!p) return false; this.future.push(this.now); this.now = p; return true; }

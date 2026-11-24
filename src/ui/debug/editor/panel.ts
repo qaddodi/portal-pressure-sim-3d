@@ -8,17 +8,18 @@ import { Box3, Raycaster, Vector2, Vector3, type Object3D } from 'three';
 import { cel } from '../../../scene/api.ts';
 import { frameFor } from '../../../clock/frame.ts';
 import { readBox, readMetric } from '../../layout-snap.ts';
-import { clearDraft, overrides, saveDraft } from '../../../editor/store.ts';
+import { clearDraft, committedOverrides, overrides, saveDraft } from '../../../editor/store.ts';
 import { CAGE_LIMIT, ORGAN_LIMITS, type Cage, type Stroke, type V3 } from '../../../editor/types.ts';
 import { cageBox, cageRest, organBox, organBoxes, organPointMap } from '../../../editor/organ-apply.ts';
 import { liveTransform } from './live.ts';
 import { endVesselPreview, previewVesselEdits, setVesselPreviewHost } from '../../../scene/vessels/edit-preview.ts';
 import { LiveStrokes } from './strokes.ts';
 import { clock } from '../../../clock/frame.ts';
+import { clearHistory, exportReminder, noteExported, persistHistory, restorableHistory, type StorageLike } from './session.ts';
 import { Overlay } from './overlay.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine } from './picking.ts';
 import { skeleton, organIds, pointAt, centroidOf, type Skeleton } from './source.ts';
-import { History, PLAN_PER_SCENE, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
+import { History, PLAN_PER_SCENE, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
 
 type Mode = 'orbit' | 'vessels' | 'organs';
 type Target = { kind: 'node'; id: string } | { kind: 'ctrl'; vid: string; u: number };
@@ -31,13 +32,16 @@ const loaded = overrides();   // the overrides this page was built with: handles
 export function mountEditor(): void {
   if (document.getElementById('editor-panel')) return;
   const hist = new History(loaded);
+  const store = ((): StorageLike | null => { try { return localStorage; } catch { return null; } })();
+  const recovered = store ? restorableHistory(store, loaded) : null;
+  if (recovered) hist.restore(recovered);
   const sk: Skeleton = skeleton();
   const nodeById = new Map(sk.nodes.map((n) => [n.id, { id: n.id, at: n.pos, arms: n.arms }])), vesselById = new Map(sk.vessels.map((v) => [v.id, v]));
   const overlay = new Overlay();
   let mode: Mode = 'orbit', tool: 'move' | 'cage' | 'liquify' = 'cage';
   let target: Target | null = null, selVessel: string | null = null, selOrgan: string | null = organIds()[0] ?? null;
   let radius = 0.08, strength = 0.5, lock: Lock = 'free';
-  let msg = '';
+  let msg = recovered && exportText(recovered.now) !== exportText(loaded) ? 'Recovered your unsaved edits from this browser.' : '';
 
   const css = document.createElement('style');
   css.textContent = `
@@ -244,12 +248,16 @@ export function mountEditor(): void {
     cel.rig.setInspect(true);
     buildDyn();
   };
+  let autosavePending = false;
+  const flushHistory = (): void => { autosavePending = false; if (store) persistHistory(store, loaded, hist, clock.now()); };
   const dirty = (): boolean => exportText(hist.now) !== exportText(loaded);
   const sync = (): void => {
     for (const f of syncers) f();
     status.textContent = `${dirty() ? 'Unsaved edits' : 'No edits since the last Save'} · ${Object.keys(hist.now.nodes ?? {}).length} junctions, ${Object.keys(hist.now.vessels ?? {}).length} vessels, ${Object.keys(hist.now.organs ?? {}).length} organs`;
     undoB.disabled = !hist.canUndo; redoB.disabled = !hist.canRedo;
-    msgEl.textContent = msg; refreshOverlay();
+    const remind = store ? exportReminder(store, hist.now, committedOverrides(), clock.now()) : null;
+    msgEl.textContent = [msg, remind].filter(Boolean).join(' '); refreshOverlay();
+    if (store && !autosavePending) { autosavePending = true; clock.after(flushHistory, 800, 'editor-autosave'); }   // (a moment after the last edit, not per move)
   };
 
   const modeBtns = (['orbit', 'vessels', 'organs'] as const).map((m) => { const b = el('button', { textContent: { orbit: 'Orbit', vessels: 'Vessels', organs: 'Organs' }[m] }); b.onclick = () => setMode(m); topbar.append(b); return [m, b] as const; });
@@ -262,13 +270,27 @@ export function mountEditor(): void {
   const exp = el('button', { textContent: 'Export' });
   exp.onclick = () => {
     const text = exportText(hist.now);
+    if (store) { noteExported(store, hist.now, clock.now()); sync(); }
     void navigator.clipboard?.writeText(text).then(() => say('Copied to the clipboard and downloaded.'), () => say('Downloaded (the clipboard was refused).'));
     const a = el('a', { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: 'overrides.json' }); a.click(); URL.revokeObjectURL(a.href);
   };
-  const save = el('button', { textContent: 'Save' }); save.onclick = () => saveDraft(hist.now);
+  const save = el('button', { textContent: 'Save' }); save.onclick = () => { flushHistory(); saveDraft(hist.now); };
   const panelB = el('button', { textContent: 'Panel' }); panelB.onclick = () => { box.style.display = box.style.display === 'none' ? 'block' : 'none'; panelB.classList.toggle('on', box.style.display !== 'none'); }; panelB.classList.add('on');
   const clear = el('button', { textContent: 'Clear draft' });
-  clear.onclick = () => { if (confirm('Throw away the saved draft and reload?')) { clearDraft(); location.reload(); } };
+  clear.onclick = () => { if (confirm('Throw away the saved draft and reload?')) { clearDraft(); if (store) clearHistory(store); location.reload(); } };
+  const paste = el('textarea', { placeholder: 'Paste an overrides file here, then Import', rows: 3 });
+  paste.style.cssText = 'width:100%;box-sizing:border-box;font:11px ui-monospace,Menlo,monospace;color:#fff;background:#fff2;border:1px solid #fff6;border-radius:6px;padding:6px';
+  const importText = (text: string, from: string): void => {
+    const o = parseOverrides(text);
+    if (!o) { say(`${from} is not an overrides file (version 1 JSON).`); sync(); return; }
+    hist.commit(o); say(`Imported ${from}: ${Object.keys(o.nodes ?? {}).length} junctions, ${Object.keys(o.vessels ?? {}).length} vessels, ${Object.keys(o.organs ?? {}).length} organs. Undo takes it back.`); sync();
+  };
+  const imp = el('button', { textContent: 'Import pasted' }); imp.onclick = () => importText(paste.value, 'the pasted text');
+  const pick = el('input', { type: 'file', accept: 'application/json,.json' }); pick.style.display = 'none';
+  pick.onchange = () => { const f = pick.files?.[0]; if (f) void f.text().then((t) => importText(t, f.name)); pick.value = ''; };
+  const impFile = el('button', { textContent: 'Import file' }); impFile.onclick = () => pick.click();
+  file.append(imp, impFile, pick);
+  more.append(paste);
   file.append(exp, clear);
   more.append(file);
   topbar.append(el('span', { className: 'gap' }), undoB, redoB, save, panelB);
