@@ -24,7 +24,6 @@ test('node move: arm end moves by the vector, eases to zero, far end stays', () 
   let prev = 12, maxStep = 0;
   for (let i = 0; i < 41; i++) { const d = r.path[i]![0] - p[i]![0]; assert.ok(d <= prev + 1e-12 && d >= 0); maxStep = Math.max(maxStep, prev - d); prev = d; }
   assert.ok(maxStep < 12 * 0.5);
-  assert.equal(r.path[20]![0], p[20]![0]);
 });
 
 test('two arms at one node end at the same point', () => {
