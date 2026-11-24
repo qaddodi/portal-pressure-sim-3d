@@ -29,9 +29,11 @@ export function driftEase(u: number, ramp = 0.2): number {
   return v * (u - ramp / 2);
 }
 
-let skipper: (() => boolean) | null = null;
+let skipper: ((() => boolean) & { can?: () => boolean }) | null = null;
 /** The lapse player sets what Next does while days run (and clears it when they are done or the slide is left). */
-export function setLapseSkip(fn: (() => boolean) | null): void { skipper = fn; }
+export function setLapseSkip(fn: ((() => boolean) & { can?: () => boolean }) | null): void { skipper = fn; }
+/** Whether `lapseNext()` would run the days out (a Next, or a swipe, is a step of this slide), nothing changed. */
+export const lapseCanSkip = (): boolean => !!skipper?.can?.();
 
 /**
  * Next, asked of a lapse first. True when days were running and Next has run them to their end (the slide stays: the figure and the counter land on the lapse's end, easing the

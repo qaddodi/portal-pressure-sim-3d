@@ -113,7 +113,7 @@ export function playLapse(key: string, s: CopiedSlide, start: unknown, end: unkn
   }
   const r: Run = { days, secs, ramp: s.ramp ?? null, bedside, end, push, landed, phase: 'settle', pace: null, endAt: 0 };
   run = r;
-  setLapseSkip(skip);   // (the days are set up first: a Next meanwhile moves on, see skip)
+  setLapseSkip(Object.assign(skip, { can: () => !!run && run.phase !== 'settle' && run.phase !== 'fast' && run.phase !== 'landing' }));   // (the days are set up first: a Next meanwhile moves on, see skip)
   // (`settled`: the figure was eased to the start at the press and the slide has landed since: the days begin at once, no second settle)
   if (start && !settled) send({ type: 'morph', snap: start, ms: SETTLE_MS });
   after(start && !settled ? SETTLE_MS : 0, () => begin(r, false));
