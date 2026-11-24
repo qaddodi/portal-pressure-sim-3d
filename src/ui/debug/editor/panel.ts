@@ -20,6 +20,11 @@ import { clock } from '../../../clock/frame.ts';
 import { buildCommit, VIEW_KEY, clearHistory, loadView, saveView, exportReminder, noteExported, persistHistory, restorableHistory, type StorageLike } from './session.ts';
 import { knownIds, orphanCount, orphanText, orphansOf, withoutOrphans } from './orphans.ts';
 import { Overlay } from './overlay.ts';
+import { mirrorId, mirrorOffset } from './mirror.ts';
+import { slidesTouching, stopOf, type Touch } from './slides.ts';
+import { builtinDecks, lazyDecks } from '../../../decks/registry.ts';
+import { loadDeck } from '../../deck/deck-of.ts';
+import { startTalk } from '../../shell/talk.ts';
 import { zoomPan, pinchView, type HandView, dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from './picking.ts';
 import { NETWORK_BY_ID } from '../../../scene/vessels/network.ts';
 import { skeleton, organIds, pointAt, uAtIndex, centroidOf, type Skeleton } from './source.ts';
@@ -251,6 +256,13 @@ export function mountEditor(): void {
         const base = nodeById.get(target.id)!.at, to = nodeShown(o), cur = nodeOf(hist.now, target.id);
         hist.commit(setNode(hist.now, target.id, snapOffsets(base, to, cur, plane, depth))); say(`${plane ? 'Snapped' : 'Matched depth'} to junction ${o}.`);
       };
+      const vesselExists = (id: string): boolean => vesselById.has(id), nodeExists = (id: string): boolean => nodeById.has(id);
+      const partner = (): string | null => (target?.kind === 'node' ? mirrorId(target.id, nodeExists) : target?.kind === 'ctrl' ? mirrorId(target.vid, vesselExists) : null);
+      dyn.append(bar([{ label: 'Mirror to the other side', off: () => !partner(), run: () => {
+        const p = partner(); if (!p || !target) return;
+        hist.commit(target.kind === 'node' ? setNode(hist.now, p, mirrorOffset(nodeOf(hist.now, target.id))) : setControl(hist.now, p, target.u, mirrorOffset(controlOf(hist.now, target.vid, target.u)), true));
+        say(`Mirrored to ${p} (across the body's midline; check its direction).`);
+      } }]));
       dyn.append(bar([{ label: 'Snap to nearest junction', off: () => target?.kind !== 'node', run: () => joinTo(true, true) }, { label: 'Match its depth', off: () => target?.kind !== 'node', run: () => joinTo(false, true) }]));
       dyn.append(bar([{ label: 'All', on: () => system === 'all', run: () => { system = 'all'; } }, { label: 'Portal', on: () => system === 'portal', run: () => { system = 'portal'; } }, { label: 'Venous', on: () => system === 'venous', run: () => { system = 'venous'; } }, { label: 'Arterial', on: () => system === 'arterial', run: () => { system = 'arterial'; } },
         { label: 'Solo vessel', on: () => solo, run: () => { solo = !solo; } }]));
@@ -386,6 +398,36 @@ export function mountEditor(): void {
   };
   more.addEventListener('toggle', refreshDiff);
   more.append(el('div', { className: 'bar' }, [holdB]), diffBox);
+  // Slides: which ones an edit touches, a jump list, and Go to any slide (the editor steps aside, as in Play slides)
+  const slideBox = el('div', { className: 'diff' });
+  const play = (deck: string, slide: number): void => { setPlaying(true); startTalk(deck, stopOf(slide)); };
+  const editedPoints = (): V3[] => {
+    const pts: V3[] = [];
+    for (const it of diffList(hist.now, loaded.snapshots ? core(loaded) : loaded).concat(diffList(hist.now, committedOverrides()))) {
+      if (it.kind === 'node') { const n = nodeById.get(it.id); if (n) pts.push(n.at); } else if (it.kind === 'vessel') { const v = vesselById.get(it.id); if (v) pts.push(...v.course); } else { const b = organBoxes[it.id], c = centroidOf(it.id); pts.push(c); if (b) pts.push(b.lo, b.hi, [b.lo[0], b.hi[1], c[2]], [b.hi[0], b.lo[1], c[2]]); }
+    }
+    return pts;
+  };
+  const findSlides = el('button', { textContent: 'Slides this edit touches' });
+  findSlides.onclick = () => {
+    const pts = editedPoints(); if (!pts.length) { slideBox.replaceChildren(el('div', { className: 'hint', textContent: 'No edits yet.' })); return; }
+    const ids = [...new Set([...builtinDecks().map((d) => d.id), ...lazyDecks().map((d) => d.id)])], found: Touch[] = [];
+    const show = (state: string): void => slideBox.replaceChildren(el('div', { className: 'hint', textContent: state }), ...found.slice(0, 80).map((t) => {
+      const b = el('button', { textContent: 'Play' }); b.onclick = () => play(t.deck, t.slide);
+      return el('div', { className: 'row' }, [el('label', { textContent: `${t.deckTitle}, slide ${t.slide + 1}: ${t.title}` }), b]);
+    }));
+    void (async () => {
+      for (const [i, id] of ids.entries()) {
+        show(`Reading talks ${i}/${ids.length}: ${found.length} slides so far`);
+        try { const d = await loadDeck(id); if (d) found.push(...slidesTouching(d, pts)); } catch { /* a talk that cannot be read is skipped */ }
+      }
+      show(found.length ? `${found.length} slides show something you edited${found.length > 80 ? ' (first 80)' : ''}:` : 'No slide frames what you edited.');
+    })();
+  };
+  const goDeck = el('select'); for (const id of new Set([...builtinDecks().map((d) => d.id), ...lazyDecks().map((d) => d.id)])) goDeck.append(el('option', { value: id, textContent: id }));
+  const goNum = el('input', { type: 'number', min: '1', value: '1' }); goNum.style.cssText = 'width:56px;font:11px ui-monospace,Menlo,monospace;color:#fff;background:#fff2;border:1px solid #fff6;border-radius:6px;padding:4px';
+  const goB = el('button', { textContent: 'Go to slide' }); goB.onclick = () => { if (goDeck.value) play(goDeck.value, Math.max(0, (goNum.valueAsNumber || 1) - 1)); };
+  more.append(el('div', { className: 'bar' }, [findSlides]), slideBox, el('div', { className: 'bar' }, [goDeck, goNum, goB]));
   const paste = el('textarea', { placeholder: 'Paste an overrides file here, then Import', rows: 3 });
   paste.style.cssText = 'width:100%;box-sizing:border-box;font:11px ui-monospace,Menlo,monospace;color:#fff;background:#fff2;border:1px solid #fff6;border-radius:6px;padding:6px';
   const importText = (text: string, from: string): void => {

@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
 import type { Stroke } from '../src/editor/types.ts';
+import { mirrorId, mirrorOffset } from '../src/ui/debug/editor/mirror.ts';
+import { slidesTouching, inFrame, stopOf } from '../src/ui/debug/editor/slides.ts';
 import { nodeVisible, snapOffsets, diffList, resetItem, core, fileText, fileOverrides, staleNote, differs, addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
 import { zoomPan, pinchView, ZOOM_MAX, dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from '../src/ui/debug/editor/picking.ts';
 import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
@@ -352,4 +354,24 @@ test('zoom and pan in the edit modes: a spread zooms, the middle pans, limits ho
   assert.equal(zoomPan({ k: 7, x: 5, y: 5 }, 10).k, ZOOM_MAX);
   assert.deepEqual(zoomPan({ k: 2, x: 40, y: 40 }, 0.1), { k: 1, x: 0, y: 0 }, 'back at the fit: no pan');
   assert.equal(zoomPan(fit, 2, 30, 0).x, 30);
+});
+
+test('mirror: paired ids swap sides when the partner exists, and an offset flips across the midline', () => {
+  const known = new Set(['A_HR', 'A_HL', 'RHV_IVC', 'LHV_IVC', 'MHV_IVC', 'V_KID_L', 'V_KID_R', 'LRV_IVC', 'RRV_IVC', 'PVH_R_1', 'PVH_L_1', 'PVH_R', 'A_REN_L']);
+  const ex = (id: string): boolean => known.has(id);
+  assert.equal(mirrorId('A_HR', ex), 'A_HL'); assert.equal(mirrorId('RHV_IVC', ex), 'LHV_IVC'); assert.equal(mirrorId('V_KID_L', ex), 'V_KID_R');
+  assert.equal(mirrorId('LRV_IVC', ex), 'RRV_IVC'); assert.equal(mirrorId('PVH_R_1', ex), 'PVH_L_1');
+  assert.equal(mirrorId('MHV_IVC', ex), null, 'a midline part has no partner'); assert.equal(mirrorId('A_REN_L', ex), null, 'the partner must exist'); assert.equal(mirrorId('PVH_R', ex), null);
+  assert.deepEqual(mirrorOffset({ dx: 4, dy: -2, dz: 0.01 }), { dx: -4, dy: -2, dz: 0.01 });
+  const real = knownIds().vessels;
+  for (const id of ['A_HR', 'RHV_IVC', 'V_KID_L', 'LRV_IVC', 'A_REN_L', 'PRE_R', 'AP_R']) assert.ok(mirrorId(id, (x) => real.has(x)), `${id} has a partner in this build`);
+});
+
+test('slides: a slide is touched when its shot frames an edited part; other views and unframed parts are not', () => {
+  const shot = { target: [0, 0, 0] as const, half: [0.5, 0.4] as const };
+  assert.equal(inFrame(shot, [0.4, 0.3, 0]), true); assert.equal(inFrame(shot, [2, 0, 0]), false);
+  const deck = { id: 'd', title: 'Deck', slides: [{ title: 'one', scene: { view: 'body', shot } }, { title: 'two', scene: { view: 'lobule', shot } }, { title: 'three' }, { title: 'four', scene: { view: 'body', shot: { target: [3, 0, 0] as const, half: [0.5, 0.5] as const } } }] };
+  assert.deepEqual(slidesTouching(deck, [[0.1, 0.1, 0]]).map((t) => t.slide), [0]);
+  assert.deepEqual(slidesTouching(deck, [[3.1, 0, 0], [0, 0, 0]]).map((t) => t.slide), [0, 3]);
+  assert.equal(stopOf(0), 1, 'stop 0 is the outline');
 });
