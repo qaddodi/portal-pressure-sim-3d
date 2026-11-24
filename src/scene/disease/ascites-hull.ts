@@ -12,12 +12,24 @@ import { BufferAttribute, BufferGeometry } from 'three';
 import { UNITS_PER_SCENE, x2d, x3, y2d, y3 } from '../frame2d.ts';
 import * as A from './ascites-pool.ts';
 import { fluidBase } from './copied/fluid-step.js';
+import { PLACED } from '../anatomy/source.ts';
+import { PLACED_GUT } from '../anatomy/placement.generated.ts';
+
+/** THE PLACED ANATOMY (`?anatomy=new`): the gut is tubes (the small bowel packed under the colon, docs/approved/anatomy-placement.md), at their own depth; the belly's middle plane is the middle of their depth, as
+ *  today's is the middle of the bowel's and the colon's meshes, so the water lies round the gut where it is drawn. */
+function gutMid(): number {
+  const g: Record<string, unknown> = PLACED_GUT;
+  let lo = Infinity, hi = -Infinity;
+  const take = (v: unknown): void => { if (!Array.isArray(v)) return; if (typeof v[2] === 'number' && typeof v[0] === 'number') { lo = Math.min(lo, v[2]); hi = Math.max(hi, v[2]); return; } for (const x of v) take(x); };
+  for (const k of ['ileum', 'colon', 'pack']) take(g[k]);
+  return Number.isFinite(lo) && Number.isFinite(hi) ? Math.round(((lo + hi) / 2) * 1000) / 1000 : -0.09;
+}
 
 export const HULL = {
   /** Columns minus one (NS + 1 = 97 columns), rows per sheet, and lid steps across the depth. */
   NS: 96, NT: 20, NK: 9,
   /** The gut's middle plane (scene z): the rim plane, the flank line and the tap lie on it (organs.bin: bowel -0.224..-0.035, colon -0.104..0.040). */
-  MID: -0.09,
+  MID: PLACED ? gutMid() : -0.09,
   /** How deep the water is front to back (22 Nov 2026, Mohammad: "the ascites should be more depth like anteroposteriorly"). Root cause of the thin sliver: the reach was a fixed 0.16 / 0.17, set only to just clear the gut (the figure's gut is
    *  0.19 deep), against a cavity 2.5 scene units wide, so the water was 1/8 as deep as it is wide. The reach is now the water's own half-width (the deepest distance from the wall, R, scene units) times an aspect, so a belly is as round
    *  from the side as from the front at every volume: the front sheet bulges forward by 0.42 R and the back sheet reaches back by 0.30 R (the fluid lies in front of the spine, so less behind). TF_MAX / TB_MAX only cap it. */

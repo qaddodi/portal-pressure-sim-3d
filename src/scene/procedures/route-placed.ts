@@ -140,6 +140,10 @@ function hvpgPlaced(g: Geo3, rad: (id: string) => number): Spec {
   const near = (p: P3): number => Math.min(...trunk.map((q) => dist(p, q)));
   const join = brPts ? (near(brPts[0]!) <= near(brPts[brPts.length - 1]!) ? brPts[0]! : brPts[brPts.length - 1]!) : null;
   const brRev = !!brPts && join === brPts[brPts.length - 1];
+  // (where the branch has left the trunk's lumen: its first point, from the join, a little over half the trunk's radius off the trunk's centreline. The catheter turns out of the trunk there, across the join's
+  //  shared lumen, never at the branch's very start, which lies inside the trunk and, where the branch is tucked behind its vein, a step back in depth)
+  const trunkR = rad('RHV_IVC'), walk = brPts ? (brRev ? brPts.slice().reverse() : brPts) : [];
+  const entry = walk.find((q) => near(q) >= 0.6 * trunkR) ?? join;
   return {
     ids: expandPieces(['SVC_RA', 'IVCS_RA', 'IVC_IS', 'RHV_IVC', ...(br ? [br] : ['POST_R_RHV'])]), start: 0.55, tip: br ? ['branch', WEDGE_ALONG] : ['hv', 0.62], focus: ['hv', 'branch'],
     build(B) {
@@ -147,7 +151,7 @@ function hvpgPlaced(g: Geo3, rad: (id: string) => number): Spec {
       B.pts([[top[0] - 6, top[1] - 150, top[2]], [top[0] - 2, top[1] - 60, top[2]], top], 'SVC_RA', 0);
       B.vessel('SVC_RA'); B.vessel('IVCS_RA', { rev: true });
       B.vessel('IVC_IS', { rev: true, until: (q) => q[1] >= ost[1] - 4, name: 'ivc' });
-      if (br && join) { B.vessel('RHV_IVC', { rev: true, near: join, name: 'hv' }); B.vessel(br, { rev: brRev, name: 'branch', r: rad(br) }); }
+      if (br && entry) { B.vessel('RHV_IVC', { rev: true, near: entry, name: 'hv' }); B.vessel(br, { rev: brRev, from: entry, name: 'branch', r: rad(br) }); }
       else { B.vessel('RHV_IVC', { rev: true, name: 'hv' }); if (g.POST_R_RHV) B.vessel('POST_R_RHV', { rev: true, name: 'branch' }); }
     },
     after(r) { const hv = r.spans.hv!; r.hv0 = hv[0]; r.hvEnd = (r.spans.branch ?? hv)[1]; },

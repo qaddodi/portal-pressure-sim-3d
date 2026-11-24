@@ -26,6 +26,11 @@ const { drawnHost, cavaFarWallShare } = await import('../src/scene/disease/host.
 const { ostialEnds } = await import('../src/scene/disease/clots.ts');
 const { EndoScope, scopeWay, wayShift } = await import('../src/scene/devices/probes/scope.ts');
 const { glueTarget3 } = await import('../src/scene/devices/glue-cast.ts');
+const { gateOf, gateFraction } = await import('../src/scene/devices/probes/doppler-probe.ts');
+const { liverEdgeTable, NO_LIVER } = await import('../src/scene/disease/liver-edge.ts');
+const { HULL } = await import('../src/scene/disease/ascites-hull.ts');
+const { PLACED_GUT } = await import('../src/scene/anatomy/placement.generated.ts');
+const { y2d } = await import('../src/scene/frame2d.ts');
 
 const bin = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 setOrganData(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength));
@@ -142,6 +147,31 @@ test('the dive\'s place is inside the liver, clear of every vessel, between the 
   assert.ok(m > 0.03, `clear of every vessel: ${m.toFixed(3)}`);
   const rpv = centrelineOf('PVH_R_2')!.pointAt(1), rhv = centrelineOf('RHV_IVC_1')!.pointAt(0);
   assert.ok(p[1] > Math.min(rpv[1], rhv[1]) && p[1] < Math.max(rpv[1], rhv[1]), 'between the right portal vein and the right hepatic vein');
+});
+
+test('every Doppler gate is inside the lumen of the vessel it samples, on its drawn centreline', () => {
+  let n = 0;
+  for (const v of NETWORK) {
+    if (v.feeder || !v.plan) continue;
+    const g = gateOf(v.id, gateFraction(v.id, null));
+    if (!g) continue;
+    // (on the tube as drawn: a varix's widest strand, the one centrelineOf reads)
+    const q = drawnShare(v.id, g.p.x, g.p.y, g.p.z)!;
+    assert.ok(q.share < 0.35, `${v.id}: the gate is ${q.share.toFixed(2)} of the drawn radius off the centreline`);
+    n++;
+  }
+  assert.ok(n > 20);
+});
+
+test('the ascites keeps off the liver where the liver mesh is, and lies round the gut\'s own depth', () => {
+  const edge = liverEdgeTable(0, 0), lg = ORGAN_MESHES.liver!(), pos = lg.getAttribute('position');
+  let low = -Infinity; for (let i = 0; i < pos.count; i++) low = Math.max(low, y2d(pos.getY(i)));
+  const cols = [...edge].filter((y) => y > NO_LIVER);
+  assert.ok(cols.length > 10, 'the liver covers columns of the fluid');
+  assert.ok(Math.abs(Math.max(...cols) - low) < 1, `the edge's lowest point is the mesh's (${Math.max(...cols).toFixed(1)} vs ${low.toFixed(1)})`);
+  const zs: number[] = []; const take = (v: unknown): void => { if (Array.isArray(v)) { if (typeof v[0] === 'number' && typeof v[2] === 'number') zs.push(v[2]); else v.forEach(take); } };
+  for (const k of ['ileum', 'colon', 'pack'] as const) take((PLACED_GUT as Record<string, unknown>)[k]);
+  assert.ok(HULL.MID > Math.min(...zs) && HULL.MID < Math.max(...zs), `the belly's middle plane ${HULL.MID} is inside the gut's depth`);
 });
 
 test('every route kind the switch lays is there', () => { for (const k of ROUTE_KINDS) assert.ok(routeOf(k), k); });
