@@ -191,3 +191,16 @@ test('Tweened follows the clock scale: a 280 ms ease lands in 28 ms of wall time
   f.advance(16); f.advance(16);
   assert.equal(t.value, 1); assert.equal(t.moving, false);
 });
+
+test('skip mode: a frame of a long stretch runs the motion systems in steps no longer than SKIP_CHUNK, so a dt-clamped glide finishes in one drawn frame', () => {
+  const f = fake(), c = createClock(f.env); c.setScale(300); c.setSkip(true);
+  let shown = 0, renders = 0;
+  c.on('camera', (i) => { shown += Math.min(i.dt, 50) / 1000; });   // (a glide that takes 1 s of dt, clamped at 50 ms a step)
+  c.on('render', () => { renders++; });
+  c.hold('camera'); f.tick(16);   // the first frame has no dt
+  f.tick(16);   // 16 ms of wall time = 4.8 s of page time
+  assert.equal(renders, 2); assert.ok(shown >= 1, `the glide's second landed in one frame (${shown})`);
+  const g = fake(), d = createClock(g.env); d.setScale(300); let s2 = 0;
+  d.on('camera', (i) => { s2 += Math.min(i.dt, 50) / 1000; }); d.hold('camera'); g.tick(16); g.tick(16);
+  assert.ok(s2 < 0.2, 'without skip the clamp eats the frame');
+});

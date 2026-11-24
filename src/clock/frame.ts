@@ -98,6 +98,7 @@ export function createClock(env: Env) {
   const steady = new Set<symbol>();       // holds that last as long as something RUNS (a live Doppler, a running trace), not a motion the eye follows: they ask for frames, but `moving` does not count them
   const asked = new Set<string>();       // one-frame invalidations made since the last frame started
   let nextAsked = new Set<string>();     // invalidations made while a frame runs: they ask for the following frame
+  let skipOn = false;
   let rafId = 0, running = false, last = 0, frame = 0, lastStart = 0;
   const ring = new Float32Array(RING);   // frame work times (ms)
   const gaps = new Float32Array(RING);
@@ -126,6 +127,16 @@ export function createClock(env: Env) {
     const info: FrameInfo = { time: start, dt: last ? start - last : 0, frame: frame++ };
     last = start;
     asked.clear();
+    // Skip mode (the audit's "Animations: Skipped"): a frame at a huge scale is seconds of page time, and the systems that integrate by dt clamp it (50 ms, 0.05 s), so a glide would still take many
+    // frames. The frame's time is cut into steps of SKIP_CHUNK ms and the motion phases (not the render) run once per step, so every glide finishes inside one drawn frame.
+    if (skipOn && info.dt > SKIP_CHUNK * 1.5) {
+      const n = Math.min(SKIP_MAX_STEPS, Math.ceil(info.dt / SKIP_CHUNK)), step = info.dt / n, t0 = info.time - info.dt;
+      for (let i = 1; i < n; i++) {
+        const sub: FrameInfo = { time: t0 + i * step, dt: step, frame: info.frame };
+        for (const p of SKIP_PHASES) for (const s of systems[p].slice()) { try { s.fn(sub); } catch (err) { console.error(`[clock] ${p} system threw`, err); } }
+      }
+      info.dt = step;
+    }
     const phases = { engine: 0, tween: 0, camera: 0, render: 0, tags: 0 } as Record<Phase, number>;
     for (const p of PHASES) {
       const t0 = now();
@@ -179,6 +190,9 @@ export function createClock(env: Env) {
     get scale() { return scale; },
     /** A stalled-frame cap in page ms: `realMs` (what a stall may count for at 1x) times the speed, so the audit's 20x does not make every glide take twenty times the frames (a frame of 100 ms real is 2000 ms of page time, which the 50 ms and 64 ms caps cut to 1/40 of it). */
     hitchCap(realMs: number) { return realMs * Math.max(1, scale); },
+    /** Skip mode: one drawn frame runs the motion systems in steps of SKIP_CHUNK ms, so every glide lands in a frame (the audit's Animations: Skipped, with a big scale). */
+    setSkip(on: boolean) { skipOn = on; },
+    get skipping() { return skipOn; },
     setScale(n: number) {
       const k = Number.isFinite(n) && n > 0 ? n : 1;
       page0 = now(); real0 = env.now(); scale = k;
@@ -241,6 +255,8 @@ export function createClock(env: Env) {
     setProbe(fn: (() => unknown) | null) { probe = fn; },
   };
 }
+export const SKIP_CHUNK = 33, SKIP_MAX_STEPS = 160;
+const SKIP_PHASES: Phase[] = ['engine', 'tween', 'camera'];
 export type Clock = ReturnType<typeof createClock>;
 
 const browserEnv: Env = typeof window !== 'undefined'

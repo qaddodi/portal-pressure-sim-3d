@@ -16,7 +16,7 @@ import { figureWaiting } from '../../deck/figure-pending.ts';
 import { beatCardWaiting } from '../../tests/slide/beat-agree.ts';
 import { menuWaiting } from '../../charts/menu/MenuCard.tsx';
 import { drawScreen } from '../../capture/capture.ts';
-import { speedAnimations, sampleRealMs } from './speed.ts';
+import { speedAnimations, sampleRealMs, skipAnimations, finishAnimations } from './speed.ts';
 import { collageLayout, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
 import { isSideways } from '../../layout/rules2d.ts';
 import { lastPicked, stopKey, pickWords } from './capture-pick.ts';
@@ -24,7 +24,7 @@ import { growCaptureTotal } from './progress.ts';
 import { zipBlob, type ZipFile } from '../../capture/zip.ts';
 import { feedbackBuild, commitOf } from '../../../boot/release.ts';
 
-export interface AllUi { /** only these talks (ids); absent: every talk */ decks?: ReadonlySet<string> | null; /** only these slides (`deck:k`, k the stop: 1 the first slide); null or absent: every slide */ pick?: ReadonlySet<string> | null; status(s: string): void; progress(done: number, total: number): void; stop(): boolean; /** the page clock's speed for the run (default 8) */ speed?: number;
+export interface AllUi { /** only these talks (ids); absent: every talk */ decks?: ReadonlySet<string> | null; /** only these slides (`deck:k`, k the stop: 1 the first slide); null or absent: every slide */ pick?: ReadonlySet<string> | null; status(s: string): void; progress(done: number, total: number): void; stop(): boolean; /** the page clock's speed for the run (default 8) */ speed?: number; /** land every slide on its settled state at once: no CSS or script animation plays (see skipAnimations) */ skip?: boolean;
   /** capture this one talk only (its id); default every talk */ only?: string;
   /** leave the talk open on this stop at the end (the talk the person was in); default the talk is left */ restore?: number }
 export interface AllResult { /** every file of the zip (name and bytes), for a page that joins several runs */ files: ZipFile[]; /** wall seconds for the whole run, and per slide: waiting for the slide to be still, drawing it */ secs: number; perSlide: { waitMs: number; drawMs: number }; speed: number; zip: Blob; zipName: string; collages: { name: string; blob: Blob }[]; shots: number; decks: number; stopped: boolean; notes: string[] }
@@ -139,7 +139,9 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   const decks = builtinDecks().filter((d) => (!ui.only || d.id === ui.only) && (!ui.decks || ui.decks.has(d.id))), build = feedbackBuild(import.meta.env.VITE_RELEASE, import.meta.env.VITE_BUILD, import.meta.env.VITE_CHANNEL);
   const speed = ui.speed && ui.speed > 1 ? ui.speed : 60, real = (ms: number) => ms * speed, t0 = new Date().getTime();
   clock.setScale(speed);   // (every glide, fade and wait of the page runs `speed` times faster: a camera flight lands in a few frames. The audit's own speed mode, audit/speed.ts)
-  const rate = clock.every(() => speedAnimations(document, speed), sampleRealMs(33, speed));
+  const off = ui.skip ? skipAnimations(document) : null;
+  if (ui.skip) clock.setSkip(true);
+  const rate = clock.every(() => { speedAnimations(document, speed); if (ui.skip) finishAnimations(document); }, ui.skip ? 16 : sampleRealMs(33, speed));
   const seen = new Set<string>(), single = !!(ui.pick && ui.pick.size);
   let reached = 0;
   const put = (f: ZipFile): void => { const i = files.findIndex((x) => x.name === f.name); if (i >= 0) files[i] = f; else files.push(f); };
@@ -258,7 +260,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       if (stopped) break;
     }
   } finally {
-    clock.cancel(rate); clock.setScale(1);
+    clock.cancel(rate); clock.setScale(1); clock.setSkip(false); off?.();
     if (ui.restore !== undefined && talkOn()) useUi.getState().go(ui.restore); else if (talkOn()) leaveTalk();   // (the talk the person was in stays open where they were)
   }
   await Promise.all(encoding);

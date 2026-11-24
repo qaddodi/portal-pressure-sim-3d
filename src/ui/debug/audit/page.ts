@@ -100,6 +100,12 @@ export function mountAudit(mode: 'here' | 'run'): void {
     if (on) { for (const e of fadeBits) { e.style.opacity = '0'; e.style.pointerEvents = 'none'; } fadeT = clock.after(() => { for (const e of fadeBits) e.hidden = true; fadeT = null; }, 220); }
     else { for (const e of fadeBits) { e.hidden = false; e.style.pointerEvents = ''; } fadeT = clock.after(() => { for (const e of fadeBits) e.style.opacity = '1'; fadeT = null; }, 30); }
   };
+  // A skipped capture shows nothing of the slides arriving: an opaque cover sits over the app (under the sheet) while it runs, so the person sees no in-between frame. It is not in a picture (data-capture-skip).
+  let veil: HTMLElement | null = null;
+  const setVeil = (on: boolean) => {
+    if (on && !veil) { veil = document.createElement('div'); veil.setAttribute('data-capture-skip', ''); veil.setAttribute('data-debug', ''); veil.style.cssText = 'position:fixed;inset:0;background:#0e0e10;opacity:0;transition:opacity .2s ease;z-index:calc(var(--z-perf,300) - 1)'; document.body.append(veil); const v = veil; clock.after(() => { v.style.opacity = '1'; }, 30); }
+    else if (!on && veil) { const v = veil; veil = null; v.style.opacity = '0'; clock.after(() => v.remove(), 240); }
+  };
   const go = async (depth: 'quick' | 'full') => {
     const saveSoFar = (d: AuditData) => { last = bundle([d], depth); if (mode === 'run') post({ audit: 'partial', data: d }); };
     if (running) return; running = true; sel.disabled = true; setRunning(true); stop = false; capStop.hidden = false; capStop.disabled = false; out.hidden = true; status.textContent = 'Starting…'; startedAt = clock.now(); bar.value = 0; bar.hidden = false; pctLine.hidden = false; pctLine.textContent = 'counting the steps…';
@@ -125,14 +131,14 @@ export function mountAudit(mode: 'here' | 'run'): void {
     if (running) return;
     const sel = picker.read();
     if (sel.none) { status.textContent = 'Tick at least one talk first.'; return; }
-    running = true; setRunning(true); stop = false; cap = null; saveRow.hidden = true; capStop.hidden = false; capStop.disabled = false; out.hidden = true; bar.value = 0; bar.hidden = false; pctLine.hidden = false; startedAt = clock.now(); status.textContent = 'Capturing every slide… keep this tab in front.'; pctLine.textContent = 'counting the slides…';
+    running = true; setRunning(true); setVeil(skip); stop = false; cap = null; saveRow.hidden = true; capStop.hidden = false; capStop.disabled = false; out.hidden = true; bar.value = 0; bar.hidden = false; pctLine.hidden = false; startedAt = clock.now(); status.textContent = 'Capturing every slide… keep this tab in front.'; pctLine.textContent = 'counting the slides…';
     try {
       const m = await import('./capture-all.ts');
-      cap = await m.captureAllDecks({ decks: sel.decks ? new Set(sel.decks) : null, pick: sel.pick ? new Set(sel.pick) : null, speed: skip ? SKIP_SPEED : speed > 1 ? speed : undefined, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
+      cap = await m.captureAllDecks({ decks: sel.decks ? new Set(sel.decks) : null, pick: sel.pick ? new Set(sel.pick) : null, speed: skip ? SKIP_SPEED : speed > 1 ? speed : undefined, skip, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
       bar.value = 100;
       status.textContent = `${cap.stopped ? 'Stopped. ' : 'Done in ' + cap.secs + ' s. '}${cap.shots} slides from ${cap.decks} talks (${cap.perSlide.waitMs + cap.perSlide.drawMs} ms a slide at ${cap.speed}x), one contact sheet per talk. Tap Save zip.${cap.notes.length ? ` Notes: ${cap.notes.join('; ')}` : ''}`;
       saveRow.hidden = false;
-    } catch (e) { status.textContent = `Capture failed: ${String((e as Error)?.message ?? e)}`; } finally { running = false; capStop.hidden = true; setRunning(false); }
+    } catch (e) { status.textContent = `Capture failed: ${String((e as Error)?.message ?? e)}`; } finally { running = false; capStop.hidden = true; setRunning(false); setVeil(false); }
   };
   const saveBtn = (label: string, files: () => File[] | null) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (label === 'Save zip') b.className = 'au-primary'; b.onclick = () => { const f = files(); if (f) void saveFiles(f); }; saveRow.append(b); };
   saveBtn('Save zip', () => (cap ? [new File([cap.zip], cap.zipName, { type: 'application/zip' })] : null));

@@ -24,3 +24,15 @@ export function speedAnimations(doc: { getAnimations(): { playbackRate: number; 
   try { for (const a of doc.getAnimations()) if (a.playbackRate !== n) a.updatePlaybackRate(n); } catch { /* an animation that will not change rate */ }
 }
 export { scaledDelay } from '../../../clock/frame.ts';
+
+/** Skip mode, the CSS side: every transition and animation of the page lasts 1 ms (not 0, so `transitionend` and `animationend` still come to whatever waits on them). Returns the undo. */
+export function skipAnimations(doc: Document): () => void {
+  const st = doc.createElement('style');
+  st.textContent = '*,*::before,*::after{transition-duration:1ms!important;transition-delay:0s!important;animation-duration:1ms!important;animation-delay:0s!important;scroll-behavior:auto!important}';
+  doc.head.append(st);
+  return () => st.remove();
+}
+/** Skip mode, the Web Animations side: every finite animation that is running is finished now (an infinite one, a loop, is left alone). */
+export function finishAnimations(doc: { getAnimations(): Animation[] }): void {
+  try { for (const a of doc.getAnimations()) { const end = a.effect?.getComputedTiming().endTime; if (typeof end === 'number' && Number.isFinite(end)) { try { a.finish(); } catch { /* one that cannot finish */ } } } } catch { /* none */ }
+}
