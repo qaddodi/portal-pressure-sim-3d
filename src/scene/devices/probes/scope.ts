@@ -9,7 +9,7 @@ import { BufferAttribute, BufferGeometry, Color, DoubleSide, Float32BufferAttrib
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { TIER_Z, VESSEL_PLANE_Z, len3, x3, y3 } from '../../frame2d.ts';
-import { withOrgan } from '../../editor-anchors.ts';
+import { withOrgan, zAtU } from '../../editor-anchors.ts';
 import { editedPlan } from '../../../editor/vessel-plan.ts';
 import { ORGAN_MESHES } from '../../organs/meshes.ts';
 import { ORGAN_Z } from '../../organs/z.ts';
@@ -96,7 +96,7 @@ export const scopeZ = (x: number, y: number): number => { const g = esoCentre();
 /** The scene point of a figure point on the scope's way: through the middle of the oesophagus and stomach. */
 const at3 = (p: readonly number[], out: Vector3): Vector3 => { const x = x3(p[0]!), y = y3(p[1]!); return out.set(x, y, scopeZ(x, y)); };
 /** The scene point of a target in the liver (a vein the needle enters): on the vessels' plane. */
-const atVessel = (p: readonly number[], out: Vector3): Vector3 => out.set(x3(p[0]!), y3(p[1]!), VESSEL_PLANE_Z);
+const atVessel = (p: readonly number[], out: Vector3, z: number = VESSEL_PLANE_Z): Vector3 => out.set(x3(p[0]!), y3(p[1]!), z);
 const dir3 = (t: readonly number[], out: Vector3): Vector3 => out.set(t[0]!, -t[1]!, 0);
 
 const ease01 = (x: number): number => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
@@ -180,6 +180,8 @@ export class EndoScope {
   private flashBuf!: TubeBuf; private flashPart!: ProbePart;
   /** where the needle is aimed, for both stations; and how far the aim has gone from the portal vein's to the hepatic vein's (0 to 1) */
   private readonly targets: [P2, P2] = [[0, 0], [0, 0]];
+  private readonly targetZ: [number, number] = [VESSEL_PLANE_Z, VESSEL_PLANE_Z];
+  private glueZ: number = VESSEL_PLANE_Z;
   tgt = 0;
   /** the hit's rings (0 none to 1) and the reading (0 none, 1 portal, 2 hepatic) the last drive gave */
   flash = 0; read = 0;
@@ -273,10 +275,13 @@ export class EndoScope {
       const path = (editedPlan() as Record<string, P2[]>)[id]!;
       const q = pointOn(path, f) as P2;
       this.targets[i] = [q[0], q[1]];
+      this.targetZ[i] = zAtU(id, f, VESSEL_PLANE_Z);   // (an edited vessel's depth at the target; the plane's unedited)
     });
   }
   /** One of the two targets in the scope's plane (0 the portal vein's, 1 the hepatic vein's): where the EUS-PPG's cards point. */
-  targetAt(i: 0 | 1, out: Vector3): Vector3 { return atVessel(this.targets[i]!, out); }
+  targetAt(i: 0 | 1, out: Vector3): Vector3 { return atVessel(this.targets[i]!, out, this.targetZ[i]); }
+  /** The depth of the aim's target now (the targets' depths blended as their places are). */
+  private targetDepth(): number { return this.mode === 'glue' ? this.glueZ : this.targetZ[0]! + (this.targetZ[1]! - this.targetZ[0]!) * this.tgt; }
   /** The aim's target now: between the two (the 2D TGT). */
   private target(out: P2 = [0, 0]): P2 {
     if (this.mode === 'glue') { out[0] = this.glueT[0]; out[1] = this.glueT[1]; return out; }
@@ -289,6 +294,7 @@ export class EndoScope {
     const [id, f] = EUS_GLUE_TARGET as unknown as [string, number];
     const q = pointOn((editedPlan() as Record<string, P2[]>)[id]!, f) as P2;
     this.glueT = [q[0], q[1]];
+    this.glueZ = zAtU(id, f, VESSEL_PLANE_Z);
   }
 
   /** Lays the scope for the tip at `this.d`: the shaft along the way to where its bend starts, the bending section, the rigid tip with its lens, the needle and its sector. */
@@ -423,7 +429,7 @@ export class EndoScope {
 
   /** The hit's rings and the manometer's ripples at the target (2D eusDraw: two discs running out and fading, in the vein's colour), at `now` ms. */
   private layRings(now: number, vis: boolean): void {
-    const eus = this.mode === 'eus' && vis, T = atVessel(this.target(this.tgtPt), this.v);
+    const eus = this.mode === 'eus' && vis, T = atVessel(this.target(this.tgtPt), this.v, this.targetDepth());
     const hv = this.tgt >= 0.5, pvC: PartColour = PV_RING, hvC: PartColour = HV_RING as PartColour;
     const rings = (parts: ProbePart[], on: boolean, ph: number, r0: number, r1: number, a0: number, colour: PartColour): void => {
       parts.forEach((o, i) => {

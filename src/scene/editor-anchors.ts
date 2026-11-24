@@ -11,12 +11,15 @@ type P2 = readonly [number, number];
 export const planEdited = (): boolean => { const o = overrides(); return !!(o.nodes && Object.keys(o.nodes).length) || !!(o.vessels && Object.keys(o.vessels).length); };
 
 /** The depth of a vessel's course at point `i` of `n` (as path2D lists them): `tier` unedited; once edited, the built course's depth, which already carries the edited dz (network.ts courseOf adds it once, so nothing here adds it again). */
-export function zAtPoint(id: string, i: number, n: number, tier: number): number {
+export function zAtPoint(id: string, i: number, n: number, tier: number): number { return zAtU(id, n > 1 ? i / (n - 1) : 0, tier); }
+/** The depth of a vessel's course at share `u` (0..1) of its points: `tier` unedited, the built course's depth (dz in it once) once edited. */
+export function zAtU(id: string, u: number, tier: number): number {
   if (!planEdited()) return tier;
   const c = courseOf(id);
   if (!c.length) return tier;
-  const t = n > 1 ? (i / (n - 1)) * (c.length - 1) : 0, k = Math.min(c.length - 2, Math.floor(t)), u = t - k;
-  return c.length < 2 ? c[0]![2] : c[k]![2] + (c[k + 1]![2] - c[k]![2]) * u;
+  if (c.length < 2) return c[0]![2];
+  const t = Math.min(1, Math.max(0, u)) * (c.length - 1), k = Math.min(c.length - 2, Math.floor(t)), w = t - k;
+  return c[k]![2] + (c[k + 1]![2] - c[k]![2]) * w;
 }
 
 /** A topology node's place on the 2D figure: the reference place plus the node's edited move. */

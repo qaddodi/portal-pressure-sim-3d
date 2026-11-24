@@ -44,6 +44,10 @@ test('empty overrides: every anchor is the reference value itself (child process
     const AB = await import('./src/scene/disease/copied/anatomy-b4.ts');
     for (const st of [0, 3, AB.ABDOMEN_OUTLINES.length - 1]) assert.deepEqual(AP.polyOf(st), AP.bellyPolygon(AP.outlinePolygon(AB.ABDOMEN_OUTLINES[st])));
     assert.equal(A.wallFollow(q), q);
+    const { glueTarget3 } = await import('./src/scene/devices/glue-cast.ts');
+    const { EUS_GLUE_TARGET } = await import('./src/scene/devices/probes/copied/eus-scope.copied.js');
+    const { NETWORK_BY_ID } = await import('./src/scene/vessels/network.ts');
+    assert.equal(glueTarget3().z, F.TIER_Z[NETWORK_BY_ID.get(EUS_GLUE_TARGET[0]).tier]);
     console.log('ok');
   `;
   const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: process.cwd(), encoding: 'utf8' });
@@ -177,4 +181,24 @@ test('the ascites wall follows the organs that bound it, near them and fading aw
   setOverridesForTest(EMPTY);
   const back = AP.polyOf(step);
   assert.deepEqual(back, base, 'the cache follows the overrides');
+});
+
+test('the glue target follows a vessel\'s dz, once (a fresh process: the network is built from the overrides at import)', () => {
+  const code = `
+    import assert from 'node:assert/strict';
+    const { setOverridesForTest } = await import('./src/editor/store.ts');
+    const { EUS_GLUE_TARGET } = await import('./src/scene/devices/probes/copied/eus-scope.copied.js');
+    const id = EUS_GLUE_TARGET[0];
+    setOverridesForTest({ version: 1, vessels: { [id]: { pts: [{ u: EUS_GLUE_TARGET[1], dx: 0, dy: 0, dz: 0.05 }] } } });
+    const A = await import('./src/scene/editor-anchors.ts');
+    const { NETWORK_BY_ID } = await import('./src/scene/vessels/network.ts');
+    const { TIER_Z } = await import('./src/scene/frame2d.ts');
+    const { glueTarget3 } = await import('./src/scene/devices/glue-cast.ts');
+    const tier = TIER_Z[NETWORK_BY_ID.get(id).tier], z = glueTarget3().z;
+    assert.ok(Math.abs(z - A.zAtU(id, EUS_GLUE_TARGET[1], tier)) < 1e-12);
+    assert.ok(z > tier + 0.03 && z < tier + 0.051, 'dz in once: ' + (z - tier));
+    console.log('ok');
+  `;
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: process.cwd(), encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
 });
