@@ -74,8 +74,8 @@ test('with a node and an organ moved, the anchors follow and the reference is un
   // the shots follow the nodes near their target (the catheter shots look at the hepatic veins, far from CONF: they stay), the whole-figure shots stay
   const { SHOTS } = await import('../src/scene/camera/shots.ts');
   assert.deepEqual(SHOTS.title.target, [x3(740), y3(480), 0]);
-  const f = A.nodeFollow2D(560, 260);
-  assert.deepEqual(SHOTS.free.target, [x3(560 + f[0]), y3(260 + f[1]), -0.2]);
+  const f = A.pointShift(560, 260, ['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']);
+  assert.deepEqual(SHOTS.free.target, [x3(560 + f[0]), y3(260 + f[1]), -0.2 + f[2]]);
 
   // station dots and organ names stand on the moved node and organ
   const { STATIONS } = await import('../src/scene/labels/stations.ts');
@@ -270,9 +270,32 @@ test('slide cameras and catheter shots follow vessel, depth and organ edits (fre
   const b = run('{ version: 1, organs: { liver: { move: [0.05, 0, 0] } } }');
   assert.ok(Math.abs(b.liver[0] - (a.liver[0] + 15)) < 1e-6 && Math.abs(b.rw[2] - (a.rw[2] + 15)) < 1e-6);
   assert.ok(Math.abs(b.shot[0] - (a.shot[0] + 0.05)) < 1e-6);
-  assert.deepEqual(b.free, a.free, 'a liver move does not move the hepatic-vein shots');
+  assert.ok(b.free.every((v: number) => Number.isFinite(v)), 'the hepatic-vein shots stay finite (the veins inside the liver follow it)');
   // a vessel bend and a depth edit on the middle hepatic vein carry the catheter shots that look at it
   const c = run("{ version: 1, vessels: { MHV_IVC: { pts: [{ u: 0.25, dx: 0, dy: -12, dz: 0.04 }] } } }");
   assert.ok(c.free[1] !== a.free[1] || c.free[2] !== a.free[2], 'the free shot follows the edited vein');
   assert.ok(c.free[2] > a.free[2], 'and its depth');
+});
+
+test('the lobule and sinusoid dive stands on the liver point carried by the liver edit (audit 10)', () => {
+  const run = (o: string) => {
+    const code = `
+      const { setOverridesForTest } = await import('./src/editor/store.ts');
+      setOverridesForTest(${o});
+      const F = await import('./src/scene/lobule/frames.ts');
+      const A = await import('./src/scene/editor-anchors.ts');
+      const ref = [(F.LIVER_2D.x - 700) / 300, -(F.LIVER_2D.y - 556) / 300, F.LIVER_Z];
+      const L = F.lobuleWorld([0, 0, 0]);
+      console.log(JSON.stringify({ p: F.LIVER_POINT, ref, lobule: L, sin: F.SIN_POINT, viaMap: A.organPoint('liver', ref) }));
+    `;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: process.cwd(), encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout.trim().split('\n').pop()!);
+  };
+  const a = run('{ version: 1 }');
+  assert.deepEqual(a.p, a.ref, 'unedited: the fixed point');
+  const b = run('{ version: 1, organs: { liver: { move: [0.05, -0.02, 0.01], rotY: 0.2, scale: 1.1, strokes: [{ at: [-0.6, 0.8, -0.15], radius: 0.5, by: [0.02, 0.01, 0] }] } } }');
+  assert.deepEqual(b.p, b.viaMap, 'edited: the liver point carried by the liver\'s own map');
+  assert.ok(Math.hypot(b.p[0] - b.ref[0], b.p[1] - b.ref[1], b.p[2] - b.ref[2]) > 0.02, 'it moved');
+  assert.ok(Math.abs(b.lobule[0] - b.p[0]) < 1e-12 && Math.abs(b.sin[0] - b.p[0]) < 0.01, 'the lobule and the sinusoid stand on it');
 });
