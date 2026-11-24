@@ -9,6 +9,7 @@ import { PLUNGE_RATIO, dollyDistance, fovAt, fovBump } from './dive.ts';
 import { Tilt } from './tilt.ts';
 import { LongPath } from './arc.ts';
 import { slideSpanOf, stepOf, wholeViewOf, zoomShare } from './slide-time.ts';
+import type { ChasePose } from './chase.ts';
 import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, TILT_LIMIT, TURN_LIMIT_DEG, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
 
 /** The lens swell in a plunge (dive.ts: 14 -> 35 degrees and back). OFF (20 Nov 2026, owner: the camera moves as 2D's do, 1:1; 2D has no lens): the dive is the distance and the framing alone. */
@@ -17,6 +18,8 @@ export const LENS_SWELL = false;
 export const LONG_ARC = false;
 /** How quickly the aim eases after a followed point (ms): about a third of a second, so a moving tip is followed as one smooth glide, never in steps. */
 export const FOLLOW_TAU_MS = 350;
+/** The chase camera (chase.ts) comes in and goes out over this long (ms), eased; its pose follows the catheter with a short lag (CHASE_TAU_MS) so a bend never jerks it. */
+export const CHASE_MS = 900, CHASE_TAU_MS = 180;
 
 /** Radians of turn per pixel of drag. */
 export const ORBIT_PER_PX = 0.006;
@@ -270,6 +273,41 @@ export class CameraRig {
   /** The plate the hand may pan the figure within (the body's plate, or the Circuit's map), as a rectangle in the plane at depth z. */
   private bounds: { x0: number; x1: number; y0: number; y1: number; z: number } = { ...PLATE_BOUNDS, z: FIGURE_Z };
   readonly reduceMotion: boolean;
+  /** The chase camera's pose to be at (null: none). Engaged, the picture is the chase's, eased in from the shot the camera is on; the room's centring and the hand's zoom stay. */
+  private chaseGoal: ChasePose | null = null;
+  private chaseCur: ChasePose | null = null;
+  private chaseK = 0;
+  private chaseT = 0;
+  private chaseMoving = false;
+  setChase(p: ChasePose | null): void {
+    this.chaseGoal = p;
+    if (p && !this.chaseCur) this.chaseCur = { yaw: p.yaw, pitch: p.pitch, dist: p.dist, fov: p.fov, target: [p.target[0], p.target[1], p.target[2]] };
+    this.dirty = true;
+  }
+  /** One frame of the chase: its share eases to 1 (or 0) over CHASE_MS, and its pose follows the goal with a short lag. True while either is still going. */
+  private stepChase(now: number): boolean {
+    const g = this.chaseGoal, c = this.chaseCur;
+    if (!c) { this.chaseT = 0; this.chaseMoving = false; return false; }
+    const dt = this.chaseT > 0 ? Math.min(100, Math.max(0, now - this.chaseT)) : 16;
+    this.chaseT = now;
+    const instant = this.reduceMotion || reduced();
+    const goal = g ? 1 : 0, kStep = instant ? 1 : dt / CHASE_MS;
+    this.chaseK = goal > this.chaseK ? Math.min(goal, this.chaseK + kStep) : Math.max(goal, this.chaseK - kStep);
+    let busy = this.chaseK !== goal;
+    if (g) {
+      const k = instant ? 1 : 1 - Math.exp(-dt / CHASE_TAU_MS);
+      const dy = g.yaw - c.yaw, dp = g.pitch - c.pitch, dd = Math.log(g.dist / c.dist), df = g.fov - c.fov;
+      const dx = g.target[0] - c.target[0], dyy = g.target[1] - c.target[1], dz = g.target[2] - c.target[2];
+      if (Math.abs(dy) + Math.abs(dp) + Math.abs(dd) + Math.abs(df) + Math.hypot(dx, dyy, dz) > 1e-4) {
+        c.yaw += dy * k; c.pitch += dp * k; c.dist *= Math.exp(dd * k); c.fov += df * k; c.target[0] += dx * k; c.target[1] += dyy * k; c.target[2] += dz * k;
+        busy = true;
+      } else { c.yaw = g.yaw; c.pitch = g.pitch; c.dist = g.dist; c.fov = g.fov; c.target[0] = g.target[0]; c.target[1] = g.target[1]; c.target[2] = g.target[2]; }
+    }
+    if (this.chaseK <= 0 && !g) { this.chaseCur = null; this.chaseT = 0; }
+    this.chaseMoving = busy;
+    if (busy || this.chaseK > 0) this.dirty = true;
+    return busy;
+  }
   /** Follow a world point with the aim (null stops following). */
   follow(p: readonly [number, number, number] | null): void {
     this.followAt = p ? [p[0], p[1], p[2]] : null;
@@ -337,7 +375,7 @@ export class CameraRig {
     this.width = width; this.height = height; this.camera.aspect = width / height; this.dirty = true;
   }
 
-  get isMoving(): boolean { return this.active; }
+  get isMoving(): boolean { return this.active || this.chaseMoving; }
   /** 2D's glide time (ease.js camMs): 480 ms up to half a screen of reach (the pan in screens wide and the zoom, a doubling counting half a screen), then in proportion, at most 900 ms; a dive (the distance changes by more than DIVE_RATIO) has the lobule's 1500 ms. */
   reachMs(shot: ShotName | Shot): number {
     const { d, dive } = this.reach(shot);
@@ -683,6 +721,7 @@ export class CameraRig {
       }
       this.followT = now;
     } else this.followT = 0;
+    if (this.stepChase(now)) moving = true;
     if (this.stepTilt(now)) moving = true;
     if (this.stepInspect(now)) moving = true;
     if (this.dirty) { this.apply(); this.dirty = false; }
@@ -700,22 +739,29 @@ export class CameraRig {
   private apply(): void {
     const { shot, room } = this.cur;
     const w = this.width, h = this.height;
-    const fov = fovAt(this.bump);
+    let fov = fovAt(this.bump);
     // (the dolly zoom: as the lens widens the camera comes in by the same ratio, so what the dive aims at keeps its size and the world opens round it)
     const sc = this.scaleNow.w > 1 ? { x: 0, y: 0, w: this.scaleNow.w, h: this.scaleNow.h } : room.w > 1 ? room : { x: 0, y: 0, w, h };
-    const r = dollyDistance(this.distNow > 0 ? this.distNow : effectiveDistance(shot, sc, h, w), fov);
+    let r = dollyDistance(this.distNow > 0 ? this.distNow : effectiveDistance(shot, sc, h, w), fov);
+    // the chase camera (chase.ts): the pose of the shot the camera is on, mixed toward the catheter's chase by its eased share
+    const cc = this.chaseCur, ck = cc ? easeMove(this.chaseK) : 0;
+    let shotYaw = shot.yaw, shotPitch = shot.pitch, aim = shot.target;
+    if (cc && ck > 0) {
+      shotYaw = lerp(shotYaw, cc.yaw, ck); shotPitch = lerp(shotPitch, cc.pitch, ck); fov = lerp(fov, cc.fov, ck); r = geo(r, cc.dist, ck);
+      aim = [lerp(aim[0], cc.target[0], ck), lerp(aim[1], cc.target[1], ck), lerp(aim[2], cc.target[2], ck)];
+    }
     this.camera.fov = fov;
     // the tilt is added here, at render time, on top of the shot and the viewer's turn; `project` and every pick use this same camera, so tags and taps agree with what is drawn
     // (the viewer's turn and tilt are about the SCREEN's axes: a rolled camera (the sinusoid on a portrait screen) carries them round with the roll, so a drag to the right still swings the picture to the right)
     const roll = shot.roll ?? 0, oy = this.orbit + (this.noTilt ? 0 : this.tilt.yaw + this.inspectYaw), op = this.pitchOrbit + (this.noTilt ? 0 : this.tilt.pitch + this.inspectPitch);
     const cr = Math.cos(roll), sr = Math.sin(roll);
-    const yaw = shot.yaw + (roll === 0 ? oy : cr * oy - sr * op), pitch = shot.pitch + (roll === 0 ? op : sr * oy + cr * op);
+    const yaw = shotYaw + (roll === 0 ? oy : cr * oy - sr * op), pitch = shotPitch + (roll === 0 ? op : sr * oy + cr * op);
     const cp = Math.cos(pitch);
-    const [tx, ty, tz] = shot.target;
+    const [tx, ty, tz] = aim;
     this.pos.set(tx + Math.sin(yaw) * cp * r, ty + Math.sin(pitch) * r, tz + Math.cos(yaw) * cp * r);
     this.camera.position.copy(this.pos);
-    const cps = Math.cos(shot.pitch);
-    this.restEye.set(tx + Math.sin(shot.yaw) * cps * r, ty + Math.sin(shot.pitch) * r, tz + Math.cos(shot.yaw) * cps * r);
+    const cps = Math.cos(shotPitch);
+    this.restEye.set(tx + Math.sin(shotYaw) * cps * r, ty + Math.sin(shotPitch) * r, tz + Math.cos(shotYaw) * cps * r);
     const a = this.offA.set(this.pos.x - tx, this.pos.y - ty, this.pos.z - tz), b = this.offB.set(this.restEye.x - tx, this.restEye.y - ty, this.restEye.z - tz), la = a.length(), lb = b.length();
     this.offRest = la > 0 && lb > 0 ? Math.min(1, Math.acos(Math.min(1, Math.max(-1, a.dot(b) / (la * lb)))) / ((TURN_LIMIT_DEG * Math.PI) / 180)) : 0;
     this.camera.lookAt(tx, ty, tz);

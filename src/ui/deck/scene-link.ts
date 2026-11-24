@@ -10,6 +10,7 @@ import { DOCK_MS } from '../cards/dock.ts';
 import { viewAt, cathPlace } from './presenter-machine.ts';
 import { makeCathClock, aimCath, stepCath, poseAt, cathScript, rankOf, ARRIVE_MS, readTaken, type CathPose } from './cath-clock.ts';
 import { tipCloseShot, closeUpOf } from './cath-shot.ts';
+import { hvpgChase, type ChasePose } from '../../scene/camera/chase.ts';
 import type { Shot, ShotName } from '../../scene/camera/shots.ts';
 import { DEFAULT_LENS, type LensId } from '../../scene/lenses/model.ts';
 import type { CathState } from '../../decks/schema.ts';
@@ -31,6 +32,13 @@ export function linkScene(): () => void {
   const cc = makeCathClock(), pose: CathPose = { advance: 0, balloon: 0, column: 0 };
   let readWas = false, place: CathState | null = null, drawn = false, hold: Hold | null = null;
   let shot: ShotName | Shot | null = null;
+  // the chase camera (camera/chase.ts): on while a body slide has the HVPG catheter on the figure; its pose is a function of how far in the catheter is, written in the same frame as the catheter
+  let chasing = false, chaseWas = false;
+  const chase: ChasePose = { yaw: 0, pitch: 0, dist: 1, fov: 14, target: [0, 0, 0] };
+  const driveChase = () => {
+    const p = chasing ? hvpgChase(pose.advance, chase) : null;
+    if (p) { sceneApi.setChase(p); chaseWas = true; } else if (chaseWas) { sceneApi.setChase(null); chaseWas = false; }
+  };
   // the lens (2D start() sets pressure; each slide sets its own with slideLens; a stop returns to pressure): a slide that says none, and the title, stand on pressure, never on the last slide's
   let lens: LensId | null = null;
   cathScript.on = true; cathScript.t = 0;
@@ -45,6 +53,7 @@ export function linkScene(): () => void {
       poseAt(cc.clk.t, pose);
       sceneApi.setCatheter({ advance: pose.advance, balloon: pose.balloon, column: pose.column, read: rd });
       drawn = true;
+      driveChase();
     }
     if (!moving && hold) { hold.release(); hold = null; }
   }, -10);
@@ -75,6 +84,8 @@ export function linkScene(): () => void {
     // The catheter's own shots: the tip close up, the balloon just behind it and the vein ahead (2D cathFocus 'tip', both). The route step keeps the slide's own (the whole way in).
     const view = v.scene ? v.scene.view : 'body', close = view === 'body' && !v.slide?.visual ? closeUpOf(at) : null;
     const want = (close ? tipCloseShot(close) : null) ?? v.shot;
+    const chaseNow = view === 'body' && !v.slide?.visual && at !== null;
+    if (chaseNow !== chasing) { chasing = chaseNow; driveChase(); }
     if (want !== shot) {
       shot = want;
       // a ported slide says its own view and its lens; the slice's slides are the body. A Circuit slide frames its region of the map and draws the resistors it names.
@@ -89,5 +100,5 @@ export function linkScene(): () => void {
   const offHint = useUi.subscribe((s, prev) => { const h = s.roomHint; if (h && h !== prev.roomHint && h.free.w > 0 && h.free.h > 0) frameRoom(h.free, h.ms, easeArrive); });   // (refit: the card tucked or came back, so the figure is fitted to the room it now has, in or out, as 2D's reframe(ms))
   const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.boxes.free !== prev.boxes.free || s.boxes.stop !== prev.boxes.stop || s.stops !== prev.stops) sync(s.pos !== prev.pos || s.stops !== prev.stops); });
   // (leaving the talk takes the catheter out: it never stays on the free figure)
-  return () => { reframe = null; off(); offHint(); offClock(); hold?.release(); if (lens && lens !== DEFAULT_LENS) sceneApi.setLens(DEFAULT_LENS); cathScript.on = false; cathScript.t = 0; sceneApi.setCatheter({ advance: 0, balloon: 0, column: 0 }); };
+  return () => { reframe = null; off(); offHint(); offClock(); hold?.release(); chasing = false; driveChase(); if (lens && lens !== DEFAULT_LENS) sceneApi.setLens(DEFAULT_LENS); cathScript.on = false; cathScript.t = 0; sceneApi.setCatheter({ advance: 0, balloon: 0, column: 0 }); };
 }

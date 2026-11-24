@@ -73,6 +73,8 @@ export const sceneApi = {
   },
   /** Follow a world point with the camera's aim, smoothly and without restarting any move (the catheter's tip on its way in); null stops. */
   follow(p: readonly [number, number, number] | null): void { cel.rig.follow(p); clock.invalidate('follow'); },
+  /** The chase camera (camera/chase.ts): the pose to be at behind the catheter's tip, or null to leave it. Slides only; the rig eases in and out. */
+  setChase(p: import('./camera/chase.ts').ChasePose | null): void { cel.rig.setChase(p); clock.invalidate('chase'); },
   /** Put the hand's view back (a state link: the figure turned `orbit` radians, zoom `k`, panned `x` `y` px): what a person's fingers left, set at once, held until the next shot. */
   setCameraView(v: { orbit?: number; k?: number; x?: number; y?: number }): void {
     const h = cel.rig.handView;
