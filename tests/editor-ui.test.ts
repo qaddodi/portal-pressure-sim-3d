@@ -7,7 +7,7 @@ import type { Stroke } from '../src/editor/types.ts';
 import { addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from '../src/ui/debug/editor/picking.ts';
 import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
-import { EXPORT_REMIND_MS, exportReminder, noteExported, persistHistory, restorableHistory, clearHistory, type StorageLike } from '../src/ui/debug/editor/session.ts';
+import { VIEW_KEY, loadView, saveView, EXPORT_REMIND_MS, exportReminder, noteExported, persistHistory, restorableHistory, clearHistory, type StorageLike } from '../src/ui/debug/editor/session.ts';
 import { LiveStrokes } from '../src/ui/debug/editor/strokes.ts';
 import { liveTransform } from '../src/ui/debug/editor/live.ts';
 import { pointAt, uAtIndex } from '../src/ui/debug/editor/source.ts';
@@ -251,4 +251,13 @@ test('control points: added anywhere, any number, removed on purpose; a tap find
   const f = nearestParam(screen, 100, 50, 10)!;
   assert.ok(Math.abs(f - 1.5) < 1e-9 && Math.abs(uAtIndex(course, f) - 0.75) < 1e-9, 'a tap on the middle of the second leg is three quarters along');
   assert.equal(nearestParam(screen, 50, 50, 10), null);
+});
+
+test('the view comes back after a Save reload: camera, mode and picks round-trip, and a bad entry is ignored', () => {
+  const st = memory();
+  assert.equal(loadView(st), null);
+  saveView(st, { yaw: 1.2, pitch: -0.3, mode: 'vessels', organ: 'liver', vessel: 'PV', panel: false });
+  assert.deepEqual(loadView(st), { yaw: 1.2, pitch: -0.3, mode: 'vessels', organ: 'liver', vessel: 'PV', panel: false });
+  st.setItem(VIEW_KEY, JSON.stringify({ yaw: 'x', pitch: 0, mode: 'organs' })); assert.equal(loadView(st), null);
+  st.setItem(VIEW_KEY, '{oops'); assert.equal(loadView(st), null);
 });

@@ -15,7 +15,7 @@ import { liveTransform } from './live.ts';
 import { endVesselPreview, previewVesselEdits, setVesselPreviewHost } from '../../../scene/vessels/edit-preview.ts';
 import { LiveStrokes } from './strokes.ts';
 import { clock } from '../../../clock/frame.ts';
-import { clearHistory, exportReminder, noteExported, persistHistory, restorableHistory, type StorageLike } from './session.ts';
+import { VIEW_KEY, clearHistory, loadView, saveView, exportReminder, noteExported, persistHistory, restorableHistory, type StorageLike } from './session.ts';
 import { Overlay } from './overlay.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from './picking.ts';
 import { skeleton, organIds, pointAt, uAtIndex, centroidOf, type Skeleton } from './source.ts';
@@ -32,6 +32,7 @@ export function mountEditor(): void {
   if (document.getElementById('editor-panel')) return;
   const hist = new History(loaded);
   const store = ((): StorageLike | null => { try { return localStorage; } catch { return null; } })();
+  const session = ((): StorageLike | null => { try { return sessionStorage; } catch { return null; } })();
   const recovered = store ? restorableHistory(store, loaded) : null;
   if (recovered) hist.restore(recovered);
   const sk: Skeleton = skeleton();
@@ -274,7 +275,12 @@ export function mountEditor(): void {
     void navigator.clipboard?.writeText(text).then(() => say('Copied to the clipboard and downloaded.'), () => say('Downloaded (the clipboard was refused).'));
     const a = el('a', { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: 'overrides.json' }); a.click(); URL.revokeObjectURL(a.href);
   };
-  const save = el('button', { textContent: 'Save' }); save.onclick = () => { flushHistory(); saveDraft(hist.now); };
+  const save = el('button', { textContent: 'Save' }); save.onclick = () => {
+    flushHistory();
+    // (Save reloads the page: the view comes back with it, sessionStorage, once)
+    const a = cel.rig.inspectAngles; if (session) saveView(session, { yaw: a.yaw, pitch: a.pitch, mode, organ: selOrgan, vessel: selVessel, panel: box.style.display !== 'none' });
+    saveDraft(hist.now);
+  };
   const panelB = el('button', { textContent: 'Panel' }); panelB.onclick = () => { box.style.display = box.style.display === 'none' ? 'block' : 'none'; panelB.classList.toggle('on', box.style.display !== 'none'); }; panelB.classList.add('on');
   const clear = el('button', { textContent: 'Clear draft' });
   clear.onclick = () => { if (confirm('Throw away the saved draft and reload?')) { clearDraft(); if (store) clearHistory(store); location.reload(); } };
@@ -418,5 +424,15 @@ export function mountEditor(): void {
 
   setMode('orbit');
   say('Orbit to look round; Vessels or Organs to edit.');
+  const back = session ? loadView(session) : null;   // after a Save: the camera, the mode, the picks and the panel as they were
+  if (session && back) {
+    session.removeItem(VIEW_KEY);
+    if (back.organ && organIds().includes(back.organ)) selOrgan = back.organ;
+    if (back.vessel && vesselById.has(back.vessel)) selVessel = back.vessel;
+    if (back.mode === 'vessels' || back.mode === 'organs') setMode(back.mode);
+    cel.rig.inspectTo(back.yaw, back.pitch);
+    box.style.display = back.panel ? 'block' : 'none'; panelB.classList.toggle('on', back.panel);
+    say('Saved. Everything is rebuilt from your draft; the view is as you left it.');
+  }
   sync();
 }
