@@ -5,7 +5,7 @@ import { editedPlan } from '../../editor/vessel-plan.ts';
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { x3, y3 } from '../frame2d.ts';
 import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
-import { IVC_EDGES, NODE_POS_2D } from './paths.copied.ts';
+import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from './paths.copied.ts';
 import { alongVein, alongVeinCompanion, alongVeinStretch, originsOf, startInOrganShare } from './starts.ts';
 import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare, treeOf } from './liver-branches.ts';
 import { CAUDATE_HOST, CAUDATE_VEIN_ID } from './caudate-veins.ts';
@@ -72,19 +72,28 @@ export interface TipFade {
 
 const sceneLine = (x1: number, y1: number, x2: number, y2: number): readonly [number, number, number, number] => [x3(x1), y3(y1), x3(x2), y3(y2)];
 const SIN_SET: ReadonlySet<string> = new Set(SIN_EDGES_2D);
+/** How far the anatomy editor's edits moved a vessel's end (plan units; zero, the same numbers, when nothing is edited): the fade lines that stood at a node's reference place stand where it is now (a moved junction, an organ's bed carried with the liver). */
+function endShift(id: string, end: 0 | 1): readonly [number, number] {
+  const now = editedPlan()[id], ref = EDGE_PATH_2D[id];
+  if (!now || !ref || now === ref) return [0, 0];
+  const a = end ? now[now.length - 1]! : now[0]!, b = end ? ref[ref.length - 1]! : ref[0]!;
+  return [a[0] - b[0], a[1] - b[1]];
+}
 /** stage-geo.js SIN_FADE: a liver bed is faded along its course (the line from its portal node to its venous one), faintest mid-lobe, solid at its end; the ascending lumbar collateral dips behind the liver the same way, down the figure. */
 function sinFade(id: string): TipFade | null {
   if (id === 'C9') { const r = SIN_FADE_C9_2D; return { mode: 4, from: r[4]!, to: 1, a0: r[5]!, a1: r[6]!, line: sceneLine(r[0]!, r[1]!, r[2]!, r[3]!), keep: false, connect: [] }; }
   const e = edgeById.get(id), a = e && NODE_POS_2D[e.from], b = e && NODE_POS_2D[e.to];
   if (!SIN_SET.has(id) || !a || !b) return null;
   const r = SIN_FADE_ROW_2D;
-  return { mode: 4, from: r[0]!, to: 1, a0: r[1]!, a1: r[2]!, line: sceneLine(a[0], a[1], b[0], b[1]), keep: false, connect: [] };
+  const s0 = endShift(id, 0), s1 = endShift(id, 1);
+  return { mode: 4, from: r[0]!, to: 1, a0: r[1]!, a1: r[2]!, line: sceneLine(a[0] + s0[0], a[1] + s0[1], b[0] + s1[0], b[1] + s1[1]), keep: false, connect: [] };
 }
 /** stage-geo.js FADE_IN: a vein fades into the vessel it sinks into (the hepatic veins and the renal veins into the cava, the caudate vein, C5 into the renal vein). */
 function fadeIn(id: string): TipFade | null {
   const r = FADE_IN_2D[id];
   if (!r) return null;
-  return { mode: 3, from: r[4]!, to: 1, a0: 1, a1: r[5] ?? 0.3, line: sceneLine(r[0]!, r[1]!, r[2]!, r[3]!), keep: false, connect: [] };
+  const [dx, dy] = endShift(id, 1);   // (the line crosses the vein where it sinks into its host: it goes with that end)
+  return { mode: 3, from: r[4]!, to: 1, a0: 1, a1: r[5] ?? 0.3, line: sceneLine(r[0]! + dx, r[1]! + dy, r[2]! + dx, r[3]! + dy), keep: false, connect: [] };
 }
 
 /** The share of the hepatic artery's drawn length it fades in over (2D: 0.28 of its whole run, most of which is not drawn now). */
