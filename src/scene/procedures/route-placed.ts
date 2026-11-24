@@ -134,7 +134,10 @@ function hvpgPlaced(g: Geo3): Spec {
       B.pts([[top[0] - 6, top[1] - 150, top[2]], [top[0] - 2, top[1] - 60, top[2]], top], 'SVC_RA', 0);
       B.vessel('SVC_RA'); B.vessel('IVCS_RA', { rev: true });
       B.vessel('IVC_IS', { rev: true, until: (q) => q[1] >= ost[1] - 4, name: 'ivc' });
-      B.vessel('RHV_IVC', { rev: true, name: 'hv' });
+      // (the trunk's leg ends AT THE FORK, where the side branch's join end (u = 1) lies on it, so WEDGE_ALONG is a share of mouth to fork, as it says, whatever the branches' lengths: as a share of the
+      //  whole vein out to the through branch's tip (rhvb), the tip moved past the fork the moment that branch grew, round 17)
+      const side = rhvBranchIds().find((id) => id.startsWith(`${RHV_FORK_PIECE}~F`)), fork = side ? g[side]?.cur : undefined;
+      B.vessel('RHV_IVC', { rev: true, name: 'hv', near: fork ? fork[fork.length - 1]! : null });
     },
     after(r) { const hv = r.spans.hv!; r.hv0 = hv[0]; r.hvEnd = hv[1]; },
   };

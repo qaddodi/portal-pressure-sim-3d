@@ -167,17 +167,19 @@ export const box2Of = (b: Box3): Box2 => [X2(b[0]), Y2(b[4]), X2(b[3]), Y2(b[1])
 export const centreOf = (b: Box3): V3 => [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2];
 
 /**
- * What each camera region of the decks shows, by name (the 2D app's REGIONS boxes, read once: what each box was drawn round). Placed, a region frames these names' bounds with
- * the 2D camera's room round them (growBox3), at their own depth, so every slide that names a region frames its subject wherever the placement put it.
+ * What each camera region of the decks shows, by name (the 2D app's REGIONS boxes, read once: what each box was drawn round). Placed, a region frames today's box moved as what it
+ * shows moved (carriedBox2), grown only where these names would reach past it, so every slide that names a region frames its subject wherever the placement put it, at today's zoom.
+ * A name here is one today's box shows at least half of (tests/anatomy-placed-frames.test.ts): a vessel the box only touches (the neck's V_UP above the route box) would pull the frame to it.
  */
 export const REGION_SUBJECTS: Readonly<Record<string, readonly string[]>> = {
-  // the catheter's way: the neck down the SVC, the right atrium, the IVC through the liver to the hepatic veins, and the portal vein below (DEFAULT_CAM of the procedure decks)
-  route: ['V_UP', 'SVC_RA_1', 'SVC_RA', 'heart', 'heart-ra', 'IVCS_RA', 'IVC_IS', 'RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'MHV_IVC', 'LHV_IVC', 'liver', 'PV_TRUNK', 'PV_TRUNK_1'],
+  // the catheter's way: the SVC from the neck's root, the right atrium, the IVC through the liver to the hepatic veins, and the portal vein below (DEFAULT_CAM of the procedure decks;
+  // the box starts at y 30, below the neck's V_UP, so V_UP is not its subject)
+  route: ['SVC_RA_1', 'SVC_RA', 'heart', 'heart-ra', 'IVCS_RA', 'IVC_IS', 'RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'MHV_IVC', 'LHV_IVC', 'liver', 'PV_TRUNK', 'PV_TRUNK_1'],
   liver: ['liver', 'RHV_IVC', 'MHV_IVC', 'LHV_IVC', 'PVH_R', 'PVH_L', 'PV_TRUNK'],
   portal: ['PV_TRUNK', 'PV_TRUNK_1', 'SV_CONF', 'SV_MID', 'SMV_CONF', 'PVH_R', 'PVH_L', 'A_HEP'],
   gut: ['duodenum', 'bowel', 'colon', 'V_INT', 'V_INT_1', 'SMV_CONF', 'V_COL', 'V_IMV'],
   hepatic: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'MHV_IVC', 'LHV_IVC', 'IVCS_RA', 'IVC_IS', 'heart-ra'],
-  dips: ['DIPS', 'IVC_IS', 'PVH_R', 'PVH_L', 'PV_TRUNK', 'RHV_IVC', 'MHV_IVC'],
+  dips: ['DIPS', 'IVC_IS', 'PVH_R', 'PVH_L', 'PV_TRUNK', 'MHV_IVC'],
   heart: ['heart', 'heart-ra', 'SVC_RA', 'IVCS_RA'],
   varices: ['esophagus', 'C1a', 'C1b', 'AZY_SVC', 'gej'],
   bleed: ['stomach', 'gej', 'C1a', 'C2', 'LGV_CONF'],
@@ -190,30 +192,66 @@ export const REGION_SUBJECTS: Readonly<Record<string, readonly string[]>> = {
   splenic: ['V_SPL', 'SV_MID', 'SV_CONF', 'spleen'],
 };
 
-/** `b` widened (about its middle) to at least the size of the 2D box `size`: a slide keeps today's zoom on its subject, never closer, so the picture holds as much of the body round it. */
-function atLeast(b: Box3, size: Box2): Box3 {
-  const hx = Math.max((b[3] - b[0]) / 2, (size[2] - size[0]) / 600), hy = Math.max((b[4] - b[1]) / 2, (size[3] - size[1]) / 600), cx = (b[0] + b[3]) / 2, cy = (b[1] + b[4]) / 2;
-  return [cx - hx, cy - hy, b[2], cx + hx, cy + hy, b[5]];
+// ---- a 2D camera box carried onto the placement: today's box, moved as what it SHOWS moved (the stretches of the healthy figure's vessels inside it, the organs it holds whole) ----
+// A 2D slide box frames a piece of the figure with room round it, at a zoom. Placed, it frames the same piece wherever the placement moved it, at the same zoom: the box keeps its size and
+// moves by the mean move of the points it shows, and sits at their depth. Whole names would not do: a vessel that only enters the box (the neck's vein above the route box, a collateral
+// crossing a raw box) pulled the frame out to its far end, so the subject the slide is about was drawn small and pushed under a card (24 Nov, the Circulation talk on the iPhone: the
+// route frame rose 0.31 units to hold the neck, and the portal vein and the gut went under the story card). The slide's named subject is then taken in whole (placedRegionBox).
+const VESSEL_STEPS = 48;
+/** Whether a point lies in today's box `b` (scene units, [x0, y0, x1, y1]). */
+const inBox = (b: readonly number[], x: number, y: number): boolean => x >= b[0]! - 1e-9 && x <= b[2]! + 1e-9 && y >= b[1]! - 1e-9 && y <= b[3]! + 1e-9;
+/** What a 2D box shows of the healthy figure, as pairs of points (today's, scene units at depth 0, and where the placement put it): the vessels' points inside it (each placed by its share
+ *  of the way along the whole placed course) and the corners of the organs it holds whole. Empty: the box holds none of the figure. */
+export function shownByBox2(b: Box2): { today: V3; placed: V3 }[] {
+  const B = [X3(b[0]), Y3(b[3]), X3(b[2]), Y3(b[1])] as const, out: { today: V3; placed: V3 }[] = [];
+  for (const n of FIGURE_NAMES) {
+    const T = TODAY_COURSES[n], A = PLACED_COURSES[n];
+    if (T && A) {
+      for (let i = 0; i <= VESSEL_STEPS; i++) { const u = i / VESSEL_STEPS, t = pointAt(T, u); if (inBox(B, t[0], t[1])) out.push({ today: [t[0], t[1], 0], placed: pointAt(A, u) }); }
+      continue;
+    }
+    const o = ORGAN_BOX_2D[n], P = PLACED_ORGAN_BOX[n];
+    if (!o || !P) continue;
+    // (an organ counts where the box holds it whole, as a raw box's subject does (subjectOfBox2); one the box only cuts into is the room round the subject)
+    const ix = Math.max(0, Math.min(o[2], b[2]) - Math.max(o[0], b[0])), iy = Math.max(0, Math.min(o[3], b[3]) - Math.max(o[1], b[1]));
+    if (ix * iy < SUBJECT_INSIDE * (o[2] - o[0]) * (o[3] - o[1])) continue;
+    out.push({ today: [X3(o[0]), Y3(o[3]), 0], placed: [P[0], P[1], P[2]] }, { today: [X3(o[2]), Y3(o[1]), 0], placed: [P[3], P[4], P[5]] });
+  }
+  return out;
 }
-/** The placed box a region frames (its subject with the 2D camera's room round it, and at least the 2D region's size), or null for a name that is no region. */
+/** A 2D box carried onto the placement: today's box (scene units), its size kept, moved by the mean move of what it shows, at the depth of what it shows. A box that shows none of the
+ *  figure moves as the figure round its middle moved (placedMorph). */
+export function carriedBox2(b: Box2): Box3 {
+  const B = [X3(b[0]), Y3(b[3]), X3(b[2]), Y3(b[1])] as const, s = shownByBox2(b);
+  let dx: number, dy: number, z0: number, z1: number;
+  if (!s.length) { const c = placedMorph((b[0] + b[2]) / 2, (b[1] + b[3]) / 2); dx = c[0] - (B[0] + B[2]) / 2; dy = c[1] - (B[1] + B[3]) / 2; z0 = z1 = c[2]; }
+  else {
+    dx = s.reduce((a, q) => a + q.placed[0] - q.today[0], 0) / s.length; dy = s.reduce((a, q) => a + q.placed[1] - q.today[1], 0) / s.length;
+    z0 = Math.min(...s.map((q) => q.placed[2])); z1 = Math.max(...s.map((q) => q.placed[2]));
+  }
+  return [B[0] + dx, B[1] + dy, z0, B[2] + dx, B[3] + dy, z1];
+}
+/** The placed box a region frames: today's region box carried onto the placement (carriedBox2), grown only where the region's named subject would reach past it.
+ *  Null for a name that is no region. */
 export function placedRegionBox(region: string): Box3 | null {
   const names = REGION_SUBJECTS[region];
   if (!names) return null;
   const { box, unknown } = boxOfNames(names);
   if (unknown.length || !box) throw new Error(`region ${region}: no placed ${unknown.join(', ')}`);
-  return atLeast(growBox3(box), REGIONS_2D[region]!);
+  return unionBox3([carriedBox2(REGIONS_2D[region]!), box])!;
 }
 
-/** Everything a raw 2D box was drawn round: the drawn edges with at least half their course inside it, and the organs with at least half their box inside it (the box's centre's nearest
- *  vessel when it holds neither). The subject a raw slide box frames once the anatomy has moved. */
+/** Everything a raw 2D box was drawn round: the drawn edges whose whole course (all but a tenth) lies inside it, and the organs whose box does (the box's centre's nearest vessel when it holds
+ *  neither). A vessel that only crosses the box is not its subject: the box shows a stretch of it, and carriedBox2 frames that stretch. */
+export const SUBJECT_INSIDE = 0.9;
 export function subjectOfBox2(b: Box2, hidden: ReadonlySet<string> = new Set()): string[] {
   const inside = (x: number, y: number) => x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3];
   const out: string[] = [];
-  for (const [id, p] of Object.entries(EDGE_PATH_2D)) if (!hidden.has(id) && p.length && p.filter(([x, y]) => inside(x, y)).length >= p.length / 2) out.push(id);
+  for (const [id, p] of Object.entries(EDGE_PATH_2D)) if (!hidden.has(id) && p.length && p.filter(([x, y]) => inside(x, y)).length >= SUBJECT_INSIDE * p.length) out.push(id);
   for (const [id, o] of Object.entries(ORGAN_BOX_2D)) {
     if (!PLACED_ORGAN_BOX[id]) continue;
     const ix = Math.max(0, Math.min(o[2], b[2]) - Math.max(o[0], b[0])), iy = Math.max(0, Math.min(o[3], b[3]) - Math.max(o[1], b[1]));
-    if (ix * iy >= 0.5 * (o[2] - o[0]) * (o[3] - o[1])) out.push(id);
+    if (ix * iy >= SUBJECT_INSIDE * (o[2] - o[0]) * (o[3] - o[1])) out.push(id);
   }
   if (!out.length) {
     const cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2;
@@ -223,10 +261,10 @@ export function subjectOfBox2(b: Box2, hidden: ReadonlySet<string> = new Set()):
   }
   return out;
 }
-/** The placed box a raw 2D slide box frames: its subject's placed bounds, grown as a region's are, and at least the raw box's size. */
+/** The placed box a raw 2D slide box frames: the box carried onto the placement (carriedBox2), grown only where its subject would reach past it. */
 export function placedBoxOfBox2(b: Box2, hidden?: ReadonlySet<string>): Box3 {
   const { box } = boxOfNames(subjectOfBox2(b, hidden));
-  return atLeast(growBox3(box!), b);
+  return unionBox3([carriedBox2(b), box])!;
 }
 
 /** What the whole figure shows at rest, placed: every organ and the gut, and every vessel drawn on a healthy figure (no collateral, shunt or stent; no caudate). */

@@ -65,6 +65,9 @@ test('the HVPG wedges in the MAIN right hepatic vein (Mohammad 24 Nov: "not its 
   const r3 = route3d('hvpg')!, r = r3.route;
   assert.equal(r.parts.find((q) => q.name === 'branch'), undefined, 'no leg into a branch');
   const hv = r.parts.find((q) => q.name === 'hv')!, tipD = r3.tipD(1);
+  // (the trunk's leg ends AT the fork, where the side branch joins it, so "short of its fork" below is short of the fork, not of the through branch's tip: round 17's longer rhvb put the tip past the fork)
+  const side = rhvBranchIds().find((id) => id.startsWith(`${RHV_FORK_PIECE}~F`)), forkAt = side ? centrelineOf(side)!.pointAt(1) : null, legEnd = r3.centre(hv.d1);
+  assert.ok(forkAt && Math.hypot(legEnd.x - forkAt[0]!, legEnd.y - forkAt[1]!, legEnd.z - forkAt[2]!) < 0.01, 'the trunk\'s leg ends at the fork');
   assert.ok(tipD > hv.d0 && tipD < hv.d1 - 1, `the tip stops in the trunk, short of its fork (${tipD.toFixed(1)} in ${hv.d0.toFixed(1)}..${hv.d1.toFixed(1)})`);
   const trunk = ['RHV_IVC', RHV_FORK_PIECE], share = (p: { x: number; y: number; z: number }): number => Math.min(...trunk.map((id) => drawnShare(id, p.x, p.y, p.z)?.share ?? Infinity));
   const tip = r3.point(tipD);
