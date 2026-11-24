@@ -5,7 +5,7 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
 import type { Stroke } from '../src/editor/types.ts';
 import { strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
-import { dragDelta, ndcOf, nearest, nearestLine } from '../src/ui/debug/editor/picking.ts';
+import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine } from '../src/ui/debug/editor/picking.ts';
 import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
 import { LiveStrokes } from '../src/ui/debug/editor/strokes.ts';
 import { liveTransform } from '../src/ui/debug/editor/live.ts';
@@ -185,4 +185,9 @@ test('live liquify: strokes on the on-screen geometry equal the organ Save build
   live.set([s1, s2]); assert.ok(near(g.getAttribute('position').array, saved([s1, s2])), 'two strokes, the second added on top');
   live.set([s1]); assert.ok(near(g.getAttribute('position').array, saved([s1])), 'undone');
   live.set(undefined); assert.ok(near(g.getAttribute('position').array, saved([])), 'cleared');
+});
+
+test('handles are easy to grab: touch radius at least 22 px and larger than the mouse, dots larger on touch', () => {
+  assert.ok(hitRadius(false) >= 22 && hitRadius(true) > hitRadius(false));
+  assert.ok(dotSize(9, true) > dotSize(9, false));
 });

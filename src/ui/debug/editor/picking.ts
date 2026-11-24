@@ -34,3 +34,7 @@ export function nearestLine(lines: readonly (readonly (readonly [number, number]
   });
   return best;
 }
+/** How far from a handle a press still grabs it (CSS px): a finger needs more than a mouse, and neither under 22. */
+export const hitRadius = (touch: boolean): number => (touch ? 30 : 22);
+/** The size of a handle dot (CSS px): larger where the pointer is a finger. */
+export const dotSize = (base: number, touch: boolean): number => (touch ? Math.round(base * 1.7) : base);

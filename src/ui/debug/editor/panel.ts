@@ -15,14 +15,16 @@ import { dotted, liveCourses } from './live-vessels.ts';
 import { LiveStrokes } from './strokes.ts';
 import { clock } from '../../../clock/frame.ts';
 import { Overlay } from './overlay.ts';
-import { dragDelta, ndcOf, nearest, nearestLine } from './picking.ts';
+import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine } from './picking.ts';
 import { skeleton, organIds, pointAt, centroidOf, type Skeleton } from './source.ts';
 import { History, PLAN_PER_SCENE, dragToOffsets, toReference, strokeToReference, addStroke, clearStrokes, controlOf, exportText, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
 
 type Mode = 'orbit' | 'vessels' | 'organs';
 type Target = { kind: 'node'; id: string } | { kind: 'ctrl'; vid: string; u: number };
 const CTRL_U = [0.25, 0.5, 0.75] as const;
-const HIT_PX = 24;   // a finger, not a mouse
+const coarse = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+const hitPx = (e: PointerEvent): number => hitRadius(e.pointerType === 'touch' || coarse());
+const dotPx = (n: number): number => dotSize(n, coarse());
 const loaded = overrides();   // the overrides this page was built with: handles and boxes show the shift from them
 
 export function mountEditor(): void {
@@ -38,8 +40,13 @@ export function mountEditor(): void {
 
   const css = document.createElement('style');
   css.textContent = `
-#editor-pill{position:fixed;left:150px;top:8px;z-index:var(--z-perf,100);padding:3px 10px;border-radius:999px;border:1px solid #fff8;background:#523;color:#fff;font:600 11px/18px ui-monospace,Menlo,monospace;touch-action:manipulation}
-#editor-panel{position:fixed;left:8px;top:36px;z-index:var(--z-perf,100);width:min(340px,94vw);max-height:calc(100vh - 56px);overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 10px;border-radius:12px;background:#000c;color:#fff;font:11px/1.5 ui-monospace,Menlo,monospace;display:none}
+#editor-bar{position:fixed;left:8px;top:8px;right:8px;z-index:calc(var(--z-perf,100) + 1);display:flex;flex-wrap:wrap;gap:5px;align-items:center;pointer-events:none}
+#editor-bar button{pointer-events:auto;font:600 12px ui-monospace,Menlo,monospace;color:#fff;background:#000b;border:1px solid #fff6;border-radius:8px;padding:8px 12px;min-height:36px;touch-action:manipulation;transition:background .25s,opacity .25s}
+#editor-bar button.on{background:#e8a33dcc;border-color:#e8a33d}
+#editor-bar button:disabled{opacity:.4}
+#editor-bar .gap{flex:1}
+#editor-label{position:fixed;left:0;top:0;z-index:calc(var(--z-perf,100) + 1);pointer-events:none;opacity:0;transition:opacity .25s;color:#fff;font:600 12px/1 ui-monospace,Menlo,monospace;white-space:nowrap;text-shadow:0 0 3px #000,0 0 3px #000,0 0 6px #000,0 1px 2px #000}
+#editor-panel{position:fixed;left:8px;top:56px;z-index:var(--z-perf,100);width:min(340px,94vw);max-height:calc(100vh - 76px);overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 10px;border-radius:12px;background:#000c;color:#fff;font:11px/1.5 ui-monospace,Menlo,monospace;display:none}
 #editor-panel .row{display:flex;align-items:center;gap:8px;margin:3px 0}
 #editor-panel .row>label{flex:1}
 #editor-panel .row input[type=range]{flex:1.4;min-width:0;margin:0}
@@ -53,11 +60,12 @@ export function mountEditor(): void {
 #editor-layer{position:fixed;inset:0;z-index:calc(var(--z-perf,100) - 1);touch-action:none;display:none}`;
   document.head.append(css);
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, kids: (Node | string)[] = []): HTMLElementTagNameMap[K] => { const e = document.createElement(tag); Object.assign(e, props); e.append(...kids); return e; };
-  const pill = el('button', { id: 'editor-pill', textContent: 'Editor' });
+  const topbar = el('div', { id: 'editor-bar' });
+  const labelEl = el('div', { id: 'editor-label' });
   const box = el('div', { id: 'editor-panel' });
   const layer = el('div', { id: 'editor-layer' });
-  document.body.append(layer, pill, box);
-  pill.onclick = () => { box.style.display = box.style.display === 'block' ? 'none' : 'block'; };
+  document.body.append(layer, topbar, labelEl, box);
+  box.style.display = 'block';
   box.addEventListener('pointerdown', (e) => e.stopPropagation());
 
   // ── the draft ──
@@ -125,13 +133,13 @@ export function mountEditor(): void {
     if (live.size) overlay.dots('live', { pos: [...live.values()].flatMap((c) => dotted(c)), size: 5, color: 0x2ee6a6 }); else overlay.clear('live');
     cel.setEditorFade([...live.keys()], 0.3);   // (the real tubes of what is being edited step back: a tube cannot be rebuilt per move; Save rebuilds it)
     const vessels = mode === 'vessels';
-    overlay.dots('nodes', { pos: vessels ? sk.nodes.map((n) => nodeShown(n.id)) : [], size: 9, color: 0xffb347 });
-    if (vessels && target?.kind === 'node') overlay.dots('pick', { pos: [nodeShown(target.id)], size: 16, color: 0xff3d71 });
-    else if (vessels && target?.kind === 'ctrl') overlay.dots('pick', { pos: [ctrlShown(target.vid, target.u)], size: 16, color: 0xff3d71 });
+    overlay.dots('nodes', { pos: vessels ? sk.nodes.map((n) => nodeShown(n.id)) : [], size: dotPx(9), color: 0xffb347 });
+    if (vessels && target?.kind === 'node') overlay.dots('pick', { pos: [nodeShown(target.id)], size: dotPx(16), color: 0xff3d71 });
+    else if (vessels && target?.kind === 'ctrl') overlay.dots('pick', { pos: [ctrlShown(target.vid, target.u)], size: dotPx(16), color: 0xff3d71 });
     else overlay.clear('pick');
     const vid = vessels ? (target?.kind === 'ctrl' ? target.vid : selVessel) : null;
     if (vid && vesselById.has(vid)) {
-      overlay.dots('ctrl', { pos: CTRL_U.map((u) => ctrlShown(vid, u)), size: 12, color: 0x41d6ff });
+      overlay.dots('ctrl', { pos: CTRL_U.map((u) => ctrlShown(vid, u)), size: dotPx(12), color: 0x41d6ff });
       overlay.line('sel', vesselById.get(vid)!.course, 0x41d6ff);
     } else { overlay.clear('ctrl'); overlay.clear('sel'); }
     if (mode === 'organs' && selOrgan) {
@@ -146,7 +154,6 @@ export function mountEditor(): void {
   const syncers: (() => void)[] = [];
   const msgEl = el('div', { className: 'msg' });
   const status = el('div', { className: 'hint' });
-  const modeBar = el('div', { className: 'bar' });
   const dyn = el('div');   // what the mode needs
   const section = (host: HTMLElement, items: readonly { label: string; run: () => void; on?: () => boolean; off?: () => boolean }[]): HTMLElement[] => items.map((i) => {
     const b = el('button', { textContent: i.label }); b.onclick = () => { i.run(); sync(); };
@@ -168,7 +175,7 @@ export function mountEditor(): void {
   const edit = (next: typeof hist.now, coalesce = true): void => { hist.commit(next, coalesce); };
   const buildDyn = (): void => {
     syncers.length = 0; dyn.replaceChildren();
-    syncers.push(() => { for (const [i, b] of [...modeBar.children].entries()) b.classList.toggle('on', ['orbit', 'vessels', 'organs'][i] === mode); });
+    syncers.push(() => { for (const [m, b] of modeBtns) b.classList.toggle('on', m === mode); });
     if (mode === 'orbit') {
       dyn.append(el('div', { className: 'hint', textContent: 'Drag turns the figure all the way round. Pinch and the other gestures work as usual.' }));
       dyn.append(bar([{ label: 'Face front', run: () => { cel.rig.inspectTo(0, 0); frameFor('editor', 900); } }, { label: 'Side', run: () => { cel.rig.inspectTo(Math.PI / 2, 0); frameFor('editor', 900); } }, { label: 'Top', run: () => { cel.rig.inspectTo(0, 1.2); frameFor('editor', 900); } }]));
@@ -221,10 +228,12 @@ export function mountEditor(): void {
     msgEl.textContent = msg; refreshOverlay();
   };
 
-  for (const [m, label] of [['orbit', 'Orbit'], ['vessels', 'Vessels'], ['organs', 'Organs']] as const) { const b = el('button', { textContent: label }); b.onclick = () => setMode(m); modeBar.append(b); }
+  const modeBtns = (['orbit', 'vessels', 'organs'] as const).map((m) => { const b = el('button', { textContent: { orbit: 'Orbit', vessels: 'Vessels', organs: 'Organs' }[m] }); b.onclick = () => setMode(m); topbar.append(b); return [m, b] as const; });
+  syncers.push(() => { for (const [m, b] of modeBtns) b.classList.toggle('on', m === mode); });
   const undoB = el('button', { textContent: 'Undo' }), redoB = el('button', { textContent: 'Redo' });
   undoB.onclick = () => { if (hist.undo()) say(''); sync(); };
   redoB.onclick = () => { if (hist.redo()) say(''); sync(); };
+  const more = el('details', { className: 'more' }, [el('summary', { textContent: 'More' })]);
   const file = el('div', { className: 'bar' });
   const exp = el('button', { textContent: 'Export' });
   exp.onclick = () => {
@@ -232,11 +241,14 @@ export function mountEditor(): void {
     void navigator.clipboard?.writeText(text).then(() => say('Copied to the clipboard and downloaded.'), () => say('Downloaded (the clipboard was refused).'));
     const a = el('a', { href: URL.createObjectURL(new Blob([text], { type: 'application/json' })), download: 'overrides.json' }); a.click(); URL.revokeObjectURL(a.href);
   };
-  const save = el('button', { textContent: 'Save (reloads)' }); save.onclick = () => saveDraft(hist.now);
+  const save = el('button', { textContent: 'Save' }); save.onclick = () => saveDraft(hist.now);
+  const panelB = el('button', { textContent: 'Panel' }); panelB.onclick = () => { box.style.display = box.style.display === 'none' ? 'block' : 'none'; panelB.classList.toggle('on', box.style.display !== 'none'); }; panelB.classList.add('on');
   const clear = el('button', { textContent: 'Clear draft' });
   clear.onclick = () => { if (confirm('Throw away the saved draft and reload?')) { clearDraft(); location.reload(); } };
-  file.append(undoB, redoB, save, exp, clear);
-  box.append(modeBar, dyn, status, file, msgEl);
+  file.append(exp, clear);
+  more.append(file);
+  topbar.append(el('span', { className: 'gap' }), undoB, redoB, save, panelB);
+  box.append(dyn, status, more, msgEl);
 
   // ── the pointer layer ──
   type Drag =
@@ -256,22 +268,23 @@ export function mountEditor(): void {
   const stagePx = (e: PointerEvent): { ndc: Vector2; x: number; y: number } => { const s = stage(); const x = e.clientX - s.x, y = e.clientY - s.y; return { ndc: ndcOf(x, y, s.w, s.h), x, y }; };
 
   layer.addEventListener('pointerdown', (e) => {
-    const { ndc, x, y } = stagePx(e);
+    const { ndc, x, y } = stagePx(e), hitR = hitPx(e);
     layer.setPointerCapture(e.pointerId);
+    showLabel(nameAt(e), e.clientX, e.clientY);
     if (mode === 'vessels') {
       const cands: Target[] = [], pts: ([number, number] | null)[] = [];
       for (const n of sk.nodes) { cands.push({ kind: 'node', id: n.id }); pts.push(screenOf(nodeShown(n.id))); }
       const vid = target?.kind === 'ctrl' ? target.vid : selVessel;
       if (vid) for (const u of CTRL_U) { cands.push({ kind: 'ctrl', vid, u }); pts.push(screenOf(ctrlShown(vid, u))); }
-      let i = nearest(pts.slice(sk.nodes.length), x, y, HIT_PX);   // (the control points first: they sit on a vessel, over its junctions)
-      i = i >= 0 ? i + sk.nodes.length : nearest(pts.slice(0, sk.nodes.length), x, y, HIT_PX);
+      let i = nearest(pts.slice(sk.nodes.length), x, y, hitR);   // (the control points first: they sit on a vessel, over its junctions)
+      i = i >= 0 ? i + sk.nodes.length : nearest(pts.slice(0, sk.nodes.length), x, y, hitR);
       if (i >= 0) {
         const t = cands[i]!; target = t;
         const at = t.kind === 'node' ? nodeShown(t.id) : ctrlShown(t.vid, t.u);
         drag = { kind: 'handle', t, from: ndc, through: toWorld(at), start: t.kind === 'node' ? nodeOf(hist.now, t.id) : controlOf(hist.now, t.vid, t.u), marked: false };
       } else {
         const lines = sk.vessels.map((v) => v.course.map((p) => screenOf(p) ?? [NaN, NaN] as [number, number]));
-        const k = nearestLine(lines, x, y, HIT_PX);
+        const k = nearestLine(lines, x, y, hitR);
         selVessel = k >= 0 ? sk.vessels[k]!.id : null; target = null;
       }
       sync(); return;
@@ -285,8 +298,27 @@ export function mountEditor(): void {
     } else if (tool === 'liquify' && hit && hit.id === selOrgan) drag = { kind: 'brush', id: selOrgan, last: ndc, lastHit: hit.point, marked: false };
     sync();
   });
+  // the name of what is under the pointer: quiet text with a halo, eased in and out, placed by transform (no box)
+  let labelText = '';
+  const showLabel = (t: string | null, x: number, y: number): void => {
+    if (t && t !== labelText) labelEl.textContent = t;
+    if (t) { labelText = t; labelEl.style.transform = `translate(${Math.round(x + 14)}px, ${Math.round(y - 22)}px)`; }
+    labelEl.style.opacity = t ? '1' : '0';
+  };
+  const nameAt = (e: PointerEvent): string | null => {
+    const { ndc, x, y } = stagePx(e), r = hitPx(e);
+    if (mode === 'vessels') {
+      const i = nearest(sk.nodes.map((n) => screenOf(nodeShown(n.id))), x, y, r);
+      if (i >= 0) return `Junction ${sk.nodes[i]!.id}`;
+      const k = nearestLine(sk.vessels.map((v) => v.course.map((p) => screenOf(p) ?? [NaN, NaN] as [number, number])), x, y, r);
+      return k >= 0 ? sk.vessels[k]!.id : null;
+    }
+    return organAt(ndc)?.id ?? null;
+  };
+  layer.addEventListener('pointerleave', () => showLabel(null, 0, 0));
   layer.addEventListener('pointermove', (e) => {
-    if (!drag) return;
+    if (!drag) { if (e.pointerType !== 'touch') showLabel(nameAt(e), e.clientX, e.clientY); return; }
+    showLabel(null, 0, 0);
     const { ndc } = stagePx(e);
     if (drag.kind === 'handle') {
       if (!drag.marked) { hist.mark(); drag.marked = true; }
