@@ -1,5 +1,9 @@
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { x3, y3 } from '../frame2d.ts';
+import { nodeFollow2D } from '../editor-anchors.ts';
+
+/** A catheter shot's target on the figure (2D units, `z` depth), following the nodes the editor moved near it (the same point unedited). */
+const near = (x: number, y: number, z: number): Vec3 => { const [dx, dy] = nodeFollow2D(x, y); return [x3(x + dx), y3(y + dy), z]; };
 
 // Named shots for the HVPG slice. A shot says what to look at (target, direction, how close at least, how much of the body it needs
 // on screen); the room solver (room.ts) then fits it into whatever room the cards leave free on this device. Frontal view: the patient's
@@ -41,12 +45,12 @@ export const SHOTS: Readonly<Record<ShotName, Shot>> = {
   // deck title: the whole figure, slow settle
   title: { yaw: 0, pitch: 0, r: lensDistance(7), target: [x3(740), y3(480), 0], half: [2.0, 1.8] },
   // route: from the neck down the SVC, the right atrium and the IVC to the hepatic vein junction
-  route: { yaw: -0.1, pitch: 0, r: lensDistance(3.7), target: [x3(560), y3(70), -0.3], half: [0.8, 0.75] },
+  route: { yaw: -0.1, pitch: 0, r: lensDistance(3.7), target: near(560, 70, -0.3), half: [0.8, 0.75] },
   // free: tip free in the right hepatic vein; the hepatic veins, the IVC and the liver
-  free: { yaw: -0.18, pitch: 0.04, r: lensDistance(3.7), target: [x3(560), y3(260), -0.2], half: [1.1, 0.87] },
+  free: { yaw: -0.18, pitch: 0.04, r: lensDistance(3.7), target: near(560, 260, -0.2), half: [1.1, 0.87] },
   // wedge and hvpg: closer on the right lobe where the balloon sits
-  wedge: { yaw: -0.18, pitch: 0.04, r: lensDistance(3.0), target: [x3(540), y3(250), -0.25], half: [0.87, 0.7] },
-  hvpg: { yaw: -0.18, pitch: 0.04, r: lensDistance(3.0), target: [x3(540), y3(250), -0.25], half: [0.87, 0.7] },
+  wedge: { yaw: -0.18, pitch: 0.04, r: lensDistance(3.0), target: near(540, 250, -0.25), half: [0.87, 0.7] },
+  hvpg: { yaw: -0.18, pitch: 0.04, r: lensDistance(3.0), target: near(540, 250, -0.25), half: [0.87, 0.7] },
   // free play (outside the deck): the whole splanchnic bed, then a pick on the portal tree
   // (what the figure draws, measured: the organs' outlines and the vessels' courses together run x 321 to 1104 and y -90 to 1072 in the 2D units (the esophagus's top to the colon's foot), so the middle is (712, 491) and
   // the half extents 1.31 by 1.94. The plate (PLATE_BOUNDS, 380 to 1100 by 0 to 1000) is less than that: framing it cut the foot off in a short room, with the Tests sheet up and in a talk. tests/atlas-camera.test.ts measures them.)

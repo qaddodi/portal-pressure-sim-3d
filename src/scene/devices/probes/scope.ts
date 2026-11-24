@@ -9,7 +9,7 @@ import { BufferAttribute, BufferGeometry, Color, DoubleSide, Float32BufferAttrib
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { TIER_Z, VESSEL_PLANE_Z, len3, x3, y3 } from '../../frame2d.ts';
-import { EDGE_PATH_2D } from '../../vessels/paths.copied.ts';
+import { path2D } from '../../editor-anchors.ts';
 import { ORGAN_MESHES } from '../../organs/meshes.ts';
 import { ORGAN_Z } from '../../organs/z.ts';
 import { bakeGeometry, centreAt, type CentreGrid } from '../../organs/centre-z.ts';
@@ -269,7 +269,7 @@ export class EndoScope {
   private setTargets(): void {
     (['pv', 'hv'] as const).forEach((station, i) => {
       const [id, f] = (EUS_TARGETS as unknown as Record<string, [string, number]>)[station]!;
-      const path = (EDGE_PATH_2D as Record<string, P2[]>)[id]!;
+      const path = path2D(id) as P2[];
       const q = pointOn(path, f) as P2;
       this.targets[i] = [q[0], q[1]];
     });
@@ -286,7 +286,7 @@ export class EndoScope {
   /** The glue slide's target: the varix, at its needle's point (EUS_GLUE_TARGET). */
   private setGlueTarget(): void {
     const [id, f] = EUS_GLUE_TARGET as unknown as [string, number];
-    const q = pointOn((EDGE_PATH_2D as Record<string, P2[]>)[id]!, f) as P2;
+    const q = pointOn(path2D(id) as P2[], f) as P2;
     this.glueT = [q[0], q[1]];
   }
 

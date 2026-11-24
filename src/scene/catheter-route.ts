@@ -1,4 +1,4 @@
-import { EDGE_PATH_2D } from './vessels/paths.copied.ts';
+import { path2D } from './editor-anchors.ts';
 import { NETWORK_BY_ID } from './vessels/network.ts';
 import { TIER_Z, x3, y3 } from './frame2d.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
@@ -10,7 +10,7 @@ import type { Vec3 } from './anatomy/vessels.ts';
 // a short stretch, the way a wire bends through the corner where the IVC turns into the vein, instead of jumping.
 
 type P2 = readonly [number, number];
-const pathOf = (id: string, rev = false): P2[] => { const p = EDGE_PATH_2D[id]; if (!p) throw new Error(`no 2D course for ${id}`); return (rev ? [...p].reverse() : [...p]) as P2[]; };
+const pathOf = (id: string, rev = false): P2[] => { const p = path2D(id); if (!p) throw new Error(`no 2D course for ${id}`); return (rev ? [...p].reverse() : [...p]) as P2[]; };
 const depthOf = (id: string): number => TIER_Z[NETWORK_BY_ID.get(id)!.tier];
 
 /** Where the tip stops along the right hepatic vein, from the IVC outward (the 2D app's 0.62). */

@@ -11,6 +11,7 @@ import { flattenPath } from './organ2d/flatten.js';
 // @ts-ignore copied plain JS
 import { nameSpots, NAME_ORGAN, OFF_NEAR } from './organ2d/organ-names.copied.js';
 import type { Box } from './geometry.ts';
+import { withOrgan } from '../editor-anchors.ts';
 
 type Ring = [number, number][];
 const flat = new Map<string, Ring[]>();
@@ -41,7 +42,7 @@ interface Edges { y0: number; bands: number[][] }
 export function silhouettes(to: To2Screen): Silhouettes {
   const rings = new Map<string, Ring[]>(), bounds = new Map<string, Box[]>(), edges = new Map<string, Edges[]>();
   for (const id of OTHER) {
-    const rs = ringsOf(id).map((r) => r.map(([x, y]) => to(x, y)));
+    const rs = ringsOf(id).map((r) => r.map(([x, y]) => { const q = withOrgan(id === 'esophagus' ? 'stomach' : id, [x, y]); return to(q[0], q[1]); }));
     rings.set(id, rs);
     const bb: Box[] = [], ee: Edges[] = [];
     for (const r of rs) {
@@ -116,6 +117,7 @@ export function shareOnOther(name: string, sil: Silhouettes, b: Box): number {
 /** The other places a name may stand (centres of its box, canvas px offsets from its anchor's screen point), nearest the anchor first. */
 export function spotOffsets(name: string, anchor2d: readonly [number, number], to: To2Screen): [number, number][] {
   const a = to(anchor2d[0], anchor2d[1]);
-  return (nameSpots(name) as [number, number][]).map(([x, y]) => { const p = to(x, y); return [p[0] - a[0], p[1] - a[1]] as [number, number]; });
+  const organ = organOfName(name);
+  return (nameSpots(name) as [number, number][]).map(([x, y]) => { const m = withOrgan(organ === 'esophagus' ? 'stomach' : organ === 'heart' ? 'heart-ra' : organ, [x, y]), p = to(m[0], m[1]); return [p[0] - a[0], p[1] - a[1]] as [number, number]; });
 }
 export { OFF_NEAR };
