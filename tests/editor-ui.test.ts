@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
 import type { Stroke } from '../src/editor/types.ts';
-import { diffList, resetItem, core, fileText, fileOverrides, staleNote, differs, addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
+import { nodeVisible, snapOffsets, diffList, resetItem, core, fileText, fileOverrides, staleNote, differs, addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from '../src/ui/debug/editor/picking.ts';
 import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
 import { VIEW_KEY, loadView, saveView, EXPORT_REMIND_MS, exportReminder, noteExported, persistHistory, restorableHistory, clearHistory, type StorageLike } from '../src/ui/debug/editor/session.ts';
@@ -330,4 +330,15 @@ test('diff list and per-item Reset: changes against the committed file, put back
   const b = resetItem(a, base, { kind: 'node', id: 'B' }); assert.equal(nodeOf(b, 'B').dx, 0);
   const all = diffList(b, base).reduce((o, it) => resetItem(o, base, it), b);
   assert.deepEqual(diffList(all, base), []); assert.equal(differs(all, base), false);
+});
+
+test('isolate and snap: handles filter by system and solo vessel; a snap puts the junction on its neighbour', () => {
+  const arms = [{ id: 'PV', tone: 'portal' }, { id: 'SMV', tone: 'portal' }, { id: 'HA', tone: 'artery' }];
+  assert.equal(nodeVisible('all', null, arms), true);
+  assert.equal(nodeVisible('portal', null, arms), true); assert.equal(nodeVisible('venous', null, arms), false); assert.equal(nodeVisible('arterial', null, arms), true);
+  assert.equal(nodeVisible('all', 'HA', arms), true); assert.equal(nodeVisible('all', 'IVC', arms), false);
+  const o = snapOffsets([0.1, 0.2, 0.0], [0.4, -0.1, 0.02], { dz: 0 });
+  assert.ok(Math.abs(o.dx - 90) < 1e-9 && Math.abs(o.dy - 90) < 1e-9 && Math.abs(o.dz - 0.02) < 1e-9, 'the plan units that move it there (y flipped)');
+  const d = snapOffsets([0.1, 0.2, 0.0], [0.4, -0.1, 0.02], { dz: 0 }, false, true);
+  assert.deepEqual([d.dx, d.dy, d.dz], [0, 0, 0.02]);
 });

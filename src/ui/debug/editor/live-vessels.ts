@@ -24,8 +24,11 @@ export function liveCourses(now: Overrides, loaded: Overrides, vessels: readonly
     if (same(now.nodes?.[v.from], loaded.nodes?.[v.from]) && same(now.nodes?.[v.to], loaded.nodes?.[v.to]) && same(now.vessels?.[v.id], loaded.vessels?.[v.id])) continue;
     if (!hasEdits(now, e) && !hasEdits(loaded, e)) continue;
     const opts = { radius: radiusOf(v.id) }, rn = applyVesselOverrides(e, base, now, opts), rl = applyVesselOverrides(e, base, loaded, opts), n = rn.path.length;
+    // (u by the plan's arc length, as vessel-apply.ts reads it: the samples are not evenly spaced, and an index share would drift from the saved result)
+    const arc = [0]; for (let i = 1; i < base.length; i++) arc.push(arc[i - 1]! + Math.hypot(base[i]![0] - base[i - 1]![0], base[i]![1] - base[i - 1]![1]));
+    const total = arc[arc.length - 1] || 1;
     out.set(v.id, rn.path.map((p, i): V3 => {
-      const u = n > 1 ? i / (n - 1) : 0;
+      const u = n > 1 ? arc[i]! / total : 0;
       return [x3(p[0]), y3(p[1]), pointAt(v.course, u)[2] + (rn.dz ? dzAt(rn.dz, u) : 0) - (rl.dz ? dzAt(rl.dz, u) : 0)];
     }));
   }

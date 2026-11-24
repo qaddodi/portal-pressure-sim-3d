@@ -112,6 +112,17 @@ export function tidy(o: Overrides): Overrides {
   if (Object.keys(o.organs ?? {}).length) out.organs = o.organs!;
   return out;
 }
+export type System = 'all' | 'portal' | 'venous' | 'arterial';
+const TONE_OF: Record<string, System> = { portal: 'portal', sys: 'venous', artery: 'arterial' };
+/** Does a junction show its handle under the chosen system (any of its arms is of it) and the solo vessel (it is one of the vessel's ends)? Crowded places become pickable. */
+export function nodeVisible(system: System, solo: string | null, arms: readonly { id: string; tone?: string }[]): boolean {
+  if (solo && !arms.some((a) => a.id === solo)) return false;
+  return system === 'all' || arms.some((a) => (a.tone ? TONE_OF[a.tone] : undefined) === system);
+}
+/** The offsets that put a junction (reference place `base`, scene units) where `target` is, in the plan's units; `depth` false leaves depth alone. This is a snap, and with depth only, an align. */
+export function snapOffsets(base: V3, target: V3, keep: { dz: number }, plane = true, depth = true): { dx: number; dy: number; dz: number } {
+  return { dx: plane ? (target[0] - base[0]) * PLAN_PER_SCENE : 0, dy: plane ? -(target[1] - base[1]) * PLAN_PER_SCENE : 0, dz: depth ? Math.max(-DZ_LIMIT, Math.min(DZ_LIMIT, target[2] - base[2])) : keep.dz };
+}
 export interface DiffItem { kind: 'node' | 'vessel' | 'organ'; id: string }
 const sameJson = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 /** What the draft changes against `base` (the committed file): one item per junction, vessel and organ whose edit differs. */

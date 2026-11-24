@@ -21,8 +21,9 @@ import { buildCommit, VIEW_KEY, clearHistory, loadView, saveView, exportReminder
 import { knownIds, orphanCount, orphanText, orphansOf, withoutOrphans } from './orphans.ts';
 import { Overlay } from './overlay.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from './picking.ts';
+import { NETWORK_BY_ID } from '../../../scene/vessels/network.ts';
 import { skeleton, organIds, pointAt, uAtIndex, centroidOf, type Skeleton } from './source.ts';
-import { History, diffList, resetItem, differs, core, fileOverrides, fileText, staleNote, PLAN_PER_SCENE, addControl, removeControl, knotsOf, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
+import { History, nodeVisible, snapOffsets, type System, diffList, resetItem, differs, core, fileOverrides, fileText, staleNote, PLAN_PER_SCENE, addControl, removeControl, knotsOf, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
 
 type Mode = 'orbit' | 'vessels' | 'organs';
 type Target = { kind: 'node'; id: string } | { kind: 'ctrl'; vid: string; u: number };
@@ -44,7 +45,7 @@ export function mountEditor(): void {
   const overlay = new Overlay();
   let mode: Mode = 'orbit', tool: 'move' | 'cage' | 'liquify' = 'cage';
   let target: Target | null = null, selVessel: string | null = null, selOrgan: string | null = organIds()[0] ?? null;
-  let radius = 0.08, strength = 0.5, lock: Lock = 'free';
+  let radius = 0.08, strength = 0.5, lock: Lock = 'free', system: System = 'all', solo = false;
   let playing = false;
   let msg = recovered && exportText(recovered.now) !== exportText(loaded) ? 'Recovered your unsaved edits from this browser.' : '';
 
@@ -85,6 +86,7 @@ export function mountEditor(): void {
   const planToScene = (dx: number, dy: number, dz: number): V3 => [dx / PLAN_PER_SCENE, -dy / PLAN_PER_SCENE, dz];
   const shift = (a: { dx: number; dy: number; dz: number }, b: { dx: number; dy: number; dz: number }): V3 => planToScene(a.dx - b.dx, a.dy - b.dy, a.dz - b.dz);
   const add = (p: V3, d: V3): V3 => [p[0] + d[0], p[1] + d[1], p[2] + d[2]];
+  const visNodes = (): typeof sk.nodes => sk.nodes.filter((n) => nodeVisible(system, solo ? selVessel ?? (target?.kind === 'ctrl' ? target.vid : null) : null, n.arms.map((a) => ({ id: a.id, tone: NETWORK_BY_ID.get(a.id)?.tone }))));
   const nodeShown = (id: string): V3 => add(nodeById.get(id)!.at, shift(nodeOf(hist.now, id), nodeOf(loaded, id)));
   const ctrlShown = (vid: string, u: number): V3 => add(pointAt(vesselById.get(vid)!.course, u), shift(controlOf(hist.now, vid, u), controlOf(loaded, vid, u)));
 
@@ -165,7 +167,7 @@ export function mountEditor(): void {
     syncOrgans();
     if (mode === 'vessels' || playing || before) previewVesselEdits(shown()); else endVesselPreview();   // (the real tubes and skins move with the drag, vessels/edit-preview.ts)
     const vessels = mode === 'vessels';
-    overlay.dots('nodes', { pos: vessels ? sk.nodes.map((n) => nodeShown(n.id)) : [], size: dotPx(9), color: 0xffb347 });
+    overlay.dots('nodes', { pos: vessels ? visNodes().map((n) => nodeShown(n.id)) : [], size: dotPx(9), color: 0xffb347 });
     if (vessels && target?.kind === 'node') overlay.dots('pick', { pos: [nodeShown(target.id)], size: dotPx(16), color: 0xff3d71 });
     else if (vessels && target?.kind === 'ctrl') overlay.dots('pick', { pos: [ctrlShown(target.vid, target.u)], size: dotPx(16), color: 0xff3d71 });
     else overlay.clear('pick');
@@ -226,6 +228,30 @@ export function mountEditor(): void {
       const which = el('div', { className: 'hint' });
       syncers.push(() => { which.textContent = !target ? 'Nothing picked.' : target.kind === 'node' ? `Junction ${target.id}` : `${target.vid} at ${Math.round(target.u * 100)}%`; });
       dyn.append(which);
+      // the picked handle's numbers (plan units for x and y, scene units for depth), typed or nudged
+      const num = (key: 'dx' | 'dy' | 'dz', label: string, step: string): HTMLElement => {
+        const i = el('input', { type: 'number', step }); i.style.cssText = 'width:64px;font:11px ui-monospace,Menlo,monospace;color:#fff;background:#fff2;border:1px solid #fff6;border-radius:6px;padding:4px;min-width:0';
+        i.onchange = () => { const s = sel(); if (!s || !Number.isFinite(i.valueAsNumber)) return; hist.mark(); s.put({ ...s.get(), [key]: i.valueAsNumber }); sync(); };
+        syncers.push(() => { const s = sel(); i.disabled = !s; if (document.activeElement !== i) i.value = s ? String(Math.round(s.get()[key] * 1000) / 1000) : ''; });
+        return el('label', { className: 'row' }, [el('span', { textContent: label }), i]);
+      };
+      dyn.append(el('div', { className: 'bar' }, [num('dx', 'x', '0.5'), num('dy', 'y', '0.5'), num('dz', 'depth', '0.005')]));
+      const nudge = (dx: number, dy: number, dz: number): void => { const s = sel(); if (!s) return; const g = s.get(); hist.mark(); s.put({ dx: g.dx + dx, dy: g.dy + dy, dz: Math.max(-0.3, Math.min(0.3, g.dz + dz)) }); sync(); };
+      dyn.append(bar([{ label: '◀', off: () => !target, run: () => nudge(-1, 0, 0) }, { label: '▶', off: () => !target, run: () => nudge(1, 0, 0) }, { label: '▲', off: () => !target, run: () => nudge(0, -1, 0) }, { label: '▼', off: () => !target, run: () => nudge(0, 1, 0) },
+        { label: 'Nearer', off: () => !target, run: () => nudge(0, 0, 0.005) }, { label: 'Farther', off: () => !target, run: () => nudge(0, 0, -0.005) }]));
+      const nearestOther = (id: string): string | null => {
+        const me = nodeShown(id); let best: string | null = null, bd = Infinity;
+        for (const n of sk.nodes) { if (n.id === id) continue; const p = nodeShown(n.id), d = (p[0] - me[0]) ** 2 + (p[1] - me[1]) ** 2; if (d < bd) { bd = d; best = n.id; } }
+        return best;
+      };
+      const joinTo = (plane: boolean, depth: boolean): void => {
+        if (target?.kind !== 'node') return; const o = nearestOther(target.id); if (!o) return;
+        const base = nodeById.get(target.id)!.at, to = nodeShown(o), cur = nodeOf(hist.now, target.id);
+        hist.commit(setNode(hist.now, target.id, snapOffsets(base, to, cur, plane, depth))); say(`${plane ? 'Snapped' : 'Matched depth'} to junction ${o}.`);
+      };
+      dyn.append(bar([{ label: 'Snap to nearest junction', off: () => target?.kind !== 'node', run: () => joinTo(true, true) }, { label: 'Match its depth', off: () => target?.kind !== 'node', run: () => joinTo(false, true) }]));
+      dyn.append(bar([{ label: 'All', on: () => system === 'all', run: () => { system = 'all'; } }, { label: 'Portal', on: () => system === 'portal', run: () => { system = 'portal'; } }, { label: 'Venous', on: () => system === 'venous', run: () => { system = 'venous'; } }, { label: 'Arterial', on: () => system === 'arterial', run: () => { system = 'arterial'; } },
+        { label: 'Solo vessel', on: () => solo, run: () => { solo = !solo; } }]));
       dyn.append(slider('Depth (scene units)', -0.2, 0.2, 0.002, () => sel()?.get().dz ?? 0, (z) => { const s = sel(); if (s) { const g = s.get(); s.put({ ...g, dz: z }); } }));
       dyn.append(bar([{ label: 'Remove point', off: () => target?.kind !== 'ctrl', run: () => { if (target?.kind === 'ctrl') { hist.commit(removeControl(hist.now, target.vid, target.u)); target = null; } } },
         { label: 'Reset picked', off: () => !target, run: () => { const s = sel(); if (s) s.put({ dx: 0, dy: 0, dz: 0 }); } },
@@ -399,11 +425,12 @@ export function mountEditor(): void {
     showLabel(nameAt(e), e.clientX, e.clientY);
     if (mode === 'vessels') {
       const cands: Target[] = [], pts: ([number, number] | null)[] = [];
-      for (const n of sk.nodes) { cands.push({ kind: 'node', id: n.id }); pts.push(screenOf(nodeShown(n.id))); }
+      const vn = visNodes();
+      for (const n of vn) { cands.push({ kind: 'node', id: n.id }); pts.push(screenOf(nodeShown(n.id))); }
       const vid = target?.kind === 'ctrl' ? target.vid : selVessel;
       if (vid) for (const u of knotsOf(hist.now, vid)) { cands.push({ kind: 'ctrl', vid, u }); pts.push(screenOf(ctrlShown(vid, u))); }
-      let i = nearest(pts.slice(sk.nodes.length), x, y, hitR);   // (the control points first: they sit on a vessel, over its junctions)
-      i = i >= 0 ? i + sk.nodes.length : nearest(pts.slice(0, sk.nodes.length), x, y, hitR);
+      let i = nearest(pts.slice(vn.length), x, y, hitR);   // (the control points first: they sit on a vessel, over its junctions)
+      i = i >= 0 ? i + vn.length : nearest(pts.slice(0, vn.length), x, y, hitR);
       if (i >= 0) {
         const t = cands[i]!; target = t;
         const at = t.kind === 'node' ? nodeShown(t.id) : ctrlShown(t.vid, t.u);
@@ -444,8 +471,8 @@ export function mountEditor(): void {
   const nameAt = (e: PointerEvent): string | null => {
     const { ndc, x, y } = stagePx(e), r = hitPx(e);
     if (mode === 'vessels') {
-      const i = nearest(sk.nodes.map((n) => screenOf(nodeShown(n.id))), x, y, r);
-      if (i >= 0) return `Junction ${sk.nodes[i]!.id}`;
+      const vn = visNodes(), i = nearest(vn.map((n) => screenOf(nodeShown(n.id))), x, y, r);
+      if (i >= 0) return `Junction ${vn[i]!.id}`;
       const k = nearestLine(sk.vessels.map((v) => v.course.map((p) => screenOf(p) ?? [NaN, NaN] as [number, number])), x, y, r);
       return k >= 0 ? sk.vessels[k]!.id : null;
     }
