@@ -4,9 +4,7 @@ Approved: Mohammad, 24 Nov, "I like A for move 4". Reference: `/mnt/project-file
 
 Traits (from the mock's subtitle and captions):
 - Slides only (the deck's scene link), never free play or the Tests sheet.
-- The camera glides in behind and outside the catheter tip as it advances up the cava into the hepatic vein: 4.2 scene units from the tip at the start (whole liver in view) to 0.75 at the end.
-- It swings round the tip with the vein's bend, 0 to 32 degrees, to the OUTSIDE of the bend.
-- Lens 20 degrees (the figure's rest lens is 14).
+- Numbers are the mock thread's own (move4-A-camera-values.md): at advance 0.62, 0.74, 0.82, 0.92, 0.995 the distance from the aim is 4.2, 2.6, 1.7, 1.1, 0.75 scene units, yaw 0, -0.12, -0.30, -0.45, -0.55 rad (camera toward the viewer's left), pitch 0.05..0.16, lens 20. The aim is on the vein centreline 0.015 of the way ahead of the tip. The five frames are keys; a monotone cubic runs between them (`CHASE_KEYS`).
 - It stops framing the wedge with the balloon up: balloon behind the tip, the vein ahead.
 - A pure function of the catheter's advance, so Back runs it backwards.
 

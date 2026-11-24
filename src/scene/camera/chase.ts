@@ -1,59 +1,52 @@
-// The chase camera (approved 24 Nov 2026, move 4 variant A; docs/approved/camera-chase.md): on a slide that runs the HVPG catheter, the camera glides in from behind and outside the tip as it advances
-// up the cava into the hepatic vein, swings with the vein's bends and stops framing the wedge with the balloon up. A pure function of how far the catheter has come, so it moves exactly as the
-// catheter does (and Back runs it backwards): no clock, no scene. The rig (rig.ts setChase) eases into and out of it and draws it with the lens it names.
+// The chase camera (approved 24 Nov 2026, move 4 variant A; docs/approved/camera-chase.md): on a slide that runs the HVPG catheter, the camera glides in from behind and outside the tip as it advances up the cava
+// into the hepatic vein, swings with the vein's bend and stops framing the wedge with the balloon up. A pure function of how far the catheter has come, so it moves exactly as the catheter does (and Back runs it
+// backwards): no clock, no scene. The rig (rig.ts setChase) eases into and out of it and draws it with the lens it names.
+// The numbers are the approved mock's own (/mnt/project-files/camera-move-mocks-24nov/move4-A-camera-values.md, rendered from the real scene): distance in scene units from the aim, yaw and pitch of the rig's own
+// orbit formula (negative yaw puts the camera toward the viewer's left), lens 20, the aim on the vein's centreline 0.015 of the way ahead of the tip. The mock's five frames are its keyframes.
 import { Vector3 } from 'three';
 import { route3d, type Route3D } from '../procedures/route3d.ts';
-import { smoothJoinsOn } from '../vessels/join-mode.ts';
 
-/** From the tip, scene units: far at the mouth of the route (the whole liver in view), close at the vein's end (the wedge). The approved mock: "glides 4.2 to 0.75 from the tip". */
-export const CHASE_FAR = 4.2, CHASE_NEAR = 0.75;
-/** How far the camera swings round the tip, at most (radians, 32 degrees), to the OUTSIDE of the vein's bend. */
-export const CHASE_SWING = (32 * Math.PI) / 180;
+/** The mock's five frames: the catheter's advance (the share of its way in), the distance from the aim (scene units), yaw and pitch (radians). */
+export const CHASE_KEYS: readonly { u: number; d: number; yaw: number; pitch: number }[] = [
+  { u: 0.62, d: 4.2, yaw: 0, pitch: 0.05 },
+  { u: 0.74, d: 2.6, yaw: -0.12, pitch: 0.06 },
+  { u: 0.82, d: 1.7, yaw: -0.3, pitch: 0.1 },
+  { u: 0.92, d: 1.1, yaw: -0.45, pitch: 0.14 },
+  { u: 0.995, d: 0.75, yaw: -0.55, pitch: 0.16 },
+];
 /** The lens the chase is shot on (degrees; the figure's rest lens is 14). */
 export const CHASE_FOV = 20;
-/** A little tilt above the horizon, as the catheter shots have (shots.ts free). */
-export const CHASE_PITCH = 0.04;
-/** The aim sits this share of the camera's distance AHEAD of the tip along the vein, so the balloon behind the tip and the vein ahead of it fill the frame. */
-export const CHASE_AHEAD = 0.2;
+/** The aim is this far ahead of the tip, as a share of the way. */
+export const CHASE_AHEAD = 0.015;
 
 export interface ChasePose { yaw: number; pitch: number; dist: number; fov: number; target: [number, number, number] }
 
 /** The geometry a chase reads: the route's own samples. (Route3D satisfies it; a test may give its own.) */
-export type ChaseRoute = Pick<Route3D, 'point' | 'dir' | 'tipD'>;
+export type ChaseRoute = Pick<Route3D, 'point' | 'tipD'>;
 
-/** The window the bend is shared out over: this share of the way either side of the tip, and the samples taken in it. */
-const WINDOW = 0.18, WINDOW_N = 9;
-const smooth = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t * (t * (6 * t - 15) + 10));
-const heading = (v: Vector3): number => Math.atan2(v.y, v.x);
-const wrap = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
-
-const kept = new Map<string, { turnEnd: number }>();
-/** How far the route's heading has turned, in the view plane, from its start to the end of the way (signed, radians): what the swing is shared out by. */
-function turnEndOf(r: ChaseRoute): number {
-  const h0 = heading(r.dir(r.tipD(0), new Vector3()));
-  return wrap(heading(r.dir(r.tipD(1), new Vector3())) - h0);
+/** A monotone cubic through the keys (Fritsch-Carlson), so the camera passes each approved frame exactly and never overshoots or stops between them. `f` picks the value; distance goes through its log (a geometric glide). */
+function through(u: number, f: (k: (typeof CHASE_KEYS)[number]) => number): number {
+  const K = CHASE_KEYS, n = K.length;
+  if (u <= K[0]!.u) return f(K[0]!);
+  if (u >= K[n - 1]!.u) return f(K[n - 1]!);
+  let i = 0;
+  while (u > K[i + 1]!.u) i++;
+  const x = K.map((k) => k.u), y = K.map(f), h = x.slice(1).map((v, j) => v - x[j]!), s = h.map((hh, j) => (y[j + 1]! - y[j]!) / hh);
+  const m = y.map((_, j) => (j === 0 ? s[0]! : j === n - 1 ? s[n - 2]! : s[j - 1]! * s[j]! <= 0 ? 0 : (s[j - 1]! + s[j]!) / 2));
+  for (let j = 0; j < n - 1; j++) {
+    if (s[j] === 0) { m[j] = 0; m[j + 1] = 0; continue; }
+    const a = m[j]! / s[j]!, b = m[j + 1]! / s[j]!, q = a * a + b * b;
+    if (q > 9) { const t = 3 / Math.sqrt(q); m[j] = t * a * s[j]!; m[j + 1] = t * b * s[j]!; }
+  }
+  const t = (u - x[i]!) / h[i]!, t2 = t * t, t3 = t2 * t;
+  return (2 * t3 - 3 * t2 + 1) * y[i]! + (t3 - 2 * t2 + t) * h[i]! * m[i]! + (-2 * t3 + 3 * t2) * y[i + 1]! + (t3 - t2) * h[i]! * m[i + 1]!;
 }
 
-/** The camera for the tip at share `u` (0 at the start of the route, 1 at the vein's end) of its way. */
+/** The camera for the tip at share `u` of its way (0 at the start of the route, 1 at the vein's end). */
 export function chaseAt(r: ChaseRoute, u: number, out?: ChasePose): ChasePose {
-  const s = Math.min(1, Math.max(0, u)), d = r.tipD(s), tip = r.point(d, new Vector3()), t = r.dir(d, new Vector3());
-  const key = `${smoothJoinsOn()}|${r.tipD(1).toFixed(3)}`;
-  if (!kept.has(key)) kept.set(key, { turnEnd: turnEndOf(r) });
-  const turnEnd = kept.get(key)!.turnEnd;
-  // the swing grows with how much of the route's whole turn the tip has made, so the camera opens round the bend as the vein bends; it goes to the outside of the turn. The vein turns sharply at its mouth, so the share is
-  // the turn averaged over a stretch of the route either side of the tip (a window of WINDOW of the way): the camera opens round the corner over a stretch, not in a step.
-  const d0 = r.tipD(0), d1 = r.tipD(1), h0 = heading(r.dir(d0, new Vector3())), v = new Vector3();
-  let sum = 0;
-  for (let i = 0; i < WINDOW_N; i++) {
-    const du = ((i / (WINDOW_N - 1)) * 2 - 1) * WINDOW, di = Math.min(d1, Math.max(d0, r.tipD(Math.min(1, Math.max(0, s + du)))));
-    sum += Math.abs(turnEnd) > 1e-3 ? Math.min(1, Math.max(0, wrap(heading(r.dir(di, v)) - h0) / turnEnd)) : 0;
-  }
-  const share = sum / WINDOW_N;
-  const side = turnEnd >= 0 ? -1 : 1;
-  const dist = CHASE_FAR * Math.pow(CHASE_NEAR / CHASE_FAR, smooth(s));
-  const a = r.point(Math.min(r.tipD(1), d + CHASE_AHEAD * dist), new Vector3());
+  const s = Math.min(1, Math.max(0, u)), a = r.point(r.tipD(Math.min(1, s + CHASE_AHEAD)), new Vector3());
   const o = out ?? { yaw: 0, pitch: 0, dist: 0, fov: 0, target: [0, 0, 0] };
-  o.yaw = side * CHASE_SWING * smooth(share); o.pitch = CHASE_PITCH; o.dist = dist; o.fov = CHASE_FOV;
+  o.yaw = through(s, (k) => k.yaw); o.pitch = through(s, (k) => k.pitch); o.dist = Math.exp(through(s, (k) => Math.log(k.d))); o.fov = CHASE_FOV;
   o.target[0] = a.x; o.target[1] = a.y; o.target[2] = a.z;
   return o;
 }

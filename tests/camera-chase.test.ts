@@ -3,23 +3,28 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { chaseAt, hvpgChase, CHASE_FAR, CHASE_NEAR, CHASE_SWING, CHASE_FOV } from '../src/scene/camera/chase.ts';
+import { CHASE_KEYS, hvpgChase } from '../src/scene/camera/chase.ts';
 
-test('the real HVPG route: far and square at the start, near and swung at the vein, never past 32 degrees, distance only closes', () => {
-  const a = hvpgChase(0)!, z = hvpgChase(1)!;
-  assert.ok(a && z);
-  assert.ok(Math.abs(a.dist - CHASE_FAR) < 1e-6 && Math.abs(z.dist - CHASE_NEAR) < 1e-6);
-  assert.ok(Math.abs(a.yaw) < 1e-6, `starts square on: ${a.yaw}`);
-  assert.ok(Math.abs(z.yaw) > 0.3 && Math.abs(z.yaw) <= CHASE_SWING + 1e-9, `ends swung: ${z.yaw}`);
-  assert.equal(z.fov, CHASE_FOV);
-  let d = Infinity, y = 0;
-  for (let i = 0; i <= 100; i++) {
-    const p = hvpgChase(i / 100)!;
-    assert.ok(p.dist <= d + 1e-9, 'the camera only closes in'); d = p.dist;
-    assert.ok(Math.abs(p.yaw) <= CHASE_SWING + 1e-9);
-    assert.ok(Math.abs(p.yaw - y) < 0.12, `no jump in the swing at ${i}: ${y} to ${p.yaw}`); y = p.yaw;
+test('the five approved frames of the mock (move4-A-camera-values.md) are hit exactly: distance, yaw, pitch, lens 20', () => {
+  for (const k of CHASE_KEYS) {
+    const p = hvpgChase(k.u)!;
+    assert.ok(Math.abs(p.dist - k.d) < 1e-9 && Math.abs(p.yaw - k.yaw) < 1e-9 && Math.abs(p.pitch - k.pitch) < 1e-9, `frame at ${k.u}: ${p.dist} ${p.yaw} ${p.pitch}`);
+    assert.equal(p.fov, 20);
+  }
+  assert.deepEqual(CHASE_KEYS.map((k) => [k.u, k.d, k.yaw, k.pitch]), [[0.62, 4.2, 0, 0.05], [0.74, 2.6, -0.12, 0.06], [0.82, 1.7, -0.3, 0.1], [0.92, 1.1, -0.45, 0.14], [0.995, 0.75, -0.55, 0.16]]);
+});
+
+test('between the frames the camera only closes in and swings one way, with no jump; before the first it holds, after the last it stays', () => {
+  let d = Infinity, y = 0, p0 = 0;
+  for (let i = 0; i <= 200; i++) {
+    const p = hvpgChase(i / 200)!;
+    assert.ok(p.dist <= d + 1e-9, `closes in at ${i}`); d = p.dist;
+    assert.ok(p.yaw <= y + 1e-9 && p.yaw >= -0.55 - 1e-9, `swings one way at ${i}: ${p.yaw}`); y = p.yaw;
+    assert.ok(Math.abs(p.pitch - p0) < 0.01 || i === 0, `no jump in pitch at ${i}`); p0 = p.pitch;
     assert.ok(p.target.every(Number.isFinite));
   }
+  assert.equal(hvpgChase(0)!.dist, 4.2);
+  assert.equal(hvpgChase(1)!.dist, 0.75);
 });
 
 test('it is the deck\'s scene link that drives it, and only on a body slide with a catheter', () => {
@@ -28,10 +33,4 @@ test('it is the deck\'s scene link that drives it, and only on a body slide with
   assert.match(link, /setChase\(null\)/);
   const other = ['src/ui/tests/ir/run.ts', 'src/scene/gesture/controller.ts'].map((f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8')).join('');
   assert.doesNotMatch(other, /setChase|hvpgChase/);
-});
-
-test('a straight route does not swing', () => {
-  const line = { tipD: (u: number) => u * 10, point: (d: number, o?: any) => (o ?? { x: 0, y: 0, z: 0, set() {} }).set ? (o.set(0, -d, 0), o) : o, dir: (_d: number, o?: any) => (o.set(0, -1, 0), o) };
-  const p = chaseAt(line as never, 0.7);
-  assert.ok(Math.abs(p.yaw) < 1e-9);
 });
