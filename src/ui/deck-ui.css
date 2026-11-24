@@ -148,6 +148,11 @@
 /* ── a number rolling (400 ms, transform and opacity) ── */
 .dk-roll { position: relative; display: inline-block; overflow: hidden; vertical-align: bottom; line-height: inherit; }
 .dk-roll-sizer { visibility: hidden; display: block; height: 0; overflow: hidden; }
+.dk-roll-alts { display: grid; }
+.dk-roll-alts > span { grid-area: 1 / 1; white-space: nowrap; }
+/* A reading whose every value is known (Roll `alts`) holds the widest of them as they stand, so its digits are proportional: a tabular "1" is a cell wider than its ink and read "1 6.8 mmHg". The `!important` and the stacked classes beat the lifted sheet's
+   `* { font-variant-numeric: tabular-nums !important }` and the readings' own tabular rule above (0,4,0). */
+.deck-ui.deck-ui.deck-ui.deck-ui .dk-roll[data-fit], .deck-ui.deck-ui.deck-ui.deck-ui .dk-roll[data-fit] * { font-variant-numeric: lining-nums proportional-nums !important; }
 .dk-roll-in, .dk-roll-now { display: inline-block; }
 .dk-roll-out { position: absolute; left: 0; right: 0; top: 0; text-align: inherit; }
 .dk-roll-in { animation: dk-roll-in var(--d-roll) var(--ease-arrive) both; }
