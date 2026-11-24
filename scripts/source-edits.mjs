@@ -134,6 +134,41 @@ export const REVIEWER_24NOV = [
   P('tips-complete', 'slides.rescue.tool.rule', 'Baveno VIII 4.13, 5.36, 5.37', 'Baveno VIII 4.13, 5.35 to 5.37'),
 ];
 
+/** The second reviewer report (iPhone captures of build 43583487, 24 Nov 2026), the wording and chart-binding ones, checked against Baveno VIII (guidelines/baveno-viii-2026.pdf: 4.6, 5.5, 6.15, 6.17, 9.10a) and the engine's own numbers. Applied by scripts/apply-reviewer-edits.mjs. */
+export const REVIEWER_24NOV_B = [
+  // Choose the treatment 7: a permanent major risk factor (Baveno VIII 9.10a) means long-term therapeutic anticoagulation, not a stop at 6 months
+  SET('choose-treatment', 'slides.a4.line', 'Start therapeutic-dose anticoagulation at diagnosis; the earlier it starts, the likelier the vein recanalizes. A transient risk factor means ≥6 months, but her homozygous factor V Leiden is a permanent major risk factor, so it continues long term. Portal flow is now {pvFlow}, the PPG {ppg}.'),
+  // The portal circulation 7: the HVPG scope
+  SET('circulation', 'slides.define.title', 'In sinusoidal portal hypertension, the HVPG is above 5 mmHg'),
+  APPEND('circulation', 'slides.define.notes', 'The HVPG is the pressure drop across the sinusoids, so it defines portal hypertension only where the resistance is sinusoidal, as in this cirrhotic liver. In presinusoidal portal hypertension (portal vein thrombosis, schistosomiasis, portosinusoidal vascular disorder) the resistance lies upstream of the wedged pressure and the HVPG can be normal while the portal pressure is high.'),
+  // Portal pressure as a circuit 8: the no-TIPS baseline
+  SET('circuit', 'slides.tips.line', 'A covered stent in parallel with the sinusoids has far lower resistance than they or any collateral, so it carries most portal flow: the PPG falls from {ppg@parallel} without a stent to {ppg}.'),
+  // Carvedilol 7: the safety conditions (Baveno VIII 4.6, 4.7)
+  SET('carvedilol', 'slides.ascites.line', 'Six years in, four on carvedilol, she has {asc} of ascites and varices of {varix}. The ascites came despite carvedilol; Baveno VIII still advises it, to prevent a first bleed, while her blood pressure holds. Persistent systolic pressure <90 mmHg, mean arterial pressure <65 mmHg or HRS-AKI calls for a lower dose or stopping it, and it is restarted once these recover.'),
+  // Resuscitating an acute variceal bleed 5: airway and resuscitation first; the drugs at once, in parallel (Baveno VIII 5.5, 5.7, 5.10)
+  SET('variceal-bleed', 'slides.oct.title', 'Secure the airway and resuscitate first; give octreotide and antibiotics at once'),
+  SET('variceal-bleed', 'slides.oct.tool', { kind: 'criteria', title: 'Before endoscopy', short: 'Before EGD', ticks: false, lead: 'Airway and resuscitation first; the drugs at once.', rule: 'Baveno VIII 5.3, 5.5, 5.7, 5.10, 5.22',
+    rows: ['**Airway** and **resuscitation** first: **intubate** before EGD if consciousness is altered or there is active hematemesis', '**Vasoactive drug** and a third-generation **cephalosporin**, at once and together', '**Transfuse** for shock; once stable, at <7 g/dL, aiming for 7 to 8', '**Erythromycin** before EGD', '**Lactulose**, oral or by enema'], verdict: 'Throughout: ICU or step-down unit; monitor sodium on terlipressin.' }),
+  // Two lesions 4: both HVPG values
+  SET('two-lesions', 'slides.varices.line', 'Behind the clot the portal pressure is {pv}. The HVPG has fallen from {hvpg@base} to {hvpg}, yet the varices reach {varix} and the platelets fall to {plt}.'),
+  // One patient 14: grade 2 overt HE needs more than slowing
+  SET('ten-years', 'slides.he.line', 'He is disoriented to time, with sleep-wake inversion and psychomotor slowing: grade 2 overt HE. {shunt} of portal blood now bypasses the liver.'),
+  // TIPS and shunts 10: the target belongs to this case
+  SET('shunts', 'slides.tips.title', 'TIPS lowers the PPG below the 12 mmHg bleeding target'),
+  SET('shunts', 'slides.tips.line', 'A covered 8 to 10 mm stent runs from a hepatic vein to the portal vein. The PPG falls to {ppg}, under the 12 mmHg target for preventing rebleeding in this patient.'),
+  // Stiffness 14: the cirrhosis zones do not apply to this presinusoidal patient, so the instrument classifies nothing
+  SET('stiffness', 'slides.a5.tool', { kind: 'plane', plane: { base: 'csph', noWords: true, zoneNote: 'Criteria don\'t apply in this case' } }),
+  // TIPS follow-up 12: individualized (Baveno VIII 6.15)
+  SET('tips-complete', 'slides.brain.title', 'A past episode of overt encephalopathy calls for an individualized decision, not a refusal'),
+  SET('tips-complete', 'slides.brain.line', 'Baveno VIII asks for the decision to be individualized: her encephalopathy history and medicines are reviewed, and rifaximin is considered before the stent. The model\'s encephalopathy index with the stent is {he}.'),
+  // TIPS follow-up 25: bleeding cardiofundal varices, acute control then definitive therapy, the shunt anatomy
+  SET('tips-complete', 'slides.gastric.title', 'For a bleeding gastric varix, TIPS or BRTO depends on the liver and the shunt'),
+  SET('tips-complete', 'slides.gastric.line', 'Cyanoacrylate controls the bleed; then a TIPS lowers the PPG to {ppg} and the fundal varix to {gv}. BRTO shrinks the varix but raises the PPG, and needs an accessible gastrorenal shunt. Liver function, encephalopathy and ascites decide.'),
+  // Dual blood supply 10: the chart is the clot slide's own patient, so its end points are the line's 79% and 44%
+  SET('two-inflows', 'slides.relation.tool', { kind: 'curve', x: 'clot', xFrom: 0, xTo: 100, patient: { preset: 'pvt-acute' }, param: 'thrombus.PV_TRUNK', from: 0, to: 1, step: 0.1, lines: ['liver'], against: { label: 'No buffer', params: { habrStrength: 0 }, own: 'With the buffer' } }),
+  P('two-inflows', 'slides.relation.notes', 'at the end of the lines, a normal liver with the vein closed keeps 71% with the buffer and 38% without.', 'the lines end at this patient\'s own values, 79% with the buffer and 44% without; a normal liver with the vein closed would keep 71% and 38%.'),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -240,6 +275,7 @@ export const SOURCE_PATCHES = [
   ...TIPS_DOPPLER_REVIEW,
   ...VARICES_REVIEW,
   ...REVIEWER_24NOV,
+  ...REVIEWER_24NOV_B,
 ];
 
 function step(node, key) {

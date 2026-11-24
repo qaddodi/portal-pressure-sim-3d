@@ -3,7 +3,7 @@
 // of its own talk, and is written back with its content hash. A re-copy from 2D applies the same patches (SOURCE_PATCHES), so the two agree. Safe to run again (every patch is a set or a text swap).
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { sourceEdits, REVIEWER_24NOV } from './source-edits.mjs';
+import { sourceEdits, REVIEWER_24NOV, REVIEWER_24NOV_B } from './source-edits.mjs';
 
 const root = new URL('../src/decks/', import.meta.url).pathname;
 const files = ['ag', 'hp/data', 'rw/copied'].flatMap((d) => readdirSync(root + d).filter((f) => /\.(copied\.)?ts$/.test(f) && !['index.ts', 'all.ts', 'plate.ts'].includes(f)).map((f) => root + d + '/' + f));
@@ -14,7 +14,8 @@ for (const file of files) {
   const m = /export const (\w+): CopiedDeck = (\{[\s\S]*?\n\});\n\nexport const (\w+) = '([0-9a-f]+)';/.exec(text);
   if (!m) continue;
   const id = JSON.parse(m[2]).id;
-  const todo = REVIEWER_24NOV.filter((p) => p.deck === id && (!('from' in p) || m[2].includes(esc(p.from)) || !m[2].includes(esc(p.to))));
+  const needed = (p) => ('append' in p ? !m[2].includes(esc(p.append)) : !('from' in p) || m[2].includes(esc(p.from)) || !m[2].includes(esc(p.to)));
+  const todo = [...REVIEWER_24NOV, ...REVIEWER_24NOV_B].filter((p) => p.deck === id && needed(p));
   if (!todo.length) continue;
   const json = sourceEdits(m[2], todo);
   if (json === m[2]) continue;

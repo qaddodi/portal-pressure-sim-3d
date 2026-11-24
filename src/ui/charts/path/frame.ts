@@ -79,6 +79,7 @@ export function pathFrame(spec: PathSpec, c: ChartCtx): Frame {
       const kk = L.k!;
       for (const { n } of flat(L.spec.tree)) {
         const p = L.map!.nodes.get(n.id)!, on = Lit.has(n.id), k = lk('path.dot', on, TOKEN[n.tone]);
+        if (overLeaf(L.spec.tree, n)) continue;   // (a root over the middle one of an odd row of leaves read as that leaf's marker: Portal vein thrombosis 3, a white dot over Partial for a complete occlusion)
         shapes.push({ k: 'circle', cx: p.x, cy: p.y, r: on ? 5.5 : 4, fill: fillOf(k), pen: pen(k) });
         if (p.words) p.words.forEach((ln, i) => word('word', p.x, p.y + (19 + i * 12.5) * kk, ln, on, TOKEN[n.tone]!, { size: 12 * kk, anchor: 'middle' }));
       }
@@ -100,4 +101,6 @@ export function pathFrame(spec: PathSpec, c: ChartCtx): Frame {
   return { w: W, h: L.H, shapes, label: pathWords(of, patient) };
 }
 
+/** The root of a tree whose children are all leaves and odd in number: its dot would stand straight over the middle leaf. */
+export const overLeaf = (tree: { id: string; kids?: { id?: string; kids?: unknown[] }[] }, n: { id: string }): boolean => n.id === tree.id && !!tree.kids && tree.kids.length % 2 === 1 && tree.kids.every((k) => !k.kids);
 export type { PathLayout };

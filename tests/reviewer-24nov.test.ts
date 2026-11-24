@@ -86,3 +86,46 @@ test('a label never prints the slide before\'s patient: the figure stays pending
   assert.ok(!/GIVE_UP/.test(readFileSync('src/ui/deck/figure-pending.ts', 'utf8').replace(/\/\/.*|\/\*[\s\S]*?\*\//g, '')));
   assert.match(readFileSync('src/scene/labels/LabelLayer.tsx', 'utf8'), /figurePending\(\)/);
 });
+
+// ---- the second report (iPhone captures of build 43583487) ----
+import { runStepsNode } from '../src/decks/rw/numbers-node.ts';
+import { TWO_INFLOWS } from '../src/decks/rw/copied/two-inflows.ts';
+import { CHOOSE_TREATMENT } from '../src/decks/ag/choose-treatment.copied.ts';
+import { CARVEDILOL } from '../src/decks/ag/carvedilol.copied.ts';
+import { CIRCULATION } from '../src/decks/ag/circulation.copied.ts';
+import { VARICEAL_BLEED } from '../src/decks/rw/copied/variceal-bleed.ts';
+import { toolPlane, planeReading } from '../src/ui/charts/plane/model.ts';
+import { overLeaf } from '../src/ui/charts/path/frame.ts';
+import { STIFFNESS } from '../src/decks/rw/copied/stiffness.ts';
+import { SHUNTS } from '../src/decks/rw/copied/shunts.ts';
+
+test('Dual blood supply: the chart is the clot slide\'s own patient, so its end points are the 79% and 44% the line and notes give', async () => {
+  const s = at(TWO_INFLOWS, 'relation'); assert.equal(s.tool.patient.preset, 'pvt-acute');
+  const clot = at(TWO_INFLOWS, 'clot'); assert.equal(clot.preset, 'pvt-acute');
+  const [withB, noB, chartWith, chartNo] = await runStepsNode([{ preset: 'pvt-acute' }, { preset: 'pvt-acute', params: { habrStrength: 0 } }, { preset: s.tool.patient.preset, params: { thrombus: { PV_TRUNK: 1 } } }, { preset: s.tool.patient.preset, params: { thrombus: { PV_TRUNK: 1 }, habrStrength: 0 } }]);
+  assert.equal(Math.round(withB!.liver as number), 79); assert.equal(Math.round(noB!.liver as number), 44);
+  assert.ok(Math.abs((chartWith!.liver as number) - (withB!.liver as number)) < 1e-6); assert.ok(Math.abs((chartNo!.liver as number) - (noB!.liver as number)) < 1e-6);
+  assert.match(s.notes, /79% with the buffer and 44% without/);
+});
+test('Choose the treatment: homozygous factor V Leiden means long-term anticoagulation (Baveno VIII 9.10a)', () => {
+  assert.match(at(CHOOSE_TREATMENT, 'a4').line, /permanent major risk factor, so it continues long term/);
+});
+test('The portal circulation: the HVPG definition is scoped to sinusoidal portal hypertension', () => {
+  const s = at(CIRCULATION, 'define'); assert.match(s.title, /sinusoidal portal hypertension/); assert.match(s.notes, /presinusoidal/);
+});
+test('Carvedilol in ascites carries its stop conditions (Baveno VIII 4.6, 4.7)', () => {
+  const l = at(CARVEDILOL, 'ascites').line; assert.match(l, /<90 mmHg/); assert.match(l, /<65 mmHg/); assert.match(l, /HRS-AKI/);
+});
+test('Acute variceal bleed: the airway and resuscitation lead, the drugs go in together, and intubation names active hematemesis (5.5)', () => {
+  const t = at(VARICEAL_BLEED, 'oct').tool; assert.ok(!t.ordered); assert.match(t.rows[0], /Airway/); assert.match(t.rows[0], /active hematemesis/); assert.match(t.rows[1], /at once and together/);
+});
+test('Stiffness 14: a presinusoidal case prints no zone, and the reading says the criteria do not apply', () => {
+  const t = at(STIFFNESS, 'a5').tool, pl = toolPlane(t)!;
+  assert.ok(pl.noWords); assert.match(planeReading(pl, { lsm: 8, plt: 90 } as never), /Criteria don't apply in this case$/); assert.ok(!/Indeterminate/.test(planeReading(pl, { lsm: 20, plt: 120 } as never)));
+});
+test('TIPS and shunts: the 12 mmHg is this patient\'s bleeding target', () => { assert.match(at(SHUNTS, 'tips').line, /target for preventing rebleeding in this patient/); });
+test('A tree\'s root over the middle of an odd row of leaves draws no dot (PVT 3: the white marker sat over Partial)', () => {
+  const leaf = { id: 'x' }; const tree = { id: 'root', kids: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] };
+  assert.equal(overLeaf(tree, tree), true); assert.equal(overLeaf(tree, { id: 'a' }), false);
+  assert.equal(overLeaf({ id: 'r', kids: [{ id: 'a' }, { id: 'b' }] }, { id: 'r' }), false); void leaf;
+});

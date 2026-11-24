@@ -21,7 +21,7 @@ export interface Zone { when?: [string, '<' | '<=' | '>' | '>=', number][]; t: s
 export interface PlaneDef {
   x: Axis; y: Axis; zones: Zone[]; boxes?: Zone[]; cuts?: { x?: number[]; y?: number[] }; noLine?: { x?: number[]; y?: number[] }; lineNames?: { x?: Record<string, string>; y?: Record<string, string> };
   look?: string; tickText?: Record<string, string>; rectsOf?: (x: [number, number], y: [number, number]) => { rate: string; x: [number, number]; y: [number, number] }[]; hatchOf?: (x: [number, number], y: [number, number]) => { x: [number, number]; y: [number, number] };
-  source?: string; key?: false | 'never'; edges?: boolean; reserveCuts?: boolean; nameGap?: number; noWords?: boolean; compact?: boolean; fit?: boolean; axes?: boolean; axisNames?: boolean;
+  source?: string; key?: false | 'never'; edges?: boolean; reserveCuts?: boolean; nameGap?: number; noWords?: boolean; /** words that stand in the reading's zone where the zones do not apply to the case (a presinusoidal patient on the cirrhosis plane) */ zoneNote?: string; compact?: boolean; fit?: boolean; axes?: boolean; axisNames?: boolean;
   diag?: boolean | { label?: string }; iso?: number[] | { rays: number[]; label?: string };
 }
 /** What a deck says of a plane: a named one ('csph', 'hvpg-ppg', 'flow-ppg'), or its own, filled from the named one it starts from (base). */
@@ -54,7 +54,7 @@ export function planeReading(pl: PlaneDef, fp: Fp | null | undefined): string {
   if (!fp || !Number.isFinite(fp[pl.x.key]) || !Number.isFinite(fp[pl.y.key])) return '';
   // (The zone of the numbers printed beside it, as the tiles print them: "25.0 kPa" never reads "Indeterminate".)
   const f = shownReading(pl, fp), z = zoneOf(pl, f), u = (k: string) => (unitOf(k) ? ` ${unitOf(k)}` : '');
-  return `${word(pl.x)} ${valOf(pl.x.key, f[pl.x.key])}${u(pl.x.key)} · ${word(pl.y)} ${valOf(pl.y.key, f[pl.y.key])}${u(pl.y.key)}${z ? ` · ${z.t}` : ''}`;
+  return `${word(pl.x)} ${valOf(pl.x.key, f[pl.x.key])}${u(pl.x.key)} · ${word(pl.y)} ${valOf(pl.y.key, f[pl.y.key])}${u(pl.y.key)}${pl.zoneNote ? ` · ${pl.zoneNote}` : z ? ` · ${z.t}` : ''}`;
 }
 /** A tool's plane: its plane field, its own x, y and zones, or the CSPH plane (2D toolPlane). */
 export const toolPlane = (t: { plane?: PlaneSpec; x?: Axis | string; y?: Axis | string; zones?: Zone[] | string; base?: string } | null | undefined): PlaneDef | null =>
