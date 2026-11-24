@@ -24,6 +24,7 @@ const NO_PICTURE: Record<string, string[]> = {
   'landmark-trials': ['predesci-test', 'groszmann', 'bleed', 'who-tips', 'earlytips', 'lvtips', 'monescillo', 'rifaximin', 'forest', 'summary'], albumin: ['answer', 'attire', 'macht', 'confirm'],
   ascites: ['overrun', 'balance'], 'budd-chiari': ['stent-lumen'], carvedilol: ['rise-path'], 'cause-treated': ['year2-lobule', 'year2-plane', 'high2-plane'], 'choose-treatment': ['a2-fluid', 'a3-lumen', 'a4-lumen'],
   encephalopathy: ['embolize-flows'], stiffness: ['fibrosis-lobule'], shunts: ['gradient'], tipping: ['injury-card', 'antibiotic-card'],
+  varices: ['gastric', 'redwale', 'primary', 'secondary'],   // the four slides added on 23 Nov (gastric varices, red wale, primary and secondary prophylaxis)
 };
 
 test('every slide that has a picture prints it, beside its words, for every talk; no picture is asked for that is not there', async () => {
@@ -48,13 +49,13 @@ test('every slide that has a picture prints it, beside its words, for every talk
   assert.equal(printed, 410);
 });
 
-test('which slides print without a picture is known exactly (102 of 512: the ones 2D has no picture of), and no picture is left over', async () => {
+test('which slides print without a picture is known exactly (106 of 516: the ones 2D has no picture of), and no picture is left over', async () => {
   const decks = await all();
   const bare: Record<string, string[]> = {};
   let n = 0, slides = 0;
   for (const d of decks) { const w = withoutFigure(d); slides += d.slides.length; n += w.length; if (w.length) bare[d.id] = w.length === d.slides.length ? ['*'] : w; }
   assert.deepEqual(bare, Object.fromEntries(Object.entries(NO_PICTURE).sort(([a], [b]) => Object.keys(bare).indexOf(a) - Object.keys(bare).indexOf(b))), 'a slide lost its picture (a renamed slide id?) or gained one: run scripts/copy-handout.mjs and bring this list up to date');
-  assert.equal(slides - n, 410); assert.equal(n, 102);
+  assert.equal(slides - n, 410); assert.equal(n, 106);
   const byId = new Map(decks.map((d) => [d.id, new Set(d.slides.map((s) => s.id))]));
   for (const [deck, ids] of Object.entries(HANDOUT_FIGURES)) for (const id of ids) assert.ok(byId.get(deck)?.has(id), `${deck}/${id}.webp is no slide's`);
 });
