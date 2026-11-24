@@ -188,7 +188,7 @@ test('the EUS-PPG\'s stack stands midway between its two points, beside them, no
   assert.ok(s.y > 300 && s.y + s.geom.h < 800, `the stack is in the middle, not at the top (y ${s.y})`);
 });
 
-test('every stack leader is ONE straight line from its row to its point, whatever the stack\'s place (24 Nov: the PV leader zigzagged)', async () => {
+test('every stack leader is straight or has a few angular turns, never a curve or a zigzag, whatever the stack\'s place (24 Nov)', async () => {
   const { planLeaders, sumLayout, tagType, placeStack } = await import('../src/scene/labels/cath.ts');
   const t = tagType(vp), r = (kicker: string, v: string) => ({ kicker, value: v, unit: 'mmHg', tone: 'free' as const });
   const band = { x0: 0, y0: 56, x1: 1280, y1: 800 };
@@ -198,7 +198,7 @@ test('every stack leader is ONE straight line from its row to its point, whateve
       for (const mid of [false, true]) {
         const at = placeStack(tip, ahead, geom.w, geom.h, band, [], mid);
         const plan = planLeaders([at.x, at.y], geom, [ahead, tip], swap);
-        for (const d of plan.d) assert.match(d, /^M[-\d.]+ [-\d.]+ L[-\d.]+ [-\d.]+$/, `one straight segment, got "${d}"`);
+        for (const d of plan.d) assert.match(d, /^M[-\d.]+ [-\d.]+( L[-\d.]+ [-\d.]+){1,3}$/, `angular turns only (no curves), got "${d}"`);
       }
     }
   }
@@ -226,14 +226,15 @@ test('no stack leader crosses any text: neither row, the bracket nor the HVPG ca
       const off = { x: at2.x, y: at2.y };
       const bm = g.rows.map((q) => q.y + q.h / 2);
       const boxes = [...g.rows.map((q) => ({ x: q.x, y: q.y, w: q.w, h: q.h })), { x: g.calc.x, y: g.calc.y, w: g.calc.w, h: g.calc.h }, { x: g.brace.x, y: Math.min(bm[0]!, bm[1]!), w: 6, h: Math.abs(bm[0]! - bm[1]!) }];
-      const segs = plan.d.map((d) => d.match(/-?[\d.]+/g)!.map(Number) as [number, number, number, number]);
+      const segs = plan.d.flatMap((d) => { const v = d.match(/-?[\d.]+/g)!.map(Number); return Array.from({ length: v.length / 2 - 1 }, (_, i) => [v[2 * i]!, v[2 * i + 1]!, v[2 * i + 2]!, v[2 * i + 3]!] as [number, number, number, number]); });
       const label = `${c.vp.w}x${c.vp.h} tip ${c.tip} swap ${swap} mid ${mid}`;
       assert.ok(plan.clean, `a clean leader plan exists (${label})`);
       for (const s of segs) for (const b of boxes) {
         // a leader leaves its own row's edge: shrink by 1.5 px so the starting edge is not a hit
         assert.ok(!segHitsBox({ x0: s[0], y0: s[1], x1: s[2], y1: s[3] }, { x0: b.x + 1.5, y0: b.y + 1.5, x1: b.x + b.w - 1.5, y1: b.y + b.h - 1.5 }, 0), `a leader crosses text (${label})`);
       }
-      assert.ok(!segsCross(segs[0]!, segs[1]!), `the leaders cross (${label})`);
+      const m = plan.d[0]!.match(/-?[\d.]+/g)!.length / 2 - 1;
+      for (const p of segs.slice(0, m)) for (const q of segs.slice(m)) assert.ok(!segsCross(p, q), `the leaders cross (${label})`);
     }
   }
 });

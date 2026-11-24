@@ -233,31 +233,44 @@ export function planLeaders(boxAt: Pt, geom: SumGeom, points: readonly [Pt, Pt],
   const calc: Rect = { x: x + geom.calc.x, y: y + geom.calc.y, w: geom.calc.w, h: geom.calc.h };
   const box = (r: Rect) => ({ x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h });
   type Seg = [number, number, number, number];
-  // Every way out of a row: from its left edge, its top and its bottom (never the right, which faces the bracket). The shortest straight line that touches no text wins.
-  const anchors = (r: Rect): [number, number][] => {
+  // A leader is a straight line from any edge of its row but the right (the shortest that touches no text wins). Where none can (the point stands below the column and a row is in the way), the leader
+  // makes ANGULAR turns, never rounded (Mohammad, 24 Nov): out of the row's left edge, down the column's side clear of every row, then straight on to the point.
+  type Line = { pts: [number, number][]; n: number; len: number };
+  const straight = (r: Rect): [number, number][] => {
     const o: [number, number][] = [];
     for (const k of [0.5, 0.25, 0.75]) o.push([r.x, r.y + r.h * k]);
     for (const k of [0.5, 0.2, 0.35, 0.65, 0.8]) { o.push([r.x + r.w * k, r.y]); o.push([r.x + r.w * k, r.y + r.h]); }
     return o;
   };
-  const hits = (L: Seg, r: Rect, pad: number): boolean => segHitsBox({ x0: L[0], y0: L[1], x1: L[2], y1: L[3] }, box(r), pad);
-  const plan = (rs: Rect[]): { L: Seg[]; n: number; len: number } => {
-    const best: { L: Seg; n: number; len: number }[][] = [0, 1].map((j) => anchors(rs[j]!).map((a) => {
-      const L: Seg = [a[0], a[1], points[j]![0], points[j]![1]];
-      const o = rs[1 - j]!, own = { x: rs[j]!.x + 1, y: rs[j]!.y + 1, w: rs[j]!.w - 2, h: rs[j]!.h - 2 };
-      return { L, n: (hits(L, o, 0) ? 1 : 0) + (hits(L, calc, 0) ? 1 : 0) + (hits(L, brace, 0) ? 1 : 0) + (hits(L, own, 0) ? 1 : 0), len: Math.hypot(L[2] - L[0], L[3] - L[1]) };
-    }));
-    let out: { L: Seg[]; n: number; len: number } | null = null;
-    for (const a of best[0]!) for (const b of best[1]!) {
-      const n = a.n + b.n + (segsCross(a.L, b.L) ? 1 : 0), len = a.len + b.len;
-      if (!out || n < out.n || (n === out.n && len < out.len)) out = { L: [a.L, b.L], n, len };
+  const segs = (pts: [number, number][]): Seg[] => pts.slice(1).map((q, i) => [pts[i]![0], pts[i]![1], q[0], q[1]] as Seg);
+  const hits = (L: Seg, r: Rect): boolean => segHitsBox({ x0: L[0], y0: L[1], x1: L[2], y1: L[3] }, box(r), 0);
+  const lines = (rs: Rect[], j: number): Line[] => {
+    const o = rs[1 - j]!, r = rs[j]!, own = { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, P: [number, number] = [points[j]![0], points[j]![1]];
+    const colTop = Math.min(rs[0]!.y, rs[1]!.y), colBot = Math.max(rs[0]!.y + rs[0]!.h, rs[1]!.y + rs[1]!.h), ex = Math.min(rs[0]!.x, rs[1]!.x) - 12;
+    const cands: { pts: [number, number][]; extra: number }[] = straight(r).map((a) => ({ pts: [a, P], extra: 0 }));
+    for (const ey of [colTop - 14, colBot + 14]) cands.push({ pts: [[r.x, r.y + r.h / 2], [ex, r.y + r.h / 2], [ex, ey], P], extra: 40 });
+    return cands.map((c) => {
+      const S2 = segs(c.pts);
+      let n = 0, len = c.extra;
+      S2.forEach((q, i) => { len += Math.hypot(q[2] - q[0], q[3] - q[1]); for (const b of [o, calc, brace]) if (hits(q, b)) n++; if (i && hits(q, own)) n++; else if (!i && hits(q, own)) n++; });
+      return { pts: c.pts, n, len };
+    });
+  };
+  const plan = (rs: Rect[]): { L: Line[]; n: number; len: number } => {
+    let out: { L: Line[]; n: number; len: number } | null = null;
+    const A = lines(rs, 0), Bs = lines(rs, 1);
+    for (const a of A) for (const b of Bs) {
+      let n = a.n + b.n;
+      for (const p of segs(a.pts)) for (const q of segs(b.pts)) if (segsCross(p, q)) n++;
+      const len = a.len + b.len;
+      if (!out || n < out.n || (n === out.n && len < out.len)) out = { L: [a, b], n, len };
     }
     return out!;
   };
   const P1 = plan(cur), P2 = plan(alt), useAlt = P2.n < P1.n, P = useAlt ? P2 : P1, L = P.L;
   const f1 = P1.n, f2 = P2.n;
   const f = (n: number) => n.toFixed(1), d = ['', ''] as [string, string];
-  for (let j = 0; j < 2; j++) d[j] = `M${f(L[j]![0] - x)} ${f(L[j]![1] - y)} L${f(L[j]![2] - x)} ${f(L[j]![3] - y)}`;
+  for (let j = 0; j < 2; j++) d[j] = L[j]!.pts.map((q, i) => `${i ? 'L' : 'M'}${f(q[0] - x)} ${f(q[1] - y)}`).join(' ');
   return { swap: useAlt ? !(S.swap as boolean) : (S.swap as boolean), clean: Math.min(f1, f2) === 0, d, dots: [[points[0][0] - x, points[0][1] - y], [points[1][0] - x, points[1][1] - y]] };
 }
 
