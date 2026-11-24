@@ -1,7 +1,8 @@
 // The editor's pure state (no DOM, no three): the overrides being edited, the edits that change them, and the undo history. Every edit returns a new Overrides (the old one stays in the history).
+import { foldStrokes } from '../../../editor/organ-apply.ts';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS, type Cage, type OrganEdit, type Overrides, type Stroke, type V3 } from '../../../editor/types.ts';
 
-export const MAX_STROKES = 400;   // per organ: the draft stays small enough for localStorage and a click
+export const MAX_STROKES = 400;   // per organ: past this the strokes are folded into the organ's displacement grid (organ-apply.ts foldStrokes), never dropped
 export const PLAN_PER_SCENE = 300;   // 2D plan units in one scene unit (frame2d UNITS_PER_SCENE)
 const clamp = (v: number, lo: number, hi: number): number => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : 0);
 const r4 = (v: number): number => Math.round(v * 10000) / 10000;
@@ -38,11 +39,13 @@ export function clampOrgan(e: OrganEdit): OrganEdit {
   }
   if (e.rotY != null) out.rotY = r4(clamp(e.rotY, -ORGAN_LIMITS.rotY, ORGAN_LIMITS.rotY));
   if (e.scale != null) out.scale = r4(clamp(e.scale, ORGAN_LIMITS.scaleMin, ORGAN_LIMITS.scaleMax));
-  if (e.strokes?.length) out.strokes = e.strokes.slice(-MAX_STROKES);
   if (e.cage) out.cage = e.cage;
+  if (e.grid) out.grid = e.grid;
+  if (e.strokes?.length) out.strokes = e.strokes;
+  if (out.strokes && out.strokes.length > MAX_STROKES) return clampOrgan(foldStrokes(out));   // (a long session: the strokes so far become the grid; nothing is dropped)
   return out;
 }
-const organIsDefault = (e: OrganEdit): boolean => !(e.move && e.move.some((v) => v)) && !e.rotY && (e.scale == null || e.scale === 1) && !e.strokes?.length && !e.cage;
+const organIsDefault = (e: OrganEdit): boolean => !(e.move && e.move.some((v) => v)) && !e.rotY && (e.scale == null || e.scale === 1) && !e.strokes?.length && !e.cage && !e.grid;
 export function setOrgan(o: Overrides, id: string, patch: OrganEdit): Overrides {
   const e = clampOrgan({ ...o.organs?.[id], ...patch });
   const organs = { ...o.organs };
@@ -76,7 +79,7 @@ export const clearCage = (o: Overrides, id: string): Overrides => {
   return { ...o, organs };
 };
 export const clearStrokes = (o: Overrides, id: string): Overrides => {
-  const e = { ...o.organs?.[id] }; delete e.strokes;
+  const e = { ...o.organs?.[id] }; delete e.strokes; delete e.grid;   // (the grid holds the folded strokes)
   const organs = { ...o.organs }; if (organIsDefault(e)) delete organs[id]; else organs[id] = e;
   return { ...o, organs };
 };

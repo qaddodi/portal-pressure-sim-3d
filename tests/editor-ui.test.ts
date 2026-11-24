@@ -47,11 +47,11 @@ test('organ edits are held to the limits', () => {
   assert.ok(Number.isFinite(organOf(setOrgan(EMPTY, 'liver', { rotY: NaN, scale: 1.1 }), 'liver').rotY));
 });
 
-test('a liquify stroke is held to the limit, the list is capped, and clearing empties it', () => {
+test('a liquify stroke is held to the limit, a long list is folded into the grid (never dropped), and clearing empties it', () => {
   let o = addStroke(EMPTY, 'spleen', { at: [0, 0, 0], radius: 0.1, by: [1, 0, 0] });
   assert.ok(Math.hypot(...o.organs!.spleen!.strokes![0]!.by) <= LIQUIFY_LIMIT + 1e-9);
   for (let i = 0; i < MAX_STROKES + 20; i++) o = addStroke(o, 'spleen', { at: [i * 0.001, 0, 0], radius: 0.1, by: [0.01, 0, 0] });
-  assert.equal(organOf(o, 'spleen').strokes, MAX_STROKES);
+  assert.ok(organOf(o, 'spleen').strokes < MAX_STROKES && o.organs!.spleen!.grid, 'folded into the grid, not dropped');
   assert.equal(isEmpty(clearStrokes(o, 'spleen')), true);
 });
 

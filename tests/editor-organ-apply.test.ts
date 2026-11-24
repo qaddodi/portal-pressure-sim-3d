@@ -180,3 +180,33 @@ test('a moderate cage drag or brush stroke creases no edge by more than 0.1 rad,
     for (const g of [cage, brush, past]) { const q = creaseGain(r, ra, g); assert.ok(q.max < 0.1, `${name}: ${q.max}`); }
   }
 });
+
+test('strokes fold into a grid: nothing dropped, same shape, cost independent of the stroke count', async () => {
+  const { foldStrokes, gridSample } = await import('../src/editor/organ-apply.ts');
+  const { FOLD_AT } = await import('../src/editor/types.ts');
+  const ref = ORGAN_MESHES[id]!(), r = pos(ref), c = organCentroid(ref), b = organBox(ref), sz = b.hi[0] - b.lo[0];
+  const strokes = Array.from({ length: 150 }, (_, i) => ({ at: [c[0] + (i % 15 - 7) * sz * 0.03, c[1] + (Math.floor(i / 15) - 5) * sz * 0.03, c[2]] as [number, number, number], radius: sz * 0.25, by: [0.004, 0.002, 0] as [number, number, number] }));
+  const edit = { strokes };
+  assert.ok(strokes.length > FOLD_AT);
+  const f = foldStrokes(edit);
+  assert.equal(f.strokes, undefined);
+  assert.ok(f.grid && f.grid.d.length === 3 * 16 ** 3);
+  const g = ORGAN_MESHES[id]!();
+  applyOrganEdit(g, edit);   // (more than FOLD_AT strokes: read through the grid)
+  const p = pos(g);
+  let worst = 0, moved = 0, err = 0;
+  for (let i = 0; i < p.length; i += 3) {
+    let sx = 0, sy = 0, sz2 = 0;   // the exact pull: every stroke, summed, held by the soft limit
+    for (const s of strokes) { const d = Math.hypot(r[i]! - s.at[0], r[i + 1]! - s.at[1], r[i + 2]! - s.at[2]); if (d < s.radius) { const w = wendland(d / s.radius); sx += s.by[0] * w; sy += s.by[1] * w; sz2 += s.by[2] * w; } }
+    const [ex, ey, ez] = softLimit3(sx, sy, sz2, LIQUIFY_LIMIT);
+    const d = Math.hypot(p[i]! - r[i]!, p[i + 1]! - r[i + 1]!, p[i + 2]! - r[i + 2]!);
+    err = Math.max(err, Math.hypot(p[i]! - r[i]! - ex, p[i + 1]! - r[i + 1]! - ey, p[i + 2]! - r[i + 2]! - ez));
+    if (d > 1e-6) moved++; worst = Math.max(worst, d);
+  }
+  assert.ok(moved > 0 && worst <= 0.12);
+  assert.ok(err < 0.004, `grid vs exact strokes: ${err}`);   // (a tenth of the liquify limit)
+  const more = foldStrokes({ ...f, strokes: [{ at: c, radius: sz * 0.2, by: [0.01, 0, 0] }] });
+  assert.ok(Math.hypot(...gridSample(more.grid!, c)) >= Math.hypot(...gridSample(f.grid!, c)) - 0.004);   // (an old grid is carried into the next fold)
+  const map = organPointMap(edit, c, b)!;
+  for (let i = 0; i < p.length; i += 300) { const q = map([r[i]!, r[i + 1]!, r[i + 2]!]); assert.ok(Math.hypot(q[0] - p[i]!, q[1] - p[i + 1]!, q[2] - p[i + 2]!) < 1e-5); }
+});
