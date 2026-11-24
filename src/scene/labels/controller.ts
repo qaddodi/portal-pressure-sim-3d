@@ -11,7 +11,7 @@ import { anyMoving } from '../any-moving.ts';
 import { Vector3 } from 'three';
 import { FADE, labelOpacity } from './alpha.ts';
 import { COMPACT_W, ZOOM_IN, ZOOM_OUT, extraRoom, flaggedStations, freeSet, keepExtras, type LabelLevel } from './free-set.ts';
-import { NO_EXTRAS, WIDEST, WIDEST_DELTA, readingLensOf, type Extras } from './readings.ts';
+import { NO_EXTRAS, WIDEST, reservedDelta, readingLensOf, type Extras } from './readings.ts';
 import { LabelFader, easeMove, lookKey, type Want } from './fade.ts';
 import { type Box, leaderGeom } from './geometry.ts';
 import { type Form, type Item, type Placement, STAY, boxOf, solve } from './solver.ts';
@@ -202,7 +202,7 @@ function sayOf(ex: Extras): Say {
   const say: Say = {};
   if (ex.number != null) say.value = ex.number === '—' ? '—' : WIDEST[ex.lens];
   if (ex.unit) say.unit = ex.unit;
-  if (ex.delta || false) say.delta = WIDEST_DELTA[ex.lens] || ex.delta;
+  if (ex.delta || false) say.delta = reservedDelta(ex.lens, ex.delta);
   if (ex.alert) say.alert = ex.alert;
   return say;
 }

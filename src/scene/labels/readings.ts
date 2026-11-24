@@ -158,3 +158,11 @@ export class StationExtras {
 export const WIDEST: Record<ReadingLens, string> = { pressure: '00.0', flow: '0.0', velocity: '000', oxygen: '000' };
 /** The widest change badge a lens ever sets (laid out once the badge may appear). */
 export const WIDEST_DELTA: Record<ReadingLens, string> = { pressure: '+00.0', flow: '+000%', velocity: '', oxygen: '' };
+/** The change badge as the layout reserves it: the widest number the lens sets, then whatever words follow the number in the badge now. On a slide (or a selected station) the badge says its unit and what it is
+ *  against ("+8.3 mmHg vs healthy"); the number alone was reserved, so those words ran past the label's box and off the screen's edge (Next bleed 9 on an iPhone, capture 2c00c0ce). */
+export function reservedDelta(lens: ReadingLens, actual: string): string {
+  const w = WIDEST_DELTA[lens];
+  if (!w) return actual;
+  const tail = /^[+−-]?[\d.,]+%?(.*)$/.exec(actual)?.[1] ?? '';
+  return w + tail;
+}
