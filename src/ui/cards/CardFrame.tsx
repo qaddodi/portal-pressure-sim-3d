@@ -184,8 +184,11 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     // a chart that has drawn once tells the card (card-want.ts openCharts): the card judges whether it can come in at once, not at the next resize
     const built = () => report(!now.current.live);   // (not `fresh`: a chart that draws after the card showed is a measure like any other)
     el.addEventListener('pz-chart-built', built);
+    // the fonts arriving re-measure the words even when the new font leaves the height as it was (the observer is silent then, and the card would wait on a measure taken in the fallback font)
+    let alive = true;
+    if (typeof document !== 'undefined' && document.fonts && document.fonts.status !== 'loaded') void document.fonts.ready.then(() => { if (alive) report(!now.current.live); });
     const off = observeThenFit([el], () => report(!now.current.live));
-    return () => { el.removeEventListener('pz-chart-built', built); off(); };   // (the pass writes onto what it observes, its class and --pz-fit: never inside the observer's own delivery)
+    return () => { alive = false; el.removeEventListener('pz-chart-built', built); off(); };   // (the pass writes onto what it observes, its class and --pz-fit: never inside the observer's own delivery)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.key, Math.round(rect.w), remeasure]);
 

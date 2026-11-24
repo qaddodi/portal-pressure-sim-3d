@@ -28,3 +28,10 @@ test('the procedure row stands from the slide\'s own plan, never only from the s
   assert.match(row, /if \(!cs \|\| !plan\) return null/);
   assert.match(row, /stepsOfPlan\(plan\)/);
 });
+
+test('a card is let in only on a height measured with the fonts in, and the fonts arriving re-measure it (a fallback-font measure grew the card after it landed)', () => {
+  const layer = read('src/ui/cards/CardLayer.tsx'), frame = read('src/ui/cards/CardFrame.tsx');
+  assert.match(layer, /const sig = sigRef\.current, f = fontsLoaded\(\)/);
+  assert.match(layer, /\?\.f !== false\)/, 'the gate (`measured`) must require a measure taken with the fonts in');
+  assert.match(frame, /document\.fonts\.ready\.then\(\(\) => \{ if \(alive\) report\(!now\.current\.live\)/);
+});

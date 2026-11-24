@@ -49,6 +49,8 @@ import { maxPages, clampPage } from './pages.ts';
 import { frameProps, wordsClasses, type FrameLive } from './frame-props.ts';
 
 import { clock } from '../../clock/frame.ts';
+/** Whether every font the page asked for is in right now (a measure taken before this is a measure of a fallback font's words). */
+export const fontsLoaded = (): boolean => typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded';
 /** True once the page's fonts are in (cards show only then). */
 function useFontsReady(): boolean {
   const [ok, setOk] = useState(() => typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded');
@@ -86,11 +88,11 @@ export function CardLayer({ deck }: { deck: Deck }) {
   }, [stops, pos, here, sidewaysNow]);
   const carried = here && stops[here.from]?.kind === 'slide' ? (stops[here.from] as { slide: Slide }).slide : null;   // (the slide whose instrument the data card shows)
   // heights are tagged with the page they were measured on, so a card that has just been split is never judged by its whole height
-  const [heights, setHeights] = useState<Record<string, { h: number; want: number; open: number; sig: string }>>({});
+  const [heights, setHeights] = useState<Record<string, { h: number; want: number; open: number; sig: string; f: boolean }>>({});
   const sigRef = useRef('');
   const onHeight = useCallback((key: string, w: number, h: number, want = h, open = 0) => {
-    const sig = sigRef.current;
-    setHeights((m) => { const o = m[`${key}@${w}`]; return o && o.h === h && o.want === want && o.open === open && o.sig === sig ? m : { ...m, [`${key}@${w}`]: { h, want, open, sig } }; });
+    const sig = sigRef.current, f = fontsLoaded();   // (a height measured while a font was still loading is not final: the card is not let in on it, 24 Nov)
+    setHeights((m) => { const o = m[`${key}@${w}`]; return o && o.h === h && o.want === want && o.open === open && o.sig === sig && o.f === f ? m : { ...m, [`${key}@${w}`]: { h, want, open, sig, f } }; });
   }, []);
   const [pagesMap, setPagesMap] = useState<Record<string, number>>({});
   const page = useUi((s) => s.page);
@@ -194,7 +196,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const fonts = useFontsReady();
   const growing = ladBusy || fitBusy || (tooTall && pages < (view ? capOf(view) : 1)) || tightens;
   // (and every chart in a card is drawn once at its box: `open` is how many are not, so a chart never reaches its size while its card slides in; the 320 ms give-up is the net)
-  const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig) && (hit(n.slot === 'words' ? wordsKey : dataKey)?.open ?? 0) === 0) || (plan.docked && n.slot === 'data'));
+  const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig) && (hit(n.slot === 'words' ? wordsKey : dataKey)?.open ?? 0) === 0 && hit(n.slot === 'words' ? wordsKey : dataKey)?.f !== false) || (plan.docked && n.slot === 'data'));
   const [late, setLate] = useState('');
   useEffect(() => { const t = clock.after(() => setLate(pagesKey), 320); return () => clock.cancel(t); }, [pagesKey]);
   // (the instrument's numbers: a card with a chart waits for its slide's step from the second engine, and asks for it again if the first run failed)
