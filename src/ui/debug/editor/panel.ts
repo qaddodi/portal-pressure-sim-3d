@@ -11,7 +11,7 @@ import { readBox, readMetric } from '../../layout-snap.ts';
 import { clearDraft, overrides, saveDraft } from '../../../editor/store.ts';
 import { ORGAN_LIMITS, type Stroke, type V3 } from '../../../editor/types.ts';
 import { liveTransform } from './live.ts';
-import { dotted, liveCourses } from './live-vessels.ts';
+import { endVesselPreview, previewVesselEdits, setVesselPreviewHost } from '../../../scene/vessels/edit-preview.ts';
 import { LiveStrokes } from './strokes.ts';
 import { clock } from '../../../clock/frame.ts';
 import { Overlay } from './overlay.ts';
@@ -127,11 +127,10 @@ export function mountEditor(): void {
     cel.setEditorOverlay(overlay.object); frameFor('editor', 300);
   };
   const settleStrokes = (): void => { for (const id of touched) liveStrokes.get(id)?.settle(); touched.clear(); cel.setEditorOverlay(overlay.object); };
+  setVesselPreviewHost(() => cel.editorVesselParts());
   const refreshOverlay = (): void => {
     syncOrgans();
-    const live = mode === 'vessels' ? liveCourses(hist.now, loaded, sk.vessels) : new Map<string, V3[]>();
-    if (live.size) overlay.dots('live', { pos: [...live.values()].flatMap((c) => dotted(c)), size: 5, color: 0x2ee6a6 }); else overlay.clear('live');
-    cel.setEditorFade([...live.keys()], 0.3);   // (the real tubes of what is being edited step back: a tube cannot be rebuilt per move; Save rebuilds it)
+    if (mode === 'vessels') previewVesselEdits(hist.now); else endVesselPreview();   // (the real tubes and skins move with the drag, vessels/edit-preview.ts)
     const vessels = mode === 'vessels';
     overlay.dots('nodes', { pos: vessels ? sk.nodes.map((n) => nodeShown(n.id)) : [], size: dotPx(9), color: 0xffb347 });
     if (vessels && target?.kind === 'node') overlay.dots('pick', { pos: [nodeShown(target.id)], size: dotPx(16), color: 0xff3d71 });

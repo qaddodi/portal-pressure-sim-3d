@@ -1719,6 +1719,16 @@ export class CelScene {
   }
   /** The body's frame (what the editor's picking and drag convert through). */
   get editorBody(): Object3D { return this.body; }
+  /** The anatomy editor's live vessel preview (vessels/edit-preview.ts) moves the real tubes' and skins' vertices while a drag goes on: this hands over their geometries (a tube by its edge id; a skin with its arms' ids). */
+  editorVesselParts(): { tubes: Map<string, BufferGeometry>; skins: { geometry: BufferGeometry; arms: readonly string[] }[] } {
+    const tubes = new Map<string, BufferGeometry>(), skins: { geometry: BufferGeometry; arms: readonly string[] }[] = [];
+    for (const o of this.objects) if (o.isVessel && o.edge && !this.fans.has(o) && !tubes.has(o.edge.id)) tubes.set(o.edge.id, o.toonMesh.geometry);
+    for (const s of this.skins?.drawnArms() ?? []) {
+      const seen = new Set<BufferGeometry>();
+      s.object.traverse((c) => { const g = (c as Mesh).geometry as BufferGeometry | undefined; if (g && !seen.has(g)) { seen.add(g); skins.push({ geometry: g, arms: s.arms }); } });
+    }
+    return { tubes, skins };
+  }
   /** Draws one of `inspectLayers` as a wireframe (every mesh under it; a part built later, a skin rebuilt, is taken up on the next frame). */
   setInspectWire(id: string, on: boolean): void {
     if (on) this.inspectWired.add(id);
