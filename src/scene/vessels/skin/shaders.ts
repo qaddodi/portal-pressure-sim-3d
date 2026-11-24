@@ -544,7 +544,7 @@ void main() {
     vec4 lb = lensOfAt(armData[i].w, armAF[i].x, lensGradB, lensLaneB, lensModeB, laneColB, acA[i]);
     la.a *= armColor[i].a;
     lb.a *= armColor[i].a;
-    laArm[i] = la; lbArm[i] = lb;
+    laArm[i] = lensHeadAt(armData[i].w, armAF[i].x, lensGradA, lensLaneA, lensModeA, laneColA, la); lbArm[i] = lensHeadAt(armData[i].w, armAF[i].x, lensGradB, lensLaneB, lensModeB, laneColB, lb);   // (the heads' tone is judged at the arm's middle lane, one per head: lensHeadAt)
     base += wAt(i) * mix(mix(armColor[i].rgb, la.rgb, la.a), mix(armColor[i].rgb, lb.rgb, lb.a), lensMix);
     rawAcc += wAt(i) * mix(la.a * lensRawA, lb.a * lensRawB, lensMix);
   }

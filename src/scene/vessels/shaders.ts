@@ -440,6 +440,9 @@ ${LENS_OF_AT_GLSL}
 ${CHEV_CREAM_GLSL}
 ${FLOW_MARKS_GLSL}
 // the colour of one lens set at this pixel; .a says whether the lens colours this vessel (0: it keeps its tone)
+vec4 lensHead(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], vec4 pixelLens) {
+  return lensHeadAt(lensIndex, (vLensR.y > 0.0 ? vLensR.x + vLensR.y * vUv.x : mix(lensSpan.x, lensSpan.y, vUv.x)), grad, lanes, mode, pal, pixelLens);
+}
 vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float across) {
   return lensOfAt(lensIndex, (vLensR.y > 0.0 ? vLensR.x + vLensR.y * vUv.x : mix(lensSpan.x, lensSpan.y, vUv.x)), grad, lanes, mode, pal, across);   // (a branch of a vessel wears the stretch of its host's ramp it leaves from: no step in colour at the branch point)
 }
@@ -651,7 +654,7 @@ void main() {
   // the flow heads, on the tube's surface as the 2D composite lays them
   float pxArc = fwPx;   // (derivatives taken at the top of main, before any discard)
   float acrossW = fwAw;
-  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * stumpMk, la, lb, color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
+  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * stumpMk, lensHead(lensGradA, lensLaneA, lensModeA, laneColA, la), lensHead(lensGradB, lensLaneB, lensModeB, laneColB, lb), color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
   hd = clamp(hd, 0.0, 1.0);
 #ifdef VDBG
   if (dbgHeads < 0.5) hd = vec4(0.0);

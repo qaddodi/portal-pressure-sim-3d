@@ -48,6 +48,16 @@ vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode
   col = mix(col, pal[1], 1.0 - smoothstep(c.y - w, c.y + w, f));
   col = mix(col, pal[0], 1.0 - smoothstep(c.x - w, c.x + w, f));
   return vec4(col, 1.0);
+}
+// the lens colour a flow HEAD is judged by (its tone, one per head): a lane lens runs its lanes across the vessel and a head spans several, so the pixel's own lane would turn one head cream on one lane and dark on the next,
+// a head cut in two, its tip black on a teal lane (Mohammad, 24 Nov: chevrons hiding behind joints). The head is judged by the lane at the vessel's middle, where it stands. A ramp lens has no lanes: the pixel's own colour, as ever.
+vec4 lensHeadAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], vec4 pixelLens) {
+  if (mode < 1.5) return pixelLens;
+  float keep = lensAcrossFw; lensAcrossFw = 0.0;
+  float middle = 0.0;   // (the lane under the head's axis)
+  vec4 c = lensOfAt(lensIx, u, grad, lanes, mode, pal, middle);
+  lensAcrossFw = keep;
+  return vec4(c.rgb, max(c.a, 0.0) * step(0.5, pixelLens.a));
 }`;
 
 /** chevCreamOf(la, grad, mode, idx, col, raw): the flow heads' tone on a vessel (its lens index `idx`, its own colour `col`, `raw` the set's lensRaw) under one lens set. Used by flowHeads below, so the tube and the skin's arms read one rule. Reads: chevCreamSoft (blood/chevron-glsl.ts), celTubeBase. */
