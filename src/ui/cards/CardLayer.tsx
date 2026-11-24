@@ -127,7 +127,11 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const sig = `${wordsKey}|${pages}|${at}|${vp.w}x${vp.h}|${lad}|${fitK ?? ''}|${tight ? 't' : ''}`;
   sigRef.current = sig;
 
-  const dataKey = here?.key ?? 'ladder';
+  // A kept data card whose new slide needs a taller box than it landed with is not grown: it is replaced by a fresh card at its final size (CardFrame `onOutgrown`; Mohammad, 24 Nov: a card never visibly changes size).
+  const [rekeys, setRekeys] = useState<Record<string, number>>({});
+  const baseKey = here?.key ?? 'ladder';
+  const dataKey = rekeys[baseKey] ? `${baseKey}~${rekeys[baseKey]}` : baseKey;
+  const outgrown = useCallback((k: string) => setRekeys((m) => { const base = k.replace(/~\d+$/, ''); return { ...m, [base]: (m[base] ?? 0) + 1 }; }), []);
   const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey), want: hit(dataKey)?.want ?? 0 }] : [])] : [];
   const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked), [vp, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}:${n.want ?? ''}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -309,7 +313,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     onMove: goTo,
     // a drag follows only where it will do something: a slide to go to (or a page to turn), not the first slide's Back
     // the data card the next slide keeps (same key) stays put under a drag: only the cards that change follow the finger
-    keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return false; const to = dataAt[apply(stops, pos, dx < 0 ? 'next' : 'back').stop]; return !!view?.data && !!to && to.key === dataKey; },
+    keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return false; const to = dataAt[apply(stops, pos, dx < 0 ? 'next' : 'back').stop]; return !!view?.data && !!to && to.key === baseKey; },
     // a slide whose procedure (or whose data card's readings) takes Next as a step: the swipe steps through the steps and no card follows the finger (Mohammad, 24 Nov)
     stays: stepsHere,
     // a slide change sends the cards out from where the finger let go; a page turned, or a beat of this slide, leaves them where they are (they ease back)
@@ -369,7 +373,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     const fp = frameProps(isCurrent, live, frameSnap.current[e.key]);
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
-      <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onGone={stack.gone} label={labelOf(e.id)}
+      <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onOutgrown={slot === 'data' ? outgrown : undefined} onGone={stack.gone} label={labelOf(e.id)}
         pointer={swipe} go={go} data={slot === 'data'} vars={fp.vars as never} remeasure={fp.sig} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} lift={plan.scrolled ? plan.scrollDy : undefined} zoomable={zoomsHere && e.phase === 'in'} onTap={plan.sideways && plan.scrollDy > 0 && e.phase === 'in' && (slot === 'data' ? !plan.scrolled : plan.scrolled) ? () => { if (!justDocked() && !justDragged()) goColumn(slot === 'data' ? 1 : 0, plan.scrollDy, setDocked); } : slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsOn(plan.layout, plan.sideways) && e.phase === 'in' && (zoomsHere || view.slide?.visual === 'ladders') ? zoomTap : undefined} visual={fp.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : wordsClasses(e.id, fp.visual, !!nameTabOf(deck))}>
         {slot === 'data' ? <DataCap.Provider value={alone || !(wordsHit && wordsHit.h > 0) ? 0 : plan.maxH.data}>{content(e)}</DataCap.Provider>
           // (a chart in a centred panel keeps inside what the panel leaves it, as one in a data card does: only past its floor does the panel's fit zoom take over)

@@ -23,6 +23,8 @@ interface Props {
   /** Reports the natural height of the content (px, border included) whenever it changes, and `want`: that height with every picture held to its room at the height it wanted (Plan 43; = h when none is held). */
   onHeight(key: string, width: number, h: number, want?: number, open?: number): void;
   onGone(key: string): void;
+  /** a kept data card's new slide needs a taller box than it landed with: the layer replaces it with a fresh card at its final size instead of growing it */
+  onOutgrown?(key: string): void;
   children: ReactNode;
   label?: string;
   pointer?: { onPointerDown: PointerEventHandler; onPointerUp: PointerEventHandler; onPointerCancel: PointerEventHandler };
@@ -75,7 +77,7 @@ type Anchor = 'foot' | 'mid' | 'top';
 const ORIGIN: Record<Anchor, string> = { foot: '50% 100%', mid: '50% 50%', top: '50% 0%' };
 
 /** One card: placed by transform, sized exactly to its content with a glide, invisible until its words are laid out, then it rises in. */
-export function CardFrame({ entry, rect, onHeight, onGone, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false, zoomable = false, swap = false, tuck = false, lift, vars, remeasure }: Props) {
+export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false, zoomable = false, swap = false, tuck = false, lift, vars, remeasure }: Props) {
   const vp = useUi((s) => s.vp);
   const r = Math.round(radius(vp.w, vp.h, layoutOf(vp.w, vp.h)));
   // the words card on an iPhone with rounded corners takes the screen's own corner (less its inset) at its bottom two corners
@@ -157,6 +159,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     // a centred card (2D's panel and case) keeps its padding on the card itself, so its height is its words' and that padding
     // `full`: the fit is made from scratch (the card's first measure, a new width, a new step). A pass the observer starts after the card is let in (`live`) only measures: it never changes a class, --pz-fit
     // or a chart's box in place unless the card is really past its room (Plan 43: nothing re-spaces while a card shows or moves). A card on its way out never measures: it keeps the layout it left with.
+    let sameStepPass = false;   // (set around the one measure a kept data card makes when only its slide changed)
     const report = (full = true, fresh = false) => {
       if (now.current.out) return;
       if (full) markLong(innerRef.current, layoutOf(vp.w, vp.h) !== 'stack' && layoutOf(vp.w, vp.h) !== 'tab');
@@ -175,6 +178,8 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
       // The box is decided once (box-lock.ts, Plan 45): once the card is let in, a measure the observer makes (a reading changed its width, a chart drew, a font swapped) never shrinks it or moves it;
       // a taller one still grows it by the glide (words are never clipped) and is logged for the audit. A new key, width, step or viewport (this effect's own first pass) takes the lock again.
       const out = boxOf(box.current, { t: 'measure', key: lockKey, h, fresh, shown: gate.current && !GROWS_BY_DESIGN.has(entry.id) });
+      // (a kept card at the same step whose new slide needs more room than it landed with: no growth, a fresh card at its final size takes its place; the lock keeps what it landed with while this one leaves)
+      if (out.grew > 1 && sameStepPass && onOutgrown && !now.current.out) { onOutgrown(entry.key); return; }
       box.current = out.state;
       if (!out.report) {
         // (a measure the lock swallowed still tells the layer the card is measured at this slide's signature, at the height it stands: the camera and the new words wait for it)
@@ -188,7 +193,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
     // (a kept data card's slide change is a new signature but the same step: judged as an observer's measure, the lock stands)
     const sameStep = lastStep.current === stepKey && lastStep.current !== null && gate.current;
     lastStep.current = stepKey;
-    report(true, !sameStep);
+    sameStepPass = sameStep; report(true, !sameStep); sameStepPass = false;
     // a chart that has drawn once tells the card (card-want.ts openCharts): the card judges whether it can come in at once, not at the next resize
     const built = () => report(!now.current.live);   // (not `fresh`: a chart that draws after the card showed is a measure like any other)
     el.addEventListener('pz-chart-built', built);

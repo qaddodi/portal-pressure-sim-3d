@@ -51,3 +51,12 @@ test('a kept data card keeps the box it landed with when only the slide beside i
   // a step of its own (a new key) is judged afresh
   assert.equal(boxOf(s, { t: 'measure', key: 'ladder|390|2|1||', h: 240, fresh: true, shown: true }).report, true);
 });
+
+test('a kept card whose new slide needs a taller box is replaced by a fresh card at its final size, never grown', () => {
+  const frame = read('src/ui/cards/CardFrame.tsx'), layer = read('src/ui/cards/CardLayer.tsx');
+  assert.match(frame, /if \(out\.grew > 1 && sameStepPass && onOutgrown && !now\.current\.out\) \{ onOutgrown\(entry\.key\); return; \}/);
+  assert.ok(frame.indexOf('onOutgrown(entry.key)') < frame.indexOf('box.current = out.state;'), 'the lock keeps what it landed with');
+  assert.match(layer, /const dataKey = rekeys\[baseKey\] \? `\$\{baseKey\}~\$\{rekeys\[baseKey\]\}` : baseKey/);
+  assert.match(layer, /onOutgrown=\{slot === 'data' \? outgrown : undefined\}/);
+  assert.match(layer, /to\.key === baseKey/);
+});
