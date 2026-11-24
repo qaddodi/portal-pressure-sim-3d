@@ -80,8 +80,23 @@ async function route() {
   // A link to a talk (?script=) opens it right after the first picture: its UI is a chunk of its own (ui/shell/deck-ui-load.ts), fetched now beside the app's code, not after it. Any other load reads it in when idle (boot/warm.ts).
   if (new URLSearchParams(location.search).has('script')) void import('./ui/shell/deck-ui-load.ts').then((m) => m.loadDeckUi()).catch(() => undefined);
   await import('./main.tsx');   // the app: its first lines of code run when this resolves
+  try { sessionStorage.removeItem(RELOAD_KEY); } catch { /* private mode */ }
+}
+/** A part that cannot be fetched at boot is, nearly always, a page from the build before last: Pages replaces every hashed file on each deploy, so an index.html still held by
+ *  the browser's cache (github.io keeps it ten minutes) names chunks that are gone, and Safari says only "Importing a module script failed". Reload ONCE, quietly, to get the new index;
+ *  a second failure before a boot succeeds shows the cover, as before (a real fault or no network never loops). The mark is cleared once the app's code has loaded. */
+const RELOAD_KEY = 'pps.bootReload';
+function reloadOnceForStaleBuild(): boolean {
+  try {
+    if (navigator.onLine === false) return false;
+    if (sessionStorage.getItem(RELOAD_KEY)) return false;
+    sessionStorage.setItem(RELOAD_KEY, '1');
+  } catch { return false; }
+  location.reload();
+  return true;
 }
 route().catch((e) => {
+  if (reloadOnceForStaleBuild()) return;
   // (a part that cannot be fetched: a tab open across two deploys, or the network. The cover says so with Reload, never a page that waits for ever)
   const w = window as Cover;
   w.ppsBootErrors?.push(String((e as Error)?.message ?? e));
