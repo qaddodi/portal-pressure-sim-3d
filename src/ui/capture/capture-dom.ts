@@ -5,7 +5,7 @@
 import { readBox, readStyle, readTextRects } from '../layout-snap.ts';
 import { parseGradient, type Item, type Paint, type Clip } from '../shell/figure-image.ts';
 import { paintItems } from '../shell/figure-image-dom.ts';
-import { zoomOf, parseShadows, transformed, contentString, counterCall, counterText, counterStep, SYMBOLS, symbolPath, maskUrl, maskPlacement, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
+import { zoomOf, parseShadows, transformed, contentString, fractionBar, strokeWidthIn, counterCall, counterText, counterStep, SYMBOLS, symbolPath, maskUrl, maskPlacement, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
 
 type Rect = { x: number; y: number; w: number; h: number };
 interface Ctx { out: ScreenItem[]; stage: Rect | null; stageImg: CanvasImageSource | null; stageDrawn: boolean }
@@ -79,7 +79,7 @@ function svgShape(el: Element, c: Ctx, cs: CSSStyleDeclaration, alpha: number, c
   const fill = svgPaint(cs.fill), stroke = svgPaint(cs.stroke);
   if (!fill && !stroke) return;
   const op = num(fill ? cs.fillOpacity : cs.strokeOpacity);
-  const it: Paintable = { k: 'path', d, m: [m.a, m.b, m.c, m.d, m.e, m.f], fill, stroke, sw: num(cs.strokeWidth), join: cs.strokeLinejoin, cap: cs.strokeLinecap, alpha: alpha * (cs.fillOpacity === '' ? 1 : op), clip: pclip, clips };
+  const it: Paintable = { k: 'path', d, m: [m.a, m.b, m.c, m.d, m.e, m.f], fill, stroke, sw: strokeWidthIn(num(cs.strokeWidth), cs.vectorEffect, m), join: cs.strokeLinejoin, cap: cs.strokeLinecap, alpha: alpha * (cs.fillOpacity === '' ? 1 : op), clip: pclip, clips };
   c.out.push(it);
 }
 
@@ -268,6 +268,10 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
     else if (el instanceof HTMLInputElement && /^(text|search|number|email|tel|url|password)$/.test(el.type) && el.value) {
       const font = `${cs.fontStyle} ${cs.fontWeight} ${num(cs.fontSize) * kk}px ${cs.fontFamily}`;
       c.out.push({ k: 'text', text: el.type === 'password' ? '•'.repeat(el.value.length) : el.value, x: r.left + num(cs.paddingLeft) * kk + num(cs.borderLeftWidth) * kk, y: r.top + r.height / 2, w: r.width, font, fill: cs.color, halo: '', haloW: 0, spacing: 0, rot: 0, alpha, clip: own, clips: inner } as Paintable);
+    }
+    if (el.localName === 'mfrac' && el.children.length >= 2) {   // (the fraction's rule is painted by the browser: drawn from the gap between its two parts, in the text colour)
+      const bar = fractionBar(r, readBox(el.children[0]!), readBox(el.children[1]!), num(cs.fontSize) * kk);
+      c.out.push({ k: 'box', x: bar.x, y: bar.y, w: bar.w, h: bar.h, r: 0, fill: cs.color, bw: 0, bc: '', alpha, clip: own, clips } as Paintable);
     }
     // the element's own words, one word at a time, each where the browser put it (a card's wrapped lines, a tag's text), in the element's own font
     const ts = cs.textShadow !== 'none' ? parseShadows(cs.textShadow).map((s) => ({ ...s, ox: s.ox * kk, oy: s.oy * kk, blur: s.blur * kk })) : [];

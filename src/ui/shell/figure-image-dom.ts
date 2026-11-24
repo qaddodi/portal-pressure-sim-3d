@@ -7,6 +7,7 @@ import { useShell } from './store.ts';
 import { useEngine } from '../../engine/index.ts';
 import { figureItems, figureFileName, parseGradient, type Item, type Paint, type Clip } from './figure-image.ts';
 import { FIGURE_IMAGE } from './words.ts';
+import { strokeWidthIn } from '../capture/capture-model.ts';
 
 /** The picture is made at this many times the CSS size whatever the device's own pixel ratio (the device's limits cap it: figure-image.ts pictureScale). */
 export const PICTURE_SCALE = 2;
@@ -41,7 +42,7 @@ function visit(el: Element, out: Item[], above: number, clip: Clip | undefined):
         let d = el.getAttribute('d') ?? '';
         if (el instanceof SVGCircleElement) { const cx = num(el.getAttribute('cx') ?? '0'), cy = num(el.getAttribute('cy') ?? '0'), rr = num(el.getAttribute('r') ?? '0'); d = `M${cx - rr} ${cy}a${rr} ${rr} 0 1 0 ${2 * rr} 0a${rr} ${rr} 0 1 0 ${-2 * rr} 0`; }
         if (el instanceof SVGLineElement) d = `M${el.getAttribute('x1') ?? 0} ${el.getAttribute('y1') ?? 0}L${el.getAttribute('x2') ?? 0} ${el.getAttribute('y2') ?? 0}`;
-        if (d) out.push({ k: 'path', d, m: [m.a, m.b, m.c, m.d, m.e, m.f], fill, stroke, sw: num(cs.strokeWidth), join: cs.strokeLinejoin, cap: cs.strokeLinecap, alpha, clip });
+        if (d) out.push({ k: 'path', d, m: [m.a, m.b, m.c, m.d, m.e, m.f], fill, stroke, sw: strokeWidthIn(num(cs.strokeWidth), cs.vectorEffect, m), join: cs.strokeLinejoin, cap: cs.strokeLinecap, alpha, clip });
       }
     }
     for (const c of el.children) visit(c, out, alpha, clip);

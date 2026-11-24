@@ -70,12 +70,26 @@ test('a reading that cannot change size reserves its own width: no gap before th
 test('prose figures are proportional (a "1" is not a full-width cell: ">190" read ">1 90"), the readings\' own boxes stay tabular', () => {
   // (important, both: the lifted 2D sheet ends with `* { font-variant-numeric: tabular-nums !important }`, which beat the plain rules this test used to pin: the figures were never proportional, 23 Nov multi-size review)
   assert.match(css, /\.deck-ui :is\(\.pz-h, \.pz-line, \.pz-side-p, [^)]*\) \{ font-variant-numeric: lining-nums proportional-nums !important; \}/);
-  assert.match(css, /\.deck-ui :is\(\.pz-line, \.pz-side-p, \.pz-h\) :is\([^)]*\) \{ font-variant-numeric: tabular-nums lining-nums !important; \}/);
+  assert.match(css, /\.deck-ui\.deck-ui :is\(\.pz-line, \.pz-side-p, \.pz-h\) :is\([^)]*\) \{ font-variant-numeric: tabular-nums lining-nums !important; \}/);
   const all = readFileSync(new URL('../src/ui/css2d/app-11-deck-visuals.css', import.meta.url), 'utf8');
   assert.match(all, /\*, \*::before, \*::after \{ font-variant-numeric: tabular-nums lining-nums !important;/, 'the universal important rule these must outrank');
   const layer = readFileSync(new URL('../src/ui/charts/text-layer.ts', import.meta.url), 'utf8');
   assert.match(layer, /w\.tab \? 'tabular-nums lining-nums' : 'proportional-nums lining-nums'/, 'chart words are proportional unless they count in place');
   assert.match(layer, /setProperty\('font-variant-numeric', nums, 'important'\)/);
+});
+
+// capture 572259fd, varices 3: "11.1 mmHg   to". The proportional rule's `.pz-table td.num` made it (0,3,1), above the tabular rule's (0,3,0), so a reading was proportional and its sizer (all zeros) was wider than "11.1".
+test('the tabular rule for a reading outranks the proportional prose rule, so the sizer of zeros is as wide as any value', () => {
+  const cmp = (a: number[], b: number[]) => a[0]! - b[0]! || a[1]! - b[1]! || a[2]! - b[2]!;
+  const spec = (sel: string): number[] => [0, (sel.match(/\.[\w-]+|\[[^\]]*\]/g) ?? []).length, (sel.replace(/\[[^\]]*\]/g, '').match(/(^|[\s>+~])[a-z][\w-]*/gi) ?? []).length];
+  const sum = (ps: number[][]) => [0, 1, 2].map((i) => ps.reduce((n, p) => n + p[i]!, 0));
+  // (a selector of `.x :is(a, b *)` parts: an :is() counts as its most specific argument)
+  const specOf = (full: string): number[] => { const parts: number[][] = []; let rest = full.trim(); while (rest) { const m = rest.match(/^:is\(((?:[^()]|\([^()]*\))*)\)\s*/); if (m) { parts.push(m[1]!.split(/,(?![^(]*\))/).map(spec).reduce((a, b) => (cmp(b, a) > 0 ? b : a))); rest = rest.slice(m[0].length); } else { const n = rest.match(/^[^\s:]+\s*/)!; for (const c of n[0].trim().split(/(?=\.)/)) parts.push(spec(c)); rest = rest.slice(n[0].length); } } return sum(parts); };
+  const prose = specOf(css.match(/^(\.deck-ui :is\(\.pz-h, \.pz-line[^{]*?) \{ font-variant-numeric: lining-nums proportional-nums !important/m)![1]!);
+  const tab = specOf(css.match(/^(\.deck-ui\.deck-ui :is\(\.pz-line, \.pz-side-p, \.pz-h\) :is\([^{]*?) \{ font-variant-numeric: tabular-nums lining-nums !important/m)![1]!);
+  assert.ok(cmp(tab, prose) > 0, `tabular ${tab} must beat proportional ${prose}`);
+  const labels = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');
+  assert.match(labels, /\.lb \.lb-delta, \.lb \.lb-alert \{ font-variant-numeric: proportional-nums lining-nums !important; \}/, 'a change badge beats the `*` important rule ("+1 4.6")');
 });
 
 test('the Doppler probe keeps off the figure\'s colour key as off a card, and a label keeps 9 px off its body', async () => {

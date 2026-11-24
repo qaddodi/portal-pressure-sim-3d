@@ -189,3 +189,17 @@ export function captureNote(n: NoteIn): string {
 }
 /** The kind of screen, by its width: phone, tablet or computer. */
 export const deviceWords = (w: number, h: number, dpr: number): string => `${w < 600 || (h < 600 && w < 1000) ? 'phone' : w < 1100 ? 'tablet' : 'computer'} ${w}x${h} at ${dpr}x`;
+
+/** The rule of a MathML fraction (`<mfrac>`): the browser paints it itself (no element, no border), so a picture built from the page's boxes had "P · r" over "w" with no bar (capture 572259fd, varices 5, σ = P·r / w).
+ *  It runs the fraction's full width, centred in the gap between the numerator's foot and the denominator's head, a sixteenth of the font thick (at least 1 px). */
+export function fractionBar(whole: { left: number; width: number }, num: { bottom: number }, den: { top: number }, fontPx: number): { x: number; y: number; w: number; h: number } {
+  const h = Math.max(1, fontPx / 16);
+  return { x: whole.left, y: (num.bottom + den.top) / 2 - h / 2, w: whole.width, h };
+}
+
+/** A stroke's width in the path's own units, so the canvas (which draws it through the element's screen matrix) shows it as the page does. A stroke with `vector-effect: non-scaling-stroke` is the stated width on the SCREEN, whatever the matrix:
+ *  drawn unchanged it was thickened by the matrix's scale, and the varix caliper (1.6 px) came out a white blob 10 px thick (capture 572259fd, varices 3). */
+export function strokeWidthIn(sw: number, vectorEffect: string | null | undefined, m: { a: number; b: number }): number {
+  const k = Math.hypot(m.a, m.b);
+  return vectorEffect === 'non-scaling-stroke' && k > 1e-6 ? sw / k : sw;
+}
