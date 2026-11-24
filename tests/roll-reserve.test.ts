@@ -45,3 +45,11 @@ test('Roll sizes its box to the reserve and the line gives it', () => {
   assert.match(readFileSync('src/ui/cards/Line.tsx', 'utf8'), /<Roll text=\{text\} reserve=\{reserveOf\(text, p\.key, p\.decimals === 0, still, \{ seen: seen\?\.\(p\.key, p\.decimals === 0\), minus \}\)\} after=\{stop\} \/>/);
   assert.match(readFileSync('src/ui/deck-ui.css', 'utf8'), /\.dk-num \{[^}]*font-variant-numeric: tabular-nums/);
 });
+
+import { reserveOf as reserveOf2 } from '../src/ui/cards/roll-reserve.ts';
+import { test as test2 } from 'node:test';
+import assert2 from 'node:assert/strict';
+test2('an index out of 1 holds no second whole digit (no gap after "0.80 /1.")', () => {
+  assert2.equal(reserveOf2('0.80 /1', 'he', false, false, { minus: false }), '0.00 /0');
+  assert2.equal(reserveOf2('0.80 /1', 'he', false, false, { minus: true }), '0.00 /0');
+});

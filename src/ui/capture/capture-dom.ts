@@ -41,6 +41,11 @@ function turnOf(el: Element): number {
   for (let e: Element | null = el; e && e !== document.body; e = e.parentElement) { const t = readStyle(e).transform; if (t && t !== 'none') { const m = new DOMMatrix(t); if (turned(m)) return Math.atan2(m.b, m.a); } }
   return 0;
 }
+/** A text run's box as the renderer wants it: where it would stand unturned, centred on the same point. The browser's rect of a run turned a quarter is as tall as the run is long, and the renderer
+ *  turns a run about the middle of its `x`..`x + w` (a head lying on its side, a table's upright heads: the letters were set in the rect's narrow width and fell on each other, "VARIX", "ASCITES"). */
+export function unturned(r: { left: number; width: number; height: number }, turn: number): { x: number; w: number } {
+  return Math.abs(Math.sin(turn)) > 0.7 ? { x: r.left + r.width / 2 - r.height / 2, w: r.height } : { x: r.left, w: r.width };
+}
 /** An SVG paint: a colour, or the middle stop of the gradient it names (a canvas path takes one colour here), or null for none. */
 function svgPaint(v: string): string | null {
   if (!v || v === 'none' || clear(v)) return null;
@@ -294,11 +299,11 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
             at += ch.length;
             if (!cr || cr.width <= 0) continue;
             if (SYMBOLS.test(ch)) { c.out.push({ k: 'path', d: symbolPath(ch, cr.left, cr.top + cr.height / 2 - fpx / 2, cr.width, fpx), m: [1, 0, 0, 1, 0, 0], fill: null, stroke: cs.color, sw: Math.max(1, fpx * 0.1), join: 'round', cap: 'round', alpha, clip: own, clips: inner } as Paintable); continue; }
-            emit({ k: 'text', text: transformed(ch, cs.textTransform), x: cr.left, y: cr.top + cr.height / 2, w: cr.width, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: 0, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
+            emit({ k: 'text', text: transformed(ch, cs.textTransform), x: unturned(cr, turn).x, y: cr.top + cr.height / 2, w: unturned(cr, turn).w, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: 0, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
           }
           continue;
         }
-        emit({ k: 'text', text: shown, x: tr.left, y: tr.top + tr.height / 2, w: tr.width, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: cs.letterSpacing === 'normal' ? 0 : num(cs.letterSpacing) * kk, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
+        emit({ k: 'text', text: shown, x: unturned(tr, turn).x, y: tr.top + tr.height / 2, w: unturned(tr, turn).w, font, fill: cs.color, halo: sw > 0 ? sc : '', haloW: sw, spacing: cs.letterSpacing === 'normal' ? 0 : num(cs.letterSpacing) * kk, rot: turn, alpha, clip: own, clips: inner, ...(ts.length ? { ts } : {}) } as Paintable);
       }
     }
     c.out.push(...halos, ...fills);

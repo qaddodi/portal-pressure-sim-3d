@@ -83,6 +83,8 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   plan.marks.forEach((m, i) => {
     const text = m.clot ? clotWords(r.params?.thrombus?.[m.edges[0] ?? '']) : liveLabel(m.label, fp);
     if (!text) return;   // (a clot of 0 %: no mark at all)
+    // (one tag per vessel: a caliper across the same vessel already says its name and size, "TIPS 8 mm"; a second "TIPS" beside it was the same words twice, two-inflows 9, audit f9a5d2e0)
+    if (!m.organ && m.edges[0] && text === m.edges[0] && plan.calipers.some((c) => c.edge === m.edges[0])) return;
     const tear = !m.organ && r.bleed && m.edges.some((e) => TEAR_EDGES[r.bleed!].has(e));   // (the words stand where the blood leaves the vein, not on the vessel's middle, which is up the esophagus under the scope ring)
     const anchor: Anchor | null = tear ? { at2d: tearPoint(r.bleed!), z: STREAM_Z } : m.organ ? organAnchor(m.organ === 'kidney' ? 'kidney-l' : m.organ) : m.edges[0] && NETWORK_BY_ID.has(m.edges[0]) ? { edge: m.edges[0] } : null;
     if (!anchor) { notDrawn.push(`mark ${m.edges[0] ?? m.organ} (hidden in 2D too)`); return; }
