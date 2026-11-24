@@ -340,3 +340,9 @@ test('the audit sheet steps aside during a run (title and form fade out, strip s
   const m = page.match(/const SKIP_SPEED = (\d+)/); assert.ok(m && Number(m[1]) * 16 >= 3000, 'one 16 ms frame is at least 3 s of page time, the longest glide');
   assert.match(page, /speed: skip \? SKIP_SPEED/);
 });
+
+test('a skipped capture covers the app only while a slide settles: landed(false) before each Next, landed(true) once it is still, the cover lifts to show it', () => {
+  const all = src('src/ui/debug/audit/capture-all.ts'), page = src('src/ui/debug/audit/page.ts');
+  assert.match(all, /ui\.landed\?\.\(false\);\s*\n\s*if \(!useUi\.getState\(\)\.move\('next'\)\) break;/); assert.match(all, /ui\.landed\?\.\(true\)/);
+  assert.match(page, /landed: \(on\) => \{ if \(veil\) veil\.style\.opacity = on \? '0' : '1'/);
+});

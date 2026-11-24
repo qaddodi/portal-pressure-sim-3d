@@ -24,7 +24,7 @@ import { growCaptureTotal } from './progress.ts';
 import { zipBlob, type ZipFile } from '../../capture/zip.ts';
 import { feedbackBuild, commitOf } from '../../../boot/release.ts';
 
-export interface AllUi { /** only these talks (ids); absent: every talk */ decks?: ReadonlySet<string> | null; /** only these slides (`deck:k`, k the stop: 1 the first slide); null or absent: every slide */ pick?: ReadonlySet<string> | null; status(s: string): void; progress(done: number, total: number): void; stop(): boolean; /** the page clock's speed for the run (default 8) */ speed?: number; /** land every slide on its settled state at once: no CSS or script animation plays (see skipAnimations) */ skip?: boolean;
+export interface AllUi { /** only these talks (ids); absent: every talk */ decks?: ReadonlySet<string> | null; /** only these slides (`deck:k`, k the stop: 1 the first slide); null or absent: every slide */ pick?: ReadonlySet<string> | null; status(s: string): void; progress(done: number, total: number): void; stop(): boolean; /** the page clock's speed for the run (default 8) */ speed?: number; /** told false when a slide starts changing and true once it has landed (the panel lifts its cover to show the finished slide) */ landed?(on: boolean): void; /** land every slide on its settled state at once: no CSS or script animation plays (see skipAnimations) */ skip?: boolean;
   /** capture this one talk only (its id); default every talk */ only?: string;
   /** leave the talk open on this stop at the end (the talk the person was in); default the talk is left */ restore?: number }
 export interface AllResult { /** every file of the zip (name and bytes), for a page that joins several runs */ files: ZipFile[]; /** wall seconds for the whole run, and per slide: waiting for the slide to be still, drawing it */ secs: number; perSlide: { waitMs: number; drawMs: number }; speed: number; zip: Blob; zipName: string; collages: { name: string; blob: Blob }[]; shots: number; decks: number; stopped: boolean; notes: string[] }
@@ -186,6 +186,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         for (let tries = 0; moving && STATE_WAIT.test(moving) && tries < 11; tries++) ({ moving, words, perpetual } = await stillPage(real, blockedSlide(k)));
         if (moving) notes.push(STATE_WAIT.test(moving) ? `${d.title} ${n}: CAPTURE FAILED, the picture does not show the slide's own state (${moving}); retake it` : `${d.title} ${n}: still not still after 5 s (${moving}); captured as it was`);
         shownNow = words;
+        ui.landed?.(true);
         if (perpetual && !seen.has(perpetual)) { seen.add(perpetual); notes.push(`${d.title} ${n}: ${perpetual}; the picture was taken anyway`); }
         // a phone on its side with both cards (the words and the instrument stand in one column that a swipe up slides): two pictures of the slide, the teaching card in view, then the column slid up so the instrument is
         const both = isSideways(innerWidth, innerHeight) && !!useUi.getState().boxes.data && !!useUi.getState().boxes.words;
@@ -234,10 +235,11 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         await until(() => tagWords().includes(BLOCKED_SAYS.then), BLOCKED_SAYS.afterMs + real(2000));   // (the words come on the label layer's FRAMES, a few a second on a slow screen: so the wait is two REAL seconds past the 2.6 s, not 1.5 s of page time, which at speed N is 1/N of a second and a handful of frames)
         if (tagWords().includes(BLOCKED_SAYS.then)) await grab(); else notes.push(`${d.title} ${sub + 1}: the words "${BLOCKED_SAYS.then}" did not come`);
       };
-      useUi.getState().go(0);
+      ui.landed?.(false); useUi.getState().go(0);
       await grab(); await blockedThen();
       for (; presses < stops * 40; presses++) {
         if (ui.stop()) { stopped = true; break; }
+        ui.landed?.(false);
         if (!useUi.getState().move('next')) break;
         // a Next that keeps saying yes without the talk leaving its stop (a page that is never the last, a step that never ends): after 30 presses the walk jumps on and says so, so one stuck slide costs one picture, not the rest of the talk
         const here = useUi.getState().pos.stop;

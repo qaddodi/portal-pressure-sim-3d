@@ -103,7 +103,7 @@ export function mountAudit(mode: 'here' | 'run'): void {
   // A skipped capture shows nothing of the slides arriving: an opaque cover sits over the app (under the sheet) while it runs, so the person sees no in-between frame. It is not in a picture (data-capture-skip).
   let veil: HTMLElement | null = null;
   const setVeil = (on: boolean) => {
-    if (on && !veil) { veil = document.createElement('div'); veil.setAttribute('data-capture-skip', ''); veil.setAttribute('data-debug', ''); veil.style.cssText = 'position:fixed;inset:0;background:#0e0e10;opacity:0;transition:opacity .2s ease;z-index:calc(var(--z-perf,300) - 1)'; document.body.append(veil); const v = veil; clock.after(() => { v.style.opacity = '1'; }, 30); }
+    if (on && !veil) { veil = document.createElement('div'); veil.setAttribute('data-capture-skip', ''); veil.setAttribute('data-debug', ''); veil.style.cssText = 'position:fixed;inset:0;background:#0e0e10;opacity:0;transition:opacity .12s ease;z-index:calc(var(--z-perf,300) - 1)'; document.body.append(veil); const v = veil; clock.after(() => { v.style.opacity = '1'; }, 30); }
     else if (!on && veil) { const v = veil; veil = null; v.style.opacity = '0'; clock.after(() => v.remove(), 240); }
   };
   const go = async (depth: 'quick' | 'full') => {
@@ -134,7 +134,7 @@ export function mountAudit(mode: 'here' | 'run'): void {
     running = true; setRunning(true); setVeil(skip); stop = false; cap = null; saveRow.hidden = true; capStop.hidden = false; capStop.disabled = false; out.hidden = true; bar.value = 0; bar.hidden = false; pctLine.hidden = false; startedAt = clock.now(); status.textContent = 'Capturing every slide… keep this tab in front.'; pctLine.textContent = 'counting the slides…';
     try {
       const m = await import('./capture-all.ts');
-      cap = await m.captureAllDecks({ decks: sel.decks ? new Set(sel.decks) : null, pick: sel.pick ? new Set(sel.pick) : null, speed: skip ? SKIP_SPEED : speed > 1 ? speed : undefined, skip, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
+      cap = await m.captureAllDecks({ decks: sel.decks ? new Set(sel.decks) : null, pick: sel.pick ? new Set(sel.pick) : null, speed: skip ? SKIP_SPEED : speed > 1 ? speed : undefined, skip, landed: (on) => { if (veil) veil.style.opacity = on ? '0' : '1'; }, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
       bar.value = 100;
       status.textContent = `${cap.stopped ? 'Stopped. ' : 'Done in ' + cap.secs + ' s. '}${cap.shots} slides from ${cap.decks} talks (${cap.perSlide.waitMs + cap.perSlide.drawMs} ms a slide at ${cap.speed}x), one contact sheet per talk. Tap Save zip.${cap.notes.length ? ` Notes: ${cap.notes.join('; ')}` : ''}`;
       saveRow.hidden = false;
