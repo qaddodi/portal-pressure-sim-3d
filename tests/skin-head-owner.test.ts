@@ -70,3 +70,15 @@ test('a head\'s lateral gate follows the arm\'s live bent axis, never the straig
   assert.match(gate, /skinArmLat\(gl_FragCoord\.xy, i, swAt\(i\), rPxH\)/);
   assert.ok(!/dot\(relP, tJA\[i\]\)/.test(gate), 'no distance to the straight line');
 });
+
+// Mohammad, 24 Nov (build 4f3b63d3, iPhone): half a chevron at the left gastric vein's mouth and a faded one on the portal vein under the bifurcation. Rendered (software GL, dark look, Healthy): the tube draws a head up to its seam,
+// the skin finished it only when its arm OWNED the place the head's centre would be in the skin, and at a mouth that place is as near the trunk's wall as the vein's own, so the head was cut at the seam or drawn a ghost.
+test('a head centred on the tube\'s side of the seam is finished by the skin whoever owns the place; only a head well inside the skin goes by the owner', async () => {
+  const m = await import('../src/scene/vessels/skin/shaders.ts');
+  const main = body(m.SKIN_FS, 'void main(');
+  assert.match(main, /float aIn = \(chevCentreArc - armArc\[i\]\.x\) \* armArc\[i\]\.y \/ max\(rOwn, 1e-4\);/);
+  assert.match(main, /float ownH = max\(smoothstep\([0-9.]+, [0-9.]+, skinOwner\(/);
+  assert.match(main, /, tubeSide\);/);
+  assert.ok(m.SKIN_HEAD_TUBE_SIDE > 0 && m.SKIN_HEAD_TUBE_SIDE < 0.6, 'the tube\'s side ends within a head\'s first half length past the seam: further in, two arms\' heads would pile up at a node');
+  assert.ok(m.SKIN_HEAD_TIE < m.SKIN_HEAD_WIN && m.SKIN_HEAD_WIN <= 0.15, 'the band where no arm wins a head is narrow: a ghost lives only there');
+});

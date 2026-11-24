@@ -74,7 +74,9 @@ export const SKIN_HEAD_LAT_TO = 1.7;
  *  half-strength copies of one head, each stretched over pixels outside its own frame's cylinder (a head lies within 0.6 of the axis), summed to a dark smear. Now its owner share is sharpened (SKIN_HEAD_OWN_FROM .. TO: 0 under, 1 over, so the two arms' shares still sum to 1) and the gate
  *  closes at the head's own reach, not the wall's. */
 /** The band about a tie of two arms' shares over which a head's ownership passes from one arm to the other (a head is whole to the winner everywhere else). */
-export const SKIN_HEAD_TIE = 0.15, SKIN_HEAD_WIN = 0.5;
+/** A head whose centre is less than this many of the arm's radii past its seam (or anywhere on the tube's side) is the tube's, and the skin finishes it whole. */
+export const SKIN_HEAD_TUBE_SIDE = 0.3;
+export const SKIN_HEAD_TIE = 0.04, SKIN_HEAD_WIN = 0.12;
 export const SKIN_HEAD_OWN_FROM = 0.3, SKIN_HEAD_OWN_TO = 0.7, SKIN_HEAD_GATE_FROM = 0.75, SKIN_HEAD_GATE_TO = 1.0;
 
 /** The weighted sum of a per-arm float uniform array over all the arms (`wAt` and `wAtF` read the two weight attributes). */
@@ -598,7 +600,15 @@ void main() {
         float rPxH;
         float latK = abs(skinArmLat(gl_FragCoord.xy, i, swAt(i), rPxH));
         float gate = 1.0 - smoothstep(${F(SKIN_HEAD_GATE_FROM)}, ${F(SKIN_HEAD_GATE_TO)}, latK);
-        if (gate > 0.0 && abs(armArc[i].y) > 0.5) hI *= gate * smoothstep(${F(SKIN_HEAD_OWN_FROM)}, ${F(SKIN_HEAD_OWN_TO)}, skinOwner(i, seamP + tJA[i] * ((chevCentreArc - armArc[i].x) / (armArc[i].y * SKIN_U)), kPx));
+        if (gate > 0.0 && abs(armArc[i].y) > 0.5) {
+          // A HEAD WHOSE CENTRE IS STILL ON THE TUBE'S SIDE of the seam is the TUBE's: the tube has drawn its pixels up to the seam and the skin must finish it, whoever owns the place its
+          // centre would be in the skin. Asked of the owner rule, a head at the mouth of a side vein (whose centre lies where the trunk's wall is as near as its own) was drawn by the tube up to the seam and dropped past it: half a chevron
+          // under the join (Mohammad, 24 Nov, the left gastric vein's mouth, the portal vein under the bifurcation). Further in, the skin owns it whole by the winner rule, and the tube has no pixel of it.
+          float aIn = (chevCentreArc - armArc[i].x) * armArc[i].y / max(rOwn, 1e-4);
+          float tubeSide = 1.0 - smoothstep(${F(SKIN_HEAD_TUBE_SIDE - 0.2)}, ${F(SKIN_HEAD_TUBE_SIDE + 0.2)}, aIn);
+          float ownH = max(smoothstep(${F(SKIN_HEAD_OWN_FROM)}, ${F(SKIN_HEAD_OWN_TO)}, skinOwner(i, seamP + tJA[i] * ((chevCentreArc - armArc[i].x) / (armArc[i].y * SKIN_U)), kPx)), tubeSide);
+          hI *= gate * ownH;
+        }
         else hI = vec4(0.0);
       }
       headAcc += hI;
