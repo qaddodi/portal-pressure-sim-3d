@@ -1,5 +1,5 @@
 // The editor's pure state (no DOM, no three): the overrides being edited, the edits that change them, and the undo history. Every edit returns a new Overrides (the old one stays in the history).
-import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS, type OrganEdit, type Overrides, type Stroke, type V3 } from '../../../editor/types.ts';
+import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS, type Cage, type OrganEdit, type Overrides, type Stroke, type V3 } from '../../../editor/types.ts';
 
 export const MAX_STROKES = 400;   // per organ: the draft stays small enough for localStorage and a click
 export const PLAN_PER_SCENE = 300;   // 2D plan units in one scene unit (frame2d UNITS_PER_SCENE)
@@ -39,9 +39,10 @@ export function clampOrgan(e: OrganEdit): OrganEdit {
   if (e.rotY != null) out.rotY = r4(clamp(e.rotY, -ORGAN_LIMITS.rotY, ORGAN_LIMITS.rotY));
   if (e.scale != null) out.scale = r4(clamp(e.scale, ORGAN_LIMITS.scaleMin, ORGAN_LIMITS.scaleMax));
   if (e.strokes?.length) out.strokes = e.strokes.slice(-MAX_STROKES);
+  if (e.cage) out.cage = e.cage;
   return out;
 }
-const organIsDefault = (e: OrganEdit): boolean => !(e.move && e.move.some((v) => v)) && !e.rotY && (e.scale == null || e.scale === 1) && !e.strokes?.length;
+const organIsDefault = (e: OrganEdit): boolean => !(e.move && e.move.some((v) => v)) && !e.rotY && (e.scale == null || e.scale === 1) && !e.strokes?.length && !e.cage;
 export function setOrgan(o: Overrides, id: string, patch: OrganEdit): Overrides {
   const e = clampOrgan({ ...o.organs?.[id], ...patch });
   const organs = { ...o.organs };
@@ -58,6 +59,22 @@ export function addStroke(o: Overrides, id: string, s: Stroke): Overrides {
   const st: Stroke = { at: [r4(s.at[0]), r4(s.at[1]), r4(s.at[2])], radius: r4(Math.max(0.01, s.radius)), by: [r4(x * k), r4(y * k), r4(z * k)] };
   return setOrgan(o, id, { strokes: [...(o.organs?.[id]?.strokes ?? []), st] });
 }
+export const CAGE_N = [3, 3, 3] as const;
+/** Cage handle `idx` (x fastest) at the absolute offset `off` (reference frame, scene units), each component held to `lim`; an all-zero cage is dropped. */
+export function setCageHandle(o: Overrides, id: string, idx: number, off: V3, lim: V3): Overrides {
+  const cur: Cage = o.organs?.[id]?.cage ?? { n: CAGE_N, d: Array.from({ length: CAGE_N[0] * CAGE_N[1] * CAGE_N[2] }, () => [0, 0, 0] as V3) };
+  if (idx < 0 || idx >= cur.d.length) return o;
+  const d = cur.d.slice();
+  d[idx] = [r4(clamp(off[0], -lim[0], lim[0])), r4(clamp(off[1], -lim[1], lim[1])), r4(clamp(off[2], -lim[2], lim[2]))];
+  const any = d.some((v) => v[0] || v[1] || v[2]);
+  return setOrgan(o, id, { cage: any ? { n: cur.n, d } : undefined });
+}
+export const cageOffset = (o: Overrides, id: string, idx: number): V3 => o.organs?.[id]?.cage?.d[idx] ?? [0, 0, 0];
+export const clearCage = (o: Overrides, id: string): Overrides => {
+  const e = { ...o.organs?.[id] }; delete e.cage;
+  const organs = { ...o.organs }; if (organIsDefault(e)) delete organs[id]; else organs[id] = e;
+  return { ...o, organs };
+};
 export const clearStrokes = (o: Overrides, id: string): Overrides => {
   const e = { ...o.organs?.[id] }; delete e.strokes;
   const organs = { ...o.organs }; if (organIsDefault(e)) delete organs[id]; else organs[id] = e;

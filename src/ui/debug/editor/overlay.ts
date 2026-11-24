@@ -36,6 +36,12 @@ export class Overlay {
     for (let i = 1; i < pts.length; i++) flat.push(...pts[i - 1]!, ...pts[i]!);
     this.fill(o, flat);
   }
+  /** Disjoint segments: `pts` taken two at a time. */
+  segments(name: string, pts: readonly V3[], color: number): void {
+    const o = this.slot(name, () => new LineSegments(new BufferGeometry(), mat(new LineBasicMaterial({ color }))));
+    ((o as LineSegments).material as LineBasicMaterial).color.setHex(color);
+    this.fill(o, pts.flatMap((p) => [p[0], p[1], p[2]]));
+  }
   /** The 12 edges of a box. */
   box(name: string, lo: V3, hi: V3, color: number): void {
     const c = (i: number): V3 => [i & 1 ? hi[0] : lo[0], i & 2 ? hi[1] : lo[1], i & 4 ? hi[2] : lo[2]];

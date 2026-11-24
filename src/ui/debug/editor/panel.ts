@@ -1,7 +1,7 @@
 // The anatomy editor (?editor on the preview copy or a local run; docs/editor-plan.md, WS-C). A panel and a pointer layer over the figure:
 //   Orbit    the inspector's free orbit (the figure turns all the way round; the figure's own gestures work)
 //   Vessels  node handles (a junction: every vessel end there follows) and, on a tapped vessel, three control points; drag on the plane facing the camera, depth by slider
-//   Organs   tap an organ, then Move (drag), sliders for move / turn / scale within the limits, or Liquify (drag over it: a brush of radius and strength)
+//   Organs   tap an organ; Cage (default: drag a handle of the coarse lattice to bulge or morph a region), Move (drag), sliders for move / turn / scale, or Fine brush (drag over it: radius and strength)
 // Undo / Redo, Save (keeps the draft in this browser and reloads: every consumer rebuilds from it), Export (clipboard + file), Clear draft.
 // Nothing here runs per frame: the overlay is rewritten when an edit changes it, and a frame is asked for with frameFor. Layout reads go through layout-snap.
 import { Box3, Raycaster, Vector2, Vector3, type Object3D } from 'three';
@@ -9,7 +9,8 @@ import { cel } from '../../../scene/api.ts';
 import { frameFor } from '../../../clock/frame.ts';
 import { readBox, readMetric } from '../../layout-snap.ts';
 import { clearDraft, overrides, saveDraft } from '../../../editor/store.ts';
-import { ORGAN_LIMITS, type Stroke, type V3 } from '../../../editor/types.ts';
+import { CAGE_LIMIT, ORGAN_LIMITS, type Cage, type Stroke, type V3 } from '../../../editor/types.ts';
+import { cageBox, cageRest, organBox, organBoxes, organPointMap } from '../../../editor/organ-apply.ts';
 import { liveTransform } from './live.ts';
 import { endVesselPreview, previewVesselEdits, setVesselPreviewHost } from '../../../scene/vessels/edit-preview.ts';
 import { LiveStrokes } from './strokes.ts';
@@ -17,7 +18,7 @@ import { clock } from '../../../clock/frame.ts';
 import { Overlay } from './overlay.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine } from './picking.ts';
 import { skeleton, organIds, pointAt, centroidOf, type Skeleton } from './source.ts';
-import { History, PLAN_PER_SCENE, dragToOffsets, toReference, strokeToReference, addStroke, clearStrokes, controlOf, exportText, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
+import { History, PLAN_PER_SCENE, dragToOffsets, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
 
 type Mode = 'orbit' | 'vessels' | 'organs';
 type Target = { kind: 'node'; id: string } | { kind: 'ctrl'; vid: string; u: number };
@@ -33,7 +34,7 @@ export function mountEditor(): void {
   const sk: Skeleton = skeleton();
   const nodeById = new Map(sk.nodes.map((n) => [n.id, { id: n.id, at: n.pos, arms: n.arms }])), vesselById = new Map(sk.vessels.map((v) => [v.id, v]));
   const overlay = new Overlay();
-  let mode: Mode = 'orbit', tool: 'move' | 'liquify' = 'move';
+  let mode: Mode = 'orbit', tool: 'move' | 'cage' | 'liquify' = 'cage';
   let target: Target | null = null, selVessel: string | null = null, selOrgan: string | null = organIds()[0] ?? null;
   let radius = 0.08, strength = 0.5;
   let msg = '';
@@ -106,12 +107,13 @@ export function mountEditor(): void {
       const t = liveTransform(loaded.organs?.[id], hist.now.organs?.[id], centroidOf(id));
       for (const m of o.group.children) { m.position.set(t.position[0], t.position[1], t.position[2]); m.rotation.y = t.rotY; m.scale.setScalar(t.scale); }
       shownOrgans.add(id);
-      const list = hist.now.organs?.[id]?.strokes;
-      if (list !== strokesShown.get(id)) { strokesShown.set(id, list); strokesDue.add(id); }
+      const list = hist.now.organs?.[id]?.strokes, cg = hist.now.organs?.[id]?.cage;
+      if (list !== strokesShown.get(id) || cg !== cageSeen.get(id)) { strokesShown.set(id, list); cageSeen.set(id, cg); strokesDue.add(id); }
     }
     if (strokesDue.size && !strokesPending) { strokesPending = true; clock.after(flushStrokes, 0, 'editor-strokes'); }   // (one per frame, however many moves came in)
   };
   const strokesShown = new Map<string, readonly Stroke[] | undefined>(), strokesDue = new Set<string>(), liveStrokes = new Map<string, LiveStrokes>(), touched = new Set<string>();
+  const cageSeen = new Map<string, Cage | undefined>();
   let strokesPending = false;
   const flushStrokes = (): void => {
     strokesPending = false;
@@ -119,15 +121,34 @@ export function mountEditor(): void {
       let ls = liveStrokes.get(id);
       if (!ls) {
         const g = cel.disease.organs.byId.get(id)?.toonMesh.geometry; if (!g) continue;
-        ls = new LiveStrokes(g, loaded.organs?.[id], centroidOf(id)); liveStrokes.set(id, ls);
+        ls = new LiveStrokes(g, loaded.organs?.[id], centroidOf(id), organBoxes[id] ?? organBox(g)); liveStrokes.set(id, ls);
       }
-      ls.set(hist.now.organs?.[id]?.strokes); touched.add(id);
+      ls.set(hist.now.organs?.[id]?.strokes, hist.now.organs?.[id]?.cage); touched.add(id);
     }
     strokesDue.clear();
     cel.setEditorOverlay(overlay.object); frameFor('editor', 300);
   };
   const settleStrokes = (): void => { for (const id of touched) liveStrokes.get(id)?.settle(); touched.clear(); cel.setEditorOverlay(overlay.object); };
   setVesselPreviewHost(() => cel.editorVesselParts());
+  // ── the cage (organs: the coarse lattice over the organ's box; a handle pulls a whole region) ──
+  const cageN = (id: string): readonly [number, number, number] => hist.now.organs?.[id]?.cage?.n ?? CAGE_N;
+  /** The padded box's size per axis, and so the most a handle may move on each. */
+  const cageLim = (id: string): V3 => { const b = organBoxes[id]; if (!b) return [0, 0, 0]; const c = cageBox(b); return [(c.hi[0] - c.lo[0]) * CAGE_LIMIT, (c.hi[1] - c.lo[1]) * CAGE_LIMIT, (c.hi[2] - c.lo[2]) * CAGE_LIMIT]; };
+  /** Where each handle shows (body frame): its rest place plus its offset, carried by the draft's move, turn and scale (the cage acts before them). */
+  const cageHandles = (id: string): V3[] => {
+    const b = organBoxes[id]; if (!b) return [];
+    const e = hist.now.organs?.[id], rigid = organPointMap({ move: e?.move, rotY: e?.rotY, scale: e?.scale }, centroidOf(id));
+    return cageRest(cageN(id), b).map((p, i): V3 => { const d = cageOffset(hist.now, id, i), q: V3 = [p[0] + d[0], p[1] + d[1], p[2] + d[2]]; return rigid ? rigid(q) : q; });
+  };
+  const cageLines = (n: readonly [number, number, number], h: readonly V3[]): V3[] => {
+    const out: V3[] = [], at = (i: number, j: number, k: number): V3 => h[i + n[0] * (j + n[1] * k)]!;
+    for (let k = 0; k < n[2]; k++) for (let j = 0; j < n[1]; j++) for (let i = 0; i < n[0]; i++) {
+      if (i + 1 < n[0]) out.push(at(i, j, k), at(i + 1, j, k));
+      if (j + 1 < n[1]) out.push(at(i, j, k), at(i, j + 1, k));
+      if (k + 1 < n[2]) out.push(at(i, j, k), at(i, j, k + 1));
+    }
+    return out;
+  };
   const refreshOverlay = (): void => {
     syncOrgans();
     if (mode === 'vessels') previewVesselEdits(hist.now); else endVesselPreview();   // (the real tubes and skins move with the drag, vessels/edit-preview.ts)
@@ -144,7 +165,10 @@ export function mountEditor(): void {
     if (mode === 'organs' && selOrgan) {
       const b = organBoxLocal(selOrgan);
       if (b) overlay.box('organ', b.lo, b.hi, 0xffb347);   // (the box is of the live meshes, which already carry the draft)
-    } else overlay.clear('organ');
+      const hs = tool === 'cage' ? cageHandles(selOrgan) : [];
+      if (hs.length) { overlay.segments('cage-lines', cageLines(cageN(selOrgan), hs), 0x7fd6ff); overlay.dots('cage', { pos: hs, size: dotPx(13), color: 0xffffff }); }
+      else { overlay.clear('cage-lines'); overlay.clear('cage'); }
+    } else { overlay.clear('organ'); overlay.clear('cage-lines'); overlay.clear('cage'); }
     cel.setEditorOverlay(overlay.object);   // (asks for a frame; the same object, so nothing is rebuilt)
     frameFor('editor', 300);
   };
@@ -199,7 +223,7 @@ export function mountEditor(): void {
       s.value = selOrgan ?? ''; s.onchange = () => { selOrgan = s.value; sync(); };
       dyn.append(el('div', { className: 'row' }, [el('label', { textContent: 'Organ (or tap it)' }), s]));
       syncers.push(() => { s.value = selOrgan ?? ''; });
-      dyn.append(bar([{ label: 'Move', on: () => tool === 'move', run: () => { tool = 'move'; } }, { label: 'Liquify', on: () => tool === 'liquify', run: () => { tool = 'liquify'; } }]));
+      dyn.append(bar([{ label: 'Cage', on: () => tool === 'cage', run: () => { tool = 'cage'; } }, { label: 'Move', on: () => tool === 'move', run: () => { tool = 'move'; } }, { label: 'Fine brush', on: () => tool === 'liquify', run: () => { tool = 'liquify'; } }]));
       const o = (): ReturnType<typeof organOf> => organOf(hist.now, selOrgan ?? '');
       const axis = (n: 0 | 1 | 2, name: string): HTMLElement => slider(`Move ${name}`, -ORGAN_LIMITS.move, ORGAN_LIMITS.move, 0.002, () => o().move[n], (v) => { if (!selOrgan) return; const m = [...o().move] as [number, number, number]; m[n] = v; edit(setOrgan(hist.now, selOrgan, { move: m })); });
       dyn.append(axis(0, 'x'), axis(1, 'y'), axis(2, 'z'));
@@ -207,9 +231,9 @@ export function mountEditor(): void {
       dyn.append(slider('Scale', ORGAN_LIMITS.scaleMin, ORGAN_LIMITS.scaleMax, 0.005, () => o().scale, (v) => { if (selOrgan) edit(setOrgan(hist.now, selOrgan, { scale: v })); }));
       dyn.append(slider('Brush radius', 0.02, 0.3, 0.005, () => radius, (v) => { radius = v; }));
       dyn.append(slider('Brush strength', 0.1, 1, 0.05, () => strength, (v) => { strength = v; }));
-      const strokes = el('div', { className: 'hint' }); syncers.push(() => { strokes.textContent = `${o().strokes} liquify strokes on ${selOrgan ?? '-'}. Liquify: drag over the organ to push its surface.`; });
+      const strokes = el('div', { className: 'hint' }); syncers.push(() => { strokes.textContent = `Cage: drag a white handle to bulge, shrink or morph a whole region (the shape holds). ${o().strokes} fine-brush strokes on ${selOrgan ?? '-'}: Fine brush drags over the surface.`; });
       dyn.append(strokes);
-      dyn.append(bar([{ label: 'Clear strokes', run: () => { if (selOrgan) hist.commit(clearStrokes(hist.now, selOrgan)); } }, { label: 'Reset organ', run: () => { if (selOrgan) hist.commit(resetOrgan(hist.now, selOrgan)); } }]));
+      dyn.append(bar([{ label: 'Clear cage', run: () => { if (selOrgan) hist.commit(clearCage(hist.now, selOrgan)); } }, { label: 'Clear strokes', run: () => { if (selOrgan) hist.commit(clearStrokes(hist.now, selOrgan)); } }, { label: 'Reset organ', run: () => { if (selOrgan) hist.commit(resetOrgan(hist.now, selOrgan)); } }]));
     }
     sync();
   };
@@ -253,6 +277,7 @@ export function mountEditor(): void {
   type Drag =
     | { kind: 'handle'; t: Target; from: Vector2; through: Vector3; start: { dx: number; dy: number; dz: number }; marked: boolean }
     | { kind: 'organ'; id: string; from: Vector2; through: Vector3; start: V3; marked: boolean }
+    | { kind: 'cage'; id: string; idx: number; from: Vector2; through: Vector3; start: V3; marked: boolean }
     | { kind: 'brush'; id: string; last: Vector2; lastHit: Vector3; marked: boolean };
   let drag: Drag | null = null;
   const ray = new Raycaster();
@@ -288,8 +313,12 @@ export function mountEditor(): void {
       }
       sync(); return;
     }
+    if (tool === 'cage' && selOrgan) {   // (a handle first: it sits over the organ)
+      const hs = cageHandles(selOrgan), i = nearest(hs.map((h) => screenOf(h)), x, y, HIT_PX);
+      if (i >= 0) { drag = { kind: 'cage', id: selOrgan, idx: i, from: ndc, through: toWorld(hs[i]!), start: cageOffset(hist.now, selOrgan, i), marked: false }; sync(); return; }
+    }
     const hit = organAt(ndc);
-    if (hit && (tool === 'move' || hit.id !== selOrgan)) { selOrgan = hit.id; buildDyn(); }
+    if (hit && (tool !== 'liquify' || hit.id !== selOrgan)) { selOrgan = hit.id; buildDyn(); }
     if (!selOrgan) return;
     if (tool === 'move' && hit) {
       const c = new Box3().setFromObject(cel.disease.organs.byId.get(selOrgan)!.group).getCenter(new Vector3());
@@ -325,6 +354,12 @@ export function mountEditor(): void {
       const d = toLocal(drag.through.clone().add(w)).sub(toLocal(drag.through));
       const m = dragToOffsets(drag.start, d);
       edit(drag.t.kind === 'node' ? setNode(hist.now, drag.t.id, m) : setControl(hist.now, drag.t.vid, drag.t.u, m));
+    } else if (drag.kind === 'cage') {
+      if (!drag.marked) { hist.mark(); drag.marked = true; }
+      const w = dragDelta(cel.rig.camera, drag.through, drag.from, ndc);
+      const d = toLocal(drag.through.clone().add(w)).sub(toLocal(drag.through));
+      const r = strokeToReference([d.x, d.y, d.z], 1, hist.now.organs?.[drag.id]).by;   // (the handle's offset is in the reference frame: undo the draft's turn and scale)
+      edit(setCageHandle(hist.now, drag.id, drag.idx, [drag.start[0] + r[0], drag.start[1] + r[1], drag.start[2] + r[2]], cageLim(drag.id)));
     } else if (drag.kind === 'organ') {
       if (!drag.marked) { hist.mark(); drag.marked = true; }
       const w = dragDelta(cel.rig.camera, drag.through, drag.from, ndc);

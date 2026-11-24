@@ -138,3 +138,22 @@ test('cage: zero offsets are the identity; a handle bulges smoothly, is clamped,
   applyOrganEdit(gd, { cage: { n, d: d.map((v) => [v[0], v[1], v[2]] as [number, number, number]) } });
   assert.deepEqual(pos(gc), pos(gd));   // (past the limit a bigger pull changes nothing)
 });
+
+test('the editor\'s live cage matches the built organ, and setCageHandle holds its limit', async () => {
+  const { LiveStrokes } = await import('../src/ui/debug/editor/strokes.ts');
+  const { setCageHandle } = await import('../src/ui/debug/editor/state.ts');
+  const ref = ORGAN_MESHES[id]!(), r = pos(ref), c = organCentroid(ref), box = organBox(ref);
+  let o = setCageHandle({ version: 1 }, id, 13, [0.02, -0.01, 0.005], [0.05, 0.05, 0.05]);
+  const cage = o.organs![id]!.cage!;
+  const built = ORGAN_MESHES[id]!();
+  applyOrganEdit(built, { cage });
+  const live = ORGAN_MESHES[id]!();
+  new LiveStrokes(live, undefined, c, box).set(undefined, cage);
+  const a = pos(built), b = pos(live);
+  for (let i = 0; i < a.length; i++) assert.ok(Math.abs(a[i]! - b[i]!) < 1e-5);
+  assert.notDeepEqual(a, r);
+  o = setCageHandle(o, id, 13, [9, 0, 0], [0.05, 0.05, 0.05]);
+  assert.equal(o.organs![id]!.cage!.d[13]![0], 0.05);
+  o = setCageHandle(o, id, 13, [0, 0, 0], [0.05, 0.05, 0.05]);
+  assert.equal(o.organs?.[id], undefined);
+});
