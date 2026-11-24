@@ -55,7 +55,7 @@ test('the eased rate drives the streams\' distance (the chevrons, the streaks an
   assert.match(streams, /o\.speed = rate;/);
   assert.match(streams, /\(sm\.vd !== 0 && rate > 0\.0005\)/, 'a stood stream asks for no frame');
   const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
-  assert.match(scene, /this\.flowRate\.step\(dt \/ 1000, flowTarget\(live\.frame\?\.running\)\);/);
+  assert.match(scene, /this\.flowRate\.step\(dt \/ 1000, flowTarget\(this\.src\.liveFrame\(\)\?\.running\)\);/);
   assert.match(scene, /this\.blood\.streams\.step\(now, this\.flowRate\.value\)/);
   assert.doesNotMatch(readFileSync(new URL('../src/scene/flow-rate.ts', import.meta.url), 'utf8'), /requestAnimationFrame\(/, 'one clock: no raw rAF');
   // the advance is D += vd * speed * dt in the 2D app's own stream (blood.copied.js): speed 0 stands it, speed 1 runs it, in between is the ease

@@ -1242,7 +1242,8 @@ export class CelScene {
   private snapMicroToModel(): void {
     const f = this.src.frame();
     if (!f) return;
-    const m = lobuleModel({ P: f.Pf ?? f.P, Q: f.Qf ?? f.Q, params: this.src.shown() ?? undefined, metrics: f.metrics }, this.src.reference(), this.src.shown());   // (the shown pressures and flows, as every reading is: not the instant's beat)
+    const shown = this.src.shown();   // (the shown pressures and flows, as every reading is: not the instant's beat)
+    const m = lobuleModel({ P: f.Pf ?? f.P, Q: f.Qf ?? f.Q, params: shown ?? undefined, metrics: f.metrics }, this.src.reference(), shown);
     this.lobule.snapModel(m); this.sinus.snapTargets(sinusoidTargets(m)); this.feedSinusInk();
   }
   private feedViews(snap: boolean): void {
