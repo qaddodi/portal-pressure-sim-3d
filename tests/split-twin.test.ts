@@ -39,3 +39,64 @@ test('a twin reads its own patient, leaves the page\'s dust and flow rate alone,
   twin.dispose();
   assert.equal(liveTwins(), before, 'a second dispose does not count twice');
 });
+
+import { halveRoom, cutShare } from '../src/scene/twin/region.ts';
+import { sweepYaws, leaveSplit, splitDebug, splitGoTo, splitSetRoom, splitMainRoom, useSplitUi } from '../src/scene/twin/split.ts';
+import { splitOf, splitDecks } from '../src/decks/split-slides.ts';
+import { HVPG_DECK } from '../src/decks/hvpg.ts';
+
+test('the free room is halved with the healthy liver on the left and the cut falls in the middle of it', () => {
+  const { twin, main } = halveRoom({ x: 300, y: 40, w: 600, h: 500 });
+  assert.deepEqual(twin, { x: 300, y: 40, w: 300, h: 500 });
+  assert.deepEqual(main, { x: 600, y: 40, w: 300, h: 500 });
+  assert.equal(cutShare({ x: 300, y: 40, w: 600, h: 500 }, 1200), 0.5);
+});
+
+test('the turn goes toward the patient\'s left, then the other way, then home', () => {
+  const [a, b, c] = sweepYaws(0.1);
+  assert.ok(a! < 0.1 && b! > 0.1 && c === 0.1);
+  assert.ok(Math.abs((b! - a!) / 2 - (49 * Math.PI) / 180) < 1e-9);
+});
+
+test('the split is off unless asked for, and every slide it names is in the HVPG deck', () => {
+  assert.equal(splitOf('hvpg', 'presin'), null, 'off without ?split');
+  for (const id of splitDecks()) assert.equal(id, HVPG_DECK.id);
+  for (const id of ['presin', 'heart']) assert.ok(HVPG_DECK.slides.some((s) => s.id === id), id);
+});
+
+test('with no twin up the page keeps its whole room and leaving is harmless', () => {
+  const room = { x: 10, y: 20, w: 300, h: 200 };
+  assert.deepEqual(splitGoTo('title', room, 500), room);
+  assert.deepEqual(splitSetRoom(room), room);
+  assert.deepEqual(splitMainRoom(room), room);
+  leaveSplit(); leaveSplit();
+  assert.deepEqual(splitDebug(), { twin: false, building: false, job: false });
+  assert.equal(useSplitUi.getState().on, false);
+});
+
+import { CelScene } from '../src/scene/scene.ts';
+import { bindSplit, splitEnterNow, splitActive } from '../src/scene/twin/split.ts';
+
+test('entering puts a twin beside the page\'s scene and leaving takes it all back', () => {
+  try {
+  const page = new CelScene();
+  bindSplit({ scene: page, stage: () => ({ w: 1200, h: 800 }), look: () => 'light', phone: () => false });
+  const z = new Array(400).fill(0);
+  const before = liveTwins();
+  splitGoTo('title', { x: 300, y: 0, w: 600, h: 800 }, 0);
+  splitEnterNow({ P: z, Q: z, D: z.map(() => 1) }, { left: 'Healthy', right: 'Schistosomiasis' });
+  assert.equal(liveTwins(), before + 1);
+  assert.ok(page.split, 'the page draws the twin into its target');
+  assert.equal(splitActive(), true);
+  assert.deepEqual(splitMainRoom({ x: 300, y: 0, w: 600, h: 800 }), { x: 600, y: 0, w: 300, h: 800 });
+  assert.equal(useSplitUi.getState().on, true);
+  assert.equal(useSplitUi.getState().right, 'Schistosomiasis');
+  leaveSplit();
+  assert.equal(page.split, null);
+  assert.equal(liveTwins(), before, 'the twin is disposed when the slide is left');
+  assert.equal(splitActive(), false);
+  assert.equal(useSplitUi.getState().on, false);
+  bindSplit(null);
+  // (the page scene is left to the process)
+  } finally { leaveSplit(); bindSplit(null); }
+});

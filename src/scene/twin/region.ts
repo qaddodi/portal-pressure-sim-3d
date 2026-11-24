@@ -14,3 +14,15 @@ export function confine(target: ScissorTarget, r: Region | null): void {
   target.scissorTest = r !== null;
   if (r) target.scissor.set(r.x, r.y, r.w, r.h);
 }
+
+/** A room in CSS px (camera/room.ts), kept apart here so this file stays pure. */
+export interface RoomPx { x: number; y: number; w: number; h: number }
+
+/** The free room the cards leave, cut in two: the healthy liver's half on the left, the slide's patient's on the right. */
+export function halveRoom(room: RoomPx): { twin: RoomPx; main: RoomPx } {
+  const h = room.w / 2;
+  return { twin: { x: room.x, y: room.y, w: h, h: room.h }, main: { x: room.x + h, y: room.y, w: h, h: room.h } };
+}
+
+/** Where the canvas is cut, as a share from the left: the middle of the free room. */
+export function cutShare(room: RoomPx, stageWidth: number): number { return stageWidth > 0 ? Math.min(1, Math.max(0, (room.x + room.w / 2) / stageWidth)) : 0; }

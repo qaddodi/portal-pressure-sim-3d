@@ -20,4 +20,10 @@ The scene (`CelScene`) is one object per page and reads the engine through modul
 3. Render: two scissored viewports of the one canvas, left twin, right main, one orbit angle for both (about -49, 0, +49 degrees, eased); labels above each; cards unchanged.
 4. Slide field `split: { with: 'healthy', labels: [...] }` on HVPG slides 7 and 11 first.
 
-Status: sheet only. Nothing built or seen on screen yet.
+## Built (24 Nov, behind `?split` until Mohammad has seen it)
+- Twin scene `src/scene/twin/` reads a fixed healthy frame (`model-source.ts`), draws into the page scene's own render target in its own scissored region, no canvas of its own.
+- Driver `twin/split.ts`: a slide in `src/decks/split-slides.ts` asks; the twin is made in a quiet slot after the camera lands, the cut sweeps in from the left (700 ms), the turn plays once
+  (-49, +49, front, 2 s a leg, both cameras sent to the same shot) and then rests at the front; leaving the slide disposes the twin.
+- Names over the figures: `twin/SplitLabels.tsx`, plain words.
+- Not yet seen on screen. Known cost: building the twin is one task (about 1.5 s in node software GL).
+

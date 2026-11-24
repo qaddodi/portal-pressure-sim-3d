@@ -49,6 +49,8 @@ import { type Sel, selectStructure, useSelection } from '../ui/action/selection.
 import { tapSelect } from '../ui/action/tap-select.ts';
 import { labelHit } from '../ui/action/label-tap.ts';
 import { labelAt } from './labels/hit.ts';
+import { bindSplit, splitLook, splitPhone, splitResize } from './twin/split.ts';
+import { SplitLabels } from './twin/SplitLabels.tsx';
 import { GeometryUploader, passMaterials, passWarmScene, warmPrograms, type UploadRenderer, type WarmRenderer } from './materials/warm.ts';
 
 const vesselData = new VesselData();
@@ -172,7 +174,11 @@ function SceneBridge() {
   useEffect(() => {
     cel.resize(size.width, size.height);
     cel.setPhone(isPhone());
+    splitResize(size.width, size.height); splitPhone(isPhone());   // (the split orbit's twin, when one stands)
   }, [size.width, size.height]);
+
+  // the split orbit (twin/split.ts): the slides ask for it; nothing is built until they do
+  useEffect(() => { bindSplit({ scene: cel, stage: () => ({ w: cel.rig.stageSize.w, h: cel.rig.stageSize.h }), look: () => cel.currentLook, phone: isPhone }); return () => bindSplit(null); }, []);
 
   // fail loud, not invisible (WP10): a program the device's driver refuses is drawn plain, and the ?perf bar says so; ?gl borrows this renderer to compile every program once
   useEffect(() => {
@@ -195,7 +201,7 @@ function SceneBridge() {
 
   // the figure's look follows the page's: one change runs the page's colours and the figure's together, eased (looks/glide.ts); the first paint is at once
   useEffect(() => lookGlide.onLook((look) => {
-    cel.applyLook(look);
+    cel.applyLook(look); splitLook(look);
     gl.setClearColor(cel.background);
     clock.invalidate('look');
   }), [gl]);
@@ -314,6 +320,7 @@ export function Stage() {
         <ClockBridge />
         <SceneBridge />
       </Canvas>
+      <SplitLabels />
     </div>
   );
 }

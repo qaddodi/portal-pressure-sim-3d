@@ -1698,7 +1698,11 @@ export class CelScene {
     gate(ogQuad, this.pins.glowAmount);   // (the lay quad follows the eased weight of the lit masks, as they do)
     if (into) gl.setRenderTarget(into);
     const sp = into ? this.split : null;   // (the split orbit: the twin is drawn into its region of this target first, then this scene's passes are confined to theirs)
-    if (sp && into) { const r = splitRegions(into.width, into.height, sp.at); sp.drawTwin(gl, into, r.twin, dpr); gl.setClearColor(this.clearColor(true)); confine(into, r.main); }
+    if (sp && into) {
+      const r = splitRegions(into.width, into.height, sp.at);
+      sp.drawTwin(gl, into, r.twin, dpr); gl.setClearColor(this.clearColor(true));
+      confine(into, r.main); gl.setRenderTarget(into);   // (a target's scissor is taken when it is set)
+    }
     cam.layers.set(0);
     lap('render: setup (dof, band, blur frame)');
     gl.render(this.scene, cam);
@@ -1708,7 +1712,7 @@ export class CelScene {
     cam.layers.set(VESSEL_LAYER);
     gl.render(this.scene, cam);
     lap('render: pass 2, vessel layer');
-    if (sp && into) confine(into, null);
+    if (sp && into) { confine(into, null); gl.setRenderTarget(into); }
     if (this.highlight.glowing) this.glowFx.run(gl, into, cam, this.scene, dpr);   // (the picked vessel's glow: its mask, blurred, over the figure outside it)
     if (into) { if (dof || band) this.post.dof.run(gl, into); gl.setRenderTarget(null); this.post.resolve(gl); }
     lap('render: glow, blur, resolve');
@@ -1728,14 +1732,14 @@ export class CelScene {
     this.shared.dpr.value = dpr; this.blood.shared.dpr.value = dpr; this.disease.organs.setDpr(dpr); MICRO_DPR.value = dpr;
     const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
     gl.setClearColor(this.clearColor(true));
-    confine(into, region);
+    confine(into, region); gl.setRenderTarget(into);
     gl.autoClear = true; cam.layers.set(0);
     gl.render(this.scene, cam);
     gl.autoClear = false; gl.clearDepth(); gl.clearStencil();
     cam.layers.set(VESSEL_LAYER);
     gl.render(this.scene, cam);
     gl.autoClear = ac; cam.layers.mask = mask;
-    confine(into, null);
+    confine(into, null); gl.setRenderTarget(into);
   }
 
   dispose(): void {

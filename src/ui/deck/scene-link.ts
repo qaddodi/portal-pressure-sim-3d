@@ -14,6 +14,8 @@ import { hvpgChase, type ChasePose } from '../../scene/camera/chase.ts';
 import type { Shot, ShotName } from '../../scene/camera/shots.ts';
 import { DEFAULT_LENS, type LensId } from '../../scene/lenses/model.ts';
 import type { CathState } from '../../decks/schema.ts';
+import { splitOf } from '../../decks/split-slides.ts';
+import { leaveSplit, splitWant } from '../../scene/twin/split.ts';
 
 /** The time the catheter takes to come in from the neck: the route's leg at the travel speed (hvpg-clock.js legMs, 3.4 s), after its 300 ms of stillness. procs-link.ts waits this long before the blocked vein's pushes. */
 export { ARRIVE_MS };
@@ -77,6 +79,8 @@ export function linkScene(): () => void {
     const wantLens = v.slide?.visual ? lens ?? DEFAULT_LENS : v.scene?.lens ?? DEFAULT_LENS;
     if (wantLens !== lens) { lens = wantLens; sceneApi.setLens(lens); }
     const room = boxes.free;
+    // the split orbit: a slide in decks/split-slides.ts shows a healthy liver beside its patient (the body view only; every other slide lets the twin go)
+    { const sp = v.scene?.view && v.scene.view !== 'body' ? null : splitOf(useUi.getState().deck?.id, v.slide?.id); splitWant(sp ? { left: sp.against, right: sp.label } : null); }
     if (room.w <= 0 || room.h <= 0) return;   // the cards have not been measured yet: no room to frame in
     // the room belongs to another slide (its cards are still being measured, stepped down or fitted): the slide's move waits for its own final room, so the camera goes there once, never to an early one and on to the final
     if (boxes.stop != null && boxes.stop !== pos.stop) { owed = owed || stepped; return; }
@@ -100,5 +104,5 @@ export function linkScene(): () => void {
   const offHint = useUi.subscribe((s, prev) => { const h = s.roomHint; if (h && h !== prev.roomHint && h.free.w > 0 && h.free.h > 0) frameRoom(h.free, h.ms, easeArrive); });   // (refit: the card tucked or came back, so the figure is fitted to the room it now has, in or out, as 2D's reframe(ms))
   const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.boxes.free !== prev.boxes.free || s.boxes.stop !== prev.boxes.stop || s.stops !== prev.stops) sync(s.pos !== prev.pos || s.stops !== prev.stops); });
   // (leaving the talk takes the catheter out: it never stays on the free figure)
-  return () => { reframe = null; off(); offHint(); offClock(); hold?.release(); chasing = false; driveChase(); if (lens && lens !== DEFAULT_LENS) sceneApi.setLens(DEFAULT_LENS); cathScript.on = false; cathScript.t = 0; sceneApi.setCatheter({ advance: 0, balloon: 0, column: 0 }); };
+  return () => { leaveSplit(); reframe = null; off(); offHint(); offClock(); hold?.release(); chasing = false; driveChase(); if (lens && lens !== DEFAULT_LENS) sceneApi.setLens(DEFAULT_LENS); cathScript.on = false; cathScript.t = 0; sceneApi.setCatheter({ advance: 0, balloon: 0, column: 0 }); };
 }

@@ -32,6 +32,7 @@ import type { BloodChoice } from './blood/options.ts';
 import type { Gestures } from './gesture/controller.ts';
 import { DIVE_BODY_MS, diveMs } from './camera/dive.ts';
 import { createFrameQueue } from './gesture/frame-queue.ts';
+import { splitGoTo, splitMainRoom, splitSetRoom } from './twin/split.ts';
 
 /** The vessel picked in free play (topology edge ID), for the data card. */
 export const usePick = create<{ picked: string | null }>(() => ({ picked: null }));
@@ -68,7 +69,8 @@ export const sceneApi = {
    */
   goTo(shot: ShotName | Shot, room: Room, ms?: number, ease?: (k: number) => number): void {
     gesturesRef.current?.handsOff();   // a new shot ends what the hand started: its zoom and pan come home with the move
-    cel.goTo(shot, room, clock.now(), ms ?? cel.rig.reachMs(shot), ease);
+    const ms2 = ms ?? cel.rig.reachMs(shot);
+    cel.goTo(shot, splitGoTo(shot, room, ms2), clock.now(), ms2, ease);   // (the split orbit: the right half of the room while a twin stands beside it)
     clock.invalidate('shot');
   },
   /** Follow a world point with the camera's aim, smoothly and without restarting any move (the catheter's tip on its way in); null stops. */
@@ -144,9 +146,10 @@ export const sceneApi = {
   /** Where the probe now up (the Doppler's gate, the FibroScan's tip) stands on the screen, CSS px; null with none. */
   testFocus(out: { x: number; y: number } = { x: 0, y: 0 }): { x: number; y: number } | null { return cel.testFocus(out); },
   /** Whether the camera is already in (or on its way to) this room: a card that lands where its glide already sent the camera asks for nothing. */
-  roomIs(room: Room): boolean { const t = cel.rig.targetRoom; return Math.abs(t.x - room.x) < 0.5 && Math.abs(t.y - room.y) < 0.5 && Math.abs(t.w - room.w) < 0.5 && Math.abs(t.h - room.h) < 0.5; },
+  roomIs(roomIn: Room): boolean { const room = splitMainRoom(roomIn), t = cel.rig.targetRoom; return Math.abs(t.x - room.x) < 0.5 && Math.abs(t.y - room.y) < 0.5 && Math.abs(t.w - room.w) < 0.5 && Math.abs(t.h - room.h) < 0.5; },
   /** `refit`: the screen itself changed (a resize, the phone turned): the zoom is fitted again. Otherwise a room change only pans. */
-  setRoom(room: Room, ms?: number, homeTurn = false, refit = false, ease?: (k: number) => number): void {
+  setRoom(roomIn: Room, ms?: number, homeTurn = false, refit = false, ease?: (k: number) => number): void {
+    const room = splitSetRoom(roomIn, ms, ease);   // (the split orbit: the right half while a twin stands beside it)
     if (homeTurn) gesturesRef.current?.turnOff();
     // the phone turned while the sinusoid is up: its shot is a different one on the other screen shape (top to bottom, 2D's framing), so the move is to that
     if (cel.view === 'sinusoid' && stagePortrait() !== cel.isPortrait) { this.goTo(sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)), room, ms); return; }
