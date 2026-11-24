@@ -2,7 +2,7 @@
 // into the hepatic vein, swings with the vein's bend and stops framing the wedge with the balloon up. A pure function of how far the catheter has come, so it moves exactly as the catheter does (and Back runs it
 // backwards): no clock, no scene. The rig (rig.ts setChase) eases into and out of it and draws it with the lens it names.
 // The numbers are the approved mock's own (/mnt/project-files/camera-move-mocks-24nov/move4-A-camera-values.md, rendered from the real scene): distance in scene units from the aim, yaw and pitch of the rig's own
-// orbit formula (negative yaw puts the camera toward the viewer's left), lens 20, the aim on the vein's centreline 0.015 of the way ahead of the tip. The mock's five frames are its keyframes.
+// orbit formula (negative yaw puts the camera toward the viewer's left), lens 20, the aim on the vein's centreline 0.015 of the way ahead of the tip. The mock's five frames are its keyframes, the last two pulled back (Mohammad, 24 Nov: "zoomed out a bit": 1.1 to 1.35 and 0.75 to 1.0) so the wedge keeps more of the vein and liver round it.
 import { Vector3 } from 'three';
 import { route3d, type Route3D } from '../procedures/route3d.ts';
 
@@ -11,8 +11,8 @@ export const CHASE_KEYS: readonly { u: number; d: number; yaw: number; pitch: nu
   { u: 0.62, d: 4.2, yaw: 0, pitch: 0.05 },
   { u: 0.74, d: 2.6, yaw: -0.12, pitch: 0.06 },
   { u: 0.82, d: 1.7, yaw: -0.3, pitch: 0.1 },
-  { u: 0.92, d: 1.1, yaw: -0.45, pitch: 0.14 },
-  { u: 0.995, d: 0.75, yaw: -0.55, pitch: 0.16 },
+  { u: 0.92, d: 1.35, yaw: -0.45, pitch: 0.14 },
+  { u: 0.995, d: 1.0, yaw: -0.55, pitch: 0.16 },
 ];
 /** The lens the chase is shot on (degrees; the figure's rest lens is 14). */
 export const CHASE_FOV = 20;

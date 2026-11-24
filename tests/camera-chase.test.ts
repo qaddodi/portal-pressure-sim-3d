@@ -11,7 +11,7 @@ test('the five approved frames of the mock (move4-A-camera-values.md) are hit ex
     assert.ok(Math.abs(p.dist - k.d) < 1e-9 && Math.abs(p.yaw - k.yaw) < 1e-9 && Math.abs(p.pitch - k.pitch) < 1e-9, `frame at ${k.u}: ${p.dist} ${p.yaw} ${p.pitch}`);
     assert.equal(p.fov, 20);
   }
-  assert.deepEqual(CHASE_KEYS.map((k) => [k.u, k.d, k.yaw, k.pitch]), [[0.62, 4.2, 0, 0.05], [0.74, 2.6, -0.12, 0.06], [0.82, 1.7, -0.3, 0.1], [0.92, 1.1, -0.45, 0.14], [0.995, 0.75, -0.55, 0.16]]);
+  assert.deepEqual(CHASE_KEYS.map((k) => [k.u, k.d, k.yaw, k.pitch]), [[0.62, 4.2, 0, 0.05], [0.74, 2.6, -0.12, 0.06], [0.82, 1.7, -0.3, 0.1], [0.92, 1.35, -0.45, 0.14], [0.995, 1.0, -0.55, 0.16]]);
 });
 
 test('between the frames the camera only closes in and swings one way, with no jump; before the first it holds, after the last it stays', () => {
@@ -24,7 +24,7 @@ test('between the frames the camera only closes in and swings one way, with no j
     assert.ok(p.target.every(Number.isFinite));
   }
   assert.equal(hvpgChase(0)!.dist, 4.2);
-  assert.equal(hvpgChase(1)!.dist, 0.75);
+  assert.equal(hvpgChase(1)!.dist, 1.0);
 });
 
 test('it is the deck\'s scene link that drives it, and only on a body slide with a catheter', () => {

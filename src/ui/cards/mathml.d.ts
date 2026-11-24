@@ -10,6 +10,7 @@ declare module 'react' {
       msub: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
       mn: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
       mfrac: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+      mspace: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { width?: string };
       mtext: React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
     }
   }

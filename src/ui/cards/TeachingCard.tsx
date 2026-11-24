@@ -1,5 +1,5 @@
 import { raisesOnly } from './roll-reserve.ts';
-import { useMemo, type CSSProperties } from 'react';
+import { Fragment, useMemo, type CSSProperties } from 'react';
 import type { EqPart, Slide } from '../../decks/schema.ts';
 import { Line } from './Line.tsx';
 import { sentences, pageOf } from './pages.ts';
@@ -18,10 +18,13 @@ import { modelLines } from '../charts/flowtime/model.ts';
 import { valueText, VALUE_PENDING } from '../text/tokens.ts';
 
 
+/** The room each side of a sign in an equation. */
+const SIGN_GAP = '0.25em';
 const eqClass = (p: EqPart) => (p.tone === 'wedge' ? 'eq-wedge' : p.tone === 'free' ? 'eq-hv' : undefined);
 /** A slide's equation parts as MathML (2D `.pz-eq > math`): names, numbers, signs, subscripts and fractions, in 2D's own tags. */
 function EqParts({ parts }: { parts: readonly EqPart[] }) {
-  return <>{parts.map((p, i) => p.tag === 'mo' ? <mo key={i} form="infix" lspace="0.25em" rspace="0.25em">{p.text}</mo>
+  // (a sign's room is two explicit spaces of one width round an operator with none of its own: the browsers' operator dictionaries and `lspace`/`rspace` differ (on iOS "WHVP − FHVP" printed tight on the left of the minus and wide on the right), a space element does not)
+  return <>{parts.map((p, i) => p.tag === 'mo' ? <Fragment key={i}><mspace width={SIGN_GAP} /><mo form="infix" lspace="0" rspace="0">{p.text}</mo><mspace width={SIGN_GAP} /></Fragment>
     : p.tag === 'mn' ? <mn key={i}>{p.text}</mn>
     : p.tag === 'mfrac' ? <mfrac key={i} className={eqClass(p)}><mrow><EqParts parts={p.num ?? []} /></mrow><mrow><EqParts parts={p.den ?? []} /></mrow></mfrac>
     : p.sub ? <msub key={i} className={eqClass(p)}><mi>{p.text}</mi><mtext>{p.sub}</mtext></msub>

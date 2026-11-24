@@ -22,5 +22,5 @@ test('the capture waits for the engine\'s morph (a paracentesis slide\'s gauge r
 });
 
 test('an equation sign keeps its own air on both sides (SAAG minus touched "Albumin serum", slide 7)', () => {
-  assert.match(readFileSync(new URL('../src/ui/cards/TeachingCard.tsx', import.meta.url), 'utf8'), /form="infix" lspace="0\.25em" rspace="0\.25em"/);
+  assert.match(readFileSync(new URL('../src/ui/cards/TeachingCard.tsx', import.meta.url), 'utf8'), /<mspace width=\{SIGN_GAP\} \/><mo form="infix" lspace="0" rspace="0">/);
 });

@@ -13,3 +13,6 @@ Rules kept: callouts only once reading and camera settled (the rig counts the ch
 Code: `src/scene/camera/chase.ts` (pose), `rig.ts` (`setChase`, blended in `apply`), `src/ui/deck/scene-link.ts` (drives it). Test: `tests/camera-chase.test.ts`.
 
 Not rejected anything yet. Not yet seen on a device: say "pushed, not yet seen".
+
+## 24 Nov, later: "This slide should be zoomed out a bit" (wedge frame, iPhone)
+Last two keys pulled back: advance 0.92 distance 1.1 to 1.35, advance 0.995 distance 0.75 to 1.0. Everything else on this sheet unchanged. Also: equation signs (WHVP − FHVP) get two explicit equal spaces (`mspace`) in `TeachingCard.tsx`, because iOS printed the operator's own spacing unevenly.

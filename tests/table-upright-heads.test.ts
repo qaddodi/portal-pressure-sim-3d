@@ -20,5 +20,5 @@ test('"No ascites" cell stays inside its columns', () => {
 
 test('a signed change is proportional, and an equation sign is infix (slides 9.2 and 3, 187c7e53)', () => {
   assert.match(readFileSync('src/scene/labels/labels.css', 'utf8'), /\.lb \.lb-delta, \.lb \.lb-alert \{ font-variant-numeric: proportional-nums/);
-  assert.match(readFileSync('src/ui/cards/TeachingCard.tsx', 'utf8'), /<mo key=\{i\} form="infix" lspace="0.25em" rspace="0.25em">/);
+  assert.match(readFileSync('src/ui/cards/TeachingCard.tsx', 'utf8'), /<mspace width=\{SIGN_GAP\} \/><mo form="infix" lspace="0" rspace="0">/);
 });
