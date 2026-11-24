@@ -8,8 +8,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { vesselSmoothness, joinSmoothness, organSmoothness, overBar, type SmoothAllow } from './anatomy/smooth.ts';
 import { ORGAN_MESHES, setOrganData, organsReady } from '../src/scene/organs/meshes.ts';
 import { prepareOrgans } from '../src/scene/organs/prepare.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
 
-const FILE = new URL('./anatomy/smooth-allow.json', import.meta.url);
+// (the approved placement, PPS_ANATOMY=placed, is held by its own list: what is rougher there is not what is rougher today, and each list only shrinks)
+const FILE = new URL(PLACED ? './anatomy/smooth-allow.placed.json' : './anatomy/smooth-allow.json', import.meta.url);
 
 test('every vessel, join and organ is as smooth as the bar, or no rougher than its listed allowance (which only goes down)', async () => {
   const b = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));

@@ -4,6 +4,7 @@
 import { CIRR, liverField, liverSurface } from '../disease/copied/liver-morph.js';
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { noduleBumpAt, rimDomeAt, rimScale, surfaceAt } from './liver-texture.ts';
+import { type PlaneMap, mapX, mapY, unmapX, unmapY } from './placed-map.ts';
 
 
 import { clock } from '../../clock/frame.ts';
@@ -29,8 +30,10 @@ export class LiverShape {
   /** What depends on a vertex's REST place only, never on the scarring (the nodule's height there, the share of it that goes sideways, the rim's scallop): found once, on the first frame that needs it, so a frame of the easing is arithmetic, not a height field per vertex (root cause of the 90 to 690 ms frames of a patient glide: 13.7 k vertices x a noise field, every frame). */
   private nb: Float32Array | null = null; private nbk!: Float32Array; private rk!: Float32Array;
   readonly position: { array: Float32Array; needsUpdate: boolean };
-  constructor(position: { array: Float32Array; needsUpdate: boolean }, normals: ArrayLike<number>) {
-    this.position = position;
+  /** The liver's move with the approved placement (placed-map.ts; the identity with the switch off): the 2D field and the texture are read where the 2D figure has this point, and the shape is laid back where the liver is. */
+  private readonly map: PlaneMap;
+  constructor(position: { array: Float32Array; needsUpdate: boolean }, normals: ArrayLike<number>, map: PlaneMap = { sx: 1, ox: 0, oy: 0 }) {
+    this.position = position; this.map = map;
     this.rest = Float32Array.from(position.array);
     this.normals = Float32Array.from(normals);
   }
@@ -42,7 +45,7 @@ export class LiverShape {
     const t0 = clock.now();
     while (this.baked < cnt) {
       for (let e = Math.min(cnt, this.baked + 256); this.baked < e; this.baked++) {
-        const v = this.baked, i = v * 3, x2 = x2d(r[i]!), y2 = y2d(r[i + 1]!), h = noduleBumpAt(x2, y2), k = edgeFree(Math.abs(n[i + 2]!)), m = Math.hypot(n[i]!, n[i + 1]!);
+        const v = this.baked, i = v * 3, x2 = x2d(unmapX(this.map, r[i]!)), y2 = y2d(unmapY(this.map, r[i + 1]!)), h = noduleBumpAt(x2, y2), k = edgeFree(Math.abs(n[i + 2]!)), m = Math.hypot(n[i]!, n[i + 1]!);
         this.nb[v] = h; this.nbk[v] = h * k;
         this.rk[v] = m > 1e-3 ? ((1 - k) * rimDomeAt(x2, y2)) / m : 0;
       }
@@ -59,8 +62,8 @@ export class LiverShape {
     if (bump > 0) this.warm();
     const nb = this.nb!, nbk = this.nbk, rk = this.rk, rim = bump > 0 ? RIM_HEIGHT * rimScale() * nodS : 0;
     for (let v = 0, i = 0; i < r.length; v++, i += 3) {
-      const f = liverField(x2d(r[i]!), y2d(r[i + 1]!), c);
-      let x = x3(f[0]!), y = y3(f[1]!);
+      const m = this.map, f = liverField(x2d(unmapX(m, r[i]!)), y2d(unmapY(m, r[i + 1]!)), c);
+      let x = mapX(m, x3(f[0]!)), y = mapY(m, y3(f[1]!));
       if (bump > 0) {
         // the bumps push along the normal, but not sideways at the edge (nbk: the nodule's height times the share of its sideways push, edgeFree), and the outline is nodular too (Mohammad 20 Nov): at the rim the nodules stand out along the in-plane normal by the same dome (rk), outward only
         const hk = bump * nbk[v]!, rr = rim * rk[v]!;

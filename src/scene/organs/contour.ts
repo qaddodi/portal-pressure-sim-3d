@@ -29,20 +29,22 @@ export function weld(g: BufferGeometry): Welded {
   return { n: verts.length, id, verts, nbr, tris };
 }
 
+const EDGE_K = 1 << 24;
 /** The silhouette ring as a map: vertex -> its two neighbours along the ring (only vertices with exactly two). */
 export function silhouetteRing(g: BufferGeometry, w: Welded): Map<number, [number, number]> {
   const pos = g.getAttribute('position'), p = (v: number) => w.verts[v]![0]!;
-  const sides = new Map<string, number[]>();
+  // (an edge's key is a number, its lower end times EDGE_K plus its upper end: the same edges in the same order as text keys gave, without making a string an edge; the gut tubes have 40 000 vertices)
+  const sides = new Map<number, number[]>();
   for (let t = 0; t < w.tris.length; t += 3) {
     const a = w.tris[t]!, b = w.tris[t + 1]!, c = w.tris[t + 2]!;
-    const [ia, ib, ic] = [p(a), p(b), p(c)];
+    const ia = p(a), ib = p(b), ic = p(c);
     const area = (pos.getX(ib) - pos.getX(ia)) * (pos.getY(ic) - pos.getY(ia)) - (pos.getX(ic) - pos.getX(ia)) * (pos.getY(ib) - pos.getY(ia));
-    for (const [u, v] of [[a, b], [b, c], [c, a]] as const) { const k = u < v ? `${u}|${v}` : `${v}|${u}`; (sides.get(k) ?? sides.set(k, []).get(k)!).push(area); }
+    for (let e = 0; e < 3; e++) { const u = e === 0 ? a : e === 1 ? b : c, v = e === 0 ? b : e === 1 ? c : a, k = u < v ? u * EDGE_K + v : v * EDGE_K + u; const l = sides.get(k); if (l) l.push(area); else sides.set(k, [area]); }
   }
   const adj = new Map<number, number[]>();
   for (const [k, s] of sides) {
     if (s.length !== 2 || s[0]! * s[1]! >= 0) continue;
-    const [u, v] = k.split('|').map(Number) as [number, number];
+    const u = Math.floor(k / EDGE_K), v = k - u * EDGE_K;
     (adj.get(u) ?? adj.set(u, []).get(u)!).push(v); (adj.get(v) ?? adj.set(v, []).get(v)!).push(u);
   }
   const ring = new Map<number, [number, number]>();

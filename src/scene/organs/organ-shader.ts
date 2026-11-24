@@ -237,3 +237,19 @@ void main() {
   c.xy += nd * w * inkRim(hullN) * 2.0 / res * c.w;
   gl_Position = c;
 }`;
+
+/** The approved placement's gut depth pass (layer.ts GUT_RENDER `pre`): each gut part's depth before any gut fill, no colour, so a pixel keeps only the nearest wall of the one gut surface. A part's own alpha (`esoA`: the rectum's
+ *  fade) and the stomach's cut (`cutA`) drop it where its fill is gone, and so does the body's dissolve below one half; attributes a part has not got are not read. */
+export const organPreVs = (esoA: boolean, cutA: boolean): string => /* glsl */ `
+${esoA ? 'attribute float esoA;\n' : ''}${cutA ? 'attribute float cutA;\n' : ''}varying float vA;
+void main() {
+  vA = ${esoA ? 'esoA' : '1.0'} * ${cutA ? 'step(0.5, cutA)' : '1.0'};
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+export const ORGAN_PRE_FS = /* glsl */ `
+uniform float fade;
+varying float vA;
+void main() {
+  if (vA * fade < 0.5) discard;
+  gl_FragColor = vec4(0.0);
+}`;

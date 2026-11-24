@@ -9,6 +9,8 @@ import { bakeOrganDepth, meanEdge, smooth } from './organ-depth.ts';
 import { RIM_ZONE, fitRimProfile, rimOffsetByte, rimProfileAt } from './rim-profile.ts';
 import { smoothRestNormals } from './normal-smooth.ts';
 import { ORGAN_Z } from './z.ts';
+import { PLACED } from '../anatomy/source.ts';
+import { TUBE_IDS, stomachCut } from './placed.ts';
 
 /** Passes of smoothing of the normals the outline is pushed along (the hull's edge, a sawtooth otherwise). */
 export const SHADE_PASSES = 6;
@@ -17,10 +19,14 @@ export const SHADE_PASSES = 6;
 export function prepareOrgans(meshes: Record<string, () => BufferGeometry>): [string, BufferGeometry][] {
   // every organ's geometry first: the baked depth term (organ-depth.ts) needs them all together (where one organ meets another)
   const made: [string, BufferGeometry][] = [];
-  for (const [id, make] of Object.entries(meshes)) if (ORGAN_STYLE[id]) { const g = make(); smoothSilhouette(g); if (g.getAttribute('position').count >= COARSE_VERTS || !subdivideOrgan(g)) refineRim(g); g.translate(0, 0, ORGAN_Z[id] ?? 0); made.push([id, g]); }   // (the rim's saw-tooth is smoothed out first: contour.ts; a small organ then gets a round of butterfly subdivision, which also refines its rim (subdivide.ts), a big one only its rim; each organ at its own depth: z.ts, x and y untouched by it)
+  for (const [id, make] of Object.entries(meshes)) if (ORGAN_STYLE[id]) {
+    const g = make();
+    if (PLACED && TUBE_IDS.has(id)) { g.userData.tube = true; made.push([id, g]); continue; }   // (a gut tube is round by construction, at its own depth, with its own round normals: gut-tubes.ts. Its rim is not an outline's and is left as it is)
+    smoothSilhouette(g); if (g.getAttribute('position').count >= COARSE_VERTS || !subdivideOrgan(g)) refineRim(g); g.translate(0, 0, ORGAN_Z[id] ?? 0); made.push([id, g]);
+  }   // (the rim's saw-tooth is smoothed out first: contour.ts; a small organ then gets a round of butterfly subdivision, which also refines its rim (subdivide.ts), a big one only its rim; each organ at its own depth: z.ts, x and y untouched by it)
   // the duodenum's free end fades out (it joins nothing there): its tail alpha, which organ-art patches into its fill and outline
   const duo = made.find(([id]) => id === 'duodenum'), stom = made.find(([id]) => id === 'stomach');
-  if (duo && stom) duo[1].setAttribute('esoA', new Float32BufferAttribute(tailFade(duo[1], stom[1]), 1));
+  if (duo && stom && !PLACED) duo[1].setAttribute('esoA', new Float32BufferAttribute(tailFade(duo[1], stom[1]), 1));   // (placed: the duodenum runs on into the bowel's tube and fades nowhere; only the rectum's end fades, gut-tubes.ts)
   const baked = bakeOrganDepth(Object.fromEntries(made.map(([id, g]) => {
     if (!g.getAttribute('normal')) g.computeVertexNormals();
     return [id, { pos: g.getAttribute('position').array, normal: g.getAttribute('normal').array, index: g.index ? g.index.array : [] }];
@@ -28,7 +34,9 @@ export function prepareOrgans(meshes: Record<string, () => BufferGeometry>): [st
   for (const [id, g] of made) {
     g.setAttribute('depthAo', new BufferAttribute(baked[id]!, 1, true));
     // the outline is pushed out along the mesh's SMOOTHED normal: the mesh's own normals jag along a coarse rim, and the hull's edge with them (a sawtooth halo)
-    g.setAttribute('shadeN', new Float32BufferAttribute(smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : [], SHADE_PASSES), 3));
+    const shadeN = smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : [], SHADE_PASSES);
+    if (PLACED && id === 'stomach') stomachCut(g, shadeN);   // (the stomach's cut where the duodenum's funnel takes over, and the antrum's shade turned round the funnel's axis there: placed.ts)
+    g.setAttribute('shadeN', new Float32BufferAttribute(shadeN, 3));
     g.setAttribute('ringD', new Float32BufferAttribute(ringDistance(g), 1));
     g.setAttribute('hullN', new Float32BufferAttribute(smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : []), 3));
     rimStrip(g);

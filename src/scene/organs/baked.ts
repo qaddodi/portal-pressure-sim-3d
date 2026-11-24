@@ -14,8 +14,10 @@ const SNORM = 32767;
 /** The organs kept as the organs file has them, besides the finished ones: the scope fits its esophagus to the raw stomach (devices/probes/scope.ts), and with the file laid in the page never fetches organs.bin. */
 export const RAW_IDS: readonly string[] = ['stomach'];
 
-interface Head { digest: string; organs: { id: string; verts: number; indices: number; wide: boolean; eso: boolean; /** a subdivided organ keeps only its parent triangles (this many indices); the children are made on load */ sub?: number; /** the rim strip's profile (rim-profile.ts), when the organ has one */ prof?: number[] }[]; raw: { id: string; verts: number; indices: number }[] }
+interface Head { digest: string; organs: { id: string; verts: number; indices: number; wide: boolean; eso: boolean; /** a subdivided organ keeps only its parent triangles (this many indices); the children are made on load */ sub?: number; /** the rim strip's profile (rim-profile.ts), when the organ has one */ prof?: number[]; /** further per-vertex floats it carries (EXTRA_ATTRS: the placed stomach's cut, the duodenum's share of the stomach's look) */ extra?: string[]; /** its surface normal is its own (a gut tube's round one), kept in the file, not made again from the triangles */ nrm?: true }[]; raw: { id: string; verts: number; indices: number }[] }
 const pad4 = (n: number) => (n + 3) & ~3;
+/** The per-vertex floats an organ may carry besides the ones every organ has (the approved placement's: organs/placed.ts stomachCut `cutA`, organs/gut-tubes.ts `tos`), kept exactly. */
+export const EXTRA_ATTRS: readonly string[] = ['cutA', 'tos'];
 
 /** A unit vector as two snorm16 (octahedral: the sphere folded onto a square; error under 1e-4, 4 bytes where snorm16 x3 is 6). */
 function octEncode(a: ArrayLike<number>, out: Int16Array): void {
@@ -57,7 +59,11 @@ export function encodeOrgans(made: readonly (readonly [string, BufferGeometry])[
     for (const k of ['shadeN', 'hullN']) { const s = new Int16Array(n * 2); octEncode(g.getAttribute(k).array, s); put(s); }
     const eso = g.getAttribute('esoA');
     if (eso) put(eso.array as Float32Array);
-    head.organs.push({ id, verts: n, indices: idx.length, wide, eso: !!eso, ...(parent && parent.length * 4 === idx.length ? { sub: parent.length } : {}), ...(prof ? { prof } : {}) });
+    const extra = EXTRA_ATTRS.filter((k) => g.getAttribute(k));
+    for (const k of extra) put(Float32Array.from(g.getAttribute(k).array));
+    const nrm = !!g.userData.tube;
+    if (nrm) { const s = new Int16Array(n * 2); octEncode(g.getAttribute('normal').array, s); put(s); }
+    head.organs.push({ id, verts: n, indices: idx.length, wide, eso: !!eso, ...(parent && parent.length * 4 === idx.length ? { sub: parent.length } : {}), ...(prof ? { prof } : {}), ...(extra.length ? { extra } : {}), ...(nrm ? { nrm: true as const } : {}) });
   }
   for (const [id, g] of raw) {   // (organs as the file gives them, before prepare: what the scope's esophagus is fitted to; the stomach's mesh in meshes.ts)
     const pos = g.getAttribute('position').array, q = new Int16Array(pos.length);
@@ -99,6 +105,8 @@ export function decodeOrgans(buf: ArrayBuffer): BakedOrgans | null {
       if (o.prof) { for (const k of ['rimD', 'rimC']) g.setAttribute(k, new Float32BufferAttribute(Float32Array.from(take(Uint8Array, n), (v) => v / 255), 1)); g.userData.rimProfile = o.prof; }
       for (const k of ['shadeN', 'hullN']) { const f = new Float32Array(n * 3); octDecode(take(Int16Array, n * 2), f); g.setAttribute(k, new Float32BufferAttribute(f, 3)); }
       if (o.eso) g.setAttribute('esoA', new Float32BufferAttribute(take(Float32Array, n).slice(), 1));
+      for (const k of o.extra ?? []) g.setAttribute(k, new Float32BufferAttribute(take(Float32Array, n).slice(), 1));
+      if (o.nrm) { const f = new Float32Array(n * 3); octDecode(take(Int16Array, n * 2), f); g.setAttribute('normal', new Float32BufferAttribute(f, 3)); g.userData.tube = true; }
       g.computeBoundingBox(); g.boundingSphere = null;
       return [o.id, g];
     });

@@ -55,11 +55,13 @@ test('a file that is not an organs file decodes to null, and the digest names it
   assert.equal(decodeOrgans(new ArrayBuffer(4)), null);
   assert.equal(decodeOrgans(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]).buffer), null);
   assert.equal(organsDigest(), organsDigest());
-  assert.match(organsDigest(), /^[0-9a-f]+-\d+$/);
+  assert.match(organsDigest(), /^p?[0-9a-f]+-\d+$/);
+  assert.notEqual(organsDigest(true), organsDigest(false), 'the approved placement\'s organs have their own digest (and file), so today\'s bake is untouched');
 });
 
-test('the file on disk (when the build or the pretest made one) is for the current inputs', { skip: !existsSync(new URL('../public/anatomy/organs-baked.bin', import.meta.url)) }, () => {
-  const b = gunzipSync(readFileSync(new URL('../public/anatomy/organs-baked.bin', import.meta.url)));
+const ON_DISK = new URL(`../public/anatomy/${process.env.PPS_ANATOMY === 'placed' ? 'organs-baked-placed.bin' : 'organs-baked.bin'}`, import.meta.url);
+test('the file on disk (when the build or the pretest made one) is for the current inputs', { skip: !existsSync(ON_DISK) }, () => {
+  const b = gunzipSync(readFileSync(ON_DISK));
   const d = decodeOrgans(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
   assert.equal(d?.digest, organsDigest(), 'public/anatomy/organs-baked.bin is stale: node scripts/bake-organs.mjs');
 });
