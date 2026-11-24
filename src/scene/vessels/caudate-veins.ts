@@ -3,12 +3,12 @@
 // and eased in and out by the scene (scene.ts setCaudate), and they open into the cava by the same rule as the hepatic veins (fades.ts CAVA_FEEDERS: the vein takes the cava's colour and its faint alpha at the wall and is cut away inside
 // the lumen, so both have one fade at the junction). Each one rises out of the lobe's own tissue (fades in over its first stretch, no end to see).
 import { EDGE_PATH_2D, PLACED } from '../anatomy/source.ts';
-import { PLACED_CAUDATE_VEINS, shareOn, to2D } from '../anatomy/placed-network.ts';
+import { PLACED_CAUDATE_HOST, PLACED_CAUDATE_VEINS, shareOn, to2D } from '../anatomy/placed-network.ts';
 import { CAUDATE_VEINS } from '../organs/caudate.ts';
 import { JOIN_SPAN, type BranchItem, type BranchSet } from './liver-branches.ts';
 
-/** The IVC piece the veins enter (the cava below the TIPS/DIPS junction at y 306: the lobe lies at y 300 to 418) and the `when` of their group. */
-export const CAUDATE_HOST = 'IVC_IS_1';
+/** The IVC piece the veins enter (the cava below the TIPS/DIPS junction at y 306: the lobe lies at y 300 to 418; placed, the piece their ends lie on: the DIPS lands at the lobe's foot, below them) and the `when` of their group. */
+export const CAUDATE_HOST: string = PLACED ? PLACED_CAUDATE_HOST : 'IVC_IS_1';
 export const CAUDATE_WHEN = 'caudate-veins';
 /** The group's vessel id (network.ts). */
 export const CAUDATE_VEIN_ID = `${CAUDATE_HOST}~F:${CAUDATE_WHEN}`;
