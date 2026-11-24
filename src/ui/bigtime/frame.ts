@@ -11,6 +11,7 @@ import { FLOW_CUTS } from '../../engine/hales/portal/flow-cuts.js';
 import { MEASURE_OF, HVPG, laneOf, type LaneId, type Measure } from './measures.ts';
 import type { MarkLine, MedBar, Tone } from './marks.ts';
 import { maxOf, pointsIn, tickStep, valueAt, type Series } from './record.ts';
+import { paceOf, scaleWord } from './pace.ts';
 
 export interface BigIn {
   /** the record by measure id, in the record's own units (a pressure in mmHg, ascites in L, the shunt as 0..1) */
@@ -102,8 +103,11 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   const phone = W < 560;
   const { L, R } = leadOf(W), plotW = W - L - R;
   const [x0, x1] = inp.win, span = Math.max(1e-6, x1 - x0);
-  const X = (d: number) => L + (d - x0) / span * plotW;
-  const dayAt = (x: number) => x0 + (x - L) / plotW * span;
+  // the days are paced by their events (pace.ts): X and dayAt look through the window onto one axis whose scale is constant inside each piece
+  const pace = paceOf(inp.lines.map((e) => e.day), inp.full), p0 = pace.at(x0), pspan = Math.max(1e-6, pace.at(x1) - p0);
+  const X = (d: number) => L + (pace.at(d) - p0) / pspan * plotW;
+  const dayAt = (x: number) => pace.day(p0 + (x - L) / plotW * pspan);
+  const axH = pace.flat ? AXIS_H : AXIS_H + 15;
   const text = pal.tok('text'), t2 = pal.tok('text-2'), t3 = pal.tok('text-3'), hair = pal.alpha(pal.tok('text'), 0.1), hair2 = pal.alpha(pal.tok('text'), 0.2);
   const halo = { color: pal.alpha(pal.tok('surface'), 0.92), w: 3.5 };
   const accent = pal.tok('accent');
@@ -114,7 +118,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   const lines = inp.lines.filter((e) => e.day >= x0 - 1e-6 && e.day <= x1 + 1e-6).sort((a, b) => a.day - b.day);
   const meds = inp.meds.filter((m) => m.spans.some((s) => (s.to ?? Infinity) >= x0 && s.from <= x1));
   // ── the words over the plot: event labels in rows (a wide card) or upright (a phone) ──
-  type Placed = { e: MarkLine; x: number; r: number; w: number; side?: 'l' | 'r'; ls?: string[] };
+  type Placed = { e: MarkLine; x: number; r: number; w: number; xs?: number; lift?: number; ls?: string[] };
   const placed: Placed[] = [];
   let top: number;
   if (!phone) {
@@ -129,16 +133,21 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
     }
     top = 6 + Math.max(2, end.length) * ROW_H + 8;
   } else {
-    let band = 40, lastR = -1e9, lastSide = 'r' as 'l' | 'r';
-    const told = new Set<string>();
+    // a phone sets each label at 45°, reading up and to the right from its line (owner, 24 Nov); labels whose lines are close are lifted along their lines until no two overlap
+    const told = new Set<string>(), R2 = Math.SQRT1_2, boxes: { n0: number; n1: number; a0: number; a1: number }[] = [], lh = fs * 1.15;
+    let band = 36;
     for (const e of lines) {
-      if (e.kind === 'event' && told.has(e.label)) { placed.push({ e, x: X(e.day), r: -1, w: 0, side: 'l', ls: [] }); continue; }
+      if (e.kind === 'event' && told.has(e.label)) { placed.push({ e, x: X(e.day), r: -1, w: 0, xs: X(e.day), lift: 0, ls: [] }); continue; }
       told.add(e.label);
-      const ls = wrap2(e.label, fs), w = Math.max(...ls.map((l) => measure(l, fs, e.tone === 'change' ? 600 : 500)));
-      const need = ls.length * 14, x = X(e.day);
-      const side: 'l' | 'r' = x - need < lastR && lastSide === 'l' ? 'r' : 'l';
-      lastR = side === 'l' ? x : x + 5 + need; lastSide = side;
-      placed.push({ e, x, r: 0, w, side, ls }); band = Math.max(band, w);
+      // a long name breaks in two lines near its middle; the last line starts on the event's line, the first sits up and to the left of it
+      const ls = wrap2(e.label, fs, 120), w = Math.max(...ls.map((l) => measure(l, fs, e.tone === 'change' ? 600 : 500))), len = w * R2, x = X(e.day), xs = Math.min(x + 2, W - 6 - len), up = (ls.length - 1) * lh;
+      let lift = 0;
+      for (;;) {   // the label's last line starts at (xs, base - lift): n runs across the label, a along it
+        const n1 = (xs - lift) * R2 + lh * 0.7, n0 = n1 - up - lh * 1.6, a0 = (xs + lift) * R2, a1 = a0 + w + 6;
+        if (!boxes.some((b) => n0 < b.n1 && n1 > b.n0 && a0 < b.a1 && a1 > b.a0)) { boxes.push({ n0, n1, a0, a1 }); break; }
+        lift += 3;
+      }
+      placed.push({ e, x, r: 0, w, xs, lift, ls }); band = Math.max(band, lift + len + up * R2 + fs);
     }
     top = 10 + Math.ceil(band) + 12;
   }
@@ -146,12 +155,12 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   const specs = ORDER.map((id) => specOf(id, inp)).filter((s): s is LaneSpec => !!s);
   const medRows = meds.length, medsH = medRows ? medRows * MED_H + 6 : 0;
   const nL = Math.max(1, specs.length);
-  const free = Math.max(60 * nL, H - top - medsH - AXIS_H - GAP * (nL - 1)), wsum = specs.reduce((a, s) => a + WEIGHT[s.id], 0) || 1;
+  const free = Math.max(60 * nL, H - top - medsH - axH - GAP * (nL - 1)), wsum = specs.reduce((a, s) => a + WEIGHT[s.id], 0) || 1;
   let y = top + medsH;
   const geoLanes = specs.map((s) => { const h = specs.length ? free * WEIGHT[s.id] / wsum : free, g = { s, t: y, h }; y += h + GAP; return g; });
   const bottom = specs.length ? y - GAP : top + medsH + free;
-  const frame = (): Frame => ({ w: W, h: bottom + AXIS_H, shapes, label: '' });
-  const geo: Geo = { w: W, h: bottom + AXIS_H, L, R, top, bottom, x0, x1, X, dayAt, lanes: geoLanes.map((g) => ({ id: g.s.id, t: g.t, h: g.h })) };
+  const frame = (): Frame => ({ w: W, h: bottom + axH, shapes, label: '' });
+  const geo: Geo = { w: W, h: bottom + axH, L, R, top, bottom, x0, x1, X, dayAt, lanes: geoLanes.map((g) => ({ id: g.s.id, t: g.t, h: g.h })) };
 
   // zones, grids, cut-offs
   for (const g of geoLanes) {
@@ -177,12 +186,28 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   }
   // the x axis
   shapes.push({ k: 'line', x1: L, y1: bottom + 0.5, x2: W - R, y2: bottom + 0.5, pen: pen(hair2, 1) });
-  const step = tickStep(span, plotW);
   const cx = inp.cursor == null ? null : X(inp.cursor);
-  for (let d = Math.ceil(x0 / step) * step; d <= x1 + 1e-6; d += step) {
-    const x = X(d);
-    shapes.push({ k: 'line', x1: x, y1: bottom, x2: x, y2: bottom + 5, pen: pen(hair2, 1) });
-    if (cx == null || Math.abs(x - cx) > 30) say({ x, y: bottom + 19, s: String(Math.round(d)), color: t3, anchor: 'middle', halo: false });
+  // the paced axis: pieces folded or opened by their events are hatched or warmed, each piece has its own ticks, and the scale is said under the axis
+  const tint = pal.alpha(pal.tok('caution'), 0.07), hatch = pal.alpha(pal.tok('text'), 0.09), warm = inkOf(pal, 'caution');
+  let lastLab = -1e9;
+  for (const pc of pace.pieces) {
+    const a = Math.max(pc.a, x0), b = Math.min(pc.b, x1);
+    if (b <= a) continue;
+    const xa = X(a), xb = X(b), wpx = xb - xa, y0 = top + medsH, hh = bottom - y0;
+    if (!pace.flat && pc.w > 1.5) shapes.push({ k: 'rect', x: xa, y: y0, w: wpx, h: hh, fill: tint });
+    if (!pace.flat && pc.w < 0.5) {
+      for (let hx = xa - hh; hx < xb; hx += 12) {   // 45° strokes, cut to the piece by arithmetic (inside the plot, nothing leans out of it)
+        const sa = Math.max(0, xa - hx), sb = Math.min(hh, xb - hx);
+        if (sb > sa) shapes.push({ k: 'line', x1: hx + sa, y1: bottom - sa, x2: hx + sb, y2: bottom - sb, pen: pen(hatch, 1) });
+      }
+    }
+    const step = tickStep(b - a, wpx, pace.flat ? 44 : 30);
+    for (let d = Math.ceil(a / step - 1e-9) * step; d <= b + 1e-6; d += step) {
+      const x = X(d);
+      shapes.push({ k: 'line', x1: x, y1: bottom, x2: x, y2: bottom + 5, pen: pen(hair2, 1) });
+      if (x - lastLab >= 36 && (cx == null || Math.abs(x - cx) > 30)) { say({ x, y: bottom + 19, s: String(Math.round(d)), color: t3, anchor: 'middle', halo: false }); lastLab = x; }
+    }
+    if (!pace.flat && wpx >= 56) say({ x: (xa + xb) / 2, y: bottom + 34, s: scaleWord(pc.w), color: pc.w > 1.5 ? warm : t3, anchor: 'middle', halo: false, size: fs });
   }
   // the medicine bars
   const barTop = top;
@@ -205,7 +230,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   // event lines (behind the traces), then the traces
   shapes.push({ k: 'clip', x: L, y: 0, w: plotW, h: bottom + 1 });
   for (const p of placed) {
-    const ink = toneInk(pal, p.e.tone), line0 = p.r < 0 ? top - 6 : phone ? top - 8 - p.w - 8 : p.r * ROW_H + 14;
+    const ink = toneInk(pal, p.e.tone), line0 = p.r < 0 ? top - 6 : phone ? top - 8 - (p.lift ?? 0) - Math.max(0, p.x - (p.xs ?? p.x)) : p.r * ROW_H + 14;
     shapes.push({ k: 'line', x1: X(p.e.day), y1: Math.max(2, line0), x2: X(p.e.day), y2: bottom, pen: pen(pal.alpha(ink, p.e.tone === 'change' ? 0.85 : 0.55), p.e.tone === 'change' ? 1.6 : 1) });
   }
   for (const g of geoLanes) {
@@ -240,7 +265,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   for (const p of placed) {
     const ink = toneInk(pal, p.e.tone), weight = p.e.tone === 'change' ? 600 : 500;
     if (!phone) { if (p.r >= 0) say({ x: p.x, y: p.r * ROW_H + 12, s: p.e.label, color: ink, weight }); }
-    else (p.ls ?? []).forEach((l, i, a) => { const xx = p.side === 'r' ? X(p.e.day) + 5 + 11 + i * 14 : X(p.e.day) - 5 - (a.length - 1 - i) * 14; say({ x: xx, y: top - 8, s: l, color: ink, weight, rot: -90, anchor: 'start' }); });
+    else if (p.r >= 0) (p.ls ?? []).forEach((l, i, a) => { const k = (a.length - 1 - i) * fs * 1.15 * Math.SQRT1_2; say({ x: (p.xs ?? p.x) - k, y: top - 8 - (p.lift ?? 0) - k, s: l, color: ink, weight, rot: -45, anchor: 'start' }); });
   }
   // the crosshair
   if (cx != null && inp.cursor != null) {

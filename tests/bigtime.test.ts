@@ -5,6 +5,7 @@ import { valueAt, tickStep, pointsIn, type Series } from '../src/ui/bigtime/reco
 import { buildData, baseName } from '../src/ui/bigtime/data.ts';
 import { bigFrame, stripFrame, leadOf, TITLE_H, type BigIn } from '../src/ui/bigtime/frame.ts';
 import { before, isTips, tipsFacts, readingsAt } from '../src/ui/bigtime/facts.ts';
+import { paceOf, scaleFor, scaleWord } from '../src/ui/bigtime/pace.ts';
 import { zoomed, slid } from '../src/ui/bigtime/store.ts';
 import { dayExtras } from '../src/ui/bigtime/day-keys.ts';
 import { MEASURES, MEASURE_OF } from '../src/ui/bigtime/measures.ts';
@@ -125,9 +126,10 @@ test('the frame, every look and width: words 12 px and over, in the box, readabl
   });
 });
 
-test('a phone sets the event names upright; a wide card sets them in rows above the plot, none over another', () => {
-  const phone = bigFrame(inp(), ctxOf('light', 380)).frame.shapes.filter((s): s is TextShape => s.k === 'text' && s.rot === -90);
+test('a phone sets the event names at 45° (none over another); a wide card sets them in rows above the plot, none over another', () => {
+  const phone = bigFrame(inp(), ctxOf('light', 380)).frame.shapes.filter((s): s is TextShape => s.k === 'text' && s.rot === -45);
   assert.ok(phone.length >= 3 && phone.every((t) => t.anchor === 'start'));
+  assert.ok(!bigFrame(inp(), ctxOf('light', 380)).frame.shapes.some((s) => s.k === 'text' && s.rot === -90), 'no label is upright any more');
   const wide = bigFrame(inp(), ctxOf('light', 1200)).frame.shapes.filter((s): s is TextShape => s.k === 'text' && ['Paracentesis', 'TIPS 8 mm', 'TIPS 10 mm', 'High portosystemic shunt fraction'].includes(s.s) && !s.rot);
   assert.ok(wide.length >= 3);
   for (const a of wide) for (const b of wide) if (a !== b && Math.abs(a.y - b.y) < 1) assert.ok(a.x + a.s.length * 6 < b.x || b.x + b.s.length * 6 < a.x, `${a.s} over ${b.s}`);
@@ -289,4 +291,28 @@ test('root cause (EUS-PPG had no history line): every saved patient history carr
     const last = days[days.length - 1]!.v;
     for (const k of want) assert.ok(k in last, `${id}: no "${k}" in its days: run node scripts/gen-histories.mjs`);
   }
+});
+
+test('the event-paced axis: a crowd of events gets more room per day than a quiet stretch, every piece is linear (true slopes), the axis is monotonic and invertible', () => {
+  const days = [16, 18, 32, 35, 38, 40, 41, 48, 51, 69, 69.4, 69.8, 70.2, 70.6, 71, 72, 72.5, 73, 73.6];
+  const p = paceOf(days, [0, 120]);
+  assert.ok(!p.flat);
+  const room = (a: number, b: number) => (p.at(b) - p.at(a)) / (b - a);
+  assert.ok(room(69, 74) > 4 * room(76, 112), 'the crowd has far more room than the quiet end');
+  assert.ok(room(80, 110) < 0.5 && room(80, 110) > 0, 'the quiet end is folded, not cut');
+  for (const pc of p.pieces) { const m = (pc.a + pc.b) / 2; assert.ok(Math.abs((p.at(m) - p.at(pc.a)) - (p.at(pc.b) - p.at(pc.a)) / 2) < 1e-9, 'one scale inside a piece'); }
+  for (let d = 0; d < 120; d += 0.37) { assert.ok(p.at(d + 0.37) > p.at(d)); assert.ok(Math.abs(p.day(p.at(d)) - d) < 1e-9, `inverse at ${d}`); }
+  assert.deepEqual([scaleFor(0), scaleFor(1), scaleFor(4), scaleFor(9)], [1 / 3, 1, 3, 6]);
+  assert.deepEqual([scaleWord(1 / 3), scaleWord(1), scaleWord(6)], ['⅓ scale', '1× scale', '6× scale']);
+  assert.ok(paceOf([], [0, 100]).flat && paceOf([10, 50, 90], [0, 100]).pieces.length >= 1);
+});
+
+test('the chart draws the paced axis: the scale said under it, x grows with day, the card\'s pointer inverts it, a zoomed window keeps the same pieces', () => {
+  const c = ctxOf('light', 1200), r = bigFrame(inp(), c), g = r.geo;
+  assert.ok(r.frame.shapes.some((s) => s.k === 'text' && /scale$/.test(s.s)), 'a scale word under the axis');
+  for (let d = g.x0; d < g.x1 - 1; d += 3) { assert.ok(g.X(d + 1) > g.X(d)); assert.ok(Math.abs(g.dayAt(g.X(d)) - d) < 1e-6); }
+  assert.ok(Math.abs(g.X(g.x0) - g.L) < 1e-6 && Math.abs(g.X(g.x1) - (g.w - g.R)) < 1e-6);
+  const z = bigFrame(inp({ win: [60, 90] }), c).geo;
+  assert.ok(Math.abs(z.X(60) - z.L) < 1e-6 && Math.abs(z.X(90) - (z.w - z.R)) < 1e-6);
+  assert.ok(Math.abs(z.dayAt(z.X(75)) - 75) < 1e-6);
 });
