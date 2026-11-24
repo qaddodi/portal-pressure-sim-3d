@@ -344,3 +344,14 @@ test('"What to graph" rows: a tick circle before every name (filled when on, a r
   for (const sel of ['.bt-row .bt-name', '.bt-list .bt-what']) assert.ok(new RegExp(`${sel.replace(/\./g, '\\.')} \\{[^}]*var\\(--ui\\)`).test(css), `${sel} is Inter`);
   assert.ok(!/var\(--display\)[^}]*\/\* \(a name is serif/.test(css));
 });
+
+test('a phone sheet (390 px wide, about 358 inside) keeps the longest row name whole beside the tick, the line and the reading', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../src/ui/bigtime/bigtime.css', import.meta.url), 'utf8');
+  const m = /\.bt\[data-compact\] \.bt-row \{ grid-template-columns: 22px minmax\(0, 1fr\) (\d+)px (\d+)px; gap: (\d+)px;/.exec(css);
+  assert.ok(m, 'the phone row grid');
+  const room = 390 - 32 - 22 - Number(m![1]) - Number(m![2]) - 3 * Number(m![3]);
+  const { measure } = await import('../src/ui/charts/measure.ts');
+  const longest = Math.max(...MEASURES.map((x) => measure(x.name, 16, 600)));
+  assert.ok(longest <= room, `the longest name is ${Math.round(longest)} px in ${room}`);
+});

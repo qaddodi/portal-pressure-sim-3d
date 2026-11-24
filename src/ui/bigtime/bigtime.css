@@ -1,6 +1,6 @@
 /* The timeline chart's card (docs/approved/timeline-chart.md). The card is the shell's own sheet: its glass is the standard card glass (glass.css lists `.sh-sheet`), nothing blurs the figure
    behind it. Moves are opacity and transform only; nothing scrolls inside it. */
-.sh-sheet[data-kind="timeline"] { --bt-gap: clamp(14px, 1.6vw, 24px); z-index: 3; left: calc(var(--safe-l, 0px) + var(--bt-gap)); right: calc(var(--safe-r, 0px) + var(--bt-gap)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + var(--bt-gap)); bottom: calc(var(--bot-occ, 84px) + var(--bt-gap)); width: auto; max-width: 1340px; max-height: min(800px, 100%); margin: auto; }
+.sh-sheet[data-kind="timeline"] { --bt-gap: clamp(14px, 1.6vw, 24px); z-index: 3; left: calc(var(--safe-l, 0px) + var(--bt-gap)); right: calc(var(--safe-r, 0px) + var(--bt-gap)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + var(--bt-gap)); bottom: calc(var(--bot-occ, 0px) + var(--bt-gap)); width: auto; max-width: 1340px; max-height: min(800px, 100%); margin: auto; }
 /* the chart has its own zoom: the figure's zoom pill eases out while it is open */
 .app.bt-up .zoom-pill { opacity: 0; pointer-events: none; transition: opacity var(--d-small) var(--ease); }
 .sh-sheet[data-kind="timeline"] > .sh-sheet-body { flex: 1; min-height: 0; padding: 0; overflow: hidden; display: flex; }
@@ -16,7 +16,7 @@
 .bt-range button, .bt-acts button { padding: 0; border: 0; background: none; font: 500 var(--t-lab) / 1.2 var(--ui); color: var(--text-2); transition: color var(--d-small) var(--ease); }
 .bt-range button[data-idle] { color: var(--text-3); }
 .bt-plot { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; cursor: crosshair; outline: none; }
-.bt-plot:focus-visible, .bt-strip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.bt-plot:focus-visible, .bt-strip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-control); }
 .bt-strip { position: relative; flex: none; height: 34px; margin-top: 8px; overflow: hidden; touch-action: none; cursor: ew-resize; outline: none; }
 .bt-hint { margin: 2px 0 0; font: 400 var(--t-body) / 1.4 var(--ui); color: var(--text-2); }
 .bt-empty { margin: 18px 0; font: 400 var(--t-body) / 1.45 var(--ui); color: var(--text-2); } .bt-empty b { color: var(--text); font-weight: 600; }
@@ -83,5 +83,5 @@
   box-shadow: 0 -12px 40px -12px rgb(var(--shadow-rgb, 0 0 0) / 0.28); opacity: 0; visibility: hidden; transform: translateY(24px); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .bt[data-compact][data-raised] .bt-side { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
 .bt[data-compact] .bt-tabs { padding-bottom: 4px; }
-.bt[data-compact] .bt-row { grid-template-columns: 22px minmax(0, 1fr) 150px 64px; }
+.bt[data-compact] .bt-row { grid-template-columns: 22px minmax(0, 1fr) 92px 60px; gap: 8px; }   /* (a phone sheet is about 358 px: tick 22 + line 92 + reading 60 + three gaps leaves 160 for the longest name, Esophageal varix, at 16 px) */
 @media (pointer: coarse) { .bt-words button, .bt-pager button { min-height: 36px; } }

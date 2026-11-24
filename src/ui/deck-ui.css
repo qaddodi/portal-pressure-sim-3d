@@ -202,7 +202,7 @@
 .dk-tnone { display: block; text-align: center; color: var(--text-3); }
 .pz-table td.wave { padding-block: 2px; }
 .pz-table .dk-tfind { margin-top: .25em; }   /* (a row's finding: the quiet line under its name, the size of a `vs` line) */
-.pz-table td.wave .dk-wave { display: block; width: 100%; animation: dk-fade 0.6s ease-out both; }   /* (a trace eases in when it is drawn; baked, that is the card's first frame) */
+.pz-table td.wave .dk-wave { display: block; width: 100%; animation: dk-fade 0.6s ease-out both; }   /* (own pace: a trace eases in when it is drawn; baked, that is the card's first frame) */
 /* One line per case at EVERY width (docs/approved/comparison-table.md; Prehepatic review 1, 23 Nov 2026): the phone's grid rows were behind a media query, so a laptop took 2D's old wide table, with the group headings
    (REFERENCE, NO CIRRHOSIS...) over the names and a name column a third of the table. The grid is the table's own now: the name has the room its words need (`--dk-name`: the fewer value columns the wider),
    the value columns and the Doppler share the rest, and a case's finding is the small line under its name. No group heading anywhere. */
@@ -220,7 +220,7 @@
 .pz-tight .pz-table.dk-pztable .pz-foot { padding: .32em 1em .4em; }
 .pz-table.dk-pztable .tn { margin: 0; line-height: 1.15; overflow-wrap: normal; -webkit-hyphens: manual; hyphens: manual; }
 .deck-ui .pz-table.dk-pztable tbody tr th[scope="row"] .pz-kick { display: none; }
-.dk-tnone.dk-noflow { font: 500 max(12px, .72em) / 1.2 var(--ui, system-ui); letter-spacing: 0; }   /* (a flat trace says so in words, under its line) */
+.dk-tnone.dk-noflow { font: 500 max(var(--t-cap), .72em) / 1.2 var(--ui, system-ui); letter-spacing: 0; }   /* (a flat trace says so in words, under its line) */
 
 /* ── settings ── */
 .dk-settings { position: relative; }
@@ -404,4 +404,4 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 .pz[data-sideways] .pz-bar.phone .ib :is(svg, .ic) { width: 16px; height: 16px; }
 .pz[data-sideways] .pz-bar.phone button.pzb-n { min-width: 3.8em; min-height: 44px; margin-block: -6px; padding: 0 4px; font-size: var(--t-lab); font-variant-numeric: tabular-nums; }
 /* the credit, in the foot of the words' card (as the iPhone's, upright), one 12 px line centred; the floating one fades while a card stands on its row (Credit.tsx: footClear against the cards) */
-.deck-ui[data-sideways] .dk-card .pz-cred { display: block; position: absolute; left: 11px; right: 11px; bottom: 6px; text-align: center; font: 500 var(--t-cap)/17px var(--ui); letter-spacing: 0; white-space: nowrap; color: var(--text-3); pointer-events: none; user-select: none; }
+.deck-ui[data-sideways] .dk-card .pz-cred { display: block; position: absolute; left: 11px; right: 11px; bottom: calc(var(--sh-gap) * 0.75); text-align: center; font: 500 var(--t-cap)/1.42 var(--ui); letter-spacing: 0; white-space: nowrap; color: var(--text-3); pointer-events: none; user-select: none; }
