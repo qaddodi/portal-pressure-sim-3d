@@ -1,4 +1,5 @@
 // WP1: the organs are 2D's quiet wash: the copied --og-* tones, laid on the page at the organ layer's opacity, outlined in their own third tone, never black.
+import { PLACED } from '../src/scene/anatomy/source.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { pinned2D } from './two-d-pin.ts';
@@ -186,7 +187,9 @@ test('WP1b: the rim light (og-light on the upper left edge) is off on the liver 
   layer.applyLook(PALETTES.light); layer.update(0);
   for (const id of Object.keys(ORGAN_STYLE)) {
     const rim = layer.byId.get(id)!.toon.uniforms.rimK!.value;
-    if (['liver', 'caudate', 'stomach', 'duodenum'].includes(id)) assert.equal(rim, 0, id); else assert.ok(rim > 0, id);
+    // (re-pinned, placed only: the approved placement's caudate egg wears the liver's tones WITH the rim light, so it reads through the liver, round 15, layer.ts ORGAN_STYLE; the duodenum is the gut's tube with the gut's
+    //  rim, and by the cut its funnel takes the stomach's rimK, 0, through the look blend, organ-art.ts gutLook)
+    if (['liver', 'stomach', ...(PLACED ? [] : ['caudate', 'duodenum'])].includes(id)) assert.equal(rim, 0, id); else assert.ok(rim > 0, id);
   }
   layer.dispose();
 });
@@ -208,7 +211,12 @@ test('WP1b: the soft AO seat (.org-ao): round every plain organ at --og-ao under
   layer.applyLook(PALETTES.light); layer.update(0);
   assert.ok(layer.byId.get('heart-ra')!.toon.uniforms.shadeSteps!.value.x < 0.06, 'the atrium\'s inner shade is its own, faint');
   assert.equal(layer.byId.get('heart-ra')!.group.children.length, 2, 'no AO seat on the atrium');
-  assert.equal(layer.byId.get('bowel')!.group.children.length, 2, 'none on the gut');
+  // (re-pinned, placed only: the placed gut's parts carry a third child, the gut's depth pass (layer.ts 'organ gut depth'), which is not a seat; no gut part has the seat)
+  for (const id of PLACED ? ['stomach', 'duodenum', 'bowel', 'colon'] : ['bowel']) {
+    const kids = layer.byId.get(id)!.group.children as unknown as { material?: { name?: string } }[];
+    if (id !== 'stomach') assert.ok(!kids.some((c) => c.material?.name === 'organ seat'), `none on the gut (${id})`);
+    if (!PLACED) assert.equal(kids.length, 2, 'none on the gut');
+  }
   layer.dispose();
 });
 

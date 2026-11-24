@@ -44,7 +44,7 @@ export const ART_PX_PER_UNIT = 2;
 const MAX_SIDE = 2048;
 /** The right edge of what counts as esophagus beside the cardia (2D's esophagus outline ends at x 813): left of it, above the seam, the esophagus's own tone shows. */
 const ESO_RIGHT_MARGIN = 3;
-/** Placed: how far (2D units) left of that edge the esophagus's tone starts to give way to the stomach's (esoAttributes). */
+/** Placed: over how many 2D units right of the esophagus's outline its tone gives way to the stomach's (esoAttributes): whole up to the outline, as 2D's, then a ramp, never a cut. */
 const ESO_RIGHT_SOFT = 8;
 
 /** The stomach's own box (2D's stomach outline, without the oesophagus), in the scene, where the stomach is (placed-map.ts). */
@@ -76,8 +76,8 @@ export function esoAttributes(g: BufferGeometry, eso: ArtData['eso'], m: PlaneMa
   const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
   for (let i = 0; i < n; i++) {
     const x = unmapX(m, pos.getX(i)) * UNITS_PER_SCENE + 700, y = 556 - unmapY(m, pos.getY(i)) * UNITS_PER_SCENE;   // (the place on the 2D figure: the placed stomach is moved, placed-map.ts)
-    // (placed: the oesophagus's right edge comes in over ESO_RIGHT_SOFT units, not as a cut at `right`: the placed stomach's surface runs on past it there, and the cut laid a step of its tone across the cardia)
-    const side = PLACED ? 1 - smooth01((x - (right - ESO_RIGHT_SOFT)) / ESO_RIGHT_SOFT) : x < right ? 1 : 0;
+    // (placed: the oesophagus's right edge gives way over ESO_RIGHT_SOFT units from its outline, not as a cut at `right`: the placed stomach's surface runs on past it there, and the cut laid a step of its tone across the cardia)
+    const side = PLACED ? 1 - smooth01((x - (right - ESO_RIGHT_MARGIN)) / ESO_RIGHT_SOFT) : x < right ? 1 : 0;
     a[i] = side * clamp01((s1 - y) / (s1 - s0));
     b[i] = clamp01((y - f1) / (f0 - f1));
   }
