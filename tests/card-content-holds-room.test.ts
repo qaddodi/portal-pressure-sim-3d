@@ -101,3 +101,9 @@ test('the settle wait is declared before the gate that reads it (a use before it
   assert.match(layer, /\(measured \|\| late === pagesKey\)/);
   assert.match(layer, /clock\.after\(\(\) => setLate\(pagesKey\), GIVE_UP_CARDS_MS\)/);
 });
+
+test('a control row of the action card is one column by specificity, whichever stylesheet loads last (a lone slider filled half the card)', () => {
+  const css = read('src/ui/action/action.css');
+  assert.match(css, /\n\.ac-card \.ac-cs \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+  assert.match(read('src/ui/css2d/app-03-layouts.css'), /\.ac-cs \{ display: grid; grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/, 'the lifted 2D rule that the specific one outranks');
+});

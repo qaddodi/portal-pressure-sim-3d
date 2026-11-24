@@ -74,6 +74,7 @@
 .ac-about { font-size: var(--t-cap); line-height: 1.45; color: var(--text-2); } .ac-about p { margin: 0 0 4px; } .ac-about p:last-child { margin-bottom: 0; } .ac-about p + p { color: var(--text); }
 /* the controls: one to a row, each its icon, its word and its value over a slider, a meter or a switch */
 .ac-cs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: auto; }
+.ac-card .ac-cs { grid-template-columns: minmax(0, 1fr); }   /* (one control to a row by specificity, not by which stylesheet loaded last: the lifted 2D sheet's two-column `.ac-cs` won when the sheets came in another order, and a lone slider filled half the card, 24 Nov) */
 .ac-card[data-bottom][data-device="phone-landscape"] .ac-cs, .ac-card[data-bottom]:not([data-device="phone-portrait"]) .ac-cs { grid-template-columns: minmax(0, 1fr); }
 .ac-c { display: flex; flex-direction: column; gap: 6px; min-width: 0; position: relative; }
 .ac-c .ctl-top { display: flex; align-items: center; gap: 6px; height: 16px; min-width: 0; font-size: var(--t-lab); color: var(--text-2); white-space: nowrap; }
