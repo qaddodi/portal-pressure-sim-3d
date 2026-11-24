@@ -222,3 +222,19 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 /* A data tile's number, its rating's words and the callout labels on the figure are proportional: a tabular "1" is a cell wider than its ink ("1 00 /min", "Below 1 2 mmHg", "Fundal varices 21 .2"), capture cfd1b272. Important: the lifted sheet's `* { tabular-nums !important }`. */
 .deck-ui.pz .pz-data .pz-tile :is(.pzt-v, .pzt-r, .pzt-d, .pzt-bar), .deck-ui.pz .pz-data .pz-tile :is(.pzt-v, .pzt-r, .pzt-d, .pzt-bar) * { font-variant-numeric: lining-nums proportional-nums !important; }
 .cl.cl, .cl.cl * { font-variant-numeric: lining-nums proportional-nums !important; }
+
+/* ── Digits are proportional unless a column or a live counter needs them still (24 Nov 2026, captures a47f69ea, cfd1b272: "1 00", "Below 1 2", "21 .2") ──
+   The lifted sheet ends with `*, *::before, *::after { font-variant-numeric: tabular-nums lining-nums !important }` (app-11-deck-visuals.css, never edited), so every
+   element was tabular and each new reading class had to be found, one capture at a time, and set proportional again (a tabular "1" is a cell wider than its ink).
+   This sheet loads after it, so the same universal rule here, proportional, wins at equal weight; the list after it is the only place a figure is held to a cell:
+   a column that must line up (tables, key-value rows, a legend's numbers) or a number that counts or ticks in place (clocks, slide counter, speed, Doppler velocity,
+   chart axes). A plain `font-variant-numeric: tabular-nums` in any other rule is dead against the `!important` here; tests/numbers-proportional.test.ts pins it. */
+*, *::before, *::after { font-variant-numeric: lining-nums proportional-nums !important; font-feature-settings: 'cv11', 'ss01' !important; }
+:where(.pz-lapse, .tl-speed, .stage-clock, .fps-counter, .tr-pips, .pzb-n, .dop-vel, .dop-stats dd, .endo-num, .lg-num, .lg-scale, .dop-ticks, .um-m,
+  .ab-big > b, .pt-num, .pt-delta, .ac-num, .ac-stats, .ctl-val, .metric .val, .metric .v, .vital b, .hist-head .when, .sh-count, .dk-jump-list .n, .pzj-list .n,
+  .pz-prail-n, .boot-pct, .pv-clock, .text-size button, .cmp-table td, .kv dd, .hvpg-kv dd, .why-row .val, .pzi-v, .pzv, .tr-rs, .pzk-axis,
+  .dk-outline ol li::before, .dk-chk-q::before, .pzc-q::before, .pz-outline ol li::before),
+:where(.pz-lapse, .tl-speed, .stage-clock, .fps-counter, .tr-pips, .pzb-n, .dop-vel, .dop-stats dd, .endo-num, .lg-num, .lg-scale, .dop-ticks, .um-m,
+  .ab-big > b, .pt-num, .pt-delta, .ac-num, .ac-stats, .ctl-val, .metric .val, .metric .v, .vital b, .hist-head .when, .sh-count, .dk-jump-list .n, .pzj-list .n,
+  .pz-prail-n, .boot-pct, .pv-clock, .text-size button, .cmp-table td, .kv dd, .hvpg-kv dd, .why-row .val, .pzi-v, .pzv, .tr-rs, .pzk-axis,
+  .dk-outline ol li::before, .dk-chk-q::before, .pzc-q::before, .pz-outline ol li::before) * { font-variant-numeric: lining-nums tabular-nums !important; }
