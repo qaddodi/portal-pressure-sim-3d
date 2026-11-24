@@ -83,11 +83,26 @@ export function mountAudit(mode: 'here' | 'run'): void {
   sel.title = hintOf(speed); sel.style.cssText = 'font:inherit;color:inherit;opacity:.6;background:transparent;border:0;text-align:right;text-align-last:right;max-width:60%';
   sel.onchange = () => { speed = Number(sel.value); sel.title = hintOf(speed); };
   const speedRow = document.createElement('label'); speedRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;min-height:40px;border-bottom:1px solid rgba(255,255,255,.18)'; speedRow.append('Speed', sel);
+  // Animations: Skip lands every slide on its settled end state at once (the page clock runs SKIP_SPEED times faster, so a glide or a fade is one frame); Play keeps the speed above.
+  const SKIP_SPEED = 300; let skip = true;
+  const animSel = document.createElement('select'); animSel.setAttribute('aria-label', 'Animations during a capture'); animSel.title = 'Skip: every slide lands on its finished state at once, no animating into it. Play: the speed above.';
+  for (const [v, t] of [['skip', 'Skipped'], ['play', 'Played']] as const) { const o = document.createElement('option'); o.value = v; o.textContent = t; animSel.append(o); }
+  animSel.style.cssText = sel.style.cssText; animSel.onchange = () => { skip = animSel.value === 'skip'; };
+  const animRow = document.createElement('label'); animRow.style.cssText = speedRow.style.cssText; animRow.append('Animations', animSel);
   const btn = (label: string, on: () => void) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = on; row.append(b); return b; };
   const copy = (t: string, what: string) => { navigator.clipboard?.writeText(t).then(() => { status.textContent = `${what} copied (${t.length.toLocaleString('en-US')} characters).`; }, () => { out.hidden = false; out.textContent = t; status.textContent = 'The browser would not copy: select the text below.'; }); };
+  // While a run is going the sheet steps aside: the form and the title fade out (eased), leaving the status, the bar, the percent and Stop.
+  const body = document.createElement('div'), fadeBits = [head, body]; let fadeT: ReturnType<typeof clock.after> | null = null;
+  for (const e of fadeBits) e.style.transition = 'opacity .2s ease';
+  const setRunning = (on: boolean) => {
+    if (mode !== 'here') return;
+    if (fadeT !== null) { clock.cancel(fadeT); fadeT = null; }
+    if (on) { for (const e of fadeBits) { e.style.opacity = '0'; e.style.pointerEvents = 'none'; } fadeT = clock.after(() => { for (const e of fadeBits) e.hidden = true; fadeT = null; }, 220); }
+    else { for (const e of fadeBits) { e.hidden = false; e.style.pointerEvents = ''; } fadeT = clock.after(() => { for (const e of fadeBits) e.style.opacity = '1'; fadeT = null; }, 30); }
+  };
   const go = async (depth: 'quick' | 'full') => {
     const saveSoFar = (d: AuditData) => { last = bundle([d], depth); if (mode === 'run') post({ audit: 'partial', data: d }); };
-    if (running) return; running = true; sel.disabled = true; stop = false; capStop.hidden = false; capStop.disabled = false; out.hidden = true; status.textContent = 'Starting…'; startedAt = clock.now(); bar.value = 0; bar.hidden = false; pctLine.hidden = false; pctLine.textContent = 'counting the steps…';
+    if (running) return; running = true; sel.disabled = true; setRunning(true); stop = false; capStop.hidden = false; capStop.disabled = false; out.hidden = true; status.textContent = 'Starting…'; startedAt = clock.now(); bar.value = 0; bar.hidden = false; pctLine.hidden = false; pctLine.textContent = 'counting the steps…';
     try {
       const data = await runHere(depth, { partial: saveSoFar, status: (s) => { status.textContent = s; }, stop: () => stop, step: (n, label, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; if (mode === 'run') post({ audit: 'progress', n, label, total: pc.total }); } }, mode === 'here' ? speed : undefined);
       bar.value = 100; pctLine.textContent = pace(data.rows.length, data.rows.length, startedAt, clock.now(), true).text;
@@ -95,7 +110,7 @@ export function mountAudit(mode: 'here' | 'run'): void {
       out.textContent = renderText(last, { short: true }); out.hidden = false;
       status.textContent = `Done: ${data.rows.length} steps in ${Math.round(data.ms / 1000)} s${data.stopped ? ' (stopped early)' : ''}. Copy the report.`;
       if (mode === 'run') post({ audit: 'done', data });
-    } catch (e) { const why = String((e as Error)?.message ?? e); status.textContent = `The audit failed: ${why}`; if (mode === 'run') post({ audit: 'failed', why }); } finally { running = false; sel.disabled = false; capStop.hidden = true; }
+    } catch (e) { const why = String((e as Error)?.message ?? e); status.textContent = `The audit failed: ${why}`; if (mode === 'run') post({ audit: 'failed', why }); } finally { running = false; sel.disabled = false; capStop.hidden = true; setRunning(false); }
   };
   // Capture all decks: every slide of every talk through the Capture pipeline, then one zip and a contact sheet per talk. The save buttons come when it ends (the share sheet needs a fresh tap).
   let cap: import('./capture-all.ts').AllResult | null = null;
@@ -110,14 +125,14 @@ export function mountAudit(mode: 'here' | 'run'): void {
     if (running) return;
     const sel = picker.read();
     if (sel.none) { status.textContent = 'Tick at least one talk first.'; return; }
-    running = true; stop = false; cap = null; saveRow.hidden = true; capStop.hidden = false; capStop.disabled = false; out.hidden = true; bar.value = 0; bar.hidden = false; pctLine.hidden = false; startedAt = clock.now(); status.textContent = 'Capturing every slide… keep this tab in front.'; pctLine.textContent = 'counting the slides…';
+    running = true; setRunning(true); stop = false; cap = null; saveRow.hidden = true; capStop.hidden = false; capStop.disabled = false; out.hidden = true; bar.value = 0; bar.hidden = false; pctLine.hidden = false; startedAt = clock.now(); status.textContent = 'Capturing every slide… keep this tab in front.'; pctLine.textContent = 'counting the slides…';
     try {
       const m = await import('./capture-all.ts');
-      cap = await m.captureAllDecks({ decks: sel.decks ? new Set(sel.decks) : null, pick: sel.pick ? new Set(sel.pick) : null, speed: speed > 1 ? speed : undefined, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
+      cap = await m.captureAllDecks({ decks: sel.decks ? new Set(sel.decks) : null, pick: sel.pick ? new Set(sel.pick) : null, speed: skip ? SKIP_SPEED : speed > 1 ? speed : undefined, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
       bar.value = 100;
       status.textContent = `${cap.stopped ? 'Stopped. ' : 'Done in ' + cap.secs + ' s. '}${cap.shots} slides from ${cap.decks} talks (${cap.perSlide.waitMs + cap.perSlide.drawMs} ms a slide at ${cap.speed}x), one contact sheet per talk. Tap Save zip.${cap.notes.length ? ` Notes: ${cap.notes.join('; ')}` : ''}`;
       saveRow.hidden = false;
-    } catch (e) { status.textContent = `Capture failed: ${String((e as Error)?.message ?? e)}`; } finally { running = false; capStop.hidden = true; }
+    } catch (e) { status.textContent = `Capture failed: ${String((e as Error)?.message ?? e)}`; } finally { running = false; capStop.hidden = true; setRunning(false); }
   };
   const saveBtn = (label: string, files: () => File[] | null) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (label === 'Save zip') b.className = 'au-primary'; b.onclick = () => { const f = files(); if (f) void saveFiles(f); }; saveRow.append(b); };
   saveBtn('Save zip', () => (cap ? [new File([cap.zip], cap.zipName, { type: 'application/zip' })] : null));
@@ -132,7 +147,8 @@ export function mountAudit(mode: 'here' | 'run'): void {
     cmds.append(lab); link('Run full', () => { void go('full'); }, cmds); link('Run quick', () => { void go('quick'); }, cmds);
     const more = link('Copy report  ›', () => { copies.hidden = !copies.hidden; }, cmds); more.style.cssText = 'margin:0 0 0 auto';
     copyRow();
-    root.append(head, status, bar, pctLine, capStop, picker.el, speedRow, capBtn, cmds, copies, saveRow, out);
+    body.append(picker.el, speedRow, animRow, capBtn, cmds, copies);
+    root.append(head, status, bar, pctLine, capStop, body, saveRow, out);
   } else {
     btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });
     root.append(head, status, bar, pctLine, row, saveRow, out);

@@ -14,3 +14,5 @@ Traits (keep every one), top to bottom, in `src/ui/debug/audit/page.ts` (`?audit
 
 Fonts unchanged; no chips, pills or badges. Rejected: B (tabs), C (three numbered steps).
 Progress counts only the chosen sample; Save zip opens the share sheet inside the tap (`capture/save-files.ts`).
+
+24 Nov follow-ups (Mohammad): during a run the sheet steps aside (title and form fade out over 0.2 s, leaving status, bar, percent and Stop); a Capture-only "Animations: Skipped / Played" row (default Skipped) runs the clock at 300x so every glide and fade lands in one frame and the slide is photographed on its settled state (the settle waits are unchanged).

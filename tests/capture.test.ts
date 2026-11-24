@@ -333,3 +333,10 @@ test('the page walk multiplies every size by the CSS zoom it lives under (a card
 test('the counter walk counts a step made on an element\'s ::before (the ordered criteria list read 0, 0, 0 in a capture)', () => {
   assert.match(src('src/ui/capture/capture-dom.ts'), /for \(const pseudo of \[undefined, '::before'/);
 });
+
+test('the audit sheet steps aside during a run (title and form fade out, strip stays) and Animations: Skipped runs the capture at a clock scale where every ease lands in one frame', () => {
+  const page = src('src/ui/debug/audit/page.ts');
+  assert.match(page, /const setRunning = /); assert.match(page, /setRunning\(true\)/); assert.match(page, /setRunning\(false\)/); assert.match(page, /transition = 'opacity \.2s ease'/);
+  const m = page.match(/const SKIP_SPEED = (\d+)/); assert.ok(m && Number(m[1]) * 16 >= 3000, 'one 16 ms frame is at least 3 s of page time, the longest glide');
+  assert.match(page, /speed: skip \? SKIP_SPEED/);
+});
