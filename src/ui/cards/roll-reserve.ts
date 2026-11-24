@@ -45,3 +45,12 @@ export function reserveOf(text: string, key?: string, whole = false, still = fal
   const body = text.replace(/[-−]/g, '').replace(/(^|[^\d.,])(\d+)/g, (_m, pre: string, d: string) => `${pre}${'0'.repeat(Math.max(least, d.length))}`).replace(/\d/g, '0');
   return `${/^[-−]/.test(text) ? MINUS : slot}${body}`;
 }
+
+/** The texts a reading's box has to hold when every one of them is known (`seen`: the values it takes on this slide, a time-lapse's days among them): the box is as wide as the widest of THEM, measured as they stand, so the
+ *  digits can be proportional and a "1" takes the room of a "1", not of a "0" ("1 6.8 mmHg", "11.1  mmHg": a tabular "1" is a cell 0.2 em wider than its ink, and the zeros of the sizer stood wider than the shown digits, Precipitants 3, capture 6ec6d323).
+ *  `undefined` where the values are not all known (a slider can reach any): the box then holds its zero-filled reserve, as before. */
+export function altsOf(text: string, still = false, opts: ReserveOpts = {}): string[] | undefined {
+  if (still || text === VALUE_PENDING || !opts.seen?.length) return undefined;
+  const all = [...new Set([text, ...opts.seen])].filter((t) => t !== VALUE_PENDING);
+  return all.length ? all : undefined;
+}

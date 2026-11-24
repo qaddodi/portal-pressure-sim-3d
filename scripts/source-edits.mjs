@@ -198,6 +198,41 @@ export const REVIEWER_24NOV_C = [
   P('ascites', 'slides.tips.line', 'and here the ascites resolves over weeks.', 'and here the ascites falls over weeks to {asc}.'),
 ];
 
+/** The reviewer's fourth report (build 45948199, 24 Nov 2026): the measurement wording, tables that show each treatment against the state before it, plain names for the model's own index, and the wording of the TIPS timing, terlipressin and albumin claims. */
+export const REVIEWER_24NOV_E = [
+  // Measuring HVPG and PPG 6: how the wedge is read (stable tracing, last 20 to 30 s, triplicate) and that the drawn tracing is shortened
+  SET('hvpg', 'slides.wedge.line', 'Balloon inflation stops flow, so the static column of blood equilibrates with the pressure of the upstream sinusoids. Record it once the tracing is stable, after ≥1 minute, from its last 20 to 30 seconds, in triplicate. The tracing drawn here is time-compressed.'),
+  // Kidney 12: the APP table shows what sets it (MAP, IAP, APP), each row against the state before it
+  SET('kidney', 'slides.summary.cols', ['map', 'iap', 'rpp']),
+  SET('kidney', 'slides.summary.of.1', { id: 'tense', kicker: 'Tense ascites', title: 'Four months off diuretics', vs: 'arteries' }),
+  SET('kidney', 'slides.summary.of.2', { id: 'tap', kicker: 'LVP', title: 'Paracentesis with albumin', vs: 'tense' }),
+  SET('kidney', 'slides.summary.of.3', { id: 'carv', kicker: 'Drug', title: 'Carvedilol', vs: 'arteries' }),
+  SET('kidney', 'slides.summary.of.4', { id: 'hold', kicker: 'Hemorrhage', title: 'Large hemorrhage on carvedilol', vs: 'carv' }),
+  SET('kidney', 'slides.summary.of.5', { id: 'terli', kicker: 'HRS-AKI', title: 'Terlipressin and albumin', vs: 'hold' }),
+  SET('kidney', 'slides.summary.line', 'The MAP and the IAP set the APP (MAP − IAP). Each row is compared with the state named under it: large-volume paracentesis and terlipressin raise the APP; carvedilol and hemorrhage lower it.'),
+  // Albumin 13: each scenario against its own starting point; long-term albumin only for selected patients
+  SET('albumin', 'slides.summary.of.1', { id: 'tap', kicker: 'LVP', title: 'Paracentesis with albumin', vs: 'ind' }),
+  SET('albumin', 'slides.summary.of.2', { id: 'long', kicker: 'Long term', title: 'Long-term albumin, 8 weeks', vs: 'ind' }),
+  SET('albumin', 'slides.summary.of.3', { id: 'terli', kicker: 'HRS-AKI', title: 'Terlipressin', ref: true }),
+  SET('albumin', 'slides.summary.of.4', { id: 'terli-alb', kicker: 'HRS-AKI', title: 'Terlipressin and one infusion', vs: 'terli' }),
+  SET('albumin', 'slides.summary.of.5', { id: 'more', kicker: 'HRS-AKI', title: 'Three infusions', vs: 'terli-alb' }),
+  SET('albumin', 'slides.summary.line', 'Albumin protects the circulation after LVP, may improve ascites control in selected patients who cannot have a TIPS, and goes with terlipressin in HRS-AKI. More volume raises the portal pressure. Each row is compared with the row named under it.'),
+  // Circuit 6: only the cirrhotic patient is plotted, so the title says what the plot shows
+  SET('circuit', 'slides.both.title', 'In cirrhosis a meal raises the gradient and the flow'),
+  SET('circuit', 'slides.both.line', 'The gradient rises although the flow rises only modestly, because the extra flow now crosses a higher resistance. Only this patient, with cirrhosis, is plotted.'),
+  // Choose the treatment 5 and 6: anticoagulation does not stop at recanalization
+  SET('choose-treatment', 'slides.a3-lumen.line', 'In cross-section, the thrombus that occluded >50% of the lumen has resolved. Anticoagulation continues after recanalization while the prothrombotic cause persists, with follow-up imaging to decide the rest.'),
+  // Same gradient 4 and 6: the model's own resistance and its own index
+  SET('same-gradient', 'slides.flow.line', 'In another patient with CSPH, the portal vein carries {pvFlow}, against {pvFlow@ref} in the first. The HVPG is {hvpg}: the same pressure drop across more flow means the model\'s sinusoidal resistance (gradient ÷ flow) is lower.'),
+  SET('same-gradient', 'slides.cost.line', 'The varices are {varix} and the platelets {plt}, better than in the first man. The liver gets {liver} of its normal flow, and the model\'s HE index (0 to 1) is in its high range.'),
+  // Lowering portal pressure 7: terlipressin in HRS-AKI goes with albumin; in variceal bleeding it is given without albumin as part of that regimen
+  SET('treatment', 'slides.terli.line', 'Terlipressin, a vasopressin analog, constricts the splanchnic arterioles, so portal inflow falls to {pvFlow}. In HRS-AKI it is given with albumin, and the abdominal perfusion pressure (APP) rises to {rpp}. In an acute variceal bleed it is given for the bleed itself, and albumin is not part of that regimen.'),
+  // Collaterals and varices 9: a rescue TIPS and a preemptive TIPS are two different indications
+  SET('varices', 'slides.secondary.line', 'After an acute variceal bleed the first-line treatment is an NSBB with band ligation, repeated until the varices are gone. A TIPS has two separate indications: a rebleed despite both (rescue), and a high-risk bleed at presentation, when a preemptive TIPS within 72 hours, ideally 24, is advised (Baveno VIII).'),
+  // Preventing the next variceal bleed 2
+  P('next-bleed', 'slides.after.line', 'up to 60% rebleed within a year, most within 6 weeks.', 'up to 60% rebleed within a year, and the risk is highest in the first 6 weeks.'),
+];
+
 /** The reviewer's reports on build 3252079e, rounds 4 and 5 (24 Nov 2026): the bridge is the covered stent first, endoscopy follows resuscitation, tables carry a decision and a purpose per row and compare each row with its own scenario, one baseline number, the SAAG's two albumins, ascites that is stable says so. */
 export const REVIEWER_24NOV_D = [
   // Resuscitating an acute variceal bleed 15: the preferred bridge (Baveno VIII 5.35), balloon tamponade the fallback
@@ -245,6 +280,12 @@ export const REVIEWER_24NOV_D = [
   // Ascites 7: both albumins from the same sampling, the SAAG as supporting portal hypertensive physiology, the protein as the cardiac pointer
   SET('ascites', 'slides.saag.line', 'On one diagnostic paracentesis the serum albumin is {salb} and the ascitic albumin {aalb}, so the serum–ascites albumin gradient (SAAG) is {saag}. A SAAG ≥1.1 g/dL supports portal hypertensive physiology as the cause, and the ascitic total protein ({tp}) helps tell cirrhotic ascites from cardiac.'),
   SET('ascites', 'slides.saag.title', 'A SAAG ≥1.1 g/dL supports portal hypertension as the cause'),
+];
+
+/** Capture 6ec6d323 (24 Nov 2026): the words match what the figure draws. */
+export const CAPTURE_6EC6D323 = [
+  // Stiffness 5: the normal spleen's line is thin and solid in 3D, not dashed
+  P('stiffness', 'slides.spleen.line', 'The dashed outline is a normal spleen.', 'The thin outline is a normal spleen.'),
 ];
 
 export const SOURCE_PATCHES = [
@@ -356,6 +397,8 @@ export const SOURCE_PATCHES = [
   ...REVIEWER_24NOV_B,
   ...REVIEWER_24NOV_C,
   ...REVIEWER_24NOV_D,
+  ...REVIEWER_24NOV_E,
+  ...CAPTURE_6EC6D323,
 ];
 
 function step(node, key) {
@@ -417,7 +460,11 @@ const UI_EDITS = [
   ["\"Grade 1\"\n", "\"Small\"\n"],
   ["\"Grade 2 or 3\"\n", "\"Moderate or large\"\n"],
   [", varix: 'Varix', gv: 'Fundal',", ", varix: 'Esophageal varix', gv: 'Fundal varix',"],   // (two varices in one table: each header names its site; Gastric varices 13, reviewer 24 Nov 2026)
-  ["n: 'HE risk index'", "n: 'Model HE index'"],   // (the model's own index, said so: Encephalopathy 8, reviewer 24 Nov 2026)
+  ["n: 'HE risk index'", "n: 'Model HE index'"],
+  ["he: { t: 'Encephalopathy risk', n: 'Model HE index'", "he: { t: 'Model HE index', n: 'Model HE index'"],   // (the reading's own name too: "Model HE index, 0–1", never a clinical-sounding "risk"; reviewer 24 Nov 2026, Same gradient 6)
+  ["he: 'HE risk'", "he: 'Model HE index'"],
+  [", rpp: 'APP',", ", rpp: 'APP', iap: 'IAP',"],   // (Kidney 12: the abdominal perfusion pressure table shows MAP, IAP and APP)
+  [" rpp: 0, hr: 0,", " rpp: 0, iap: 1, hr: 0,"],   // (the model's own index, said so: Encephalopathy 8, reviewer 24 Nov 2026)
   ["tup('mid', 'Borderline')", "tup('mid', 'Likely cACLD')"],   // (an LSM of 15 to 25 kPa makes cACLD highly likely, Baveno VIII 1.3; "Borderline" did not say what; the reviewer, 24 Nov 2026)
   ["lsm: { t: 'Liver stiffness', n: 'Stiffness',", "lsm: { t: 'Liver stiffness', n: 'Liver stiffness',"],
   ["lsm: '↑ 10 to 25, ↑↑ ≥25 kPa'", "lsm: '↑ 10 to 25, ↑↑ ≥25 kPa (rules in CSPH; in MASLD only with BMI <30)'"],   // (an LSM of 10 to 15 kPa suggests cACLD, Baveno VIII 1.3; the reviewer, 24 Nov 2026)

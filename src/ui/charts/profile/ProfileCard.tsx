@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { readMetric, readStyle } from '../../layout-snap.ts';
 import { clock } from '../../../clock/frame.ts';
 import { Chart, type ChartCtx } from '../Chart.tsx';
 import type { ChartPainter } from '../painter.ts';
@@ -47,6 +48,14 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
   const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null), plan = useRef<ProfilePlan | null>(null), planKey = useRef('');
   const loop = useRef<{ off(): void; hold: { release(): void } } | null>(null);
   const cellKey = cell ? `${cell.chCap ?? ''}|${cell.lad ?? ''}` : '';
+  // The card's title is dropped (`.pz-dh.off`, TilesCard): the chart is as much taller as the title and its gap stood, so the card keeps its height (24 Nov).
+  const root = useRef<HTMLDivElement>(null);
+  const [freed, setFreed] = useState(0);
+  useLayoutEffect(() => {
+    const head = cell ? null : root.current?.closest('.pz-data')?.querySelector<HTMLElement>('.pz-dh.off');
+    const n = head?.parentElement ? Math.round(readMetric(head, 'offsetHeight') + (parseFloat(readStyle(head.parentElement).rowGap) || 0)) : 0;
+    setFreed((was) => (was === n ? was : n));
+  });
 
   const wantRef = useRef<number | undefined>(undefined);   // (the height the chart wants when its room holds it shorter: every frame of its motion carries it)
   const draw = (now: number) => {
@@ -74,7 +83,7 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
     // (the box this layout gives the ladder, as 2D's CSS does; a cell of the six ladders has its own, and an explicit height wins)
     // (`base` is what the chart WANTS: the screen's table height (layout/card-size.ts; a phone on its side keeps 2D's own); `own` what its card's room gives it: held down to the room, never grown into what the words leave over)
     const vp = useUi.getState().vp, lay = layoutOf(vp.w, vp.h), side = isSideways(vp.w, vp.h);
-    const base = height ?? (cell ? undefined : tableH() ?? layoutHeight(c.w, f, lay, side, pzhOf(vp)));
+    const base0 = height ?? (cell ? undefined : tableH() ?? layoutHeight(c.w, f, lay, side, pzhOf(vp))), base = base0 == null || height != null ? base0 : base0 + freed;
     const own = height ?? (cell ? undefined : heldToRoom(base, room, f));
     const key = [c.w, f, own ?? '', cellKey, spans.map(([k]) => k).join(), fromLabel, inp.goal.v.join(), inp.goal.hvpg, inp.goal.ppg, inp.goal.eus, inp.goal.top, inp.hl?.v.join() ?? '', inp.bf?.v.join() ?? ''].join('|');
     if (key !== planKey.current) {
@@ -100,8 +109,8 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
 
   if (!inp) return null;
   return (
-    <div className="pz-prof">
-      <Chart tag="chart:profile" glide={false} painter={painter} deps={[inp, spans, fromLabel, hold, height, room, cellKey, vpNow.w, vpNow.h]} label={profileWords(inp.goal, spans)} build={build} />
+    <div className="pz-prof" ref={root}>
+      <Chart tag="chart:profile" glide={false} painter={painter} deps={[inp, spans, fromLabel, hold, height, room, cellKey, freed, vpNow.w, vpNow.h]} label={profileWords(inp.goal, spans)} build={build} />
     </div>
   );
 }

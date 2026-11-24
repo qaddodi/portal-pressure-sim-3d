@@ -11,3 +11,5 @@ export function readTextRects(node: Text, from: number, to: number): DOMRect[] {
   range.setStart(node, from); range.setEnd(node, to);
   return [...range.getClientRects()];
 }
+/** A layout metric of an element in layout px (offsetHeight, clientWidth, …): the size before any transform, as the card's own fit zoom leaves it. */
+export const readMetric = (el: HTMLElement, k: 'offsetHeight' | 'offsetWidth' | 'clientHeight' | 'clientWidth'): number => el[k];

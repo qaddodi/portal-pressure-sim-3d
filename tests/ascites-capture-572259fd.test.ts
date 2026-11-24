@@ -14,7 +14,7 @@ test('the refilling balance joins its number and unit, so it breaks only after "
 });
 
 test('a stopped time-lapse counter is set in proportional digits', () => {
-  assert.match(css3('css3d-over-2d.css'), /\.pz-lapse\.done\s*\{[^}]*proportional-nums/);
+  assert.match(css3('css3d-over-2d.css'), /\.pz-lapse\.done(\.pz-lapse\.done)?[^{]*\{[^}]*proportional-nums/);
 });
 
 test('the capture waits for the engine\'s morph (a paracentesis slide\'s gauge read 5.9 on every step until it ended)', () => {

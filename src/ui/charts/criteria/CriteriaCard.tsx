@@ -21,7 +21,7 @@ function Cut({ r }: { r: Row }) {
 function End({ r, ticks, fp }: { r: Row; ticks: boolean; fp: Fingerprint | null | undefined }) {
   if (r.key) {
     const t = criteriaReading(r, fp);
-    return <span className="pzc-end"><span className="pzc-v">{t}</span>{ticks ? <span className="pzc-m" aria-hidden="true"><i className="y">meets it ✓</i><i className="n">not met</i></span> : null}</span>;
+    return <span className="pzc-end"><span className="pzc-v">{t}</span>{ticks ? <span className="pzc-m" aria-hidden="true"><i className="y">{r.says ? `${r.says} met ✓` : 'meets it ✓'}</i><i className="n">{r.says ? `${r.says} not met` : 'not met'}</i></span> : null}</span>;
   }
   if (!r.note) return <span className="pzc-end" />;
   const sub = r.met === true ? <span className="pzc-m"><i className="y">meets it ✓</i></span> : r.met === false ? <span className="pzc-m"><i className="n">not met</i></span> : null;

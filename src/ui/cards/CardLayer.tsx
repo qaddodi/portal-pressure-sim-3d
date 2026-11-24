@@ -34,6 +34,7 @@ import { mergeStates } from '../charts/baked/view.ts';
 import { inputsIn, wordsStateIndex, GIVE_UP_MS } from './inputs-in.ts';
 import { tokensOf } from '../text/tokens.ts';
 import { Strip } from '../wallet/Strip.tsx';
+import { lapseCanSkip } from '../deck/lapse-next.ts';
 import { procCanStep } from '../deck/proc-step.ts';
 import { toolCanStep } from '../talk/tool-step.ts';
 import { useCardDrag, justDragged } from './useCardDrag.ts';
@@ -281,7 +282,9 @@ export function CardLayer({ deck }: { deck: Deck }) {
     if (m === 'next' && atEnd(useUi.getState())) finishTalk(); else move(m);
   };
   // a slide whose Next is a step (a procedure, the HVPG readings): its swipes only step; no card moves, vertically either
-  const steppedSlide = () => procCanStep(1) || procCanStep(-1) || toolCanStep(1) || toolCanStep(-1);
+  const steppedSlide = () => procCanStep(1) || procCanStep(-1) || toolCanStep(1) || toolCanStep(-1) || lapseCanSkip();
+  // every in-slide step the presenter's move takes before it moves the talk: a lapse's days, a card page, a procedure's step, a reading
+  const stepsHere = (dx: number) => { const d = dx < 0 ? 1 : -1, at = Math.min(page === 'last' ? pages - 1 : page, pages - 1); return lapseCanSkip() && d > 0 || (d > 0 ? at < pages - 1 : at > 0) || procCanStep(d) || toolCanStep(d); };
   // 2D's dock (ui/cards/dock.ts): on a phone or an upright iPad with both cards up, a push up anywhere on the slide slides the instrument card away to its handle, following the finger; a pull down
   // anywhere brings it back; a tap on its handle too
   // (a phone on its side: the two cards are one column on the left; the same swipe slides BOTH up until the instrument is in the middle, a swipe down brings the words back, and a tap on the card that peeks
@@ -306,7 +309,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     // the data card the next slide keeps (same key) stays put under a drag: only the cards that change follow the finger
     keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return false; const to = dataAt[apply(stops, pos, dx < 0 ? 'next' : 'back').stop]; return !!view?.data && !!to && to.key === dataKey; },
     // a slide whose procedure (or whose data card's readings) takes Next as a step: the swipe steps through the steps and no card follows the finger (Mohammad, 24 Nov)
-    stays: (dx) => { const d = dx < 0 ? 1 : -1; return procCanStep(d) || toolCanStep(d); },
+    stays: stepsHere,
     // a slide change sends the cards out from where the finger let go; a page turned, or a beat of this slide, leaves them where they are (they ease back)
     leaves: (m) => {
       if (m === 'next' && atEnd(useUi.getState())) return true;

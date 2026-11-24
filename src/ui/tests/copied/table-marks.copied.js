@@ -171,7 +171,7 @@ export const TILE = {
   hbTo: { t: 'Hemoglobin to come', n: 'Hb to come', s: 'After plasma re-equilibration', u: 'g/dL', better: 1 },
   co: { t: 'Cardiac output', n: 'Output', s: 'Heart', u: 'L/min' },
   bv: { t: 'Blood volume', n: 'Volume', s: 'Whole blood', u: 'L', x: 0.001 },
-  he: { t: 'Encephalopathy risk', n: 'Model HE index', s: 'Model index, 0 to 1, from shunt fraction and hepatic blood flow; high ≥0.45', u: '/1', d: 2, better: -1 },
+  he: { t: 'Model HE index', n: 'Model HE index', s: 'Model index, 0 to 1, from shunt fraction and hepatic blood flow; high ≥0.45', u: '/1', d: 2, better: -1 },
 };
 // The stents' own readings (the stent cards, src/ui/tool-stent.js; the fingerprint's tips… and dips… keys, engine stentState). Numbers, with one exception:
 // the peak velocity is read against the Doppler card's own range for a stent (90 to 190 cm/s, doppler.js PROBES), the tile and the card the same flag. The
@@ -262,7 +262,7 @@ export const portalSplit = (sh) => { const v = Math.min(1, Math.max(0, +sh || 0)
 // The table's columns: the raw pressures shade above normal, the rest by their tile's rating.
 // Headers match the pressure chart's axis (PV, WHVP, FHVP, IVC, RA). res: the resistance inside the liver, as the model has it (rih). (PPG ÷ portal flow would also count the collaterals,
 // whose resistance rises as propranolol lowers the pressure, and read as if the drug raised the liver's.)
-export const COLS = { pv: 'PV', whvp: 'WHVP', fhvp: 'FHVP', ivc: 'IVC', ra: 'RA', hvpg: 'HVPG', eus: 'EUS-PPG', ppg: 'PPG', sin: 'Sinusoids', varix: 'Esophageal varix', gv: 'Fundal varix', asc: 'Ascites', liver: 'Liver flow', shunt: 'Shunted', saag: 'SAAG', tp: 'Protein', plt: 'Platelets', lsm: 'LSM', ssm: 'SSM', spleen: 'Spleen', map: 'BP', sbp: 'Systolic', rpp: 'APP', hr: 'HR', hb: 'Hb', hbTo: 'Hb to come', co: 'Output', bv: 'Volume', he: 'HE risk', pvFlow: 'Flow (Q)', pvVel: 'PV velocity', res: 'Liver R', tipsFlow: 'TIPS flow', dipsFlow: 'DIPS flow', tipsDp: 'Across stent', dipsDp: 'Across stent', tipsVel: 'Stent peak', dipsVel: 'Stent peak', tipsLumen: 'Lumen', dipsLumen: 'Lumen', tipsLocalPct: 'Local', dipsLocalPct: 'Local' };
+export const COLS = { pv: 'PV', whvp: 'WHVP', fhvp: 'FHVP', ivc: 'IVC', ra: 'RA', hvpg: 'HVPG', eus: 'EUS-PPG', ppg: 'PPG', sin: 'Sinusoids', varix: 'Esophageal varix', gv: 'Fundal varix', asc: 'Ascites', liver: 'Liver flow', shunt: 'Shunted', saag: 'SAAG', tp: 'Protein', plt: 'Platelets', lsm: 'LSM', ssm: 'SSM', spleen: 'Spleen', map: 'BP', sbp: 'Systolic', rpp: 'APP', iap: 'IAP', hr: 'HR', hb: 'Hb', hbTo: 'Hb to come', co: 'Output', bv: 'Volume', he: 'Model HE index', pvFlow: 'Flow (Q)', pvVel: 'PV velocity', res: 'Liver R', tipsFlow: 'TIPS flow', dipsFlow: 'DIPS flow', tipsDp: 'Across stent', dipsDp: 'Across stent', tipsVel: 'Stent peak', dipsVel: 'Stent peak', tipsLumen: 'Lumen', dipsLumen: 'Lumen', tipsLocalPct: 'Local', dipsLocalPct: 'Local' };
 // Each column's cut-offs (the same as the readouts' status colors), shown on its heading (hover, or a tap under the table) so the legend can stay short.
 export const CUT = { pv: '↑ >10, ↑↑ ≥15 mmHg (the model\'s bands)', whvp: '↑ >10, ↑↑ ≥15 mmHg (the model\'s bands)', fhvp: '↑ >8, ↑↑ >16 mmHg', ivc: '↑ >8, ↑↑ >16 mmHg', ra: '↑ >8, ↑↑ >16 mmHg',
   hvpg: '↑ >5, ↑↑ ≥10 mmHg', eus: '↑ >5, ↑↑ ≥10 mmHg (the HVPG\'s lines as a model reference, not validated for the EUS-PPG)', ppg: '↑ ≥6, ↑↑ ≥12 mmHg (the model\'s reference lines, not guideline cut-offs)', sin: '↑ ≥9, ↑↑ ≥12 mmHg', varix: '↑ 2.5 to 5 mm, ↑↑ ≥5 mm', gv: '↑ 2.5 to 5 mm, ↑↑ ≥5 mm (fundal varix)',
@@ -274,7 +274,7 @@ export const cutText = (c) => String(c).replace(/^>=\s*/, '≥').replace(/^<=\s*
 export const RAW = { pv: [PV_CUTS.amber, PV_CUTS.red - 1], whvp: [PV_CUTS.amber, PV_CUTS.red - 1], fhvp: [8, 16], ivc: [8, 16], ra: [8, 16] };
 const NEUTRAL_CHANGE = new Set(['pvFlow', 'rpp', ...['tips', 'dips'].flatMap((k) => ['Flow', 'Dp', 'Vel', 'Lumen', 'LocalPct'].map((x) => k + x))]);   // (a stent's readings change with the stent: neither better nor worse)
 export const UP_GOOD = new Set(['liver', 'plt', 'map', 'sbp', 'salb', 'hb', 'hbTo', 'pvVel']);   // (higher is better: a low one rates amber or red, an arrow down)
-export const PRESS = new Set(['pv', 'whvp', 'fhvp', 'ivc', 'ra', 'hvpg', 'eus', 'ppg', 'sin', 'map', 'sbp', 'rpp']);
+export const PRESS = new Set(['pv', 'whvp', 'fhvp', 'ivc', 'ra', 'hvpg', 'eus', 'ppg', 'sin', 'map', 'sbp', 'rpp', 'iap']);
 // The pressures print in whole mmHg in a table, but the three gradients print, and are rated, at one decimal, as their tiles print and rate
 // them: a whole number put an HVPG of 9.6 in the table as a red '10' beside an amber 9.6 tile (full app review PC-7, 15 Nov 2026).
 export const GRADIENTS = new Set(['hvpg', 'eus', 'ppg']);
@@ -307,7 +307,7 @@ export function dirRel(k, f, ref) {
   if (k === 'asc') return Math.abs(d) < STEP_REL.asc ? 0 : (d > 0 ? 1 : -1) * (Math.max(a, b) >= ASC_G2 ? 2 : 1);
   return Math.abs(d) < (STEP_REL[k] ?? 1) ? 0 : (d > 0 ? 1 : -1) * (r >= 0.4 ? 2 : 1);
 }
-export const DP = { varix: 1, gv: 1, asc: 1, lsm: 1, ssm: 1, spleen: 1, pvFlow: 1, res: 1, liver: 0, shunt: 2, plt: 0, map: 0, rpp: 0, hr: 0, he: 2, pvVel: 0, tipsVel: 0, dipsVel: 0, tipsLocalPct: 0, dipsLocalPct: 0 };
+export const DP = { varix: 1, gv: 1, asc: 1, lsm: 1, ssm: 1, spleen: 1, pvFlow: 1, res: 1, liver: 0, shunt: 2, plt: 0, map: 0, rpp: 0, iap: 1, hr: 0, he: 2, pvVel: 0, tipsVel: 0, dipsVel: 0, tipsLocalPct: 0, dipsLocalPct: 0 };
 export const atShown = (k, v) => { if (v == null) return v; if (k === 'asc') return Math.round(v / 100) * 100; const d = PRESS.has(k) ? pressDp(k) : DP[k] ?? 1, m = 10 ** d; return Math.round(v * m) / m; };
 
 // In the comparison table a change is coloured by what it means for the patient: green better, red worse.

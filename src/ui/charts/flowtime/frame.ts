@@ -85,18 +85,21 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
   // the lines up to minute m, each with its head and its value
   const mins = ser.min, nm = mins.length;
   let n = 0; while (n < nm && mins[n]! < m) n++;
-  const heads: { hx: number; hy: number; v: number; i: number }[] = [];
+  const heads: { hx: number; hy: number; v: number; i: number }[] = [], drawn: number[][] = [];
   LINES.forEach(([slot, , , col], i) => {
     const arr = ser[slot === 'flow' ? 'flow' : 'pv'], Y = slot === 'flow' ? upY : lowY, pts: number[] = [];
     for (let q = 0; q < n; q++) pts.push(X(mins[q]!), Y(arr[q]!));
     const val = lerpAt(arr, ax.from, m), hx = X(m), hy = Y(val);
     pts.push(hx, hy);
     if (pts.length < 4) pts.push(hx, hy);
+    drawn.push(pts);
     const ln = lk('plot.line', {}, col);
     shapes.push({ k: 'path', pts, pen: { color: ln.stroke!, w: ln.width!, cap: ln.cap, join: ln.join } });
     heads.push({ hx, hy, v: val, i });
   });
   const boxes = plan.right;
+  // the lowest row a head's value may stand on: its baseline clears the clock's axis by the text's own descender and halo ("4.0 mmHg" stood on the axis line, the g and the halo struck through it, Portal vein thrombosis 5, capture 6ec6d323)
+  const floorY = B - 0.5 * f;
   heads.forEach(({ hx, hy, v, i }) => {
     const [, , , col, , unit, d] = LINES[i]!, txt = withUnit(v, d, unit), tw = cw(txt, f * 1.1, true), left = headLeft(hx, hy, tw, f, w, boxes);
     const dot = lk('ft.dot', {}, col);
@@ -105,14 +108,14 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
     const off = m - ax.from < 0.36 * (ax.end - ax.from), vl = lk('ft.v', { off: false }, col);
     // a head's value that would stand on a first value (the plot is short on a phone: "12.9 mmHg" ran into "11.0 mmHg", meso-rex 9, 23 Nov review) goes under its head, else over it, whichever is clear
     const px0 = left ? hx - 0.6 * f - tw : hx + 0.6 * f, px1 = px0 + tw, onStart = (y: number) => plan.starts.some(({ box: q }) => px0 < q[1] && q[0] < px1 && y - 0.85 * f < q[3] && q[2] < y + 0.25 * f);
-    const base = hy - 0.7 * f, ty = !onStart(base) ? base : [hy + 1.5 * f, hy - 2.1 * f].find((y) => y < B - 0.1 * f && y - 0.85 * f > top && !onStart(y)) ?? base;
+    const base = hy - 0.7 * f, ty = !onStart(base) ? base : [hy + 1.5 * f, hy - 2.1 * f].find((y) => y <= floorY && y - 0.85 * f > top && !onStart(y)) ?? base;
     shapes.push({ k: 'text', x: hx + (left ? -0.6 : 0.6) * f, y: ty, s: txt, size: vl.size!, weight: vl.weight, color: vl.fill!, anchor: left ? 'end' : 'start', halo: vl.halo, alpha: off ? 0 : 1 });
   });
   // two heads close together: the lower band's value goes under its head, clear of the other
   const a = heads[0]!.hy - 0.7 * f, b = heads[1]!.hy - 0.7 * f;
   if (Math.abs(a - b) < 1.4 * f) {
     const j = a > b ? 0 : 1, vi = shapes.length - 3 + 2 * j, s = shapes[vi] as Extract<Shape, { k: 'text' }>;
-    shapes[vi] = { ...s, y: Math.min(heads[j]!.hy + 1.5 * f, B - 0.25 * f) };
+    shapes[vi] = { ...s, y: Math.min(heads[j]!.hy + 1.5 * f, floorY) };
   }
   // the two values still on one another (a short plot, both stood under their heads and the lower one stopped at the axis: "32.1 kPa" over "6.8 mmHg", iPhone on its side): the upper one rises off the lower
   {
@@ -129,7 +132,9 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
     for (const [n, k] of idx.entries()) {
       const t = at(k), other = at(idx[1 - n]!);
       const free = (y: number) => !plan.starts.some(({ box: q }) => hit(box(t, y), q)) && !hit(box(t, y), box(other, other.y));
-      const y = [t.y, t.y + 1.15 * f, t.y - 1.15 * f, t.y + 2.3 * f, t.y - 2.3 * f].find((c) => c < B - 0.1 * f && c - 0.85 * f > top && free(c));
+      // (a value also keeps off the lines: "3.0 L" stood on the HVPG line's last stretch, Precipitants 3, capture 6ec6d323; where no row is clear of them the rows above are used as before)
+      const rows = [t.y, t.y + 1.15 * f, t.y - 1.15 * f, t.y + 2.3 * f, t.y - 2.3 * f].filter((c) => c <= floorY && c - 0.85 * f > top);
+      const y = rows.find((c) => free(c) && !drawn.some((pts) => pathHitsBox(pts, box(t, c), 0.2 * f))) ?? rows.find(free);
       if (y !== undefined && y !== t.y) shapes[k] = { ...t, y };
       else if (y === undefined && t.anchor !== 'end') {
         // no clear row: the value moves along its row to just past the first values it stood on, if the plot has the room
@@ -159,6 +164,24 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
   }
   const label = flowTimeLabel(ser, keys, clock, heads.map((hd) => hd.v));
   return { frame: { w, h, shapes, label, ...(want > h + 0.5 ? { want: Math.round(want) } : null) }, G };
+}
+/** Whether a polyline (x, y pairs) passes through a box [x0, x1, y0, y1] grown by `pad`. */
+export function pathHitsBox(pts: readonly number[], q: readonly number[], pad = 0): boolean {
+  const x0 = q[0]! - pad, x1 = q[1]! + pad, y0 = q[2]! - pad, y1 = q[3]! + pad;
+  for (let i = 0; i + 3 < pts.length; i += 2) {
+    const ax = pts[i]!, ay = pts[i + 1]!, bx = pts[i + 2]!, by = pts[i + 3]!;
+    if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(ay, by) < y0 || Math.min(ay, by) > y1) continue;
+    // (Liang-Barsky: the part of the segment inside the box, if any)
+    const dx = bx - ax, dy = by - ay;
+    let t0 = 0, t1 = 1, ok = true;
+    for (const [p, r] of [[-dx, ax - x0], [dx, x1 - ax], [-dy, ay - y0], [dy, y1 - ay]] as const) {
+      if (p === 0) { if (r < 0) { ok = false; break; } continue; }
+      const t = r / p;
+      if (p < 0) { if (t > t1) { ok = false; break; } if (t > t0) t0 = t; } else { if (t < t0) { ok = false; break; } if (t < t1) t1 = t; }
+    }
+    if (ok && t0 <= t1) return true;
+  }
+  return false;
 }
 function lerpAt(arr: readonly number[], from: number, m: number): number {
   const j = clamp(Math.floor(m - from), 0, arr.length - 2);

@@ -21,7 +21,7 @@ export const LINE: Record<string, LineDef> = {
   wt: ['Body weight', '% of start', 0, tokOf(RC.wt), 1, { given: true, base: 100, scale: [84, 100, 4] }], lsm: ['Stiffness', 'kPa', 1, tokOf(RC.lsm), 1, { pad: 0.15 }],
   ssm: ['Spleen stiffness', 'kPa', 1, tokOf(RC.ssm), 1, { pad: 0.15 }], salb: ['Albumin', 'g/dL', 1, tokOf(RC.salb), 1, { pad: 0.2 }],
   rpp: ['Abdominal perfusion pressure', 'mmHg', 0, tokOf(RC.rpp)], iap: ['Intra-abdominal pressure', 'mmHg', 0, tokOf(RC.asc)],   // (the IAP wears the ascites' colour, the one the APP's partner chart already wore: two lines never share one)
-  he: ['Encephalopathy risk', 'index', 2, tokOf(RC.he), 1, { pad: 0.2 }],
+  he: ['Model HE index', 'index', 2, tokOf(RC.he), 1, { pad: 0.2 }],
   gv: ['Fundal varix', 'mm', 1, tokOf(RC.gv)], liver: ['Sinusoidal flow', '%', 0, tokOf(RC.liver), 1, { pad: 0.2 }], map: ['Mean arterial pressure', 'mmHg', 0, tokOf(RC.map)], co: ['Cardiac output', 'L/min', 1, tokOf(RC.co), 1, { pad: 0.2 }],
 };
 export const MEAL_LINES = ['pv', 'pvFlow'] as const;

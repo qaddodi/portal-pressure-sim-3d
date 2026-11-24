@@ -14,6 +14,7 @@ import { clock } from '../../../clock/frame.ts';
 import { latest } from '../../../engine/index.ts';
 import { figureWaiting } from '../../deck/figure-pending.ts';
 import { beatCardWaiting } from '../../tests/slide/beat-agree.ts';
+import { menuWaiting } from '../../charts/menu/MenuCard.tsx';
 import { drawScreen } from '../../capture/capture.ts';
 import { speedAnimations, sampleRealMs } from './speed.ts';
 import { collageLayout, countWords, slidesWord, sheetHeaderLines, slug, stampTime, deliverWay } from '../../capture/capture-model.ts';
@@ -44,6 +45,8 @@ function dopplerAcquiring(): boolean {
 /** What is still arriving on the screen, in words (empty when nothing is): the camera in flight, a card leaving, fonts loading, or a card, label or bar still easing in. Only arrivals count: a CSS animation of more than two and a
  *  half seconds (a toast's timer rule, a loop of many turns) or one on anything but the cards, the labels and the bars is a perpetual motion, not a slide settling, and is left out. The audit's own check (page/live.ts busyWhy)
  *  counts every running animation, which kept this waiting five seconds on a slide that had been still for a moment. */
+/** What a wait that is about the slide's own state says (figure, pressure strip, treatment menu): the capture keeps waiting for these, and flags a picture taken without them. */
+const STATE_WAIT = /has not reached the slide|has not caught up with the slide|has not worked out its dots/;
 const CONTENT = '.dk-card, .dk-plate, .lb-layer, .dk-bar, .vdock, .topbar, .stage-credit, .zoom-pill, .dk-strip';
 function arriving(clockToo = true, stripsToo = true, frames = 99): string {
   try {
@@ -54,6 +57,7 @@ function arriving(clockToo = true, stripsToo = true, frames = 99): string {
     if (document.fonts && document.fonts.status === 'loading') return 'fonts are loading';
     if ([...document.querySelectorAll('.dk-card .dk-roll-in, .dk-card .dk-roll-now')].some((e) => (e.textContent ?? '').trim() === '…')) return 'a reading on a card is still "…" (its number has not arrived)';   // (the line's blank gap, TIPS follow-up 5 "her PPG is …", build e4810ea9)
     if (clock.stats().holds.includes('chart:evgraph')) return 'the procedure graph is still drawing to its end';   // (the card says the slide's end value while the plot's head is still on its way: Gastric varices 7, 19.4 against 18.1)
+    if (menuWaiting()) return 'the treatment menu has not worked out its dots yet';
     if (beatCardWaiting()) return 'the pressure strip has not caught up with the slide\'s numbers (its history is still coming, or the model is still easing to the slide)';
     if (figureWaiting()) return 'the figure has not reached the slide\'s state yet (its labels would print the slide before\'s patient)';
     if (document.querySelector('.sh-waitcue')) return 'a "Preparing…" cue is up (the lobule, a pane or a dive is still being made)';
@@ -174,8 +178,10 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         if (single && fresh) reached++;
         ui.status(single ? `${reached} of ${pick!.size}: ${d.title} “${title}”` : `${d.title}: ${n} of ${stops} “${title}”`);
         const w0 = new Date().getTime();
-        const { moving, words, perpetual } = await stillPage(real, blockedSlide(k));
-        if (moving) notes.push(`${d.title} ${n}: still not still after 5 s (${moving}); captured as it was`);
+        let { moving, words, perpetual } = await stillPage(real, blockedSlide(k));
+        // (a picture whose figure, strip or menu has not reached the slide's own state shows the case wrong, whatever the cards say: it waits up to a minute more, and if it still has not, the README says the picture FAILED, so it is retaken, never read: One patient, ten years 9, reviewer 24 Nov 2026)
+        for (let tries = 0; moving && STATE_WAIT.test(moving) && tries < 11; tries++) ({ moving, words, perpetual } = await stillPage(real, blockedSlide(k)));
+        if (moving) notes.push(STATE_WAIT.test(moving) ? `${d.title} ${n}: CAPTURE FAILED, the picture does not show the slide's own state (${moving}); retake it` : `${d.title} ${n}: still not still after 5 s (${moving}); captured as it was`);
         shownNow = words;
         if (perpetual && !seen.has(perpetual)) { seen.add(perpetual); notes.push(`${d.title} ${n}: ${perpetual}; the picture was taken anyway`); }
         // a phone on its side with both cards (the words and the instrument stand in one column that a swipe up slides): two pictures of the slide, the teaching card in view, then the column slid up so the instrument is

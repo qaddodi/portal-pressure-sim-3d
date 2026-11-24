@@ -116,3 +116,29 @@ test('a time-lapse clock always names its last day, whatever step the ticks take
     }
   }
 });
+
+test('a head value never stands on the clock\'s axis (4.0 mmHg struck through by the axis, Portal vein thrombosis 5, capture 6ec6d323) and the line test finds a line through a box', async () => {
+  const { pathHitsBox } = await import('../src/ui/charts/flowtime/frame.ts');
+  // (the line test: a segment through the box hits, one past it does not, one near its edge hits only inside the pad)
+  assert.equal(pathHitsBox([0, 5, 20, 5], [8, 12, 0, 10]), true);
+  assert.equal(pathHitsBox([0, 20, 20, 20], [8, 12, 0, 10]), false);
+  assert.equal(pathHitsBox([0, 12, 20, 12], [8, 12, 0, 10]), false);
+  assert.equal(pathHitsBox([0, 12, 20, 12], [8, 12, 0, 10], 3), true);
+  assert.equal(pathHitsBox([9, 20, 9, 30], [8, 12, 0, 10]), false);
+  const days = ['csph', 'cirr-decomp', 'healthy'];
+  let heads = 0;
+  for (const a of days) for (const b of days) {
+    if (a === b) continue;
+    const ser = flowTimeSeries(await trailOf(a, b, ['hvpg', 'ppg'], 180), 'days');
+    if (!ser) continue;
+    for (const look of ['light', 'dark'] as const) for (const [w, d] of [[300, 'phone-portrait'], [330, 'desktop']] as const) {
+      const c = ctxOf(look, w, d), f = c.type.sm;
+      const { frame, G } = flowTimeFrame({ ser, clock: 'days', keys: ['hvpg', 'ppg'] }, ser.ax.end, c);
+      for (const t of frame.shapes.filter((x): x is TextShape => x.k === 'text' && x.weight === 700 && Math.abs(x.size - 1.1 * f) < 1e-9)) {
+        heads++;
+        assert.ok(t.y <= G.B - 0.5 * f + 1e-6, `${a}→${b} ${look} ${w}: "${t.s}" stands at ${t.y.toFixed(1)}, the axis is at ${G.B.toFixed(1)}`);
+      }
+    }
+  }
+  assert.ok(heads >= 20, `${heads} head values judged`);
+});

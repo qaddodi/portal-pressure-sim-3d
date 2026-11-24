@@ -60,7 +60,8 @@ test('a drag that is only a step of the slide (procedure, tool reading) takes no
   const drag = readFileSync(new URL('../src/ui/cards/useCardDrag.ts', import.meta.url), 'utf8');
   const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
   assert.match(drag, /opts\.current\.stays\?\.\(dx\)\) g\.cards = \[\]/);
-  assert.match(layer, /stays: \(dx\) => .*procCanStep\(d\) \|\| toolCanStep\(d\)/);
+  assert.match(layer, /stays: stepsHere/);
+  assert.match(layer, /stepsHere = .*lapseCanSkip\(\).*procCanStep\(d\) \|\| toolCanStep\(d\)/);
 });
 
 // Mohammad, 24 Nov ("good idea"): on a stepped slide the vertical swipe moves no card either (the dock's instrument card, the wallet swap).
@@ -70,4 +71,12 @@ test('a stepped slide locks the vertical swipes too', () => {
   assert.match(dock, /opts\.current\.locked\?\.\(\)\) \{ g = null; return; \}/);
   assert.match(layer, /useDockSwipe\(\{ enabled: dockable[^\n]*locked: steppedSlide/);
   assert.match(layer, /isSwapSwipe\(g\) && !steppedSlide\(\)/);
+});
+
+test('a running time-lapse (a timeline slide) is a step of its slide: a probe says so without running the days', async () => {
+  const { setLapseSkip, lapseCanSkip } = await import('../src/ui/deck/lapse-next.ts');
+  let ran = 0;
+  setLapseSkip(Object.assign(() => { ran++; return true; }, { can: () => true }));
+  assert.equal(lapseCanSkip(), true); assert.equal(ran, 0);
+  setLapseSkip(null); assert.equal(lapseCanSkip(), false);
 });

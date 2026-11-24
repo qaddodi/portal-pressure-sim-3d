@@ -25,7 +25,7 @@ function same(a: unknown, b: unknown, at: string): void {
   }
   // (the one departure from 2D: the post-TIPS PPG word is "Below 12 mmHg", not "… reference", so it stays on one row of a narrow tile)
   // (and the reviewer's, 24 Nov 2026: the stiffness tile says what it measures, a stiffness of 15 to 25 kPa reads "Likely cACLD" (Baveno VIII 1.3), and the ascites tile says the size of the volume, never a clinical grade)
-  const SAY: Record<string, string> = { Stiffness: 'Liver stiffness', Borderline: 'Likely cACLD', 'HE risk index': 'Model HE index', 'Grade 1': 'Small', 'Grade 2': 'Moderate', 'Grade 3': 'Large' };
+  const SAY: Record<string, string> = { Stiffness: 'Liver stiffness', Borderline: 'Likely cACLD', 'HE risk index': 'Model HE index', 'Encephalopathy risk': 'Model HE index', 'Grade 1': 'Small', 'Grade 2': 'Moderate', 'Grade 3': 'Large' };
   assert.deepEqual(a, typeof b === 'string' ? (SAY[b] ?? b.replace(/( 12 mmHg) reference$/, '$1')) : b, at);
 }
 

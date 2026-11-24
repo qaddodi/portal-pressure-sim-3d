@@ -1,5 +1,8 @@
 # Approved: Gut to Heart chart spacing (the pressure profile card)
 
+**Round 2 (24 Nov, Mohammad picked option 2, `/mnt/project-files/gut-heart-mocks-24nov/tight-brackets-no-title-eus.png`):** the bracket rows stand about 20 px apart (they stood 29), the card's "GUT TO HEART" title is dropped (it stays in the page, unseen, out of the flow: `.pz-dh.off`), and the chart is as much taller as the title and its gap were, so the card's height is unchanged (ProfileCard measures it). The EUS-PPG bracket shows only on slides that ask for it. The six-ladder summary cells (Mac) draw the same chart: the same box, a taller plot, tight rows. Mohammad, 24 Nov: "2"; "each individual gut to heart graph is good size" on the summary slide.
+
+
 **Reference:** option 4, "All three together", of the Gut to Heart mocks (`/mnt/project-files/gut-to-heart-mocks/gut-to-heart-spacier-options.png`); the built result is `before-after-real-code.png` beside it, commit 7d02d669. Mohammad, 23 Nov 2026: "this top card can use some space somehow ... without fucking the card height", then "do all".
 
 ## Traits
@@ -9,6 +12,8 @@
 - No "mmHg" and no axis numbers; the gridlines stay, bare, every other one (the 10s). Every point carries its own number.
 - No "Healthy" word on the line when the line is the healthy one (the dashed line lies under it); any other state still names it.
 - Chart words keep the outline halo, never a box.
+- Bracket rows: about 20 px apart at 13.8 px type (`ROW_AIR`, `profileGeo`); never closer than their words need.
+- No "GUT TO HEART" title on the data card; the card is as tall as with it.
 
 ## Rejected / not built
 - Options 1 to 3 alone (zones only; zones plus quiet axis; sinusoidal bracket only): he took all of them together.

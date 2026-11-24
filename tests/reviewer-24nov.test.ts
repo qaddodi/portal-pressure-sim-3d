@@ -237,3 +237,16 @@ test('a pressure label says what its change is a change from (Where is the resis
 });
 import { readFileSync } from 'node:fs';
 import { DECK as DECK_PREHEPATIC } from '../src/decks/hp/data/prehepatic.copied.ts';
+test('round 6 (fourth review): the tables compare each row with the state before it, and the model index has one name', async () => {
+  const { DECK: KIDNEY } = await import('../src/decks/hp/data/kidney.copied.ts');
+  const { DECK: HVPG } = await import('../src/decks/hp/data/hvpg.copied.ts');
+  const { ALBUMIN } = await import('../src/decks/ag/albumin.copied.ts');
+  const { COLS } = await import('../src/ui/deck/from2d/table-marks.js');
+  const k = at(KIDNEY, 'summary') as Slide & { cols: string[]; of: { id: string; vs?: string }[] };
+  assert.deepEqual(k.cols, ['map', 'iap', 'rpp']); assert.ok(COLS.iap && COLS.rpp);   // MAP, IAP and APP, the three numbers that make the APP
+  assert.deepEqual(k.of.map((r) => r.vs ?? null), [null, 'arteries', 'tense', 'arteries', 'carv', 'hold']);
+  const a = at(ALBUMIN, 'summary') as Slide & { of: { id: string; vs?: string; ref?: boolean }[] };
+  assert.deepEqual(a.of.map((r) => r.vs ?? (r.ref ? 'ref' : null)), ['ref', 'ind', 'ind', 'ref', 'terli', 'terli-alb']);   // each scenario against its own start
+  assert.match(at(HVPG, 'wedge').line as string, /triplicate.*time-compressed/);
+  assert.equal(COLS.he, 'Model HE index'); assert.equal(TILE.he!.t, 'Model HE index');
+});

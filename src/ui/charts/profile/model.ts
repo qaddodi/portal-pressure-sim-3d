@@ -46,22 +46,28 @@ export interface Geo {
   zone: { lines: number; tight: boolean; /** two lines of name made one: the first word only (PRE, INTRA, POST) */ word?: boolean }; zb: number; hdr: number; need: number; braceY: number; /** the baseline-centre row of the inline "sinusoidal" bracket */ sinY: number; nameX(i: number): number; nameY(i: number): number; brY(k: number): number;
 }
 
-/** The room the card gives back to the chart without growing (Gut to Heart, 23 Nov: "this top card can use some space ... without changing the card height"). The 2D layout's zone names took two
- *  lines (PRE / HEPATIC) and the liver's brace its own row under the station names. Here the zone names are one word on one line, and "sinusoidal" stands in a bracket on the row under the names (the
- *  bracket style of HVPG and PPG), a row shorter than the brace. The chart's height and its `need` floor stay the 2D tool's, so the card's height never changes: the room goes to the plot
- *  (55 %) and to air between the bracket rows (45 %). */
-const SIN_ROW = 1.0;   // em the brace row gives back
-const AIR = 0.45;      // share of the freed room that goes to the brackets' rows
+/** The room the card gives back to the chart without growing (Gut to Heart, 23 and 24 Nov: "this top card can use some space ... without changing the card height", "wasted space between the HVPG and PPG
+ *  brackets"). The 2D layout's zone names took two lines (PRE / HEPATIC) and the liver's brace its own row under the station names; its bracket rows stood 29 px apart. Here the zone names are one word on one
+ *  line, "sinusoidal" stands in a bracket on the row under the names (the bracket style of HVPG and PPG), a row shorter than the brace, and the bracket rows stand `ROW_AIR` em clear of each other
+ *  (about 20 px apart at 13.8 px type). The chart's height and its `need` floor stay the 2D tool's, so the card's height never changes: all the room goes to the plot. */
+const SIN_ROW = 1.0;     // em the brace row gives back
+const ROW_AIR = 0.6;     // em of clear air between two bracket rows' words
+const BAND_PAD = 0.25;   // em above the first row and under the last
 export function profileGeo(w: number, h: number, f: number, tw: Tw, inside = false, spans: Span[] = SPANS): Geo {
   const G0 = profileGeo2D(w, h, f, tw, inside, spans);
   const cut1 = G0.zone.lines === 2 ? 1.05 * zoneSize(f) : 0, braceH = 1.85 * f, braceH2 = braceH - SIN_ROW * f;
-  const nameH = G0.fit.rows * 1.25 * f + 0.4 * f, n = spans.length, band0 = G0.B - G0.Z;
-  const T = G0.T - cut1, q = inside || !n ? 0 : (cut1 + SIN_ROW * f) * AIR, band = band0 + q;
+  const nameH = G0.fit.rows * 1.25 * f + 0.4 * f, n = spans.length;
+  const T = G0.T - cut1;
+  // (each row's half height as the 2D layout counts it; a stacked label is taller)
+  const half = G0.brMode.map((m) => (m === 'stack' ? 0.91 : 0.36) * f + 1), centre: number[] = [];
+  let y = BAND_PAD * f;
+  for (let k = 0; k < n; k++) { y += k ? half[k - 1]! + Math.min(ROW_AIR * f, 9) + half[k]! : half[0]!; centre.push(y); }
+  const band = inside || !n ? 0 : (centre[n - 1] ?? 0) + half[n - 1]! + BAND_PAD * f;
   const B = Math.max(T + 3 * f + band, h - nameH - braceH2 - 0.5 * f), Z = inside ? B : B - band;
   const nameY = (i: number) => B + 1.05 * f + (G0.fit.low[i] ? 1.25 * f : 0);
   return { ...G0, T, B, Z, hdr: G0.hdr - cut1, zone: cut1 ? { ...G0.zone, word: true } : G0.zone, nameY,
     braceY: B + nameH - 0.1 * f, sinY: B + 1.05 * f + (G0.fit.rows - 1) * 1.25 * f + 1.15 * f,
-    brY: (k: number) => (band0 > 0 ? Z + (G0.brY(k) - G0.Z) * (band / band0) : G0.brY(k)) };
+    brY: (k: number) => (inside || !n ? G0.brY(k) : Z + centre[k]!) };
 }
 
 export const NS = STATIONS.length;

@@ -355,9 +355,9 @@ test('Gut to Heart is spacier at the same height (23 Nov): zone names one word, 
     const old = geo2D(w, h, f, tw, false, SPANS), G = profileGeo(w, h, f, tw, false, SPANS);
     assert.equal(G.need, old.need, `${w}: the floor of the card's height is the 2D tool's, so the card is as tall as before`);
     assert.ok(G.Z - G.T >= old.Z - old.T - 0.01, `${w}: the plot is never shorter than before`);
-    if (old.zone.lines === 2) { assert.ok(G.T < old.T && G.zone.word, `${w}: the zone strip lost its second line`); assert.ok(G.Z - G.T > old.Z - old.T + 8, `${w}: the plot gained at least 8 px`); }
+    if (old.zone.lines === 2) { assert.ok(G.T < old.T && G.zone.word, `${w}: the zone strip lost its second line`); assert.ok(G.Z - G.T > old.Z - old.T + 14, `${w}: the plot gained at least 14 px`); }
     for (let k = 0; k < SPANS.length; k++) assert.ok(G.brY(k) > G.Z && G.brY(k) < G.B, `${w}: bracket row ${k} stands in its band`);
-    for (let k = 1; k < SPANS.length; k++) assert.ok(G.brY(k) - G.brY(k - 1) >= old.brY(k) - old.brY(k - 1) - 0.01, `${w}: the bracket rows are no closer than before`);
+    for (let k = 1; k < SPANS.length; k++) { const pitch = G.brY(k) - G.brY(k - 1); assert.ok(pitch >= 1.2 * f && pitch <= old.brY(k) - old.brY(k - 1) + 0.01, `${w}: the bracket rows stand about 20 px apart (${pitch.toFixed(1)}), clear of each other and closer than the 2D tool's (24 Nov: wasted space between HVPG and PPG)`); }
     const plan = planProfile(w, h, f, goalOf(healthy, healthy, null), healthy, null, SPANS), fr = profileFrameAtRest(plan, c);
     const texts = fr.shapes.filter((s): s is TextShape => s.k === 'text'), words = texts.map((t) => t.s);
     assert.ok(!words.includes('mmHg') && !words.includes('Healthy') && !words.includes('HEPATIC'), `${w}: no unit, no name on the healthy line, one-word zones`);
