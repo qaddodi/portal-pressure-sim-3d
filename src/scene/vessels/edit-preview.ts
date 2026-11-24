@@ -11,6 +11,7 @@ import { EDGES, dMinOf } from '../../engine/hales/portal/topology.js';
 import { EDGE_PATH_2D } from './paths.copied.ts';
 import { type Edge, widthPx } from './width.ts';
 import { NETWORK_BY_ID } from './network.ts';
+import { anchorsOf, organsOf } from './organ-follow.ts';
 import { x3, y3 } from '../frame2d.ts';
 
 /** What the scene hands over: each vessel tube's geometry by edge id, and each junction skin's geometry with its arms' vessel ids. */
@@ -39,7 +40,8 @@ export function changedVessels(now: Overrides, loaded: Overrides): string[] {
   const out: string[] = [];
   for (const [id, v] of NETWORK_BY_ID) {
     if (v.feeder) continue;
-    if (same(now.nodes?.[v.from], loaded.nodes?.[v.from]) && same(now.nodes?.[v.to], loaded.nodes?.[v.to]) && same(now.vessels?.[id], loaded.vessels?.[id])) continue;
+    // (the vessels that lie in or on an organ follow its live edit too: a drag of the liver moves the hepatic veins' ends with it)
+    if (same(now.nodes?.[v.from], loaded.nodes?.[v.from]) && same(now.nodes?.[v.to], loaded.nodes?.[v.to]) && same(now.vessels?.[id], loaded.vessels?.[id]) && organsOf(v).every((org) => same(now.organs?.[org], loaded.organs?.[org]))) continue;
     out.push(id);
   }
   return out;
@@ -93,8 +95,10 @@ function tie(geo: BufferGeometry, arms: Arm[], skin: boolean): Rig {
 /** The centreline displacement of one vessel under the draft over the loaded edit, per point of its built course (scene units), and the turn of the tangent at each point. */
 function displace(a: Arm, now: Overrides, loaded: Overrides): void {
   const e = byId.get(a.id), base = (EDGE_PATH_2D as Plan)[a.id];
-  if (!e || !base || base.length < 2 || (!hasEdits(now, e) && !hasEdits(loaded, e))) { a.d.fill(0); a.live = false; return; }
-  const opts = { radius: radiusOf(a.id) }, rn = applyVesselOverrides(e, base, now, opts), rl = applyVesselOverrides(e, base, loaded, opts), m = base.length;
+  if (!e) { a.d.fill(0); a.live = false; return; }
+  const an = anchorsOf(e, now), al = anchorsOf(e, loaded);
+  if (!base || base.length < 2 || (!hasEdits(now, e) && !hasEdits(loaded, e) && !an && !al)) { a.d.fill(0); a.live = false; return; }
+  const r0 = radiusOf(a.id), rn = applyVesselOverrides(e, base, now, { radius: r0, anchors: an }), rl = applyVesselOverrides(e, base, loaded, { radius: r0, anchors: al }), m = base.length;
   // (the share along the vessel is by ARC LENGTH, on the course and on the plan alike: the plan's samples need not be even, and Save builds the course on arc length)
   const parc = new Float64Array(m), carc = new Float64Array(a.n);
   for (let j = 1; j < m; j++) parc[j] = parc[j - 1]! + Math.hypot(base[j]![0] - base[j - 1]![0], base[j]![1] - base[j - 1]![1]);
