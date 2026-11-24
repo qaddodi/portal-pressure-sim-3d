@@ -5,7 +5,11 @@ import type { Overrides } from './types.ts';
 
 export type P2 = readonly [number, number];
 export interface EdgeEnds { id: string; from: string; to: string }
-export interface ApplyOpts { /** Half the vessel's drawn width in plan units: caps an arm's easing at 6 of them. */ radius?: number }
+/** A shift a place gets from an organ's edit: plan units in x and y, scene units in depth. */
+export type Disp = (x: number, y: number) => readonly [number, number, number];
+/** How a vessel follows the organs it lies in or on: an end anchored to one (eased along the arm like a node move), or the whole course inside one. */
+export interface Anchors { from?: Disp; to?: Disp; all?: Disp }
+export interface ApplyOpts { /** Half the vessel's drawn width in plan units: caps an arm's easing at 6 of them. */ radius?: number; anchors?: Anchors }
 export interface Applied { path: readonly P2[]; /** Depth offset per path point (scene units), or null when no dz is edited. */ dz: Float64Array | null }
 
 export const NODE_REACH_FRAC = 0.4;
@@ -69,7 +73,8 @@ function refit(pts: readonly (readonly [number, number])[], at: Float64Array): [
  *  Falloffs (named, so the cause of a kink is findable): a node move eases along each arm by `armFalloff` (quintic smootherstep, C2, flat at the node) over a reach of
  *  max(a quarter of the arm, 6 radii) or 3 times the move, whichever is larger, never past the arm; control points ease between knots by `knotBlend` (quintic smootherstep, C2, flat at each knot and at both ends); then the displaced course is refitted as a centripetal Catmull-Rom curve resampled at the same bone shares. */
 export function applyVesselOverrides(e: EdgeEnds, path: readonly P2[], o: Overrides | undefined, opts: ApplyOpts = {}): Applied {
-  if (!hasEdits(o, e) || path.length < 2) return { path, dz: null };
+  const an = opts.anchors;
+  if ((!hasEdits(o, e) && !an) || path.length < 2) return { path, dz: null };
   const n = path.length, out: [number, number][] = path.map((p) => [p[0], p[1]]), dz = new Float64Array(n);
   const arc = new Float64Array(n);
   for (let i = 1; i < n; i++) arc[i] = arc[i - 1]! + Math.hypot(path[i]![0] - path[i - 1]![0], path[i]![1] - path[i - 1]![1]);
@@ -77,7 +82,12 @@ export function applyVesselOverrides(e: EdgeEnds, path: readonly P2[], o: Overri
   const base = Math.min(NODE_REACH_FRAC * total, opts.radius ? NODE_REACH_RADII * opts.radius : Infinity);
   let anyZ = false;
   for (const end of [0, 1] as const) {
-    const mv = o!.nodes?.[end ? e.to : e.from];
+    let mv = o?.nodes?.[end ? e.to : e.from];
+    const an1 = end ? an?.to : an?.from;
+    if (an1) {   // (the end lies in an organ: it goes where the organ's edit puts it, eased along the arm as a node move is)
+      const q = path[end ? n - 1 : 0]!, s = an1(q[0], q[1]);
+      mv = { dx: (mv?.dx ?? 0) + s[0], dy: (mv?.dy ?? 0) + s[1], dz: (mv?.dz ?? 0) + s[2] };
+    }
     if (!mv) continue;
     const reach = Math.min(total, Math.max(base, NODE_REACH_MOVE * Math.hypot(mv.dx, mv.dy)));
     for (let i = 0; i < n; i++) {
@@ -87,6 +97,9 @@ export function applyVesselOverrides(e: EdgeEnds, path: readonly P2[], o: Overri
       out[i]![0] += mv.dx * w; out[i]![1] += mv.dy * w;
       if (mv.dz) { dz[i] += mv.dz * w; anyZ = true; }
     }
+  }
+  if (an?.all) {   // (a bed inside the organ: every point goes with the tissue)
+    for (let i = 0; i < n; i++) { const s = an.all(path[i]![0], path[i]![1]); out[i]![0] += s[0]; out[i]![1] += s[1]; if (s[2]) { dz[i] += s[2]; anyZ = true; } }
   }
   const pts = o!.vessels?.[e.id]?.pts;
   if (pts?.length) {
@@ -108,14 +121,14 @@ export function applyVesselOverrides(e: EdgeEnds, path: readonly P2[], o: Overri
 }
 
 /** Every path with its edits applied (the same object back when nothing is edited), plus the depth offsets of the edited ones. */
-export function applyAll(paths: Record<string, readonly P2[]>, edges: readonly EdgeEnds[], o: Overrides | undefined, radiusOf?: (id: string) => number): { paths: Record<string, readonly P2[]>; dz: Map<string, Float64Array> } {
+export function applyAll(paths: Record<string, readonly P2[]>, edges: readonly (EdgeEnds & { kind: string })[], o: Overrides | undefined, radiusOf?: (id: string) => number, anchorsOf?: (e: EdgeEnds & { kind: string }) => Anchors | undefined): { paths: Record<string, readonly P2[]>; dz: Map<string, Float64Array> } {
   const dz = new Map<string, Float64Array>();
-  if (!o || ((!o.nodes || !Object.keys(o.nodes).length) && (!o.vessels || !Object.keys(o.vessels).length))) return { paths, dz };
+  if (!o || ((!o.nodes || !Object.keys(o.nodes).length) && (!o.vessels || !Object.keys(o.vessels).length) && !(anchorsOf && o.organs && Object.keys(o.organs).length))) return { paths, dz };
   const out: Record<string, readonly P2[]> = { ...paths };
   for (const e of edges) {
     const p = paths[e.id];
     if (!p) continue;
-    const r = applyVesselOverrides(e, p, o, { radius: radiusOf?.(e.id) });
+    const r = applyVesselOverrides(e, p, o, { radius: radiusOf?.(e.id), anchors: anchorsOf?.(e) });
     out[e.id] = r.path;
     if (r.dz) dz.set(e.id, r.dz);
   }

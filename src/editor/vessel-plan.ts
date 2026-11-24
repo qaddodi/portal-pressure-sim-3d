@@ -6,6 +6,7 @@ import { EDGE_PATH_2D } from '../scene/vessels/paths.copied.ts';
 import { type Edge, widthPx } from '../scene/vessels/width.ts';
 import { overrides } from './store.ts';
 import { applyAll } from './vessel-apply.ts';
+import { anchorsOf } from '../scene/vessels/organ-follow.ts';
 
 type Plan = Record<string, readonly (readonly [number, number])[]>;
 let built: ReturnType<typeof applyAll> | null = null, builtFor: unknown = null;
@@ -15,7 +16,7 @@ const build = (): ReturnType<typeof applyAll> => {
   // (an arm eases over at most 6 radii: the vessel's drawn half width in plan units, as the network sizes its hosts)
   const radius = (id: string): number => { const e = byId.get(id); return e ? widthPx(e, e.d ?? e.dMax ?? (dMinOf(e) || 3)) / 2 : 0; };
   builtFor = overrides();
-  return (built = applyAll(EDGE_PATH_2D as Plan, edges, overrides(), radius));
+  return (built = applyAll(EDGE_PATH_2D as Plan, edges, overrides(), radius, anchorsOf));
 };
 /** The 2D plan as built: EDGE_PATH_2D itself when nothing is edited. */
 export const editedPlan = (): typeof EDGE_PATH_2D => build().paths as typeof EDGE_PATH_2D;
