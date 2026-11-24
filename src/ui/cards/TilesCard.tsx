@@ -8,6 +8,7 @@ import { copiedOf } from '../../decks/hp/deck.ts';
 import { useStates } from '../../decks/hp/calc.ts';
 import { useLapse } from '../../decks/hp/lapse.ts';
 import { liveFp } from '../../decks/hp/figure-engine.ts';
+import { mergeStates } from '../charts/baked/view.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 import { layoutOf, isShortSide } from '../layout/rules2d.ts';
 import { cardTitle, titleUnits } from '../talk/tool-title.ts';
@@ -20,7 +21,9 @@ import { Fade, fadeAttrs } from '../fade.tsx';
 
 /** A slide's tiles from its state: the slide's own (the last one before it that changed the patient, as 2D has it), the state its change counts from, and the page's phone-ness. */
 export function useSlideTiles(deckId: string, slideId: string): (SlideTiles & { live?: boolean }) | null {
-  const results = useStates((s) => s.results[deckId]);
+  // (the baked states count as in: the words card has always read them, and a tile that waited for the live chain showed "—" under words that already had the number, audit f9a5d2e0, tips-complete 10 and two-lesions 9)
+  const liveResults_ = useStates((s) => s.results[deckId]);
+  const results = useMemo(() => mergeStates(deckId, liveResults_) as typeof liveResults_, [deckId, liveResults_]);
   const vp = useUi((s) => s.vp);
   const copied = copiedOf(deckId);
   // while the slide's days run the tiles stand where they begin and then climb with them (2D presenter-case.js playLapse: every poll `dataTo(liveFp(fr))`, but "only once a day has run: before that the live

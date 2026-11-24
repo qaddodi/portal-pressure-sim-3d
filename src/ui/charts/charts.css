@@ -66,3 +66,8 @@
    taller than the wrapper's CSS height stood past the card and was clipped. One source, the chart's (as `.pz-prof` already is, deck-ui.css): the wrapper takes the height of what it holds. The CSS height was only ever the
    2D layout's guess at it; the frame is built from the same numbers. tests/chart-content-in-box.test.ts holds every wrapper to this. */
 :is(.pz-flowtime, .pz-curve, .pz-talk, .pz-shift, .pz-flows) { height: auto !important; min-height: 0 !important; max-height: none !important; }
+
+/* The two capillary walls on a stacked card (a phone upright): the card cannot page (a visual panel has one page) and its words never shrink, so the two drawings give way. At 440 x 736 the card was 50 px
+   taller than its room and the last two lines ("Protein crosses..." and "A pressure rise raises lymph flow at once") were cut at the card's foot (audit f9a5d2e0, Ascites 8). The drawing is as wide as its box and as
+   tall as 276/600 of that, so a narrower box is a shorter one: the width is what the screen's height leaves after the words (the 72 px the panel leaves, the words and their padding: about 490 px), never under 180 px, centred. */
+.pz.stack .pzw-art { align-self: center; width: 100%; max-width: max(180px, calc((100svh - 490px) * 300 / 276)); }
