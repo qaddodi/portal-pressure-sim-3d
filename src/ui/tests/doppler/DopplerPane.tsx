@@ -35,7 +35,8 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
   const [mode, setMode] = useState<DopMode>(m.mode);
   const [invert, setInvert] = useState(m.invert);
   const [sweepIndex, setSweepIndex] = useState(m.sweepIndex);
-  const [rep, setRep] = useState<Report | null>(null);
+  // (the report is the pane's first render, not an effect's: tiles, note and gauge empty on the first paint made the card grow when they came, 24 Nov)
+  const [rep, setRep] = useState<Report | null>(() => { if (latest.frame) m.ingest(latest.frame); return m.report(); });
   const probe = useDopplerProbe((s) => s.probe);
   const setGate = useDopplerProbe((s) => s.setGate);
   const gate = useDopplerProbe((s) => s.gate);

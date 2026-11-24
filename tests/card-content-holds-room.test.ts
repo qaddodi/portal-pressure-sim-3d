@@ -68,3 +68,13 @@ test('a card is let in only once its measured height has stood still, so a late 
   assert.match(layer, /&& settleLeft <= 0\)/, 'the gate (`measured`) waits for it');
   assert.match(layer, /clock\.after\(\(\) => setLate\(pagesKey\), GIVE_UP_CARDS_MS\)/, 'the give-up leaves room for it');
 });
+
+test('the instrument panes render their final content on the first paint (audit 24 Nov: the Doppler report, the slide options, the lazy panes)', () => {
+  const dop = read('src/ui/tests/doppler/DopplerPane.tsx');
+  assert.match(dop, /useState<Report \| null>\(\(\) => \{ if \(latest\.frame\) m\.ingest\(latest\.frame\); return m\.report\(\); \}\)/, 'the report is the first render\'s, not an effect\'s');
+  const body = read('src/ui/talk/ToolCardBody.tsx');
+  assert.match(body, /useLayoutEffect\(\(\) => \{\s*\n\s*if \(plan\.doppler\)/, 'the slide\'s options are set before the first paint');
+  assert.match(body, /useLayoutEffect\(\(\) => \{ setSlidePin\(fp\); \}, \[fp\]\)/);
+  const load = read('src/ui/talk/tool-card-load.ts');
+  for (const pane of ['DopplerPane', 'FibroPane', 'EndoPane']) assert.match(load, new RegExp(`import\\('\\.\\./tests/\\w+/${pane}\\.tsx'\\)`), `${pane} is read in with the charts`);
+});

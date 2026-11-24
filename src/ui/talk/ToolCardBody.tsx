@@ -2,7 +2,7 @@
 // evgraph, stiffness) or its `visual` (plane, ladders, allpatients) mounted as the chart Card that draws it, from the slide's own state in the talk (the 2D `ctx`: its fingerprint,
 // parameters, the healthy patient, the slides before it). The card is the one the chart batch built (src/ui/charts/*/…Card.tsx): this file only gives it its inputs.
 // An instrument that reads the live model (the Tests devices: Doppler, HVPG monitor, FibroScan, abdomen, readouts) is mounted in the Tests pane's own components.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { CHART_VISUALS } from '../../decks/charts.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
@@ -198,7 +198,8 @@ function Instrument({ kind, tool, slideKey, fp, cs }: { kind: InstrumentKind; to
   const plan = useMemo(() => planOf(kind, tool), [kind, tool]);
   useEffect(() => { startFeed(); }, []);
   // the slide's own options are set whenever it is shown, and a button's patch is gone with it (2D: "set to the slide's options again whenever the slide is shown")
-  useEffect(() => {
+  // (a layout effect: the pane re-renders with the slide's own options before the first paint and before the card is measured again, never a frame of the store's defaults first: a wall slide as the scope, liver as spleen)
+  useLayoutEffect(() => {
     if (plan.doppler) { setDopplerProbe(plan.doppler.vessel); useDopplerProbe.getState().setGate((plan.doppler.gate as Gate | null) ?? null); }
     if (plan.view) useScope.getState().setView(plan.view);
     if (plan.organ) useTests.getState().setFibro(plan.organ);
@@ -210,7 +211,7 @@ function Instrument({ kind, tool, slideKey, fp, cs }: { kind: InstrumentKind; to
   // (a card that is leaving unmounts after the one that came in has mounted: its cleanup must not take the new slide's device off the figure, slide-claim.ts)
   useEffect(() => holdSlideDevices({ doppler: figure, fibro, endoscope: scope, points }), [figure, fibro, scope, points]);
   // the slide's own numbers for the pane (2D presenter-tools pin): the settled state its tiles and words show, not the beat-to-beat live value
-  useEffect(() => { setSlidePin(fp); }, [fp]);
+  useLayoutEffect(() => { setSlidePin(fp); }, [fp]);
   useEffect(() => claimSlide('pin', () => setSlidePin(null)), []);
   const plot = Math.round(Math.min(220, Math.max(150, w * 0.32)));
   const p = { narrow: w < 470, plot, square: plot, roomy: false };
