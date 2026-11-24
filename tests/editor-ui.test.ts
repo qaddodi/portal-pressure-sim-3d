@@ -7,7 +7,7 @@ import type { Stroke } from '../src/editor/types.ts';
 import { mirrorId, mirrorOffset } from '../src/ui/debug/editor/mirror.ts';
 import { slidesTouching, inFrame, stopOf } from '../src/ui/debug/editor/slides.ts';
 import { nodeVisible, snapOffsets, diffList, resetItem, core, fileText, fileOverrides, staleNote, differs, addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
-import { zoomPan, pinchView, ZOOM_MAX, dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from '../src/ui/debug/editor/picking.ts';
+import { routeGesture, orbitFrom, wheelAction, zoomPan, pinchView, ZOOM_MAX, dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from '../src/ui/debug/editor/picking.ts';
 import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
 import { VIEW_KEY, loadView, saveView, EXPORT_REMIND_MS, exportReminder, noteExported, persistHistory, restorableHistory, clearHistory, type StorageLike } from '../src/ui/debug/editor/session.ts';
 import { knownIds, orphansOf, orphanCount, withoutOrphans } from '../src/ui/debug/editor/orphans.ts';
@@ -374,4 +374,19 @@ test('slides: a slide is touched when its shot frames an edited part; other view
   assert.deepEqual(slidesTouching(deck, [[0.1, 0.1, 0]]).map((t) => t.slide), [0]);
   assert.deepEqual(slidesTouching(deck, [[3.1, 0, 0], [0, 0, 0]]).map((t) => t.slide), [0, 3]);
   assert.equal(stopOf(0), 1, 'stop 0 is the outline');
+});
+
+test('pointer routing: empty space turns, a handle edits, Space turns over a handle, Shift or a right button pans, two fingers pinch', () => {
+  const base = { fingers: 1, button: 0, shift: false, space: false, hitHandle: false };
+  assert.equal(routeGesture(base), 'orbit');
+  assert.equal(routeGesture({ ...base, hitHandle: true }), 'edit');
+  assert.equal(routeGesture({ ...base, hitHandle: true, space: true }), 'orbit');
+  assert.equal(routeGesture({ ...base, shift: true }), 'pan'); assert.equal(routeGesture({ ...base, button: 2, hitHandle: true }), 'pan');
+  assert.equal(routeGesture({ ...base, fingers: 2, hitHandle: true }), 'pinch');
+  const o = orbitFrom(0, 0, 100, 50);
+  assert.ok(o.yaw < 0 && o.pitch > 0, 'a drag right and down');
+  assert.equal(orbitFrom(0, 1.4, 0, 1000).pitch, 1.5, 'the tilt stops short of straight up');
+  assert.deepEqual(wheelAction({ ctrlKey: false, deltaX: 10, deltaY: -20 }), { zoom: 1, dx: -10, dy: 20 });
+  assert.ok(wheelAction({ ctrlKey: true, deltaX: 0, deltaY: -10 }).zoom > 1);
+  assert.deepEqual(zoomPan({ k: 1, x: 0, y: 0 }, 1, 30, 10), { k: 1, x: 30, y: 10 }, 'a pan at the fit is allowed');
 });

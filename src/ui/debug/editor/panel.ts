@@ -25,7 +25,7 @@ import { slidesTouching, stopOf, type Touch } from './slides.ts';
 import { builtinDecks, lazyDecks } from '../../../decks/registry.ts';
 import { loadDeck } from '../../deck/deck-of.ts';
 import { startTalk } from '../../shell/talk.ts';
-import { zoomPan, pinchView, type HandView, dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from './picking.ts';
+import { routeGesture, orbitFrom, wheelAction, zoomPan, pinchView, type HandView, dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from './picking.ts';
 import { NETWORK_BY_ID } from '../../../scene/vessels/network.ts';
 import { skeleton, organIds, pointAt, uAtIndex, centroidOf, type Skeleton } from './source.ts';
 import { History, nodeVisible, snapOffsets, type System, diffList, resetItem, differs, core, fileOverrides, fileText, staleNote, PLAN_PER_SCENE, addControl, removeControl, knotsOf, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
@@ -215,7 +215,7 @@ export function mountEditor(): void {
   const say = (t: string): void => { msg = t; msgEl.textContent = t; };
 
   const edit = (next: typeof hist.now, coalesce = true): void => { hist.commit(next, coalesce); };
-  const zoomBar = (): HTMLElement => bar([{ label: 'Zoom in', run: () => putView(zoomPan(view, 1.4)) }, { label: 'Zoom out', run: () => putView(zoomPan(view, 1 / 1.4)) }, { label: 'Fit view', run: () => putView({ k: 1, x: 0, y: 0 }) }]);
+  const zoomBar = (): HTMLElement => el('div', {}, [el('div', { className: 'hint', textContent: 'Drag empty space to turn the figure; drag a handle to edit. Two fingers pan and zoom. Mac: scroll pans, pinch or Ctrl+scroll zooms, Shift+drag or right-drag pans, hold Space and drag to turn over a handle.' }), bar([{ label: 'Zoom in', run: () => putView(zoomPan(view, 1.4)) }, { label: 'Zoom out', run: () => putView(zoomPan(view, 1 / 1.4)) }, { label: 'Fit view', run: () => putView({ k: 1, x: 0, y: 0 }) }])]);
   const buildDyn = (): void => {
     syncers.length = 0; dyn.replaceChildren();
     syncers.push(() => { for (const [m, b] of modeBtns) b.classList.toggle('on', m === mode); });
@@ -468,10 +468,36 @@ export function mountEditor(): void {
   let view: HandView = { k: 1, x: 0, y: 0 };
   const putView = (v: HandView): void => { view = v; cel.rig.holdHand(); cel.rig.setHand(v); frameFor('editor', 300); };
   const fingers = new Map<number, [number, number]>();
-  layer.addEventListener('wheel', (e) => { e.preventDefault(); putView(zoomPan(view, Math.exp(-e.deltaY * 0.0015))); sync(); }, { passive: false });
+  layer.addEventListener('wheel', (e) => { e.preventDefault(); const w = wheelAction(e); putView(zoomPan(view, w.zoom, w.dx, w.dy)); }, { passive: false });   // (Mac: scroll pans, pinch or Ctrl+scroll zooms)
+  layer.addEventListener('contextmenu', (e) => e.preventDefault());   // (a right drag pans)
+  let spaceHeld = false;
+  window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement)) { spaceHeld = true; if (layer.style.display !== 'none') e.preventDefault(); } });
+  window.addEventListener('keyup', (e) => { if (e.code === 'Space') spaceHeld = false; });
+  // a press on empty space turns the figure, on a handle edits; what counts as a handle is what the edit would grab
+  const handleAt = (e: PointerEvent): boolean => {
+    const { ndc, x, y } = stagePx(e), hitR = hitPx(e);
+    if (mode === 'vessels') {
+      const pts: ([number, number] | null)[] = visNodes().map((n) => screenOf(nodeShown(n.id)));
+      const vid = target?.kind === 'ctrl' ? target.vid : selVessel;
+      if (vid) for (const u of knotsOf(hist.now, vid)) pts.push(screenOf(ctrlShown(vid, u)));
+      return nearest(pts, x, y, hitR) >= 0;
+    }
+    if (tool === 'cage' && selOrgan && nearest(cageHandles(selOrgan).map((h) => screenOf(h)), x, y, hitR) >= 0) return true;
+    const hit = organAt(ndc);
+    return !!hit && (tool === 'move' || (tool === 'liquify' && hit.id === selOrgan));
+  };
+  type Nav = { kind: 'orbit' | 'pan'; x: number; y: number; px: number; py: number; yaw: number; pitch: number; moved: boolean; e0: PointerEvent };
+  let nav: Nav | null = null;
   layer.addEventListener('pointerdown', (e) => {
     fingers.set(e.pointerId, [e.clientX, e.clientY]);
-    if (fingers.size >= 2) { drag = null; return; }
+    if (fingers.size >= 2) { drag = null; nav = null; return; }
+    layer.setPointerCapture(e.pointerId);
+    const route = routeGesture({ fingers: fingers.size, button: e.button, shift: e.shiftKey, space: spaceHeld, hitHandle: handleAt(e) });
+    if (route === 'edit') { startEdit(e); return; }
+    const a = cel.rig.inspectAngles;
+    nav = { kind: route === 'pan' ? 'pan' : 'orbit', x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, yaw: a.yaw, pitch: a.pitch, moved: false, e0: e };
+  });
+  const startEdit = (e: PointerEvent): void => {
     const { ndc, x, y } = stagePx(e), hitR = hitPx(e);
     layer.setPointerCapture(e.pointerId);
     showLabel(nameAt(e), e.clientX, e.clientY);
@@ -512,7 +538,7 @@ export function mountEditor(): void {
       drag = { kind: 'organ', id: selOrgan, from: ndc, through: c, start: organOf(hist.now, selOrgan).move, marked: false };
     } else if (tool === 'liquify' && hit && hit.id === selOrgan) drag = { kind: 'brush', id: selOrgan, last: ndc, lastHit: hit.point, marked: false };
     sync();
-  });
+  };
   // the name of what is under the pointer: quiet text with a halo, eased in and out, placed by transform (no box)
   let labelText = '';
   const showLabel = (t: string | null, x: number, y: number): void => {
@@ -539,6 +565,14 @@ export function mountEditor(): void {
       fingers.set(e.pointerId, now); return;
     }
     if (was) fingers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (nav) {
+      const dx = e.clientX - nav.x, dy = e.clientY - nav.y;
+      if (!nav.moved && Math.hypot(dx, dy) < 6) return;   // (a press that does not move is a tap: it picks)
+      nav.moved = true; showLabel(null, 0, 0);
+      if (nav.kind === 'orbit') { const o = orbitFrom(nav.yaw, nav.pitch, dx, dy); cel.rig.inspectTo(o.yaw, o.pitch); frameFor('editor', 300); }
+      else { putView(zoomPan(view, 1, e.clientX - nav.px, e.clientY - nav.py)); nav.px = e.clientX; nav.py = e.clientY; }
+      return;
+    }
     if (!drag) { if (e.pointerType !== 'touch') showLabel(nameAt(e), e.clientX, e.clientY); return; }
     showLabel(null, 0, 0);
     const { ndc } = stagePx(e);
@@ -574,7 +608,7 @@ export function mountEditor(): void {
     }
     sync();
   });
-  const end = (e?: PointerEvent): void => { if (e) fingers.delete(e.pointerId); drag = null; flushStrokes(); settleStrokes(); };
+  const end = (e?: PointerEvent): void => { if (e) fingers.delete(e.pointerId); if (nav && !nav.moved && nav.kind === 'orbit' && e?.type === 'pointerup') startEdit(nav.e0); nav = null; drag = null; flushStrokes(); settleStrokes(); };
   layer.addEventListener('pointerup', end); layer.addEventListener('pointercancel', end);
   window.addEventListener('keydown', (e) => {
     if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;

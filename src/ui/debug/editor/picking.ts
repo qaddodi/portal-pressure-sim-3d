@@ -50,12 +50,29 @@ const clampK = (k: number): number => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, k));
 /** The hand's view after a zoom by `factor` (about the screen's centre, which the camera's zoom is about) and a pan of (dx, dy) px: pan is the picture's shift. At the fit the pan is zero. */
 export function zoomPan(v: HandView, factor: number, dx = 0, dy = 0): HandView {
   const k = clampK(v.k * factor), s = k / v.k;
-  return k <= ZOOM_MIN ? { k, x: 0, y: 0 } : { k, x: v.x * s + dx, y: v.y * s + dy };
+  return k <= ZOOM_MIN && factor !== 1 ? { k, x: 0, y: 0 } : { k, x: v.x * s + dx, y: v.y * s + dy };
 }
 /** Two fingers moved from (a0, b0) to (a1, b1): the zoom is their spread's ratio, the pan the middle's move. */
 export function pinchView(v: HandView, a0: readonly [number, number], b0: readonly [number, number], a1: readonly [number, number], b1: readonly [number, number]): HandView {
   const d0 = Math.hypot(a0[0] - b0[0], a0[1] - b0[1]), d1 = Math.hypot(a1[0] - b1[0], a1[1] - b1[1]);
   return zoomPan(v, d0 > 1 ? d1 / d0 : 1, (a1[0] + b1[0]) / 2 - (a0[0] + b0[0]) / 2, (a1[1] + b1[1]) / 2 - (a0[1] + b0[1]) / 2);
+}
+export type Route = 'pinch' | 'orbit' | 'pan' | 'edit';
+/** What a press on the edit layer does. Two fingers pinch and pan; Space turns the figure even over a handle; a right button or Shift pans; a press on a handle edits; a press on empty space turns the figure. */
+export function routeGesture(i: { fingers: number; button: number; shift: boolean; space: boolean; hitHandle: boolean }): Route {
+  if (i.fingers >= 2) return 'pinch';
+  if (i.space) return 'orbit';
+  if (i.button === 2 || i.shift) return 'pan';
+  return i.hitHandle ? 'edit' : 'orbit';
+}
+export const ORBIT_PER_PX = 0.006;   // radians of turn for a pixel of drag
+/** The turn after a drag of (dx, dy) px from (yaw, pitch): the figure follows the hand (a drag to the right turns its front to the right), the tilt stops short of straight up and down. */
+export function orbitFrom(yaw: number, pitch: number, dx: number, dy: number, maxPitch = 1.5): { yaw: number; pitch: number } {
+  return { yaw: yaw - dx * ORBIT_PER_PX, pitch: Math.max(-maxPitch, Math.min(maxPitch, pitch + dy * ORBIT_PER_PX)) };
+}
+/** A wheel event's meaning on the edit layer: Ctrl (a trackpad pinch arrives so) zooms, otherwise it pans by the scroll. */
+export function wheelAction(e: { ctrlKey: boolean; deltaX: number; deltaY: number }): { zoom: number; dx: number; dy: number } {
+  return e.ctrlKey ? { zoom: Math.exp(-e.deltaY * 0.01), dx: 0, dy: 0 } : { zoom: 1, dx: -e.deltaX, dy: -e.deltaY };
 }
 /** How far from a handle a press still grabs it (CSS px): a finger needs more than a mouse, and neither under 22. */
 export const hitRadius = (touch: boolean): number => (touch ? 30 : 22);
