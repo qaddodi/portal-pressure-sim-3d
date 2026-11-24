@@ -89,7 +89,7 @@ test('the tabular rule for a reading outranks the proportional prose rule, so th
   const tab = specOf(css.match(/^(\.deck-ui\.deck-ui :is\(\.pz-line, \.pz-side-p, \.pz-h\) :is\([^{]*?) \{ font-variant-numeric: tabular-nums lining-nums !important/m)![1]!);
   assert.ok(cmp(tab, prose) > 0, `tabular ${tab} must beat proportional ${prose}`);
   const labels = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');
-  assert.match(labels, /\.lb \.lb-delta, \.lb \.lb-alert \{ font-variant-numeric: proportional-nums lining-nums !important; \}/, 'a change badge beats the `*` important rule ("+1 4.6")');
+  assert.match(labels, /\.lb \.lb-val, \.lb \.lb-delta, \.lb \.lb-alert \{ font-variant-numeric: proportional-nums lining-nums !important; \}/, 'a change badge beats the `*` important rule ("+1 4.6")');
 });
 
 test('the Doppler probe keeps off the figure\'s colour key as off a card, and a label keeps 9 px off its body', async () => {

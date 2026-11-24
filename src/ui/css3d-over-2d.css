@@ -215,3 +215,6 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 
 /* The Gut to Heart card drops its title (24 Nov): out of the flow and unseen; the chart is as much taller as the title and its gap were (ProfileCard). */
 .pz.pz.pz .pz-data .pz-dh.off.off { position: absolute; left: 0; right: 0; visibility: hidden; pointer-events: none; }
+
+/* The catheter's pressure readout is proportional too: a tabular "1" is a cell wider than its ink ("1 4.3"), capture a47f69ea. Important: the lifted sheet's `* { tabular-nums !important }`. */
+.cath-label.cath-label b { font-variant-numeric: lining-nums proportional-nums !important; }
