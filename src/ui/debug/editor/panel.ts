@@ -14,7 +14,7 @@ import { bakeOverrides } from '../../../editor/organ-apply.ts';
 import { cageBox, cageRest, organBox, organBoxes, organPointMap } from '../../../editor/organ-apply.ts';
 import { liveTransform, throughTransform } from './live.ts';
 import { organHints } from '../../../editor/overlap.ts';
-import { endVesselPreview, previewVesselEdits, setVesselPreviewHost } from '../../../scene/vessels/edit-preview.ts';
+import { previewVesselEdits, setVesselPreviewHost } from '../../../scene/vessels/edit-preview.ts';
 import { LiveStrokes } from './strokes.ts';
 import { clock } from '../../../clock/frame.ts';
 import { buildCommit, VIEW_KEY, clearHistory, loadView, saveView, exportReminder, noteExported, persistHistory, restorableHistory, type StorageLike } from './session.ts';
@@ -165,7 +165,7 @@ export function mountEditor(): void {
   };
   const refreshOverlay = (): void => {
     syncOrgans();
-    if (mode === 'vessels' || playing || before) previewVesselEdits(shown()); else endVesselPreview();   // (the real tubes and skins move with the drag, vessels/edit-preview.ts)
+    previewVesselEdits(shown());   // (the real tubes and skins follow the draft in every mode, a vessel drag and an organ drag alike: vessels/edit-preview.ts; it does nothing while the draft is what the page was built with)
     const vessels = mode === 'vessels';
     overlay.dots('nodes', { pos: vessels ? visNodes().map((n) => nodeShown(n.id)) : [], size: dotPx(9), color: 0xffb347 });
     if (vessels && target?.kind === 'node') overlay.dots('pick', { pos: [nodeShown(target.id)], size: dotPx(16), color: 0xff3d71 });
