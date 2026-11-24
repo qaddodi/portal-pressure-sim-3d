@@ -2,9 +2,10 @@
 // reads it here instead, so a figure edited with overrides (src/editor) moves its catheter route, scope targets, station dots, organ names and framing with it.
 // With no vessel, node or organ edit every function returns its reference value UNCHANGED (the same array or number), so the unedited figure is byte-identical.
 import { overrides } from '../editor/store.ts';
-import { NODE_POS_2D } from './vessels/paths.copied.ts';
-import { courseOf } from './vessels/network.ts';
+import { EDGE_PATH_2D, NODE_POS_2D } from './vessels/paths.copied.ts';
+import { NETWORK_BY_ID, courseOf } from './vessels/network.ts';
 import { editedPlan } from '../editor/vessel-plan.ts';
+import { TIER_Z } from './frame2d.ts';
 
 type P2 = readonly [number, number];
 
@@ -138,6 +139,86 @@ export function followOrganAt(p: P2, z?: number): P2 {
   if (!os) return p;
   for (const id of Object.keys(os)) if (organMap(id) && inside(outlineOf(id).rs, p[0], p[1])) return withOrgan(id, p, z);
   return p;
+}
+
+// ---- Named anchors for camera framings (audit item 9): a framing follows what it frames, by vessel id + share of its length, or by organ id, never by a guess of nearby nodes ----
+export type Anchor = { organ: string } | { vessel: string; f?: number };
+export type Shift = readonly [number, number, number];
+const ZERO: Shift = [0, 0, 0];
+const arcPoint = (p: readonly P2[], f: number): P2 => {
+  const cum = [0];
+  for (let i = 1; i < p.length; i++) cum.push(cum[i - 1]! + Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]));
+  const s = Math.min(1, Math.max(0, f)) * cum[cum.length - 1]!;
+  let i = 1;
+  while (i < p.length - 1 && cum[i]! < s) i++;
+  const span = cum[i]! - cum[i - 1]!, u = span > 0 ? (s - cum[i - 1]!) / span : 0;
+  return [p[i - 1]![0] + (p[i]![0] - p[i - 1]![0]) * u, p[i - 1]![1] + (p[i]![1] - p[i - 1]![1]) * u];
+};
+/** How far an anchor has moved from the reference figure: figure units in x and y (y down), scene units in depth. [0, 0, 0] unedited. */
+export function anchorShift(a: Anchor): Shift {
+  if ('organ' in a) {
+    const m = organMap(a.organ);
+    if (!m) return ZERO;
+    const c = outlineOf(a.organ).centre, q = m(c);
+    return [(q[0] - c[0]) * U, -(q[1] - c[1]) * U, q[2] - c[2]];
+  }
+  const ref = EDGE_PATH_2D[a.vessel] as readonly P2[] | undefined, ed = (editedPlan() as Record<string, readonly P2[] | undefined>)[a.vessel];
+  if (!ref || !ed || ed === ref) return ZERO;
+  const f = a.f ?? 0.5, r = arcPoint(ref, f), e = arcPoint(ed, f);
+  const tier = TIER_Z[NETWORK_BY_ID.get(a.vessel)?.tier ?? 'net'];
+  return [e[0] - r[0], e[1] - r[1], zAtArc(a.vessel, f, tier) - tier];
+}
+/** The mean shift of several anchors (the same zeros when none has moved). */
+export function meanShift(as: readonly Anchor[]): Shift {
+  if (!as.length) return ZERO;
+  let x = 0, y = 0, z = 0;
+  for (const a of as) { const s = anchorShift(a); x += s[0]; y += s[1]; z += s[2]; }
+  return x === 0 && y === 0 && z === 0 ? ZERO : [x / as.length, y / as.length, z / as.length];
+}
+/** What each named plate region of the slides frames (2D `regions`): the organs and vessels whose edits move it. A region absent here (and listed in UNANCHORED_REGIONS) frames a fixed part of the plate. */
+export const REGION_ANCHORS: Readonly<Record<string, readonly Anchor[]>> = {
+  route: [{ vessel: 'SVC_RA' }, { vessel: 'IVCS_RA' }, { vessel: 'IVC_IS' }],
+  liver: [{ organ: 'liver' }],
+  portal: [{ vessel: 'PV_TRUNK' }, { vessel: 'PVH_L' }],
+  gut: [{ organ: 'bowel' }],
+  hepatic: [{ vessel: 'RHV_IVC' }, { vessel: 'MHV_IVC' }, { vessel: 'LHV_IVC' }],
+  dips: [{ vessel: 'DIPS' }],
+  heart: [{ organ: 'heart' }],
+  varices: [{ vessel: 'C1a' }],
+  bleed: [{ organ: 'stomach' }],
+  gej: [{ organ: 'stomach' }],
+  feeder: [{ vessel: 'C2' }],
+  spleen: [{ organ: 'spleen' }],
+  rectum: [{ organ: 'colon' }],
+  fundus: [{ organ: 'stomach' }],
+  splenic: [{ vessel: 'V_SPL' }],
+};
+/** Slide cameras that frame a fixed part of the plate and follow no edit: the abdominal wall, the whole figure and raw boxes (the Circuit view has its own regions). */
+export const UNANCHORED_REGIONS: readonly string[] = ['wall', 'fit', 'box'];
+/** The shift of a body slide's camera named by `names` (region names). */
+export const regionShift = (names: readonly string[]): Shift => meanShift(names.flatMap((n) => REGION_ANCHORS[n] ?? []));
+/** The shift of an organ's plate box (an `on: [organ]` camera). */
+export const organBoxShift = (organ: string): Shift => anchorShift({ organ });
+export function shiftBox(box: readonly [number, number, number, number], s: Shift): readonly [number, number, number, number] {
+  return s[0] === 0 && s[1] === 0 ? box : [box[0] + s[0], box[1] + s[1], box[2] + s[0], box[3] + s[1]];
+}
+/** The shift of a framing point (x, y) the figure aims at: that of the nearest point on the named vessels' reference courses, kept as an offset from it. [0, 0, 0] unedited. */
+export function pointShift(x: number, y: number, vessels: readonly string[]): Shift {
+  let best = Infinity, pick: { id: string; f: number } | null = null;
+  for (const id of vessels) {
+    const p = EDGE_PATH_2D[id] as readonly P2[] | undefined;
+    if (!p) continue;
+    let total = 0, upTo = 0;
+    const lens = p.slice(1).map((q, i) => Math.hypot(q[0] - p[i]![0], q[1] - p[i]![1]));
+    for (const l of lens) total += l;
+    for (let i = 1; i < p.length; i++) {
+      const ax = p[i - 1]![0], ay = p[i - 1]![1], dx = p[i]![0] - ax, dy = p[i]![1] - ay, l2 = dx * dx + dy * dy, t = l2 > 0 ? Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0;
+      const d = Math.hypot(x - ax - dx * t, y - ay - dy * t);
+      if (d < best) { best = d; pick = { id, f: total > 0 ? (upTo + lens[i - 1]! * t) / total : 0 }; }
+      upTo += lens[i - 1]!;
+    }
+  }
+  return pick ? anchorShift({ vessel: pick.id, f: pick.f }) : ZERO;
 }
 
 /** The follow of a framing point near edited nodes: the nodes' moves (figure units), each fading smoothly to nothing `reach` units from where the node stood. [0, 0] unedited. */

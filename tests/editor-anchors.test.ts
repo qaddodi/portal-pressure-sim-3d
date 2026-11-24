@@ -237,3 +237,42 @@ test('a node dz reaches the scope and glue targets by the eased arm amount (fres
   const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: process.cwd(), encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
 });
+
+test('every slide camera region is anchored to an organ or vessel, or listed as fixed; the anchors follow edits (audit 9)', async () => {
+  const { REGIONS_2D } = await import('../src/decks/ag/regions.generated.ts');
+  const { REGION_ANCHORS, UNANCHORED_REGIONS } = await import('../src/scene/editor-anchors.ts');
+  for (const n of Object.keys(REGIONS_2D)) assert.ok(REGION_ANCHORS[n] || UNANCHORED_REGIONS.includes(n), `region "${n}" has no anchor and is not listed as fixed`);
+  const { UNANCHORED_SHOTS } = await import('../src/scene/camera/shots.ts');
+  assert.deepEqual([...UNANCHORED_SHOTS], ['title', 'play', 'pick']);
+});
+
+test('slide cameras and catheter shots follow vessel, depth and organ edits (fresh process); unedited they are the reference', () => {
+  const run = (o: string) => {
+    const code = `
+      const { setOverridesForTest } = await import('./src/editor/store.ts');
+      setOverridesForTest(${o});
+      const { SHOTS } = await import('./src/scene/camera/shots.ts');
+      const { regionBox, shotOfCam } = await import('./src/decks/ag/shots.ts');
+      const { REGIONS_2D } = await import('./src/decks/ag/regions.generated.ts');
+      const { boxOf } = await import('./src/decks/rw/cams.ts');
+      const F = await import('./src/scene/frame2d.ts');
+      console.log(JSON.stringify({ free: SHOTS.free.target, route: SHOTS.route.target, liver: regionBox('liver'), hep: regionBox('hepatic'), rw: boxOf('liver'), shot: shotOfCam('liver').shot.target, ref: REGIONS_2D.liver, refFree: [F.x3(560), F.y3(260), -0.2] }));
+    `;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: process.cwd(), encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout.trim().split('\n').pop()!);
+  };
+  const a = run('{ version: 1 }');
+  assert.deepEqual(a.free, a.refFree);
+  assert.deepEqual(a.liver, a.ref);
+  assert.deepEqual(a.rw, a.ref);
+  // the liver moved 0.05 right: its region and its shot move 15 figure units / 0.05 scene units
+  const b = run('{ version: 1, organs: { liver: { move: [0.05, 0, 0] } } }');
+  assert.ok(Math.abs(b.liver[0] - (a.liver[0] + 15)) < 1e-6 && Math.abs(b.rw[2] - (a.rw[2] + 15)) < 1e-6);
+  assert.ok(Math.abs(b.shot[0] - (a.shot[0] + 0.05)) < 1e-6);
+  assert.deepEqual(b.free, a.free, 'a liver move does not move the hepatic-vein shots');
+  // a vessel bend and a depth edit on the middle hepatic vein carry the catheter shots that look at it
+  const c = run("{ version: 1, vessels: { MHV_IVC: { pts: [{ u: 0.25, dx: 0, dy: -12, dz: 0.04 }] } } }");
+  assert.ok(c.free[1] !== a.free[1] || c.free[2] !== a.free[2], 'the free shot follows the edited vein');
+  assert.ok(c.free[2] > a.free[2], 'and its depth');
+});
