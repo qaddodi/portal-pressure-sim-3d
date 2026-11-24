@@ -20,6 +20,10 @@ export const COMPACT_W = 700;
 
 export type LabelLevel = 'none' | 'key' | 'all';
 
+/** The Labels setting applies to free exploration only: a slide names what it teaches whatever the setting (Mohammad, 24 Nov: Ascites 9's sinusoid showed no names with Labels off).
+ *  Every label layer reads its level through this; the setting itself is never changed, so leaving the deck gives him his own back. */
+export const levelFor = (level: LabelLevel, presenting: boolean): LabelLevel => (presenting && level === 'none' ? 'key' : level);
+
 export interface FreeEnv {
   level: LabelLevel;
   zoomed: boolean;

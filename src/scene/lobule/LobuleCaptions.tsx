@@ -10,6 +10,7 @@ import { readModel } from './read-model.ts';
 import { useLookId } from '../../looks/use-look.ts';
 import { BAR } from '../../ui/layout/plan.ts';
 import { useUi, talkRects } from '../../ui/ui-store.ts';
+import { levelFor } from '../labels/free-set.ts';
 import { useShell } from '../../ui/shell/store.ts';
 import { useLabels } from '../labels/store.ts';
 import { cel } from '../api.ts';
@@ -88,7 +89,7 @@ export function LobuleCaptions() {
     const onSlide = () => useLabels.getState().presenting;
     const solveNow = () => {
       const { vp } = useUi.getState();
-      const level = useShell.getState().figure.labelLevel;
+      const level = levelFor(useShell.getState().figure.labelLevel, useLabels.getState().presenting);
       const m = readModel(cel.lobule.inkContext()?.model) ?? null;
       const L = cel.lobule.currentLayers;
       const vw = view(), bl = blockers();
@@ -142,7 +143,7 @@ export function LobuleCaptions() {
     const layoutSig = (): string => {
       const { vp, boxes } = useUi.getState();
       const L = cel.lobule.currentLayers, m = readModel(cel.lobule.inkContext()?.model);
-      return [vp.w, vp.h, L.zones, L.lymph, useShell.getState().figure.labelLevel, boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'), boxKey(view()), lookRef.current,
+      return [vp.w, vp.h, L.zones, L.lymph, levelFor(useShell.getState().figure.labelLevel, useLabels.getState().presenting), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'), boxKey(view()), lookRef.current,
         readingSig(m, onSlide()), onSlide()].join('|');   // (the readings' widths, never their values: a value that moves a tenth is written in place, refreshReadings, and sends nothing through a fade)
     };
     const boxesOf = () => {

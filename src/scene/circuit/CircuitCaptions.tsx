@@ -11,6 +11,7 @@ import { NODES } from '../../engine/hales/portal/topology.js';
 import { useLookId } from '../../looks/use-look.ts';
 import { BAR } from '../../ui/layout/plan.ts';
 import { useUi, talkRects } from '../../ui/ui-store.ts';
+import { levelFor } from '../labels/free-set.ts';
 import { useShell } from '../../ui/shell/store.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
 import { useBlood } from '../blood/options.ts';
@@ -113,7 +114,7 @@ export function CircuitCaptions() {
 
     const solveNow = () => {
       const { vp, boxes } = useUi.getState();
-      const level = useShell.getState().figure.labelLevel;
+      const level = levelFor(useShell.getState().figure.labelLevel, useLabels.getState().presenting);
       const picked = usePick.getState().picked;
       const named = useLabels.getState().named;
       const must = new Set([...named].filter((id) => CIRCUIT_LABELS[id]));
@@ -236,7 +237,7 @@ export function CircuitCaptions() {
       const res = cel.resistorsNow;
       return [vp.w, vp.h, cel.circuit.upright, [...cel.stationsOf.keys()].filter((id) => cel.stationOn(id)).join(','), Object.keys(CIRCUIT_LABELS).length,
         COURSES.size, resSig(res), Math.round(cel.resistors.widthNow('rLiver')), Math.round(cel.resistors.widthNow('rColl')), Math.round(cel.resistors.widthNow('rGut')),
-        useShell.getState().figure.labelLevel, [...useLabels.getState().named].join(','), usePick.getState().picked, Math.round(cel.handZoom * 20), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'),
+        levelFor(useShell.getState().figure.labelLevel, useLabels.getState().presenting), [...useLabels.getState().named].join(','), usePick.getState().picked, Math.round(cel.handZoom * 20), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'),
         [...COURSES.keys()].filter((id) => cel.vesselDrawn(id)).length, lookRef.current].join('|');
     };
     const hand = new HandWatch();
