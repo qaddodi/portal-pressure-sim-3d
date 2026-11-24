@@ -16,6 +16,7 @@ import { endVesselPreview, previewVesselEdits, setVesselPreviewHost } from '../.
 import { LiveStrokes } from './strokes.ts';
 import { clock } from '../../../clock/frame.ts';
 import { VIEW_KEY, clearHistory, loadView, saveView, exportReminder, noteExported, persistHistory, restorableHistory, type StorageLike } from './session.ts';
+import { knownIds, orphanCount, orphanText, orphansOf, withoutOrphans } from './orphans.ts';
 import { Overlay } from './overlay.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from './picking.ts';
 import { skeleton, organIds, pointAt, uAtIndex, centroidOf, type Skeleton } from './source.ts';
@@ -252,13 +253,16 @@ export function mountEditor(): void {
   };
   let autosavePending = false;
   const flushHistory = (): void => { autosavePending = false; if (store) persistHistory(store, loaded, hist, clock.now()); };
+  const known = knownIds();
+  const orphanNote = (): string => { const r = orphansOf(hist.now, known); return orphanCount(r) ? `${orphanCount(r)} edit${orphanCount(r) === 1 ? '' : 's'} name${orphanCount(r) === 1 ? 's' : ''} something that no longer exists (${orphanText(r)}) and do${orphanCount(r) === 1 ? 'es' : ''} nothing.` : ''; };
+  { const r = orphansOf(loaded, known); if (orphanCount(r)) console.warn('[editor] overrides name parts this build does not have:', orphanText(r)); }
   const dirty = (): boolean => exportText(hist.now) !== exportText(loaded);
   const sync = (): void => {
     for (const f of syncers) f();
     status.textContent = `${dirty() ? 'Unsaved edits' : 'No edits since the last Save'} · ${Object.keys(hist.now.nodes ?? {}).length} junctions, ${Object.keys(hist.now.vessels ?? {}).length} vessels, ${Object.keys(hist.now.organs ?? {}).length} organs`;
     undoB.disabled = !hist.canUndo; redoB.disabled = !hist.canRedo;
     const remind = store ? exportReminder(store, hist.now, committedOverrides(), clock.now()) : null;
-    msgEl.textContent = [msg, remind].filter(Boolean).join(' '); refreshOverlay();
+    msgEl.textContent = [msg, remind, orphanNote()].filter(Boolean).join(' '); refreshOverlay();
     if (store && !autosavePending) { autosavePending = true; clock.after(flushHistory, 800, 'editor-autosave'); }   // (a moment after the last edit, not per move)
   };
 
@@ -297,6 +301,8 @@ export function mountEditor(): void {
   const panelB = el('button', { textContent: 'Panel' }); panelB.onclick = () => { box.style.display = box.style.display === 'none' ? 'block' : 'none'; panelB.classList.toggle('on', box.style.display !== 'none'); }; panelB.classList.add('on');
   const clear = el('button', { textContent: 'Clear draft' });
   clear.onclick = () => { if (confirm('Throw away the saved draft and reload?')) { clearDraft(); if (store) clearHistory(store); location.reload(); } };
+  const dropO = el('button', { textContent: 'Drop orphan edits' }); dropO.onclick = () => { hist.commit(withoutOrphans(hist.now, known)); say('Dropped the edits that named nothing.'); sync(); };
+  file.append(dropO);
   const paste = el('textarea', { placeholder: 'Paste an overrides file here, then Import', rows: 3 });
   paste.style.cssText = 'width:100%;box-sizing:border-box;font:11px ui-monospace,Menlo,monospace;color:#fff;background:#fff2;border:1px solid #fff6;border-radius:6px;padding:6px';
   const importText = (text: string, from: string): void => {

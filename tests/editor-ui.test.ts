@@ -8,6 +8,8 @@ import { addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, t
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from '../src/ui/debug/editor/picking.ts';
 import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
 import { VIEW_KEY, loadView, saveView, EXPORT_REMIND_MS, exportReminder, noteExported, persistHistory, restorableHistory, clearHistory, type StorageLike } from '../src/ui/debug/editor/session.ts';
+import { knownIds, orphansOf, orphanCount, withoutOrphans } from '../src/ui/debug/editor/orphans.ts';
+import committedOverrides from '../src/editor/overrides.json' with { type: 'json' };
 import { LiveStrokes } from '../src/ui/debug/editor/strokes.ts';
 import { liveTransform } from '../src/ui/debug/editor/live.ts';
 import { pointAt, uAtIndex } from '../src/ui/debug/editor/source.ts';
@@ -266,4 +268,16 @@ test('?editor=view is still the editor flag (the draft is read), and says view (
   assert.equal(flagOn('editor', '?editor=view'), true);
   assert.equal(flagValue('editor', '?editor=view'), 'view');
   assert.notEqual(flagValue('editor', '?editor'), 'view');
+});
+
+test('orphans: every id in the committed overrides.json exists in this build, and a missing one is found and droppable', () => {
+  const k = knownIds();
+  const real = orphansOf(committedOverrides as never, k);
+  assert.equal(orphanCount(real), 0, `the committed overrides name parts the build lacks: ${JSON.stringify(real)}`);
+  const sk = editableSkeleton();
+  const good = setOrgan(setControl(setNode(EMPTY, sk.nodes[0]!.id, { dx: 1, dy: 1 }), sk.vessels[0]!.id, 0.5, { dx: 1, dy: 1 }), 'liver', { rotY: 0.1 });
+  assert.equal(orphanCount(orphansOf(good, k)), 0, 'real ids are known');
+  const bad = setOrgan(setControl(setNode(good, 'NO_SUCH_NODE', { dx: 1, dy: 1 }), 'NO_SUCH_VESSEL', 0.5, { dx: 1, dy: 1 }), 'no-such-organ', { rotY: 0.1 });
+  assert.deepEqual(orphansOf(bad, k), { nodes: ['NO_SUCH_NODE'], vessels: ['NO_SUCH_VESSEL'], organs: ['no-such-organ'] });
+  assert.deepEqual(withoutOrphans(bad, k), good);
 });
