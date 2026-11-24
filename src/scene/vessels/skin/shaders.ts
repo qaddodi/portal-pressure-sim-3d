@@ -73,6 +73,8 @@ export const SKIN_HEAD_LAT_TO = 1.7;
 /** A head is whole or it is not drawn (the smeared black blobs in the crotch of a fork, Mohammad 21 Nov). Root cause: a head was drawn by EVERY arm, scaled by that arm's soft share of its centre and by a lateral gate fading over 1.1 to 1.7 radii, so in the fillet two
  *  half-strength copies of one head, each stretched over pixels outside its own frame's cylinder (a head lies within 0.6 of the axis), summed to a dark smear. Now its owner share is sharpened (SKIN_HEAD_OWN_FROM .. TO: 0 under, 1 over, so the two arms' shares still sum to 1) and the gate
  *  closes at the head's own reach, not the wall's. */
+/** The band about a tie of two arms' shares over which a head's ownership passes from one arm to the other (a head is whole to the winner everywhere else). */
+export const SKIN_HEAD_TIE = 0.1;
 export const SKIN_HEAD_OWN_FROM = 0.3, SKIN_HEAD_OWN_TO = 0.7, SKIN_HEAD_GATE_FROM = 0.75, SKIN_HEAD_GATE_TO = 1.0;
 
 /** The weighted sum of a per-arm float uniform array over all the arms (`wAt` and `wAtF` read the two weight attributes). */
@@ -412,14 +414,17 @@ float skinOwner(int arm, vec3 centre, float kPx) {
     d[k] = (armData[k].x < 0.0 || keepOf(k) < 0.5) ? 1.0e9 : skinArmPx(fc, k, swAt(k)) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(k)));
     lo = min(lo, d[k]);
   }
-  float mine = 0.0, sum = 0.0;
+  // THE WINNER OWNS THE HEAD WHOLE. The share of an arm is its softmax weight over the sum, which at a three-way fillet is about a third for every arm: a head there was drawn at a third of its strength (a pale ghost lying under the join) or, where
+  // the shares tie under the gate, by nobody at all (Mohammad, 24 Nov: chevrons hidden under the joins, in every lens). An arm now owns the head by how much its share beats the best of the others', eased over a narrow band
+  // about a tie (SKIN_HEAD_TIE): 1 for the arm that wins, 0 for the others, and the two arms of a tie still sum to 1 (never two whole copies).
+  float mine = 0.0, sum = 0.0, other = 0.0;
   for (int k = 0; k < ${SKIN_ARMS}; k++) {
     if (armData[k].x < 0.0) continue;
     float w = exp(-4.0 * (d[k] - lo) / max(kPx, 1e-3));
     sum += w;
-    if (k == arm) mine = w;
+    if (k == arm) mine = w; else other = max(other, w);
   }
-  return mine / max(sum, 1e-6);
+  return smoothstep(-${F(SKIN_HEAD_TIE)}, ${F(SKIN_HEAD_TIE)}, (mine - other) / max(sum, 1e-6));
 }
 void main() {
   { float kept = 0.0; for (int i = 0; i < ${SKIN_ARMS}; i++) kept += rawW(i) * keepOf(i); gWKeep = armFlow[1].w > exp2(float(${SKIN_ARMS})) - 1.5 ? 1.0 : 1.0 / max(kept, 1.0e-4); }   // (every arm kept: the weights as they are)
@@ -587,8 +592,11 @@ void main() {
     if (vR > 0.0) {
       vec4 hI = flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlowAt(i), 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
       if (hI.a > 0.002) {
-        vec3 seamP = armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz, relP = vPos - seamP;
-        float latK = length(relP - tJA[i] * dot(relP, tJA[i])) * SKIN_U / max(rOwn * swAt(i), 1e-4);
+        vec3 seamP = armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;
+        // (the pixel's lateral from the arm's LIVE axis, the bent chain J - start - seam - far the mesh itself is built on, in lumen units: skinArmLat. It was the distance to the straight line through the seam, which a bending vessel
+        // leaves within a radius or two, so on a curved trunk the gate closed on a head standing mid-lumen and drew it a ghost, or not at all: Mohammad, 24 Nov, chevrons hidden under the joins in every lens)
+        float rPxH;
+        float latK = abs(skinArmLat(gl_FragCoord.xy, i, swAt(i), rPxH));
         float gate = 1.0 - smoothstep(${F(SKIN_HEAD_GATE_FROM)}, ${F(SKIN_HEAD_GATE_TO)}, latK);
         if (gate > 0.0 && abs(armArc[i].y) > 0.5) hI *= gate * smoothstep(${F(SKIN_HEAD_OWN_FROM)}, ${F(SKIN_HEAD_OWN_TO)}, skinOwner(i, seamP + tJA[i] * ((chevCentreArc - armArc[i].x) / (armArc[i].y * SKIN_U)), kPx));
         else hI = vec4(0.0);

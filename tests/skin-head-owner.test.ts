@@ -39,10 +39,11 @@ test('a skin draws every head whole by the owner of its centre, inside the arm\'
   assert.ok(main.indexOf('flowHeads(') < main.indexOf('if (wI < 0.004 || vR <= 0.0) continue;'));
 });
 
-test('the owner is the mesh\'s own rule: a softmax of the arms\' distances in px, summing to one over the arms', () => {
+test('the owner is the mesh\'s own rule (a softmax of the arms\' distances in px) read as a WINNER, never as a third: a head in a three-way fillet is whole or not this arm\'s, never a pale ghost', () => {
   const own = body(SKIN_FS, 'float skinOwner(');
   assert.match(own, /exp\(-4\.0 \* \(d\[k\] - lo\) \/ max\(kPx, 1e-3\)\)/);
-  assert.match(own, /return mine \/ max\(sum, 1e-6\)/);
+  assert.match(own, /return smoothstep\(-[0-9.]+, [0-9.]+, \(mine - other\) \/ max\(sum, 1e-6\)\)/);
+  assert.ok(!/return mine \/ max\(sum/.test(own), 'not the bare share');
 });
 
 test('?joins=noheads still removes the heads from a skin', () => {
@@ -57,4 +58,15 @@ test('a head is whole or gone: its owner share is sharpened (the two arms still 
   assert.ok(m.SKIN_HEAD_GATE_TO <= 1.0 && m.SKIN_HEAD_GATE_TO < m.SKIN_HEAD_LAT_FROM, 'no head past the wall of its own cylinder');
   const main = body(m.SKIN_FS, 'void main(');
   assert.match(main, /smoothstep\([0-9.]+, [0-9.]+, skinOwner\(i, seamP/);
+});
+
+// Mohammad, 24 Nov: "chevrons hide under the joins, in every lens". Rendered (software GL, Pressure lens, the portal confluence): with the skins on, the heads along the bent trunks were pale ghosts; with ?joins=old they were whole.
+// Root cause: the head's lateral gate measured the pixel's distance to the STRAIGHT line through the seam, which a bending vessel leaves within a radius or two, so the gate half-closed on a head standing mid-lumen. A head's owner
+// share was also a third at a three-way fillet. Now the gate reads the pixel's lateral from the arm's live axis chain (skinArmLat) and the owner is the winner of the arms' shares.
+test('a head\'s lateral gate follows the arm\'s live bent axis, never the straight line through the seam', () => {
+  const main = body(SKIN_FS, 'void main(');
+  const at = main.indexOf('flowHeads(');
+  const gate = main.slice(at, main.indexOf('hI = vec4(0.0);', at));
+  assert.match(gate, /skinArmLat\(gl_FragCoord\.xy, i, swAt\(i\), rPxH\)/);
+  assert.ok(!/dot\(relP, tJA\[i\]\)/.test(gate), 'no distance to the straight line');
 });
