@@ -86,6 +86,8 @@ export const TIPS_DOPPLER_REVIEW = [
 ];
 
 export const SOURCE_PATCHES = [
+  P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
+  P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
   // ---- encephalopathy: "{ppg}, {<12 mmHg}, the variceal reference" read as a list of two readings; the cut-off is named as what it is (capture 572259fd, slides 10 and 13) ----
   P('encephalopathy', 'slides.tips.line', 'lowers the PPG to {ppg}, {<12 mmHg}, the variceal reference, and', 'lowers the PPG to {ppg}, under the {12 mmHg} variceal reference, and'),
   P('encephalopathy', 'slides.relation.line', 'the PPG is {ppg}, {<12 mmHg}, the variceal reference, and', 'the PPG is {ppg}, under the {12 mmHg} variceal reference, and'),
