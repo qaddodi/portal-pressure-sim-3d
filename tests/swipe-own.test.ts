@@ -62,3 +62,12 @@ test('a drag that is only a step of the slide (procedure, tool reading) takes no
   assert.match(drag, /opts\.current\.stays\?\.\(dx\)\) g\.cards = \[\]/);
   assert.match(layer, /stays: \(dx\) => .*procCanStep\(d\) \|\| toolCanStep\(d\)/);
 });
+
+// Mohammad, 24 Nov ("good idea"): on a stepped slide the vertical swipe moves no card either (the dock's instrument card, the wallet swap).
+test('a stepped slide locks the vertical swipes too', () => {
+  const dock = readFileSync(new URL('../src/ui/cards/useDockSwipe.ts', import.meta.url), 'utf8');
+  const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
+  assert.match(dock, /opts\.current\.locked\?\.\(\)\) \{ g = null; return; \}/);
+  assert.match(layer, /useDockSwipe\(\{ enabled: dockable[^\n]*locked: steppedSlide/);
+  assert.match(layer, /isSwapSwipe\(g\) && !steppedSlide\(\)/);
+});

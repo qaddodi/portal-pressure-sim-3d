@@ -13,6 +13,8 @@ import { clock } from '../../clock/frame.ts';
 const own = (t: Element | null) => ownsTouch(t) || !!t?.closest?.('.dk-strip, [data-no-dock]');
 
 interface Opts {
+  /** a slide that is stepped through (a procedure's steps, the data card's readings): a vertical swipe moves no card, the instrument card included (Mohammad, 24 Nov) */
+  locked?(): boolean;
   /** A phone on its side (docs/approved/landscape-phone.md): the two cards are one column, and the swipe slides BOTH by this many px (instead of putting the instrument away to its edge); 0 or absent: the portrait dock. */
   column?: number;
   /** both cards are up and the layout docks (a phone or an upright iPad), and no zoom or case is over them */
@@ -52,6 +54,7 @@ export function useDockSwipe(o: Opts) {
       const dx = e.clientX - g.x, dy = e.clientY - g.y;
       if (!g.on) {
         if (axisOf(g.id, dx, dy) !== 'y') return;   // (not decided yet, or sideways: the slide's own swipe, useCardDrag)
+        if (opts.current.locked?.()) { g = null; return; }
         const els = dataEls(!!opts.current.column);
         if (!els) { g = null; return; }
         const closed = opts.current.column ? opts.current.column : closedPx(els.h), at = dock.running ? dock.lvl : opts.current.docked ? 1 : 0;

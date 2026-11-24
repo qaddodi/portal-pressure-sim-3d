@@ -280,12 +280,14 @@ export function CardLayer({ deck }: { deck: Deck }) {
     if (cardZoom.on) { void cardZoom.close({ reduce: reduceMotion() }); return; }
     if (m === 'next' && atEnd(useUi.getState())) finishTalk(); else move(m);
   };
+  // a slide whose Next is a step (a procedure, the HVPG readings): its swipes only step; no card moves, vertically either
+  const steppedSlide = () => procCanStep(1) || procCanStep(-1) || toolCanStep(1) || toolCanStep(-1);
   // 2D's dock (ui/cards/dock.ts): on a phone or an upright iPad with both cards up, a push up anywhere on the slide slides the instrument card away to its handle, following the finger; a pull down
   // anywhere brings it back; a tap on its handle too
   // (a phone on its side: the two cards are one column on the left; the same swipe slides BOTH up until the instrument is in the middle, a swipe down brings the words back, and a tap on the card that peeks
   // does the same: docs/approved/landscape-phone.md. A new slide always starts on its words.)
   const dockable = ((plan.layout === 'stack' || plan.layout === 'tab') && (!plan.strip || plan.docked) || plan.sideways) && !!dataShown && !!wordsShown && !alone;
-  useDockSwipe({ enabled: dockable && !cardZoom.on, docked: plan.docked || plan.scrolled, column: plan.sideways ? plan.scrollDy : undefined, onSettle: (closed) => setDocked(closed) });
+  useDockSwipe({ enabled: dockable && !cardZoom.on, locked: steppedSlide, docked: plan.docked || plan.scrolled, column: plan.sideways ? plan.scrollDy : undefined, onSettle: (closed) => setDocked(closed) });
   useEffect(() => { if (useUi.getState().docked && isSideways(vp.w, vp.h)) setDocked(false); }, [pos.stop]); // eslint-disable-line react-hooks/exhaustive-deps
   // a Mac trackpad's two-finger sideways swipe: one slide a gesture (the glide after the fingers lift never skips another)
   useDeckWheel(goTo);
@@ -295,7 +297,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
       // a vertical swipe the dock took (useDockSwipe lets go on this same pointerup) is not also the wallet's swap: once the dock has landed and the store has re-rendered (a card pushed fully away
       // lands at once), `plan.strip` is the docked card's edge, and the swipe that docked it was read a second time as "swap" and brought the card straight back
       if (justDocked()) return;
-      if (plan.strip && !plan.sideways && isSwapSwipe(g)) { swapWallet(); return; }
+      if (plan.strip && !plan.sideways && isSwapSwipe(g) && !steppedSlide()) { swapWallet(); return; }
       const m = swipeMove(g.dx, g.dy, g.ms);
       if (m) goTo(m);
     },
