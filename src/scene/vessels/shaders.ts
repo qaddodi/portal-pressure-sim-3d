@@ -654,7 +654,7 @@ void main() {
   // the flow heads, on the tube's surface as the 2D composite lays them
   float pxArc = fwPx;   // (derivatives taken at the top of main, before any discard)
   float acrossW = fwAw;
-  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * stumpMk, lensHead(lensGradA, lensLaneA, lensModeA, laneColA, la), lensHead(lensGradB, lensLaneB, lensModeB, laneColB, lb), color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
+  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, markK(skinCut.x >= 0.0 ? 1e6 : vUv.x * len * vU, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk, lensHead(lensGradA, lensLaneA, lensModeA, laneColA, la), lensHead(lensGradB, lensLaneB, lensModeB, laneColB, lb), color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
   hd = clamp(hd, 0.0, 1.0);
 #ifdef VDBG
   if (dbgHeads < 0.5) hd = vec4(0.0);

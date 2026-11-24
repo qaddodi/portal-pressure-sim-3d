@@ -614,7 +614,7 @@ void main() {
           // centre would be in the skin. Asked of the owner rule, a head at the mouth of a side vein (whose centre lies where the trunk's wall is as near as its own) was drawn by the tube up to the seam and dropped past it: half a chevron
           // under the join (Mohammad, 24 Nov, the left gastric vein's mouth, the portal vein under the bifurcation). Further in, the skin owns it whole by the winner rule, and the tube has no pixel of it.
           float aIn = (chevCentreArc - armArc[i].x) * armArc[i].y / max(rOwn, 1e-4);
-          float tubeSide = 1.0 - smoothstep(${F(SKIN_HEAD_TUBE_SIDE - 0.2)}, ${F(SKIN_HEAD_TUBE_SIDE + 0.2)}, aIn);
+          float tubeSide = 1.0 - smoothstep(${F(SKIN_HEAD_TUBE_SIDE)}, ${F(SKIN_HEAD_TUBE_SIDE + 0.3)}, aIn);
           float ownH = max(skinOwner(i, seamP + tJA[i] * ((chevCentreArc - armArc[i].x) / (armArc[i].y * SKIN_U)), kPx), tubeSide);
           hI *= gate * ownH;   // (the owner share eases in and out as the head's centre travels: never a cut, so a head never pops at a join)
         }
