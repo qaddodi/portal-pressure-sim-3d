@@ -9,12 +9,22 @@ import { organsReady, setOrganData } from '../src/scene/organs/meshes.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { GUT_GROUP, GUT_RENDER, ORGAN_ORDER } from '../src/scene/organs/layer.ts';
 import { POOL_ORDER } from '../src/scene/disease/ascites.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
 
 const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
 
 test('the gut draws as one group: the colon fill first, then the bowel fill, then the bowel line, then the colon line, all inside the organ layer', () => {
   const c = GUT_RENDER.colon!, b = GUT_RENDER.bowel!;
+  if (PLACED) {   // (placed path: the gut is the mock's one surface, stomach, duodenum, bowel and colon: every depth pass, then every fill, the tubes first, then every line)
+    const r = Object.values(GUT_RENDER), pres = r.map((x) => x.pre!), fills = r.map((x) => x.fill), inks = r.map((x) => x.ink);
+    assert.ok(Math.max(...pres) < Math.min(...fills) && Math.max(...fills) < Math.min(...inks), 'depth, then fills, then lines');
+    assert.ok(GUT_RENDER.duodenum!.fill < GUT_RENDER.stomach!.fill && c.fill < GUT_RENDER.stomach!.fill, 'the tubes fill before the stomach');
+    assert.ok(c.fill > 2 * ORGAN_ORDER.indexOf('liver') + 1, 'after the liver');
+    assert.ok(Math.max(...inks) < POOL_ORDER, 'the ascites pool still draws after every organ');
+    assert.deepEqual([...GUT_GROUP].sort(), ['bowel', 'colon', 'duodenum', 'stomach']);
+    return;
+  }
   assert.ok(c.fill < b.fill && b.fill < b.ink && b.ink < c.ink, 'fills (colon covering) before lines (colon over bowel)');
   assert.ok(c.fill > 2 * ORGAN_ORDER.indexOf('liver') + 1, 'after the liver, as the gut always was');
   assert.ok(c.ink < POOL_ORDER, 'the ascites pool still draws after every organ');
@@ -31,7 +41,8 @@ test('only the colon and the bowel fills mark and test the gut stencil bit; no o
       assert.ok(m.stencilWrite && m.stencilRef === 2 && m.stencilFuncMask === 2 && m.stencilWriteMask === 2, `${id}: bit 2 only`);
       assert.equal(m.stencilFunc, NotEqualStencilFunc); assert.equal(m.stencilZPass, ReplaceStencilOp);
       assert.equal(o.toonMesh.renderOrder, GUT_RENDER[id]!.fill, `${id}: fill order`);
-      for (const ch of o.group.children) if (ch !== o.toonMesh) assert.equal(ch.renderOrder, GUT_RENDER[id]!.ink, `${id}: line order`);
+      // (placed path: a part's depth pass and the stomach's seat keep their own places in the group, GUT_RENDER pre and seat)
+      for (const ch of o.group.children) if (ch !== o.toonMesh) assert.equal(ch.renderOrder, ch.name === 'gut-depth' ? GUT_RENDER[id]!.pre : (ch as { material?: { name?: string } }).material?.name === 'organ seat' && GUT_RENDER[id]!.seat !== undefined ? GUT_RENDER[id]!.seat : GUT_RENDER[id]!.ink, `${id}: line order`);
     } else if (id === 'caudate') {   // the lobe lies inside the liver and is drawn over it: its fill marks bit 4 (organs/layer.ts useOrganShader), never the gut's bit 2 or the vessels' bit 1
       assert.ok(m.stencilWrite && m.stencilRef === 4 && m.stencilWriteMask === 4, 'caudate: bit 4 only');
     } else assert.ok(!m.stencilWrite, `${id}: its look and transparency are untouched`);

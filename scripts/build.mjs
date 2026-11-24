@@ -34,7 +34,7 @@ if (skinCode !== 0) { console.warn('warning: the Anatomy skins were not baked; t
 if (organCode !== 0) { console.warn('warning: the organs were not baked; the page will make them at load'); failed.push('organ bake'); }
 // (every deck's chart data, Plan 33: the page fetches a talk's file when it opens and draws its first frame from it)
 if (chartCode !== 0) { console.warn('warning: the charts were not baked; the page will work their data out live'); failed.push('chart bake'); }
-const organsId = organCode === 0 ? organsDigest() : '';
+const organsId = organCode === 0 ? organsDigest(false) : '', organsPlacedId = organCode === 0 ? organsDigest(true) : '';   // (the approved placement's organs, ?anatomy=new: their own file and digest, scripts/bake-organs.mjs)
 
 // The two fast checks (about 5 s, in this one deploy job: no new workflow): the typecheck and the project's lint. A preview still ships (fast previews), but the result is stamped on the
 // pill (VITE_CHECKS, src/ui/shell/build-pill.ts buildChecks) and in build-info.txt so a broken branch cannot go unseen; on main any failure fails the build.
@@ -44,7 +44,7 @@ if (lint.status !== 0) console.warn(`warning: lint failed\n${lint.stderr ?? ''}`
 const checks = [typeErrors ? `types: ${typeErrors} error${typeErrors === 1 ? '' : 's'}` : '', lint.status !== 0 ? 'lint failed' : '', ...failed.map((f) => `${f} failed`)].filter(Boolean).join(', ');
 if (onMain && checks) { console.error(`main does not ship with a failed check: ${checks}`); process.exit(1); }
 
-const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}`, VITE_RELEASE: release, VITE_CHECKS: checks, VITE_ORGANS_DIGEST: organsId } });
+const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}`, VITE_RELEASE: release, VITE_CHECKS: checks, VITE_ORGANS_DIGEST: organsId, VITE_ORGANS_PLACED_DIGEST: organsPlacedId } });
 if (r.status !== 0) process.exit(r.status ?? 1);
 // The 2D stylesheets are copied whole; the rules that style something this app never makes are taken out of the BUILT file (scripts/css-unused.mjs; the copies in src/ui/css2d stay byte for byte). PPS_NO_CSS_PRUNE=1 skips it.
 if (!process.env.PPS_NO_CSS_PRUNE) { const cp = spawnSync(process.execPath, [fileURLToPath(new URL('./css-unused.mjs', import.meta.url)), '--write'], { cwd: root, stdio: 'inherit' }); if (cp.status !== 0) { console.warn('warning: the stylesheet was not pruned; it ships whole'); failed.push('css prune'); if (onMain) { console.error('main does not ship with an unpruned stylesheet'); process.exit(1); } } }

@@ -23,6 +23,9 @@ import { LiverBake, celLook, rawNormalShare, shadeNow, TONE, TEX_H, TEX_PH, TEX_
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { OrganArt } from './organ-art.ts';
 import { caudateAnchor3, caudateGeometry, caudateScale } from './caudate.ts';
+import { PLACED } from '../anatomy/source.ts';
+import { mapX, mapY, planeMap, unmapBox, unmapX, unmapY } from './placed-map.ts';
+import { ORGAN_PRE_FS, organPreVs } from './organ-shader.ts';
 /** Smoothing passes of the shade normal (the outline's own is 8: this one keeps the pillow's turn, a lighter hand). */
 
 import { whenQuiet } from '../../clock/idle.ts';
@@ -37,6 +40,13 @@ export const ORGAN_STYLE: Record<string, { tone: ToneKey; og: Og; px: number; in
   stomach: { tone: 'stomach', og: 'stomach', px: 1.1, inkA: 0.62, layer: 'organ', ao: true, noRim: true }, duodenum: { tone: 'stomach', og: 'stomach', px: 1.1, inkA: 0.62, layer: 'organ', noRim: true },
   'kidney-l': { tone: 'kidney', og: 'kidney', px: 1.4, inkA: 0.95, layer: 'kidney', ao: true }, bowel: { tone: 'gut', og: 'gut', px: 1.1, inkA: 0.62, layer: 'gut' }, colon: { tone: 'gut', og: 'gut', px: 1.1, inkA: 0.62, layer: 'gut' },
 };
+
+// The approved placement (anatomy/source.ts PLACED): the caudate lobe is the mock's egg on the liver's back and wears the liver's tones WITH the rim light, so it reads through the liver (round 15); the duodenum is the gut's
+// tube from the stomach's cut, in the gut's tones and layer, wearing the stomach's look by the cut (organ-art.ts `tos`).
+if (PLACED) {
+  ORGAN_STYLE.caudate = { tone: 'liver', og: 'liver', px: 1.1, inkA: 0.62, layer: 'organ' };
+  ORGAN_STYLE.duodenum = { tone: 'gut', og: 'gut', px: 1.1, inkA: 0.62, layer: 'gut' };
+}
 
 /** The layer opacity an organ sits at in a look. */
 export function organLayerAlpha(p: Palette, id: string): number {
@@ -53,7 +63,11 @@ const rgba = (v: readonly number[]) => new Vector4(v[0]! / 255, v[1]! / 255, v[2
 
 /** 2D's drawing order (back to front), the gut last: the gut is depth-tested behind the organs already drawn, which is 2D's #gutHide (the gut cut away under the
  *  liver, stomach, spleen and kidney), and lies on bare page elsewhere. */
-export const ORGAN_ORDER = ['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver', 'caudate', 'bowel', 'colon'];
+export const ORGAN_ORDER = PLACED
+  // (the approved placement, as the mock sorts it in the front view: the caudate lobe on the liver's back first, so the liver's wash lies over it; then the liver; then the gut as one surface, the stomach in it, cut away where the
+  //  liver lies in front of it)
+  ? ['heart', 'heart-ra', 'kidney-l', 'spleen', 'caudate', 'liver', 'stomach', 'duodenum', 'bowel', 'colon']
+  : ['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver', 'caudate', 'bowel', 'colon'];
 
 /** Puts 2D's organ painter (organ-shader.ts) in place of the toon fill: the uniforms the paint fills each look, and the organ's own box for the gradient.
  *  The fill is blended at the layer's opacity, so organs show through each other; it writes depth, and each organ's outline is drawn right after it, so the
@@ -65,12 +79,17 @@ export const ORGAN_CUT: { value: Vector4 } = { value: new Vector4(0, 0, -1, 1) }
  *  is as see-through as either alone. Drawn as separate blended organs they stacked their alpha and the overlap shone brighter (Mohammad 20 Nov: "why are the intestines overlapping SHINE brighter?"). Now each gut fill
  *  marks the pixels it drew (stencil bit 2) and a later gut fill leaves a marked pixel alone; the colon is drawn first so it is the one that covers, and the two outlines are drawn after both fills so a line is never
  *  painted over by the other organ's fill. The stencil is cleared with the depth each pass (scene.ts), and bit 2 is the gut's own (the vessels' outline stencil is bit 1). */
-export const GUT_GROUP: ReadonlySet<string> = new Set(['bowel', 'colon']);
-/** The gut's draw order in the organ layer: fills first (the colon, which covers, then the bowel), then the outlines (the bowel's, then the colon's over it). */
-export const GUT_RENDER: Readonly<Record<string, { fill: number; ink: number }>> = { colon: { fill: 14, ink: 15.6 }, bowel: { fill: 14.5, ink: 15.4 } };
+export const GUT_GROUP: ReadonlySet<string> = new Set(PLACED ? ['stomach', 'duodenum', 'bowel', 'colon'] : ['bowel', 'colon']);
+/** The gut's draw order in the organ layer: fills first (the colon, which covers, then the bowel), then the outlines (the bowel's, then the colon's over it).
+ *  The approved placement's gut is ONE surface (the mock's round 12: the stomach, the duodenum's funnel, the small bowel and the colon): a depth pass of every part first (`pre`: each pixel keeps only the nearest wall), then the
+ *  fills (the tubes first: where the funnel overlaps the stomach it is the one drawn), each pixel once (stencil bit 2), the stomach's AO seat, and then all the outlines, so a line is never painted over by another part's fill and
+ *  where the duodenum leaves the stomach there is no line at all. */
+export const GUT_RENDER: Readonly<Record<string, { fill: number; ink: number; pre?: number; seat?: number }>> = PLACED
+  ? { duodenum: { pre: 14, fill: 14.4, ink: 15.4 }, bowel: { pre: 14.05, fill: 14.5, ink: 15.5 }, colon: { pre: 14.1, fill: 14.6, ink: 15.6 }, stomach: { pre: 14.15, fill: 14.7, seat: 15, ink: 15.7 } }
+  : { colon: { fill: 14, ink: 15.6 }, bowel: { fill: 14.5, ink: 15.4 } };
 
 /** The organs whose shade steps are cut by the smoothed normal (organ-shader.ts shadeN); the small bowel's folds are its relief, so it keeps its own (the colon is a plain pillow: its own normals were only the triangulation's noise). */
-export const SMOOTH_SHADE = new Set(['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver', 'colon']);
+export const SMOOTH_SHADE = new Set(['heart', 'heart-ra', 'kidney-l', 'spleen', 'stomach', 'duodenum', 'liver', 'colon', ...(PLACED ? ['bowel', 'caudate'] : [])]);   // (placed: the small bowel is a round tube, no folds of its own; the lobe a smooth egg)
 
 /** The 1x1 texture an organ with no liver look samples (its nodAmt is 0, so it is never read). */
 const NO_TEX = new DataTexture(new Uint8Array([0, 0, 128, 255]), 1, 1);
@@ -112,8 +131,21 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     for (const c of o.group.children) if (c !== o.toonMesh) c.renderOrder = r.ink;
     m.stencilWrite = true; m.stencilRef = 2; m.stencilFuncMask = 2; m.stencilWriteMask = 2;
     m.stencilFunc = NotEqualStencilFunc; m.stencilFail = KeepStencilOp; m.stencilZFail = KeepStencilOp; m.stencilZPass = ReplaceStencilOp;
+    if (r.pre !== undefined) {   // (the gut's depth pass: no colour, the nearest wall's depth, dropped where the part is cut or faded away as its fill is)
+      const pre = new ShaderMaterial({ name: 'organ gut depth', vertexShader: organPreVs(!!g.getAttribute('esoA'), !!g.getAttribute('cutA')), fragmentShader: ORGAN_PRE_FS, colorWrite: false, depthWrite: true, transparent: true, uniforms: { fade: m.uniforms.fade! } });
+      const pm = new Mesh(g, pre);
+      pm.renderOrder = r.pre; pm.name = 'gut-depth'; pm.raycast = () => {};
+      o.group.add(pm);
+    }
   }
-  if (id === CAUDATE_ID) {
+  if (id === CAUDATE_ID && PLACED) {
+    // the placed lobe lies on the liver's back (the mock's egg) and is drawn before the liver, depth-tested as every organ is, so the liver's wash lies over it and it reads through; its fill still marks bit 4 so its ink draws only
+    // where the fill is not (bits: 1 vessel outline, 2 gut, 4 lobe)
+    m.stencilWrite = true; m.stencilRef = CAUDATE_STENCIL; m.stencilWriteMask = CAUDATE_STENCIL; m.stencilFuncMask = CAUDATE_STENCIL;
+    m.stencilFunc = AlwaysStencilFunc; m.stencilFail = KeepStencilOp; m.stencilZFail = KeepStencilOp; m.stencilZPass = ReplaceStencilOp;
+    ink.stencilWrite = true; ink.stencilWriteMask = 0; ink.stencilRef = CAUDATE_STENCIL; ink.stencilFuncMask = CAUDATE_STENCIL;
+    ink.stencilFunc = NotEqualStencilFunc; ink.stencilFail = KeepStencilOp; ink.stencilZFail = KeepStencilOp; ink.stencilZPass = KeepStencilOp;
+  } else if (id === CAUDATE_ID) {
     // the lobe lies on the cava's plane, INSIDE the liver (behind its front face, z 0.29), and is drawn over the liver as the vessels inside it are (2D draws it over the liver plate): its fill and ink skip the depth test,
     // and the fill marks its pixels (stencil bit 4) so the ink (the BackSide hull) draws only where the fill is not: the same outline ring the depth test gave, and none of it through a half-faded fill. The fill
     // writes no depth, so the liver's stays as it was for everything drawn after. The pillow is convex and FrontSide, so each pixel is covered once at any turn. Bits: 1 vessel outline, 2 gut, 4 lobe.
@@ -134,13 +166,14 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
   });
   seat.defines = { INK_EDGE: '', INK_SEAT: '' };   // (a soft halo, not a flat band: INK_FS)
   const mesh = new Mesh(g, seat);
-  mesh.renderOrder = 2 * i + 0.5;
+  mesh.renderOrder = GUT_RENDER[id]?.seat ?? 2 * i + 0.5;
   mesh.visible = false; mesh.name = 'org-ao';
   o.group.add(mesh);
   return seat;
 }
 
-const pivot = (c: readonly [number, number]) => new Vector3(x3(c[0]), y3(c[1]), 0);
+/** A 2D point an organ scales about, in the scene, where its organ is (placed-map.ts: the identity with the switch off). */
+const pivot = (c: readonly [number, number], id: string) => { const m = planeMap(id); return new Vector3(mapX(m, x3(c[0])), mapY(m, y3(c[1])), 0); };
 
 export class OrganLayer {
   readonly group = new Group();
@@ -203,8 +236,8 @@ export class OrganLayer {
     for (const [id, g] of made) {
       const st = ORGAN_STYLE[id]!;
       if (id === 'liver') {   // the surface's texture (liver-texture.ts): each vertex's place in it is its rest place in the 2D figure
-        const pos = g.getAttribute('position'), uv = new Float32Array(pos.count * 2);
-        for (let i = 0; i < pos.count; i++) { uv[i * 2] = (x2d(pos.getX(i)) - TEX_X0) / TEX_W; uv[i * 2 + 1] = (y2d(pos.getY(i)) - TEX_Y0) / TEX_H; }
+        const pos = g.getAttribute('position'), uv = new Float32Array(pos.count * 2), lm = planeMap('liver');   // (the placed liver is moved: its place on the 2D figure is the move undone, placed-map.ts)
+        for (let i = 0; i < pos.count; i++) { uv[i * 2] = (x2d(unmapX(lm, pos.getX(i))) - TEX_X0) / TEX_W; uv[i * 2 + 1] = (y2d(unmapY(lm, pos.getY(i))) - TEX_Y0) / TEX_H; }
         g.setAttribute('restUV', new Float32BufferAttribute(uv, 2));
       }
       if (PAINTED.has(id)) { if (!g.getAttribute('normal')) g.computeVertexNormals(); this.paints.set(id, new VertexPaint(g, id as 'liver' | 'spleen')); }
@@ -218,7 +251,7 @@ export class OrganLayer {
       if (id === 'liver') {
         (o.toon.uniforms.nodK!.value as Vector2).set(shadeNow(), TONE);   // (the texture itself is baked the first time the liver is scarred: paint())
         this.liverGeometry = g;
-        this.liverShape = new LiverShape(g.getAttribute('position') as never, g.getAttribute('hullN').array);   // the SMOOTHED rest normals: the raw per-vertex ones jag along the rim, and the nodules pushed along them (direction and weight) came out as teeth and notches
+        this.liverShape = new LiverShape(g.getAttribute('position') as never, g.getAttribute('hullN').array, planeMap('liver'));   // the SMOOTHED rest normals: the raw per-vertex ones jag along the rim, and the nodules pushed along them (direction and weight) came out as teeth and notches
         const shape = this.liverShape;
         const bk = this.liverBake ??= new LiverBake();
         // (the nodules' rest-place heights and the surface texture, a few ms at a time in the background slot: never inside a frame, never the first scarred frame; a rebuilt liver ends this one's job)
@@ -270,13 +303,13 @@ export class OrganLayer {
     if (liver) {
       if (this.liverShape?.apply(ls.cirrhosis)) { this.liverGeometry!.computeVertexNormals(); this.dirtyColours = true; }
       const s = liverShrink(ls.cirrhosis, ls.congestion);   // the figure's own, on the shown values
-      const pv = pivot(LIVER_PIVOT);
+      const pv = pivot(LIVER_PIVOT, 'liver');
       if (s !== this.shrinkWas) { this.shrinkWas = s; liver.group.scale.setScalar(s); liver.group.position.set(pv.x * (1 - s), pv.y * (1 - s), 0); this.dirtyColours = true; }   // (repainted only when the liver's own size changed: every organ's colours and the liver's vertex paint were redone in every frame)
     }
     const sp = this.byId.get('spleen');
     if (sp) {
       moving = this.spleenScale.to(t.spleenScale, dt, inst) || moving;
-      const s = this.spleenScale.value, pv = pivot(SPLEEN_CENTER);
+      const s = this.spleenScale.value, pv = pivot(SPLEEN_CENTER, 'spleen');
       sp.group.scale.setScalar(s); sp.group.position.set(pv.x * (1 - s), pv.y * (1 - s), 0);
       moving = this.ghost.to(t.splenicRx === 2 ? SPLENIC_GHOST : 1, dt, inst) || moving;
       moving = this.infarct.to(t.splenicRx === 1 ? 1 : 0, dt, inst) || moving;
@@ -385,7 +418,7 @@ export class OrganLayer {
   private paintPool(o: CelObject, c: RGB, bloody: RGB): void {
     const u = o.toon.uniforms, a = u.poolA!.value as Vector4;
     if (this.blood.value <= 0.004 || !this.body) { a.z = 0; return; }
-    const b = u.box!.value as Vector4, q = poolUniforms([b.x, b.y, b.z, b.w], this.pool.value, this.body.bleed);
+    const b = u.box!.value as Vector4, q = poolUniforms(unmapBox(planeMap('stomach'), [b.x, b.y, b.z, b.w]), this.pool.value, this.body.bleed);   // (the box where the 2D figure has the stomach: the level and the landing are its; the box's own shares are the same on the moved stomach)
     a.set(q.level, q.unitsPerBox, this.blood.value, q.flow);
     const pl = u.poolLand!.value as Vector4; pl.x = q.landX; pl.y = q.landHalf;   // (z and w, the ripples, are the clock's: stepRipple)
     (u.poolDelta!.value as Vector3).set(bloody[0] - c[0], bloody[1] - c[1], bloody[2] - c[2]);
@@ -435,6 +468,20 @@ export class OrganLayer {
     const hit = rc.intersectObjects(meshes, false)[0];
     if (!hit) return null;
     for (const [id, o] of this.byId) if (o.toonMesh === hit.object) return { id: PICK_OF[id]!, x: hit.point.x };
+    return null;
+  }
+
+  /** The gut part a pointer ray hits first (the approved placement's tubes, and the stomach), as its id, and where (scene x); null for none. Hidden or faded parts are never hit. The figure's own tap (pick) still takes only the
+   *  liver, the heart and the spleen, as 2D does: this tells a tap on the gut apart for a caller that wants to say which part it is. */
+  pickGut(rc: Raycaster): { id: 'stomach' | 'duodenum' | 'bowel' | 'colon'; x: number } | null {
+    const meshes = [];
+    for (const id of GUT_GROUP) { const o = this.byId.get(id); if (o && o.group.visible && o.fade > 0.02) { o.group.updateWorldMatrix(true, false); meshes.push(o.toonMesh); } }
+    const ids = ['stomach', 'duodenum', 'bowel', 'colon'] as const;
+    for (const hit of rc.intersectObjects(meshes, false)) {
+      const id = ids.find((k) => this.byId.get(k)?.toonMesh === hit.object);
+      const cut = (hit.object as Mesh).geometry.getAttribute('cutA');   // (the stomach's part inside the duodenum's funnel is not drawn: a ray through it hits what is drawn)
+      if (id && !(cut && hit.face && cut.getX(hit.face.a) < 0.5)) return { id, x: hit.point.x };
+    }
     return null;
   }
 

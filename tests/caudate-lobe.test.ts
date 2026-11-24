@@ -19,6 +19,8 @@ import { figureCalls, EMPTY_CALLS } from '../src/ui/deck/figure-calls.ts';
 import { loadAgDeck } from '../src/decks/ag/index.ts';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
 import { ORGAN_STYLE, ORGAN_ORDER } from '../src/scene/organs/layer.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
+import { PLACED_CAUDATE, PLACED_COURSES } from '../src/scene/anatomy/placement.generated.ts';
 
 const inside = (poly: readonly (readonly [number, number])[], x: number, y: number): boolean => {
   let c = false;
@@ -32,6 +34,16 @@ test('the lobe is a closed pillow of 2D\'s outline about its own mid-plane, its 
   const edges = new Map<string, number>();
   for (let t = 0; t < idx.count; t += 3) for (const [a, b] of [[0, 1], [1, 2], [2, 0]] as const) { const u = idx.getX(t + a), v = idx.getX(t + b), k = u < v ? `${u}|${v}` : `${v}|${u}`; edges.set(k, (edges.get(k) ?? 0) + 1); }
   assert.ok([...edges.values()].every((n) => n === 2), 'a closed surface');
+  if (PLACED) {   // (placed path: the lobe is the approved mock's egg about PLACED_CAUDATE, not 2D's outline; organs-placed.test.ts pins its shape)
+    const { c, ax } = PLACED_CAUDATE;
+    let front = 0;
+    for (let i = 0; i < pos.count; i++) {
+      assert.ok(Math.abs(pos.getX(i) - c[0]) < 1.2 * ax[0] && Math.abs(pos.getY(i) - c[1]) <= ax[1] + 1e-6 && Math.abs(pos.getZ(i) - c[2]) < 1.2 * ax[2], `vertex ${i} is on the egg`);
+      if (pos.getZ(i) > c[2] + 0.5 * ax[2]) front += nor.getZ(i) > 0 ? 1 : -1;
+    }
+    assert.ok(front > 0, 'its front faces the viewer');
+    return;
+  }
   const poly = flattenPath(CAUDATE_OUTLINE);
   let zmax = -Infinity, front = 0;
   for (let i = 0; i < pos.count; i++) {
@@ -81,7 +93,9 @@ test('the veins open into the cava by the hepatic veins\' rule and rise out of t
 
 test('the lobe is an organ of the layer, drawn after the liver, and a pin never outlines it', () => {
   assert.ok('caudate' in ORGAN_STYLE);
-  assert.ok(ORGAN_ORDER.indexOf('caudate') > ORGAN_ORDER.indexOf('liver'));
+  // (placed path: the egg lies on the liver's back and is drawn BEFORE the liver, whose wash lies over it, as the approved mock sorts it)
+  if (PLACED) assert.ok(ORGAN_ORDER.indexOf('caudate') < ORGAN_ORDER.indexOf('liver'));
+  else assert.ok(ORGAN_ORDER.indexOf('caudate') > ORGAN_ORDER.indexOf('liver'));
 });
 
 test('slide 8 of Sites and causes (Budd-Chiari "dx") asks for the lobe with its veins; an empty slide asks for neither', async () => {
@@ -99,6 +113,13 @@ const cavaAxis = EDGE_PATH_2D[CAUDATE_HOST]!;
 const axisAt = (y: number): [number, number] => cavaAxis.reduce((b, q) => (Math.abs(q[1] - y) < Math.abs(b[1] - y) ? q : b)) as [number, number];
 
 test('the lobe lies at the cava\'s depth, the same as its three veins', () => {
+  if (PLACED) {   // (placed path: the egg sits just left of the IVC, which lies in its groove, at the cava's depth, and its three short veins start in it: the approved data's own numbers)
+    const { c, ax } = PLACED_CAUDATE, ivc = PLACED_COURSES.ivc!, at = ivc.reduce((b, q) => (Math.abs(q[1] - c[1]) < Math.abs(b[1] - c[1]) ? q : b));
+    assert.ok(Math.abs(at[2] - c[2]) < 0.01, `the egg's middle is on the cava's plane (${at[2]} against ${c[2]})`);
+    assert.ok(c[0] > at[0] && c[0] - ax[0] - at[0] < 0.03, 'just left of the cava, against it');
+    for (const k of ['cv1', 'cv2', 'cv3']) { const v = PLACED_COURSES[k]!, s = v[0]!; assert.ok(((s[0] - c[0]) / ax[0]) ** 2 + ((s[1] - c[1]) / ax[1]) ** 2 + ((s[2] - c[2]) / ax[2]) ** 2 < 1, `${k} starts inside the lobe`); }
+    return;
+  }
   assert.ok(Math.abs(ORGAN_Z.caudate + LOBE_Z - TIER_Z[CAVA.tier]) < 1e-9, 'the mid-plane is the cava\'s plane');
   assert.ok(VEINS.pts.length > 0 && VEINS.pts.every((p) => Math.abs(p[2] - (ORGAN_Z.caudate + LOBE_Z)) < 1e-9), 'every point of the vein group is on it');
 });
@@ -123,7 +144,7 @@ const depthIn = (h: [number, number][], [x, y]: [number, number]): number => {
   return d;
 };
 
-test('the veins stay joined at every view: each starts inside the lobe and ends in the cava, yaw -25 to 25 and pitch -12 to 12', () => {
+test('the veins stay joined at every view: each starts inside the lobe and ends in the cava, yaw -25 to 25 and pitch -12 to 12', { skip: PLACED && 'placed path: the three veins are the approved data\'s cv1 to cv3, which start inside the egg (the depth test above); their joins are the vessels\' (tests/anatomy-smooth.test.ts)' }, () => {
   const pos = caudateGeometry().getAttribute('position'), z = ORGAN_Z.caudate, margin = 5 / 300;
   const plan = VEINS.plan!;
   assert.equal(plan.kind, 'feeder'); if (plan.kind !== 'feeder') return;
@@ -161,6 +182,13 @@ test('the lobe is drawn over the liver (it lies inside it): the fill skips the d
   const layer = new OrganLayer(createShared(), ORGAN_MESHES);
   layer.applyLook(PALETTES.light);
   const c = layer.byId.get('caudate')!, l = layer.byId.get('liver')!;
+  if (PLACED) {   // (placed path: the egg on the liver's back is depth-tested like every organ and drawn before the liver; its fill still marks bit 4 and its ink draws only where the fill is not)
+    assert.notEqual(c.toon.depthFunc, AlwaysDepth);
+    assert.ok(c.toon.stencilWrite && c.toon.stencilWriteMask === 4 && c.toon.stencilRef === 4 && c.toon.stencilFunc === AlwaysStencilFunc && c.toon.stencilZPass === ReplaceStencilOp, 'the fill marks bit 4');
+    assert.ok(c.ink.stencilWrite && c.ink.stencilWriteMask === 0 && c.ink.stencilFuncMask === 4 && c.ink.stencilFunc === NotEqualStencilFunc, 'the ink draws where bit 4 is not set');
+    assert.ok(c.toonMesh.renderOrder < l.toonMesh.renderOrder, 'drawn before the liver');
+    return;
+  }
   assert.equal(c.toon.depthFunc, AlwaysDepth); assert.equal(c.toon.depthWrite, false);
   assert.ok(c.toon.stencilWrite && c.toon.stencilWriteMask === 4 && c.toon.stencilRef === 4 && c.toon.stencilFunc === AlwaysStencilFunc && c.toon.stencilZPass === ReplaceStencilOp, 'the fill marks bit 4');
   assert.equal(c.ink.depthFunc, AlwaysDepth);
@@ -177,6 +205,7 @@ test('a mark or step on the lobe sits on its dome, not at the organ plane in fro
   const on = cards.filter((k) => 'at2d' in k.anchor && k.anchor.at2d[0] === ORGAN_ANCHOR_2D.caudate!.at[0] && k.anchor.at2d[1] === ORGAN_ANCHOR_2D.caudate!.at[1]);
   assert.ok(on.length > 0, 'the slide has a card on the lobe');
   for (const k of on) { assert.equal((k.anchor as { z?: number }).z, CAUDATE_FRONT_Z); assert.equal(anchorPoint(k.anchor, out)!.z, CAUDATE_FRONT_Z); }
-  assert.equal(CAUDATE_FRONT_Z, ORGAN_Z.caudate + LOBE_Z + LOBE_RISE);
+  if (PLACED) assert.ok(Math.abs(CAUDATE_FRONT_Z - (PLACED_CAUDATE.c[2] + PLACED_CAUDATE.ax[2])) < 0.003, 'placed path: the egg\'s front');   // (the egg's own front pole)
+  else assert.equal(CAUDATE_FRONT_Z, ORGAN_Z.caudate + LOBE_Z + LOBE_RISE);
   assert.equal(anchorPoint({ at2d: ORGAN_ANCHOR_2D.liver!.at }, out)!.z, 0.26, 'a liver mark keeps the organ plane');
 });

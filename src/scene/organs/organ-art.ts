@@ -11,6 +11,8 @@ import { LUMA } from '../disease/copied/anatomy-b4.ts';
 import { type OrganInks, type OrganState, organColour, rgbOf } from './organ-look.ts';
 import { type Art, type ArtTokens, type Ctx2D, type Surface, paintArt } from './organ-art-paint.ts';
 import { UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
+import { PLACED } from '../anatomy/source.ts';
+import { type PlaneMap, mapBox, planeMap, unmapX, unmapY } from './placed-map.ts';
 
 export interface ArtData {
   from: string;
@@ -43,6 +45,8 @@ const MAX_SIDE = 2048;
 /** The right edge of what counts as esophagus beside the cardia (2D's esophagus outline ends at x 813): left of it, above the seam, the esophagus's own tone shows. */
 const ESO_RIGHT_MARGIN = 3;
 
+/** The stomach's own box (2D's stomach outline, without the oesophagus), in the scene, where the stomach is (placed-map.ts). */
+const stomachBoxOf = (d: ArtData): [number, number, number, number] => mapBox(planeMap('stomach'), [x3(d.stomachBox[0]), y3(d.stomachBox[1]), d.stomachBox[2] / UNITS_PER_SCENE, d.stomachBox[3] / UNITS_PER_SCENE]);
 const lookOf = (p: Palette): LookId => LOOK_IDS.find((id) => ORGAN_TONES_2D[id] === p.organs) ?? 'light';
 
 /** The per-vertex numbers of the esophagus on the stomach's pillow (the pillow is one shape with it, as 2D's SEAM_D is): `eso` how much of the esophagus's own tone shows
@@ -62,14 +66,14 @@ export function rectumAttribute(g: BufferGeometry, fade: [number, number]): void
   }
   g.setAttribute('esoA', new Float32BufferAttribute(a, 1));
 }
-export function esoAttributes(g: BufferGeometry, eso: ArtData['eso']): void {
+export function esoAttributes(g: BufferGeometry, eso: ArtData['eso'], m: PlaneMap = planeMap('stomach')): void {
   const pos = g.getAttribute('position');
   const n = pos.count, a = new Float32Array(n), b = new Float32Array(n);
   const right = Math.max(...eso.poly.filter((_, i) => i % 2 === 0)) + ESO_RIGHT_MARGIN;
   const [s0, s1] = eso.seam, [f0, f1] = eso.fade;
   const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
   for (let i = 0; i < n; i++) {
-    const x = pos.getX(i) * UNITS_PER_SCENE + 700, y = 556 - pos.getY(i) * UNITS_PER_SCENE;
+    const x = unmapX(m, pos.getX(i)) * UNITS_PER_SCENE + 700, y = 556 - unmapY(m, pos.getY(i)) * UNITS_PER_SCENE;   // (the place on the 2D figure: the placed stomach is moved, placed-map.ts)
     a[i] = x < right ? clamp01((s1 - y) / (s1 - s0)) : 0;
     b[i] = clamp01((y - f1) / (f0 - f1));
   }
@@ -86,7 +90,11 @@ export function wrapMain(src: string, decl: string, body: string): string {
 }
 
 const f = (v: number) => v.toFixed(5);
-export interface PatchOpts { art: boolean; eso: ArtData['eso'] | null; /** the organ fades out along y (the colon's rectum): fill and outline both, by the per-vertex `esoA` */ fade?: boolean }
+/** The stomach's move (placed-map.ts; the identity with the switch off), which the oesophagus's own gradient undoes to find its place on the 2D figure. */
+const ESO_MAP = planeMap('stomach');
+export interface PatchOpts { art: boolean; eso: ArtData['eso'] | null; /** the organ fades out along y (the colon's rectum): fill and outline both, by the per-vertex `esoA` */ fade?: boolean;
+  /** the placed stomach's cut (placed.ts stomachCut): fill and outline drop where the per-vertex `cutA` is under one half, a clean edge inside the duodenum's funnel */ cut?: boolean;
+  /** the placed duodenum wears the stomach's look by the per-vertex `tos` (gut-tubes.ts stomachShare): the stomach's wash over the stomach's box, and its layer */ tos?: boolean }
 
 /** The patched shaders of an organ: its fill (vertex and fragment), and for the esophagus the ink's. Pure strings (tests read them). */
 export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: string, o: PatchOpts): { vs: string; fs: string; inkVs: string; inkFs: string } {
@@ -113,12 +121,29 @@ export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: str
     ivd = 'attribute float esoA;\nvarying float vEsoA;\n'; ivb = '  vEsoA = esoA;\n';
     ifd = 'varying float vEsoA;\n'; ifb = '  gl_FragColor.a *= vEsoA;\n';
   }
+  if (o.cut) {
+    vd += 'attribute float cutA;\nvarying float vCut;\n'; vb += '  vCut = cutA;\n';
+    fd += 'varying float vCut;\n'; fb += '  if (vCut < 0.5) discard;\n';
+    ivd += 'attribute float cutA;\nvarying float vCut;\n'; ivb += '  vCut = cutA;\n';
+    ifd += 'varying float vCut;\n'; ifb += '  if (vCut < 0.5) discard;\n';
+  }
+  if (o.tos) {
+    vd += 'attribute float tos;\nvarying float vTos;\nuniform vec4 boxS;\nvarying vec2 vBoxS;\n';
+    vb += '  vTos = tos;\n  vBoxS = vec2((position.x - boxS.x) / max(boxS.z, 1e-5), (boxS.y - position.y) / max(boxS.w, 1e-5));\n';
+    fd += 'uniform vec3 tos1;\nuniform vec3 tos2;\nuniform float tosLayer;\nvarying float vTos;\nvarying vec2 vBoxS;\n';
+    // (the stomach's gradient over the stomach's own box, in place of the gut's over the tube's, as much as vTos says; and the stomach's layer: the antrum hands over with no step)
+    fb += `  float tSt = clamp(dot(vBoxS - vec2(0.15, 0.0), vec2(0.7, 1.0)) / 1.49, 0.0, 1.0);
+  float tGt = clamp(dot(vBox - vec2(0.15, 0.0), vec2(0.7, 1.0)) / 1.49, 0.0, 1.0);
+  gl_FragColor.rgb += (mix(tos1, tos2, tSt) - mix(o1, o2, tGt)) * vTos;
+  gl_FragColor.a *= mix(1.0, tosLayer, vTos);
+`;
+  }
   if (o.eso) {
     const [ex, ey, ew, eh] = o.eso.box;
     vd += 'attribute float eso;\nvarying float vEso;\nvarying float vEsoT;\n';
     // the esophagus's own gradient over its own box (2D: og-eso, x1 .15 y1 0 to x2 .85 y2 1)
     vb += `  vEso = eso;
-  vec2 xy2d = vec2(position.x * ${UNITS_PER_SCENE.toFixed(1)} + 700.0, 556.0 - position.y * ${UNITS_PER_SCENE.toFixed(1)});
+  vec2 xy2d = vec2(${PLACED ? `(position.x - ${f(ESO_MAP.ox)}) / ${f(ESO_MAP.sx)}` : 'position.x'} * ${UNITS_PER_SCENE.toFixed(1)} + 700.0, 556.0 - ${PLACED ? `(position.y - ${f(ESO_MAP.oy)})` : 'position.y'} * ${UNITS_PER_SCENE.toFixed(1)});
   vEsoT = clamp(dot(vec2((xy2d.x - ${f(ex)}) / ${f(ew)}, (xy2d.y - ${f(ey)}) / ${f(eh)}) - vec2(0.15, 0.0), vec2(0.7, 1.0)) / 1.49, 0.0, 1.0);
 `;
     fd += 'uniform vec3 eso1;\nuniform vec3 eso2;\nvarying float vEso;\nvarying float vEsoT;\n';
@@ -147,38 +172,48 @@ export class OrganArt {
   private readonly slots = new Map<string, Slot>();
   private palette: Palette | null = null;
   private stomach: ShaderMaterial | null = null;
+  /** the placed duodenum's fill: it wears the stomach's look by the cut (`tos`) */
+  private duodenum: ShaderMaterial | null = null;
 
   /** Patches the organ's materials when the art knows it (and the file is in). Returns whether it did. Call after the organ painter is on the material, before the first draw. */
   attach(id: string, toon: ShaderMaterial, ink: ShaderMaterial, g: BufferGeometry, seat?: ShaderMaterial | null): boolean {
-    const d = data, tail = id === 'duodenum' && !!g.getAttribute('esoA');   // (the duodenum has no art: it is patched only for its tail's fade, with or without the file)
-    if (!d && !tail) return false;
-    const art = d?.arts[id] ?? null, isStomach = id === 'stomach' && !!d;
-    if (!art && !isStomach && !tail) return false;
-    const eso = isStomach ? d!.eso : null;
-    const p = patchedShaders(toon.vertexShader, toon.fragmentShader, ink.vertexShader, ink.fragmentShader, { art: !!art, eso, fade: id === 'colon' || tail });
+    const d = data, tail = id === 'duodenum' && !!g.getAttribute('esoA') && !PLACED;   // (the duodenum has no art: it is patched only for its tail's fade, with or without the file)
+    // the approved placement (anatomy/source.ts PLACED): the gut is tubes, and the bowel's loops and the colon's haustra and bands painted on the 2D pillows are retired (plan question 7); the colon's rectum fades by its tube's
+    // own `esoA`, the duodenum wears the stomach's look by its `tos`, the stomach is cut where the funnel takes over (`cutA`). The art that stays (the stomach's rugae, the hairlines) is laid by the organ's move (placed-map.ts).
+    const tube = PLACED && (id === 'duodenum' || id === 'bowel' || id === 'colon'), cut = PLACED && !!g.getAttribute('cutA'), tos = PLACED && !!g.getAttribute('tos');
+    if (!d && !tail && !tube && !cut) return false;
+    const art = tube ? null : d?.arts[id] ?? null, isStomach = id === 'stomach' && !!d;
+    const fade = id === 'colon' || tail;
+    if (!art && !isStomach && !tail && !fade && !cut && !tos) return false;
+    const eso = isStomach ? d!.eso : null, m = planeMap(id);
+    const p = patchedShaders(toon.vertexShader, toon.fragmentShader, ink.vertexShader, ink.fragmentShader, { art: !!art, eso, fade, cut, tos });
     toon.vertexShader = p.vs; toon.fragmentShader = p.fs; ink.vertexShader = p.inkVs; ink.fragmentShader = p.inkFs;
     toon.needsUpdate = ink.needsUpdate = true;
     // the AO seat (the soft halo round the outline) fades with the line: left whole it keeps a hollow outline where the fill and ink have gone (a faint box at the esophagus's top)
-    if (seat && eso !== null || seat && id === 'colon') {
-      const q = patchedShaders(seat.vertexShader, seat.fragmentShader, seat.vertexShader, seat.fragmentShader, { art: false, eso: null, fade: true });
+    if (seat && (eso !== null || id === 'colon' || cut)) {
+      const q = patchedShaders(seat.vertexShader, seat.fragmentShader, seat.vertexShader, seat.fragmentShader, { art: false, eso: null, fade: eso !== null || id === 'colon', cut });
       seat.vertexShader = q.inkVs; seat.fragmentShader = q.inkFs; seat.needsUpdate = true;
     }
     const u = toon.uniforms;
     if (isStomach) {
       // 2D's stomach gradient runs over the stomach's own outline, not over the pillow it shares with the esophagus (which is 2.4 times as tall)
-      const [bx, by, bw, bh] = d!.stomachBox;
-      (u.box!.value as Vector4).set(x3(bx), y3(by), bw / UNITS_PER_SCENE, bh / UNITS_PER_SCENE);
-      esoAttributes(g, d!.eso);
+      (u.box!.value as Vector4).set(...stomachBoxOf(d!));
+      esoAttributes(g, d!.eso, m);
       u.eso1 = { value: new Vector3() }; u.eso2 = { value: new Vector3() };
       this.stomach = toon;
     }
-    if (id === 'colon' && d) rectumAttribute(g, d.rectum);
+    if (tos) {
+      // (the stomach's box as the stomach has it; without the art file, a unit box)
+      u.boxS = { value: new Vector4(...(d ? stomachBoxOf(d) : [0, 0, 1, 1])) }; u.tos1 = { value: new Vector3() }; u.tos2 = { value: new Vector3() }; u.tosLayer = { value: 1 };
+      this.duodenum = toon;
+    }
+    if (id === 'colon' && d && !PLACED) rectumAttribute(g, d.rectum);
     if (art) {
-      const [bx, by, bw, bh] = art.box;
-      const scale = Math.min(ART_PX_PER_UNIT, MAX_SIDE / Math.max(bw, bh));
-      u.artBox = { value: new Vector4(x3(bx), y3(by), bw / UNITS_PER_SCENE, bh / UNITS_PER_SCENE) };
+      const [bx, by, bw, bh] = mapBox(m, [x3(art.box[0]), y3(art.box[1]), art.box[2] / UNITS_PER_SCENE, art.box[3] / UNITS_PER_SCENE]);   // (laid where the organ is: the art moves with it, placed-map.ts)
+      const scale = Math.min(ART_PX_PER_UNIT, MAX_SIDE / Math.max(art.box[2], art.box[3]));
+      u.artBox = { value: new Vector4(bx, by, bw, bh) };
       u.art = { value: blank() }; u.artState = { value: new Vector2(1, 1) };
-      this.slots.set(id, { id, art, mat: toon, tex: null, w: Math.ceil(bw * scale), h: Math.ceil(bh * scale), scale });
+      this.slots.set(id, { id, art, mat: toon, tex: null, w: Math.ceil(art.box[2] * scale), h: Math.ceil(art.box[3] * scale), scale });
     }
     if (this.palette) this.applyLook(this.palette);
     return true;
@@ -222,6 +257,12 @@ export class OrganArt {
       const eso = p.organs.tones.eso, u = this.stomach.uniforms;
       const c1 = organColour(rgbOf(eso[0]), s, k), c2 = organColour(rgbOf(eso[1]), s, k);
       (u.eso1!.value as Vector3).set(c1[0], c1[1], c1[2]); (u.eso2!.value as Vector3).set(c2[0], c2[1], c2[2]);
+    }
+    if (id === 'duodenum' && this.duodenum) {   // (the stomach's two tones as the stomach is drawn now, dimmed and greyed with the gut, and the stomach's layer over the gut's)
+      const st = p.organs.tones.stomach, u = this.duodenum.uniforms;
+      const c1 = organColour(rgbOf(st[0]), s, k), c2 = organColour(rgbOf(st[1]), s, k);
+      (u.tos1!.value as Vector3).set(c1[0], c1[1], c1[2]); (u.tos2!.value as Vector3).set(c2[0], c2[1], c2[2]);
+      u.tosLayer!.value = p.organLayer / Math.max(1e-3, p.organs.gutA);
     }
   }
 
