@@ -25,9 +25,11 @@ export function mouthDiscs(courses: readonly Course[], lv: readonly P2[]): { x: 
 }
 
 /** Bends the blood vessels' courses (inlets, sinusoids, cross-links, twigs) apart at their shallow junctions, in place: points, `rho` and `len` of each course that moved. */
-export function bendNet(courses: Course[], lv: readonly P2[]): void {
+export function bendNet(courses: Course[], lv: readonly P2[]): void { for (const _ of bendNetSteps(courses, lv)) { /* every pass */ } }
+/** `bendNet` a pass per `yield`: the scene's boot builds the Lobule's network in steps so no one task holds all three (scene.ts, 24 Nov). */
+export function* bendNetSteps(courses: Course[], lv: readonly P2[]): Generator<void, void, unknown> {
   // (a T's branch is bent before its host, and the host's own bend then carries the T along: a second pass settles those, a third is a no-op)
-  for (let pass = 0; pass < 3; pass++) if (!bendOnce(courses, lv)) break;
+  for (let pass = 0; pass < 3; pass++) { const moved = bendOnce(courses, lv); yield; if (!moved) break; }
 }
 
 /** One pass of the bend; whether anything moved. */

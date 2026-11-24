@@ -77,6 +77,7 @@ import { liveSource, type ModelSource } from './model-source.ts';
 import { confine, splitRegions, type Region } from './twin/region.ts';
 import { x2d, x3, y3 } from './frame2d.ts';
 import { type FigureHit, organHit } from './organs/pick.ts';
+import { buildLobuleSteps } from './lobule/geometry.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
 import { LIVER_POINT, LIVER_Z, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
 import { LOBULE_ORIGIN, LOBULE_R, LOBULE_T, SINUSOID_L, lobuleShot } from './lobule/shots.ts';
@@ -176,6 +177,8 @@ export interface SceneOptions {
   joins?: JoinsMode;
   /** Where the patient is read from: the engine's shared state by default; the split orbit's second figure hands in its own (model-source.ts). */
   source?: ModelSource;
+  /** Build in slices (boot): the constructor makes nothing; `finishSliced` runs the build one small step per task, and `finishNow` all of it at once. Left out, the constructor builds everything (every test, the split orbit's twin). */
+  sliced?: boolean;
 }
 
 /** A fork's two tubes know each other (vessels/neighbour.ts): `nbr` on every vertex. */
@@ -192,41 +195,41 @@ const DIVE_READY_MS = 350;
 export class CelScene {
   readonly scene = new Scene();
   /** The hidden stand-ins for the programs the scene graph does not hold until something happens (materials/prototypes.ts). */
-  private readonly protos: Group;
+  private protos!: Group;
   /** Settles when the organs are in the scene (their geometry and art files arrived and were built), or failed. */
-  readonly organsBuilt: Promise<void>;
+  organsBuilt!: Promise<void>;
   /** Everything of the body (organs, vessels, catheter): hidden as one while the lobule or the sinusoid is the view. */
   private readonly body = new Group();
   private readonly shuntGuide = new ShuntGuide();
   private readonly shuntRay = new Raycaster();
-  readonly rig: CameraRig;
+  rig!: CameraRig;
   readonly shared: CelShared = createShared();
   readonly objects: CelObject[] = [];
   readonly vessels: CelObject[] = [];
-  readonly catheter: Catheter;
+  catheter!: Catheter;
   /** Every device a procedure puts on the figure (B5): the catheters on their routes, the stent, the tamponade tube, bands. */
-  readonly procs: ProcedureLayer;
+  procs!: ProcedureLayer;
   /** The Tests card's devices on the figure (B11): the Doppler probe, the FibroScan probe, the endoscope with its EUS needle. */
-  readonly probes: ProbeLayer;
-  readonly highlight: Highlight;
+  probes!: ProbeLayer;
+  highlight!: Highlight;
   /** The organs a slide outlines (and the normal spleen's line). */
   readonly pins = new OrganPins();
-  readonly flow: BloodMarks;
+  flow!: BloodMarks;
   /** Blood-cell particles (Settings > Figure depth): built the first time they are switched on, one draw call. */
-  readonly cells: BloodCells;
+  cells!: BloodCells;
   /** The colour lens (src/scene/lenses/): what colour every vein wears, crossfaded on the clock. */
   readonly lens = new LensField();
   /** The blood's streams (the chevrons' distance, speed and reversed flag, from the 2D app's own stream model). */
   readonly blood = new BloodField();
   /** The flow's one eased rate (flow-rate.ts): every visible phase that rides the blood's distance advances by it. */
-  readonly flowRate: FlowRate;
+  flowRate!: FlowRate;
   /** A second figure (the split orbit's healthy liver, scene/twin): it reads its own patient and leaves the page's shared dust and flow rate to the page's scene. */
-  readonly twin: boolean;
+  twin!: boolean;
   /** The lobule and sinusoid views (B8), built once, hidden until the view is chosen (setView). */
   /** The organs and the disease states on the figure (B4). */
-  readonly disease: DiseaseLayer;
-  readonly lobule: LobuleView;
-  readonly sinus: SinusoidView;
+  disease!: DiseaseLayer;
+  lobule!: LobuleView;
+  sinus!: SinusoidView;
   /** The same two views as true 3D scenes, ALWAYS (Mohammad, 20 Nov 2026: "remove the toggle for 3D or not 3D; everything 3D"): drawn in place of the flat ones' pictures; the flat views keep the model, names, taps and clock. */
   // Built lazily (review 21 Nov #11: about 0.75 s of boot CPU and 14 MB of geometry, hidden until the dive): in an idle slot after the first picture (`buildMicroIdle`, from Stage), or at the latest by the first
   // `setView` to the lobule or the sinusoid, or by the first read of either getter. `onMicroBuilt` lets the page compile their programs off the frame (Stage), so the first show never stalls on a driver.
@@ -309,9 +312,9 @@ export class CelScene {
   readonly circuit = new CircuitView();
   private readonly mapLayer = new MapLayer();
   /** What only the map has: the liver's branch trees, the caudate's lane, the custom shunts a learner opened (circuit/tubes.ts). */
-  readonly tubes: CircuitTubes;
+  tubes!: CircuitTubes;
   /** The resistors' zigzags on the map, and which of them a slide asks for (circuit/resistors.ts). */
-  readonly resistors: ResistorLayer;
+  resistors!: ResistorLayer;
   private resWant = new Set<ResKey>();
   private resNow: Partial<Record<ResKey, number>> = {};
   private caudPin = false;
@@ -380,16 +383,56 @@ export class CelScene {
   private readonly diveReady = new Ease(0, 'dive-ready');
   private readonly eases: readonly Ease[] = [this.occ, this.shadow, this.cavaE, this.lumbarE, this.diveReady];
   private readonly tipFades: { o: VesselObject; connect: readonly string[] }[] = [];
-  private look: LookId;
-  private phone: boolean;
+  private look!: LookId;
+  private phone!: boolean;
   private lastNow = -1;
   /** Where this scene reads its patient from. */
-  readonly src: ModelSource;
+  src!: ModelSource;
   private width = 1;
   private height = 1;
   private moving = true; // the first frame always draws
 
+  /** The build, a generator: each `yield` ends a step. A constructor without `sliced` runs it to the end; the boot runs a step per task so no one task is the whole scene (finishSliced). A step may yield a promise the build
+   *  must wait for (the baked skins): the boot driver awaits it and answers `true`; a driver that cannot wait (finishNow) answers `false`, and the build then goes on without it, as a scene always has (the skins when the file lands). */
+  private building: Generator<Promise<unknown> | void, void, boolean | undefined> | null = null;
+  private markBuilt: () => void = () => {};
+  private readonly whenBuilt: Promise<void> = new Promise<void>((r) => { this.markBuilt = r; });
   constructor(opts: SceneOptions = {}) {
+    this.building = this.build(opts);
+    if (!opts.sliced) this.finishNow();
+  }
+  /** Whether every step of the build has run. */
+  get builtAll(): boolean { return this.building === null; }
+  /** Runs every step that is left, now (a first use of the scene before the sliced build is done: the rest is built at once, as it always was). */
+  finishNow(): void {
+    const g = this.building;
+    if (!g) return;
+    this.building = null;
+    let r = g.next();
+    while (!r.done) r = g.next(false);
+  }
+  /** One step of the build (never waits for a promise); true while more are left. */
+  buildStep(): boolean {
+    const g = this.building;
+    if (!g) return false;
+    if (g.next(false).done) { this.building = null; return false; }
+    return true;
+  }
+  /** Runs the build one step per task: `next` gives the page back between steps (a task of its own: the cover's bar, the browser's input and the compositor run in the gaps). A step that yields a promise is awaited. Ends early if `finishNow` built the rest meanwhile. */
+  async finishSliced(next: () => Promise<void>): Promise<void> {
+    const g = this.building;
+    if (!g) return;
+    let r = g.next();
+    while (!r.done) {
+      let waited = false;
+      if (r.value) { await r.value; waited = true; }
+      await next();
+      if (this.building !== g) return;
+      r = g.next(waited);
+    }
+    if (this.building === g) this.building = null;
+  }
+  private *build(opts: SceneOptions): Generator<Promise<unknown> | void, void, boolean | undefined> {
     this.src = opts.source ?? liveSource;
     this.twin = !!opts.source;
     this.flowRate = this.twin ? new FlowRate() : flowRate;
@@ -401,10 +444,15 @@ export class CelScene {
     this.scene.add(this.body);
 
     setSmoothJoins(true);   // (smooth vessel joins are always on, 21 Nov 2026: the Settings switch is gone; set before any tube is built)
-    for (const def of NETWORK) this.addVessel(def);
+    let vn = 0;
+    for (const def of NETWORK) { this.addVessel(def); if (++vn % 6 === 0) yield; }   // (a step every few vessels: about 5 ms each on a laptop)
+    yield;
     // (junction skins: before the mates, which skip the ends a skin has taken over. On the page they are baked at build time and still on their way: the figure is not drawn before they are in, the boot waits for the same promise)
-    if (bakedPending()) void bakedReady.then(() => { if (this.disposed) return; this.refreshSkins(); this.applyMates(); this.moving = true; clock.invalidate('skins'); });
-    else this.refreshSkins();
+    if (bakedPending()) {
+      // (the boot's driver waits for the file here and builds the skins in steps of their own; one that cannot wait builds them when it lands, as before)
+      if (yield bakedReady) yield* this.refreshSkinsSteps();
+      else void bakedReady.then(() => { if (this.disposed) return; this.refreshSkins(); this.applyMates(); this.moving = true; clock.invalidate('skins'); });
+    } else yield* this.refreshSkinsSteps();
     this.applyMates();
     this.occ.snap(useSettings.getState().hideBehind ? 1 : 0); for (const o of this.back) o.setOcclusion(this.occ.value);
     this.shadow.snap(useSettings.getState().deviceShadow ? 1 : 0); this.shared.shadow.value = this.shadow.value;
@@ -415,6 +463,7 @@ export class CelScene {
       if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
+    yield;
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
     this.disease.bleed.still = !!opts.reduceMotion;   // (the jet holds still under Reduce Motion)
@@ -422,18 +471,21 @@ export class CelScene {
     this.disease.ascites.setLiving(useSettings.getState().fluidSurface, true);   // (Settings > Figure depth > Living fluid: read at boot, then glided)
     // The organs' vertex data is a static file (src/scene/organs/meshes.ts): the organ layer builds them when it is in, in the patient's state, and asks for a frame.
     // (the promise settles once the organs are built, or failed: the warm-up under the splash waits for it so the organs' programs are compiled with the rest, Stage.tsx)
-    this.organsBuilt = Promise.all([organsReady, artReady]).then(() => {
+    this.organsBuilt = Promise.all([organsReady, artReady, this.whenBuilt]).then(() => {
       this.disease.organs.build(); stamp('scene'); addOrganHalos(this.protos, this.disease.organs.objects);
       this.moving = true; clock.invalidate('organs');
     }, (e) => { console.error(e); });
+    yield;
     this.catheter = new Catheter(this.shared);
     this.body.add(this.catheter.group);
     this.catheter.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     this.objects.push(...this.catheter.objects); this.leaving.push(...this.catheter.objects); for (const o of this.catheter.objects) this.leavingSet.add(o);
+    yield;
     this.tubes = new CircuitTubes(this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     this.body.add(this.tubes.group);
     this.resistors = new ResistorLayer(this.shared.res);
     this.mapLayer.group.add(this.resistors.group);
+    yield;
     this.procs = new ProcedureLayer(this.shared);
     this.body.add(this.procs.group);
     this.procs.group.traverse((c) => c.layers.set(VESSEL_LAYER));
@@ -461,6 +513,7 @@ export class CelScene {
     this.body.add(inVesselPass(this.probes.group));
     this.body.add(this.shuntGuide.mesh);
 
+    yield;
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     // a custom shunt's tube is made when a learner opens it, after the figure is built: it is a vessel like any other, so it is pickable and lit (and let go with its tube)
     this.highlight.expect = (id) => this.tubes.isCustom(id);
@@ -469,6 +522,7 @@ export class CelScene {
     this.flow = new BloodMarks(this.vessels);
     // the dust's settings (blood/dust.ts; the hidden ?dust panel writes them): a change wakes the figure for the frames its glide takes
     if (!this.twin) { dustTuner.onWake = () => { this.moving = true; clock.invalidate('dust'); }; dustTuner.setPhone(this.phone); }
+    yield;
     this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
     this.presence.own(this.grownIds);
@@ -482,7 +536,13 @@ export class CelScene {
     this.shapes.onReshaped = (id) => this.skins?.markDirty(id);   // (an arm's course changed: the skin on it is rebuilt in the render phase, skins.step below)
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
-    this.lobule = new LobuleView(this.shared, vo); this.sinus = new SinusoidView(this.shared, vo);
+    yield;
+    const lobuleNet = yield* buildLobuleSteps();   // (the Lobule's network, a bend pass a step)
+    yield;
+    this.lobule = new LobuleView(this.shared, vo, lobuleNet);
+    yield;
+    this.sinus = new SinusoidView(this.shared, vo);
+    yield;
     // the lobule stands inside the liver, the sinusoid inside the lobule (lobule/frames.ts): two frames, each a place and a scale
     this.dive.position.set(...LIVER_POINT); this.dive.scale.setScalar(LOBULE_SCALE);
     this.sinFrame.position.set(...SIN_LOCAL); this.sinFrame.scale.setScalar(SIN_REL);
@@ -493,6 +553,7 @@ export class CelScene {
     this.scene.add(this.organGlowFx.figure);   // (hidden until an organ is lit; drawn with the organs, behind the vessels' pass)
     this.scene.add(this.protos);   // (hidden stand-ins for the programs nothing holds yet: compiled with the rest under the splash, materials/prototypes.ts)
     this.applyLook(this.look);
+    this.markBuilt();
   }
 
   private unJoins: () => void = () => {};
@@ -510,7 +571,7 @@ export class CelScene {
   /** The stitches at the shunt ends the skins weld (vessels/suture.ts): the tube's own are cut away with the end. */
   private sutures: SutureSet | null = null;
   private circuitSkinKey = '';
-  private joins: JoinsMode;
+  private joins!: JoinsMode;
   /**
    * The inspector's join switch (`?inspect`, src/ui/debug/inspect): the mode is read again from the page's live answer (joins-mode.ts) and the skins are built again on
    * the tubes, or taken away for `old`: the same path as the Smooth vessel joins switch.
@@ -524,7 +585,9 @@ export class CelScene {
   get joinsNow(): JoinsMode { return this.joins; }
   /** The junction skins now drawn (the node names), for tests and the debug page. */
   get skinNodes(): readonly string[] { return this.skins?.nodes ?? []; }
-  private refreshSkins(): void {
+  private refreshSkins(): void { for (const _ of this.refreshSkinsSteps()) { /* every step */ } }
+  /** `refreshSkins` a step per `yield` (an arm's tube, a baked skin laid in, a suture's seam): the boot runs them one per task. */
+  private *refreshSkinsSteps(): Generator<void, void, unknown> {
     const phase = smoothJoinsOn() ? joinsPhase(this.joins) : 0;   // (always on in the app; only a test's useSmoothJoins(false) turns it off)
     if (!phase) { this.sutures?.dispose(); this.sutures = null; this.skins?.dispose(); this.skins = null; this.circuitSkins?.dispose(); this.circuitSkins = null; return; }
     this.skins ??= new SkinSet({
@@ -537,7 +600,8 @@ export class CelScene {
       divided: (shunt) => this.dividedNow(shunt),
       endsChanged: () => { this.applyMates(); },   // (a rebuild that failed or came back: the mates and burial of its ends follow)
     });
-    this.skins.build(phase);
+    yield* this.skins.buildSteps(phase);
+    for (const id of SEWN_IDS) { seamsFor(id, true); yield; }   // (the sutures' seam curves, memoised: each is a step of its own, not 40 ms inside `sync`)
     this.sutures ??= new SutureSet({ add: (o) => { this.body.add(o); }, remove: (o) => { this.body.remove(o); }, side: () => !!(this.src.shown() as { portocavalSide?: boolean } | null)?.portocavalSide });
     this.sutures.sync(this.skins);   // (made with the skins, so the warm-up builds the program with the rest)
     this.shapes?.setPins(this.skins.pins());   // (the seams stand still while the collaterals coil: no skin is rebuilt for a growth)

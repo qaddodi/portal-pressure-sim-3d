@@ -187,6 +187,10 @@ function postTask(): (fn: () => void) => void {
   return (fn) => { q.push(fn); hold.ref?.(); mc.port2.postMessage(0); };
 }
 
+let post: ((fn: () => void) => void) | null = null;
+/** Resolves in a task of its own, after the tasks already waiting (a MessageChannel post: input, timers and the compositor's frames run between): what a long job awaits between its steps so no one task is all of it. */
+export const nextTask = (): Promise<void> => new Promise<void>((r) => { (post ??= postTask())(r); });
+
 // (the last slices, on the browser's real clock, so a long task can be named: `slotAround`)
 const recent: { tag: string; t0: number; t1: number }[] = Array.from({ length: 64 }, () => ({ tag: '', t0: -1, t1: -1 }));
 let recentAt = 0;

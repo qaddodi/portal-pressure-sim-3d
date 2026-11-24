@@ -33,6 +33,9 @@ import { stamp } from './boot/timeline.ts';
 import { bakedReady } from './scene/vessels/skin/baked.ts';
 import { registerPwa } from './pwa/register.ts';
 import { warmLater } from './boot/warm.ts';
+import { buildSceneSliced } from './scene/api.ts';
+import { wireScene } from './scene/Stage.tsx';
+import { nextTask } from './clock/idle.ts';
 import { mountCharts } from './ui/charts/gallery/mount.tsx';
 import { mountTrials } from './ui/trials/mount.tsx';
 import { mountA11y } from './ui/a11y/mount.ts';
@@ -68,7 +71,9 @@ window.addEventListener('vite:preloadError', () => {
 
 async function start() {
   if (!hasWebGL2()) { createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
-  const [fonts] = await Promise.all([fontsReady(), engineBooted, bakedReady]);   // (the junction skins baked at build time are fetched with them: the figure's first frame has its welds)
+  // The scene is built a step per task while the worker computes the first patient and the fonts and the baked files arrive: no one task is the whole scene, so the cover's bar and the browser's input run between the steps.
+  const sceneBuilt = buildSceneSliced(nextTask).then(wireScene);
+  const [fonts] = await Promise.all([fontsReady(), engineBooted, bakedReady, sceneBuilt]);   // (the junction skins baked at build time are fetched with them: the figure's first frame has its welds)
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
   // The engine did not start (its worker failed, crashed or never answered: bootEngine leaves the reason in the store): say so, with Reload, never a page that waits for ever.
   const eng = useEngine.getState();
@@ -90,4 +95,10 @@ async function start() {
   registerPwa();   // offline: after the first picture, once the page is idle (src/pwa/register.ts)
   warmLater();     // a talk's charts are read in once the page is idle (src/boot/warm.ts)
 }
-void start();
+start().catch((e) => {
+  // (a step of the scene's build that threw, or any part of the start: the cover says so with Reload, as it does for a part that cannot be fetched (entry.ts), never a splash that waits for ever)
+  const w = window as Window & { ppsBootFail?: () => void; ppsBootErrors?: string[] };
+  w.ppsBootErrors?.push(String((e as Error)?.message ?? e));
+  console.error(e);
+  w.ppsBootFail?.();
+});
