@@ -27,14 +27,37 @@ export function hasEdits(o: Overrides | undefined, e: EdgeEnds): boolean {
   return !!(o.nodes?.[e.from] || o.nodes?.[e.to] || o.vessels?.[e.id]?.pts?.length);
 }
 
-/** The control points' kernel: between knots the offset eases by quintic smootherstep (C2: no corner and no jump of curvature at a knot, flat there, so a point is a rounded hump, never a peak), 0 at both ends. */
-function knotBlend(x: readonly number[], y: readonly number[]): (u: number) => number {
+/** The control points' curve: a clamped cubic spline through the offsets at any number of knots (u, value), zero at both ends with zero slope there (the vessel leaves its nodes as it did). C2 at every knot:
+ *  no terrace, no jump of curvature, however many points. Returns the evaluator. */
+export function knotSpline(x: readonly number[], y: readonly number[]): (u: number) => number {
+  const n = x.length, h: number[] = [], m = new Float64Array(n);
+  for (let i = 0; i < n - 1; i++) h.push(x[i + 1]! - x[i]!);
+  const a = new Float64Array(n), b = new Float64Array(n), c = new Float64Array(n), r = new Float64Array(n);
+  b[0] = 2 * h[0]!; c[0] = h[0]!; r[0] = 6 * ((y[1]! - y[0]!) / h[0]!);
+  for (let i = 1; i < n - 1; i++) { a[i] = h[i - 1]!; b[i] = 2 * (h[i - 1]! + h[i]!); c[i] = h[i]!; r[i] = 6 * ((y[i + 1]! - y[i]!) / h[i]! - (y[i]! - y[i - 1]!) / h[i - 1]!); }
+  a[n - 1] = h[n - 2]!; b[n - 1] = 2 * h[n - 2]!; r[n - 1] = 6 * (-(y[n - 1]! - y[n - 2]!) / h[n - 2]!);
+  for (let i = 1; i < n; i++) { const w = a[i]! / b[i - 1]!; b[i]! -= w * c[i - 1]!; r[i]! -= w * r[i - 1]!; }
+  m[n - 1] = r[n - 1]! / b[n - 1]!;
+  for (let i = n - 2; i >= 0; i--) m[i] = (r[i]! - c[i]! * m[i + 1]!) / b[i]!;
   return (u: number): number => {
     let i = 0;
-    while (i < x.length - 2 && u > x[i + 1]!) i++;
-    const span = x[i + 1]! - x[i]!, t = span > 1e-9 ? smoother((u - x[i]!) / span) : 0;
-    return y[i]! + (y[i + 1]! - y[i]!) * t;
+    while (i < n - 2 && u > x[i + 1]!) i++;
+    const hh = h[i]!, A = (x[i + 1]! - u) / hh, B = (u - x[i]!) / hh;
+    return A * y[i]! + B * y[i + 1]! + ((A * A * A - A) * m[i]! + (B * B * B - B) * m[i + 1]!) * hh * hh / 6;
   };
+}
+/** The share of the vessel's length the spline's result is smoothed over (a Gaussian of this sigma on the offsets: a spline through one point peaks sharply; this rounds it, and costs under a hundredth of the offset at a knot). */
+export const CONTROL_SMOOTH = 0.04;
+function gaussian(v: Float64Array, arc: Float64Array, sigma: number): Float64Array {
+  const n = v.length, out = new Float64Array(n), reach = 3 * sigma;
+  for (let i = 0; i < n; i++) {
+    let sum = 0, wsum = 0;
+    for (let j = i; j >= 0 && arc[i]! - arc[j]! <= reach; j--) { const w = Math.exp(-0.5 * ((arc[i]! - arc[j]!) / sigma) ** 2); sum += w * v[j]!; wsum += w; }
+    for (let j = i + 1; j < n && arc[j]! - arc[i]! <= reach; j++) { const w = Math.exp(-0.5 * ((arc[j]! - arc[i]!) / sigma) ** 2); sum += w * v[j]!; wsum += w; }
+    out[i] = sum / wsum;
+  }
+  out[0] = v[0]!; out[n - 1] = v[n - 1]!;
+  return out;
 }
 
 /** Centripetal Catmull-Rom through `pts`, resampled at `n` points standing at the arc-length shares `at` (the bone count and spacing the course had): the edited course is one smooth curve, with
@@ -71,7 +94,7 @@ function refit(pts: readonly (readonly [number, number])[], at: Float64Array): [
 
 /** The vessel's 2D course with its edits applied: positions in plan units, and a per-point depth offset.
  *  Falloffs (named, so the cause of a kink is findable): a node move eases along each arm by `armFalloff` (quintic smootherstep, C2, flat at the node) over a reach of
- *  max(a quarter of the arm, 6 radii) or 3 times the move, whichever is larger, never past the arm; control points ease between knots by `knotBlend` (quintic smootherstep, C2, flat at each knot and at both ends); then the displaced course is refitted as a centripetal Catmull-Rom curve resampled at the same bone shares. */
+ *  max(a quarter of the arm, 6 radii) or 3 times the move, whichever is larger, never past the arm; control points are a clamped C2 cubic spline through any number of knots (`knotSpline`), rounded by a light Gaussian (CONTROL_SMOOTH); then the displaced course is refitted as a centripetal Catmull-Rom curve resampled at the same bone shares. */
 export function applyVesselOverrides(e: EdgeEnds, path: readonly P2[], o: Overrides | undefined, opts: ApplyOpts = {}): Applied {
   const an = opts.anchors;
   if ((!hasEdits(o, e) && !an) || path.length < 2) return { path, dz: null };
@@ -106,12 +129,13 @@ export function applyVesselOverrides(e: EdgeEnds, path: readonly P2[], o: Overri
     const knots = [...pts].filter((k) => k.u > 0 && k.u < 1).sort((a, b) => a.u - b.u).filter((k, i, l) => i === 0 || k.u - l[i - 1]!.u > 1e-6);
     if (knots.length) {
       const U = [0, ...knots.map((k) => k.u), 1];
-      const fx = knotBlend(U, [0, ...knots.map((k) => k.dx), 0]), fy = knotBlend(U, [0, ...knots.map((k) => k.dy), 0]), fz = knotBlend(U, [0, ...knots.map((k) => k.dz ?? 0), 0]);
+      const fx = knotSpline(U, [0, ...knots.map((k) => k.dx), 0]), fy = knotSpline(U, [0, ...knots.map((k) => k.dy), 0]), fz = knotSpline(U, [0, ...knots.map((k) => k.dz ?? 0), 0]);
+      const ox = new Float64Array(n), oy = new Float64Array(n), oz = new Float64Array(n);
+      for (let i = 0; i < n; i++) { const u = arc[i]! / total; ox[i] = fx(u); oy[i] = fy(u); oz[i] = fz(u); }
+      const sx = gaussian(ox, arc, CONTROL_SMOOTH * total), sy = gaussian(oy, arc, CONTROL_SMOOTH * total), sz = gaussian(oz, arc, CONTROL_SMOOTH * total);
       for (let i = 0; i < n; i++) {
-        const u = arc[i]! / total;
-        out[i]![0] += fx(u); out[i]![1] += fy(u);
-        const z = fz(u);
-        if (z) { dz[i] += z; anyZ = true; }
+        out[i]![0] += sx[i]!; out[i]![1] += sy[i]!;
+        if (sz[i]) { dz[i] += sz[i]!; anyZ = true; }
       }
     }
   }
