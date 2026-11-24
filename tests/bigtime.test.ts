@@ -334,3 +334,13 @@ test('a phone: events whose lines are closer than a text line merge into one "+N
   assert.ok(words.length > closed.frame.shapes.filter((s): s is TextShape => s.k === 'text' && s.rot === -45 && !/^\+\d+$/.test(s.s)).length, 'opening the group sets its words');
   judge(opened.frame, 'light'); judge(closed.frame, 'light');
 });
+
+test('"What to graph" rows: a tick circle before every name (filled when on, a ring when off), and the names on the right are Inter, not the serif', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../src/ui/bigtime/bigtime.css', import.meta.url), 'utf8'), tsx = readFileSync(new URL('../src/ui/bigtime/Chooser.tsx', import.meta.url), 'utf8');
+  assert.ok(/<span className="bt-tick" aria-hidden="true" \/>\s*<span className="bt-name">/.test(tsx), 'the tick comes first in the row');
+  assert.ok(/\.bt-row\[aria-pressed="true"\] \.bt-tick \{ background: currentColor/.test(css), 'filled when on');
+  assert.ok(/\.bt-tick \{[^}]*border: 2px solid/.test(css), 'a ring when off');
+  for (const sel of ['.bt-row .bt-name', '.bt-list .bt-what']) assert.ok(new RegExp(`${sel.replace(/\./g, '\\.')} \\{[^}]*var\\(--ui\\)`).test(css), `${sel} is Inter`);
+  assert.ok(!/var\(--display\)[^}]*\/\* \(a name is serif/.test(css));
+});

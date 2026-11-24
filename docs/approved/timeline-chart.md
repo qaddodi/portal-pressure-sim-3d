@@ -32,3 +32,9 @@
 - No `//` break, no cut days, no fisheye (options 1 and 3 were not chosen).
 - **Phone (24 Nov, Mohammad: "for iphone chart, the labels on top should be 45 degree not 90 degree"):** event labels are turned 45°, reading up and to the right from their line, long names broken in two; labels whose lines are close are lifted along their lines so none overlaps.
 - **Phone label band (24 Nov):** labels sit in one or two rows (lifted along their lines); where a label still would not fit, the unplaced run of events merges into one "+N" tick (words, 45°, no pill). Tap it to open that group's labels; tap again to close. The closed band is capped at about a third of the chart.
+
+## "What to graph" rows (24 Nov 2026)
+**Reference:** option A of `/mnt/project-files/graph-rows-mocks-24nov/` (`A.png`). Mohammad, 24 Nov: "it's not obvious that i can tick the stuff on the right to graph and ungraph" and "the choice of font of those on the right seems wrong"; picked "A".
+- Each measure row starts with a tick circle: filled in the measure's colour with a tick when graphed, an empty ring when not; an off row is dimmed grey (name, line, reading).
+- The names on the right (What to graph rows, What happened list) are Inter 600 like the words beside them, not Source Serif.
+- Rejected: chips or pills (standing rule), a colour bar, a switch, a line sample with a hint line (mocked, not picked).

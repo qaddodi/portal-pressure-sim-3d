@@ -34,8 +34,13 @@
 .bt-grp header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: clamp(6px, 1.6vh, 14px) 0 4px; border-bottom: 1px solid var(--edge); font: 400 var(--t-cap) / 1.2 var(--ui); }
 .bt-grp header b { font: 600 var(--t-body) / 1.2 var(--ui); color: var(--text); }
 .bt-grp header span { color: var(--text-3); }
-.bt-row { display: grid; grid-template-columns: minmax(0, 1fr) 118px 64px; align-items: center; gap: 10px; width: 100%; height: var(--bt-row); padding: 0; border: 0; border-bottom: 1px solid var(--edge); background: none; font: 600 var(--t-body) / 1.2 var(--ui); text-align: left; transition: color var(--d-small) var(--ease); }
-.bt-row .bt-name { min-width: 0; white-space: nowrap; font: 600 var(--t-name) / 1.2 var(--display); }   /* (a name is serif: type.md) */
+.bt-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 118px 64px; align-items: center; gap: 10px; width: 100%; height: var(--bt-row); padding: 0; border: 0; border-bottom: 1px solid var(--edge); background: none; font: 600 var(--t-body) / 1.2 var(--ui); text-align: left; transition: color var(--d-small) var(--ease); }
+.bt-row .bt-name { min-width: 0; white-space: nowrap; font: 600 var(--t-body) / 1.2 var(--ui); }   /* (Inter, like every word beside it: Mohammad, 24 Nov) */
+/* the tick circle (docs/approved/timeline-chart.md, option A): filled in the measure's colour with a tick when it is graphed, an empty ring when it is not */
+.bt-tick { position: relative; width: 22px; height: 22px; box-sizing: border-box; border: 2px solid var(--text-3); border-radius: 50%; transition: background-color var(--d-small) var(--ease), border-color var(--d-small) var(--ease); }
+.bt-tick::after { content: ''; position: absolute; left: 6px; top: 2px; width: 5px; height: 10px; border: solid var(--surface); border-width: 0 2.4px 2.4px 0; transform: rotate(45deg) scale(0); transition: transform var(--d-small) var(--ease-arrive); }
+.bt-row[aria-pressed="true"] .bt-tick { background: currentColor; border-color: currentColor; }
+.bt-row[aria-pressed="true"] .bt-tick::after { transform: rotate(45deg) scale(1); }
 .bt-row .bt-spark { position: relative; height: 28px; transition: opacity var(--d-small) var(--ease); }
 .bt-row .bt-val { text-align: right; color: var(--text); white-space: nowrap; font-weight: 600; }
 .bt-row[data-off] { color: var(--text-3); font-weight: 500; }
@@ -56,7 +61,7 @@
 .bt-list li { border-top: 1px solid var(--edge); }
 .bt-list li > button { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: baseline; gap: 12px; width: 100%; min-height: 38px; padding: 8px 0; border: 0; background: none; text-align: left; font: 400 var(--t-body) / 1.3 var(--ui); color: var(--text-2); }
 .bt-list .bt-when { font: 500 var(--t-cap) / 1.3 var(--ui); color: var(--text-3); white-space: nowrap; }
-.bt-list .bt-what { font: 600 var(--t-name) / 1.3 var(--display); }   /* (a name is serif: type.md) */
+.bt-list .bt-what { font: 600 var(--t-body) / 1.3 var(--ui); }
 .bt-list li[data-kind="change"] .bt-what { color: var(--text); }
 .bt-list li[data-open] > button { padding-top: 12px; }
 .bt-more { padding: 0 0 12px 76px; font: 400 var(--t-lab) / 1.4 var(--ui); color: var(--text-2); }
@@ -78,5 +83,5 @@
   box-shadow: 0 -12px 40px -12px rgb(var(--shadow-rgb, 0 0 0) / 0.28); opacity: 0; visibility: hidden; transform: translateY(24px); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .bt[data-compact][data-raised] .bt-side { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
 .bt[data-compact] .bt-tabs { padding-bottom: 4px; }
-.bt[data-compact] .bt-row { grid-template-columns: minmax(0, 1fr) 150px 64px; }
+.bt[data-compact] .bt-row { grid-template-columns: 22px minmax(0, 1fr) 150px 64px; }
 @media (pointer: coarse) { .bt-words button, .bt-pager button { min-height: 36px; } }

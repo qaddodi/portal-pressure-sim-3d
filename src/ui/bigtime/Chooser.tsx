@@ -43,6 +43,7 @@ export function Chooser({ data, at, compact }: { data: Data; at: number; compact
               const v = valueAt(data.series[m.id], at), off = !on[m.id];
               return (
                 <button key={m.id} type="button" className="bt-row" aria-pressed={!off} data-off={off || undefined} style={off ? undefined : { color: css(m) }} onClick={() => toggle(m.id)}>
+                  <span className="bt-tick" aria-hidden="true" />
                   <span className="bt-name">{m.name}</span>
                   <Spark s={data.series[m.id]!} m={m} off={off} />
                   <span className="bt-val">{v == null ? '—' : (m.row ?? m.words)(v)}</span>
