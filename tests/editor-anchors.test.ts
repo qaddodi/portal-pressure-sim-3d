@@ -40,6 +40,10 @@ test('empty overrides: every anchor is the reference value itself (child process
     const { scopeWay } = await import('./src/scene/devices/probes/scope.ts');
     const w = scopeWay();
     assert.ok(w.total > 100 && Number.isFinite(w.hvD));
+    const AP = await import('./src/scene/disease/ascites-pool.ts');
+    const AB = await import('./src/scene/disease/copied/anatomy-b4.ts');
+    for (const st of [0, 3, AB.ABDOMEN_OUTLINES.length - 1]) assert.deepEqual(AP.polyOf(st), AP.bellyPolygon(AP.outlinePolygon(AB.ABDOMEN_OUTLINES[st])));
+    assert.equal(A.wallFollow(q), q);
     console.log('ok');
   `;
   const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: process.cwd(), encoding: 'utf8' });
@@ -150,4 +154,27 @@ test('a point map and strokeDisplace give the place the mesh vertex at that plac
   assert.ok(moved > 3, 'some vertices are pulled');
   assert.deepEqual(strokeDisplace({ move: [0.1, 0, 0] }, [0, 0, 0]), [0, 0, 0]);
   assert.equal(organPointMap({ strokes: [] }, c), null);
+});
+
+test('the ascites wall follows the organs that bound it, near them and fading away', async () => {
+  const { LABEL_NAMES } = await import('../src/scene/labels/names.copied.ts');
+  setOverridesForTest({ version: 1, organs: { liver: { move: [0.06, 0.03, 0], strokes: [{ at: [-0.6, 0, 0.03], radius: 0.4, by: [0.02, 0, 0] }] } } });
+  const A = await import('../src/scene/editor-anchors.ts');
+  const AP = await import('../src/scene/disease/ascites-pool.ts');
+  const AB = await import('../src/scene/disease/copied/anatomy-b4.ts');
+  const step = AB.ABDOMEN_OUTLINES.length - 1, base = AP.bellyPolygon(AP.outlinePolygon(AB.ABDOMEN_OUTLINES[step]!)), now = AP.polyOf(step);
+  assert.equal(now.length, base.length);
+  let near = 0, far = 0;
+  for (let i = 0; i < base.length; i++) {
+    const d = Math.hypot(now[i]![0] - base[i]![0], now[i]![1] - base[i]![1]);
+    assert.ok(Number.isFinite(d) && d <= 0.2 * 300 + 1e-6, 'never further than the organ moved');
+    if (d > 1) near++; else if (d === 0) far++;
+  }
+  assert.ok(near > 0, 'the wall by the liver moves');
+  assert.ok(far > 0, 'the wall far from every edited organ does not');
+  assert.ok(LABEL_NAMES);
+  assert.deepEqual(A.wallFollow([1400, 1000]), [1400, 1000]);
+  setOverridesForTest(EMPTY);
+  const back = AP.polyOf(step);
+  assert.deepEqual(back, base, 'the cache follows the overrides');
 });

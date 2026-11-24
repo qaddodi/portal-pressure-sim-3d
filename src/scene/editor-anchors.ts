@@ -34,7 +34,7 @@ import { ORGANS } from './labels/organ2d/outlines.copied.js';
 import { flattenPath } from './labels/organ2d/flatten.js';
 import { organPointMap } from '../editor/organ-apply.ts';
 import { ORGAN_Z } from './organs/z.ts';
-import { x3, y3, x2d, y2d } from './frame2d.ts';
+import { x3, y3, x2d, y2d, UNITS_PER_SCENE as U } from './frame2d.ts';
 import type { V3 } from '../editor/types.ts';
 
 type Ring = [number, number][];
@@ -76,6 +76,35 @@ export function withOrgan(organ: string | undefined, p: P2, z?: number): P2 {
   if (!m) return p;
   const q = m([x3(p[0]), y3(p[1]), z ?? ORGAN_Z[organ!] ?? 0]);
   return [x2d(q[0]), y2d(q[1])];
+}
+/** How far (figure units) the abdominal wall feels an organ that bounds it: the whole move at the organ's outline, nothing this far from it. */
+export const WALL_REACH = 120;
+/** The organs that bound the cavity the ascites fills. */
+export const WALL_ORGANS = ['liver', 'spleen', 'bowel'] as const;
+const distToRings = (rs: Ring[], x: number, y: number): number => {
+  let best = Infinity;
+  for (const P of rs) for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const ax = P[j]![0], ay = P[j]![1], bx = P[i]![0], by = P[i]![1], dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    const t = l2 > 0 ? Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0;
+    best = Math.min(best, Math.hypot(x - (ax + dx * t), y - (ay + dy * t)));
+  }
+  return best;
+};
+/** A point of the abdominal wall (figure units) carried by the organs that bound it: each edited organ (move, turn, scale, liquify: its point map) pulls the wall near its outline by what it does there, fading to
+ *  nothing WALL_REACH units away (smoothly). The same array when none of them is edited. */
+export function wallFollow(p: P2): P2 {
+  const os = overrides().organs;
+  if (!os) return p;
+  let dx = 0, dy = 0;
+  for (const id of WALL_ORGANS) {
+    const m = organMap(id);
+    if (!m) continue;
+    const o = outlineOf(id), d = inside(o.rs, p[0], p[1]) ? 0 : distToRings(o.rs, p[0], p[1]);
+    if (d >= WALL_REACH) continue;
+    const t = 1 - d / WALL_REACH, w = t * t * (3 - 2 * t), q = [x3(p[0]), y3(p[1]), ORGAN_Z[id] ?? 0] as V3, r = m(q);
+    dx += (r[0] - q[0]) * U * w; dy -= (r[1] - q[1]) * U * w;
+  }
+  return dx === 0 && dy === 0 ? p : [p[0] + dx, p[1] + dy];
 }
 /** The organ mesh each 2D organ caption (names.copied ORGAN_AT keys) belongs to. */
 export const ORGAN_OF_CAPTION: Readonly<Record<string, string>> = { Liver: 'liver', Spleen: 'spleen', Stomach: 'stomach', Colon: 'colon', Kidney: 'kidney-l', 'Small bowel': 'bowel', Esophagus: 'stomach', 'Right atrium': 'heart-ra' };

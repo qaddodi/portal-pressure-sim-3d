@@ -3,6 +3,8 @@
 import { ABDOMEN_OUTLINES } from './copied/anatomy-b4.ts';
 import { LIVER_CUT_FS } from './liver-edge.ts';
 import type { LookId } from '../../looks/looks.ts';
+import { overrides } from '../../editor/store.ts';
+import { wallFollow } from '../editor-anchors.ts';
 
 /** 2D paints the pool over the organ plate and the vessels (veins-gl.js fluidAt), so it is drawn after every organ and its ink (organs run to renderOrder 2 * 9 + 1) and ignores depth: the pool washes what lies in it, as in 2D. */
 /** GLSL chunks only (POOL_COMMON_GLSL, POOL_BASE_GLSL): the program that uses them is the hull's (ascites-hull-glsl.ts GL_PROGRAMS). */
@@ -109,7 +111,12 @@ function roundedFoot(bowed: [number, number][]): [number, number][] {
   return out;
 }
 const POLYS = new Map<number, [number, number][]>();
-export const polyOf = (step: number) => POLYS.get(step) ?? (POLYS.set(step, bellyPolygon(outlinePolygon(ABDOMEN_OUTLINES[step]!))), POLYS.get(step)!);
+/** The cavity at a bulge step: 2D's wall, bowed, and (once an organ that bounds it is edited) carried by those organs (editor-anchors.ts wallFollow). Unedited it is exactly the bowed polygon. */
+let polysFor: unknown = null;
+export const polyOf = (step: number) => {
+  if (polysFor !== overrides()) { polysFor = overrides(); POLYS.clear(); }
+  return POLYS.get(step) ?? (POLYS.set(step, bellyPolygon(outlinePolygon(ABDOMEN_OUTLINES[step]!)).map((q) => wallFollow(q) as [number, number])), POLYS.get(step)!);
+};
 
 /** Where a vertical line at x crosses the polygon: its lowest and highest y (2D, y down), or null outside it. */
 export function crossings(poly: readonly [number, number][], x: number): [number, number] | null {
