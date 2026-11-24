@@ -9,7 +9,7 @@ import { BufferAttribute, BufferGeometry, Color, DoubleSide, Float32BufferAttrib
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { TIER_Z, VESSEL_PLANE_Z, len3, x3, y3 } from '../../frame2d.ts';
-import { withOrgan, zAtU } from '../../editor-anchors.ts';
+import { withOrgan, zAtArc } from '../../editor-anchors.ts';
 import { editedPlan } from '../../../editor/vessel-plan.ts';
 import { ORGAN_MESHES } from '../../organs/meshes.ts';
 import { ORGAN_Z } from '../../organs/z.ts';
@@ -275,7 +275,7 @@ export class EndoScope {
       const path = (editedPlan() as Record<string, P2[]>)[id]!;
       const q = pointOn(path, f) as P2;
       this.targets[i] = [q[0], q[1]];
-      this.targetZ[i] = zAtU(id, f, VESSEL_PLANE_Z);   // (an edited vessel's depth at the target; the plane's unedited)
+      this.targetZ[i] = zAtArc(id, f, VESSEL_PLANE_Z);   // (an edited vessel's depth at the target; the plane's unedited)
     });
   }
   /** One of the two targets in the scope's plane (0 the portal vein's, 1 the hepatic vein's): where the EUS-PPG's cards point. */
@@ -294,7 +294,7 @@ export class EndoScope {
     const [id, f] = EUS_GLUE_TARGET as unknown as [string, number];
     const q = pointOn((editedPlan() as Record<string, P2[]>)[id]!, f) as P2;
     this.glueT = [q[0], q[1]];
-    this.glueZ = zAtU(id, f, VESSEL_PLANE_Z);
+    this.glueZ = zAtArc(id, f, VESSEL_PLANE_Z);
   }
 
   /** Lays the scope for the tip at `this.d`: the shaft along the way to where its bend starts, the bending section, the rigid tip with its lens, the needle and its sector. */

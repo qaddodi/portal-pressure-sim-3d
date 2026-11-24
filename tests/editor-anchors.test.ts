@@ -195,8 +195,43 @@ test('the glue target follows a vessel\'s dz, once (a fresh process: the network
     const { TIER_Z } = await import('./src/scene/frame2d.ts');
     const { glueTarget3 } = await import('./src/scene/devices/glue-cast.ts');
     const tier = TIER_Z[NETWORK_BY_ID.get(id).tier], z = glueTarget3().z;
-    assert.ok(Math.abs(z - A.zAtU(id, EUS_GLUE_TARGET[1], tier)) < 1e-12);
+    assert.ok(Math.abs(z - A.zAtArc(id, EUS_GLUE_TARGET[1], tier)) < 1e-12);
     assert.ok(z > tier + 0.03 && z < tier + 0.051, 'dz in once: ' + (z - tier));
+    console.log('ok');
+  `;
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: process.cwd(), encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+});
+
+test('a node dz reaches the scope and glue targets by the eased arm amount (fresh process)', () => {
+  const code = `
+    import assert from 'node:assert/strict';
+    const { setOverridesForTest } = await import('./src/editor/store.ts');
+    const { EUS_TARGETS } = await import('./src/scene/devices/probes/copied/eus-scope.copied.js');
+    const [id, f] = EUS_TARGETS.pv;
+    const { EDGES } = await import('./src/engine/hales/portal/topology.js');
+    const ed = EDGES.find((q) => q.id === id);
+    const o = { version: 1, nodes: { [ed.to]: { dx: 0, dy: 0, dz: 0.08 } } };
+    setOverridesForTest(o);
+    const A = await import('./src/scene/editor-anchors.ts');
+    const V = await import('./src/editor/vessel-apply.ts');
+    const { EDGE_PATH_2D } = await import('./src/scene/vessels/paths.copied.ts');
+    const { editedPlan } = await import('./src/editor/vessel-plan.ts');
+    const { TIER_Z } = await import('./src/scene/frame2d.ts');
+    const { NETWORK_BY_ID } = await import('./src/scene/vessels/network.ts');
+    const tier = TIER_Z[NETWORK_BY_ID.get(id).tier];
+    const z = A.zAtArc(id, f, tier);
+    // the eased arm amount, straight from vessel-apply, at the same place along the course
+    const p = editedPlan()[id];
+    const ap = V.applyVesselOverrides(ed, EDGE_PATH_2D[id], o);
+    assert.ok(ap.dz, 'the arm carries a depth offset');
+    let tot = 0; const cum = [0];
+    for (let i = 1; i < p.length; i++) { tot += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); cum.push(tot); }
+    const s = f * tot; let i = 1; while (i < p.length - 1 && cum[i] < s) i++;
+    const u = (cum[i] - cum[i - 1]) > 0 ? (s - cum[i - 1]) / (cum[i] - cum[i - 1]) : 0;
+    const want = V.dzAt(ap.dz, (i - 1 + u) / (p.length - 1));
+    assert.ok(want > 0.001 && want < 0.08, 'eased: part of the move: ' + want);
+    assert.ok(Math.abs(z - (tier + want)) < 1e-9, 'target shifted by the eased amount ' + (z - tier) + ' vs ' + want);
     console.log('ok');
   `;
   const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: process.cwd(), encoding: 'utf8' });

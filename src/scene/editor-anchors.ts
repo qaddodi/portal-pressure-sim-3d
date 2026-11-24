@@ -4,6 +4,7 @@
 import { overrides } from '../editor/store.ts';
 import { NODE_POS_2D } from './vessels/paths.copied.ts';
 import { courseOf } from './vessels/network.ts';
+import { editedPlan } from '../editor/vessel-plan.ts';
 
 type P2 = readonly [number, number];
 
@@ -20,6 +21,21 @@ export function zAtU(id: string, u: number, tier: number): number {
   if (c.length < 2) return c[0]![2];
   const t = Math.min(1, Math.max(0, u)) * (c.length - 1), k = Math.min(c.length - 2, Math.floor(t)), w = t - k;
   return c[k]![2] + (c[k + 1]![2] - c[k]![2]) * w;
+}
+
+/** The depth of a vessel's course at share `f` (0..1) of its LENGTH (where pointOn puts a target): the course's edited depth there, which carries every dz offset (a node's, eased down the arm by vessel-apply, and control points') once. `tier` unedited. */
+export function zAtArc(id: string, f: number, tier: number): number {
+  if (!planEdited()) return tier;
+  const p = (editedPlan() as Record<string, readonly P2[] | undefined>)[id];
+  if (!p || p.length < 2) return zAtU(id, f, tier);
+  let total = 0;
+  const cum = [0];
+  for (let i = 1; i < p.length; i++) { total += Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]); cum.push(total); }
+  const s = Math.min(1, Math.max(0, f)) * total;
+  let i = 1;
+  while (i < p.length - 1 && cum[i]! < s) i++;
+  const span = cum[i]! - cum[i - 1]!, u = span > 0 ? (s - cum[i - 1]!) / span : 0;
+  return zAtU(id, (i - 1 + u) / (p.length - 1), tier);
 }
 
 /** A topology node's place on the 2D figure: the reference place plus the node's edited move. */
