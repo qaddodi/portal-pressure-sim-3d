@@ -1,0 +1,9 @@
+{
+ "round": 16,
+ "from": "/mnt/project-files/anatomy-placement-mocks/frozen/round-16",
+ "files": {
+  "placement-data.json": "d2035e31f8e195df21a75a89983ecff109a6f8978d51e967cbac13f132f753ea",
+  "pack.json": "4ab566921b82990167b1a5d2d4fc39d3d558df22907d2accfdaeba69acc5940d",
+  "organsA.json": "ffaaffb3825ac2265948c261e945bcb450b7062609ecf7b9e86de60b0203fadc"
+ }
+}
