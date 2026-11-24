@@ -42,11 +42,10 @@ const YAW = 0, PITCH = 0;
 /** 2D's frame box of the fitted lobule (lobule-zoom.js frameBox: half widths wx, hy in lobule radii; 2D fits it into the free room whole, fitInto): a phone's keeps the hexagon nearly the
  *  room's width (1.05 R, so the six neighbours round it show above and below), a laptop's or iPad's leaves 1.52 R either side for the labels. The room solver keeps FILL of the room for the
  *  subject, so each half is made FILL of 2D's, and the hexagon lands the size 2D's `k` gives it. */
-const FIT_HALF: [number, number] = [LOBULE_R * 1.52 * FILL, LOBULE_R * 1.04 * FILL];
 const FIT_HALF_NARROW: [number, number] = [LOBULE_R * 1.05 * FILL, LOBULE_R * 1.02 * FILL];
 /** The whole-lobule shot ('lobule' / 'lobule:fit') frames the lobule's own bounds (24 Nov, Mohammad: "could be more zoomed in so the entire lobule fits the available space"): the hexagon's corners and the glow of the
  *  portal tracts on them reach 1.12 R either side and 0.98 R up and down (measured on the shipped picture), so the free room is fitted to that box on every screen, not to 2D's 1.52 R of room for labels
- *  (the labels sit over the figure on leaders). A narrow stage keeps its own box, which is already the lobule's width. The stations (triad, sinusoid, central) keep 2D's box: they are zooms of it. */
+ *  (the labels sit over the figure on leaders). A narrow stage keeps its own box, which is already the lobule's width. The stations (triad, sinusoid, central) stay twice the fit, as in 2D. */
 const FIT_BOUNDS: [number, number] = [LOBULE_R * 1.12 * FILL, LOBULE_R * 0.98 * FILL];
 
 /** The shot for a lobule camera name (world units: inside the liver). */
@@ -62,7 +61,7 @@ export function lobuleShot(cam: LobuleCam): Shot {
     yaw: YAW, pitch: PITCH,
     r: (part === 'fit' ? 6 : 2.5) * LOBULE_SCALE,
     target: lobuleWorld([ox + along * LOBULE_R, oy, oz]),
-    half: part === 'fit' ? [FIT_BOUNDS[0] * LOBULE_SCALE, FIT_BOUNDS[1] * LOBULE_SCALE] : [(FIT_HALF[0] / st.zoom) * LOBULE_SCALE, (FIT_HALF[1] / st.zoom) * LOBULE_SCALE],
+    half: [(FIT_BOUNDS[0] / st.zoom) * LOBULE_SCALE, (FIT_BOUNDS[1] / st.zoom) * LOBULE_SCALE],
     halfNarrow: [(FIT_HALF_NARROW[0] / st.zoom) * LOBULE_SCALE, (FIT_HALF_NARROW[1] / st.zoom) * LOBULE_SCALE],
   };
 }
