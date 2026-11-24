@@ -56,3 +56,9 @@ Mohammad, 24 Nov: "What to graph and what happened don't scroll on iPhone. They 
 - The panel body scrolls (rows keep the standard 42 px, What happened is one page of every event, no Earlier / Later), with the pull-back kept inside it.
 - A pull down from the top of the list, or from the head, closes it like every other sheet (`shell/sheet-swipe.ts`), with the grab bar at its top. The card around it never sees a touch that begins inside the panel, so that pull closes the panel, not the whole chart.
 - Mac and iPad keep the fitted list and the paged list.
+
+## Phone openers are raised buttons (24 Nov 2026)
+**Reference:** option A of `/mnt/project-files/phone-panel-button-mocks-24nov/options-A-D.png`. Mohammad, 24 Nov: "make them more visibly button like", then picked "A".
+- At the foot of the chart card on a phone, "What to graph" and "What happened" are two equal buttons, 46 px tall, 10 px apart: a raised fill (`--surface-2`), a hairline (`--edge`), radius 12, the panel's icon (the atlas's `ic-chart`, `ic-menu`), the name in Inter 600 at 14.5 px, and a chevron pointing up at the right that says the panel rises. The first in the text colour, the second in the quieter text colour.
+- A press eases to 98 % and a slightly deeper fill.
+- Rejected (mocked, not picked): one solid and one outlined blue (B), one segmented bar (C), soft blue tinted buttons (D).

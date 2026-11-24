@@ -183,8 +183,8 @@ export function TimelineCard() {
         )}
         {compact && (
           <footer className="bt-foot">
-            <button type="button" onClick={() => set({ panel: 'graph', raised: true })}>{BT.graph}</button>
-            <button type="button" data-quiet onClick={() => set({ panel: 'happened', raised: true })}>{BT.happened}</button>
+            <button type="button" onClick={() => set({ panel: 'graph', raised: true })}><i className="ic ic-chart" aria-hidden="true" />{BT.graph}<i className="ic ic-chev-down bt-go" aria-hidden="true" /></button>
+            <button type="button" data-quiet onClick={() => set({ panel: 'happened', raised: true })}><i className="ic ic-menu" aria-hidden="true" />{BT.happened}<i className="ic ic-chev-down bt-go" aria-hidden="true" /></button>
           </footer>
         )}
       </div>
