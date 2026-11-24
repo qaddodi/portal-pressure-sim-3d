@@ -124,3 +124,30 @@ test('no anchored consumer imports the reference plan or reads the copied GEO2D 
     assert.ok(!/EDGE_PATH_2D/.test(s), `${f} reads EDGE_PATH_2D`);
   }
 });
+
+test('a point map and strokeDisplace give the place the mesh vertex at that place goes to (liquify, move, turn and scale)', async () => {
+  const { SphereGeometry } = await import('three');
+  const { applyOrganEdit, organCentroid, organPointMap, strokeDisplace } = await import('../src/editor/organ-apply.ts');
+  const edit = { move: [0.04, -0.02, 0.01], rotY: 0.2, scale: 1.08, strokes: [{ at: [0.3, 0.1, 0.05], radius: 0.4, by: [0.03, 0.02, 0.01] }, { at: [-0.2, 0.2, 0], radius: 0.3, by: [-0.02, 0.03, 0] }] } as const;
+  const make = () => { const g = new SphereGeometry(0.5, 12, 8); g.translate(0.1, 0.2, -0.05); return g; };
+  const ref = make(), g = make(), c = organCentroid(ref);
+  applyOrganEdit(g, edit);
+  const map = organPointMap(edit, c)!, a = ref.getAttribute('position').array, b = g.getAttribute('position').array;
+  for (let i = 0; i < a.length; i += 3) {
+    const q = map([a[i]!, a[i + 1]!, a[i + 2]!]);
+    for (let k = 0; k < 3; k++) assert.ok(Math.abs(q[k]! - b[i + k]!) < 1e-6, `vertex ${i / 3} axis ${k}`);
+  }
+  // strokes alone: the pull is exactly the vertex's move, clamped
+  const only = { strokes: edit.strokes }, g2 = make();
+  applyOrganEdit(g2, only);
+  const b2 = g2.getAttribute('position').array;
+  let moved = 0;
+  for (let i = 0; i < a.length; i += 3) {
+    const d = strokeDisplace(only, [a[i]!, a[i + 1]!, a[i + 2]!]);
+    for (let k = 0; k < 3; k++) assert.ok(Math.abs(a[i + k]! + d[k]! - b2[i + k]!) < 1e-6);
+    if (Math.hypot(...d) > 1e-4) moved++;
+  }
+  assert.ok(moved > 3, 'some vertices are pulled');
+  assert.deepEqual(strokeDisplace({ move: [0.1, 0, 0] }, [0, 0, 0]), [0, 0, 0]);
+  assert.equal(organPointMap({ strokes: [] }, c), null);
+});

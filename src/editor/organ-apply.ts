@@ -33,6 +33,24 @@ export function clampEdit(e: OrganEdit): { move: V3; rotY: number; scale: number
 /** Smooth C2 falloff: 1 at the stroke's centre, 0 (with zero slope and curvature) at its radius. */
 export const wendland = (r: number): number => (r >= 1 ? 0 : (1 - r) ** 4 * (4 * r + 1));
 
+/** The pull of the liquify strokes on a point of the organ's reference frame: the strokes' falloff-weighted sum, its length clamped to LIQUIFY_LIMIT (what applyOrganEdit does to each vertex). */
+function strokePull(strokes: readonly { at: V3; radius: number; by: V3 }[], x: number, y: number, z: number): [number, number, number] {
+  let dx = 0, dy = 0, dz = 0;
+  for (const s of strokes) {
+    const d = Math.hypot(x - s.at[0], y - s.at[1], z - s.at[2]);
+    if (d >= s.radius) continue;
+    const w = wendland(d / s.radius);
+    dx += s.by[0] * w; dy += s.by[1] * w; dz += s.by[2] * w;
+  }
+  const dl = Math.hypot(dx, dy, dz);
+  if (dl > LIQUIFY_LIMIT) { const k = LIQUIFY_LIMIT / dl; dx *= k; dy *= k; dz *= k; }
+  return [dx, dy, dz];
+}
+/** How far an organ's liquify strokes pull a point of its reference frame (scene units): the same falloff and clamp as the mesh vertex at that place. [0, 0, 0] when the organ has no strokes. */
+export function strokeDisplace(edit: OrganEdit | undefined, p: V3): V3 {
+  return edit?.strokes?.length ? strokePull(clampEdit(edit).strokes, p[0], p[1], p[2]) : [0, 0, 0];
+}
+
 /**
  * Edits `g` in place (and returns it). `origin` is the shift between the stored positions and the frame the edit is written in (the live path edits before the organ's depth shift).
  * `centroid` (that frame) overrides the organ's own centre, so two meshes of one organ (the finished stomach and the raw one) turn about the same point.
@@ -47,15 +65,7 @@ export function applyOrganEdit(g: BufferGeometry, edit: OrganEdit | undefined, o
   const cs = Math.cos(e.rotY), sn = Math.sin(e.rotY);
   for (let i = 0; i < n; i++) {
     let x = a[3 * i]! + o[0], y = a[3 * i + 1]! + o[1], z = a[3 * i + 2]! + o[2];
-    let dx = 0, dy = 0, dz = 0;
-    for (const s of e.strokes) {
-      const d = Math.hypot(x - s.at[0], y - s.at[1], z - s.at[2]);
-      if (d >= s.radius) continue;
-      const w = wendland(d / s.radius);
-      dx += s.by[0] * w; dy += s.by[1] * w; dz += s.by[2] * w;
-    }
-    const dl = Math.hypot(dx, dy, dz);
-    if (dl > LIQUIFY_LIMIT) { const k = LIQUIFY_LIMIT / dl; dx *= k; dy *= k; dz *= k; }
+    const [dx, dy, dz] = strokePull(e.strokes, x, y, z);
     x += dx; y += dy; z += dz;
     // about the centroid: scale, then turn about the vertical axis, then move
     const rx = (x - c[0]) * e.scale, ry = (y - c[1]) * e.scale, rz = (z - c[2]) * e.scale;
@@ -72,15 +82,16 @@ export function applyOrganEdit(g: BufferGeometry, edit: OrganEdit | undefined, o
   return g;
 }
 
-/** The whole-organ part of an edit (scale about `centroid`, then turn about the vertical axis, then move; the same arithmetic as applyOrganEdit, clamped) as a point map, for anchors that
- *  hang on an organ (a caption, a scope's way, a bleed). Liquify strokes are local and not carried. Null when the edit moves nothing. */
+/** An organ's edit as a point map, for anchors that hang on the organ (a caption, a scope's way, a bleed, the ascites wall): the point of the reference frame goes where the mesh vertex at that place goes
+ *  (liquify strokes first, then scale about `centroid`, the turn about the vertical axis and the move: the arithmetic of applyOrganEdit). Null when the edit moves nothing. */
 export function organPointMap(edit: OrganEdit | undefined, centroid: V3): ((p: V3) => V3) | null {
   if (!edit) return null;
   const e = clampEdit(edit);
-  if (e.move[0] === 0 && e.move[1] === 0 && e.move[2] === 0 && e.rotY === 0 && e.scale === 1) return null;
+  if (e.move[0] === 0 && e.move[1] === 0 && e.move[2] === 0 && e.rotY === 0 && e.scale === 1 && !e.strokes.length) return null;
   const cs = Math.cos(e.rotY), sn = Math.sin(e.rotY), c = centroid;
   return (p) => {
-    const rx = (p[0] - c[0]) * e.scale, ry = (p[1] - c[1]) * e.scale, rz = (p[2] - c[2]) * e.scale;
+    const [dx, dy, dz] = strokePull(e.strokes, p[0], p[1], p[2]);
+    const rx = (p[0] + dx - c[0]) * e.scale, ry = (p[1] + dy - c[1]) * e.scale, rz = (p[2] + dz - c[2]) * e.scale;
     return [c[0] + rx * cs + rz * sn + e.move[0], c[1] + ry + e.move[1], c[2] - rx * sn + rz * cs + e.move[2]];
   };
 }
