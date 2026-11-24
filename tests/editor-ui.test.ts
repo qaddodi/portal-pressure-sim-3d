@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
 import type { Stroke } from '../src/editor/types.ts';
-import { core, fileText, fileOverrides, staleNote, differs, addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
+import { diffList, resetItem, core, fileText, fileOverrides, staleNote, differs, addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from '../src/ui/debug/editor/picking.ts';
 import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
 import { VIEW_KEY, loadView, saveView, EXPORT_REMIND_MS, exportReminder, noteExported, persistHistory, restorableHistory, clearHistory, type StorageLike } from '../src/ui/debug/editor/session.ts';
@@ -318,4 +318,16 @@ test('overlap hint: pushing one organ into another by a move is named; moving it
   assert.deepEqual(organHintsFor({ a: { edited: ref.a, reference: ref.a }, b: { edited: ref.b, reference: ref.b } }), [], 'no edit, no hint');
   const same = throughTransform(ref.a, { position: [0, 0, 0], rotY: 0, scale: 1 });
   assert.deepEqual([...same], [...ref.a]);
+});
+
+test('diff list and per-item Reset: changes against the committed file, put back one at a time', () => {
+  const base = setNode(EMPTY, 'A', { dx: 1, dy: 1 });
+  let now = setOrgan(setControl(setNode(base, 'A', { dx: 5, dy: 1 }), 'V', 0.5, { dx: 2, dy: 2 }), 'liver', { rotY: 0.1 });
+  now = setNode(now, 'B', { dx: 3, dy: 3 });
+  assert.deepEqual(diffList(now, base).map((i) => `${i.kind}:${i.id}`).sort(), ['node:A', 'node:B', 'organ:liver', 'vessel:V']);
+  const a = resetItem(now, base, { kind: 'node', id: 'A' });
+  assert.equal(nodeOf(a, 'A').dx, 1, 'back to what the committed file has, not to zero');
+  const b = resetItem(a, base, { kind: 'node', id: 'B' }); assert.equal(nodeOf(b, 'B').dx, 0);
+  const all = diffList(b, base).reduce((o, it) => resetItem(o, base, it), b);
+  assert.deepEqual(diffList(all, base), []); assert.equal(differs(all, base), false);
 });

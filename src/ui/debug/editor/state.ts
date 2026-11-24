@@ -112,6 +112,24 @@ export function tidy(o: Overrides): Overrides {
   if (Object.keys(o.organs ?? {}).length) out.organs = o.organs!;
   return out;
 }
+export interface DiffItem { kind: 'node' | 'vessel' | 'organ'; id: string }
+const sameJson = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/** What the draft changes against `base` (the committed file): one item per junction, vessel and organ whose edit differs. */
+export function diffList(now: Overrides, base: Overrides): DiffItem[] {
+  const out: DiffItem[] = [];
+  for (const [kind, key] of [['node', 'nodes'], ['vessel', 'vessels'], ['organ', 'organs']] as const) {
+    const a = (now[key] ?? {}) as Record<string, unknown>, b = (base[key] ?? {}) as Record<string, unknown>;
+    for (const id of new Set([...Object.keys(a), ...Object.keys(b)])) if (!sameJson(a[id], b[id])) out.push({ kind, id });
+  }
+  return out;
+}
+/** One item of the draft put back to what `base` has (nothing, when base has nothing for it). */
+export function resetItem(now: Overrides, base: Overrides, it: DiffItem): Overrides {
+  const key = it.kind === 'node' ? 'nodes' : it.kind === 'vessel' ? 'vessels' : 'organs';
+  const map = { ...(now[key] as Record<string, unknown> | undefined) }, was = (base[key] as Record<string, unknown> | undefined)?.[it.id];
+  if (was === undefined) delete map[it.id]; else map[it.id] = was;
+  return { ...now, [key]: Object.keys(map).length ? map : undefined };
+}
 /** The edits themselves: no file notes (meta) and no snapshots. Equality of drafts is judged on this. */
 export const core = (o: Overrides): Overrides => { const { meta: _m, snapshots: _s, ...rest } = tidy(o); return rest; };
 export const exportText = (o: Overrides): string => JSON.stringify(core(o), null, 2) + '\n';

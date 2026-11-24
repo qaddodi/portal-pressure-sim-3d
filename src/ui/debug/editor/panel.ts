@@ -22,7 +22,7 @@ import { knownIds, orphanCount, orphanText, orphansOf, withoutOrphans } from './
 import { Overlay } from './overlay.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from './picking.ts';
 import { skeleton, organIds, pointAt, uAtIndex, centroidOf, type Skeleton } from './source.ts';
-import { History, differs, core, fileOverrides, fileText, staleNote, PLAN_PER_SCENE, addControl, removeControl, knotsOf, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
+import { History, diffList, resetItem, differs, core, fileOverrides, fileText, staleNote, PLAN_PER_SCENE, addControl, removeControl, knotsOf, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
 
 type Mode = 'orbit' | 'vessels' | 'organs';
 type Target = { kind: 'node'; id: string } | { kind: 'ctrl'; vid: string; u: number };
@@ -110,13 +110,16 @@ export function mountEditor(): void {
   };
   const shownOrgans = new Set<string>();
   /** The organs' meshes carry the draft over the loaded edit, live (live.ts): children of the organ's group, never the group (the layer owns that). */
+  // Before / after: while the Before button is held the committed file's edits are shown in place of the draft's
+  let before = false;
+  const shown = (): Overrides => (before ? committedOverrides() : hist.now);
   const syncOrgans = (): void => {
-    for (const id of [...Object.keys(hist.now.organs ?? {}), ...Object.keys(loaded.organs ?? {}), ...shownOrgans]) {
+    for (const id of [...Object.keys(shown().organs ?? {}), ...Object.keys(loaded.organs ?? {}), ...shownOrgans]) {
       const o = cel.disease.organs.byId.get(id); if (!o) continue;
-      const t = liveTransform(loaded.organs?.[id], hist.now.organs?.[id], centroidOf(id));
+      const t = liveTransform(loaded.organs?.[id], shown().organs?.[id], centroidOf(id));
       for (const m of o.group.children) { m.position.set(t.position[0], t.position[1], t.position[2]); m.rotation.y = t.rotY; m.scale.setScalar(t.scale); }
       shownOrgans.add(id);
-      const list = hist.now.organs?.[id]?.strokes, cg = hist.now.organs?.[id]?.cage, gr = hist.now.organs?.[id]?.grid;
+      const list = shown().organs?.[id]?.strokes, cg = shown().organs?.[id]?.cage, gr = shown().organs?.[id]?.grid;
       if (list !== strokesShown.get(id) || cg !== cageSeen.get(id) || gr !== gridSeenBy.get(id)) { strokesShown.set(id, list); cageSeen.set(id, cg); gridSeenBy.set(id, gr); strokesDue.add(id); }
     }
     if (strokesDue.size && !strokesPending) { strokesPending = true; clock.after(flushStrokes, 0, 'editor-strokes'); }   // (one per frame, however many moves came in)
@@ -132,7 +135,7 @@ export function mountEditor(): void {
         const g = cel.disease.organs.byId.get(id)?.toonMesh.geometry; if (!g) continue;
         ls = new LiveStrokes(g, loaded.organs?.[id], centroidOf(id), organBoxes[id] ?? organBox(g)); liveStrokes.set(id, ls);
       }
-      ls.set(hist.now.organs?.[id]?.strokes, hist.now.organs?.[id]?.cage, hist.now.organs?.[id]?.grid); touched.add(id);
+      ls.set(shown().organs?.[id]?.strokes, shown().organs?.[id]?.cage, shown().organs?.[id]?.grid); touched.add(id);
     }
     strokesDue.clear();
     cel.setEditorOverlay(overlay.object); frameFor('editor', 300);
@@ -160,7 +163,7 @@ export function mountEditor(): void {
   };
   const refreshOverlay = (): void => {
     syncOrgans();
-    if (mode === 'vessels' || playing) previewVesselEdits(hist.now); else endVesselPreview();   // (the real tubes and skins move with the drag, vessels/edit-preview.ts)
+    if (mode === 'vessels' || playing || before) previewVesselEdits(shown()); else endVesselPreview();   // (the real tubes and skins move with the drag, vessels/edit-preview.ts)
     const vessels = mode === 'vessels';
     overlay.dots('nodes', { pos: vessels ? sk.nodes.map((n) => nodeShown(n.id)) : [], size: dotPx(9), color: 0xffb347 });
     if (vessels && target?.kind === 'node') overlay.dots('pick', { pos: [nodeShown(target.id)], size: dotPx(16), color: 0xff3d71 });
@@ -282,6 +285,7 @@ export function mountEditor(): void {
     undoB.disabled = !hist.canUndo; redoB.disabled = !hist.canRedo;
     const remind = store ? exportReminder(store, hist.now, committedOverrides(), clock.now()) : null;
     msgEl.textContent = [msg, hintText, remind, orphanNote(), staleNote(loaded.meta?.base, buildCommit()), differs(hist.now, committedOverrides()) ? 'The draft differs from the committed file.' : ''].filter(Boolean).join(' '); refreshOverlay();
+    if (!drag) refreshDiff();
     if (mode === 'organs' && !hintPending) { hintPending = true; clock.after(computeHints, 400, 'editor-hints'); }
     if (store && !autosavePending) { autosavePending = true; clock.after(flushHistory, 800, 'editor-autosave'); }   // (a moment after the last edit, not per move)
   };
@@ -336,6 +340,23 @@ export function mountEditor(): void {
   fillSnaps();
   const toCommitted = el('button', { textContent: 'Reset to committed' }); toCommitted.onclick = () => { if (confirm('Throw away every edit in the draft and go back to the committed file?')) { hist.commit(core(committedOverrides())); say('Back to the committed file. Undo takes it back.'); sync(); } };
   more.append(el('div', { className: 'bar' }, [snapName, takeSnap]), el('div', { className: 'bar' }, [snapSel, restoreSnap, dropSnap]), el('div', { className: 'bar' }, [toCommitted]));
+  // Before: hold to see the committed file's shape, let go for the draft. Changes: what the draft changes, each with its own Reset.
+  const holdB = el('button', { textContent: 'Hold: Before' });
+  const hold = (on: boolean): void => { if (before !== on) { before = on; holdB.classList.toggle('on', on); sync(); } };
+  holdB.addEventListener('pointerdown', (e) => { holdB.setPointerCapture(e.pointerId); hold(true); });
+  for (const t of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) holdB.addEventListener(t, () => hold(false));
+  const diffBox = el('div', { className: 'diff' });
+  const refreshDiff = (): void => {
+    if (!more.open) return;
+    const items = diffList(hist.now, committedOverrides());
+    diffBox.replaceChildren(el('div', { className: 'hint', textContent: items.length ? `${items.length} change${items.length === 1 ? '' : 's'} from the committed file:` : 'No changes from the committed file.' }),
+      ...items.slice(0, 60).map((it) => {
+        const b = el('button', { textContent: 'Reset' }); b.onclick = () => { hist.commit(resetItem(hist.now, committedOverrides(), it)); sync(); };
+        return el('div', { className: 'row' }, [el('label', { textContent: `${it.kind === 'node' ? 'junction' : it.kind} ${it.id}` }), b]);
+      }));
+  };
+  more.addEventListener('toggle', refreshDiff);
+  more.append(el('div', { className: 'bar' }, [holdB]), diffBox);
   const paste = el('textarea', { placeholder: 'Paste an overrides file here, then Import', rows: 3 });
   paste.style.cssText = 'width:100%;box-sizing:border-box;font:11px ui-monospace,Menlo,monospace;color:#fff;background:#fff2;border:1px solid #fff6;border-radius:6px;padding:6px';
   const importText = (text: string, from: string): void => {
