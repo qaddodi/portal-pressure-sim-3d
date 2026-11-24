@@ -188,3 +188,10 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 .ab .ab-belly > .ab-big > .ab-rate[data-refill] { display: block; width: auto; max-width: 100%; white-space: normal; text-align: center; border-radius: .7em; }
 /* A counter that has stopped is read as words: the tabular "1" of "14 days later" stood apart from its "4" as "1 4" (Ascites 14). */
 .pz-lapse.done { font-variant-numeric: proportional-nums; }
+
+/* A slide's paracentesis (Ascites 13): the litres taken off so far and the albumin dose, under the belly. Words only, no box; the figure of the card does not move (the line is always there once the tap begins). */
+.pz-tool[data-kind="abdomen"] .ab-tap { display: grid; justify-items: center; gap: 2px; text-align: center; font-size: var(--fs-12); line-height: 1.25; color: var(--text-2); }
+.pz-tool[data-kind="abdomen"] .ab-tap > b { font-size: var(--fs-14); font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.pz-tool[data-kind="abdomen"] .ab-tap:not([data-on]) { opacity: 0; }
+.pz-tool[data-kind="abdomen"] .ab-tap { transition: opacity var(--d-small) var(--ease); }
+.pz-tool[data-kind="abdomen"] .ab-tap[data-dose] > span { color: var(--text); }

@@ -10,9 +10,10 @@ import type { ChartPainter } from '../../charts/painter.ts';
 import { fmt } from '../../charts/fmt.ts';
 import { updateParams } from '../../action/params.ts';
 import { appEnv } from '../../treat/env.ts';
+import { useProc } from '../../deck/procs-state.ts';
 import { balanceHold } from '../copied/balance-hold.copied.js';
 import { metricsOf, paramsNow } from '../frame.ts';
-import { abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminTip, albuminText, IAP_MAX, type AbView } from './model.ts';
+import { abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminTip, albuminText, tapWords, IAP_MAX, type AbView } from './model.ts';
 
 const hold = balanceHold();
 let held: number | null = null;
@@ -45,6 +46,13 @@ export function AbdomenPane({ square }: { square?: number }) {
   const dialCtx = useRef<ChartCtx | null>(null);
   const knob = useRef<{ shown: number; goal: number }>({ shown: NaN, goal: 0 });
   const pal = useLookId(), host = usePaneHost();
+  // a slide's paracentesis (Ascites 13): the litres taken off so far (the most the belly held on this slide less what it holds now) and the albumin that goes with them
+  const tapping = useProc((s) => s.name === WORDS.paracentesis);
+  const peak = useRef(0);
+  const litres = v ? Number.parseFloat(v.num) : NaN;
+  if (Number.isFinite(litres)) peak.current = Math.max(peak.current, litres);
+  const tap = host.slide && tapping && peak.current > 0 && Number.isFinite(litres) ? tapWords(peak.current - litres) : null;
+  const tapOn = !!tap && peak.current - litres >= 0.05;   // (the two lines hold their room from the start of the slide, and come in as the first litre goes: nothing moves)
   // the dial is one drawing in a 76 × 128 box (2D iapDial), as wide as the 2D stylesheet makes its box (--ab-dw)
   const dial = (c: ChartCtx, iap: number, shown: number) => dialFrame(iap, shown, c.w, Math.round(c.w * 128 / 76), c.pal);
 
@@ -87,6 +95,7 @@ export function AbdomenPane({ square }: { square?: number }) {
                   <span className="ab-rate" data-dir={v.rateDir} data-refill={v.rate.startsWith('Refilling') ? '' : undefined}><i className="ab-rate-a" aria-hidden="true">{v.rate ? RATE_ARROW[v.rateDir] : ''}</i><span>{v.rate}</span></span>
                 </div>
               </div>
+              {tap && <div className="ab-tap" role="status" data-on={tapOn ? '' : undefined} data-dose={peak.current - litres > 5 ? '' : undefined}><b>{tap.removed}</b><span>{tap.dose}</span></div>}
               <div className="ab-dial-box svg-gl-box" title={WORDS.dialTip}>
                 <Chart tag="ab-dial" painter={dialPainter} deps={[json]} label={`Intra-abdominal pressure ${Math.round(v.iap)} mmHg`}
                   build={(c) => { dialCtx.current = c; return dial(c, v.iap, Number.isFinite(knob.current.shown) ? knob.current.shown : v.iap); }} />

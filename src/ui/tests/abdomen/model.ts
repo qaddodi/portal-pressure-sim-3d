@@ -25,6 +25,11 @@ export const WORDS = {
 export const albuminTip = (L: number, warn: boolean): string => (warn
   ? `For >5 L, give albumin (${Math.round(L * 8)} g, 8 g per liter of ascites removed) to prevent post-paracentesis circulatory dysfunction.`
   : 'Albumin 8 g per liter of ascites removed: advised for >5 L, optional for ≤5 L.');
+/** What a slide's paracentesis has taken off so far, in words (Ascites 13): the litres removed, and the albumin to give. Baveno VIII: 6 to 8 g per liter removed when more than 5 L is removed; under that it is optional. */
+export const tapWords = (removedL: number): { removed: string; dose: string } => {
+  const r = Math.max(0, Math.round(removedL * 10) / 10);
+  return { removed: `${fmt(r, 1)} L removed`, dose: r > 5 ? `Albumin ${Math.round(r * 6)} to ${Math.round(r * 8)} g (6 to 8 g per liter)` : 'Albumin optional under 5 L' };
+};
 export const albuminText = (L: number, on: boolean): string => (on ? `${Math.round(L * 8)} g` : L > 5 ? WORDS.advised : WORDS.optional);
 
 export interface AbView {

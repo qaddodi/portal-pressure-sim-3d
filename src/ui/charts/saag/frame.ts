@@ -5,7 +5,7 @@ import { look } from '../looks.ts';
 import type { Frame, Shape } from '../scene.ts';
 import { saagLayout, saagWords, type Pt } from './model.ts';
 
-export function saagFrame(pts: readonly Pt[], c: ChartCtx, o: { read?: string | null; source?: boolean; plotH?: number; room?: number } = {}): Frame {
+export function saagFrame(pts: readonly Pt[], c: ChartCtx, o: { read?: string | null; source?: boolean; plotH?: number; room?: number; whys?: boolean } = {}): Frame {
   const W = Math.max(200, c.w), f = c.type.sm;
   let L = saagLayout(W, f, measure, pts, o);
   // the plot gives its height up when the card's room asks for less, never the words

@@ -11,6 +11,12 @@ export const SAAG_MAX = 3, TP_MAX = 5;
 export const SOURCE = 'AASLD 2021 ascites guidance, Table 4.';
 export const ZONE_WORDS = { portal: 'Portal hypertension', none: 'No portal hypertension' };
 export const FLOOR = 12;
+/** One line of why for each region of the plane, under a plane that has no patient of its own (slide "SAAG and total protein locate the cause", Ascites 11): where a point falls, and what it says about the sinusoids. */
+export const WHYS: readonly string[] = [
+  'High SAAG, low protein: cirrhosis. Capillarized sinusoids keep protein in.',
+  'High SAAG, high protein: heart failure or Budd–Chiari. Open sinusoids let protein through.',
+  'Low SAAG: peritoneal disease, not portal hypertension.',
+];
 
 export const TYPE: Record<string, readonly [number, number]> = {
   'saag.ql': [600, 0.85], 'saag.ax': [500, 0.92], 'saag.axl': [600, 0.92], 'saag.pl': [600, 1], 'saag.pls': [500, 0.85], 'saag.read': [500, 1], 'saag.src': [500, 0.85],
@@ -45,7 +51,7 @@ export interface GDot { cx: number; cy: number; r: number; look: string }
 export interface SaagLayout { texts: GText[]; rects: GRect[]; lines: GLine[]; dots: GDot[]; H: number; plot: { L: number; T: number; pw: number; ph: number } }
 
 /** The plane's drawing at width W and card type size f. Pure. plotH: the plot's height when the card's room asks for less than the width gives (never under 100). */
-export function saagLayout(W: number, f: number, meas: Measure, pts: readonly Pt[], { read = null, source = false, plotH = 0 }: { read?: string | null; source?: boolean; plotH?: number } = {}): SaagLayout {
+export function saagLayout(W: number, f: number, meas: Measure, pts: readonly Pt[], { read = null, source = false, plotH = 0, whys = false }: { read?: string | null; source?: boolean; plotH?: number; whys?: boolean } = {}): SaagLayout {
   const texts: GText[] = [], rects: GRect[] = [], lines: GLine[] = [], dots: GDot[] = [];
   const px = (look: string) => sizeOf(look, f), wt = (look: string) => TYPE[look]![0];
   const mt = (s: string, look: string) => meas(s, px(look), wt(look));
@@ -109,6 +115,10 @@ export function saagLayout(W: number, f: number, meas: Measure, pts: readonly Pt
     const rl = wrapWords(read, W, px('saag.read'), wt('saag.read'), meas, 4), rh = px('saag.read') * 1.32;
     rl.forEach((l, i) => say(0, y + px('saag.read') * 0.9 + i * rh, l, 'saag.read'));
     y += rl.length * rh + f * 0.3;
+  }
+  if (whys && !read) {
+    const wh = px('saag.read') * 1.32;
+    for (const w of WHYS) { const ls = wrapWords(w, W, px('saag.read'), wt('saag.read'), meas, 3); ls.forEach((l, i) => say(0, y + px('saag.read') * 0.9 + i * wh, l, 'saag.read')); y += ls.length * wh + f * 0.25; }
   }
   if (source) {
     const sl = wrapWords(SOURCE, W, px('saag.src'), wt('saag.src'), meas, 2);

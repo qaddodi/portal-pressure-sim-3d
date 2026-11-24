@@ -100,3 +100,11 @@ test('the dial\'s number, unit, word, key and the 12 and 20 marks keep clear of 
     assert.ok(u.t - n.b >= 1.5, `w ${w}: a clear gap under the digits (${(u.t - n.b).toFixed(1)} px)`);
   }
 });
+
+test('a slide\'s paracentesis says the litres removed and the albumin: 6 to 8 g per liter over 5 L, optional under it', async () => {
+  const { tapWords } = await import('../src/ui/tests/abdomen/model.ts');
+  assert.deepEqual(tapWords(0), { removed: '0.0 L removed', dose: 'Albumin optional under 5 L' });
+  assert.equal(tapWords(5).dose, 'Albumin optional under 5 L');
+  assert.deepEqual(tapWords(5.9), { removed: '5.9 L removed', dose: 'Albumin 35 to 47 g (6 to 8 g per liter)' });
+  assert.equal(tapWords(6).dose, 'Albumin 36 to 48 g (6 to 8 g per liter)');
+});

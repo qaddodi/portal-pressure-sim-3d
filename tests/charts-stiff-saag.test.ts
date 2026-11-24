@@ -4,7 +4,7 @@ import { csphFingerprint as fp0 } from '../scripts/gen-engine-fixture.mjs';
 import { csphVerdict, lsmContext } from '../src/engine/hales/portal/lsm-cuts.js';
 import { stiffLayout, stiffWords, verdictOf, spleenVerdictOf, ZONES, SPLEEN_ZONES, VERDICT, plateletWords } from '../src/ui/charts/stiff/model.ts';
 import { stiffFrame } from '../src/ui/charts/stiff/frame.ts';
-import { saagLayout, pointsOf, readingOf, saagWords, type Row } from '../src/ui/charts/saag/model.ts';
+import { saagLayout, pointsOf, readingOf, saagWords, WHYS, type Row } from '../src/ui/charts/saag/model.ts';
 import { saagFrame } from '../src/ui/charts/saag/frame.ts';
 import { measure } from '../src/ui/charts/measure.ts';
 import { ctxOf, eachLook, judge } from './charts-helpers.ts';
@@ -97,4 +97,13 @@ test('SAAG: every look and width is sound, the names of points never touch, and 
   assert.ok(tight.h <= free.H - 60 + 1 || free.plot.ph - 60 < 100, `${tight.h} vs ${free.H}`);
   const sz = (l: ReturnType<typeof saagLayout>) => l.texts.filter((t) => t.look === 'saag.read').length;
   assert.equal(sz(free), sz(saagLayout(330, f, measure, pts, { read, plotH: 100 })), 'the words keep their lines');
+});
+
+test('SAAG with no patient of its own says one why for each region, in every look and width (Ascites 11)', async () => {
+  const pts = pointsOf(await rowsOf(['cirr-decomp', 'budd-chiari', 'rhf']), [{ name: 'Peritoneal carcinomatosis', saag: 0.6, tp: 4.2 }]);
+  const plain = saagLayout(330, 13, measure, pts), why = saagLayout(330, 13, measure, pts, { whys: true });
+  assert.ok(why.texts.filter((t) => t.look === 'saag.read').length >= WHYS.length, 'a line at least for each region');
+  assert.equal(plain.texts.filter((t) => t.look === 'saag.read').length, 0);
+  assert.equal(saagLayout(330, 13, measure, pts, { read: 'SAAG 1.3.', whys: true }).texts.filter((t) => WHYS.some((w) => w.startsWith(t.t.slice(0, 12)))).length, 0, 'a reading takes the place of the whys');
+  eachLook((look) => { for (const [w, d] of [[300, 'phone-portrait'], [330, 'desktop'], [430, 'tablet-portrait']] as const) judge(saagFrame(pts, ctxOf(look, w, d), { whys: true }), look); });
 });
