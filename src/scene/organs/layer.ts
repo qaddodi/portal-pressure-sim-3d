@@ -79,6 +79,8 @@ export const ORGAN_CUT: { value: Vector4 } = { value: new Vector4(0, 0, -1, 1) }
  *  is as see-through as either alone. Drawn as separate blended organs they stacked their alpha and the overlap shone brighter (Mohammad 20 Nov: "why are the intestines overlapping SHINE brighter?"). Now each gut fill
  *  marks the pixels it drew (stencil bit 2) and a later gut fill leaves a marked pixel alone; the colon is drawn first so it is the one that covers, and the two outlines are drawn after both fills so a line is never
  *  painted over by the other organ's fill. The stencil is cleared with the depth each pass (scene.ts), and bit 2 is the gut's own (the vessels' outline stencil is bit 1). */
+/** The gut's tubes (placed): painted in one box (OrganLayer oneGutBox). */
+export const GUT_TUBES = ['duodenum', 'bowel', 'colon'] as const;
 export const GUT_GROUP: ReadonlySet<string> = new Set(PLACED ? ['stomach', 'duodenum', 'bowel', 'colon'] : ['bowel', 'colon']);
 /** The gut's draw order in the organ layer: fills first (the colon, which covers, then the bowel), then the outlines (the bowel's, then the colon's over it).
  *  The approved placement's gut is ONE surface (the mock's round 12: the stomach, the duodenum's funnel, the small bowel and the colon): a depth pass of every part first (`pre`: each pixel keeps only the nearest wall), then the
@@ -263,8 +265,19 @@ export class OrganLayer {
         whenQuiet(() => this.liverShape !== shape || (shape.warm(6) && bk.step(6)), { tag: 'liver-shape', delayMs: 500 });
       }
     }
+    if (PLACED) this.oneGutBox();
     this.dirtyColours = true; this.instant = true; this.shrinkWas = NaN;
     this.applyLobe();
+  }
+
+  /** Placed: the gut's tubes (the duodenum's funnel, the bowel, the colon) are one surface, so they are painted in ONE box, the box round all three: the gradient and the volume's radial run on across the tube's joins
+   *  instead of starting again in each part's own box (a step of 20 to 30/255 where the funnel meets the bowel and the bowel the colon). The stomach keeps its own box (2D's), and the funnel eases into it by `tos`. */
+  private oneGutBox(): void {
+    const parts = GUT_TUBES.map((id) => this.byId.get(id)).filter((o) => !!o);
+    if (parts.length < 2) return;
+    let x0 = Infinity, y0 = -Infinity, x1 = -Infinity, y1 = Infinity;
+    for (const o of parts) { const b = o.toon.uniforms.box!.value as Vector4; x0 = Math.min(x0, b.x); y0 = Math.max(y0, b.y); x1 = Math.max(x1, b.x + b.z); y1 = Math.min(y1, b.y - b.w); }
+    for (const o of parts) (o.toon.uniforms.box!.value as Vector4).set(x0, y0, x1 - x0, y0 - y1);
   }
 
   /** The canvas's pixel ratio (the drawing buffer's, which Settings > Figure detail caps: 1.5 on a 2x screen), so the outline's one-pixel feather and floor are one pixel of the buffer drawn, not of the screen. */
