@@ -17,7 +17,8 @@ test('empty overrides: every anchor is the reference value itself (child process
     const A = await import('./src/scene/editor-anchors.ts');
     const P = await import('./src/scene/vessels/paths.copied.ts');
     const F = await import('./src/scene/frame2d.ts');
-    for (const id of Object.keys(P.EDGE_PATH_2D)) assert.equal(A.path2D(id), P.EDGE_PATH_2D[id], id);
+    const { editedPlan } = await import('./src/editor/vessel-plan.ts');
+    assert.equal(editedPlan(), P.EDGE_PATH_2D);
     for (const id of Object.keys(P.NODE_POS_2D)) assert.equal(A.nodePos2D(id), P.NODE_POS_2D[id], id);
     assert.deepEqual(A.nodeFollow2D(560, 250), [0, 0]);
     assert.equal(A.withOrgan('liver', [1, 2])[0], 1);
@@ -84,9 +85,11 @@ test('with a node and an organ moved, the anchors follow and the reference is un
 
   // the catheter and scope read the figure's built course, never EDGE_PATH_2D, once anything is edited
   assert.equal(A.planEdited(), true);
-  const built = (await import('../src/scene/vessels/network.ts')).NETWORK_BY_ID.get('RHV_IVC')!.plan as { base: unknown };
-  assert.equal(A.path2D('RHV_IVC'), built.base);
-  assert.notEqual(A.path2D('RHV_IVC'), EDGE_PATH_2D.RHV_IVC);
+  const built = (await import('../src/scene/vessels/network.ts')).NETWORK_BY_ID.get('RHV_IVC')!.plan as { base: readonly unknown[] };
+  const { editedPlan } = await import('../src/editor/vessel-plan.ts');
+  assert.ok(built.base.length > 1);
+  assert.notEqual(editedPlan(), EDGE_PATH_2D, 'the plan the consumers read is the edited one');
+  assert.deepEqual(EDGE_PATH_2D.RHV_IVC, EDGE_PATH_2D.RHV_IVC, 'the reference table is never written');
 
   // organ rotation and scale are carried by the same arithmetic as applyOrganEdit: a point at the centre only moves, one off it turns and scales
   const { organPointMap } = await import('../src/editor/organ-apply.ts');
@@ -114,10 +117,10 @@ test('with a node and an organ moved, the anchors follow and the reference is un
 });
 
 test('no anchored consumer imports the reference plan or reads the copied GEO2D any more', () => {
-  const files = ['src/scene/catheter-route.ts', 'src/scene/labels/stations.ts', 'src/scene/labels/figure-cards.ts', 'src/scene/devices/probes/scope.ts', 'src/scene/procedures/route.ts'];
+  const files = ['src/scene/catheter-route.ts', 'src/scene/labels/stations.ts', 'src/scene/labels/figure-cards.ts', 'src/scene/devices/probes/scope.ts', 'src/scene/procedures/route.ts', 'src/decks/ag/shots.ts', 'src/decks/rw/cams.ts'];
   for (const f of files) {
     const s = readFileSync(f, 'utf8').replace(/\/\/.*$/gm, '');
     assert.ok(!/NODE_POS_2D\s*\[/.test(s), `${f} indexes NODE_POS_2D`);
-    if (f !== 'src/scene/procedures/route.ts') assert.ok(!/EDGE_PATH_2D/.test(s), `${f} reads EDGE_PATH_2D`);
+    assert.ok(!/EDGE_PATH_2D/.test(s), `${f} reads EDGE_PATH_2D`);
   }
 });

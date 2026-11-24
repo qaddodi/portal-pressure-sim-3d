@@ -2,21 +2,13 @@
 // reads it here instead, so a figure edited with overrides (src/editor) moves its catheter route, scope targets, station dots, organ names and framing with it.
 // With no vessel, node or organ edit every function returns its reference value UNCHANGED (the same array or number), so the unedited figure is byte-identical.
 import { overrides } from '../editor/store.ts';
-import { EDGE_PATH_2D, NODE_POS_2D } from './vessels/paths.copied.ts';
-import { NETWORK_BY_ID, courseOf } from './vessels/network.ts';
+import { NODE_POS_2D } from './vessels/paths.copied.ts';
+import { courseOf } from './vessels/network.ts';
 
 type P2 = readonly [number, number];
 
 /** Whether any vessel or node geometry is edited (organ edits do not touch the 2D plan). */
 export const planEdited = (): boolean => { const o = overrides(); return !!(o.nodes && Object.keys(o.nodes).length) || !!(o.vessels && Object.keys(o.vessels).length); };
-
-/** A vessel's 2D course (figure units): the reference course, or, once edited, the course the figure is built from (the built vessel's plan, which carries the overrides). */
-export function path2D(id: string): readonly P2[] | undefined {
-  const ref = EDGE_PATH_2D[id] as readonly P2[] | undefined;
-  if (!planEdited()) return ref;
-  const plan = NETWORK_BY_ID.get(id)?.plan;
-  return plan && plan.kind === 'coil' ? plan.base : ref;
-}
 
 /** The depth of a vessel's course at point `i` of `n` (as path2D lists them): `tier` unedited; once edited, the built course's depth, which already carries the edited dz (network.ts courseOf adds it once, so nothing here adds it again). */
 export function zAtPoint(id: string, i: number, n: number, tier: number): number {

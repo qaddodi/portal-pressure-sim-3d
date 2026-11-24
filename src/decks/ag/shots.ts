@@ -4,7 +4,8 @@
 import { x3, y3 } from '../../scene/frame2d.ts';
 import type { Shot } from '../../scene/camera/shots.ts';
 import { lobuleShot } from '../../scene/lobule/index.ts';
-import { NODE_POS_2D, EDGE_PATH_2D } from '../../scene/vessels/paths.copied.ts';
+import { editedPlan } from '../../editor/vessel-plan.ts';
+import { nodePos2D } from '../../scene/editor-anchors.ts';
 import { REGIONS_2D, CIRC_REGIONS_2D } from './regions.generated.ts';
 import type { CopiedSlide } from './types.ts';
 
@@ -43,13 +44,13 @@ export function regionBox(cam: unknown, regions: Readonly<Record<string, Box>> =
   return null;
 }
 
-/** What a by-name camera's names point at, as 2D boxes: a vessel's course (EDGE_PATH_2D), a station (NODE_POS_2D), or a region's name (an organ's own region). */
+/** What a by-name camera's names point at, as 2D boxes: a vessel's course (the edited plan), a station (nodePos2D), or a region's name (an organ's own region). */
 export function namedBoxes(names: readonly string[]): { boxes: Box[]; unknown: string[] } {
   const boxes: Box[] = [], unknown: string[] = [];
   for (const n of names) {
-    const path = EDGE_PATH_2D[n];
+    const path = editedPlan()[n];
     if (path?.length) { const xs = path.map((p) => p[0]), ys = path.map((p) => p[1]); boxes.push([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]); continue; }
-    const at = NODE_POS_2D[n];
+    const at = nodePos2D(n);
     if (at) { boxes.push([at[0], at[1], at[0], at[1]]); continue; }
     const reg = REGIONS_2D[n];
     if (reg) { boxes.push(reg); continue; }
