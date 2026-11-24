@@ -11,9 +11,47 @@ const P = (deck, at, from, to) => ({ deck, at, from, to });
 const SET = (deck, at, set) => ({ deck, at, set });
 const DROP = (deck, at) => ({ deck, at, drop: true });
 const APPEND = (deck, at, append) => ({ deck, at, append });
+/** Put a whole new item into a list, right after the one `at` names (a slide of a talk: `slides.<id>`). */
+const AFTER = (deck, at, set) => ({ deck, at, set, after: true });
 
 const AASLD_RULE = 'AASLD 2024 (guidance statement 7) uses a different rule of five from the same two numbers: CSPH is presumed at an LSM ≥25 kPa regardless of the platelet count, at 20 to 24.9 kPa with platelets <150,000/µL, or at 15 to 19.9 kPa with platelets <110,000/µL; it is excluded at an LSM <15 kPa with platelets ≥150,000/µL; all other combinations are indeterminate, and SSM or the HVPG can decide. So AASLD presumes CSPH where Baveno VIII stays indeterminate at 20 to 25 kPa with platelets <150,000/µL and at 15 to 20 kPa with platelets <110,000/µL, and at exactly 15 kPa Baveno VIII rules CSPH out where AASLD does not. AASLD advises caution with its rule in MASLD with obesity, an ALT >3 times the upper limit of normal, and primary sclerosing cholangitis with a dominant stricture, where it is less well calibrated.';
 
+
+/** The varices talk, review of 24 Nov 2026 (capture 572259fd; Mohammad: "yes" to the suggestions). Applied to the copied file by scripts/apply-varices-review.mjs; a re-copy from 2D applies the same patches. */
+const V_TILES = { data: 'tiles', tiles: ['hvpg', 'varix'], kicker: 'Varices', site: 'sin' };
+export const VARICES_REVIEW = [
+  // 1 [11, question 4]: slide 6 shows the carvedilol patient falling from 11.1 to 8.5 mmHg, and the check said 16 to 11
+  SET('varices', 'checks.3.0', 'On carvedilol the HVPG falls from 11.1 to 8.5 mmHg. Is the bleeding risk gone?'),
+  SET('varices', 'checks.3.1', 'Much lower, not gone: the fall is ≥10% and the HVPG is now ≤12 mmHg (either meets the Baveno VIII response), a good response, but varices can still bleed at <12 mmHg, so the carvedilol is continued.'),
+  // 6 [5]: wall stress as a curve against the HVPG (the summary slide's chart, this one line), not the ring diagram
+  SET('varices', 'slides.burst.tool', { kind: 'curve', x: 'hvpg', xCuts: [12], cuts: 'ticks', patient: { preset: 'healthy' }, param: 'cirrhosis', from: 0.3, to: 1, step: 0.05, days: 365, lines: ['wall'], dots: [{ slide: 'collat', name: 'CSPH' }] }),
+  // 4: gastric varices after the esophageal ones
+  AFTER('varices', 'slides.eso', { id: 'gastric', lens: 'flow', cam: 'gej', labels: ['LGV'], terms: ['lgv'], ...V_TILES,
+    title: 'Gastric varices bleed less often than esophageal ones, but harder',
+    line: 'Gastric varices continue the esophageal ones down the lesser curve (GOV1) or reach the fundus (GOV2 and IGV1); IGV2 lie elsewhere in the stomach. Fundal varices drain through a gastrorenal shunt to the left renal vein.',
+    notes: 'GOV1 lie along the lesser curve and are managed like esophageal varices. GOV2 and IGV1 reach the fundus, bleed less often but more severely, and drain through a gastrorenal shunt. Treatment of a bleeding fundal varix is cyanoacrylate injection or a TIPS, with or without embolization; BRTO is used where available (Baveno VII; AASLD 2024).',
+    ask: ['Which gastric varices are managed like esophageal varices?', 'GOV1, which continue along the lesser curve.'] }),
+  // 4: red wale marks, after the wall-stress slide
+  AFTER('varices', 'slides.burst', { id: 'redwale', lens: 'flow', cam: 'varices', labels: ['VAR'], terms: ['varix'], key: ['varix'], ...V_TILES,
+    title: 'Size, red wale marks and liver function predict a first bleed',
+    line: 'Beyond the HVPG, a large varix, red wale marks (red streaks that show a thin wall) and Child–Pugh B or C each raise the risk of a first bleed.',
+    notes: 'Large size, red wale marks and Child–Pugh B or C predict bleeding. About 5% of small varices and 15% of large ones bleed each year (AASLD 2024; Baveno VII).',
+    ask: ['What besides the HVPG predicts a first bleed?', 'Varix size, red wale marks and Child–Pugh B or C.'] }),
+  // 5: primary prophylaxis, then secondary
+  AFTER('varices', 'slides.redwale', { id: 'primary', lens: 'flow', cam: 'varices', labels: ['VAR'], terms: ['varix'], key: ['varix'], ...V_TILES,
+    title: 'A beta-blocker or band ligation prevents the first bleed',
+    line: 'For medium or large varices, or small varices with red wale marks or Child–Pugh C, carvedilol or another NSBB prevents the first bleed. Endoscopic band ligation is used when an NSBB cannot be given or is not tolerated.',
+    notes: 'Primary prophylaxis: an NSBB (carvedilol preferred) or endoscopic variceal ligation (EVL). EVL is the alternative when an NSBB is contraindicated or not tolerated (Baveno VII; AASLD 2024).',
+    ask: ['Which treatments prevent the first variceal bleed?', 'An NSBB, preferably carvedilol, or band ligation when an NSBB cannot be given.'] }),
+  AFTER('varices', 'slides.primary', { id: 'secondary', lens: 'flow', preset: 'cirr-decomp', cam: 'varices', labels: ['VAR'], terms: ['varix'], key: ['varix'], ...V_TILES,
+    title: 'After a bleed, an NSBB and band ligation together prevent rebleeding',
+    line: 'After an acute variceal bleed the first-line treatment is an NSBB with band ligation, repeated until the varices are gone. A rebleed on both, or a high-risk bleed, calls for a TIPS.',
+    notes: 'Secondary prophylaxis: NSBB plus EVL; a pre-emptive TIPS within 72 hours in high-risk patients and a TIPS for rebleeding despite the combination (Baveno VII; AASLD 2024).',
+    ask: ['How is a second variceal bleed prevented?', 'An NSBB with band ligation; a TIPS if it bleeds again or the first bleed was high-risk.'] }),
+  SET('varices', 'objectives.3', 'Choose prophylaxis before and after a first variceal bleed'),
+  SET('varices', 'checks.4', ['What prevents a first variceal bleed in a patient with large varices, and what prevents rebleeding?', 'A first bleed: carvedilol or another NSBB, or band ligation if an NSBB cannot be given. After a bleed: an NSBB with band ligation, and a TIPS if it bleeds again or the first bleed was high-risk.']),
+  SET('varices', 'minutes', 17),
+];
 
 /** The TIPS Doppler deck's review patches (23 Nov 2026), in one list so the copied file can be brought up to date without the 2D checkout. */
 export const TIPS_DOPPLER_REVIEW = [
@@ -149,6 +187,7 @@ export const SOURCE_PATCHES = [
 
   // ---- the TIPS Doppler deck, review of 23 Nov 2026 (capture 5f2dbfd3). The same patches are also applied to the copied file by scripts/apply-tips-doppler-review.mjs, so the copy and a re-copy agree. ----
   ...TIPS_DOPPLER_REVIEW,
+  ...VARICES_REVIEW,
 ];
 
 function step(node, key) {
@@ -173,7 +212,8 @@ export function sourceEdits(json, patches = SOURCE_PATCHES) {
     }
     const last = step(node, keys[keys.length - 1]);
     if (last === -1 || (node[last] === undefined && !('set' in p))) throw new Error(`source-edits: ${p.deck} has nothing at ${p.at} (the 2D deck moved; look at this patch again)`);
-    if ('set' in p) node[last] = p.set;
+    if (p.after) { if (!Array.isArray(node)) throw new Error(`source-edits: ${p.deck} ${p.at} is not in a list`); node.splice(last + 1, 0, p.set); }
+    else if ('set' in p) node[last] = p.set;
     else if (p.drop) { if (Array.isArray(node)) node.splice(last, 1); else delete node[last]; }
     else if (p.append !== undefined) node[last] = `${node[last]}${/[.!?]$/.test(node[last]) ? ' ' : '. '}${p.append}`;
     else {
