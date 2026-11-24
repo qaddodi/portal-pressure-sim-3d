@@ -93,7 +93,7 @@ export function createClock(env: Env) {
     timers.set(id, { tag, cancel: () => unsched(h) });
     return new TimerId(id);
   };   // waits made by after()/every() and not yet fired or cancelled
-  const systems = Object.fromEntries(PHASES.map((p) => [p, [] as { order: number; fn: System }[]])) as Record<Phase, { order: number; fn: System }[]>;
+  const systems = Object.fromEntries(PHASES.map((p) => [p, [] as { order: number; fn: System; gated: boolean }[]])) as Record<Phase, { order: number; fn: System; gated: boolean }[]>;
   const holds = new Map<symbol, string>();
   const steady = new Set<symbol>();       // holds that last as long as something RUNS (a live Doppler, a running trace), not a motion the eye follows: they ask for frames, but `moving` does not count them
   const asked = new Set<string>();       // one-frame invalidations made since the last frame started
@@ -141,8 +141,8 @@ export function createClock(env: Env) {
     for (const p of PHASES) {
       const t0 = now();
       // (copy: a system may add or remove systems while it runs)
-      if (p === 'render' && !drawing) continue;   // (skip mode: nothing is drawn while a slide is on its way, so the first picture on screen is the landed one)
       for (const s of systems[p].slice()) {
+        if (s.gated && !drawing) continue;   // (skip mode: the figure is not drawn while a slide is on its way, so the first picture on screen is the landed one; the charts' own painters are not gated, their glides must finish)
         try { s.fn(info); } catch (err) { console.error(`[clock] ${p} system threw`, err); try { faultSink?.(p, err); } catch { /* (the net must never stop a frame) */ } }
       }
       phases[p] = now() - t0;
@@ -165,8 +165,8 @@ export function createClock(env: Env) {
 
   return {
     /** Add a system to a phase (lower `order` first inside the phase). Returns its remover. */
-    on(phase: Phase, fn: System, order = 0): () => void {
-      const s = { order, fn };
+    on(phase: Phase, fn: System, order = 0, o: { gated?: boolean } = {}): () => void {
+      const s = { order, fn, gated: !!o.gated };
       const list = systems[phase];
       list.push(s);
       list.sort((a, b) => a.order - b.order);
@@ -194,7 +194,7 @@ export function createClock(env: Env) {
     /** Skip mode: one drawn frame runs the motion systems in steps of SKIP_CHUNK ms, so every glide lands in a frame (the audit's Animations: Skipped, with a big scale). */
     setSkip(on: boolean) { skipOn = on; },
     get skipping() { return skipOn; },
-    /** false holds back the render phase (the GL draw) until true again: the screen keeps what it shows. Skip mode only; always set back to true. */
+    /** false holds back the systems added with `gated` (the figure's GL draw, clock/r3f.tsx) until true again: the screen keeps what it shows. Skip mode only; always set back to true. */
     setDrawing(on: boolean) { drawing = on; if (on) this.invalidate('drawing'); },
     setScale(n: number) {
       const k = Number.isFinite(n) && n > 0 ? n : 1;

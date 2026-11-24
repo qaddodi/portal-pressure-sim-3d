@@ -10,7 +10,7 @@ export function ClockBridge() {
   const advance = useThree((s) => s.advance);
   const size = useThree((s) => s.size);
   const gl = useThree((s) => s.gl);
-  useEffect(() => clock.on('render', (f) => { if (!glLost()) advance(f.time / 1000); }, 0), [advance]);
+  useEffect(() => clock.on('render', (f) => { if (!glLost()) advance(f.time / 1000); }, 0, { gated: true }), [advance]);
   useEffect(() => { clock.invalidate('resize'); }, [size.width, size.height]);
   useEffect(() => {
     const el = gl.domElement;

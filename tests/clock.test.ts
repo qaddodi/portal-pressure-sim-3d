@@ -205,10 +205,10 @@ test('skip mode: a frame of a long stretch runs the motion systems in steps no l
   assert.ok(s2 < 0.2, 'without skip the clamp eats the frame');
 });
 
-test('setDrawing(false) holds back the render phase but not the motion; true draws again', () => {
-  const f = fake(), c = createClock(f.env); let r = 0, m = 0;
-  c.on('render', () => { r++; }); c.on('camera', () => { m++; });
+test('setDrawing(false) holds back only the gated render systems (the figure), never a chart painter\'s glide; true draws again', () => {
+  const f = fake(), c = createClock(f.env); let fig = 0, painter = 0;
+  c.on('render', () => { fig++; }, 0, { gated: true }); c.on('render', () => { painter++; }, 5);
   c.hold('x'); c.setDrawing(false); f.tick(); f.tick();
-  assert.equal(r, 0); assert.equal(m, 2);
-  c.setDrawing(true); f.tick(); assert.equal(r, 1);
+  assert.equal(fig, 0); assert.equal(painter, 2, 'a chart glide (chart:path, flowtime, evgraph, shift) finishes while the figure waits');
+  c.setDrawing(true); f.tick(); assert.equal(fig, 1);
 });
