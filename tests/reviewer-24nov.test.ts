@@ -172,3 +172,68 @@ test('Ascites 22: the course has no grade bands on its volume axis, and the line
 test('TIPS 14: the <12 mmHg target is not a line on the catheter-pressure axis; it stands beside the PPG result', () => {
   const S = scriptById('tips'); assert.ok(S); assert.ok(!S.target && !S.targetWord); assert.match(S.result.word, /PPG \(reference <12\)/);
 });
+
+// ---- fourth and fifth reports (build 3252079e): one source for numbers and strips, no volume grades, preferred bridge, decisions on the rows ----
+import { TREATMENT } from '../src/decks/rw/copied/treatment.ts';
+import { TIPS_DOPPLER } from '../src/decks/rw/copied/tips-doppler.ts';
+import { ALBUMIN } from '../src/decks/ag/albumin.copied.ts';
+import { beatAgrees } from '../src/ui/tests/slide/beat-agree.ts';
+import { TILE } from '../src/ui/charts/tiles.generated.ts';
+import { cardTitle } from '../src/ui/talk/tool-title.ts';
+import { StationExtras } from '../src/scene/labels/readings.ts';
+
+const rec = (n: number, pv: number, hv: number) => ({ t: Array.from({ length: n }, (_, i) => i * 0.1), ch: { whvp: Array(n).fill(hv + 4), RHV: Array(n).fill(hv), CONF: Array(n).fill(pv) } });
+test('the beat card is done only when its strip holds the whole past and averages to the numbers beside it (Resuscitating 15: 17 and 3 against 20.1 and 4.1)', () => {
+  const pin = { pv: 20.1, fhvp: 4.1, whvp: 8.1, hvpg: 4, hr: 70 };
+  assert.equal(beatAgrees(rec(300, 17, 3), pin, 20), false, 'still easing: the lines sit at 17 and 3');
+  assert.equal(beatAgrees(rec(60, 20.1, 4.1), pin, 20), false, 'only a stub of history, 6 s of 20');
+  assert.equal(beatAgrees(rec(300, 20.1, 4.1), pin, 20), true);
+  assert.equal(beatAgrees(rec(300, 17, 4.1), pin, 20, true), true, 'a slide that hides the portal vein is not held by it');
+});
+test('Resuscitating 15: the covered stent is the preferred bridge, the balloon the fallback (Baveno VIII 5.35)', () => {
+  const s = at(VARICEAL_BLEED, 'bridge'); assert.match(s.title, /preferred bridge/); assert.match(s.title, /balloon tamponade is the fallback/); assert.match(s.line, /5\.35/); assert.match(s.mark.label, /fallback/);
+});
+test('endoscopy within 12 hours follows the first resuscitation (Resuscitating 8, Gastric varices 4)', () => {
+  assert.match(at(VARICEAL_BLEED, 'band').line, /after initial resuscitation, and as soon as feasible if instability persists/);
+  assert.match(at(GASTRIC_VARICES, 'bleed').line, /after initial resuscitation, endoscopy within 12 hours of presentation/);
+});
+test('Lowering portal pressure 12: the baseline row carries no second copy of the HVPG, and a TIPS row prints no HVPG arrow (the gradient read after a stent is the PPG)', () => {
+  assert.ok(!/16\.5/.test(JSON.stringify(at(TREATMENT, 'summary'))));
+  const f = (hvpg: number, tipsFlow: number | null) => ({ hvpg, ppg: 9, tipsFlow });
+  const m = tableModel({ cols: ['hvpg', 'ppg'], asc: false, vs: 'first' } as never, [{ spec: { ref: true }, f: f(16.1, null), i: 0, title: 'Baseline', kicker: '' }, { spec: {}, f: f(8, 1.5), i: 1, title: 'TIPS', kicker: '' }] as never);
+  assert.equal(m.rows[1]!.cells[0]!.kind, 'blank'); assert.match(m.rows[1]!.cells[0]!.sr, /PPG/); assert.equal(m.rows[1]!.cells[1]!.kind, 'dir'); assert.match(m.legend, /HVPG is not read after a TIPS/);
+});
+test('Who should get a TIPS 13: every row carries a decision and its reason', () => {
+  const s = at(TIPS_CANDIDACY, 'summary'); assert.equal(s.note, 'Decision and reason');
+  for (const r of s.of.filter((x: Slide) => !x.ref)) assert.match(r.note, /:/, r.title);
+  assert.match(s.of[5].note, /Cardiac evaluation first/); assert.match(s.of[1].note, /Preemptive TIPS/);
+});
+test('Gastric varices 13: each treatment is compared with its own scenario, named by what it is for, with both varix sites named', () => {
+  const s = at(GASTRIC_VARICES, 'summary'); const by = (id: string) => s.of.find((r: Slide) => r.id === id);
+  assert.equal(by('tips').vs, 'classes'); assert.equal(by('brto').vs, 'classes'); assert.equal(by('eusglue').vs, 'svt'); assert.equal(s.of.at(-1).vs, 'svt');
+  assert.match(by('classes').note, /acute hemostasis/); assert.match(by('tips').note, /Definitive/);
+  const m = tableModel({ cols: ['gv', 'varix'], asc: false } as never, [{ spec: { ref: true }, f: { gv: 2, varix: 2 }, i: 0, title: 'Healthy', kicker: '' }] as never);
+  assert.deepEqual(m.cols.map((c) => c.label), ['Fundal varix', 'Esophageal varix']); assert.match(m.legend, /2 mm is the normal vein/);
+});
+test('Albumin 3 and Ascites 6, 7: the dose rule apart from the serum albumin; combined lymph and a balance that holds; both albumins of the SAAG', () => {
+  assert.match(at(ALBUMIN, 'tap').line, /more than 5 L, albumin is recommended at \{6 to 8 g\} per liter removed\. His serum albumin \(\{salb\}\) is a separate reading/);
+  const b = at(ASCITES, 'balance'); assert.match(b.line, /hepatic and intestinal together/); assert.match(b.line, /returns almost all of it, so the ascites grows only slowly/); assert.ok(!/every day/.test(b.line));
+  const g = at(ASCITES, 'saag'); assert.match(g.line, /\{salb\}.*\{aalb\}.*\{saag\}/); assert.match(g.line, /supports portal hypertensive physiology/); assert.ok(TILE.aalb);
+});
+test('no gauge, tile or chart axis prints a clinical ascites grade from a volume', () => {
+  const words = ['Grade 1', 'Grade 2', 'Grade 3'];
+  for (const t of Object.values(TILE) as { long?: string }[]) for (const w of words) assert.ok(!(t.long ?? '').includes(w));
+  const src = (f: string) => readFileSync(new URL(f, import.meta.url), 'utf8');
+  for (const f of ['../src/ui/tests/copied/dock-tiles.copied.js', '../src/ui/tests/copied/abdomen-slice.copied.js', '../src/ui/tests/copied/table-marks.copied.js', '../src/ui/bigtime/frame.ts']) for (const w of words) assert.ok(!src(f).includes(`'${w}'`) && !src(f).includes('`' + w), `${f} ${w}`);
+});
+test('the suggestions Mohammad picked: PVT velocities by case, the embolization site, the Doppler velocities and the HVPG before and after in the words', () => {
+  assert.match(at(DECK_PREHEPATIC, 'anticoag-lumen').line, /who has a normal liver, the portal flow velocity is \{pvVel\}/); assert.match(at(DECK_PREHEPATIC, 'pvt-anticoag-lumen').line, /who has cirrhosis.*\{pvVel\}/);
+  assert.deepEqual(at(ENCEPHALOPATHY, 'embolize').mark, { edges: ['C6'], label: 'Embolized splenorenal shunt', kind: 'treat' }); assert.equal(TILE.he!.n, 'Model HE index');
+  assert.match(at(TIPS_DOPPLER, 'backup').line, /\{pvVel\}.*\{pvVel@mpv\}.*\{pvVel@before\}/);
+  assert.match(at(TREATMENT, 'carv-sin').line, /\{hvpg@target\} to \{hvpg\}/);
+});
+test('a pressure label says what its change is a change from (Where is the resistance 4)', () => {
+  assert.equal(cardTitle({ tool: { kind: 'profile' } }, false), 'Pressure, gut to heart, mmHg'); assert.ok(StationExtras);
+});
+import { readFileSync } from 'node:fs';
+import { DECK as DECK_PREHEPATIC } from '../src/decks/hp/data/prehepatic.copied.ts';

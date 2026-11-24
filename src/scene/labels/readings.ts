@@ -64,6 +64,8 @@ export interface Extras {
 }
 export const NO_EXTRAS: Extras = Object.freeze({ lens: 'pressure' as ReadingLens, number: null, unit: '', delta: '', up: false, alert: '', note: '' });
 
+/** What a change is a change from: the state the compare card holds, or a healthy patient (a bare "+12.9" next to a reading said neither: Where is the resistance 4, reviewer 24 Nov 2026). */
+const versus = (env: { cmp: boolean }): string => (env.cmp ? 'vs before' : 'vs healthy');
 /** A signed change as the 2D labels write it: a true plus or minus. */
 export const signed = (d: number, txt: string): string => `${d > 0 ? '+' : '−'}${txt}`;
 const fmt1 = (v: number): string => (Math.round(Math.abs(v) * 10) / 10).toFixed(1);
@@ -115,7 +117,7 @@ export class StationExtras {
     if (lens === 'pressure') {
       let delta = '', up = false;
       const ref = env.refP ? env.refP[NI.get(id) ?? -1] : undefined;
-      if (P != null && ref != null && Number.isFinite(ref) && dHere && this.badge((env.cmp ? 'pc:' : 'p:') + id, Math.abs(P - ref), badgeOn(env.cmp), badgeOff(env.cmp))) { delta = signed(P - ref, fmt1(P - ref)); up = P > ref; }
+      if (P != null && ref != null && Number.isFinite(ref) && dHere && this.badge((env.cmp ? 'pc:' : 'p:') + id, Math.abs(P - ref), badgeOn(env.cmp), badgeOff(env.cmp))) { delta = signed(P - ref, sayUnit ? `${fmt1(P - ref)} mmHg ${versus(env)}` : fmt1(P - ref)); up = P > ref; }
       return { ...NO_EXTRAS, unit: sayUnit ? 'mmHg' : '', delta, up };
     }
     const Q = env.f.Qf ?? env.f.Q;
@@ -129,7 +131,7 @@ export class StationExtras {
       let delta = '', up = false;
       if (env.healthy && !env.cmp) {
         const r = throughput(env.healthy.Q, id);
-        if (r > 0.02 && dHere && this.badge('q:' + id, Math.abs(v - r) / r, 0.3, 0.25)) { delta = signed(v - r, `${Math.round((Math.abs(v - r) / r) * 100)}%`); up = v > r; }
+        if (r > 0.02 && dHere && this.badge('q:' + id, Math.abs(v - r) / r, 0.3, 0.25)) { delta = signed(v - r, `${Math.round((Math.abs(v - r) / r) * 100)}%${sayUnit ? ` ${versus(env)}` : ''}`); up = v > r; }
       }
       return { ...NO_EXTRAS, lens: 'flow', number: fmtFlow(v), unit: sayUnit ? 'L/min' : '', delta, up };
     }

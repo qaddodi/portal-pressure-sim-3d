@@ -138,6 +138,25 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
       }
     }
   }
+  // a value that was moved off its own point (clear of the lines, the rings and the other numbers) says whose it is with a short leader of its line's colour, so it is never read as the neighbouring line's
+  // ("8.2 mmHg" beside the PPG's end while its own dot is lower; "11.1 mmHg" half way across the plot: Two lesions 3, reviewer 24 Nov 2026)
+  {
+    const headAt = [shapes.length - 3, shapes.length - 1];   // (the two head values, laid last above)
+    const reach = (bx0: number, bx1: number, by0: number, by1: number, cx: number, cy: number) => [Math.min(Math.max(cx, bx0), bx1), Math.min(Math.max(cy, by0), by1)] as const;
+    const leader = (px: number, py: number, r: number, bx0: number, bx1: number, by0: number, by1: number, col: Rgba) => {
+      const [qx, qy] = reach(bx0, bx1, by0, by1, px, py), dx = qx - px, dy = qy - py, dist = Math.hypot(dx, dy);
+      if (dist < r + 0.9 * f) return;
+      const sx = px + (dx / dist) * (r + 1), sy = py + (dy / dist) * (r + 1);
+      shapes.push({ k: 'line', x1: sx, y1: sy, x2: qx - (dx / dist) * 2, y2: qy - (dy / dist) * 2, pen: { color: col, w: 1 } });
+    };
+    heads.forEach((hd, n) => {
+      const t = shapes[headAt[n]!] as Extract<Shape, { k: 'text' }>;
+      if (!t || t.alpha === 0) return;
+      const wd = cw(t.s, t.size ?? f, true), x0 = t.anchor === 'end' ? t.x - wd : t.x;
+      leader(hd.hx, hd.hy, Math.max(4, f * 0.42), x0, x0 + wd, t.y - 0.85 * f, t.y + 0.25 * f, lk('plot.line', {}, LINES[hd.i]![3]).stroke!);
+    });
+    plan.starts.forEach(({ box: q }, i) => leader(plan.own[i]![0], plan.own[i]![1], Math.max(3, f * 0.3), q[0]!, q[1]!, q[2]!, q[3]!, lk('plot.line', {}, LINES[i]![3]).stroke!));
+  }
   const label = flowTimeLabel(ser, keys, clock, heads.map((hd) => hd.v));
   return { frame: { w, h, shapes, label, ...(want > h + 0.5 ? { want: Math.round(want) } : null) }, G };
 }

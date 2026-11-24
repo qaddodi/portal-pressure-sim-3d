@@ -13,6 +13,7 @@ import { fmt } from '../../charts/fmt.ts';
 import { hiddenNow } from '../hidden.ts';
 import { OverTimePane } from '../trace/OverTimePane.tsx';
 import { beatFrame, beatReadings, BEAT_CARD_S, type BeatReadings } from './beat-frame.ts';
+import { setBeatCard } from './beat-agree.ts';
 
 type Fp = Record<string, unknown> | null;
 const NOT_SHOWN = '—';
@@ -59,7 +60,9 @@ export function BeatCard({ fp, before = null, deltaLabel, ekg = true, h = 250 }:
     const off = onFrame(() => { wall.current = clock.now(); dirty.current = true; sync(); clock.invalidate('beat-card'); });
     const tick = clock.on('tween', () => { if (dirty.current || hold.current) { dirty.current = false; draw(); } });
     wall.current = clock.now(); sync();
-    return () => { off(); tick(); want(); hold.current?.release(); hold.current = null; };
+    const me = { pin: () => (inp.current.fp ? beatReadings(inp.current.fp) : null), noPv: () => !!hiddenNow()?.has('pv'), rec: record, span: BEAT_CARD_S };
+    setBeatCard(me);   // (a capture waits until the strip agrees with the numbers: beat-agree.ts)
+    return () => { off(); tick(); want(); hold.current?.release(); hold.current = null; setBeatCard(me, true); };
   }, [h]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { dirty.current = true; clock.invalidate('beat-card'); }, [fp, before, deltaLabel, ekg, h]);
 

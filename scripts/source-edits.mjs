@@ -198,6 +198,55 @@ export const REVIEWER_24NOV_C = [
   P('ascites', 'slides.tips.line', 'and here the ascites resolves over weeks.', 'and here the ascites falls over weeks to {asc}.'),
 ];
 
+/** The reviewer's reports on build 3252079e, rounds 4 and 5 (24 Nov 2026): the bridge is the covered stent first, endoscopy follows resuscitation, tables carry a decision and a purpose per row and compare each row with its own scenario, one baseline number, the SAAG's two albumins, ascites that is stable says so. */
+export const REVIEWER_24NOV_D = [
+  // Resuscitating an acute variceal bleed 15: the preferred bridge (Baveno VIII 5.35), balloon tamponade the fallback
+  SET('variceal-bleed', 'slides.bridge.title', 'A covered esophageal stent is the preferred bridge to a TIPS; balloon tamponade is the fallback'),
+  SET('variceal-bleed', 'slides.bridge.line', 'A covered esophageal stent is the preferred bridge (Baveno VIII 5.35); balloon tamponade is the fallback when the stent is unavailable or unsuitable. Here the gastric balloon is inflated first, against the cardia, and the bleeding stops. Blood pressure recovers to {map}.'),
+  SET('variceal-bleed', 'slides.bridge.mark', { edges: ['C1a', 'C1b'], label: 'Balloon tamponade (fallback)', kind: 'treat' }),
+  // endoscopy follows the first resuscitation; instability that persists calls for it as soon as feasible (Baveno VIII 5.x, AASLD 2024)
+  P('variceal-bleed', 'slides.band.line', 'Endoscopy within 12 hours, once hemodynamically stable.', 'Endoscopy within 12 hours of presentation, after initial resuscitation, and as soon as feasible if instability persists.'),
+  P('gastric-varices', 'slides.bleed.line', 'restrictive transfusion and endoscopy within 12 hours.', 'restrictive transfusion and, after initial resuscitation, endoscopy within 12 hours of presentation (as soon as feasible if instability persists).'),
+  // Lowering portal pressure 12: one baseline value, the table's own
+  SET('treatment', 'slides.summary.of.0.note', 'Large varices, ascites'),
+  // Who should get a TIPS 13: one decision and its reason on every row
+  SET('tips-candidacy', 'slides.summary.note', 'Decision and reason'),
+  SET('tips-candidacy', 'slides.summary.of.1.note', 'Preemptive TIPS: controlled bleed, Child–Pugh C 11'),
+  SET('tips-candidacy', 'slides.summary.of.2.note', 'Rescue TIPS: rebleed despite carvedilol and banding'),
+  SET('tips-candidacy', 'slides.summary.of.3.note', 'Consider TIPS: recurrent ascites, MELD 11'),
+  SET('tips-candidacy', 'slides.summary.of.4.note', 'Transplant evaluation first: MELD 22'),
+  SET('tips-candidacy', 'slides.summary.of.5.note', 'Cardiac evaluation first: constrictive pericarditis'),
+  // Gastric varices 13: two scenarios, each row against its own starting point, acute hemostasis apart from definitive prevention of rebleeding
+  SET('gastric-varices', 'slides.summary.title', 'Gastric varices: each treatment against its own starting point'),
+  SET('gastric-varices', 'slides.summary.line', 'In cirrhosis, cyanoacrylate stops a fundal bleed and a TIPS or BRTO prevents the next one. With an isolated splenic vein thrombosis, coils with glue stop it and splenectomy removes the cause. Each row is compared with the first row of its own scenario.'),
+  SET('gastric-varices', 'slides.summary.note', 'Aim of the treatment'),
+  SET('gastric-varices', 'slides.summary.of.1.note', 'Cirrhosis, bleeding: acute hemostasis'),
+  SET('gastric-varices', 'slides.summary.of.2', { id: 'tips', kicker: 'Cirrhosis', title: 'TIPS', vs: 'classes', note: 'Definitive: prevents rebleeding' }),
+  SET('gastric-varices', 'slides.summary.of.3', { id: 'brto', kicker: 'Cirrhosis', title: 'BRTO', vs: 'classes', note: 'Definitive: prevents rebleeding, keeps portal flow' }),
+  SET('gastric-varices', 'slides.summary.of.4', { id: 'svt', kicker: 'Splenic vein', title: 'Splenic vein thrombosis', site: 'pre', note: 'No cirrhosis: the baseline of this scenario' }),
+  SET('gastric-varices', 'slides.summary.of.5', { id: 'eusglue', kicker: 'Splenic vein', title: 'EUS coils and cyanoacrylate', site: 'pre', vs: 'svt', note: 'Acute hemostasis' }),
+  SET('gastric-varices', 'slides.summary.of.6', { preset: 'svt', params: { occluded: { C2: true }, splenicRx: 2 }, kicker: 'Splenic vein', title: 'Splenectomy', site: 'pre', vs: 'svt', note: 'Definitive: removes the cause' }),
+  // Portal vein thrombosis 6 and 16 (the reviewer's suggestion, built: each recanalized vein says whose liver it is and why its velocity differs)
+  APPEND('prehepatic', 'slides.anticoag-lumen.line', 'In this patient, who has a normal liver, the portal flow velocity is {pvVel}.'),
+  APPEND('prehepatic', 'slides.pvt-anticoag-lumen.line', 'In this patient, who has cirrhosis, the recanalized vein flows slower, at {pvVel}, because the cirrhotic liver resists portal inflow.'),
+  // Encephalopathy 8 (the reviewer's suggestion, built): the embolization site is marked on the anatomy
+  SET('encephalopathy', 'slides.embolize.mark', { edges: ['C6'], label: 'Embolized splenorenal shunt', kind: 'treat' }),
+  // TIPS Doppler 9 (the reviewer's suggestion, built): the three main portal vein velocities side by side, from the model's own slides
+  SET('tips-doppler', 'slides.backup.line', 'Upstream of the stenosed stent, main portal vein velocity falls again, to {pvVel}: it was {pvVel@mpv} with the patent stent and {pvVel@before} before the TIPS, and the varices refill.'),
+  // Lowering portal pressure 5 (the reviewer's suggestion, built): the before and the after HVPG in the words, whichever drug is on
+  P('treatment', 'slides.prop.line', 'the HVPG to {hvpg}.', 'the HVPG from {hvpg@target} to {hvpg}.'),
+  P('treatment', 'slides.carv.line', 'the HVPG falls further, to {hvpg},', 'the HVPG falls further, from {hvpg@target} to {hvpg},'),
+  P('treatment', 'slides.carv-sin.line', 'so the HVPG falls to {hvpg}.', 'so the HVPG falls from {hvpg@target} to {hvpg}.'),
+  // Albumin 3: the threshold and the dose rule stand apart from the serum albumin (AASLD 2021)
+  SET('albumin', 'slides.tap.line', 'LVP drains the ascites to {asc}. After a paracentesis of more than 5 L, albumin is recommended at {6 to 8 g} per liter removed. His serum albumin ({salb}) is a separate reading and does not set the dose.'),
+  // Ascites 6: combined lymph, and a balance that holds
+  SET('ascites', 'slides.balance.line', 'At two months, lymph production (hepatic and intestinal together) exceeds lymphatic capacity. The leak beyond it enters the peritoneum, and peritoneal reabsorption returns almost all of it, so the ascites grows only slowly at this point.'),
+  APPEND('ascites', 'slides.balance.notes', 'At this time point the two nearly match, so the ascites grows only slowly; a wider gap between them, as after a paracentesis, is what makes it grow or shrink fast.'),
+  // Ascites 7: both albumins from the same sampling, the SAAG as supporting portal hypertensive physiology, the protein as the cardiac pointer
+  SET('ascites', 'slides.saag.line', 'On one diagnostic paracentesis the serum albumin is {salb} and the ascitic albumin {aalb}, so the serum–ascites albumin gradient (SAAG) is {saag}. A SAAG ≥1.1 g/dL supports portal hypertensive physiology as the cause, and the ascitic total protein ({tp}) helps tell cirrhotic ascites from cardiac.'),
+  SET('ascites', 'slides.saag.title', 'A SAAG ≥1.1 g/dL supports portal hypertension as the cause'),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -306,6 +355,7 @@ export const SOURCE_PATCHES = [
   ...REVIEWER_24NOV,
   ...REVIEWER_24NOV_B,
   ...REVIEWER_24NOV_C,
+  ...REVIEWER_24NOV_D,
 ];
 
 function step(node, key) {
@@ -354,7 +404,23 @@ const UI_EDITS = [
   ["import aasld from './algos/aasld.generated.js';\n", ''],
   [' pvtdur, aasld, psvdscore,', ' pvtdur, psvdscore,'],
   [" aasld: 'Rule of five',", ''],
-  ["tup('mid', 'cACLD')", "tup('mid', 'Suggests cACLD')"],   // (an LSM of 10 to 15 kPa suggests cACLD, Baveno VIII 1.3; the reviewer, 24 Nov 2026)
+  ["tup('mid', 'cACLD')", "tup('mid', 'Suggests cACLD')"],
+  // (the ascites grades are clinical, from the examination, not from a volume: the tile, the gauge and the About table say the size of the volume only; the reviewer, 24 Nov 2026)
+  ["tup('mid', 'Grade 1')", "tup('mid', 'Small')"],
+  ["tup('hi', 'Grade 2')", "tup('hi', 'Moderate')"],
+  ["tup('hi', 'Grade 3')", "tup('hi', 'Large')"],
+  ["so \"5.0 L\" is Grade 3 and", "so \"5.0 L\" is Large and"],
+  ["Free intraperitoneal fluid. Grade 1 is detectable only on ultrasound, grade 2 is moderate, grade 3 is tense.", "Free intraperitoneal fluid. The word is the size of the volume only: the clinical grade (1 on ultrasound only, 2 moderate symmetric distension, 3 marked distension) comes from the examination, not from the volume."],
+  ["const ASCITES_WORDS = ['None', 'Grade 1', 'Grade 2', 'Grade 3'];", "const ASCITES_WORDS = ['None', 'Small', 'Moderate', 'Large'];"],
+  ["export const GRADE = ['None', 'Grade 1', 'Grade 2', 'Grade 3'];", "export const GRADE = ['None', 'Small', 'Moderate', 'Large'];"],
+  ["export const GRADE_TIP = ['No free fluid', 'Grade 1: seen on ultrasound only', 'Grade 2: moderate, symmetric distension', 'Grade 3: tense, marked distension'];", "export const GRADE_TIP = ['No free fluid', 'A small volume of free fluid', 'A moderate volume of free fluid', 'A large volume of free fluid'];"],
+  ["\"Grade 1\"\n", "\"Small\"\n"],
+  ["\"Grade 2 or 3\"\n", "\"Moderate or large\"\n"],
+  [", varix: 'Varix', gv: 'Fundal',", ", varix: 'Esophageal varix', gv: 'Fundal varix',"],   // (two varices in one table: each header names its site; Gastric varices 13, reviewer 24 Nov 2026)
+  ["n: 'HE risk index'", "n: 'Model HE index'"],   // (the model's own index, said so: Encephalopathy 8, reviewer 24 Nov 2026)
+  ["tup('mid', 'Borderline')", "tup('mid', 'Likely cACLD')"],   // (an LSM of 15 to 25 kPa makes cACLD highly likely, Baveno VIII 1.3; "Borderline" did not say what; the reviewer, 24 Nov 2026)
+  ["lsm: { t: 'Liver stiffness', n: 'Stiffness',", "lsm: { t: 'Liver stiffness', n: 'Liver stiffness',"],
+  ["lsm: '↑ 10 to 25, ↑↑ ≥25 kPa'", "lsm: '↑ 10 to 25, ↑↑ ≥25 kPa (rules in CSPH; in MASLD only with BMI <30)'"],   // (an LSM of 10 to 15 kPa suggests cACLD, Baveno VIII 1.3; the reviewer, 24 Nov 2026)
 ];
 /** Charts the 3D app does not carry because they teach a guideline other than Baveno VIII (a path algorithm file of 2D's path-algos). */
 export const RETIRED_PATH_ALGOS = ['aasld'];

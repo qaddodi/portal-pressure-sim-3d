@@ -44,7 +44,7 @@ export interface TableModel { cols: ColModel[]; ascCols: boolean; rel: boolean; 
 
 const WORD: Record<string, string> = { 2: 'well above normal', 1: 'above normal', 0: 'normal', '-1': 'below normal', '-2': 'well below normal' };
 const WORDREL: Record<string, string> = { 2: 'much higher', 1: 'higher', 0: 'unchanged', '-1': 'lower', '-2': 'much lower' };
-const UNIT_WORDS: Record<string, string> = { press: 'pressures in mmHg', varix: 'varix diameter in mm', gv: 'fundal varix diameter in mm', asc: 'ascites in liters', liver: 'hepatic blood flow in % of normal', shunt: 'shunted blood in %', plt: 'platelets × 10³/µL',
+const UNIT_WORDS: Record<string, string> = { press: 'pressures in mmHg', varix: 'esophageal varix diameter in mm (about 2 mm is the normal vein\'s own caliber, not a varix)', gv: 'fundal varix diameter in mm (about 2 mm is the normal vein\'s own caliber)', asc: 'ascites in liters', liver: 'hepatic blood flow in % of normal', shunt: 'shunted blood in %', plt: 'platelets × 10³/µL',
   lsm: 'liver stiffness in kPa', ssm: 'spleen stiffness in kPa', hr: 'heart rate in beats/min', pvFlow: 'portal flow in L/min', pvVel: 'portal vein velocity in cm/s', res: 'intrahepatic resistance in mmHg per L/min', spleen: 'spleen length in cm', co: 'cardiac output in L/min', bv: 'blood volume in L', he: 'HE risk is the model\'s own index, 0 to 1, not a probability' };
 export const unitOf = (k: string): string => (k === 'varix' || k === 'gv' ? ' mm' : k === 'asc' ? ' L' : k === 'liver' || k === 'shunt' ? '%' : k === 'hr' ? '/min' : k === 'res' ? ' mmHg per L/min' : PRESS.has(k) ? ' mmHg' : tileOf(k)?.u ? ` ${tileOf(k).u}` : '');
 
@@ -65,6 +65,10 @@ export function valueText(k: string, f: Fp): string {
   return fmt(v * (T?.x ?? 1), T?.d ?? 1);
 }
 
+/** After a TIPS the gradient that is read is the PPG; the HVPG the model still prints is its own output, so a table shows it no arrow. */
+export const AFTER_TIPS_SR = 'not read after a TIPS: the gradient read is the PPG';
+const AFTER_TIPS_LEGEND = 'the HVPG is not read after a TIPS, the PPG is';
+
 export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: string) => Fp | null = () => null): TableModel {
   const cols = spec.cols ?? DEFAULT_COLS, ascCols = spec.asc ?? !spec.cols;
   const notes = spec.note ? [spec.note].flat() : [];
@@ -74,9 +78,11 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
   const refOfRow = (r: ResolvedRow): Fp | null => (r.spec.vs ? vsRow(r)?.f ?? fpOfId(r.spec.vs) : first);
   const isRef = (r: ResolvedRow, n: number) => !!r.spec.ref || (rel && !r.spec.vs && n === 0);
   const blank = (r: ResolvedRow) => r.spec.blank ?? [];
+  const afterTips = (r: ResolvedRow, k: string, n: number) => k === 'hvpg' && !isRef(r, n) && Number.isFinite(r.f?.tipsFlow);
   const cell = (k: string, r: ResolvedRow, n: number): Cell => {
     const base: Cell = { k, kind: 'dir', text: '', arrow: 0, rate: null, eff: null, miss: '', sr: '' };
     if (blank(r).includes(k)) return { ...base, kind: 'blank', sr: NOT_MEASURABLE.toLowerCase() };
+    if (afterTips(r, k, n)) return { ...base, kind: 'blank', sr: AFTER_TIPS_SR };   // (the HVPG after a stent is the model's, not a reading: the gradient that is read is the PPG; reviewer, 24 Nov 2026)
     if (k === 'wave') {
       if (!r.f) return { ...base, kind: 'pend', sr: 'calculating' };
       const vessel = waveVessel(r.spec, spec), trace = r.trace ?? null, max = waveScale(trace, spec), w = waveWords(trace, vessel, max);
@@ -121,7 +127,7 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
   const key = rel
     ? `↑ higher, ↓ lower than ${perRow ? 'the row named under each' : refTitle}; ↑↑ ↓↓ a relative change of ≥40%; • unchanged${cols.some((k) => k !== 'pvFlow') ? '. Green better, red worse' : ''}`
     : '↑ above normal, ↓ below; ↑↑ ↓↓ past the red cut-off; • within normal';   // (the level dash is a cell's reading too: a legend that did not name it left the "–" in a row undefined)
-  const legend = [key, rows.some((r) => blank(r).length) ? `○ ${NOT_MEASURABLE.toLowerCase()}` : '', units.length && rows.some((r, n) => isRef(r, n)) ? `Units: ${units.join(', ')}` : '', spec.foot || '']
+  const legend = [key, rows.some((r) => blank(r).length) ? `○ ${NOT_MEASURABLE.toLowerCase()}` : '', cols.includes('hvpg') && rows.some((r, n) => afterTips(r, 'hvpg', n)) ? `○ ${AFTER_TIPS_LEGEND}` : '', units.length && rows.some((r, n) => isRef(r, n)) ? `Units: ${units.join(', ')}` : '', spec.foot || '']
     .filter(Boolean).map((x) => x.replace(/\.$/, '')).join('. ') + '.';
   return { cols: colModels, ascCols, rel, rows: rowModels, legend, rowHead: spec.rowHead || 'Level', noteHeads: notes };
 }

@@ -21,7 +21,7 @@ const names = (t: T): string[] => (typeof t.reading === 'string' && t.reading ? 
 
 /** The deck-visuals packages' instruments: { title(t, slide), short(t) } (the 2D files' own words). */
 const EXT: Record<string, { title: (t: T, s?: S) => string; short: (t: T) => string }> = {
-  profile: { title: () => 'Pressure, gut to heart', short: () => 'Gut to heart' },                                                                       // ext-charts.js
+  profile: { title: () => 'Pressure, gut to heart, mmHg', short: () => 'Gut to heart' },                                                                       // ext-charts.js
   shift: { title: () => 'Change from healthy', short: () => 'From healthy' },
   menu: { title: () => 'Every treatment option in this case', short: () => 'Treatment menu' },
   flows: { title: (t) => (t.of === 'inflow' ? 'Hepatic inflow' : 'Where portal blood goes, % of portal flow'), short: (t) => (t.of === 'inflow' ? 'Hepatic inflow' : 'Portal flow') },

@@ -6,7 +6,7 @@ import { HVPG_CUTS, PPG_CUTS, PV_CUTS, hvpgSev, ppgSev, pvSev, HVPG_WORDS, PPG_W
 export const hooks = { lastHVPG: () => null };
 const store = { get: () => ({ lastHVPG: hooks.lastHVPG() }) };
 const vel = (m) => m.pvVelMean ?? m.pvVel;
-const ASCITES_WORDS = ['None', 'Grade 1', 'Grade 2', 'Grade 3'];
+const ASCITES_WORDS = ['None', 'Small', 'Moderate', 'Large'];
 const fromTile = (k) => ({ u: TILE[k].u, d: TILE[k].d ?? 1, title: TILE[k].long });
 export const TILES = [
   { id: 'hvpg', ...fromTile('hvpg'), group: 'pressure', k: 'HVPG', why: 'hvpg', v: (m) => m.hvpg, hideKey: 'trueHVPG', measured: () => store.get().lastHVPG,

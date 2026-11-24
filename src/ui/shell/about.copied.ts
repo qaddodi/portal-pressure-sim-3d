@@ -701,7 +701,7 @@ export const ABOUT: Page = {
              "class": ""
             },
             "k": [
-             "Grade 1"
+             "Small"
             ]
            },
            {
@@ -712,7 +712,7 @@ export const ABOUT: Page = {
              "class": ""
             },
             "k": [
-             "Grade 2 or 3"
+             "Moderate or large"
             ]
            },
            {

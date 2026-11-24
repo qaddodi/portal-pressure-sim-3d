@@ -32,9 +32,9 @@ const T_mid_SBP_risk = tup('mid', 'SBP risk');
 const T_info_Low = tup('info', 'Low');
 const T_info_Congestion = tup('info', 'Congestion');
 const T_info_Vascular = tup('info', 'Vascular');
-const T_mid_Grade_1 = tup('mid', 'Grade 1');
-const T_hi_Grade_2 = tup('hi', 'Grade 2');
-const T_hi_Grade_3 = tup('hi', 'Grade 3');
+const T_mid_Grade_1 = tup('mid', 'Small');
+const T_hi_Grade_2 = tup('hi', 'Moderate');
+const T_hi_Grade_3 = tup('hi', 'Large');
 const T_mid_Large = tup('mid', 'Large');
 const T_mid_Low = tup('mid', 'Low');
 const T_hi_Hepatofugal = tup('hi', 'Hepatofugal');
@@ -47,7 +47,7 @@ const T_mid_Moderate = tup('mid', 'Moderate');
 const T_ok_Small = tup('ok', 'Small');
 const T_hi_Low = tup('hi', 'Low');
 const T_hi_CSPH = tup('hi', 'CSPH');
-const T_mid_Borderline = tup('mid', 'Borderline');
+const T_mid_Borderline = tup('mid', 'Likely cACLD');
 const T_mid_cACLD = tup('mid', 'Suggests cACLD');
 const T_mid_Indeterminate = tup('mid', 'Indeterminate');
 const T_info_Slow = tup('info', 'Slow');
@@ -146,7 +146,7 @@ export const TILE = {
   fhvp: { t: 'FHVP', s: 'Free hepatic vein', u: 'mmHg', better: -1 },
   saag: { t: 'SAAG', s: 'Serum − ascitic fluid albumin', u: 'g/dL' },
   tp: { t: 'Ascitic fluid protein', n: 'Protein', s: 'Total protein', u: 'g/dL' },
-  asc: { t: 'Ascites', s: 'Volume', u: 'L', x: 0.001, better: -1, long: 'Free intraperitoneal fluid. Grade 1 is detectable only on ultrasound, grade 2 is moderate, grade 3 is tense.' },
+  asc: { t: 'Ascites', s: 'Volume', u: 'L', x: 0.001, better: -1, long: 'Free intraperitoneal fluid. The word is the size of the volume only: the clinical grade (1 on ultrasound only, 2 moderate symmetric distension, 3 marked distension) comes from the examination, not from the volume.' },
   varix: { t: 'Esophageal varix', n: 'Varix', s: 'Diameter', u: 'mm', better: -1 },
   gv: { t: 'Gastric varix', n: 'Fundal', s: 'Fundal, diameter', u: 'mm', better: -1 },
   spleen: { t: 'Spleen', s: 'Length', u: 'cm', better: -1, long: 'Spleen length. Splenomegaly >13 cm; splenic sequestration lowers the platelet count.' },
@@ -161,7 +161,7 @@ export const TILE = {
   // (The key `rpp` is the quantity's first name; saved decks and shared links write it. It is the abdominal perfusion pressure, MAP − IAP, and no rating, direction or cut-off goes with it: kidney-cuts.js.)
   rpp: { t: 'Abdominal perfusion pressure', n: 'APP', s: 'MAP − IAP', u: 'mmHg', d: 0, long: 'Abdominal perfusion pressure: APP = MAP − IAP (mean arterial pressure minus intra-abdominal pressure), the definition used for the abdominal compartment syndrome. It is not renal perfusion or kidney function: the model has no GFR, creatinine or renal blood flow. No guideline gives it a normal range, so the tile has none.' },
   hr: { t: 'Heart rate', n: 'HR', s: 'Beats per minute', u: '/min', d: 0 },
-  lsm: { t: 'Liver stiffness', n: 'Stiffness', s: 'FibroScan', u: 'kPa', better: -1 },
+  lsm: { t: 'Liver stiffness', n: 'Liver stiffness', s: 'FibroScan', u: 'kPa', better: -1 },
   ssm: { t: 'Spleen stiffness', n: 'SSM', s: 'FibroScan, 100 Hz probe', u: 'kPa', better: -1 },
   clot: { t: 'Portal vein thrombus', n: 'Thrombus', s: 'Lumen occluded', u: '%', x: 100, d: 0, better: -1 },
   ra: { t: 'Right atrial pressure', n: 'RA', s: 'Pressure', u: 'mmHg', better: -1 },
@@ -171,7 +171,7 @@ export const TILE = {
   hbTo: { t: 'Hemoglobin to come', n: 'Hb to come', s: 'After plasma re-equilibration', u: 'g/dL', better: 1 },
   co: { t: 'Cardiac output', n: 'Output', s: 'Heart', u: 'L/min' },
   bv: { t: 'Blood volume', n: 'Volume', s: 'Whole blood', u: 'L', x: 0.001 },
-  he: { t: 'Encephalopathy risk', n: 'HE risk index', s: 'Model index, 0 to 1, from shunt fraction and hepatic blood flow; high ≥0.45', u: '/1', d: 2, better: -1 },
+  he: { t: 'Encephalopathy risk', n: 'Model HE index', s: 'Model index, 0 to 1, from shunt fraction and hepatic blood flow; high ≥0.45', u: '/1', d: 2, better: -1 },
 };
 // The stents' own readings (the stent cards, src/ui/tool-stent.js; the fingerprint's tips… and dips… keys, engine stentState). Numbers, with one exception:
 // the peak velocity is read against the Doppler card's own range for a stent (90 to 190 cm/s, doppler.js PROBES), the tile and the card the same flag. The
@@ -217,7 +217,7 @@ export const numName = (k, short = false) => { const T = tileOf(k); return T?.bp
 export const tipsGoal = (v, short = false) => (v < PPG_CUTS.red ? ['ok', `Below ${PPG_CUTS.red} mmHg${short ? '' : ' reference'}`] : ['hi', `Above ${PPG_CUTS.red} mmHg${short ? '' : ' reference'}`]);
 export const rateOf = (k, f) => (RATE[k] && f && f[k] != null ? RATE[k](f[k], f) : NO_RATE);
 // A value as its tile prints it (the tile's scale and decimals), back in the model's units: a tile's word judges the number it
-// shows, so "5.0 L" is Grade 3 and "2.5 mm" Small, never the unrounded 4.98 L or 2.49 mm behind them.
+// shows, so "5.0 L" is Large and "2.5 mm" Small, never the unrounded 4.98 L or 2.49 mm behind them.
 // (Each tile's last answer is kept with the number it was made from: a frame that asks again for the same reading makes nothing.)
 const shownIn = new Map(), shownOut = new Map();
 export const tileShown = (k, v) => {
@@ -262,11 +262,11 @@ export const portalSplit = (sh) => { const v = Math.min(1, Math.max(0, +sh || 0)
 // The table's columns: the raw pressures shade above normal, the rest by their tile's rating.
 // Headers match the pressure chart's axis (PV, WHVP, FHVP, IVC, RA). res: the resistance inside the liver, as the model has it (rih). (PPG ÷ portal flow would also count the collaterals,
 // whose resistance rises as propranolol lowers the pressure, and read as if the drug raised the liver's.)
-export const COLS = { pv: 'PV', whvp: 'WHVP', fhvp: 'FHVP', ivc: 'IVC', ra: 'RA', hvpg: 'HVPG', eus: 'EUS-PPG', ppg: 'PPG', sin: 'Sinusoids', varix: 'Varix', gv: 'Fundal', asc: 'Ascites', liver: 'Liver flow', shunt: 'Shunted', saag: 'SAAG', tp: 'Protein', plt: 'Platelets', lsm: 'LSM', ssm: 'SSM', spleen: 'Spleen', map: 'BP', sbp: 'Systolic', rpp: 'APP', hr: 'HR', hb: 'Hb', hbTo: 'Hb to come', co: 'Output', bv: 'Volume', he: 'HE risk', pvFlow: 'Flow (Q)', pvVel: 'PV velocity', res: 'Liver R', tipsFlow: 'TIPS flow', dipsFlow: 'DIPS flow', tipsDp: 'Across stent', dipsDp: 'Across stent', tipsVel: 'Stent peak', dipsVel: 'Stent peak', tipsLumen: 'Lumen', dipsLumen: 'Lumen', tipsLocalPct: 'Local', dipsLocalPct: 'Local' };
+export const COLS = { pv: 'PV', whvp: 'WHVP', fhvp: 'FHVP', ivc: 'IVC', ra: 'RA', hvpg: 'HVPG', eus: 'EUS-PPG', ppg: 'PPG', sin: 'Sinusoids', varix: 'Esophageal varix', gv: 'Fundal varix', asc: 'Ascites', liver: 'Liver flow', shunt: 'Shunted', saag: 'SAAG', tp: 'Protein', plt: 'Platelets', lsm: 'LSM', ssm: 'SSM', spleen: 'Spleen', map: 'BP', sbp: 'Systolic', rpp: 'APP', hr: 'HR', hb: 'Hb', hbTo: 'Hb to come', co: 'Output', bv: 'Volume', he: 'HE risk', pvFlow: 'Flow (Q)', pvVel: 'PV velocity', res: 'Liver R', tipsFlow: 'TIPS flow', dipsFlow: 'DIPS flow', tipsDp: 'Across stent', dipsDp: 'Across stent', tipsVel: 'Stent peak', dipsVel: 'Stent peak', tipsLumen: 'Lumen', dipsLumen: 'Lumen', tipsLocalPct: 'Local', dipsLocalPct: 'Local' };
 // Each column's cut-offs (the same as the readouts' status colors), shown on its heading (hover, or a tap under the table) so the legend can stay short.
 export const CUT = { pv: '↑ >10, ↑↑ ≥15 mmHg (the model\'s bands)', whvp: '↑ >10, ↑↑ ≥15 mmHg (the model\'s bands)', fhvp: '↑ >8, ↑↑ >16 mmHg', ivc: '↑ >8, ↑↑ >16 mmHg', ra: '↑ >8, ↑↑ >16 mmHg',
   hvpg: '↑ >5, ↑↑ ≥10 mmHg', eus: '↑ >5, ↑↑ ≥10 mmHg (the HVPG\'s lines as a model reference, not validated for the EUS-PPG)', ppg: '↑ ≥6, ↑↑ ≥12 mmHg (the model\'s reference lines, not guideline cut-offs)', sin: '↑ ≥9, ↑↑ ≥12 mmHg', varix: '↑ 2.5 to 5 mm, ↑↑ ≥5 mm', gv: '↑ 2.5 to 5 mm, ↑↑ ≥5 mm (fundal varix)',
-  plt: '↓ <150, ↓↓ <100 × 10³/µL', lsm: '↑ 10 to 25, ↑↑ ≥25 kPa', ssm: `↑ ${SSM_CUTS.spareScope} to ${SSM_CUTS.ruleIn}, ↑↑ >${SSM_CUTS.ruleIn} kPa`, spleen: '↑ >13, ↑↑ >16 cm', liver: '↓ ≤75%, ↓↓ ≤55%', shunt: '↑ ≥10%, ↑↑ ≥30%', map: `↓↓ systolic <${KIDNEY_CUTS.sbpBeta} or mean <${KIDNEY_CUTS.mapBeta} mmHg`, sbp: `↓↓ <${KIDNEY_CUTS.sbpBeta} mmHg`, hr: '↑↑ >100 beats/min (slow, <60, is not flagged)', hb: '↓ <12, ↓↓ <7 g/dL', hbTo: '↓ <12, ↓↓ <7 g/dL, after plasma re-equilibration', co: '↓↓ <4 L/min (high, >8, is not flagged)', bv: '↓↓ <4.5 L (high, >5.5, is not flagged)', he: '↑ 0.2 to 0.45, ↑↑ ≥0.45 (the model\'s index, not a clinical score)',
+  plt: '↓ <150, ↓↓ <100 × 10³/µL', lsm: '↑ 10 to 25, ↑↑ ≥25 kPa (rules in CSPH; in MASLD only with BMI <30)', ssm: `↑ ${SSM_CUTS.spareScope} to ${SSM_CUTS.ruleIn}, ↑↑ >${SSM_CUTS.ruleIn} kPa`, spleen: '↑ >13, ↑↑ >16 cm', liver: '↓ ≤75%, ↓↓ ≤55%', shunt: '↑ ≥10%, ↑↑ ≥30%', map: `↓↓ systolic <${KIDNEY_CUTS.sbpBeta} or mean <${KIDNEY_CUTS.mapBeta} mmHg`, sbp: `↓↓ <${KIDNEY_CUTS.sbpBeta} mmHg`, hr: '↑↑ >100 beats/min (slow, <60, is not flagged)', hb: '↓ <12, ↓↓ <7 g/dL', hbTo: '↓ <12, ↓↓ <7 g/dL, after plasma re-equilibration', co: '↓↓ <4 L/min (high, >8, is not flagged)', bv: '↓↓ <4.5 L (high, >5.5, is not flagged)', he: '↑ 0.2 to 0.45, ↑↑ ≥0.45 (the model\'s index, not a clinical score)',
   asc: '↑ grade 1, ↑↑ grade 2 or 3', saag: `↑ ≥${SAAG_PORTAL} g/dL: portal hypertension; ↓ <${SAAG_PORTAL}`, tp: `↑ ≥${TP_HIGH} g/dL, ↓ <${TP_HIGH} (ascitic fluid protein)`, pvFlow: '↓ <0.9 L/min, ↓↓ stasis or reversed; ↑ >1.3 L/min (fasting normal)', pvVel: '↓ <15 cm/s (slow), ↓↓ stasis or reversed (main portal vein, Doppler)' };
 /** A cut-off as the words write it: a comparison is always a symbol (> < ≥ ≤), never "more than" or "150,000+" (Mohammad, 26 Oct); "{>=10 mmHg}" reads "≥10 mmHg". */
 export const cutText = (c) => String(c).replace(/^>=\s*/, '≥').replace(/^<=\s*/, '≤').replace(/^([<>≥≤])\s+/, '$1');

@@ -114,9 +114,9 @@ test('a pressure carries its unit only on a slide or when selected, and its chan
   assert.equal(ex.read('CONF', 12, renv({ refP: ref, presenting: true })).unit, 'mmHg');
   assert.equal(ex.read('CONF', 12, renv({ refP: ref, presenting: true })).delta, '', 'on a slide only a lit station');
   const lit = ex.read('CONF', 12, renv({ refP: ref, presenting: true, lit: true }));
-  assert.equal(lit.delta, '+8.0'); assert.equal(lit.up, true);
+  assert.equal(lit.delta, '+8.0 mmHg vs healthy'); assert.equal(lit.up, true);
   assert.equal(ex.read('CONF', 12, renv({ refP: ref, selected: true })).unit, 'mmHg');
-  assert.equal(ex.read('CONF', 12, renv({ refP: ref, selected: true })).delta, '+8.0');
+  assert.equal(ex.read('CONF', 12, renv({ refP: ref, selected: true })).delta, '+8.0 mmHg vs healthy');
   assert.equal(ex.read('CONF', 12, renv({ refP: ref, lens: 'delta' })).delta, '+8.0');
   assert.equal(ex.read('CONF', 1, renv({ refP: ref, cmp: true, lens: 'delta' })).delta, '−3.0', 'a true minus sign');
 });
@@ -125,8 +125,8 @@ test('the change badge comes at 5 mmHg and goes only below 4 (while comparing: 1
   assert.deepEqual([badgeOn(false), badgeOff(false), badgeOn(true), badgeOff(true)], [5, 4, 1, 0.7]);
   const ex = new StationExtras(), ref = new Float64Array(60).fill(10), e = renv({ refP: ref, presenting: true, lit: true });
   assert.equal(ex.read('SMV', 14.9, e).delta, '', '4.9: under 5');
-  assert.equal(ex.read('SMV', 15.1, e).delta, '+5.1');
-  assert.equal(ex.read('SMV', 14.5, e).delta, '+4.5', 'stays while 4 or more');
+  assert.equal(ex.read('SMV', 15.1, e).delta, '+5.1 mmHg vs healthy');
+  assert.equal(ex.read('SMV', 14.5, e).delta, '+4.5 mmHg vs healthy', 'stays while 4 or more');
   assert.equal(ex.read('SMV', 13.9, e).delta, '', 'goes below 4');
 });
 
@@ -135,7 +135,7 @@ test('the flow lens reads the blood entering the station in L/min, and its chang
   const into = EDGES.findIndex((e: { to: string }) => e.to === 'SMV');
   const f = frame((k) => (k === into ? 10 : 0));
   const r = ex.read('SMV', 9, renv({ f, lens: 'flow', presenting: true, lit: true, healthy: { Q: frame((k) => (k === into ? 5 : 0)).Q } }));
-  assert.equal(r.number, '0.6'); assert.equal(r.unit, 'L/min'); assert.equal(r.delta, '+100%'); assert.equal(r.up, true);
+  assert.equal(r.number, '0.6'); assert.equal(r.unit, 'L/min'); assert.equal(r.delta, '+100% vs healthy'); assert.equal(r.up, true);
   assert.equal(ex.read('SMV', 9, renv({ f, lens: 'flow' })).unit, '', 'free play: the flow legend says it');
   assert.equal(fmtFlow(0.03), '< 0.1'); assert.equal(fmtFlow(1.234), '1.2');
   assert.ok(Math.abs(throughput(f.Q, 'SMV') - 0.6) < 1e-9);

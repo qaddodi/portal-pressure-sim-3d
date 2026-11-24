@@ -204,3 +204,6 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 .pz-tool[data-kind="abdomen"] .ab-tap-hold { visibility: hidden; pointer-events: none; }
 .pz-tool[data-kind="abdomen"] .ab-tap:not([data-on]) { opacity: 0; }
 .pz-tool[data-kind="abdomen"] .ab-tap[data-dose] .ab-tap-now > span { color: var(--text); }
+
+/* The endoscopic inset's caption stands inside the inset's foot, centred and allowed to wrap, never past the lens where a card covers it (Resuscitating an acute variceal bleed 8, reviewer 24 Nov 2026). */
+.pz-lens-cap { white-space: normal; text-align: center; line-height: 1.25; }

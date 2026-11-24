@@ -57,7 +57,7 @@ export function abView(m: M, params: M, held: number | null): AbView | null {
   const b = held;
   const iapN = Math.max(0, Math.round(a.iap) || 0);
   return {
-    num: fmt(a.volume / 1000, 1), grade: (GRADE as string[])[a.grade] || a.label, gradeTip: (GRADE_TIP as string[])[a.grade] || '', sev: (SEV as string[])[a.grade] || 'danger',
+    num: fmt(a.volume / 1000, 1), grade: a.grade === 0 ? 'No free fluid' : 'Ascites', gradeTip: '',   /* (the volume alone: a clinical grade needs an examination or an ultrasound, which a gauge has not done; reviewer, 24 Nov 2026) */ sev: (SEV as string[])[a.grade] || 'danger',
     trend: `${r > 0 ? '+' : ''}${fmt(rk, 0)} mL a day · ${trend}`,
     rate: rateText(b, tapped), rateDir: b == null || b === 0 ? 'steady' : b > 0 ? 'up' : 'down',
     iap: a.iap, iapNum: `${fmt(iapN, 0)} mmHg`, iapWord: (IAP_SAY as string[])[a.iap >= 20 ? 2 : a.iap >= 12 ? 1 : 0]!, iapSev: sev, iapFill: Math.max(0, Math.min(1, a.iap / IAP_MAX)),

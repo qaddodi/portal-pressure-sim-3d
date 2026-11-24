@@ -1529,6 +1529,7 @@
   "card:terms",
   "data:graph",
   "data:tiles",
+  "fig:mark",
   "lens:flow",
   "model:params",
   "model:preset",
@@ -1597,6 +1598,7 @@
   "tool:curve"
  ],
  "gastric-varices/summary": [
+  "card:note",
   "present:slide-plate",
   "tile:gv",
   "tile:he",

@@ -24,7 +24,7 @@ test('a decompensated patient has ascites to tap: the litres, its grade, SAAG as
   const { frame } = await frameFor('cirr-decomp');
   const v = abView(frame.metrics, frame.params, 300)!;
   assert.ok(v.tapped && v.fluid, 'there is fluid');
-  assert.match(v.grade, /^Grade [123]$/);
+  assert.equal(v.grade, 'Ascites'); assert.ok(!/Grade/.test(v.grade + v.gradeTip), 'a gauge gives the volume, never a clinical grade');
   assert.match(v.trend, /mL a day · (steady|building up|resolving)$/);
   const [saag, prot, alb] = [v.saag, v.protein, v.albumin];
   assert.ok(+saag >= 1.1, `SAAG ${saag} g/dL is portal`);

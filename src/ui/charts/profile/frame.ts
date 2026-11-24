@@ -75,6 +75,8 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
   if (G.zone.lines) {
     const tk = lk('prof.zone.text'), size0 = zf < f - 0.01 ? zf : f, lsp = G.zone.tight ? 0 : 0.06;
     const names = zs.map(([a, b], k) => { const ls: string[] = zoneLines(k, G.zone.lines).slice(0, G.zone.word ? 1 : 2); return { ls, m: (G.x(a) + G.x(b)) / 2, tw: Math.max(...ls.map((t) => measure(t, size0, tk.weight ?? 500) + lsp * size0 * t.length)) }; });
+    // (a name stands whole inside the card: centred on its zone, but never past either edge, so none starts mid-word; Circulation 4, reviewer 24 Nov 2026)
+    names.forEach((n) => { n.m = Math.min(Math.max(n.m, n.tw / 2 + 2), w - n.tw / 2 - 2); });
     names.forEach((n) => n.ls.forEach((t, j) => shapes.push(text(n.m, G.T - G.zb - (n.ls.length - 1 - j) * 1.05 * zf, t, tk, { size: size0, ls: lsp }))));
   }
 
@@ -131,7 +133,7 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
   const same = !!plan.hl && plan.hl.v.every((v, i) => Math.abs(v - plan.goal.v[i]!) < 0.05);
   for (const n of view.names) if (!(same && n.c === 'hl')) shapes.push(text(n.x, n.y, n.t, nk, { halo: vk.halo }));
   // The stations' names under the axis, and the brace named sinusoidal under the liver's three.
-  STATIONS.forEach((_, i) => shapes.push(text(G.nameX(i), G.nameY(i), G.fit.names[i]!, nk)));
+  STATIONS.forEach((_, i) => { const nm = G.fit.names[i]!, half = measure(nm, nk.size!, nk.weight ?? 500) / 2; shapes.push(text(Math.min(Math.max(G.nameX(i), half + 2), w - half - 2), G.nameY(i), nm, nk)); });
   // "sinusoidal" stands in a bracket under the liver's three names, in the bracket style of HVPG and PPG: ticks up at the ends, the bar broken round the word.
   const i0 = STATIONS.indexOf(PATH.liver[0]), i1 = STATIONS.indexOf(PATH.liver[1]);
   if (i0 >= 0) {

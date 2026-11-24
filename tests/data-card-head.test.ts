@@ -14,7 +14,7 @@ import { DECKS as RW } from '../src/decks/rw/copied/all.ts';
 test('a card with no instrument is "The patient"; dataTitle wins; an instrument names itself; a phone takes the short form of a long one', () => {
   assert.equal(cardTitle({ tiles: ['hvpg'] }, false), 'The patient');
   assert.equal(cardTitle({ dataTitle: 'Pressures', tool: { kind: 'profile' } }, false), 'Pressures');
-  assert.equal(cardTitle({ tool: { kind: 'profile' } }, false), 'Pressure, gut to heart');
+  assert.equal(cardTitle({ tool: { kind: 'profile' } }, false), 'Pressure, gut to heart, mmHg');
   assert.equal(cardTitle({ tool: { kind: 'profile' } }, true), 'Gut to heart', 'a registered instrument\'s own short form');
   assert.equal(cardTitle({ tool: { kind: 'doppler' } }, false), 'Doppler, main portal vein');
   assert.equal(cardTitle({ tool: { kind: 'doppler' } }, true), 'Doppler, portal vein');

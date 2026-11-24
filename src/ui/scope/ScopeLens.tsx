@@ -240,7 +240,7 @@ export function ScopeLens() {
           </div>
           <button type="button" className="pz-lens-x" aria-label="Close the endoscopic view" onClick={(e) => { e.stopPropagation(); close(); }}
             style={{ left: Math.round(placed.x + placed.r * Math.cos(-Math.PI / 4) - 14), top: Math.round(placed.y + placed.r * Math.sin(-Math.PI / 4) - 14) }}>×</button>
-          <span className="pz-lens-cap" style={{ left: placed.x, top: placed.y + placed.r + 12 }}>{cap}</span>
+          <span className="pz-lens-cap" style={{ left: placed.x, top: placed.y + placed.r - 34, maxWidth: Math.round(placed.r * 1.5) }}>{cap}</span>   {/* (inside the inset's own foot, never under it: the caption sat past the lens where the teaching card covered it, Resuscitating an acute variceal bleed 8) */}
         </div>
       )}
       <button ref={hit} type="button" className="pz-lens-hit" hidden aria-label="Open the endoscopic view of the esophagus" onClick={() => (L.open ? close() : open())} />
