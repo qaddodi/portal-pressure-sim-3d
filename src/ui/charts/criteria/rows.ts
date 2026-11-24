@@ -7,6 +7,8 @@ export const CRITERIA_MAX = 4;
 export interface RowIn {
   text: string; note?: string; lit?: boolean; met?: boolean; cut?: string; and?: string;
   key?: string; op?: Op; value?: number;
+  /** what the live row's one criterion is called when it is only part of a rule ("protein criterion": the tick then says "protein criterion met ✓", not that the patient meets the rule) */
+  says?: string;
 }
 export type Op = '>=' | '>' | '<=' | '<';
 export type RowAs = string | RowIn | [string, string, Op, number];
@@ -16,7 +18,7 @@ export interface Row {
   /** the text split at ** (odd parts are bold), or null */
   bold: string[] | null;
   note: string | null; lit: boolean; met: boolean | null; cut: string | null; and: string | null;
-  key: string | null; op: Op | null; value: number | null;
+  key: string | null; op: Op | null; value: number | null; says: string | null;
 }
 
 const OPS: Record<Op, (a: number, b: number) => boolean> = { '>=': (a, b) => a >= b, '>': (a, b) => a > b, '<=': (a, b) => a <= b, '<': (a, b) => a < b };
@@ -31,7 +33,7 @@ export function criteriaRow(r: unknown): Row | null {
   return {
     text: raw.replace(/\*\*/g, ''), bold: raw.includes('**') ? raw.split('**') : null, note: str(o.note), lit: !!o.lit,
     met: typeof o.met === 'boolean' ? o.met : null, cut: str(o.cut), and: str(o.and),
-    key: live ? (o.key as string) : null, op: live ? (o.op as Op) : null, value: live ? +(o.value as number) : null,
+    key: live ? (o.key as string) : null, op: live ? (o.op as Op) : null, value: live ? +(o.value as number) : null, says: str(o.says),
   };
 }
 

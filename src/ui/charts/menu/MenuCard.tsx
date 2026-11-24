@@ -11,6 +11,9 @@ import '../charts.css';
 interface Work { dots: MenuDot[]; base: MenuBase | null; name: string }
 const asked = new Map<string, Promise<Work | null>>();
 const ready = new Map<string, Work>();
+/** The menus on show whose dots are still being worked out (a picture taken now shows the one "No treatment" ring and an axis of 58, 59, 60: TIPS and shunts 14, TIPS follow-up 16, reviewer 24 Nov 2026). */
+const waiting = new Set<string>();
+export const menuWaiting = (): boolean => waiting.size > 0;
 
 /** The treatments this patient could get, each worked out on the slide's own state by the engine's worker (one step a treatment, each from the slide's state), as dots (2D menuWork). */
 export function menuWork(key: string, rows: readonly string[] | null, slide: SlideState, run = engineRun(slide)): Promise<Work | null> {
@@ -34,8 +37,9 @@ export function MenuCard({ rows, slide, id, height }: { rows?: readonly string[]
     setWork(ready.get(key) ?? null);
     if (!slide) return;
     let on = true;
-    void menuWork(key, rows ?? null, slide as SlideState).then((w) => { if (on && w) setWork(w); }, () => undefined);
-    return () => { on = false; };
+    if (!ready.has(key)) waiting.add(key);
+    void menuWork(key, rows ?? null, slide as SlideState).then((w) => { if (on && w) setWork(w); waiting.delete(key); }, () => { waiting.delete(key); });
+    return () => { on = false; waiting.delete(key); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, !!slide]);
   const base = work?.base ?? (slide?.fp as MenuBase | undefined) ?? null, name = work?.name ?? (slide ? (baseName(slide.params) as string) : 'No treatment');

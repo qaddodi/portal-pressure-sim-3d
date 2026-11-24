@@ -8,7 +8,10 @@ import { runStepsNode } from '../src/decks/rw/numbers-node.ts';
 import { TILE } from '../src/ui/charts/tiles.generated.ts';
 import { RW_IDS, DECKS } from './decks-rw-helpers.ts';
 
-const fixture = JSON.parse(readFileSync(new URL('./fixtures/rw-numbers.json', import.meta.url), 'utf8')) as { decks: Record<string, Record<string, number>[]> };
+type Rows = { decks: Record<string, Record<string, number>[]> };
+const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/${f}`, import.meta.url), 'utf8')) as Rows;
+// the 2D app's numbers, except for the decks where this app's engine has deliberately moved on (rw-numbers-3d.json, scripts/gen-rw-numbers-3d.mjs: two-lesions from its slide 4, varices with four slides of its own)
+const fixture: Rows = { decks: { ...read('rw-numbers.json').decks, ...read('rw-numbers-3d.json').decks } };
 const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
 
 test('the chain is the 2D presenter\'s: the outline takes the first slide\'s model fields, which the first slide then keeps (unless it is a time-lapse or opens with a case)', () => {

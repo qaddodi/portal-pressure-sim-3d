@@ -21,7 +21,7 @@ test('the encephalopathy risk line is there, drawn on the upper axis after the P
   assert.ok('he' in LINE && 'iap' in LINE);
   const rows = linesOf(['ppg', 'he']);
   assert.equal(rows[0]![4], 'PPG');
-  assert.equal(rows[1]![4], 'Encephalopathy risk');
+  assert.equal(rows[1]![4], 'Model HE index');
 });
 test('no entry of LINE is written after a // on its line', () => {
   const src = readFileSync(new URL('../src/ui/charts/flowtime/model.ts', import.meta.url), 'utf8');

@@ -63,7 +63,7 @@ export const MEASURES: readonly Measure[] = [
   { id: 'app', key: 'app', name: 'Perfusion pressure', short: 'APP', group: 'bp', lane: 'bp', tok: 'tr-ra', scale: same, words: (v) => `${Math.round(v)} mmHg`, row: (v) => String(Math.round(v)), on: false },
   { id: 'hr', key: 'hr', name: 'Heart rate', short: 'Heart rate', group: 'bp', lane: 'hr', tok: 'tr-var', scale: same, words: (v) => `${Math.round(v)} bpm`, row: (v) => String(Math.round(v)), on: false },
   { id: 'vx', key: 'vx', name: 'Varix size', short: 'Varix', group: 'varix', lane: 'vx', tok: 'tr-scler', scale: same, words: (v) => `${fmt(v, 1)} mm`, row: (v) => fmt(v, 1), on: false },
-  { id: 'he', key: 'he', name: 'Encephalopathy risk', short: 'Encephalopathy risk', group: 'brain', lane: 'he', tok: 'tr-hvpg', scale: same, words: (v) => `${fmt(v, 2)} ${heWord(v)}`, row: (v) => heWord(v), on: false },
+  { id: 'he', key: 'he', name: 'Model HE index', short: 'Model HE index', group: 'brain', lane: 'he', tok: 'tr-hvpg', scale: same, words: (v) => `${fmt(v, 2)} ${heWord(v)}`, row: (v) => heWord(v), on: false },
   { id: 'habr', key: 'habr', name: 'Artery response', short: 'Artery', group: 'artery', lane: 'habr', tok: 'tr-wedge', scale: same, words: (v) => `${fmt(v, 2)}×`, row: (v) => `${fmt(v, 2)}×`, on: false },
 ];
 export const MEASURE_OF: Readonly<Record<string, Measure>> = Object.fromEntries(MEASURES.map((m) => [m.id, m]));
