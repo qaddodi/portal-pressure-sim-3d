@@ -42,7 +42,7 @@ test('the blood pressure and the platelets keep three digits', () => {
 
 test('Roll sizes its box to the reserve and the line gives it', () => {
   assert.match(readFileSync('src/ui/cards/Roll.tsx', 'utf8'), /\{reserve \?\? \(latest\.prev/);
-  assert.match(readFileSync('src/ui/cards/Line.tsx', 'utf8'), /<Roll text=\{text\} reserve=\{reserveOf\(text, p\.key, p\.decimals === 0, still, \{ seen: seen\?\.\(p\.key, p\.decimals === 0\), minus, raises \}\)\} alts=\{altsOf\(text, still, \{ seen: seen\?\.\(p\.key, p\.decimals === 0\) \}\)\} after=\{stop\} \/>/);
+  assert.match(readFileSync('src/ui/cards/Line.tsx', 'utf8'), /<Roll text=\{text\} reserve=\{reserveOf\(text, p\.key, p\.decimals === 0, still, \{ seen: seen\?\.\(p\.key, p\.decimals === 0\), minus, raises \}\)\} alts=\{altsOf\(text, still, \{ seen: seen\?\.\(p\.key, p\.decimals === 0\) \}\)\} fit after=\{stop\} \/>/);
   assert.match(readFileSync('src/ui/deck-ui.css', 'utf8'), /\.dk-num \{[^}]*font-variant-numeric: tabular-nums/);
 });
 
@@ -79,4 +79,13 @@ test('a reading whose values are all known holds the widest of them as they stan
   assert.match(css, /\.dk-roll\[data-fit\][^{]*\{[^}]*proportional-nums !important/, 'the fitted reading is proportional and wins over the lifted sheet');
   assert.match(over, /\.pz-lapse\.done[^{]*\{[^}]*proportional-nums !important/, 'a stopped counter reads proportional, important (the plain rule never applied)');
   assert.match(over, /\.pzt-vu[^{]*small[^{]*\{[^}]*proportional-nums !important/, 'a tile\'s unit is proportional');
+});
+
+test('capture a47f69ea: a prose reading is proportional (fit) with or without known values; the criteria card words are proportional; the upright heads\' override outranks the lifted rule', () => {
+  assert.match(readFileSync('src/ui/cards/Roll.tsx', 'utf8'), /data-fit=\{alts \|\| fit \?/);
+  assert.match(readFileSync('src/ui/cards/LadderCard.tsx', 'utf8'), /<Roll text=\{gap\.hvpg\} fit \/>/);
+  const css = readFileSync('src/ui/deck-ui.css', 'utf8'), over = readFileSync('src/ui/css3d-over-2d.css', 'utf8');
+  assert.match(css, /\.pzc-verdict \*[^)]*\) \{ font-variant-numeric: lining-nums proportional-nums !important/);
+  assert.match(over, /\.pz \.pz-table\.dk-pztable thead tr\.th-up th\.num \{ writing-mode: horizontal-tb; rotate: none/);
+  assert.match(over, /\.pz \.pz-table\.dk-pztable thead tr\.th-up th\.num > \.hd \{/);
 });

@@ -158,8 +158,10 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
   .pz-table td.bp { font-size: .86em; }
   /* Upright heads turn by an ordinary transform, never writing-mode: the iPhone capture (187c7e53, slide 13) showed the stack as one upright letter a line, in reverse order, so the writing-mode + rotate pair is not trusted.
      The head is as tall as its word (--hl letters) and its inner word lies on its side, reading upward. */
-  .pz .pz-table thead tr.th-up th.num { writing-mode: horizontal-tb; rotate: none; position: relative; height: calc(var(--hl, 4) * .62em + .8em); padding: 0; }
-  .pz .pz-table thead tr.th-up th.num > .hd { position: absolute; left: calc(50% + .5em); bottom: .4em; line-height: 1; white-space: nowrap; transform-origin: 0 100%; transform: rotate(-90deg); }
+  /* (the selectors carry `.dk-pztable` so they stand above the lifted rule `.pz .pz-table thead tr.th-up th.num { writing-mode: vertical-rl; rotate: 180deg }` whatever order the sheets load in: capture a47f69ea, varices 14, showed
+     the heads laid out by that rule AND turned by the one below, letters sideways in a row, reversed) */
+  .pz .pz-table.dk-pztable thead tr.th-up th.num { writing-mode: horizontal-tb; rotate: none; position: relative; height: calc(var(--hl, 4) * .62em + .8em); padding: 0; }
+  .pz .pz-table.dk-pztable thead tr.th-up th.num > .hd { position: absolute; left: calc(50% + .5em); bottom: .4em; line-height: 1; white-space: nowrap; transform-origin: 0 100%; transform: rotate(-90deg); }
   /* "No ascites" spans the two narrow SAAG and protein columns: it is centred and sized to them, never past the table's edge (slide 13, 187c7e53). */
   .pz-table td.none { font-size: 12px; white-space: nowrap; text-align: center; padding-inline: 0; overflow: clip; }
 }

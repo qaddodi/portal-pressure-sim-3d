@@ -2,7 +2,7 @@ import { useRef, useState, useLayoutEffect } from 'react';
 
 /** A number that rolls when its text changes (the old one goes up and out, the new one comes up from below; 400 ms; transform and opacity only).
  *  The first text appears without a roll. The box keeps the width of `reserve` (a reading's widest form), else of the longest text it has shown, so the line never jitters. */
-export function Roll({ text, className, still = false, reserve, alts, after }: { text: string; className?: string; still?: boolean; /** the text the box is as wide as (roll-reserve.ts): a reading's width is the same for every value it can take, so a tick never re-wraps its line */ reserve?: string; /** every text the reading can show (roll-reserve.ts altsOf): the box is as wide as the widest as it stands and the digits are proportional; without it the box holds `reserve` in tabular digits */ alts?: readonly string[]; /** the stop that follows the reading in the line (, . ; : or a closing bracket): set right after the digits INSIDE the box, so the box's spare width (the reserve is wider than a short value) falls after the stop, never between the number and its stop, and the stop can never wrap away from it */ after?: string }) {
+export function Roll({ text, className, still = false, reserve, alts, after, fit = false }: { fit?: boolean; text: string; className?: string; still?: boolean; /** the text the box is as wide as (roll-reserve.ts): a reading's width is the same for every value it can take, so a tick never re-wraps its line */ reserve?: string; /** every text the reading can show (roll-reserve.ts altsOf): the box is as wide as the widest as it stands and the digits are proportional; without it the box holds `reserve` in tabular digits */ alts?: readonly string[]; /** the stop that follows the reading in the line (, . ; : or a closing bracket): set right after the digits INSIDE the box, so the box's spare width (the reserve is wider than a short value) falls after the stop, never between the number and its stop, and the stop can never wrap away from it */ after?: string }) {
   const [shown, setShown] = useState<{ cur: string; prev: string | null; n: number }>({ cur: text, prev: null, n: 0 });
   const mounted = useRef(false);
   useLayoutEffect(() => {
@@ -13,7 +13,7 @@ export function Roll({ text, className, still = false, reserve, alts, after }: {
   }, [text, still]);
   const latest = shown.cur === text ? shown : { ...shown, cur: text };
   return (
-    <span className={`dk-roll${className ? ` ${className}` : ''}`} data-fit={alts ? '' : undefined}>
+    <span className={`dk-roll${className ? ` ${className}` : ''}`} data-fit={alts || fit ? '' : undefined}>
       {alts
         ? <span className="dk-roll-sizer dk-roll-alts" aria-hidden="true">{[...new Set([...alts, latest.cur])].map((a) => <span key={a}>{a}{after}</span>)}</span>
         : <span className="dk-roll-sizer" aria-hidden="true">{reserve ?? (latest.prev && latest.prev.length > latest.cur.length ? latest.prev : latest.cur)}{after}</span>}

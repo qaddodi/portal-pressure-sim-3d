@@ -23,7 +23,7 @@ export function LadderCard({ ladder, readings }: { ladder: NonNullable<Slide['la
       </div>
       {gap && (
         <p className="pz-line">
-          HVPG = {gap.whvp} − {gap.fhvp} = <span className="pz-val"><Roll text={gap.hvpg} /></span>
+          HVPG = {gap.whvp} − {gap.fhvp} = <span className="pz-val"><Roll text={gap.hvpg} fit /></span>
           {gap.sev && <span className="pz-val tone dk-sev" data-rate={RATE[gap.sev]} style={{ ['--tone' as string]: 'var(--text)' }}> {gap.pill}</span>}
         </p>
       )}
