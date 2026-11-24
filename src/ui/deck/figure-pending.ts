@@ -13,3 +13,7 @@ export function setFigurePending(pending: boolean): void {
 }
 /** True while the figure has not reached the slide on show (never longer than FIGURE_GIVE_UP_MS). */
 export const figurePending = (): boolean => since >= 0 && clock.now() - since < FIGURE_GIVE_UP_MS;
+
+/** True while the slide's own state has not come in, however long that takes (`figurePending` gives up after FIGURE_GIVE_UP_MS of the page's clock, which a sped-up capture spends in a fraction of a real second:
+ *  the labels then printed the patient of the slide before, Who should get a TIPS 9 RAP 3.2 and PV 14.1 against 28.2 and 40.6, Doppler 5 25 against 12 cm/s). The capture waits on this one. */
+export const figureWaiting = (): boolean => since >= 0;

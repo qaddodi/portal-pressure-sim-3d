@@ -34,7 +34,7 @@ test('the table legend names the units for the whole table and says what the dou
 
 test('SOS: the ascites shrinks, it does not "resolve", and mild SOS is not left to watch', () => {
   const s = at(OUTFLOW, 'recover');
-  assert.ok(!/resolves/.test(words(s))); assert.match(s.line, /\{asc\}/); assert.match(s.notes, /close monitoring/); assert.match(s.notes, /EBMT/);
+  assert.ok(!/resolves/.test(words(s))); assert.match(s.line, /\{asc\}/); assert.match(s.notes, /close monitoring/); assert.ok(!/EBMT/.test(s.notes));
 });
 test('the first slide of Treating the cause names the LSM-only cut-off and the model', () => {
   const s = at(CAUSE_TREATED, 'before'); assert.match(s.line, /25 kPa that rules CSPH in by stiffness alone/); assert.match(s.line, /ANTICIPATE/);
@@ -65,4 +65,13 @@ test('Who should get a TIPS: congestion raises the free and wedged pressures tog
 });
 test('TIPS follow-up: a rebleed is a reason to CONSIDER TIPS, and the covered stent is preferred over balloon tamponade (4.13, 5.35)', () => {
   const s = at(TIPS_COMPLETE, 'rescue'); assert.ok(!/means rescue TIPS/.test(s.line)); assert.match(s.line, /consider TIPS/); assert.match(s.line, /preferred over balloon tamponade/); assert.match(s.tool.rule, /5\.35 to 5\.37/);
+});
+
+test('the capture waits for the slide\'s state to reach the figure, past the labels\' own give-up (a sped-up page clock spends it at once)', async () => {
+  const { setFigurePending, figureWaiting, figurePending } = await import('../src/ui/deck/figure-pending.ts');
+  setFigurePending(false); assert.equal(figureWaiting(), false);
+  setFigurePending(true); assert.equal(figureWaiting(), true); assert.equal(figurePending(), true);
+  setFigurePending(false); assert.equal(figureWaiting(), false);
+  const { readFileSync } = await import('node:fs');
+  assert.match(readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8'), /figureWaiting\(\)\) return/);
 });

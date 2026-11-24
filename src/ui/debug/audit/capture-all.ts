@@ -12,6 +12,7 @@ import { talkOn } from '../../../state/deck.ts';
 import { leaveTalk } from '../../shell/talk.ts';
 import { clock } from '../../../clock/frame.ts';
 import { latest } from '../../../engine/index.ts';
+import { figureWaiting } from '../../deck/figure-pending.ts';
 import { drawScreen } from '../../capture/capture.ts';
 import { speedAnimations, sampleRealMs } from './speed.ts';
 import { collageLayout, slidesWord, sheetHeaderLines, slug, stampTime, deliverWay } from '../../capture/capture-model.ts';
@@ -52,6 +53,7 @@ function arriving(clockToo = true, stripsToo = true, frames = 99): string {
     if (document.fonts && document.fonts.status === 'loading') return 'fonts are loading';
     if ([...document.querySelectorAll('.dk-card .dk-roll-in, .dk-card .dk-roll-now')].some((e) => (e.textContent ?? '').trim() === '…')) return 'a reading on a card is still "…" (its number has not arrived)';   // (the line's blank gap, TIPS follow-up 5 "her PPG is …", build e4810ea9)
     if (clock.stats().holds.includes('chart:evgraph')) return 'the procedure graph is still drawing to its end';   // (the card says the slide's end value while the plot's head is still on its way: Gastric varices 7, 19.4 against 18.1)
+    if (figureWaiting()) return 'the figure has not reached the slide\'s state yet (its labels would print the slide before\'s patient)';
     if (document.querySelector('.sh-waitcue')) return 'a "Preparing…" cue is up (the lobule, a pane or a dive is still being made)';
     if (stripsToo) {
       if (dopplerAcquiring()) return 'the Doppler is acquiring';
