@@ -16,6 +16,7 @@ import { FLASHBACK_K, flashbackEnv, flashbackFront } from '../flashback.ts';
 import { BALLOON_EDGE, CATH_EDGE, type EdgeRule } from '../edges.ts';
 import { type Route3D, drawnShare } from '../../procedures/route3d.ts';
 import { GEO2D, routeAt } from '../../procedures/route.ts';
+import { PLACED } from '../../anatomy/source.ts';
 import { balloonOutline, balloonRy } from '../../procedures/copied/hvpg-balloon.js';
 
 const U = UNITS_PER_SCENE;
@@ -233,8 +234,10 @@ export class ProcCatheter {
     // WHERE a distance along the route is on the vein AS DRAWN: the shader's u is the share of the DRAWN tube's own length, and the vein's drawn course is not the 2D course the route was laid on, so the balloon's
     // edge is placed by projecting the route's own point there (it lies ON the drawn centreline) on that centreline.
     const uAt = (id: string, d: number, fb: number): number => { const c = this.courseOf(id); if (!c) return fb; const p = r3.centre(d, this.v); return c.nearestU([p.x, p.y, p.z]); };
-    const hv = r.parts.find((q) => q.name === 'hv');
-    for (const sub of hv?.subs?.length ? hv.subs : hv ? [hv] : []) {
+    const hv = r.parts.find((q) => q.name === 'hv'), br = r.parts.find((q) => q.name === 'branch');
+    // (the placed anatomy wedges in the lower branch (route-placed.ts): the branch is one more stretch of the vein the tip is in, tinted from the balloon out to its tip like the trunk's pieces)
+    const inBranch = PLACED && !!br?.id && NETWORK_BY_ID.has(br.id);
+    for (const sub of [...(hv?.subs?.length ? hv.subs : hv ? [hv] : []), ...(inBranch ? [br!] : [])]) {
       if (!sub.id || edgeD >= sub.d1 - 1e-6) continue;   // (downstream of the balloon: not tinted)
       const inside = edgeD > sub.d0;
       const uRef = uAt(sub.id, inside ? edgeD : sub.d0, sub.fa), dRef = inside ? 0 : sub.d0 - edgeD;
@@ -244,8 +247,7 @@ export class ProcCatheter {
       // (a fork leaves its host WHERE ITS OWN END 1 TOUCHES IT, not at the host's outer end: it starts at the host's line there, so host and fork share one distance at the join and one front crosses both)
       for (const v of NETWORK) if (v.id.startsWith(`${sub.id}~F`)) put(v.id, this.forkStartD(sub.id, v.id, mine), 1, Math.max(1e-6, r.total - sub.d1), 0.6);
     }
-    const br = r.parts.find((q) => q.name === 'branch');
-    if (br?.id && NETWORK_BY_ID.has(br.id)) {
+    if (!inBranch && br?.id && NETWORK_BY_ID.has(br.id)) {
       const host = hv?.subs?.find((q) => q.id && pieces.has(q.id) && br.d0 >= q.d0 - 1e-6 && br.d0 <= q.d1 + 1e-6), hp = host?.id ? pieces.get(host.id) : undefined;
       put(br.id, hp && host?.id ? hp.d0 + hp.slope * uAt(host.id, br.d0, host.fb) : br.d0 - edgeD, 1, Math.max(1e-6, br.d1 - br.d0), 0.6);
     }
@@ -429,6 +431,13 @@ const COIL_REACH = 16;
 const Z = new Vector3(0, 0, 1);
 /** A point and direction `len` figure units from share f along vein `id`, going with its drawn course (dir +1) or against it (-1), in the scene. */
 export function veinPoint(id: string, f: number, dir: number, len: number, pos: Vector3, tan: Vector3): void {
+  // (the placed anatomy: on the vein's drawn centreline, depth included, never its 2D course on a tier)
+  const c = PLACED ? centrelineOf(id) : null;
+  if (c) {
+    const u = Math.min(1, Math.max(0, f + (dir * len) / Math.max(1e-6, c.length * U))), p = c.pointAt(u), t = c.tangentAt(u);
+    pos.set(p[0], p[1], p[2]); tan.set(dir * t[0], dir * t[1], dir * t[2]).normalize();
+    return;
+  }
   const P = GEO2D[id]!.cur, cum = [0];
   for (let i = 1; i < P.length; i++) cum.push(cum[i - 1]! + Math.hypot(P[i]![0] - P[i - 1]![0], P[i]![1] - P[i - 1]![1]));
   const L = cum[cum.length - 1]!, s = Math.min(L, Math.max(0, f * L + dir * len));

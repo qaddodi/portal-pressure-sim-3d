@@ -200,6 +200,16 @@ export function route3d(kind: string): Route3D | null {
   for (let i = 0; i < n; i++) {
     const part = partAt(r.cum[i]!), cands = [part?.id, ...(part?.subs ?? []).map((q) => q.id)].filter((id): id is string => !!id && NETWORK_BY_ID.has(id));
     const px = x3(r.pts[i]![0]), py = y3(r.pts[i]![1]);
+    // THE PLACED ANATOMY (route-placed.ts): the route was laid in 3D on the vessels' drawn centrelines, so each sample's own centreline point is known (raw3): the device sits on it, and the vessel it is in
+    // is the nearest IN 3D (two vessels that cross on the figure are apart in depth)
+    const own = r.raw3?.[i];
+    if (own) {
+      z[i] = own[2]; offX[i] = own[0] - px; offY[i] = own[1] - py;
+      let bd = Infinity, bid: string | null = null;
+      for (const id of cands) { const c = nearestOnCourse(id, own[0], own[1], own[2]); if (c && c.dist < bd) { bd = c.dist; bid = id; } }
+      if (bid) { pieceIds[i] = bid; drawnR[i] = drawnShare(bid, own[0], own[1], own[2])?.radius ?? Infinity; }
+      continue;
+    }
     let best: { x: number; y: number; z: number; dist: number } | null = null, bestXY = Infinity, bestId: string | null = null;
     for (const id of cands) { const c = nearestOnCourse(id, px, py, z[i]!); if (c) { const dxy = Math.hypot(c.x - px, c.y - py); if (dxy < bestXY) { bestXY = dxy; best = c; bestId = id; } } }
     if (!best) continue;

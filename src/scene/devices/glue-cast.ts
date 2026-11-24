@@ -9,6 +9,8 @@ import type { Palette } from '../palette.ts';
 import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
 import { NETWORK_BY_ID, radiusOf, widthPx } from '../vessels/network.ts';
 import { GEO2D } from '../procedures/route.ts';
+import { PLACED } from '../anatomy/source.ts';
+import { geo3 } from '../procedures/route-placed.ts';
 import { indexOf } from '../../engine/vessel-data.ts';
 import { EUS_GLUE_ROUTE, EUS_GLUE_TARGET, coilReach, layCoil, pointOn } from './probes/copied/eus-scope.copied.js';
 import { DeviceObject } from './device-object.ts';
@@ -17,6 +19,15 @@ import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, showRings, writeRings }
 
 type P2 = [number, number];
 const U = UNITS_PER_SCENE;
+/** The varices' courses the glue is laid on: the 2D figure's, or (the placed anatomy, `?anatomy=new`) the drawn centrelines in 3D (route-placed.ts geo3: figure x and y, and depth in figure units). */
+const geoNow = (): Record<string, { cur: number[][] }> => (PLACED ? geo3() : GEO2D);
+/** The depth of a figure point on the varix (scene units): its own course's at the nearest sample on the placed anatomy, the tier's on today's. */
+function depthOn(P: readonly number[][], x: number, y: number, flat: number): number {
+  if (!PLACED) return flat;
+  let best = Infinity, z = flat;
+  for (const q of P) { const d = (q[0]! - x) ** 2 + (q[1]! - y) ** 2; if (d < best) { best = d; z = (q[2] ?? flat * U) / U; } }
+  return z;
+}
 /** How far the glue spreads along the varix each way from the needle's point once it has all gone in, as a share of the vessel's course (stage-cath.js GLUE_SPREAD). */
 export const GLUE_SPREAD = 0.3;
 /** The coil's samples at most (eus-scope.js COIL_N), and the cast's rings. */
@@ -29,7 +40,7 @@ const ease = (t: number): number => { const k = clamp01(t); return k * k * (3 - 
 export interface GlueVarix { id: string; f: number; rad: number; path: { x: Float64Array; y: Float64Array; tx: Float64Array; ty: Float64Array; n: number; at: number; step: number; len: number } }
 export function glueVarix(rad = 0): GlueVarix {
   const r: { glue?: GlueVarix & { rad: number } } = {};
-  (EUS_GLUE_ROUTE as unknown as { after(r: object, geo: object): void }).after(r, GEO2D);
+  (EUS_GLUE_ROUTE as unknown as { after(r: object, geo: object): void }).after(r, geoNow());
   const g = r.glue!;
   g.rad = rad || lumenOf(g.id);
   return g;
@@ -65,8 +76,8 @@ export function coilLine(k: number, g: GlueVarix): P2[] {
 const z0 = (): number => TIER_Z[NETWORK_BY_ID.get(EUS_GLUE_TARGET[0] as string)?.tier ?? 'net'];
 /** Where the needle goes in, in the scene (the varix at f of its course). */
 export function glueTarget3(out = new Vector3()): Vector3 {
-  const p = pointOn(GEO2D[EUS_GLUE_TARGET[0] as string]!.cur, EUS_GLUE_TARGET[1] as number) as P2;
-  return out.set(x3(p[0]), y3(p[1]), z0());
+  const P = geoNow()[EUS_GLUE_TARGET[0] as string]!.cur, p = pointOn(P, EUS_GLUE_TARGET[1] as number) as P2;
+  return out.set(x3(p[0]), y3(p[1]), depthOn(P, p[0], p[1], z0()));
 }
 
 export interface GlueState { coil: number; column: number; flash: number; opacity: number }
@@ -77,7 +88,7 @@ export class GlueCast {
   readonly coil: DeviceObject; private readonly coilGeo: BufferGeometry; private readonly coilRings = makeRings(COIL_RINGS);
   readonly cast: DeviceObject; private readonly castGeo: BufferGeometry; private readonly castRings = makeRings(CAST_RINGS);
   private varix: GlueVarix;
-  private readonly course: { P: P2[]; cum: number[]; L: number };
+  private readonly course: { P: number[][]; cum: number[]; L: number };
   private key = '';
   private coilN = 0;
   private z = z0();
@@ -88,8 +99,8 @@ export class GlueCast {
   constructor(shared: CelShared) {
     this.group.name = 'eus-glue';
     this.varix = glueVarix();
-    const P = GEO2D[this.varix.id]!.cur, cum = [0];
-    for (let i = 1; i < P.length; i++) cum.push(cum[i - 1]! + Math.hypot(P[i]![0] - P[i - 1]![0], P[i]![1] - P[i - 1]![1]));
+    const P = geoNow()[this.varix.id]!.cur, cum = [0];
+    for (let i = 1; i < P.length; i++) cum.push(cum[i - 1]! + Math.hypot(P[i]![0]! - P[i - 1]![0]!, P[i]![1]! - P[i - 1]![1]!));
     this.course = { P, cum, L: cum[cum.length - 1]! };
     const mk = (g: BufferGeometry, tone: ConstructorParameters<typeof DeviceObject>[1], order: number, px: number): DeviceObject => {
       const o = new DeviceObject(g, tone, shared, { px, order }, 'ink');
@@ -106,8 +117,10 @@ export class GlueCast {
     const { P, cum, L } = this.course, s = clamp01(f) * L;
     let i = 1; while (i < P.length - 1 && cum[i]! < s) i++;
     const a = P[i - 1]!, b = P[i]!, d = cum[i]! - cum[i - 1]!, u = d > 0 ? (s - cum[i - 1]!) / d : 0;
-    p.set(x3(a[0] + (b[0] - a[0]) * u), y3(a[1] + (b[1] - a[1]) * u), this.z);
-    t.set(b[0] - a[0], -(b[1] - a[1]), 0).normalize();
+    // (the placed anatomy: the course's own depth, and its heading in depth too)
+    const za = PLACED ? a[2]! / U : this.z, zb = PLACED ? b[2]! / U : this.z;
+    p.set(x3(a[0]! + (b[0]! - a[0]!) * u), y3(a[1]! + (b[1]! - a[1]!) * u), za + (zb - za) * u);
+    t.set((b[0]! - a[0]!) / U, -(b[1]! - a[1]!) / U, zb - za).normalize();
   }
 
   /** The engine's newest frame: the varix is as wide as the model draws it (the caliber the coil must stay inside). Taken only while no glue is in, so the closing varix does not shrink the coil it holds. */
@@ -132,7 +145,9 @@ export class GlueCast {
         const rs = this.coilRings, r = Math.max(0.56 * 1.25 / U, 0.0012);
         for (let i = 0; i < COIL_RINGS; i++) {
           const j = Math.min(i, line.length - 1), q = line[j]!, a = line[Math.max(0, j - 1)]!, b = line[Math.min(line.length - 1, j + 1)]!;
-          rs[i]!.c.set(x3(q[0]), y3(q[1]), this.z + 0.004); rs[i]!.t.set(b[0] - a[0], -(b[1] - a[1]), 0).normalize(); rs[i]!.r = r;
+          // (the coil curls inside the varix: on the placed anatomy at the varix's own depth where it lies, today in front of its tier by a hair)
+          const zq = PLACED ? depthOn(this.course.P, q[0], q[1], this.z) : this.z + 0.004, za = PLACED ? depthOn(this.course.P, a[0], a[1], this.z) : 0, zb = PLACED ? depthOn(this.course.P, b[0], b[1], this.z) : 0;
+          rs[i]!.c.set(x3(q[0]), y3(q[1]), zq); rs[i]!.t.set((b[0] - a[0]) / U, -(b[1] - a[1]) / U, zb - za).normalize(); rs[i]!.r = r;
         }
         writeRings(this.coilGeo, rs, COIL_RADIAL);
         showRings(this.coilGeo, 0, line.length - 1, COIL_RADIAL);

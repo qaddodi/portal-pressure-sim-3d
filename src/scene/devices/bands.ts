@@ -10,6 +10,9 @@ import { inVesselPass } from '../layers.ts';
 import { WIRE_SIDES, allocTube, makeRings, writeRings } from './tube-rings.ts';
 import { BAND, bandRing } from '../procedures/copied/band-ring.js';
 import { bandsStep } from '../procedures/copied/band-ease.js';
+import { PLACED } from '../anatomy/source.ts';
+import { scopeZ, wayReady, wayShift } from './probes/scope.ts';
+import type { BufferGeometry } from 'three';
 
 export const BANDS_MAX = 4;   // the engine's cap (engine.band)
 const U = 300;
@@ -21,6 +24,27 @@ export class Bands {
   /** the count drawn now (follows the model's in a moment) and the model's */
   shown: number | null = null;
   goal = 0;
+  private readonly geos: BufferGeometry[] = [];
+  private laid3 = !PLACED;
+
+  /** THE PLACED ANATOMY (`?anatomy=new`): each band is a true ring round the oesophagus the stomach mesh has (the scope's way, carried onto it: probes/eso-axis.ts), at the oesophagus's middle in depth,
+   *  square to its lean and as wide as the 2D rule keeps it inside the walls, so it sits in the oesophageal wall at any turn of the figure. Laid once the organ file is in. */
+  private lay3(): void {
+    if (this.laid3 || !wayReady()) return;
+    this.laid3 = true;
+    for (let i = 0; i < BANDS_MAX; i++) {
+      const b = bandRing(i, N) as { cx: number; cy: number; rx: number; lean: number }, n = N + 1, rings = makeRings(n);
+      const y = y3(b.cy), x = x3(b.cx) + wayShift(y), z = scopeZ(x, y), len = Math.hypot(b.lean, 1);
+      const nx = 1 / len, ny = b.lean / len, r = b.rx / U;   // (across the oesophagus in the scene, y up: square to its lean)
+      for (let k = 0; k < n; k++) {
+        const a = (2 * Math.PI * k) / N, c = Math.cos(a), s = Math.sin(a);
+        rings[k]!.c.set(x + r * c * nx, y + r * c * ny, z + r * s);
+        rings[k]!.t.set(-s * nx, -s * ny, c).normalize();
+        rings[k]!.r = BAND.stroke / 2 / U;
+      }
+      writeRings(this.geos[i]!, rings, WIRE_SIDES);
+    }
+  }
 
   constructor(shared: CelShared) {
     for (let i = 0; i < BANDS_MAX; i++) {
@@ -34,6 +58,7 @@ export class Bands {
         rings[k]!.r = BAND.stroke / 2 / U;
       }
       writeRings(g, rings, WIRE_SIDES);
+      this.geos.push(g);
       // 2D's band is a plain 2.4 px stroke in --dev-platinum, no outline (app-02-controls.css .band-ring): no edge, and no growth beyond the stroke's own width
       const o = new DeviceObject(g, 'platinum', shared, { px: 0, order: 5, fat: 0 }, 'none');
       o.park();
@@ -49,6 +74,7 @@ export class Bands {
 
   /** Follows the count; true while a band is fading. */
   update(dtMs: number, quiet = false): boolean {
+    if (!this.laid3) this.lay3();
     const next = bandsStep(this.shown, this.goal, dtMs / 1000, quiet) as number;
     const moved = next !== this.shown || this.shown === null;
     this.shown = next;
