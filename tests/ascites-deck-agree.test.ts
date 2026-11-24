@@ -35,7 +35,7 @@ test('every amendment anchors on the copied deck (a re-copy that moves its words
   assert.ok(slide(raw, AMEND.tableVs.slide).of.some((r: S) => r.id === AMEND.tableVs.row));
   assert.ok(slide(raw, AMEND.tipsReads.slide).tool.lines.includes(AMEND.tipsReads.from));
   assert.ok(slide(raw, AMEND.tipsReads.slide).tiles.includes(AMEND.tipsReads.from));
-  for (const w of [AMEND.diureticsLine, AMEND.refractoryLine]) assert.ok(slide(raw, w.slide).line.includes(w.from), w.slide);
+  for (const w of [AMEND.diureticsLine, AMEND.refractoryLine, AMEND.lvpLine]) assert.ok(slide(raw, w.slide).line.includes(w.from), w.slide);
   assert.notDeepEqual(deck, raw, 'the amended deck differs from the copy');
   assert.ok(!JSON.stringify(slide(raw, 'tips')).includes('"ppg"'), 'the copy itself is untouched (amend works on a clone)');
 });

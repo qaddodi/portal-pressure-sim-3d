@@ -129,7 +129,7 @@ test('iPhone on its side: a card too tall for its column asks for a page, never 
   const { vp } = SCREENS['iphone-landscape'];
   assert.equal(stepsFor(vp, true), 1);
   assert.equal(widthOf(vp, true, 0), widthOf(vp, true, 99));
-  for (const w of [667, 750, 844, 852, 932, 1000]) assert.ok(sideColW(w) >= 250 && sideColW(w) <= 310, `${w}`);
+  for (const w of [667, 750, 844, 852, 932, 1000]) assert.ok(sideColW(w) >= 290 && sideColW(w) <= 360, `${w}`);
   assert.deepEqual(planLayout(vp, needs(900, 100)).overflow, ['teach']);
 });
 

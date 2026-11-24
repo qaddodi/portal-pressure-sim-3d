@@ -8,6 +8,7 @@ import { useUi } from '../ui-store.ts';
 import { tableModel, type Cell } from '../talk/table-model.ts';
 import { resolveTable, useTables, fpOfSlide, pendingRows } from '../talk/table-rows.ts';
 import { CUT } from '../deck/from2d/table-marks.js';
+import { missWords, longestWord } from './table-words.ts';
 import { WaveCell } from './WaveCell.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
 
@@ -40,7 +41,7 @@ function Td({ c }: { c: Cell }) {
     case 'ref': return <td className={c.k === 'map' ? 'num ref bp' : 'num ref'} data-rate={c.rate ?? undefined}>{c.k === 'map' ? bpBreaks(c.text) : c.text}<span className="sr-only">{c.sr}</span></td>;
     default: return (
       <td className={`num dir${c.k === 'map' ? ' bp' : ''}${c.arrow === 0 ? ' zero' : ''}${c.miss ? ' miss' : ''}`} data-rate={c.rate ?? undefined} data-eff={c.eff ?? undefined} title={c.miss ? `${c.sr}` : `${c.text}`}>
-        <Arrow n={c.arrow} />{c.miss ? <span className="pz-miss" aria-hidden="true">{c.miss}</span> : null}<span className="sr-only">{c.sr}</span>
+        <Arrow n={c.arrow} /><span className="sr-only">{c.sr}</span>
       </td>
     );
   }
@@ -85,9 +86,11 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   }, [colKey]);
   // (a Doppler column is wider than a pressure's: the grid's columns follow what each holds)
   // (the name's column takes what the value columns leave: fewer columns, a wider name; the site stands over its rows as a heading row on a phone, so a name has its column to itself)
+  // (and never narrower than the longest word a name holds, which cannot break: "Schistosomiasis" ran under the next column's arrows, capture 4fb2f869)
+  const longest = useMemo(() => longestWord(model.rows.map((r) => r.title)), [model.rows]);
   const grid = `minmax(var(--dk-name), 2fr) ${model.cols.map((c) => (c.k === 'wave' ? 'minmax(0, 3.4fr)' : 'minmax(0, 1fr)')).join(' ')}`;
   return (
-    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${up ? ' dk-up' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-grid' as string]: grid }}>
+    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${up ? ' dk-up' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-wn' as string]: longest, ['--dk-grid' as string]: grid }}>
       <table>
         <thead>
           <tr ref={headRow} className={up ? 'th-up' : undefined}>
@@ -108,7 +111,7 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
                   onClick={go} onKeyDown={go ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); go(); } } : undefined}>
                   <th scope="row">
                     <span className="pz-kick" data-site={r.site || 'none'}>{r.head}</span>
-                    <span className="tw"><span className="tn">{r.title}</span>{r.vs ? <span className="vs">{r.vs}</span> : null}{r.notes.map((t, j) => (t ? <span key={j} className="vs dk-tfind">{model.noteHeads.length > 1 && model.noteHeads[j] ? `${model.noteHeads[j]}: ` : ''}{t}</span> : null))}</span>
+                    <span className="tw"><span className="tn">{r.title}</span>{r.vs ? <span className="vs">{r.vs}</span> : null}{r.notes.map((t, j) => (t ? <span key={j} className="vs dk-tfind">{model.noteHeads.length > 1 && model.noteHeads[j] ? `${model.noteHeads[j]}: ` : ''}{t}</span> : null))}{missWords(r.cells, model.cols) ? <span className="vs dk-tfind pz-missnote">{missWords(r.cells, model.cols)}</span> : null}</span>
                   </th>
                   {r.cells.map((c, j) => <Td key={c.k + j} c={c} />)}
                 </tr>

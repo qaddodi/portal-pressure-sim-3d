@@ -47,9 +47,9 @@ export function padding(vw: number, vh: number, layout: Layout, ts = 1): number 
   if (isSideways(vw, vh)) return 14;
   return clamp(1.4 * bodyB(vw, vh, ts), 18, 40);
 }
-/** A phone held sideways: the two cards stand in side columns, the words at the left and the instrument at the right, the figure between (Mohammad, 23 Nov 2026, docs/approved/landscape-phone.md).
- *  One column width for both: 27 % of the screen (252 px at 932), never under 220 nor over 260. */
-export const sideColW = (vw: number): number => clamp(Math.round(0.32 * vw), 250, 310);
+/** A phone held sideways: the two cards stand in ONE column at the left, the figure beside it (docs/approved/landscape-phone.md).
+ *  One column width for both: 38 % of the screen (321 px at 844, 354 at 932), never under 290 nor over 360 (Mohammad, 24 Nov 2026: "the landscape iphone card can afford to be wider, like the deck slide cards"; it was 32 %, 250 to 310). */
+export const sideColW = (vw: number): number => clamp(Math.round(0.38 * vw), 290, 360);
 /** One card width: about 40 characters of body text (--pz-cw); a phone on its side, its side column (sideColW); stacked, the screen less its margins (an upright iPad, 70 %). */
 export function cardWidth(vw: number, vh: number, layout: Layout, ts = 1): number {
   if (layout === 'stack') return vw - 16;

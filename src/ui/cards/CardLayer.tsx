@@ -9,6 +9,7 @@ import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
 import { DataCap } from '../talk/tool-room.ts';
 import { pairSteps, stepVars, dataFitOf, type PairBase } from './pair-ladder.ts';
 import { planLayout, widthOf, centredKind, centredBox, panelVisual, type CardId, type Need, type Plan } from '../layout/plan.ts';
+import { phoneView } from './phone-panel.ts';
 import { layoutOf, isSideways } from '../layout/rules2d.ts';
 import type { Rect } from '../layout/device.ts';
 import { useStack } from './useStack.ts';
@@ -73,12 +74,13 @@ export function CardLayer({ deck }: { deck: Deck }) {
 
   // the data card at every stop (ui/cards/keep.ts): a slide with no instrument of its own keeps the one before it on screen unless a case, a lapse, a catheter or a patient change needs the screen
   const dataAt = useMemo(() => dataKeys(deck, stops), [deck, stops]);
+  const sidewaysNow = isSideways(vp.w, vp.h);
   const here = dataAt[pos.stop] ?? null;
   const view = useMemo(() => {
     if (!stops.length) return null;
-    const v = viewAt(stops, pos, lastSlideShot(stops));
+    const v = phoneView(viewAt(stops, pos, lastSlideShot(stops)), sidewaysNow, here?.kind);
     return !v.data && here && v.words === 'teach' ? { ...v, data: here.kind } : v;
-  }, [stops, pos, here]);
+  }, [stops, pos, here, sidewaysNow]);
   const carried = here && stops[here.from]?.kind === 'slide' ? (stops[here.from] as { slide: Slide }).slide : null;   // (the slide whose instrument the data card shows)
   // heights are tagged with the page they were measured on, so a card that has just been split is never judged by its whole height
   const [heights, setHeights] = useState<Record<string, { h: number; want: number; open: number; sig: string }>>({});
@@ -304,7 +306,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
       if (m === 'next' && atEnd(useUi.getState())) return true;
       const to = apply(stops, pos, m);
       if (samePos(to, pos)) return false;
-      const v2 = viewAt(stops, to, lastSlideShot(stops));
+      const v2 = phoneView(viewAt(stops, to, lastSlideShot(stops)), sidewaysNow, dataAt[to.stop]?.kind);
       return (v2.slide && (v2.words === 'teach' || v2.words === 'case' || v2.words === 'visual') ? `${v2.words}:${v2.slide.id}` : v2.words) !== wordsKey;
     },
     can: (dx) => !cardZoom.on && (pages > 1 || (dx < 0 && atEnd(useUi.getState())) || !samePos(apply(stops, pos, dx < 0 ? 'next' : 'back'), pos)),

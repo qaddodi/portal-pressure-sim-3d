@@ -15,6 +15,8 @@ export const AMEND = {
   diureticsLine: { slide: 'diuretics', from: 'and the ascites stabilizes at {asc}.', to: 'and the ascites falls to {asc}, with only a slow creep left.' },
   /** The refractory slide had the same claim. */
   refractoryLine: { slide: 'refractory', from: 'Here it stabilizes at {asc}: not refractory.', to: 'Here it falls to {asc} and creeps up only slowly: not refractory.' },
+  /** Slide 13 said the tap drains "the whole 6 L" while its own counter reads what the model took off (7.0 to 7.2 L, capture 4fb2f869): the line names no litres, the counter does. */
+  lvpLine: { slide: 'lvp', from: 'LVP drains the whole 6 L, and', to: 'LVP drains the whole belly, and' },
 } as const;
 
 /** The deck with the amendments laid on a copy (the copied module is never changed). A slide or an anchor that is not there is left alone. */
@@ -31,7 +33,7 @@ export function amendAscites(deck: CopiedDeck): CopiedDeck {
     if (Array.isArray(tips.tiles)) tips.tiles = tips.tiles.map((k: string) => (k === t.from ? t.to : k));
   }
 
-  for (const w of [AMEND.diureticsLine, AMEND.refractoryLine]) {
+  for (const w of [AMEND.diureticsLine, AMEND.refractoryLine, AMEND.lvpLine]) {
     const s = by(w.slide);
     if (s && typeof s.line === 'string' && s.line.includes(w.from)) s.line = s.line.replace(w.from, w.to);
   }
