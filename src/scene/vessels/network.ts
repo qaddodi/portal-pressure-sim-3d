@@ -15,8 +15,8 @@ import { LIVER_BRANCHES, LIVER_BRANCH_HOSTS, SPLIT_AT, trimHost } from './liver-
 import { CAUDATE_VEIN_ID, caudateVeinSet } from './caudate-veins.ts';
 import { withStartInOrgan } from './starts.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
-import { applyAll, dzAt } from '../../editor/vessel-apply.ts';
-import { overrides } from '../../editor/store.ts';
+import { dzAt } from '../../editor/vessel-apply.ts';
+import { editedPlan, editedDz } from '../../editor/vessel-plan.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
 
 export interface Flare { add: number; wall: number; span: number }
@@ -59,35 +59,16 @@ export interface NetVessel {
   feeder?: { host: string; when: string | null };
 }
 
-interface Edge { id: string; from: string; to: string; kind: string; code?: string; d?: number; dMax?: number; share?: number; label?: string; zone?: string; shunt?: string; spontaneous?: boolean }
+import type { Edge } from './width.ts';
 const edges = EDGES as Edge[];
 const edgeById = new Map(edges.map((e) => [e.id, e]));
-// The anatomy editor's overrides (src/editor): offsets on the 2D plan, applied before the join, run-on, bend and skin code. Nothing edited: the very same table, so nothing changes.
-const EDITED = applyAll(EDGE_PATH_REF, edges, overrides());
-const EDGE_PATH_2D = EDITED.paths as typeof EDGE_PATH_REF;
+const EDGE_PATH_2D = editedPlan() as typeof EDGE_PATH_REF;   // (the anatomy editor's overrides, src/editor/vessel-plan.ts: nothing edited, the very same table)
 const portal = PORTAL_TERRITORY as Set<string>;
 
 // ---- widths: stage-tubes.js widthAt (anatomy, t = 0), in the figure's own units ----
-const CALIBER = 1.3;
-/** stage.js vesselPx: a vein's width in the figure's units from its diameter in mm. */
-export const vesselPx = (dmm: number): number => CALIBER * Math.max(2.6, 2.0 * Math.pow(Math.max(0.1, dmm), 0.72));
-const AP_FINE = 0.6;
-export const isArteryEdge = (e: Edge): boolean => e.kind === 'artery' || e.kind === 'arteriole' || (e.kind === 'shunt' && e.shunt === 'ap');
-const IVC_ONE_D = () => edgeById.get('IVC_IS')!.d!;
-
-/** The figure's width of edge `e` at diameter `dmm`, before the per-vessel exceptions. */
-export function widthPx(e: Edge, dmm: number): number {
-  if (e.kind === 'liver') return e.zone === 'sin' || e.zone === 'inter' || e.zone === 'post' ? 3.6 : 5.2;
-  if (isArteryEdge(e)) return Math.max(1.8, vesselPx(dmm) * 0.5 * (e.shunt === 'ap' ? AP_FINE : 1));
-  // (a vein the engine cuts in pieces where a shunt or a collateral joins it is ONE vein: every exception is keyed by the whole vein's id, not the piece's, or its pieces are drawn at different calibres and the vein steps
-  //  where they meet: the superior cava's upper piece was 1.39 times as wide as its lower one, 2D's own step (stage-tubes.js keys the 0.72 by the piece), which the smooth joins could only soften into a bulge. Mohammad, 20 Nov: "smooth calibres across the entirety of the app")
-  const whole = (PART_OF as Record<string, string | undefined>)[e.id] ?? e.id;
-  let w = vesselPx(IVC_EDGES.has(e.id) ? IVC_ONE_D() : dmm) * (IVC_EDGES.has(e.id) || whole === 'SVC_RA' || whole === 'V_UP' ? 0.72 : 1);
-  if (e.id === 'C8') w *= 0.6;
-  if (e.id === 'C3') w *= 0.6;   // the paraumbilical vein is a branch of the left portal vein, not as wide as it: it leaves it as a filleted Y (the fork rule), not a blunt stack of equal tubes (Mohammad, 20 Nov)
-  if (whole === 'LGV_CONF') w *= 0.85;
-  return w;
-}
+export { vesselPx, isArteryEdge, widthPx } from './width.ts';
+import { AP_FINE } from './width.ts';
+import { isArteryEdge, widthPx } from './width.ts';
 /** The tube's smallest radius in the figure's units (stage-tubes.js tubeRadius: max(0.35, w / 2)). */
 export const radiusOf = (wpx: number): number => len3(Math.max(0.35, wpx / 2));
 const widthKindOf = (e: Edge): 0 | 1 | 2 => (e.kind === 'liver' ? 2 : isArteryEdge(e) ? 1 : 0);
@@ -122,7 +103,7 @@ const toneOf = (e: Edge): NetTone => (isArteryEdge(e) ? 'artery' : portal.has(e.
 /** The 2D course of an edge carried into the scene: x and y by the linear map, z by its tier. */
 export function courseOf(id: string): Vec3[] {
   const e = edgeById.get(id)!, z = TIER_Z[tierOf(e)];
-  const dz = EDITED.dz.get(id), p = pathOf(id);
+  const dz = editedDz().get(id), p = pathOf(id);
   return p.map(([x, y], i): Vec3 => [x3(x), y3(y), dz ? z + dzAt(dz, p.length > 1 ? i / (p.length - 1) : 0) : z]);
 }
 

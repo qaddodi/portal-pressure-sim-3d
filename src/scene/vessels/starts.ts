@@ -2,7 +2,7 @@
 // begin in the gap beside the spleen. In 3D the vein is drawn in front of the organ and Mohammad asked that it start in the spleen (20 Nov): its course is carried on from the hilum,
 // along the way it already leaves it, to a point inside the organ, and it fades in over that carried-on stretch alone (solid at the hilum, where 2D's fade is still faint).
 // The 2D app's numbers are untouched: this only adds drawn length at one end. Points are in 2D units (the course's own).
-import { EDGE_PATH_2D } from './paths.copied.ts';
+import { editedPlan } from '../../editor/vessel-plan.ts';
 type P2 = readonly [number, number];
 
 /** The extra start of a vessel: the 2D points before its first point, in order (the vein runs from the first of these on). */
@@ -33,7 +33,7 @@ export const runsInto = (id: string): string | null => RUNS_INTO[id]?.into ?? nu
 export const originsOf = (id: string): readonly string[] => Object.entries(RUNS_INTO).filter(([, r]) => r.into === id).map(([k]) => k);
 /** The point and heading (unit, the way the vessel runs) of the start of `into`'s course as drawn, where a vessel that runs on into it arrives. */
 export function startOfRunOn(into: string): { at: P2; dir: P2 } | null {
-  const s = START_IN_ORGAN[into], raw = EDGE_PATH_2D[into];
+  const s = START_IN_ORGAN[into], raw = editedPlan()[into];
   if (!s || !raw) return null;
   const [ax, ay] = raw[0]!, d = Math.hypot(ax - s.to[0], ay - s.to[1]) || 1;
   return { at: s.to, dir: [(ax - s.to[0]) / d, (ay - s.to[1]) / d] };

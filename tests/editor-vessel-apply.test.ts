@@ -66,3 +66,17 @@ test('editableSkeleton lists nodes with arms and courses', async () => {
   assert.ok(s.nodes.length > 10 && s.vessels.length > 10);
   assert.ok(s.nodes.every((n) => n.arms.length >= 1 && n.pos.every(Number.isFinite)));
 });
+
+test('the plan accessor: same table when empty, edited for every reader', async () => {
+  const { editedPlan } = await import('../src/editor/vessel-plan.ts');
+  const { EDGE_PATH_2D } = await import('../src/scene/vessels/paths.copied.ts');
+  setOverridesForTest(EMPTY);
+  assert.equal(editedPlan(), EDGE_PATH_2D);
+  const net = await import('../src/scene/vessels/network.ts');
+  const v = net.MAPPED.find((x) => x.id === 'PV_TRUNK')!;
+  setOverridesForTest({ version: 1, nodes: { [v.from]: { dx: 20, dy: 0 } } });
+  const p = editedPlan()['PV_TRUNK']!, q = EDGE_PATH_2D['PV_TRUNK']!;
+  assert.ok(Math.abs(p[0]![0] - q[0]![0] - 20) < 1e-9);
+  setOverridesForTest(EMPTY);
+  assert.equal(editedPlan(), EDGE_PATH_2D);
+});

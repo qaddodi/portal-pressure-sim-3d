@@ -4,7 +4,7 @@
 // into the Z axes"; "umbilical vein ... extend it a little then branch it into the liver"). Each host vein gets two children that leave it part-way along its end and spread apart as they
 // run on into the liver, one forward and one back in depth, fading out (portal veins, the umbilical vein) or in (hepatic veins) the way the host does. They are decoration on the host's own
 // course (a tributary group, like the 2D figure's fans), derived from it: no new edges, flows or numbers.
-import { EDGE_PATH_2D } from './paths.copied.ts';
+import { editedPlan } from '../../editor/vessel-plan.ts';
 import { len3 } from '../frame2d.ts';
 
 type P2 = readonly [number, number];
@@ -115,7 +115,7 @@ const TREE_CACHE = new Map<string, Tree>();
 export function treeOf(id: string, prefix: readonly P2[] | null = null): Tree | null {
   if (SPLIT_AT[id] == null) return null;
   const key = prefix ? '' : id; const hit = key ? TREE_CACHE.get(key) : undefined; if (hit) return hit;
-  const t = grow(id, EDGE_PATH_2D[id]!, prefix ? (isOut(id) ? prefix : [...prefix].reverse()) : null);
+  const t = grow(id, editedPlan()[id]!, prefix ? (isOut(id) ? prefix : [...prefix].reverse()) : null);
   const flow: Tree = isOut(id) ? t : { through: [...t.through].reverse(), side: t.side ? { pts: [...t.side.pts].reverse(), dz: [...t.side.dz].reverse() } : null, q: t.q };
   if (key) TREE_CACHE.set(key, flow);
   return flow;
@@ -154,7 +154,7 @@ function endChildren(host: readonly P2[], at: number, ext: number, spread: numbe
 
 function build(): readonly BranchSet[] {
   const sets: BranchSet[] = [];
-  for (const id of END_JOIN) sets.push({ host: id, when: null, span: [0.9, 1], list: endChildren(EDGE_PATH_2D[id]!, 0.97, EXT[id]!, 0.5).map((c) => ({ ...item(c, 1, true), atEnd: true as const })) });
+  for (const id of END_JOIN) sets.push({ host: id, when: null, span: [0.9, 1], list: endChildren(editedPlan()[id]!, 0.97, EXT[id]!, 0.5).map((c) => ({ ...item(c, 1, true), atEnd: true as const })) });
   for (const id of Object.keys(SPLIT_AT)) {
     const t = treeOf(id)!;
     if (!t.side) continue;
