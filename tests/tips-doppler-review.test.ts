@@ -104,3 +104,11 @@ test('the Doppler probe keeps off the figure\'s colour key as off a card, and a 
   assert.match(probe, /BODY_CLAIM_PAD = 9/);
   assert.match(probe, /const own = v\.id === id;/, 'the sampled vessel\'s own course away from the gate counts as busy');
 });
+
+// Root cause (slide 11): a slide with beats opens on its LAST view, so that beat's cam frames it; it must take in the liver under the Portal flow card.
+test('the umbilical slide opens on a view that includes the liver', async () => {
+  const { VARICES: deck } = await import('../src/decks/rw/copied/varices.ts');
+  const s = (deck as { slides: { id: string; beats?: { cam?: number[] }[] }[] }).slides.find((x) => x.id === 'umbilical')!;
+  const cam = s.beats!.at(-1)!.cam!;
+  assert.ok(cam[1]! <= 200, 'top of the last view reaches the liver (plate y ≤ 200)');
+});
