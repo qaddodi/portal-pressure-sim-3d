@@ -199,14 +199,16 @@ export function treeLeadExtra(tree: Node, boxes: Map<string, Box>, parasOf: (id:
   for (const [id, { h, d }] of own) out.set(id, Math.max(0, rowMax[d]! - h));
   return out;
 }
-export const readParas = (r: { head: string; why: string; next: string }): ParaRun[][] => [[{ text: r.head, face: 'rh' }], [{ text: `${r.why} ${r.next}`, face: 'rp' }]];
+export const readParas = (r: { head: string; why: string; next: string }, headOnly = false): ParaRun[][] => headOnly ? [[{ text: r.head, face: 'rh' }]] : [[{ text: r.head, face: 'rh' }], [{ text: `${r.why} ${r.next}`, face: 'rp' }]];
+/** The first-visit path on a phone keeps its verdict headline and leaves the explanation under it out (Mohammad, 24 Nov, "1": Stiffness 8.2 and 9, the card stood over half the screen and left the figure no room). */
+export const headOnlyOn = (of: string, phone: boolean): boolean => phone && of === 'first-visit';
 /** What path-cards.generated.js lays a score card, grid or ladder out with. Kept one object: the card layouts memoise their lines against it. */
 export const CARD_HELPERS = { flow, ROLE, textWidth, readParas, TOKEN, svg: null as unknown };
 
-export function mapBodyOf(of: string, spec: Spec, patient: any, Wv: number, W = Wv, oy = 0, tight = false) {
+export function mapBodyOf(of: string, spec: Spec, patient: any, Wv: number, W = Wv, oy = 0, tight = false, headOnly = false) {
   const k = mapType(W) / 12, worst = (WORST as any)[of], map = mapPlace(spec.tree, Wv, k, oy, (id) => mapWordsOf(of, id), tight);
   const own = isLive(of) ? null : outcomeOf(of, litOf(of, patient));
-  const rd = (key: string, p: any) => flow(readParas(readingFor(of, key, p)), Wv, { gap: 4 }).h;
+  const rd = (key: string, p: any) => flow(readParas(readingFor(of, key, p), headOnly), Wv, { gap: 4 }).h;
   const readH = own ? rd(own, patient) : Math.max(...(OUTCOMES as any)[of].flatMap((key: string) => [patient, worst].map((p) => rd(key, p))));
   return { k, map, readH, H: map.H + GAP + 12 + readH };
 }
@@ -247,7 +249,7 @@ export function pathLayout(ofIn: string, patientIn: any, W: number, o: PathOpts 
     L.cardL = cardLayout(spec.algo, W, compact, base, CARD_HELPERS, true);
     y += L.cardL!.H + G;
   } else if (compact) {
-    const B = mapBodyOf(of, spec, base, W, W, y, tight);
+    const B = mapBodyOf(of, spec, base, W, W, y, tight, headOnlyOn(of, phone));
     L.k = B.k; L.map = B.map;
     y += L.map.H + G;
     L.y.rule1 = y; y += R1;

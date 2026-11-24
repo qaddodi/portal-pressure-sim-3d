@@ -6,7 +6,7 @@ import type { Rgba } from '../colour.ts';
 import { look, type Look } from '../looks.ts';
 import { scaleFrame, type Frame, type Shape } from '../scene.ts';
 import {
-  CARD_HELPERS, PILL_H, PILL_PAD, ROLE, TOKEN, chipsOf, drawCard, edgesOf, flat, flow, litOf, outcomeOf, pathLayout, pathWords, readParas, readingFor, type PathLayout, type PathOpts,
+  CARD_HELPERS, PILL_H, PILL_PAD, ROLE, TOKEN, chipsOf, drawCard, edgesOf, flat, flow, litOf, outcomeOf, pathLayout, pathWords, readParas, headOnlyOn, readingFor, type PathLayout, type PathOpts,
 } from './model.ts';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -84,7 +84,7 @@ export function pathFrame(spec: PathSpec, c: ChartCtx): Frame {
       }
       rule(L.y.rule1);
       const r = out ? readingFor(of, out, patient) : null;
-      if (r) for (const i of flow(readParas(r), W, { gap: 4 }).items) word(i.face, i.x, L.y.read + i.y, i.text, true, TOKEN[r.tone]!);
+      if (r) for (const i of flow(readParas(r, headOnlyOn(of, !!spec.opts?.phone)), W, { gap: 4 }).items) word(i.face, i.x, L.y.read + i.y, i.text, true, TOKEN[r.tone]!);
     } else {
       for (const { n } of flat(L.spec.tree)) {
         const b = L.tree!.boxes.get(n.id)!, on = Lit.has(n.id) || n.id === L.spec.tree.id;

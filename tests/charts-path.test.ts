@@ -199,3 +199,16 @@ test('under a card zoom the flowchart is laid out at the screen\'s own width and
   assert.deepEqual((f2.shapes[0] as { size: number; x: number; halo: { w: number } }).halo.w, 6);
   assert.equal(scaleFrame(f2, 1), f2);
 });
+
+import { headOnlyOn, readParas as readParas2 } from '../src/ui/charts/path/model.ts';
+test('the first-visit path on a phone keeps its verdict headline and drops the explanation (Stiffness 8.2 and 9, Mohammad 24 Nov)', () => {
+  assert.ok(headOnlyOn('first-visit', true));
+  assert.ok(!headOnlyOn('first-visit', false) && !headOnlyOn('bleed', true));
+  const r = { head: 'CSPH still open', why: 'why', next: 'next' };
+  assert.equal(readParas2(r, true).length, 1);
+  assert.equal(readParas2(r).length, 2);
+  const patient = patientOf('first-visit', { lsm: 21, plt: 160 }, null);
+  const tall = pathFrame({ of: 'first-visit', patient, opts: { phone: false } }, ctxOf('dark', 392)).h;
+  const phone = pathFrame({ of: 'first-visit', patient, opts: { phone: true } }, ctxOf('dark', 392)).h;
+  assert.ok(phone < tall - 40, `${phone} vs ${tall}`);
+});
