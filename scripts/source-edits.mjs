@@ -50,6 +50,8 @@ export const VARICES_REVIEW = [
     ask: ['How is a second variceal bleed prevented?', 'An NSBB with band ligation; a TIPS if it bleeds again or the first bleed was high-risk.'] }),
   SET('varices', 'objectives.3', 'Choose prophylaxis before and after a first variceal bleed'),
   SET('varices', 'checks.4', ['What prevents a first variceal bleed in a patient with large varices, and what prevents rebleeding?', 'A first bleed: carvedilol or another NSBB, or band ligation if an NSBB cannot be given. After a bleed: an NSBB with band ligation, and a TIPS if it bleeds again or the first bleed was high-risk.']),
+  // 3 [9, now slide 13]: the chart card is the standard height, and the esophagus stood in its shadow: the view takes in the esophagus' top, in the room below the card
+  SET('varices', 'slides.relation.cam', [540, -170, 980, 360]),
   SET('varices', 'minutes', 17),
 ];
 
