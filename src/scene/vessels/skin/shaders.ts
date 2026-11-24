@@ -41,11 +41,12 @@ import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
 import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
 import { CEL_STYLE } from '../../cel-style.ts';
+import { PLACED } from '../../anatomy/source.ts';
 import { MAP_K, MAP_CENTRE, CIRC_C } from '../../circuit/map.ts';
 import { PEEL_DL, PEEL_SPAN } from '../../circuit/peel.ts';
 import { VB_CIRC } from '../../circuit/data.copied.ts';
 import { SKIN_CIRC_IN } from './types.ts';
-import { skinNormalGlsl, SKIN_SHADE_K, SKIN_SHADE_FLOOR_PX, SKIN_RING_W_FROM } from './exact-normal.ts';
+import { skinNormalGlsl, skinTubeKeepGlsl, SKIN_SHADE_K, SKIN_SHADE_FLOOR_PX } from './exact-normal.ts';
 import { SKIN_WALL_GLSL } from './dust-wall.ts';
 import { CAVA_RAMP_R } from '../fade-alpha.ts';
 import { WEDGE_GLSL } from '../wedge-glsl.ts';
@@ -95,7 +96,7 @@ attribute vec4 weight;   // how much of this vertex belongs to each arm (arms 0 
 attribute vec2 weight2;  // arms 4 and 5
 attribute float restR;   // the blended rest radius here (scene units)
 attribute float sagK;    // the share of the radius this vertex stands out for its facets' chord sag (facet-sag.ts; a seam ring's is the tube's TUBE_SAG)
-uniform float inflate;
+${PLACED ? "attribute float tubeShare;   // placed only: how much of the mesh's own normal the shade keeps here, 1 on a seam ring, 0 from SKIN_TUBE_ROWS rows in (exact-normal.ts tubeShareOf)\n" : ''}uniform float inflate;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
 uniform float useData;
@@ -116,7 +117,7 @@ varying float vW;        // the surface's clip depth
 varying float vCenW;     // the axis's clip depth: the one the ink band is built from (the tube's vCen.z)
 varying vec4 vWeight;
 varying vec2 vWeight2;
-varying float vRest;
+varying vec2 vRest;      // x: the rest radius; y: the tube share (placed; 0 today), packed so the varyings stay the spec's
 varying vec4 vSwell;
 varying vec2 vSwell2;    // the arms' live widths against their built ones, read once here so the fragment stage does not fetch them again
 varying vec3 vPos;       // the rest position now (after the growth morph): each arm's arc at this pixel (the flow marks), its lateral gate and the union's gradient are read from it
@@ -180,7 +181,7 @@ void main() {
   vCenW = cc.w;
   vWeight = wA;
   vWeight2 = wB;
-  vRest = rst;
+  vRest = vec2(rst, ${PLACED ? 'tubeShare' : '0.0'});
   vSwell = vec4(swT[0], swT[1], swT[2], swT[3]);
   vSwell2 = vec2(swT[4], swT[5]);
   // EACH ARM'S FADE AT THIS VERTEX (the junction's seam far out on a fading vein washed the whole skin and drew its neighbour's fork branch as a ghost, 21 Nov): the tube's own fade rule at this vertex's arc along the arm, the arc the flow marks use. An arm whose seam is whole keeps -1: its seam value, as before
@@ -281,7 +282,7 @@ varying float vW;
 varying float vCenW;
 varying vec4 vWeight;
 varying vec2 vWeight2;
-varying float vRest;
+varying vec2 vRest;
 varying vec4 vSwell;
 varying vec2 vSwell2;
 varying vec3 vPos;
@@ -444,7 +445,7 @@ void main() {
     float wTop = 0.0;
     for (int i = 0; i < ${SKIN_ARMS}; i++) wTop = max(wTop, rawW(i) * keepOf(i));   // (the raw weights of the arms that are THERE, as the seam band's wMax: wAt renormalises them, so the pixels of an absent arm's stub read as a kept arm's weight 1 and took the mesh's own stub normal)
     vec3 gx = skinNormalExact(vPos, max(skinK * ${F(SKIN_SHADE_K)}, ${F(SKIN_SHADE_FLOOR_PX)} * ${wpcGlsl('vCenW', 'projY', '1.0')}), vec3(0.0));   // (skinShadeK: the shade's blend is never narrower than SKIN_SHADE_FLOOR_PX of the screen)
-    if (dot(gx, gx) > 0.25) n = normalize(mix(n, normalize(mat3(modelViewMatrix) * gx), (1.0 - smoothstep(${F(SKIN_RING_W_FROM)}, 1.0, wTop))));
+    if (dot(gx, gx) > 0.25) n = normalize(mix(n, normalize(mat3(modelViewMatrix) * gx), (1.0 - ${skinTubeKeepGlsl('vRest.y', 'wTop')})));
   }
   float sT = dot(n, celLightView());   // n.L against the WORLD light, as the tube (a camera that moves changes no shade)
   float swT = fwidth(sT);              // (a derivative: taken outside any branch)
@@ -519,7 +520,7 @@ void main() {
   float swellB = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) swellB += wAt(i) * swAt(i);
   float wpcAx = ${wpcGlsl('vCenW', 'projY', 'SKIN_U')};
-  float vR = vRest * swellB * SKIN_U;
+  float vR = vRest.x * swellB * SKIN_U;
   float rCssAx = vR / max(wpcAx, 1e-6);
   float hi = ${BLEND('armAF', 'wAt', '.z')};
   float skinArt = clamp(1.0 - (${BLEND('armColor', 'wAt', '.a')}), 0.0, 1.0);

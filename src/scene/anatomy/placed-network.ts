@@ -112,6 +112,7 @@ export const FAIR_TURN = 8.5;
 /** The most a branch's approach (its chord to the landing) may be off the host's flow before the landing moves on along it (joinEnd). */
 const MERGE_MAX = 60;
 /** The least a branch's arrival is off its host's axis (joinEnd). */
+// (a branch wider than its host arrives MERGE_MIN times their width ratio off its axis: C6, 1.34 times the renal vein, slid in at 40 and left a wall crotch whose normals turned 84 degrees between neighbours; at 54 it is 74)
 const MERGE_MIN = 40;
 /** How long a carried trunk is, in its radii (the 2D figure's right portal trunk, bifurcation to split: 8.3), and the right hepatic vein's extra length at the crowded cava. */
 const TRUNK_R = 8;
@@ -209,7 +210,7 @@ function buildPlaced(): void {
     // (the arrival is along the flow but never nearly parallel to it: at least MERGE_MIN off the host's axis, in the plane of the approach. A branch that slid in at 20 degrees (the DIPS on the cava) left a crotch too thin
     //  for its skin, whose normals turned 88 degrees between neighbours; the 2D figure's own merges are 40 to 60)
     let t1 = norm(add(chord, mul(tp, 0.9)));
-    { const c = dot(t1, tp), lo = Math.cos((MERGE_MIN * Math.PI) / 180); if (c > lo) { let n = sub(chord, mul(tp, dot(chord, tp))); if (len(n) < 1e-6) n = sub(t0, mul(tp, dot(t0, tp))); if (len(n) > 1e-6) { n = norm(n); const a = (MERGE_MIN * Math.PI) / 180; t1 = norm(add(mul(tp, Math.cos(a)), mul(n, Math.sin(a)))); } } }
+    { const c = dot(t1, tp), mMin = MERGE_MIN * Math.max(1, rD / rP), lo = Math.cos((mMin * Math.PI) / 180); if (c > lo) { let n = sub(chord, mul(tp, dot(chord, tp))); if (len(n) < 1e-6) n = sub(t0, mul(tp, dot(t0, tp))); if (len(n) > 1e-6) { n = norm(n); const a = (mMin * Math.PI) / 180; t1 = norm(add(mul(tp, Math.cos(a)), mul(n, Math.sin(a)))); } } }
     const L = len(sub(Jp, P0));
     const n = Math.max(4, Math.round(L / STEP)), out = D.slice(0, k + 1);
     for (let i = 1; i <= n; i++) {
@@ -321,9 +322,19 @@ function buildPlaced(): void {
   const RUN_ON_ENDS = new Set(['C1a|0', 'C1a|1', 'C1b|0', 'C2|1', 'C5|0', 'EPI_ILI|0', 'EPI_SVC|0']);
   /** The host course a collateral end lands on: the whole vessel (its trunk only, never a draw-only branch). */
   const ownCourse = (w: string): V3[] => COURSE[w]!;
-  // ONE MOUTH AT A NODE (Mohammad, 24 Nov: no old-style join may ship): an end the engine joins at a node of its host opens where that node is drawn, so it is an arm of the node's skin, not a wall landing beside it that has
-  // no ring clear of the node's blend (the distal splenorenal shunt 0.14 up the splenic vein from the spontaneous one, the mesocaval on the iliac 0.1 from the renal vein, the paraumbilical vein a hair off the epigastric
-  // run-on): the host's own end when the node is one, else the main vessel's mouth there (two collaterals forced to one point leave along one line and the hull folds: each keeps its own)
+  // WHERE EACH END OPENS (Mohammad, 24 Nov: no old-style join may ship; every growing end welded; the drawn picture is the placed course). An end opens where the placement draws it, with these exceptions, each so a skin takes it as an arm:
+  //  - SNAP: within SNAP_R of its host's radii of the point where its engine node is drawn (the host's own end, or the main vessel's mouth there) it opens exactly there (the paraumbilical vein a hair off the epigastric run-on);
+  //  - a node only collaterals and shunts join inside a main vessel (the splenic vein's SVD, the left renal vein's LRV_S and LRV) is drawn at its own end's drawn landing (the shunt that divides the vein there, else the widest),
+  //    unless an end drawn off its own node lies within SNAP_R of one of its ends: then the node moves to that end, and its skin takes it too (the short gastric veins leave the splenic vein near the hilum, beside SVD, though the
+  //    engine joins them at SV: SVD is drawn at their take-off);
+  //  - an end within PARALLEL_DEG of its node's own end runs beside it and one skin of both folds: it opens at the next main vessel's node downstream, or on the host's wall past the next node;
+  //  - two such nodes closer than NODE_GAP_R radii, or a wall landing closer than WALL_GAP_R to a node, are moved apart along the vein, downstream, never past a main vessel's mouth (LRV_S and LRV were 4 radii apart: one skin
+  //    for both had two permanent arms and failed).
+  const SNAP_R = 6, NODE_GAP_R = 10, WALL_GAP_R = 22, PARALLEL_DEG = 30;
+  /** The shunts that divide the vein whose start is their node (skin/divide.ts DIVIDED): each opens at that node. */
+  const DIVIDERS = new Set(['S_DSR|0', 'S_DSR|1']);
+  const endDir = (id: string, end: 0 | 1): V3 => { const D = COURSE[id]!, k = Math.min(D.length - 1, 6); return norm(end ? sub(D[D.length - 1 - k]!, D[D.length - 1]!) : sub(D[k]!, D[0]!)); };
+  const angleDeg = (a: V3, b: V3): number => (Math.acos(Math.max(-1, Math.min(1, dot(a, b)))) * 180) / Math.PI;
   const mouth = new Map<string, V3>();
   const nodeOfWholeEnd = (w: string, end: 0 | 1): string | undefined => { const ps = WHOLE_PIECES[w] ?? (edgeById.has(w) ? [w] : undefined); if (!ps) return undefined; return end ? edgeById.get(ps[ps.length - 1]!)!.to : edgeById.get(ps[0]!)!.from; };
   for (const jn of J.joins) {
@@ -332,6 +343,10 @@ function buildPlaced(): void {
     if (n && !mouth.has(`${jn.to}|${n}`)) mouth.set(`${jn.to}|${n}`, jn.end ? C[C.length - 1]! : C[0]!);
   }
   const hostEndAt = (w: string, node: string): V3 | undefined => (nodeOfWholeEnd(w, 0) === node ? COURSE[w]![0]! : nodeOfWholeEnd(w, 1) === node ? COURSE[w]![COURSE[w]!.length - 1]! : undefined);
+  /** Where each node that only collaterals and shunts join is drawn on its whole (arc length): the cut between its pieces. */
+  const NODE_S = new Map<string, number>();
+  interface Land { id: string; end: 0 | 1; node: string; w: string; s: number; force?: V3; off?: boolean; keep?: boolean }
+  const lands: Land[] = [];
   for (const id of OWN) {
     const e = edgeById.get(id)!;
     for (const end of [0, 1] as const) {
@@ -339,14 +354,60 @@ function buildPlaced(): void {
       const node = end ? e.to : e.from, p = end ? COURSE[id]![COURSE[id]!.length - 1]! : COURSE[id]![0]!;
       const cands = atNode(node, id).filter((c) => c.whole !== id);
       let best: { w: string; d: number } | null = null;
-      for (const c of cands) { const d = nearestOn(ownCourse(c.whole), p).d - 0 * rOf(c.whole); if (!best || (isMain(c.whole) && !isMain(best.w)) || (isMain(c.whole) === isMain(best.w) && d < best.d)) best = { w: c.whole, d }; }
+      for (const c of cands) { const d = nearestOn(ownCourse(c.whole), p).d; if (!best || (isMain(c.whole) && !isMain(best.w)) || (isMain(c.whole) === isMain(best.w) && d < best.d)) best = { w: c.whole, d }; }
       if (!best || best.d > LAND_REACH + rOf(best.w)) continue;
-      // (a shunt or collateral that lands on another collateral's run: the epigastric vein's pair, the azygos: the same rule)
-      // the host's flow sense at the landing: a vessel that ENDS there merges along the host's flow; one that starts there leaves along it
-      const key = `${best.w}|${node}`;
-      branch(id, end, best.w, ownCourse(best.w), id === 'TIPS' ? TIPS_POINT[best.w] : (hostEndAt(best.w, node) ?? mouth.get(key)));
+      // (first as drawn: the host's flow sense at the landing, a vessel that ENDS there merges along the host's flow, one that starts there leaves along it; the azygos and the epigastric pair land on another collateral's run the same way)
+      branch(id, end, best.w, ownCourse(best.w), id === 'TIPS' ? TIPS_POINT[best.w] : undefined);
+      const q = end ? COURSE[id]![COURSE[id]!.length - 1]! : COURSE[id]![0]!;
+      lands.push({ id, end, node, w: best.w, s: nearestOn(ownCourse(best.w), q).s });
     }
   }
+  // (the courses another thread is rebuilding (the DIPS, the umbilical vein's root on the left portal vein, the varices round the oesophagus) keep the rule they had: their end at the host's own end, or the main vessel's mouth, at its node)
+  const KEEP_RULE = new Set(['DIPS', 'C3', 'C1a', 'C1b']);
+  for (const l of lands) {
+    if (l.id === 'TIPS') continue;
+    if (KEEP_RULE.has(l.id)) { l.force = hostEndAt(l.w, l.node) ?? mouth.get(`${l.w}|${l.node}`); l.keep = true; continue; }
+    const P = hostEndAt(l.w, l.node) ?? mouth.get(`${l.w}|${l.node}`);
+    if (!P) continue;
+    if (Math.abs(nearestOn(ownCourse(l.w), P).s - l.s) <= SNAP_R * rOf(l.w)) l.force = P; else l.off = true;
+  }
+  for (const [w, ps] of Object.entries(WHOLE_PIECES)) {
+    const C = ownCourse(w), L = lengthOf(C), R = rOf(w);
+    const stops: { s: number; fixed: boolean; node: string; land?: Land; others: Land[] }[] = [];
+    for (let pi = 0; pi < ps.length - 1; pi++) {
+      const n = edgeById.get(ps[pi]!)!.to;
+      // (the azygos's start: a collateral piece run on by a drawn one keeps its own rule, the cut below)
+      if ((edgeById.get(ps[pi]!)!.kind === 'collateral') !== (edgeById.get(ps[pi + 1]!)!.kind === 'collateral')) continue;
+      const M = mouth.get(`${w}|${n}`);
+      const at = lands.filter((l) => l.w === w && l.node === n && !l.force && !l.keep);
+      if (M) { stops.push({ s: nearestOn(C, M).s, fixed: true, node: n, others: [] }); continue; }
+      if (!at.length) continue;
+      // (the node's own end: the shunt that divides the vein starting there (skin/divide.ts: the distal splenorenal shunt takes the splenic vein's start at SVD), else the widest)
+      const owner = at.find((l) => DIVIDERS.has(`${l.id}|${l.end}`)) ?? at.reduce((x, y) => (rOf(y.id) > rOf(x.id) ? y : x));
+      const near = lands.find((l) => l.w === w && l.off && at.some((m) => Math.abs(l.s - m.s) <= SNAP_R * R));
+      stops.push({ s: near ? near.s : owner.s, fixed: false, node: n, land: owner, others: at.filter((l) => l !== owner) });
+    }
+    stops.sort((x, y) => x.s - y.s);
+    // (an end that leaves or arrives within PARALLEL_DEG of its node's own end runs beside it, and one skin of the two folds (the spontaneous and the distal splenorenal shunts, 16 to 22 degrees apart at both ends;
+    //  the gastrorenal shunt and the spontaneous one at the renal vein, 9): it opens at the next node downstream when a main vessel joins there (a skin with room for it), else on the host's wall past that node, a skin of its own)
+    for (const x of [...stops]) for (const o of x.others) {
+      if (!x.land || angleDeg(endDir(o.id, o.end), endDir(x.land.id, x.land.end)) >= PARALLEL_DEG) continue;
+      const next = stops[stops.indexOf(x) + 1];
+      if (next?.fixed) o.force = along(C, next.s); else stops.push({ s: (next ?? x).s + 1e-4, fixed: false, node: '', land: o, others: [] });
+    }
+    stops.sort((x, y) => x.s - y.s);
+    for (let i = 1; i < stops.length; i++) {
+      // (a wall skin needs more of the host either side of it than a node's skin does: its own arm's capsule lies along the host over several rings)
+      const x = stops[i]!, gap = (x.node && stops[i - 1]!.node ? NODE_GAP_R : WALL_GAP_R) * R;
+      if (!x.fixed && !stops[i - 1]!.fixed && x.s - stops[i - 1]!.s < gap) x.s = Math.min(stops[i - 1]!.s + gap, L - 2 * R, stops[i + 1]?.fixed ? stops[i + 1]!.s - gap : Infinity);
+    }
+    for (const x of stops) {
+      if (!x.fixed && x.node) NODE_S.set(`${w}|${x.node}`, x.s);
+      if (x.land && Math.abs(x.s - x.land.s) > 1e-6) x.land.force = along(C, x.s);
+    }
+  }
+  // (then each end that must open elsewhere lands again, exactly there)
+  for (const l of lands) if (l.force && len(sub(l.force, l.end ? COURSE[l.id]![COURSE[l.id]!.length - 1]! : COURSE[l.id]![0]!)) > 1e-6) branch(l.id, l.end, l.w, ownCourse(l.w), l.force);
 
   // ---- the caudate veins: three short tributaries into the cava (the pieces are cut below, so this lands on the whole cava) ----
   for (const k of ['cv1', 'cv2', 'cv3']) if (COURSE[k]) branch(k, 1, 'ivc');
@@ -370,14 +431,16 @@ function buildPlaced(): void {
       }).filter((x): x is NonNullable<typeof x> => !!x && x.hit.d < LAND_REACH + rOf(w));
       js.sort((a, b) => (a.main !== b.main ? (a.main ? -1 : 1) : b.r - a.r));
       let at: number;
-      if (js.length) {
+      const ns = NODE_S.get(`${w}|${node}`);
+      if (ns !== undefined) at = ns / L;
+      else if (js.length) {
         at = js[0]!.hit.s / L;
         // (a collateral piece of a whole, drawn only when it is open (the lumbar vein, C9, the azygos's lower course): a branch that lands at its cut would meet its run-on at one point, and with it hidden would sit on the
         //  arch's open start. The branch lands on the always-drawn piece's wall instead, two of its diameters past the cut (the 2D figure's own drawing: tests/azygos-origin.test.ts))
         const kc = (id: string): boolean => edgeById.get(id)!.kind === 'collateral';
         if (!js[0]!.main && kc(pieces[i]!) !== kc(pieces[i + 1]!)) at += ((kc(pieces[i]!) ? -1 : 1) * 4 * rOf(w)) / L;
       } else { const row = (JUNCTIONS as readonly (readonly unknown[])[]).find((r) => r[0] === node); at = row ? Number(row[2]) : (i + 1) / pieces.length; }
-      cuts.push(at); free.push(!js.length);
+      cuts.push(at); free.push(ns === undefined && !js.length);
     }
     // (a node nothing drawn lands at (the arterioportal shunt's on the right portal trunk, hidden): its cut is midway between the cuts either side, so both pieces are as long as they can be for their skins)
     for (let i = 0; i < cuts.length; i++) if (free[i]) { let j = i; while (j < cuts.length && free[j]) j++; const lo = i ? cuts[i - 1]! : 0, hi = j < cuts.length ? cuts[j]! : 1; for (let m = i; m < j; m++) cuts[m] = lo + ((hi - lo) * (m - i + 1)) / (j - i + 1); i = j; }

@@ -7,6 +7,7 @@ import { REST, coursesOf, type ShapeState } from '../shape.ts';
 import { indexOf } from '../../../engine/vessel-data.ts';
 import { ATTACH_NEAR_R, MAX_ARMS, SIDE_EDGE, SIDE_TOL_R, isGrower, isPermanent, nearestOnPolyline, pointAtShare } from './inventory.ts';
 import { SKIN_GROWERS, type SkinArm, type SkinJunction, type Vec3 } from './types.ts';
+import { braidRootEnds } from './braid-arm.ts';
 
 /** Two growing vessels that land on one host within this many of the host's radii of each other (along its axis) share one virtual node and one skin; farther apart, each has its own. */
 export const WALL_GROUP_R = 8;
@@ -34,6 +35,29 @@ export function wallLandings(welded: ReadonlySet<string>, network: readonly NetV
       for (const { h, pts: hp } of hosts) {
         const r = nearestOnPolyline(hp, p);
         if (r.d > SIDE_TOL_R * h.radius || r.u <= SIDE_EDGE || r.u >= 1 - SIDE_EDGE) continue;
+        if (!best || r.d / h.radius < best.d) best = { v, end, host: h, u: r.u, d: r.d / h.radius };
+      }
+      if (best) out.push(best);
+    }
+  }
+  return out;
+}
+
+/** The ends of the growing vessels and the ROOT ends of the braided collaterals (braid-arm.ts: where the strands leave as one bundle) not in `welded` that lie inside a permanent vessel's wall anywhere, its ends too, away
+ *  from their own node (placed anatomy: the short gastric veins leave the splenic vein beside SVD though the engine joins them at SV; the spontaneous splenorenal shunt opens at SV beside the distal one's SVD). They only
+ *  ever become arms of a skin already there (attachNear); the side-wall skins are wallLandings' alone. */
+export function nearLandings(welded: ReadonlySet<string>, network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): WallLanding[] {
+  const out: WallLanding[] = [];
+  const hosts = network.filter(isPermanent).map((h) => ({ h, pts: coursesOf(h, state)[0]!.pts as readonly Vec3[] }));
+  for (const v of network) {
+    if (v.feeder || v.id.includes('~F')) continue;
+    for (const end of isGrower(v) ? ([0, 1] as const) : braidRootEnds(v, state)) {
+      if (welded.has(`${v.id}:${end}`)) continue;
+      const pts = coursesOf(v, state)[0]!.pts, p = pts[end ? pts.length - 1 : 0]!;
+      let best: WallLanding | null = null;
+      for (const { h, pts: hp } of hosts) {
+        const r = nearestOnPolyline(hp, p);
+        if (r.d > SIDE_TOL_R * h.radius) continue;
         if (!best || r.d / h.radius < best.d) best = { v, end, host: h, u: r.u, d: r.d / h.radius };
       }
       if (best) out.push(best);

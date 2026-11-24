@@ -17,7 +17,7 @@ import { NETWORK_BY_ID } from '../network.ts';
 import { REST, seamState, type ShapeState } from '../shape.ts';
 import { PIN_MARGIN, type Pin } from '../coil.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
-import { attachNear, wallJunctions, wallLandings } from './wall.ts';
+import { attachNear, nearLandings, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
 import { BULGE_MAX, PACES, buildSkinSteady, hullCovers, onWall, worstBulge } from './mesh.ts';
@@ -605,8 +605,10 @@ export class SkinSet {
     const near = all.map((j) => { const d = dropFarGrowers(j); for (const id of d.far) farGone.push({ node: j.node, id }); return d.junction; }).filter((j) => j.arms.length >= MIN_ARMS);
     // ...and every growing vessel's end that is not an arm of a node's skin lands on a host's WALL (spec 10.1, wall.ts): each makes a virtual node on the host, built STILL like any other (its growing arm whole, the weld hands over at growth 0.9 to 1)
     const welded = new Set(near.flatMap((j) => j.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`)));
-    const lands = phase === 2 ? attachNear(near, wallLandings(welded)) : { junctions: near, left: [] };
-    const walls = wallJunctions(lands.left);
+    // (an end that lands at another node's skin, off its own node (a braid's root, or a growing end at a host's end), is an arm of that skin; only a side-wall landing makes a wall skin)
+    const onWalls = phase === 2 ? wallLandings(welded) : [], wallKeys = new Set(onWalls.map((l) => `${l.v.id}:${l.end}`));
+    const lands = phase === 2 ? attachNear(near, [...onWalls, ...nearLandings(welded).filter((l) => !wallKeys.has(`${l.v.id}:${l.end}`))]) : { junctions: near, left: [] };
+    const walls = wallJunctions(lands.left.filter((l) => wallKeys.has(`${l.v.id}:${l.end}`)));
     near.length = 0; near.push(...lands.junctions, ...walls.junctions);
     for (const l of walls.skipped) this.dropped.push(`wall:${l.host.id}:${l.v.id}`);
     for (const f of farGone) this.dropped.push(`${f.node}:${f.id}`);   // (named whether or not a wall skin takes the end up: the node's own skin goes without it)
