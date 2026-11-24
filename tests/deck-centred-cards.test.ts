@@ -85,8 +85,9 @@ test('behind a case card the camera keeps the slide\'s own framing (one shot, no
   assert.equal(viewAt(stops, { stop: 0, beat: 0 } as never).words, 'case');
   assert.equal(viewAt(stops, { stop: 0, beat: 0 } as never).shot, viewAt(stops, { stop: 0, beat: 1 } as never).shot, 'the case card and the lifted card share one framing: no second move');
   const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
-  assert.match(layer, /' on dip'/);
-  assert.match(readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8'), /\.pz-veil\.dip \{ opacity: 0\.85/);
+  // (no figure dim behind a case card, 01bcfaca: the veil is `on` for the outline only, `soft` for the quick check)
+  assert.doesNotMatch(layer, /' on dip'/);
+  assert.match(readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8'), /\.pz-veil\.soft \{ opacity: 0\.5/);
   const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
   assert.match(frame, /--pz-fit/); assert.match(frame, /12 \/ lb/);
 });
