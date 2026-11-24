@@ -87,6 +87,11 @@ export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { ce
     shapes.push({ k: 'line', x1: G.L, x2: G.R, y1: g.y, y2: g.y, pen: { color: gl.stroke!, w: gl.width ?? 1 } });
   });
 
+  // The unit, once, turned up the left edge in the gutter between the card's edge and the plot's lines, centred on the plot (24 Nov, Mohammad: "G1 ... needs some margin"). A turned word's baseline is its
+  // right-hand side, so the baseline stands a quarter of the type right of the gutter's middle and the letters sit as far from the card's edge as from the lines.
+  const uk = lk('plot.unit');
+  shapes.push(text(G.L / 2 + 0.26 * uk.size!, (G.T + G.Z) / 2, 'mmHg', uk, { rot: -90 }));
+
   // The line's fill, closed down to the zero line, and the line: one piece a span of the gradient.
   const line = smooth(xs, py), np = line.length / 2, fillK = lk('prof.fill').opacity ?? 0.16;
   for (let q = 0; q < np - 1; q++) {
