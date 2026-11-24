@@ -13,6 +13,8 @@ import type { Box } from './geometry.ts';
 import { PILL_GAP, placePillsInto, pillsClear } from './cath2d/cath-pill.copied.js';
 import { placeBeside } from './cath2d/cath-place.copied.js';
 import { planStack } from './cath2d/cath-leads.copied.js';
+import { segsCross, segHitsBox } from './cath2d/seg-hits.copied.js';
+import { boxLeader } from './tag-lead.ts';
 
 const C = LS.CATH;
 export { PILL_GAP };
@@ -216,12 +218,27 @@ export function leadersOf(boxAt: Pt, geom: SumGeom, points: readonly [Pt, Pt], t
 export function planLeaders(boxAt: Pt, geom: SumGeom, points: readonly [Pt, Pt], kept: boolean): { swap: boolean; clean: boolean; d: [string, string]; dots: [Pt, Pt] } {
   const [x, y] = boxAt, R = geom.rows.map((r) => [r.x, r.y, r.w, r.h]);
   const S = planStack(points.map((p) => [p[0], p[1]]), R, x, y, geom.w, geom.h, kept, false);
+  // Every leader is ONE straight line from its row to its point (Mohammad, 24 Nov: "should be straight line not zigzag"). The 2D planner's other row ran its leader out of its left edge, down the side of the
+  // column and back (four points) so that it never crossed; here the order of the rows is chosen so that two straight lines do not cross and neither runs through the other row, and a leader that cannot
+  // avoid it stays straight all the same.
+  type Rect = { x: number; y: number; w: number; h: number };
+  const top = S.top as number, bot = S.bot as number;
+  const mine = (): Rect[] => [0, 1].map((j) => ({ x: (S.rect[j] as Float64Array)[0]!, y: (S.rect[j] as Float64Array)[1]!, w: (S.rect[j] as Float64Array)[2]!, h: (S.rect[j] as Float64Array)[3]! }));
+  const cur = mine();
+  // the other order: the two rows exchange their places in the column (the gap between them is kept)
+  const alt = cur.map((r) => ({ ...r })), y0 = cur[top]!.y, gap = cur[bot]!.y - (cur[top]!.y + cur[top]!.h);
+  alt[bot]!.y = y0; alt[top]!.y = y0 + cur[bot]!.h + gap;
+  const lines = (rs: Rect[]): [number, number, number, number][] => [0, 1].map((j) => boxLeader(rs[j]!, { x: points[j]![0], y: points[j]![1] }) ?? [rs[j]!.x, rs[j]!.y + rs[j]!.h / 2, points[j]![0], points[j]![1]]);
+  const faults = (rs: Rect[], L: [number, number, number, number][]): number => {
+    let n = segsCross(L[0]!, L[1]!) ? 1 : 0;
+    for (let j = 0; j < 2; j++) { const o = rs[1 - j]!; if (segHitsBox({ x0: L[j]![0], y0: L[j]![1], x1: L[j]![2], y1: L[j]![3] }, { x0: o.x, y0: o.y, x1: o.x + o.w, y1: o.y + o.h }, 0)) n++; }
+    return n;
+  };
+  const L1 = lines(cur), L2 = lines(alt), f1 = faults(cur, L1), f2 = faults(alt, L2);
+  const useAlt = f2 < f1, L = useAlt ? L2 : L1;
   const f = (n: number) => n.toFixed(1), d = ['', ''] as [string, string];
-  for (let j = 0; j < 2; j++) {
-    const L = S.lead[j] as Float64Array;
-    for (let k = 0; k < S.n[j]; k++) d[j] += `${k ? ' L' : 'M'}${f(L[k * 2] - x)} ${f(L[k * 2 + 1] - y)}`;
-  }
-  return { swap: S.swap as boolean, clean: S.clean as boolean, d, dots: [[points[0][0] - x, points[0][1] - y], [points[1][0] - x, points[1][1] - y]] };
+  for (let j = 0; j < 2; j++) d[j] = `M${f(L[j]![0] - x)} ${f(L[j]![1] - y)} L${f(L[j]![2] - x)} ${f(L[j]![3] - y)}`;
+  return { swap: useAlt ? !(S.swap as boolean) : (S.swap as boolean), clean: Math.min(f1, f2) === 0, d, dots: [[points[0][0] - x, points[0][1] - y], [points[1][0] - x, points[1][1] - y]] };
 }
 
 // ── how they come ──

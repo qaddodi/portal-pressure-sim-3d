@@ -31,6 +31,7 @@ import { askOf, eusStationOf, layersWant, procKey, specFor, stepsOfPlan, stopOf,
 import { setProcStep } from './proc-step.ts';
 import { runCards, type CardRun } from '../../scene/labels/proc-cards.ts';
 import { clearProc, setProc, useProc } from './procs-state.ts';
+import { setSlidePin } from '../tests/slide/pin.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 
 /** The camera's glide to a step's shot, and the beat after it lands before the step moves (2D LAND_MS): no step starts with the camera on its way. */
@@ -74,9 +75,19 @@ export function linkProcs(): () => void {
   let starting = false;              // the figure is turning to the anatomy before the first step: a Next waits with it
   const cursor = (): ProcCursor => ({ phase, run: !!ctl, at: ctl?.at ?? -1, n: ctl?.n ?? 0, moving: !!sceneApi.procedure.driven?.moving });
 
+  // The slide's own numbers for the run's readings (tests/slide/reads.ts: pinned, a measurement reads the settled state its text, tiles and chart are made of). Without it a run on a talk's slide, which has
+  // no Tests card to pin, read the live shown pressures, which sit within a dead band of the slide's: the EUS-PPG's readouts said 14.8 where the card's text said 14.9 (Mohammad, 24 Nov).
+  let pinned = false;
+  const pinSlide = (): void => {
+    const s = slideNow(), { deck } = useUi.getState(), i = s && deck ? copiedOf(deck.id)?.slides.indexOf(s) ?? -1 : -1;
+    const fp = deck && i >= 0 ? (useStates.getState().results[deck.id]?.[i]?.fp as Record<string, unknown> | undefined) ?? null : null;
+    if (fp) { setSlidePin(fp); pinned = true; }
+  };
+  const unpinSlide = (): void => { if (pinned) { pinned = false; setSlidePin(null); } };
+
   function stopPlay(): void {
     gen++;
-    endCards();
+    endCards(); unpinSlide();
     timers.forEach((t) => clock.cancel(t)); timers = [];
     sceneApi.follow(null);
     if (playing || held) { sceneApi.procedure.stop(); playing = false; held = false; }
@@ -136,7 +147,7 @@ export function linkProcs(): () => void {
     ctl = c; playing = true; phase = 'run';
     // The measurement's readings stand on the figure as label tags (2D proc-anim.js `labels`): the talk's run never started them, only the Tests cards did, so the EUS-PPG's PV and HV, the IR pressures and the HVPG's
     // readings showed nowhere on the slides. Each is taken at its step's mark (`capture`; nothing else takes them here); the figure's names stand aside as they do on the Tests cards (the HVPG's keep theirs).
-    endCards();
+    endCards(); pinSlide();
     if ((sp as { labels?: unknown }).labels) cards = runCards(kind, { capture: true, quiet: kind !== 'hvpgcath' });
     sceneApi.procedure.drive(kind, {
       keep: hold,

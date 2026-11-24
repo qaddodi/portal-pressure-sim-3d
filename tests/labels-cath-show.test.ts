@@ -187,3 +187,19 @@ test('the EUS-PPG\'s stack stands midway between its two points, beside them, no
   const s = show.frame.sum!;
   assert.ok(s.y > 300 && s.y + s.geom.h < 800, `the stack is in the middle, not at the top (y ${s.y})`);
 });
+
+test('every stack leader is ONE straight line from its row to its point, whatever the stack\'s place (24 Nov: the PV leader zigzagged)', async () => {
+  const { planLeaders, sumLayout, tagType, placeStack } = await import('../src/scene/labels/cath.ts');
+  const t = tagType(vp), r = (kicker: string, v: string) => ({ kicker, value: v, unit: 'mmHg', tone: 'free' as const });
+  const band = { x0: 0, y0: 56, x1: 1280, y1: 800 };
+  for (const [tip, ahead] of [[[320, 250], [300, 600]], [[300, 600], [320, 250]], [[600, 400], [650, 330]], [[200, 700], [700, 120]], [[640, 400], [640, 410]]] as const) {
+    for (const swap of [false, true]) {
+      const geom = sumLayout(t, [r('PV', '20.0'), r('HV', '5.2')], r('EUS-PPG', '14.8'), measure, false, swap);
+      for (const mid of [false, true]) {
+        const at = placeStack(tip, ahead, geom.w, geom.h, band, [], mid);
+        const plan = planLeaders([at.x, at.y], geom, [ahead, tip], swap);
+        for (const d of plan.d) assert.match(d, /^M[-\d.]+ [-\d.]+ L[-\d.]+ [-\d.]+$/, `one straight segment, got "${d}"`);
+      }
+    }
+  }
+});

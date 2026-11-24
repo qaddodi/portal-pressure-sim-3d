@@ -53,3 +53,10 @@ test('the talk\'s run starts, feeds and ends the reading cards for every kind th
   assert.ok(ends.length >= 4, 'ended on the next run, on the way out, on the run\'s end and when something else takes the figure');
   assert.match(src, /gen\+\+;\s*endCards\(\);/, 'and the first thing leaving a slide does');
 });
+
+test('the talk\'s run pins the slide\'s own state for its readings, so the readouts and the card text print one number (24 Nov: 14.8 against 14.9)', () => {
+  const src = readFileSync(new URL('../src/ui/deck/procs-link.ts', import.meta.url), 'utf8');
+  assert.match(src, /setSlidePin\(fp\)/, 'a run pins the slide\'s fingerprint');
+  assert.match(src, /endCards\(\); pinSlide\(\);/, 'before the readings start');
+  assert.match(src, /endCards\(\); unpinSlide\(\);/, 'and lets go when the run is stopped');
+});
