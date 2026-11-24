@@ -89,7 +89,7 @@ export function AbdomenPane({ square }: { square?: number }) {
           <div className="ab-vol">
             <div className="ab-vol-l"><div className="ab-trend">{v.trend}</div></div>
             <div className="ab-gauge">
-              <div className="ab-belly" style={host.slide && square ? { width: square, height: square } : undefined}>
+              <div className="ab-belly" style={host.slide && square ? { width: square, height: square, maxHeight: 'none' } : undefined}   /* (2D's own rule caps a belly's height at 22 pzh, 86 px on a phone on its side, while this width stays: a pill with the litres clipped, capture 4fb2f869) */>
                 <i className="ab-belly-fill" style={{ translate: riseTxt(v.fill) }} />
                 <div className="ab-big">
                   <b data-sev={v.sev}><span>{v.num}</span><small>L</small></b>

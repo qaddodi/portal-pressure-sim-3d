@@ -31,3 +31,11 @@ test('the name column is never narrower than the longest word a name holds', () 
   assert.equal(longestWord([]), 0);
   assert.match(readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8'), /--dk-name: max\([^;]*var\(--dk-wn/);
 });
+
+test('Ascites 13 prints the litres the model holds before the tap, not a fixed 6 L; the belly is as tall as it is wide', async () => {
+  const { AMEND } = await import('../src/decks/ag/ascites-amend.ts');
+  assert.match(AMEND.lvpLine.to, /\{asc@tense\}/);
+  assert.ok(!/6 L/.test(AMEND.lvpLine.to));
+  const pane = readFileSync(new URL('../src/ui/tests/abdomen/AbdomenPane.tsx', import.meta.url), 'utf8');
+  assert.match(pane, /width: square, height: square, maxHeight: 'none'/, "2D's 22 pzh height cap squashed the ring to 86 px high on a phone on its side");
+});
