@@ -27,13 +27,13 @@ test('on a phone held upright the whole hexagon is about 2D\'s share of the free
   assert.ok(h.shareH < 1, 'and fits the room\'s height');
 });
 
-test('on a laptop or an iPad the hexagon is fitted by its height (2D\'s 1.04 R), the labels having 1.52 R either side', () => {
+test('on a laptop or an iPad the whole lobule (corners and tract glow: 1.12 R by 0.98 R) is fitted into the free room (24 Nov: more zoomed in, the entire lobule fills the space)', () => {
   for (const [W, H] of [[1440, 900], [1024, 768], [844, 390], [1180, 820]] as const) {
     const room = roomOf(W, H), h = hexOn(W, H, room);
     assert.ok(W >= NARROW_STAGE);
-    const k = Math.min(room.w / (2 * 1.52), room.h / (2 * 1.04));   // px per R, 2D's fitInto
+    const k = Math.min(room.w / (2 * 1.12), room.h / (2 * 0.98));   // px per R, the lobule's own bounds fitted whole
     const want = 2 * k;   // the hexagon is 2 R wide
-    assert.ok(Math.abs(h.w - want) / want < 0.005, `${W}x${H}: hexagon ${h.w.toFixed(0)} px wide, 2D's ${want.toFixed(0)}`);
+    assert.ok(Math.abs(h.w - want) / want < 0.005, `${W}x${H}: hexagon ${h.w.toFixed(0)} px wide, the fit's ${want.toFixed(0)}`);
     assert.ok(h.w < room.w && h.h < room.h, `${W}x${H} whole in the room`);
   }
 });
@@ -44,7 +44,7 @@ test('the deck and free-play cameras are one shot; the central vein station stay
   assert.ok(fit.halfNarrow && cv.halfNarrow);
   assert.ok(Math.abs(cv.halfNarrow[0] * 2 - fit.halfNarrow[0]) < 1e-15);
   // FILL is the room solver's share; the shot's extents are 2D's frame box times it
-  assert.ok(Math.abs(fit.half[1] - LOBULE_R * 1.04 * FILL * LOBULE_SCALE) < 1e-15);
+  assert.ok(Math.abs(fit.half[1] - LOBULE_R * 0.98 * FILL * LOBULE_SCALE) < 1e-15);
 });
 
 test('a blend of two poses keeps a narrow extent that only one of them has', () => {

@@ -84,6 +84,9 @@ export function linkScene(): () => void {
     if (room.w <= 0 || room.h <= 0) return;   // the cards have not been measured yet: no room to frame in
     // the room belongs to another slide (its cards are still being measured, stepped down or fitted): the slide's move waits for its own final room, so the camera goes there once, never to an early one and on to the final
     if (boxes.stop != null && boxes.stop !== pos.stop) { owed = owed || stepped; return; }
+    // a case slide's card comes first (24 Nov, Mohammad: "after I hit Next on the case card then we pan/zoom"): the camera stays where the last slide left it while the card shows and the new patient blends in
+    // (hp/link.ts), and the slide's own move starts at the press of Next on the card. `shot` null: nothing was framed yet (a jump straight onto the card), so the camera goes to the slide's framing as before.
+    if (v.words === 'case' && shot !== null) { owed = owed || stepped; return; }
     if (owed) { stepped = true; owed = false; }
     // The catheter's own shots: the tip close up, the balloon just behind it and the vein ahead (2D cathFocus 'tip', both). The route step keeps the slide's own (the whole way in).
     const view = v.scene ? v.scene.view : 'body', close = view === 'body' && !v.slide?.visual ? closeUpOf(at) : null;

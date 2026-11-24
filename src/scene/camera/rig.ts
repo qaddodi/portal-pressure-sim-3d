@@ -121,7 +121,7 @@ export interface ZoomEnds { da: number; db: number; px?: number }
  *  `r`, and the aim goes with the share q directly. Angles stay linear (a turn is not a zoom). */
 export function blendPose(a0: Pose, b0: Pose, k: number, arc = 1, z?: ZoomEnds): Pose {
   const a = fillHalf(a0), b = fillHalf(b0);
-  if (isDive(a, b)) return blendDive(a, b, k, arc);
+  if (isDive(a, b)) return blendDive(a, b, k, arc, z);
   const da = z?.da ?? a.shot.r, db = z?.db ?? b.shot.r, q = zoomShare(da, db, k);
   const room = { x: lerp(a.room.x, b.room.x, q), y: lerp(a.room.y, b.room.y, q), w: lerp(a.room.w, b.room.w, q), h: lerp(a.room.h, b.room.h, q) };
   const ta = a.shot.target, tb = b.shot.target;
@@ -166,16 +166,31 @@ export function diveRoomShare(ra: number, rb: number, r: number): number {
   if (Math.abs(span) < 1e-12 || !(r > 0)) return 1;
   return Math.min(1, Math.max(0, Math.log(ra / r) / Math.log(ra / rb)));
 }
-function blendDive(a: Pose, b: Pose, k: number, arc = 1): Pose {
+function blendDive(a: Pose, b: Pose, k: number, arc = 1, z?: ZoomEnds): Pose {
   const swing = arc * arcSize(a.shot.r, b.shot.r) * arcBell(k);
   const r = geo(a.shot.r, b.shot.r, k);
   // the share of the way the aim has gone: 0 at the start, 1 at the end, and most of it early when diving in (the distance is still large), so the target is centred before the close part
   const span = a.shot.r - b.shot.r;
   const q = Math.abs(span) < 1e-12 ? k : Math.min(1, Math.max(0, (a.shot.r - r) / span));
+  // The camera's roll turns the picture about the AIM (the room's middle). The aim is still some way from the place dived to for most of the dive (it settles as the distance closes), so a roll
+  // run on top swings that place round the middle in an arc: on a portrait screen the lobule to sinusoid dive sent the sinusoid up and out and back (24 Nov: "crazy places before landing"). The
+  // offset between the aim and the place is turned the other way by the roll (about the view axis, the plane's x and y at the dive's square view), so on screen the place keeps the straight
+  // line it has without a roll and the picture turns about it. Exact at both ends (the offset is nil at the landing, the roll nil at the start of a move that is not rolled).
+  const rl = rollOf(a.shot, b.shot, k).roll ?? 0;
+  // the place dived to (going in) or from (coming out) is the closer end's aim, `c`; the other end's aim, `far`, is where the camera starts looking (or ends)
+  const inNow = a.shot.r >= b.shot.r, c = inNow ? b.shot : a.shot, far = inNow ? a.shot : b.shot;
+  // (inside the liver, lobule <-> sinusoid, the offset is let go as ONE glide on the move's own eased share, not on the distance's share q: q keeps the place nearly where it stood for most of the zoom and then sends it across the
+  //  screen in the last third, a lurch. The place's screen offset is the world offset over the camera's distance, so the world offset is the far end's, times the share left and r / far.r.)
+  const inside = Math.max(a.shot.r, b.shot.r) < BODY_R_MIN, kc = inNow ? k : 1 - k, sk = kc;   // (k is already the move's eased share, and the room's centre goes with it (diveRoomShare is k here), so the place's screen offset is linear in it: one straight line)
+  // (the distance the camera is REALLY at is the room's fit of the shot's extents, not the shot's own r: the offset on screen is over that, so the ends' fitted distances (z) stand in for r)
+  const dEnd = z && z.da > 0 && z.db > 0 ? (inNow ? z.da : z.db) : far.r, dNow = z && z.da > 0 && z.db > 0 ? geo(z.da, z.db, k) : r;
+  const w = inside ? ((1 - sk) * dNow) / dEnd : inNow ? 1 - q : q;
+  let dx = w * (far.target[0] - c.target[0]), dy = w * (far.target[1] - c.target[1]);
+  if (rl !== 0) { const cs = Math.cos(rl), sn = Math.sin(rl); [dx, dy] = [dx * cs - dy * sn, dx * sn + dy * cs]; }
   return {
     shot: {
       yaw: lerpAngle(a.shot.yaw, b.shot.yaw, k) + ARC_YAW * swing, pitch: lerp(a.shot.pitch, b.shot.pitch, k) + ARC_PITCH * swing, r,
-      target: [lerp(a.shot.target[0], b.shot.target[0], q), lerp(a.shot.target[1], b.shot.target[1], q), lerp(a.shot.target[2], b.shot.target[2], q)],
+      target: [c.target[0] + dx, c.target[1] + dy, lerp(a.shot.target[2], b.shot.target[2], q)],
       half: [geo(a.shot.half[0], b.shot.half[0], k), geo(a.shot.half[1], b.shot.half[1], k)],
       ...rollOf(a.shot, b.shot, k),
       ...narrowOf(a.shot, b.shot, (x, y) => geo(x, y, k)),

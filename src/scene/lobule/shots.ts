@@ -44,6 +44,10 @@ const YAW = 0, PITCH = 0;
  *  subject, so each half is made FILL of 2D's, and the hexagon lands the size 2D's `k` gives it. */
 const FIT_HALF: [number, number] = [LOBULE_R * 1.52 * FILL, LOBULE_R * 1.04 * FILL];
 const FIT_HALF_NARROW: [number, number] = [LOBULE_R * 1.05 * FILL, LOBULE_R * 1.02 * FILL];
+/** The whole-lobule shot ('lobule' / 'lobule:fit') frames the lobule's own bounds (24 Nov, Mohammad: "could be more zoomed in so the entire lobule fits the available space"): the hexagon's corners and the glow of the
+ *  portal tracts on them reach 1.12 R either side and 0.98 R up and down (measured on the shipped picture), so the free room is fitted to that box on every screen, not to 2D's 1.52 R of room for labels
+ *  (the labels sit over the figure on leaders). A narrow stage keeps its own box, which is already the lobule's width. The stations (triad, sinusoid, central) keep 2D's box: they are zooms of it. */
+const FIT_BOUNDS: [number, number] = [LOBULE_R * 1.12 * FILL, LOBULE_R * 0.98 * FILL];
 
 /** The shot for a lobule camera name (world units: inside the liver). */
 export function lobuleShot(cam: LobuleCam): Shot {
@@ -58,7 +62,7 @@ export function lobuleShot(cam: LobuleCam): Shot {
     yaw: YAW, pitch: PITCH,
     r: (part === 'fit' ? 6 : 2.5) * LOBULE_SCALE,
     target: lobuleWorld([ox + along * LOBULE_R, oy, oz]),
-    half: [(FIT_HALF[0] / st.zoom) * LOBULE_SCALE, (FIT_HALF[1] / st.zoom) * LOBULE_SCALE],
+    half: part === 'fit' ? [FIT_BOUNDS[0] * LOBULE_SCALE, FIT_BOUNDS[1] * LOBULE_SCALE] : [(FIT_HALF[0] / st.zoom) * LOBULE_SCALE, (FIT_HALF[1] / st.zoom) * LOBULE_SCALE],
     halfNarrow: [(FIT_HALF_NARROW[0] / st.zoom) * LOBULE_SCALE, (FIT_HALF_NARROW[1] / st.zoom) * LOBULE_SCALE],
   };
 }
