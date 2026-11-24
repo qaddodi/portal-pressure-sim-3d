@@ -418,7 +418,8 @@ export class CelScene {
     if (g.next(false).done) { this.building = null; return false; }
     return true;
   }
-  /** Runs the build one step per task: `next` gives the page back between steps (a task of its own: the cover's bar, the browser's input and the compositor run in the gaps). A step that yields a promise is awaited. Ends early if `finishNow` built the rest meanwhile. */
+  /** Runs the build one step per task: `next` gives the page back between steps (a task of its own: the cover's bar, the browser's input and the compositor run in the gaps).
+   *  A step that yields a promise is awaited. Ends early if `finishNow` built the rest meanwhile. */
   async finishSliced(next: () => Promise<void>): Promise<void> {
     const g = this.building;
     if (!g) return;
@@ -451,7 +452,9 @@ export class CelScene {
     if (bakedPending()) {
       // (the boot's driver waits for the file here and builds the skins in steps of their own; one that cannot wait builds them when it lands, as before)
       if (yield bakedReady) yield* this.refreshSkinsSteps();
-      else void bakedReady.then(() => { if (this.disposed) return; this.refreshSkins(); this.applyMates(); this.moving = true; clock.invalidate('skins'); });
+      else {
+        void bakedReady.then(() => { if (this.disposed) return; this.refreshSkins(); this.applyMates(); this.moving = true; clock.invalidate('skins'); });
+      }
     } else yield* this.refreshSkinsSteps();
     this.applyMates();
     this.occ.snap(useSettings.getState().hideBehind ? 1 : 0); for (const o of this.back) o.setOcclusion(this.occ.value);

@@ -105,7 +105,7 @@ test('the build bakes the skins before the bundler, the scene builds nothing bef
   const build = text('../scripts/build.mjs');
   assert.ok(build.indexOf('bake-skins.mjs') > 0 && build.indexOf('bake-skins.mjs') < build.indexOf('vite.js'));
   const scene = text('../src/scene/scene.ts');
-  assert.match(scene, /if \(bakedPending\(\)\) void bakedReady\.then\(\(\) => \{[^}]*this\.refreshSkins\(\)/, 'with the file still on its way the skins are built when it lands');
+  assert.match(scene, /if \(bakedPending\(\)\) \{[\s\S]*?void bakedReady\.then\(\(\) => \{[^}]*this\.refreshSkins\(\)/, 'with the file still on its way the skins are built when it lands');
   assert.match(scene, /baked: bakedSkins,/);
   assert.match(text('../src/main.tsx'), /await Promise\.all\(\[fontsReady\(\), engineBooted[^\]]*bakedReady[^\]]*\]\)/, 'the first picture is after the file');
   assert.match(text('../.gitignore'), /public\/anatomy\/skins\.bin/, 'a built file is not committed (organs.bin beside it is)');
