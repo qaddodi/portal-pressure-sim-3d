@@ -3,7 +3,8 @@
 // The names with no room at their anchor take the nearest other spot of their own organ (nameSpots, 2D world units, nearest the anchor first) that no vessel
 // touches; a name that stands beside its organ (the spleen's above it, the kidney's below it, the atrium's and the esophagus's at their side) needs the
 // organ's silhouette to know how near is near enough, and every name keeps off the other organs where it can ("RIGHT ATRIUM on the esophagus", 11 Nov). The
-// silhouettes are the organs' 2D outlines (the same ones the 3D organs are extruded from, frame2d.ts), projected by the camera each time labels are solved.
+// silhouettes are the organs' 2D outlines (the same ones the 3D organs are extruded from, frame2d.ts), projected by the camera each time labels are solved. On the approved placement
+// (anatomy/source.ts PLACED) they are the placed organs' front silhouettes and the names stand at the placed anchors (organ2d/placed-spots.ts), by the same rules.
 // @ts-ignore copied plain JS
 import { ORGANS } from './organ2d/outlines.copied.js';
 // @ts-ignore copied plain JS
@@ -11,12 +12,15 @@ import { flattenPath } from './organ2d/flatten.js';
 // @ts-ignore copied plain JS
 import { nameSpots, NAME_ORGAN, OFF_NEAR } from './organ2d/organ-names.copied.js';
 import type { Box } from './geometry.ts';
+import { PLACED, PLACED_ORGAN_RINGS } from '../anatomy/source.ts';
+import { placedNameSpots } from './organ2d/placed-spots.ts';
 
 type Ring = [number, number][];
 const flat = new Map<string, Ring[]>();
 /** The organ's outline as rings of 2D world points, flattened to about 4 units a piece (cut once, kept). */
 function ringsOf(id: string): Ring[] {
   let r = flat.get(id);
+  if (!r && PLACED) flat.set(id, r = (PLACED_ORGAN_RINGS[id] ?? []).map((q) => q.map(([x, y]) => [x, y] as [number, number])).filter((q) => q.length > 2));   // (the approved placement's front silhouettes, measured once: anatomy/placed-organs.generated.ts)
   if (!r) {
     const o = (ORGANS as { id: string; d?: string; ring?: string }[]).find((q) => q.id === id);
     const polys: { pts: number[] }[] = o ? flattenPath((o.ring ?? o.d)!, 4) : [];
@@ -116,6 +120,6 @@ export function shareOnOther(name: string, sil: Silhouettes, b: Box): number {
 /** The other places a name may stand (centres of its box, canvas px offsets from its anchor's screen point), nearest the anchor first. */
 export function spotOffsets(name: string, anchor2d: readonly [number, number], to: To2Screen): [number, number][] {
   const a = to(anchor2d[0], anchor2d[1]);
-  return (nameSpots(name) as [number, number][]).map(([x, y]) => { const p = to(x, y); return [p[0] - a[0], p[1] - a[1]] as [number, number]; });
+  return ((PLACED ? placedNameSpots(name) : nameSpots(name)) as [number, number][]).map(([x, y]) => { const p = to(x, y); return [p[0] - a[0], p[1] - a[1]] as [number, number]; });
 }
 export { OFF_NEAR };
