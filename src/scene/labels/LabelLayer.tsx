@@ -365,7 +365,7 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
     if (r.name) {
       const word = r.geo ? '' : d.word;   // (the controller's own words for this form; an organ's already stand in capitals; a stent's lines are written in its own box)
       r.name.textContent = word;   // (an empty name takes no room: labels.css `.lb-name:empty`)
-      el.dataset.form = word ? String(d.form) : '2';
+      el.dataset.form = word ? '0' : '2';   // ('2' is the number alone, whatever index the form has: the solver's third form is the full name with its reading bare, whose gap was zeroed here: "Left portal vein22.4", capture 572259fd)
       if (d.rev) el.setAttribute('data-rev', ''); else el.removeAttribute('data-rev');
       el.style.setProperty('--b', `${px(baselineAt(d.h, d.pad.y))}px`);
     }

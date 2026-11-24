@@ -8,6 +8,7 @@ import { FADE } from './alpha.ts';
 import { type Box, hits, within, grow } from './geometry.ts';
 import { PILL_GAP, tagType, tagSize, type TagType, type Measure } from './cath.ts';
 import { calloutClaims } from './callout-claims.ts';
+import { AIR_BLOCKER } from './solver.ts';
 import { makeTag, words, fade, place, size, show, TagLead, type Tag } from './tag-dom.ts';
 import { boxLeader, leaderToEdge, leaderShort, LEAD_AIR } from './tag-lead.ts';
 import { restyle } from './roll.ts';
@@ -106,6 +107,10 @@ const MARK_WEIGHT = 650;
 const MARK_AIR = 2;
 
 export { boxLeader, leaderToEdge, LEAD_AIR };
+
+/** The cards (and the key, the bar) a callout keeps off, each grown by the station names' own air (solver.ts AIR_BLOCKER): the keep-out was the card's bare edge, so the gastroesophageal junction's words stood
+ *  flush under the patient card, their halo touching it (capture 572259fd, varices 2.2 to 2.4). */
+export const cardKeepOut = (blockers: readonly Box[]): Box[] => blockers.map((b) => grow(b, AIR_BLOCKER));
 
 /** A card's size: a mark is one line of words (a vessel's, an organ's, the lobule's ring callout: the station names' look, words with a halo, its box its words and a breath of air); a step's
  *  number is a bold numeral (its box the old disc's size, so it stands where it did); the portal blood's split is its own markup. */
@@ -459,7 +464,7 @@ export class FigureCards {
     const hold = now - this.lastMove < FADE.settleMs;
 
     // solve once the picture is still and something changed
-    const blockers = d.blockers();
+    const blockers = cardKeepOut(d.blockers());
     const sig = [this.cards.map((c) => c.id + c.text + (c.value ?? '')).join(','), this.calipers.map((c) => c.id + c.text).join(','), this.spans.map((c) => c.id + c.text + (strokes.has(c.id) ? 1 : 0)).join(','), view.x0, view.y0, view.x1, view.y1, blockers.map((b) => `${Math.round(b.x0)},${Math.round(b.y0)},${Math.round(b.x1)},${Math.round(b.y1)}`).join(';'), vp.w, vp.h].join('|');
     if (!hold && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
