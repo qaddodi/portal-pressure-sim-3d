@@ -83,8 +83,9 @@ const tagWords = (): string => [...document.querySelectorAll('.lb-layer .cl-k')]
 /** Waits until nothing is arriving for a moment, at most five seconds. Returns what was still moving when it gave up ('' when it settled) and the callouts' words at that moment. A catheter against a blocked vein says "Occluded" for
  *  only 2.6 s (BLOCKED_SAYS) before "No reading", so the wait is short once those words stand (a few real frames) and the picture is taken while they are up. At speed N the clock's waits are N times shorter in real time, so the
  *  real pauses are given in page time (`real`). */
-async function stillPage(real: (ms: number) => number, needWords = false): Promise<{ moving: string; words: string; perpetual: string }> {
-  await sleep(real(60));   // (the press has reached the cards: they mount and begin on the next frames)
+async function stillPage(real: (ms: number) => number, needWords = false, fast = false): Promise<{ moving: string; words: string; perpetual: string }> {
+  const q = fast ? 0.4 : 1;   // (skip mode: the waits that only existed for animations to play are cut to two fifths; the checks themselves are the same)
+  await sleep(real(60 * q));   // (the press has reached the cards: they mount and begin on the next frames)
   let frames = 0;
   const off = clock.on('tween', () => { frames++; });   // (frames drawn since this wait began: a strip fills by frames, not by the clock)
   const t0 = clock.now(), limit = real(needWords ? 14000 : 12000);
@@ -92,12 +93,12 @@ async function stillPage(real: (ms: number) => number, needWords = false): Promi
   while (clock.now() - t0 < limit) {
     why = arriving(clock.now() - t0 < real(10000), clock.now() - t0 < real(9000), frames); words = tagWords();   // (the clock's motion list counts for 4 s of the 5: a hold that is still there after that is a perpetual one, and is said in the README)
     if (!why && needWords && !words.includes(BLOCKED_SAYS.first) && !words.includes(BLOCKED_SAYS.then)) why = 'the blocked catheter has no words yet';
-    if (!why) { if (still < 0) still = clock.now(); else if (clock.now() - still >= real(words.includes(BLOCKED_SAYS.first) ? 25 : 60)) { why = ''; break; } } else still = -1;
-    await sleep(real(15));
+    if (!why) { if (still < 0) still = clock.now(); else if (clock.now() - still >= real((words.includes(BLOCKED_SAYS.first) ? 25 : 60) * q)) { why = ''; break; } } else still = -1;
+    await sleep(real(fast ? 8 : 15));
   }
   off();
   const gaveUp = clock.now() - t0 >= limit;
-  if (!words.includes(BLOCKED_SAYS.first)) await sleep(real(30));   // (the last frame: the charts draw their last mesh, the callouts have placed)
+  if (!words.includes(BLOCKED_SAYS.first)) await sleep(real(30 * q));   // (the last frame: the charts draw their last mesh, the callouts have placed)
   const soft = arriving(false, true, frames);
   const perpetual = [clock.moving > 0 ? `the clock still held motion after 4 s (${clock.movingTags().join(', ')})` : '', soft ? `${soft}, still, after 3 s (the picture shows it so; it may in the app too)` : ''].filter(Boolean).join('; ');
   return { moving: gaveUp ? why : '', words: tagWords(), perpetual };
@@ -173,7 +174,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         if (pick && !pick.has(stopKey(d.id, k))) {   // (a slide that is not picked is walked past, not taken: the walk still presses Next, so the steps the next slide stands on are the ones a person would reach)
           shownNow = '';
           const t = clock.now();
-          await sleep(real(40));
+          await sleep(real(ui.skip ? 16 : 40));
           while (clock.now() - t < real(1500) && (cel.rig.isMoving || document.querySelector('.dk-card[data-phase="out"], .dk-plate[data-phase="out"]'))) await sleep(real(15));
           return;
         }
@@ -181,12 +182,12 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         if (single && fresh) reached++;
         ui.status(single ? `${reached} of ${pick!.size}: ${d.title} “${title}”` : `${d.title}: ${n} of ${stops} “${title}”`);
         const w0 = new Date().getTime();
-        let { moving, words, perpetual } = await stillPage(real, blockedSlide(k));
+        let { moving, words, perpetual } = await stillPage(real, blockedSlide(k), !!ui.skip);
         // (a picture whose figure, strip or menu has not reached the slide's own state shows the case wrong, whatever the cards say: it waits up to a minute more, and if it still has not, the README says the picture FAILED, so it is retaken, never read: One patient, ten years 9, reviewer 24 Nov 2026)
-        for (let tries = 0; moving && STATE_WAIT.test(moving) && tries < 11; tries++) ({ moving, words, perpetual } = await stillPage(real, blockedSlide(k)));
+        for (let tries = 0; moving && STATE_WAIT.test(moving) && tries < 11; tries++) ({ moving, words, perpetual } = await stillPage(real, blockedSlide(k), !!ui.skip));
         if (moving) notes.push(STATE_WAIT.test(moving) ? `${d.title} ${n}: CAPTURE FAILED, the picture does not show the slide's own state (${moving}); retake it` : `${d.title} ${n}: still not still after 5 s (${moving}); captured as it was`);
         shownNow = words;
-        if (ui.skip) clock.setDrawing(true);
+        if (ui.skip) { clock.setDrawing(true); await sleep(real(34)); }   // (the landed slide is drawn, a frame or two, before the picture)
         if (perpetual && !seen.has(perpetual)) { seen.add(perpetual); notes.push(`${d.title} ${n}: ${perpetual}; the picture was taken anyway`); }
         // a phone on its side with both cards (the words and the instrument stand in one column that a swipe up slides): two pictures of the slide, the teaching card in view, then the column slid up so the instrument is
         const both = isSideways(innerWidth, innerHeight) && !!useUi.getState().boxes.data && !!useUi.getState().boxes.words;
