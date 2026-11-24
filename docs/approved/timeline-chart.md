@@ -70,3 +70,6 @@ Mohammad, 24 Nov: "What to graph and what happened don't scroll on iPhone. They 
 
 ## "MELD", not "MELD-Na" (24 Nov 2026)
 Mohammad, 24 Nov: "Why does it say MELD Na just say MELD". The grey "From the case" words in What to graph read Sodium, Creatinine, Bilirubin, INR, MELD. The Child-Pugh and MELD card still prints MELD-Na beside MELD when a case gives a sodium: it is a second, different score there.
+
+## An opened event eases (24 Nov 2026)
+Mohammad, 24 Nov: "when it expands it doesn't animate transition." Root cause: the details were mounted and unmounted with the click, so the block and every row under it popped. Now the block is the app's one fade (`fade.tsx`, `axis="y"`: a grid that eases 0fr to 1fr, the words fading with it), mounted once a row has been opened and asked off when it closes; the rows below move with it. The opened row's top padding eases too.

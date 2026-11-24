@@ -453,3 +453,11 @@ test('root cause (off variables looked untappable on a phone): the chooser draws
   const { CASE_ONLY } = await import('../src/ui/bigtime/measures.ts');
   assert.deepEqual([...CASE_ONLY], ['Sodium', 'Creatinine', 'Bilirubin', 'INR', 'MELD']);
 });
+
+test('root cause (an opened event popped, with no ease): the details of a row are the app\'s one fade (a grid that eases 0fr to 1fr), kept mounted and asked off, never a removed node', async () => {
+  const { readFileSync } = await import('node:fs');
+  const hap = readFileSync(new URL('../src/ui/bigtime/Happened.tsx', import.meta.url), 'utf8'), css = readFileSync(new URL('../src/ui/bigtime/bigtime.css', import.meta.url), 'utf8');
+  assert.ok(/<Fade on=\{isOpen\} as="div" axis="y"/.test(hap) && /kept\.current\.add\(open\.id\)/.test(hap), 'the block eases and stays mounted');
+  assert.ok(!/\{isOpen && \(/.test(hap), 'no conditional mount');
+  assert.ok(/\.bt-list li > button \{ transition: padding-top var\(--d-small\)/.test(css), 'the opened row\'s own padding eases too');
+});
