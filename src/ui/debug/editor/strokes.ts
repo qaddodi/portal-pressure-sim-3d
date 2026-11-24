@@ -3,7 +3,7 @@
 // (toReference), pulled there, and the pull carried back through L (scale and turn). One stroke costs one pass over the vertices; an undo or a cleared list rebuilds from the start.
 import { type BufferGeometry, Float32BufferAttribute } from 'three';
 import { LIQUIFY_LIMIT, type Cage, type OrganEdit, type Stroke, type V3 } from '../../../editor/types.ts';
-import { cageDisplace, clampEdit, organBox, wendland, type Box } from '../../../editor/organ-apply.ts';
+import { cageDisplace, clampEdit, organBox, softLimit3, wendland, type Box } from '../../../editor/organ-apply.ts';
 import { smoothRestNormals } from '../../../scene/organs/normal-smooth.ts';
 import { toReference } from './state.ts';
 
@@ -47,8 +47,7 @@ export class LiveStrokes {
     const a = this.g.getAttribute('position').array as Float32Array, b = this.base, s = this.sum;
     for (let i = 0; i < a.length; i += 3) {
       let dx = s[i]!, dy = s[i + 1]!, dz = s[i + 2]!;
-      const l = Math.hypot(dx, dy, dz);
-      if (l > LIQUIFY_LIMIT) { const q = LIQUIFY_LIMIT / l; dx *= q; dy *= q; dz *= q; }
+      [dx, dy, dz] = softLimit3(dx, dy, dz, LIQUIFY_LIMIT);
       if (nowCage || this.loadedCage) {   // (the cage's change since the loaded edit, at the vertex's reference place: the geometry already holds the loaded cage's pull)
         const p: V3 = [this.ref[i]!, this.ref[i + 1]!, this.ref[i + 2]!];
         const n = nowCage ? cageDisplace(nowCage, this.box, p) : [0, 0, 0], l0 = this.loadedCage ? cageDisplace(this.loadedCage, this.box, p) : [0, 0, 0];

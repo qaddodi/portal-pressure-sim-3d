@@ -59,7 +59,7 @@ export function cageDisplace(c: Cage, box: Box, p: V3): V3 {
   for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
     const h = c.d[i + nx * (j + ny * k)]!, w = wx[i]! * wy[j]! * wz[k]!;
     if (!w) continue;
-    dx += w * clamp(h[0], -CAGE_LIMIT * size[0]!, CAGE_LIMIT * size[0]!); dy += w * clamp(h[1], -CAGE_LIMIT * size[1]!, CAGE_LIMIT * size[1]!); dz += w * clamp(h[2], -CAGE_LIMIT * size[2]!, CAGE_LIMIT * size[2]!);
+    dx += w * softLimit(h[0], CAGE_LIMIT * size[0]!); dy += w * softLimit(h[1], CAGE_LIMIT * size[1]!); dz += w * softLimit(h[2], CAGE_LIMIT * size[2]!);
   }
   return [dx, dy, dz];
 }
@@ -77,6 +77,21 @@ export function clampEdit(e: OrganEdit): { move: V3; rotY: number; scale: number
   return { move: mv, rotY: fin(e.rotY) ? clamp(e.rotY, -ORGAN_LIMITS.rotY, ORGAN_LIMITS.rotY) : 0, scale: fin(e.scale) ? clamp(e.scale, ORGAN_LIMITS.scaleMin, ORGAN_LIMITS.scaleMax) : 1, strokes, cage: validCage(e.cage) };
 }
 
+/** A smooth saturating limit: `v` itself up to half of `lim`, then it eases (tanh) toward `lim` and never reaches it, so a limit has no plateau edge (a hard clamp makes a flat patch with a crease round it). Odd, so it holds for negative `v`. */
+export function softLimit(v: number, lim: number): number {
+  const a = Math.abs(v), k = lim * 0.5;
+  if (a <= k) return v;
+  const r = k + (lim - k) * Math.tanh((a - k) / (lim - k));
+  return v < 0 ? -r : r;
+}
+/** The same limit on a vector's length (direction kept). */
+export function softLimit3(x: number, y: number, z: number, lim: number): [number, number, number] {
+  const l = Math.hypot(x, y, z);
+  if (l <= lim * 0.5) return [x, y, z];
+  const k = softLimit(l, lim) / l;
+  return [x * k, y * k, z * k];
+}
+
 /** Smooth C2 falloff: 1 at the stroke's centre, 0 (with zero slope and curvature) at its radius. */
 export const wendland = (r: number): number => (r >= 1 ? 0 : (1 - r) ** 4 * (4 * r + 1));
 
@@ -89,9 +104,7 @@ function strokePull(strokes: readonly { at: V3; radius: number; by: V3 }[], x: n
     const w = wendland(d / s.radius);
     dx += s.by[0] * w; dy += s.by[1] * w; dz += s.by[2] * w;
   }
-  const dl = Math.hypot(dx, dy, dz);
-  if (dl > LIQUIFY_LIMIT) { const k = LIQUIFY_LIMIT / dl; dx *= k; dy *= k; dz *= k; }
-  return [dx, dy, dz];
+  return softLimit3(dx, dy, dz, LIQUIFY_LIMIT);
 }
 /** How far an organ's liquify strokes pull a point of its reference frame (scene units): the same falloff and clamp as the mesh vertex at that place. [0, 0, 0] when the organ has no strokes. */
 export function strokeDisplace(edit: OrganEdit | undefined, p: V3): V3 {

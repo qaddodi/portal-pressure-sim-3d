@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ORGAN_MESHES, ORGAN_IDS, setOrganData } from '../src/scene/organs/meshes.ts';
-import { applyOrganEdit, cageRest, organBox, organCentroid, organPointMap, wendland } from '../src/editor/organ-apply.ts';
+import { anglesOf, creaseGain } from './helpers-dihedral.ts';
+import { applyOrganEdit, cageRest, softLimit, softLimit3, organBox, organCentroid, organPointMap, wendland } from '../src/editor/organ-apply.ts';
 import { caudateGeometry } from '../src/scene/organs/caudate.ts';
 import { setOverridesForTest, overrides } from '../src/editor/store.ts';
 import { editableOrgans } from '../src/scene/organs/meshes.ts';
@@ -156,4 +157,26 @@ test('the editor\'s live cage matches the built organ, and setCageHandle holds i
   assert.equal(o.organs![id]!.cage!.d[13]![0], 0.05);
   o = setCageHandle(o, id, 13, [0, 0, 0], [0.05, 0.05, 0.05]);
   assert.equal(o.organs?.[id], undefined);
+});
+
+test('limits are soft: no plateau edge, monotonic, below the limit, linear while small', () => {
+  assert.equal(softLimit(0.01, 0.04), 0.01);
+  let prev = 0;
+  for (let v = 0; v < 1; v += 0.001) { const r = softLimit(v, 0.04); assert.ok(r >= prev - 1e-12 && r <= 0.04); prev = r; }
+  assert.equal(softLimit(-0.3, 0.04), -softLimit(0.3, 0.04));
+  assert.ok(Math.abs(softLimit(0.0200001, 0.04) - softLimit(0.0199999, 0.04)) < 1e-6);   // (continuous at the knee)
+  const [x, y, z] = softLimit3(3, 4, 0, 0.04);
+  assert.ok(Math.hypot(x, y, z) <= 0.04 && Math.abs(x / y - 0.75) < 1e-9);
+});
+
+test('a moderate cage drag or brush stroke creases no edge by more than 0.1 rad, even past the limits', () => {
+  for (const name of ['liver', 'spleen', 'kidney-l'].filter((n) => ORGAN_IDS.includes(n))) {
+    const r = ORGAN_MESHES[name]!(), ra = anglesOf(r), b = organBox(r), c = organCentroid(r), sz = b.hi[0] - b.lo[0];
+    const d = Array.from({ length: 27 }, () => [0, 0, 0] as [number, number, number]);
+    d[13] = [sz * 0.1, sz * 0.05, 0];
+    const cage = ORGAN_MESHES[name]!(); applyOrganEdit(cage, { cage: { n: [3, 3, 3], d } });
+    const brush = ORGAN_MESHES[name]!(); applyOrganEdit(brush, { strokes: [{ at: c, radius: sz * 0.3, by: [0.02, 0, 0] }] });
+    const past = ORGAN_MESHES[name]!(); applyOrganEdit(past, { strokes: [0, 1, 2].map(() => ({ at: c, radius: sz * 0.3, by: [0.2, 0, 0] as [number, number, number] })) });
+    for (const g of [cage, brush, past]) { const q = creaseGain(r, ra, g); assert.ok(q.max < 0.1, `${name}: ${q.max}`); }
+  }
 });
