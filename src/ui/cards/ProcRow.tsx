@@ -7,8 +7,8 @@ import { useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { observeThenFit } from '../layout/fit-later.ts';
 import type { Deck, Slide } from '../../decks/schema.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
-import { procPlanOf } from '../deck/procs-plan.ts';
-import { useProc } from '../deck/procs-state.ts';
+import { procPlanOf, specFor, stepsOfPlan } from '../deck/procs-plan.ts';
+import { useProc, NO_PROC } from '../deck/procs-state.ts';
 import { playProcedure } from '../deck/procs-link.ts';
 import { fitRailName, railOf } from './proc-rail.ts';
 
@@ -19,7 +19,11 @@ const ICON = {
 
 export function ProcRow({ slide, deck }: { slide: Slide; deck: Deck }) {
   const i = deck.slides.findIndex((x) => x.id === slide.id), cs = i < 0 ? null : copiedOf(deck.id)?.slides[i];
-  const mine = useProc((s) => s.key === `${deck.id}/${slide.id}`), st = useProc();
+  const mine = useProc((s) => s.key === `${deck.id}/${slide.id}`), live = useProc();
+  // The row stands from the slide's own plan, not from the store: procs-link writes the store as the position reaches the slide, which can be after the card was measured and let in, and a row that
+  // appeared then grew the card on screen (Mohammad, 24 Nov: cards never change size after landing). Before the store is the slide's, the row is the one it will be at the start: its steps, "N steps", not played.
+  const plan = cs ? procPlanOf(cs) : null;
+  const st = mine || !plan ? live : { ...NO_PROC, steps: stepsOfPlan(plan), phase: 'wait' as const, name: specFor(plan.kind)?.name ?? plan.kind };
   const room = useRef<HTMLSpanElement>(null);
   const r0 = railOf(st), words = `${r0.count}|${r0.name}|${r0.sub}`;
   // the words measured, not guessed: again when they change, when the row's width changes and when the fonts arrive (as the choice rows, ab-short.ts)
@@ -34,7 +38,7 @@ export function ProcRow({ slide, deck }: { slide: Slide; deck: Deck }) {
     const off = observeThenFit([el], () => fitRailName(el));
     return () => { live = false; off(); };
   }, [words, mine]);
-  if (!cs || !procPlanOf(cs) || !mine) return null;
+  if (!cs || !plan) return null;
   const r = r0, n = st.steps.length;
   const track = { ['--n' as string]: String(Math.max(1, n - 1)) } as CSSProperties;
   return (

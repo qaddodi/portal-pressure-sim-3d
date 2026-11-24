@@ -25,11 +25,14 @@ export const WORDS = {
 export const albuminTip = (L: number, warn: boolean): string => (warn
   ? `For >5 L, give albumin (${Math.round(L * 8)} g, 8 g per liter of ascites removed) to prevent post-paracentesis circulatory dysfunction.`
   : 'Albumin 8 g per liter of ascites removed: advised for >5 L, optional for ≤5 L.');
+const IAP_RESERVE_L = 20;
 /** What a slide's paracentesis has taken off so far, in words (Ascites 13): the litres removed, and the albumin to give. Baveno VIII: 6 to 8 g per liter removed when more than 5 L is removed; under that it is optional. */
 export const tapWords = (removedL: number): { removed: string; dose: string } => {
   const r = Math.max(0, Math.round(removedL * 10) / 10);
   return { removed: `${fmt(r, 1)} L removed`, dose: r > 5 ? `Albumin ${Math.round(r * 6)} to ${Math.round(r * 8)} g (6 to 8 g per liter)` : 'Albumin optional under 5 L' };
 };
+/** The longest and the shortest the two lines of a slide's paracentesis can read (nothing taken off, the most the belly holds): the lines' box holds the tallest and widest of them from the first frame, so the card never grows as the litres go. */
+export const TAP_RESERVE: readonly { removed: string; dose: string }[] = [tapWords(0), tapWords(IAP_RESERVE_L)];
 export const albuminText = (L: number, on: boolean): string => (on ? `${Math.round(L * 8)} g` : L > 5 ? WORDS.advised : WORDS.optional);
 
 export interface AbView {
