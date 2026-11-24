@@ -38,12 +38,11 @@ function SpeedMenu() {
   );
 }
 
-function JumpMenu({ compare, chart }: { compare: boolean; chart: boolean }) {
+function JumpMenu({ compare }: { compare: boolean }) {
   const done = () => useShell.getState().close();
   const canUndo = useTimeline((t) => t.canUndo), comparing = useCompare((c) => !!c.snap);
   return (
     <>
-      {chart && <button type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); useShell.getState().open('timeline'); }}><span className="sh-t"><b>{BT.open}</b></span></button>}
       {canUndo && <button type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); runFeature('undo', pb.menu[2]); }}><span className="sh-t">{pb.menu[2]}</span></button>}
       <div className="sh-title">{pb.menu[3]}</div>
       {pb.jumps.map((j) => <button key={j.short} type="button" className="sh-row" style={{ gridTemplateColumns: '1fr' }} onClick={() => { done(); jump(j.days); }}><span className="sh-t">{`Jump ${j.long} ahead`}</span></button>)}
@@ -75,6 +74,12 @@ function Tile({ id, k, value, from, sev, word, ticks, scale = MMHG, unit = 'mmHg
   );
 }
 
+/** The timeline chart's button on a phone held upright (owner picked option 1 of timeline-bar-mocks-24nov, 24 Nov): the plain word with its icon, at the foot of the readout row where the second reading was. */
+function ChartWord() {
+  const charting = useShell((s) => s.sheet === 'timeline');
+  return <button type="button" className="rd-chart" aria-pressed={charting} aria-haspopup="dialog" aria-label={BT.open} title={BT.open} onClick={() => useShell.getState().toggle('timeline')}><I n="chart" className="mi-ic" /><span>Chart</span></button>;
+}
+
 /** The lobule's flows against the healthy patient's, in percent (2D lobuleFlows × 100): the sinusoids' and the portal venule's; null before the model has run. */
 export function lobuleFlowPct(): { 'lz-sin': number; 'lz-pv': number } | null {
   const env = envNow();
@@ -84,6 +89,7 @@ export function lobuleFlowPct(): { 'lz-sin': number; 'lz-pv': number } | null {
 }
 
 function LobuleReadouts() {
+  const upright = useUi((s) => s.device) === 'phone-portrait';   // (a phone held upright keeps the first flow and gives the second one's place to the Chart button)
   useEngine((s) => s.hvpg);   // (a new frame: the reading is worked out from the engine's newest, as the cards are)
   const v = lobuleFlowPct();
   return (
@@ -92,10 +98,11 @@ function LobuleReadouts() {
         <div className="ro-group" data-group="lobule" role="group" aria-label="Lobule, % of normal" style={{ ['--n' as string]: LOBULE_TILES.length }}>
           <span className="ro-cap" aria-hidden="true">Lobule, % of normal</span>
           <div className="ro-tiles">
-            {LOBULE_TILES.map((t) => {
+            {LOBULE_TILES.slice(0, upright ? 1 : LOBULE_TILES.length).map((t) => {
               const x = v ? v[t.id] : null;
               return <Tile key={t.id} id={t.id} k={t.k} value={x} from={0} sev={x == null ? 'ok' : t.sev(x)} word={x == null ? '' : t.word(x)} ticks={[...t.ticks]} scale={t.scale} unit="%" unitWords={t.reversible && x != null && x < -2 ? ' of healthy, reversed' : ' of healthy'} fixed={0} />;
             })}
+            {upright && <ChartWord />}
           </div>
         </div>
       </div>
@@ -105,7 +112,7 @@ function LobuleReadouts() {
 
 /** The dock's readout strip: HVPG and PPG (2D dock.js PRIMARY); the lobule's two key flows in the Lobule and Sinusoid views (2D LOBULE_PRIMARY). */
 export function Readouts() {
-  const view = useShell((s) => s.view);
+  const view = useShell((s) => s.view), upright = useUi((s) => s.device) === 'phone-portrait';
   const hvpg = useEngine((s) => s.hvpg), pv = useEngine((s) => s.pv), ivc = useEngine((s) => s.ivc);
   if (view === 'lobule' || view === 'sinusoid') return <LobuleReadouts />;
   const pos = (v: number) => posIn(MMHG, v);
@@ -117,7 +124,7 @@ export function Readouts() {
           <span className="ro-cap" aria-hidden="true">Pressure</span>
           <div className="ro-tiles">
             <Tile id="hvpg" k="HVPG" value={hvpg} from={0} sev={hvpg == null ? 'ok' : (cuts.hvpgSev(hvpg) as string)} word={hvpg == null ? '' : (cuts.hvpgWord(hvpg) as string)} ticks={[cuts.HVPG_CUTS.amber, cuts.HVPG_CUTS.red]} />
-            <Tile id="ppg" k="PPG" value={ppg} from={ivc != null ? pos(ivc) * SCALE_MAX : 0} sev={ppg == null ? 'ok' : (cuts.ppgSev(ppg) as string)} word={ppg == null ? '' : (cuts.ppgWord(ppg) as string)} ticks={[cuts.PPG_CUTS.amber, cuts.PPG_CUTS.red]} />
+            {upright ? <ChartWord /> : <Tile id="ppg" k="PPG" value={ppg} from={ivc != null ? pos(ivc) * SCALE_MAX : 0} sev={ppg == null ? 'ok' : (cuts.ppgSev(ppg) as string)} word={ppg == null ? '' : (cuts.ppgWord(ppg) as string)} ticks={[cuts.PPG_CUTS.amber, cuts.PPG_CUTS.red]} />}
           </div>
         </div>
       </div>
@@ -130,7 +137,7 @@ export function Timeline({ phone }: { phone: boolean }) {
   const { running, speed, lapse, time } = useShell((s) => s.transport);
   const hold = useRef<{ t: TimerId | undefined; held: boolean }>({ t: undefined, held: false });
   const comparing = useCompare((c) => !!c.snap), histCount = useTimeline((t) => t.count);
-  const charting = useShell((s) => s.sheet === 'timeline'), upright = useUi((s) => s.device) === 'phone-portrait';   // (a phone held upright has no room for the Chart button: the jump menu carries it)
+  const charting = useShell((s) => s.sheet === 'timeline');
   const lap = pb.lapses.find((l) => l.days === lapse);
   const speedText = lapse ? (lap ? lap.short : `${lapse} d/s`) : `${speed}×`;
   return (
@@ -154,7 +161,7 @@ export function Timeline({ phone }: { phone: boolean }) {
       <div className="tl-jumps">
         <Anchored sheet="jump" place="above" align="end" width={300} label={pb.controls[4]} button={({ id, open, toggle, ref }) => (
           <button type="button" ref={ref} className="ib tl-ff" data-opens="jump" aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={pb.controls[4]} title={PLAY_TITLES.ffwd} onClick={toggle}><I n="ffwd" /></button>)}>
-          <JumpMenu compare={phone} chart={upright} />
+          <JumpMenu compare={phone} />
         </Anchored>
       </div>
       <button type="button" className="tl-hist" aria-haspopup="dialog" aria-label={pb.controls[3]} title={PLAY_TITLES.history} onClick={() => runFeature('history', pb.controls[3])}><I n="clock" className="mi-ic" /><span className="tl-hl">{pb.controls[3]}</span><span className="tl-hc">{histCount > 0 ? histCount : ''}</span></button>

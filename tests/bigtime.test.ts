@@ -239,14 +239,18 @@ test('the gradients: HVPG, PPG and EUS-PPG are each a series with a toggle; the 
   assert.equal(words(['pv']).lanes, 'p', 'none of the three on: no gradients lane');
 });
 
-test('the chart is one tap from the timeline bar: a Chart button beside Compare, and "See as a chart" first in the jump menu on a phone held upright', async () => {
+test('the chart is one tap from the timeline bar: a Chart button beside Compare, and on a phone held upright the word "Chart" takes the second reading\'s place (option 1, 24 Nov)', async () => {
   const { readFileSync } = await import('node:fs');
   const bar = readFileSync(new URL('../src/ui/shell/PlayBar.tsx', import.meta.url), 'utf8');
   assert.ok(/className="tl-pin tl-chart"[^\n]*toggle\('timeline'\)/.test(bar), 'the bar has a Chart button that toggles the chart');
   assert.ok(bar.indexOf('tl-pin tl-chart') < bar.indexOf('className="tl-pin" aria-pressed={comparing}'), 'it sits before Compare');
-  assert.ok(/chart && <button[^\n]*open\('timeline'\)/.test(bar) && /chart=\{upright\}/.test(bar), 'the jump menu carries it where the row has no room');
+  assert.ok(/className="rd-chart"[^\n]*toggle\('timeline'\)[^\n]*<span>Chart<\/span>/.test(bar), 'the readout row has the word Chart that toggles the chart');
+  assert.ok(/upright \? <ChartWord \/> : <Tile id="ppg"/.test(bar), 'upright: HVPG stays, the Chart word takes PPG\'s place');
+  assert.ok(/LOBULE_TILES\.slice\(0, upright \? 1 : LOBULE_TILES\.length\)/.test(bar) && /\{upright && <ChartWord \/>\}/.test(bar), 'upright in the lobule: Sinusoids stays, Portal in gives its place');
+  assert.ok(!/open\('timeline'\)/.test(bar), 'the jump menu no longer carries the row the button replaced');
   const css = readFileSync(new URL('../src/ui/css3d-over-2d.css', import.meta.url), 'utf8');
-  assert.ok(/max-width: 599px\) and \(orientation: portrait\) \{ \.vdock \.tl-pin\.tl-chart \{ display: none/.test(css), 'hidden only on a phone held upright');
+  assert.ok(/max-width: 599px\) and \(orientation: portrait\) \{ \.vdock \.tl-pin\.tl-chart \{ display: none/.test(css), 'the bar pin is hidden only on a phone held upright');
+  assert.ok(/\.readouts \.rd-chart \{ pointer-events: auto/.test(css), 'the readout tiles are inert; the button takes its own touches');
 });
 
 
