@@ -6,7 +6,6 @@ import type { CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import { TIER_Z, x3, y3 } from '../frame2d.ts';
 import { DeviceObject } from './device-object.ts';
-import { withOrgan } from '../editor-anchors.ts';
 import { inVesselPass } from '../layers.ts';
 import { WIRE_SIDES, allocTube, makeRings, writeRings } from './tube-rings.ts';
 import { BAND, bandRing } from '../procedures/copied/band-ring.js';
@@ -26,7 +25,7 @@ export class Bands {
   constructor(shared: CelShared) {
     for (let i = 0; i < BANDS_MAX; i++) {
       const b = bandRing(i, N) as { pts: [number, number][] };
-      const pts = [...b.pts, b.pts[0]!].map((q) => withOrgan('stomach', q));   // (on the esophagus, part of the stomach's mesh: the bands go with its edit)
+      const pts = [...b.pts, b.pts[0]!];
       const g = allocTube(pts.length, WIRE_SIDES), rings = makeRings(pts.length);
       for (let k = 0; k < pts.length; k++) {
         const p = pts[k]!, q = pts[(k + 1) % (pts.length - 1)]!, r = pts[(k + pts.length - 2) % (pts.length - 1)]!;

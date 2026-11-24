@@ -5,7 +5,7 @@
 import { CatmullRomCurve3, Vector3 } from 'three';
 import { NETWORK_BY_ID, NODE_Z, MAPPED, type NetVessel } from '../vessels/network.ts';
 import { REST, coursesOf } from '../vessels/shape.ts';
-import { nodePos2D, nodeDz, withOrgan, ORGAN_OF_CAPTION } from '../editor-anchors.ts';
+import { NODE_POS_2D } from '../vessels/paths.copied.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { LABEL_NAMES as N } from './names.copied.ts';
 import type { Dir } from './geometry.ts';
@@ -75,7 +75,7 @@ export function nodeZ(id: string): number {
   if (z === undefined) throw new Error(`no drawn vessel ends at ${id}`);
   return z;
 }
-const nodeAt = (id: string): [number, number, number] => at2d(nodePos2D(id)![0], nodePos2D(id)![1], nodeZ(id) + nodeDz(id));
+const nodeAt = (id: string): [number, number, number] => at2d(NODE_POS_2D[id]![0], NODE_POS_2D[id]![1], nodeZ(id));
 const POINTS: Record<string, [number, number, number]> = { RA: nodeAt('RA'), SIN_R: nodeAt('SIN_R'), VAR: nodeAt('VAR'), GV: nodeAt('GV') };
 /** The plane of an organ's front face (frame2d.ts: organs lie behind z = 0.26). */
 export const ORGAN_FRONT = 0.26;
@@ -84,8 +84,7 @@ const ORGAN_WORD: Record<string, string> = { liver: 'Liver', spleen: 'Spleen', s
 const ORGAN_POINTS: Record<string, [number, number, number]> = Object.fromEntries(Object.entries(ORGAN_WORD).map(([id, word]) => {
   const p = (N.ORGAN_AT as Record<string, readonly [number, number]>)[word];
   if (!p) throw new Error(`the 2D app has no organ name "${word}"`);
-  const q = withOrgan(ORGAN_OF_CAPTION[word], p);
-  return [id, at2d(q[0], q[1], ORGAN_FRONT)];
+  return [id, at2d(p[0], p[1], ORGAN_FRONT)];
 }));
 
 const DIRS: Record<string, readonly Dir[]> = {
@@ -119,7 +118,7 @@ function organStation(id: string): Station {
   const p = ORGAN_POINTS[id];
   // the 2D app's own word for the organ (ORGAN_LABELS), so the name is copied, not typed
   const word = (N.ORGAN_NAMES as readonly string[]).find((w) => w === ORGAN_WORD[id]) ?? ORGAN_WORD[id];
-  return { id: `organ:${id}`, kind: 'organ', at2d: withOrgan(ORGAN_OF_CAPTION[word], (N.ORGAN_AT as Record<string, readonly [number, number]>)[word] as readonly [number, number]), name: word, abbr: null, vessel: null, pri: 2, core: false, node: null, dirs: [], at: (_u, out) => out.set(p[0], p[1], p[2]), slides: false, u0: 0.5, tone: null };
+  return { id: `organ:${id}`, kind: 'organ', at2d: (N.ORGAN_AT as Record<string, readonly [number, number]>)[word] as readonly [number, number], name: word, abbr: null, vessel: null, pri: 2, core: false, node: null, dirs: [], at: (_u, out) => out.set(p[0], p[1], p[2]), slides: false, u0: 0.5, tone: null };
 }
 
 /** Every station the 3D scene can label now, in the 2D app's order of importance. */

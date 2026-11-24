@@ -4,8 +4,7 @@
 import { x3, y3 } from '../../scene/frame2d.ts';
 import type { Shot } from '../../scene/camera/shots.ts';
 import { lobuleShot } from '../../scene/lobule/index.ts';
-import { editedPlan } from '../../editor/vessel-plan.ts';
-import { nodePos2D, regionShift, organBoxShift, shiftBox, type Shift } from '../../scene/editor-anchors.ts';
+import { NODE_POS_2D, EDGE_PATH_2D } from '../../scene/vessels/paths.copied.ts';
 import { REGIONS_2D, CIRC_REGIONS_2D } from './regions.generated.ts';
 import type { CopiedSlide } from './types.ts';
 
@@ -38,26 +37,22 @@ const union = (boxes: readonly Box[]): Box => [Math.min(...boxes.map((b) => b[0]
 
 /** The box a region form names (2D units): a region name, a raw box or a list of region names (their union). Null where it names nothing. */
 export function regionBox(cam: unknown, regions: Readonly<Record<string, Box>> = REGIONS_2D): Box | null {
-  // (a body region follows what it frames: the organs and vessels of REGION_ANCHORS, by their edits; a raw box and the whole figure are fixed)
-  const body = regions === REGIONS_2D;
   if (isBox(cam)) return cam;
-  if (typeof cam === 'string') { const b = regions[cam] ?? null; return b && body ? shiftBox(b, regionShift([cam])) : b; }
-  if (isNames(cam)) { const found = cam.map((n) => regions[n]).filter((b): b is Box => !!b); return found.length ? shiftBox(union(found), body ? regionShift(cam) : [0, 0, 0]) : null; }
+  if (typeof cam === 'string') return regions[cam] ?? null;
+  if (isNames(cam)) { const found = cam.map((n) => regions[n]).filter((b): b is Box => !!b); return found.length ? union(found) : null; }
   return null;
 }
-/** The depth the camera's anchors have moved (scene units; 0 unedited). */
-export const camDepth = (cam: unknown): number => (typeof cam === 'string' ? regionShift([cam])[2] : isNames(cam) ? regionShift(cam)[2] : 0);
 
-/** What a by-name camera's names point at, as 2D boxes: a vessel's course (the edited plan), a station (nodePos2D), or a region's name (an organ's own region). */
+/** What a by-name camera's names point at, as 2D boxes: a vessel's course (EDGE_PATH_2D), a station (NODE_POS_2D), or a region's name (an organ's own region). */
 export function namedBoxes(names: readonly string[]): { boxes: Box[]; unknown: string[] } {
   const boxes: Box[] = [], unknown: string[] = [];
   for (const n of names) {
-    const path = editedPlan()[n];
+    const path = EDGE_PATH_2D[n];
     if (path?.length) { const xs = path.map((p) => p[0]), ys = path.map((p) => p[1]); boxes.push([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]); continue; }
-    const at = nodePos2D(n);
+    const at = NODE_POS_2D[n];
     if (at) { boxes.push([at[0], at[1], at[0], at[1]]); continue; }
     const reg = REGIONS_2D[n];
-    if (reg) { boxes.push(shiftBox(reg, ORGAN_NAMES.has(n) ? organBoxShift(n) : regionShift([n]))); continue; }
+    if (reg) { boxes.push(reg); continue; }
     unknown.push(n);
   }
   return { boxes, unknown };
@@ -72,10 +67,9 @@ export function growBox(box: Box | null, f: Box | null, floor = 0): Box | null {
 }
 
 /** The Shot that frames a 2D box: the box's middle as the target, its half extents (scene units) as what must stay in the free room. */
-const ORGAN_NAMES = new Set(['liver', 'spleen', 'heart', 'bowel', 'colon', 'stomach']);
-export function shotOfBox(box: Box, dz = 0): Shot {
+export function shotOfBox(box: Box): Shot {
   const half: [number, number] = [Math.abs(x3(box[2]) - x3(box[0])) / 2, Math.abs(y3(box[3]) - y3(box[1])) / 2];
-  return { yaw: BODY_YAW, pitch: BODY_PITCH, r: BODY_MIN_R, target: [x3((box[0] + box[2]) / 2), y3((box[1] + box[3]) / 2), dz], half };
+  return { yaw: BODY_YAW, pitch: BODY_PITCH, r: BODY_MIN_R, target: [x3((box[0] + box[2]) / 2), y3((box[1] + box[3]) / 2), 0], half };
 }
 
 /** A slide's camera as a ShotSpec. Never null: a slide with no camera shows the whole figure, as in 2D (`cam: st.cam || 'fit'`). */
@@ -96,7 +90,7 @@ export function shotOfCam(cam: unknown, view?: string, zone?: string): ShotSpec 
   const box = regionBox(cam);
   if (!box) throw new Error(`the camera ${JSON.stringify(cam)} names no region of the 2D figure`);
   const name = typeof cam === 'string' ? cam : isBox(cam) ? 'box' : (cam as string[]).join('+');
-  return { kind: 'body', name, box, shot: shotOfBox(box, camDepth(cam)) };
+  return { kind: 'body', name, box, shot: shotOfBox(box) };
 }
 
 /** Every camera a slide uses: its own, a time-lapse's push (`lapse.cam`), and the other scales of a scale switch. */

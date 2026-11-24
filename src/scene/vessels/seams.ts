@@ -5,7 +5,7 @@
 // THE 3D COURSE (23 Nov, Mohammad: the Warren shunt's stitch ran along the limb, 23.8 units along a tube 12.6 wide): with smooth joins on, the seam is found on the course the tube is drawn on (shape.ts at rest), in 3D, against the host's 3D axis, so
 // the shader's own distance (`sl = Lw - aF`, along the 3D course) and the curve agree; the 2D hook a shunt had into its host is no longer what it is measured on. With them off it is the 2D art's own paths, as before.
 // Pure: figure units, in from the start and from the end of the vessel.
-import { editedPlan } from '../../editor/vessel-plan.ts';
+import { EDGE_PATH_2D } from './paths.copied.ts';
 import { NETWORK, NETWORK_BY_ID } from './network.ts';
 import { UNITS_PER_SCENE } from '../frame2d.ts';
 import { shuntEnds, sewnHostIds } from './shunt-ends.ts';
@@ -55,12 +55,12 @@ function pathOf(id: string): readonly P3[] | undefined {
     const v = NETWORK_BY_ID.get(id), c = v?.plan ? coursesOf(v, REST)[0] : undefined;
     return c ? c.pts.map((q): P3 => [q[0] * UNITS_PER_SCENE, -q[1] * UNITS_PER_SCENE, q[2] * UNITS_PER_SCENE]) : undefined;
   }
-  const p = editedPlan()[id] as readonly Pt[] | undefined;
+  const p = EDGE_PATH_2D[id] as readonly Pt[] | undefined;
   return p?.map((q): P3 => [q[0], q[1], 0]);
 }
 
 /** The veins a shunt can be sewn into: a vein, a collateral or a liver vessel that is not an artery (2D hostable). */
-const hosts = (id: string) => NETWORK.filter((v) => !v.feeder && v.id !== id && v.tone !== 'artery' && (v.kind === 'vein' || v.kind === 'collateral' || v.kind === 'liver') && editedPlan()[v.id]);
+const hosts = (id: string) => NETWORK.filter((v) => !v.feeder && v.id !== id && v.tone !== 'artery' && (v.kind === 'vein' || v.kind === 'collateral' || v.kind === 'liver') && EDGE_PATH_2D[v.id]);
 
 /** 2D seamTable: where the host's wall meets the shunt, for 21 places across it, as the distance in from its end; null when the end is not inside a host. */
 function seamTable(pt: (sl: number, a: number) => P3, du: (x: number, y: number, z: number) => number, maxSl: number): Float64Array | null {

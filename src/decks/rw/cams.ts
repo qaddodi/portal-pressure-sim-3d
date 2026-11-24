@@ -7,8 +7,7 @@
 // the shot's target is the box's centre, its half extents the box's, and the room solver (camera/room.ts) fits it into whatever room the cards leave.
 // The slide's `kMax` (the most the 2D camera may zoom) is the 3D shot's nearest distance.
 import { SHOTS, type Shot } from '../../scene/camera/shots.ts';
-import { editedPlan } from '../../editor/vessel-plan.ts';
-import { nodePos2D, regionShift, organBoxShift, shiftBox } from '../../scene/editor-anchors.ts';
+import { NODE_POS_2D, EDGE_PATH_2D } from '../../scene/vessels/paths.copied.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
 import { REGIONS_2D, SETS_2D, TARGETS_2D, ORGAN_BOX_2D, CIRC_REGIONS_2D, type Box2D } from './copied/plate.ts';
 
@@ -59,13 +58,13 @@ const pathBox = (pts: readonly (readonly [number, number])[]): Box2D => unionBox
 /** What a list of names points at: the plate boxes of its vessels (their courses), stations, organs and term targets, and the names that are none of them. */
 export function namesBox(on: readonly string[]): { box: Box2D | null; unknown: string[] } {
   const boxes: Box2D[] = [], unknown: string[] = [];
-  const vessel = (id: string) => { const p = editedPlan()[id]; if (p?.length) { boxes.push(pathBox(p)); return true; } return false; };
+  const vessel = (id: string) => { const p = EDGE_PATH_2D[id]; if (p?.length) { boxes.push(pathBox(p)); return true; } return false; };
   const add = (n: string, depth = 0): void => {
     const t = TARGETS_2D[n];
     if (n.startsWith('@')) { const ids = SETS_2D[n.slice(1)]; if (!ids) unknown.push(n); else for (const id of ids) add(id, depth + 1); return; }
-    if (t && (t.edges?.length || t.organ)) { for (const e of t.edges ?? []) vessel(e); if (t.organ && ORGAN_BOX_2D[t.organ]) boxes.push(shiftBox(ORGAN_BOX_2D[t.organ]!, organBoxShift(t.organ))); return; }
-    if (ORGAN_BOX_2D[n]) { boxes.push(shiftBox(ORGAN_BOX_2D[n]!, organBoxShift(n))); return; }
-    const node = nodePos2D(n);
+    if (t && (t.edges?.length || t.organ)) { for (const e of t.edges ?? []) vessel(e); if (t.organ && ORGAN_BOX_2D[t.organ]) boxes.push(ORGAN_BOX_2D[t.organ]!); return; }
+    if (ORGAN_BOX_2D[n]) { boxes.push(ORGAN_BOX_2D[n]!); return; }
+    const node = NODE_POS_2D[n];
     if (node) { boxes.push([node[0], node[1], node[0], node[1]]); return; }
     if (!vessel(n)) unknown.push(n);
   };
@@ -76,13 +75,12 @@ export function namesBox(on: readonly string[]): { box: Box2D | null; unknown: s
 /** The plate box a body camera frames, or null for the whole plate ('fit'). Names that point at nothing are reported by `camProblems`, not here. */
 export function boxOf(cam: Cam2D): Box2D | null {
   if (cam == null || cam === 'fit') return null;
-  // (a named region follows what it frames: REGION_ANCHORS in scene/editor-anchors.ts; a raw box is fixed)
-  if (typeof cam === 'string') { const b = REGIONS_2D[cam]; return b ? shiftBox(b, regionShift([cam])) : null; }
+  if (typeof cam === 'string') return REGIONS_2D[cam] ?? null;
   if (isBox(cam)) return cam;
-  if (isNames(cam)) { const b = unionBox(cam.map((r) => REGIONS_2D[r]).filter((b): b is Box2D => !!b)); return b ? shiftBox(b, regionShift(cam)) : b; }
+  if (isNames(cam)) return unionBox(cam.map((r) => REGIONS_2D[r]).filter((b): b is Box2D => !!b));
   if (isOn(cam)) {
     const { box } = namesBox(cam.on);
-    const near = cam.near && REGIONS_2D[cam.near] ? shiftBox(REGIONS_2D[cam.near]!, regionShift([cam.near])) : null;
+    const near = cam.near ? REGIONS_2D[cam.near] ?? null : null;
     // (cam-frame.js: `near` is the region the camera starts from, grown to take in what is named; with no `near`, the named things and a little room round them.)
     return near ? growBox(near, box) : growBox(null, box, 40);
   }

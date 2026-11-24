@@ -5,9 +5,6 @@
 // thinner than a pixel and a half on the screen, so it stays a line at a far zoom. The page draws nothing of it.
 import { Color, Group, Mesh, PlaneGeometry, ShaderMaterial, Vector2, Vector3 } from 'three';
 import { RING, BADGE_R, BLEED_BOX, badgeAt } from './copied/scope-lens-rule.js';
-import { withOrgan } from '../editor-anchors.ts';
-/** The ring's places on the figure, carried with the stomach's edit (the same numbers unedited). */
-const STO = (x: number, y: number): readonly [number, number] => withOrgan('stomach', [x, y]);
 import { UNITS_PER_SCENE as U, x3, y3 } from '../frame2d.ts';
 import { rawColor } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
@@ -102,7 +99,7 @@ export class ScopeRing {
     this.mat = new ShaderMaterial({ name: 'scope ring',
       vertexShader: RING_VS, fragmentShader: RING_FS, transparent: true, depthTest: false, depthWrite: false, toneMapped: false,
       uniforms: {
-        uC: { value: new Vector3(x3(STO(RING.x, RING.y)[0]), y3(STO(RING.x, RING.y)[1]), RING_Z) }, uHalf: { value: HALF },
+        uC: { value: new Vector3(x3(RING.x), y3(RING.y), RING_Z) }, uHalf: { value: HALF },
         uR: { value: RING.r }, uBadgeR: { value: BADGE_R }, uBadge: { value: new Vector2(b.x - RING.x, -(b.y - RING.y)) },
         uSolid: { value: 0 }, uAlpha: { value: 0 }, uInk: { value: new Color() }, uHalo: { value: new Color() }, uSurface: { value: new Color() },
       },
@@ -140,16 +137,16 @@ export class ScopeRing {
    *  it returns a new point), `cameraRight` the camera's right axis in the world. Null when it is not on the screen. */
   screen(project: (p: Vector3, out: { x: number; y: number }) => { x: number; y: number }, toWorld: (p: Vector3) => Vector3, cameraRight: Vector3, out: ScopeRingScreen): ScopeRingScreen | null {
     const s = this.group.parent ? this.group.parent.matrixWorld.getMaxScaleOnAxis() : 1;
-    const rc = STO(RING.x, RING.y), wc = toWorld(this.c.set(x3(rc[0]), y3(rc[1]), RING_Z));
-    const bd = badgeAt(), bm = STO(bd.x, bd.y), wb = toWorld(this.c.set(x3(bm[0]), y3(bm[1]), RING_Z));
+    const wc = toWorld(this.c.set(x3(RING.x), y3(RING.y), RING_Z));
+    const bd = badgeAt(), wb = toWorld(this.c.set(x3(bd.x), y3(bd.y), RING_Z));
     const a = project(wc, this.pa), b = project(wb, this.pb);
     // (the radii: where a point one radius along the camera's right lands, so the figure's turn and its zoom both count)
     const r = project(this.e.copy(wc).addScaledVector(cameraRight, (RING.r / U) * s), this.pr), r2 = project(this.e.copy(wc).addScaledVector(cameraRight, (BADGE_R / U) * s), this.pr2);
     const ax = a.x, ay = a.y;
     out.x = ax; out.y = ay; out.bx = b.x; out.by = b.y;
     out.r = Math.hypot(r.x - a.x, r.y - a.y); out.br = Math.hypot(r2.x - a.x, r2.y - a.y);
-    const b0 = STO(BLEED_BOX.l, BLEED_BOX.t), b1 = STO(BLEED_BOX.r, BLEED_BOX.b), q0 = project(toWorld(this.c.set(x3(b0[0]), y3(b0[1]), RING_Z)), this.pa), x0 = q0.x, y0 = q0.y;
-    const q1 = project(toWorld(this.c.set(x3(b1[0]), y3(b1[1]), RING_Z)), this.pa);
+    const q0 = project(toWorld(this.c.set(x3(BLEED_BOX.l), y3(BLEED_BOX.t), RING_Z)), this.pa), x0 = q0.x, y0 = q0.y;
+    const q1 = project(toWorld(this.c.set(x3(BLEED_BOX.r), y3(BLEED_BOX.b), RING_Z)), this.pa);
     out.bleed.l = Math.min(x0, q1.x); out.bleed.r = Math.max(x0, q1.x); out.bleed.t = Math.min(y0, q1.y); out.bleed.b = Math.max(y0, q1.y);
     return Number.isFinite(out.x) && Number.isFinite(out.r) ? out : null;
   }

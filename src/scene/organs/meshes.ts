@@ -6,10 +6,6 @@ import { BufferGeometry, Float32BufferAttribute, Uint16BufferAttribute } from 't
 import manifest from './organs-manifest.json' with { type: 'json' };
 import { decodeOrgans, type BakedOrgans } from './baked.ts';
 import { spanAsync } from '../../boot/spans.ts';
-import { overrides } from '../../editor/store.ts';
-import { applyOrganEdit, organBox, organBoxes as boxes, organCentroid, organCentroids as centroids } from '../../editor/organ-apply.ts';
-import type { V3 } from '../../editor/types.ts';
-import { ORGAN_Z } from './z.ts';
 
 type Entry = [posByte: number, verts: number, idxByte: number, indices: number];
 const M = manifest as unknown as { q: number; organs: Record<string, Entry> };
@@ -32,21 +28,7 @@ let baked: BakedOrgans | null = null;
 /** The finished organs, once the baked file is in (null: none; the layer makes them from the organs file). */
 export const bakedOrgans = (): BakedOrgans | null => baked;
 /** Takes the baked organs (the browser fetch below; a test hands it a decoded file). */
-export function setBakedOrgans(b: BakedOrgans): void {
-  for (const [id, g] of b.organs) { centroids[id] = organCentroid(g); boxes[id] = organBox(g); applyOrganEdit(g, overrides().organs?.[id]); }   // (the editor's edits, once: none unless the overrides name the organ)
-  for (const id of Object.keys(b.raw)) { const r = b.raw[id]!; b.raw[id] = () => editedRaw(id, r()); }
-  baked = b; loaded();
-}
-
-// The anatomy editor (src/editor/organ-apply.ts): an organ's edit in overrides.json (or the preview's draft) is applied once, where the geometry is made, so every consumer sees one organ.
-const zOf = (id: string): V3 => [0, 0, ORGAN_Z[id] ?? 0];
-/** A raw (file-frame, before the depth shift) organ with its edit; it turns about the finished organ's centre when that is known. */
-function editedRaw(id: string, g: BufferGeometry): BufferGeometry {
-  const e = overrides().organs?.[id];
-  return e ? applyOrganEdit(g, e, { origin: zOf(id), centroid: centroids[id], box: boxes[id] }) : g;
-}
-/** The organs the editor can move, with each one's centre (scene units, before any edit). Complete once `organsReady` has resolved. */
-export function editableOrgans(): { id: string; centroid: V3 }[] { return Object.keys(centroids).map((id) => ({ id, centroid: centroids[id]! })); }
+export function setBakedOrgans(b: BakedOrgans): void { baked = b; loaded(); }
 
 async function fetchBaked(want: string): Promise<BakedOrgans | null> {
   try {
@@ -77,7 +59,6 @@ const make = (id: string) => (): BufferGeometry => {
   g.setAttribute('position', new Float32BufferAttribute(pos, 3));
   g.setIndex(new Uint16BufferAttribute(new Uint16Array(buf, ib, ni), 1));
   g.computeVertexNormals();
-  centroids[id] ??= organCentroid(g, zOf(id)); boxes[id] ??= organBox(g, zOf(id));
-  return editedRaw(id, g);
+  return g;
 };
 export const ORGAN_MESHES: Record<string, () => BufferGeometry> = Object.fromEntries(ORGAN_IDS.map((id) => [id, make(id)]));

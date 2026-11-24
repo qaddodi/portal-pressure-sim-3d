@@ -9,7 +9,6 @@ import type { Palette } from '../palette.ts';
 import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
 import { NETWORK_BY_ID, radiusOf, widthPx } from '../vessels/network.ts';
 import { GEO2D } from '../procedures/route.ts';
-import { zAtArc } from '../editor-anchors.ts';
 import { indexOf } from '../../engine/vessel-data.ts';
 import { EUS_GLUE_ROUTE, EUS_GLUE_TARGET, coilReach, layCoil, pointOn } from './probes/copied/eus-scope.copied.js';
 import { DeviceObject } from './device-object.ts';
@@ -63,7 +62,7 @@ export function coilLine(k: number, g: GlueVarix): P2[] {
 }
 
 /** The point 3D of a figure point on the varix's own plane. */
-const z0 = (): number => zAtArc(EUS_GLUE_TARGET[0] as string, EUS_GLUE_TARGET[1] as number, TIER_Z[NETWORK_BY_ID.get(EUS_GLUE_TARGET[0] as string)?.tier ?? 'net']);   // (an edited vessel's depth at the needle's point)
+const z0 = (): number => TIER_Z[NETWORK_BY_ID.get(EUS_GLUE_TARGET[0] as string)?.tier ?? 'net'];
 /** Where the needle goes in, in the scene (the varix at f of its course). */
 export function glueTarget3(out = new Vector3()): Vector3 {
   const p = pointOn(GEO2D[EUS_GLUE_TARGET[0] as string]!.cur, EUS_GLUE_TARGET[1] as number) as P2;

@@ -1,7 +1,7 @@
 // A vein divided at surgery (2D stage-geo.js divideLen, suture-marks.js stumpCentre / clearArc): the Warren shunt divides the splenic vein, a portocaval shunt the portal trunk at the confluence.
 // The vein's first stretch is not drawn, so the shunt and the tied-off stump stand apart with a clear gap, the stump ending round and narrowing a little at its tie. The stretch opens and
 // closes with the shunt's drawing on and off (nothing pops); a side-to-side portocaval shunt keeps the trunk whole. Pure: lengths in the 2D figure's units.
-import { editedPlan } from '../../editor/vessel-plan.ts';
+import { EDGE_PATH_2D } from './paths.copied.ts';
 import { NETWORK_BY_ID } from './network.ts';
 import { firstPiece } from '../procedures/copied/part-names.js';
 import { UNITS_PER_SCENE } from '../frame2d.ts';
@@ -43,7 +43,7 @@ const memo = new Map<string, Divide | null>();
 export function divideOf(shunt: string, vein: string): Divide | null {
   const key = `${shunt}/${vein}`;
   if (memo.has(key)) return memo.get(key)!;
-  const v = NETWORK_BY_ID.get(vein), x = NETWORK_BY_ID.get(shunt), a = editedPlan()[vein] as readonly Pt[] | undefined, b = editedPlan()[shunt] as readonly Pt[] | undefined;
+  const v = NETWORK_BY_ID.get(vein), x = NETWORK_BY_ID.get(shunt), a = EDGE_PATH_2D[vein] as readonly Pt[] | undefined, b = EDGE_PATH_2D[shunt] as readonly Pt[] | undefined;
   let out: Divide | null = null;
   if (v && x && a && b) {
     const vw = 2 * v.radius * UNITS_PER_SCENE, xw = 2 * x.radius * UNITS_PER_SCENE, len = lengthOf(a);

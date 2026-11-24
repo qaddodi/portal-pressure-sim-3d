@@ -1,7 +1,6 @@
 // How a vessel fades at a free end, as the 2D figure does it (tables copied by scripts/copy-b3-data.mjs): the veins that end in the organ they drain (the splenic hilum, the bowel, the
 // colon, the kidney) fade in from nothing over the first part of their length; the hepatic artery fades in at its start and its branches out at their ends, where they turn into
 // sinusoids; the veins that run on out of the plate fade out down it. A fading tip is solid to its end while a collateral attaches there (TIP_CONNECT).
-import { editedPlan } from '../../editor/vessel-plan.ts';
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { x3, y3 } from '../frame2d.ts';
 import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
@@ -45,7 +44,7 @@ const edgeById = new Map((EDGES as { id: string; from: string; to: string; kind:
 const lenOfPath = (p: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < p.length; i++) l += Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]); return l; };
 /** The share of its length over which vessel `id` fades into the faint cava, or 0 for a vessel that does not end on it. */
 export function ivcJoinSpan(id: string): number {
-  const e = edgeById.get(id), path = editedPlan()[id];
+  const e = edgeById.get(id), path = EDGE_PATH_2D[id];
   if (!e || !path || IVC_EDGES.has(id) || SVC_STRETCH.has(id) || HEPATIC_VEINS.has(id) || !IVC_NODES.has(e.to) || !NODE_POS_2D[e.to] || !NODE_POS_2D[e.from]) return 0;
   if (e.kind === 'shunt' && id !== 'S_PC' && id !== 'S_MC') return 0;   // (the stents' ends stand as strong as their middle: JOIN_F_NOFADE)
   const l = lenOfPath(path);
@@ -72,28 +71,19 @@ export interface TipFade {
 
 const sceneLine = (x1: number, y1: number, x2: number, y2: number): readonly [number, number, number, number] => [x3(x1), y3(y1), x3(x2), y3(y2)];
 const SIN_SET: ReadonlySet<string> = new Set(SIN_EDGES_2D);
-/** How far the anatomy editor's edits moved a vessel's end (plan units; zero, the same numbers, when nothing is edited): the fade lines that stood at a node's reference place stand where it is now (a moved junction, an organ's bed carried with the liver). */
-function endShift(id: string, end: 0 | 1): readonly [number, number] {
-  const now = editedPlan()[id], ref = EDGE_PATH_2D[id];
-  if (!now || !ref || now === ref) return [0, 0];
-  const a = end ? now[now.length - 1]! : now[0]!, b = end ? ref[ref.length - 1]! : ref[0]!;
-  return [a[0] - b[0], a[1] - b[1]];
-}
 /** stage-geo.js SIN_FADE: a liver bed is faded along its course (the line from its portal node to its venous one), faintest mid-lobe, solid at its end; the ascending lumbar collateral dips behind the liver the same way, down the figure. */
 function sinFade(id: string): TipFade | null {
   if (id === 'C9') { const r = SIN_FADE_C9_2D; return { mode: 4, from: r[4]!, to: 1, a0: r[5]!, a1: r[6]!, line: sceneLine(r[0]!, r[1]!, r[2]!, r[3]!), keep: false, connect: [] }; }
   const e = edgeById.get(id), a = e && NODE_POS_2D[e.from], b = e && NODE_POS_2D[e.to];
   if (!SIN_SET.has(id) || !a || !b) return null;
   const r = SIN_FADE_ROW_2D;
-  const s0 = endShift(id, 0), s1 = endShift(id, 1);
-  return { mode: 4, from: r[0]!, to: 1, a0: r[1]!, a1: r[2]!, line: sceneLine(a[0] + s0[0], a[1] + s0[1], b[0] + s1[0], b[1] + s1[1]), keep: false, connect: [] };
+  return { mode: 4, from: r[0]!, to: 1, a0: r[1]!, a1: r[2]!, line: sceneLine(a[0], a[1], b[0], b[1]), keep: false, connect: [] };
 }
 /** stage-geo.js FADE_IN: a vein fades into the vessel it sinks into (the hepatic veins and the renal veins into the cava, the caudate vein, C5 into the renal vein). */
 function fadeIn(id: string): TipFade | null {
   const r = FADE_IN_2D[id];
   if (!r) return null;
-  const [dx, dy] = endShift(id, 1);   // (the line crosses the vein where it sinks into its host: it goes with that end)
-  return { mode: 3, from: r[4]!, to: 1, a0: 1, a1: r[5] ?? 0.3, line: sceneLine(r[0]! + dx, r[1]! + dy, r[2]! + dx, r[3]! + dy), keep: false, connect: [] };
+  return { mode: 3, from: r[4]!, to: 1, a0: 1, a1: r[5] ?? 0.3, line: sceneLine(r[0]!, r[1]!, r[2]!, r[3]!), keep: false, connect: [] };
 }
 
 /** The share of the hepatic artery's drawn length it fades in over (2D: 0.28 of its whole run, most of which is not drawn now). */
@@ -144,7 +134,7 @@ export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipF
 const COMPANION_END = new Map<string, number>();
 export function companionEnd(id: string): number {
   const hit = COMPANION_END.get(id); if (hit != null) return hit;
-  const host = alongVeinCompanion(id), f = host ? fadeOf0(host, false) : null, tree = host ? treeOf(host) : null, art = alongVein(id, editedPlan());
+  const host = alongVeinCompanion(id), f = host ? fadeOf0(host, false) : null, tree = host ? treeOf(host) : null, art = alongVein(id, EDGE_PATH_2D);
   let u = 1;
   if (f && tree && art && art.length > 1) {
     const th = tree.through, k = Math.min(th.length - 1, Math.max(0, f.to * (th.length - 1))), i = Math.floor(k), j = Math.min(th.length - 1, i + 1), w = k - i;
@@ -179,8 +169,8 @@ function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | 
   if (art?.in) return { mode: 1, from: 0, to: id === 'A_HEP' ? HEP_FADE_IN : art.in, a0: 0, a1: 1, keep: true, connect: [] };
   // (the lobar arteries fade out with the portal branch they run beside, over the same share of their length: Mohammad, 20 Nov, "the right branch doesn't fade at the end")
   // (the artery runs on to its bed's node now, starts.ts alongVein: the fade starts where it always did along the portal branch)
-  if (art?.out) { const from = (1 - (ART_OUT_SHARE[id] ?? art.out)) * alongVeinStretch(id, editedPlan()); return { mode: 1, from, to: Math.max(from + 0.1, companionEnd(id)), a0: 1, a1: 0, keep: false, mapFade: MAP_ART_FADE, connect: [] }; }
-  const inOrgan = startInOrganShare(id, editedPlan()[id] ?? []);
+  if (art?.out) { const from = (1 - (ART_OUT_SHARE[id] ?? art.out)) * alongVeinStretch(id, EDGE_PATH_2D); return { mode: 1, from, to: Math.max(from + 0.1, companionEnd(id)), a0: 1, a1: 0, keep: false, mapFade: MAP_ART_FADE, connect: [] }; }
+  const inOrgan = startInOrganShare(id, EDGE_PATH_2D[id] ?? []);
   if (inOrgan > 0 && !isArtery) return { mode: 1, from: 0, to: inOrgan, a0: 0, a1: 1, keep: false, connect: [...(TIP_CONNECT_2D[id] ?? []), ...originsOf(id)] };   // (the vein a carried-on start runs on from: the start is solid while it is drawn, eased: scene.ts syncTipJoins)
   const tip = TIP_FADE_2D[id];
   if (tip && !isArtery) return { mode: 1, from: 0, to: tip, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };

@@ -2,8 +2,7 @@
 // begin in the gap beside the spleen. In 3D the vein is drawn in front of the organ and Mohammad asked that it start in the spleen (20 Nov): its course is carried on from the hilum,
 // along the way it already leaves it, to a point inside the organ, and it fades in over that carried-on stretch alone (solid at the hilum, where 2D's fade is still faint).
 // The 2D app's numbers are untouched: this only adds drawn length at one end. Points are in 2D units (the course's own).
-import { editedPlan } from '../../editor/vessel-plan.ts';
-import { organDisp } from './organ-follow.ts';
+import { EDGE_PATH_2D } from './paths.copied.ts';
 type P2 = readonly [number, number];
 
 /** The extra start of a vessel: the 2D points before its first point, in order (the vein runs from the first of these on). */
@@ -12,9 +11,6 @@ const START_IN_ORGAN: Readonly<Record<string, { to: P2; organ: string }>> = {
   // (the azygos arch: it fades in at its left end, so the esophageal collateral, which meets it at its 2D start, must meet it where it is solid: the arch is carried on 30 units to the left, along the way it leaves the node, and fades in over that stretch alone; Mohammad, 20 Nov: "this collateral should join the azygous vein not where it is fading away")
   AZY_SVC: { to: [547, 43], organ: 'thorax' },   // (the carried-on stretch behind the landing of the collaterals, 30 units: the arch's free left end FADES OUT over it, body and ink on one alpha, full width, no cap and no point (Mohammad, 22 Nov: "the azygos should fade to the left, not end with a knob"); shorter and the arch's depth slope to the cava steepens past vessel-wobble's limit)
 };
-
-/** Where a vessel's carried-on start ends: the organ-held point, where the organ's edit puts it (the same point when the organ is not edited). */
-const startTo = (s: { to: P2; organ: string }): P2 => { const d = organDisp(s.organ); if (!d) return s.to; const q = d(s.to[0], s.to[1]); return [s.to[0] + q[0], s.to[1] + q[1]]; };
 
 const STEP = 3;   // 2D units between added points (the copied courses are sampled about every 1.8)
 
@@ -37,10 +33,10 @@ export const runsInto = (id: string): string | null => RUNS_INTO[id]?.into ?? nu
 export const originsOf = (id: string): readonly string[] => Object.entries(RUNS_INTO).filter(([, r]) => r.into === id).map(([k]) => k);
 /** The point and heading (unit, the way the vessel runs) of the start of `into`'s course as drawn, where a vessel that runs on into it arrives. */
 export function startOfRunOn(into: string): { at: P2; dir: P2 } | null {
-  const s = START_IN_ORGAN[into], raw = editedPlan()[into];
+  const s = START_IN_ORGAN[into], raw = EDGE_PATH_2D[into];
   if (!s || !raw) return null;
-  const to = startTo(s), [ax, ay] = raw[0]!, d = Math.hypot(ax - to[0], ay - to[1]) || 1;
-  return { at: to, dir: [(ax - to[0]) / d, (ay - to[1]) / d] };
+  const [ax, ay] = raw[0]!, d = Math.hypot(ax - s.to[0], ay - s.to[1]) || 1;
+  return { at: s.to, dir: [(ax - s.to[0]) / d, (ay - s.to[1]) / d] };
 }
 const arcLen = (p: readonly P2[], from = 0, to = p.length - 1): number => { let t = 0; for (let i = from + 1; i <= to; i++) t += Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]); return t; };
 function runOnInto(path: readonly P2[], r: { into: string; share: number }): readonly P2[] {
@@ -79,7 +75,7 @@ export function withStartInOrgan(id: string, path0: readonly P2[]): readonly P2[
 function withStartInOrgan0(id: string, path: readonly P2[]): readonly P2[] {
   const s = START_IN_ORGAN[id];
   if (!s || path.length < 2) return path;
-  const [x0, y0] = path[0]!, [tx, ty] = startTo(s), d = Math.hypot(tx - x0, ty - y0), n = Math.max(1, Math.round(d / STEP));
+  const [x0, y0] = path[0]!, [tx, ty] = s.to, d = Math.hypot(tx - x0, ty - y0), n = Math.max(1, Math.round(d / STEP));
   const pre: P2[] = [];
   for (let i = n; i >= 1; i--) pre.push([x0 + ((tx - x0) * i) / n, y0 + ((ty - y0) * i) / n]);
   return [...pre, ...path];

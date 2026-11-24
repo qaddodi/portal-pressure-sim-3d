@@ -11,8 +11,6 @@ import { flattenPath } from './organ2d/flatten.js';
 // @ts-ignore copied plain JS
 import { nameSpots, NAME_ORGAN, OFF_NEAR } from './organ2d/organ-names.copied.js';
 import type { Box } from './geometry.ts';
-import { organMap, withOrgan } from '../editor-anchors.ts';
-import { overrides } from '../../editor/store.ts';
 
 type Ring = [number, number][];
 const flat = new Map<string, Ring[]>();
@@ -26,19 +24,6 @@ function ringsOf(id: string): Ring[] {
     flat.set(id, r);
   }
   return r;
-}
-
-/** The organ's outline carried by its edit (move, turn, scale, liquify, cage), made once per set of overrides; the outline itself unedited. */
-let editedFor: unknown = null;
-const editedKept = new Map<string, Ring[]>();
-function editedRings(id: string): Ring[] {
-  const rs = ringsOf(id), organ = id === 'esophagus' ? 'stomach' : id;
-  if (!organMap(organ)) return rs;
-  const o = overrides();
-  if (editedFor !== o) { editedFor = o; editedKept.clear(); }
-  let k = editedKept.get(id);
-  if (!k) editedKept.set(id, k = rs.map((r) => r.map(([x, y]) => { const q = withOrgan(organ, [x, y]); return [q[0], q[1]] as [number, number]; })));
-  return k;
 }
 
 const OTHER = ['esophagus', 'heart', 'bowel', 'colon', 'kidney-l', 'spleen', 'stomach', 'liver'] as const;
@@ -56,7 +41,7 @@ interface Edges { y0: number; bands: number[][] }
 export function silhouettes(to: To2Screen): Silhouettes {
   const rings = new Map<string, Ring[]>(), bounds = new Map<string, Box[]>(), edges = new Map<string, Edges[]>();
   for (const id of OTHER) {
-    const rs = editedRings(id).map((r) => r.map(([x, y]) => to(x, y)));
+    const rs = ringsOf(id).map((r) => r.map(([x, y]) => to(x, y)));
     rings.set(id, rs);
     const bb: Box[] = [], ee: Edges[] = [];
     for (const r of rs) {
@@ -131,7 +116,6 @@ export function shareOnOther(name: string, sil: Silhouettes, b: Box): number {
 /** The other places a name may stand (centres of its box, canvas px offsets from its anchor's screen point), nearest the anchor first. */
 export function spotOffsets(name: string, anchor2d: readonly [number, number], to: To2Screen): [number, number][] {
   const a = to(anchor2d[0], anchor2d[1]);
-  const organ = organOfName(name);
-  return (nameSpots(name) as [number, number][]).map(([x, y]) => { const m = withOrgan(organ === 'esophagus' ? 'stomach' : organ === 'heart' ? 'heart-ra' : organ, [x, y]), p = to(m[0], m[1]); return [p[0] - a[0], p[1] - a[1]] as [number, number]; });
+  return (nameSpots(name) as [number, number][]).map(([x, y]) => { const p = to(x, y); return [p[0] - a[0], p[1] - a[1]] as [number, number]; });
 }
 export { OFF_NEAR };

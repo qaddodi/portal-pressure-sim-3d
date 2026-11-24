@@ -1224,8 +1224,6 @@ export class CelScene {
     if (this.leavingSet.has(o)) f = Math.min(f, this.lastFade);
     const id = this.fans.get(o);
     if (id !== undefined) f = Math.min(f, this.feeders.liveOf(id));
-    const ed = o.edge ? this.editorFades.get(o.edge.id) : undefined;   // (the anatomy editor's: the tubes it is redrawing as overlay lines)
-    if (ed !== undefined) f = Math.min(f, ed);
     return f;
   }
   /**
@@ -1701,34 +1699,6 @@ export class CelScene {
   /** Shows or hides one of `inspectLayers` (drawn or not; what the scene itself shows and hides is not touched: the flag is put on for the draw and taken off after it). */
   setInspectShown(id: string, shown: boolean): void { if (shown) this.inspectHidden.delete(id); else this.inspectHidden.add(id); this.moving = true; clock.invalidate('inspect'); }
   isInspectShown(id: string): boolean { return !this.inspectHidden.has(id); }
-  /** The anatomy editor's (?editor, preview only) overlay: its handles and lines, drawn in the vessels' pass over the figure, in the body's own frame. Null takes it away. */
-  setEditorOverlay(obj: Object3D | null): void {
-    if (this.editorOverlay) this.body.remove(this.editorOverlay);
-    this.editorOverlay = obj;
-    if (obj) { obj.traverse((c) => c.layers.set(VESSEL_LAYER)); this.body.add(obj); }
-    this.moving = true; clock.invalidate('editor');
-  }
-  private editorOverlay: Object3D | null = null;
-  private readonly editorFades = new Map<string, number>();
-  /** The anatomy editor (?editor): these vessels' tubes are drawn at `f` (0..1) while it shows their edited centrelines over them; an empty list puts them back. */
-  setEditorFade(ids: readonly string[], f: number): void {
-    const was = [...this.editorFades].map(([k, v]) => `${k}:${v}`).join(), next = new Map(ids.map((id) => [id, f] as const));
-    if (was === [...next].map(([k, v]) => `${k}:${v}`).join()) return;
-    this.editorFades.clear(); for (const [k, v] of next) this.editorFades.set(k, v);
-    this.pushFades(); this.moving = true; clock.invalidate('editor');
-  }
-  /** The body's frame (what the editor's picking and drag convert through). */
-  get editorBody(): Object3D { return this.body; }
-  /** The anatomy editor's live vessel preview (vessels/edit-preview.ts) moves the real tubes' and skins' vertices while a drag goes on: this hands over their geometries (a tube by its edge id; a skin with its arms' ids). */
-  editorVesselParts(): { tubes: Map<string, BufferGeometry>; skins: { geometry: BufferGeometry; arms: readonly string[] }[] } {
-    const tubes = new Map<string, BufferGeometry>(), skins: { geometry: BufferGeometry; arms: readonly string[] }[] = [];
-    for (const o of this.objects) if (o.isVessel && o.edge && !this.fans.has(o) && !tubes.has(o.edge.id)) tubes.set(o.edge.id, o.toonMesh.geometry);
-    for (const s of this.skins?.drawnArms() ?? []) {
-      const seen = new Set<BufferGeometry>();
-      s.object.traverse((c) => { const g = (c as Mesh).geometry as BufferGeometry | undefined; if (g && !seen.has(g)) { seen.add(g); skins.push({ geometry: g, arms: s.arms }); } });
-    }
-    return { tubes, skins };
-  }
   /** Draws one of `inspectLayers` as a wireframe (every mesh under it; a part built later, a skin rebuilt, is taken up on the next frame). */
   setInspectWire(id: string, on: boolean): void {
     if (on) this.inspectWired.add(id);

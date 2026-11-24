@@ -4,7 +4,7 @@
 //
 // A route is a smoothed polyline `pts` through the vessels' centrelines, with `raw` (the vessels' own centrelines, where the walls are), `rad` (the lumen's radius at each
 // point), `cum` (arc length) and `parts` (each leg: its vessel, name, and where it starts and ends along the route). Positions along a route are lengths `d` in figure units.
-import { editedPlan } from '../../editor/vessel-plan.ts';
+import { EDGE_PATH_2D } from '../vessels/paths.copied.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { UNITS_PER_SCENE } from '../frame2d.ts';
 import { cutLen, headOf, legSubs, pieceAt, procSpecs, wholeOf } from './copied/proc-routes.js';
@@ -25,7 +25,7 @@ export interface Route {
 }
 
 /** The 2D figure's drawn courses by edge ID: `{ cur }`, the shape the copied routing code reads. */
-export const GEO2D: Record<string, { cur: P2[] }> = Object.fromEntries(Object.entries(editedPlan()).map(([id, pts]) => [id, { cur: pts as P2[] }]));
+export const GEO2D: Record<string, { cur: P2[] }> = Object.fromEntries(Object.entries(EDGE_PATH_2D).map(([id, pts]) => [id, { cur: pts as P2[] }]));
 
 /** A vessel's lumen radius in figure units at share f along it (its drawn width at its healthy diameter, as the 2D figure draws it); '=0.5' ids are a fixed radius (the tract through the liver). */
 export function lumenRadius(id: string, _f = 0.5): number {
