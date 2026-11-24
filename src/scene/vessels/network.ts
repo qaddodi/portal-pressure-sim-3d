@@ -5,7 +5,7 @@
 import { Vector3 } from 'three';
 import { drawnDiameter } from '../../engine/tract-override.ts';
 import { EDGES, JUNCTION_PIECES, PART_OF, PORTAL_TERRITORY, dMinOf } from '../../engine/hales/portal/topology.js';
-import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D, HIDDEN_EDGES, IVC_EDGES, NEEDS_C3 } from './paths.copied.ts';
+import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D as EDGE_PATH_REF, HIDDEN_EDGES, IVC_EDGES, NEEDS_C3 } from './paths.copied.ts';
 import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
@@ -15,6 +15,8 @@ import { LIVER_BRANCHES, LIVER_BRANCH_HOSTS, SPLIT_AT, trimHost } from './liver-
 import { CAUDATE_VEIN_ID, caudateVeinSet } from './caudate-veins.ts';
 import { withStartInOrgan } from './starts.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
+import { applyAll, dzAt } from '../../editor/vessel-apply.ts';
+import { overrides } from '../../editor/store.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
 
 export interface Flare { add: number; wall: number; span: number }
@@ -60,6 +62,9 @@ export interface NetVessel {
 interface Edge { id: string; from: string; to: string; kind: string; code?: string; d?: number; dMax?: number; share?: number; label?: string; zone?: string; shunt?: string; spontaneous?: boolean }
 const edges = EDGES as Edge[];
 const edgeById = new Map(edges.map((e) => [e.id, e]));
+// The anatomy editor's overrides (src/editor): offsets on the 2D plan, applied before the join, run-on, bend and skin code. Nothing edited: the very same table, so nothing changes.
+const EDITED = applyAll(EDGE_PATH_REF, edges, overrides());
+const EDGE_PATH_2D = EDITED.paths as typeof EDGE_PATH_REF;
 const portal = PORTAL_TERRITORY as Set<string>;
 
 // ---- widths: stage-tubes.js widthAt (anatomy, t = 0), in the figure's own units ----
@@ -117,7 +122,8 @@ const toneOf = (e: Edge): NetTone => (isArteryEdge(e) ? 'artery' : portal.has(e.
 /** The 2D course of an edge carried into the scene: x and y by the linear map, z by its tier. */
 export function courseOf(id: string): Vec3[] {
   const e = edgeById.get(id)!, z = TIER_Z[tierOf(e)];
-  return pathOf(id).map(([x, y]): Vec3 => [x3(x), y3(y), z]);
+  const dz = EDITED.dz.get(id), p = pathOf(id);
+  return p.map(([x, y], i): Vec3 => [x3(x), y3(y), dz ? z + dzAt(dz, p.length > 1 ? i / (p.length - 1) : 0) : z]);
 }
 
 /** The shunts a procedure makes (B5): drawn while the engine gives them a diameter (stage-frame.js edgeVisible: `D > 0`). */
