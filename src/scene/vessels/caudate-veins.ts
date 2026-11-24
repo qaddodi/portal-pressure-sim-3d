@@ -3,7 +3,7 @@
 // and eased in and out by the scene (scene.ts setCaudate), and they open into the cava by the same rule as the hepatic veins (fades.ts CAVA_FEEDERS: the vein takes the cava's colour and its faint alpha at the wall and is cut away inside
 // the lumen, so both have one fade at the junction). Each one rises out of the lobe's own tissue (fades in over its first stretch, no end to see).
 import { editedPlan } from '../../editor/vessel-plan.ts';
-import { CAUDATE_VEINS } from '../organs/caudate.ts';
+import { CAUDATE_VEINS, editedPoint } from '../organs/caudate.ts';
 import { JOIN_SPAN, type BranchItem, type BranchSet } from './liver-branches.ts';
 
 /** The IVC piece the veins enter (the cava below the TIPS/DIPS junction at y 306: the lobe lies at y 300 to 418) and the `when` of their group. */
@@ -35,7 +35,9 @@ function entrySpan(): readonly [number, number] {
 
 /** One vein: 2D's quadratic from inside the lobe to the cava's wall, carried on to the cava's axis (the shader cuts it away inside the lumen), flow order (lobe to cava). */
 function vein([d]: readonly [string, number], width: number, hostW: number): BranchItem {
-  const [x0, y0, cx, cy, , y1] = nums(d) as [number, number, number, number, number, number], ex = cavaX(y1), ey = y1 - 1.5;
+  const [rx0, ry0, rcx, rcy, , y1] = nums(d) as [number, number, number, number, number, number], ex = cavaX(y1), ey = y1 - 1.5;
+  // the lobe's edit (the editor): the vein leaves the moved lobe, its control point half way; the end stays on the cava
+  const [x0, y0] = editedPoint(rx0, ry0), [mcx, mcy] = editedPoint(rcx, rcy), cx = (rcx + mcx) / 2, cy = (rcy + mcy) / 2;
   const pts: P2[] = [];
   for (let i = 0; i < N; i++) { const t = i / (N - 1), u = 1 - t; pts.push([u * u * x0 + 2 * u * t * cx + t * t * ex, u * u * y0 + 2 * u * t * cy + t * t * ey]); }
   // (the end goes into the cava level with its axis: the cava's wall covers it, and its cut and ink hold-back are the hepatic veins' own)

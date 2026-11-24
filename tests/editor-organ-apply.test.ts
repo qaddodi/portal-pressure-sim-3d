@@ -90,3 +90,22 @@ test('the caudate (built from the 2D outline) takes its edit; empty overrides gi
     for (const v of p) assert.ok(Number.isFinite(v));
   } finally { setOverridesForTest(was); }
 });
+
+test('the caudate anchor and its veins follow the lobe edit; empty overrides change nothing', async () => {
+  const { caudateAnchor3, CAUDATE_ANCHOR } = await import('../src/scene/organs/caudate.ts');
+  const { caudateVeinSet } = await import('../src/scene/vessels/caudate-veins.ts');
+  const { x3, y3 } = await import('../src/scene/frame2d.ts');
+  const was = overrides();
+  try {
+    setOverridesForTest({ version: 1 });
+    caudateGeometry();
+    const a0 = caudateAnchor3(), v0 = JSON.stringify(caudateVeinSet(16));
+    assert.deepEqual(a0, [x3(CAUDATE_ANCHOR[0]), y3(CAUDATE_ANCHOR[1])]);
+    setOverridesForTest({ version: 1, organs: { caudate: { move: [0.1, 0, 0] } } });
+    const a1 = caudateAnchor3();
+    assert.ok(Math.abs(a1[0] - a0[0] - 0.1) < 1e-6 && Math.abs(a1[1] - a0[1]) < 1e-6);
+    const s0 = JSON.parse(v0).list[0].pts, s1 = caudateVeinSet(16).list[0]!.pts;
+    assert.ok(s1[0]![0] > s0[0][0] + 1);
+    assert.deepEqual(s1.at(-1), s0.at(-1));
+  } finally { setOverridesForTest(was); }
+});
