@@ -321,13 +321,18 @@ export class SkinSet {
   /** The tubes of the junctions' arms exactly as the scene draws them now: the vessel's own course first, `buildTubes`' vertex layout. */
   private tubesOf(js: readonly SkinJunction[]): Map<string, ArmTube> {
     const m = new Map<string, ArmTube>();
+    for (const _ of this.tubesSteps(js, m)) { /* every tube */ }
+    return m;
+  }
+  /** The same, a step (one arm's tube) per `yield`, into `m` (the boot builds the skins a step per task: scene.ts). */
+  private *tubesSteps(js: readonly SkinJunction[], m: Map<string, ArmTube>): Generator<void, void, unknown> {
     for (const j of js) for (const a of j.arms) {
       if (m.has(a.vesselId)) continue;
       const def = NETWORK_BY_ID.get(a.vesselId)!;
       const at = armTube(def, seamState(this.deps.stateOf(a.vesselId))), b = buildTubes(at.courses, at.tubular, def.radius);   // (a braid's arm tube is its widest strand: braid-arm.ts)
       m.set(a.vesselId, { geometry: b.geometry, tubular: b.runs[0]!.tubular, input: at.courses });
+      yield;
     }
-    return m;
   }
 
   /** The seam rings of a set of cuts, read from the tubes. */
@@ -588,7 +593,9 @@ export class SkinSet {
 
   /** Builds the skins of `phase` (spec 4.1) with the joins as they stand now (Smooth vessel joins on). Any skin built before is removed first. Planned together (cuts.ts planSkins: two skins on one vessel merge when they would crowd); a node that cannot be
    *  built keeps today's joins, is named in `fellBack` and warned once. */
-  build(phase: 1 | 2): void {
+  build(phase: 1 | 2): void { for (const _ of this.buildSteps(phase)) { /* every step */ } }
+  /** `build` in steps (one `yield` ends a step: an arm's tube, a baked skin laid in): the boot runs one per task so the skins are not one task of 150 ms on a laptop (scene.ts refreshSkinsSteps). */
+  *buildSteps(phase: 1 | 2): Generator<void, void, unknown> {
     this.clear();
     const nodes = skinNodesForPhase(phase);
     // phase 2 also builds every node a collateral or a shunt lands on (spec 10.2); phase 1 (the confluence alone) has none of them
@@ -609,7 +616,8 @@ export class SkinSet {
     const js = all.filter((j) => !far.has(j.node));
     this.sources = js;
     if (!js.length) return;
-    const tubes = this.tubesOf(js);
+    const tubes = new Map<string, ArmTube>();
+    yield* this.tubesSteps(js, tubes);
     const warn = this.deps.warn ?? ((m: string) => console.warn(m));
     // the skins baked at build time, when they were made for exactly these junctions and tubes (the digest): laid in as they are, nothing planned or meshed here
     this.digest = skinsDigest(js, tubes);
@@ -617,7 +625,8 @@ export class SkinSet {
     const d0 = this.dropped.length;
     let made: Built[], lost: { node: string; message: string }[];
     if (usable) {
-      made = usable.skins.map((s) => this.makeBuilt(s.plan, tubes, s)).filter((b): b is Built => !!b);
+      made = [];
+      for (const sk of usable.skins) { const b = this.makeBuilt(sk.plan, tubes, sk); if (b) made.push(b); yield; }
       lost = usable.lost; this.dropped.push(...usable.dropped);
     } else ({ made, lost } = this.produce(js, tubes));
     this.lostNodes.length = 0; this.lostNodes.push(...lost);
@@ -625,6 +634,7 @@ export class SkinSet {
     for (const f of lost) { this.fail(f.node, f.message, warn); this.built.push(this.lost(f.node)); }
     const touched = new Set<string>();
     for (const b of made) {
+      yield;
       this.place(b);
       this.built.push(b);
       // the tubes: cut at their seams, both ends of a vessel that two skins share in ONE cut (the second never overwrites the first); a vessel a merged skin replaces whole is hidden (2, -1)
@@ -632,6 +642,7 @@ export class SkinSet {
     }
     for (const id of touched) { const c = this.cuts.get(id) ?? SKIN_CUT_NONE; this.deps.vessel(id)?.setSkinCut(c[0], c[1]); this.putHoles(id); }
     for (const t of tubes.values()) t.geometry.dispose();
+    yield;
     this.sync();   // (the skins start from what their arms have NOW, from the first frame: a hidden or still drawing arm gives its skin nothing, never a stray one)
   }
 

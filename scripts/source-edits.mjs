@@ -282,6 +282,12 @@ export const REVIEWER_24NOV_D = [
   SET('ascites', 'slides.saag.title', 'A SAAG ≥1.1 g/dL supports portal hypertension as the cause'),
 ];
 
+/** Capture 6ec6d323 (24 Nov 2026): the words match what the figure draws. */
+export const CAPTURE_6EC6D323 = [
+  // Stiffness 5: the normal spleen's line is thin and solid in 3D, not dashed
+  P('stiffness', 'slides.spleen.line', 'The dashed outline is a normal spleen.', 'The thin outline is a normal spleen.'),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -392,6 +398,7 @@ export const SOURCE_PATCHES = [
   ...REVIEWER_24NOV_C,
   ...REVIEWER_24NOV_D,
   ...REVIEWER_24NOV_E,
+  ...CAPTURE_6EC6D323,
 ];
 
 function step(node, key) {

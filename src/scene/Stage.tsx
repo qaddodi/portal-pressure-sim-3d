@@ -54,10 +54,21 @@ import { SplitLabels } from './twin/SplitLabels.tsx';
 import { GeometryUploader, passMaterials, passWarmScene, warmPrograms, type UploadRenderer, type WarmRenderer } from './materials/warm.ts';
 
 const vesselData = new VesselData();
-cel.bindData(vesselData.texture);
-clock.on('engine', (f) => { if (vesselData.update(latest.frame, latest.version, f.time)) { if (vesselData.fresh) cel.dataChanged(); clock.invalidate('vessel-data'); } if (vesselData.easing) clock.invalidate('patient-glide'); }, 0);
-clock.on('tween', (f) => frames.run(f.time), 0);
-clock.on('camera', (f) => { if (cel.update(f.time)) clock.invalidate('scene'); }, 0);
+/** Wires the scene to the clock and the vessel data: once, after the scene is built (main.tsx start(), or the Stage's first render). Not at import: the first use of `cel` builds the scene, and at import that was ONE task of about a second
+ *  on a laptop (the boot builds it a step per task now: scene/api.ts buildSceneSliced). */
+let wired = false;
+const unwire: (() => void)[] = [];   // (the page lives as long as the scene: kept for a test that wires twice)
+export function wireScene(): void {
+  if (wired) return;
+  wired = true;
+  cel.bindData(vesselData.texture);
+  unwire.push(clock.on('engine', (f) => {
+    if (vesselData.update(latest.frame, latest.version, f.time)) { if (vesselData.fresh) cel.dataChanged(); clock.invalidate('vessel-data'); }
+    if (vesselData.easing) clock.invalidate('patient-glide');
+  }, 0));
+  unwire.push(clock.on('tween', (f) => frames.run(f.time), 0));
+  unwire.push(clock.on('camera', (f) => { if (cel.update(f.time)) clock.invalidate('scene'); }, 0));
+}
 let gestureTimerN = 0;
 const gestureTimers = new Map<number, TimerId>();
 export { vesselData };
@@ -302,6 +313,7 @@ function SceneBridge() {
 }
 
 export function Stage() {
+  wireScene();   // (a page that did not wire it at start: a test, a tool; once)
   useEffect(() => { clock.invalidate('stage-mounted'); }, []);
   // the pixel ratio the figure rests at, and whether the context is multisampled (only on ?aa=msaa, at any ratio); the canvas is made again only when that answer changes
   const detail = useSettings((s) => s.figureDetail);

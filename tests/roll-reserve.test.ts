@@ -42,7 +42,7 @@ test('the blood pressure and the platelets keep three digits', () => {
 
 test('Roll sizes its box to the reserve and the line gives it', () => {
   assert.match(readFileSync('src/ui/cards/Roll.tsx', 'utf8'), /\{reserve \?\? \(latest\.prev/);
-  assert.match(readFileSync('src/ui/cards/Line.tsx', 'utf8'), /<Roll text=\{text\} reserve=\{reserveOf\(text, p\.key, p\.decimals === 0, still, \{ seen: seen\?\.\(p\.key, p\.decimals === 0\), minus, raises \}\)\} after=\{stop\} \/>/);
+  assert.match(readFileSync('src/ui/cards/Line.tsx', 'utf8'), /<Roll text=\{text\} reserve=\{reserveOf\(text, p\.key, p\.decimals === 0, still, \{ seen: seen\?\.\(p\.key, p\.decimals === 0\), minus, raises \}\)\} alts=\{altsOf\(text, still, \{ seen: seen\?\.\(p\.key, p\.decimals === 0\) \}\)\} after=\{stop\} \/>/);
   assert.match(readFileSync('src/ui/deck-ui.css', 'utf8'), /\.dk-num \{[^}]*font-variant-numeric: tabular-nums/);
 });
 
@@ -66,4 +66,17 @@ test('a fibrosis slider holds two digits but no minus slot (Stiffness 3: "6.1 mm
 import { nb as nb3 } from '../src/ui/text/glue.ts';
 test('a count per microlitre never breaks after its slash (Stiffness check slide: "180,000/" then "µL")', () => {
   assert.equal(nb3('are 180,000/µL. Is'), 'are 180,000/⁠µL. Is');
+});
+
+import { altsOf } from '../src/ui/cards/roll-reserve.ts';
+import { readFileSync as readSrc } from 'node:fs';
+test('a reading whose values are all known holds the widest of them as they stand, with proportional digits (a tabular "1" read "1 6.8 mmHg", capture 6ec6d323)', () => {
+  assert.deepEqual(altsOf('16.8 mmHg', false, { seen: ['11.1 mmHg', '16.8 mmHg'] }), ['16.8 mmHg', '11.1 mmHg']);
+  assert.equal(altsOf('16.8 mmHg', false, {}), undefined, 'not all values known (a slider): the zero-filled reserve');
+  assert.equal(altsOf('16.8 mmHg', true, { seen: ['11.1 mmHg'] }), undefined, 'still: the text itself');
+  assert.equal(altsOf(VALUE_PENDING, false, { seen: ['11.1 mmHg'] }), undefined, 'a pending reading holds its typical value, not the known ones');
+  const css = readSrc(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8'), over = readSrc(new URL('../src/ui/css3d-over-2d.css', import.meta.url), 'utf8');
+  assert.match(css, /\.dk-roll\[data-fit\][^{]*\{[^}]*proportional-nums !important/, 'the fitted reading is proportional and wins over the lifted sheet');
+  assert.match(over, /\.pz-lapse\.done[^{]*\{[^}]*proportional-nums !important/, 'a stopped counter reads proportional, important (the plain rule never applied)');
+  assert.match(over, /\.pzt-vu[^{]*small[^{]*\{[^}]*proportional-nums !important/, 'a tile\'s unit is proportional');
 });

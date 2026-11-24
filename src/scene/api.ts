@@ -37,8 +37,26 @@ import { splitGoTo, splitMainRoom, splitSetRoom } from './twin/split.ts';
 /** The vessel picked in free play (topology edge ID), for the data card. */
 export const usePick = create<{ picked: string | null }>(() => ({ picked: null }));
 let built: CelScene | null = null;
-/** The scene (R6): built on the first call, never at import, so a module that only imports this file (a test, a tool) constructs nothing. */
-export const scene = (): CelScene => (built ??= wire(new CelScene()));
+/** The scene while the boot is building it a step per task (buildSceneSliced); null otherwise. */
+let building: CelScene | null = null;
+/** How many times a first use found the sliced build unfinished and built the rest at once (a use before the boot's own await: `?perf` and the tests read it; the page expects 0). */
+export const sceneDrained = { count: 0 };
+/** The scene (R6): built on the first call, never at import, so a module that only imports this file (a test, a tool) constructs nothing. A call while the boot is building it in slices builds the rest at once. */
+export const scene = (): CelScene => {
+  if (built) return built;
+  const sc = building ?? new CelScene();
+  if (building) { building = null; if (!sc.builtAll) sceneDrained.count++; }
+  sc.finishNow();
+  return (built = wire(sc));
+};
+/** The boot's scene, built one small step per task (CelScene `sliced`): the cover's bar and the browser's input run between the steps, and no one task is the whole scene (before 24 Nov it was one task of about a second on a laptop,
+ *  several on a phone, the "snag" a few seconds into the splash). Resolves when the scene is built and wired. Nothing may use `cel` before this is awaited: a use builds the rest at once, and is counted (`sceneDrained`). */
+export async function buildSceneSliced(next: () => Promise<void>): Promise<void> {
+  if (built || building) return;
+  const sc = (building = new CelScene({ sliced: true }));
+  await sc.finishSliced(next);
+  if (building === sc) { building = null; built = wire(sc); }
+}
 /** The page's pick store follows the scene's one pick, whatever changed it (integration review I6). */
 function wire(sc: CelScene): CelScene { sc.highlight.onPicked = (id) => { if (usePick.getState().picked !== id) usePick.setState({ picked: id }); }; return sc; }
 /** Whether the scene has been built yet. */

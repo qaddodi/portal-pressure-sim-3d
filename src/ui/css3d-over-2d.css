@@ -193,7 +193,7 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
    It breaks after "Refilling" (the number and unit are joined by a no-break space), centred, inside the ring. */
 .ab .ab-belly > .ab-big > .ab-rate[data-refill] { display: block; width: auto; max-width: 100%; white-space: normal; text-align: center; border-radius: .7em; }
 /* A counter that has stopped is read as words: the tabular "1" of "14 days later" stood apart from its "4" as "1 4" (Ascites 14). */
-.pz-lapse.done { font-variant-numeric: proportional-nums; }
+.pz-lapse.done.pz-lapse.done, .pz-lapse.done.pz-lapse.done * { font-variant-numeric: lining-nums proportional-nums !important; }   /* (important: the lifted sheet's `* { tabular-nums !important }` beat this plain rule, so "10 months later" still read "1 0": Next bleed 9, capture 6ec6d323) */
 
 /* A slide's paracentesis (Ascites 13): the litres taken off so far and the albumin dose, under the belly. Words only, no box. The words showing and the longest and shortest they can take stand in one grid cell
    (the unseen ones hold the room), so the box is the largest of them from the first frame and never changes: no card grows on screen (Mohammad, 24 Nov). */
@@ -207,3 +207,6 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 
 /* The endoscopic inset's caption stands inside the inset's foot, centred and allowed to wrap, never past the lens where a card covers it (Resuscitating an acute variceal bleed 8, reviewer 24 Nov 2026). */
 .pz-lens-cap { white-space: normal; text-align: center; line-height: 1.25; }
+
+/* A tile's unit and the words round its number are not in a column: proportional ("×1 0³/µL" read with a gap, Stiffness 5, capture 6ec6d323). Important and stacked, as the lapse rule above. */
+.deck-ui.pz .pz-data .pzt-vu.pzt-vu small, .deck-ui.pz .pz-data .pzt-vu.pzt-vu small * { font-variant-numeric: lining-nums proportional-nums !important; }

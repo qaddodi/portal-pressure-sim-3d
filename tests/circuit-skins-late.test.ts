@@ -12,7 +12,7 @@ test('the boot waits for the Anatomy file only: baked.ts load() never fetches th
   const load = baked.match(/async function load\(\)[^\n]*/)![0];
   assert.match(load, /BAKED_SKINS/); assert.doesNotMatch(load, /CIRCUIT/);
   assert.match(baked, /export function requestCircuitSkins/);
-  assert.match(src('main.tsx'), /bakedReady\]\)/);
+  assert.match(src('main.tsx'), /bakedReady[,\]]/);
   assert.doesNotMatch(src('main.tsx'), /requestCircuitSkins|bakedCircuit/);
 });
 

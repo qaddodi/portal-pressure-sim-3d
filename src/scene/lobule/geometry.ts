@@ -8,7 +8,7 @@
 import { flareAt, sinK } from './from2d/lobule-mouths.generated.js';
 import { lymphRuns, resampleRun, lyTaper } from './lymph.ts';
 import { RS0, SIN_NARROW, DUCT_R, AN_K } from './sizes.ts';
-import { bendNet } from './weld-bend.ts';
+import { bendNetSteps } from './weld-bend.ts';
 
 export type P2 = [number, number];
 
@@ -106,6 +106,13 @@ export const zoneOf = (q: number): 1 | 2 | 3 => (q > 0.66 ? 1 : q > 0.36 ? 2 : 3
 
 /** `bend: false` builds the same net without `bendNet` (the unbent twin the kink test measures a course against); the runtime never passes it. */
 export function buildLobule(seed = 7, opts: { bend?: boolean } = {}): LobuleNet {
+  const g = buildLobuleSteps(seed, opts);
+  let r = g.next();
+  while (!r.done) r = g.next();
+  return r.value;
+}
+/** `buildLobule` in steps (a bend pass, the lymph runs): the scene's boot runs one per task. */
+export function* buildLobuleSteps(seed = 7, opts: { bend?: boolean } = {}): Generator<void, LobuleNet, unknown> {
   const r = rng(seed);
   const R = 1, cx = 0, cy = 0;
   const rs0 = RS0, rsN = rs0 * SIN_NARROW, rcv0 = 0.07, rt = 0.1;
@@ -202,7 +209,8 @@ export function buildLobule(seed = 7, opts: { bend?: boolean } = {}): LobuleNet 
     join(A[0], A[1], 0.012);
   }
   // The network is bent once, here, before anything is laid along it (weld-bend.ts: the shallow V of two merging sinusoids is opened to the least angle the weld planner needs)
-  if (opts.bend !== false) bendNet(courses, triads.map((t) => { const q = dot(t.lv[0], t.lv[1]).pts; return q[Math.floor(q.length / 2)]!; }));   // (each tract's lymphatic mouth is the middle sample of its dot, as its course will be)
+  if (opts.bend !== false) yield* bendNetSteps(courses, triads.map((t) => { const q = dot(t.lv[0], t.lv[1]).pts; return q[Math.floor(q.length / 2)]!; }));   // (each tract's lymphatic mouth is the middle sample of its dot, as its course will be)
+  yield;
   // Portal-central septa (advanced cirrhosis): from three triads into the central vein's cuff
   const septa = [0, 2, 4].map((i) => {
     const [x, y] = C[i]!, ph = r() * TAU, nx = -(cy - y), ny = cx - x;
