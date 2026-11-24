@@ -19,6 +19,8 @@
 
 - **Lane panels (24 Nov 2026):** each stacked lane sits on its own darker rounded panel, no outline, no glow; the last also holds the day axis. Mocks `/mnt/project-files/chart-card-mocks-24nov/p2-panel-per-plot.png` (Mohammad: "i like p2 but without outlines"). One panel around all lanes (p1) was not chosen.
 
+- **Side panel (24 Nov 2026, "BX"):** "What to graph" and "What happened" are one raised two-part control (a recessed track, the chosen part lifted), Done beside it (tabs mock B, `/mnt/project-files/chart-card-mocks-24nov/t-tabs.png`). Each section head has a ring at the left in line with the row rings: all drawn = filled with a tick, some = filled with a dash, none = empty; a tap draws the whole section, or clears it when it is all drawn (tick mock X, `t-group-ticks.png`). The list scrolls in the panel when the rows do not fit (no visible bar).
+
 ## Rejected
 - Blurring the figure behind the card (Mohammad, 23 Nov). Pills, chips, dots-with-words, bubbles, a box behind a label. Child-Pugh and MELD stay on their own card.
 

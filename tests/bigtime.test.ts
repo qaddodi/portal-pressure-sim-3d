@@ -6,7 +6,7 @@ import { buildData, baseName } from '../src/ui/bigtime/data.ts';
 import { bigFrame, stripFrame, leadOf, TITLE_H, type BigIn } from '../src/ui/bigtime/frame.ts';
 import { before, isTips, tipsFacts, readingsAt } from '../src/ui/bigtime/facts.ts';
 import { paceOf, scaleFor, scaleWord } from '../src/ui/bigtime/pace.ts';
-import { zoomed, slid } from '../src/ui/bigtime/store.ts';
+import { zoomed, slid, useBig } from '../src/ui/bigtime/store.ts';
 import { dayExtras } from '../src/ui/bigtime/day-keys.ts';
 import { MEASURES, MEASURE_OF, heWord } from '../src/ui/bigtime/measures.ts';
 import { ctxOf, eachLook, judge } from './charts-helpers.ts';
@@ -481,4 +481,15 @@ test('each lane sits on its own darker rounded panel with no outline (owner, 24 
   assert.ok(at > 0, 'the panels are drawn');
   const line = src.slice(at, src.indexOf('// zones, grids', at));
   assert.ok(/k: 'rect'[^}]*r: 14[^}]*fill: panel/.test(line) && !/stroke|pen\(/.test(line), 'a rounded fill, no outline');
+});
+
+test('a section has its own tick (owner, 24 Nov, option X): all drawn, none, or some (mixed); the two panels are one raised control (option B)', () => {
+  const st = useBig.getState(), ids = ['pv', 'wedge'];
+  st.setMany(ids, false);
+  assert.ok(ids.every((id) => !useBig.getState().on[id]));
+  st.setMany(ids, true);
+  assert.ok(ids.every((id) => useBig.getState().on[id]));
+  const chooser = readFileSync(new URL('../src/ui/bigtime/Chooser.tsx', import.meta.url), 'utf8'), card = readFileSync(new URL('../src/ui/bigtime/TimelineCard.tsx', import.meta.url), 'utf8'), css = readFileSync(new URL('../src/ui/bigtime/bigtime.css', import.meta.url), 'utf8');
+  assert.ok(/aria-pressed=\{n === ms\.length \? true : n \? 'mixed' : false\}/.test(chooser) && /setMany\(ms\.map/.test(chooser), 'the section tick has the three states');
+  assert.ok(/className="bt-seg"/.test(card) && /\.bt-seg button\[aria-pressed="true"\]/.test(css), 'one raised control');
 });

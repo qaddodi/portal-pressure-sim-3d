@@ -26,6 +26,10 @@
 .bt-tabs h2 { margin: 0; font: 600 var(--t-val) / 1.2 var(--display); }
 .bt-tabs button { padding: 0; border: 0; background: none; font: 600 var(--t-body) / 1.2 var(--ui); color: var(--text-3); transition: color var(--d-small) var(--ease); }
 .bt-tabs button[aria-pressed="true"] { color: var(--text); }
+/* the two panels as one raised two-part control (owner, 24 Nov, option B): a recessed track, the chosen part lifted on it */
+.bt-seg { flex: 1; display: flex; gap: 2px; padding: 4px; border-radius: 14px; background: color-mix(in srgb, var(--surface-2) 55%, black); align-self: center; }
+.bt-seg button { flex: 1; padding: 9px 6px; border-radius: 11px; text-align: center; transition: color var(--d-small) var(--ease), background-color var(--d-small) var(--ease); }
+.bt-seg button[aria-pressed="true"] { background: var(--surface-2); box-shadow: 0 1px 6px -2px rgb(0 0 0 / 0.5); }
 .bt .bt-done { margin-left: auto; padding: 0; border: 0; background: none; font: 600 var(--t-body) / 1.2 var(--ui); color: var(--accent); }
 .bt-body { position: relative; flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; container-type: size; }
 .bt-body::-webkit-scrollbar { display: none; }
@@ -33,6 +37,11 @@
 .bt-choose { --bt-row: clamp(32px, calc((100cqh - 40px * var(--bt-g, 5) - 104px) / var(--bt-n, 10)), 42px); }
 
 .bt-grp header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: clamp(6px, 1.6vh, 14px) 0 4px; border-bottom: 1px solid var(--edge); font: 400 var(--t-cap) / 1.2 var(--ui); }
+.bt-gh { display: flex; align-items: center; gap: 10px; padding: 0; border: 0; background: none; color: var(--text); text-align: left; }
+.bt-gh .bt-tick { align-self: center; flex: none; }
+.bt-gh[aria-pressed="true"] .bt-tick, .bt-gh[aria-pressed="mixed"] .bt-tick { background: var(--text); border-color: var(--text); }
+.bt-gh[aria-pressed="true"] .bt-tick::after { transform: rotate(45deg) scale(1); }
+.bt-gh[aria-pressed="mixed"] .bt-tick::after { left: 4px; top: 7px; width: 10px; height: 0; border-width: 0 0 2.4px; transform: scale(1); }
 .bt-grp header b { font: 600 var(--t-body) / 1.2 var(--ui); color: var(--text); }
 .bt-grp header span { color: var(--text-3); }
 .bt-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 118px 64px; align-items: center; gap: 10px; width: 100%; height: var(--bt-row); padding: 0; border: 0; border-bottom: 1px solid var(--edge); background: none; font: 600 var(--t-body) / 1.2 var(--ui); text-align: left; transition: color var(--d-small) var(--ease); }

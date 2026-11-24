@@ -23,7 +23,7 @@ function Spark({ s, m, off }: { s: Series; m: Measure; off: boolean }) {
 }
 
 export function Chooser({ data, at }: { data: Data; at: number }) {
-  const on = useBig((s) => s.on), hidden = useBig((s) => s.hidden), toggle = useBig.getState().toggle, mark = useBig.getState().toggleMark;
+  const on = useBig((s) => s.on), hidden = useBig((s) => s.hidden), toggle = useBig.getState().toggle, setMany = useBig.getState().setMany, mark = useBig.getState().toggleMark;
   const look = useLookId(), pal = paletteOf(look);
   const css = (m: Measure) => toCss(inkOf(pal, m.tok));
   const meds = data.meds, procs = useMemo(() => [...new Set(data.lines.filter((l) => l.kind === 'change').map((l) => baseName(l.label)))], [data.lines]);
@@ -35,9 +35,14 @@ export function Chooser({ data, at }: { data: Data; at: number }) {
       {GROUPS.map((g) => {
         const ms = MEASURES.filter((m) => m.group === g.id && data.series[m.id]);
         if (!ms.length) return null;
+        const n = ms.filter((m) => on[m.id]).length;
         return (
           <section key={g.id} className="bt-grp">
-            <header><b>{g.name}</b><span>{g.unit}</span></header>
+            <header>
+              {/* the section's own tick (owner, 24 Nov, option X): the whole section drawn, none of it, or some (a dash); a tap draws all of it, or clears it when it is all drawn */}
+              <button type="button" className="bt-gh" aria-pressed={n === ms.length ? true : n ? 'mixed' : false} aria-label={`${g.name}: ${n === ms.length ? 'hide all' : 'graph all'}`} onClick={() => setMany(ms.map((m) => m.id), n !== ms.length)}><i className="bt-tick" aria-hidden="true" /><b>{g.name}</b></button>
+              <span>{g.unit}</span>
+            </header>
             {ms.map((m) => {
               const v = valueAt(data.series[m.id], at), off = !on[m.id];
               return (

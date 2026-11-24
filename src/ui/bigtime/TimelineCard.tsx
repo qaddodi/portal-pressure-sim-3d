@@ -149,8 +149,10 @@ export function TimelineCard() {
   }, [compact, raised]);
   const sideHead = compact ? null : (
     <header className="bt-tabs">
-      <button type="button" aria-pressed={panel === 'graph'} onClick={() => set({ panel: 'graph' })}>{BT.graph}</button>
-      <button type="button" aria-pressed={panel === 'happened'} onClick={() => set({ panel: 'happened' })}>{BT.happened}</button>
+      <div className="bt-seg">
+        <button type="button" aria-pressed={panel === 'graph'} onClick={() => set({ panel: 'graph' })}>{BT.graph}</button>
+        <button type="button" aria-pressed={panel === 'happened'} onClick={() => set({ panel: 'happened' })}>{BT.happened}</button>
+      </div>
       <button type="button" className="bt-done" onClick={close}>{BT.done}</button>
     </header>
   );

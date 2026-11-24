@@ -20,8 +20,10 @@ interface BigState {
   row: number | null;
   /** the page of What happened (-1: the newest, followed as rows come) */
   page: number;
-  set(p: Partial<Omit<BigState, 'set' | 'toggle' | 'toggleMark'>>): void;
+  set(p: Partial<Omit<BigState, 'set' | 'toggle' | 'toggleMark' | 'setMany'>>): void;
   toggle(id: string): void;
+  /** a whole section at once: every listed measure drawn (true) or not */
+  setMany(ids: readonly string[], on: boolean): void;
   toggleMark(key: string): void;
 }
 export const DEFAULT_ON: Record<string, boolean> = Object.fromEntries(MEASURES.map((m) => [m.id, m.on]));
@@ -29,6 +31,7 @@ export const useBig = create<BigState>((set, get) => ({
   on: { ...DEFAULT_ON }, hidden: new Set(), win: null, cursor: null, pin: null, panel: 'graph', raised: false, row: null, page: -1,
   set: (p) => set(p),
   toggle: (id) => set({ on: { ...get().on, [id]: !get().on[id] } }),
+  setMany: (ids, on) => set({ on: { ...get().on, ...Object.fromEntries(ids.map((id) => [id, on])) } }),
   toggleMark: (key) => { const h = new Set(get().hidden); if (h.has(key)) h.delete(key); else h.add(key); set({ hidden: h }); },
 }));
 
