@@ -7,6 +7,10 @@ export const PLAN_PER_SCENE = 300;   // 2D plan units in one scene unit (frame2d
 const clamp = (v: number, lo: number, hi: number): number => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : 0);
 const r4 = (v: number): number => Math.round(v * 10000) / 10000;
 
+/** `a` and `b` describe different drafts? The text of each is made once per object (a draft is never changed in place), so asking on every pointer move costs nothing. */
+const textOf = new WeakMap<Overrides, string>();
+const text = (o: Overrides): string => { let t = textOf.get(o); if (t === undefined) { t = exportText(o); textOf.set(o, t); } return t; };
+export const differs = (a: Overrides, b: Overrides): boolean => a !== b && text(a) !== text(b);
 export const isEmpty = (o: Overrides): boolean => !Object.keys(o.nodes ?? {}).length && !Object.keys(o.vessels ?? {}).length && !Object.keys(o.organs ?? {}).length;
 
 /** Node `id` at the absolute offsets (dx, dy plan units, dz scene units) the draft keeps; all zero removes it. */
@@ -122,6 +126,8 @@ export class History {
     if (!coalesce) this.mark();
     this.now = next;
   }
+  /** Starts an undo step that goes back to `prev` (a change that was made first and noticed after: a slider that may not have changed the draft). */
+  markAs(prev: Overrides): void { this.past.push(prev); if (this.past.length > 200) this.past.shift(); this.future = []; }
   /** Starts an undo step now. */
   mark(): void { this.past.push(this.now); if (this.past.length > 200) this.past.shift(); this.future = []; }
   get pastList(): readonly Overrides[] { return this.past; }

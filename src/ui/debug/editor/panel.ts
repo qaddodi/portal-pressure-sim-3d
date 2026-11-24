@@ -20,7 +20,7 @@ import { knownIds, orphanCount, orphanText, orphansOf, withoutOrphans } from './
 import { Overlay } from './overlay.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from './picking.ts';
 import { skeleton, organIds, pointAt, uAtIndex, centroidOf, type Skeleton } from './source.ts';
-import { History, PLAN_PER_SCENE, addControl, removeControl, knotsOf, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
+import { History, differs, PLAN_PER_SCENE, addControl, removeControl, knotsOf, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
 
 type Mode = 'orbit' | 'vessels' | 'organs';
 type Target = { kind: 'node'; id: string } | { kind: 'ctrl'; vid: string; u: number };
@@ -194,7 +194,7 @@ export function mountEditor(): void {
   const slider = (label: string, min: number, max: number, step: number, get: () => number, set: (v: number) => void, fmt = (v: number): string => (Math.round(v * 1000) / 1000).toString()): HTMLElement => {
     const v = el('span', { className: 'val' }), i = el('input', { type: 'range', min: String(min), max: String(max), step: String(step) });
     const show = (): void => { i.value = String(get()); v.textContent = fmt(get()); };
-    i.oninput = () => { if (!sliding) { sliding = true; hist.mark(); } set(Number(i.value)); sync(); };
+    i.oninput = () => { const before = hist.now; set(Number(i.value)); if (!sliding && hist.now !== before) { sliding = true; hist.markAs(before); } sync(); };   // (an undo step only when the draft changed: the brush sliders do not)
     i.onchange = () => { sliding = false; };
     syncers.push(show);
     return el('div', { className: 'row' }, [el('label', { textContent: label }), i, v]);
@@ -256,7 +256,7 @@ export function mountEditor(): void {
   const known = knownIds();
   const orphanNote = (): string => { const r = orphansOf(hist.now, known); return orphanCount(r) ? `${orphanCount(r)} edit${orphanCount(r) === 1 ? '' : 's'} name${orphanCount(r) === 1 ? 's' : ''} something that no longer exists (${orphanText(r)}) and do${orphanCount(r) === 1 ? 'es' : ''} nothing.` : ''; };
   { const r = orphansOf(loaded, known); if (orphanCount(r)) console.warn('[editor] overrides name parts this build does not have:', orphanText(r)); }
-  const dirty = (): boolean => exportText(hist.now) !== exportText(loaded);
+  const dirty = (): boolean => differs(hist.now, loaded);
   const sync = (): void => {
     for (const f of syncers) f();
     status.textContent = `${dirty() ? 'Unsaved edits' : 'No edits since the last Save'} · ${Object.keys(hist.now.nodes ?? {}).length} junctions, ${Object.keys(hist.now.vessels ?? {}).length} vessels, ${Object.keys(hist.now.organs ?? {}).length} organs`;

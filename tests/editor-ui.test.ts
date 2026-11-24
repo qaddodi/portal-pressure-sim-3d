@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
 import type { Stroke } from '../src/editor/types.ts';
-import { addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
+import { differs, addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
 import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from '../src/ui/debug/editor/picking.ts';
 import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
 import { VIEW_KEY, loadView, saveView, EXPORT_REMIND_MS, exportReminder, noteExported, persistHistory, restorableHistory, clearHistory, type StorageLike } from '../src/ui/debug/editor/session.ts';
@@ -280,4 +280,16 @@ test('orphans: every id in the committed overrides.json exists in this build, an
   const bad = setOrgan(setControl(setNode(good, 'NO_SUCH_NODE', { dx: 1, dy: 1 }), 'NO_SUCH_VESSEL', 0.5, { dx: 1, dy: 1 }), 'no-such-organ', { rotY: 0.1 });
   assert.deepEqual(orphansOf(bad, k), { nodes: ['NO_SUCH_NODE'], vessels: ['NO_SUCH_VESSEL'], organs: ['no-such-organ'] });
   assert.deepEqual(withoutOrphans(bad, k), good);
+});
+
+test('history: a step noticed after the change (a slider) goes back to what it was; one that changed nothing makes none', () => {
+  const h = new History(EMPTY), before = h.now;
+  h.commit(setNode(before, 'A', { dx: 2, dy: 2 }), true); h.markAs(before);
+  assert.equal(h.undo(), true); assert.equal(isEmpty(h.now), true);
+  const g = new History(EMPTY); assert.equal(g.canUndo, false);
+});
+
+test('differs: equal drafts in different objects are the same, and the answer is cached per object', () => {
+  const a = setNode(EMPTY, 'A', { dx: 1, dy: 1 }), b = setNode(EMPTY, 'A', { dx: 1, dy: 1 });
+  assert.equal(differs(a, b), false); assert.equal(differs(a, a), false); assert.equal(differs(a, EMPTY), true);
 });
