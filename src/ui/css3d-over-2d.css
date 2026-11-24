@@ -210,3 +210,6 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 
 /* A tile's unit and the words round its number are not in a column: proportional ("×1 0³/µL" read with a gap, Stiffness 5, capture 6ec6d323). Important and stacked, as the lapse rule above. */
 .deck-ui.pz .pz-data .pzt-vu.pzt-vu small, .deck-ui.pz .pz-data .pzt-vu.pzt-vu small * { font-variant-numeric: lining-nums proportional-nums !important; }
+
+/* The Gut to Heart card drops its title (24 Nov): out of the flow and unseen; the chart is as much taller as the title and its gap were (ProfileCard). */
+.pz.pz.pz .pz-data .pz-dh.off.off { position: absolute; left: 0; right: 0; visibility: hidden; pointer-events: none; }

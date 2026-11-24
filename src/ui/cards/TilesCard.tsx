@@ -54,8 +54,11 @@ export function TilesHead({ deckId, slideId, onZoom }: { deckId: string; slideId
   if (!copied) return null;
   const lay = layoutOf(vp.w, vp.h), title = cardTitle(copied, lay === 'stack' || lay === 'tab' || isShortSide(vp.w, vp.h));
   const heads = t?.toolOnly ? t.tiles.filter((x) => t.head.includes(x.k)) : [];
+  // (The Gut to Heart card has no title: the chart's own zone words say it (24 Nov, Mohammad: "GUT TO HEART title can drop"). The heading stays in the page for a screen reader but leaves the flow, and the chart
+  //  takes the height it held: ProfileCard measures it, `.pz-dh.off`.)
+  const off = (copied.tool as { kind?: string } | undefined)?.kind === 'profile' && !heads.length;
   return (
-    <div className="pz-dh">
+    <div className={off ? 'pz-dh off' : 'pz-dh'}>
       <span>{titleUnits(title).map((p, i) => (i % 2 ? <span key={i} className="pz-unit">{p}</span> : p))}</span>
       <span className="pz-hr" data-n={heads.length}>
         {heads.map((x) => (
