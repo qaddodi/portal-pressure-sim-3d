@@ -71,3 +71,16 @@ export function applyOrganEdit(g: BufferGeometry, edit: OrganEdit | undefined, o
   g.computeBoundingBox(); g.boundingSphere = null;
   return g;
 }
+
+/** The whole-organ part of an edit (scale about `centroid`, then turn about the vertical axis, then move; the same arithmetic as applyOrganEdit, clamped) as a point map, for anchors that
+ *  hang on an organ (a caption, a scope's way, a bleed). Liquify strokes are local and not carried. Null when the edit moves nothing. */
+export function organPointMap(edit: OrganEdit | undefined, centroid: V3): ((p: V3) => V3) | null {
+  if (!edit) return null;
+  const e = clampEdit(edit);
+  if (e.move[0] === 0 && e.move[1] === 0 && e.move[2] === 0 && e.rotY === 0 && e.scale === 1) return null;
+  const cs = Math.cos(e.rotY), sn = Math.sin(e.rotY), c = centroid;
+  return (p) => {
+    const rx = (p[0] - c[0]) * e.scale, ry = (p[1] - c[1]) * e.scale, rz = (p[2] - c[2]) * e.scale;
+    return [c[0] + rx * cs + rz * sn + e.move[0], c[1] + ry + e.move[1], c[2] - rx * sn + rz * cs + e.move[2]];
+  };
+}

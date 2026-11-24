@@ -14,7 +14,7 @@ import { boxLeader, leaderToEdge, leaderShort, LEAD_AIR } from './tag-lead.ts';
 import { restyle } from './roll.ts';
 import { LS, RING_STROKE, type Vp } from './type.ts';
 import { stationById, curveOf, nodeZ, ORGAN_FRONT } from './stations.ts';
-import { nodePos2D, nodeDz } from '../editor-anchors.ts';
+import { nodePos2D, nodeDz, followOrganAt } from '../editor-anchors.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { x3, y3, UNITS_PER_SCENE } from '../frame2d.ts';
 import { scopeClaims, clearParam } from './scope-claims.ts';
@@ -280,7 +280,7 @@ export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule']
     return n ? out.set(sum.x / n, sum.y / n, sum.z / n) : null;
   }
   if ('station' in a) { const s = stationById(a.station); return s ? s.at(0.5, out) : null; }
-  if ('at2d' in a) return out.set(x3(a.at2d[0]), y3(a.at2d[1]), a.z ?? ORGAN_FRONT);
+  if ('at2d' in a) { const q = followOrganAt([a.at2d[0], a.at2d[1]], a.z); return out.set(x3(q[0]), y3(q[1]), a.z ?? ORGAN_FRONT); }
   const p = nodePos2D(a.node);
   if (!p) return null;
   try { return out.set(x3(p[0]), y3(p[1]), nodeZ(a.node) + nodeDz(a.node)); } catch { return null; }

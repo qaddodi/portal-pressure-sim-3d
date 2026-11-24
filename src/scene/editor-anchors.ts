@@ -3,8 +3,7 @@
 // With no vessel, node or organ edit every function returns its reference value UNCHANGED (the same array or number), so the unedited figure is byte-identical.
 import { overrides } from '../editor/store.ts';
 import { EDGE_PATH_2D, NODE_POS_2D } from './vessels/paths.copied.ts';
-import { NETWORK_BY_ID } from './vessels/network.ts';
-import { UNITS_PER_SCENE as U } from './frame2d.ts';
+import { NETWORK_BY_ID, courseOf } from './vessels/network.ts';
 
 type P2 = readonly [number, number];
 
@@ -19,6 +18,15 @@ export function path2D(id: string): readonly P2[] | undefined {
   return plan && plan.kind === 'coil' ? plan.base : ref;
 }
 
+/** The depth of a vessel's course at point `i` of `n` (as path2D lists them): `tier` unedited; once edited, the built course's depth, which already carries the edited dz (network.ts courseOf adds it once, so nothing here adds it again). */
+export function zAtPoint(id: string, i: number, n: number, tier: number): number {
+  if (!planEdited()) return tier;
+  const c = courseOf(id);
+  if (!c.length) return tier;
+  const t = n > 1 ? (i / (n - 1)) * (c.length - 1) : 0, k = Math.min(c.length - 2, Math.floor(t)), u = t - k;
+  return c.length < 2 ? c[0]![2] : c[k]![2] + (c[k + 1]![2] - c[k]![2]) * u;
+}
+
 /** A topology node's place on the 2D figure: the reference place plus the node's edited move. */
 export function nodePos2D(id: string): P2 | undefined {
   const p = NODE_POS_2D[id];
@@ -28,17 +36,68 @@ export function nodePos2D(id: string): P2 | undefined {
 /** The depth an edited node adds to the one the vessels give it (0 unedited). */
 export const nodeDz = (id: string): number => overrides().nodes?.[id]?.dz ?? 0;
 
-/** An organ's 2D offset (figure units, y down) from its edited move; null when it is not moved. Rotation and scale act about the organ's centroid and are not carried. */
-export function organShift2D(organ: string): P2 | null {
-  const m = overrides().organs?.[organ]?.move;
-  return m && (m[0] !== 0 || m[1] !== 0) ? [m[0] * U, -m[1] * U] : null;
+// @ts-ignore copied plain JS
+import { ORGANS } from './labels/organ2d/outlines.copied.js';
+// @ts-ignore copied plain JS
+import { flattenPath } from './labels/organ2d/flatten.js';
+import { organPointMap } from '../editor/organ-apply.ts';
+import { ORGAN_Z } from './organs/z.ts';
+import { x3, y3, x2d, y2d } from './frame2d.ts';
+import type { V3 } from '../editor/types.ts';
+
+type Ring = [number, number][];
+const rings = (id: string): Ring[] => {
+  const o = (ORGANS as { id: string; d?: string; ring?: string }[]).find((q) => q.id === id);
+  const polys: { pts: number[] }[] = o ? flattenPath((o.ring ?? o.d)!, 4) : [];
+  return polys.map((p) => Array.from({ length: p.pts.length / 2 }, (_, i) => [p.pts[2 * i]!, p.pts[2 * i + 1]!] as [number, number])).filter((q) => q.length > 2);
+};
+/** The outlines an organ mesh is extruded from (the esophagus is part of the stomach's mesh). */
+const OUTLINES: Readonly<Record<string, readonly string[]>> = { stomach: ['stomach', 'esophagus'] };
+const kept = new Map<string, { rs: Ring[]; centre: V3 }>();
+function outlineOf(organ: string): { rs: Ring[]; centre: V3 } {
+  let k = kept.get(organ);
+  if (!k) {
+    const rs = (OUTLINES[organ] ?? [organ]).flatMap(rings);
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const r of rs) for (const [x, y] of r) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    // (the mesh is the outline extruded by the one map, so its box middle is the outline's; its depth middle is ORGAN_Z)
+    kept.set(organ, k = { rs, centre: rs.length ? [x3((x0 + x1) / 2), y3((y0 + y1) / 2), ORGAN_Z[organ] ?? 0] : [0, 0, 0] });
+  }
+  return k;
+}
+let mapsFor: unknown = null, maps = new Map<string, ((p: V3) => V3) | null>();
+/** An organ's edit as a scene-point map (move, rotY, scale about its centre), or null when it is not edited. */
+export function organMap(organ: string): ((p: V3) => V3) | null {
+  const o = overrides();
+  if (mapsFor !== o) { mapsFor = o; maps = new Map(); }
+  if (!maps.has(organ)) maps.set(organ, o.organs?.[organ] ? organPointMap(o.organs[organ], outlineOf(organ).centre) : null);
+  return maps.get(organ)!;
+}
+/** A scene point that hangs on an organ, carried with the organ's edit (the same array when unedited). */
+export function organPoint(organ: string | undefined, p: V3): V3 {
+  const m = organ ? organMap(organ) : null;
+  return m ? m(p) : p;
+}
+/** A 2D figure point on an organ (at depth `z`, the organ's own by default), carried with the organ's edit: the same array when the organ is not edited. */
+export function withOrgan(organ: string | undefined, p: P2, z?: number): P2 {
+  const m = organ ? organMap(organ) : null;
+  if (!m) return p;
+  const q = m([x3(p[0]), y3(p[1]), z ?? ORGAN_Z[organ!] ?? 0]);
+  return [x2d(q[0]), y2d(q[1])];
 }
 /** The organ mesh each 2D organ caption (names.copied ORGAN_AT keys) belongs to. */
 export const ORGAN_OF_CAPTION: Readonly<Record<string, string>> = { Liver: 'liver', Spleen: 'spleen', Stomach: 'stomach', Colon: 'colon', Kidney: 'kidney-l', 'Small bowel': 'bowel', Esophagus: 'stomach', 'Right atrium': 'heart-ra' };
-/** A point on an organ's caption or silhouette, moved with the organ (the same point when the organ is not moved). */
-export function withOrgan(organ: string | undefined, p: P2): P2 {
-  const s = organ ? organShift2D(organ) : null;
-  return s ? [p[0] + s[0], p[1] + s[1]] : p;
+const inside = (rs: Ring[], x: number, y: number): boolean => {
+  let c = false;
+  for (const P of rs) for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i]![1] > y) !== (P[j]![1] > y) && x < ((P[j]![0] - P[i]![0]) * (y - P[i]![1])) / (P[j]![1] - P[i]![1]) + P[i]![0]) c = !c;
+  return c;
+};
+/** A fixed 2D point that sits on an organ's outline (a card's anchor): carried with the first edited organ that holds it; unchanged when no organ is edited or none holds it. */
+export function followOrganAt(p: P2, z?: number): P2 {
+  const os = overrides().organs;
+  if (!os) return p;
+  for (const id of Object.keys(os)) if (organMap(id) && inside(outlineOf(id).rs, p[0], p[1])) return withOrgan(id, p, z);
+  return p;
 }
 
 /** The follow of a framing point near edited nodes: the nodes' moves (figure units), each fading smoothly to nothing `reach` units from where the node stood. [0, 0] unedited. */

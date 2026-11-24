@@ -9,7 +9,7 @@ import { BufferAttribute, BufferGeometry, Color, DoubleSide, Float32BufferAttrib
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { TIER_Z, VESSEL_PLANE_Z, len3, x3, y3 } from '../../frame2d.ts';
-import { path2D } from '../../editor-anchors.ts';
+import { path2D, withOrgan } from '../../editor-anchors.ts';
 import { ORGAN_MESHES } from '../../organs/meshes.ts';
 import { ORGAN_Z } from '../../organs/z.ts';
 import { bakeGeometry, centreAt, type CentreGrid } from '../../organs/centre-z.ts';
@@ -48,7 +48,7 @@ export function scopeWay(): ScopeWay { return (kept ||= makeWay(EUS_ROUTE)); }
 export function glueScopeWay(): ScopeWay { return (keptGlue ||= makeWay(EUS_GLUE_ROUTE)); }
 function makeWay(route: { build(B: object): void }): ScopeWay {
   const lists: { name: string; pts: P2[] }[] = [];
-  route.build({ pts: (list: P2[], _id: string, _f: number, name = 'lead') => { lists.push({ name, pts: list.map((q) => [q[0], q[1]] as P2) }); } });
+  route.build({ pts: (list: P2[], _id: string, _f: number, name = 'lead') => { lists.push({ name, pts: list.map((q) => { const m = withOrgan('stomach', [q[0], q[1]]); return [m[0], m[1]] as P2; }) }); } });   // (the way runs in the stomach's mesh: it turns and moves with the organ's edit)
   const raw: P2[] = [], endOf: Record<string, number> = {};
   for (const l of lists) { for (const q of l.pts) raw.push(q); endOf[l.name] = raw.length - 1; }
   const c0 = [0];
@@ -64,7 +64,7 @@ function makeWay(route: { build(B: object): void }): ScopeWay {
   const near = (q: readonly number[]): number => { let best = Infinity, d = 0; pts.forEach((p, i) => { const e = Math.hypot(p[0] - q[0]!, p[1] - q[1]!); if (e < best) { best = e; d = cum[i]!; } }); return d; };
   // the way's direction at a length: over a few samples either side
   const way: ScopeWay = {
-    pts, cum, total, cardiaD: lenAt(endOf.cardia ?? raw.length - 1), hvD: near(EUS_STATIONS.hv.at),
+    pts, cum, total, cardiaD: lenAt(endOf.cardia ?? raw.length - 1), hvD: near(withOrgan('stomach', EUS_STATIONS.hv.at as P2)),
     at(r, d) {
       const x = Math.min(r.total, Math.max(0, d)), i = Math.min(r.pts.length - 2, Math.max(0, Math.floor(x / STEP))), u = Math.min(1, Math.max(0, (x - r.cum[i]!) / (r.cum[i + 1]! - r.cum[i]! || 1)));
       const a = r.pts[i]!, b = r.pts[i + 1]!, j0 = Math.max(0, i - 2), j1 = Math.min(r.pts.length - 1, i + 3), dx = r.pts[j1]![0] - r.pts[j0]![0], dy = r.pts[j1]![1] - r.pts[j0]![1], l = Math.hypot(dx, dy) || 1;

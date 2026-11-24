@@ -1,4 +1,4 @@
-import { path2D } from './editor-anchors.ts';
+import { path2D, zAtPoint } from './editor-anchors.ts';
 import { NETWORK_BY_ID } from './vessels/network.ts';
 import { TIER_Z, x3, y3 } from './frame2d.ts';
 import type { Vec3 } from './anatomy/vessels.ts';
@@ -12,6 +12,8 @@ import type { Vec3 } from './anatomy/vessels.ts';
 type P2 = readonly [number, number];
 const pathOf = (id: string, rev = false): P2[] => { const p = path2D(id); if (!p) throw new Error(`no 2D course for ${id}`); return (rev ? [...p].reverse() : [...p]) as P2[]; };
 const depthOf = (id: string): number => TIER_Z[NETWORK_BY_ID.get(id)!.tier];
+/** The depth at each point of a vessel's course (its tier's, flat, unless the editor gave it a depth). */
+const zOf = (id: string, rev = false): number[] => { const n = pathOf(id).length, z = Array.from({ length: n }, (_, i) => zAtPoint(id, i, n, depthOf(id))); return rev ? z.reverse() : z; };
 
 /** Where the tip stops along the right hepatic vein, from the IVC outward (the 2D app's 0.62). */
 export const TIP_ALONG_RHV = 0.62;
@@ -21,7 +23,7 @@ const Z_EASE = 0.3;
 export function catheterRoute(): Vec3[] {
   // [2D x, 2D y, scene z]
   const raw: [number, number, number][] = [];
-  const add = (id: string, rev = false, from = 1) => { const z = depthOf(id); pathOf(id, rev).slice(from).forEach(([x, y]) => raw.push([x, y, z])); };
+  const add = (id: string, rev = false, from = 1) => { const p = pathOf(id, rev), z = zOf(id, rev); p.slice(from).forEach(([x, y], i) => raw.push([x, y, z[i + from]!])); };
   const top = pathOf('SVC_RA_1')[0]!;
   const zTop = depthOf('SVC_RA_1');
   raw.push([top[0] - 6, top[1] - 150, zTop], [top[0] - 2, top[1] - 60, zTop], [top[0], top[1], zTop]);
@@ -29,10 +31,11 @@ export function catheterRoute(): Vec3[] {
   // on down the middle of the IVC to the level where the right hepatic vein opens into it
   const ostY = pathOf('RHV_IVC').at(-1)![1];
   const zIvc = depthOf('IVC_IS');
-  for (const [x, y] of pathOf('IVC_IS', true).slice(1)) { if (y >= ostY - 4) break; raw.push([x, y, zIvc]); }
+  const zI = zOf('IVC_IS', true);
+  for (const [i, [x, y]] of pathOf('IVC_IS', true).slice(1).entries()) { if (y >= ostY - 4) break; raw.push([x, y, zI[i + 1]!]); }
   // the vein from the IVC outward (the engine cuts it in two pieces where a shunt can join), stopping where the tip reads
   const vein: [number, number, number][] = [];
-  for (const [id, z] of [['RHV_IVC', depthOf('RHV_IVC')], ['RHV_IVC_1', depthOf('RHV_IVC_1')]] as const) pathOf(id, true).slice(1).forEach(([x, y]) => vein.push([x, y, z]));
+  for (const id of ['RHV_IVC', 'RHV_IVC_1'] as const) { const z = zOf(id, true); pathOf(id, true).slice(1).forEach(([x, y], i) => vein.push([x, y, z[i + 1]!])); }
   const cum = [0];
   for (let i = 1; i < vein.length; i++) cum.push(cum[i - 1]! + Math.hypot(vein[i]![0] - vein[i - 1]![0], vein[i]![1] - vein[i - 1]![1]));
   const stop = cum.at(-1)! * TIP_ALONG_RHV;

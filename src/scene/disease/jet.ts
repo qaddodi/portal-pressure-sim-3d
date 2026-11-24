@@ -8,6 +8,7 @@
 //
 // Units are the 2D figure's (x right, y DOWN, 1400 x 1000): the layer turns them to the scene with x3 / y3. Nothing here allocates once the buffers are made.
 import { x3, y3 } from '../frame2d.ts';
+import { organMap } from '../editor-anchors.ts';
 
 export const JET_SEG = 24;                       // rings along the stream (25 rings)
 export const JET_RAD = 7;                        // sides of the stream
@@ -105,6 +106,8 @@ const L_AT = new Float64Array(TUBE_RINGS);
 
 let vi = 0;   // (the vertex the writers below have reached)
 function put(b: JetBuffers, x: number, y: number, z: number, nx: number, ny: number, nz: number, tx: number, ty: number, ik: number): void {
+  const m = organMap('stomach');   // (the stream and its drops lie in the stomach's lumen: they go with the organ's edit; the shading normals are left as they are)
+  if (m) { const q = m([x, y, z]); x = q[0]; y = q[1]; z = q[2]; }
   const o = vi * 3;
   b.pos[o] = x; b.pos[o + 1] = y; b.pos[o + 2] = z;
   b.nor[o] = nx; b.nor[o + 1] = ny; b.nor[o + 2] = nz;

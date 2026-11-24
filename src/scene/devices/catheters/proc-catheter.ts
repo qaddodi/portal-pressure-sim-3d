@@ -16,6 +16,7 @@ import { FLASHBACK_K, flashbackEnv, flashbackFront } from '../flashback.ts';
 import { BALLOON_EDGE, CATH_EDGE, type EdgeRule } from '../edges.ts';
 import { type Route3D, drawnShare } from '../../procedures/route3d.ts';
 import { GEO2D, routeAt } from '../../procedures/route.ts';
+import { zAtPoint } from '../../editor-anchors.ts';
 import { balloonOutline, balloonRy } from '../../procedures/copied/hvpg-balloon.js';
 
 const U = UNITS_PER_SCENE;
@@ -434,7 +435,7 @@ export function veinPoint(id: string, f: number, dir: number, len: number, pos: 
   const L = cum[cum.length - 1]!, s = Math.min(L, Math.max(0, f * L + dir * len));
   let i = 1; while (i < P.length - 1 && cum[i]! < s) i++;
   const a = P[i - 1]!, b = P[i]!, u = cum[i]! > cum[i - 1]! ? (s - cum[i - 1]!) / (cum[i]! - cum[i - 1]!) : 0;
-  const v = NETWORK_BY_ID.get(id), z = v ? TIER_Z[v.tier] : TIER_Z.net;
+  const v = NETWORK_BY_ID.get(id), z = zAtPoint(id, i, P.length, v ? TIER_Z[v.tier] : TIER_Z.net);
   pos.set(x3(lerp(a[0], b[0], u)), y3(lerp(a[1], b[1], u)), z);
   tan.set(dir * (b[0] - a[0]), -dir * (b[1] - a[1]), 0).normalize();
 }
