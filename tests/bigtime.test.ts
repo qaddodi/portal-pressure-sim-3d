@@ -176,12 +176,16 @@ test('the day record reads the model: ascites mL to L, the shunt as 0..1, the PP
   assert.equal(ea.shunt, ma.shuntFraction); assert.ok(ea.shunt! >= 0 && ea.shunt! <= 1);
   assert.equal(ea.ppg, ma.ppg); assert.equal(ea.co, ma.co);
   assert.ok(Math.abs(ea.eus! - ea.ppg!) < 4, `the EUS-PPG (${ea.eus}) is the PPG's neighbour (${ea.ppg}): the left portal less the left hepatic vein`);
+  const mb = a.metrics as { lsm: number; ssm: number };
+  assert.equal(ea.lsm, mb.lsm); assert.equal(ea.ssm, mb.ssm);
+  assert.ok(ea.lsm! > 15 && ea.lsm! < 80 && ea.ssm! > 40 && ea.ssm! <= 100, `a decompensated cirrhosis reads stiff liver and spleen in kPa (LSM ${ea.lsm}, SSM ${ea.ssm})`);
   assert.ok(ea.var! > 0 && ea.smv! > 0 && ea.smv! >= ea.var!, 'the SMV pressure is above the varix, both read from the node pressures');
   const p = JSON.parse(JSON.stringify((core.engine() as { params: unknown }).params)); p.tips = { on: true, d: 8 };
   await core.handle({ type: 'setParams', params: p, settle: true });
   const eb = dayExtras(last() as never);
   assert.ok(eb.shunt! > ea.shunt!, 'the TIPS raises the share bypassing the liver');
   assert.ok(eb.ppg! < ea.ppg!, 'and lowers the PPG');
+  assert.ok(eb.ssm! < ea.ssm!, 'and the spleen, no longer congested, reads softer (the model lets the pressure through)');
   core.dispose();
 });
 
@@ -285,7 +289,7 @@ test('the What to graph list: every measure with a record is a row (Splenic, SMV
 
 test('root cause (EUS-PPG had no history line): every saved patient history carries every key the day record keeps today, so a key added later fails here until the histories are baked again', async () => {
   const { LOAD } = await import('../src/ui/histories/index.generated.ts');
-  const want = ['hvpg', 'asc', 'shunt', 'co', 'ppg', 'eus', 'var', 'smv'];
+  const want = ['hvpg', 'asc', 'shunt', 'co', 'ppg', 'eus', 'var', 'smv', 'lsm', 'ssm'];
   for (const [id, load] of Object.entries(LOAD)) {
     const { days } = await (load as () => Promise<{ days: { v: Record<string, number> }[] }>)();
     const last = days[days.length - 1]!.v;
@@ -354,4 +358,24 @@ test('a phone sheet (390 px wide, about 358 inside) keeps the longest row name w
   const { measure } = await import('../src/ui/charts/measure.ts');
   const longest = Math.max(...MEASURES.map((x) => measure(x.name, 16, 600)));
   assert.ok(longest <= room, `the longest name is ${Math.round(longest)} px in ${room}`);
+});
+
+test('stiffness: LSM and SSM are two measures of one kPa lane, off until chosen, with the model\'s own cut-offs and no reading when the model gives none (no spleen)', () => {
+  assert.deepEqual(dayExtras({ metrics: { lsm: 21.4, ssm: 62.1 } }), { lsm: 21.4, ssm: 62.1 });
+  assert.deepEqual(dayExtras({ metrics: { lsm: 21.4, ssm: null } }), { lsm: 21.4 }, 'a splenectomy has no SSM: no point, never a 0');
+  assert.ok(!MEASURE_OF.lsm!.on && !MEASURE_OF.ssm!.on, 'the card opens as it did');
+  assert.equal(MEASURE_OF.lsm!.words(21.44), '21.4 kPa'); assert.equal(MEASURE_OF.ssm!.row!(62.14), '62.1');
+  const stiff = { lsm: { x: [0, 60, 120], y: [9, 24, 31] }, ssm: { x: [0, 60, 120], y: [30, 62, 71] } };
+  eachLook((look) => {
+    for (const w of [380, 760, 1200]) {
+      const { frame, geo } = bigFrame(inp({ series: { ...inp().series, ...stiff }, on: [...inp().on, 'lsm', 'ssm'] }), ctxOf(look, w));
+      assert.equal(geo.lanes.map((l) => l.id).join(), 'p,hvpg,stiff,asc,shunt', `${look} ${w}`);
+      const { words } = judge(frame, look);
+      assert.ok(words.some((t) => t.s === 'LSM 25') && words.some((t) => t.s === 'SSM 55'), `${look} ${w}: the cut-offs`);
+      assert.ok(words.some((t) => t.s === 'LSM ' && t.weight === 500) && words.some((t) => t.s === '26.8 kPa' && t.weight === 600) && words.some((t) => t.s === '65.6 kPa'), `${look} ${w}: the lane's title reads both at the crosshair (day 84)`);
+      const lane = geo.lanes.find((l) => l.id === 'stiff')!;
+      assert.ok(frame.shapes.filter((s): s is TextShape => s.k === 'text' && /^\d+$/.test(s.s) && s.x < 40 && s.anchor === 'end' && s.y >= lane.t && s.y <= lane.t + lane.h + 1).map((t) => t.s).join() === '25,50,75', `${look} ${w}: ticks`);
+    }
+  });
+  assert.ok(!bigFrame(inp(), ctxOf('light', 1200)).geo.lanes.some((l) => l.id === 'stiff'), 'off, no lane');
 });

@@ -38,3 +38,11 @@
 - Each measure row starts with a tick circle: filled in the measure's colour with a tick when graphed, an empty ring when not; an off row is dimmed grey (name, line, reading).
 - The names on the right (What to graph rows, What happened list) are Inter 600 like the words beside them, not Source Serif.
 - Rejected: chips or pills (standing rule), a colour bar, a switch, a line sample with a hint line (mocked, not picked).
+
+## Stiffness rows (24 Nov 2026)
+Mohammad, 24 Nov: "Should be able to graph LSM liver and spleen." Built as two more "What to graph" rows in the A look (tick circle, Inter name, history line, reading), nothing else changed.
+- Group "Stiffness · kPa": "Liver stiffness" (LSM) and "Spleen stiffness" (SSM), both **off** until chosen, so the card opens as it did. They share one lane (its title reads "LSM 26.8 kPa  SSM 65.6 kPa" at the crosshair); the lane sits under the gradients.
+- Read from the model's own `metrics.lsm` and `metrics.ssm` (metrics.js, lsm-cuts.js, ssm-cuts.js), kept per day in the record (`lsm`, `ssm`; day-keys.ts). No spleen (splenectomy) gives no SSM, so no point and no row, never a 0.
+- LSM follows the sinusoidal gradient, scar and congestion and not the beta-blocker; SSM follows the pressure as it stands (a TIPS lowers it at once, the remodelling part slowly). That is the model's physiology, not a rule of the chart.
+- Cut-offs, dashed at the right edge like every lane, each only while its line is on: "LSM 25" and "SSM 55" (Baveno VIII rule-in values, `LSM_CUTS.ruleIn`, `SSM_CUTS.ruleIn`). Colours: SSM the spleen violet (`tr-sv`), LSM the FibroScan liver's warm brown.
+- The saved Histories patients carry both keys (rebaked, `node scripts/gen-histories.mjs`).

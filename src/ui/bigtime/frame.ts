@@ -8,6 +8,8 @@ import type { Palette } from '../charts/palette.ts';
 import { HVPG_CUTS } from '../../engine/hales/portal/pressure-cuts.js';
 import { ASCITES_CUTS } from '../../engine/hales/portal/metrics.js';
 import { FLOW_CUTS } from '../../engine/hales/portal/flow-cuts.js';
+import { LSM_CUTS } from '../../engine/hales/portal/lsm-cuts.js';
+import { SSM_CUTS } from '../../engine/hales/portal/ssm-cuts.js';
 import { MEASURE_OF, HVPG, laneOf, type LaneId, type Measure } from './measures.ts';
 import type { MarkLine, MedBar, Tone } from './marks.ts';
 import { maxOf, pointsIn, tickStep, valueAt, type Series } from './record.ts';
@@ -43,8 +45,8 @@ export interface Geo {
   groups: readonly { key: string; x: number; n: number }[];
 }
 
-const WEIGHT: Record<LaneId, number> = { p: 3, hvpg: 1.5, asc: 1.7, shunt: 1.7, co: 1.4 };
-const ORDER: readonly LaneId[] = ['p', 'hvpg', 'asc', 'shunt', 'co'];
+const WEIGHT: Record<LaneId, number> = { p: 3, hvpg: 1.5, stiff: 1.5, asc: 1.7, shunt: 1.7, co: 1.4 };
+const ORDER: readonly LaneId[] = ['p', 'hvpg', 'stiff', 'asc', 'shunt', 'co'];
 export const ROW_H = 17, MED_H = 24, AXIS_H = 24, GAP = 22;
 /** the strip at the top of each lane that holds its title: the lines are drawn below it, so a title never sits on a curve */
 export const TITLE_H = 20;
@@ -53,6 +55,7 @@ export const TITLE_H = 20;
 export function colourOf(pal: Palette, tok: string): Rgba {
   if (pal.has(tok)) return pal.tok(tok);
   if (tok === 'shunt') return pal.dark ? [0xf0 / 255, 0x91 / 255, 0x4a / 255, 1] : [0xd9 / 255, 0x73 / 255, 0x1f / 255, 1];
+  if (tok === 'lsm') return pal.dark ? [0xe0 / 255, 0x8a / 255, 0x6a / 255, 1] : [0xa8 / 255, 0x55 / 255, 0x3a / 255, 1];   // (the liver's: the FibroScan liver map's warm brown)
   if (tok === 'asc') return pal.dark ? [0xa3 / 255, 0xc0 / 255, 0x60 / 255, 1] : [0x7a / 255, 0x93 / 255, 0x3f / 255, 1];
   if (tok === 'tr-sv') return [0x7d / 255, 0x5c / 255, 0xdb / 255, 1];
   if (tok === 'tr-smv') return [0xe6 / 255, 0x99 / 255, 0x29 / 255, 1];
@@ -84,6 +87,11 @@ function specOf(id: LaneId, inp: BigIn): LaneSpec | null {
   if (!ms.length) return null;
   const peak = Math.max(...ms.map((m) => maxOf(inp.series[m.id]) * (m.id === 'shunt' ? 100 : 1)));
   if (id === 'p') { const max = niceMax(peak, 24, 4); return { id, ms, max, ticks: max > 40 ? [0, 20, 40, 60].filter((t) => t <= max) : [0, 10, 20, 30].filter((t) => t <= max), cuts: [] }; }
+  if (id === 'stiff') {
+    // the elastography lane (kPa): the liver's and the spleen's readings; the model's cut-offs for what rules CSPH in (Baveno VIII 1.16: LSM 25, SSM 55), each only while its own line is on
+    const max = niceMax(peak, 30, 10), st = max > 60 ? 25 : max > 40 ? 20 : 10, has = (id: string) => ms.some((m) => m.id === id);
+    return { id, ms, max, ticks: Array.from({ length: Math.floor(max / st) + 1 }, (_, i) => i * st), cuts: [...(has('ssm') ? [{ v: SSM_CUTS.ruleIn, word: `SSM ${SSM_CUTS.ruleIn}`, ink: 'text-2' as const }] : []), ...(has('lsm') ? [{ v: LSM_CUTS.ruleIn, word: `LSM ${LSM_CUTS.ruleIn}`, ink: 'text-3' as const }] : [])] };
+  }
   if (id === 'asc') { const max = niceMax(peak, 3, 1); return { id, ms, max, ticks: Array.from({ length: Math.floor(max) + 1 }, (_, i) => i).filter((t) => max <= 5 || t % 2 === 0), fill: true, cuts: [{ v: ASCITES_CUTS[1]! / 1000, word: `Grade 2 · ${ASCITES_CUTS[1]! / 1000} L`, ink: 'text-2' }, { v: ASCITES_CUTS[0]! / 1000, word: `Grade 1 · ${ASCITES_CUTS[0]! / 1000} L`, ink: 'text-3' }] }; }
   if (id === 'shunt') { const max = Math.min(100, niceMax(peak, 70, 10)); return { id, ms, max, ticks: [0, 20, 40, 60, 80, 100].filter((t) => t <= max), cuts: [{ v: FLOW_CUTS.shuntLarge * 100, word: `Large shunt ${Math.round(FLOW_CUTS.shuntLarge * 100)}%`, ink: 'text-2' }] }; }
   const max = niceMax(peak, 9, 3);
