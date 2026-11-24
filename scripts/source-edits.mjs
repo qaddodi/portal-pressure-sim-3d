@@ -324,6 +324,7 @@ const UI_EDITS = [
   ["import aasld from './algos/aasld.generated.js';\n", ''],
   [' pvtdur, aasld, psvdscore,', ' pvtdur, psvdscore,'],
   [" aasld: 'Rule of five',", ''],
+  ["tup('mid', 'cACLD')", "tup('mid', 'Suggests cACLD')"],   // (an LSM of 10 to 15 kPa suggests cACLD, Baveno VIII 1.3; the reviewer, 24 Nov 2026)
 ];
 /** Charts the 3D app does not carry because they teach a guideline other than Baveno VIII (a path algorithm file of 2D's path-algos). */
 export const RETIRED_PATH_ALGOS = ['aasld'];

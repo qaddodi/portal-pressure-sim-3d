@@ -121,6 +121,23 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
     const [p0, p1] = vs, up = p0!.y <= p1!.y ? 0 : 1, hi = vs[up]!, lo = vs[1 - up]!, sideBySide = x0(hi) < x0(lo) + wide(lo) && x0(lo) < x0(hi) + wide(hi);
     if (sideBySide && lo.y - hi.y < 1.05 * f) shapes[shapes.length - 3 + 2 * up] = { ...hi, y: Math.max(top + 0.85 * f, lo.y - 1.15 * f) };
   }
+  // last, every head value clear of every first value and of the other head value, wherever the earlier nudges left it (a short plot: "9.5 mmHg" stood 4 px under "8.0 mmHg", the specimen at 300 px)
+  {
+    const idx = [shapes.length - 3, shapes.length - 1], at = (k: number) => shapes[k] as Extract<Shape, { k: 'text' }>;
+    const box = (t: Extract<Shape, { k: 'text' }>, y: number) => { const wd = cw(t.s, t.size ?? f, true), x0 = t.anchor === 'end' ? t.x - wd : t.x; return [x0, x0 + wd, y - 0.85 * f, y + 0.25 * f] as const; };
+    const hit = (p: readonly number[], q: readonly number[]) => p[0]! < q[1]! && q[0]! < p[1]! && p[2]! < q[3]! && q[2]! < p[3]!;
+    for (const [n, k] of idx.entries()) {
+      const t = at(k), other = at(idx[1 - n]!);
+      const free = (y: number) => !plan.starts.some(({ box: q }) => hit(box(t, y), q)) && !hit(box(t, y), box(other, other.y));
+      const y = [t.y, t.y + 1.15 * f, t.y - 1.15 * f, t.y + 2.3 * f, t.y - 2.3 * f].find((c) => c < B - 0.1 * f && c - 0.85 * f > top && free(c));
+      if (y !== undefined && y !== t.y) shapes[k] = { ...t, y };
+      else if (y === undefined && t.anchor !== 'end') {
+        // no clear row: the value moves along its row to just past the first values it stood on, if the plot has the room
+        const wd = cw(t.s, t.size ?? f, true), past = Math.max(...plan.starts.filter(({ box: q }) => hit(box(t, t.y), q)).map(({ box: q }) => q[1]!)) + 0.4 * f;
+        if (Number.isFinite(past) && past + wd <= w - 2) shapes[k] = { ...t, x: past };
+      }
+    }
+  }
   const label = flowTimeLabel(ser, keys, clock, heads.map((hd) => hd.v));
   return { frame: { w, h, shapes, label, ...(want > h + 0.5 ? { want: Math.round(want) } : null) }, G };
 }

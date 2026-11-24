@@ -73,11 +73,8 @@ export function collisions(f: Frame): string[] {
 // the all-patients key's label column (small), the path chart's step names, the saag plane's two labels, the stent's markers and waist label, the flow-time head readings, the after-procedure graph's 55 and 32%.
 const KNOWN_COLLISIONS: string[] = [
   'evgraph/tips-done "55" over "32%"',
-  'flowtime/meal-mid "9.5 mmHg" over "1.3 L/min"',
   'path/first-visit "Repeat LSM" over "Model or"',
   'path/first-visit "Repeat" over "Repeat LSM"',
-  'saag/plane "Cirrhosis" over "Right heart failure"',
-  'saag/plane "No portal hypertension" over "not modeled"',
   'small/four "HVPG" over "11.2"',
   'small/four "HVPG" over "12.6"',
   'small/four "HVPG" over "14.9"',
