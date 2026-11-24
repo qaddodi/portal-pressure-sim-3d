@@ -444,3 +444,12 @@ test('the phone\'s two openers are raised buttons (option A): icon, name, up che
   assert.ok(/\.bt-foot \.bt-go \{[^}]*rotate\(180deg\)/.test(css), 'the chevron points up');
   for (const n of ['chart', 'menu', 'chev-down']) assert.ok(readFileSync(new URL('../src/ui/css2d/icons.css', import.meta.url), 'utf8').includes(`.ic-${n} {`), `the atlas has ${n}`);
 });
+
+test('root cause (off variables looked untappable on a phone): the chooser draws every measure as a full row with its ring on every device; the labs only a case gives read "MELD"', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../src/ui/bigtime/Chooser.tsx', import.meta.url), 'utf8'), card = readFileSync(new URL('../src/ui/bigtime/TimelineCard.tsx', import.meta.url), 'utf8');
+  assert.ok(!/compact/.test(src) && !/!compact \|\|/.test(src), 'no row is held back for a phone');
+  assert.ok(/<Chooser data=\{data\} at=\{at\} \/>/.test(card));
+  const { CASE_ONLY } = await import('../src/ui/bigtime/measures.ts');
+  assert.deepEqual([...CASE_ONLY], ['Sodium', 'Creatinine', 'Bilirubin', 'INR', 'MELD']);
+});

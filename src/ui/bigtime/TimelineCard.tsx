@@ -192,7 +192,7 @@ export function TimelineCard() {
         {compact && <span className="sh-grabbar" aria-hidden="true" />}
         {compact ? <header className="bt-tabs"><h2>{panel === 'graph' ? BT.graph : BT.happened}</h2><button type="button" className="bt-done" onClick={() => set({ raised: false })}>{BT.done}</button></header> : sideHead}
         <div className="bt-body">
-          {panel === 'graph' ? <Chooser data={data} at={at} compact={compact} /> : <Happened data={data} onPick={pick} scroll={compact} />}
+          {panel === 'graph' ? <Chooser data={data} at={at} /> : <Happened data={data} onPick={pick} scroll={compact} />}
         </div>
       </aside>
     </div>

@@ -85,7 +85,7 @@ export const GROUPS: readonly { id: GroupId; name: string; unit: string }[] = [
   { id: 'artery', name: 'Hepatic artery', unit: '× its resting flow' },
 ];
 /** the cut-offs a lane draws, from the model's own (pressure-cuts.js: HVPG 10 and 12; flow cuts: the large shunt 0.3; ascites grades 150 mL and 1500 mL) */
-export const CASE_ONLY = ['Sodium', 'Creatinine', 'Bilirubin', 'INR', 'MELD-Na'] as const;
+export const CASE_ONLY = ['Sodium', 'Creatinine', 'Bilirubin', 'INR', 'MELD'] as const;
 
 /** which measures the lane holds */
 export const laneOf = (lane: LaneId): readonly Measure[] => MEASURES.filter((m) => m.lane === lane);

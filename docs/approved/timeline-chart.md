@@ -10,7 +10,7 @@
 - Event lines, full height: the model's events in their severity ink, the learner's changes (Carvedilol, TIPS 8 mm, Paracentesis) in the text colour and heavier. Labels in rows above the plot on Mac and iPad, turned upright (reading upwards) on the phone, always with a halo, never a box.
 - A crosshair (one thin line at the text colour, 50 %), a dot on every line, "Day 84" bold at the foot of the axis. Pointer over the chart or a finger drag moves it.
 - Below the lanes, the overview strip: the whole run as one thin line with the events as ticks, the window drawn between two grips. Drag a grip or the window; wheel or pinch zooms the days; "Reset zoom" shows the whole run.
-- "What to graph": grouped by unit (Pressures mmHg, Volume L, Shunt % of splanchnic inflow, Medicines and procedures "bars on the chart", Heart, From the case). A row is the name in its colour, a small history line and the reading at the crosshair; a measure that is off is grey. Tap to turn on or off. "From the case: Not made by the model. Shown only when the case gives a value, as a step on the day it was drawn." (Sodium, Creatinine, Bilirubin, INR, MELD-Na as grey words, no control: the model makes none of them.)
+- "What to graph": grouped by unit (Pressures mmHg, Volume L, Shunt % of splanchnic inflow, Medicines and procedures "bars on the chart", Heart, From the case). A row is the name in its colour, a small history line and the reading at the crosshair; a measure that is off is grey. Tap to turn on or off. "From the case: Not made by the model. Shown only when the case gives a value, as a step on the day it was drawn." (Sodium, Creatinine, Bilirubin, INR, MELD as grey words, no control: the model makes none of them.)
 - "What happened": the same events and changes as a ruled list, newest at the foot, paged (nothing scrolls inside a card). The chosen row opens: for a TIPS, route, stent "8 mm × 8 cm", and shunt fraction, PPG, HVPG and ascites before → after.
 - Phone: the chart takes the whole card; "What to graph" and "What happened" are two words at the foot that raise a sheet over the chart with its own Done. Mac and iPad: the chooser sits beside the chart and "What happened" swaps into the same column.
 - Dark follows the app's look; the same mock in dark is `F-mac-dark.png`.
@@ -21,7 +21,7 @@
 - Blurring the figure behind the card (Mohammad, 23 Nov). Pills, chips, dots-with-words, bubbles, a box behind a label. Child-Pugh and MELD stay on their own card.
 
 ## Never
-- Make up a lab: no value is drawn for sodium, creatinine, bilirubin, INR or MELD-Na unless the case gives one.
+- Make up a lab: no value is drawn for sodium, creatinine, bilirubin, INR or MELD unless the case gives one.
 - Draw on canvas 2D or SVG; the lines are the chart GPU's, the words its text layer.
 
 ## Event-paced day axis (24 Nov 2026)
@@ -49,7 +49,7 @@ Mohammad, 24 Nov: "Should be able to graph LSM liver and spleen." Built as two m
 - **All the rest the model computes (24 Nov 2026, Mohammad: "Add all available").** Ten more rows in the same A look, all off until chosen, each read from `metrics` and kept in the day record (day-keys.ts): Spleen size (cm) and Platelets (group "Spleen and platelets"; no spleen, no size row), Portal flow (L/min, shares the cardiac output's lane) and Liver perfusion (% of healthy, shares the shunt's lane, which may then run to 140 %) under "Liver blood flow", Arterial pressure (MAP), Perfusion pressure (APP, the metrics' `rpp`) and Heart rate under "Pressure and pulse", Varix size (mm), Encephalopathy risk (index 0 to 1, read as Low / Moderate / High) and Artery response (× resting flow, 1 = none).
 - Cut-offs only where the model has one, dashed and worded like the others: Platelets 150, Low liver flow 75 %, MAP 65, Large varix 5 mm and Varix seen 2.5 mm, High 0.45 and Moderate 0.2 (the risk index's own words). No cut for the APP, heart rate, spleen size or artery response: the model has none (kidney-cuts.js says none may be derived for the APP).
 - A box too short for every chosen lane keeps each at 34 px or more and leaves the last ones out, with "N more chosen: no room, turn one off" at the right of the last lane's title. Nothing is cut off at the foot.
-- Not built (the model makes no labs): albumin, bilirubin, INR, creatinine, sodium, MELD-Na, Child-Pugh.
+- Not built (the model makes no labs): albumin, bilirubin, INR, creatinine, sodium, MELD, Child-Pugh.
 
 ## Phone panels scroll and pull down (24 Nov 2026)
 Mohammad, 24 Nov: "What to graph and what happened don't scroll on iPhone. They should scroll and I can close them by swiping down." (The one exception to "nothing scrolls inside a card": the raised panel on a phone.)
@@ -62,3 +62,11 @@ Mohammad, 24 Nov: "What to graph and what happened don't scroll on iPhone. They 
 - At the foot of the chart card on a phone, "What to graph" and "What happened" are two equal buttons, 46 px tall, 10 px apart: a raised fill (`--surface-2`), a hairline (`--edge`), radius 12, the panel's icon (the atlas's `ic-chart`, `ic-menu`), the name in Inter 600 at 14.5 px, and a chevron pointing up at the right that says the panel rises. The first in the text colour, the second in the quieter text colour.
 - A press eases to 98 % and a slightly deeper fill.
 - Rejected (mocked, not picked): one solid and one outlined blue (B), one segmented bar (C), soft blue tinted buttons (D).
+
+## Off rows on a phone are full rows (24 Nov 2026)
+**Reference:** option A of `/mnt/project-files/phone-panel-button-mocks-24nov/off-rows-options.png`. Mohammad, 24 Nov: "It's still not obvious on iPhone that I can click to graph the disabled variables"; picked "A".
+- Root cause: on a phone the chooser listed only the graphed measures as rows and set the rest as one line of grey words with no ring (it hid them to fit a panel that did not scroll). Now every measure is a full row on every device: the empty ring, the dimmed name, the dashed line, the reading. The panel scrolls, so nothing is left out.
+- Rejected: a hint line with short rows (B), a ring with a blue "Graph" word (C).
+
+## "MELD", not "MELD-Na" (24 Nov 2026)
+Mohammad, 24 Nov: "Why does it say MELD Na just say MELD". The grey "From the case" words in What to graph read Sodium, Creatinine, Bilirubin, INR, MELD. The Child-Pugh and MELD card still prints MELD-Na beside MELD when a case gives a sodium: it is a second, different score there.
