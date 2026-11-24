@@ -26,6 +26,7 @@ import { useShell } from './ui/shell/store.ts';
 import { UPDATE_TOAST } from './pwa/register.ts';
 import { reloadKeepingState } from './boot/reload.ts';
 import { installNoPageZoom } from './ui/shell/no-page-zoom.ts';
+import { installReturnFocus } from './ui/shell/return-focus.ts';
 import { holdSplash } from './boot/ready.ts';
 import { stamp } from './boot/timeline.ts';
 import { bakedReady } from './scene/vessels/skin/baked.ts';
@@ -52,6 +53,7 @@ followDevice({ doc: document, win: window, mq: dark, glide: lookGlide, choice: (
 applyGlass(useSettings.getState().blur);
 useSettings.subscribe((s, prev) => { if (s.blur !== prev.blur) applyGlass(s.blur); });
 installCrashNet();   // errors no boundary sees (handlers, timers, promises, a clock system): kept for the reports, and a quiet recovery when the app is left broken (boot/crash-net.ts)
+installReturnFocus();   // coming back to the window never shows a focus ring the keyboard did not ask for (ui/shell/return-focus.ts)
 installNoPageZoom();   // the browser's page zoom never fires: every pinch is the figure's
 // A lazy part's file is gone (a tab open across two deploys) or the network failed: Vite fires this before the import rejects. The rejection is NOT swallowed: lazyRetry tries again and the pane says so (LazyBoundary);
 // here the page learns a newer build may be out, and, online, offers the update toast once.

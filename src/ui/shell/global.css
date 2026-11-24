@@ -47,3 +47,7 @@ html::view-transition-old(root), html::view-transition-new(root) { animation-dur
 
 /* First load (owner, 20 Nov): the splash lifts only when the figure and its labels are all in, and the figure settles in as it fades: the camera's own glide from a little closer than rest (boot/ready.ts, scene.playReveal),
    drawn crisp each frame with the labels following by projection. No CSS scale of the canvas (22 Nov, splash plan A2). */
+
+/* Coming back to the window (ui/shell/return-focus.ts): a field that kept its caret shows no ring until the next press or key; every other control let go of its focus. */
+html[data-returned] :focus, html[data-returned] :focus-visible { outline: none; }
+html[data-returned] .um-search:focus-within { box-shadow: inset 0 0 0 1px var(--hairline); }
