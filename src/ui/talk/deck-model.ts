@@ -3,7 +3,6 @@
 import { engine, useEngine } from '../../engine/index.ts';
 import { useUi } from '../ui-store.ts';
 import { dipIn, dipOut } from '../shell/figure-dip.ts';
-import { viewAt } from '../deck/presenter-machine.ts';
 import { useShell } from '../shell/store.ts';
 import { loadPatient } from '../menu/patients.ts';
 import { patient } from '../../engine/store.ts';
@@ -50,8 +49,8 @@ export function linkModel(): () => void {
     // (the outline stands on the first slide's patient, as 2D's does: it is in under the start's cover, never dipped in)
     const m = modelAt(stops, pos) ?? (seen === null ? firstModel(stops) : null);
     if (m && m !== seen) {
-      // (the first slide's patient is in before the talk is seen; one behind a case or question card is covered by it)
-      const dip = seen !== null && viewAt(stops, pos).words !== 'case';
+      // (the first slide's patient is in before the talk is seen; a case card no longer washes the figure, so a change behind one is dipped like any other)
+      const dip = seen !== null;
       seen = m; void applyModel(m, dip);
     }
   };

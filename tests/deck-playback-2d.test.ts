@@ -128,7 +128,7 @@ test('what waits for the end of a slide\'s move asks the one landing signal: the
 
 test('a new patient is put in under a dimmed figure, in decks of states and in decks of models', () => {
   const hp = src('src/decks/hp/link.ts');
-  assert.match(hp, /freshPatient\(cs, false, false\) && shownOnce && !behindCard && !cs\?\.cath && snap\) dipTo\(snap\)/);
+  assert.match(hp, /freshPatient\(cs, false, false\) && shownOnce && !cs\?\.cath && snap\) dipTo\(snap\)/);
   const dm = src('src/ui/talk/deck-model.ts');
   assert.match(dm, /if \(dip\) await dipIn\(who\)/);
   assert.match(dm, /seen === null \? firstModel\(stops\)/, 'the first slide\'s patient is in under the cover');
@@ -167,4 +167,13 @@ test('a talk opens behind 2D\'s "Preparing the slides" cover, and the cover lift
   const c = src('src/ui/shell/curtain.ts');
   assert.match(c, /classList\.add\('pz-covered'\)/);
   assert.match(c, /COVER_MAX_MS = 12000/, 'never left up');
+});
+
+test('the figure is never dimmed by a case card or a slide change: no veil dip, no .pz-out rule (owner, 24 Nov 2026)', () => {
+  const layer = src('src/ui/cards/CardLayer.tsx');
+  assert.doesNotMatch(layer, /on dip/, 'no wash behind a case card');
+  assert.doesNotMatch(src('src/ui/deck-ui.css'), /pz-veil\.dip/);
+  // (the lifted 2D rule `#stageView.pz-out { opacity: .22 }` stays in the lifted css, but nothing in the 3D app ever puts the class on the view)
+  for (const f of ['src/ui/cards/CardLayer.tsx', 'src/ui/cards/CardFrame.tsx', 'src/ui/shell/talk.ts', 'src/ui/talk/deck-model.ts', 'src/decks/hp/link.ts', 'src/ui/shell/figure-dip.ts']) assert.doesNotMatch(src(f).replace(/\/\/.*$/gm, ''), /['"`]pz-out['"`]/, f);
+  assert.match(src('src/ui/css2d/app-04-presenter.css'), /#labels \.lb\.unlit[^}]*opacity: var\(--label-dim\)/, 'the lit/unlit label dim stays');
 });

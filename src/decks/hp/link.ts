@@ -110,11 +110,10 @@ export function linkStates(deck: Deck): () => void {
         stopLapse();
         if (cs?.lapse && typeof cs.days === 'number' && stop.kind === 'slide') showLapseEnd(key, cs);
         if (cam) { pushedAt = pos.stop; queueMicrotask(() => showPushEnd(cam)); }   // (after the scene's own move to the slide's framing, so the figure goes once, to where the days end)
-        // A new patient (2D `dip`): the figure dims, the state changes unseen, and it comes back as someone else, never a morph between two people. Not for the first slide, behind a case or question card
-        // (its card covers the change), with a catheter up (its own way out dims the figure), or when the slide keeps its patient (it eases, over the glide's time).
-        // (on a phone the case card does not cover the figure: the dip runs there too, or the slide before's patient, a TIPS stent, shows beside the case of an acute thrombus, Choose the treatment 7)
-        const behindCard = stop.kind === 'slide' && viewAt(stops, pos).words === 'case' && Math.min(innerWidth, innerHeight) >= 500;
-        if (freshPatient(cs, false, false) && shownOnce && !behindCard && !cs?.cath && snap) dipTo(snap);
+        // A new patient (2D `dip`): the figure dims, the state changes unseen, and it comes back as someone else, never a morph between two people. Not for the first slide, with a catheter up
+        // (its own way out dims the figure), or when the slide keeps its patient (it eases, over the glide's time). A case card no longer washes the figure (24 Nov 2026), so a change behind
+        // one is dipped like any other (on a phone, and now everywhere, or the slide before's patient, a TIPS stent, shows beside the case of an acute thrombus, Choose the treatment 7).
+        if (freshPatient(cs, false, false) && shownOnce && !cs?.cath && snap) dipTo(snap);
         else try { engine().send({ type: 'morph', snap, ms: morphMsFor(cs) }); } catch { /* the engine is not up yet: the first slide is shown when it is */ }
         shownOnce = true;
       }

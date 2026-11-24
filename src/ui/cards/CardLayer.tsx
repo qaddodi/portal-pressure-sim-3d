@@ -380,9 +380,9 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const veil = view.words === 'title' || view.words === 'check' || view.words === 'visual';
   return (
     <>
-      {/* (2D's dip behind a case card: the figure at 22%, as this wash over it) */}
+      {/* (no wash behind a case card: the figure stays whole, the card's own glass and blur set it off; owner, 24 Nov 2026) */}
       {/* (a phone on its side keeps the figure in view beside its one column: no veil) */}
-      <div className={`pz-veil${plan.sideways ? '' : view.words === 'check' ? ' on soft' : veil ? ' on' : view.words === 'case' ? ' on dip' : ''}`} aria-hidden="true" />
+      <div className={`pz-veil${plan.sideways ? '' : view.words === 'check' ? ' on soft' : veil ? ' on' : ''}`} aria-hidden="true" />
       {/* 2D's zoom veil: the page dims a little and a tap on it puts the card back */}
       <div ref={zveilRef} className="pz-zveil" aria-hidden="true" onClick={() => { void cardZoom.close({ reduce: reduceMotion() }); }} />
       {frames(wordsStack, 'words')}
