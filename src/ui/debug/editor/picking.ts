@@ -44,6 +44,19 @@ export function nearestParam(line: readonly (readonly [number, number])[], x: nu
   }
   return best;
 }
+export interface HandView { k: number; x: number; y: number }
+export const ZOOM_MIN = 1, ZOOM_MAX = 8;
+const clampK = (k: number): number => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, k));
+/** The hand's view after a zoom by `factor` (about the screen's centre, which the camera's zoom is about) and a pan of (dx, dy) px: pan is the picture's shift. At the fit the pan is zero. */
+export function zoomPan(v: HandView, factor: number, dx = 0, dy = 0): HandView {
+  const k = clampK(v.k * factor), s = k / v.k;
+  return k <= ZOOM_MIN ? { k, x: 0, y: 0 } : { k, x: v.x * s + dx, y: v.y * s + dy };
+}
+/** Two fingers moved from (a0, b0) to (a1, b1): the zoom is their spread's ratio, the pan the middle's move. */
+export function pinchView(v: HandView, a0: readonly [number, number], b0: readonly [number, number], a1: readonly [number, number], b1: readonly [number, number]): HandView {
+  const d0 = Math.hypot(a0[0] - b0[0], a0[1] - b0[1]), d1 = Math.hypot(a1[0] - b1[0], a1[1] - b1[1]);
+  return zoomPan(v, d0 > 1 ? d1 / d0 : 1, (a1[0] + b1[0]) / 2 - (a0[0] + b0[0]) / 2, (a1[1] + b1[1]) / 2 - (a0[1] + b0[1]) / 2);
+}
 /** How far from a handle a press still grabs it (CSS px): a finger needs more than a mouse, and neither under 22. */
 export const hitRadius = (touch: boolean): number => (touch ? 30 : 22);
 /** The size of a handle dot (CSS px): larger where the pointer is a finger. */

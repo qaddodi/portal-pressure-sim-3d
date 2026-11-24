@@ -20,7 +20,7 @@ import { clock } from '../../../clock/frame.ts';
 import { buildCommit, VIEW_KEY, clearHistory, loadView, saveView, exportReminder, noteExported, persistHistory, restorableHistory, type StorageLike } from './session.ts';
 import { knownIds, orphanCount, orphanText, orphansOf, withoutOrphans } from './orphans.ts';
 import { Overlay } from './overlay.ts';
-import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from './picking.ts';
+import { zoomPan, pinchView, type HandView, dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from './picking.ts';
 import { NETWORK_BY_ID } from '../../../scene/vessels/network.ts';
 import { skeleton, organIds, pointAt, uAtIndex, centroidOf, type Skeleton } from './source.ts';
 import { History, nodeVisible, snapOffsets, type System, diffList, resetItem, differs, core, fileOverrides, fileText, staleNote, PLAN_PER_SCENE, addControl, removeControl, knotsOf, dragToOffsets, type Lock, toReference, strokeToReference, addStroke, cageOffset, clearCage, clearStrokes, setCageHandle, CAGE_N, controlOf, exportText, parseOverrides, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
@@ -210,6 +210,7 @@ export function mountEditor(): void {
   const say = (t: string): void => { msg = t; msgEl.textContent = t; };
 
   const edit = (next: typeof hist.now, coalesce = true): void => { hist.commit(next, coalesce); };
+  const zoomBar = (): HTMLElement => bar([{ label: 'Zoom in', run: () => putView(zoomPan(view, 1.4)) }, { label: 'Zoom out', run: () => putView(zoomPan(view, 1 / 1.4)) }, { label: 'Fit view', run: () => putView({ k: 1, x: 0, y: 0 }) }]);
   const buildDyn = (): void => {
     syncers.length = 0; dyn.replaceChildren();
     syncers.push(() => { for (const [m, b] of modeBtns) b.classList.toggle('on', m === mode); });
@@ -217,6 +218,7 @@ export function mountEditor(): void {
       dyn.append(el('div', { className: 'hint', textContent: 'Drag turns the figure all the way round. Pinch and the other gestures work as usual.' }));
       dyn.append(bar([{ label: 'Face front', run: () => { cel.rig.inspectTo(0, 0); frameFor('editor', 900); } }, { label: 'Side', run: () => { cel.rig.inspectTo(Math.PI / 2, 0); frameFor('editor', 900); } }, { label: 'Top', run: () => { cel.rig.inspectTo(0, 1.2); frameFor('editor', 900); } }]));
     } else if (mode === 'vessels') {
+      dyn.append(zoomBar());
       dyn.append(el('div', { className: 'hint', textContent: 'Orange: junctions (drag moves every vessel end there). Tap a vessel to pick it; tap it again to add a blue control point anywhere along it, drag a point to bend, Remove point takes one away. Save applies the edit.' }));
       const sel = (): { get: () => { dx: number; dy: number; dz: number }; put: (m: { dx: number; dy: number; dz: number }) => void } | null => {
         const t = target; if (!t) return null;
@@ -258,6 +260,7 @@ export function mountEditor(): void {
         { label: 'Reset vessel', off: () => !(target?.kind === 'ctrl' ? target.vid : selVessel), run: () => { const v = target?.kind === 'ctrl' ? target.vid : selVessel; if (v) { hist.commit(resetVessel(hist.now, v)); } } },
         { label: 'Reset junction', off: () => target?.kind !== 'node', run: () => { if (target?.kind === 'node') hist.commit(resetNode(hist.now, target.id)); } }]));
     } else {
+      dyn.append(zoomBar());
       const s = el('select');
       for (const id of organIds()) s.append(el('option', { value: id, textContent: id }));
       s.value = selOrgan ?? ''; s.onchange = () => { selOrgan = s.value; sync(); };
@@ -419,7 +422,14 @@ export function mountEditor(): void {
   };
   const stagePx = (e: PointerEvent): { ndc: Vector2; x: number; y: number } => { const s = stage(); const x = e.clientX - s.x, y = e.clientY - s.y; return { ndc: ndcOf(x, y, s.w, s.h), x, y }; };
 
+  // zoom and pan in the edit modes (the app has no pinch zoom elsewhere): two fingers on the layer, the wheel, or the buttons; the camera's own hand view carries it
+  let view: HandView = { k: 1, x: 0, y: 0 };
+  const putView = (v: HandView): void => { view = v; cel.rig.holdHand(); cel.rig.setHand(v); frameFor('editor', 300); };
+  const fingers = new Map<number, [number, number]>();
+  layer.addEventListener('wheel', (e) => { e.preventDefault(); putView(zoomPan(view, Math.exp(-e.deltaY * 0.0015))); sync(); }, { passive: false });
   layer.addEventListener('pointerdown', (e) => {
+    fingers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (fingers.size >= 2) { drag = null; return; }
     const { ndc, x, y } = stagePx(e), hitR = hitPx(e);
     layer.setPointerCapture(e.pointerId);
     showLabel(nameAt(e), e.clientX, e.clientY);
@@ -480,6 +490,13 @@ export function mountEditor(): void {
   };
   layer.addEventListener('pointerleave', () => showLabel(null, 0, 0));
   layer.addEventListener('pointermove', (e) => {
+    const was = fingers.get(e.pointerId);
+    if (was && fingers.size === 2) {
+      const [other] = [...fingers].filter(([id]) => id !== e.pointerId).map(([, p]) => p), now: [number, number] = [e.clientX, e.clientY];
+      if (other) putView(pinchView(view, was, other, now, other));
+      fingers.set(e.pointerId, now); return;
+    }
+    if (was) fingers.set(e.pointerId, [e.clientX, e.clientY]);
     if (!drag) { if (e.pointerType !== 'touch') showLabel(nameAt(e), e.clientX, e.clientY); return; }
     showLabel(null, 0, 0);
     const { ndc } = stagePx(e);
@@ -515,7 +532,7 @@ export function mountEditor(): void {
     }
     sync();
   });
-  const end = (): void => { drag = null; flushStrokes(); settleStrokes(); };
+  const end = (e?: PointerEvent): void => { if (e) fingers.delete(e.pointerId); drag = null; flushStrokes(); settleStrokes(); };
   layer.addEventListener('pointerup', end); layer.addEventListener('pointercancel', end);
   window.addEventListener('keydown', (e) => {
     if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;

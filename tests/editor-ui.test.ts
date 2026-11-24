@@ -5,7 +5,7 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
 import type { Stroke } from '../src/editor/types.ts';
 import { nodeVisible, snapOffsets, diffList, resetItem, core, fileText, fileOverrides, staleNote, differs, addControl, removeControl, knotsOf, strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
-import { dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from '../src/ui/debug/editor/picking.ts';
+import { zoomPan, pinchView, ZOOM_MAX, dotSize, hitRadius, dragDelta, ndcOf, nearest, nearestLine, nearestParam } from '../src/ui/debug/editor/picking.ts';
 import { liveCourses, dotted } from '../src/ui/debug/editor/live-vessels.ts';
 import { VIEW_KEY, loadView, saveView, EXPORT_REMIND_MS, exportReminder, noteExported, persistHistory, restorableHistory, clearHistory, type StorageLike } from '../src/ui/debug/editor/session.ts';
 import { knownIds, orphansOf, orphanCount, withoutOrphans } from '../src/ui/debug/editor/orphans.ts';
@@ -341,4 +341,15 @@ test('isolate and snap: handles filter by system and solo vessel; a snap puts th
   assert.ok(Math.abs(o.dx - 90) < 1e-9 && Math.abs(o.dy - 90) < 1e-9 && Math.abs(o.dz - 0.02) < 1e-9, 'the plan units that move it there (y flipped)');
   const d = snapOffsets([0.1, 0.2, 0.0], [0.4, -0.1, 0.02], { dz: 0 }, false, true);
   assert.deepEqual([d.dx, d.dy, d.dz], [0, 0, 0.02]);
+});
+
+test('zoom and pan in the edit modes: a spread zooms, the middle pans, limits hold, and the fit has no pan', () => {
+  const fit = { k: 1, x: 0, y: 0 };
+  const z = pinchView(fit, [100, 100], [200, 100], [50, 100], [250, 100]);   // the fingers spread twice as far
+  assert.ok(Math.abs(z.k - 2) < 1e-9 && z.x === 0 + z.x);
+  const p = pinchView(z, [100, 100], [200, 100], [130, 90], [230, 90]);   // both move 30 right and 10 up
+  assert.ok(Math.abs(p.k - z.k) < 1e-9 && Math.abs(p.x - (z.x + 30)) < 1e-9 && Math.abs(p.y - (z.y - 10)) < 1e-9);
+  assert.equal(zoomPan({ k: 7, x: 5, y: 5 }, 10).k, ZOOM_MAX);
+  assert.deepEqual(zoomPan({ k: 2, x: 40, y: 40 }, 0.1), { k: 1, x: 0, y: 0 }, 'back at the fit: no pan');
+  assert.equal(zoomPan(fit, 2, 30, 0).x, 30);
 });
