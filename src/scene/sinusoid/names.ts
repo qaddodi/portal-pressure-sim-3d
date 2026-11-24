@@ -4,7 +4,7 @@
 // bottom, the names still read across), and a tap takes the name's own card (`explainHit`, 2D's label-explain.js hitLabel, with the card's one line `SV_NOTE`).
 // What this does not do (2D's `declutter`: names that still overlap at a large text size step apart): left to the label layer.
 import { boxGap } from '../labels/geometry.ts';
-import { type Pore, CELL, SEED, UM, calloutPore, canaliculusAt, cellAt } from './layout.ts';
+import { type Pore, CELL, KUP_HALF, SEED, UM, calloutPore, canaliculusAt, cellAt } from './layout.ts';
 import { placeFenDisse } from './fen-place.copied.js';
 
 export type NameKey = 'in' | 'out' | 'sin' | 'fen' | 'hsc' | 'disse' | 'lymph' | 'hep' | 'kup' | 'bc';
@@ -61,6 +61,8 @@ export interface NamePlacement {
   leader: { x1: number; y1: number; x2: number; y2: number; tx: number; ty: number } | null;
 }
 
+/** The central vein's arrow, from its name to its tip (px, names.css .sv-end-arrow plus its gap). */
+const ARROW_PX = 36;
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /** 2D's rule for when a name gets a leader: past LEAD_ON px from what it names, kept until it comes within LEAD_OFF (label-place.js). */
@@ -175,7 +177,11 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
     const key: NameKey = u ? 'out' : 'in', name = END_NAMES[u]!, value = u ? inp.text.outValue : inp.text.inValue;
     const { w, hh, inl } = meas(key, name, value);
     let x: number, y: number;
-    if (V) { x = C[0] - w / 2; y = u ? fe.b - hh - A : fe.t + A; } else { x = u ? fe.r - w - 8 - A : fe.l + 8 + A; y = C[1] - hh / 2; }
+    if (V) { x = C[0] - w / 2; y = u ? fe.b - hh - A : fe.t + A; } else {
+      // the central vein stands right out at the room's end, its arrow beyond it (Mohammad, 24 Nov: "move the central vein label to the right, there is room"), but never over the Kupffer cell's arms
+      x = u ? feGeom.r - w - A : fe.l + 8 + A; y = C[1] - hh / 2;
+      if (u) { const cellL = C[0] + k * (g.xk - KUP_HALF) - 8; if (cellL > x + w * 0.5) x = Math.min(x, cellL - ARROW_PX - w); }
+    }
     if (V && !u && leg && leg.w && leg.x + leg.w > x - 6) y = Math.max(y, leg.y + leg.h + A);
     const P: NamePlacement = { key, name, value, x: 0, y: 0, cx: x + w / 2, cy: y + hh / 2, w, hh, end: true, leader: null, ...(inl ? { inline: true } : {}) };
     out.push(P); by[key] = P;
@@ -234,11 +240,15 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
   }
 
   // ── across the screen (2D layoutTags) ──
-  const xc = awayX(pickTags(0.5), g.xk, 30);
+  // the sinusoid's name stands in the middle of the vessel: halfway between the two ends' names, and clear of the Kupffer cell's arms whichever way they are (Mohammad, 24 Nov: it stood crowded against the portal venule)
+  const mid = ((endBox[0]?.x1 ?? fe.l) + (endBox[1]?.x0 ?? fe.r)) / 2, sinW = meas('sin', 'Sinusoid', m.sin).w / 2 / k, kupHalf = KUP_HALF + 1;
+  let xc = (mid - C[0]) / k;
+  if (Math.abs(xc - g.xk) < sinW + kupHalf) xc = g.xk + (xc < g.xk ? -1 : 1) * (sinW + kupHalf);
   region('sin', 'Sinusoid', m.sin, xc, 0, { along: true });
   // the Kupffer cell on one line just above it, clear of its highest process, in the lumen, never over its body
   const kupTop = g.halfW(g.xk) - 6.6 * clamp(g.halfW(g.xk) / 5.2, 0.6, 1);
-  region('kup', 'Kupffer cell', '', g.xk, kupTop - 0.8, { along: true, side: -1 });
+  // (a name that has had to step aside, for an end's name or the room's edge, is tied to the cell by a leader)
+  leader(region('kup', 'Kupffer cell', '', g.xk, kupTop - 0.8, { along: true, side: -1 }), g.xk, kupTop);
   // the stellate cell named just beyond its body; the fenestrae in the same plate well clear of it (120 px), with a short callout straight down to an open fenestra, clear of the stellate
   // cell's name, of the Space of Disse's and of the callout's own line (fen-place.js)
   const hs = region('hsc', stellate ? 'Activated stellate cell' : 'Stellate cell', '', g.xs, -(g.hepIn(g.xs) + 1), { side: -1 });

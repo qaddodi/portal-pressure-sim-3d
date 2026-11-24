@@ -7,6 +7,7 @@ import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { NAMES_SIDE, NAMES_TOP, namesFree, readings } from '../src/scene/sinusoid/captions.ts';
 import { type NameKey, type NamePlacement } from '../src/scene/sinusoid/names.ts';
+import { KUP_CLEAR, KUP_HALF, SEED, nucAt } from '../src/scene/sinusoid/layout.ts';
 import { isPortrait, restScale } from '../src/scene/sinusoid/portrait.ts';
 import { acrossUm } from '../src/scene/sinusoid/portrait.ts';
 import { freeRoom } from '../src/ui/shell/room.ts';
@@ -99,5 +100,34 @@ test('a tall screen\'s names stay in the room down even where the picture is car
       const b = box(n);
       assert.ok(b.y0 >= free.t - 1 && b.y1 <= free.b + 1, `${n.key} down (${b.y0.toFixed(0)}..${b.y1.toFixed(0)} in ${free.t}..${free.b}) at dy ${dy}, x${mul}`);
     }
+  }
+});
+
+/** Wide screens, the camera's own scale and the room as the scene tells the view (setScreen): where the Kupffer cell stands and what its arms and the names touch. */
+function layScreen(W: number, H: number, card: boolean) {
+  const room = roomFor(W, H, card), short = room.h, k = restScale(short);
+  const v = new SinusoidView(createShared());
+  v.setVisible(true); v.snapTargets(targets()); v.setPortrait(false); v.setScreen(k, room.w, W, 0); v.update(0);
+  const free = namesFree(room, { w: W, h: H }), C: [number, number] = [room.x + room.w / 2, room.y + room.h / 2];
+  const names = v.names({ W, H, C, k, free, insTop: 56, text: TEXT, lit: new Set(), measure });
+  const xk = v.kupfferGoal, halfW = v.nameGeom.halfW(xk);
+  const cell = { x0: C[0] + k * (xk - KUP_HALF), x1: C[0] + k * (xk + KUP_HALF), y0: C[1] + k * (halfW - 4.2), y1: C[1] + k * halfW };
+  return { names, free, room, k, C, xk, cell };
+}
+const SCREENS: [string, number, number][] = [['Mac 1440x900', 1440, 900], ['Mac 1280x800', 1280, 800], ['iPad landscape', 1024, 768], ['iPhone landscape', 844, 390]];
+for (const card of [false, true]) test(`the Kupffer cell stands just right of an endothelial nucleus where the room has the space, the Sinusoid name in the middle of the vessel, and nothing of the names over the cell (${card ? 'a card open' : 'free play'})`, () => {
+  for (const [label, W, H] of SCREENS) {
+    const L = layScreen(W, H, card), tag = `${label}${card ? ' + card' : ''}`;
+    const sin = L.names.find((n) => n.key === 'sin')!, inn = L.names.find((n) => n.key === 'in')!, out = L.names.find((n) => n.key === 'out')!;
+    const mid = (box(inn).x1 + box(out).x0) / 2;
+    assert.ok(Math.abs(sin.cx - mid) < 0.5 * sin.w + 40 || Math.abs(sin.cx - L.cell.x0) < 0.5 * sin.w + 40, `${tag}: Sinusoid name in the middle between the ends (${sin.cx.toFixed(0)} against ${mid.toFixed(0)})`);
+    for (let n = -6; n <= 6; n++) assert.ok(Math.abs(L.xk - nucAt(n, SEED.nucDn)) >= KUP_CLEAR - 1e-9, `${tag}: the cell clear of every endothelial cell`);
+    if (!card && W >= 1280) assert.ok(L.xk - nucAt(0, SEED.nucDn) < KUP_CLEAR + 0.01 && L.xk > nucAt(0, SEED.nucDn), `${tag}: with the room to spare the cell stands just right of the nucleus past the middle`);
+    for (const n of L.names) {
+      if (n.key === 'kup' || (L.k < 8 && L.room.w < 520)) continue;   // (a phone on its side with a card: a lumen 50 px tall and 118 px between the ends' names has no place for a name and a cell apart)
+      const b = box(n), c = L.cell;
+      assert.ok(!(b.x0 < c.x1 && c.x0 < b.x1 && b.y0 < c.y1 && c.y0 < b.y1), `${tag}: ${n.key} (${b.x0.toFixed(0)}..${b.x1.toFixed(0)}, ${b.y0.toFixed(0)}..${b.y1.toFixed(0)}) is off the Kupffer cell (${c.x0.toFixed(0)}..${c.x1.toFixed(0)}, ${c.y0.toFixed(0)}..${c.y1.toFixed(0)})`);
+    }
+    if (process.env.DBG) console.log(tag, 'xk', L.xk.toFixed(1), 'cell px', L.cell.x0.toFixed(0), L.cell.x1.toFixed(0), 'in', box(inn).x0.toFixed(0), box(inn).x1.toFixed(0), 'sin', sin.cx.toFixed(0), 'out', box(out).x0.toFixed(0), box(out).x1.toFixed(0), 'free', L.free.l, L.free.r);
   }
 });

@@ -49,7 +49,10 @@ export const nucAt = (n: number, nsd: number): number => 38 * n + 8 + 22 * h1(n,
 
 /** How far (µm) a Kupffer cell's centre stands from any endothelial nucleus on its lining: the endothelial cell's swell (4.6 µm each way) and the Kupffer cell's own body and arms (about 5.4 µm along)
  *  never meet, so it sits on bare lining between two endothelial cells (Mohammad, 20 Nov 2026: "move the kupffer cell to be not on top of an endothelial cell"). */
-export const KUP_CLEAR = 10.5;
+export const KUP_CLEAR = 9;
+/** The Kupffer cell's half-span along the lining (µm): its arms' reach (5.4 µm at full size) at the 0.72 the cell is drawn at (micro3d KUP_SCALE). KUP_CLEAR is the endothelial swell (4.6) + this + 0.5 of air:
+ *  it was 10.5 from before the cell was drawn smaller, which held it a whole 1.5 µm further from a nucleus than its own size needs. */
+export const KUP_HALF = 3.9;
 /** The place nearest `want` (µm along) on the lining of nuclei seed `nsd` where a Kupffer cell is clear of every endothelial cell (KUP_CLEAR from each nucleus). */
 export function kupfferClear(want: number, nsd: number): number {
   let best = want, bd = Infinity;
@@ -59,6 +62,20 @@ export function kupfferClear(want: number, nsd: number): number {
     if (b < a) continue;
     const x = Math.min(b, Math.max(a, want)), d = Math.abs(x - want);
     if (d < bd) { bd = d; best = x; }
+  }
+  return best;
+}
+/** The Kupffer cell's place: just right of the first endothelial nucleus (seed `nsd`) past `centre` (µm along: the middle of the room), KUP_CLEAR from it, when `ok` takes it; else the nearest bare
+ *  stretch of lining that `ok` takes (never on top of an endothelial cell); `ok` is the room's say (inside it, clear of the ends' names). Nothing taken: the first wish. */
+export function kupfferSpot(centre: number, nsd: number, ok: (x: number) => boolean): number {
+  let n = Math.floor(centre / 38) - 2;
+  while (nucAt(n, nsd) <= centre) n++;
+  const want = nucAt(n, nsd) + KUP_CLEAR;
+  if (ok(want)) return want;
+  let best = want, bd = Infinity;
+  for (let m = n - 4; m <= n + 3; m++) {
+    const a = nucAt(m, nsd) + KUP_CLEAR, b = nucAt(m + 1, nsd) - KUP_CLEAR;
+    for (let x = a; x <= b + 1e-9; x += 0.25) if (Math.abs(x - want) < bd && ok(x)) { best = x; bd = Math.abs(x - want); }
   }
   return best;
 }
