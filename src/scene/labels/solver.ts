@@ -23,6 +23,10 @@ export interface Item {
   ax: number; ay: number; au: number;
   /** The vessel's course on the canvas, evenly spaced along its length: the dot may slide along it (rule 6) and may be moved off a crowded neighbour. */
   path?: readonly (readonly [number, number])[];
+  /** Where along `path` the dot may stand (u 0..1): only where its own vessel is the one seen there (stations.ts `rests`). Absent: anywhere. */
+  rests?: (u: number) => boolean;
+  /** The label's padding round its words (px): its leader is drawn to the words' box, so it is judged there (the box's corner let a leader the solver passed clip a neighbour as drawn). */
+  pad?: { x: number; y: number };
   /** Widest form first. */
   forms: readonly Form[];
   pri: number;
@@ -62,7 +66,7 @@ export interface Item {
    *  was asked for (ranked last) and is never counted as dropped (`skipped` lists it). */
   optional?: boolean;
   /** Where the label stands now (the form and the box's offset from its dot): a spot within STAY_PX of it, once legal under every rule, costs `stay` less, so a label moves only when the new spot is better by more than that (plan 27). */
-  was?: { form: number; dx: number; dy: number };
+  was?: { form: number; dx: number; dy: number; /** where along `path` its dot stood (a slid dot keeps its place while that is still clear, rather than sliding again from the middle) */ au?: number };
 }
 
 export interface SolveInput {
@@ -226,12 +230,12 @@ export function pointAlong(path: readonly (readonly [number, number])[], u: numb
 }
 
 /** Rule 6: the dot of a vessel whose middle is not clear stands at the middle of the longest run of the vessel that is. Null: none is. */
-export function slideInView(path: readonly (readonly [number, number])[], view: Box, blockers: readonly Box[]): { u: number; x: number; y: number } | null {
+export function slideInView(path: readonly (readonly [number, number])[], view: Box, blockers: readonly Box[], rests?: (u: number) => boolean): { u: number; x: number; y: number } | null {
   const STEPS = 100;
   let from = -1, b0 = -1, b1 = -1;
   for (let n = 0; n <= STEPS; n++) {
     const [x, y] = pointAlong(path, n / STEPS);
-    if (clearPoint(x, y, view, blockers)) { if (from < 0) from = n; if (b0 < 0 || n - from > b1 - b0) { b0 = from; b1 = n; } } else from = -1;
+    if (clearPoint(x, y, view, blockers) && (!rests || rests(n / STEPS))) { if (from < 0) from = n; if (b0 < 0 || n - from > b1 - b0) { b0 = from; b1 = n; } } else from = -1;
   }
   if (b0 < 0) return null;
   const u = (b0 + b1) / 2 / STEPS, [x, y] = pointAlong(path, u);
@@ -245,9 +249,11 @@ function spreadDots(items: Anchored[], view: Box, blockers: readonly Box[]): voi
   const near = (it: Anchored, x: number, y: number) => items.some((o) => o !== it && rank(o, it) < 0 && Math.hypot(o.ax - x, o.ay - y) < DOT_ROOM);
   for (const it of [...items].sort(rank).reverse()) {
     if (!near(it, it.ax, it.ay) || !it.path) continue;
-    for (const u of SLIDES) {
+    // (a dot the label already stood on, slid off the middle, stays there while it is still clear: sliding again from the middle as the picture turns moved a label whose spot was legal: the hepatic
+    //  artery's name on the placed hilum, where every spot is within DOT_ROOM of another dot)
+    for (const u of it.was?.au !== undefined && it.was.au !== it.au ? [it.was.au, ...SLIDES] : SLIDES) {
       const [x, y] = pointAlong(it.path, u);
-      if (!near(it, x, y) && clearPoint(x, y, view, blockers)) { it.ax = x; it.ay = y; it.au = u; break; }
+      if (!near(it, x, y) && clearPoint(x, y, view, blockers) && (!it.rests || it.rests(u))) { it.ax = x; it.ay = y; it.au = u; break; }
     }
   }
 }
@@ -286,7 +292,7 @@ export function solve(input: SolveInput): Solved {
   for (const raw of input.items) {
     const it: Anchored = { ...raw };
     if (!clearPoint(it.ax, it.ay, view, input.blockers)) {
-      const s = it.path ? slideInView(it.path, view, input.blockers) : null;
+      const s = it.path ? slideInView(it.path, view, input.blockers, it.rests) : null;
       if (!s) { hidden.push(it.id); continue; }
       it.ax = s.x; it.ay = s.y; it.au = s.u;
     }
@@ -339,7 +345,7 @@ export function solve(input: SolveInput): Solved {
           let seg: Seg | null = null;
           let pen = 0;
           if (leader) {
-            const [px, py] = nearestOn(box, it.ax, it.ay);
+            const [px, py] = nearestOn(it.pad ? { x0: box.x0 + it.pad.x, y0: box.y0 + it.pad.y, x1: box.x1 - it.pad.x, y1: box.y1 - it.pad.y } : box, it.ax, it.ay);
             seg = [it.ax, it.ay, px, py];
             const len = Math.hypot(px - it.ax, py - it.ay);
             if (len > (it.reach ?? LONG_LEAD + (it.vw ?? 0) + 10) && c.cost < 100) { if (tally) no(c, 'reach'); continue; }
