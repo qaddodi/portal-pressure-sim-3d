@@ -18,8 +18,9 @@ import { PLACED } from '../src/scene/anatomy/source.ts';
 const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
 const all = prepareOrgans({ ...ORGAN_MESHES, caudate: caudateGeometry });
-// (placed path: the gut tubes wear no strip, prepare.ts: their round normal turns sideways at their own edge, and their loops lie over each other, so their rings are many by design; every other organ is held as before)
-const made = all.filter(([, g]) => !g.userData.tube);
+// (placed path: the gut tubes and the re-inflated organs wear no strip, prepare.ts: a tube's round normal turns sideways at its own edge and its loops lie over each other, and an inflated organ keeps its height's own smooth
+// normals; the organs that keep it (the caudate lobe there) are held as before)
+const made = all.filter(([, g]) => !!g.userData.rimProfile || !PLACED);
 
 test('rimDistance is the true distance to the silhouette: on a disc, the radius to the rim', () => {
   const N = 48, pos: number[] = [0, 0, 0.1, 0, 0, -0.1], idx: number[] = [];
@@ -47,6 +48,7 @@ test('the profile: eight knots, monotone, in range; the JS twin of the shader le
 
 test('every organ has the strip: rimD and rimC bytes, an eight-point profile, and the baked file holds them exactly', () => {
   for (const [id, g] of all) if (g.userData.tube) assert.ok(!g.getAttribute('rimD') && !g.userData.rimProfile, `${id}: a tube has no strip`);
+  if (PLACED) assert.deepEqual(all.filter(([, g]) => !!g.userData.rimProfile).map(([id]) => id), ['caudate'], 'placed: only the lobe wears the strip');
   for (const [id, g] of made) {
     const rd = g.getAttribute('rimD'), rc = g.getAttribute('rimC'), pr = g.userData.rimProfile as number[];
     assert.ok(rd && rc && rd.count === g.getAttribute('position').count && rc.count === rd.count, `${id}: attributes`);
@@ -219,7 +221,7 @@ test('the helper finds an inner fold: a pillow lying over a larger one has its o
 test('every baked organ has one silhouette ring and no inner fold in it (a fold would grow a false rim crescent)', () => {
   // the ring is one closed loop for these; the small bowel, the duodenum and the caudate lobe are pinched (a silhouette vertex where the ring branches), so their one piece is not closed: pinned, not a loop of its own
   const PINCHED = new Set(['bowel', 'duodenum', 'caudate']);
-  for (const [id, g] of made) {
+  for (const [id, g] of all.filter(([, x]) => !x.userData.tube)) {   // (placed path: the inflated organs too, strip or none: the outline's steps grow from the same ring)
     const r = ringReport(g);
     // (placed path: the stomach is open where the duodenum's funnel takes over and above where its esophagus has faded clear, placed.ts, so its outline is two open pieces, the greater and the lesser curve; neither is a fold)
     if (PLACED && id === 'stomach') { assert.equal(r.pieces.length, 2, `${id}: ${r.pieces.length} pieces`); assert.ok(r.pieces.every((p) => !p.closed)); assert.equal(r.inner, 0, `${id}: ${r.inner} ring segments are folds inside the outline`); continue; }

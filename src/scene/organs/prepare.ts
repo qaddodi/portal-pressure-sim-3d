@@ -2,7 +2,8 @@
 // normals and the outline's steps from the rim. It is about 2 s of CPU on a laptop and the same on every start, so scripts/bake-organs.mjs runs it at BUILD time and ships the result (organs/baked.ts); the page runs it
 // only when that file is missing or not for this build. One function, so the live path and the bake can never differ.
 import { BufferAttribute, Float32BufferAttribute, type BufferGeometry } from 'three';
-import { ORGAN_STYLE } from './layer.ts';
+import { GUT_GROUP, ORGAN_STYLE } from './layer.ts';
+import type { DepthPart } from './organ-depth.ts';
 import { refineRim, ringDistance, rimDistance, smoothSilhouette, tailFade } from './contour.ts';
 import { COARSE_VERTS, subdivideOrgan } from './subdivide.ts';
 import { bakeOrganDepth, meanEdge, smooth } from './organ-depth.ts';
@@ -23,16 +24,22 @@ export function prepareOrgans(meshes: Record<string, () => BufferGeometry>): [st
   for (const [id, make] of Object.entries(meshes)) if (ORGAN_STYLE[id]) {
     const g = make();
     if (PLACED && TUBE_IDS.has(id)) { g.userData.tube = true; made.push([id, g]); continue; }   // (a gut tube is round by construction, at its own depth, with its own round normals: gut-tubes.ts. Its rim is not an outline's and is left as it is)
-    // (placed: an inflated organ is the approved mock's mesh, its rim already refined twice and its walls upright at the seam; the cubic split overshoots those walls into small folds, false rim rings, so it is not split again)
-    smoothSilhouette(g); if (g.getAttribute('position').count >= COARSE_VERTS || (PLACED && INFLATED_IDS.includes(id)) || !subdivideOrgan(g)) refineRim(g); g.translate(0, 0, ORGAN_Z[id] ?? 0); made.push([id, g]);
+    // (placed: an inflated organ is the approved mock's mesh, already refined where its surface turns (placed.ts) and at its own depth: the cubic split would overshoot its upright walls into small folds, false rim rings,
+    // a further rim split lays slivers along the wall whose normals fold, and moving its rim (the saw-tooth smoothing) pinches the silhouette ring of a mesh already this fine. It keeps the surface's own normals, from its height)
+    if (PLACED && INFLATED_IDS.includes(id)) { made.push([id, g]); continue; }
+    smoothSilhouette(g); if (g.getAttribute('position').count >= COARSE_VERTS || !subdivideOrgan(g)) refineRim(g); g.translate(0, 0, ORGAN_Z[id] ?? 0); made.push([id, g]);
   }   // (the rim's saw-tooth is smoothed out first: contour.ts; a small organ then gets a round of butterfly subdivision, which also refines its rim (subdivide.ts), a big one only its rim; each organ at its own depth: z.ts, x and y untouched by it)
   // the duodenum's free end fades out (it joins nothing there): its tail alpha, which organ-art patches into its fill and outline
   const duo = made.find(([id]) => id === 'duodenum'), stom = made.find(([id]) => id === 'stomach');
   if (duo && stom && !PLACED) duo[1].setAttribute('esoA', new Float32BufferAttribute(tailFade(duo[1], stom[1]), 1));   // (placed: the duodenum runs on into the bowel's tube and fades nowhere; only the rectum's end fades, gut-tubes.ts)
-  const baked = bakeOrganDepth(Object.fromEntries(made.map(([id, g]) => {
+  const parts: Record<string, DepthPart> = Object.fromEntries(made.map(([id, g]) => {
     if (!g.getAttribute('normal')) g.computeVertexNormals();
     return [id, { pos: g.getAttribute('position').array, normal: g.getAttribute('normal').array, index: g.index ? g.index.array : [] }];
-  })));
+  }));
+  // (placed: the gut is one surface, layer.ts GUT_GROUP: its parts are baked as ONE part, so where the stomach hands over to the duodenum's funnel, the funnel to the bowel and the bowel to the colon, nothing is
+  // tucked as if two organs met there: the tuck had laid a dark band across every join)
+  const one = joinParts(parts, PLACED ? [...GUT_GROUP].filter((id) => parts[id]) : []);
+  const baked = one.split(bakeOrganDepth(one.parts));
   for (const [id, g] of made) {
     g.setAttribute('depthAo', new BufferAttribute(baked[id]!, 1, true));
     // the outline is pushed out along the mesh's SMOOTHED normal: the mesh's own normals jag along a coarse rim, and the hull's edge with them (a sawtooth halo)
@@ -41,9 +48,26 @@ export function prepareOrgans(meshes: Record<string, () => BufferGeometry>): [st
     g.setAttribute('shadeN', new Float32BufferAttribute(shadeN, 3));
     g.setAttribute('ringD', new Float32BufferAttribute(ringDistance(g), 1));
     g.setAttribute('hullN', new Float32BufferAttribute(smoothRestNormals(g.getAttribute('position').array, g.getAttribute('normal').array, g.index ? g.index.array : []), 3));
-    if (!g.userData.tube) rimStrip(g);   // (a gut tube's normal turns fully sideways at its own edge, so it needs no strip's tilt; and its packed loops lie over each other, so a strip grown from their rings would paint a crescent inside the gut)
+    // (a gut tube's normal turns fully sideways at its own edge, so it needs no strip's tilt, and its packed loops lie over each other, so a strip grown from their rings would paint a crescent inside the gut; a re-inflated organ
+    // keeps its height's own smooth normals, which are what the strip stands in for on a coarse pillow, and its narrow parts (the esophagus) lie wholly in the strip's zone, where the strip only adds specks)
+    if (!g.userData.tube && !(PLACED && INFLATED_IDS.includes(id))) rimStrip(g);
   }
   return made;
+}
+
+/** `parts` with the parts `ids` joined into one (bakeOrganDepth then takes them as one organ, which never darkens itself), and `split`, which hands the bake's bytes back to each of them. */
+function joinParts(parts: Record<string, DepthPart>, ids: readonly string[]): { parts: Record<string, DepthPart>; split: (b: Record<string, Uint8Array>) => Record<string, Uint8Array> } {
+  if (ids.length < 2) return { parts, split: (b) => b };
+  const pos: number[] = [], normal: number[] = [], index: number[] = [], at: [string, number, number][] = [], key = ids.join('+');
+  for (const id of ids) {
+    const p = parts[id]!, o = pos.length / 3;
+    for (let i = 0; i < p.pos.length; i++) { pos.push(p.pos[i]!); normal.push(p.normal[i]!); }
+    for (let i = 0; i < p.index.length; i++) index.push(p.index[i]! + o);
+    at.push([id, o, p.pos.length / 3]);
+  }
+  const joined: Record<string, DepthPart> = Object.fromEntries(Object.entries(parts).filter(([id]) => !ids.includes(id)));
+  joined[key] = { pos, normal, index };
+  return { parts: joined, split: (b) => { const out = { ...b }; for (const [id, o, n] of at) out[id] = b[key]!.slice(o, o + n); delete out[key]; return out; } };
 }
 
 /** Where in a triangle the profile is sampled (barycentric): the middle and three points toward the corners. */

@@ -4,12 +4,24 @@
 // prepare.ts as for every organ; this file only adds the stomach's cut where the duodenum's funnel takes over. Pure arithmetic.
 import { BufferGeometry, Float32BufferAttribute, Uint16BufferAttribute, Uint32BufferAttribute } from 'three';
 import { PLACED_GUT } from '../anatomy/placement.generated.ts';
-import { inflateOrgan, refineRimRounds } from './inflate.ts';
+import { type Height, inflateOrgan, poissonHeight, refineRimRounds } from './inflate.ts';
 import { INFLATED_IDS, PLACED_A } from './placed-map.ts';
 import { PYL_CUT, gutTubes } from './gut-tubes.ts';
 
-/** The oesophagus's narrow tube in the organs file (scene units): above OESO_Y, left of OESO_X (the cardia below it is broad and needs nothing). */
-const OESO_Y = 0.98, OESO_X = 0.335;
+/** The surface's turn (degrees) between the two ends of an edge above which the edge is split again, the rounds of that at most, and the shortest edge split (scene units, in the front view). */
+const TURN = 14, TURN_ROUNDS = 5, MIN_EDGE = 0.0012;
+const xyKey = (ax: number, ay: number, bx: number, by: number): string => { const a = `${Math.round(ax * 1e5)},${Math.round(ay * 1e5)}`, b = `${Math.round(bx * 1e5)},${Math.round(by * 1e5)}`; return a < b ? `${a}|${b}` : `${b}|${a}`; };
+/** The edges (by their ends' front-view places) along which the inflated normals turn more than TURN degrees, and that are long enough to split. */
+function turningEdges(pos: Float32Array, idx: Uint32Array, nrm: Float32Array): Set<string> {
+  const out = new Set<string>(), c = Math.cos((TURN * Math.PI) / 180);
+  for (let t = 0; t < idx.length; t += 3) for (let e = 0; e < 3; e++) {
+    const u = idx[t + e]!, v = idx[t + ((e + 1) % 3)]!;
+    if (nrm[u * 3]! * nrm[v * 3]! + nrm[u * 3 + 1]! * nrm[v * 3 + 1]! + nrm[u * 3 + 2]! * nrm[v * 3 + 2]! >= c) continue;
+    const ax = pos[u * 3]!, ay = pos[u * 3 + 1]!, bx = pos[v * 3]!, by = pos[v * 3 + 1]!;
+    if (Math.hypot(bx - ax, by - ay) >= MIN_EDGE) out.add(xyKey(ax, ay, bx, by));
+  }
+  return out;
+}
 /** Above this y the oesophagus has faded to nothing (2D esoFadeG: gone 40 units above the figure's top, organ-art.ts esoAttributes): its triangles are never seen and are not kept. */
 const OESO_GONE = 2.03;
 /** The gut's ids: the tubes in placed mode (the duodenum's funnel, the small bowel, the colon). */
@@ -24,11 +36,17 @@ export function placedMesh(id: string, raw: () => BufferGeometry): BufferGeometr
   let c = cache.get(id);
   if (!c) {
     const g = raw(), f0 = refineRimRounds(g.getAttribute('position').array, g.index!.array, 2);   // (the mock's mesh: organsA.json's vertices are these, in this order)
-    // the oesophagus's tube is a strip two or three vertices across in the organs file: re-inflated round, its normal turned 55 degrees from one vertex to the next across it (a facet down the tube). The edges ACROSS it (never
-    // along: it is dense along its length already) are split twice more before the inflation, which lays every new vertex on the same smooth surface (the thickness kept from the mock's own vertices), so the tube is round
-    const across = (ax: number, ay: number, bx: number, by: number): boolean => Math.min(ay, by) > OESO_Y && Math.max(ay, by) < OESO_GONE && Math.max(ax, bx) < OESO_X && Math.abs(bx - ax) > 0.6 * Math.abs(by - ay);
-    const f = id === 'stomach' ? refineRimRounds(f0.pos, f0.idx, 2, across) : f0;
-    const inf = inflateOrgan(f.pos, f.idx, PLACED_A[id]!, undefined, f0.pos.length / 3);
+    // where the re-inflated surface turns fast between two vertices (the oesophagus's narrow tube, an outline's pointed tip such as the atrium's appendage, the rows next to the rim where the round wall stands up), the
+    // shading normal folds from one vertex to the next (a facet, a crease). Those edges, and only those, are split again in the front view and the new vertices laid on the same height (the thickness kept from the mock's
+    // own vertices), round after round until no edge turns more than TURN degrees or is shorter than MIN_EDGE: the surface is the mock's, sampled finely where it bends
+    const H = poissonHeight(f0.pos, f0.idx), on = (p: Float32Array): Height => ({ h: Float32Array.from({ length: p.length / 3 }, (_, i) => H.sample(p[i * 3]!, p[i * 3 + 1]!)), sample: H.sample });
+    let f = f0, inf = inflateOrgan(f.pos, f.idx, PLACED_A[id]!, on(f.pos), f0.pos.length / 3);
+    for (let r = 0; r < TURN_ROUNDS; r++) {
+      const mark = turningEdges(f.pos, f.idx, inf.normals);
+      if (!mark.size) break;
+      f = refineRimRounds(f.pos, f.idx, 1, (ax, ay, bx, by) => mark.has(xyKey(ax, ay, bx, by)));
+      inf = inflateOrgan(f.pos, f.idx, PLACED_A[id]!, on(f.pos), f0.pos.length / 3);
+    }
     c = id === 'stomach' ? withoutTip(inf.pos, f.idx, inf.normals) : { pos: inf.pos, idx: f.idx, normals: inf.normals };
     cache.set(id, c);
   }

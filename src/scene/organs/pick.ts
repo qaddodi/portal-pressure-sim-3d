@@ -6,17 +6,20 @@ export const LIVER_SPLIT_X = 640;   // anatomy.js: the liver's right lobe lies l
 /** The 2D organ ids that take a tap, and the card each opens (stage-hover.js ORGAN_OF: heart-ra is the heart's). */
 export const PICK_OF: Readonly<Record<string, 'liver' | 'heart' | 'spleen'>> = { liver: 'liver', heart: 'heart', 'heart-ra': 'heart', spleen: 'spleen' };
 
+/** The approved placement's gut parts (anatomy/source.ts PLACED): one gut surface in front of the vessels, so a tap on it lights the part it is on (layer.ts pickGut). They have no card: the tap outlines the part. */
+export type GutPart = 'stomach' | 'duodenum' | 'bowel' | 'colon';
+
 export type FigureHit =
   | { type: 'edge'; id: string }
-  | { type: 'organ'; id: 'liver' | 'heart' | 'spleen' | 'abdomen'; lobe?: 'L' | 'R' };
+  | { type: 'organ'; id: 'liver' | 'heart' | 'spleen' | 'abdomen' | GutPart; lobe?: 'L' | 'R' };
 
 /** The liver lobe at a 2D x (the patient's right is the viewer's left). */
 export const lobeAt = (x2d: number): 'L' | 'R' => (x2d < LIVER_SPLIT_X ? 'R' : 'L');
 
 /** The target of a tap on organ `og` at 2D x (the liver also says its lobe, as 2D's selection does). */
-export function organHit(og: 'liver' | 'heart' | 'spleen' | 'abdomen', x2d: number): FigureHit {
+export function organHit(og: 'liver' | 'heart' | 'spleen' | 'abdomen' | GutPart, x2d: number): FigureHit {
   return og === 'liver' ? { type: 'organ', id: og, lobe: lobeAt(x2d) } : { type: 'organ', id: og };
 }
 
 /** The organ-layer meshes a selected organ's outline is drawn on (the heart is two: the ventricle and the atrium). Organs with no mesh (the varices, the fundus) have none. */
-export const MESHES_OF: Readonly<Record<string, readonly string[]>> = { liver: ['liver'], heart: ['heart', 'heart-ra'], spleen: ['spleen'] };
+export const MESHES_OF: Readonly<Record<string, readonly string[]>> = { liver: ['liver'], heart: ['heart', 'heart-ra'], spleen: ['spleen'], stomach: ['stomach'], duodenum: ['duodenum'], bowel: ['bowel'], colon: ['colon'] };
