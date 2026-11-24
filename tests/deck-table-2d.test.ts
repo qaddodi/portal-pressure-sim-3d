@@ -47,7 +47,7 @@ test('a phone\'s table: no group heading rows, the finding is a line under the n
   const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
   assert.doesNotMatch(tsx, /dk-tgroup|dk-tnrow/, 'no heading row and no row of its own for a finding: one line per case');
   assert.match(tsx, /className="vs dk-tfind"/, 'the finding sits under the name');
-  assert.match(css, /--dk-name: calc\(14\.5rem - var\(--nc\) \* 1\.1rem\)/, 'the name column follows the value columns');
+  assert.match(css, /--dk-name: max\(calc\(14\.5rem - var\(--nc\) \* 1\.1rem\)/, 'the name column follows the value columns');
   assert.match(css, /tbody tr th\[scope="row"\] \.pz-kick \{ display: none; \}/, 'the site is not in the patient\'s row on a phone');
 });
 
@@ -60,6 +60,6 @@ test('the table fits its heads: upright when they do not fit, the name column fo
   const model = readFileSync(new URL('../src/ui/talk/table-model.ts', import.meta.url), 'utf8');
   assert.match(tsx, /scrollWidth > t\.clientWidth \+ 1/, 'measured, not guessed');
   assert.match(tsx, /className=\{up \? 'th-up' : undefined\}/);
-  assert.match(css, /\.pz-table\.dk-pztable\.dk-up \{ --dk-name: calc\(20\.5rem - var\(--nc\) \* 1\.75rem\)/);
+  assert.match(css, /\.pz-table\.dk-pztable\.dk-up \{ --dk-name: max\(calc\(20\.5rem - var\(--nc\) \* 1\.75rem\)/);
   assert.match(model, /rowHead: spec\.rowHead \|\| 'Level'/, '2D words 1:1 (presenter.js summaryTable)');
 });
