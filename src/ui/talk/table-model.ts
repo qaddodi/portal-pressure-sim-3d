@@ -45,7 +45,7 @@ export interface TableModel { cols: ColModel[]; ascCols: boolean; rel: boolean; 
 const WORD: Record<string, string> = { 2: 'well above normal', 1: 'above normal', 0: 'normal', '-1': 'below normal', '-2': 'well below normal' };
 const WORDREL: Record<string, string> = { 2: 'much higher', 1: 'higher', 0: 'unchanged', '-1': 'lower', '-2': 'much lower' };
 const UNIT_WORDS: Record<string, string> = { press: 'pressures in mmHg', varix: 'varix diameter in mm', gv: 'fundal varix diameter in mm', asc: 'ascites in liters', liver: 'hepatic blood flow in % of normal', shunt: 'shunted blood in %', plt: 'platelets × 10³/µL',
-  lsm: 'liver stiffness in kPa', ssm: 'spleen stiffness in kPa', hr: 'heart rate in beats/min', pvFlow: 'portal flow in L/min', pvVel: 'portal vein velocity in cm/s', res: 'intrahepatic resistance in mmHg per L/min', spleen: 'spleen length in cm', co: 'cardiac output in L/min', bv: 'blood volume in L' };
+  lsm: 'liver stiffness in kPa', ssm: 'spleen stiffness in kPa', hr: 'heart rate in beats/min', pvFlow: 'portal flow in L/min', pvVel: 'portal vein velocity in cm/s', res: 'intrahepatic resistance in mmHg per L/min', spleen: 'spleen length in cm', co: 'cardiac output in L/min', bv: 'blood volume in L', he: 'HE risk is the model\'s own index, 0 to 1, not a probability' };
 export const unitOf = (k: string): string => (k === 'varix' || k === 'gv' ? ' mm' : k === 'asc' ? ' L' : k === 'liver' || k === 'shunt' ? '%' : k === 'hr' ? '/min' : k === 'res' ? ' mmHg per L/min' : PRESS.has(k) ? ' mmHg' : tileOf(k)?.u ? ` ${tileOf(k).u}` : '');
 
 /** A blood pressure as the vitals print it: 117/69 (85), the mean worked from the two numbers as printed. */
@@ -119,9 +119,9 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
   if (ascCols) units.push('SAAG and protein in g/dL');
   const refTitle = first ? lcFirst(rows[0].title) : 'the baseline';
   const key = rel
-    ? `↑ higher, ↓ lower than ${perRow ? 'the row named under each' : refTitle}; ↑↑ ↓↓ by ≥40%; • unchanged${cols.some((k) => k !== 'pvFlow') ? '. Green better, red worse' : ''}`
+    ? `↑ higher, ↓ lower than ${perRow ? 'the row named under each' : refTitle}; ↑↑ ↓↓ a relative change of ≥40%; • unchanged${cols.some((k) => k !== 'pvFlow') ? '. Green better, red worse' : ''}`
     : '↑ above normal, ↓ below; ↑↑ ↓↓ past the red cut-off; • within normal';   // (the level dash is a cell's reading too: a legend that did not name it left the "–" in a row undefined)
-  const legend = [key, rows.some((r) => blank(r).length) ? `○ ${NOT_MEASURABLE.toLowerCase()}` : '', units.length && rows.some((r, n) => isRef(r, n)) ? `Top row: ${units.join(', ')}` : '', spec.foot || '']
+  const legend = [key, rows.some((r) => blank(r).length) ? `○ ${NOT_MEASURABLE.toLowerCase()}` : '', units.length && rows.some((r, n) => isRef(r, n)) ? `Units: ${units.join(', ')}` : '', spec.foot || '']
     .filter(Boolean).map((x) => x.replace(/\.$/, '')).join('. ') + '.';
   return { cols: colModels, ascCols, rel, rows: rowModels, legend, rowHead: spec.rowHead || 'Level', noteHeads: notes };
 }

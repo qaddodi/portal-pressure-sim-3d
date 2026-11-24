@@ -165,7 +165,7 @@ function drawOnce(spec: CurveSpec, c: ChartCtx, w: number, h: number, f: number,
   const cutLabs: CutLab[] = [];
   cutVs.forEach((q: Any) => {
     const nm = t.cutNames?.[q.v], vtxt = minusFixed(q.v, Number.isInteger(q.v) ? 0 : 1), isHeld = held(q);
-    const y = YL(q.v), txt = nm ? (isHeld ? nm : `${nm} ≥${vtxt} ${ls[0].unit}`.trim()) : P.cutWords(ls[0].k, q.v) || `${G.ag ? P.readingName(t) : ls[0].name} ${vtxt}`;
+    const y = YL(q.v), txt = nm ? (isHeld ? nm : `${nm} ≥${vtxt} ${ls[0].unit}`.trim()) : P.cutWords(ls[0].k, q.v) || `${G.ag ? P.readingName(t) : ls[0].name} ${vtxt} ${ls[0].unit}`.trim();
     cutLabs.push({ txt, rate: q.rate, short: nm ? null : P.cutWords(ls[0].k, q.v) ? txt : vtxt, twS: 1.12 * cw(vtxt, f, true), tw: 1.12 * cw(txt, f, true), lines: cutVs.filter((o: Any) => o !== q && !held(o)).map((o: Any) => ({ y: YL(o.v), x0: L, x1: R })),
       cands: [{ x: R - 3, y: y - 0.35 * f, anchor: 'end' }, { x: L + 3, y: y - 0.35 * f, anchor: 'start' },
         { x: R - 3, y: y + 0.35 * f, anchor: 'end', on: true }, { x: L + 3, y: y + 0.35 * f, anchor: 'start', on: true },

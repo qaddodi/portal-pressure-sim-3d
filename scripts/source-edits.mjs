@@ -89,6 +89,51 @@ export const TIPS_DOPPLER_REVIEW = [
   P('tips-doppler', 'slides.mpv.notes', 'A main portal vein velocity that falls again on follow-up points to stenosis downstream.', 'A main portal vein velocity that falls again on follow-up points to stenosis downstream. The strip under the trace is the right hepatic vein: with the stent delivering portal blood into it, its a wave no longer reverses flow and the triphasic pattern flattens (biphasic or monophasic).'),
 ];
 
+
+/** The external reviewer's findings on build e4810ea9 (24 Nov 2026), the wording ones, checked against Baveno VIII (guidelines/baveno-viii-2026.pdf: 4.13, 5.35 to 5.37, 6.17, 7.4). Applied to the copied files by scripts/apply-reviewer-edits.mjs; a re-copy applies the same patches. */
+export const REVIEWER_24NOV = [
+  // After the sinusoids 4: the model's day-30 ascites is still 0.8 L, so "resolves" is not what the graph shows; SOS is not "usually resolves, so watch"
+  SET('outflow', 'slides.recover.title', 'As SOS improves, the ascites shrinks and the HVPG falls'),
+  SET('outflow', 'slides.recover.line', 'As the endothelium heals, the central veins clear; over the following weeks the ascites shrinks to {asc} and the HVPG falls to {hvpg}.'),
+  SET('outflow', 'slides.recover.notes', 'This is one recovery course, not a rule that SOS settles by itself. Mild SOS is managed with supportive care (fluid and sodium management, diuretics, analgesia) and close monitoring, because it can progress. After hematopoietic cell transplantation the EBMT advises treating moderate SOS early with defibrotide rather than only watching it, and defibrotide is the treatment for severe and very severe SOS, which carries high mortality with renal or respiratory failure. For prevention: reduced-intensity conditioning where possible, and ursodeoxycholic acid prophylaxis in many centers.'),
+  // Treating the cause 2: the LSM-only rule does not decide at 23.7 kPa; a model can
+  SET('cause-treated', 'slides.before.line', 'His liver stiffness (LSM) of {lsm} is below the 25 kPa that rules CSPH in by stiffness alone, and with platelets of {plt} it leaves him in the indeterminate zone; a model such as ANTICIPATE can still call CSPH, and the HVPG of {hvpg} confirms it, so carvedilol is started with the antivirals.'),
+  // Doppler 5: a cut-off is not universal
+  SET('doppler', 'slides.slow.line', 'Sinusoidal resistance slows portal flow to {pvVel}. A main portal vein velocity {<15 cm/s}, measured with the angle corrected, supports portal hypertension; read it with the rest of the examination.'),
+  APPEND('doppler', 'slides.slow.notes', 'The velocity is the mean (time-averaged) velocity of the main portal vein at an insonation angle <60°, with the angle correction applied. A low velocity supports portal hypertension but is not diagnostic, and a normal one does not exclude it.'),
+  // Encephalopathy 14: the HE risk is the model's index, and the comparison is within the modelled cirrhotic patient
+  SET('encephalopathy', 'slides.summary.title', 'In this patient every shunt trades a lower gradient for less sinusoidal flow'),
+  SET('encephalopathy', 'slides.summary.line', 'The more portal blood bypasses the liver, the lower the gradient and the higher the model\'s HE risk index. The healthy row is the reference; the rows below it are cirrhosis, so their differences are the shunt and the disease together.'),
+  // Varix 8: the readout is the HVPG, a gradient
+  SET('endoscopy', 'slides.relation.title', 'Insufflation narrows the visible varix while the HVPG stays constant'),
+  // Gastric varices 7: the route the title teaches, and the anatomy it needs
+  SET('gastric-varices', 'slides.brto.terms', ['gv', 'lrv']),
+  SET('gastric-varices', 'slides.brto.mark', { edges: ['C5'], label: 'Gastrorenal shunt', kind: 'note' }),
+  SET('gastric-varices', 'slides.brto.line', 'When a TIPS is not suitable and the varix drains through a suitable gastrorenal shunt, a balloon in the left renal vein occludes the shunt and the fundal varix shrinks to {gv}, but the PPG rises to {ppg}. Esophageal varices can grow to {varix}; repeat endoscopy follows.'),
+  // Recompensation 7 (the criteria card): each criterion has its own row; the interval belongs to the first four (Baveno VIII 7.4 a to d), liver function (e) is separate
+  SET('recompensation', 'slides.recomp.tool', { kind: 'criteria', title: 'Recompensation', lead: 'All five; the first four each for >6 months.', rule: 'Baveno VIII 7.4',
+    rows: ['**Cause** removed, controlled or suppressed', ['No **ascites** on imaging, off diuretics', 'asc', '<', 0.15], 'No clinical **HE**, off lactulose, rifaximin or LOLA', 'No recurrent variceal **bleeding**, if a bleed was a decompensating event (carvedilol allowed)', 'Liver function back to **Child–Pugh A5 or A6**'] }),
+  SET('recompensation', 'slides.recomp.line', 'He is off diuretics, and ascites has not recurred on imaging. With the cause removed and Child–Pugh A5 or A6, the cause, the ascites and the HE criteria must each last >6 consecutive months for recompensation.'),
+  // One patient 15: recurrent or persistent HE; the precipitant and lactulose go together (Baveno VIII 6.17)
+  SET('ten-years', 'slides.he-answer.title', 'Treat the precipitant and give lactulose together; reduce the stent only if HE recurs or persists'),
+  SET('ten-years', 'slides.he-answer.line', 'Look for infection, GI bleeding, constipation, sedatives, hyponatremia and hypokalemia and treat them while giving lactulose. Add rifaximin after a recurrence. If HE recurs or persists despite this, a large spontaneous shunt can be embolized or the stent reduced or occluded.'),
+  SET('ten-years', 'slides.he-answer.tool', { kind: 'criteria', title: 'Encephalopathy after TIPS', short: 'After TIPS', ticks: false, lead: 'Together first; then, if it comes back.', rule: 'Baveno VIII 6.17',
+    rows: ['Find and treat the **precipitant**', '**Lactulose** now, and **rifaximin** after a recurrence', { text: 'Recurrent or persistent HE despite both: **embolize** a large spontaneous shunt, or **reduce or occlude** the stent', lit: true }] }),
+  SET('tips-complete', 'slides.he.title', 'Treat the precipitant and give lactulose together; reduce the stent only if HE recurs or persists'),
+  SET('tips-complete', 'slides.he.line', 'Look for infection, GI bleeding, constipation, sedatives, hyponatremia and hypokalemia and treat them while giving lactulose. Add rifaximin after a recurrence. If HE recurs or persists despite this, a large spontaneous shunt can be embolized or the stent reduced or occluded.'),
+  SET('tips-complete', 'slides.he.tool', { kind: 'criteria', title: 'Encephalopathy after TIPS', short: 'After TIPS', ticks: false, lead: 'Together first; then, if it comes back.', rule: 'Baveno VIII 6.17',
+    rows: ['Find and treat the **precipitant**', '**Lactulose** now, and **rifaximin** after a recurrence', { text: 'Recurrent or persistent HE despite both: **embolize** a large spontaneous shunt, or **reduce or occlude** the stent', lit: true }] }),
+  // Who should get a TIPS 9: isolated congestion raises the free and wedged pressures together, so the HVPG stays near normal; the portal pressure and the right atrium show it
+  SET('tips-candidacy', 'slides.heart.title', 'A raised right atrial pressure points to the heart, not the sinusoids'),
+  SET('tips-candidacy', 'slides.heart.line', 'His right atrial pressure is {ra}, and the portal vein pressure is {pv}. The HVPG of {hvpg} and the PPG of {ppg} are measured against the same raised pressure, so they understate it: congestion, not only sinusoidal resistance, drives the ascites.'),
+  SET('tips-candidacy', 'slides.heart.notes', 'A raised right atrial pressure lifts the free and the wedged hepatic vein pressures together, so in pure congestion the HVPG stays normal or low; here the HVPG is still raised, so the liver is diseased as well as the heart. The PPG is the portal vein pressure minus the IVC pressure, and the IVC rises with the right atrium, so both gradients understate the portal pressure; the portal vein pressure and the right atrium show it. The same constriction is the Constrictive pericarditis patient of the model. Baveno VIII 6.5 names cardiac failure with encephalopathy as the risk of overshunting, and AASLD 2021 lists cardiopulmonary insufficiency among the risks of complications after TIPS. None of the guidelines here gives a right atrial pressure above which a TIPS is refused; the tile\'s rating (above 8 mmHg is high) is the app\'s own.'),
+  SET('tips-candidacy', 'slides.heart.ask', ['In ascites, which reading beside the gradients tells you the heart is the cause?', 'The right atrial pressure: it lifts the free and wedged pressures together, so the gradients stay low while the portal pressure is high.']),
+  // TIPS follow-up 5: "consider", and the covered stent is preferred (Baveno VIII 4.13, 5.35 to 5.37)
+  SET('tips-complete', 'slides.rescue.title', 'Rescue TIPS is considered after a rebleed, and salvage TIPS after a bleed that cannot be controlled'),
+  SET('tips-complete', 'slides.rescue.line', 'On carvedilol and three bands her PPG is {ppg}; a rebleed despite both is an indication to consider TIPS. Uncontrolled bleeding is bridged by a covered esophageal stent, preferred over balloon tamponade, then salvage TIPS.'),
+  P('tips-complete', 'slides.rescue.tool.rule', 'Baveno VIII 4.13, 5.36, 5.37', 'Baveno VIII 4.13, 5.35 to 5.37'),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -194,6 +239,7 @@ export const SOURCE_PATCHES = [
   // ---- the TIPS Doppler deck, review of 23 Nov 2026 (capture 5f2dbfd3). The same patches are also applied to the copied file by scripts/apply-tips-doppler-review.mjs, so the copy and a re-copy agree. ----
   ...TIPS_DOPPLER_REVIEW,
   ...VARICES_REVIEW,
+  ...REVIEWER_24NOV,
 ];
 
 function step(node, key) {

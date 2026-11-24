@@ -126,6 +126,20 @@ export function collageLayout(count: number, shot: { w: number; h: number }): { 
   return { cols, cellW, cellH, labelH, gap, pad, headH, width: pad * 2 + cols * cellW + (cols - 1) * gap, height: pad * 2 + headH + rows * (cellH + labelH) + (rows - 1) * gap, cells };
 }
 
+/** "1 slide", "3 slides": a count with its noun in the right number. */
+export const slidesWord = (n: number): string => `${n} ${n === 1 ? 'slide' : 'slides'}`;
+
+/** The contact sheet's header as one or two lines that stay inside `maxW` (a long talk title wraps at a space instead of running off the right edge; a single word too long for a line is cut with an ellipsis). `width` measures a string. */
+export function sheetHeaderLines(text: string, maxW: number, width: (s: string) => number): string[] {
+  if (width(text) <= maxW) return [text];
+  const words = text.split(' '), a: string[] = [];
+  while (words.length && width([...a, words[0]!].join(' ')) <= maxW) a.push(words.shift()!);
+  if (!a.length) { let w = words.shift()!; while (w.length > 1 && width(`${w}…`) > maxW) w = w.slice(0, -1); a.push(`${w}…`); }
+  let rest = words.join(' ');
+  while (rest.length > 1 && width(rest) > maxW) rest = `${rest.slice(0, -2).trimEnd()}…`;
+  return rest ? [a.join(' '), rest] : [a.join(' ')];
+}
+
 /** A name safe in a file path: lower case, letters and digits, dashes, at most 40 characters. */
 export const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'slide';
 

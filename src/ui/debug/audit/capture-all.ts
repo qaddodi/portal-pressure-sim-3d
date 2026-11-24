@@ -14,7 +14,7 @@ import { clock } from '../../../clock/frame.ts';
 import { latest } from '../../../engine/index.ts';
 import { drawScreen } from '../../capture/capture.ts';
 import { speedAnimations, sampleRealMs } from './speed.ts';
-import { collageLayout, slug, stampTime, deliverWay } from '../../capture/capture-model.ts';
+import { collageLayout, slidesWord, sheetHeaderLines, slug, stampTime, deliverWay } from '../../capture/capture-model.ts';
 import { isSideways } from '../../layout/rules2d.ts';
 import { lastPicked, stopKey, pickWords } from './capture-pick.ts';
 import { zipBlob, type ZipFile } from '../../capture/zip.ts';
@@ -50,6 +50,9 @@ function arriving(clockToo = true, stripsToo = true, frames = 99): string {
     if (clockToo && latest.frame?.morphing) return 'the model is morphing';   // (a procedure's change runs in the engine for seconds of its own time: a paracentesis slide's litres read 5.9 on every step until it ended, Ascites 13, build 572259fd)
     if (document.querySelector('.dk-card[data-phase="out"], .dk-plate[data-phase="out"]')) return 'a card is leaving';
     if (document.fonts && document.fonts.status === 'loading') return 'fonts are loading';
+    if ([...document.querySelectorAll('.dk-card .dk-roll-in, .dk-card .dk-roll-now')].some((e) => (e.textContent ?? '').trim() === '…')) return 'a reading on a card is still "…" (its number has not arrived)';   // (the line's blank gap, TIPS follow-up 5 "her PPG is …", build e4810ea9)
+    if (clock.stats().holds.includes('chart:evgraph')) return 'the procedure graph is still drawing to its end';   // (the card says the slide's end value while the plot's head is still on its way: Gastric varices 7, 19.4 against 18.1)
+    if (document.querySelector('.sh-waitcue')) return 'a "Preparing…" cue is up (the lobule, a pane or a dive is still being made)';
     if (stripsToo) {
       if (dopplerAcquiring()) return 'the Doppler is acquiring';
       if (!document.querySelector('.dk-card[data-phase="in"], .dk-plate[data-phase="in"]')) return 'no card is up yet';
@@ -75,10 +78,10 @@ async function stillPage(real: (ms: number) => number, needWords = false): Promi
   await sleep(real(60));   // (the press has reached the cards: they mount and begin on the next frames)
   let frames = 0;
   const off = clock.on('tween', () => { frames++; });   // (frames drawn since this wait began: a strip fills by frames, not by the clock)
-  const t0 = clock.now(), limit = real(needWords ? 7000 : 5000);
+  const t0 = clock.now(), limit = real(needWords ? 14000 : 12000);
   let still = -1, why = '', words = '';
   while (clock.now() - t0 < limit) {
-    why = arriving(clock.now() - t0 < real(4000), clock.now() - t0 < real(3000), frames); words = tagWords();   // (the clock's motion list counts for 4 s of the 5: a hold that is still there after that is a perpetual one, and is said in the README)
+    why = arriving(clock.now() - t0 < real(10000), clock.now() - t0 < real(9000), frames); words = tagWords();   // (the clock's motion list counts for 4 s of the 5: a hold that is still there after that is a perpetual one, and is said in the README)
     if (!why && needWords && !words.includes(BLOCKED_SAYS.first) && !words.includes(BLOCKED_SAYS.then)) why = 'the blocked catheter has no words yet';
     if (!why) { if (still < 0) still = clock.now(); else if (clock.now() - still >= real(words.includes(BLOCKED_SAYS.first) ? 25 : 60)) { why = ''; break; } } else still = -1;
     await sleep(real(15));
@@ -102,7 +105,10 @@ async function sheet(title: string, thumbs: { n: string; title: string; img: HTM
   if (!g) return null;
   g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);
   g.fillStyle = '#111111'; g.textBaseline = 'middle'; g.font = '700 22px system-ui, -apple-system, sans-serif';
-  g.fillText(`${title} · ${thumbs.length} slides`, L.pad, L.pad + L.headH / 2);
+  const head = `${title} · ${slidesWord(thumbs.length)}`, one = sheetHeaderLines(head, L.width - 2 * L.pad, (t) => g.measureText(t).width);
+  if (one.length > 1) { g.font = '700 18px system-ui, -apple-system, sans-serif'; }
+  const lines = one.length > 1 ? sheetHeaderLines(head, L.width - 2 * L.pad, (t) => g.measureText(t).width) : one;
+  lines.forEach((ln, i) => g.fillText(ln, L.pad, L.pad + (L.headH * (i + 0.5)) / lines.length));
   thumbs.forEach((t, i) => {
     const { x, y } = L.cells[i]!;
     g.drawImage(t.img, x, y, L.cellW, L.cellH);
