@@ -10,10 +10,11 @@
 //   5. the draw-only branches (rhva, rhvb, rpva, rpvp) hang on their host: the straighter one runs on from the trunk as its through branch (one tube to the tip, as liver-branches.ts draws a branching vein), the other is
 //      a side branch; the caudate veins (cv1-3) are joined into the cava the same way; the liver beds (no placed course) are today's beds carried onto the moved nodes.
 // Pure data, no three.js, no reader of network.ts (network.ts reads this when PLACED is on).
-import { PLACED_COURSES, PLACED_VESSELS, PLACED_JOINS, PLACED_ORGANS } from './placement.generated.ts';
+import { PLACED_COURSES, PLACED_VESSELS, PLACED_JOINS, PLACED_ORGANS, PLACED_CAUDATE } from './placement.generated.ts';
 import { EDGES, JUNCTIONS } from '../../engine/hales/portal/topology.js';
 import { ANAT_HIDDEN, EDGE_PATH_2D, HIDDEN_EDGES, PLACED } from './source.ts';
 import { x2d, y2d } from '../frame2d.ts';
+import { aroundEso, onEso } from './eso-wall.ts';
 
 export type V3 = [number, number, number];
 type P2 = [number, number];
@@ -122,6 +123,12 @@ const RHV_SPLIT = 7.5;
 /** The right hepatic vein's trunk from the TIPS's mouth to the cava at least (the cava's junction is crowded: five arms). */
 const RHV_MIN = 0.26;
 const FAIR_SPAN = 0.05;
+/** How far above the hepatic artery's fork, on the bisector of its two branches, the DIPS crosses the arteries' depth (scene units): clear of both branches by more than the two radii. */
+const DIPS_GAP = 0.1;
+/** Where along the whole left portal vein (by length from the bifurcation) its lobe's bed leaves it: where it starts to fade into the lobe. */
+const LPV_BED = 0.6;
+/** Where the varices' courses ease onto the oesophagus's wall above the cardia, and off it where the drain turns toward the azygos (scene y, from and to). */
+const ESO_IN = [1.02, 1.1] as const, ESO_OUT = [1.5, 1.58] as const;
 const ang = (a: V3, b: V3): number => { const l = len(a) * len(b); return l < 1e-12 ? 0 : (Math.acos(Math.max(-1, Math.min(1, dot(a, b) / l))) * 180) / Math.PI; };
 /** `zone`: the stretch (arc length from the start, [from, to]) the fairing may move, easing to nothing over FAIR_SPAN outside it (the rest of the course, and the joins made there, keep their places and headings). */
 function fair(D: V3[], zone: readonly [number, number] = [-Infinity, Infinity]): V3[] {
@@ -250,6 +257,13 @@ function buildPlaced(): void {
   }
   runOn('lgv', 0, 'C1a', 0);
   runOn('C1a', 1, 'C1b', 0, 'mid');
+  // THE VARICES ON THE OESOPHAGUS'S WALL (Mohammad, 24 Nov: "varices should be surrounding the esophagus"): the coronary vein's run up the oesophagus (C1a, whose strands are the varices) and the drain on to the azygos side
+  // (C1b, as far as it climbs the tube) lie on the tube's outside, their own radius beyond its wall (anatomy/eso-wall.ts), each point moved straight out from (or in toward) the axis, so the course keeps its side of the tube and
+  // its run; the strands then wind round the axis from there (vessels/coil.ts WRAP). Eased in above the cardia (the coronary vein's run-on keeps its place) and out where the drain turns off the tube toward the azygos.
+  {
+    const w = (y: number): number => smooth((y - ESO_IN[0]) / (ESO_IN[1] - ESO_IN[0])) * (1 - smooth((y - ESO_OUT[0]) / (ESO_OUT[1] - ESO_OUT[0])));
+    for (const k of ['C1a', 'C1b']) COURSE[k] = COURSE[k]!.map((p): V3 => { const k0 = w(p[1]); if (k0 <= 0) return p; const a = aroundEso(p); return onEso(p[1], a.th, a.out + (rOf('C1a') - a.out) * k0); });
+  }
   runOn('C2', 1, 'C5', 0, 'mid');
   runOn('EPI_ILI', 0, 'EPI_SVC', 0, 'mid');
   // the draw-only through branches run on from their trunk (one tube to the tip)
@@ -331,7 +345,27 @@ function buildPlaced(): void {
     const n = nodeOfWholeEnd(jn.v, jn.end), C = COURSE[jn.v]!;
     if (n && !mouth.has(`${jn.to}|${n}`)) mouth.set(`${jn.to}|${n}`, jn.end ? C[C.length - 1]! : C[0]!);
   }
-  const hostEndAt = (w: string, node: string): V3 | undefined => (nodeOfWholeEnd(w, 0) === node ? COURSE[w]![0]! : nodeOfWholeEnd(w, 1) === node ? COURSE[w]![COURSE[w]!.length - 1]! : undefined);
+  // (A FADING END IS NO MOUTH (Mohammad, 24 Nov: "Umbilical vein should grow from more proximal LPV"): the engine's LPV node is the left portal vein's far end, which the placement fades into the left lobe; the paraumbilical
+  //  vein and the Meso-Rex bypass, which the engine joins there, were forced onto that fading tip, 0.37 past where the placement draws them leave, at the umbilical portion (the recessus of Rex). An end that fades is not
+  //  a place a vessel can open: a branch whose node is such an end lands on the host's wall where the placement draws it, as the 2D figure's umbilical vein leaves its wall (starts.ts leaveVein))
+  const fadesAt = (w: string, end: 0 | 1): boolean => !!PLACED_VESSELS[w]?.fade[end];
+  const hostEndAt = (w: string, node: string): V3 | undefined => (nodeOfWholeEnd(w, 0) === node ? (fadesAt(w, 0) ? undefined : COURSE[w]![0]!) : nodeOfWholeEnd(w, 1) === node ? (fadesAt(w, 1) ? undefined : COURSE[w]![COURSE[w]!.length - 1]!) : undefined);
+  /** Where the placement draws an end that lands on a host's fading end: the host's nearest point to it (the branch's placed end). */
+  const wallAt = (w: string, node: string, p: V3): V3 | undefined => ((nodeOfWholeEnd(w, 0) === node && fadesAt(w, 0)) || (nodeOfWholeEnd(w, 1) === node && fadesAt(w, 1)) ? nearestOn(COURSE[w]!, p).at : undefined);
+  // THE DIPS (Mohammad, 24 Nov: "DIPS just bad"): a direct intrahepatic portocaval shunt is a SHORT tract from the portal bifurcation (the engine's PVH, the portal trunk's end) straight back to the intrahepatic cava at the caudate
+  // lobe's foot, its process, below the caudate's own veins: never a hepatic vein, and never alongside the TIPS. The placement's course ran 0.48 up the liver beside the TIPS to the cava's top and crossed the right hepatic artery
+  // and the caudate veins. It is laid from the anatomy: from the bifurcation, back through the gap the hepatic artery's two branches leave above their fork (the placed arteries lie between the portal vein and the cava), to the
+  // cava's centreline at the caudate's lower pole; its two ends then land on their hosts as every shunt's do (joinEnd, below).
+  {
+    const pv = COURSE.pv!, ha = COURSE.ha!, rha = PLACED_COURSES.rha!, lha = PLACED_COURSES.lha!, iv = COURSE.ivc!;
+    const P0 = pv[pv.length - 1]!, fork = ha[ha.length - 1]!;
+    const dir = (c: readonly (readonly number[])[]): V3 => norm(sub(c[1]! as V3, c[0]! as V3));
+    const up = norm(add(dir(rha), dir(lha)));
+    const M = add(fork, mul(up, DIPS_GAP));
+    const yE = PLACED_CAUDATE.c[1] - PLACED_CAUDATE.ax[1];
+    let E = iv[0]!; for (const q of iv) if (Math.abs(q[1] - yE) < Math.abs(E[1] - yE)) E = q;
+    COURSE.DIPS = fair(relax(denseCurve([P0, M, E]), PLACED_JOINS.relax ?? 40));
+  }
   for (const id of OWN) {
     const e = edgeById.get(id)!;
     for (const end of [0, 1] as const) {
@@ -344,7 +378,7 @@ function buildPlaced(): void {
       // (a shunt or collateral that lands on another collateral's run: the epigastric vein's pair, the azygos: the same rule)
       // the host's flow sense at the landing: a vessel that ENDS there merges along the host's flow; one that starts there leaves along it
       const key = `${best.w}|${node}`;
-      branch(id, end, best.w, ownCourse(best.w), id === 'TIPS' ? TIPS_POINT[best.w] : (hostEndAt(best.w, node) ?? mouth.get(key)));
+      branch(id, end, best.w, ownCourse(best.w), id === 'TIPS' ? TIPS_POINT[best.w] : (hostEndAt(best.w, node) ?? wallAt(best.w, node, p) ?? mouth.get(key)));
     }
   }
 
@@ -381,6 +415,18 @@ function buildPlaced(): void {
     }
     // (a node nothing drawn lands at (the arterioportal shunt's on the right portal trunk, hidden): its cut is midway between the cuts either side, so both pieces are as long as they can be for their skins)
     for (let i = 0; i < cuts.length; i++) if (free[i]) { let j = i; while (j < cuts.length && free[j]) j++; const lo = i ? cuts[i - 1]! : 0, hi = j < cuts.length ? cuts[j]! : 1; for (let m = i; m < j; m++) cuts[m] = lo + ((hi - lo) * (m - i + 1)) / (j - i + 1); i = j; }
+    // (and upstream of every collateral or shunt the engine joins to a LATER piece and that lands on the course's wall (the paraumbilical vein and the Rex bypass at the umbilical portion, on the left portal vein's last piece),
+    //  by two of the course's diameters, so each lands on the piece the engine joins it to)
+    for (let i = 0; i < cuts.length; i++) {
+      if (!free[i]) continue;
+      const later = new Set(pieces.slice(i + 1).map((id) => edgeById.get(id)!.to));
+      for (const id of OWN) for (const end of [0, 1] as const) {
+        const e = edgeById.get(id)!, node = end ? e.to : e.from, c = COURSE[id]!;
+        if (!later.has(node) || RUN_ON_ENDS.has(`${id}|${end}`)) continue;
+        const h = nearestOn(D, end ? c[c.length - 1]! : c[0]!);
+        if (h.d < rOf(w) && h.s / L < 1 - 1e-6) cuts[i] = Math.min(cuts[i]!, h.s / L - (4 * rOf(w)) / L);
+      }
+    }
     // (in flow order, each piece at least a hundredth of the course)
     for (let i = 0; i < cuts.length; i++) cuts[i] = Math.min(1 - 0.01 * (cuts.length - i), Math.max(cuts[i]!, (i ? cuts[i - 1]! : 0) + 0.01));
     const bounds = [0, ...cuts, 1];
@@ -445,7 +491,8 @@ function buildPlaced(): void {
       PLACED_EDGE_3D[WHOLE_PIECES[art]![0]!] = resample(COURSE[art]!, STEP);
     };
     lay('PRE_R', 'SIN_RR', 'POST_R_RHV', 'PVH_R_2', 'RHV_IVC_1', 'rha');
-    lay('PRE_L', 'SIN_LL', 'POST_L_LHV', 'PVH_L_1', 'LHV_IVC', 'lha', 0.2, 0.45);   // (the left portal vein runs on past its lobe's outflow: its bed leaves it where it starts to fade)
+    // (the left portal vein runs on past its lobe's outflow: its bed leaves it where it starts to fade, 0.6 of the whole vein from the bifurcation, wherever its pieces are cut)
+    { const a = lengthOf(PLACED_EDGE_3D.PVH_L!), b = lengthOf(PLACED_EDGE_3D.PVH_L_1!); lay('PRE_L', 'SIN_LL', 'POST_L_LHV', 'PVH_L_1', 'LHV_IVC', 'lha', Math.min(0.9, Math.max(0.05, (LPV_BED * (a + b) - a) / b)), 0.45); }
     // the right lobe's second outflow bed: from the central vein on to the middle hepatic vein, leaving along the bed it continues
     {
       const sinR = PLACED_EDGE_3D.SIN_RR!, A = sinR[sinR.length - 1]!, H = hepatic('MHV_IVC', 0.3);   // (the middle hepatic vein starts in front of the lobe's centre: its bed joins it where it has come back to the veins' depth)
@@ -466,6 +513,14 @@ function buildPlaced(): void {
   for (const [n, p] of Object.entries(PLACED_NODE_3D)) PLACED_NODE_2D[n] = [x2d(p[0]), y2d(p[1])];
 }
 if (PLACED) buildPlaced();
+/** The cava's piece the caudate veins open into (vessels/caudate-veins.ts CAUDATE_HOST): the piece their ends lie on, wherever the cava is cut (the DIPS lands at the caudate's foot, below them). */
+export const PLACED_CAUDATE_HOST: string = (() => {
+  const ends = PLACED_CAUDATE_VEINS.map((c) => c[c.length - 1]!);
+  if (!ends.length) return 'IVC_IS_1';
+  let best = 'IVC_IS_1', bd = Infinity;
+  for (const id of WHOLE_PIECES.ivc!) { const c = PLACED_EDGE_3D[id]; if (!c) continue; const d = Math.max(...ends.map((p) => nearestOn(c, p).d)); if (d < bd) { bd = d; best = id; } }
+  return best;
+})();
 /** A course as 2D points and depths. */
 export const to2D = (c: readonly V3[]): { pts: P2[]; z: number[] } => ({ pts: c.map((p): P2 => [x2d(p[0]), y2d(p[1])]), z: c.map((p) => p[2]) });
 /** Where along `host`'s piece (0 to 1, by length) the point nearest `p` lies. */

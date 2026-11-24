@@ -3,6 +3,9 @@
 // past a quarter), the varices' strands fan out as far as their varix is big, and the strands leave and rejoin their trunk (anatomy.js STRANDS).
 import { STRANDS_2D, STRAND_FROM_2D, STRAND_HOLD_2D, STRAND_SOFT_2D, STRAIGHT_COLL_2D, WIG_CAP_2D } from './coil.copied.ts';
 import { EDGE_PATH_2D as TODAY_PATH_2D, PLACED } from '../anatomy/source.ts';
+import { PLACED_Z } from '../anatomy/placed-network.ts';
+import { aroundEso, onEso, ESO_VARIX_GAP } from '../anatomy/eso-wall.ts';
+import { UNITS_PER_SCENE, x2d, x3, y2d, y3 } from '../frame2d.ts';
 
 export type P2 = [number, number];
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -137,6 +140,25 @@ export function weave(pts: readonly P2[], reach: number, turns: number, phase: n
   return { pts: out, dz };
 }
 
+/** THE VARICES ROUND THE OESOPHAGUS (the approved placement, Mohammad 24 Nov: "varices should be surrounding the esophagus", not one braided cord beside it): the strands wind round the OESOPHAGUS's axis, not their own trunk's,
+ *  on its wall (anatomy/eso-wall.ts). Each leaves the trunk where the trunk lies on the tube and goes round the tube to its own angle, the strands spread evenly round it (strand i of n at i/n of a turn from the trunk's side,
+ *  the far ones either way round, so no two cross), and gathers on the trunk again where they join the drain; between, each lies its gap out from the wall (anatomy/eso-wall.ts ESO_VARIX_GAP). */
+export const WRAP: ReadonlySet<string> = new Set(['C1a']);
+/** Where along the course (share of its length) the strands start to part: where the trunk has come up off the cardia onto the tube's wall (the trunk's own course is the strands' until there, so no blend is needed). */
+const WRAP_FROM = 0.1;
+/** How the strands part from the trunk and gather again along their stretch: a longer easing than the weave's, so a strand going a third of the way round the tube turns no tighter than the bar (tests/anatomy/smooth.ts). */
+const wrapEnv = (v: number): number => smooth01(v / 0.5) * (1 - smooth01((v - 0.5) / 0.5));
+function wrapEso(base: readonly P2[], z: readonly number[], i: number, n: number, u0: number): { pts: P2[]; dz: number[] } {
+  const m = base.length - 1, off = (2 * Math.PI * (((i + Math.floor(n / 2)) % n) - Math.floor(n / 2))) / n, dz: number[] = [];
+  const pts = base.map((p, j): P2 => {
+    const P = [x3(p[0]), y3(p[1]), z[j]!], a = aroundEso(P), v = clamp((j / m - u0) / (1 - u0), 0, 1), e = wrapEnv(v);
+    const th = a.th + e * off, q = onEso(P[1]!, th, a.out + (ESO_VARIX_GAP - a.out) * e);
+    dz.push(e > 0 ? (q[2] - P[2]!) * UNITS_PER_SCENE : 0);
+    return e > 0 ? [x2d(q[0]), y2d(q[1])] : p;
+  });
+  return { pts, dz };
+}
+
 /** The 2D course of a collateral (or a liver bed) and its strands at coil `wig` and spread `spr`, as stage-frame.js builds them in the anatomic view. */
 export function coilCourses(id: string, base: readonly P2[], coils: boolean, wig: number, spr: number, pin?: Pin): { main: P2[]; strands: CoilCourse[] } {
   const live = coilCoursesFree(id, base, coils, wig, spr);
@@ -157,6 +179,8 @@ function coilCoursesFree(id: string, base: readonly P2[], coils: boolean, wig: n
     if (wv) {
       // (placed: a course shorter than the 2D figure's (the varices, half as long) winds at the same pitch, not in the same number of turns: its turns and reach shrink with its length, so it curls no tighter)
       const kL = PLACED ? Math.min(1, len2(base) / (len2(TODAY_PATH_2D[id] ?? base) || 1)) : 1;
+      const z = PLACED && WRAP.has(id) ? PLACED_Z[id] : undefined;
+      if (z && z.length === base.length) { const w = wrapEso(base, z, i, rows.length, WRAP_FROM); return { pts: w.pts, k, ph, dz: w.dz }; }
       const w = weave(base, wv.reach * sp0 * kL, wv.turns * kL, (2 * Math.PI * i) / rows.length, u0);
       return { pts: u0 ? blendFrom(main, w.pts, u0) : w.pts, k, ph, dz: w.dz };
     }
