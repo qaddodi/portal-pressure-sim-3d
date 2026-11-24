@@ -13,6 +13,7 @@
 - No "Healthy" word on the line when the line is the healthy one (the dashed line lies under it); any other state still names it.
 - Chart words keep the outline halo, never a box.
 - Bracket rows: about 20 px apart at 13.8 px type (`ROW_AIR`, `profileGeo`); never closer than their words need.
+- Type scales with the card (24 Nov, Mohammad on the Mac: "the numbers could be larger"): 3.2 % of the chart's width, at most 18 px and what its height holds (`fitType`); a 398 px phone chart stays at its 13.8 px. All words (readings, names, brackets) follow.
 - No "GUT TO HEART" title on the data card; the card is as tall as with it.
 
 ## Rejected / not built

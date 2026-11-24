@@ -7,7 +7,7 @@ import type { Frame } from '../scene.ts';
 import { profileFrame, type CellOpts } from './frame.ts';
 import { ProfileMotion } from './glide.ts';
 import { tableH } from '../../layout/chart-box.ts';
-import { planProfile, profileWords, spansFor, layoutHeight, heldToRoom, type Fp, type ProfilePlan } from './model.ts';
+import { planProfile, profileWords, spansFor, layoutHeight, heldToRoom, fitType, type Fp, type ProfilePlan } from './model.ts';
 import { useUi } from '../../ui-store.ts';
 import { layoutOf, isSideways } from '../../layout/rules2d.ts';
 import { pzhOf } from '../../layout/plan.ts';
@@ -79,11 +79,12 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
     if (!inp) { plan.current = null; planKey.current = ''; return empty; }
     const m = motion.current!, now = clock.now();
     m.reduce = reduced();
-    const f = Math.max(12, cell ? (cell.chCap ?? c.type.sm) * (cell.lad ?? 1) : c.type.sm);
+    const f0 = Math.max(12, cell ? (cell.chCap ?? c.type.sm) * (cell.lad ?? 1) : c.type.sm);
     // (the box this layout gives the ladder, as 2D's CSS does; a cell of the six ladders has its own, and an explicit height wins)
     // (`base` is what the chart WANTS: the screen's table height (layout/card-size.ts; a phone on its side keeps 2D's own); `own` what its card's room gives it: held down to the room, never grown into what the words leave over)
     const vp = useUi.getState().vp, lay = layoutOf(vp.w, vp.h), side = isSideways(vp.w, vp.h);
-    const base0 = height ?? (cell ? undefined : tableH() ?? layoutHeight(c.w, f, lay, side, pzhOf(vp))), base = base0 == null || height != null ? base0 : base0 + freed;
+    const base0 = height ?? (cell ? undefined : tableH() ?? layoutHeight(c.w, f0, lay, side, pzhOf(vp))), base = base0 == null || height != null ? base0 : base0 + freed;
+    const f = cell ? f0 : fitType(c.w, base, f0);   // (a wide card's chart sets its words larger, up to 18 px)
     const own = height ?? (cell ? undefined : heldToRoom(base, room, f));
     const key = [c.w, f, own ?? '', cellKey, spans.map(([k]) => k).join(), fromLabel, inp.goal.v.join(), inp.goal.hvpg, inp.goal.ppg, inp.goal.eus, inp.goal.top, inp.hl?.v.join() ?? '', inp.bf?.v.join() ?? ''].join('|');
     if (key !== planKey.current) {

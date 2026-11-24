@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { csphFingerprint } from '../scripts/gen-engine-fixture.mjs';
 import {
   STATIONS, SPANS, NO_SPANS, blocksOf, profileOf, spansFor, spansOf, spansStented, hasStent, goalOf, planProfile, profOf, smooth, cutRuns, bracePts, braceD, hatchLines, gridOf, holesOf,
-  heightFor, twAt, bracketFit, bracketGeom, whole0, gap1, profileWords, pillReadings, chartScale, zoneFit, nameFit, profileGeo, NS, type Fp, type Prof,
+  heightFor, fitType, twAt, bracketFit, bracketGeom, whole0, gap1, profileWords, pillReadings, chartScale, zoneFit, nameFit, profileGeo, NS, type Fp, type Prof,
 } from '../src/ui/charts/profile/model.ts';
 import { profileFrame, profileFrameAtRest, profileLooks, words0 } from '../src/ui/charts/profile/frame.ts';
 import { ProfileMotion, follow2, restView, fadeAt } from '../src/ui/charts/profile/glide.ts';
@@ -430,5 +430,18 @@ test('the words wear an outline halo, never a chip', async () => {
       const c = ctxOf('dark', w, d), f = Math.max(12, c.type.sm), plan = planProfile(w, 0, f, goalOf(p, healthy, null), healthy, null, SPANS), fr = profileFrameAtRest(plan, c);
       for (const t of fr.shapes.filter((s): s is TextShape => s.k === 'text')) if (t.halo) assert.ok(t.halo.w <= OUTLINE_W + 1e-9, `${id} ${w}: "${t.s}" has a ${t.halo.w} px halo (an outline is at most ${OUTLINE_W})`);
     }
+  }
+});
+
+test('a wide card sets the chart\'s words larger (24 Nov, Mohammad on the Mac: "the numbers could be larger"): 3.2 % of its width, at most 18 px and what its height holds; a phone is unchanged', () => {
+  assert.equal(fitType(398, 186, 13.8), 13.8, 'a phone\'s chart keeps its type');
+  assert.equal(fitType(300, 186, 13.8), 13.8);
+  assert.equal(fitType(560, 269, 13.6), 17.9, 'a Mac card: 3.2 % of 560');
+  assert.equal(fitType(720, 300, 13.6), 18, 'never past 18 px');
+  assert.equal(fitType(720, 150, 13.6), 13.6, 'never past what the height holds (13.6 em of it)');
+  assert.equal(fitType(720, undefined, 13.6), 13.6, 'a cell or a sideways phone has no table height');
+  for (const [w, h] of [[560, 269], [720, 300], [640, 230]] as const) {
+    const c = ctxOf('dark', w, 'desktop'), f = fitType(w, h, Math.max(12, c.type.sm)), plan = planProfile(w, h, f, goalOf(profOf([12, 8.1, 7.6, 6.9, 5.2, 4.6, 4, 3.5], 2.3, 4.1, 3), null, null), null, null, SPANS);
+    assert.ok(plan.h <= h + 0.5, `${w}: the chart at ${f} px still fits its ${h} px box (${plan.h})`);
   }
 });

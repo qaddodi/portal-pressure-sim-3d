@@ -70,6 +70,14 @@ export function profileGeo(w: number, h: number, f: number, tw: Tw, inside = fal
     brY: (k: number) => (inside || !n ? G0.brY(k) : Z + centre[k]!) };
 }
 
+/** The chart's type size on a card with room (24 Nov, Mohammad on the Mac: "the numbers of this figure could be larger for sure"). The device's table size (`f0`) was set for a phone; a wider
+ *  chart grows its words with its width, 3.2 % of it, never past 18 px and never past what its height holds (the layout needs about 13.4 em of height). A phone's 398 px chart comes to 12.7: unchanged. */
+export const TYPE_K = 0.032, TYPE_MAX = 18, TYPE_NEED = 13.6;
+export function fitType(w: number, h: number | undefined, f0: number): number {
+  if (h == null) return f0;
+  return Math.round(Math.max(f0, Math.min(TYPE_K * w, TYPE_MAX, h / TYPE_NEED)) * 10) / 10;
+}
+
 export const NS = STATIONS.length;
 /** The fade and glide time of the blocks, brackets, pills and names (2D: D_SURFACE). */
 export const FADE_MS = 420;
