@@ -95,11 +95,20 @@ function displace(a: Arm, now: Overrides, loaded: Overrides): void {
   const e = byId.get(a.id), base = (EDGE_PATH_2D as Plan)[a.id];
   if (!e || !base || base.length < 2 || (!hasEdits(now, e) && !hasEdits(loaded, e))) { a.d.fill(0); a.live = false; return; }
   const opts = { radius: radiusOf(a.id) }, rn = applyVesselOverrides(e, base, now, opts), rl = applyVesselOverrides(e, base, loaded, opts), m = base.length;
+  // (the share along the vessel is by ARC LENGTH, on the course and on the plan alike: the plan's samples need not be even, and Save builds the course on arc length)
+  const parc = new Float64Array(m), carc = new Float64Array(a.n);
+  for (let j = 1; j < m; j++) parc[j] = parc[j - 1]! + Math.hypot(base[j]![0] - base[j - 1]![0], base[j]![1] - base[j - 1]![1]);
+  for (let i = 1; i < a.n; i++) carc[i] = carc[i - 1]! + Math.hypot(a.p[3 * i]! - a.p[3 * i - 3]!, a.p[3 * i + 1]! - a.p[3 * i - 2]!, a.p[3 * i + 2]! - a.p[3 * i - 1]!);
+  const pt = parc[m - 1]! || 1, ct = carc[a.n - 1]! || 1;
+  let jj = 0;
   const at = (i: number): [number, number, number] => {
-    const f = a.n > 1 ? (i / (a.n - 1)) * (m - 1) : 0, j = Math.min(m - 2, Math.floor(f)), w = f - j;
+    const target = (carc[i]! / ct) * pt;
+    while (jj < m - 2 && parc[jj + 1]! < target) jj++;
+    if (i === 0) jj = 0;
+    const j = jj, span = parc[j + 1]! - parc[j]!, w = span > 1e-12 ? Math.min(1, Math.max(0, (target - parc[j]!) / span)) : 0;
     const dx = (x3(rn.path[j]![0]) - x3(rl.path[j]![0])) * (1 - w) + (x3(rn.path[j + 1]![0]) - x3(rl.path[j + 1]![0])) * w;
     const dy = (y3(rn.path[j]![1]) - y3(rl.path[j]![1])) * (1 - w) + (y3(rn.path[j + 1]![1]) - y3(rl.path[j + 1]![1])) * w;
-    const z = (q: typeof rn, jj: number): number => (q.dz ? q.dz[jj]! : 0);
+    const z = (q: typeof rn, jx: number): number => (q.dz ? q.dz[jx]! : 0);
     const dz = (z(rn, j) - z(rl, j)) * (1 - w) + (z(rn, j + 1) - z(rl, j + 1)) * w;
     return [dx, dy, dz];
   };
