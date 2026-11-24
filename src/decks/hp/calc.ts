@@ -2,7 +2,7 @@
 // (the 2D app does the same, calc-client.js). Each slide's result is handed over as soon as it is ready, so a deck opens on its first slide without
 // waiting for the last. One deck at a time; a second ask waits its turn.
 import { create } from 'zustand';
-import { chainOf, sequencer, type Fp, type StepResult } from './numbers.ts';
+import { chainOf, sequencer, type Fp, type Step, type StepResult } from './numbers.ts';
 import { enginePool } from '../../engine/pool.ts';
 import type { CopiedDeck } from './types.ts';
 
@@ -47,6 +47,19 @@ export function ensureStates(deck: CopiedDeck): Promise<void> {
     }
   });
   return queue;
+}
+
+/** The states a short chain of steps ends in, computed on the second engine (queued behind a deck's own run): every step's result, in order. The live figure is never touched. */
+export function snapsOf(steps: Step[]): Promise<StepResult[]> {
+  const run = queue.then(async () => {
+    const c = calc, reqId = nextReq++, seq = sequencer(reqId);
+    c.subscribe((m) => seq.message(m as Parameters<typeof seq.message>[0])); // (lives for the page) the one callback; the next request replaces it
+    c.post({ type: 'sequence', steps, reqId });
+    try { await seq.done; } finally { c.idle(); }
+    return steps.map((_, i) => seq.results[i]!);
+  });
+  queue = run.then(() => undefined, () => undefined);
+  return run;
 }
 
 export const fpOf = (deckId: string, i: number): Fp | null => useStates.getState().results[deckId]?.[i]?.fp ?? null;

@@ -107,6 +107,11 @@
     "file": "src/ui/talk/controls-run.ts",
     "follows": "echoed by frame params",
     "tick": "adoptFrame"
+   },
+   {
+    "file": "src/ui/talk/deck-model.ts",
+    "follows": "setParams with the second engine's params for the same state, at once",
+    "tick": "adoptFrame"
    }
   ],
   "lapse": [

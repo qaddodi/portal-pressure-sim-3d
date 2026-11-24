@@ -4,10 +4,13 @@ import { engine, useEngine } from '../../engine/index.ts';
 import { useUi } from '../ui-store.ts';
 import { useShell } from '../shell/store.ts';
 import { loadPatient } from '../menu/patients.ts';
-import { patient } from '../../engine/store.ts';
+import { patient, setParams } from '../../engine/store.ts';
+import { timeline, patientLabel } from '../timeline/index.ts';
+import { snapsOf } from '../../decks/hp/calc.ts';
+import { MORPH_ONE_MS } from '../../decks/hp/slide-motion.ts';
 import { sendParams } from '../../engine/params-send.ts';
 import { deepMerge } from '../../engine/hales/portal/scenario.js';
-import { presetBase, rebase } from '../action/params.ts';
+import { presetBase, presetStarted, rebase } from '../action/params.ts';
 import type { SlideModel } from '../../decks/schema.ts';
 import type { Stop, Pos } from '../deck/presenter-machine.ts';
 
@@ -22,12 +25,21 @@ export function slideParams(slide: object, base: unknown = presetBase()): unknow
   return base && typeof base === 'object' ? deepMerge(structuredClone(base) as Record<string, unknown>, slide as Record<string, unknown>) : slide;
 }
 let token = 0;
-/** Loads a slide's patient; the newest ask wins (a second tap meanwhile drops the first). */
-export async function applyModel(m: SlideModel): Promise<boolean> {
+/** Loads a slide's patient; the newest ask wins (a second tap meanwhile drops the first). A first patient is put in under the start's cover; a later one blends in:
+ *  its state is computed on the second engine and the live figure eases from the old patient's colours and values to the new one's (the slide deck's way, decks/hp/link.ts), never a cut and never a dim. */
+export async function applyModel(m: SlideModel, blend = false): Promise<boolean> {
   const mine = ++token;
   if (useEngine.getState().presetId !== m.preset) {
-    // a new patient replaces the old at once (loadPatient's `jump` frame); nothing dims the figure for it (owner, 24 Nov 2026). Only the first slide's patient is a model here today (decks/hvpg.ts),
-    // so no deck changes patient mid-talk on this path; the states path (decks/hp/link.ts) blends one patient into the next.
+    if (blend) {
+      try {
+        const [own, end] = await snapsOf(m.params ? [{ preset: m.preset }, { params: m.params }] : [{ preset: m.preset }]).then((r) => [r[0]!, r[r.length - 1]!] as const);
+        if (mine !== token) return false;
+        engine().send({ type: 'morph', snap: end.snap, ms: MORPH_ONE_MS });
+        setParams(end.params); presetStarted(m.preset, own.params); if (m.params) rebase();   // (the new patient's own settings are the base; the slide's changes are the talk's, not his)
+        useEngine.setState({ presetId: m.preset }); useShell.setState({ patientId: m.preset }); timeline.reset(patientLabel(m.preset));   // (what loadPatient does for a new patient, less the cut)
+        return true;
+      } catch { if (mine !== token) return false; /* the second engine is down: the patient is put in whole, below */ }
+    }
     const ok = (await loadPatient(m.preset)) && mine === token;
     if (ok && m.params) { sendParams(m.params, { settle: true }); rebase(); }   // (the new patient's own settings are the base; the slide's changes are the talk's, not his)
     return ok;
@@ -46,7 +58,8 @@ export function linkModel(): () => void {
     // (the outline stands on the first slide's patient, as 2D's does: it is in under the start's cover, never dipped in)
     const m = modelAt(stops, pos) ?? (seen === null ? firstModel(stops) : null);
     if (m && m !== seen) {
-      seen = m; void applyModel(m);
+      const blend = seen !== null;   // (the first slide's patient is in before the talk is seen)
+      seen = m; void applyModel(m, blend);
     }
   };
   sync();

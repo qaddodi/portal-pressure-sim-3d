@@ -132,6 +132,8 @@ test('a new patient blends in over the slide\'s own time, nothing darkens, nothi
   assert.doesNotMatch(hp, /dipIn|dipOut|dipTo/, 'no wash on a slide change');
   const dm = src('src/ui/talk/deck-model.ts');
   assert.doesNotMatch(dm, /dipIn|dipOut/);
+  assert.match(dm, /type: 'morph', snap: end\.snap, ms: MORPH_ONE_MS/, 'the model deck\'s new patient blends in too, never a cut');
+  assert.match(dm, /const blend = seen !== null/, 'only the first slide\'s patient is put in whole, under the cover');
   assert.match(dm, /seen === null \? firstModel\(stops\)/, 'the first slide\'s patient is in under the cover');
 });
 
