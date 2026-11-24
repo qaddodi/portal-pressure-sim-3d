@@ -15,6 +15,8 @@ export const CHASE_KEYS: readonly { u: number; d: number; yaw: number; pitch: nu
   { u: 0.92, d: 2.7, yaw: -0.45, pitch: 0.14 },
   { u: 0.995, d: 2.4, yaw: -0.55, pitch: 0.16 },
 ];
+/** SHELVED (Mohammad, 24 Nov: "I don't like the 3D camera tilt while the catheter is measuring, remove it for now"): the swing round the tip (yaw) and the tilt above the horizon (pitch) of the mock's frames. Off, the chase glides in and out square on, with the same distances and aim; flip this to bring the swing back (CHASE_KEYS keeps its numbers). */
+export const CHASE_TILT = false;
 /** The lens the chase is shot on (degrees; the figure's rest lens is 14). */
 export const CHASE_FOV = 20;
 /** The aim is this far ahead of the tip, as a share of the way, at first; by the wedge it has moved to the middle of the stretch the readings use (below). */
@@ -54,7 +56,7 @@ export function chaseAt(r: ChaseRoute, u: number, out?: ChasePose): ChasePose {
   const mid = (CHASE_AHEAD_RADII - CHASE_BEHIND_RADII) / 2 * R;
   const a = r.point(Math.min(r.tipD(1), tipD + CHASE_AHEAD * (r.tipD(1) - r.tipD(0)) * (1 - w) + mid * w), new Vector3());
   const o = out ?? { yaw: 0, pitch: 0, dist: 0, fov: 0, target: [0, 0, 0] };
-  o.yaw = through(s, (k) => k.yaw); o.pitch = through(s, (k) => k.pitch); o.dist = Math.exp(through(s, (k) => Math.log(k.d))); o.fov = CHASE_FOV;
+  o.yaw = CHASE_TILT ? through(s, (k) => k.yaw) : 0; o.pitch = CHASE_TILT ? through(s, (k) => k.pitch) : 0; o.dist = Math.exp(through(s, (k) => Math.log(k.d))); o.fov = CHASE_FOV;
   o.target[0] = a.x; o.target[1] = a.y; o.target[2] = a.z;
   return o;
 }

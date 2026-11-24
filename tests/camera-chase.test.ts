@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PerspectiveCamera, Vector3 } from 'three';
-import { CHASE_KEYS, CHASE_AHEAD_RADII, CHASE_BEHIND_RADII, hvpgChase } from '../src/scene/camera/chase.ts';
+import { CHASE_TILT, CHASE_KEYS, CHASE_AHEAD_RADII, CHASE_BEHIND_RADII, hvpgChase } from '../src/scene/camera/chase.ts';
 import { AHEAD_RADII, BEHIND_RADII, tipCloseShot } from '../src/ui/deck/cath-shot.ts';
 import { route3d } from '../src/scene/procedures/route3d.ts';
 import { UNITS_PER_SCENE } from '../src/scene/frame2d.ts';
@@ -12,7 +12,7 @@ import { UNITS_PER_SCENE } from '../src/scene/frame2d.ts';
 test('the keyframes are the mock\'s yaw, pitch and lens 20 (move4-A-camera-values.md), the distances pulled back at Mohammad\'s word (24 Nov, twice)', () => {
   for (const k of CHASE_KEYS) {
     const p = hvpgChase(k.u)!;
-    assert.ok(Math.abs(p.dist - k.d) < 1e-9 && Math.abs(p.yaw - k.yaw) < 1e-9 && Math.abs(p.pitch - k.pitch) < 1e-9, `frame at ${k.u}: ${p.dist} ${p.yaw} ${p.pitch}`);
+    assert.ok(Math.abs(p.dist - k.d) < 1e-9 && Math.abs(p.yaw - (CHASE_TILT ? k.yaw : 0)) < 1e-9 && Math.abs(p.pitch - (CHASE_TILT ? k.pitch : 0)) < 1e-9, `frame at ${k.u}: ${p.dist} ${p.yaw} ${p.pitch}`);
     assert.equal(p.fov, 20);
   }
   assert.deepEqual(CHASE_KEYS.map((k) => [k.u, k.d, k.yaw, k.pitch]), [[0.62, 4.2, 0, 0.05], [0.74, 3.5, -0.12, 0.06], [0.82, 3.0, -0.3, 0.1], [0.92, 2.7, -0.45, 0.14], [0.995, 2.4, -0.55, 0.16]]);
@@ -55,4 +55,9 @@ test('the wedge frame holds the tip, the balloon behind it and the vein AHEAD wh
     // (the free room is about the middle half of the screen's height; keep a margin for the tags)
     assert.ok(Math.abs(v.x) < 0.8 && Math.abs(v.y) < 0.55, `${name} at ${v.x.toFixed(2)}, ${v.y.toFixed(2)}`);
   }
+});
+
+test('the swing and tilt are shelved (Mohammad, 24 Nov): the chase is square on while the flag is off', () => {
+  assert.equal(CHASE_TILT, false);
+  for (let i = 0; i <= 20; i++) { const p = hvpgChase(i / 20)!; assert.equal(p.yaw, 0); assert.equal(p.pitch, 0); }
 });
