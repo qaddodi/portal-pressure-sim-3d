@@ -205,8 +205,7 @@ test('widths are the 2D figure\'s: the portal trunk, an artery at half, the live
   const d = (id: string) => (EDGES as { id: string; d?: number; dMax?: number }[]).find((e) => e.id === id)!;
   assert.equal(pv.radius, radiusOf(vesselPx(d('PV_TRUNK').d ?? 12)));
   assert.ok(ha.radius < pv.radius / 2 + 1e-9);
-  // (placed: a liver bed is the calibre of the vein it carries on from or into, network.ts oneCalibre: the fixed 3.6 against a vein three times as wide is a step a placed bed, a few radii long, cannot ease)
-  assert.equal(sin.radius, PLACED ? (NETWORK_BY_ID.get('PVH_R_2')!.radius + NETWORK_BY_ID.get('RHV_IVC_1')!.radius) / 2 : radiusOf(3.6));
+  assert.equal(sin.radius, radiusOf(3.6));
   assert.equal(pv.widthKind, 0); assert.equal(ha.widthKind, 1); assert.equal(sin.widthKind, 2);
   assert.ok(widthPx({ id: 'X', from: '', to: '', kind: 'vein' }, 12) === vesselPx(12));
 });

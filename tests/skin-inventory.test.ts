@@ -11,13 +11,14 @@ import { PERMANENT_KINDS, SKIN_REACH, isLiverBranch, armReach, nodesBeyondReach,
 import { CAPSULE_R, CLEAR_K, CLEAR_R, CUT_SKIN_K, MAX_TRIES, MIN_RINGS_BETWEEN, SEAM_MAX_SHARE, SEAM_MIN_R, chooseCuts, mergedNode, planSkins, type ArmTube } from '../src/scene/vessels/skin/cuts.ts';
 import { SkinBuildError, type SkinCut, type SkinJunction } from '../src/scene/vessels/skin/types.ts';
 import { indexOf } from '../src/engine/vessel-data.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
 
 /** The junctions as the spec's first table has them: the permanent arms alone (the growing arms of spec 10.2 are pinned in tests/skin-grow.test.ts). A node that is only a run-on pair with a collateral on it is not here. */
 const findSkinJunctions = (): SkinJunction[] => findAllJunctions().map((j) => withoutGrowers(j)).filter((j): j is SkinJunction => !!j);
 const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(true); try { return f(); } finally { setSmoothJoins(was); } };
 
 /** The table of spec 4.1, as the network's own rule computes it on 20 Nov 2026 (the arms by id and end). The test pins it exactly. */
-const TABLE: Record<string, readonly string[]> = {
+const TABLE0: Record<string, readonly string[]> = {
   CONF: ['SMV_CONF:1', 'SV_CONF:1', 'PV_TRUNK_1:0'],
   PVT_L: ['PV_TRUNK_1:1', 'PV_TRUNK:0', 'LGV_CONF:1'],
   SV: ['V_IMV:1', 'SV_MID:1', 'SV_CONF:0'],
@@ -35,6 +36,8 @@ const TABLE: Record<string, readonly string[]> = {
   SIN_R: ['A_HR:1', 'PRE_R:1', 'SIN_RR:0'],
   SIN_L: ['A_HL:1', 'PRE_L:1', 'SIN_LL:0'],
 };
+// (placed, PPS_ANATOMY=placed: the left portal vein is one vessel that fades, with no second branch (the brief, Mohammad's ruling), so it has no LPV_A fork; the rest of the table is the same)
+const TABLE: Record<string, readonly string[]> = PLACED ? Object.fromEntries(Object.entries(TABLE0).filter(([k]) => k !== 'LPV_A')) : TABLE0;
 const PHASE_2 = ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'SIN_R', 'SIN_L', 'IVCI', 'SVC_E', 'SVC', 'IVCS'];
 const armKeys = (j: SkinJunction): string[] => j.arms.map((a) => `${a.vesselId}:${a.end}`).sort();
 

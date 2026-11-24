@@ -28,7 +28,7 @@ const resolveFile = (from, spec) => {
 };
 /** Shader source never changes what a bake writes (a bake writes geometry and plans, and draws nothing), so a file named shaders.ts or *glsl*.ts is not part of any signature. */
 /** A bake's own outputs are never inputs (the scene reads them by address too: a signature that hashed them would never match after the bake that wrote them). */
-export const BAKED_OUTPUT = /^public\/(anatomy\/(skins|circuit-skins|organs-baked)\.bin|lobule\/welds\.bin|baked\/)/;
+export const BAKED_OUTPUT = /^public\/(anatomy\/(skins|circuit-skins|skins-placed|circuit-skins-placed|organs-baked)\.bin|lobule\/welds\.bin|baked\/)/;
 export const SHADER_FILE = /(^|\/)[a-z0-9.-]*(shaders?|glsl)[a-z0-9.-]*\.ts$/;
 /** The import graph of an entry file, as absolute paths, sorted: the entry and everything it reaches by an address.
  *  `skip(relativePath)` leaves a file out (and what only it reaches): a bake lists the folders its output cannot depend on. */

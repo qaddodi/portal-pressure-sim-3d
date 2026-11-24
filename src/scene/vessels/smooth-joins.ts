@@ -80,13 +80,13 @@ function build(): ReadonlyMap<string, SmoothEnds> {
     taken.add(`${a.v.id}|${a.end}`); taken.add(`${b.v.id}|${b.end}`);
     // two of nearly one caliber ease to their mean (the 2D tubes' own end profile); a big vein into a thin bed (more than a quarter apart) is the wider one narrowing to the thin one's width, which keeps
     // the thin one as drawn (a mean would swell the bed's first stretch into a bulb)
-    const hi = Math.max(a.v.radius, b.v.radius), lo = Math.min(a.v.radius, b.v.radius), m = hi > lo * UNEQUAL ? lo : meetRadius(a.v, b.v);
+    const hi = Math.max(a.v.radius, b.v.radius), lo = Math.min(a.v.radius, b.v.radius), m = hi > lo * UNEQUAL && !PLACED ? lo : meetRadius(a.v, b.v);   // (placed: a vein and its bed share the change by length, network.ts meetRadius: the bed alone could not take it in its few hundredths)
     const da = outward(a.v, a.end), db = outward(b.v, b.end);
     const straight = !!da && !!db && da[0] * db[0] + da[1] * db[1] + da[2] * db[2] < -0.9;
     for (const [x, y] of [[a, b], [b, a]] as const) {
       const i = get(x.v);
       i.taper[x.end] = m / x.v.radius; i.mate[x.end] = y.v.id; i.paired = true;
-      if (hi > lo * UNEQUAL && x.v.radius === hi) i.span[x.end] = 1;
+      if (hi > lo * UNEQUAL && x.v.radius === hi && !PLACED) i.span[x.end] = 1;
       if (straight) i.joined[x.end] = true;
     }
   };

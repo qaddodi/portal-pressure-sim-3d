@@ -6,7 +6,7 @@ import { Vector3 } from 'three';
 import { drawnDiameter } from '../../engine/tract-override.ts';
 import { EDGES, JUNCTION_PIECES, PART_OF, PORTAL_TERRITORY, dMinOf } from '../../engine/hales/portal/topology.js';
 import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D as TODAY_PATH_2D, HIDDEN_EDGES, IVC_EDGES, NEEDS_C3, PLACED } from '../anatomy/source.ts';
-import { PLACED_EDGE_3D, PLACED_NODE_3D, PLACED_PATH_2D, PLACED_Z, wholeOf } from '../anatomy/placed-network.ts';
+import { PLACED_EDGE_3D, PLACED_NODE_3D, PLACED_PATH_2D, PLACED_Z, WHOLE_PIECES, wholeOf } from '../anatomy/placed-network.ts';
 import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
@@ -153,7 +153,20 @@ const JOIN_LIST: JoinEdge[] = edges.filter(isDrawnEdge).map((e) => ({ id: e.id, 
 export const isCut = (id: string): boolean => SPLIT_AT[id] != null;   // (a vein that branches is one tube to the tip of its through branch: liver-branches.ts)
 // (the end of a vein that branches is the tip of its through branch, not the node it used to end at: the vessel it ran on into in the full course is not run on into)
 export const cutEnd = (id: string): number | null => (SPLIT_AT[id] == null || !isCut(id) ? null : (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? 1 : 0);
-export const RUN_ONS: readonly RunOn[] = findRunOns(JOIN_LIST).filter((r) => cutEnd(r.a) !== r.ia && cutEnd(r.b) !== r.ib);
+const FOUND_RUN_ONS = findRunOns(JOIN_LIST).filter((r) => cutEnd(r.a) !== r.ia && cutEnd(r.b) !== r.ib);
+/** Placed: two pieces of one whole vessel always run on into each other (they are one placed curve, cut at a node): the 2D rule, which reads headings at a node, could not pick the cava's pair at its top once the three
+ *  hepatic veins open there at one point. The pieces of each whole are added where the rule left them out, ends not already taken. */
+function withWholeRunOns(found: RunOn[]): RunOn[] {
+  if (!PLACED) return found;
+  const taken = new Set(found.flatMap((r) => [`${r.a}|${r.ia}`, `${r.b}|${r.ib}`])), out = [...found];
+  for (const pieces of Object.values(WHOLE_PIECES)) for (let i = 1; i < pieces.length; i++) {
+    const a = pieces[i - 1]!, b = pieces[i]!;
+    if (!JOIN_LIST.some((j) => j.id === a) || !JOIN_LIST.some((j) => j.id === b) || taken.has(`${a}|1`) || taken.has(`${b}|0`) || cutEnd(a) === 1 || cutEnd(b) === 0) continue;
+    out.push({ a, ia: 1, b, ib: 0, fork: true }); taken.add(`${a}|1`); taken.add(`${b}|0`);
+  }
+  return out;
+}
+export const RUN_ONS: readonly RunOn[] = withWholeRunOns(FOUND_RUN_ONS);
 // (placed: the courses are already one smooth curve through every run-on, anatomy/placed-network.ts; the 2D redraw would bend x and y apart from their depth)
 const SMOOTH = PLACED ? new Map<string, readonly (readonly [number, number])[]>() : smoothRunOns(new Map(JOIN_LIST.map((j) => [j.id, j.path])), RUN_ONS);
 /** A vessel's 2D course as drawn: smooth through the joins where it runs on into another. */
@@ -302,11 +315,7 @@ function oneCalibre(list: NetVessel[]): NetVessel[] {
   for (const v of list) { const w = wholeOf(v.id); if (!v.feeder && w && v.kind !== 'collateral') byWhole.set(w, [...(byWhole.get(w) ?? []), v]); }
   const lenOf = (v: NetVessel): number => { let l = 0; for (let i = 1; i < v.pts.length; i++) l += Math.hypot(v.pts[i]![0] - v.pts[i - 1]![0], v.pts[i]![1] - v.pts[i - 1]![1], v.pts[i]![2] - v.pts[i - 1]![2]); return l; };
   for (const ps of byWhole.values()) { if (ps.length < 2) continue; const main = ps.reduce((a, b) => (lenOf(b) > lenOf(a) ? b : a)); for (const v of ps) v.radius = main.radius; }
-  // (the liver beds, on the Circuit: each the calibre of the vein it carries on from or into, the sinusoids between at their mean, so the chain from a portal branch through its lobe to its hepatic vein has no step; the 2D rule's fixed
-  //  3.6 and 5.2 units against veins three times as wide were a step the placed courses, a few radii long, cannot ease)
-  const r = (id: string): number => list.find((v) => v.id === id)!.radius;
-  const BED_R: Record<string, number> = { PRE_R: r('PVH_R_2'), POST_R_RHV: r('RHV_IVC_1'), POST_R_MHV: r('MHV_IVC'), SIN_RR: (r('PVH_R_2') + r('RHV_IVC_1')) / 2, PRE_L: r('PVH_L_1'), POST_L_LHV: r('LHV_IVC'), SIN_LL: (r('PVH_L_1') + r('LHV_IVC')) / 2 };
-  for (const v of list) if (BED_R[v.id] != null && !v.feeder) v.radius = BED_R[v.id]!;
+  // (the liver beds keep the app's fixed widths (widthKind 2: 3.6 and 5.2 units), the brief's rule: a vein narrows into its bed over its own length, smooth-joins.ts UNEQUAL)
   return list;
 }
 
@@ -336,7 +345,8 @@ export const NODE_Z: ReadonlyMap<string, number> = PLACED ? new Map(Object.entri
 export function meetRadius(a: NetVessel, b: NetVessel): number {
   if (!PLACED) return (a.radius + b.radius) / 2;
   const la = polyLen(a.pts), lb = polyLen(b.pts);
-  return la + lb > 0 ? (a.radius * lb + b.radius * la) / (la + lb) : (a.radius + b.radius) / 2;
+  // (in the log of the radius: the smooth bar judges a width change as a share of the thinner width, so equal shares per length on both sides is the gentlest; a vein into a thin liver bed takes most of it, the bed the rest)
+  return la + lb > 0 ? Math.exp((Math.log(a.radius) * lb + Math.log(b.radius) * la) / (la + lb)) : (a.radius + b.radius) / 2;
 }
 function polyLen(p: readonly Vec3[]): number { let s = 0; for (let i = 1; i < p.length; i++) s += Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1], p[i]![2] - p[i - 1]![2]); return s; }
 {
