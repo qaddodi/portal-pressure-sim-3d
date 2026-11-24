@@ -14,7 +14,7 @@ import { OSTIUM_U } from './ostium.ts';
 import { Tamponade } from '../devices/balloons/tamponade.ts';
 import { tamponadeAt } from '../devices/balloons/tamponade-shape.ts';
 import { ParacentesisNeedle } from '../devices/paracentesis.ts';
-import { dipsFrame, paracentesisAt } from './instrument-frames.ts';
+import { dipsFrame, paracentesisAt, paracentesisFluidAt } from './instrument-frames.ts';
 import { Bands } from '../devices/bands.ts';
 import { GlueCast } from '../devices/glue-cast.ts';
 import type { ScopeDrive } from '../devices/probes/scope.ts';
@@ -256,7 +256,7 @@ export class ProcedureLayer {
 
   private draw(kind: string, rec: Rec, clock: number): void {
     const c = this.catheterFor(kind);
-    if (kind === 'paracentesis') this.paracentesis.set(paracentesisAt(clock), rec.opacity);
+    if (kind === 'paracentesis') this.paracentesis.set(paracentesisAt(clock), rec.opacity, paracentesisFluidAt(clock));
     if (this.shown && this.shown !== c) this.shown.set({ ...this.shown.current, u: 0, opacity: 0 });
     this.shown = c; this.lastKind = kind; this.held = null; this.leaving = null;
     Object.assign(this.frame, rec);

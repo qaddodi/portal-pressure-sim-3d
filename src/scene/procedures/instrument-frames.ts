@@ -32,3 +32,11 @@ export function paracentesisAt(t: number): number {
   const sp = INSTRUMENT_SPECS.paracentesis!, s0 = sp.stops[0]!, s1 = sp.stops[1]!;
   return ease(k01(t, 200, s0)) * (1 - ease(k01(t, s1 + 300, s1 + 1500)));
 }
+
+/** How long the model's drain runs after the procedure's `apply` time (the engine's morph: ui/deck/procs-link.ts MORPH_MS; tests/paracentesis-stream.test.ts holds the two together). */
+export const DRAIN_MS = 2200;
+/** The fluid in the drain line at a procedure time (approved 24 Nov 2026, mock B): `on` its level (it comes as the drain begins, goes as it ends), `reach` how far down the stream has fallen (from the tip, over the first half second). */
+export function paracentesisFluidAt(t: number): { on: number; reach: number } {
+  const a = INSTRUMENT_SPECS.paracentesis!.T.apply, b = a + DRAIN_MS;
+  return { on: ease(k01(t, a, a + 300)) * (1 - ease(k01(t, b, b + 500))), reach: ease(k01(t, a, a + 600)) };
+}
