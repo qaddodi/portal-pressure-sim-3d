@@ -17,6 +17,8 @@
 
 - **Size (24 Nov 2026):** the card is capped at 1340 × 800 px and centred in the room it had, so the figure shows around it on a big screen; text, every menu and panel keep their size. Where the room is smaller (iPad, phone) the card fills it as before. Picked from four mocks (`/mnt/project-files/chart-card-mocks-24nov/`, option 1, "centered"); the others (bottom dock, right dock, shorter lanes) were not chosen.
 
+- **Lane panels (24 Nov 2026):** each stacked lane sits on its own darker rounded panel, no outline, no glow; the last also holds the day axis. Mocks `/mnt/project-files/chart-card-mocks-24nov/p2-panel-per-plot.png` (Mohammad: "i like p2 but without outlines"). One panel around all lanes (p1) was not chosen.
+
 ## Rejected
 - Blurring the figure behind the card (Mohammad, 23 Nov). Pills, chips, dots-with-words, bubbles, a box behind a label. Child-Pugh and MELD stay on their own card.
 

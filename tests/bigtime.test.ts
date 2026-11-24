@@ -472,3 +472,12 @@ test('every event of What happened carries a chevron that says it opens: down wh
   assert.ok(/\.bt-list li\[data-open\] \.bt-go \{ transform: rotate\(180deg\)/.test(css) && /\.bt-list \.bt-go \{[^}]*transition: transform var\(--d-small\)/.test(css));
   assert.ok(/grid-template-columns: 64px minmax\(0, 1fr\) 16px/.test(css), 'a column for it, so no name runs under it');
 });
+
+import { readFileSync } from 'node:fs';
+test('each lane sits on its own darker rounded panel with no outline (owner, 24 Nov: "p2 but without outlines")', () => {
+  const src = readFileSync(new URL('../src/ui/bigtime/frame.ts', import.meta.url), 'utf8');
+  const at = src.indexOf('a darker rounded panel behind each lane');
+  assert.ok(at > 0, 'the panels are drawn');
+  const line = src.slice(at, src.indexOf('// zones, grids', at));
+  assert.ok(/k: 'rect'[^}]*r: 14[^}]*fill: panel/.test(line) && !/stroke|pen\(/.test(line), 'a rounded fill, no outline');
+});

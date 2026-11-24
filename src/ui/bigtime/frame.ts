@@ -213,6 +213,9 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   const frame = (): Frame => ({ w: W, h: bottom + axH, shapes, label: '' });
   const geo: Geo = { w: W, h: bottom + axH, L, R, top, bottom, x0, x1, X, dayAt, lanes: geoLanes.map((g) => ({ id: g.s.id, t: g.t, h: g.h })), groups: marks };
 
+  // a darker rounded panel behind each lane, its own and without an outline (owner, 24 Nov: "p2 but without outlines"); the last one also holds the day axis
+  const panel = pal.dark ? pal.alpha([0, 0, 0, 1], 0.38) : pal.alpha(pal.tok('text'), 0.045), padP = Math.min(4, gap / 2 - 1);
+  geoLanes.forEach((g, i) => { const y0 = g.t - padP, y1 = i === geoLanes.length - 1 ? bottom + axH - 2 : g.t + g.h + padP; shapes.push({ k: 'rect', x: 0, y: y0, w: W, h: y1 - y0, r: 14, fill: panel }); });
   // zones, grids, cut-offs
   for (const g of geoLanes) {
     const Y = (v: number) => g.t + g.h - v / g.s.max * (g.h - TITLE_H);
