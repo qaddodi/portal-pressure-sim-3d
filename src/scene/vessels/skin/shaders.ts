@@ -75,7 +75,7 @@ export const SKIN_HEAD_LAT_TO = 1.7;
  *  closes at the head's own reach, not the wall's. */
 /** The band about a tie of two arms' shares over which a head's ownership passes from one arm to the other (a head is whole to the winner everywhere else). */
 /** A head whose centre is less than this many of the arm's radii past its seam (or anywhere on the tube's side) is the tube's, and the skin finishes it whole. */
-export const SKIN_HEAD_TUBE_SIDE = 0.3;
+export const SKIN_HEAD_TUBE_SIDE = 0.8;
 export const SKIN_HEAD_TIE = 0.04, SKIN_HEAD_WIN = 0.12;
 export const SKIN_HEAD_OWN_FROM = 0.3, SKIN_HEAD_OWN_TO = 0.7, SKIN_HEAD_GATE_FROM = 0.75, SKIN_HEAD_GATE_TO = 1.0;
 
@@ -595,13 +595,16 @@ void main() {
       // (a head is sized by the ARM's own radius, never by the pixel's: the skin's radius at a pixel blends the arms' radii, so near a node it can be wider than this arm's lumen, and a head sized to it was wider than the lumen it lay in,
       // met the wall and was faded to a ghost: Mohammad, 24 Nov, the pale head on the portal vein under the hepatic artery's leader)
       float vRH = min(vR, rOwn * swAt(i));
-      vec4 hI = flowHeads(acrossI, acrossW, sI, Lw, vRH, wpcM, pxI, lensI, armFlowAt(i), 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
+      // (and its place across is the pixel's lateral from the arm's live axis, which is the tube's own across wherever the pixel lies: the normal-based one is true only inside the arm's cylinder, so a head carried past the seam into the
+      // trunk beside it was sheared and cut to a crescent at a vein's mouth: Mohammad, 24 Nov, the left gastric vein)
+      float rPxH;
+      float latH = skinArmLat(gl_FragCoord.xy, i, swAt(i), rPxH);
+      vec4 hI = flowHeads(clamp(latH, -1.0, 1.0), acrossW, sI, Lw, vRH, wpcM, pxI, lensI, armFlowAt(i), 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
       if (hI.a > 0.002) {
         vec3 seamP = armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;
         // (the pixel's lateral from the arm's LIVE axis, the bent chain J - start - seam - far the mesh itself is built on, in lumen units: skinArmLat. It was the distance to the straight line through the seam, which a bending vessel
         // leaves within a radius or two, so on a curved trunk the gate closed on a head standing mid-lumen and drew it a ghost, or not at all: Mohammad, 24 Nov, chevrons hidden under the joins in every lens)
-        float rPxH;
-        float latK = abs(skinArmLat(gl_FragCoord.xy, i, swAt(i), rPxH));
+        float latK = abs(latH);
         float gate = 1.0 - smoothstep(${F(SKIN_HEAD_GATE_FROM)}, ${F(SKIN_HEAD_GATE_TO)}, latK);
         if (gate > 0.0 && abs(armArc[i].y) > 0.5) {
           // A HEAD WHOSE CENTRE IS STILL ON THE TUBE'S SIDE of the seam is the TUBE's: the tube has drawn its pixels up to the seam and the skin must finish it, whoever owns the place its

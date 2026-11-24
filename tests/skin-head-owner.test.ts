@@ -67,7 +67,8 @@ test('a head\'s lateral gate follows the arm\'s live bent axis, never the straig
   const main = body(SKIN_FS, 'void main(');
   const at = main.indexOf('flowHeads(');
   const gate = main.slice(at, main.indexOf('hI = vec4(0.0);', at));
-  assert.match(gate, /skinArmLat\(gl_FragCoord\.xy, i, swAt\(i\), rPxH\)/);
+  assert.match(main, /float latH = skinArmLat\(gl_FragCoord\.xy, i, swAt\(i\), rPxH\);/);
+  assert.match(gate, /float latK = abs\(latH\);/);
   assert.ok(!/dot\(relP, tJA\[i\]\)/.test(gate), 'no distance to the straight line');
 });
 
@@ -79,7 +80,7 @@ test('a head centred on the tube\'s side of the seam is finished by the skin who
   assert.match(main, /float aIn = \(chevCentreArc - armArc\[i\]\.x\) \* armArc\[i\]\.y \/ max\(rOwn, 1e-4\);/);
   assert.match(main, /float ownH = max\(step\(0\.5, smoothstep\([0-9.]+, [0-9.]+, skinOwner\(/);
   assert.match(main, /, tubeSide\);/);
-  assert.ok(m.SKIN_HEAD_TUBE_SIDE > 0 && m.SKIN_HEAD_TUBE_SIDE < 0.6, 'the tube\'s side ends within a head\'s first half length past the seam: further in, two arms\' heads would pile up at a node');
+  assert.ok(m.SKIN_HEAD_TUBE_SIDE > 0 && m.SKIN_HEAD_TUBE_SIDE <= 1.0, 'the tube\'s side ends where a head\'s tail stops reaching the tube (about 0.7 radii past the seam): further in, two arms\' heads would pile up at a node');
   assert.ok(m.SKIN_HEAD_TIE < m.SKIN_HEAD_WIN && m.SKIN_HEAD_WIN <= 0.15, 'the band where no arm wins a head is narrow: a ghost lives only there');
 });
 
@@ -88,5 +89,5 @@ test('a head centred on the tube\'s side of the seam is finished by the skin who
 test('a skin\'s head is sized by the smaller of the pixel\'s radius and its arm\'s own radius, never by the pixel\'s alone', () => {
   const main = body(SKIN_FS, 'void main(');
   assert.match(main, /float vRH = min\(vR, rOwn \* swAt\(i\)\);/);
-  assert.match(main, /flowHeads\(acrossI, acrossW, sI, Lw, vRH, wpcM,/);
+  assert.match(main, /flowHeads\(clamp\(latH, -1\.0, 1\.0\), acrossW, sI, Lw, vRH, wpcM,/);
 });
