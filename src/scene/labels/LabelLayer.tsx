@@ -1,6 +1,7 @@
 // The label layer: the figure's station pills, their leaders, the catheter's reading cards and the colour key, drawn as DOM over the canvas
 // and moved by the clock. React builds the skeleton once; the clock's `tags` phase writes transform and opacity straight on the elements
 // (never through React state). The decisions (what is shown, where, when) are in controller.ts, the solver, the fader.
+import { makeMeasure } from './measure.ts';
 import { figurePending } from '../../ui/deck/figure-pending.ts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { reduced } from '../../ui/a11y/motion.ts';
@@ -76,23 +77,7 @@ function stenosedNodes(): string[] {
   return out;
 }
 
-const FONT = (size: number, weight: number) => `${weight} ${size}px Inter, system-ui, -apple-system, "Segoe UI", sans-serif`;
-
-/** Text width in px at a font, measured on one hidden canvas (build time only: never in a frame). */
-export function makeMeasure(): LabelDeps['measure'] {
-  const cv = typeof document !== 'undefined' ? document.createElement('canvas') : null;
-  const ctx = cv?.getContext('2d') ?? null;
-  const cache = new Map<string, number>();
-  return (text, size, weight, track = 0) => {
-    const k = `${size}|${weight}|${track}|${text}`;
-    let w = cache.get(k);
-    if (w === undefined) {
-      if (ctx) { ctx.font = FONT(size, weight); w = ctx.measureText(text).width + track * text.length; } else w = text.length * size * 0.56;
-      cache.set(k, w);
-    }
-    return w;
-  };
-}
+export { makeMeasure };
 
 interface Rec {
   root: HTMLElement;
@@ -146,6 +131,7 @@ export function LabelLayer() {
     const ui = useUi;
     const readings = new StationExtras();
     const stentView = stentReads(() => lookRef.current);
+    const measure = makeMeasure();
     const deps: LabelDeps = {
       now: () => clock.now(),
       project: (p, out) => sceneApi.project(p, out),
@@ -154,7 +140,7 @@ export function LabelLayer() {
       view: () => labelView(ui.getState().vp, BAR, useTestsRoom.getState().place),
       blockers: () => { return [...talkRects(ui.getState().boxes).map(rectToBox), ...placeBlockers(useTestsRoom.getState().place), ...figCards.boxes, ...scopeClaims.boxes, ...creditClaim.boxes]; },
       claims: () => probeClaims.boxes,
-      measure: makeMeasure(),
+      measure,
       drawn: (v) => { const f = latest.frame; return f ? presenceOf(v as never, f as unknown as PresenceFrame, { collaterals: false }) === 'shown' : v.kind !== 'collateral' && v.kind !== 'shunt'; },
       figureH: () => { const a = sceneApi.project(plateTop, plateA), b = sceneApi.project(plateBottom, plateB); return Math.abs(b.y - a.y); },
       vp: () => ui.getState().vp,
@@ -285,7 +271,7 @@ export function LabelLayer() {
     const offUi = ui.subscribe((s, p) => { if (s.vp !== p.vp) applyType(); if (s.boxes !== p.boxes || s.vp !== p.vp) { ctl.markDirty(); clock.invalidate('labels-boxes'); } });
     applyTypeRef.current = applyType;
     const offLink = linkLabelsToDeck();
-    const refonts = () => { ctl.invalidateForms(); clock.invalidate('labels-fonts'); };
+    const refonts = () => { measure.reset(); ctl.invalidateForms(); clock.invalidate('labels-fonts'); };
     void document.fonts?.ready.then(refonts);
     document.fonts?.addEventListener?.('loadingdone', refonts);
 
