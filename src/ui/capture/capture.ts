@@ -2,6 +2,8 @@
 // (cards, tags, legends, pills, the dock) laid in the order the page paints them (capture-dom.ts), the build and the time stamped small in the corner, and the state that makes the
 // view (patient, slide, look, lens, camera, sliders) inside the file as a text chunk (png-text.ts) and as a link that reopens the exact view (share-wire.ts). A phone or an iPad hands the
 // file to the share sheet (Save Image, Messages, Mail, Files); a laptop downloads it. The toast that follows offers the link. Runs on a tap or the shortcut, never in a frame.
+import { patient as engPatient } from '../../engine/index.ts';
+import { isCustomCase } from '../action/case-name.ts';
 import { figureShot } from '../../scene/figure-shot.ts';
 import { clock } from '../../clock/frame.ts';
 import { useShell } from '../shell/store.ts';
@@ -87,7 +89,7 @@ export async function composeScreen(at: Date): Promise<Made | null> {
 /** The text Copy gives: the deck and slide the person was on, the patient and look, the screen, the build, the time, the file and the link. */
 function noteFor(rec: CaptureRecord, build: string, link: string, file: string, at: Date): string {
   const ui = useUi.getState(), sh = useShell.getState(), k = ui.pos.stop, st = ui.deck ? ui.stops[k] : undefined;
-  const preset = useEngine.getState().presetId ?? sh.patientId, patient = UI.presets.find((p) => p.id === preset)?.label ?? preset;
+  const preset = useEngine.getState().presetId ?? sh.patientId, patient = isCustomCase(preset, engPatient.params) ? 'Custom' : UI.presets.find((p) => p.id === preset)?.label ?? preset;
   const state = (rec.state && typeof rec.state === 'object' ? rec.state : {}) as Record<string, unknown>;
   const part = (label: string, v: unknown) => (typeof v === 'string' && v ? `${label} ${v}` : '');
   const scenario = [patient ? `patient ${patient}` : '', part('look', useSettings.getState().look), part('lens', state.lens), part('view', sh.view)].filter(Boolean).join(', ');

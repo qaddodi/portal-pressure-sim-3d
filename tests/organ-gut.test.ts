@@ -143,7 +143,7 @@ test('the organ layer wears the art: the stomach\'s materials are patched, the c
   assert.match(co.ink.fragmentShader, /vEsoA/); assert.doesNotMatch(co.toon.fragmentShader, /eso1/);
   assert.doesNotMatch(du.toon.fragmentShader, /vArt/, 'the duodenum has no art: the painter\'s own tube, patched only for its tail\'s fade');
   // (placed path: the duodenum is the funnel from the stomach's cut into the bowel's tube, so it has no free end to fade: it carries the stomach's look into its own over its first stretch instead, organ-art.ts `tos`)
-  if (PLACED) { assert.doesNotMatch(du.toon.fragmentShader, /vEsoA/); assert.match(du.toon.fragmentShader, /tos/, 'the funnel takes the stomach\'s look at its start'); }
+  if (PLACED) { assert.doesNotMatch(du.toon.fragmentShader, /vEsoA/); assert.match(du.toon.fragmentShader, /mix\(o1, o1S, vTos\)/, 'the funnel takes the stomach\'s look at its start'); }   // (re-pinned, placed only: the look blend reads each tone through its mix, organ-art.ts gutLook)
   else assert.match(du.toon.fragmentShader, /gl_FragColor\.a \*= vEsoA/, 'the duodenum\'s free end fades out');
   const box = st.toon.uniforms.box!.value as { z: number; w: number };
   assert.ok(Math.abs(box.w - 319 / 300) < 1e-6, 'the stomach\'s gradient runs over its own outline, not the esophagus\'s length too');

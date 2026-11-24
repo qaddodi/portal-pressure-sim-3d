@@ -3,6 +3,7 @@
 // Vessels are drawn over the organs after a depth clear (scene.ts), so this decides only how the organs lie among themselves (the see-through wash's depth order, the gut's cut-away behind the others, the contact shade).
 import { TIER_Z } from '../frame2d.ts';
 import { PLACED } from '../anatomy/source.ts';
+import { PLACED_A } from './placed-map.ts';
 
 /** Where each organ's mesh centre lies. The kidney is at the cava's depth; the liver is in front of the stomach (and of the esophagus, which is part of the stomach's mesh) and of the heart; the gut lies behind the liver and stomach. */
 const TODAY_Z: Readonly<Record<string, number>> = {
@@ -20,3 +21,6 @@ const TODAY_Z: Readonly<Record<string, number>> = {
 /** How far each organ's mesh (organs/meshes.ts ORGAN_MESHES) is moved along z to its place: the shift every reader of a raw mesh adds (tests/organ-placed-depth.test.ts). With the approved placement (anatomy/source.ts PLACED)
  *  every mesh is built at its own depth already (the re-inflated organs at their zc, the gut tubes on their centrelines, the caudate egg about its centre: organs/placed-map.ts, gut-tubes.ts, caudate.ts), so nothing moves it again. */
 export const ORGAN_Z: Readonly<Record<string, number>> = PLACED ? Object.fromEntries(Object.keys(TODAY_Z).map((id) => [id, 0])) : TODAY_Z;
+/** Where each organ lies in depth, for a reader that needs the organ's place and not its mesh's shift (a vessel that starts in it: vessels/network.ts, the splenic vein at the spleen). Today that is ORGAN_Z; with the approved
+ *  placement it is each re-inflated organ's own mid-depth (placed-map.ts zc), since ORGAN_Z is 0 there. */
+export const ORGAN_DEPTH: Readonly<Record<string, number>> = PLACED ? { ...ORGAN_Z, ...Object.fromEntries(Object.entries(PLACED_A).filter(([, a]) => a.zc !== undefined).map(([id, a]) => [id, a.zc!])) } : TODAY_Z;

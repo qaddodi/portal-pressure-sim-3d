@@ -73,11 +73,15 @@ test('the three short veins: in the network as one group on the cava, from insid
   assert.ok(v && v.feeder?.host === CAUDATE_HOST && v.feeder.when === CAUDATE_WHEN && v.plan?.kind === 'feeder');
   assert.equal(v.plan!.kind === 'feeder' && v.plan.list.length, CAUDATE_VEINS.length, 'one course a vein');
   const cava = EDGE_PATH_2D[CAUDATE_HOST]!, poly = flattenPath(CAUDATE_OUTLINE);
-  const axisX = (y: number) => cava.reduce((b, q) => (Math.abs(q[1] - y) < Math.abs(b[1] - y) ? q : b))[0];
+  // (placed path: the cava is the approved IVC course, PLACED_COURSES.ivc, read in 2D units)
+  const ivc2 = (PLACED_COURSES.ivc ?? []).map((q) => [x2d(q[0]!), y2d(q[1]!)] as [number, number]), axisOf = PLACED ? ivc2 : cava;
+  const axisX = (y: number) => axisOf.reduce((b, q) => (Math.abs(q[1] - y) < Math.abs(b[1] - y) ? q : b))[0];
   if (v.plan!.kind !== 'feeder') return;
   for (const f of v.plan!.list) {
     const a = f.pts[0]!, b = f.pts[f.pts.length - 1]!;
-    assert.ok(inside(poly, a[0], a[1]), `a vein starts inside the lobe (${a[0].toFixed(1)}, ${a[1].toFixed(1)})`);
+    // (placed path: the lobe is the approved egg, PLACED_CAUDATE, and the veins are the approved cv1 to cv3: each starts inside the egg seen from the front)
+    const inLobe = PLACED ? ((x3(a[0]) - PLACED_CAUDATE.c[0]) / PLACED_CAUDATE.ax[0]) ** 2 + ((y3(a[1]) - PLACED_CAUDATE.c[1]) / PLACED_CAUDATE.ax[1]) ** 2 < 1 : inside(poly, a[0], a[1]);
+    assert.ok(inLobe, `a vein starts inside the lobe (${a[0].toFixed(1)}, ${a[1].toFixed(1)})`);
     assert.ok(Math.abs(b[0] - axisX(b[1])) < 1.5, `and ends on the cava's axis (${b[0].toFixed(1)} against ${axisX(b[1]).toFixed(1)})`);
     assert.equal(f.join, 1, 'the end at the cava is the join: no round cap');
     assert.equal(f.out, false, 'it flows into the cava');

@@ -7,6 +7,7 @@ import { useUi } from '../ui-store.ts';
 import { viewAt } from '../deck/presenter-machine.ts';
 import { UI } from '../strings.generated.ts';
 import { sceneApi } from '../../scene/api.ts';
+import { isCustomCase } from '../action/case-name.ts';
 import { caption } from './caption.ts';
 import { announce } from './announce.ts';
 import { createPatientAnnouncer } from './patient-announce.ts';
@@ -23,7 +24,7 @@ export function describeNow(opts: { scenario?: boolean } = {}, frame: unknown = 
   const f = frame as typeof latest.frame;
   if (!f) return '';
   const id = useEngine.getState().presetId ?? useShell.getState().patientId;
-  return caption(f as never, { ...opts, label: labelOf(id), healthyQ: patient.reference?.Q ?? null });
+  return caption(f as never, { ...opts, label: isCustomCase(id, patient.params) ? 'Custom' : labelOf(id), healthyQ: patient.reference?.Q ?? null });
 }
 
 /** Put a name and the description on the figure (the stage's canvas, once it exists) and keep it current. Returns the remover. */

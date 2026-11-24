@@ -10,7 +10,7 @@ import { PLACED_EDGE_3D, PLACED_NODE_3D, PLACED_PATH_2D, PLACED_Z, WHOLE_PIECES,
 import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns, smoothRunOns } from './joins.ts';
-import { ORGAN_Z } from '../organs/z.ts';
+import { ORGAN_DEPTH } from '../organs/z.ts';
 import { ALONG_VEIN_IDS, LEAVE_VEIN_IDS, alongVein, leaveVein } from './starts.ts';
 import { LIVER_BRANCHES, LIVER_BRANCH_HOSTS, SPLIT_AT, trimHost } from './liver-branches.ts';
 import { CAUDATE_VEIN_ID, caudateVeinSet } from './caudate-veins.ts';
@@ -323,8 +323,8 @@ function oneCalibre(list: NetVessel[]): NetVessel[] {
 /** The depth at each node. Two vessels that join are at one depth where they meet (their own tier holds between). At a node of two the depth is the mean of their tiers (a vein that
  *  changes tier eases over its length). At a fork, a node of three or more, the widest vessels keep their own tier and the narrower ones ease to it: the mean would pull a trunk toward
  *  the camera at every branch (the cava, a back-tier vein, bulged forward at each hepatic and renal vein, and the 14 degree view turned each bulge into a sideways jog: Mohammad, 20 Nov). */
-/** A vessel that starts in an organ starts at the organ's own depth: the splenic vein at the spleen's (organs/z.ts ORGAN_Z), and rises to the plane on its way to the confluence. */
-const NODE_Z_AT: Readonly<Record<string, number>> = { SPL: ORGAN_Z.spleen, EPI: TIER_Z.fwd };   // (EPI: the umbilicus, on the anterior wall)
+/** A vessel that starts in an organ starts at the organ's own depth: the splenic vein at the spleen's (organs/z.ts ORGAN_DEPTH: with the approved placement the spleen's own zc, not ORGAN_Z's 0), and rises to the plane on its way to the confluence. */
+const NODE_Z_AT: Readonly<Record<string, number>> = { SPL: ORGAN_DEPTH.spleen!, EPI: TIER_Z.fwd };   // (EPI: the umbilicus, on the anterior wall)
 export const NODE_Z: ReadonlyMap<string, number> = PLACED ? new Map(Object.entries(PLACED_NODE_3D).map(([n, p]) => [n, p[2]] as const)) : (() => {
   const acc = new Map<string, { z: number; r: number; main: boolean }[]>();
   for (const v of NETWORK) if (!v.feeder) for (const n of [v.from, v.to]) { const a = acc.get(n) ?? []; a.push({ z: TIER_Z[v.tier], r: v.radius, main: v.kind !== 'shunt' && v.kind !== 'collateral' }); acc.set(n, a); }

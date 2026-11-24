@@ -44,6 +44,8 @@ export const ART_PX_PER_UNIT = 2;
 const MAX_SIDE = 2048;
 /** The right edge of what counts as esophagus beside the cardia (2D's esophagus outline ends at x 813): left of it, above the seam, the esophagus's own tone shows. */
 const ESO_RIGHT_MARGIN = 3;
+/** Placed: over how many 2D units right of the esophagus's outline its tone gives way to the stomach's (esoAttributes): whole up to the outline, as 2D's, then a ramp, never a cut. */
+const ESO_RIGHT_SOFT = 8;
 
 /** The stomach's own box (2D's stomach outline, without the oesophagus), in the scene, where the stomach is (placed-map.ts). */
 const stomachBoxOf = (d: ArtData): [number, number, number, number] => mapBox(planeMap('stomach'), [x3(d.stomachBox[0]), y3(d.stomachBox[1]), d.stomachBox[2] / UNITS_PER_SCENE, d.stomachBox[3] / UNITS_PER_SCENE]);
@@ -74,7 +76,9 @@ export function esoAttributes(g: BufferGeometry, eso: ArtData['eso'], m: PlaneMa
   const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
   for (let i = 0; i < n; i++) {
     const x = unmapX(m, pos.getX(i)) * UNITS_PER_SCENE + 700, y = 556 - unmapY(m, pos.getY(i)) * UNITS_PER_SCENE;   // (the place on the 2D figure: the placed stomach is moved, placed-map.ts)
-    a[i] = x < right ? clamp01((s1 - y) / (s1 - s0)) : 0;
+    // (placed: the oesophagus's right edge gives way over ESO_RIGHT_SOFT units from its outline, not as a cut at `right`: the placed stomach's surface runs on past it there, and the cut laid a step of its tone across the cardia)
+    const side = PLACED ? 1 - smooth01((x - (right - ESO_RIGHT_MARGIN)) / ESO_RIGHT_SOFT) : x < right ? 1 : 0;
+    a[i] = side * clamp01((s1 - y) / (s1 - s0));
     b[i] = clamp01((y - f1) / (f0 - f1));
   }
   g.setAttribute('eso', new Float32BufferAttribute(a, 1));
@@ -97,8 +101,28 @@ export interface PatchOpts { art: boolean; eso: ArtData['eso'] | null; /** the o
   /** the placed duodenum wears the stomach's look by the per-vertex `tos` (gut-tubes.ts stomachShare): the stomach's wash over the stomach's box, and its layer */ tos?: boolean }
 
 /** The patched shaders of an organ: its fill (vertex and fragment), and for the esophagus the ink's. Pure strings (tests read them). */
+/** The tones of the organ painter (organ-shader.ts ORGAN_FS) the gut's look blend carries from the stomach into the duodenum's funnel: every one the fill is made of, so by the cut the funnel draws the stomach's own fill. */
+export const GUT_LOOK = ['o1', 'o2', 'ogLight', 'ogDark', 'volLight', 'volShade', 'volGeo', 'volShadeAt', 'shadeSteps', 'rimK', 'layer'] as const;
+/** The organ painter's fill with the stomach's look laid in as the vertex's `tos` says: each tone of GUT_LOOK read as mix(u, uS, vTos) (the `uS` uniforms ARE the stomach's: OrganArt.shareGutLook), and the box the
+ *  gradient and the volume are measured in mixed toward the stomach's (vBoxS). At tos 1 the funnel computes what the stomach computes at that point, term by term: one surface, no step at the cut (the mock's round 13,
+ *  which measured the funnel's volume in the stomach's box; the old patch here carried only the gradient and the layer, and the funnel's own volume, shade and rim laid a step of 30/255 at the pylorus). */
+export function gutLook(fs: string): string {
+  const at = fs.indexOf('void main() {');
+  if (at < 0 || fs.indexOf('void main() {', at + 1) >= 0) throw new Error('organ art: expected one "void main() {" for the gut look');
+  let decl = 'varying float vTos;\nvarying vec2 vBoxS;\n', body = fs.slice(at);
+  for (const k of GUT_LOOK) {
+    const ty = new RegExp(`uniform (\\w+) ${k};`).exec(fs)?.[1];
+    if (!ty) throw new Error(`organ art: the gut look needs uniform ${k}`);
+    decl += `uniform ${ty} ${k}S;\n`;
+    body = body.replace(new RegExp(`\\b${k}\\b`, 'g'), `mix(${k}, ${k}S, vTos)`);
+  }
+  body = body.replace(/\bvBox\b/g, 'mix(vBox, vBoxS, vTos)');
+  return `${fs.slice(0, at)}${decl}${body}`;
+}
+
 export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: string, o: PatchOpts): { vs: string; fs: string; inkVs: string; inkFs: string } {
   let vd = '', vb = '', fd = '', fb = '';
+  if (o.tos) fs = gutLook(fs);
   if (o.art) {
     vd += 'uniform vec4 artBox;\nvarying vec2 vArt;\n';
     vb += '  vArt = vec2(position.x - artBox.x, artBox.y - position.y) / artBox.zw;\n';
@@ -130,13 +154,7 @@ export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: str
   if (o.tos) {
     vd += 'attribute float tos;\nvarying float vTos;\nuniform vec4 boxS;\nvarying vec2 vBoxS;\n';
     vb += '  vTos = tos;\n  vBoxS = vec2((position.x - boxS.x) / max(boxS.z, 1e-5), (boxS.y - position.y) / max(boxS.w, 1e-5));\n';
-    fd += 'uniform vec3 tos1;\nuniform vec3 tos2;\nuniform float tosLayer;\nvarying float vTos;\nvarying vec2 vBoxS;\n';
-    // (the stomach's gradient over the stomach's own box, in place of the gut's over the tube's, as much as vTos says; and the stomach's layer: the antrum hands over with no step)
-    fb += `  float tSt = clamp(dot(vBoxS - vec2(0.15, 0.0), vec2(0.7, 1.0)) / 1.49, 0.0, 1.0);
-  float tGt = clamp(dot(vBox - vec2(0.15, 0.0), vec2(0.7, 1.0)) / 1.49, 0.0, 1.0);
-  gl_FragColor.rgb += (mix(tos1, tos2, tSt) - mix(o1, o2, tGt)) * vTos;
-  gl_FragColor.a *= mix(1.0, tosLayer, vTos);
-`;
+    // (the fragment side is gutLook's: the whole fill, not only its gradient, wears the stomach's look by vTos)
   }
   if (o.eso) {
     const [ex, ey, ew, eh] = o.eso.box;
@@ -174,9 +192,12 @@ export class OrganArt {
   private stomach: ShaderMaterial | null = null;
   /** the placed duodenum's fill: it wears the stomach's look by the cut (`tos`) */
   private duodenum: ShaderMaterial | null = null;
+  /** the stomach's fill, whose tones the duodenum's funnel wears (shareGutLook) */
+  private stomachToon: ShaderMaterial | null = null;
 
   /** Patches the organ's materials when the art knows it (and the file is in). Returns whether it did. Call after the organ painter is on the material, before the first draw. */
   attach(id: string, toon: ShaderMaterial, ink: ShaderMaterial, g: BufferGeometry, seat?: ShaderMaterial | null): boolean {
+    if (id === 'stomach') { this.stomachToon = toon; this.shareGutLook(); }
     const d = data, tail = id === 'duodenum' && !!g.getAttribute('esoA') && !PLACED;   // (the duodenum has no art: it is patched only for its tail's fade, with or without the file)
     // the approved placement (anatomy/source.ts PLACED): the gut is tubes, and the bowel's loops and the colon's haustra and bands painted on the 2D pillows are retired (plan question 7); the colon's rectum fades by its tube's
     // own `esoA`, the duodenum wears the stomach's look by its `tos`, the stomach is cut where the funnel takes over (`cutA`). The art that stays (the stomach's rugae, the hairlines) is laid by the organ's move (placed-map.ts).
@@ -204,9 +225,10 @@ export class OrganArt {
     }
     if (tos) {
       // (the stomach's box as the stomach has it; without the art file, a unit box)
-      u.boxS = { value: new Vector4(...(d ? stomachBoxOf(d) : [0, 0, 1, 1])) }; u.tos1 = { value: new Vector3() }; u.tos2 = { value: new Vector3() }; u.tosLayer = { value: 1 };
+      u.boxS = { value: new Vector4(...(d ? stomachBoxOf(d) : [0, 0, 1, 1])) };
       this.duodenum = toon;
     }
+    this.shareGutLook();
     if (id === 'colon' && d && !PLACED) rectumAttribute(g, d.rectum);
     if (art) {
       const [bx, by, bw, bh] = mapBox(m, [x3(art.box[0]), y3(art.box[1]), art.box[2] / UNITS_PER_SCENE, art.box[3] / UNITS_PER_SCENE]);   // (laid where the organ is: the art moves with it, placed-map.ts)
@@ -258,12 +280,13 @@ export class OrganArt {
       const c1 = organColour(rgbOf(eso[0]), s, k), c2 = organColour(rgbOf(eso[1]), s, k);
       (u.eso1!.value as Vector3).set(c1[0], c1[1], c1[2]); (u.eso2!.value as Vector3).set(c2[0], c2[1], c2[2]);
     }
-    if (id === 'duodenum' && this.duodenum) {   // (the stomach's two tones as the stomach is drawn now, dimmed and greyed with the gut, and the stomach's layer over the gut's)
-      const st = p.organs.tones.stomach, u = this.duodenum.uniforms;
-      const c1 = organColour(rgbOf(st[0]), s, k), c2 = organColour(rgbOf(st[1]), s, k);
-      (u.tos1!.value as Vector3).set(c1[0], c1[1], c1[2]); (u.tos2!.value as Vector3).set(c2[0], c2[1], c2[2]);
-      u.tosLayer!.value = p.organLayer / Math.max(1e-3, p.organs.gutA);
-    }
+  }
+
+  /** The duodenum's `<tone>S` uniforms (gutLook) are the stomach's own uniform objects, so the funnel wears the stomach's tones, layer and state as the stomach has them this frame, with nothing copied (either may attach first). */
+  private shareGutLook(): void {
+    const dz = this.duodenum, st = this.stomachToon;
+    if (!dz) return;
+    for (const k of GUT_LOOK) dz.uniforms[`${k}S`] = st?.uniforms[k] ?? dz.uniforms[`${k}S`] ?? { value: dz.uniforms[k]!.value };
   }
 
   dispose(): void { for (const s of this.slots.values()) s.tex?.dispose(); this.slots.clear(); }
