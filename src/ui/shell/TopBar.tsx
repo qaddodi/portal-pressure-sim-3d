@@ -25,6 +25,8 @@ import { historyName } from '../histories/meta.ts';
 import { startTopbarMotion } from './topbar-motion.ts';
 import { useTalkOn } from '../../state/deck.ts';
 import { fadeAttrs } from '../fade.tsx';
+import { isCustomCase } from '../action/case-name.ts';
+import { currentParams, useParamsTick } from '../action/params.ts';
 
 interface Tb { id: string; label: string | null; title: string | null; text: string | null }
 export const tb = (id: string): Tb => UI.topbar.find((t) => t.id === id) as unknown as Tb;
@@ -116,7 +118,8 @@ export function TopBar() {
   const view = useShell((s) => s.view);
   const patientId = useShell((s) => s.patientId);
   const lobule = view === 'lobule' || view === 'sinusoid';
-  const patient = (UI.presets.find((p) => p.id === patientId)?.label ?? yoursName(patientId)) || historyName(patientId);
+  useParamsTick((s) => s.tick);   // (the name follows the settings: a disease put on the case renames it)
+  const patient = isCustomCase(patientId, currentParams()) ? 'Custom' : (UI.presets.find((p) => p.id === patientId)?.label ?? yoursName(patientId)) || historyName(patientId);
   const menu = tb('btnMenu');
   const barRef = useBarFit([patient, patientId, view, mode]);
   // a button that comes or goes, a longer name, a new fit step: the bar glides to it (2D topbar-motion.js)
