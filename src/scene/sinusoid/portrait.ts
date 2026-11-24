@@ -3,7 +3,7 @@
 // capillary it was dived into, so the lobule and the sinusoid turn together in one move of the camera and the tissue, the pores, the albumin, the names' anchors and the hits all follow it
 // (Mohammad 20 Nov 2026: a plane turned alone, inside the dive, "flips only the sinusoid, not the lobule"). Pure numbers, no GPU: tests/scene-sinusoid-portrait.test.ts.
 import { FILL } from '../camera/room.ts';
-import { KUP_HALF, SEED, kupfferClear, kupfferSpot } from './layout.ts';
+import { SEED, kupfferClear, kupfferSpot } from './layout.ts';
 
 
 /** 2D's rule: a stage narrower than 0.95 of its height is a portrait stage (W < H * 0.95). */
@@ -15,18 +15,10 @@ export const PORTRAIT_ROLL = -PORTRAIT_ANGLE;
 /** Where the Kupffer cell stands (µm along): 22 on a wide screen, nearer the middle (12) on a tall one, clear of the central vein's name (2D: geo.xk). */
 export const XK = { wide: 22, tall: 12 } as const;
 /** The Kupffer cell's place for a screen: the wanted place moved onto the nearest bare stretch of its (lower) lining, never on top of an endothelial cell (layout.ts kupfferClear). */
-export function xkFor(portrait: boolean, room?: { centre: number; half: number; k: number }): number {
-  if (portrait) return kupfferClear(XK.tall, SEED.nucDn);
-  if (!room) return kupfferSpot(0, SEED.nucDn, () => true);
-  // the room's far end holds the central vein's name and arrow (END_RESERVE px from it); the cell stands left of them, or right of the name just under the arrow (the arrow's tip, ARROW_ROOM px from the end), never over either,
-  // its centre at most XK_SPILL µm past the room's end (the vessel carries on past the room)
-  const r = room.centre + room.half, cl = r - END_RESERVE / room.k, ar = r - ARROW_ROOM / room.k;
-  return kupfferSpot(room.centre, SEED.nucDn, (x) => x <= r + XK_SPILL && (x + KUP_HALF + 0.5 <= cl || x - KUP_HALF >= ar));
+export function xkFor(portrait: boolean): number {
+  // a fixed place in the tissue, never a function of the camera, the room or a card (it slid while he zoomed): just right of the first endothelial nucleus past the middle; the names move around it
+  return portrait ? kupfferClear(XK.tall, SEED.nucDn) : kupfferSpot(0, SEED.nucDn, () => true);
 }
-/** How far past the room's far end (µm) the Kupffer cell's centre may stand: its arms and a little of its body may stand past it, where the vessel carries on. */
-export const XK_SPILL = 3;
-/** What the central vein's name and arrow take of the room's far end (px): its widest name and the arrow; the arrow's own length (names.ts shifts the name and arrow left to clear a cell that stands beside them). */
-export const END_RESERVE = 190, ARROW_ROOM = 40;
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;

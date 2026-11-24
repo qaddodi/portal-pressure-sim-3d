@@ -155,13 +155,12 @@ export class SinusoidView {
    *  the middle (2D: xk 12 against 22) and the names take their tall places. */
   setPortrait(portrait: boolean): void {
     if (portrait === this.portrait) return;
-    this.portrait = portrait; this.xkGoal = this.screenXk(); this.dirty = true;
+    this.portrait = portrait; this.xkGoal = xkFor(portrait); this.geo.xk = this.xkGoal; this.dirty = true;
   }
   get isPortrait(): boolean { return this.portrait; }
-  /** Where the Kupffer cell is going (µm along): its place for the screen as it stands (portrait.ts xkFor); `geo.xk`, the cell's own, eases toward it. */
+  /** Where the Kupffer cell stands (µm along): fixed in the tissue for the screen's shape (portrait.ts xkFor), whatever the camera does. */
   private xkGoal = xkFor(false);
   get kupfferGoal(): number { return this.xkGoal; }
-  private screenXk(): number { const s = this.screen; return xkFor(this.portrait, s ? { centre: s.centre, half: s.along / 2 / s.k, k: s.k } : undefined); }
   /** What the scene knows of the screen: `k`, CSS px per µm along the plane now, and `along`, the free room's length in px in the flow's direction, and `stage`, the whole canvas's (the traffic runs over what is on screen, cards or no). The end arrows stand 32 px (24 on a tall screen)
    *  inside the room's ends and the traffic runs over the stretch on screen, as 2D lays them out (layoutEnds, VW.vis). Without it the defaults hold (arrows at ±46 µm, traffic over ±70). */
   /** CSS px per µm on the screen now (setScreen), 0 before it is known. */
@@ -171,7 +170,6 @@ export class SinusoidView {
     const s = this.screen;
     if (s && Math.abs(s.k - k) < 1e-3 * k && Math.abs(s.along - along) < 0.5 && Math.abs(s.stage - stage) < 0.5 && Math.abs(s.centre - centre) < 1e-3) return;
     this.screen = { k, along, stage: Math.max(stage, along), centre }; this.dirty = true;
-    this.xkGoal = this.screenXk();
     // the traffic runs over the stretch on screen, a little past it each way (2D: VW.vis = a0 - 8 .. a1 + 8, within the laid-out reach); `centre` is where the screen's middle is along the flow (µm from the sinusoid's own)
     const half = this.screen.stage / 2 / k + 8;
     this.VW.vis[0] = Math.max(-REACH, centre - half); this.VW.vis[1] = Math.min(REACH, centre + half);
@@ -203,12 +201,6 @@ export class SinusoidView {
     let moving = this.dirty;
     this.dirty = false;
     if (easeToward(this.cur as unknown as Record<string, number>, this.goal as unknown as Record<string, number>, this.reduce ? 1e6 : dt)) moving = true;
-    // the Kupffer cell glides to its place for the screen (a slide's card, a turn of the device): never a jump
-    if (this.geo.xk !== this.xkGoal) {
-      const d = this.xkGoal - this.geo.xk;
-      this.geo.xk = this.reduce || Math.abs(d) < 0.01 ? this.xkGoal : this.geo.xk + d * (1 - Math.exp(-dt / 140));
-      moving = true;
-    }
     // the wedged column's wash (2D: only while a slide asks for it, and once the view has landed; it begins afresh each time it lands)
     const wantWash = this.washOn && this.dive == null;
     if (!wantWash) this.washLand = -1; else if (this.washLand < 0) this.washLand = Math.max(now, this.washAt);

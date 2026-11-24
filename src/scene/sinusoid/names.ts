@@ -180,7 +180,7 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
     if (V) { x = C[0] - w / 2; y = u ? fe.b - hh - A : fe.t + A; } else {
       // the central vein stands right out at the room's end, its arrow beyond it (Mohammad, 24 Nov: "move the central vein label to the right, there is room"), but never over the Kupffer cell's arms
       x = u ? feGeom.r - w - A : fe.l + 8 + A; y = C[1] - hh / 2;
-      if (u) { const cellL = C[0] + k * (g.xk - KUP_HALF) - 8; if (cellL > x + w * 0.5) x = Math.min(x, cellL - ARROW_PX - w); }
+      if (u) { const cellL = C[0] + k * (g.xk - KUP_HALF) - 8, cellR = C[0] + k * (g.xk + KUP_HALF) + 8; if (cellL < x + w + ARROW_PX && cellR > x) x = cellL - ARROW_PX - w; }   // (the cell is fixed in the tissue: the name steps to its left)
     }
     if (V && !u && leg && leg.w && leg.x + leg.w > x - 6) y = Math.max(y, leg.y + leg.h + A);
     const P: NamePlacement = { key, name, value, x: 0, y: 0, cx: x + w / 2, cy: y + hh / 2, w, hh, end: true, leader: null, ...(inl ? { inline: true } : {}) };

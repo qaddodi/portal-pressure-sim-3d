@@ -122,7 +122,7 @@ for (const card of [false, true]) test(`the Kupffer cell stands just right of an
     const mid = (box(inn).x1 + box(out).x0) / 2;
     assert.ok(Math.abs(sin.cx - mid) < 0.5 * sin.w + 40 || Math.abs(sin.cx - L.cell.x0) < 0.5 * sin.w + 40, `${tag}: Sinusoid name in the middle between the ends (${sin.cx.toFixed(0)} against ${mid.toFixed(0)})`);
     for (let n = -6; n <= 6; n++) assert.ok(Math.abs(L.xk - nucAt(n, SEED.nucDn)) >= KUP_CLEAR - 1e-9, `${tag}: the cell clear of every endothelial cell`);
-    if (!card && W >= 1280) assert.ok(L.xk - nucAt(0, SEED.nucDn) < KUP_CLEAR + 0.01 && L.xk > nucAt(0, SEED.nucDn), `${tag}: with the room to spare the cell stands just right of the nucleus past the middle`);
+    assert.ok(Math.abs(L.xk - (nucAt(0, SEED.nucDn) + KUP_CLEAR)) < 1e-9, `${tag}: the cell stands just right of the nucleus past the middle, whatever the room`);
     for (const n of L.names) {
       if (n.key === 'kup' || (L.k < 8 && L.room.w < 520)) continue;   // (a phone on its side with a card: a lumen 50 px tall and 118 px between the ends' names has no place for a name and a cell apart)
       const b = box(n), c = L.cell;
@@ -130,4 +130,14 @@ for (const card of [false, true]) test(`the Kupffer cell stands just right of an
     }
     if (process.env.DBG) console.log(tag, 'xk', L.xk.toFixed(1), 'cell px', L.cell.x0.toFixed(0), L.cell.x1.toFixed(0), 'in', box(inn).x0.toFixed(0), box(inn).x1.toFixed(0), 'sin', sin.cx.toFixed(0), 'out', box(out).x0.toFixed(0), box(out).x1.toFixed(0), 'free', L.free.l, L.free.r);
   }
+});
+
+test('the Kupffer cell is fixed in the tissue: its place does not move with the zoom, the room or a card (it slid while he zoomed)', () => {
+  const v = new SinusoidView(createShared());
+  v.setVisible(true); v.snapTargets(targets()); v.setPortrait(false);
+  const seen = new Set<number>();
+  for (const k of [6, 9, 12, 16, 24, 40]) for (const w of [600, 1000, 1400]) for (const c of [-20, 0, 20]) { v.setScreen(k, w, 1440, c); v.update(1000 + k * w); seen.add(v.kupfferGoal); }
+  assert.equal(seen.size, 1, 'one place');
+  const { geo } = v as unknown as { geo: { xk: number } };
+  assert.equal(geo.xk, [...seen][0], 'the cell itself stands there at once');
 });
