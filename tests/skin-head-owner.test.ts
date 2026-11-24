@@ -77,7 +77,7 @@ test('a head centred on the tube\'s side of the seam is finished by the skin who
   const m = await import('../src/scene/vessels/skin/shaders.ts');
   const main = body(m.SKIN_FS, 'void main(');
   assert.match(main, /float aIn = \(chevCentreArc - armArc\[i\]\.x\) \* armArc\[i\]\.y \/ max\(rOwn, 1e-4\);/);
-  assert.match(main, /float ownH = max\(smoothstep\([0-9.]+, [0-9.]+, skinOwner\(/);
+  assert.match(main, /float ownH = max\(step\(0\.5, smoothstep\([0-9.]+, [0-9.]+, skinOwner\(/);
   assert.match(main, /, tubeSide\);/);
   assert.ok(m.SKIN_HEAD_TUBE_SIDE > 0 && m.SKIN_HEAD_TUBE_SIDE < 0.6, 'the tube\'s side ends within a head\'s first half length past the seam: further in, two arms\' heads would pile up at a node');
   assert.ok(m.SKIN_HEAD_TIE < m.SKIN_HEAD_WIN && m.SKIN_HEAD_WIN <= 0.15, 'the band where no arm wins a head is narrow: a ghost lives only there');

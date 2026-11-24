@@ -606,8 +606,8 @@ void main() {
           // under the join (Mohammad, 24 Nov, the left gastric vein's mouth, the portal vein under the bifurcation). Further in, the skin owns it whole by the winner rule, and the tube has no pixel of it.
           float aIn = (chevCentreArc - armArc[i].x) * armArc[i].y / max(rOwn, 1e-4);
           float tubeSide = 1.0 - smoothstep(${F(SKIN_HEAD_TUBE_SIDE - 0.2)}, ${F(SKIN_HEAD_TUBE_SIDE + 0.2)}, aIn);
-          float ownH = max(smoothstep(${F(SKIN_HEAD_OWN_FROM)}, ${F(SKIN_HEAD_OWN_TO)}, skinOwner(i, seamP + tJA[i] * ((chevCentreArc - armArc[i].x) / (armArc[i].y * SKIN_U)), kPx)), tubeSide);
-          hI *= gate * ownH;
+          float ownH = max(step(0.5, smoothstep(${F(SKIN_HEAD_OWN_FROM)}, ${F(SKIN_HEAD_OWN_TO)}, skinOwner(i, seamP + tJA[i] * ((chevCentreArc - armArc[i].x) / (armArc[i].y * SKIN_U)), kPx))), tubeSide);
+          hI *= gate * ownH;   // (a head is whole or not this arm's: the owner share is cut at one half, so the centre of a node, where the arms tie, shows no faint head)
         }
         else hI = vec4(0.0);
       }
