@@ -48,3 +48,17 @@ test('a touch that starts on a scrub strip (over-time chart, step rail) is its o
   assert.match(read('../src/ui/tests/trace/OverTimePane.tsx'), /pt-box" data-scrub=""/);
   assert.match(read('../src/ui/cards/ProcRow.tsx'), /pz-prail-track" data-scrub=""/);
 });
+
+// Mohammad, 24 Nov: "on slides where there is a procedure with steps, swiping shouldn't move the teaching card or instrument card. Just steps through the steps."
+// Root cause: useCardDrag made the cards follow the finger for EVERY sideways drag the talk could answer, deciding "will the cards go" from apply(stops, pos, m) alone; but the presenter's
+// move() hands Next/Back to the procedure (procStep) or the data card (toolStep) first, so on those slides the cards were dragged (and sent out) for a swipe that only took a step.
+test('a drag that is only a step of the slide (procedure, tool reading) takes no card along', async () => {
+  const { setProcStep, procCanStep } = await import('../src/ui/deck/proc-step.ts');
+  setProcStep(Object.assign(() => true, { can: (d: 1 | -1) => d > 0 }));
+  assert.equal(procCanStep(1), true); assert.equal(procCanStep(-1), false);
+  setProcStep(null); assert.equal(procCanStep(1), false);
+  const drag = readFileSync(new URL('../src/ui/cards/useCardDrag.ts', import.meta.url), 'utf8');
+  const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
+  assert.match(drag, /opts\.current\.stays\?\.\(dx\)\) g\.cards = \[\]/);
+  assert.match(layer, /stays: \(dx\) => .*procCanStep\(d\) \|\| toolCanStep\(d\)/);
+});

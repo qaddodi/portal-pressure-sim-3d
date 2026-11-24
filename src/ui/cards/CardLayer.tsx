@@ -34,6 +34,8 @@ import { mergeStates } from '../charts/baked/view.ts';
 import { inputsIn, wordsStateIndex, GIVE_UP_MS } from './inputs-in.ts';
 import { tokensOf } from '../text/tokens.ts';
 import { Strip } from '../wallet/Strip.tsx';
+import { procCanStep } from '../deck/proc-step.ts';
+import { toolCanStep } from '../talk/tool-step.ts';
 import { useCardDrag, justDragged } from './useCardDrag.ts';
 import { cardZoom, emptyTap, zoomPlan, zoomMargin, zoomsOn } from './card-zoom.ts';
 import { fitOf } from '../charts/fit.ts';
@@ -301,6 +303,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
     // a drag follows only where it will do something: a slide to go to (or a page to turn), not the first slide's Back
     // the data card the next slide keeps (same key) stays put under a drag: only the cards that change follow the finger
     keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return false; const to = dataAt[apply(stops, pos, dx < 0 ? 'next' : 'back').stop]; return !!view?.data && !!to && to.key === dataKey; },
+    // a slide whose procedure (or whose data card's readings) takes Next as a step: the swipe steps through the steps and no card follows the finger (Mohammad, 24 Nov)
+    stays: (dx) => { const d = dx < 0 ? 1 : -1; return procCanStep(d) || toolCanStep(d); },
     // a slide change sends the cards out from where the finger let go; a page turned, or a beat of this slide, leaves them where they are (they ease back)
     leaves: (m) => {
       if (m === 'next' && atEnd(useUi.getState())) return true;

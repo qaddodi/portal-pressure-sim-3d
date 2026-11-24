@@ -384,7 +384,7 @@ export function linkProcs(): () => void {
   const off = useUi.subscribe((s, prev) => { if (s.pos !== prev.pos || s.stops !== prev.stops || s.boxes.free !== prev.boxes.free) sync(); });
   const offLanded = onLanded(tryAuto);
   const offPlay = onPlay(() => press());
-  setProcStep(onKey);
+  setProcStep(Object.assign(onKey, { can: (dir: 1 | -1): boolean => !!plan && !!key && (starting ? dir > 0 : procKey(cursor(), dir).act !== 'pass') }));
   return () => { off(); offPlay(); offLanded(); setProcStep(null); release(); };
 }
 
