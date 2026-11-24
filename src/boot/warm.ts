@@ -1,9 +1,10 @@
 // The preload ladder: what a person opens a little after the first picture is read in, one rung at a time, each in its own quiet slot, so the first tap on it costs nothing visible. Nothing here is needed for
 // the first picture; a rung that fails is left for its first use (the lazy retry, boot/lazy-retry.ts, tries it again then). The scene queues its own two rungs before these (the micro views, then the weld plan).
-//   rungs, in order:  the instrument modules (Doppler, Endoscopy, HVPG/IR, FibroScan, Profile, Trials: dock/lazy.ts LOADERS, evaluated, nothing mounted), a talk's charts (the tool card),
+//   rungs, in order:  the instrument modules (Doppler, Endoscopy, HVPG/IR, FibroScan, Profile, Trials: dock/lazy.ts LOADERS, evaluated, nothing mounted), a talk's own UI, a talk's charts (the tool card),
 //                     the shared chart context, then the instruments' GL programs on it (boot/warm-programs.ts).
 // A rung runs inside a slot the caller hands in (`slot(go)` calls go() when nobody is watching motion; the one background-work slot, clock/idle.ts: quietSlot) and never when the person asked the browser to save data (boot/data-saver.ts: Save-Data, a 2g link): those parts are then fetched on use and kept, as ever.
 import { loadToolCard } from '../ui/talk/tool-card-load.ts';
+import { loadDeckUi } from '../ui/shell/deck-ui-load.ts';
 import { need, LOADERS } from '../ui/tests/dock/lazy.ts';
 import { sharedContext } from '../ui/charts/gl.ts';
 import { PROGRAM_SETS, warmSet, type Prog } from './warm-programs.ts';
@@ -24,6 +25,7 @@ export const MODULE_ORDER = ['doppler', 'endoscopy', 'hvpg', 'fibroscan', 'profi
 
 export const RUNGS: readonly Rung[] = [
   ...MODULE_ORDER.map((id): Rung => ({ id: `module:${id}`, run: () => need(id) })),   // (need(): shared with the tabs, so a tap during the rung waits on the same load)
+  { id: 'module:talk-ui', run: () => loadDeckUi() },   // (a talk's own UI: cards, wallet, presenter pill; a chunk of its own, 24 Nov)
   { id: 'module:talk', run: () => loadToolCard() },   // (a talk's charts)
   { id: 'programs:charts', run: () => { sharedContext(); } },   // (the one shared chart context, with the chart program)
   // (a program rung is two halves: the set's sources are read in before the slot, and every program is started inside it: the compile, and a driver's synchronous status read, are the slot's work, never a continuation of a fetch)

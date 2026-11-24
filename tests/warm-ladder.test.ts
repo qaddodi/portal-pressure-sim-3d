@@ -43,7 +43,7 @@ test('a rung that throws or rejects does not stop the next', async () => {
 test('every instrument module and the talk\'s charts are on the ladder, in the likely order, before the programs', () => {
   assert.deepEqual([...MODULE_ORDER].sort(), Object.keys(LOADERS).sort(), 'a new LOADERS entry fails here until it is on the ladder');
   const ids = RUNGS.map((r) => r.id);
-  assert.deepEqual(ids.slice(0, 7), ['module:doppler', 'module:endoscopy', 'module:hvpg', 'module:fibroscan', 'module:profile', 'module:trials', 'module:talk']);
+  assert.deepEqual(ids.slice(0, 8), ['module:doppler', 'module:endoscopy', 'module:hvpg', 'module:fibroscan', 'module:profile', 'module:trials', 'module:talk-ui', 'module:talk']);
   assert.ok(ids.indexOf('programs:charts') > ids.indexOf('module:talk'));
   for (const s of PROGRAM_SETS) assert.ok(ids.includes(`programs:${s.name}`));
   assert.equal(new Set(ids).size, ids.length);

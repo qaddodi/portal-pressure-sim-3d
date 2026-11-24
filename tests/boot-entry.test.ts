@@ -33,11 +33,12 @@ function staticGraph(entry: string): Map<string, string | null> {
   return seen;
 }
 const graph = staticGraph('src/main.tsx');
+const BOOT_SOURCE_CEILING = 7700 * 1024, BOOT_FILES_CEILING = 1010;   // (24 Nov 2026: 966 files, 7387 kB, a little room)
 const files = [...graph.keys()].map((f) => relative(root, f).split('\\').join('/'));
 const chain = (f: string) => { const out: string[] = []; let c: string | null | undefined = resolve(root, f); while (c) { out.push(relative(root, c)); c = graph.get(c); } return out.join(' <- '); };
 
 test('the walk sees the app (it is not vacuous)', () => {
-  for (const f of ['src/App.tsx', 'src/scene/Stage.tsx', 'src/ui/shell/Shell.tsx', 'src/engine/boot.ts', 'src/pwa/register.ts', 'src/ui/cards/CardLayer.tsx', 'src/ui/talk/ToolCard.tsx', 'src/ui/shell/talk.ts']) assert.ok(files.includes(f), `${f} is in the boot entry`);
+  for (const f of ['src/App.tsx', 'src/scene/Stage.tsx', 'src/ui/shell/Shell.tsx', 'src/engine/boot.ts', 'src/pwa/register.ts', 'src/ui/shell/DeckUiSlot.tsx', 'src/ui/shell/talk.ts', 'src/ui/shell/Sheets.tsx']) assert.ok(files.includes(f), `${f} is in the boot entry`);
 });
 
 test('the boot entry does not statically import the debug pages, the charts gallery, the parity page or the chart registry', () => {
@@ -93,6 +94,34 @@ test('a talk\'s charts are a chunk of their own: the card layer mounts a shell, 
   assert.equal(toolCardReady(), false);
   const [a, b] = await Promise.all([loadToolCard(() => { reads++; return Promise.resolve({ ToolCard: Fake }); }), loadToolCard(() => { reads++; return Promise.resolve({ ToolCard: Fake }); })]);
   assert.deepEqual([a, b, reads, toolCardReady()], [true, true, 2, true]);
+});
+
+test('the talk\'s own UI (DeckUi: the cards, the wallet, the presenter pill) is a chunk of its own: not in the boot entry, read in when idle, and a talk opens once it is in', async () => {
+  for (const f of ['src/ui/DeckUi.tsx', 'src/ui/cards/CardLayer.tsx', 'src/ui/talk/ToolCard.tsx']) assert.ok(!files.includes(f), `${f} is in the boot entry: ${chain(f)}`);
+  const load = readFileSync(resolve(root, 'src/ui/shell/deck-ui-load.ts'), 'utf8');
+  assert.match(load, /import\('\.\.\/DeckUi\.tsx'\)/);
+  assert.doesNotMatch(load, /^import[^\n]*DeckUi/m);
+  const talk = readFileSync(resolve(root, 'src/ui/shell/talk.ts'), 'utf8');
+  assert.ok(talk.indexOf('loadDeckUi()') > 0 && talk.indexOf('loadDeckUi()') < talk.indexOf('openDeck(deck, at)'), 'the talk opens after its UI is in');
+  assert.match(readFileSync(resolve(root, 'src/boot/warm.ts'), 'utf8'), /loadDeckUi\(\)/);
+  const loader = await import('../src/ui/shell/deck-ui-load.ts');
+  loader.resetDeckUi();
+  let reads = 0;
+  const Fake = () => null;
+  assert.equal(await loader.loadDeckUi(() => { reads++; return Promise.reject(new Error('offline')); }), false, 'a read that fails never rejects');
+  assert.equal(loader.deckUiReady(), false);
+  const [a, b] = await Promise.all([loader.loadDeckUi(() => { reads++; return Promise.resolve({ DeckUi: Fake }); }), loader.loadDeckUi(() => { reads++; return Promise.resolve({ DeckUi: Fake }); })]);
+  assert.deepEqual([a, b, loader.deckUiReady(), loader.deckUi() === Fake], [true, true, true, true]);
+  assert.ok(reads >= 2 && reads <= 5, `one read once it is in (${reads})`);
+  loader.resetDeckUi();
+});
+
+test('the boot entry stays within its source budget (the code a normal load downloads, parses and runs before the first picture)', () => {
+  // Source bytes of every file in the static walk (comments included, so a ceiling, not a build size). 24 Nov 2026: the talk's UI left it (DeckUi and what only it reads: 1099 files became 966, the boot's JavaScript 1405 to 1291 kB gzipped).
+  // A change that makes this fail has pulled something in that the first picture does not draw: load it with a dynamic import (ui/shell/deck-ui-load.ts is the pattern) or raise the ceiling in the same change, with the reason.
+  const bytes = files.reduce((n, f) => n + statSync(resolve(root, f)).size, 0);
+  assert.ok(bytes < BOOT_SOURCE_CEILING, `the boot entry is ${(bytes / 1024).toFixed(0)} kB of source (ceiling ${(BOOT_SOURCE_CEILING / 1024).toFixed(0)} kB): ${files.length} files`);
+  assert.ok(files.length < BOOT_FILES_CEILING, `${files.length} files in the boot entry (ceiling ${BOOT_FILES_CEILING})`);
 });
 
 test('the libraries are chunks of their own, so the boot entry is the app and their files keep their names across deploys', async () => {

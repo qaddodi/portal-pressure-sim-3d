@@ -69,6 +69,8 @@ async function route() {
   // The simulation's worker starts now, on its own thread, while the app's code downloads and the main thread builds the scene (src/engine/pool.ts early): the first patient is computed beside them, not after them. A part
   // that cannot be fetched or a worker that cannot start is not this call's to report: the app's own boot (bootEngine) asks for the worker again and says why.
   void import('./engine/pool.ts').then((m) => m.enginePool.early()).catch(() => undefined);
+  // A link to a talk (?script=) opens it right after the first picture: its UI is a chunk of its own (ui/shell/deck-ui-load.ts), fetched now beside the app's code, not after it. Any other load reads it in when idle (boot/warm.ts).
+  if (new URLSearchParams(location.search).has('script')) void import('./ui/shell/deck-ui-load.ts').then((m) => m.loadDeckUi()).catch(() => undefined);
   await import('./main.tsx');   // the app: its first lines of code run when this resolves
 }
 route().catch((e) => {

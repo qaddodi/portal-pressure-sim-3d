@@ -1,5 +1,5 @@
 // The UI layer above the stage. Free play: the top bar, the view pills, the play bar and the zoom group (a laptop or an iPad on its side), or the top bar, the view row,
-// the play bar and the bottom bar (a phone or an upright iPad), with the 2D app's words and behaviour. A talk: its own cards, wallet and presenter pill (src/ui/DeckUi.tsx).
+// the play bar and the bottom bar (a phone or an upright iPad), with the 2D app's words and behaviour. A talk: its own cards, wallet and presenter pill (src/ui/DeckUi.tsx, its own chunk: ui/shell/deck-ui-load.ts).
 // The sheets, the toast and the diagnostics are the same in both.
 import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { fadeChrome } from './deck-fade.ts';
@@ -8,7 +8,7 @@ import './chrome-3d.css';
 import './menu-motion.css';
 import './tap-cells.css';
 import { restoreFocus } from './talk-focus.ts';
-import { DeckUi } from '../DeckUi.tsx';
+import { DeckUiSlot } from './DeckUiSlot.tsx';
 import { useUi } from '../ui-store.ts';
 import { useShell } from './store.ts';
 import { TopBar } from './TopBar.tsx';
@@ -156,7 +156,7 @@ export function Shell() {
   usePublishedLayout(appRef, thumb);
   return (
     <>
-      {mode === 'deck' && <DeckUi />}
+      {mode === 'deck' && <DeckUiSlot />}
       <div className="sh-root" data-device={device} data-bottom={thumb} data-mode={mode} style={METRICS}>
         <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
         <div className={`app${thumb ? ' thumb' : ''}${view === 'sinusoid' ? ' sin-focus' : ''}${sheetUp ? ' menu-sheet-open' : ''}${cardOver ? ' ac-over-pill' : ''}${chartUp ? ' bt-up' : ''}${testsCls}`} id="app" ref={appRef} inert={mode === 'deck'}>

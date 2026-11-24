@@ -10,6 +10,8 @@ import type { Deck } from '../../decks/schema.ts';
 import { rememberFocus } from './talk-focus.ts';
 import { captureSaved, restoreSaved, type Saved } from '../talk/deck-model.ts';
 import { loadToolCard, toolCardReady } from '../talk/tool-card-load.ts';
+import { loadDeckUi, deckUiReady, deckUiFailure } from './deck-ui-load.ts';
+import { chunkProblem } from '../../boot/lazy-retry.ts';
 import { coverUp, coverDown } from './curtain.ts';
 import { dipIn, dipOut } from './figure-dip.ts';
 import { onLanded } from '../deck/landing.ts';
@@ -36,6 +38,8 @@ export function startTalk(deckId: string, at = 0): boolean {
   return openById(deckId, at, { open: show, fail: () => useShell.getState().say(W.notFound, 'bad') });
 }
 function show(deck: Deck, at: number): void {
+  // the talk's own UI is a chunk of its own (deck-ui-load.ts; the idle ladder has usually read it in): the talk opens once it is in, so the slot mounts it in the commit that opens the deck. Out of reach after three tries, it says so in words.
+  if (!deckUiReady()) { void loadDeckUi().then((ok) => { if (ok) show(deck, at); else useShell.getState().say(chunkProblem(deckUiFailure()).text, 'bad'); }); return; }
   // a talk's charts are their own chunk (ui/talk/ToolCard.tsx): the talk opens once they are in, so no slide's card shows before its chart can draw
   // (asked once: where they cannot be fetched the talk still opens, and a card asks again when it mounts)
   if (!toolCardReady() && !chartsAsked) { chartsAsked = true; void loadToolCard().then(() => show(deck, at)); return; }
