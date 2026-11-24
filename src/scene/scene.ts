@@ -72,7 +72,8 @@ import { addOrganHalos, programPrototypes } from './materials/prototypes.ts';
 import { type LookId, PALETTES, type Palette } from './palette.ts';
 import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
-import { latest, live, patient, shownParams } from '../engine/store.ts';
+import type { latest } from '../engine/store.ts';
+import { liveSource, type ModelSource } from './model-source.ts';
 import { x2d, x3, y3 } from './frame2d.ts';
 import { type FigureHit, organHit } from './organs/pick.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
@@ -172,6 +173,8 @@ export interface SceneOptions {
   reduceMotion?: boolean;
   /** Which junction method to draw (vessels/skin/joins-mode.ts): the page's `?joins` and the default when left out. A test hands one in. */
   joins?: JoinsMode;
+  /** Where the patient is read from: the engine's shared state by default; the split orbit's second figure hands in its own (model-source.ts). */
+  source?: ModelSource;
 }
 
 /** A fork's two tubes know each other (vessels/neighbour.ts): `nbr` on every vertex. */
@@ -377,11 +380,14 @@ export class CelScene {
   private look: LookId;
   private phone: boolean;
   private lastNow = -1;
+  /** Where this scene reads its patient from. */
+  readonly src: ModelSource;
   private width = 1;
   private height = 1;
   private moving = true; // the first frame always draws
 
   constructor(opts: SceneOptions = {}) {
+    this.src = opts.source ?? liveSource;
     this.look = opts.look ?? 'light';
     this.joins = opts.joins ?? joinsMode();
     this.phone = !!opts.phone;
@@ -435,7 +441,7 @@ export class CelScene {
         o.group.updateWorldMatrix(true, false);
         return edgeOnLine(maskOf(o.toonMesh.geometry), o.group.matrixWorld, anchor, aim, out);
       },
-      kpa: (organ) => { const m = latest.frame?.metrics as Record<string, number | null | undefined> | undefined; return m?.[organ === 'spleen' ? 'ssm' : 'lsm'] ?? null; },
+      kpa: (organ) => { const m = this.src.frame()?.metrics as Record<string, number | null | undefined> | undefined; return m?.[organ === 'spleen' ? 'ssm' : 'lsm'] ?? null; },
       eus: () => { const pl = this.procs.playing; return pl && pl.kind === 'eus' ? this.procs.frame as unknown as EusDrive : null; },
       screen: {
         project: (p, out) => this.rig.project(this.body.localToWorld(p.clone()), out),
@@ -528,7 +534,7 @@ export class CelScene {
       endsChanged: () => { this.applyMates(); },   // (a rebuild that failed or came back: the mates and burial of its ends follow)
     });
     this.skins.build(phase);
-    this.sutures ??= new SutureSet({ add: (o) => { this.body.add(o); }, remove: (o) => { this.body.remove(o); }, side: () => !!(shownParams() as { portocavalSide?: boolean } | null)?.portocavalSide });
+    this.sutures ??= new SutureSet({ add: (o) => { this.body.add(o); }, remove: (o) => { this.body.remove(o); }, side: () => !!(this.src.shown() as { portocavalSide?: boolean } | null)?.portocavalSide });
     this.sutures.sync(this.skins);   // (made with the skins, so the warm-up builds the program with the rest)
     this.shapes?.setPins(this.skins.pins());   // (the seams stand still while the collaterals coil: no skin is rebuilt for a growth)
     this.circuitSkins ??= new CircuitSkinSet({
@@ -722,14 +728,14 @@ export class CelScene {
 
   /** Call after the texture's data changed, so the next frame draws. */
   dataChanged(): void {
-    const f = latest.frame;
+    const f = this.src.frame();
     this.lens.onFrame(f, !!f?.jump && this.sawFrame, clock.now());   // (a new patient: the colours glide from the old patient's)
     this.blood.streams.onFrame(f);
     if (f) { this.syncPresence(f, !this.sawFrame); this.feedDisease(f, !this.sawFrame); }
     if (this.procs.setLive((f as { D?: ArrayLike<number> } | null)?.D ?? null)) this.moving = true;   // (the catheters follow the veins' live width)
-    this.procs.syncStents(f, shownParams(), f ? !this.sawFrame : false);
+    this.procs.syncStents(f, this.src.shown(), f ? !this.sawFrame : false);
     this.procs.syncBands((f as { bands?: number } | null)?.bands ?? 0, f ? !this.sawFrame : false);
-    this.procs.syncTamponade(shownParams() as never, f ? !this.sawFrame : false);
+    this.procs.syncTamponade(this.src.shown() as never, f ? !this.sawFrame : false);
     this.sawFrame = !!f;
     this.syncCircuitData(f);
     // A new patient's numbers that arrive while the camera is in flight (the slide's zoom into the lobule or the sinusoid) are laid at once: the views are dissolved or far then, and an ease
@@ -741,7 +747,7 @@ export class CelScene {
 
   /** The patient's disease into the organ and disease layers (src/scene/disease/): the newest frame, the patient's parameters, the healthy pressures. */
   private feedDisease(f: NonNullable<typeof latest.frame>, first: boolean): void {
-    this.disease.feed(f as never, (shownParams() ?? null) as DiseaseParams | null, (patient.reference?.P as ArrayLike<number> | undefined) ?? null, {
+    this.disease.feed(f as never, (this.src.shown() ?? null) as DiseaseParams | null, (this.src.reference()?.P as ArrayLike<number> | undefined) ?? null, {
       instant: first,   // (a new patient eases: the organs, the disease and the collaterals glide from the old patient to the new, never swap; only the very first frame is at once)
       presence: (id) => (this.presence.isDrawn(id) ? 1 : 0),
       recruit: (id, fr) => recruitFrac(id, fr as never),
@@ -785,11 +791,11 @@ export class CelScene {
     if (!d) return false;
     const presence = this.presence as PresenceTracks | undefined;   // (the skins are first built in the constructor, before the presence tracks are: nothing is drawn yet)
     if (!presence) return false;
-    const side = !!(shownParams() as { portocavalSide?: boolean } | null)?.portocavalSide;
+    const side = !!(this.src.shown() as { portocavalSide?: boolean } | null)?.portocavalSide;
     return stumpOf(shunt, d[1], presence.amountOf(shunt), d[1] === PV_START && side)[2] > 0;
   }
   private syncStumps(): void {
-    const side = !!(shownParams() as { portocavalSide?: boolean } | null)?.portocavalSide;
+    const side = !!(this.src.shown() as { portocavalSide?: boolean } | null)?.portocavalSide;
     for (const [shunt, vein] of DIVIDED) {
       const o = this.byEdge.get(vein) as VesselObject | undefined;
       if (!o) continue;
@@ -809,13 +815,13 @@ export class CelScene {
    *  (twice the healthy flow to four times, feederLive 'caudate'); a stent through the lobe (the DIPS) takes the veins' place, the lobe stays alone. */
   setCaudate(lobe: boolean, veins: boolean): void {
     this.caudLobe = lobe; this.caudVeins = veins;
-    if (latest.frame) this.syncCaudate(latest.frame, false);
+    { const f = this.src.frame(); if (f) this.syncCaudate(f, false); }
     this.moving = true; clock.invalidate('caudate');
   }
   private caudLobe = false; private caudVeins = false;
   private syncCaudate(f: NonNullable<typeof latest.frame>, instant: boolean): void {
     const live = feederLive({ host: 'CAUD', when: 'caudate' }, f, this.healthyQ);
-    const shown = caudateShownFor(live, (patient.params ?? null) as DiseaseParams | null, { lobe: this.caudLobe, veins: this.caudVeins });   // (a slide's pin, or the disease: Budd-Chiari, the IVC web; eased on the same 0 to 1)
+    const shown = caudateShownFor(live, (this.src.params() ?? null) as DiseaseParams | null, { lobe: this.caudLobe, veins: this.caudVeins });   // (a slide's pin, or the disease: Budd-Chiari, the IVC web; eased on the same 0 to 1)
     this.disease.organs.setCaudate(shown.lobe, live, instant);
     this.feeders.set(CAUDATE_VEIN_ID, shown.lobe && shown.veins && this.presence.stateOf('DIPS') !== 'shown' ? 1 : 0, instant);
   }
@@ -845,7 +851,7 @@ export class CelScene {
     this.blood.streams.setHealthy(h);
     this.healthyP = Float32Array.from(h.P); this.lobule.setReference(this.healthyP); this.feedSinusInk();
     this.healthyQ = h.Q;
-    if (latest.frame) this.syncPresence(latest.frame, false);
+    { const f = this.src.frame(); if (f) this.syncPresence(f, false); }
     this.moving = true;
   }
   /** Count Change and Congestion from a pinned moment's node pressures (Compare > Change), or from the healthy patient again (null). */
@@ -860,7 +866,7 @@ export class CelScene {
     if (o.keyStreaks !== undefined) this.blood.routes.setKeyOnly(o.keyStreaks);
     if (o.collaterals !== undefined && o.collaterals !== this.collateralsOn) {
       this.collateralsOn = o.collaterals;
-      if (latest.frame) this.syncPresence(latest.frame, false);
+      { const f = this.src.frame(); if (f) this.syncPresence(f, false); }
     }
     const patch: Partial<BloodOptions> = {};
     if (o.chevrons !== undefined) patch.chevrons = o.chevrons;
@@ -1007,7 +1013,7 @@ export class CelScene {
   setView(v: FigureView, now = clock.now()): void {
     const wasCircuit = this.figureView === 'circuit', wasSinusoid = this.figureView === 'sinusoid';
     this.figureView = v;
-    if (wasCircuit !== (v === 'circuit') && latest.frame) this.syncPresence(latest.frame, false);   // (the liver's beds are drawn on the map only: they draw on as the body turns into it, and draw back as it returns)
+    { const f = this.src.frame(); if (wasCircuit !== (v === 'circuit') && f) this.syncPresence(f, false); }   // (the liver's beds are drawn on the map only: they draw on as the body turns into it, and draw back as it returns)
     this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox() as Vec3[]) : null);
     // the view being left stays drawn until the camera has landed on the new one (nothing pops while it flies); then it is hidden
     this.body.visible ||= v === 'body' || v === 'circuit';
@@ -1042,7 +1048,7 @@ export class CelScene {
   /** The resistors a slide asks for ('rLiver', 'rColl', 'rGut'): their zigzags and readings show on the map. An empty list clears them. */
   setResistors(keys: readonly ResKey[]): void {
     this.resWant = new Set(keys);
-    this.syncCircuitData(latest.frame);
+    this.syncCircuitData(this.src.frame());
     this.moving = true;
   }
   /** A slide is about the caudate lobe: the caudate's own lane shows in the Circuit (2D: stage-outlines.js pinOrgans). */
@@ -1051,11 +1057,11 @@ export class CelScene {
   get resistorsNow(): Readonly<Partial<Record<ResKey, number>>> { return this.resNow; }
   /** The engine's newest frame into the map's own parts: the resistors' ratios, and the custom shunts that are open (routed once each). */
   private syncCircuitData(f: typeof latest.frame): void {
-    const healthy = patient.reference ? { P: patient.reference.P, Q: patient.reference.Q } : null;
+    const ref = this.src.reference(), healthy = ref ? { P: ref.P, Q: ref.Q } : null;
     const next: Partial<Record<ResKey, number>> = {};
-    if (f && healthy) for (const key of this.resWant) { const r = resRatio(RES_KINDS[key], { P: f.Pf ?? f.P, Q: f.Qf ?? f.Q }, healthy, shownParams()); if (r != null) next[key] = r; }
+    if (f && healthy) for (const key of this.resWant) { const r = resRatio(RES_KINDS[key], { P: f.Pf ?? f.P, Q: f.Qf ?? f.Q }, healthy, this.src.shown()); if (r != null) next[key] = r; }
     this.resNow = next;
-    const cs = ((shownParams() as { customShunts?: Record<string, number> } | null)?.customShunts) ?? {};
+    const cs = ((this.src.shown() as { customShunts?: Record<string, number> } | null)?.customShunts) ?? {};
     const open: Record<string, number> = {};
     for (const id of Object.keys(cs)) if (cs[id]! > 0 && (!f || !hasVessel(id) || (f.D[indexOf(id)] ?? 0) > 0)) open[id] = cs[id]!;
     this.openShunts = open;
@@ -1234,15 +1240,15 @@ export class CelScene {
   /** The hidden views take the patient's state before the priming pass: it builds what the first shown frame would, and the first shown frame (feedViews snaps the same model) then finds every key unchanged. Before,
    *  the priming saw the views' default state and the entry's frame rebuilt the cells, the wall's colours and the tail for the patient's (tens of ms on a laptop, a stall on an iPhone). */
   private snapMicroToModel(): void {
-    const f = latest.frame;
+    const f = this.src.frame();
     if (!f) return;
-    const m = lobuleModel({ P: f.Pf ?? f.P, Q: f.Qf ?? f.Q, params: shownParams() ?? undefined, metrics: f.metrics }, patient.reference, shownParams());   // (the shown pressures and flows, as every reading is: not the instant's beat)
+    const m = lobuleModel({ P: f.Pf ?? f.P, Q: f.Qf ?? f.Q, params: this.src.shown() ?? undefined, metrics: f.metrics }, this.src.reference(), this.src.shown());   // (the shown pressures and flows, as every reading is: not the instant's beat)
     this.lobule.snapModel(m); this.sinus.snapTargets(sinusoidTargets(m)); this.feedSinusInk();
   }
   private feedViews(snap: boolean): void {
-    const f = latest.frame;
+    const f = this.src.frame();
     if (!f) return;
-    const m = lobuleModel({ P: f.Pf ?? f.P, Q: f.Qf ?? f.Q, params: shownParams() ?? undefined, metrics: f.metrics }, patient.reference, shownParams());
+    const m = lobuleModel({ P: f.Pf ?? f.P, Q: f.Qf ?? f.Q, params: this.src.shown() ?? undefined, metrics: f.metrics }, this.src.reference(), this.src.shown());
     if (this.figureView === 'lobule') snap ? this.lobule.snapModel(m) : this.lobule.setModel(m);
     else if (this.figureView === 'sinusoid') {
       snap ? this.sinus.snapTargets(sinusoidTargets(m)) : this.sinus.setTargets(sinusoidTargets(m));
@@ -1427,7 +1433,7 @@ export class CelScene {
       { id: 'flow', step: (c) => {
         const { now, dt } = c;
         this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
-        this.flowRate.step(dt / 1000, flowTarget(live.frame?.running));   // (Pause and Play ease the visible flow, 0.5 s each way; the model's own numbers pause at once)
+        this.flowRate.step(dt / 1000, flowTarget(this.src.liveFrame()?.running));   // (Pause and Play ease the visible flow, 0.5 s each way; the model's own numbers pause at once)
         // ONE GATE for the flow marks during procedures: while any procedure is on the figure (a catheter's run or its held step, the scope) the chevrons and the streaks ease out, and back when it ends
         c.procQuiet = this.procs.busy || !!this.probes.scope.driven;
         if (c.procQuiet !== this.procQuietWas) { this.procQuietWas = c.procQuiet; this.flow.setOptions({ quiet: c.procQuiet }); }
