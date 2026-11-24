@@ -210,3 +210,19 @@ test('strokes fold into a grid: nothing dropped, same shape, cost independent of
   const map = organPointMap(edit, c, b)!;
   for (let i = 0; i < p.length; i += 300) { const q = map([r[i]!, r[i + 1]!, r[i + 2]!]); assert.ok(Math.hypot(q[0] - p[i]!, q[1] - p[i + 1]!, q[2] - p[i + 2]!) < 1e-5); }
 });
+
+test('boot cost: a long stroke list is read once through the grid, and a baked file has no strokes to pay for', async () => {
+  const { resolveEdit, bakeOverrides } = await import('../src/editor/organ-apply.ts');
+  const strokes = Array.from({ length: 400 }, (_, i) => ({ at: [i * 0.001, 0, 0] as [number, number, number], radius: 0.1, by: [0.01, 0, 0] as [number, number, number] }));
+  const edit = { strokes };
+  const a = resolveEdit(edit);
+  assert.equal(a, resolveEdit(edit), 'folded once per edit object');
+  assert.equal(a.strokes, undefined);
+  const baked = bakeOverrides({ version: 1, organs: { liver: edit, spleen: { move: [0.01, 0, 0] } } });
+  assert.equal(baked.organs!.liver!.strokes, undefined);
+  assert.ok(baked.organs!.liver!.grid);
+  assert.equal(baked.organs!.spleen!.grid, undefined);
+  assert.ok(JSON.stringify(baked).length < 400_000, 'the baked grid stays small');
+  const short = { strokes: strokes.slice(0, 3) };
+  assert.equal(resolveEdit(short), short);
+});

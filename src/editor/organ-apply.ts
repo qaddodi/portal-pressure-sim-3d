@@ -4,7 +4,7 @@
 // Normals, and the baked smoothed normals (shadeN, hullN) when the geometry has them, are recomputed. An empty edit touches nothing (identical buffers).
 import { type BufferGeometry, Float32BufferAttribute } from 'three';
 import { smoothRestNormals } from '../scene/organs/normal-smooth.ts';
-import { CAGE_LIMIT, CAGE_PAD, FOLD_AT, GRID_LIMIT, GRID_N, LIQUIFY_LIMIT, ORGAN_LIMITS, type Cage, type Grid, type OrganEdit, type V3 } from './types.ts';
+import { CAGE_LIMIT, CAGE_PAD, FOLD_AT, GRID_LIMIT, GRID_N, LIQUIFY_LIMIT, ORGAN_LIMITS, type Cage, type Grid, type OrganEdit, type Overrides, type V3 } from './types.ts';
 
 const SHADE_PASSES = 6;   // (prepare.ts SHADE_PASSES; not imported: prepare.ts imports the layer, which imports the meshes, which import this)
 const fin = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
@@ -94,6 +94,13 @@ export function foldStrokes(edit: OrganEdit): OrganEdit {
   }
   const { strokes: _s, ...rest } = edit;
   return { ...rest, ...(any ? { grid: { n: [n, n, n] as const, lo: [lo[0]!, lo[1]!, lo[2]!] as V3, hi: [hi[0]!, hi[1]!, hi[2]!] as V3, d } } : { grid: undefined }) };
+}
+/** The overrides as Save and Export should write them: every organ's strokes folded into its grid, so a page that loads the file pays a fixed cost per vertex and no per-stroke pass (audit 22). */
+export function bakeOverrides(o: Overrides): Overrides {
+  if (!o.organs) return o;
+  const organs: Record<string, OrganEdit> = {};
+  for (const [id, e] of Object.entries(o.organs)) organs[id] = e.strokes?.length ? foldStrokes(e) : e;
+  return { ...o, organs };
 }
 const folded = new WeakMap<OrganEdit, OrganEdit>();
 /** The edit as the apply reads it: a long stroke list becomes a grid (once per edit object), a short one stays exact. */
