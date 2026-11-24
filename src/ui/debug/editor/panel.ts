@@ -314,7 +314,7 @@ export function mountEditor(): void {
       sync(); return;
     }
     if (tool === 'cage' && selOrgan) {   // (a handle first: it sits over the organ)
-      const hs = cageHandles(selOrgan), i = nearest(hs.map((h) => screenOf(h)), x, y, HIT_PX);
+      const hs = cageHandles(selOrgan), i = nearest(hs.map((h) => screenOf(h)), x, y, hitR);
       if (i >= 0) { drag = { kind: 'cage', id: selOrgan, idx: i, from: ndc, through: toWorld(hs[i]!), start: cageOffset(hist.now, selOrgan, i), marked: false }; sync(); return; }
     }
     const hit = organAt(ndc);
