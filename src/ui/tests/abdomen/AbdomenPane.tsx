@@ -84,7 +84,7 @@ export function AbdomenPane({ square }: { square?: number }) {
                 <div className="ab-big">
                   <b data-sev={v.sev}><span>{v.num}</span><small>L</small></b>
                   <span className="ab-grade" data-sev={v.sev} title={v.gradeTip}>{v.grade}</span>
-                  <span className="ab-rate" data-dir={v.rateDir}><i className="ab-rate-a" aria-hidden="true">{v.rate ? RATE_ARROW[v.rateDir] : ''}</i><span>{v.rate}</span></span>
+                  <span className="ab-rate" data-dir={v.rateDir} data-refill={v.rate.startsWith('Refilling') ? '' : undefined}><i className="ab-rate-a" aria-hidden="true">{v.rate ? RATE_ARROW[v.rateDir] : ''}</i><span>{v.rate}</span></span>
                 </div>
               </div>
               <div className="ab-dial-box svg-gl-box" title={WORDS.dialTip}>

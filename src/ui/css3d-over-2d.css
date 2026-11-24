@@ -182,3 +182,9 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 
 /* A tile's second line ("Below 12 mmHg reference") wraps inside the tile when the tile is narrower than it (iPhone on its side: the line ran out past the tile's left edge); it is never cut or let out. */
 .deck-ui.pz .pz-data .pz-tiles .pz-tile :is(.pzt-r, .pzt-d) { white-space: normal; text-wrap: balance; overflow-wrap: anywhere; max-width: 100%; text-align: center; }
+
+/* Ascites capture 572259fd. An empty belly that is refilling reads "Refilling 3,900 mL/day": too long for one line inside the ring ("Refilling 3,900 mL/da" ran out of it, Ascites 13.5).
+   It breaks after "Refilling" (the number and unit are joined by a no-break space), centred, inside the ring. */
+.ab .ab-belly > .ab-big > .ab-rate[data-refill] { display: block; width: auto; max-width: 100%; white-space: normal; text-align: center; border-radius: .7em; }
+/* A counter that has stopped is read as words: the tabular "1" of "14 days later" stood apart from its "4" as "1 4" (Ascites 14). */
+.pz-lapse.done { font-variant-numeric: proportional-nums; }

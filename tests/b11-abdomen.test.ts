@@ -77,7 +77,7 @@ test('every label this pane writes is in the 2D source word for word (checked wh
 });
 
 test('an emptied belly that is refilling says so: the balance is never a bare number under "None, 0.0 L"', () => {
-  assert.equal(rateText(2100, false), 'Refilling 2,100 mL/day');
+  assert.equal(rateText(2100, false), 'Refilling 2,100\u00a0mL/day');
   assert.equal(rateText(2100, true), '2,100 mL/day');
   assert.equal(rateText(-300, false), '300 mL/day');
   assert.equal(rateText(0, false), 'Steady');

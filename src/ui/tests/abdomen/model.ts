@@ -35,7 +35,7 @@ export interface AbView {
 }
 
 /** The daily balance in words. An empty belly (nothing to tap) with a rising balance is "Refilling": a bare "▲2,100 mL/day" under "None, 0.0 L" would read as fluid that is there. */
-export const rateText = (b: number | null, tapped: boolean): string => (b == null ? '' : b === 0 ? 'Steady' : `${b > 0 && !tapped ? 'Refilling ' : ''}${fmtG(Math.abs(b), 0)} mL/day`);
+export const rateText = (b: number | null, tapped: boolean): string => (b == null ? '' : b === 0 ? 'Steady' : b > 0 && !tapped ? `Refilling ${fmtG(Math.abs(b), 0)}\u00a0mL/day` : `${fmtG(Math.abs(b), 0)} mL/day`);
 
 /** The pane's readings from a frame's metrics and the patient's settings (2D createAbdomen update). `rate` is the held balance (balance-hold.js), or null before one. */
 export function abView(m: M, params: M, held: number | null): AbView | null {
