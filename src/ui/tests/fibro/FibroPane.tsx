@@ -5,7 +5,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clock } from '../../../clock/frame.ts';
 import { latest, useEngine } from '../../../engine/index.ts';
-import { lsmContext } from '../../../engine/hales/portal/lsm-cuts.js';
 import { Chart, type ChartCtx } from '../../charts/Chart.tsx';
 import type { ChartPainter } from '../../charts/painter.ts';
 import { onZoomK } from '../../cards/zoom-k.ts';
@@ -13,7 +12,8 @@ import { StiffCard } from '../../charts/stiff/StiffCard.tsx';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { useTests } from '../store.ts';
 import { metricsOf } from '../frame.ts';
-import { useSlidePin, pinnedStiff } from '../slide/pin.ts';
+import { ctxOf } from './ctx.ts';
+import { useSlidePin, pinnedStiff, slideFp } from '../slide/pin.ts';
 import { RATE } from '../copied/table-marks.copied.js';
 import { fix1 } from '../copied/num.copied.js';
 import { fibroscanLabel } from '../copied/instrument-aria.copied.js';
@@ -46,7 +46,7 @@ function readingNow(slide = false): Reading {
   const lsm = pl ?? (Number.isFinite(m?.lsm) ? (m.lsm as number) : null), ssm = ps ?? (Number.isFinite(m?.ssm) ? (m.ssm as number) : null);
   const plt = Number.isFinite(m?.spleen?.platelets) ? (m.spleen.platelets as number) : null;
   return {
-    lsm, ssm, plt, ctx: m ? (lsmContext(m) as Reading['ctx']) : null,
+    lsm, ssm, plt, ctx: ctxOf(slide ? slideFp() : null, m),
     word: { liver: lsm == null ? '' : (RATE.lsm(lsm, m) as string[])[1] ?? '', spleen: ssm == null ? '' : (RATE.ssm(ssm, m) as string[])[1] ?? '' },
   };
 }
