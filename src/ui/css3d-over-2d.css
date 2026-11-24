@@ -218,3 +218,7 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 
 /* The catheter's pressure readout is proportional too: a tabular "1" is a cell wider than its ink ("1 4.3"), capture a47f69ea. Important: the lifted sheet's `* { tabular-nums !important }`. */
 .cath-label.cath-label b { font-variant-numeric: lining-nums proportional-nums !important; }
+
+/* A data tile's number, its rating's words and the callout labels on the figure are proportional: a tabular "1" is a cell wider than its ink ("1 00 /min", "Below 1 2 mmHg", "Fundal varices 21 .2"), capture cfd1b272. Important: the lifted sheet's `* { tabular-nums !important }`. */
+.deck-ui.pz .pz-data .pz-tile :is(.pzt-v, .pzt-r, .pzt-d, .pzt-bar), .deck-ui.pz .pz-data .pz-tile :is(.pzt-v, .pzt-r, .pzt-d, .pzt-bar) * { font-variant-numeric: lining-nums proportional-nums !important; }
+.cl.cl, .cl.cl * { font-variant-numeric: lining-nums proportional-nums !important; }

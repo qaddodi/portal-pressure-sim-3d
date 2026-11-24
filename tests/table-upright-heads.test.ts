@@ -22,3 +22,9 @@ test('a signed change is proportional, and an equation sign is infix (slides 9.2
   assert.match(readFileSync('src/scene/labels/labels.css', 'utf8'), /\.lb \.lb-val, \.lb \.lb-delta, \.lb \.lb-alert \{ font-variant-numeric: proportional-nums/);
   assert.match(readFileSync('src/ui/cards/TeachingCard.tsx', 'utf8'), /<mspace width=\{SIGN_GAP\} \/><mo form="infix" lspace="0" rspace="0">/);
 });
+
+test('a tile reading, its rating words and a callout label are proportional (no gap after a 1: "1 00", "Below 1 2", "21 .2", capture cfd1b272)', () => {
+  const css = readFileSync('src/ui/css3d-over-2d.css', 'utf8');
+  assert.match(css, /\.pzt-v, \.pzt-r, \.pzt-d, \.pzt-bar\) \* \{ font-variant-numeric: lining-nums proportional-nums !important; \}/);
+  assert.match(css, /\.cl\.cl, \.cl\.cl \* \{ font-variant-numeric: lining-nums proportional-nums !important; \}/);
+});
