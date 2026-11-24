@@ -12,8 +12,8 @@ import { clearDraft, overrides, saveDraft } from '../../../editor/store.ts';
 import { ORGAN_LIMITS, type V3 } from '../../../editor/types.ts';
 import { Overlay } from './overlay.ts';
 import { dragDelta, ndcOf, nearest, nearestLine } from './picking.ts';
-import { skeleton, organIds, pointAt, type Skeleton } from './source.ts';
-import { History, PLAN_PER_SCENE, addStroke, clearStrokes, controlOf, exportText, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
+import { skeleton, organIds, pointAt, centroidOf, type Skeleton } from './source.ts';
+import { History, PLAN_PER_SCENE, dragToOffsets, toReference, addStroke, clearStrokes, controlOf, exportText, nodeOf, organOf, resetNode, resetOrgan, resetVessel, setControl, setNode, setOrgan } from './state.ts';
 
 type Mode = 'orbit' | 'vessels' | 'organs';
 type Target = { kind: 'node'; id: string } | { kind: 'ctrl'; vid: string; u: number };
@@ -25,7 +25,7 @@ export function mountEditor(): void {
   if (document.getElementById('editor-panel')) return;
   const hist = new History(loaded);
   const sk: Skeleton = skeleton();
-  const nodeById = new Map(sk.nodes.map((n) => [n.id, n])), vesselById = new Map(sk.vessels.map((v) => [v.id, v]));
+  const nodeById = new Map(sk.nodes.map((n) => [n.id, { id: n.id, at: n.pos, arms: n.arms }])), vesselById = new Map(sk.vessels.map((v) => [v.id, v]));
   const overlay = new Overlay();
   let mode: Mode = 'orbit', tool: 'move' | 'liquify' = 'move';
   let target: Target | null = null, selVessel: string | null = null, selOrgan: string | null = organIds()[0] ?? null;
@@ -255,7 +255,7 @@ export function mountEditor(): void {
       if (!drag.marked) { hist.mark(); drag.marked = true; }
       const w = dragDelta(cel.rig.camera, drag.through, drag.from, ndc);
       const d = toLocal(drag.through.clone().add(w)).sub(toLocal(drag.through));
-      const m = { dx: drag.start.dx + d.x * PLAN_PER_SCENE, dy: drag.start.dy - d.y * PLAN_PER_SCENE, dz: drag.start.dz };
+      const m = dragToOffsets(drag.start, d);
       edit(drag.t.kind === 'node' ? setNode(hist.now, drag.t.id, m) : setControl(hist.now, drag.t.vid, drag.t.u, m));
     } else if (drag.kind === 'organ') {
       if (!drag.marked) { hist.mark(); drag.marked = true; }
@@ -268,9 +268,9 @@ export function mountEditor(): void {
         if (!drag.marked) { hist.mark(); drag.marked = true; }
         const w = dragDelta(cel.rig.camera, drag.lastHit, drag.last, ndc);
         const by = toLocal(drag.lastHit.clone().add(w)).sub(toLocal(drag.lastHit)).multiplyScalar(strength);
-        const at = toLocal(hit.point), mv = organOf(hist.now, drag.id).move, ld = organOf(loaded, drag.id).move;
-        // (a stroke is in the organ's reference frame: take off what the draft has moved it since the build)
-        edit(addStroke(hist.now, drag.id, { at: [at.x - (mv[0] - ld[0]), at.y - (mv[1] - ld[1]), at.z - (mv[2] - ld[2])], radius, by: [by.x, by.y, by.z] }));
+        const hp = toLocal(hit.point), at = toReference([hp.x, hp.y, hp.z], loaded.organs?.[drag.id], centroidOf(drag.id));
+        // (a stroke is in the organ's reference frame, organ-apply.ts: the built mesh is the reference with the loaded edit on it, so undo that)
+        edit(addStroke(hist.now, drag.id, { at, radius, by: [by.x, by.y, by.z] }));
         drag.last = ndc; drag.lastHit = hit.point;
       }
     }

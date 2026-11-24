@@ -3,9 +3,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
-import { History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
+import { dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
 import { dragDelta, ndcOf, nearest, nearestLine } from '../src/ui/debug/editor/picking.ts';
 import { pointAt } from '../src/ui/debug/editor/source.ts';
+import { applyVesselOverrides } from '../src/editor/vessel-apply.ts';
+import { editableSkeleton } from '../src/editor/vessel-skeleton.ts';
+import { applyOrganEdit, organCentroid } from '../src/editor/organ-apply.ts';
+import { x2d, y2d, x3, y3 } from '../src/scene/frame2d.ts';
+import { BoxGeometry } from 'three';
 import { flagOn, knownFlags } from '../src/ui/debug/flags.ts';
 
 test('a node move is kept, and moving it back removes it', () => {
@@ -90,4 +95,36 @@ test('the editor flag is known and off without ?editor', () => {
   assert.ok(knownFlags().some((f) => f.id === 'editor' && f.gate === 'local'));
   assert.equal(flagOn('editor', '?perf'), false);
   assert.equal(flagOn('editor', '?editor'), true);
+});
+
+test('a drag round-trips: the handle moved on the screen plane puts the node (and every arm end there) at the handle', () => {
+  const sk = editableSkeleton();
+  const node = sk.nodes.find((n) => n.arms.length >= 2)!;
+  const cam = new PerspectiveCamera(30, 1, 0.1, 100); cam.position.set(0, 0, 5); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
+  const at = new Vector3(...node.pos);
+  const w = dragDelta(cam, at, ndcOf(500, 500, 1000, 1000), ndcOf(540, 470, 1000, 1000));   // (the body frame is the world here)
+  const o = setNode(EMPTY, node.id, dragToOffsets({ dx: 0, dy: 0, dz: 0 }, w));
+  for (const arm of node.arms) {
+    const v = sk.vessels.find((q) => q.id === arm.id)!;
+    const path = v.course.map((p): [number, number] => [x2d(p[0]), y2d(p[1])]);
+    const r = applyVesselOverrides({ id: v.id, from: v.from, to: v.to }, path, o).path;
+    const end = arm.end ? r[r.length - 1]! : r[0]!, was = v.course[arm.end ? v.course.length - 1 : 0]!;
+    assert.ok(Math.abs(x3(end[0]) - (was[0] + w.x)) < 1e-6 && Math.abs(y3(end[1]) - (was[1] + w.y)) < 1e-6, `${arm.id} end follows the handle`);
+  }
+});
+
+test('a control point dragged lands where the pointer put it (plan units, depth in scene units)', () => {
+  const d = dragToOffsets({ dx: 1, dy: 2, dz: 0.03 }, { x: 0.1, y: -0.2 });
+  assert.deepEqual(d, { dx: 31, dy: 62, dz: 0.03 });
+});
+
+test('a stroke written from a hit on the built organ lands on the same place in the reference frame', () => {
+  const ref = new BoxGeometry(1, 1, 1);
+  const c = organCentroid(ref), edit = { move: [0.05, -0.02, 0.01] as const, rotY: 0.2, scale: 1.1 };
+  const built = applyOrganEdit(ref.clone(), edit, { centroid: c });
+  const p = ref.getAttribute('position'), b = built.getAttribute('position');
+  for (const i of [0, 7, 13]) {
+    const back = toReference([b.getX(i), b.getY(i), b.getZ(i)], edit, c);
+    assert.ok(Math.hypot(back[0] - p.getX(i), back[1] - p.getY(i), back[2] - p.getZ(i)) < 1e-5);
+  }
 });

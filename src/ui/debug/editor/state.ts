@@ -99,3 +99,14 @@ export class History {
   undo(): boolean { const p = this.past.pop(); if (!p) return false; this.future.push(this.now); this.now = p; return true; }
   redo(): boolean { const f = this.future.pop(); if (!f) return false; this.past.push(this.now); this.now = f; return true; }
 }
+
+/** A drag's body-frame movement (scene units) added to an offset: x and y become plan units (y down), depth stays what the slider set. This is what vessel-apply.ts reads. */
+export function dragToOffsets(start: { dx: number; dy: number; dz: number }, d: { x: number; y: number }): { dx: number; dy: number; dz: number } {
+  return { dx: start.dx + d.x * PLAN_PER_SCENE, dy: start.dy - d.y * PLAN_PER_SCENE, dz: start.dz };
+}
+/** A point as built (the organ with the edit it was loaded with) back to the organ's reference frame, which is the frame a stroke is written in (organ-apply.ts: strokes first, then scale, turn about Y, move, all about the centroid). */
+export function toReference(p: V3, loadedEdit: OrganEdit | undefined, centroid: V3): V3 {
+  const e = clampOrgan(loadedEdit ?? {}), mv = e.move ?? [0, 0, 0], k = e.scale ?? 1, a = e.rotY ?? 0, cs = Math.cos(a), sn = Math.sin(a);
+  const u = p[0] - centroid[0] - mv[0], w = p[2] - centroid[2] - mv[2];
+  return [centroid[0] + (u * cs - w * sn) / k, centroid[1] + (p[1] - centroid[1] - mv[1]) / k, centroid[2] + (u * sn + w * cs) / k];
+}
