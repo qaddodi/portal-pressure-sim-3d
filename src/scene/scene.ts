@@ -6,7 +6,7 @@ import { whenQuiet, type QuietJob } from '../clock/idle.ts';
 import { anyMoving, lapTimer } from './any-moving.ts';
 import { runSystems, type FrameCtx, type FrameSystem } from './frame-systems.ts';
 import { Box3, type BufferAttribute, type BufferGeometry, Color, type DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, SphereGeometry, type Object3D, Plane,
-  Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+  Raycaster, Scene, Vector2, Vector3, WebGLRenderer, type WebGLRenderTarget } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from './anatomy/placeholder.ts';
 import { groundFor } from './ground.ts';
 import { MAPPED, NETWORK, NETWORK_BY_ID, type NetVessel, courseOf, feederLive, presenceOf, recruitFrac } from './vessels/network.ts';
@@ -39,7 +39,7 @@ import { BURY, SMOOTH } from './vessels/smooth-joins.ts';
 const CAVA_BURY = 0.9;
 /** The ascending lumbar collateral, drawn like the cava (fades.ts CAVA_LIKE) but named on its own. */
 const LUMBAR_ID = 'C9';
-import { flowRate, flowTarget } from './flow-rate.ts';
+import { FlowRate, flowRate, flowTarget } from './flow-rate.ts';
 import { useSettings } from '../state/settings.ts';
 import { FAINT_ONLY_LAYER, VesselObject, circuitWidth } from './vessels/vessel-object.ts';
 import { BACK_EDGES } from './vessels/paths.copied.ts';
@@ -74,6 +74,7 @@ import { EDGES } from '../engine/hales/portal/topology.js';
 import { TEXTURE_WIDTH, hasVessel, indexOf } from '../engine/vessel-data.ts';
 import type { latest } from '../engine/store.ts';
 import { liveSource, type ModelSource } from './model-source.ts';
+import { confine, splitRegions, type Region } from './twin/region.ts';
 import { x2d, x3, y3 } from './frame2d.ts';
 import { type FigureHit, organHit } from './organs/pick.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
@@ -218,7 +219,9 @@ export class CelScene {
   /** The blood's streams (the chevrons' distance, speed and reversed flag, from the 2D app's own stream model). */
   readonly blood = new BloodField();
   /** The flow's one eased rate (flow-rate.ts): every visible phase that rides the blood's distance advances by it. */
-  readonly flowRate = flowRate;
+  readonly flowRate: FlowRate;
+  /** A second figure (the split orbit's healthy liver, scene/twin): it reads its own patient and leaves the page's shared dust and flow rate to the page's scene. */
+  readonly twin: boolean;
   /** The lobule and sinusoid views (B8), built once, hidden until the view is chosen (setView). */
   /** The organs and the disease states on the figure (B4). */
   readonly disease: DiseaseLayer;
@@ -388,6 +391,8 @@ export class CelScene {
 
   constructor(opts: SceneOptions = {}) {
     this.src = opts.source ?? liveSource;
+    this.twin = !!opts.source;
+    this.flowRate = this.twin ? new FlowRate() : flowRate;
     this.look = opts.look ?? 'light';
     this.joins = opts.joins ?? joinsMode();
     this.phone = !!opts.phone;
@@ -463,8 +468,7 @@ export class CelScene {
     this.tubes.watch.drop = (o) => this.highlight.unregister(o);
     this.flow = new BloodMarks(this.vessels);
     // the dust's settings (blood/dust.ts; the hidden ?dust panel writes them): a change wakes the figure for the frames its glide takes
-    dustTuner.onWake = () => { this.moving = true; clock.invalidate('dust'); };
-    dustTuner.setPhone(this.phone);
+    if (!this.twin) { dustTuner.onWake = () => { this.moving = true; clock.invalidate('dust'); }; dustTuner.setPhone(this.phone); }
     this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
     this.presence.own(this.grownIds);
@@ -708,7 +712,7 @@ export class CelScene {
     for (const o of this.objects) o.setPhone(phone);
     this.procs.setPhone(phone); this.probes.setPhone(phone); this.tubes.setPhone(phone);
     this.disease.setPhone(phone);
-    dustTuner.setPhone(phone);
+    if (!this.twin) dustTuner.setPhone(phone);
     this.sinus.setPhone(phone);
     this.moving = true;
   }
@@ -1444,7 +1448,7 @@ export class CelScene {
         const routesMoving = this.blood.routes.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), turnTargets(this.blood.streams, dustTuner.uniform.value, this.turnsScratch), this.circuit.t);
         return anyMoving(this.flow.step(dt), streamsMoving, chainMoving, routesMoving);
       } },
-      { id: 'lens+dust', step: ({ now, dt }) => anyMoving(this.lens.step(now), dustTuner.step(dt)) },
+      { id: 'lens+dust', step: ({ now, dt }) => anyMoving(this.lens.step(now), this.twin ? false : dustTuner.step(dt)) },
       { id: 'cells', step: (c) => this.cells.step(c.dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: c.streams, quiet: c.procQuiet }) },
       { id: 'presence', step: ({ dt }) => {
         const presMoving = anyMoving(this.presence.step(dt), this.feeders.step(dt, () => this.pushFades()));
@@ -1667,7 +1671,7 @@ export class CelScene {
     const dpr = gl.getPixelRatio?.() ?? 1;
     this.shared.dpr.value = dpr;
     this.blood.shared.dpr.value = dpr;   // (the vessels' line is set in CSS px and converted with it)
-    dustTuner.setView(this.phone, this.width * this.height * dpr * dpr);   // (the dust's samples a pixel follow the device and the canvas: blood/dust-spec.ts dustBudget)
+    if (!this.twin) dustTuner.setView(this.phone, this.width * this.height * dpr * dpr);   // (the dust's samples a pixel follow the device and the canvas: blood/dust-spec.ts dustBudget)
     this.microDpr = dpr; this.micro?.lobule.setDpr(dpr);
     this.disease.organs.setDpr(dpr);
     MICRO_DPR.value = dpr;   // (the micro parts' lines drawn in the fill are CSS px wide on every screen)
@@ -1693,6 +1697,8 @@ export class CelScene {
     if (og) { this.organGlowFx.prepare(gl, cam, this.scene, dpr); ogQuad.renderOrder = this.pins.glowOrder; }
     gate(ogQuad, this.pins.glowAmount);   // (the lay quad follows the eased weight of the lit masks, as they do)
     if (into) gl.setRenderTarget(into);
+    const sp = into ? this.split : null;   // (the split orbit: the twin is drawn into its region of this target first, then this scene's passes are confined to theirs)
+    if (sp && into) { const r = splitRegions(into.width, into.height, sp.at); sp.drawTwin(gl, into, r.twin, dpr); gl.setClearColor(this.clearColor(true)); confine(into, r.main); }
     cam.layers.set(0);
     lap('render: setup (dof, band, blur frame)');
     gl.render(this.scene, cam);
@@ -1702,12 +1708,34 @@ export class CelScene {
     cam.layers.set(VESSEL_LAYER);
     gl.render(this.scene, cam);
     lap('render: pass 2, vessel layer');
+    if (sp && into) confine(into, null);
     if (this.highlight.glowing) this.glowFx.run(gl, into, cam, this.scene, dpr);   // (the picked vessel's glow: its mask, blurred, over the figure outside it)
     if (into) { if (dof || band) this.post.dof.run(gl, into); gl.setRenderTarget(null); this.post.resolve(gl); }
     lap('render: glow, blur, resolve');
     gl.autoClear = ac;
     cam.layers.mask = mask;
     inspectEnd?.();
+  }
+
+  /** The split orbit (scene/twin): while set, the share `at` of the canvas from the left is the twin's, drawn by `drawTwin` into the same
+   *  render target; this scene keeps the rest. Only with the anti-aliasing pass on (it draws into a target). */
+  split: { at: number; drawTwin: (gl: WebGLRenderer, into: WebGLRenderTarget, region: Region, dpr: number) => void } | null = null;
+
+  /** A twin's picture drawn into the render target the page's scene shares, confined to `region` (docs/approved/split-orbit.md): the organs,
+   *  then the vessels over cleared depth; no glow, no blur, no resolve (the page's scene does those once). */
+  drawShared(gl: WebGLRenderer, into: WebGLRenderTarget, region: Region, dpr: number): void {
+    if (!this.rig.placed) return;
+    this.shared.dpr.value = dpr; this.blood.shared.dpr.value = dpr; this.disease.organs.setDpr(dpr); MICRO_DPR.value = dpr;
+    const cam = this.rig.camera, mask = cam.layers.mask, ac = gl.autoClear;
+    gl.setClearColor(this.clearColor(true));
+    confine(into, region);
+    gl.autoClear = true; cam.layers.set(0);
+    gl.render(this.scene, cam);
+    gl.autoClear = false; gl.clearDepth(); gl.clearStencil();
+    cam.layers.set(VESSEL_LAYER);
+    gl.render(this.scene, cam);
+    gl.autoClear = ac; cam.layers.mask = mask;
+    confine(into, null);
   }
 
   dispose(): void {
