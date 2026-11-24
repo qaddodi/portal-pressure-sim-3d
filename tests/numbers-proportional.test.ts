@@ -6,13 +6,13 @@ import { readFileSync } from 'node:fs';
 const sheet = readFileSync('src/ui/css3d-over-2d.css', 'utf8');
 
 test('the universal rule is proportional, and tabular is an explicit short list after it', () => {
-  const star = sheet.match(/^\*, \*::before, \*::after \{ font-variant-numeric: ([^;]*?) !important;/m);
+  const star = sheet.match(/^html \*, html \*::before, html \*::after \{ font-variant-numeric: ([^;]*?) !important;/m);
   assert.ok(star, 'universal digit rule present');
   assert.match(star![1]!, /proportional-nums/);
   assert.doesNotMatch(star![1]!, /tabular/);
-  const list = sheet.match(/:where\(([^]*?)\),\n:where\(\1\) \* \{ font-variant-numeric: lining-nums tabular-nums !important; \}/);
+  const list = sheet.match(/html:root :where\(([^]*?)\),\nhtml:root :where\(\1\) \* \{ font-variant-numeric: lining-nums tabular-nums !important; \}/);
   assert.ok(list, 'the tabular list follows the universal rule');
-  assert.ok(sheet.indexOf(list![0]) > sheet.indexOf(star![0]), 'the list comes after the universal rule (equal weight, later wins)');
+  assert.ok(sheet.indexOf(list![0]) > sheet.indexOf(star![0]), 'the list comes after the universal rule (it must outweigh the universal rule)');
   for (const reading of ['.pzt-v', '.pzt-r', '.cl', '.cl-n', '.lb-val', '.cath-label', '.pz-line', '.pz-h', '.pz-table td.num']) {
     assert.ok(!list![1]!.split(',').some((x) => x.trim() === reading), `${reading} is a reading, not a column`);
   }

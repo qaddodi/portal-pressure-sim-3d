@@ -226,15 +226,15 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 /* ── Digits are proportional unless a column or a live counter needs them still (24 Nov 2026, captures a47f69ea, cfd1b272: "1 00", "Below 1 2", "21 .2") ──
    The lifted sheet ends with `*, *::before, *::after { font-variant-numeric: tabular-nums lining-nums !important }` (app-11-deck-visuals.css, never edited), so every
    element was tabular and each new reading class had to be found, one capture at a time, and set proportional again (a tabular "1" is a cell wider than its ink).
-   This sheet loads after it, so the same universal rule here, proportional, wins at equal weight; the list after it is the only place a figure is held to a cell:
+   This sheet loads after it, so the same universal rule here, proportional, wins (written `html *`, one type heavier than the lifted `*`, so it wins whatever order the bundle puts the two sheets in); the list after it is the only place a figure is held to a cell:
    a column that must line up (tables, key-value rows, a legend's numbers) or a number that counts or ticks in place (clocks, slide counter, speed, Doppler velocity,
    chart axes). A plain `font-variant-numeric: tabular-nums` in any other rule is dead against the `!important` here; tests/numbers-proportional.test.ts pins it. */
-*, *::before, *::after { font-variant-numeric: lining-nums proportional-nums !important; font-feature-settings: 'cv11', 'ss01' !important; }
-:where(.pz-lapse, .tl-speed, .stage-clock, .fps-counter, .tr-pips, .pzb-n, .dop-vel, .dop-stats dd, .endo-num, .lg-num, .lg-scale, .dop-ticks, .um-m,
+html *, html *::before, html *::after { font-variant-numeric: lining-nums proportional-nums !important; font-feature-settings: 'cv11', 'ss01' !important; }
+html:root :where(.pz-lapse, .tl-speed, .stage-clock, .fps-counter, .tr-pips, .pzb-n, .dop-vel, .dop-stats dd, .endo-num, .lg-num, .lg-scale, .dop-ticks, .um-m,
   .ab-big > b, .pt-num, .pt-delta, .ac-num, .ac-stats, .ctl-val, .metric .val, .metric .v, .vital b, .hist-head .when, .sh-count, .dk-jump-list .n, .pzj-list .n,
   .pz-prail-n, .boot-pct, .pv-clock, .text-size button, .cmp-table td, .kv dd, .hvpg-kv dd, .why-row .val, .pzi-v, .pzv, .tr-rs, .pzk-axis,
   .dk-outline ol li::before, .dk-chk-q::before, .pzc-q::before, .pz-outline ol li::before),
-:where(.pz-lapse, .tl-speed, .stage-clock, .fps-counter, .tr-pips, .pzb-n, .dop-vel, .dop-stats dd, .endo-num, .lg-num, .lg-scale, .dop-ticks, .um-m,
+html:root :where(.pz-lapse, .tl-speed, .stage-clock, .fps-counter, .tr-pips, .pzb-n, .dop-vel, .dop-stats dd, .endo-num, .lg-num, .lg-scale, .dop-ticks, .um-m,
   .ab-big > b, .pt-num, .pt-delta, .ac-num, .ac-stats, .ctl-val, .metric .val, .metric .v, .vital b, .hist-head .when, .sh-count, .dk-jump-list .n, .pzj-list .n,
   .pz-prail-n, .boot-pct, .pv-clock, .text-size button, .cmp-table td, .kv dd, .hvpg-kv dd, .why-row .val, .pzi-v, .pzv, .tr-rs, .pzk-axis,
   .dk-outline ol li::before, .dk-chk-q::before, .pzc-q::before, .pz-outline ol li::before) * { font-variant-numeric: lining-nums tabular-nums !important; }
