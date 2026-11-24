@@ -135,7 +135,7 @@ function scripts() {
   const gLv = (t, v) => (t < 0 ? NaN : v.a + (v.b - v.a) * gK(t)), gDamp = (t) => PORTAL_DAMP * (1 - gK(t));
   const gA = gs(G.pvRead1), gB = gs(G.ivRead1), gG = gs(markAt('tipsgrad', 0));
   const tips = {
-    id: 'tips', kinds: ['tipsgrad'], clock: gc, start: 0, win: [0, gc.total], target: PPG_CUTS.red, targetWord: `reference <${PPG_CUTS.red}`,
+    id: 'tips', kinds: ['tipsgrad'], clock: gc, start: 0, win: [0, gc.total], 
     heads: ['CATHETER PRESSURE · THROUGH THE STENT · mmHg', 'CATHETER PRESSURE · mmHg', 'CATHETER · mmHg'],
     notes: { idle: ['The tracing starts once the tip is through the stent.', 'Starts in the portal vein.'], wait: ['Waiting for the portal vein.'], probe: [''] },
     lv: gLv, keys: ['PV', 'IVC', 'PPG'], sev: ppgSev,
@@ -148,7 +148,7 @@ function scripts() {
     },
     drops: [[gA, 'PV', 'a', 'pv', -1], [gB, 'IVC', 'b', 'ivc', 1]],
     levels: [[gP0, 'a', 'pv', 'PV'], [gG, 'b', 'ivc', 'IVC']],
-    result: { show: gG - 400, at: gG, lo: 'b', hi: 'a', key: 'g', word: 'PPG', sev: ppgSev },
+    result: { show: gG - 400, at: gG, lo: 'b', hi: 'a', key: 'g', word: `PPG (reference <${PPG_CUTS.red})`, sev: ppgSev },
     ticks: [[gP0, 'drawn back']],
     marks: [gA, gB, gG],
   };

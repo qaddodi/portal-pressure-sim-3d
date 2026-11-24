@@ -139,3 +139,36 @@ test('a tile\'s status word is one short row under its value, and the README cou
   const { readFileSync } = await import('node:fs');
   assert.match(readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8'), /files\.filter\(\(f\) => f\.name\.endsWith\('\.jpg'\)\)\.length, slidesSeen\.size/);
 });
+
+// ---- third report (build 3252079e, 440 x 736): the words say what the model's values show; no grade bands on a volume axis; the <12 target is the gradient's ----
+import { ASCITES } from '../src/decks/ag/ascites.copied.ts';
+import { courseOf, layout } from '../src/ui/charts/curve/course-pure.generated.js';
+import { scriptById } from '../src/ui/tests/ir/copied/reading-scripts.copied.js';
+
+test('TIPS follow-up 7 and candidacy: "reduces", not "clears", and the share of portal blood that bypasses the liver is shown', () => {
+  for (const d of [TIPS_COMPLETE, TIPS_CANDIDACY]) {
+    const s = at(d, 'price');
+    assert.match(s.title, /reduces the ascites/); assert.ok(!/clears/.test(s.title) && !/clears the ascites/.test(s.notes));
+    assert.match(s.line, /\{shunt\} of portal blood bypasses the liver/); assert.ok(s.tiles.includes('shunt'));
+    assert.match(s.notes, /shunt fraction, 92%/);
+  }
+});
+test('TIPS follow-up 11: a raised right atrial pressure supports a cardiac contribution, with the cardiac output on the heart', () => {
+  const s = at(TIPS_COMPLETE, 'heart');
+  assert.match(s.title, /supports a cardiac contribution to the ascites/); assert.match(s.line, /raise venous return/);
+  assert.ok(!/not the liver/.test(s.title)); assert.deepEqual(s.mark, { organ: 'heart', label: 'Cardiac output {co}', kind: 'note' });
+});
+test('TIPS follow-up 22: the Doppler velocities are this case\'s findings, and venography with pressures evaluates a suspected dysfunction', () => {
+  const s = at(TIPS_COMPLETE, 'jet'); assert.match(s.line, /In this case/); assert.match(s.line, /Doppler criteria vary/); assert.match(s.line, /venography with pressure measurements/);
+});
+test('Ascites 22: the course has no grade bands on its volume axis, and the line gives the model\'s own end value', () => {
+  const s = at(ASCITES, 'relation'); assert.equal(s.tool.zones, false);
+  assert.match(s.line, /reduces it further, to \{asc\} at the end/); assert.ok(!/1\.5 L|5 L/.test(s.notes)); assert.match(s.notes, /grade 1 is ascites seen only on ultrasound/);
+  const c = courseOf(s.tool), G = layout(400, 300, 12, c, null);
+  assert.equal(G.zones.length, 1); assert.ok(G.zones.every((z: { name: string }) => !z.name)); assert.ok(G.ticks.length >= 3 && G.ticks.every((t: { rate: unknown }) => !t.rate), JSON.stringify(G.ticks));
+  assert.ok(layout(400, 300, 12, courseOf({ ...s.tool, zones: undefined }), null).zones.length > 1, 'a course that does not ask keeps its bands');
+  assert.ok(!/clears it by/.test(at(ASCITES, 'summary').notes)); assert.match(at(ASCITES, 'tips').line, /falls over weeks to \{asc\}/);
+});
+test('TIPS 14: the <12 mmHg target is not a line on the catheter-pressure axis; it stands beside the PPG result', () => {
+  const S = scriptById('tips'); assert.ok(S); assert.ok(!S.target && !S.targetWord); assert.match(S.result.word, /PPG \(reference <12\)/);
+});

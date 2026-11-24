@@ -52,7 +52,18 @@ const course = (() => {
     "import { lineMeta, cutsOf, fmtTick, placeWord } from './curve-pure.generated.js';",
   ].join('\n');
   const body = slice(t, 'const CO_MIN = 12;', '// (2 Nov 2026: the chart is a model drawn on the GPU');
-  return `${head('tool-course.js')}${imports}\n${body}`;
+  // Departure (reviewer, 24 Nov 2026): a course told `zones: false` draws no bands and no cut-off numbers on its axis (the ascites grades are not volumes: grade 1 is ultrasound-only, grade 3 is marked distension).
+  let out = body;
+  const dep = (a, b) => { if (out.split(a).length !== 2) throw new Error(`tool-course.js has changed shape: ${a.slice(0, 40)}`); out = out.replace(a, b); };
+  dep('cuts = cutsOf(c.reading), total', 'cuts = c.zones === false ? [] : cutsOf(c.reading), total');
+  dep('    reading,\n    from: pick(', '    reading, zones: t?.zones !== false,\n    from: pick(');
+  dep("  // (The strip at the left is the numbers and no more: the zones' names stand on the plot, placeLabels.)", `  if (c.zones === false) {
+    ticks.length = 0;
+    const raw = top / 4, mag = 10 ** Math.floor(Math.log10(raw)), st = [1, 2, 5, 10].map((q) => q * mag).find((q) => q >= raw) ?? raw;
+    for (let v = 0; v < top - 1e-9; v += st) ticks.push({ v, rate: null, text: v ? \`\${fmtTick(v, m.d)} \${m.unit}\` : '0' });
+  }
+  // (The strip at the left is the numbers and no more: the zones' names stand on the plot, placeLabels.)`);
+  return `${head('tool-course.js')}${imports}\n${out}`;
 })();
 
 const files = [[join(OUT, 'curve-pure.generated.js'), curve], [join(OUT, 'course-pure.generated.js'), course]];

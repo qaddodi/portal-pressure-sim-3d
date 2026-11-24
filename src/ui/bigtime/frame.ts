@@ -6,7 +6,7 @@ import { measure } from '../charts/measure.ts';
 import { pen, type Frame, type Shape } from '../charts/scene.ts';
 import type { Palette } from '../charts/palette.ts';
 import { HVPG_CUTS } from '../../engine/hales/portal/pressure-cuts.js';
-import { ASCITES_CUTS, VARIX_NONE_MM, VARIX_LARGE_MM } from '../../engine/hales/portal/metrics.js';
+import { VARIX_NONE_MM, VARIX_LARGE_MM } from '../../engine/hales/portal/metrics.js';
 import { FLOW_CUTS } from '../../engine/hales/portal/flow-cuts.js';
 import { LSM_CUTS } from '../../engine/hales/portal/lsm-cuts.js';
 import { SSM_CUTS } from '../../engine/hales/portal/ssm-cuts.js';
@@ -93,7 +93,7 @@ function specOf(id: LaneId, inp: BigIn): LaneSpec | null {
     const max = niceMax(peak, 30, 10), st = max > 60 ? 25 : max > 40 ? 20 : 10, has = (id: string) => ms.some((m) => m.id === id);
     return { id, ms, max, ticks: Array.from({ length: Math.floor(max / st) + 1 }, (_, i) => i * st), cuts: [...(has('ssm') ? [{ v: SSM_CUTS.ruleIn, word: `SSM ${SSM_CUTS.ruleIn}`, ink: 'text-2' as const }] : []), ...(has('lsm') ? [{ v: LSM_CUTS.ruleIn, word: `LSM ${LSM_CUTS.ruleIn}`, ink: 'text-3' as const }] : [])] };
   }
-  if (id === 'asc') { const max = niceMax(peak, 3, 1); return { id, ms, max, ticks: Array.from({ length: Math.floor(max) + 1 }, (_, i) => i).filter((t) => max <= 5 || t % 2 === 0), fill: true, cuts: [{ v: ASCITES_CUTS[1]! / 1000, word: `Grade 2 · ${ASCITES_CUTS[1]! / 1000} L`, ink: 'text-2' }, { v: ASCITES_CUTS[0]! / 1000, word: `Grade 1 · ${ASCITES_CUTS[0]! / 1000} L`, ink: 'text-3' }] }; }
+  if (id === 'asc') { const max = niceMax(peak, 3, 1); return { id, ms, max, ticks: Array.from({ length: Math.floor(max) + 1 }, (_, i) => i).filter((t) => max <= 5 || t % 2 === 0), fill: true, cuts: [] }; }   // (no grade lines on the volume axis: the grades are ultrasound-only, moderate or marked distension, not volumes; reviewer, 24 Nov 2026)
   if (id === 'shunt') {
     // the shunt as a share of the splanchnic inflow and the liver's perfusion as a share of healthy: both percents, so one lane (perfusion can run past 100)
     const has = (k: string) => ms.some((m) => m.id === k), max = Math.min(has('perf') ? 140 : 100, niceMax(peak, 70, 10));

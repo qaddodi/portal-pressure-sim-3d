@@ -83,6 +83,11 @@ export { hvBlocked, NOT_SHOWN, NOT_MEASURABLE };
   if (z < 0) throw new Error('tool-reading.js has changed shape');
   let body = src.slice(0, z).replace(/^import \{ h, fmt \} from '\.\/util\.js';$/m, "import { fmt } from './util.js';")
     .replace(/^import \{ createTraceGL \} from '\.\/trace-gl\.js';\n/m, '').replace(/^import \{ drawMonitor, HVPG_TEXT, monitorTitle \} from '\.\/monitor\.js';$/m, "import { HVPG_TEXT, monitorTitle } from './monitor.js';");
+  // Departure (reviewer, 24 Nov 2026): the <12 mmHg target is a target for the GRADIENT, so it is not drawn as a line on the absolute catheter-pressure axis (it read as a target for single pressures); it stands beside the PPG result tag instead.
+  const TIPS_LINE = 'target: PPG_CUTS.red, targetWord: `reference <${PPG_CUTS.red}`,';
+  const TIPS_RES = "lo: 'b', hi: 'a', key: 'g', word: 'PPG', sev: ppgSev";
+  if (!body.includes(TIPS_LINE) || !body.includes(TIPS_RES)) throw new Error('tool-reading.js: the TIPS target line has changed shape');
+  body = body.replace(TIPS_LINE, '').replace(TIPS_RES, "lo: 'b', hi: 'a', key: 'g', word: `PPG (reference <${PPG_CUTS.red})`, sev: ppgSev");
   put('reading-scripts.copied.js', HEAD('tool-reading.js, before createReading') + rewrite('tool-reading.js', body));
 }
 

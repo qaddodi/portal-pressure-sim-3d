@@ -169,6 +169,35 @@ export const REVIEWER_24NOV_B = [
   P('two-inflows', 'slides.relation.notes', 'at the end of the lines, a normal liver with the vein closed keeps 71% with the buffer and 38% without.', 'the lines end at this patient\'s own values, 79% with the buffer and 44% without; a normal liver with the vein closed would keep 71% and 38%.'),
 ];
 
+/** The third reviewer report (Hales Engine 3252079e, 440 x 736, 24 Nov 2026): words that say what the model's values show (reduces, not clears; the share of portal blood that bypasses the liver), a cardiac contribution not a proof, Doppler findings as this case's, and no volume grades. Applied by scripts/apply-reviewer-edits.mjs to the copies. */
+const BYPASS_NOTE = 'In the model the ascites falls to 0.6 L at two months; it is reduced, not gone. The 28% is the flow through the sinusoids, not the share of portal blood that bypasses the liver: that share is the shunt fraction, 92% here.';
+export const REVIEWER_24NOV_C = [
+  // TIPS follow-up 7 and TIPS candidacy: "reduces", and the bypass fraction beside the sinusoidal flow
+  ...['tips-complete', 'tips-candidacy'].flatMap((d) => [
+    SET(d, 'slides.price.title', 'The stent reduces the ascites, but most portal blood now bypasses the sinusoids'),
+    SET(d, 'slides.price.line', 'Two months on, the ascites is {asc} and the PPG {ppg}; {shunt} of portal blood bypasses the liver, and sinusoidal flow has fallen to {liver} of normal.'),
+    SET(d, 'slides.price.tiles', ['asc', 'shunt', 'liver']),
+    P(d, 'slides.price.notes', 'The model clears the ascites in weeks.', 'The model reduces the ascites within weeks.'),
+    APPEND(d, 'slides.price.notes', BYPASS_NOTE),
+  ]),
+  // TIPS follow-up 11: raised right atrial pressure supports a cardiac contribution; it does not prove the ascites is only cardiac
+  SET('tips-complete', 'slides.heart.title', 'Markedly elevated right atrial pressure supports a cardiac contribution to the ascites'),
+  SET('tips-complete', 'slides.heart.line', 'His right atrial pressure is {ra} and cardiac output {co}, with distended jugular veins and a thickened pericardium. Congestion is adding to the ascites, and a TIPS would raise venous return to a heart that is already full.'),
+  P('tips-complete', 'slides.heart.compare.1.line', 'and the cause of the ascites is untouched.', 'and the cardiac contribution to the ascites is untouched.'),
+  APPEND('tips-complete', 'slides.heart.notes', 'A raised right atrial pressure supports a cardiac contribution but does not by itself show that the ascites is only cardiac: his cirrhosis adds a sinusoidal part, which is why the hemodynamic study and the echocardiogram decide, not one number.'),
+  // (Mohammad picked the suggestion, 24 Nov 2026: the cardiac output stands on the heart, its live value from the same model state as the tile)
+  SET('tips-complete', 'slides.heart.mark', { organ: 'heart', label: 'Cardiac output {co}', kind: 'note' }),
+  // TIPS follow-up 22: these velocities are this case's findings; criteria vary and venography with pressures evaluates a suspected dysfunction
+  SET('tips-complete', 'slides.jet.line', 'At 6 months, {asc} of ascites has reaccumulated. In this case the jet at the stenosis is {>190 cm/s} and the rest of the stent {<90 cm/s}; Doppler criteria vary, and venography with pressure measurements evaluates a suspected dysfunction (PPG {ppg}).'),
+  APPEND('tips-complete', 'slides.jet.notes', 'The velocities on this slide are this case\'s findings, not thresholds that every center uses: Doppler criteria vary, and a suspected TIPS dysfunction is evaluated by venography with pressure measurements across the stent.'),
+  // Ascites 22 and 21: the TIPS lowers the ascites to the model's own value; the chart has no grade lines on the volume axis, the grades are taught by their definitions
+  SET('ascites', 'slides.relation.line', 'LVP empties the abdomen, but the ascites is back to {asc@back} by week 2. Diuretics reduce it to {asc@diuretics} by week 6, and adding a TIPS reduces it further, to {asc} at the end of the chart.'),
+  SET('ascites', 'slides.relation.tool.zones', false),
+  P('ascites', 'slides.relation.notes', "The zones are the app's own grades (its data card uses them too): grade 1 ≥0.15 L, grade 2 ≥1.5 L, grade 3 ≥5 L; at the bedside the grade comes from the examination, not from the volume.", 'The scale is plain liters because the grades of ascites are not volumes: grade 1 is ascites seen only on ultrasound, grade 2 is moderate symmetric abdominal distension, and grade 3 is marked abdominal distension (AASLD 2021), so the chart draws no grade lines.'),
+  P('ascites', 'slides.summary.notes', 'diuretics clear it more slowly and prevent recurrence; a TIPS clears it by lowering', 'diuretics reduce it more slowly and prevent recurrence; a TIPS reduces it by lowering'),
+  P('ascites', 'slides.tips.line', 'and here the ascites resolves over weeks.', 'and here the ascites falls over weeks to {asc}.'),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -276,6 +305,7 @@ export const SOURCE_PATCHES = [
   ...VARICES_REVIEW,
   ...REVIEWER_24NOV,
   ...REVIEWER_24NOV_B,
+  ...REVIEWER_24NOV_C,
 ];
 
 function step(node, key) {

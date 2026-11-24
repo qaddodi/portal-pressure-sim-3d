@@ -15,7 +15,7 @@ export function courseOf(t) {
   const reading = typeof t?.reading === 'string' && TILE[t.reading] ? t.reading : 'asc';
   const ev = obj(t?.event), wd = obj(t?.words), m = lineMeta(reading);
   return {
-    reading,
+    reading, zones: t?.zones !== false,
     from: pick(obj(t?.from), ['preset', 'presetDays', 'params', 'days', 'ramp']),
     event: pick(ev, ['params', 'action']),
     wait: int(t?.wait, 14, 1, 60), after: int(t?.after, 28, 1, 90),
@@ -77,7 +77,7 @@ const xStep = (total) => { let s = 14; while (total / s > 5) s *= 2; return s; }
 /** The chart's geometry for a card w × h px in type f px, on the series ser (null until it is there): the scale (the same with or without the
  *  series, so the zones stay put as the lines arrive), the zones, the numbers on the axes, and the plot's edges L, R, T, B. */
 export function layout(w, h, f, c, ser, keyRow = false) {
-  const m = lineMeta(c.reading), cuts = cutsOf(c.reading), total = c.wait + c.after, lastCut = cuts.at(-1)?.v ?? 1;
+  const m = lineMeta(c.reading), cuts = c.zones === false ? [] : cutsOf(c.reading), total = c.wait + c.after, lastCut = cuts.at(-1)?.v ?? 1;
   // (The caption's row, then the panel; the x numbers on the row under the plot and the axis's name on a row of its own under them.)
   const keyH = (keyRow ? 3 : 1.5) * f, py = keyH + 0.2 * f, foot = 3.1 * f, T = py, B = Math.max(py + 3 * f, h - foot - 0.2 * f), H = B - T;
   // (The top of the scale: a little over the last cut-off and the values, and high enough that the first dot's name stands over it.)
@@ -95,6 +95,12 @@ export function layout(w, h, f, c, ser, keyRow = false) {
     if (v >= top) continue;
     const last = ticks.at(-1);
     if (!last || Y(last.v) - Y(v) >= 1.4 * f) ticks.push({ v, rate: v ? cuts.find((q) => q.v === v).rate : null, text: v ? `${fmtTick(v, m.d)} ${m.unit}` : '0' });
+  }
+  // (A course told `zones: false` has no bands: the scale is plain round numbers, so no cut-off is drawn on the axis. Reviewer, 24 Nov 2026: the ascites grades are not volumes.)
+  if (c.zones === false) {
+    ticks.length = 0;
+    const raw = top / 4, mag = 10 ** Math.floor(Math.log10(raw)), st = [1, 2, 5, 10].map((q) => q * mag).find((q) => q >= raw) ?? raw;
+    for (let v = 0; v < top - 1e-9; v += st) ticks.push({ v, rate: null, text: v ? `${fmtTick(v, m.d)} ${m.unit}` : '0' });
   }
   // (The strip at the left is the numbers and no more: the zones' names stand on the plot, placeLabels.)
   const Tw = Math.max(...ticks.map((q) => cw(q.text, f)));
