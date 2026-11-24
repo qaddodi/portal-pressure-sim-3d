@@ -14,7 +14,12 @@ const leastDigits = (key?: string): number => (key === 'map' || key === 'plt' ? 
  *  `seen`: the texts the reading takes on the slide (a time-lapse's two ends and every day of its chart): the box is as wide as the widest of them and no wider, so no padding stands after a reading that never gets that long
  *  ("16.5 mmHg,   the serum albumin falls and 3.8 L   of ascites", recompensation 4, review bbe955e5).
  *  `minus`: whether a reading that can go below zero holds a minus slot while it is not negative (only a slider or a strain can take it there; false on every other slide: "1.4 mmHg   and varices are rare", varices 8). */
-export interface ReserveOpts { seen?: readonly string[]; minus?: boolean }
+export interface ReserveOpts { seen?: readonly string[]; minus?: boolean; /** the slider can only raise the reading (fibrosis, cirrhosis), so no minus slot stands in front of it, but it still holds two whole digits (a slider can reach 10) */ raises?: boolean }
+
+/** The slider parameters that only push pressure up from where the slide starts: a reading they drive never goes below zero, so it holds no minus slot ("6.1 mmHg.      An LSM", Stiffness 3, capture 572259fd). */
+export const RAISING: ReadonlySet<string> = new Set(['cirrhosis']);
+/** Whether a slide's controls can only raise its readings: a slider whose every parameter is in RAISING, and no strain. */
+export const raisesOnly = (ctl?: { whatIf?: { paths: readonly string[] }; strain?: unknown }): boolean => !!ctl?.whatIf && !ctl.strain && ctl.whatIf.paths.length > 0 && ctl.whatIf.paths.every((p) => RAISING.has(p));
 
 /** `still`: no control on the slide can bring a very different reading (no slider, hold-to-strain, time-lapse or patient switch), so a shown reading reserves only its own width: the padding (a second digit, a minus slot)
  *  is for a reading that can change its size, and left after one that cannot it reads as a gap before the next word, "18.2 mmHg   to" and "1.1 L   of ascites" (TIPS Doppler review, 23 Nov 2026).
@@ -22,7 +27,7 @@ export interface ReserveOpts { seen?: readonly string[]; minus?: boolean }
 export function reserveOf(text: string, key?: string, whole = false, still = false, opts: ReserveOpts = {}): string {
   if (still && text !== VALUE_PENDING) return text;
   const unit = key ? (TILE as Record<string, { u?: string } | undefined>)[key]?.u ?? '' : '';
-  const slot = opts.minus === false ? '' : key && SIGNED.has(key) ? MINUS : '';
+  const slot = opts.minus === false || opts.raises ? '' : key && SIGNED.has(key) ? MINUS : '';
   if (text === VALUE_PENDING) {
     if (key === 'plt') return '000,000/µL';
     if (key === 'map') return `000/000 (000) ${unit}`;

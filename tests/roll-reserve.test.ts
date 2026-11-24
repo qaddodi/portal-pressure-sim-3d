@@ -42,7 +42,7 @@ test('the blood pressure and the platelets keep three digits', () => {
 
 test('Roll sizes its box to the reserve and the line gives it', () => {
   assert.match(readFileSync('src/ui/cards/Roll.tsx', 'utf8'), /\{reserve \?\? \(latest\.prev/);
-  assert.match(readFileSync('src/ui/cards/Line.tsx', 'utf8'), /<Roll text=\{text\} reserve=\{reserveOf\(text, p\.key, p\.decimals === 0, still, \{ seen: seen\?\.\(p\.key, p\.decimals === 0\), minus \}\)\} after=\{stop\} \/>/);
+  assert.match(readFileSync('src/ui/cards/Line.tsx', 'utf8'), /<Roll text=\{text\} reserve=\{reserveOf\(text, p\.key, p\.decimals === 0, still, \{ seen: seen\?\.\(p\.key, p\.decimals === 0\), minus, raises \}\)\} after=\{stop\} \/>/);
   assert.match(readFileSync('src/ui/deck-ui.css', 'utf8'), /\.dk-num \{[^}]*font-variant-numeric: tabular-nums/);
 });
 
@@ -52,4 +52,18 @@ import assert2 from 'node:assert/strict';
 test2('an index out of 1 holds no second whole digit (no gap after "0.80 /1.")', () => {
   assert2.equal(reserveOf2('0.80 /1', 'he', false, false, { minus: false }), '0.00 /0');
   assert2.equal(reserveOf2('0.80 /1', 'he', false, false, { minus: true }), '0.00 /0');
+});
+
+import { raisesOnly as raisesOnly3, reserveOf as reserveOf3 } from '../src/ui/cards/roll-reserve.ts';
+test('a fibrosis slider holds two digits but no minus slot (Stiffness 3: "6.1 mmHg.      An LSM")', () => {
+  assert.equal(reserveOf3('6.1 mmHg', 'hvpg', false, false, { minus: true, raises: true }), '00.0 mmHg');
+  assert.equal(reserveOf3('6.1 mmHg', 'hvpg', false, false, { minus: true }), '−00.0 mmHg');
+  assert.ok(raisesOnly3({ whatIf: { paths: ['cirrhosis'] } }));
+  assert.ok(!raisesOnly3({ whatIf: { paths: ['tips.d'] } }));
+  assert.ok(!raisesOnly3({ whatIf: { paths: ['cirrhosis'] }, strain: { label: 'x' } }));
+});
+
+import { nb as nb3 } from '../src/ui/text/glue.ts';
+test('a count per microlitre never breaks after its slash (Stiffness check slide: "180,000/" then "µL")', () => {
+  assert.equal(nb3('are 180,000/µL. Is'), 'are 180,000/⁠µL. Is');
 });
