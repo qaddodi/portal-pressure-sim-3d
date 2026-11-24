@@ -20,6 +20,7 @@ import { DIVIDED, DIVIDED_RING_K } from './divide.ts';
 import { fanEnd, leaveAsBundle } from './strand-fan.ts';
 import { clearAt, clearances, type ClearProfile } from './clearance.ts';
 import { fairBends } from './bend.ts';
+import { PLACED } from '../anatomy/source.ts';
 const DIVIDED_IDS: ReadonlySet<string> = new Set(DIVIDED.map(([, v]) => v));
 
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
@@ -65,7 +66,9 @@ const smooth = (u: number) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
  *  joined vessels meet at one depth (a vessel in front and one behind it would otherwise stand apart in a turned view). */
 /** The steepest a vessel's depth may change along its course (rise per unit run, about 50 degrees at the steepest point of the ease): a tube diving at the camera is shaded by its normals, not by its colour. */
 export const DEPTH_SLOPE_CAP = 1.2;
-const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: number, to?: number, shareFrom = 0.25, shareTo = 0.25, through = false, clear?: ClearProfile, along?: readonly (readonly [number, number])[]): Vec3[] => {
+const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: number, to?: number, shareFrom = 0.25, shareTo = 0.25, through = false, clear?: ClearProfile, along?: readonly (readonly [number, number])[], depth?: Depth): Vec3[] => {
+  // THE APPROVED PLACEMENT (`?anatomy=new`): the course has its own depth (anatomy/placed-network.ts), point for point along its rest course, so no tier, no ease to a node and no lift: depth is where the vessel is
+  if (depth) return placedTo3(pts, depth, along);
   // (the easing runs over the share of the course's LENGTH, not of its point count: a course whose points are bunched (the umbilical vein's leave-the-wall bend) would otherwise climb to its tier within the bend, a tube
   //  diving at the camera, whose shading is a dark patch (20 Nov, the eyes' crops of 4089d1a))
   // (`along`: the course the depth is spread over, when it is not `pts` itself: a coiling vessel's depth runs along its course AT REST, so a point of it keeps its depth as the course lengthens. Otherwise the coil moved every point's depth, and the held end
@@ -84,9 +87,54 @@ const to3 = (pts: readonly (readonly [number, number])[], z: number, from?: numb
   });
 };
 
+/** A course's own depths (the approved placement): `z[i]` at the share `u[i]` of its 2D rest course's length. */
+export interface Depth { u: readonly number[]; z: readonly number[] }
+const depthCache = new WeakMap<object, Depth>();
+/** The depth profile of a placed coil plan, or undefined (today's tiers). */
+function depthOf(plan: NetVessel['plan']): Depth | undefined {
+  if (!plan || plan.kind !== 'coil' || !plan.z) return undefined;
+  let d = depthCache.get(plan);
+  if (!d) { d = profile(plan.base, plan.z); depthCache.set(plan, d); }
+  return d;
+}
+const profile = (pts: readonly (readonly [number, number])[], z: readonly number[]): Depth => {
+  const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
+  const L = cum[cum.length - 1]! || 1;
+  return { u: cum.map((c) => c / L), z };
+};
+const zAt = (d: Depth, u: number): number => {
+  const U = d.u, n = U.length;
+  if (u <= 0) return d.z[0]!;
+  if (u >= 1) return d.z[n - 1]!;
+  let lo = 0, hi = n - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (U[m]! <= u) lo = m; else hi = m; }
+  const t = (u - U[lo]!) / ((U[hi]! - U[lo]!) || 1);
+  return d.z[lo]! + (d.z[hi]! - d.z[lo]!) * t;
+};
+function placedTo3(pts: readonly (readonly [number, number])[], d: Depth, along?: readonly (readonly [number, number])[]): Vec3[] {
+  const on = along ?? pts;
+  // (point for point when the course has the profile's own points (a course at rest, or coiled: a coil moves x and y only), else by the share of the rest course's length)
+  if (on.length === d.z.length) return pts.map(([x, y], i): Vec3 => [x3(x), y3(y), d.z[i]!]);
+  const u = profile(on, []).u;
+  return pts.map(([x, y], i): Vec3 => [x3(x), y3(y), zAt(d, u[Math.min(i, u.length - 1)]!)]);
+}
+/** Placed: the share of a course each end's taper takes, so the width changes by at most about 4.5% of itself in 0.01 of length (tests/anatomy/smooth.ts `widen`, bar 6%): the smoothstep's steepest slope is 1.5 times its mean. Never under the share asked, never over half. */
+export const TAPER_LEN_K = (1.5 * 0.01) / 0.045;
+function lengthSpans(pts: readonly Vec3[], t: readonly [number, number], sp: readonly [number, number] | undefined): readonly [number, number] {
+  let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1], pts[i]![2] - pts[i - 1]![2]);
+  const need = (k: number): number => (L > 0 ? (TAPER_LEN_K * Math.abs(1 - k)) / Math.min(1, k) / L : 0.3);
+  const base = sp ?? [0.3, 0.3];
+  // (the two together never more than 95% of the course, shared in proportion)
+  const s0 = Math.max(base[0], need(t[0])), s1 = Math.max(base[1], need(t[1])), k = s0 + s1 > 0.95 ? 0.95 / (s0 + s1) : 1;
+  return [Math.min(0.9, s0 * k), Math.min(0.9, s1 * k)];
+}
+/** A tributary's course in the scene: its own depths where it has them (the approved placement), else the host's tier plus its `dz`. */
+const fanTo3 = (f: { pts: readonly (readonly [number, number])[]; dz?: readonly number[]; zs?: readonly number[] }, z: number): Vec3[] =>
+  f.zs ? f.pts.map(([x, y], i): Vec3 => [x3(x), y3(y), f.zs![i] ?? f.zs![f.zs!.length - 1]!]) : f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z);
+
 /** Smooth joins: the depth each end eases to. Most nodes are the network's own (NODE_Z, a quarter of the course); a vessel that ends in the right atrium (smooth-joins.ts NODE_RISE) runs on a
  *  single slope to the atrium's back wall, so the cava and the SVC meet the heart at one depth and, turned, enter it (`through`). */
 function depthEnds(v: NetVessel): { zf: number | undefined; zt: number | undefined; sf: number; st: number; through: boolean } {
+  if (PLACED) return { zf: undefined, zt: undefined, sf: END_SHARE, st: END_SHARE, through: false };   // (placed: the pieces of a vessel are cut from one course, and every join already meets in 3D)
   let zf = NODE_Z.get(v.from), zt = NODE_Z.get(v.to), through = false;
   if (smoothJoinsOn()) { const r = endDepth(v.to, zt); if (r.rise) { zt = r.z; through = true; } }
   if (smoothJoinsOn() && SVC_TRIBUTARY_IDS.has(v.id) && zf != null && zt != null) through = true;   // (the azygos arch: one slope from its node's depth to the cava's, network.ts SVC_TRIBUTARY_IDS)
@@ -103,7 +151,7 @@ function baseCourse(v: NetVessel): Vec3[] {
     const plan = v.plan!;
     const base = plan.kind === 'coil' ? plan.base : [];
     const d = depthEnds(v);
-    c = to3(base, TIER_Z[v.tier], d.zf, d.zt, d.sf, d.st, d.through);
+    c = to3(base, TIER_Z[v.tier], d.zf, d.zt, d.sf, d.st, d.through, undefined, undefined, depthOf(plan));
     baseCache.set(v.id, c);
   }
   return c;
@@ -173,7 +221,7 @@ const CLEAR = new Map<boolean, Map<string, ClearProfile>>();
 let clearing = false;
 /** Every vessel's clearance profile (the ones that give way somewhere), for the current smooth-joins setting. */
 export function clearanceProfiles(): ReadonlyMap<string, ClearProfile> { return clearanceTable(); }
-function clearanceOf(v: NetVessel): ClearProfile | undefined { return clearing ? undefined : clearanceTable().get(v.id); }
+function clearanceOf(v: NetVessel): ClearProfile | undefined { return clearing || PLACED ? undefined : clearanceTable().get(v.id); }   // (placed: the placement is checked clear of every crossing in 3D, docs/approved/anatomy-placement.md; the lift was for the flat plane)
 function clearanceTable(): Map<string, ClearProfile> {
   const on = smoothJoinsOn();
   let m = CLEAR.get(on);
@@ -259,11 +307,12 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
         const u = j / Math.max(1, pts.length - 1), e = Math.min(u, 1 - u) / CAV_MEET, w = e >= 1 ? 1 : smooth(e), m = main[Math.min(main.length - 1, j)]!;
         return [m[0] + (p[0] - m[0]) * w, m[1] + (p[1] - m[1]) * w];
       });
-      strands = ch.map((pts, i) => { const g = cavGrowth(i, s.rec); return { pts: meet(pts), k: CAV[i]!.k * g, ph: 0, live: Math.min(1, g * 4) }; });   // (grown whole and joined at both ends; its opacity over its first quarter: here its width)
+      strands = ch.map((pts, i) => { const g = cavGrowth(i, s.rec); return { pts: PLACED ? relax2(meet(pts), 60) : meet(pts), k: CAV[i]!.k * g, ph: 0, live: Math.min(1, g * 4) }; });   // (grown whole and joined at both ends; its opacity over its first quarter: here its width)
     }
     const de = depthEnds(v), zf = de.zf, zt = de.zt;
     const atRest = restCoil(v);
-    let m = to3(main, z, zf, zt, de.sf, de.st, de.through, clearanceOf(v), atRest.main);
+    const depth = depthOf(plan);
+    let m = to3(main, z, zf, zt, de.sf, de.st, de.through, clearanceOf(v), atRest.main, depth);
     // smooth joins: a branch's end onto its trunk, the ends' widths and caps by the pairs (smooth-joins.ts); off, the course is the 2D rule's own
     const sj = smoothJoinsOn() ? SMOOTH.get(v.id) : undefined;
     let buried: readonly [Buried | null, Buried | null] | undefined;
@@ -291,6 +340,8 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     //  met the coronary vein at 0.44 of its width and left its square cut end showing, Mohammad, 22 Nov: "coronary vein into varices look not welded". The station inside the segment narrows with both halves, as before.)
     if (banded && rad > 0 && rad < v.radius) for (const e of [0, 1] as const) if (outerEnd(v.id, e) && !(s.pin && s.pin[e] > 0)) {   // (a held end, under a skin, already keeps its rest width: `held`)
       const t: [number, number] = [taper?.[0] ?? 1, taper?.[1] ?? 1]; t[e] *= v.radius / rad; taper = t; }
+    // (placed: a width change eases over a LENGTH, not a share: at least TAPER_LEN_K of the change, so a short piece or a long narrowing never steps (Mohammad, 24 Nov: "a radius that tapers over a length, never a step"))
+    if (PLACED && taper && cut == null) taperSpan = lengthSpans(m, taper, taperSpan);
     const own: Course = { pts: m, radius: rad, taper, taperSpan, flare: sj && isPlain(v) && v.flare ? ([sj.attach[0] ? null : v.flare[0], sj.attach[1] ? null : v.flare[1]] as const) : v.flare, ...(sewn ? { sewn } : {}), capless, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? (cut != null ? ([sj.free?.[0] && cut !== 0, sj.free?.[1] && cut !== 1] as unknown as typeof sj.free) : sj.free) : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
     // a varix is its few strands, each running whole from the vessel that feeds it to the one that drains it: the trunk's own tube, a solid fill the width of the bundle, is not drawn while
     // they are (Mohammad, 20 Nov: "what's that red mesh"); each strand widens to the trunk's width at its two ends, so it meets the vessels there without a step
@@ -305,13 +356,13 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
       const open = fit ? strandOpen(i, strands.length, s.spr) : 1;
       const live = (banded ? Math.max(BANDED_CORD, Math.min(1, Math.max(0, i + 1 - s.bands)) * open) : 1) * (c.live ?? 1);
       return {
-        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through, undefined, atRest.strands[i]?.pts).map((p, j): Vec3 => (c.dz ? [p[0], p[1], p[2] + len3(c.dz[j] ?? 0)] : p)), radius: Math.max(minR, rad * c.k * thick) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
+        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through, undefined, atRest.strands[i]?.pts ?? (depth ? atRest.main : undefined), depth).map((p, j): Vec3 => (c.dz ? [p[0], p[1], p[2] + len3(c.dz[j] ?? 0)] : p)), radius: Math.max(minR, rad * c.k * thick) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
         // THE CAVERNOMA'S CHANNELS end in a tip, not in a widened, collared, round-capped end: six channels each opened out to the whole C8 width (and a collar, and a ball) where they all meet at the node stood as a faceted star of overlapping
         // ends, a hub the trunk did not cover once it was narrowed or clotted (Mohammad, 20 Nov: "the collaterals fan out from faceted star hubs"). Each narrows to a fine point over its last few radii, so the bundle runs together into the vein
         // at the node (the same free-end taper every other tube's end has, tubes.ts `point`), and nothing is a ball.
         // each strand's two ends are sewn onto the host as the trunk's would be (shunt-ends.ts: narrowed to the host's width above, sunk and flared here); the cavernoma's channels end in a point instead
         ...(bundle && v.id !== 'C8' && own.sewn ? { sewn: own.sewn } : {}),
-        ...(bundle && v.id === 'C8' ? { taper: undefined, taperSpan: undefined, flare: undefined, capless: [false, false] as const, clamp: undefined, point: [true, true] as const } : {}),
+        ...(bundle && v.id === 'C8' ? { taper: undefined, taperSpan: undefined, flare: undefined, capless: [false, false] as const, clamp: undefined, point: PLACED ? undefined : ([true, true] as const) } : {}),   // (placed: the channels end on the trunk's own centreline, inside it, round-capped: a point is a width that falls to nothing in a few hundredths, a step the smooth bar does not pass)
         // (the ends keep the trunk's calibre however far a strand has closed (banded, or not yet open): a cord that met its trunk at the cord's own width left a step at the station of the one segment, where the azygos' drain begins at its full width)
         ...(bundle && v.id !== 'C5' && v.id !== 'C8' ? { taper: [(own.taper?.[0] ?? 1) / (c.k * thick * Math.max(live, 0.05)) * bundleShare(own.sewn?.[0], gathered), (own.taper?.[1] ?? 1) / (c.k * thick * Math.max(live, 0.05)) * bundleShare(own.sewn?.[1], gathered)] as const, taperSpan: fit ? FAN_SPAN : own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
         bead: beads && v.id !== 'C5' ? { b: s.bead, ph: c.ph * 1.7, u0: (STRAND_FROM_2D as Record<string, number>)[v.id] ?? 0, lambda, len: len2d(c.pts) } : undefined,
@@ -322,7 +373,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     return s.pin && (s.pin[0] > 0 || s.pin[1] > 0) ? held(v, s, out) : out;
   }
   // a fan: each tributary's width is the host's times the group's share and its own (at least 1.2 units), thinner while the group is only part on
-  const fan = plan.list.map((f) => ({ ...(f.taper ? { taper: f.taper, taperSpan: f.taperSpan ?? ([0.3, 0.9] as const) } : {}), ...(f.join != null ? { capless: (f.join === 0 ? [true, false] : [false, true]) as readonly [boolean, boolean] } : {}), pts: f.dz ? to3(f.pts, z).map((p, i): Vec3 => [p[0], p[1], p[2] + f.dz![i]!]) : to3(f.pts, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (f.atEnd && smoothJoinsOn() ? SMOOTH.get(v.host)?.taper?.[1] ?? 1 : 1) * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
+  const fan = plan.list.map((f) => ({ ...(f.taper ? { taper: f.taper, taperSpan: f.taperSpan ?? ([0.3, 0.9] as const) } : {}), ...(f.join != null ? { capless: (f.join === 0 ? [true, false] : [false, true]) as readonly [boolean, boolean] } : {}), pts: fanTo3(f, z), radius: len3(Math.max(0.35, Math.max(1.2, plan.hostW * plan.cfgK * f.k * (f.atEnd && smoothJoinsOn() ? SMOOTH.get(v.host)?.taper?.[1] ?? 1 : 1) * (plan.when ? 0.5 + 0.5 * s.live : 1)) / 2)) }));
   return withFanJoints(fan);
 }
 
@@ -385,4 +436,10 @@ export function tubularOf(v: NetVessel, minFirst = 0): number[] {
     for (let i = 1; i < c.pts.length; i++) len += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);
     return Math.max(i === 0 ? minFirst : Math.min(STRAND_RINGS_MAX, Math.ceil(minFirst * STRAND_RING_K)), tubularFor(len, (plan.kind === 'coil' && !(plan.coils || plan.strands) ? 1 : 2) * (DIVIDED_IDS.has(v.id) ? DIVIDED_RING_K : 1)));   // (a divided vein's round stump is built from rings a twelfth as far apart: vessels/divide.ts)
   });
+}
+/** A 2D course relaxed (Laplacian, ends held): placed, the cavernoma's channels, wound in the trunk's frame, bend no tighter than the vessels they join. */
+function relax2(p: readonly (readonly [number, number])[], iters: number): [number, number][] {
+  let D = p.map((q): [number, number] => [q[0], q[1]]);
+  for (let it = 0; it < iters; it++) D = D.map((q, i): [number, number] => (i === 0 || i === D.length - 1 ? q : [0.25 * D[i - 1]![0] + 0.5 * q[0] + 0.25 * D[i + 1]![0], 0.25 * D[i - 1]![1] + 0.5 * q[1] + 0.25 * D[i + 1]![1]]));
+  return D;
 }

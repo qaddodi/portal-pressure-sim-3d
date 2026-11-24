@@ -4,7 +4,8 @@
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { x3, y3 } from '../frame2d.ts';
 import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
-import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from '../anatomy/source.ts';
+import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D, PLACED } from '../anatomy/source.ts';
+import { PLACED_EDGE_3D } from '../anatomy/placed-network.ts';
 import { alongVein, alongVeinCompanion, alongVeinStretch, originsOf, startInOrganShare } from './starts.ts';
 import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare, treeOf } from './liver-branches.ts';
 import { CAUDATE_HOST, CAUDATE_VEIN_ID } from './caudate-veins.ts';
@@ -116,7 +117,7 @@ export function cavaEndSpan(_id: string): number { return 0; }
 /** A hepatic vein that opens into the cava (not a renal vein, which is receded to the cava's tone already) keeps its alpha to the wall: 2D's end alpha for it (0.5) is dropped. */
 export const keepsAlphaToCava = (id: string): boolean => opensIntoCava(id) && id !== 'LRV_IVC' && id !== 'RRV_IVC';
 export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
-  const f = fadeOf0(id, isArtery, feederHost);
+  const f = PLACED ? placedFade(id, fadeOf0(id, isArtery, feederHost)) : fadeOf0(id, isArtery, feederHost);
   if (CAVA_LIKE.has(id)) {
     // (the ascending lumbar collateral: the cava's tone along its whole run behind the liver and over the dome, climbing to full only over its last stretch where it joins the azygos arch, as the cava does at the atrium;
     //  2D's dip behind the liver and its solid return above the dome are gone: the part above the dome was a full-strength purple in a faded figure)
@@ -127,6 +128,19 @@ export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipF
   const k = RECEDE[id];
   if (k == null) return f;
   return f ? { ...f, a0: f.a0 * k, a1: f.a1 * k } : { mode: 1, from: 0, to: 1, a0: k, a1: k, keep: false, connect: [] };
+}
+/** Placed (the approved placement): a fade written in the figure's places (down the figure, mode 2; across a line, modes 3 and 4) moves with the vessel: by how far the end it is nearest moved from the 2D course to the
+ *  placed one, so the vessel still fades where it did along itself (the veins into the cava fade at the cava's new wall, the cava down where it leaves the figure). A fade along the vessel (mode 1) needs nothing. */
+function placedFade(id: string, f: TipFade | null): TipFade | null {
+  if (!f || f.mode === 1) return f;
+  const was = EDGE_PATH_2D[id], now = PLACED_EDGE_3D[id];
+  if (!was || !now || was.length < 2 || now.length < 2) return f;
+  const ends = [[x3(was[0]![0]), y3(was[0]![1]), now[0]!] as const, [x3(was[was.length - 1]![0]), y3(was[was.length - 1]![1]), now[now.length - 1]!] as const];
+  const at = f.line ? [(f.line[0] + f.line[2]) / 2, (f.line[1] + f.line[3]) / 2] : [0, (f.from + f.to) / 2];
+  const near = f.line ? ends.reduce((a, b) => (Math.hypot(b[0] - at[0]!, b[1] - at[1]!) < Math.hypot(a[0] - at[0]!, a[1] - at[1]!) ? b : a)) : ends.reduce((a, b) => (Math.abs(b[1] - at[1]!) < Math.abs(a[1] - at[1]!) ? b : a));
+  const dx = near[2][0] - near[0], dy = near[2][1] - near[1];
+  if (f.mode === 2) return { ...f, from: f.from + dy, to: f.to + dy };
+  return f.line ? { ...f, line: [f.line[0] + dx, f.line[1] + dy, f.line[2] + dx, f.line[3] + dy] } : f;
 }
 /** A lobar artery runs on to its bed's node, past where the portal branch it travels with has faded out into the liver (Mohammad, 20 Nov: "the hepatic artery branches are extending way too much; fade them earlier"; the dotted tip was the dithered end of a fade that
  *  still had alpha where the vein's was gone). Its fade ENDS where its companion's does: the share of the artery's course nearest to the point where the portal branch (the last vein it runs beside) reaches nothing, so both vanish together and the rest of

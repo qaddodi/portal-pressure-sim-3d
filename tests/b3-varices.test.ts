@@ -2,7 +2,8 @@
 // "Esophageal varices should be more prominent in anatomy view. Can make them beaded a little bit".
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
+import { NETWORK_BY_ID, RUN_ONS } from '../src/scene/vessels/network.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
 import { REST, coursesOf, VARIX_THICK } from '../src/scene/vessels/shape.ts';
 import { factorSpan } from '../src/scene/vessels/tubes.ts';
 import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
@@ -16,7 +17,9 @@ test('each varix strand starts exactly as wide as the coronary vein it comes fro
   for (const on of [true]) {
     setSmoothJoins(on);
     try {
-      const lgv = NETWORK_BY_ID.get('LGV_CONF')!.radius, c1b = NETWORK_BY_ID.get('C1b')!.radius;
+      // (placed: every run-on eases both vessels to one width at the join (network.ts meetRadius), the collaterals' too: the strands start and end at the width the coronary vein and the trunk have THERE)
+      const at = (id: string, mate: string) => { const r = RUN_ONS.find((x) => (x.a === id && x.b === mate) || (x.b === id && x.a === mate))!, e = r.a === id ? r.ia : r.ib, c = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!; return c.radius * (c.taper?.[e] ?? 1); };
+      const lgv = PLACED ? at('LGV_CONF', 'C1a') : NETWORK_BY_ID.get('LGV_CONF')!.radius, c1b = PLACED ? at('C1b', 'C1a') : NETWORK_BY_ID.get('C1b')!.radius;
       const cs = strands();
       assert.ok(cs.length >= 3, 'three columns');
       for (const c of cs) {
@@ -43,7 +46,8 @@ test('the varices are drawn thicker than 2D\'s strands, and always a little bead
 test('a collateral that runs into a thinner vessel narrows to that vessel\'s calibre at its end (the azygos collateral on the azygos, the paraumbilical vein on the epigastric vein) and keeps its own where it ends on a wider one', () => {
   setSmoothJoins(true);
   const end = (id: string, e: 0 | 1) => { const c = coursesOf(NETWORK_BY_ID.get(id)!, { ...REST, strandsOn: true })[0]!; return c.radius * (c.taper?.[e] ?? 1); };
-  assert.ok(Math.abs(end('C9', 1) - NETWORK_BY_ID.get('AZY_SVC')!.radius) < 1e-9, 'C9 meets the azygos at its calibre');
+  // (placed: C9 is the azygos's own lower piece and runs on into its arch: the two meet at one width, the arch's start)
+  assert.ok(Math.abs(end('C9', 1) - (PLACED ? NETWORK_BY_ID.get('AZY_SVC')!.radius * (coursesOf(NETWORK_BY_ID.get('AZY_SVC')!, REST)[0]!.taper?.[0] ?? 1) : NETWORK_BY_ID.get('AZY_SVC')!.radius)) < 1e-9, 'C9 meets the azygos at its calibre');
   // (since 67ed12d1 the paraumbilical vein ends in the caput's hub and narrows to the widest root of the fan there, never wider than the epigastric vein it is mated to)
   const fan = coursesOf(NETWORK_BY_ID.get('C3~F:caput')!, { ...REST, live: 1 }), hub = Math.max(...fan.filter((c) => c.lens && c.lens[0] === 0).map((c) => c.radius));
   assert.ok(end('C3', 1) <= NETWORK_BY_ID.get('EPI_ILI')!.radius + 1e-9, 'C3 is never wider than the epigastric vein at its end');

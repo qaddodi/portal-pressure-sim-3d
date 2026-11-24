@@ -16,6 +16,9 @@ import { PresenceTracks } from '../src/scene/vessels/presence-track.ts';
 import { findSkinJunctions } from '../src/scene/vessels/skin/inventory.ts';
 import { wallJunctions, wallLandings } from '../src/scene/vessels/skin/wall.ts';
 import { swellOf } from './skin-live-lib.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
+// (placed, PPS_ANATOMY=placed: the courses have their own depth, so a bend and an angle are measured in 3D; the flat figure's x and y are its 3D, z one plane)
+const Z = PLACED ? 1 : 0;
 
 setSmoothJoins(true);
 const PX = 700;   // px per scene unit, the gate's screen
@@ -76,9 +79,9 @@ test('the lumbar vein is one smooth curve into the arch: it turns nowhere sharpe
   const c9 = NETWORK_BY_ID.get('C9')!, c = coursesOf(c9, REST)[0]!.pts, az = NETWORK_BY_ID.get('AZY_SVC')!;
   let minR = Infinity;
   for (let i = Math.max(1, c.length - 120); i < c.length - 1; i++) {
-    const a = c[i - 1]!, b = c[i]!, d = c[i + 1]!, u = [b[0] - a[0], b[1] - a[1]], v = [d[0] - b[0], d[1] - b[1]], lu = Math.hypot(u[0]!, u[1]!), lv = Math.hypot(v[0]!, v[1]!);
+    const a = c[i - 1]!, b = c[i]!, d = c[i + 1]!, u = [b[0] - a[0], b[1] - a[1], Z * (b[2] - a[2])], v = [d[0] - b[0], d[1] - b[1], Z * (d[2] - b[2])], lu = Math.hypot(u[0]!, u[1]!, u[2]!), lv = Math.hypot(v[0]!, v[1]!, v[2]!);
     if (lu < 1e-9 || lv < 1e-9) continue;
-    const turn = Math.acos(Math.min(1, Math.max(-1, (u[0]! * v[0]! + u[1]! * v[1]!) / (lu * lv))));
+    const turn = Math.acos(Math.min(1, Math.max(-1, (u[0]! * v[0]! + u[1]! * v[1]! + u[2]! * v[2]!) / (lu * lv))));
     if (turn > 1e-6) minR = Math.min(minR, ((lu + lv) / 2) / turn);
   }
   assert.ok(minR >= 6 * az.radius, `the tightest bend is ${(minR / az.radius).toFixed(1)} radii of the arch`);
@@ -96,7 +99,7 @@ test('the varices land on the arch\'s side wall alone, well apart from the lumba
   assert.ok(apart >= 1.5, `the varices' mouth is ${apart.toFixed(2)} arch diameters from the lumbar vein's mouth`);
   // the angle the varices meet the arch's axis at (the arch's own heading where they land)
   let best = Infinity, ang = 0;
-  for (let i = 1; i < p.length; i++) { const a = p[i - 1]!, b = p[i]!, d = Math.hypot(mouth[0] - b[0], mouth[1] - b[1]); if (d < best) { best = d; const h = [b[0] - a[0], b[1] - a[1]], l = Math.hypot(h[0]!, h[1]!), t = [mouth[0] - cb[cb.length - 5]![0], mouth[1] - cb[cb.length - 5]![1]], lt = Math.hypot(t[0]!, t[1]!); ang = deg(Math.acos(Math.abs((h[0]! * t[0]! + h[1]! * t[1]!) / (l * lt)))); } }
+  for (let i = 1; i < p.length; i++) { const a = p[i - 1]!, b = p[i]!, d = Math.hypot(mouth[0] - b[0], mouth[1] - b[1]); if (d < best) { best = d; const h = [b[0] - a[0], b[1] - a[1], Z * (b[2] - a[2])], l = Math.hypot(h[0]!, h[1]!, h[2]!), t = [mouth[0] - cb[cb.length - 5]![0], mouth[1] - cb[cb.length - 5]![1], Z * (mouth[2] - cb[cb.length - 5]![2])], lt = Math.hypot(t[0]!, t[1]!, t[2]!); ang = deg(Math.acos(Math.abs((h[0]! * t[0]! + h[1]! * t[1]! + h[2]! * t[2]!) / (l * lt)))); } }
   assert.ok(ang >= 40 && ang <= 80, `the varices meet the arch at ${ang.toFixed(1)} degrees`);
 });
 

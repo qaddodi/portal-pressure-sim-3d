@@ -4,11 +4,12 @@
 // into the Z axes"; "umbilical vein ... extend it a little then branch it into the liver"). Each host vein gets two children that leave it part-way along its end and spread apart as they
 // run on into the liver, one forward and one back in depth, fading out (portal veins, the umbilical vein) or in (hepatic veins) the way the host does. They are decoration on the host's own
 // course (a tributary group, like the 2D figure's fans), derived from it: no new edges, flows or numbers.
-import { EDGE_PATH_2D } from '../anatomy/source.ts';
+import { EDGE_PATH_2D, PLACED } from '../anatomy/source.ts';
+import { PLACED_BRANCHES, PLACED_PATH_2D, PLACED_SPLIT, to2D } from '../anatomy/placed-network.ts';
 import { len3 } from '../frame2d.ts';
 
 type P2 = readonly [number, number];
-export interface BranchItem { /** the width at its start as a share of its vein's own at the join; for a vein that ends at a node (`atEnd`), the shape works it out from the vein's end width */ k: number; /** starts at the end of a vein that stays whole */ atEnd?: true; fan: boolean; when: string | null; src: string | null; out: boolean; pts: readonly P2[]; dz: readonly number[]; /** the width at each end as a share of its own: a branch narrows toward its tip */ taper: readonly [number, number]; /** the share of its length each end's narrowing covers: the whole of it at the tip, none at the join */ taperSpan: readonly [number, number]; /** which end (0 start, 1 end) is the join with the host: it has no cap */ join: 0 | 1 }
+export interface BranchItem { /** the width at its start as a share of its vein's own at the join; for a vein that ends at a node (`atEnd`), the shape works it out from the vein's end width */ k: number; /** starts at the end of a vein that stays whole */ atEnd?: true; fan: boolean; when: string | null; src: string | null; out: boolean; pts: readonly P2[]; dz: readonly number[]; /** each point's depth (the approved placement: the branch's own course), in place of the host's tier */ zs?: readonly number[]; /** the width at each end as a share of its own: a branch narrows toward its tip */ taper: readonly [number, number]; /** the share of its length each end's narrowing covers: the whole of it at the tip, none at the join */ taperSpan: readonly [number, number]; /** which end (0 start, 1 end) is the join with the host: it has no cap */ join: 0 | 1 }
 export interface BranchSet { host: string; when: string | null; list: readonly BranchItem[]; /** the stretch (0 to 1) of the host's lens ramp the children wear: the part they leave, so there is no step in colour at the branch point */ span: readonly [number, number] }
 
 const N = 64, Z_FWD = 0.1;
@@ -27,7 +28,11 @@ export const SIDE_SLOPE = 0.45;
  *  gentle slope toward `z`, which it approaches and never passes. It is level with the vein by the time it has cleared it (two radii out), so while the two overlap the branch is always behind. */
 export const tuckedDepth = (w: number, z: number): number => -Z_TUCK + z * (1 - Math.exp(-SIDE_SLOPE * len3(w) / z));
 /** Where along its vein (0 to 1, from the end the branches grow from: the portal branches' liver end, the hepatic veins' start) each branching vein splits. */
-export const SPLIT_AT: Readonly<Record<string, number>> = { PVH_R_2: 0.35, PVH_L_1: 0.55, RHV_IVC_1: 0.72, LHV_IVC: 0.62 };
+export const SPLIT_AT: Readonly<Record<string, number>> = PLACED
+  // (the approved placement: the right portal vein and the right hepatic vein branch, by their placed branches (anatomy/placed-network.ts PLACED_BRANCHES); the left portal vein is ONE vessel that runs on into the left lobe and fades,
+  //  with no fork (round 16), and the left hepatic vein starts in the lobe, so neither grows branches here)
+  ? Object.fromEntries(Object.keys(PLACED_BRANCHES).map((id) => [id, PLACED_SPLIT[id]!.q]))
+  : { PVH_R_2: 0.35, PVH_L_1: 0.55, RHV_IVC_1: 0.72, LHV_IVC: 0.62 };
 /** (None now: the left portal vein was the one end-fork, two children from its very end, which showed as a knob with two tubes laid over each other; the umbilical vein leaves its wall earlier now (starts.ts leaveVein), so it branches like every other vein, one tube and one side branch.) */
 export const END_JOIN: ReadonlySet<string> = new Set<string>();
 /** How far each vein runs on past its 2D end, as a share of its length, into the liver (the through branch). */
@@ -70,7 +75,7 @@ export interface Tree {
   /** the vein in flow order, whole: its own course up to the split, then its through branch to the tip */
   through: P2[];
   /** the side branch in flow order (null for a vein with none) and its depth */
-  side: { pts: P2[]; dz: number[] } | null;
+  side: { pts: P2[]; dz: number[]; zs?: number[] } | null;
   /** where the split is along `through`, 0 to 1 from the root (the portal veins' start, the hepatic veins' IVC end), by length */
   q: number;
 }
@@ -111,9 +116,18 @@ function grow(id: string, host: readonly P2[], prefix: readonly P2[] | null): Tr
   return { through, side: sd, q: lenOf(lead) / lenOf([...lead, ...a.pts.slice(1)]) };
 }
 const TREE_CACHE = new Map<string, Tree>();
+/** The approved placement's tree: the host's placed course runs on to its through branch's tip (placed-network.ts), and its side branch is the placed one, with its own depth. Flow order, as treeOf gives it. */
+function placedTree(id: string): Tree {
+  const hit = TREE_CACHE.get(id); if (hit) return hit;
+  const sp = PLACED_SPLIT[id]!, side = to2D(sp.side);
+  const t: Tree = { through: PLACED_PATH_2D[id]!.map((p): P2 => [p[0], p[1]]) as P2[], side: { pts: side.pts, dz: side.pts.map(() => 0), zs: side.z }, q: sp.q };
+  TREE_CACHE.set(id, t);
+  return t;
+}
 /** The whole tree of a branching vein (its course in root-first order is reversed back to flow order here). */
 export function treeOf(id: string, prefix: readonly P2[] | null = null): Tree | null {
   if (SPLIT_AT[id] == null) return null;
+  if (PLACED) return placedTree(id);
   const key = prefix ? '' : id; const hit = key ? TREE_CACHE.get(key) : undefined; if (hit) return hit;
   const t = grow(id, EDGE_PATH_2D[id]!, prefix ? (isOut(id) ? prefix : [...prefix].reverse()) : null);
   const flow: Tree = isOut(id) ? t : { through: [...t.through].reverse(), side: t.side ? { pts: [...t.side.pts].reverse(), dz: [...t.side.dz].reverse() } : null, q: t.q };
@@ -128,8 +142,8 @@ export function trimHost(id: string, path: readonly P2[]): readonly P2[] {
 /** Where the split is along the drawn vein, 0 to 1 from its root end by length, as the vein runs (flow order): the tip end of the course is 1 for a portal branch and 0 for a hepatic vein. */
 export const splitShare = (id: string): number | null => { const t = treeOf(id); return t ? (isOut(id) ? t.q : 1 - t.q) : null; };
 
-const item = (c: { pts: P2[]; dz: number[] }, k: number, out: boolean): BranchItem => ({
-  k, fan: true, when: null, src: null, out: false, pts: c.pts, dz: c.dz,
+const item = (c: { pts: P2[]; dz: number[]; zs?: number[] }, k: number, out: boolean): BranchItem => ({
+  k, fan: true, when: null, src: null, out: false, pts: c.pts, dz: c.dz, ...(c.zs ? { zs: c.zs } : {}),
   // (the end inside the vein is narrower than the branch and widens over its first stretch: a flat cut as wide as the branch would stand out of the vein's wall as a square corner, a ledge, where the branch leaves it)
   taper: out ? [JOIN_K, TIP / k] : [TIP / k, JOIN_K], taperSpan: out ? [JOIN_SPAN, 1] : [1, JOIN_SPAN], join: out ? 0 : 1,
 });

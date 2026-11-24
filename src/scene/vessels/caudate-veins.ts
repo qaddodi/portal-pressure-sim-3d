@@ -2,7 +2,8 @@
 // Budd-Chiari they are the liver's outflow, patent while the three main hepatic veins are clotted. They are one tributary group on the IVC piece they enter (`<host>~F:caudate`, three courses), drawn only while a slide is about the lobe
 // and eased in and out by the scene (scene.ts setCaudate), and they open into the cava by the same rule as the hepatic veins (fades.ts CAVA_FEEDERS: the vein takes the cava's colour and its faint alpha at the wall and is cut away inside
 // the lumen, so both have one fade at the junction). Each one rises out of the lobe's own tissue (fades in over its first stretch, no end to see).
-import { EDGE_PATH_2D } from '../anatomy/source.ts';
+import { EDGE_PATH_2D, PLACED } from '../anatomy/source.ts';
+import { PLACED_CAUDATE_VEINS, shareOn, to2D } from '../anatomy/placed-network.ts';
 import { CAUDATE_VEINS } from '../organs/caudate.ts';
 import { JOIN_SPAN, type BranchItem, type BranchSet } from './liver-branches.ts';
 
@@ -44,7 +45,18 @@ function vein([d]: readonly [string, number], width: number, hostW: number): Bra
 
 /** The group: three veins on the cava's piece. `hostW` is the cava's width in 2D units (network.ts NETWORK_HOST_W). */
 export function caudateVeinSet(hostW: number): BranchSet {
+  if (PLACED) return placedSet(hostW);
   return { host: CAUDATE_HOST, when: CAUDATE_WHEN, span: entrySpan(), list: CAUDATE_VEINS.map((c, i) => vein(c, CAUDATE_WIDTHS[i]!, hostW)) };
+}
+
+/** The approved placement's three caudate veins (cv1 to cv3: out of the lobe on the liver's back into the cava's left wall), already joined into the cava's centreline (placed-network.ts), each at its own depth; the same group, widths and show rule. */
+function placedSet(hostW: number): BranchSet {
+  const list = PLACED_CAUDATE_VEINS.map((c, i): BranchItem => {
+    const { pts, z } = to2D(c);
+    return { k: CAUDATE_WIDTHS[i]! / hostW, fan: true, when: CAUDATE_WHEN, src: null, out: false, pts, dz: pts.map(() => 0), zs: z, taper: [0.5, 1], taperSpan: [1, JOIN_SPAN], join: 1 };
+  });
+  const at = PLACED_CAUDATE_VEINS.map((c) => Math.min(1, Math.max(0, shareOn(CAUDATE_HOST, c[c.length - 1]!))));
+  return { host: CAUDATE_HOST, when: CAUDATE_WHEN, span: [Math.min(...at), Math.max(...at)], list };
 }
 
 /** The veins that carry the liver's outflow to the cava: a clot in any of them, or a narrowing of the cava where they open (the IVC web), obstructs it (docs/pathology-spec.md). */

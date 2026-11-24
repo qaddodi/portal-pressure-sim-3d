@@ -19,6 +19,8 @@ import { useSettings } from '../src/state/settings.ts';
 import manifest from '../src/scene/organs/organs-manifest.json' with { type: 'json' };
 import { AlwaysStencilFunc, KeepStencilOp } from 'three';
 import { VESSEL_STENCIL } from '../src/scene/vessels/cel-ink.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
+import { PLACED_NODE_3D } from '../src/scene/anatomy/placed-network.ts';
 
 const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(true); try { return f(); } finally { setSmoothJoins(was); } };
 const off = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(false); try { return f(); } finally { setSmoothJoins(was); } };
@@ -78,10 +80,11 @@ test('a run-on carries on as one tube: the two end rings share one centre and on
       const sa = SMOOTH.get(r.a)!, sb = SMOOTH.get(r.b)!;
       if (sa.joined[r.ia]) assert.ok(sb.joined[r.ib], `${r.a} and ${r.b} agree on their cap`);
     }
-    assert.ok(pairs > 25 && unequal >= 4, `${pairs} pairs, ${unequal} of unequal caliber`);
+    // (placed: one calibre per whole vessel (network.ts oneCalibre) makes the pieces of a vein equal, which leaves three unequal pairs)
+    assert.ok(pairs > 25 && unequal >= (PLACED ? 3 : 4), `${pairs} pairs, ${unequal} of unequal caliber`);
   });
-  // off, those unequal pairs keep their step (the 2D rule)
-  off(() => { const r = RUN_ONS.find((x) => { const a = NETWORK_BY_ID.get(x.a)!, b = NETWORK_BY_ID.get(x.b)!; return a.kind !== 'collateral' && b.kind !== 'collateral' && Math.max(a.radius, b.radius) > 2 * Math.min(a.radius, b.radius); })!; const ra = ring(r.a, r.ia), rb = ring(r.b, r.ib); assert.ok(Math.max(ra.r, rb.r) > Math.min(ra.r, rb.r) * 1.5, `${r.a} to ${r.b} keeps its step`); });
+  // off, those unequal pairs keep their step (the 2D rule) (placed: one calibre per whole leaves no pair twice apart)
+  if (!PLACED) off(() => { const r = RUN_ONS.find((x) => { const a = NETWORK_BY_ID.get(x.a)!, b = NETWORK_BY_ID.get(x.b)!; return a.kind !== 'collateral' && b.kind !== 'collateral' && Math.max(a.radius, b.radius) > 2 * Math.min(a.radius, b.radius); })!; const ra = ring(r.a, r.ia), rb = ring(r.b, r.ib); assert.ok(Math.max(ra.r, rb.r) > Math.min(ra.r, rb.r) * 1.5, `${r.a} to ${r.b} keeps its step`); });
 });
 
 test('a vein narrowing into a thin bed keeps the bed as drawn (only the wide one narrows); two stretches of one vein ease to their mean', () => {
@@ -110,11 +113,13 @@ test('tapers are monotone: along the first and last 30 % the radius moves from t
           assert.ok(t > 1 ? x <= prev + 1e-9 : x >= prev - 1e-9, `${v.id} end ${end} step ${i}: ${prev} then ${x}`);
           prev = x;
         }
-        if (SMOOTH.get(v.id)!.span.every((x) => x < 0.5)) assert.ok(Math.abs(prev - at(Math.floor(N / 2))) < 0.02 * at(Math.floor(N / 2)) + 1e-9, `${v.id} end ${end} reaches its own width`);
+        // (placed: a taper spans a length, shape.ts lengthSpans, so its own spans say whether it reaches the vessel's own width by the middle)
+        if ((PLACED ? c.taperSpan ?? [0.3, 0.3] : SMOOTH.get(v.id)!.span).every((x) => x < 0.5)) assert.ok(Math.abs(prev - at(Math.floor(N / 2))) < 0.02 * at(Math.floor(N / 2)) + 1e-9, `${v.id} end ${end} reaches its own width`);
         checked++;
       }
     }
-    assert.ok(checked >= 12, `${checked} tapered ends`);   // (was 21, less the four split ends of the veins that branch, which keep their width: liver-branches.ts; before: 21: the two arterioles into the sinusoid fans are no longer drawn)
+    // (placed: one calibre per whole vessel leaves fewer ends that change width: 6)
+    assert.ok(checked >= (PLACED ? 6 : 12), `${checked} tapered ends`);   // (was 21, less the four split ends of the veins that branch, which keep their width: liver-branches.ts; before: 21: the two arterioles into the sinusoid fans are no longer drawn)
   });
 });
 
@@ -194,7 +199,8 @@ test('the cava and the SVC end in the right atrium: they run on one monotone slo
     let zmin = Infinity, zmax = -Infinity; for (let i = 0; i < nv; i++) { const z = q[i * 3 + 2]! / M.q; zmin = Math.min(zmin, z); zmax = Math.max(zmax, z); }
     return { zmin, zmax };
   })();
-  const ra = NODE_RISE.get('RA')!;
+  // (placed: the atrium end is the placed network's RA node)
+  const ra = PLACED ? { z: PLACED_NODE_3D.RA![2] } : NODE_RISE.get('RA')!;
   assert.ok(ra.z > heart.zmin + ORGAN_Z['heart-ra']! && ra.z < heart.zmax + ORGAN_Z['heart-ra']!, `the end depth ${ra.z} is inside the atrium (${heart.zmin} to ${heart.zmax})`);
   on(() => {
     const ivc = coursesOf(NETWORK_BY_ID.get('IVCS_RA')!, REST)[0]!.pts, svc = coursesOf(NETWORK_BY_ID.get('SVC_RA')!, REST)[0]!.pts;
@@ -318,7 +324,8 @@ test('a vein narrowing into a thin bed funnels over its whole length: its radius
         for (let i = 1; i <= run.tubular; i++) { const x = at(end ? run.tubular - i : i); assert.ok(x <= Math.max(1, ...sm.taper!) + 1e-5, `${v.id} end ${end} step ${i} above its own width`); if (x < prev - 1e-9) fell = true; else if (fell) assert.ok(x <= prev + 1e-9, `${v.id} end ${end} step ${i}: swells again, ${prev} then ${x}`); prev = x; }
       }
     }
-    assert.ok(funnels >= 4, `${funnels} funnels`);
+    // (placed: one calibre per whole vessel leaves three veins that narrow into a thin vessel)
+    assert.ok(funnels >= (PLACED ? 3 : 4), `${funnels} funnels`);
   });
 });
 
@@ -337,7 +344,8 @@ test('the centreline is the 2D course with smooth joins on too: snapping only mo
     if (end > 1e-6) moved++;
     assert.ok(end < 0.06, `${v.id}: an end moved ${end.toFixed(3)}`);
   }
-  assert.ok(moved >= 5, `${moved} vessels have an end fitted`);
+  // (placed: the courses already meet at their 3D attach points (placed-network.ts), so smooth joins move no end; the middle and the wiggle checks above still hold)
+  assert.ok(PLACED ? moved === 0 : moved >= 5, `${moved} vessels have an end fitted`);
 });
 
 test('one outline rule at every junction: a vein that opens into the cava, and a liver branch that leaves a vein, hold their ink back where they lie inside the other vessel\'s lumen', () => {
