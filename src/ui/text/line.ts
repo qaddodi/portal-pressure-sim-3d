@@ -95,7 +95,8 @@ export function gluePieces(pieces: readonly Piece[]): Glued[] {
       if (m) { it.stop = m[0]; next.p = { ...next.p, text: next.p.text.slice(m[0].length) }; }
     }
     const prev = items[i - 1];
-    if (isPill && prev && prev.p.t === 'text') prev.p = { ...prev.p, text: prev.p.text.replace(/ $/, '\u00a0') };
+    // (the space before a pill is held so the pill never starts a line; where it is the only thing between two pills ("9.0 mmHg, <12 mmHg") it stays a plain space, or a wrap before the second pill left a blank the width of a space at the start of the next line: Encephalopathy 10.2, capture 572259fd)
+    if (isPill && prev && prev.p.t === 'text' && prev.p.text !== ' ') prev.p = { ...prev.p, text: prev.p.text.replace(/ $/, '\u00a0') };
     if (isPill && prev && prev.p.t === 'text' && /\($/.test(prev.p.text)) it.open = true;
   });
   return items;

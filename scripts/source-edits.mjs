@@ -48,6 +48,9 @@ export const TIPS_DOPPLER_REVIEW = [
 ];
 
 export const SOURCE_PATCHES = [
+  // ---- encephalopathy: "{ppg}, {<12 mmHg}, the variceal reference" read as a list of two readings; the cut-off is named as what it is (capture 572259fd, slides 10 and 13) ----
+  P('encephalopathy', 'slides.tips.line', 'lowers the PPG to {ppg}, {<12 mmHg}, the variceal reference, and', 'lowers the PPG to {ppg}, under the {12 mmHg} variceal reference, and'),
+  P('encephalopathy', 'slides.relation.line', 'the PPG is {ppg}, {<12 mmHg}, the variceal reference, and', 'the PPG is {ppg}, under the {12 mmHg} variceal reference, and'),
   // ---- stiffness: the two slides that set AASLD against Baveno VIII, rewritten as Baveno VIII alone (the comparison moves to the notes) ----
   SET('stiffness', 'slides.aasld.tool', { kind: 'path', of: 'first-visit', short: 'First-visit path', patient: { bmi: false, ant: false } }),
   SET('stiffness', 'slides.aasld.title', 'Between the two rules, her LSM and platelets leave her indeterminate'),
