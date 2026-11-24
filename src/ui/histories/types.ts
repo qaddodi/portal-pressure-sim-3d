@@ -10,6 +10,8 @@ export interface Step {
   set?: Record<string, unknown>;
   /** an engine action: a bleed (the model's own rupture, run for a minute), a band, a large-volume paracentesis with albumin (all the fluid there is, to 0.1 L) */
   act?: 'bleed' | 'band' | 'paracentesis';
+  /** where a bleed comes from: the esophageal varices (the default) or a gastric varix */
+  site?: 'VAR' | 'GV';
   /** History's words for the step, when the change's own labels would not say it (an angioplasty is a thrombus put away) */
   label?: string;
   detail?: string;
@@ -33,13 +35,16 @@ export interface Course {
   quiet: string[];
   /** days at the start in which the model's detectors are still finding the state the patient came with (a patient who starts with ascites is not "forming" it): their lines are left out. Default 3. */
   settle?: number;
+  /** the day's look at the model (to raise its events) is taken with the breath and the pulse held still, as a settled day is. The live steps carry them, and four of them a day move the fluid by litres over months (the model's
+   *  mean pressures differ from its settled ones): a course whose fluid must follow only the disease and the treatments (a patient who recompensates) sets this; the courses that rely on the fluid coming back do not. */
+  still?: boolean;
   steps: Step[];
   /** the story: {id} is the day of the step with that id */
   story: string;
   /** the course in a few words, for the row's tip */
   path: string;
   /** what the row's second line says about the patient today, in order */
-  state: ('tips' | 'ppg' | 'meds' | 'ascites' | 'clot')[];
+  state: ('tips' | 'hvpg' | 'ppg' | 'meds' | 'ascites' | 'clot')[];
 }
 
 export interface DaySample { day: number; v: Record<string, number>; start?: boolean }

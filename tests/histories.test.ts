@@ -128,3 +128,99 @@ test('the little course: one portal vein pressure in about three days, and the s
   }
   assert.deepEqual(played[0]!.meta.marks.map((m) => m.word), ['Carvedilol', 'Bled', 'Banded', 'TIPS']);
 });
+
+// ---- the seven added on 24 Nov: each is held to the medicine it tells ----
+const every = (b: Baked, f: (v: Record<string, number>, day: number) => boolean) => b.days.every((d) => f(d.v, d.day));
+const pr = (e: EntryOut) => e.params as { drugs: Record<string, boolean>; tips: { on: boolean }; occluded: Record<string, boolean>; gestation: number; cirrhosis: number; diuretics: boolean };
+const bandDays = (b: Baked) => b.entries.filter((e) => e.action && /^Band/.test(e.label)).map((e) => e.day);
+const gaps = (d: number[]) => d.slice(1).map((x, i) => x - d[i]!);
+
+test('Bleed, TIPS in 24 hours: a vasoactive drug and a band the same day, a pre-emptive TIPS within 72 hours (Child-Pugh B, active bleeding), no beta-blocker, PPG under 12 after', () => {
+  const b = by('hist-bleed-tips');
+  const bleed = find(b, (e) => e.evId === 'VARIX_RUPTURE')!, vaso = find(b, (e) => e.step === 'vasoactive')!, band = find(b, (e) => e.step === 'band')!, tips = find(b, (e) => e.step === 'tips')!, conf = find(b, (e) => e.step === 'confusion')!;
+  assert.equal(bleed.sev, 'critical');
+  assert.equal(vaso.day, bleed.day);
+  assert.equal(band.day, bleed.day);
+  assert.ok(tips.day - bleed.day <= 1, 'within 24 hours');
+  assert.ok(at(b, bleed.day - 1).ppg > 12, 'over 12 before');
+  assert.ok(b.now.tipsMm === 8 && b.now.ppg < 12, `PPG ${b.now.ppg} after the TIPS`);
+  assert.equal(pr(tips).drugs.terlipressin, false, 'the vasoactive drug is over in 2 to 5 days');
+  assert.equal(pr(tips).drugs.carvedilol, false);
+  assert.ok(conf.day > tips.day, 'the confusion comes after the TIPS');
+  assert.ok(b.now.ascitesL < at(b, bleed.day - 1).asc, 'the fluid went down after the TIPS');
+});
+
+test('Hepatitis C cured: carvedilol first, a direct-acting antiviral for 12 weeks, SVR12 12 weeks later; the gradient falls but is still 10 or more, so carvedilol goes on', () => {
+  const b = by('hist-hcv');
+  const carv = find(b, (e) => e.step === 'carvedilol')!, daa = find(b, (e) => e.step === 'daa')!, svr = find(b, (e) => e.step === 'svr')!;
+  assert.ok(carv.day < daa.day);
+  assert.equal(svr.day - daa.day, 24 * 7, '12 weeks of treatment and 12 weeks more: SVR12');
+  assert.equal(Math.round(b.now.hvpg) >= 10, true, `CSPH persists (HVPG ${b.now.hvpg})`);
+  assert.ok(b.now.hvpg < at(b, carv.day - 1).hvpg - 1.5, 'lower than before the cure and the drug');
+  assert.ok(b.now.meds.includes('Carvedilol'));
+  assert.ok((b.snap.params as { cirrhosis: number }).cirrhosis < 0.7, 'the fibrosis regressed in the model');
+  assert.ok(every(b, (v) => v.asc < 0.5), 'compensated throughout: no ascites');
+});
+
+test('Alcohol, abstinent: the cause removed, the fluid goes, diuretics stop only after it, and recompensation is called a year on (Baveno VIII)', () => {
+  const b = by('hist-alcohol');
+  const ab = find(b, (e) => e.step === 'abstain')!, off = find(b, (e) => e.step === 'diurOff')!, rc = find(b, (e) => e.step === 'recomp')!;
+  assert.ok(ab.day <= 1);
+  assert.ok(at(b, 0).asc > 0.5, 'decompensated: there was ascites');
+  assert.ok(at(b, off.day - 1).asc < 0.1, 'the diuretics stop only when the fluid is gone');
+  assert.ok(rc.day - off.day >= 365, 'recompensation: 12 months or more off diuretics, with the cause removed');
+  assert.ok(every(b, (v, d) => d < off.day || v.asc < 0.5), 'the fluid does not come back off diuretics');
+  assert.ok(b.now.ascitesL < 0.1 && b.now.hvpg < at(b, 0).hvpg - 5);
+  assert.ok((b.snap.params as { albumin: number }).albumin >= 3.5, 'the albumin is back to normal');
+  assert.equal(pr(find(b, (e) => e.step === 'diurOff')!).diuretics, false);
+  assert.equal(b.now.tipsMm, null);
+});
+
+test('PSVD: the HVPG is normal (under 5) on every day and the PPG is not; a bleed, a band and a vasoactive drug that day, a beta-blocker after, banding every 2 to 4 weeks', () => {
+  const b = by('hist-psvd');
+  assert.ok(every(b, (v) => v.hvpg < 5), 'normal HVPG throughout');
+  assert.ok(every(b, (v, d) => d < 25 || v.ppg > 12), 'the portal vein gradient stays high (but for the days on the vasoactive drug)');
+  const bleed = find(b, (e) => e.evId === 'VARIX_RUPTURE')!, vaso = find(b, (e) => e.step === 'vasoactive')!, carv = find(b, (e) => e.step === 'carvedilol')!;
+  assert.equal(vaso.day, bleed.day);
+  assert.ok(carv.day - vaso.day >= 2 && carv.day - vaso.day <= 5, 'the vasoactive drug runs 2 to 5 days');
+  const g = gaps(bandDays(b));
+  assert.ok(bandDays(b).length >= 3 && g.every((x) => x >= 14 && x <= 35), `bands every 2 to 4 weeks (${g})`);
+  assert.equal(b.now.tipsMm, null);
+});
+
+test('BRTO: a gastric varix bleeds, the shunt is closed within days, the esophageal varices that follow are treated with carvedilol and bands every 2 to 4 weeks', () => {
+  const b = by('hist-brto');
+  const bleed = find(b, (e) => e.evId === 'VARIX_RUPTURE')!, brto = find(b, (e) => e.step === 'brto')!, carv = find(b, (e) => e.step === 'carvedilol')!;
+  assert.equal(bleed.label, 'Gastric varix ruptured');
+  assert.ok(brto.day - bleed.day <= 7);
+  assert.equal(pr(brto).occluded.C5, true, 'the gastrorenal shunt is occluded');
+  assert.ok(find(b, (e) => e.kind === 'event' && /esophageal varices/i.test(e.label) && e.day > brto.day), 'the model raises the esophageal varices after it');
+  assert.ok(at(b, brto.day + 5).ppg > at(b, brto.day - 1).ppg + 2, 'the portal pressure rises when the shunt is closed');
+  assert.ok(carv.day > brto.day);
+  const g = gaps(bandDays(b));
+  assert.ok(bandDays(b).every((d) => d > brto.day) && g.every((x) => x >= 14 && x <= 35), `bands every 2 to 4 weeks, after the BRTO (${g})`);
+});
+
+test('Pregnancy: propranolol and banding in the second trimester (14 to 27 weeks), delivery at term, and the varices were bigger in the pregnancy than before it', () => {
+  const b = by('hist-pregnancy'), c = COURSES.find((x) => x.id === 'hist-pregnancy')!, r = c.ramps![0]!;
+  const wk = (d: number) => r.a + (r.b - r.a) * (d - r.from) / (r.to - r.from);
+  const prop = find(b, (e) => e.step === 'prop')!, band = find(b, (e) => e.step === 'band')!, del = find(b, (e) => e.step === 'delivery')!;
+  assert.ok(wk(prop.day) >= 14 && wk(prop.day) < 28 && wk(band.day) >= 14 && wk(band.day) < 28, 'second trimester');
+  assert.equal(pr(prop).drugs.propranolol, true);
+  assert.equal(pr(prop).drugs.carvedilol, false, 'propranolol is the usual choice');
+  assert.equal(wk(del.day), 38, 'delivered at term');
+  assert.equal((b.snap.params as { gestation: number }).gestation, 0);
+  assert.ok(at(b, prop.day - 1).var > at(b, 0).var, 'the varices grew with the pregnancy');
+  assert.ok(at(b, del.day + 5).var < at(b, del.day - 1).var, 'and shrank after the delivery');
+});
+
+test('Cardiac cirrhosis: the HVPG is normal throughout, the wedged and free pressures are high, diuretics, then the heart treated and the congestion and the fluid fall', () => {
+  const b = by('hist-cardiac');
+  const hf = find(b, (e) => e.step === 'hf')!;
+  assert.ok(every(b, (v) => v.hvpg < 5), 'HVPG stays normal');
+  assert.ok(at(b, 0).whvp > 18, 'the wedged pressure is high with the right atrium');
+  assert.ok(b.now.ascitesL < at(b, 0).asc / 2, 'the fluid is less than half of what it was');
+  assert.ok(at(b, hf.day + 100).whvp < at(b, hf.day - 1).whvp - 2, 'congestion falls after the repair');
+  assert.equal((b.snap.params as { tr: number }).tr < 0.5, true);
+  assert.equal(b.now.tipsMm, null, 'a TIPS is never the answer to a failing heart');
+});

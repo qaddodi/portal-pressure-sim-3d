@@ -55,7 +55,11 @@ export function playCourse(c: Course): Baked {
     }
   };
   /** the model's clock a little on (the page's frames run between days), so a condition that holds is raised: events need model time to hold (events.js HOLD_S) */
-  const watch = (steps: number, dt: number, every = 1) => { for (let i = 0; i < steps; i++) { e.step(dt); if (i % every === 0) detectEvents(e); } drain(); };
+  const watch = (steps: number, dt: number, every = 1, quiet = false) => {
+    const was = e.quiet; e.quiet = quiet;
+    for (let i = 0; i < steps; i++) { e.step(dt); if (i % every === 0) detectEvents(e); }
+    e.quiet = was; drain();
+  };
 
   entries.push({ kind: 'start', label: c.name, day: 0, t: round(e.t, 2), params: structuredClone(e.params) });
   note();
@@ -70,7 +74,7 @@ export function playCourse(c: Course): Baked {
     entries.push({ kind: 'change', label, day: e.day, t: round(e.t, 2), ...(s.detail ? { detail: s.detail } : {}), keys, ...(s.id ? { step: s.id } : {}), params: structuredClone(e.params) });
   };
   const act = (s: Step) => {
-    if (s.act === 'bleed') { e.rupture('VAR', 0.6); watch(BLEED_SECONDS * 10, 0.1, 5); const r = entries.find((x) => x.evId === 'VARIX_RUPTURE' && x.day === e.day); if (r && s.id) r.step = s.id; return; }
+    if (s.act === 'bleed') { e.rupture(s.site ?? 'VAR', 0.6); watch(BLEED_SECONDS * 10, 0.1, 5); const r = entries.find((x) => x.evId === 'VARIX_RUPTURE' && x.day === e.day); if (r && s.id) r.step = s.id; return; }
     const a = s.act === 'band' ? { kind: 'band' } : { kind: 'paracentesis', mL: Math.floor(e.slow.ascites / 100) * 100, albumin: true };
     if (a.kind === 'band') e.band(); else e.paracentesis(a.mL as number, true);
     drain();
@@ -87,7 +91,7 @@ export function playCourse(c: Course): Baked {
       note();   // (the same day again: a change is a step in the days list)
     }
     e.advanceDays(1, { noRupture: true, silent: true });
-    watch(4, 0.1);
+    watch(4, 0.1, 1, !!c.still);
     note();
   }
 
@@ -121,7 +125,11 @@ export function metaOf(c: Course, b: Baked): HistoryMeta {
     counts: { events: b.entries.filter((x) => x.kind === 'event').length, medicines: medCount(b) },
   };
 }
-const MARK_WORD: Record<string, string> = { carvedilol: 'Carvedilol', bleed: 'Bled', band: 'Banded', tips: 'TIPS', tap1: 'Tap', tap2: 'Tap', tap3: 'Tap', anticoag: 'Anticoagulation', angioplasty: 'Angioplasty', doppler: 'Doppler' };
+const MARK_WORD: Record<string, string> = {
+  carvedilol: 'Carvedilol', bleed: 'Bled', band: 'Banded', tips: 'TIPS', tap1: 'Tap', tap2: 'Tap', tap3: 'Tap', anticoag: 'Anticoagulation', angioplasty: 'Angioplasty', doppler: 'Doppler',
+  daa: 'Antiviral', svr: 'Cured', abstain: 'Abstinent', diurOff: 'Diuretics off', recomp: 'Recompensated', brto: 'BRTO', preg: 'Pregnant', prop: 'Propranolol', delivery: 'Delivery',
+  hf: 'Heart treated', confusion: 'Confusion',
+};
 /** how many different medicines the history ran (Treat's drugs, diuretics, anticoagulation): the card's "3 medicines" */
 const medCount = (b: Baked): number => {
   const keys = new Set<string>();

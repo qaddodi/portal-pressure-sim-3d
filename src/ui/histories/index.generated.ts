@@ -418,6 +418,625 @@ export const HISTORIES: readonly HistoryMeta[] = [
    "events": 6,
    "medicines": 1
   }
+ },
+ {
+  "id": "hist-bleed-tips",
+  "name": "Bleed, TIPS in 24 hours",
+  "group": "After a bleed",
+  "where": "Varices and banding",
+  "preset": "cirr-decomp",
+  "months": 5,
+  "state": [
+   {
+    "text": "TIPS 8 mm"
+   },
+   {
+    "text": "PPG 9.1"
+   },
+   {
+    "text": "no ascites"
+   }
+  ],
+  "story": "A first variceal bleed, Child-Pugh B, still bleeding at endoscopy. A vasoactive drug and a band on Day 10, a covered TIPS on Day 11. Confusion on Day 45 cleared with lactulose.",
+  "path": "Bleed, band, TIPS the next day",
+  "pv": [
+   22.6,
+   22.6,
+   22.5,
+   17.5,
+   15.9,
+   15.6,
+   15.3,
+   15,
+   14.8,
+   14.6,
+   14.4,
+   14.3,
+   14.1,
+   14,
+   13.9,
+   13.8,
+   13.7,
+   13.7,
+   13.6,
+   13.6,
+   13.5,
+   13.5,
+   13.4,
+   13.4,
+   13.4,
+   13.4,
+   13.4,
+   13.3,
+   13.3,
+   13.3,
+   13.3,
+   13.3,
+   13.3,
+   13.3,
+   13.3,
+   13.3,
+   13.3,
+   13.3,
+   13.3,
+   13.3
+  ],
+  "days": 150,
+  "max": 24,
+  "marks": [
+   {
+    "day": 10,
+    "word": "Bled",
+    "tone": "danger"
+   },
+   {
+    "day": 10,
+    "word": "Banded",
+    "tone": "change"
+   },
+   {
+    "day": 11,
+    "word": "TIPS",
+    "tone": "change"
+   },
+   {
+    "day": 45,
+    "word": "Confusion",
+    "tone": "caution"
+   }
+  ],
+  "counts": {
+   "events": 6,
+   "medicines": 2
+  }
+ },
+ {
+  "id": "hist-hcv",
+  "name": "Hepatitis C cured, pressure persists",
+  "group": "Cause removed",
+  "where": "After the cause is treated",
+  "preset": "csph",
+  "months": 20,
+  "state": [
+   {
+    "text": "HVPG 10.6 · high",
+    "tone": "danger"
+   },
+   {
+    "text": "PPG 12.3 · high",
+    "tone": "danger"
+   },
+   {
+    "text": "on carvedilol"
+   }
+  ],
+  "story": "Compensated hepatitis C cirrhosis with clinically significant portal hypertension, on carvedilol from Day 14. Cured by Day 228. The gradient eases but stays over 10, so the carvedilol goes on.",
+  "path": "Carvedilol, a cure, the pressure stays",
+  "pv": [
+   20.4,
+   18.4,
+   18.4,
+   18.5,
+   18.4,
+   18.4,
+   18.4,
+   18.4,
+   18.3,
+   18.2,
+   18.1,
+   18.1,
+   18,
+   17.9,
+   17.9,
+   17.8,
+   17.8,
+   17.7,
+   17.6,
+   17.6,
+   17.5,
+   17.4,
+   17.4,
+   17.3,
+   17.2,
+   17.2,
+   17.1,
+   17,
+   17,
+   16.9,
+   16.8,
+   16.8,
+   16.7,
+   16.7,
+   16.7,
+   16.7,
+   16.7,
+   16.7,
+   16.7,
+   16.7,
+   16.7,
+   16.7
+  ],
+  "days": 600,
+  "max": 24,
+  "marks": [
+   {
+    "day": 14,
+    "word": "Carvedilol",
+    "tone": "change"
+   },
+   {
+    "day": 60,
+    "word": "Antiviral",
+    "tone": "ok"
+   },
+   {
+    "day": 228,
+    "word": "Cured",
+    "tone": "ok"
+   }
+  ],
+  "counts": {
+   "events": 2,
+   "medicines": 1
+  }
+ },
+ {
+  "id": "hist-alcohol",
+  "name": "Alcohol cirrhosis, recompensated",
+  "group": "Cause removed",
+  "where": "After the cause is treated",
+  "preset": "cirr-decomp",
+  "months": 24,
+  "state": [
+   {
+    "text": "HVPG 9.1"
+   },
+   {
+    "text": "no ascites"
+   },
+   {
+    "text": "on carvedilol"
+   }
+  ],
+  "story": "Decompensated alcohol cirrhosis with ascites. Abstinent from Day 1, carvedilol from Day 10. The fluid is gone by Day 250 and diuretics stop; a year later, on Day 620, the patient is recompensated.",
+  "path": "Abstinence, carvedilol, diuretics stop",
+  "pv": [
+   22.6,
+   19.8,
+   19.6,
+   19.5,
+   19.3,
+   19.1,
+   19,
+   18.8,
+   18.6,
+   18.4,
+   18.2,
+   18,
+   17.8,
+   17.6,
+   17.4,
+   17.2,
+   17,
+   16.7,
+   16.5,
+   16.2,
+   15.9,
+   15.6,
+   15.3,
+   15,
+   14.9,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8,
+   14.8
+  ],
+  "days": 720,
+  "max": 24,
+  "marks": [
+   {
+    "day": 1,
+    "word": "Abstinent",
+    "tone": "ok"
+   },
+   {
+    "day": 10,
+    "word": "Carvedilol",
+    "tone": "change"
+   },
+   {
+    "day": 250,
+    "word": "Diuretics off",
+    "tone": "change"
+   },
+   {
+    "day": 620,
+    "word": "Recompensated",
+    "tone": "ok"
+   }
+  ],
+  "counts": {
+   "events": 2,
+   "medicines": 2
+  }
+ },
+ {
+  "id": "hist-psvd",
+  "name": "PSVD: a bleed with a normal HVPG",
+  "group": "Without cirrhosis",
+  "where": "Porto-sinusoidal vascular disorder",
+  "preset": "psvd",
+  "months": 10,
+  "state": [
+   {
+    "text": "HVPG 2.8"
+   },
+   {
+    "text": "PPG 13.4 · high",
+    "tone": "danger"
+   },
+   {
+    "text": "on carvedilol"
+   }
+  ],
+  "story": "Large varices bleed on Day 20 with an HVPG that is normal. A band and a vasoactive drug that day, carvedilol from Day 24, and two more bands, to Day 76. The HVPG stays low, and the PPG, from the portal vein, stays high.",
+  "path": "Bleed, band, carvedilol, more bands",
+  "pv": [
+   19.6,
+   19.6,
+   19.6,
+   16.3,
+   16.9,
+   16.9,
+   17,
+   17.2,
+   17.3,
+   17.3,
+   17.4,
+   17.5,
+   17.5,
+   17.5,
+   17.5,
+   17.5,
+   17.5,
+   17.5,
+   17.5,
+   17.6,
+   17.6,
+   17.6,
+   17.6,
+   17.6,
+   17.6,
+   17.6,
+   17.7,
+   17.7,
+   17.7,
+   17.7,
+   17.7,
+   17.7,
+   17.7,
+   17.7,
+   17.7,
+   17.7,
+   17.7,
+   17.7,
+   17.7,
+   17.7
+  ],
+  "days": 300,
+  "max": 20,
+  "marks": [
+   {
+    "day": 20,
+    "word": "Bled",
+    "tone": "danger"
+   },
+   {
+    "day": 20,
+    "word": "Banded",
+    "tone": "change"
+   },
+   {
+    "day": 24,
+    "word": "Carvedilol",
+    "tone": "change"
+   }
+  ],
+  "counts": {
+   "events": 2,
+   "medicines": 2
+  }
+ },
+ {
+  "id": "hist-brto",
+  "name": "Gastric varix bleed, BRTO",
+  "group": "After a bleed",
+  "where": "Varices and banding",
+  "preset": "gastric-varix",
+  "months": 8,
+  "state": [
+   {
+    "text": "PPG 15.9 · high",
+    "tone": "danger"
+   },
+   {
+    "text": "on carvedilol and diuretics"
+   }
+  ],
+  "story": "A fundal varix bleeds on Day 20. A vasoactive drug, then BRTO on Day 23. The shunt that fed it is closed, the portal pressure rises, and new esophageal varices need carvedilol from Day 40 and bands to Day 103.",
+  "path": "Bleed, BRTO, then the esophageal varices",
+  "pv": [
+   23.4,
+   23.4,
+   23.4,
+   23.4,
+   20.1,
+   25.2,
+   24.9,
+   24.4,
+   21.4,
+   21.1,
+   20.9,
+   20.8,
+   20.8,
+   20.7,
+   20.9,
+   20.8,
+   20.7,
+   20.7,
+   20.7,
+   20.9,
+   20.8,
+   20.8,
+   20.8,
+   20.8,
+   20.8,
+   20.8,
+   20.8,
+   20.8,
+   20.8,
+   20.8,
+   20.9,
+   20.9,
+   20.9,
+   20.9,
+   20.9,
+   20.9,
+   21,
+   21,
+   21,
+   21,
+   21,
+   21
+  ],
+  "days": 240,
+  "max": 28,
+  "marks": [
+   {
+    "day": 20,
+    "word": "Bled",
+    "tone": "danger"
+   },
+   {
+    "day": 23,
+    "word": "BRTO",
+    "tone": "change"
+   },
+   {
+    "day": 40,
+    "word": "Carvedilol",
+    "tone": "change"
+   },
+   {
+    "day": 47,
+    "word": "Banded",
+    "tone": "change"
+   }
+  ],
+  "counts": {
+   "events": 9,
+   "medicines": 3
+  }
+ },
+ {
+  "id": "hist-pregnancy",
+  "name": "Cirrhosis in pregnancy",
+  "group": "Pregnancy",
+  "where": "Varices in pregnancy",
+  "preset": "csph",
+  "months": 11,
+  "state": [
+   {
+    "text": "HVPG 11.7 · high",
+    "tone": "danger"
+   },
+   {
+    "text": "on propranolol"
+   }
+  ],
+  "story": "Compensated cirrhosis; pregnant on Day 30. The blood volume and the portal flow rise and the varices grow, so propranolol from Day 114 and bands on Day 128 and 156. Delivery on Day 254.",
+  "path": "Pregnancy, propranolol, bands, delivery",
+  "pv": [
+   19,
+   18.9,
+   18.8,
+   18.8,
+   19.7,
+   19.9,
+   20.1,
+   20.3,
+   20.4,
+   20.6,
+   20.7,
+   20.9,
+   21,
+   21.1,
+   21.2,
+   19.5,
+   19.5,
+   19.6,
+   19.6,
+   19.7,
+   19.9,
+   19.9,
+   20,
+   20.1,
+   20.1,
+   20.2,
+   20.3,
+   20.3,
+   20.4,
+   20.5,
+   20.6,
+   20.7,
+   20.8,
+   17.9,
+   17.9,
+   17.8,
+   17.8,
+   17.8,
+   17.8,
+   17.8,
+   17.7,
+   17.7,
+   17.7
+  ],
+  "days": 330,
+  "max": 24,
+  "marks": [
+   {
+    "day": 30,
+    "word": "Pregnant",
+    "tone": "change"
+   },
+   {
+    "day": 114,
+    "word": "Propranolol",
+    "tone": "change"
+   },
+   {
+    "day": 128,
+    "word": "Banded",
+    "tone": "change"
+   },
+   {
+    "day": 254,
+    "word": "Delivery",
+    "tone": "change"
+   }
+  ],
+  "counts": {
+   "events": 6,
+   "medicines": 1
+  }
+ },
+ {
+  "id": "hist-cardiac",
+  "name": "Cardiac cirrhosis",
+  "group": "Clots and outflow",
+  "where": "Portal vein and hepatic veins",
+  "preset": "rhf",
+  "months": 10,
+  "state": [
+   {
+    "text": "HVPG 2.9"
+   },
+   {
+    "text": "ascites 1.7 L"
+   },
+   {
+    "text": "on diuretics"
+   }
+  ],
+  "story": "Years of right heart failure and tricuspid regurgitation have congested the liver. Diuretics from Day 20, a tricuspid repair on Day 120. The HVPG stays normal throughout: both wedged and free pressures are high.",
+  "path": "Diuretics, then the valve is repaired",
+  "pv": [
+   22.4,
+   22.7,
+   22.6,
+   21.6,
+   20.9,
+   20.8,
+   20.6,
+   20.6,
+   20.6,
+   20.6,
+   20.5,
+   20.5,
+   20.5,
+   20.5,
+   20.5,
+   20.4,
+   19.4,
+   19.1,
+   18.9,
+   18.9,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8,
+   18.8
+  ],
+  "days": 300,
+  "max": 24,
+  "marks": [
+   {
+    "day": 120,
+    "word": "Heart treated",
+    "tone": "change"
+   }
+  ],
+  "counts": {
+   "events": 2,
+   "medicines": 1
+  }
  }
 ];
 
@@ -428,4 +1047,11 @@ export const LOAD: Record<string, () => Promise<Baked>> = {
   'hist-pvt': () => import('./baked/hist-pvt.generated.ts').then((m) => m.baked),
   'hist-bcs': () => import('./baked/hist-bcs.generated.ts').then((m) => m.baked),
   'hist-tips-narrowed': () => import('./baked/hist-tips-narrowed.generated.ts').then((m) => m.baked),
+  'hist-bleed-tips': () => import('./baked/hist-bleed-tips.generated.ts').then((m) => m.baked),
+  'hist-hcv': () => import('./baked/hist-hcv.generated.ts').then((m) => m.baked),
+  'hist-alcohol': () => import('./baked/hist-alcohol.generated.ts').then((m) => m.baked),
+  'hist-psvd': () => import('./baked/hist-psvd.generated.ts').then((m) => m.baked),
+  'hist-brto': () => import('./baked/hist-brto.generated.ts').then((m) => m.baked),
+  'hist-pregnancy': () => import('./baked/hist-pregnancy.generated.ts').then((m) => m.baked),
+  'hist-cardiac': () => import('./baked/hist-cardiac.generated.ts').then((m) => m.baked),
 };

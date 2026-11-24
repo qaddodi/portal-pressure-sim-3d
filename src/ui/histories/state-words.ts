@@ -1,8 +1,9 @@
 // The words under a history's name, from the model's state today (Now, taken from the engine by the generator): "TIPS 8 mm, PPG 9.9, no carvedilol". Pure.
+import { HVPG_CUTS, PPG_CUTS } from '../../engine/hales/portal/pressure-cuts.js';
 import type { Now, Seg } from './types.ts';
 
-/** PPG's standing cut-offs (engine pressure-cuts: amber 6, red 12) are the row's colour: only a gradient over the red line is coloured here, as the tiles do. */
-const PPG_RED = 12;
+/** The standing cut-offs (engine pressure-cuts: HVPG red 10, PPG red 12) are the row's colour: only a gradient over the red line is coloured here, as the tiles do. */
+const PPG_RED: number = PPG_CUTS.red, HVPG_RED: number = HVPG_CUTS.red;
 const one = (v: number): string => v.toFixed(1);
 const lower = (s: string): string => s.replace(/^\S+/, (w) => (/^[A-Z][a-z]+$/.test(w) ? w.toLowerCase() : w));
 
@@ -10,10 +11,11 @@ const lower = (s: string): string => s.replace(/^\S+/, (w) => (/^[A-Z][a-z]+$/.t
 export const medsWords = (meds: readonly string[]): string => (meds.length ? `on ${meds.map(lower).join(' and ')}` : '');
 
 /** The pieces of the second line, in the course's order; each piece is its words, and a gradient over the red line says so. */
-export function stateOf(now: Now, order: readonly ('tips' | 'ppg' | 'meds' | 'ascites' | 'clot')[]): Seg[] {
+export function stateOf(now: Now, order: readonly ('tips' | 'hvpg' | 'ppg' | 'meds' | 'ascites' | 'clot')[]): Seg[] {
   const out: Seg[] = [];
   for (const k of order) {
     if (k === 'tips') { if (now.tipsMm != null) out.push({ text: `TIPS ${now.tipsMm} mm` }); }
+    else if (k === 'hvpg') out.push(now.hvpg >= HVPG_RED ? { text: `HVPG ${one(now.hvpg)} · high`, tone: 'danger' } : { text: `HVPG ${one(now.hvpg)}` });
     else if (k === 'ppg') out.push(now.ppg >= PPG_RED ? { text: `PPG ${one(now.ppg)} · high`, tone: 'danger' } : { text: `PPG ${one(now.ppg)}` });
     else if (k === 'meds') { const w = medsWords(now.meds); if (w) out.push({ text: w }); }
     else if (k === 'ascites') out.push({ text: now.ascitesL < 0.15 ? 'no ascites' : `ascites ${one(now.ascitesL)} L` });
