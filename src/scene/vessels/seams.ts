@@ -5,7 +5,7 @@
 // THE 3D COURSE (23 Nov, Mohammad: the Warren shunt's stitch ran along the limb, 23.8 units along a tube 12.6 wide): with smooth joins on, the seam is found on the course the tube is drawn on (shape.ts at rest), in 3D, against the host's 3D axis, so
 // the shader's own distance (`sl = Lw - aF`, along the 3D course) and the curve agree; the 2D hook a shunt had into its host is no longer what it is measured on. With them off it is the 2D art's own paths, as before.
 // Pure: figure units, in from the start and from the end of the vessel.
-import { EDGE_PATH_2D } from './paths.copied.ts';
+import { EDGE_PATH_2D } from '../anatomy/source.ts';
 import { NETWORK, NETWORK_BY_ID } from './network.ts';
 import { UNITS_PER_SCENE } from '../frame2d.ts';
 import { shuntEnds, sewnHostIds } from './shunt-ends.ts';

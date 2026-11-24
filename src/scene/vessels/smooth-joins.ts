@@ -8,7 +8,7 @@
 //     inside the trunk, so there is no gap between the branch's last ring and the trunk's wall and no cap standing out of the far side.
 //   * Free ends (the end of a vessel nothing meets, with no alpha fade of its own): the tube tapers to a point (`free`) instead of ending in a round cap.
 //   * The cava ends in the right atrium: it and the SVC run on one slope to the atrium's back wall (`NODE_RISE`), so in a turned view they enter the heart instead of passing 0.3 behind it.
-import { IVC_EDGES } from './paths.copied.ts';
+import { IVC_EDGES } from '../anatomy/source.ts';
 import { TIER_Z } from '../frame2d.ts';
 import { NETWORK, RUN_ONS, sameSegment, type NetVessel } from './network.ts';
 import { runsInto } from './starts.ts';

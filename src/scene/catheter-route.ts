@@ -1,4 +1,4 @@
-import { EDGE_PATH_2D } from './vessels/paths.copied.ts';
+import { EDGE_PATH_2D } from './anatomy/source.ts';
 import { NETWORK_BY_ID } from './vessels/network.ts';
 import { TIER_Z, x3, y3 } from './frame2d.ts';
 import type { Vec3 } from './anatomy/vessels.ts';

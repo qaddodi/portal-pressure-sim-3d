@@ -4,7 +4,7 @@
 // into the Z axes"; "umbilical vein ... extend it a little then branch it into the liver"). Each host vein gets two children that leave it part-way along its end and spread apart as they
 // run on into the liver, one forward and one back in depth, fading out (portal veins, the umbilical vein) or in (hepatic veins) the way the host does. They are decoration on the host's own
 // course (a tributary group, like the 2D figure's fans), derived from it: no new edges, flows or numbers.
-import { EDGE_PATH_2D } from './paths.copied.ts';
+import { EDGE_PATH_2D } from '../anatomy/source.ts';
 import { len3 } from '../frame2d.ts';
 
 type P2 = readonly [number, number];

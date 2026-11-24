@@ -2,7 +2,7 @@
 // begin in the gap beside the spleen. In 3D the vein is drawn in front of the organ and Mohammad asked that it start in the spleen (20 Nov): its course is carried on from the hilum,
 // along the way it already leaves it, to a point inside the organ, and it fades in over that carried-on stretch alone (solid at the hilum, where 2D's fade is still faint).
 // The 2D app's numbers are untouched: this only adds drawn length at one end. Points are in 2D units (the course's own).
-import { EDGE_PATH_2D } from './paths.copied.ts';
+import { EDGE_PATH_2D } from '../anatomy/source.ts';
 type P2 = readonly [number, number];
 
 /** The extra start of a vessel: the 2D points before its first point, in order (the vein runs from the first of these on). */

@@ -2,7 +2,7 @@
 // Budd-Chiari they are the liver's outflow, patent while the three main hepatic veins are clotted. They are one tributary group on the IVC piece they enter (`<host>~F:caudate`, three courses), drawn only while a slide is about the lobe
 // and eased in and out by the scene (scene.ts setCaudate), and they open into the cava by the same rule as the hepatic veins (fades.ts CAVA_FEEDERS: the vein takes the cava's colour and its faint alpha at the wall and is cut away inside
 // the lumen, so both have one fade at the junction). Each one rises out of the lobe's own tissue (fades in over its first stretch, no end to see).
-import { EDGE_PATH_2D } from './paths.copied.ts';
+import { EDGE_PATH_2D } from '../anatomy/source.ts';
 import { CAUDATE_VEINS } from '../organs/caudate.ts';
 import { JOIN_SPAN, type BranchItem, type BranchSet } from './liver-branches.ts';
 

@@ -12,7 +12,7 @@ import { useSettings } from '../../../state/settings.ts';
 import type { CelShared } from '../../materials/cel.ts';
 import type { LensShared, VesselObject } from '../../vessels/vessel-object.ts';
 import type { NetVessel } from '../../vessels/network.ts';
-import { BACK_EDGES } from '../../vessels/paths.copied.ts';
+import { BACK_EDGES } from '../../anatomy/source.ts';
 import { CAVA_LIKE } from '../../vessels/fades.ts';
 import { tubularOf } from '../../vessels/shape.ts';
 import { slicesFor } from '../../circuit/geometry.ts';

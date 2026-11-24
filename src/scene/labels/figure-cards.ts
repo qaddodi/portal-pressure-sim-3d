@@ -14,7 +14,7 @@ import { boxLeader, leaderToEdge, leaderShort, LEAD_AIR } from './tag-lead.ts';
 import { restyle } from './roll.ts';
 import { LS, RING_STROKE, type Vp } from './type.ts';
 import { stationById, curveOf, nodeZ, ORGAN_FRONT } from './stations.ts';
-import { NODE_POS_2D } from '../vessels/paths.copied.ts';
+import { NODE_POS_2D } from '../anatomy/source.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { x3, y3, UNITS_PER_SCENE } from '../frame2d.ts';
 import { scopeClaims, clearParam } from './scope-claims.ts';

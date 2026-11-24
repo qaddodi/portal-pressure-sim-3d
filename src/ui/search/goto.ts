@@ -3,7 +3,7 @@
 // topology's own labels (the same list 2D builds), so a test holds this table to UI.search.commands, which is the 2D inventory's. Pure apart from the two stores it writes.
 // (2D's select does not move the camera, so neither does this.)
 import { EDGES } from '../../engine/hales/portal/topology.js';
-import { HIDDEN_EDGES } from '../../scene/vessels/paths.copied.ts';
+import { HIDDEN_EDGES } from '../../scene/anatomy/source.ts';
 import { selectStructure, type Sel } from '../action/selection.ts';
 import { useTests } from '../tests/store.ts';
 

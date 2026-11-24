@@ -20,6 +20,7 @@ const CASES: Array<[rule: string, path: string, bad: string, good: string]> = [
   ['raw-setparams', 'src/ui/x.ts', "engine().send({ type: 'setParams', params, settle: true });", "sendParams(params, { settle: true }); const m = { type: 'setParam' };"],
   ['discarded-unsubscribe', 'src/ui/x.ts', "function mount() { useThing.subscribe(run); }", "function mount() { const off = useThing.subscribe(run); return off; } function page() { useThing.subscribe(run); // (lives for the page)\n }"],
   ['canvas-own-loop', 'src/ui/x.tsx', 'export const A = () => <Canvas camera={c}><Scene /></Canvas>;', 'export const A = () => <Canvas frameloop="never"><Scene /></Canvas>;'],
+  ['anatomy-through-source', 'src/scene/x.ts', "import { EDGE_PATH_2D } from './vessels/paths.copied.ts'; import { REGIONS } from '../decks/hp/regions.copied.ts';", "import { EDGE_PATH_2D } from './anatomy/source.ts'; // paths.copied.ts is the source's\nconst s = 'paths.copied.ts';"],
 ];
 
 for (const [rule, path, bad, good] of CASES) {
@@ -35,6 +36,7 @@ test('every rule has a case here, and the exempt places stay exempt', () => {
   assert.deepEqual(lint('src/clock/frame.ts', 'performance.now()'), [], 'the clock owns time');
   assert.deepEqual(lint('src/clock/idle.ts', 'requestIdleCallback(f)'), [], 'the slot owns idle time');
   assert.deepEqual(lint('src/ui/layout-snap.ts', 'el.getBoundingClientRect()'), [], 'the layout service reads layout');
+  assert.deepEqual(lint('src/scene/anatomy/source.ts', "export { EDGE_PATH_2D } from '../vessels/paths.copied.ts';"), [], 'the anatomy source owns the copied courses');
   assert.deepEqual(lint('src/engine/host/worker.ts', 'setTimeout(f, 1); requestAnimationFrame(f)'), [], 'the copied engine is not this app');
 });
 

@@ -90,6 +90,13 @@ export const RULES = {
     visit: (n) => n.type === 'JSXOpeningElement' && n.name.type === 'JSXIdentifier' && n.name.name === 'Canvas'
       && !n.attributes.some((a) => a.type === 'JSXAttribute' && a.name.name === 'frameloop' && a.value?.type === 'Literal' && a.value.value === 'never'),
   },
+  /** One door to the anatomy (anatomy integration plan, phase 1, 24 Nov 2026): where organs and vessels are is read from src/scene/anatomy/source.ts only, so the new placement replaces the
+   *  data in one place. No file outside src/scene/anatomy imports the copied 2D courses (vessels/paths.copied.ts) or the decks' region boxes (regions.generated.ts, regions.copied.ts). */
+  'anatomy-through-source': {
+    applies: (p) => !vendored(p) && under(p, 'src') && !under(p, 'src/scene/anatomy'),
+    visit: (n) => (n.type === 'ImportDeclaration' || n.type === 'ExportNamedDeclaration' || n.type === 'ExportAllDeclaration' || n.type === 'ImportExpression')
+      && typeof n.source?.value === 'string' && /(^|\/)(paths\.copied|regions\.(generated|copied))(\.ts)?$/.test(n.source.value),
+  },
 };
 
 /** Lint source texts: files is [{ path, text }] with repo-relative '/' paths. Returns every hit. */

@@ -4,7 +4,7 @@
 // seen face-on, and the scene's room solver pulls back until it fits the room the cards leave. Nothing here is a drawing.
 import type { Shot } from '../../scene/camera/shots.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
-import { REGIONS, CIRC_REGIONS } from './regions.copied.ts';
+import { REGIONS_HP as REGIONS, CIRC_REGIONS_HP as CIRC_REGIONS } from '../../scene/anatomy/source.ts';
 import { boxOf as boxOfOn, camProblems as onProblems } from '../rw/cams.ts';   // (the by-name camera { on: [names], near }: one implementation, shared by every deck)
 import type { CopiedSlide } from './types.ts';
 

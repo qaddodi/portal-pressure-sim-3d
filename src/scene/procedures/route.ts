@@ -4,7 +4,7 @@
 //
 // A route is a smoothed polyline `pts` through the vessels' centrelines, with `raw` (the vessels' own centrelines, where the walls are), `rad` (the lumen's radius at each
 // point), `cum` (arc length) and `parts` (each leg: its vessel, name, and where it starts and ends along the route). Positions along a route are lengths `d` in figure units.
-import { EDGE_PATH_2D } from '../vessels/paths.copied.ts';
+import { EDGE_PATH_2D } from '../anatomy/source.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { UNITS_PER_SCENE } from '../frame2d.ts';
 import { cutLen, headOf, legSubs, pieceAt, procSpecs, wholeOf } from './copied/proc-routes.js';

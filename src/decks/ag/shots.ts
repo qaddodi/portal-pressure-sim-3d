@@ -4,8 +4,8 @@
 import { x3, y3 } from '../../scene/frame2d.ts';
 import type { Shot } from '../../scene/camera/shots.ts';
 import { lobuleShot } from '../../scene/lobule/index.ts';
-import { NODE_POS_2D, EDGE_PATH_2D } from '../../scene/vessels/paths.copied.ts';
-import { REGIONS_2D, CIRC_REGIONS_2D } from './regions.generated.ts';
+import { NODE_POS_2D, EDGE_PATH_2D } from '../../scene/anatomy/source.ts';
+import { REGIONS_2D, CIRC_REGIONS_2D } from '../../scene/anatomy/source.ts';
 import type { CopiedSlide } from './types.ts';
 
 export type Box = readonly [number, number, number, number];

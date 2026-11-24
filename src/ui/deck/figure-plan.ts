@@ -5,7 +5,7 @@
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 import { STATIONS } from '../../scene/labels/stations.ts';
 import { NETWORK_BY_ID } from '../../scene/vessels/network.ts';
-import { HIDDEN_EDGES } from '../../scene/vessels/paths.copied.ts';
+import { HIDDEN_EDGES } from '../../scene/anatomy/source.ts';
 import { ENGINE_EDGE_IDS } from '../../decks/hp/figure-engine.ts';
 import { ORGAN_STYLE } from '../../scene/organs/layer.ts';
 import { RES_KEYS, type ResKey } from '../../scene/circuit/res-model.ts';

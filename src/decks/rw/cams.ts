@@ -7,7 +7,7 @@
 // the shot's target is the box's centre, its half extents the box's, and the room solver (camera/room.ts) fits it into whatever room the cards leave.
 // The slide's `kMax` (the most the 2D camera may zoom) is the 3D shot's nearest distance.
 import { SHOTS, type Shot } from '../../scene/camera/shots.ts';
-import { NODE_POS_2D, EDGE_PATH_2D } from '../../scene/vessels/paths.copied.ts';
+import { NODE_POS_2D, EDGE_PATH_2D } from '../../scene/anatomy/source.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
 import { REGIONS_2D, SETS_2D, TARGETS_2D, ORGAN_BOX_2D, CIRC_REGIONS_2D, type Box2D } from './copied/plate.ts';
 

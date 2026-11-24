@@ -5,7 +5,7 @@
 import { CatmullRomCurve3, Vector3 } from 'three';
 import { NETWORK_BY_ID, NODE_Z, MAPPED, type NetVessel } from '../vessels/network.ts';
 import { REST, coursesOf } from '../vessels/shape.ts';
-import { NODE_POS_2D } from '../vessels/paths.copied.ts';
+import { NODE_POS_2D } from '../anatomy/source.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { LABEL_NAMES as N } from './names.copied.ts';
 import type { Dir } from './geometry.ts';
