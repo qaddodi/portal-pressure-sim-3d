@@ -3,8 +3,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { EMPTY, LIQUIFY_LIMIT, ORGAN_LIMITS } from '../src/editor/types.ts';
+import type { Stroke } from '../src/editor/types.ts';
 import { strokeToReference, dragToOffsets, toReference, History, addStroke, clearStrokes, controlOf, exportText, isEmpty, nodeOf, organOf, parseOverrides, resetOrgan, setControl, setNode, setOrgan, tidy, MAX_STROKES } from '../src/ui/debug/editor/state.ts';
 import { dragDelta, ndcOf, nearest, nearestLine } from '../src/ui/debug/editor/picking.ts';
+import { LiveStrokes } from '../src/ui/debug/editor/strokes.ts';
 import { liveTransform } from '../src/ui/debug/editor/live.ts';
 import { pointAt } from '../src/ui/debug/editor/source.ts';
 import { applyVesselOverrides } from '../src/editor/vessel-apply.ts';
@@ -152,4 +154,18 @@ test('live: the organ transformed by the draft over its loaded edit equals the o
     assert.ok(Math.hypot(got[0]! - w.getX(i), got[1]! - w.getY(i), got[2]! - w.getZ(i)) < 1e-5);
   }
   assert.deepEqual(liveTransform(loadedE, loadedE, c), { position: [0, 0, 0], rotY: 0, scale: 1 });
+});
+
+test('live liquify: strokes on the on-screen geometry equal the organ Save builds, incrementally and after an undo', () => {
+  const ref = new BoxGeometry(1, 1, 1, 8, 8, 8), c = organCentroid(ref);
+  const loadedE = { move: [0.02, 0, -0.01] as const, rotY: 0.2, scale: 1.05 };
+  const g = applyOrganEdit(ref.clone(), loadedE, { centroid: c });
+  const live = new LiveStrokes(g, loadedE, c);
+  const s1 = { at: [0.5, 0.2, 0.5] as const, radius: 0.4, by: [0.03, 0.01, -0.02] as const }, s2 = { at: [0.5, 0.25, 0.45] as const, radius: 0.3, by: [0.03, 0, 0.02] as const };
+  const near = (a: ArrayLike<number>, b: ArrayLike<number>): boolean => { for (let i = 0; i < a.length; i++) if (Math.abs(a[i]! - b[i]!) > 1e-5) return false; return true; };
+  const saved = (strokes: readonly Stroke[]): ArrayLike<number> => applyOrganEdit(ref.clone(), { ...loadedE, strokes }, { centroid: c }).getAttribute('position').array;
+  live.set([s1]); assert.ok(near(g.getAttribute('position').array, saved([s1])), 'one stroke');
+  live.set([s1, s2]); assert.ok(near(g.getAttribute('position').array, saved([s1, s2])), 'two strokes, the second added on top');
+  live.set([s1]); assert.ok(near(g.getAttribute('position').array, saved([s1])), 'undone');
+  live.set(undefined); assert.ok(near(g.getAttribute('position').array, saved([])), 'cleared');
 });

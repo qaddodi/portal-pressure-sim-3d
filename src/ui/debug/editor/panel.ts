@@ -9,8 +9,10 @@ import { cel } from '../../../scene/api.ts';
 import { frameFor } from '../../../clock/frame.ts';
 import { readBox, readMetric } from '../../layout-snap.ts';
 import { clearDraft, overrides, saveDraft } from '../../../editor/store.ts';
-import { ORGAN_LIMITS, type V3 } from '../../../editor/types.ts';
+import { ORGAN_LIMITS, type Stroke, type V3 } from '../../../editor/types.ts';
 import { liveTransform } from './live.ts';
+import { LiveStrokes } from './strokes.ts';
+import { clock } from '../../../clock/frame.ts';
 import { Overlay } from './overlay.ts';
 import { dragDelta, ndcOf, nearest, nearestLine } from './picking.ts';
 import { skeleton, organIds, pointAt, centroidOf, type Skeleton } from './source.ts';
@@ -95,8 +97,27 @@ export function mountEditor(): void {
       const t = liveTransform(loaded.organs?.[id], hist.now.organs?.[id], centroidOf(id));
       for (const m of o.group.children) { m.position.set(t.position[0], t.position[1], t.position[2]); m.rotation.y = t.rotY; m.scale.setScalar(t.scale); }
       shownOrgans.add(id);
+      const list = hist.now.organs?.[id]?.strokes;
+      if (list !== strokesShown.get(id)) { strokesShown.set(id, list); strokesDue.add(id); }
     }
+    if (strokesDue.size && !strokesPending) { strokesPending = true; clock.after(flushStrokes, 0, 'editor-strokes'); }   // (one per frame, however many moves came in)
   };
+  const strokesShown = new Map<string, readonly Stroke[] | undefined>(), strokesDue = new Set<string>(), liveStrokes = new Map<string, LiveStrokes>(), touched = new Set<string>();
+  let strokesPending = false;
+  const flushStrokes = (): void => {
+    strokesPending = false;
+    for (const id of strokesDue) {
+      let ls = liveStrokes.get(id);
+      if (!ls) {
+        const g = cel.disease.organs.byId.get(id)?.toonMesh.geometry; if (!g) continue;
+        ls = new LiveStrokes(g, loaded.organs?.[id], centroidOf(id)); liveStrokes.set(id, ls);
+      }
+      ls.set(hist.now.organs?.[id]?.strokes); touched.add(id);
+    }
+    strokesDue.clear();
+    cel.setEditorOverlay(overlay.object); frameFor('editor', 300);
+  };
+  const settleStrokes = (): void => { for (const id of touched) liveStrokes.get(id)?.settle(); touched.clear(); cel.setEditorOverlay(overlay.object); };
   const refreshOverlay = (): void => {
     syncOrgans();
     const vessels = mode === 'vessels';
@@ -289,7 +310,7 @@ export function mountEditor(): void {
     }
     sync();
   });
-  const end = (): void => { drag = null; };
+  const end = (): void => { drag = null; flushStrokes(); settleStrokes(); };
   layer.addEventListener('pointerup', end); layer.addEventListener('pointercancel', end);
   window.addEventListener('keydown', (e) => {
     if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
