@@ -285,7 +285,8 @@ test('the What to graph list: every measure with a record is a row (Splenic, SMV
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/ui/bigtime/Chooser.tsx', import.meta.url), 'utf8'), css = readFileSync(new URL('../src/ui/bigtime/bigtime.css', import.meta.url), 'utf8');
   assert.ok(!/WORDS_ONLY/.test(src), 'no measure is only words');
-  assert.ok(/--bt-n/.test(src) && /\.bt-choose \{ --bt-row: clamp\(26px, calc\(\(100cqh/.test(css) && /container-type: size/.test(css), 'the row height is its share of the body');
+  assert.ok(/--bt-n/.test(src) && /\.bt-choose \{ --bt-row: clamp\(32px, calc\(\(100cqh/.test(css) && /container-type: size/.test(css), 'the row height is its share of the body');
+  assert.ok(/\.bt-body \{[^}]*overflow-y: auto/.test(css), 'root cause (24 Nov, Cardiac output cut off): the list scrolls in the body when the rows at their floor are taller than the room');
   assert.equal(MEASURE_OF.co!.row!(8.04), '8.0');
   assert.equal(MEASURE_OF.co!.words(8.04), '8.0 L/min');
   assert.equal(MEASURE_OF.asc!.row!(6.74), '6.7');
