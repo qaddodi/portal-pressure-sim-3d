@@ -120,7 +120,11 @@ export function useTileFit(row: RefObject<HTMLDivElement | null>, sig: string) {
       if (measured && bars.length) el.classList.toggle('pzb-nonum', !anyShown);
     };
     fit();
-    return observeThenFit([el], fit);   // (the pass writes `pzb-nonum` on the row it observes: never inside the observer's own delivery)
+    // the fonts arriving change what a name measures even when the row's own box stays as it was (the observer is silent then): judged again at once, before the card is let in on this height (24 Nov)
+    let alive = true;
+    if (typeof document !== 'undefined' && document.fonts && document.fonts.status !== 'loaded') void document.fonts.ready.then(() => { if (alive) fit(); });
+    const off = observeThenFit([el], fit);
+    return () => { alive = false; off(); };   // (the pass writes `pzb-nonum` on the row it observes: never inside the observer's own delivery)
   }, [row, sig]);
 }
 
