@@ -72,6 +72,12 @@
 .bt-pager button { padding: 0; border: 0; background: none; font: 600 var(--t-body) / 1.2 var(--ui); color: var(--accent); }
 .bt-pager button:disabled { color: var(--text-3); font-weight: 500; }
 
+/* a phone's raised panel scrolls (owner, 24 Nov: "they should scroll and I can close them by swiping down"): the rows keep the standard height instead of sharing the room, the list is one page, and the pull down from the top of the list closes the sheet (shell/sheet-swipe.ts) */
+.bt[data-compact] .bt-body { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding-bottom: calc(var(--safe-b, 0px) + 12px); }
+.bt[data-compact] .bt-choose { --bt-row: 42px; }
+.bt[data-compact] .bt-happen { position: static; }
+.bt-happen[data-scroll] .bt-list li > button { min-height: 44px; }
+
 /* a phone: the chart takes the card; "What to graph" and "What happened" are two words at the foot, and raise a sheet over the chart with its own Done */
 .bt[data-compact] { display: flex; flex-direction: column; padding: 16px 16px 12px; }
 .bt[data-compact] .bt-main { flex: 1; }

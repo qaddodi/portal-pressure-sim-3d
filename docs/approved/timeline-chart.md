@@ -50,3 +50,9 @@ Mohammad, 24 Nov: "Should be able to graph LSM liver and spleen." Built as two m
 - Cut-offs only where the model has one, dashed and worded like the others: Platelets 150, Low liver flow 75 %, MAP 65, Large varix 5 mm and Varix seen 2.5 mm, High 0.45 and Moderate 0.2 (the risk index's own words). No cut for the APP, heart rate, spleen size or artery response: the model has none (kidney-cuts.js says none may be derived for the APP).
 - A box too short for every chosen lane keeps each at 34 px or more and leaves the last ones out, with "N more chosen: no room, turn one off" at the right of the last lane's title. Nothing is cut off at the foot.
 - Not built (the model makes no labs): albumin, bilirubin, INR, creatinine, sodium, MELD-Na, Child-Pugh.
+
+## Phone panels scroll and pull down (24 Nov 2026)
+Mohammad, 24 Nov: "What to graph and what happened don't scroll on iPhone. They should scroll and I can close them by swiping down." (The one exception to "nothing scrolls inside a card": the raised panel on a phone.)
+- The panel body scrolls (rows keep the standard 42 px, What happened is one page of every event, no Earlier / Later), with the pull-back kept inside it.
+- A pull down from the top of the list, or from the head, closes it like every other sheet (`shell/sheet-swipe.ts`), with the grab bar at its top. The card around it never sees a touch that begins inside the panel, so that pull closes the panel, not the whole chart.
+- Mac and iPad keep the fitted list and the paged list.

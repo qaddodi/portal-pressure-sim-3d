@@ -1,12 +1,13 @@
 // The timeline chart's card (docs/approved/timeline-chart.md): the chart and its strip on the left, "What to graph" or "What happened" beside it (a sheet raised from the foot on a phone).
 // The chart is one frame (frame.ts) drawn by the chart GPU; this file is the card around it and the pointer: hover or drag moves the crosshair, the wheel or a pinch zooms the days, the strip
 // under the chart moves the window.
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react';
 import { clock, type TimerId } from '../../clock/frame.ts';
 import { Chart, type ChartCtx } from '../charts/Chart.tsx';
 import { readBox } from '../layout-snap.ts';
 import { useShell } from '../shell/store.ts';
 import { useThumb } from '../shell/thumb.ts';
+import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { useUi } from '../ui-store.ts';
 import { Chooser } from './Chooser.tsx';
 import { Happened } from './Happened.tsx';
@@ -135,6 +136,17 @@ export function TimelineCard() {
   const stripBuild = (c: ChartCtx) => stripFrame(inp(plot.h), c, leadOf(c.w)).frame;
   const deps = [data, ids.join(), lines, meds, w0, w1, shown, plot.h, open];
   const close = () => useShell.getState().close();
+  // A phone's raised panel (What to graph, What happened) is a bottom sheet of its own: a pull down from anywhere on it, from the top of its list, shuts it as every sheet does (shell/sheet-swipe.ts). The card around it is a sheet too and
+  // closes the whole chart on a pull, so a touch that begins inside the panel does not reach it (root cause of "I can't swipe it down": the pull was the card's, or nobody's).
+  const side = useRef<HTMLElement>(null);
+  useSheetSwipe(side, () => set({ raised: false }), () => compact && raised);
+  useEffect(() => {
+    const el = side.current;
+    if (!el || !compact || !raised) return;
+    const keep = (e: Event) => e.stopPropagation();
+    el.addEventListener('pointerdown', keep); el.addEventListener('touchstart', keep, { passive: true });
+    return () => { el.removeEventListener('pointerdown', keep); el.removeEventListener('touchstart', keep); };
+  }, [compact, raised]);
   const sideHead = compact ? null : (
     <header className="bt-tabs">
       <button type="button" aria-pressed={panel === 'graph'} onClick={() => set({ panel: 'graph' })}>{BT.graph}</button>
@@ -176,10 +188,11 @@ export function TimelineCard() {
           </footer>
         )}
       </div>
-      <aside className="bt-side" aria-label={panel === 'graph' ? BT.graph : BT.happened} inert={compact && !raised}>
+      <aside ref={side} className="bt-side" aria-label={panel === 'graph' ? BT.graph : BT.happened} inert={compact && !raised}>
+        {compact && <span className="sh-grabbar" aria-hidden="true" />}
         {compact ? <header className="bt-tabs"><h2>{panel === 'graph' ? BT.graph : BT.happened}</h2><button type="button" className="bt-done" onClick={() => set({ raised: false })}>{BT.done}</button></header> : sideHead}
         <div className="bt-body">
-          {panel === 'graph' ? <Chooser data={data} at={at} compact={compact} /> : <Happened data={data} onPick={pick} />}
+          {panel === 'graph' ? <Chooser data={data} at={at} compact={compact} /> : <Happened data={data} onPick={pick} scroll={compact} />}
         </div>
       </aside>
     </div>

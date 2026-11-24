@@ -423,3 +423,15 @@ test('every measure draws in every look and width on its own lane, with its own 
   assert.equal(MEASURE_OF.he!.words(0.31), '0.31 Moderate'); assert.equal(MEASURE_OF.habr!.words(1.294), '1.29×'); assert.equal(MEASURE_OF.perf!.row!(63.4), '63%');
   assert.ok(ALL_NEW.every((k) => !MEASURE_OF[k]!.on), 'all off until chosen');
 });
+
+test('root cause (a phone\'s What to graph / What happened could not scroll or be pulled down): the raised panel scrolls its body at the standard row height, lists every event on one page, and is a sheet of its own whose touches the card around it never sees', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../src/ui/bigtime/bigtime.css', import.meta.url), 'utf8');
+  assert.ok(/\.bt\[data-compact\] \.bt-body \{[^}]*overflow-y: auto/.test(css) && /\.bt\[data-compact\] \.bt-choose \{ --bt-row: 42px/.test(css), 'the body scrolls and the rows keep their height');
+  assert.ok(/\.bt\[data-compact\] \.bt-happen \{ position: static/.test(css), 'the list is in the flow, not a box of the room');
+  const card = readFileSync(new URL('../src/ui/bigtime/TimelineCard.tsx', import.meta.url), 'utf8'), hap = readFileSync(new URL('../src/ui/bigtime/Happened.tsx', import.meta.url), 'utf8');
+  assert.ok(/useSheetSwipe\(side, \(\) => set\(\{ raised: false \}\), \(\) => compact && raised\)/.test(card), 'a pull down closes the panel');
+  assert.ok(/addEventListener\('pointerdown', keep\)/.test(card) && /addEventListener\('touchstart', keep/.test(card), 'the card around it does not take the touch');
+  assert.ok(/sh-grabbar/.test(card) && /scroll=\{compact\}/.test(card), 'the grab bar, and the list scrolls on a phone');
+  assert.ok(/const per = scroll \? Math\.max\(1, rows\.length\)/.test(hap), 'one page of every row when it scrolls');
+});

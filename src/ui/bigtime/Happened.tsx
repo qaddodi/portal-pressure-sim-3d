@@ -1,4 +1,4 @@
-// "What happened" (docs/approved/timeline-chart.md): the events and changes as a ruled list, a page at a time (nothing scrolls inside a card). The chosen row opens to its words and numbers; a TIPS
+// "What happened" (docs/approved/timeline-chart.md): the events and changes as a ruled list, a page at a time (nothing scrolls inside a card; on a phone's sheet the whole list is one scrolling page, owner 24 Nov). The chosen row opens to its words and numbers; a TIPS
 // opens to its route, its stent and the numbers before and after.
 import { useMemo } from 'react';
 import { baseName, type Data } from './data.ts';
@@ -10,18 +10,18 @@ import { BT } from './words.ts';
 const ROW = 38, OPEN_EXTRA = 56, FOOT = 40;
 const TONE: Record<string, string> = { ok: 'var(--ok-ink)', caution: 'var(--caution-ink)', danger: 'var(--danger-ink)', change: 'var(--text)', info: 'var(--text-2)' };
 
-export function Happened({ data, onPick }: { data: Data; onPick(day: number): void }) {
+export function Happened({ data, onPick, scroll = false }: { data: Data; onPick(day: number): void; scroll?: boolean }) {
   const row = useBig((s) => s.row), page = useBig((s) => s.page), hidden = useBig((s) => s.hidden), set = useBig.getState().set;
   const box = useBox<HTMLDivElement>();
   const rows = useMemo(() => data.happened.filter((e) => !(e.kind === 'change' && hidden.has(baseName(e.label)) && !e.keys?.some((k) => k.startsWith('drug:')))), [data.happened, hidden]);
   const open = rows.find((r) => r.id === row) ?? null;
-  const per = Math.max(3, Math.floor((box.h - FOOT - (open ? OPEN_EXTRA : 0)) / ROW)), pages = Math.max(1, Math.ceil(rows.length / per));
+  const per = scroll ? Math.max(1, rows.length) : Math.max(3, Math.floor((box.h - FOOT - (open ? OPEN_EXTRA : 0)) / ROW)), pages = Math.max(1, Math.ceil(rows.length / per));
   const at = Math.max(0, Math.min(pages - 1, page < 0 ? pages - 1 : page));
   // a first look shows the newest (page -1 follows the last page as rows come); Earlier and Later page from there
   const shown = rows.slice(at * per, at * per + per);
-  if (!rows.length) return <div ref={box.ref} className="bt-happen"><p className="bt-empty"><b>{BT.nothingHappened}</b></p></div>;
+  if (!rows.length) return <div ref={box.ref} className="bt-happen" data-scroll={scroll || undefined}><p className="bt-empty"><b>{BT.nothingHappened}</b></p></div>;
   return (
-    <div ref={box.ref} className="bt-happen">
+    <div ref={box.ref} className="bt-happen" data-scroll={scroll || undefined}>
       <ol className="bt-list">
         {shown.map((r) => {
           const isOpen = r.id === row;
