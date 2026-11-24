@@ -257,3 +257,23 @@ test('live edits touch only what changed: a stroke moves only its vertices, a ha
   const b3 = ORGAN_MESHES[id]!(); applyOrganEdit(b3, { strokes: [s1, s2] }, { box });
   assert.ok(near(pos(live), pos(b3), 1e-4), 'cage removed');
 });
+
+test('overlap hints: an edit that pushes one organ into another is flagged against the reference, untouched organs are not', async () => {
+  const { organHints, columnsOf, vesselHint } = await import('../src/editor/overlap.ts');
+  const { BoxGeometry } = await import('three');
+  const box = (x: number, z: number) => { const g = new BoxGeometry(0.2, 0.2, 0.1, 6, 6, 3); g.translate(x, 0, z); return g; };
+  const a = box(0, 0), b = box(0.5, 0), p = (g: typeof a) => Float32Array.from(g.getAttribute('position').array);
+  const clear = organHints({ a: { edited: p(a), reference: p(a), index: a.index!.array }, b: { edited: p(b), reference: p(b), index: b.index!.array } });
+  assert.deepEqual(clear, [], 'nothing moved, nothing flagged');
+  const moved = b.clone(); moved.translate(-0.4, 0, 0);   // b into a
+  const hints = organHints({ a: { edited: p(a), reference: p(a), index: a.index!.array }, b: { edited: p(moved), reference: p(b), index: b.index!.array } });
+  assert.equal(hints.length, 1);
+  assert.ok(hints[0]!.depth > 0.02 && hints[0]!.was === 0);
+  const overlapAlready = organHints({ a: { edited: p(a), reference: p(a) }, b: { edited: p(a), reference: p(a) } });
+  assert.deepEqual(overlapAlready, [], 'overlap the reference already had is not news');
+  const cols = columnsOf(p(a), a.index!.array);
+  const line = Array.from({ length: 10 }, (_, i) => [-0.1 + i * 0.02, 0, 0] as [number, number, number]);
+  const through = vesselHint(line, 0.01, cols, columnsOf(p(b), b.index!.array));
+  assert.ok(through.flagged && through.depth > 0);
+  assert.equal(vesselHint(line, 0.01, cols, cols).flagged, false);
+});
