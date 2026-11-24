@@ -8,9 +8,10 @@ import { planeLayout, planeOf } from '../src/ui/charts/plane/model.ts';
 import { inputsIn } from '../src/ui/cards/inputs-in.ts';
 
 test('item 6: a reading holds no minus slot unless a slider or a strain can take it below zero, and a time-lapse reading is as wide as the widest it takes', () => {
-  assert.equal(reserveOf('1.4 mmHg', 'ppg', false, false, { minus: false }), '00.0 mmHg');
+  assert.equal(reserveOf('1.4 mmHg', 'ppg', false, false, { minus: false }), '0.0 mmHg', 'nothing on the slide takes it to 10: no second digit');
+  assert.equal(reserveOf('12.4 mmHg', 'ppg', false, false, { minus: false }), '00.0 mmHg', 'a reading already at 10 or more holds both');
   assert.equal(reserveOf('1.4 mmHg', 'ppg', false, false), '−00.0 mmHg', 'a slider slide keeps it');
-  assert.equal(reserveOf('−2.1 mmHg', 'ppg', false, false, { minus: false }), '−00.0 mmHg', 'a negative value always has its sign');
+  assert.equal(reserveOf('−2.1 mmHg', 'ppg', false, false, { minus: false }), '−0.0 mmHg', 'a negative value always has its sign');
   // recompensation 4: the ascites goes 0.0 to 3.8 L, the HVPG 11 to 16.5: no digit is held that no day of the lapse reaches
   assert.equal(reserveOf('3.8 L', 'asc', false, false, { seen: ['0.0 L', '3.8 L'], minus: false }), '0.0 L');
   assert.equal(reserveOf('16.5 mmHg', 'hvpg', false, false, { seen: ['11.1 mmHg', '16.5 mmHg'], minus: false }), '00.0 mmHg');

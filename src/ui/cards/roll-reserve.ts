@@ -33,7 +33,9 @@ export function reserveOf(text: string, key?: string, whole = false, still = fal
   // (the widest text the reading takes on the slide, digits as zeros: every digit is one width)
   if (opts.seen?.length) return [text, ...opts.seen].map(zeros).reduce((a, b) => (b.length > a.length ? b : a));
   // (an index out of 1 never has a second whole digit: a padded one stood after "0.80 /1." as a gap, tips-complete 10, audit f9a5d2e0)
-  const least = unit === '/1' ? 1 : leastDigits(key);
+  // (exact: with no slider or strain on the slide (`minus: false`) and no list of what the reading takes, the values it can show are the one it shows, so it holds its own digits and nothing more:
+  //  "9.0 mmHg,   but" closes up; a slider or strain (`minus` not false) can reach 10, so it holds the second digit; an index out of 1 never has one)
+  const least = unit === '/1' || (opts.minus === false && leastDigits(key) === 2) ? 1 : leastDigits(key);
   // a whole part (a digit run not after a decimal point) is padded to the least; a decimal part keeps the digits its tile prints; a grouped number's later groups are three digits already
   const body = text.replace(/[-−]/g, '').replace(/(^|[^\d.,])(\d+)/g, (_m, pre: string, d: string) => `${pre}${'0'.repeat(Math.max(least, d.length))}`).replace(/\d/g, '0');
   return `${/^[-−]/.test(text) ? MINUS : slot}${body}`;
