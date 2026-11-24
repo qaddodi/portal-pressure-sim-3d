@@ -98,7 +98,7 @@ export function createClock(env: Env) {
   const steady = new Set<symbol>();       // holds that last as long as something RUNS (a live Doppler, a running trace), not a motion the eye follows: they ask for frames, but `moving` does not count them
   const asked = new Set<string>();       // one-frame invalidations made since the last frame started
   let nextAsked = new Set<string>();     // invalidations made while a frame runs: they ask for the following frame
-  let skipOn = false;
+  let skipOn = false, drawing = true;
   let rafId = 0, running = false, last = 0, frame = 0, lastStart = 0;
   const ring = new Float32Array(RING);   // frame work times (ms)
   const gaps = new Float32Array(RING);
@@ -141,6 +141,7 @@ export function createClock(env: Env) {
     for (const p of PHASES) {
       const t0 = now();
       // (copy: a system may add or remove systems while it runs)
+      if (p === 'render' && !drawing) continue;   // (skip mode: nothing is drawn while a slide is on its way, so the first picture on screen is the landed one)
       for (const s of systems[p].slice()) {
         try { s.fn(info); } catch (err) { console.error(`[clock] ${p} system threw`, err); try { faultSink?.(p, err); } catch { /* (the net must never stop a frame) */ } }
       }
@@ -193,6 +194,8 @@ export function createClock(env: Env) {
     /** Skip mode: one drawn frame runs the motion systems in steps of SKIP_CHUNK ms, so every glide lands in a frame (the audit's Animations: Skipped, with a big scale). */
     setSkip(on: boolean) { skipOn = on; },
     get skipping() { return skipOn; },
+    /** false holds back the render phase (the GL draw) until true again: the screen keeps what it shows. Skip mode only; always set back to true. */
+    setDrawing(on: boolean) { drawing = on; if (on) this.invalidate('drawing'); },
     setScale(n: number) {
       const k = Number.isFinite(n) && n > 0 ? n : 1;
       page0 = now(); real0 = env.now(); scale = k;

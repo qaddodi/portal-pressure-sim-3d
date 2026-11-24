@@ -204,3 +204,11 @@ test('skip mode: a frame of a long stretch runs the motion systems in steps no l
   d.on('camera', (i) => { s2 += Math.min(i.dt, 50) / 1000; }); d.hold('camera'); g.tick(16); g.tick(16);
   assert.ok(s2 < 0.2, 'without skip the clamp eats the frame');
 });
+
+test('setDrawing(false) holds back the render phase but not the motion; true draws again', () => {
+  const f = fake(), c = createClock(f.env); let r = 0, m = 0;
+  c.on('render', () => { r++; }); c.on('camera', () => { m++; });
+  c.hold('x'); c.setDrawing(false); f.tick(); f.tick();
+  assert.equal(r, 0); assert.equal(m, 2);
+  c.setDrawing(true); f.tick(); assert.equal(r, 1);
+});
