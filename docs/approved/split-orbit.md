@@ -13,5 +13,11 @@ Mohammad, 24 Nov 02:31 UTC: "let's do the one from front side by side".
 - Both livers turn together, in sync, through the same angles: about -49 degrees, front, +49 degrees (the mock's three frames), eased, never popping.
 - First slides: HVPG slide 7 (healthy beside schistosomiasis), slide 11 (healthy beside right heart failure).
 
-## Not yet decided or built
-Status: not built. See the thread's decision on how the second liver is drawn (twin scene, or two passes of the one scene).
+## Build plan (decided 24 Nov: twin scene, only on split slides)
+The scene (`CelScene`) is one object per page and reads the engine through module globals (`latest`, `live`, `patient`, `shownParams` in `src/engine/store.ts`; about 15 sites in `scene.ts`), plus `dustTuner` and `flowRate` singletons. So:
+1. `CelScene` takes a frame source (defaults to the globals); the twin gets a healthy frame from `enginePool.sequence`, its own `VesselData` texture and its own `CameraRig`.
+2. Built at reduced detail, sharing geometry and textures with the main scene, only when a split slide is next or showing; built in idle slices, never inside a frame; disposed as the slide is left. A test pins the dispose (no geometry, texture or listener left).
+3. Render: two scissored viewports of the one canvas, left twin, right main, one orbit angle for both (about -49, 0, +49 degrees, eased); labels above each; cards unchanged.
+4. Slide field `split: { with: 'healthy', labels: [...] }` on HVPG slides 7 and 11 first.
+
+Status: sheet only. Nothing built or seen on screen yet.
