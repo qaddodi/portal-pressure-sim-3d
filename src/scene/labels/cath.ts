@@ -243,7 +243,8 @@ export function planLeaders(boxAt: Pt, geom: SumGeom, points: readonly [Pt, Pt],
     return o;
   };
   const segs = (pts: [number, number][]): Seg[] => pts.slice(1).map((q, i) => [pts[i]![0], pts[i]![1], q[0], q[1]] as Seg);
-  const hits = (L: Seg, r: Rect): boolean => segHitsBox({ x0: L[0], y0: L[1], x1: L[2], y1: L[3] }, box(r), 0);
+  // text keeps a margin: a near miss is a crossing too (Mohammad, 24 Nov: the leader grazed the FHVP words)
+  const MARGIN = 8, hits = (L: Seg, r: Rect, pad = MARGIN): boolean => segHitsBox({ x0: L[0], y0: L[1], x1: L[2], y1: L[3] }, box(r), pad);
   const lines = (rs: Rect[], j: number): Line[] => {
     const o = rs[1 - j]!, r = rs[j]!, own = { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, P: [number, number] = [points[j]![0], points[j]![1]];
     const colTop = Math.min(rs[0]!.y, rs[1]!.y), colBot = Math.max(rs[0]!.y + rs[0]!.h, rs[1]!.y + rs[1]!.h), ex = Math.min(rs[0]!.x, rs[1]!.x) - 12;
@@ -252,7 +253,7 @@ export function planLeaders(boxAt: Pt, geom: SumGeom, points: readonly [Pt, Pt],
     return cands.map((c) => {
       const S2 = segs(c.pts);
       let n = 0, len = c.extra;
-      S2.forEach((q, i) => { len += Math.hypot(q[2] - q[0], q[3] - q[1]); for (const b of [o, calc, brace]) if (hits(q, b)) n++; if (i && hits(q, own)) n++; else if (!i && hits(q, own)) n++; });
+      S2.forEach((q, i) => { len += Math.hypot(q[2] - q[0], q[3] - q[1]); for (const b of [o, calc, brace]) if (hits(q, b)) n++; if (i && hits(q, own, 0)) n++; else if (!i && hits(q, own, 0)) n++; });
       return { pts: c.pts, n, len };
     });
   };

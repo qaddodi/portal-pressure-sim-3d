@@ -229,10 +229,11 @@ test('no stack leader crosses any text: neither row, the bracket nor the HVPG ca
       const segs = plan.d.flatMap((d) => { const v = d.match(/-?[\d.]+/g)!.map(Number); return Array.from({ length: v.length / 2 - 1 }, (_, i) => [v[2 * i]!, v[2 * i + 1]!, v[2 * i + 2]!, v[2 * i + 3]!] as [number, number, number, number]); });
       const label = `${c.vp.w}x${c.vp.h} tip ${c.tip} swap ${swap} mid ${mid}`;
       assert.ok(plan.clean, `a clean leader plan exists (${label})`);
-      for (const s of segs) for (const b of boxes) {
-        // a leader leaves its own row's edge: shrink by 1.5 px so the starting edge is not a hit
-        assert.ok(!segHitsBox({ x0: s[0], y0: s[1], x1: s[2], y1: s[3] }, { x0: b.x + 1.5, y0: b.y + 1.5, x1: b.x + b.w - 1.5, y1: b.y + b.h - 1.5 }, 0), `a leader crosses text (${label})`);
-      }
+      const m0 = plan.d[0]!.match(/-?[\d.]+/g)!.length / 2 - 1;
+      segs.forEach((s, si) => boxes.forEach((b, bi) => {
+        const own = bi === (si < m0 ? 0 : 1), pad = own ? 0 : 6, ins = own ? 1.5 : 0;
+        assert.ok(!segHitsBox({ x0: s[0], y0: s[1], x1: s[2], y1: s[3] }, { x0: b.x + ins, y0: b.y + ins, x1: b.x + b.w - ins, y1: b.y + b.h - ins }, pad), `a leader crosses or grazes text, 6 px margin (${label})`);
+      }));
       const m = plan.d[0]!.match(/-?[\d.]+/g)!.length / 2 - 1;
       for (const p of segs.slice(0, m)) for (const q of segs.slice(m)) assert.ok(!segsCross(p, q), `the leaders cross (${label})`);
     }
