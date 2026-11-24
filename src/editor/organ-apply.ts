@@ -124,11 +124,16 @@ function bern(m: number, s: number, out: number[]): void {
   for (let i = 0; i < m; i++) { let c = 1; for (let q = 0; q < i; q++) c = c * (m - 1 - q) / (q + 1); out[i] = c * s ** i * t ** (m - 1 - i); }
 }
 /** The cage's pull on a reference-frame point: trivariate Bernstein blend of the handle offsets (each held to CAGE_LIMIT of the padded box), the point clamped into the box. Pure of the point, so welded vertices stay welded. */
-export function cageDisplace(c: Cage, box: Box, p: V3): V3 {
-  const b = cageBox(box), [nx, ny, nz] = c.n, wx: number[] = [], wy: number[] = [], wz: number[] = [];
-  const size = [b.hi[0] - b.lo[0], b.hi[1] - b.lo[1], b.hi[2] - b.lo[2]];
+/** The Bernstein weights of the cage's `n` points along each axis at point `p` (the editor's live drag moves one handle: its share at a vertex is wx[i] * wy[j] * wz[k]). `size` is the padded box's size, the most a handle moves is CAGE_LIMIT of it. */
+export function cageWeights(n: readonly [number, number, number], box: Box, p: V3, wx: number[], wy: number[], wz: number[]): V3 {
+  const b = cageBox(box), size: V3 = [b.hi[0] - b.lo[0], b.hi[1] - b.lo[1], b.hi[2] - b.lo[2]];
   const s = [0, 1, 2].map((k) => (size[k]! > 1e-9 ? clamp((p[k]! - b.lo[k]!) / size[k]!, 0, 1) : 0));
-  bern(nx, s[0]!, wx); bern(ny, s[1]!, wy); bern(nz, s[2]!, wz);
+  bern(n[0], s[0]!, wx); bern(n[1], s[1]!, wy); bern(n[2], s[2]!, wz);
+  return size;
+}
+export function cageDisplace(c: Cage, box: Box, p: V3): V3 {
+  const [nx, ny, nz] = c.n, wx: number[] = [], wy: number[] = [], wz: number[] = [];
+  const size = cageWeights(c.n, box, p, wx, wy, wz);
   let dx = 0, dy = 0, dz = 0;
   for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
     const h = c.d[i + nx * (j + ny * k)]!, w = wx[i]! * wy[j]! * wz[k]!;

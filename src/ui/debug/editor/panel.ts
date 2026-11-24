@@ -9,7 +9,7 @@ import { cel } from '../../../scene/api.ts';
 import { frameFor } from '../../../clock/frame.ts';
 import { readBox, readMetric } from '../../layout-snap.ts';
 import { clearDraft, committedOverrides, overrides, saveDraft } from '../../../editor/store.ts';
-import { CAGE_LIMIT, ORGAN_LIMITS, type Cage, type Stroke, type V3 } from '../../../editor/types.ts';
+import { CAGE_LIMIT, ORGAN_LIMITS, type Cage, type Grid, type Stroke, type V3 } from '../../../editor/types.ts';
 import { cageBox, cageRest, organBox, organBoxes, organPointMap } from '../../../editor/organ-apply.ts';
 import { liveTransform } from './live.ts';
 import { endVesselPreview, previewVesselEdits, setVesselPreviewHost } from '../../../scene/vessels/edit-preview.ts';
@@ -112,13 +112,13 @@ export function mountEditor(): void {
       const t = liveTransform(loaded.organs?.[id], hist.now.organs?.[id], centroidOf(id));
       for (const m of o.group.children) { m.position.set(t.position[0], t.position[1], t.position[2]); m.rotation.y = t.rotY; m.scale.setScalar(t.scale); }
       shownOrgans.add(id);
-      const list = hist.now.organs?.[id]?.strokes, cg = hist.now.organs?.[id]?.cage;
-      if (list !== strokesShown.get(id) || cg !== cageSeen.get(id)) { strokesShown.set(id, list); cageSeen.set(id, cg); strokesDue.add(id); }
+      const list = hist.now.organs?.[id]?.strokes, cg = hist.now.organs?.[id]?.cage, gr = hist.now.organs?.[id]?.grid;
+      if (list !== strokesShown.get(id) || cg !== cageSeen.get(id) || gr !== gridSeenBy.get(id)) { strokesShown.set(id, list); cageSeen.set(id, cg); gridSeenBy.set(id, gr); strokesDue.add(id); }
     }
     if (strokesDue.size && !strokesPending) { strokesPending = true; clock.after(flushStrokes, 0, 'editor-strokes'); }   // (one per frame, however many moves came in)
   };
   const strokesShown = new Map<string, readonly Stroke[] | undefined>(), strokesDue = new Set<string>(), liveStrokes = new Map<string, LiveStrokes>(), touched = new Set<string>();
-  const cageSeen = new Map<string, Cage | undefined>();
+  const cageSeen = new Map<string, Cage | undefined>(), gridSeenBy = new Map<string, Grid | undefined>();
   let strokesPending = false;
   const flushStrokes = (): void => {
     strokesPending = false;
@@ -128,7 +128,7 @@ export function mountEditor(): void {
         const g = cel.disease.organs.byId.get(id)?.toonMesh.geometry; if (!g) continue;
         ls = new LiveStrokes(g, loaded.organs?.[id], centroidOf(id), organBoxes[id] ?? organBox(g)); liveStrokes.set(id, ls);
       }
-      ls.set(hist.now.organs?.[id]?.strokes, hist.now.organs?.[id]?.cage); touched.add(id);
+      ls.set(hist.now.organs?.[id]?.strokes, hist.now.organs?.[id]?.cage, hist.now.organs?.[id]?.grid); touched.add(id);
     }
     strokesDue.clear();
     cel.setEditorOverlay(overlay.object); frameFor('editor', 300);

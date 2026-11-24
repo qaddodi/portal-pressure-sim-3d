@@ -226,3 +226,34 @@ test('boot cost: a long stroke list is read once through the grid, and a baked f
   const short = { strokes: strokes.slice(0, 3) };
   assert.equal(resolveEdit(short), short);
 });
+
+test('live edits touch only what changed: a stroke moves only its vertices, a handle matches the build, normals match a full pass', async () => {
+  const { LiveStrokes } = await import('../src/ui/debug/editor/strokes.ts');
+  const ref = ORGAN_MESHES[id]!(), c = organCentroid(ref), box = organBox(ref), sz = box.hi[0] - box.lo[0];
+  const near = (a: ArrayLike<number>, b: ArrayLike<number>, e = 1e-5): boolean => { for (let i = 0; i < a.length; i++) if (Math.abs(a[i]! - b[i]!) > e) return false; return true; };
+  const live = ORGAN_MESHES[id]!(), ls = new LiveStrokes(live, undefined, c, box);
+  ls.set(undefined);
+  const n = live.getAttribute('position').count;
+  const s1 = { at: [c[0], c[1], c[2]] as [number, number, number], radius: sz * 0.12, by: [0.02, 0.01, 0] as [number, number, number] };
+  ls.set([s1]);
+  console.log(`live stroke touched ${ls.lastMoved} of ${n} vertices`);
+  assert.ok(ls.lastMoved > 0 && ls.lastMoved < n / 2, `touched ${ls.lastMoved} of ${n}`);
+  const built = ORGAN_MESHES[id]!(); applyOrganEdit(built, { strokes: [s1] }, { box });
+  assert.ok(near(pos(live), pos(built)), 'positions equal the build');
+  const full = (g: typeof live): Float32Array => { const h = g.clone(); h.computeVertexNormals(); return Float32Array.from(h.getAttribute('normal').array); };
+  assert.ok(near(live.getAttribute('normal').array, full(live), 1e-4), 'local normals equal a full pass');
+  const s2 = { ...s1, at: [c[0] + sz * 0.05, c[1], c[2]] as [number, number, number] };
+  ls.set([s1, s2]);
+  assert.ok(near(live.getAttribute('normal').array, full(live), 1e-4), 'and after a second stroke');
+  const d = Array.from({ length: 27 }, () => [0, 0, 0] as [number, number, number]);
+  d[13] = [sz * 0.1, 0, 0];
+  ls.set([s1, s2], { n: [3, 3, 3], d });
+  const d2 = d.map((v) => [...v] as [number, number, number]);
+  d2[4] = [0, sz * 0.08, 0];
+  ls.set([s1, s2], { n: [3, 3, 3], d: d2 });
+  const b2 = ORGAN_MESHES[id]!(); applyOrganEdit(b2, { strokes: [s1, s2], cage: { n: [3, 3, 3], d: d2 } }, { box });
+  assert.ok(near(pos(live), pos(b2), 1e-4), 'cage after two single-handle changes equals the build');
+  ls.set([s1, s2]);
+  const b3 = ORGAN_MESHES[id]!(); applyOrganEdit(b3, { strokes: [s1, s2] }, { box });
+  assert.ok(near(pos(live), pos(b3), 1e-4), 'cage removed');
+});
