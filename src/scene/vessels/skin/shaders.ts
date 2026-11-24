@@ -78,7 +78,7 @@ export const SKIN_HEAD_LAT_TO = 1.7;
 export const SKIN_HEAD_TUBE_SIDE = 0.8;
 /** FLICKER AT JOINS (Mohammad, 24 Nov: chevrons flicker as they move toward or through joins). Root cause: a head's ownership was cut by step(0.5, ...) of a share that eased over only 0.04..0.12 of the arms' weights (a few px of travel), so a whole
  *  head went from full to nothing between two frames as its centre crossed the line; with heads streaming that is a pop per head per pass. Ownership now eases over a wide band (TIE..WIN) so a head fades out on one arm and in on the next over a quarter second or so. */
-export const SKIN_HEAD_TIE = 0.04, SKIN_HEAD_WIN = 0.4;
+export const SKIN_HEAD_SHARP = 16;   // exp(-16 d / k): the softmax shares to the fourth power, still smooth and summing to 1
 export const SKIN_HEAD_GATE_FROM = 0.75, SKIN_HEAD_GATE_TO = 1.0;
 
 /** The weighted sum of a per-arm float uniform array over all the arms (`wAt` and `wAtF` read the two weight attributes). */
@@ -421,14 +421,15 @@ float skinOwner(int arm, vec3 centre, float kPx) {
   // THE WINNER OWNS THE HEAD WHOLE. The share of an arm is its softmax weight over the sum, which at a three-way fillet is about a third for every arm: a head there was drawn at a third of its strength (a pale ghost lying under the join) or, where
   // the shares tie under the gate, by nobody at all (Mohammad, 24 Nov: chevrons hidden under the joins, in every lens). An arm now owns the head by how much its share beats the best of the others', eased: 1 for the arm that wins
   // by SKIN_HEAD_WIN of the shares, 0 for the others, and where no arm wins (the centre of the crotch, a tie) NO arm draws it: a head there is dropped and the next one comes in just past it (never a ghost, never two copies).
-  float mine = 0.0, sum = 0.0, other = 0.0;
+  // (the arms' ownership weights are the sharpened shares, each over their sum, so they add to exactly 1 at every point: a head handed from one arm to the next keeps its combined opacity through the join, never a dip)
+  float mine = 0.0, sum = 0.0;
   for (int k = 0; k < ${SKIN_ARMS}; k++) {
     if (armData[k].x < 0.0) continue;
-    float w = exp(-4.0 * (d[k] - lo) / max(kPx, 1e-3));
+    float w = exp(-${F(SKIN_HEAD_SHARP)} * (d[k] - lo) / max(kPx, 1e-3));
     sum += w;
-    if (k == arm) mine = w; else other = max(other, w);
+    if (k == arm) mine = w;
   }
-  return smoothstep(${F(SKIN_HEAD_TIE)}, ${F(SKIN_HEAD_WIN)}, (mine - other) / max(sum, 1e-6));
+  return mine / max(sum, 1e-6);
 }
 void main() {
   { float kept = 0.0; for (int i = 0; i < ${SKIN_ARMS}; i++) kept += rawW(i) * keepOf(i); gWKeep = armFlow[1].w > exp2(float(${SKIN_ARMS})) - 1.5 ? 1.0 : 1.0 / max(kept, 1.0e-4); }   // (every arm kept: the weights as they are)

@@ -39,11 +39,10 @@ test('a skin draws every head whole by the owner of its centre, inside the arm\'
   assert.ok(main.indexOf('flowHeads(') < main.indexOf('if (wI < 0.004 || vR <= 0.0) continue;'));
 });
 
-test('the owner is the mesh\'s own rule (a softmax of the arms\' distances in px) read as a WINNER, never as a third: a head in a three-way fillet is whole or not this arm\'s, never a pale ghost', () => {
+test('the owner is a sharpened softmax of the arms\' distances in px, each over the sum (the weights add to 1)', () => {
   const own = body(SKIN_FS, 'float skinOwner(');
-  assert.match(own, /exp\(-4\.0 \* \(d\[k\] - lo\) \/ max\(kPx, 1e-3\)\)/);
-  assert.match(own, /return smoothstep\([0-9.]+, [0-9.]+, \(mine - other\) \/ max\(sum, 1e-6\)\)/);
-  assert.ok(!/return mine \/ max\(sum/.test(own), 'not the bare share');
+  assert.match(own, /exp\(-[0-9.]+ \* \(d\[k\] - lo\) \/ max\(kPx, 1e-3\)\)/);
+  assert.match(own, /return mine \/ max\(sum, 1e-6\)/);
 });
 
 test('?joins=noheads still removes the heads from a skin', () => {
@@ -80,7 +79,7 @@ test('a head centred on the tube\'s side of the seam is finished by the skin who
   assert.match(main, /float ownH = max\(skinOwner\(/);
   assert.match(main, /, tubeSide\);/);
   assert.ok(m.SKIN_HEAD_TUBE_SIDE > 0 && m.SKIN_HEAD_TUBE_SIDE <= 1.0, 'the tube\'s side ends where a head\'s tail stops reaching the tube (about 0.7 radii past the seam): further in, two arms\' heads would pile up at a node');
-  assert.ok(m.SKIN_HEAD_TIE < m.SKIN_HEAD_WIN && m.SKIN_HEAD_WIN >= 0.3, 'ownership eases over a wide band (a head fades over travel, never pops)');
+  assert.ok(m.SKIN_HEAD_SHARP > 4, 'sharpened shares');
   assert.ok(!/step\(0\.5, smoothstep/.test(main) && !/ownH = max\(step\(/.test(main), 'no hard cut of a head\'s ownership: it flickered at every join');
 });
 
@@ -90,4 +89,22 @@ test('a skin\'s head is sized by the smaller of the pixel\'s radius and its arm\
   const main = body(SKIN_FS, 'void main(');
   assert.match(main, /float vRH = min\(vR, rOwn \* swAt\(i\)\);/);
   assert.match(main, /flowHeads\(clamp\(latH, -1\.0, 1\.0\), acrossW, sI, Lw, vRH, wpcM,/);
+});
+
+// Mohammad, 24 Nov: chevrons flicker at joins. The ownership weights are the sharpened shares over their sum: they add to 1 everywhere, so a head handed between arms never dips.
+test('the arms\' head ownership weights sum to 1 at every distance, and change smoothly', async () => {
+  const m = await import('../src/scene/vessels/skin/shaders.ts');
+  const f = body(m.SKIN_FS, 'float skinOwner(');
+  assert.match(f, /return mine \/ max\(sum, 1e-6\);/);
+  assert.ok(!/\bstep\(/.test(f), 'no hard cut');
+  let worst = 0, jump = 0, prev = NaN;
+  for (let x = -3; x <= 3; x += 0.01) {
+    const d = [0, 0.5 + x, 1.5 - x, 2], w = d.map((v) => Math.exp(-m.SKIN_HEAD_SHARP * (v - Math.min(...d)) / 4));
+    const S = w.reduce((a, b) => a + b, 0), own = w.map((v) => v / S), sum = own.reduce((a, b) => a + b, 0);
+    worst = Math.max(worst, Math.abs(sum - 1));
+    if (!Number.isNaN(prev)) jump = Math.max(jump, Math.abs(own[1] - prev));
+    prev = own[1];
+  }
+  assert.ok(worst < 1e-9, 'sum is 1');
+  assert.ok(jump < 0.2, 'no jump per step: ' + jump);
 });
