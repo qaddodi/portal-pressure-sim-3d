@@ -82,3 +82,11 @@ test('a head centred on the tube\'s side of the seam is finished by the skin who
   assert.ok(m.SKIN_HEAD_TUBE_SIDE > 0 && m.SKIN_HEAD_TUBE_SIDE < 0.6, 'the tube\'s side ends within a head\'s first half length past the seam: further in, two arms\' heads would pile up at a node');
   assert.ok(m.SKIN_HEAD_TIE < m.SKIN_HEAD_WIN && m.SKIN_HEAD_WIN <= 0.15, 'the band where no arm wins a head is narrow: a ghost lives only there');
 });
+
+// Mohammad, 24 Nov: a pale head on the portal vein under the hepatic artery's leader (render, arm-coloured: drawn by the arm that owns the place, faded by the wall rule). Numbers: the skin's radius at a pixel (vR) blends the arms'
+// radii and can exceed the arm's own lumen near a node; a head sized by it (half width 0.55 of vR) was wider than the lumen, reached the wall (the wall rule starts at 0.90 of the way to the ink) and was faded to a ghost.
+test('a skin\'s head is sized by the smaller of the pixel\'s radius and its arm\'s own radius, never by the pixel\'s alone', () => {
+  const main = body(SKIN_FS, 'void main(');
+  assert.match(main, /float vRH = min\(vR, rOwn \* swAt\(i\)\);/);
+  assert.match(main, /flowHeads\(acrossI, acrossW, sI, Lw, vRH, wpcM,/);
+});

@@ -592,7 +592,10 @@ void main() {
 #ifndef SKIN_NOHEADS
     // THE HEADS: this arm's own, each drawn whole by the arm that owns its centre (skinOwner), within the arm's own cylinder (a head of this arm's frame is never drawn on another arm's wall, which the pixel's weight used to see to)
     if (vR > 0.0) {
-      vec4 hI = flowHeads(acrossI, acrossW, sI, Lw, vR, wpcM, pxI, lensI, armFlowAt(i), 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
+      // (a head is sized by the ARM's own radius, never by the pixel's: the skin's radius at a pixel blends the arms' radii, so near a node it can be wider than this arm's lumen, and a head sized to it was wider than the lumen it lay in,
+      // met the wall and was faded to a ghost: Mohammad, 24 Nov, the pale head on the portal vein under the hepatic artery's leader)
+      float vRH = min(vR, rOwn * swAt(i));
+      vec4 hI = flowHeads(acrossI, acrossW, sI, Lw, vRH, wpcM, pxI, lensI, armFlowAt(i), 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
       if (hI.a > 0.002) {
         vec3 seamP = armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;
         // (the pixel's lateral from the arm's LIVE axis, the bent chain J - start - seam - far the mesh itself is built on, in lumen units: skinArmLat. It was the distance to the straight line through the seam, which a bending vessel
