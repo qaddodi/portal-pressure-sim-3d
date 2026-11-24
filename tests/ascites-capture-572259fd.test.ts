@@ -16,3 +16,11 @@ test('the refilling balance joins its number and unit, so it breaks only after "
 test('a stopped time-lapse counter is set in proportional digits', () => {
   assert.match(css3('css3d-over-2d.css'), /\.pz-lapse\.done\s*\{[^}]*proportional-nums/);
 });
+
+test('the capture waits for the engine\'s morph (a paracentesis slide\'s gauge read 5.9 on every step until it ended)', () => {
+  assert.match(readFileSync(new URL('../src/ui/debug/audit/capture-all.ts', import.meta.url), 'utf8'), /latest\.frame\?\.morphing\) return 'the model is morphing'/);
+});
+
+test('an equation sign keeps its own air on both sides (SAAG minus touched "Albumin serum", slide 7)', () => {
+  assert.match(readFileSync(new URL('../src/ui/cards/TeachingCard.tsx', import.meta.url), 'utf8'), /form="infix" lspace="0\.25em" rspace="0\.25em"/);
+});

@@ -84,3 +84,20 @@ test('a phone upright stays top to bottom with a card at its foot (2D decides on
   assert.equal(isPortrait(1440, 900), false);
 });
 void M;
+
+test('a tall screen\'s names stay in the room down even where the picture is carried past its foot (Kupffer cell half under the story card, Ascites 9.2, build 572259fd)', () => {
+  const W = 390, H = 844;
+  const room = roomFor(W, H, true), portrait = isPortrait(W, H);
+  for (const [dy, mul] of [[0, 1], [160, 1], [320, 1], [0, 2], [240, 1.6], [-200, 1.6]] as const) {
+    const v = new SinusoidView(createShared());
+    v.setVisible(true); v.snapTargets(targets()); v.update(0); v.setPortrait(portrait);
+    const free = namesFree(room, { w: W, h: H });
+    const k = restScale(portrait ? room.w : room.h) * mul;
+    const C: [number, number] = [room.x + room.w / 2, room.y + room.h / 2 + dy];
+    for (const n of v.names({ W, H, C, k, free, insTop: 56, text: TEXT, lit: new Set(), measure })) {
+      if (n.end) continue;
+      const b = box(n);
+      assert.ok(b.y0 >= free.t - 1 && b.y1 <= free.b + 1, `${n.key} down (${b.y0.toFixed(0)}..${b.y1.toFixed(0)} in ${free.t}..${free.b}) at dy ${dy}, x${mul}`);
+    }
+  }
+});

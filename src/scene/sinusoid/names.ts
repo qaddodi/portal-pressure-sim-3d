@@ -103,7 +103,8 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
     let cy = sc[1];
     const cx0 = cx;
     // a name stays inside the free room whatever the scale puts under it (a wide stretch at a large scale throws the plates' names past the room's top and foot: the leader still reaches what it names)
-    if (!V) cy = clamp(cy, Math.min(fe.t + hh / 2 + 4, (fe.t + fe.b) / 2), Math.max(fe.b - hh / 2 - 4, (fe.t + fe.b) / 2));
+    // (a tall screen too: its names stand along the vessel, and one past the room's foot stood half under the story card, "Kupffer cell", Ascites 9.2, build 572259fd)
+    if (!V || !alongName) cy = clamp(cy, Math.min(fe.t + hh / 2 + 4, (fe.t + fe.b) / 2), Math.max(fe.b - hh / 2 - 4, (fe.t + fe.b) / 2));
     if (!alongName) cx = clamp(cx, Math.min(Math.max(w / 2 + EDGE, fe.l + w / 2), W / 2), Math.max(Math.min(W - w / 2 - EDGE, fe.r - w / 2), W / 2));   // a level name stays on screen and in the free room
     if (!V) {
       // across the screen every name is level: it steps clear of the ends' names and stays in the free room
