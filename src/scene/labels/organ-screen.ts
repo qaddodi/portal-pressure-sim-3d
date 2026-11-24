@@ -11,7 +11,8 @@ import { flattenPath } from './organ2d/flatten.js';
 // @ts-ignore copied plain JS
 import { nameSpots, NAME_ORGAN, OFF_NEAR } from './organ2d/organ-names.copied.js';
 import type { Box } from './geometry.ts';
-import { withOrgan } from '../editor-anchors.ts';
+import { organMap, withOrgan } from '../editor-anchors.ts';
+import { overrides } from '../../editor/store.ts';
 
 type Ring = [number, number][];
 const flat = new Map<string, Ring[]>();
@@ -25,6 +26,19 @@ function ringsOf(id: string): Ring[] {
     flat.set(id, r);
   }
   return r;
+}
+
+/** The organ's outline carried by its edit (move, turn, scale, liquify, cage), made once per set of overrides; the outline itself unedited. */
+let editedFor: unknown = null;
+const editedKept = new Map<string, Ring[]>();
+function editedRings(id: string): Ring[] {
+  const rs = ringsOf(id), organ = id === 'esophagus' ? 'stomach' : id;
+  if (!organMap(organ)) return rs;
+  const o = overrides();
+  if (editedFor !== o) { editedFor = o; editedKept.clear(); }
+  let k = editedKept.get(id);
+  if (!k) editedKept.set(id, k = rs.map((r) => r.map(([x, y]) => { const q = withOrgan(organ, [x, y]); return [q[0], q[1]] as [number, number]; })));
+  return k;
 }
 
 const OTHER = ['esophagus', 'heart', 'bowel', 'colon', 'kidney-l', 'spleen', 'stomach', 'liver'] as const;
@@ -42,7 +56,7 @@ interface Edges { y0: number; bands: number[][] }
 export function silhouettes(to: To2Screen): Silhouettes {
   const rings = new Map<string, Ring[]>(), bounds = new Map<string, Box[]>(), edges = new Map<string, Edges[]>();
   for (const id of OTHER) {
-    const rs = ringsOf(id).map((r) => r.map(([x, y]) => { const q = withOrgan(id === 'esophagus' ? 'stomach' : id, [x, y]); return to(q[0], q[1]); }));
+    const rs = editedRings(id).map((r) => r.map(([x, y]) => to(x, y)));
     rings.set(id, rs);
     const bb: Box[] = [], ee: Edges[] = [];
     for (const r of rs) {

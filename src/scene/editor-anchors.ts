@@ -52,7 +52,7 @@ export const nodeDz = (id: string): number => overrides().nodes?.[id]?.dz ?? 0;
 import { ORGANS } from './labels/organ2d/outlines.copied.js';
 // @ts-ignore copied plain JS
 import { flattenPath } from './labels/organ2d/flatten.js';
-import { organBoxes, organPointMap } from '../editor/organ-apply.ts';
+import { organBoxes, organCentroids, organPointMap, type Box } from '../editor/organ-apply.ts';
 import { ORGAN_Z } from './organs/z.ts';
 import { x3, y3, x2d, y2d, UNITS_PER_SCENE as U } from './frame2d.ts';
 import type { V3 } from '../editor/types.ts';
@@ -77,13 +77,24 @@ function outlineOf(organ: string): { rs: Ring[]; centre: V3 } {
   }
   return k;
 }
-let mapsFor: unknown = null, maps = new Map<string, ((p: V3) => V3) | null>();
-/** An organ's edit as a scene-point map (move, rotY, scale about its centre), or null when it is not edited. */
+let mapsFor: unknown = null, maps = new Map<string, { m: ((p: V3) => V3) | null; exact: boolean }>();
+/** The organ's cage frame before its mesh is in: its outline's box in x and y, and a depth of 0.1 each side of ORGAN_Z (the mesh's own box replaces it once the organs are made). */
+const approxBox = (organ: string): Box => {
+  const { rs, centre: c } = outlineOf(organ);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const r of rs) for (const [x, y] of r) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return { lo: [x3(x0), y3(y1), c[2] - 0.1], hi: [x3(x1), y3(y0), c[2] + 0.1] };
+};
+/** An organ's edit as a scene-point map (move, turn, scale, liquify, cage and grid: the mesh's own arithmetic), or null when it is not edited. It uses the mesh's own centre and box once the organs are made. */
 export function organMap(organ: string): ((p: V3) => V3) | null {
   const o = overrides();
   if (mapsFor !== o) { mapsFor = o; maps = new Map(); }
-  if (!maps.has(organ)) maps.set(organ, o.organs?.[organ] ? organPointMap(o.organs[organ], outlineOf(organ).centre, organBoxes[organ]) : null);
-  return maps.get(organ)!;
+  const exact = !!organBoxes[organ], c = maps.get(organ);
+  if (!c || (!c.exact && exact)) {
+    const e = o.organs?.[organ];
+    maps.set(organ, { m: e ? organPointMap(e, organCentroids[organ] ?? outlineOf(organ).centre, organBoxes[organ] ?? (e.cage ? approxBox(organ) : undefined)) : null, exact });
+  }
+  return maps.get(organ)!.m;
 }
 /** A scene point that hangs on an organ, carried with the organ's edit (the same array when unedited). */
 export function organPoint(organ: string | undefined, p: V3): V3 {

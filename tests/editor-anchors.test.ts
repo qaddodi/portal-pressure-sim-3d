@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { setOverridesForTest } from '../src/editor/store.ts';
 import { EMPTY, type Overrides } from '../src/editor/types.ts';
 import { EDGE_PATH_2D, NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
@@ -298,4 +298,52 @@ test('the lobule and sinusoid dive stands on the liver point carried by the live
   assert.deepEqual(b.p, b.viaMap, 'edited: the liver point carried by the liver\'s own map');
   assert.ok(Math.hypot(b.p[0] - b.ref[0], b.p[1] - b.ref[1], b.p[2] - b.ref[2]) > 0.02, 'it moved');
   assert.ok(Math.abs(b.lobule[0] - b.p[0]) < 1e-12 && Math.abs(b.sin[0] - b.p[0]) < 0.01, 'the lobule and the sinusoid stand on it');
+});
+
+test('organ-attached parts follow a caged organ too: captions, outlines, the scope way, bleed anchors and the ascites wall (audit 12)', () => {
+  const cage = (organ: string) => `{ version: 1, organs: { ${organ}: { cage: { n: [2, 2, 2], d: ${JSON.stringify(Array.from({ length: 8 }, () => [0.05, 0, 0]))} } } } }`;
+  const run = (o: string) => {
+    const code = `
+      const { setOverridesForTest } = await import('./src/editor/store.ts');
+      setOverridesForTest(${o});
+      const A = await import('./src/scene/editor-anchors.ts');
+      const { scopeWay } = await import('./src/scene/devices/probes/scope.ts');
+      const { silhouettes } = await import('./src/scene/labels/organ-screen.ts');
+      const AP = await import('./src/scene/disease/ascites-pool.ts');
+      const AB = await import('./src/scene/disease/copied/anatomy-b4.ts');
+      const sil = silhouettes((x, y) => [x, y]);
+      const poly = AP.polyOf(AB.ABDOMEN_OUTLINES.length - 1);
+      console.log(JSON.stringify({ sto: A.withOrgan('stomach', [880, 395]), way: scopeWay().pts[scopeWay().pts.length - 1], sil: sil.rings.get('stomach')[0][0], wall: poly, spl: A.withOrgan('spleen', [1034, 360]) }));
+    `;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: process.cwd(), encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return JSON.parse(r.stdout.trim().split('\n').pop()!);
+  };
+  const a = run('{ version: 1 }'), s = run(cage('stomach')), p = run(cage('spleen'));
+  assert.deepEqual(a.sto, [880, 395], 'unedited: the point itself');
+  assert.ok(Math.abs(s.sto[0] - 895) < 0.5 && Math.abs(s.sto[1] - 395) < 0.5, 'a caged stomach carries a point on it');
+  assert.ok(Math.abs(s.way[0] - (a.way[0] + 15)) < 0.5, 'the scope way follows the caged stomach');
+  assert.ok(Math.abs(s.sil[0] - (a.sil[0] + 15)) < 1, 'its silhouette follows');
+  assert.ok(Math.abs(p.spl[0] - 1049) < 0.5, 'a caged spleen carries its point');
+  assert.ok(p.wall.some((q: number[], i: number) => Math.abs(q[0] - a.wall[i][0]) > 1), 'the ascites wall by the spleen follows a caged spleen');
+  assert.deepEqual(s.wall, a.wall, 'and not a stomach the wall does not touch');
+});
+
+test('every consumer of an organ outline or plate position goes through the anchors (audit 12 registry)', () => {
+  const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(`${d}/${e.name}`) : /\.(ts|tsx)$/.test(e.name) ? [`${d}/${e.name}`] : []));
+  const THROUGH = /editor-anchors|organ-follow|editor\/organ-apply|organs\/meshes/;
+  // data files (copied tables) and consumers that read the built meshes or hand their anchors on to a consumer that is checked here
+  const DATA = new Set(['src/scene/labels/names.copied.ts', 'src/scene/labels/figure2d.copied.ts', 'src/scene/disease/copied/anatomy-b4.ts', 'src/decks/rw/copied/plate.ts', 'src/ui/charts/curve/course-frame.ts', 'src/ui/deck/figure-plan.ts', 'src/ui/deck/figure-calls.ts', 'src/scene/organs/layer.ts']);
+  const bad: string[] = [];
+  for (const f of walk('src/scene')) {
+    if (DATA.has(f)) continue;
+    const s = readFileSync(f, 'utf8');
+    if (/outlines\.copied|ORGAN_BOX_2D|ORGAN_ANCHOR_2D|\bORGAN_AT\b/.test(s) && !THROUGH.test(s)) bad.push(f);
+  }
+  for (const f of walk('src/decks')) {
+    if (DATA.has(f)) continue;
+    const s = readFileSync(f, 'utf8');
+    if (/ORGAN_BOX_2D|REGIONS_2D\[/.test(s) && !THROUGH.test(s)) bad.push(f);
+  }
+  assert.deepEqual(bad, [], 'these read an organ outline or plate box without going through editor-anchors');
 });
