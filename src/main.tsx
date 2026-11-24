@@ -90,6 +90,7 @@ async function start() {
   mountPerf();
   if (DEBUG && flagOn('dust')) void import('./ui/debug/dust-panel.ts').then((m) => m.mountDust());   // ?dust: the hidden tuning panel for the blood's dust
   if (DEBUG && inspectRequested()) void import('./ui/debug/inspect/panel.ts').then((m) => m.mountInspect());   // ?inspect, ?joins=debug: the inspector's panel (turn the figure, switch shaders, passes and layers live)
+  if (DEBUG && isPreview() && flagOn('editor')) void import('./ui/debug/editor/panel.ts').then((m) => m.mountEditor());   // ?editor: the anatomy editor (preview only)
   if (flagOn('gl')) void import('./debug/gl-check.tsx').then((m) => m.mountGl());   // ?gl: every shader program, compiled on this device (WP10)
   if (DEBUG) {
     void mountDebug();   // ?watch / ?debug / ?audit on the preview copy only (batch B14)

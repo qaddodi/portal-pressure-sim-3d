@@ -1699,6 +1699,16 @@ export class CelScene {
   /** Shows or hides one of `inspectLayers` (drawn or not; what the scene itself shows and hides is not touched: the flag is put on for the draw and taken off after it). */
   setInspectShown(id: string, shown: boolean): void { if (shown) this.inspectHidden.delete(id); else this.inspectHidden.add(id); this.moving = true; clock.invalidate('inspect'); }
   isInspectShown(id: string): boolean { return !this.inspectHidden.has(id); }
+  /** The anatomy editor's (?editor, preview only) overlay: its handles and lines, drawn in the vessels' pass over the figure, in the body's own frame. Null takes it away. */
+  setEditorOverlay(obj: Object3D | null): void {
+    if (this.editorOverlay) this.body.remove(this.editorOverlay);
+    this.editorOverlay = obj;
+    if (obj) { obj.traverse((c) => c.layers.set(VESSEL_LAYER)); this.body.add(obj); }
+    this.moving = true; clock.invalidate('editor');
+  }
+  private editorOverlay: Object3D | null = null;
+  /** The body's frame (what the editor's picking and drag convert through). */
+  get editorBody(): Object3D { return this.body; }
   /** Draws one of `inspectLayers` as a wireframe (every mesh under it; a part built later, a skin rebuilt, is taken up on the next frame). */
   setInspectWire(id: string, on: boolean): void {
     if (on) this.inspectWired.add(id);
