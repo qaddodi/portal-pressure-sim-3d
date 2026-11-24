@@ -87,6 +87,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   const [live, setLive] = useState(false);          // the card has landed: from now on a move of its place glides
   const shownH = useRef<number | null>(null);        // the height the card is drawn at (for the glide)
   const anims = useRef<Animation[]>([]);
+  const lastStep = useRef<string | null>(null);      // the step part of the signature the card was last measured at (see stepKey)
   const box = useRef(BOX_START);                    // the card's lock (box-lock.ts): its height is decided before it shows and stands until a new key, width, step or viewport
   const now = useRef({ live: false, out: false, overflow: false, r: 0, rr: '', anchor: 'top' as Anchor });   // (what the measuring callback, made once, needs to know of the latest render)
   const out = entry.phase === 'out';
@@ -175,12 +176,19 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
       // a taller one still grows it by the glide (words are never clipped) and is logged for the audit. A new key, width, step or viewport (this effect's own first pass) takes the lock again.
       const out = boxOf(box.current, { t: 'measure', key: lockKey, h, fresh, shown: gate.current && !GROWS_BY_DESIGN.has(entry.id) });
       box.current = out.state;
-      if (!out.report) return;
+      if (!out.report) {
+        // (a measure the lock swallowed still tells the layer the card is measured at this slide's signature, at the height it stands: the camera and the new words wait for it)
+        if (fresh && box.current.h > 0) onHeight(entry.key, Math.round(rect.w), box.current.h, box.current.h + heldBy(el), openCharts(el));
+        return;
+      }
       if (out.grew) noteGrew({ card: entry.id, slide: entry.key, px: out.grew });
       growNow(h); shrinkNow(h);
       onHeight(entry.key, Math.round(rect.w), h, h + heldBy(el), openCharts(el));
     };
-    report(true, true);
+    // (a kept data card's slide change is a new signature but the same step: judged as an observer's measure, the lock stands)
+    const sameStep = lastStep.current === stepKey && lastStep.current !== null && gate.current;
+    lastStep.current = stepKey;
+    report(true, !sameStep);
     // a chart that has drawn once tells the card (card-want.ts openCharts): the card judges whether it can come in at once, not at the next resize
     const built = () => report(!now.current.live);   // (not `fresh`: a chart that draws after the card showed is a measure like any other)
     el.addEventListener('pz-chart-built', built);
@@ -217,7 +225,11 @@ export function CardFrame({ entry, rect, onHeight, onGone, children, label, poin
   // a card comes in only when its whole group can (every card measured at its final height, the fonts in), never on its own measure:
   // once let in it stays in, whatever the group does after
   const gate = useRef(false);
-  const lockKey = `${entry.key}|${Math.round(rect.w)}|${remeasure ?? ''}`;
+  // A KEPT data card (keep.ts: the same instrument carried across slides) is not a new card when the slide changes: its signature starts with the words' key (`wordsKey|pages|…`), which changes with every slide.
+  // The box is judged afresh only when a step of its own changes (page, ladder step, fit, viewport), never because the words beside it did, so it keeps the height it landed with (Mohammad, 24 Nov: cards never grow
+  // as a slide lands). Before, the slide change re-measured it afresh, its room (a chart held to what the new words leave) changed its height, and the card glided to the new one.
+  const stepKey = data ? (remeasure ?? '').slice((remeasure ?? '').indexOf('|') + 1) : remeasure ?? '';
+  const lockKey = `${entry.key}|${Math.round(rect.w)}|${stepKey}`;
   if (go && ready && !gate.current) { gate.current = true; box.current = boxOf(box.current, { t: 'show', key: lockKey }).state; }
   now.current.live = live || gate.current;   // (a card sliding in is on screen: a change of its height glides, it never snaps)
   const phase = out ? 'out' : ready && gate.current ? 'in' : 'wait';

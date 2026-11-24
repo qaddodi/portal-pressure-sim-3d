@@ -75,9 +75,9 @@ test('above the lock the card grows (the words are never clipped), the growth is
 test('CardFrame asks the reducer on every measure and shows it only once let in; the quick check is the one card that grows by design', () => {
   const cf = readFileSync('src/ui/cards/CardFrame.tsx', 'utf8');
   assert.match(cf, /boxOf\(box\.current, \{ t: 'measure', key: lockKey, h, fresh, shown: gate\.current && !GROWS_BY_DESIGN\.has\(entry\.id\) \}\)/);
-  assert.match(cf, /if \(!out\.report\) return;\s*\n\s*if \(out\.grew\) noteGrew\(/);
+  assert.match(cf, /if \(!out\.report\) \{[^}]*return;\s*\}\s*\n\s*if \(out\.grew\) noteGrew\(/);
   assert.match(cf, /box\.current = boxOf\(box\.current, \{ t: 'show', key: lockKey \}\)\.state/);
-  assert.match(cf, /report\(true, true\);/, 'the measuring effect\'s first pass is the fresh one');
+  assert.match(cf, /report\(true, !sameStep\);/, 'the measuring effect\'s first pass is the fresh one (but for a kept data card at the same step)');
   assert.match(cf, /GROWS_BY_DESIGN: ReadonlySet<string> = new Set\(\['check'\]\)/);
   assert.match(readFileSync('src/ui/debug/audit/app.ts', 'utf8'), /grewFindings\(\)/, 'the audit reads the log');
   assert.match(readFileSync('src/ui/debug/audit/app.ts', 'utf8'), /clearGrew\(\)/);
