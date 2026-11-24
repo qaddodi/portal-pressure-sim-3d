@@ -125,6 +125,10 @@ const RHV_MIN = 0.26;
 const FAIR_SPAN = 0.05;
 /** How far above the hepatic artery's fork, on the bisector of its two branches, the DIPS crosses the arteries' depth (scene units): clear of both branches by more than the two radii. */
 const DIPS_GAP = 0.1;
+/** The least a stent's tract keeps from any other drawn vessel, wall to wall, away from its own ends (scene units), and the stretch along it over which a push away eases out. */
+const TRACT_CLEAR = 0.009, TRACT_SPAN = 0.1;
+/** The stents and surgical shunts: tracts laid between two ends. */
+const TRACTS = ['TIPS', 'DIPS', 'S_PC', 'S_MC', 'S_DSR', 'REX'] as const;
 /** Where along the whole left portal vein (by length from the bifurcation) its lobe's bed leaves it: where it starts to fade into the lobe. */
 const LPV_BED = 0.6;
 /** Where the varices' courses ease onto the oesophagus's wall above the cardia, and off it where the drain turns toward the azygos (scene y, from and to). */
@@ -507,6 +511,43 @@ function buildPlaced(): void {
   for (const k of ['cv1', 'cv2', 'cv3']) if (COURSE[k]) PLACED_CAUDATE_VEINS.push(COURSE[k]!);
   /** Their radii (the placement's). */
   for (const k of ['cv1', 'cv2', 'cv3']) if (COURSE[k]) PLACED_CAUDATE_R.push(rOf(k));
+
+  // ---- THE TRACTS CROSS NOTHING (Mohammad, 24 Nov: nothing crosses): a stent's or a surgical shunt's tract (TRACTS) is laid between its two ends with no regard for what lies between them (the TIPS ran through the right hepatic artery, 0.016 into its
+  // wall). Where a tract comes within TRACT_CLEAR, wall to wall, of another drawn vessel away from its own two ends, the stretch round there moves straight away from it, easing to nothing over TRACT_SPAN along the tract and
+  // inside its ends' lumens, until it clears; then it is faired. ----
+  {
+    const radOf = (id: string): number => rOf(wholeOf(id) ?? (PLACED_COURSES[id] ? id : '')) || 0.005;
+    for (const id of TRACTS) {
+      let D = PLACED_EDGE_3D[id]!;
+      const r = rOf(id), e = edgeById.get(id)!;
+      // (the vessels it opens into, those that meet them at its two nodes, and their draw-only branches, count only away from its ends: within three of the two radii of an end the tract is entering them)
+      const at = (node: string): Set<string> => new Set(atNode(node, id).map((c) => c.piece));
+      const near0 = at(e.from), near1 = at(e.to), hostR = (n: Set<string>): number => Math.max(0, ...[...n].map(radOf));
+      const z0 = 3 * (hostR(near0) + r), z1 = 3 * (hostR(near1) + r), inner = [hostR(near0) + r, hostR(near1) + r];
+      const os = [
+        ...Object.entries(PLACED_EDGE_3D).filter(([o]) => o !== id && edgeById.get(o)?.kind !== 'liver').map(([o, c]) => ({ c, r: radOf(o), end: near0.has(o) ? 0 : near1.has(o) ? 1 : -1 })),
+        ...Object.entries(PLACED_SPLIT).map(([h, sp]) => ({ c: sp.side, r: 0.6 * radOf(h), end: near0.has(h) ? 0 : near1.has(h) ? 1 : -1 })),
+        ...PLACED_CAUDATE_VEINS.map((c, i) => ({ c, r: PLACED_CAUDATE_R[i] ?? 0.009, end: -1 })),
+      ];
+      for (let round = 0; round < 60; round++) {
+        const s = arc(D), L = s[s.length - 1]!;
+        let worst = { gap: Infinity, i: -1, away: [0, 0, 0] as V3 };
+        for (let i = 0; i < D.length; i++) {
+          if (s[i]! < inner[0]! || L - s[i]! < inner[1]!) continue;
+          for (const o of os) {
+            if ((o.end === 0 && s[i]! < z0) || (o.end === 1 && L - s[i]! < z1)) continue;
+            const h = nearestOn(o.c, D[i]!), gap = h.d - r - o.r;
+            if (gap < worst.gap) worst = { gap, i, away: norm(sub(D[i]!, h.at)) };
+          }
+        }
+        if (worst.gap >= TRACT_CLEAR) break;
+        const push = TRACT_CLEAR + 0.001 - worst.gap, s0 = s[worst.i]!;
+        D = D.map((p, i) => { const w = (1 - smooth(Math.abs(s[i]! - s0) / TRACT_SPAN)) * smooth(s[i]! / inner[0]!) * smooth((L - s[i]!) / inner[1]!); return w > 0 ? add(p, mul(worst.away, push * w)) : p; });
+        D = resample(fair(D), STEP);
+      }
+      PLACED_EDGE_3D[id] = D;
+    }
+  }
 
   // ---- 2D projections: the courses in the 2D figure's units, for the rules written in them (joins, coils, strands), and their depths ----
   for (const [id, c] of Object.entries(PLACED_EDGE_3D)) { PLACED_PATH_2D[id] = c.map((p): P2 => [x2d(p[0]), y2d(p[1])]); PLACED_Z[id] = c.map((p) => p[2]); }

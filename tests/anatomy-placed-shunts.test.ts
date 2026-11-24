@@ -145,3 +145,26 @@ test('the TIPS and DIPS stents run their courses end to end (no bare tube past t
     for (const cv of cava) { const u = cv.nearestU([p[0], p[1], p[2]]), q = cv.pointAt(u) as V; assert.ok(dist(p, q) > cv.radiusAt(u) + rT, `the TIPS at ${(i / 100).toFixed(2)} stays out of the cava (${cv.id})`); }
   }
 });
+
+test('no stent or shunt course touches another drawn vessel except at its own two ends (wall to wall above 0; the TIPS and DIPS tracts by 0.005 or more)', () => {
+  const nodeOf = (id: string): [string, string] => { const v = NETWORK_BY_ID.get(id)!; return [v.from, v.to]; };
+  const bad: string[] = [];
+  for (const id of ['TIPS', 'DIPS', 'S_PC', 'S_MC', 'S_DSR', 'REX']) {
+    const s = centrelineOf(id); if (!s) continue;
+    const [n0, n1] = nodeOf(id), floor = id === 'TIPS' || id === 'DIPS' ? 0.005 : 0;
+    for (const v of NETWORK) {
+      if (v.id === id || v.kind === 'liver') continue;
+      const o = centrelineOf(v.id); if (!o) continue;
+      // (a vessel that meets it at one of its nodes, or a branch hung on one: only away from that end, three of the two radii out, where the shunt is still entering it)
+      const host = NETWORK_BY_ID.get(v.host ?? v.id) ?? v, at0 = [host.from, host.to, v.from, v.to].includes(n0), at1 = [host.from, host.to, v.from, v.to].includes(n1);
+      let worst = Infinity, wu = 0;
+      for (let i = 0; i <= 120; i++) {
+        const u = i / 120, p = s.pointAt(u) as V, rs = s.radiusAt(u), zone = 3 * (rs + 0.027);
+        if ((at0 && u * s.length < zone) || (at1 && (1 - u) * s.length < zone)) continue;
+        for (let j = 0; j <= 120; j++) { const g = dist(p, o.pointAt(j / 120) as V) - rs - o.radiusAt(j / 120); if (g < worst) { worst = g; wu = u; } }
+      }
+      if (worst <= floor) bad.push(`${id} vs ${v.id}: ${worst.toFixed(4)} at ${wu.toFixed(2)}`);
+    }
+  }
+  assert.deepEqual(bad, [], 'these touch');
+});
