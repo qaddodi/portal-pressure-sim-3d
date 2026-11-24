@@ -42,7 +42,7 @@ test('a skin draws every head whole by the owner of its centre, inside the arm\'
 test('the owner is the mesh\'s own rule (a softmax of the arms\' distances in px) read as a WINNER, never as a third: a head in a three-way fillet is whole or not this arm\'s, never a pale ghost', () => {
   const own = body(SKIN_FS, 'float skinOwner(');
   assert.match(own, /exp\(-4\.0 \* \(d\[k\] - lo\) \/ max\(kPx, 1e-3\)\)/);
-  assert.match(own, /return smoothstep\(-[0-9.]+, [0-9.]+, \(mine - other\) \/ max\(sum, 1e-6\)\)/);
+  assert.match(own, /return smoothstep\([0-9.]+, [0-9.]+, \(mine - other\) \/ max\(sum, 1e-6\)\)/);
   assert.ok(!/return mine \/ max\(sum/.test(own), 'not the bare share');
 });
 

@@ -74,7 +74,7 @@ export const SKIN_HEAD_LAT_TO = 1.7;
  *  half-strength copies of one head, each stretched over pixels outside its own frame's cylinder (a head lies within 0.6 of the axis), summed to a dark smear. Now its owner share is sharpened (SKIN_HEAD_OWN_FROM .. TO: 0 under, 1 over, so the two arms' shares still sum to 1) and the gate
  *  closes at the head's own reach, not the wall's. */
 /** The band about a tie of two arms' shares over which a head's ownership passes from one arm to the other (a head is whole to the winner everywhere else). */
-export const SKIN_HEAD_TIE = 0.1;
+export const SKIN_HEAD_TIE = 0.15, SKIN_HEAD_WIN = 0.5;
 export const SKIN_HEAD_OWN_FROM = 0.3, SKIN_HEAD_OWN_TO = 0.7, SKIN_HEAD_GATE_FROM = 0.75, SKIN_HEAD_GATE_TO = 1.0;
 
 /** The weighted sum of a per-arm float uniform array over all the arms (`wAt` and `wAtF` read the two weight attributes). */
@@ -415,8 +415,8 @@ float skinOwner(int arm, vec3 centre, float kPx) {
     lo = min(lo, d[k]);
   }
   // THE WINNER OWNS THE HEAD WHOLE. The share of an arm is its softmax weight over the sum, which at a three-way fillet is about a third for every arm: a head there was drawn at a third of its strength (a pale ghost lying under the join) or, where
-  // the shares tie under the gate, by nobody at all (Mohammad, 24 Nov: chevrons hidden under the joins, in every lens). An arm now owns the head by how much its share beats the best of the others', eased over a narrow band
-  // about a tie (SKIN_HEAD_TIE): 1 for the arm that wins, 0 for the others, and the two arms of a tie still sum to 1 (never two whole copies).
+  // the shares tie under the gate, by nobody at all (Mohammad, 24 Nov: chevrons hidden under the joins, in every lens). An arm now owns the head by how much its share beats the best of the others', eased: 1 for the arm that wins
+  // by SKIN_HEAD_WIN of the shares, 0 for the others, and where no arm wins (the centre of the crotch, a tie) NO arm draws it: a head there is dropped and the next one comes in just past it (never a ghost, never two copies).
   float mine = 0.0, sum = 0.0, other = 0.0;
   for (int k = 0; k < ${SKIN_ARMS}; k++) {
     if (armData[k].x < 0.0) continue;
@@ -424,7 +424,7 @@ float skinOwner(int arm, vec3 centre, float kPx) {
     sum += w;
     if (k == arm) mine = w; else other = max(other, w);
   }
-  return smoothstep(-${F(SKIN_HEAD_TIE)}, ${F(SKIN_HEAD_TIE)}, (mine - other) / max(sum, 1e-6));
+  return smoothstep(${F(SKIN_HEAD_TIE)}, ${F(SKIN_HEAD_WIN)}, (mine - other) / max(sum, 1e-6));
 }
 void main() {
   { float kept = 0.0; for (int i = 0; i < ${SKIN_ARMS}; i++) kept += rawW(i) * keepOf(i); gWKeep = armFlow[1].w > exp2(float(${SKIN_ARMS})) - 1.5 ? 1.0 : 1.0 / max(kept, 1.0e-4); }   // (every arm kept: the weights as they are)
