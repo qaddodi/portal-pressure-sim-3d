@@ -27,6 +27,8 @@ export interface BigIn {
   win: readonly [number, number];
   /** the day the crosshair is on, or null (the lane titles then read the newest day) */
   cursor: number | null;
+  /** a phone: the "+N" group opened by a tap (its first event's id), or null */
+  open?: string | null;
   /** the box's height, px */
   h: number;
 }
@@ -37,6 +39,8 @@ export interface Geo {
   x0: number; x1: number;
   X(day: number): number; dayAt(x: number): number;
   lanes: readonly { id: LaneId; t: number; h: number }[];
+  /** the phone's "+N" ticks (and an opened group's first line): where a tap opens or closes one */
+  groups: readonly { key: string; x: number; n: number }[];
 }
 
 const WEIGHT: Record<LaneId, number> = { p: 3, hvpg: 1.5, asc: 1.7, shunt: 1.7, co: 1.4 };
@@ -118,7 +122,8 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   const lines = inp.lines.filter((e) => e.day >= x0 - 1e-6 && e.day <= x1 + 1e-6).sort((a, b) => a.day - b.day);
   const meds = inp.meds.filter((m) => m.spans.some((s) => (s.to ?? Infinity) >= x0 && s.from <= x1));
   // ── the words over the plot: event labels in rows (a wide card) or upright (a phone) ──
-  type Placed = { e: MarkLine; x: number; r: number; w: number; xs?: number; lift?: number; ls?: string[] };
+  type Placed = { e: MarkLine; x: number; r: number; w: number; xs?: number; lift?: number; ls?: string[]; plus?: number };
+  const marks: { key: string; x: number; n: number }[] = [];
   const placed: Placed[] = [];
   let top: number;
   if (!phone) {
@@ -133,21 +138,43 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
     }
     top = 6 + Math.max(2, end.length) * ROW_H + 8;
   } else {
-    // a phone sets each label at 45°, reading up and to the right from its line (owner, 24 Nov); labels whose lines are close are lifted along their lines until no two overlap
-    const told = new Set<string>(), R2 = Math.SQRT1_2, boxes: { n0: number; n1: number; a0: number; a1: number }[] = [], lh = fs * 1.15;
-    let band = 36;
+    // a phone sets each label at 45°, reading up and to the right from its line (owner, 24 Nov). A label is one line unless it would stand taller than the band's cap, then two.
+    // Labels whose lines are closer than a text line apart cannot all be read: they merge into one "+N" tick at the first of them, and a tap on it opens that group (its labels are then lifted along their lines until none overlaps).
+    const told = new Set<string>(), R2 = Math.SQRT1_2, lh = fs * 1.15, capLen = Math.max(96, H * 0.26);
+    type Item = { e: MarkLine; x: number; ls: string[]; w: number };
+    const items: Item[] = [];
     for (const e of lines) {
-      if (e.kind === 'event' && told.has(e.label)) { placed.push({ e, x: X(e.day), r: -1, w: 0, xs: X(e.day), lift: 0, ls: [] }); continue; }
+      if (e.kind === 'event' && told.has(e.label)) { placed.push({ e, x: X(e.day), r: -1, w: 0, ls: [] }); continue; }
       told.add(e.label);
-      // a long name breaks in two lines near its middle; the last line starts on the event's line, the first sits up and to the left of it
-      const ls = wrap2(e.label, fs, 120), w = Math.max(...ls.map((l) => measure(l, fs, e.tone === 'change' ? 600 : 500))), len = w * R2, x = X(e.day), xs = Math.min(x + 2, W - 6 - len), up = (ls.length - 1) * lh;
-      let lift = 0;
-      for (;;) {   // the label's last line starts at (xs, base - lift): n runs across the label, a along it
-        const n1 = (xs - lift) * R2 + lh * 0.7, n0 = n1 - up - lh * 1.6, a0 = (xs + lift) * R2, a1 = a0 + w + 6;
-        if (!boxes.some((b) => n0 < b.n1 && n1 > b.n0 && a0 < b.a1 && a1 > b.a0)) { boxes.push({ n0, n1, a0, a1 }); break; }
-        lift += 3;
+      const wt = e.tone === 'change' ? 600 : 500, one = measure(e.label, fs, wt), ls = one * R2 > capLen ? wrap2(e.label, fs, Math.max(80, capLen / R2 * 0.55)) : [e.label];
+      items.push({ e, x: X(e.day), ls, w: Math.max(...ls.map((l) => measure(l, fs, wt))) });
+    }
+    const boxes: { n0: number; n1: number; a0: number; a1: number }[] = [];
+    let band = 36;
+    // a label goes in the first of a few lifts (two rows, in effect) where it overlaps no other; with `reach` unlimited it always goes in
+    const lay = (it: Item, reach: number): boolean => {
+      const len = it.w * R2, xs = Math.min(it.x + 2, W - 6 - len), up = (it.ls.length - 1) * lh;
+      for (let lift = 0; lift <= reach; lift += 3) {   // the label's last line starts at (xs, base - lift): n runs across the label, a along it
+        const n1 = (xs - lift) * R2 + lh * 0.7, n0 = n1 - up - lh * 1.6, a0 = (xs + lift) * R2, a1 = a0 + it.w + 6;
+        if (boxes.some((b) => n0 < b.n1 && n1 > b.n0 && a0 < b.a1 && a1 > b.a0)) continue;
+        boxes.push({ n0, n1, a0, a1 });
+        placed.push({ e: it.e, x: it.x, r: 0, w: it.w, xs, lift, ls: it.ls }); band = Math.max(band, lift + len + up * R2 + fs);
+        return true;
       }
-      placed.push({ e, x, r: 0, w, xs, lift, ls }); band = Math.max(band, lift + len + up * R2 + fs);
+      return false;
+    };
+    const rows = lh * 1.42 * 2, groups: Item[][] = [];
+    for (const it of items) { if (lay(it, rows)) continue; const g = groups[groups.length - 1]; if (g && g[g.length - 1] === items[items.indexOf(it) - 1]) g.push(it); else groups.push([it]); }
+    for (const g of groups) {
+      if (g.length === 1) { lay(g[0]!, 1e9); continue; }   // one alone is not worth a tick: it takes whatever lift it needs
+      const key = String(g[0]!.e.id);
+      marks.push({ key, x: g[0]!.x, n: g.length });
+      if (inp.open === key) { for (const it of g) lay(it, 1e9); continue; }
+      const pw = measure(`+${g.length}`, fs, 600), px = Math.min(g[0]!.x + 2, W - 6 - pw * R2);
+      let lift = 0;   // the tick takes the first lift where it overlaps no word
+      for (;; lift += 3) { const n1 = (px - lift) * R2 + lh * 0.7, n0 = n1 - lh * 1.6, a0 = (px + lift) * R2, a1 = a0 + pw + 4; if (!boxes.some((b) => n0 < b.n1 && n1 > b.n0 && a0 < b.a1 && a1 > b.a0)) { boxes.push({ n0, n1, a0, a1 }); break; } }
+      band = Math.max(band, lift + pw * R2 + fs);
+      g.forEach((it, i) => placed.push({ e: it.e, x: it.x, r: -1, w: 0, ls: [], xs: px, lift, ...(i === 0 ? { plus: g.length } : {}) }));
     }
     top = 10 + Math.ceil(band) + 12;
   }
@@ -160,7 +187,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   const geoLanes = specs.map((s) => { const h = specs.length ? free * WEIGHT[s.id] / wsum : free, g = { s, t: y, h }; y += h + GAP; return g; });
   const bottom = specs.length ? y - GAP : top + medsH + free;
   const frame = (): Frame => ({ w: W, h: bottom + axH, shapes, label: '' });
-  const geo: Geo = { w: W, h: bottom + axH, L, R, top, bottom, x0, x1, X, dayAt, lanes: geoLanes.map((g) => ({ id: g.s.id, t: g.t, h: g.h })) };
+  const geo: Geo = { w: W, h: bottom + axH, L, R, top, bottom, x0, x1, X, dayAt, lanes: geoLanes.map((g) => ({ id: g.s.id, t: g.t, h: g.h })), groups: marks };
 
   // zones, grids, cut-offs
   for (const g of geoLanes) {
@@ -230,7 +257,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   // event lines (behind the traces), then the traces
   shapes.push({ k: 'clip', x: L, y: 0, w: plotW, h: bottom + 1 });
   for (const p of placed) {
-    const ink = toneInk(pal, p.e.tone), line0 = p.r < 0 ? top - 6 : phone ? top - 8 - (p.lift ?? 0) - Math.max(0, p.x - (p.xs ?? p.x)) : p.r * ROW_H + 14;
+    const ink = toneInk(pal, p.e.tone), line0 = p.plus ? top - 8 - (p.lift ?? 0) : p.r < 0 ? top - 6 : phone ? top - 8 - (p.lift ?? 0) - Math.max(0, p.x - (p.xs ?? p.x)) : p.r * ROW_H + 14;
     shapes.push({ k: 'line', x1: X(p.e.day), y1: Math.max(2, line0), x2: X(p.e.day), y2: bottom, pen: pen(pal.alpha(ink, p.e.tone === 'change' ? 0.85 : 0.55), p.e.tone === 'change' ? 1.6 : 1) });
   }
   for (const g of geoLanes) {
@@ -265,6 +292,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   for (const p of placed) {
     const ink = toneInk(pal, p.e.tone), weight = p.e.tone === 'change' ? 600 : 500;
     if (!phone) { if (p.r >= 0) say({ x: p.x, y: p.r * ROW_H + 12, s: p.e.label, color: ink, weight }); }
+    else if (p.plus) say({ x: p.xs ?? p.x, y: top - 8 - (p.lift ?? 0), s: `+${p.plus}`, color: t2, weight: 600, rot: -45, anchor: 'start' });
     else if (p.r >= 0) (p.ls ?? []).forEach((l, i, a) => { const k = (a.length - 1 - i) * fs * 1.15 * Math.SQRT1_2; say({ x: (p.xs ?? p.x) - k, y: top - 8 - (p.lift ?? 0) - k, s: l, color: ink, weight, rot: -45, anchor: 'start' }); });
   }
   // the crosshair

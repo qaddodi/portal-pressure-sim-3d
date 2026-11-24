@@ -302,8 +302,11 @@ test('the event-paced axis: a crowd of events gets more room per day than a quie
   assert.ok(room(80, 110) < 0.5 && room(80, 110) > 0, 'the quiet end is folded, not cut');
   for (const pc of p.pieces) { const m = (pc.a + pc.b) / 2; assert.ok(Math.abs((p.at(m) - p.at(pc.a)) - (p.at(pc.b) - p.at(pc.a)) / 2) < 1e-9, 'one scale inside a piece'); }
   for (let d = 0; d < 120; d += 0.37) { assert.ok(p.at(d + 0.37) > p.at(d)); assert.ok(Math.abs(p.day(p.at(d)) - d) < 1e-9, `inverse at ${d}`); }
-  assert.deepEqual([scaleFor(0), scaleFor(1), scaleFor(4), scaleFor(9)], [1 / 3, 1, 3, 6]);
-  assert.deepEqual([scaleWord(1 / 3), scaleWord(1), scaleWord(6)], ['⅓ scale', '1× scale', '6× scale']);
+  assert.deepEqual([scaleFor(0, 9), scaleFor(1, 4), scaleFor(3, 5), scaleFor(5, 4), scaleFor(11, 4.6)], [1 / 3, 1, 3, 6, 10]);
+  assert.deepEqual([scaleWord(1 / 3), scaleWord(1), scaleWord(10)], ['⅓ scale', '1× scale', '10× scale']);
+  // pieces start and end ON event days, never on a bin edge
+  const edges = new Set(p.pieces.flatMap((q) => [q.a, q.b]));
+  for (const d of [16, 18, 32, 51, 69, 73.6]) assert.ok(edges.has(d), `a piece edge on day ${d}`);
   assert.ok(paceOf([], [0, 100]).flat && paceOf([10, 50, 90], [0, 100]).pieces.length >= 1);
 });
 
@@ -315,4 +318,19 @@ test('the chart draws the paced axis: the scale said under it, x grows with day,
   const z = bigFrame(inp({ win: [60, 90] }), c).geo;
   assert.ok(Math.abs(z.X(60) - z.L) < 1e-6 && Math.abs(z.X(90) - (z.w - z.R)) < 1e-6);
   assert.ok(Math.abs(z.dayAt(z.X(75)) - 75) < 1e-6);
+});
+
+test('a phone: events whose lines are closer than a text line merge into one "+N" tick (capped band), a tap opens the group, the rest keep their 45° words', () => {
+  const crowd = ENTRIES.concat([E(20, 'event', 84.2, 'Elevated right atrial pressure', { sev: 'caution' }), E(21, 'event', 84.5, 'Portal vein stasis', { sev: 'caution' }), E(22, 'event', 84.8, 'Liver hypoperfusion', { sev: 'caution' }), E(23, 'event', 85.1, 'Intrahepatic portal branches reversed')]);
+  const d2 = buildData({ calm: (k) => (k === 'CONF' ? { x: SER.pv!.x as number[], mid: SER.pv!.y as number[] } : null), entries: crowd, labelsOf: LABELS, hidden: null });
+  const mk = (open: string | null) => bigFrame({ ...inp(), lines: d2.lines, series: { pv: SER.pv! }, on: ['pv'], win: [0, 120], open }, ctxOf('light', 380));
+  const closed = mk(null), plus = closed.frame.shapes.filter((s): s is TextShape => s.k === 'text' && /^\+\d+$/.test(s.s));
+  assert.ok(plus.length >= 1 && plus.every((t) => t.rot === -45), 'a +N tick, turned 45°');
+  assert.ok(closed.geo.groups.length === plus.length && closed.geo.groups.every((g) => g.n >= 2));
+  assert.ok(closed.geo.top < 760 * 0.4, 'the label band is capped');
+  const key = closed.geo.groups[0]!.key, opened = mk(key);
+  assert.ok(!opened.frame.shapes.some((s) => s.k === 'text' && s.s === `+${closed.geo.groups[0]!.n}`) || opened.geo.groups.length >= 1);
+  const words = opened.frame.shapes.filter((s): s is TextShape => s.k === 'text' && s.rot === -45 && !/^\+\d+$/.test(s.s));
+  assert.ok(words.length > closed.frame.shapes.filter((s): s is TextShape => s.k === 'text' && s.rot === -45 && !/^\+\d+$/.test(s.s)).length, 'opening the group sets its words');
+  judge(opened.frame, 'light'); judge(closed.frame, 'light');
 });

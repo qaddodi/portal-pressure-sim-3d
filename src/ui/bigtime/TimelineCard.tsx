@@ -28,7 +28,7 @@ export function TimelineCard() {
   const panel = useBig((s) => s.panel), raised = useBig((s) => s.raised), set = useBig.getState().set;
   const vp = useUi((s) => s.vp), thumb = useThumb(), compact = thumb || vp.w < 760 || vp.h < 520;
   const full = data.full;
-  const [drag, setDrag] = useState(false), [fresh, setFresh] = useState(false);
+  const [drag, setDrag] = useState(false), [fresh, setFresh] = useState(false), [open, setOpen] = useState<string | null>(null);
   const target = useMemo<[number, number]>(() => (win ? slid(win, full) : [full[0], full[1]]), [win, full]);
   // a window the learner sets by a word eases; one a hand is dragging, or the whole run as it grows, is set at once
   const [w0, w1] = useGlide(target, drag || (win == null && !fresh));
@@ -45,17 +45,17 @@ export function TimelineCard() {
   const ids = MEASURES.filter((m) => on[m.id] && data.series[m.id]).map((m) => m.id);
   const lines = useMemo(() => data.lines.filter((l) => !(l.kind === 'change' && hidden.has(baseName(l.label)))), [data.lines, hidden]);
   const meds = useMemo(() => data.meds.filter((m) => !hidden.has(m.key)), [data.meds, hidden]);
-  const inp = (h: number): BigIn => ({ series: data.series, hvpg: data.hvpg, on: ids, lines, meds, full, win: [w0, w1], cursor: shown, h });
+  const inp = (h: number): BigIn => ({ series: data.series, hvpg: data.hvpg, on: ids, lines, meds, full, win: [w0, w1], cursor: shown, open, h });
 
   // ── the pointer on the chart ──
-  const rect = useRef<{ left: number; w: number } | null>(null);
+  const rect = useRef<{ left: number; top: number; w: number } | null>(null);
   const touches = useRef(new Map<number, number>()), pinch = useRef(0);
   const dayOf = (clientX: number): number => {
     const g = geo.current;
     if (!g) return w1;
     return Math.max(full[0], Math.min(full[1], g.dayAt(clientX - (rect.current?.left ?? 0))));
   };
-  const measureBox = (el: HTMLElement) => { const b = readBox(el); rect.current = { left: b.left, w: b.width }; };
+  const measureBox = (el: HTMLElement) => { const b = readBox(el); rect.current = { left: b.left, top: b.top, w: b.width }; };
   const onEnter = (e: RPointerEvent<HTMLDivElement>) => measureBox(e.currentTarget);
   const onDown = (e: RPointerEvent<HTMLDivElement>) => {
     measureBox(e.currentTarget);
@@ -78,6 +78,12 @@ export function TimelineCard() {
   const onUp = (e: RPointerEvent<HTMLDivElement>) => {
     const was = touches.current.size;
     touches.current.delete(e.pointerId);
+    // a tap on a phone's "+N" tick (in the band of labels) opens that group, a second tap closes it
+    const g = geo.current, tapX = e.clientX - (rect.current?.left ?? 0);
+    if (was === 1 && g && g.groups.length && e.clientY - (rect.current?.top ?? 0) < g.top) {
+      const near = g.groups.reduce<{ key: string; dx: number } | null>((best, m) => { const dx = Math.abs(m.x - tapX); return dx < 22 && (!best || dx < best.dx) ? { key: m.key, dx } : best; }, null);
+      if (near) { setOpen(open === near.key ? null : near.key); set({ cursor: null }); return; }
+    }
     if (was === 1) { const d = dayOf(e.clientX); set(e.pointerType === 'mouse' ? { cursor: d, pin: pin != null && Math.abs(pin - d) < (w1 - w0) / 80 ? null : d } : { pin: d, cursor: null }); }
   };
   const onLeave = (e: RPointerEvent<HTMLDivElement>) => { if (e.pointerType === 'mouse') set({ cursor: null }); };
@@ -127,7 +133,7 @@ export function TimelineCard() {
 
   const build = (c: ChartCtx) => { const r = bigFrame(inp(plot.h), c); geo.current = r.geo; return r.frame; };
   const stripBuild = (c: ChartCtx) => stripFrame(inp(plot.h), c, leadOf(c.w)).frame;
-  const deps = [data, ids.join(), lines, meds, w0, w1, shown, plot.h];
+  const deps = [data, ids.join(), lines, meds, w0, w1, shown, plot.h, open];
   const close = () => useShell.getState().close();
   const sideHead = compact ? null : (
     <header className="bt-tabs">
