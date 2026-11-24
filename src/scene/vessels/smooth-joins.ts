@@ -8,7 +8,7 @@
 //     inside the trunk, so there is no gap between the branch's last ring and the trunk's wall and no cap standing out of the far side.
 //   * Free ends (the end of a vessel nothing meets, with no alpha fade of its own): the tube tapers to a point (`free`) instead of ending in a round cap.
 //   * The cava ends in the right atrium: it and the SVC run on one slope to the atrium's back wall (`NODE_RISE`), so in a turned view they enter the heart instead of passing 0.3 behind it.
-import { IVC_EDGES } from '../anatomy/source.ts';
+import { IVC_EDGES, PLACED } from '../anatomy/source.ts';
 import { TIER_Z } from '../frame2d.ts';
 import { NETWORK, RUN_ONS, sameSegment, type NetVessel } from './network.ts';
 import { runsInto } from './starts.ts';
@@ -67,11 +67,14 @@ function build(): ReadonlyMap<string, SmoothEnds> {
     // no `taper`, no funnel here.
     if (isCollateral(a.v) || isCollateral(b.v)) {
       // (two collaterals are one vessel when the engine's route is: the coronary vein and the varices' drain to the azygos, one segment: network.ts SEGMENT_OF. Any other two are branches of a node and meet as before)
-      if (isCollateral(a.v) && isCollateral(b.v) && !sameSegment(a.v.id, b.v.id)) return;
+      // (placed: two collaterals the 2D rule runs on into one another are one vessel at that node too: the fundal varices into the gastrorenal shunt)
+      if (isCollateral(a.v) && isCollateral(b.v) && !sameSegment(a.v.id, b.v.id) && !PLACED) return;
       taken.add(`${a.v.id}|${a.end}`); taken.add(`${b.v.id}|${b.end}`);
       const da = outward(a.v, a.end), db = outward(b.v, b.end);
       const straight = !!da && !!db && da[0] * db[0] + da[1] * db[1] + da[2] * db[2] < -0.9;
-      for (const [x, y] of [[a, b], [b, a]] as const) { const i = get(x.v); i.mate[x.end] = y.v.id; if (straight) i.joined[x.end] = true; }
+      // (placed: they ease to one width too, over a length (shape.ts lengthSpans): the coronary vein into the varices met them at 0.64 of their width, a step; Mohammad, 24 Nov)
+      const m = (a.v.radius + b.v.radius) / 2;
+      for (const [x, y] of [[a, b], [b, a]] as const) { const i = get(x.v); i.mate[x.end] = y.v.id; if (straight) i.joined[x.end] = true; if (PLACED) { i.taper[x.end] = m / x.v.radius; i.paired = true; } }
       return;
     }
     taken.add(`${a.v.id}|${a.end}`); taken.add(`${b.v.id}|${b.end}`);

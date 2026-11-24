@@ -2,6 +2,7 @@
 // tests compare them with the 2D source when PPS_2D_REPO is set). A collateral coils as it opens (stage-tubes.js: amplitude 1.5 + 3.5 of its opening once
 // past a quarter), the varices' strands fan out as far as their varix is big, and the strands leave and rejoin their trunk (anatomy.js STRANDS).
 import { STRANDS_2D, STRAND_FROM_2D, STRAND_HOLD_2D, STRAND_SOFT_2D, STRAIGHT_COLL_2D, WIG_CAP_2D } from './coil.copied.ts';
+import { EDGE_PATH_2D as TODAY_PATH_2D, PLACED } from '../anatomy/source.ts';
 
 export type P2 = [number, number];
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -22,7 +23,8 @@ export function wiggle(pts: readonly P2[], amp: number, seed: number, hold = 0):
     let nx = -(b[1] - a[1]), ny = b[0] - a[0];
     const n = Math.hypot(nx, ny) || 1; nx /= n; ny /= n;
     const u = cum[i]! / L;
-    let env = Math.min(1, u * 6, (1 - u) * 6);
+    // (placed: the envelope eases in and out (smoothstep), so the coil starts with no bend of its own at a sixth of the way; the 2D rule's ramp is a corner in its curvature)
+    let env = PLACED ? smooth01(u * 6) * smooth01((1 - u) * 6) : Math.min(1, u * 6, (1 - u) * 6);
     if (hold) env *= smooth01((u - hold) / (1.4 * hold)) * smooth01((1 - u - hold) / (1.4 * hold));
     const w = wiggleAt(amp, env, cum[i]!, k, seed);
     return [p[0] + nx * w, p[1] + ny * w];
@@ -50,7 +52,7 @@ export function braid(pts: readonly P2[], off: number, u0 = 0, span: readonly [n
     const n = Math.hypot(nx, ny) || 1; nx /= n; ny /= n;
     if (soft) { nx = cx; ny = cy; }
     const s = Math.sin(Math.PI * clamp((i / (pts.length - 1) - u0) / (1 - u0), 0, 1));
-    const o = off * (soft ? s * s : s);
+    const o = off * (soft || PLACED ? s * s : s);   // (placed: every strand parts from its trunk tangent to it, sin squared; the sine left it at an angle, a corner where the strand begins)
     return [p[0] + nx * o, p[1] + ny * o];
   });
 }
@@ -153,7 +155,9 @@ function coilCoursesFree(id: string, base: readonly P2[], coils: boolean, wig: n
   const strands = rows.map((r, i): CoilCourse => {
     const [off, ph, k, ua, ub] = r as [number, number, number, number?, number?];
     if (wv) {
-      const w = weave(base, wv.reach * sp0, wv.turns, (2 * Math.PI * i) / rows.length, u0);
+      // (placed: a course shorter than the 2D figure's (the varices, half as long) winds at the same pitch, not in the same number of turns: its turns and reach shrink with its length, so it curls no tighter)
+      const kL = PLACED ? Math.min(1, len2(base) / (len2(TODAY_PATH_2D[id] ?? base) || 1)) : 1;
+      const w = weave(base, wv.reach * sp0 * kL, wv.turns * kL, (2 * Math.PI * i) / rows.length, u0);
       return { pts: u0 ? blendFrom(main, w.pts, u0) : w.pts, k, ph, dz: w.dz };
     }
     const fan = off * sp0, amp = 0.8 * wig + 3;
@@ -163,3 +167,5 @@ function coilCoursesFree(id: string, base: readonly P2[], coils: boolean, wig: n
   });
   return { main, strands };
 }
+/** A 2D course's length. */
+function len2(p: readonly (readonly [number, number])[]): number { let l = 0; for (let i = 1; i < p.length; i++) l += Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]); return l; }
