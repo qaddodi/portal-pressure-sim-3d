@@ -31,6 +31,8 @@ export const stepVars = (s: PairStep | undefined): Record<string, string | numbe
  *  (Shunts 4 at 1024 x 768: the criteria's lettering is 12.0 px and the pair stood 25 px past its foot, a floor of 1 left it there). No height, no room or no lettering known: no fit. */
 export function dataFitOf(h: number, cap: number, minPx: number): number {
   if (!(h > 0) || !(cap > 0) || h <= cap) return 1;
-  const floor = !Number.isFinite(minPx) ? 1 : minPx > 12 ? Math.max(0.5, Math.ceil((12 / minPx) * 1000) / 1000) : 0.5;
-  return Math.max(floor, Math.min(1, (cap / h) * 0.985));
+  if (!Number.isFinite(minPx)) return 1;
+  // The zoom that brings it to its room, down to half: the 12 px floor is met whenever the room allows it (that zoom is then above the floor anyway), and where even the floor leaves the card
+  // taller than its room the half is the last resort, as 2D's dataFloor is, rather than a card with its last rows cut off (Recompensation 7 on an iPhone: the criteria and the Child-Pugh points, capture 2c00c0ce).
+  return Math.max(0.5, Math.min(1, (cap / h) * 0.985));
 }

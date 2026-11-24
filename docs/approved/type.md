@@ -9,7 +9,7 @@
 - **Spaced capitals are one style:** 12 px, 600, `--caps-ls` (`--t-cap`). They are for kickers and group titles only, never for rows or names.
 - **A name is serif:** History row names, Over time event names and its "What to graph" names, like the comparison table's. Serif at `--t-name`, 600. Buttons, words, numbers, units and chart words stay Inter. Settings and the stent rows stay Inter (22 Nov: "keep fonts").
 - **Symbols are Inter's own:** `→ ← ≥ ≤ ≈ ≠ ▲ ▼ ✓ ⌘ ⌥ ⇧ ⁴ ₂ √ ∞` come from `inter-symbols.woff2` and `source-serif-4-symbols.woff2` (cut from Inter 4.1 and Source Serif 4.005), so they are never drawn in Arial. The first card waits for them (`src/boot/fonts.ts`).
-- **Floor 12 px** for any text. Fitted data cards may shrink down to 12 and no further, then the card pages. Text never shrinks below it.
+- **Floor 12 px** for any text. Fitted data cards shrink to 12 where that fits them; where even 12 leaves the card taller than its room (Recompensation 7 on an iPhone, 24 Nov) the half-size last resort of 2D's dataFloor applies, so no row is ever cut off. Other text never shrinks below it.
 
 ## The sheet ladder (dock, sheets, menus, History, Histories, Settings, toasts, dialogs and the dense tool cards: Over time, Treat, stent). Tokens in `global.css` and `css2d/tokens.css`.
 

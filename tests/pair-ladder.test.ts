@@ -50,7 +50,8 @@ test('the data card\'s own fit is the last step: to its room, never under 12 px'
   assert.equal(dataFitOf(400, 500, 14), 1, 'it fits: no fit');
   assert.equal(dataFitOf(0, 500, 14), 1);
   assert.equal(dataFitOf(462, 383, 16), Math.max(12 / 16, (383 / 462) * 0.985), 'zoomed to its room');
-  assert.equal(dataFitOf(900, 383, 16), 0.75, 'the 12 px floor holds');
+  assert.equal(dataFitOf(900, 383, 16), 0.5, 'past the 12 px floor the half is the last resort: no row is cut off (Recompensation 7, capture 2c00c0ce)');
+  assert.equal(dataFitOf(500, 383, 16), (383 / 500) * 0.985, 'a card the 12 px floor can hold is zoomed only as far as its room asks');
   assert.equal(dataFitOf(900, 383, 12), 0.5, 'lettering already at 12 px: 2D\'s last resort, half (dataFloor)');
   assert.equal(dataFitOf(462, 437, 12), (437 / 462) * 0.985, 'Shunts 4 at 1024 x 768: the pair\'s 25 px come off the data card');
   assert.equal(dataFitOf(900, 383, 8), 0.5);
