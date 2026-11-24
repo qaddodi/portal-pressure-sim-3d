@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { AXIAL_KINDS, N, buildLobule, hexFrac, inletBow, zoneOf } from '../src/scene/lobule/geometry.ts';
 import { LOBULE_CAMS, LOBULE_ORIGIN, LOBULE_R, SINUSOID_ORIGIN, lobuleShot, sinusoidShot } from '../src/scene/lobule/shots.ts';
-import { SIN_SCALE, lobuleWorld, sinusoidWorld } from '../src/scene/lobule/frames.ts';
+import { LOBULE_SCALE, SIN_SCALE, lobuleWorld, sinusoidWorld } from '../src/scene/lobule/frames.ts';
 import { WASH_DELAY_MS, WASH_MS, washAmount, washFront, washProgress, washSpan } from '../src/scene/lobule/wash.ts';
 import { LOBULE_PARTS, SINUSOID_PARTS } from '../src/scene/lobule/parts.ts';
 import { LOBULE_PALETTES, EXTRA_TONES } from '../src/scene/lobule/tones.ts';
@@ -83,7 +83,8 @@ test('every camera name the 2D decks use has a shot, aimed at the lobule (or the
   assert.ok(Math.abs(triad.target[0] - lobuleWorld([-0.88 * LOBULE_R, 0, 0])[0]) < 1e-12);
   assert.ok(Math.abs(sin.target[0] - lobuleWorld([-0.5 * LOBULE_R, 0, 0])[0]) < 1e-12);
   assert.deepEqual(cv.target, lobuleWorld([0, 0, 0]));
-  for (const s of [triad, sin, cv]) { assert.ok(Math.abs(s.half[0] * 2 - fit.half[0]) < 1e-12); }
+  // (the stations keep 2D's box, twice its zoom: 1.52 R of the fit before 24 Nov, unchanged when the whole-lobule fit tightened to its own bounds)
+  for (const s of [triad, sin, cv]) { assert.ok(Math.abs(s.half[0] * 2 - LOBULE_R * 1.52 * 0.92 * LOBULE_SCALE) < 1e-12); }
   const s = sinusoidShot();
   assert.deepEqual(s.target, sinusoidWorld([0, 0, 0]));
   assert.ok(s.half[0] > 3 * SIN_SCALE, 'the whole length of the sinusoid');
