@@ -14,6 +14,8 @@ import { pathToFileURL } from 'node:url';
 import { PresenceTracks, presenceMs } from '../src/scene/vessels/presence-track.ts';
 import { frameFor } from './b3-frames.ts';
 import { HIDDEN_EDGES } from '../src/scene/vessels/paths.copied.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
+import { PLACED_EDGE_3D, PLACED_NODE_3D } from '../src/scene/anatomy/placed-network.ts';
 
 const nodeIds = new Set((NODES as { id: string }[]).map((n) => n.id));
 const edge = new Map((EDGES as { id: string; kind: string; from: string; to: string }[]).map((e) => [e.id, e]));
@@ -126,6 +128,8 @@ test('the vessel vertex shader parses; there is no hull attribute and the outlin
 
 // ---- the vessels are the 2D figure's, point for point ----
 test('every vessel is its 2D course through the one linear map: back through it, each point is the 2D point', () => {
+  // (placed, PPS_ANATOMY=placed: the course is the approved placement's in 3D, not a 2D course lifted: each point is the placed network's own, point for point)
+  if (PLACED) { for (const v of NETWORK) if (!v.feeder) { const P = PLACED_EDGE_3D[v.id]!; assert.equal(v.pts.length, P.length, v.id); v.pts.forEach((p, i) => assert.ok(Math.hypot(p[0] - P[i]![0], p[1] - P[i]![1], p[2] - P[i]![2]) < 1e-9, `${v.id} point ${i}`)); } return; }
   for (const v of NETWORK) {
     if (v.feeder) continue;   // (a fan of tributaries: its own test, below)
     if (ALONG_VEIN_IDS.has(v.id)) continue;   // (the hepatic arteries run beside their portal branches: starts.ts alongVein)
@@ -157,7 +161,8 @@ test('the vessels lie in one plane through the organs, not in front of them: eve
     assert.ok(near > 0, 'they cross');
     assert.ok(min > 0, `C3 passes ${min.toFixed(3)} clear in front of the portal trunk`); }
   // a vessel's own depth never moves more than that along its course (a jog of a quarter unit in z was a 14 degree sideways zigzag)
-  for (const v of NETWORK) if (!v.feeder) { const zz = v.pts.map((p) => p[2]); assert.ok(Math.max(...zz) - Math.min(...zz) <= 0.2, `${v.id} stays in the plane`); }
+  // (placed: the approved placement carries each course's own depth, front to back through the body, so this bound on today's flat plane does not apply; the placed depths are pinned point for point above)
+  if (!PLACED) for (const v of NETWORK) if (!v.feeder) { const zz = v.pts.map((p) => p[2]); assert.ok(Math.max(...zz) - Math.min(...zz) <= 0.2, `${v.id} stays in the plane`); }
 });
 
 test('the map is the artist\'s: confluence at the origin, 300 2D units to a scene unit, y up', () => {
@@ -169,6 +174,8 @@ test('the map is the artist\'s: confluence at the origin, 300 2D units to a scen
 });
 
 test('a vessel starts and ends where the 2D figure puts its end nodes (a course that runs from node to node)', () => {
+  // (placed: the nodes are the placed network's 3D attach points; a collateral or a shunt that lands on its host where the placement drew it, away from the node's cut, is the rest)
+  if (PLACED) { let on = 0; const mapped = NETWORK.filter((v) => !v.feeder); for (const v of mapped) for (const [n, p] of [[v.from, v.pts[0]!], [v.to, v.pts[v.pts.length - 1]!]] as const) { const q = PLACED_NODE_3D[n]; if (q && Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 0.002) on++; } assert.ok(on > mapped.length, `${on} ends sit on their nodes`); return; }
   let checked = 0;
   for (const v of NETWORK) {
     const a = NODE_POS_2D[v.from], b = NODE_POS_2D[v.to];
@@ -181,6 +188,8 @@ test('a vessel starts and ends where the 2D figure puts its end nodes (a course 
 
 test('over and under follow the 2D tiers: the portal tree over the network, the network over the collaterals, arteries beside, the cava behind', () => {
   const z = (id: string) => NETWORK_BY_ID.get(id)!.pts[0]![2];
+  // (placed: tiers are draw-order hints only, each course has the placement's depth: the portal trunk is still in front of the hepatic vein and the cava, the rest is the placement's, pinned point for point above)
+  if (PLACED) { assert.ok(z('PV_TRUNK') > z('RHV_IVC') && z('PV_TRUNK') > z('IVCS_RA'), 'portal trunk over the hepatic vein and the cava'); return; }
   assert.ok(z('PV_TRUNK') > z('RHV_IVC'), 'portal trunk over the hepatic vein');
   assert.ok(z('RHV_IVC') > z('C1a') || z('RHV_IVC') < z('C1a'), 'distinct tiers');
   assert.equal(z('PV_TRUNK'), TIER_Z.front);
@@ -196,7 +205,8 @@ test('widths are the 2D figure\'s: the portal trunk, an artery at half, the live
   const d = (id: string) => (EDGES as { id: string; d?: number; dMax?: number }[]).find((e) => e.id === id)!;
   assert.equal(pv.radius, radiusOf(vesselPx(d('PV_TRUNK').d ?? 12)));
   assert.ok(ha.radius < pv.radius / 2 + 1e-9);
-  assert.equal(sin.radius, radiusOf(3.6));
+  // (placed: a liver bed is the calibre of the vein it carries on from or into, network.ts oneCalibre: the fixed 3.6 against a vein three times as wide is a step a placed bed, a few radii long, cannot ease)
+  assert.equal(sin.radius, PLACED ? (NETWORK_BY_ID.get('PVH_R_2')!.radius + NETWORK_BY_ID.get('RHV_IVC_1')!.radius) / 2 : radiusOf(3.6));
   assert.equal(pv.widthKind, 0); assert.equal(ha.widthKind, 1); assert.equal(sin.widthKind, 2);
   assert.ok(widthPx({ id: 'X', from: '', to: '', kind: 'vein' }, 12) === vesselPx(12));
 });
@@ -252,13 +262,14 @@ test('against the 2D app\'s own SVG courses: every sample lies on its path (with
 import { NETWORK as NET_Z, NODE_Z as NZ } from '../src/scene/vessels/network.ts';
 import { TIER_Z as TZ } from '../src/scene/frame2d.ts';
 test('at a fork the widest vessels keep their tier (the cava does not bulge toward the camera at each hepatic or renal vein: the zigzag IVC)', () => {
-  for (const n of ['IVCI', 'IVC_D', 'ILI', 'ILI_R']) assert.equal(NZ.get(n), TZ.back, `${n} stays on the cava's own tier`);
+  // (placed: a node's depth is its placed attach point's, no tier; the cava's rise, below, still holds)
+  if (!PLACED) for (const n of ['IVCI', 'IVC_D', 'ILI', 'ILI_R']) assert.equal(NZ.get(n), TZ.back, `${n} stays on the cava's own tier`);
   // one rise along the cava, to the hepatic junction: no bulge at the renal veins or the shunts' ends, then a dip, then the rise
   const z = ['ILI', 'IVCI', 'IVC_D', 'IVCS'].map((n) => NZ.get(n)!);
   for (let i = 1; i < z.length; i++) assert.ok(z[i]! >= z[i - 1]! - 1e-9, `the cava never dips back on its way up: ${z.join(', ')}`);
-  for (const n of ['PVH', 'CONF']) assert.equal(NZ.get(n), TZ.front, `${n} stays on the portal tree's tier`);
+  if (!PLACED) for (const n of ['PVH', 'CONF']) assert.equal(NZ.get(n), TZ.front, `${n} stays on the portal tree's tier`);
   // (the SVC node is a fork of three since the cava runs up out of the figure as V_UP: the cava's two pieces keep the cava's tier, the azygos eases down to it)
   const svc = NET_Z.filter((v) => !v.feeder && (v.from === 'SVC' || v.to === 'SVC'));
   assert.deepEqual(svc.map((v) => v.id).sort(), ['AZY_SVC', 'SVC_RA_1', 'V_UP'], 'the SVC node: the cava above and below, and the azygos');
-  assert.equal(NZ.get('SVC'), TZ.back, 'the cava keeps its own tier through the fork');
+  if (!PLACED) assert.equal(NZ.get('SVC'), TZ.back, 'the cava keeps its own tier through the fork');
 });

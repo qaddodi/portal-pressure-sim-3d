@@ -109,6 +109,8 @@ function nearestOn(D: readonly V3[], p: V3): { at: V3; s: number; d: number; i: 
 /** THE BEND FLOOR (Mohammad, 24 Nov: "all blood vessels run organically smoothly"): a course turns no more than FAIR_TURN degrees over any 0.01 of its length (tests/anatomy/smooth.ts measures 0.01 steps, bar 12),
  *  and its turning changes gradually. Where it would, the stretch round it is relaxed (and only there), its ends held, until it does. */
 export const FAIR_TURN = 8.5;
+/** The most a branch's approach (its chord to the landing) may be off the host's flow before the landing moves on along it (joinEnd). */
+const MERGE_MAX = 60;
 const FAIR_SPAN = 0.05;
 const ang = (a: V3, b: V3): number => { const l = len(a) * len(b); return l < 1e-12 ? 0 : (Math.acos(Math.max(-1, Math.min(1, dot(a, b) / l))) * 180) / Math.PI; };
 /** `zone`: the stretch (arc length from the start, [from, to]) the fairing may move, easing to nothing over FAIR_SPAN outside it (the rest of the course, and the joins made there, keep their places and headings). */
@@ -177,10 +179,21 @@ function buildPlaced(): void {
   // ---- branches: arrive on the host's centreline at an acute angle along its flow (geom.js joinEnd) ----
   /** `D` (its join end last) arrives on `P` (in the sense the flow should merge along). */
   function joinEnd(D: V3[], P: readonly V3[], rP: number, rD: number): V3[] {
-    const end = D[D.length - 1]!, hit = nearestOn(P, end), Jp = hit.at, tp = tangentAt(P, hit.i);
+    const end = D[D.length - 1]!, hit = nearestOn(P, end);
     const cut = 3.2 * rP + 3 * rD;
     let k = D.length - 1, acc = 0; while (k > 1 && acc < cut) { acc += len(sub(D[k]!, D[k - 1]!)); k--; }
-    const P0 = D[k]!, t0 = tangentAt(D, k), chord = norm(sub(Jp, P0));
+    const P0 = D[k]!, t0 = tangentAt(D, k);
+    // AGAINST THE FLOW: where the placed course comes at its landing from downstream (its chord more than 90 degrees off the host's flow: the varices' drain over the azygos arch from the cava's side,
+    // the fundal varices off the splenic vein toward the spleen), no arrival there merges along the flow (chord + 0.9 tangent points backward: a hairpin, a reversal). The landing moves on along the
+    // host's flow to the first place the chord is within MERGE_MAX of it (the best one within reach when none is), so the branch merges forward (Mohammad, 24 Nov: "no hairpin, no reversal").
+    let Jp = hit.at, tp = tangentAt(P, hit.i);
+    if (dot(norm(sub(Jp, P0)), tp) < 0) {
+      const last = P.length - 1 - Math.ceil((2 * rP) / STEP);
+      let bj = -1, bc = -Infinity;
+      for (let j = hit.i + 1; j <= last; j++) { const c = dot(norm(sub(P[j]!, P0)), tangentAt(P, j)); if (c > bc) { bc = c; bj = j; } if (c >= Math.cos((MERGE_MAX * Math.PI) / 180)) break; }
+      if (bj >= 0 && bc > dot(norm(sub(Jp, P0)), tp)) { Jp = P[bj]!; tp = tangentAt(P, bj); }
+    }
+    const chord = norm(sub(Jp, P0));
     const t1 = norm(add(chord, mul(tp, 0.9))), L = len(sub(Jp, P0));
     const n = Math.max(4, Math.round(L / STEP)), out = D.slice(0, k + 1);
     for (let i = 1; i <= n; i++) {
@@ -278,8 +291,13 @@ function buildPlaced(): void {
       }).filter((x): x is NonNullable<typeof x> => !!x && x.hit.d < LAND_REACH + rOf(w));
       js.sort((a, b) => (a.main !== b.main ? (a.main ? -1 : 1) : b.r - a.r));
       let at: number;
-      if (js.length) at = js[0]!.hit.s / L;
-      else { const row = (JUNCTIONS as readonly (readonly unknown[])[]).find((r) => r[0] === node); at = row ? Number(row[2]) : (i + 1) / pieces.length; }
+      if (js.length) {
+        at = js[0]!.hit.s / L;
+        // (a collateral piece of a whole, drawn only when it is open (the lumbar vein, C9, the azygos's lower course): a branch that lands at its cut would meet its run-on at one point, and with it hidden would sit on the
+        //  arch's open start. The branch lands on the always-drawn piece's wall instead, two of its diameters past the cut (the 2D figure's own drawing: tests/azygos-origin.test.ts))
+        const kc = (id: string): boolean => edgeById.get(id)!.kind === 'collateral';
+        if (!js[0]!.main && kc(pieces[i]!) !== kc(pieces[i + 1]!)) at += ((kc(pieces[i]!) ? -1 : 1) * 4 * rOf(w)) / L;
+      } else { const row = (JUNCTIONS as readonly (readonly unknown[])[]).find((r) => r[0] === node); at = row ? Number(row[2]) : (i + 1) / pieces.length; }
       cuts.push(at);
     }
     // (in flow order, each piece at least a hundredth of the course)

@@ -11,6 +11,9 @@ import { findRunOns, smoothRunOns } from '../src/scene/vessels/joins.ts';
 const has = (a: string, b: string) => RUN_ONS.some((r) => (r.a === a && r.b === b) || (r.a === b && r.b === a));
 
 import { withStartInOrgan } from '../src/scene/vessels/starts.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
+import { PLACED_EDGE_3D } from '../src/scene/anatomy/placed-network.ts';
+import { centrelineOf } from '../src/scene/vessels/centreline.ts';
 
 test('the main trunks run on into each other: splenic to its confluence, portal trunk to the right branch, the hepatic veins into the cava', () => {
   assert.ok(has('V_SPL', 'SV_MID'));
@@ -37,6 +40,15 @@ function turnAt(P: readonly (readonly [number, number])[], ia: number, Q: readon
 }
 
 test('through a run-on the two courses meet with no kink (the cubic follows each course), where the raw 2D samples turned by up to 57 degrees', () => {
+  // (placed: the run-ons are made one curve in 3D by the placed network (placed-network.ts runOn), not by the 2D cubic: the two centrelines meet heading on, under the smooth bar's 5 degrees)
+  if (PLACED) {
+    for (const r of RUN_ONS) {
+      const a = centrelineOf(r.a)!, b = centrelineOf(r.b)!, h = (c: typeof a, u: 0 | 1) => { const p = c.pointAt(u), q = c.pointAt(u ? 1 - 0.003 / c.length : 0.003 / c.length); return [p[0] - q[0], p[1] - q[1], p[2] - q[2]]; };
+      const A = h(a, r.ia), B = h(b, r.ib), turn = 180 - (Math.acos(Math.max(-1, Math.min(1, (A[0]! * B[0]! + A[1]! * B[1]! + A[2]! * B[2]!) / Math.hypot(...A) / Math.hypot(...B)))) * 180) / Math.PI;
+      assert.ok(turn < 5, `${r.a} to ${r.b} turns ${turn.toFixed(1)} degrees`);
+    }
+    return;
+  }
   const paths = new Map(Object.entries(EDGE_PATH_2D));
   const smooth = smoothRunOns(paths, RUN_ONS);
   let worstBefore = 0, worstAfter = 0;
@@ -57,6 +69,8 @@ test('through a run-on the two courses meet with no kink (the cubic follows each
 
 test('the scene course carries the smooth one: x and y by the one linear map', () => {
   const r = RUN_ONS.find((q) => q.a === 'V_SPL' && q.b === 'SV_MID')!;
+  // (placed: the course is the placed network's, point for point: the 2D course and its extension into the spleen are today's)
+  if (PLACED) { const c = courseOf('V_SPL'), P = PLACED_EDGE_3D.V_SPL!; assert.equal(c.length, P.length); c.forEach((p, i) => assert.ok(Math.hypot(p[0] - P[i]![0], p[1] - P[i]![1]) < 1e-9, `point ${i}`)); assert.ok(r); return; }
   const c = courseOf('V_SPL'), n = c.length, raw = EDGE_PATH_2D.V_SPL!;
   const ext = withStartInOrgan('V_SPL', raw).length - raw.length;   // (carried on into the spleen: starts.ts)
   assert.ok(ext > 0);

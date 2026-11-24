@@ -10,7 +10,7 @@
 //   * The cava ends in the right atrium: it and the SVC run on one slope to the atrium's back wall (`NODE_RISE`), so in a turned view they enter the heart instead of passing 0.3 behind it.
 import { IVC_EDGES, PLACED } from '../anatomy/source.ts';
 import { TIER_Z } from '../frame2d.ts';
-import { NETWORK, RUN_ONS, sameSegment, type NetVessel } from './network.ts';
+import { NETWORK, RUN_ONS, meetRadius, sameSegment, type NetVessel } from './network.ts';
 import { runsInto } from './starts.ts';
 
 /** A node the cava runs into, and its depth: the cava's own, so it runs level into the atrium and a tilted view shows no S (Mohammad, 20 Nov: "move the RA to the same plane as the IVC"; the atrium's mesh is moved to this plane by ORGAN_Z['heart-ra']). */
@@ -73,14 +73,14 @@ function build(): ReadonlyMap<string, SmoothEnds> {
       const da = outward(a.v, a.end), db = outward(b.v, b.end);
       const straight = !!da && !!db && da[0] * db[0] + da[1] * db[1] + da[2] * db[2] < -0.9;
       // (placed: they ease to one width too, over a length (shape.ts lengthSpans): the coronary vein into the varices met them at 0.64 of their width, a step; Mohammad, 24 Nov)
-      const m = (a.v.radius + b.v.radius) / 2;
+      const m = meetRadius(a.v, b.v);
       for (const [x, y] of [[a, b], [b, a]] as const) { const i = get(x.v); i.mate[x.end] = y.v.id; if (straight) i.joined[x.end] = true; if (PLACED) { i.taper[x.end] = m / x.v.radius; i.paired = true; } }
       return;
     }
     taken.add(`${a.v.id}|${a.end}`); taken.add(`${b.v.id}|${b.end}`);
     // two of nearly one caliber ease to their mean (the 2D tubes' own end profile); a big vein into a thin bed (more than a quarter apart) is the wider one narrowing to the thin one's width, which keeps
     // the thin one as drawn (a mean would swell the bed's first stretch into a bulb)
-    const hi = Math.max(a.v.radius, b.v.radius), lo = Math.min(a.v.radius, b.v.radius), m = hi > lo * UNEQUAL ? lo : (a.v.radius + b.v.radius) / 2;
+    const hi = Math.max(a.v.radius, b.v.radius), lo = Math.min(a.v.radius, b.v.radius), m = hi > lo * UNEQUAL ? lo : meetRadius(a.v, b.v);
     const da = outward(a.v, a.end), db = outward(b.v, b.end);
     const straight = !!da && !!db && da[0] * db[0] + da[1] * db[1] + da[2] * db[2] < -0.9;
     for (const [x, y] of [[a, b], [b, a]] as const) {

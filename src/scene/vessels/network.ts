@@ -331,12 +331,20 @@ export const NODE_Z: ReadonlyMap<string, number> = PLACED ? new Map(Object.entri
 })();
 // Two vessels that run on into one another (a node of exactly two, or the pair the 2D rule picks at a fork) ease to one width over the last third of each (the 2D tubes' own end easing,
 // tubeRadius; a branch keeps its own caliber, which the 2D figure fillets).
+/** The one width two vessels that run on into each other meet at. Today: the mean. Placed (the approved placement): the mean weighted by length, so the longer vessel takes the larger share of the change and both ease at
+ *  one rate: a short piece (the right portal vein's first 0.023 past the portal trunk) took half of a 20 % change over two hundredths, a widen of 0.063 a step the smooth bar fails (Mohammad, 24 Nov: "never a step"). */
+export function meetRadius(a: NetVessel, b: NetVessel): number {
+  if (!PLACED) return (a.radius + b.radius) / 2;
+  const la = polyLen(a.pts), lb = polyLen(b.pts);
+  return la + lb > 0 ? (a.radius * lb + b.radius * la) / (la + lb) : (a.radius + b.radius) / 2;
+}
+function polyLen(p: readonly Vec3[]): number { let s = 0; for (let i = 1; i < p.length; i++) s += Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1], p[i]![2] - p[i - 1]![2]); return s; }
 {
   const t = new Map<NetVessel, [number, number]>();
   const pair = (a: { v: NetVessel; end: 0 | 1 }, b: { v: NetVessel; end: 0 | 1 }) => {
     // (placed: every run-on eases its width, a collateral's and a liver bed's too: the coronary vein into the varices met them at 0.64 of their width, a step; Mohammad, 24 Nov)
     if (a.v === b.v || (!PLACED && (a.v.kind === 'collateral' || b.v.kind === 'collateral' || a.v.widthKind !== b.v.widthKind))) return;
-    const m = (a.v.radius + b.v.radius) / 2;
+    const m = meetRadius(a.v, b.v);
     for (const x of [a, b]) { const cur = t.get(x.v) ?? [1, 1]; cur[x.end] = m / x.v.radius; t.set(x.v, cur); }
     // their courses carry on through the join (outward directions opposite, within 25 degrees): the tubes meet end to end, so neither needs its cap
     const da = outward(a.v, a.end), db = outward(b.v, b.end);
