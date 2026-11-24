@@ -6,7 +6,7 @@ import { BufferGeometry, Float32BufferAttribute, Uint16BufferAttribute } from 't
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { ORGAN_Z } from './z.ts';
 import { overrides } from '../../editor/store.ts';
-import { applyOrganEdit, organCentroid, organCentroids, organPointMap } from '../../editor/organ-apply.ts';
+import { applyOrganEdit, organCentroid, organCentroids, organBox, organBoxes, organPointMap } from '../../editor/organ-apply.ts';
 
 /** anatomy.js CAUDATE.outline: the lobe at its normal size as one smooth closed curve (the convex hull of its two ellipses). */
 export const CAUDATE_OUTLINE = 'M573.0 401.0 C571.7 395.7 573.1 389.5 573.2 383.7 C573.3 377.9 573.3 372.2 573.4 366.4 C573.5 360.6 573.4 354.9 573.6 349.1 C573.7 343.3 573.7 337.5 574.4 331.8 C575.0 326.1 575.6 320.1 577.4 314.8 C579.3 309.5 581.9 301.5 585.6 299.9 C589.4 298.2 596.3 301.5 599.9 304.9 C603.6 308.3 605.4 315.1 607.3 320.5 C609.2 325.9 610.4 331.6 611.5 337.3 C612.6 342.9 613.3 348.7 613.8 354.4 C614.3 360.2 614.5 365.9 614.4 371.7 C614.2 377.5 614.0 383.3 613.1 388.9 C612.2 394.6 611.6 400.9 609.1 405.7 C606.5 410.6 602.7 416.2 598.0 417.9 C593.3 419.5 585.1 418.3 581.0 415.4 C576.8 412.6 574.3 406.3 573.0 401.0 Z';
@@ -100,7 +100,7 @@ export const caudateAnchor3 = (): [number, number] => {
 
 /** A 2D-plan point on the lobe (the anchor, a vein's start) where the editor's edit of the caudate puts it (same arithmetic as the mesh: organPointMap). The point itself when there is no edit. */
 export function editedPoint(x: number, y: number): [number, number] {
-  const c = organCentroids.caudate, map = c ? organPointMap(overrides().organs?.caudate, c) : null;
+  const c = organCentroids.caudate, map = c ? organPointMap(overrides().organs?.caudate, c, organBoxes.caudate) : null;
   if (!map) return [x, y];
   const q = map([x3(x), y3(y), ORGAN_Z.caudate ?? 0]);
   return [x2d(q[0]), y2d(q[1])];
@@ -111,6 +111,6 @@ export const caudateScale = (k: number): [number, number] => [1 + CAUDATE_GROW[0
 /** The lobe, with the anatomy editor's edit for it when the overrides name one (the live path; the baked file holds the lobe as made here without one and meshes.ts edits that). */
 export function caudateGeometry(): BufferGeometry {
   const g = buildCaudate(), origin = [0, 0, ORGAN_Z.caudate ?? 0] as const;
-  organCentroids.caudate ??= organCentroid(g, origin);
-  return applyOrganEdit(g, overrides().organs?.caudate, { origin, centroid: organCentroids.caudate });
+  organCentroids.caudate ??= organCentroid(g, origin); organBoxes.caudate ??= organBox(g, origin);
+  return applyOrganEdit(g, overrides().organs?.caudate, { origin, centroid: organCentroids.caudate, box: organBoxes.caudate });
 }

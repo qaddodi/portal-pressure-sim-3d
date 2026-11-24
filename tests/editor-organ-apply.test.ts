@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ORGAN_MESHES, ORGAN_IDS, setOrganData } from '../src/scene/organs/meshes.ts';
-import { applyOrganEdit, organCentroid, wendland } from '../src/editor/organ-apply.ts';
+import { applyOrganEdit, cageRest, organBox, organCentroid, organPointMap, wendland } from '../src/editor/organ-apply.ts';
 import { caudateGeometry } from '../src/scene/organs/caudate.ts';
 import { setOverridesForTest, overrides } from '../src/editor/store.ts';
 import { editableOrgans } from '../src/scene/organs/meshes.ts';
@@ -108,4 +108,33 @@ test('the caudate anchor and its veins follow the lobe edit; empty overrides cha
     assert.ok(s1[0]![0] > s0[0][0] + 1);
     assert.deepEqual(s1.at(-1), s0.at(-1));
   } finally { setOverridesForTest(was); }
+});
+
+test('cage: zero offsets are the identity; a handle bulges smoothly, is clamped, and the anchor map matches the vertex', () => {
+  const ref = ORGAN_MESHES[id]!(), r = pos(ref), box = organBox(ref), c = organCentroid(ref);
+  const n = [3, 3, 3] as const, zero = Array.from({ length: 27 }, () => [0, 0, 0] as [number, number, number]);
+  const g0 = ORGAN_MESHES[id]!();
+  applyOrganEdit(g0, { cage: { n, d: zero } });
+  assert.deepEqual(pos(g0), r);
+  assert.equal(cageRest(n, box).length, 27);
+  const d = zero.map((v) => [...v] as [number, number, number]);
+  d[13] = [9, 0.02, 0];   // the middle handle: x far past the limit
+  const edit = { cage: { n, d }, move: [0.01, 0, 0] as const, rotY: 0.1, scale: 1.05 };
+  const g = ORGAN_MESHES[id]!();
+  applyOrganEdit(g, edit);
+  const p = pos(g), map = organPointMap(edit, c, box)!;
+  const size = box.hi[0] - box.lo[0];
+  let maxMove = 0;
+  for (let i = 0; i < p.length; i += 3) {
+    assert.ok(Number.isFinite(p[i]! + p[i + 1]! + p[i + 2]!));
+    const q = map([r[i]!, r[i + 1]!, r[i + 2]!]);
+    assert.ok(Math.hypot(q[0] - p[i]!, q[1] - p[i + 1]!, q[2] - p[i + 2]!) < 1e-5);
+    maxMove = Math.max(maxMove, Math.abs(p[i]! - r[i]!));
+  }
+  assert.ok(maxMove > 0.01 && maxMove < 0.35 * size * 1.3 + 0.3);
+  const gc = ORGAN_MESHES[id]!();
+  applyOrganEdit(gc, { cage: { n, d: d.map((v) => [v[0] * 2, v[1], v[2]] as [number, number, number]) } });
+  const gd = ORGAN_MESHES[id]!();
+  applyOrganEdit(gd, { cage: { n, d: d.map((v) => [v[0], v[1], v[2]] as [number, number, number]) } });
+  assert.deepEqual(pos(gc), pos(gd));   // (past the limit a bigger pull changes nothing)
 });

@@ -9,9 +9,14 @@ export interface VesselEdit { pts: readonly { u: number; dx: number; dy: number;
 /** One liquify stroke on an organ: vertices within `radius` of `at` move by `by` times a smooth falloff; total displacement is clamped by LIQUIFY_LIMIT. */
 export interface Stroke { at: V3; radius: number; by: V3 }
 /** One organ moved as a whole (constrained by ORGAN_LIMITS) and optionally liquified. */
-export interface OrganEdit { move?: V3; rotY?: number; scale?: number; strokes?: readonly Stroke[] }
+/** A coarse free-form-deformation cage over an organ's reference bounding box (padded 10%): `n` control points per axis (2..5), `d` their offsets (scene units, x fastest: index i + nx*(j + ny*k)), blended by Bernstein polynomials, so a handle moves a large region smoothly. */
+export interface Cage { n: readonly [number, number, number]; d: readonly V3[] }
+export interface OrganEdit { move?: V3; rotY?: number; scale?: number; strokes?: readonly Stroke[]; cage?: Cage }
 export interface Overrides { version: 1; nodes?: Record<string, NodeMove>; vessels?: Record<string, VesselEdit>; organs?: Record<string, OrganEdit> }
 export const EMPTY: Overrides = { version: 1 };
 /** Limits (scene units, radians): an organ moves at most this far from its reference; a liquified vertex at most LIQUIFY_LIMIT from its reference place. */
 export const ORGAN_LIMITS = { move: 0.15, rotY: 0.35, scaleMin: 0.85, scaleMax: 1.15 } as const;
 export const LIQUIFY_LIMIT = 0.04;
+/** The cage's box is the organ's reference box grown by this share on every side; a handle moves at most this share of the padded box's size on an axis. */
+export const CAGE_PAD = 0.1;
+export const CAGE_LIMIT = 0.35;

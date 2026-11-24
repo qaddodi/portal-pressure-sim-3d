@@ -51,7 +51,7 @@ export const nodeDz = (id: string): number => overrides().nodes?.[id]?.dz ?? 0;
 import { ORGANS } from './labels/organ2d/outlines.copied.js';
 // @ts-ignore copied plain JS
 import { flattenPath } from './labels/organ2d/flatten.js';
-import { organPointMap } from '../editor/organ-apply.ts';
+import { organBoxes, organPointMap } from '../editor/organ-apply.ts';
 import { ORGAN_Z } from './organs/z.ts';
 import { x3, y3, x2d, y2d, UNITS_PER_SCENE as U } from './frame2d.ts';
 import type { V3 } from '../editor/types.ts';
@@ -81,7 +81,7 @@ let mapsFor: unknown = null, maps = new Map<string, ((p: V3) => V3) | null>();
 export function organMap(organ: string): ((p: V3) => V3) | null {
   const o = overrides();
   if (mapsFor !== o) { mapsFor = o; maps = new Map(); }
-  if (!maps.has(organ)) maps.set(organ, o.organs?.[organ] ? organPointMap(o.organs[organ], outlineOf(organ).centre) : null);
+  if (!maps.has(organ)) maps.set(organ, o.organs?.[organ] ? organPointMap(o.organs[organ], outlineOf(organ).centre, organBoxes[organ]) : null);
   return maps.get(organ)!;
 }
 /** A scene point that hangs on an organ, carried with the organ's edit (the same array when unedited). */
