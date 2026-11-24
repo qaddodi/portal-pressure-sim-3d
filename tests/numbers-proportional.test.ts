@@ -23,3 +23,7 @@ test('no stylesheet makes the universal rule tabular again', () => {
     assert.doesNotMatch(readFileSync(f, 'utf8'), /^\*[^{\n]*\{[^}\n]*tabular-nums[^}\n]*!important/m, `${f}: a universal tabular rule`);
   }
 });
+
+test('the criteria card\'s case readings are named proportional (Pregnancy 7: "82 ×1 0³/µL", capture 2c00c0ce)', () => {
+  assert.match(readFileSync('src/ui/css3d-over-2d.css', 'utf8'), /\.pz-crit \.pzc-end\.pzc-end \* \{ font-variant-numeric: lining-nums proportional-nums !important; \}/);
+});

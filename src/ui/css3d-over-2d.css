@@ -238,3 +238,6 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
   .ab-big > b, .pt-num, .pt-delta, .ac-num, .ac-stats, .ctl-val, .metric .val, .metric .v, .vital b, .hist-head .when, .sh-count, .dk-jump-list .n, .pzj-list .n,
   .pz-prail-n, .boot-pct, .pv-clock, .text-size button, .cmp-table td, .kv dd, .hvpg-kv dd, .why-row .val, .pzi-v, .pzv, .tr-rs, .pzk-axis,
   .dk-outline ol li::before, .dk-chk-q::before, .pzc-q::before, .pz-outline ol li::before) * { font-variant-numeric: lining-nums tabular-nums !important; }
+
+/* The criteria card's "This case" readings are proportional ("82 ×1 0³/µL", capture 2c00c0ce, Pregnancy 7): named, stacked and important so no tabular rule on the row outranks the universal one. */
+.deck-ui.deck-ui .pz-crit .pzc-end.pzc-end, .deck-ui.deck-ui .pz-crit .pzc-end.pzc-end * { font-variant-numeric: lining-nums proportional-nums !important; }
