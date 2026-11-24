@@ -1,4 +1,4 @@
-// The liver-function card (tool kind 'scores'): Child–Pugh (each component's points, the total and the class) and MELD / MELD-Na, tied to how Baveno VIII uses them: a preemptive
+// The liver-function card (tool kind 'scores'): Child–Pugh (each component's points, the total and the class) and one MELD, tied to how Baveno VIII uses them: a preemptive
 // TIPS for Child–Pugh C 10 to 13 or B above 7 with active bleeding (5.31) and recompensation at Child–Pugh A5 or A6 (7.4). The maths is the engine's (hales-engine
 // risk-scores.js: Pugh 1973, Kamath 2001, Kim 2008). The model holds the albumin; the other four values are case facts a slide gives, never made up here: a missing one is named.
 import * as engineScores from '../../../engine/hales/portal/risk-scores.js';
@@ -24,7 +24,8 @@ const fixed = (v: number | undefined, d = 1) => (Number.isFinite(v) ? String(Mat
 export interface Row { name: string; value: string | null; pts: number | null }
 export interface Scores {
   rows: Row[]; total: number | null; cls: 'A' | 'B' | 'C' | null; missing: string[];
-  meld: number | null; meldNa: number | null;
+  /** the one MELD the card shows: the sodium-adjusted value when a sodium is given, the plain one when not (owner, 24 Nov: "Just MELD"; the inputs line says whether a sodium was used) */
+  meld: number | null;
   /** the Baveno VIII sentence for the slide's focus, with its tone (null: none to say) */
   verdict: { text: string; tone: Tone } | null;
   inputs: string;
@@ -59,14 +60,14 @@ export function scoresOf(a: ScoresIn, modelAlbumin: number | null | undefined = 
     }
   }
   const inputs = [`Creatinine ${fixed(a.creatinine) ? `${fixed(a.creatinine)} mg/dL` : 'not given'}`, `INR ${fixed(a.inr) ?? 'not given'}`, `Sodium ${Number.isFinite(a.na) ? `${Math.round(a.na!)} mmol/L` : 'not given'}`].join(', ');
-  return { rows, total: cp.total, cls: cp.class, missing: cp.missing, meld: m, meldNa: mn, verdict, inputs };
+  return { rows, total: cp.total, cls: cp.class, missing: cp.missing, meld: mn ?? m, verdict, inputs };
 }
 
-export const NOTE = 'Baveno VIII: a preemptive TIPS for Child–Pugh C of 10 to 13 points, or B above 7 with active bleeding (5.31); recompensation needs Child–Pugh A5 or A6 (7.4). Scores: Pugh 1973; MELD, Kamath 2001; MELD-Na, Kim 2008.';
+export const NOTE = 'Baveno VIII: a preemptive TIPS for Child–Pugh C of 10 to 13 points, or B above 7 with active bleeding (5.31); recompensation needs Child–Pugh A5 or A6 (7.4). Scores: Pugh 1973; MELD, Kamath 2001, with the sodium adjustment (Kim 2008) when a sodium is given.';
 
 export function scoresWords(s: Scores): string {
   const cp = s.total == null ? `Child–Pugh not scored: ${s.missing.join(', ')} not given.` : `Child–Pugh ${s.cls} ${s.total}: ${s.rows.map((r) => `${r.name} ${r.pts}`).join(', ')}.`;
-  const m = s.meld == null ? 'MELD not scored.' : `MELD ${s.meld}${s.meldNa != null ? `, MELD-Na ${s.meldNa}` : ''}.`;
+  const m = s.meld == null ? 'MELD not scored.' : `MELD ${s.meld}.`;
   return `${cp} ${m}${s.verdict ? ` ${s.verdict.text}.` : ''}`;
 }
 
@@ -110,7 +111,7 @@ export function scoresLayout(W: number, f: number, meas: Measure, s: Scores, not
   void tk;
   // MELD, then what it was worked from
   y += f * 0.5;
-  const mw = s.meld == null ? 'MELD not scored' : `MELD ${s.meld}${s.meldNa != null ? `   MELD-Na ${s.meldNa}` : ''}`;
+  const mw = s.meld == null ? 'MELD not scored' : `MELD ${s.meld}`;
   say(0, y + pl * 0.85, mw, 'stiff.v.mid');
   y += lh * 1.05;
   wrapWords(s.inputs, W, pl, wt('stiff.plt'), meas, 2).forEach((l, i) => say(0, y + pl * (0.8 + i * 1.3), l, 'stiff.plt'));

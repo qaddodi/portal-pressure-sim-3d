@@ -8,7 +8,7 @@ import { ctxOf, judge } from './charts-helpers.ts';
 import { scoresFrame } from '../src/ui/charts/scores/frame.ts';
 import { CHART_TOOLS } from '../src/decks/charts.ts';
 
-// The liver-function card (Child–Pugh, MELD, MELD-Na): the maths is hales-engine's (its own test holds the textbook cases); here the card, and every slide that shows it.
+// The liver-function card (Child–Pugh and one MELD): the maths is hales-engine's (its own test holds the textbook cases); here the card, and every slide that shows it.
 const FILE: Record<string, string> = {
   'tips-candidacy': 'src/decks/rw/copied/tips-candidacy.ts', 'tips-complete': 'src/decks/rw/copied/tips-complete.ts', 'recompensation': 'src/decks/rw/copied/recompensation.ts',
   'choose-treatment': 'src/decks/ag/choose-treatment.copied.ts',
@@ -55,7 +55,8 @@ test('a missing component is named and no total or class is guessed; the model s
   assert.equal(scoresOf({ bili: 1, inr: 1.1, creatinine: 1, ascites: 'none', he: 'none' }, null).total, null, 'no albumin: no total');
   assert.equal(scoresOf({ bili: 1, inr: 1.1, creatinine: 1, ascites: 'none', he: 'none' }, 4).total, 5);
   assert.equal(scoresOf({ bili: 1, inr: 1.1, creatinine: 1, ascites: 'none', he: 'none', albumin: 2.5 }, 4).total, 7);
-  assert.equal(scoresOf({ bili: 3, inr: 1.5, creatinine: 2, na: 130, ascites: 'none', he: 'none' }, 4).meldNa, 26);
+  assert.equal(scoresOf({ bili: 3, inr: 1.5, creatinine: 2, na: 130, ascites: 'none', he: 'none' }, 4).meld, 26);
+  assert.ok(!('meldNa' in scoresOf({ bili: 3, inr: 1.5, creatinine: 2, na: 130, ascites: 'none', he: 'none' }, 4)), 'one MELD, no second score');
 });
 
 test('the bar has one cell for each total, 5 to 15, in the three classes', () => {

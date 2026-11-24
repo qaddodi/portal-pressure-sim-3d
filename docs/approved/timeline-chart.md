@@ -59,7 +59,7 @@ Mohammad, 24 Nov: "What to graph and what happened don't scroll on iPhone. They 
 
 ## Phone openers are raised buttons (24 Nov 2026)
 **Reference:** option A of `/mnt/project-files/phone-panel-button-mocks-24nov/options-A-D.png`. Mohammad, 24 Nov: "make them more visibly button like", then picked "A".
-- At the foot of the chart card on a phone, "What to graph" and "What happened" are two equal buttons, 46 px tall, 10 px apart: a raised fill (`--surface-2`), a hairline (`--edge`), radius 12, the panel's icon (the atlas's `ic-chart`, `ic-menu`), the name in Inter 600 at 14.5 px, and a chevron pointing up at the right that says the panel rises. The first in the text colour, the second in the quieter text colour.
+- At the foot of the chart card on a phone, "What to graph" and "What happened" are two equal buttons, 46 px tall, 10 px apart: a raised fill (`--surface-2`), a hairline (`--edge`), radius 12, the panel's icon (the mock's own drawings, added to the atlas as `ic-trend` and `ic-bullets`), the name in Inter 600 at 14.5 px, and a chevron pointing up at the right that says the panel rises. The first in the text colour, the second in the quieter text colour.
 - A press eases to 98 % and a slightly deeper fill.
 - Rejected (mocked, not picked): one solid and one outlined blue (B), one segmented bar (C), soft blue tinted buttons (D).
 
@@ -69,7 +69,7 @@ Mohammad, 24 Nov: "What to graph and what happened don't scroll on iPhone. They 
 - Rejected: a hint line with short rows (B), a ring with a blue "Graph" word (C).
 
 ## "MELD", not "MELD-Na" (24 Nov 2026)
-Mohammad, 24 Nov: "Why does it say MELD Na just say MELD". The grey "From the case" words in What to graph read Sodium, Creatinine, Bilirubin, INR, MELD. The Child-Pugh and MELD card still prints MELD-Na beside MELD when a case gives a sodium: it is a second, different score there.
+Mohammad, 24 Nov: "Why does it say MELD Na just say MELD". The grey "From the case" words in What to graph read Sodium, Creatinine, Bilirubin, INR, MELD. The Child-Pugh and MELD card too (24 Nov): one score labelled "MELD", the sodium-adjusted value when a sodium is given and the plain one when not; no second row, and its inputs line says whether a sodium was used.
 
 ## An opened event eases (24 Nov 2026)
 Mohammad, 24 Nov: "when it expands it doesn't animate transition." Root cause: the details were mounted and unmounted with the click, so the block and every row under it popped. Now the block is the app's one fade (`fade.tsx`, `axis="y"`: a grid that eases 0fr to 1fr, the words fading with it), mounted once a row has been opened and asked off when it closes; the rows below move with it. The opened row's top padding eases too.
@@ -78,3 +78,4 @@ Mohammad, 24 Nov: "when it expands it doesn't animate transition." Root cause: t
 **Reference:** option A of `/mnt/project-files/phone-panel-button-mocks-24nov/events-tappable-options.png`. Mohammad, 24 Nov: "It's also not obvious that I can click on each event of what happened for more info", then picked "A".
 - Every event row ends in a chevron (the atlas's `ic-chev-down`, 16 px, quiet grey): down while shut, turning up (and to the text colour) while its details are open, eased over the small duration. Rows are otherwise as before. Every device.
 - Rejected: a raised fill on each event (B), a blue "Details" word (C).
+- Cut-offs on the stiffness, platelet, flow, pressure, varix and encephalopathy lanes stay (Mohammad, 24 Nov: "Do it we can remove if it sucks").
