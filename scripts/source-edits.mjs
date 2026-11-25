@@ -342,6 +342,12 @@ export const CAPTURE_2A54261A = [
   SET('gastric-varices', 'slides.bleed.tool.bp', true),
 ];
 
+/** The wedge slide's lobule (25 Nov 2026, Mohammad, capture of slide 5/15 of Measuring HVPG and PPG): the Sinusoids name carries the sinusoidal pressure (`reads`, figure-calls.ts), and a callout
+ *  on a sinusoid carries the wedged pressure the slide says approximates it, read from the same fingerprint as the patient card's WHVP tile. A `note` is the callout's plain tone (not a block or a treatment). */
+export const WEDGE_LOBULE_25NOV = [
+  SET('hvpg', 'slides.wedge-sinusoid.callout', { at: 'sin', kind: 'note', label: 'WHVP {whvp}', reads: ['sin'] }),
+];
+
 /** Capture 15c31759 (24 Nov 2026, Mohammad: "do all review findings"). */
 export const CAPTURE_15C31759 = [
   // Two lesions 5 ran the congestion 60 days, still easing (right atrium 26.7), and slide 9 holds the same two lesions at 90 (26.2): the same state read two numbers. Both now stand at the 90-day state.
@@ -468,6 +474,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_52EF8E63,
   ...CAPTURE_15C31759,
   ...CAPTURE_2A54261A,
+  ...WEDGE_LOBULE_25NOV,
 ];
 
 function step(node, key) {
