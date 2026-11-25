@@ -6,7 +6,7 @@ Why: "we should look for opportunity for zooming in further when we can (like wh
 ## The rules (keep every one)
 - **F1 Subject first.** A slide's frame is built from what it points at, with margin; a named region only when the slide is about the whole region. `FRAME_FIXES` in `src/decks/hp/cams.ts` holds the slides framed on their subject (the 2D deck is never edited; each entry names the 2D camera it replaces, and a test fails if a re-copy moves it).
 - **F2 Fill.** The subject fills 92 % of the room's limiting side (`FILL`); the other side is centred, never cropped to zoom.
-- **F3 Margins.** Every station a slide labels stands 40 px or more inside the free room on every device. Root cause of the clipped labels: a frame came from the 2D region box alone. `withStations` (cams.ts) grows the frame to hold each label's dot with `STATION_AIR` 0.13 units.
+- **F3 Margins.** Every station a slide labels stands 40 px or more inside the free room on every device. Root cause of the clipped labels: a frame came from the 2D region box alone. `withStations` (cams.ts) carries each label's dot as a `keep` point on the shot (`Shot.keep`), and the room solver (`room.ts`, `KEEP_PX` 40) pulls the camera back until every dot stands 40 px inside the room it is actually given, so the margin holds in any card room, including the real one at run time (`STATION_AIR` 0.05 only recentres).
 - **F4 Nothing named is clipped.** Unnamed context may leave the room; a named vessel, organ or station never.
 - **F5 Not too close.** The longer half of a frame is at least `CONTEXT_FLOOR` 0.45 units, and no vein is wider than a sixth of the room's short side (phone 65 px, iPad 128, Mac 150), except the declared close-ups (`CLOSE_UPS`: tips-complete/baseline, tips-doppler/jet, varices/burst; Mohammad kept all four he was shown, bridge needs no exemption). The nearest distance (`NEAR` 2.8) already stops the smallest boxes at a vein 105 px wide.
 - **F6 Readable.** Outside the whole-figure overview a vein is 8 px or more on a phone upright and 10 px or more on an iPad and a Mac.
@@ -23,9 +23,12 @@ Why: "we should look for opportunity for zooming in further when we can (like wh
 - 28dfc9d9 F5 sweep test and the three declared close-ups.
 - c8474f82 The Circuit's nine views measured: all fill 92 % of the limiting side, room-bound, kMax kept (wide strips such as Series and Gut and liver use 28 to 40 % of the other side by their shape). Overview given up on ncph/patient and relation (varices and spleen), gastric-varices/tips (fundus and liver), tipping/injury and its card (liver).
 
+- Margin made pixel-based (root fix): the test measures each slide's own card room (`planLayout().free`, estimated from the card text because real card heights exist only in a browser): 3972 station checks, 3 devices upright and sideways, card up and tucked, all 40 px or more.
+
 ## Not done, and why
-- Whole-figure slides left on the overview because they are about the whole body: pregnancy/weeks and after, day/fluid, sites/overview, ascites/tense.
-- Other suggested zoom-ins (gastric-varices fundus, bleed, gut, nograd) stay as numbered suggestions; he has not picked them.
+- Rules 2 and 3 built as framing (Mohammad, 25 Nov: "do it", frame them, do not change the decks). In each slide's own card room on an iPhone, 32 views drew a vein under 8 px. Now 17 route slides (`ROUTE_SLIDES` in cams.ts) are framed at the route's width and only the height their labelled stations need (`ROUTE_TO_STATIONS`, then the room solver's 40 px margin): a vein draws 8.3 px or more in a 196 px room, and a Mac frames them 1.4 times closer. doppler/meal's gut box loses its lowest 120 plate units (the lowest bowel loops, unnamed). The test prints nothing under 8 px but the two declared wide routes (`WIDE_ROUTES`): circulation/series (gut veins to the right atrium, 2.9 units; 5.8 px) and varices/umbilical beat 2 (6.5 px).
+- varices/umbilical: he said "yes split", but the slide already is the paraumbilical view and its first beat is the rectal view; beat 2 is the recap of both, so there is nothing to split, only the recap to drop. The deck is a byte copy of the 2D app's, so I left it declared wide and asked him.
+- Rule 4 (lesions): the portal-trunk clot slides (prehepatic/clot, prehepatic/anticoag, two-inflows/clot, two-lesions/clot, two-lesions/unclot, sites/pvt) already hold 4 trunk lengths across (1.5 trunks each side of a clot filling the whole trunk, 2.5 for a half clot); pinned between 4 and 6 trunk lengths by S4 in the test. Stent and Budd-Chiari lesions were framed in the first pass. The variceal-bleed rebleed (C1a, C1b) and gastric-varices relation (C5) marks are not measured yet.
 
 ## Rejected
 Nothing yet.

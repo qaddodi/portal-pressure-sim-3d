@@ -21,6 +21,8 @@ export interface Shot {
   half: [number, number];
   /** The half extents on a narrow stage (a phone, under `NARROW_STAGE` px wide), where the shot is framed differently (the lobule's: 2D's phone frame box). */
   halfNarrow?: [number, number];
+  /** Points (scene x, y) that must stand `KEEP_PX` or more inside the free room, whatever room the cards leave: the stations a slide labels (decks/hp/cams.ts withStations). The room solver (room.ts `effectiveDistance`) pulls back until they do, so the margin is in pixels on every device, never in scene units. */
+  keep?: readonly (readonly [number, number])[];
 }
 
 /** A stage narrower than this is a phone (2D: `phoneMQ`, the lobule's `W < 720`). */
