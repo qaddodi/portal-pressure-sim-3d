@@ -39,7 +39,7 @@ test('the step respects the right safe area (an iPad with an inset)', () => {
 });
 
 test('the Tests card closing and opening move Treat by the 2D translate that already glides, never a jump', () => {
-  const css = readFileSync('src/ui/css2d/app-07-floating.css', 'utf8').split('\n').find((l) => l.startsWith('.treat-card { right:')) ?? '';
+  const css = readFileSync('src/ui/styles/app-07-floating.css', 'utf8').split('\n').find((l) => l.startsWith('.treat-card { right:')) ?? '';
   assert.ok(css.includes('var(--instr-occ, 0px)') && css.includes('translate var(--d-small)'), 'the lifted rule reads --instr-occ and transitions translate');
   assert.ok(readFileSync('src/ui/treat/TreatCard.tsx', 'utf8').includes("'--instr-occ'"), 'TreatCard publishes it');
 });

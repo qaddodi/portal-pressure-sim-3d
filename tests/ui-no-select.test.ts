@@ -40,7 +40,7 @@ test('no other stylesheet turns selection on (outside the exception)', () => {
       const on = /(?:-webkit-)?user-select\s*:\s*(text|auto|all|contain)/.exec(m[2]);
       if (!on) continue;
       const sel = m[1].trim().replace(/\s+/g, ' ');
->>>>>>> dd09c4f5 (Keep card text non-selectable for now (owner's 19 Nov rule); the rest of F14 stays)
+      assert.ok((f.endsWith('global.css') || f.includes('/styles/')) && sel.includes('contenteditable'), `${f}: "${sel}" turns selection on`);   // (the app's base stylesheets turn it on for contenteditable only)
     }
     assert.ok(!/-webkit-touch-callout\s*:\s*default/.test(text) || f.endsWith('global.css') || f.includes('/styles/'), `${f} turns the callout back on`);
   }
