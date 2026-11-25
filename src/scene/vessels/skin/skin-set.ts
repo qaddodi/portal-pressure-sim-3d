@@ -20,7 +20,7 @@ import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { attachNear, nearLandings, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
-import { BULGE_MAX, PACES, buildSkinSteady, hullCovers, onWall, worstBulge } from './mesh.ts';
+import { BULGE_AIM, BULGE_MAX, PACES, buildSkinSteady, hullCovers, onWall, worstBulge } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, armR, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
@@ -461,7 +461,7 @@ export class SkinSet {
       axes = axesAt(0); mesh = buildSkinSteady(j, plan.cuts, pos, nor, axes.map(capsuleOf), undefined, this.paces);
       if (growing) {
         let best = worstBulge(mesh, axes);
-        for (let q = 1; q < NECK_FRACTIONS.length && best > BULGE_MAX; q++) {
+        for (let q = 1; q < NECK_FRACTIONS.length && best > BULGE_AIM; q++) {
           const ax = axesAt(NECK_FRACTIONS[q]!);
           let m: SkinMesh;
           try { m = buildSkinSteady(j, plan.cuts, pos, nor, ax.map(capsuleOf), undefined, this.paces); } catch (e) { if (e instanceof SkinBuildError) continue; throw e; }
@@ -506,7 +506,7 @@ export class SkinSet {
         else {
           axesQ = axesFor(0); meshQ = make(axesQ);
           let best = worstBulge(meshQ, axesQ);
-          for (let q = 1; q < NECK_FRACTIONS.length && best > BULGE_MAX; q++) {
+          for (let q = 1; q < NECK_FRACTIONS.length && best > BULGE_AIM; q++) {
             const ax = axesFor(NECK_FRACTIONS[q]!);
             let m: SkinMesh;
             try { m = make(ax); } catch (e) { if (e instanceof SkinBuildError) continue; throw e; }
@@ -514,7 +514,7 @@ export class SkinSet {
             if (b < best) { best = b; axesQ = ax; meshQ = m; }
           }
           // (none inside: the same ladder with the blend sized from the growers' necks, neckJunction; only such a part takes it, every other keeps the nominal blend its neighbours' normals were judged with)
-          for (let q = 0; q < NECK_FRACTIONS.length && best > BULGE_MAX; q++) {
+          for (let q = 0; q < NECK_FRACTIONS.length && best > BULGE_AIM; q++) {
             const ax = axesFor(NECK_FRACTIONS[q]!);
             let m: SkinMesh;
             try { m = make(ax, true); } catch (e) { if (e instanceof SkinBuildError) continue; throw e; }

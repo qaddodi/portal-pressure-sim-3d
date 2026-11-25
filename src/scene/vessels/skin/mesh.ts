@@ -125,6 +125,9 @@ export function worstNormalAngle(m: { normal: ArrayLike<number>; index: ArrayLik
 }
 /** The most a skin's surface may stand out of the union of its arms, as a share of the local arm radius, at rest (tests/skin-joint-bulge.test.ts holds every skin to it). */
 export const BULGE_MAX = 0.45;
+/** What the neck-widening search (skin-set.ts NECK_FRACTIONS) aims for at rest: under BULGE_MAX by the room the live widths take. A skin is built at rest, and the vertex stage moves each vertex by its arms' blended swell, so a fillet that is just inside
+ *  BULGE_MAX at rest stands past it when the trunks swell and a growing arm does not (IMV: 0.44 at rest, 0.46 at the CSPH patient's widths, where the colic and the inferior mesenteric veins swell 7 % and C4 is held at its built width). */
+export const BULGE_AIM = 0.4;
 /** The largest share of the local arm radius by which a vertex of `m` stands out of the union of the arms' capsules `axes` at rest (the test's `worstExcess` with every arm at its built width). */
 export function worstBulge(m: { position: ArrayLike<number>; normal: ArrayLike<number>; weight: ArrayLike<number>; weight2: ArrayLike<number>; restR: ArrayLike<number> }, axes: readonly { pts: readonly (readonly number[])[]; radii: readonly number[] }[]): number {
   const P = m.position, N = m.normal, n = P.length / 3;
