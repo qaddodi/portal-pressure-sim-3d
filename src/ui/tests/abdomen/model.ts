@@ -32,6 +32,11 @@ export const tapWords = (removedL: number): { removed: string; dose: string } =>
   return { removed: `${fmt(r, 1)} L removed`, dose: r > 5 ? `Albumin ${Math.round(r * 6)} to ${Math.round(r * 8)} g (6 to 8 g per liter)` : 'Albumin optional under 5 L' };
 };
 /** The longest and the shortest the two lines of a slide's paracentesis can read (nothing taken off, the most the belly holds): the lines' box holds the tallest and widest of them from the first frame, so the card never grows as the litres go. */
+/** The most the belly held since the paracentesis began (Ascites 13: "7.7 L removed" under words that say the LVP drains the whole 5.9 L, capture 84496815). The count starts WHEN the procedure does (`began`: the render
+ *  its name first stands in the card): the pane is kept from the slide before (Tense ascites, a 120-day lapse whose belly the clock was still filling), and a peak that lived on from that slide was counted as litres taken off.
+ *  `prev` is the peak so far, `litres` the belly now (NaN: no reading). Pure; tests/abdomen-tap-peak.test.ts. */
+export const tapPeak = (prev: number, litres: number, began: boolean): number => (Number.isFinite(litres) ? (began ? litres : Math.max(prev, litres)) : prev);
+
 export const TAP_RESERVE: readonly { removed: string; dose: string }[] = [tapWords(0), tapWords(IAP_RESERVE_L)];
 export const albuminText = (L: number, on: boolean): string => (on ? `${Math.round(L * 8)} g` : L > 5 ? WORDS.advised : WORDS.optional);
 

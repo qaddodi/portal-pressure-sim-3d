@@ -13,7 +13,7 @@ import { appEnv } from '../../treat/env.ts';
 import { useProc } from '../../deck/procs-state.ts';
 import { balanceHold } from '../copied/balance-hold.copied.js';
 import { metricsOf, paramsNow } from '../frame.ts';
-import { abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminTip, albuminText, tapWords, TAP_RESERVE, IAP_MAX, type AbView } from './model.ts';
+import { abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminTip, albuminText, tapWords, tapPeak, TAP_RESERVE, IAP_MAX, type AbView } from './model.ts';
 
 const hold = balanceHold();
 let held: number | null = null;
@@ -50,7 +50,9 @@ export function AbdomenPane({ square }: { square?: number }) {
   const tapping = useProc((s) => s.name === WORDS.paracentesis);
   const peak = useRef(0);
   const litres = v ? Number.parseFloat(v.num) : NaN;
-  if (Number.isFinite(litres)) peak.current = Math.max(peak.current, litres);
+  const wasTapping = useRef(false);
+  peak.current = tapPeak(peak.current, litres, tapping && !wasTapping.current);   // (counted from the moment the procedure begins, not from the pane's first frame)
+  wasTapping.current = tapping;
   // (the two lines are in the figure from the first frame of the slide: before, they were added with the first litre and the instrument card grew by their height on screen, 24 Nov)
   const removed = Number.isFinite(litres) ? Math.max(0, peak.current - litres) : 0;
   const tap = host.slide && tapping ? tapWords(removed) : null;
