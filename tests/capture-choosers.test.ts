@@ -34,3 +34,15 @@ test('the openers that are options (quick-check questions, treatment orders, ste
   for (const [f, cls] of [['src/ui/cards/CheckCard.tsx', 'pzc-q'], ['src/ui/treat/TreatCard.tsx', 'order-btn'], ['src/ui/action/stent/StentPanel.tsx', 'sr-row']] as const)
     assert.match(readFileSync(f, 'utf8'), new RegExp(`className="${cls}" data-audit-select=""`), `${f} ${cls}`);
 });
+
+test('a capture press never leaves the slide: choices are looked for only in the standing slide cards, and never in the Tests card, instrument tabs, toolbar or anything that opens a card', async () => {
+  const { pressable, CHOICE_ROOTS, CHOICE_OUT } = await import('../src/ui/capture/capture-model.ts');
+  const inside = (sels: string[]) => ({ closest: (sel: string) => (sels.some((s) => sel.split(',').map((x) => x.trim()).includes(s)) ? {} : null) });
+  for (const s of ['.t-card', '.instr-tab', '[data-opens]', '.nb-tab', '.topbar']) assert.equal(pressable(inside([s])), false, s);
+  assert.equal(pressable(inside([])), true);
+  assert.ok(!/t-card/.test(CHOICE_ROOTS), 'the Tests card is not a place to press');
+  assert.match(CHOICE_OUT, /\.instr-tab/);
+  const all = readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8');
+  assert.match(all, /querySelectorAll<HTMLElement>\(CHOICE_ROOTS\)/); assert.match(all, /if \(!pressable\(t\)\) return false/);
+  assert.match(all, /it opened another card/, 'a press that changes the standing cards is undone and reported');
+});

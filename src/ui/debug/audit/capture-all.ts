@@ -18,7 +18,7 @@ import { menuWaiting } from '../../charts/menu/MenuCard.tsx';
 import { drawScreen } from '../../capture/capture.ts';
 import { speedAnimations, sampleRealMs, skipAnimations, finishAnimations } from './speed.ts';
 import { evRunPending } from '../../charts/evgraph/live.ts';
-import { captureViews, CHOICE_SEL, CHOICE_ON_SEL, CHOICE_MAX, choiceName, collageLayout, settleLimitMs, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
+import { captureViews, CHOICE_SEL, CHOICE_ON_SEL, CHOICE_MAX, CHOICE_ROOTS, pressable, choiceName, collageLayout, settleLimitMs, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
 import { isSideways, layoutOf } from '../../layout/rules2d.ts';
 import { lastPicked, stopKey, pickWords } from './capture-pick.ts';
 import { growCaptureTotal } from './progress.ts';
@@ -176,8 +176,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       // one picture of what stands now: the talk's own position says which (stop, then the step within it: the case card, each beat, each page, each procedure step and reading)
       let prevIds = '', sub = 0, lastStop = -1, presses = 0, shownNow = '', inStop = 0, inStopAt = -1, lastThumbs = 0;
       const showLanded = async (): Promise<void> => { if (!ui.skip) return; let drawn = 0; const offR = clock.on('render', () => { drawn++; }); clock.setDrawing(true); await until(() => drawn >= 1, real(2000)); offR(); };   // (the landed slide is drawn, a frame or two, before the picture)
-      const roots = '.dk-card[data-phase="in"], .t-card';
-      const standing = (sel: string): HTMLElement[] => Array.from(document.querySelectorAll<HTMLElement>(roots)).flatMap((c) => Array.from(c.querySelectorAll<HTMLElement>(sel))).filter((t) => { const r = readBox(t); return r.width > 1 && r.height > 1 && Number(readStyle(t).opacity) > 0.1 && !(t as HTMLButtonElement).disabled; });
+      const standing = (sel: string): HTMLElement[] => Array.from(document.querySelectorAll<HTMLElement>(CHOICE_ROOTS)).flatMap((c) => Array.from(c.querySelectorAll<HTMLElement>(sel))).filter((t) => { if (!pressable(t)) return false; const r = readBox(t); return r.width > 1 && r.height > 1 && Number(readStyle(t).opacity) > 0.1 && !(t as HTMLButtonElement).disabled; });
       const grab = async (): Promise<void> => {
         const p = useUi.getState().pos, k = p.stop;
         const fresh = k !== lastStop;   // (the first picture of this slide)
@@ -228,7 +227,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         // a teaching slide with several choices (tabs, toggles, options): each is pressed and the result taken, named for the button; the first picture's choice is put back before the next state
         const choiceShots = async (view: string): Promise<void> => {
           const names = standing(CHOICE_SEL).map((t, i) => choiceName(t.textContent, t.getAttribute('aria-label'), i)), was = standing(CHOICE_ON_SEL).map((t, i) => choiceName(t.textContent, t.getAttribute('aria-label'), i));
-          const pressed = new Set<string>();
+          const pressed = new Set<string>(), ids0 = cardIds(), tests0 = !!document.querySelector('.t-card');
           for (let i = 0; i < Math.min(names.length, CHOICE_MAX); i++) {
             if (ui.stop()) break;
             const t = standing(CHOICE_SEL).find((e, j) => { const nm = choiceName(e.textContent, e.getAttribute('aria-label'), j); return !pressed.has(nm); });
@@ -237,6 +236,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
             if (ui.skip) clock.setDrawing(false);
             t.click();
             await stillPage(real, false, !!ui.skip); await showLanded();
+            if (cardIds() !== ids0 || (!tests0 && !!document.querySelector('.t-card'))) { notes.push(`${d.title} ${n}: pressing "${nm}" changed which cards stand (it opened another card); put back, and no more choices on this slide`); if (t.isConnected) t.click(); break; }
             await shoot(`${view ? `${view}-` : ''}choice${pad2(i + 1)}-${nm}`, nm);
             if (t.isConnected && t.hasAttribute('aria-expanded')) t.click();   // (an opener is closed again: the next choice and the next state start from the slide as it arrived)
           }

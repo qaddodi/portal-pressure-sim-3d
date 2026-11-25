@@ -245,3 +245,9 @@ export const CHOICE_ON_SEL = '[role="tab"][aria-selected="true"], [role="radio"]
 export const CHOICE_MAX = 8;
 /** What a choice is called in a file name: its words, else its aria label, else its place. */
 export const choiceName = (words: string | null | undefined, aria: string | null | undefined, i: number): string => { const raw = (words ?? '').replace(/\s+/g, ' ').trim() || (aria ?? '').trim(); return raw ? slug(raw) : `choice${i + 1}`; };
+
+/** Where a choice is never pressed: the Tests card and its instrument tabs, the toolbar, the presenter bar and anything that opens another card or sheet (a press there leaves the slide: capture Tests-card-opens, 25 Nov, Doppler over "Change from healthy"). Only the standing slide cards' own content is pressed. */
+export const CHOICE_OUT = '.t-card, .instr-tab, [data-opens], .nb-tab, .topbar, .vdock, .dk-bar, .dk-strip, [data-debug], [data-capture-skip]';
+/** The only places choices are looked for: the slide's cards that are fully in. */
+export const CHOICE_ROOTS = '.dk-card[data-phase="in"]';
+export const pressable = (el: { closest(sel: string): unknown }): boolean => !el.closest(CHOICE_OUT);
