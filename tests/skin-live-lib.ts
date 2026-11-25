@@ -7,7 +7,7 @@ import { CEL_STYLE } from '../src/scene/cel-style.ts';
 import { inkTaper } from '../src/scene/vessels/cel-ink.ts';
 import { skinKOf } from '../src/scene/vessels/skin/sdf.ts';
 import { facetSag } from '../src/scene/vessels/skin/facet-sag.ts';
-import { SKIN_ARM_ABSENT, SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K, SKIN_SEAM_PAD_PX } from '../src/scene/vessels/skin/shaders.ts';
+import { SKIN_ARM_ABSENT, SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K, SKIN_HOLD_FREE_FROM_K, SKIN_HOLD_FREE_TO_K, SKIN_SEAM_PAD_PX } from '../src/scene/vessels/skin/shaders.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import { sd3, type GateSkin } from './skin-gate-lib.ts';
 import { skinNormalTwin, skinShadeK, type TwinArm } from '../src/scene/vessels/skin/exact-normal.ts';
@@ -118,7 +118,9 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
       // skinArmPx
       const tierPix = variant.tierless && cs.tierZ ? wAt.reduce((t, w, i) => t + w * cs.tierZ![i]!, 0) : 0;
       const fragPOf = (arm: number): number[] => (variant.tierless && cs.tierZ ? [fragP[0]!, fragP[1]!, fragP[2]! + cs.tierZ[arm]! - tierPix] : fragP);
-      const ramp = variant.ramp ?? [SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K];
+      // (the shader's ramp: the free skin's eased to the seam's by the kept arms' top raw weight, skinHoldSeam)
+      const wSeam = smooth(0.75, 0.97, Math.max(...raw.map((r, i) => r * (cs.keep[i] ? 1 : 0))));
+      const ramp = variant.ramp ?? [SKIN_HOLD_FREE_FROM_K + (SKIN_HOLD_FROM_K - SKIN_HOLD_FREE_FROM_K) * wSeam, SKIN_HOLD_FREE_TO_K + (SKIN_HOLD_TO_K - SKIN_HOLD_FREE_TO_K) * wSeam];
       const armHeld = (arm: number, holdLive: boolean): number => smooth(ramp[0] * kPx, ramp[1] * kPx, sd3(axes[arm]!, fragPOf(arm), holdLive ? cs.swell[arm]! : 1) / Math.max(wpc(fragW), 1e-9) * dpr);
       const armPx = (arm: number, depth: boolean, holdLive: boolean, sub = 0): number => {
         const P = apLive[arm]!, segs = ([[P[0], P[1]], [P[1], P[2]], [P[2], P[3]]] as number[][][]).map(([p, q]) => {

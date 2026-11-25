@@ -77,32 +77,30 @@ test('across every weld the shade is the drawn surface\'s: it turns no faster th
   } finally { scene.dispose(); setSmoothJoins(was); }
 });
 
-// THE CONFLUENCE'S INK IS THE OUTLINE OF THE UNION (Mohammad, 24 Nov: the hepatic veins heavy with dark ink where they meet the cava). Where a branch opens into its host, the placed branch's rim stands in front of the host's wall,
-// up to 1.6 k (the middle hepatic vein at IVCS), while on the screen it lies inside the host. The depth hold-out (skin/shaders.ts SKIN_HOLD_FROM_K) held the host out from 1 k, so the branch's silhouette was inked across the host's lumen.
-// That was 1.1 % of IVCS drawn as line only, against 0.1 % in today's figure. Judged here by the fragment stage's twin (tests/skin-live-lib.ts) at a phone's screen, from the front and turned, every arm there at its built width.
-test('no junction skin of the placed figure inks its own lumen: the pixels the union calls vessel and the shader draws as line only stay under 1 % of a skin\'s lumen, and none at the hepatic confluence', { skip: !PLACED && 'placed anatomy only (PPS_ANATOMY=placed)' }, async () => {
+// THE CONFLUENCE'S INK IS THE OUTLINE OF THE UNION (Mohammad, 24 Nov: the hepatic veins heavy with dark ink where they meet the cava). The middle and left hepatic veins came down onto the cava from in front (sloping 0.27 and 0.23 away from
+// the viewer), so each ran over the cava's front wall for radii before it opened. Its rim stood 1.6 k in front of the cava, and the depth hold-out drew its silhouette across the cava's lumen: 1.1 % of IVCS was drawn as line only, against
+// 0.1 % in today's flat figure. Two fixes. The hepatic veins now arrive in the cava's plane (anatomy/placed-network.ts joinEnd `flat`). Away from the seams the hold-out starts at 3 k (skin/shaders.ts SKIN_HOLD_FREE_FROM_K), while on a seam
+// it keeps 1 k, so the tube's line runs on (tests/skin-agreement.test.ts). Judged here by the fragment stage's twin (tests/skin-live-lib.ts) at a phone's screen, from the front and turned, with every arm there.
+test('no junction skin of the placed figure inks more of its own lumen than the seam\'s ramp alone would, and the hepatic confluence stays under 0.5 %', { skip: !PLACED && 'placed anatomy only (PPS_ANATOMY=placed)' }, async () => {
   const { gateSkins } = await import('./skin-gate-lib.ts');
   const { closeCamera, rasterLive } = await import('./skin-live-lib.ts');
   const SCREEN = { w: 393, h: 852, dpr: 2, pxPerUnit: 500 } as const;
   const g = gateSkins();
   try {
-    let judged = 0;
+    let judged = 0, fewer = 0;
     for (const s of g.skins) {
       const arms = s.mesh.junction.arms, cs = { swell: arms.map(() => 1), keep: arms.map(() => true) };
       for (const yaw of [0, 0.3]) {
         const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw });
-        const st = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, cs);
+        const st = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, cs), seamOnly = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, cs, { ramp: [1, 2] });
         const share = st.inkOnly / Math.max(1, st.lumenRef);
-        assert.ok(share < 0.01, `${s.node} (turned ${yaw}): ${(100 * share).toFixed(2)} % of its lumen is drawn as line`);
-        if (s.node === 'IVCS') {
-          assert.ok(st.inkOnly <= 2, `IVCS (turned ${yaw}): ${st.inkOnly} pixels of ink inside the confluence`);
-          // (the test bites: with today's ramp, 1 k to 2 k, the confluence is inked)
-          const old = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, cs, { ramp: [1, 2] });
-          assert.ok(old.inkOnly / Math.max(1, old.lumenRef) > 0.008, `IVCS with the old ramp: ${(100 * old.inkOnly / Math.max(1, old.lumenRef)).toFixed(2)} %`);
-        }
+        assert.ok(st.inkOnly <= seamOnly.inkOnly + 2, `${s.node} (turned ${yaw}): ${st.inkOnly} pixels drawn as line, ${seamOnly.inkOnly} with the seam's ramp everywhere`);
+        if (st.inkOnly < seamOnly.inkOnly) fewer++;
+        if (s.node === 'IVCS') assert.ok(share < 0.005, `${s.node} (turned ${yaw}): ${(100 * share).toFixed(2)} % of its lumen is drawn as line`);
         judged++;
       }
     }
     assert.ok(judged >= 40, `${judged} skin views judged`);
+    assert.ok(fewer >= 5, `the free skin's ramp takes ink away somewhere (${fewer} views)`);
   } finally { g.done(); }
 });

@@ -57,7 +57,10 @@ test('the umbilical vein and the Rex bypass leave the left portal vein at its um
     // the bound: within the first half of the vein by length from the bifurcation (the placement's root is at 0.40; the fading tip, where it was, at 1)
     assert.ok(h.s / L <= 0.5, `${id} leaves the left portal vein at ${(h.s / L).toFixed(2)} of its length (at most 0.5)`);
     assert.ok(h.d < 0.25 * NETWORK_BY_ID.get('PVH_L_1')!.radius, `${id}'s end is on the vein's centreline (${h.d.toFixed(4)})`);
-    assert.ok(dist(p, pp) < 0.03, `${id} leaves where the placement draws it (${dist(p, pp).toFixed(3)} away)`);
+    // (C3 only: 0.08. The owner's rule that every join is smooth outranks a mouth exactly where the mock draws it. The paraumbilical vein is drawn 0.9 radii from the Meso-Rex bypass's mouth, and the ridge between them shaded 19 degrees off its
+    //  neighbours (bound 12), so it opens 5 radii up the vein from the bypass (placed-network.ts PAIR_GAP_R), 0.075 from its drawn mouth. The bypass stays within 0.03)
+    const tol = id === 'C3' ? 0.08 : 0.03;
+    assert.ok(dist(p, pp) < tol, `${id} leaves where the placement draws it (${dist(p, pp).toFixed(3)} away, at most ${tol})`);
     // (on the engine's piece: C3 and REX join the left portal vein at LPV, the end of PVH_L_1)
     const share = drawnShare('PVH_L_1', p[0], p[1], p[2])!.share;
     assert.ok(share < 0.5, `${id} lands on PVH_L_1 (${share.toFixed(2)} of its radius off it)`);

@@ -64,11 +64,14 @@ export const SKIN_CIRCUIT_FADE = 0.35;
 export const SKIN_ARM_ABSENT = 0.3;
 /** The depth hold-out's ramp (skinArmHeld), in shares of the blend width k of 3D gap between a pixel's rest surface and an arm's wall: an arm is not held out of the outline within SKIN_HOLD_FROM_K of it, wholly from SKIN_HOLD_TO_K. It was 0.25 to 1; the FILLET spans the whole of k, so
  *  a pixel a quarter k from an arm already lies in the smooth union of the mesh and was held out of the outline's: the stem's edge was inked inside the fillet, the two lines that ran on into the azygos (Plan 16C, 22 Nov, node numbers: 281 pixels of ink inside the union at the azygos landing, 0 from 1 to 2). */
-// PLACED: 3 k to 6 k. The ramp was set on today's flat figure, where every arm of a junction lies within a k of one plane. The approved placement's arms meet with real depth: where a branch opens into its host, its rim stands in front of
-// the host's wall, as far as 1.6 k (the middle hepatic vein at IVCS), while on the screen it lies inside the host's lumen. From 1 k that rim held the host out of the outline, and the branch's silhouette was inked across the host. That was the hepatic
-// confluence's heavy dark lines: 1.1 % of IVCS's lumen drawn as line only, 6.7 % at SMV and 3.3 % at PVH, against 0.1 % today. From 3 k the inking is 0 at IVCS (tests/skin-weld-shade.test.ts).
-export const SKIN_HOLD_FROM_K = PLACED ? 3 : 1;
-export const SKIN_HOLD_TO_K = PLACED ? 6 : 2;
+export const SKIN_HOLD_FROM_K = 1;
+export const SKIN_HOLD_TO_K = 2;
+/** PLACED: AWAY FROM THE SEAMS, 3 k to 6 k. The ramp above was set on today's flat figure, where every arm of a junction lies within a k of one plane. The approved placement's arms meet with real depth: where a branch opens into its host,
+ *  its rim stands in front of the host's wall, as far as 1.6 k (the middle hepatic vein at IVCS), while on the screen it lies inside the host's lumen. From 1 k that rim held the host out of the outline, and the branch's silhouette was inked
+ *  across the host: the hepatic confluence's heavy dark lines, 1.1 % of IVCS's lumen drawn as line only (6.7 % at SMV, 3.3 % at PVH, 0.1 % today). On a seam ring the tube's own silhouette decides and the hold-out keeps 1 k to 2 k, because
+ *  there it keeps a wall skin's arm from pulling in its host's line (tests/skin-agreement.test.ts). Between them it eases by the seam's weight, the seam pad's own 0.75 to 0.97 (skinHoldSeam). Today both are 1 k to 2 k. */
+export const SKIN_HOLD_FREE_FROM_K = PLACED ? 3 : SKIN_HOLD_FROM_K;
+export const SKIN_HOLD_FREE_TO_K = PLACED ? 6 : SKIN_HOLD_TO_K;
 /** How many CSS px wider the outline's band is on a seam ring, so the skin never trims a pixel of the silhouette the cut tube no longer covers (the specks along the walls, Mohammad 20 Nov). */
 export const SKIN_SEAM_PAD_PX = 1.5;
 /** A head of an arm's frame is drawn only within that arm's own cylinder: fully inside SKIN_HEAD_LAT_FROM radii of its axis line, gone by SKIN_HEAD_LAT_TO. */
@@ -377,10 +380,11 @@ float skinOutsideTrunk(vec2 frag) {
 // Mohammad 22 Nov). In px at the pixel's depth: nothing within SKIN_HOLD_FROM_K (1) k of the arm's wall, all of it from SKIN_HOLD_TO_K (2) k: the fillet spans k.
 // (THE CAPSULE AT REST, NOT AT THE LIVE WIDTH, Mohammad 22 Nov: the collaterals' arms at the azygos were thin spikes. fragP is the lumen's REST surface, a whole radius out, so an arm narrower than its built width (swell 0.53 for C1b, 0.61 for C9) put its own rest
 // surface 1 - swell radii outside itself: held out as if absent. The rest surface is judged against the arm's rest capsule, so the gap is the pixel's own distance to the arm whatever the engine's width is.)
+float skinHoldSeam = 1.0;   // (how near a seam ring this pixel is, 0 to 1: main sets it from the kept arms' raw weights before the outline is judged; the hold-out's ramp eases from the free skin's to the seam's by it)
 float skinArmHeld(int arm, float fragW, vec3 fragP, float kPx) {
   vec3 g3; float r3;
   float gap = skinArmSd3(fragP, arm, 1.0, g3, r3) / max(${wpcGlsl('fragW', 'projY', '1.0')}, 1e-9) * dpr;
-  return smoothstep(${F(SKIN_HOLD_FROM_K)} * kPx, ${F(SKIN_HOLD_TO_K)} * kPx, gap);
+  return ${PLACED ? `smoothstep(mix(${F(SKIN_HOLD_FREE_FROM_K)}, ${F(SKIN_HOLD_FROM_K)}, skinHoldSeam) * kPx, mix(${F(SKIN_HOLD_FREE_TO_K)}, ${F(SKIN_HOLD_TO_K)}, skinHoldSeam) * kPx, gap)` : `smoothstep(${F(SKIN_HOLD_FROM_K)} * kPx, ${F(SKIN_HOLD_TO_K)} * kPx, gap)`};
 }
 // the outline of the smooth union of the live arms, in device px: negative inside the lumen, 0 on the wall (in arm order, as the mesh's own SDF: sdf.ts sdUnion). Two arms that run THROUGH the node (armCopy.w, through.ts: the trunk above and below
 // a side vein) are united by a plain minimum and count as one: a blend between the halves of one trunk only adds a bulge
@@ -529,12 +533,13 @@ void main() {
   float skinArt = clamp(1.0 - (${BLEND('armColor', 'wAt', '.a')}), 0.0, 1.0);
   float inkDev = (${inkPxGlsl('rCssAx', 'rCssAx', 'skinArt')} * mix(1.0, ${F(CIRC_INK_K)}, skinCirc) + hiPx * hi) * dpr;
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
+  float wMax = 0.0;
+  for (int i = 0; i < ${SKIN_ARMS}; i++) wMax = max(wMax, rawW(i) * keepOf(i));   // (the raw weights of the arms that are THERE: wAt renormalises them, so an absent arm's seam ring read as a kept arm's weight 1 and the band stayed wide there)
+  skinHoldSeam = smoothstep(0.75, 0.97, wMax);
   float sdPx = skinSdPx(kPx, false);
   // NEAR A SEAM THE TUBE'S OWN SILHOUETTE DECIDES, NOT THE OUTLINE'S APPROXIMATION OF IT (the black and brown specks along the walls at every junction: they are the background, a pixel or two of the seam's edge that the band
   // trimmed, where the tube past the seam is cut and no longer there to cover it). The ring is the tube's exact polygon stood out by its sag, the outline a smooth capsule: they differ by about a pixel. Where one arm's weight
   // is nearly 1 the band is wider by that pixel and a half, fading out over the weights 0.75 .. 0.97, so the outline rules the free skin and the mesh rules the seam
-  float wMax = 0.0;
-  for (int i = 0; i < ${SKIN_ARMS}; i++) wMax = max(wMax, rawW(i) * keepOf(i));   // (the raw weights of the arms that are THERE: wAt renormalises them, so an absent arm's seam ring read as a kept arm's weight 1 and the band stayed wide there)
   float seamPad = ${F(SKIN_SEAM_PAD_PX)} * dpr * smoothstep(0.75, 0.97, wMax);
   // THE UNION'S OWN SCREEN FOOTPRINT IS NEVER DROPPED (Mohammad, 22 Nov: a black crescent under the purple's landing at the azygos). ROOT CAUSE: the mesh is one static shape at the arms' REST widths and the host's tube is cut away under it, so where a narrow arm (C1b at swell 0.45) leaves the host the mesh has the arm's fat stub and no host wall behind it.
   // The stub's pixels lie 13 px outside the live arm and the depth hold-out (right, for the outline's ink) holds every other arm out of them: the band dropped them, and nothing else draws there. A pixel past the band that the arms' union with no depth rule calls lumen is lumen:

@@ -46,7 +46,8 @@ test('the braid roots are named: the ends where the strands leave a node as one 
     const roots = BRAIDS.flatMap((id) => braidRootEnds(NETWORK_BY_ID.get(id)!).map((e) => `${id}:${e}`));
     const ends = BRAIDS.flatMap((id) => [0, 1].map((e) => `${id}:${e}`));
     assert.deepEqual(ends.filter((e) => !(e in WELDED)).sort(), Object.keys(FORK).sort(), 'every braid end is welded or named');
-    assert.deepEqual(roots.filter((e) => !(e in WELDED)).sort(), ['C1a:0'], 'the bundle roots that are not welded: C1a\'s node has a single permanent arm');
+    // (placed only: none. The placed varices wrap the oesophagus (coil.ts WRAP), so C1a's strands part as they leave LGV: its start is no bundle, and it keeps the fork method for the reason FORK gives)
+    assert.deepEqual(roots.filter((e) => !(e in WELDED)).sort(), PLACED ? [] : ['C1a:0'], 'the bundle roots that are not welded: C1a\'s node has a single permanent arm');
     for (const e of Object.keys(WELDED)) assert.ok(roots.includes(e), `${e} is a bundle root`);
     for (const [key, node] of Object.entries(DROPPED_ROOT)) { const v = NETWORK_BY_ID.get(key.split(':')[0]!)!; assert.equal(node, key.endsWith(':0') ? v.from : v.to); assert.ok(findSkinJunctions().find((x) => x.node === node)!.arms.some((a) => a.vesselId === v.id && a.grow)); }
     const js = findSkinJunctions();

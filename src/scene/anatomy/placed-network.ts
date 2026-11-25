@@ -112,6 +112,8 @@ function nearestOn(D: readonly V3[], p: V3): { at: V3; s: number; d: number; i: 
 export const FAIR_TURN = 8.5;
 /** The most a branch's approach (its chord to the landing) may be off the host's flow before the landing moves on along it (joinEnd). */
 const MERGE_MAX = 60;
+/** The wholes that open into the cava at the hepatic confluence, IVCS: their arrival lies in the cava's plane (joinEnd `flat`). */
+const HEPATIC_WHOLES: ReadonlySet<string> = new Set(['rhv', 'mhv', 'lhv']);
 /** The least a branch's arrival is off its host's axis (joinEnd). */
 // (a branch wider than its host arrives MERGE_MIN times their width ratio off its axis: C6, 1.34 times the renal vein, slid in at 40 and left a wall crotch whose normals turned 84 degrees between neighbours; at 54 it is 74)
 const MERGE_MIN = 40;
@@ -201,7 +203,7 @@ function buildPlaced(): void {
 
   // ---- branches: arrive on the host's centreline at an acute angle along its flow (geom.js joinEnd) ----
   /** `D` (its join end last) arrives on `P` (in the sense the flow should merge along). */
-  function joinEnd(D: V3[], P: readonly V3[], rP: number, rD: number, force?: V3): V3[] {
+  function joinEnd(D: V3[], P: readonly V3[], rP: number, rD: number, force?: V3, flat = false): V3[] {
     const end = D[D.length - 1]!, hit = nearestOn(P, force ?? end);
     let cut = 3.2 * rP + 3 * rD;
     let k = D.length - 1, acc = 0; while (k > 1 && acc < cut) { acc += len(sub(D[k]!, D[k - 1]!)); k--; }
@@ -224,6 +226,11 @@ function buildPlaced(): void {
     let t1 = norm(add(chord, mul(tp, 0.9)));
     const mMin = MERGE_MIN * Math.max(1, rD / rP);
     { const c = dot(t1, tp), lo = Math.cos((mMin * Math.PI) / 180); if (c > lo) { let n = sub(chord, mul(tp, dot(chord, tp))); if (len(n) < 1e-6) n = sub(t0, mul(tp, dot(t0, tp))); if (len(n) > 1e-6) { n = norm(n); const a = (mMin * Math.PI) / 180; t1 = norm(add(mul(tp, Math.cos(a)), mul(n, Math.sin(a)))); } } }
+    // (IN THE HOST'S PLANE AT THE MOUTH (the hepatic confluence's heavy ink, Mohammad 24 Nov): the figure is seen from the front, and an arrival that dives into its host from in front (the middle and left hepatic veins came down onto the cava
+    //  sloping 0.27 and 0.23 away from the viewer) runs over the host's front wall for radii before it opens: its rim, 1.6 k in front of the cava, is the line drawn across the cava's lumen there (1.1 % of IVCS's lumen as line only, 0.1 % in
+    //  today's flat figure). A hepatic vein's arrival keeps its heading on the screen and takes the cava's own depth slope, so it opens from the side, as the 2D figure's do. Every other arrival keeps its depth: flattened, the portal
+    //  branches moved PVH so the DIPS's skin there had no ring that clears the blend)
+    if (flat) { const hx = Math.hypot(t1[0], t1[1]), px = Math.hypot(tp[0], tp[1]); if (px > 1e-6) t1 = norm([t1[0], t1[1], (tp[2] * hx) / px]); }
     const L = len(sub(Jp, P0));
     const n = Math.max(4, Math.round(L / STEP)), out = D.slice(0, k + 1);
     for (let i = 1; i <= n; i++) {
@@ -235,10 +242,10 @@ function buildPlaced(): void {
     return resample(relax(out, 200, (i) => Math.min(1 - smooth(Math.abs(s[i]! - sk) / w), smooth((tot - s[i]!) / (0.5 * L)))), STEP);
   }
   /** Vessel `v`'s end `end` joins host course `h` as a branch (a tributary when its flow ends there, a branch leaving when it starts there). */
-  function branch(v: string, end: 0 | 1, host: string, hostCourse?: V3[], force?: V3): void {
+  function branch(v: string, end: 0 | 1, host: string, hostCourse?: V3[], force?: V3, flat = false): void {
     const P = hostCourse ?? COURSE[host]!, D = COURSE[v]!;
     // (faired only over the stretch the merge re-routed and a little more: the far end, and whatever join it has, keeps its heading)
-    const R = joinEnd(end ? D : rev(D), end ? P : rev(P), rOf(host), rOf(v), force), m = Math.round((3.2 * rOf(host) + 3 * rOf(v) + 0.1 + (force ? FORCE_REACH : 0)) / STEP);
+    const R = joinEnd(end ? D : rev(D), end ? P : rev(P), rOf(host), rOf(v), force, flat), m = Math.round((3.2 * rOf(host) + 3 * rOf(v) + 0.1 + (force ? FORCE_REACH : 0)) / STEP);
     const sR = arc(R), tot = sR[sR.length - 1]!;
     const F = fair(R, [tot - m * STEP, Infinity]);
     COURSE[v] = end ? F : rev(F);
@@ -306,7 +313,7 @@ function buildPlaced(): void {
     const vp = WHOLE_PIECES[jn.v], hp = WHOLE_PIECES[jn.to];
     const vNode = vp ? (jn.end ? edgeById.get(vp[vp.length - 1]!)!.to : edgeById.get(vp[0]!)!.from) : null;
     const hostEnd = hp && vNode ? (edgeById.get(hp[0]!)!.from === vNode ? COURSE[jn.to]![0]! : edgeById.get(hp[hp.length - 1]!)!.to === vNode ? COURSE[jn.to]![COURSE[jn.to]!.length - 1]! : undefined) : undefined;
-    branch(jn.v, jn.end, jn.to, undefined, hostEnd);
+    branch(jn.v, jn.end, jn.to, undefined, hostEnd, HEPATIC_WHOLES.has(jn.v));
   }
 
   // ONE MOUTH: main vessels that the engine joins to one host at one node (the three hepatic veins at the cava's top, IVCS) open at one point of it, the widest one's mouth, as one skin's arms. Placed 3 radii
@@ -321,7 +328,7 @@ function buildPlaced(): void {
     for (const [k, g] of groups) {
       if (g.length < 3) continue;
       const host = k.split('|')[0]!, first = g.reduce((a, b) => (rOf(b.v) > rOf(a.v) ? b : a)), C = COURSE[first.v]!, J0 = first.end ? C[C.length - 1]! : C[0]!;
-      for (const x of g) if (x !== first) branch(x.v, x.end, host, undefined, J0);
+      for (const x of g) if (x !== first) branch(x.v, x.end, host, undefined, J0, HEPATIC_WHOLES.has(x.v));
     }
   }
   // ---- collaterals and shunts: each end lands on the vessel its engine node belongs to ----
@@ -350,7 +357,7 @@ function buildPlaced(): void {
   //  - an end within PARALLEL_DEG of its node's own end runs beside it and one skin of both folds: it opens at the next main vessel's node downstream, or on the host's wall past the next node;
   //  - two such nodes closer than NODE_GAP_R radii, or a wall landing closer than WALL_GAP_R to a node, are moved apart along the vein, downstream, never past a main vessel's mouth (LRV_S and LRV were 4 radii apart: one skin
   //    for both had two permanent arms and failed).
-  const SNAP_R = 6, NODE_GAP_R = 10, WALL_GAP_R = 22, PARALLEL_DEG = 30, PAIR_GAP_R = 3.5;
+  const SNAP_R = 6, NODE_GAP_R = 10, WALL_GAP_R = 22, PARALLEL_DEG = 30, PAIR_GAP_R = 5;
   /** The shunts that divide the vein whose start is their node (skin/divide.ts DIVIDED): each opens at that node. */
   const DIVIDERS = new Set(['S_DSR|0', 'S_DSR|1']);
   const endDir = (id: string, end: 0 | 1): V3 => { const D = COURSE[id]!, k = Math.min(D.length - 1, 6); return norm(end ? sub(D[D.length - 1 - k]!, D[D.length - 1]!) : sub(D[k]!, D[0]!)); };
@@ -446,8 +453,10 @@ function buildPlaced(): void {
       if (x.land && Math.abs(x.s - x.land.s) > 1e-6) x.land.force = along(C, x.s);
     }
   }
-  // TWO ENDS ON ONE WALL: two ends that open on a host's wall (no node's skin takes them) closer than PAIR_GAP_R of its radii crowd one skin (the Meso-Rex bypass and the paraumbilical vein leave the left portal vein
-  // 0.9 radii apart: their one skin grew past its vertex limit and dropped the paraumbilical vein). Each moves half the shortfall away from the other along the host, so each stays within a radius and a half of where it is drawn.
+  // TWO ENDS ON ONE WALL: two ends that open on a host's wall (no node's skin takes them) closer than PAIR_GAP_R of its radii crowd one skin. The Meso-Rex bypass and the paraumbilical vein are drawn leaving the left portal vein 0.9 radii
+  // apart, and the ridge between them was too thin to shade smoothly: 19 degrees off its neighbours (bound 12, tests/skin-exact-normal.test.ts), or their skin grew past its vertex limit. The owner's rule that every join is smooth outranks a
+  // mouth exactly where the mock draws it, so the one nearer the host's root moves on up the host to PAIR_GAP_R (5) from the other: the paraumbilical vein, 0.075 up the vein, with the ridge shading 5.8 degrees off its neighbours.
+  // (Moving the bypass down instead takes it out of the vein's proximal half and onto the LPV node's skin. Spreading both, or 4.5 to 6.5 radii, either folds the ridge again (14 to 30 degrees) or crowds PVH, and the DIPS loses its weld.)
   for (const w of new Set(lands.map((l) => l.w))) {
     const C = ownCourse(w), L = lengthOf(C), R = rOf(w);
     const onWall = lands.filter((l) => l.w === w && l.id !== 'TIPS' && !hostEndAt(w, l.node) && !mouth.has(`${w}|${l.node}`) && !NODE_S.has(`${w}|${l.node}`))
@@ -455,9 +464,9 @@ function buildPlaced(): void {
     for (let i = 0; i < onWall.length; i++) for (let j = i + 1; j < onWall.length; j++) {
       const a = onWall[i]!, b = onWall[j]!;
       if (Math.abs(a.s - b.s) >= PAIR_GAP_R * R) continue;
-      const [lo, hi] = a.s <= b.s ? [a, b] : [b, a], mid = (lo.s + hi.s) / 2;
-      lo.s = Math.max(2 * R, mid - (PAIR_GAP_R / 2) * R); hi.s = Math.min(L - 2 * R, mid + (PAIR_GAP_R / 2) * R);
-      lo.l.force = along(C, lo.s); hi.l.force = along(C, hi.s);
+      const [lo, hi] = a.s <= b.s ? [a, b] : [b, a];
+      lo.s = Math.max(2 * R, hi.s - PAIR_GAP_R * R);
+      lo.l.force = along(C, lo.s);
     }
   }
   // (then each end that must open elsewhere lands again, exactly there)

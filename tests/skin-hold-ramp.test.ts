@@ -4,13 +4,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PLACED } from '../src/scene/anatomy/source.ts';
-import { SKIN_FS, SKIN_VS, SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K } from '../src/scene/vessels/skin/shaders.ts';
+import { SKIN_FS, SKIN_VS, SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K, SKIN_HOLD_FREE_FROM_K, SKIN_HOLD_FREE_TO_K } from '../src/scene/vessels/skin/shaders.ts';
 
 test('the hold-out ramp is two named constants, 1 k to 2 k, and the fragment stage reads them (one place)', () => {
-  // placed only: 3 k to 6 k, because the placed arms meet with real depth and a branch's rim stands up to 1.6 k in front of its host at the mouth (shaders.ts)
-  assert.equal(SKIN_HOLD_FROM_K, PLACED ? 3 : 1);
-  assert.equal(SKIN_HOLD_TO_K, PLACED ? 6 : 2);
-  assert.match(SKIN_FS, PLACED ? /return smoothstep\(3\.0 \* kPx, 6\.0 \* kPx, gap\);/ : /return smoothstep\(1\.0 \* kPx, 2\.0 \* kPx, gap\);/);
+  assert.equal(SKIN_HOLD_FROM_K, 1);
+  assert.equal(SKIN_HOLD_TO_K, 2);
+  // placed only: away from the seams 3 k to 6 k, eased to the seam's 1 k to 2 k by the seam weight, because the placed arms meet with real depth and a branch's rim stands up to 1.6 k in front of its host at the mouth (shaders.ts)
+  assert.equal(SKIN_HOLD_FREE_FROM_K, PLACED ? 3 : 1);
+  assert.equal(SKIN_HOLD_FREE_TO_K, PLACED ? 6 : 2);
+  assert.match(SKIN_FS, PLACED ? /return smoothstep\(mix\(3\.0, 1\.0, skinHoldSeam\) \* kPx, mix\(6\.0, 2\.0, skinHoldSeam\) \* kPx, gap\);/ : /return smoothstep\(1\.0 \* kPx, 2\.0 \* kPx, gap\);/);
+  if (PLACED) assert.match(SKIN_FS, /skinHoldSeam = smoothstep\(0\.75, 0\.97, wMax\);\n  float sdPx = skinSdPx\(kPx, false\);/, 'the seam weight is set before the outline is judged');
   assert.doesNotMatch(SKIN_FS, /smoothstep\(0\.25 \* kPx/, 'the old ramp is gone');
   assert.ok(SKIN_HOLD_FROM_K >= 1, 'the hold-out must start where the fillet (k wide) ends');
 });
