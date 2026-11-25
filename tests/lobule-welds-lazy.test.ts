@@ -59,13 +59,13 @@ test('a Lobule whose file cannot be read stops waiting at once: a person is neve
 test('a failed read is not kept: the next ask reads the file again', { skip: !existsSync(baked) }, async () => {
   forgetWeldBytes();
   let n = 0;
-  g.fetch = async () => { n++; if (n === 1) throw new Error('offline'); return new Response(new Uint8Array(readFileSync(baked)), { status: 200 }); };
+  g.fetch = async () => { n++; if (n <= 2) throw new Error('offline'); return new Response(new Uint8Array(readFileSync(baked)), { status: 200 }); };   // (fetchBin asks once more before it gives up: two tries)
   assert.equal(await weldBytes(), null, 'offline: nothing');
   const b = await weldBytes();
   assert.ok(b instanceof ArrayBuffer && b.byteLength > 1000, 'back online: the file');
-  assert.equal(n, 2);
+  assert.equal(n, 3);
   assert.equal(await weldBytes(), b, 'and then kept');
-  assert.equal(n, 2);
+  assert.equal(n, 3);
 });
 
 test('the cue says how far a file has come, in fives of a hundred, and plain words without it', async () => {
