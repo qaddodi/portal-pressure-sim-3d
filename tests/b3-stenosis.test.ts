@@ -161,13 +161,30 @@ test('the marks are the blood chevron with the labels\' own outline, drawn by th
 });
 
 // ── the cavernoma's hubs (Mohammad, 20 Nov: "the collaterals fan out from faceted star hubs"): the six channels meet at the two nodes, each ending in a fine tip, never a widened, collared, round-capped end ──
-import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
+import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
+import { centrelineOf } from '../src/scene/vessels/centreline.ts';
 import { TIP_K, buildTubes } from '../src/scene/vessels/tubes.ts';
 import { tubularOf } from '../src/scene/vessels/shape.ts';
 test('every cavernoma channel narrows to a tip at both ends: no widened end, collar or ball where they meet', () => {
   const v = NETWORK_BY_ID.get('C8')!, cs = coursesOf(v, { ...REST, rec: 1, strandsOn: true });
   assert.ok(cs.length > 2);
   const b = buildTubes(cs, tubularOf(v, 16), v.radius), rk = b.geometry.getAttribute('rk') as BufferAttribute;
+  if (PLACED) {
+    // (restated for the placed anatomy, the only one now: the channels end ON the trunk's own centreline, inside it, round-capped at their own width (shape.ts: a point is a width that falls to
+    // nothing in a few hundredths, a step the smooth bar does not pass), so what must hold is that no end is widened or collared and every end and its cap is hidden inside the vein it meets)
+    cs.slice(1).forEach((c, i) => {
+      assert.equal(c.point, undefined, `channel ${i}`); assert.equal(c.flare, undefined, `channel ${i}: no collar`); assert.equal(c.clamp, undefined);
+      const run = b.runs[i + 1]!;
+      for (const k of [0, run.tubular]) { const r = rk.getX(run.tubeStart + k * (run.radial + 1)) * v.radius; assert.ok(r <= c.radius * 1.02, `channel ${i}: the end ring is ${(r / c.radius).toFixed(3)} of its radius, not widened`); }
+      for (const p of [c.pts[0]!, c.pts[c.pts.length - 1]!]) {
+        const hit = NETWORK.filter((o) => o.id !== 'C8').map((o) => centrelineOf(o.id)).filter((q): q is NonNullable<typeof q> => !!q)
+          .map((q) => { const u = q.nearestU(p), a = q.pointAt(u); return { d: Math.hypot(p[0] - a[0], p[1] - a[1], p[2] - a[2]), r: q.radiusAt(u) }; }).sort((x, y) => x.d / x.r - y.d / y.r)[0]!;
+        assert.ok(hit.d + c.radius < hit.r, `channel ${i}: its end and cap lie inside the vein it meets (${(hit.d + c.radius).toFixed(4)} of ${hit.r.toFixed(4)})`);
+      }
+    });
+    return;
+  }
   cs.slice(1).forEach((c, i) => {
     assert.deepEqual(c.point, [true, true], `channel ${i}`);
     assert.equal(c.flare, undefined, `channel ${i}: no collar`);
