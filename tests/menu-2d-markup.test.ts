@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const src = (p: string) => readFileSync(p, 'utf8');
-const css2d = Object.fromEntries(['app-02-controls', 'app-03-layouts', 'app-07-floating'].map((f) => [f, src(`src/ui/styles/${f}.css`)]));
-const all2d = Object.values(css2d).join('\n');
+const baseCss = Object.fromEntries(['app-02-controls', 'app-03-layouts', 'app-07-floating'].map((f) => [f, src(`src/ui/styles/${f}.css`)]));
+const all2d = Object.values(baseCss).join('\n');
 
 test('Settings, Help and Search are on the 2D app\'s own markup, which its stylesheet styles', () => {
   const settings = src('src/ui/settings/SettingsSheet.tsx'), menu = src('src/ui/shell/Menu.tsx'), search = src('src/ui/search/SearchSheet.tsx'), help = src('src/ui/shell/HelpSheets.tsx');

@@ -12,14 +12,14 @@ import { pinned2D } from './two-d-pin.ts';
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const TWO_D = pinned2D('src/ui/instruments.js').repo;
-const css2d = () => readdirSync(new URL('../src/ui/styles/', import.meta.url)).filter((f) => f.endsWith('.css') && f !== 'index.css').map((f) => read(`src/ui/styles/${f}`)).join('\n');
+const baseCss = () => readdirSync(new URL('../src/ui/styles/', import.meta.url)).filter((f) => f.endsWith('.css') && f !== 'index.css').map((f) => read(`src/ui/styles/${f}`)).join('\n');
 
 test('the card puts a pane\'s parts straight into .dock-pane: no wrapper between the pane and its view, so 2D\'s child rules (.dock-pane > .instrument-view) reach it', () => {
   const layer = read('src/ui/tests/TestsLayer.tsx');
   assert.match(layer, /<PaneHost\.Provider value="dock">\{body\(/, 'a context provider renders no element');
   assert.doesNotMatch(layer, /display: 'contents'/);
   // the 2D sheets do lean on that child relation
-  assert.ok((css2d().match(/\.dock-pane(\[[^\]]*\])*(\.active)? > \.instrument-view/g) ?? []).length > 40);
+  assert.ok((baseCss().match(/\.dock-pane(\[[^\]]*\])*(\.active)? > \.instrument-view/g) ?? []).length > 40);
 });
 
 test('every pane\'s view is 2D\'s .instrument-view with its data-pane, and its switch is 2D\'s .pressure-switch of .ps-btn, before the view', () => {
@@ -64,7 +64,7 @@ test('the chart\'s place in its box is 2D\'s canvas rules with `canvas` rewritte
   assert.match(css, /\.instrument-workspace :is\(\.dop-box, \.hvpg-box, \.fibroscan-box\) > \.cv \{ inset: auto; left: var\(--cv-l\); top: var\(--cv-t\); margin: 0; width: var\(--cv-w\); height: var\(--cv-h\);/);
   assert.doesNotMatch(css.split('\n').slice(1).join('\n'), /\bcanvas\b|\.pz\b|\.pz-/);
   // every rule in it is in the lifted 2D sheets with `canvas` in the place of `.cv`, body unchanged
-  const all = css2d().replace(/\s+/g, ' ');
+  const all = baseCss().replace(/\s+/g, ' ');
   for (const [sel, body] of rulesOf(css)) for (const part of splitTop(sel)) assert.ok(all.includes(`${part.replace(/\.cv\b/g, 'canvas')}`) && all.includes(body.replace(/\s+/g, ' ').slice(0, 60)), `${part} is 2D's`);
   // the walker keeps an at-rule's wrapper and leaves the slide cards' rules to the slides
   const made = cvRules('@media (max-width: 9px) { .a .chart-box > canvas { top: 0; } .pz-tool .dop-box > canvas { top: 1px; } } .hvpg-box canvas:first-child, .x { left: 0; }', 'x.css');
@@ -78,7 +78,7 @@ test('the chart\'s place in its box is 2D\'s canvas rules with `canvas` rewritte
 });
 
 test('every container the panes\' 2D container queries ask for is on 2D\'s own element in the card', () => {
-  const all = css2d();
+  const all = baseCss();
   // the named ones: ws is the card, tpane and ab-pane the pane; the unnamed ones resolve against the nearest (the pane, .endo-stage, a tile, .ab-vol, .ab-belly, .ir-tips, .ir-keys, the boxes)
   assert.match(all, /\.instrument-workspace\.float-ui \{ container-name: ws; container-type: inline-size;/);
   assert.match(all, /\.instrument-workspace \.dock-pane \{ container-type: size; container-name: tpane; \}/);

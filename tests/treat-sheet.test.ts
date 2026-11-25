@@ -64,12 +64,12 @@ test('the Changes page slides for as long as the distance asks, the rest of the 
 
 test('the sheet is 2D\'s markup, class for class, glued to the 2D stylesheets and the one clock', () => {
   const src = readFileSync('src/ui/treat/TreatCard.tsx', 'utf8');
-  const css2d = readdirSync('src/ui/styles').filter((n) => n.endsWith('.css')).map((n) => readFileSync(`src/ui/styles/${n}`, 'utf8')).join('\n');
-  assert.ok(css2d.length > 1000, 'the 2D stylesheets are there');
+  const baseCss = readdirSync('src/ui/styles').filter((n) => n.endsWith('.css')).map((n) => readFileSync(`src/ui/styles/${n}`, 'utf8')).join('\n');
+  assert.ok(baseCss.length > 1000, 'the 2D stylesheets are there');
   for (const c of ['treat-card', 'tr-card', 'has-plate', 'sheet-plate', 'tr-in', 'tc-head', 'card-head', 'card-title', 'card-meta', 'card-close', 'instr-tabs', 'treat-tabs', 'instr-tab', 'tt-l', 'tt-n',
     'tc-body', 'treat-pane', 'order-chips', 'order-chip', 'oc-t', 'oc-dot', 'order-grid', 'order-btn', 'fluid-btn', 'ob-t', 'ob-on', 'section', 'chart-sec', 'tc-page', 'tcp-head', 'tcp-back', 'tcp-title', 'tcp-body', 'tcp-row', 'tp-off', 'tp-gone']) {
     assert.ok(src.includes(c), `TreatCard.tsx uses .${c}`);
-    if (!['has-plate', 'tr-in', 'oc-t', 'oc-dot', 'ob-t', 'ob-on', 'tt-l', 'tt-n', 'tp-off', 'tp-gone', 'fluid-btn'].includes(c)) assert.ok(css2d.includes(`.${c}`) || readFileSync('src/ui/treat/treat.css', 'utf8').includes(`.${c}`), `.${c} is styled`);
+    if (!['has-plate', 'tr-in', 'oc-t', 'oc-dot', 'ob-t', 'ob-on', 'tt-l', 'tt-n', 'tp-off', 'tp-gone', 'fluid-btn'].includes(c)) assert.ok(baseCss.includes(`.${c}`) || readFileSync('src/ui/treat/treat.css', 'utf8').includes(`.${c}`), `.${c} is styled`);
   }
   for (const t of ['glideCard', 'startSegGlideOn', 'pushPage', 'remember', 'sheetHeight']) assert.ok(src.includes(t), `TreatCard.tsx: ${t}`);
   assert.ok(!/requestAnimationFrame/.test(src), 'one clock');

@@ -11,7 +11,7 @@ import { M } from '../src/ui/shell/metrics.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const src = (f: string) => readFileSync(join(root, f), 'utf8');
-const css2d = readdirSync(join(root, 'src/ui/styles')).filter((f) => f.endsWith('.css')).map((f) => src(`src/ui/styles/${f}`)).join('\n');
+const baseCss = readdirSync(join(root, 'src/ui/styles')).filter((f) => f.endsWith('.css')).map((f) => src(`src/ui/styles/${f}`)).join('\n');
 
 test('0. the 2D stylesheets are imported once, right after global.css, and the shell lays them over the canvas with one small overlay', () => {
   const main = src('src/main.tsx');
@@ -25,23 +25,23 @@ test('0. the 2D stylesheets are imported once, right after global.css, and the s
 
 test('1. the first screen follows the device (System), as the 2D page opens with no saved look', () => {
   assert.equal(DEFAULTS.look, 'system');
-  assert.ok(/:root\[data-theme="light"\]|html\[data-theme="light"\]|data-theme="light"/.test(css2d), 'the 2D tokens are keyed on data-theme');
+  assert.ok(/:root\[data-theme="light"\]|html\[data-theme="light"\]|data-theme="light"/.test(baseCss), 'the 2D tokens are keyed on data-theme');
 });
 
 test('2. the view pill floats above the dock, centred (2D .nb-views: bottom calc(100% + 8px), padding 6, radius 21)', () => {
   const dock = src('src/ui/shell/Dock.tsx');
   assert.ok(dock.indexOf('className="nb-views"') > dock.indexOf('className="vdock'), 'the pill is inside the dock');
-  assert.match(css2d, /\.nb-views\s*\{[^}]*bottom:\s*calc\(100% \+ 8px\)/);
-  assert.match(css2d, /\.nb-views\s*\{[^}]*padding:\s*6px/);
-  assert.match(css2d, /\.nb-views\s*\{[^}]*border-radius:\s*21px/);
+  assert.match(baseCss, /\.nb-views\s*\{[^}]*bottom:\s*calc\(100% \+ 8px\)/);
+  assert.match(baseCss, /\.nb-views\s*\{[^}]*padding:\s*6px/);
+  assert.match(baseCss, /\.nb-views\s*\{[^}]*border-radius:\s*21px/);
   assert.equal(M.viewGapAbove, 8); assert.equal(M.viewPad, 6); assert.equal(M.viewRadius, 21);
 });
 
 test('3. the play bar is centred at the foot with HVPG and PPG inside the same card (2D .vdock: min(100% - 24px, 640px) wide, readouts 274 px)', () => {
   const dock = src('src/ui/shell/Dock.tsx');
   assert.ok(dock.indexOf('<Timeline') < dock.indexOf('<Readouts'), 'the timeline row, then the readouts, in one .vdock');
-  assert.match(css2d, /\.vdock:not\(\.mini\) \{ width: min\(calc\(100% - 2 \* var\(--gap\)\), 640px\)/);
-  assert.match(css2d, /\.vdock:not\(\.mini\) \.readouts \{ width: 274px; \}/);
+  assert.match(baseCss, /\.vdock:not\(\.mini\) \{ width: min\(calc\(100% - 2 \* var\(--gap\)\), 640px\)/);
+  assert.match(baseCss, /\.vdock:not\(\.mini\) \.readouts \{ width: 274px; \}/);
   assert.equal(M.dockMaxW, 640); assert.equal(M.readoutsW, 274);
   const play = src('src/ui/shell/PlayBar.tsx');
   assert.ok(play.includes('cuts.HVPG_CUTS') && play.includes('cuts.PPG_CUTS'), 'the tiles take the cut-offs from the engine\'s one table');
@@ -55,21 +55,21 @@ test('4. the top bar is the 2D one: app icon and patient menu, Blood and the len
   assert.ok(at('float-pill tb-id') < at('stage-bar top') && at('stage-bar top') < at('top-right float-pill'), '2D order: patient, figure controls, actions');
   assert.ok(at('tb-sep') < at('pal-btn'), 'a divider before the gear and Search');
   assert.ok(tb.includes('LensKey'), 'the colour key sits in the lens button');
-  assert.match(css2d, /\.topbar\s*\{[^}]*padding:[^;]*10px/);
+  assert.match(baseCss, /\.topbar\s*\{[^}]*padding:[^;]*10px/);
 });
 
 test('5. the zoom group has Zoom in, Fit and Zoom out (and Rotate for the Circuit), above the dock on the right', () => {
   const z = src('src/ui/shell/ZoomGroup.tsx');
   for (const id of ['zoomIn', 'zoomFit', 'zoomOut', 'rotateCircuit']) assert.ok(z.includes(`id="${id}"`), id);
   assert.ok(z.indexOf('id="zoomIn"') < z.indexOf('id="zoomOut"'), 'plus, then minus, then Fit (2D index.html)');
-  assert.match(css2d, /bottom: calc\(var\(--bot-occ, 120px\) \+ 8px\)/, 'the zoom pill rides on --bot-occ');
+  assert.match(baseCss, /bottom: calc\(var\(--bot-occ, 120px\) \+ 8px\)/, 'the zoom pill rides on --bot-occ');
 });
 
 test('6. the © credit and the frame-rate readout are the 2D elements (.stage-credit placed 12 px in; .fps-counter 8 px in)', () => {
   assert.ok(src('src/ui/shell/Credit.tsx').includes('className="stage-credit"'));
   assert.ok(src('src/ui/shell/Diagnostics.tsx').includes('className="fps-counter"'));
-  assert.match(css2d, /\.stage-credit \{[^\n]*font-size: var\(--fs-12\)[^\n]*line-height: 1\.4/);
-  assert.match(css2d, /\.fps-counter \{ position: fixed; left: max\(8px, env\(safe-area-inset-left\)\); bottom: max\(8px/);
+  assert.match(baseCss, /\.stage-credit \{[^\n]*font-size: var\(--fs-12\)[^\n]*line-height: 1\.4/);
+  assert.match(baseCss, /\.fps-counter \{ position: fixed; left: max\(8px, env\(safe-area-inset-left\)\); bottom: max\(8px/);
   assert.equal(M.creditInset, 12); assert.equal(M.fpsInset, 8);
 });
 
