@@ -7,9 +7,10 @@
   "scene/labels/LabelLayer.tsx": 2,
   "scene/labels/cath-dom.ts": 3,
   "scene/labels/clamp-marks.ts": 2,
-  "scene/labels/figure-cards.ts": 19,
+  "scene/labels/figure-cards.ts": 17,
   "scene/labels/probe-labels-dom.ts": 3,
   "scene/labels/roll.ts": 4,
+  "scene/labels/tag-dom.ts": 1,
   "scene/labels/waist-bracket.ts": 3,
   "scene/lobule/LobuleCaptions.tsx": 3,
   "scene/sinusoid/SinusoidCaptions.tsx": 3,
@@ -24,7 +25,7 @@
   "ui/deck/handout.ts": 1,
   "ui/deck/laser.ts": 1,
   "ui/deck/presenter-window.ts": 1,
-  "ui/menu/UMenu.tsx": 6,
+  "ui/menu/UMenu.tsx": 3,
   "ui/scope/ScopeLens.tsx": 2,
   "ui/search/SearchSheet.tsx": 1,
   "ui/shell/Diagnostics.tsx": 1,
@@ -59,9 +60,17 @@
   "ui/charts/charts.css | .pz-crit:not(.has-cut):not(.ordered) .pzc-row:not(.pzc-hrow) .pzc-c",
   "ui/deck-ui.css | .deck-ui [hidden]",
   "ui/deck-ui.css | .pz-ab[data-compact] .pz-abb .ab-f",
+  "ui/deck-ui.css | .pz-shade.stack .pz-tabname:has(~ .pz-sitetab[data-rail])",
+  "ui/deck-ui.css | .pz-table.dk-pztable thead th:not(.num):not(:first-child)",
+  "ui/deck-ui.css | .pz-tabname:has(~ .pz-sitetab:not([data-rail]))",
   "ui/deck-ui.css | body[data-card-zoom] .pz-zbtn :is(svg, .ic):first-child",
   "ui/fade.css | html [data-fade=\"off\"]",
+  "ui/fade.css | html [data-fade=\"off\"]:not([data-fade-axis])",
   "ui/glass.css | html[data-noglass] .vdock > .vd-face",
+  "ui/histories/histories.css | .umenu[data-tab=\"histories\"] .um-col[data-col=\"patients\"]",
+  "ui/histories/histories.css | .umenu[data-tab=\"histories\"] .um-col[data-col=\"present\"]",
+  "ui/histories/histories.css | .umenu[data-tab=\"patients\"] .um-col[data-col=\"histories\"]",
+  "ui/histories/histories.css | .umenu[data-tab=\"present\"] .um-col[data-col=\"histories\"]",
   "ui/shell/sheet-swipe.css | .app:not(.thumb) .sh-grabbar",
   "ui/shell/sheet-swipe.css | .sh-root:not([data-bottom=\"true\"]) .sh-sheet > .sh-grabbar",
   "ui/shell/shell.css | .sh-root [hidden]",
@@ -71,5 +80,11 @@
  "state": [
   "parity/parity.css | .pp-table tr.on",
   "ui/css3d-over-2d.css | .pz-prail-cap > span.on"
- ]
+ ],
+ "why": {
+  "scene/labels/tag-dom.ts": "TagLead.destroy takes out a leader that is already at opacity 0 (its owner removes it once its alpha is 0, or the layer is unmounting); nothing visible leaves.",
+  "ui/deck-ui.css (pz-tabname, dk-pztable)": "structure, not state: which of the card's two tags a layout shows (level rail or deck tab), and which columns the summary table has; the markup decides, nothing switches while it is open.",
+  "ui/fade.css": "the fade primitive itself (the transition on display with allow-discrete is the ease).",
+  "ui/histories/histories.css": "the menu's third tab, the same rules as 2D's two-tab menu (app-07-floating.css): the settled state of an off tab, entered by enterCol's fade-rise and held by .um-peer while it leaves."
+ }
 }

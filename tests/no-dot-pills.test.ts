@@ -84,7 +84,7 @@ test('no chart frame draws a capsule (a rectangle rounded to half its height) ro
 const ROUND_ALLOWED: Record<string, string> = {
   '.cl-lead-dot': 'the callout leader\'s anchor on the figure', '.ac-switch': 'on/off switch knob', '.switch': 'on/off switch knob', '.switch-vis': 'on/off switch knob',
   '.sh-sw': 'on/off switch knob', '.mt-sw': 'on/off switch knob', '.sl-start': 'slider thumb', '.info-i': 'the info button\'s "i"', '.look-spin': 'a spinner',
-  '.sh-waitcue': 'a spinner', '.pz-prail-dot': 'the owner-picked step rail (mock A)', '.pz-prail-at': 'the step rail\'s play button (mock A)', '.sh-toast': 'excluded: the notes redesign',
+  '.sh-waitcue': 'a spinner', '.bt-tick': 'the Over time "What to graph" tick circle, owner-picked (graph-rows mock A, 24 Nov; docs/approved/timeline-chart.md)', '.pz-prail-dot': 'the owner-picked step rail (mock A)', '.pz-prail-at': 'the step rail\'s play button (mock A)', '.sh-toast': 'excluded: the notes redesign',
 };
 const ROUND_RETIRED = ['.pzc-c', '.pz-nm', '.pzk-n', '.ms-dot', '.hvpg-steps', '.instr-tab', '.tr-pips', '.dk-obj'];
 const px = (v: string): number | null => { const m = /^([\d.]+)(px|em)$/.exec(v.trim()); return m ? (m[2] === 'px' ? +m[1]! : +m[1]! * 14) : null; };
@@ -123,7 +123,7 @@ test('humanized.css strips every retired round mark', () => {
 const ALLOWED_ANY: Record<string, string> = {
   'pz-step': 'the numbered step disc on a slide (owner-approved)', 'pz-prail-dot': 'the owner-picked step rail (mock A)', 'pz-prail-go': 'the step rail\'s play button (mock A)', 'pz-prail-at': 'the step rail\'s ring (mock A)',
   'ms-dot': 'owner-approved numbered step', 'lead-dot': 'the callout leader\'s anchor on the figure', 'look-chip': 'the Appearance swatch (a theme preview)', 'sh-toast': 'a note (f99c7155)', 'toast': 'a note (f99c7155)',
-  'zoom-pill': 'a rounded bar of icon buttons', 'float-pill': 'a rounded bar of controls', 'pzb-pill': 'the presenter bar of buttons', 'chip-btn': 'a top-bar button',
+  'bt-tick': 'the Over time "What to graph" tick circle, owner-picked (graph-rows mock A, 24 Nov; docs/approved/timeline-chart.md)', 'zoom-pill': 'a rounded bar of icon buttons', 'float-pill': 'a rounded bar of controls', 'pzb-pill': 'the presenter bar of buttons', 'chip-btn': 'a top-bar button',
 };
 Object.assign(ALLOWED_ANY, {
   'lb-anchor': 'a leader\'s anchor mark on the figure', 'lz-co-ring': 'a ring drawn on the figure', 'lb-bar': 'the lens key\'s colour bar (no words in it)', 'pzc-rule': 'a thin rule line, no words',

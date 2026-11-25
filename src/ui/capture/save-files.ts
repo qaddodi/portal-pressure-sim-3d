@@ -3,6 +3,7 @@
 // waits on the network and the tap is spent by the time navigator.share runs (the share then fails with NotAllowedError and the file silently downloads instead).
 import { deliverWay } from './capture-model.ts';
 import { clock } from '../../clock/frame.ts';
+import { saveBlob } from '../deck/download.ts';
 
 const sleep = (ms: number) => new Promise<void>((ok) => clock.after(ok, ms));
 
@@ -13,9 +14,7 @@ export async function saveFiles(files: File[]): Promise<boolean> {
     try { await navigator.share({ files, title: files[0]?.name }); return true; } catch (e) { if ((e as { name?: string })?.name === 'AbortError') return false; }
   }
   for (const f of files) {
-    const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name;
-    document.body.appendChild(a); a.click(); a.remove();
-    clock.after(() => URL.revokeObjectURL(a.href), 20000);
+    saveBlob(f, f.name, 20000);
     if (files.length > 1) await sleep(250);
   }
   return true;

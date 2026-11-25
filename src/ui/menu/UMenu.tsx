@@ -118,10 +118,10 @@ function Inline({ open, children }: { open: boolean; children: ReactNode }) {
   return <div className={`um-inline on${leaving ? ' out' : ''}`}><div>{children}</div></div>;
 }
 
-interface ItemProps { k: string; row: Row; hidden: boolean; current?: boolean; info: string; open: boolean; onInfo(): void; onHover(el: HTMLElement | null): void; onPress(): void; lead?: ReactNode; text: string; sub?: ReactNode; metas: ReactNode; trail?: ReactNode; pv: ReactNode; isNew?: boolean }
-function Item({ k, row, hidden, current, info, open, onInfo, onHover, onPress, lead, text, sub, metas, trail, pv }: ItemProps) {
+interface ItemProps { k: string; row: Row; filtered: boolean; current?: boolean; info: string; open: boolean; onInfo(): void; onHover(el: HTMLElement | null): void; onPress(): void; lead?: ReactNode; text: string; sub?: ReactNode; metas: ReactNode; trail?: ReactNode; pv: ReactNode; isNew?: boolean }
+function Item({ k, row, filtered, current, info, open, onInfo, onHover, onPress, lead, text, sub, metas, trail, pv }: ItemProps) {
   return (
-    <li {...fadeAttrs(!hidden, 'y')}><div className="fade-in um-li-in">
+    <li {...fadeAttrs(!filtered, 'y')}><div className="fade-in um-li-in">
       <button type="button" className="um-row" data-k={k} data-find={row.find} aria-current={current ? 'true' : undefined} onClick={onPress}
         onPointerEnter={(e) => { if (e.pointerType === 'mouse') onHover(e.currentTarget); }} onPointerLeave={() => onHover(null)}
         onFocus={(e) => { if (e.currentTarget.matches(':focus-visible')) onHover(e.currentTarget); }} onBlur={() => onHover(null)}>
@@ -280,7 +280,7 @@ export function UMenu() {
   const deckItem = (d: DeckMeta) => {
     const k = 'd:' + d.id, r = now === d.id ? null : resumeFor(d.id, slideCount(d.id)), name = d.short || d.title;
     return (
-      <Item key={k} k={k} row={rowOf(k)} hidden={!shownP.has(k)} current={now === d.id} info={name} open={openRow === k} onInfo={() => toggleInfo(k)} onHover={onHover(k)} onPress={() => startDeck(d.id, r?.at ?? 0)}
+      <Item key={k} k={k} row={rowOf(k)} filtered={!shownP.has(k)} current={now === d.id} info={name} open={openRow === k} onInfo={() => toggleInfo(k)} onHover={onHover(k)} onPress={() => startDeck(d.id, r?.at ?? 0)}
         lead={<I n="play" className="um-play" />} text={name}
         metas={<><span className="um-m um-lv">{LEVELS[d.level ?? ''] ?? ''}</span>{r ? <span className="um-m um-res">{`Resume ${r.at + 1} / ${r.n}`}</span> : <span className="um-m">{d.minutes} min</span>}</>}
         pv={<DeckPv d={d} close={close} />} />
@@ -289,7 +289,7 @@ export function UMenu() {
   const scriptItem = (s: Script) => {
     const k = 's:' + s.id;
     return (
-      <Item key={k} k={k} row={rowOf(k)} hidden={!shownP.has(k)} current={now === s.id} info={s.title} open={openRow === k} onInfo={() => toggleInfo(k)} onHover={onHover(k)} onPress={() => startDeck(s.id, 0)}
+      <Item key={k} k={k} row={rowOf(k)} filtered={!shownP.has(k)} current={now === s.id} info={s.title} open={openRow === k} onInfo={() => toggleInfo(k)} onHover={onHover(k)} onPress={() => startDeck(s.id, 0)}
         lead={<I n="play" className="um-play" />} text={s.title} metas={<span className="um-m">{W.slides(s.steps ? s.steps.length + 2 : deckOf(s.id)?.slides.length ?? 0)}</span>}
         pv={<ScriptPv s={s} close={close} />} />
     );
@@ -340,7 +340,7 @@ export function UMenu() {
                 {g.patients.map((p) => {
                   const k = 'p:' + p.id;
                   return (
-                    <Item key={k} k={k} row={rowOf(k)} hidden={!shownT.has(k)} current={patientId === p.id} info={p.label} open={openRow === k} onInfo={() => toggleInfo(k)} onHover={onHover(k)}
+                    <Item key={k} k={k} row={rowOf(k)} filtered={!shownT.has(k)} current={patientId === p.id} info={p.label} open={openRow === k} onInfo={() => toggleInfo(k)} onHover={onHover(k)}
                       onPress={() => { void loadPatient(p.id).then((ok) => { if (ok) close(); }); }}
                       text={p.label} metas={null} trail={patientId === p.id ? <I n="check" className="um-check" /> : null} pv={<PatientPv id={p.id} label={p.label} group={g.group} />} />
                   );
@@ -357,7 +357,7 @@ export function UMenu() {
                 {g.rows.map((h) => {
                   const k = 'h:' + h.id;
                   return (
-                    <Item key={k} k={k} row={rowOf(k)} hidden={!shownH.has(k)} current={patientId === h.id} info={h.name} open={openRow === k} onInfo={() => toggleInfo(k)} onHover={onHover(k)}
+                    <Item key={k} k={k} row={rowOf(k)} filtered={!shownH.has(k)} current={patientId === h.id} info={h.name} open={openRow === k} onInfo={() => toggleInfo(k)} onHover={onHover(k)}
                       onPress={() => { void openFromMenu(h.id, false); }}
                       text={h.name} sub={<span className="um-sub">{h.state.map((x, i) => <span key={i}>{i ? ', ' : ''}{x.tone === 'danger' ? <span className="hh-danger">{x.text}</span> : x.text}</span>)}</span>}
                       metas={<span className="um-m">{lengthWords(h.days)}</span>} trail={patientId === h.id ? <I n="check" className="um-check" /> : null} pv={<HistoryPv h={h} />} />

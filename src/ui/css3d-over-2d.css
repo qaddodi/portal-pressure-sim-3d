@@ -175,6 +175,7 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 .app.thumb .vdock .readouts .rd-chart { pointer-events: auto; display: inline-flex; align-items: center; gap: 5px; flex: none; height: 34px; padding: 0 4px 0 6px; border: 0; border-radius: var(--r-control); background: transparent; color: var(--text-2); font: 600 var(--fs-12)/1 var(--font-ui); white-space: nowrap; cursor: pointer; position: relative; }
 .app.thumb .vdock .readouts .rd-chart > .mi-ic { width: 20px; height: 20px; flex: none; }
 .app.thumb .vdock .readouts .rd-chart::after { content: ""; position: absolute; inset: -5px -4px; }   /* (a 44 pt finger target, as the view pill's buttons have) */
+.app.thumb .vdock .readouts .rd-chart { transition: color var(--d-small) var(--ease); }   /* (lit and unlit ease) */
 .app.thumb .vdock .readouts .rd-chart[aria-pressed="true"] { color: var(--text); }
 
 /* The Doppler strip's pattern word wraps under the number and direction when the card is too narrow for one line; it is never cut with an ellipsis (the copied rule hid it:

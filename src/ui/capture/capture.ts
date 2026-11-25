@@ -7,6 +7,7 @@ import { isCustomCase } from '../action/case-name.ts';
 import { figureShot } from '../../scene/figure-shot.ts';
 import { clock } from '../../clock/frame.ts';
 import { useShell } from '../shell/store.ts';
+import { saveBlob } from '../deck/download.ts';
 import { useEngine } from '../../engine/index.ts';
 import { shareLinkNow } from '../shell/share-wire.ts';
 import { FEEDBACK_SHEET_MS } from '../shell/feedback.ts';
@@ -107,10 +108,7 @@ function copyNote(text: string): void {
 }
 
 function download(m: Made): void {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(m.blob); a.download = m.name;
-  document.body.appendChild(a); a.click(); a.remove();
-  clock.after(() => URL.revokeObjectURL(a.href), 10000);
+  saveBlob(m.blob, m.name, 10000);
 }
 
 /** Capture the screen and hand it over. `settle`: the Settings sheet is open (the tap came from it), so it is let go first and not in the picture. */
