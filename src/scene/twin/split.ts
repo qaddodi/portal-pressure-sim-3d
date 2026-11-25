@@ -73,7 +73,7 @@ function enter(h: HealthyProfile): void {
   if (last) applyCamera(last.shot, last.room, last.ms);
   else if (lastRoom) applyRoom(lastRoom);
   // (the page's figure glides into the right half as the cut sweeps in, in the same time)
-  if (lastRoom) host.scene.rig.setRoom(halveRoom(lastRoom).main, clock.now(), WIPE_MS, false, true, easeArrive);
+  if (lastRoom) host.scene.setRoom(halveRoom(lastRoom).main, clock.now(), WIPE_MS, false, true, easeArrive);
   showLabels();
   startSweep();
   clock.invalidate('twin-built');
@@ -108,7 +108,7 @@ function applyCamera(shot: ShotName | Shot, room: Room, ms: number | undefined):
 }
 function applyRoom(room: Room, ms?: number, ease?: (k: number) => number): void {
   if (!twin || twin.disposed) return;
-  twin.scene.rig.setRoom(halveRoom(room).twin, clock.now(), ms, false, true, ease ?? null);
+  twin.scene.setRoom(halveRoom(room).twin, clock.now(), ms, false, true, ease ?? null);
 }
 
 /** The page's `goTo`, asked what room to use and told the shot: with the split up the page's scene takes the right half of the room and the twin the left, the same shot and time. */
