@@ -1,5 +1,6 @@
 // The preload ladder: what a person opens a little after the first picture is read in, one rung at a time, each in its own quiet slot, so the first tap on it costs nothing visible. Nothing here is needed for
-// the first picture; a rung that fails is left for its first use (the lazy retry, boot/lazy-retry.ts, tries it again then). The weld plan (the Lobule's 1.7 MB file) is the rung after the modules: it is not part of the first download.
+// the first picture; a rung that fails is left for its first use (the lazy retry, boot/lazy-retry.ts, tries it again then). The weld plan (the Lobule's 1.7 MB file) is the
+// rung after the modules: it is not part of the first download.
 //   rungs, in order:  the instrument modules (Doppler, Endoscopy, HVPG/IR, FibroScan, Profile, Trials: dock/lazy.ts LOADERS, evaluated, nothing mounted), a talk's own UI, a talk's charts (the tool card),
 //                     the shared chart context, then the instruments' GL programs on it (boot/warm-programs.ts).
 // A rung runs inside a slot the caller hands in (`slot(go)` calls go() when nobody is watching motion; the one background-work slot, clock/idle.ts: quietSlot) and never when the person asked the browser to save data (boot/data-saver.ts: Save-Data, a 2g link): those parts are then fetched on use and kept, as ever.
@@ -34,7 +35,8 @@ export const RUNGS: readonly Rung[] = [
   { id: 'module:stent', run: () => loadStentPanel() },   // (the TIPS, DIPS and custom shunt cards' editor: a chunk of its own, 25 Nov)
   { id: 'module:talk-ui', run: () => loadDeckUi() },   // (a talk's own UI: cards, wallet, presenter pill; a chunk of its own, 24 Nov)
   { id: 'module:talk', run: () => loadToolCard() },   // (a talk's charts)
-  // (the Lobule's baked weld plan, 1.7 MB: read in here, after the cover, instead of at boot; the rung's run starts the Lobule's use of it, and the micro views' preparation goes on from there. A page that saves data skips the whole
+  // (the Lobule's baked weld plan, 1.7 MB: read in here, after the cover, instead of at boot; the rung's run starts the Lobule's use of it, and the micro views' preparation
+  // goes on from there. A page that saves data skips the whole
   // ladder and reads it when the Lobule is first asked for)
   { id: 'welds', load: async () => { await afterCover(); return weldBytes(); }, run: () => wantWelds() },
   { id: 'programs:charts', run: () => { sharedContext(); } },   // (the one shared chart context, with the chart program)

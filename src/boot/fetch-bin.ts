@@ -20,7 +20,10 @@ export interface FetchBinOptions {
   quietMs?: number;
   /** Tries after the first one (default 1). */
   retries?: number;
-  /** Told how much of the file has come, 0 to 1 of its size on the wire (only when the host says the size), each time more of it arrives: the Lobule's weld file, behind the "Preparing the lobule" note. */
+  /**
+   * Told how much of the file has come, 0 to 1 of its size on the wire (only when the host says the size), each time more of it arrives: the Lobule's weld file, behind the
+   * "Preparing the lobule" note.
+   */
   onProgress?: (share: number) => void;
 }
 
@@ -52,7 +55,10 @@ async function attempt(url: string, gunzip: boolean, quietMs: number, onProgress
     // (progress counts the bytes on the wire, before the unzip: what a link carries, against the size the host gave)
     const size = Number(r.headers.get('content-length')) || 0;
     let got = 0;
-    const wire = onProgress && size > 0 ? r.body.pipeThrough(new TransformStream<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>({ transform(chunk, out) { out.enqueue(chunk); got += chunk.byteLength; onProgress(Math.min(1, got / size)); } })) : r.body;
+    const count = new TransformStream<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>({
+      transform(chunk, out) { out.enqueue(chunk); got += chunk.byteLength; onProgress?.(Math.min(1, got / size)); },
+    });
+    const wire = onProgress && size > 0 ? r.body.pipeThrough(count) : r.body;
     const reader = (gunzip ? wire.pipeThrough(new DecompressionStream('gzip')) : wire).getReader();
     const chunks: Uint8Array[] = []; let n = 0;
     for (;;) {

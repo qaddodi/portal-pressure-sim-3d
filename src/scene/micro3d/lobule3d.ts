@@ -330,14 +330,18 @@ export class Lobule3D {
     if (!lazy) this.buildVessels();
     this.group.visible = false;
     flat.group.add(this.group);   // (the Lobule's root takes everything under it into its one fade)
-    // (on a page the baked plan (1.7 MB) is NOT asked for here: it is not part of the first download. The quiet ladder asks for it once the page is usable and the link is not saving data (boot/warm.ts rung `welds`, `wantWelds`),
+    // (on a page the baked plan (1.7 MB) is NOT asked for here: it is not part of the first download. The quiet ladder asks for it once the page is usable and the link is not
+    // saving data (boot/warm.ts rung `welds`, `wantWelds`),
     // and the first dive into the Lobule asks at once and waits for it (`weldsWait`, scene.ts microStep). Off a page, a test, at once as before)
     if (typeof window === 'undefined') this.askWelds();
   }
 
   // ---- welded junctions (lobule/welds.ts) -------------------------------------------------------------------------------------------
 
-  /** Asks for the weld plan, once (never with `?joins=old`): the baked file first, a worker only when there is none. The plan is laid in while the Lobule is out of sight, so no junction changes in front of the eye. */
+  /**
+   * Asks for the weld plan, once (never with `?joins=old`): the baked file first, a worker only when there is none. The plan is laid in while the Lobule is out of sight, so
+   * no junction changes in front of the eye.
+   */
   private askWelds(): void {
     if (this.weldsAsked || this.disposed || joinsMode() === 'old') { if (!this.weldsAsked) this.settleWelds(); return; }
     this.weldsAsked = true;
@@ -347,7 +351,8 @@ export class Lobule3D {
     void requestBakedWelds(req).then((plan) => {
       stop();
       if (plan) { lay(plan); this.settleWelds(); return; }
-      // (no baked plan: a person never waits for ten seconds of planning. The Lobule is let in with its round-ended tubes, and the plan made in a worker is laid in while it is out of sight, as it always was)
+      // (no baked plan: a person never waits for ten seconds of planning. The Lobule is let in with its round-ended tubes, and the plan made in a worker is laid in while it is
+      // out of sight, as it always was)
       this.settleWelds();
       void planWeldsInWorker(req).then(lay);
     });
@@ -360,8 +365,10 @@ export class Lobule3D {
   onWeldProgress: ((k: number) => void) | null = null;
   /** Called once when the weld plan is in or known to be unavailable (scene.ts takes up the micro views' preparation again). */
   onWeldsSettled: (() => void) | null = null;
-  /** Whether the Lobule still waits for its baked weld plan: only on a page, from the moment the Lobule is built until the plan has come or failed. A Lobule shown before the plan is in would draw round-ended tubes, and the plan
-   *  could be laid in only after it went out of sight again, so the dive waits (scene.ts) and the vessels are built once, welded. */
+  /**
+   * Whether the Lobule still waits for its baked weld plan: only on a page, from the moment the Lobule is built until the plan has come or failed. A Lobule shown before the plan is in
+   * would draw round-ended tubes, and the plan could be laid in only after it went out of sight again, so the dive waits (scene.ts) and the vessels are built once, welded.
+   */
   get weldsWait(): boolean { return typeof window !== 'undefined' && !this.weldsSettled && joinsMode() !== 'old'; }
   /** The plan is wanted now (the quiet ladder's turn, or a dive): asks for it if nobody has. */
   wantWelds(): void { this.askWelds(); }

@@ -3,7 +3,8 @@
 // resolution of the source file), the triangles, the baked depth (bytes), the outline's steps from the rim (0..3, bytes), the two smoothed normals (snorm16) and the duodenum's tail fade; the surface normal is
 // recomputed from the positions on load (a few ms). The digest it carries is of everything it was made from (the organs file, the caudate outline's code, the pipeline's source): a page built from other inputs
 // never lays it in and runs prepare.ts live, as before (a dev server, a build whose bake failed).
-// Layout: "ORB2", u32 header length, the header as JSON (each array a reference: where, how many, and the reversible transform it was written under, bake-pack.ts), then the arrays' bytes. The arrays come back bit for bit; the
+// Layout: "ORB2", u32 header length, the header as JSON (each array a reference: where, how many, and the reversible transform it was written under, bake-pack.ts), then the
+// arrays' bytes. The arrays come back bit for bit; the
 // stomach as the organs file has it (RAW_IDS) is the finished stomach's own positions and triangles (the placed organs keep their vertices where the file has them), so the file holds it once.
 import { splitIndex } from './subdivide.ts';
 import { PackWriter, unpackRef, type PackArray, type PackRef } from '../bake-pack.ts';
@@ -41,7 +42,12 @@ function octDecode(s: Int16Array, out: Float32Array): void {
 }
 
 /** The finished geometries as a file's bytes (what `prepareOrgans` returned, in its order). `gz`: the size gzip gives some bytes (bake-pack.ts PackWriter; node's by default). */
-export function encodeOrgans(made: readonly (readonly [string, BufferGeometry])[], digest: string, raw: readonly (readonly [string, BufferGeometry])[] = [], gz?: (b: Uint8Array) => number): Uint8Array {
+export function encodeOrgans(
+  made: readonly (readonly [string, BufferGeometry])[],
+  digest: string,
+  raw: readonly (readonly [string, BufferGeometry])[] = [],
+  gz?: (b: Uint8Array) => number,
+): Uint8Array {
   const w = new PackWriter(gz);
   const head: Head = { digest, organs: [], raw: [] };
   const kept = new Map<string, { q: Int16Array; ix: Uint16Array }>();   // (what the raw organs may point at)
@@ -67,7 +73,11 @@ export function encodeOrgans(made: readonly (readonly [string, BufferGeometry])[
     for (const k of extra) a[k] = w.add(Float32Array.from(g.getAttribute(k).array));
     const tube = !!g.userData.tube, nrm = tube || !gridKeepsNormals(q, idx, g.getAttribute('normal').array);
     if (nrm) { const s = new Int16Array(n * 2); octEncode(g.getAttribute('normal').array, s); a.nrm = w.add(s); }
-    head.organs.push({ id, a, verts: n, indices: idx.length, wide, eso: !!eso, ...(parent && parent.length * 4 === idx.length ? { sub: parent.length } : {}), ...(prof ? { prof } : {}), ...(extra.length ? { extra } : {}), ...(nrm ? { nrm: true as const } : {}), ...(tube ? { tube: true as const } : {}) });
+    head.organs.push({
+      id, a, verts: n, indices: idx.length, wide, eso: !!eso,
+      ...(parent && parent.length * 4 === idx.length ? { sub: parent.length } : {}),
+      ...(prof ? { prof } : {}), ...(extra.length ? { extra } : {}), ...(nrm ? { nrm: true as const } : {}), ...(tube ? { tube: true as const } : {}),
+    });
   }
   for (const [id, g] of raw) {   // (organs as the file gives them, before prepare: what the scope's esophagus is fitted to; the stomach's mesh in meshes.ts)
     const pos = g.getAttribute('position').array, q = new Int16Array(pos.length);

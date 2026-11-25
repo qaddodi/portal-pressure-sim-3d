@@ -263,7 +263,8 @@ export class CelScene {
     const sinus = this.makeSinus();
     const lobule = span('build:lobule3d', () => new Lobule3D(this.lobule, this.shared, true));   // (it mounts itself under the Lobule's root: lobule/one-fade.ts)
     this.micro = { sinus, lobule };
-    // (the weld plan is read in when the quiet ladder gets to it or a dive asks, not at boot: a dive waits for it behind the cue, which says how far it has come, and the preparation goes on when it is in)
+    // (the weld plan is read in when the quiet ladder gets to it or a dive asks, not at boot: a dive waits for it behind the cue, which says how far it has come, and the
+    // preparation goes on when it is in)
     lobule.onWeldProgress = (k) => { if (lobule.weldsWait) this.holdCue?.progress?.(k); };
     lobule.onWeldsSettled = () => { this.holdCue?.progress?.(null); this.resumeMicro(); };
     if (this.weldsWanted) lobule.wantWelds();
@@ -313,7 +314,8 @@ export class CelScene {
       if (!this.micro) { this.microWhat = this.microSinus ? 'lobule constructor' : 'sinusoid constructor'; if (!this.microSinus) this.makeSinus(); else this.buildMicro(); }   // (one constructor a step)
       else if (!this.micro.sinus.shapeReady) { this.microWhat = 'sinusoid shapes'; this.micro.sinus.prepareShapeStep(); }
       else if (this.micro.lobule.weldsWait) {
-        // (the vessels are built once, welded, so they wait for the plan: ask for it if a person is waiting, and stand down; the job is made again when the plan is in, `resumeMicro`. No slice spins on a download.)
+        // (the vessels are built once, welded, so they wait for the plan: ask for it if a person is waiting, and stand down; the job is made again when the plan is in,
+        // `resumeMicro`. No slice spins on a download.)
         this.microWhat = 'weld plan'; if (this.weldsWanted) this.micro.lobule.wantWelds();
         this.microJob = null; return true;
       }

@@ -1,10 +1,14 @@
-// The baked files' arrays (organs, skins, welds), stored smaller and read back bit for bit. A baked file is a JSON header and, after it, the arrays' bytes; the host sends the whole file as it is (gzip, made here at
-// build time), so what counts is how well gzip does on those bytes. Raw typed arrays compress badly: a float's low bytes are noise between its high ones, an index list climbs a little each step. Each array is
+// The baked files' arrays (organs, skins, welds), stored smaller and read back bit for bit. A baked file is a JSON header and, after it, the arrays' bytes; the host sends
+// the whole file as it is (gzip, made here at
+// build time), so what counts is how well gzip does on those bytes. Raw typed arrays compress badly: a float's low bytes are noise between its high ones, an index list
+// climbs a little each step. Each array is
 // therefore written through one of a few reversible transforms, chosen at bake time by what gzip makes of it (`PackWriter.add`), and undone on reading (`unpackRef`):
 //   - the bytes of each word split into planes (every word's first byte, then every second byte...): the high bytes of neighbouring floats and of small numbers are alike and now lie together;
-//   - and, before that, each word taken from the word `stride` places before it (a delta, modulo the word, then folded so a small step either way is a small number): a mesh's vertices and its triangle
+// - and, before that, each word taken from the word `stride` places before it (a delta, modulo the word, then folded so a small step either way is a small number): a mesh's
+// vertices and its triangle
 //     indices move a little from one to the next, so the steps are small numbers and their high planes are runs of zeros.
-// No value is rounded: the arrays that come out are the arrays that went in, so a picture drawn from them cannot change (tests/bake-pack.test.ts). Used by organs/baked.ts, vessels/skin/baked.ts and lobule/weld-codec.ts.
+// No value is rounded: the arrays that come out are the arrays that went in, so a picture drawn from them cannot change (tests/bake-pack.test.ts). Used by organs/baked.ts,
+// vessels/skin/baked.ts and lobule/weld-codec.ts.
 
 /** The element kinds a file holds (the name is what the header records). */
 export type PackKind = 'Float32Array' | 'Uint32Array' | 'Int32Array' | 'Int16Array' | 'Uint16Array' | 'Uint8Array';
@@ -29,7 +33,10 @@ function wordsOf(a: PackArray): Int32Array | Int16Array {
   throw new Error('bake-pack: bytes are not transformed');
 }
 
-/** The array's bytes under transform `m`: the words, each less the word `stride` before it and folded (so a small step either way is a small number), then split into byte planes. Bytes (width 1) are left as they are. */
+/**
+ * The array's bytes under transform `m`: the words, each less the word `stride` before it and folded (so a small step either way is a small number), then split into byte
+ * planes. Bytes (width 1) are left as they are.
+ */
 export function forward(a: PackArray, m: number): Uint8Array {
   const w = WIDTH[a.constructor.name as PackKind], n = a.length;
   if (m === 0 || w === 1) return new Uint8Array(a.buffer, a.byteOffset, a.byteLength);

@@ -1,5 +1,6 @@
 // The weld plan as one binary file (baked at build time, scripts/bake-welds.mjs; the phone fetches it and plans nothing). Layout: "LWB2", u32 header length, the header as JSON (the plan with every
-// typed array replaced by its reference {$t, o, n, m} and every Map by {$m: [[key, value]...]}), padding to 4 bytes, then the arrays' bytes (written through a reversible transform each, bake-pack.ts: read back bit for bit).
+// typed array replaced by its reference {$t, o, n, m} and every Map by {$m: [[key, value]...]}), padding to 4 bytes, then the arrays' bytes (written through a reversible
+// transform each, bake-pack.ts: read back bit for bit).
 import type { WeldPlan } from './welds.ts';
 import { PackWriter, isRef, unpackRef } from '../bake-pack.ts';
 
