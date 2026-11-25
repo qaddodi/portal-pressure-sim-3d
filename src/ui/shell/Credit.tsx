@@ -122,9 +122,9 @@ export function Credit() {
       // A talk on a laptop, desktop or a landscape tablet: the credit has the one place, in the screen's foot band under the cards' left edge, the same on every slide, never a hunt for bare figure among labels and table
       // rows that are still moving (Mac, 21 Nov: it sat on figure labels and table rows; the iPhone has its row in the words card's foot for the same reason)
       const lay = layoutOf(vw, vh);
-      // (an upright iPad too, where its foot band under the cards is free: the hunt floated it over the figure, across vessels and the scope's lens, in five of six slides of capture af88a9c2; where a card reaches the band, the hunt as before)
+      // (an upright iPad carries its credit in its words card's foot row as the iPhone does: the foot band was free only where no card reached it, and the hunt that stood in for the rest floated it across vessels, af88a9c2 and af1c51a0)
       const foot = footCredit({ vw, vh, safe: vp.safe, h, margin: margin(vw, vh, lay) });
-      if (talk && (lay === 'wide' || lay === 'short' || (lay === 'tab' && footShown(foot, w, h, vw, vh, '.dk-strip, .dk-card, .dk-bar')))) {
+      if (talk && (lay === 'wide' || lay === 'short')) {
         const at = foot;
         clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
         // a phone on its side: a words card carries the credit in its own foot (CardFrame .pz-cred), so the floating line fades while one is up, and while any card stands on its row
@@ -134,7 +134,7 @@ export function Credit() {
       }
       // An iPhone held upright: a words card carries the credit in its own foot row (CardFrame .pz-cred; the floating line is hidden while one is up, chrome-3d.css). A slide with no words card (its one card is a table) has no row,
       // so the line stands in the screen's foot band, the one place, never a hunt: the hunt found bare glass in the middle of the table card (HVPG 14, headless 440x736, 25 Nov). Where a card, the pill or a drawer is on that band it stays hidden.
-      if (talk && lay === 'stack' && !document.querySelector('.dk-card .pz-cred')) {
+      if (talk && (lay === 'stack' || lay === 'tab') && !document.querySelector('.dk-card .pz-cred')) {
         const at = foot, clear = footShown(at, w, h, vw, vh, '.dk-strip, .dk-card, .dk-bar');
         clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
         el.classList.toggle('covered', !clear); el.classList.remove('moving'); el.classList.add('placed'); at0 = at; shown = clear; if (clear) creditClaim.set({ x: at.x, y: at.y, w, h }); else creditClaim.set(null);

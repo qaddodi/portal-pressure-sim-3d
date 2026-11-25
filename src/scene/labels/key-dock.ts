@@ -82,10 +82,10 @@ export function dockKey(i: DockIn): Dock {
       const s = sized(w, h, wrap), hh = Math.max(s.h, minH);
       return { box: { x0: left, y0: vp.h - bottom - hh, x1: left + s.w, y1: vp.h - bottom }, wrap, minH, at, short };
     };
-    const drop = tab ? 0 : footDrop(vp), rowBottom = foot + safe.bottom - drop + (tab ? 0 : credRow(vp));   // (the phone's credit row stands under the pill's row)
+    const drop = tab ? 0 : footDrop(vp), rowBottom = foot + safe.bottom - drop + credRow(vp);   // (the credit row, a phone's and an upright iPad's, stands under the pill's row)
     // The card's words end this far above the card's foot (deck-ui.css: the pad, 50 px for the pill and, on a tall phone, the credit's row): the key beside the pill never stands taller than what is left of that above its own foot,
     // estimated from the key on one line alone (the drawn size never changes the answer). Root of "the legend covers the card's last line" (iPhone, 21 Nov): the key's height was never held to the room the card keeps clear.
-    const avail = cardPad(vp.w, vp.h).y + 50 + (tab ? 0 : credRow(vp)) - (rowBottom - (tab ? Math.max(safe.bottom, 0) + 8 : footReserve(vp)));
+    const avail = cardPad(vp.w, vp.h).y + 50 + credRow(vp) - (rowBottom - (tab ? Math.max(safe.bottom, 0) + 8 : footReserve(vp)));
     const fits = (h: number) => Math.max(h, minH) <= avail + 0.5;
     if (natural.w <= room && fits(natural.h)) return place(natural.w, natural.h, rowBottom, null, 'beside-pill');
     if (!tab && natural.w <= 2 * room && room > 0 && natural.h * TWO_LINES <= D.pillH + 1.5 && fits(natural.h * TWO_LINES)) return place(room, natural.h * TWO_LINES, rowBottom, room, 'beside-pill');

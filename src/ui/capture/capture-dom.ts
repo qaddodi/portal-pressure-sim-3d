@@ -369,6 +369,9 @@ export function paintScreen(g: CanvasRenderingContext2D, items: ScreenItem[], s:
         for (const sh of it.ts) {
           g.save();
           g.globalAlpha = it.alpha; g.textBaseline = 'middle'; g.font = it.font;
+          // (the glow copy is turned and spaced as the words are: a word turned up an edge, the chart's unit, was drawn once more upright on its own centre, "mmHg" twice, capture af1c51a0)
+          if (it.spacing) (g as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${it.spacing}px`;
+          if (it.rot) { const cx = it.x + it.w / 2; g.translate(cx, it.y); g.rotate(it.rot); g.translate(-cx, -it.y); }
           g.shadowColor = sh.color; g.shadowBlur = sh.blur * s; g.shadowOffsetX = sh.ox * s; g.shadowOffsetY = sh.oy * s;
           g.fillStyle = it.fill; g.fillText(it.text, it.x, it.y);
           g.restore();

@@ -32,7 +32,7 @@ for (const [name, vp] of Object.entries(SCREENS)) {
         if (d.at === 'beside-pill') { assert.equal(b.y1, vp.h - PHONE_SIDE - vp.safe.bottom + footDrop(vp) - credRow(vp), 'on the pill\'s row'); assert.ok(b.y1 - b.y0 >= PHONE_MIN_H, 'at least the row\'s height'); assert.ok(b.x1 <= bar.x - 8 + 0.5, 'beside the pill'); }
         else assert.equal(b.y1, words ? words.y - 30 : vp.h - PHONE_UP_FOOT - vp.safe.bottom + footDrop(vp), 'a row of its own above the words\' card (never over its words)');
       } else if (layout === 'tab') {
-        assert.equal(b.y1, d.at === 'beside-pill' ? vp.h - TAB_FOOT - vp.safe.bottom : words ? words.y - 30 : vp.h - TAB_UP_FOOT - vp.safe.bottom);
+        assert.equal(b.y1, d.at === 'beside-pill' ? vp.h - TAB_FOOT - vp.safe.bottom - credRow(vp) : words ? words.y - 30 : vp.h - TAB_UP_FOOT - vp.safe.bottom);
         assert.ok(b.x0 >= (words ? words.x : 0), 'inside the card\'s left edge');
       } else {
         assert.equal(b.x1, bar.x + bar.w, 'right-aligned with the pill');

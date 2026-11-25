@@ -235,7 +235,10 @@ export function captureViews(size: { w: number; h: number; layout: string; sidew
 /** How long (page ms, before the speed is applied) the capture waits for a slide to be still. A procedure's graph draws its head to the run's end on the page's own frames, which are few on a slow screen: while that is
  *  the only thing arriving the wait is the long one, so the picture (and the tucked one after it) is taken at the run's end, never in its middle (capture 2b947e48, Gastric varices 7). */
 export const GRAPH_WAIT_MS = 90000;
-export const settleLimitMs = (why: string, base: number): number => (why.startsWith('the procedure graph') ? Math.max(base, GRAPH_WAIT_MS) : base);
+/** The same for a "Preparing…" cue (the lobule, a pane or a dive is still being made): on a phone or a tablet the lobule took longer than the plain wait, and its slide (Circulation 5, Ascites 3) was
+ *  taken under the cue, the body behind it and the card words naming parts of a lobule that was not there (capture af1c51a0, iPhone and iPad). */
+export const PREPARE_WAIT_MS = 60000;
+export const settleLimitMs = (why: string, base: number): number => (why.startsWith('the procedure graph') ? Math.max(base, GRAPH_WAIT_MS) : why.startsWith('a "Preparing') ? Math.max(base, PREPARE_WAIT_MS) : base);
 
 /** The pressable choices of a teaching slide's cards that are not the one standing: tabs, radios, switches and toggle buttons that say they are off (an opted-in chooser, `data-audit-select`, too). The audit's capture presses each and takes a picture. */
 export const CHOICE_SEL = '[role="tab"]:not([aria-selected="true"]), [role="radio"]:not([aria-checked="true"]), [role="switch"][aria-checked="false"], button[aria-pressed="false"], [data-audit-select]:not([aria-selected="true"]):not([aria-pressed="true"]):not([aria-expanded="true"]):not([data-on=""]):not([data-on="true"])';

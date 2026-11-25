@@ -23,7 +23,7 @@ test('on every wide or short screen the talk credit stands in the foot band, und
 
 test('Credit.tsx uses it for a talk on a wide or short screen and keeps its hunt for free play', () => {
   const src = readFileSync('src/ui/shell/Credit.tsx', 'utf8');
-  assert.match(src, /talk && \(lay === 'wide' \|\| lay === 'short' \|\| \(lay === 'tab' && footShown\(foot,/);
+  assert.match(src, /talk && \(lay === 'wide' \|\| lay === 'short'\)\) \{/);
   assert.match(src, /footCredit\(/);
   assert.match(src, /freeSpots/);
 });

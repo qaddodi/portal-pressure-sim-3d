@@ -71,7 +71,7 @@ export const FOOT_ZONE = 62;
 /** An iPhone's credit stands in a row of its own at the foot of the words card (2D app-05 `.pz-cred`: "no bare spot at 12 px on most slides, 15 Oct"), so a card's words never run under it: the row is part of the card's foot,
  *  the pill and the key stand this much higher, and the card's foot padding (deck-ui.css) is this much deeper. A short phone (600 px tall or less) has no room for the row: there the credit floats (shell/Credit.tsx). */
 export const CRED_ROW = 20;
-export const credRow = (vp: Viewport): number => (layoutOf(vp.w, vp.h) === 'stack' && vp.h > 600 ? CRED_ROW : 0);
+export const credRow = (vp: Viewport): number => ((layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab') && vp.h > 600 ? CRED_ROW : 0);   // (an upright iPad too: its floating credit hunted across vessels where a card reached its foot band, capture af1c51a0)
 /** The corner radius of an iPhone's own screen (a phone whose page reaches the home-bar inset has rounded corners; the older models, whose page has no bottom inset, are square). */
 export const screenRadius = (vp: Viewport): number => (layoutOf(vp.w, vp.h) === 'stack' && vp.safe.bottom > 0 ? (vp.w <= 376 ? 44 : vp.w <= 390 ? 47 : 55) : 0);
 /** The gap an iPhone's bottom card keeps from the screen's edge on its three sides: its corners are the screen's own, inset by this (concentric). */

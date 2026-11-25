@@ -33,3 +33,19 @@ test('a non-scaling stroke is its stated width on the screen, whatever the matri
   assert.equal(strokeWidthIn(1.6, 'non-scaling-stroke', { a: 0, b: 0 }), 1.6, 'a degenerate matrix leaves it');
   for (const f of ['capture/capture-dom.ts', 'shell/figure-image-dom.ts']) assert.match(readFileSync(new URL(`../src/ui/${f}`, import.meta.url), 'utf8'), /strokeWidthIn\(num\(cs\.strokeWidth\), cs\.vectorEffect, m\)/, f);
 });
+
+// Capture af1c51a0, the gut-to-heart chart on every device: "mmHg" showed twice, one turned up the edge and one upright on the same centre. Root: the glow pass of a word with a text-shadow
+// (every word in the data cards: `.pz-data { text-shadow }`) drew its copy with no turn, so only a turned word (the chart's unit, the one in the app) showed a second, upright one.
+test('a turned word with a glow is turned in its glow pass too: no upright copy of it', async () => {
+  const { paintScreen } = await import('../src/ui/capture/capture-dom.ts');
+  const log: string[] = [];
+  const g = new Proxy({}, { get: (_t, k) => (typeof k === 'string' ? (...a: unknown[]) => { log.push(k === 'rotate' ? `rotate:${a[0]}` : k); } : undefined), set: () => true }) as unknown as CanvasRenderingContext2D;
+  const word = { k: 'text', text: 'mmHg', x: 10, y: 50, w: 40, font: '12px sans-serif', fill: '#fff', halo: '', haloW: 0, spacing: 0, rot: -Math.PI / 2, alpha: 1, ts: [{ color: '#000', ox: 0, oy: 0, blur: 10 }] };
+  paintScreen(g, [word as never], 1);
+  const fills = log.map((c, i) => (c === 'fillText' ? i : -1)).filter((i) => i >= 0);
+  assert.ok(fills.length >= 2, 'the glow copy and the word');
+  for (const i of fills) {
+    const from = log.lastIndexOf('save', i);
+    assert.ok(log.slice(from, i).includes(`rotate:${-Math.PI / 2}`), `fillText #${i} is turned`);
+  }
+});

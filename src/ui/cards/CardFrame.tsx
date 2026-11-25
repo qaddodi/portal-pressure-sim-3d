@@ -292,7 +292,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
         <div ref={innerRef} className={entry.id === 'ladder' || alone ? 'dk-in' : 'dk-in pz-text'} style={tuck ? { opacity: 0 } : undefined}>{children}</div>
         {/* 2D's handle in the data card's foot (a touch screen, both cards up): a push up on the card puts it away. Every data card has it (the summary table's too: it docks the same way) */}
         {/* An iPhone's credit: one line in the foot of the words card, in the same place on every slide, never over its words (2D `.pz-cred`; the foot's padding and the pill's place leave its row, plan.ts CRED_ROW) */}
-        {!data && (lay === 'stack' ? surface.startsWith('pz-shade') : isSideways(vp.w, vp.h) && (surface.startsWith('pz-shade') || surface.startsWith('pz-panel'))) && <span className="pz-cred" aria-hidden="true">{CREDIT}</span>}
+        {!data && (lay === 'stack' || lay === 'tab' ? surface.startsWith('pz-shade') : isSideways(vp.w, vp.h) && (surface.startsWith('pz-shade') || surface.startsWith('pz-panel'))) && <span className="pz-cred" aria-hidden="true">{CREDIT}</span>}
         {(entry.id === 'ladder' || entry.id === 'table') && lay !== 'wide' && lay !== 'short' && <span className="pz-grip" aria-hidden="true" />}
       </div>
     </div>
