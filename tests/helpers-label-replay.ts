@@ -68,8 +68,10 @@ export function replay(screen: keyof typeof SCREENS, hand: Hand, ms: number): Re
     t += 16.67;
     const h = hand(Math.min(ms, t - t0 - 600));
     const a = rig.orbitAngle, p = rig.pitchAngle;
-    turning = Math.abs(h.yaw - a) > 1e-6 || Math.abs(h.pitch - p) > 1e-6;
     if (t - t0 > 600) { rig.setOrbit(h.yaw); rig.setOrbitPitch(h.pitch); }
+    // (the picture turns when the rig's angle changes: the hand's own yaw is not it past 70% of the limit, where the rig eases it into the soft stop, so a flick of 0.36 rad left the hand's yaw
+    //  and the rig's apart for good and counted the picture as turning long after it had stopped)
+    turning = Math.abs(rig.orbitAngle - a) > 1e-6 || Math.abs(rig.pitchAngle - p) > 1e-6;
     rig.update(t);
     if (turning) rep.movingFrames++;
     if (i % 6 === 0) { n++; ctl.markDirty(); }

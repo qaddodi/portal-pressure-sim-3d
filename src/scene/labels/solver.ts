@@ -4,7 +4,7 @@
 //
 // Rules, in the order the 2D app's solver learned them:
 //  1. A label never stands under a card, the presenter bar, the key or the strip (the blockers), and never off the view.
-//  2. A label never overlaps another label, another station's dot, or a leader line; it avoids vessels (a soft cost).
+//  2. A label never overlaps another label, another station's dot, or a leader line; it avoids vessels (a soft cost; a hard rule for an `offVessels` name, which gives way instead).
 //  3. A label with room beside its vessel has no leader; one that stands more than LEAD_ON px away gets one.
 //  4. A crowded label shortens by forms (full name, then the abbreviation, then the number alone) before it is dropped.
 //  5. A `must` label (a station the slide names, the picked vessel) is searched all the way round and is dropped last.
@@ -51,8 +51,10 @@ export interface Item {
   minLead?: number;
   /** The words stand clear of every line in `lines` (the courses drawn under them: a name over the sinusoids is hard to read), searched round the dot as far as CLEAR_MAX; only when no such spot
    *  exists does it take the cheapest one with a line under it. */
-  /** 2D's rule of 4 Nov ("when there is no room we shouldn't have labels covering the portal vein and structures completely"): a station's name never takes the last resort of a spot over a vessel; where
-   *  only that is left it is left out. The reader's own choices (the picked vessel, what a slide names or shows) and the hepatic artery keep it. */
+  /** A name never stands on vessels (owner, 25 Nov, after 2D's rule of 4 Nov: "when there is no room we shouldn't have labels covering the portal vein and structures completely"): no spot of a station's
+   *  name, near or far, last resort or not, has a vessel line under it; where none is clear it gives way (it is left out and fades as names do), and a lower ranked name gives way for it first when
+   *  that lets it in (see the yield passes in `solve`). The near ring had still taken a spot over the lines at a cost of 8 a line, whatever their number: on the phone "Right hepatic vein" stood over 113
+   *  line pieces of the hepatic vein knot, with strokes through "SMV" too. The reader's own choices (the picked vessel, what a slide names or shows), a stent's labels and the hepatic artery keep the old rule. */
   offVessels?: boolean;
   /** A name whose figure fills the view with vessels (the lobule's net): a far spot with a vessel under it is allowed, at its line cost, before the name is given up, as 2D's lobule orders
    *  append the unclear spots after the clear ones (stage-label-solve.js `{ gap: near, leader: false }, { gap: far, leader: true }`). The Anatomy and Circuit "every far spot is clear" rule (5316a81e) does not apply to it. */
@@ -131,6 +133,8 @@ const LINE_COST = 8;
 /** Air kept between a `clearLines` name and a line (px): half a tube's width as drawn, the ink beside it and a little. */
 export const LINE_AIR = 3;
 const DROP_ROUNDS = 3;
+/** At most this many more passes in which a name left out stands first and one lower ranked name stands last (see `solve`): enough for the few names a small figure leaves out, bounded so a solve stays short. */
+const YIELD_TRIES = 8;
 /** What a clear spot on the side opposite the preferred one costs over one on it (px of leader at 0.1 each, as 20 px more). */
 const PREFER_COST = 12;
 const CLEAR_STEP = 10, CLEAR_MAX = 340, CLEAR_ANGLES = 36;
@@ -278,6 +282,17 @@ function candidates(it: Anchored, f: Form, wide: boolean): Cand[] {
   return out;
 }
 
+/** The spot a label stands at, judged as it stands (its own offset from the dot), ahead of the search's spots: the nearest search spot can lie a few px off it (a side spot's offset follows the words'
+ *  width, which a ticking reading changes), and judging that one instead moved a label whose own spot was still legal while the picture turned (Mac slow drag: "MHV" left a clear spot because the spot
+ *  8 px from it grazed a line). It costs what the nearest search spot within STAY_PX costs; with none (the label stands where the search no longer reaches) it is not offered. */
+function withStanding(it: Anchored, fi: number, cands: Cand[], stay: number): Cand[] {
+  const w = it.was;
+  if (!w || stay <= 0 || w.form !== fi || !Number.isFinite(w.dx + w.dy)) return cands;
+  let near: Cand | null = null, d = Infinity;
+  for (const c of cands) { const e = Math.max(Math.abs(c.dx - w.dx), Math.abs(c.dy - w.dy)); if (e <= STAY_PX && e < d) { d = e; near = c; } }
+  return near && d > 0 ? [{ dx: w.dx, dy: w.dy, cost: near.cost }, ...cands] : cands;
+}
+
 export function solve(input: SolveInput): Solved {
   const { view, lines = [], keep = [], leaderLineCost = 0, stay = 0 } = input;
   const grid = new LineGrid(lines);
@@ -306,7 +321,7 @@ export function solve(input: SolveInput): Solved {
   let dropped: string[] = [];
   let skipped: string[] = [];
 
-  const tryItem = (it: Anchored, relax: 0 | 1 | 2, offOrgans = false, strictLines = false, nearOnly = false) => {
+  const tryItem = (it: Anchored, relax: 0 | 1 | 2, offOrgans = false, strictLines = false, nearOnly = false, standOnly = false) => {
     const blockers = relax >= 2 ? blockersRaw : blockersAir;
     let best: { cost: number; form: number; c: Cand; box: Box; leader: boolean; seg: Seg | null; hits: number } | null = null;
     const tally = input.why ? (input.why.get(it.id) ?? (input.why.set(it.id, {}), input.why.get(it.id)!)) : null;
@@ -315,12 +330,14 @@ export function solve(input: SolveInput): Solved {
       const f = it.forms[fi];
       // (the other dots a box of this form could stand within 9 px of: none further than the widest spot of the search, so the per-spot test asks these few, not every item)
       const reach = RING_REACH + f.w + f.h;
-      const dots = relax < 2 ? items.filter((o) => o !== it && Math.abs(o.ax - it.ax) < reach && Math.abs(o.ay - it.ay) < reach) : [];
+      // (an organ's anchor is no dot: its name is drawn on the organ with no ring or leader, so nothing marks the point; counting it kept "Left sinusoids" off the one clear spot near the spleen's middle)
+      const dots = relax < 2 ? items.filter((o) => o !== it && !o.region && !gone.has(o.id) && Math.abs(o.ax - it.ax) < reach && Math.abs(o.ay - it.ay) < reach) : [];
       {
-        for (const c of candidates(it, f, !!it.must || relax > 0)) {
+        for (const c of withStanding(it, fi, candidates(it, f, !!it.must || relax > 0), stay)) {
           if (nearOnly && c.cost >= 20) continue;   // (an optional name: the ring beside its vessel only)
           // (a spot whose own cost already reaches the best found cannot beat it: every penalty after this only adds. Skipped at once, not judged; `?capwhy` still judges them all, to count what threw each out)
           const bonus = it.was && stay > 0 && it.was.form === fi && Math.abs(c.dx - it.was.dx) <= STAY_PX && Math.abs(c.dy - it.was.dy) <= STAY_PX ? stay : 0;
+          if (standOnly && bonus <= 0) continue;
           if (best && !tally && fi * FORM_COST + c.cost - bonus >= best.cost) continue;
           const box: Box = { x0: it.ax + c.dx, y0: it.ay + c.dy, x1: it.ax + c.dx + f.w, y1: it.ay + c.dy + f.h };
           if (!within(box, inner)) { if (tally) no(c, 'view'); continue; }
@@ -375,7 +392,7 @@ export function solve(input: SolveInput): Solved {
           // (A line cost of 8 against a form's 50 had Lower IVC's wide form, with its change chip, 97 px up a leader on the varices' line in Compare on a phone, when its shorter form stood clear
           // nearer: every spot past the near ring, the wide gaps as much as the rings, is clear of the lines, and the narrower form is what gives. A callout and a region's name are placed by their own rules.)
           if (c.cost >= NEAR_COST && relax < 2 && lineHits > 0 && !it.region && !it.looseFar) { if (tally) no(c, 'line'); continue; }
-          if (it.offVessels && relax >= 2 && lineHits > 0 && !it.region) { if (tally) no(c, 'line'); continue; }
+          if (it.offVessels && lineHits > 0 && !it.region) { if (tally) no(c, 'line'); continue; }
           if (it.face) {
             const vx = (box.x0 + box.x1) / 2 - it.face.cx, vy = (box.y0 + box.y1) / 2 - it.face.cy, l = Math.hypot(vx, vy) || 1;
             if ((vx * it.face.ux + vy * it.face.uy) / l < FACE_COS) pen += FACE_CLASH;
@@ -394,9 +411,22 @@ export function solve(input: SolveInput): Solved {
     return true;
   };
 
+  // While the picture still moves (stay Infinity) a label keeps the spot it stands at for as long as that spot is legal under the rules it stands by, the last resort's included: a `must` name on a
+  // last-resort spot left it for a spot of the first rules the moment one opened, as the picture turned (Mac slow drag: the portal confluence's name hopped between two spots, both legal). At rest the
+  // free solve below chooses again, with the tuned STAY.
+  let held = new Set<string>();
+  /** A name given way for a higher one (see the yield passes below): its dot marks nothing, so it holds no room. */
+  let gone: ReadonlySet<string> = new Set<string>();
+  const keeps = (it: Anchored): boolean => {
+    if (stay !== Infinity || !it.was) return false;
+    if (it.optional) return tryItem(it, 0, false, true, true, true);
+    if (tryItem(it, 0, false, false, false, true)) return true;
+    return !!it.must && (tryItem(it, 1, false, false, false, true) || tryItem(it, 2, false, false, false, true));
+  };
   const pass = (order: readonly Anchored[]) => {
-    placedBoxes = []; leaders = []; placed = []; dropped = []; skipped = [];
+    placedBoxes = []; leaders = []; placed = []; dropped = []; skipped = []; held = new Set();
     for (const it of order) {
+      if (keeps(it)) { held.add(it.id); continue; }
       if (it.optional) { if (!tryItem(it, 0, false, true, true)) skipped.push(it.id); continue; }
       if (it.region && it.onOther) { if (tryItem(it, 0, true) || tryItem(it, 0, false)) continue; dropped.push(it.id); continue; }
       if (it.clearLines && tryItem(it, 0, false, true)) continue;
@@ -410,13 +440,51 @@ export function solve(input: SolveInput): Solved {
   // A name the greedy order left out for want of room that a higher ranked name took (the sinusoids' name standing across the arteriole's place) is tried first, as 2D tries its orders (lobule-zoom-records.js
   // nextPerm), and the order kept when it leaves out less (by rank). Deterministic, at most DROP_ROUNDS more passes.
   const lost = (d: readonly string[]) => d.reduce((n, id) => { const it = items.find((o) => o.id === id)!; return n + (it.must ? 1e4 : 0) + it.pri; }, 0);
+  // (While the picture moves, the names that kept their standing spot keep it ahead of the ones tried first: a name left out never comes back by pushing a name off a spot that is still legal, which moved
+  //  the right sinusoids' name across the liver mid-flick for the right portal vein's.)
   let bestSol = { placed, dropped, boxes: placedBoxes, skipped };
+  const standing = held;
   let order = byRank;
   for (let round = 0; round < DROP_ROUNDS && bestSol.dropped.length; round++) {
     const first = new Set(bestSol.dropped);
-    order = [...items.filter((o) => first.has(o.id)).sort(rank), ...order.filter((o) => !first.has(o.id))];
+    order = [...order.filter((o) => standing.has(o.id)), ...items.filter((o) => first.has(o.id)).sort(rank), ...order.filter((o) => !first.has(o.id) && !standing.has(o.id))];
     pass(order);
     if (lost(dropped) < lost(bestSol.dropped)) bestSol = { placed, dropped, boxes: placedBoxes, skipped }; else break;
+  }
+  // A name left out because a lower ranked one holds the only clear spot near it: the lower one gives way instead (owner, 25 Nov: "a name never stands on vessels"; on a small figure the names with
+  // no clear spot give way, lowest rank first, and the name he would look for first still shows wherever a clear place for it exists). The lowest ranked placed name that ranks under the left-out one
+  // is left out in its place (its dot then marks nothing and holds no room), and the names are placed again in rank order; the answer is kept when it leaves out less (by rank), else the next one up
+  // is tried. At rest only: while the picture moves no name is pushed off a legal spot. Only for a name kept off the vessels (`offVessels`): the lobule's names have their own orders (2D's), and a
+  // tract name pushed last there stood on the wrong side of its tract.
+  if (stay !== Infinity) {
+    let tries = 0;
+    for (let again = true; again && bestSol.dropped.length && tries < YIELD_TRIES;) {
+      again = false;
+      const out = new Set(bestSol.dropped);
+      const ins = byRank.filter((o) => !out.has(o.id));
+      for (const d of byRank.filter((o) => out.has(o.id) && o.offVessels)) {
+        // (a name ranked under it stands after it, so only its dot can be in the way: a name whose dot is beyond the widest search of this one's spots cannot be what keeps it out)
+        const reach = RING_REACH + Math.max(...d.forms.map((f) => f.w + f.h));
+        const under = ins.filter((p) => rank(p, d) > 0 && !p.region && Math.abs(p.ax - d.ax) < reach && Math.abs(p.ay - d.ay) < reach);
+        if (!under.length) continue;
+        // (first, once, with every one of them given way: when even that leaves it out, no one of them can let it in, and the tries one by one are skipped)
+        tries++;
+        gone = new Set(under.map((p) => p.id));
+        pass(byRank.filter((o) => o === d || rank(o, d) < 0));
+        gone = new Set();
+        if (!placed.some((q) => q.id === d.id)) continue;
+        for (const p of [...under].reverse()) {
+          if (tries >= YIELD_TRIES) break;
+          tries++;
+          gone = new Set([p.id]);
+          pass(byRank.filter((o) => o !== p));
+          gone = new Set();
+          dropped.push(p.id);
+          if (lost(dropped) < lost(bestSol.dropped)) { bestSol = { placed, dropped, boxes: placedBoxes, skipped }; again = true; break; }
+        }
+        if (again || tries >= YIELD_TRIES) break;
+      }
+    }
   }
   const at = new Map(byRank.map((o, i) => [o.id, i]));
   return { placed: [...bestSol.placed].sort((a, b) => at.get(a.id)! - at.get(b.id)!), dropped: bestSol.dropped, hidden, skipped: bestSol.skipped };

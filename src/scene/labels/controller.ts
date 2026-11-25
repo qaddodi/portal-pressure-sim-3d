@@ -14,7 +14,7 @@ import { COMPACT_W, ZOOM_IN, ZOOM_OUT, extraRoom, flaggedStations, freeSet, keep
 import { NO_EXTRAS, WIDEST, reservedDelta, readingLensOf, type Extras } from './readings.ts';
 import { LabelFader, easeMove, lookKey, type Want } from './fade.ts';
 import { type Box, leaderGeom } from './geometry.ts';
-import { type Form, type Item, type Placement, STAY, boxOf, solve } from './solver.ts';
+import { type Form, type Item, type Placement, type SolveInput, STAY, boxOf, solve } from './solver.ts';
 import { STATIONS, ORGAN_FRONT, figureCourses, type Station } from './stations.ts';
 import { silhouettes, onOtherOrgan, shareOnOther, spotOffsets, type Silhouettes, type To2Screen } from './organ-screen.ts';
 import { x3, y3 } from '../frame2d.ts';
@@ -93,6 +93,10 @@ export interface LabelDeps {
 export const FOLLOW_JUMP = 60;
 /** How long the picture must be still, after a hand on it, before the names are placed again. */
 export const FOLLOW_MS = 220;
+/** A dot that moves more than this in a frame (px) is still moving: the picture is at rest only when its dots have stopped. A projection of a still picture repeats to the last bit, so this is above float
+ *  noise and below any motion: a glide that slows as a flick does (the speed falling by a factor each frame) spent hundreds of ms under the old 0.01 px a frame while it still turned, was taken for rest,
+ *  and the free re-solve then moved names whose spots were legal mid-glide (the replay's "flick with momentum": the left gastric vein, the right sinusoids, the lower IVC). */
+export const REST_PX = 1e-6;
 export const FIG_MIN_H = 200;
 export const FIG_BACK = 230;
 
@@ -269,6 +273,8 @@ export class LabelController {
   readonly out: Draw[] = [];
   /** Items the last solve could not place at all (a test asserts none in the slice's framings). */
   dropped: string[] = [];
+  /** What the last solve of the names was given (a test asks the solver again with one name less, to see that the names left out are the lowest ranked that could be). */
+  solvedFrom: SolveInput | null = null;
   hiddenIds: string[] = [];
   /** Optional names (shown only where they fit) the last solve left out. */
   skipped: string[] = [];
@@ -477,7 +483,7 @@ export class LabelController {
       if (!was) this.dirty = true;   // (a station that comes in is placed when the picture is still; the others are not cut by it)
       else if (isCut(Math.hypot(was.x - a.x, was.y - a.y), FOLLOW_JUMP, byHand)) { moved = true; cutDot = true; }   // (a dot that jumped is a cut, not a hand: the names leave and return)
       else if (Math.abs(was.x - a.x) > 0.35 || Math.abs(was.y - a.y) > 0.35) following = true;
-      if (was && (Math.abs(was.x - a.x) > 0.01 || Math.abs(was.y - a.y) > 0.01)) drifting = true;   // (a slow drag moves a dot by less than 0.35 px a frame and never counts as following: still not at rest)
+      if (was && (Math.abs(was.x - a.x) > REST_PX || Math.abs(was.y - a.y) > REST_PX)) drifting = true;   // (a slow drag moves a dot by less than 0.35 px a frame and never counts as following: still not at rest)
     }
     if (cutDot && !this.cutAnchors) this.cutAnchors = this.anchors;   // (the places the dots stood at before the cut: the fading names keep them)
     this.anchors = anchors;
@@ -703,9 +709,10 @@ export class LabelController {
       const organ = m.station.kind === 'organ' && !!m.station.at2d;
       if (organ && !sil) sil = silhouettes(to);
       const s0 = sil;
+      // (a name nobody asked for never stands on a vessel, `offVessels`; a stent's labels stand with the stent a procedure put in, as the reader's own choice, and keep the old rule)
       items.push({
         id: m.id, ax: a.x, ay: a.y, au: m.station.u0, path: path.length ? path : undefined, ...(m.station.rests ? { rests: m.station.rests } : {}), ...(m.station.kind !== 'organ' ? { pad: LS.PAD } : {}), forms: m.optional ? m.forms.slice(0, 1) : m.forms,
-        pri: picked ? 300 : isNamed ? 100 + (m.pri ?? m.station.pri) : m.optional ? 1 : m.pri ?? m.station.pri, must: !!picked || isNamed || !!m.must || this.state.shown.has(m.station.id), ...(m.optional ? { optional: true } : {}), ...(!picked && !isNamed && !this.state.shown.has(m.station.id) && m.station.id !== 'HA' ? { offVessels: true } : {}), dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
+        pri: picked ? 300 : isNamed ? 100 + (m.pri ?? m.station.pri) : m.optional ? 1 : m.pri ?? m.station.pri, must: !!picked || isNamed || !!m.must || this.state.shown.has(m.station.id), ...(m.optional ? { optional: true } : {}), ...(!m.stent && !picked && !isNamed && !this.state.shown.has(m.station.id) && m.station.id !== 'HA' ? { offVessels: true } : {}), dirs: m.station.dirs, region: m.station.kind === 'organ', vw,
         ...(organ && s0 ? { spots: spotOffsets(m.station.name, m.station.at2d!, to), onOther: (b: Box) => onOtherOrgan(m.station.name, s0, b), otherShare: (b: Box) => shareOnOther(m.station.name, s0, b) } : {}),
       });
     }
@@ -726,7 +733,9 @@ export class LabelController {
     // (?capwhy: for each label that stands on a leader, how many of its near spots each rule threw out and who stood in the way, to find what pushed it away)
     const why = typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search) ? new Map<string, Record<string, number>>() : undefined;
     for (const it of items) { const st = this.fader.frame.get(it.id); if (st && st.alpha > 0 && st.ref.form >= 0) it.was = { form: st.ref.form, dx: st.ref.dx, dy: st.ref.dy, au: st.ref.au }; }
-    const res = solve({ items, view, blockers, lines, stay, leaderLineCost: LEADER_LINE_COST, ...(why ? { why } : {}) });
+    const input: SolveInput = { items, view, blockers, lines, stay, leaderLineCost: LEADER_LINE_COST, ...(why ? { why } : {}) };
+    this.solvedFrom = input;
+    const res = solve(input);
     if (why) for (const p of res.placed) if (p.leader) console.info('[anatomy-labels]', p.id, 'form', p.form, 'dx,dy', Math.round(p.dx), Math.round(p.dy), 'near spots lost to', JSON.stringify(why.get(p.id) ?? {}));
     this.dropped = res.dropped; this.hiddenIds = res.hidden;
     const wants = new Map<string, Want>();
