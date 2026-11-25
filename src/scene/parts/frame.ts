@@ -36,6 +36,8 @@ export const framePart = scenePart<CelScene>()({
   makeSystems(): FrameSystem<FrameCtx>[] {
     return [
       { id: 'camera', step: ({ now }) => {
+        // (a dive that waited for the chase camera to ease out starts the frame it is out, in this step, so its first frame is drawn with it)
+        if (this.heldDive) this.releaseDive();
         const camMoving = this.rig.update(now);
         this.shared.restEye.value.copy(this.rig.restEye); this.shared.offRest.value = this.rig.offRest;
         this.circuitScale();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)

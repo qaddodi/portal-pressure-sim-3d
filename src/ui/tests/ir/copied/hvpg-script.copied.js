@@ -50,7 +50,7 @@ export const HVPG_SCRIPT = {
   status(t, v, st, o) {
     if (t < T.inflate) { o.label = 'FHVP'; o.num = fmt(v.fhvp, 1); o.col = 'free'; }
     else if (t < T.result) { o.label = t < T.wedge ? 'Balloon inflating' : t < T.callout ? 'Settling' : 'WHVP'; o.num = fmt(t < T.callout ? levelAt(t, v) : v.whvp, 1); o.col = 'wedge'; }
-    else if (st.running && t < T.sum) { o.label = 'WHVP'; o.num = fmt(v.whvp, 1); o.col = 'wedge'; }
+    else if (t < T.sum) { o.label = 'WHVP'; o.num = fmt(v.whvp, 1); o.col = 'wedge'; }
     else { o.label = 'HVPG'; o.num = fmt(v.hvpg, 1); o.col = SEV_C[sevOf(v.hvpg)]; }
   },
   // (N6, trace callouts: a marker drops onto the trace where each reading is taken, the free as the free sweep ends, the wedge once the plateau has held.)

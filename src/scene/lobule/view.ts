@@ -18,7 +18,7 @@ import type { V3 } from './shots.ts';
 import { type LobuleHit, type PickTube, lobuleHit } from './pick.ts';
 import { buildBile } from './bile.ts';
 import { type Course, type LobuleNet, buildLobule } from './geometry.ts';
-import { type LobuleModel, easeToward, lymphProtein, lymphRate, lymphSeal, smooth } from './model.ts';
+import { type BloodBeat, type LobuleModel, easeToward, lymphProtein, lymphRate, lymphSeal, smooth } from './model.ts';
 import { LOBULE_PALETTES } from './tones.ts';
 import { LOBULE_R, lobuleToScene, slabZ } from './shots.ts';
 import { LobuleMark } from './mark.ts';
@@ -120,12 +120,13 @@ export class LobuleView {
   get isVisible(): boolean { return this.visible; }
 
   /** Targets from the engine's frame (lobuleModel). They ease in; nothing jumps. */
-  setModel(m: LobuleModel): void {
+  setModel(m: LobuleModel, beat?: BloodBeat): void {
     this.model = m;
     const g = this.goal;
     g.fibSin = m.fibSin; g.fibPre = m.fibPre; g.fibPost = m.fibPost; g.congU = m.congU; g.septU = m.septU; g.act = m.act;
     g.lum = m.zone.sin ** -0.12;   // (2D radiusAt: the sinusoid's width is / sin^0.12 and, by zone 3's share of each generation, x (1 + 1.5 congU))
-    g.flow = m.rev.sin ? -Math.abs(m.flow) : Math.abs(m.flow);
+    // (the blood's speed follows the heart: the live beat's flow when there is one, the shown mean's otherwise; the colours, widths and readings above are the steady model's)
+    g.flow = beat ? (beat.rev ? -Math.abs(beat.flow) : Math.abs(beat.flow)) : m.rev.sin ? -Math.abs(m.flow) : Math.abs(m.flow);
     g.portal = m.rev.pre ? -Math.abs(m.portal) : Math.abs(m.portal);
     g.art = Math.abs(m.art);
     g.lymphRate = Math.min(6, Math.max(0.2, lymphRate(m)));
@@ -133,7 +134,7 @@ export class LobuleView {
     this.dirty = true;
   }
   /** The state at once, no ease (the view opens on the first frame already as the model has it). */
-  snapModel(m: LobuleModel): void { this.setModel(m); Object.assign(this.cur, this.goal); this.dirty = true; }
+  snapModel(m: LobuleModel, beat?: BloodBeat): void { this.setModel(m, beat); Object.assign(this.cur, this.goal); this.dirty = true; }
 
   setLayers(l: Partial<LobuleLayers>): void { this.layers = { ...this.layers, ...l }; this.dirty = true; }
   get currentLayers(): Readonly<LobuleLayers> { return this.layers; }

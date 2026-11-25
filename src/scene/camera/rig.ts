@@ -265,6 +265,10 @@ export class CameraRig {
   /** The room size the distance is fitted to now (debug: pps.rig). */
   get fitSize(): { w: number; h: number } { return { ...this.scaleNow }; }
   private lateRoom: { from: Room; e0: number } | null = null;
+  /** A refit that came while a dive flew: the fitted room's size goes on from where it stood to the new one on the dive's own share
+   *  (`p0` the room's share then, or `e0` the clock's when the room had all but arrived), so the camera's distance (the fit of the shot
+   *  in that size) never steps by a share of the change in one frame. */
+  private lateScale: { from: { w: number; h: number }; p0: number; e0: number; clock: boolean } | null = null;
   private width = 1;
   private height = 1;
   private dirty = true;
@@ -300,6 +304,8 @@ export class CameraRig {
   private chaseK = 0;
   private chaseT = 0;
   private chaseMoving = false;
+  /** The chase is easing out (it was asked to go and its share is not yet nothing): the picture is still partly the chase's. */
+  get chaseLeaving(): boolean { return this.chaseCur !== null && this.chaseGoal === null; }
   setChase(p: ChasePose | null): void {
     this.chaseGoal = p;
     if (p && !this.chaseCur) this.chaseCur = { yaw: p.yaw, pitch: p.pitch, dist: p.dist, fov: p.fov, target: [p.target[0], p.target[1], p.target[2]] };
@@ -313,7 +319,11 @@ export class CameraRig {
     this.chaseT = now;
     const instant = this.reduceMotion || reduced();
     const goal = g ? 1 : 0, kStep = instant ? 1 : dt / CHASE_MS;
-    this.chaseK = goal > this.chaseK ? Math.min(goal, this.chaseK + kStep) : Math.max(goal, this.chaseK - kStep);
+    // (a dive and the chase never share the picture: the chase blends the aim, the distance and the lens of the body's catheter shot over
+    //  whatever the move draws, which at the lobule's scale is a view of empty space. A chase asked for while a dive flies waits for it
+    //  to land, then eases in; one leaving ahead of a dive is waited out by the scene before the dive begins: scene.goTo, `chaseLeaving`)
+    const waiting = goal > this.chaseK && this.active && isDive(this.from, this.to);
+    if (!waiting) this.chaseK = goal > this.chaseK ? Math.min(goal, this.chaseK + kStep) : Math.max(goal, this.chaseK - kStep);
     let busy = this.chaseK !== goal;
     if (g) {
       const k = instant ? 1 : 1 - Math.exp(-dt / CHASE_TAU_MS);
@@ -513,7 +523,9 @@ export class CameraRig {
     this.bumpFrom = this.bump;
     this.plunge = LENS_SWELL && !(this.reduceMotion || reduced()) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-9, Math.min(this.from.shot.r, this.to.shot.r)) > PLUNGE_RATIO;
     this.zoomEnds = this.measureZoom(this.active);   // (a move retargeted in flight starts from the distance the camera is really at: distNow)
-    this.at = carry > 0 || hv || (this.active && this.vel.on) ? 16 : 0; this.lastT = -1; this.eNow = 0; this.roomP = 0; this.lateRoom = null;   // (carrying speed: the first frame is one frame in, so the retarget frame is not a stand-still)
+    // (carrying speed: the first frame is one frame in, so the retarget frame is not a stand-still)
+    this.at = carry > 0 || hv || (this.active && this.vel.on) ? 16 : 0;
+    this.lastT = -1; this.eNow = 0; this.roomP = 0; this.lateRoom = null; this.lateScale = null;
     this.dur = reducedMs(ms * (this.long ? this.long.stretch : 1), this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitTo = keepHand ? (this.active ? this.orbitTo : this.orbit) : 0;
     this.orbitFrom = this.orbit;
@@ -529,8 +541,12 @@ export class CameraRig {
   setRoom(room: Room, now: number, ms?: number, homeTurn = false, refit = false, ease: ((k: number) => number) | null = null): void {
     // a card opening in the middle of a dive keeps the dive's own time: it lands when it was going to, in the new room (not a fresh 950 ms from a standstill)
     // a move in flight whose room alone changes (a card opening or closing): the same move, the same clock and the same curve, with only its destination room swapped, so the picture never stops or restarts
+    const scaleWas = { ...this.scaleNow };
     if (refit) { this.scaleTo = { w: room.w, h: room.h }; this.zoomEnds = this.measureZoom(); }
-    if (this.active && ms == null && !homeTurn && this.dur > 0) {
+    // (a DIVE in flight keeps its own clock and curve whatever a caller says (a dock glide's 300 ms and its curve): a new move to the same
+    //  shot from the middle of a dive started the plain blend of a move that is no longer a dive once the distance had closed to under
+    //  DIVE_RATIO, and ended the dive in the glide's time, a rush at its end. The room only goes into the move that flies)
+    if (this.active && (ms == null || isDive(this.from, this.to)) && !homeTurn && this.dur > 0) {
       // (the room's own share, not the clock's: in a dive the room follows the aim (q). Rebuilding it with the clock's share made the picture jump each time a card arrived mid-dive,
       //  a zoom-out and a shift right per card: the Lobule -> Sinusoid staircase)
       const e = this.roomP;
@@ -538,6 +554,7 @@ export class CameraRig {
         // (in a dive diving in, the room's share runs ahead of the clock: it can be home while the move still has a while to go. Rebuilding from a share that near 1 would throw
         //  the room far off; instead the rest of the room's way runs on the move's own clock from where it is, so it lands with the move, and nothing jumps)
         this.lateRoom = { from: copyRoom(this.cur.room), e0: this.eNow };
+        if (refit && isDive(this.from, this.to)) this.lateScale = { from: scaleWas, p0: e, e0: this.eNow, clock: true };
         this.to.room = copyRoom(room); this.dirty = true;
         return;
       }
@@ -545,6 +562,7 @@ export class CameraRig {
         const c = this.cur.room, r = room;
         this.from.room = { x: (c.x - e * r.x) / (1 - e), y: (c.y - e * r.y) / (1 - e), w: (c.w - e * r.w) / (1 - e), h: (c.h - e * r.h) / (1 - e) };
         this.to.room = copyRoom(room); this.dirty = true;
+        if (refit && isDive(this.from, this.to)) this.lateScale = { from: scaleWas, p0: e, e0: this.eNow, clock: false };
         return;
       }
     }
@@ -720,6 +738,10 @@ export class CameraRig {
       // the share of the way the room has gone (blendPose: the zoom's share, in a dive the aim's share q): what setRoom must rebuild a retargeted room from, or the picture jumps
       this.roomP = isDive(this.from, this.to) ? roomShareOf(this.from, this.to, this.cur) : zoomShare(this.zoomEnds?.da ?? this.from.shot.r, this.zoomEnds?.db ?? this.to.shot.r, e);
       this.scaleNow = { w: lerp(this.scaleFrom.w, this.scaleTo.w, this.roomP), h: lerp(this.scaleFrom.h, this.scaleTo.h, this.roomP) };
+      if (this.lateScale) {
+        const L = this.lateScale, u = L.clock ? easeMove(Math.min(1, Math.max(0, (e - L.e0) / Math.max(1e-6, 1 - L.e0)))) : Math.min(1, Math.max(0, (this.roomP - L.p0) / Math.max(1e-6, 1 - L.p0)));
+        this.scaleNow = { w: lerp(L.from.w, this.scaleTo.w, u), h: lerp(L.from.h, this.scaleTo.h, u) };
+      }
       if (this.lateRoom) {   // a card that came after the room had all but arrived (see setRoom): the room goes the rest of the way on the clock, from where it was
         const L = this.lateRoom, u = easeMove(Math.min(1, Math.max(0, (e - L.e0) / Math.max(1e-6, 1 - L.e0)))), c = this.cur.room = copyRoom(this.cur.room), b = this.to.room;
         c.x = lerp(L.from.x, b.x, u); c.y = lerp(L.from.y, b.y, u); c.w = lerp(L.from.w, b.w, u); c.h = lerp(L.from.h, b.h, u);
