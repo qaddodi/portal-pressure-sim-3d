@@ -7,6 +7,8 @@ import type { BufferGeometry } from 'three';
 const CELL = 0.01;   // scene units (3 figure units)
 /** The widest a slice of the mesh may be and still be the oesophagus (scene units): wider is the stomach's body or the fundus. */
 export const ESO_MAX_WIDE = 0.16;
+/** How much of the mesh's top end (scene units) is the tube's fading fringe and not read, and the Gaussian's sigma (rows of CELL) that eases the sideways shift. */
+export const END_TRIM = 0.14, SIGMA_ROWS = 6;
 
 /** Per row of the mesh (y), the covered runs of x: where a line along z meets the surface. */
 function coverage(pos: ArrayLike<number>, index: ArrayLike<number>): { y0: number; h: number; x0: number; w: number; on: Uint8Array } {
@@ -50,12 +52,18 @@ export function esoShift(geo: BufferGeometry, wayX: (y: number) => number | null
     if ((b - a + 1) * CELL > ESO_MAX_WIDE) continue;
     d[r] = g.x0 + ((a + b) / 2) * CELL - wx;
   }
-  // (rows with no reading take the nearest row's that has one: the lead-in above keeps the top's shift, the stomach below the cardia's)
+  // The mesh's top end is a ragged fringe, not tube (the oesophagus fades out over its last rows): its slice's middle stepped 0.025 sideways in a single row (owner, 25 Nov 2026: "the top of the esophagus is kinked ...
+  // when the scope drops it takes ungodly kinks"), and the old hold carried that step to the top and a nine-row box average only turned it into two corners of 8 and 15 degrees. So the last END_TRIM of
+  // readings at the top are not read (the reading under them is held), and what is left is eased with a Gaussian, wide enough that no row-to-row wobble of the mesh turns the scope.
   let first = -1, last = -1;
   for (let r = 0; r < g.h; r++) if (Number.isFinite(d[r]!)) { if (first < 0) first = r; last = r; }
   if (first < 0) return () => 0;
-  for (let r = 0; r < g.h; r++) if (!Number.isFinite(d[r]!)) { let k = r; while (k >= 0 && !Number.isFinite(d[k]!)) k--; d[r] = k >= 0 && r > first ? d[k]! : r < first ? d[first]! : d[last]!; }
-  const s = new Float64Array(g.h);
-  for (let r = 0; r < g.h; r++) { let t = 0, n = 0; for (let k = -4; k <= 4; k++) { const j = Math.min(g.h - 1, Math.max(0, r + k)); t += d[j]!; n++; } s[r] = t / n; }
+  const top = Math.max(first, last - Math.round(END_TRIM / CELL));
+  for (let r = top + 1; r <= last; r++) d[r] = NaN;
+  // (rows with no reading take the nearest row's that has one: the lead-in above keeps the top's shift, the stomach below the cardia's)
+  for (let r = 0; r < g.h; r++) if (!Number.isFinite(d[r]!)) { let k = r; while (k >= 0 && !Number.isFinite(d[k]!)) k--; d[r] = k >= 0 && r > first ? d[k]! : r < first ? d[first]! : d[top]!; }
+  const s = new Float64Array(g.h), W = Math.round(SIGMA_ROWS * 3), kw: number[] = [];
+  for (let k = -W; k <= W; k++) kw.push(Math.exp(-(k * k) / (2 * SIGMA_ROWS * SIGMA_ROWS)));
+  for (let r = 0; r < g.h; r++) { let t = 0, n = 0; for (let k = -W; k <= W; k++) { const j = Math.min(g.h - 1, Math.max(0, r + k)); t += d[j]! * kw[k + W]!; n += kw[k + W]!; } s[r] = t / n; }
   return (y) => { const f = Math.min(g.h - 1, Math.max(0, (y - g.y0) / CELL)), i = Math.min(g.h - 2 < 0 ? 0 : g.h - 2, Math.floor(f)), u = f - i; return g.h < 2 ? s[0]! : s[i]! * (1 - u) + s[i + 1]! * u; };
 }
