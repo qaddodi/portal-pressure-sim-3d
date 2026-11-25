@@ -109,6 +109,22 @@ test('a named set stands for its vessels, an organ in the glow is outlined, a li
   assert.equal(figureCalls(p, reads).cards.filter((k) => k.kind === 'step').length, 2);
 });
 
+test('words that name a reading (WHVP, the wedged pressure) keep their station but never outline the liver; the organ named outright still does', () => {
+  // (Mohammad, 25 Nov, HVPG "The wedged pressure reflects sinusoidal pressure": the liver turned dark and glowed the moment the catheter wedged. 2D's target for WHVP carries the liver, 3D lights an organ only when the slide names it)
+  const wedge = decks.find((d) => d.id === 'hvpg')!.slides.find((x) => x.id === 'wedge')!;
+  assert.ok(termsInLine(wedge).includes('whvp'), 'the wedge slide still points at the reading');
+  const p = figurePlan(wedge);
+  assert.deepEqual(p.organs, [], 'no organ is outlined');
+  assert.deepEqual(p.labels, ['SIN_R'], 'the sinusoids keep their label');
+  assert.equal(figureCalls(p, reads).pins.length, 0);
+  const said = figurePlan({ id: 'w', line: 'The WHVP is read in the liver.', terms: { liver: 'liver', WHVP: 'whvp' } } as unknown as CopiedSlide);
+  assert.deepEqual(said.organs.map((o) => o.id), ['liver'], 'the liver named in the words is outlined');
+  for (const { id, s } of slides) assert.ok(!figurePlan(s).organs.some((o) => o.id === 'liver') || !termsInLine(s).includes('whvp') || termsInLine(s).includes('liver') || /liver/.test(JSON.stringify(s.glow ?? '')), `${id}: WHVP alone outlines no liver`);
+  // (the on-purpose ones stay: the liver glow of Stiffness 7 and the right atrium of the cardiac slides)
+  assert.deepEqual(figurePlan(decks.find((d) => d.id === 'stiffness')!.slides[6]!).organs.map((o) => o.id), ['liver']);
+  assert.ok(figurePlan({ id: 'r', line: 'The right atrium rises.', terms: { 'right atrium': 'ra' } } as unknown as CopiedSlide).organs.some((o) => o.id === 'heart'));
+});
+
 test('a note mark is a pointer: its vessel glows in its colour, and goes where a station label already names it', () => {
   const note = { id: 'n', line: '', mark: { edges: ['C6'], label: 'Splenorenal shunt', kind: 'note' } } as unknown as CopiedSlide;
   assert.deepEqual(figurePlan(note).glow.map((g) => g.id), ['C6']);

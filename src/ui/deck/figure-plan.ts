@@ -95,6 +95,12 @@ export function termsInLine(s: CopiedSlide, line: string = s.line ?? ''): string
   return [...keys];
 }
 
+/** Words that name a pressure reading, not an organ: 2D's target for them carries the organ the reading is taken in (WHVP: the liver), and 3D does not light it. Lighting it darkened and outlined the liver the moment the
+ *  catheter wedged (Mohammad, 25 Nov: "why does the liver turn dark and glow when the catheter wedges? it shouldn't"). A reading's station label (the sinusoids) stays; an organ is outlined only when the slide names the organ. */
+export const READING_TARGETS: ReadonlySet<string> = new Set(['whvp']);
+/** The organ a target outlines: its own, unless the words only name a reading taken there. */
+export const organOfTarget = (id: string, t: Target2D | undefined): string | undefined => (READING_TARGETS.has(id) ? undefined : t?.organ);
+
 /** The Circuit's zigzag a target names ('rLiver'...). */
 const resOf = (t: Target2D | undefined): ResKey | null => { const r = t?.res; return r && (RES_KEYS as readonly string[]).includes(r) ? (r as ResKey) : null; };
 
@@ -105,8 +111,8 @@ function spotOf(listIn: Json[]): { edges: string[]; organs: OrganPin[]; unknown:
     const id = typeof g === 'string' ? g : (g as { id?: string } | null)?.id;
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    const t = TARGETS_FIG[id];
-    if (t?.organ) organs.push({ id: t.organ, tone: t.tone });
+    const t = TARGETS_FIG[id], organ = organOfTarget(id, t);
+    if (t && organ) organs.push({ id: organ, tone: t.tone });
     else if (ORGANS_FIG.includes(id)) organs.push({ id, tone: TARGETS_FIG[id]?.tone ?? '--text-2' });
     else if (NETWORK_BY_ID.has(id)) edges.push(id);
     else unknown.push(id);
@@ -131,7 +137,8 @@ export function figurePlan(s: CopiedSlide): FigurePlan {
     if (t.lit) lit.add(k);
     if (t.site) sitesFromTerms.add(t.site);
     for (const e of t.edges ?? []) glow.set(e, { id: e, tone: t.tone, at: 0, soft: false });
-    if (t.organ) organs.set(t.organ, t.tone);
+    const organ = organOfTarget(k, t);
+    if (organ) organs.set(organ, t.tone);
     const r = resOf(t); if (r) res.set(r, t.tone);
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -149,7 +156,7 @@ export function figurePlan(s: CopiedSlide): FigurePlan {
       const id = typeof g === 'string' ? g : obj!.id, tone = obj?.tone ?? null, ms = seq ? i * seq : 0, isSoft = !!obj?.soft;
       const add = (e: string, tn: string | null) => { glow.delete(e); glow.set(e, { id: e, tone: tn, at: ms, soft: isSoft }); if (isSoft) soft.add(e); else soft.delete(e); };
       const t = TARGETS_FIG[id];
-      if (t) { if (t.lit) lit.add(id); const r = resOf(t); if (r) res.set(r, tone ?? t.tone); for (const e of t.edges ?? []) add(e, tone ?? t.tone); if (t.organ) organs.set(t.organ, tone ?? t.tone); }
+      if (t) { if (t.lit) lit.add(id); const r = resOf(t); if (r) res.set(r, tone ?? t.tone); for (const e of t.edges ?? []) add(e, tone ?? t.tone); const organ = organOfTarget(id, t); if (organ) organs.set(organ, tone ?? t.tone); }
       else if (ORGANS_FIG.includes(id)) organs.set(id, tone ?? TARGETS_FIG[id]?.tone ?? null);
       else if (vesselKnown(id)) add(id, tone ?? EDGE_TONE_2D[id] ?? 'accent');
       else bad('glow', id);
