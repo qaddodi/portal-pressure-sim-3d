@@ -59,7 +59,7 @@ test('the credit is a wall: its box (padded) is claimed while it shows, and clea
 
 test('the credit writes its claim and every caption layer reads it as a blocker', () => {
   const credit = src('src/ui/shell/Credit.tsx');
-  assert.equal((credit.match(/creditClaim\.set\(\{/g) ?? []).length, 2, 'the foot spot and the hunted spot each claim their box');
+  assert.equal((credit.match(/creditClaim\.set\(\{/g) ?? []).length, 3, 'the foot spot, the foot band of an upright phone slide with no words card (2a54261a), and the hunted spot each claim their box');
   assert.match(credit, /creditClaim\.set\(null\)/, 'a hidden credit claims nothing');
   assert.match(src('src/scene/circuit/CircuitCaptions.tsx'), /calloutClaims\.boxes, \.\.\.creditClaim\.boxes/, 'the Circuit');
   assert.match(src('src/scene/circuit/CircuitCaptions.tsx'), /creditClaim\.subscribe/, 'and places again when the credit moves');
