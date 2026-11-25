@@ -75,7 +75,8 @@ test('the arc grows toward the node on an arm that is its vessel\'s end 1 and sh
       assert.equal(a.dir, arm.end === 1 ? 1 : -1);
       // the skin's own vertices that belong to this arm and lie toward the node from the seam
       for (let v = 0; v < m.mesh.weight.length / 4; v++) {
-        if (m.mesh.weight[4 * v + i]! < 0.9) continue;
+        // (arms 4 and 5 of a six-arm skin weigh in `weight2`: the cava's IVCS has five arms, so its fifth is read there, not from the next vertex's first weight)
+        if ((i < 4 ? m.mesh.weight[4 * v + i]! : m.mesh.weight2[2 * v + i - 4]!) < 0.9) continue;
         const p = [m.mesh.position[3 * v]!, m.mesh.position[3 * v + 1]!, m.mesh.position[3 * v + 2]!];
         const s = arcAt(m.axes[i]!, a.seamArc, a.dir, p);
         assert.ok(a.dir * (s - a.seamArc) > -0.05 * a.restR, `${m.mesh.junction.node} ${arm.vesselId}: the arc runs toward the node (${s} from ${a.seamArc})`);

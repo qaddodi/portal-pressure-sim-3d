@@ -115,7 +115,8 @@ test('tapers are monotone: along the first and last 30 % the radius moves from t
           prev = x;
         }
         // (placed: a taper spans a length, shape.ts lengthSpans, so its own spans say whether it reaches the vessel's own width by the middle)
-        if ((c.taperSpan ?? [0.3, 0.3]).every((x) => x < 0.5)) assert.ok(Math.abs(prev - at(Math.floor(N / 2))) < 0.02 * at(Math.floor(N / 2)) + 1e-9, `${v.id} end ${end} reaches its own width`);
+        // (the radius is the vessel's own from the end of this end's own span on, which is past the 30 % checked above for a short vein: the middle hepatic vein's start, 0.41 long since round 19)
+        if ((c.taperSpan ?? [0.3, 0.3]).every((x) => x < 0.5)) { const k = Math.max(lo, Math.ceil((c.taperSpan ?? [0.3, 0.3])[end]! * N) + 1), own = at(end ? N - k : k); assert.ok(Math.abs(own - at(Math.floor(N / 2))) < 0.02 * at(Math.floor(N / 2)) + 1e-9, `${v.id} end ${end} reaches its own width`); }
         checked++;
       }
     }
