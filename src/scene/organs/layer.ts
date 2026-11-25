@@ -106,7 +106,9 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
     volLight: { value: new Vector4() }, volGeo: { value: new Vector4() }, volShadeAt: { value: 0.8 }, shadeSteps: { value: new Vector3() }, rimK: { value: 0.58 },
     box: { value: new Vector4(b.min.x, b.max.y, b.max.x - b.min.x, b.max.y - b.min.y) },
-    poolA: { value: new Vector4() }, poolLand: { value: new Vector4() }, poolDelta: { value: new Vector3() }, poolBlood: { value: new Vector3() }, poolShadeC: { value: new Vector3() },   // (the stomach's pool, per pixel: pool-level.ts; z 0 = none, nothing runs)
+    // (the stomach's pool, per pixel: pool-level.ts; z 0 = none, nothing runs)
+    poolA: { value: new Vector4() }, poolLand: { value: new Vector4() }, poolDelta: { value: new Vector3() },
+    poolBlood: { value: new Vector3() }, poolShadeC: { value: new Vector3() },
     rimP0: { value: new Vector4(...((g.userData.rimProfile as number[] | undefined)?.slice(0, 4) ?? [0, 0, 0, 0]) as [number, number, number, number]) }, rimP1: { value: new Vector4(...((g.userData.rimProfile as number[] | undefined)?.slice(4, 8) ?? [0, 0, 0, 0]) as [number, number, number, number]) }, rimW: { value: g.userData.rimProfile ? 1 : 0 },
     shadeK: { value: SMOOTH_SHADE.has(id) ? 1 : 0 }, nodTex: { value: NO_TEX }, nodAmt: { value: 0 }, sepDelta: { value: new Vector3() }, nodK: { value: new Vector2() },
     // the organ veil (organ-veil/config.ts): the mask of the organs behind and the strength, shared; this organ lets them show only if it is one of the organs in front of them

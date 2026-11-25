@@ -108,8 +108,8 @@ export function gutLook(fs: string): string {
     body = body.replace(new RegExp(`\\b${k}\\b`, 'g'), `mix(${k}, ${k}S, vTos)`);
   }
   body = body.replace(/\bvBox\b/g, 'mix(vBox, vBoxS, vTos)');
-  // the stomach's pool of blood runs on into the funnel (the antrum, to the pylorus): the funnel reads the stomach's own pool uniforms (OrganArt.shareGutLook) and has as much of it as it has of the stomach's look,
-  // so the blood stops where the duodenum's own look begins, easing over the bulb, never at a line
+  // the stomach's pool of blood runs on into the funnel (the antrum, to the pylorus): the funnel reads the stomach's own pool uniforms
+  // (OrganArt.shareGutLook) and has as much of it as of the stomach's look, so the blood stops where the duodenum's own look begins, easing over the bulb
   if (!body.includes('float poolZ = poolA.z;')) throw new Error('organ art: the gut look needs the pool gate');
   body = body.replace('float poolZ = poolA.z;', 'float poolZ = poolA.z * vTos;');
   return `${fs.slice(0, at)}${decl}${body}`;

@@ -63,7 +63,7 @@ test('the antrum is filled to the pylorus: the funnel of the duodenum is lit by 
   setOrganData(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
   setArtData(JSON.parse(readFileSync(new URL('../public/anatomy/organ-art.json', import.meta.url), 'utf8')));
   await organsReady;
-  const layer = new OrganLayer(createShared(), ORGAN_MESHES), palette = paletteFor('light');
+  const layer = new OrganLayer(createShared(), { stomach: ORGAN_MESHES.stomach, duodenum: ORGAN_MESHES.duodenum }), palette = paletteFor('light');
   layer.applyLook(palette); layer.setBlood(bloodColour('light', palette));
   const t = bodyTargets((await presetState('cirr-decomp')).frame, {}, null);
   layer.setBody({ ...t, bleed: { active: true, site: 'VAR', rate: 90, total: 900 } }, true);
