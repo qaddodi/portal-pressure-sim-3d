@@ -257,7 +257,7 @@
   "tests/organ-wash.test.ts": 14,
   "tests/organ-z-hull.test.ts": 2,
   "tests/organs-placed.test.ts": 5,
-  "tests/pages-workflow.test.ts": 20,
+  "tests/pages-workflow.test.ts": 3,
   "tests/pair-ladder.test.ts": 15,
   "tests/palette-2d-pins.test.ts": 1,
   "tests/pane-load.test.ts": 2,

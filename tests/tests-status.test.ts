@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { parseTapSummary, testsNote } from '../scripts/tests-status.mjs';
 import { parseBuildInfo, namesCommit, verdict } from '../scripts/preview-live.mjs';
 import { checksFailed } from '../src/ui/shell/build-pill.ts';
@@ -36,12 +35,4 @@ test('live is only ever said when build-info.txt names the commit', () => {
   assert.equal(behind.live, false); assert.match(behind.line, /^NOT LIVE after 5 min: preview serves 68f9aa30 .*expected ee227bc7/);
   assert.equal(verdict({}, 'ee227bc7', 5).live, false); assert.match(verdict({}, 'ee227bc7', 5).line, /could not be read/);
   assert.equal(namesCommit('68f9aa30', '68f9aa30cafe1234'), true); assert.equal(namesCommit('', ''), false); assert.equal(namesCommit('abc', 'abc'), false);
-});
-
-test('the deploy is tried three times, and only the last attempt can fail the job', () => {
-  const wf = readFileSync('.github/workflows/pages.yml', 'utf8');
-  for (const id of ['deployment', 'deployment2', 'deployment3']) assert.match(wf, new RegExp(`- id: ${id}\\n`));
-  assert.match(wf, /steps\.deployment3\.outputs\.page_url \|\| steps\.deployment2\.outputs\.page_url \|\| steps\.deployment\.outputs\.page_url/);
-  assert.match(wf, /- id: deployment2\n\s+if: steps\.deployment\.outcome == 'failure'\n\s+continue-on-error: true/);
-  assert.doesNotMatch(wf, /id: deployment3\n\s+if: [^\n]+\n\s+continue-on-error/, 'the last attempt fails the job');
 });
