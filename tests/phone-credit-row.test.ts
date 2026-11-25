@@ -34,3 +34,16 @@ test('the words card carries the credit line and the foot padding leaves its row
   const two = readFileSync('src/ui/css2d/app-05-presenter-cards.css', 'utf8');
   assert.match(two, /@media \(min-height: 601px\) \{\s*\.pz-shade\.stack:not\(\.tab\) \.pz-cred \{ display: block; position: absolute;/, '2D\'s own row rule is the one in use');
 });
+
+// Capture 2a54261a, HVPG 14 / Doppler 13 / Sites 11 (a table is the slide's one card, so there is no words card and no foot row): the floating credit stands in the screen's foot band, never a hunt over the table.
+test('an upright phone slide with no card carrying the credit row puts the floating line in the foot band, and hides it where a card, the pill or a drawer is on that band', async () => {
+  const src = readFileSync('src/ui/shell/Credit.tsx', 'utf8');
+  assert.match(src, /talk && lay === 'stack' && !document\.querySelector\('\.dk-card \.pz-cred'\)\) \{\s*const at = foot, clear = footClear\(at, w, h, shownBoxes\('\.dk-strip, \.dk-card, \.dk-bar', vw, vh\)\);/);
+  const { footCredit, footClear } = await import('../src/ui/shell/credit-foot.ts');
+  const vw = 440, vh = 736, h = 17, w = 210, safe = { top: 0, right: 0, bottom: 0, left: 0 };
+  const at = footCredit({ vw, vh, safe, h, margin: 8 });
+  assert.equal(at.y + h, vh - 2, 'the line stands at the screen\'s foot');
+  assert.equal(footClear(at, w, h, [{ l: 8, t: 40, r: 432, b: 640 }]), true, 'the table card (HVPG 14: 40 to 640) leaves the band clear');
+  assert.equal(footClear(at, w, h, [{ l: 8, t: 40, r: 432, b: 725 }]), false, 'a card on the band hides it');
+  assert.equal(footClear(at, w, h, [{ l: 200, t: 700, r: 330, b: 730 }]), false, 'the pill on the band hides it');
+});

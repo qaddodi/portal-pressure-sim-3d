@@ -126,6 +126,14 @@ export function Credit() {
         el.classList.toggle('covered', !clear); el.classList.remove('moving'); el.classList.add('placed'); at0 = at; shown = clear; if (clear) creditClaim.set({ x: at.x, y: at.y, w, h }); else creditClaim.set(null);
         return;
       }
+      // An iPhone held upright: a words card carries the credit in its own foot row (CardFrame .pz-cred; the floating line is hidden while one is up, chrome-3d.css). A slide with no words card (its one card is a table) has no row,
+      // so the line stands in the screen's foot band, the one place, never a hunt: the hunt found bare glass in the middle of the table card (HVPG 14, headless 440x736, 25 Nov). Where a card, the pill or a drawer is on that band it stays hidden.
+      if (talk && lay === 'stack' && !document.querySelector('.dk-card .pz-cred')) {
+        const at = foot, clear = footClear(at, w, h, shownBoxes('.dk-strip, .dk-card, .dk-bar', vw, vh));
+        clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
+        el.classList.toggle('covered', !clear); el.classList.remove('moving'); el.classList.add('placed'); at0 = at; shown = clear; if (clear) creditClaim.set({ x: at.x, y: at.y, w, h }); else creditClaim.set(null);
+        return;
+      }
       // the figure is the screen inside the safe areas; the frame-rate counter stands at the bottom corner too, so the credit's bottom corner rides above it
       const rise = fps ? M.fpsInset + M.fpsFont * M.fpsLine + 4 : 0;
       const fig = { l: vp.safe.left, t: vp.safe.top, r: vw - vp.safe.right, b: vh - vp.safe.bottom - rise };
