@@ -148,7 +148,8 @@ export function linkProcs(): () => void {
     // The measurement's readings stand on the figure as label tags (2D proc-anim.js `labels`): the talk's run never started them, only the Tests cards did, so the EUS-PPG's PV and HV, the IR pressures and the HVPG's
     // readings showed nowhere on the slides. Each is taken at its step's mark (`capture`; nothing else takes them here); the figure's names stand aside as they do on the Tests cards (the HVPG's keep theirs).
     endCards(); pinSlide();
-    if ((sp as { labels?: unknown }).labels) cards = runCards(kind, { capture: true, quiet: kind !== 'hvpgcath' });
+    // (a measurement's result stays on the figure once it is read, however the scope or the catheter goes out, until the slide is left: `keep`)
+    if ((sp as { labels?: unknown }).labels) cards = runCards(kind, { capture: true, quiet: kind !== 'hvpgcath', keep: true });
     sceneApi.procedure.drive(kind, {
       keep: hold,
       onFrame: (rec) => {
@@ -171,7 +172,12 @@ export function linkProcs(): () => void {
       },
       onEnd: ({ done, rewound }) => {
         if (g !== gen || ctl !== c) return;
-        endCards();
+        // A measurement that played through leaves its result up and the camera where it is (Mohammad, 25 Nov, the HVPG deck's EUS-PPG slide: "the scope comes out, but keep the PPG-EUS
+        // calculation on the screen until we go to the next slide", and the camera panned back to the slide's own shot by itself). Root cause: this end took the cards off with the run
+        // and sent the camera home, as the 2D Tests card does, where the monitor holds the number instead; on a slide nothing held it. Every measurement kind (EUS-PPG, HVPG, the IR
+        // pressures, the TIPS gradient) came through here.
+        const stays = done && !rewound && !!(sp as { measure?: boolean }).measure && !!cards;
+        if (stays) cards?.rest(); else endCards();
         playing = false; held = c.hold && done; ctl = null; sceneApi.follow(null);   // (a kind that holds leaves its last frame up: the slide's leaving takes it off, stopPlay)
         if (rewound) {
           // Back from the first step: the slide as it landed, before its procedure (the sequence going back past `apply` has already taken the result off: change(false))
@@ -184,7 +190,7 @@ export function linkProcs(): () => void {
           if ((scope || eus) && !c.hold) useProbes.getState().setEndoscope({ on: false });
         }
         const v = viewNow();
-        if (v) sceneApi.goTo(v.shot, room());
+        if (v && !stays) sceneApi.goTo(v.shot, room());
         onOver(!rewound);
       },
       // (replaced on the figure by another run, a Tests card's for one: this slide's run is over, so its state goes with it; the stopPlay path has already moved `gen` on)

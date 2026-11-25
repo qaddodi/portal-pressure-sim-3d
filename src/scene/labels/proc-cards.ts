@@ -1,7 +1,7 @@
 // A measurement's reading cards on the figure (2D proc-anim.js `labels`, drawn by stage-cath.js as the HVPG catheter's are): the EUS-PPG's PV at the portal vein's target and HV at the hepatic vein's,
 // the IR pressures' IVC, portal vein and PPG beside the catheter's tip, the HVPG measurement's FHVP, WHVP and the stack they come together in. The 2D spec says which cards stand now and what they print;
 // this turns that into what the label layer's catheter cards (cath-show.ts) draw, and asks the figure's names to stand aside while the needle works (2D `quiet`). Pure but for the store it writes.
-import type { Vector3 } from 'three';
+import { Vector3 } from 'three';
 import { READS, markAt, specOf } from '../procedures/copied/proc-anim.js';
 import { sceneApi } from '../api.ts';
 import { useLabels, type ProcCards } from './store.ts';
@@ -47,17 +47,39 @@ export function cardsOf(out: readonly Card[], into: ProcCards): { kinds: Callout
 /** The two points the cards point to: the EUS-PPG's targets, or the catheter's tip and the point ahead of it. */
 export const pointsOf = (kind: string) => (tip: Vector3, ahead: Vector3): boolean => sceneApi.procPoints(kind, tip, ahead);
 
-export interface CardRun { frame(t: number, f: unknown): void; end(): void }
+export interface CardRun {
+  frame(t: number, f: unknown): void;
+  /** The run is over but its result stays (a talk slide's measurement, `keep`): the figure's names come back, the reading cards stay until `end()`. */
+  rest(): void;
+  end(): void;
+}
+
+/** The time from which a measurement's result has been read: the mark of its last reading (2D markT). From then the 2D spec takes the cards away as the scope or the catheter comes out. */
+export function resultAt(kind: string): number {
+  const spec = specOf(kind) as { steps?: unknown[] } | null;
+  return spec?.steps?.length ? markAt(kind, spec.steps.length - 1) : Infinity;
+}
 
 /**
  * Starts a measurement's cards. `quiet`: the figure's names stand aside for the run (2D: the EUS-PPG's and the IR pressures'). `capture`: the run takes its own readings at the marks (the HVPG's; the
- * EUS-PPG's and the IR pressures' are taken by their panes, which also say the numbers). Call `frame(t, modelFrame)` from the procedure's frame and `end()` when it ends.
+ * EUS-PPG's and the IR pressures' are taken by their panes, which also say the numbers). `keep`: the result, once read, stays where it was read when the 2D spec would take it away with the scope or
+ * the catheter (a talk slide: Mohammad, 25 Nov, "the PPG-EUS calculation stays on the screen until we go to the next slide"); a time before the result (Back) takes it away as ever. Call
+ * `frame(t, modelFrame)` from the procedure's frame and `end()` when it ends.
  */
-export function runCards(kind: string, o: { quiet?: boolean; capture?: boolean } = {}): CardRun {
+export function runCards(kind: string, o: { quiet?: boolean; capture?: boolean; keep?: boolean; points?: (tip: Vector3, ahead: Vector3) => boolean } = {}): CardRun {
   const spec = specOf(kind) as { labels?(t: number, rd: unknown, f: unknown, out: Card[]): Card[]; capture?(i: number, rd: unknown, f: unknown): void; steps?: unknown[] } | null;
   const rd = (READS as unknown as Record<string, unknown>)[kind];
   const out: Card[] = [];
-  const into: ProcCards = { kinds: [], sig: '', kickers: { f: '', w: '', h: '' }, tones: { f: 'free', w: 'wedge' }, text: { f: '', w: '', h: '', hv: null }, points: pointsOf(kind) };
+  const liveAt = o.points ?? pointsOf(kind), res = resultAt(kind), seat = { tip: new Vector3(), ahead: new Vector3(), has: false };
+  let stands = false;   // the result has been read: its cards stand where they were read, whatever the scope or the catheter does next
+  // (a kept result points where it was read: the catheter's tip has left by the time the 2D spec would take the cards away, and the cards must not follow it out)
+  const points = !o.keep ? liveAt : (tip: Vector3, ahead: Vector3): boolean => {
+    if (!stands) return liveAt(tip, ahead);
+    if (!seat.has) { if (!liveAt(tip, ahead)) return false; seat.tip.copy(tip); seat.ahead.copy(ahead); seat.has = true; return true; }
+    tip.copy(seat.tip); ahead.copy(seat.ahead);
+    return true;
+  };
+  const into: ProcCards = { kinds: [], sig: '', kickers: { f: '', w: '', h: '' }, tones: { f: 'free', w: 'wedge' }, text: { f: '', w: '', h: '', hv: null }, points };
   let sig = '', got = -1, live = true;
   if (o.capture && rd) for (const k in rd as Record<string, number>) (rd as Record<string, number>)[k] = NaN;
   if (o.quiet) useLabels.getState().set({ quiet: true });
@@ -72,8 +94,19 @@ export function runCards(kind: string, o: { quiet?: boolean; capture?: boolean }
         for (let i = got + 1; i < spec.steps.length; i++) { if (t >= markAt(kind, i)) { spec.capture(i, rd, f); got = i; } else break; }
       }
       spec.labels(t, rd, f, out);
+      if (o.keep) {
+        if (t < res) { stands = false; seat.has = false; }
+        else if (out.length || into.kinds.length) {
+          // the result's own frame: where it is read is where it stands; what the 2D spec shows after it (nothing: it goes as the scope does) does not take it away
+          if (!stands) { stands = true; seat.has = false; }
+          if (!out.length) return;
+        }
+      }
       const r = cardsOf(out, into);
       if (r.sig !== sig) { sig = r.sig; set(r.kinds, r.sig); }
+    },
+    rest(): void {
+      if (live && o.quiet) useLabels.getState().set({ quiet: false });
     },
     end(): void {
       if (!live) return;
