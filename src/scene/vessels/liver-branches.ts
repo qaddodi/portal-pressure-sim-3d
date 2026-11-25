@@ -31,6 +31,9 @@ export interface BranchSet { host: string; when: string | null; list: readonly B
 
 export const LIVER_BRANCH_HOSTS = { out: ['PVH_R_2', 'PVH_L_1'], in: ['RHV_IVC_1', 'LHV_IVC'], umb: [] as readonly string[] } as const;
 const isOut = (id: string): boolean => (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id);
+/** The end (0 or 1) at which vein `id` runs into the liver's tissue and ends there, narrowed and faded (a portal branch's end, a hepatic vein's start), whether or not it branches: that end is a tip, so the bed beyond it is
+ *  no branch on its wall. Null for every other vessel. (The left portal vein stopped branching in round 16 but still ends in the left lobe this way: shape.ts LIVER_TAPER, fades.ts PLACED_LIVER_FADE.) */
+export const liverTipEnd = (id: string): 0 | 1 | null => (isOut(id) ? 1 : (LIVER_BRANCH_HOSTS.in as readonly string[]).includes(id) ? 0 : null);
 
 export interface Tree {
   /** the vein in flow order, whole: its own course up to the split, then its through branch to the tip */

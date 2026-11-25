@@ -18,7 +18,7 @@ import { fadeOf } from './fades.ts';
 import { PHASE_2_NODES } from './skin/nodes.ts';
 import { endShare, shuntEnds } from './shunt-ends.ts';
 import { DIVIDED, DIVIDED_RING_K } from './divide.ts';
-import { fanEnd, leaveAsBundle } from './strand-fan.ts';
+import { fanEnd, fanOrder, leaveAsBundle } from './strand-fan.ts';
 import { fairBends } from './bend.ts';
 const DIVIDED_IDS: ReadonlySet<string> = new Set(DIVIDED.map(([, v]) => v));
 
@@ -349,13 +349,16 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     // (strands that wind round one axis meet on it: their union at a gathered end is one strand wide, so each is the trunk's whole width there; strands that part at once share it, coil.ts WEAVE)
     const gathered = WEAVE[v.id] ? 1 : strands.length;
     const fit = bundle && FAN_IDS.has(v.id);
+    // a strand's 2D course into the scene, on its rest course's depth (the live strands, and for the fan below the same strands at rest)
+    const strand3 = (c: { pts: readonly (readonly [number, number])[]; dz?: readonly number[] }, i: number): Vec3[] =>
+      to3(c.pts as [number, number][], z, zf, zt, de.sf, de.st, de.through, atRest.strands[i]?.pts ?? (depth ? atRest.main : undefined), depth).map((p, j): Vec3 => (c.dz ? [p[0], p[1], p[2] + len3(c.dz[j] ?? 0)] : p));
     const out = [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
       // (the strands open one after another as the varix grows and close one after another as it shrinks: the strand the bands close first is the last to open; a banded one stays a cord, whatever its size)
       const open = fit ? strandOpen(i, strands.length, s.spr) : 1;
       const live = strandLive(banded, open, i, s.bands, cord) * (c.live ?? 1);
       return {
-        pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through, atRest.strands[i]?.pts ?? (depth ? atRest.main : undefined), depth).map((p, j): Vec3 => (c.dz ? [p[0], p[1], p[2] + len3(c.dz[j] ?? 0)] : p)), radius: Math.max(minR, rad * c.k * thick) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
+        pts: strand3(c, i), radius: Math.max(minR, rad * c.k * thick) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
         // THE CAVERNOMA'S CHANNELS end in a tip, not in a widened, collared, round-capped end: six channels each opened out to the whole C8 width (and a collar, and a ball) where they all meet at the node stood as a faceted star of overlapping
         // ends, a hub the trunk did not cover once it was narrowed or clotted (Mohammad, 20 Nov: "the collaterals fan out from faceted star hubs"). Each narrows to a fine point over its last few radii, so the bundle runs together into the vein
         // at the node (the same free-end taper every other tube's end has, tubes.ts `point`), and nothing is a ball.
@@ -368,7 +371,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
       };
     })];
     // a strand end that lands on a host's wall and does not leave the node as one bundle (which a junction skin welds) fans out along the host (strand-fan.ts): the strands no longer pile into one point inside it
-    if (bundle && v.id !== 'C8' && v.id !== 'C5' && strands.length > 1) fanStrandEnds(v, out);
+    if (bundle && v.id !== 'C8' && v.id !== 'C5' && strands.length > 1) fanStrandEnds(v, out, atRest.strands.length === strands.length ? atRest.strands.map(strand3) : null);
     return s.pin && (s.pin[0] > 0 || s.pin[1] > 0) ? held(v, s, out) : out;
   }
   // a fan: each tributary's width is the host's times the group's share and its own (at least 1.2 units), thinner while the group is only part on
@@ -376,19 +379,24 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
   return withFanJoints(fan);
 }
 
-/** The strands (courses 1.. of `out`) of a braid fanned at each end that lands on a host and is no bundle: the width a strand has at the host's wall sets how far apart they land. Rewrites the courses' points. */
-function fanStrandEnds(v: NetVessel, out: Course[]): void {
-  const cs = out.slice(1);
+/** The strands (courses 1.. of `out`) of a braid fanned at each end that lands on a host and is no bundle: the width a strand has at the host's wall sets how far apart they land. Rewrites the courses' points.
+ *  Whether an end fans, and the order the strands land in across the host, are read on the strands AT REST (`rest`: the same strands with no coil and no spread), so they hold while a coil eases: read on the live strands, two
+ *  that came in side by side swapped ranks as the coil grew and each jumped a FAN_PITCH across the host between two frames, a pop no blend of key frames can follow (root cause of C7 at coil 1.9 lying 0.98 radii off the blend of
+ *  its key frames, between coil 2.25 and 2.375). At rest nothing changes: the rest strands are the live ones. */
+function fanStrandEnds(v: NetVessel, out: Course[], rest: readonly (readonly Vec3[])[] | null): void {
+  const cs = out.slice(1), judge = rest ?? cs.map((c) => c.pts as Vec3[]);
   for (const end of [0, 1] as const) {
     const e = out[0]!.sewn?.[end];
-    if (!e?.dir || leaveAsBundle(cs.map((c) => c.pts as Vec3[]), end, v.radius)) continue;
+    if (!e?.dir || leaveAsBundle(judge, end, v.radius)) continue;
     let r = 0;
     for (const c of cs) {
       let len = 0; for (let i = 1; i < c.pts.length; i++) len += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);
       const d = Math.min(len * 0.5, e.hostR), u = end ? 1 - d / len : d / len;
       r = Math.max(r, radiusAtU(c, u, len) * sewnAt(e, end, d));
     }
-    const fanned = fanEnd(cs.map((c) => c.pts as Vec3[]), end, e.dir, r);
+    const order = fanOrder(judge, end, e.dir, r);
+    if (!order) continue;
+    const fanned = fanEnd(cs.map((c) => c.pts as Vec3[]), end, e.dir, r, order);
     cs.forEach((c, i) => { c.pts = fanned[i]!; });
   }
 }

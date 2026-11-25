@@ -11,7 +11,7 @@ import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns } from './joins.ts';
 import { ALONG_VEIN_IDS, LEAVE_VEIN_IDS } from './starts.ts';
-import { LIVER_BRANCHES, LIVER_BRANCH_HOSTS, SPLIT_AT } from './liver-branches.ts';
+import { LIVER_BRANCHES, LIVER_BRANCH_HOSTS, SPLIT_AT, liverTipEnd } from './liver-branches.ts';
 import { CAUDATE_VEIN_ID, caudateVeinSet } from './caudate-veins.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { TIER_Z, type Tier, UNITS_PER_SCENE, len3, x3, y3 } from '../frame2d.ts';
@@ -291,8 +291,10 @@ export const MAPPED: readonly NetVessel[] = NETWORK.filter((v) => !v.feeder);
   for (const list of at.values()) {
     if (list.length < 3) continue;
     // (a vein that branches is one tube to its tip: the bed it used to run on into still continues it, so it is not a branch on a wall and wears no collar. Without this the left portal vein's bed grew a fork collar the cut had stopped
-    //  counting as a run-on: in the Circuit, where the beds are drawn, a fat bulb with a slanted end stood on the vein; Mohammad, 20 Nov: "wtf happened to LPV here")
-    if (list.some((e) => cutEnd(e.v.id) === e.end)) continue;
+    //  counting as a run-on: in the Circuit, where the beds are drawn, a fat bulb with a slanted end stood on the vein; Mohammad, 20 Nov: "wtf happened to LPV here").
+    //  Keyed by the vein ENDING in the liver's tissue (liverTipEnd), not by its branching (cutEnd): the placed left portal vein no longer branches (round 16) but still narrows and fades to its tip at that node, and keyed by the branching
+    //  its bed wore the collar again, fitted to the vein's full width over a tip at 0.4 of it.
+    if (list.some((e) => liverTipEnd(e.v.id) === e.end)) continue;
     const mains = list.filter((e) => e.v.kind !== 'collateral');
     // (a trunk drawn faint, the cava behind the organs, has no wall to blend into: the collar would show as a bulb on the branch's end)
     if (list.some((e) => IVC_EDGES.has(e.v.id))) continue;

@@ -38,21 +38,31 @@ export function leaveAsBundle(strands: readonly (readonly Vec3[])[], end: 0 | 1,
   return true;
 }
 
-/** The strands with their end `end` fanned along `hostDir` (the host's axis there): strand k of n lands at (rank - (n-1)/2) x pitch from the landing point, rank being its order across the host as it comes in, so none crosses another; the move is zero
- *  FAN_REACH end radii back and eases in (smoothstep), so the strand never kinks. `endR` is a strand's own radius at the end. Returns the strands unchanged (the same arrays) when the host runs along the way in, or there is one strand. */
-export function fanEnd(strands: readonly (readonly Vec3[])[], end: 0 | 1, hostDir: readonly [number, number, number], endR: number): Vec3[][] {
-  const n = strands.length;
-  if (n < 2 || !(endR > 0)) return strands.map((s) => [...s]);
-  const ps = strands.map((s) => fromEnd(s, end)), as = ps.map(arcs);
+/** The way in to end `end` and the host's axis across it, which the fan opens along: null when the host runs along the way in (nothing to fan along) or there is one strand. */
+function fanFrame(strands: readonly (readonly Vec3[])[], end: 0 | 1, hostDir: readonly [number, number, number], endR: number): { ps: Vec3[][]; as: number[][]; reach: number; e: Vec3; lat: Vec3 } | null {
+  if (strands.length < 2 || !(endR > 0)) return null;
+  const ps = strands.map((s) => fromEnd(s, end) as Vec3[]), as = ps.map(arcs);
   const reach = Math.min(FAN_REACH * endR, FAN_MAX_SHARE * Math.min(...as.map((a) => a[a.length - 1]!)));
-  // the way in (from a little back to the end) and the host's axis across it: the fan opens along that
   const e = ps[0]![0]!, back = atArc(ps[0]!, as[0]!, reach * 0.5), inDir = norm(sub(e, back));
   const along = dot(hostDir, inDir), lat0: Vec3 = [hostDir[0] - along * inDir[0], hostDir[1] - along * inDir[1], hostDir[2] - along * inDir[2]];
-  if (Math.hypot(...lat0) < 0.3) return strands.map((s) => [...s]);
-  const lat = norm(lat0);
-  // the order each strand comes in across the host, read where the fan starts
-  const side = ps.map((p, i) => dot(sub(atArc(p, as[i]!, Math.min(reach, FAN_ORDER_AT * endR)), e), lat));
-  const order = side.map((_, i) => i).sort((a, b) => side[a]! - side[b]!), rank = new Map(order.map((k, r) => [k, r]));
+  return Math.hypot(...lat0) < 0.3 ? null : { ps, as, reach, e, lat: norm(lat0) };
+}
+/** The order the strands come in across the host at end `end` (strand indices, from one side to the other), read where the fan starts; null when there is no fan. A shape that moves (a coil easing) must fan in ONE order: read
+ *  afresh at every shape, two strands that come in side by side swap ranks as the coil grows, and both jump a whole FAN_PITCH across the host between two frames (shape.ts takes the order from the vessel at rest). */
+export function fanOrder(strands: readonly (readonly Vec3[])[], end: 0 | 1, hostDir: readonly [number, number, number], endR: number): number[] | null {
+  const f = fanFrame(strands, end, hostDir, endR);
+  if (!f) return null;
+  const side = f.ps.map((p, i) => dot(sub(atArc(p, f.as[i]!, Math.min(f.reach, FAN_ORDER_AT * endR)), f.e), f.lat));
+  return side.map((_, i) => i).sort((a, b) => side[a]! - side[b]!);
+}
+/** The strands with their end `end` fanned along `hostDir` (the host's axis there): strand k of n lands at (rank - (n-1)/2) x pitch from the landing point, rank being its order across the host as it comes in (`order`, or as read here,
+ *  fanOrder), so none crosses another; the move is zero FAN_REACH end radii back and eases in (smoothstep), so the strand never kinks. `endR` is a strand's own radius at the end. Returns the strands unchanged (the same arrays) when the host
+ *  runs along the way in, or there is one strand. */
+export function fanEnd(strands: readonly (readonly Vec3[])[], end: 0 | 1, hostDir: readonly [number, number, number], endR: number, order?: readonly number[]): Vec3[][] {
+  const n = strands.length, f = fanFrame(strands, end, hostDir, endR);
+  if (!f) return strands.map((s) => [...s]);
+  const { ps, as, reach, lat } = f;
+  const ord = order && order.length === n ? order : fanOrder(strands, end, hostDir, endR)!, rank = new Map(ord.map((k, r) => [k, r]));
   const out = ps.map((p, i): Vec3[] => {
     const d = (rank.get(i)! - (n - 1) / 2) * FAN_PITCH * endR;
     return p.map((q, k): Vec3 => {

@@ -59,10 +59,12 @@ test('siblings spread apart, and no branch comes near another hepatic vein or an
 
 test('the left hepatic vein is one tube that bends down into the left lobe, never up toward the capsule; its tip narrows gently and every branch narrows to about half', async () => {
   const { treeOf, TIP } = await import('../src/scene/vessels/liver-branches.ts');
-  const t = treeOf('LHV_IVC')!, host = EDGE_PATH_2D.LHV_IVC!, hostStart = host[0]!;
-  assert.equal(t.side, null, 'the left hepatic vein has no second branch');
-  const tip = t.through[0]!;   // (flow order: the tip is where the vein begins)
-  assert.ok(tip[1] > hostStart[1] - 2, `its tip is at y ${tip[1].toFixed(0)}, not above the vein's start (${hostStart[1]})`);
+  // (placed anatomy, round 18: the middle and left hepatic veins share a trunk, and the placed left hepatic vein starts in the left lobe as one tube with no split, so it has no tree (treeOf null) and no second branch.
+  //  The 2D pin read its tip off that tree; the tip is now the placed course's own first point (flow order: where the vein begins), and it must be the course's lowest point, the vein bending down into the lobe)
+  const host = EDGE_PATH_2D.LHV_IVC!;
+  assert.equal(treeOf('LHV_IVC'), null, 'the left hepatic vein has no split, so no second branch');
+  const tip = host[0]!, lowest = Math.max(...host.map((p) => p[1]));
+  assert.ok(tip[1] > lowest - 2, `its tip is at y ${tip[1].toFixed(0)}, not above the lowest point of its course (${lowest.toFixed(0)})`);
   assert.ok(!LIVER_BRANCHES.some((b) => b.host === 'LHV_IVC'), 'no separate branch tube on it');
   const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
   const { coursesOf, REST } = await import('../src/scene/vessels/shape.ts');
@@ -175,7 +177,9 @@ test('the two tubes of a fork know each other: every vertex carries its distance
   const { VESSEL_FS, VESSEL_VS } = await import('../src/scene/vessels/shaders.ts');
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
   const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
-  assert.deepEqual([...SIDE_BRANCHES.keys()].sort(), ['PVH_L_1', 'PVH_R_2', 'RHV_IVC_1']);
+  // (placed anatomy: the left portal vein has no fork any more; it runs on into the left lobe as one vessel that narrows and fades early on purpose (shape.ts LIVER_TAPER, fades.ts PLACED_LIVER_FADE), so it has no side branch and no mate)
+  assert.deepEqual([...SIDE_BRANCHES.keys()].sort(), ['PVH_R_2', 'RHV_IVC_1']);
+  assert.equal(forkMateOf('PVH_L_1'), null, 'the left portal vein forks with nothing');
   for (const [host, kids] of SIDE_BRANCHES) for (const k of kids) {
     assert.equal(forkMateOf(host), k); assert.equal(forkMateOf(k), host);
     const rad = (id: string): number => coursesOf(B.get(id)!, REST)[0]!.radius;
@@ -202,6 +206,9 @@ test('the two tubes of a fork know each other: every vertex carries its distance
 
 test('the bed that continues a vein which branches wears no fork collar (root cause of the fat bulb on the left portal vein in the Circuit: the cut stopped counting the pair as a run-on, so the bed was dressed as a branch on a wall, and the Circuit draws the beds)', async () => {
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
+  const { liverTipEnd } = await import('../src/scene/vessels/liver-branches.ts');
+  // (keyed by the vein ending in the liver's tissue, not by its branching: the placed left portal vein does not branch but still ends at its tip in the left lobe)
+  assert.equal(liverTipEnd('PVH_L_1'), 1); assert.equal(liverTipEnd('LHV_IVC'), 0); assert.equal(liverTipEnd('PV_TRUNK'), null);
   for (const id of ['PRE_L', 'PRE_R', 'POST_R_RHV', 'POST_L_LHV']) { const v = B.get(id); if (v) assert.ok(!v.flare?.[0] && !v.flare?.[1], `${id} has no collar`); }
 });
 
@@ -247,7 +254,9 @@ test('a side branch starts as wide as it is where it leaves its vein (a half-wid
   const { radiusAtU } = await import('../src/scene/vessels/tubes.ts');
   const { JOIN_K } = await import('../src/scene/vessels/liver-branches.ts');
   assert.equal(JOIN_K, 1);
-  for (const id of ['PVH_R_2~F:b', 'PVH_L_1~F:b', 'RHV_IVC_1~F:b']) {
+  // (placed anatomy: the left portal vein has no side branch (it tapers and fades into the left lobe as one vessel), so only the right portal and right hepatic veins' branches are checked)
+  assert.equal(B.get('PVH_L_1~F:b'), undefined, 'no branch on the left portal vein');
+  for (const id of ['PVH_R_2~F:b', 'RHV_IVC_1~F:b']) {
     const v = B.get(id)!, c = coursesOf(v, REST)[0]!, join = (v.plan as unknown as { list: { join: 0 | 1 }[] }).list[0]!.join;
     let L = 0; for (let i = 1; i < c.pts.length; i++) L += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);
     const at = (u: number): number => radiusAtU(c, join === 0 ? u : 1 - u, L);

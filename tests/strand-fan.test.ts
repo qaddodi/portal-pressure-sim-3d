@@ -4,7 +4,7 @@
 // Node only. Run: node --test tests/strand-fan.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FAN_PITCH, fanEnd, leaveAsBundle } from '../src/scene/vessels/strand-fan.ts';
+import { FAN_PITCH, fanEnd, fanOrder, leaveAsBundle } from '../src/scene/vessels/strand-fan.ts';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { buildTubes } from '../src/scene/vessels/tubes.ts';
@@ -69,6 +69,30 @@ test('every braid end that lands on a host and is not a bundle is fanned, never 
         const p = strands.map((c) => endOf(c.pts as V[], end ? 1 : 0)) ;
         const spread = Math.max(...p.map((a) => Math.max(...p.map((b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])))));
         assert.ok(spread > 1.5 * strands[0]!.radius, `${v.id} end ${end}: its strands land ${(spread / strands[0]!.radius).toFixed(1)} radii apart`);
+      }
+    }
+  } finally { setSmoothJoins(was); }
+});
+
+test('a fan lands in the order it is given, and a coil easing open never moves a fanned strand end (root cause of C7 at coil 1.9 being 0.98 radii off its key frames\' blend: the order was read afresh at every shape, two strands that came in side by side swapped ranks between coil 2.25 and 2.375 and each jumped a pitch across the cava; shape.ts reads it once, at rest)', () => {
+  const s = braid(), r = 0.004;
+  assert.deepEqual(fanOrder(s, 1, [0, 1, 0], r), [0, 1, 2]);
+  assert.equal(fanOrder(s, 1, [1, 0, 0], r), null, 'nothing to fan along');
+  const flip = fanEnd(s, 1, [0, 1, 0], r, [2, 1, 0]);
+  assert.ok(endOf(flip[2]!, 1)[1] < endOf(flip[0]!, 1)[1], 'the given order is the order they land in');
+  const was = smoothJoinsOn(); setSmoothJoins(true);
+  try {
+    for (const v of NETWORK) {
+      if (v.plan?.kind !== 'coil' || !v.plan.coils) continue;
+      let prev: ReturnType<typeof coursesOf> | null = null;
+      for (let w = 0; w <= 5.0001; w += 0.125) {
+        const cs = coursesOf(v, { ...REST, wig: w, spr: 1, strandsOn: true });
+        if (prev) cs.forEach((c, ci) => {
+          const p = prev![ci];
+          if (!p || p.pts.length !== c.pts.length) return;
+          for (const k of [0, c.pts.length - 1]) { const d = Math.hypot(c.pts[k]![0] - p.pts[k]![0], c.pts[k]![1] - p.pts[k]![1], c.pts[k]![2] - p.pts[k]![2]) / v.radius; assert.ok(d < 0.05, `${v.id} course ${ci}: its end moves ${d.toFixed(3)} radii between coil ${(w - 0.125).toFixed(3)} and ${w.toFixed(3)}`); }
+        });
+        prev = cs;
       }
     }
   } finally { setSmoothJoins(was); }
