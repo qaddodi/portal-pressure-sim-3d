@@ -39,7 +39,7 @@ export function placeAt(el: HTMLElement, anchor: HTMLElement, { side = 'below', 
     if (y + hh > vb - margin) y = Math.max(margin, top0 - hh - gap);
     y = clamp(y, margin, vb - hh - margin);
   }
-  const leftCss = `clamp(calc(${margin}px + env(safe-area-inset-left, 0px)), ${x}px, calc(${cw - w - margin}px - env(safe-area-inset-right, 0px)))`;
+  const leftCss = `clamp(calc(${margin}px + var(--safe-l)), ${x}px, calc(${cw - w - margin}px - var(--safe-r)))`;
   el.style.translate = `${leftCss} ${y}px`;
   return y;
 }

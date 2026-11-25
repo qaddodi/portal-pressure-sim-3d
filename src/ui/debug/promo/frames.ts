@@ -27,6 +27,10 @@ export interface Layout {
   u: number;
 }
 
+/** The safe edges (CSS px: top, right, bottom, left) of the device each size stands for, upright: an iPhone's island and home bar, an iPad's status bar and home bar, none on a Mac.
+ *  The frame passes them to the app (`?safe=`, debug/safe-edges.ts), so its cards and pill keep clear of the camera pill, the home bar and the screen's round corners as on the device. */
+export const FRAME_SAFE: Readonly<Record<string, readonly [number, number, number, number]>> = Object.freeze({ mac: [0, 0, 0, 0], iphone: [47, 0, 34, 0], 'ipad-portrait': [24, 0, 20, 0] });
+
 /** The device each size name of the capture frames stands for (the sizes the promotion page offers). */
 export const FRAME_KIND: Readonly<Record<string, FrameKind>> = Object.freeze({ mac: 'mac', iphone: 'iphone', 'ipad-portrait': 'ipad' });
 

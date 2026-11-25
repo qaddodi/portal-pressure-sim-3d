@@ -158,7 +158,7 @@ export function Shell() {
     <>
       {mode === 'deck' && <DeckUiSlot />}
       <div className="sh-root" data-device={device} data-bottom={thumb} data-mode={mode} style={METRICS}>
-        <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'env(safe-area-inset-top, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)' }} />
+        <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'var(--safe-t)', paddingRight: 'var(--safe-r)', paddingBottom: 'var(--safe-b)', paddingLeft: 'var(--safe-l)' }} />
         <div className={`app${thumb ? ' thumb' : ''}${view === 'sinusoid' ? ' sin-focus' : ''}${sheetUp ? ' menu-sheet-open' : ''}${cardOver ? ' ac-over-pill' : ''}${chartUp ? ' bt-up' : ''}${testsCls}`} id="app" ref={appRef} inert={mode === 'deck'}>
           <TopBar />
           <main className={`stage-wrap${view === 'circuit' ? ' cmap' : ''}`} id="stageWrap" aria-label="Figure">

@@ -50,7 +50,7 @@
    (chart | instruments) slides over from the right when the Chart button opens it ─ */
 @media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
   .app { --top-h: 52px; --gap: 8px; }
-  .topbar { padding: calc(var(--safe-top) + 8px) calc(env(safe-area-inset-right) + 8px) 0 calc(env(safe-area-inset-left) + 8px); gap: 6px; }
+  .topbar { padding: calc(var(--safe-top) + 8px) calc(var(--safe-r) + 8px) 0 calc(var(--safe-l) + 8px); gap: 6px; }
   .scenario-v { font-size: var(--fs-14); }
   .top-right { gap: 0; flex: none; margin-left: 0; }
   .top-right .ib, .top-right .pal-btn { width: 38px; min-width: 38px; }
@@ -75,13 +75,13 @@
   .stage-bar .lg-note { display: none; }
 
   .readouts { border-top: 1px solid var(--hairline); }
-  .app .panel, .app.dock-open .panel { width: min(440px, 100vw - 44px); padding-bottom: env(safe-area-inset-bottom); }
+  .app .panel, .app.dock-open .panel { width: min(440px, 100vw - 44px); padding-bottom: var(--safe-b); }
   .dock-head .ib { display: none; }   /* no floating windows on a phone */
   .dock-pane .chart-box { height: clamp(220px, 38vh, 340px); }
   .modal > header { padding: 16px 20px 12px; }
   .modal > .body { padding: 4px 20px 20px; }
   .keys { column-count: 1; }
-  .toast-wrap { top: auto; bottom: calc(80px + env(safe-area-inset-bottom)); }
+  .toast-wrap { top: auto; bottom: calc(80px + var(--safe-b)); }
   .p-body { padding: 4px 16px 24px; }
   .changes { padding-left: 16px; padding-right: 16px; }
   .range-wrap { --tw: 32px; --dot: 22px; }   /* (a bigger dot to grab on a phone; the drawing follows --tw, the box of the dot and its ring, and --dot, the dot itself) */
@@ -96,7 +96,7 @@
 /* Phone in landscape: the figure fills the screen; the side panel slides over it */
 @media (max-width: 1023px) and (max-height: 500px) and (orientation: landscape) {
   .app { --top-h: 46px; --gap: 8px; }
-  .topbar { padding: calc(var(--safe-top) + 6px) calc(env(safe-area-inset-right) + 8px) 0 calc(env(safe-area-inset-left) + 8px); gap: 6px; }
+  .topbar { padding: calc(var(--safe-top) + 6px) calc(var(--safe-r) + 8px) 0 calc(var(--safe-l) + 8px); gap: 6px; }
   .stage-bar.top { height: 44px; padding: 0 8px; }
   .stage-bar.bottom { height: 52px; padding: 0 8px; grid-template-columns: auto minmax(0, 1fr); }
   .zoom, .legend .lg-title, #btnLayers #colorModeLabel { display: none; }
@@ -139,7 +139,7 @@ html[data-embed] .topbar, html[data-embed] button[aria-label="Exit the presentat
    scrolls (s: two controls, l: three or four, x: a lobule part with its words; card.js cardSize). No leader line. */
 .action-card {
   position: absolute; z-index: var(--z-hud); box-sizing: border-box; overflow: hidden;
-  left: calc(env(safe-area-inset-left, 0px) + 14px); top: calc(var(--top-safe, 56px) + 8px); width: 276px; height: auto; max-height: 500px;
+  left: calc(var(--safe-l) + 14px); top: calc(var(--top-safe, 56px) + 8px); width: 276px; height: auto; max-height: 500px;
   background: var(--surface); border-radius: var(--r-sheet); box-shadow: var(--shadow-3), inset 0 0 0 1px var(--hairline);
   color: var(--text); font-size: 13px; line-height: 1.35;
 }
@@ -251,9 +251,9 @@ html[data-embed] .topbar, html[data-embed] button[aria-label="Exit the presentat
 .ac-bl { min-width: 0; }
 /* A phone: the card above the view switch, the screen's width less 12 px each side (B). */
 .action-card.docked {
-  left: calc(env(safe-area-inset-left) + 12px) !important; right: calc(env(safe-area-inset-right) + 12px); top: auto !important; bottom: calc(env(safe-area-inset-bottom) + 6px);
+  left: calc(var(--safe-l) + 12px) !important; right: calc(var(--safe-r) + 12px); top: auto !important; bottom: calc(var(--safe-b) + 6px);
   width: auto; height: auto; min-height: 0; max-height: var(--ac-max);
-  --ac-max: calc(100% - env(safe-area-inset-bottom) - 6px - var(--top-safe, 56px) - 56px);
+  --ac-max: calc(100% - var(--safe-b) - 6px - var(--top-safe, 56px) - 56px);
 }
 /* (the lobule part's card on a phone is exactly as tall as its words, no less and no more (18 Nov 2026, Mohammad, the iPhone: a card 224 px at the least stood 80 px empty under short words, and a held
    height of the tallest it had been stood it taller still): no card has a least height of its kind's: a 224 px floor stood the vessel and organ cards 33 px empty under their words too; card.js) */
@@ -386,7 +386,7 @@ html[data-embed] .topbar, html[data-embed] button[aria-label="Exit the presentat
 @media (max-width: 1100px) { .pal-l, .pal-btn kbd { display: none; } .pal-btn { width: 34px; padding: 0; justify-content: center; } }
 
 /* Home */
-.home { position: fixed; inset: 0; z-index: var(--z-popover); background: var(--bg); overflow: auto; animation: fade-rise var(--d-small) var(--ease) both; transition: opacity var(--d-small) var(--ease); padding: var(--safe-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+.home { position: fixed; inset: 0; z-index: var(--z-popover); background: var(--bg); overflow: auto; animation: fade-rise var(--d-small) var(--ease) both; transition: opacity var(--d-small) var(--ease); padding: var(--safe-top) var(--safe-r) var(--safe-b) var(--safe-l); }
 .menu-seg { margin: 2px 8px 8px; }
 /* Settings > Appearance (src/ui/look-chooser.js): the looks as tiles, three to a row. A tile draws its look small (ground, a card on it,
    two lines of ink, a short bar in the accent: the --look-* tokens) with its name under it; System shows Light and Dark side by side. The chosen
@@ -436,7 +436,7 @@ html[data-embed] .topbar, html[data-embed] button[aria-label="Exit the presentat
 @media (hover: hover) { .menu-credit { --hv-bg: var(--surface-2); } .menu-credit:hover::before { opacity: 1 } }
 
 /* Command palette */
-.pal-back { position: fixed; inset: 0; z-index: var(--z-dialog); display: flex; justify-content: center; align-items: flex-start; padding: calc(12vh + var(--safe-top)) calc(16px + env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }
+.pal-back { position: fixed; inset: 0; z-index: var(--z-dialog); display: flex; justify-content: center; align-items: flex-start; padding: calc(12vh + var(--safe-top)) calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l)); }
 .pal-back[hidden] { display: none; }
 .pal-back { animation: crossfade var(--d-small) var(--ease); }
 .pal-back.leaving { pointer-events: none; animation: crossfade-out var(--d-flip) var(--ease-in) forwards; }
@@ -473,7 +473,7 @@ html[data-embed] .topbar, html[data-embed] button[aria-label="Exit the presentat
    (the dock and the figure stay as they are, like the other sheets), and keeps one height while it is open. The dock below it stays live. */
 html.thumb-ui .pal-back { bottom: max(0px, calc(var(--thumb-occ, 0px) - 8px)); align-items: flex-end; overflow: clip; animation: none;   /* (clip, not hidden: a hidden box is still a scroller, and the focus in the tap scrolled it 117 px to show the field while the sheet rose, then it snapped back as it landed) */
  
-  padding: calc(8px + var(--safe-top)) calc(6px + env(safe-area-inset-right, 0px)) max(8px, calc(var(--pal-kb, 0px) + 16px - var(--thumb-occ, 0px))) calc(6px + env(safe-area-inset-left, 0px)); }
+  padding: calc(8px + var(--safe-top)) calc(6px + var(--safe-r)) max(8px, calc(var(--pal-kb, 0px) + 16px - var(--thumb-occ, 0px))) calc(6px + var(--safe-l)); }
 html.thumb-ui .pal { --pal-veil: 0 0 0 0 transparent; width: 100%; animation: none; }   /* (it rises from behind the dock on the page's frames, palette.js and sheet-ride.js, so its glass and its words move as one) */
 html.thumb-ui .pal-back.leaving { animation: none; }
 html.thumb-ui .pal-top { padding: 4px 4px 4px 14px; }

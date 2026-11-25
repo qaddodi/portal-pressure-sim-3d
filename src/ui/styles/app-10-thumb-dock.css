@@ -43,7 +43,7 @@
 /* A phone: the cards (Tests, Treat, Details) and the menus sit above the dock, inset like it, round on every corner. */
 @media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
   .app.thumb :is(.panel, .treat-card, .instrument-workspace.float-ui:not(.side)) {
-    left: calc(env(safe-area-inset-left) + 6px) !important; right: calc(env(safe-area-inset-right) + 6px) !important; bottom: var(--nb-occ, calc(var(--vdock-h) + 14px)) !important;
+    left: calc(var(--safe-l) + 6px) !important; right: calc(var(--safe-r) + 6px) !important; bottom: var(--nb-occ, calc(var(--vdock-h) + 14px)) !important;
     border-radius: var(--r-sheet) !important; padding-bottom: 0; max-height: calc(100% - var(--top-safe) - var(--nb-occ, var(--vdock-h)) - 22px);
   }
   .app.thumb .instrument-workspace .dock-pane { padding-bottom: 16px; }
@@ -51,12 +51,12 @@
      card moves it, up to Full and down to Half or closed. The button stays for the keyboard (Half/Full), seen only on focus,
      and never takes a touch, so the head under it gets the tap or the drag. */
   .app.thumb :is(.panel-grab, .sheet-grab) { pointer-events: none; }
-  html.thumb-ui .menu.as-sheet { box-shadow: var(--shadow-3), inset 0 0 0 1px var(--hairline); left: calc(env(safe-area-inset-left) + 6px) !important; right: calc(env(safe-area-inset-right) + 6px); --thumb-bot: max(var(--thumb-occ, 0px), calc(env(safe-area-inset-bottom, 0px) + 6px)); bottom: var(--thumb-bot); max-height: calc(100dvh - var(--thumb-bot) - max(72px, var(--thumb-top, 0px) + 8px)); padding-bottom: 10px; border-radius: var(--r-sheet); }
+  html.thumb-ui .menu.as-sheet { box-shadow: var(--shadow-3), inset 0 0 0 1px var(--hairline); left: calc(var(--safe-l) + 6px) !important; right: calc(var(--safe-r) + 6px); --thumb-bot: max(var(--thumb-occ, 0px), calc(var(--safe-b) + 6px)); bottom: var(--thumb-bot); max-height: calc(100dvh - var(--thumb-bot) - max(72px, var(--thumb-top, 0px) + 8px)); padding-bottom: 10px; border-radius: var(--r-sheet); }
   /* (16 Nov 2026) The Layers sheet and the Colored-by sheet change the figure, so they stop at under half the screen: the camera frames the figure in the strip above
      them (util.js popover `safe`), each toggle shows, and the rows scroll. The rule is tied to --thumb-top and --thumb-bot as the sheet's own cap is. */
   /* (Layers stops under half the screen on purpose: its rows change the figure, which stays in view in the strip above it as each is toggled; tests/layers-sheet*.test.js. A tester asked for it to take the room on 18 Nov 2026; the figure strip is the rule.) */
   html.thumb-ui .menu.as-sheet.layers-pop { max-height: min(48dvh, calc(100dvh - var(--thumb-bot) - max(72px, var(--thumb-top, 0px) + 8px))); }
-  html.thumb-ui .why-pop.as-sheet { box-shadow: var(--shadow-3), inset 0 0 0 1px var(--hairline); left: calc(env(safe-area-inset-left) + 6px); right: calc(env(safe-area-inset-right) + 6px); --thumb-bot: max(var(--thumb-occ, 0px), calc(env(safe-area-inset-bottom, 0px) + 6px)); bottom: var(--thumb-bot); max-height: calc(100dvh - var(--thumb-bot) - max(72px, var(--thumb-top, 0px) + 8px)); padding-bottom: 14px; border-radius: var(--r-sheet); }
+  html.thumb-ui .why-pop.as-sheet { box-shadow: var(--shadow-3), inset 0 0 0 1px var(--hairline); left: calc(var(--safe-l) + 6px); right: calc(var(--safe-r) + 6px); --thumb-bot: max(var(--thumb-occ, 0px), calc(var(--safe-b) + 6px)); bottom: var(--thumb-bot); max-height: calc(100dvh - var(--thumb-bot) - max(72px, var(--thumb-top, 0px) + 8px)); padding-bottom: 14px; border-radius: var(--r-sheet); }
 }
 /* Fit and the circuit's turn upright live in the Layers tab's menu (15 Oct, option 2), so nothing floats over the figure
    above the dock, the sinusoid view included, which keeps the dock (2 Nov): its view pill goes back out to the lobule. */
@@ -212,7 +212,7 @@
 .pz-fk.grad, .pz-fk.grad.col { flex-direction: column; align-items: center; gap: .2em; padding: .28em 14px .34em; font-size: max(12px, calc(var(--s-cap) * .78)); }   /* (the 12 px floor: a key's words had read 11 px, and 10 here) */
 /* A wider screen's colour key (Mac, iPad, a phone held sideways) sits right on top of the nav pill at the lower right: right-aligned with it,
    a small gap above it, the pill's own glass and corners (Mohammad, 15 Oct). Its own width; it moves with the pill. */
-.pz:not(.stack) .pz-fk { left: auto; top: auto; right: var(--pz-cm); bottom: calc(max(var(--pz-cm), calc(env(safe-area-inset-bottom, 0px) + 8px)) + 44px + 8px); translate: none; border-radius: var(--r-sheet); }   /* (its glass, edge and shadow: the base rule's, the nav pill's own) */
+.pz:not(.stack) .pz-fk { left: auto; top: auto; right: var(--pz-cm); bottom: calc(max(var(--pz-cm), calc(var(--safe-b) + 8px)) + 44px + 8px); translate: none; border-radius: var(--r-sheet); }   /* (its glass, edge and shadow: the base rule's, the nav pill's own) */
 /* A phone's colour key sits at the words' bottom-left corner, on the nav pill's row (figure-key.js fades it in once the cards have landed). */
 .pz.stack .pz-fk { left: 21px; top: auto; bottom: calc(26px + var(--pz-sb)); translate: none; z-index: 1; }
 /* On the nav pill's row the key is the pill's twin: the same 38 px height, bottom and centre line, its corners, its words centred,
