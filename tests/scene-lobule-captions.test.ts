@@ -80,3 +80,19 @@ test('on a slide a lobule pressure carries its unit, in free play the legend say
   assert.equal(readingText('P3', m, true, true), '?');
   assert.notEqual(readingSig(m, true), readingSig(m, false), 'the layout is solved again for the wider words');
 });
+
+// Lobule 3, capture 52ef8e63: "Zone 3 receives the least oxygen" printed no oxygen. With the oxygen lens each zone's name carries the saturation its colour is read from.
+test('with the oxygen lens each zone reads its saturation after its name; with another lens the zones are names alone', () => {
+  const on = buildLobuleCaptions({ ...ctx(), oxygen: true });
+  assert.deepEqual([1, 2, 3].map((i) => on.meta.get(`z:${i}`)!.read), ['O1', 'O2', 'O3']);
+  for (const i of [1, 2, 3]) {
+    const m = on.meta.get(`z:${i}`)!;
+    assert.deepEqual(m.forms.map((f) => f.value), [true, true, false, false], 'widest forms carry the reading; the plain names are the fall back');
+    assert.equal(m.forms[0]!.name, `${ZONE_WORDS[i - 1]![0]} ${ZONE_WORDS[i - 1]![1]}`);
+  }
+  const model = { P1: 12, P2: 8, P3: 4, lymph: 0, oxy: [0.97, 0.9, 0.62] };
+  assert.deepEqual(['O1', 'O2', 'O3'].map((r) => readingText(r as 'O1', model, false)), ['97% O₂', '90% O₂', '62% O₂']);
+  assert.equal(readingText('O3', { ...model, oxy: undefined }, false), '—');
+  assert.equal(readingText('O3', model, true), '?');
+  assert.deepEqual([1, 2, 3].map((i) => buildLobuleCaptions(ctx()).meta.get(`z:${i}`)!.read), [null, null, null]);
+});

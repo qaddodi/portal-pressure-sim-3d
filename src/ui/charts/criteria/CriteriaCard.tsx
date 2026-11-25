@@ -1,6 +1,6 @@
 import { Fragment, useMemo } from 'react';
 import { Chart } from '../Chart.tsx';
-import { criteriaHasCase, criteriaMet, criteriaReading, criteriaRows, cutParts, keyLine, verdictParts, type Row } from './rows.ts';
+import { criteriaCaseHead, criteriaHasCase, criteriaMet, criteriaReading, criteriaRows, cutParts, keyLine, verdictParts, type Row } from './rows.ts';
 import { ZONES, zonesFrame } from './zones.ts';
 import type { Fingerprint } from '../fmt.ts';
 import '../charts.css';
@@ -43,7 +43,7 @@ export function CriteriaCard({ tool, fp }: { tool: CriteriaTool; fp?: Fingerprin
       {(lead || rule) && <div className="pzc-top">{lead && <p className="pzc-lead">{lead}</p>}{rule && <span className="pzc-rule">{rule}</span>}</div>}
       {rows.length > 0 && (
         <ul className="pzc-list" role="list">
-          {hasCase && <li className="pzc-row pzc-hrow" aria-hidden="true"><span className="pzc-c" /><span className="pzc-t" /><span className="pzc-end">This case</span></li>}
+          {hasCase && <li className="pzc-row pzc-hrow" aria-hidden="true"><span className="pzc-c" /><span className="pzc-t" /><span className="pzc-end">{criteriaCaseHead(rows)}</span></li>}
           {rows.map((r, i) => {
             const met = r.key ? criteriaMet(r, fp) : r.met;
             const state = r.key ? (met == null ? 'none' : met ? 'yes' : 'no') : met === true ? 'yes' : met === false ? 'no' : undefined;
@@ -59,7 +59,7 @@ export function CriteriaCard({ tool, fp }: { tool: CriteriaTool; fp?: Fingerprin
           })}
         </ul>
       )}
-      {fig && <div className="pzc-zones"><Chart tag="chart:criteria" label={tool.title ?? 'Stiffness and platelets zones'} deps={[fig, tool.title]} build={(c) => zonesFrame(fig, c, tool.title ?? 'Stiffness and platelets zones')} /></div>}
+      {fig && <div className="pzc-zones"><Chart tag="chart:criteria" label={tool.title ?? 'Stiffness and platelets zones'} deps={[fig, tool.title, fp?.lsm, fp?.plt]} build={(c) => zonesFrame(fig, c, tool.title ?? 'Stiffness and platelets zones', { lsm: fp?.lsm, plt: fp?.plt })} /></div>}
       {keys.length > 0 && <div className="pzc-key">{keys.map((k, i) => <p key={i} className="pzc-kl">{k.swatch ? <span className="pzc-sw" aria-hidden="true" /> : null}<span>{bold(k.parts)}</span></p>)}</div>}
       {v && <p className="pzc-verdict">{v.bold ? <b>{v.bold}</b> : null}{v.bold ? ' ' : null}{v.rest}</p>}
     </div>

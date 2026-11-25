@@ -317,6 +317,16 @@ export const CAPTURE_AF88A9C2 = [
   DROP('tips-complete', 'slides.heart.mark'),
 ];
 
+/** Capture 52ef8e63 (24 Nov 2026): the figure carries the numbers and places the slide's words are about. */
+export const CAPTURE_52EF8E63 = [
+  // Landmark 12: the slide is about litres; the figure carried none
+  SET('landmark-trials', 'slides.covered.mark', { organ: 'ascites', label: 'Ascites {asc}' }),
+  // Tipping 6: the 12.4 on the card is the HVPG; the figure now reads it at the hepatic vein
+  SET('tipping', 'slides.nocsph.mark', { edges: ['RHV_IVC'], label: 'HVPG {hvpg}' }),
+  // TIPS complete 3: the four points on the figure, two places (the bleed's three, the ascites)
+  SET('tips-complete', 'slides.indications.marks', [{ edges: ['C1a'], label: 'Bleed: preemptive, rescue, salvage' }, { organ: 'ascites', label: 'Ascites: elective' }]),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -430,6 +440,7 @@ export const SOURCE_PATCHES = [
   ...REVIEWER_24NOV_E,
   ...CAPTURE_6EC6D323,
   ...CAPTURE_AF88A9C2,
+  ...CAPTURE_52EF8E63,
 ];
 
 function step(node, key) {

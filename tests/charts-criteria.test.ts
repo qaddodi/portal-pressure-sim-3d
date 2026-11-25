@@ -97,3 +97,24 @@ test('the zone words read on their tint in every look (4.5:1, the halo is the ca
     }
   });
 });
+
+// Tipping 6, capture 52ef8e63: "This case 12.4 mmHg" never said which pressure.
+import { criteriaCaseHead } from '../src/ui/charts/criteria/rows.ts';
+test('the case column is named by the measure when every live row reads one', () => {
+  assert.equal(criteriaCaseHead(criteriaRows({ rows: [['With CSPH', 'hvpg', '>=', 10], 'Without CSPH']})), 'HVPG, this case');
+  assert.equal(criteriaCaseHead(criteriaRows({ rows: [['a', 'hvpg', '>=', 10], ['b', 'map', '<', 65]]})), 'This case');
+  assert.equal(criteriaCaseHead(criteriaRows({ rows: [{ text: 'a', note: 'x' }] })), 'This case');
+});
+
+import { patientDot } from '../src/ui/charts/criteria/zones.ts';
+test('the zones chart marks the patient where his LSM and platelets stand, inside the plot', () => {
+  const fig = ZONES['first-visit']!, W = 330, ph = plotHeight(W);
+  assert.equal(patientDot(fig, { lsm: 18 }, W, ph), null, 'both readings or no dot');
+  const d = patientDot(fig, { lsm: 18, plt: 128 }, W, ph)!;
+  assert.ok(d.x > W * (18 - 5) / 30 - 1 && d.x < W * (18 - 5) / 30 + 1, 'LSM 18 on the x axis');
+  const far = patientDot(fig, { lsm: 90, plt: 10 }, W, ph)!;
+  assert.ok(far.x <= W && far.y <= ph && far.x >= 0 && far.y >= 0, 'past the axes: on the edge');
+  const f = zonesFrame(fig, ctxOf('dark', W), 'z', { lsm: 18, plt: 128 });
+  assert.equal(f.shapes.filter((s) => s.k === 'circle').length, 1);
+  assert.equal(zonesFrame(fig, ctxOf('dark', W), 'z').shapes.filter((s) => s.k === 'circle').length, 0);
+});
