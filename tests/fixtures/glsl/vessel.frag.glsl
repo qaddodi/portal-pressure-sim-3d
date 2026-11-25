@@ -1255,7 +1255,13 @@ void main() {
   // the flow heads, on the tube's surface as the 2D composite lays them
   float pxArc = fwPx;   // (derivatives taken at the top of main, before any discard)
   float acrossW = fwAw;
-  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, vW * 2.0 / (res.y * projY) * vU, pxArc, lensIndex, flowAmount, markK(skinCut.x >= 0.0 ? 1e6 : vUv.x * len * vU, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk, lensHead(lensGradA, lensLaneA, lensModeA, laneColA, la), lensHead(lensGradB, lensLaneB, lensModeB, laneColB, lb), color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
+  // THE HEAD'S ARC ON THE SCREEN, not on the surface (25 Nov: heads bow when the tube tilts out of the screen). vUv.x is the arc of the AXIS point of this pixel's ring; the surface point sits a radius nearer the eye, so on a tilted tube its plane of constant arc
+  // meets the screen along a curve (a head's back edge bowed by R x tan(tilt)). The head is placed by the pixel's offset from the axis point ALONG THE TUBE'S SCREEN HEADING over the heading's foreshortening (|vT.xy|): a straight line square to the lateral. Untilted
+  // (|vT.xy| = 1, no depth offset) it is exactly vUv.x's arc. A tube nearly end-on has no heading to speak of: its heads fade out as the heading's screen length falls under HEAD_ENDON.
+  float hxy = clamp(tl, 0.25, 1.0);
+  float sHead = vUv.x * len * vU + (tl > 1e-3 ? dot(dvPx, tS / tl) : 0.0) / dpr * vCen.z * 2.0 / (res.y * projY) * vU / hxy;
+  float endOn = smoothstep(0.12, 0.3, tl);
+  vec4 hd = flowHeads(across, acrossW, sHead, len * vU, vR, vW * 2.0 / (res.y * projY) * vU, pxArc, lensIndex, flowAmount, markK(skinCut.x >= 0.0 ? 1e6 : vUv.x * len * vU, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk * endOn, lensHead(lensGradA, lensLaneA, lensModeA, laneColA, la), lensHead(lensGradB, lensLaneB, lensModeB, laneColB, lb), color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
   hd = clamp(hd, 0.0, 1.0);
 #ifdef VDBG
   if (dbgHeads < 0.5) hd = vec4(0.0);

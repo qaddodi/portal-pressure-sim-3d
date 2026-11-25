@@ -13,15 +13,17 @@ import '../../scene/procedures/instrument-specs.ts';   // (registers EVL, tampon
 import type { CopiedSlide, Json } from './types.ts';
 
 /** The fields of a slide that change the patient (tests/deck-states.js). */
-export const MODEL = ['preset', 'presetDays', 'params', 'action', 'days'] as const;
+export const MODEL = ['preset', 'presetDays', 'params', 'action', 'days', 'sameAs'] as const;
 export const changes = (s: CopiedSlide): boolean => MODEL.some((k) => !!s[k]);
 
 /** One step of the engine's 'sequence'. */
-export interface Step { preset?: string; presetDays?: number; params?: unknown; action?: unknown; days?: number; relax?: number; ramp?: unknown; fine?: boolean; trail?: true | readonly string[]; before?: unknown }
+export interface Step { preset?: string; presetDays?: number; params?: unknown; action?: unknown; days?: number; relax?: number; ramp?: unknown; fine?: boolean; trail?: true | readonly string[]; before?: unknown; /** this slide shows the settled state of an earlier step of the chain (its index), whatever its own fields say */ restoreStep?: number; sameAs?: string }
 const nz = <T,>(v: T | null | undefined): T | undefined => (v == null ? undefined : v);
 
 export function stepOf(s: CopiedSlide): Step {
   if (!changes(s)) return {};
+  // sameAs: the slide shows another slide's settled state, so the two read one set of numbers (chainOf puts the step's index in)
+  if (s.sameAs) return { sameAs: String(s.sameAs) };
   // (presenter.js modelStep: a flow-time chart keeps its lines day by day (trail), a procedure slide keeps the state before the procedure (before))
   const tool = s.tool as { kind?: string; lines?: readonly string[] } | undefined;
   const before = s.procedure ? (specOf(procKindOf(s.procedure as never) ?? '') as { before?: unknown } | null)?.before : undefined;
@@ -39,7 +41,8 @@ export function chainOf(slides: readonly CopiedSlide[]): Step[] {
   const outline: CopiedSlide = { id: 'outline', kicker: '', title: '', line: '', notes: '', ask: ['', ''] };
   if (keep) for (const k of MODEL) if (first[k] !== undefined && first[k] !== null) (outline as Record<string, Json | undefined>)[k] = first[k];
   const firstNow: CopiedSlide = keep && !first.vignette ? Object.fromEntries(Object.entries(first).filter(([k]) => !(MODEL as readonly string[]).includes(k))) as CopiedSlide : first;
-  return [outline, firstNow, ...rest].map(stepOf);
+  const all = [outline, firstNow, ...rest];
+  return all.map((sl, i) => { const st = stepOf(sl); if (st.sameAs) { const j = all.findIndex((x) => x.id === st.sameAs); delete st.sameAs; if (j >= 0 && j < i) st.restoreStep = j; } return st; });
 }
 
 /** What the engine says of a slide: the reading of every tile (the fingerprint), the whole model to show the figure, and the parameters. */

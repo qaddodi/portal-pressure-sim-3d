@@ -11,12 +11,9 @@ import { centrelineOf } from '../vessels/centreline.ts';
 import { vesselAlphaAt } from '../vessels/fade-alpha.ts';
 import { widthSwell } from '../vessels/live-width.ts';
 import { neighbourAttr, NBR_STRIDE } from '../vessels/neighbour.ts';
-import { CAVA_RECEDE, cavaPieceOf, opensIntoCava, trunkMateOf } from '../vessels/fades.ts';
+import { CAVA_RECEDE, opensIntoCava, ostiumHostOf, trunkMateOf } from '../vessels/fades.ts';
 import { cavaRamp } from '../vessels/fade-alpha.ts';
 import { PLACED_HV_TRUNK } from '../anatomy/placed-network.ts';
-
-/** The vein whose wall a vein's ostium is on: the cava for a vein that opens into it, the common trunk for the middle hepatic vein on the placed anatomy (fades.ts trunkMateOf), else null. */
-const ostiumHostOf = (id: string): string | null => (opensIntoCava(id) ? cavaPieceOf(id) : trunkMateOf(id));
 
 /** Samples along each piece (the clot reads its place between them). */
 export const HOST_SAMPLES = 48;
