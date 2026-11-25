@@ -3,6 +3,9 @@ import { INFLOW, OTHER, barOrder, type Part } from './parts.ts';
 
 export type Measure = (text: string, size: number, weight?: number) => number;
 
+/** The weight of a chart's numbers: the app's type scale has 400, 500 and 600 only (docs/approved/type.md), so the percents are 600 (the looks' own 700 is not used here). */
+export const VAL_W = 600;
+
 /** A part's words keep their place until it no longer holds them by the label rule; they move nearer the bar only with TIER_BAND × f to spare. */
 export const TIER_BAND = 0.35;
 /** A name never comes nearer than this to another name, a line, a segment's edge or the bar (px). */
@@ -35,7 +38,7 @@ export interface InflowLabel { id: string; tier: number; cx: number; lead?: numb
 export function inflowLabels(spans: readonly Span[], w: number, geo: InflowGeo, measure: Measure, mark: InflowMark | null = null, prev: Tiers | null = null): InflowLabel[] {
   const { f, g, mc } = geo, E = 1e-6;
   return spans.map((s) => {
-    const full = INFLOW.find(([k]) => k === s.id)![1], short = INFLOW_SHORT[s.id]!, v = `${s.pct}%`, vw = measure(v, f, 700), mid = (s.a + s.b) / 2;
+    const full = INFLOW.find(([k]) => k === s.id)![1], short = INFLOW_SHORT[s.id]!, v = `${s.pct}%`, vw = measure(v, f, VAL_W), mid = (s.a + s.b) / 2;
     const wid = [Math.max(measure(full, f, 500), vw), Math.max(measure(short, f, 500), vw), vw];
     const free: [number, number][] = mark && mark.x > s.a + 0.5 && mark.x < s.b - 0.5 ? [[s.a, mark.x - mc], [mark.x + mc, s.b]] : [[s.a, s.b]];
     const was = prev?.[s.id];
@@ -52,31 +55,35 @@ export function inflowLabels(spans: readonly Span[], w: number, geo: InflowGeo, 
   });
 }
 
-// ── where the portal blood goes: one bar, pills under it ──
+// ── where the portal blood goes: one bar; a part too narrow for its name is named under the bar, on a leader ──
 export function routeGeo(f: number) {
   const g = Math.max(LABEL_GAP, 0.34 * f), barH = 2.7 * f, barT = 2.1 * f, barB = barT + barH;
-  return { f, g, barH, base: 1.05 * f, brY: 1.45 * f, brTick: 0.4 * f, barT, barB, pillsT: barB + 0.65 * f, ph: 1.6 * f, pg: 0.4 * f, gx: Math.max(g, 0.5 * f), px: 0.6 * f, n1: 1.15 * f, n2: 2.27 * f, mid: barH / 2 + 0.36 * f };
+  return { f, g, barH, base: 1.05 * f, brY: 1.45 * f, brTick: 0.4 * f, barT, barB, pillsT: barB + 0.65 * f, ph: 1.6 * f, pg: 0.4 * f, gx: Math.max(g, 0.5 * f), px: 0, n1: 1.15 * f, n2: 2.27 * f, mid: barH / 2 + 0.36 * f };
 }
 export type RouteGeo = ReturnType<typeof routeGeo>;
 export const routeHeight = (rows: number, geo: RouteGeo) => (rows ? geo.pillsT + rows * geo.ph + (rows - 1) * geo.pg : geo.barB);
 export const routeRows = (hh: number, geo: RouteGeo) => Math.max(1, Math.floor((hh - geo.pillsT + geo.pg) / (geo.ph + geo.pg) + 1e-6));
 
-export interface Pill { id: string; cx: number; w: number; row: number }
-export function routePills(items: readonly { id: string; text: string }[], w: number, geo: RouteGeo, measure: Measure): { pills: Pill[]; rows: number } {
-  const pills: Pill[] = [];
-  let row = 0, cur: { id: string; w: number }[] = [];
-  const flush = () => {
-    let L = (w - (cur.reduce((s, p) => s + p.w, 0) + (cur.length - 1) * geo.gx)) / 2;
-    for (const p of cur) { pills.push({ id: p.id, cx: L + p.w / 2, w: p.w, row }); L += p.w + geo.gx; }
-    cur = [];
-  };
-  for (const it of items) {
-    const pw = Math.min(w, measure(it.text, geo.f, 700) + 2 * geo.px);
-    if (cur.length && cur.reduce((s, p) => s + p.w, 0) + cur.length * geo.gx + pw > w + 1e-6) { flush(); row++; }
-    cur.push({ id: it.id, w: pw });
+/** A name set under the bar: `cx` its centre, `w` its width, `row` its line, `lx` where its leader leaves the bar (the part's own centre, always under the words). */
+export interface Pill { id: string; cx: number; w: number; row: number; lx: number }
+/** Each name sits under its own part. Two that would touch: the second slides right (its part's centre stays under it) or drops to the next row, and a leader never crosses another name. */
+export function routePills(items: readonly { id: string; text: string; mid: number }[], w: number, geo: RouteGeo, measure: Measure, maxRows = Infinity): { pills: Pill[]; rows: number; ok: boolean } {
+  const pills: Pill[] = [], rowsL: [number, number][][] = [];
+  let ok = true;
+  for (const it of [...items].sort((p, q) => p.mid - q.mid)) {
+    const tw = Math.min(w, measure(it.text, geo.f, 600)), want = Math.min(Math.max(it.mid - tw / 2, 0), Math.max(0, w - tw));
+    let put: { row: number; L: number } | null = null;
+    for (let row = 0; row < Math.max(maxRows, 1) && !put; row++) {
+      const spans = (rowsL[row] ??= []), last = Math.max(-Infinity, ...spans.map((s) => s[1]));
+      const clear = (L: number) => spans.every(([a, b]) => L + tw <= a - geo.gx + 1e-6 || L >= b + geo.gx - 1e-6)
+        && rowsL.slice(0, row).every((above) => above.every(([a, b]) => it.mid < a - 2 || it.mid > b + 2));   // (its leader runs down past the rows above)
+      for (const L of [want, last + geo.gx]) if (!put && L >= -1e-6 && L + tw <= w + 1e-6 && L <= it.mid + 1e-6 && it.mid <= L + tw + 1e-6 && clear(L)) put = { row, L };
+    }
+    if (!put) { ok = false; put = { row: rowsL.length, L: want }; }
+    (rowsL[put.row] ??= []).push([put.L, put.L + tw]);
+    pills.push({ id: it.id, cx: put.L + tw / 2, w: tw, row: put.row, lx: it.mid });
   }
-  if (cur.length) flush();
-  return { pills, rows: items.length ? row + 1 : 0 };
+  return { pills, rows: items.length ? Math.max(rowsL.length, 1) : 0, ok };
 }
 export interface RouteMark { x0: number; x1: number; text: string; L: number; R: number; hl: number }
 export function routeMarker(hParts: readonly Part[] | null, w: number, f: number, measure: Measure): RouteMark | null {
@@ -89,8 +96,8 @@ export function routeMarker(hParts: readonly Part[] | null, w: number, f: number
 export interface RouteLayout {
   geo: RouteGeo; spans: Span[]; tiers: number[]; pills: Pill[]; rows: number; ok: boolean; mark: RouteMark | null; top: number; parts: Part[];
 }
-/** The whole card's layout for parts at width w, height hh (Infinity: as tall as it needs), font size f. Tier 0: name and percent on the segment, 2: the percent
- *  alone (named in a pill), 3: a pill with name and percent. If the rows the card holds are not enough the smallest routes join Other until they are. */
+/** The whole card's layout for parts at width w, height hh (Infinity: as tall as it needs), font size f. Tier 0: name and percent on the segment; 3: neither on it, the name and
+ *  percent under the bar on a leader (one treatment: never a percent alone, never a name without its number). If the rows the card holds are not enough the smallest routes join Other until they are. */
 export function routeLayout(parts: readonly Part[], w: number, hh: number, f: number, measure: Measure, hParts: readonly Part[] | null = null, prev: Tiers | null = null): RouteLayout {
   let use = [...parts], lay = routeOnce(use, w, hh, f, measure, hParts, prev);
   while (!lay.ok) {
@@ -107,10 +114,9 @@ function routeOnce(parts: readonly Part[], w: number, hh: number, f: number, mea
   let acc = 0;
   const spans: Span[] = barOrder(parts).map((p) => { const a = (acc / 100) * w; acc += p.pct; return { id: p.id, name: p.name, pct: p.pct, a, b: (acc / 100) * w }; });
   const tiers = spans.map((s) => {
-    const room = s.b - s.a - 2 * g, pw = measure(`${s.pct}%`, f, 700), was = prev?.[s.id], band = (t: number) => (was != null && t < was ? TIER_BAND * f : 0);
-    return Math.max(measure(s.name!, f, 500), pw) <= room - band(0) ? 0 : pw <= room - band(2) ? 2 : 3;
+    const room = s.b - s.a - 2 * g, was = prev?.[s.id], band = was != null && 0 < was ? TIER_BAND * f : 0;
+    return Math.max(measure(s.name!, f, 500), measure(`${s.pct}%`, f, VAL_W)) <= room - band ? 0 : 3;
   });
-  // a segment that carries its percent alone is named in a pill under the bar too, its name only
-  const { pills, rows } = routePills(spans.flatMap((s, i) => (tiers[i] === 3 ? [{ id: s.id, text: `${s.name} ${s.pct}%` }] : tiers[i] === 2 ? [{ id: s.id, text: s.name! }] : [])), w, geo, measure);
-  return { geo, spans, tiers, pills, rows, ok: rows <= routeRows(hh, geo), mark: routeMarker(hParts, w, f, measure), top: Math.max(0, (hh - routeHeight(rows, geo)) / 2) };
+  const { pills, rows, ok: placed } = routePills(spans.flatMap((s, i) => (tiers[i] === 3 ? [{ id: s.id, text: `${s.name} ${s.pct}%`, mid: (s.a + s.b) / 2 }] : [])), w, geo, measure, routeRows(hh, geo));
+  return { geo, spans, tiers, pills, rows, ok: placed && rows <= routeRows(hh, geo), mark: routeMarker(hParts, w, f, measure), top: Math.max(0, (hh - routeHeight(rows, geo)) / 2) };
 }

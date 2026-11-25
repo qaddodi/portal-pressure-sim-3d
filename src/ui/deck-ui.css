@@ -74,6 +74,8 @@
 
 /* ── type ──
    The words' type (.pz-kick, .pz-h, .pz-line, .pz-eq, .pz-val, .pz-term) and the data card's (.pz-dh, .pz-tile) are the lifted 2D rules. What is left here is the card-owned bits. */
+/* A data card's title that must wrap breaks in the middle, in two even lines: "WHERE PORTAL BLOOD GOES, % OF PORTAL / FLOW" left one word alone on its second line (Mohammad, 25 Nov). One rule on the one header every data card uses; a title that fits one line is untouched, and the line count (so the card's height) does not change. */
+.pz-dh > span:first-child { text-wrap: balance; }
 .dk-num { font-variant-numeric: tabular-nums lining-nums; font-weight: 600; white-space: nowrap; }
 /* Prose figures are proportional (TIPS Doppler review item 8, and again in the 23 Nov multi-size review: "≥1 0 mmHg", "IGV1 ),", "118/78 (91 )", "3 / 1 5"). A tabular "1" is a full-width cell, so ">190 cm/s" read ">1 90 cm/s" and "10%" read "1 0%".
    ROOT CAUSE of the first fix doing nothing: the lifted 2D stylesheet ends with `* { font-variant-numeric: tabular-nums lining-nums !important }` (app-11-deck-visuals.css), and an important rule beats any plain one whatever its specificity,
