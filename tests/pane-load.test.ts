@@ -21,7 +21,7 @@ test('every lazy pane in the tool card comes from pane-load, and the card layer 
   assert.ok(!/lazyRetry\(\(\) => import\(/.test(body), 'ToolCardBody imports a pane on its own, so the card layer cannot wait for it');
   const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
   assert.match(layer, /usePaneIn\(paneKind\)/);
-  assert.match(layer, /\(panesIn \|\| late === pagesKey\)/);
+  assert.match(layer, /\(panesIn \|\| paneLate === pagesKey\)/);
   const lazyKinds = INSTRUMENTS.map((i) => i.kind).filter((k) => paneOf(k));
   assert.deepEqual(lazyKinds.sort(), ['doppler', 'fibroscan', 'scope', 'wall']);
 });

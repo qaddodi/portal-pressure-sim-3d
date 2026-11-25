@@ -54,6 +54,8 @@ function Arrive({ late }: { late(): boolean }) {
   useLayoutEffect(() => {
     const part = ref.current?.previousElementSibling;
     if (late() && part && typeof part.animate === 'function') part.animate([{ opacity: 0 }, { opacity: 1 }], { duration: fadeMs(D_SMALL), easing: EASE_ARRIVE });
+    // the part is drawn where its placeholder stood: a card that holds it measures again now (a part of the placeholder's own height changes no size, so the card's observer would stay silent and its count of open parts stale)
+    ref.current?.dispatchEvent(new CustomEvent('pz-chart-built', { bubbles: true }));
   }, [late]);
   return <i ref={ref} hidden className="sh-lazymark" />;
 }

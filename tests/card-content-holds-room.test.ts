@@ -98,7 +98,7 @@ test('the settle wait is declared before the gate that reads it (a use before it
   const decl = layer.indexOf('const settleLeft ='), use = layer.indexOf('const measured =');
   assert.ok(decl > 0 && use > 0 && decl < use, 'settleLeft must be declared above `measured`');
   // and a card is admitted whatever the fonts and the settle say once the give-up passes
-  assert.match(layer, /\(measured \|\| late === pagesKey\)/);
+  assert.match(layer, /\(measured \|\| \(late === pagesKey && !paneWaits\)\)/);
   assert.match(layer, /clock\.after\(\(\) => setLate\(pagesKey\), GIVE_UP_CARDS_MS\)/);
 });
 
@@ -112,7 +112,7 @@ test('the reveal is a readiness gate, not a clock: a card comes in when the font
   const layer = read('src/ui/cards/CardLayer.tsx');
   const gate = layer.slice(layer.indexOf('const measured ='), layer.indexOf('const [late, setLate]'));
   for (const ready of [/\.f !== false/, /\.open \?\? 0\) === 0/, /settleLeft <= 0/, /\.n\.h > 0|n\.h > 0/]) assert.match(gate, ready);
-  assert.match(layer, /const go = fonts && !growing && \(numbers \|\| gaveUp === numbersKey\) && \(measured \|\| late === pagesKey\)/);
+  assert.match(layer, /const go = fonts && !growing && \(numbers \|\| gaveUp === numbersKey\) && \(measured \|\| \(late === pagesKey && !paneWaits\)\)/);
   assert.match(layer, /GIVE_UP_CARDS_MS = 8000/);
 });
 
@@ -122,4 +122,11 @@ test('a pane\'s wait is real time and longer than the cards\' own (Stiffness 2: 
   assert.match(layer, /clock\.afterReal\(\(\) => setPaneLate\(pagesKey\), PANE_GIVE_UP_MS\)/);
   assert.match(layer, /\(panesIn \|\| paneLate === pagesKey\)/);
   assert.doesNotMatch(layer, /\(panesIn \|\| late === pagesKey\)/);
+  // while a pane's wait runs the cards' own give-up may not let the card in at the placeholder's height: only the pane's own (real, 25 s) give-up may
+  assert.match(layer, /const paneWaits = paneUsed && paneLate !== pagesKey/);
+});
+
+test('a lazy part that is still its placeholder counts as open, and drawing it tells the card to measure (Stiffness 2 landed at 196 px with 338 px of pane)', () => {
+  assert.match(read('src/ui/cards/card-want.ts'), /\.sh-lazyhold/);
+  assert.match(read('src/ui/shell/LazyBoundary.tsx'), /dispatchEvent\(new CustomEvent\('pz-chart-built', \{ bubbles: true \}\)\)/);
 });

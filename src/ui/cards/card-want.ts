@@ -22,5 +22,7 @@ export function heldBy(root: HTMLElement): number {
   return heldPx(boxes);
 }
 
-/** How many charts under `root` have not drawn once yet (Chart.tsx marks a host `data-built` after its first frame). A card waits to come in until this is 0, so no chart reaches its box while the card slides in. */
-export const openCharts = (root: HTMLElement): number => root.querySelectorAll('[data-chart]:not([data-built])').length;
+/** How many charts under `root` have not drawn once yet (Chart.tsx marks a host `data-built` after its first frame), and how many lazy parts are still their placeholder (LazyBoundary's `.sh-lazyhold`: the pane's
+ *  code has not been drawn into the card, so the card is not its height yet; Stiffness 2 came in at the placeholder's 196 px and its pane, 338 px, stood 142 px past its foot). A card waits to come in until this is 0, so no chart
+ *  reaches its box while the card slides in. */
+export const openCharts = (root: HTMLElement): number => root.querySelectorAll('[data-chart]:not([data-built]), .sh-lazyhold').length;

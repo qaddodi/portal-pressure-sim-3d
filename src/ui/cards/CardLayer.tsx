@@ -7,7 +7,7 @@ import { dataKeys } from './keep.ts';
 import { useDockSwipe, openDock, goColumn, justDocked } from './useDockSwipe.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
 import { DataCap } from '../talk/tool-room.ts';
-import { usePaneIn } from '../talk/pane-load.ts';
+import { usePaneIn, paneOf } from '../talk/pane-load.ts';
 import { pairSteps, stepVars, dataFitOf, type PairBase } from './pair-ladder.ts';
 import { planLayout, widthOf, centredKind, centredBox, panelVisual, type CardId, type Need, type Plan } from '../layout/plan.ts';
 import { phoneView } from './phone-panel.ts';
@@ -231,10 +231,13 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const paneKind = view?.data && here?.key.startsWith('tool:') && carried ? (carried.tool as { kind?: unknown } | undefined)?.kind : undefined;
   const panesIn = usePaneIn(paneKind);
   // (a pane's code is a fetch, so its wait is REAL time and longer than the cards' own: the audit's 20x clock made the 8 s a third of a second, a slow phone's first use of a pane took longer than 8 s, and in both the
-  // card came in at the placeholder's height and the pane, arriving after it, stood 145 px past its foot: Stiffness 2, audit 1161e159 and the dev server's first load)
+  // card came in at the placeholder's height and the pane, drawn after it, stood 145 px past its foot: Stiffness 2, audit 1161e159. While the wait runs the cards' own give-up may not let the card in either: it comes
+  // in when the pane is drawn in it (openCharts counts a placeholder as open), or when the pane's wait is over)
+  const paneUsed = paneOf(paneKind) !== null;
   const [paneLate, setPaneLate] = useState('');
-  useEffect(() => { if (panesIn) return; const t = clock.afterReal(() => setPaneLate(pagesKey), PANE_GIVE_UP_MS); return () => clock.cancel(t); }, [panesIn, pagesKey]);
-  const go = fonts && !growing && (numbers || gaveUp === numbersKey) && (measured || late === pagesKey) && (panesIn || paneLate === pagesKey);
+  useEffect(() => { if (!paneUsed) return; const t = clock.afterReal(() => setPaneLate(pagesKey), PANE_GIVE_UP_MS); return () => clock.cancel(t); }, [paneUsed, pagesKey]);
+  const paneWaits = paneUsed && paneLate !== pagesKey;
+  const go = fonts && !growing && (numbers || gaveUp === numbersKey) && (measured || (late === pagesKey && !paneWaits)) && (panesIn || paneLate === pagesKey);
   // the first cards of a talk fade in where they stand; every later one slides in from the side the talk comes from (2D's first card has no way to come from)
   const seen = useRef(false);
   const fresh = !seen.current;
