@@ -238,9 +238,9 @@ export const GRAPH_WAIT_MS = 90000;
 export const settleLimitMs = (why: string, base: number): number => (why.startsWith('the procedure graph') ? Math.max(base, GRAPH_WAIT_MS) : base);
 
 /** The pressable choices of a teaching slide's cards that are not the one standing: tabs, radios, switches and toggle buttons that say they are off (an opted-in chooser, `data-audit-select`, too). The audit's capture presses each and takes a picture. */
-export const CHOICE_SEL = '[role="tab"]:not([aria-selected="true"]), [role="radio"]:not([aria-checked="true"]), [role="switch"][aria-checked="false"], button[aria-pressed="false"], [data-audit-select]:not([aria-selected="true"]):not([aria-pressed="true"]):not([data-on="true"])';
+export const CHOICE_SEL = '[role="tab"]:not([aria-selected="true"]), [role="radio"]:not([aria-checked="true"]), [role="switch"][aria-checked="false"], button[aria-pressed="false"], [data-audit-select]:not([aria-selected="true"]):not([aria-pressed="true"]):not([aria-expanded="true"]):not([data-on=""]):not([data-on="true"])';
 /** The same kinds when they ARE the one standing (put back after the others have been pressed). */
-export const CHOICE_ON_SEL = '[role="tab"][aria-selected="true"], [role="radio"][aria-checked="true"], [role="switch"][aria-checked="true"], button[aria-pressed="true"], [data-audit-select][data-on="true"]';
+export const CHOICE_ON_SEL = '[role="tab"][aria-selected="true"], [role="radio"][aria-checked="true"], [role="switch"][aria-checked="true"], button[aria-pressed="true"], [data-audit-select][data-on=""], [data-audit-select][data-on="true"]';
 /** At most this many choices a slide, so a slide with a dozen toggles does not take the run an hour. */
 export const CHOICE_MAX = 8;
 /** What a choice is called in a file name: its words, else its aria label, else its place. */

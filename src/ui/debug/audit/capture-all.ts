@@ -237,6 +237,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
             t.click();
             await stillPage(real, false, !!ui.skip); await showLanded();
             await shoot(`${view ? `${view}-` : ''}choice${pad2(i + 1)}-${nm}`, nm);
+            if (t.isConnected && t.hasAttribute('aria-expanded')) t.click();   // (an opener is closed again: the next choice and the next state start from the slide as it arrived)
           }
           if (pressed.size) {   // (put back what stood: the first of the cards' choices)
             for (const nm of was) { const back = standing(CHOICE_SEL).find((e, j) => choiceName(e.textContent, e.getAttribute('aria-label'), j) === nm); if (back) { if (ui.skip) clock.setDrawing(false); back.click(); await stillPage(real, false, !!ui.skip); await showLanded(); } }
