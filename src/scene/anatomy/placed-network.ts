@@ -288,6 +288,14 @@ function buildPlaced(): void {
     const w = (y: number): number => smooth((y - ESO_IN[0]) / (ESO_IN[1] - ESO_IN[0])) * (1 - smooth((y - ESO_OUT[0]) / (ESO_OUT[1] - ESO_OUT[0])));
     for (const k of ['C1a', 'C1b']) COURSE[k] = COURSE[k]!.map((p): V3 => { const k0 = w(p[1]); if (k0 <= 0) return p; const a = aroundEso(p); return onEso(p[1], a.th, a.out + (rOf('C1a') - a.out) * k0); });
   }
+  // THE VARICES ARE ONE RUN ALONG THE OESOPHAGUS (Mohammad, 25 Nov: "make the esophageal varices one vein not two ... I want the 3 varices on the esophageal"): the engine cuts the route at its VAR station, mid-oesophagus (height 1.40),
+  // and the strands, which are C1a's, pinched back into one trunk there, so the bundle read as two veins end to end. The coronary vein's run (C1a, the strands' vessel) is carried on along the drain (C1b) as far as the oesophagus
+  // goes (ESO_OUT, where the drain turns off toward the azygos), the way a trunk is carried on along its through branch below: one placed curve, so the three strands run unbroken the length of the tube and gather only where the
+  // vein leaves it. C1b keeps the turn-off and the landing on the azygos; the station sits at the new join. The engine's two edges, and every number they carry, are unchanged.
+  {
+    const A = COURSE.C1a!, B = COURSE.C1b!, k = Math.max(1, B.findIndex((p) => p[1] >= ESO_OUT[0]));
+    if (k < B.length - 1 - Math.ceil(0.1 / STEP)) { COURSE.C1a = [...A, ...B.slice(1, k + 1)]; COURSE.C1b = B.slice(k); }
+  }
   runOn('C2', 1, 'C5', 0, 'mid');
   runOn('EPI_ILI', 0, 'EPI_SVC', 0, 'mid');
   // the draw-only through branches run on from their trunk (one tube to the tip)
