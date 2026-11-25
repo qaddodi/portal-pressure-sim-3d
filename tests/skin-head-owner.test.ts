@@ -90,7 +90,7 @@ test('a head centred on the tube\'s side of the seam is finished by the skin who
 test('a skin\'s head is sized by its arm\'s own live radius, one size for the whole head (never by the pixel\'s blended radius, which also changed the head\'s shape pixel to pixel)', () => {
   const main = body(SKIN_FS, 'void main(');
   assert.match(main, /float vRH = rOwn \* swAt\(i\);/);
-  assert.match(main, /flowHeads\(clamp\(latH, -1\.0, 1\.0\), awLat\[i\], sI, Lw, vRH, wpcM,/);
+  assert.match(main, /flowHeads\(clamp\(latH, -1\.0, 1\.0\), awLat\[i\], sHa\[i\], Lw, vRH, wpcM,/);
 });
 
 // Mohammad, 24 Nov: chevrons flicker at joins. The ownership weights are the sharpened shares over their sum: they add to 1 everywhere, so a head handed between arms never dips.

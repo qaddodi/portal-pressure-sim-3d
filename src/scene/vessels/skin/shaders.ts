@@ -35,7 +35,7 @@ import { VDBG_GLSL } from '../debug-view.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
 import { TUBE_DEPTH_SHARE } from '../shaders.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from '../glsl-shared.ts';
+import { HEAD_FORE_MIN, HEAD_FORE_FROM, HEAD_FORE_TO, LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from '../glsl-shared.ts';
 import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
@@ -471,10 +471,10 @@ void main() {
   // pixels beside each other are dropped (back faces, the ink band, the presence dither), the marks of the pixels that stay came out as clusters of blocky, wrongly coloured specks (Mohammad, 20 Nov: green and navy specks at every junction, gone with ?joins=nomarks)
   float vLen = length(vV);
   vec3 viewDir = vLen > 1e-6 ? vV / vLen : vec3(0.0, 0.0, 1.0);
-  float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}], fwLn[${SKIN_ARMS}], latA[${SKIN_ARMS}], awLat[${SKIN_ARMS}];
+  float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}], fwLn[${SKIN_ARMS}], latA[${SKIN_ARMS}], awLat[${SKIN_ARMS}], sHa[${SKIN_ARMS}], pxH[${SKIN_ARMS}], endA[${SKIN_ARMS}];
   vec3 sideA[${SKIN_ARMS}], headA[${SKIN_ARMS}], tJA[${SKIN_ARMS}];
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
-    sIa[i] = 0.0; latA[i] = 0.0; awLat[i] = 0.03; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; fwLn[i] = 0.0; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0); tJA[i] = vec3(1.0, 0.0, 0.0);
+    sIa[i] = 0.0; latA[i] = 0.0; awLat[i] = 0.03; sHa[i] = 0.0; pxH[i] = 0.0; endA[i] = 0.0; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; fwLn[i] = 0.0; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0); tJA[i] = vec3(1.0, 0.0, 0.0);
     if (armData[i].x < 0.0) continue;
     vec3 toJ = armAxisP[i * ${SKIN_AXIS_PTS} + 1].xyz - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;   // (toward the node along the straight line through the seam)
     float tl = length(toJ);
@@ -494,6 +494,13 @@ void main() {
     vec3 relH = mat3(modelViewMatrix) * (vPos - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz);
     latA[i] = dot(relH, sideA[i]) * SKIN_U / max(armArc[i].w * swAt(i), 1e-4);
     awLat[i] = max(fwidth(latA[i]), 0.03);
+    // and its arc on the SCREEN too (the tube's rule, shared: HEAD_FORE_*): the offset's projection on the arm's screen heading over its foreshortening, so a skin on a tilted arm bows no head and meets the tube's at the seam
+    vec3 tvS = headL > 1e-6 ? headA[i] / headL * armArc[i].y : vec3(0.0);   // (the arm's heading toward the node, in view space)
+    float hxyS = length(tvS.xy);
+    float fS = clamp(hxyS, ${F(HEAD_FORE_MIN)}, 1.0);
+    sHa[i] = armArc[i].x + armArc[i].y * dot(relH.xy, tvS.xy) / (fS * fS) * SKIN_U;
+    pxH[i] = fwidth(sHa[i]);
+    endA[i] = smoothstep(${F(HEAD_FORE_FROM)}, ${F(HEAD_FORE_TO)}, hxyS);
     awA[i] = max(fwidth(acA[i]), 0.03);
     fwLn[i] = fwidth(acA[i] * 0.5 + 0.5);   // (the lane lens's edge softness, as the tube's lensAcrossFw)
   }
@@ -627,7 +634,7 @@ void main() {
       // (and its place across is the pixel's lateral from the arm's live axis, which is the tube's own across wherever the pixel lies: the normal-based one is true only inside the arm's cylinder, so a head carried past the seam into the
       // trunk beside it was sheared and cut to a crescent at a vein's mouth: Mohammad, 24 Nov, the left gastric vein)
       float latH = latA[i];
-      vec4 hI = flowHeads(clamp(latH, -1.0, 1.0), awLat[i], sI, Lw, vRH, wpcM, pxI, lensI, armFlowAt(i), 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
+      vec4 hI = flowHeads(clamp(latH, -1.0, 1.0), awLat[i], sHa[i], Lw, vRH, wpcM, pxH[i], lensI, armFlowAt(i), endA[i], laArm[i], lbArm[i], armColor[i].rgb, base);
       if (hI.a > 0.002) {
         vec3 seamP = armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;
         // (the pixel's lateral from the arm's LIVE axis, the bent chain J - start - seam - far the mesh itself is built on, in lumen units: skinArmLat. It was the distance to the straight line through the seam, which a bending vessel
