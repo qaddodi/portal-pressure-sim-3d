@@ -7,7 +7,7 @@ import type { Dir } from '../labels/geometry.ts';
 import type { Form, Item } from '../labels/solver.ts';
 import { type Measure, type Vp, boxSize, nameRun, stationRuns } from '../labels/type.ts';
 import { lymphText, LYMPH_UNIT } from '../../ui/action/lymph-day.ts';
-import type { LobuleNet, P2 } from './geometry.ts';
+import type { Course, LobuleNet, P2 } from './geometry.ts';
 import { DISC_R, RS_N } from './widths.ts';
 
 /** Where each zone's name stands along the radius to the flat bottom edge, in shares of the apothem (2D ZONE_Q), and the radius's direction (down, in 2D's y-down plane). */
@@ -95,14 +95,21 @@ export function stationAt(net: CapCtx['net'], tri: number, k: CapKey): P2 {
   if (k === 'bd') return t.bd;
   if (k === 'lymph') return t.lv;
   if (k === 'cv') return [0, 0];
-  // the sinusoid: the first one of the tract's whole course (the s1 that leaves nearest its angle), at the middle of its length
-  let best: P2 | null = null, bd = Infinity;
+  const c = sinCourse(net, tri);
+  return c ? c.pts[Math.floor(c.pts.length / 2)]! : [t.x * 0.5, t.y * 0.5];
+}
+
+/** The sinusoid a tract's "Sinusoids" station stands on: the s1 course that leaves nearest the tract's angle,
+ *  judged by the middle of its length. The pair of readings (labels/pair.ts) rings two points of this one. */
+export function sinCourse(net: Pick<CapCtx['net'], 'triads' | 'courses'>, tri: number): Course | null {
+  const t = net.triads[tri]!;
+  let best: Course | null = null, bd = Infinity;
   for (const c of net.courses) {
     if (c.kind !== 's1' || c.pts.length < 3) continue;
     const m = c.pts[Math.floor(c.pts.length / 2)]!, d = Math.hypot(m[0] - t.x * 0.55, m[1] - t.y * 0.55);
-    if (d < bd) { bd = d; best = m; }
+    if (d < bd) { bd = d; best = c; }
   }
-  return best ?? [t.x * 0.5, t.y * 0.5];
+  return best;
 }
 
 type Tri = { x: number; y: number }[];

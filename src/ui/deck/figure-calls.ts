@@ -9,6 +9,7 @@ import { planeMap, mapX, mapY } from '../../scene/organs/placed-map.ts';
 import { PLACED_CAUDATE } from '../../scene/anatomy/placement.generated.ts';
 import { x2d, x3, y2d, y3 } from '../../scene/frame2d.ts';
 import { SITE_DEF_2D, SPLEEN_AXIS_2D, ORGAN_ANCHOR_2D } from '../../scene/labels/figure2d.copied.ts';
+import { PAIR_AT } from '../../scene/labels/pair.ts';
 import type { FigCard, FigCaliper, FigSpan, Anchor } from '../../scene/labels/figure-cards.ts';
 import type { ResKey } from '../../scene/circuit/res-model.ts';
 import { NETWORK_BY_ID } from '../../scene/vessels/network.ts';
@@ -114,7 +115,9 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
 
   // the lobule's pointer at the lesion (lobule-zoom.js callSet): a block, treatment or note ring on the framed portal tract or on a sinusoid (the central-vein slides, postsinusoidal and SOS, ring the vein itself; only a label that names sinusoids rings a zone 3 sinusoid; lobule/callout-spot.ts); it stands only while the lobule is the figure
   if (plan.callout) {
-    const at = plan.callout.at === 'cv' ? (/sinusoid/i.test(plan.callout.label) ? 'sinusoid:zone3' : 'central') : { triad: 'tract', sin: 'sinusoid:mid' }[plan.callout.at];
+    // (a callout on a sinusoid whose slide also asks for the Sinusoids pressure is the lower of a pair of readings on one sinusoid: labels/pair.ts)
+    const paired = plan.callout.at === 'sin' && !!plan.callout.reads?.includes('sin');
+    const at = plan.callout.at === 'cv' ? (/sinusoid/i.test(plan.callout.label) ? 'sinusoid:zone3' : 'central') : paired ? PAIR_AT : { triad: 'tract', sin: 'sinusoid:mid' }[plan.callout.at];
     if (at) cards.push({ id: 'callout', kind: 'mark', text: liveLabel(plan.callout.label, fp), tone: CALLOUT_TONES[plan.callout.kind] ?? 'block', anchor: { lobule: at } });
     else notDrawn.push(`callout ${plan.callout.at}`);
   }
