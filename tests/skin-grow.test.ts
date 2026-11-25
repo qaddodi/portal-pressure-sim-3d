@@ -51,16 +51,16 @@ const GROWERS_PLACED: Record<string, readonly string[]> = {
   IVCI: ['S_PC:1', 'C9:0'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
   SV: ['C2:0'], IMV: ['C4:0'], SMV_R: ['C7:0'],
 };
-/** Placed: the arms each node's own skin leaves out, named. All but two are welded elsewhere, each for a reason a person can read: SV:C2 (the short gastric veins leave beside SVD and are an arm of its skin), SVD:C6 and LRV_S:C6 (the spontaneous
- *  splenorenal shunt runs 16 to 22 degrees beside the distal one, so it opens at SV and on the renal vein's wall), IVCI:C9 and IVCI:S_PC (their wall skin on the cava, as today), LPV:C3 (the umbilical vein at the left portal vein's end:
- *  its course is the shunts-placed thread's). Two keep the tube's flared end: RHV_T:TIPS (the right hepatic vein is too short for the side branch's skin, the TIPS's and the cava's) and REX on the left portal vein (the shunts-placed thread's). */
-const DROPPED_PLACED = ['IVCI:C9', 'IVCI:S_PC', 'LPV:C3', 'LPV:REX', 'LRV_S:C6', 'RHV_T:TIPS', 'SV:C2', 'SVD:C6', 'wall:PVH_L:REX1:REX'];
+/** Placed: the arms each node's own skin leaves out, named, each welded elsewhere for a reason a person can read: SV:C2 (the short gastric veins leave beside SVD and are an arm of its skin), SVD:C6 and LRV_S:C6 (the spontaneous
+ *  splenorenal shunt runs 16 to 22 degrees beside the distal one, so it opens at SV and on the renal vein's wall), IVCI:C9 and IVCI:S_PC (their wall skin on the cava, as today), LPV:C3 and LPV:REX (the LPV's end fades, so the umbilical
+ *  vein and the Meso-Rex bypass open on its wall where the placement draws them: one wall skin). None keeps the tube's flared end: the TIPS is welded at both ends (RHV_SPLIT 10). */
+const DROPPED_PLACED = ['IVCI:C9', 'IVCI:S_PC', 'LPV:C3', 'LPV:REX', 'LRV_S:C6', 'SV:C2', 'SVD:C6'];
 const GROWERS = PLACED ? GROWERS_PLACED : GROWERS_TODAY;
 const DROPPED = PLACED ? DROPPED_PLACED : DROPPED_TODAY;
 /** Placed: the growing arms every skin is built with, welded static full-size arms (the wall skins on the cava, the iliac and the renal vein, wall.ts; the short gastric veins on SVD's skin and the spontaneous splenorenal shunt on SV's, wall.ts nearLandings). */
 const WELDED_PLACED: Record<string, readonly string[]> = {
-  IMV: ['C4:0'], SV: ['C6:0'], SVD: ['S_DSR:0', 'C2:0'], LRV_S: ['S_DSR:1'], EPI: ['C3:1'], SVC: ['C1b:1'], SMV: ['S_MC:0', 'REX:0'], IVC_D: ['DIPS:1'], SMV_R: ['C7:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'],
-  'wall:IVC_IS_1:S_PC1,C90': ['S_PC:1', 'C9:0'], LRV: ['C5:1'], 'wall:ILI_IVC_1:S_MC1': ['S_MC:1'], 'wall:LRV_IVC:C61': ['C6:1'],
+  IMV: ['C4:0'], SV: ['C6:0'], SVD: ['S_DSR:0', 'C2:0'], LRV_S: ['S_DSR:1'], EPI: ['C3:1'], SVC: ['C1b:1'], SMV: ['S_MC:0', 'REX:0'], IVC_D: ['DIPS:1'], SMV_R: ['C7:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'],
+  'wall:IVC_IS_1:S_PC1,C90': ['S_PC:1', 'C9:0'], LRV: ['C5:1'], 'wall:ILI_IVC_1:S_MC1': ['S_MC:1'], 'wall:LRV_IVC:C61': ['C6:1'], 'wall:PVH_L_1:REX1,C30': ['REX:1', 'C3:0'],
 };
 // (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
 

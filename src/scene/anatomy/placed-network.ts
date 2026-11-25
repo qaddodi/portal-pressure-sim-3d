@@ -350,7 +350,7 @@ function buildPlaced(): void {
   //  - an end within PARALLEL_DEG of its node's own end runs beside it and one skin of both folds: it opens at the next main vessel's node downstream, or on the host's wall past the next node;
   //  - two such nodes closer than NODE_GAP_R radii, or a wall landing closer than WALL_GAP_R to a node, are moved apart along the vein, downstream, never past a main vessel's mouth (LRV_S and LRV were 4 radii apart: one skin
   //    for both had two permanent arms and failed).
-  const SNAP_R = 6, NODE_GAP_R = 10, WALL_GAP_R = 22, PARALLEL_DEG = 30, PAIR_GAP_R = 3;
+  const SNAP_R = 6, NODE_GAP_R = 10, WALL_GAP_R = 22, PARALLEL_DEG = 30, PAIR_GAP_R = 3.5;
   /** The shunts that divide the vein whose start is their node (skin/divide.ts DIVIDED): each opens at that node. */
   const DIVIDERS = new Set(['S_DSR|0', 'S_DSR|1']);
   const endDir = (id: string, end: 0 | 1): V3 => { const D = COURSE[id]!, k = Math.min(D.length - 1, 6); return norm(end ? sub(D[D.length - 1 - k]!, D[D.length - 1]!) : sub(D[k]!, D[0]!)); };
