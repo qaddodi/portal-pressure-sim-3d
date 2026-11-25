@@ -20,5 +20,5 @@ Not approved looks yet: this sheet records the complaint, what was built, and wh
 7. Zoom: the injection's frame (`stepShot` fill) was the whole way from the cava; it is now the shunt from its mouth and the varices (route `focus`).
 
 ## Open
-- Sclerosant colour: waiting on his pick (A foam white recommended).
+- Sclerosant colour: APPROVED, he picked A, foam white (25 Nov 8:24 AM): light/soft #F7F2EA, dark looks #FFFFFF, `SCLEROSANT` in devices/device-object.ts (the copied tokens keep the 2D amber; the override stays). Reference picture: /mnt/project-files/sclerosant-colour-mocks-25nov/sclerosant-colour-options.png, row A. Rejected: brown amber (today's), and B teal, C chartreuse not chosen.
 - BATO runs on C2's trunk as a catheter route (not touched).

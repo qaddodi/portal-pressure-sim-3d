@@ -51,6 +51,8 @@ export const DEVICE_FADE_MS = D_SMALL;
 /** The 0..1 alpha under which a part is not drawn at all. */
 const GONE = 0.002;
 
+/** The sclerosant's colour per look: foam white (Mohammad, 25 Nov, picked A of the colour mocks; the 2D app's brown amber `trScler` was rejected, "the color of it kind of sucks"). Kept here, not in the copied tokens, so a re-copy of the 2D app's tokens cannot bring the amber back. */
+export const SCLEROSANT: Record<'light' | 'soft' | 'dark' | 'navy' | 'black', string> = { light: '#F7F2EA', soft: '#F7F2EA', dark: '#FFFFFF', navy: '#FFFFFF', black: '#FFFFFF' };
 export class DeviceObject extends CelObject {
   /** The clock a part's fades run on (a node test turns a hand-made one). */
   static clock: Clock = clock;
@@ -159,7 +161,7 @@ export class DeviceObject extends CelObject {
   /** The colours the part wears in `p`: its tone's own. A part with a colour of its own (a ProbePart) answers with that. */
   protected colours(p: Palette, out: { base: Color; shade: Color }): void {
     const look = lookOf(p), t = DEVICE_TOKENS[look];
-    out.base.copy(rawColor(this.deviceTone === 'accent' ? LOOKS[look].accent : t[TOKEN_OF[this.deviceTone]]));
+    out.base.copy(rawColor(this.deviceTone === 'accent' ? LOOKS[look].accent : this.deviceTone === 'trScler' ? SCLEROSANT[look] : t[TOKEN_OF[this.deviceTone]]));
     out.shade.copy(out.base).multiplyScalar(p.shade).lerp(rawColor(resolveEdge(this.edgeRule, { t, look, ink: p.ink }).hex), 0.08);
   }
   private readonly want_ = { base: new Color(), shade: new Color() };
