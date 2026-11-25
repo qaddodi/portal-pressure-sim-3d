@@ -42,3 +42,21 @@ test('the pill draws nothing while hidden, and Settings offers the switch on a p
   const sheet = src('../src/ui/settings/SettingsSheet.tsx');
   assert.match(sheet, /sec\.title === 'Diagnostics' && import\.meta\.env\.VITE_CHANNEL === 'preview' \? <BuildPillRow \/>/);
 });
+
+test('the pill and Settings reload through the one path (boot/reload.ts loadNewestBuild): drop this copy, then reload onto what is on the screen', () => {
+  const reload = src('../src/boot/reload.ts');
+  assert.match(reload, /export function loadNewestBuild/);
+  assert.match(reload, /dropThisCopy\(\)[\s\S]*reloadKeepingState\(\)/);
+  const pill = src('../src/ui/shell/BuildPill.tsx'), sheet = src('../src/ui/settings/SettingsSheet.tsx');
+  assert.match(pill, /loadNewestBuild\(\)/); assert.match(sheet, /loadNewestBuild\(\)/);
+  for (const [name, text] of [['pill', pill], ['settings', sheet]]) {
+    assert.ok(!/serviceWorker|caches\.|location\.replace/.test(text), `${name} holds no reload code of its own`);
+  }
+});
+
+test('Settings › Diagnostics has the reload row beside the pill switch, on preview builds only, whether or not the pill is shown', () => {
+  const sheet = src('../src/ui/settings/SettingsSheet.tsx');
+  const row = sheet.slice(sheet.indexOf('function BuildPillRow'), sheet.indexOf('function useFullscreen'));
+  assert.match(row, /<MenuItem icon="reset"[^>]*onClick=\{reload\}/);
+  assert.ok(!/if \(!on\)|on \?/.test(row), 'the row does not depend on the pill switch');
+});

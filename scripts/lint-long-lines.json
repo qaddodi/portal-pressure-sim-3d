@@ -687,7 +687,7 @@
  "src/ui/settings/depth-rows.ts": 2,
  "src/ui/settings/rows.ts": 1,
  "src/ui/shell/AppBoundary.tsx": 3,
- "src/ui/shell/BuildPill.tsx": 3,
+ "src/ui/shell/BuildPill.tsx": 2,
  "src/ui/shell/Credit.tsx": 18,
  "src/ui/shell/Diagnostics.tsx": 1,
  "src/ui/shell/Dock.tsx": 1,

@@ -27,4 +27,7 @@ export const LITE_ROW = { label: 'Lite figure', hintDevice: 'Chosen for this dev
  * Preview pill (Settings › Diagnostics, preview builds only; 3D only, so not in the 2D parity table): shows or hides the orange build tab at the top edge.
  * Hiding it keeps the build in the line under the switch.
  */
-export const BUILD_PILL_ROW = { label: 'Preview pill', hint: 'The orange tab at the top that names this build; tap it to load the newest', icon: 'info' };
+export const BUILD_PILL_ROW = {
+  label: 'Preview pill', hint: 'The orange tab at the top that names this build; tap it to load the newest', icon: 'info',
+  update: 'Reload newest build', updateNow: 'Update now', reloading: 'Reloading…', updateHint: 'Loads the newest build and comes back to this same screen',
+};

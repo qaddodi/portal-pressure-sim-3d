@@ -38,10 +38,12 @@ test('the reload carries what is on the screen, not where the page started: the 
   assert.equal(new URL(reloadUrl(`${base}?script=x&slide=2`, 9, null)).searchParams.get('slide'), '2');
 });
 
-test('the pill reads the screen\'s address when it leaves, through the one link the app already makes', async () => {
+test('the pill reads the screen\'s address when it leaves, through the one link the app already makes (the shared reload, which Settings uses too)', async () => {
   const { readFileSync } = await import('node:fs');
-  const src = readFileSync(new URL('../src/ui/shell/BuildPill.tsx', import.meta.url), 'utf8');
-  assert.match(src, /shareLinkNow\(\)/); assert.match(src, /reloadUrl\(location\.href, Date\.now\(\), state\)/);
+  const pill = readFileSync(new URL('../src/ui/shell/BuildPill.tsx', import.meta.url), 'utf8');
+  const shared = readFileSync(new URL('../src/boot/reload.ts', import.meta.url), 'utf8');
+  assert.match(pill, /loadNewestBuild\(\)/);
+  assert.match(shared, /shareLinkNow\(\)/); assert.match(shared, /reloadUrl\(location\.href, Date\.now\(\), state\)/);
 });
 
 test('the pill carries what the build\'s own checks found, and nothing when they were clean', () => {
