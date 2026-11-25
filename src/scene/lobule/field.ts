@@ -55,7 +55,8 @@ export function fieldQuantizer(): (s: { septU: number; fibPre: number; fibPost: 
 }
 export const fieldKey = (s: FieldState, look: LookId): string => `${look}|${s.su},${s.pre},${s.post},${s.sin},${s.cong}`;
 
-/** The tile is painted and then read back (getImageData, for the blur): a canvas that is read back is kept in main memory. On a GPU canvas every read stalls the GPU (the console's "GPU stall due to ReadPixels"). */
+/** The tile is painted and then read back (getImageData, for the blur): a canvas that is read back is kept in main memory.
+ *  On a GPU canvas every read stalls the GPU (the console's "GPU stall due to ReadPixels"). */
 const READ_BACK: CanvasRenderingContext2DSettings = { willReadFrequently: true };
 
 /** Paints 2D's tile for a look and state into a canvas made by mk(w, h) (null in node: the tile's size is still worked out). Returns the canvas. */

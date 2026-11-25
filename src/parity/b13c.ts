@@ -11,7 +11,6 @@ import { place } from '../decks/rw/cams.ts';
 import { REGIONS_2D, CIRC_REGIONS_2D } from '../decks/rw/copied/plate.ts';
 import { LOBULE_CAMS } from '../scene/lobule/shots.ts';
 import type { Claim } from './claim.ts';
-import { OWN_3D_SLIDES } from './own-slides.ts';
 
 registerBuiltinHooks();
 const out: Claim[] = [];
@@ -21,7 +20,6 @@ for (const id of RW_IDS) {
   for (const s of d.slides) {
     const wired = missingHooks(s.hooks, hasHook).length === 0;
     all &&= wired;
-    if (OWN_3D_SLIDES.includes(`${d.id}/${s.id}`)) continue;   // (a slide of ours: the 2D inventory has no row for it)
     out.push({ id: `slide:${d.id}/${s.id}`, wired });
   }
   out.push({ id: `deck:${d.id}`, wired: all });
