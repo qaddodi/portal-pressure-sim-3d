@@ -16,8 +16,12 @@ export type ScreenItem =
   | { k: 'blur'; x: number; y: number; w: number; h: number; r: number; radius: number; alpha: number; clips?: ClipRect[]; clip?: { d: string; x: number; y: number } }
   /** an element painted through a mask image (the icon atlas: a colour seen through a cell of a picture); `img` is filled once the picture has loaded */
   | { k: 'mask'; x: number; y: number; w: number; h: number; url: string; size: string; pos: string; color: string; alpha: number; clips?: ClipRect[]; img?: CanvasImageSource | null }
-  /** a `background-image: url(...)` (the app's mark, a select's chevron): one picture in the box's padding edge, cut to its corner radius `r`; `nat` is the picture's own size when the browser cannot say it (an SVG with only a viewBox) */
-  | { k: 'bgimg'; x: number; y: number; w: number; h: number; r: number; url: string; size: string; pos: string; alpha: number; clips?: ClipRect[]; img?: CanvasImageSource | null; nat?: { w: number; h: number } };
+  /** a `background-image: url(...)` (the app's mark, a select's chevron): one picture in the box's padding edge, cut to its corner radius `r`;
+   *  `nat` is the picture's own size when the browser cannot say it (an SVG with only a viewBox) */
+  | {
+    k: 'bgimg'; x: number; y: number; w: number; h: number; r: number; url: string; size: string; pos: string; alpha: number; clips?: ClipRect[];
+    img?: CanvasImageSource | null; nat?: { w: number; h: number };
+  };
 
 /** The commas of `s` that are not inside brackets split it. */
 export function splitTop(s: string): string[] {
@@ -77,9 +81,11 @@ export function maskPlacement(size: string, pos: string, box: { w: number; h: nu
   return { x: at(pt[0], box.w - w) + 0, y: at(pt[1], box.h - h) + 0, w, h };
 }
 
-/** The box of a `::before` / `::after` as the page draws it once its own `translate`, `scale` and `transform` (a scale or move matrix) are applied about its `transform-origin`: a pseudo-element has no box to
- *  measure, so its left / top / width / height are all the walk has, and a piece placed by `translate` (the segmented control's gliding pill, `left: 0; top: 0; translate: var(--gx) var(--gy)`) stood at the control's corner. */
-export function moveBox(b: { x: number; y: number; w: number; h: number }, m: { translate?: string; scale?: string; transform?: string; origin?: string }): { x: number; y: number; w: number; h: number } {
+/** The box of a `::before` / `::after` as the page draws it once its own `translate`, `scale` and `transform` (a scale or move matrix)
+ *  are applied about its `transform-origin`: a pseudo-element has no box to measure, so its left / top / width / height are all the walk has,
+ *  and a piece placed by `translate` (the segmented control's gliding pill, `left: 0; top: 0; translate: var(--gx) var(--gy)`) stood at the control's corner. */
+type Rect4 = { x: number; y: number; w: number; h: number };
+export function moveBox(b: Rect4, m: { translate?: string; scale?: string; transform?: string; origin?: string }): Rect4 {
   const words = (v: string | undefined) => (!v || v === 'none' ? [] : v.trim().split(/\s+/));
   const [t0, t1] = words(m.translate), [s0, s1] = words(m.scale), o = words(m.origin);
   const tx = t0 ? cssLen(t0, b.w) : 0, ty = t1 ? cssLen(t1, b.h) : 0;

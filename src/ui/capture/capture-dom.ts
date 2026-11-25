@@ -5,7 +5,8 @@
 import { readBox, readStyle, readTextRects } from '../layout-snap.ts';
 import { parseGradient, type Item, type Paint, type Clip } from '../shell/figure-image.ts';
 import { paintItems } from '../shell/figure-image-dom.ts';
-import { zoomOf, stackRank, paintOrder, parseShadows, transformed, contentString, fractionBar, strokeWidthIn, counterCall, counterText, counterStep, SYMBOLS, symbolPath, maskUrl, maskPlacement, moveBox, svgViewBox, splitTop, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
+import { zoomOf, stackRank, paintOrder, parseShadows, transformed, contentString, fractionBar, strokeWidthIn, counterCall, counterText, counterStep, SYMBOLS, symbolPath } from './capture-model.ts';
+import { maskUrl, maskPlacement, moveBox, svgViewBox, splitTop, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
 
 type Rect = { x: number; y: number; w: number; h: number };
 interface Ctx { out: ScreenItem[]; stage: Rect | null; stageImg: CanvasImageSource | null; stageDrawn: boolean }
@@ -137,7 +138,8 @@ function boxOf(c: Ctx, cs: CSSStyleDeclaration, r: R4, alpha: number, clips: Cli
   }
 }
 
-/** The `background-image: url(...)` layers of a box (the app's mark on its tile, a select's chevron): each one picture inside the padding edge, the first layer on top. The picture itself is loaded later (loadMasks). */
+/** The `background-image: url(...)` layers of a box (the app's mark on its tile, a select's chevron): each one picture
+ *  inside the padding edge, the first layer on top. The picture itself is loaded later (loadMasks). */
 function backgroundPictures(c: Ctx, cs: CSSStyleDeclaration, r: R4, rad: number, bw: { bT: number; bR: number; bB: number; bL: number }, alpha: number, clips: ClipRect[]): void {
   if (!cs.backgroundImage || cs.backgroundImage === 'none' || !/url\(/.test(cs.backgroundImage)) return;
   const layers = splitTop(cs.backgroundImage), sizes = splitTop(cs.backgroundSize || 'auto'), poses = splitTop(cs.backgroundPosition || '0% 0%');

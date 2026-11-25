@@ -1,5 +1,6 @@
 // Settings > Capture screen: one PNG of the whole screen as the person sees it, for troubleshooting. The figure (the stage drawn once at the device's pixel ratio) and everything over it
-// (cards, tags, legends, pills, the dock) laid in the order the page paints them (capture-dom.ts), no build or time stamped on it (they ride inside the file, in its name and in the note), and the state that makes the
+// (cards, tags, legends, pills, the dock) laid in the order the page paints them (capture-dom.ts), no build or time stamped on it
+// (they ride inside the file, in its name and in the note), and the state that makes the
 // view (patient, slide, look, lens, camera, sliders) inside the file as a text chunk (png-text.ts) and as a link that reopens the exact view (share-wire.ts). A phone or an iPad hands the
 // file to the share sheet (Save Image, Messages, Mail, Files); a laptop downloads it. The toast that follows offers the link. Runs on a tap or the shortcut, never in a frame.
 import { patient as engPatient } from '../../engine/index.ts';
@@ -32,9 +33,14 @@ async function stateRecord(): Promise<unknown> {
 }
 
 /** The screen drawn on one canvas, with what rides with it (the record, the build, the link). Null when the page could not be drawn. */
-export interface Drawn { canvas: HTMLCanvasElement; record: CaptureRecord; build: string; link: string; scale: number; /** pictures of the page (icons, the mark) that would not load: left out of this one */ missing: string[] }
+export interface Drawn {
+  canvas: HTMLCanvasElement; record: CaptureRecord; build: string; link: string; scale: number;
+  /** pictures of the page (icons, the mark) that would not load: left out of this one */
+  missing: string[];
+}
 
-/** The whole screen on one canvas at the device's pixel ratio (or `opts.ratio`), as the person sees it: no build or time on the picture (the build is in the file's name, its state record and the note). `at` is when it was pressed (the record). */
+/** The whole screen on one canvas at the device's pixel ratio (or `opts.ratio`), as the person sees it: no build or time on the picture
+ *  (the build is in the file's name, its state record and the note). `at` is when it was pressed (the record). */
 export async function drawScreen(at: Date, opts: { ratio?: number } = {}): Promise<Drawn | null> {
   const want = opts.ratio ?? devicePixelRatio;
   const root = document.getElementById('root') ?? document.body, rb = readBox(root);
