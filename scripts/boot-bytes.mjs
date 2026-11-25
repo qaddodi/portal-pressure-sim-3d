@@ -3,7 +3,7 @@
 // files the page needs before its first picture from the same list the service worker installs (scripts/pwa.mjs orderFiles: the page, its scripts and style sheets, the fonts, the organs, the skins), because that list IS what the page
 // requests before it can be used. Text is counted gzipped (what the host sends), the baked .bin files, fonts and pictures as they are. Run by the build after the worker is written (scripts/build.mjs) and by hand:
 //   node scripts/boot-bytes.mjs [dist] [--check]      --check exits 1 over the budget (the build does it on main; a branch preview ships and says so in build-info.txt)
-// The review of 25 Nov measured 10,071 kB before usable in headless Chromium with the cache empty, and the install list's own printout said 10,138 kB: the two agree within a percent, so the static count tracks the browser's. A measurement
+// The review of 25 Nov measured 10,071 kB before usable in headless Chromium with the cache empty (91 requests); this count is made the same way as that table's rows (JavaScript, images, fonts, CSS, JSON and HTML within a few percent of them). A measurement
 // in a browser (every response until the cover lifts) is the check that a number here has not drifted from what a device really pulls; it needs a headless run and is made by hand, with the owner's say.
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -30,7 +30,11 @@ export function kindOf(file) {
  * @param {(file: string) => Buffer} read
  * @returns {{ total: number, kinds: Record<string, { files: number, bytes: number }>, files: { file: string, kind: string, bytes: number }[] }} */
 export function bootBytes(files, read) {
-  const { boot } = orderFiles(files, (f) => read(f).toString('utf8'));
+  const { boot: held } = orderFiles(files, (f) => read(f).toString('utf8'));
+  // (the install list holds every iOS launch picture the page names, 48 of them, 1.7 MB; a device is sent the one that fits its screen, and only when the app is opened from the home screen: the picture is no part of what a page needs before it can be used)
+  const page = files.includes('index.html') ? read('index.html').toString('utf8') : '';
+  const launch = new Set([...page.matchAll(/<link\b[^>]*rel="apple-touch-startup-image"[^>]*>/g)].map((m) => /href="(?:\.\/)?([^"?#]+)/.exec(m[0])?.[1]).filter(Boolean));
+  const boot = held.filter((f) => !launch.has(f));
   const list = boot.map((file) => ({ file, kind: kindOf(file), bytes: wireBytes([file], read) }));
   /** @type {Record<string, { files: number, bytes: number }>} */
   const kinds = {};

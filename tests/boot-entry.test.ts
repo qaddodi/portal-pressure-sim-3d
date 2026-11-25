@@ -152,18 +152,19 @@ test('the boot-byte accounting: the install list on the wire by kind, text gzipp
   const dir = mkdtempSync(resolve(tmpdir(), 'bootbytes-'));
   const put = (f: string, b: Buffer | string) => { const p = resolve(dir, f); mkdirSync(resolve(p, '..'), { recursive: true }); writeFileSync(p, b); };
   const js = 'const a = "' + 'x'.repeat(40_000) + '";';
-  put('index.html', '<link rel="stylesheet" href="./assets/a.css"><script type="module" src="./assets/index-Zz.js"></script><link rel="preload" as="fetch" href="./assets/organs-baked-Aa11Bb22.bin">');
+  put('index.html', '<link rel="apple-touch-startup-image" media="x" href="./brand/launch/1x.png"><link rel="stylesheet" href="./assets/a.css"><script type="module" src="./assets/index-Zz.js"></script><link rel="preload" as="fetch" href="./assets/organs-baked-Aa11Bb22.bin">');
   put('assets/index-Zz.js', js + 'fetch(`assets/skins-Cc33Dd44.bin`);');
   put('assets/a.css', 'a{color:red}');
   put('assets/organs-baked-Aa11Bb22.bin', Buffer.alloc(100_000, 7)); put('assets/skins-Cc33Dd44.bin', Buffer.alloc(50_000, 9));
+  put('brand/launch/1x.png', Buffer.alloc(40_000, 5));   // (an iOS launch picture: a device is sent one, from the home screen: never counted)
   put('lobule/welds.bin', Buffer.alloc(200_000, 1));   // (late: never counted)
   put('assets/organs-Ee55Ff66.bin', Buffer.alloc(80_000, 3));   // (the fallback: never counted)
-  const files = ['index.html', 'assets/index-Zz.js', 'assets/a.css', 'assets/organs-baked-Aa11Bb22.bin', 'assets/skins-Cc33Dd44.bin', 'lobule/welds.bin', 'assets/organs-Ee55Ff66.bin'];
+  const files = ['index.html', 'assets/index-Zz.js', 'assets/a.css', 'assets/organs-baked-Aa11Bb22.bin', 'assets/skins-Cc33Dd44.bin', 'brand/launch/1x.png', 'lobule/welds.bin', 'assets/organs-Ee55Ff66.bin'];
   const r = bootBytes(files, (f: string) => readFileSync(resolve(dir, f)));
   assert.deepEqual(Object.keys(r.kinds).sort(), ['css', 'geometry (baked)', 'javascript', 'json and html']);
   assert.equal(r.kinds['geometry (baked)']!.bytes, 150_000, 'the baked files go as they are');
   assert.ok(r.kinds.javascript!.bytes < 1000, 'text goes gzipped');
-  assert.ok(!r.files.some((f: { file: string }) => /welds|organs-Ee/.test(f.file)), 'the weld plan and the fallback organs are not before usable');
+  assert.ok(!r.files.some((f: { file: string }) => /welds|organs-Ee|launch/.test(f.file)), 'the weld plan, the fallback organs and the launch pictures are not before usable');
   assert.equal(r.total, r.files.reduce((n: number, f: { bytes: number }) => n + f.bytes, 0));
   assert.match(report(r, { targetKb: 4000, budgetKb: 5000 }), /before usable: 5 files, \d+ kB on the wire \(budget 5,000 kB, target 4,000 kB\)/);
   assert.ok(within(r, { targetKb: 1, budgetKb: 200 }) && !within(r, { targetKb: 1, budgetKb: 100 }), 'a total over the budget is refused');
