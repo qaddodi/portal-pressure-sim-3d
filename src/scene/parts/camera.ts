@@ -24,7 +24,7 @@ export const cameraPart = scenePart<CelScene>()({
     // (with no water that is the organs' own shot, asked for as it was)
     const whole = shotIn === 'play' || shotIn === SHOTS.play ? wholeShot(this.disease.fluidGoalMl) : null, shot = whole && whole !== SHOTS.play ? whole : shotIn;
     this.wholeOn = whole;
-    if ((this.figureView === 'lobule' || this.figureView === 'sinusoid') && (!this.microPrimedNow || this.rig.chaseLeaving)) { this.hold({ shot, room, ms, ease }); this.buildMicroIdle(true); return; }
+    if ((this.figureView === 'lobule' || this.figureView === 'sinusoid') && !this.microPrimedNow) { this.hold({ shot, room, ms, ease }); this.buildMicroIdle(true); return; }
     this.hold(null);
     this.rig.goTo(shot, room, now, ms, keepHand, ease ?? null); this.moving = true;
   },
@@ -43,7 +43,8 @@ export const cameraPart = scenePart<CelScene>()({
   get diveHeld(): boolean { return this.heldDive !== null; },
   hold(h: { shot: ShotName | Shot; room: Room; ms?: number; ease?: (k: number) => number } | null): void {
     this.heldDive = h;
-    // (the wait cue is for a wait on the parts: a dive held only for the chase camera to ease out shows none)
+    // (while the dive waits the chase stands still with the rest of the camera; the dive takes the picture on from there: camera/rig.ts absorbChase)
+    this.rig.holdChase = !!h;
     if (h && !this.microPrimedNow) {
       this.holdCue ??= waitCue(this.figureView === 'sinusoid' ? 'the sinusoid' : 'the lobule');
       if (this.micro?.lobule.weldsWait) this.holdCue.progress?.(this.micro.lobule.weldsProgress);
@@ -63,8 +64,7 @@ export const cameraPart = scenePart<CelScene>()({
   /** The micro views are ready: a waiting dive starts now (only while its view is still the one asked for: a tap back to the body in the meantime replaced it). */
   releaseDive(): void {
     const h = this.heldDive;
-    // (also waits for the chase camera to be out of the picture: the dive begins from the body's own framing, never from a catheter close-up still easing away)
-    if (!h || !this.microPrimedNow || this.rig.chaseLeaving) return;
+    if (!h || !this.microPrimedNow) return;
     this.hold(null);
     if (this.figureView === 'lobule' || this.figureView === 'sinusoid') this.goTo(h.shot, h.room, clock.now(), h.ms, h.ease);
   },

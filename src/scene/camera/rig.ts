@@ -5,7 +5,7 @@ import type { Vec3 } from '../anatomy/vessels.ts';
 import { type View, lerpView } from '../gesture/ease.ts';
 import type { Rect } from '../gesture/view.ts';
 import { type Room, effectiveDistance, viewOffset } from './room.ts';
-import { PLUNGE_RATIO, dollyDistance, fovAt, fovBump } from './dive.ts';
+import { DIVE_FOV, PLUNGE_RATIO, dollyDistance, fovAt, fovBump } from './dive.ts';
 import { Tilt } from './tilt.ts';
 import { LongPath } from './arc.ts';
 import { slideSpanOf, stepOf, wholeViewOf, zoomShare } from './slide-time.ts';
@@ -271,6 +271,7 @@ export class CameraRig {
   /** The lens's share now (0 the long lens, 1 the widest, dive.ts), the share a move began with (a move reversed mid-plunge carries it, so the lens never jumps) and whether this move is a plunge into the figure. */
   private bump = 0;
   private bumpFrom = 0;
+  private bumpTo = 0;
   private plunge = false;
   /** The share of the way the room has gone in the move now (see update). */
   private roomP = 0;
@@ -324,6 +325,41 @@ export class CameraRig {
   private chaseMoving = false;
   /** The chase is easing out (it was asked to go and its share is not yet nothing): the picture is still partly the chase's. */
   get chaseLeaving(): boolean { return this.chaseCur !== null && this.chaseGoal === null; }
+  /** A dive waits for its parts (scene.hold): the chase stands where it is, as the rest of the camera does, and the move that comes takes the picture on from there. */
+  holdChase = false;
+  /** The move in flight lands on the chase (it was asked for with the chase on): its end is the chase's pose and lens, and on landing the chase
+   *  takes the picture with nothing changed. The shot the slide asked for is kept under it, for when the chase leaves on its own. */
+  private chaseLand: { shot: Shot; room: Room } | null = null;
+  /** The lens's share for a field of view (fovAt's inverse). */
+  private static lensShare(fov: number): number { return (fov - FOV) / (DIVE_FOV - FOV); }
+  /** The distance a shot needs (before the lens's dolly) for the camera to stand `dist` from its aim on a `fov` lens: dollyDistance's inverse. */
+  private static baseDist(dist: number, fov: number): number { return (dist * Math.tan((fov * Math.PI) / 360)) / Math.tan((FOV * Math.PI) / 360); }
+  /** The chase as a shot: its turn, tilt and aim, a distance that the shot's own fit never overrides, the room it is in. */
+  private chaseShot(c: ChasePose, under: Shot): Shot {
+    return { yaw: c.yaw, pitch: c.pitch, r: CameraRig.baseDist(c.dist, c.fov), target: [c.target[0], c.target[1], c.target[2]], half: [1e-9, 1e-9], ...(under.roll ? { roll: under.roll } : {}) };
+  }
+  /** ONE OWNER (25 Nov, HVPG 4 to 5, "a camera tilt or something"): a move begun while the chase is in the picture starts from the picture as it
+   *  is drawn. The chase's share is folded into the camera's own pose (its turn, tilt, aim and distance) and its lens into the lens's share, and the
+   *  chase lets go: nothing on screen changes in that frame. Before, a dive waited for the chase to ease out over 900 ms (the camera backed off,
+   *  turned to the body shot's own angle and changed lens), then dove and turned back; and a chase asked for in a dive came in after it landed,
+   *  a second move. */
+  private absorbChase(): void {
+    const cc = this.chaseCur;
+    if (!cc) return;
+    const ck = easeMove(this.chaseK);
+    if (ck > 0) {
+      const shot = this.cur.shot, fov0 = fovAt(this.bump), r0 = dollyDistance(this.distHere(), fov0);
+      const fov = lerp(fov0, cc.fov, ck), r = geo(r0, cc.dist, ck);
+      const target: [number, number, number] = [lerp(shot.target[0], cc.target[0], ck), lerp(shot.target[1], cc.target[1], ck), lerp(shot.target[2], cc.target[2], ck)];
+      const yaw = lerp(shot.yaw, cc.yaw, ck), pitch = lerp(shot.pitch, cc.pitch, ck);
+      this.cur = { shot: { ...copyShot(shot), yaw, pitch, target, r: CameraRig.baseDist(r, fov), half: [1e-9, 1e-9] }, room: this.cur.room };
+      delete this.cur.shot.keep; delete this.cur.shot.fill; delete this.cur.shot.halfNarrow;
+      this.bump = CameraRig.lensShare(fov); this.distNow = 0;
+    }
+    this.chaseK = 0; this.chaseT = 0; this.chaseMoving = false;
+    // (a chase that stays asked for comes back as the move's end: goTo; one that was leaving is gone)
+    if (!this.chaseGoal) this.chaseCur = null;
+  }
   setChase(p: ChasePose | null): void {
     this.chaseGoal = p;
     if (p && !this.chaseCur) this.chaseCur = { yaw: p.yaw, pitch: p.pitch, dist: p.dist, fov: p.fov, target: [p.target[0], p.target[1], p.target[2]] };
@@ -333,14 +369,14 @@ export class CameraRig {
   private stepChase(now: number): boolean {
     const g = this.chaseGoal, c = this.chaseCur;
     if (!c) { this.chaseT = 0; this.chaseMoving = false; return false; }
+    if (this.holdChase) { this.chaseT = 0; this.chaseMoving = false; return false; }
     const dt = this.chaseT > 0 ? Math.min(100, Math.max(0, now - this.chaseT)) : 16;
     this.chaseT = now;
     const instant = this.reduceMotion || reduced();
     const goal = g ? 1 : 0, kStep = instant ? 1 : dt / CHASE_MS;
-    // (a dive and the chase never share the picture: the chase blends the aim, the distance and the lens of the body's catheter shot over
-    //  whatever the move draws, which at the lobule's scale is a view of empty space. A chase asked for while a dive flies waits for it
-    //  to land, then eases in; one leaving ahead of a dive is waited out by the scene before the dive begins: scene.goTo, `chaseLeaving`)
-    const waiting = goal > this.chaseK && this.active && isDive(this.from, this.to);
+    // (the chase never blends over a move in flight: a move begun with the chase in the picture folded it into its start (absorbChase), and one
+    //  asked for with the chase on lands on it (chaseLand). A chase asked for while a move flies that does not land on it waits for the landing)
+    const waiting = (goal > this.chaseK && this.active && isDive(this.from, this.to)) || (this.active && this.chaseLand !== null);
     if (!waiting) this.chaseK = goal > this.chaseK ? Math.min(goal, this.chaseK + kStep) : Math.max(goal, this.chaseK - kStep);
     let busy = this.chaseK !== goal;
     if (g) {
@@ -471,7 +507,7 @@ export class CameraRig {
 
   /** Fly to a shot (and a room) in one straight move. Called again mid-flight, the new move starts from where the camera is now. */
   goTo(shot: ShotName | Shot, room: Room, now: number, ms = SHOT_MS, keepHand = false, ease: ((k: number) => number) | null = null): void {
-    const s = typeof shot === 'string' ? SHOTS[shot] : shot;
+    let s = typeof shot === 'string' ? SHOTS[shot] : shot;
     if (!keepHand) this.followAt = null;   // a new shot ends a follow (the caller that wants one asks again after it)
     // The first shot with a real room is where the camera starts, not somewhere it flies to: until then it has no pose worth showing (the constructor's
     // title shot filling a canvas that has no size yet), so it is put there at once and nothing is drawn before. (Mohammad, 19 Nov: the figure started at the
@@ -484,6 +520,9 @@ export class CameraRig {
       this.orbit = this.orbitFrom = 0; this.active = false; this.distNow = 0; this.handTween = false; this.dirty = true;
       return;
     }
+    // (the chase in the picture is folded into where the camera stands; a chase still asked for is where this move lands)
+    this.absorbChase();
+    if (this.chaseGoal && this.chaseCur) { this.chaseLand = { shot: copyShot(s), room: copyRoom(room) }; s = this.chaseShot(this.chaseCur, s); } else this.chaseLand = null;
     // retargeted in flight: carry the speed on, 2D's carryRate: the view's speed (the aim in screens a second, the zoom with a doubling counting half a screen) projected on the way to the new framing,
     // in the new glide's own progress per glide, so nothing slows to a stop and starts again whatever the new target is
     let carry = 0;
@@ -545,6 +584,7 @@ export class CameraRig {
     this.handTween = keepHand ? this.handTween : this.hand.k !== 1 || this.hand.x !== 0 || this.hand.y !== 0 || !endHome;
     // the lens: a plunge into the figure (the body to the lobule or the sinusoid, or back) widens it and narrows it again (dive.ts); Reduce Motion keeps the long lens throughout
     this.bumpFrom = this.bump;
+    this.bumpTo = this.chaseLand && this.chaseCur ? CameraRig.lensShare(this.chaseCur.fov) : 0;
     this.plunge = LENS_SWELL && !(this.reduceMotion || reduced()) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-9, Math.min(this.from.shot.r, this.to.shot.r)) > PLUNGE_RATIO;
     this.zoomEnds = this.measureZoom(this.active);   // (a move retargeted in flight starts from the distance the camera is really at: distNow)
     this.zoomLate = null;
@@ -792,13 +832,30 @@ export class CameraRig {
       }
       this.sampleVel(now, this.step);
       if (this.long && e < 1) this.long.at(e, this.cur.shot);
-      this.bump = fovBump(k, this.bumpFrom, this.plunge);
+      // (the lens goes from where it stood to where the move lands, on the move's own share: the rest lens, or the chase's when the move lands on it)
+      this.bump = this.plunge ? fovBump(k, this.bumpFrom, this.plunge) : lerp(this.bumpFrom, this.bumpTo, e);
       // the orbit eases back to centre with the shot (a new shot always starts square on), but a change of room alone (a card opening) leaves the turn the viewer chose
       this.orbit = lerp(this.orbitFrom, this.orbitTo, e);
       this.pitchOrbit = lerp(this.pitchFrom, this.pitchTo, e);
       if (this.handTween) {
         if (this.diveHand) this.stepDiveHand(this.roomP); else lerpView(this.handFrom, this.handEnd, e, this.hand);
         if (k >= 1) { this.handTween = false; this.diveHand = null; this.hand.k = this.handEnd.k; this.hand.x = this.handEnd.x; this.hand.y = this.handEnd.y; }
+      }
+      if (this.chaseLand && this.chaseCur && k < 1) {
+        // (the chase's pose moves with the catheter: the move's end goes with it, as a followed point's does)
+        const c = this.chaseShot(this.chaseCur, this.chaseLand.shot), t = this.to.shot;
+        t.target[0] = c.target[0]; t.target[1] = c.target[1]; t.target[2] = c.target[2]; t.yaw = c.yaw; t.pitch = c.pitch;
+      }
+      if (k >= 1 && this.chaseLand) {
+        // landed on the chase: the chase takes the picture whole (the same pose and lens), and the slide's own shot stands under it for when the chase leaves
+        const L = this.chaseLand;
+        this.chaseLand = null;
+        if (this.chaseGoal && this.chaseCur) {
+          const c = this.chaseCur, d = this.cur.shot;
+          c.yaw = d.yaw; c.pitch = d.pitch; c.target[0] = d.target[0]; c.target[1] = d.target[1]; c.target[2] = d.target[2]; c.fov = fovAt(this.bump); c.dist = dollyDistance(this.distHere(), c.fov);
+          this.chaseK = 1;
+          this.cur = { shot: copyShot(L.shot), room: copyRoom(this.cur.room) }; this.from = this.to = this.cur; this.bump = 0; this.distNow = 0;
+        }
       }
       if (k >= 1) this.active = false; else moving = true;
       this.dirty = true;
