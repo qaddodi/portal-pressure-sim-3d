@@ -66,3 +66,19 @@ test('the edits table is whole: every paragraph says where it is and what it may
     for (const p of f.paragraphs) { assert.ok(Number.isInteger(p.page) && p.find && p.width > 100 && p.size > 6 && p.leading > p.size && Array.isArray(p.runs), `${name} page ${p.page}`); }
   }
 });
+
+test('the words name what the 3D app shows now (R8, 25 Nov): the vessel card rows, the Tests tabs, the Figure presets; not the 2D app\'s old labels', () => {
+  for (const f of FILES) {
+    const w = words(f);
+    for (const gone of [/Narrow and Clot/, /Add shunt/, /Inject dye/, /Auto detail/, /Pressure, HVPG/]) assert.ok(!gone.test(w), `${f} still says ${gone}`);
+    assert.match(w, /Stenosis and Thrombus/, f);
+    assert.match(w, /Pressure, IR, Doppler, Scope, Ascites, Fibro, Readouts and Trials/, f);
+    assert.match(w, /Figure:? ?\(?Cool, Balanced or Rich/, f);
+  }
+});
+
+test('the pictures are the 3D app\'s ten shots, laid in as JPEGs, each with the build\'s own PREVIEW tab (docs/guides.md): ten per guide, and every paragraph has the words to find it by again', () => {
+  for (const f of FILES) assert.equal(bytes(f).toString('latin1').split('/DCTDecode').length - 1, 10, `${f}: ten shots expected`);
+  for (const [name, f] of Object.entries<any>(edits.files)) for (const p of f.paragraphs) assert.ok(p.find3d, `${name} page ${p.page}: no find3d`);
+  assert.equal(Object.keys(edits.pictures).length, 10);
+});

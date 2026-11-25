@@ -5,8 +5,8 @@
 
 The 2D guides (guides/beta-start-guide.pdf, Letter, and guides/beta-start-guide-iphone.pdf) are copied with ONLY the words that differ for the 3D build changed
 (scripts/guides-edits.json): the link, the title line, and the paragraphs that say something that is not true of the 3D app (its loading screen, its timed feedback
-card) or that Send feedback now does more. The pictures are the 2D app's: the 3D shell is the 2D shell, so they still show where the buttons are; new pictures of the
-3D app are taken on the Mac (no headless runs) and replace them by hand, keeping the file names. A paragraph is one text block of the PDF (the guides are ReportLab
+card) or that Send feedback now does more. The pictures stay the 2D app's here; `--refresh --shots <dir>` then lays the 3D app's own shots over them
+(scripts/capture-guide-shots.mjs, docs/guides.md), keeping the file names and the places. A paragraph is one text block of the PDF (the guides are ReportLab
 output: one `BT ... ET` per paragraph, the lines by `T*`); it is rewritten in the same block, so the size, leading, colour and place stay the 2D guide's and nothing else is
 touched. The fonts are the PDF's own Helvetica (not embedded), so the wrap is measured with Helvetica's widths.
 `--check` writes nothing and fails when a guide in --out is not what this script makes from the 2D one (compared by text, page count and size).
@@ -65,13 +65,17 @@ def merged(line):
 
 BLOCK = re.compile(r'BT 1 0 0 1 ([\d.]+) ([\d.]+) Tm ((?:-?[\d.]+ Tw )?)([\d.]+) TL /F[12] ([\d.]+) Tf ([\d. ]+ rg) (.*?) ET', re.S)
 
-def rewrite(content, para, label):
-    for m in BLOCK.finditer(content):
-        if para['find'] in m.group(7):
+# (a block this script wrote itself: the colour comes before the font, the first font is not set apart)
+BLOCK_OWN = re.compile(r'BT 1 0 0 1 ([\d.]+) ([\d.]+) Tm ()([\d.]+) TL ([\d. ]+ rg) /F[12] ([\d.]+) Tf (.*?) ET', re.S)
+
+def rewrite(content, para, label, key='find'):
+    for m, own in [(m, False) for m in BLOCK.finditer(content)] + [(m, True) for m in BLOCK_OWN.finditer(content)]:
+        if para[key] in m.group(7):
             break
     else:
-        sys.exit(f"{label}: the 2D guide has no paragraph with \"{para['find']}\" any more; update scripts/guides-edits.json")
-    x, y, _tw, tl, size, color, body = m.group(1), m.group(2), m.group(3), float(m.group(4)), float(m.group(5)), m.group(6), m.group(7)
+        sys.exit(f"{label}: the 2D guide has no paragraph with \"{para[key]}\" any more; update scripts/guides-edits.json")
+    if own: x, y, _tw, tl, color, size, body = m.group(1), m.group(2), m.group(3), float(m.group(4)), m.group(5), float(m.group(6)), m.group(7)
+    else: x, y, _tw, tl, size, color, body = m.group(1), m.group(2), m.group(3), float(m.group(4)), float(m.group(5)), m.group(6), m.group(7)
     old_lines = body.count(' T* ') + body.count('T* ') + (0 if body.rstrip().endswith('T*') else 1)
     old_lines = len(re.findall(r'T\*', body))
     lines = wrap(para['runs'], size, para['width'])
@@ -117,13 +121,51 @@ def make(src, dst, name):
     with open(dst, 'wb') as f: writer.write(f)
     return dst
 
+def jpeg(path, size):
+    """The picture as the PDF's own image data: a JPEG at 90 (the shots are 3D shading and soft glass, which a PNG holds at three times the size)."""
+    import io
+    from PIL import Image
+    im = Image.open(path).convert('RGB')
+    if im.size != size and abs(im.size[0] / im.size[1] - size[0] / size[1]) > 0.01:
+        sys.exit(f'{path}: a {im.size[0]}x{im.size[1]} shot does not fit the picture\'s place ({size[0]}x{size[1]} in the guide)')
+    buf = io.BytesIO(); im.save(buf, 'JPEG', quality=90, subsampling=0, optimize=True)
+    return buf.getvalue(), im.size
+
+def refresh(name, shots):
+    """Takes the committed 3D guide and (1) says the paragraphs again from scripts/guides-edits.json (found by their `find3d` words, so a changed sentence is a one-line edit of the table),
+    (2) lays the shots in place of the pictures (`pictures`: the first six characters of the picture's name in the PDF -> the shot's file stem in --shots, e.g. mac-3-tests). The page layout, the other text
+    and the file name stay."""
+    from pypdf.generic import NameObject, NumberObject
+    ed = EDITS['files'][name]
+    dst = ROOT / 'public' / 'guides' / f'{name}.pdf'
+    writer = PdfWriter(clone_from=PdfReader(str(dst)))
+    for para in ed['paragraphs']:
+        page = writer.pages[para['page']]
+        put(page, rewrite(page.get_contents().get_data().decode('latin1'), para, f"{name} page {para['page'] + 1}", 'find3d'))
+    if shots:
+        for page in writer.pages:
+            for key, ref in page['/Resources']['/XObject'].items():
+                tag = key.split('.')[1][:6]
+                if tag not in EDITS['pictures']: continue
+                obj = ref.get_object()
+                data, (w, h) = jpeg(pathlib.Path(shots) / f"{EDITS['pictures'][tag]}.png", (int(obj['/Width']), int(obj['/Height'])))
+                obj._data = data
+                obj[NameObject('/Filter')] = NameObject('/DCTDecode'); obj[NameObject('/Width')] = NumberObject(w); obj[NameObject('/Height')] = NumberObject(h)
+                obj.pop('/DecodeParms', None)
+    with open(dst, 'wb') as f: writer.write(f)
+    print(f'wrote {dst} ({dst.stat().st_size // 1024} KB)')
+
 def text_of(path):
     return [' '.join(p.get_text('text').split()) for p in pymupdf.open(path)]
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('--from', dest='src', required=True); ap.add_argument('--out', default=str(ROOT / 'public' / 'guides')); ap.add_argument('--check', action='store_true')
+    ap.add_argument('--from', dest='src'); ap.add_argument('--refresh', action='store_true', help='start from the committed 3D guides instead of the 2D ones'); ap.add_argument('--shots', help='with --refresh: the folder the capture script wrote (scripts/capture-guide-shots.mjs)'); ap.add_argument('--out', default=str(ROOT / 'public' / 'guides')); ap.add_argument('--check', action='store_true')
     a = ap.parse_args()
+    if a.refresh:
+        for name in EDITS['files']: refresh(name, a.shots)
+        sys.exit(0)
+    if not a.src: ap.error('--from <2D checkout> (or --refresh)')
     out = pathlib.Path(a.out); out.mkdir(parents=True, exist_ok=True)
     bad = []
     for name in EDITS['files']:

@@ -1,5 +1,5 @@
 {
-  "about": "The words of the 3D build's two tester guides that differ from the 2D app's (scripts/copy-guides.py reads this table). Everything else, the pictures included, is the 2D guides as they are: the 3D app lifts the 2D shell 1:1. A paragraph is rewritten in its own text block, with the same size, leading and start, and may not grow past the lines it had (a picture sits under it); `find` is a piece of the old words and must be in the block or the script stops, so a changed 2D guide is noticed. `width` is the paragraph's width in points. Runs are [words, bold]; a \\n in the words is a line break.",
+  "about": "The words of the 3D build's two tester guides that differ from the 2D app's (scripts/copy-guides.py reads this table). Everything else is the 2D guides as they are. `pictures` names the shot (scripts/capture-guide-shots.mjs) that replaces each picture, by the first six characters of its name in the PDF (the same in both guides); `find3d` is a piece of the words as the 3D guide says them now, for `copy-guides.py --refresh`. A paragraph is rewritten in its own text block, with the same size, leading and start, and may not grow past the lines it had (a picture sits under it); `find` is a piece of the old words and must be in the block or the script stops, so a changed 2D guide is noticed. `width` is the paragraph's width in points. Runs are [words, bold]; a \\n in the words is a line break.",
   "url": {
     "from": "https://qaddodi.github.io/portal-pressure-simulator/preview/",
     "to": "https://qaddodi.github.io/portal-pressure-sim-3d/preview/"
@@ -55,7 +55,8 @@
             ]
           ],
           "find": "A short loading screen",
-          "width": 504
+          "width": 504,
+          "find3d": "Nothing to install"
         },
         {
           "page": 0,
@@ -101,10 +102,11 @@
               true
             ],
             [
-              ": opens the Tests card with tabs for Pressure, HVPG, Doppler, Scope, Ascites, Fibro and Readouts, the measurements you can take on this patient.",
+              ": opens the Tests card with tabs for Pressure, IR, Doppler, Scope, Ascites, Fibro, Readouts and Trials, the measurements you can take on this patient.",
               false
             ]
-          ]
+          ],
+          "find3d": "pick a talk to play it"
         },
         {
           "page": 1,
@@ -144,12 +146,13 @@
               true
             ],
             [
-              ", where Auto detail softens the figure on a slow device.",
+              ", where Figure (Cool, Balanced or Rich) sets how much detail the figure draws.",
               false
             ]
           ],
           "find": "a card also asks once",
-          "width": 504
+          "width": 504,
+          "find3d": "Settings also has"
         },
         {
           "page": 1,
@@ -163,7 +166,7 @@
               false
             ],
             [
-              "Narrow",
+              "Stenosis",
               true
             ],
             [
@@ -171,7 +174,7 @@
               false
             ],
             [
-              "Clot",
+              "Thrombus",
               true
             ],
             [
@@ -187,7 +190,7 @@
               false
             ],
             [
-              "Add shunt",
+              "Shunt",
               true
             ],
             [
@@ -210,7 +213,8 @@
               ". The pressures, colors and tiles update at once.",
               false
             ]
-          ]
+          ],
+          "find3d": "Tap a vessel"
         }
       ]
     },
@@ -240,7 +244,8 @@
             ]
           ],
           "find": "A short loading screen",
-          "width": 350
+          "width": 350,
+          "find3d": "and no account"
         },
         {
           "page": 0,
@@ -281,7 +286,8 @@
               " open a treated one. It also has search, Copy link to this view and Help.",
               false
             ]
-          ]
+          ],
+          "find3d": "talk to play it"
         },
         {
           "page": 5,
@@ -321,12 +327,13 @@
               true
             ],
             [
-              " (Auto detail).",
+              " (Figure: Cool, Balanced or Rich).",
               false
             ]
           ],
           "find": "a card",
-          "width": 350
+          "width": 350,
+          "find3d": "Settings also has"
         },
         {
           "page": 3,
@@ -340,7 +347,7 @@
               false
             ],
             [
-              "Narrow",
+              "Stenosis",
               true
             ],
             [
@@ -348,7 +355,7 @@
               false
             ],
             [
-              "Clot",
+              "Thrombus",
               true
             ],
             [
@@ -364,7 +371,7 @@
               false
             ],
             [
-              "Add shunt",
+              "Shunt",
               true
             ],
             [
@@ -387,9 +394,40 @@
               ". The pressures, colors and tiles update at once.",
               false
             ]
-          ]
+          ],
+          "find3d": "Tap a vessel"
+        },
+        {
+          "page": 1,
+          "size": 12,
+          "leading": 16.56,
+          "runs": [
+            [
+              "Tests",
+              true
+            ],
+            [
+              ": opens the Tests card with tabs for Pressure, IR, Doppler, Scope, Ascites, Fibro, Readouts and Trials, the measurements you can take on this patient. On iPhone it is in the bar along the bottom (Treat, Tests, Search, Layers, Settings), and the tabs show as icons.",
+              false
+            ]
+          ],
+          "find": "opens the Tests card with tabs for Pressure, HVPG",
+          "find3d": "opens the Tests card",
+          "width": 350
         }
       ]
     }
+  },
+  "pictures": {
+    "fdc3a6": "mac-1-top",
+    "1544b2": "mac-2-menu",
+    "b14375": "mac-3-tests",
+    "ad1ec3": "mac-4-vessel",
+    "e40456": "mac-5-settings",
+    "64a045": "phone-1-top",
+    "7d6b19": "phone-2-menu",
+    "bd7d08": "phone-3-tests",
+    "d3286c": "phone-4-vessel",
+    "8aa7fa": "phone-5-settings"
   }
 }

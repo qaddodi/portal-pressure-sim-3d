@@ -44,4 +44,4 @@ The integration branch publishes at https://qaddodi.github.io/portal-pressure-si
 `public/guides/beta-start-guide.pdf` (Letter) and `beta-start-guide-iphone.pdf` are the beta testers' start guides, served at `/guides/` and `/preview/guides/` under stable names that
 testers get as links. They are the 2D app's guides with only the 3D build's words changed: `python3 scripts/copy-guides.py --from <2D checkout>` (table: `scripts/guides-edits.json`,
 notes: `docs/guides.md`). When a change alters anything a guide shows or says (buttons, Settings rows, Send feedback, the first steps), update both PDFs in the same push and keep the
-file names. The pictures are still the 2D app's until new ones are taken on the Mac. Keep Mohammad's email out of the guides: the address is a build variable only.
+file names. The pictures are the 3D app's own (`scripts/capture-guide-shots.mjs`, then `python3 scripts/copy-guides.py --refresh --shots <dir>`; docs/guides.md): retake them when one of the five screens they show changes. Keep Mohammad's email out of the guides: the address is a build variable only.
