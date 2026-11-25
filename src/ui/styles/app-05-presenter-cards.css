@@ -1,11 +1,9 @@
 /* The visuals: a scale with thresholds, SAAG × protein, the two capillary walls. */
 .pz-visual { min-height: 0; display: flex; justify-content: center; }
-.pz-quadwrap { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(16px, 3vw, 52px); align-items: center; }
 .pz-quad { display: block; width: 100%; height: auto; max-height: calc(58 * var(--pzh)); }
 /* (Four quadrants, four quiet tints, the HVPG against PPG plane's family: the two non-portal quadrants cool (1 green, 3 blue), the
    two portal ones warm (2 violet, 4 wine). A numbered row beside the plot takes its quadrant's tint. Tints of --surface, so they
    follow every theme.) */
-.pz-quadwrap { --pzq-1: color-mix(in srgb, var(--ok) 15%, var(--surface)); --pzq-2: color-mix(in srgb, var(--ramp-violet) 16%, var(--surface)); --pzq-3: color-mix(in srgb, var(--tr-hv) 15%, var(--surface)); --pzq-4: color-mix(in srgb, var(--ramp-wine) 17%, var(--surface)); }
 .pz-quads { display: flex; flex-direction: column; gap: clamp(8px, calc(1.6 * var(--pzh)), 20px); margin: 0; padding: 0; list-style: none; }
 .pz-quads li { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: .8em; row-gap: .2em; align-items: baseline; padding: .65em .9em; border-radius: clamp(12px, calc(1.6 * var(--pzh)), 18px); background: var(--surface-2); }
 .pz-quads li[data-q="1"] { background: var(--pzq-1); } .pz-quads li[data-q="2"] { background: var(--pzq-2); } .pz-quads li[data-q="3"] { background: var(--pzq-3); } .pz-quads li[data-q="4"] { background: var(--pzq-4); }
@@ -27,7 +25,6 @@
 @keyframes pzw-rise { 0% { transform: translateY(40px); opacity: 0; } 25%, 75% { opacity: 1; } 100% { transform: translateY(-44px); opacity: 0; } }
 .pz-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--hairline); }
 /* (An iPhone opened from the Home Screen, or held sideways, draws the page to the screen's rounded corners (55 px): the line's first and last 34-48 px were cut off, so slide 1 of a deck showed nothing. It starts 28 px in, 2 px up, where the corner's arc has cleared, and on its side inside the notch's inset.) */
-:root.iphone-app .pz-prog { left: max(28px, env(safe-area-inset-left, 0px)); right: max(28px, env(safe-area-inset-right, 0px)); bottom: 2px; border-radius: 2px; overflow: hidden; }
 .pz.low .pz-prog { left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); }
 .pz-prog i { display: block; height: 100%; width: 100%; transform: scaleX(var(--p, 0)); transform-origin: 0 0; background: color-mix(in srgb, var(--text) 42%, transparent); transition: transform var(--d-surface) var(--ease); }   /* (quiet ink: the accent is kept for what the learner touches, DG3) */
 /* (Since 1 Nov 2026 (Mohammad: "Move everything to GPU") the line grows by a scale the compositor eases on the GPU, alongside the slide change's
@@ -49,11 +46,6 @@
 .pz-bar.pzb-pill .ib { width: 44px; height: 44px; }
 /* The views of a slide with several (presenter-scales.js): short strokes under the slide count (no dots, his rule), the one on show full. Opacity only. */
 .pz-bar .pzb-n { position: relative; }
-.pzb-pips { position: absolute; left: 0; right: 0; bottom: 5px; display: flex; justify-content: center; gap: 4px; opacity: 0; pointer-events: none; transition: opacity var(--d-small) var(--ease); }
-.pzb-pips[data-n="2"], .pzb-pips[data-n="3"] { opacity: 1; }
-.pzb-pips[data-n="2"] i:nth-child(3) { display: none; }
-.pzb-pips i { width: 11px; height: 3px; border-radius: 2px; background: currentColor; opacity: .3; transition: opacity var(--d-small) var(--ease); }
-.pzb-pips[data-at="0"] i:nth-child(1), .pzb-pips[data-at="1"] i:nth-child(2), .pzb-pips[data-at="2"] i:nth-child(3) { opacity: 1; }
 .pz-bar.pzb-pill .pzb-n { font-size: clamp(14px, calc(1.6 * var(--pzh)), 17px); }
 /* The pill's hover, pressed and current highlights follow its curve: each button's box is the pill's 44 px (its tap target, 1 px over the border on each side), a 4 px clear border keeps the highlight 4 px inside the pill's edge, and the highlight's radius is the pill's less that 4 (concentric), so it never touches or crosses the curve. */
 .pz-bar.pzb-pill > :is(.ib, button.pzb-n), .pz.stack .pz-bar > :is(.ib, button.pzb-n) { border: 4px solid transparent; background-clip: padding-box !important; border-radius: var(--r-sheet); }   /* (!important: the buttons' background shorthands would reset the clip) */
@@ -68,36 +60,19 @@
 .pz-bar .pzb-n { min-width: 5.4em; text-align: center; padding: 0 4px; font: 600 var(--fs-14) var(--font-ui); font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }
 /* The scale switch (a slide's scales; presenter.js paintScales): Explore's three words on the bar's frosted glass, the slide's own scale in a
    soft inner pill that eases from word to word. Mac and iPad landscape: in the counter's row, 8 px left of the counter pill. A phone and an
-   upright iPad (.stack): centred 8 px above the teaching card's glass. It comes in and leaves with the teaching card, in its fade. */
-.pz-scales { position: absolute; right: calc(var(--pz-cm) + var(--pzs-r, 236px) + 8px); bottom: max(var(--pz-cm), calc(env(safe-area-inset-bottom, 0px) + 8px)); display: flex; align-items: stretch; height: 44px; box-sizing: border-box; padding: 4px; --gl-glass: 1; --gl-tint: var(--glass-tint); background: var(--gl-tint); border: 1px solid color-mix(in srgb, var(--text) 10%, transparent); border-radius: var(--r-sheet); box-shadow: inset 0 0 0 1px var(--glass-edge), var(--glass-shadow); pointer-events: auto; opacity: 1; transition: opacity var(--d-surface) var(--ease) .12s; }
-.pz-scales.pz-leave { opacity: 0; pointer-events: none; transition: opacity var(--d-small) var(--ease-in); }
-.pz-scales[hidden] { display: none; }
-.pz-scales > button { position: relative; z-index: 1; border: 0; background: none; padding: 0 14px; border-radius: calc(var(--r-sheet) - 4px); font: 500 14px/1 var(--font-ui); color: var(--text-2); white-space: nowrap; cursor: pointer; transition: none; -webkit-tap-highlight-color: transparent; }
-@media (hover: hover) { .pz-scales > button:hover { color: var(--text); } }
-.pz-scales > button[aria-pressed="true"] { color: var(--text); }
-.pz-scales > button::before { content: ''; position: absolute; inset: -5px 0; }   /* (the words are 34 px tall inside the pill's 44: the pill's padding and border take touches too) */
-.pz-scales > .pzs-thumb { position: absolute; top: 4px; bottom: 4px; left: 0; width: var(--pzs-w0, 0px); scale: var(--pzs-s, 1) 1; transform-origin: 0 50%; translate: var(--pzs-x, 0px) 0; border-radius: calc(var(--r-sheet) - 4px); background: var(--surface); box-shadow: var(--shadow-1); transition: translate var(--d-surface) var(--ease), scale var(--d-surface) var(--ease); pointer-events: none; }
-.pz-scales.pzs-new > .pzs-thumb { transition: none; }
-.pz.stack .pz-scales { right: auto; left: var(--pzs-cx, 50%); bottom: var(--pzs-b, 50%); translate: -50% 0; }
-@media (max-width: 340px) { .pz-scales > button { font-size: 12px; padding: 0 10px; } }
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .pz-scales { background: var(--glass-tint); } }
-@media (prefers-reduced-transparency: reduce) { .pz-scales { background: color-mix(in srgb, var(--surface) 96%, transparent); } }
-.app.pz-hi .pz-scales { background: color-mix(in srgb, var(--surface) 92%, transparent); border-color: color-mix(in srgb, var(--text) 32%, transparent); }
-.app.pz-hi .pz-scales > button { color: var(--text); }
+   upright iPad (.stack): centred 8 px above the teaching card's glass. It comes in and leaves with the teaching card, in its fade. */   /* (the words are 34 px tall inside the pill's 44: the pill's padding and border take touches too) */
 .pz-black { position: fixed; inset: 0; z-index: var(--z-toast); background: var(--black); opacity: 0; pointer-events: none; transition: opacity var(--d-surface) var(--ease); }
 .pz-black.on { opacity: 1; pointer-events: auto; cursor: none; }
 /* (On a phone the words sit at the bottom over the Back/Next bar, on a glass pane rising from the bottom edge; the data card is at the top.) */
 /* An upright phone: the words sit in a teaching card at the bottom, the same glass, margin and corners as the data card at
    the top, so the figure shows between the two. presenter.js sets its top (16 px above the words); it never changes shape in
    view: it leaves and arrives like the data card (a fade with a short slide toward its own edge) and snaps its size while gone. */
-.pz-shade.stack { --pz-r: 18px; width: auto !important; left: 8px; right: 8px; top: auto; bottom: calc(8px + var(--pz-sb)); height: auto; --gl-tint: var(--glass-tint); background: var(--gl-tint); border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); border-radius: var(--pz-r) var(--pz-r) var(--pz-card-br) var(--pz-card-br); box-shadow: inset 0 0 0 1px var(--glass-edge), var(--glass-shadow); transition: opacity var(--d-small) var(--ease), transform var(--d-small) var(--ease); }
-:root.iphone-app { --pz-sb: 0px; --pz-card-br: calc(var(--screen-r) - 8px); }   /* (8 px is the card's gap to the screen's edge: styles above) */
+.pz-shade.stack { --pz-r: 18px; width: auto !important; left: 8px; right: 8px; top: auto; bottom: calc(8px + var(--pz-sb)); height: auto; --gl-tint: var(--glass-tint); background: var(--gl-tint); border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); border-radius: var(--pz-r) var(--pz-r) var(--pz-card-br) var(--pz-card-br); box-shadow: inset 0 0 0 1px var(--glass-edge), var(--glass-shadow); transition: opacity var(--d-small) var(--ease), transform var(--d-small) var(--ease); }   /* (8 px is the card's gap to the screen's edge: styles above) */
 .pz-shade.stack:not(.pz-leave) { transition-duration: var(--d-surface), var(--d-surface); transition-delay: .12s, .12s; }
 .pz-shade.stack.pz-leave { opacity: 0 !important; transform: translateY(18px); transition-delay: 0s; }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .pz-shade.stack { background: var(--glass-tint); } }
 @media (prefers-reduced-transparency: reduce) { .pz-shade.stack { background: color-mix(in srgb, var(--surface) 96%, transparent); } }
 .pz.stack .pz-text.pz-leave, .pz.stack .pz-text > .pz-leave { transform: translateY(18px); }
-.pz.stack .pz-text.pz-enter > * { animation-name: fade-rise; }
 /* A slide change where the teaching card's glass stays (Mohammad, 1 Nov, review/card-motion-spec-1nov.md; presenter.js glassTurn): the words
    turn over like a page, sideways the way the talk goes. Next: out to the left, in from the right; Back: the other way; a jump (the slide
    list, Home, End): out rising, in rising. The words leave quickly (--d-small, --ease-in) and arrive settling (--d-surface,
@@ -114,16 +89,12 @@
 .pz .pz-text.pz-text[data-out="next"].pz-leave { transform: translateX(calc(-1 * var(--pz-turn-d))); transition-timing-function: var(--ease-in); }
 .pz .pz-text.pz-text[data-out="back"].pz-leave { transform: translateX(var(--pz-turn-d)); transition-timing-function: var(--ease-in); }
 .pz .pz-text.pz-text[data-out="jump"].pz-leave { transform: translateY(calc(-1 * var(--rise-y, 6px))); transition-timing-function: var(--ease-in); }
-.pz .pz-text.pz-text.pz-enter:is([data-turn="next"], [data-turn="back"], [data-turn="jump"]) > * { animation: none; }
 .pz .pz-text.pz-text:is([data-turn="next"], [data-turn="back"], [data-turn="jump"]):not(.pz-leave) { transition-property: opacity; }
 .pz-shade.pz-shade.pz-shade:is(.pz-card, .stack) { transition-property: opacity, transform; transition-timing-function: var(--ease), var(--ease); }
 .pz-shade.pz-shade.pz-shade:is(.pz-card, .stack).pz-leave { transition-duration: var(--d-small), var(--d-small); transition-delay: 0s; }
 .pz-shade.pz-shade.pz-shade:is(.pz-card, .stack):not(.pz-leave) { transition-duration: var(--d-surface), var(--d-surface); transition-delay: .12s, .12s; }
 /* On a turn the glass fades on the words' own clock and curve (out: --d-small, --ease-in; in: --d-surface after .12s, --ease-arrive), in
    place, never dropping or rising, so the words never stand over the figure without it (presenter.js setTurn, pz-turnfade). */
-.pz-shade.pz-shade.pz-shade.pz-shade.pz-turnfade:is(.pz-card, .stack) { transform: none; }
-.pz-shade.pz-shade.pz-shade.pz-shade.pz-turnfade:is(.pz-card, .stack).pz-leave { transition-timing-function: var(--ease-in), var(--ease-in); }
-.pz-shade.pz-shade.pz-shade.pz-shade.pz-turnfade:is(.pz-card, .stack):not(.pz-leave) { transition-timing-function: var(--ease-arrive), var(--ease-arrive); }
 /* The teaching card as one page (src/ui/card-page.js): the glass goes with its words, the
    same way and the same distance (--pz-turn-d, copied onto the glass with the leave), on the same clock and curve, and comes back in with
    them by the same keyframes (WAAPI, both). Only transform and opacity move: nothing clipped, the glass never resized in view (its size
@@ -133,23 +104,12 @@
 .pz-shade.pz-shade.pz-shade.pz-shade.pz-page:is(.pz-card, .stack)[data-out="jump"].pz-leave { transform: translateY(calc(-1 * var(--rise-y, 6px))); }
 /* A swipe's throw (presenter.js pageThrow): the card carries on out from the finger at the finger's pace, slowing as it
    fades (--ease-arrive), never standing still at the finger first as the leave's --ease-in would have it. */
-.pz .pz-text.pz-text.pz-thrown[data-out].pz-leave { transition-timing-function: var(--ease-arrive); }
-.pz-shade.pz-shade.pz-shade.pz-shade.pz-shade.pz-page.pz-thrown:is(.pz-card, .stack).pz-leave { transition-timing-function: var(--ease-arrive), var(--ease-arrive); }
 .pz-shade.pz-shade.pz-shade.pz-shade.pz-page:is(.pz-card, .stack):is([data-out="next"], [data-out="back"], [data-out="jump"]):not(.pz-leave) { transition-property: opacity; transition-duration: var(--d-surface); transition-delay: .12s; }
 /* Thrown (Mohammad 2 Nov 2026): on Next every card that leaves is thrown out to the left, on
    Back to the right, like a flung case card: it gathers pace as it goes (ease-in) and fades, a good way across the screen (--pz-throw), the
    glass with its words. The new cards come in from the other side by presenter.js throwIn (slowing to rest, no overshoot). */
-.pz.pz-throw, .pz-shade.pz-throw { --pz-throw: clamp(120px, 30vw, 420px); }
-:root:root .pz.pz-throw .pz-text.pz-text[data-out="next"].pz-leave, :root:root .pz-shade.pz-throw.pz-page:is(.pz-card, .stack)[data-out="next"].pz-leave,
-:root:root .pz.pz-throw > :is(.pz-data.pz-hide, .pz-panel.pz-leave)[data-out="next"] { transform: translateX(calc(-1 * (var(--pz-turn-d) + var(--pz-throw)))); }
-:root:root .pz.pz-throw .pz-text.pz-text[data-out="back"].pz-leave, :root:root .pz-shade.pz-throw.pz-page:is(.pz-card, .stack)[data-out="back"].pz-leave,
-:root:root .pz.pz-throw > :is(.pz-data.pz-hide, .pz-panel.pz-leave)[data-out="back"] { transform: translateX(calc(var(--pz-turn-d) + var(--pz-throw))); }
-:root:root .pz.pz-throw .pz-text.pz-text:is([data-out="next"], [data-out="back"]).pz-leave, :root:root .pz-shade.pz-throw.pz-page:is(.pz-card, .stack):is([data-out="next"], [data-out="back"]).pz-leave,
-:root:root .pz.pz-throw > :is(.pz-data.pz-hide, .pz-panel.pz-leave):is([data-out="next"], [data-out="back"]) { transition-property: opacity, transform; transition-duration: var(--d-small), var(--d-small); transition-delay: 0s, 0s; transition-timing-function: var(--ease-in), var(--ease-in); }
 /* (Thrown, a panel comes in by card-throw.js alone: its own fade-rise, which runs as it is shown and would outrank the script's inline
-   values, is off; it comes in from its leave by its transition when it is not thrown, a jump.) */
-.pz.pz-throw > .pz-panel { animation: none; }
-:root:root .pz.pz-throw .pz-text.pz-text.pz-thrown[data-out].pz-leave, :root:root .pz-shade.pz-throw.pz-page.pz-thrown:is(.pz-card, .stack)[data-out].pz-leave { transition-timing-function: var(--ease-arrive), var(--ease-arrive); transition-duration: var(--d-surface), var(--d-surface); }   /* (a swipe's throw carries on from the finger at its pace) */
+   values, is off; it comes in from its leave by its transition when it is not thrown, a jump.) */   /* (a swipe's throw carries on from the finger at its pace) */
 .pz.stack .pz-text { --pz-lh: calc(1.38 * clamp(14px, calc(1.9 * var(--pzh)), 20px)); left: 21px; right: 21px; top: auto; bottom: calc(max(26px, 65px - var(--pz-lh)) + var(--pz-sb)); margin-block: 0; width: auto; max-height: 62%; gap: 6px; }/* (With a data card under the words, the pair keeps to the top so the card has room.) */
 .pz:not(.stack):has(.pz-data.under:not(.pz-hide)) .pz-text { bottom: auto; margin-block: 0; }
 .pz.stack .pz-kick { font-size: var(--s-lab); }
@@ -167,9 +127,7 @@
 .pz.stack .pz-data { --s-cap: calc(var(--t-cap) * var(--ts, 1) * 1.15); --s-lab: calc(var(--t-lab) * var(--ts, 1) * 1.15); }
 .pz.stack.tab .pz-data { --s-cap: calc(var(--t-cap) * var(--ts, 1) * 1.3); --s-lab: calc(var(--t-lab) * var(--ts, 1) * 1.3); }
 .pz.stack .pz-data { left: 8px; right: 8px; top: 8px; bottom: auto; width: auto; max-height: 42%; --pz-gap: 6px; gap: var(--pz-gap); padding: 10px 12px; border-radius: 18px; }
-.pz.stack .pz-data.pz-hide { transform: translateY(-18px); }
 .pz.stack .pz-dh { font-size: var(--s-cap); }
-.pz-fold { display: none; }
 /* A phone, upright or on its side, always shows the instrument first; its tiles, or its pressure strip, go on the sheet under the
    card (.pz-sheet, below), never behind Show (Mohammad, 17 Oct: "I thought the Doppler will show first with an indication for a
    card under it?"). The scope sits as a compact row there, the view beside its grade and size, so the figure keeps most of the screen. */
@@ -202,7 +160,6 @@
 @media (min-height: 601px) {
   .pz-shade.stack:not(.tab) .pz-cred { display: block; position: absolute; left: 11px; right: 11px; bottom: 6px; text-align: center; font: 500 12px/17px var(--font-ui); letter-spacing: .01em; white-space: nowrap; color: var(--text-3); pointer-events: none; user-select: none; }   /* (centred: clear of the card's rounded foot corners, which follow the screen's on an iPhone Home Screen app (an iPhone 16 Pro Max put the © outside the corner); --text-3: quieter than the words, over 4.5:1 in both themes) */
   .pz.stack:not(.tab) { --pz-sb: calc(env(safe-area-inset-bottom, 0px) + 20px); }
-  :root.iphone-app .pz.stack:not(.tab) { --pz-sb: 20px; }
   .app.presenting:has(.pz-shade.stack:not(.tab)) .stage-credit { display: none; }
 }
 .pz.stack.tab .pz-text { bottom: calc(max(26px, 65px - var(--pz-lh)) + 8px + var(--pz-sb)); }
@@ -248,17 +205,12 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .pz.stack .pz-bar { --gl-glass: 0; background: var(--glass-tint); } }
 @media (prefers-reduced-transparency: reduce) { .pz.stack .pz-bar { --gl-glass: 0; background: color-mix(in srgb, var(--surface) 96%, transparent); } }
 /* (A phone's controls: a small frosted pill fixed at the lower right, like the timeline's folded pill. Its foot is 4 px up and it is
-   44 px tall; the words end that much less a line above the bottom, so only their last line meets it (see clearPill). */
-.pz-pillgap { display: none; }
-.pz.stack .pz-pillgap { display: inline-block; width: calc((var(--pz-pill-w, 160px) + 4px) / var(--pz-fit, 1)); height: calc(var(--pz-reach, 32px) / var(--pz-fit, 1)); vertical-align: bottom; }   /* (as tall as the pill reaches into the words, so its line is the only one it meets) */
-.pz.stack .pz-pillclr { margin-bottom: calc((var(--pz-reach-box, 37px) + var(--pz-fkrow, 0px)) / var(--pz-fit, 1)); }   /* (in the card's own px: its contents are zoomed by --pz-fit) */   /* (a box keeps its full width and ends above the pill: 8 px on a tablet, the reach's 3 on a phone (presenter.js clearPill); sweep 03 #23) */
-.pz.stack .pz-stk:has(> .pz-pillgap) { flex-wrap: wrap; overflow: visible; }
+   44 px tall; the words end that much less a line above the bottom, so only their last line meets it (see clearPill). */   /* (as tall as the pill reaches into the words, so its line is the only one it meets) */   /* (in the card's own px: its contents are zoomed by --pz-fit) */   /* (a box keeps its full width and ends above the pill: 8 px on a tablet, the reach's 3 on a phone (presenter.js clearPill); sweep 03 #23) */
 .pz.stack .pz-bar.idle { opacity: 1; pointer-events: auto; transform: none; }
 /* (The phone's pill looks small, 38 px tall with the count and the two buttons close together (Mohammad, 15 Oct), but every button keeps its 44 px tap box: a negative margin pulls the box's spare 3 to 4 px over the pill's own edge.) */
 .pz.stack .pz-bar .ib { width: 44px; min-width: 0; height: 44px; margin: -4px -3px; }
 .pz.stack .pz-bar .ib :is(svg, .ic) { width: 18px; height: 18px; }
 .pz.stack .pz-bar button.pzb-n { min-width: 5em; min-height: 44px; margin-block: -4px; padding: 0 4px; font-size: calc(var(--s-body) * .9); font-variant-numeric: tabular-nums; }   /* (room for "10 / 13": the pill keeps one width on every slide) */
-.pz.stack .pz-quadwrap { grid-template-columns: minmax(0, 1fr); }
 .pz.stack .pz-quad { max-height: none; }/* An upright tablet uses the phone's compact table (one line per row, no sideways scroll), drawn larger. */
 @media (min-width: 700px) and (max-width: 1100px) and (orientation: portrait) {
   .pz-table table { font-size: var(--s-body); }
@@ -275,16 +227,6 @@
 /* An upright tablet's table with few columns and a text note or two (Doppler, TIPS Doppler, Endoscopy, Shunts) keeps the sideways
    layout: each note in its own column under its heading, and each row's kicker in its site's colour over the name (Mohammad, 17 Oct:
    the stacked rows dropped both). Tables with more columns keep the compact rows; a phone keeps them too (no room for the columns). */
-@media (min-width: 700px) and (max-width: 1100px) and (orientation: portrait) {
-  .pz-table.notecols tr { grid-template-columns: minmax(8.5rem, 1.25fr) repeat(var(--nc, 1), minmax(4.5rem, .55fr)) repeat(var(--nn, 1), minmax(0, 1.5fr)); }
-  .pz-table.notecols thead tr { align-items: end; }
-  .pz-table.notecols thead th.nh:not(.num) { display: block; text-align: left; padding-inline: .75em; }
-  .pz-table.notecols tbody th[scope="row"] { display: block; }
-  .pz .pz-table.notecols tbody th .pz-kick { display: block; width: auto; background: none; font-size: var(--s-cap); letter-spacing: var(--caps-ls); overflow-wrap: normal; }
-  .pz .pz-table.notecols tbody tr.pz-cont th .pz-kick { font-size: 0; }
-  .pz-table.notecols .tn { margin-top: .15em; }
-  .pz-table.notecols td.note { grid-column: auto; padding: .55em .75em; font-size: var(--s-lab); text-align: left; }
-}
 .pz.stack .pz-visual { flex: none; }   /* (a phone scrolls the card rather than squeeze the chart over its words) */
 .pz.stack .pz-data.tiles-only .pzt-v { font-size: var(--s-title); }
 /* (A card of tiles alone drops its "The patient" header on every screen: the tiles name themselves, and a generic name in capitals
@@ -312,8 +254,7 @@
   /* (a 320 px card fitted smaller keeps its buttons at 12 px on the screen (they had been 9.6): the row zooms no smaller than
      that, and its height is set to what it was at the card's zoom, so the card, the figure above it and the credit stay put) */
   .pz.stack .pz-text > .pz-ab { --abz: max(var(--pz-fit, 1), calc(1 / var(--ts, 1))); zoom: var(--abz); padding: calc(3px * var(--pz-fit, 1) / var(--abz)) 3px; }
-  .pz.stack .pz-abb { font-size: var(--s-lab); min-height: calc(34px * var(--pz-fit, 1) / var(--abz)); padding-block: 0; }
-  .pz.stack .pz-text > .pz-ab.pz-pillclr { margin-bottom: calc((var(--pz-reach-box, 37px) + var(--pz-fkrow, 0px)) / var(--abz)); }   /* (its gap above the pill in its own zoom) */
+  .pz.stack .pz-abb { font-size: var(--s-lab); min-height: calc(34px * var(--pz-fit, 1) / var(--abz)); padding-block: 0; }   /* (its gap above the pill in its own zoom) */
 }
 /* A what-if slider: the same frosted pill as the treatment buttons, its name, the track between its two ends, and the value. */
 /* A what-if sits on the card with no box of its own (the card is its ground, as for the choice buttons, DG4): "What if" and its name
@@ -330,8 +271,7 @@
 /* Words that change while they show (a what-if value, a time-lapse's day count) stand in a box as wide as the widest words they will take: a hidden
    copy of them (.pzv-s) and the live ones (.pzv-t) in one grid cell, so a digit coming or going never changes the line they stand on (live-text.js). */
 .pzv { display: grid; font-variant-numeric: tabular-nums; }
-.pzv > .pzv-s, .pzv > .pzv-t { grid-area: 1 / 1; white-space: nowrap; }
-.pzv > .pzv-s { visibility: hidden; }
+.pzv > .pzv-t { grid-area: 1 / 1; white-space: nowrap; }
 .pz.stack .pz-wi { gap: .3em .7em; }
 .pz.stack .pzi-l { flex-direction: row; align-items: baseline; gap: .5em; }
 /* (A phone: the slider takes a line of its own at the card's width, its end words at the track's ends; on one line with the label the track was a stub.) */
@@ -355,9 +295,8 @@
    does), so revealing answers grows the list, never shrinks the words.) */
 .pzc-a { display: grid; grid-template-rows: 0fr; overflow: hidden; opacity: 0; visibility: hidden; transition: opacity var(--d-surface) var(--ease), visibility 0s linear var(--d-surface); }   /* (opens and shuts by transform: presenter.js check, fold-slide.js) */
 .pzc-a > p { overflow: hidden; min-height: 0; margin: 0; padding: 0 0 0 calc(2.1em + .8em + .2em); color: var(--text-2); }
-.pz-check li.open .pzc-a, .pz-check.pzc-all .pzc-a { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition: opacity var(--d-surface) var(--ease), visibility 0s; }
-.pz-check li.open .pzc-a > p, .pz-check.pzc-all .pzc-a > p { padding-bottom: .7em; }
-.pz-check.pzc-all .pzc-a, .pz-check.pzc-still .pzc-a, .pz-check.pzc-all .pzc-a > p, .pz-check.pzc-still .pzc-a > p { transition: none; }
+.pz-check li.open .pzc-a { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition: opacity var(--d-surface) var(--ease), visibility 0s; }
+.pz-check li.open .pzc-a > p { padding-bottom: .7em; }
 .pz.stack .pzc-q { grid-template-columns: 1.8em minmax(0, 1fr); }
 .pz.stack .pzc-hint { display: none; }
 .pz.stack .pzc-a > p { padding-left: calc(1.8em + .8em + .2em); }
@@ -403,11 +342,6 @@
 /* An instrument with tiles (Mac and iPad landscape, Mohammad's sketch 14 Oct): the instrument on the left, its tiles stacked in a
    column on the right, the column as tall as the instrument and its tiles sharing that height evenly (taller tiles make the row
    taller, the instrument centred in it). The card's fit (presenter.js overflowOf) counts the row once, at its taller side. */
-.pz:not(.stack):not(.low) .pz-data.pz-beside { display: grid; grid-template-columns: minmax(0, 1fr) max(150px, 31%); column-gap: var(--pz-tg); }
-.pz:not(.stack):not(.low) .pz-data.pz-beside > * { grid-column: 1 / -1; }
-.pz:not(.stack):not(.low) .pz-data.pz-beside > .pz-tool { grid-column: 1 / 2; grid-row: 2; align-self: center; }
-.pz:not(.stack):not(.low) .pz-data.pz-beside > .pz-tiles:not([data-n="0"]) { grid-column: 2 / 3; grid-row: 2; align-self: stretch; grid-template-columns: minmax(0, 1fr); grid-auto-rows: 1fr; min-width: 0; overflow: hidden; }
-.pz:not(.stack):not(.low) .pz-data.pz-beside > .pz-tiles:not([data-n="0"]) > .pz-tile { grid-column: auto; container-type: normal; }
 /* (The instrument's own words at the tiles' small size: the FibroScan reads its canvas's font size.) */
 .fibroscan-box > canvas { font-size: 12px; }
 .pz-tool .fibroscan-box > canvas { font-size: var(--pz-sm, 14px); }
@@ -504,8 +438,7 @@
 /* (On a slide the monitor sits in a frosted-glass card: its box is kept on a layer of its own, so a frame of the trace repaints the
    box alone and not the card, its words and its glass round it. Nothing moves; the same pixels.) */
 .pz-data .pz-tool[data-kind="doppler"] .dop-box { will-change: transform; contain: paint; }
-.pz-tool[data-kind="fibroscan"] .fibroscan-box { width: 100%; height: clamp(250px, calc(42 * var(--pzh)), 480px); }   /* (the shear-wave map needs height to read) */
-.pz-tool[data-kind="vitals"] .vitals-box { width: 100%; height: clamp(170px, calc(26 * var(--pzh)), 300px); border-radius: 12px; }   /* (the strip, then three numbers) */
+.pz-tool[data-kind="fibroscan"] .fibroscan-box { width: 100%; height: clamp(250px, calc(42 * var(--pzh)), 480px); }   /* (the shear-wave map needs height to read) */   /* (the strip, then three numbers) */
 .pz-tool[data-kind="hvpg"] .pz-mon { margin-top: 0; }
 .pz-tool[data-kind="reading"] .pz-mon { margin-top: 0; }   /* (a measuring procedure's monitor: the same monitor, monitor.js) */
 /* The scope's view sits in .endo-stage, a size container in the Tests card; here the stage takes the view's own height. */
@@ -531,9 +464,6 @@
 .ms-dot b { position: relative; font-weight: 600; }
 .ms-fill { position: absolute; inset: -1px; border-radius: 50%; background: var(--accent-soft); border: 1px solid var(--accent); opacity: 0; transition: opacity var(--d-small) var(--ease); }
 .mon-steps li:is([data-state="now"], [data-state="done"]) .ms-fill { opacity: 1; }
-.mon-steps .ms-next { margin-left: auto; opacity: 1; display: grid; font-weight: 500; color: var(--text-2); }
-.ms-next > span { grid-area: 1 / 1; text-align: right; opacity: 0; transition: opacity var(--d-small) var(--ease); }
-.mon-steps[data-at="0"] .ms-h0, .mon-steps[data-at="1"] .ms-h1 { opacity: 1; }
 .pz.stack .pz-mon { margin-top: 8px; }
 .pz.stack .pz-text:has(.pz-mon) { max-height: 50%; }
 .pz.stack .pz-mon .hvpg-box { height: 136px; }
@@ -550,12 +480,9 @@
 /* (With its readings out under it, the card's cap grows by their height (--pz-d, presenter.js measureUnder): the instrument card keeps
    the size it had with them tucked, never fitted smaller to make room for them (Mohammad, 19 Oct: "Need to maintain same card size
    whether open or semi open"). The words' room still caps it, presenter.js layout.) */
-.pz.stack.stack .pz-data.pz-sheet.has-tool.tool-open { max-height: calc(var(--pz-cap) + var(--pz-d, 0px)); }
 .pz.stack .pz-data > * { flex-shrink: 0; }   /* (parts keep their height, so a card too full reads as overflow and is fitted, not squeezed until a reading is cut) */
 .pz.stack .pz-tool[data-kind="doppler"] .dop-box { height: 140px; }
-.pz.stack .pz-tool[data-kind="fibroscan"] .fibroscan-box { height: 140px; }
-.pz.stack .pz-tool[data-kind="vitals"] .vitals-box { height: 140px; }
-.pz-tool[data-kind="vitals"] .vitals-box { flex: none; min-width: 120px; min-height: 96px; max-height: 214px; }   /* (8 Nov 2026: the card ends at the numbers: 214 = the strip at its full 110 px and the numbers at 46, with their margins; vitals-monitor.js layout) */   /* (the monitor draws from 120 x 90 px: a tucked card squeezed its box to 70 px and it drew nothing, the blank Vital signs card) */
+.pz.stack .pz-tool[data-kind="fibroscan"] .fibroscan-box { height: 140px; }   /* (8 Nov 2026: the card ends at the numbers: 214 = the strip at its full 110 px and the numbers at 46, with their margins; vitals-monitor.js layout) */   /* (the monitor draws from 120 x 90 px: a tucked card squeezed its box to 70 px and it drew nothing, the blank Vital signs card) */
 .pz.stack .pz-tool[data-kind="beats"] .pt-box { height: 172px; }   /* (tall enough for the pressures and the HVPG lane, trace-lanes.js; the EKG strip needs a taller card) */
 /* Phone: the scope sits beside its grade and size, and the Doppler drops its sentence, so a tile still fits under the instrument. */
 .pz.stack .pz-tool[data-kind="scope"] .pz-inst { flex-direction: row; align-items: center; gap: 12px; }
@@ -638,7 +565,6 @@
   /* The stacked card's handle (.pz-lip) fades with the cards too, in once the glass is in and out before it, never popping in or out
      ahead of them: with every transition off it came up at once while the cards were still fading in (Mohammad, 25 Oct). */
   .pz > .pz-lip { transition: opacity var(--d-small) var(--ease) .3s !important; transform: none !important; }
-  .pz > .pz-data.pz-hide + .pz-lip { transition: opacity var(--d-flip) var(--ease-in) !important; }
 }
 /* Menu › Present: the presentations and your scripts. */
 /* High contrast (P while presenting, or Settings): colour only, never a size. Stronger words, ratings as filled chips, a deeper shade. Organ art unchanged. */
@@ -694,5 +620,4 @@
 .pz.pz-shuf .pz-data::before, .pz-shade.pz-shuf::before { content: ''; position: absolute; left: 50%; top: 5px; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: color-mix(in srgb, var(--text) 38%, transparent); pointer-events: none; }
 .pz.pz-shuf .pz-data::after, .pz-shade.pz-shuf::after { content: attr(data-strip); position: absolute; left: var(--pz-cp, 18px); right: 44px; top: 22px; font: var(--caps-w, 700) 12px/1 var(--font-ui); letter-spacing: var(--caps-ls, .07em); text-transform: uppercase; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; pointer-events: none; }
 .pz.pz-shuf .pz-text { z-index: 2; }
-.pz.pz-shuf .pz-data { z-index: 1; }
-.pz.pz-shuf.pz-shuf-data .pz-data { z-index: 3; }   /* (the words' card is 2: over the instrument while it comes, under it once the instrument does) */
+.pz.pz-shuf .pz-data { z-index: 1; }   /* (the words' card is 2: over the instrument while it comes, under it once the instrument does) */

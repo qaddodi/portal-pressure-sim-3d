@@ -110,6 +110,6 @@
 .bt[data-compact] .bt-row { grid-template-columns: 22px minmax(0, 1fr) 92px 60px; gap: 8px; }   /* (a phone sheet is about 358 px: tick 22 + line 92 + reading 60 + three gaps leaves 160 for the longest name, Esophageal varix, at 16 px) */
 @media (pointer: coarse) { .bt-words button, .bt-pager button { min-height: 36px; } }
 
-/* two icons drawn to the phone-panel button mock (phone-panel-button-mocks-24nov), in the free cells (8,7) and (9,7) of the icon atlas the 2D app generated (css2d/icons.css is copied and never edited here) */
+/* two icons drawn to the phone-panel button mock (phone-panel-button-mocks-24nov), in the free cells (8,7) and (9,7) of the icon atlas the 2D app generated (styles/icons.css is copied and never edited here) */
 .ic-trend { --ix: 8; --iy: 7; }
 .ic-bullets { --ix: 9; --iy: 7; }

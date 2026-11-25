@@ -178,5 +178,5 @@ test('the figure is never dimmed by a case card or a slide change: no veil dip, 
   assert.doesNotMatch(src('src/ui/deck-ui.css'), /pz-veil\.dip/);
   // (the lifted 2D rule `#stageView.pz-out { opacity: .22 }` stays in the lifted css, but nothing in the 3D app ever puts the class on the view)
   for (const f of ['src/ui/cards/CardLayer.tsx', 'src/ui/cards/CardFrame.tsx', 'src/ui/shell/talk.ts', 'src/ui/talk/deck-model.ts', 'src/decks/hp/link.ts', 'src/ui/shell/figure-dip.ts']) assert.doesNotMatch(src(f).replace(/\/\/.*$/gm, ''), /['"`]pz-out['"`]/, f);
-  assert.match(src('src/ui/css2d/app-04-presenter.css'), /#labels \.lb\.unlit[^}]*opacity: var\(--label-dim\)/, 'the lit/unlit label dim stays');
+  assert.match(src('src/ui/styles/app-04-presenter.css'), /#labels \.lb\.unlit[^}]*opacity: var\(--label-dim\)/, 'the lit/unlit label dim stays');
 });

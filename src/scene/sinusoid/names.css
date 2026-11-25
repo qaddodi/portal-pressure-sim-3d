@@ -1,5 +1,5 @@
 /* The sinusoid's names (SinusoidCaptions.tsx) are 2D's own captions: `.sv-region .sv-region-<key>` with a name and a `.v` reading (<b> figure, unit), which the copied 2D stylesheet
-   (ui/css2d/app-03-layouts.css) sets: the cells' and bands' names in small capitals, the readings' names in sentence case, the figure large and bold, the unit small. Here only what a
+   (ui/styles/app-03-layouts.css) sets: the cells' and bands' names in small capitals, the readings' names in sentence case, the figure large and bold, the unit small. Here only what a
    3D layer needs of them: where they stand (a transform), when they show (opacity and visibility, written by the layer), and no CSS entrance or glide of their own (the layer fades them). */
 .sv-layer { z-index: var(--z-tags, 5); }
 .sv-layer .sv-region { opacity: 0; visibility: hidden; animation: none; transition: none; will-change: transform, opacity; }

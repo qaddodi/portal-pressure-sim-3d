@@ -1,5 +1,5 @@
 // The slide list (G while presenting; the 2D toggleJump): every stop with its number, grouped by kicker, the one on show marked. A tap or Enter goes there. Up and Down move the focus.
-// The markup and classes are the 2D app's own (presenter.js toggleJump: nav.pz-jump > .pzj-h, .pzj-list), so its lifted stylesheet (css2d/app-05-presenter-cards.css) draws it.
+// The markup and classes are the 2D app's own (presenter.js toggleJump: nav.pz-jump > .pzj-h, .pzj-list), so its lifted stylesheet (styles/app-05-presenter-cards.css) draws it.
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useUi } from '../ui-store.ts';

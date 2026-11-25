@@ -44,8 +44,8 @@ const files = (dir: string, ok: (f: string) => boolean): string[] => readdirSync
 const stripComments = (t: string): string => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 // ── 1. the source: nothing builds a bubble ──
-// (src/engine is the vendored engine and src/ui/css2d the 2D app's own stylesheets, byte for byte: nothing in 3D creates the classes they style, which this scan of the code proves)
-const code = files('src', (f) => /\.(ts|tsx|js|css)$/.test(f) && !f.includes('src/engine/') && !f.includes('src/ui/css2d/') && !f.endsWith('.generated.js'));
+// (src/engine is the vendored engine and src/ui/styles the base stylesheets begun as the 2D app's: nothing in 3D creates the classes they style, which this scan of the code proves)
+const code = files('src', (f) => /\.(ts|tsx|js|css)$/.test(f) && !f.includes('src/engine/') && !f.includes('src/ui/styles/') && !f.endsWith('.generated.js'));
 
 test('no file of src/ names or builds the speech-bubble primitive: no pillGlass, makeCard, 2D pointer or outline copy, glass-and-rim classes or clip-path outlines', () => {
   const banned: [RegExp, string][] = [

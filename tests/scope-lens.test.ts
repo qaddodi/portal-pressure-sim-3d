@@ -208,7 +208,7 @@ function cascade(files: string[], selector: string, prop: string): string | null
   }
   return v;
 }
-const SHEETS = ['css2d/app-11-deck-visuals.css', 'deck-ui.css'];
+const SHEETS = ['styles/app-11-deck-visuals.css', 'deck-ui.css'];
 
 test('the lens never changes its box by a transform: a chart measures its box by its rect, so a scaled disc drew the scope at a fraction of the lens', () => {
   for (const sel of ['.pz-lens', '.pz-lens.on', '.pz-lens-disc', '.pz-lens.on .pz-lens-disc', '.pz-lens .pz-lens-inst']) {

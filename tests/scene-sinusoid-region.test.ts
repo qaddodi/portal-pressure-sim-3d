@@ -11,7 +11,7 @@ import type { NameKey } from '../src/scene/sinusoid/names.ts';
 import { pinned2D } from './two-d-pin.ts';
 
 const KEYS: NameKey[] = ['in', 'out', 'sin', 'fen', 'hsc', 'disse', 'lymph', 'hep', 'kup', 'bc'];
-const css = readFileSync(new URL('../src/ui/css2d/app-03-layouts.css', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../src/ui/styles/app-03-layouts.css', import.meta.url), 'utf8');
 
 test('each caption wears 2D\'s class: the ends as the Sinusoid\'s own with sv-end, every other sv-region-<key>', () => {
   assert.equal(regionClass('in'), 'sv-region sv-region-sin sv-end');

@@ -61,7 +61,7 @@ export function lookVars(id: LookId): Record<string, string> {
   };
 }
 
-/** The tokens the 2D stylesheet (src/ui/css2d/tokens.css) defines for each look, keyed on `data-theme` and `data-palette`. They are not written inline, or the inline value would beat the stylesheet and the lifted 2D chrome would keep a 3D colour. */
+/** The tokens the 2D stylesheet (src/ui/styles/tokens.css) defines for each look, keyed on `data-theme` and `data-palette`. They are not written inline, or the inline value would beat the stylesheet and the lifted 2D chrome would keep a 3D colour. */
 const TOKENS_FROM_2D = new Set(['--bg', '--surface', '--glass', '--text', '--text-2', '--text-3', '--accent', '--accent-soft', '--ok', '--caution', '--danger']);
 /** 2D's attributes for a look (looks.js): Light, Soft and Dark are themes; Navy and Black are palettes of the dark theme. */
 export function themeAttrs(id: LookId): { theme: 'light' | 'soft' | 'dark'; palette: 'navy' | 'black' | null } {

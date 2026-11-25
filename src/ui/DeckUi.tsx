@@ -1,7 +1,7 @@
 import { chartH } from './layout/card-size.ts';
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { mark } from '../clock/blocks.ts';
-import './css2d/index.css';   // the 2D app's own stylesheets, lifted unchanged (scripts/copy-2d-css.mjs); the shell imports the same file, loaded once
+import './styles/index.css';   // the app's base stylesheets (src/ui/styles, begun as the 2D app's); the shell imports the same file, loaded once
 import './deck-ui.css';
 import { useEngine } from '../engine/index.ts';
 import { useUi } from './ui-store.ts';
@@ -104,7 +104,7 @@ export function DeckUi() {
     '--pz-tk-trim': t.slideTitle ? t.slideTitleTrim / t.slideTitle : 1, '--pz-chart-px': `${chartH(vp.w, vp.h)}px`, '--pad-x': `${pad.x}px`, '--pad-y': `${pad.y}px`, '--r': `${Math.round(radius(vp.w, vp.h, layout))}px`,
   } as CSSProperties;
   // the 2D app's own root classes: `pz` is its card layer, `stack` a phone or an upright iPad, `tab` the iPad, `short` a wide screen under 860 px, `pz-card` every screen with floating cards,
-  // `pz-wide` the same with the data card stacked under the words. The lifted 2D stylesheet (src/ui/css2d) keys its type, colour and glass on these.
+  // `pz-wide` the same with the data card stacked under the words. The lifted 2D stylesheet (src/ui/styles) keys its type, colour and glass on these.
   const stacked = layout === 'stack' || layout === 'tab';
   const cls = ['deck-ui', 'pz', stacked && 'stack', layout === 'tab' && 'tab', layout === 'short' && 'short', !stacked && 'pz-card pz-wide'].filter(Boolean).join(' ');
   return (

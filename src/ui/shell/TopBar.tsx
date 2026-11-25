@@ -1,5 +1,5 @@
 // The top bar, on the 2D app's own markup and class names (index.html #topbar): the patient pill (.tb-id), the figure's pill (.stage-bar.top > .sb-right: Layers, Blood and the colour key) and the actions pill
-// (.top-right: Treat, Tests, History, Settings, Search). Its stylesheet is the 2D app's (src/ui/css2d), copied unchanged; nothing here styles it.
+// (.top-right: Treat, Tests, History, Settings, Search). Its stylesheet is the 2D app's (src/ui/styles); nothing here styles it.
 import { UI } from '../strings.generated.ts';
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useShell, LENS_IDS } from './store.ts';

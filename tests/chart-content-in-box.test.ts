@@ -125,7 +125,7 @@ test('the checker sees a word set past the box and words over words (it is not a
 });
 
 test('a chart wrapper that the 2D sheets give a height is held to its picture (charts.css), so the card is as tall as the chart', () => {
-  const dir = new URL('../src/ui/css2d/', import.meta.url);
+  const dir = new URL('../src/ui/styles/', import.meta.url);
   const sheets = readdirSync(dir).filter((n) => n.endsWith('.css')).map((n) => readFileSync(new URL(n, dir), 'utf8')).join('\n');
   const held = readFileSync(new URL('../src/ui/charts/charts.css', import.meta.url), 'utf8') + readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
   const heldBy = /:is\(([^)]+)\)\s*\{\s*height:\s*auto\s*!important/.exec(held)![1]!;

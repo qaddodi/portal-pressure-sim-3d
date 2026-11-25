@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The Tests card's panes are the 2D app's own markup, styled by its stylesheets loaded whole (src/ui/css2d). One thing cannot be the same element: a 2D instrument draws on a <canvas> that is the
+// The Tests card's panes are the 2D app's own markup, styled by its stylesheets loaded whole (src/ui/styles). One thing cannot be the same element: a 2D instrument draws on a <canvas> that is the
 // child of its box (.chart-box, .hvpg-box, .fibroscan-box, .dop-box, .pt-box), and the 3D app's charts share one GPU canvas, so the box's child is a <div class="cv"> the chart is drawn into (Cv.tsx).
 // This copies every 2D rule that places or dresses such a canvas, with `canvas` rewritten to `.cv` and nothing else changed, so the picture takes the same place in its box:
 //   src/ui/tests/copied/cv-2d.copied.css
@@ -8,7 +8,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { loadOrder } from './copy-2d-css.mjs';
+/** The 2D app's stylesheets in the order its index.html links them (read from the 2D checkout these copy scripts run against). */
+const loadOrder = (indexHtml) => [...indexHtml.matchAll(/<link rel="stylesheet" href="styles\/([\w.-]+\.css)"/g)].map((m) => m[1]);
 
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(here, '../src/ui/tests/copied/cv-2d.copied.css');

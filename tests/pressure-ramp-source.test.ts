@@ -63,7 +63,7 @@ test('the charts read the same ramp: the profile\'s pressure colour, the tests p
 
 test('nothing but the ramp module (and the copy and parity files that hold 2D\'s own) reads the 2D pressure ramp', () => {
   const ALLOWED = new Set(['src/scene/lenses/tokens.copied.ts', 'src/scene/lenses/pressure-ramp.ts', 'src/scene/lenses/model.ts', 'src/scene/lenses/legend.ts', 'src/scene/labels/names.copied.ts', 'src/parity/b3.ts',
-    'src/ui/charts/looks2d/theme-tokens.js', 'src/ui/charts/tokens.generated.ts', 'src/ui/css2d/tokens.css', 'src/ui/charts/profile/pressure-colour.ts']);
+    'src/ui/charts/looks2d/theme-tokens.js', 'src/ui/charts/tokens.generated.ts', 'src/ui/styles/tokens.css', 'src/ui/charts/profile/pressure-colour.ts']);
   const bad: string[] = [];
   const walk = (dir: string) => { for (const f of readdirSync(dir)) { const p = join(dir, f); if (statSync(p).isDirectory()) walk(p); else if (/\.(ts|tsx|js)$/.test(f) && !ALLOWED.has(p)) {
     const t = readFileSync(p, 'utf8');

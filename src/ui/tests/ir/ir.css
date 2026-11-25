@@ -1,4 +1,4 @@
-/* The IR pane is 2D's own markup (hvpg-proc.js, ir-tips.js, ir-curves.js, ir-compare.js), laid out and dressed by the 2D stylesheet (src/ui/css2d: .instrument-view[data-pane="hvpg"], .ir-switch,
+/* The IR pane is 2D's own markup (hvpg-proc.js, ir-tips.js, ir-curves.js, ir-compare.js), laid out and dressed by the 2D stylesheet (src/ui/styles: .instrument-view[data-pane="hvpg"], .ir-switch,
    .hvpg-bar, .hvpg-kv, .hvpg-steps, .hvpg-procs, .ir-tips, .ir-top, .ir-keys, .ir-curves, .ir-chart, .cmp-table…). Nothing here lays anything out. What is ours is one fade: a sub-view that comes in
    fades up where the other was (2D ir-tips.js setSub does it with the Web Animations API; opacity only, and Reduce Motion takes it off as 2D's fadeIn does). */
 .ir-fade { animation: ir-fade var(--d-small) var(--ease-arrive) both; }

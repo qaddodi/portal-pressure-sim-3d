@@ -27,7 +27,7 @@ test('the parts that fade are the ones the CSS names, and the frosted faces are 
 
 // The same cause in the other two places 2D fades a whole that holds a frosted face: the phone's view pill (.nb-views, holding .vp-face) and the top bar's figure row (.stage-bar.top, holding .tb-face).
 test('the phone view pill and the focus row keep their wholes opaque; their parts fade on 2D\'s timings', () => {
-  const twoD = readFileSync('src/ui/css2d/app-10-thumb-dock.css', 'utf8'), cards = readFileSync('src/ui/css2d/app-08-cards.css', 'utf8');
+  const twoD = readFileSync('src/ui/styles/app-10-thumb-dock.css', 'utf8'), cards = readFileSync('src/ui/styles/app-08-cards.css', 'utf8');
   assert.match(twoD, /\.nb-views \{ opacity: 0; pointer-events: none; translate: 0 var\(--bar-sink, 0px\); transition: none; \}/, '2D still fades the whole pill; this holds the override to it');
   assert.match(cards, /\.app\.figure-focus \.topbar\.two-rows \.stage-bar\.top \{ opacity: 0; visibility: hidden;/);
   assert.match(css, /\.sheet-layer > \.menu, [^{]*\.vdock:not\(\.mini\) > \.nb-views \{ opacity: 1; \}/);
@@ -69,7 +69,7 @@ test('every holder that stays opaque in a talk has no paint of its own left: the
   assert.match(css, /\.sh-root\[data-mode="deck"\] > \.app \.vdock \{ box-shadow: none; \}/);
   assert.match(css, /\.sh-root > \.app \.vdock \{ transition: box-shadow var\(--d-surface\) var\(--ease-arrive\); \}/);
   // the holders the talk fade keeps opaque, and what each paints itself in 2D (app-07-floating.css): the bar paints nothing; the dock paints a shadow, handled above; the pills that hold a face have none
-  const f = readFileSync('src/ui/css2d/app-07-floating.css', 'utf8');
+  const f = readFileSync('src/ui/styles/app-07-floating.css', 'utf8');
   assert.match(f, /\.vdock \{[^}]*box-shadow: var\(--shadow-pill\)/);
   assert.match(f, /\.topbar \.tb-id \{[^}]*background: transparent; box-shadow: none;/);
   assert.match(f, /\.topbar \.sb-right\.has-face \{[^}]*background: transparent; box-shadow: none;/);

@@ -9,7 +9,8 @@
 // Usage: node scripts/copy-b11-doppler.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { loadOrder } from './copy-2d-css.mjs';
+/** The 2D app's stylesheets in the order its index.html links them (read from the 2D checkout these copy scripts run against). */
+const loadOrder = (indexHtml) => [...indexHtml.matchAll(/<link rel="stylesheet" href="styles\/([\w.-]+\.css)"/g)].map((m) => m[1]);
 
 const args = process.argv.slice(2);
 const flag = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null; };

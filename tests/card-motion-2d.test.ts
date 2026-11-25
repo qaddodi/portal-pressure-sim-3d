@@ -18,7 +18,7 @@ test('one arrive curve: the function, the CSS string and 2D\'s own are the same 
   const two = cubicBezier(0.2, 0.8, 0.2, 1);
   for (const t of [0.05, 0.2, 0.5, 0.8, 0.95]) assert.ok(Math.abs(easeArrive(t) - two(t)) < 1e-9, `t=${t}`);
   assert.doesNotMatch(read('src/ui/shell/global.css'), /--ease-arrive\s*:/, 'tokens.css (2D) owns --ease-arrive; global.css re-declared it at (.2, .7, .2, 1)');
-  const bad = walk('src').filter((f) => !f.startsWith('src/ui/css2d/') && /\.(ts|tsx|css|js)$/.test(f)).filter((f) => /\(0?\.2, ?0?\.7, ?0?\.2, ?1\)/.test(read(f)));
+  const bad = walk('src').filter((f) => !f.startsWith('src/ui/styles/') && /\.(ts|tsx|css|js)$/.test(f)).filter((f) => /\(0?\.2, ?0?\.7, ?0?\.2, ?1\)/.test(read(f)));
   assert.deepEqual(bad, [], 'no copy of the old arrive curve (.2, .7, .2, 1)');
 });
 
@@ -64,7 +64,7 @@ test('an instrument\'s data card has 2D\'s corner Enlarge button, on a wide scre
   assert.match(layer, /zoomPlan\(\{ left: dataBox\.x/, '`pz-zoomable` when the card would grow by at least ZOOM_MIN (2D zoom.plan() is not null)');
   assert.match(layer, /e\.stopPropagation\(\);/, 'the button is not also a tap on the card');
   // 2D's own rules for the button, the header one box deeper
-  const two = read('src/ui/css2d/app-09-tests.css').split('\n').filter((l) => l.startsWith('.pz.pz-wide .pz-data.pz-zoomable > .pz-dh'));
+  const two = read('src/ui/styles/app-09-tests.css').split('\n').filter((l) => l.startsWith('.pz.pz-wide .pz-data.pz-zoomable > .pz-dh'));
   const mine = read('src/ui/deck-ui.css');
   assert.equal(two.length, 2);
   for (const rule of two) assert.ok(mine.includes(rule.replace('.pz-zoomable > .pz-dh', '.pz-zoomable > .dk-in > .pz-dh')), `lifted: ${rule.slice(0, 70)}`);

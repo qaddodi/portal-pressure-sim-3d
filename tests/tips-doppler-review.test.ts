@@ -72,7 +72,7 @@ test('prose figures are proportional (a "1" is not a full-width cell: ">190" rea
   // (important, both: the lifted 2D sheet ends with `* { font-variant-numeric: tabular-nums !important }`, which beat the plain rules this test used to pin: the figures were never proportional, 23 Nov multi-size review)
   assert.match(css, /\.deck-ui :is\(\.pz-h, \.pz-line, \.pz-side-p, [^)]*\) \{ font-variant-numeric: lining-nums proportional-nums !important; \}/);
   assert.match(css, /\.deck-ui\.deck-ui :is\(\.pz-line, \.pz-side-p, \.pz-h\) :is\([^)]*\) \{ font-variant-numeric: tabular-nums lining-nums !important; \}/);
-  const all = readFileSync(new URL('../src/ui/css2d/app-11-deck-visuals.css', import.meta.url), 'utf8');
+  const all = readFileSync(new URL('../src/ui/styles/app-11-deck-visuals.css', import.meta.url), 'utf8');
   assert.match(all, /\*, \*::before, \*::after \{ font-variant-numeric: tabular-nums lining-nums !important;/, 'the universal important rule these must outrank');
   const layer = readFileSync(new URL('../src/ui/charts/text-layer.ts', import.meta.url), 'utf8');
   assert.match(layer, /w\.tab \? 'tabular-nums lining-nums' : 'proportional-nums lining-nums'/, 'chart words are proportional unless they count in place');

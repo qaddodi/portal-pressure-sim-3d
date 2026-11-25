@@ -1,6 +1,5 @@
-/* The 3D app's changes to the 2D app's rules, as overrides. The 2D stylesheets (src/ui/css2d) are copied byte for byte and never edited
-   (scripts/copy-2d-css.mjs, tests/css2d-copy.test.ts); what 3D needs different is written here, loaded right after them, with the same selectors so the
-   same specificity wins by order. A rule that is new in 3D lives here too. When 2D takes one of these, delete it here. */
+/* The 3D app's changes to the base rules (src/ui/styles, begun as the 2D app's), as overrides: written here, loaded right after them, with the same selectors so the
+   same specificity wins by order. A rule that is new in 3D lives here too. Folding these into src/ui/styles is a later, visual-checked step. */
 
 /* Light's amber, deepened for text: #B07A0A was 3.55:1 on the card, #8F6208 is 5.1:1 (Opus 5.5 call, Plan 39). Soft keeps its own #845200 (tokens.css, a higher-weight rule),
    the dark looks their own #F0B43C. looks.ts holds the same value for the figure, the charts and tests/colour-tokens.test.ts. */

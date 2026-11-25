@@ -1,4 +1,4 @@
-// The Treat card, as the 2D app's (main.js openTreat, chart.js treatBody and treatChanges, treat-page.js, card-glide.js): the same markup, class for class, so the 2D stylesheets (src/ui/css2d) style it:
+// The Treat card, as the 2D app's (main.js openTreat, chart.js treatBody and treatChanges, treat-page.js, card-glide.js): the same markup, class for class, so the 2D stylesheets (src/ui/styles) style it:
 // a title with "n running" and a close button (.tc-head.card-head), three tabs (.instr-tabs.treat-tabs: Drugs, Fluids, Procedures; the chosen one is the one gliding piece, seg-glide.copied.ts),
 // the orders (.treat-pane), and the Changes list (.section.chart-sec: closed until opened and then remembered, keep.ts). On a phone Changes is one row (.tcp-row) that slides its list in as a page of its own
 // (.tc-page, page-push.ts), the sheet standing Full while the page is up; on a laptop or an iPad on its side it is the section under the orders. A phone's or an upright iPad's card is a sheet over the dock

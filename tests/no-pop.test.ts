@@ -26,7 +26,7 @@ test('(a) hidden, style.display, style.visibility and .remove() only in fade.tsx
   assert.deepEqual(down, [], 'lower these counts in tests/pop-allow.json (the allowance only goes down)');
 });
 
-const own = () => stylesheets().filter(([p]) => !p.startsWith('ui/css2d/') && !p.includes('.copied.')).flatMap(([p, css]) => parseCss(p, css));
+const own = () => stylesheets().filter(([p]) => !p.startsWith('ui/styles/') && !p.includes('.copied.')).flatMap(([p, css]) => parseCss(p, css));
 const STATE = /\[data-[\w-]+|\[aria-|\[hidden|\.on\b|\.open\b|:not\(|:hover|:active|:focus|\.is-|\.shown/;
 const subjectOf = (one: string): string => one.trim().replace(/::?[\w-]+(\([^()]*\))?$/g, '').split(/[\s>+~]+/).pop() ?? '';
 const classesOf = (s: string): string[] => [...s.matchAll(/\.([\w-]+)/g)].map((m) => m[1]!);

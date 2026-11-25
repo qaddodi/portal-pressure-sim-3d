@@ -1,5 +1,5 @@
 // The number roll of 2D's util.js countTo (its odometer: odoSwap, odoBuildRest): a number that takes a new value of the same shape rolls, each digit that changes in its own column, a strip of the
-// digits between the old one and the new one moved by a transform the compositor eases (the lifted `.odo` rule, css2d/app-11-deck-visuals.css). Pure here: the plan of columns for two texts.
+// digits between the old one and the new one moved by a transform the compositor eases (the lifted `.odo` rule, styles/app-11-deck-visuals.css). Pure here: the plan of columns for two texts.
 // A number whose shape changes (9.9 to 10.1, a sign) is not rolled: it lands at once and fades in (countTo's own rule).
 
 /** One piece of a rolling number: a run of plain text, or a column that rolls from one digit to another through the digits between (the strip is read top down: old to new when the value rose). */

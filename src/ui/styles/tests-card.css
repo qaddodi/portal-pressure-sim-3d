@@ -206,6 +206,5 @@
 .tr-bav b { font-weight: 600; color: var(--text); }
 .tr-today { color: var(--text); }
 .tr-src { font: 500 12px/1.4 var(--font-ui); color: var(--text-3); font-variant-numeric: tabular-nums; }
-.tf-hits { position: absolute; inset: 0; }
 .tf-hit { position: absolute; left: 0; right: 0; padding: 0; border: 0; border-radius: 8px; background: none; cursor: pointer; }
 #app.thumb .tr-hd .tr-t { font-size: 16px; }

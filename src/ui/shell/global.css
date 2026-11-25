@@ -1,10 +1,10 @@
-/* Global ground rules. Look tokens (--bg, --surface, --text…) come from the 2D stylesheet (src/ui/css2d/tokens.css) by html[data-theme] and [data-palette], set by applyLook (src/looks/looks.ts); the scene's own tones are written inline. */
+/* Global ground rules. Look tokens (--bg, --surface, --text…) come from the 2D stylesheet (src/ui/styles/tokens.css) by html[data-theme] and [data-palette], set by applyLook (src/looks/looks.ts); the scene's own tones are written inline. */
 :root {
   --ui: 'Inter', 'Inter Fallback', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;   /* (2D tokens.css --font-ui, whole: the fallbacks size the text the same before Inter is in) */
   --display: 'Source Serif 4', Georgia, serif;
   --safe-t: env(safe-area-inset-top, 0px); --safe-r: env(safe-area-inset-right, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px);
-  /* The motion scale is 2D's (css2d/tokens.css: --d-flip, --d-small, --d-surface, --ease-arrive, --ease-move, --ease-in; src/ui/motion.ts is its TS copy), never retyped here. These are the 3D-only times that are
+  /* The motion scale is 2D's (styles/tokens.css: --d-flip, --d-small, --d-surface, --ease-arrive, --ease-move, --ease-in; src/ui/motion.ts is its TS copy), never retyped here. These are the 3D-only times that are
      deliberately their own pace (tokens.css: a scene that teaches has its own pace and says so), each used by more than one rule and named once. tests/ui-vocabulary.test.ts holds this. */
   --d-card-in: 280ms;   /* own pace: a card, the wallet and a pushed page arriving (tween.ts MOTION.cardInMs) */
   --d-roll: 400ms;      /* own pace: a number rolling to its new value (tween.ts MOTION.rollMs) */
@@ -38,7 +38,7 @@ input, textarea, [contenteditable=""], [contenteditable="true"], .selectable { -
 button { font: inherit; color: inherit; }
 
 /* A change of look cross-fades the whole page and the figure (looks/glide.ts): the View Transition's one group, eased. Reduce Motion never starts it.
-   --d-look is the ONE time of the fade (the group, both pictures, the fallback below, GLIDE_MS). The copied 2D stylesheet (css2d/app-02-controls.css, never edited) also times these pictures at --d-surface;
+   --d-look is the ONE time of the fade (the group, both pictures, the fallback below, GLIDE_MS). The copied 2D stylesheet (styles/app-02-controls.css, never edited) also times these pictures at --d-surface;
    `html::` outranks its bare rule, so it can no longer finish at another moment than the group. */
 html::view-transition-group(root) { animation-duration: var(--d-look); animation-timing-function: var(--ease-move); }
 html::view-transition-old(root), html::view-transition-new(root) { animation-duration: var(--d-look); animation-timing-function: var(--ease-move); mix-blend-mode: normal; }

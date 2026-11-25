@@ -72,7 +72,7 @@ test('the curve: grid at 10 and 20, the fall, a dot ringed in the surface at eac
 test('the preview words and the curve are the menu\'s patient preview', () => {
   const m = src('src/ui/menu/UMenu.tsx');
   for (const w of ['hp-cap', 'hp-prof', 'hp-facts', 'Pressure, splanchnic bed to right atrium (0 to 30 mmHg)', 'chipsOf', 'profileScene', 'SNAPSHOTS']) assert.ok(m.includes(w), w);
-  const css = src('src/ui/css2d/app-06-plate.css') + src('src/ui/css2d/app-07-floating.css');
+  const css = src('src/ui/styles/app-06-plate.css') + src('src/ui/styles/app-07-floating.css');
   for (const c of ['hp-prof', 'hp-chip', 'hp-facts', 'hp-cap']) assert.ok(new RegExp(`\\.${c}\\b`).test(css), c);
 });
 
@@ -124,7 +124,7 @@ test('every phone sheet sits behind the dock and the timeline: one z-index, in m
   for (const sel of ['.menu.as-sheet', '.menu.as-sheet.sw-in', '.umenu.sheet', '.pal-back']) assert.ok(css.includes(`html.thumb-ui .sh-clip-in > ${sel}`) , sel);
   assert.ok(/\{ z-index: var\(--z-sheet-phone\); \}/.test(css) && /\.um-scrim \{ z-index: calc\(var\(--z-sheet-phone\) - 1\); \}/.test(css));
   // the dock is --z-panel + 20 (2D app-10-thumb-dock.css), so 10 + 10 stays under it; the Frame sheets and the cards are lower still
-  assert.ok(/\.app\.thumb \.vdock:not\(\.mini\) \{ z-index: calc\(var\(--z-panel\) \+ 20\)/.test(src('src/ui/css2d/app-10-thumb-dock.css')));
+  assert.ok(/\.app\.thumb \.vdock:not\(\.mini\) \{ z-index: calc\(var\(--z-panel\) \+ 20\)/.test(src('src/ui/styles/app-10-thumb-dock.css')));
   for (const f of ['src/ui/shell/shell.css', 'src/ui/tests/tests.css', 'src/ui/action/action.css']) assert.ok(!/z-index: (?:[3-9]\d|\d{3,})\b[^;]*\}?/.test(src(f).split('\n').filter((l) => /\.sh-sheet \{|\.t-pos \{|\.ac-card \{/.test(l)).join('')), f);
 });
 

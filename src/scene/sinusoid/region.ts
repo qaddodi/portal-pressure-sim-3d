@@ -1,4 +1,4 @@
-// The sinusoid's captions as 2D writes them (sinusoid-view.js caption / pageRun, label-captions.js leadMarks), so the 2D stylesheets that came with the app (css2d/app-03-layouts.css `.sv-region`,
+// The sinusoid's captions as 2D writes them (sinusoid-view.js caption / pageRun, label-captions.js leadMarks), so the 2D stylesheets that came with the app (styles/app-03-layouts.css `.sv-region`,
 // `.sv-region-<key>`, `.sv-end`; app-01-chrome.css `.leader-dot`) set their type, case, colour and halo and nothing here repeats a number of theirs:
 //   a caption is <div class="sv-region sv-region-<key>" data-target="sinusoid:…"> <span>NAME</span> <span class="v"><b>figure</b> unit</span> … </div>
 //   the ends (the portal venule, the central vein) are written exactly as the Sinusoid's own, with `sv-end` added: 'sv-region sv-region-sin sv-end'.

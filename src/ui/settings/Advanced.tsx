@@ -1,6 +1,6 @@
 // Advanced physiology, on the 2D panel's own markup (chart.js advanced() and section(), inspector.js slider() and toggle()): `.p-body.chart-body.adv-body` holding four
 // `details.section.chart-sec`, each control a `.ctl` (label, ⓘ, reset, value, the `.range-wrap` track with its green normal band; or a `.toggle-row` with a `.switch`), and the
-// three `.order-btn` actions. Its stylesheet is the 2D app's (css2d, copied); nothing here styles it. The rows, words, ranges, steps and defaults are advanced.generated.ts.
+// three `.order-btn` actions. Its stylesheet is the 2D app's (src/ui/styles); nothing here styles it. The rows, words, ranges, steps and defaults are advanced.generated.ts.
 // A change edits the patient's settings (action/params.ts updateParams: one History entry per gesture, as in 2D) and the engine answers; no number is worked out here.
 // It is a page of the Settings menu (2D opened it in the side panel, which the 3D app does not have).
 import { useState, useRef, type CSSProperties } from 'react';

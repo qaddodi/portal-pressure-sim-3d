@@ -19,7 +19,7 @@ test('the glass is 2D\'s: 22 px blur, 1.15 saturation, the 66 % surface tint, wi
   assert.match(bare, /--glass-blur: 22px/); assert.match(bare, /--glass-sat: 1\.15/);
   assert.match(bare, /-webkit-backdrop-filter: blur\(var\(--glass-blur\)\) saturate\(var\(--glass-sat\)\)/);
   assert.match(bare, /background: var\(--glass-tint\)/);
-  assert.match(readFileSync('src/ui/css2d/app-03-layouts.css', 'utf8'), /--glass-tint: color-mix\(in srgb, var\(--surface\) var\(--pz-frost, 66%\)/);
+  assert.match(readFileSync('src/ui/styles/app-03-layouts.css', 'utf8'), /--glass-tint: color-mix\(in srgb, var\(--surface\) var\(--pz-frost, 66%\)/);
   assert.ok(bare.includes('html:not([data-noglass])'), 'the glass is gated on Blur effect');
 });
 test('reduced transparency is an override of the glass, never a gate on it (Safari does not know the query)', () => {
@@ -45,7 +45,7 @@ test('no other stylesheet declares a backdrop blur: the lifted 2D sheets declare
 });
 test('main imports the glass after the lifted 2D sheets', () => {
   const m = readFileSync('src/main.tsx', 'utf8');
-  assert.ok(m.indexOf("./ui/css2d/index.css") > -1 && m.indexOf("./ui/css2d/index.css") < m.indexOf("./ui/glass.css"));
+  assert.ok(m.indexOf("./ui/styles/index.css") > -1 && m.indexOf("./ui/styles/index.css") < m.indexOf("./ui/glass.css"));
 });
 
 test('the phone dock is one glass: 2D\'s opaque layers (::before, tab row face and top) come off unless blur is off', () => {
@@ -60,7 +60,7 @@ test('the phone dock is one glass: 2D\'s opaque layers (::before, tab row face a
 // (a backdrop root), and 2D fades the wrappers .pal-back and .modal-back (crossfade) with the glass panel inside, so the panel was unblurred for the whole fade. The panel fades itself.
 test('no glass sits inside a fading wrapper: the palette and dialog wrappers do not animate, the panels fade with their own blur', () => {
   assert.match(bare, /html:not\(\[data-noglass\]\) :is\(\.pal-back, \.pal-back\.leaving, \.modal-back\.show, \.modal-back\.leaving\) \{ animation: none !important; \}/);
-  const l = readFileSync('src/ui/css2d/app-03-layouts.css', 'utf8'), c = readFileSync('src/ui/css2d/app-02-controls.css', 'utf8');
+  const l = readFileSync('src/ui/styles/app-03-layouts.css', 'utf8'), c = readFileSync('src/ui/styles/app-02-controls.css', 'utf8');
   assert.match(l, /\.pal \{[^}]*animation: scale-settle /); assert.match(l, /\.pal-back\.leaving \.pal \{ animation: scale-settle-out /);
   assert.match(c, /\.modal \{[^}]*animation: scale-settle /); assert.match(c, /\.modal-back\.leaving \.modal \{ animation: scale-settle-out /);
   // the same cause anywhere: every wrapper of a glass panel that 2D crossfades must be on that list (a new one fails here)

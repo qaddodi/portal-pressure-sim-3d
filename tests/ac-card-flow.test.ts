@@ -8,7 +8,7 @@ const css = (f: string) => readFileSync(new URL(`../src/ui/${f}`, import.meta.ur
 const rules = (src: string) => [...src.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1]!.trim(), body: m[2]! }));
 
 test('the card\'s body (and its Details face, also an .ac-body) is placed in the flow by a rule that out-ranks 2D\'s `.ac-body { position: absolute }`', () => {
-  const lifted = rules(css('css2d/app-03-layouts.css')).find((r) => /^\.ac-body, \.ac-ghost, \.ac-details$/.test(r.sel));
+  const lifted = rules(css('styles/app-03-layouts.css')).find((r) => /^\.ac-body, \.ac-details$/.test(r.sel));
   assert.ok(lifted && /position:\s*absolute/.test(lifted.body), 'the lifted 2D sheet lays the body over its box (this is what the override answers)');
   const own = rules(css('action/action.css')).find((r) => r.sel === '.ac-card > .ac-body');
   assert.ok(own, 'action.css puts the body back in the flow');

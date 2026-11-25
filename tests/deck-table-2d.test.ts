@@ -14,7 +14,7 @@ test('the card draws one table with one heading row, a row per patient, and no p
   assert.equal((src.match(/<table>/g) ?? []).length, 1);
   assert.ok(!/dk-trow|dk-tcell|dk-tbl-head|dk-kicker/.test(src));
   assert.match(src, /<th>\{model\.rowHead\}<\/th>/, 'the row-name heading is the table\'s first heading, not a line of its own');
-  assert.match(src, /className=\{`pz-table/, '2D\'s own table rules (css2d)');
+  assert.match(src, /className=\{`pz-table/, '2D\'s own table rules (src/ui/styles)');
 });
 
 test('a cell that compares draws its arrow only: its number is in the words a screen reader hears, never on the screen', () => {

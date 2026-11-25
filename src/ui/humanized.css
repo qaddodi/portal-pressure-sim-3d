@@ -1,5 +1,5 @@
 /* Humanized design (docs/HUMANIZED-DESIGN.md, section 0): NEVER a pill with a dot, a status chip or a badge. A state is plain words in its colour; a choice is
-   words with an underline; a value in a sentence is bold words. This is where the 2D stylesheets' pills (src/ui/css2d, copied unchanged: never edited) are taken
+   words with an underline; a value in a sentence is bold words. This is where the 2D stylesheets' pills (src/ui/styles) are taken
    off. Only the paint goes (fill, outline, shadow, rounding); each rule keeps the 2D rule's own spacing, so no line, row or card changes size or re-wraps.
    The paint a rule here takes off (fill, shadow, rounding, backdrop blur, border) is `!important`, as glass.css does: a retired class wins by construction, not by
    the luck of specificity (a copied 2D `:is(… #viewSeg …)` list weighs an id for every class in it, which is how the Protein legend got its black bar back).

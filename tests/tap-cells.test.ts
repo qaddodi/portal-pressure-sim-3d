@@ -7,8 +7,8 @@ import { readFileSync } from 'node:fs';
 
 const deck = readFileSync('src/ui/deck-ui.css', 'utf8');
 const chrome = readFileSync('src/ui/shell/tap-cells.css', 'utf8');
-const dock2d = readFileSync('src/ui/css2d/app-10-thumb-dock.css', 'utf8');
-const pres2d = readFileSync('src/ui/css2d/app-05-presenter-cards.css', 'utf8');
+const dock2d = readFileSync('src/ui/styles/app-10-thumb-dock.css', 'utf8');
+const pres2d = readFileSync('src/ui/styles/app-05-presenter-cards.css', 'utf8');
 const px = (s: string) => Number(/^(-?[\d.]+)px$/.exec(s.trim())?.[1]);
 
 test('the view pill: 2D\'s segment reaches 7 px past its 30 px capsule above and below (44 px), ours also take half the 2 px gap each side, so cells meet and never overlap', () => {
@@ -87,15 +87,15 @@ test('the cells are real in the CSS: the button boxes take no touch, each ::afte
   assert.match(deck, /\.dk-bar\.phone > button\.pzb-n \{[^}]*min-height: 44px; margin-block: 0/, 'the count is 44 tall');
 });
 test('the press tint is ::before, so the cells\' ::after is free and nothing else paints on it', () => {
-  assert.match(readFileSync('src/ui/css2d/app-01-chrome.css', 'utf8'), /\.ib, [^)]*button\.pzb-n\)::before/);
+  assert.match(readFileSync('src/ui/styles/app-01-chrome.css', 'utf8'), /\.ib, [^)]*button\.pzb-n\)::before/);
   for (const f of ['app-01-chrome', 'app-02-controls', 'app-05-presenter-cards', 'app-06-plate', 'app-08-cards']) {
-    for (const m of readFileSync(`src/ui/css2d/${f}.css`, 'utf8').matchAll(/([^{}]*)(?:\.ib|pzb-n)([^{},]*)::after/g)) if (/pz-bar|pzb|dk-bar/.test(m[0])) assert.fail(`2D paints ${m[0].slice(0, 80)} on a tap-cell button`);
+    for (const m of readFileSync(`src/ui/styles/${f}.css`, 'utf8').matchAll(/([^{}]*)(?:\.ib|pzb-n)([^{},]*)::after/g)) if (/pz-bar|pzb|dk-bar/.test(m[0])) assert.fail(`2D paints ${m[0].slice(0, 80)} on a tap-cell button`);
   }
 });
 test('the shell loads the view pill\'s cells after the 2D sheets', () => {
   const shell = readFileSync('src/ui/shell/Shell.tsx', 'utf8');
   assert.ok(shell.indexOf("import './chrome-3d.css'") >= 0 && shell.indexOf("import './tap-cells.css'") > shell.indexOf("import './chrome-3d.css'"));
-  const main = readFileSync('src/main.tsx', 'utf8'); assert.ok(main.indexOf('./ui/css2d/index.css') < main.indexOf('./App.tsx'));
+  const main = readFileSync('src/main.tsx', 'utf8'); assert.ok(main.indexOf('./ui/styles/index.css') < main.indexOf('./App.tsx'));
 });
 
 test('Mohammad 23 Nov: the phone pill is easier to tap (Next and the gear cells 38 wide, was 32; every cell 44 tall) and no card changes height: the pill is out of flow, only its width moved', () => {

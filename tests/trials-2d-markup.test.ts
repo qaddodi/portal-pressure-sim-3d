@@ -1,11 +1,11 @@
 // The Trials pane is 2D's markup under 2D's stylesheet, not a second look of its own (20 Nov 2026, play-test: the 3D list showed small-caps fold heads with a right chevron and no chips, round-cornered
-// rows and a different rules list). Root cause: TrialsPane.tsx built its own nodes and trials.css overrode css2d/tests-card.css for the same class names. Node only.
+// rows and a different rules list). Root cause: TrialsPane.tsx built its own nodes and trials.css overrode styles/tests-card.css for the same class names. Node only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
-const pane = read('src/ui/trials/TrialsPane.tsx'), mine = read('src/ui/trials/trials.css'), theirs = read('src/ui/css2d/tests-card.css');
+const pane = read('src/ui/trials/TrialsPane.tsx'), mine = read('src/ui/trials/trials.css'), theirs = read('src/ui/styles/tests-card.css');
 
 test('every node class 2D\'s trials-pane.js builds is built here, and 2D\'s stylesheet has its rule', () => {
   for (const c of ['tr-l1', 'tr-nm', 'tr-rs', 'tr-vs', 'tr-l2', 'tr-why', 'tr-pips', 'tr-fold', 'tr-fh', 'tr-ft', 'tr-fc', 'tr-fn', 'tr-chev', 'tr-chips', 'tr-chip', 'tr-fb', 'tr-items', 'tr-exp', 'tr-rules', 'tr-rule', 'tr-rsep', 'tr-lab', 'tr-src']) {

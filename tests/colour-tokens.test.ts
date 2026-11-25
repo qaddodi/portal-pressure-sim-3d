@@ -1,7 +1,7 @@
 // G3 (Plan 39): colours follow the look. (a) No 3D sheet writes a raw white or black as text on a themed fill (the Dark looks' blue fill #7C9BFF took white text at 2.63:1;
 // --on-accent and --on-danger exist for this). (b) In every look the ink on an accent or danger fill, the three text tones and the status colours reach 4.5:1 on the
 // card and the ground, and Light's amber still reads as amber beside its red. (c) Every look token a 3D rule reads with no fallback is defined for all five looks.
-// The values are resolved from the 2D tokens.css (src/ui/css2d, never edited) plus 3D's css3d-over-2d.css, by the cascade, not from a copy. Source-reading, node only.
+// The values are resolved from the 2D tokens.css (src/ui/styles) plus 3D's css3d-over-2d.css, by the cascade, not from a copy. Source-reading, node only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -9,7 +9,7 @@ import { LOOKS, LOOK_IDS, lookVars, type LookId } from '../src/looks/looks.ts';
 import { contrast } from '../src/ui/debug/contrast.ts';
 import { parseCss, stylesheets, spec, cmpSpec, type Rule } from './css-parse.ts';
 
-const tokensRules = parseCss('ui/css2d/tokens.css', readFileSync(new URL('../src/ui/css2d/tokens.css', import.meta.url), 'utf8'));
+const tokensRules = parseCss('ui/styles/tokens.css', readFileSync(new URL('../src/ui/styles/tokens.css', import.meta.url), 'utf8'));
 const threeRules = parseCss('ui/css3d-over-2d.css', readFileSync(new URL('../src/ui/css3d-over-2d.css', import.meta.url), 'utf8'), 100000);
 const SELECTORS: Record<LookId, string[]> = {
   light: [':root'], soft: [':root', ':root[data-theme="soft"]'], dark: [':root', ':root[data-theme="dark"]'],
@@ -66,7 +66,7 @@ const RAW_OK: [string, string, string][] = [];
 test('no 3D sheet writes a raw white or black as text on a themed fill', () => {
   const bad: string[] = [];
   for (const [path, css] of stylesheets()) {
-    if (path.startsWith('ui/css2d/') || path.includes('.copied.')) continue;
+    if (path.startsWith('ui/styles/') || path.includes('.copied.')) continue;
     for (const r of parseCss(path, css)) {
       const color = r.decls.find((d) => d.prop === 'color' && RAW_TEXT.test(d.value));
       const fill = r.decls.find((d) => /^background(-color)?$/.test(d.prop) && FILLS.test(d.value));
@@ -82,7 +82,7 @@ test('every look token a 3D rule reads without a fallback is defined in all five
   for (const id of LOOK_IDS) for (const k of Object.keys(lookVars(id))) defined.get(id)!.set(k, 'looks.ts');
   const bad = new Set<string>();
   for (const [path, css] of stylesheets()) {
-    if (path.startsWith('ui/css2d/') || path.includes('.copied.')) continue;
+    if (path.startsWith('ui/styles/') || path.includes('.copied.')) continue;
     for (const m of css.matchAll(/var\(\s*(--[\w-]+)\s*\)/g)) {
       const name = m[1]!;
       if (!anywhere.has(name)) continue;   // a per-element property (set inline or by a parent), not a look token

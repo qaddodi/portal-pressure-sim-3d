@@ -18,5 +18,5 @@ test('every words card marks a long title as 2D does, in the one place every car
   const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
   assert.match(frame, /export function markLong/); assert.match(frame, /offsetHeight > lh \* 2\.4/);
   assert.match(frame, /markLong\(innerRef\.current,/);
-  assert.match(readFileSync(new URL('../src/ui/css2d/app-05-presenter-cards.css', import.meta.url), 'utf8'), /\.pz-h\.long \{ font-size: var\(--s-big\)/);
+  assert.match(readFileSync(new URL('../src/ui/styles/app-05-presenter-cards.css', import.meta.url), 'utf8'), /\.pz-h\.long \{ font-size: var\(--s-big\)/);
 });

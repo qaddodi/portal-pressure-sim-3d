@@ -105,7 +105,7 @@ test('the settle wait is declared before the gate that reads it (a use before it
 test('a control row of the action card is one column by specificity, whichever stylesheet loads last (a lone slider filled half the card)', () => {
   const css = read('src/ui/action/action.css');
   assert.match(css, /\n\.ac-card \.ac-cs \{ grid-template-columns: minmax\(0, 1fr\); \}/);
-  assert.match(read('src/ui/css2d/app-03-layouts.css'), /\.ac-cs \{ display: grid; grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/, 'the lifted 2D rule that the specific one outranks');
+  assert.match(read('src/ui/styles/app-03-layouts.css'), /\.ac-cs \{ display: grid; grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/, 'the lifted 2D rule that the specific one outranks');
 });
 
 test('the reveal is a readiness gate, not a clock: a card comes in when the fonts, the charts, the slide\'s numbers and the height are all ready, and the time only guards a failed piece', () => {

@@ -1,7 +1,7 @@
 // Owner's hard rule (22 Nov 2026, docs/HUMANIZED-DESIGN.md section 0): NEVER a pill with a dot, a status chip or a badge. A state is plain words in its colour.
-// The 2D stylesheets (src/ui/css2d, copied unchanged) bring pills of their own; src/ui/humanized.css takes the paint off the ones the app uses. This test finds every
+// The 2D stylesheets (src/ui/styles) bring pills of their own; src/ui/humanized.css takes the paint off the ones the app uses. This test finds every
 // style rule that paints a pill (a fully rounded fill or outline) on a class named pill, chip, badge or dot, that the app really makes, and fails unless the class is one of
-// the retired ones (humanized.css strips it) or a listed exception. A new pill, chip, badge or dot, or a 2D re-copy that brings one, fails here.
+// the retired ones (humanized.css strips it) or a listed exception. A new pill, chip, badge or dot, or a base-sheet rule that brings one, fails here.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -10,7 +10,7 @@ import { join } from 'node:path';
 const walk = (d: string, out: string[] = []): string[] => { for (const f of readdirSync(d)) { const p = join(d, f); statSync(p).isDirectory() ? walk(p, out) : out.push(p); } return out; };
 const files = walk('src');
 const cssFiles = files.filter((f) => f.endsWith('.css'));
-const srcText = files.filter((f) => /\.(tsx?|js)$/.test(f) && !f.includes('/css2d/') && !f.includes('/debug/') && !f.startsWith('src/decks/')).map((f) => readFileSync(f, 'utf8')).join('\n');
+const srcText = files.filter((f) => /\.(tsx?|js)$/.test(f) && !f.includes('/styles/') && !f.includes('/debug/') && !f.startsWith('src/decks/')).map((f) => readFileSync(f, 'utf8')).join('\n');
 
 /** Classes whose pill paint humanized.css strips. */
 const RETIRED = ['tl-hc', 'tb-hc', 'fd-count', 'pzc-hint', 'pz-miss', 'pzt-r', 'cmp-seg', 'dop-tint', 'cmp-table-btn', 'cmp-banner', 'sh-waitcue', 'sh-glnote', 'pz-val', 'pz-gpill', 'hp-chip', 'cmp-badge', 'tr-chip', 'ir-chip', 'pt-chip', 'fr-pill', 'fr-pillnote', 'fr-mark', 'fr-rc', 'sv-legend', 'pz-site', 'pz-dz', 'pz-lens-t'];
@@ -59,7 +59,7 @@ test('humanized.css strips the paint of every retired class', () => {
 });
 
 test('the retired pills do not come back in the app\'s own stylesheets', () => {
-  for (const f of cssFiles.filter((x) => !x.includes('/css2d/') && !x.endsWith('humanized.css'))) {
+  for (const f of cssFiles.filter((x) => !x.includes('/styles/') && !x.endsWith('humanized.css'))) {
     const css = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     assert.doesNotMatch(css, /\.hist-dot\b/, `${f}: the history dot is gone (the event's words carry its colour)`);
   }
