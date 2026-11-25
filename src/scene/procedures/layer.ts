@@ -1,6 +1,7 @@
 // The procedure layer: every device the Treat verbs and the decks put on the figure that is not a vessel (catheters, wires, balloons, the stent, the tamponade tube, bands). It owns their
 // objects, plays the 2D app's own choreography on the clock (`procFrame(kind, t)`, proc-anim.js: the same times, the same steps), and draws what that says. Nothing here is a loop of its own:
 // `update(now)` is called from the scene's frame and answers whether it needs another.
+import { liveShapeVersion } from '../vessels/live-shape.ts';
 import { Group, type Vector3 } from 'three';
 import type { VesselObject } from '../vessels/vessel-object.ts';
 import { inVesselPass } from '../layers.ts';
@@ -388,6 +389,8 @@ export class ProcedureLayer {
   /** Steps the move on the clock. True while it plays, or draws once more. */
   update(now: number): boolean {
     const dt = this.lastTick < 0 ? 16 : Math.min(100, now - this.lastTick); this.lastTick = now;
+    // (a vessel the device lies in was drawn at another shape: the device is laid again on it, so a shunt that curves as it fills carries its catheter and column with it)
+    { const sv = liveShapeVersion(); if (sv !== this.shapeSeen) { this.shapeSeen = sv; if (this.shown?.refollow()) this.dirty = true; this.glue.sync(null); } }
     let stentMoving = this.releaseTract(dt);
     for (const s of this.stents.values()) stentMoving = s.update(dt) || stentMoving;
     for (const s of this.veinStents.values()) stentMoving = s.update(dt) || stentMoving;
@@ -442,5 +445,6 @@ export class ProcedureLayer {
     return d || stentMoving;
   }
 
+  private shapeSeen = -1;
   dispose(): void { this.tractMm = 0; this.tractDriven = false; setDrawnDiameter(this.tractEdge, 0); for (const o of this.objects) o.dispose(); for (const s of this.stents.values()) s.dispose(); for (const s of this.veinStents.values()) s.dispose(); this.tamponade.dispose(); this.paracentesis.dispose(); this.bands.dispose(); this.glue.dispose(); }
 }

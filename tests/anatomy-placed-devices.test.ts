@@ -3,6 +3,7 @@
 // the lumen, the HVPG's tip wedged in the main right hepatic vein (Mohammad 24 Nov) with the WHVP's place ahead of it and the column tinting that branch, the TIPS and DIPS stents on their courses, the Budd-Chiari clot
 // ostial and short of the fork, the EUS needle's point in the left portal and left hepatic veins, and the dive's place inside the liver, clear of every vessel.
 // Run: node --test tests/anatomy-placed-devices.test.ts
+import { liveWidest } from '../src/scene/vessels/live-shape.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -134,9 +135,14 @@ test('the EUS needle crosses into the left portal vein and the left hepatic vein
     assert.ok(share < 1, `${station}: the needle's point is in the ${id} lumen (${share.toFixed(2)} of its radius off its centreline)`);
   }
   sc.dispose();
-  // (a varix at rest is a bundle of strands round its own line, course 0 of its shape: the glue goes in on that line, as in 2D)
-  const g = glueTarget3(), off = courseDistance(['C2'], g);
-  assert.ok(off < 0.5 * NETWORK_BY_ID.get('C2')!.radius, `the glue goes into the varix C2 (${off.toFixed(4)} off its line)`);
+  // (a varix is a bundle of strands round its own line, and the line is not drawn: the glue goes in on the widest drawn strand, where the coil can lie inside a vessel; 25 Nov, "a coil in the air")
+  const g = glueTarget3(), ws = liveWidest('C2')!;
+  let off = Infinity;
+  for (let i = 1; i < ws.pts.length; i++) {
+    const a = ws.pts[i - 1]!, b = ws.pts[i]!, dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], l2 = dx * dx + dy * dy + dz * dz, u = l2 > 0 ? Math.min(1, Math.max(0, ((g.x - a[0]) * dx + (g.y - a[1]) * dy + (g.z - a[2]) * dz) / l2)) : 0;
+    off = Math.min(off, Math.hypot(g.x - a[0] - dx * u, g.y - a[1] - dy * u, g.z - a[2] - dz * u));
+  }
+  assert.ok(off < 0.5 * ws.radius, `the glue goes into the varix C2's widest strand (${off.toFixed(4)} off its line)`);
 });
 
 test('the dive\'s place is inside the liver, clear of every vessel, between the right portal vein and the right hepatic vein', () => {

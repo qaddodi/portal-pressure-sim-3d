@@ -84,16 +84,24 @@ export const varixGrowth = (present: boolean, d: number | undefined): number => 
 export const COIL_MAX = 5;
 export const isCoiling = (id: string, kind: string, spontaneous: boolean): boolean => kind === 'collateral' && !spontaneous && !STRAIGHT_COLL_2D.has(id);
 
-/** A collateral's coil and spread, eased as stage-tubes.js eases them: coiled once it has grown past a quarter (straight again below a fifth), the target moving
- *  only for a change over 0.6, the coil following it with a quarter-second time constant. */
+/** How far a collateral is open (0 to 1) before its coil begins to come on, and how far it is open when the coil has come on whole (the 2D rule's coil strength at that opening, 1.5 + 3.5 shown). */
+export const COIL_ON_FROM = 0.2, COIL_ON_TO = 0.45;
+/** The coil strength a collateral that is `shown` open takes: nothing below COIL_ON_FROM, then the 2D rule's own strength (1.5 + 3.5 shown) eased in over COIL_ON_FROM..COIL_ON_TO, never a step (Mohammad, 25 Nov: the gastric varices and the
+ *  gastrorenal shunt "snap from being straight to being a little curved... Everything should be a transition"). Root cause: the 2D rule's coil was a switch (coiled once shown passed a quarter) with its target moving only for a change over 0.6,
+ *  so the strength stepped from 0 to 2.4 and later in 0.6 jumps, and the quarter-second ease after each jump read as a snap. */
+export const coilTarget = (shown: number): number => {
+  const e = clamp((shown - COIL_ON_FROM) / (COIL_ON_TO - COIL_ON_FROM), 0, 1);
+  return (1.5 + 3.5 * shown) * e * e * (3 - 2 * e);
+};
+/** A collateral's coil and spread, eased as stage-tubes.js eases them: the coil follows its target (coilTarget, itself continuous in how far the vessel is open) with a quarter-second time constant. */
 export class CoilState {
   wig = 0; wigT = 0; spr = 1; sprT = 1; prs = 0; prsT = 0;
   /** `shown`: how far the vessel is open (0 to 1); `spread`: the strands' target spread. Returns true while the shape is still changing. */
   step(shown: number, spread: number, dtMs: number, instant: boolean, press = 0): boolean {
-    const coiled = this.wigT > 0 ? shown > 0.2 : shown > 0.25;
-    const w = coiled ? 1.5 + 3.5 * shown : 0;
+    const w = coilTarget(shown);
     const before = this.wig * 1000 + this.spr + this.prs * 1e6;
-    if (Math.abs(w - this.wigT) > 0.6) this.wigT = w;
+    // (a target move under 0.05 of a coil unit, 0.0004 of a scene unit of sideways travel, is not followed: it only saves rebuilds)
+    if (Math.abs(w - this.wigT) > 0.05 || w === 0 || w >= 5) this.wigT = w;
     this.sprT = spread;
     const k = instant ? 1 : -Math.expm1(-dtMs / 1000 / 0.25);
     const d = this.wigT - this.wig;

@@ -6,10 +6,10 @@
 import { Group, Vector3, type BufferGeometry } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
-import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
-import { NETWORK_BY_ID, radiusOf, widthPx } from '../vessels/network.ts';
+import { TIER_Z, UNITS_PER_SCENE, x2d, x3, y2d, y3 } from '../frame2d.ts';
+import { liveShapeVersion, liveWidest } from '../vessels/live-shape.ts';
+import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { geo3 } from '../procedures/route-placed.ts';
-import { indexOf } from '../../engine/vessel-data.ts';
 import { EUS_GLUE_ROUTE, EUS_GLUE_TARGET, coilReach, layCoil, pointOn } from './probes/copied/eus-scope.copied.js';
 import { DeviceObject } from './device-object.ts';
 import { inVesselPass } from '../layers.ts';
@@ -17,8 +17,29 @@ import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, showRings, writeRings }
 
 type P2 = [number, number];
 const U = UNITS_PER_SCENE;
-/** The varices' courses the glue is laid on: the drawn centrelines in 3D (route-placed.ts geo3: figure x and y, and depth in figure units). */
-export const geoNow = (): Record<string, { cur: number[][] }> => geo3();
+/** The varices' courses the glue is laid on: the drawn centrelines in 3D (route-placed.ts geo3: figure x and y, and depth in figure units), the fundal varix's as it is DRAWN now (its widest strand, live-shape.ts): its trunk is not drawn,
+ *  and the strands are spread off it, so a coil laid on the trunk lay in the air between them (Mohammad, 25 Nov: "it puts a coil in the air... it looks like it's in the stomach, not inside a blood vessel"). */
+export const geoNow = (): Record<string, { cur: number[][] }> => {
+  const v = liveWidest(EUS_GLUE_TARGET[0] as string), key = `${liveShapeVersion()}`;
+  if (!v) return geo3();
+  if (liveKept?.key !== key) liveKept = { key, cur: resample(v.pts) };
+  return { ...geo3(), [EUS_GLUE_TARGET[0] as string]: { cur: liveKept.cur } };
+};
+let liveKept: { key: string; cur: number[][] } | null = null;
+/** A drawn course (scene points) as figure points about 2 units apart: figure x, y and the depth in figure units. */
+function resample(c: readonly (readonly number[])[]): number[][] {
+  const cum = [0];
+  for (let i = 1; i < c.length; i++) cum.push(cum[i - 1]! + Math.hypot(c[i]![0]! - c[i - 1]![0]!, c[i]![1]! - c[i - 1]![1]!, c[i]![2]! - c[i - 1]![2]!));
+  const L = cum[cum.length - 1]!, n = Math.min(600, Math.max(8, Math.ceil((L * U) / 2) + 1)), out: number[][] = [];
+  let j = 1;
+  for (let i = 0; i < n; i++) {
+    const d = (L * i) / (n - 1);
+    while (j < c.length - 1 && cum[j]! < d) j++;
+    const u = cum[j]! > cum[j - 1]! ? Math.min(1, Math.max(0, (d - cum[j - 1]!) / (cum[j]! - cum[j - 1]!))) : 0, a = c[j - 1]!, b = c[j]!;
+    out.push([x2d(a[0]! + (b[0]! - a[0]!) * u), y2d(a[1]! + (b[1]! - a[1]!) * u), (a[2]! + (b[2]! - a[2]!) * u) * U]);
+  }
+  return out;
+}
 /** The depth of a figure point on the varix (scene units): its own course's at the nearest sample. */
 function depthOn(P: readonly number[][], x: number, y: number, flat: number): number {
   let best = Infinity, z = flat;
@@ -35,9 +56,9 @@ const ease = (t: number): number => { const k = clamp01(t); return k * k * (3 - 
 
 /** The varix the glue goes into, as the 2D route lays it: C2's course, the needle's point on it, and the stretch of its centreline round the point (lumenPath). */
 export interface GlueVarix { id: string; f: number; rad: number; path: { x: Float64Array; y: Float64Array; tx: Float64Array; ty: Float64Array; n: number; at: number; step: number; len: number } }
-export function glueVarix(rad = 0): GlueVarix {
+export function glueVarix(rad = 0, geo: Record<string, { cur: number[][] }> = geoNow()): GlueVarix {
   const r: { glue?: GlueVarix & { rad: number } } = {};
-  (EUS_GLUE_ROUTE as unknown as { after(r: object, geo: object): void }).after(r, geoNow());
+  (EUS_GLUE_ROUTE as unknown as { after(r: object, geo: object): void }).after(r, geo);
   const g = r.glue!;
   g.rad = rad || lumenOf(g.id);
   return g;
@@ -85,7 +106,7 @@ export class GlueCast {
   readonly coil: DeviceObject; private readonly coilGeo: BufferGeometry; private readonly coilRings = makeRings(COIL_RINGS);
   readonly cast: DeviceObject; private readonly castGeo: BufferGeometry; private readonly castRings = makeRings(CAST_RINGS);
   private varix: GlueVarix;
-  private readonly course: { P: number[][]; cum: number[]; L: number };
+  private course: { P: number[][]; cum: number[]; L: number };
   private key = '';
   private coilN = 0;
   private z = z0();
@@ -93,12 +114,11 @@ export class GlueCast {
   /** the varix's lumen (figure units) the run was started with: the model closes the varix as the glue goes in, and the coil and the cast stay as they were laid */
   get rad(): number { return this.varix.rad; }
 
+  private seenShape = -1;
   constructor(shared: CelShared) {
     this.group.name = 'eus-glue';
     this.varix = glueVarix();
-    const P = geoNow()[this.varix.id]!.cur, cum = [0];
-    for (let i = 1; i < P.length; i++) cum.push(cum[i - 1]! + Math.hypot(P[i]![0]! - P[i - 1]![0]!, P[i]![1]! - P[i - 1]![1]!));
-    this.course = { P, cum, L: cum[cum.length - 1]! };
+    this.course = this.lay();
     const mk = (g: BufferGeometry, tone: ConstructorParameters<typeof DeviceObject>[1], order: number, px: number): DeviceObject => {
       const o = new DeviceObject(g, tone, shared, { px, order }, 'ink');
       o.park(); this.group.add(inVesselPass(o.group)); this.objects.push(o); return o;
@@ -121,12 +141,27 @@ export class GlueCast {
   }
 
   /** The engine's newest frame: the varix is as wide as the model draws it (the caliber the coil must stay inside). Taken only while no glue is in, so the closing varix does not shrink the coil it holds. */
+  /** The varix's course laid out as it is drawn now (geoNow), with its length at each sample. */
+  private lay(): { P: number[][]; cum: number[]; L: number } {
+    const P = geoNow()[this.varix.id]!.cur, cum = [0];
+    for (let i = 1; i < P.length; i++) cum.push(cum[i - 1]! + Math.hypot(P[i]![0]! - P[i - 1]![0]!, P[i]![1]! - P[i - 1]![1]!));
+    return { P, cum, L: cum[cum.length - 1]! };
+  }
+
   sync(frame: { D: ArrayLike<number> } | null): void {
-    if (this.live || !frame) return;
-    const d = frame.D[indexOf(this.varix.id)], edge = NETWORK_BY_ID.get(this.varix.id);
-    if (!(d > 0) || !edge) return;
-    const rad = radiusOf(widthPx(edge as never, Math.max(d, 1))) * U;
-    if (Math.abs(rad - this.varix.rad) > 0.02) { this.varix.rad = rad; this.key = ''; }
+    if (this.live) return;
+    // (the varix is as wide as the strand the coil lies in is DRAWN: its widest strand, not the engine's lumen, which the drawn strands only share between them; and its course as drawn now, which the pressure and the size move)
+    const sv = liveShapeVersion();
+    if (sv !== this.seenShape) {
+      this.seenShape = sv;
+      const w = liveWidest(this.varix.id);
+      if (w && w.radius > 0) {
+        const rad = w.radius * U, was = this.varix.id;
+        const g = glueVarix(rad, geoNow()); g.rad = rad;
+        if (g.id === was) { this.varix = g; this.course = this.lay(); this.key = ''; }
+      }
+    }
+    void frame;
   }
 
   /** Lays what the frame says: the coil out so far, the glue in so far, the hit's rings, all at `opacity`. */

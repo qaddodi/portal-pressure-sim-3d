@@ -1,5 +1,6 @@
 // Keeps each vessel's shape where the 2D figure has it: a collateral coils as it opens and its strands fan out as far as their varix is big (stage-tubes.js), a
 // fan of tributaries thins and thickens as its rule comes on. The positions are rewritten in place (VesselObject.reshape), and only while a shape moves.
+import { reportShape } from './live-shape.ts';
 import { type NetVessel, type PresenceFrame, collateralOpen, feederLive, recruitFrac } from './network.ts';
 import { CoilState, LOOK_SITE, type Pin, varixGrowth, varixSize, varixSpreadK } from './coil.ts';
 /** The least beading of the esophageal varices (share of a strand's radius), at their full size; the 2D figure's own (varix-bead.js BEAD_MAX 0.35) takes over once it is larger. */
@@ -173,6 +174,7 @@ export class ShapeTracks {
       this.stats.builds++;
     }
     it.built = key;
+    reportShape(it.v.id, it.state);
     // the skin standing on this vessel's end is rebuilt only when its seam moved: a coil is held off the seam by the pin, so the growth of a collateral costs it nothing (a rebuild is 0.1 to 2 s of CPU)
     const seam = seamKeyOf(it.state);
     if (seam !== it.seam) { it.seam = seam; this.onReshaped?.(it.v.id); }

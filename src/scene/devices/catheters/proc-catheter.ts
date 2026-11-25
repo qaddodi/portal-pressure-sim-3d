@@ -135,6 +135,8 @@ export class ProcCatheter {
   /** The parts the current `set` shows (a part not in it is asked to go, and fades). */
   private readonly lit = new Set<DeviceObject>();
   private liveSeen = 0;
+  private followSeen = 0;
+  private readonly statics: { rs: ReturnType<typeof makeRings>; g: BufferGeometry; sides: number; radius: (i: number, d: number) => number }[] = [];
   private readonly v = new Vector3();
   private readonly w = new Vector3();
 
@@ -152,25 +154,27 @@ export class ProcCatheter {
     // the shaft (a polymer tube with its dark hairline), revealed along its length up to the tip
     const rings = makeRings(nS);
     const fill = (rs: typeof rings, radius: (i: number, d: number) => number): void => { rs.forEach((q, i) => { const d = (r.total * i) / (nS - 1); r3.point(d, q.c); r3.dir(d, q.t); q.r = radius(i, d); }); };
+    // (the parts laid once along the whole route: laid again by `follow` when the vessel they lie in is drawn at another shape)
+    const keep = (rs: typeof rings, g: BufferGeometry, sides: number, radius: (i: number, d: number) => number): void => { this.statics.push({ rs, g, sides, radius }); };
     fill(rings, () => rc);
     const sg = allocTube(nS, SHAFT_RADIAL); writeRings(sg, rings, SHAFT_RADIAL);
     this.shaftGeo = sg; this.shaftRings = rings; this.shaftU = new Float32Array(nS);
     // the column of wedged blood or sclerosant lies under everything, as wide as the vein it fills
-    const cr = makeRings(nS); fill(cr, (_i, d) => r3.lumen(d) * 0.94);
-    this.columnGeo = allocTube(nS, DEVICE_SIDES); writeRings(this.columnGeo, cr, DEVICE_SIDES);
+    const cr = makeRings(nS), colR = (_i: number, d: number): number => r3.lumen(d) * 0.94; fill(cr, colR);
+    this.columnGeo = allocTube(nS, DEVICE_SIDES); writeRings(this.columnGeo, cr, DEVICE_SIDES); keep(cr, this.columnGeo, DEVICE_SIDES, colR);
     this.column = mk(this.columnGeo, 'trWedge', 0, 'ink', 0.5);
     // the needle and the wire: the shaft's own course, finer, shown from the catheter's tip on to where they are
     const nw0 = needleRadius(rc);
-    const needleRings = makeRings(nS); fill(needleRings, () => nw0);
-    const ng = allocTube(nS, WIRE_SIDES + 4); writeRings(ng, needleRings, WIRE_SIDES + 4);
+    const needleRings = makeRings(nS), nwR = (): number => nw0; fill(needleRings, nwR);
+    const ng = allocTube(nS, WIRE_SIDES + 4); writeRings(ng, needleRings, WIRE_SIDES + 4); keep(needleRings, ng, WIRE_SIDES + 4, nwR);
     this.needle = mk(ng, 'steel', 2, 'ink', 0.45);
-    const fr = makeRings(nS); fill(fr, () => nw0 * FLASHBACK_K);
-    this.flashbackGeo = allocTube(nS, WIRE_SIDES + 4); writeRings(this.flashbackGeo, fr, WIRE_SIDES + 4);
+    const fr = makeRings(nS), frR = (): number => nw0 * FLASHBACK_K; fill(fr, frR);
+    this.flashbackGeo = allocTube(nS, WIRE_SIDES + 4); writeRings(this.flashbackGeo, fr, WIRE_SIDES + 4); keep(fr, this.flashbackGeo, WIRE_SIDES + 4, frR);
     this.flashback = mk(this.flashbackGeo, 'trPv', 3, 'none', 0);
     // (the needle's bevelled point: a cone along +X, base on the needle's end, apex ahead. It had an apex radius of 0.01 against a base of 0.0015 (an inverted cone: a wide 8-sided disc) and its axis on Z where `orient` lays an X-axis part, so it stood end-on: a grey octagonal knob on the wire where the needle ends; owner, 22 Nov: "wtf is this circle in tips")
     this.needleCone = mk(withTang(needlePoint(rc, nw0)), 'steel', 2, 'ink', 0.4);
-    const wireRings = makeRings(nS); fill(wireRings, () => Math.max(rc * 0.16, 0.0009));
-    const wg = allocTube(nS, WIRE_SIDES); writeRings(wg, wireRings, WIRE_SIDES);
+    const wireRings = makeRings(nS), wR = (): number => Math.max(rc * 0.16, 0.0009); fill(wireRings, wR);
+    const wg = allocTube(nS, WIRE_SIDES); writeRings(wg, wireRings, WIRE_SIDES); keep(wireRings, wg, WIRE_SIDES, wR);
     this.wire = mk(wg, 'steel', 1, 'ink', 0.5);
     // (lit by the world with a highlight, three bands: a round polymer line, not the vessels' flat screen tones, which read as a ribbon)
     this.shaft = mk(sg, 'poly', 4, CATH_EDGE, 0.7, { bands: 3, tubeTones: false, fat: 0.7, shadow: rc });
@@ -194,6 +198,23 @@ export class ProcCatheter {
       this.coil = mk(this.coilGeo, 'platinum', 3, 'ink', 0.7);
     } else { this.coil = null; this.coilGeo = null; }
     this.set({ ...CATHETER_IDLE });
+  }
+
+  /** True when the vessels it runs in moved and it laid itself on them again (nothing is drawn when it is not out). */
+  refollow(): boolean { if (!this.active) return false; const was = this.followSeen; this.r3.follow(); if (was === this.r3.followVersion()) return false; this.set(this.last); return true; }
+
+  /** Lays the parts again along the route where the vessels it runs in are drawn now (route3d.ts follow): a shunt that curves as it fills carries the shaft, the balloon and the column with it. */
+  private followVessels(): void {
+    const { r3 } = this;
+    r3.follow();
+    if (this.followSeen === r3.followVersion()) return;
+    this.followSeen = r3.followVersion();
+    const total = r3.route.total, nS = this.n;
+    for (const q of this.statics) {
+      q.rs.forEach((c, i) => { const d = (total * i) / (nS - 1); r3.point(d, c.c); r3.dir(d, c.t); c.r = q.radius(i, d); });
+      writeRings(q.g, q.rs, q.sides);
+    }
+    this.shaftAt = -1;
   }
 
   applyPalette(p: Palette): void {
@@ -287,6 +308,7 @@ export class ProcCatheter {
   set(s: CatheterState): void {
     this.last = s;
     const { r3, rc } = this, r = r3.route, op = clamp01(s.opacity), showing = s.u > 0.001 && op > 0.002;
+    this.followVessels();
     const tipD = r3.tipD(s.u);
     const lit = this.lit; lit.clear();
     this.active = showing;

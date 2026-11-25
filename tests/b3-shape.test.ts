@@ -57,14 +57,17 @@ test('the varix size and spread are the 2D rules: 2 mm resting, 7 and 8 mm full;
   assert.equal(varixSpreadK(0), 0.55); assert.equal(varixSpreadK(1), 1);
 });
 
-test('a collateral coils once it is past a quarter open and straightens below a fifth, the target moving only past 0.6', () => {
+test('a collateral coils as it opens with no step: straight below a fifth, the 2D strength (1.5 + 3.5 open) from 0.45 on, and between them every 0.01 of opening moves it by less than 0.25 (the snap the owner saw, 25 Nov)', () => {
   const c = new CoilState();
   c.step(0.2, 1, 16, true); assert.equal(c.wig, 0);
-  c.step(0.3, 1, 16, true); assert.ok(Math.abs(c.wig - (1.5 + 3.5 * 0.3)) < 1e-9);
-  c.step(0.22, 1, 16, true); assert.ok(c.wig > 0, 'held until below a fifth');
-  c.step(0.15, 1, 16, true); assert.equal(c.wig, 0);
-  c.step(1, 1, 16, true); const full = c.wig;
-  c.step(0.96, 1, 1000, false); assert.equal(c.wig, full, 'a small change leaves the target');
+  c.step(0.45, 1, 16, true); assert.ok(Math.abs(c.wig - (1.5 + 3.5 * 0.45)) < 0.06);
+  c.step(1, 1, 16, true); assert.ok(Math.abs(c.wig - 5) < 0.06, 'full: the 2D strength');
+  let last = 0, worst = 0;
+  for (let i = 0; i <= 100; i++) { c.step(i / 100, 1, 16, true); worst = Math.max(worst, Math.abs(c.wig - last)); last = c.wig; }
+  assert.ok(worst < 0.25, `the biggest move of the coil in 0.01 of opening was ${worst}`);
+  for (let i = 100; i >= 0; i--) { c.step(i / 100, 1, 16, true); worst = Math.max(worst, Math.abs(c.wig - last)); last = c.wig; }
+  assert.ok(worst < 0.25, `closing: ${worst}`);
+  assert.equal(c.wig, 0, 'and straight again once closed');
 });
 
 test('the braids: the varices, the rectal and retroperitoneal veins and the gastric channel carry the 2D strand data, drawn as at most three separate strands each (no mesh)', () => {

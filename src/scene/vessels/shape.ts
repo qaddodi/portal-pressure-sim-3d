@@ -77,6 +77,8 @@ export const beadsOn = (id: string): boolean => !!(BEAD_SITE as Record<string, s
 import { type Buried, type Course, radiusAtU, sewnAt, tubularFor } from './tubes.ts';
 
 export interface ShapeState { wig: number; spr: number; /** how far the varix's pressure has thickened its strands, 0 to 1 (varixPressRamp, eased) */ prs: number; /** how far the collaterals are recruited, 0 to 1 (the cavernoma's channels grow with it) */ rec: number; /** the varix's beading, 0 to 0.35 (varix-bead.js) */ bead: number; /** the bands on the esophageal varices, eased (band-ease.js) */ bands: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number; /** the stretch at each end (share of the course, from its start and from its end) that stays as at rest, because a junction skin stands on it: coil.ts `pinCourse`; absent: none */ pin?: Pin }
+/** The fundal (gastric) varices' strands are drawn this much wider than the 2D figure's shares of the trunk (Mohammad, 25 Nov: the gastric varices "are small" next to the shunt, so the EUS needle and its coil missed them): the widest strand is then four fifths of the gastrorenal shunt that drains it. */
+export const GV_STRAND_K = 1.6;
 export const REST: ShapeState = { wig: 0, spr: 1, prs: 0, rec: 1, bead: 0, bands: 0, strandsOn: true, live: 1 };
 /** The shape a junction skin is meshed on at a vessel's end: for a vessel whose seam is held (`pin`), the rest shape with only what still reaches the seam, and its live share (the bands are held off it too: the tube keeps its rest width inside the held stretch, `held` r0, and thins past it); coil, spread, bead, the strands being on or off and the recruitment never do (they are held off the seam, or the end is the same tube whether or not they are on). So the skin neither plans nor rebuilds for them. A vessel with no pin is meshed on its own shape. */
 export const seamState = (s: ShapeState | undefined): ShapeState => (!s || !s.pin ? (s ?? REST) : { ...REST, live: s.live, pin: s.pin });
@@ -360,13 +362,14 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     // a strand's 2D course into the scene, on its rest course's depth (the live strands, and for the fan below the same strands at rest)
     const strand3 = (c: { pts: readonly (readonly [number, number])[]; dz?: readonly number[] }, i: number): Vec3[] =>
       to3(c.pts as [number, number][], z, zf, zt, de.sf, de.st, de.through, atRest.strands[i]?.pts ?? (depth ? atRest.main : undefined), depth).map((p, j): Vec3 => (c.dz ? [p[0], p[1], p[2] + len3(c.dz[j] ?? 0)] : p));
+    const gvK = v.id === 'C2' ? GV_STRAND_K : 1;
     const out = [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
       // (the strands open one after another as the varix grows and close one after another as it shrinks: the strand the bands close first is the last to open; a banded one stays a cord, whatever its size)
       const open = fit ? strandOpen(i, strands.length, s.spr) : 1;
       const live = strandLive(banded, open, i, s.bands, cord) * (c.live ?? 1);
       return {
-        pts: strand3(c, i), radius: Math.max(minR, rad * c.k * thick) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
+        pts: strand3(c, i), radius: Math.max(minR, rad * c.k * thick * gvK) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
         // THE CAVERNOMA'S CHANNELS end in a tip, not in a widened, collared, round-capped end: six channels each opened out to the whole C8 width (and a collar, and a ball) where they all meet at the node stood as a faceted star of overlapping
         // ends, a hub the trunk did not cover once it was narrowed or clotted (Mohammad, 20 Nov: "the collaterals fan out from faceted star hubs"). Each narrows to a fine point over its last few radii, so the bundle runs together into the vein
         // at the node (the same free-end taper every other tube's end has, tubes.ts `point`), and nothing is a ball.
@@ -374,7 +377,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
         ...(bundle && v.id !== 'C8' && own.sewn ? { sewn: own.sewn } : {}),
         ...(bundle && v.id === 'C8' ? { taper: undefined, taperSpan: undefined, flare: undefined, capless: [false, false] as const, clamp: undefined, point: undefined } : {}),   // (placed: the channels end on the trunk's own centreline, inside it, round-capped: a point is a width that falls to nothing in a few hundredths, a step the smooth bar does not pass)
         // (the ends keep the trunk's calibre however far a strand has closed (banded, or not yet open): a cord that met its trunk at the cord's own width left a step at the station of the one segment, where the azygos' drain begins at its full width)
-        ...(bundle && v.id !== 'C5' && v.id !== 'C8' ? { taper: [(own.taper?.[0] ?? 1) / (c.k * thick * Math.max(live, 0.05)) * bundleShare(own.sewn?.[0], gathered), (own.taper?.[1] ?? 1) / (c.k * thick * Math.max(live, 0.05)) * bundleShare(own.sewn?.[1], gathered)] as const, taperSpan: fit ? FAN_SPAN : own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
+        ...(bundle && v.id !== 'C5' && v.id !== 'C8' ? { taper: [(own.taper?.[0] ?? 1) / (c.k * thick * gvK * Math.max(live, 0.05)) * bundleShare(own.sewn?.[0], gathered), (own.taper?.[1] ?? 1) / (c.k * thick * gvK * Math.max(live, 0.05)) * bundleShare(own.sewn?.[1], gathered)] as const, taperSpan: fit ? FAN_SPAN : own.taperSpan ?? ([0.3, 0.3] as const), flare: own.flare, capless: own.capless, clamp: own.clamp } : {}),
         bead: beads && v.id !== 'C5' ? { b: s.bead, ph: c.ph * 1.7, u0: (STRAND_FROM_2D as Record<string, number>)[v.id] ?? 0, lambda, len: len2d(c.pts) } : undefined,
       };
     })];

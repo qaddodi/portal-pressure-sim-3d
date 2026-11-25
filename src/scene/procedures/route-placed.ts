@@ -185,11 +185,23 @@ function brtoC6Placed(g: Geo3, radOf: (id: string) => number): Spec {
   };
 }
 
+/** How far up the gastrorenal shunt the BRTO's tip and balloon stand (share of the shunt's length): near the renal end, as the 2D app has it (0.2), but short of where the splenic vein crosses in front of the shunt (the tip is 2.4 radii clear of its
+ *  outline at 0.2, 0.7 at 0.24, so the sclerosant's column, which runs on from the tip, goes under it a hair beyond: Mohammad, 25 Nov, "hidden behind the splenic vein, we can't see the tip while it's injecting"); 0.13 is 5 radii clear. */
+export const BRTO_TIP_AT = 0.13;
+/** The BRTO of the gastrorenal shunt (C5) on the placed anatomy: the 2D spec, carried on from the shunt's end into the fundal varices that it drains (C2, against its flow, as the sclerosant goes: "Sclerosant is injected retrograde through the
+ *  shunt into the fundal varices"). The column then fills the drawn varices, not just the shunt, and the injection's frame (focus) is the shunt and the varices, not the whole way up from the cava. */
+function brtoPlaced(base: Spec): Spec {
+  return {
+    ...base, ids: [...base.ids, 'C2'], tip: ['shunt', BRTO_TIP_AT], focus: ['shunt', 'varices'],
+    build(B) { base.build(B); B.vessel('C2', { rev: true, name: 'varices' }); },
+  };
+}
+
 /** The route of a catheter kind laid in 3D on the drawn centrelines (route.ts routeOf, the placed anatomy). Null for a kind no spec lays. */
 export function placedRoute(kind: string, lumenRadius: (id: string, f?: number) => number): (Route & { raw3: [number, number, number][] }) | null {
   const g = geo3(), rad = (id: string): number => lumenRadius(id, 0.5);
   const k = kind === 'tipscoilin' ? 'tipscoil' : kind;
-  const spec: Spec | undefined = k === 'hvpg' ? hvpgPlaced(g) : k === 'dips' ? dipsPlaced(g, rad) : k === 'brtoC6' ? brtoC6Placed(g, rad) : (procSpecs as (geo: Geo3, radOf: (id: string, f?: number) => number) => Record<string, Spec>)(g, lumenRadius)[k];
+  const spec: Spec | undefined = k === 'hvpg' ? hvpgPlaced(g) : k === 'dips' ? dipsPlaced(g, rad) : k === 'brtoC6' ? brtoC6Placed(g, rad) : k === 'brto' ? brtoPlaced((procSpecs as (geo: Geo3, radOf: (id: string, f?: number) => number) => Record<string, Spec>)(g, lumenRadius).brto!) : (procSpecs as (geo: Geo3, radOf: (id: string, f?: number) => number) => Record<string, Spec>)(g, lumenRadius)[k];
   if (!spec) return null;
   const pts: P3[] = [], radA: number[] = [], marks: number[] = [], parts: RoutePart[] = [];
   // A BRIDGE: where one leg ends a step away from where the next begins (the left renal vein's piece at the cava ends short of where the gastrorenal shunt joins the renal vein further out), the catheter

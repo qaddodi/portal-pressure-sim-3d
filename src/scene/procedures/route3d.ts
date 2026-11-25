@@ -10,6 +10,7 @@ import { type Route, type RoutePart, catheterRadius, routeAt, routeOf } from './
 import { type Course, radiusAtU } from '../vessels/tubes.ts';
 import { widthSwell } from '../vessels/live-width.ts';
 import { indexOf } from '../../engine/vessel-data.ts';
+import { liveWidest, liveShapeVersion } from '../vessels/live-shape.ts';
 
 const lines = new Map<string, readonly (readonly [number, number, number])[]>();
 /** The centreline the vessel's tube is built on (shape.ts coursesOf at rest: depth eased to its nodes, ends fitted to their trunks with smooth joins); a fan of tributaries has none, so its own points. */
@@ -115,6 +116,9 @@ export interface Route3D {
   liveVersion(): number;
   /** The live width over the built width at d (1 as built; the vein of a cirrhotic liver is narrower), blurred along the route so it never steps at a joint */
   swellAt(d: number): number;
+  /** Lays the route on the vessels as they are drawn NOW (a collateral's curve grows with its fill: live-shape.ts). True when the route moved since the last call; `followVersion` counts the moves. */
+  follow(): boolean;
+  followVersion(): number;
   /** the catheter's radius, scene units */
   rc: number;
 }
@@ -224,6 +228,52 @@ export function route3d(kind: string): Route3D | null {
   // the shaft's axis stays in the middle LUMEN_COMFORT of the drawn lumen of any vessel of the route (at a corner, of either): the nominal width the 2D route knows is wider than a branch's drawn first stretch
   const vessels = routeVessels(r);
   smoothBends(r, rcS, z, offX, offY, { share: (x, y, zz) => lumenShare(vessels, x, y, zz), cap: LUMEN_COMFORT });
+  // FOLLOWING THE DRAWN VESSEL: a collateral that coils (the gastrorenal shunt) is drawn curved as it fills, and the route is laid on its straight rest course; each sample of such a vessel remembers where it lies along the rest course
+  // (segment, share) and is carried by how far the drawn course has moved off the rest one there (follow()), so the shaft, the balloon and the sclerosant's column stay inside what is on the screen.
+  const fol: ({ id: string; j: number; t: number } | null)[] = new Array(n).fill(null), rest = new Map<string, readonly (readonly [number, number, number])[]>();
+  for (let i = 0; i < n; i++) {
+    const id = pieceIds[i], v = id ? NETWORK_BY_ID.get(id) : undefined, own = r.raw3?.[i];
+    if (!id || !own || !(v?.plan?.kind === 'coil' && v.plan.coils)) continue;
+    let P = rest.get(id); if (!P) { P = coursesOf(v, REST)[0]!.pts; rest.set(id, P); }
+    let best = Infinity, bj = 0, bt = 0;
+    for (let j = 1; j < P.length; j++) {
+      const a = P[j - 1]!, b = P[j]!, dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], l2 = dx * dx + dy * dy + dz * dz;
+      const u = l2 > 0 ? Math.min(1, Math.max(0, ((own[0] - a[0]) * dx + (own[1] - a[1]) * dy + (own[2] - a[2]) * dz) / l2)) : 0;
+      const dd = Math.hypot(own[0] - (a[0] + dx * u), own[1] - (a[1] + dy * u), own[2] - (a[2] + dz * u));
+      if (dd < best) { best = dd; bj = j; bt = u; }
+    }
+    fol[i] = { id, j: bj, t: bt };
+  }
+  const anyFollow = fol.some((f) => f);
+  const fOff = new Float32Array(n * 3);
+  let followSeen = -1, followVer = 0;
+  const follow = (): boolean => {
+    if (!anyFollow) return false;
+    const ver = liveShapeVersion();
+    if (ver === followSeen) return false;
+    followSeen = ver;
+    let moved = false;
+    for (let i = 0; i < n; i++) {
+      const f = fol[i];
+      let dx = 0, dy = 0, dz = 0;
+      if (f) {
+        const live = liveWidest(f.id)?.pts, P = rest.get(f.id)!;
+        if (live && live.length === P.length) {
+          const a = live[f.j - 1]!, b = live[f.j]!, c = P[f.j - 1]!, e = P[f.j]!;
+          dx = a[0] + (b[0] - a[0]) * f.t - (c[0] + (e[0] - c[0]) * f.t); dy = a[1] + (b[1] - a[1]) * f.t - (c[1] + (e[1] - c[1]) * f.t); dz = a[2] + (b[2] - a[2]) * f.t - (c[2] + (e[2] - c[2]) * f.t);
+        }
+      }
+      if (Math.abs(fOff[3 * i]! - dx) + Math.abs(fOff[3 * i + 1]! - dy) + Math.abs(fOff[3 * i + 2]! - dz) > 1e-7) moved = true;
+      fOff[3 * i] = dx; fOff[3 * i + 1] = dy; fOff[3 * i + 2] = dz;
+    }
+    if (moved) followVer++;
+    return moved;
+  };
+  const followAt = (d: number, o: Vector3): Vector3 => {
+    if (!anyFollow) return o;
+    const [i, u] = bracket(d), a = 3 * (i - 1), b = 3 * i;
+    return o.set(o.x + fOff[a]! + (fOff[b]! - fOff[a]!) * u, o.y + fOff[a + 1]! + (fOff[b + 1]! - fOff[a + 1]!) * u, o.z + fOff[a + 2]! + (fOff[b + 2]! - fOff[a + 2]!) * u);
+  };
   const pos = r.pts.map((p, i) => new Vector3(x3(p[0]) + offX[i]!, y3(p[1]) + offY[i]!, z[i]!));
   const bracket = (d: number): [number, number] => {
     d = Math.min(r.total, Math.max(0, d));
@@ -239,9 +289,9 @@ export function route3d(kind: string): Route3D | null {
   const centre = (d: number, o = new Vector3()): Vector3 => {
     routeAt(r, d, pt); const [i, u] = bracket(d);
     const zz = z0[i - 1]! + (z0[i]! - z0[i - 1]!) * u;
-    return o.set(x3(pt.p[0]) + offX0[i - 1]! + (offX0[i]! - offX0[i - 1]!) * u, y3(pt.p[1]) + offY0[i - 1]! + (offY0[i]! - offY0[i - 1]!) * u, zz);
+    return followAt(d, o.set(x3(pt.p[0]) + offX0[i - 1]! + (offX0[i]! - offX0[i - 1]!) * u, y3(pt.p[1]) + offY0[i - 1]! + (offY0[i]! - offY0[i - 1]!) * u, zz));
   };
-  const point0 = (d: number, o = new Vector3()): Vector3 => { routeAt(r, d, pt); return offAt(d, o.set(x3(pt.p[0]), y3(pt.p[1]), zAt(d))); };
+  const point0 = (d: number, o = new Vector3()): Vector3 => { routeAt(r, d, pt); return followAt(d, offAt(d, o.set(x3(pt.p[0]), y3(pt.p[1]), zAt(d)))); };
   // LIVE WIDTH: the vessel shader draws every vein at the engine's diameter (a cirrhotic liver's hepatic veins are far narrower than they were built), and the route was laid for the built width. The shaft's place off the vessel's
   // own centreline (the rounded corners) shrinks with the vessel (SWELL_K), and `lumen` is the live radius; the shaft's radius is held under a share of it (proc-catheter.ts).
   const sw = new Float32Array(n).fill(1);
@@ -269,7 +319,7 @@ export function route3d(kind: string): Route3D | null {
       return o.lengthSq() > 1e-12 ? o.normalize() : o.set(1, 0, 0);
     },
     lumen(d) { routeAt(r, d, pt); return Math.min(pt.r / UNITS_PER_SCENE, drawnAt(d)) * swellAt(d); },
-    swellAt, liveVersion: () => version,
+    swellAt, liveVersion: () => version, follow, followVersion: () => followVer,
     setLive(D) {
       const by = new Map<string, number>();
       for (const id of vesselsHere) { const v = NETWORK_BY_ID.get(id)!; by.set(id, widthSwell(v.widthKind, v.baseD, D ? D[indexOf(v.lensId)] : undefined)); }
