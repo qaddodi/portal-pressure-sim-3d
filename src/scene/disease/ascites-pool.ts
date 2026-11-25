@@ -2,6 +2,9 @@
 // Split from ascites.ts (which re-exports all of it) so that the hull's files and the layer do not import each other: ascites.ts imports the hull, the hull imports this.
 import { ABDOMEN_OUTLINES } from './copied/anatomy-b4.ts';
 import { LIVER_CUT_FS } from './liver-edge.ts';
+import { PLACED } from '../anatomy/source.ts';
+import { PLACED_ORGAN_RINGS } from '../anatomy/placed-organs.generated.ts';
+import { gutEdges, placedCavity } from './ascites-cavity.ts';
 import type { LookId } from '../../looks/looks.ts';
 
 /** 2D paints the pool over the organ plate and the vessels (veins-gl.js fluidAt), so it is drawn after every organ and its ink (organs run to renderOrder 2 * 9 + 1) and ignores depth: the pool washes what lies in it, as in 2D. */
@@ -109,7 +112,11 @@ function roundedFoot(bowed: [number, number][]): [number, number][] {
   return out;
 }
 const POLYS = new Map<number, [number, number][]>();
-export const polyOf = (step: number) => POLYS.get(step) ?? (POLYS.set(step, bellyPolygon(outlinePolygon(ABDOMEN_OUTLINES[step]!))), POLYS.get(step)!);
+/** The placed anatomy's gut edges, read once from its organ silhouettes (ascites-cavity.ts). */
+let edges: ReturnType<typeof gutEdges> | null = null;
+export const polyOf = (step: number) => POLYS.get(step) ?? (POLYS.set(step, PLACED
+  ? placedCavity(step, edges ??= gutEdges({ colon: PLACED_ORGAN_RINGS['colon']![0]!, bowel: PLACED_ORGAN_RINGS['bowel']![0]! }))
+  : bellyPolygon(outlinePolygon(ABDOMEN_OUTLINES[step]!))), POLYS.get(step)!);
 
 /** Where a vertical line at x crosses the polygon: its lowest and highest y (2D, y down), or null outside it. */
 export function crossings(poly: readonly [number, number][], x: number): [number, number] | null {

@@ -38,7 +38,7 @@ test('the hull hugs the wall: the last row of every column lies on it, none runs
     const pos = g.getAttribute('position').array, aW = g.getAttribute('aW').array, NT = 20, COLS = 97, poly = polyOf(bulgeStep(ml));
     for (let c = 0; c < COLS; c++) {
       const floor = c * NT + NT - 1, y = y2d(pos[floor * 3 + 1]!);
-      assert.ok(y >= 440 - 1e-3 && y <= 1075, `${ml} mL, column ${c}: y ${y.toFixed(1)} is inside the cavity`);
+      assert.ok(y >= 440 - 1e-3 && y <= Math.max(...poly.map((q) => q[1])) + 1e-3, `${ml} mL, column ${c}: y ${y.toFixed(1)} is inside the cavity`);   // (2D's floor reached 1041; the placed anatomy's reaches under the rectum, ascites-cavity.ts)
       assert.ok(aW[floor]! < 1e-3, `${ml} mL, column ${c}: the floor row lies on the wall (${aW[floor]})`);
     }
     // (the whole outline also holds the dry wall just above the surface, which can stand a unit or two nearer than the wet wall the hull measures: the belly curve of 23 Nov moved that from 1 to 1.6)
