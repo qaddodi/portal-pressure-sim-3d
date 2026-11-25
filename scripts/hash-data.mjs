@@ -9,12 +9,14 @@ import { join, basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** The data files the page fetches by name (relative to the site's root). A name missing from the build is skipped (a bake that failed); one present but named by no chunk is an error. */
-export const DATA_FILES = ['anatomy/organs-baked.bin', 'anatomy/skins.bin', 'anatomy/circuit-skins.bin', 'anatomy/skins-placed.bin', 'anatomy/circuit-skins-placed.bin', 'anatomy/organs.bin', 'anatomy/organ-art.json'];
+// (since the anatomy cut-over (25 Nov) the page fetches the approved placement's files only: the 2D figure's organs-baked.bin, skins.bin and circuit-skins.bin are named by no chunk, so they are not listed (a listed file no chunk
+//  names is an error, and the 77b24d5a deploy failed on exactly that))
+export const DATA_FILES = ['anatomy/organs-baked-placed.bin', 'anatomy/skins-placed.bin', 'anatomy/circuit-skins-placed.bin', 'anatomy/organs.bin', 'anatomy/organ-art.json'];
 
 /** The data files the first picture waits for (the finished organs, the Anatomy's welds, the organs' art): the page's head asks for them at once, at low priority, so they download beside the app's code instead of after it. Root cause of the
  *  long cold splash (24 Nov): each was fetched by the app's own code, which only began to run once its 1.5 MB (gzipped) had arrived and been read, so the line sat idle for that long and then carried 4 MB one after the other. A file
  *  the page's `fetch` asks for with the same settings (same origin, no credentials) is the one the preload fetched; a low priority leaves the script files the bandwidth they need first. */
-export const BOOT_PRELOAD = ['anatomy/organs-baked.bin', 'anatomy/skins.bin', 'anatomy/organ-art.json'];
+export const BOOT_PRELOAD = ['anatomy/organs-baked-placed.bin', 'anatomy/skins-placed.bin', 'anatomy/organ-art.json'];
 
 /** Moves each data file of `dist` to assets/<stem>-<hash><ext> and rewrites the chunks that name it. Returns old name -> new name.
  * @param {string} dist
