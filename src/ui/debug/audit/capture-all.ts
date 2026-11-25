@@ -22,6 +22,7 @@ import { evRunPending } from '../../charts/evgraph/live.ts';
 import { captureViews, CHOICE_SEL, CHOICE_ON_SEL, CHOICE_MAX, CHOICE_ROOTS, pressable, choiceName, collageLayout, settleLimitMs, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
 import { isSideways, layoutOf } from '../../layout/rules2d.ts';
 import { lastPicked, stopKey, pickWords } from './capture-pick.ts';
+import { wantedStops, needsBackJump, stepToEnd } from './capture-jump.ts';
 import { growCaptureTotal } from './progress.ts';
 import { zipBlob, type ZipFile } from '../../capture/zip.ts';
 import { feedbackBuild, commitOf } from '../../../boot/release.ts';
@@ -287,17 +288,40 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         await until(() => tagWords().includes(BLOCKED_SAYS.then), BLOCKED_SAYS.afterMs + real(2000));   // (the words come on the label layer's FRAMES, a few a second on a slow screen: so the wait is two REAL seconds past the 2.6 s, not 1.5 s of page time, which at speed N is 1/N of a second and a handful of frames)
         if (tagWords().includes(BLOCKED_SAYS.then)) await grab(); else notes.push(`${d.title} ${sub + 1}: the words "${BLOCKED_SAYS.then}" did not come`);
       };
-      // the promotion set goes straight to each picked slide, as an opened link does, never through the slides before it
-      if (ui.promo) {
-        const wanted = [...(pick ?? [])].map((x) => x.split(':')).filter((x) => x[0] === d.id).map((x) => Number(x[1])).sort((a, b) => a - b);
-        for (const k of wanted) {
+      // the talk's contact sheet, once its pictures are taken
+      const wrapUp = async (): Promise<void> => {
+        if (!thumbs.length) return;
+        const png = await sheet(d.title, thumbs, shape);
+        if (png) { const name = `${dir}-contact-sheet.png`; collages.push({ name, blob: png }); files.push({ name, data: await bytesOf(png) }); }
+        decksDone++;
+      };
+      // a picked slide is gone to directly, as an opened link does, never through the slides before it (Random 5, 10, 25, ticked slides, ?promotion).
+      // The audit's pictures stand on the slide's END state (the last Next within it, a procedure done); the promotion pictures on the slide as it opens.
+      // Tool-only: the app's own shape changes still ease.
+      if (pick) {
+        const store = useUi.getState;
+        const walker = {
+          stop: () => store().pos.stop,
+          move: (m: 'next' | 'back') => store().move(m),
+          still: async (): Promise<void> => { if (ui.skip) clock.setDrawing(false); await stillPage(real, false, !!ui.skip); },
+        };
+        for (const k of wantedStops(pick, d.id)) {
           if (ui.stop()) { stopped = true; break; }
           if (k >= stops) { notes.push(`${d.title}: slide ${k} is past the last stop (${stops - 1})`); continue; }
-          // (a jump forward meets the slide's case card, a jump back lands on the slide itself: so go to the last stop first, then back to the one asked for)
-          if (k < stops - 1 && useUi.getState().pos.stop <= k) useUi.getState().go(stops - 1);
-          useUi.getState().go(k);
+          if (ui.skip) clock.setDrawing(false);
+          if (needsBackJump(store().pos.stop, k, stops)) store().go(stops - 1);
+          store().go(k);
+          if (!ui.promo) {
+            const how = await stepToEnd(walker, k);
+            if (how !== 'end') {
+              store().go(k);
+              const why = how === 'stuck' ? 'Next never reached the end of the slide' : 'Back did not return to the slide';
+              notes.push(`${d.title} slide ${k}: ${why}; its picture is of the slide as it opens`);
+            }
+          }
           await grab(); await blockedThen();
         }
+        await wrapUp();
         if (stopped) break;
         continue;
       }
@@ -320,11 +344,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         await grab(); await blockedThen();
       }
       if (!stopped && presses >= stops * 40) notes.push(`${d.title}: stopped after ${presses} presses (the talk did not end)`);
-      if (thumbs.length) {
-        const png = await sheet(d.title, thumbs, shape);
-        if (png) { const name = `${dir}-contact-sheet.png`; collages.push({ name, blob: png }); files.push({ name, data: await bytesOf(png) }); }
-        decksDone++;
-      }
+      await wrapUp();
       if (stopped) break;
     }
   } finally {

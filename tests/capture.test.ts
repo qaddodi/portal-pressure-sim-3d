@@ -209,10 +209,11 @@ test('Capture draws what the page draws: the glass blur, the pills\' pseudo-elem
   for (const f of ['src/ui/shell/Diagnostics.tsx', 'src/ui/shell/BuildPill.tsx']) assert.match(src(f), /data-capture-skip/);
   assert.match(store, /move\(m: Move\): boolean/); assert.match(store, /if \(m === 'next' && lapseNext\(\)\) return true;/); assert.match(store, /if \(samePos\(to, pos\)\) return false;/);
   assert.match(all, /useUi\.getState\(\)\.move\('next'\)/); assert.match(all, /await grab\(\)/);
-  // the audit's walk presses Next; only the promotion set (one picture of each named slide, at the page's own speed) jumps by number
-  const promo = /\n      if \(ui\.promo\) \{[\s\S]*?\n        continue;\n      \}\n/.exec(all)?.[0] ?? '';
-  assert.match(promo, /useUi\.getState\(\)\.go\(k\)/, 'the promotion set goes straight to each slide');
-  assert.ok(!/useUi\.getState\(\)\.go\(k\)/.test(all.replace(promo, '')), 'no jumps by number in the audit: a jump skips the case card and the steps within a stop');
+  // a picked slide (a random sample, ticked slides, the promotion set) is gone to by number, never through the slides before it; the audit's pictures then press Next within the slide to its end state
+  const jump = /\n      if \(pick\) \{[\s\S]*?\n        continue;\n      \}\n/.exec(all)?.[0] ?? '';
+  assert.match(jump, /store\(\)\.go\(k\)/, 'a picked slide is gone to directly');
+  assert.match(jump, /if \(!ui\.promo\)[\s\S]*stepToEnd\(walker, k\)/, 'the audit stands on the slide\'s end state; the promotion set on the slide as it opens');
+  assert.ok(!/\.go\(k\)/.test(all.replace(jump, '')), 'no jumps by number in the full walk, which presses Next through every slide');
   assert.match(all, /const speed = ui\.promo \? 1 : /, 'the promotion set runs at the clock\'s own speed');
   assert.match(all, /: 60,/, 'no animation is seen: the clock runs 60 times faster');
 });
