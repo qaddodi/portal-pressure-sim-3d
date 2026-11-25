@@ -125,7 +125,7 @@ export class VesselObject extends CelObject {
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensRawA: lens.lensRawA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB, lensRawB: lens.lensRawB,
         laneColA: lens.laneColA, laneColB: lens.laneColB, lensMix: lens.lensMix,
         ...vdbgUniforms('tube'),   // (the inspector's view of the tubes: none without ?inspect, debug-view.ts)
-        tOrgCol: ORGAN_VEIL_U.tOrgCol, tOrgDep: ORGAN_VEIL_U.tOrgDep, veilP: ORGAN_VEIL_U.veilP, veilC: ORGAN_VEIL_U.veilC,   // (the organ veil: organ-veil/, one set shared by every vessel)
+        tOrgCol: ORGAN_VEIL_U.tOrgCol, tOrgDep: ORGAN_VEIL_U.tOrgDep, ovlP: ORGAN_VEIL_U.ovlP, ovlC: ORGAN_VEIL_U.ovlC,   // (the organ veil: organ-veil/, one set shared by every vessel)
       },
       defines: vdbgDefines(),
     })));

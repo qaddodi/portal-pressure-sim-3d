@@ -1786,11 +1786,11 @@ export class CelScene {
       const u = ORGAN_VEIL_U, face = ORGAN_VEIL.on && this.figureView === 'body' && !this.inDive() && !this.split && !dof, z = this.rig.zoomOverWhole;
       const vk = face ? vesselZoomK(z) : 0, sk = face ? seeZoomK(z) : 0;
       const tw = into ? into.width : gl.getDrawingBufferSize(this.veilSize).x, th = into ? into.height : this.veilSize.y;
-      u.veilP.value.set(0, ORGAN_VEIL.gapFrom, ORGAN_VEIL.gapTo, 0); u.seeP.value.set(0, ORGAN_VEIL.seeMax, 1 / tw, 1 / th);   // (off while the map itself is drawn)
+      u.ovlP.value.set(0, ORGAN_VEIL.gapFrom, ORGAN_VEIL.gapTo, 0); u.seeP.value.set(0, ORGAN_VEIL.seeMax, 1 / tw, 1 / th);   // (off while the map itself is drawn)
       if (vk > 0 || sk > 0) {
         this.organMap.render(gl, cam, this.scene, tw, th, { veil: vk > 0, see: sk > 0 });
-        u.veilP.value.x = vk * ORGAN_VEIL.vesselMax; u.seeP.value.x = sk;
-        u.veilC.value.set(cam.near, cam.far, 1 / tw, 1 / th);
+        u.ovlP.value.x = vk * ORGAN_VEIL.vesselMax; u.seeP.value.x = sk;
+        u.ovlC.value.set(cam.near, cam.far, 1 / tw, 1 / th);
       }
     }
     lap('render: organ veil map');

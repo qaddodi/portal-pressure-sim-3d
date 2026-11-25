@@ -159,7 +159,7 @@ export class BloodCells {
     const tone = (t: string): { value: Color } => (deps.object(deps.vessels.find((v) => v.tone === t && !v.feeder)?.id ?? '')?.toon.uniforms.color as { value: Color } | undefined) ?? { value: new Color(0.5, 0.5, 0.5) };
     const lens = deps.lens, b = deps.blood, sh = deps.shared;
     this.material = new ShaderMaterial({
-      name: 'blood streaks', vertexShader: CELLS_VS, fragmentShader: CELLS_FS, precision: 'highp', ...STREAK_FLAGS,
+      name: 'blood streaks', vertexShader: CELLS_VS, fragmentShader: CELLS_FS, ...STREAK_FLAGS,
       uniforms: {
         streamTex: b.streamTex as { value: Texture }, projY: b.projY, dpr: b.dpr, res: sh.res, vdata: sh.vdata, vdataSize: sh.vdataSize,
         courseTex: { value: this.courseTex }, edgeTex: { value: this.edgeTex }, amount: { value: 0 },
@@ -167,7 +167,7 @@ export class BloodCells {
         colPortal: tone('portal'), colSys: tone('sys'), colArt: tone('artery'),
         lensMix: lens.lensMix, lensModeA: lens.lensModeA, lensModeB: lens.lensModeB, lensRawA: lens.lensRawA, lensRawB: lens.lensRawB,
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, laneColA: lens.laneColA, laneColB: lens.laneColB,
-        tOrgCol: ORGAN_VEIL_U.tOrgCol, tOrgDep: ORGAN_VEIL_U.tOrgDep, veilP: ORGAN_VEIL_U.veilP, veilC: ORGAN_VEIL_U.veilC,   // (the organ veil: organ-veil/)
+        tOrgCol: ORGAN_VEIL_U.tOrgCol, tOrgDep: ORGAN_VEIL_U.tOrgDep, ovlP: ORGAN_VEIL_U.ovlP, ovlC: ORGAN_VEIL_U.ovlC,   // (the organ veil: organ-veil/)
       },
     });
     const pts = new Points(g, this.material);

@@ -771,6 +771,8 @@ void main() {
       c = mix(c, wedgeColS, WEDGE_A * waS * (1.0 - inkT));   // (under the outline: the vessel's line stays)
     }
   }
+  // THE ORGAN VEIL, the tube's own rule (vessels/shaders.ts): one function of the pixel, so the skin and its arms agree at the seam
+  c = ovlMix(c, ovlAmount(gl_FragCoord.z, gl_FragCoord.xy) * (1.0 - clamp(circT, 0.0, 1.0)) * (1.0 - clamp(hi, 0.0, 1.0)), gl_FragCoord.xy);
   c = dDbgPaint(c, alpha);   // (?dust, Paint the trouble: off unless asked)
 #ifndef SKIN_NOMARKS
   c = dFinite(c, dFinite(cBody, vec3(0.5)));   // (a NaN colour is the tone before the dust, never a black block)
@@ -778,7 +780,5 @@ void main() {
   c = dFinite(c, vec3(0.5));
 #endif
   if (dBad(vec4(alpha))) alpha = 1.0;   // (nor an alpha that is not a number: a NaN blended onto the figure is written as black)
-  // THE ORGAN VEIL, the tube's own rule (vessels/shaders.ts): one function of the pixel, so the skin and its arms agree at the seam
-  c = veilMix(c, veilAmount(gl_FragCoord.z, gl_FragCoord.xy) * (1.0 - clamp(circT, 0.0, 1.0)) * (1.0 - clamp(hi, 0.0, 1.0)), gl_FragCoord.xy);
   gl_FragColor = vec4(c, alpha);
 }`;

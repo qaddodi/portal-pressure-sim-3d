@@ -709,11 +709,11 @@ ${PROCEDURE_MARKS_GLSL}
 #ifdef VDBG
   c = dbgEnd(c, vindex);
 #endif
+  // THE ORGAN VEIL (organ-veil/config.ts): where an organ lies in front of this pixel the vessel is taken toward the organ's own colour there (its shading and nodules), by how deep behind the organ's surface it is; the same function of the pixel
+  // in the tube, its junction skin and the cells, so nothing steps at a junction. A picked vessel (vHi) and the Circuit's map (circT) are left whole. The vessel stays one opaque draw.
+  c = ovlMix(c, ovlAmount(gl_FragCoord.z, gl_FragCoord.xy) * (1.0 - circT) * (1.0 - clamp(vHi, 0.0, 1.0)), gl_FragCoord.xy);
   c = dDbgPaint(c, fadeHere * cavA);   // (?dust, Paint the trouble: off unless asked)
   c = dFinite(c, dFinite(cBody, vec3(0.5)));   // (a NaN colour is the tone before the dust, never a black block)
   if (dBad(vec4(fadeHere * cavA))) { fadeHere = 1.0; cavA = 1.0; }   // (nor an alpha that is not a number: a NaN blended onto the figure is written as black)
-  // THE ORGAN VEIL (organ-veil/config.ts): where an organ lies in front of this pixel the vessel is taken toward the organ's own colour there (its shading and nodules), by how deep behind the organ's surface it is; the same function of the pixel
-  // in the tube, its junction skin and the cells, so nothing steps at a junction. A picked vessel (vHi) and the Circuit's map (circT) are left whole. The vessel stays one opaque draw.
-  c = veilMix(c, veilAmount(gl_FragCoord.z, gl_FragCoord.xy) * (1.0 - circT) * (1.0 - clamp(vHi, 0.0, 1.0)), gl_FragCoord.xy);
   gl_FragColor = vec4(c, fadeHere * cavA);
 }`;

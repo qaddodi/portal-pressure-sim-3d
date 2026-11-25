@@ -240,5 +240,5 @@ void main() {
   float a = streakMark(p.x / max(vLen, 1e-3) + 0.5, p.y, 0.5 * vThick, 0.6);   // (a slim lozenge feathered at both ends)
   if (a <= 0.003) discard;
   // the organ veil (organ-veil/config.ts): a cell in a vessel an organ lies in front of is taken with the vessel, by the same function of the pixel
-  gl_FragColor = vec4(vFill, a * vA * (1.0 - veilAmount(gl_FragCoord.z, gl_FragCoord.xy)));
+  gl_FragColor = vec4(vFill, a * vA * (1.0 - ovlAmount(gl_FragCoord.z, gl_FragCoord.xy)));
 }`;

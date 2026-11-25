@@ -143,7 +143,7 @@ export class SkinObject implements SkinDraw {
       
       // (the Circuit's own skins (circuit/skins.ts) are the same programs as the body's: the map's units, with the sign flipped, are skinKW.w, so a map skin compiles nothing the body's skins have not)
       ...vdbgUniforms('skin'),   // (the inspector's view of the skins: none without ?inspect, debug-view.ts)
-      tOrgCol: ORGAN_VEIL_U.tOrgCol, tOrgDep: ORGAN_VEIL_U.tOrgDep, veilP: ORGAN_VEIL_U.veilP, veilC: ORGAN_VEIL_U.veilC,   // (the organ veil, the tube's own rule: organ-veil/)
+      tOrgCol: ORGAN_VEIL_U.tOrgCol, tOrgDep: ORGAN_VEIL_U.tOrgDep, ovlP: ORGAN_VEIL_U.ovlP, ovlC: ORGAN_VEIL_U.ovlC,   // (the organ veil, the tube's own rule: organ-veil/)
     };
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
       const material = markVesselStencil(markBlends(new ShaderMaterial({

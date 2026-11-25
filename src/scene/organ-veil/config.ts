@@ -7,7 +7,11 @@
 //
 // Pure numbers here, no GPU: tests/organ-veil.test.ts holds them.
 
-export const ORGAN_VEIL = {
+export interface OrganVeilConfig {
+  on: boolean; vesselMax: number; gapFrom: number; gapTo: number; vesselFull: number; vesselGone: number; seeMax: number; seeFrom: number; seeTo: number;
+  behind: readonly string[]; inFront: readonly string[];
+}
+export const ORGAN_VEIL: OrganVeilConfig = {
   /** The switch. */
   on: true,
   /** How much of a vessel is taken by the organ at the deepest, at the whole-figure framing: 0.55 leaves the vessel 45% (Mohammad, 25 Nov: recommendation 1). */
@@ -24,23 +28,23 @@ export const ORGAN_VEIL = {
   seeFrom: 1.5,
   seeTo: 3.0,
   /** The organs the others let show through: the organs behind (drawn before the ones in front: layer.ts ORGAN_ORDER). The first pass of the effect (Mohammad: kidney, spleen and caudate first). */
-  behind: ['kidney-l', 'spleen', 'caudate'] as readonly string[],
+  behind: ['kidney-l', 'spleen', 'caudate'],
   /** The organs that let those show through: every organ drawn after them (the heart and its atrium are drawn before, and nothing lies behind them in the front view). */
-  inFront: ['liver', 'stomach', 'duodenum', 'bowel', 'colon'] as readonly string[],
-} as const;
+  inFront: ['liver', 'stomach', 'duodenum', 'bowel', 'colon'],
+};
 
 const clamp01 = (x: number): number => (x < 0 ? 0 : x > 1 ? 1 : x);
 /** GLSL's smoothstep. */
 export const smooth = (a: number, b: number, x: number): number => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 
 /** The vessel veil's share of its maximum at zoom `z` (1 = the whole figure framed, 2 = twice as close, the viewer's own zoom included): 1 up to `vesselFull`, 0 from `vesselGone`, smooth on the log of the distance (the app's habit: camera/dive.ts cutOpen). */
-export function vesselZoomK(z: number, c = ORGAN_VEIL): number {
+export function vesselZoomK(z: number, c: OrganVeilConfig = ORGAN_VEIL): number {
   if (!c.on) return 0;
   const l = Math.log(Math.max(z, 1e-6));
   return 1 - smooth(Math.log(c.vesselFull), Math.log(c.vesselGone), l);
 }
 /** The organ show-through's share of its maximum at zoom `z`: 0 up to `seeFrom`, 1 from `seeTo`. */
-export function seeZoomK(z: number, c = ORGAN_VEIL): number {
+export function seeZoomK(z: number, c: OrganVeilConfig = ORGAN_VEIL): number {
   if (!c.on) return 0;
   const l = Math.log(Math.max(z, 1e-6));
   return smooth(Math.log(c.seeFrom), Math.log(c.seeTo), l);
@@ -48,4 +52,4 @@ export function seeZoomK(z: number, c = ORGAN_VEIL): number {
 /** What the body's dive and the Circuit take off both: they are not on the anatomy figure. `away` is 0 on the figure, 1 gone. */
 export const figureShare = (away: number): number => clamp01(1 - away);
 /** The share of a vessel the organ covers: the veil's maximum at depth `gap` behind the organ's front surface (the JS twin of glsl.ts veilAmount). */
-export function veilOf(gap: number, strength: number, c = ORGAN_VEIL): number { return strength * smooth(c.gapFrom, c.gapTo, gap); }
+export function veilOf(gap: number, strength: number, c: OrganVeilConfig = ORGAN_VEIL): number { return strength * smooth(c.gapFrom, c.gapTo, gap); }

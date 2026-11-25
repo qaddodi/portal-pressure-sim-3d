@@ -17,8 +17,7 @@ export class OrganMap {
     if (this.map && this.w === w && this.h === h) return;
     this.dispose();
     this.w = w; this.h = h;
-    const dep = new DepthTexture(w, h);
-    dep.format = DepthStencilFormat; dep.type = UnsignedInt248Type; dep.minFilter = NearestFilter; dep.magFilter = NearestFilter;
+    const dep = new DepthTexture(w, h, UnsignedInt248Type, undefined, undefined, undefined, NearestFilter, NearestFilter, undefined, DepthStencilFormat);
     this.map = new WebGLRenderTarget(w, h, { depthBuffer: true, stencilBuffer: true, depthTexture: dep, minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false, type: UnsignedByteType });
     this.back = new WebGLRenderTarget(w, h, { depthBuffer: true, stencilBuffer: false, minFilter: LinearFilter, magFilter: LinearFilter, generateMipmaps: false, type: UnsignedByteType });
     ORGAN_VEIL_U.tOrgCol.value = this.map.texture; ORGAN_VEIL_U.tOrgDep.value = dep; ORGAN_VEIL_U.tSeeMask.value = this.back.texture;

@@ -9,6 +9,22 @@ bool frontOut(float u, float rv) {
   return k < 0.999 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= k;
 }
 
+
+uniform sampler2D tOrgCol;
+uniform sampler2D tOrgDep;
+uniform vec4 ovlP;   // x strength now (0: off), y gap where it starts, z gap where it is whole
+uniform vec4 ovlC;   // x camera near, y camera far, z and w one over the target's size in device px
+float ovlLin(float d) { return 2.0 * ovlC.x * ovlC.y / (ovlC.y + ovlC.x - (d * 2.0 - 1.0) * (ovlC.y - ovlC.x)); }
+float ovlAmount(float zFrag, vec2 fragXY) {
+  if (ovlP.x <= 0.0) return 0.0;
+  vec2 uv = fragXY * ovlC.zw;
+  float dO = textureLod(tOrgDep, uv, 0.0).r;
+  if (dO >= 0.99999) return 0.0;
+  float gap = ovlLin(zFrag) - ovlLin(dO);
+  return ovlP.x * smoothstep(ovlP.y, ovlP.z, gap) * smoothstep(0.1, 0.45, textureLod(tOrgCol, uv, 0.0).a);
+}
+vec3 ovlMix(vec3 c, float v, vec2 fragXY) { return v > 0.0 ? mix(c, textureLod(tOrgCol, fragXY * ovlC.zw, 0.0).rgb, v) : c; }
+
 const float WEDGE_A = 0.5;
 float wedgeCover(float d, vec3 p) {
   return smoothstep(-max(p.x, 1e-4), 0.0, d) * (1.0 - smoothstep(p.y - max(p.z, 1e-4), p.y, d));
@@ -1377,6 +1393,9 @@ void main() {
 #ifdef VDBG
   c = dbgEnd(c, vindex);
 #endif
+  // THE ORGAN VEIL (organ-veil/config.ts): where an organ lies in front of this pixel the vessel is taken toward the organ's own colour there (its shading and nodules), by how deep behind the organ's surface it is; the same function of the pixel
+  // in the tube, its junction skin and the cells, so nothing steps at a junction. A picked vessel (vHi) and the Circuit's map (circT) are left whole. The vessel stays one opaque draw.
+  c = ovlMix(c, ovlAmount(gl_FragCoord.z, gl_FragCoord.xy) * (1.0 - circT) * (1.0 - clamp(vHi, 0.0, 1.0)), gl_FragCoord.xy);
   c = dDbgPaint(c, fadeHere * cavA);   // (?dust, Paint the trouble: off unless asked)
   c = dFinite(c, dFinite(cBody, vec3(0.5)));   // (a NaN colour is the tone before the dust, never a black block)
   if (dBad(vec4(fadeHere * cavA))) { fadeHere = 1.0; cavA = 1.0; }   // (nor an alpha that is not a number: a NaN blended onto the figure is written as black)
