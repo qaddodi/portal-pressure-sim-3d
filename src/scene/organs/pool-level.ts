@@ -1,8 +1,8 @@
 // The pool of blood in the stomach, as the organ shader draws it per pixel (organ-shader.ts poolA / poolLand / poolDelta). The level used to be painted per vertex
 // (VertexPaint.fillStomach): on a mesh a vertex every few units the waterline was jagged and smeared, and the pool had no surface. Now the CPU only works out where the level is
-// (the same 2D surface as the bleed's own: lumenSurface of POOL_SHARE of poolFill) in the stomach's box, and the pixels do the rest. Pure arithmetic: tests read it.
+// (the jet's own landing level: lumenSurface of POOL_FULL of the eased poolFill) in the stomach's box, and the pixels do the rest. Pure arithmetic: tests read it.
 import { SITES } from '../disease/copied/anatomy-b4.ts';
-import { POOL_SHARE, bleedShapesInto, makeBleedRows } from '../disease/copied/bleed-shapes.js';
+import { bleedShapesInto, makeBleedRows } from '../disease/copied/bleed-shapes.js';
 import { lumenSurface } from '../disease/copied/stomach-lumen.js';
 import { UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
 
@@ -19,19 +19,24 @@ export interface PoolUniforms {
   flow: number;
 }
 
-/** The surface of the pool (2D y, down the page) for how full it stands (0..1). */
-export const poolSurfaceY = (fill: number): number => lumenSurface(POOL_SHARE * fill);
+/** The share of the lumen the 3D pool fills at most: all of it. The 2D figure leaves a fifth (POOL_SHARE, gas and fundus) but the 3D stomach reads as not filling, so it fills (Mohammad, 25 Nov). */
+export const POOL_FULL = 1;
+/** The surface of the pool (2D y, down the page) for how full it stands (0..1): the ONE level the pool's shader and the jet's landing both stand on. */
+export const poolSurfaceY = (fill: number): number => lumenSurface(POOL_FULL * fill);
 
 /** Where the pool's level and the jet's landing are in `box`, for `fill` (poolFill, eased) and the bleed that feeds it. */
 export function poolUniforms(box: PoolBox, fill: number, bleed: { site: 'VAR' | 'GV'; rate: number; total: number }): PoolUniforms {
   const surf = poolSurfaceY(fill);
-  const row = bleedShapesInto(makeBleedRows(), bleed, bleed.rate, SITES)[0] as number[];   // [surface, .5, landing x, flow, ...]
+  // (row 0 is [surface, .5, landing x, flow, ...]; only its landing x and flow are read, the surface is the eased one above)
+  const row = bleedShapesInto(makeBleedRows(), bleed, bleed.rate, SITES)[0] as number[];
   const top = box[1], h = Math.max(box[3], 1e-5), w = Math.max(box[2], 1e-5);
   return { level: (top - y3(surf)) / h, unitsPerBox: h * UNITS_PER_SCENE, landX: (x3(row[2]!) - box[0]) / w, landHalf: 16 / (w * UNITS_PER_SCENE), flow: row[3]! };
 }
 
 /** The ripples' wavelength along the surface, in figure units (organ-shader.ts: 24), and how fast they run out (cycles a second). */
 export const RIPPLE_LAMBDA = 24, RIPPLE_HZ = 0.9;
+/** How much darker the deepest blood is than its surface (organ-shader.ts, the same number): a little, so the pool reads as the jet's own colour, not a maroon. */
+export const DEPTH_DARK = 0.12;
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 const smoothstep = (a: number, b: number, x: number): number => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 
@@ -45,10 +50,10 @@ export function poolShade(fill: readonly number[], layer: number, p: { dU: numbe
   const body = smoothstep(-aa, aa, dU);
   const wet = smoothstep(-3.5, -aa, dU) * (1 - body);
   const out = fill.map((v, i) => v + p.delta[i]! * (body + 0.25 * wet));
-  const dark = 1 - 0.26 * smoothstep(0, 90, dU) * body * p.amount;
+  const dark = 1 - DEPTH_DARK * smoothstep(0, 90, dU) * body * p.amount;
   const skin = (1 - smoothstep(0, 6, dU)) * smoothstep(-0.5, 2, dU);
   const k = clamp01((0.07 + p.flow * p.lobe * 0.12) * skin * p.amount);
   const lit = out.map((v, i) => v * dark + (p.light[i]! - v * dark) * k);
   const band = (1 - smoothstep(0, 9, dU)) * smoothstep(-1.5, 1, dU), rk = Math.min(0.2, Math.abs(slope) * 0.5) * band * p.amount, tone = slope > 0 ? p.light : (p.dark ?? p.light.map(() => 0));
-  return { fill: lit.map((v, i) => v + (tone[i]! - v) * rk), layer: layer + (Math.max(layer, 0.9) - layer) * body * p.amount };
+  return { fill: lit.map((v, i) => v + (tone[i]! - v) * rk), layer: layer + (1 - layer) * body * p.amount };
 }

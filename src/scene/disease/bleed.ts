@@ -9,6 +9,8 @@
 import { BackSide, BufferAttribute, BufferGeometry, DynamicDrawUsage, Group, Mesh, ShaderMaterial } from 'three';
 import { SITES } from './copied/anatomy-b4.ts';
 import { bleedShapesInto, makeBleedRows } from './copied/bleed-shapes.js';
+import { lumenAt } from './copied/stomach-lumen.js';
+import { poolSurfaceY } from '../organs/pool-level.ts';
 import { CelObject, type CelShared } from '../materials/cel.ts';
 import { FADE_GLSL, INK_RIM_GLSL } from '../materials/shaders.ts';
 import type { Palette } from '../palette.ts';
@@ -85,7 +87,9 @@ export class BleedLayer {
   setFade(f: number): void { this.body = f; this.obj?.setFade(f); this.group.visible = this.wanted && f > 0.001; }
   applyLook(look: LookId, p: Palette): void { this.look = look; this.palette = p; if (this.obj) recolour(this.obj, bloodColour(look, p), p); }
   /** True while the jet grows, drains or runs (a running jet asks for a frame after each one: it flows). */
-  set(b: BleedState, dt: number, instant = false): boolean {
+  /** `fill` is how full the stomach's pool stands (the organ layer's eased poolFill): the jet lands on the pool's own surface,
+   *  so the two never part. Without it the surface follows the blood lost (the layer used alone). */
+  set(b: BleedState, dt: number, instant = false, fill?: number): boolean {
     if (b.active) this.last = { ...b };
     const live = b.active && this.seat < SEAT_STOPS_JET;
     let moving = false;
@@ -106,8 +110,15 @@ export class BleedLayer {
     bleedShapesInto(this.rows, { site: s.site, total: s.total }, s.rate, { varix: SITES.varix, fundus: SITES.fundus });
     const st = this.rows[1] as number[];   // [x0, y0, x1, y1, r0, brk, alpha, kind 2]
     const first = this.radius.value === 0 && this.land.value === 0;
-    moving = this.land.to(st[2]!, dt, instant || first) || moving;
-    moving = this.surf.to(st[3]!, dt, instant || first) || moving;
+    // (the pool's surface is eased already, by the organ layer: the landing takes it as it is, no second ease to lag behind it)
+    let ly = st[3]!, lx = st[2]!;
+    if (fill !== undefined) {
+      ly = poolSurfaceY(fill);
+      const [lo, hi] = lumenAt(ly);
+      lx = Math.min(hi - 14, Math.max(lo + 14, lx));
+    }
+    moving = this.land.to(lx, dt, instant || first) || moving;
+    if (fill !== undefined) this.surf.value = ly; else moving = this.surf.to(ly, dt, instant || first) || moving;
     moving = this.radius.to(st[4]!, dt, instant || first) || moving;
     const p = this.params;
     p.x0 = st[0]!; p.y0 = st[1]!; p.xl = this.land.value; p.yl = this.surf.value; p.r0 = this.radius.value; p.brk = st[5]!; p.spurt = spurtOf(s.rate);
