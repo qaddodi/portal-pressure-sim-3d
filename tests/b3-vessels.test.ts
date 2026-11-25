@@ -15,6 +15,7 @@ import { PresenceTracks, presenceMs } from '../src/scene/vessels/presence-track.
 import { frameFor } from './b3-frames.ts';
 import { HIDDEN_EDGES } from '../src/scene/vessels/paths.copied.ts';
 import { PLACED } from '../src/scene/anatomy/source.ts';
+import { ORGAN_MESHES, setOrganData } from '../src/scene/organs/meshes.ts';
 import { PLACED_EDGE_3D, PLACED_NODE_3D } from '../src/scene/anatomy/placed-network.ts';
 
 const nodeIds = new Set((NODES as { id: string }[]).map((n) => n.id));
@@ -152,7 +153,14 @@ test('the vessels lie in one plane through the organs, not in front of them: eve
   const zr = (id: string) => { const [pb, nv] = M.organs[id]!, q = new Int16Array(buf, pb, nv * 3); let lo = Infinity, hi = -Infinity; for (let i = 0; i < nv; i++) { const z = q[i * 3 + 2]! / M.q; lo = Math.min(lo, z); hi = Math.max(hi, z); } return { lo, hi }; };
   const zs = Object.entries(TIER_Z).filter(([k]) => k !== 'fwd').map(([, z]) => z);
   for (const id of ['liver', 'heart', 'kidney-l', 'stomach']) { const r0 = zr(id), r = { lo: r0.lo + ORGAN_Z[id]!, hi: r0.hi + ORGAN_Z[id]! }; for (const t of Object.entries(TIER_Z).filter(([k]) => k !== 'fwd')) assert.ok(t[1] > r.lo && t[1] < r.hi, `${t[0]} (${t[1]}) is inside ${id} (${r.lo} to ${r.hi})`); }
-  { const r0 = zr('spleen'), z = NZ.get('SPL')!; assert.ok(z > r0.lo + ORGAN_Z.spleen! && z < r0.hi + ORGAN_Z.spleen!, 'the splenic vein starts inside the spleen'); }
+  if (!PLACED) { const r0 = zr('spleen'), z = NZ.get('SPL')!; assert.ok(z > r0.lo + ORGAN_Z.spleen! && z < r0.hi + ORGAN_Z.spleen!, 'the splenic vein starts inside the spleen'); }
+  else {
+    // (restated for the placed anatomy, the only one now: the spleen is the placed mesh (organs/placed.ts, moved and re-inflated), not the file's relief at ORGAN_Z, so the splenic vein's
+    // first point, at the SPL node's depth, is inside the placed spleen's box in all three axes)
+    setOrganData(buf); const g = ORGAN_MESHES.spleen!(); g.computeBoundingBox(); const bb = g.boundingBox!, p = coursesOf(NETWORK_BY_ID.get('V_SPL')!, REST)[0]!.pts[0]!;
+    assert.ok(Math.abs(p[2] - NZ.get('SPL')!) < 1e-9, 'the splenic vein starts at its node\'s depth');
+    assert.ok(p[0] > bb.min.x && p[0] < bb.max.x && p[1] > bb.min.y && p[1] < bb.max.y && p[2] > bb.min.z && p[2] < bb.max.z, 'the splenic vein starts inside the spleen');
+  }
   assert.ok(Math.max(...zs) - Math.min(...zs) <= 0.2, 'one plane: the tiers differ by a crossing only');
   // the paraumbilical vein runs in front of the main portal vein where they cross, by more than both their radii (never through it)
   { const c3 = NETWORK_BY_ID.get('C3')!, pv = NETWORK_BY_ID.get('PV_TRUNK')!, a = coursesOf(c3, REST)[0]!.pts, b = coursesOf(pv, REST)[0]!.pts;
