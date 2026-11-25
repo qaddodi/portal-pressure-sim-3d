@@ -119,7 +119,7 @@ const HEPATIC_WHOLES: ReadonlySet<string> = new Set(['rhv', 'mhv', 'lhv']);
  *  arm of the same node, and the middle hepatic vein lands on the left one's course `trunk` back from where it crosses the cava's wall (the common trunk is the left hepatic vein's tube: a draw-only run-on). */
 export const HV_OSTIA = { node: 'IVCS', host: 'ivc', mouth: 'lhv', joiner: 'mhv', own: 'rhv' } as const;
 /** The common trunk's length, from where the middle hepatic vein meets the left one to the cava's wall, in the left hepatic vein's radii (the anatomy's 1 to 1.5 cm). */
-export const HV_TRUNK_R = 2.5;
+export const HV_TRUNK_R = 3;
 /** The common trunk as drawn: the left hepatic vein's piece, the point where the middle one joins it, and its length to the cava's wall (scene units). Set at load (placed only). */
 export const PLACED_HV_TRUNK: { piece: string; joiner: string; at: V3; length: number } = { piece: 'LHV_IVC', joiner: 'MHV_IVC', at: [0, 0, 0], length: 0 };
 /** The least a branch's arrival is off its host's axis (joinEnd). */
