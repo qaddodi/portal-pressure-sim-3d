@@ -16,6 +16,7 @@ import { figureWaiting } from '../../deck/figure-pending.ts';
 import { beatCardWaiting } from '../../tests/slide/beat-agree.ts';
 import { menuWaiting } from '../../charts/menu/MenuCard.tsx';
 import { drawScreen } from '../../capture/capture.ts';
+import { cardBoxes } from './card-boxes.ts';
 import { speedAnimations, sampleRealMs, skipAnimations, finishAnimations } from './speed.ts';
 import { evRunPending } from '../../charts/evgraph/live.ts';
 import { captureViews, CHOICE_SEL, CHOICE_ON_SEL, CHOICE_MAX, CHOICE_ROOTS, pressable, choiceName, collageLayout, settleLimitMs, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
@@ -216,7 +217,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
           drawn.canvas.width = 0; drawn.canvas.height = 0;   // (let the big picture go before the next)
           drawMs += new Date().getTime() - t1;
           const base = view ? `${base0}-${view}` : base0;
-          const meta = enc.encode(JSON.stringify({ deck: d.id, deckTitle: d.title, stop: k + 1, step: sub + 1, of: stops, beat: p.beat + 1, page: useUi.getState().page, title, ...(view ? { card: view } : {}), ...(choice ? { choice } : {}), ...drawn.record }, null, 1));
+          const meta = enc.encode(JSON.stringify({ deck: d.id, deckTitle: d.title, stop: k + 1, step: sub + 1, of: stops, beat: p.beat + 1, page: useUi.getState().page, title, ...(view ? { card: view } : {}), ...(choice ? { choice } : {}), cards: cardBoxes(document), ...drawn.record }, null, 1));
           encoding.push(jpegP.then((data) => { if (data) put({ name: `${base}.jpg`, data }); }));
           put({ name: `${base}.json`, data: meta });
           thumbs.push({ n: view ? `${n} ${view}` : n, title, img: thumb }); pushed++;
