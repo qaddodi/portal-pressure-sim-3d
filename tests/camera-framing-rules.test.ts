@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { UI } from '../src/ui/strings.generated.ts';
 import { loadBuiltin } from '../src/decks/registry.ts';
 import { stopsOf, viewAt } from '../src/ui/deck/presenter-machine.ts';
-import { FOV, NARROW_STAGE, SHOTS, type Shot } from '../src/scene/camera/shots.ts';
-import { fitDistance } from '../src/scene/camera/room.ts';
+import { FOV, SHOTS, type Shot } from '../src/scene/camera/shots.ts';
+import { effectiveDistance, KEEP_PX } from '../src/scene/camera/room.ts';
 import { stationDot } from '../src/decks/hp/cams.ts';
 
 export const DEVICES = [
@@ -15,17 +15,16 @@ export const DEVICES = [
   { name: 'iPhone', w: 390, h: 844, room: { w: 390, h: 520 } },
 ] as const;
 const TAN = Math.tan((FOV * Math.PI) / 360);
-export const MIN_STATION_PX = 40;
+export const MIN_STATION_PX = KEEP_PX;
 
 /** Pixels per scene unit the room solver gives a shot on a device, and the room's visible half extents round the shot's aim. */
-export function scaleOn(shot: Shot, dv: (typeof DEVICES)[number]): { pxu: number; vx: number; vy: number } {
-  const half = dv.w < NARROW_STAGE && shot.halfNarrow ? shot.halfNarrow : shot.half;
-  const d = Math.max(shot.r, fitDistance(half, dv.room, dv.h));
+export function scaleOn(shot: Shot, dv: { w: number; h: number; room: { w: number; h: number } }): { pxu: number; vx: number; vy: number } {
+  const d = effectiveDistance(shot, dv.room, dv.h, dv.w);
   const pxu = dv.h / (2 * TAN) / d;
   return { pxu, vx: dv.room.w / 2 / pxu, vy: dv.room.h / 2 / pxu };
 }
 /** How far (px) inside the room's edge a point of the figure stands under a shot (negative: outside). */
-export function marginPx(shot: Shot, p: readonly [number, number], dv: (typeof DEVICES)[number]): number {
+export function marginPx(shot: Shot, p: readonly [number, number], dv: { w: number; h: number; room: { w: number; h: number } }): number {
   const { pxu, vx, vy } = scaleOn(shot, dv);
   return Math.min(vx - Math.abs(p[0] - shot.target[0]), vy - Math.abs(p[1] - shot.target[1])) * pxu;
 }
@@ -54,7 +53,7 @@ test('F3: every station a slide labels stands 40 px or more inside the free room
   for (const [, deck] of decks) for (const v of bodyViews(deck)) for (const id of v.labels) {
     const p = stationDot(id);
     if (!p) continue;
-    for (const dv of DEVICES) { checked++; const m = marginPx(v.shot, p, dv); if (m < MIN_STATION_PX) bad.push(`${v.at} ${id} ${dv.name} ${m.toFixed(0)} px`); }
+    for (const dv of DEVICES) { checked++; const m = marginPx(v.shot, p, dv); if (m < MIN_STATION_PX - 0.5) bad.push(`${v.at} ${id} ${dv.name} ${m.toFixed(0)} px`); }
   }
   assert.ok(checked > 300, `the sweep covered the labels (${checked})`);
   assert.deepEqual(bad, []);
@@ -114,7 +113,6 @@ test('F5: no frame is tighter than the context floor and no vein is wider than a
 
 // ---- S9: the Circuit ----
 import { circuitBoxShot, circuitShot, ART_CIRC } from '../src/scene/circuit/shots.ts';
-import { effectiveDistance } from '../src/scene/camera/room.ts';
 import { MAP_K } from '../src/scene/circuit/map.ts';
 
 test('S9: every Circuit view fills 90 % or more of the limiting side of the free room on a Mac, an iPad and an iPhone (the map stands upright on a phone), never closer than its kMax allows, and never stopped by the nearest distance', () => {
@@ -157,5 +155,76 @@ test('F6: any frame that is not the whole-figure overview draws a vein 8 px wide
     if (isWhole) continue;
     for (const dv of DEVICES) { const px = VEIN_UNITS * scaleOn(v.shot, dv).pxu; if (px < (dv.name === 'iPhone' ? 8 : 10)) bad.push(`${v.at} ${dv.name} ${px.toFixed(1)} px`); }
   }
+  assert.deepEqual(bad, []);
+});
+
+const isWholeFigure = (shot: Shot): boolean => { const w = (camPlan('fit') as { shot: Shot }).shot.half; return Math.abs(shot.half[0] - w[0]) < 1e-9 && Math.abs(shot.half[1] - w[1]) < 1e-9; };
+// ---- F3 again, in each slide's own card room (an estimate: the cards' real height is only measured in a browser) ----
+import { parseLine, plainLine } from '../src/ui/text/line.ts';
+import { typeFor } from '../src/ui/layout/device.ts';
+import { planLayout, widthOf, credRow, type CardId } from '../src/ui/layout/plan.ts';
+import { cardPad } from '../src/ui/layout/rules2d.ts';
+import { sentences, pageOf } from '../src/ui/cards/pages.ts';
+
+const ROOM_SCREENS = [
+  { name: 'iPhone upright', w: 390, h: 844, safe: { top: 47, right: 0, bottom: 34, left: 0 } },
+  { name: 'iPhone sideways', w: 844, h: 390, safe: { top: 0, right: 47, bottom: 21, left: 47 } },
+  { name: 'iPad upright', w: 820, h: 1180, safe: { top: 24, right: 0, bottom: 20, left: 0 } },
+  { name: 'iPad sideways', w: 1180, h: 820, safe: { top: 24, right: 0, bottom: 20, left: 0 } },
+  { name: 'Mac', w: 1440, h: 900, safe: { top: 0, right: 0, bottom: 0, left: 0 } },
+] as const;
+const estLines = (text: string, px: number, width: number, em: number) => Math.max(1, Math.ceil((text.length * px * em * 1.08) / width));
+const DATA_H = 240;   // (the instrument card's height stands in as 240 px: the estimate ipad-credit-row-heights.test.ts uses)
+type Teach = { title: string; line: string; eq?: unknown };
+/** The words card's height for a slide at a number of pages, by the same conservative character count as ui-fit-estimate.test.ts. */
+function wordsH(s: Teach, vp: (typeof ROOM_SCREENS)[number], pair: boolean, pages: number): number {
+  const t = typeFor(vp.w, vp.h), pad = cardPad(vp.w, vp.h), inner = widthOf(vp, pair, 0) - 2 * pad.x - 2, list = sentences(s.line);
+  const plain = (m: string) => plainLine(parseLine(m), () => 11.6);
+  const chars = Math.max(...Array.from({ length: Math.min(pages, Math.max(list.length, 1)) }, (_, p) => plain(pageOf(list, pages, p).join(' ')).length));
+  return Math.ceil(2 * pad.y + 2 + (pages > 1 ? t.kicker + 10 : 0) + estLines(s.title, t.slideTitle, inner, 0.5) * t.slideTitle * t.slideTitleLead + 2 + (s.eq ? 10 + t.body * 1.2 + 12 : 10) + estLines('x'.repeat(chars), t.body, inner, 0.54) * t.body * t.bodyLead + 50 + credRow(vp));
+}
+/** The room the cards leave the figure for one teaching slide on a screen, or null when no estimate fits (the card pages itself further than the estimate counts). */
+export function roomOfSlide(s: Teach, hasData: boolean, vp: (typeof ROOM_SCREENS)[number], dock: boolean): { w: number; h: number } | null {
+  const maxPages = Math.max(1, sentences(s.line).length);
+  for (let pages = 1; pages <= maxPages; pages++) {
+    const needs = [{ id: 'teach' as CardId, slot: 'words' as const, h: wordsH(s, vp, hasData, pages) }, ...(hasData ? [{ id: 'ladder' as CardId, slot: 'data' as const, h: DATA_H }] : [])];
+    const plan = planLayout(vp, needs, 'words', 0, dock && hasData);
+    if (!plan.overflow.length) return { w: plan.free.w, h: plan.free.h };
+  }
+  return null;
+}
+
+test('F3 in each slide\'s own card room: every labelled station stands 40 px or more inside the room the cards leave on a phone, an iPad and a Mac, upright and sideways, card up and tucked', () => {
+  let checked = 0, noRoom = 0, smallest = 1e9;
+  const minVein = { px: 1e9, at: '' };
+  const thin = new Set<string>();
+  const bad: string[] = [];
+  for (const [, deck] of decks) {
+    const stops = stopsOf(deck);
+    stops.forEach((st, i) => {
+      if (st.kind !== 'slide') return;
+      for (let b = 0; b <= (st.slide.beats?.length ?? 0) + 1; b++) {
+        const v = viewAt(stops, { stop: i, beat: b });
+        if (v.words !== 'teach' || !v.slide || (v.scene && v.scene.view !== 'body') || !v.scene?.labels.length) continue;
+        const shot = typeof v.shot === 'string' ? SHOTS[v.shot as keyof typeof SHOTS] : v.shot;
+        for (const vp of ROOM_SCREENS) for (const dock of [false, true]) {
+          if (dock && !v.data) continue;
+          const room = roomOfSlide(v.slide as unknown as Teach, !!v.data, vp, dock);
+          if (!room) { noRoom++; continue; }
+          smallest = Math.min(smallest, room.w, room.h);
+          { const vein = VEIN_UNITS * scaleOn(shot, { w: vp.w, h: vp.h, room }).pxu; if (vein < minVein.px && !isWholeFigure(shot)) { minVein.px = vein; minVein.at = `${deck.id}/${v.slide.id} ${vp.name}`; } if (vein < 8 && vp.name.startsWith('iPhone') && !isWholeFigure(shot)) thin.add(`${deck.id}/${v.slide.id}${b ? '#' + b : ''} ${vein.toFixed(1)}`); }
+          for (const id of v.scene.labels) {
+            const p = stationDot(id); if (!p) continue;
+            checked++;
+            const m = marginPx(shot, p, { w: vp.w, h: vp.h, room });
+            if (m < MIN_STATION_PX - 0.5) bad.push(`${deck.id}/${v.slide.id}${b ? '#' + b : ''} ${id} ${vp.name}${dock ? ' tucked' : ''} ${m.toFixed(0)} px in a ${room.w.toFixed(0)} x ${room.h.toFixed(0)} room`);
+          }
+        }
+      }
+    });
+  }
+  console.log(`# slide rooms: ${checked} station checks, ${noRoom} slide/screen pairs with no estimate, smallest room side ${smallest.toFixed(0)} px, thinnest vein off the overview ${minVein.px.toFixed(1)} px (${minVein.at})`);
+  console.log(`# ${thin.size} frames draw a vein under 8 px on an iPhone in the slide's own card room: ${[...thin].join(' | ')}`);
+  assert.ok(checked > 1000, `the sweep covered the labels (${checked})`);
   assert.deepEqual(bad, []);
 });

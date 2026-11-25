@@ -77,6 +77,8 @@ interface Pose { shot: Shot; room: Room }
 
 const copyShot = (s: Shot): Shot => ({ yaw: s.yaw, pitch: s.pitch, r: s.r, target: [...s.target], half: [...s.half], ...(s.roll ? { roll: s.roll } : {}), ...(s.halfNarrow ? { halfNarrow: [...s.halfNarrow] as [number, number] } : {}) });
 /** A blend's narrow-stage extents: only where one of the two shots has its own (a shot without one frames a phone as any other screen). */
+/** The points a move keeps inside the room: the ones of the end it is nearer (the in-flight distance is the even glide between the two ends' own, so only the rest pose reads them). */
+const keepOf = (a: Shot, b: Shot, k: number): { keep?: Shot['keep'] } => { const s = k >= 0.5 ? b : a; return s.keep ? { keep: s.keep } : {}; };
 const narrowOf = (a: Shot, b: Shot, f: (x: number, y: number) => number): { halfNarrow?: [number, number] } => {
   if (!a.halfNarrow && !b.halfNarrow) return {};
   const p = a.halfNarrow ?? a.half, q = b.halfNarrow ?? b.half;
@@ -140,6 +142,7 @@ export function blendPose(a0: Pose, b0: Pose, k: number, arc = 1, z?: ZoomEnds):
       half: [geo(a.shot.half[0], b.shot.half[0], k), geo(a.shot.half[1], b.shot.half[1], k)],
       ...rollOf(a.shot, b.shot, k),
       ...narrowOf(a.shot, b.shot, (x, y) => geo(x, y, k)),
+      ...keepOf(a.shot, b.shot, k),
     },
     // (a move that is not a dive: the room goes with the zoom's share q, as blendDive's does)
     room,
@@ -194,6 +197,7 @@ function blendDive(a: Pose, b: Pose, k: number, arc = 1, z?: ZoomEnds): Pose {
       half: [geo(a.shot.half[0], b.shot.half[0], k), geo(a.shot.half[1], b.shot.half[1], k)],
       ...rollOf(a.shot, b.shot, k),
       ...narrowOf(a.shot, b.shot, (x, y) => geo(x, y, k)),
+      ...keepOf(a.shot, b.shot, k),
     },
     room: (() => { const m = diveRoomShare(a.shot.r, b.shot.r, r); return { x: lerp(a.room.x, b.room.x, m), y: lerp(a.room.y, b.room.y, m), w: lerp(a.room.w, b.room.w, m), h: lerp(a.room.h, b.room.h, m) }; })(),
   };

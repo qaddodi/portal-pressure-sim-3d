@@ -61,7 +61,7 @@ export class CamError extends Error {}
 
 /** FRAMING RULE F3 (Mohammad, 25 Nov, "do it"; docs/approved/framing-rules.md): a slide's frame always takes in every station its labels name, with this much air all round (scene units; 0.13 keeps every station 40 px or more inside the room on a phone, an iPad and a Mac, measured over every talk, tests/camera-framing-rules.test.ts). Root cause of the clipped labels (RHV on Prehepatic 13, RA on Choose 15, VAR on the bleed frame ...): a camera came from the 2D deck's region
  *  box alone and never from what the slide labels, so a station could stand on or past the room's edge. A frame that already holds its stations is returned as it was. */
-export const STATION_AIR = 0.13;
+export const STATION_AIR = 0.05;
 /** Where a station's dot stands at rest in the scene (x, y), or null when it has none: the label controller's own anchor (labels/stations.ts `at` at `u0`), so the frame holds the dot the viewer sees. */
 export function stationDot(id: string): [number, number] | null {
   const st = STATIONS.find((x) => x.id === id);
@@ -70,15 +70,18 @@ export function stationDot(id: string): [number, number] | null {
 }
 export function withStations(shot: Shot, stations: readonly string[]): Shot {
   let x0 = shot.target[0] - shot.half[0], x1 = shot.target[0] + shot.half[0], y0 = shot.target[1] - shot.half[1], y1 = shot.target[1] + shot.half[1], grew = false;
+  const keep: [number, number][] = [];
   for (const n of stations) {
     const at = stationDot(n);
     if (!at) continue;
+    keep.push(at);
     const a = STATION_AIR, sx0 = at[0] - a, sx1 = at[0] + a, sy0 = at[1] - a, sy1 = at[1] + a;
     if (sx0 < x0) { x0 = sx0; grew = true; } if (sx1 > x1) { x1 = sx1; grew = true; }
     if (sy0 < y0) { y0 = sy0; grew = true; } if (sy1 > y1) { y1 = sy1; grew = true; }
   }
-  if (!grew) return shot;
-  return { ...shot, target: [(x0 + x1) / 2, (y0 + y1) / 2, shot.target[2]], half: [(x1 - x0) / 2, (y1 - y0) / 2] };
+  if (!keep.length) return shot;
+  if (!grew) return { ...shot, keep };
+  return { ...shot, target: [(x0 + x1) / 2, (y0 + y1) / 2, shot.target[2]], half: [(x1 - x0) / 2, (y1 - y0) / 2], keep };
 }
 
 /** The camera of a slide, from its `cam` (and `view`) exactly as the 2D deck writes them. Throws on a name neither app has, so none is silently dropped. */
