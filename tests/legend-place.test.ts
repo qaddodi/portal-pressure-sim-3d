@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { LS } from '../src/scene/labels/type.ts';
 
 const shell = readFileSync('src/ui/shell/Shell.tsx', 'utf8'), top = readFileSync('src/ui/shell/TopBar.tsx', 'utf8'), css = readFileSync('src/ui/shell/shell.css', 'utf8');
-const css2d = readFileSync('src/ui/css2d/app-01-chrome.css', 'utf8');
+const css2d = readFileSync('src/ui/styles/app-01-chrome.css', 'utf8');
 
 test('the legend is in the top bar\'s lens pill and nowhere at the foot of the figure', () => {
   assert.ok(!/<Legend|<LensKey/.test(shell) && !/sh-key\b/.test(shell + css), 'no legend over the play bar');

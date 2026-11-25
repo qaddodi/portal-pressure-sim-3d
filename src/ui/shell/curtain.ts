@@ -1,5 +1,5 @@
 // The talk's start cover (2D presenter-start.js coverUp / coverDown): "Preparing the slides", a calm dimming of the screen while the layout, the first patient and the first slide are set up
-// under it. It fades in, everything is made ready behind it, and it fades away once the first slide has landed. Its look is 2D's own (`.pz-cover`, css2d/app-08-cards.css); while it is up
+// under it. It fades in, everything is made ready behind it, and it fades away once the first slide has landed. Its look is 2D's own (`.pz-cover`, styles/app-08-cards.css); while it is up
 // `html.pz-covered` keeps the slide's cards unseen under it, so their words are never seen coming in. Never left up: it gives itself up after COVER_MAX_MS.
 import { D_SMALL, D_SURFACE, fadeMs } from '../a11y/motion.ts';
 import { W } from '../deck/words.ts';

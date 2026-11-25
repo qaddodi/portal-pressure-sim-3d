@@ -11,7 +11,7 @@ import { CHART_KINDS } from '../src/ui/charts/kinds.ts';
 import { CHARTS } from '../src/ui/charts/registry.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-// (an import or re-export statement at the start of a line; comments are not stripped: a "/*" inside a path in a comment, like css2d/*.css, would swallow the imports after it)
+// (an import or re-export statement at the start of a line; comments are not stripped: a "/*" inside a path in a comment, like styles/*.css, would swallow the imports after it)
 const STATIC = /^[ \t]*(?:import|export)\s+(?!type\b)(?:[^'"()]*?\sfrom\s*)?['"]([^'"]+)['"]/gm;
 
 /** Every source file reached from `entry` by static imports, with the file that first imported it. */

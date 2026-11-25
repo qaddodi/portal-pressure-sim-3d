@@ -35,5 +35,5 @@ test('every placed card and strip lies inside the screen, for any data height, d
 test('the strip keeps its full width against the 2D phone rule (width: auto !important)', () => {
   const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
   assert.match(css, /\.deck-ui\.pz \.dk-strip\.pz-shade \{[^}]*width: 100% !important/);
-  assert.match(readFileSync(new URL('../src/ui/css2d/app-05-presenter-cards.css', import.meta.url), 'utf8'), /\.pz-shade\.stack \{[^}]*width: auto !important/);
+  assert.match(readFileSync(new URL('../src/ui/styles/app-05-presenter-cards.css', import.meta.url), 'utf8'), /\.pz-shade\.stack \{[^}]*width: auto !important/);
 });

@@ -202,7 +202,7 @@ html.thumb-ui .sh-toast { left: 50%; width: min(440px, calc(100vw - 24px)); }
 .sh-root :where(.sh-ic) { flex: none; }
 .sh-chev { width: 16px; height: 16px; color: var(--text-3); transition: rotate var(--d-small) var(--ease-arrive); }
 [aria-expanded="true"] > .sh-chev, [aria-expanded="true"] .sh-chev { rotate: 180deg; }
-/* The always-on chrome (top bar, view pill, dock, zoom group, credit, frame rate) is the 2D app's own markup and stylesheets (src/ui/css2d, copied unchanged); chrome-3d.css only lays them over the canvas. */
+/* The always-on chrome (top bar, view pill, dock, zoom group, credit, frame rate) is the 2D app's own markup and stylesheets (src/ui/styles); chrome-3d.css only lays them over the canvas. */
 .sh-pop { position: fixed; }
 
 /* 2D hides the credit while a message stands at the foot (app-01-chrome.css: #toastsFoot > .toast): its frost is in the figure's canvas, so the credit read through the note. The same here, for the note this shell shows (phone play-test, 20 Nov: the credit under the hint). */

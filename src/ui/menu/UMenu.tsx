@@ -1,5 +1,5 @@
 // The main menu on the 2D app's own markup and class names (menu.js build / sections / deckRow / patientRow): `.umenu` with `.um-grab`, `.um-top` (the search field and the close
-// button), `.um-tabs`, `.um-cols` holding the Present and Patients lists, `.um-empty` and `.um-foot`. Its stylesheet is 2D's (src/ui/css2d), copied unchanged. A popover under the menu
+// button), `.um-tabs`, `.um-cols` holding the Present and Patients lists, `.um-empty` and `.um-foot`. Its stylesheet is 2D's (src/ui/styles). A popover under the menu
 // button from 768 px, a bottom sheet with a scrim on the stacked layout (STACK_MQ). It is in the page only while open and leaves by `.out`. A row opens a talk or a patient; the ⓘ
 // opens the preview under it (`.um-inline`), and a mouse that rests on a row shows the same preview beside the panel (`.um-pv`).
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';

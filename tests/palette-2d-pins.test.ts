@@ -1,4 +1,4 @@
-// 2D's colours the figure paints with, held against the 2D app's own tokens (src/ui/css2d/tokens.css is the copy the app ships): the ground the renderer clears to, the ascites' straw, the vessels'
+// 2D's colours the figure paints with, held against the 2D app's own tokens (src/ui/styles/tokens.css is the copy the app ships): the ground the renderer clears to, the ascites' straw, the vessels'
 // casing and light rim. A number that drifts from the tokens fails here, not on a phone.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +11,7 @@ import { ASCITES_INK, AscitesLayer, DEEP_AT, POOL_ROWS, ROW_DEPTHS, SURFACE_SHAR
 import { CASING, CASING_2D, RIM_A, RIM_INK } from '../src/scene/vessels/cel-ink.ts';
 import { CEL_STYLE } from '../src/scene/cel-style.ts';
 
-const css = readFileSync(new URL('../src/ui/css2d/tokens.css', import.meta.url), 'utf8');
+const css = readFileSync(new URL('../src/ui/styles/tokens.css', import.meta.url), 'utf8');
 /** The text of every block whose header line is `header {`. */
 function blocks(header: string): string[] {
   const lines = css.split('\n'), out: string[] = [];

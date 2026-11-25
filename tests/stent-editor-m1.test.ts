@@ -11,7 +11,7 @@ const editorCss = read('src/ui/action/stent/stent-editor.css');
 const panel = read('src/ui/action/stent/StentPanel.tsx');
 const actionCss = read('src/ui/action/action.css');
 const stentCss = read('src/ui/charts/stent/stent.css');
-const plate = read('src/ui/css2d/app-06-plate.css');
+const plate = read('src/ui/styles/app-06-plate.css');
 const rules = (src: string) => [...src.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1]!.trim(), body: m[2]! }));
 const bodyOf = (src: string, sel: string): string => rules(src).filter((r) => r.sel === sel).map((r) => r.body).join(' ');
 
@@ -61,9 +61,9 @@ test('what stands below the open row rides to its place and the editor fades up:
   assert.doesNotMatch(panel, /\.animate\(\[\{ ?(height|width|top|left)/);
 });
 
-test('the 2D tile rules stay byte for byte in css2d and no 3D markup uses their class names', () => {
-  assert.match(plate, /\.stent-editor \.se-row \{/);
-  const walk = (d: string): string[] => readdirSync(d).flatMap((n) => { const f = join(d, n); return statSync(f).isDirectory() ? (n === 'css2d' ? [] : walk(f)) : /\.(tsx|ts|css)$/.test(n) ? [f] : []; });
+test('the 2D tile rules are gone from src/ui/styles and no 3D markup uses their class names', () => {
+  assert.doesNotMatch(plate, /\.se-row\b/, 'the 2D tile rules are gone from the base sheet: nothing in 3D makes their classes');
+  const walk = (d: string): string[] => readdirSync(d).flatMap((n) => { const f = join(d, n); return statSync(f).isDirectory() ? (n === 'styles' ? [] : walk(f)) : /\.(tsx|ts|css)$/.test(n) ? [f] : []; });
   for (const f of walk('src/ui')) {
     if (/\.copied\./.test(f)) continue;
     const src = readFileSync(f, 'utf8');

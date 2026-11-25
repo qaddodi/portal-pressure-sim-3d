@@ -151,7 +151,6 @@
 .fr-rv > b, .fr-val b { font-size: var(--fs-16); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); }
 .fr-val { display: inline-flex; align-items: baseline; gap: 4px; justify-content: flex-end; }
 .fr-val em { font-style: normal; font-size: var(--fs-12); color: var(--text-3); }
-.fr-unk { font-size: var(--fs-14); color: var(--text-3); }
 .fr-rv[data-s="derived"] .fr-val b { color: var(--text-2); font-weight: 500; }
 .fr-rv[data-s="off"] .fr-val b { color: var(--text-3); text-decoration: line-through; text-decoration-thickness: 1px; }
 .fr-chev { width: 7px; height: 7px; justify-self: end; border-top: 1.5px solid var(--text-3); border-right: 1.5px solid var(--text-3); transform: rotate(45deg); }

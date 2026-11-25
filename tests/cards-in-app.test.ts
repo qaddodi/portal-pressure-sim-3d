@@ -18,7 +18,7 @@ test('the Tests dock is a child of .app (Shell.tsx), the Treat card and the acti
 });
 
 test('the sheet that shows the dock is written with .app as its ancestor, which is why the dock must be in it', () => {
-  const css = readdirSync(new URL('../src/ui/css2d', import.meta.url)).filter((f) => f.endsWith('.css')).map((f) => read(`src/ui/css2d/${f}`)).join('\n');
+  const css = readdirSync(new URL('../src/ui/styles', import.meta.url)).filter((f) => f.endsWith('.css')).map((f) => read(`src/ui/styles/${f}`)).join('\n');
   assert.match(css, /\.app\.dock-open \.instrument-workspace \{ display: flex; \}/);
 });
 

@@ -16,7 +16,7 @@ function* css(dir: URL): Generator<{ path: string; text: string }> {
 test('no stylesheet resets a card\'s buttons with a selector that outranks a single class (font: inherit, color: inherit)', () => {
   const bad: string[] = [];
   for (const { path, text } of css(new URL('../src/ui/', import.meta.url))) {
-    if (path.includes('/css2d/')) continue;   // (2D's own sheets are copied as they are)
+    if (path.includes('/styles/')) continue;   // (2D's own sheets are copied as they are)
     for (const m of text.matchAll(/^([^{}\n]+)\{([^{}]*)\}/gm)) {
       const sel = m[1]!.trim(), body = m[2]!;
       if (!/(^|;|\s)(font|color): inherit/.test(body) || !/cursor: pointer/.test(body)) continue;   // the reset shape: font, colour and cursor together

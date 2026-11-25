@@ -1,4 +1,4 @@
-/* The only CSS of ours the lifted 2D chrome needs: it sits over the 3D canvas instead of the 2D figure. The 2D stylesheets (src/ui/css2d) are copied unchanged and style everything else. */
+/* The only CSS of ours the lifted 2D chrome needs: it sits over the 3D canvas instead of the 2D figure. The base stylesheets (src/ui/styles) style everything else. */
 :root { --pps-mark: url("../brand/icons/mark.png"); }
 /* The brand mark is a bitmap on its own tile (2D index.html's inline style: `.boot-mark, .brand-mark { background-image: var(--pps-mark) … }`). 3D's index.html has no such rule, so the
    top bar's mark was only its background colour (--brand-bg): a solid dark square. The url sits in this stylesheet so it resolves against it (a custom property's url() resolves where it is used). */

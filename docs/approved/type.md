@@ -11,7 +11,7 @@
 - **Symbols are Inter's own:** `→ ← ≥ ≤ ≈ ≠ ▲ ▼ ✓ ⌘ ⌥ ⇧ ⁴ ₂ √ ∞` come from `inter-symbols.woff2` and `source-serif-4-symbols.woff2` (cut from Inter 4.1 and Source Serif 4.005), so they are never drawn in Arial. The first card waits for them (`src/boot/fonts.ts`).
 - **Floor 12 px** for any text. Fitted data cards shrink to 12 where that fits them; where even 12 leaves the card taller than its room (Recompensation 7 on an iPhone, 24 Nov) the half-size last resort of 2D's dataFloor applies, so no row is ever cut off. Other text never shrinks below it.
 
-## The sheet ladder (dock, sheets, menus, History, Histories, Settings, toasts, dialogs and the dense tool cards: Over time, Treat, stent). Tokens in `global.css` and `css2d/tokens.css`.
+## The sheet ladder (dock, sheets, menus, History, Histories, Settings, toasts, dialogs and the dense tool cards: Over time, Treat, stent). Tokens in `global.css` and `styles/tokens.css`.
 
 | Role | Face, weight | Token | Mac | iPad | iPhone, both ways |
 |---|---|---|---|---|---|
@@ -34,8 +34,8 @@ Title (serif 540), Body, Data, Kicker, Big number. At 1440 x 900: 49.9 / 20.8 / 
 - A second serif size or a serif on buttons, words and numbers.
 
 ## Never
-- Add a stylesheet that the walk in `tests/type-vocabulary.test.ts` skips, or weaken it. It finds every `src/**/*.css` we own (not `css2d/`, `*.copied.*`, `*.generated.*`, debug, parity, perf) and the weights and tracking written in TS.
-- Edit the 2D copy (`css2d/`) to match: it keeps 2D's own values (700 in places, its trackings, 540 titles).
+- Add a stylesheet that the walk in `tests/type-vocabulary.test.ts` skips, or weaken it. It finds every `src/**/*.css` we own (not `styles/`, `*.copied.*`, `*.generated.*`, debug, parity, perf) and the weights and tracking written in TS.
+- Edit the 2D copy (`styles/`) to match: it keeps 2D's own values (700 in places, its trackings, 540 titles).
 - Take away the step numeral's 700, or the deck title's 540.
 
 

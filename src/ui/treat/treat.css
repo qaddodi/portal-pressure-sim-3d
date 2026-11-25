@@ -1,5 +1,5 @@
 /* The Treat card is the 2D app's own markup (.treat-card.has-plate, .sheet-plate, .tc-head.card-head, .instr-tabs.treat-tabs, .treat-pane, .tc-body, .order-chip, .order-btn, .section.chart-sec,
-   .chg, .tcp-row, .tc-page): the 2D stylesheets (src/ui/css2d, copied unchanged) style all of it. This file is only what the 3D page adds, in four places:
+   .chg, .tcp-row, .tc-page): the 2D stylesheets (src/ui/styles) style all of it. This file is only what the 3D page adds, in four places:
    1. the card stays in the page and fades in and out (nothing pops): its paper (the sheet plate, which wears the one glass, glass.css) and its words fade, never the card itself, so the glass blurs
       while it fades (an ancestor with an opacity under 1 is a backdrop root and would end the blur);
    2. the 2D rules that sit under `.app.thumb` (the sheets are outside #app here): a phone or an upright iPad's sheet over the dock, Half to Full by its words, Full while the Changes page stands;

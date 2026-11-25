@@ -279,7 +279,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
     const t = clock.after(() => onGone(entry.key), RAIL_MS + 500);
     return () => clock.cancel(t);
   }, [leave, entry.key, onGone]);
-  // the 2D app's own classes (src/ui/css2d): the words' card is its glass `pz-shade` with `pz-text` inside; the data card is `pz-data`
+  // the 2D app's own classes (src/ui/styles): the words' card is its glass `pz-shade` with `pz-text` inside; the data card is `pz-data`
   const lay = layoutOf(vp.w, vp.h), stackCls = lay === 'stack' ? ' stack' : lay === 'tab' ? ' stack tab' : '';
   // the outline, the quick check and a case stand alone in the middle on 2D's own surfaces (`.pz-panel`, `.pz-case.on`); every other card is glass
   const alone = centredKind(entry.id);

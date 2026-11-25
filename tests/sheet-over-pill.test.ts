@@ -15,5 +15,5 @@ test('every sheet that rises over the dock puts the view pill away; the popovers
   for (const f of ['src/ui/shell/TopBar.tsx', 'src/ui/shell/FigureMenu.tsx']) assert.ok(!/place="above"/.test(readFileSync(f, 'utf8')), `${f}: a popover above its button must be in SHEETS_OVER_PILL`);
   const src = readFileSync('src/ui/shell/Shell.tsx', 'utf8');
   assert.match(src, /sheetUp \? ' menu-sheet-open' : ''/);
-  assert.match(readFileSync('src/ui/css2d/app-10-thumb-dock.css', 'utf8'), /\.menu-sheet-open\) \.vdock:not\(\.mini\) > \.nb-views,/);
+  assert.match(readFileSync('src/ui/styles/app-10-thumb-dock.css', 'utf8'), /\.menu-sheet-open\) \.vdock:not\(\.mini\) > \.nb-views,/);
 });

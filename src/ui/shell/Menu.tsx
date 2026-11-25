@@ -1,7 +1,7 @@
 // The 2D app's menu, on its own markup and class names (util.js popover, menuItem, menuSection and main.js menuToggle): `.menu.app-menu` holding `.menu-group` > `.menu-title` and
 // `.menu-item` / `.lens.lens-opt` rows. A popover under (or over) the button that opened it, or a bottom sheet with a head and a scrim on the stacked layout (STACK_MQ).
 // It is in the page only while open: it comes in on the 2D stylesheet's own entrance (slide-from-edge / scale-settle), and leaves by `.leaving`, then goes. Its stylesheet is the 2D app's
-// (src/ui/css2d), copied unchanged; nothing here styles it. The frost is the one glass (glass.css).
+// (src/ui/styles); nothing here styles it. The frost is the one glass (glass.css).
 import { useSheetSwipe } from './use-sheet-swipe.ts';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';

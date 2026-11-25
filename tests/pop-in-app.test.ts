@@ -11,7 +11,7 @@ test('Anchored mounts its popover in #app, not beside its button', () => {
   assert.match(src, /import \{ InApp \} from '\.\/InApp\.tsx'/);
 });
 test('the Mac dock is centred with a transform (why a popover inside it cannot be fixed to the screen), and #app has none', () => {
-  const css = readFileSync('src/ui/css2d/app-10-thumb-dock.css', 'utf8');
+  const css = readFileSync('src/ui/styles/app-10-thumb-dock.css', 'utf8');
   assert.match(css, /\.vdock \{ left: 50%; right: auto; transform: translateX\(-50%\); \}/);
   const chrome = readFileSync('src/ui/shell/chrome-3d.css', 'utf8') + readFileSync('src/ui/shell/shell.css', 'utf8');
   assert.doesNotMatch(chrome, /(^|\n)\s*(\.sh-root > )?(#app|\.app)\s*\{[^}]*(transform|filter|contain)\s*:/);

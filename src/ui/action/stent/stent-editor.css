@@ -1,4 +1,4 @@
-/* (src/ui/action/stent/stent-editor.css: the 3D app's own stylesheet for the stent editor's rows, so the 2D tile rules (css2d/app-06-plate.css .se-row, .se-panel, which stay byte for byte) do not apply to it.) */
+/* (src/ui/action/stent/stent-editor.css: the 3D app's own stylesheet for the stent editor's rows, so the 2D tile rules (styles/app-06-plate.css .se-row, .se-panel, which stay as they are) do not apply to it.) */
 /* The stent editor, layout M1 (owner, 22 Nov 2026: /mnt/project-files/visual-mocks/tips-card/M1-dark-min.png, M1-light-min.png). Plain ruled rows, no tiles: the name at the left, the value and its one small
    line at the right, a chevron; a hairline over each row. The open row's name takes the accent and its chevron turns up, and its controls stand indented right under it, no band, no margin line, no
    underline; a two-way choice is told by weight (the chosen word is heavier and darker), Done is plain accent words. The card's actions stay under it. The type is the app's own (12 and 16 px).

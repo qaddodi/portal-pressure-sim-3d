@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { layoutOf, padding, cardPad } from '../src/ui/layout/rules2d.ts';
 
-const css = readFileSync('src/ui/css2d/app-04-presenter.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+const css = readFileSync('src/ui/styles/app-04-presenter.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 const VIEWPORTS: [number, number][] = [[320, 568], [360, 640], [390, 844], [430, 932], [744, 1133], [820, 1180], [1024, 1366], [1180, 820], [1366, 1024], [1440, 900], [667, 375], [844, 390]];
 const TS = [1, 1.15, 1.3];
 

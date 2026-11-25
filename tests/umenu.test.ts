@@ -40,7 +40,7 @@ test('every patient group has its words', () => {
 
 test('the main menu is on 2D\'s .umenu markup and the old sh-* menu is gone', () => {
   const menu = src('src/ui/menu/UMenu.tsx');
-  const css = ['app-07-floating', 'app-02-controls', 'app-03-layouts'].map((f) => src(`src/ui/css2d/${f}.css`)).join('\n');
+  const css = ['app-07-floating', 'app-02-controls', 'app-03-layouts'].map((f) => src(`src/ui/styles/${f}.css`)).join('\n');
   for (const c of ['umenu', 'um-grab', 'um-top', 'um-search', 'um-q', 'um-x', 'um-tabs', 'um-tab', 'um-cols', 'um-col', 'um-g', 'um-gl', 'um-row', 'um-t', 'um-m', 'um-info', 'um-inline', 'um-foot', 'um-esc', 'um-empty', 'um-link', 'um-pv', 'um-scrim']) {
     assert.ok(menu.includes(c) || c === 'um-scrim' && menu.includes('um-scrim'), `${c} in the menu markup`);
     assert.ok(new RegExp(`\\.${c}\\b`).test(css), `.${c} is in 2D's stylesheet`);
@@ -52,7 +52,7 @@ test('the main menu is on 2D\'s .umenu markup and the old sh-* menu is gone', ()
 
 test('History and Help are pages pushed inside Settings, on 2D\'s .menu-page markup', () => {
   const pop = src('src/ui/shell/Menu.tsx'), settings = src('src/ui/settings/SettingsSheet.tsx');
-  const css = src('src/ui/css2d/app-02-controls.css');
+  const css = src('src/ui/styles/app-02-controls.css');
   for (const c of ['menu-root', 'menu-page', 'menu-back', 'pushed']) { assert.ok(pop.includes(c), `${c} in the menu markup`); assert.ok(new RegExp(`\\.${c}\\b`).test(css), `.${c} is in 2D's stylesheet`); }
   assert.ok(/push\('history'\)/.test(settings) && /push\('help'\)/.test(settings), 'the History and Help rows push a page');
   assert.ok(!/runFeature\('history'/.test(settings) && !/sheet: 'help'/.test(settings), 'neither closes Settings to open its own sheet');

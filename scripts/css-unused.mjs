@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Which rules of the built stylesheet style something the app never makes: a rule is DEAD when a class or id in its selector is named nowhere in src/, public/ or index.html (a literal, a template
 // string and a dash-prefix built at run time, `'row-' + x`, all count as naming it). `node scripts/css-unused.mjs [dist/assets/<name>.css]` (no argument: every stylesheet in dist/assets) prints the share; `--write` rewrites the file without the dead rules.
-// scripts/build.mjs runs it with --write on the built file, so the 2D stylesheets in src/ui/css2d (copied byte for byte, tests/css2d-copy.test.ts) are never edited and the source stays whole.
+// scripts/build.mjs runs it with --write on the built file, so the base stylesheets in src/ui/styles carry only rules for what the app makes (`node scripts/css-unused.mjs` with no --write reports any that are dead again).
 import { readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';

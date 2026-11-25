@@ -58,7 +58,7 @@ test('the Protein legend: 2D\'s own look, only while the sinusoid is the view, i
   assert.equal(legendOn('sinusoid', true), true);
   for (const [v, d] of [['sinusoid', false], ['lobule', true], ['body', true]] as const) assert.equal(legendOn(v, d), false);
   assert.ok(Math.abs(FACE_UM - 9.2) < 1e-9);
-  const css = readFileSync(new URL('../src/ui/css2d/app-03-layouts.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/ui/styles/app-03-layouts.css', import.meta.url), 'utf8');
   assert.match(css, /\.sv-legend i\.alb \{ width: 8px; height: 8px; background: var\(--albumin\)/);
   const comp = readFileSync(new URL('../src/scene/sinusoid/ProteinLegend.tsx', import.meta.url), 'utf8');
   assert.match(comp, /className="alb"/); assert.match(comp, /getElementById\('stageTop'\)/); assert.match(comp, /Protein/);

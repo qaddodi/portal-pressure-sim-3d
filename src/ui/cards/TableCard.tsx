@@ -1,6 +1,6 @@
-// The summary table (the 2D `visual: 'table'`), drawn as the 2D app draws it (presenter.js summaryTable, its own stylesheet lifted into css2d: `.pz-table`): ONE heading row, a row per patient
+// The summary table (the 2D `visual: 'table'`), drawn as the 2D app draws it (presenter.js summaryTable, its own stylesheet in src/ui/styles: `.pz-table`): ONE heading row, a row per patient
 // (its site's heading over its name), and in each cell the arrow against normal (or against the row it is compared with) in the colour that goes with it, and no number: the numbers are
-// the reference row's (the anchor for the arrows) and the words a screen reader and a long press hear. On a phone each row is one line of a grid (css2d: `.pz-table tr`). Every cell is computed by
+// the reference row's (the anchor for the arrows) and the words a screen reader and a long press hear. On a phone each row is one line of a grid (styles: `.pz-table tr`). Every cell is computed by
 // table-model.ts from the 2D app's own cut-offs. A row's finding (its `note`) is one quiet line under its name, never a row of its own (the approved one-line-per-case layout, docs/approved/comparison-table.md). A row that names a slide opens that slide. Text keeps its size and nothing scrolls inside the card.
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Deck, Slide } from '../../decks/schema.ts';
@@ -13,7 +13,7 @@ import { WaveCell } from './WaveCell.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
 import { turnHeads } from './table-heads.ts';
 
-/** 2D's purpose-drawn arrow (css2d `.pz-arr`): one arrow, two, or the level dash for a cell within normal. */
+/** 2D's purpose-drawn arrow (styles `.pz-arr`): one arrow, two, or the level dash for a cell within normal. */
 export const Arrow = ({ n }: { n: number }) => {
   const m = Math.abs(n);
   return <span className={`pz-arr${n < 0 ? ' dn' : ''}${n === 0 ? ' zero' : ''}${m === 2 ? ' two' : ''}`} aria-hidden="true"><i className="pz-ag">{Array.from({ length: Math.max(1, m) }, (_, k) => <i key={k} />)}</i></span>;

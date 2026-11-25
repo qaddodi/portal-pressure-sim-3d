@@ -23,6 +23,6 @@ test('on a phone the keyboard moves the sheet: --pal-kb, --pal-vh and --pal-room
   const s = readFileSync('src/ui/search/SearchSheet.tsx', 'utf8');
   assert.match(s, /vv\?\.addEventListener\('resize', fit\); vv\?\.addEventListener\('scroll', fit\)/);
   for (const v of ['--pal-kb', '--pal-vh', '--pal-room']) assert.ok(s.includes(v), v);
-  const css = readFileSync('src/ui/css2d/app-03-layouts.css', 'utf8');
+  const css = readFileSync('src/ui/styles/app-03-layouts.css', 'utf8');
   assert.match(css, /var\(--pal-kb, 0px\)/); assert.match(css, /var\(--pal-vh, 100svh\)/); assert.match(css, /var\(--pal-room, 100svh\)/);
 });

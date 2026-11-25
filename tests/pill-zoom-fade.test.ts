@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 
 const deck = readFileSync('src/ui/deck-ui.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 const glass = readFileSync('src/ui/glass.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-const pres2d = readFileSync('src/ui/css2d/app-05-presenter-cards.css', 'utf8');
+const pres2d = readFileSync('src/ui/styles/app-05-presenter-cards.css', 'utf8');
 const talk = readFileSync('src/ui/shell/talk.ts', 'utf8');
 const UP = 'body\\[data-card-zoom\\]:not\\(\\[data-card-zoom="back"\\]\\)';
 const rule = (src: string, sel: RegExp) => { const m = sel.exec(src); assert.ok(m, String(sel)); return m![1]!; };

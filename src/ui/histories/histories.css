@@ -1,5 +1,5 @@
 /* The Histories tab of the menu (look B): the third list beside Present and Patients, a row with the patient's state under its name, and the card with its small course.
-   The 2D app's menu stylesheet (css2d/app-07-floating.css) knows two lists; these are the rules for the third. */
+   The 2D app's menu stylesheet (styles/app-07-floating.css) knows two lists; these are the rules for the third. */
 .umenu[data-tab="histories"] .um-col[data-col="present"], .umenu[data-tab="histories"] .um-col[data-col="patients"],
 .umenu[data-tab="present"] .um-col[data-col="histories"], .umenu[data-tab="patients"] .um-col[data-col="histories"] { display: none; }
 .um-t .um-sub { display: block; margin-top: 2px; font-size: var(--fs-12); line-height: 1.35; color: var(--text-2); }

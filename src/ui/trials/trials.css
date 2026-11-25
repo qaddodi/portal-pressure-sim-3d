@@ -1,4 +1,4 @@
-/* The Trials pane is laid out by 2D's own stylesheet (css2d/tests-card.css: .trials-view .tr-hd .tr-sec .tr-fold .tr-fh .tr-chips .tr-chip .tr-row .tr-l1 .tr-nm .tr-rs .tr-l2 .tr-why .tr-pips .tr-exp .tr-rules
+/* The Trials pane is laid out by 2D's own stylesheet (styles/tests-card.css: .trials-view .tr-hd .tr-sec .tr-fold .tr-fh .tr-chips .tr-chip .tr-row .tr-l1 .tr-nm .tr-rs .tr-l2 .tr-why .tr-pips .tr-exp .tr-rules
    .tr-rule .tr-model .tr-bav .tr-src) on 2D's own markup (TrialsPane.tsx builds the nodes 2D's trials-pane.js builds). This file once held a second, different stylesheet for the same rows (upper-case fold
    heads, 44 px chips, round-cornered rows, a rules list), which won over 2D's: the folds read as small caps with a right chevron and no chips, and the rows looked nothing like 2D's, 20 Nov 2026. It holds
    only what 2D does with script: the Model line's words come in with a fade (2D swapFade). */

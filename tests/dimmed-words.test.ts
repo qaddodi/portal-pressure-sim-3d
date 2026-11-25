@@ -8,7 +8,7 @@ import { contrast } from '../src/ui/debug/contrast.ts';
 const css = (f: string) => readFileSync(new URL(`../src/ui/${f}`, import.meta.url), 'utf8');
 
 test('--text-3 and --text-2 read at 4.5:1 or more on every surface of every look (the colour that stands in for a dimmed word)', () => {
-  const blocks = [...css('css2d/tokens.css').matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+  const blocks = [...css('styles/tokens.css').matchAll(/([^{}]+)\{([^{}]*)\}/g)];
   let looks = 0;
   for (const [, , body] of blocks) {
     const t3 = /--text-3\s*:\s*(#[0-9A-Fa-f]{6})/.exec(body!)?.[1], t2 = /--text-2\s*:\s*(#[0-9A-Fa-f]{6})/.exec(body!)?.[1];

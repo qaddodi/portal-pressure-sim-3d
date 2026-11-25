@@ -1,4 +1,4 @@
-// The dock (play bar and key readouts) is the 2D timeline's markup under the 2D stylesheets themselves (src/ui/css2d, copied byte for byte): the class names, the structure
+// The dock (play bar and key readouts) is the 2D timeline's markup under the 2D stylesheets themselves (src/ui/styles): the class names, the structure
 // and the numbers of app-07-floating.css, app-08-cards.css and app-09-tests.css (the later file wins). The numbers are looked up in the copied 2D CSS (and in the 2D checkout when PPS_2D_REPO is set).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,7 +8,7 @@ import { join } from 'node:path';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const FILES = ['app-07-floating.css', 'app-08-cards.css', 'app-09-tests.css'];
-const css = FILES.map((f) => readFileSync(join(root, 'src/ui/css2d', f), 'utf8')).join('\n');
+const css = FILES.map((f) => readFileSync(join(root, 'src/ui/styles', f), 'utf8')).join('\n');
 const tsx = readFileSync(join(root, 'src/ui/shell/Dock.tsx'), 'utf8') + readFileSync(join(root, 'src/ui/shell/PlayBar.tsx'), 'utf8');   // (the dock's frame first, then the row and the strip it holds)
 const two = process.env.PPS_2D_REPO;
 
@@ -31,7 +31,7 @@ test('the dock keeps the 2D numbers (in the copied 2D stylesheets)', () => {
 
 test('the dock keeps the 2D numbers in the 2D CSS too (needs PPS_2D_REPO)', { skip: !two || !existsSync(join(two ?? '', 'styles')) }, () => {
   const all = FILES.map((f) => readFileSync(join(two!, 'styles', f), 'utf8')).join('\n');
-  for (const [what, , theirs] of NUMBERS) assert.match(all, theirs, `the 2D CSS no longer says: ${what}; re-copy it (node scripts/copy-2d-css.mjs)`);
+  for (const [what, , theirs] of NUMBERS) assert.match(all, theirs, `the 2D CSS no longer says: ${what}; src/ui/styles was changed: update this test or restore the rule`);
 });
 
 test('the play bar has the 2D timeline\'s structure and class names', () => {

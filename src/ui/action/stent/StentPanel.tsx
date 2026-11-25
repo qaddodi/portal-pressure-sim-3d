@@ -2,7 +2,7 @@
 // row's controls indented right under it (its sliders, its two-way choice told by weight, Done), another tap moves the editor to that row, a tap on the open row, Done or Escape closes it. The card's actions stay under it.
 // One component for the TIPS and DIPS vessel card (with the 2D card's line of three numbers: PPG, flow, peak velocity), a custom shunt's card (registerPanel('stent')) and the Tests card's IR pane (`lead`, and a vessel card's editor for that
 // stent then folds to one line of its narrowings, the way into that view: 2D play-test F39). Its rows' words and the controls are the 2D app's (stent-rows.copied.ts, stent-controls.copied.ts, cut by scripts/copy-b11-stent.mjs); the
-// rows are this app's own (stent-editor.css; the 2D tile rules in css2d stay as they are and no longer reach them). Each drag is one History entry (the first move of a gesture) and the later moves edit it; a change made anywhere else
+// rows are this app's own (stent-editor.css; the 2D tile rules in styles stay as they are and no longer reach them). Each drag is one History entry (the first move of a gesture) and the later moves edit it; a change made anywhere else
 // (the other card, a slide, undo) is followed. The motion is transforms and opacity only (Web Animations, FLIP): what is below the open row rides to its place, the editor fades up; the boxes are read once on the tap.
 // (The stent's picture above the numbers is the charts thread's: src/ui/charts.)
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';

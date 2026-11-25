@@ -96,16 +96,14 @@
 /* (16 Nov 2026) The menu sheets' entrance and exit (Settings, Why?, Layers, History, Blood, the main menu) are no CSS animation: sheet-ride.js writes them in the page's frames, so their glass goes with them; with Reduce Motion it fades (120 ms over the dock). */
 .app.thumb :is(.panel, .treat-card, .instrument-workspace.float-ui) { --card-out: thumbOut; }
 @media (prefers-reduced-motion: no-preference) {
-  #app.thumb.panel-open .panel, #app.thumb .treat-card, #app.thumb .instrument-workspace.float-ui.entering { animation: thumbIn var(--d-small) var(--ease) backwards; }
+  #app.thumb .treat-card, #app.thumb .instrument-workspace.float-ui.entering { animation: thumbIn var(--d-small) var(--ease) backwards; }
   /* (A menu is drawn above the tab row, so it never rises across it: it settles in where it rests, by opacity; a menu sheet, as-sheet, slides like the cards, below.) */
   html.thumb-ui .menu.from-dock:not(.as-sheet) { animation: scale-settle var(--d-small) var(--ease) backwards; }
   html.thumb-ui .menu.from-dock:not(.as-sheet).leaving { animation: scale-settle-out var(--d-small) var(--ease-in) forwards; }
   /* A sheet moved by its content (has-plate, sheet-move.js) rises and sinks the same way, but by its content's translate alone under
      its still clip: no --sink is eased frame by frame on the main thread. The box holds (sheet-hold) so its leave still ends on it. */
-  #app.thumb.panel-open .panel.has-plate, #app.thumb .treat-card.has-plate, #app.thumb .instrument-workspace.float-ui.entering.has-plate { animation: none; }
-  #app.thumb.panel-open .panel.has-plate > :not(.tc-page), #app.thumb .treat-card.has-plate > :not(.tc-page), #app.thumb .instrument-workspace.float-ui.entering.has-plate > :not(.tc-page) { animation: sheet-rise var(--d-small) var(--ease) backwards; }
-  #app.thumb :is(#panel, #treatCard, #historyCard, #dock).has-plate.card-leaving { --card-out: sheet-hold; animation-duration: var(--d-small) !important; }
-  #app.thumb :is(#panel, #treatCard, #historyCard, #dock).has-plate.card-leaving > * { animation: sheet-sink var(--d-small) var(--ease-in) forwards; }
+  #app.thumb .treat-card.has-plate, #app.thumb .instrument-workspace.float-ui.entering.has-plate { animation: none; }
+  #app.thumb .treat-card.has-plate > :not(.tc-page), #app.thumb .instrument-workspace.float-ui.entering.has-plate > :not(.tc-page) { animation: sheet-rise var(--d-small) var(--ease) backwards; }
   /* (13 Nov 2026, menu recs C4) A switch (Treat to Tests, Layers to Settings, a vessel's card to Details) is one motion: the one coming in
      rises over the one going out while that one sinks behind the dock, each on its own 240 ms slide. Nothing crossfades, so two sheets of
      different heights never show two tops at once (the W4 crossfade did), and the spot is never empty: the new top passes the old one. */
@@ -165,7 +163,6 @@
     clip-path: polygon(-40px -40px, calc(100% + 40px) -40px, calc(100% + 40px) calc(100% + 40px), 100% calc(100% + 40px), 100% calc(100% + 0px + var(--r-sheet)), calc(100% - var(--r-sheet) * .134) calc(100% + 0px + var(--r-sheet) * .5), calc(100% - var(--r-sheet) * .5) calc(100% + 0px + var(--r-sheet) * .134), calc(100% - var(--r-sheet)) calc(100% + 0px), var(--r-sheet) calc(100% + 0px), calc(var(--r-sheet) * .5) calc(100% + 0px + var(--r-sheet) * .134), calc(var(--r-sheet) * .134) calc(100% + 0px + var(--r-sheet) * .5), 0 calc(100% + 0px + var(--r-sheet)), 0 calc(100% + 40px), -40px calc(100% + 40px));   /* (18 Nov 2026, the tester at 390 px: a card pulled down slid under the view-switch pill with its Stenosis row and slider track showing behind and beside it. The cut is the card's own foot, where its glass is cut too (main.js sheetGlass cut), not the dock's top edge 50 px lower: words, paper and glass go behind the foot together.) */
   }
   .app.thumb:not(.dock-open) .action-card.docked { --ac-max: calc(100% - var(--nb-occ, calc(var(--vdock-h) + 14px)) - 50px - var(--top-safe, 56px) - 56px); }   /* (the room between the case pill and the view switch) */
-  .app.thumb.panel-open .action-card.docked { visibility: hidden; transition: visibility 0s linear var(--d-small); }
 }
 
 /* (17 Oct, Mohammad) An upright iPad has the iPhone's bottom bar and cards, "scaled down proportionally, similar to how much we
@@ -192,7 +189,6 @@
 .topbar:not([data-fit="2"], [data-fit="3"]) .tb-act .tb-hc:empty { display: inline-block; visibility: hidden; }   /* (it keeps its room: the badge appearing after the first edit widened History and tipped the bar to its icon-only step, R2-1, 17 Nov) */
 .tb-act .tb-hc { min-width: 18px; height: 18px; margin-left: -2px; padding: 0 5px; border-radius: 999px; background: var(--surface-3); color: var(--text-2); font: 600 var(--fs-12)/18px var(--font-ui); text-align: center; font-variant-numeric: tabular-nums; }
 .topbar[data-fit="2"] .tb-act .tb-hc, .topbar[data-fit="3"] .tb-act .tb-hc { display: none; }
-.history-card .tl-pop.tl-history { width: auto; max-height: none; overflow: visible; padding: 2px 0 6px; }
 
 /* Settings › "Frosted glass" off (html[data-noglass]): no live blur anywhere, which spares the GPU re-blurring the
    moving figure every frame. Cards and the figure's label pills turn solid instead. */
@@ -201,19 +197,12 @@
 :root[data-noglass] :is(.pz-shade, .pz-shade.pz-card, .pz-shade.stack, .pz-data.pz-data, .pz-case, .pz-bar, .pz.stack .pz-bar, .pz-scales, .cl-glass) { --gl-glass: 0; background: var(--surface); }
 /* (The upright split sheet's two glass pieces: its own fill is none, the pieces carry the glass, so they turn solid with the rest.) */
 /* (The split sheet is its two pseudo-element cards, solid here; its own box is no third card behind them: with the blur off it showed as a second rounded panel round the tiles and the instrument card, Mohammad, 3 Nov 2026.) */
-:root[data-noglass] .pz-data.pz-data.pz-sheet.pz-sheet { background: none; }
-@media (prefers-reduced-transparency: reduce) { .pz-data.pz-data.pz-sheet.pz-sheet { background: none; } }
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .pz-data.pz-data.pz-sheet.pz-sheet { background: none; } }
-:root[data-noglass] .pz.stack.stack .pz-data.pz-sheet::before, :root[data-noglass] .pz.stack.stack .pz-data.pz-sheet::after { background: var(--surface); }
-:root[data-noglass] .pz.pz-wide.pz-wide .pz-data.pz-sheet::before, :root[data-noglass] .pz.pz-wide.pz-wide .pz-data.pz-sheet::after { background: var(--surface); }
 /* No browser blur anywhere (Mohammad, 1 Nov 2026: "Move everything to GPU"; no backdrop-filter is declared in this file at all). A glass the figure's GPU draws ([data-gl]) keeps its frost; any other glass, and a GPU glass whenever the figure's canvas cannot take it
    (the lobule, a dive, a fade, a label across it), shows the solid look of Settings › Blur effect off instead of the browser's backdrop blur, so
    nothing over the moving figure is re-blurred by the browser on any frame. The teaching card's shade keeps a layer of its own the whole time,
    never made and dropped as its glass changes hands (the iPhone lost its outline, tabs and credit on that swap, 1 Nov). */
 :root:root :is(.sv-legend, .pz-fk, .pz .pz-fk.pz-fk, .toast):not([data-gl]) { background: var(--surface); }
 :root:root :is(.pz-shade, .pz-shade.pz-card, .pz-shade.stack, .pz-data.pz-data, .pz-case, .pz-bar, .pz.stack .pz-bar, .pz-scales, .cl-glass):not([data-gl]) { background: var(--surface); }
-:root:root .pz.stack.stack .pz-data.pz-sheet:not([data-gl])::before, :root:root .pz.stack.stack .pz-data.pz-sheet:not([data-gl])::after { background: var(--surface); }
-:root:root .pz.pz-wide.pz-wide .pz-data.pz-sheet:not([data-gl])::before, :root:root .pz.pz-wide.pz-wide .pz-data.pz-sheet:not([data-gl])::after { background: var(--surface); }
 :root:root .pz-shade { will-change: transform; }
 /* Every glass's edge is the one glass's, drawn with it on the GPU (--glass-edge, glass-gl.js): the page's own border and box-shadow are taken off
    while the GPU draws it ([data-gl="edge"]), so the glass and its edge are one shape that can change size in view (2 Nov 2026, the slide motion recs),
@@ -221,7 +210,6 @@
 :root:root [data-gl="edge"]:not(.pal, .modal) { box-shadow: none !important; border-color: transparent !important; }
 /* The figure key: a small pill, its name with the colour scale under it (no "None" or "Large" words; a key of named swatches keeps its names). */
 .pz-fk.grad, .pz-fk.grad.col { flex-direction: column; align-items: center; gap: .2em; padding: .28em 14px .34em; font-size: max(12px, calc(var(--s-cap) * .78)); }   /* (the 12 px floor: a key's words had read 11 px, and 10 here) */
-.pz-fk.grad .pz-lens-bar { width: 4em; height: .5em; }
 /* A wider screen's colour key (Mac, iPad, a phone held sideways) sits right on top of the nav pill at the lower right: right-aligned with it,
    a small gap above it, the pill's own glass and corners (Mohammad, 15 Oct). Its own width; it moves with the pill. */
 .pz:not(.stack) .pz-fk { left: auto; top: auto; right: var(--pz-cm); bottom: calc(max(var(--pz-cm), calc(env(safe-area-inset-bottom, 0px) + 8px)) + 44px + 8px); translate: none; border-radius: var(--r-sheet); }   /* (its glass, edge and shadow: the base rule's, the nav pill's own) */
@@ -235,17 +223,10 @@
 /* (An upright tablet's pill stands 29 px up, 13 px inside the card's foot, so its key, the pill's twin, stands level with it: at the phone's 21 px it
    sat 8 px below the pill and 5 px from the card's edge, against it (iPad portrait, Varices 4, 1 Nov). Kept on its own row above the pill, it rises with it.) */
 .pz.stack.tab:not(.fk-up) .pz-fk { bottom: calc(29px + var(--pz-sb)); }
-.pz.stack.tab.fk-up .pz-fk { bottom: calc(73px + var(--pz-sb)); }
 /* Too wide for the room beside the nav pill: its own row just above the pill's row, never under it (presenter.js fitKey), one line where
    it fits, else wrapped to the card's width (never shrunk: shrunk, its words had gone under 12 px). */
-.pz.stack.fk-up .pz-fk { bottom: calc(65px + var(--pz-sb)); }
 /* A phone held sideways: a key too long for the room beside the teaching card wraps there, its name over its swatches (presenter.js lowKey). */
-.pz.low.fk-side .pz-fk:not(.grad) { bottom: calc(max(var(--pz-cm), calc(env(safe-area-inset-bottom, 0px) + 8px)) + 44px + 4px); max-width: var(--pz-fk-room, 280px); flex-wrap: wrap; row-gap: 0; column-gap: .55em; padding-block: .22em .26em; }
-.pz.low.fk-side .pz-fk:not(.grad) .pz-lens-items { flex-wrap: wrap; row-gap: 0; column-gap: .45em; flex-basis: 100%; }
-.pz.stack.fk-up.fk-wrap .pz-fk:not(.grad) { max-width: var(--pz-fk-room, 280px); flex-wrap: wrap; row-gap: .1em; column-gap: .55em; padding-block: .3em .34em; }
-/* Two lines beside the pill: as tall as its row, bottoms level (presenter.js fitKey). */
-.pz.stack.fk-two .pz-fk:not(.grad) { max-width: var(--pz-fk-room, 200px); flex-wrap: wrap; row-gap: .1em; column-gap: .55em; }   /* (its height, bottom and corners: the pill's, above) */
-.pz.stack:is(.fk-up, .fk-two) .pz-pillclr { margin-bottom: calc((var(--pz-reach-box, 37px) + var(--pz-fkrow, 0px)) / var(--pz-fit, 1)); }
+/* Two lines beside the pill: as tall as its row, bottoms level (presenter.js fitKey). */   /* (its height, bottom and corners: the pill's, above) */
 
 /* ── Tests card on a phone (15 Oct, Mohammad) ─────────────────────
    The scope fills the card's width (its height the room left), the band button sits right under it, and the five
@@ -543,7 +524,6 @@
 }
 /* A figure label under the open menu is hidden while it is open (main.js labelsUnderMenu): no sliver beside the menu's edge.
    It fades out with the menu and back after it (.16 s), rather than blinking (motion review P9). */
-#labels .lb.under-menu { opacity: 0; pointer-events: none; transition-duration: var(--d-flip); }
 /* A disabled button with words reads clearly (sweep batches 02–03: "No fluid" white on pale blue at 1.9:1, "Band a column" at
    2.5:1, the small "A" at 1.7:1): flat, on the quiet surface, its words in the third ink (at least 4.5:1 on it in every theme),
    never faded. Only its look says it is off: no fill colour, no shadow, the not-allowed cursor. */
@@ -582,8 +562,7 @@
    fill or a band that only follows a state or a value is set at once; an opacity that goes with it stays (a fade stands in for a move, motion.js).
    The zoom pill and the view bar keep their fade and lose their slide. (-moz-range-thumb is alone: one pseudo the browser does not know drops a whole list.) */
 @media (prefers-reduced-motion: reduce) {
-  .section > summary .chev, .switch span::after, .ac-toggle .switch-vis i, .ab-tg .switch-vis i, .ab-dp-alb .switch-vis i, .menu-btn .chev, .workspace-divider span, .scan-probe .sp-svg,
-  .ab-belly-fill, .ab-iap-fill, .dop-band, .dop-band-caps > i, .dop-mark, .dop-ticks > span, .stage-clock { transition: none; }
+  .section > summary .chev, .switch span::after, .ac-toggle .switch-vis i, .ab-tg .switch-vis i, .ab-dp-alb .switch-vis i, .menu-btn .chev, .workspace-divider span, .ab-belly-fill, .ab-iap-fill, .dop-band, .dop-band-caps > i, .dop-mark, .dop-ticks > span, .stage-clock { transition: none; }
   .stage-fit, .stage-rotate { transition-property: opacity; }   /* (they fade as the float UI does, never pop: 15 Nov 2026) */
   input[type=range]::-webkit-slider-thumb { transition: none; }
   input[type=range]::-moz-range-thumb { transition: none; }
@@ -613,5 +592,4 @@
 }
 
 html.thumb-ui :where(.tl-split .ib.play, .tl-ff, .lens-btn, .card-close, .pal-x, .sheet-head .ib, .um-x, .um-link) { position: relative; }   /* (play-test C6, 16 Nov 2026: a phone's controls are 44 px to touch: the ones painted smaller keep their look and take an invisible 44 px box centred on them, by the layout and not the pointer; the speed chip and the pin keep their own, their ::after and border being taken) */
-html.thumb-ui :is(.tl-split .ib.play, .tl-ff, .lens-btn, .card-close, .pal-x, .sheet-head .ib, .um-x, .um-link)::after { content: ''; position: absolute; inset: auto; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); translate: -50% -50%; background: none; border: 0; }
-html.thumb-ui #labels .lb-pick { stroke: transparent; stroke-width: 24px; stroke-linejoin: round; }   /* (a label the GPU draws: a transparent stroke on its pointer rect reaches 12 px past it all round; the rect's size, which the label solver and the credit read, is the same) */
+html.thumb-ui :is(.tl-split .ib.play, .tl-ff, .lens-btn, .card-close, .pal-x, .sheet-head .ib, .um-x, .um-link)::after { content: ''; position: absolute; inset: auto; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); translate: -50% -50%; background: none; border: 0; }   /* (a label the GPU draws: a transparent stroke on its pointer rect reaches 12 px past it all round; the rect's size, which the label solver and the credit read, is the same) */

@@ -9,7 +9,7 @@ const files: string[] = [];
 const walk = (d: string): void => { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) walk(p); else if (p.endsWith('.css')) files.push(p); } };
 walk('src');
 
-/** css2d is 2D's own sheet, copied as it is; its centred rules are listed here only where 2D's markup gives the element a width (or it never wraps), checked by hand. */
+/** src/ui/styles began as 2D's sheet; its centred rules are listed here only where 2D's markup gives the element a width (or it never wraps), checked by hand. */
 const COPIED_OK = new Set<string>();
 
 test('every rule that centres an overlay with left: 50% and a translate also sets a width', () => {
@@ -26,5 +26,5 @@ test('every rule that centres an overlay with left: 50% and a translate also set
       if (!COPIED_OK.has(key)) bad.push(key);
     }
   }
-  assert.deepEqual(bad.filter((b) => !b.includes('/css2d/')), [], 'add `width: max-content` (and a max-width) to these');
+  assert.deepEqual(bad.filter((b) => !b.includes('/styles/')), [], 'add `width: max-content` (and a max-width) to these');
 });

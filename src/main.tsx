@@ -3,7 +3,7 @@
 // The first two imports, before any module that could pull in a component's own sheet: the bundler orders stylesheets by first import, so the lifted 2D sheets are always below the app's own and equal-specificity
 // rules cannot flip with the load order of a chunk (24 Nov: a lone slider filled half the action card). tests/css-same-selector.test.ts holds this.
 import './ui/shell/global.css';
-import './ui/css2d/index.css';   // the 2D app's stylesheets, copied unchanged (scripts/copy-2d-css.mjs); the lifted chrome is styled by them
+import './ui/styles/index.css';   // the app's base stylesheets (src/ui/styles, begun as the 2D app's); the lifted chrome is styled by them
 import './boot/started.ts';
 import { engineBooted } from './boot/engine-start.ts';   // (second, before any other module is evaluated: the engine's worker computes the first patient while the main thread builds the scene; boot/engine-start.ts)
 import { StrictMode } from 'react';

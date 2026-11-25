@@ -57,7 +57,7 @@ test('the data card is the words card\'s width on every slide: the planner place
     assert.equal(p.cards[0]!.rect.w, p.cards[1]!.rect.w, `${vp.w}x${vp.h}: one width for the pair`);
   }
   // every lifted rule that sizes a data or words card's own box
-  const dir = new URL('../src/ui/css2d/', import.meta.url);
+  const dir = new URL('../src/ui/styles/', import.meta.url);
   const sizing: string[] = [];
   for (const f of readdirSync(dir).filter((n) => n.endsWith('.css'))) {
     for (const m of readFileSync(new URL(f, dir), 'utf8').matchAll(/(^|\})\s*([^{}@]*\.pz-data[^{}]*)\{([^}]*)\}/g)) {

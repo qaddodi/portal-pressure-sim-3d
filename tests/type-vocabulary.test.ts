@@ -1,7 +1,7 @@
 // One type vocabulary for everything the 3D app owns (23 Nov 2026, font audit; docs/approved/type.md).
 // Root cause of the drift: the one type guard (ui-vocabulary.test.ts) judges a hand-kept list of files, so the Over time card (bigtime.css), the callouts, the action cards and the chart words
 // each grew their own weights (450, 550, 650, 700), tracking (24 values) and size multipliers. This test judges EVERY stylesheet we own, found by walking src/, and every chart-word weight and
-// tracking written in TS, so a new file cannot drift. Source-level only (nothing is run in a browser). The byte-copied 2D files (css2d/, *.copied.*) are 2D's own and are not judged.
+// tracking written in TS, so a new file cannot drift. Source-level only (nothing is run in a browser). The byte-copied 2D files (styles/, *.copied.*) are 2D's own and are not judged.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -12,7 +12,7 @@ const walk = (dir: string, out: string[] = []): string[] => {
   return out;
 };
 const ALL = walk('src');
-const OURS = (f: string) => !/\/css2d\/|\.copied\.|\.generated\.|\/debug\/|\/parity\/|\/perf\//.test(f);
+const OURS = (f: string) => !/\/ui\/styles\/|\.copied\.|\.generated\.|\/debug\/|\/parity\/|\/perf\//.test(f);
 const CSS = ALL.filter((f) => f.endsWith('.css') && OURS(f));
 const TS = ALL.filter((f) => /\.(ts|tsx)$/.test(f) && OURS(f) && !/\.d\.ts$/.test(f));
 const blank = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));

@@ -29,7 +29,7 @@ test('the list and the black screen use the 2D app\'s classes, so its lifted sty
   const src = readFileSync('src/ui/deck/JumpList.tsx', 'utf8');
   for (const cls of ['pz-jump', 'pzj-h', 'pzj-list', 'pz-black']) assert.ok(src.includes(cls), cls);
   assert.ok(!/dk-jump|dk-black/.test(src), 'no second set of classes');
-  const css = readFileSync('src/ui/css2d/app-05-presenter-cards.css', 'utf8');
+  const css = readFileSync('src/ui/styles/app-05-presenter-cards.css', 'utf8');
   for (const rule of ['.pz-jump {', '.pz-black {', '.pz-black.on {', '.pzj-list button']) assert.ok(css.includes(rule), rule);
 });
 

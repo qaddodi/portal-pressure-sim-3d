@@ -11,12 +11,12 @@ import { M } from '../src/ui/shell/metrics.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const src = (f: string) => readFileSync(join(root, f), 'utf8');
-const css2d = readdirSync(join(root, 'src/ui/css2d')).filter((f) => f.endsWith('.css')).map((f) => src(`src/ui/css2d/${f}`)).join('\n');
+const css2d = readdirSync(join(root, 'src/ui/styles')).filter((f) => f.endsWith('.css')).map((f) => src(`src/ui/styles/${f}`)).join('\n');
 
 test('0. the 2D stylesheets are imported once, right after global.css, and the shell lays them over the canvas with one small overlay', () => {
   const main = src('src/main.tsx');
-  assert.ok(main.indexOf("./ui/shell/global.css") < main.indexOf("./ui/css2d/index.css"));
-  assert.equal(main.split("css2d/index.css").length, 2);
+  assert.ok(main.indexOf("./ui/shell/global.css") < main.indexOf("./ui/styles/index.css"));
+  assert.equal(main.split("styles/index.css").length, 2);
   assert.match(src('src/ui/shell/Shell.tsx'), /import '\.\/chrome-3d\.css'/);
   const shellCss = src('src/ui/shell/shell.css');
   for (const dead of ['.sh-id', '.sh-figpill', '.sh-acts', '.sh-dock', '.sh-zoom', '.sh-play', '.sh-thumb', '.sh-views', '.sh-credit', '.sh-fps', '.sh-legend']) assert.ok(!shellCss.includes(dead + ' ') && !shellCss.includes(dead + '{'), `${dead} is still restyled by hand`);

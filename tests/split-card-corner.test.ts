@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 // `.cath-label { translate: -50% calc(-100% - 18px) }` still applied to it while paintSplit writes the corner as transform.
 const css = (f: string) => readFileSync(new URL(f, import.meta.url), 'utf8');
 test('the base 2D label rule shifts a .cath-label (so the split needs its own override)', () => {
-  assert.match(css('../src/ui/css2d/app-06-plate.css'), /^\.cath-label \{[^}]*translate: -50%/m);
+  assert.match(css('../src/ui/styles/app-06-plate.css'), /^\.cath-label \{[^}]*translate: -50%/m);
 });
 test('the split card cancels that shift, so its transform is its corner', () => {
   assert.match(css('../src/scene/labels/labels.css'), /\.cath-label\.site\.split\.tg \{ translate: none; \}/);

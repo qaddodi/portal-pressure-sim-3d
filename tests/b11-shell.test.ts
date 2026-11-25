@@ -37,7 +37,7 @@ test('the copied files say where they come from, and the sideways phone\'s rules
   assert.match(css, /\.app\.dock-open\.dock-side \.vdock \.readouts \{ display: none; \}/);
   assert.match(css, /\.app\.dock-open:not\(\.instrument-focus\)\.dock-side \.action-card\.docked/);
   assert.ok(!/#dock/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')), 'no :has(#dock) is left in the rules');
-  const two = read('src/ui/css2d/app-09-tests.css');
+  const two = read('src/ui/styles/app-09-tests.css');
   assert.equal(sideRules(two).join('\n'), css.split('*/\n')[1]!.trim(), 'the generated file is what the copied 2D sheet gives');
   assert.equal(pickRules('@media (a) { .x:has(#dock.side) .y { a: b } .z { c: d } } .q { e: f }', (s: string) => /dock/.test(s), (s: string) => s.replace(':has(#dock.side)', '.s')).join('\n'), '@media (a) {\n  .x.s .y { a: b }\n}');
 });
@@ -115,7 +115,7 @@ test('the layer builds the card the 2D dock does: the divider, the grab handle, 
   assert.ok(swap.includes("tabOf(pane) === tabOf(cur)"), 'the Pressure tab\'s own switch swaps in place');
   assert.ok(!/requestAnimationFrame/.test(swap + read('src/ui/tests/dock/swipe.ts') + read('src/ui/tests/dock/pull.ts') + read('src/ui/tests/dock/resize.ts')), 'no raw requestAnimationFrame: the clock');
   // the 2D sheets that style the states are the ones copied
-  const css = ['app-07-floating', 'app-10-thumb-dock'].map((f) => read(`src/ui/css2d/${f}.css`)).join('\n');
+  const css = ['app-07-floating', 'app-10-thumb-dock'].map((f) => read(`src/ui/styles/${f}.css`)).join('\n');
   for (const c of ['.dock-pane.pane-out:not(.active)', '.dock-pane.swipe-peer', '.staging', '.dock-guide', '.workspace-divider']) assert.ok(css.includes(c), `the lifted 2D CSS styles ${c}`);
 });
 

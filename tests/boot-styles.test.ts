@@ -93,5 +93,5 @@ test('the cover needs none of the app\'s stylesheets: its style is inline, and t
   const style = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
   for (const rule of ['#boot {', '#boot .boot-bar', '#boot .boot-name', '#boot.done', 'html, body { margin: 0; background']) assert.ok(style.includes(rule), `the inline style has ${rule}`);
   // the app's own sheets must not restyle the cover: no #boot rule in them (chrome-3d.css names .boot-mark in a comment only)
-  for (const f of ['src/ui/shell/global.css', 'src/ui/css2d/index.css', 'src/ui/glass.css', 'src/ui/humanized.css']) assert.doesNotMatch(read(f), /^\s*#boot\b/m, `${f} has no #boot rule`);
+  for (const f of ['src/ui/shell/global.css', 'src/ui/styles/index.css', 'src/ui/glass.css', 'src/ui/humanized.css']) assert.doesNotMatch(read(f), /^\s*#boot\b/m, `${f} has no #boot rule`);
 });

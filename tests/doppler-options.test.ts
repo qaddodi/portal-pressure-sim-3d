@@ -128,6 +128,6 @@ test('the report takes the top strip wherever 2D\'s stylesheet sets --dop-ov (th
   assert.match(src, /getPropertyValue\('--dop-ov'\)/, 'the pane reads --dop-ov as doppler.js does');
   assert.match(src, /m\.ovTop = ovTop;/, 'the model gets the strip from the measurement, not from p.slide');
   assert.doesNotMatch(src, /m\.ovTop = p\.slide/);
-  const css = readFileSync(new URL('../src/ui/css2d/app-10-thumb-dock.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/ui/styles/app-10-thumb-dock.css', import.meta.url), 'utf8');
   assert.match(css, /\.instrument-workspace\.side \.instrument-view\.dop \.dop-box \{ --dop-ov: 1;/, 'the side card sets it, as in 2D');
 });

@@ -36,10 +36,6 @@
 @media (hover: hover) { .btn.danger-fill { --hv-bg: color-mix(in srgb, var(--danger) 86%, var(--text)); --hv-bd: transparent; --hv-bw: 1px; } .btn.danger-fill:hover::before { opacity: 1 } }
 .modal .clear-q { flex: 1 0 100%; margin: 0; color: var(--text); font-weight: 500; }
 /* A short question's field (util.js askText). 16 px on a touch screen so an iPhone does not zoom into it. */
-.ask-label { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-12); font-weight: 600; color: var(--text-3); }
-.ask-field { height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface-2); color: var(--text); font: 400 var(--fs-14) var(--font-ui); }
-.ask-field:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-@media (pointer: coarse) { .ask-field { font-size: 16px; } }
 .modal.compact > header { padding-bottom: 4px; }
 .modal.compact > .body { padding-top: 8px; }
 
@@ -82,27 +78,9 @@
    finger on an iPad or iPhone (which has no hover) saw nothing. Now each one eases its tint on --d-flip, and a press gives the
    same answer as the .btn and .ib above: a small sink for a chip, a tint for a row, a darker ink for a link. A control that is on
    (pressed, expanded, current) keeps its own tint and only sinks. Nothing on the figure moves. */
-html.press-fx :is(.pal-btn, .tb-act, .tl-speed, .tl-pin, .tl-hist, .measure-launch, .menu-btn, .dock-title, .um-link, .um-info, .tl-pop-ic,
-    .reset-btn, .pal-item, .pzj-list button, button.finding, .chg .chg-go, .select, .pz-fold) {
-  transition: scale var(--d-flip) var(--ease); }
-html.press-fx .link { transition: opacity var(--d-flip) var(--ease); }
-html.press-fx .dop-tint { transition: scale var(--d-flip) var(--ease); }
 /* the sink: a chip, a card, a row-sized button (small ones go in further) */
-html.press-fx :is(.chip-btn, .lens-btn, .menu-btn, .pal-btn, .tb-act, .tl-speed, .tl-pin, .tl-hist, .measure-launch, .dop-tint, .pt-chip, .pz-abb, .lens, .dock-title):not(:disabled):active { scale: .97; }
-html.press-fx :is(.drug, .ac-btn, .ac-toggle, .card):not(:disabled):active { scale: .985; }
-html.press-fx :is(.tl-pop-ic, .um-info, .reset-btn, .pz-zbtn):not(:disabled):active { scale: .88; }
-html.press-fx .pz-fold:active { scale: .96; }
-/* the tint under a press, for what is not already on */
-html.press-fx :is(.tl-speed, .dop-tint, .pt-chip, .drug, .ac-btn, .ac-toggle, .card):not(:disabled):not([aria-pressed="true"]):not([aria-expanded="true"]):not(.on):active { background-color: var(--surface-3); }
-html.press-fx :is(.chip-btn, .lens-btn, .menu-btn, .pal-btn, .tb-act, .tl-pin, .tl-hist, .lens):not(:disabled):not([aria-pressed="true"]):not([aria-expanded="true"]):not(.on):active { --hv-bg: var(--surface-3); } html.press-fx :is(.chip-btn, .lens-btn, .menu-btn, .pal-btn, .tb-act, .tl-pin, .tl-hist, .lens):not(:disabled):not([aria-pressed="true"]):not([aria-expanded="true"]):not(.on):active::before { opacity: 1 }   /* (a pressed tint is the hover layer, faded in: nothing snaps) */
-html.press-fx :is(.um-info, .reset-btn, .pal-item, .dock-title, .select, .pz-zbtn):not(:disabled):not(.on):not([aria-current]):active { background-color: var(--surface-3); color: var(--text); }
-html.press-fx :is(.um-row, .um-link, .tl-pop-ic, .pzj-list button, button.finding, .metric:not(.inert)):not(:disabled):not(.on):not([aria-current]):active { --hv-bg: var(--surface-3); color: var(--text); } html.press-fx :is(.um-row, .um-link, .tl-pop-ic, .pzj-list button, button.finding, .metric:not(.inert)):not(:disabled):not(.on):not([aria-current]):active::before { opacity: 1 }
-html.press-fx .pz-abb:not(:disabled):active, html.press-fx .pzc-q:active { --hv-bg: var(--hairline); color: var(--text); } html.press-fx .pz-abb:not(:disabled):active::before, html.press-fx .pzc-q:active::after { opacity: 1 }
-html.press-fx .chg .chg-go:active { color: var(--text); } html.press-fx .order-chip:not(:disabled):active .oc-t::before { opacity: 1; }
-html.press-fx .link:active { color: var(--accent-ink); opacity: .7; text-decoration: underline; text-underline-offset: 2px; }
+/* the tint under a press, for what is not already on */   /* (a pressed tint is the hover layer, faded in: nothing snaps) */
 /* tabs and the segmented options: the label goes to full ink under the press (the glide pill follows the pick) */
-html.press-fx :is(.modes button, .um-tab, .instr-tab, .ps-btn, .pz-scales > button, .pz-bar button.pzb-n):not([aria-selected="true"]):not([aria-pressed="true"]):active { color: var(--text); }
-@media (prefers-reduced-motion: reduce) { html.press-fx :is(.chip-btn, .lens-btn, .menu-btn, .pal-btn, .tb-act, .tl-speed, .tl-pin, .tl-hist, .measure-launch, .dop-tint, .pt-chip, .pz-abb, .lens, .dock-title, .drug, .ac-btn, .ac-toggle, .card, .tl-pop-ic, .um-info, .reset-btn, .pz-zbtn, .pz-fold):active { scale: none; } }
 .glass { background: var(--glass); box-shadow: var(--shadow-2), inset 0 0 0 1px var(--hairline); border-radius: var(--r-card); }
 .select { height: 32px; border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); padding: 0 28px 0 12px; font-size: var(--fs-14); appearance: none; -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2385878F' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -112,74 +90,45 @@ html.press-fx :is(.modes button, .um-tab, .instr-tab, .ps-btn, .pz-scales > butt
 
 /* SVG anatomy: organs are quiet solid forms (fill, a soft shade inside the edge, a crisp
    outline); vessels are tubes (dark casing + pressure-colored lumen) drawn over them. */
-.organ-liver { color: var(--organ-liver); } .organ-stomach, .organ-esophagus, .organ-duodenum { color: var(--organ-stomach); }
+.organ-liver { color: var(--organ-liver); } .organ-stomach { color: var(--organ-stomach); }
 .organ-spleen { color: var(--organ-spleen); } .organ-pancreas { color: var(--organ-pancreas); } .organ-kidney-l { color: var(--organ-kidney); }
-.organ-heart, .organ-heart-grooves { color: var(--organ-heart); } .organ-gallbladder { color: var(--organ-gb); } .organ-bowel, .organ-bowel-loops, .organ-colon-a, .organ-colon-t, .organ-colon-d { color: var(--organ-gut); } .organ-cecum { color: var(--organ-gut); } .organ-gallbladder { color: var(--organ-gb); }
-.org-fill { stroke: none; }
+.organ-heart { color: var(--organ-heart); }
 .org-line { fill: none; stroke: color-mix(in srgb, currentColor 80%, var(--shade-ink)); stroke-width: 1.2; stroke-opacity: .6; stroke-linejoin: round; }
-.org-fill { fill: color-mix(in srgb, currentColor var(--organ-tint), var(--stage-bg)); }
-.org-liver.org-fill { fill: color-mix(in srgb, var(--organ-liver) calc(var(--organ-tint) + 3%), var(--stage-bg)); }
 .ghost:not(.btn) { pointer-events: none; }   /* the figure's ghost layer; never the ghost buttons */
-.org-heart-groove { fill: none; stroke: var(--organ-heart); stroke-opacity: .45; stroke-width: 1; stroke-linecap: round; }
 .org-lobe-line.faint { stroke-opacity: .22; stroke-dasharray: 4 5; }
 .org-lobe-line { fill: none; stroke: var(--organ-liver); stroke-opacity: .45; stroke-width: 1; stroke-linecap: round; }
 .band-edge, .band-body { fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.org-diaphragm.band-edge { stroke: var(--diaphragm); stroke-width: 7; stroke-opacity: .22; }
-.org-diaphragm.band-body { stroke: var(--diaphragm); stroke-width: 1.3; stroke-opacity: .7; }
-.org-umbilicus { fill: var(--stage-bg); stroke: var(--text-3); stroke-width: 1.2; stroke-opacity: .7; }
-.cg-in { stop-color: var(--path-congestion); stop-opacity: 0; } .cg-out { stop-color: var(--path-congestion); stop-opacity: .55; }
 /* Congestion (organ picks, 20 Oct, "even dusk"): an even dusky tone over the liver and the pale islands round the portal tracts. */
 .lv-cong { fill: var(--lv-cong-base); fill-opacity: var(--lv-cong-base-a); }
-.lv-isl { fill: var(--lv-cong-isl); fill-opacity: var(--lv-cong-isl-a); }
-.lv-sh0 { stop-color: var(--light-ink); stop-opacity: .85; } .lv-sh1 { stop-color: var(--light-ink); stop-opacity: .28; } .lv-sh2 { stop-color: var(--light-ink); stop-opacity: 0; }
 /* Cirrhosis (organ picks, 20 Oct): larger nodules (x 1.35), the pattern at half strength ("faintest"). */
 .lv-sep { fill: var(--lv-sep); fill-opacity: .25; }
 .lv-nod { fill: var(--lv-nod); fill-opacity: .216; }
 :root[data-theme="dark"] .lv-sep { fill-opacity: .21; } :root[data-theme="dark"] .lv-nod { fill-opacity: .2025; }
-:root[data-theme="dark"] .lv-sh0 { stop-opacity: .14; } :root[data-theme="dark"] .lv-sh1 { stop-opacity: .04; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-theme="soft"]) .lv-sep { fill-opacity: .21; } :root:not([data-theme="light"]):not([data-theme="soft"]) .lv-nod { fill-opacity: .2025; }
-  :root:not([data-theme="light"]):not([data-theme="soft"]) .lv-sh0 { stop-opacity: .14; } :root:not([data-theme="light"]):not([data-theme="soft"]) .lv-sh1 { stop-opacity: .04; }
 }
-.fl-top { stop-color: var(--ascites); stop-opacity: calc(var(--ascites-a) * .5); } .fl-bot { stop-color: var(--ascites); stop-opacity: var(--ascites-a); }
-.mt-a { stop-color: var(--stent-metal); } .mt-b { stop-color: var(--light-ink); }
 .flank { fill: none; stroke: var(--organ-body-line); stroke-width: 1.4; stroke-opacity: .8; stroke-linecap: round; }
 .thrombus-edge { fill: none; stroke: var(--thrombus-edge); stroke-opacity: .5; stroke-width: .6; stroke-linecap: round; stroke-linejoin: round; }
-#organs, #ascites, #overlays, #guides, #focus { pointer-events: none; }
-.stage-view.gl-on #overlays [data-gl] { visibility: hidden; }   /* drawn on the GPU with the vessels (stage.js marksBuild) */
+#organs, #ascites, #overlays, #guides, #focus { pointer-events: none; }   /* drawn on the GPU with the vessels (stage.js marksBuild) */
 #organs { transition: opacity var(--d-surface) var(--ease); }
 /* Nothing in the figure takes the pointer: vessels and organs are picked in script on their own numbers (stage.js hitVessel,
    organAt), so the browser never hit-tests the paths under it. The keyboard's item glows on the GPU (figKeys). */
 #world :is(g, path, circle, ellipse, rect, use, line, polyline, polygon, text) { pointer-events: none; }
-.org-ra.org-fill { fill: color-mix(in srgb, var(--organ-heart) calc(var(--organ-tint) + 14%), var(--stage-bg)); }
 .organ-heart-ra { color: color-mix(in srgb, var(--organ-heart) 80%, var(--shade-ink)); }
 /* Data layers and a selection step the anatomy back (#organs, #backdrop) with the GPU's values, eased on its clock: stage.js
    syncOrganDim, an SVG filter, since WebKit draws no CSS filter functions on SVG elements. */
 /* Background plane: the diaphragm (no body-cavity shading). */
 #backdrop { pointer-events: none; transition: opacity var(--d-surface) var(--ease); }
 .tex { fill: none; stroke: currentColor; stroke-width: .8; }
-.tex-dot { fill: currentColor; }
-.org-form { stroke: none; }
 .lit-hi { stop-color: var(--light-ink); stop-opacity: var(--lit-hi); }
-.lit-mid { stop-color: var(--light-ink); stop-opacity: 0; }
 .lit-lo { stop-color: var(--lit-lo-ink); stop-opacity: var(--lit-lo); }
 /* (The circuit's map (its dot grid in --map-dot, its tinted zones in --text at .028, a slide's lit zone in --accent at .09) and its station
    dots (--stage-bg under a 1.6 ring in --text) are drawn by the GPU from the tokens: stage.js MAP, syncMapInk; veins-gl.js mapAt.) */
 .ligature { fill: none; stroke: var(--text); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
-.suture-thread { fill: none; stroke: var(--suture-thread); stroke-width: .75; stroke-linecap: round; stroke-linejoin: round; }
-.suture-halo { fill: none; stroke: var(--suture-edge); stroke-width: 1.9; stroke-opacity: .4; stroke-linecap: round; stroke-linejoin: round; }   /* (a thin dark edge under the thread, so it reads on any vessel colour) */
-.suture-knot { fill: none; stroke: var(--suture-thread); stroke-width: 2.1; stroke-linecap: round; }   /* (a dot: a path of nearly no length with round caps, so the marks' painter draws it as a disc) */
-.suture-knot-halo { fill: none; stroke: var(--suture-edge); stroke-width: 3.3; stroke-opacity: .4; stroke-linecap: round; }
+.suture-thread { fill: none; stroke: var(--suture-thread); stroke-width: .75; stroke-linecap: round; stroke-linejoin: round; }   /* (a thin dark edge under the thread, so it reads on any vessel colour) */   /* (a dot: a path of nearly no length with round caps, so the marks' painter draws it as a disc) */
 .suture { fill: none; stroke: var(--text); stroke-opacity: .7; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
-.clamp, .clamp-out { fill: var(--text); fill-opacity: .82; }
-.clamp-span, .clamp-span-out { fill: none; stroke: var(--text); stroke-opacity: .7; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }   /* (a stent's waist length, a hairline bracket along it that is one of the narrowing's own marks: stage-transitions.js stentBracket) */
-.clamp-label, .clamp-label-out, .guide-label { font: 600 var(--fs-12) var(--font-ui); fill: var(--text); paint-order: stroke; stroke: var(--stage-bg); stroke-width: 4px; stroke-linejoin: round; }
-.clamp-label, .clamp-label-out { font-size: var(--clamp-fs, var(--fs-12)); stroke-width: var(--clamp-sw, 4px); }
-/* (A "60 %" is a group of two outline paths, the painter's own shapes (stage.js clampGlyphs): the halo is the stroke alone, the glyphs the fill alone, as paint-order drew them.) */
-.clamp-label > path, .clamp-label-out > path { paint-order: normal; }
-.clamp-label > .clamp-halo, .clamp-label-out > .clamp-halo { fill: none; }
-.clamp-label > .clamp-glyph, .clamp-label-out > .clamp-glyph { stroke: none; }
-.guide-label { font-size: calc(var(--fs-12) * var(--halo-k, 1)); stroke-width: calc(4px * var(--halo-k, 1)); }   /* (the shunt's target name, 12 px on screen at any zoom) */   /* (the labels' own name size on screen at any zoom: stage.js applyClampFs) */
+.clamp { fill: var(--text); fill-opacity: .82; }   /* (a stent's waist length, a hairline bracket along it that is one of the narrowing's own marks: stage-transitions.js stentBracket) */
+/* (A "60 %" is a group of two outline paths, the painter's own shapes (stage.js clampGlyphs): the halo is the stroke alone, the glyphs the fill alone, as paint-order drew them.) */   /* (the shunt's target name, 12 px on screen at any zoom) */   /* (the labels' own name size on screen at any zoom: stage.js applyClampFs) */
 /* Soft clot: three translucent layers of one red build toward the thick middle and fade at the edges. */
 .thrombus-halo { fill: var(--thrombus); fill-opacity: .4; }
 .thrombus { fill: var(--thrombus); fill-opacity: .55; }
@@ -188,17 +137,11 @@ html.press-fx :is(.modes button, .um-tab, .instr-tab, .ps-btn, .pz-scales > butt
 .circuit .circuit-only { opacity: 1; }
 .band-ring { fill: none; stroke: var(--dev-platinum, var(--stent-metal)); stroke-width: 2.4; stroke-linejoin: round; }   /* (a device colour, not text ink: the device material --dev-platinum, the stent's metal until that is set) */
 /* The tamponade tube's balloons (the gastric one in the stomach, drawn up against the cardia; the esophageal one on it) look like the HVPG wedge balloon (veins-gl.js mode 5): latex (--dev-latex, a fuller fill on the light looks: --dev-latex-a), clear in the middle, denser at the rim, on a rim in --dev-latex-edge; the tube is the catheter's polymer (--dev-poly) and its marker bands platinum */
-.balloon-latex { fill: var(--dev-latex); fill-opacity: var(--dev-latex-a); stroke: none; }
-.balloon-latex-rim { fill: var(--dev-latex); fill-opacity: calc(var(--dev-latex-a) * .6); fill-rule: evenodd; stroke: none; }
-.balloon-edge { fill: none; stroke: var(--dev-latex-edge); stroke-opacity: .9; stroke-width: 1; stroke-linejoin: round; }
 .balloon-hi ellipse { fill: var(--white); fill-opacity: .28; }
-.balloon-shaft-rim { fill: none; stroke: var(--cath-shadow); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.balloon-shaft { fill: none; stroke: var(--dev-poly); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .balloon-marker { fill: var(--dev-platinum); }
 /* The traction: a thin arrow up the esophagus's side as the tube is drawn up, in the treatment colour the slides' marks use */
 .balloon-pull-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .balloon-pull-head { fill: var(--accent); stroke: var(--accent); stroke-width: 1; stroke-linejoin: round; }
-.ascites-fill { stroke: none; opacity: var(--fluid-fade, 1); }
 .ascites-line { fill: none; stroke: var(--ascites); stroke-opacity: calc(.3 * var(--fluid-fade, 1)); stroke-width: 4; stroke-linejoin: round; }   /* a soft meniscus band, not a hard rule */
 /* (Round joins on the overlays' strokes: the figure's GPU painter draws round joins only, so a sharp one kept the group, and every
    group above it, on SVG (2 Nov 2026, "Move everything to GPU"). Their segments are single strokes or smooth curves: nothing shows.) */
@@ -211,21 +154,15 @@ html.press-fx :is(.modes button, .um-tab, .instr-tab, .ps-btn, .pz-scales > butt
 .stent-wire { fill: none; stroke: var(--dev-stent-wire); stroke-linecap: round; stroke-linejoin: round; }
 .stent-glint { fill: none; stroke: var(--dev-stent-glint); stroke-linecap: round; stroke-linejoin: round; }
 .stent-gold { fill: none; stroke: var(--dev-stent-gold); stroke-linecap: round; stroke-linejoin: round; }
-.stent-graft { fill: var(--dev-graft); stroke: none; }
-.target-glow { fill: none; stroke: var(--accent); stroke-opacity: .35; stroke-linecap: round; }
 
 /* ── Panel (inspector) ──────────────────────────── */
 .panel { background: var(--surface); overflow: hidden; min-width: 0; z-index: var(--z-panel); display: flex; flex-direction: column; }
-.panel-page { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
-.panel-head { align-items: center; padding: 0 8px 0 20px; }
-.panel-scrim { display: none; }
 .p-body { padding: 4px 20px 24px; }
 .changes { padding: 12px 20px; border-bottom: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 8px; }
 .section { border-bottom: 1px solid var(--hairline); }
 .section:last-child { border-bottom: 0; }
 .section > summary { list-style: none; cursor: pointer; padding: 16px 0 12px; font-weight: 600; font-size: var(--fs-14); color: var(--text); display: flex; align-items: center; gap: 8px; user-select: none; }
 .section > summary::-webkit-details-marker { display: none; }
-.section > summary .sec-ic { width: var(--ic-s); height: var(--ic-s); stroke: var(--text-3); fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .section > summary .count { margin-left: auto; font-size: var(--fs-12); font-weight: 600; color: var(--accent-ink); background: var(--accent-soft); padding: 0 8px; border-radius: var(--r-pill); }
 .section > summary .chev { width: var(--ic-s); height: var(--ic-s); color: var(--text-3); transition: transform var(--d-small) var(--ease); }
 .section > summary > .chev { margin-left: auto; }
@@ -300,10 +237,6 @@ input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 0 transpar
 /* A slider the GPU draws (slider-gl.js, widget-gl.js): its track, fill, normal band, start ring and dot are the GPU's picture, laid over the wrapper
    and under the input, so the page's own drawing steps aside the moment that picture is up (.wgl-on), never before. The input stays (clear) for
    the pointer, the keys, focus and the value a screen reader reads. */
-.range-wrap.wgl-on::before, .range-wrap.wgl-on::after { content: none; }
-.range-wrap.wgl-on > .normal, .range-wrap.wgl-on > .sl-start { visibility: hidden; }
-.range-wrap.wgl-on input[type=range]::-webkit-slider-thumb { background: transparent !important; box-shadow: none !important; transition: none !important; transform: none !important; }
-.range-wrap.wgl-on input[type=range]::-moz-range-thumb { background: transparent !important; box-shadow: none !important; transition: none !important; transform: none !important; }
 .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .switch { position: relative; width: 34px; height: 20px; flex: none; }
 .switch input { opacity: 0; width: 100%; height: 100%; margin: 0; position: absolute; cursor: pointer; z-index: var(--z-figure); }
@@ -315,20 +248,6 @@ input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 0 transpar
 /* (The same cue on the app's other switches, Settings' and the menus' (.mt-sw) first among them; each track is as wide as its thumb plus 4 px of travel.) */
 @media (prefers-reduced-motion: no-preference) {
   /* (The widening is a stretch on the compositor (scaleX from the edge it leaves), not a width laid out again: the same 4 px.) */
-  html.press-fx .switch input:active:not(:disabled) + span::after { transform: scaleX(1.25); }
-  html.press-fx .switch input:checked:active:not(:disabled) + span::after { transform: translateX(14px) scaleX(1.25); }
-  html.press-fx .lens-opt:active .mt-sw::after { transform: scaleX(1.3333); }
-  html.press-fx .lens-opt.on:active .mt-sw::after { transform: translateX(12px) scaleX(1.3333); }
-  html.press-fx .ac-toggle:active:not(:disabled) .switch-vis i { transform: scaleX(1.2857); }
-  html.press-fx .ac-toggle[aria-checked="true"]:active:not(:disabled) .switch-vis i { transform: translateX(12px) scaleX(1.2857); }
-  html.press-fx .ab-tg:active:not(:disabled) .switch-vis i { transform: scaleX(1.2222); }
-  html.press-fx .ab-tg[aria-checked="true"]:active:not(:disabled) .switch-vis i { transform: translateX(16px) scaleX(1.2222); }
-  html.press-fx .ab-dp-alb:active:not(:disabled) .switch-vis i { transform: scaleX(1.2857); }
-  html.press-fx .ab-dp-alb[aria-checked="true"]:active:not(:disabled) .switch-vis i { transform: translateX(12px) scaleX(1.2857); }
-  @container (max-width: 300px) {
-    html.press-fx .ab-dp-alb:active:not(:disabled) .switch-vis i { transform: scaleX(1.3333); }
-    html.press-fx .ab-dp-alb[aria-checked="true"]:active:not(:disabled) .switch-vis i { transform: translateX(10px) scaleX(1.3333); }
-  }
 }
 .switch input:disabled + span { opacity: .45; }
 .switch input:focus-visible + span { box-shadow: 0 0 0 2px var(--focus); }
@@ -352,7 +271,6 @@ input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 0 transpar
 .pill.bad { background: color-mix(in srgb, var(--danger) 12%, transparent); color: color-mix(in srgb, var(--danger) 80%, var(--text)); }
 
 /* ── Panel cards ───────────────────────────────── */
-.sec-ic { width: var(--ic-s); height: var(--ic-s); flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .progress { display: flex; gap: 4px; margin-bottom: 16px; }
 .progress i { flex: 1; height: 3px; border-radius: 2px; background: var(--surface-3); }
 .progress i.on { background: var(--accent); }
@@ -434,7 +352,6 @@ input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 0 transpar
 }
 .menu-item[aria-checked="true"] .mi-check { opacity: 1; }
 .menu-item .kb { margin-left: auto; font-size: var(--fs-12); color: var(--text-3); }
-.menu-sep { height: 1px; background: var(--hairline); margin: 4px 4px; }
 .menu label.menu-item input { accent-color: var(--accent); margin: 0; }
 .menu.leaving { pointer-events: none; animation: scale-settle-out var(--d-flip) var(--ease-in) forwards; }
 /* A phone's menus are bottom sheets: full width, descriptions wrap, the same rise and fall as the cards. */
@@ -483,8 +400,7 @@ input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 0 transpar
 .why-pop.as-sheet.pulling { animation: none; }
 /* (13 Nov 2026, menu recs C9) As a sheet it is one size from the moment it opens: the waiting lines and the answer that replaces them are laid in
    the same box, so its top no longer jumps up when the model answers. A long answer scrolls inside it. */
-.why-pop.as-sheet.as-sheet { height: auto; overflow: hidden auto; overscroll-behavior: contain; }
-.um-scrim.why-scrim { z-index: calc(var(--z-popover) - 1); }   /* (the card is in the page before its scrim, so the scrim is laid just under it) */
+.why-pop.as-sheet.as-sheet { height: auto; overflow: hidden auto; overscroll-behavior: contain; }   /* (the card is in the page before its scrim, so the scrim is laid just under it) */
 .why-pop header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
 .why-pop h3 { margin: 0; font-size: var(--fs-14); font-weight: 600; display: flex; align-items: center; gap: 8px; }
 .why-pop h3 :is(svg, .ic) { width: var(--ic-s); height: var(--ic-s); stroke: var(--accent); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; } .why-pop h3 .ic { -webkit-mask-image: url("../brand/icons/icons-r.png"); mask-image: url("../brand/icons/icons-r.png"); background-color: var(--accent); }
@@ -492,17 +408,8 @@ input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 0 transpar
 .why-pop .formula { margin-top: 12px; }
 .why-pop .ib { width: 28px; height: 28px; margin: -4px -4px 0 0; }
 .waterfall { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
-.wf-row { display: grid; grid-template-columns: minmax(0, 1fr) 132px 52px; gap: 12px; align-items: center; font-size: var(--fs-12); }
 /* A name is never cut with an ellipsis (its words would live only in a tooltip a finger cannot show, and a larger text size cut the desktop's too): a long one ("Chronic splanchnic vasodilation") takes a second line. */
-.wf-row .lab { color: var(--text-2); overflow-wrap: anywhere; line-height: 1.25; }
 /* A phone's Why? is 334 px of room inside its padding, 126 px of it for the name at the full 132 px bar: the bar and the number take less. */
-@media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
-  .wf-row { grid-template-columns: minmax(0, 1fr) 64px 48px; gap: 2px 10px; }
-}
-.wf-bar { position: relative; height: 8px; }
-.wf-bar::before { content: ''; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--axis); }
-.wf-bar i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
-.wf-row .val { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
 .skeleton { position: relative; overflow: hidden; height: 10px; border-radius: 4px; background: var(--surface-2); margin: 8px 0; }
 /* (The sheen is a band of its own sliding by transform, the compositor's: no background position is animated.) */
 .skeleton::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--surface-3), transparent); transform: translateX(100%); animation: shimmer 1.2s linear infinite; pointer-events: none; }
@@ -519,9 +426,6 @@ input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 0 transpar
 /* A theme chosen in the app (main.js switchTheme): the old page, held as a still, fades over the new one. */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--d-surface); animation-timing-function: var(--ease); }
 /* Where the crossfade cannot run, a new look dips the page to the ground and back (main.js dipTheme): out over a small step, in over a surface step. */
-html.look-dip-on body { background: var(--stage-bg); }
-html.look-dip-on body > * { transition: opacity var(--d-surface) var(--ease); }
-html.look-dip body > * { opacity: 0; transition-duration: var(--d-small); }
 /* (The veil over the figure is the dialog's own outer shadow, as the search palette's is: its frost is drawn in the figure's canvas, UNDER this layer, so a full-page background veil on .modal-back dimmed the glass with the scene. A shadow is never painted under its own box.) */
 .modal { --modal-veil: 0 0 0 100vmax var(--scrim); background: var(--surface); border-radius: var(--r-sheet); box-shadow: var(--shadow-3), 0 0 0 1px var(--hairline), var(--modal-veil); width: min(720px, 100%); max-height: min(88dvh, 900px, calc(100dvh - var(--modal-kb, 0px) - var(--modal-top, 0px) - 32px - var(--safe-top) - env(safe-area-inset-bottom, 0px))); overflow: auto; overscroll-behavior: contain; animation: scale-settle var(--d-small) var(--ease); }   /* (the hairline ring: a dialog keeps its edge on the dark theme's near-black as the menus do) */
 .modal > header { padding: 20px 24px 16px; display: flex; align-items: flex-start; gap: 12px; position: sticky; top: 0; background: var(--surface); z-index: var(--z-figure); transition: none; }
@@ -546,14 +450,12 @@ html.look-dip body > * { opacity: 0; transition-duration: var(--d-small); }
 .modal a:not(.btn):visited { color: var(--accent-ink); }
 .modal ul { padding-left: 20px; color: var(--text-2); line-height: 1.6; }
 /* The Guide's three notes: they say something and do nothing, so they have no border, no pointer and no lift on hover (they were drawn as buttons). */
-.entry-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .entry { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: var(--r-sheet); background: var(--surface-2); text-align: left; }
 .entry .eic { width: 34px; height: 34px; border-radius: var(--r-card); display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
 .entry .eic :is(svg, .ic) { width: var(--ic-m); height: var(--ic-m); stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; } .entry .eic .ic { -webkit-mask-image: url("../brand/icons/icons-r.png"); mask-image: url("../brand/icons/icons-r.png"); background-color: currentColor; }
 .entry .t { font-weight: 600; font-size: var(--fs-14); }
 .entry .d { font-size: var(--fs-14); color: var(--text-2); line-height: 1.5; }
 /* Each group lists down its columns (a grid read zigzag across them: Space, [ ], then Step, Z). */
-.keys-g h4 { margin: 20px 0 2px; font-size: var(--fs-12); font-weight: 600; color: var(--text-3); }
 .keys { column-count: 2; column-gap: 28px; }
 .keys div { break-inside: avoid; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--hairline); font-size: var(--fs-14); color: var(--text-2); }
 .keys kbd { font: 500 var(--fs-12) var(--font-mono); color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-control); padding: 1px 8px; white-space: nowrap; }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 
 function css(dir: URL, out: string[] = []): string[] {
-  for (const n of readdirSync(dir)) { const u = new URL(n + (statSync(new URL(n, dir)).isDirectory() ? '/' : ''), dir); if (n.endsWith('/')) continue; statSync(u).isDirectory() ? css(u, out) : n.endsWith('.css') && !u.pathname.includes('/css2d/') && out.push(u.pathname); }
+  for (const n of readdirSync(dir)) { const u = new URL(n + (statSync(new URL(n, dir)).isDirectory() ? '/' : ''), dir); if (n.endsWith('/')) continue; statSync(u).isDirectory() ? css(u, out) : n.endsWith('.css') && !u.pathname.includes('/styles/') && out.push(u.pathname); }
   return out;
 }
 
@@ -29,5 +29,5 @@ test('shell.css keeps its two button resets at zero weight', () => {
 
 test('the shell font stack is 2D\'s --font-ui whole (Inter Fallback, Roboto, Helvetica, Arial included)', () => {
   const stack = (t: string) => /--(?:font-)?ui:\s*([^;]+);/.exec(t)![1]!.trim();
-  assert.equal(stack(readFileSync(new URL('../src/ui/shell/global.css', import.meta.url), 'utf8')), stack(readFileSync(new URL('../src/ui/css2d/tokens.css', import.meta.url), 'utf8')));
+  assert.equal(stack(readFileSync(new URL('../src/ui/shell/global.css', import.meta.url), 'utf8')), stack(readFileSync(new URL('../src/ui/styles/tokens.css', import.meta.url), 'utf8')));
 });

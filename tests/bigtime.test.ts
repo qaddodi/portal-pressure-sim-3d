@@ -443,9 +443,9 @@ test('the phone\'s two openers are raised buttons (option A): icon, name, up che
   assert.ok(/\.bt-foot \{ display: grid; grid-template-columns: 1fr 1fr/.test(css) && /\.bt-foot button \{[^}]*height: 46px[^}]*border: 1px solid var\(--edge\)[^}]*border-radius: var\(--r-card\)[^}]*background: var\(--surface-2\)/.test(css), 'two equal raised buttons');
   assert.ok(/ic-trend/.test(card) && /ic-bullets/.test(card) && (card.match(/ic ic-chev-down bt-go/g) ?? []).length === 2, 'each has its icon and an up chevron');
   assert.ok(/\.bt-foot \.bt-go \{[^}]*rotate\(180deg\)/.test(css), 'the chevron points up');
-  assert.ok(readFileSync(new URL('../src/ui/css2d/icons.css', import.meta.url), 'utf8').includes('.ic-chev-down {'), 'the atlas has the chevron');
+  assert.ok(readFileSync(new URL('../src/ui/styles/icons.css', import.meta.url), 'utf8').includes('.ic-chev-down {'), 'the atlas has the chevron');
   assert.ok(/\.ic-trend \{ --ix: 8; --iy: 7; \}/.test(css) && /\.ic-bullets \{ --ix: 9; --iy: 7; \}/.test(css), 'the two drawn icons sit in the free cells');
-  const used = new Set([...readFileSync(new URL('../src/ui/css2d/icons.css', import.meta.url), 'utf8').matchAll(/--ix: (\d+); --iy: (\d+)/g)].map((m) => `${m[1]},${m[2]}`));
+  const used = new Set([...readFileSync(new URL('../src/ui/styles/icons.css', import.meta.url), 'utf8').matchAll(/--ix: (\d+); --iy: (\d+)/g)].map((m) => `${m[1]},${m[2]}`));
   assert.ok(!used.has('8,7') && !used.has('9,7'), 'the cells are free in the generated sheet');
 });
 

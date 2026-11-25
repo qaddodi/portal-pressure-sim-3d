@@ -1,4 +1,4 @@
-// The Tests card's panes are the 2D app's own markup, so the 2D stylesheets (src/ui/css2d, loaded whole) lay them out and dress them: a pane's view is `.instrument-view[data-pane]`, the child
+// The Tests card's panes are the 2D app's own markup, so the 2D stylesheets (src/ui/styles) lay them out and dress them: a pane's view is `.instrument-view[data-pane]`, the child
 // of the card's `.dock-pane`, with its head row (a switch) before it, as dock.js builds them. No class of ours lays a pane out, and no rule of ours gives a pane a padding (the .dock-pane has 2D's).
 // What cannot be the same element, a 2D <canvas>, is a <div class="cv"> placed by the 2D canvas rules copied by script.
 import { test } from 'node:test';
@@ -12,7 +12,7 @@ import { pinned2D } from './two-d-pin.ts';
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const TWO_D = pinned2D('src/ui/instruments.js').repo;
-const css2d = () => readdirSync(new URL('../src/ui/css2d/', import.meta.url)).filter((f) => f.endsWith('.css') && f !== 'index.css').map((f) => read(`src/ui/css2d/${f}`)).join('\n');
+const css2d = () => readdirSync(new URL('../src/ui/styles/', import.meta.url)).filter((f) => f.endsWith('.css') && f !== 'index.css').map((f) => read(`src/ui/styles/${f}`)).join('\n');
 
 test('the card puts a pane\'s parts straight into .dock-pane: no wrapper between the pane and its view, so 2D\'s child rules (.dock-pane > .instrument-view) reach it', () => {
   const layer = read('src/ui/tests/TestsLayer.tsx');

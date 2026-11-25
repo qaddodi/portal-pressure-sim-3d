@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
 
 const src = readFileSync('src/ui/search/SearchSheet.tsx', 'utf8');
-const css = readFileSync('src/ui/css2d/app-03-layouts.css', 'utf8');
+const css = readFileSync('src/ui/styles/app-03-layouts.css', 'utf8');
 
 test('the list is a `glides` list and holds the one `.pal-glide` piece before its rows', () => {
   assert.match(src, /className="pal-list glides"/);
@@ -29,7 +29,7 @@ test('the highlight eases: moved by translate and scale on --d-flip, never by to
 });
 test('the same cause anywhere: every list the 2D sheet styles as `.<name>.glides` carries `glides` in its markup', () => {
   const lists = new Set<string>();
-  for (const f of readdirSync('src/ui/css2d')) if (f.endsWith('.css')) for (const m of readFileSync(`src/ui/css2d/${f}`, 'utf8').matchAll(/\.([a-z][\w-]*)\.glides\b/g)) lists.add(m[1]!);
+  for (const f of readdirSync('src/ui/styles')) if (f.endsWith('.css')) for (const m of readFileSync(`src/ui/styles/${f}`, 'utf8').matchAll(/\.([a-z][\w-]*)\.glides\b/g)) lists.add(m[1]!);
   assert.deepEqual([...lists], ['pal-list']);
   assert.match(src, /pal-list glides/);
 });

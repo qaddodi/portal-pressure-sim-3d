@@ -103,8 +103,8 @@ test('the card layer dresses them in 2D\'s own surfaces and veils the page behin
 });
 
 test('the measures are 2D\'s CSS (the lifted copy): the panel, the stacked panel, the case', () => {
-  // (the numbers are read from the lifted copy of 2D's CSS, which scripts/copy-2d-css.mjs keeps equal to the pin)
-  const lifted = readFileSync(new URL('../src/ui/css2d/app-04-presenter.css', import.meta.url), 'utf8') + readFileSync(new URL('../src/ui/css2d/app-05-presenter-cards.css', import.meta.url), 'utf8');
+  // (the numbers are read from src/ui/styles, which began as 2D's CSS)
+  const lifted = readFileSync(new URL('../src/ui/styles/app-04-presenter.css', import.meta.url), 'utf8') + readFileSync(new URL('../src/ui/styles/app-05-presenter-cards.css', import.meta.url), 'utf8');
   assert.match(lifted, /\.pz-panel \{[^}]*width: min\(1560px, calc\(100% - 2 \* max\(clamp\(16px, 3vw, 64px\)/);
   assert.match(lifted, /\.pz-panel \{[^}]*max-height: calc\(100% - 2 \* clamp\(16px, calc\(4 \* var\(--pzh\)\), 56px\)\)/);
   assert.match(lifted, /\.pz\.stack \.pz-panel \{ top: 8px; bottom: calc\(64px \+ var\(--pz-sb\)\); height: fit-content; margin-block: auto; translate: -50% 0; width: calc\(100% - 16px\); max-height: calc\(100% - 72px - var\(--pz-sb\)\)/);

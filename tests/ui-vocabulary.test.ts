@@ -1,4 +1,4 @@
-// One motion and shape vocabulary for the 3D-only UI (22 Nov 2026, visual polish review rec A). Root cause of the drift: 2D's scale lived in css2d/tokens.css and was retyped as literals in a dozen TS and CSS files,
+// One motion and shape vocabulary for the 3D-only UI (22 Nov 2026, visual polish review rec A). Root cause of the drift: 2D's scale lived in styles/tokens.css and was retyped as literals in a dozen TS and CSS files,
 // so a sheet, a menu and a card opening together finished at different times, with radii and type sizes of their own. src/ui/motion.ts is now the TS copy of tokens.css and these checks keep both honest.
 // Source-level only (nothing is run in a browser).
 import { test } from 'node:test';
@@ -13,7 +13,7 @@ import { M } from '../src/ui/shell/metrics.ts';
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
-/** The 3D-only stylesheets (the 2D copies in css2d/ and the *.copied.* files are not ours to edit). */
+/** The 3D-only stylesheets (the 2D copies in styles/ and the *.copied.* files are not ours to edit). */
 const CSS = [
   'src/ui/shell/global.css', 'src/ui/shell/shell.css', 'src/ui/shell/ease.css', 'src/ui/shell/menu-motion.css', 'src/ui/deck-ui.css', 'src/ui/action/action.css', 'src/ui/compare/compare.css',
   'src/ui/why/why.css', 'src/ui/history/history.css', 'src/ui/bigtime/bigtime.css', 'src/ui/histories/histories.css', 'src/ui/tests/tests.css', 'src/ui/tests/ir/ir.css', 'src/ui/charts/charts.css', 'src/scene/lenses/legend.css',
@@ -23,7 +23,7 @@ const TS = [
   'src/ui/a11y/motion.ts', 'src/ui/readings/dom2d.ts', 'src/clock/tween.ts',
 ];
 
-const TWO_D = new Set(['app-09-tests.css', 'app-03-layouts.css', 'app-05-presenter-cards.css', 'app-11-deck-visuals.css', 'app-08-cards.css', 'app-04-presenter.css'].flatMap((f) => read(`src/ui/css2d/${f}`).replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' ')).split('\n').map((l) => l.trim()).filter((l) => l.length > 40)));
+const TWO_D = new Set(['app-09-tests.css', 'app-03-layouts.css', 'app-05-presenter-cards.css', 'app-11-deck-visuals.css', 'app-08-cards.css', 'app-04-presenter.css'].flatMap((f) => read(`src/ui/styles/${f}`).replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' ')).split('\n').map((l) => l.trim()).filter((l) => l.length > 40)));
 /** The file with its comments blanked (newlines kept, so a line number is still the line), split in lines, beside the raw lines. */
 function lines(path: string) {
   const raw = read(path);
@@ -36,7 +36,7 @@ const OWN_PACE = /own pace/i;
 const declarations = (line: string, prop: RegExp) => [...line.matchAll(new RegExp(`(?<![\\w-])(${prop.source}):\\s*([^;}]*)`, 'g'))].map((m) => ({ prop: m[1]!, value: m[2]! }));
 
 test('motion.ts is tokens.css: the three durations and the three curves are equal, and every TS copy reads it', () => {
-  const tokens = read('src/ui/css2d/tokens.css');
+  const tokens = read('src/ui/styles/tokens.css');
   const css = (name: string) => tokens.match(new RegExp(`--${name}:\\s*([^;]+);`))![1]!.trim();
   assert.equal(`${D_FLIP}ms`, css('d-flip'));
   assert.equal(`${D_SMALL}ms`, css('d-small'));
@@ -139,7 +139,7 @@ function literalMotion(path: string): string[] {
 }
 
 test('no file outside motion.ts and global.css writes a cubic-bezier or a literal animation time (a ratchet for the label files still moving)', () => {
-  const files = walk('src').filter((f) => /\.(ts|tsx|css)$/.test(f) && !/css2d\/|\.copied\.|looks2d\/|\/copied\/|ui\/motion\.ts$|shell\/global\.css$/.test(f));
+  const files = walk('src').filter((f) => /\.(ts|tsx|css)$/.test(f) && !/ui\/styles\/|\.copied\.|looks2d\/|\/copied\/|ui\/motion\.ts$|shell\/global\.css$/.test(f));
   const found = new Map<string, string[]>();
   for (const f of files) { const hits = literalMotion(f); if (hits.length) found.set(f, hits); }
   for (const [f, hits] of found) assert.ok(hits.length <= (LEGACY[f] ?? 0), `${f} writes ${hits.length} literal curve(s) or time(s), allowance ${LEGACY[f] ?? 0}: use motion.ts (TS) or var(--d-*) / var(--ease-*) (CSS), or name it and say "own pace"\n  ${hits.join('\n  ')}`);

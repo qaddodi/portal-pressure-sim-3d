@@ -1,4 +1,4 @@
-// The data card's tiles, on the 2D app's own markup (presenter-cards.js buildTiles) and so its own stylesheet (src/ui/css2d): per tile the name (.pzt-k), the number and its unit
+// The data card's tiles, on the 2D app's own markup (presenter-cards.js buildTiles) and so its own stylesheet (src/ui/styles): per tile the name (.pzt-k), the number and its unit
 // (.pzt-vu > .pzt-v + small), the rating's word (.pzt-r), the line that says where it started (.pzt-d) and the scale bar (.pzt-bar: bands, cut-off ticks and numbers, a ring where it
 // started and a dot where it is). Which tiles, their words and their numbers are tiles-2d.ts, from the slide's own state in the engine; this file only draws them.
 // An instrument card's readings stand in its header row instead (.pz-dh > .pz-hr > .pz-hi) and its tiles card is not drawn (2D: .pz-data.tool-only .pz-tiles is hidden).

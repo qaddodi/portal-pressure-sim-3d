@@ -2,7 +2,6 @@
 // The parser is rolldown's (oxc: it ships with Vite, so nothing new to install, and parses TS/TSX in milliseconds); typescript 7 has no JS syntax-tree API.
 // A rule is { applies(path), visit(node) }; a hit is { rule, path, line, text }. scripts/lint-allow.json holds each rule's allowance (hits tolerated today); it may only go down.
 import { parseAst } from 'rolldown/parseAst';
-import { createHash } from 'node:crypto';
 
 const under = (p, ...dirs) => dirs.some((d) => p === d || p.startsWith(`${d}/`));
 // the copied engine and its worker host are not this app's code (and the host has no animation frames)
@@ -134,21 +133,6 @@ export function judge(hits, allow) {
 export function conflictMarkers(text) {
   const out = [];
   text.split('\n').forEach((l, i) => { if (/^(<{7}|>{7})( .*)?$/.test(l) || /^={7}$/.test(l)) out.push(i + 1); });
-  return out;
-}
-
-/** Rule `no-css2d-edit` (no allowance): src/ui/css2d is the 2D app's stylesheets, byte for byte (scripts/copy-2d-css.mjs writes them and src/ui/css2d/SOURCE.json holds each hash). A file whose bytes are not its recorded hash was edited by hand,
- *  and a stylesheet in the folder that SOURCE.json does not list is a hand-made one: both are named here, so the pre-push (lint) stops them before a copy drifts from 2D. A 3D change to a 2D rule goes in src/ui/css2d-3d.css, loaded right after.
- *  `files` is [{ name, bytes }] for every .css in the folder (index.css and SOURCE.json aside), `source` the parsed SOURCE.json. Returns the problem lines. */
-export function css2dEdits(files, source) {
-  const out = [], listed = new Set(source.order ?? []);
-  for (const { name, bytes } of files) {
-    if (name === 'index.css') continue;
-    if (!listed.has(name)) { out.push(`src/ui/css2d/${name}: not a copied 2D stylesheet (SOURCE.json does not list it): put 3D rules in src/ui/css2d-3d.css`); continue; }
-    const hash = createHash('sha256').update(bytes).digest('hex').slice(0, 16);
-    if (hash !== source.hashes?.[name]) out.push(`src/ui/css2d/${name}: edited by hand (hash ${hash}, SOURCE.json ${source.hashes?.[name]}): change the 2D repo and run scripts/copy-2d-css.mjs, or put the 3D rule in src/ui/css2d-3d.css`);
-  }
-  for (const name of listed) if (!files.some((f) => f.name === name)) out.push(`src/ui/css2d/${name}: listed in SOURCE.json but missing`);
   return out;
 }
 

@@ -91,14 +91,11 @@ input, textarea, select, [contenteditable]:not([contenteditable="false"]),
 .card-title .dt-l:empty { display: none; }
 .card-meta, .card-head .workspace-live { flex: 0 1 auto; font: 600 var(--fs-12) var(--font-ui); color: var(--text-3); white-space: nowrap; }
 .card-head .card-close.card-close { display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; margin: 0; }
-.panel .panel-head { border-radius: var(--r-sheet) var(--r-sheet) 0 0; }
 
 .panel, .treat-card, .instrument-workspace.float-ui { --card-in: slide-from-edge; --card-out: slide-to-edge; --edge-x: 16px; --edge-o: 0; --card-t: var(--d-small); }
 .panel { transform: none; transition: opacity var(--d-surface, .42s) var(--ease); }   /* (it had no transition at all, so it snapped to its dim) */
-.app.panel-open .panel { visibility: visible; animation: var(--card-in) var(--card-t) var(--ease); }
 .treat-card { animation: var(--card-in) var(--card-t) var(--ease); }
 .instrument-workspace.float-ui.entering, .instrument-workspace.float-ui.side.entering { animation: var(--card-in) var(--card-t) var(--ease); }
-#panel.card-leaving, #treatCard.card-leaving, #historyCard.card-leaving, #dock.card-leaving { display: flex !important; visibility: visible !important; pointer-events: none; animation: var(--card-out) var(--d-flip) var(--ease-in) forwards !important; }
 /* Every card is the one glass, at every width (13 Nov 2026, Mohammad: "Not everything is one glass"): the laptop's Treat, Tests, History and
    patient-chart cards were painted solid, since their plate (the card's paper, .sheet-plate, sheet-move.js) was shown on a phone only. The box
    wears nothing; its plate is drawn by the figure's GPU glass (main.js sheetGlass) and keeps the paper where the canvas cannot take it. */
@@ -112,15 +109,12 @@ input, textarea, select, [contenteditable]:not([contenteditable="false"]),
      first child, which slides with the rest of the content. The box's still clip (the thumb block's polygon, or the screen's edge
      sideways) hides what slides below its resting foot. */
   :is(.panel, .treat-card, .instrument-workspace.float-ui:not(.side)).has-plate:not(.app.thumb *) { clip-path: inset(-48px -48px 0 -48px); }
-  .panel .panel-head { touch-action: none; border-radius: 0; }
 }
 
 
 /* The Tests card's pull (dock-sheet.js): every part of the pane is placed by the finger, frame by frame, so none of them eases on its own meanwhile. */
-#app .instrument-workspace.sheet-grow .dock-pane.active * { transition: none; }
 /* (and each monitor's canvases sit at its box's corner: drawn at the in-between size in a box laid out at Full, the shapes rule's centring
    (below) put them down and in by half the room left, the FibroScan map out of line with its box) */
-#app .instrument-workspace.sheet-grow .dock-pane.active .chart-box { --cv-l: 0px; --cv-t: 0px; }
 
 /* Findings: what has been changed, with its value; a tap on × takes it back. */
 .chg-list { display: flex; flex-direction: column; }
@@ -192,12 +186,9 @@ input, textarea, select, [contenteditable]:not([contenteditable="false"]),
 
 
 /* Lobule station labels share a centred anchor; leaders terminate behind the text. */
-.lz-lab { text-align: center; border-left: 0; padding: 2px 5px 4px; }
-.lz-lab .v { justify-content: center; }
-@media (max-width: 720px) { .lz-lab { padding: 2px 3px; } }
 
 /* Labels participate in the figure's gestures without text selection or native touch scrolling. */
-.lz-lab, .lb { touch-action: none; user-select: none; -webkit-user-select: none; }
+.lb { touch-action: none; user-select: none; -webkit-user-select: none; }
 
 /* Split button: one bordered control, play/pause about 2/3 and the speed about 1/3, with a short divider. */
 .tl-split { display: flex; align-items: stretch; height: 34px; border: 1px solid var(--border); border-radius: var(--r-control); background: transparent; overflow: hidden; }   /* (on the dock's glass: its ring only, no white box; 13 Nov 2026) */
@@ -206,7 +197,6 @@ input, textarea, select, [contenteditable]:not([contenteditable="false"]),
 .timeline .tl-split .ib.play, .vdock .tl-split .ib.play { width: 46px; height: 100%; min-height: 0; align-self: stretch; border-radius: 0; }
 .tl-split .ib.play :is(svg, .ic) { display: block; }
 @media (hover: hover) { .tl-split .tl-speed:hover { background: var(--accent-soft); color: var(--accent-ink); } }
-.time-pop .menu-item[aria-pressed="true"] { color: var(--accent-ink); font-weight: 600; }
 
 /* Concentric corners: inside a 16px pill with 3px padding, inner highlights are 13px. */
 .topbar .float-pill > .menu-btn, .topbar .float-pill > .tb-act, .topbar .float-pill > .pal-btn, .topbar .float-pill > .ib, .topbar #viewSeg button { border-radius: calc(var(--r-sheet) - 3px); }
@@ -235,9 +225,7 @@ input, textarea, select, [contenteditable]:not([contenteditable="false"]),
 .toast { display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 12px; background: var(--glass); color: var(--text); border-radius: var(--r-sheet); box-shadow: var(--shadow-2), inset 0 0 0 1px var(--hairline); font-size: var(--fs-12); line-height: 1.4; max-width: min(440px, 92vw); pointer-events: auto; cursor: pointer; touch-action: pan-x; }
 .toast.bad { background: var(--glass); color: var(--text); }
 /* An error's mark: the warning triangle in the danger ink, one text-height tall,so it scales with the words */
-.toast-ic { display: inline-block; width: 1.05em; height: 1.05em; margin: 0 .4em 0 0; vertical-align: -.17em; color: var(--danger-ink); stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 /* Words wrap into even lines, never one word left alone on the last. */
-.toast-msg { text-wrap: balance; }
 
 /* Concentric corners: a control inside a rounded container uses (container radius - inset), the same on
    every end, so hover, pressed and selected fills sit evenly inside their container. */
@@ -263,14 +251,10 @@ input, textarea, select, [contenteditable]:not([contenteditable="false"]),
 .tl-left .tl-split .tl-speed, .vdock .tl-left .tl-split .tl-speed { border-radius: calc(var(--split-r) - var(--inset) - 1px); }
 
 /* Cards keep their size as live numbers and notes change: tabular figures, reserved widths and heights. */
-.action-card, .tool-card, .panel, .hover-tip, .sb-banner { font-variant-numeric: tabular-nums; }
+.action-card, .tool-card, .panel { font-variant-numeric: tabular-nums; }
 .ac-value b { display: inline-block; }
 .ac-delta { display: inline-block; min-width: 5ch; }
-.ac-delta:empty { display: none; }   /* (the slot is always in the reading, so a change's coming and going rewrites its text, never rebuilds the reading) */
-.hover-tip .rows { display: grid; grid-template-columns: 1fr minmax(5ch, auto) auto; align-items: baseline; color: var(--text-2); line-height: 1.7; text-align: right; }   /* (right: the number's own box is anonymous, so it takes its alignment from the grid, not from the b) */
-.hover-tip .r, .hover-tip .r b { display: contents; }
-.hover-tip .r .k { grid-column: 1; padding-right: 16px; text-align: left; }
-.hover-tip .r .u { grid-column: 3; text-align: left; }   /* (a row is three columns, name / number / unit, shared by every row: the numbers' points line up whatever their units, "mmHg", "L/min", "cm/s", "mm"; the unit column is as wide as the longest unit) */
+.ac-delta:empty { display: none; }   /* (the slot is always in the reading, so a change's coming and going rewrites its text, never rebuilds the reading) */   /* (right: the number's own box is anonymous, so it takes its alignment from the grid, not from the b) */   /* (a row is three columns, name / number / unit, shared by every row: the numbers' points line up whatever their units, "mmHg", "L/min", "cm/s", "mm"; the unit column is as wide as the longest unit) */
 
 /* The figure mirrors the question */
 /* Compare table */
@@ -283,8 +267,6 @@ input, textarea, select, [contenteditable]:not([contenteditable="false"]),
 
 /* An error, or a card with buttons, is never hidden under a menu or a sheet's scrim: it is the one thing to read (audit ZO1). */
 /* A card with buttons (the engine stopped): the words on one line, the buttons centred under them. */
-.toast.has-acts { flex-wrap: wrap; }
-.toast-acts { display: inline-flex; flex: none; gap: 8px; }
 /* A toast the GPU draws (widget-gl.js, toast-gl.js): its box, hit area, focus and words stay for the page; its card, shadow, words, mark and
    buttons are the GPU's picture over it, so the page's own paint steps aside the moment that picture is up (.wgl-on), never before. */
 .toast { position: relative; }
@@ -295,15 +277,8 @@ canvas.wgl.wgl, canvas.wgl.wgl + canvas.trace-gl { position: absolute; left: cal
 :root[data-noglass] .toast { --gl-glass: 0; }
 @media (prefers-reduced-transparency: reduce) { .toast { --gl-glass: 0; } }
 .toast-wrap .toast[data-gl] { background: none !important; box-shadow: none !important; }   /* (the card's glass is drawn behind it: glass-gl.js) */
-.toast-wrap .toast.wgl-on { background: none !important; box-shadow: none !important; color: transparent; }
-.toast.wgl-on :is(.toast-msg, .toast-acts) { color: transparent; }
-.toast.wgl-on .toast-ic { visibility: hidden; }
-.toast.wgl-on .toast-acts .btn { position: relative; z-index: 1; background: none; border-color: transparent; color: transparent; box-shadow: none; }
-.toast.wgl-on .toast-acts .btn::before { content: none; }
 /* A tooltip the GPU draws (tip-gl.js): its box, place and fade stay the page's, its card, shadow, words and key are the GPU's picture in it, so
-   the page's own paint steps aside the moment that picture is up (.tip-gl), never before. The words stay in the page for a screen reader. */
-.tooltip.tip-gl { color: transparent; }
-.tooltip.tip-gl[data-gl] { background: none !important; box-shadow: none !important; }   /* (the card is frosted GPU glass once drawn, menu-glass.js; until then the page's own fill) */
+   the page's own paint steps aside the moment that picture is up (.tip-gl), never before. The words stay in the page for a screen reader. */   /* (the card is frosted GPU glass once drawn, menu-glass.js; until then the page's own fill) */
 /* A popover's or menu's fill, ring and shadow, drawn by the GPU on a plate laid under it (plate-gl.js). The plate rides where the menu does: its
    place, way in and way out are twins of the menu's own rules (made from this stylesheet at the first plate), its size the menu's. The menu's own
    background and shadow give way (.box-gl) once the plate is drawn. */
@@ -381,9 +356,9 @@ canvas.wgl.wgl, canvas.wgl.wgl + canvas.trace-gl { position: absolute; left: cal
 @media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
   .card-head.card-head { position: relative; min-height: 44px; padding: 0 44px !important; justify-content: center; }
   /* No visible drag handle: the title row drags the sheet. The button stays for keyboard resizing, only seen on focus. */
-  .panel-grab, .sheet-grab { position: absolute; top: 0; left: 50%; width: 56px; height: 10px; z-index: 2; transform: translateX(-50%); opacity: 0; transition: opacity var(--d-flip) var(--ease); }
-  .panel-grab::before, .sheet-grab::before { top: 3px; }
-  .panel-grab:focus-visible, .sheet-grab:focus-visible { opacity: 1; }
+  .sheet-grab { position: absolute; top: 0; left: 50%; width: 56px; height: 10px; z-index: 2; transform: translateX(-50%); opacity: 0; transition: opacity var(--d-flip) var(--ease); }
+  .sheet-grab::before { top: 3px; }
+  .sheet-grab:focus-visible { opacity: 1; }
   .card-head .card-title { flex: 0 1 auto; justify-content: center; font-size: var(--fs-14) !important; gap: 6px; }
   .card-head .card-close.card-close { position: absolute; right: 0; top: 50%; width: 44px; height: 44px; transform: translateY(-50%); z-index: 1; }
   .card-head .card-close :is(svg, .ic) { width: var(--ic-s); height: var(--ic-s); }
@@ -430,7 +405,6 @@ canvas.wgl.wgl, canvas.wgl.wgl + canvas.trace-gl { position: absolute; left: cal
 
 /* A plain bordered card */
 .sp { padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); display: flex; flex-direction: column; gap: 12px; animation: fade-rise var(--d-surface) var(--ease) both; }
-.sp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 
 /* ── The final assessment (exam.js) ── */
 @media print {
@@ -484,49 +458,10 @@ html.pz-covered :is(.pz-shade, .pz-text, .pz-data, .pz-case, .pz-panel, .pz-bar,
 /* Home: the sheet eases in and out, and a page change inside it fades and rises (never a pop). */
 .home.leaving { opacity: 0; pointer-events: none; }
 
-/* The Presenter's reflowing scale (scaleKey): zone names over a band, cut-offs under it, numbered dots, a key. */
-.pz-sk { --sk: var(--s-body); font: 500 var(--sk)/1.3 var(--font-ui); color: var(--text); padding: .4em 0 0; }
-.pzk-names, .pzk-bar, .pzk-axis { position: relative; margin: 0 1.2em; }
-.pzk-names { display: grid; align-items: end; min-height: 1.6em; padding-bottom: .3em; box-sizing: border-box; }
-.pzk-names span { padding: 0 .2em; text-align: center; font-weight: var(--caps-w); font-size: var(--s-cap); line-height: 1.15; letter-spacing: var(--caps-ls); text-transform: uppercase; }
-.pzk-names [data-rate="ok"] { color: var(--ok-ink); } .pzk-names [data-rate="mid"] { color: var(--caution-ink); } .pzk-names [data-rate="hi"], .pzk-names [data-rate="top"] { color: var(--danger-ink); }
-.pzk-bar { height: 1.5em; container-type: inline-size; }   /* (1cqw: a hundredth of the bar, for the dots' translate) */
-.pzk-bar i { position: absolute; top: .25em; bottom: .25em; }
-.pzk-bar i:first-child { border-radius: 99px 0 0 99px; } .pzk-bar i:nth-last-of-type(1) { border-radius: 0 99px 99px 0; }
-.pzk-bar i[data-rate="ok"] { background: color-mix(in srgb, var(--ok) 28%, transparent); }
-.pzk-bar i[data-rate="mid"] { background: color-mix(in srgb, var(--caution) 32%, transparent); }
-.pzk-bar i[data-rate="hi"] { background: color-mix(in srgb, var(--danger) 24%, transparent); }
-.pzk-bar i[data-rate="top"] { background: color-mix(in srgb, var(--danger) 40%, transparent); }
-.pzk-bar b { position: absolute; top: -.15em; bottom: -.15em; width: 2px; margin-left: -1px; background: var(--text-2); }
-.pzk-dot { --d: calc(var(--sk, 14px) * .72); position: absolute; top: 50%; left: 0; width: calc(var(--d) * 2.1); height: calc(var(--d) * 2.1); margin: calc(var(--d) * -1.05) 0 0 calc(var(--d) * -1.05); border-radius: 50%; display: grid; place-items: center;
-  background: var(--surface); border: calc(var(--d) * .17) solid currentColor; font: 700 max(var(--d), 12px)/1 var(--font-ui); color: var(--text-2); box-sizing: border-box;   /* (the dot is the size it was, .72 of the scale's text; its digit is never under 12 px) */
-  opacity: 0; transition: translate 1.4s var(--ease) /*own pace*/ calc(var(--i, 0) * 160ms + 250ms), opacity var(--d-surface) var(--ease) calc(var(--i, 0) * 160ms + 100ms); }
-.pz-sk.in .pzk-dot { translate: var(--xq) 0; opacity: 1; }   /* (by translate from the bar's start: no layout per frame) */
-.pzk-dot[data-rate="ok"], .pzk-key [data-rate="ok"] .pzk-n, .pzk-key [data-rate="ok"] .pzk-v { color: var(--ok-ink); }   /* (the dot is a ring with a digit in it: text, so the ink) */
-.pzk-dot[data-rate="mid"], .pzk-key [data-rate="mid"] .pzk-n, .pzk-key [data-rate="mid"] .pzk-v { color: var(--caution-ink); }
-.pzk-dot[data-rate="hi"], .pzk-key [data-rate="hi"] .pzk-n, .pzk-key [data-rate="hi"] .pzk-v { color: var(--danger-ink); }
-.pzk-axis { height: 1.7em; margin-top: .2em; font-weight: 700; font-variant-numeric: tabular-nums; }
-.pzk-axis span { position: absolute; top: 0; transform: translateX(-50%); }
-.pzk-axis .end { right: 0; transform: none; font-weight: 500; color: var(--text-3); }
-.pzk-rules { display: grid; align-items: start; margin: .1em 1.2em 0; }
-.pzk-rules span { padding: 0 .4em; text-align: center; font-size: var(--s-cap); line-height: 1.3; color: var(--text-2); }
-.pzk-bar b { z-index: 0; } .pzk-dot { z-index: 1; }
-.pzk-key { list-style: none; margin: .9em 0 0; padding: .9em 0 0; border-top: 1px solid var(--border); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .9em 1.2em; }
-.pzk-key li { display: grid; grid-template-columns: auto 1fr; column-gap: .55em; align-items: baseline; align-content: start; opacity: 0; transition: opacity var(--d-surface) var(--ease) calc(var(--i, 0) * 160ms + 400ms); }
-.pz-sk.in .pzk-key li { opacity: 1; }
-.pzk-n { grid-row: span 4; align-self: start; display: grid; place-items: center; width: 1.5em; height: 1.5em; border-radius: 50%; border: .12em solid currentColor; font: 700 var(--s-cap)/1 var(--font-ui); color: var(--text-2); margin-top: .35em; }
-.pzk-v { font: 700 var(--s-val)/1.1 var(--font-ui); font-variant-numeric: tabular-nums; }
-.pzk-v small { font-size: var(--s-cap); font-weight: 500; color: var(--text-3); }
-.pzk-name { font-weight: 600; }
-.pzk-sub { font-size: var(--s-cap); color: var(--text-3); }
-@media (prefers-reduced-motion: reduce) { .pzk-dot, .pzk-key li { transition-property: opacity; } }
-.pz-visual.pz-sk { display: block; width: 100%; max-width: 1100px; margin: 0 auto; container: pzsk / inline-size; }
+/* The Presenter's reflowing scale (scaleKey): zone names over a band, cut-offs under it, numbered dots, a key. */   /* (1cqw: a hundredth of the bar, for the dots' translate) */   /* (by translate from the bar's start: no layout per frame) */   /* (the dot is a ring with a digit in it: text, so the ink) */
 /* (A scale drawn narrow, an upright iPad's card as a phone's: a short zone's name, CSPH, cannot wrap, so the names alternate
    high and low and never run into the next one.) */
-@container pzsk (max-width: 680px) { .pzk-names { padding-top: 1.4em; } .pzk-names span { letter-spacing: 0; padding: 0; display: flex; justify-content: center; align-items: flex-end; white-space: nowrap; } .pzk-names span:nth-child(even) { transform: translateY(-1.3em); } }
 .pz-ph .pz-eq { margin: .35em 0 .5em; }
-@media (max-width: 900px) { .pzk-key { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 520px) { .pz-sk { --sk: 14px; } .pzk-names { padding-top: 1.4em; } .pzk-names span { letter-spacing: 0; padding: 0; display: flex; justify-content: center; align-items: flex-end; white-space: nowrap; } .pzk-names span:nth-child(even) { transform: translateY(-1.3em); } .pzk-names, .pzk-bar, .pzk-axis { margin: 0 .9em; } .pzk-rules { margin: .1em .9em 0; } .pzk-rules span { padding: 0 .2em; } }
 /* Tests in a narrow card (a phone's sheet, the side card on an iPad or a laptop): every tab fills the card's
    height and its picture takes what is left, so it all fits without scrolling; on a raised phone sheet or a
    tall card the picture grows and the notes under it come back. */

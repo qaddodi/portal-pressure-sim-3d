@@ -1,4 +1,4 @@
-// The cards, the wallet strip and the presenter pill are drawn by the 2D app's own stylesheets (src/ui/css2d, lifted unchanged), so they carry its class names.
+// The cards, the wallet strip and the presenter pill are drawn by the 2D app's own stylesheets (src/ui/styles), so they carry its class names.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -26,7 +26,7 @@ test('the pill is 2D markup (.pz-bar .pzb-pill / .phone, .ib, .pzb-n > .pzb-nt) 
 test('the deck UI is the 2D root (.pz, stack, tab, short, pz-card) and loads the lifted stylesheet before its own', () => {
   const t = src('src/ui/DeckUi.tsx');
   assert.ok(t.includes("'pz'") && t.includes("'stack'") && t.includes("'tab'") && t.includes("'short'") && t.includes('pz-card'), 'root classes');
-  assert.ok(t.indexOf("./css2d/index.css") > -1 && t.indexOf("./css2d/index.css") < t.indexOf("./deck-ui.css"), 'css2d is imported before deck-ui.css');
+  assert.ok(t.indexOf("./styles/index.css") > -1 && t.indexOf("./styles/index.css") < t.indexOf("./deck-ui.css"), 'the base styles are imported before deck-ui.css');
 });
 
 test('no old card class names are left in the cards (dk-kicker, dk-title, dk-body, dk-eq, dk-btn, dk-ladder, dk-row)', () => {

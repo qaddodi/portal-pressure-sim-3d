@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { layoutVars, layoutClass } from '../src/ui/shell/room.ts';
 
 const read = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
-const bar = read('src/ui/shell/PlayBar.tsx'), css = read('src/ui/css2d/app-08-cards.css'), shell = read('src/ui/shell/shell.css'), sh = read('src/ui/shell/Shell.tsx');
+const bar = read('src/ui/shell/PlayBar.tsx'), css = read('src/ui/styles/app-08-cards.css'), shell = read('src/ui/shell/shell.css'), sh = read('src/ui/shell/Shell.tsx');
 
 test('2D\'s stylesheet hides the lobule group unless the strip has `lob`; the lobule strip carries it, and carries the group the CSS names', () => {
   assert.match(css, /\.readouts:not\(\.lob\) \.ro-group\[data-group="lobule"\] \{ display: none; \}/);
