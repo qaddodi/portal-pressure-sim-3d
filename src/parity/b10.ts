@@ -84,7 +84,7 @@ export const TOOL_OPTIONS: Record<string, readonly string[]> = {
   path: ['of', 'patient'],
   profile: ['spans', 'from', 'fromLabel', 'hold'],
   flowtime: ['clock', 'lines', 'given', 'view', 'bands', 'keepTiles'],
-  curve: ['param', 'from', 'to', 'step', 'lines', 'x', 'xCuts', 'cuts', 'patient', 'days', 'against', 'gap', 'label', 'zone', 'unit', 'oneScale', 'xFrom', 'xTo', 'ring', 'dots', 'walk', 'points', 'reading', 'styles'],
+  curve: ['param', 'from', 'to', 'step', 'lines', 'x', 'xCuts', 'cuts', 'patient', 'days', 'against', 'gap', 'label', 'zone', 'unit', 'oneScale', 'ends', 'xFrom', 'xTo', 'ring', 'dots', 'walk', 'points', 'reading', 'styles'],
   course: ['reading', 'from', 'event', 'wait', 'after', 'then', 'words'],
   flows: ['of'],
   shift: [],

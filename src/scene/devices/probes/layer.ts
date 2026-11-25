@@ -12,7 +12,7 @@ import type { ScreenEnv } from './screen.ts';
 import type { OrganEdge } from './fibro-place.ts';
 import { probeLabel } from '../../labels/probe-labels.ts';
 import { addCover, beginCover } from '../../labels/probe-cover.ts';
-import { ringsOutline } from './cover.ts';
+import { ringsOutline, ringsClaims } from './cover.ts';
 import { basisAt, newBasis, type Box } from './screen.ts';
 import { probeClaims } from '../../labels/probe-claims.ts';
 
@@ -75,7 +75,7 @@ export class ProbeLayer {
     for (const c of [this.fibro.coverRuns(), this.doppler.coverRuns()]) if (c) addCover(ringsOutline(env, c.runs, c.sc, this.pts), c.alpha);
     const sp = this.scope.coverRuns();
     if (sp) addCover(ringsOutline(env, sp.runs, basisAt(env, sp.at, this.cb).sc, this.pts), sp.alpha);
-    this.claim.length = 0; dd.footprint(this.claim); probeClaims.set(this.claim);   // (the labels and callouts keep clear of the settled probe)
+    this.claim.length = 0; dd.footprint(this.claim); if (sp && sp.alpha >= 0.95) ringsClaims(env, sp.runs, basisAt(env, sp.at, this.cb).sc, this.claim); probeClaims.set(this.claim);   // (the labels and callouts keep clear of the settled probe)
     dp.on = dd.overlay && dd.shown > 0; dp.alpha = dd.shown; dp.shut = dd.sampleShut; dp.lines.set(dd.lines);
   }
 

@@ -297,6 +297,26 @@ export const CAPTURE_6EC6D323 = [
   P('stiffness', 'slides.spleen.line', 'The dashed outline is a normal spleen.', 'The thin outline is a normal spleen.'),
 ];
 
+// ---- capture af88a9c2 / 2b947e48 slide review (25 Nov 2026) ----
+export const CAPTURE_AF88A9C2 = [
+  // the clot slides name the junction, the right hepatic vein and the wedge, show the full clot, and read both ends of each line off the chart
+  SET('prehepatic', 'slides.relation.labels', ['CONF', 'RHV', 'SIN_R']),
+  SET('prehepatic', 'slides.relation.params', { thrombus: { PV_TRUNK: 1 } }),
+  SET('prehepatic', 'slides.relation.tool.ends', true),
+  SET('two-inflows', 'slides.relation.params', { thrombus: { PV_TRUNK: 1 } }),
+  SET('two-inflows', 'slides.relation.tool.ends', true),
+  // the carvedilol slide quotes the EVL-alone varix on its chart
+  SET('next-bleed', 'slides.held.tool.refs', [{ line: 'varix', from: 'slough', text: 'EVL alone' }]),
+  SET('treatment', 'slides.relation.tool.title', 'HVPG on the drug by HVPG before it'),
+  SET('gastric-varices', 'slides.tips.cam', 'fit'),
+  SET('variceal-bleed', 'slides.path.mark', { edges: ['C1a', 'C1b'], label: 'Banded varices', kind: 'treat' }),
+  SET('two-inflows', 'slides.artery.mark', [{ edges: ['A_HEP'], label: 'Clot' }, { organ: 'liver', label: 'Sinusoidal flow {liver}', kind: 'note' }]),
+  // the lobule two years after cure can be set against the lobule before it (the same cure's two states, on the slide's own camera)
+  SET('cause-treated', 'slides.year2-lobule.compare', [{ label: 'Two years after', short: 'After', own: true }, { label: 'Before the cure', short: 'Before', preset: 'csph' }]),
+  // the right atrium's reading is on the figure already: the cardiac output note repeated the instrument
+  DROP('tips-complete', 'slides.heart.mark'),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -409,6 +429,7 @@ export const SOURCE_PATCHES = [
   ...REVIEWER_24NOV_D,
   ...REVIEWER_24NOV_E,
   ...CAPTURE_6EC6D323,
+  ...CAPTURE_AF88A9C2,
 ];
 
 function step(node, key) {
