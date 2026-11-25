@@ -82,14 +82,29 @@ test('a drawn diameter is the floor under the engine\'s: it draws the tract befo
 
 // The grey octagonal knob on the TIPS wire (owner, 22 Nov: "wtf is this circle in tips"). Root cause: the needle's bevel cone was built on the Z axis but laid along the route as an X-axis part (`orient` turns +X), so it
 // stood end-on to the viewer; and its apex radius was an absolute 0.01 against a needle of 0.0015, an inverted cone: a wide 8-sided disc where the needle ends. Every part laid by `orient` must have its length on +X.
-import { NEEDLE_APEX_K, needlePoint } from '../src/scene/devices/catheters/proc-catheter.ts';
+import { NEEDLE_APEX_K, NEEDLE_POINT_LEN, needlePoint, needleRadius } from '../src/scene/devices/catheters/proc-catheter.ts';
 test('the needle\'s point lies along +X (base at the origin, apex ahead), never end-on', () => {
-  const rc = route3d('tips')!.rc, r = Math.max(rc * 0.42, 0.0015);
+  const rc = route3d('tips')!.rc, r = needleRadius(rc);
   const g = needlePoint(rc, r); g.computeBoundingBox();
   const b = g.boundingBox!;
-  assert.ok(Math.abs(b.min.x) < 1e-6 && Math.abs(b.max.x - rc * 1.4) < 1e-6, `length on +X: ${b.min.x}..${b.max.x}`);
+  assert.ok(Math.abs(b.min.x) < 1e-6 && Math.abs(b.max.x - rc * NEEDLE_POINT_LEN) < 1e-6, `length on +X: ${b.min.x}..${b.max.x}`);
   assert.ok(b.max.y - b.min.y <= 2 * r + 1e-6 && b.max.z - b.min.z <= 2 * r + 1e-6, 'no wider than the needle');
   const pos = g.getAttribute('position'); let atApex = 0;
-  for (let i = 0; i < pos.count; i++) if (pos.getX(i) > rc * 1.4 - 1e-6) { atApex++; assert.ok(Math.hypot(pos.getY(i), pos.getZ(i)) <= r * NEEDLE_APEX_K + 1e-6, 'the apex is narrower than the base'); }
+  for (let i = 0; i < pos.count; i++) if (pos.getX(i) > rc * NEEDLE_POINT_LEN - 1e-6) { atApex++; assert.ok(Math.hypot(pos.getY(i), pos.getZ(i)) <= r * NEEDLE_APEX_K + 1e-6, 'the apex is narrower than the base'); }
   assert.ok(atApex > 0, 'the apex is ahead of the base');
+});
+
+// The TIPS needle was thick and the sheath over it thin (owner, 25 Nov): the needle was 0.42 of the shaft's radius (0.0015 against 0.0033), nearly half the sheath's width. Now a fine needle (no thicker than 0.3 of the
+// shaft, as fine as the wire) with a long bevel, and the TIPS kit's sheath 1.5 times the shaft's radius, still held inside its drawn lumen (SHEATH_MAX_SHARE); every other route keeps its shaft.
+import { SHEATH_K, SHEATH_MAX_SHARE, sheathK, SHEATH_KINDS } from '../src/scene/devices/catheters/proc-catheter.ts';
+test('the TIPS needle is fine and its sheath is visibly wider than the needle, in every kit route', () => {
+  for (const kind of ['tips', 'tipscoil', 'tipscoilin', 'dips'] as const) {
+    const r3 = route3d(kind)!, rc = r3.rc, nr = needleRadius(rc);
+    assert.ok(nr <= 0.3 * rc + 1e-9 && nr >= 0.0009, `${kind}: needle radius ${nr} against shaft ${rc}`);
+    assert.ok(sheathK(kind) === SHEATH_K && SHEATH_K * rc >= 3.5 * nr, `${kind}: the sheath ${(SHEATH_K * rc).toFixed(4)} is at least 3.5 needles wide (${nr})`);
+    const r = r3.route; let worst = 0;
+    for (let i = 0; i <= 60; i++) worst = Math.max(worst, Math.min(SHEATH_K * rc, SHEATH_MAX_SHARE * r3.lumen(r.start + ((r.free - r.start) * i) / 60)) / r3.lumen(r.start + ((r.free - r.start) * i) / 60));
+    assert.ok(worst <= SHEATH_MAX_SHARE + 1e-9, `${kind}: the sheath stays within ${SHEATH_MAX_SHARE} of the lumen`);
+  }
+  for (const kind of ['hvpg', 'brto', 'bato', 'ivcread']) assert.ok(!SHEATH_KINDS.has(kind) && sheathK(kind) === 1, `${kind} keeps its shaft`);
 });

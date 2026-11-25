@@ -44,7 +44,13 @@ export const CATHETER_IDLE: CatheterState = { u: 0, balloon: 0, column: 0, opaci
 /** The needle's bevelled point: a cone with its axis on +X (the way every part of the route is laid: `orient` turns +X to the route's direction), base radius `r` at the origin, a point `1.4 rc` ahead of it. */
 /** The point's apex radius as a share of its base (the needle's). It was an absolute 0.01 scene units, six times the needle's own radius (0.0015): the "cone" was a wide 8-sided disc. */
 export const NEEDLE_APEX_K = 0.08;
-export function needlePoint(rc: number, r: number): BufferGeometry { return new CylinderGeometry(r * NEEDLE_APEX_K, r, rc * 1.4, 8, 1, false).rotateZ(-Math.PI / 2).translate(rc * 0.7, 0, 0); }
+/** The TIPS needle (owner, 25 Nov: "not too sharp, very thick"): a fine steel needle, a share of the shaft's radius no thicker than the guide wire's, with a long slim bevel; and the sheath over it wider than any other catheter's shaft. */
+export const NEEDLE_K = 0.2, NEEDLE_MIN = 0.0009, NEEDLE_POINT_LEN = 3.2, SHEATH_K = 1.5, SHEATH_MAX_SHARE = 0.3;
+export const needleRadius = (rc: number): number => Math.max(rc * NEEDLE_K, NEEDLE_MIN);
+/** The sheath's radius on a TIPS-kit route (the shaft is the sheath the needle goes out through), the shaft's own radius elsewhere. */
+export const SHEATH_KINDS: ReadonlySet<string> = new Set(['tips', 'tipscoil', 'tipscoilin', 'dips']);
+export const sheathK = (kind: string): number => (SHEATH_KINDS.has(kind) ? SHEATH_K : 1);
+export function needlePoint(rc: number, r: number): BufferGeometry { return new CylinderGeometry(r * NEEDLE_APEX_K, r, rc * NEEDLE_POINT_LEN, 8, 1, false).rotateZ(-Math.PI / 2).translate(rc * NEEDLE_POINT_LEN / 2, 0, 0); }
 const RING_TONE = { free: 'monFree', wedge: 'monWedge', bad: 'monAlarm', pv: 'trPv', ivc: 'trIvc' } as const;
 const SHAFT_RADIAL = DEVICE_SIDES, BALLOON_N = 40, BALLOON_RADIAL = DEVICE_SIDES, GLINT_N = 24, GLINT_SIDES = 8;
 
@@ -154,15 +160,15 @@ export class ProcCatheter {
     this.columnGeo = allocTube(nS, DEVICE_SIDES); writeRings(this.columnGeo, cr, DEVICE_SIDES);
     this.column = mk(this.columnGeo, 'trWedge', 0, 'ink', 0.5);
     // the needle and the wire: the shaft's own course, finer, shown from the catheter's tip on to where they are
-    const nw0 = Math.max(rc * 0.42, 0.0015);
+    const nw0 = needleRadius(rc);
     const needleRings = makeRings(nS); fill(needleRings, () => nw0);
     const ng = allocTube(nS, WIRE_SIDES + 4); writeRings(ng, needleRings, WIRE_SIDES + 4);
-    this.needle = mk(ng, 'steel', 2, 'ink', 0.7);
+    this.needle = mk(ng, 'steel', 2, 'ink', 0.45);
     const fr = makeRings(nS); fill(fr, () => nw0 * FLASHBACK_K);
     this.flashbackGeo = allocTube(nS, WIRE_SIDES + 4); writeRings(this.flashbackGeo, fr, WIRE_SIDES + 4);
     this.flashback = mk(this.flashbackGeo, 'trPv', 3, 'none', 0);
     // (the needle's bevelled point: a cone along +X, base on the needle's end, apex ahead. It had an apex radius of 0.01 against a base of 0.0015 (an inverted cone: a wide 8-sided disc) and its axis on Z where `orient` lays an X-axis part, so it stood end-on: a grey octagonal knob on the wire where the needle ends; owner, 22 Nov: "wtf is this circle in tips")
-    this.needleCone = mk(withTang(needlePoint(rc, nw0)), 'steel', 2, 'ink', 0.5);
+    this.needleCone = mk(withTang(needlePoint(rc, nw0)), 'steel', 2, 'ink', 0.4);
     const wireRings = makeRings(nS); fill(wireRings, () => Math.max(rc * 0.16, 0.0009));
     const wg = allocTube(nS, WIRE_SIDES); writeRings(wg, wireRings, WIRE_SIDES);
     this.wire = mk(wg, 'steel', 1, 'ink', 0.5);
@@ -297,7 +303,7 @@ export class ProcCatheter {
     if (nShow) {
       lit.add(this.needle); lit.add(this.needleCone);
       this.needle.setAlpha(op); this.needleCone.setAlpha(op);
-      const bev = rc * U * 1.4;
+      const bev = rc * U * NEEDLE_POINT_LEN;
       this.needle.setReveal(Math.min(1, Math.max(0, (nD - bev * 0.5) / r.total)));
       r3.point(nD - bev * 0.5, this.v); this.needleCone.group.position.copy(this.v); this.orient(this.needleCone, nD - bev * 0.5);
       if (s.flash > 0) this.flashBack(s.flash, tipD, nD, op);
@@ -331,13 +337,14 @@ export class ProcCatheter {
   private layShaft(tipD: number): void {
     if (Math.abs(tipD - this.shaftAt) < 1e-6) return;
     this.shaftAt = tipD;
-    const { r3, rc } = this, total = r3.route.total, rings = this.shaftRings, us = this.shaftU, n = rings.length, nb = n - TIP_RINGS;
-    const rcTip = Math.min(rc, SHAFT_MAX_SHARE * r3.lumen(tipD)), dTip = Math.max(0, tipD - rcTip * U * TIP_LEN_R);
+    const { r3 } = this, total = r3.route.total, rings = this.shaftRings, us = this.shaftU, n = rings.length, nb = n - TIP_RINGS;
+    const sk = sheathK(r3.route.kind), rc = this.rc * sk, share = sk > 1 ? SHEATH_MAX_SHARE : SHAFT_MAX_SHARE;
+    const rcTip = Math.min(rc, share * r3.lumen(tipD)), dTip = Math.max(0, tipD - rcTip * U * TIP_LEN_R);
     for (let i = 0; i < n; i++) {
       const q = rings[i]!;
       const d = i < nb ? (dTip * i) / Math.max(1, nb - 1) : dTip + (tipD - dTip) * Math.sin(((i - nb + 1) / TIP_RINGS) * Math.PI / 2);
       r3.point(d, q.c); r3.dir(d, q.t);
-      q.r = Math.max(Math.min(tipRadius((tipD - d) / U, rcTip), SHAFT_MAX_SHARE * r3.lumen(d), rc), 1e-5);
+      q.r = Math.max(Math.min(tipRadius((tipD - d) / U, rcTip), share * r3.lumen(d), rc), 1e-5);
       us[i] = d / total;
     }
     writeRings(this.shaftGeo, rings, SHAFT_RADIAL, 0, 1, us);
