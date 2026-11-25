@@ -210,7 +210,11 @@ test('Capture draws what the page draws: the glass blur, the pills\' pseudo-elem
   for (const f of ['src/ui/shell/Diagnostics.tsx', 'src/ui/shell/BuildPill.tsx']) assert.match(src(f), /data-capture-skip/);
   assert.match(store, /move\(m: Move\): boolean/); assert.match(store, /if \(m === 'next' && lapseNext\(\)\) return true;/); assert.match(store, /if \(samePos\(to, pos\)\) return false;/);
   assert.match(all, /useUi\.getState\(\)\.move\('next'\)/); assert.match(all, /await grab\(\)/);
-  assert.ok(!/useUi\.getState\(\)\.go\(k\)/.test(all), 'no jumps by number: a jump skips the case card and the steps within a stop');
+  // the audit's walk presses Next; only the promotion set (one picture of each named slide, at the page's own speed) jumps by number
+  const promo = /\n      if \(ui\.promo\) \{[\s\S]*?\n        continue;\n      \}\n/.exec(all)?.[0] ?? '';
+  assert.match(promo, /useUi\.getState\(\)\.go\(k\)/, 'the promotion set goes straight to each slide');
+  assert.ok(!/useUi\.getState\(\)\.go\(k\)/.test(all.replace(promo, '')), 'no jumps by number in the audit: a jump skips the case card and the steps within a stop');
+  assert.match(all, /const speed = ui\.promo \? 1 : /, 'the promotion set runs at the clock\'s own speed');
   assert.match(all, /: 60,/, 'no animation is seen: the clock runs 60 times faster');
 });
 
@@ -317,7 +321,7 @@ test('A step number is centred in its round face, both ways (the base tag rule a
 test('A phone on its side takes both cards: -teaching with the words in view, -instrument after the column slides up; Random N counts slides', () => {
   const all = src('src/ui/debug/audit/capture-all.ts');
   assert.match(all, /sideways: isSideways\(innerWidth, innerHeight\) \}, \{ data: !!useUi\.getState\(\)\.boxes\.data, words: !!useUi\.getState\(\)\.boxes\.words/);
-  assert.match(all, /shoot\(views\[0\]\)/); assert.match(all, /setDocked\(true\)/); assert.match(all, /shoot\(views\[1\]!\)/); assert.match(all, /setDocked\(false\)/);
+  assert.match(all, /shoot\(ui\.promo \? '' : views\[0\]\)/); assert.match(all, /setDocked\(true\)/); assert.match(all, /shoot\(views\[1\]!\)/); assert.match(all, /setDocked\(false\)/);
   assert.match(all, /\$\{base0\}-\$\{view\}/, 'the file name says which card');
   assert.match(all, /if \(!single \|\| fresh\) shots\+\+/); assert.match(all, /if \(!single \|\| fresh\) done\+\+/, 'a slide counts once against Random N, a picture counts in the total');
   assert.match(all, /thumbs\.length - lastThumbs/, 'a later step replaces both small copies');
