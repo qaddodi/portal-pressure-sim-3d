@@ -129,7 +129,7 @@ test('the set keeps a vessel\'s holes (two slots), writes them to the tube, and 
 // ---- the real network: the cava ----
 const withSmooth = <T,>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(true); try { return f(); } finally { setSmoothJoins(was); } };
 
-// (placed anatomy, round 19 (Mohammad, 25 Nov: "Move the middle hepatic vein to be separate from left"; round 18's "RHV alone" stands): the hepatic veins each open on the cava on their own, the cava's node IVCS is the left one's ostium, IVC_IS's end, not 1.7 to 7.1 cava radii down its side as the 2D art spread them. IVCS is a NODE junction of five arms
+// (placed anatomy, round 18 (Mohammad, 25 Nov: "RHV alone, MHV+LHV shared trunk"): the hepatic veins open at the cava's node itself, IVC_IS's end, not 1.7 to 7.1 cava radii down its side as the 2D art spread them. IVCS is a NODE junction of five arms
 //  (the cava below and above, the three veins), no side arm; the side-wall rule's real cases are the left portal vein's LPV (PVH_L_1 runs on past the node into the left lobe) and the hepatic vein's mid-host fork)
 test('IVCS: the hepatic veins open at the cava\'s node, so the junction is a node one of five arms: no side arm, every arm within the reach', () => {
   withSmooth(() => {
@@ -138,11 +138,13 @@ test('IVCS: the hepatic veins open at the cava\'s node, so the junction is a nod
     assert.equal(j.arms.filter((a) => a.side).length, 0, 'no side arm');
     assert.deepEqual(j.arms.map((a) => `${a.vesselId}:${a.end}`).sort(), ['IVCS_RA:0', 'IVC_IS:1', 'LHV_IVC:1', 'MHV_IVC:1', 'RHV_IVC:1']);
     const cava = coursesOf(NETWORK_BY_ID.get('IVC_IS')!, REST)[0]!.pts as Vec3[];
-    // (each hepatic vein opens into the cava on its own since round 19, the middle one between the right one's ostium and the left one's, which is the cava's node)
-    for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) {
+    // (the right hepatic vein and the common trunk open into the cava; the middle hepatic vein opens into the trunk beside it (fades.ts trunkMateOf), so it ends on the trunk's axis, not the cava's)
+    for (const id of ['RHV_IVC', 'LHV_IVC']) {
       const pts = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts, e = pts[pts.length - 1]!, n = nearestOnPolyline(cava, e);
       assert.ok(n.d <= SIDE_TOL_R * NETWORK_BY_ID.get('IVC_IS')!.radius, `${id} ends ${(n.d / NETWORK_BY_ID.get('IVC_IS')!.radius).toFixed(2)} cava radii from its axis`);
     }
+    { const t = coursesOf(NETWORK_BY_ID.get('LHV_IVC')!, REST)[0]!.pts as Vec3[], pts = coursesOf(NETWORK_BY_ID.get('MHV_IVC')!, REST)[0]!.pts, n = nearestOnPolyline(t, pts[pts.length - 1]!);
+      assert.ok(n.d <= SIDE_TOL_R * NETWORK_BY_ID.get('LHV_IVC')!.radius, `MHV_IVC ends ${(n.d / NETWORK_BY_ID.get('LHV_IVC')!.radius).toFixed(2)} trunk radii from the common trunk's axis`); }
     assert.ok(armReach(j).every((r) => r <= SKIN_REACH), `reach ${armReach(j).map((r) => r.toFixed(1)).join(', ')}`);
     void pointAtShare;
   });

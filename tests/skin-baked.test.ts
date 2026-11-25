@@ -37,7 +37,7 @@ test('the baked file unpacks to the skins it was made from, and a build that is 
     const liveMs = performance.now() - t0, made = live.set.bake();
     assert.ok(made.skins.length >= 12, `${made.skins.length} skins baked`);
     assert.ok(made.digest.length > 10);
-    // (placed anatomy, rounds 18 and 19: the hepatic veins open at three ostia apart along the cava, the right one lowest, the middle one above it and the left one highest (placed-network.ts HV_OSTIA), and no hull of the five seam rings covers them all, so the cava's skin is
+    // (placed anatomy, round 18: the hepatic veins open at two ostia apart along the cava, the right one 3 cava radii below the common trunk (placed-network.ts HV_OSTIA), and no hull of the five seam rings covers them all, so the cava's skin is
     //  meshed from the surface itself (skin-set.ts: the retry before a node keeps today's joins), the last rung, FROM_SURFACE. Round 17's one mouth closed on the first rung. Either way a later rebuild starts at the rung that closed it)
     const ivcs = made.skins.find((s) => s.plan.junction.node === 'IVCS')!;
     assert.equal(ivcs.pace, PACES.length - 1, 'the cava closes on the slowest rung, which a later rebuild of it starts at');

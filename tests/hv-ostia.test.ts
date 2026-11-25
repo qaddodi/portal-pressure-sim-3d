@@ -1,14 +1,13 @@
-// The hepatic veins' openings on the cava (frozen round 19; art/anatomy-placement/RULINGS.md). Mohammad, 25 Nov: "RHV alone, MHV+LHV shared trunk" (round 18), then, seeing the preview with the middle and left veins fused and the middle one crossing the face of the cava:
-// "Move the middle hepatic vein to be separate from left" (round 19). Each hepatic vein opens into the cava on its own: the right one on its right wall; the middle one on its left wall, a little below the right one's mouth (the left vein's diagonal leaves no room for it above: 0.7 to 0.9 % of the cava's lumen was ink); the left one on its left wall, highest, just below the diaphragm.
-// The middle one comes up on the patient's left of the cava and never crosses its face, and no hepatic vein runs along the cava's axis before its own ostium. The Budd-Chiari clot sits at each vein's own outflow.
+// The hepatic veins' openings on the cava (frozen round 21, mock F; art/anatomy-placement/RULINGS.md). Mohammad, 25 Nov: the right hepatic vein opens on its own on the cava's right wall, the middle hepatic vein joins the left one in a short common trunk that
+// opens on its own on the cava's left wall, both mouths at the same vertical level; no hepatic vein runs along the cava's axis before its own ostium (round 17 had all three opening at one point of the axis and the crowded junction notched). The Budd-Chiari clot of the left hepatic vein sits in the
+// common trunk, short of the middle one's mouth, and the middle one's at its own mouth on the trunk.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { PLACED_EDGE_3D, PLACED_NODE_3D } = await import('../src/scene/anatomy/placed-network.ts');
+const { PLACED_EDGE_3D, PLACED_NODE_3D, PLACED_HV_TRUNK, HV_TRUNK_R } = await import('../src/scene/anatomy/placed-network.ts');
 const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
 const { drawnHost, cavaWallShare } = await import('../src/scene/disease/host.ts');
-const { ostialEnds } = await import('../src/scene/disease/clots.ts');
-const { opensIntoCava, ostiumHostOf } = await import('../src/scene/vessels/fades.ts');
+const { ostialEnds, mergeShare } = await import('../src/scene/disease/clots.ts');
 
 type V = readonly number[];
 const dist = (a: V, b: V): number => Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!);
@@ -28,54 +27,54 @@ const CAVA = [...PLACED_EDGE_3D.IVC_IS_1!, ...PLACED_EDGE_3D.IVC_IS!, ...PLACED_
 const R = NETWORK_BY_ID.get('IVC_IS')!.radius;
 const end = (id: string): V => { const c = PLACED_EDGE_3D[id]!; return c[c.length - 1]!; };
 
-/** The middle one's mouth is on the cava's left wall, level with the right one's on the opposite wall or a little below it (at most 2 cava radii below), and at least 4 cava radii below the left one's on the same wall: the left vein's diagonal leaves no room between its mouth and the right one's (the cava's junction then inks 0.7 to 0.9 % of its lumen, tests/skin-weld-shade.test.ts bars 0.5). */
-const M_BELOW_R_MAX = 2, M_BELOW_L_MIN = 4;
+/** The two mouths are at the same vertical level: no further apart along the cava than this, in its radii (mock F, 25 Nov: "both same vertical level at the cava"). */
+const SAME_LEVEL_R = 1;
 /** How near a hepatic vein may come to the cava's axis (in its radii) before its own ostium, and how much of its course before its end counts as the ostium (in the cava's radii: the arrival through the wall at an angle). */
 const AXIS_CLEAR_R = 2, OSTIUM_REACH_R = 3;
-const HV = ['RHV_IVC', 'MHV_IVC', 'LHV_IVC'] as const;
+/** The common trunk's length, in the left hepatic vein's radii (the anatomy's 1 to 1.5 cm; HV_TRUNK_R aims at 3). */
+const TRUNK_MIN_R = 2, TRUNK_MAX_R = 3.5;
 
-test('three ostia: each hepatic vein opens inside the cava on its own, the middle one on the left wall just below the right one\'s mouth and well below the left one\'s, the cava\'s node at the left one\'s', () => {
-  const [r, m, l] = HV.map((id) => nearest(CAVA, end(id)));
-  assert.ok([r, m, l].every((x) => x!.d < R), `all three ends open inside the cava (${[r, m, l].map((x) => (x!.d / R).toFixed(2)).join(', ')} of its radius off its axis)`);
-  const below = (r!.s - m!.s) / R, belowL = (l!.s - m!.s) / R;
-  assert.ok(below >= 0 && below <= M_BELOW_R_MAX, `the middle mouth is ${below.toFixed(2)} cava radii below the right one's (0 to ${M_BELOW_R_MAX})`);
-  assert.ok(belowL >= M_BELOW_L_MIN && l!.s > r!.s, `the left mouth is ${belowL.toFixed(2)} cava radii above the middle one's (at least ${M_BELOW_L_MIN}), and the highest`);
-  assert.ok(dist(PLACED_NODE_3D.IVCS!, end('LHV_IVC')) < 1e-3, 'the cava\'s node IVCS is the left hepatic vein\'s ostium, the highest');
-  // (each from its own side: the right hepatic vein from the patient's right; the middle and left ones from the left)
+test('two mouths at the same level: the right hepatic vein opens on its own from the right, the common trunk on its own from the left, within one cava radius of each other along the cava; the cava\'s node at the trunk\'s', () => {
+  const r = nearest(CAVA, end('RHV_IVC')), l = nearest(CAVA, end('LHV_IVC'));
+  assert.ok(r.d < R && l.d < R, `both ends open inside the cava (${(r.d / R).toFixed(2)}, ${(l.d / R).toFixed(2)} of its radius off its axis)`);
+  const apart = Math.abs(l.s - r.s) / R;
+  assert.ok(apart <= SAME_LEVEL_R, `the two mouths are ${apart.toFixed(2)} cava radii apart along the cava (at most ${SAME_LEVEL_R}: the same level)`);
+  assert.ok(dist(PLACED_NODE_3D.IVCS!, end('LHV_IVC')) < 1e-3, 'the cava\'s node IVCS is the common trunk\'s ostium');
+  // (each from its own side, so the cava's wall shows between the mouths: the right hepatic vein from the patient's right, the trunk from the left)
   const back = (id: string): V => { const c = PLACED_EDGE_3D[id]!; return c[Math.max(0, c.length - 1 - Math.round(OSTIUM_REACH_R * R / 0.006))]!; };
-  assert.ok(back('RHV_IVC')[0]! < end('RHV_IVC')[0]! - R, 'the right hepatic vein comes from the right');
-  for (const id of ['MHV_IVC', 'LHV_IVC']) assert.ok(back(id)[0]! > end(id)[0]! + 0.4 * R, `${id} comes from the left`);
+  assert.ok(back('RHV_IVC')[0]! < end('RHV_IVC')[0]! - R && back('LHV_IVC')[0]! > end('LHV_IVC')[0]! + R, 'the right hepatic vein comes from the right and the trunk from the left');
 });
 
-test('no vein crosses the face of the cava: the middle hepatic vein stays on the patient\'s left of the cava\'s axis for its whole course, and it is a tube of its own, apart from the left one', () => {
-  const cx = (y: number): number => { let k = 1; while (k < CAVA.length - 1 && CAVA[k]![1]! < y) k++; const a = CAVA[k - 1]!, b = CAVA[k]!, t = (y - a[1]!) / (b[1]! - a[1]! || 1); return a[0]! + t * (b[0]! - a[0]!); };
-  const mhv = PLACED_EDGE_3D.MHV_IVC! as V[];
-  for (const p of mhv) assert.ok(p[0]! >= cx(p[1]!) - 0.2 * R, `a point of the middle hepatic vein (${p.map((x) => x.toFixed(3)).join(', ')}) is on the right of the cava's axis`);
-  // (it ends on the cava, not on the left hepatic vein's tube, and keeps clear of it until its mouth)
-  assert.equal(ostiumHostOf('MHV_IVC'), 'IVC_IS');
-  assert.ok(opensIntoCava('MHV_IVC') && opensIntoCava('LHV_IVC') && opensIntoCava('RHV_IVC'));
-  const lhv = PLACED_EDGE_3D.LHV_IVC! as V[], rM = NETWORK_BY_ID.get('MHV_IVC')!.radius, rL = NETWORK_BY_ID.get('LHV_IVC')!.radius, sm = arc(mhv), Lm = sm[sm.length - 1]!;
-  let least = Infinity;
-  mhv.forEach((p, i) => { if (Lm - sm[i]! > OSTIUM_REACH_R * R) least = Math.min(least, nearest(lhv, p).d); });
-  assert.ok(least >= 1.4 * (rM + rL), `the middle hepatic vein keeps ${(least / (rM + rL)).toFixed(2)} of the two veins' radii (centre to centre) from the left one until its mouth (at least 1.4: a wall-to-wall gap of 0.4 of a vein's width)`);
+test(`the middle and left hepatic veins share a trunk ${TRUNK_MIN_R} to ${TRUNK_MAX_R} of its radii long: the middle one ends on the left one's axis`, () => {
+  const lhv = PLACED_EDGE_3D.LHV_IVC! as V[], m = end('MHV_IVC'), rL = NETWORK_BY_ID.get('LHV_IVC')!.radius;
+  assert.ok(nearest(lhv, m).d < 2e-3, `the middle hepatic vein ends on the left one's axis (${nearest(lhv, m).d.toFixed(4)} off)`);
+  assert.ok(dist(m, PLACED_HV_TRUNK.at) < 2e-3);
+  // (the trunk: from the middle one's join to where the left one crosses the cava's wall)
+  const s = arc(lhv); let k = lhv.length - 1; while (k > 0 && nearest(CAVA, lhv[k]!).d < R) k--;
+  const trunk = s[k]! - nearest(lhv, m).s;
+  assert.ok(trunk >= TRUNK_MIN_R * rL && trunk <= TRUNK_MAX_R * rL, `the common trunk is ${(trunk / rL).toFixed(2)} of its radii long`);
+  assert.ok(Math.abs(trunk - PLACED_HV_TRUNK.length) < 0.007 && HV_TRUNK_R >= TRUNK_MIN_R && HV_TRUNK_R <= TRUNK_MAX_R);
 });
 
 test(`no hepatic vein runs within ${AXIS_CLEAR_R} cava radii of the cava's axis except at its own ostium`, () => {
   const bad: string[] = [];
   for (const id of ['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']) {
-    const c = PLACED_EDGE_3D[id]! as V[], s = arc(c), L = s[s.length - 1]!, opens = id !== 'RHV_IVC_1';
+    const c = PLACED_EDGE_3D[id]! as V[], s = arc(c), L = s[s.length - 1]!, opens = id === 'RHV_IVC' || id === 'LHV_IVC';
     c.forEach((p, i) => { const d = nearest(CAVA, p).d; if (d < AXIS_CLEAR_R * R && !(opens && L - s[i]! <= OSTIUM_REACH_R * R)) bad.push(`${id} ${(L - s[i]!).toFixed(3)} from its end, ${(d / R).toFixed(2)} radii off the axis`); });
   }
   assert.deepEqual(bad.slice(0, 5), []);
 });
 
-test('the Budd-Chiari clot sits at each vein\'s own outflow: each one\'s runs to its own wall on the cava, ostial', () => {
-  for (const id of HV) {
-    const h = drawnHost(id)!, wall = cavaWallShare(h);
-    assert.ok(wall != null && wall > 0.85, `${id} meets the cava's wall near its end (${wall?.toFixed(3)})`);
-    for (const v of [0.3, 0.66, 1]) {
-      const e = ostialEnds(h, v, 1)!;
-      assert.ok(e && e.b >= wall! - 1e-9 && e.a > 0.4 && e.a < e.b0, `${id}: its clot (from ${e.a.toFixed(3)}) runs to its wall at v ${v}`);
-    }
+test('the Budd-Chiari clot sits at each vein\'s own outflow: the left one\'s in the common trunk, short of the middle one\'s mouth; the middle one\'s at its mouth on the trunk', () => {
+  const l = drawnHost('LHV_IVC')!, m = drawnHost('MHV_IVC')!;
+  const lm = mergeShare(l);
+  assert.ok(lm > 0.5 && lm < 1, `the merge is on the left hepatic vein's last stretch (${lm.toFixed(3)})`);
+  for (const v of [0.3, 0.66, 1]) {
+    const e = ostialEnds(l, v, 1)!;
+    assert.ok(e && e.a >= lm - 1e-9 && e.a < e.b0, `the left hepatic vein's clot (from ${e.a.toFixed(3)}) stays short of the middle one's mouth (${lm.toFixed(3)}) at v ${v}`);
   }
+  const wall = cavaWallShare(m);
+  assert.ok(wall != null && wall > 0.85, `the middle hepatic vein meets the trunk's wall near its end (${wall?.toFixed(3)})`);
+  const em = ostialEnds(m, 1, 1)!;
+  assert.ok(em.b >= wall! - 1e-9 && em.a > 0.5, 'its clot runs to the trunk\'s wall, ostial');
 });

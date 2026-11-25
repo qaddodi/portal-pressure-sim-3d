@@ -401,7 +401,7 @@ export class SkinSet {
           if (!j || again.has(n)) continue;
           const g = j.arms.filter((a) => a.grow);
           // a skin whose full-size shape does not build from the hull of its rings is tried once more meshed from the surface itself (sheet.ts, no hull: the rung the liver's forks use) before it loses a growing arm, or, with none
-          // to lose, before the node keeps today's joins (the cava's IVCS since round 18: each hepatic vein opens on the cava's wall at its own ostium, and no hull of the five rings has them all)
+          // to lose, before the node keeps today's joins (the cava's IVCS since round 18: the right hepatic vein opens on the cava's wall 3 radii below the common trunk, and no hull of the five rings has them all)
           if (!j.surface && (g.length || f.nodes.length === 1)) { again.set(n, f.message); next.push({ ...j, surface: true }); continue; }
           if (!g.length) {
             // a merged skin that failed: this node has nothing to drop, but its partner's growing arm goes (with fewer than three arms the partner is no junction), so the merge goes too and this node is planned again alone: the cava's IVCS and the run-on RHV_T the TIPS lands on

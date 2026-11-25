@@ -270,7 +270,7 @@ export function tierSpread(j: SkinJunction, network: readonly NetVessel[] = NETW
     const byId = new Map(network.map((v) => [v.id, v]));
     const ends = j.arms.map((a) => endPoint(byId.get(a.vesselId)!, a.end, state)), R0 = j.arms[0]!.restR;
     const pts = j.arms.map((a) => coursesOf(byId.get(a.vesselId)!, state)[0]!.pts as readonly Vec3[]);
-    // (an arm that opens on another arm's WALL, away from J (the right and middle hepatic veins on the cava below the left one's ostium, where the cava is cut: each opens on its own, 25 Nov), meets the skin there, not at J: its tier is its depth against its
+    // (an arm that opens on another arm's WALL, away from J (the right hepatic vein on the cava 3.3 radii below the common trunk, the middle one on the trunk: round 18), meets the skin there, not at J: its tier is its depth against its
     //  host's axis at that point, carried to J along the host)
     const zs = j.arms.map((a, i) => {
       const e = ends[i]!, J = j.J;

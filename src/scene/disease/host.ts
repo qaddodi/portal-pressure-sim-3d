@@ -11,8 +11,9 @@ import { centrelineOf } from '../vessels/centreline.ts';
 import { vesselAlphaAt } from '../vessels/fade-alpha.ts';
 import { widthSwell } from '../vessels/live-width.ts';
 import { neighbourAttr, NBR_STRIDE } from '../vessels/neighbour.ts';
-import { CAVA_RECEDE, opensIntoCava, ostiumHostOf } from '../vessels/fades.ts';
+import { CAVA_RECEDE, opensIntoCava, ostiumHostOf, trunkMateOf } from '../vessels/fades.ts';
 import { cavaRamp } from '../vessels/fade-alpha.ts';
+import { PLACED_HV_TRUNK } from '../anatomy/placed-network.ts';
 
 /** Samples along each piece (the clot reads its place between them). */
 export const HOST_SAMPLES = 48;
@@ -35,6 +36,17 @@ export interface Host {
 
 const cache = new Map<string, Host | null>();
 
+/** Where the middle hepatic vein opens into the common trunk (placed anatomy, round 18: fades.ts trunkMateOf): the trunk's lens index, the share along it of the trunk's axis point nearest the join (PLACED_HV_TRUNK.at), and the trunk's own
+ *  opacity there. The trunk is already easing to the cava's opacity (it opens into the cava 3 of its radii on), so a vein that came to the trunk's FULL opacity at its wall would meet it with a step (1 against 0.72): it comes to this instead,
+ *  the shader's cava rule with the trunk as its cava (scene.ts setCavaCut). Null for every other vessel. */
+export function trunkJoin(id: string): { mate: string; lens: number; u: number; a: number } | null {
+  const mate = trunkMateOf(id), h = mate ? drawnHost(mate) : null;
+  if (!mate || !h || h.pieces.length !== 1) return null;
+  const t = PLACED_HV_TRUNK.at;
+  let bi = 0, bd = Infinity; h.pts.forEach((q, i) => { const d = Math.hypot(q.x - t[0], q.y - t[1], q.z - t[2]); if (d < bd) { bd = d; bi = i; } });
+  return { mate, lens: h.pieces[0]!.lens, u: bi / (h.pts.length - 1), a: h.A[bi]! };
+}
+
 /** The drawn vein of host `id` (a vein cut in pieces is one vein), or null for an id with no drawn course. */
 export function drawnHost(id: string): Host | null {
   if (cache.has(id)) return cache.get(id)!;
@@ -50,14 +62,15 @@ export function drawnHost(id: string): Host | null {
       if (pts.length && pts[pts.length - 1]!.distanceTo(at) < 1e-6) continue;   // (the pieces share their joint)
       pts.push(at); R.push(c.radiusAt(u)); A.push(vesselAlphaAt(q, u, p[0], p[1])); piece.push(k);
     }
-    if (opensIntoCava(q)) {
-      // (a vein that merges into the faded cava comes to the cava's opacity at its wall, by its distance from the wall, as the shader does it: shaders.ts fadeHere)
+    const into = opensIntoCava(q) ? CAVA_RECEDE : trunkMateOf(q) ? trunkJoin(q)?.a ?? null : null;
+    if (into != null) {
+      // (a vein that merges into the faded cava comes to the cava's opacity at its wall, by its distance from the wall, as the shader does it: shaders.ts fadeHere; the middle hepatic vein to the common trunk's opacity where it opens into it, trunkJoin)
       const flat = new Float32Array((pts.length - from) * 3);
       for (let i = from; i < pts.length; i++) { flat[(i - from) * 3] = pts[i]!.x; flat[(i - from) * 3 + 1] = pts[i]!.y; flat[(i - from) * 3 + 2] = pts[i]!.z; }
       const nb = neighbourAttr(q, flat);
       if (nb) for (let i = from; i < pts.length; i++) {
         const Rc = nb[(i - from) * NBR_STRIDE + 1]!, cd = Rc - Math.abs(nb[(i - from) * NBR_STRIDE]!);
-        if (Rc > 0) A[i] = A[i]! + (CAVA_RECEDE - A[i]!) * cavaRamp(cd / Rc);
+        if (Rc > 0) A[i] = A[i]! + (into - A[i]!) * cavaRamp(cd / Rc);
       }
     }
   }
