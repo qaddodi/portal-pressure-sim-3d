@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { BoxGeometry, CustomBlending, Group, Mesh, NormalBlending, OneFactor, PerspectiveCamera, ShaderMaterial, ZeroFactor } from 'three';
-import { markBlends, setBlendState, warmPrograms, type WarmRenderer } from '../src/scene/materials/warm.ts';
+import { markBlends, setBlendState, warmPrograms, WARM_SLICE_MS, type WarmRenderer } from '../src/scene/materials/warm.ts';
 
 const sm = (transparent = false): ShaderMaterial => new ShaderMaterial({ vertexShader: 'void main(){}', fragmentShader: 'void main(){}', transparent });
 /** three's program key part for this flag (WebGLPrograms.getParameters: `opaque`). */
@@ -59,7 +59,7 @@ test('every material whose transparent flag is flipped while the page runs is ma
   const so = src('scene/vessels/skin/skin-object.ts'), vo = src('scene/vessels/vessel-object.ts');
   assert.match(so, /markBlends\(new ShaderMaterial\(\{\s*name: 'skin'/, 'the three skin copies (the Circuit\'s too: one class; made when a weld is, so the default scene holds none to read)');
   assert.match(so, /setTransparent\(on: boolean\)/);
-  assert.match(src('scene/Stage.tsx'), /warmPrograms\(wgl, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/);
+  assert.match(src('scene/Stage.tsx'), /warmPrograms\(wgl, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\), bootBeat\)/);
   assert.doesNotMatch(vo, /\.transparent = /, 'vessel-object flips only through setBlendState');
   assert.doesNotMatch(so, /\.transparent = /, 'skin-object flips only through setBlendState');
   // ... and no other file assigns it after construction: a new runtime flip must be marked (or listed here with why it is fixed)
@@ -86,5 +86,36 @@ test('warmPrograms compiles with the figure\'s render target bound (programs are
 });
 
 test('Stage warms into the post pass\'s target', () => {
-  assert.match(src('scene/Stage.tsx'), /warmPrograms\(wgl, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\)\)/);
+  assert.match(src('scene/Stage.tsx'), /warmPrograms\(wgl, cel\.scene, cel\.rig\.camera, cel\.post\.target\(gl\), bootBeat\)/);
+});
+
+// The old computer stuck at "Almost there 96%" (25 Nov): with no parallel shader compile every link blocks the page, and the warm-up was ONE block, minutes on a weak
+// machine, in which the cover's note and buttons could not run.
+// The warm-up now compiles one material at a time and gives the page a turn after each slice of WARM_SLICE_MS, saying it is getting somewhere (`beat`).
+test('warmPrograms compiles a material at a time, gives the page a turn between slices, beats, binds the target around each call, and closes with compileAsync', async () => {
+  const root = new Group(), a = sm(), b = sm(), shared = sm();
+  root.add(new Mesh(new BoxGeometry(), a), new Mesh(new BoxGeometry(), b), new Mesh(new BoxGeometry(), shared), new Mesh(new BoxGeometry(), shared));
+  const log: string[] = [], rt = { rt: 1 };
+  let cur: unknown = null, beats = 0;
+  const gl: WarmRenderer = {
+    getRenderTarget: () => cur, setRenderTarget: (t) => { cur = t; },
+    compile: (o) => { log.push(`compile ${(o as Mesh).material === a ? 'a' : (o as Mesh).material === b ? 'b' : 'shared'} ${cur === rt ? 'rt' : 'none'}`); const t = Date.now(); while (Date.now() - t < WARM_SLICE_MS + 5); },   // (a slow link)
+    compileAsync: async () => { log.push('close'); },
+  };
+  let turns = 0; const t0 = Date.now();
+  const ticker = setInterval(() => { turns++; }, 1);   // (a timer the page could not run while one call blocked it)
+  await warmPrograms(gl, root, new PerspectiveCamera(), rt, () => { beats++; });
+  clearInterval(ticker);
+  assert.deepEqual(log, ['compile a rt', 'compile b rt', 'compile shared rt', 'close'], 'one call per material (the shared one once), always with the figure\'s target, and the close');
+  assert.equal(beats, 3, 'a beat after each slice');
+  assert.ok(turns >= 1, `timers ran between the slices (${turns} in ${Date.now() - t0} ms)`);
+  assert.equal(cur, null, 'the previous target is back');
+});
+
+test('a material the driver refuses does not stop the warm-up (the close says why)', async () => {
+  const root = new Group();
+  root.add(new Mesh(new BoxGeometry(), sm()), new Mesh(new BoxGeometry(), sm()));
+  let n = 0;
+  await warmPrograms({ compile: () => { if (n++ === 0) throw new Error('link failed'); }, compileAsync: async () => undefined }, root, new PerspectiveCamera());
+  assert.equal(n, 2);
 });

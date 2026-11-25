@@ -97,6 +97,7 @@ export class DiseaseLayer {
     const t = this.targets, f = this.frame, ctx = this.ctx;
     let moving = this.moving;
     this.moving = false;
+    this.ambientOnly = false;
     moving = this.scopeRing.step(dt) || moving;
     if (!t || !f || !ctx) return this.organs.update(now) || moving;
     const inst = this.instant; this.instant = false;
@@ -105,7 +106,7 @@ export class DiseaseLayer {
     { const ls = this.organs.liverShown; this.ascites.setLiver(ls.cirrhosis, ls.congestion); }   // (2D's liver cut: the straw stays off a congested liver)
     moving = this.fluid.follow(t.ascites, dt, inst) || moving;
     this.ascites.set(this.fluid.shown);
-    moving = this.ascites.step(dt, flowRate) || moving;   // (the ripple runs with the eased flow rate, the slosh with the level's speed, the Living fluid switch glides)
+    const rippling = this.ascites.step(dt, flowRate);   // (the ripple runs with the eased flow rate, the slosh with the level's speed, the Living fluid switch glides)
     this.organs.setBowelLift(this.ascites.bulge / 34 * 26);
     this.landmarks.setAscites(this.fluid.shown);
     moving = this.landmarks.setCaput(ctx.recruit('C3', f), dt, inst) || moving;
@@ -122,8 +123,11 @@ export class DiseaseLayer {
     moving = this.bleed.set(t.bleed, dt, inst) || moving;
     // the scope ring stands on the tear while a varix bleeds, so the ring and the words that name it are one place
     this.scopeRing.setCentre(t.bleed.active && t.bleed.site === 'VAR' ? tearPoint('VAR') : null);
-    return moving;
+    this.ambientOnly = !moving && rippling && this.ascites.rippleOnly;
+    return moving || rippling;
   }
+  /** The last `update` moved only because the ascites surface's ripple goes round (nothing eased): ambient. */
+  ambientOnly = false;
 
   /** The body's dissolve (the dive into the liver, the Circuit): the organs and the lines drawn on the body go with it. */
   setFade(f: number): void {

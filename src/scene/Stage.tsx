@@ -13,7 +13,7 @@ import { clock, type TimerId } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
 import { useEngine } from '../engine/store.ts';
 import { lookGlide } from '../looks/glide.ts';
-import { compileDone, figureDrawn, rendererFailed, setRevealHooks, splashHeld, watchStall } from '../boot/ready.ts';
+import { bootBeat, compileDone, figureDrawn, rendererFailed, setRevealHooks, splashHeld, watchStall } from '../boot/ready.ts';
 import { easeArrive } from '../clock/tween.ts';
 import { watchContext } from './context-loss.ts';
 import { setGlLoss } from './gl-loss.ts';
@@ -69,7 +69,7 @@ export function wireScene(): void {
     if (vesselData.easing) clock.invalidate('patient-glide');
   }, 0));
   unwire.push(clock.on('tween', (f) => frames.run(f.time), 0));
-  unwire.push(clock.on('camera', (f) => { if (cel.update(f.time)) clock.invalidate('scene'); }, 0));
+  unwire.push(clock.on('camera', (f) => { if (cel.update(f.time)) clock.invalidate(cel.ambientOnly ? 'scene-ambient' : 'scene', { ambient: cel.ambientOnly }); }, 0));
 }
 let gestureTimerN = 0;
 const gestureTimers = new Map<number, TimerId>();
@@ -117,9 +117,9 @@ function SceneBridge() {
     const pm = passMaterials(cel.post, cel.glowFx), warmPass = passWarmScene(pm.target), warmAa = passWarmScene(pm.canvas);
     const wgl = gl as unknown as WarmRenderer;
     const warmP = (): Promise<unknown> => spanAsync('compile:warm', () => Promise.all([
-      warmPrograms(wgl, cel.scene, cel.rig.camera, cel.post.target(gl)),
-      warmPrograms(wgl, warmPass, cel.rig.camera, cel.post.target(gl)),
-      warmPrograms(wgl, warmAa, cel.rig.camera, null),
+      warmPrograms(wgl, cel.scene, cel.rig.camera, cel.post.target(gl), bootBeat),
+      warmPrograms(wgl, warmPass, cel.rig.camera, cel.post.target(gl), bootBeat),
+      warmPrograms(wgl, warmAa, cel.rig.camera, null, bootBeat),
     ])).catch(() => undefined).finally(() => stamp('compile'));
     rewarm.current = () => {
       cel.contextRestored();
@@ -354,7 +354,7 @@ export function Stage() {
   // no depth or stencil on the canvas then, about 12 MB less on a 3x phone; `?aa=msaa`, `?aa=off` and the inspector page draw (or may draw) straight to the canvas and keep both)
   return (
     <div className="stage-root" style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
-      <Canvas key={`${msaa ? 'msaa' : 'no-msaa'}-${post ? 'post' : 'direct'}`} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, depth: buffers.depth, stencil: buffers.stencil, powerPreference: 'high-performance' }}>
+      <Canvas key={`${msaa ? 'msaa' : 'no-msaa'}-${post ? 'post' : 'direct'}`} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, depth: buffers.depth, stencil: buffers.stencil }}>
         <ClockBridge />
         <SceneBridge />
       </Canvas>

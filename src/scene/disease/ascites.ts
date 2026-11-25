@@ -122,13 +122,15 @@ export class AscitesLayer {
     const gl = this.livingGoal - u.uLiving.value;
     if (gl !== 0) { u.uLiving.value = Math.abs(gl) < 0.002 ? this.livingGoal : u.uLiving.value + gl * -Math.expm1(-dt / LIVING_TAU); }
     let moving = gl !== 0;
+    this.rippleOnly = false;
     if (gl !== 0) { this.syncBack(); this.applyThick(); }
     if (!shown) { this.levelWas = NaN; return moving; }
     const sh = this.shared;
     if (sh) { this.localEye.copy(sh.restEye.value); this.group.worldToLocal(this.localEye); u.uRestEye.value.copy(this.localEye); u.uOff.value = sh.offRest.value; }
     const calm = this.still;
     // the ripple: 2D's phase, advanced by the eased flow rate (a pause settles it over the flow's own half second)
-    if (!calm && flowRate > 0.001) { this.phase = (this.phase + (dt / RIPPLE_PERIOD) * flowRate) % RIPPLE_WRAP; moving = true; }
+    let rippling = false;
+    if (!calm && flowRate > 0.001) { this.phase = (this.phase + (dt / RIPPLE_PERIOD) * flowRate) % RIPPLE_WRAP; moving = true; rippling = true; }
     u.uPhase.value = this.phase;
     u.uAmp.value = calm ? 0 : this.amp;
     // the slosh: the level's speed (2D units/s) swings the surface; scaled by the pool's depth so a first film does not tilt
@@ -137,8 +139,12 @@ export class AscitesLayer {
     if (calm) { this.swing.x = this.swing.v = 0; }
     else { sloshStep(this.swing, rise, dt, Math.min(1, this.levelH / 60)); if (this.swing.x !== 0 || this.swing.v !== 0) moving = true; }
     u.uSlosh.value = this.swing.x;
+    // (the ripple going round at a steady rate is ambient motion; the Living fluid switch, the slosh and a Pause's ease are changes the eye follows)
+    this.rippleOnly = rippling && gl === 0 && this.swing.x === 0 && this.swing.v === 0 && flowRate >= 0.999;
     return moving;
   }
+  /** The last `step` moved only because the surface's ripple goes round at the steady flow rate (ambient: the frame may run at the ambient rate). */
+  rippleOnly = false;
   private levelH = 0;
   /** The wall's bulge in 2D units shown now (the bowel floats up with it: bowel group moves by 26/34 of it). */
   bulge = 0;

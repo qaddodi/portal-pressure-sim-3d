@@ -95,7 +95,10 @@ export class BloodCells {
   }
 
   /** Steps the layer one frame. Returns true while it needs frames: fading in or out, or on and the blood moving. Off and faded out it does nothing at all. */
+  /** The amount is between 0 and 1 (the layer fading in or out): an eased change, not the ambient going-round. Read after `step`. */
+  easing = false;
   step(dtMs: number, f: CellsFrame): boolean {
+    this.easing = false;
     const want = cellsWanted({ on: useSettings.getState().particles, reduceMotion: this.reduceMotion(), view: f.view, quiet: f.quiet });
     if (!want && this.amount === 0) { if (this.points) this.points.visible = false; this.deps.blood.streakAmt.value = 0; return false; }
     if (want && (!this.points || this.builtPhone !== this.deps.phone())) {
@@ -116,7 +119,8 @@ export class BloodCells {
     if (!drawn) return false;
     mat.uniforms.amount!.value = this.deps.blood.streakAmt.value;
     this.poll();
-    return this.amount !== goal || f.flowMoving;
+    this.easing = this.amount !== goal;
+    return this.easing || f.flowMoving;
   }
 
   /** Makes the layer: the cells of every vessel by the budget, the course and edge textures, the one Points. Rebuilt when the device class changes (a phone's budget is half). */

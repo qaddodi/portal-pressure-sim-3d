@@ -215,3 +215,30 @@ test('the stat names the job\'s slowest step (QuietOpts.label), and the boot dig
   const lines = bootLines({ stamps: {}, firstByte: 0, late: { total: 0, rows: [] }, longTasks: { measured: true, by: 'timer', total: 0, rows: [] }, slots: [st], parallelCompile: true } as never);
   assert.ok(lines.some((l) => l.includes('worst step 40.0 ms (step 2)')), lines.join('\n'));
 });
+
+test('a rushed job takes a task of its own, never the browser\'s idle callback (a page that draws every frame is never idle: F10, the Lobule that never opened)', () => {
+  const f = fake({ idle: true }), q = createQuiet(f.env), a = job(f, 3), b = job(f, 3);
+  q.whenQuiet(a.step, { tag: 'calm' });
+  f.run(f.t + 200);
+  assert.ok(f.counts().idleCalls > 0, 'an unrushed job waits for idle time');
+  assert.equal(a.ran.length, 3);
+  const before = f.counts().idleCalls;
+  f.hold(1);
+  const h = q.whenQuiet(b.step, { tag: 'dive' });
+  h.rush();
+  f.run(f.t + 200);
+  assert.equal(b.ran.length, 3, 'rushed: it ran under the hold');
+  assert.equal(f.counts().idleCalls, before, 'and asked the browser for no idle time');
+});
+
+test('a rushed job rests half as long between slices as an unrushed one', () => {
+  const rest = (rush: boolean) => {
+    const f = fake(), q = createQuiet(f.env), j = job(f, 40, 3);   // (40 steps of 3 ms: several 4 ms slices)
+    const h = q.whenQuiet(j.step, { tag: 'x', budgetMs: 4 });
+    if (rush) h.rush();
+    f.run(f.t + 5000);
+    const gaps = j.ran.slice(1).map((t, i) => t - j.ran[i]! - 3).filter((g) => g > 0);
+    return Math.min(...gaps);
+  };
+  assert.ok(rest(true) < rest(false), `rush ${rest(true)} ms, calm ${rest(false)} ms`);
+});

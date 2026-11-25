@@ -105,7 +105,7 @@ import { probeAvoid } from './labels/probe-boxes.ts';
 import { useUi } from '../ui/ui-store.ts';
 import { ORGAN_MESHES, organsReady } from './organs/meshes.ts';
 import { artReady } from './organs/organ-art.ts';
-import { clock } from '../clock/frame.ts';
+import { clock, AMBIENT_FPS, AMBIENT_FPS_PHONE } from '../clock/frame.ts';
 import { Ease, fadeRate } from '../clock/ease.ts';
 import { COURSES } from './circuit/course.ts';
 import { mapDepthOf } from './circuit/map-depth.ts';
@@ -342,6 +342,8 @@ export class CelScene {
   readonly post = new PostAA();
   /** The organ veil's map of the organs and the mask of the ones behind (organ-veil/): drawn before the figure's first pass while the veil or the show-through has any strength. */
   private readonly organMap = new OrganMap();
+  /** How often the organ map was drawn and how often it was kept (?perf). */
+  get organMapStats(): { drawn: number; kept: number; unkeyed: number } { return this.organMap.stats; }
   private readonly veilSize = new Vector2();
   /** The picked vessel's glow, made on the screen from its mask (glow-fx.ts). */
   readonly glowFx = new GlowFx();
@@ -786,6 +788,7 @@ export class CelScene {
 
   setPhone(phone: boolean): void {
     this.phone = phone;
+    if (!this.twin) clock.setAmbientFps(phone ? AMBIENT_FPS_PHONE : AMBIENT_FPS);   // (the page's one clock: the split orbit's twin leaves it alone)
     for (const o of this.objects) o.setPhone(phone);
     this.procs.setPhone(phone); this.probes.setPhone(phone); this.tubes.setPhone(phone);
     this.disease.setPhone(phone);
@@ -1488,12 +1491,22 @@ export class CelScene {
     this.lastNow = now;
     this.shared.time.value = (now / 1000) % 1000;
     for (const e of this.eases) e.step(now);   // (the clock steps them in its tween phase; this is the same step at the same time, which changes nothing, and lets a hand-turned update(now) drive them)
-    const ctx: FrameCtx = { now, dt, streams: false, procQuiet: false };
-    let needs = runSystems(this.systems ??= this.makeSystems(), ctx, this.systemMs, () => clock.now());
-    if (this.moving) needs = true;
+    this.ambientIds.clear();
+    const ctx: FrameCtx = { now, dt, streams: false, procQuiet: false, ambient: this.ambientIds };
+    let needs = runSystems(this.systems ??= this.makeSystems(), ctx, this.systemMs, () => clock.now(), this.moverIds);
+    // (the scene's own flag, set by every setter that changes something: an ordinary change, never ambient; it is named in ?perf as "change")
+    if (this.moving) { needs = true; this.moverIds.push('change'); }
     this.moving = false;
+    this.ambientOnly = needs && this.moverIds.every((id) => this.ambientIds.has(id));
     return needs;
   }
+
+  private readonly moverIds: string[] = [];
+  private readonly ambientIds = new Set<string>();
+  /** The systems that still moved at the last update (ids from `systemIds`, and "change" for a setter's own flag): ?perf names them, so a figure that never rests is found by name. */
+  get movingSystems(): readonly string[] { return this.moverIds; }
+  /** The last update asked for frames only because the flow marks (and the cells riding them) go round: the clock draws such frames at the ambient rate. */
+  ambientOnly = false;
 
   private makeSystems(): FrameSystem<FrameCtx>[] {
     return [
@@ -1526,10 +1539,17 @@ export class CelScene {
         c.streams = streamsMoving;
         const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), this.circuit.t);
         const routesMoving = this.blood.routes.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), turnTargets(this.blood.streams, dustTuner.uniform.value, this.turnsScratch), this.circuit.t);
-        return anyMoving(this.flow.step(dt), streamsMoving, chainMoving, routesMoving);
+        const flowMoving = this.flow.step(dt);
+        // (the marks going round at a steady rate are ambient; a Pause or Play easing the rate, the chevrons or the swirl easing, are changes the eye follows: full rate)
+        if (streamsMoving && !flowMoving && !chainMoving && !routesMoving && !this.flowRate.easing) c.ambient.add('flow');
+        return anyMoving(flowMoving, streamsMoving, chainMoving, routesMoving);
       } },
       { id: 'lens+dust', step: ({ now, dt }) => anyMoving(this.lens.step(now), this.twin ? false : dustTuner.step(dt)) },
-      { id: 'cells', step: (c) => this.cells.step(c.dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: c.streams, quiet: c.procQuiet }) },
+      { id: 'cells', step: (c) => {
+        const moving = this.cells.step(c.dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: c.streams, quiet: c.procQuiet });
+        if (moving && !this.cells.easing) c.ambient.add('cells');   // (riding the marks: ambient while only they move)
+        return moving;
+      } },
       { id: 'presence', step: ({ dt }) => {
         const presMoving = anyMoving(this.presence.step(dt), this.feeders.step(dt, () => this.pushFades()));
         this.syncStumps();
@@ -1565,11 +1585,13 @@ export class CelScene {
         this.syncWedge();
         return procMoving;   // (split from the disease and the probes: the iPhone audit's 100 ms frames sat in one lap that named three systems)
       } },
-      { id: 'disease', step: ({ now }) => {
+      { id: 'disease', step: (c) => {
+        const { now } = c;
         this.procs.paracentesis.setBelly(this.disease.fluidMl);
         this.disease.bleed.seat = this.procs.tamponade.seat;   // (a seated tamponade balloon covers the tear: the jet never runs through it)
         const diseaseMoving = this.disease.update(now, this.flowRate.value);
         if (diseaseMoving) this.tagOverOrgans();
+        if (diseaseMoving && this.disease.ambientOnly) c.ambient.add('disease');   // (the pool's ripple going round: ambient)
         return diseaseMoving;
       } },
       { id: 'probes', step: ({ now }) => this.probes.update(now, this.circuit.t > 0.02, this.procs.glueDrive) },

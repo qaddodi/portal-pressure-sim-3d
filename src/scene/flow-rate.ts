@@ -26,6 +26,9 @@ export class FlowRate {
     return this.active;
   }
 
+  /** In the middle of an ease (a Pause or a Play just made): an eased change, which keeps the display's full frame rate. Steady at 0 or 1 it is false. */
+  get easing(): boolean { return this.el < FLOW_EASE_S; }
+
   /** Still moving the picture: above a hair of speed, or in the middle of an ease. Settled at 0, nothing asks for a frame. */
   get active(): boolean { return this.el < FLOW_EASE_S || this.value > 0.001; }
 }

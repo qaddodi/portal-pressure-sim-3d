@@ -4,6 +4,7 @@
 // The root fix: a marked material always uses CustomBlending, so `opaque` is constantly false and there is one program whatever the flag says. The flag still sorts the draw (opaque list or transparent list), and the blend
 // factors carry the two states: One/Zero while opaque (what NoBlending drew), the premultiply-free "normal" factors while blended. Nothing is compiled twice and nothing needs warming. `setBlendState` is the only way
 // to flip a marked material at run time.
+import { clock } from '../../clock/frame.ts';
 import { AddEquation, CustomBlending, Mesh, MeshBasicMaterial, OneFactor, OneMinusSrcAlphaFactor, PlaneGeometry, Scene, SrcAlphaFactor, ZeroFactor } from 'three';
 import type { BufferGeometry, Camera, Material, Object3D } from 'three';
 
@@ -28,22 +29,57 @@ export function markBlends<T extends Material>(m: T): T {
 /** The part of three's WebGLRenderer the warm-up uses (so a test can hand it a stand-in). */
 export interface WarmRenderer {
   compileAsync(scene: Object3D, camera: Camera, target?: Object3D): Promise<unknown>;
+  /** three's synchronous compile of `scene`'s materials, with the lights of `targetScene`: the warm-up uses it one material at a time (below); a stand-in without it is
+   *  compiled in one go by `compileAsync`. */
+  compile?(scene: Object3D, camera: Camera, targetScene?: Object3D | null): void;
   setRenderTarget?(target: unknown): void;
   getRenderTarget?(): unknown;
 }
 
-/** Builds every program of the scene (`compileAsync`) once. Blend states share a program, so there is no second pass. */
+/** A slice of the warm-up never runs longer than this before the page gets a turn (timers, the cover's note and its buttons, a tap) on a machine where each program takes a while to link. */
+export const WARM_SLICE_MS = 40;
+
+/** The meshes, points, lines and sprites of a scene, one for each material (a program is keyed on the material; whatever an object adds to its key is built by the closing `compileAsync`). */
+function materialOwners(scene: Object3D): Object3D[] {
+  const seen = new Set<Material>(), out: Object3D[] = [];
+  scene.traverse((o) => {
+    const m = (o as Mesh).material as Material | Material[] | undefined;
+    if (!m) return;
+    const list = Array.isArray(m) ? m : [m];
+    if (list.some((x) => !seen.has(x))) { out.push(o); for (const x of list) seen.add(x); }
+  });
+  return out;
+}
+
+/** The page gets a turn: a macrotask later. A hidden tab does not wait (its timers are throttled to a second each: the compile there goes straight through). */
+const pageTurn = (): Promise<void> => (typeof document !== 'undefined' && document.hidden ? Promise.resolve() : new Promise<void>((done) => { clock.afterReal(done, 0, 'warm-slice'); }));
+
+/** Builds every program of the scene once, in SLICES (independent review F12 and the old computer stuck at 96%): without KHR_parallel_shader_compile (software renderers, old
+ *  drivers) every link blocks the page, and the
+ *   scene's few hundred programs were one block of seconds, or minutes on a weak machine, in which no timer, no note and no button on the cover could run. Each material is
+  *  compiled by its own `compile` call, and after
+ *   WARM_SLICE_MS of that the page gets a turn and `beat` says the warm-up is getting somewhere (the cover's wait counts it as progress). `compileAsync` then closes it:
+  *  every program is cached by then, so it only waits for
+ *  the browser's parallel links and builds what a material alone did not key (an instanced or skinned object). A renderer with no `compile` (a test's stand-in) is compiled in one go, as before. */
 /** `target`: the render target the figure is drawn into (the post pass's, PostAA.target), or null when it is drawn straight to the canvas. three keys every program on the OUTPUT COLOUR SPACE
  *  (WebGLPrograms.getParameters: the canvas's, sRGB, with no target; the working space, linear, into a render target), and `compile` reads the target at the moment it is called. Warmed with no target
  *  while every frame draws into one, each program built here was a different program from the one the frame asked for: the whole warm-up was wasted, and the first show of every view (the lobule's 14, the
  *  sinusoid's 8, a collateral's 5 ...) linked its programs inside the frame, seconds each on a phone (iPhone audit, 21 Nov: single frames of 1.6 to 3.6 s). The target is bound only for the synchronous
- *  part of compileAsync (the compile call itself), then put back before any frame can see it. */
-export async function warmPrograms(gl: WarmRenderer, scene: Object3D, camera: Camera, target: unknown = null): Promise<number> {
-  const prev = target && gl.getRenderTarget ? gl.getRenderTarget() : null;
-  if (target && gl.setRenderTarget) gl.setRenderTarget(target);
-  let done: Promise<unknown>;
-  try { done = gl.compileAsync(scene, camera); } finally { if (target && gl.setRenderTarget) gl.setRenderTarget(prev); }
-  await done;
+ *  part of the compile call, then put back before any frame can see it. */
+export async function warmPrograms(gl: WarmRenderer, scene: Object3D, camera: Camera, target: unknown = null, beat?: () => void): Promise<number> {
+  const bound = <T,>(fn: () => T): T => {
+    const prev = target && gl.getRenderTarget ? gl.getRenderTarget() : null;
+    if (target && gl.setRenderTarget) gl.setRenderTarget(target);
+    try { return fn(); } finally { if (target && gl.setRenderTarget) gl.setRenderTarget(prev); }
+  };
+  if (gl.compile) {
+    let from = clock.now();
+    for (const o of materialOwners(scene)) {
+      try { bound(() => gl.compile!(o, camera, scene)); } catch { /* (the closing compileAsync builds it, or says why it cannot) */ }
+      if (clock.now() - from > WARM_SLICE_MS) { await pageTurn(); beat?.(); from = clock.now(); }
+    }
+  }
+  await bound(() => gl.compileAsync(scene, camera));
   return 1;
 }
 
