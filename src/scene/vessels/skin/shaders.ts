@@ -675,7 +675,8 @@ void main() {
     float w1 = max(wD1 - wD2, 0.0) / max(wD0 + wD1 - 2.0 * wD2, 1e-4);
     float dOn = mix(onD0, onD1, w1);
 #ifndef SKIN_NODUST
-    if (dOn > 0.002) {
+    // (a pixel under 0.05 of alpha shows no dust, dHold below is 0 there: the scan is not run for it)
+    if (dOn > 0.002 && alpha > 0.05) {
       // THE DUST IS EACH ARM'S OWN, CROSSFADED (Mohammad, 20 Nov: black and lime specks at every crotch and seam band, gone with ?joins=nodust, not with noheads). dustSkin drew each particle ONCE at the BLEND of its places in the two
       // frames; a frame's own pixel (its across, its arc) means nothing where the pixel is on the other arm's side, and the average of two frames that disagree puts a particle where neither has one: a dot of ink and a hue-shifted
       // tone at a place no lane passes. dustTube is the tube's own, exact in its frame and drawing nothing past the lumen it knows; the two frames' dust is mixed by the weights instead (?joins=dustblend: the old blend, to compare)

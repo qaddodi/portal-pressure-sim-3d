@@ -626,7 +626,9 @@ void main() {
   float stumpMk = (stump.x > 0.0 && circT < 0.001) ? mix(1.0, smoothstep(stump.y + 2.5, stump.y + 2.5 + 1.6 * vR, sD), stump.z) : 1.0;
   // REAL FLOW (blood/routes.ts): the particles of the roots this vessel's lanes carry, in its own section, at their place on their root's stream. No fade at a skin's seam (the skin draws the same particles on); where tubes
   // still overlap at a joint with no skin they fade as the chevrons do (markK), the vessel it opens into drawing the same particles.
-  vec4 fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk;
+  // (a pixel that ends up under 0.05 of alpha shows no dust at all, dHold below is 0 there: the scan is not run for it, the same picture for a fraction of the cost)
+  vec4 fd = vec4(0.0);
+  if (fadeHere * cavA > 0.05) fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk;
   fd = dSafe(clamp(dSafe(fd), 0.0, 1.0) * dHold(fadeHere * cavA));   // (dSafe, on the bits: a NaN is no dust, dust-glsl.ts) (the dust follows this pixel's final alpha: dust-glsl.ts dHold; premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
 #ifdef VDBG
   if (dbgDust < 0.5) fd = vec4(0.0);
