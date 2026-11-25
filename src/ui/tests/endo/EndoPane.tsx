@@ -1,7 +1,7 @@
 // Tests > Endoscopy (2D instruments.js createEndoscopy, dock.js): the endoscopic view of the distal esophagus: the varices as the model has them (size, red wale and cherry-red marks, the bleed),
 // the bands placed and the Band (EVL) button, five readings (bands placed, grade, diameter, wall thickness, stigmata), EUS-PPG (EusPpg.tsx), and Wall mechanics as the second view (WallView.tsx).
 // The picture is a frame on the charts' shared GPU drawer (frame.ts, built from the 2D shader's own columns); it eases as the 2D scope does (motion.ts) on the one clock.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { clock } from '../../../clock/frame.ts';
 import { latest, onFrame, useEngine } from '../../../engine/index.ts';
 import { Chart, useLookId, type ChartCtx } from '../../charts/Chart.tsx';
@@ -19,10 +19,6 @@ import { FieldMotion, OverlayMotion, type ScopeIn } from './motion.ts';
 import { scopeFrame, type OverlayState } from './frame.ts';
 import { endoUnder } from './endo-under.ts';
 import { EusPpg, useEusReset } from './EusPpg.tsx';
-import { useToolRoomValue } from '../../talk/tool-room.ts';
-import { readBox, readMetric } from '../../layout-snap.ts';
-import { observeThenFit } from '../../layout/fit-later.ts';
-import { discSquare } from './disc-fit.ts';
 import { Cv, useCv, usePaneHost } from '../Cv.tsx';
 import { WallView } from './WallView.tsx';
 import { useScope } from './scope-state.ts';
@@ -33,25 +29,7 @@ import { readingsOf, scopeOptions, type EndoOpt } from './readings.ts';
 type Any = any;
 const still = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export function ScopeView({ square: wide, opt, slide }: { square: number; opt: EndoOpt; slide: boolean }) {
-  // A slide's card gives the instrument a room (--pz-room, the data card's height cap less its other parts): the disc takes what the readings, the Band button and EUS-PPG leave of it, never the 220 px it asked for
-  // (capture 52ef8e63, Endoscopy 3 on the iPad: the card was 308 px, the content 407, and the disc ran off the card's foot). The disc and the readings stack in one column only; side by side the room is not theirs to share.
-  const room = useToolRoomValue();
-  const root = useRef<HTMLDivElement>(null);
-  const [fit, setFit] = useState(0);
-  useLayoutEffect(() => {
-    const el = root.current, stage = el?.querySelector<HTMLElement>('.endo-stage'), side = el?.querySelector<HTMLElement>('.chart-side');
-    if (!slide || !el || !stage || !side || !(room > 0)) { setFit(0); return; }
-    const apply = () => {
-      const stacked = readBox(side).top >= readBox(stage).bottom - 1;
-      const rest = readMetric(el, 'offsetHeight') - readMetric(stage, 'offsetHeight');
-      const box = stage.querySelector<HTMLElement>('.chart-box'), label = box ? readMetric(stage, 'offsetHeight') - readMetric(box, 'offsetHeight') : 22;
-      setFit(stacked ? discSquare(room, rest, wide, label) : 0);
-    };
-    apply();
-    return observeThenFit([side], apply);
-  }, [slide, room, wide]);
-  const square = fit > 0 ? fit : wide;
+export function ScopeView({ square, opt, slide }: { square: number; opt: EndoOpt; slide: boolean }) {
   useSlidePin((s) => s.n);   // (a slide's own numbers: the readings follow the state it pins)
   const pin = slide ? pinnedVarix() : null, pinRef = useRef(pin); pinRef.current = pin;
   const json = useEngine((s) => { void s.frames; return JSON.stringify(readingsOf(latest.frame, opt, slide ? pinnedVarix() : null)); });
@@ -109,7 +87,7 @@ export function ScopeView({ square: wide, opt, slide }: { square: number; opt: E
   const pal = paletteOf(look);
   void pal;
   return (
-    <div className={host.view} data-pane="endoscopy" ref={root}>
+    <div className={host.view} data-pane="endoscopy">
       <div className="endo-stage">
         <div className="chart-box square" style={host.slide ? { width: square, height: square } : undefined}>
           <Cv at={cv.ref}>
