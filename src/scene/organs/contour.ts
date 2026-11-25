@@ -1,8 +1,8 @@
-// Two things done once to an organ mesh when it is built (layer.ts build), both pure arithmetic on the geometry:
+// Done once to an organ mesh when it is built (layer.ts build), pure arithmetic on the geometry:
 // 1. `smoothSilhouette`: the organ files are 2D's outlines resampled every 2.5 figure units, and that sampling carries the outline's own wobble (a step of a unit or so from one sample to the next), which shows as a saw-tooth
 //    on the rim and on the ink that follows it. The silhouette (the edges where the mesh turns from facing the eye to facing away) is a ring of vertices; each is moved toward its neighbours along the ring a few times
 //    (a low-pass, never more than MAX_MOVE), and the vertices inside follow by a falling share, so the rim is a smooth curve and no triangle is pinched.
-// 2. `tailFade`: the duodenum's free end (the end that does not meet the stomach) fades out along its last stretch, as a per-vertex alpha, so it does not end as if cut off.
+// (`tailFade`, the 2D duodenum's free end faded out, went with the cut-over: the placed duodenum runs on into the bowel's tube.)
 import { BufferGeometry, Float32BufferAttribute, Uint32BufferAttribute } from 'three';
 
 const XY = 1e5;
@@ -185,35 +185,6 @@ export function ringDistance(g: BufferGeometry, cap = 3): Float32Array {
     front = next;
   }
   for (let v = 0; v < w.n; v++) if (d[v]! >= 0) for (const i of w.verts[v]!) out[i] = d[v]!;
-  return out;
-}
-
-/** The duodenum's per-vertex alpha: 0 at the free end (the end farthest from the stomach), rising by a smoothstep to 1 at `share` of the way along the tube. The ends are found by two sweeps over the surface. */
-export function tailFade(g: BufferGeometry, stomach: BufferGeometry, share = 0.4): Float32Array {
-  const w = weld(g), pos = g.getAttribute('position');
-  const p3 = (v: number): [number, number, number] => { const i = w.verts[v]![0]!; return [pos.getX(i), pos.getY(i), pos.getZ(i)]; };
-  const dijkstra = (src: number): Float64Array => {
-    const d = new Float64Array(w.n).fill(Infinity); d[src] = 0;
-    const heap: [number, number][] = [[0, src]];
-    const push = (e: [number, number]) => { heap.push(e); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p]![0] <= heap[i]![0]) break; [heap[p], heap[i]] = [heap[i]!, heap[p]!]; i = p; } };
-    const pop = (): [number, number] => { const top = heap[0]!, last = heap.pop()!; if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l]![0] < heap[m]![0]) m = l; if (r < heap.length && heap[r]![0] < heap[m]![0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i]!, heap[m]!]; i = m; } } return top; };
-    while (heap.length) {
-      const [du, u] = pop();
-      if (du > d[u]!) continue;
-      const a = p3(u);
-      for (const v of w.nbr[u]!) { const b = p3(v), nd = du + Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]); if (nd < d[v]!) { d[v] = nd; push([nd, v]); } }
-    }
-    return d;
-  };
-  const far = (d: Float64Array) => { let m = 0; for (let v = 0; v < w.n; v++) if (Number.isFinite(d[v]!) && d[v]! > d[m]!) m = v; return m; };
-  const A = far(dijkstra(0)), dA = dijkstra(A), B = far(dA);
-  // the free end is the one farther (in the figure's plane) from any vertex of the stomach
-  const sp = stomach.getAttribute('position');
-  const near = (v: number) => { const [x, y] = p3(v); let m = Infinity; for (let i = 0; i < sp.count; i += 3) m = Math.min(m, Math.hypot(sp.getX(i) - x, sp.getY(i) - y)); return m; };
-  const free = near(A) > near(B) ? A : B, dFree = free === A ? dA : dijkstra(B);
-  const total = Math.max(...Array.from(dFree).filter(Number.isFinite)), L = share * total;
-  const out = new Float32Array(pos.count);
-  for (let v = 0; v < w.n; v++) { const t = Math.min(1, Math.max(0, dFree[v]! / L)), a = t * t * (3 - 2 * t); for (const i of w.verts[v]!) out[i] = a; }
   return out;
 }
 

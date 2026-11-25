@@ -9,7 +9,6 @@ import { buildTubes } from '../src/scene/vessels/tubes.ts';
 import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
 import { FEEDERS_2D, STRANDS_2D } from '../src/scene/vessels/coil.copied.ts';
 import { CelScene } from '../src/scene/scene.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { wholeOf } from '../src/scene/anatomy/placed-network.ts';
 import { centrelineOf } from '../src/scene/vessels/centreline.ts';
 import { endOn } from '../src/scene/vessels/starts.ts';
@@ -97,11 +96,6 @@ test('joined vessels meet at one depth: every course starts and ends at its node
     if (v.feeder) continue;
     const c = coursesOf(v, REST)[0]!, zf = NODE_Z.get(v.from)!, zt = NODE_Z.get(v.to)!;
     const cutStart = isCut(v.id) && !(LIVER_BRANCH_HOSTS.out as readonly string[]).includes(v.id), cutEnd = isCut(v.id) && (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(v.id);   // (a vein that branches is cut at its split)
-    if (!PLACED) {
-      if (!cutStart) assert.ok(Math.abs(c.pts[0]![2] - zf) < 1e-9, `${v.id} start`);
-      if (!cutEnd) assert.ok(Math.abs(c.pts[c.pts.length - 1]![2] - zt) < 1e-9, `${v.id} end`);
-      continue;
-    }
     // (restated for the placed anatomy, the only one now: a vessel that joins another's WALL lands on that vein's own drawn course, at its depth there, not at the node's one depth: the collaterals, the
     //  shunts, the hepatic veins into the cava and the trunk. So an end is at its node's depth, or on the axis of a piece of the same whole vein as one at its node (within its radius, depth included);
     //  a run-on end of starts.ts END_ON (the rectal varices down the rectum) is free in both figures)

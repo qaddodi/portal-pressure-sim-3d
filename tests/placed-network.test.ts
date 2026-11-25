@@ -1,11 +1,9 @@
-// The placed vessel network (anatomy integration plan 3.1, docs/approved/anatomy-placement.md): with the approved placement switched on (PPS_ANATOMY=placed, `?anatomy=new` in the app), every engine edge the anatomy draws has a
+// The placed vessel network (anatomy integration plan 3.1, docs/approved/anatomy-placement.md): every engine edge the anatomy draws has a
 // finite 3D course; the pieces the engine cuts a whole vessel into meet end to end (within 0.002); every run-on meets with no gap; and no engine-linked end (a shunt's, a collateral's, a bed's, a neighbour's) sits on a
 // draw-only branch (rhva, rhvb, rpva, rpvp: they have no engine node, so the TIPS lands on the trunks, Mohammad's ruling 5).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-process.env.PPS_ANATOMY = 'placed';
-const { PLACED } = await import('../src/scene/anatomy/source.ts');
 const { WHOLE_PIECES, PLACED_BRANCHES, PLACED_SPLIT, PLACED_EDGE_3D } = await import('../src/scene/anatomy/placed-network.ts');
 const { DRAWN_EDGE_IDS, NETWORK, NETWORK_BY_ID, RUN_ONS } = await import('../src/scene/vessels/network.ts');
 const { centrelineOf } = await import('../src/scene/vessels/centreline.ts');
@@ -23,7 +21,6 @@ function nearest(p: V, poly: readonly V[]): number {
   return best;
 }
 
-test('the switch is on for this file', () => assert.equal(PLACED, true));
 
 for (const sj of [false, true]) {
   test(`every drawn engine edge has a finite course (smooth joins ${sj ? 'on' : 'off'})`, () => {

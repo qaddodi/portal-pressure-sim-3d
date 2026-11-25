@@ -16,7 +16,7 @@ import { braces, valueText } from '../src/decks/ag/tokens.ts';
 import { TILE } from '../src/ui/charts/tiles.generated.ts';
 import { BATCH_NAMES } from '../src/parity/score.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
-import { PLACED, box2Of, placedRegionBox } from '../src/scene/anatomy/source.ts';
+import { box2Of, placedRegionBox } from '../src/scene/anatomy/source.ts';
 import { placedFitBox } from '../src/decks/rw/cams.ts';
 import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { pinned2D } from './two-d-pin.ts';
@@ -75,7 +75,7 @@ test('the regions are the 2D app\'s and a box becomes a shot by the one map (fra
   assert.deepEqual(regionBox(['splenic', 'portal']), [520, 230, 1110, 710]);
   assert.equal(shotOfCam(undefined).kind, 'body');
   // (restated for the placed anatomy, the only one now: 'fit' frames the whole placed figure, placedFitBox, not the old 2D plate's FIT_BOX)
-  assert.deepEqual((shotOfCam('fit') as { box: unknown }).box, PLACED ? box2Of(placedFitBox()) : FIT_BOX);
+  assert.deepEqual((shotOfCam('fit') as { box: unknown }).box, box2Of(placedFitBox()));
   assert.throws(() => shotOfCam('nowhere'), /names no region/);
 });
 
@@ -86,7 +86,7 @@ test('a by-name camera frames the vessels and stations it names, grown a little,
   assert.equal(boxes.length, 2);
   assert.deepEqual(unknown, ['nothing']);
   // (restated for the placed anatomy, the only one now: the near region is the placed one, placedRegionBox, which the camera's placed box holds; the old 2D plate's box is no longer what it frames)
-  const route = PLACED ? box2Of(placedRegionBox('route')!) : REGIONS_2D.route!;
+  const route = box2Of(placedRegionBox('route')!);
   const box = (sp as { box: readonly number[] }).box;
   assert.ok(box[0]! <= route[0] + 1e-9 && box[1]! <= route[1] + 1e-9 && box[2]! >= route[2] - 1e-9 && box[3]! >= route[3] - 1e-9, 'the box holds its near region');
   assert.deepEqual(growBox(null, null), null);

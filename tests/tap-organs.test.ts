@@ -12,7 +12,6 @@ import { useTests } from '../src/ui/tests/store.ts';
 import { selectStructure, useSelection, holdScenePicks } from '../src/ui/action/selection.ts';
 import { tapSelect } from '../src/ui/action/tap-select.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 
 const room = { x: 0, y: 0, w: 900, h: 700 };
 
@@ -53,8 +52,7 @@ test('across the figure a tap finds the liver on both lobes, the heart and the s
   assert.deepEqual([...lobes].sort(), ['L', 'R'], 'both lobes of the liver');
   assert.equal(seen.has('abdomen'), false, 'no fluid, no belly target');
   // (placed path: the approved gut is one surface over the belly, and a tap on it lights the part it is on, layer.ts pickGut; the kidney still takes none)
-  if (PLACED) { assert.ok((seen.get('bowel') ?? 0) + (seen.get('colon') ?? 0) > 20, `the gut is picked (${[...seen].join(' ')})`); assert.ok(seen.has('duodenum') || seen.has('stomach'), 'the stomach or the funnel too'); }
-  else for (const id of ['stomach', 'bowel', 'colon', 'duodenum']) assert.equal(seen.has(id), false, `${id} takes no tap`);
+  { assert.ok((seen.get('bowel') ?? 0) + (seen.get('colon') ?? 0) > 20, `the gut is picked (${[...seen].join(' ')})`); assert.ok(seen.has('duodenum') || seen.has('stomach'), 'the stomach or the funnel too'); }
   assert.equal(seen.has('kidney-l'), false, 'the kidney takes no tap');
   // where an organ is picked, the point is on that organ: the liver's hits lie in its own box
   const lg = s.disease.organs.byId.get('liver')!.toonMesh.geometry; lg.computeBoundingBox();

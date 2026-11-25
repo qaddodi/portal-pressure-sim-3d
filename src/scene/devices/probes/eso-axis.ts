@@ -1,4 +1,4 @@
-// THE OESOPHAGUS WHERE THE STOMACH MESH HAS IT (the placed anatomy, `?anatomy=new`: docs/approved/anatomy-placement.md moves the stomach, the oesophagus with it, 16 % toward the middle). The scope's way is
+// THE OESOPHAGUS WHERE THE STOMACH MESH HAS IT (the placed anatomy: docs/approved/anatomy-placement.md moves the stomach, the oesophagus with it, 16 % toward the middle). The scope's way is
 // the 2D app's (eus-scope.js: its lead-in, the oesophagus, the cardia and the fundus, in the figure's own units); on the placed anatomy it is carried sideways, row by row, onto the oesophagus of the stomach
 // mesh as it is built (organs/meshes.ts ORGAN_MESHES.stomach, whatever placement it holds), so the scope runs down the middle of the tube that is drawn and on into the stomach. Depth stays the scope's own
 // rule (scope.ts scopeZ: the organ's middle in depth; x and y only are read here, which ORGAN_Z never moves). Worked out once, from the geometry alone, when the organ file is in; pure.

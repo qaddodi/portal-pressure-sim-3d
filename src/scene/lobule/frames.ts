@@ -7,7 +7,6 @@
 // real liver replaces it, so the place is ONE constant in the 2D frame (LIVER_2D) to move when the mesh differs (tests/scene-dive.test.ts checks it is inside).
 import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import type { V3 } from './shots.ts';
-import { PLACED } from '../anatomy/source.ts';
 import { NETWORK } from '../vessels/network.ts';
 import { centrelineOf } from '../vessels/centreline.ts';
 
@@ -16,9 +15,9 @@ export const LIVER_2D = { x: 515, y: 330 } as const;
 /** Depth of the place (the organs straddle z = 0; the right lobe's centre is a little behind the plate's middle). */
 export const LIVER_Z = -0.15;
 /** The lobule's frame in the scene: where its local (0, 0, 0) is, and how many scene units one local unit is. A real lobule (about 1 mm) is well over a thousand times smaller than a liver (owner, 20 Nov: it was ~10x too big and showed on the liver): 1/1500 of the scene. */
-export const LIVER_POINT: V3 = PLACED ? placedLiverPoint() : [x3(LIVER_2D.x), y3(LIVER_2D.y), LIVER_Z];
+export const LIVER_POINT: V3 = placedLiverPoint();
 
-/** THE PLACED ANATOMY (`?anatomy=new`): the same place found by name on the drawn courses (vessels/centreline.ts), never a number: in the open liver between the right portal vein (below), the right
+/** The place found by name on the drawn courses (vessels/centreline.ts), never a number: in the open liver between the right portal vein (below), the right
  *  hepatic vein (above) and the IVC (toward the middle), at the depth between the two liver veins, the point of that box farthest from every drawn vessel (a lobule stands in parenchyma, not on a vein), toward the box's middle. */
 export function placedLiverPoint(): V3 {
   const rpv = centrelineOf('PVH_R_2') ?? centrelineOf('PVH_R'), rhv = centrelineOf('RHV_IVC_1') ?? centrelineOf('RHV_IVC'), ivc = centrelineOf('IVC_IS_1') ?? centrelineOf('IVC_IS');

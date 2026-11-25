@@ -8,8 +8,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { Vector3 } from 'three';
 
-process.env.PPS_ANATOMY = 'placed';
-const { PLACED } = await import('../src/scene/anatomy/source.ts');
 const { NETWORK, NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
 const { centrelineOf } = await import('../src/scene/vessels/centreline.ts');
 const { ROUTE_KINDS, routeOf } = await import('../src/scene/procedures/route.ts');
@@ -37,7 +35,6 @@ setOrganData(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength));
 const STEP = 1.5;
 const nearEnd = (r: { parts: { name: string; d0: number; d1: number }[] }, d: number): boolean => r.parts.some((q) => q.name !== 'lead' && (Math.abs(d - q.d0) <= STEP || Math.abs(d - q.d1) <= STEP));
 
-test('the switch is on in this file', () => { assert.equal(PLACED, true); });
 
 test('every route is laid in 3D on the drawn centrelines: the catheter inside 0.7 of the lumen at every sample of every leg, and narrower than it', () => {
   const report: string[] = [];

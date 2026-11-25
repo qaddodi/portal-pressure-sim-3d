@@ -1,5 +1,5 @@
-// The cameras and the organ names on the APPROVED placement (docs/approved/anatomy-placement.md; anatomy integration plan section 3.5 and 3.6, check 9): with the switch on
-// (PPS_ANATOMY=placed, set here before anything is loaded), every camera region, every named shot and every slide camera of every talk frames its subject where the placement puts it:
+// The cameras and the organ names on the APPROVED placement (docs/approved/anatomy-placement.md; anatomy integration plan section 3.5 and 3.6, check 9): with
+// every camera region, every named shot and every slide camera of every talk frames its subject where the placement puts it:
 // the subject's placed bounds lie inside the shot's half extents round its target, the target is at the subject's depth, and the shot is not empty space (most of it shows anatomy).
 // The organ names stand inside (or beside) their placed organs. Node only: the bounds are the placement's own data (art/anatomy-placement, placement.generated.ts).
 import { test } from 'node:test';
@@ -8,7 +8,6 @@ import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-process.env.PPS_ANATOMY = 'placed';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const src = await import('../src/scene/anatomy/source.ts');
 const { SHOTS, SHOT_SUBJECTS, viewReach } = await import('../src/scene/camera/shots.ts');
@@ -24,7 +23,7 @@ const { placedNameSpots } = await import('../src/scene/labels/organ2d/placed-spo
 type Box3 = readonly [number, number, number, number, number, number];
 type Shot = typeof SHOTS.play;
 
-test('the switch is on: the source holds the approved placement', () => { assert.equal(src.ANATOMY_ID, 'placed'); assert.equal(src.PLACED, true); });
+test('the source holds the approved placement', () => { assert.equal(src.ANATOMY_ID, 'placed'); });
 
 test('the measured organs (placed-organs.generated.ts) are the placement\'s own: the generator would write the same file', () => {
   execFileSync(process.execPath, [`${root}scripts/gen-placed-organs.mjs`, '--check'], { stdio: 'pipe' });
@@ -203,7 +202,7 @@ function onScreen(f: Pick<Frame, 'shot'>, b: Box3, s: (typeof SCREENS)[number]) 
 }
 /** Least zoom a placed slide keeps of today's on the same screen (the body drawn as big as today's, within 5 %), unless its named subject needs the room. */
 const KEEP_ZOOM = 0.95;
-// (the 2D figure's frames, frozen at the cut-over from its last default commit f17b151a: `PPS_ANATOMY=today node tests/anatomy/slide-frames.ts` there)
+// (the 2D figure's frames, frozen at the cut-over from its last default commit f17b151a: `node tests/anatomy/slide-frames.ts` there)
 const todayFrames = JSON.parse(readFileSync(`${root}tests/fixtures/slide-frames-today.json`, 'utf8')) as Record<string, Frame>;
 const placedFrames = await slideFrames();
 

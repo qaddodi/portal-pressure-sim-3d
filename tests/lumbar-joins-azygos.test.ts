@@ -10,7 +10,6 @@ import { CAVA_LIKE, CAVA_RECEDE, fadeOf } from '../src/scene/vessels/fades.ts';
 import { NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
 import { FAINT_ONLY_LAYER } from '../src/scene/vessels/vessel-object.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { PLACED_NODE_3D } from '../src/scene/anatomy/placed-network.ts';
 import { centrelineOf } from '../src/scene/vessels/centreline.ts';
 import { tipAlpha, vesselAlphaAt } from '../src/scene/vessels/fade-alpha.ts';
@@ -22,8 +21,7 @@ test('the ascending lumbar collateral runs on into the azygos start (Plan 16D): 
   assert.equal(c9.to, 'AZY');
   assert.equal(arch.from, 'AZY', 'the arch starts at the node the collateral ends at');
   const c1b = NETWORK_BY_ID.get('C1b')!, [ax, ay] = NODE_POS_2D.AZY!, e1 = c1b.pts[c1b.pts.length - 1]!;
-  if (!PLACED) assert.ok(Math.hypot(e1[0] - x3(ax), e1[1] - y3(ay)) < 0.03, 'the esophageal collateral ends at the node, on the arch\'s side, 30 units along it');
-  else {
+  {
     // (restated for the placed anatomy, the only one now: the node is the placed AZY, and the collateral lands ON the arch's drawn course (within its radius, depth included), within 30 units (0.1) along it)
     const n = PLACED_NODE_3D.AZY!, cl = centrelineOf('AZY_SVC')!, u = cl.nearestU(e1), q = cl.pointAt(u);
     assert.ok(Math.hypot(e1[0] - q[0], e1[1] - q[1], e1[2] - q[2]) < cl.radiusAt(u), 'the esophageal collateral lands on the arch');

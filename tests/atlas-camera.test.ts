@@ -10,8 +10,9 @@ import { fitDistance, fullRoom } from '../src/scene/camera/room.ts';
 import { ORBIT_LIMIT } from '../src/scene/camera/shots.ts';
 import { NETWORK, NETWORK_BY_ID, NODE_Z } from '../src/scene/vessels/network.ts';
 import { REST as AT_REST, coursesOf } from '../src/scene/vessels/shape.ts';
-import { STATIONS, nodeZ } from '../src/scene/labels/stations.ts';
+import { STATIONS } from '../src/scene/labels/stations.ts';
 import { TIER_Z } from '../src/scene/frame2d.ts';
+const nodeZ = (id: string): number => NODE_Z.get(id)!;   // (the depth the vessels that meet at a node are drawn at; the dot's own place is stations.ts nodeAt)
 
 const REST: ShotName[] = ['title', 'play', 'pick'];
 

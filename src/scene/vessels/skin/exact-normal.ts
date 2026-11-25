@@ -4,14 +4,13 @@
 // and every contour of it is a polygon with corners at the triangles. ROOT CAUSE: a function with a crease in it (the smooth union's gradient) was sampled at the vertices and lerped. So the pixel takes the gradient of the
 // smooth union itself, the very function the vertices' normals were sampled from (sdf.ts sdUnionGrad: the chain rule through the pairwise smooth-min), from the arms' four axis points and radii it already holds: on a seam ring
 // one arm is all there is and it is that arm's own tube normal, in a crease it is the crease. Pure arithmetic on uniforms and the pixel's rest position: no derivative, no texture, no branch on a pixel's neighbour.
-import { PLACED } from '../../anatomy/source.ts';
 /** The blend width the SHADE reads the union at, in times the skin's own k. At a crotch the true gradient turns 50 to 140 degrees in a fillet a few pixels wide, and a hard two-tone band there is a dark line (the 2D figure hid it by easing the shade toward
  *  the neighbour): the mesh used to do that by easing a sharp vertex's normal toward its neighbours', which depends on how the triangles happen to lie. The same softening as a property of the SURFACE: the gradient of the union blended 1.5 times wider. Measured
  *  against those eased vertex normals over every skin: 8 degrees at p90, 16 at p99 (tests/skin-exact-normal.test.ts), from 3 degrees p50 at 2x and 7 at 3x. The outline and the weights keep k. */
-// PLACED: 1, the surface's own blend (Mohammad, 24 Nov, iPhone: the portal fork read as a blob, darker patches coming in from both sides of the crotch; the hepatic veins' mouths on the cava heavy with shade). ROOT CAUSE: the shade read the
+// 1, the surface's own blend (it was 1.5 on the 2D figure) (Mohammad, 24 Nov, iPhone: the portal fork read as a blob, darker patches coming in from both sides of the crotch; the hepatic veins' mouths on the cava heavy with shade). ROOT CAUSE: the shade read the
 // gradient of a union 1.5 times wider than the surface drawn, so across every fillet the normal was a rounder shape's than the pixel stood on: up to 27 degrees off the surface at IVCS and 12 at PVH, tilted into the crotch, and n.L up to 0.2
 // darker than the surface itself has at 17 to 60 vertices of every placed skin (tests/skin-weld-shade.test.ts). The shade is now the drawn surface's, and the screen floor below still softens a ridge narrower than two pixels.
-export const SKIN_SHADE_K = PLACED ? 1 : 1.5;
+export const SKIN_SHADE_K = 1;
 /** The SHADE's blend width never drops under this many CSS pixels. A ridge between two arms whose blend (k, a few thousandths of a scene unit) is narrower than a pixel is drawn as a one-pixel line of the crotch's own normal: the dark line the exact
  *  normal was made to end, back at a small scale (a phone's fit of the whole figure, where a scene unit is few pixels). The shade reads the union at this width or its 1.5 times k, whichever is wider: at a laptop's default zoom k is already wider and nothing changes.
  *  The outline and the weights keep k (the surface does not move). */
@@ -145,6 +144,6 @@ export function tubeShareOf(index: ArrayLike<number>, seamVerts: readonly ArrayL
  *  (so the hand-over has nothing to step over); gated off on an absent arm's stub, whose kept weight is low. The same sum in JS (skinTubeKeep) and GLSL. */
 export const SKIN_TUBE_KEEP_W: readonly [number, number] = [0.2, 0.6];
 const ss01 = (a: number, b: number, x: number): number => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-export const skinTubeKeep = (tube: number, wTop: number): number => (PLACED ? ss01(0, 1, tube) * ss01(SKIN_TUBE_KEEP_W[0], SKIN_TUBE_KEEP_W[1], wTop) : ss01(SKIN_RING_W_FROM, 1, wTop));
+export const skinTubeKeep = (tube: number, wTop: number): number => ss01(0, 1, tube) * ss01(SKIN_TUBE_KEEP_W[0], SKIN_TUBE_KEEP_W[1], wTop);
 const Fg = (x: number): string => (Number.isInteger(x) ? `${x}.0` : `${x}`);
-export const skinTubeKeepGlsl = (tube: string, wTop: string): string => (PLACED ? `(smoothstep(0.0, 1.0, ${tube}) * smoothstep(${Fg(SKIN_TUBE_KEEP_W[0])}, ${Fg(SKIN_TUBE_KEEP_W[1])}, ${wTop}))` : `smoothstep(${Fg(SKIN_RING_W_FROM)}, 1.0, ${wTop})`);
+export const skinTubeKeepGlsl = (tube: string, wTop: string): string => `(smoothstep(0.0, 1.0, ${tube}) * smoothstep(${Fg(SKIN_TUBE_KEEP_W[0])}, ${Fg(SKIN_TUBE_KEEP_W[1])}, ${wTop}))`;

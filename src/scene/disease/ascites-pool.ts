@@ -1,8 +1,6 @@
 // The ascites pool's shared pieces (21 Nov 2026): the numbers, 2D's fluidAt tone, the cavity polygon, the ripple/slosh sums and the GLSL chunks the hull's program (ascites-hull-glsl.ts) is built from.
 // Split from ascites.ts (which re-exports all of it) so that the hull's files and the layer do not import each other: ascites.ts imports the hull, the hull imports this.
-import { ABDOMEN_OUTLINES } from './copied/anatomy-b4.ts';
 import { LIVER_CUT_FS } from './liver-edge.ts';
-import { PLACED } from '../anatomy/source.ts';
 import { PLACED_ORGAN_RINGS } from '../anatomy/placed-organs.generated.ts';
 import { gutEdges, placedCavity } from './ascites-cavity.ts';
 import type { LookId } from '../../looks/looks.ts';
@@ -48,75 +46,11 @@ export function outlinePolygon(d: string): [number, number][] {
   }
   return out;
 }
-/** The belly's own curve (review a56feaf2, item 5, Mohammad 23 Nov: "Reshape to a belly curve"). 2D's wall runs from the waist (y 470) to the lower belly (y 954) as a near-straight diagonal, and with the flat
- *  surface on top the 3D water read as a straight-sided tub. Each flank point is pushed OUTWARD by a half sine of its height, so the flank leaves the waist straight down, bulges at mid height and rolls into the
- *  floor with the floor's own slope; the waist, the lower belly and the floor are 2D's own points (nothing moves inward, so no organ is left outside the wall). `BELLY` is the push as a share of the flank's inset
- *  (336 to 434 at rest): a belly already bowed by its volume (the bulge steps) needs less, and the inset is what that bow takes away. */
-export const BELLY = { top: 470, foot: 954, share: 0.36 } as const;
-export function bellyPolygon(poly: readonly (readonly [number, number])[]): [number, number][] {
-  let inset = 0; for (const q of poly) if (q[1] >= BELLY.foot - 1e-6 && q[1] <= BELLY.foot + 1e-6 && q[0] < 712) inset = Math.max(inset, q[0] - 336);
-  const a = BELLY.share * inset;
-  const bowed = poly.map(([x, y]): [number, number] => {
-    if (!(y > BELLY.top && y < BELLY.foot)) return [x, y];
-    const push = a * Math.sin(Math.PI * (y - BELLY.top) / (BELLY.foot - BELLY.top));
-    return [x < 712 ? x - push : x + push, y];
-  });
-  return roundedFoot(bowed);
-}
-/** The lower belly (Mohammad, 24 Nov, on the first litre: "the bottom of the ascites looks as if it is pointing, as if it will not include the colon; even in the beginning it should head a little outward").
- *  Root cause: 2D's wall keeps closing in all the way down (about 26 degrees from vertical at its lower belly, y 954, and then 2D's floor curve turns in at 29 degrees and flattens), so a pool standing low in it
- *  has walls that lean in 63 degrees at 0.3 L, 39 at 1 L and 27 at 1.5 L: a thin lens whose two tips point sideways, with the colon (x 416 to 424 down to y 920) left outside it. From FOOT_FROM down the wall now eases out of
- *  the bow's own slope to a vertical tangent at FOOT_Y (a little outward of 2D's own wall there) and then rounds into 2D's floor bottom (712, 1041.5) with a vertical-to-horizontal curve, so a low pool is a rounded basin
- *  with upright sides that the water climbs outward, never a wedge. Above FOOT_FROM nothing moves, so a fuller belly (waterline above y 760, from about 5 L) is exactly what it was. */
-export const FOOT = { from: 760, y: 962, endSlope: 0.15, floorDown: 0.55, floorAcross: 0.5 } as const;
-const AXIS = 712;
-function roundedFoot(bowed: [number, number][]): [number, number][] {
-  // the left flank, top to bottom: the points left of the axis (2D's outline runs top left, down the left wall and floor, up the right wall)
-  let iA = -1, iM = -1, bottom = -Infinity;
-  for (let i = 0; i < bowed.length; i++) {
-    const [x, y] = bowed[i]!;
-    if (iA < 0 && x < AXIS && y >= FOOT.from) iA = i;
-    if (y > bottom) { bottom = y; iM = i; }
-  }
-  if (iA < 1 || iM <= iA || bottom < FOOT.y + 20) return bowed;
-  const floorY = bottom;   // 2D's floor curve reaches y 1041.5 at the axis (its control points sit at 1072, the curve does not)
-  const sideOf = (pts: readonly [number, number][], i0: number): { x0: number; sx: number } => {
-    const a = pts[i0 - 1]!, b = pts[i0]!, t = (FOOT.from - a[1]) / (b[1] - a[1]);
-    const x0 = a[0] + (b[0] - a[0]) * t, c = pts[Math.min(pts.length - 1, i0 + 1)]!, sx = (c[0] - a[0]) / (c[1] - a[1]);
-    return { x0, sx };
-  };
-  const left = sideOf(bowed, iA);
-  // the right flank is read the same way mirrored about the axis, so the two sides are built by the one routine
-  const mir = bowed.map(([x, y]): [number, number] => [2 * AXIS - x, y]);
-  let jA = -1; for (let i = 0; i < bowed.length; i++) { const [x, y] = bowed[i]!; if (x > AXIS && y >= FOOT.from) jA = i; }
-  if (jA < 0) return bowed;
-  const rev = mir.slice().reverse();   // mirrored right flank, now top to bottom
-  const iR = rev.findIndex(([x, y]) => x < AXIS && y >= FOOT.from);
-  const right = sideOf(rev, iR);
-  const curve = (x0: number, sx: number): [number, number][] => {
-    const dy = FOOT.y - FOOT.from, xB = x0 + 0.5 * (sx + FOOT.endSlope) * dy, h = 0.4 * dy, out: [number, number][] = [];
-    const P = (u: number, a: readonly [number, number], b: readonly [number, number], c: readonly [number, number], d: readonly [number, number]): [number, number] => {
-      const v = 1 - u; return [v * v * v * a[0] + 3 * v * v * u * b[0] + 3 * v * u * u * c[0] + u * u * u * d[0], v * v * v * a[1] + 3 * v * v * u * b[1] + 3 * v * u * u * c[1] + u * u * u * d[1]];
-    };
-    const A: [number, number] = [x0, FOOT.from], B: [number, number] = [xB, FOOT.y], Z: [number, number] = [AXIS, floorY];
-    for (let k = 0; k < 12; k++) out.push(P(k / 12, A, [x0 + sx * h, FOOT.from + h], [xB - FOOT.endSlope * h, FOOT.y - h], B));
-    const fd = (floorY - FOOT.y) * FOOT.floorDown, fa = (AXIS - xB) * FOOT.floorAcross;
-    for (let k = 0; k <= 16; k++) out.push(P(k / 16, B, [xB + FOOT.endSlope * fd, FOOT.y + fd], [AXIS - fa, floorY], Z));
-    return out;
-  };
-  const L = curve(left.x0, left.sx), Rm = curve(right.x0, right.sx);
-  const out: [number, number][] = bowed.slice(0, iA);
-  out.push(...L);
-  for (let k = Rm.length - 2; k >= 0; k--) out.push([2 * AXIS - Rm[k]![0], Rm[k]![1]]);
-  for (let i = jA + 1; i < bowed.length; i++) out.push(bowed[i]!);
-  return out;
-}
 const POLYS = new Map<number, [number, number][]>();
-/** The placed anatomy's gut edges, read once from its organ silhouettes (ascites-cavity.ts). */
+/** The gut edges, read once from the placed organ silhouettes (ascites-cavity.ts). */
 let edges: ReturnType<typeof gutEdges> | null = null;
-export const polyOf = (step: number) => POLYS.get(step) ?? (POLYS.set(step, PLACED
-  ? placedCavity(step, edges ??= gutEdges({ colon: PLACED_ORGAN_RINGS['colon']![0]!, bowel: PLACED_ORGAN_RINGS['bowel']![0]! }))
-  : bellyPolygon(outlinePolygon(ABDOMEN_OUTLINES[step]!))), POLYS.get(step)!);
+export const polyOf = (step: number) => POLYS.get(step) ?? (POLYS.set(step,
+  placedCavity(step, edges ??= gutEdges({ colon: PLACED_ORGAN_RINGS['colon']![0]!, bowel: PLACED_ORGAN_RINGS['bowel']![0]! }))), POLYS.get(step)!);
 
 /** Where a vertical line at x crosses the polygon: its lowest and highest y (2D, y down), or null outside it. */
 export function crossings(poly: readonly [number, number][], x: number): [number, number] | null {

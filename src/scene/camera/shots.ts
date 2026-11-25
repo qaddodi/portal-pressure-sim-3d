@@ -1,6 +1,6 @@
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { x3, y3 } from '../frame2d.ts';
-import { PLACED, boxOfNames, centreOf, FIGURE_NAMES, type Box3 } from '../anatomy/source.ts';
+import { boxOfNames, centreOf, FIGURE_NAMES, type Box3 } from '../anatomy/source.ts';
 
 // Named shots for the HVPG slice. A shot says what to look at (target, direction, how close at least, how much of the body it needs
 // on screen); the room solver (room.ts) then fits it into whatever room the cards leave free on this device. Frontal view: the patient's
@@ -97,9 +97,7 @@ export function placedShot(s: Shot, names: readonly string[]): Shot {
   const grow = (h: number, k: 0 | 1) => Math.max(h, reach[k] + SHOT_MARGIN);
   return { ...s, target, half: [grow(s.half[0], 0), grow(s.half[1], 1)], ...(s.halfNarrow ? { halfNarrow: [grow(s.halfNarrow[0], 0), grow(s.halfNarrow[1], 1)] as [number, number] } : {}) };
 }
-export const SHOTS: Readonly<Record<ShotName, Shot>> = PLACED
-  ? Object.fromEntries(Object.entries(TODAY_SHOTS).map(([k, s]) => [k, placedShot(s, SHOT_SUBJECTS[k as ShotName])])) as Record<ShotName, Shot>
-  : TODAY_SHOTS;
+export const SHOTS: Readonly<Record<ShotName, Shot>> = Object.fromEntries(Object.entries(TODAY_SHOTS).map(([k, s]) => [k, placedShot(s, SHOT_SUBJECTS[k as ShotName])])) as Record<ShotName, Shot>;
 
 /** Camera shot to shot: 950 ms, ease in-out cubic (look-and-feel.md section 7). */
 export const SHOT_MS = 950;

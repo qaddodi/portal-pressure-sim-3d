@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { x2d, y2d } from '../src/scene/frame2d.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { PLACED_BRANCHES, PLACED_PATH_2D } from '../src/scene/anatomy/placed-network.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 
@@ -17,39 +16,20 @@ const cross = (a: number[], b: number[], c: number[], d: number[]) => {
 test('the hepatic artery crosses no vein (and an arterioportal shunt, which ends in a vein, is the only artery that meets one)', () => {
   const arts = NETWORK.filter((v) => !v.feeder && v.tone === 'artery' && v.kind !== 'shunt');
   assert.ok(arts.some((a) => a.id === 'A_HEP'), 'the trunk stays');
-  if (PLACED) {
-    // (restated for the placed anatomy, the only one now: the approved placement lets an artery pass a vein on screen, apart in depth (docs/approved/anatomy-placement.md: the left hepatic artery stays behind
-    // the left portal vein where they overlap; tests/vessel-crossings.test.ts pins the gaps), so what holds is that no artery ever touches a vein: wall to wall in 3D above 0 wherever they cross on screen)
-    const C = (id: string) => coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts;
-    for (const a of arts) for (const v of NETWORK) {
-      if (v.feeder || v.tone === 'artery' || v.kind === 'shunt' || v.kind === 'liver' || v.id === 'C9') continue;
-      const A = C(a.id), B = C(v.id);
-      for (const p of A) for (const q of B) if (Math.hypot(p[0] - q[0], p[1] - q[1]) < a.radius + v.radius) assert.ok(Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) > a.radius + v.radius, `${a.id} touches ${v.id} where it crosses it`);
-    }
-    return;
-  }
-  for (const a of arts) {
-    const pa = P(a.id);
-    for (const v of NETWORK) {
-      if (v.feeder || v.tone === 'artery' || v.kind === 'shunt' || v.kind === 'liver' || v.id === 'C9') continue;   // (the hidden sinusoid beds; C9, the lumbar collateral behind everything, only when it is open)
-      const pv = P(v.id);
-      // (the one place the 2D plan makes an artery pass a vein: the hilum, where the hepatic artery, anterior to the portal vein and the cava, passes in front of the cava and behind the portal veins, checked below)
-      const hilum = HEPATIC.has(a.id) && (v.id === 'PVH_L' || v.id === 'PVH_R' || v.id === 'PV_TRUNK' || v.tier === 'back');
-      for (let i = 1; i < pa.length; i++) for (let j = 1; j < pv.length; j++) {
-        const x = cross(pa[i - 1]!, pa[i]!, pv[j - 1]!, pv[j]!);
-        if (!hilum) assert.ok(!x, `${a.id} crosses ${v.id}`);
-        else if (x && v.tier === 'back') assert.ok(a.pts[i]![2] > v.pts[j]![2] + 0.008, `${a.id} passes ${v.id} (the cava) at the hilum in front of it`);
-        else if (x) assert.ok(a.pts[i]![2] < v.pts[j]![2] - 0.008, `${a.id} passes ${v.id} at the hilum behind it`);
-      }
-    }
+  // (restated for the placed anatomy, the only one now: the approved placement lets an artery pass a vein on screen, apart in depth (docs/approved/anatomy-placement.md: the left hepatic artery stays behind
+  // the left portal vein where they overlap; tests/vessel-crossings.test.ts pins the gaps), so what holds is that no artery ever touches a vein: wall to wall in 3D above 0 wherever they cross on screen)
+  const C = (id: string) => coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts;
+  for (const a of arts) for (const v of NETWORK) {
+    if (v.feeder || v.tone === 'artery' || v.kind === 'shunt' || v.kind === 'liver' || v.id === 'C9') continue;
+    const A = C(a.id), B = C(v.id);
+    for (const p of A) for (const q of B) if (Math.hypot(p[0] - q[0], p[1] - q[1]) < a.radius + v.radius) assert.ok(Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) > a.radius + v.radius, `${a.id} touches ${v.id} where it crosses it`);
   }
 });
 
 test('the left and right hepatic arteries run beside their portal branches, a little below them, and fade out with them', () => {
   for (const [a, host] of [['A_HR', 'PVH_R_1'], ['A_HL', 'PVH_L_1']] as const) {
     const art = P(a), v = P(host);
-    if (!PLACED) assert.equal(art.length, 64);   // (placed: the course is the placement's own, resampled, not 2D's 64 points)
-    if (PLACED && a === 'A_HL') {
+    if (a === 'A_HL') {
       // (restated for the placed anatomy, the only one now: the left hepatic artery overlaps the left portal vein on screen and stays behind it there (approved placement, round 18), so it runs beside it in depth)
       const A = coursesOf(NETWORK_BY_ID.get(a)!, REST)[0]!.pts, V = coursesOf(NETWORK_BY_ID.get(host)!, REST)[0]!.pts;
       let over = 0;
@@ -84,25 +64,12 @@ test('the paraumbilical vein leaves the left portal branch as a branch off its w
 
 test('the cava, the hepatic veins and the right atrium lie in one plane: no S in depth (a side-tilted view showed one: Mohammad, 20 Nov)', async () => {
   const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
-  const { TIER_Z } = await import('../src/scene/frame2d.ts');
-  const { ORGAN_Z } = await import('../src/scene/organs/z.ts');
-  const { NODE_RISE } = await import('../src/scene/vessels/smooth-joins.ts');
-  if (PLACED) {
-    // (restated for the placed anatomy, the only one now: the approved placement carries each course's own depth, the cava rising forward from the pelvis to the atrium, so the cava is not one plane;
-    // what holds is the "no S": up the cava, IVC to atrium to SVC, the depth only ever rises (no back-and-forth), and the veins into it are level)
-    const up = ['IVC_IS_1', 'IVC_IS', 'IVCS_RA'].flatMap((id) => coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts.map((p) => p[2]));
-    // (a turn back of under 0.0005 scene units, a sixth of a figure unit, is no S anyone sees: the placed course's own relaxation leaves one of 0.0002 at the pelvis)
-    let lo = up[0]!; for (let i = 1; i < up.length; i++) { assert.ok(up[i]! >= lo - 5e-4, `the cava's depth never turns back (${i}: ${up[i]} after ${lo})`); lo = Math.max(lo, up[i]!); }
-    for (const id of ['SVC_RA', 'RHV_IVC']) { const z = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts.map((p) => p[2]); assert.ok(Math.max(...z) - Math.min(...z) < 0.02, `${id} is level`); }
-    return;
-  }
-  for (const id of ['IVC_IS_1', 'IVC_IS', 'IVCS_RA', 'SVC_RA', 'RHV_IVC', 'LRV_IVC']) {
-    const z = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts.map((p) => p[2]);
-    assert.ok(Math.max(...z) - Math.min(...z) < 0.02, `${id} is level`);
-    assert.ok(Math.abs(z[0]! - TIER_Z.back) < 0.02, `${id} is on the cava's plane`);
-  }
-  assert.equal(NODE_RISE.get('RA')!.z, TIER_Z.back, 'the cava enters the atrium level');
-  assert.ok(Math.abs(ORGAN_Z['heart-ra']! + 0.11 - TIER_Z.back) < 1e-9, 'the atrium (mesh centre 0.11) is centred on the same plane');
+  // (restated for the placed anatomy, the only one now: the approved placement carries each course's own depth, the cava rising forward from the pelvis to the atrium, so the cava is not one plane;
+  // what holds is the "no S": up the cava, IVC to atrium to SVC, the depth only ever rises (no back-and-forth), and the veins into it are level)
+  const up = ['IVC_IS_1', 'IVC_IS', 'IVCS_RA'].flatMap((id) => coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts.map((p) => p[2]));
+  // (a turn back of under 0.0005 scene units, a sixth of a figure unit, is no S anyone sees: the placed course's own relaxation leaves one of 0.0002 at the pelvis)
+  let lo = up[0]!; for (let i = 1; i < up.length; i++) { assert.ok(up[i]! >= lo - 5e-4, `the cava's depth never turns back (${i}: ${up[i]} after ${lo})`); lo = Math.max(lo, up[i]!); }
+  for (const id of ['SVC_RA', 'RHV_IVC']) { const z = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts.map((p) => p[2]); assert.ok(Math.max(...z) - Math.min(...z) < 0.02, `${id} is level`); }
 });
 
 test('the sinusoid beds are not drawn: the portal branches fade out into the liver and the hepatic veins fade in from it (Mohammad, 20 Nov)', async () => {
@@ -122,12 +89,12 @@ test('each portal branch and the right hepatic vein branches once more into the 
   const { EDGE_PATH_2D: PATHS } = await import('../src/scene/vessels/paths.copied.ts');
   // (restated for the placed anatomy, the only one now: the placement branches the right portal vein and the right hepatic vein (placed-network.ts PLACED_BRANCHES); the left portal vein runs on unbranched
   //  into the left lobe and fades there (fades.ts PLACED_LIVER_FADE); the children leave the host's placed course)
-  assert.deepEqual(LIVER_BRANCHES.map((b) => b.host).sort(), PLACED ? Object.keys(PLACED_BRANCHES).sort() : ['PVH_L_1', 'PVH_R_2', 'RHV_IVC_1']);   // (the left hepatic vein has only its through branch, bent down into the left lobe; every other vein one tube and one side branch: one construction)
+  assert.deepEqual(LIVER_BRANCHES.map((b) => b.host).sort(), Object.keys(PLACED_BRANCHES).sort());   // (the left hepatic vein has only its through branch, bent down into the left lobe; every other vein one tube and one side branch: one construction)
   for (const b of LIVER_BRANCHES) {
     // (a branching vein runs on as one tube and has one side branch; the left hepatic vein has none)
     assert.equal(b.list.length, 1, `${b.host}: branches`);
     const [a] = b.list as readonly { pts: readonly (readonly [number, number])[]; dz: readonly number[] }[];
-    const host = (PLACED ? PLACED_PATH_2D[b.host] : PATHS[b.host])!, onHost = (p: readonly [number, number]) => Math.min(...host.map((q) => Math.hypot(p[0] - q[0], p[1] - q[1])));
+    const host = PLACED_PATH_2D[b.host]!, onHost = (p: readonly [number, number]) => Math.min(...host.map((q) => Math.hypot(p[0] - q[0], p[1] - q[1])));
     const near = [a!.pts[0]!, a!.pts[a!.pts.length - 1]!].map(onHost);
     assert.ok(Math.min(...near) < 2, `${b.host}: the children are the host's own course where they leave it`);
     assert.ok(NETWORK_BY_ID.has(`${b.host}~F:b`) && NETWORK_BY_ID.get(`${b.host}~F:b`)!.feeder, `${b.host}: drawn as a tributary group`);

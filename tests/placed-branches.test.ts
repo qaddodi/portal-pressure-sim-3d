@@ -8,7 +8,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-process.env.PPS_ANATOMY = 'placed';
 const { PLACED_SPLIT, PLACED_EDGE_3D } = await import('../src/scene/anatomy/placed-network.ts');
 const { PLACED_COURSES } = await import('../src/scene/anatomy/placement.generated.ts');
 

@@ -9,26 +9,19 @@ import { organsReady, setOrganData } from '../src/scene/organs/meshes.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { GUT_GROUP, GUT_RENDER, ORGAN_ORDER } from '../src/scene/organs/layer.ts';
 import { POOL_ORDER } from '../src/scene/disease/ascites.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 
 const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
 
 test('the gut draws as one group: the colon fill first, then the bowel fill, then the bowel line, then the colon line, all inside the organ layer', () => {
-  const c = GUT_RENDER.colon!, b = GUT_RENDER.bowel!;
-  if (PLACED) {   // (placed path: the gut is the mock's one surface, stomach, duodenum, bowel and colon: every depth pass, then every fill, the tubes first, then every line)
-    const r = Object.values(GUT_RENDER), pres = r.map((x) => x.pre!), fills = r.map((x) => x.fill), inks = r.map((x) => x.ink);
-    assert.ok(Math.max(...pres) < Math.min(...fills) && Math.max(...fills) < Math.min(...inks), 'depth, then fills, then lines');
-    assert.ok(GUT_RENDER.duodenum!.fill < GUT_RENDER.stomach!.fill && c.fill < GUT_RENDER.stomach!.fill, 'the tubes fill before the stomach');
-    assert.ok(c.fill > 2 * ORGAN_ORDER.indexOf('liver') + 1, 'after the liver');
-    assert.ok(Math.max(...inks) < POOL_ORDER, 'the ascites pool still draws after every organ');
-    assert.deepEqual([...GUT_GROUP].sort(), ['bowel', 'colon', 'duodenum', 'stomach']);
-    return;
-  }
-  assert.ok(c.fill < b.fill && b.fill < b.ink && b.ink < c.ink, 'fills (colon covering) before lines (colon over bowel)');
-  assert.ok(c.fill > 2 * ORGAN_ORDER.indexOf('liver') + 1, 'after the liver, as the gut always was');
-  assert.ok(c.ink < POOL_ORDER, 'the ascites pool still draws after every organ');
-  assert.deepEqual([...GUT_GROUP].sort(), ['bowel', 'colon']);
+  const c = GUT_RENDER.colon!;
+  // (placed path: the gut is the mock's one surface, stomach, duodenum, bowel and colon: every depth pass, then every fill, the tubes first, then every line)
+  const r = Object.values(GUT_RENDER), pres = r.map((x) => x.pre!), fills = r.map((x) => x.fill), inks = r.map((x) => x.ink);
+  assert.ok(Math.max(...pres) < Math.min(...fills) && Math.max(...fills) < Math.min(...inks), 'depth, then fills, then lines');
+  assert.ok(GUT_RENDER.duodenum!.fill < GUT_RENDER.stomach!.fill && c.fill < GUT_RENDER.stomach!.fill, 'the tubes fill before the stomach');
+  assert.ok(c.fill > 2 * ORGAN_ORDER.indexOf('liver') + 1, 'after the liver');
+  assert.ok(Math.max(...inks) < POOL_ORDER, 'the ascites pool still draws after every organ');
+  assert.deepEqual([...GUT_GROUP].sort(), ['bowel', 'colon', 'duodenum', 'stomach']);
 });
 
 test('only the colon and the bowel fills mark and test the gut stencil bit; no other organ, and no outline, does', async () => {

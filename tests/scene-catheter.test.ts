@@ -2,12 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { BALLOON_RADII, CATHETER_RADIUS, CATHETER_ROUTE } from '../src/scene/catheter.ts';
+import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
-import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
-import { NETWORK_BY_ID, courseOf } from '../src/scene/vessels/network.ts';
-import { TIP_ALONG_RHV } from '../src/scene/catheter-route.ts';
 import { CelScene } from '../src/scene/scene.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { centrelineOf } from '../src/scene/vessels/centreline.ts';
 import { drawnShare } from '../src/scene/procedures/route3d.ts';
 import { rhvBranchIds, RHV_FORK_PIECE } from '../src/scene/procedures/route-placed.ts';
@@ -67,10 +64,8 @@ test('the route runs on the figure\'s own vessels: neck, SVC, atrium, IVC, then 
   // (restated for the placed anatomy, the only one now: the route is laid in 3D on the drawn centrelines (route-placed.ts), so "on the vessel" is inside its lumen at that point,
   // measured in 3D against the centreline's own radius; the old 2D courses and tier depths are retired)
   const near = (id: string, at: number) => {
-    const c = PLACED ? centrelineOf(id)! : null;
-    const p = c ? c.pointAt(at) : [...courseOf(id)[Math.round(at * 63)]!, 0];
-    const tol = c ? c.radiusAt(at) : 0.02;
-    return r.some((q) => Math.hypot(q[0] - p[0]!, q[1] - p[1]!, c ? q[2] - p[2]! : 0) < tol);
+    const c = centrelineOf(id)!, p = c.pointAt(at), tol = c.radiusAt(at);
+    return r.some((q) => Math.hypot(q[0] - p[0]!, q[1] - p[1]!, q[2] - p[2]!) < tol);
   };
   assert.ok(near('SVC_RA', 1), 'through the atrium');
   assert.ok(near('IVC_IS', 0.8), 'down the IVC');
@@ -84,21 +79,11 @@ test('the route runs on the figure\'s own vessels: neck, SVC, atrium, IVC, then 
 
 test('the tip ends inside the right hepatic vein\'s main trunk (the 2D app\'s 62 % on the old figure), and the catheter is thinner than the vein', () => {
   const end = CATHETER_ROUTE.at(-1)!;
-  if (PLACED) {
-    // (restated for the placed anatomy, the only one now: the HVPG wedges in the MAIN right hepatic vein, short of its fork (Mohammad 24 Nov, route-placed.ts WEDGE_ALONG), so the tip is
-    // in the middle of the trunk's lumen and nearer its centreline than any branch's; tests/anatomy-placed-devices.test.ts pins where along the trunk)
-    const trunk = Math.min(...['RHV_IVC', RHV_FORK_PIECE].map((id) => drawnShare(id, end[0], end[1], end[2])?.share ?? Infinity));
-    assert.ok(trunk < 0.5, `tip is in the trunk's lumen (${trunk.toFixed(2)} of its radius off the centreline)`);
-    for (const id of rhvBranchIds()) assert.ok((drawnShare(id, end[0], end[1], end[2])?.share ?? Infinity) > trunk, `the tip is nearer the trunk than ${id}`);
-  } else {
-    const sc = (p: readonly (readonly [number, number])[]) => p.map(([x, y]): [number, number] => [x3(x), y3(y)]), a = sc(EDGE_PATH_2D.RHV_IVC!), b = sc(EDGE_PATH_2D.RHV_IVC_1!);   // (the vein's whole 2D course: the drawn host stops at its split, its children carry the course on)
-    const chain = [...[...a].reverse(), ...[...b].reverse()];
-    const near = Math.min(...chain.map((p) => Math.hypot(p[0] - end[0], p[1] - end[1])));
-    assert.ok(near < 0.01, `tip is on the vein (${near})`);
-    const len = (pts: readonly (readonly number[])[]) => pts.slice(1).reduce((s, p, i) => s + Math.hypot(p[0]! - pts[i]![0]!, p[1]! - pts[i]![1]!), 0);
-    const upTo = chain.findIndex((p) => Math.hypot(p[0] - end[0], p[1] - end[1]) === near);
-    assert.ok(Math.abs(len(chain.slice(0, upTo + 1)) / len(chain) - TIP_ALONG_RHV) < 0.03);
-  }
+  // (restated for the placed anatomy, the only one now: the HVPG wedges in the MAIN right hepatic vein, short of its fork (Mohammad 24 Nov, route-placed.ts WEDGE_ALONG), so the tip is
+  // in the middle of the trunk's lumen and nearer its centreline than any branch's; tests/anatomy-placed-devices.test.ts pins where along the trunk)
+  const trunk = Math.min(...['RHV_IVC', RHV_FORK_PIECE].map((id) => drawnShare(id, end[0], end[1], end[2])?.share ?? Infinity));
+  assert.ok(trunk < 0.5, `tip is in the trunk's lumen (${trunk.toFixed(2)} of its radius off the centreline)`);
+  for (const id of rhvBranchIds()) assert.ok((drawnShare(id, end[0], end[1], end[2])?.share ?? Infinity) > trunk, `the tip is nearer the trunk than ${id}`);
   assert.ok(CATHETER_RADIUS < NETWORK_BY_ID.get('RHV_IVC')!.radius * 0.5);
   assert.ok(BALLOON_RADII[1] < NETWORK_BY_ID.get('RHV_IVC')!.radius, 'the balloon fits the lumen');
 });

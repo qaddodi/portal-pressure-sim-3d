@@ -17,7 +17,6 @@ import { bodyTargets } from '../src/scene/disease/targets.ts';
 import { waistNarrow, waistSigma, isClampable } from '../src/scene/disease/clamps.ts';
 import { Landmarks, flankPoints, ribbon } from '../src/scene/disease/landmarks.ts';
 import { polyOf } from '../src/scene/disease/ascites-pool.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { bellyZ } from '../src/scene/disease/ascites.ts';
 import { RED_WALE, waleEnvelope } from '../src/scene/disease/strands.ts';
 import { varixWale } from '../src/scene/disease/copied/varix-bead.js';
@@ -159,8 +158,7 @@ test('the navel\'s ring comes with the paraumbilical vein, in steps, and the fla
   l.setAscites(2000); const st = l.state(); assert.equal(st.flank, true); assert.ok(st.step > 0);
   l.setFade(0); assert.equal(l.state().flank, false, 'it goes with the body');
   const pts = flankPoints(0);
-  if (!PLACED) { assert.deepEqual(pts[0], [336, 470]); assert.deepEqual(pts[pts.length - 1], [1088, 470]); }
-  else {
+  {
     // (restated for the placed anatomy, the only one now: the wall is the placed cavity round the placed gut (ascites-pool.ts placedCavity, pinned by tests/ascites-cavity.test.ts), not 2D's outline
     // from (336, 470) to (1088, 470); the flank is still that wall without its two top corners, its two ends level, one each side of the belly's axis)
     const poly = polyOf(0);
