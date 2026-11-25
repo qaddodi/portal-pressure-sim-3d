@@ -4,6 +4,7 @@
 //  - a touch with two fingers is not given to the browser to zoom (touchmove cancelled; a one-finger touch is left alone, so taps, scrolls and sliders keep working);
 //  - Ctrl/⌘ + wheel (a Mac trackpad pinch in Chrome and Firefox, and Ctrl + scroll) is cancelled. The figure's own wheel handler still sees it (nothing here stops it travelling);
 //  - a double tap does not zoom: `touch-action: manipulation` on the body (global.css) and on the figure's canvas, which takes no double-tap zoom and leaves every tap a tap (no tap is ever swallowed).
+//  - selectstart is cancelled except in a field made for typing (no selection loupe, no callout);
 // The keyboard's Ctrl/⌘ + / − / 0 is the browser's accessibility zoom and is left to the person.
 export function installNoPageZoom(doc: Document = document): () => void {
   const off: (() => void)[] = [];
@@ -15,5 +16,10 @@ export function installNoPageZoom(doc: Document = document): () => void {
   for (const t of ['gesturestart', 'gesturechange', 'gestureend']) on(t, stop);
   on<TouchEvent>('touchmove', (e) => { if (e.touches.length > 1) stop(e); });
   on<WheelEvent>('wheel', (e) => { if (e.ctrlKey) stop(e); });
+  // Text is never selectable (owner, rule 12): iOS's selection loupe and callout come from a double tap and hold on a label or a card, so a selection never starts anywhere but in a field made for typing.
+  on<Event>('selectstart', (e) => {
+    const t = e.target as Element | null, host = t && 'closest' in t ? t : (t as Node | null)?.parentElement;
+    if (!host?.closest?.('input, textarea, [contenteditable=""], [contenteditable="true"], .selectable')) stop(e);
+  });
   return () => { off.forEach((f) => f()); };
 }

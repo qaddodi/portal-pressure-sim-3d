@@ -22,6 +22,9 @@ test('the document cancels pinch gestures, two-finger moves and Ctrl + wheel, an
   assert.ok(!fire('touchmove', { touches: [1] }), 'one finger scrolls and drags');
   assert.ok(fire('wheel', { ctrlKey: true }), 'a trackpad pinch');
   assert.ok(!fire('wheel', { ctrlKey: false }), 'a plain scroll');
+  const sel = (target: unknown) => fire('selectstart', { target });
+  const plain = { closest: () => null }, field = { closest: () => ({}) };
+  assert.ok(sel(plain), 'a label or card never starts a selection'); assert.ok(!sel(field), 'a field still may');
   off();
   assert.equal((calls.wheel ?? []).length, 0);
 });

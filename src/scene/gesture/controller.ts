@@ -484,6 +484,8 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   on(el, 'pointermove', onMove);
   for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) on(el, t, onUp);
   on(el, 'contextmenu', onContext);
+  // iOS opens its selection loupe and callout on a double tap and hold, and a pointer event's preventDefault does not stop it: the touch itself is the figure's, so it is not given to the browser
+  on(el, 'touchstart', (e: { cancelable?: boolean; preventDefault(): void }) => { if (e.cancelable !== false) e.preventDefault(); }, { passive: false });
 
   return {
     get active() { return gestureOn() || wheelGlide.active || !!animId || !!orbitId || !!homeId; },

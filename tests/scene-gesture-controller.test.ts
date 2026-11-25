@@ -455,3 +455,12 @@ test('the hold never fires once a second finger is down or the finger lifted, an
   r.ptr('pointermove', 2, 550, 300, T);
   assert.ok(r.hand.k > 1.5 && r.orbit === 0, 'two fingers still pinch');
 });
+
+test('the figure takes every touch from the browser (no iOS selection loupe on a double tap and hold) and pointer taps still work', () => {
+  const r = rig(); let stopped = 0;
+  r.el.emit('touchstart', { cancelable: true, preventDefault() { stopped++; } });
+  assert.equal(stopped, 1);
+  const T = { pointerType: 'touch' };
+  r.ptr('pointerdown', 1, 300, 300, T); r.ptr('pointerup', 1, 300, 300, T); r.run(400);
+  assert.equal(r.taps.length, 1);
+});
