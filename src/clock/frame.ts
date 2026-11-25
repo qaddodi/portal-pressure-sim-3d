@@ -210,6 +210,8 @@ export function createClock(env: Env) {
     },
     /** Page time in ms: the one reader of time (replaces performance.now()). Scaled by `scale`. */
     now,
+    /** REAL time in ms, never scaled: for a wait on work the page does not drive (a layout, a measure, a font), the way `afterReal` is for a timer. The audit's speed mode must not shorten it. */
+    nowReal: () => env.now(),
     /** The speed of page time (1 = real). Only the audit sets it. */
     get scale() { return scale; },
     /** A stalled-frame cap in page ms: `realMs` (what a stall may count for at 1x) times the speed, so the audit's 20x does not make every glide take twenty times the frames (a frame of 100 ms real is 2000 ms of page time, which the 50 ms and 64 ms caps cut to 1/40 of it). */
