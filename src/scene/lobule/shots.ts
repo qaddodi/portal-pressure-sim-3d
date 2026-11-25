@@ -63,7 +63,8 @@ export function lobuleShot(cam: LobuleCam): Shot {
     r: (part === 'fit' ? 6 : 2.5) * LOBULE_SCALE,
     target: lobuleWorld([ox + along * LOBULE_R, oy, oz]),
     half: part === 'fit' ? [FIT_BOUNDS[0] * LOBULE_SCALE, FIT_BOUNDS[1] * LOBULE_SCALE] : [(FIT_HALF[0] / st.zoom) * LOBULE_SCALE, (FIT_HALF[1] / st.zoom) * LOBULE_SCALE],
-    halfNarrow: [(FIT_HALF_NARROW[0] / st.zoom) * LOBULE_SCALE, (FIT_HALF_NARROW[1] / st.zoom) * LOBULE_SCALE],
+    // (a phone's whole-lobule box is 2D's 1.05 R, but the corners' dots and the tract glow reach 1.12 R: the box is never narrower than the lobule's own bounds, so none is cut at the screen's edge; capture af1c51a0, Mohammad 25 Nov)
+    halfNarrow: [((part === 'fit' ? Math.max(FIT_HALF_NARROW[0], FIT_BOUNDS[0]) : FIT_HALF_NARROW[0]) / st.zoom) * LOBULE_SCALE, (FIT_HALF_NARROW[1] / st.zoom) * LOBULE_SCALE],
   };
 }
 

@@ -22,8 +22,10 @@ const roomOf = (W: number, H: number) => lobuleRoom({ w: W, h: H, safe: { top: 4
 
 test('on a phone held upright the whole hexagon is about 2D\'s share of the free room\'s width, never the central vein alone', () => {
   const room = roomOf(390, 844), h = hexOn(390, 844, room);
-  // 2D: k = room.w / (2.1 R): the hexagon (2 R wide) is 2 / 2.1 = 95 % of the room
-  assert.ok(Math.abs(h.shareW - 2 / 2.1) < 0.005, `phone hexagon ${(h.shareW * 100).toFixed(1)} % of the room's width`);
+  // 2D's phone box is 1.05 R a side (the hexagon 95 % of the room), but the corners' dots and the tract glow reach 1.12 R and were cut at the screen's edge (capture af1c51a0, 25 Nov): the box is the lobule's own
+  // bounds, k = room.w / (2.24 R), the hexagon (2 R wide) 2 / 2.24 = 89 % of the room
+  assert.ok(Math.abs(h.shareW - 2 / 2.24) < 0.005, `phone hexagon ${(h.shareW * 100).toFixed(1)} % of the room's width`);
+  assert.ok(h.shareW * 1.12 <= 1.0001, 'the corners\' dots and glow (1.12 R each side) are inside the room');
   assert.ok(h.shareH < 1, 'and fits the room\'s height');
 });
 
@@ -42,7 +44,8 @@ test('the deck and free-play cameras are one shot; the central vein station stay
   const fit = lobuleShot('lobule'), cv = lobuleShot('lobule:central');
   assert.deepEqual(lobuleShot('lobule:fit'), fit);
   assert.ok(fit.halfNarrow && cv.halfNarrow);
-  assert.ok(Math.abs(cv.halfNarrow[0] * 2 - fit.halfNarrow[0]) < 1e-15);
+  assert.ok(Math.abs(cv.halfNarrow[0] * 2 - LOBULE_R * 1.05 * FILL * LOBULE_SCALE) < 1e-15, 'the central vein station keeps 2D\'s phone box at twice the zoom');
+  assert.ok(Math.abs(fit.halfNarrow[0] - LOBULE_R * 1.12 * FILL * LOBULE_SCALE) < 1e-15, 'the whole lobule on a phone is the lobule\'s own bounds wide');
   // FILL is the room solver's share; the shot's extents are 2D's frame box times it
   assert.ok(Math.abs(fit.half[1] - LOBULE_R * 0.98 * FILL * LOBULE_SCALE) < 1e-15);
 });

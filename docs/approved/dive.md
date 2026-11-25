@@ -13,3 +13,6 @@ Rejected: choosing the place from where he looks or the nearest liver point on s
 
 
 **Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).
+
+## 25 Nov 2026 ruling (Mohammad)
+- A phone's whole-lobule shot (`lobule`, `lobule:fit`) is the lobule's own bounds wide (1.12 R a side) instead of 2D's 1.05 R: the corners' arteriole and bile-ductule dots and the tract glow were cut at the screen's edge (capture af1c51a0, iPhone Circulation 5 and Ascites 3). The hexagon is about 89 % of the room's width on a phone (was 95 %). Stations are unchanged. Test: `tests/scene-lobule-fit-2d.test.ts`.
