@@ -3,9 +3,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { CameraRig } from '../src/scene/camera/rig.ts';
+import { lensDistance, type Shot } from '../src/scene/camera/shots.ts';
 import { LabelController, NO_STATE, type Draw, type LabelDeps } from '../src/scene/labels/controller.ts';
 import { FADE } from '../src/scene/labels/alpha.ts';
-import { MM, SHORT, STENT_STATIONS, decodeGeo, encodeGeo, geoId, geoLines, geoSets, geoSize, pointId, pointName, type GeoFacts, type PointRead, type StentView } from '../src/scene/labels/stent-labels.ts';
+import { MM, SHORT, STENT_STATIONS, stentStationById, decodeGeo, encodeGeo, geoId, geoLines, geoSets, geoSize, pointId, pointName, type GeoFacts, type PointRead, type StentView } from '../src/scene/labels/stent-labels.ts';
 import { BeatMean, pointVelocity } from '../src/scene/labels/stent-reads.ts';
 
 const mac = { w: 1440, h: 900, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
@@ -14,11 +15,11 @@ const phone = { w: 393, h: 852, safe: { top: 59, right: 0, bottom: 34, left: 0 }
 const measure: LabelDeps['measure'] = (t, size, _w, track = 0) => t.length * size * 0.56 + track * t.length;
 
 interface Knobs { ready: boolean; only: string | null; all: boolean; sampled: 'proximal' | 'mid' | 'distal' | null; facts: GeoFacts | null; vel: Record<string, PointRead> }
-function world(vp = mac, k: Partial<Knobs> = {}) {
+function world(vp = mac, k: Partial<Knobs> = {}, shot: Shot | 'play' = 'play') {
   const knobs: Knobs = { ready: true, only: 'TIPS', all: false, sampled: null, facts: { d: 10, waist: null, wLen: 0, sten: null, end: 'distal' }, vel: {
     proximal: { number: '99', none: false, tint: 'rgb(1, 2, 3)' }, mid: { number: '120', none: false, tint: '' }, distal: { number: 'No flow', none: true, tint: '' } }, ...k };
   const room = { x: 0, y: 0, w: vp.w, h: vp.h };
-  const rig = new CameraRig('play', room); rig.resize(vp.w, vp.h); rig.goTo('play', room, 0, 0); rig.update(0);
+  const rig = new CameraRig('play', room); rig.resize(vp.w, vp.h); rig.goTo(shot, room, 0, 0); rig.update(0);
   let t = 1000;
   const stents: StentView = { ready: (sid) => knobs.ready && (!knobs.only || knobs.only === sid), all: () => knobs.all, sampled: () => knobs.sampled, facts: () => knobs.facts, read: (_s, p) => knobs.vel[p]! };
   const d = {
@@ -100,9 +101,11 @@ test('an occluded point says "No flow" and no unit; the point the Doppler sample
 });
 
 test('a phone names the points short', () => {
-  // (the phone itself, 393 x 852: the three points stand short there on the placed figure. This ran on a screen half again as large while the placed figure's first framing left them no room on a phone;
-  //  on that one, 590 px wide, the proximal point now gives way to the names round it, the right sinusoids' and the hepatic artery's)
-  const w = world(phone, { all: true }); w.step();
+  // The phone itself, 393 x 852, framed the way a TIPS slide frames the stent (a close shot on its middle, the slide's own camera): the three points stand there, short. On the whole-body framing the stent is 52 px long,
+  // the proximal, middle and distal points stand 26 px apart on one spot with the stent's own label, and the solver rightly keeps only what has room (that framing is not what a stent slide shows).
+  const mid = stentStationById('TIPS:mid')!.at(0, new Vector3());
+  const close: Shot = { yaw: 0, pitch: 0, r: lensDistance(0.9), target: [mid.x, mid.y, mid.z], half: [0.35, 0.35] };
+  const w = world(phone, { all: true }, close); w.step();
   const words = ['proximal', 'mid', 'distal'].map((p) => w.byId(`TIPS:${p}`)?.word).filter(Boolean);
   assert.equal(words.length, 3, 'all three stand');
   assert.ok(words.every((x) => ['Prox', 'Mid', 'Dist'].includes(x!)), words.join());

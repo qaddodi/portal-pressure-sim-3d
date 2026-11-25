@@ -63,8 +63,9 @@ export const calloutNeeds = (k: CalloutKind): 1 | 2 => (k === 'f' ? 1 : 2);
 /** A reading whose number is not in yet ("—": the engine has not posted it) stands nowhere: a tag that came with a dash and changed to its number crossed over once it was already on show, and was sized for the dash. The catheter's own
  *  readings wait for a digit; a procedure's cards and a blocked vein's words say what they say. */
 export const hasNumber = (v: string): boolean => /\d/.test(v);
-/** Whether every number the catheter's cards will print is in (the controller solves again when it becomes so). */
-export const numbersIn = (t: CathText): string => `${hasNumber(t.f) ? 1 : 0}${hasNumber(t.w) ? 1 : 0}${hasNumber(t.h) ? 1 : 0}`;
+/** The shape of the numbers the catheter's cards print: their digits as zeros, so a dash, a number, and a number that gains a digit (9.9 to 10.1) each read differently and a tick (5.2 to 5.3) does not. The controller solves
+ *  again when it changes: a card is sized by its shape (cath.ts tagSize), and a box that did not follow its number stood one size behind. */
+export const shapeOf = (t: CathText): string => `${t.f.replace(/\d/g, '0')}|${t.w.replace(/\d/g, '0')}|${t.h.replace(/\d/g, '0')}`;
 
 export const toneOf = (hv: number | null): Tone => (hv == null || !Number.isFinite(hv) ? 'caution' : hvpgSev(hv));
 const reading = (kind: 'free' | 'wedge' | 'result', value: string, tone: Tone, kicker?: string): Reading => ({ kicker: kicker ?? N[kind].kicker, value, unit: value ? N[kind].unit : '', tone });
@@ -93,7 +94,7 @@ export interface SumDraw {
 }
 export interface CathFrame { pills: PillDraw[]; sum: SumDraw | null }
 
-// `key` is what the layer redraws the leaders by (no place in it); `spot` is what a card IS: its side, its size. A card that stands at a new place with the same spot GLIDES
+// `key` is what the layer redraws the leaders by (no place in it); `spot` is what a card IS: its side (a tag's width follows its number: a digit more or less is the same card, glided by its middle). A card that stands at a new place with the same spot GLIDES
 // there; only a card that changes spot (it flips to the other side, it takes another size) fades out where it stood and in again. `ax`/`ay` is the point the card was placed for: while the
 // picture moves a little (a tilt, the camera following the tip) the card rides it, drawn at its solved place plus how far its point has moved since (2D stage-cath.js: a reading is pinned
 // to its point in the world and "any move glides there, never jumps"; it is placed again only at rest).
@@ -163,7 +164,7 @@ export class CathShow {
       for (const o of out) {
         const it = items.find((i) => i.id === o.id)!, id = o.id as PillId, r = id === 'f' ? rf : rw;
         this.sides.set(id, o.side);
-        pills.set(id, { id, reading: r, x: o.x0, y: o.y0, w: it.w, h: it.h, above: o.above, box: o.box, key: `${o.above ? 1 : 0}|${it.w}|${it.h}`, spot: `${o.above ? 1 : 0}|${it.w}|${it.h}`, ax: id === 'f' ? inp.tip![0] : inp.ahead![0], ay: id === 'f' ? inp.tip![1] : inp.ahead![1] });
+        pills.set(id, { id, reading: r, x: o.x0, y: o.y0, w: it.w, h: it.h, above: o.above, box: o.box, key: `${o.above ? 1 : 0}|${it.w}|${it.h}`, spot: `${o.above ? 1 : 0}|${it.h}`, ax: id === 'f' ? inp.tip![0] : inp.ahead![0], ay: id === 'f' ? inp.tip![1] : inp.ahead![1] });
       }
     } else for (const id of ['f', 'w'] as const) this.sides.delete(id);
     if (kinds.includes('s') && inp.tip && inp.ahead && inp.got >= calloutNeeds('s') && ready(rw) && ready(rf) && ready(rh)) {
@@ -182,15 +183,16 @@ export class CathShow {
     this.want = { pills, sum };
     this.boxes = [...[...pills.values()].map((p) => p.box), ...(sum ? [sum.box] : [])];
     this.cards = [...[...pills.values()].map((p) => ({ x0: p.x, y0: p.y, x1: p.x + p.w, y1: p.y + p.h })), ...(sum ? [sum.box] : [])];
-    // A card on show that is placed again with the same spot (the same side and size) takes its new place at once and glides there from where it is drawn now (its glide offset keeps the
+    // A card on show that is placed again with the same spot (the same side; a tag's width follows its number) takes its new place at once and glides there from where it is drawn now (its glide offset keeps the
     // picture continuous); a ticking number is no new spot either. Only a card that changes spot fades out and in (step).
     for (const [id, rec] of this.pills) {
       const w = pills.get(id);
       if (!w || w.spot !== rec.t.spot) continue;
-      const [ox, oy] = this.pillAt(rec);
+      const [ox, oy] = this.pillAt(rec), ow = rec.t.w;
       rec.t = w; rec.gx = 0; rec.gy = 0;
       const [nx, ny] = this.pillAt(rec);
-      rec.gx = ox - nx; rec.gy = oy - ny;
+      // (a number that gained or lost a digit is the same card at another width: its words stand where they stood, by the middle, and glide to their new place)
+      rec.gx = ox + ow / 2 - (nx + w.w / 2); rec.gy = oy - ny;
     }
     if (this.sum && sum && sum.spot === this.sum.t.spot) {
       const [ox, oy] = this.sumAt(this.sum);

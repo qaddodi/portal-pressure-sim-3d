@@ -109,3 +109,30 @@ test('the FHVP callout lands once with its final number and size, even when the 
   assert.equal(widths.size, 1, `one size the whole time (${[...widths]})`);
   assert.equal(backs, 0, 'its fade only rises');
 });
+
+// The box followed its number one size behind: it was sized when the callout was placed, and a number that gained a digit on screen (9.9 to 10.1: a new patient, a changed slider) kept the old box, its words overflowing it,
+// until some later solve sized it again as a new spot (the card fading out and in). Now the digits' shape is in what the controller solves by, and a tag's width is no part of its spot: it is the same card at another width,
+// and its words stand where they stood, by the middle.
+test('a callout whose number gains a digit on screen takes its new width, glides by its middle and never dips', () => {
+  let tNum = Infinity, ctlNow = () => 0;
+  const { frame, to, ctl, now } = makeRig((k) => (k === 'fhvp' ? (ctlNow() >= tNum ? 10.1 : 9.9) : null));
+  ctlNow = now;
+  for (let i = 0; i < 14000 / 16; i++) frame();
+  to('free');
+  for (let i = 0; i < 6000 / 16; i++) frame();   // landed, steady at 9.9
+  const f0 = ctl.cath.pills.find((q) => q.id === 'f')!;
+  assert.equal(f0.reading.value, '9.9'); assert.ok(f0.alpha >= 0.999);
+  const w0 = f0.w; let cx = f0.x + f0.w / 2, jump = 0, dipped = 0;
+  tNum = now();
+  for (let i = 0; i < 1500 / 16; i++) {
+    frame();
+    const p = ctl.cath.pills.find((q) => q.id === 'f');
+    if (!p || p.alpha < 0.999) { dipped++; continue; }
+    jump = Math.max(jump, Math.abs(p.x + p.w / 2 - cx)); cx = p.x + p.w / 2;
+  }
+  const f1 = ctl.cath.pills.find((q) => q.id === 'f')!;
+  assert.equal(f1.reading.value, '10.1');
+  assert.ok(f1.w > w0 + 4, `the box took the wider number (${w0} to ${f1.w})`);
+  assert.equal(dipped, 0, 'the card never dips');
+  assert.ok(jump < 2, `its words never jump (the largest step of their middle ${jump.toFixed(2)} px)`);
+});
