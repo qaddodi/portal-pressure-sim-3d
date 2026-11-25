@@ -346,7 +346,7 @@ export const CAPTURE_2A54261A = [
  *  on a sinusoid carries the wedged pressure the slide says approximates it, read from the same fingerprint as the patient card's WHVP tile. The callout's kind `wedge` is the colour the slide's own words give the sinusoids and the WHVP (amber), and the
  *  Sinusoids name beside it takes the same colour, so the two read together (Mohammad, 25 Nov: "both callouts highlighting the sinusoid pressure label with the number and the WHVP callout"). */
 export const WEDGE_LOBULE_25NOV = [
-  SET('hvpg', 'slides.wedge-sinusoid.callout', { at: 'sin', kind: 'wedge', label: 'WHVP {whvp}', reads: ['sin'] }),
+  SET('hvpg', 'slides.wedge-sinusoid.callout', { at: 'sin', kind: 'wedge', label: 'WHVP {whvp}', reads: ['sin', 'cv'], lit: ['sin'] }),
 ];
 
 /** Capture 15c31759 (24 Nov 2026, Mohammad: "do all review findings"). */

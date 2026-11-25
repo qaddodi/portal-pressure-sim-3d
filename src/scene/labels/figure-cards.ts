@@ -8,7 +8,8 @@ import { FADE } from './alpha.ts';
 import { type Box, hits, within, grow } from './geometry.ts';
 import { PILL_GAP, tagType, tagSize, type TagType, type Measure } from './cath.ts';
 import { calloutClaims } from './callout-claims.ts';
-import { AIR_BLOCKER } from './solver.ts';
+import { lobuleLines, type CourseLine } from './lobule-lines.ts';
+import { AIR_BLOCKER, LineGrid, onLine } from './solver.ts';
 import { makeTag, words, fade, place, size, show, TagLead, type Tag } from './tag-dom.ts';
 import { boxLeader, leaderToEdge, leaderShort, LEAD_AIR } from './tag-lead.ts';
 import { restyle } from './roll.ts';
@@ -159,7 +160,7 @@ export function stepLeader(circle: { cx: number; cy: number; r: number }, to: { 
 
 /** Where each card stands (the 2D callout rule: above its point, or below it, slid sideways until it clears the cards, the view's edges and the others; the first clear
  *  spot in that order wins, and a card with none takes the one that covers least). In order, so the first of a slide has its pick. */
-export function placeCards(items: readonly CardIn[], view: Box, blockers: readonly Box[], before: readonly Box[] = []): CardOut[] {
+export function placeCards(items: readonly CardIn[], view: Box, blockers: readonly Box[], before: readonly Box[] = [], courses: readonly CourseLine[] = []): CardOut[] {
   const placed: Box[] = [...before];
   // The biggest card first (a stable sort: equal areas keep the slide's order). A small mark stood first in the middle of a short view left bands too thin for the portal blood's split, which then stood on
   // the mark ("94% bypasses the liver" over "Covered stent", Encephalopathy 10 on an iPhone: a 440 x 138 view, a 204 x 73 split and a 93 x 19 mark; 120 of 4480 anchor pairs had no clear place before).
@@ -168,6 +169,8 @@ export function placeCards(items: readonly CardIn[], view: Box, blockers: readon
   for (const { it } of order) {
     if (it.w >= view.x1 - view.x0) { const x0 = Math.max(it.x - it.w / 2, view.x0 + 4); out.push({ id: it.id, x0, y0: it.y, box: { x0, y0: it.y, x1: x0 + it.w, y1: it.y + it.h }, ok: false }); continue; }
     if (it.near != null) { const o = placeStep(it, view, blockers, placed); placed.push(o.box); out.push(o); continue; }
+    // a slide's ring callout stands its words in the clear between the vessels (the lobule's courses), as near its ring as such a place is: words over the net are hard to read
+    if (it.ring && courses.length) { const o = placeClear(it, view, blockers, placed, courses); if (o) { placed.push(o.box); out.push(o); continue; } }
     const sides: boolean[] = it.below ? [false, true] : [true, false];
     const gap = it.ring ?? PILL_GAP, hold = it.ring ? [...blockers, { x0: it.x - it.ring, y0: it.y - it.ring, x1: it.x + it.ring, y1: it.y + it.ring }] : blockers;
     let best: { cost: number; o: CardOut } | null = null;
@@ -195,6 +198,38 @@ export function placeCards(items: readonly CardIn[], view: Box, blockers: readon
   }
   const at = new Map(out.map((o) => [o.id, o] as const));
   return items.map((it) => at.get(it.id)!);   // (the slide's order back: the callers read the result by position)
+}
+
+/** The air a callout's words keep from a vessel's centreline (px), tried widest first: the tube is drawn wider than its line and the words' halo
+ *  is 3 px; on the smallest phone's zoomed lobule only the tighter ones leave any ground clear (wedge slide, iPhone 375 wide: none at 5 px,
+ *  25 places at 0), so the air gives before the words go onto the vessels. */
+const COURSE_AIRS = [5, 3, 0] as const;
+/** The grid a ring callout's place is looked for on (px), and the farthest its words may stand from the ring's centre (px):
+ *  past it the old sweep decides (words on the net, at least near the ring). */
+const CLEAR_STEP = 6, CLEAR_FAR = 300;
+/** Where a ring callout's words stand in the clear: the nearest place in the view, on a grid, whose box no course crosses and no card, view edge,
+ *  earlier card or the ring itself takes (above its ring is worth a little: 2D's side); null when every place has a vessel under it.
+ *  Why a grid and not rings round the ring: on a phone's zoomed lobule the clear brown lies
+ *  a hundred pixels off in whatever direction the net leaves it, and a sweep of eight spots found none (wedge slide, iPhone, 25 Nov). */
+export function placeClear(it: CardIn, view: Box, blockers: readonly Box[], placed: readonly Box[], courses: readonly CourseLine[]): CardOut | null {
+  const ring = it.ring ?? 0, hold = [...blockers, ...placed, { x0: it.x - ring, y0: it.y - ring, x1: it.x + ring, y1: it.y + ring }];
+  const grid = new LineGrid(courses.map((l) => [l[0], l[1], l[2], l[3]] as const));
+  for (const air of COURSE_AIRS) {
+    let best: { cost: number; box: Box } | null = null;
+    for (let y0 = Math.ceil(view.y0 + 4); y0 + it.h <= view.y1 - 4; y0 += CLEAR_STEP) {
+      for (let x0 = Math.ceil(view.x0 + 4); x0 + it.w <= view.x1 - 4; x0 += CLEAR_STEP) {
+        const box: Box = { x0, y0, x1: x0 + it.w, y1: y0 + it.h };
+        const dx = (box.x0 + box.x1) / 2 - it.x, dy = (box.y0 + box.y1) / 2 - it.y, d = Math.hypot(dx, dy);
+        const cost = d + (dy > 0 ? 8 : 0);
+        if (d > CLEAR_FAR || (best && cost >= best.cost)) continue;
+        if (hold.some((b) => hits(box, b))) continue;
+        if (grid.some(box.x0, box.y0, box.x1, box.y1, air, (l) => onLine(l, box, air))) continue;
+        best = { cost, box };
+      }
+    }
+    if (best) return { id: it.id, x0: best.box.x0, y0: best.box.y0, box: best.box, ok: true };
+  }
+  return null;
 }
 
 /** A reading that is still unknown ("…", the 2D VALUE_PENDING) stands nowhere: its tag stays hidden until the number is in (it used to show "…" and then change). */
@@ -472,12 +507,16 @@ export class FigureCards {
 
     // solve once the picture is still and something changed
     const blockers = cardKeepOut(d.blockers());
-    const sig = [this.cards.map((c) => c.id + c.text + (c.value ?? '')).join(','), this.calipers.map((c) => c.id + c.text).join(','), this.spans.map((c) => c.id + c.text + (strokes.has(c.id) ? 1 : 0)).join(','), view.x0, view.y0, view.x1, view.y1, blockers.map((b) => `${Math.round(b.x0)},${Math.round(b.y0)},${Math.round(b.x1)},${Math.round(b.y1)}`).join(';'), vp.w, vp.h].join('|');
+    const sig = [this.cards.map((c) => c.id + c.text + (c.value ?? '')).join(','), 
+      this.calipers.map((c) => c.id + c.text).join(','), 
+      this.spans.map((c) => c.id + c.text + (strokes.has(c.id) ? 1 : 0)).join(','), view.x0, view.y0, view.x1, view.y1,
+      blockers.map((b) => `${Math.round(b.x0)},${Math.round(b.y0)},${Math.round(b.x1)},${Math.round(b.y1)}`).join(';'),
+      vp.w, vp.h, this.hasRing() ? lobuleLines.key : ''].join('|');
     if (!hold && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
       const ins: CardIn[] = [];
       for (const c of this.cards) { const a = anchors.get(c.id); if (!a) continue; const s = cardSize(c, t, d.measure), rg = anchors.get(c.id + '#r'); ins.push({ id: c.id, x: a.x, y: a.y, w: s.w, h: s.h, below: c.below, ...(c.kind === 'step' ? { near: this.stepNear(c) } : null), ...(rg ? { ring: rg.x + RING_AIR } : null) }); }
-      const outs = placeCards(ins, view, blockers);
+      const outs = placeCards(ins, view, blockers, [], lobuleLines.lines);
       const taken = outs.filter((o) => o.ok).map((o) => o.box);
       // a caliper's reading stands in line with it, past its far tick; a bracket's under the middle of its line: each with no leader. Only where that place is taken does a reading stand where the
       // sweep finds room, with a leader to the tick (the caliper) or to the middle of the line (the bracket).
@@ -648,6 +687,9 @@ export class FigureCards {
     else if (isLabelMark(c)) this.paintLead(r, box, r.a, sz.w, sz.h);
     if (r.co) this.paintRing(r, box, a, sz);
   }
+
+  /** A slide's ring callout is on the figure: only then do the lobule's courses decide where its words stand. */
+  private hasRing(): boolean { return this.cards.some((c) => c.kind === 'mark' && 'lobule' in c.anchor); }
 
   /** A slide's ring: it stands on its place at its radius, the leader runs from its edge to the words (both the stroke of 2D's `small.call`, in the callout's colour), and they fade with the words. Moved by
    *  transform and opacity; the radius and the colour are written when they change, which is while the picture is moving and the card hidden. */

@@ -50,12 +50,14 @@ export interface FigureCalls {
   reads: string[];
   /** The colour those stations and the callout take (a station colour token, 'wedge' on the wedge slide), or null for none. */
   readsTone: string | null;
+  /** the stations of `reads` that take that colour (the rest only show their pressure) */
+  lit: string[];
   /** Whatever the plan names that is not drawn: 2D draws nothing for it either (a ripple's halo, a lobule's pointer), or it is another view's. */
   notDrawn: string[];
 }
 
 export const EMPTY_CALLS: FigureCalls = {
-  named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, caudateVeins: false, cards: [], calipers: [], spans: [], reads: [], readsTone: null, notDrawn: [],
+  named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, caudateVeins: false, cards: [], calipers: [], spans: [], reads: [], readsTone: null, lit: [], notDrawn: [],
 };
 
 /** The words of a clot mark that follows the model (callout-math.js clotWords). */
@@ -161,8 +163,9 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   if (plan.ripple) notDrawn.push('ripple (2D draws no halo: stage-glow.js, 13 Nov 2026)');
   // (the lobule's stations whose pressure the slide's callout asks to stand beside their names: only a slide that says so)
   const reads = plan.callout?.reads ?? [];
+  const lit = (plan.callout?.lit ?? []).filter((k) => reads.includes(k));
   const readsTone = reads.length && plan.callout?.kind === 'wedge' ? 'wedge' : null;
-  return { named, pins, normalSpleen: plan.normalOutline.includes('spleen'), marked, res: plan.res, caudate: plan.caudate, caudateVeins: plan.caudateVeins, cards, calipers, spans, reads, readsTone, notDrawn };
+  return { named, pins, normalSpleen: plan.normalOutline.includes('spleen'), marked, res: plan.res, caudate: plan.caudate, caudateVeins: plan.caudateVeins, cards, calipers, spans, reads, readsTone, lit, notDrawn };
 }
 
 export { toneCss };

@@ -24,10 +24,13 @@ import { type CapMeta, buildLobuleCaptions, lobuleLabelView, readingSig, reading
 import { footBlocker, useFootNote } from '../../ui/shell/foot-note.ts';
 import { creditClaim } from '../labels/credit-claim.ts';
 import { calloutClaims } from '../labels/callout-claims.ts';
+import { lobuleLines } from '../labels/lobule-lines.ts';
 import { Ride, RoomFade, boxesFit } from '../labels/ride.ts';
 import { HandWatch } from '../labels/hand-watch.ts';
 
-interface El { tone: string; root: HTMLElement; name: HTMLElement; val: HTMLElement | null; lead: HTMLElement | null; ring: HTMLElement | null; ringTx: string; tx: string; text: string; valText: string; size: string }
+interface El {
+  tone: string; root: HTMLElement; name: HTMLElement; val: HTMLElement | null; lead: HTMLElement | null; ring: HTMLElement | null; ringTx: string; tx: string; text: string; valText: string; size: string
+}
 const boxKey = (b: Box): string => `${Math.round(b.x0)},${Math.round(b.y0)},${Math.round(b.x1)},${Math.round(b.y1)}`;
 
 export function LobuleCaptions() {
@@ -100,6 +103,7 @@ export function LobuleCaptions() {
       const items = level === 'none' ? built.items.filter((it) => it.id.startsWith('z:')) : built.items;
       const out = solve({ items, view: vw, blockers: bl, lines: built.lines, keep: built.keep });
       if (typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search)) console.info('[lobule-captions] solved:', JSON.stringify({ items: items.length, placed: out.placed.length, view: vw, room: cel.rig.targetRoom, fit: cel.rig.fitRoom, hand: cel.rig.handView, moving: cel.rig.isMoving, corners: [pa, pb, pc, pd], walls: bl.length }));
+      lobuleLines.set(built.lines);   // (the slide's ring callout stands its words clear of these courses: figure-cards.ts placeClear)
       placed = new Map(out.placed.map((p) => [p.id, p]));
       metas = built.meta;
       itemsNow = new Map(items.map((it) => [it.id, it]));
@@ -120,7 +124,7 @@ export function LobuleCaptions() {
           if (mt.kind === 'zone') e.name.style.fontSize = `${fontPx(10.5, vp)}px`;
         }
         // (a station the slide shows its reading for takes the colour the slide's words give it, with its leader and ring: they cross over to it, never step)
-        const tone = mt.kind === 'station' && fig.reads.includes(id) && fig.readsTone ? toneCss(fig.readsTone) : '';
+        const tone = mt.kind === 'station' && fig.lit.includes(id) && fig.readsTone ? toneCss(fig.readsTone) : '';
         if (e.tone !== tone) {
           e.tone = tone;
           restyle(e.root, () => writeTone(e.root, tone), e.text ? alpha : 0);
@@ -148,11 +152,13 @@ export function LobuleCaptions() {
     };
 
     /** Everything that decides what the words say and where they may stand but the picture's place on the screen (a pan only carries them). */
+    /** What the slide asks of the names: which stand with their reading, and which take the callout's colour. */
+    const figSig = (): string => { const f = useFigure.getState(); return `${f.reads.join()}/${f.readsTone}/${f.lit.join()}`; };
     const layoutSig = (): string => {
       const { vp, boxes } = useUi.getState();
       const L = cel.lobule.currentLayers, m = readModel(cel.lobule.inkContext()?.model);
       return [vp.w, vp.h, L.zones, L.lymph, levelFor(useShell.getState().figure.labelLevel, useLabels.getState().presenting), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'), boxKey(view()), lookRef.current,
-        readingSig(m, onSlide()), onSlide(), useFigure.getState().reads.join(), useFigure.getState().readsTone, cel.lobule.currentLens === 'oxygen'].join('|');   // (the readings' widths, never their values: a value that moves a tenth is written in place, refreshReadings, and sends nothing through a fade)
+        readingSig(m, onSlide()), onSlide(), figSig(), cel.lobule.currentLens === 'oxygen'].join('|');   // (the readings' widths, never their values: a value that moves a tenth is written in place, refreshReadings, and sends nothing through a fade)
     };
     const boxesOf = () => {
       const out: { ax: number; ay: number; dx: number; dy: number; w: number; h: number }[] = [];
@@ -219,9 +225,11 @@ export function LobuleCaptions() {
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) wake(); });
     const offFoot = useFootNote.subscribe(wake);
     const offClaims = calloutClaims.subscribe(wake);
-    const offReads = useFigure.subscribe((s, p) => { if (s.reads !== p.reads || s.readsTone !== p.readsTone) wake(); });
+    const offReads = useFigure.subscribe((s, p) => { if (s.reads !== p.reads || s.readsTone !== p.readsTone || s.lit !== p.lit) wake(); });
     void document.fonts?.ready.then(refont);
-    return () => { off(); offShell(); offUi(); offUi2(); offFoot(); offClaims(); offReads(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
+    return () => {
+      off(); offShell(); offUi(); offUi2(); offFoot(); offClaims(); offReads(); lobuleLines.set([]);
+      hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer" aria-hidden="true" />;
