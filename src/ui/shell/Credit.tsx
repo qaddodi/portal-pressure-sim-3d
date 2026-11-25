@@ -124,7 +124,7 @@ export function Credit() {
       const lay = layoutOf(vw, vh);
       // (an upright iPad too, where its foot band under the cards is free: the hunt floated it over the figure, across vessels and the scope's lens, in five of six slides of capture af88a9c2; where a card reaches the band, the hunt as before)
       const foot = footCredit({ vw, vh, safe: vp.safe, h, margin: margin(vw, vh, lay) });
-      if (talk && (lay === 'wide' || lay === 'short' || (lay === 'tab' && footShown(foot, w, h, vw, vh, '.dk-strip, .dk-card, .dk-bar'))))) {
+      if (talk && (lay === 'wide' || lay === 'short' || (lay === 'tab' && footShown(foot, w, h, vw, vh, '.dk-strip, .dk-card, .dk-bar')))) {
         const at = foot;
         clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
         // a phone on its side: a words card carries the credit in its own foot (CardFrame .pz-cred), so the floating line fades while one is up, and while any card stands on its row
