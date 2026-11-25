@@ -2,7 +2,7 @@
 // not the shown one: every digit is a zero (the digits are tabular: one width each), a whole part under two digits gets a second, a value that can be negative has a minus slot, and a reading
 // not yet known ("…") reserves a typical value and its unit. Pure; tests/roll-reserve.test.ts pins it.
 import { TILE } from '../charts/tiles.generated.ts';
-import { VALUE_PENDING } from '../text/tokens.ts';
+import { VALUE_PENDING, valueText } from '../text/tokens.ts';
 
 /** The readings that can come out below zero (a difference of two pressures): they hold a minus sign's room. */
 export const SIGNED: ReadonlySet<string> = new Set(['dipsDp', 'eus', 'hvpg', 'ppg', 'rpp']);
@@ -17,7 +17,9 @@ const leastDigits = (key?: string): number => (key === 'map' || key === 'plt' ? 
 export interface ReserveOpts { seen?: readonly string[]; minus?: boolean; /** the slider can only raise the reading (fibrosis, cirrhosis), so no minus slot stands in front of it, but it still holds two whole digits (a slider can reach 10) */ raises?: boolean }
 
 /** The slider parameters that only push pressure up from where the slide starts: a reading they drive never goes below zero, so it holds no minus slot ("6.1 mmHg.      An LSM", Stiffness 3, capture 572259fd). */
-export const RAISING: ReadonlySet<string> = new Set(['cirrhosis']);
+// (the response to a beta-blocker only lowers the HVPG, from a start well above zero, so its reading holds no minus slot either:
+//  "12.9 mmHg,     and the blood pressure", Treatment 4, capture 49141fb9)
+export const RAISING: ReadonlySet<string> = new Set(['cirrhosis', 'nsbbGain']);
 /** Whether a slide's controls can only raise its readings: a slider whose every parameter is in RAISING, and no strain. */
 export const raisesOnly = (ctl?: { whatIf?: { paths: readonly string[] }; strain?: unknown }): boolean => !!ctl?.whatIf && !ctl.strain && ctl.whatIf.paths.length > 0 && ctl.whatIf.paths.every((p) => RAISING.has(p));
 
@@ -53,4 +55,13 @@ export function altsOf(text: string, still = false, opts: ReserveOpts = {}): str
   if (still || text === VALUE_PENDING || !opts.seen?.length) return undefined;
   const all = [...new Set([text, ...opts.seen])].filter((t) => t !== VALUE_PENDING);
   return all.length ? all : undefined;
+}
+
+/** The two ends of a reading that prints from its whole fingerprint (the blood pressure with its two numbers, the platelets in thousands), as the card prints them: its lowest and its highest.
+ *  They stand as `seen`, so "175,000/µL" and "117/69 (82)" hold their own width and no gap stands after them (cause treated 11, capture 49141fb9). */
+export function printedEnds(key: string, fps: readonly Readonly<Record<string, number | null | undefined>>[], whole = false): readonly string[] | undefined {
+  const have = fps.filter((f) => typeof f[key] === 'number' && Number.isFinite(f[key]));
+  if (!have.length) return undefined;
+  const by = [...have].sort((a, b) => (a[key] as number) - (b[key] as number));
+  return [by[0]!, by[by.length - 1]!].map((f) => valueText(key, f, whole)).filter((t) => t !== VALUE_PENDING);
 }

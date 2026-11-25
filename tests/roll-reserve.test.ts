@@ -54,7 +54,7 @@ test2('an index out of 1 holds no second whole digit (no gap after "0.80 /1.")',
   assert2.equal(reserveOf2('0.80 /1', 'he', false, false, { minus: true }), '0.00 /0');
 });
 
-import { raisesOnly as raisesOnly3, reserveOf as reserveOf3 } from '../src/ui/cards/roll-reserve.ts';
+import { printedEnds, raisesOnly as raisesOnly3, reserveOf as reserveOf3 } from '../src/ui/cards/roll-reserve.ts';
 test('a fibrosis slider holds two digits but no minus slot (Stiffness 3: "6.1 mmHg.      An LSM")', () => {
   assert.equal(reserveOf3('6.1 mmHg', 'hvpg', false, false, { minus: true, raises: true }), '00.0 mmHg');
   assert.equal(reserveOf3('6.1 mmHg', 'hvpg', false, false, { minus: true }), '−00.0 mmHg');
@@ -88,4 +88,15 @@ test('capture a47f69ea: a prose reading is proportional (fit) with or without kn
   assert.match(css, /\.pzc-verdict \*[^)]*\) \{ font-variant-numeric: lining-nums proportional-nums !important/);
   assert.match(over, /\.pz \.pz-table\.dk-pztable thead tr\.th-up th\.num \{ writing-mode: horizontal-tb; rotate: none/);
   assert.match(over, /\.pz \.pz-table\.dk-pztable thead tr\.th-up th\.num > \.hd \{/);
+});
+
+test('the beta-blocker response slider holds no minus slot, so "12.9 mmHg," closes up (Treatment 4, capture 49141fb9)', () => {
+  assert.ok(raisesOnly3({ whatIf: { paths: ['nsbbGain'] } }));
+  assert.equal(reserveOf3('12.9 mmHg', 'hvpg', false, false, { minus: true, raises: true }), '00.0 mmHg');
+});
+
+test('platelets and blood pressure in a time-lapse hold their own two ends, not a zero-filled reserve (cause treated 11)', () => {
+  assert.deepEqual(printedEnds('plt', [{ plt: 175 }, { plt: 150 }]), ['150,000/µL', '175,000/µL']);
+  assert.equal(printedEnds('plt', [{}]), undefined);
+  assert.deepEqual(printedEnds('map', [{ map: 90, sbp: 120, dbp: 75 }, { map: 82, sbp: 117, dbp: 69 }])?.length, 2);
 });
