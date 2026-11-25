@@ -17,7 +17,8 @@ import { beatCardWaiting } from '../../tests/slide/beat-agree.ts';
 import { menuWaiting } from '../../charts/menu/MenuCard.tsx';
 import { drawScreen } from '../../capture/capture.ts';
 import { speedAnimations, sampleRealMs, skipAnimations, finishAnimations } from './speed.ts';
-import { captureViews, type CaptureView, collageLayout, settleLimitMs, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
+import { evRunPending } from '../../charts/evgraph/live.ts';
+import { captureViews, CHOICE_SEL, CHOICE_ON_SEL, CHOICE_MAX, CHOICE_ROOTS, pressable, choiceName, collageLayout, settleLimitMs, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
 import { isSideways, layoutOf } from '../../layout/rules2d.ts';
 import { lastPicked, stopKey, pickWords } from './capture-pick.ts';
 import { growCaptureTotal } from './progress.ts';
@@ -60,7 +61,7 @@ function arriving(clockToo = true, stripsToo = true, frames = 99): string {
     if (document.querySelector('.dk-card[data-phase="out"], .dk-plate[data-phase="out"]')) return 'a card is leaving';
     if (document.fonts && document.fonts.status === 'loading') return 'fonts are loading';
     if ([...document.querySelectorAll('.dk-card .dk-roll-in, .dk-card .dk-roll-now')].some((e) => (e.textContent ?? '').trim() === '…')) return 'a reading on a card is still "…" (its number has not arrived)';   // (the line's blank gap, TIPS follow-up 5 "her PPG is …", build e4810ea9)
-    if (clock.stats().holds.includes('chart:evgraph')) return 'the procedure graph is still drawing to its end';   // (the card says the slide's end value while the plot's head is still on its way: Gastric varices 7, 19.4 against 18.1)
+    if (clock.stats().holds.includes('chart:evgraph') || evRunPending()) return 'the procedure graph is still drawing to its end';   // (the card says the slide's end value while the plot's head is still on its way: Gastric varices 7, 19.4 against 18.1)
     if (menuWaiting()) return 'the treatment menu has not worked out its dots yet';
     if (beatCardWaiting()) return 'the pressure strip has not caught up with the slide\'s numbers (its history is still coming, or the model is still easing to the slide)';
     if (figureWaiting()) return 'the figure has not reached the slide\'s state yet (its labels would print the slide before\'s patient)';
@@ -174,6 +175,8 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       let shape = { w: innerWidth, h: innerHeight };
       // one picture of what stands now: the talk's own position says which (stop, then the step within it: the case card, each beat, each page, each procedure step and reading)
       let prevIds = '', sub = 0, lastStop = -1, presses = 0, shownNow = '', inStop = 0, inStopAt = -1, lastThumbs = 0;
+      const showLanded = async (): Promise<void> => { if (!ui.skip) return; let drawn = 0; const offR = clock.on('render', () => { drawn++; }); clock.setDrawing(true); await until(() => drawn >= 1, real(2000)); offR(); };   // (the landed slide is drawn, a frame or two, before the picture)
+      const standing = (sel: string): HTMLElement[] => Array.from(document.querySelectorAll<HTMLElement>(CHOICE_ROOTS)).flatMap((c) => Array.from(c.querySelectorAll<HTMLElement>(sel))).filter((t) => { if (!pressable(t)) return false; const r = readBox(t); return r.width > 1 && r.height > 1 && Number(readStyle(t).opacity) > 0.1 && !(t as HTMLButtonElement).disabled; });
       const grab = async (): Promise<void> => {
         const p = useUi.getState().pos, k = p.stop;
         const fresh = k !== lastStop;   // (the first picture of this slide)
@@ -195,14 +198,14 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         for (let tries = 0; moving && STATE_WAIT.test(moving) && tries < 11; tries++) ({ moving, words, perpetual } = await stillPage(real, blockedSlide(k), !!ui.skip));
         if (moving) notes.push(STATE_WAIT.test(moving) ? `${d.title} ${n}: CAPTURE FAILED, the picture does not show the slide's own state (${moving}); retake it` : `${d.title} ${n}: still not still after 5 s (${moving}); captured as it was`);
         shownNow = words; prevIds = cardIds();
-        if (ui.skip) { let drawn = 0; const offR = clock.on('render', () => { drawn++; }); clock.setDrawing(true); await until(() => drawn >= 1, real(2000)); offR(); }   // (the landed slide is drawn, a frame or two, before the picture)
+        await showLanded();
         if (perpetual && !seen.has(perpetual)) { seen.add(perpetual); notes.push(`${d.title} ${n}: ${perpetual}; the picture was taken anyway`); }
         // a phone on its side with both cards (the words and the instrument stand in one column that a swipe up slides): two pictures of the slide, the teaching card in view, then the column slid up so the instrument is
         const views = captureViews({ w: innerWidth, h: innerHeight, layout: layoutOf(innerWidth, innerHeight), sideways: isSideways(innerWidth, innerHeight) }, { data: !!useUi.getState().boxes.data, words: !!useUi.getState().boxes.words }), both = views.length === 2;   // (an upright phone or tablet: the instrument card up, then tucked)
         const base0 = `${dir}/${pad2(k + 1)}-${pad2(sub + 1)}-${slug(title)}`;
         if (single && !fresh) { thumbs.length = Math.max(0, thumbs.length - lastThumbs); }   // (a step replaces the one before it: its pictures' small copies go too)
         let pushed = 0;
-        const shoot = async (view: CaptureView): Promise<boolean> => {
+        const shoot = async (view: string, choice?: string): Promise<boolean> => {
           const t1 = new Date().getTime();
           const when = new Date(), drawn = await drawScreen(when, { ratio: Math.min(devicePixelRatio, 2), stamp: false });   // (the device's own sharpness, 2x at most; no stamp in the corner: the build and time are in the README and each JSON)
           if (!drawn) { notes.push(`${d.title}: ${n}${view ? ` ${view}` : ''} could not be drawn`); return false; }
@@ -213,7 +216,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
           drawn.canvas.width = 0; drawn.canvas.height = 0;   // (let the big picture go before the next)
           drawMs += new Date().getTime() - t1;
           const base = view ? `${base0}-${view}` : base0;
-          const meta = enc.encode(JSON.stringify({ deck: d.id, deckTitle: d.title, stop: k + 1, step: sub + 1, of: stops, beat: p.beat + 1, page: useUi.getState().page, title, ...(view ? { card: view } : {}), ...drawn.record }, null, 1));
+          const meta = enc.encode(JSON.stringify({ deck: d.id, deckTitle: d.title, stop: k + 1, step: sub + 1, of: stops, beat: p.beat + 1, page: useUi.getState().page, title, ...(view ? { card: view } : {}), ...(choice ? { choice } : {}), ...drawn.record }, null, 1));
           encoding.push(jpegP.then((data) => { if (data) put({ name: `${base}.jpg`, data }); }));
           put({ name: `${base}.json`, data: meta });
           thumbs.push({ n: view ? `${n} ${view}` : n, title, img: thumb }); pushed++;
@@ -221,12 +224,34 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
           if (!single || fresh) shots++;
           return true;
         };
+        // a teaching slide with several choices (tabs, toggles, options): each is pressed and the result taken, named for the button; the first picture's choice is put back before the next state
+        const choiceShots = async (view: string): Promise<void> => {
+          const names = standing(CHOICE_SEL).map((t, i) => choiceName(t.textContent, t.getAttribute('aria-label'), i)), was = standing(CHOICE_ON_SEL).map((t, i) => choiceName(t.textContent, t.getAttribute('aria-label'), i));
+          const pressed = new Set<string>(), ids0 = cardIds(), tests0 = !!document.querySelector('.t-card');
+          for (let i = 0; i < Math.min(names.length, CHOICE_MAX); i++) {
+            if (ui.stop()) break;
+            const t = standing(CHOICE_SEL).find((e, j) => { const nm = choiceName(e.textContent, e.getAttribute('aria-label'), j); return !pressed.has(nm); });
+            if (!t) break;
+            const nm = choiceName(t.textContent, t.getAttribute('aria-label'), i); pressed.add(nm);
+            if (ui.skip) clock.setDrawing(false);
+            t.click();
+            await stillPage(real, false, !!ui.skip); await showLanded();
+            if (cardIds() !== ids0 || (!tests0 && !!document.querySelector('.t-card'))) { notes.push(`${d.title} ${n}: pressing "${nm}" changed which cards stand (it opened another card); put back, and no more choices on this slide`); if (t.isConnected) t.click(); break; }
+            await shoot(`${view ? `${view}-` : ''}choice${pad2(i + 1)}-${nm}`, nm);
+            if (t.isConnected && t.hasAttribute('aria-expanded')) t.click();   // (an opener is closed again: the next choice and the next state start from the slide as it arrived)
+          }
+          if (pressed.size) {   // (put back what stood: the first of the cards' choices)
+            for (const nm of was) { const back = standing(CHOICE_SEL).find((e, j) => choiceName(e.textContent, e.getAttribute('aria-label'), j) === nm); if (back) { if (ui.skip) clock.setDrawing(false); back.click(); await stillPage(real, false, !!ui.skip); await showLanded(); } }
+          }
+        };
         const d0 = new Date().getTime(); waitMs += d0 - w0;
         const ok = await shoot(views[0]);
+        if (ok && fresh) await choiceShots(views[0]);
         if (both && ok) {
           useUi.getState().setDocked(true);   // (sideways: the swipe up, the column slides until the instrument card is the one in view; upright: the instrument card tucks into its strip)
           await stillPage(real, false, !!ui.skip);
-          await shoot(views[1]!);
+          const ok2 = await shoot(views[1]!);
+          if (ok2 && fresh) await choiceShots(views[1]!);
           useUi.getState().setDocked(false);   // (and back: the next slide starts on its words)
           await sleep(real(60));
         }
@@ -276,7 +301,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   }
   await Promise.all(encoding);
   const secs = Math.round((new Date().getTime() - t0) / 100) / 10;
-  files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x; the pictures are ${shape0.w}x${shape0.h} px`, countWords(files.filter((f) => f.name.endsWith('.jpg')).length, slidesSeen.size, decksDone)+`${stopped ? ' (stopped early)' : ''}${pick ? ` (picked slides: ${pickWords([...pick])})` : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that slide, and the patient, the look, the lens and the view it was taken with).', 'On a phone on its side a slide with both cards has two pictures: -teaching (the words in view) and -instrument (the column swiped up). On an upright iPhone or iPad a slide with an instrument card has two: -untucked (the card up) and -tucked (the card in its strip). A random sample counts slides, not pictures.', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
+  files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x; the pictures are ${shape0.w}x${shape0.h} px`, countWords(files.filter((f) => f.name.endsWith('.jpg')).length, slidesSeen.size, decksDone)+`${stopped ? ' (stopped early)' : ''}${pick ? ` (picked slides: ${pickWords([...pick])})` : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that slide, and the patient, the look, the lens and the view it was taken with).', 'On a phone on its side a slide with both cards has two pictures: -teaching (the words in view) and -instrument (the column swiped up). On an upright iPhone or iPad a slide with an instrument card has two: -untucked (the card up) and -tucked (the card in its strip). A slide with several choices (tabs, options, toggles) has a picture for each, named -choiceNN-<the button> (after -untucked, -tucked, -teaching or -instrument when it has those). A random sample counts slides, not pictures.', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
   const commit = commitOf(import.meta.env.VITE_BUILD) || 'local';
   const stamp = `${at.getFullYear()}${pad2(at.getMonth() + 1)}${pad2(at.getDate())}-${pad2(at.getHours())}${pad2(at.getMinutes())}${pad2(at.getSeconds())}`;
   return { files, secs, perSlide: { waitMs: shots ? Math.round(waitMs / shots) : 0, drawMs: shots ? Math.round(drawMs / shots) : 0 }, speed, zip: zipBlob(files, at), zipName: `portal-pressure-${ui.only ? slug(ui.only) : 'all-decks'}-${commit}-${stamp}.zip`, collages, shots, decks: decksDone, stopped, notes };

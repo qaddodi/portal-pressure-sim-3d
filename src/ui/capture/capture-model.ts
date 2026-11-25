@@ -236,3 +236,18 @@ export function captureViews(size: { w: number; h: number; layout: string; sidew
  *  the only thing arriving the wait is the long one, so the picture (and the tucked one after it) is taken at the run's end, never in its middle (capture 2b947e48, Gastric varices 7). */
 export const GRAPH_WAIT_MS = 90000;
 export const settleLimitMs = (why: string, base: number): number => (why.startsWith('the procedure graph') ? Math.max(base, GRAPH_WAIT_MS) : base);
+
+/** The pressable choices of a teaching slide's cards that are not the one standing: tabs, radios, switches and toggle buttons that say they are off (an opted-in chooser, `data-audit-select`, too). The audit's capture presses each and takes a picture. */
+export const CHOICE_SEL = '[role="tab"]:not([aria-selected="true"]), [role="radio"]:not([aria-checked="true"]), [role="switch"][aria-checked="false"], button[aria-pressed="false"], [data-audit-select]:not([aria-selected="true"]):not([aria-pressed="true"]):not([aria-expanded="true"]):not([data-on=""]):not([data-on="true"])';
+/** The same kinds when they ARE the one standing (put back after the others have been pressed). */
+export const CHOICE_ON_SEL = '[role="tab"][aria-selected="true"], [role="radio"][aria-checked="true"], [role="switch"][aria-checked="true"], button[aria-pressed="true"], [data-audit-select][data-on=""], [data-audit-select][data-on="true"]';
+/** At most this many choices a slide, so a slide with a dozen toggles does not take the run an hour. */
+export const CHOICE_MAX = 8;
+/** What a choice is called in a file name: its words, else its aria label, else its place. */
+export const choiceName = (words: string | null | undefined, aria: string | null | undefined, i: number): string => { const raw = (words ?? '').replace(/\s+/g, ' ').trim() || (aria ?? '').trim(); return raw ? slug(raw) : `choice${i + 1}`; };
+
+/** Where a choice is never pressed: the Tests card and its instrument tabs, the toolbar, the presenter bar and anything that opens another card or sheet (a press there leaves the slide: capture Tests-card-opens, 25 Nov, Doppler over "Change from healthy"). Only the standing slide cards' own content is pressed. */
+export const CHOICE_OUT = '.t-card, .instr-tab, [data-opens], .nb-tab, .topbar, .vdock, .dk-bar, .dk-strip, [data-debug], [data-capture-skip]';
+/** The only places choices are looked for: the slide's cards that are fully in. */
+export const CHOICE_ROOTS = '.dk-card[data-phase="in"]';
+export const pressable = (el: { closest(sel: string): unknown }): boolean => !el.closest(CHOICE_OUT);

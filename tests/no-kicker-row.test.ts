@@ -23,3 +23,10 @@ test('the page count never stands where the level tab does', () => {
   assert.match(css, /\.pz-tabname:has\(~ \.pz-sitetab:not\(\[data-rail\]\)\) \{ display: none; \}/);
   assert.match(css, /\.pz-shade\.stack \.pz-tabname:has\(~ \.pz-sitetab\[data-rail\]\) \{ display: none; \}/);
 });
+
+// Capture af88a9c2, Sites and causes 13 (iPad upright): "No ascites" ran past the table's edge. The small-size rule for the cell lost to `td.num`'s body size on specificity; it now carries `.num`.
+test('the "No ascites" cell rule stands above the number cells\' size', () => {
+  const css = readFileSync('src/ui/css3d-over-2d.css', 'utf8');
+  assert.match(css, /\.pz-table td\.num\.none \{ font-size: 12px; white-space: nowrap;/);
+  assert.ok(!/\n\s*\.pz-table td\.none \{ font-size: 12px/.test(css), 'no weaker copy of the rule');
+});

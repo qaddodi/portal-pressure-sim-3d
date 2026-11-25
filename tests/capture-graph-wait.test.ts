@@ -13,5 +13,5 @@ test('the capture waits long for a procedure graph and normally for everything e
 test('every shot, the tucked one too, waits through the same still wait', () => {
   const src = readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8');
   assert.match(src, /const limitNow = \(\) => real\(settleLimitMs\(why, base\)\)/);
-  assert.match(src, /setDocked\(true\);[^\n]*\n\s*await stillPage\(real, false, !!ui\.skip\);\n\s*await shoot\(views\[1\]!\)/);
+  assert.match(src, /setDocked\(true\);[^\n]*\n\s*await stillPage\(real, false, !!ui\.skip\);\n\s*(?:const ok2 = )?await shoot\(views\[1\]!\)/);
 });

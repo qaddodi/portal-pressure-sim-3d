@@ -28,7 +28,7 @@ export { scaledDelay } from '../../../clock/frame.ts';
 /** Skip mode, the CSS side: every transition and animation of the page lasts 1 ms (not 0, so `transitionend` and `animationend` still come to whatever waits on them). Returns the undo. */
 export function skipAnimations(doc: Document): () => void {
   const st = doc.createElement('style');
-  st.textContent = '*,*::before,*::after{transition-duration:1ms!important;transition-delay:0s!important;animation-duration:1ms!important;animation-delay:0s!important;scroll-behavior:auto!important}';
+  st.textContent = '*,*::before,*::after{transition-duration:1ms!important;transition-delay:0s!important;animation-duration:1ms!important;animation-delay:0s!important;scroll-behavior:auto!important}'; // own pace: skip mode (a 1 ms transition so transitionend still comes)
   doc.head.append(st);
   return () => st.remove();
 }

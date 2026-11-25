@@ -27,8 +27,8 @@
 .bt-tabs button { padding: 0; border: 0; background: none; font: 600 var(--t-body) / 1.2 var(--ui); color: var(--text-3); transition: color var(--d-small) var(--ease); }
 .bt-tabs button[aria-pressed="true"] { color: var(--text); }
 /* the two panels as one raised two-part control (owner, 24 Nov, option B): a recessed track, the chosen part lifted on it */
-.bt-seg { flex: 1; display: flex; gap: 2px; padding: 4px; border-radius: 14px; background: color-mix(in srgb, var(--surface-2) 55%, black); align-self: center; }
-.bt-seg button { flex: 1; padding: 9px 6px; border-radius: 11px; text-align: center; transition: color var(--d-small) var(--ease), background-color var(--d-small) var(--ease); }
+.bt-seg { --bt-seg-r: 14px; flex: 1; display: flex; gap: 2px; padding: 4px; border-radius: var(--bt-seg-r); background: color-mix(in srgb, var(--surface-2) 55%, black); align-self: center; }
+.bt-seg button { flex: 1; padding: 9px 6px; border-radius: calc(var(--bt-seg-r) - 3px); text-align: center; transition: color var(--d-small) var(--ease), background-color var(--d-small) var(--ease); }
 .bt-seg button[aria-pressed="true"] { background: var(--surface-2); box-shadow: 0 1px 6px -2px rgb(0 0 0 / 0.5); }
 .bt .bt-done { margin-left: auto; padding: 0; border: 0; background: none; font: 600 var(--t-body) / 1.2 var(--ui); color: var(--accent); }
 .bt-body { position: relative; flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; container-type: size; }

@@ -116,8 +116,10 @@ export function Credit() {
       // A talk on a laptop, desktop or a landscape tablet: the credit has the one place, in the screen's foot band under the cards' left edge, the same on every slide, never a hunt for bare figure among labels and table
       // rows that are still moving (Mac, 21 Nov: it sat on figure labels and table rows; the iPhone has its row in the words card's foot for the same reason)
       const lay = layoutOf(vw, vh);
-      if (talk && (lay === 'wide' || lay === 'short')) {
-        const at = footCredit({ vw, vh, safe: vp.safe, h, margin: margin(vw, vh, lay) });
+      // (an upright iPad too, where its foot band under the cards is free: the hunt floated it over the figure, across vessels and the scope's lens, in five of six slides of capture af88a9c2; where a card reaches the band, the hunt as before)
+      const foot = footCredit({ vw, vh, safe: vp.safe, h, margin: margin(vw, vh, lay) });
+      if (talk && (lay === 'wide' || lay === 'short' || (lay === 'tab' && footClear(foot, w, h, shownBoxes('.dk-strip, .dk-card, .dk-bar', vw, vh))))) {
+        const at = foot;
         clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
         // a phone on its side: a words card carries the credit in its own foot (CardFrame .pz-cred), so the floating line fades while one is up, and while any card stands on its row
         const clear = !isSideways(vw, vh) || (!document.querySelector('.dk-card .pz-cred') && footClear(at, w, h, shownBoxes('.dk-strip, .dk-card', vw, vh)));

@@ -61,3 +61,16 @@ test('CardFrame draws every height from the frozen one, and only a card that has
   assert.match(cf, /!n\.landed/, 'the measuring callback\'s glides need a landed card');
   assert.ok(!/GROWS_BY_DESIGN\.has\(entry\.id\)\) \{[^}]*hOn = rect\.h/.test(cf));
 });
+
+// Capture af88a9c2, Lowering pressure 11 (iPad upright): the instrument card tucked into its strip stayed as tall as it had landed, an empty frosted pane with its words hidden. A tuck is a step of the card's own,
+// so its height key changes with it and it takes the plan's height (the strip's), then its own again when brought back.
+test('a tucked card takes the strip height and the card height back when untucked', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync('src/ui/cards/CardFrame.tsx', 'utf8');
+  assert.match(src, /const fkey = `\$\{lockKey\}\|\$\{vp\.w\}x\$\{vp\.h\}\|\$\{tuck \? 'tucked' : ''\}`/);
+  let f = freezeOf(null, 'k|w|', 310, null);
+  f = freezeOf(f, 'k|w|', 310, 310); assert.equal(f.h, 310);
+  f = freezeOf(f, 'k|w|tucked', 30, 310); assert.equal(f.h, 30, 'tucked: the strip');
+  f = freezeOf(f, 'k|w|tucked', 30, 310); assert.equal(f.h, 30);
+  f = freezeOf(f, 'k|w|', 310, 310); assert.equal(f.h, 310, 'untucked: the card');
+});
