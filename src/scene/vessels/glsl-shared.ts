@@ -92,6 +92,10 @@ export const inkPxGlsl = (rCss: string, taperR: string, art?: string): string =>
 /** The figure's units under one CSS pixel at clip depth `w` (a GLSL expression): w * 2 / (res.y * the projection's y scale), times `scale` (the figure's units in one scene unit here, vU). Reads: res. */
 export const wpcGlsl = (w: string, projY: string, scale: string): string => `${w} * 2.0 / (res.y * ${projY}) * ${scale}`;
 
+/** A head's arc is taken ON THE SCREEN, along the tube's screen heading over its foreshortening |h.xy| (a tube tilted out of the screen no longer bows its heads by R x tan(tilt); tube and skin share it). The foreshortening is held to HEAD_FORE_MIN in the
+ *  division, and a head fades out as it falls from HEAD_FORE_TO (whole) to HEAD_FORE_FROM (gone): a tube end-on has no heading to place a head by. */
+export const HEAD_FORE_MIN = 0.25, HEAD_FORE_FROM = 0.12, HEAD_FORE_TO = 0.3;
+
 /** chevOne (one vessel's heads placed by a stream's pattern) and chevOrange: the tube's rule, written once so the skin's per-arm heads are the tube's own. Reads: chevKeep, chevHw, chevSize, chevAlpha, chevHead (CHEVRON_GLSL). */
 export const CHEV_ONE_GLSL = /* glsl */ `// One vessel's heads placed by a stream's pattern (veins-gl.js chevOne): se = A + B s is the vessel's arc along that stream (B = 1, se = s for its own), Dm the stream's distance. The
 // spacing is the zoom's, by the arc a head takes here (B), so a parcel that slows on entering a vessel bunches up as the blood does. ends: the weights of a link at the vessel's from and

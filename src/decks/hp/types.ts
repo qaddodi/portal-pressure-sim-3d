@@ -26,6 +26,8 @@ export interface CopiedSlide {
   action?: Table | Table[] | null;
   days?: number | null;
   relax?: number | null;
+  /** the id of an earlier slide whose settled state this slide shows (the engine's restoreStep) */
+  sameAs?: string | null;
   ramp?: Table | null;
   lapse?: Table | null;
   // the figure
