@@ -9,7 +9,7 @@ import { FADE } from '../src/scene/labels/alpha.ts';
 import { MM, SHORT, STENT_STATIONS, stentStationById, decodeGeo, encodeGeo, geoId, geoLines, geoSets, geoSize, pointId, pointName, type GeoFacts, type PointRead, type StentView } from '../src/scene/labels/stent-labels.ts';
 import { BeatMean, pointVelocity } from '../src/scene/labels/stent-reads.ts';
 
-const mac = { w: 1440, h: 900, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
+const mac = { w: 1440, h: 1000, safe: { top: 0, right: 0, bottom: 0, left: 0 } };   // (1000, not 900: the free-play figure is 5 % bigger (Zoom fit, 25 Nov), and on a 900 px screen the stent's middle point lost its place beside its neighbours; the screen was enlarged for the same reason before, see below)
 // Since the placed anatomy became the app's (77b24d5a) the whole-body camera of this test world shows the stent small, so the three points and the stent's label do not all find room on the old screens: these two are 1.5 and 2 times the old ones. The label logic is under test, not the camera.
 const phone = { w: 393, h: 852, safe: { top: 59, right: 0, bottom: 34, left: 0 } };
 const measure: LabelDeps['measure'] = (t, size, _w, track = 0) => t.length * size * 0.56 + track * t.length;

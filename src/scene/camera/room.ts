@@ -12,11 +12,11 @@ export const FILL = 0.92;
 export function fullRoom(width: number, height: number): Room { return { x: 0, y: 0, w: width, h: height }; }
 
 /** The nearest camera distance at which the shot's half extents fit in the room. */
-export function fitDistance(half: [number, number], room: Pick<Room, 'w' | 'h'>, viewportH: number): number {
+export function fitDistance(half: [number, number], room: Pick<Room, 'w' | 'h'>, viewportH: number, fill = FILL): number {
   const tan = Math.tan((FOV * Math.PI) / 360);
   const perPx = viewportH / (2 * tan); // pixels per world unit at distance 1
-  const needW = (half[0] * 2) / (Math.max(room.w, 1) * FILL);
-  const needH = (half[1] * 2) / (Math.max(room.h, 1) * FILL);
+  const needW = (half[0] * 2) / (Math.max(room.w, 1) * fill);
+  const needH = (half[1] * 2) / (Math.max(room.h, 1) * fill);
   return Math.max(needW, needH) * perPx;
 }
 
@@ -37,9 +37,9 @@ export function keepDistance(shot: Pick<Shot, 'target' | 'keep'>, room: Pick<Roo
 }
 
 /** The distance to use: the shot's own, or further out when the free room is too small for it or for the stations it keeps. */
-export function effectiveDistance(shot: Pick<Shot, 'r' | 'half' | 'halfNarrow' | 'target' | 'keep'>, room: Pick<Room, 'w' | 'h'>, viewportH: number, viewportW = Infinity): number {
+export function effectiveDistance(shot: Pick<Shot, 'r' | 'half' | 'halfNarrow' | 'target' | 'keep' | 'fill'>, room: Pick<Room, 'w' | 'h'>, viewportH: number, viewportW = Infinity): number {
   const half = shot.halfNarrow && viewportW < NARROW_STAGE ? shot.halfNarrow : shot.half;
-  return Math.max(shot.r, fitDistance(half, room, viewportH), keepDistance(shot, room, viewportH));
+  return Math.max(shot.r, fitDistance(half, room, viewportH, shot.fill), keepDistance(shot, room, viewportH));
 }
 
 /** The projection shift (pixels) that moves the picture's centre from the middle of the canvas to the middle of the room. */

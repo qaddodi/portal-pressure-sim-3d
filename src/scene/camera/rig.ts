@@ -77,10 +77,10 @@ export function lerpAngle(a: number, b: number, k: number): number {
 
 interface Pose { shot: Shot; room: Room }
 
-const copyShot = (s: Shot): Shot => ({ yaw: s.yaw, pitch: s.pitch, r: s.r, target: [...s.target], half: [...s.half], ...(s.roll ? { roll: s.roll } : {}), ...(s.halfNarrow ? { halfNarrow: [...s.halfNarrow] as [number, number] } : {}) });
+const copyShot = (s: Shot): Shot => ({ yaw: s.yaw, pitch: s.pitch, r: s.r, target: [...s.target], half: [...s.half], ...(s.roll ? { roll: s.roll } : {}), ...(s.halfNarrow ? { halfNarrow: [...s.halfNarrow] as [number, number] } : {}), ...(s.keep ? { keep: s.keep } : {}), ...(s.fill ? { fill: s.fill } : {}) });
 /** A blend's narrow-stage extents: only where one of the two shots has its own (a shot without one frames a phone as any other screen). */
 /** The points a move keeps inside the room: the ones of the end it is nearer (the in-flight distance is the even glide between the two ends' own, so only the rest pose reads them). */
-const keepOf = (a: Shot, b: Shot, k: number): { keep?: Shot['keep'] } => { const s = k >= 0.5 ? b : a; return s.keep ? { keep: s.keep } : {}; };
+const keepOf = (a: Shot, b: Shot, k: number): { keep?: Shot['keep']; fill?: number } => { const s = k >= 0.5 ? b : a; return { ...(s.keep ? { keep: s.keep } : {}), ...(s.fill ? { fill: s.fill } : {}) }; };
 const narrowOf = (a: Shot, b: Shot, f: (x: number, y: number) => number): { halfNarrow?: [number, number] } => {
   if (!a.halfNarrow && !b.halfNarrow) return {};
   const p = a.halfNarrow ?? a.half, q = b.halfNarrow ?? b.half;

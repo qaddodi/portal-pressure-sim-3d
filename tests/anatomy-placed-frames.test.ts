@@ -102,7 +102,8 @@ test('the seven named shots keep their turn, tilt and nearest distance and frame
     const w = was[`shot:${k}`]!;
     assert.equal(s.yaw, w.yaw); assert.equal(s.pitch, w.pitch);
     assert.ok(Math.abs(s.r - w.r) < 1e-3, `${k}: the nearest distance is the shot's own`);
-    assert.ok(s.half[0] >= w.half[0] - 1e-3 && s.half[1] >= w.half[1] - 1e-3, `${k}: the room only grows where the subject needs it`);
+    // (free play is the one that may be smaller: the whole figure is framed on itself, not on the 2D plate's larger box, Mohammad 25 Nov "Zoom fit ... more zoomed"; camera-fit-margin.test.ts holds it)
+    if (k !== 'play') assert.ok(s.half[0] >= w.half[0] - 1e-3 && s.half[1] >= w.half[1] - 1e-3, `${k}: the room only grows where the subject needs it`);
     framesSubject(`shot ${k}`, s, src.boxOfNames(SHOT_SUBJECTS[k]).box);
   }
 });

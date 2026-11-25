@@ -6,7 +6,7 @@ import type { Shot } from '../../scene/camera/shots.ts';
 import { lobuleShot } from '../../scene/lobule/index.ts';
 import { NODE_POS_2D, EDGE_PATH_2D } from '../../scene/anatomy/source.ts';
 import { REGIONS_2D, CIRC_REGIONS_2D, box2Of, centreOf, type Box3 } from '../../scene/anatomy/source.ts';
-import { box3Of, placedFitBox } from '../rw/cams.ts';
+import { box3Of, placedFitBox, wholeShot } from '../rw/cams.ts';
 import type { CopiedSlide } from './types.ts';
 
 export type Box = readonly [number, number, number, number];
@@ -87,7 +87,7 @@ export function shotOfCam(cam: unknown, view?: string, zone?: string): ShotSpec 
     return { kind: 'circuit', name: typeof cam === 'string' ? cam : typeof zone === 'string' ? zone : 'fit', box };
   }
   if (isLobuleCam(cam)) return { kind: 'lobule', name: cam, cam };
-  if (cam == null || cam === 'fit') return placedSpec('fit', placedFitBox());
+  if (cam == null || cam === 'fit') { const b = placedFitBox(); return { kind: 'body', name: 'fit', box: box2Of(b), shot: wholeShot(shotOfBox3(b)) }; }
   if (typeof cam === 'object' && !Array.isArray(cam) && Array.isArray((cam as { on?: unknown }).on)) return placedSpec('on', box3Of(cam) ?? placedFitBox());
   const box = regionBox(cam);
   if (!box) throw new Error(`the camera ${JSON.stringify(cam)} names no region of the 2D figure`);

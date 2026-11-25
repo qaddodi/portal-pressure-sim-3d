@@ -6,7 +6,7 @@
 // (X = (x2d − 700) / 300, Y = −(y2d − 556) / 300, depth 0.2 mid-body: docs/scene.md), so a 2D box becomes a 3D shot by arithmetic, never by hand:
 // the shot's target is the box's centre, its half extents the box's, and the room solver (camera/room.ts) fits it into whatever room the cards leave.
 // The slide's `kMax` (the most the 2D camera may zoom) is the 3D shot's nearest distance.
-import { SHOTS, type Shot } from '../../scene/camera/shots.ts';
+import { SHOTS, WHOLE_MARGIN, DECK_WHOLE_FILL, type Shot } from '../../scene/camera/shots.ts';
 import { NODE_POS_2D, EDGE_PATH_2D, HIDDEN_EDGES, placedRegionBox, placedBoxOfBox2, boxOfNames, growBox3, unionBox3, box2Of, centreOf, FIGURE_NAMES, type Box3 } from '../../scene/anatomy/source.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
 import { REGIONS_2D, SETS_2D, TARGETS_2D, ORGAN_BOX_2D, CIRC_REGIONS_2D, type Box2D } from './copied/plate.ts';
@@ -130,8 +130,10 @@ export function box3Of(cam: unknown): Box3 | null {
   return null;
 }
 /** The whole figure, placed (what 'fit' frames): every organ and every vessel a healthy figure draws, with a little room. */
+/** The whole-figure frame as a shot: the box's own shot with the whole figure's share of the room (shots.ts DECK_WHOLE_FILL). */
+export const wholeShot = (s: Shot): Shot => ({ ...s, fill: DECK_WHOLE_FILL });
 export function placedFitBox(): Box3 {
-  const b = boxOfNames(FIGURE_NAMES).box!, m = 0.04;
+  const b = boxOfNames(FIGURE_NAMES).box!, m = WHOLE_MARGIN;
   return [b[0] - m, b[1] - m, b[2], b[3] + m, b[4] + m, b[5]];
 }
 /** A placed box as a body shot: its middle (at its own depth) as the target, its half extents (never under MIN_HALF), the body pose and the nearest distance a plate box gets. */

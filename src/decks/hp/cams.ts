@@ -7,7 +7,7 @@ import type { Shot } from '../../scene/camera/shots.ts';
 import { STATIONS } from '../../scene/labels/stations.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
 import { REGIONS_HP as REGIONS, CIRC_REGIONS_HP as CIRC_REGIONS, box2Of, centreOf, type Box3 } from '../../scene/anatomy/source.ts';
-import { camProblems as onProblems, box3Of, placedFitBox } from '../rw/cams.ts';   // (the by-name camera { on: [names], near }: one implementation, shared by every deck)
+import { camProblems as onProblems, box3Of, placedFitBox, wholeShot } from '../rw/cams.ts';   // (the by-name camera { on: [names], near }: one implementation, shared by every deck)
 import type { CopiedSlide } from './types.ts';
 
 export type Box = readonly [number, number, number, number];
@@ -158,7 +158,7 @@ function camPlanOf(cam: CopiedSlide['cam'], view?: string | null): CamPlan {
     return { kind: 'circuit', name: typeof cam === 'string' ? cam : 'box', box: b };
   }
   if (cam == null) return camPlanOf(DEFAULT_CAM);
-  if (cam === 'fit') return placedBody('fit', placedFitBox());
+  if (cam === 'fit') { const b = placedFitBox(); return { kind: 'body', name: 'fit', box: box2Of(b), shot: wholeShot(box3ToShot(b)) }; }
   if (typeof cam === 'string' && /^(lobule|sinusoid)/.test(cam)) {
     if (!(LOBULE_CAMS as readonly string[]).includes(cam)) throw new CamError(`no lobule camera "${cam}"`);
     const name = cam as LobuleCam;
