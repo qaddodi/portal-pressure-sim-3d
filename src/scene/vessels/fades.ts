@@ -27,8 +27,8 @@ export const IVC_JOIN_LEN = 60;
  *  which opens into the cava. Its tube is cut at that trunk's wall, its outline is the union's with it, and its Budd-Chiari clot runs to that wall, as a vein that opens into the cava does with the cava. Null for every other vessel. */
 export const trunkMateOf = (id: string): string | null => (PLACED && PLACED_HV_TRUNK.length > 0 && id === PLACED_HV_TRUNK.joiner ? PLACED_HV_TRUNK.piece : null);
 export function opensIntoCava(id: string): boolean {
-  if (id === CAUDATE_VEIN_ID) return true;
-  if (trunkMateOf(id)) return false;   // (it opens into the common trunk, which opens into the cava)   // (the caudate lobe's short veins open into the cava's left wall by the same rule: caudate-veins.ts)
+  if (id === CAUDATE_VEIN_ID) return true;   // (the caudate lobe's short veins open into the cava's left wall by the same rule: caudate-veins.ts)
+  if (trunkMateOf(id)) return false;   // (it opens into the common trunk, which opens into the cava)
   const e = edgeById.get(id);
   return HEPATIC_VEINS.has(id) && !!e && IVC_NODES.has(e.to);
 }
