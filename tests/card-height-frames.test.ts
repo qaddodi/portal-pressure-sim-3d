@@ -16,11 +16,11 @@ function frames(plan: number[], key: (i: number) => string = () => 'ladder|390|1
 test('a plan that gives the landed card more room later (a words card measured after it, a fit that settled, a chart that drew) never changes the drawn height', () => {
   const drawn = frames([300, 300, 312, 340, 340, 360, 300, 300, 420, 300]);
   assert.deepEqual([...new Set(drawn.slice(0, 5))], [300], 'the first frames and every later increase');
-  assert.ok(drawn.every((h) => h <= 300), 'never taller than it landed');
+  assert.ok(drawn.every((h) => h === 300), "never any other height");
 });
 
-test('a room that gets smaller is followed (nothing is drawn past its room), and then it stays there', () => {
-  assert.deepEqual(frames([300, 300, 260, 300, 340, 260]), [300, 300, 260, 260, 260, 260]);
+test('a room that gets smaller does not shrink the landed card either: it never changes size after it landed, in either direction', () => {
+  assert.deepEqual(frames([300, 300, 260, 300, 340, 260]), [300, 300, 300, 300, 300, 300]);
 });
 
 test('a new step of its own (a page turned, a ladder step) takes the plan\'s height once the plan has caught up (it lags the card\'s measure), then holds again', () => {

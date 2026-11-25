@@ -30,14 +30,13 @@ export const clearGrew = (): void => { grewLog = []; };
 export const grewFindings = (): AuditFinding[] => grewLog.map((g) => ({ kind: 'card-grew-live', sev: 'fail' as const, what: `the ${g.card} card grew ${g.px} px on its own after it showed (its box is decided before it shows; the content that changed has to reserve its room)`, where: g.slide }));
 
 /** The height a landed card is DRAWN at (25 Nov, third report: a card never grows on screen). `f` is what it was drawn with (null before it landed): the height stays what it landed with for as long as its key
- *  (its own step and the viewport) stands; a room that gets smaller is followed, a room that gets bigger is not. A new key takes the plan's height, and the plan is given `CATCH_UP_MS` to catch up with it
+ *  (its own step and the viewport) stands; a room that gets smaller or bigger is not followed (a card never changes size after it landed, in either direction). A new key takes the plan's height, and the plan is given `CATCH_UP_MS` to catch up with it
  *  (it lags the card's own measure by a render or two). Pure; tests/card-height-frames.test.ts drives it frame by frame. */
 export interface Frozen { key: string; h: number; until: number }
 export const CATCH_UP_MS = 250;
 export function freezeOf(f: Frozen | null, key: string, rectH: number, now: number): Frozen {
   if (!f) return { key, h: rectH, until: 0 };
   if (f.key !== key) return { key, h: rectH, until: now + CATCH_UP_MS };
-  if (rectH < f.h) return { ...f, h: rectH };
   if (rectH > f.h && now < f.until) return { ...f, h: rectH };
   return f;
 }

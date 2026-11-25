@@ -217,7 +217,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
   now.current.live = live || gate.current;   // (a card sliding in is on screen: a change of its height glides, it never snaps)
   // THE HEIGHT IS LOCKED FROM THE FIRST FRAME THE CARD SHOWS (Mohammad, 25 Nov, third report: "teaching/instrument cards arrive in their final height, they do NOT grow ever"):
   // `hOn` is the height the card is drawn at. Once the card is let in it is the height it landed with for as long as its own step (lockKey) and the viewport stand: a plan that gives it more room later
-  // (a words card that measured after it, a fit that settled) is not followed; a room that gets smaller is. A new step of its own (a page, a ladder step) or a new viewport takes the new height, and the plan is
+  // (a words card that measured after it, a fit that settled) is not followed; a room that gets smaller is not either (a card never changes size once landed). A new step of its own (a page, a ladder step) or a new viewport takes the new height, and the plan is
   // given a short while to catch up with it (it lags the card's own measure by a render or two). The quick check grows by design and is exempt.
   const fz = useRef<Frozen | null>(null);
   const fkey = `${lockKey}|${vp.w}x${vp.h}`;
