@@ -6,7 +6,8 @@ import { readFileSync } from 'node:fs';
 const doc = { documentElement: { dataset: {} as Record<string, string> } };
 (globalThis as { document?: unknown }).document = doc;
 const { holdSplash, figureDrawn, labelsShown, release, compileDone, programsCompiled, setRevealHooks, watchStall, BOOT_STALL_MS, REVEAL_MS, REVEAL_DELAY_MS, REVEAL_ZOOM } = await import('../src/boot/ready.ts');
-const { stamp, resetTimeline } = await import('../src/boot/timeline.ts');
+const readyNs = await import('../src/boot/ready.ts');
+const { stamp, stamps, resetTimeline } = await import('../src/boot/timeline.ts');
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 test('held: nothing lifts the cover before a frame is drawn; the drawn frame and the next one (labels placed) lift it, once', async () => {
@@ -183,7 +184,7 @@ test('watchStall: a new stage stamped restarts the quiet time; no stage for the 
 test('the failsafe is the stall watch, not a fixed timer, and the warm-up\'s cap is the same watch', () => {
   const ready = readFileSync('src/boot/ready.ts', 'utf8'), stage = readFileSync('src/scene/Stage.tsx', 'utf8');
   assert.match(ready, /stallOff = watchStall\(\(\) => \(frames >= 0 \? release\(\) : false\)\)/);
-  assert.doesNotMatch(ready, /BOOT_HARD_MS/, 'no total-time limit lifts the cover (independent review F12)');
+  assert.equal('BOOT_HARD_MS' in readyNs, false, 'no total-time limit lifts the cover (independent review F12)');
   assert.doesNotMatch(ready, /BOOT_FAILSAFE_MS/);
   assert.match(stage, /watchStall\(\(\) => r\(\), undefined, \(\) => alive && !compiled\.current\)/);
   assert.doesNotMatch(stage, /WARM_CAP_MS/);
@@ -207,4 +208,28 @@ test('a quiet spell before the first frame never lifts the cover (nothing does b
   assert.match(lab, /labelsProgress\(ctl\.out\.reduce/);
   assert.match(src, /Math\.max\(firstAt, labelsAt\) > LABELS_GRACE_MS/);
   assert.match(src, /export function compileDone\(\): void \{\n  compiled = true;\n  reveal\?\.prime\(REVEAL_ZOOM\)/, 'the closer view is in before the first frame: the labels are placed over the view they are lifted over');
+});
+
+// The old computer sat at "Almost there 96%" with nothing drawn (25 Nov): the labels are placed by projection and were fully in before the first frame, so the bar said
+// "Almost there" over an undrawn figure; and
+// a compile that was getting somewhere (slice by slice) counted as no progress.
+test('the labels stage, which moves the bar to "Almost there", is stamped only once the figure is drawn; a compile beat is progress for the stall watch', async () => {
+  const { bootBeat } = await import('../src/boot/ready.ts');
+  resetTimeline();
+  holdSplash(() => undefined);
+  labelsShown();
+  assert.equal(stamps().labels, undefined, 'labels in before the first frame: not yet "Almost there"');
+  compileDone(); figureDrawn();
+  assert.ok(stamps()['first-draw'] !== undefined && stamps().labels !== undefined, 'both once the figure is drawn');
+  release();
+  resetTimeline();
+  let stalled = 0;
+  const off = watchStall(() => { stalled++; }, 700, () => true);
+  for (let i = 0; i < 5; i++) { await wait(300); bootBeat(); }   // (beats every 0.3 s for 1.5 s: getting somewhere)
+  assert.equal(stalled, 0, 'beats keep the watch quiet');
+  await wait(2300); off();
+  assert.ok(stalled >= 1, 'and with no more beats it stalls');
+  const told: number[] = []; (globalThis as any).ppsBootBeat = () => told.push(1);
+  bootBeat(); delete (globalThis as any).ppsBootBeat;
+  assert.equal(told.length, 1, 'the cover (index.html) hears every beat, so its note waits for a compile that is getting somewhere');
 });

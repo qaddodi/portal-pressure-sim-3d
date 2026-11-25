@@ -183,6 +183,7 @@ var SHARE={started:.55,engine:.66,scene:.78,compile:.9,'first-draw':.94,labels:.
 var GLIDE_MS=10000,GLIDE_EASE='cubic-bezier(.1,.36,.22,1)',GLIDE_REACH=.85*(1-Math.exp(-4)),glideAnim=null;
 function glide(f){var el=document.getElementById('boot'),u=el&&el.querySelector&&el.querySelector('.boot-bar u'),nx=1,k;if(!u||!u.animate)return;for(k in SHARE)if(SHARE[k]>f&&SHARE[k]<nx)nx=SHARE[k];if(nx>.96)nx=.97;
 try{if(glideAnim)glideAnim.cancel();glideAnim=u.animate([{transform:'scaleX('+f+')'},{transform:'scaleX('+(f+(nx-f)*GLIDE_REACH)+')'}],{duration:GLIDE_MS,easing:GLIDE_EASE,fill:'forwards'})}catch(x){}}
+w.ppsBootBeat=function(){last=now()};/* (the compile warm-up between its slices: getting somewhere, src/boot/ready.ts bootBeat) */
 w.ppsBootStage=function(s){last=now();/* a stage finished is progress, as bytes are: the note below waits on both */var f=SHARE[s];if(f&&f>stageF){stageF=f;stageAt=now();stageKey=s;glide(f)}};
 function progress(t){if(!total)return 0;if(!startedAt)return bytes?.55*Math.min(1,bytes/total):0;if(stageF<SHARE.started){stageF=SHARE.started;stageAt=startedAt;stageKey='started';glide(stageF)}var nx=1,k;for(k in SHARE)if(SHARE[k]>stageF&&SHARE[k]<nx)nx=SHARE[k];if(nx>.96)nx=.97;return stageF+(nx-stageF)*.85*(1-Math.exp(-(t-stageAt)/CREEP_MS))}
 /* The words under the bar (style D): the stage the start has reached, in plain words, and the percent. The percent follows the bar, never goes down, and is 100 only when the cover lifts. A new stage name crosses over (the old words fade out as the new fade in, both written at once and faded by CSS alone, so a busy main thread can never leave the line empty), it never snaps. */
@@ -200,8 +201,9 @@ bar(progress(t));
 if(t>=hold){var idle=t-last;if(startedAt){if(t-startedAt>=WORK_MS&&t-last>=WORK_MS){slow();return}}else{if(idle>=OFFLINE_MS&&offlineNow()){offline();return}if(idle>=STALL_MS){slow();return}}}
 w.ppsBootTimer=setTimeout(tick,TICK_MS)}
 var KEEP='<button type="button" data-reload>Reload</button><button type="button" data-wait>Keep waiting</button>';
+var TWOD='<a href="https://qaddodi.github.io/portal-pressure-simulator/">Open the 2D simulator</a>';
 function phase(){return 'entry '+(startedAt?'running':'not started')+' · '+Math.round(bytes/1024)+' of '+Math.round(total/1024)+' kB · '+seen+' files · '+Math.round(now()/100)/10+' s'}
-function slow(){if(startedAt)show('Still loading…','<p>Taking longer than usual. Give it a moment, or reload.</p>',phase(),KEEP,'slow');else show('Still loading…','<p>The connection looks slow. It usually catches up; reload if it doesn’t.</p>',phase(),KEEP,'slow')}
+function slow(){if(startedAt)show('Still loading…','<p>This is taking much longer than usual, and this computer may be slow at drawing the 3D figure. You can keep waiting, reload, or open the 2D simulator, which is lighter.</p>',phase(),KEEP+TWOD,'slow');else show('Still loading…','<p>The connection looks slow. It usually catches up; reload if it doesn’t.</p>',phase(),KEEP,'slow')}
 function offline(){show('You’re offline','<p>You’re offline and the simulator isn’t saved on this device yet. Connect to the internet and it will load; after that it also works without a connection.</p>',phase(),KEEP,'slow')}
 /* The name waits for its face (at most NAME_MS), then shows in the face it has by then, so it neither pops in unstyled nor swaps later (index.html's CSS: data-name). */
 function named(how){var el=document.getElementById('boot');if(el&&!el.getAttribute('data-name'))el.setAttribute('data-name',how)}

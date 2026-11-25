@@ -187,7 +187,7 @@ test('a start that never gets anywhere after the code ran is still told, at 15 s
   const c = run({ total: 4_000_000, entries: () => file(40), dcl: false });
   c.advance(1000); c.ctx.ppsBootStarted = true;
   c.advance(17000);
-  assert.equal(c.boot.className, 'slow'); assert.match(c.boot.innerHTML, /Taking longer than usual/); assert.doesNotMatch(c.boot.innerHTML, /connection looks slow/);
+  assert.equal(c.boot.className, 'slow'); assert.match(c.boot.innerHTML, /taking much longer than usual[\s\S]*Reload[\s\S]*portal-pressure-simulator\//, 'a started app that stalls is told, with Reload and the 2D simulator');
   assert.match(c.boot.innerHTML, /entry running · 3906 of 3906 kB · 40 files/);
 });
 

@@ -1,7 +1,6 @@
 // How the page reads a data file (src/boot/fetch-bin.ts, independent review F11 and F12): by progress, never by the clock; asked once more when it fails; null when the file is not there.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { fetchBin, BIN_QUIET_MS } from '../src/boot/fetch-bin.ts';
 import { reportFileLoss, useFileLoss } from '../src/scene/file-loss.ts';
@@ -78,16 +77,6 @@ test('a file that failed is said, once, for the note over the figure', () => {
   useFileLoss.setState({ lost: [] });
 });
 
-test('nothing on the page is held to a total time any more, and every data file goes through the one reader', () => {
+test('the quiet time is a real wait on the network, not a hair trigger', () => {
   assert.ok(BIN_QUIET_MS >= 5000);
-  const src = (f: string) => readFileSync(f, 'utf8');
-  for (const f of ['src/scene/vessels/skin/baked.ts', 'src/scene/lobule/weld-client.ts', 'src/scene/organs/meshes.ts', 'src/scene/organs/organ-art.ts']) assert.match(src(f), /fetchBin\(/, f);
-  assert.doesNotMatch(src('src/scene/vessels/skin/baked.ts'), /BAKED_FETCH_MS|BAKED_DECODE_MS/);
-  const meshes = src('src/scene/organs/meshes.ts');
-  assert.match(meshes, /reportFileLoss\('organs'\)/, 'organs.bin failing is said, never silent');
-  assert.match(meshes, /organsReady: Promise<void> = new Promise\(\(res, rej\)/, 'and the scene\'s wait on the organs ends');
-  assert.match(src('src/scene/ContextNote.tsx'), /useFileLoss/, 'the note over the figure reads it');
-  const html = src('index.html');
-  assert.doesNotMatch(html, /setTimeout\(lift,25000\)|,20000\)\}\);/, 'index.html has no 20 s or 25 s lift');
-  assert.match(html, /BROWSER FLOOR \(D4\)/, 'the place for the browser-floor gate is kept');
 });

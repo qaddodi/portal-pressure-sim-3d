@@ -29,6 +29,15 @@ type Lift = () => void;
 let lift: Lift = () => { (window as unknown as { ppsBootLift?: Lift }).ppsBootLift?.(); };
 let labelsAt = 0, labelSum = 0, labels = false, firstAt = 0, waiting = false, frames = -1, off: (() => void) | null = null, timer: TimerId | undefined, done = false, compiled = false, stallOff: (() => void) | null = null;
 
+/** The start is getting somewhere without finishing a stage: the compile warm-up says so between its slices (materials/warm.ts). The cover's wait (index.html `ppsBootBeat`)
+ *  and the stall watch both count it as progress,
+ *  so a slow machine that is compiling is waited for, and one that is not is told. */
+let beats = 0;
+export function bootBeat(): void {
+  beats++;
+  (globalThis as { ppsBootBeat?: () => void }).ppsBootBeat?.();
+}
+
 /** The main app is about to mount: the splash waits for `figureDrawn()` (or the failsafe). */
 export function holdSplash(lifter?: Lift): void {
   if (lifter) lift = lifter;
@@ -45,10 +54,11 @@ export function holdSplash(lifter?: Lift): void {
  *  A handler that returns `false` is not done: the watch goes on (a new quiet spell starts). Returns its canceller. */
 export function watchStall(onStall: () => void | boolean, quietMs = BOOT_STALL_MS, live: () => boolean = () => waiting && !done): () => void {
   let next: TimerId | undefined;
-  let seen = Object.keys(stamps()).length, quiet = 0;
+  const progress = (): number => Object.keys(stamps()).length + beats;
+  let seen = progress(), quiet = 0;
   const poll = (): void => {
     if (!live()) return;
-    const n = Object.keys(stamps()).length;
+    const n = progress();
     if (n !== seen) { seen = n; quiet = 0; } else quiet += STALL_POLL_MS;
     if (quiet >= quietMs && onStall() !== false) return;
     if (quiet >= quietMs) quiet = 0;
@@ -74,7 +84,7 @@ export const programsCompiled = (): boolean => compiled;
 export function figureDrawn(): void {
   if (!waiting || done || !compiled) return;
   if (frames < 0) {
-    frames = 0; firstAt = clock.now(); stamp('first-draw');
+    frames = 0; firstAt = clock.now(); stamp('first-draw'); if (labels) stamp('labels');
     off = clock.on('tags', () => { if (++frames > FRAMES_AFTER_FIRST && (labels || clock.now() - Math.max(firstAt, labelsAt) > LABELS_GRACE_MS)) release(); else clock.invalidate('boot-ready'); }, 1e6);
     clock.invalidate('boot-ready');
   }
@@ -93,7 +103,10 @@ export function rendererFailed(reason: string): void {
 export function labelsProgress(sum: number): void { if (waiting && sum > labelSum + 0.002) { labelSum = sum; labelsAt = clock.now(); } }
 
 /** Every label the figure shows is fully in (LabelLayer, each frame it is true). */
-export function labelsShown(): void { if (waiting) { if (!labels) stamp('labels'); labels = true; } }
+// (the labels are placed by projection and can be fully in before the first frame is drawn, on a slow machine: the 'labels' stage, which moves the cover's bar to "Almost
+// there", is stamped only once the figure is drawn,
+//  so the bar never says "Almost there" over a figure that has not drawn: the old computer sat at 96% with nothing drawn)
+export function labelsShown(): void { if (waiting) { labels = true; if (frames >= 0) stamp('labels'); } }
 
 export function release(): void {
   if (done || !waiting) return;
