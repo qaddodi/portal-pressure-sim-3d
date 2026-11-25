@@ -290,3 +290,14 @@ test('the Circuit pill, Turn upright, the Layers row, the A shortcut and the Cir
   await import('../src/ui/shell/view-actions.ts');
   assert.equal(hasFeature('rotate'), true);
 });
+
+test('the pieces of one vessel turn the same way in the change (the placed splenic vein: its first piece moved plainly while the next two turned, a kink at their joints)', async () => {
+  const { WHOLE_PIECES } = await import('../src/scene/anatomy/placed-network.ts');
+  const { SEGMENT_OF } = await import('../src/scene/vessels/network.ts');
+  const chains = [...Object.values(WHOLE_PIECES), ...new Set(SEGMENT_OF.values())].map((c) => c.filter((id) => COURSES.has(id))).filter((c) => c.length > 1);
+  assert.ok(chains.some((c) => c.includes('V_SPL')), 'the splenic vein is a chain');
+  for (const rr of [0, 1]) for (const c of chains) {
+    const r = c.map((id) => revOf(COURSES.get(id)!, rr));
+    assert.ok(r.every((x) => x === r[0]), `${c.join('+')} turn ${rr}: ${r.join(' ')}`);
+  }
+});
