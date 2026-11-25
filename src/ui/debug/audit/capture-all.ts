@@ -203,7 +203,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         await showLanded();
         if (perpetual && !seen.has(perpetual)) { seen.add(perpetual); notes.push(`${d.title} ${n}: ${perpetual}; the picture was taken anyway`); }
         // a phone on its side with both cards (the words and the instrument stand in one column that a swipe up slides): two pictures of the slide, the teaching card in view, then the column slid up so the instrument is
-        const views = captureViews({ w: innerWidth, h: innerHeight, layout: layoutOf(innerWidth, innerHeight), sideways: isSideways(innerWidth, innerHeight) }, { data: !!useUi.getState().boxes.data, words: !!useUi.getState().boxes.words }), both = views.length === 2 && !ui.promo;   // (an upright phone or tablet: the instrument card up, then tucked)
+        const views = captureViews({ w: innerWidth, h: innerHeight, layout: layoutOf(innerWidth, innerHeight), sideways: isSideways(innerWidth, innerHeight) }, { data: !!useUi.getState().boxes.data, words: !!useUi.getState().boxes.words }), both = views.length === 2;   // (an upright phone or tablet: the instrument card up, then tucked)
         const base0 = ui.promo ? `${d.id}-${k}` : `${dir}/${pad2(k + 1)}-${pad2(sub + 1)}-${slug(title)}`;
         if (single && !fresh) { thumbs.length = Math.max(0, thumbs.length - lastThumbs); }   // (a step replaces the one before it: its pictures' small copies go too)
         let pushed = 0;
@@ -229,6 +229,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         };
         // a teaching slide with several choices (tabs, toggles, options): each is pressed and the result taken, named for the button; the first picture's choice is put back before the next state
         const choiceShots = async (view: string): Promise<void> => {
+          if (ui.promo) return;   // (the promotion set is one picture a slide)
           // (the choices to press are fixed from the slide as it arrived: every one that is not standing, by name. Looking again after each press for "the first not pressed yet" found the choice the press had just put down,
           //  so on a group of three the last was never shot and the first was shot twice: Gastric varices 11, capture f23a4c59, "Removed")
           const nameOf = (e: HTMLElement, j: number): string => choiceName(e.textContent, e.getAttribute('aria-label'), j);
@@ -254,7 +255,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         };
         const d0 = new Date().getTime(); waitMs += d0 - w0;
         const ok = await shoot(views[0]);
-        if (ok && fresh && !ui.promo) await choiceShots(views[0]);
+        if (ok && fresh) await choiceShots(views[0]);
         if (both && ok) {
           useUi.getState().setDocked(true);   // (sideways: the swipe up, the column slides until the instrument card is the one in view; upright: the instrument card tucks into its strip)
           await stillPage(real, false, !!ui.skip);

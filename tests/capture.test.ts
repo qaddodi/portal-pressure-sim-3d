@@ -181,7 +181,7 @@ test('Capture all decks runs the page fast: the clock at speed, the animations a
   const all = src('src/ui/debug/audit/capture-all.ts');
   assert.match(all, /clock\.setScale\(speed\)/); assert.match(all, /speedAnimations\(document, speed\)/); assert.match(all, /clock\.setScale\(1\)/);
   assert.match(all, /encoding\.push\(/); assert.match(all, /await Promise\.all\(encoding\)/);
-  assert.match(all, /ratio: Math\.min\(devicePixelRatio, 2\)/, 'the device\'s own sharpness, 2x at most');
+  assert.match(all, /ratio: ui\.promo \? ui\.promo\.ratio : Math\.min\(devicePixelRatio, 2\)/, 'the device\'s own sharpness, 2x at most (the promotion set names its own)');
   assert.ok(!/Date\.now|performance\.now/.test(all), 'wall time is read from a Date, not the scaled clock or a raw time call');
 });
 
