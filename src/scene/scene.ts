@@ -95,6 +95,9 @@ import { trunkJoin } from './disease/host.ts';
 import type { ScopeRingScreen } from './disease/scope-ring.ts';
 import { ProbeLayer } from './devices/probes/layer.ts';
 import { VESSEL_LAYER, inVesselPass } from './layers.ts';
+import { ORGAN_VEIL, seeZoomK, vesselZoomK } from './organ-veil/config.ts';
+import { OrganMap } from './organ-veil/organ-map.ts';
+import { ORGAN_VEIL_U, resetOrganVeil } from './organ-veil/uniforms.ts';
 import { ShuntGuide } from './shunt-guide.ts';
 import type { EusDrive } from './devices/probes/scope.ts';
 import { probeCards } from './devices/probes/cards.ts';
@@ -337,6 +340,9 @@ export class CelScene {
   private figureView: FigureView = 'body';
   /** The anti-aliasing pass over the whole figure (post-aa.ts). */
   readonly post = new PostAA();
+  /** The organ veil's map of the organs and the mask of the ones behind (organ-veil/): drawn before the figure's first pass while the veil or the show-through has any strength. */
+  private readonly organMap = new OrganMap();
+  private readonly veilSize = new Vector2();
   /** The picked vessel's glow, made on the screen from its mask (glow-fx.ts). */
   readonly glowFx = new GlowFx();
   /** The organs' glow (a tapped or pinned organ): the same pipeline, its own mask and textures; its lay is a quad of the figure's first pass (see `render`), not a pass over the finished figure. */
@@ -1774,6 +1780,20 @@ export class CelScene {
     const og = this.pins.glowing, ogQuad = this.organGlowFx.figure;
     if (og) { this.organGlowFx.prepare(gl, cam, this.scene, dpr); ogQuad.renderOrder = this.pins.glowOrder; }
     gate(ogQuad, this.pins.glowAmount);   // (the lay quad follows the eased weight of the lit masks, as they do)
+    // THE ORGAN VEIL (organ-veil/config.ts): on the body only, never in the dive, the Circuit, the split orbit or the depth-of-field pass. The vessels' veil is whole at the whole-figure framing and gone at twice as close; the organs'
+    // show-through starts at 1.5 times and is whole at 3. Nothing is drawn while both are 0; the map is half the figure's size.
+    {
+      const u = ORGAN_VEIL_U, face = ORGAN_VEIL.on && this.figureView === 'body' && !this.inDive() && !this.split && !dof, z = this.rig.zoomOverWhole;
+      const vk = face ? vesselZoomK(z) : 0, sk = face ? seeZoomK(z) : 0;
+      const tw = into ? into.width : gl.getDrawingBufferSize(this.veilSize).x, th = into ? into.height : this.veilSize.y;
+      u.veilP.value.set(0, ORGAN_VEIL.gapFrom, ORGAN_VEIL.gapTo, 0); u.seeP.value.set(0, ORGAN_VEIL.seeMax, 1 / tw, 1 / th);   // (off while the map itself is drawn)
+      if (vk > 0 || sk > 0) {
+        this.organMap.render(gl, cam, this.scene, tw, th, { veil: vk > 0, see: sk > 0 });
+        u.veilP.value.x = vk * ORGAN_VEIL.vesselMax; u.seeP.value.x = sk;
+        u.veilC.value.set(cam.near, cam.far, 1 / tw, 1 / th);
+      }
+    }
+    lap('render: organ veil map');
     if (into) gl.setRenderTarget(into);
     const sp = into ? this.split : null;   // (the split orbit: the twin is drawn into its region of this target first, then this scene's passes are confined to theirs)
     if (sp && into) {
@@ -1836,6 +1856,7 @@ export class CelScene {
     this.blood.routes.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.procs.dispose(); this.probes.dispose();
+    this.organMap.dispose(); resetOrganVeil();
     this.tubes.dispose(); this.resistors.dispose(); this.post.dispose(); this.glowFx.dispose(); this.organGlowFx.dispose();
   }
 }

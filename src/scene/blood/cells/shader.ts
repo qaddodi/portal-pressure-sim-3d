@@ -19,6 +19,7 @@
 // Depth: a streak sits on the tube's centre line and is drawn in front of the tube's own surface by the tube's radius (along the view ray, so it does not move on screen): it is
 // painted on the lumen like the chevrons, inside the silhouette, and a vessel that really lies in front still hides it.
 import { CEL_TUBE_GLSL } from '../../cel-glsl.ts';
+import { VEIL_DECL } from '../../organ-veil/glsl.ts';
 import { CELL_SAMPLES, NO_FLOW, STREAK, UNITS } from './core.ts';
 import { STREAK_MARK_GLSL, STREAK_LANE_GLSL } from '../streak-glsl.ts';
 
@@ -222,6 +223,7 @@ void main() {
 
 export const CELLS_FS = /* glsl */ `
 ${STREAK_MARK_GLSL}
+${VEIL_DECL}
 varying vec3 vFill;
 varying float vA;
 varying float vSize;
@@ -237,5 +239,6 @@ void main() {
   // the mark (streak-glsl.ts, the one streak of the Anatomy, the 3D lobule and the 3D sinusoid): a slim rounded lozenge, its alpha feathered at both ends, half a device pixel of antialiasing each side
   float a = streakMark(p.x / max(vLen, 1e-3) + 0.5, p.y, 0.5 * vThick, 0.6);   // (a slim lozenge feathered at both ends)
   if (a <= 0.003) discard;
-  gl_FragColor = vec4(vFill, a * vA);
+  // the organ veil (organ-veil/config.ts): a cell in a vessel an organ lies in front of is taken with the vessel, by the same function of the pixel
+  gl_FragColor = vec4(vFill, a * vA * (1.0 - veilAmount(gl_FragCoord.z, gl_FragCoord.xy)));
 }`;

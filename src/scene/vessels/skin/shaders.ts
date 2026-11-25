@@ -49,6 +49,7 @@ import { skinNormalGlsl, skinTubeKeepGlsl, SKIN_SHADE_K, SKIN_SHADE_FLOOR_PX } f
 import { SKIN_WALL_GLSL } from './dust-wall.ts';
 import { CAVA_RAMP_R } from '../fade-alpha.ts';
 import { WEDGE_GLSL } from '../wedge-glsl.ts';
+import { VEIL_DECL } from '../../organ-veil/glsl.ts';
 import { CLOT_CONST_GLSL, CLOT_FN_GLSL, CLOT_INK_MAX_R, CLOT_LIFT_AT, CLOT_SHADE_AT } from '../../disease/clot-field.ts';
 
 /** How many arms a skin blends (a junction of three or four tubes): the weights are one vec4. */
@@ -212,6 +213,7 @@ export const SKIN_FS = /* glsl */ `
 #define SKIN_COPY 0   // which of the three copies this program draws (0 front, 1 solid, 2 veil): the material's define; a plain skin is its front copy
 #endif
 ${FADE_GLSL}
+${VEIL_DECL}
 uniform float tubeDark;
 ${CEL_TUBE_GLSL}
 ${CEL_LIGHT_GLSL}
@@ -776,5 +778,7 @@ void main() {
   c = dFinite(c, vec3(0.5));
 #endif
   if (dBad(vec4(alpha))) alpha = 1.0;   // (nor an alpha that is not a number: a NaN blended onto the figure is written as black)
+  // THE ORGAN VEIL, the tube's own rule (vessels/shaders.ts): one function of the pixel, so the skin and its arms agree at the seam
+  c = veilMix(c, veilAmount(gl_FragCoord.z, gl_FragCoord.xy) * (1.0 - clamp(circT, 0.0, 1.0)) * (1.0 - clamp(hi, 0.0, 1.0)), gl_FragCoord.xy);
   gl_FragColor = vec4(c, alpha);
 }`;

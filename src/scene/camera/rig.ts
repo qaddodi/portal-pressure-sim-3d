@@ -374,6 +374,9 @@ export class CameraRig {
   private noTilt = false;
   /** The hand's zoom over the shot's own framing (1 as framed). */
   get handZoom(): number { return this.hand.k; }
+  /** How much closer the camera is than the whole-figure framing in the room it is fitted to (1: the whole figure is framed, 2: twice as close), the hand's zoom included: what the organ veil's curves are in (organ-veil/config.ts). */
+  get zoomOverWhole(): number { return this.zoomW; }
+  private zoomW = 1;
 
   constructor(shot: ShotName | Shot = 'title', room?: Room, reduceMotion = false) {
     const s = typeof shot === 'string' ? SHOTS[shot] : shot;
@@ -765,6 +768,7 @@ export class CameraRig {
       shotYaw = lerp(shotYaw, cc.yaw, ck); shotPitch = lerp(shotPitch, cc.pitch, ck); fov = lerp(fov, cc.fov, ck); r = geo(r, cc.dist, ck);
       aim = [lerp(aim[0], cc.target[0], ck), lerp(aim[1], cc.target[1], ck), lerp(aim[2], cc.target[2], ck)];
     }
+    this.zoomW = (effectiveDistance(SHOTS.play, sc, h, w) / Math.max(r, 1e-9)) * this.hand.k;
     this.camera.fov = fov;
     // the tilt is added here, at render time, on top of the shot and the viewer's turn; `project` and every pick use this same camera, so tags and taps agree with what is drawn
     // (the viewer's turn and tilt are about the SCREEN's axes: a rolled camera (the sinusoid on a portrait screen) carries them round with the roll, so a drag to the right still swings the picture to the right)

@@ -11,6 +11,7 @@ import { facetSag } from './facet-sag.ts';
 import { tubeShareOf } from './exact-normal.ts';
 import { BufferAttribute, BufferGeometry, Color, CustomBlending, DoubleSide, Group, MaxEquation, Mesh, OneFactor, ShaderMaterial, Vector2, Vector3, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
+import { ORGAN_VEIL_U } from '../../organ-veil/uniforms.ts';
 import { markBlends, setBlendState } from '../../materials/warm.ts';
 import { GLOW_LAYER } from '../../glow.ts';
 import type { VesselObject } from '../vessel-object.ts';
@@ -142,6 +143,7 @@ export class SkinObject implements SkinDraw {
       
       // (the Circuit's own skins (circuit/skins.ts) are the same programs as the body's: the map's units, with the sign flipped, are skinKW.w, so a map skin compiles nothing the body's skins have not)
       ...vdbgUniforms('skin'),   // (the inspector's view of the skins: none without ?inspect, debug-view.ts)
+      tOrgCol: ORGAN_VEIL_U.tOrgCol, tOrgDep: ORGAN_VEIL_U.tOrgDep, veilP: ORGAN_VEIL_U.veilP, veilC: ORGAN_VEIL_U.veilC,   // (the organ veil, the tube's own rule: organ-veil/)
     };
     this.copies = Array.from({ length: SKIN_COPIES }, (_, c) => {
       const material = markVesselStencil(markBlends(new ShaderMaterial({

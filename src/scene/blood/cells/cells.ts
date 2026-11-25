@@ -5,6 +5,7 @@
 //
 // Off costs nothing: the layer is built the first time it is wanted, not in the scene before then; once faded out it is not visible, so it is not drawn, and it asks for no frame.
 // With Reduce Motion on the cells are not drawn at all. In the Circuit, the lobule and the sinusoid they are not drawn (those views have their own blood).
+import { ORGAN_VEIL_U } from '../../organ-veil/uniforms.ts';
 import { BufferGeometry, Color, DataTexture, Float32BufferAttribute, FloatType, NearestFilter, type Object3D, Points, RGBAFormat, ShaderMaterial, Sphere, type Texture, type Vector4 } from 'three';
 import { EDGES } from '../../../engine/hales/portal/topology.js';
 import { EDGE_COUNT, indexOf } from '../../../engine/vessel-data.ts';
@@ -158,7 +159,7 @@ export class BloodCells {
     const tone = (t: string): { value: Color } => (deps.object(deps.vessels.find((v) => v.tone === t && !v.feeder)?.id ?? '')?.toon.uniforms.color as { value: Color } | undefined) ?? { value: new Color(0.5, 0.5, 0.5) };
     const lens = deps.lens, b = deps.blood, sh = deps.shared;
     this.material = new ShaderMaterial({
-      name: 'blood streaks', vertexShader: CELLS_VS, fragmentShader: CELLS_FS, ...STREAK_FLAGS,
+      name: 'blood streaks', vertexShader: CELLS_VS, fragmentShader: CELLS_FS, precision: 'highp', ...STREAK_FLAGS,
       uniforms: {
         streamTex: b.streamTex as { value: Texture }, projY: b.projY, dpr: b.dpr, res: sh.res, vdata: sh.vdata, vdataSize: sh.vdataSize,
         courseTex: { value: this.courseTex }, edgeTex: { value: this.edgeTex }, amount: { value: 0 },
@@ -166,6 +167,7 @@ export class BloodCells {
         colPortal: tone('portal'), colSys: tone('sys'), colArt: tone('artery'),
         lensMix: lens.lensMix, lensModeA: lens.lensModeA, lensModeB: lens.lensModeB, lensRawA: lens.lensRawA, lensRawB: lens.lensRawB,
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, laneColA: lens.laneColA, laneColB: lens.laneColB,
+        tOrgCol: ORGAN_VEIL_U.tOrgCol, tOrgDep: ORGAN_VEIL_U.tOrgDep, veilP: ORGAN_VEIL_U.veilP, veilC: ORGAN_VEIL_U.veilC,   // (the organ veil: organ-veil/)
       },
     });
     const pts = new Points(g, this.material);

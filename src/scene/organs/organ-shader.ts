@@ -4,6 +4,7 @@
 import { FADE_GLSL, INK_RIM_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { RIM_SPECK } from './rim-profile.ts';
+import { SEE_DECL } from '../organ-veil/glsl.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
 
@@ -72,6 +73,7 @@ uniform vec3 shadeSteps; // the inner shade's three strokes' opacities (the righ
 uniform float rimK;      // the rim light's opacity (0 on the liver and the stomach: too shiny, owner 20 Nov)
 uniform vec3 page;
 uniform float layer;
+${SEE_DECL}
 uniform float inkAmount;
 // the liver look (liver-texture.ts): R septum, G tone, B light; nodAmt 0 when the organ has none
 uniform sampler2D nodTex;
@@ -202,6 +204,8 @@ void main() {
     fill = mix(fill, ogLight.rgb, clamp(ogLight.a * 0.5 * toward, 0.0, 1.0) * depthAmt);
   }
   // the organ lies on whatever is behind it at the layer's opacity, as 2D's organ groups do (blended in 2D's order: layer.ts); the dive fades the layer, no dots.
+  // the organ veil (organ-veil/config.ts): an organ in front of the kidney, the spleen or the caudate lobe lets it show, its fill taken down where the one behind is, as the zoom closes (its line stays)
+  lay *= 1.0 - seeAmount(gl_FragCoord.xy);
   gl_FragColor = vec4(fill, lay * fade * win);
 }`;
 

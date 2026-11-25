@@ -11,6 +11,9 @@ import { prepareOrgans } from './prepare.ts';
 import { CelObject, type CelShared } from '../materials/cel.ts';
 import { INK_FS } from '../materials/shaders.ts';
 import { type Palette, type ToneKey } from '../palette.ts';
+import { ORGAN_BACK_LAYER, ORGAN_MAP_LAYER } from '../layers.ts';
+import { ORGAN_VEIL } from '../organ-veil/config.ts';
+import { ORGAN_VEIL_U } from '../organ-veil/uniforms.ts';
 import { LIVER_PIVOT, SPLEEN_CENTER, LENS_GREY } from '../disease/copied/anatomy-b4.ts';
 import { liverShrink, liverSurface } from '../disease/copied/liver-morph.js';
 import { Eased, LiverFollow } from '../disease/follow.ts';
@@ -106,8 +109,12 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     poolA: { value: new Vector4() }, poolLand: { value: new Vector4() }, poolDelta: { value: new Vector3() },   // (the stomach's pool, per pixel: pool-level.ts; z 0 = none, nothing runs)
     rimP0: { value: new Vector4(...((g.userData.rimProfile as number[] | undefined)?.slice(0, 4) ?? [0, 0, 0, 0]) as [number, number, number, number]) }, rimP1: { value: new Vector4(...((g.userData.rimProfile as number[] | undefined)?.slice(4, 8) ?? [0, 0, 0, 0]) as [number, number, number, number]) }, rimW: { value: g.userData.rimProfile ? 1 : 0 },
     shadeK: { value: SMOOTH_SHADE.has(id) ? 1 : 0 }, nodTex: { value: NO_TEX }, nodAmt: { value: 0 }, sepDelta: { value: new Vector3() }, nodK: { value: new Vector2() },
+    // the organ veil (organ-veil/config.ts): the mask of the organs behind and the strength, shared; this organ lets them show only if it is one of the organs in front of them
+    tSeeMask: ORGAN_VEIL_U.tSeeMask, seeP: ORGAN_VEIL_U.seeP, seeOn: { value: ORGAN_VEIL.on && ORGAN_VEIL.inFront.includes(id) ? 1 : 0 },
   });
   m.userData.hasRim = !!g.userData.rimProfile;
+  // the organ veil's map and mask are drawn from these fills (organ-veil/organ-map.ts): the fill alone, never the line, so the map shows the tissue
+  if (ORGAN_VEIL.on) { o.toonMesh.layers.enable(ORGAN_MAP_LAYER); if (ORGAN_VEIL.behind.includes(id)) o.toonMesh.layers.enable(ORGAN_BACK_LAYER); }
   m.transparent = true; m.depthWrite = true;
   m.needsUpdate = true;
   const ink = o.ink;
@@ -131,6 +138,7 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
         polygonOffset: true, polygonOffsetFactor: PRE_DEPTH_FACTOR, polygonOffsetUnits: PRE_DEPTH_UNITS });
       const pm = new Mesh(g, pre);
       pm.renderOrder = r.pre; pm.name = 'gut-depth'; pm.raycast = () => {};
+      if (ORGAN_VEIL.on) pm.layers.enable(ORGAN_MAP_LAYER);   // (the map's gut needs its depth pass too)
       o.group.add(pm);
     }
   }
