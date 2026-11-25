@@ -61,13 +61,15 @@ test('a head is whole or gone: its owner share is sharpened (the two arms still 
 // Mohammad, 24 Nov: "chevrons hide under the joins, in every lens". Rendered (software GL, Pressure lens, the portal confluence): with the skins on, the heads along the bent trunks were pale ghosts; with ?joins=old they were whole.
 // Root cause: the head's lateral gate measured the pixel's distance to the STRAIGHT line through the seam, which a bending vessel leaves within a radius or two, so the gate half-closed on a head standing mid-lumen. A head's owner
 // share was also a third at a three-way fillet. Now the gate reads the pixel's lateral from the arm's live axis chain (skinArmLat) and the owner is the winner of the arms' shares.
-test('a head\'s lateral gate follows the arm\'s live bent axis, never the straight line through the seam', () => {
+test('a head\'s place across is measured from the SAME straight axis as its arc (one square frame), never from the nearest bent segment (25 Nov: heads sheared to slivers, turned and popped at the hepatic veins\' join)', () => {
   const main = body(SKIN_FS, 'void main(');
   const at = main.indexOf('flowHeads(');
   const gate = main.slice(at, main.indexOf('hI = vec4(0.0);', at));
-  assert.match(main, /float latH = skinArmLat\(gl_FragCoord\.xy, i, swAt\(i\), rPxH\);/);
+  assert.match(main, /float latH = latA\[i\];/);
+  assert.match(main, /latA\[i\] = dot\(relH, sideA\[i\]\) \* SKIN_U \/ max\(armArc\[i\]\.w \* swAt\(i\), 1e-4\);/);
+  assert.match(main, /relH = mat3\(modelViewMatrix\) \* \(vPos - armAxisP\[i \* \$\{SKIN_AXIS_PTS\} \+ 2\]\.xyz\)|relH = mat3\(modelViewMatrix\) \* \(vPos - armAxisP\[i \* [0-9]+ \+ 2\]\.xyz\)/);
   assert.match(gate, /float latK = abs\(latH\);/);
-  assert.ok(!/dot\(relP, tJA\[i\]\)/.test(gate), 'no distance to the straight line');
+  assert.ok(!/skinArmLat\(gl_FragCoord\.xy, i, swAt\(i\), rPxH\)/.test(main), 'no nearest-segment lateral on a head');
 });
 
 // Mohammad, 24 Nov (build 4f3b63d3, iPhone): half a chevron at the left gastric vein's mouth and a faded one on the portal vein under the bifurcation. Rendered (software GL, dark look, Healthy): the tube draws a head up to its seam,
@@ -85,10 +87,10 @@ test('a head centred on the tube\'s side of the seam is finished by the skin who
 
 // Mohammad, 24 Nov: a pale head on the portal vein under the hepatic artery's leader (render, arm-coloured: drawn by the arm that owns the place, faded by the wall rule). Numbers: the skin's radius at a pixel (vR) blends the arms'
 // radii and can exceed the arm's own lumen near a node; a head sized by it (half width 0.55 of vR) was wider than the lumen, reached the wall (the wall rule starts at 0.90 of the way to the ink) and was faded to a ghost.
-test('a skin\'s head is sized by the smaller of the pixel\'s radius and its arm\'s own radius, never by the pixel\'s alone', () => {
+test('a skin\'s head is sized by its arm\'s own live radius, one size for the whole head (never by the pixel\'s blended radius, which also changed the head\'s shape pixel to pixel)', () => {
   const main = body(SKIN_FS, 'void main(');
-  assert.match(main, /float vRH = min\(vR, rOwn \* swAt\(i\)\);/);
-  assert.match(main, /flowHeads\(clamp\(latH, -1\.0, 1\.0\), acrossW, sI, Lw, vRH, wpcM,/);
+  assert.match(main, /float vRH = rOwn \* swAt\(i\);/);
+  assert.match(main, /flowHeads\(clamp\(latH, -1\.0, 1\.0\), awLat\[i\], sI, Lw, vRH, wpcM,/);
 });
 
 // Mohammad, 24 Nov: chevrons flicker at joins. The ownership weights are the sharpened shares over their sum: they add to 1 everywhere, so a head handed between arms never dips.
