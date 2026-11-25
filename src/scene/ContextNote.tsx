@@ -4,8 +4,12 @@ import { reloadKeepingState } from '../boot/reload.ts';
 import { FILE_LOSS, GL_LOSS } from './../ui/shell/words.ts';
 import '../ui/shell/shell.css';
 
-/** The note over the figure, in the one place a note of its kind lives: "Redrawing the figure…" while the graphics context is gone, and Reload when it does not come back in time; and, when a data file the figure draws from
- *  did not load even after the one more try (file-loss.ts), what is missing in plain words with Reload (the organs used to go missing with nothing said). Always mounted, so it fades in and out on opacity (never pops). */
+/**
+ * The note over the figure, in the one place a note of its kind lives: "Redrawing the figure…" while the graphics context is gone,
+ * and Reload when it does not come back in time; and, when a data file the figure draws from did not load even after the one more
+ * try (file-loss.ts), what is missing in plain words with Reload (the organs used to go missing with nothing said).
+ * Always mounted, so it fades in and out on opacity (never pops).
+ */
 export function ContextNote() {
   const state = useGlLoss((s) => s.state);
   const lost = useFileLoss((s) => s.lost);

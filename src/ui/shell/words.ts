@@ -48,8 +48,11 @@ export const APP_CRASH = {
 } as const;
 /** The figure's graphics context was lost after the first picture (scene/context-loss.ts, ContextNote.tsx). */
 export const GL_LOSS = { redrawing: 'Redrawing the figure…', stuck: 'The figure couldn’t be redrawn. Reload to bring it back.', reload: 'Reload' } as const;
-/** A data file the figure draws from did not load, even after the one more try (scene/file-loss.ts, ContextNote.tsx): said in plain words, with Reload, instead of the organs going quietly missing. */
-export const FILE_LOSS = { organs: 'The organs didn’t load, so the figure is showing without them. Reload to bring them back.', art: 'The fine detail on the organs didn’t load. Reload to bring it back.' } as const;
+/** A data file the figure draws from did not load, even after the one more try (scene/file-loss.ts, ContextNote.tsx): said in plain words, with Reload. */
+export const FILE_LOSS = {
+  organs: 'The organs didn’t load, so the figure is showing without them. Reload to bring them back.',
+  art: 'The fine detail on the organs didn’t load. Reload to bring it back.',
+} as const;
 /** The quiet note when the app is left broken by errors no boundary sees (ErrorNote.tsx, boot/crash-net.ts). */
 export const ERROR_NOTE = { text: 'Something small went wrong in the background. You can keep going, or reload to be safe.', reload: 'Reload', copy: 'Copy details', copied: 'Copied', keep: 'Keep going' } as const;
 /** Settings › Blur effect in the 3D app today */

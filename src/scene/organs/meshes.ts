@@ -18,8 +18,11 @@ let buf: ArrayBuffer | null = null;
 let loaded: () => void = () => {};
 let failed: (e: Error) => void = () => {};
 const inBrowser = typeof fetch === 'function' && typeof window !== 'undefined';
-/** Resolves once the organ file is in; the scene adds the organs then. Outside a browser it waits for setOrganData. It REJECTS when the file could not be had after the one more try (the note over the figure says so,
- *  file-loss.ts): the scene's waits end instead of hanging for ever on organs that will not come. */
+/**
+ * Resolves once the organ file is in; the scene adds the organs then. Outside a browser it waits for setOrganData.
+ * It REJECTS when the file could not be had after the one more try (the note over the figure says so, file-loss.ts):
+ * the scene's waits end instead of hanging for ever on organs that will not come.
+ */
 export const organsReady: Promise<void> = new Promise((res, rej) => { loaded = res; failed = rej; });
 organsReady.catch(() => undefined);   // (handled here, so a rejection before the scene has asked is not an unhandled one; whoever awaits it still sees it)
 /** Takes the organ file's bytes (the browser fetch below; tests read it from disk). */
@@ -28,8 +31,10 @@ export function setOrganData(b: ArrayBuffer): void { buf = b; loaded(); }
 const env = (import.meta as { env?: { BASE_URL?: string; VITE_ORGANS_DIGEST?: string } }).env;
 const base = env?.BASE_URL ?? '/';
 
-// The organs finished at build time (organs/baked.ts, scripts/bake-organs.mjs): with that file in, the page does none of prepare.ts's work (about 2 s of CPU a start) and never fetches organs.bin (the raw stomach the
-// scope fits to is in the file). A page whose build made no such file, a browser with no gunzip, a digest that is not this build's, or a file that does not decode: organs.bin as before, and the organs are made live.
+// The organs finished at build time (organs/baked.ts, scripts/bake-organs.mjs): with that file in, the page does none of
+// prepare.ts's work (about 2 s of CPU a start) and never fetches organs.bin (the raw stomach the scope fits to is in the file).
+// A page whose build made no such file, a browser with no gunzip, a digest that is not this build's, or a file that does not
+// decode: organs.bin as before, and the organs are made live.
 let baked: BakedOrgans | null = null;
 /** The finished organs, once the baked file is in (null: none; the layer makes them from the organs file). */
 export const bakedOrgans = (): BakedOrgans | null => baked;
