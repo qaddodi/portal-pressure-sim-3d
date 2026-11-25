@@ -68,7 +68,9 @@ export const MARK_UNITS = 22, MARK_HALF = 0.26, MARK_CLEAR = 36, MARK_HEX = '#7E
 /** The balloon's rings (centre, direction, radius) fitted in the vein, as the 2D app fits it (stage-cath.js cathGL): along a TIPS tract its whole length, else just behind the tip. It sits ON the vessel's own
  *  centreline once wedged (on the shaft while it is small) and its radius is held under the lumen's with a margin, so the glass and its outline stay inside the drawn wall at any zoom (Mohammad, 20 Nov:
  *  "the balloon has to be maintained within the bounds of the vessel"). Before, its centre was 2D's own and only the depth was the 3D vessel's: a vessel drawn a unit off 2D's course put one wall outside. */
-export const BALLOON_FIT = 0.92;
+export const HUG = 0.985;
+/** The barrel's end shape: 2 is an ellipse (a lens), higher is a flat barrel with short round caps (a real balloon). */
+export const BARREL_POW = 8;
 /** (a balloon fills a narrowed vein whole; in a dilated one it is held to the width it was built for) */
 const SWELL_FILL = 1.6;
 export function balloonFit(r3: Route3D, rc: number, bl: number, tipD: number, span: string | null, rings: ReturnType<typeof makeRings>): { dC: number; rx: number; ol: { s: number }[] } {
@@ -80,7 +82,7 @@ export function balloonFit(r3: Route3D, rc: number, bl: number, tipD: number, sp
   const dC = sp ? (sp[0] + sp[1]) / 2 : tipD - gap - rx;
   const ry0 = balloonRy(at, dC, rx, proc ? Math.max(rc2 * 1.35, Rb) : rc2 * 1.35, { floor: rc2 * 1.05 });
   const ol = balloonOutline(at, dC, rx, ry0, bl, { floor: rc2 * 1.05 }) as { c: [number, number]; t: [number, number]; h: number; s: number }[];
-  const a = new Vector3(), b = new Vector3(), hFull = Math.max(...ol.map((o) => o.h)) / U;
+  const a = new Vector3(), b = new Vector3();
   ol.forEach((o, i) => {
     const q = rings[i]!, d = dC + rx * o.s;
     r3.point(d, a); r3.centre(d, b);
@@ -89,9 +91,13 @@ export function balloonFit(r3: Route3D, rc: number, bl: number, tipD: number, sp
     // (the DRAWN radius of the vein there, its end tapers included, not the nominal one)
     let room = Infinity;
     for (const id of r.ids) { const c = drawnShare(id, q.c.x, q.c.y, q.c.z); if (c && c.share < 1) room = Math.min(room, Math.max(c.radius * Math.min(r3.swellAt(d), SWELL_FILL) - c.dist, 0)); }
-    // (a barrel, as a Fogarty's glass: the profile is a round superellipse of the fullest ring, not 2D's flat-shouldered one, held under what the vein has room for at each ring)
-    const shoulder = Math.pow(Math.max(0, 1 - Math.pow(Math.abs(o.s), 2.6)), 1 / 2.6);
-    q.r = Math.max(Math.min(hFull * Math.max(shoulder, 0.0001), (at(d).r / U) * BALLOON_FIT, room === Infinity ? Infinity : room * 0.96), 0.0004);
+    // (a wedged balloon HUGS: each ring takes the drawn lumen there, at the wall less a hair, whatever width the 2D route knew. The 2D radius capped it at 0.92 of itself, and where the 3D vein is drawn wider than the
+    // route's (BATO's splenic vein: 0.81) the glass floated free of the wall, Mohammad 25 Nov: "balloons everywhere on any catheter should wedge, hug the blood vessel, not be smaller than it".)
+    const shoulder = Math.pow(Math.max(0, 1 - Math.pow(Math.abs(o.s), BARREL_POW)), 1 / BARREL_POW);
+    const lumen = room === Infinity ? (at(d).r / U) : room;
+    // (it swells from the shaft's own width to the wall with the inflation; along a TIPS tract the tract IS what it widens, so the glass hugs the tract as it is drawn now and only rises and falls in its own first and last quarter)
+    const grow = span ? Math.min(1, bl * 4) : bl;
+    q.r = Math.max(Math.min(rc + (lumen * HUG - rc) * grow, lumen * HUG) * Math.max(shoulder, 0.0001), 0.0004);
   });
   return { dC, rx, ol };
 }
