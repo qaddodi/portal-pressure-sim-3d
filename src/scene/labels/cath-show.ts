@@ -56,6 +56,10 @@ export function calloutsFor(cath: CathState | null): CalloutKind[] {
   }
 }
 
+/** How much of the catheter a card needs to stand (`got` of CathIn): the free reading only the tip (1), the wedged one and the stack the point ahead of it too (2: the balloon is up). One source for the card that stands
+ *  (`solve`) and for the controller's judgment of what a change of `got` does to the cards on show. */
+export const calloutNeeds = (k: CalloutKind): 1 | 2 => (k === 'f' ? 1 : 2);
+
 export const toneOf = (hv: number | null): Tone => (hv == null || !Number.isFinite(hv) ? 'caution' : hvpgSev(hv));
 const reading = (kind: 'free' | 'wedge' | 'result', value: string, tone: Tone, kicker?: string): Reading => ({ kicker: kicker ?? N[kind].kicker, value, unit: value ? N[kind].unit : '', tone });
 /** The tag at a blocked vein's mouth: words only, in the caution ink. */
@@ -142,7 +146,7 @@ export class CathShow {
     let sum: SumTarget | null = null;
     const blocked = !inp.kinds && inp.cath === 'blocked';
     const rf = blocked ? blockedReading(inp.text.say ?? BLOCKED_SAYS.first) : reading('free', inp.text.f, inp.tones?.f ?? 'free', inp.kickers?.f), rw = reading('wedge', inp.text.w, inp.tones?.w ?? 'wedge', inp.kickers?.w), rh = reading('result', inp.text.h, toneOf(inp.text.hv), inp.kickers?.h);
-    const ids = kinds.filter((k): k is PillId => k !== 's').filter((id) => inp.got >= (id === 'f' ? 1 : 2));
+    const ids = kinds.filter((k): k is PillId => k !== 's').filter((id) => inp.got >= calloutNeeds(id));
     if (ids.length && inp.tip && inp.ahead) {
       const items = ids.map((id) => {
         const r = id === 'f' ? rf : rw, p = id === 'f' ? inp.tip! : inp.ahead!, sz = tagSize(t, blocked ? { ...r, kicker: BLOCKED_SAYS.then } : r, inp.measure);   // (a blocked vein's tag is sized for its longer words, so the one crosses over to the other in place)
@@ -155,7 +159,7 @@ export class CathShow {
         pills.set(id, { id, reading: r, x: o.x0, y: o.y0, w: it.w, h: it.h, above: o.above, box: o.box, key: `${o.above ? 1 : 0}|${it.w}|${it.h}`, spot: `${o.above ? 1 : 0}|${it.w}|${it.h}`, ax: id === 'f' ? inp.tip![0] : inp.ahead![0], ay: id === 'f' ? inp.tip![1] : inp.ahead![1] });
       }
     } else for (const id of ['f', 'w'] as const) this.sides.delete(id);
-    if (kinds.includes('s') && inp.tip && inp.ahead && inp.got >= 2) {
+    if (kinds.includes('s') && inp.tip && inp.ahead && inp.got >= calloutNeeds('s')) {
       const tight = tightFor(inp.band);
       const swap = swapOf(inp.tip[1], inp.ahead[1], this.swapWas);
       let geom = sumLayout(t, [rw, rf], rh, inp.measure, tight, swap);
