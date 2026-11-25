@@ -328,6 +328,7 @@ export const CAPTURE_52EF8E63 = [
   SET('variceal-bleed', 'slides.tear.tool.bp', true),
   // Choose treatment 6: the thrombus that has resolved is drawn as the dashed outline of what the slide before had (its 60%)
   SET('choose-treatment', 'slides.a3-lumen.tool.was', 'a3'),
+  SET('tips-complete', 'slides.indications.ghostStent', true),   // (the slide asks when to place a stent: the stent in the figure is drawn as a ghost, capture 52ef8e63 #17)
   SET('tips-complete', 'slides.indications.marks', [{ edges: ['C1a'], label: 'Bleed: preemptive, rescue, salvage' }, { organ: 'ascites', label: 'Ascites: elective' }]),
 ];
 

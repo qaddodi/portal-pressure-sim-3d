@@ -57,6 +57,8 @@ const course = (() => {
   const dep = (a, b) => { if (out.split(a).length !== 2) throw new Error(`tool-course.js has changed shape: ${a.slice(0, 40)}`); out = out.replace(a, b); };
   dep('cuts = cutsOf(c.reading), total', 'cuts = c.zones === false ? [] : cutsOf(c.reading), total');
   dep('    reading,\n    from: pick(', '    reading, zones: t?.zones !== false,\n    from: pick(');
+  // Departure (capture 52ef8e63, 25 Nov 2026): the "before" word (Tense ascites) found no clear spot among the four places just above the start point and sat on the first stroke of the line; more places, higher and then clear of the point's right, so it stands clear of the plateau.
+  dep('[-1.0, -1.3, -1.6, -0.8].map((k) => ({ x: xd + 0.5 * f, y: yd + k * f, anchor: \'start\' }))', '[-1.0, -1.3, -1.6, -0.8, -2.0, -2.5, -3.0].flatMap((k) => [0.5, 1.6, 3].map((dx) => ({ x: xd + dx * f, y: yd + k * f, anchor: \'start\' })))');
   dep("  // (The strip at the left is the numbers and no more: the zones' names stand on the plot, placeLabels.)", `  if (c.zones === false) {
     ticks.length = 0;
     const raw = top / 4, mag = 10 ** Math.floor(Math.log10(raw)), st = [1, 2, 5, 10].map((q) => q * mag).find((q) => q >= raw) ?? raw;
