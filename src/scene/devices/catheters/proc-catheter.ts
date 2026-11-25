@@ -43,14 +43,21 @@ export const CATHETER_IDLE: CatheterState = { u: 0, balloon: 0, column: 0, opaci
 
 /** The needle's bevelled point: a cone with its axis on +X (the way every part of the route is laid: `orient` turns +X to the route's direction), base radius `r` at the origin, a point `1.4 rc` ahead of it. */
 /** The point's apex radius as a share of its base (the needle's). It was an absolute 0.01 scene units, six times the needle's own radius (0.0015): the "cone" was a wide 8-sided disc. */
-export const NEEDLE_APEX_K = 0.08;
+export const NEEDLE_APEX_K = 0.01;
+/** The point's sides round the needle (enough for a round silhouette), and how far ahead of the route's needle position (rc units) the point lies,
+ *  so a longer bevel grows back along the shaft and the point itself never moves
+ *  (owner, 25 Nov: "make it sharp", the first needle from the right hepatic vein to the right portal vein). */
+export const NEEDLE_POINT_SIDES = 12, NEEDLE_TIP_AHEAD = 1.6;
 /** The TIPS needle (owner, 25 Nov: "not too sharp, very thick"): a fine steel needle, a share of the shaft's radius no thicker than the guide wire's, with a long slim bevel; and the sheath over it wider than any other catheter's shaft. */
-export const NEEDLE_K = 0.2, NEEDLE_MIN = 0.0009, NEEDLE_POINT_LEN = 3.2, SHEATH_K = 1.5, SHEATH_MAX_SHARE = 0.3;
+export const NEEDLE_K = 0.2, NEEDLE_MIN = 0.0009, NEEDLE_POINT_LEN = 5.5, SHEATH_K = 1.5, SHEATH_MAX_SHARE = 0.3;
 export const needleRadius = (rc: number): number => Math.max(rc * NEEDLE_K, NEEDLE_MIN);
 /** The sheath's radius on a TIPS-kit route (the shaft is the sheath the needle goes out through), the shaft's own radius elsewhere. */
 export const SHEATH_KINDS: ReadonlySet<string> = new Set(['tips', 'tipscoil', 'tipscoilin', 'dips']);
 export const sheathK = (kind: string): number => (SHEATH_KINDS.has(kind) ? SHEATH_K : 1);
-export function needlePoint(rc: number, r: number): BufferGeometry { return new CylinderGeometry(r * NEEDLE_APEX_K, r, rc * NEEDLE_POINT_LEN, 8, 1, false).rotateZ(-Math.PI / 2).translate(rc * NEEDLE_POINT_LEN / 2, 0, 0); }
+export function needlePoint(rc: number, r: number): BufferGeometry {
+  const len = rc * NEEDLE_POINT_LEN;
+  return new CylinderGeometry(r * NEEDLE_APEX_K, r, len, NEEDLE_POINT_SIDES, 1, false).rotateZ(-Math.PI / 2).translate(len / 2, 0, 0);
+}
 const RING_TONE = { free: 'monFree', wedge: 'monWedge', bad: 'monAlarm', pv: 'trPv', ivc: 'trIvc' } as const;
 const SHAFT_RADIAL = DEVICE_SIDES, BALLOON_N = 40, BALLOON_RADIAL = DEVICE_SIDES, GLINT_N = 24, GLINT_SIDES = 8;
 
@@ -325,9 +332,10 @@ export class ProcCatheter {
     if (nShow) {
       lit.add(this.needle); lit.add(this.needleCone);
       this.needle.setAlpha(op); this.needleCone.setAlpha(op);
-      const bev = rc * U * NEEDLE_POINT_LEN;
-      this.needle.setReveal(Math.min(1, Math.max(0, (nD - bev * 0.5) / r.total)));
-      r3.point(nD - bev * 0.5, this.v); this.needleCone.group.position.copy(this.v); this.orient(this.needleCone, nD - bev * 0.5);
+      // (the point's base lies back from the needle's place so its apex stays NEEDLE_TIP_AHEAD ahead of it, however long the bevel is)
+      const base = nD - rc * U * (NEEDLE_POINT_LEN - NEEDLE_TIP_AHEAD);
+      this.needle.setReveal(Math.min(1, Math.max(0, base / r.total)));
+      r3.point(base, this.v); this.needleCone.group.position.copy(this.v); this.orient(this.needleCone, base);
       if (s.flash > 0) this.flashBack(s.flash, tipD, nD, op);
     }
 

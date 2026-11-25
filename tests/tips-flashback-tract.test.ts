@@ -108,3 +108,17 @@ test('the TIPS needle is fine and its sheath is visibly wider than the needle, i
   }
   for (const kind of ['hvpg', 'brto', 'bato', 'ivcread']) assert.ok(!SHEATH_KINDS.has(kind) && sheathK(kind) === 1, `${kind} keeps its shaft`);
 });
+
+// The first TIPS needle (right hepatic vein to right portal vein) must be SHARP (owner, 25 Nov: "make it sharp too"). One rule for the kit: the point is a long slim cone to a true point (apex under 2 % of the base, half angle under 3 degrees),
+// round (not a faceted wedge), and lengthening it never moves its apex off the route's needle place (NEEDLE_TIP_AHEAD).
+import { NEEDLE_POINT_SIDES, NEEDLE_TIP_AHEAD } from '../src/scene/devices/catheters/proc-catheter.ts';
+test('the TIPS needle comes to a true, slim point and the point stays where the needle is', () => {
+  assert.ok(NEEDLE_APEX_K <= 0.02, `apex share ${NEEDLE_APEX_K}`);
+  assert.ok(NEEDLE_POINT_SIDES >= 10, 'a round silhouette');
+  for (const kind of ['tips', 'dips', 'tipscoil']) {
+    const rc = route3d(kind)!.rc, r = needleRadius(rc), len = rc * NEEDLE_POINT_LEN;
+    const half = Math.atan((r * (1 - NEEDLE_APEX_K)) / len) * 180 / Math.PI;
+    assert.ok(half < 3, `${kind}: point half angle ${half.toFixed(2)} degrees`);
+  }
+  assert.ok(NEEDLE_POINT_LEN > NEEDLE_TIP_AHEAD, 'the base lies behind the needle place, the apex ahead of it');
+});
