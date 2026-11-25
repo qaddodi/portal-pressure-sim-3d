@@ -111,6 +111,8 @@ export interface Slide {
   eqLegend?: string;
   /** The level of portal hypertension the slide is about (2D `site`: pre, presin, sin, postsin, post, cardiac); it names and colours the card's level tab. */
   site?: string;
+  /** A second level the slide is also about (a level id, as `site`): a second tab joins the first in the card's corner. Set in 3D only (hp/deck.ts ALSO_SITE), never from the 2D deck. */
+  also?: string;
   /** The level rail under the line (2D `rail`): every level named ('all') or the slide's own level marked (true). */
   rail?: 'all' | true;
   /** Two guidelines side by side under the line (2D `sides`). `text` takes the line's own tokens. */

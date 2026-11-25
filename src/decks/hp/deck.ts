@@ -93,6 +93,10 @@ function beatScenes(deckId: string, s: CopiedSlide, i: number): SlideScene[] | u
   });
 }
 
+/** Slides about two levels at once, by `deck/slide`: the second level's tab beside the first (the 2D deck names one level per slide). Prehepatic 13: carvedilol is the cirrhosis beta-blocker
+ *  (Baveno VIII), so the sinusoidal pressure problem carries a prehepatic clot (owner, 25 Nov). */
+const ALSO_SITE: Readonly<Record<string, string>> = { 'prehepatic/carv': 'pre' };
+
 export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: CathState | undefined): Slide {
   const plan = planSlide(deckId, s, i);
   const cath = (CATHS as readonly string[]).includes(s.cath ?? '') ? (s.cath as CathState) : s.cathKeep ? prevCath : undefined;
@@ -127,6 +131,7 @@ export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: Cat
     ...(eq ? { eq } : {}),
     ...(s.eq?.[1] ? { eqLegend: s.eq[1] } : {}),
     ...(str(s.site) ? { site: str(s.site) } : {}),
+    ...(ALSO_SITE[`${deckId}/${s.id}`] ? { also: ALSO_SITE[`${deckId}/${s.id}`] } : {}),
     ...(s.rail ? { rail: s.rail === 'all' ? 'all' as const : true as const } : {}),
     ...(sides ? { sides } : {}),
     ...(s.pill === false ? { pill: false as const } : {}),

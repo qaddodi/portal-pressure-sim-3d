@@ -5,18 +5,27 @@ import type { Deck, Slide } from '../../decks/schema.ts';
 // ── the level tab ──
 /** The level names (2D decks.js SITE_TAGS); `pvt` (portal vein thrombosis) is the pre-hepatic level. */
 export const SITE_TAGS: Record<string, string> = { pre: 'Pre-hepatic', pvt: 'Pre-hepatic', presin: 'Presinusoidal', sin: 'Sinusoidal', postsin: 'Postsinusoidal', post: 'Post-hepatic', cardiac: 'Cardiac' };
-export interface SiteTag { site: string; name: string; /** the level rail names it (a phone held upright, where the rail is hidden, shows the tab) */ rail?: true }
+export interface SiteTag {
+  site: string; name: string;
+  /** the level rail names it (a phone held upright, where the rail is hidden, shows the tab) */
+  rail?: true;
+  /** a second level the slide is also about: its tab stands inside the first */
+  also?: { site: string; name: string };
+}
 
 /** The level of a slide's block, as the tab in the card's top left corner (2D siteTag): on the slides of a deck that teaches more than one level, so the learner always knows which type of portal
  *  hypertension the slide is about. A deck about cirrhosis alone (every site sinusoidal) carries none, nor does a slide whose rail already marks the block, or a visual; a kicker that already
  *  says the level is not said twice. */
-export function siteTag(deck: Pick<Deck, 'slides'>, s: Pick<Slide, 'site' | 'rail' | 'visual' | 'kicker'>): SiteTag | null {
+export function siteTag(deck: Pick<Deck, 'slides'>, s: Pick<Slide, 'site' | 'also' | 'rail' | 'visual' | 'kicker'>): SiteTag | null {
   if (!s.site || s.rail || s.visual || !deck.slides.some((x) => x.site && x.site !== 'sin')) return null;
   const name = SITE_TAGS[s.site];
-  return name && !(s.kicker || '').toLowerCase().includes(name.toLowerCase()) ? { site: s.site === 'pvt' ? 'pre' : s.site, name } : null;
+  if (!name || (s.kicker || '').toLowerCase().includes(name.toLowerCase())) return null;
+  const site = s.site === 'pvt' ? 'pre' : s.site;
+  const second = s.also ? SITE_TAGS[s.also] : undefined, also = s.also === 'pvt' ? 'pre' : s.also;
+  return second && also && also !== site ? { site, name, also: { site: also, name: second } } : { site, name };
 }
 /** The tab a slide shows: its level tag, or, on a slide with a one-level rail, the rail's level (shown only where the rail is hidden). */
-export function tabOf(deck: Pick<Deck, 'slides'>, s: Pick<Slide, 'site' | 'rail' | 'visual' | 'kicker'>): SiteTag | null {
+export function tabOf(deck: Pick<Deck, 'slides'>, s: Pick<Slide, 'site' | 'also' | 'rail' | 'visual' | 'kicker'>): SiteTag | null {
   if (s.visual) return null;
   const tag = siteTag(deck, s);
   if (tag) return tag;

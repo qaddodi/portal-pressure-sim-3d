@@ -255,3 +255,12 @@ html:root :where(.pz-lapse, .tl-speed, .stage-clock, .fps-counter, .tr-pips, .pz
 
 /* The beat card's status word holds its line before the word arrives (the pinned state comes a frame after the card): the card never grows by it (24 Nov). */
 .pz-tool[data-kind="beats"] .pt-sev { min-height: 1.3em; }
+
+/* A slide about two levels (Slide.also, Prehepatic 13): the level tab holds a second tab, tinted in its own level's colour, after the first. The first tab gives up its right padding to the
+   second, and the tab clips the second to its one rounded corner. A hairline in the text colour parts the two tints. */
+.pz-sitetab[data-also] { padding-right: 0; overflow: hidden; }
+.pz-tabalso {
+  align-self: stretch; display: flex; align-items: center; margin-left: calc(var(--pz-tabh) * .55); padding: 0 calc(var(--pz-tabh) * .55) 0 calc(var(--pz-tabh) * .45);
+  background: color-mix(in srgb, var(--site) 16%, transparent); color: color-mix(in srgb, var(--site) 66%, var(--text)); box-shadow: inset 1px 0 0 color-mix(in srgb, var(--text) 14%, transparent);
+}
+.app.pz-hi .pz-tabalso { color: var(--text); }

@@ -91,6 +91,16 @@ test('the level tab: every slide of a deck that teaches more than one level name
   assert.equal(siteTag({ slides: [{ site: 'sin' }, { site: 'sin' }] as Slide[] }, { site: 'sin', kicker: 'x' }), null);
 });
 
+test('the level tab: a slide about two levels carries a second tab (Prehepatic 13, carvedilol in cirrhosis with a prehepatic clot)', () => {
+  const rows = [...everySlide()].filter(({ s }) => s.also);
+  assert.deepEqual(rows.map(({ id, s }) => `${id}/${s.id}`), ['prehepatic/carv']);
+  const { deck, s } = rows[0]!;
+  assert.equal(s.site, 'sin');
+  assert.deepEqual(tabOf(deck, s), { site: 'sin', name: 'Sinusoidal', also: { site: 'pre', name: 'Pre-hepatic' } });
+  // the same level twice is one tab
+  assert.equal(siteTag({ slides: [{ site: 'pre' }, { site: 'sin' }] as Slide[] }, { site: 'pre', also: 'pvt', kicker: 'x' })?.also, undefined);
+});
+
 test('the level rail: six levels, the liver\'s three bracketed; `all` names every level and a one-level rail marks the slide\'s own', () => {
   let n = 0;
   for (const { id, s } of everySlide()) {
