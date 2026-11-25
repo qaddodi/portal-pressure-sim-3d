@@ -1,14 +1,14 @@
 // The shunts and collaterals the owner ruled on, on THE PLACED ANATOMY (Mohammad, 24 Nov 2026, on his iPhone): "Umbilical vein should grow from more proximal LPV, varices should be surrounding the esophagus, DIPS just bad".
 //  - the paraumbilical vein (C3) and the Meso-Rex bypass (REX) leave the left portal vein at its umbilical portion, in its proximal half, on its last piece (the one the engine joins them to), never at its fading tip;
 //  - the oesophageal varices' strands lie round the oesophagus, on its wall, in at least three of its four quadrants at every station of their run, each smooth;
-//  - the DIPS is a short tract from the portal bifurcation to the cava below the caudate's veins: its ends inside the portal vein's and the cava's lumens, crossing no other drawn vessel, smooth, its stent on its course end to end;
+//  - the DIPS is the course he drew and picked (25 Nov, docs/approved/dips.md): a tract from the portal bifurcation, away from the left portal vein, to the cava: its ends inside the portal vein's and the cava's lumens, crossing no other drawn vessel, smooth, its stent on its course end to end;
 //  - the TIPS ends inside the right hepatic vein's trunk and never reaches the cava.
 // Run: node --test tests/anatomy-placed-shunts.test.ts (it switches the source to 'placed' itself)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const { PLACED_EDGE_3D, WHOLE_PIECES } = await import('../src/scene/anatomy/placed-network.ts');
+const { PLACED_EDGE_3D, WHOLE_PIECES, DIPS_DRAWN } = await import('../src/scene/anatomy/placed-network.ts');
 const { PLACED_COURSES } = await import('../src/scene/anatomy/placement.generated.ts');
 const { NETWORK, NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
 const { centrelineOf } = await import('../src/scene/vessels/centreline.ts');
@@ -102,7 +102,7 @@ test('the DIPS is a short tract from the portal bifurcation to the cava below th
   const inside = (p: V, ids: string[]): number => Math.min(...ids.map((id) => drawnShare(id, p[0], p[1], p[2])?.share ?? Infinity));
   assert.ok(inside(a, ['PV_TRUNK', 'PVH_R', 'PVH_L']) < 0.25, 'it starts inside the portal vein, on its centreline');
   assert.ok(inside(b, ['IVC_IS_1', 'IVC_IS']) < 0.25, 'it ends inside the cava, on its centreline');
-  assert.ok(d.length < 0.3, `short (${d.length.toFixed(3)}): never a run up the liver beside the TIPS`);
+  assert.ok(d.length < 0.35, `short (${d.length.toFixed(3)}): never a run up the liver beside the TIPS (his drawn course, 0.32)`);
   const tips = centrelineOf('TIPS')!;
   assert.ok(Math.abs(b[1] - tips.pointAt(1)[1]) > 0.3, 'it joins the cava far below where the TIPS ends');
   assert.notEqual(CAUDATE_HOST, 'IVC_IS_1', 'the caudate veins open into the cava above it');
@@ -117,7 +117,7 @@ test('the DIPS is a short tract from the portal bifurcation to the cava below th
     let worst = Infinity;
     for (let i = 0; i <= 100; i++) {
       const u = i / 100, p = d.pointAt(u) as V;
-      if (ends.has(v.id) && (u * d.length < 0.07 || (1 - u) * d.length < 0.07)) continue;
+      if (ends.has(v.id) && (u * d.length < 0.08 || (1 - u) * d.length < 0.07)) continue;   // (0.08 at the portal end: the DIPS leaves the fork beside the left portal vein, and its wall is clear of that vein's from 0.075 along, 4 radii, on his drawn course)
       for (let j = 0; j <= 120; j++) worst = Math.min(worst, dist(p, o.pointAt(j / 120) as V) - d.radiusAt(u) - o.radiusAt(j / 120));
     }
     if (worst <= 0) bad.push(`${v.id} ${worst.toFixed(4)}`);
@@ -130,22 +130,29 @@ test('the DIPS is a short tract from the portal bifurcation to the cava below th
   assert.ok(inside([tip.x, tip.y, tip.z], ['PV_TRUNK', 'PVH_R', 'PVH_L', 'DIPS']) < 1, 'the catheter\'s tip ends in the portal vein');
 });
 
-test('the DIPS is a straight stent, not a hook (Mohammad, 25 Nov: "Fix DIPS"): its course stays within a radius and a quarter of the chord between its ends, turns under 25 degrees at the fork, and the stent drawn on it follows the same line', () => {
+test('the DIPS is the course Mohammad drew and picked (25 Nov, dips-his-course.png #2): up and away from the left portal vein, one wide arc, into the cava\'s centreline; its stent lies on it, true 8 mm', () => {
   for (const sj of [false, true]) {
     setSmoothJoins(sj);
     try {
-      const v = NETWORK_BY_ID.get('DIPS')!, c = coursesOf(v, REST)[0]!.pts as V[], a = c[0]!, b = c[c.length - 1]!, ch: V = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], cl = Math.hypot(...ch);
-      const offChord = (p: V): number => { const w = [p[0] - a[0], p[1] - a[1], p[2] - a[2]], t = (w[0]! * ch[0] + w[1]! * ch[1] + w[2]! * ch[2]) / cl ** 2; return Math.hypot(w[0]! - t * ch[0], w[1]! - t * ch[1], w[2]! - t * ch[2]); };
-      const r = coursesOf(v, REST)[0]!.radius, dev = Math.max(...c.map(offChord));
-      assert.ok(dev < 1.25 * r, `smooth joins ${sj}: the DIPS runs ${(dev / r).toFixed(2)} radii off its chord (it was 2.95 with the 0.22 lead; bound 1.25)`);
-      assert.ok(lenOf(c) < 1.1 * cl, `smooth joins ${sj}: the course is ${(lenOf(c) / cl).toFixed(2)} times its chord (at most 1.1)`);
-      const k = Math.min(3, c.length - 1), t0: V = [c[k]![0] - a[0], c[k]![1] - a[1], c[k]![2] - a[2]], turn = (Math.acos((t0[0] * ch[0] + t0[1] * ch[1] + t0[2] * ch[2]) / (Math.hypot(...t0) * cl)) * 180) / Math.PI;
-      assert.ok(turn < 25, `smooth joins ${sj}: it leaves the fork ${turn.toFixed(0)} degrees off its chord (at most 25; 56 with the 0.22 lead)`);
-      // the stent: its axis from the portal end to the cava end stays within the same band (the device lies on the course, stent-device.ts)
-      const s = new StentDevice('DIPS', createShared()), spec = s.specFor(null, 8), tip = spec.at(0, new Vector3()), end = spec.at(spec.A, new Vector3()), chord = end.clone().sub(tip), cs = chord.length();
-      let worst = 0;
-      for (let i = 0; i <= 40; i++) { const q = spec.at((spec.A * i) / 40, new Vector3()).sub(tip), along = q.dot(chord) / (cs * cs); worst = Math.max(worst, q.sub(chord.clone().multiplyScalar(along)).length()); }
-      assert.ok(worst < 1.25 * r, `smooth joins ${sj}: the stent's axis is ${(worst / r).toFixed(2)} radii off its own chord`);
+      const v = NETWORK_BY_ID.get('DIPS')!, c = coursesOf(v, REST)[0]!.pts as V[], r = coursesOf(v, REST)[0]!.radius, tag = `smooth joins ${sj}`;
+      // every point he drew is on the course in the front view (within 0.02, a radius: the fairing at the fork moves the first by 0.016)
+      for (const [x, y] of DIPS_DRAWN) { const d = Math.min(...c.map((q) => Math.hypot(q[0] - x, q[1] - y))); assert.ok(d < 0.02, `${tag}: his point (${x}, ${y}) is ${d.toFixed(3)} off the course`); }
+      // it leaves away from the left portal vein: its heading over the first 0.1 of arc is at least 20 degrees from the vein's (24 on his course, the straight chord 3203285e was under 5), in the front view, and its course bows left of the fork
+      const lpv = coursesOf(NETWORK_BY_ID.get('PVH_L')!, REST)[0]!.pts as V[], head = (pts: readonly V[], len: number): number => { let acc = 0, i = 1; for (; i < pts.length - 1 && acc < len; i++) acc += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return Math.atan2(pts[i - 1]![1] - pts[0]![1], pts[i - 1]![0] - pts[0]![0]); };
+      const away = Math.abs((head(c, 0.1) - head(lpv, 0.1)) * 180 / Math.PI);
+      assert.ok(away >= 20, `${tag}: it leaves the fork ${away.toFixed(0)} degrees from the left portal vein (at least 20)`);
+      assert.ok(Math.min(...c.map((q) => q[0])) < c[0]![0] - 0.012, `${tag}: it bows left of the fork (0.018 on his course)`);
+      // it ends on the cava's centreline at the height he drew
+      const e = c[c.length - 1]!;
+      assert.ok(Math.abs(e[1] - DIPS_DRAWN[DIPS_DRAWN.length - 1]![1]) < 0.01, `${tag}: it ends at the drawn height (${e[1].toFixed(3)})`);
+      // one wide arc, no hook: it turns the one way (to the right, seen from the front) from where it has cleared the fork to its end
+      const turns: number[] = []; for (let i = 8; i + 8 < c.length; i += 4) { const a = [c[i]![0] - c[i - 8]![0], c[i]![1] - c[i - 8]![1]], b = [c[i + 8]![0] - c[i]![0], c[i + 8]![1] - c[i]![1]]; turns.push(a[0]! * b[1]! - a[1]! * b[0]!); }
+      assert.ok(Math.max(...turns) < 3e-4 && turns.filter((t) => t > 0).length <= 1, `${tag}: the arc turns one way only, bar the last stretch easing level into the cava (it does not wobble)`);
+      // the stent: its axis lies on the course end to end, at its 8 mm width (never wider than the vessel it is in)
+      const s = new StentDevice('DIPS', createShared()), spec = s.specFor(null, 8);
+      let worst = 0; for (let i = 0; i <= 40; i++) { const q = spec.at((spec.A * i) / 40, new Vector3()); worst = Math.max(worst, Math.min(...c.map((k) => dist([q.x, q.y, q.z], k)))); }
+      assert.ok(worst < 0.004, `${tag}: the stent's axis is ${worst.toFixed(4)} off the course`);
+      assert.ok(spec.R > 0.8 * r && spec.R <= r, `${tag}: the stent's radius ${spec.R.toFixed(4)} is the vessel's ${r.toFixed(4)} less its wall (8 mm)`);
     } finally { setSmoothJoins(false); }
   }
 });

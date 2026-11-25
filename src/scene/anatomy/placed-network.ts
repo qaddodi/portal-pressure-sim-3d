@@ -10,7 +10,7 @@
 //   5. the draw-only branches (rhva, rhvb, rpva, rpvp) hang on their host: the straighter one runs on from the trunk as its through branch (one tube to the tip, as liver-branches.ts draws a branching vein), the other is
 //      a side branch; the caudate veins (cv1-3) are joined into the cava the same way; the liver beds (no placed course) are today's beds carried onto the moved nodes.
 // Pure data, no three.js, no reader of network.ts (network.ts reads this).
-import { PLACED_COURSES, PLACED_VESSELS, PLACED_JOINS, PLACED_ORGANS, PLACED_CAUDATE } from './placement.generated.ts';
+import { PLACED_COURSES, PLACED_VESSELS, PLACED_JOINS, PLACED_ORGANS } from './placement.generated.ts';
 import { EDGES, JUNCTIONS } from '../../engine/hales/portal/topology.js';
 import { ANAT_HIDDEN, EDGE_PATH_2D, HIDDEN_EDGES } from './source.ts';
 import { x2d, y2d } from '../frame2d.ts';
@@ -135,8 +135,8 @@ const RHV_SPLIT = 10;
 /** The right hepatic vein's trunk from the TIPS's mouth to the cava at least (the cava's junction is crowded: five arms). */
 const RHV_MIN = 0.26;
 const FAIR_SPAN = 0.05;
-/** The DIPS leaves the portal fork this far up and to the right on the screen (scene units, at the fork's own depth), then runs straight to the cava: a short lead, not a waypoint (PVH, the DIPS block below). */
-const DIPS_LEAD: readonly [number, number] = [0.03, 0.04];
+/** The DIPS's course as Mohammad drew it (25 Nov, picked as #2 on dips-his-course.png): its centreline in the front view (scene x, y) after the portal fork, ending on the cava's centreline at the last point's height (the cava's x is the cava's own). */
+export const DIPS_DRAWN: readonly (readonly [number, number])[] = [[-0.322, 0.48], [-0.326, 0.53], [-0.312, 0.572], [-0.282, 0.616], [-0.25, 0.646], [-0.215, 0.658], [-0.197, 0.665]];
 /** The least a stent's tract keeps from any other drawn vessel, wall to wall, away from its own ends (scene units), and the stretch along it over which a push away eases out. */
 const TRACT_CLEAR = 0.009, TRACT_SPAN = 0.1;
 /** The stents and surgical shunts: tracts laid between two ends. */
@@ -399,20 +399,20 @@ function buildPlaced(): void {
   const hostEndAt = (w: string, node: string): V3 | undefined => (nodeOfWholeEnd(w, 0) === node ? (fadesAt(w, 0) ? undefined : COURSE[w]![0]!) : nodeOfWholeEnd(w, 1) === node ? (fadesAt(w, 1) ? undefined : COURSE[w]![COURSE[w]!.length - 1]!) : undefined);
   /** Where the placement draws an end that lands on a host's fading end: the host's nearest point to it (the branch's placed end). */
   const wallAt = (w: string, node: string, p: V3): V3 | undefined => ((nodeOfWholeEnd(w, 0) === node && fadesAt(w, 0)) || (nodeOfWholeEnd(w, 1) === node && fadesAt(w, 1)) ? nearestOn(COURSE[w]!, p).at : undefined);
-  // THE DIPS (Mohammad, 24 Nov: "DIPS just bad"; 25 Nov: "Fix DIPS", the stent a short bent hook on the portal fork): a direct intrahepatic portocaval shunt is a SHORT, STRAIGHT tract from the portal bifurcation (the engine's PVH, the portal
-  // trunk's end) back to the intrahepatic cava at the caudate lobe's foot, its process, below the caudate's own veins: never a hepatic vein, and never alongside the TIPS. A stent cannot turn 56 degrees inside its first centimetre,
-  // so the course is the chord between its two ends and nothing else: the placed arteries' gap above their fork is cleared by the chord itself (0.009 to the left hepatic artery, floor 0.005, tests/anatomy-placed-shunts.test.ts).
-  // THE LEAD (25 Nov, root cause of the hook): 6c6b8c9d made it leave through a waypoint 0.22 out between the two portal branches and another above the artery's fork, 0.23 of a 0.23 tract, so the course ran 56 degrees off its chord at the
-  // fork and 3 radii off it midway (a short bent coil on the screen). The waypoint was there to keep the fork's shading under its bound: laid straight, the DIPS leaves PVH 10 degrees from the left portal vein on the screen and 3.2 k behind
-  // it, and that vein's rim is drawn across the DIPS's lumen, 2.28 % of PVH as line only (bound 0.5 %, tests/skin-weld-shade.test.ts). The ink comes from the depth the DIPS has gained by the time it clears the fork's blend, so it
-  // first runs DIPS_LEAD up and across in the fork's own plane (no depth change), 0.05 of it, and only then straight to the cava: 0.03 % and 0.02 %, and 0.9 of a radius off its chord, 17 degrees at the fork.
+  // THE DIPS (Mohammad, 24 and 25 Nov; docs/approved/dips.md): the course he drew and picked (#2 of dips-his-course.png): from the portal bifurcation (the engine's PVH, the portal trunk's end) it leaves straight up and a little to the screen-left,
+  // well away from the left portal vein, crosses the right hepatic artery's depth, arcs over in one wide curve and runs up and right into the cava's centreline at the caudate lobe's lower third (DIPS_DRAWN). Its depth goes from the fork's to
+  // the cava's evenly along its length. (History: 6c6b8c9d's 0.22 lead bent the course 56 degrees at the fork, the straight chord fixed that in 3203285e but ran up the left portal vein's line and read as going into it; raising the cava end
+  // straight, A/B/C, was rejected. Depth, measured with tests/skin-weld-shade.test.ts and tests/skin-shunts.test.ts: held level for a fifth of its length and then eased, the left portal vein's rim inks 1.2 to 1.5 % of the fork at the front view, or
+  // the fork's weld drops the DIPS (no ring on the left portal vein clears it); evenly, the DIPS is welded and the fork inks 0.64 % at the front view and 0.62 % turned, which the portal fork's bound (0.8 %, tests/skin-weld-shade.test.ts INK_BOUND) allows.)
   {
     const pv = COURSE.pv!, iv = COURSE.ivc!;
-    const P0 = pv[pv.length - 1]!;
-    const yE = PLACED_CAUDATE.c[1] - PLACED_CAUDATE.ax[1];
+    const P0 = pv[pv.length - 1]!, yE = DIPS_DRAWN[DIPS_DRAWN.length - 1]![1];
     let E = iv[0]!; for (const q of iv) if (Math.abs(q[1] - yE) < Math.abs(E[1] - yE)) E = q;
-    const W: V3 = [P0[0] + DIPS_LEAD[0], P0[1] + DIPS_LEAD[1], P0[2]];
-    COURSE.DIPS = fair(relax(denseCurve([P0, W, E]), PLACED_JOINS.relax ?? 40));
+    const ctl: V3[] = [P0, ...DIPS_DRAWN.slice(0, -1).map(([x, y]): V3 => [x, y, 0]), E];
+    const cum = [0]; for (let i = 1; i < ctl.length; i++) cum.push(cum[i - 1]! + Math.hypot(ctl[i]![0] - ctl[i - 1]![0], ctl[i]![1] - ctl[i - 1]![1]));
+    const tot = cum[cum.length - 1]!;
+    for (let i = 1; i < ctl.length - 1; i++) ctl[i]![2] = P0[2] + (E[2] - P0[2]) * (cum[i]! / tot);
+    COURSE.DIPS = fair(relax(denseCurve(ctl), PLACED_JOINS.relax ?? 40));
   }
   /** Where each node that only collaterals and shunts join is drawn on its whole (arc length): the cut between its pieces. */
   const NODE_S = new Map<string, number>();
