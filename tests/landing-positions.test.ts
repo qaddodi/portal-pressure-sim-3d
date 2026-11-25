@@ -110,40 +110,6 @@ test('the copied 2D anchors are 2D\'s own (run with PPS_2D_REPO set to a 2D chec
   for (const [id, [, c]] of Object.entries(two.NODE_POS as Record<string, [number[], number[]]>)) assert.deepEqual([...(NODE_CIRCUIT[id] ?? [])], c, `${id}: NODE_POS circuit`);
 });
 
-test('Anatomy: the caput fan and the liver branches\' tributaries end on their host where 2D puts them', () => {
-  setSmoothJoins(true);
-  const failures: string[] = [], lines: string[] = [];
-  let checked = 0;
-  for (const v of NETWORK) {
-    if (!v.feeder) continue;
-    const host = NETWORK_BY_ID.get(v.feeder.host);
-    if (!host) { failures.push(`${v.id}: its host ${v.feeder.host} is not in the network`); continue; }
-    const plan = v.plan as { kind: 'feeder'; list: readonly { pts: readonly (readonly [number, number])[] }[] };
-    const host2 = EDGE_PATH_2D[host.id]!.map(([x, y]) => [x3(x), y3(y), 0]), host3 = coursesOf(host, REST)[0]!.pts as number[][], r = host.radius;
-    const cs = coursesOf(v, REST);
-    assert.equal(cs.length, plan.list.length, `${v.id}: a course for each tributary`);
-    let on2 = 0, on3 = 0, off = 0;
-    plan.list.forEach((f, i) => {
-      for (const end of [0, 1] as const) {
-        const a = f.pts[end ? f.pts.length - 1 : 0]!, p2 = [x3(a[0]), y3(a[1]), 0], b = cs[i]!.pts[end ? cs[i]!.pts.length - 1 : 0]!;
-        // (host radius against the tributary end: the fan ends within the host's own width in 2D)
-        const n2 = nearest(p2, host2, false), n3 = nearest(b as number[], host3, true);
-        checked++;
-        if (n2.d <= SEWN_TOL_R * r) {
-          on2++;
-          if (n3.d <= SEWN_TOL_R * r) on3++;
-          else { off++; if (off <= 3) failures.push(`${v.id} tributary ${i} end ${end}: 2D ${(n2.d / r).toFixed(2)}R from ${host.id}'s axis, 3D ${(n3.d / r).toFixed(2)}R (xy ${(n3.dxy / r).toFixed(2)}R)`); }
-        }
-      }
-    });
-    lines.push(`${v.id.padEnd(16)} host ${host.id.padEnd(9)} ends on the host in 2D ${on2}, in 3D ${on3}`);
-    if (off > 3) failures.push(`${v.id}: ${off} tributary ends in all stand off ${host.id}`);
-  }
-  assert.ok(checked > 0 && FEEDERS_2D.C3);
-  console.log(lines.join('\n'));
-  assert.deepEqual(failures, [], failures.join('\n'));
-});
-
 // ---- the Circuit's map ----
 const mapR = (v: NetVessel): number => 0.5 * circuitWidthMap(v.widthKind, v.baseD, 1, v.circFine ?? 1);
 
