@@ -50,7 +50,7 @@ export class KeyHash {
       else if (o.isVector3) this.nums([o.x as number, o.y as number, o.z as number]);
       else if (o.isVector4 || o.isQuaternion) this.nums([o.x as number, o.y as number, o.z as number, o.w as number]);
       else if (o.isMatrix3 || o.isMatrix4) this.nums(o.elements as number[]);
-      else if (ArrayBuffer.isView(v)) this.nums(v as unknown as ArrayLike<number>);
+      else if (ArrayBuffer.isView(v)) this.nums(v as Float32Array);
       else this.bad = true;
     }
   }
@@ -63,7 +63,7 @@ export function sceneKey(scene: Object3D, cam: Camera, mask: number, w: number, 
   k.nums(cam.matrixWorld.elements); k.nums(cam.projectionMatrix.elements);
   scene.traverseVisible((o) => {
     if ((o.layers.mask & mask) === 0) return;
-    const r = o as unknown as Renderable;
+    const r: Renderable = o;
     if (!(r.isMesh || r.isLine || r.isPoints) || !r.geometry || !r.material) return;
     if (r.isSkinnedMesh) { k.bad = true; return; }
     k.num(o.id); k.num(o.renderOrder); k.nums(o.matrixWorld.elements);
