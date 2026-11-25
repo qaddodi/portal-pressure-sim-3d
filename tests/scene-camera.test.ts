@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector3 } from 'three';
 import { CameraRig, blendPose, dragToOrbit, easeInOutCubic, lerpAngle } from '../src/scene/camera/rig.ts';
-import { SHOTS, SHOT_MS, ORBIT_LIMIT, FOV } from '../src/scene/camera/shots.ts';
+import { SHOTS, SHOT_MS, ORBIT_LIMIT, TILT_LIMIT, BODY_TILT_LIMIT, FOV } from '../src/scene/camera/shots.ts';
 import { effectiveDistance, fitDistance, fullRoom, viewOffset } from '../src/scene/camera/room.ts';
 
 /** Frames of a rig's clock at `dt` ms, from just after `t0` to `t1` (a move's own clock advances by what a frame took, at most 50 ms, so a test steps it as the app's clock does). */
@@ -109,10 +109,13 @@ test('orbit is limited to 25 degrees either way and the lens is long\'', () => {
 });
 
 test('in free exploration the turn goes all the way round the vertical axis (owner, 25 Nov: 360°) and is kept the short way home; outside it stays at ±25°', () => {
-  const rig = new CameraRig('free'); rig.freeGate = () => true;
+  const rig = new CameraRig('free'); rig.freeGate = () => true; rig.wideGate = () => true;
   rig.setOrbit(Math.PI / 2); assert.equal(rig.orbitAngle, Math.PI / 2, 'past 25° it follows the hand');
   rig.setOrbit(Math.PI + 0.5); assert.ok(Math.abs(rig.orbitAngle - (0.5 - Math.PI)) < 1e-9, 'past 180° it comes round the other side');
   rig.setOrbit(4 * Math.PI + 0.3); assert.ok(Math.abs(rig.orbitAngle - 0.3) < 1e-9, 'whole turns are the same angle');
+  rig.setOrbitPitch(1); assert.ok(Math.abs(rig.pitchAngle - BODY_TILT_LIMIT) < 0.02 && rig.pitchAngle <= BODY_TILT_LIMIT, 'the body tilts to 20°');
+  rig.wideGate = () => false; rig.setOrbit(Math.PI / 2); assert.ok(Math.abs(rig.orbitAngle) <= ORBIT_LIMIT, 'the lobule is free but keeps 25°');
+  rig.setOrbitPitch(1); assert.ok(rig.pitchAngle <= TILT_LIMIT && rig.pitchAngle > TILT_LIMIT * 0.9, 'and 12° of tilt');
   rig.freeGate = () => false; rig.setOrbit(Math.PI / 2);
   assert.ok(Math.abs(rig.orbitAngle) <= ORBIT_LIMIT, 'not free: the soft ±25°');
 });

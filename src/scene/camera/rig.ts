@@ -10,7 +10,7 @@ import { Tilt } from './tilt.ts';
 import { LongPath } from './arc.ts';
 import { slideSpanOf, stepOf, wholeViewOf, zoomShare } from './slide-time.ts';
 import type { ChasePose } from './chase.ts';
-import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, TILT_LIMIT, TURN_LIMIT_DEG, SHOTS, VEIL_WHOLE, SHOT_MS, type Shot, type ShotName } from './shots.ts';
+import { BODY_TILT_LIMIT, FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, TILT_LIMIT, TURN_LIMIT_DEG, SHOTS, VEIL_WHOLE, SHOT_MS, type Shot, type ShotName } from './shots.ts';
 
 /** The lens swell in a plunge (dive.ts: 14 -> 35 degrees and back). OFF (20 Nov 2026, owner: the camera moves as 2D's do, 1:1; 2D has no lens): the dive is the distance and the framing alone. */
 export const LENS_SWELL = false;
@@ -336,6 +336,9 @@ export class CameraRig {
   }
   /** Whether the viewer may turn the figure without limit on both axes (Stage: the setting is on and the view is the body). */
   freeGate: (() => boolean) | null = null;
+  /** The body's wider free turn (all the way round, 20° tilt); the lobule is `free` but keeps ±25° and ±12°. Absent: the narrow limits. */
+  wideGate: (() => boolean) | null = null;
+  get wide(): boolean { return this.free && !!this.wideGate && this.wideGate(); }
   get free(): boolean { return this.inspectOn || (!!this.freeGate && this.freeGate()); }
 
   // ── THE INSPECTOR'S TURN (`?inspect`, src/ui/debug/inspect): the figure turned round without limit, on top of the shot's own turn and tilt, never kept in the hand's or the shot's state. While it is on, the gestures' turn and tilt
@@ -557,8 +560,8 @@ export class CameraRig {
   /** Orbit by drag: ±25° clamped, or all the way round in free exploration. Returns true when it changed (a frame is needed). */
   setOrbit(rad: number): boolean {
     if (this.inspectOn_) { if (rad === this.inspectYaw && !this.inspectGoal) return false; this.inspectYaw = rad; this.inspectGoal = null; this.dirty = true; return true; }   // (the inspector's turn has no limit)
-    // free exploration (the body and the lobule, not in a talk): a full turn all the way round the vertical axis, no stop (owner, 25 Nov: "allow me to tilt more, 360 in horizontal axis"); the angle is kept in (-180°, 180°] so Fit's spring takes the short way home. Elsewhere ±25° with the soft stop.
-    const o = this.free ? wrapTurn(rad) : softLimit(rad, ORBIT_LIMIT);
+    // free exploration of the body (not the lobule, not in a talk): a full turn all the way round the vertical axis, no stop (owner, 25 Nov: "allow me to tilt more, 360 in horizontal axis"); the angle is kept in (-180°, 180°] so Fit's spring takes the short way home. Elsewhere ±25° with the soft stop.
+    const o = this.wide ? wrapTurn(rad) : softLimit(rad, ORBIT_LIMIT);
     if (o === this.orbit) return false;
     this.orbit = o; this.orbitFrom = o; this.orbitTo = o; this.dirty = true;
     return true;
@@ -567,7 +570,7 @@ export class CameraRig {
   /** Tilt up or down by `rad` (only while the free turn is on; otherwise it stays square). Returns true when it changed. */
   setOrbitPitch(rad: number): boolean {
     if (this.inspectOn_) { const p = Math.max(-INSPECT_PITCH, Math.min(INSPECT_PITCH, rad)); if (p === this.inspectPitch && !this.inspectGoal) return false; this.inspectPitch = p; this.inspectGoal = null; this.dirty = true; return true; }
-    const o = this.free ? softLimit(rad, TILT_LIMIT) : 0;
+    const o = this.free ? softLimit(rad, this.wide ? BODY_TILT_LIMIT : TILT_LIMIT) : 0;
     if (o === this.pitchOrbit) return false;
     this.pitchOrbit = o; this.pitchFrom = o; this.pitchTo = o; this.dirty = true;
     return true;

@@ -63,6 +63,8 @@ export interface GestureHost {
   setOrbit(rad: number): boolean;
   /** Whether the viewer may tilt up and down here (body and lobule, not in a talk), within the limits in shots.ts. Absent: only the turn. */
   free?(): boolean;
+  /** The body's wider turn (all the way round): the turn's momentum is not braked at 25° there. Absent: never. */
+  wide?(): boolean;
   orbitPitch?(): number;
   setOrbitPitch?(rad: number): boolean;
   /** The turn stays where the viewer left it: no spring home after 2 s, no soft stop (the inspector's free turn, `?inspect`). Absent: false. */
@@ -214,7 +216,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       v *= Math.pow(FLICK.decay, dt);
       const o = host.orbit() + v * dt;
       host.setOrbit(o);
-      if (!host.holdTurn?.() && !host.free?.() && Math.abs(o) >= ORBIT_LIMIT) v *= Math.pow(FLICK.brake, dt / 16);
+      if (!host.holdTurn?.() && !host.wide?.() && Math.abs(o) >= ORBIT_LIMIT) v *= Math.pow(FLICK.brake, dt / 16);
       if (Math.abs(v) > 0.00006) orbitId = env.ask(step);
     };
     orbitId = env.ask(step);

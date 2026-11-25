@@ -468,7 +468,7 @@ test('the figure takes every touch from the browser (no iOS selection loupe on a
 test('free exploration: a drag turns past 25° (no stop) and Fit takes the short way home', () => {
   let o = 0;
   const wrap = (x: number) => (Math.abs(x) <= Math.PI ? x : x - 2 * Math.PI * Math.round(x / (2 * Math.PI)));
-  const r = rig({ free: () => true, orbit: () => o, setOrbit: (x: number) => { o = wrap(x); return true; } });
+  const r = rig({ free: () => true, wide: () => true, orbit: () => o, setOrbit: (x: number) => { o = wrap(x); return true; } });
   r.ptr('pointerdown', 1, 100, 300); r.ptr('pointermove', 1, 120, 300); r.advance(16); r.ptr('pointermove', 1, 400, 300);
   assert.ok(Math.abs(o) > ORBIT_LIMIT, `turned ${o}`);
   o = 3; r.ptr('pointerup', 1, 400, 300);

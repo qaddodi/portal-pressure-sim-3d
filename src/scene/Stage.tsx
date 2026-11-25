@@ -263,6 +263,7 @@ function SceneBridge() {
       orbit: () => cel.rig.orbitAngle,
       setOrbit: (rad) => { const changed = cel.rig.setOrbit(rad); if (changed) clock.invalidate('orbit'); return changed; },
       free: () => cel.rig.free,
+      wide: () => cel.rig.wide,
       holdTurn: () => cel.rig.inspectOn,
       orbitPitch: () => cel.rig.pitchAngle,
       setOrbitPitch: (rad) => { const changed = cel.rig.setOrbitPitch(rad); if (changed) clock.invalidate('orbit'); return changed; },
@@ -300,13 +301,14 @@ function SceneBridge() {
     // (owner, 20 Nov: no 'Tilt all around'. Every device turns and tilts within the limits in shots.ts (TURN_LIMIT, TILT_LIMIT), mouse drag or two fingers; one finger pans.
     //  Body and lobule turn; the Circuit's map and the flat sinusoid do not, and a talk's camera is the slide's.)
     rig.freeGate = () => (cel.view === 'body' || cel.view === 'lobule') && !talkOn();
+    rig.wideGate = () => cel.view === 'body';
     const offFree = () => {};
     rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 || talkOn() };
     const off = installTilt({
       rig, wake: (tag) => clock.invalidate(tag), on: () => useSettings.getState().tilt, reduced,
       onSwitch: (fn) => { let was = useSettings.getState().tilt; return useSettings.subscribe((s) => { if (s.tilt !== was) { was = s.tilt; fn(was); } }); },
     });
-    return () => { off(); offFree(); rig.tiltGate = null; rig.freeGate = null; };
+    return () => { off(); offFree(); rig.tiltGate = null; rig.freeGate = null; rig.wideGate = null; };
   }, []);
 
   return null;

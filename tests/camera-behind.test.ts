@@ -16,7 +16,7 @@ const ANGLES = [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4, Math.PI, -Math.P
 
 function rigAt(yaw: number, pitch = 0) {
   const plan = planLayout(vp, [], 'words');
-  const rig = new CameraRig(SHOTS.free, plan.free); rig.resize(vp.w, vp.h); rig.freeGate = () => true; rig.update(0);
+  const rig = new CameraRig(SHOTS.free, plan.free); rig.resize(vp.w, vp.h); rig.freeGate = () => true; rig.wideGate = () => true; rig.update(0);
   rig.setOrbit(yaw); rig.setOrbitPitch(pitch); rig.update(16);
   return { rig, plan };
 }
