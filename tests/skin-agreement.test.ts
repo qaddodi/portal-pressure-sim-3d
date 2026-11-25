@@ -185,11 +185,12 @@ function inkTwin(cam: PerspectiveCamera, axes: readonly ArmAxis[], swell: number
     const ndcZ = ((cam.far + cam.near) / (cam.far - cam.near) * fragW - 2 * cam.far * cam.near / (cam.far - cam.near)) / fragW;
     const P = new Vector3(((frag[0]! / (RES * DPR)) - 0.5) * 2, ((frag[1]! / (RES * DPR)) - 0.5) * 2, ndcZ).unproject(cam);
     const gap = sd3(ax, [P.x, P.y, P.z]) / Math.max(wpc(fragW), 1e-9) * DPR;
-    return best.d + 2 * kPx * smooth(SKIN_HOLD_FROM_K * kPx, SKIN_HOLD_TO_K * kPx, gap);
+    return best.d + smooth(SKIN_HOLD_FROM_K * kPx, SKIN_HOLD_TO_K * kPx, gap) * (2 * kPx + Math.max(-best.d, 0));   // (held out of reach: past the arm's own wall, shaders.ts skinSdPx)
   };
   const smin = (a: number, b: number, k: number): number => { const h = Math.min(1, Math.max(0, 0.5 + 0.5 * (b - a) / Math.max(k, 1e-4))); return b + (a - b) * h - k * h * (1 - h); };
   const kPx = (centre: readonly number[]): number => { const q = new Vector4(centre[0]!, centre[1]!, centre[2]!, 1).applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix); return kM / ((q.w * 2) / (RES * cam.projectionMatrix.elements[5]!)) * DPR; };
-  return { project, armPx, sdPx: (frag: readonly number[], centre: readonly number[], fragW = -1): number => { let d = 0; const k = kPx(centre); axes.forEach((ax, i) => { const di = armPx(frag, ax, fragW, k); d = i === 0 ? di : smin(d, di, k); }); return d; } };
+  // (`seam`: the arm whose raw weight is `w` at the pixel; from 0.97 to 1 the outline eases to that arm's own distance, shaders.ts skinSeamPin)
+  return { project, armPx, sdPx: (frag: readonly number[], centre: readonly number[], fragW = -1, seam = -1, w = 0): number => { let d = 0; const k = kPx(centre), ds = axes.map((ax) => armPx(frag, ax, fragW, k)); ds.forEach((di, i) => { d = i === 0 ? di : smin(d, di, k); }); if (seam >= 0) { const t = Math.min(1, Math.max(0, (w - 0.97) / 0.03)); d += (ds[seam]! - d) * t * t * (3 - 2 * t); } return d; } };
 }
 
 test('the seam\'s ink: the skin\'s outline rule gives, on the seam ring, the tube\'s own lateral distance minus its radius (within a quarter pixel), so the line runs on with no kink', () => {
@@ -215,8 +216,8 @@ test('the seam\'s ink: the skin\'s outline rule gives, on the seam ring, the tub
         for (const k of [0, 0.5, 1]) for (const sgn of [-1, 1]) {
           const off = sgn * k * s1[2], frag = [s1[0] - hy * off, s1[1] + hx * off];
           const want = Math.abs(off) - s1[2];
-          if (process.env.SKIN_DEBUG) console.log(mesh.junction.node, arm.vesselId, k, sgn, (tw.sdPx(frag, seam, s1[3]) - want).toFixed(3), 'R px', s1[2].toFixed(2));
-          assert.ok(Math.abs(tw.sdPx(frag, seam, s1[3]) - want) <= 0.25, `${mesh.junction.node} ${arm.vesselId}: skin ${tw.sdPx(frag, seam, s1[3]).toFixed(3)} px vs tube ${want.toFixed(3)} px (offset ${k} R)`);
+          if (process.env.SKIN_DEBUG) console.log(mesh.junction.node, arm.vesselId, k, sgn, (tw.sdPx(frag, seam, s1[3], ai, 1) - want).toFixed(3), 'R px', s1[2].toFixed(2));
+          assert.ok(Math.abs(tw.sdPx(frag, seam, s1[3], ai, 1) - want) <= 0.25, `${mesh.junction.node} ${arm.vesselId}: skin ${tw.sdPx(frag, seam, s1[3], ai, 1).toFixed(3)} px vs tube ${want.toFixed(3)} px (offset ${k} R)`);
           n++;
         }
         void tb; void cut;

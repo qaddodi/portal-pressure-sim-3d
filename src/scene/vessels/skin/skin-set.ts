@@ -174,6 +174,11 @@ const TILT_MAX = 0.04;
 // Skins without a side-wall arm keep their axes: widening theirs moves other fillets unpredictably (LRV_S creases at any fraction, IMV and RPV_T bulge at 0.5 and 0.2 to 0.35).
 /** The shares of the way from a growing arm's end ring to its seam ring its capsule may be widened at J (axisOf `whole`), tried in this order: 0 is the tube as built. */
 export const NECK_FRACTIONS = [0, 0.25, 0.4, 0.5, 0.6, 0.35, 0.7] as const;
+/** The junction a skin is built and blended with: a growing arm's blend radius (types.ts `jointR`) is the neck its capsule really has, the built tube's ring at the node (`axes[i].radii[0]`), when that is narrower than its nominal radius. The blend width
+ *  (sdf.ts skinKOf, the same in the mesh and the shader, which reads the mesh's junction) was a share of the nominal radius while the capsule is the tube's narrowed neck: the left gastric vein lands on the splenic vein's divide (placed, SVD) with a
+ *  neck of 0.0088 against its nominal 0.0157, the fillet was sized for an arm nearly twice as wide, and the three caps' blend stood 0.0041 out of its 0.0088 neck (0.46 of its radius, BULGE_MAX) in the part where the splenic vein's own run is not there. The parts (plain.ts partOf) are built with it; the welded skins keep the nominal blend, which their seams' cuts were laid on (built with
+ *  the neck's, two of the placed wall skins and one of today's no longer build, and their growers lose the weld). */
+export const neckJunction = (j: SkinJunction, axes: readonly ArmAxis[]): SkinJunction => ({ ...j, arms: j.arms.map((a, i) => (a.grow && axes[i] ? { ...a, jointR: Math.min(armR(a), axes[i]!.radii[0]!) } : a)) });
 export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false, backR?: number, whole = 0): ArmAxis {
   const out = cut.end ? -1 : 1, last = tube.tubular;
   const end = startRing ?? (cut.end ? last : 0), a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
@@ -490,7 +495,7 @@ export class SkinSet {
         const sub = (ax: readonly ArmAxis[]): ArmAxis[] => pq.keep.map((i) => { const a = ax[i]!, m = a.mate === undefined ? -1 : pq.keep.indexOf(a.mate); return m >= 0 ? { ...a, mate: m } : { pts: a.pts, radii: a.radii }; });
         const axesFor = (f: number): ArmAxis[] => (spec.leave ? leaveAxesAt(pq.keep, f) : sub(f === 0 ? axes : axesAt(f)));
         const make = (ax: ArmAxis[]): SkinMesh => {
-          const m = buildSkinSteady(pq.junction, pq.cuts, pq.keep.map((i) => pos[i]!), pq.keep.map((i) => nor[i]!), ax.map(capsuleOf), undefined, this.paces);
+          const m = buildSkinSteady(neckJunction(pq.junction, ax), pq.cuts, pq.keep.map((i) => pos[i]!), pq.keep.map((i) => nor[i]!), ax.map(capsuleOf), undefined, this.paces);
           m.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { m.restR[v] = rest[pq.keep[a]!]![q]!; }));
           return m;
         };

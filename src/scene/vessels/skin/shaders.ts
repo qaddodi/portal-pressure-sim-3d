@@ -380,6 +380,12 @@ float skinOutsideTrunk(vec2 frag) {
 // Mohammad 22 Nov). In px at the pixel's depth: nothing within SKIN_HOLD_FROM_K (1) k of the arm's wall, all of it from SKIN_HOLD_TO_K (2) k: the fillet spans k.
 // (THE CAPSULE AT REST, NOT AT THE LIVE WIDTH, Mohammad 22 Nov: the collaterals' arms at the azygos were thin spikes. fragP is the lumen's REST surface, a whole radius out, so an arm narrower than its built width (swell 0.53 for C1b, 0.61 for C9) put its own rest
 // surface 1 - swell radii outside itself: held out as if absent. The rest surface is judged against the arm's rest capsule, so the gap is the pixel's own distance to the arm whatever the engine's width is.)
+// ON A SEAM RING THE OUTLINE IS THE TUBE'S OWN (the seam's kink, tests/skin-agreement.test.ts, and the owner's iPhone close-up of the cava: stepped notches in the outline at both of IVCS's seams). The union is the arms' smooth minimum in SCREEN
+// space, held out by depth over a ramp of 1 k to 2 k; a seam ring is only k clear of the other arms in 3D, so a ring 1 k to 2 k from an arm whose silhouette overlaps it on the screen was still pulled into the blend: RHV_IVC_1~F:b's seam
+// 0.59 px inside the tube's own line (the liver branch over the right hepatic vein, 1.37 k behind it), C1b's on SVC 0.52 (over the azygos). Where one arm's raw weight runs from 0.97 to 1 (the seam ring and the last of its row, as the shade's
+// own hand-over, exact-normal.ts skinTubeKeep) the outline eases to that arm's own distance, so the line and the lumen run on from the tube on every skin and from every side. Main sets both.
+float skinSeamPin = 0.0;
+int skinSeamArm = -1;
 float skinHoldSeam = 1.0;   // (how near a seam ring this pixel is, 0 to 1: main sets it from the kept arms' raw weights before the outline is judged; the hold-out's ramp eases from the free skin's to the seam's by it)
 float skinArmHeld(int arm, float fragW, vec3 fragP, float kPx) {
   vec3 g3; float r3;
@@ -401,7 +407,9 @@ float skinSdPx(float kPx, bool noDepth) {
   float heldOf[${SKIN_ARMS}];
   float heldMin = 1.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) { heldOf[i] = (noDepth || armData[i].x < 0.0 || keepOf(i) < 0.5) ? (noDepth ? 0.0 : 1.0) : skinArmHeld(i, 1.0 / gl_FragCoord.w, vPos, kPx); heldMin = min(heldMin, heldOf[i]); }
-  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = (armData[i].x < 0.0 || keepOf(i) < 0.5) ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i)) + 2.0 * kPx * (heldOf[i] - heldMin) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i)));
+  // (A HELD ARM IS HELD OUT OF REACH: the push is 2 k past the arm's own wall, not 2 k from where the pixel lies. A pixel deep inside a held arm's silhouette on the screen (a seam drawn over a vessel that crosses it in front or behind) was pushed
+  //  from -24 px only to +13, still inside the blend of k 18.7, and the seam's outline was pulled 0.52 px inside the tube's own: C1b's seam on SVC, over the azygos, tests/skin-agreement.test.ts. Outside an arm's silhouette nothing changes.)
+  for (int i = 0; i < ${SKIN_ARMS}; i++) { if (armData[i].x < 0.0 || keepOf(i) < 0.5) { dArm[i] = 1.0e9; continue; } float a = skinArmPx(gl_FragCoord.xy, i, swAt(i)); dArm[i] = a + (heldOf[i] - heldMin) * (2.0 * kPx + max(-a, 0.0)) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i))); }
   float d = 0.0;
   bool first = true;
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
@@ -413,6 +421,7 @@ float skinSdPx(float kPx, bool noDepth) {
     d = first ? di : skinSmin(d, di, kPx);
     first = false;
   }
+  if (skinSeamArm >= 0) { int s = skinSeamArm; float m = armCopy[s].w; float own = dArm[s]; if (m > -0.5) own = min(own, dArm[int(m + 0.5)]); d = mix(d, own, skinSeamPin); }
   return d;
 }
 // WHO OWNS A HEAD (Mohammad, 20 Nov: a chevron cut in two at the fork). A head is drawn in its arm's frame and was weighted by the arm's mesh weight AT THE PIXEL, so where the ownership of the skin changes across a head, the head was cut along the line.
@@ -535,6 +544,8 @@ void main() {
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
   float wMax = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) wMax = max(wMax, rawW(i) * keepOf(i));   // (the raw weights of the arms that are THERE: wAt renormalises them, so an absent arm's seam ring read as a kept arm's weight 1 and the band stayed wide there)
+  for (int i = 0; i < ${SKIN_ARMS}; i++) if (skinSeamArm < 0 && rawW(i) * keepOf(i) >= wMax) skinSeamArm = i;   // (the arm that holds it: on its seam ring the outline is its own, skinSeamPin)
+  skinSeamPin = smoothstep(0.97, 1.0, wMax);
   skinHoldSeam = smoothstep(0.75, 0.97, wMax);
   float sdPx = skinSdPx(kPx, false);
   // NEAR A SEAM THE TUBE'S OWN SILHOUETTE DECIDES, NOT THE OUTLINE'S APPROXIMATION OF IT (the black and brown specks along the walls at every junction: they are the background, a pixel or two of the seam's edge that the band
