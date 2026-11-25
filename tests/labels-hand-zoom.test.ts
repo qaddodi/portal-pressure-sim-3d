@@ -26,15 +26,17 @@ function world(withHand = true) {
   } as LabelDeps;
   const ctl = new LabelController(d); ctl.setState({ ...NO_STATE, ...shown });
   const frame = () => { t += 16; tick = []; ctl.tick(); };
-  /** every label stands at its anchor's projection NOW: the ring when it has one, else (plan 21, 184f7300: a name beside its vessel has no leader and no dot) the box's own place, measured against the anchor's projection this frame. At least 3 labels are measured. */
-  const BESIDE = 90;   // (px: how far a name's box stands from its anchor at most)
+  /** every label stands at its anchor's projection NOW: the ring when it has one, else (plan 21, 184f7300: a name beside its vessel has no leader and no dot) the box's own edge, measured against the anchor's projection this frame. At least 3 labels are measured. */
+  // (px: how far a name's box stands from its anchor at most, measured from the box's nearest edge. It was measured from the box's centre with a 90 px bar, which a long name beside its vessel (the placed
+  //  figure's "Right hepatic vein", 169 px wide, its edge 10 px from its anchor) passes only while it is half that wide: a name beside its vessel stands LEAD_ON (12 px) and its vessel's width off it)
+  const BESIDE = 24;
   const worst = { v: 0 };
   const dotsOnAnchors = () => {
     const live = ctl.out.filter((x) => x.kind === 'station' && !x.ghost && x.alpha > 0);
     assert.ok(live.length >= 3, `${live.length} labels measured`);
     return live.every((x) => {
       const cx = x.dot ? x.dot.x : x.x + x.w / 2, cy = x.dot ? x.dot.y : x.y + x.h / 2, lim = x.dot ? 0.5 : BESIDE;
-      const d = Math.min(...tick.map((p) => Math.hypot(p.x - cx, p.y - cy)));
+      const d = x.dot ? Math.min(...tick.map((p) => Math.hypot(p.x - cx, p.y - cy))) : Math.min(...tick.map((p) => Math.hypot(Math.max(0, x.x - p.x, p.x - x.x - x.w), Math.max(0, x.y - p.y, p.y - x.y - x.h))));
       if (!x.dot) worst.v = Math.max(worst.v, d);
       return d < lim;
     });

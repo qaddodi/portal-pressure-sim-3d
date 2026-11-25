@@ -117,21 +117,38 @@ test('the figure\'s labels and key are hidden from a screen reader (the walk spe
   assert.match(src, /aria-hidden=\{twin \? true : undefined\}/);
 });
 
-test('a station that is not one vessel, and an organ\'s name, stand where the 2D figure puts them (through the one map, frame2d.ts)', async () => {
-  const { NODE_POS_2D } = await import('../src/scene/vessels/paths.copied.ts');
+// (Before the cut-over this asked for the 2D figure's own places (NODE_POS_2D, the plate's organ names) through the one map. The placed anatomy moves the nodes and organs, so the same promise, that a
+//  station which is not one vessel names the place the figure draws, is asked of the placed figure: its node, or the nearest point of a drawn vessel the 2D app lights for it, and the organ's name
+//  anchor on the placed organ's front face.)
+test('a station that is not one vessel stands at its placed node or on a vessel lit for it, and an organ\'s name at the placed organ\'s anchor', async () => {
+  const { nodeAt, DOT_UNITS } = await import('../src/scene/labels/stations.ts');
+  const { PLACED_ORGAN_NAMES } = await import('../src/scene/anatomy/source.ts');
+  const { TARGETS_FIG } = await import('../src/scene/labels/figure2d.copied.ts');
+  const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
+  const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
   const { x3, y3 } = await import('../src/scene/frame2d.ts');
   const { Vector3 } = await import('three');
   const v = new Vector3();
-  for (const id of ['RA', 'SIN_R', 'VAR']) {
-    const [x, y] = NODE_POS_2D[id];
-    STATIONS.find((s) => s.id === id)!.at(0.5, v);
-    assert.ok(Math.abs(v.x - x3(x)) < 1e-9 && Math.abs(v.y - y3(y)) < 1e-9, `${id} stands at its 2D place`);
+  // (the right sinusoids rest on their drawn bed since 24 Nov, a vessel station like the left ones: stations.ts ON_VESSEL; the next test holds a vessel station's dot on its vessel)
+  assert.equal(STATIONS.find((s) => s.id === 'SIN_R')?.kind, 'vessel', 'the right sinusoids are named on their bed');
+  const points = STATIONS.filter((s) => s.kind === 'point');
+  assert.ok(['RA', 'VAR'].every((id) => points.some((s) => s.id === id)), 'the right atrium and the varices are named at a point');
+  for (const st of points) {
+    const id = st.id, n = nodeAt(id);
+    st.at(0.5, v);
+    const atNode = Math.hypot(v.x - n[0], v.y - n[1], v.z - n[2]) < 1e-9;
+    const onLit = ((TARGETS_FIG as Record<string, { edges?: readonly string[] }>)[id]?.edges ?? []).some((e) => {
+      const def = NETWORK_BY_ID.get(e);
+      return !!def && !def.feeder && coursesOf(def, REST)[0]!.pts.some((q) => Math.hypot(q[0]! - v.x, q[1]! - v.y, q[2]! - v.z) < 1e-9);
+    });
+    assert.ok(atNode || onLit, `${id} stands at its placed node or on a drawn vessel lit for it`);
+    // (on a lit vessel, it is the drawn point nearest its node that lies on the approved course: the fundal varices' is 0.08 off the mean of the ends that meet there; a third of the room two dots keep, DOT_UNITS)
+    assert.ok(Math.hypot(v.x - n[0], v.y - n[1], v.z - n[2]) < DOT_UNITS / 3, `${id} stands near its placed node`);
   }
-  const at = LABEL_NAMES.ORGAN_AT as Record<string, readonly [number, number]>;
   for (const s of STATIONS.filter((x) => x.kind === 'organ')) {
-    const [x, y] = at[s.name];
+    const p = (PLACED_ORGAN_NAMES as Record<string, readonly [number, number, number]>)[s.name]!;
     s.at(0.5, v);
-    assert.ok(Math.abs(v.x - x3(x)) < 1e-9 && Math.abs(v.y - y3(y)) < 1e-9, `${s.name} is named where 2D names it`);
+    assert.ok(Math.abs(v.x - x3(p[0])) < 1e-9 && Math.abs(v.y - y3(p[1])) < 1e-9 && Math.abs(v.z - p[2]) < 1e-9, `${s.name} is named at the placed organ's anchor`);
   }
 });
 

@@ -11,7 +11,10 @@ const byId = new Map(MAPPED.map((v) => [v.id, v]));
 test('the Warren and the portocaval shunt keep their own rows; a permanent vessel is never sewn; every collateral, shunt and stent that lands on a wall is, at that end', () => {
   assert.equal(shuntEnds('IVC_IS'), null, 'a vein is no sewn vessel');
   for (const id of ['S_MC', 'REX', 'TIPS', 'DIPS', 'C3', 'C9']) assert.ok(shuntEnds(id), `${id} lands on a wall and is sewn there`);
-  assert.ok(endProfile('C9', 0) && endProfile('C9', 1), 'C9 lands on the cava and on the azygos');
+  // (C9 lands on the cava; its upper end, placed, runs on into the azygos's arch as one curve (anatomy/placed-network.ts WHOLE_PIECES azygos: C9 is the azygos's lower course), so it is a run-on there and is not
+  //  sewn (tests/run-on-ends.test.ts). On the 2D figure it landed on the azygos's side wall.)
+  assert.ok(endProfile('C9', 0), 'C9 lands on the cava');
+  assert.equal(endProfile('C9', 1), null, 'C9 runs on into the azygos arch');
   assert.ok(endProfile('C3', 1), 'C3\'s far end lands on the epigastric vein\'s wall (tests/skin-grow.test.ts moves it onto the trunks\' common joint, 1.7 radii it stood off before), so it is sewn there');
   assert.deepEqual(endProfile('S_PC', 1), shuntEnds('S_PC')![1]);
   const w = shuntEnds('S_DSR')!, pc = shuntEnds('S_PC')!;

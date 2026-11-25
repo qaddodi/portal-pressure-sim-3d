@@ -7,41 +7,15 @@ import { NETWORK } from '../src/scene/vessels/network.ts';
 import { BURY, SMOOTH } from '../src/scene/vessels/smooth-joins.ts';
 import { useSettings } from '../src/state/settings.ts';
 import { opensIntoCava, ivcJoinSpan } from '../src/scene/vessels/fades.ts';
+import { connected, screenOverlaps } from './helpers/crossings.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 
 const named = (id: string) => NETWORK.find((v) => v.id === id)!;
-/** An end of `a` that lies on `b` in 3D (within their two radii): a landing. Placed, a collateral's or shunt's end is laid on its host's course where the placement puts it, not at a shared node name (C6 leaves the
- *  splenic vein where the IMV joins it; its node is SVD, the IMV's is SV), so the node names alone called those landings crossings at zero depth. */
-const landsOn = (a: (typeof NETWORK)[number], b: (typeof NETWORK)[number]) => {
-  const reach = a.radius + b.radius;
-  return [a.pts[0]!, a.pts[a.pts.length - 1]!].some((e) => b.pts.some((q, j) => {
-    const r = b.pts[j + 1]; if (!r) return Math.hypot(e[0]! - q[0]!, e[1]! - q[1]!, e[2]! - q[2]!) < reach;
-    const d = [r[0]! - q[0]!, r[1]! - q[1]!, r[2]! - q[2]!], L2 = d[0]! * d[0]! + d[1]! * d[1]! + d[2]! * d[2]! || 1;
-    const u = Math.min(1, Math.max(0, ((e[0]! - q[0]!) * d[0]! + (e[1]! - q[1]!) * d[1]! + (e[2]! - q[2]!) * d[2]!) / L2));
-    return Math.hypot(e[0]! - q[0]! - d[0]! * u, e[1]! - q[1]! - d[1]! * u, e[2]! - q[2]! - d[2]! * u) < reach;
-  }));
-};
-const connected = (a: (typeof NETWORK)[number], b: (typeof NETWORK)[number]) =>
-  a.host === b.host || a.from === b.from || a.from === b.to || a.to === b.from || a.to === b.to || SMOOTH.get(a.id)?.mate.includes(b.id) === true || SMOOTH.get(b.id)?.mate.includes(a.id) === true || landsOn(a, b) || landsOn(b, a);
-
 /** The closest the two centrelines come in depth where they overlap on the screen (null: they do not overlap). */
 function crossing(a: (typeof NETWORK)[number], b: (typeof NETWORK)[number]): { gap: number; need: number } | null {
-  const reach = a.radius + b.radius;
-  let best: number | null = null;
-  for (let i = 0; i < a.pts.length - 1; i++) {
-    for (let t = 0; t < 1; t += 0.25) {
-      const p = [0, 1, 2].map((k) => a.pts[i]![k]! + (a.pts[i + 1]![k]! - a.pts[i]![k]!) * t);
-      for (let j = 0; j < b.pts.length - 1; j++) {
-        const q0 = b.pts[j]!, q1 = b.pts[j + 1]!, dx = q1[0]! - q0[0]!, dy = q1[1]! - q0[1]!, L2 = dx * dx + dy * dy || 1;
-        const u = Math.min(1, Math.max(0, ((p[0]! - q0[0]!) * dx + (p[1]! - q0[1]!) * dy) / L2));
-        if (Math.hypot(p[0]! - (q0[0]! + dx * u), p[1]! - (q0[1]! + dy * u)) >= reach) continue;
-        const gap = Math.abs(p[2]! - (q0[2]! + (q1[2]! - q0[2]!) * u));
-        if (best === null || gap < best) best = gap;
-      }
-    }
-  }
-  return best === null ? null : { gap: best, need: 0.25 * reach };
+  const s = screenOverlaps(a, b);
+  return s.length ? { gap: Math.min(...s.map((c) => Math.abs(c.az - c.bz))), need: 0.25 * (a.radius + b.radius) } : null;
 }
 
 test('no two tubes share anything that would merge a crossing: one opaque depth-tested draw each, no stencil, and the end burial reads only the declared mates', () => {

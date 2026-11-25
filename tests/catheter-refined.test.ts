@@ -127,6 +127,18 @@ test('no kink: every route turns by less than a radian over two steps of its own
   }
 });
 
+// The BRTO of C6 went out along the whole renal vein to the kidney and came straight back to C6's mouth (a turn of pi): the copied 2D spec has C6 join the renal vein beyond the gastrorenal shunt's
+// mouth, and the placement brings it into the renal vein medially, on its piece at the cava. route-placed.ts brtoC6Placed goes out only as far as the mouth, wherever the placement puts it.
+test('the BRTO of the splenorenal shunt leaves the renal vein at the shunt\'s own mouth: the route never runs past it and back', () => {
+  const r3 = route3d('brtoC6')!, r = r3.route, shunt = r.parts.find((q) => q.name === 'shunt')!, before = r.parts[r.parts.indexOf(shunt) - 1]!;
+  const raw = r.raw3!, at = (d: number): [number, number, number] => raw[Math.max(0, r.cum.findIndex((c) => c >= d))]!;
+  const c6 = NETWORK_BY_ID.get('C6')!.pts, mouth = c6[c6.length - 1]!, end = at(before.d1);
+  assert.ok(Math.hypot(end[0] - mouth[0], end[1] - mouth[1], end[2] - mouth[2]) < 3 * NETWORK_BY_ID.get('LRV_IVC')!.radius, `the renal leg (${before.id}) ends at C6's mouth`);
+  // no stretch of the route doubles back on itself
+  const a = new Vector3(), b = new Vector3();
+  for (let d = 2; d < r.total - 2; d += 1) { r3.dir(d - 2, a); r3.dir(d + 2, b); assert.ok(a.dot(b) > -0.5, `doubles back at ${d.toFixed(0)}`); }
+});
+
 // ---- the stray hairline (owner, 20 Nov 2026: "wtf is that line from the balloon?") -------------------------------------------------------------------------------------------------------------------
 // Root cause: the balloon's two glints were allocated 8-sided (the sides fix) and still written 6-sided, so each ring filled 7 of its 9 vertex slots and the rest stayed at the origin, the figure's centre: a thin black
 // triangle from the balloon to the portal confluence. A tube's sides are now the tube's own (allocTube keeps them), so no caller can disagree, and no vertex of any catheter part may lie away from its route.

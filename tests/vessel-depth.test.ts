@@ -1,16 +1,18 @@
 // The hepatic artery runs BETWEEN the cava and the portal vein: behind the portal vein, in front of the cava (Mohammad, 20 Nov: "fix the hepatic artery to be between the IVC and PV").
 // The tiers (frame2d.ts TIER_Z) said so, but a round tube's front stands its radius in front of its axis and the cava (radius 0.027 at z -0.02) bulged past the artery (z 0, radius 0.005):
 // on screen the artery went under the cava. The vessel vertex shader now writes the axis's depth plus TUBE_DEPTH_SHARE of the bulge; these tests compute the depth it writes.
+// Since the cut-over (25 Nov) the anatomy is the approved placement: every course carries its own depth (anatomy/placed-network.ts PLACED_Z), no longer its tier's one plane, so a vessel's
+// deepest point says nothing about another vessel it crosses (the cava climbs from the pelvis to the atrium through a range of depths). The checks below were written against the tier planes
+// (a whole vessel's front against another's axis); they are restated at the crossings themselves: where two vessels overlap on the screen, the depth the shader writes there.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MAPPED } from '../src/scene/vessels/network.ts';
-import { TIER_Z } from '../src/scene/frame2d.ts';
 import { TUBE_DEPTH_SHARE, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+import { connected, screenOverlaps } from './helpers/crossings.ts';
 
 /** The depth (scene z toward the viewer) a pixel of a tube writes at `lat` of its radius from the axis (-1 to 1): the axis's depth plus the share of the round bulge the shader keeps (the twin of the vertex shader's mix). */
 const written = (z: number, r: number, lat: number): number => z + TUBE_DEPTH_SHARE * r * Math.sqrt(Math.max(0, 1 - lat * lat));
 const net = MAPPED.filter((v) => !v.feeder);
-const axisZ = (v: (typeof net)[number]): number => Math.max(...v.pts.map((p) => p[2]));
 const named = (re: RegExp) => net.filter((v) => re.test(String(v.label)));
 
 test('the vertex shader moves a tube\'s depth to its axis\'s plus a share of the bulge, along the pixel\'s own ray', () => {
@@ -19,41 +21,54 @@ test('the vertex shader moves a tube\'s depth to its axis\'s plus a share of the
   assert.ok(VESSEL_VS.indexOf('c.z = mix(') < VESSEL_VS.indexOf('gl_Position = c;'));
 });
 
+/** At every sample where `front` overlaps `back` on the screen, at every lateral position of each (-1 to 1 of its radius, `written`), the depth `front` writes is nearer than `back`'s; returns the misses and the overlap count. */
+function inFront(front: (typeof net)[number], back: (typeof net)[number], share = TUBE_DEPTH_SHARE): { n: number; miss: string[] } {
+  const miss: string[] = [], at = screenOverlaps(front, back);
+  for (const { az, bz } of at) {
+    // the nearest the back tube writes is its axis's own depth plus the whole share (lat 0); the farthest the front one writes is its axis (lat +-1)
+    const near = bz + share * back.radius, far = written(az, front.radius, 1);
+    if (!(far > near)) { miss.push(`${front.id} (axis ${az.toFixed(4)}) is not in front of ${back.id} (axis ${bz.toFixed(4)})`); break; }
+  }
+  return { n: at.length, miss };
+}
+
 test('the hepatic artery is in front of the cava and behind the portal vein, wherever they cross (every lateral position of each)', () => {
   const ivc = named(/^IVC$|^Inferior vena cava/i), art = named(/hepatic artery/i), pv = named(/^Portal vein$|^Right portal vein$|^Left portal vein$/);
   assert.ok(ivc.length >= 3 && art.length >= 3 && pv.length >= 4, `${ivc.length} cava, ${art.length} artery, ${pv.length} portal pieces`);
-  for (const a of art) for (const c of ivc) {
-    for (let i = 0; i <= 20; i++) for (let j = 0; j <= 20; j++) {
-      const la = -1 + i / 10, lc = -1 + j / 10;
-      assert.ok(written(axisZ(a), a.radius, la) > written(axisZ(c), c.radius, lc), `${a.id} (${la.toFixed(1)}) is behind ${c.id} (${lc.toFixed(1)})`);
-    }
-  }
-  for (const a of art) for (const p of pv) {
-    for (let i = 0; i <= 20; i++) for (let j = 0; j <= 20; j++) {
-      const la = -1 + i / 10, lp = -1 + j / 10;
-      assert.ok(written(axisZ(a), a.radius, la) < written(axisZ(p), p.radius, lp), `${a.id} (${la.toFixed(1)}) is in front of ${p.id} (${lp.toFixed(1)})`);
-    }
-  }
+  let overCava = 0, underPortal = 0;
+  const bad: string[] = [];
+  for (const a of art) for (const c of ivc) { const r = inFront(a, c); overCava += r.n; bad.push(...r.miss); }
+  for (const a of art) for (const p of pv) { const r = inFront(p, a); underPortal += r.n; bad.push(...r.miss); }
+  // the placed artery crosses the cava twice on the screen (the common one, the left one) and runs under the left portal vein twice (the right one, the left one)
+  assert.ok(overCava > 100 && underPortal > 100, `${overCava} samples over the cava, ${underPortal} under the portal vein: they do cross`);
+  assert.deepEqual(bad, [], bad.join('\n'));
 });
 
-test('every tier is in front of the tiers below it, whatever the tubes\' widths: the tiers\' order is the depth the shader writes (the arteries, the cava, the hepatic veins, the portal tree, the shunts)', () => {
-  const tiers = Object.keys(TIER_Z) as (keyof typeof TIER_Z)[];
-  const byTier = new Map<string, typeof net>();
-  for (const v of net) byTier.set(v.tier, [...(byTier.get(v.tier) ?? []), v]);
+test('wherever two vessels that do not join cross on the screen, the one whose axis is nearer is nearer at every lateral position of each: the share of the bulge never turns a crossing over, whatever the tubes\' widths', () => {
+  // (Before the cut-over the tiers were the depth: this asked every tier to stand in front of the tiers below it. Placed, the depth is each course's own and the tiers no longer order it, so the
+  //  same promise, that the shader's depth keeps the figure's over and under, is asked of every crossing.)
   const bad: string[] = [];
-  for (const lo of tiers) for (const hi of tiers) {
-    if (!(TIER_Z[lo] < TIER_Z[hi])) continue;
-    for (const a of byTier.get(lo) ?? []) {
-      const front = written(axisZ(a), a.radius, 0);
-      // the tube's nearest pixel is still behind the axis of every vessel of a higher tier
-      for (const b of byTier.get(hi) ?? []) if (!(front < axisZ(b))) bad.push(`${a.id} (${lo}, ${front.toFixed(4)}) is not behind ${b.id} (${hi}, axis ${axisZ(b).toFixed(4)})`);
+  let crossings = 0;
+  for (let i = 0; i < net.length; i++) for (let j = i + 1; j < net.length; j++) {
+    const a = net[i]!, b = net[j]!;
+    if (connected(a, b)) continue;
+    const at = screenOverlaps(a, b);
+    if (!at.length) continue;
+    crossings++;
+    for (const { az, bz } of at) {
+      const [f, k, fz, kz] = az > bz ? [a, b, az, bz] : [b, a, bz, az];
+      if (!(fz > kz + TUBE_DEPTH_SHARE * k.radius)) { bad.push(`${f.id} (${fz.toFixed(4)}) over ${k.id} (${kz.toFixed(4)}): its bulge (${(TUBE_DEPTH_SHARE * k.radius).toFixed(4)}) stands past`); break; }
     }
   }
+  assert.ok(crossings > 5, `${crossings} crossings`);
   assert.deepEqual(bad, [], bad.slice(0, 8).join('\n'));
 });
 
-test('the old depth (the whole bulge) put the cava in front of the hepatic artery: the failure this fixes', () => {
-  const c = named(/^IVC$/)[0]!, a = named(/hepatic artery/i)[0]!;
-  assert.ok(axisZ(c) + c.radius > axisZ(a), 'with the full bulge the cava front stood past the artery axis');
-  assert.ok(written(axisZ(c), c.radius, 0) < axisZ(a), 'with the share it is behind');
+test('the old depth (the whole bulge) would turn a crossing over: the gastrorenal shunt passes just behind the spontaneous splenorenal one (round 18), and only the share keeps it there', () => {
+  // (Before the cut-over this was the cava bulging past the hepatic artery; placed, the cava is 0.05 behind the artery and no bulge reaches it. The closest call on the placed figure is C5 under C6, 0.013 apart.)
+  const c5 = net.find((v) => v.id === 'C5')!, c6 = net.find((v) => v.id === 'C6')!;
+  assert.ok(c5 && c6, 'both shunts are drawn');
+  assert.ok(inFront(c5, c6, 1).miss.length > 0 || inFront(c6, c5, 1).miss.length > 0, 'with the full bulge one shunt stands past the other where they cross');
+  const share = inFront(c6, c5);
+  assert.ok(share.n > 0 && share.miss.length === 0, `with the share the splenorenal one is in front everywhere: ${share.miss.join('; ')}`);
 });

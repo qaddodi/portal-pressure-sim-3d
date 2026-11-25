@@ -156,11 +156,33 @@ function dipsPlaced(g: Geo3, rad: (id: string) => number): Spec {
   };
 }
 
+/** The nearest any point of `pts` comes to `q`. */
+const nearest = (pts: readonly P3[], q: readonly number[]): number => pts.reduce((m, x) => Math.min(m, dist(x, q)), Infinity);
+/** The BRTO of the spontaneous splenorenal shunt (C6) on the placed anatomy. The 2D spec (proc-routes.js brtoC6) goes out along the whole left renal vein to the kidney and back along the renal venules
+ *  (V_KID_L) to C6's mouth, because in the 2D figure C6 joins the renal vein beyond the gastrorenal shunt's mouth. The approved placement brings C6 down medial to and in front of the kidney into the
+ *  renal vein (round 14), so its mouth lies on the renal vein's piece at the cava (LRV_IVC): run as written, the catheter went out past that mouth to the kidney and came straight back (a turn of pi).
+ *  Placed, the catheter goes up the cava and out along the renal vein only as far as C6's mouth, wherever the placement puts it (on LRV_IVC, or beyond it on V_KID_L), then up the shunt. */
+function brtoC6Placed(g: Geo3): Spec {
+  const mouth = g.C6!.cur[g.C6!.cur.length - 1]!, outer = wholeOf3(g, 'V_KID_L')?.P ?? g.V_KID_L?.cur ?? [];
+  const onOuter = outer.length > 0 && nearest(outer, mouth) < nearest(g.LRV_IVC!.cur, mouth);
+  return {
+    ids: expandPieces(['ILI_IVC', 'IVC_IS', 'LRV_IVC', ...(onOuter ? ['V_KID_L'] : []), 'C6']), start: 0.55, tip: ['shunt', 0.2], focus: ['lrv', 'shunt'],
+    build(B) {
+      const bot = headOf(g, 'ILI_IVC'), lrv = g.LRV_IVC!.cur[g.LRV_IVC!.cur.length - 1]!;
+      B.pts([[bot[0] + 4, bot[1] + 150, bot[2]], [bot[0] + 1, bot[1] + 60, bot[2]], bot], 'ILI_IVC', 0);
+      B.vessel('ILI_IVC'); B.vessel('IVC_IS', { until: (q) => q[1] <= lrv[1] + 4 });
+      if (onOuter) { B.vessel('LRV_IVC', { rev: true, name: 'lrv' }); B.vessel('V_KID_L', { rev: true, near: mouth, name: 'renal' }); }
+      else B.vessel('LRV_IVC', { rev: true, near: mouth, name: 'lrv' });
+      B.vessel('C6', { rev: true, name: 'shunt' });
+    },
+  };
+}
+
 /** The route of a catheter kind laid in 3D on the drawn centrelines (route.ts routeOf, the placed anatomy). Null for a kind no spec lays. */
 export function placedRoute(kind: string, lumenRadius: (id: string, f?: number) => number): (Route & { raw3: [number, number, number][] }) | null {
   const g = geo3(), rad = (id: string): number => lumenRadius(id, 0.5);
   const k = kind === 'tipscoilin' ? 'tipscoil' : kind;
-  const spec: Spec | undefined = k === 'hvpg' ? hvpgPlaced(g) : k === 'dips' ? dipsPlaced(g, rad) : (procSpecs as (geo: Geo3, radOf: (id: string, f?: number) => number) => Record<string, Spec>)(g, lumenRadius)[k];
+  const spec: Spec | undefined = k === 'hvpg' ? hvpgPlaced(g) : k === 'dips' ? dipsPlaced(g, rad) : k === 'brtoC6' ? brtoC6Placed(g) : (procSpecs as (geo: Geo3, radOf: (id: string, f?: number) => number) => Record<string, Spec>)(g, lumenRadius)[k];
   if (!spec) return null;
   const pts: P3[] = [], radA: number[] = [], marks: number[] = [], parts: RoutePart[] = [];
   // A BRIDGE: where one leg ends a step away from where the next begins (the left renal vein's piece at the cava ends short of where the gastrorenal shunt joins the renal vein further out), the catheter

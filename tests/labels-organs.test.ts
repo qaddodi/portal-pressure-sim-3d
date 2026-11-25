@@ -11,6 +11,7 @@ import { nameSpots, NAME_ORGAN, NEAR } from '../src/scene/labels/organ2d/organ-n
 import { ORGAN_LABELS } from '../src/scene/labels/organ2d/outlines.copied.js';
 import { LABEL_NAMES } from '../src/scene/labels/names.copied.ts';
 import { STATIONS } from '../src/scene/labels/stations.ts';
+import { placedAnchor } from '../src/scene/labels/organ2d/placed-spots.ts';
 
 // the 2D plate itself as the screen: one canvas px a 2D unit, shifted
 const to = (x: number, y: number): [number, number] => [x + 40, y + 60];
@@ -24,7 +25,8 @@ test('every organ the 2D plate names has a station, at the 2D place, and the cop
 });
 
 test('a name\'s other spots are offsets from its anchor on the screen, nearest first', () => {
-  const o = spotOffsets('Spleen', [1066, 250], to);
+  // (the spots are the placed organ's, round its placed name anchor, which is what a station hands in: stations.ts organStation `at2d`; the 2D plate's anchor, (1066, 250), is the old anatomy's)
+  const o = spotOffsets('Spleen', placedAnchor('Spleen')!, to);
   assert.ok(o.length > 5);
   const d = o.map(([x, y]) => Math.hypot(x, y));
   assert.ok(d.every((v, i) => i === 0 || v >= d[i - 1] - 1e-9), 'nearest first');

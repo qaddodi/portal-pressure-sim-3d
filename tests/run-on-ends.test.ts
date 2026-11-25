@@ -53,23 +53,33 @@ test('the varix strands run on from the coronary vein: C1a is not sewn, so its s
   const lgv = coursesOf(NETWORK_BY_ID.get('LGV_CONF')!, REST)[0]!;
   assert.deepEqual([...(lgv.capless ?? [])][0], true, 'the coronary vein is open at its end');
   assert.equal(lgv.point, undefined); assert.equal(lgv.clamp?.[0] ?? null, null);
+  // (the coronary vein's width at its open end, as drawn: the placed coronary vein widens over its last stretch to meet the varices (its course's taper, 1.4 at u 0), so its end is not its nominal radius; before the
+  //  cut-over it was drawn at one width to its end and the nominal radius was that width)
+  const lgvLen = new THREE.CatmullRomCurve3(lgv.pts.map((p) => new THREE.Vector3(p[0], p[1], p[2]))).getLength(), lgvEnd = radiusAtU(lgv, 0, lgvLen);
+  assert.ok(lgvEnd >= lgv.radius, 'the coronary vein\'s open end is at least its own width');
   const v = NETWORK_BY_ID.get('C1a')!, cs = coursesOf(v, REST), { geometry, runs } = buildTubes(cs, tubularOf(v), v.radius);
   const rk = geometry.getAttribute('rk') as THREE.BufferAttribute;
   cs.slice(1).forEach((c, i) => {
     assert.equal(c.sewn, undefined, 'no sewn end');
     const len = new THREE.CatmullRomCurve3(c.pts.map((p) => new THREE.Vector3(p[0], p[1], p[2]))).getLength();
-    assert.ok(Math.abs(radiusAtU(c, 0, len) - lgv.radius) < 1e-6, `strand ${i} starts at the coronary vein's width`);
+    assert.ok(Math.abs(radiusAtU(c, 0, len) - lgvEnd) < 1e-6, `strand ${i} starts at the coronary vein's width`);
     const r0 = rk.getX(runs[i + 1]!.tubeStart) * v.radius;   // the first ring as built
-    assert.ok(Math.abs(r0 - lgv.radius) < 1e-6, `strand ${i}: first ring ${r0} vs ${lgv.radius}`);
+    assert.ok(Math.abs(r0 - lgvEnd) < 1e-6, `strand ${i}: first ring ${r0} vs ${lgvEnd}`);
   });
 });
 
-test('every other sewn end is byte-identical to what it was (the generated table, both join modes); only the varices\' start is gone', () => {
+test('every other sewn end is sewn as it was (the generated table, both join modes); only the varices\' start is gone', () => {
   const was = JSON.parse(readFileSync(new URL('./fixtures/sewn-ends-22nov.json', import.meta.url), 'utf8')) as Record<string, unknown>;
   const now: Record<string, unknown> = {};
   for (const mode of [true, false]) { setSmoothJoins(mode); for (const v of NETWORK) { const e = shuntEnds(v.id); if (e) now[`${mode ? 'smooth' : '2d'}:${v.id}`] = e; } }
   setSmoothJoins(true);
-  assert.equal(JSON.stringify(now), JSON.stringify(was));
+  // (The table was written on the 2D figure's courses; since the cut-over every end lands on the placed courses, so each sewn end's host width and direction are the placed ones. What the run-on fix must leave alone is
+  //  which ends are sewn and how (inside, sunk, flared, capped): that is compared. One end changed with the anatomy, not with the fix: the placed azygos is one curve, its lower course C9 running on into its arch
+  //  (anatomy/placed-network.ts WHOLE_PIECES azygos), so C9's upper end is a run-on and is not sewn, by the same rule.)
+  const kind = (t: Record<string, unknown>) => Object.fromEntries(Object.entries(t).map(([k, ends]) => [k, (ends as ({ inside: boolean; sink: boolean; flare: boolean; capped?: boolean } | null)[]).map((e) => e && { inside: e.inside, sink: e.sink, flare: e.flare, capped: !!e.capped })]));
+  const want = kind(was);
+  for (const m of ['smooth', '2d']) (want[`${m}:C9`] as unknown[])[1] = null;
+  assert.deepEqual(kind(now), want);
   assert.equal(now['smooth:C1a'], undefined);
   assert.ok(now['smooth:C9'], 'the azygos start\'s collateral lands on the azygos\' side wall and stays sewn');
 });

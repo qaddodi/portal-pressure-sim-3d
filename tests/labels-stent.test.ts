@@ -100,7 +100,9 @@ test('an occluded point says "No flow" and no unit; the point the Doppler sample
 });
 
 test('a phone names the points short', () => {
-  const w = world({ ...phone, w: 590, h: 1278 }, { all: true }); w.step();
+  // (the phone itself, 393 x 852: the three points stand short there on the placed figure. This ran on a screen half again as large while the placed figure's first framing left them no room on a phone;
+  //  on that one, 590 px wide, the proximal point now gives way to the names round it, the right sinusoids' and the hepatic artery's)
+  const w = world(phone, { all: true }); w.step();
   const words = ['proximal', 'mid', 'distal'].map((p) => w.byId(`TIPS:${p}`)?.word).filter(Boolean);
   assert.equal(words.length, 3, 'all three stand');
   assert.ok(words.every((x) => ['Prox', 'Mid', 'Dist'].includes(x!)), words.join());

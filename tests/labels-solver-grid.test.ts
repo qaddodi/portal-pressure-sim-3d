@@ -6,10 +6,7 @@ import assert from 'node:assert/strict';
 import { LineGrid, onLine, leaderTouches, type Line } from '../src/scene/labels/solver.ts';
 import { segsCross, type Box } from '../src/scene/labels/geometry.ts';
 import { silhouettes, onOtherOrgan } from '../src/scene/labels/organ-screen.ts';
-// @ts-ignore copied plain JS
-import { ORGANS } from '../src/scene/labels/organ2d/outlines.copied.js';
-// @ts-ignore copied plain JS
-import { flattenPath } from '../src/scene/labels/organ2d/flatten.js';
+import { PLACED_ORGAN_RINGS } from '../src/scene/anatomy/source.ts';
 // @ts-ignore copied plain JS
 import { NAME_ORGAN } from '../src/scene/labels/organ2d/organ-names.copied.js';
 
@@ -68,11 +65,8 @@ test('a grid with a line out of its reach (not finite, or longer than the grid t
 // (the plain loops of organ-screen.ts before 22 Nov: every vertex of every ring against the box, then a 5 by 3 grid against every ring's even-odd crossing count)
 const to = (x: number, y: number): [number, number] => [x * 0.9 + 40, y * 0.9 + 60];
 const OTHER = ['esophagus', 'heart', 'bowel', 'colon', 'kidney-l', 'spleen', 'stomach', 'liver'];
-const ringsOf = (id: string): [number, number][][] => {
-  const o = (ORGANS as { id: string; d?: string; ring?: string }[]).find((q) => q.id === id);
-  const polys: { pts: number[] }[] = o ? flattenPath((o.ring ?? o.d)!, 4) : [];
-  return polys.map((p) => Array.from({ length: p.pts.length / 2 }, (_, i) => to(p.pts[2 * i]!, p.pts[2 * i + 1]!))).filter((q) => q.length > 2);
-};
+// (the silhouettes are the approved placement's since the cut-over, organ-screen.ts ringsOf: the reference loops read the same rings, not the 2D plate's outlines, so the test still compares the two ways of judging one figure)
+const ringsOf = (id: string): [number, number][][] => (PLACED_ORGAN_RINGS[id] ?? []).map((q) => q.map(([x, y]) => to(x, y))).filter((q) => q.length > 2);
 const inRing = (x: number, y: number, P: [number, number][]) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i]![1] > y) !== (P[j]![1] > y) && x < ((P[j]![0] - P[i]![0]) * (y - P[i]![1])) / (P[j]![1] - P[i]![1]) + P[i]![0]) c = !c; return c; };
 const boxOnPlain = (rings: [number, number][][], b: Box): boolean => {
   for (const P of rings) for (const [x, y] of P) if (x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1) return true;
