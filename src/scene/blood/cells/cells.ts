@@ -103,7 +103,7 @@ export class BloodCells {
     if (!want && this.amount === 0) { if (this.points) this.points.visible = false; this.deps.blood.streakAmt.value = 0; return false; }
     if (want && (!this.points || this.builtPhone !== this.deps.phone())) {
       // (the first build is 10 ms: it waits one frame, so the first frame's update is not the one that pays for it. The streaks fade in from 0 anyway, so nothing shows the delay.)
-      if (!this.points && !this.firstWaited) { this.firstWaited = true; this.easing = true; return true; }
+      if (!this.points && !this.firstWaited) { this.firstWaited = true; return true; }
       this.build();
     }
     const pts = this.points, mat = this.material;
