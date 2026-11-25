@@ -10,6 +10,8 @@ import { useStates } from '../../decks/hp/calc.ts';
 import { waveVessel, packTrace, WAVE_SECS, type Trace } from './table-wave.ts';
 
 const keyOf = (d: Deck, s: Slide) => `${d.id}:${s.id}`;
+/** True when the slide is one of THIS deck's: its rows are stored under the deck's id and the slide's id, and many decks have a slide called "summary", so a table asked for with one deck's id and another deck's slide would fill that key with rows that are not the deck's own (and `asked` would never let the right ones in: Next bleed 11 showed the Outflow table's six names over bars, capture f23a4c59). */
+export const slideOfDeck = (d: Deck, s: Slide): boolean => d.slides.some((x) => x.id === s.id && x.table === s.table);
 export const useTables = create<{ rows: Record<string, ResolvedRow[]> }>(() => ({ rows: {} }));
 /** Rises when a deck's numbers arrive, so a card that waited for them reads again. */
 const asked = new Set<string>();
@@ -53,7 +55,7 @@ export const pendingRows = (d: Deck, s: Slide): ResolvedRow[] => bakedRows(d, s)
 /** Starts working out a table's rows (once per slide); the store holds them, with empty numbers first. */
 export function resolveTable(d: Deck, s: Slide): void {
   const k = keyOf(d, s);
-  if (!s.table || asked.has(k)) return;
+  if (!s.table || !slideOfDeck(d, s) || asked.has(k)) return;
   asked.add(k);
   const specs = s.table.of;
   const put = (fps: (Fp | null)[]) => useTables.setState((st) => ({ rows: { ...st.rows, [k]: specs.map((sp, j) => ({ ...rowOf(d, sp, fps[j] ?? null), ...(st.rows[k]?.[j]?.trace !== undefined ? { trace: st.rows[k]![j]!.trace } : {}) })) } }));

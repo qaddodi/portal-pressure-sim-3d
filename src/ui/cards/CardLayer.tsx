@@ -66,7 +66,7 @@ const liveCard = (slot: string): HTMLElement | null => [...document.querySelecto
 /** How long a card's measured height must stand still before the card is let in (a late row or readout shows up inside this), and the longest the cards wait for it before they come in as they are. */
 export const SETTLE_MS = 120, GIVE_UP_CARDS_MS = 8000, PANE_GIVE_UP_MS = 25000;   // (the readiness gate decides when cards come in; the 8 s is only the crash net that keeps a failed piece from hiding the talk for good, the same one the engine's numbers have: inputs-in.ts GIVE_UP_MS)
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
-interface Snap { /** the lens whose key is the data card's first row (cardKeyAt, asked with the stop the card came from) */ dkey: string | null; slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean; /** the slide's readings as they stood while the card was the current one: a card that leaves keeps its own numbers ("13 mmHg" on Ascites 12 did not turn into the next slide's as it went) */ readings: Readings }
+interface Snap { /** the deck the card was drawn for: a card that is leaving as the talk changes keeps its own deck as it keeps its own slide (the table of Next bleed 11 was asked for with Next bleed's id and the Outflow slide the card still held) */ deck: Deck; /** the lens whose key is the data card's first row (cardKeyAt, asked with the stop the card came from) */ dkey: string | null; slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean; /** the slide's readings as they stood while the card was the current one: a card that leaves keeps its own numbers ("13 mmHg" on Ascites 12 did not turn into the next slide's as it went) */ readings: Readings }
 
 /** Every card on screen: what the presenter says is up, where the planner puts it, kept through a leave and an enter. */
 export function CardLayer({ deck }: { deck: Deck }) {
@@ -371,27 +371,27 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const stacked = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   // each card draws what it was given when it came in, so a card that is leaving keeps its own words while it goes
   const snaps = snapRef.current;
-  const now: Snap = { dkey: cardKeyAt(stops, here?.from ?? pos.stop, liveKey), slide: view.slide, dslide: carried ?? view.slide, pages, at, trim, readings };
+  const now: Snap = { deck, dkey: cardKeyAt(stops, here?.from ?? pos.stop, liveKey), slide: view.slide, dslide: carried ?? view.slide, pages, at, trim, readings };
   const content = (e: Entry) => {
     // (only the card the view is on takes the view's words: for the render before a slide change reaches the stack, the card still standing is the old slide's, and must keep its own)
     if (e.phase === 'in' && (e.key === wordsKey || e.key === dataKey)) snaps[e.key] = now;
     const sn = snaps[e.key] ?? now;
     const own = sn.readings, readOwn = (k: string, at?: string) => own[at ? `${k}@${at}` : k];
     switch (e.id) {
-      case 'title': return <TitleCard deck={deck} page={sn.at} pages={sn.pages} />;
+      case 'title': return <TitleCard deck={sn.deck} page={sn.at} pages={sn.pages} />;
       case 'case': return sn.slide ? <CaseCard slide={sn.slide} page={sn.at} pages={sn.pages} /> : null;   // (a leaving card with no snapshot falls back to the view now, which on the title or the quick check has no slide: Back from slide 2 crashed the app)
-      case 'teach': return sn.slide ? <TeachingCard slide={sn.slide} deck={deck} read={readOwn} fp={own} page={sn.at} pages={sn.pages} trim={sn.trim} /> : null;
-      case 'table': return sn.dslide?.table ? <TableCard deck={deck} slide={sn.dslide} /> : sn.dslide ? <ToolCard deck={deck} slide={sn.dslide} /> : null;
+      case 'teach': return sn.slide ? <TeachingCard slide={sn.slide} deck={sn.deck} read={readOwn} fp={own} page={sn.at} pages={sn.pages} trim={sn.trim} /> : null;
+      case 'table': return sn.dslide?.table ? <TableCard deck={sn.deck} slide={sn.dslide} /> : sn.dslide ? <ToolCard deck={sn.deck} slide={sn.dslide} /> : null;
       case 'ladder': return (
         <>
-          {sn.dslide?.tiles || (sn.dslide && hasToolChart(sn.dslide)) ? <TilesHead deckId={deck.id} slideId={sn.dslide.id} onZoom={sn.dslide.tool ? zoomButton : undefined} /> : null}
+          {sn.dslide?.tiles || (sn.dslide && hasToolChart(sn.dslide)) ? <TilesHead deckId={sn.deck.id} slideId={sn.dslide.id} onZoom={sn.dslide.tool ? zoomButton : undefined} /> : null}
           {sn.dkey ? <CardKey lens={sn.dkey} /> : null}
-          {sn.dslide && hasToolChart(sn.dslide) ? <ToolCard deck={deck} slide={sn.dslide} /> : null}
-          {sn.dslide?.ladder && !sn.dslide.tool ? <LadderCard ladder={sn.dslide.ladder} readings={own} /> : sn.dslide?.tiles ? <TilesCard deckId={deck.id} slideId={sn.dslide.id} /> : null}
+          {sn.dslide && hasToolChart(sn.dslide) ? <ToolCard deck={sn.deck} slide={sn.dslide} /> : null}
+          {sn.dslide?.ladder && !sn.dslide.tool ? <LadderCard ladder={sn.dslide.ladder} readings={own} /> : sn.dslide?.tiles ? <TilesCard deckId={sn.deck.id} slideId={sn.dslide.id} /> : null}
         </>
       );
-      case 'visual': return sn.slide ? <VisualCard deck={deck} slide={sn.slide} read={readOwn} fp={own} /> : null;
-      case 'check': return <CheckCard deck={deck} page={sn.at} pages={sn.pages} />;
+      case 'visual': return sn.slide ? <VisualCard deck={sn.deck} slide={sn.slide} read={readOwn} fp={own} /> : null;
+      case 'check': return <CheckCard deck={sn.deck} page={sn.at} pages={sn.pages} />;
     }
   };
   const labelOf = (id: CardId) => ({ title: 'Talk', case: 'Case', teach: 'Slide', ladder: 'Pressures', table: 'Summary', check: 'Quick check', visual: 'Summary' })[id];
