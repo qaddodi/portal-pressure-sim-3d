@@ -46,3 +46,11 @@ test('CardFrame replaces any data card that outgrew its box, not only a kept one
   const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
   assert.match(frame, /if \(out\.grew > 1 && onOutgrown && !now\.current\.out\) \{ onOutgrown\(entry\.key\); return; \}/);
 });
+
+test('the crash net counts from the last step of the negotiation, with a hard cap behind it', () => {
+  assert.match(layer, /const progress = \[wordsHit\?\.h, wordsHit\?\.sig, dataHit\?\.h, dataHit\?\.sig, lad, fitK, pages, tight, got\?\.join\(','\)\]\.join\('\|'\)/);
+  assert.match(layer, /setLate\(pagesKey\), GIVE_UP_CARDS_MS\); return \(\) => clock\.cancel\(t\); \}, \[pagesKey, progress\]\)/);
+  assert.match(layer, /setSurveyLate\(pagesKey\), GIVE_UP_CARDS_MS\); return \(\) => clock\.cancel\(t\); \}, \[pagesKey, progress\]\)/);
+  assert.match(layer, /GIVE_UP_HARD_MS = 30000/);
+  assert.match(layer, /clock\.afterReal\(\(\) => \{ setSurveyLate\(pagesKey\); setLate\(pagesKey\); \}, GIVE_UP_HARD_MS\)/);
+});
