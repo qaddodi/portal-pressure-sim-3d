@@ -26,7 +26,6 @@ const RUN_ON_ENDS = new Set(['C1a|0', 'C1a|1', 'C1b|0', 'C2|1', 'C5|0', 'EPI_ILI
 const FAR: Readonly<Record<string, string>> = {
   'C2|0': 'the short gastric veins leave the splenic vein against its flow as drawn: the arrival moves on along the flow (joinEnd, "no hairpin, no reversal")',
   'C4|0': 'the rectal varices leave the inferior mesenteric vein against its flow as drawn: the arrival moves on along the flow (joinEnd)',
-  'C6|0': 'the spontaneous splenorenal shunt leaves the splenic vein 5 degrees beside the distal splenorenal shunt: it opens at the next main node, SV',
   'S_DSR|0': 'SVD is drawn at the short gastric veins\' take-off (they leave beside it)',
   'DIPS|1': 'the DIPS is rebuilt to the cava at the caudate lobe\'s foot',
 };
@@ -77,7 +76,44 @@ test('every collateral and shunt opens within SNAP_R of its host\'s radii of whe
   // (the spontaneous splenorenal shunt's renal end: on the renal vein, beside the distal splenorenal shunt at LRV_S, not down by the cava)
   const c6 = all.find((r) => r.key === 'C6|1');
   assert.ok(c6 && c6.host === 'lrv' && c6.along <= REACH_R * c6.R, `C6 opens on the renal vein near its frozen mouth: ${c6 ? (c6.along / c6.R).toFixed(1) : 'none'} radii`);
+  // (its splenic end: on the splenic vein at SVD beside the distal splenorenal shunt, not sent on down the vein to SV (12.7 radii, when a skin took two growing arms): placed-network.ts SIBLINGS APART)
+  const c6s = all.find((r) => r.key === 'C6|0');
+  assert.ok(c6s && c6s.host === 'sv' && c6s.along <= REACH_R * c6s.R, `C6 opens on the splenic vein near its frozen mouth: ${c6s ? (c6s.along / c6s.R).toFixed(1) : 'none'} radii`);
   // (the named ones are still as far as their reasons say: one that comes back within reach is taken off the list)
   const back = Object.keys(FAR).filter((k) => { const r = all.find((x) => x.key === k); return !r || r.along <= REACH_R * r.R; });
   assert.deepEqual(back, [], 'every named end is still far (take one that came back off FAR)');
+});
+
+// SIBLINGS APART (placed-network.ts): an end that opens beside its node's own end bows off it. The spontaneous splenorenal shunt left the splenic vein 5 degrees beside the distal one and arrived on the renal vein 14 beside it, the
+// two ran the whole way 0.022 apart centre to centre (their walls overlapping), and no skin could take both: the spontaneous one was sent on 12.7 radii down the splenic vein. Now each of its ends leaves its sibling about 60
+// degrees off it, and between the two skins the tracts are clear wall to wall.
+test('the spontaneous splenorenal shunt bows off the distal one: both ends leave it well apart, and the two tracts never touch between their mouths', () => {
+  const c6 = PLACED_EDGE_3D.C6 as readonly V[], sd = PLACED_EDGE_3D.S_DSR as readonly V[];
+  const dir = (D: readonly V[], end: 0 | 1): V => { const k = 6, a = end ? D[D.length - 1]! : D[0]!, b = end ? D[D.length - 1 - k]! : D[k]!, l = dist(a, b); return [(b[0] - a[0]) / l, (b[1] - a[1]) / l, (b[2] - a[2]) / l]; };
+  const deg = (a: V, b: V): number => (Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]))) * 180) / Math.PI;
+  for (const end of [0, 1] as const) {
+    assert.ok(dist(end ? c6[c6.length - 1]! : c6[0]!, end ? sd[sd.length - 1]! : sd[0]!) < 0.01, `end ${end}: the two open at one node`);
+    const a = deg(dir(c6, end), dir(sd, end));
+    assert.ok(a >= 55, `end ${end}: the spontaneous shunt leaves the distal one ${a.toFixed(1)} degrees off it (5 and 14 before)`);
+  }
+  const r6 = PLACED_VESSELS.C6!.r, rs = PLACED_VESSELS.S_DSR!.r, ends = [c6[0]!, c6[c6.length - 1]!];
+  const gap = Math.min(...c6.filter((p) => ends.every((e) => dist(p, e) > 3 * r6)).map((p) => nearestOn(sd, p).d));
+  assert.ok(gap > r6 + rs, `the tracts are clear wall to wall between their mouths: ${gap.toFixed(3)} centre to centre, ${(r6 + rs).toFixed(3)} of radii (0.022 before)`);
+});
+
+// C6's two mouths and the gastrorenal shunt (C5), Mohammad 25 Nov via the review of 2a54261a: the spontaneous splenorenal shunt's splenic end opens where the placement draws it (it was 0.241 down the
+// splenic vein, at the inferior mesenteric vein's mouth), its renal end stays on the renal vein, and its course never crosses or touches the gastrorenal shunt.
+test('the spontaneous splenorenal shunt opens at its drawn splenic spot, ends on the renal vein, and keeps wall to wall clear of the gastrorenal shunt', () => {
+  const c6 = PLACED_EDGE_3D.C6 as readonly V[], c5 = PLACED_EDGE_3D.C5 as readonly V[], frozen = PLACED_COURSES.C6 as readonly V[];
+  const sv = wholeCourse('sv'), r6 = PLACED_VESSELS.C6!.r, r5 = PLACED_VESSELS.C5!.r, rsv = PLACED_VESSELS.sv!.r;
+  // the splenic end: within SNAP_R splenic-vein radii (along the vein) of where the placement draws it, and ON the splenic vein's own end of the node
+  const along = Math.abs(nearestOn(sv, c6[0]!).s - nearestOn(sv, frozen[0]!).s);
+  assert.ok(along <= REACH_R * rsv, `the splenic end is ${(along / rsv).toFixed(1)} splenic-vein radii along the vein from its drawn spot (12.7 before)`);
+  assert.ok(nearestOn(sv, c6[0]!).d < 1.5 * rsv, 'the splenic end sits on the splenic vein');
+  // the renal end: on the renal vein
+  assert.ok(nearestOn(wholeCourse('lrv'), c6[c6.length - 1]!).d < 1.5 * PLACED_VESSELS.lrv!.r, 'the renal end sits on the renal vein');
+  // the whole course against the gastrorenal shunt: clear wall to wall (a junction at an end is not between them, so the ends' vicinity is left out)
+  const ends = [c6[0]!, c6[c6.length - 1]!];
+  const gap = Math.min(...c6.filter((p) => ends.every((e) => dist(p, e) > 3 * r6)).map((p) => nearestOn(c5, p).d));
+  assert.ok(gap > r6 + r5, `C6 clears the gastrorenal shunt wall to wall: ${gap.toFixed(3)} centre to centre, ${(r6 + r5).toFixed(3)} of radii`);
 });

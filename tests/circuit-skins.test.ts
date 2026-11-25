@@ -53,7 +53,7 @@ const TABLE: Record<string, readonly string[]> = {
   SVC: ['V_UP:1', 'SVC_RA_1:0', 'AZY_SVC:1'],
 };
 const GROWS: Record<string, readonly string[]> = {
-  SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], LPV: ['REX:1', 'C3:0'], IVCI: ['S_PC:1', 'C9:0'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
+  SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], LPV: ['REX:1', 'C3:0'], IVCI: ['S_PC:1', 'C9:0', 'S_MC:1'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
 };
 /** What the build leaves out of a skin: nothing now. The skins are STATIC full-size shapes (the growing arms whole, the tube's own sunk and flared end is what grows, the weld at growth 0.9 to 1), so REX (5 degrees from S_MC on SMV) and DIPS (at the merged cava node IVCS+IVC_D, six arms) are welded
  *  like the rest: the sheet started on the surface, one fold of the valley between two arms taken out by the loose collapse (mesh.ts). */
@@ -291,7 +291,8 @@ test('a growing arm\'s seam ring is a ring of the SEWN tube: its map end is sunk
       for (let q = 0; q < TUBE_RADIAL; q++) assert.ok(Math.abs(ring.rest[q]! - set.skinOf(node)!.restR[set.skinOf(node)!.seamVerts[i]![q]!]!) < 1e-9, `${node} ${cut.vesselId}: the skin's rest radius at the seam is the sewn tube's own`);
       n++;
     });
-    assert.equal(n, 17, 'the seventeen growing arms of the map (LPV\'s REX and C3 in the placed network)');
+    // (18 since 25 Nov: a skin takes three growing arms, SKIN_GROWERS, so the mesocaval shunt's cava end is IVCI's third, beside S_PC and C9; at two it was left out of the map's IVCI silently, a fork)
+    assert.equal(n, 18, 'the eighteen growing arms of the map (LPV\'s REX and C3 in the placed network, IVCI\'s S_MC)');
   } finally { scene.dispose(); setSmoothJoins(was); }
 });
 

@@ -363,9 +363,11 @@ function buildPlaced(): void {
   //  - a node only collaterals and shunts join inside a main vessel (the splenic vein's SVD, the left renal vein's LRV_S and LRV) is drawn at its own end's drawn landing (the shunt that divides the vein there, else the widest),
   //    unless an end drawn off its own node lies within SNAP_R of one of its ends: then the node moves to that end, and its skin takes it too (the short gastric veins leave the splenic vein near the hilum, beside SVD, though the
   //    engine joins them at SV: SVD is drawn at their take-off);
-  //  - an end within PARALLEL_DEG of its node's own end runs beside it: it opens at the next node downstream when a main vessel joins there (a skin with room for it), else at its own node, an arm of that node's skin;
+  //  - an end within PARALLEL_DEG of its node's own end runs beside it: it opens at its own node, an arm of that node's skin, and bows off it (SIBLINGS APART, below);
   //  - two such nodes closer than NODE_GAP_R radii are moved apart along the vein, downstream, never past a main vessel's mouth (LRV_S and LRV were 4 radii apart: one skin for both had two permanent arms and failed).
   const SNAP_R = 6, NODE_GAP_R = 10, PARALLEL_DEG = 30, PAIR_GAP_R = 5;
+  /** SIBLINGS APART (below): how far off its sibling an end beside it leaves (degrees), the share of the course from that end the bow spans, and the bow's steps and most (shares of the course's length). */
+  const SIBLING_DEG = 60, BOW_SPAN = 0.7, BOW_STEP = 0.05, BOW_MAX = 4;
   /** The shunts that divide the vein whose start is their node (skin/divide.ts DIVIDED): each opens at that node. */
   const DIVIDERS = new Set(['S_DSR|0', 'S_DSR|1']);
   const endDir = (id: string, end: 0 | 1): V3 => { const D = COURSE[id]!, k = Math.min(D.length - 1, 6); return norm(end ? sub(D[D.length - 1 - k]!, D[D.length - 1]!) : sub(D[k]!, D[0]!)); };
@@ -411,6 +413,8 @@ function buildPlaced(): void {
   const BESIDE = new Set<string>();
   interface Land { id: string; end: 0 | 1; node: string; w: string; s: number; p: V3; force?: V3; off?: boolean; keep?: boolean }
   const lands: Land[] = [];
+  /** The ends that open beside their node's own end (below), each with that end. */
+  const SIBLINGS: { o: Land; owner: Land }[] = [];
   for (const id of OWN) {
     const e = edgeById.get(id)!;
     for (const end of [0, 1] as const) {
@@ -452,15 +456,16 @@ function buildPlaced(): void {
       stops.push({ s: near ? near.s : owner.s, fixed: false, node: n, land: owner, others: at.filter((l) => l !== owner), beside: [] });
     }
     stops.sort((x, y) => x.s - y.s);
-    // (an end that leaves or arrives within PARALLEL_DEG of its node's own end runs beside it (the spontaneous and the distal splenorenal shunts, 5 degrees apart on the splenic vein, 14 on the renal vein): it opens at the next
-    //  node downstream when a main vessel joins there (a skin with room for it), else at its own node, beside the node's own end, an arm of the same skin (LRV_S builds with both shunts: tests/skin-crotch.test.ts).
+    // (an end that leaves or arrives within PARALLEL_DEG of its node's own end runs beside it (the spontaneous and the distal splenorenal shunts, 5 degrees apart on the splenic vein, 14 on the renal vein): it opens at its own
+    //  node, beside the node's own end, an arm of the same skin (LRV_S builds with both shunts: tests/skin-crotch.test.ts; SVD with both and the short gastric veins, a skin takes three growing arms), and bows off it (SIBLINGS APART).
+    //  ROOT CAUSE (C6 at SV, 25 Nov): it used to open at the next node downstream when a main vessel joins there, "a skin with room for it" (a skin took two growing arms, and SVD had the distal shunt and the short gastric
+    //  veins), so the spontaneous shunt's splenic end went 0.241 (12.7 of the vein's radii) down the splenic vein from where the placement draws it, to the inferior mesenteric vein's mouth; at its own node it is 1.6 radii from it.
     //  ROOT CAUSE (C6 on the cava, 25 Nov): it used to open on the host's wall past the next node instead, and a wall landing was kept WALL_GAP_R (22) of the host's radii from that node, so the spontaneous splenorenal shunt's
     //  mouth went 0.54 from where the placement draws it, from the renal vein (0.500, -0.035) to (-0.012, -0.223) beside the cava, and its course swept across the gastrorenal shunt just above that one's mouth (tests/overlaps.test.ts).
     //  At its own node it opens 3.7 of the renal vein's radii from its drawn landing, within SNAP_R: tests/landing-frozen.test.ts)
     for (const x of stops) for (const o of x.others) {
       if (!x.land || angleDeg(endDir(o.id, o.end), endDir(x.land.id, x.land.end)) >= PARALLEL_DEG) continue;
-      const next = stops[stops.indexOf(x) + 1];
-      if (next?.fixed) o.force = along(C, next.s); else { x.beside.push(o); BESIDE.add(`${o.id}|${x.land.id}`).add(`${x.land.id}|${o.id}`); }
+      x.beside.push(o); SIBLINGS.push({ o, owner: x.land }); BESIDE.add(`${o.id}|${x.land.id}`).add(`${x.land.id}|${o.id}`);
     }
     for (let i = 1; i < stops.length; i++) {
       const x = stops[i]!, gap = NODE_GAP_R * R;
@@ -490,6 +495,32 @@ function buildPlaced(): void {
   }
   // (then each end that must open elsewhere lands again, exactly there)
   for (const l of lands) if (l.force && len(sub(l.force, l.end ? COURSE[l.id]![COURSE[l.id]!.length - 1]! : COURSE[l.id]![0]!)) > 1e-6) branch(l.id, l.end, l.w, ownCourse(l.w), l.force);
+  // SIBLINGS APART (Mohammad, 25 Nov: every end opens where the placement draws it, smoothly). An end that opens beside its node's own end (within PARALLEL_DEG, above) leaves the host along the same line: the spontaneous
+  // splenorenal shunt left the splenic vein 5 degrees beside the distal splenorenal shunt and arrived on the renal vein 14 beside it, the two tracts ran the whole way 0.022 apart, centre to centre (their walls overlapped:
+  // their radii sum to 0.047), and no skin could take both (the seam rings stood side by side, inside the hull of the rings: skin/cuts.ts chooseCuts failed after its 40 tries, so the shunt was sent on to the next node, 12.7 of
+  // the splenic vein's radii from where the placement draws it). Each such end now bows off its sibling: the course is pushed along N, the normal of the plane of the host's axis and the sibling's heading at the mouth (on
+  // the side the end already leans to), by A L b(u), u the share of the course from that end and b(u) = u (1 - u/w)^2 out to w = BOW_SPAN (nothing at the mouth, the heading turned there, and nothing, with no turn,
+  // from w on), A the least (in steps of BOW_STEP) that turns the end SIBLING_DEG off its sibling. The mouths stay where they are (tests/landing-frozen.test.ts), the course is smooth (a polynomial, then the bend floor), and its two ends are judged
+  // apart, so a course beside its sibling at both ends (the spontaneous shunt) bows off it along its whole length, 0.055 at most (2 of its radii): wall to wall clear of its sibling, the splenic vein's skin SVD takes it as its third growing arm and LRV_S both shunts. (A bow over the whole course, w 1, bowed it 0.11 and
+  //  left a thin ridge in the crotch of SVD's part without the divided vein, 20 degrees of shade between neighbours at a far view: tests/skin-exact-normal.test.ts)
+  {
+    const bows = new Map<string, { end: 0 | 1; N: V3; sib: V3 }[]>();
+    for (const { o, owner } of SIBLINGS) {
+      const own = endDir(o.id, o.end), sib = endDir(owner.id, owner.end);
+      if (angleDeg(own, sib) >= SIBLING_DEG) continue;
+      const H = ownCourse(o.w), C = COURSE[o.id]!, ax = tangentAt(H, nearestOn(H, o.end ? C[C.length - 1]! : C[0]!).i);
+      let N = norm([ax[1] * sib[2] - ax[2] * sib[1], ax[2] * sib[0] - ax[0] * sib[2], ax[0] * sib[1] - ax[1] * sib[0]]);
+      if (dot(N, own) < 0) N = mul(N, -1);
+      bows.set(o.id, [...(bows.get(o.id) ?? []), { end: o.end, N, sib }]);
+    }
+    const b = (u: number): number => (u < BOW_SPAN ? u * (1 - u / BOW_SPAN) * (1 - u / BOW_SPAN) : 0);
+    for (const [id, es] of bows) {
+      const D = COURSE[id]!, sD = arc(D), L = sD[sD.length - 1]!, A = es.map(() => 0);
+      const bowed = (): V3[] => D.map((p, i) => es.reduce((q, e, k) => add(q, mul(e.N, A[k]! * L * b(e.end ? 1 - sD[i]! / L : sD[i]! / L))), p));
+      for (let k = 0; k < es.length; k++) while (A[k]! < BOW_MAX) { A[k] = A[k]! + BOW_STEP; COURSE[id] = bowed(); if (angleDeg(endDir(id, es[k]!.end), es[k]!.sib) >= SIBLING_DEG) break; }
+      COURSE[id] = resample(fair(bowed()), STEP);
+    }
+  }
 
   // ---- the caudate veins: three short tributaries into the cava (the pieces are cut below, so this lands on the whole cava) ----
   for (const k of ['cv1', 'cv2', 'cv3']) if (COURSE[k]) branch(k, 1, 'ivc');
