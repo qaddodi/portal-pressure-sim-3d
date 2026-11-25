@@ -24,6 +24,8 @@ import { courseOf } from '../src/scene/circuit/paths.ts';
 import { sceneToMap } from '../src/scene/circuit/map.ts';
 import { circuitWidthMap } from '../src/scene/circuit/width.ts';
 import { createRouter } from '../src/scene/circuit/router.copied.js';
+import { PLACED } from '../src/scene/anatomy/source.ts';
+import { wholeOf } from '../src/scene/anatomy/placed-network.ts';
 
 const TOL_U = 0.03, TOL_R = 1;
 type P3 = readonly [number, number, number];
@@ -103,6 +105,7 @@ function compare(label: string, two: Landing[], three: Landing[], failures: stri
   }
   // (at a node several pieces of a vein meet on one point, and the smoothing of a run-on moves a piece's own end a few units: the end must be on the closest of them, any one of those that tie)
   const near = Math.min(...two.map((l) => l.dR)), required = two.filter((l) => l.dR <= near + 0.05);
+  if (PLACED) { placedCompare(label, two, three, required, failures); return; }
   const issues = (a: Landing, b: Landing): string[] => {
     const o: string[] = [];
     if (Math.abs(a.u - b.u) > TOL_U) o.push(`${label}: on ${a.host} 2D u ${a.u.toFixed(3)}, 3D u ${b.u.toFixed(3)}`);
@@ -117,6 +120,23 @@ function compare(label: string, two: Landing[], three: Landing[], failures: stri
     else { const all = found.map((x) => issues(x.a, x.b)); if (all.every((l) => l.length)) failures.push(...all.reduce((m, l) => (l.length < m.length ? l : m))); }
   } else if (three.some((l) => l.dR <= 0.5)) failures.push(`${label}: 2D's end is free, 3D's lies on ${fmt(best(three))}`);
   for (const b of three) if (b.dR <= 0.5 && two.length && !two.some((l) => l.host === b.host)) failures.push(`${label}: the 3D end lies on ${fmt(b)}, which 2D's does not`);
+}
+
+/** Restated for the placed anatomy, the only one now (docs/approved/anatomy-placement.md): the approved placement lays every collateral and shunt on its own course, so WHERE along its host it lands
+ *  (the share u, the side, the distance across) is the placement's, no longer the 2D figure's; tests/anatomy-placed-shunts.test.ts and placed-network.test.ts pin those (the TIPS, the DIPS, the Rex, the
+ *  umbilical vein). What still holds from 2D, checked here: the end lands on the same WHOLE vein (placed-network.ts wholeOf: a vein's pieces are one vessel, so 2D's V_KID_L and 3D's LRV_IVC are both the left renal
+ *  vein), it is sewn to it (within reach of its axis in 3D, depth included: it never floats), and any other vein it touches is one that meets that vein at a node (an end at a confluence touches the veins of it). */
+function placedCompare(label: string, two: Landing[], three: Landing[], required: Landing[], failures: string[]): void {
+  const whole = (h: string): string => wholeOf(h) ?? h;
+  const nodes = (h: string): Set<string> => new Set(NETWORK.filter((v) => v.host === h || v.id === h).flatMap((v) => [v.from, v.to]));
+  const meets = (a: string, b: string): boolean => { const n = nodes(b); return [...nodes(a)].some((x) => n.has(x)); };
+  const best = (l: Landing[]) => l.slice().sort((a, b) => a.dR3 - b.dR3)[0];
+  if (required.length) {
+    const want = new Set(required.map((l) => whole(l.host))), on = three.filter((l) => want.has(whole(l.host)));
+    if (!on.length) { failures.push(`${label}: 2D lands on ${required.map(fmt).join(' / ')}; in 3D the end is on no piece of ${[...want].join('/')} (${fmt(best(three))})`); return; }
+    if (on.every((l) => l.dR3 > l.lim)) failures.push(`${label}: the 3D end floats ${best(on)!.dR3.toFixed(2)}R off ${best(on)!.host}'s axis (depth included)`);
+  } else if (three.some((l) => l.dR <= 0.5)) failures.push(`${label}: 2D's end is free, 3D's lies on ${fmt(best(three))}`);
+  for (const b of three) if (b.dR <= 0.5 && two.length && !two.some((l) => whole(l.host) === whole(b.host) || meets(l.host, b.host))) failures.push(`${label}: the 3D end lies on ${fmt(b)}, a vein that 2D's host does not meet`);
 }
 
 test('the copied 2D anchors are 2D\'s own (run with PPS_2D_REPO set to a 2D checkout at the pin)', { skip: !process.env.PPS_2D_REPO || !existsSync(`${process.env.PPS_2D_REPO}/src/ui/anatomy.js`) }, async () => {
