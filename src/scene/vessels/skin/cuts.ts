@@ -157,7 +157,11 @@ export const mergedNode = (a: string, b: string): string => `${a}+${b}`;
 
 /** One junction ready to build: its (possibly merged) junction, one cut per arm, and the vessels its skin replaces whole (their tube is not drawn at all: `skinCut` (2, -1)). */
 export interface SkinPlan { junction: SkinJunction; cuts: SkinCut[]; hidden: string[]; /** the two nodes this skin is made of, when merged */ merged?: readonly [string, string] }
-export interface SkinPlans { plans: SkinPlan[]; failures: SkinBuildError[] }
+export interface SkinPlans {
+  plans: SkinPlan[]; failures: SkinBuildError[];
+  /** the growing arms a merged skin could not carry (more than SKIN_GROWERS of its two nodes' together: the widest stay), by the node each was an arm of: they keep the tube's own flared end, named (never silently left out) */
+  dropped: { node: string; id: string; why: string }[];
+}
 
 /**
  * The cuts of every junction given, with rule 1c applied: a vessel that is an arm at two of the junctions (it starts at one node and ends at the other) must keep at least `MIN_RINGS_BETWEEN` rings between its two cuts.
@@ -166,8 +170,23 @@ export interface SkinPlans { plans: SkinPlan[]; failures: SkinBuildError[] }
  * `hullFor(junction)` gives WP2's hull check for that junction's rings.
  */
 const isWall = (j: SkinJunction): boolean => j.node.startsWith('wall:');
+/** The first vessel two plans' cuts would crowd or cross on (rule 1c: one cut at the vessel's start, the other at its end, fewer than `minBetween` rings or `MIN_STUB_R` radii of tube between them), or null. */
+function crowdOn(pa: SkinPlan, pb: SkinPlan, tubes: ReadonlyMap<string, ArmTube>, minBetween: number): { ca: SkinCut; cb: SkinCut } | null {
+  for (const ca of pa.cuts) {
+    const cb = pb.cuts.find((c) => c.vesselId === ca.vesselId && c.end !== ca.end);
+    if (!cb) continue;
+    const lo = ca.end === 0 ? ca : cb, hi = ca.end === 0 ? cb : ca;   // (the cut at the vessel's start, the cut at its end)
+    const tb = tubes.get(ca.vesselId), rr = pa.junction.arms.find((m) => m.vesselId === ca.vesselId)?.restR ?? 1;
+    if (hi.ring - lo.ring - 1 >= minBetween && !(tb && stubLengthR(tb, lo.ring, hi.ring, rr) < MIN_STUB_R)) continue;
+    return { ca, cb };
+  }
+  return null;
+}
+/** A wall's side cut `wc` may stand on the other skin's cut `oc` (the wall's seam only moves AWAY from its centre, never nearer): the two skins then abut on that ring. */
+const canAbut = (wc: SkinCut, oc: SkinCut): boolean => wc.side !== undefined && (wc.end === 1 ? oc.ring <= wc.ring : oc.ring >= wc.ring);
+
 export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>, hullFor: (j: SkinJunction) => HullOk, minBetween: number = MIN_RINGS_BETWEEN): SkinPlans {
-  const failures: SkinBuildError[] = [];
+  const failures: SkinBuildError[] = [], dropped: SkinPlans['dropped'] = [];
   const attempt = (j: SkinJunction): SkinPlan | null => {
     try { return { junction: j, cuts: chooseCuts(j, tubes, hullFor(j)), hidden: [] }; }
     catch (e) { if (e instanceof SkinBuildError) { failures.push(e); return null; } throw e; }
@@ -183,12 +202,9 @@ export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string
     for (let b = a + 1; b < js.length && !merged; b++) {
       const pb = plans[b];
       if (!pb || done.has(b)) continue;
-      for (const ca of pa.cuts) {
-        const cb = pb.cuts.find((c) => c.vesselId === ca.vesselId && c.end !== ca.end);
-        if (!cb) continue;
-        const lo = ca.end === 0 ? ca : cb, hi = ca.end === 0 ? cb : ca;   // (the cut at the vessel's start, the cut at its end)
-        const tb = tubes.get(ca.vesselId), rr = pa.junction.arms.find((m) => m.vesselId === ca.vesselId)?.restR ?? 1;
-        if (hi.ring - lo.ring - 1 >= minBetween && !(tb && stubLengthR(tb, lo.ring, hi.ring, rr) < MIN_STUB_R)) continue;
+      const crowd = crowdOn(pa, pb, tubes, minBetween);
+      if (crowd) {
+        const { ca, cb } = crowd;
         // two skins would crowd or cross on this vessel: one skin for both nodes
         merged = true; done.add(a); done.add(b);
         const A = js[a]!, B = js[b]!;
@@ -198,9 +214,21 @@ export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string
           // ...unless the two seams can be ONE ring: the other skin's cut is a ring the wall's own seam may stand on (the wall's seam only moves AWAY from its centre, never nearer), so the skins abut on that ring (identical seam, no tube between them) and the host is
           // skin all the way along (S_PC and C9 on the cava's first stretch, IVCI's seam and the wall node's own both at ring 3)
           const [wc, oc] = wallPlan === pa ? [ca, cb] : [cb, ca];
-          if (wc.side !== undefined && (wc.end === 1 ? oc.ring <= wc.ring : oc.ring >= wc.ring)) {
-            const moved: SkinCut = { ...wc, ring: oc.ring, u: oc.u };
-            out.push(otherPlan, { ...wallPlan, cuts: wallPlan.cuts.map((c) => (c === wc ? moved : c)) });
+          if (canAbut(wc, oc)) {
+            // ...and so for every OTHER skin the wall's cuts crowd: it is marked done with this one and never compared again, so a second skin it crowds (its host's other node, the other side of the landing) is checked here.
+            // Each one it can abut too it abuts (skin all the way along); one it cannot keeps its skin, and the landing keeps the tube's own flared end, named
+            const first: SkinCut = { ...wc, ring: oc.ring, u: oc.u };
+            let cuts = wallPlan.cuts.map((c) => (c === wc ? first : c)), bad: string | null = null;
+            for (let c = 0; c < js.length && !bad; c++) {
+              const pc = plans[c];
+              if (c === a || c === b || !pc) continue;
+              const hit = crowdOn({ ...wallPlan, cuts }, pc, tubes, minBetween);   // (a wall has two side cuts: one abuts `other`, so at most the other one is left to crowd)
+              if (!hit) continue;
+              if (hit.ca !== first && canAbut(hit.ca, hit.cb)) cuts = cuts.map((x) => (x === hit.ca ? { ...x, ring: hit.cb.ring, u: hit.cb.u } : x));
+              else bad = `${w.node} abuts the skin of ${other.node} but crowds the skin of ${js[c]!.node} on ${hit.ca.vesselId}`;
+            }
+            if (bad) { failures.push(new SkinBuildError(w.node, bad)); out.push(otherPlan); break; }
+            out.push(otherPlan, { ...wallPlan, cuts });
             break;
           }
           // ...or the landing is INSIDE the other skin's reach (REX on the left portal vein lands where LPV_A's skin, held 8 radii out the host by the branch beside it and the umbilical vein, is): its growing arm is an arm of that skin, starting at its own landing (`at`)
@@ -220,20 +248,20 @@ export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string
           out.push(otherPlan);
           break;
         }
-        // the growing arms of both nodes ride along, but a skin morphs at most SKIN_GROWERS of them: the widest stay, the rest keep today's fork method (spec 10.2)
-        const rest = [...A.arms, ...B.arms].filter((m) => m.vesselId !== ca.vesselId);
-        const arms = [...rest.filter((m) => !m.grow).sort((x, y) => y.restR - x.restR), ...rest.filter((m) => m.grow).sort((x, y) => y.restR - x.restR).slice(0, SKIN_GROWERS)];
+        // the growing arms of both nodes ride along, but a skin takes at most SKIN_GROWERS of them: the widest stay, the rest keep the tube's own flared end (spec 10.2), each named in `dropped`
+        const rest = [...A.arms, ...B.arms].filter((m) => m.vesselId !== ca.vesselId), growing = rest.filter((m) => m.grow).sort((x, y) => y.restR - x.restR);
+        const arms = [...rest.filter((m) => !m.grow).sort((x, y) => y.restR - x.restR), ...growing.slice(0, SKIN_GROWERS)];
         const node = mergedNode(A.node, B.node);
+        for (const g of growing.slice(SKIN_GROWERS)) dropped.push({ node: (A.arms.includes(g) ? A : B).node, id: g.vesselId, why: `${node}: more than ${SKIN_GROWERS} growing arms after the merge (the widest stay)` });
         const permanent = arms.filter((m) => !m.grow).length;
         if (permanent > MERGED_MAX_PERMANENT || permanent < 3 || arms.length > MERGED_MAX_ARMS) { failures.push(new SkinBuildError(node, `${permanent} permanent arms and ${arms.length - permanent} growing ones after the merge (3 to ${MERGED_MAX_PERMANENT} permanent, at most ${MERGED_MAX_ARMS} in all)`)); break; }
         const J: Vec3 = [(A.J[0] + B.J[0]) / 2, (A.J[1] + B.J[1]) / 2, (A.J[2] + B.J[2]) / 2];
         const mj: SkinJunction = { node, J, arms };
         try { out.push({ junction: mj, cuts: chooseCuts(mj, tubes, hullFor(mj)), hidden: [ca.vesselId], merged: [A.node, B.node] }); }
         catch (e) { if (e instanceof SkinBuildError) failures.push(e); else throw e; }
-        break;
       }
     }
     if (!merged) { out.push(pa); done.add(a); }
   }
-  return { plans: out, failures };
+  return { plans: out, failures, dropped };
 }

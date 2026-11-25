@@ -15,7 +15,18 @@ test('upright table heads turn by transform, not writing-mode', () => {
 });
 
 test('"No ascites" cell stays inside its columns', () => {
-  assert.match(css, /td\.none \{[^}]*white-space: nowrap[^}]*overflow: clip/);
+  // (audit 1161e159, iPhone 440 px, Where is the resistance 12: the table's name column keeps the room of its longest word, "Schistosomiasis" 15 letters, 0.62 em each + 20 px = about 169 px; the card is 424 px wide less its
+  //  padding, so nine value columns share about 227 px: 25 px each, 50 px for the two "No ascites" spans. The one line at 12 px is about 58 px: 8 px past the cell, cut. It stands on two lines instead.)
+  const rule = /td\.num\.none \{([^}]*)\}/.exec(css)![1];
+  assert.match(rule, /white-space: normal/);
+  assert.doesNotMatch(rule, /nowrap/);
+  assert.match(rule, /text-wrap: balance/);
+  assert.match(rule, /font-size: 12px/, 'the type keeps its size');
+  assert.match(rule, /overflow: clip/);
+  // the longest word of the two lines must fit the two columns at the phone's narrowest table
+  const name = 15 * 0.62 * 16 + 20, table = 424 - 28, cols = 9, span = ((table - name) / cols) * 2;
+  assert.ok(span >= 7 * 6 + 2, `"ascites" (7 letters of about 6 px) fits ${Math.round(span)} px`);
+  assert.ok(span < 58, 'and the one-line form did not: that is why it wraps');
 });
 
 test('a signed change is proportional, and an equation sign is infix (slides 9.2 and 3, 187c7e53)', () => {

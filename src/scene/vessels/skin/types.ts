@@ -63,8 +63,10 @@ export interface SkinMesh {
   seamVerts: Uint32Array[];           // per arm: the skin vertex ids of its seam ring, in the tube's ring order j = 0..RADIAL
 }
 
-/** The most growing arms one skin takes whole (spec 10.2: at most 2 per skin; with more, the 2 widest are welded and the rest keep their sunk and flared ends). */
-export const SKIN_GROWERS = 2;
+/** The most growing arms one skin takes whole (spec 10.2; with more, the widest are welded and the rest keep their sunk and flared ends, each named in SkinSet.dropped). Nothing limits it but the six arms of a skin and its parts: since 21 Nov
+ *  nothing morphs (one static full-size shape, the weld of plain.ts hands it over) and no shader has a slot per grower; a skin with g growers bakes its 2^g - 2 parts (plain.ts partSets). 3 since 25 Nov: the splenic vein's SVD
+ *  takes the distal splenorenal shunt, the short gastric veins and the spontaneous splenorenal shunt, which at 2 was sent on 12.7 radii down the vein to SV (anatomy/placed-network.ts SIBLINGS APART). */
+export const SKIN_GROWERS = 3;
 
 /** The tube's `skinCut` uniform when nothing is cut: no u is below -1 or above 2, so every branch it guards is a no-op and the picture is today's (spec section 3, WP4). */
 export const SKIN_CUT_NONE: readonly [number, number] = [-1, 2];

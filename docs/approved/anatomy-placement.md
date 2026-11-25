@@ -40,6 +40,7 @@ Status: Mohammad approved the mock on 24 Nov ("i like the mock now"; "let's impl
 - **Oesophageal varices:**
   - C1a and C1b run on the oesophagus's right front wall.
   - They then make one wide bend above the heart into the top of the azygos arch (round 14).
+  - **One run along the oesophagus (Mohammad, 25 Nov: "make the esophageal varices one vein not two ... I want the 3 varices on the esophageal"):** the three strands run unbroken from the cardia to where the vein turns off the oesophagus toward the azygos (height 1.50), and gather only there. They no longer pinch together mid-oesophagus (height 1.40, the engine's VAR station). In the placement the coronary vein's course (C1a, the strands' vessel) is carried on along the drain (C1b) to that height (placed-network.ts); the engine's two edges and their numbers are unchanged.
   - **Width follows pressure (Mohammad, 25 Nov: "the varices need to more prominent/thick with such high pressure"):** on top of the size, the varix's wall pressure thickens the strands: nothing under 10 mmHg, whole by 15, then about twice the width of the left gastric vein that feeds them (shape.ts `varixPressRamp`, `VARIX_PRESS_THICK` 1.9). They still lie on the oesophagus without touching each other, and a band still closes them to the same thin cord.
 - **Splenorenal shunts:** the spontaneous and distal shunts come down medial to and in front of the kidney into the renal vein, never through it (round 14).
 - **Caudate lobe (round 15, plan question 3):**

@@ -161,8 +161,8 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
      the heads laid out by that rule AND turned by the one below, letters sideways in a row, reversed) */
   .pz .pz-table.dk-pztable thead tr.th-up th.num { writing-mode: horizontal-tb; rotate: none; position: relative; height: calc(var(--hl, 4) * .62em + .8em); padding: 0; }
   .pz .pz-table.dk-pztable thead tr.th-up th.num > .hd { position: absolute; left: calc(50% + .5em); bottom: .4em; line-height: 1; white-space: nowrap; transform-origin: 0 100%; transform: rotate(-90deg); }
-  /* "No ascites" spans the two narrow SAAG and protein columns: it is centred and sized to them, never past the table's edge (slide 13, 187c7e53). The selector carries `.num` so it stands above `td.num { font-size: var(--s-body) }`, which won on an upright iPad and cut "No ascites" at the edge (Sites and causes 13, capture af88a9c2). */
-  .pz-table td.num.none { font-size: 12px; white-space: nowrap; text-align: center; padding-inline: 0; overflow: clip; }
+  /* "No ascites" spans the two narrow SAAG and protein columns: it is centred in them and, where the name column (its longest word) leaves them under 58 px between them, stands on two lines, "No" over "ascites", at the same 12 px (Where is the resistance 12 on a 440 px phone: nine value columns of 25 px, the one line was 8 px past the cell and cut, audit 1161e159), never past the table's edge (slide 13, 187c7e53). The selector carries `.num` so it stands above `td.num { font-size: var(--s-body) }`, which won on an upright iPad and cut "No ascites" at the edge (Sites and causes 13, capture af88a9c2). */
+  .pz-table td.num.none { font-size: 12px; white-space: normal; text-wrap: balance; line-height: 1.1; text-align: center; padding: 0; overflow: clip; }
 }
 
 /* The timeline chart's button in the bar (owner picked option A, 23 Nov 2026): it is a `.tl-pin` like Compare (a label on a Mac and an iPad held sideways, an icon elsewhere), but it stays on an iPad upright, where

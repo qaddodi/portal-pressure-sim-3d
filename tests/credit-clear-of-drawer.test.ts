@@ -36,6 +36,6 @@ test('footClear: touching or inside is covered, a gap is clear', () => {
 
 test('Credit.tsx asks it for a phone on its side and fades the line (covered), never pops it', () => {
   const src = readFileSync('src/ui/shell/Credit.tsx', 'utf8');
-  assert.match(src, /isSideways\(vw, vh\) \|\| \(!document\.querySelector\('\.dk-card \.pz-cred'\) && footClear\(/);
+  assert.match(src, /isSideways\(vw, vh\) \? !document\.querySelector\('\.dk-card \.pz-cred'\) && footShown\(/);
   assert.match(src, /classList\.toggle\('covered', !clear\)/);
 });

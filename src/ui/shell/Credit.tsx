@@ -72,7 +72,7 @@ function figureLabels(): { l: number; t: number; r: number; b: number }[] {
  *  on the HVPG slides it printed over the words of the card. A corner that these cover rises above them, as it does above a bar. */
 const CARDS = '.pz-shade, .pz-data, .pz-case, .pz-panel';
 const CARD_ART = 'canvas, img, svg, .pz-tool, .pz-tile, .pz-tiles, .pz-sitetab, .pz-kick, button';
-function cardContent(vw: number, vh: number): { l: number; t: number; r: number; b: number }[] {
+function cardContent(vw: number, vh: number, edges = true): { l: number; t: number; r: number; b: number }[] {
   const out: { l: number; t: number; r: number; b: number }[] = [];
   const add = (r: DOMRect) => { if (r.width >= 1 && r.height >= 1 && r.right > 0 && r.bottom > 0 && r.left < vw && r.top < vh) out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom }); };
   const range = document.createRange();
@@ -87,10 +87,16 @@ function cardContent(vw: number, vh: number): { l: number; t: number; r: number;
     }
     // the card's own edge (its border and rounded corners) is a line the credit keeps off too: it stood in the top padding of the HVPG cards with its glyphs touching the border
     const c = card.getBoundingClientRect();
-    if (c.width > 4 && c.height > 4) for (const e of [new DOMRect(c.left, c.top, c.width, 2), new DOMRect(c.left, c.bottom - 2, c.width, 2), new DOMRect(c.left, c.top, 2, c.height), new DOMRect(c.right - 2, c.top, 2, c.height)]) add(e);
+    if (edges && c.width > 4 && c.height > 4) for (const e of [new DOMRect(c.left, c.top, c.width, 2), new DOMRect(c.left, c.bottom - 2, c.width, 2), new DOMRect(c.left, c.top, 2, c.height), new DOMRect(c.right - 2, c.top, 2, c.height)]) add(e);
     for (const a of card.querySelectorAll<HTMLElement>(CARD_ART)) { if (!a.closest('[hidden]')) add(a.getBoundingClientRect()); }
   }
   return out;
+}
+
+/** Whether the credit's line stands clear for good in the screen's foot band: clear of the boxes asked for (a talk's cards, strip and pill) AND of every line of every card's words and every picture, chart and button on a card, whatever the card is
+ *  (capture 2a54261a: on the outline card, which stands centred and reaches the band, the line printed over its last lines). The card's own edge is not counted: the line may stand a few px into a card's foot padding. */
+function footShown(at: { x: number; y: number }, w: number, h: number, vw: number, vh: number, boxes: string | null): boolean {
+  return footClear(at, w, h, [...(boxes ? shownBoxes(boxes, vw, vh) : []), ...cardContent(vw, vh, false)]);
 }
 
 /** The credit's fade (ms), the same as the CSS transition in chrome-3d.css. */
@@ -118,11 +124,19 @@ export function Credit() {
       const lay = layoutOf(vw, vh);
       // (an upright iPad too, where its foot band under the cards is free: the hunt floated it over the figure, across vessels and the scope's lens, in five of six slides of capture af88a9c2; where a card reaches the band, the hunt as before)
       const foot = footCredit({ vw, vh, safe: vp.safe, h, margin: margin(vw, vh, lay) });
-      if (talk && (lay === 'wide' || lay === 'short' || (lay === 'tab' && footClear(foot, w, h, shownBoxes('.dk-strip, .dk-card, .dk-bar', vw, vh))))) {
+      if (talk && (lay === 'wide' || lay === 'short' || (lay === 'tab' && footShown(foot, w, h, vw, vh, '.dk-strip, .dk-card, .dk-bar')))) {
         const at = foot;
         clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
         // a phone on its side: a words card carries the credit in its own foot (CardFrame .pz-cred), so the floating line fades while one is up, and while any card stands on its row
-        const clear = !isSideways(vw, vh) || (!document.querySelector('.dk-card .pz-cred') && footClear(at, w, h, shownBoxes('.dk-strip, .dk-card', vw, vh)));
+        const clear = isSideways(vw, vh) ? !document.querySelector('.dk-card .pz-cred') && footShown(at, w, h, vw, vh, '.dk-strip, .dk-card') : footShown(at, w, h, vw, vh, null);
+        el.classList.toggle('covered', !clear); el.classList.remove('moving'); el.classList.add('placed'); at0 = at; shown = clear; if (clear) creditClaim.set({ x: at.x, y: at.y, w, h }); else creditClaim.set(null);
+        return;
+      }
+      // An iPhone held upright: a words card carries the credit in its own foot row (CardFrame .pz-cred; the floating line is hidden while one is up, chrome-3d.css). A slide with no words card (its one card is a table) has no row,
+      // so the line stands in the screen's foot band, the one place, never a hunt: the hunt found bare glass in the middle of the table card (HVPG 14, headless 440x736, 25 Nov). Where a card, the pill or a drawer is on that band it stays hidden.
+      if (talk && lay === 'stack' && !document.querySelector('.dk-card .pz-cred')) {
+        const at = foot, clear = footShown(at, w, h, vw, vh, '.dk-strip, .dk-card, .dk-bar');
+        clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
         el.classList.toggle('covered', !clear); el.classList.remove('moving'); el.classList.add('placed'); at0 = at; shown = clear; if (clear) creditClaim.set({ x: at.x, y: at.y, w, h }); else creditClaim.set(null);
         return;
       }

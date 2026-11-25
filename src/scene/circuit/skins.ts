@@ -19,7 +19,7 @@ import { NETWORK, NETWORK_BY_ID, cutEnd, type NetVessel } from '../vessels/netwo
 import { REST, coursesOf, tubularOf } from '../vessels/shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../vessels/tubes.ts';
 import { indexOf } from '../../engine/vessel-data.ts';
-import { GROW_REACH, MAX_ARMS, MIN_ARMS, PHASE_2_NODES, SKIN_REACH, growerEndsByNode, permanentEndsByNode } from '../vessels/skin/inventory.ts';
+import { GROW_REACH, MAX_ARMS, MIN_ARMS, PHASE_2_NODES, declaredRuns, SKIN_REACH, growerEndsByNode, permanentEndsByNode } from '../vessels/skin/inventory.ts';
 import { armPresenceAt, hiWeightAt, lensUAt, type HiState } from '../vessels/skin/arm-twins.ts';
 import { armWalk, planSkins, type ArmTube, type HullOk } from '../vessels/skin/cuts.ts';
 import { PACES, buildSkinSteady, hullCovers } from '../vessels/skin/mesh.ts';
@@ -327,7 +327,7 @@ export class CircuitSkinSet {
     const j = plan.junction, objs = j.arms.map((a) => this.deps.vessel(a.vesselId));
     if (objs.some((o) => !o)) return null;
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
-    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, bridgeStart(a, plan.hidden, j.J), a.side ? armWalk(a, tb.tubular).from : undefined, false); }), j.arms.map((a) => !!a.grow));
+    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, bridgeStart(a, plan.hidden, j.J), a.side ? armWalk(a, tb.tubular).from : undefined, false); }), j.arms.map((a) => !!a.grow), declaredRuns(j.arms));
     if (ready) this.paces.set(j.node, ready.pace);
     else if (j.surface) this.paces.set(j.node, PACES.length - 1);   // (meshed from the surface from the start: no hull to fold)
     // a junction with growing arms is built STILL (as the Anatomy's, skin-set.ts): they are whole arms of one static shape, the arms that stay get a static plain trunk of their own, and the tube's own sunk and flared end is what grows; the weld hands over at growth 0.9 to 1

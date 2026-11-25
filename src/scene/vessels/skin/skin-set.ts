@@ -13,12 +13,12 @@
 // (a drag makes 60 a second) cost nothing: they set the same flag, and the rebuild reads the shape of the moment it runs. A skin whose rebuild took more than SKIN_BUILD_SLOW_MS is rebuilt on every other frame while marks keep coming, and once more after the last one.
 // `skin-build` is the name the scene gives the clock for the frames this asks for (?perf lists it among the askers), and `stats` keeps the cost of the last and the worst rebuild.
 import type { BufferGeometry, Color, Object3D } from 'three';
-import { NETWORK_BY_ID } from '../network.ts';
+import { NETWORK, NETWORK_BY_ID } from '../network.ts';
 import { REST, seamState, type ShapeState } from '../shape.ts';
 import { PIN_MARGIN, type Pin } from '../coil.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { attachNear, nearLandings, wallJunctions, wallLandings } from './wall.ts';
-import { MIN_ARMS, dropFarGrowers, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
+import { MIN_ARMS, declaredRuns, dropFarGrowers, growerEndsByNode, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
 import { BULGE_AIM, BULGE_MAX, PACES, buildSkinSteady, hullCovers, onWall, worstBulge } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
@@ -384,8 +384,10 @@ export class SkinSet {
     const made: Built[] = [], lost: { node: string; message: string }[] = [];
     let todo: SkinJunction[] = [...js];
     const latest = new Map<string, SkinJunction>(js.map((j) => [j.node, j]));   // (the junction of each node as it was last planned: growing arms dropped included)
+    const mergedOut = new Map<string, string>();   // (node:vessel -> why: the growing arms a merged skin could not carry)
     for (let round = 0; todo.length && round <= SKIN_GROWERS + 2; round++) {
-      const { plans, failures } = this.plan(todo, tubes);
+      const { plans, failures, dropped } = this.plan(todo, tubes);
+      for (const d of dropped) mergedOut.set(`${d.node}:${d.id}`, d.why);
       const again = new Map<string, string>();   // (node -> why: the junctions to try again with one growing arm fewer)
       const bad: { nodes: readonly string[]; message: string }[] = failures.map((f) => ({ nodes: f.node.split('+'), message: f.message }));
       for (const p of plans) {
@@ -428,6 +430,13 @@ export class SkinSet {
       for (const j of todo) latest.set(j.node, j);
     }
     for (const j of todo) lost.push({ node: j.node, message: `skin: junction ${j.node}: no skin after ${SKIN_GROWERS + 2} rounds of dropping growing arms` });
+    // a growing arm no skin made carries (a merged skin takes the widest SKIN_GROWERS of its two nodes': cuts.ts planSkins `dropped`) is named too, never silently left out: it keeps the tube's own flared end
+    for (const j of js) for (const a of j.arms) {
+      if (!a.grow || made.some((m) => m.mesh?.junction.arms.some((x) => x.grow && x.vesselId === a.vesselId && x.end === a.end))) continue;
+      const k = `${j.node}:${a.vesselId}`;
+      if (this.dropped.includes(k) || lost.some((l) => l.node.split('+').includes(j.node))) continue;
+      this.dropped.push(k); this.why[k] = mergedOut.get(k) ?? 'no skin made carries it';
+    }
     return { made, lost };
   }
 
@@ -448,9 +457,9 @@ export class SkinSet {
     // fails to build, 0.55 makes IMV bulge): each skin with growing arms is built at the least widening in NECK_FRACTIONS whose mesh builds and stays inside BULGE_MAX; one that none satisfies keeps the least bulging that built. A skin that is within the limit
     // at no widening (every one but those two today) is built once, as before.
     const rawAt = (f: number): ArmAxis[] => j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, a.at ?? j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined, a.grow ? f : 0); });
-    const axesAt = (f: number): ArmAxis[] => weldThrough(rawAt(f), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
+    const axesAt = (f: number): ArmAxis[] => weldThrough(rawAt(f), j.arms.map((a) => !!a.grow), declaredRuns(j.arms));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     // A part without a divided vein's start (plain.ts `leave`): the shunt that stands for the rest of the vein IS the run's other half, so it is no branch here and the run goes through it (through.ts `skip` false for it), one straight capsule from the vein's seam to the shunt's.
-    const leaveAxesAt = (keep: readonly number[], f: number): ArmAxis[] => { const raw = rawAt(f); return weldThrough(keep.map((i) => raw[i]!), keep.map((i) => !!j.arms[i]!.grow && !j.arms.some((x) => x.leaves === j.arms[i]!.vesselId))); };
+    const leaveAxesAt = (keep: readonly number[], f: number): ArmAxis[] => { const raw = rawAt(f); return weldThrough(keep.map((i) => raw[i]!), keep.map((i) => !!j.arms[i]!.grow && !j.arms.some((x) => x.leaves === j.arms[i]!.vesselId)), declaredRuns(keep.map((i) => j.arms[i]!))); };
     if (ready) this.paces.set(j.node, ready.pace);
     if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
     // a junction with growing arms is built STILL: they are whole arms of one static shape (the welded skin), and the arms that stay get a static skin of their own (the plain trunk); the tube's own flared end is what grows, and the weld hands over at growth 0.9 to 1
@@ -615,6 +624,8 @@ export class SkinSet {
     const nodes = skinNodesForPhase(phase);
     // phase 2 also builds every node a collateral or a shunt lands on (spec 10.2); phase 1 (the confluence alone) has none of them
     const all: SkinJunction[] = findSkinJunctions().filter((j) => nodes.has(j.node) || (phase === 2 && (j.arms.some((a) => a.grow || isLiverBranch(NETWORK_BY_ID.get(a.vesselId)!))))).map((j) => (phase === 1 ? withoutGrowers(j) : j)).filter((j): j is SkinJunction => !!j);
+    // (a growing end at a node whose skin had no room for it (more than SKIN_GROWERS, or six arms in all: inventory.ts findSkinJunctions) is named too, never silently left out)
+    if (phase === 2) { const at = growerEndsByNode(NETWORK, true); for (const j of all) for (const g of at.get(j.node) ?? []) if (!j.arms.some((a) => a.grow && a.vesselId === g.v.id && a.end === g.end)) this.dropped.push(`${j.node}:${g.v.id}`); }
     // a collateral or shunt whose end lies farther from J than SKIN_REACH is on a host's side, not at the node: it is left out of the skin (named in `dropped`), and never takes the node's skin with it
     const farGone: { node: string; id: string }[] = [];
     const near = all.map((j) => { const d = dropFarGrowers(j); for (const id of d.far) farGone.push({ node: j.node, id }); return d.junction; }).filter((j) => j.arms.length >= MIN_ARMS);

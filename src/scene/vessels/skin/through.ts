@@ -16,6 +16,11 @@ import { sdArm, type Capsule } from './sdf.ts';
 /** Two arms are a through run when their outward directions at the node are within this many degrees of opposite. */
 export const THROUGH_DEG = 35;
 const THROUGH_COS = -Math.cos((THROUGH_DEG * Math.PI) / 180);
+/** The most a run the NETWORK declares (RUN_ONS: two vessels that run on into each other at a node, inventory.ts `declaredRuns`) may be off straight and still be one vessel through the skin. The angle that is measured is only the seam-to-far chord of each half, which moves
+ *  with where the seam rings are cut (a DIPS leaving the portal fork 0.22 further out turned the right portal vein's chord by 4 degrees, from 34 to 39 off straight, and the portal trunk stopped running into it: the fork became a three-way hub, a ball), so
+ *  for a declared pair it is a sanity limit, not the rule: past it the two are a real bend (a branch) whatever the network says. */
+export const DECLARED_THROUGH_DEG = 60;
+const DECLARED_COS = -Math.cos((DECLARED_THROUGH_DEG * Math.PI) / 180);
 
 const sub = (a: readonly number[], b: readonly number[]): number[] => [a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!];
 const len = (v: readonly number[]): number => Math.hypot(v[0]!, v[1]!, v[2]!);
@@ -25,17 +30,19 @@ function outward(a: ArmAxis): number[] {
   return [d[0]! / l, d[1]! / l, d[2]! / l];
 }
 
-/** For each arm the index of the arm it runs through the node with, or -1: the most nearly opposite pairs first, each arm in at most one pair. */
+/** For each arm the index of the arm it runs through the node with, or -1: the pairs the network declares as one vessel (`declared`, arm index pairs, within DECLARED_THROUGH_DEG of straight) first, then the rest by angle (within THROUGH_DEG of opposite), the most nearly
+ *  opposite first in each, each arm in at most one pair. */
 /** `skip[i]`: arm i never runs through (a growing arm, a collateral or a shunt, comes and goes: it is a branch, whatever way it leaves). */
-export function throughMates(axes: readonly ArmAxis[], skip: readonly boolean[] = []): number[] {
+export function throughMates(axes: readonly ArmAxis[], skip: readonly boolean[] = [], declared: readonly (readonly [number, number])[] = []): number[] {
   const mate = axes.map(() => -1), dir = axes.map(outward);
-  const pairs: { i: number; j: number; dot: number }[] = [];
+  const pairs: { i: number; j: number; dot: number; decl: boolean }[] = [];
+  const isDecl = (i: number, j: number): boolean => declared.some(([a, b]) => (a === i && b === j) || (a === j && b === i));
   for (let i = 0; i < axes.length; i++) for (let j = i + 1; j < axes.length; j++) {
     if (skip[i] || skip[j]) continue;
-    const dot = dir[i]![0]! * dir[j]![0]! + dir[i]![1]! * dir[j]![1]! + dir[i]![2]! * dir[j]![2]!;
-    if (dot < THROUGH_COS) pairs.push({ i, j, dot });
+    const dot = dir[i]![0]! * dir[j]![0]! + dir[i]![1]! * dir[j]![1]! + dir[i]![2]! * dir[j]![2]!, decl = isDecl(i, j);
+    if (dot < (decl ? DECLARED_COS : THROUGH_COS)) pairs.push({ i, j, dot, decl });
   }
-  pairs.sort((a, b) => a.dot - b.dot);
+  pairs.sort((a, b) => (a.decl === b.decl ? a.dot - b.dot : a.decl ? -1 : 1));
   for (const p of pairs) if (mate[p.i] < 0 && mate[p.j] < 0) { mate[p.i] = p.j; mate[p.j] = p.i; }
   return mate;
 }
@@ -51,8 +58,8 @@ export const ENTER_REACH_R = 3;
 
 /** The axes with the through runs welded: each run's two arms carry `mate` and are one straight capsule from seam to seam (2 above). A side vein (an arm in no run, not a growing one, at a node that has a run) starts where it enters the trunk
  *  (3 above); arms at a node with no run are returned as they are. */
-export function weldThrough(axes: readonly ArmAxis[], skip: readonly boolean[] = []): ArmAxis[] {
-  const mate = throughMates(axes, skip);
+export function weldThrough(axes: readonly ArmAxis[], skip: readonly boolean[] = [], declared: readonly (readonly [number, number])[] = []): ArmAxis[] {
+  const mate = throughMates(axes, skip, declared);
   // the run: each half's capsule goes from the other half's seam (a straight run between the two seams, radius tapering between them) out through its own seam to its far point
   const runs: ArmAxis[] = axes.map((a, i) => {
     const m = mate[i]!;

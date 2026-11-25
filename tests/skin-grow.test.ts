@@ -38,18 +38,19 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
  *  and the meso-Rex meet its end, LPV. */
 const GROWERS_PLACED: Record<string, readonly string[]> = {
   SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], LPV: ['REX:1', 'C3:0'],
-  IVCI: ['S_PC:1', 'C9:0'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
+  IVCI: ['S_PC:1', 'C9:0', 'S_MC:1'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
   SV: ['C2:0'], IMV: ['C4:0'], SMV_R: ['C7:0'],
 };
-/** Placed: the arms each node's own skin leaves out, named, each welded elsewhere for a reason a person can read: SV:C2 (the short gastric veins leave beside SVD and are an arm of its skin), SVD:C6 (the spontaneous
- *  splenorenal shunt leaves the splenic vein 5 degrees beside the distal one, so it opens at SV; on the renal vein it opens at LRV_S beside the distal one, an arm of that skin: placed-network.ts, tests/landing-frozen.test.ts), IVCI:C9 and IVCI:S_PC (their wall skin on the cava, as today), LPV:C3 and LPV:REX (the LPV's end fades, so the umbilical
- *  vein and the Meso-Rex bypass open on its wall where the placement draws them: one wall skin). None keeps the tube's flared end: the TIPS is welded at both ends (RHV_SPLIT 10). */
-const DROPPED_PLACED = ['IVCI:C9', 'IVCI:S_PC', 'LPV:C3', 'LPV:REX', 'SV:C2', 'SVD:C6'];
+/** Placed: the arms each node's own skin leaves out, named, each welded elsewhere for a reason a person can read: SV:C2 (the short gastric veins leave beside SVD and are an arm of its skin), IVCI:C9, IVCI:S_PC and IVCI:S_MC (their wall skins
+ *  on the cava and the iliac vein, as today; S_MC, IVCI's third grower, was left out of it silently while a skin took two), LPV:C3 and LPV:REX (the LPV's end fades, so the umbilical vein and the Meso-Rex bypass open on its wall where the
+ *  placement draws them: one wall skin). None keeps the tube's flared end: the TIPS is welded at both ends (RHV_SPLIT 10). (SVD:C6 is gone, 25 Nov: the spontaneous splenorenal shunt opens at SVD beside the distal one, bowed off it, SVD's
+ *  third growing arm, not 12.7 radii on at SV: placed-network.ts SIBLINGS APART, tests/landing-frozen.test.ts.) */
+const DROPPED_PLACED = ['IVCI:C9', 'IVCI:S_MC', 'IVCI:S_PC', 'LPV:C3', 'LPV:REX', 'SV:C2'];
 const GROWERS = GROWERS_PLACED;
 const DROPPED = DROPPED_PLACED;
-/** Placed: the growing arms every skin is built with, welded static full-size arms (the wall skins on the cava, the iliac and the renal vein, wall.ts; the short gastric veins on SVD's skin and the spontaneous splenorenal shunt on SV's, wall.ts nearLandings). */
+/** Placed: the growing arms every skin is built with, welded static full-size arms (the wall skins on the cava, the iliac and the renal vein, wall.ts; the short gastric veins on SVD's skin, wall.ts nearLandings, beside both splenorenal shunts). */
 const WELDED_PLACED: Record<string, readonly string[]> = {
-  IMV: ['C4:0'], SV: ['C6:0'], SVD: ['S_DSR:0', 'C2:0'], LRV_S: ['C6:1', 'S_DSR:1'], EPI: ['C3:1'], SVC: ['C1b:1'], SMV: ['S_MC:0', 'REX:0'], IVC_D: ['DIPS:1'], SMV_R: ['C7:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'],
+  IMV: ['C4:0'], SVD: ['C6:0', 'S_DSR:0', 'C2:0'], LRV_S: ['C6:1', 'S_DSR:1'], EPI: ['C3:1'], SVC: ['C1b:1'], SMV: ['S_MC:0', 'REX:0'], IVC_D: ['DIPS:1'], SMV_R: ['C7:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'],
   'wall:IVC_IS_1:S_PC1,C90': ['S_PC:1', 'C9:0'], LRV: ['C5:1'], 'wall:ILI_IVC_1:S_MC1': ['S_MC:1'], 'wall:PVH_L_1:REX1,C30': ['REX:1', 'C3:0'],
 };
 // (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
@@ -58,7 +59,7 @@ const WELDED_PLACED: Record<string, readonly string[]> = {
 const PLAIN_FAILED: string[] = [];   // (LPV_A's plain trunk builds now)
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;
 
-test('the growing arms are the single-tube collaterals and shunts, pinned by node; the braided collaterals are not arms; at most two per skin, after the permanent arms, widest first', () => {
+test('the growing arms are the single-tube collaterals and shunts, pinned by node; the braided collaterals are not arms; at most SKIN_GROWERS (3) per skin, after the permanent arms, widest first', () => {
   on(() => {
     const js = findSkinJunctions().filter((j) => j.arms.some((a) => a.grow)), by = Object.fromEntries(js.map((j) => [j.node, j.arms.filter((a) => a.grow).map(armKey)]));
     assert.deepEqual(by, GROWERS);
@@ -87,7 +88,7 @@ test('the growing arms are the single-tube collaterals and shunts, pinned by nod
 test('a collateral that lands on the wall (more than GROW_REACH radii from the node) is not an arm of it, and the node keeps its permanent skin; a run-on pair with no collateral left is no junction', () => {
   on(() => {
     const ivci = findSkinJunctions().find((j) => j.node === 'IVCI')!, d = dropFarGrowers(ivci);
-    assert.deepEqual(d.far.sort(), ['C9', 'S_PC'], 'the shunt that ends 5.9 radii down the cava and the azygos collateral (8.9)');
+    assert.deepEqual(d.far.sort(), ['C9', 'S_MC', 'S_PC'], 'the shunt that ends 5.9 radii down the cava, the azygos collateral (8.9) and the mesocaval shunt on the iliac vein');
     assert.deepEqual(d.junction.arms.map((a) => a.vesselId), ['IVC_IS_1', 'ILI_IVC_1', 'LRV_IVC']);
     assert.equal(dropFarGrowers(d.junction).junction, d.junction, 'nothing more to drop');
     assert.equal(withoutGrowers(findSkinJunctions().find((j) => j.node === 'SMV')!), null, 'SMV is a run-on pair with two shunts on it: without them it is no junction');
@@ -297,7 +298,7 @@ test('every welded skin and its plain trunk are one complementary pair: modes +1
   const b = built();
   try {
     const plains = b.set.plainDraws();
-    assert.ok(plains.length >= 5, 'the real network has plain trunks');
+    assert.ok(plains.length >= 4, 'the real network has plain trunks');   // (4 since 25 Nov: SV has no growing arm now, the spontaneous splenorenal shunt is SVD's, whose three growers have parts, not a plain trunk)
     // the welded skin of each plain trunk: the live draw whose node has one
     for (const d of b.draws) {
       const node = nodeOf(d), plain = b.set.plainOf(node);
