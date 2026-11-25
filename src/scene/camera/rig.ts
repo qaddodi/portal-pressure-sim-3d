@@ -32,6 +32,8 @@ export const softLimit = (x: number, lim: number): number => {
   const a = Math.abs(x), k = 0.7 * lim;
   return a <= k ? x : Math.sign(x) * (k + (lim - k) * Math.tanh((a - k) / (lim - k)));
 };
+/** A turn kept in (-π, π]: the same direction, the short way round. */
+export const wrapTurn = (x: number): number => (Math.abs(x) <= Math.PI ? x : x - 2 * Math.PI * Math.round(x / (2 * Math.PI)));
 /** The tilt after a drag of `dy` CSS pixels (down = positive): the top of the figure comes toward the viewer. */
 export const dragToPitch = (start: number, dy: number): number => start + dy * ORBIT_PER_PX;
 
@@ -552,10 +554,11 @@ export class CameraRig {
     if (homeTurn) this.orbitTo = 0;
   }
 
-  /** Limited orbit by drag, ±25°, clamped. Returns true when it changed (a frame is needed). */
+  /** Orbit by drag: ±25° clamped, or all the way round in free exploration. Returns true when it changed (a frame is needed). */
   setOrbit(rad: number): boolean {
     if (this.inspectOn_) { if (rad === this.inspectYaw && !this.inspectGoal) return false; this.inspectYaw = rad; this.inspectGoal = null; this.dirty = true; return true; }   // (the inspector's turn has no limit)
-    const o = softLimit(rad, ORBIT_LIMIT);
+    // free exploration (the body and the lobule, not in a talk): a full turn all the way round the vertical axis, no stop (owner, 25 Nov: "allow me to tilt more, 360 in horizontal axis"); the angle is kept in (-180°, 180°] so Fit's spring takes the short way home. Elsewhere ±25° with the soft stop.
+    const o = this.free ? wrapTurn(rad) : softLimit(rad, ORBIT_LIMIT);
     if (o === this.orbit) return false;
     this.orbit = o; this.orbitFrom = o; this.orbitTo = o; this.dirty = true;
     return true;

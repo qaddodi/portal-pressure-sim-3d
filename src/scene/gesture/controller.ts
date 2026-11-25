@@ -1,4 +1,4 @@
-import { ORBIT_PER_PX, dragToOrbit, dragToPitch, orbitHome } from '../camera/rig.ts';
+import { ORBIT_PER_PX, dragToOrbit, wrapTurn, dragToPitch, orbitHome } from '../camera/rig.ts';
 import { ORBIT_LIMIT } from '../camera/shots.ts';
 import { CAM_MS_MAX, type View, carried, camMs, createGlideTracker, easeMove, lerpView, springSlope } from './ease.ts';
 import { FLICK, runFlick } from './flick.ts';
@@ -13,7 +13,7 @@ import { createWheelGlide, isPadWheel } from './wheel-glide.ts';
 // independent review: a spring-back undid the angle the viewer chose); it goes home to the shot only on Fit, a second tap on the view pill or the 0 key (refit),
 // and a new shot (a slide, a catheter step, another view) eases it home with the move (camera/rig.ts).
 //
-//   one finger / mouse drag        turn the figure (±25°, with momentum); Shift, middle button: pan
+//   one finger / mouse drag        turn the figure (±25°, or all the way round in free exploration; with momentum); Shift, middle button: pan
 //   two fingers                    pinch to zoom and pan together: the point under the midpoint stays under it
 //   one finger after a pinch       carries on as a pan (never a tap, never thrown)
 //   trackpad two-finger scroll     pan        trackpad pinch (and Ctrl or ⌘ + wheel)   zoom about the pointer
@@ -214,7 +214,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       v *= Math.pow(FLICK.decay, dt);
       const o = host.orbit() + v * dt;
       host.setOrbit(o);
-      if (!host.holdTurn?.() && Math.abs(o) >= ORBIT_LIMIT) v *= Math.pow(FLICK.brake, dt / 16);
+      if (!host.holdTurn?.() && !host.free?.() && Math.abs(o) >= ORBIT_LIMIT) v *= Math.pow(FLICK.brake, dt / 16);
       if (Math.abs(v) > 0.00006) orbitId = env.ask(step);
     };
     orbitId = env.ask(step);
@@ -226,7 +226,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   function orbitToShot() {
     stopOrbitHome();
     if (host.holdTurn?.()) return;   // (the inspector holds the turn: only its own Reset brings it home)
-    const o0 = host.orbit(), p0 = host.orbitPitch?.() ?? 0;
+    const o0 = wrapTurn(host.orbit()), p0 = host.orbitPitch?.() ?? 0;
     if (o0 === 0 && p0 === 0) return;
     if (env.reduceMotion()) { host.setOrbit(0); host.setOrbitPitch?.(0); return; }
     const t0 = env.now();

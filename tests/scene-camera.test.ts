@@ -108,6 +108,15 @@ test('orbit is limited to 25 degrees either way and the lens is long\'', () => {
   assert.equal(FOV, 14);   // the long lens (owner's decision B, 19 Nov)
 });
 
+test('in free exploration the turn goes all the way round the vertical axis (owner, 25 Nov: 360°) and is kept the short way home; outside it stays at ±25°', () => {
+  const rig = new CameraRig('free'); rig.freeGate = () => true;
+  rig.setOrbit(Math.PI / 2); assert.equal(rig.orbitAngle, Math.PI / 2, 'past 25° it follows the hand');
+  rig.setOrbit(Math.PI + 0.5); assert.ok(Math.abs(rig.orbitAngle - (0.5 - Math.PI)) < 1e-9, 'past 180° it comes round the other side');
+  rig.setOrbit(4 * Math.PI + 0.3); assert.ok(Math.abs(rig.orbitAngle - 0.3) < 1e-9, 'whole turns are the same angle');
+  rig.freeGate = () => false; rig.setOrbit(Math.PI / 2);
+  assert.ok(Math.abs(rig.orbitAngle) <= ORBIT_LIMIT, 'not free: the soft ±25°');
+});
+
 test('a new shot always starts square on: the orbit eases back to centre with the move', () => {
   const rig = new CameraRig('free');
   rig.resize(800, 600);
