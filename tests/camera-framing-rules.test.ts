@@ -95,3 +95,19 @@ test('F1: the Budd-Chiari frame holds the hepatic veins and the caudate lobe who
   for (const s of ['dx', 'ladder', 'anticoag', 'agent', 'response', 'alf', 'hcc']) { const shot = shotOfSlide('budd-chiari', s); need(`budd-chiari/${s} caudate`, shot, caudate); need(`budd-chiari/${s} hepatic veins`, shot, hv); }
   for (const [d, s] of [['doppler', 'a5'], ['tips-doppler', 'left'], ['tips-doppler', 'warn']] as const) { const shot = shotOfSlide(d, s); need(`${d}/${s} stent`, shot, stent); need(`${d}/${s} left portal vein`, shot, lpv); }
 });
+
+// ---- F5: not too close ----
+import { CLOSE_UPS, CONTEXT_FLOOR } from '../src/decks/hp/cams.ts';
+const VEIN_UNITS = 0.08;   // a vein's width in scene units (radius 0.04)
+
+test('F5: no frame is tighter than the context floor and no vein is wider than a sixth of the room\'s short side, except the declared close-ups; and each close-up still needs its place', () => {
+  const need = new Set<string>(), bad: string[] = [];
+  for (const [, deck] of decks) for (const v of bodyViews(deck)) {
+    const slide = v.at.replace(/#\d+$/, '');
+    const under = Math.max(v.shot.half[0], v.shot.half[1]) < CONTEXT_FLOOR - 1e-9;
+    const over = DEVICES.some((dv) => VEIN_UNITS * scaleOn(v.shot, dv).pxu > Math.min(dv.room.w, dv.room.h) / 6);
+    if (under || over) { if (CLOSE_UPS.includes(slide)) need.add(slide); else bad.push(`${v.at}${under ? ' under the floor' : ''}${over ? ' vein over the cap' : ''}`); }
+  }
+  assert.deepEqual(bad, [], 'an undeclared close-up');
+  assert.deepEqual([...need].sort(), [...CLOSE_UPS].sort(), 'every declared close-up is one');
+});

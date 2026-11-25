@@ -112,6 +112,9 @@ export const FRAME_FIXES: Readonly<Record<string, FrameFix>> = {
   'tips-doppler/left': { was: 'liver', cam: LPV_STENT, floor: 0.55 },
   'tips-doppler/warn': { was: 'liver', cam: LPV_STENT, floor: 0.55 },
 };
+/** FRAMING RULE F5: the declared close-ups, the only slides allowed a frame under the context floor (its longer half under CONTEXT_FLOOR) or a vein wider than a sixth of the room's short side. Mohammad, 25 Nov: "do it" to keeping all four, and to say if the baseline should pull back.
+ *  A slide not listed that falls under either limit fails tests/camera-framing-rules.test.ts; a slide listed that no longer needs it fails the same test. (The nearest distance, NEAR 2.8, already stops the very smallest boxes at a vein 105 px wide on a Mac, 98 px on a phone.) */
+export const CLOSE_UPS: readonly string[] = ['tips-complete/baseline', 'tips-doppler/jet', 'varices/burst'];
 /** The camera a slide asks for and the floor it keeps: the fix's, when the slide has one and the copied camera is still the one it replaces. */
 export function slideCam(deck: string, slide: string, cam: CopiedSlide['cam']): { cam: CopiedSlide['cam']; floor: number } {
   const f = FRAME_FIXES[`${deck}/${slide}`];
