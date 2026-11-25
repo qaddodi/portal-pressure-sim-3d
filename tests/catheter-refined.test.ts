@@ -123,9 +123,7 @@ test('no kink: every route turns by less than a radian over two steps of its own
     const r3 = route3d(kind)!, r = r3.route, step = r3.rc * U * 1.2;
     let worst = 0;
     for (let d = step; d < r.free - step; d += step) { r3.dir(d - step, a); r3.dir(d + step, b); worst = Math.max(worst, Math.acos(Math.min(1, a.dot(b)))); }
-    // (the BRTO of the spontaneous splenorenal shunt turns off the renal vein into the shunt at the junction itself: the shunt leaves its distal sibling 60 degrees off it at its renal mouth since 25 Nov, placed-network.ts SIBLINGS APART,
-    //  because a skin cannot take two shunts closer, 55 and 50 failed the LRV_S and SVD skins; the turn there is the junction's own, 1.14 rad (1.05 before), so that one route is allowed 1.2)
-    assert.ok(worst < (kind === 'hvpg' || kind === 'tips' ? 0.5 : kind === 'brtoC6' ? 1.2 : 1.1), `${kind}: sharpest turn ${worst.toFixed(2)} rad`);
+    assert.ok(worst < (kind === 'hvpg' || kind === 'tips' ? 0.5 : 1.1), `${kind}: sharpest turn ${worst.toFixed(2)} rad`);
   }
 });
 

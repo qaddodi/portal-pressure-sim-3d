@@ -120,7 +120,7 @@ function smooth3(pts: P3[], rad: number[], marks: number[]): { P: P3[]; raw: P3[
 }
 
 interface LegOpts { rev?: boolean; a?: number; b?: number; until?: ((q: P3) => boolean) | null; near?: readonly number[] | null; from?: readonly number[] | null; name?: string; r?: number }
-interface Builder { pts(list: (P2 | P3)[], id: string, f: number, name?: string): void; vessel(id: string, o?: LegOpts): void }
+interface Builder { arc?(corner: P3, to: P3): void; pts(list: (P2 | P3)[], id: string, f: number, name?: string): void; vessel(id: string, o?: LegOpts): void }
 interface Spec { ids: string[]; start: number; tip: (string | number)[]; focus: string[]; build(B: Builder): void; after?(r: Route): void }
 
 const headOf = (g: Geo3, id: string): P3 => (wholeOf3(g, id)?.P ?? g[id]!.cur)[0]!;
@@ -162,7 +162,9 @@ const nearest = (pts: readonly P3[], q: readonly number[]): number => pts.reduce
  *  (V_KID_L) to C6's mouth, because in the 2D figure C6 joins the renal vein beyond the gastrorenal shunt's mouth. The approved placement brings C6 down medial to and in front of the kidney into the
  *  renal vein (round 14), so its mouth lies on the renal vein's piece at the cava (LRV_IVC): run as written, the catheter went out past that mouth to the kidney and came straight back (a turn of pi).
  *  Placed, the catheter goes up the cava and out along the renal vein only as far as C6's mouth, wherever the placement puts it (on LRV_IVC, or beyond it on V_KID_L), then up the shunt. */
-function brtoC6Placed(g: Geo3): Spec {
+/** How many lumen radii before the renal vein's mouth the BRTO route starts to turn into it (and as far into it it ends the turn). */
+const EASE_R = 1.5;
+function brtoC6Placed(g: Geo3, radOf: (id: string) => number): Spec {
   const mouth = g.C6!.cur[g.C6!.cur.length - 1]!, outer = wholeOf3(g, 'V_KID_L')?.P ?? g.V_KID_L?.cur ?? [];
   const onOuter = outer.length > 0 && nearest(outer, mouth) < nearest(g.LRV_IVC!.cur, mouth);
   return {
@@ -170,9 +172,14 @@ function brtoC6Placed(g: Geo3): Spec {
     build(B) {
       const bot = headOf(g, 'ILI_IVC'), lrv = g.LRV_IVC!.cur[g.LRV_IVC!.cur.length - 1]!;
       B.pts([[bot[0] + 4, bot[1] + 150, bot[2]], [bot[0] + 1, bot[1] + 60, bot[2]], bot], 'ILI_IVC', 0);
-      B.vessel('ILI_IVC'); B.vessel('IVC_IS', { until: (q) => q[1] <= lrv[1] + 4 });
-      if (onOuter) { B.vessel('LRV_IVC', { rev: true, name: 'lrv' }); B.vessel('V_KID_L', { rev: true, near: mouth, name: 'renal' }); }
-      else B.vessel('LRV_IVC', { rev: true, near: mouth, name: 'lrv' });
+      // (EASED ENTRY into the renal vein: the catheter leaves the cava EASE_R lumen radii below the renal vein's mouth on it and joins the renal vein as far out, along a curve whose control is the corner, so the turn
+      //  from the cava into the renal vein, 1.15 to 1.3 rad taken at a point, is spread over the junction's lumen. The route's sharpest turn is here, not at the shunt: a route that is longer or shorter after it
+      //  resamples every point, and the corner was only under tests/catheter-refined.test.ts's 1.1 by the luck of the grid)
+      const R = radOf('LRV_IVC') * EASE_R, lrvOut = g.LRV_IVC!.cur.slice().reverse(), outside = lrvOut.find((q) => dist(q, lrv) >= R) ?? lrv;
+      B.vessel('ILI_IVC'); B.vessel('IVC_IS', { until: (q) => q[1] <= lrv[1] + 4 || dist(q, lrv) < R });
+      B.arc?.(lrv, outside);
+      if (onOuter) { B.vessel('LRV_IVC', { rev: true, from: outside, name: 'lrv' }); B.vessel('V_KID_L', { rev: true, near: mouth, name: 'renal' }); }
+      else B.vessel('LRV_IVC', { rev: true, from: outside, near: mouth, name: 'lrv' });
       B.vessel('C6', { rev: true, name: 'shunt' });
     },
   };
@@ -182,7 +189,7 @@ function brtoC6Placed(g: Geo3): Spec {
 export function placedRoute(kind: string, lumenRadius: (id: string, f?: number) => number): (Route & { raw3: [number, number, number][] }) | null {
   const g = geo3(), rad = (id: string): number => lumenRadius(id, 0.5);
   const k = kind === 'tipscoilin' ? 'tipscoil' : kind;
-  const spec: Spec | undefined = k === 'hvpg' ? hvpgPlaced(g) : k === 'dips' ? dipsPlaced(g, rad) : k === 'brtoC6' ? brtoC6Placed(g) : (procSpecs as (geo: Geo3, radOf: (id: string, f?: number) => number) => Record<string, Spec>)(g, lumenRadius)[k];
+  const spec: Spec | undefined = k === 'hvpg' ? hvpgPlaced(g) : k === 'dips' ? dipsPlaced(g, rad) : k === 'brtoC6' ? brtoC6Placed(g, rad) : (procSpecs as (geo: Geo3, radOf: (id: string, f?: number) => number) => Record<string, Spec>)(g, lumenRadius)[k];
   if (!spec) return null;
   const pts: P3[] = [], radA: number[] = [], marks: number[] = [], parts: RoutePart[] = [];
   // A BRIDGE: where one leg ends a step away from where the next begins (the left renal vein's piece at the cava ends short of where the gastrorenal shunt joins the renal vein further out), the catheter
@@ -206,6 +213,11 @@ export function placedRoute(kind: string, lumenRadius: (id: string, f?: number) 
     bridges.push(best.id);
   };
   const B: Builder = {
+    arc(corner, to) {
+      // a quadratic Bezier from where the last leg stopped, its control the corner, to `to`: the turn spreads over the junction's lumen
+      const from = pts[pts.length - 1]!, at = (t: number): P3 => [0, 1, 2].map((c) => (1 - t) * (1 - t) * from[c]! + 2 * t * (1 - t) * corner[c]! + t * t * to[c]!) as P3, rr = radA[radA.length - 1]!;
+      for (let i = 1; i < 8; i++) { pts.push(at(i / 8)); radA.push(rr); }
+    },
     pts(list, id, f, name = 'lead') {
       marks.push(pts.length); parts.push({ id: null, name, fa: 0, fb: 0, d0: 0, d1: 0 });
       const zRef = (list.find((q) => q.length > 2) as P3 | undefined)?.[2] ?? 0;
