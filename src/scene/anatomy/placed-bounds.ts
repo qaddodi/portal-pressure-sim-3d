@@ -134,7 +134,12 @@ const radiusOf = (id: string): number => PLACED_VESSELS[PLACED_COURSES[id] ? id 
  *  framed as figure (Mohammad, 25 Nov, a desktop screenshot: "bottom needs to have less margin"). tests/camera-fit-margin.test.ts pins this number to the live tube. */
 export const RECTUM_SEEN_Y = -1.63;
 /** The placed 3D box of one name: an organ or organ part (PLACED_ORGAN_BOX), an engine edge, a whole-vessel key (rhvb, rpva, cv1, ...), or a topology node. Null: no such name. */
+/** The esophagus is framed up to where its top fade is all but gone (a tenth of its ink: organ-art.ts esoA runs from whole at 2D y 40 to nothing
+ *  at y -40, so a tenth at y -32). Its baked box stops at the plate's top, where the fade is only half done, and the whole-figure Fit cut the faded
+ *  top off under the top bar (Mohammad, 25 Nov, iPhone: "not including part of the esophagus on top. Give it more"). */
+export const ESO_SEEN_Y = (556 + 32) / 300;
 export function placedBoxOfName(n: string): Box3 | null {
+  if (n === 'esophagus-seen') { const e = PLACED_ORGAN_BOX.esophagus; return e ? [e[0], e[1], e[2], e[3], Math.max(e[4], ESO_SEEN_Y), e[5]] : null; }
   if (n === 'colon-seen') { const c = PLACED_ORGAN_BOX.colon; return c ? [c[0], Math.max(c[1], RECTUM_SEEN_Y), c[2], c[3], c[4], c[5]] : null; }
   const organ = PLACED_ORGAN_BOX[n];
   if (organ) return organ;
@@ -280,4 +285,4 @@ export const FIGURE_NAMES: readonly string[] = [
 
 /** What the whole figure shows as its body, placed: the organs (the esophagus down to the colon), without the vessels. The whole-figure frames (free play, a talk's overview, the Fit button) are framed on this, centred on it: the thin vein ends that stand a little past it
  *  (the superior vena cava's top, 0.11 units above the esophagus) need no room of their own (Mohammad, 25 Nov: "it doesn't look centered", measured by tests/camera-fit-margin.test.ts on the organs' silhouette). */
-export const VISIBLE_FIGURE_NAMES: readonly string[] = ['liver', 'stomach', 'esophagus', 'spleen', 'kidney-l', 'heart', 'duodenum', 'bowel', 'colon-seen'];
+export const VISIBLE_FIGURE_NAMES: readonly string[] = ['liver', 'stomach', 'esophagus-seen', 'spleen', 'kidney-l', 'heart', 'duodenum', 'bowel', 'colon-seen'];

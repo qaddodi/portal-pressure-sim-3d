@@ -45,6 +45,7 @@ import { reduced } from '../ui/a11y/motion.ts';
 import { D_SMALL, EASE_ARRIVE } from '../ui/motion.ts';
 import { K_MAX, zoomLimits } from './gesture/view.ts';
 import { SHOTS } from './camera/shots.ts';
+import { wholeShot } from './camera/whole.ts';
 import { circuitShot } from './circuit/shots.ts';
 import { type GestureTarget, createGestures } from './gesture/controller.ts';
 import { type Sel, selectStructure, useSelection } from '../ui/action/selection.ts';
@@ -80,7 +81,7 @@ export { vesselData };
  * The hand view that frames the whole figure here (the body's play shot, the Circuit's whole map) seen from the shot now up: what the zoom limits and a zoomed-out view's
  * resting place are measured on. Null when the shot is that, or the view has none.
  */
-const wholeHome = () => (cel.view === 'body' ? cel.rig.wholeView(SHOTS.play) : cel.view === 'circuit' ? cel.rig.wholeView(circuitShot(cel.circuit.upright)) : null);
+const wholeHome = () => (cel.view === 'body' ? cel.rig.wholeView(wholeShot(cel.disease.fluidGoalMl)) : cel.view === 'circuit' ? cel.rig.wholeView(circuitShot(cel.circuit.upright)) : null);
 
 const isPhone = () => Math.min(innerWidth, innerHeight) < 500;
 

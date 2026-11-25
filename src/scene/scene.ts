@@ -267,6 +267,8 @@ export class CelScene {
   healthyP: Float32Array | null = null;
   /** A dive waiting for the micro views (goTo), with the room it will land in. */
   heldDive: { shot: ShotName | Shot; room: Room; ms?: number; ease?: (k: number) => number } | null = null;
+  /** The whole-figure shot the camera was last sent to (the Fit, free play's body), or null while it is on any other shot: parts/camera.ts followWhole keeps it fitted to what is drawn. */
+  wholeOn: Shot | null = null;
   /** A dive waits (or stops waiting). A wait that passes 300 ms shows the one calm cue (ui/shell/wait-cue.ts, splash plan A7), so the held dive is never a silent blank; a short one shows nothing. */
   holdCue: Cue | null = null;
   /** The tracing has settled and the free reading is taken (the deck's catheter clock reached it): only then does the FHVP callout come. True when the caller says nothing (a catheter that is not the deck's). */

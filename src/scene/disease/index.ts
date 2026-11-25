@@ -90,6 +90,8 @@ export class DiseaseLayer {
 
   /** The ascites volume shown now (mL, eased): the abdominal wall the paracentesis needle crosses follows it. */
   get fluidMl(): number { return this.fluid.shown; }
+  /** The ascites volume the patient is going to (mL, not eased): what the whole-figure Fit frames (camera/whole.ts), so the camera moves once as the water comes. */
+  get fluidGoalMl(): number { return this.targets?.ascites ?? 0; }
 
   /** Steps everything on the clock; true while anything moves (draw another frame). */
   update(now: number, flowRate = 1): boolean {
