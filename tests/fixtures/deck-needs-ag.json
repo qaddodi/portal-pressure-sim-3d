@@ -627,6 +627,8 @@
  ],
  "cause-treated/year2-lobule": [
   "card:site",
+  "compare:own",
+  "compare:preset",
   "data:tiles",
   "present:slide-plate",
   "scale:lobule",
