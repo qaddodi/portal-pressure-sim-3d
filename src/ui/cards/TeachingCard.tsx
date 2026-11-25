@@ -96,7 +96,12 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
   return (
     <>
       {deck && <NameTab deck={deck} />}
-      {tab ? <span className="pz-sitetab" data-site={tab.site} data-rail={tab.rail ? '' : undefined} aria-hidden="true">{tab.name}</span> : null}
+      {tab ? (
+        <span className="pz-sitetab" data-site={tab.site} data-rail={tab.rail ? '' : undefined} data-also={tab.also ? '' : undefined} aria-hidden="true">
+          {tab.name}
+          {tab.also ? <span className="pz-tabalso" data-site={tab.also.site}>{tab.also.name}</span> : null}
+        </span>
+      ) : null}
       {/* 2D's words card has no kicker row: the slide's name is its title (presenter-question.js). A card that splits into pages (a phone on its side, 3D only) says which page this is in the name tab's band (top left, no row of its own; owner 24 Nov, option 2). */}
       {pages > 1 ? <><span className="pz-pageno" aria-label={`Page ${page + 1} of ${pages}`}>{page + 1} of {pages}</span>{deck && nameTabOf(deck) ? null : <span className="dk-tabgap" aria-hidden="true" />}</> : null}
       {titles('h2', kick)}
