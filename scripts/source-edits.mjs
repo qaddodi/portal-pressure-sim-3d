@@ -332,6 +332,15 @@ export const CAPTURE_52EF8E63 = [
   SET('tips-complete', 'slides.indications.marks', [{ edges: ['C1a'], label: 'Bleed: preemptive, rescue, salvage' }, { organ: 'ascites', label: 'Ascites: elective' }]),
 ];
 
+/** Capture 2a54261a (25 Nov 2026, iPhone): a beat monitor whose slide's words give the blood pressure shows it beside the heart rate, as Variceal bleed 3 does (tool.bp). The words said "blood pressure falls to 99/65 (76)" over a monitor with the heart rate alone. */
+export const CAPTURE_2A54261A = [
+  SET('variceal-bleed', 'slides.minutes.tool.bp', true),
+  SET('variceal-bleed', 'slides.rebleed.tool.bp', true),
+  SET('variceal-bleed', 'slides.failure.tool.bp', true),
+  SET('variceal-bleed', 'slides.bridge.tool.bp', true),
+  SET('gastric-varices', 'slides.bleed.tool.bp', true),
+];
+
 /** Capture 15c31759 (24 Nov 2026, Mohammad: "do all review findings"). */
 export const CAPTURE_15C31759 = [
   // Two lesions 5 ran the congestion 60 days, still easing (right atrium 26.7), and slide 9 holds the same two lesions at 90 (26.2): the same state read two numbers. Both now stand at the 90-day state.
@@ -457,6 +466,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_AF88A9C2,
   ...CAPTURE_52EF8E63,
   ...CAPTURE_15C31759,
+  ...CAPTURE_2A54261A,
 ];
 
 function step(node, key) {

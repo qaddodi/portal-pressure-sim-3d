@@ -78,6 +78,9 @@ test('on a slide a lobule pressure carries its unit, in free play the legend say
   assert.equal(readingText('P1', m, false), '12.3');
   assert.equal(readingText('P1', m, false, true), '12.3 mmHg');
   assert.equal(readingText('P3', m, true, true), '?');
+  // capture 2a54261a (Where is the resistance 4 and 6): "Lymph 3,580" was a number with no unit on a slide
+  assert.equal(readingText('lymph', m, false), '1,728,000');
+  assert.equal(readingText('lymph', m, false, true), '1,728,000 mL/day');
   assert.notEqual(readingSig(m, true), readingSig(m, false), 'the layout is solved again for the wider words');
 });
 

@@ -30,7 +30,7 @@ test('the words card carries the credit line and the foot padding leaves its row
   assert.match(css, /@media \(min-height: 601px\) \{ \.deck-ui\[data-layout="stack"\] \.dk-card:not\(\[data-card="ladder"\]\) \.dk-in \{ padding-bottom: calc\(var\(--pad-y\) \+ 50px \+ 20px\)/);
   assert.equal(CRED_ROW, 20, 'the CSS says 20 px');
   const chrome = readFileSync('src/ui/shell/chrome-3d.css', 'utf8');
-  assert.match(chrome, /\.deck-ui\[data-layout="stack"\] ~ \.sh-root\[data-mode="deck"\] \.stage-credit\.placed \{ opacity: 0; \}/);
+  assert.match(chrome, /\.deck-ui\[data-layout="stack"\]:has\(\.pz-cred\) ~ \.sh-root\[data-mode="deck"\] \.stage-credit\.placed \{ opacity: 0; \}/, 'the floating credit yields only while a card carries its own row; a slide with a table alone (no words card) keeps one line (capture 2a54261a)');
   const two = readFileSync('src/ui/css2d/app-05-presenter-cards.css', 'utf8');
   assert.match(two, /@media \(min-height: 601px\) \{\s*\.pz-shade\.stack:not\(\.tab\) \.pz-cred \{ display: block; position: absolute;/, '2D\'s own row rule is the one in use');
 });
