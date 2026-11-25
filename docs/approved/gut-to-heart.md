@@ -22,3 +22,6 @@
 
 ## Never
 - A box behind a word, a pill or chip, a taller card to buy space, a smaller font.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

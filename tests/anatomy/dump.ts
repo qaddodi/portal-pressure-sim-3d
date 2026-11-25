@@ -1,5 +1,5 @@
 // What every reader of the anatomy gets (anatomy integration plan, phase 1, 24 Nov 2026): the drawn course and radius of every vessel, the stations, the catheter routes, the camera
-// shots of every region, the dive's anchor and the liver branches. Frozen in tests/fixtures/anatomy-today.json, so a change to the anatomy source shows which reader moved and by how much.
+// shots of every region, the dive's anchor and the liver branches. Frozen in tests/fixtures/anatomy-placed.json (anatomy-today.json keeps the 2D figure's, last default at f17b151a, as the reference the placed frames are held to).
 // Numbers are rounded to 1e-4 scene units (about 0.02 mm), the noise floor of a refactor; anything bigger is a real move.
 import { NETWORK, MAPPED } from '../../src/scene/vessels/network.ts';
 import { centrelineOf } from '../../src/scene/vessels/centreline.ts';

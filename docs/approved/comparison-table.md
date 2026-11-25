@@ -16,3 +16,6 @@ Tests: `tests/deck-presenter-wave.test.ts`, `tests/baked-waves.test.ts`, `tests/
 Update 23 Nov 2026 (Prehepatic review): the one-line layout holds at EVERY width (it was behind a phone-only media query, so a laptop showed group headings and a wide empty name column). A case with no flow prints "No flow" under its flat line. Every case carries its finding line (`note`). The criteria cards' rule source is plain words, not an outlined chip.
 
 Update 23 Nov 2026 (TIPS Doppler review, items 5 and 6): a table can compare a row with another row (`vs: '<slide id>'` on the row), so the TIPS table compares the stenosed stent with the patent one: a PPG that rose or a portal vein velocity that fell is red, never the green "better" of a comparison with the pre-TIPS row. It carries the stent's Doppler trace in each row (`cols: [..., 'wave']`, `wave: 'TIPS'`; the pre-TIPS row has no stent, so its cell is the empty ring), and the legend gives the velocity column its unit ("portal vein velocity in cm/s"). Numbers stay on the reference row only, as approved.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

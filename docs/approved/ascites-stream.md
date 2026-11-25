@@ -12,3 +12,6 @@ Traits (keep every one):
 
 Rejected: A (drops falling and fading from the line's tip).
 Tests: `tests/paracentesis-stream.test.ts`.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

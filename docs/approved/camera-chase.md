@@ -22,3 +22,6 @@ Last two keys pulled back: advance 0.92 distance 1.1 to 1.35, advance 0.995 dist
 
 ## 24 Nov: tilt shelved
 Mohammad: "I don't like the 3D camera tilt while the catheter is measuring. Remove it for now." The chase's swing (yaw 0 to -0.55) and tilt (pitch up to 0.16) are off behind `CHASE_TILT = false` in `chase.ts` (keyframes keep their numbers; flip the flag to bring them back). Distance, aim and lens unchanged. The viewer's gentle device tilt (tilt.ts) was already locked during a talk. Not yet seen.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

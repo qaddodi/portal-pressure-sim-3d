@@ -33,3 +33,6 @@ Look A with exactly these settings, every one the shipped default (`dustDefaults
 
 ### 24 Nov: Blood streaks start OFF on a phone (Mohammad: "streaks off by default on iPhone, it's too heavy")
 The Settings switch `particles` (Blood streaks) defaults off where the short side is under 500 CSS px (src/state/settings.ts `onPhone`), on on Mac and iPad. A phone that turns it on keeps it (saved with `particlesV`); a phone save from before takes the new default once; Mac and iPad keep what they saved. Test: tests/depth-settings.test.ts.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).
