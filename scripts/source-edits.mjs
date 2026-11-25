@@ -331,6 +331,14 @@ export const CAPTURE_52EF8E63 = [
   SET('tips-complete', 'slides.indications.marks', [{ edges: ['C1a'], label: 'Bleed: preemptive, rescue, salvage' }, { organ: 'ascites', label: 'Ascites: elective' }]),
 ];
 
+/** Capture 15c31759 (24 Nov 2026, Mohammad: "do all review findings"). */
+export const CAPTURE_15C31759 = [
+  // Two lesions 5 ran the congestion 60 days, still easing (right atrium 26.7), and slide 9 holds the same two lesions at 90 (26.2): the same state read two numbers. Both now stand at the 90-day state.
+  SET('two-lesions', 'slides.both.days', 90),
+  // Two lesions 9 teaches "measure the IVC and right atrial pressures beside the gradients": the figure named the right atrium and the hepatic vein only
+  SET('two-lesions', 'slides.measure.labels', ['CONF', 'RHV', 'IVCS', 'RA']),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -445,6 +453,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_6EC6D323,
   ...CAPTURE_AF88A9C2,
   ...CAPTURE_52EF8E63,
+  ...CAPTURE_15C31759,
 ];
 
 function step(node, key) {
