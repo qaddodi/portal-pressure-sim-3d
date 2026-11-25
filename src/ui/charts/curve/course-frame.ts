@@ -40,6 +40,9 @@ export function flattenPath(d: string, n = 14): number[] {
   return out;
 }
 
+/** A line's end value as printed on the chart: the number and its unit (liters are "L" here, as the axis says). */
+export const endText = (v: number, unit: string): string => `${v < 0.05 ? '0' : v.toFixed(1)} ${unit}`;
+
 export function courseFrame(spec: CourseSpec, c: ChartCtx): { frame: Frame; G: Any; labels: Any } {
   const f = c.type.sm, w = Math.max(160, c.w), own = spec.height ?? fitHeight(curveHeight(w, f), c), h = Math.round(Math.max(8 * f, heldToRoom(own, spec.room, f)!));
   const co = C.courseOf(spec.tool), ser = spec.ser;
@@ -103,6 +106,13 @@ export function courseFrame(spec: CourseSpec, c: ChartCtx): { frame: Frame; G: A
     dot(xd, yd, HEAD_C);
     ser.tails.forEach((q: Any, j: number) => dot(tailPx[j]!.at(-1)![0]!, tailPx[j]!.at(-1)![1]!, q.c));
     ser.tails.forEach((q: Any, j: number) => word(q.name, labels.tails[j], q.c, 'cv.name'));
+    // where each line ends, its number (Landmark 12, capture 52ef8e63: the dots stood at the end of the weeks with no value). With the names in the key row they are free to stand beside their dots: the upper line's
+    // above its end, the lower line's below, both just left of the dot.
+    if (G.keyRow) {
+      const ends = ser.tails.map((q: Any, j: number) => ({ j, x: tailPx[j]!.at(-1)![0]!, y: tailPx[j]!.at(-1)![1]!, v: q.pts.at(-1)[1] as number, c: q.c as string }));
+      const top = Math.min(...ends.map((e: Any) => e.y as number));
+      for (const e of ends) say(e.x - r - 5, e.y + (e.y === top ? -0.7 : 1.35) * f, endText(e.v, ser.unit), lk('cv.dname', {}, e.c), { anchor: 'end' });
+    }
     const fmt = (v: number) => `${v < 0.05 ? '0' : v.toFixed(1)} ${ser.unit === 'L' ? 'liters' : ser.unit}`;
     label = `${co.words.label}: ${co.words.before ? `${co.words.before.toLowerCase()}, ` : ''}${fmt(ser.before)}; after the ${co.words.event.toLowerCase()} ${fmt(ser.head[0][1])}, `
       + `${fmt(ser.head.at(-1)[1])} at ${ser.wait} days; ${ser.tails.map((q: Any) => `${q.name} ${fmt(q.pts.at(-1)[1])} at ${ser.days} days`).join('; ')}`;

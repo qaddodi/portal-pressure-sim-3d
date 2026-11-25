@@ -87,7 +87,7 @@ export function evGraphFrame(inp: EvInput, t: number, c: ChartCtx): Frame {
   const axis = lk('time.axis.line');
   shapes.push({ k: 'line', x1: L, x2: R, y1: B, y2: B, pen: { color: axis.stroke!, w: axis.width! } });
   for (let s = -PRE_S; s <= EVENT_S + 1e-9; s += TICK_S) say(X(s), B + 1.25 * f, s > 0 ? `+${s}` : s < 0 ? `−${-s}` : '0', lk('time.tk'), { anchor: 'middle' });
-  say(R + G.half, B + 1.25 * f, 's', lk('plot.ax'), { anchor: 'start' });
+  say(R + G.half, B + 1.25 * f, 's', lk('plot.ax'), { anchor: 'start', upper: false });   // (seconds: a unit, never capitals: "+20 S", Gastric varices 8, capture 52ef8e63)
   const x0 = X(0), preW = x0 - X(-PRE_S);
   if (evCw('Before', f, true) + 8 <= preW) say((X(-PRE_S) + x0) / 2, T - 0.6 * f, 'Before', lk('ft.t', { meal: false }), { anchor: 'middle' });
   const ev = lk('ft.meal');

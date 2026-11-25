@@ -17,7 +17,7 @@ export const ZONE_WORDS: readonly (readonly [string, string])[] = [['Zone 1', 'p
 
 export type CapKey = 'triad' | 'sin' | 'cv' | 'ha' | 'bd' | 'lymph';
 /** What a placed caption writes: the words of each form, and the reading it carries (a pressure of the model, or the lymph). */
-export interface CapMeta { id: string; kind: 'zone' | 'station'; forms: readonly { name: string; value: boolean }[]; read: 'P1' | 'P2' | 'P3' | 'lymph' | null; label: string; target: string }
+export interface CapMeta { id: string; kind: 'zone' | 'station'; forms: readonly { name: string; value: boolean }[]; read: 'P1' | 'P2' | 'P3' | 'lymph' | 'O1' | 'O2' | 'O3' | null; label: string; target: string }
 
 export interface CapCtx {
   /** a point of the lobule plate (its own units) on the canvas now, CSS px */
@@ -26,6 +26,8 @@ export interface CapCtx {
   measure: Measure;
   net: Pick<LobuleNet, 'triads' | 'courses' | 'corners'>;
   layers: { zones: boolean; lymph: boolean };
+  /** the oxygen lens is on: each zone's name carries the saturation its colour is read from (Lobule 3, capture 52ef8e63: a slide that teaches a gradient printed no number) */
+  oxygen?: boolean;
   /** the slide names these station keys (they stand first) */
   must?: ReadonlySet<string>;
   /** whether a canvas point is on screen and clear of the cards (the tract the names are about is one whose venule is: 2D labels the bottom tract of what it shows) */
@@ -52,6 +54,8 @@ const LOBULE_REACH = 140;
 const MIN_LEAD = 13;
 /** The central vein's name may stand this far from the vein (px) to find a place clear of the sinusoids that run into it (on a phone the hexagon fills the width, so the nearest clear band is past its rim). */
 export const CV_REACH = 300;
+/** The widest an oxygen reading prints ("100% O₂"), so the box keeps its size as the number moves. */
+export const OXY_SAMPLE = '100% O₂';
 const READ: Record<CapKey, CapMeta['read']> = { triad: 'P1', sin: 'P2', cv: 'P3', ha: null, bd: null, lymph: 'lymph' };
 
 const UNIT: Record<Dir, readonly [number, number]> = {
@@ -117,8 +121,14 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
       const [ax, ay] = ctx.proj(0, APOTHEM * ZONE_Q[i]!);
       const full = `${t} ${d}`, bf = boxSize([{ ...nameRun(full), size: 10.5, weight: 600 }], vp, measure), bs = boxSize([{ ...nameRun(t), size: 10.5, weight: 600 }], vp, measure);
       const id = `z:${i + 1}`;
-      items.push({ id, ax, ay, au: 0.5, forms: [form(full, bf.w, bf.h), form(t, bs.w, bs.h)], pri: 95, region: true });
-      meta.set(id, { id, kind: 'zone', forms: [{ name: full, value: false }, { name: t, value: false }], read: null, label: `${t}, ${d}`, target: `lobule:zone${i + 1}` });
+      const forms: Form[] = [form(full, bf.w, bf.h), form(t, bs.w, bs.h)], formsM: { name: string; value: boolean }[] = [{ name: full, value: false }, { name: t, value: false }];
+      // with the oxygen lens the reading stands after the name, widest form first; the plain names stay as the forms a tight room falls back to
+      if (ctx.oxygen) {
+        const sample = ctx.hide ? '?' : OXY_SAMPLE, mkv = (n: string): Form => { const b = boxSize(stationRuns(n, true, false, sample), vp, measure); return form(n, b.w, b.h); };
+        forms.unshift(mkv(full), mkv(t)); formsM.unshift({ name: full, value: true }, { name: t, value: true });
+      }
+      items.push({ id, ax, ay, au: 0.5, forms, pri: 95, region: true });
+      meta.set(id, { id, kind: 'zone', forms: formsM, read: ctx.oxygen ? (`O${i + 1}` as 'O1' | 'O2' | 'O3') : null, label: `${t}, ${d}`, target: `lobule:zone${i + 1}` });
     });
   }
 
@@ -166,11 +176,16 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
 }
 
 /** The reading a station carries, as text (the model's own numbers, one place so a test reads what the layer writes). */
-export function readingText(read: CapMeta['read'], m: { P1: number; P2: number; P3: number; lymph: number }, hide: boolean, unit = false): string {
+export function readingText(read: CapMeta['read'], m: { P1: number; P2: number; P3: number; lymph: number; oxy?: ArrayLike<number> }, hide: boolean, unit = false): string {
   if (!read) return '';
   if (hide) return '?';
   if (read === 'lymph') return lymphText(m.lymph);
-  const v = m[read];
+  if (read[0] === 'O') {
+    // a zone's oxygen: the saturation at its end of the sinusoid (zone 1 at the portal venule, zone 3 at the central vein), the same number the lens colours it by
+    const sat = m.oxy?.[Number(read[1]) - 1];
+    return typeof sat === 'number' && Number.isFinite(sat) ? `${Math.round(sat * 100)}% O₂` : '—';
+  }
+  const v = m[read as 'P1' | 'P2' | 'P3'];
   if (!Number.isFinite(v)) return '—';
   const f = Math.abs(v).toFixed(1);
   return (v < 0 && Number(f) !== 0 ? '−' : '') + f + (unit ? ' mmHg' : '');
@@ -179,9 +194,9 @@ export function readingText(read: CapMeta['read'], m: { P1: number; P2: number; 
 /** What a reading changes about where the words may stand: only how wide each prints (its characters), never its value. A pressure that moves by a tenth between two frames must not send the words
  *  through a fade out, a new solve and a fade in (Mohammad, 20 Nov: "the labels in the lobule view are flashing"): the signature the layout is judged by holds these lengths, and the text itself is
  *  written again in place (LobuleCaptions refreshReadings). */
-export function readingSig(m: { P1: number; P2: number; P3: number; lymph: number } | null | undefined, unit = false): string {
+export function readingSig(m: { P1: number; P2: number; P3: number; lymph: number; oxy?: ArrayLike<number> } | null | undefined, unit = false): string {
   if (!m) return '-';
-  return (['P1', 'P2', 'P3', 'lymph'] as const).map((k) => readingText(k, m, false, unit).length).join(',');
+  return (['P1', 'P2', 'P3', 'lymph', 'O1', 'O2', 'O3'] as const).map((k) => readingText(k, m, false, unit).length).join(',');
 }
 
 /** The canvas the lobule's names may use: the screen inside its safe areas and under the top bar, down to the foot of the room the lobule is framed in plus 8 px (2D lobule-zoom.js liveFreeInto: the room

@@ -81,7 +81,7 @@ export function hatchSlivers(x: number, y: number, w: number, h: number, period 
 }
 
 /** The zones graph of a card of width ctx.w as a frame (the card never changes size with the case: the height follows the width only). */
-export function zonesFrame(fig: ZonesFig, c: ChartCtx, label: string): Frame {
+export function zonesFrame(fig: ZonesFig, c: ChartCtx, label: string, patient: { lsm?: number | null; plt?: number | null } | null = null): Frame {
   const W = c.w, ph = plotHeight(W);
   const fs = Math.max(12, Math.min(14, c.type.sm)), sm = 12;
   const X = linear(fig.x[0], fig.x[1], 0, W), Y = linear(fig.y[0], fig.y[1], ph, 0);
@@ -103,5 +103,16 @@ export function zonesFrame(fig: ZonesFig, c: ChartCtx, label: string): Frame {
   shapes.push(word(W - 8, by, fig.xName, true, 'end', sm));
   shapes.push(word(8, Y(fig.yTick[0]) + 4, fig.yTick[1], false, 'start', sm));
   shapes.push(word(8, 8 + sm, fig.yName, true, 'start', sm));
+  // the patient: a dot where his LSM and platelets stand (Stiffness 7, capture 52ef8e63: the slide classifies patients and classified none); held inside the plot by its radius
+  const dot = patientDot(fig, patient, W, ph);
+  if (dot) { const l = lk('crit.word', { q: false }); shapes.push({ k: 'circle', cx: dot.x, cy: dot.y, r: 5.5, fill: l.fill, pen: { color: l.halo?.color ?? l.fill!, w: 2 } }); }
   return { w: W, h: ph, shapes, label };
+}
+
+/** Where a patient's LSM (kPa) and platelets (x10^3/uL) stand in a plot W x ph px; null without both. A reading past the axes stands on the edge, never outside the plot. */
+export function patientDot(fig: ZonesFig, patient: { lsm?: number | null; plt?: number | null } | null, W: number, ph: number): { x: number; y: number } | null {
+  const lsm = patient?.lsm, plt = patient?.plt;
+  if (typeof lsm !== 'number' || typeof plt !== 'number' || !Number.isFinite(lsm) || !Number.isFinite(plt)) return null;
+  const r = 5.5 + 2, X = linear(fig.x[0], fig.x[1], 0, W), Y = linear(fig.y[0], fig.y[1], ph, 0);
+  return { x: Math.min(W - r, Math.max(r, X(lsm))), y: Math.min(ph - r, Math.max(r, Y(plt))) };
 }
