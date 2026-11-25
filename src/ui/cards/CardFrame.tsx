@@ -179,7 +179,9 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
       // a taller one still grows it by the glide (words are never clipped) and is logged for the audit. A new key, width, step or viewport (this effect's own first pass) takes the lock again.
       const out = boxOf(box.current, { t: 'measure', key: lockKey, h, fresh, shown: gate.current && !GROWS_BY_DESIGN.has(entry.id) });
       // (a kept card at the same step whose new slide needs more room than it landed with: no growth, a fresh card at its final size takes its place; the lock keeps what it landed with while this one leaves)
-      if (out.grew > 1 && sameStepPass && onOutgrown && !now.current.out) { onOutgrown(entry.key); return; }
+      // (and for a card whose content came after it was let in: a give-up let it in short, an instrument drew late. It grew past the box it locked and the box stands,
+      //  so the rest would stand clipped for good; a fresh card at its final size takes its place, as for a kept card. CardLayer allows it twice a slide, then the lock stands)
+      if (out.grew > 1 && onOutgrown && !now.current.out) { onOutgrown(entry.key); return; }
       box.current = out.state;
       if (out.grew) noteGrew({ card: entry.id, slide: entry.key, px: out.grew });
       if (!out.report) {
