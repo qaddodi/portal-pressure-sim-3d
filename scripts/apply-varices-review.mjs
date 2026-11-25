@@ -11,7 +11,8 @@ const m = /export const VARICES: CopiedDeck = (\{[\s\S]*?\n\});\n\nexport const 
 if (!m) throw new Error('varices.ts: the deck is not where it was');
 // (a text patch whose result is already in the file is skipped, so the script can be run again; a field patch just sets the field again)
 const esc = (t) => JSON.stringify(t).slice(1, -1);
-const todo = VARICES_REVIEW.filter((p) => p.after ? !m[1].includes(`"id": ${JSON.stringify(p.set.id)},`) : !('from' in p) || m[1].includes(esc(p.from)) || !m[1].includes(esc(p.to)));
+const beatsLeft = () => JSON.parse(m[1]).slides.find((s) => s.id === 'umbilical').beats.length;
+const todo = VARICES_REVIEW.filter((p) => p.drop ? beatsLeft() > 1 : p.after ? !m[1].includes(`"id": ${JSON.stringify(p.set.id)},`) : !('from' in p) || m[1].includes(esc(p.from)) || !m[1].includes(esc(p.to)));
 const json = sourceEdits(m[1], todo);
 const hash = createHash('sha256').update(json).digest('hex').slice(0, 12);
 const out = text.replace(m[1], () => json).replace(/content hash [0-9a-f]+/, `content hash ${hash}`).replace(/VARICES_HASH = '[0-9a-f]+'/, `VARICES_HASH = '${hash}'`);

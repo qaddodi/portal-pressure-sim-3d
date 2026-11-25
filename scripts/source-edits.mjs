@@ -52,8 +52,9 @@ export const VARICES_REVIEW = [
   SET('varices', 'checks.4', ['What prevents a first variceal bleed in a patient with large varices, and what prevents rebleeding?', 'A first bleed: carvedilol or another NSBB, or band ligation if an NSBB cannot be given. After a bleed: an NSBB with band ligation, and a TIPS if it bleeds again or the first bleed was high-risk.']),
   // 3 [9, now slide 13]: the chart card is the standard height, and the esophagus stood in its shadow: the view takes in the esophagus' top, in the room below the card
   SET('varices', 'slides.relation.cam', [540, -170, 980, 360]),
-  // root cause: a slide with beats opens on its LAST view (presenter-machine startPos), so slide 11 is framed by its last beat's cam, not the slide's own; that box began under the Portal flow card and hid the liver
-  SET('varices', 'slides.umbilical.beats.1.cam', [344, 166, 1020, 960]),
+  // Mohammad, 25 Nov ("drop it"): the umbilical slide's third view, a recap of the paraumbilical and the rectal veins together, is dropped. It drew a vein 6.5 px wide on a phone (the route is longer than the room the cards leave), and the slide and its first beat already show the two routes one at a time.
+  //     (It had been framed [344, 166, 1020, 960]: a slide with beats opens on its LAST view, presenter-machine startPos, so the last beat's cam is what the slide shows when it is reached backwards; that is now the rectal view.)
+  DROP('varices', 'slides.umbilical.beats.1'),
   SET('varices', 'minutes', 17),
 ];
 

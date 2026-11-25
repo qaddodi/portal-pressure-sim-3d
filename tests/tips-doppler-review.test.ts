@@ -106,10 +106,10 @@ test('the Doppler probe keeps off the figure\'s colour key as off a card, and a 
   assert.match(probe, /const own = v\.id === id;/, 'the sampled vessel\'s own course away from the gate counts as busy');
 });
 
-// Root cause (slide 11): a slide with beats opens on its LAST view, so that beat's cam frames it; it must take in the liver under the Portal flow card.
-test('the umbilical slide opens on a view that includes the liver', async () => {
+// Mohammad, 25 Nov ("drop it"): the umbilical slide's third view, the recap of the paraumbilical and the rectal veins together (a 6.5 px vein on a phone), is dropped. A slide with beats opens on its LAST view, which is now the rectal one.
+test('the umbilical slide has one beat, the rectal view, and no recap of both routes', async () => {
   const { VARICES: deck } = await import('../src/decks/rw/copied/varices.ts');
-  const s = (deck as { slides: { id: string; beats?: { cam?: number[] }[] }[] }).slides.find((x) => x.id === 'umbilical')!;
-  const cam = s.beats!.at(-1)!.cam!;
-  assert.ok(cam[1]! <= 200, 'top of the last view reaches the liver (plate y ≤ 200)');
+  const s = (deck as { slides: { id: string; beats?: { cam?: unknown }[] }[] }).slides.find((x) => x.id === 'umbilical')!;
+  assert.equal(s.beats!.length, 1);
+  assert.equal(s.beats![0]!.cam, 'rectum');
 });

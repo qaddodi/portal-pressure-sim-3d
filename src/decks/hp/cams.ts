@@ -141,9 +141,9 @@ Object.assign(FRAME_FIXES, {
 const ROUTE_SLIDES = ['circulation/ladder', 'circulation/define', 'circulation/path-ladder', 'circulation/relation', 'doppler/a4', 'gradients/where', 'masld/under', 'masld/parts', 'prehepatic/gradients', 'same-gradient/ref', 'same-gradient/up', 'same-gradient/cost', 'sites/healthy', 'tips-candidacy/heart-stent', 'tips-complete/heart', 'two-lesions/together', 'two-lesions/measure'];
 for (const k of ROUTE_SLIDES) FRAME_FIXES[k] = { was: 'route', cam: ROUTE_TO_STATIONS, floor: CONTEXT_FLOOR };
 FRAME_FIXES['doppler/meal'] = { was: 'gut', cam: [360, 360, 1070, 900], floor: CONTEXT_FLOOR };
-/** FRAMING RULE S6 (a collateral or whole route): the views that name a route from the gut or the abdominal wall to the heart or the rectum and cannot draw its veins 8 px wide in the room a phone's cards leave, because the named route is longer than that room (circulation/series: gut veins to the right atrium, 2.9 units; varices/umbilical#2: the umbilical and rectal routes together, 2.8 units, its two halves
- *  already being the slide and its first beat). Nothing named is cropped for them; the test fails if one no longer needs the exemption. */
-export const WIDE_ROUTES: readonly string[] = ['circulation/series', 'varices/umbilical#2'];
+/** FRAMING RULE S6 (a whole route): the views that name a route from the gut to the heart and cannot draw its veins 8 px wide in the room a phone's cards leave, because the named route is longer than that room (circulation/series: gut veins to the right atrium, 2.9 units, 5.8 px).
+ *  Nothing named is cropped for it; the test fails if one no longer needs the exemption. (varices/umbilical's recap of two routes was the other; Mohammad dropped that view, 25 Nov: scripts/source-edits.mjs VARICES_REVIEW.) */
+export const WIDE_ROUTES: readonly string[] = ['circulation/series'];
 /** The camera a slide asks for and the floor it keeps: the fix's, when the slide has one and the copied camera is still the one it replaces. */
 export function slideCam(deck: string, slide: string, cam: CopiedSlide['cam']): { cam: CopiedSlide['cam']; floor: number } {
   const f = FRAME_FIXES[`${deck}/${slide}`];
