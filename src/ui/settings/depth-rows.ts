@@ -10,7 +10,6 @@ export const DEPTH_ROWS: readonly DepthRow[] = [
   { key: 'tilt', label: 'Gentle tilt', hint: 'The figure leans a few degrees with the pointer or device', icon: 'layers' },
   { key: 'dof', label: 'Depth of field', hint: 'Softens the far side in the liver dive (laptop only)', icon: 'layers' },
   { key: 'particles', label: 'Blood streaks', hint: 'Fine streaks along the flow, faster in the middle, turbulent at forks (off: chevrons only)', icon: 'chevrons' },
-  { key: 'hideBehind', label: 'Hide vessels behind organs', hint: 'The liver hides the IVC and lumbar vein where it is in front (off: they show faintly through it)', icon: 'layers' },
   { key: 'fluidSurface', label: 'Living fluid', hint: 'Ascites with soft edges, a rippling surface and a pale rim (off: as 2D draws it)', icon: 'layers' },
   { key: 'deviceShadow', label: 'Device shadows', hint: 'A soft shadow under catheters and scopes, on the tissue beneath (off: as 2D draws them)', icon: 'layers' },
 ];

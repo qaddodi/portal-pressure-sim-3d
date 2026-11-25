@@ -29,7 +29,6 @@ export interface Settings {
   dof: boolean;
   particles: boolean;
   /** Hide vessels behind organs: off (default) shows the IVC and the lumbar vein faint through the liver; on, the organs hide them where they are in front (normal occlusion), and naming one still reveals it. */
-  hideBehind: boolean;
   /** Living fluid: the ascites pool's soft wall edges, climbing meniscus, slosh, pale rim and deeper amber (ascites.ts). Off: the pool as 2D draws it (hard wall edges, flat tint); the surface ripple is 2D's and stays. */
   fluidSurface: boolean;
   /** Device shadows: a soft contact shadow under every catheter, balloon tube, stent sleeve and scope, on what lies beneath it (devices/contact-shadow.ts). Off: the devices as 2D draws them, with none. */
@@ -49,9 +48,9 @@ export const FIGURE_SETTINGS_VERSION = 4;   // (4: the blood streaks default on;
 /** Everything this app stores on the device starts with this, so Reset everything can clear it and nothing else. */
 export const STORAGE_PREFIX = 'pps3d.';
 /** The "Figure depth" switches (owner, 19 Nov 2026: "Yes do all properly"): a deliberate exception to match-2D, each behind its own switch. All on by default except Free tilt (the 3D lobule and sinusoid are no longer a switch: everything is 3D, Mohammad 20 Nov 2026); the blood streaks went on by default on 20 Nov (play-test: "no laminar streak lanes are visible": the switch was off, so only the chevrons showed). */
-export const DEPTH_KEYS = ['organDepth', 'tilt', 'dof', 'particles', 'hideBehind', 'fluidSurface', 'deviceShadow'] as const;
+export const DEPTH_KEYS = ['organDepth', 'tilt', 'dof', 'particles', 'fluidSurface', 'deviceShadow'] as const;
 export type DepthKey = (typeof DEPTH_KEYS)[number];
-export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { organDepth: true, tilt: true, dof: true, particles: true, hideBehind: false, fluidSurface: true, deviceShadow: true };
+export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { organDepth: true, tilt: true, dof: true, particles: true, fluidSurface: true, deviceShadow: true };
 /** Blood streaks start OFF on a phone (Mohammad, 24 Nov: "streaks off by default on iPhone, it's too heavy"); a phone that chose for itself afterwards keeps its choice. A save made before this carries the old default, so a phone takes the new one once
  *  (`particlesV`); Mac and iPad keep what they saved. */
 export const PARTICLES_VERSION = 2;
@@ -71,12 +70,12 @@ export function parseSettings(raw: string | null, phone: boolean = onPhone()): S
       blur: bool(o.blur, DEFAULTS.blur),
       figureDetail: Number.isInteger(o.figureDetail) && o.figureDetail >= 0 && o.figureDetail < FIGURE_DETAIL.length ? o.figureDetail : DEFAULTS.figureDetail,
       sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), autoDetail: bool(o.autoDetail, DEFAULTS.autoDetail), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false),
-      organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(streaks, phone ? false : DEPTH_DEFAULTS.particles), hideBehind: bool(fig.hideBehind, DEPTH_DEFAULTS.hideBehind), fluidSurface: bool(fig.fluidSurface, DEPTH_DEFAULTS.fluidSurface), deviceShadow: bool(fig.deviceShadow, DEPTH_DEFAULTS.deviceShadow),
+      organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(streaks, phone ? false : DEPTH_DEFAULTS.particles), fluidSurface: bool(fig.fluidSurface, DEPTH_DEFAULTS.fluidSurface), deviceShadow: bool(fig.deviceShadow, DEPTH_DEFAULTS.deviceShadow),
     };
   } catch { return { ...DEFAULTS }; }
 }
 const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY)); } catch { return parseSettings(null); } };
-const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, autoDetail: s.autoDetail, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, hideBehind: s.hideBehind, fluidSurface: s.fluidSurface, deviceShadow: s.deviceShadow });
+const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, autoDetail: s.autoDetail, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, fluidSurface: s.fluidSurface, deviceShadow: s.deviceShadow });
 const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify({ ...pick(s), figureV: FIGURE_SETTINGS_VERSION, particlesV: PARTICLES_VERSION })); } catch { /* private window: the choice lasts for this visit */ } };
 
 export const useSettings = create<Store>((set, get) => ({

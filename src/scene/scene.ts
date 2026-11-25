@@ -383,8 +383,6 @@ export class CelScene {
   private readonly cavaCutArgs = new Map<string, [number, number, number]>();
   /** The vessels of the back tier: they ease toward the page on a turn (quiet depth). */
   private readonly back: VesselObject[] = [];
-  /** Settings > Hide vessels behind organs: the share (0 show-through, 1 normal occlusion) the vessels of the back tier are at, and where it is going; eased on the clock. */
-  private readonly occ = new Ease(0, 'occlusion', (v) => { for (const o of this.back) o.setOcclusion(v); });
   /** Settings > Figure depth > Device shadows: the devices' shadow amount (shared.shadow); it glides on the same ease. */
   private readonly shadow = new Ease(0, 'device-shadow', (v) => { this.shared.shadow.value = v; });
   /** The cava (and the lumbar collateral drawn like it) eases toward whole or veiled: each its own Ease, both writing the objects they stand for. */
@@ -392,7 +390,7 @@ export class CelScene {
   private readonly lumbarE = new Ease(0, 'lumbar-whole', () => this.applyCava());
   /** 0 until the micro views are built, then 1 (eased when that lands mid-dive): how far the body's dive dissolve may go (fadeBody). */
   private readonly diveReady = new Ease(0, 'dive-ready');
-  private readonly eases: readonly Ease[] = [this.occ, this.shadow, this.cavaE, this.lumbarE, this.diveReady];
+  private readonly eases: readonly Ease[] = [this.shadow, this.cavaE, this.lumbarE, this.diveReady];
   private readonly tipFades: { o: VesselObject; connect: readonly string[] }[] = [];
   private look!: LookId;
   private phone!: boolean;
@@ -468,11 +466,9 @@ export class CelScene {
       }
     } else yield* this.refreshSkinsSteps();
     this.applyMates();
-    this.occ.snap(useSettings.getState().hideBehind ? 1 : 0); for (const o of this.back) o.setOcclusion(this.occ.value);
     this.shadow.snap(useSettings.getState().deviceShadow ? 1 : 0); this.shared.shadow.value = this.shadow.value;
     this.unJoins = useSettings.subscribe((st, prev) => {
       if (st.deviceShadow !== prev.deviceShadow) this.shadow.to(st.deviceShadow ? 1 : 0, fadeRate(FLOW_FADE_MS));
-      if (st.hideBehind !== prev.hideBehind) this.occ.to(st.hideBehind ? 1 : 0, fadeRate(FLOW_FADE_MS));
       if (st.particles !== prev.particles) clock.invalidate('streaks');   // (the cells read it per frame: a still figure wakes to ease the streaks, W8)
       if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });

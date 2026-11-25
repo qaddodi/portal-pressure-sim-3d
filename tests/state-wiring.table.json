@@ -53,10 +53,6 @@
    "reach": "per-frame+invalidate",
    "file": "src/scene/scene.ts"
   },
-  "hideBehind": {
-   "reach": "ease",
-   "file": "src/scene/scene.ts"
-  },
   "fluidSurface": {
    "reach": "per-frame+invalidate",
    "file": "src/scene/scene.ts"
