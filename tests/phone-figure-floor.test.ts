@@ -16,12 +16,12 @@ const heights = [100, 250, 400, 560, 700, 945];
 for (const { name, vp } of screens) {
   test(`${name}: the figure keeps its floor and the cards never touch, whatever they measure`, () => {
     for (const wh of heights) for (const dh of heights) {
-      const p = planLayout(vp as never, [{ id: 'teach', slot: 'words', h: wh }, { id: 'tests', slot: 'data', h: dh }] as never);
+      const p = planLayout(vp as never, [{ id: 'teach', slot: 'words', h: wh }, { id: 'table', slot: 'data', h: dh }] as never);
       const w = p.cards.find((c) => c.slot === 'words')!.rect, d = p.cards.find((c) => c.slot === 'data')!.rect;
       const gap = w.y - (d.y + d.h);
       assert.ok(gap >= figFloorOf(vp.h) + CARD_GAP - 1, `words ${wh}, data ${dh}: ${gap} px between the cards, the figure's floor is ${figFloorOf(vp.h)}`);
       assert.ok(p.free.h >= figFloorOf(vp.h) - 1, `words ${wh}, data ${dh}: the figure's room is ${p.free.h} px`);
-      if (d.h < dh - 1) assert.ok(p.overflow.includes('tests'), `words ${wh}, data ${dh}: a card held short says so`);
+      if (d.h < dh - 1) assert.ok(p.overflow.includes('table'), `words ${wh}, data ${dh}: a card held short says so`);
       if (w.h < wh - 1) assert.ok(p.overflow.includes('teach'), `words ${wh}, data ${dh}: a words card held short says so`);
     }
   });
@@ -29,7 +29,7 @@ for (const { name, vp } of screens) {
 
 test('a pair that fits is left as measured', () => {
   const { vp } = screens[0];
-  const p = planLayout(vp as never, [{ id: 'teach', slot: 'words', h: 200 }, { id: 'tests', slot: 'data', h: 250 }] as never);
+  const p = planLayout(vp as never, [{ id: 'teach', slot: 'words', h: 200 }, { id: 'table', slot: 'data', h: 250 }] as never);
   assert.equal(p.cards.find((c) => c.slot === 'data')!.rect.h, 250);
   assert.equal(p.cards.find((c) => c.slot === 'words')!.rect.h, 200);
 });
