@@ -6,7 +6,7 @@ import type { LobuleCam } from '../../scene/lobule/shots.ts';
 import { DEFAULT_LENS, LENS_IDS, type LensId } from '../../scene/lenses/model.ts';
 import { STATIONS, TERM_STATIONS } from '../../scene/labels/stations.ts';
 import { RES_KEYS, type ResKey } from '../../scene/circuit/res-model.ts';
-import { camPlan, type CamPlan } from './cams.ts';
+import { camPlan, slideCam, type CamPlan } from './cams.ts';
 import { needsOf, readiness, missingStations, missingTerms, type Readiness } from './hooks.ts';
 import { stepOf, type Step } from './numbers.ts';
 import type { CopiedDeck, CopiedSlide } from './types.ts';
@@ -79,7 +79,8 @@ export function caudateOf(s: CopiedSlide): boolean {
 export function planSlide(deck: string, s: CopiedSlide, index: number): SlidePlan {
   // (a Circuit slide with a `zone` and no `cam` frames that zone's region: the 2D presenter's zoneCam)
   const labels = (s.labels ?? []).filter((id) => STATION_IDS.has(id));
-  const cam = camPlan(s.cam == null && s.view === 'circuit' && !s.visual && typeof s.zone === 'string' ? s.zone : s.cam, s.view, labels);
+  const own = slideCam(deck, s.id, s.cam);   // (a slide whose region is far wider than its subject: cams.ts FRAME_FIXES)
+  const cam = camPlan(s.cam == null && s.view === 'circuit' && !s.visual && typeof s.zone === 'string' ? s.zone : own.cam, s.view, labels, own.floor);
   const view: FigureView = cam.kind === 'circuit' ? 'circuit' : cam.kind === 'lobule' ? (cam.name === 'sinusoid' ? 'sinusoid' : 'lobule') : 'body';
   const fit = camPlan("fit");
   const shot: Shot = cam.kind === "circuit" ? (fit as Extract<CamPlan, { kind: "body" }>).shot : cam.shot;   // (the Circuit view is batch B7's: until it lands the figure stays on the body)

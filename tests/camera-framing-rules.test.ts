@@ -59,3 +59,39 @@ test('F3: every station a slide labels stands 40 px or more inside the free room
   assert.ok(checked > 300, `the sweep covered the labels (${checked})`);
   assert.deepEqual(bad, []);
 });
+
+// ---- F1: a slide framed on its subject (cams.ts FRAME_FIXES) ----
+import { HP_DECKS, loadHpDeck } from '../src/decks/hp/index.ts';
+import { AG_IDS, loadAgDeck } from '../src/decks/ag/index.ts';
+import { RW_IDS, RW_LOADERS } from '../src/decks/rw/copied/index.ts';
+import { FRAME_FIXES } from '../src/decks/hp/cams.ts';
+import { boxOfNames, PLACED_ORGAN_BOX } from '../src/scene/anatomy/source.ts';
+
+async function copiedSlide(deck: string, slide: string): Promise<{ cam?: unknown } | undefined> {
+  const hp = HP_DECKS.some((d) => d.id === deck), ag = (AG_IDS as readonly string[]).includes(deck), rw = (RW_IDS as readonly string[]).includes(deck);
+  const c = hp ? await loadHpDeck(deck) : ag ? await loadAgDeck(deck as never) : rw ? await RW_LOADERS[deck as never]!() : null;
+  return (c as unknown as { slides: { id: string; cam?: unknown }[] } | null)?.slides.find((s) => s.id === slide);
+}
+const shotOfSlide = (deck: string, slide: string): Shot => {
+  const d = decks.find(([id]) => id === deck)![1];
+  return d.slides.find((s) => s.id === slide)!.scene!.shot;
+};
+
+test('F1: each frame fix replaces the camera it says it does (a re-copy that moves the 2D camera is noticed), and the slide plays the fix', async () => {
+  for (const [key, fix] of Object.entries(FRAME_FIXES)) {
+    const [deck, slide] = key.split('/') as [string, string];
+    const s = await copiedSlide(deck, slide);
+    assert.ok(s, `${key}: the slide exists`);
+    assert.equal(s!.cam, fix.was, `${key}: the copied camera is ${String(fix.was)}`);
+    const shot = shotOfSlide(deck, slide);
+    assert.ok(shot.half[0] >= fix.floor && shot.half[1] >= fix.floor, `${key}: never tighter than its floor ${fix.floor}`);
+  }
+});
+
+test('F1: the Budd-Chiari frame holds the hepatic veins and the caudate lobe whole, 12 px inside the room on every device; the stent slides hold the stent and the left portal vein', () => {
+  const caudate = PLACED_ORGAN_BOX.caudate!, hv = boxOfNames(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']).box!, stent = boxOfNames(['TIPS']).box!, lpv = boxOfNames(['PVH_L', 'PVH_L_1']).box!;
+  const corners = (b: readonly number[]): [number, number][] => [[b[0]!, b[1]!], [b[3]!, b[1]!], [b[0]!, b[4]!], [b[3]!, b[4]!]];
+  const need = (what: string, shot: Shot, b: readonly number[]) => { for (const dv of DEVICES) for (const p of corners(b)) assert.ok(marginPx(shot, p, dv) >= 12, `${what} ${dv.name} ${marginPx(shot, p, dv).toFixed(0)} px`); };
+  for (const s of ['dx', 'ladder', 'anticoag', 'agent', 'response', 'alf', 'hcc']) { const shot = shotOfSlide('budd-chiari', s); need(`budd-chiari/${s} caudate`, shot, caudate); need(`budd-chiari/${s} hepatic veins`, shot, hv); }
+  for (const [d, s] of [['doppler', 'a5'], ['tips-doppler', 'left'], ['tips-doppler', 'warn']] as const) { const shot = shotOfSlide(d, s); need(`${d}/${s} stent`, shot, stent); need(`${d}/${s} left portal vein`, shot, lpv); }
+});

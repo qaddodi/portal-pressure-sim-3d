@@ -82,9 +82,40 @@ export function withStations(shot: Shot, stations: readonly string[]): Shot {
 }
 
 /** The camera of a slide, from its `cam` (and `view`) exactly as the 2D deck writes them. Throws on a name neither app has, so none is silently dropped. */
-export function camPlan(cam: CopiedSlide['cam'], view?: string | null, stations: readonly string[] = []): CamPlan {
+export function camPlan(cam: CopiedSlide['cam'], view?: string | null, stations: readonly string[] = [], floor = 0): CamPlan {
   const plan = camPlanOf(cam, view);
-  return plan.kind === 'body' && stations.length ? { ...plan, shot: withStations(plan.shot, stations) } : plan;
+  if (plan.kind !== 'body') return plan;
+  let shot = floor > 0 ? { ...plan.shot, half: [Math.max(plan.shot.half[0], floor), Math.max(plan.shot.half[1], floor)] as [number, number] } : plan.shot;
+  if (stations.length) shot = withStations(shot, stations);
+  return shot === plan.shot ? plan : { ...plan, shot };
+}
+
+/** FRAMING RULE F1 (Mohammad, 25 Nov, docs/approved/framing-rules.md): a slide whose copied 2D camera is a whole region but whose subject is a small part of it is framed on that part. Each entry names the slide, the 2D camera it
+ *  replaces (so a re-copy that moves the camera is noticed: tests/camera-framing-rules.test.ts), the frame that replaces it, and the context floor (half extent, scene units: no tighter than this, F5). The 2D deck is never edited. */
+export interface FrameFix { was: string; cam: CopiedSlide['cam']; floor: number }
+export const CONTEXT_FLOOR = 0.45;
+/** The hepatic veins and the caudate lobe, as a plate box: the Outflow talk's `hepatic` frame (410 to 800 by 40 to 340, half 0.65 x 0.50) moved 0.17 units down, so the caudate (placed y 0.60 to 0.98, no name a camera can point at) stands whole with 0.08 of air
+ *  and the hepatic veins' mouths (to y 1.23) stay in. Same size as `hepatic`, so the two talks frame the veins alike (F10). */
+const HV_CAUDATE: [number, number, number, number] = [410, 100, 800, 400];
+const LPV_STENT: CopiedSlide['cam'] = { on: ['lpv', 'TIPS'] };
+export const FRAME_FIXES: Readonly<Record<string, FrameFix>> = {
+  // Budd-Chiari: the hepatic veins and the caudate lobe (the liver frame was the whole liver; 0.86 x 0.60 half against 0.45 floor, 1.3 times closer on a Mac)
+  'budd-chiari/dx': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
+  'budd-chiari/ladder': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
+  'budd-chiari/anticoag': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
+  'budd-chiari/agent': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
+  'budd-chiari/response': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
+  'budd-chiari/alf': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
+  'budd-chiari/hcc': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
+  // the left portal vein and the stent: the slides read flow in the intrahepatic portal branches and at the stent
+  'doppler/a5': { was: 'liver', cam: LPV_STENT, floor: 0.55 },
+  'tips-doppler/left': { was: 'liver', cam: LPV_STENT, floor: 0.55 },
+  'tips-doppler/warn': { was: 'liver', cam: LPV_STENT, floor: 0.55 },
+};
+/** The camera a slide asks for and the floor it keeps: the fix's, when the slide has one and the copied camera is still the one it replaces. */
+export function slideCam(deck: string, slide: string, cam: CopiedSlide['cam']): { cam: CopiedSlide['cam']; floor: number } {
+  const f = FRAME_FIXES[`${deck}/${slide}`];
+  return f && cam === f.was ? { cam: f.cam, floor: f.floor } : { cam, floor: 0 };
 }
 
 function camPlanOf(cam: CopiedSlide['cam'], view?: string | null): CamPlan {
