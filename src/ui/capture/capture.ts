@@ -1,5 +1,6 @@
 // Settings > Capture screen: one PNG of the whole screen as the person sees it, for troubleshooting. The figure (the stage drawn once at the device's pixel ratio) and everything over it
-// (cards, tags, legends, pills, the dock) laid in the order the page paints them (capture-dom.ts), the build and the time stamped small in the corner, and the state that makes the
+// (cards, tags, legends, pills, the dock) laid in the order the page paints them (capture-dom.ts), no build or time stamped on it
+// (they ride inside the file, in its name and in the note), and the state that makes the
 // view (patient, slide, look, lens, camera, sliders) inside the file as a text chunk (png-text.ts) and as a link that reopens the exact view (share-wire.ts). A phone or an iPad hands the
 // file to the share sheet (Save Image, Messages, Mail, Files); a laptop downloads it. The toast that follows offers the link. Runs on a tap or the shortcut, never in a frame.
 import { patient as engPatient } from '../../engine/index.ts';
@@ -15,7 +16,7 @@ import { feedbackBuild, commitOf } from '../../boot/release.ts';
 import { CAPTURE } from '../shell/words.ts';
 import { readBox, readStyle } from '../layout-snap.ts';
 import { readScreen, paintScreen, loadMasks } from './capture-dom.ts';
-import { captureScale, stampText, captureFileName, captureRecord, deliverWay, captureNote, deviceWords, type CaptureRecord } from './capture-model.ts';
+import { captureScale, captureFileName, captureRecord, deliverWay, captureNote, deviceWords, type CaptureRecord } from './capture-model.ts';
 import { useUi } from '../ui-store.ts';
 import { useSettings } from '../../state/settings.ts';
 import { UI } from '../strings.generated.ts';
@@ -32,10 +33,15 @@ async function stateRecord(): Promise<unknown> {
 }
 
 /** The screen drawn on one canvas, with what rides with it (the record, the build, the link). Null when the page could not be drawn. */
-export interface Drawn { canvas: HTMLCanvasElement; record: CaptureRecord; build: string; link: string; scale: number }
+export interface Drawn {
+  canvas: HTMLCanvasElement; record: CaptureRecord; build: string; link: string; scale: number;
+  /** pictures of the page (icons, the mark) that would not load: left out of this one */
+  missing: string[];
+}
 
-/** The whole screen on one canvas at the device's pixel ratio (or `opts.ratio`), stamped. `at` is when it was pressed (the stamp and the record). */
-export async function drawScreen(at: Date, opts: { ratio?: number; /** no build and time stamp in the corner (the talk's own pictures: the build is in the zip's README and each JSON) */ stamp?: boolean } = {}): Promise<Drawn | null> {
+/** The whole screen on one canvas at the device's pixel ratio (or `opts.ratio`), as the person sees it: no build or time on the picture
+ *  (the build is in the file's name, its state record and the note). `at` is when it was pressed (the record). */
+export async function drawScreen(at: Date, opts: { ratio?: number } = {}): Promise<Drawn | null> {
   const want = opts.ratio ?? devicePixelRatio;
   const root = document.getElementById('root') ?? document.body, rb = readBox(root);
   const vp = { w: rb.width, h: rb.height };
@@ -56,18 +62,11 @@ export async function drawScreen(at: Date, opts: { ratio?: number; /** no build 
   g.fillStyle = !bs.backgroundColor || bs.backgroundColor === 'transparent' || /,\s*0\)$/.test(bs.backgroundColor) ? (readStyle(document.documentElement).getPropertyValue('--bg').trim() || '#fff') : bs.backgroundColor;
   g.fillRect(0, 0, out.width, out.height);
   const items = readScreen(taken ? { x: taken.css.x, y: taken.css.y, w: taken.css.w, h: taken.css.h } : null, taken?.canvas ?? null);
-  await loadMasks(items, (ms) => new Promise<void>((ok) => clock.after(ok, ms)));
+  const missing = await loadMasks(items, (ms) => new Promise<void>((ok) => clock.after(ok, ms)));
   g.setTransform(s, 0, 0, s, -rb.left * s, -rb.top * s);
   paintScreen(g, items, s);
-  if (opts.stamp !== false) {
-  // the stamp: small, in the lower right corner, solid, with a thin halo of the ground so it reads over the figure and over a card
-  g.setTransform(s, 0, 0, s, 0, 0);
-  g.globalAlpha = 1; g.font = `500 ${Number.parseFloat(bs.getPropertyValue("--t-cap")) || 12}px ${bs.fontFamily}`; g.textAlign = 'right'; g.textBaseline = 'alphabetic';
-  const words = stampText(build, at), x = vp.w - 6, y = vp.h - 5;
-  g.lineJoin = 'round'; g.lineWidth = 2; g.strokeStyle = bs.backgroundColor && !/,\s*0\)$/.test(bs.backgroundColor) ? bs.backgroundColor : '#fff'; g.strokeText(words, x, y);
-  g.fillStyle = bs.color; g.fillText(words, x, y);
-  }
-  return { canvas: out, record, build, link, scale: s };
+  if (missing.length) console.warn('[capture] pictures that did not load, left out:', missing.join(', '));
+  return { canvas: out, record, build, link, scale: s, missing };
 }
 
 /** The file's name for a capture of the screen as it is now. */

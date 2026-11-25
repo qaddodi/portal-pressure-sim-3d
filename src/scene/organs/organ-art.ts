@@ -91,6 +91,8 @@ export interface PatchOpts { art: boolean; eso: ArtData['eso'] | null; /** the o
 
 /** The patched shaders of an organ: its fill (vertex and fragment), and for the esophagus the ink's. Pure strings (tests read them). */
 /** The tones of the organ painter (organ-shader.ts ORGAN_FS) the gut's look blend carries from the stomach into the duodenum's funnel: every one the fill is made of, so by the cut the funnel draws the stomach's own fill. */
+/** The stomach's pool of blood, as the organ shader reads it (organ-shader.ts): the duodenum's funnel shares these with the stomach. */
+export const POOL_UNIFORMS = ['poolA', 'poolLand', 'poolDelta', 'poolBlood', 'poolShadeC'] as const;
 export const GUT_LOOK = ['o1', 'o2', 'ogLight', 'ogDark', 'volLight', 'volShade', 'volGeo', 'volShadeAt', 'shadeSteps', 'rimK', 'layer'] as const;
 /** The organ painter's fill with the stomach's look laid in as the vertex's `tos` says: each tone of GUT_LOOK read as mix(u, uS, vTos) (the `uS` uniforms ARE the stomach's: OrganArt.shareGutLook), and the box the
  *  gradient and the volume are measured in mixed toward the stomach's (vBoxS). At tos 1 the funnel computes what the stomach computes at that point, term by term: one surface, no step at the cut (the mock's round 13,
@@ -106,6 +108,10 @@ export function gutLook(fs: string): string {
     body = body.replace(new RegExp(`\\b${k}\\b`, 'g'), `mix(${k}, ${k}S, vTos)`);
   }
   body = body.replace(/\bvBox\b/g, 'mix(vBox, vBoxS, vTos)');
+  // the stomach's pool of blood runs on into the funnel (the antrum, to the pylorus): the funnel reads the stomach's own pool uniforms
+  // (OrganArt.shareGutLook) and has as much of it as of the stomach's look, so the blood stops where the duodenum's own look begins, easing over the bulb
+  if (!body.includes('float poolZ = poolA.z;')) throw new Error('organ art: the gut look needs the pool gate');
+  body = body.replace('float poolZ = poolA.z;', 'float poolZ = poolA.z * vTos;');
   return `${fs.slice(0, at)}${decl}${body}`;
 }
 
@@ -275,6 +281,8 @@ export class OrganArt {
     const dz = this.duodenum, st = this.stomachToon;
     if (!dz) return;
     for (const k of GUT_LOOK) dz.uniforms[`${k}S`] = st?.uniforms[k] ?? dz.uniforms[`${k}S`] ?? { value: dz.uniforms[k]!.value };
+    // (the pool's own uniforms ARE the stomach's, the same objects: its level, landing, ripples and blood colour, one pool across the stomach and the antrum)
+    if (st) for (const k of POOL_UNIFORMS) dz.uniforms[k] = st.uniforms[k]!;
   }
 
   dispose(): void { for (const s of this.slots.values()) s.tex?.dispose(); this.slots.clear(); }
