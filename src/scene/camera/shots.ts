@@ -120,8 +120,8 @@ export const SHOTS: Readonly<Record<ShotName, Shot>> = Object.fromEntries(Object
 /** Camera shot to shot: 950 ms, ease in-out cubic (look-and-feel.md section 7). */
 export const SHOT_MS = 950;
 /** Gentle limited orbit around the shot, radians (±25°). */
-/** The two limits of the viewer's turn, in one place (owner, 20 Nov: tune by feel): left and right, and up and down (tighter). Both stop softly (rig.ts softLimit). */
-export const TURN_LIMIT_DEG = 25, TILT_LIMIT_DEG = 12;
+/** (owner, 25 Nov: vertical tilt 20 degrees; the turn about the vertical axis is free all the way round in the body and the lobule, 25 degrees elsewhere.) The two limits of the viewer's turn, in one place (owner, 20 Nov: tune by feel): left and right, and up and down (tighter). Both stop softly (rig.ts softLimit). */
+export const TURN_LIMIT_DEG = 25, TILT_LIMIT_DEG = 20;
 export const ORBIT_LIMIT = (TURN_LIMIT_DEG * Math.PI) / 180;
 export const TILT_LIMIT = (TILT_LIMIT_DEG * Math.PI) / 180;
 /** Fit brings a turn home as a critically damped spring (`orbitHome` in rig.ts); `ORBIT_HOME_OMEGA` is its stiffness, rad/s: about 1.3 s to settle. A free drag is not brought home: the angle the viewer left stays. */
