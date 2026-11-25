@@ -9,11 +9,11 @@
 import type { LobuleNet, P2 } from './geometry.ts';
 import { DISC_R } from './widths.ts';
 import { framedTriad, sinCourse, stationAt } from './captions.ts';
-import { PAIR_ARC } from '../labels/pair.ts';
+import { PAIR_ARC, PAIR_SIN_AT } from '../labels/pair.ts';
 
 /** The places a slide's callout names (figure-calls.ts maps the deck's `at` to them): the portal tract the lobule shots frame, a sinusoid half way along (zone 2), a pericentral sinusoid (zone 3), the central vein. */
-export type CalloutName = 'tract' | 'sinusoid:mid' | 'sinusoid:zone3' | 'sinusoid:pair' | 'central';
-export const CALLOUT_NAMES: readonly CalloutName[] = ['tract', 'sinusoid:mid', 'sinusoid:zone3', 'sinusoid:pair', 'central'];
+export type CalloutName = 'tract' | 'sinusoid:mid' | 'sinusoid:zone3' | 'sinusoid:pair' | 'sinusoid:pair-sin' | 'central';
+export const CALLOUT_NAMES: readonly CalloutName[] = ['tract', 'sinusoid:mid', 'sinusoid:zone3', 'sinusoid:pair', PAIR_SIN_AT, 'central'];
 export const isCalloutName = (n: string): n is CalloutName => (CALLOUT_NAMES as readonly string[]).includes(n);
 
 /** A ring round one sinusoid: about five lumens across, so it plainly circles that one (lobule radii). Its inner edge stays 0.189 R from the centre; the central vein is 0.12 R at its widest. */
@@ -61,6 +61,7 @@ export function calloutSpot(net: Pick<LobuleNet, 'triads' | 'courses' | 'corners
     return { x, y, r: CV_RING_R, course: cv.id };
   }
   if (name === 'tract') { const t = net.triads[tri]!; return { x: t.x, y: t.y, r: TRACT_RING_R }; }
+  if (name === PAIR_SIN_AT) { const p = pairSpots(net); return { x: p.sin[0], y: p.sin[1], r: SINUSOID_RING_R, course: p.course }; }
   if (name === 'sinusoid:pair') { const p = pairSpots(net); return { x: p.whvp[0], y: p.whvp[1], r: SINUSOID_RING_R, course: p.course }; }
   const band = name === 'sinusoid:mid' ? BAND.mid : BAND.zone3;
   // the "Sinusoids" station's dot stands on the framed tract's side: the ring and the station name never share a place
