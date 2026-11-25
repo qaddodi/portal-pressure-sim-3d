@@ -78,13 +78,14 @@ export function caudateOf(s: CopiedSlide): boolean {
 
 export function planSlide(deck: string, s: CopiedSlide, index: number): SlidePlan {
   // (a Circuit slide with a `zone` and no `cam` frames that zone's region: the 2D presenter's zoneCam)
-  const cam = camPlan(s.cam == null && s.view === 'circuit' && !s.visual && typeof s.zone === 'string' ? s.zone : s.cam, s.view);
+  const labels = (s.labels ?? []).filter((id) => STATION_IDS.has(id));
+  const cam = camPlan(s.cam == null && s.view === 'circuit' && !s.visual && typeof s.zone === 'string' ? s.zone : s.cam, s.view, labels);
   const view: FigureView = cam.kind === 'circuit' ? 'circuit' : cam.kind === 'lobule' ? (cam.name === 'sinusoid' ? 'sinusoid' : 'lobule') : 'body';
   const fit = camPlan("fit");
   const shot: Shot = cam.kind === "circuit" ? (fit as Extract<CamPlan, { kind: "body" }>).shot : cam.shot;   // (the Circuit view is batch B7's: until it lands the figure stays on the body)
   const scene: SceneDirective = {
     shot, lobuleCam: cam.kind === 'lobule' ? cam.name : null, view,
-    lens: lensOf(s.lens), labels: (s.labels ?? []).filter((id) => STATION_IDS.has(id)), terms: termList(s.terms),
+    lens: lensOf(s.lens), labels, terms: termList(s.terms),
     circuit: cam.kind === 'circuit' ? { box: cam.box, kMax: typeof s.kMax === 'number' ? s.kMax : null, resistors: resistorsOf(s), caudate: caudateOf(s) } : null,
   };
   return { deck, id: s.id, index, cam, scene, step: stepOf(s), needs: needsOf(s), readiness: readiness(s), missing: { stations: missingStations(s), terms: missingTerms(s) } };

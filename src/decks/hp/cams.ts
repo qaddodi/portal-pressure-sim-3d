@@ -2,7 +2,9 @@
 // whole plate ('fit'); the Lobule and Sinusoid views have their own names. The 3D figure is the same plate given depth in one shared frame
 // (X = (x2d − 700) / 300, Y = −(y2d − 556) / 300; docs/b3-vessels-blood-lenses.md), so the shot is the box's middle and half extents in that frame,
 // seen face-on, and the scene's room solver pulls back until it fits the room the cards leave. Nothing here is a drawing.
+import { Vector3 } from 'three';
 import type { Shot } from '../../scene/camera/shots.ts';
+import { STATIONS } from '../../scene/labels/stations.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
 import { REGIONS_HP as REGIONS, CIRC_REGIONS_HP as CIRC_REGIONS, box2Of, centreOf, type Box3 } from '../../scene/anatomy/source.ts';
 import { camProblems as onProblems, box3Of, placedFitBox } from '../rw/cams.ts';   // (the by-name camera { on: [names], near }: one implementation, shared by every deck)
@@ -57,15 +59,42 @@ export type CamPlan =
 
 export class CamError extends Error {}
 
+/** FRAMING RULE F3 (Mohammad, 25 Nov, "do it"; docs/approved/framing-rules.md): a slide's frame always takes in every station its labels name, with this much air all round (scene units; 0.13 keeps every station 40 px or more inside the room on a phone, an iPad and a Mac, measured over every talk, tests/camera-framing-rules.test.ts). Root cause of the clipped labels (RHV on Prehepatic 13, RA on Choose 15, VAR on the bleed frame ...): a camera came from the 2D deck's region
+ *  box alone and never from what the slide labels, so a station could stand on or past the room's edge. A frame that already holds its stations is returned as it was. */
+export const STATION_AIR = 0.13;
+/** Where a station's dot stands at rest in the scene (x, y), or null when it has none: the label controller's own anchor (labels/stations.ts `at` at `u0`), so the frame holds the dot the viewer sees. */
+export function stationDot(id: string): [number, number] | null {
+  const st = STATIONS.find((x) => x.id === id);
+  if (!st) return null;
+  try { const v = st.at(st.u0, new Vector3()); return Number.isFinite(v.x) && Number.isFinite(v.y) ? [v.x, v.y] : null; } catch { return null; }
+}
+export function withStations(shot: Shot, stations: readonly string[]): Shot {
+  let x0 = shot.target[0] - shot.half[0], x1 = shot.target[0] + shot.half[0], y0 = shot.target[1] - shot.half[1], y1 = shot.target[1] + shot.half[1], grew = false;
+  for (const n of stations) {
+    const at = stationDot(n);
+    if (!at) continue;
+    const a = STATION_AIR, sx0 = at[0] - a, sx1 = at[0] + a, sy0 = at[1] - a, sy1 = at[1] + a;
+    if (sx0 < x0) { x0 = sx0; grew = true; } if (sx1 > x1) { x1 = sx1; grew = true; }
+    if (sy0 < y0) { y0 = sy0; grew = true; } if (sy1 > y1) { y1 = sy1; grew = true; }
+  }
+  if (!grew) return shot;
+  return { ...shot, target: [(x0 + x1) / 2, (y0 + y1) / 2, shot.target[2]], half: [(x1 - x0) / 2, (y1 - y0) / 2] };
+}
+
 /** The camera of a slide, from its `cam` (and `view`) exactly as the 2D deck writes them. Throws on a name neither app has, so none is silently dropped. */
-export function camPlan(cam: CopiedSlide['cam'], view?: string | null): CamPlan {
+export function camPlan(cam: CopiedSlide['cam'], view?: string | null, stations: readonly string[] = []): CamPlan {
+  const plan = camPlanOf(cam, view);
+  return plan.kind === 'body' && stations.length ? { ...plan, shot: withStations(plan.shot, stations) } : plan;
+}
+
+function camPlanOf(cam: CopiedSlide['cam'], view?: string | null): CamPlan {
   if (view === 'circuit') {
     if (cam == null || cam === 'fit') return { kind: 'circuit', name: 'fit', box: [30, 30, 1360, 730] };
     const b = isBox(cam) ? cam : typeof cam === 'string' ? CIRC_REGIONS[cam] : null;
     if (!b) throw new CamError(`no Circuit region "${JSON.stringify(cam)}"`);
     return { kind: 'circuit', name: typeof cam === 'string' ? cam : 'box', box: b };
   }
-  if (cam == null) return camPlan(DEFAULT_CAM);
+  if (cam == null) return camPlanOf(DEFAULT_CAM);
   if (cam === 'fit') return placedBody('fit', placedFitBox());
   if (typeof cam === 'string' && /^(lobule|sinusoid)/.test(cam)) {
     if (!(LOBULE_CAMS as readonly string[]).includes(cam)) throw new CamError(`no lobule camera "${cam}"`);
@@ -81,7 +110,7 @@ export function camPlan(cam: CopiedSlide['cam'], view?: string | null): CamPlan 
     const bad = onProblems(cam as never);
     if (bad.length) throw new CamError(`camera ${JSON.stringify(cam)}: ${bad.join('; ')}`);
     const b3 = box3Of(cam);
-    return b3 ? placedBody('on', b3) : camPlan('fit');
+    return b3 ? placedBody('on', b3) : camPlanOf('fit');
   }
   if (isNames(cam)) {
     for (const n of cam) if (!REGIONS[n]) throw new CamError(`no region "${n}"`);
