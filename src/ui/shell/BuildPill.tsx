@@ -3,7 +3,7 @@
 // to do: it drops this copy's service worker and caches (only this scope's; the 2D app and other apps on the origin keep theirs), then reloads with a cache-busting
 // address that keeps the page's own query (the same talk and slide, or the same patient with its settings, view and camera: the address of what is on the screen, shareLinkNow). Absolute, not fixed, as in 2D: the page never scrolls, so it stays in place.
 import { useState } from 'react';
-import { buildLabel, buildChecks, cachePrefix, reloadUrl, BADGE_H } from './build-pill.ts';
+import { buildLabel, buildChecks, checksFailed, cachePrefix, reloadUrl, BADGE_H } from './build-pill.ts';
 import { shareLinkNow } from './share-wire.ts';
 import { useUpdate } from '../../pwa/update-state.ts';
 import { updateText } from './build-pill.ts';
@@ -30,7 +30,7 @@ export function BuildPill() {
   };
   return (
     <div id="preview-badge" data-capture-skip="" role="button" tabIndex={0} onClick={reload} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') reload(); }}
-      style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 'env(safe-area-inset-top)', zIndex: 2147483647, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', padding: '0 8px', borderRadius: '0 0 8px 8px', background: newer !== null ? '#0b7a3b' : checks ? '#b00020' : '#c9430d', color: '#fff', font: `700 12px/${BADGE_H}px system-ui,sans-serif`, letterSpacing: '.04em', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,.35)' }}>
+      style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 'env(safe-area-inset-top)', zIndex: 2147483647, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', padding: '0 8px', borderRadius: '0 0 8px 8px', background: newer !== null ? '#0b7a3b' : checksFailed(checks) ? '#b00020' : '#c9430d', color: '#fff', font: `700 12px/${BADGE_H}px system-ui,sans-serif`, letterSpacing: '.04em', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,.35)' }}>
       {busy ? 'RELOADING…' : updateText(label, checks, newer)}
     </div>
   );

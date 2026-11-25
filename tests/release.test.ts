@@ -23,16 +23,16 @@ test('the feedback draft carries the version, PREVIEW only on the preview copy',
   assert.match(decodeURIComponent(feedbackHref('a@b.test', { build: 'v1', device: 'd', screen: 's', view: 'v' })), /^mailto:a@b\.test\?/);
 });
 
-test('the build stamps package.json\'s version, and the workflow passes the repository variable as the feedback address', () => {
+test('the build stamps package.json\'s version, and the workflow passes the repository secret as the feedback address', () => {
   const b = readFileSync('scripts/build.mjs', 'utf8');
   assert.match(b, /VITE_RELEASE: release/);
   assert.match(b, /readFileSync\(`\$\{root\}package\.json`/);
   assert.match(JSON.parse(readFileSync('package.json', 'utf8')).version, /^\d+\.\d+\.\d+/);
   const wf = readFileSync('.github/workflows/pages.yml', 'utf8');
-  assert.equal((wf.match(/VITE_FEEDBACK_EMAIL: \$\{\{ vars\.FEEDBACK_EMAIL \}\}/g) ?? []).length, 2, 'both builds (preview and live) get the address');
+  assert.equal((wf.match(/VITE_FEEDBACK_EMAIL: \$\{\{ secrets\.FEEDBACK_EMAIL \}\}/g) ?? []).length, 2, 'both builds (preview and live) get the address');
 });
 
-/** No email address in the shipped sources: the feedback address is only ever the build's variable. (@example and @b.test style placeholders in tests are fine: tests/ is not scanned.) */
+/** No email address in the shipped sources: the feedback address is only ever the build's secret. (@example and @b.test style placeholders in tests are fine: tests/ is not scanned.) */
 test('no email address is committed under src, scripts, public or index.html', () => {
   const hits: string[] = [];
   const re = /[A-Za-z0-9._%+-]+@(?:gmail|googlemail|yahoo|outlook|hotmail|icloud|me|proton|protonmail)\.[a-z]{2,}/i;
