@@ -231,7 +231,8 @@ DPart dPartFill(DPart P) {
 }
 // the cell of class k (prof: its flat profile, dClassOf) nearest the pixel's place se on the root's stream
 float dCell(float se, int k, float prof, float Pf, float flowFig) {
-  return floor((se - flowFig * prof * D_flowK) / Pf + 0.37 * float(k));
+  float fk = float(k);
+  return floor((se - flowFig * prof * D_flowK) / Pf + 0.37 * fk);
 }
 // which lanes of the vessel can hold a particle the pixel sees (the section seen at a slant shows more of it)
 vec2 dLaneWin(DFrame F) {
