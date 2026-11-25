@@ -139,59 +139,57 @@ test('the dock gliding while a dive flies (slide 4 has a data card, slide 5 has 
   assert.ok(landed >= 1400 && landed <= 1700, `landed with the dive's own 1500 ms, not the dock's 300 (${landed} ms)`);
 });
 
-test('the HVPG chase and a dive never share the picture: the dive waits for the chase to ease out; a chase asked for during a dive waits for the landing', async () => {
+// (the eyes of a move, frame by frame, judged on the one it lands on: it only closes (no detour) and no step stands out against the one before (no jump))
+function oneWay(eyes: number[][], what: string): void {
+  const end = eyes[eyes.length - 1]!, d = (p: number[]) => Math.hypot(p[0]! - end[0]!, p[1]! - end[1]!, p[2]! - end[2]!);
+  let lastStep = 0;
+  for (let i = 1; i < eyes.length; i++) {
+    const a = eyes[i - 1]!, b = eyes[i]!, step = Math.hypot(b[0]! - a[0]!, b[1]! - a[1]!, b[2]! - a[2]!);
+    assert.ok(d(b) <= d(a) * 1.002 + 1e-7, `${what}: one way to the landing (frame ${i}: ${d(a).toExponential(3)} -> ${d(b).toExponential(3)})`);
+    if (i > 1) assert.ok(step < 4 * lastStep + 0.025 * d(eyes[0]!) + 1e-9, `${what}: no jump (frame ${i}: ${step.toExponential(3)} after ${lastStep.toExponential(3)})`);
+    lastStep = step;
+  }
+}
+
+test('the HVPG chase is part of the one move (HVPG 4 to 5, 25 Nov: "a camera tilt or something"): a dive from the chase starts from the picture as drawn, and a slide that asks for the chase lands on it', async () => {
   const { lobuleShot } = await import('../src/scene/lobule/shots.ts');
   const s = await slide4();
   while (!s.microStep()) { /* primed */ }
-  const chase: ChasePose = { yaw: 0, pitch: 0, dist: 2.4, fov: 20, target: [0.1, 0.4, 0.3] };
+  const chase: ChasePose = { yaw: 0.3, pitch: 0.1, dist: 2.4, fov: 20, target: [0.1, 0.4, 0.3] };
   s.rig.setChase(chase);
   let t = 500;
   for (let i = 0; i < 80; i++) { t += 16; s.update(t); }
-  const inChase = pos(s);
-  // the slide goes on to the lobule: the deck turns the chase off and asks for the dive in the same call
+  // the slide goes on to the lobule: the deck turns the chase off and asks for the dive in the same call. Before, the dive waited 900 ms for the chase to ease out (the camera backed off, turned to the body
+  // shot's own angle and changed lens) and then dove, turning back: two moves, read as a tilt
   s.rig.setChase(null);
   const calls: string[] = [];
   const goTo = s.rig.goTo.bind(s.rig);
   s.rig.goTo = (...a) => { calls.push('goTo'); goTo(...a); };
   s.setView('lobule', t);
+  const eyes = [pos(s)];
   s.goTo(lobuleShot('lobule:fit'), ROOM_5[0]!, t, 1500);
-  assert.equal(s.diveHeld, true, 'the dive waits for the chase to be out of the picture');
-  assert.equal(s.rig.chaseLeaving, true);
-  let lastPos = inChase;
-  for (let i = 0; i < 120 && s.diveHeld; i++) {
-    t += 16; s.update(t);
-    const p = pos(s);
-    assert.ok(Math.hypot(p[0]! - lastPos[0]!, p[1]! - lastPos[1]!, p[2]! - lastPos[2]!) < 0.6, `the chase eases out without a jump (frame ${i})`);
-    lastPos = p;
-  }
-  assert.equal(s.diveHeld, false, 'released once the chase is out');
-  assert.equal(s.rig.chaseLeaving, false);
+  assert.equal(s.diveHeld, false, 'the dive does not wait for the chase');
+  assert.equal(s.rig.chaseLeaving, false, 'the chase let go into the move: nothing of it is left to ease out');
+  t += 16; s.update(t); eyes.push(pos(s));
+  assert.ok(Math.hypot(eyes[1]![0]! - eyes[0]![0]!, eyes[1]![1]! - eyes[0]![1]!, eyes[1]![2]! - eyes[0]![2]!) < 0.05, 'the first frame starts from the picture as it was drawn');
+  for (let i = 0; i < 160 && s.rig.isMoving; i++) { t += 16; s.update(t); eyes.push(pos(s)); }
+  assert.equal(s.rig.isMoving, false, 'landed');
   assert.deepEqual(calls, ['goTo']);
-  let last = distTo(s);
-  for (let i = 0; i < 140; i++) {
-    t += 16; s.update(t);
-    const d = distTo(s), p = pos(s);
-    assert.ok(d <= last * 1.0005, `one way in (frame ${i}: ${last.toExponential(3)} -> ${d.toExponential(3)})`);
-    assert.ok(Math.hypot(p[0]! - lastPos[0]!, p[1]! - lastPos[1]!, p[2]! - lastPos[2]!) < Math.max(1, last) * 0.35, `no jump in the eye (frame ${i})`);
-    last = d; lastPos = p;
-  }
-  assert.equal(s.rig.isMoving, false);
-  // and the way out onto a catheter slide: the chase is asked for with the dive out and comes in only once it has landed (no aim pulled across a picture of the lobule's scale)
+  oneWay(eyes, 'the dive from the chase');
+  // and the way out onto a catheter slide, as the talk asks (the chase, then the framing): ONE move that lands on the chase; nothing comes in after it lands
   s.setView('body', t);
-  s.goTo('play', ROOM_4, t, 1500);
   s.rig.setChase(chase);
-  last = distTo(s); lastPos = pos(s);
-  let landedAt = -1;
-  for (let i = 0; i < 200; i++) {
-    t += 16; s.update(t);
-    const d = distTo(s), p = pos(s);
-    const flying = (s.rig as unknown as { active: boolean }).active;
-    if (flying) assert.ok(d >= last * 0.9995, `one way out while the dive flies (frame ${i})`);
-    else if (landedAt < 0) landedAt = i;
-    assert.ok(Math.hypot(p[0]! - lastPos[0]!, p[1]! - lastPos[1]!, p[2]! - lastPos[2]!) < Math.max(1, last) * 0.5, `no jump in the eye (frame ${i})`);
-    last = d; lastPos = p;
-  }
-  assert.ok(landedAt > 0 && s.rig.isMoving === false, 'the chase came in after the dive and settled');
+  s.goTo('play', ROOM_4, t, 1500);
+  const out = [pos(s)];
+  let i = 0;
+  for (; i < 300 && s.rig.isMoving; i++) { t += 16; s.update(t); out.push(pos(s)); }
+  assert.equal(s.rig.isMoving, false, 'landed on the chase and settled');
+  oneWay(out, 'the way out onto the chase');
+  const landed = pos(s);
+  for (let k = 0; k < 10; k++) { t += 16; s.update(t); }
+  assert.deepEqual(pos(s), landed, 'the chase came in with the move, not after it');
+  s.rig.setChase(null);
+  for (let k = 0; k < 120 && s.rig.isMoving; k++) { t += 16; s.update(t); }
 });
 
 test('a card settling at any moment of a dive (early, late, near the landing) never makes the zoom step: the distance changes smoothly from frame to frame', async () => {

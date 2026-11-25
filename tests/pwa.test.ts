@@ -193,15 +193,7 @@ test('the Lobule\'s baked weld plan, its planner worker and the fonts\' other al
   assert.ok(isLate('lobule/welds.bin') && !isLate('anatomy/skins.bin') && !isLate('fonts/inter-latin.woff2'));
 });
 
-test('the page does not ask for the weld plan in the Lobule\'s constructor or on a timer: the quiet ladder asks once the cover is up, a dive asks at once', () => {
-  const l = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
-  assert.doesNotMatch(l, /WELDS_ASK_MS/, 'no timer from the constructor');
-  assert.match(l, /if \(typeof window === 'undefined'\) this\.askWelds\(\);/, 'off a page (a test) it asks at once, as before');
-  assert.match(l, /if \(!this\.weldsAsked && on && this\.flat\.isVisible\) this\.askWelds\(\)/, 'a Lobule that is wanted and not asked for asks at once');
-  const warm = readFileSync('src/boot/warm.ts', 'utf8');
-  assert.match(warm, /id: 'welds', load: async \(\) => \{ await afterCover\(\); return weldBytes\(\); \}, run: \(\) => wantWelds\(\)/, 'the ladder reads the file in after the cover');
-});
-
+// (that the Lobule's weld plan is asked for by the quiet ladder's rung or a dive, never by its constructor or a timer: tests/lobule-welds-ask.test.ts)
 // ---- loading plan L5/L6: the boot byte total, the quicker offline launch, the polite fill ------------------------------------------------------------------------------
 const navigate = (w: ReturnType<typeof runSw>) => { let answered: Promise<unknown> | undefined; w.on.fetch!({ request: { method: 'GET', url: 'https://x.test/app/', mode: 'navigate' }, respondWith: (p: Promise<unknown>) => { answered = p; }, waitUntil() {} } as never); return answered!; };
 

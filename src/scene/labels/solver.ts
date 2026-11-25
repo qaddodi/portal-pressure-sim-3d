@@ -219,8 +219,11 @@ export function leaderTouches(from: Seg, l: Line, ax: number, ay: number): boole
   return segsDist(from, s) < r;
 }
 
-function clearPoint(x: number, y: number, view: Box, blockers: readonly Box[]): boolean {
-  if (x < view.x0 + SLIDE_INSET || x > view.x1 - SLIDE_INSET || y < view.y0 + SLIDE_INSET || y > view.y1 - SLIDE_INSET) return false;
+/** The edge a `must` name's dot may stand at (px): a name the slide shows is never left out for a vessel
+ *  a finger's width from the screen's edge (wedge slide, iPhone 390 wide, the central vein 15 px in). */
+const MUST_INSET = 4;
+function clearPoint(x: number, y: number, view: Box, blockers: readonly Box[], inset = SLIDE_INSET): boolean {
+  if (x < view.x0 + inset || x > view.x1 - inset || y < view.y0 + inset || y > view.y1 - inset) return false;
   for (const b of blockers) if (x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1) return false;
   return true;
 }
@@ -308,7 +311,7 @@ export function solve(input: SolveInput): Solved {
   // rule 6: dots in the clear
   for (const raw of input.items) {
     const it: Anchored = { ...raw };
-    if (!clearPoint(it.ax, it.ay, view, input.blockers)) {
+    if (!clearPoint(it.ax, it.ay, view, input.blockers, raw.must ? MUST_INSET : SLIDE_INSET)) {
       const s = it.path ? slideInView(it.path, view, input.blockers, it.rests) : null;
       if (!s) { hidden.push(it.id); continue; }
       it.ax = s.x; it.ay = s.y; it.au = s.u;

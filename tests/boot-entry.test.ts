@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { CHART_KINDS } from '../src/ui/charts/kinds.ts';
 import { CHARTS } from '../src/ui/charts/registry.ts';
 import { bootBytes, kindOf, readBudget, report, within } from '../scripts/boot-bytes.mjs';
+import { BOOT_PRELOAD } from '../scripts/hash-data.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 // (an import or re-export statement at the start of a line; comments are not stripped: a "/*" inside a path in a comment, like styles/*.css, would swallow the imports after it)
@@ -141,11 +142,8 @@ test('the baked geometry the first picture waits for stays within its wire-byte 
 test('the Lobule\'s weld plan is not downloaded before the app is usable', () => {
   // (the page reads it in the quiet ladder after the cover, or when the Lobule is first asked for: lobule/weld-want.ts, boot/warm.ts)
   assert.ok(!files.some((f) => /\.bin$/.test(f) && /welds/.test(f)), 'no weld file is imported by the boot entry');
-  const index = readFileSync(resolve(root, 'index.html'), 'utf8'), hash = readFileSync(resolve(root, 'scripts/hash-data.mjs'), 'utf8');
-  assert.doesNotMatch(index, /welds/, 'the page does not preload it');
-  assert.match(hash, /BOOT_PRELOAD = \['anatomy\/organs-baked\.bin', 'anatomy\/skins\.bin', 'anatomy\/organ-art\.json'\]/, 'the preload list is the figure\'s own files');
-  const lobule = readFileSync(resolve(root, 'src/scene/micro3d/lobule3d.ts'), 'utf8');
-  assert.doesNotMatch(lobule, /clock\.after\(\(\) => this\.askWelds\(\)/, 'the Lobule does not ask for it on a timer after the boot');
+  // (the page's preload tags are made from this list, scripts/hash-data.mjs)
+  assert.deepEqual(BOOT_PRELOAD, ['anatomy/organs-baked.bin', 'anatomy/skins.bin', 'anatomy/organ-art.json'], 'the preload list is the figure\'s own files, no weld plan');
 });
 
 test('the boot-byte accounting: the install list on the wire by kind, text gzipped, data as it is, late files left out, a total over the budget refused', () => {
@@ -166,7 +164,8 @@ test('the boot-byte accounting: the install list on the wire by kind, text gzipp
   assert.ok(r.kinds.javascript!.bytes < 1000, 'text goes gzipped');
   assert.ok(!r.files.some((f: { file: string }) => /welds|organs-Ee|launch/.test(f.file)), 'the weld plan, the fallback organs and the launch pictures are not before usable');
   assert.equal(r.total, r.files.reduce((n: number, f: { bytes: number }) => n + f.bytes, 0));
-  assert.match(report(r, { targetKb: 4000, budgetKb: 5000 }), /before usable: 5 files, \d+ kB on the wire \(budget 5,000 kB, target 4,000 kB\)/);
+  const head = report(r, { targetKb: 4000, budgetKb: 5000 }).split('\n')[0];
+  assert.equal(head, `before usable: 5 files, ${Math.round(r.total / 1024)} kB on the wire (budget 5,000 kB, target 4,000 kB)`);
   assert.ok(within(r, { targetKb: 1, budgetKb: 200 }) && !within(r, { targetKb: 1, budgetKb: 100 }), 'a total over the budget is refused');
   assert.equal(kindOf('assets/organ-art-Aa11Bb22.json'), 'geometry (organ art)');
 });

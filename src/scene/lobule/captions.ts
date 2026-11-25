@@ -7,7 +7,7 @@ import type { Dir } from '../labels/geometry.ts';
 import type { Form, Item } from '../labels/solver.ts';
 import { type Measure, type Vp, boxSize, nameRun, stationRuns } from '../labels/type.ts';
 import { lymphText, LYMPH_UNIT } from '../../ui/action/lymph-day.ts';
-import type { LobuleNet, P2 } from './geometry.ts';
+import type { Course, LobuleNet, P2 } from './geometry.ts';
 import { DISC_R, RS_N } from './widths.ts';
 
 /** Where each zone's name stands along the radius to the flat bottom edge, in shares of the apothem (2D ZONE_Q), and the radius's direction (down, in 2D's y-down plane). */
@@ -95,14 +95,29 @@ export function stationAt(net: CapCtx['net'], tri: number, k: CapKey): P2 {
   if (k === 'bd') return t.bd;
   if (k === 'lymph') return t.lv;
   if (k === 'cv') return [0, 0];
-  // the sinusoid: the first one of the tract's whole course (the s1 that leaves nearest its angle), at the middle of its length
-  let best: P2 | null = null, bd = Infinity;
+  const c = sinCourse(net, tri);
+  return c ? c.pts[Math.floor(c.pts.length / 2)]! : [t.x * 0.5, t.y * 0.5];
+}
+
+/** The sinusoid a tract's "Sinusoids" station stands on: the s1 course that leaves nearest the tract's angle,
+ *  judged by the middle of its length. The pair of readings (labels/pair.ts) rings two points of this one. */
+export function sinCourse(net: Pick<CapCtx['net'], 'triads' | 'courses'>, tri: number): Course | null {
+  const t = net.triads[tri]!;
+  let best: Course | null = null, bd = Infinity;
   for (const c of net.courses) {
     if (c.kind !== 's1' || c.pts.length < 3) continue;
     const m = c.pts[Math.floor(c.pts.length / 2)]!, d = Math.hypot(m[0] - t.x * 0.55, m[1] - t.y * 0.55);
-    if (d < bd) { bd = d; best = m; }
+    if (d < bd) { bd = d; best = c; }
   }
-  return best ?? [t.x * 0.5, t.y * 0.5];
+  return best;
+}
+
+type Tri = { x: number; y: number }[];
+/** The triad the lobule shots frame: the one nearest the corner at angle pi, (-1, 0) (shots.ts: `along = -1 + wf`). Derived, never numbered. */
+export function framedTriad(triads: Tri): number {
+  let best = 0, bd = Infinity;
+  triads.forEach((t, i) => { const d = Math.hypot(t.x + 1, t.y); if (d < bd) { bd = d; best = i; } });
+  return best;
 }
 
 const form = (text: string, w: number, h: number): Form => ({ text, w, h });
@@ -158,7 +173,10 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
     for (let i = 0; i < c.pts.length; i++) { const q = ctx.proj(c.pts[i]![0], c.pts[i]![1]); if (prev) lines.push([prev[0], prev[1], q[0], q[1]]); prev = q; }
   }
   for (const k of keys) {
-    const w = WORDS[k], at = stationAt(ctx.net, tri, k), [ax, ay] = ctx.proj(at[0], at[1]);
+    // (a sinusoid the slide shows its reading for stands on the framed tract's side, where the slide's own callout is kept off it (callout-spot.ts):
+    //  the tract the tract names are about is the lowest one in view, and when the framed tract is at the screen's edge (a phone's zoomed shot)
+    //  that is another one, whose sinusoid is off the screen: the name was left out, wedge slide on an iPhone, 25 Nov)
+    const w = WORDS[k], at = stationAt(ctx.net, k === 'sin' && ctx.must?.has('sin') ? framedTriad(ctx.net.triads) : tri, k), [ax, ay] = ctx.proj(at[0], at[1]);
     const reads = READ[k] !== null, must = !!ctx.must?.has(k);
     const mk = (name: string, v: boolean): Form => { const b = boxSize(stationRuns(name, v, false, ctx.hide ? '?' : k === 'lymph' ? (ctx.unit ? `0,000 ${LYMPH_UNIT}` : '0,000') : ctx.unit ? '00.0 mmHg' : '00.0'), vp, measure); return form(name, b.w, b.h); };
     const formsM: { name: string; value: boolean }[] = [{ name: w.name, value: reads }];

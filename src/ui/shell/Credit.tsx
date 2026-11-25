@@ -10,7 +10,7 @@ import { M } from './metrics.ts';
 import { useThumb } from './thumb.ts';
 import { CORNERS, freeSpots } from './credit-spots.copied.js';
 import { layoutOf, margin, isSideways } from '../layout/rules2d.ts';
-import { footCredit, footClear, clipTo, underDock } from './credit-foot.ts';
+import { footCredit, footClear, clipTo, underDock, takesFootBand } from './credit-foot.ts';
 import { useShell } from './store.ts';
 import { avoidVessel, vesselRect, widestWall } from './credit-avoid.ts';
 import { cel } from '../../scene/api.ts';
@@ -148,7 +148,7 @@ export function Credit() {
       }
       // Free play on a phone held upright: the line stands in the empty band under the bottom bar, above the home indicator
       // (Mohammad, 25 Nov), on every view. It keeps the hunt below only where that band is too thin or covered, or the fps counter holds it.
-      if (!talk && thumb && !fps && (lay === 'stack' || lay === 'tab')) {
+      if (takesFootBand({ talk, thumb, fps, lay })) {
         const dock = shownBoxes('.vdock:not(.mini)', vw, vh)[0];
         const at = dock ? underDock({ vw, vh, dock, h, w, others: shownBoxes(OBSTACLES, vw, vh) }) : null;
         if (at) {

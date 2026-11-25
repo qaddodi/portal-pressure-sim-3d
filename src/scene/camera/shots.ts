@@ -1,6 +1,6 @@
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { x3, y3 } from '../frame2d.ts';
-import { boxOfNames, centreOf, FIGURE_NAMES, VISIBLE_FIGURE_NAMES, type Box3 } from '../anatomy/source.ts';
+import { boxOfNames, centreOf, FIGURE_NAMES, VISIBLE_FIGURE_NAMES, unionBox3, type Box3 } from '../anatomy/source.ts';
 
 // Named shots for the HVPG slice. A shot says what to look at (target, direction, how close at least, how much of the body it needs
 // on screen); the room solver (room.ts) then fits it into whatever room the cards leave free on this device. Frontal view: the patient's
@@ -108,14 +108,18 @@ export function placedShot(s: Shot, names: readonly string[], margin = SHOT_MARG
 }
 /** The whole figure as a shot (free play): aimed at the middle of the organs' silhouette (VISIBLE_FIGURE_NAMES), across and up and down, and framed on what it reaches plus WHOLE_MARGIN. Root cause of the lopsided figure (Mohammad, 25 Nov, a phone screenshot: 68 pt of empty room on the left and 43 on the right, 37 above and 23 below, measured
  *  on the organs): the aim was the 2D plate's (712, 491) carried across, not the figure's own middle, and the frame took in the vessels and the esophagus' faded top as well. */
-function wholeFigureShot(s: Shot, names: readonly string[]): Shot {
-  const now = boxOfNames(names, true).box;
-  if (!now) throw new Error('the whole figure names nothing placed');
+function wholeFigureShot(s: Shot, names: readonly string[], extra: Box3 | null = null): Shot {
+  const drawn = boxOfNames(names, true).box;
+  if (!drawn) throw new Error('the whole figure names nothing placed');
+  // (`extra`: what else is drawn now and belongs to the whole figure, the ascites' water: camera/whole.ts)
+  const now: Box3 = extra ? unionBox3([drawn, extra])! : drawn;
   const c = centreOf(now);
   // (the figure's own middle, across and up and down: not the 2D plate's aim, which stood 12.5 pt right of it and 0.125 units too high)
   const target: Vec3 = [c[0], c[1], c[2]], reach = viewReach(now, { ...s, target });
   return { ...s, target, half: [reach[0] + WHOLE_MARGIN, reach[1] + WHOLE_MARGIN], fill: WHOLE_FILL };
 }
+/** The whole figure's shot with something more drawn in it (the ascites' water, camera/whole.ts): the free play frame grown to hold it, centred on the lot. */
+export const wholeFigureWith = (extra: Box3): Shot => wholeFigureShot(TODAY_SHOTS.play, SHOT_SUBJECTS.play, extra);
 export const SHOTS: Readonly<Record<ShotName, Shot>> = Object.fromEntries(Object.entries(TODAY_SHOTS).map(([k, s]) => [k, k === 'play' ? wholeFigureShot(s, SHOT_SUBJECTS.play) : placedShot(s, SHOT_SUBJECTS[k as ShotName])])) as Record<ShotName, Shot>;
 /** The whole figure as the organ veil measures zoom from (rig.zoomOverWhole, organ-veil/config.ts: whole at the whole framing, gone at twice as close, Mohammad's curves): the framing free play had before Zoom fit was tightened (the vessels' box, 0.04 of margin,
  *  0.92 of the room). A fixed reference, so a closer Fit does not move the curves: the HVPG, wedge and route shots are crisp as they were (tests/organ-veil.test.ts). Root cause of the veil drifting: its reference was the Fit frame itself. */

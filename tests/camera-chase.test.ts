@@ -31,9 +31,17 @@ test('between the frames the camera only closes in and swings one way, with no j
   assert.equal(hvpgChase(1)!.dist, 2.4);
 });
 
-test('it is the deck\'s scene link that drives it, and only on a body slide with a catheter', () => {
+test('it is the deck\'s scene link that drives it, and only on a body slide with a catheter', async () => {
+  // (what the camera is asked for at a talk's step is camera-ask.ts's: the chase is on on a body slide with the catheter out, never on a visual, a case card or another view)
+  const { cameraAsk } = await import('../src/ui/deck/camera-ask.ts');
+  const cath = { advance: 0.5, balloon: 0, column: 0 } as never, slide = {} as never;
+  const v = (o: Record<string, unknown>) => ({ words: 'teach', data: null, slide, shot: 'free', scene: null, cath: null, number: 2, of: 9, ...o }) as never;
+  assert.equal(cameraAsk(v({}), cath).chase, true);
+  assert.equal(cameraAsk(v({}), null).chase, false);
+  assert.equal(cameraAsk(v({ slide: { visual: {} } }), cath).chase, false);
+  assert.equal(cameraAsk(v({ words: 'case' }), cath).chase, false);
+  assert.equal(cameraAsk(v({ scene: { view: 'lobule', shot: 'free' } }), cath).chase, false);
   const link = readFileSync(new URL('../src/ui/deck/scene-link.ts', import.meta.url), 'utf8');
-  assert.match(link, /chaseNow = view === 'body' && !v\.slide\?\.visual && at !== null/);
   assert.match(link, /setChase\(null\)/);
   const other = ['src/ui/tests/ir/run.ts', 'src/scene/gesture/controller.ts'].map((f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8')).join('');
   assert.doesNotMatch(other, /setChase|hvpgChase/);

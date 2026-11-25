@@ -29,7 +29,7 @@ test('every deck slide move is asked at a slide\'s time (the view change keeps t
   const api = readFileSync('src/scene/api.ts', 'utf8');
   assert.match(api, /cel\.circuit\.changeMs\(\) \|\| cel\.rig\.slideMs\(shot\)/);
   assert.match(api, /showShot\(v: FigureView, shot: ShotName \| Shot, room: Room, slide = true\)/);
-  assert.match(readFileSync('src/ui/deck/scene-link.ts', 'utf8'), /want === v\.shot/);
+  assert.match(readFileSync('src/ui/deck/scene-link.ts', 'utf8'), /showShot\(ask\.view, want, room, ask\.own\)/);
   assert.match(readFileSync('src/decks/hp/link.ts', 'utf8'), /sceneApi\.goToSlide\(v\.shot, boxes\.free\)/);
 });
 

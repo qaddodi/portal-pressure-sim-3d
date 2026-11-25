@@ -2,8 +2,7 @@
 // upright it now stands in the empty band between the bottom bar and the home indicator, whatever the view; where that band is too thin it keeps the hunt, so the © is never lost.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { underDock, footClear, HOME_BAR_CLEAR } from '../src/ui/shell/credit-foot.ts';
+import { underDock, footClear, takesFootBand, HOME_BAR_CLEAR } from '../src/ui/shell/credit-foot.ts';
 
 // the screenshot's phone: 440 x 956 points, home indicator (34 px safe area); the dock stands safe-bottom + 6 px off the foot, 105 px tall
 const vw = 440, vh = 956, h = 16.8, w = 206;
@@ -32,10 +31,9 @@ test('something standing in the band keeps the line out of it (the hunt then sho
   assert.ok(underDock({ vw, vh, dock, h, w, others: [dock, { l: 0, t: 100, r: 440, b: 200 }] }), 'the dock itself and boxes above its foot edge do not count');
 });
 
-test('Credit.tsx takes the band in free play on a phone, after the talk branches, and leaves the other layouts to the hunt', () => {
-  const src = readFileSync('src/ui/shell/Credit.tsx', 'utf8');
-  assert.match(src, /if \(!talk && thumb && !fps && \(lay === 'stack' \|\| lay === 'tab'\)\)/);
-  assert.match(src, /underDock\(\{ vw, vh, dock, h, w, others: shownBoxes\(OBSTACLES, vw, vh\) \}\)/);
-  assert.ok(src.indexOf('underDock({') > src.indexOf("if (talk && (lay === 'stack'"), 'the talk branches come first and are untouched');
-  assert.ok(src.indexOf('underDock({') < src.indexOf('const spots = '), 'the hunt stays as the fallback');
+test('free play on a phone held upright takes the band; the talk, a landscape layout and the frame-rate counter leave the line to the hunt', () => {
+  const on = { talk: false, thumb: true, fps: false, lay: 'stack' };
+  assert.equal(takesFootBand(on), true);
+  assert.equal(takesFootBand({ ...on, lay: 'tab' }), true);
+  for (const off of [{ talk: true }, { thumb: false }, { fps: true }, { lay: 'side' }]) assert.equal(takesFootBand({ ...on, ...off }), false, JSON.stringify(off));
 });

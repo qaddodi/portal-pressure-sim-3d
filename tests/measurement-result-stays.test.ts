@@ -3,11 +3,11 @@
 // out, and the end sent the camera to the slide's own shot. Now a measurement that played through keeps its result cards, where they were read, and the camera where it is, until the slide is left.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { Vector3 } from 'three';
 import { READS, specOf } from '../src/scene/procedures/copied/proc-anim.js';
 import { resultAt, runCards } from '../src/scene/labels/proc-cards.ts';
 import { useLabels } from '../src/scene/labels/store.ts';
+import { resultStays, talkCardOptions } from '../src/ui/deck/procs-link.ts';
 
 type Spec = { T: { end: number }; steps: unknown[]; measure?: boolean };
 const KINDS = ['eus', 'hvpgcath', 'irivc', 'irpv', 'tipsgrad'];
@@ -69,11 +69,9 @@ for (const kind of KINDS) {
   });
 }
 
-test('the talk\'s run keeps a played-through measurement\'s cards and camera, and a slide\'s leaving takes the cards off', () => {
-  const src = readFileSync(new URL('../src/ui/deck/procs-link.ts', import.meta.url), 'utf8');
-  assert.match(src, /runCards\(kind, \{ capture: true, quiet: kind !== 'hvpgcath', keep: true \}\)/);
-  assert.match(src, /const stays = done && !rewound && !!\(sp as \{ measure\?: boolean \}\)\.measure && !!cards;/);
-  assert.match(src, /if \(stays\) cards\?\.rest\(\); else endCards\(\);/);
-  assert.match(src, /if \(v && !stays\) sceneApi\.goTo\(v\.shot, room\(\)\);/, 'the camera is not sent home');
-  assert.match(src, /gen\+\+;\s*endCards\(\);/, 'stopPlay (the slide being left) ends the cards');
+test('the talk\'s run keeps a played-through measurement\'s result and camera, and takes the cards off for anything else', () => {
+  for (const kind of KINDS) assert.deepEqual(talkCardOptions(kind), { capture: true, quiet: kind !== 'hvpgcath', keep: true }, `${kind}: the talk's cards keep their result`);
+  const on = { done: true, rewound: false, measure: true, cards: true };
+  assert.equal(resultStays(on), true, 'a measurement that played through stays');
+  for (const off of [{ done: false }, { rewound: true }, { measure: false }, { cards: false }]) assert.equal(resultStays({ ...on, ...off }), false, JSON.stringify(off));
 });

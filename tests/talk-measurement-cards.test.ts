@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { READS, markAt, specOf } from '../src/scene/procedures/copied/proc-anim.js';
 import { cardsOf } from '../src/scene/labels/proc-cards.ts';
 import type { ProcCards } from '../src/scene/labels/store.ts';
+import { talkCardOptions } from '../src/ui/deck/procs-link.ts';
 
 type Spec = { T: { end: number }; labels?(t: number, rd: unknown, f: unknown, out: unknown[]): unknown[]; capture?(i: number, rd: unknown, f: unknown): void; steps: unknown[] };
 const frame = { P: new Float64Array(64).map((_, i) => 4 + i * 0.37), metrics: { fhvp: 6, whvp: 17, hvpg: 11, pv: 21.4, ivc: 5.2, ppg: 16.2 } };
@@ -47,7 +48,7 @@ test('every procedure kind that has readings in the 2D spec shows at least one r
 
 test('the talk\'s run starts, feeds and ends the reading cards for every kind that has them (the Tests cards were the only ones that did)', () => {
   const src = readFileSync(new URL('../src/ui/deck/procs-link.ts', import.meta.url), 'utf8');
-  assert.match(src, /runCards\(kind, \{ capture: true/, 'a run takes its own readings at the marks');
+  assert.equal(talkCardOptions('eus').capture, true, 'a run takes its own readings at the marks');
   assert.match(src, /cards\?\.frame\(sceneApi\.procedure\.driven\?\.t \?\? 0, engineFrames\.now\(\)\)/, 'fed every frame from the run\'s time and the model\'s frame');
   const ends = src.match(/endCards\(\)/g) ?? [];
   assert.ok(ends.length >= 4, 'ended on the next run, on the way out, on the run\'s end and when something else takes the figure');

@@ -57,8 +57,9 @@ export interface FigurePlan {
   /** The lobe is drawn with its short hepatic veins (the slide pins 'caudate', not only 'caudate-lobe': 2D pinOrgans `caud.show(on, veins)`). */
   caudateVeins: boolean;
   /** The lobule's pointer: where it points and its words. */
-  /** `reads`: the lobule's stations (captions.ts CapKey) whose pressure stands beside their names while this callout shows (3D only: the wedge slide's Sinusoids) */
-  callout: { at: string; label: string; kind: string; reads?: string[] } | null;
+  /** `reads`: the lobule's stations (captions.ts CapKey) whose pressure stands beside their names while this callout shows (3D only: the wedge slide's Sinusoids and central vein);
+   *  `lit`: those of them that take the callout's colour */
+  callout: { at: string; label: string; kind: string; reads?: string[]; lit?: string[] } | null;
   /** The readings on the figure (pv, ivc, ra, web, split) that no station label already carries, and the Circuit's (rLiver...). */
   sites: string[];
   calipers: CaliperItem[];
@@ -239,7 +240,7 @@ export function figurePlan(s: CopiedSlide): FigurePlan {
     }) : null;
 
   // the lobule's pointer
-  const callout = s.callout && typeof s.callout === 'object' ? { kind: 'block', ...(s.callout as { at: string; label: string; reads?: string[] }) } : null;
+  const callout = s.callout && typeof s.callout === 'object' ? { kind: 'block', ...(s.callout as { at: string; label: string; reads?: string[]; lit?: string[] }) } : null;
 
   const since = s.lens === 'since'
     ? { from: typeof s.since === 'string' ? s.since : s.lapse ? ('lapse' as const) : ('previous' as const), label: typeof s.sinceLabel === 'string' ? s.sinceLabel : null }

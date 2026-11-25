@@ -6,13 +6,14 @@
 // Resistance lives in the sinusoids, so the sinusoid names resolve to a sample of a real s0/s1/s2 course.
 // ... but that was over-applied (Mohammad, 23 Nov: "SOS resistance is in the central vein dude wtf"): the slides ABOUT the central vein (postsinusoidal, SOS) ring the vein itself ('central'); only a label
 // that names sinusoids ("Dilated zone 3 sinusoids") rings a sinusoid (figure-calls.ts).
-import type { LobuleNet } from './geometry.ts';
+import type { LobuleNet, P2 } from './geometry.ts';
 import { DISC_R } from './widths.ts';
-import { stationAt } from './captions.ts';
+import { framedTriad, sinCourse, stationAt } from './captions.ts';
+import { PAIR_ARC, PAIR_SIN_AT } from '../labels/pair.ts';
 
 /** The places a slide's callout names (figure-calls.ts maps the deck's `at` to them): the portal tract the lobule shots frame, a sinusoid half way along (zone 2), a pericentral sinusoid (zone 3), the central vein. */
-export type CalloutName = 'tract' | 'sinusoid:mid' | 'sinusoid:zone3' | 'central';
-export const CALLOUT_NAMES: readonly CalloutName[] = ['tract', 'sinusoid:mid', 'sinusoid:zone3', 'central'];
+export type CalloutName = 'tract' | 'sinusoid:mid' | 'sinusoid:zone3' | 'sinusoid:pair' | 'sinusoid:pair-sin' | 'central';
+export const CALLOUT_NAMES: readonly CalloutName[] = ['tract', 'sinusoid:mid', 'sinusoid:zone3', 'sinusoid:pair', PAIR_SIN_AT, 'central'];
 export const isCalloutName = (n: string): n is CalloutName => (CALLOUT_NAMES as readonly string[]).includes(n);
 
 /** A ring round one sinusoid: about five lumens across, so it plainly circles that one (lobule radii). Its inner edge stays 0.189 R from the centre; the central vein is 0.12 R at its widest. */
@@ -28,12 +29,23 @@ export const BAND = { mid: { rho: 0.5, tol: 0.02 }, zone3: { rho: 0.235, tol: 0.
 
 export interface CalloutSpot { x: number; y: number; r: number; /** the sinusoid course the place stands on (a sinusoid place) */ course?: number }
 
-type Tri = { x: number; y: number }[];
-/** The triad the lobule shots frame: the one nearest the corner at angle pi, (-1, 0) (shots.ts: `along = -1 + wf`). Derived, never numbered. */
-export function framedTriad(triads: Tri): number {
-  let best = 0, bd = Infinity;
-  triads.forEach((t, i) => { const d = Math.hypot(t.x + 1, t.y); if (d < bd) { bd = d; best = i; } });
-  return best;
+export { framedTriad };
+
+/** The two rings of a pair of readings (labels/pair.ts), both on the sinusoid the "Sinusoids" station stands on: the station's own ring
+ *  at the middle of its length, and the callout's PAIR_ARC along it toward the portal tract (the side the shots frame,
+ *  so the callout is the left one of the two). Pure: the net in, two plate points out. */
+export function pairSpots(net: Pick<LobuleNet, 'triads' | 'courses'>): { sin: P2; whvp: P2; course: number } {
+  const c = sinCourse(net, framedTriad(net.triads));
+  if (!c) throw new Error('no sinusoid course for the pair');
+  const i0 = Math.floor(c.pts.length / 2), sin = c.pts[i0]!;
+  // (the course's samples run either way: walk to the end that is farther from the centre, the portal side)
+  const step = c.rho[c.pts.length - 1]! >= c.rho[0]! ? 1 : -1;
+  let walked = 0, j = i0;
+  while (walked < PAIR_ARC && j + step >= 0 && j + step < c.pts.length) {
+    const a = c.pts[j]!, b = c.pts[j + step]!;
+    walked += Math.hypot(b[0] - a[0], b[1] - a[1]); j += step;
+  }
+  return { sin, whvp: c.pts[j]!, course: c.id };
 }
 
 /** The angle (rad, 0 to pi) between a plate point and the framed corner's side, (-1, 0). */
@@ -49,6 +61,8 @@ export function calloutSpot(net: Pick<LobuleNet, 'triads' | 'courses' | 'corners
     return { x, y, r: CV_RING_R, course: cv.id };
   }
   if (name === 'tract') { const t = net.triads[tri]!; return { x: t.x, y: t.y, r: TRACT_RING_R }; }
+  if (name === PAIR_SIN_AT) { const p = pairSpots(net); return { x: p.sin[0], y: p.sin[1], r: SINUSOID_RING_R, course: p.course }; }
+  if (name === 'sinusoid:pair') { const p = pairSpots(net); return { x: p.whvp[0], y: p.whvp[1], r: SINUSOID_RING_R, course: p.course }; }
   const band = name === 'sinusoid:mid' ? BAND.mid : BAND.zone3;
   // the "Sinusoids" station's dot stands on the framed tract's side: the ring and the station name never share a place
   const st = name === 'sinusoid:mid' ? stationAt(net, tri, 'sin') : null;

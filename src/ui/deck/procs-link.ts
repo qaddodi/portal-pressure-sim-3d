@@ -47,6 +47,16 @@ export const HOLD_KINDS: ReadonlySet<string> = new Set(['eusglue', 'evl']);   //
 
 /** How long the engine takes to move from one state to the other when a procedure that is an engine action (a band, a tap) makes its change (the figure's own easing follows: the bands fade in one by one, the ascites and the IAP dial fall). */
 export const MORPH_MS = 2200, MORPH_BACK_MS = 900;
+/**
+ * How the talk starts a run's reading cards: it takes its own readings at the marks, and keeps a result once it is read (`keep`).
+ * Only the HVPG catheter leaves the figure's names up. (The Tests cards do not use this.)
+ */
+export const talkCardOptions = (kind: string): { capture: true; quiet: boolean; keep: true } => ({ capture: true, quiet: kind !== 'hvpgcath', keep: true });
+/**
+ * Whether a run's result stays on the figure, and the camera where it is, when the run ends:
+ * a measurement that played through forwards (not Back past its start) with its cards up.
+ */
+export const resultStays = (o: { done: boolean; rewound: boolean; measure: boolean; cards: boolean }): boolean => o.done && !o.rewound && o.measure && o.cards;
 
 export function linkProcs(): () => void {
   let key = '';                      // `${deck}/${slide}` of the slide whose features are on the figure
@@ -149,7 +159,7 @@ export function linkProcs(): () => void {
     // readings showed nowhere on the slides. Each is taken at its step's mark (`capture`; nothing else takes them here); the figure's names stand aside as they do on the Tests cards (the HVPG's keep theirs).
     endCards(); pinSlide();
     // (a measurement's result stays on the figure once it is read, however the scope or the catheter goes out, until the slide is left: `keep`)
-    if ((sp as { labels?: unknown }).labels) cards = runCards(kind, { capture: true, quiet: kind !== 'hvpgcath', keep: true });
+    if ((sp as { labels?: unknown }).labels) cards = runCards(kind, talkCardOptions(kind));
     sceneApi.procedure.drive(kind, {
       keep: hold,
       onFrame: (rec) => {
@@ -176,7 +186,7 @@ export function linkProcs(): () => void {
         // calculation on the screen until we go to the next slide", and the camera panned back to the slide's own shot by itself). Root cause: this end took the cards off with the run
         // and sent the camera home, as the 2D Tests card does, where the monitor holds the number instead; on a slide nothing held it. Every measurement kind (EUS-PPG, HVPG, the IR
         // pressures, the TIPS gradient) came through here.
-        const stays = done && !rewound && !!(sp as { measure?: boolean }).measure && !!cards;
+        const stays = resultStays({ done, rewound, measure: !!(sp as { measure?: boolean }).measure, cards: !!cards });
         if (stays) cards?.rest(); else endCards();
         playing = false; held = c.hold && done; ctl = null; sceneApi.follow(null);   // (a kind that holds leaves its last frame up: the slide's leaving takes it off, stopPlay)
         if (rewound) {
