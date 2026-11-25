@@ -93,7 +93,7 @@ test('the heart-failure slide draws its own dot at SAAG 1.3 and protein 4.5 (the
   const rows = await Promise.all((s.tool.of ?? s.of).map(async (o: S) => ({ id: o.id, name: o.name, f: await fpOfId(o.id) })));
   const pts = pointsOf(rows as never, s.tool.extra, s.tool.own);
   const own = pts.find((p) => p.own)!;
-  assert.deepEqual([own.name, +own.saag.toFixed(1), +own.tp.toFixed(1)], ['Heart failure', 1.3, 4.5]);
+  assert.deepEqual([own.name, +own.saag.toFixed(1), +own.tp.toFixed(1)], ['Right heart failure', 1.3, 4.5]);
   for (const W of [220, 300, 420]) {
     const L = saagLayout(W, 12, measure as never, pts);
     const dot = L.dots.find((d) => d.look === 'saag.pt.cur')!;

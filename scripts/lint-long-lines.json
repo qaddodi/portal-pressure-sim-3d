@@ -553,7 +553,7 @@
  "src/ui/charts/profile/wedge.ts": 1,
  "src/ui/charts/registry.ts": 6,
  "src/ui/charts/saag/frame.ts": 2,
- "src/ui/charts/saag/model.ts": 7,
+ "src/ui/charts/saag/model.ts": 6,
  "src/ui/charts/scene.ts": 4,
  "src/ui/charts/scores/entry.ts": 2,
  "src/ui/charts/scores/model.ts": 7,

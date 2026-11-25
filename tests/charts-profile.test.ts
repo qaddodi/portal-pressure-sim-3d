@@ -216,7 +216,9 @@ test('the frame: every piece in every look, no word under 12 px, nothing outside
         assert.equal(f.w, w);
         assert.ok(f.h >= plan.G.need - 1);
         const words = f.shapes.filter((s): s is TextShape => s.k === 'text').map((s) => s.s);
-        assert.ok(words.includes('sinusoidal') && !words.includes('HEPATIC'), 'the bracket\'s name; no second zone line (Gut to Heart, 23 Nov)');
+        // (capture 36b7deac, item 3: a zone's header is never the stations' own Pre-, Intra- or Post-, at any width, look or patient; src/decks/names.ts)
+        for (const bare of ['PRE', 'INTRA', 'POST', 'PRE-HEPATIC', 'INTRAHEPATIC', 'POST-HEPATIC']) assert.ok(!words.includes(bare), `${look} ${w}: a zone header reads ${bare}`);
+        assert.ok(words.includes('sinusoidal') && !words.includes('THE LIVER'), 'the bracket\'s name; no second zone line (Gut to Heart, 23 Nov)');
         for (const n of plan.G.fit.names) assert.ok(words.includes(n), `${look}: station name ${n}`);
         for (const v of p.v) assert.ok(words.includes(words0(v)), `${look}: reading ${v}`);
         assert.equal(f.label, profileWords(plan.goal, SPANS));
@@ -360,13 +362,13 @@ test('Gut to Heart is spacier at the same height (23 Nov): zone names one word, 
     for (let k = 1; k < SPANS.length; k++) { const pitch = G.brY(k) - G.brY(k - 1); assert.ok(pitch >= 1.2 * f && pitch <= old.brY(k) - old.brY(k - 1) + 0.01, `${w}: the bracket rows stand about 20 px apart (${pitch.toFixed(1)}), clear of each other and closer than the 2D tool's (24 Nov: wasted space between HVPG and PPG)`); }
     const plan = planProfile(w, h, f, goalOf(healthy, healthy, null), healthy, null, SPANS), fr = profileFrameAtRest(plan, c);
     const texts = fr.shapes.filter((s): s is TextShape => s.k === 'text'), words = texts.map((t) => t.s);
-    assert.ok(!words.includes('Healthy') && !words.includes('HEPATIC'), `${w}: no name on the healthy line, one-word zones`);
+    assert.ok(!words.includes('Healthy') && !words.includes('THE LIVER'), `${w}: no name on the healthy line, one-word zones`);
     const unit = texts.filter((t) => t.s === 'mmHg');
     assert.equal(unit.length, 1, `${w}: the unit is written once`);
     assert.equal(unit[0]!.rot, -90, 'turned up the left edge');
     assert.ok(unit[0]!.x - 0.76 * unit[0]!.size >= 6 && unit[0]!.x + 0.24 * unit[0]!.size <= G.L - 6, `${w}: the unit keeps 6 px from the card's edge and from the plot's lines (24 Nov: "needs some margin")`);
     assert.ok(Math.abs(unit[0]!.y - (G.T + G.Z) / 2) < 0.5, 'centred on the plot');
-    assert.ok(words.includes('PRE') || old.zone.lines !== 2, 'the zone words');
+    assert.ok(words.includes('BEFORE') || old.zone.lines !== 2, 'the zone words (Before the liver; never a bare PRE)');
     assert.ok(!texts.some((t) => t.anchor === 'end' && /^\d+$/.test(t.s)), `${w}: no gridline numbers`);
     const sin = texts.find((t) => t.s === 'sinusoidal')!, names = texts.filter((t) => t.s === plan.G.fit.names[0]);
     assert.ok(sin.y > names[0]!.y + 0.8 * f && sin.y + 0.3 * f <= fr.h, `${w}: "sinusoidal" stands under the names, inside the box`);

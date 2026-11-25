@@ -12,6 +12,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { zoneEdit } from './names-edits.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(here, '../src/ui/charts/profile');
@@ -62,7 +63,8 @@ const decimals = (src) => {
   for (const [a, b, n] of swaps) { if (src.split(a).length - 1 !== n) throw new Error(`decimals: ${a} not found ${n} times`); src = src.split(a).join(b); }
   return src;
 };
-const layout = banner('tool-profile.js') + head + decimals(A + B) + tail;
+// 3D departure (25 Nov 2026, capture 36b7deac review item 3): the zone strip says Before the liver / In the liver / After the liver (src/decks/names.ts LIVER_ZONES), never a bare PRE, INTRA or POST.
+const layout = banner('tool-profile.js') + head + zoneEdit(decimals(A + B)) + tail;
 
 const files = [[join(OUT, 'curve-near.generated.js'), curve], [join(OUT, 'layout.generated.js'), layout]];
 let bad = 0;

@@ -23,7 +23,8 @@ export const TYPE: Record<string, readonly [number, number]> = {
 };
 export const sizeOf = (look: string, f: number) => Math.max(FLOOR, TYPE[look]![1] * f);
 
-export interface Pt { id?: string; name: string; saag: number; tp: number; own: boolean; modeled: boolean }
+// (short: the cause's short name from src/decks/names.ts, for where the long one would not fit the plot)
+export interface Pt { id?: string; name: string; short?: string; saag: number; tp: number; own: boolean; modeled: boolean }
 export const readingOf = (saag: number, tp: number): string => {
   const a = fmt(saag, 1), b = fmt(tp, 1);
   if (!saagPortal(+a)) return `SAAG ${a} is under ${SAAG_PORTAL}: portal hypertension is not the cause. Look for peritoneal disease.`;
@@ -31,13 +32,13 @@ export const readingOf = (saag: number, tp: number): string => {
     : `SAAG ${a} with protein ${b}: portal hypertension with a low-protein fluid, the pattern of cirrhosis.`;
 };
 
-export interface Row { id?: string; name: string; f: { saag?: number | null; tp?: number | null; asc?: number | null } | null }
+export interface Row { id?: string; name: string; short?: string; f: { saag?: number | null; tp?: number | null; asc?: number | null } | null }
 export function pointsOf(rows: readonly Row[], extra: readonly { id?: string; name: string; saag: number; tp: number }[] = [], own: string | null = null): Pt[] {
   const out: Pt[] = [];
   for (const r of rows) {
     const f = r.f;
     if (!f || !Number.isFinite(f.saag) || !Number.isFinite(f.tp) || !(f.asc! >= NO_ASC)) continue;
-    out.push({ id: r.id, name: r.name, saag: f.saag!, tp: f.tp!, own: !!own && r.id === own, modeled: true });
+    out.push({ id: r.id, name: r.name, ...(r.short ? { short: r.short } : {}), saag: f.saag!, tp: f.tp!, own: !!own && r.id === own, modeled: true });
   }
   for (const x of extra) if (Number.isFinite(x?.saag) && Number.isFinite(x?.tp)) out.push({ id: x.id || x.name, name: x.name, saag: x.saag, tp: x.tp, own: false, modeled: false });
   return out;
@@ -71,7 +72,11 @@ export function saagLayout(W: number, f: number, meas: Measure, pts: readonly Pt
   say(L, axl * 0.9, 'SAAG, g/dL', 'saag.axl');
   say(L + pw / 2, T + ph + tk * 1.15 + axl * 1.35, 'Ascitic protein, g/dL', 'saag.axl', 'middle');
   let y = T + ph + tk * 1.15 + axl * 1.35 + f * 0.3;
-  const placed = pts.map((p) => ({ p, x: X(p.tp), y: Y(p.saag), w: Math.max(mt(p.name, 'saag.pl'), p.modeled ? 0 : mt('not modeled', 'saag.pls')), rr: p.own ? rc : r, side: 'start' as 'start' | 'end', ly: 0 }));
+  // (a cause's name is its long one, "Right heart failure", unless that takes more than 45 % of the plot's width: then its short one, "Heart failure"; src/decks/names.ts)
+  const labelOf = (p: Pt) => (p.short && mt(p.name, 'saag.pl') > pw * 0.45 ? p.short : p.name);
+  const placed = pts.map((p) => ({
+    p, x: X(p.tp), y: Y(p.saag), w: Math.max(mt(labelOf(p), 'saag.pl'), p.modeled ? 0 : mt('not modeled', 'saag.pls')),
+    rr: p.own ? rc : r, side: 'start' as 'start' | 'end', ly: 0 }));
   for (const q of placed) q.side = q.x + q.rr + f * 0.35 + q.w <= W ? 'start' : 'end';
   const lh = pl * 1.2 + pls * 1.2;
   placed.sort((a, b) => a.y - b.y);
@@ -108,7 +113,7 @@ export function saagLayout(W: number, f: number, meas: Measure, pts: readonly Pt
   for (const q of placed) {
     dots.push({ cx: q.x, cy: q.y, r: q.p.modeled ? q.rr : q.rr - 0.75, look: !q.p.modeled ? 'saag.ptx' : q.p.own ? 'saag.pt.cur' : 'saag.pt' });
     const tx = q.side === 'start' ? q.x + q.rr + f * 0.35 : q.x - q.rr - f * 0.35;
-    say(tx, q.ly + pl * 0.34, q.p.name, 'saag.pl', q.side);
+    say(tx, q.ly + pl * 0.34, labelOf(q.p), 'saag.pl', q.side);
     if (!q.p.modeled) say(tx, q.ly + pl * 0.34 + pls * 1.2, 'not modeled', 'saag.pls', q.side);
   }
   if (read) {

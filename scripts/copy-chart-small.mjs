@@ -11,6 +11,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { zoneEdit } from './names-edits.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
@@ -68,7 +69,8 @@ const RATE = { hvpg: (v) => [hvpgRate(v)], ppg: (v) => [ppgRate(v)], eus: (v) =>
 };
 
 const files = [
-  ['ladder/profile-pure.generated.js', profilePure()],
+  // (3D departure, 25 Nov 2026: the zone strip's words are src/decks/names.ts LIVER_ZONES; scripts/names-edits.mjs)
+  ['ladder/profile-pure.generated.js', zoneEdit(profilePure())],
   ['small/allpatients-model.generated.js', head('allpatients-model.js') + src('allpatients-model.js')
     .replace("from './num.js'", "from '../looks2d/num.js'")
     .replace("from './table-marks.js'", "from '../tiles.generated.ts'")],

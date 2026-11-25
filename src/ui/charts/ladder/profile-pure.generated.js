@@ -156,5 +156,9 @@ export function pillReadings(fp) {
 // plot, as wide as it can be set: on one line, else with its letters closer, else on two lines ("PRE" over "HEPATIC"), else on two with
 // its letters closer; the same for all three, so no name touches another or leaves its zone. A chart too narrow even for that keeps the
 // tints and no names (never a bare PRE or POST, which would read as the Pre- and Post- stations).
-export const ZONES = [{ cls: 'ppf-zone ppf-pre', one: 'PRE-HEPATIC', top: 'PRE' }, { cls: 'ppf-zone ppf-liver', one: 'INTRAHEPATIC', top: 'INTRA' },
-  { cls: 'ppf-zone ppf-post', one: 'POST-HEPATIC', top: 'POST' }];
+// 3D departure (25 Nov 2026, capture 36b7deac review item 3): the strip over the plot says Before the liver / In the liver / After the liver (src/decks/names.ts LIVER_ZONES),
+// and where those do not fit, BEFORE, LIVER, AFTER: never a bare PRE, INTRA or POST, which are the stations' own Pre-, Intra- and Post- under the axis.
+export const ZONES = [
+  { cls: 'ppf-zone ppf-pre', one: 'BEFORE THE LIVER', top: 'BEFORE' },
+  { cls: 'ppf-zone ppf-liver', one: 'IN THE LIVER', top: 'LIVER' },
+  { cls: 'ppf-zone ppf-post', one: 'AFTER THE LIVER', top: 'AFTER' }];
