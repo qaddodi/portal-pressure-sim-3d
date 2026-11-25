@@ -345,16 +345,19 @@ test('a camera that is re-aimed every 700 ms (the way in following a catheter ti
   const rig = new CameraRig('play', room); rig.resize(800, 600); rig.goTo('play', room, 0);
   const shots = ['route', 'free', 'wedge', 'pick', 'play'] as const;
   rig.goTo(shots[0], room, 0, 900);
-  let i = 0, L = [...rig.pose.shot.target], H = rig.pose.shot.half[0]; const sp: number[] = [], retarget: number[] = [];
+  // (the speed is the eye's, what is drawn: the shot's extents miss the zoom of a shot fitted by its height (the whole figure, 25 Nov), whose distance grows while its half[0] does not)
+  let i = 0, E = rig.camera.position.clone(); const sp: number[] = [], retarget: number[] = [];
   for (let t = 16; t <= 3000; t += 16) {
     if (t % 700 < 16 && i < shots.length - 1) { i++; rig.goTo(shots[i]!, room, t, 900); retarget.push(sp.length); }
-    rig.update(t); const s = rig.pose.shot;
-    sp.push(Math.hypot(s.target[0] - L[0]!, s.target[1] - L[1]!) + Math.abs(s.half[0] - H)); L = [...s.target]; H = s.half[0];
+    rig.update(t);
+    sp.push(rig.camera.position.distanceTo(E)); E = rig.camera.position.clone();
   }
+  // (a retarget in a glide's last stretch, where it is all but landed, may start the next one slower: only one under way is judged)
+  const top = Math.max(...sp);
   for (const r of retarget) {
     const before = sp[r - 1]!, after = sp[r]!;
     assert.ok(after > 0, 'the retarget frame moves');
-    if (before > 0.02) assert.ok(after > before * 0.4, `speed carried across the retarget (${before.toFixed(4)} -> ${after.toFixed(4)})`);
+    if (before > 0.25 * top) assert.ok(after > before * 0.4, `speed carried across the retarget (${before.toFixed(4)} -> ${after.toFixed(4)})`);
   }
 });
 

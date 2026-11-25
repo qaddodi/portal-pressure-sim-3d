@@ -157,12 +157,13 @@ test('the HVPG chase and a dive never share the picture: the dive waits for the 
   s.goTo(lobuleShot('lobule:fit'), ROOM_5[0]!, t, 1500);
   assert.equal(s.diveHeld, true, 'the dive waits for the chase to be out of the picture');
   assert.equal(s.rig.chaseLeaving, true);
-  let lastPos = inChase;
+  // (a jump is a step that stands out against the one before; the ease out is long when the body's fit stands far out, the whole figure with the esophagus, 25 Nov)
+  let lastPos = inChase, lastStep = 0;
   for (let i = 0; i < 120 && s.diveHeld; i++) {
     t += 16; s.update(t);
-    const p = pos(s);
-    assert.ok(Math.hypot(p[0]! - lastPos[0]!, p[1]! - lastPos[1]!, p[2]! - lastPos[2]!) < 0.6, `the chase eases out without a jump (frame ${i})`);
-    lastPos = p;
+    const p = pos(s), step = Math.hypot(p[0]! - lastPos[0]!, p[1]! - lastPos[1]!, p[2]! - lastPos[2]!);
+    assert.ok(step < 2 * lastStep + 0.05, `the chase eases out without a jump (frame ${i}: ${step.toFixed(3)} after ${lastStep.toFixed(3)})`);
+    lastPos = p; lastStep = step;
   }
   assert.equal(s.diveHeld, false, 'released once the chase is out');
   assert.equal(s.rig.chaseLeaving, false);
