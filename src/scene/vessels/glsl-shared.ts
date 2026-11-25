@@ -9,6 +9,7 @@ import { CEL_STYLE } from '../cel-style.ts';
 import { glslNum as F } from '../cel-glsl.ts';
 import { CIRC_INK_K, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
 import { GLOW_GATE_T, GLOW_LIFT } from '../glow.ts';
+import { DYE_BINS } from './dye-shared.ts';
 
 /** swellOf(idx, bD, kind): a vessel's live width against the one its tube was built at (the engine's diameter by the 2D figure's rule). Reads: useData, vdata, vdataSize. */
 export const SWELL_OF_GLSL = /* glsl */ `// a vessel's live width against the one its tube was built at (the engine's diameter by the 2D figure's rule), as the body of main() reads it for this vessel
@@ -327,3 +328,21 @@ export const HIGHLIGHT_ALONG_GLSL = /* glsl */ `  float aU = uv.x * len;
   float limitH = hiDir < -0.5 ? hiBehind : hiAhead;
   float ownH = smoothstep(0.0, max(hiFade, 0.0001), min(hiEnds.x + aU, hiEnds.y + (len - aU)));   // the picked vein's own line: nothing at its two outer ends, full a fade's length in
   vHi = hiOn * (abs(hiDir) > 0.5 ? 1.0 - smoothstep(0.0, max(limitH, 0.0001), distH) : ownH);`;
+
+
+/** THE DYE (docs/approved/dye.md, look A: dye in the lumen, Mohammad 24 Nov 2026). The bolus's concentration along every vessel is one float texture, a row per engine edge and DYE_BINS bins along the vessel's own direction
+ *  (disease/dye.ts writes it). dyeConc(row, u) reads it at u along the vessel (row < 0: this vessel holds none); dyeShare(c) is the share of the lumen's colour that is dye (a thin slug still reads, a rich one is nearly all dye).
+ *  The tube and the junction skin mix it into the colour BEFORE the cel tones, so it takes the vessel's own width, fades, cuts, ends and shading: it cannot leave the wall, and a vessel that is not drawn shows none.
+ *  Reads: dyeTex, dyeCol, dyeAmt (shared uniforms: vessels/dye-shared.ts). */
+export const DYE_GLSL = /* glsl */ `// the dye in the lumen: its concentration at u along a vessel, and the share of the colour it takes
+uniform sampler2D dyeTex;
+uniform vec3 dyeCol;
+uniform float dyeAmt;
+float dyeConc(float row, float u) {
+  if (row < 0.0) return 0.0;
+  float x = clamp(u, 0.0, 1.0) * float(${DYE_BINS - 1});
+  int i0 = int(floor(x));
+  int i1 = min(i0 + 1, ${DYE_BINS - 1});
+  return mix(texelFetch(dyeTex, ivec2(i0, int(row)), 0).r, texelFetch(dyeTex, ivec2(i1, int(row)), 0).r, fract(x));
+}
+float dyeShare(float c) { return c < 0.01 ? 0.0 : (1.0 - exp(-3.2 * c)) * 0.97 * dyeAmt; }`;

@@ -220,3 +220,14 @@ export function strokeWidthIn(sw: number, vectorEffect: string | null | undefine
   const k = Math.hypot(m.a, m.b);
   return vectorEffect === 'non-scaling-stroke' && k > 1e-6 ? sw / k : sw;
 }
+
+/** The pictures of one slide at this screen size, first the state the slide arrives in, then the state a swipe makes (the capture sets `docked` for the second):
+ *  a phone on its side with both cards: the words in view, then the column swiped up to the instrument (`teaching`, `instrument`);
+ *  an upright iPhone or iPad (stack, tab) with an instrument card: the card up, then tucked into its strip (`untucked`, `tucked`);
+ *  anything else: one picture, named as before (''). Mohammad, 25 Nov 2026: "capture on iPhone and iPad upright both states tucked and untucked". */
+export type CaptureView = '' | 'teaching' | 'instrument' | 'untucked' | 'tucked';
+export function captureViews(size: { w: number; h: number; layout: string; sideways: boolean }, has: { data: boolean; words: boolean }): [CaptureView] | [CaptureView, CaptureView] {
+  if (size.sideways) return has.data && has.words ? ['teaching', 'instrument'] : [''];
+  if ((size.layout === 'stack' || size.layout === 'tab') && has.data) return ['untucked', 'tucked'];
+  return [''];
+}

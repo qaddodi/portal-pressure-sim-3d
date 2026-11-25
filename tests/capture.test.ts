@@ -316,8 +316,8 @@ test('A step number is centred in its round face, both ways (the base tag rule a
 
 test('A phone on its side takes both cards: -teaching with the words in view, -instrument after the column slides up; Random N counts slides', () => {
   const all = src('src/ui/debug/audit/capture-all.ts');
-  assert.match(all, /isSideways\(innerWidth, innerHeight\) && !!useUi\.getState\(\)\.boxes\.data && !!useUi\.getState\(\)\.boxes\.words/);
-  assert.match(all, /shoot\(both \? 'teaching' : ''\)/); assert.match(all, /setDocked\(true\)/); assert.match(all, /shoot\('instrument'\)/); assert.match(all, /setDocked\(false\)/);
+  assert.match(all, /sideways: isSideways\(innerWidth, innerHeight\) \}, \{ data: !!useUi\.getState\(\)\.boxes\.data, words: !!useUi\.getState\(\)\.boxes\.words/);
+  assert.match(all, /shoot\(views\[0\]\)/); assert.match(all, /setDocked\(true\)/); assert.match(all, /shoot\(views\[1\]!\)/); assert.match(all, /setDocked\(false\)/);
   assert.match(all, /\$\{base0\}-\$\{view\}/, 'the file name says which card');
   assert.match(all, /if \(!single \|\| fresh\) shots\+\+/); assert.match(all, /if \(!single \|\| fresh\) done\+\+/, 'a slide counts once against Random N, a picture counts in the total');
   assert.match(all, /thumbs\.length - lastThumbs/, 'a later step replaces both small copies');
@@ -358,4 +358,15 @@ test('capture waits are in WALL time: until() counts page time, so at the skip c
 test('the capture opens the talk it NAMES: talkUp checks the talk id, so the talk still open from before cannot pass for the next one (capture 2c00c0ce, Circuit 2)', () => {
   const all = src('src/ui/debug/audit/capture-all.ts');
   assert.match(all, /const talkUp = \(id: string\) => talkId\(\) === id/); assert.match(all, /until\(\(\) => talkUp\(d\.id\), real\(25000\)\)/);
+});
+
+test('upright iPhone and iPad capture each slide twice, the instrument card untucked then tucked; sideways keeps teaching and instrument; a desktop or a slide with no instrument takes one', async () => {
+  const { captureViews } = await import('../src/ui/capture/capture-model.ts');
+  const has = { data: true, words: true };
+  assert.deepEqual(captureViews({ w: 440, h: 736, layout: 'stack', sideways: false }, has), ['untucked', 'tucked']);
+  assert.deepEqual(captureViews({ w: 820, h: 1180, layout: 'tab', sideways: false }, has), ['untucked', 'tucked']);
+  assert.deepEqual(captureViews({ w: 736, h: 440, layout: 'short', sideways: true }, has), ['teaching', 'instrument']);
+  assert.deepEqual(captureViews({ w: 1440, h: 900, layout: 'wide', sideways: false }, has), ['']);
+  assert.deepEqual(captureViews({ w: 440, h: 736, layout: 'stack', sideways: false }, { data: false, words: true }), ['']);
+  const all = src('src/ui/debug/audit/capture-all.ts'); assert.match(all, /await shoot\(views\[1\]!\)/); assert.match(all, /-untucked \(the card up\) and -tucked/);
 });

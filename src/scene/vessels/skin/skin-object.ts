@@ -31,6 +31,7 @@ export const SHARED_WITH_TUBES = [
   'inflate', 'vdata', 'vdataSize', 'useData', 'res', 'hiPx', 'tubeDark', 'fade', 'inkColor', 'inkColorCirc', 'circT', 'dpr', 'projY',
   'streamTex', 'chainTex', 'routeTex', 'streakAmt', 'dustP', 'time', 'markDark', 'markLight', 'markRev',
   'lensGradA', 'lensLaneA', 'lensModeA', 'lensRawA', 'lensGradB', 'lensLaneB', 'lensModeB', 'lensRawB', 'laneColA', 'laneColB', 'lensMix', 'lensSmooth',
+  'dyeTex', 'dyeCol', 'dyeAmt',   // (the dye in the lumen: the one texture and colour the tubes read, glsl-shared.ts DYE_GLSL)
   'circBoost', 'circPerPx',   // (the Circuit's width rule: the map's skins read them, circuit/skins.ts; the body's skin declares neither)
 ] as const;
 
@@ -98,6 +99,8 @@ export class SkinObject implements SkinDraw {
   private keepMask = (1 << SKIN_ARMS) - 1;
   private readonly armAF: Vector4[]; private readonly armCopy: Vector4[]; private readonly armFade: Vector4[];
   private readonly armClotA: Vector4[]; private readonly armClotP: Vector4[];
+  /** the dye's concentration at each arm's seam, arm i in armDye[i >> 2] component i & 3 */
+  private readonly armDye: Vector4[] = [new Vector4(), new Vector4()];
   private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
   /** the weld pair's share (skin-set.ts): x the mode (+1 the welded skin, -1 the plain trunk, 0 neither), y how much of the welded skin is in */
   private readonly kw = new Vector4(0, 0, 1, SKIN_FIGURE_UNITS);   // (x the blend width skinK, y the mode, z the share, w the units in a scene unit, negative on the Circuit's own skins: skinKW in the shader stages)
@@ -136,7 +139,7 @@ export class SkinObject implements SkinDraw {
       ...shared,
       // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
       color: du.color!,
-      armData: { value: this.armData }, armAF: { value: this.armAF }, armFade: { value: this.armFade }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4(0, 0, 0, (1 << SKIN_ARMS) - 1)] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
+      armData: { value: this.armData }, armAF: { value: this.armAF }, armFade: { value: this.armFade }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4(0, 0, 0, (1 << SKIN_ARMS) - 1)] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor }, armDye: { value: this.armDye },
       armCopy: { value: this.armCopy },
       armClotA: { value: this.armClotA }, armClotP: { value: this.armClotP }, ...CLOT_TONES,
       armAxisP: { value: armAxisP }, skinKW: { value: this.kw.setX(skinKOf(skin.junction.arms)) },
@@ -180,6 +183,9 @@ export class SkinObject implements SkinDraw {
 
   /** Arm `i`'s tube fade by its length share (arm-twins.ts uFadeOf), or null for the seam's alpha alone. */
   setFade(i: number, p: readonly [number, number, number, number] | null): void { if (p) this.armFade[i]!.set(p[0], p[1], p[2], p[3]); else this.armFade[i]!.set(0, 1, -1, -1); }
+
+  /** The dye's concentration at arm `i`'s seam (0 none). */
+  setDye(i: number, c: number): void { const v = this.armDye[i >> 2]!; const k = i & 3; if (k === 0) v.x = c; else if (k === 1) v.y = c; else if (k === 2) v.z = c; else v.w = c; }
 
   setArm(i: number, fade: number, hi: number, lensU: number, colour?: ArmColour, narrow = 0): void {
     const u = this.material.uniforms;

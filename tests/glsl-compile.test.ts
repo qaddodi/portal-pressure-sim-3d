@@ -45,7 +45,7 @@ function compile(vertexGlsl: string, fragmentGlsl: string): string[] {
 
 test('the scene graph and the registry hold the programs the app draws with', () => {
   const names = programs.map((p) => p.name);
-  for (const want of ['vessel', 'toon', 'ink', 'circuit plate', 'circuit dots', 'circuit resistors', 'dye overlay', 'organ wash', 'charts', 'doppler spectrum', 'fibroscan map']) {
+  for (const want of ['vessel', 'toon', 'ink', 'circuit plate', 'circuit dots', 'circuit resistors', 'organ wash', 'charts', 'doppler spectrum', 'fibroscan map']) {
     assert.ok(names.some((n) => n === want || n.startsWith(want + ' ')), `${want} is among the programs (${names.join(' | ')})`);
   }
   // the vessel program comes with its veil define and two sides of a tube
