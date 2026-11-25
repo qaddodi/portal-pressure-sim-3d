@@ -98,7 +98,7 @@ export const CONTEXT_FLOOR = 0.45;
  *  and the hepatic veins' mouths (to y 1.23) stay in. Same size as `hepatic`, so the two talks frame the veins alike (F10). */
 const HV_CAUDATE: [number, number, number, number] = [410, 100, 800, 400];
 const LPV_STENT: CopiedSlide['cam'] = { on: ['lpv', 'TIPS'] };
-export const FRAME_FIXES: Readonly<Record<string, FrameFix>> = {
+export const FRAME_FIXES: Record<string, FrameFix> = {
   // Budd-Chiari: the hepatic veins and the caudate lobe (the liver frame was the whole liver; 0.86 x 0.60 half against 0.45 floor, 1.3 times closer on a Mac)
   'budd-chiari/dx': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
   'budd-chiari/ladder': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
@@ -115,6 +115,16 @@ export const FRAME_FIXES: Readonly<Record<string, FrameFix>> = {
 /** FRAMING RULE F5: the declared close-ups, the only slides allowed a frame under the context floor (its longer half under CONTEXT_FLOOR) or a vein wider than a sixth of the room's short side. Mohammad, 25 Nov: "do it" to keeping all four, and to say if the baseline should pull back.
  *  A slide not listed that falls under either limit fails tests/camera-framing-rules.test.ts; a slide listed that no longer needs it fails the same test. (The nearest distance, NEAR 2.8, already stops the very smallest boxes at a vein 105 px wide on a Mac, 98 px on a phone.) */
 export const CLOSE_UPS: readonly string[] = ['tips-complete/baseline', 'tips-doppler/jet', 'varices/burst'];
+// Whole-figure overviews are for orientation (framing rule S12; Mohammad, 25 Nov): a slide that names parts of the body is framed on them.
+const VARICES_SPLEEN: [number, number, number, number] = [540, -20, 1120, 580];   // the `varices` and `spleen` regions together
+const FUNDUS_LIVER: [number, number, number, number] = [344, 166, 1110, 690];     // the `fundus` and `liver` regions together (the varices and the stent that treats them)
+Object.assign(FRAME_FIXES, {
+  'ncph/patient': { was: 'fit', cam: VARICES_SPLEEN, floor: 0 },
+  'ncph/relation': { was: 'fit', cam: VARICES_SPLEEN, floor: 0 },
+  'gastric-varices/tips': { was: 'fit', cam: FUNDUS_LIVER, floor: 0 },
+  'tipping/injury': { was: 'fit', cam: 'liver', floor: 0 },
+  'tipping/injury-card': { was: 'fit', cam: 'liver', floor: 0 },
+} satisfies Record<string, FrameFix>);
 /** The camera a slide asks for and the floor it keeps: the fix's, when the slide has one and the copied camera is still the one it replaces. */
 export function slideCam(deck: string, slide: string, cam: CopiedSlide['cam']): { cam: CopiedSlide['cam']; floor: number } {
   const f = FRAME_FIXES[`${deck}/${slide}`];

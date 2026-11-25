@@ -111,3 +111,51 @@ test('F5: no frame is tighter than the context floor and no vein is wider than a
   assert.deepEqual(bad, [], 'an undeclared close-up');
   assert.deepEqual([...need].sort(), [...CLOSE_UPS].sort(), 'every declared close-up is one');
 });
+
+// ---- S9: the Circuit ----
+import { circuitBoxShot, circuitShot, ART_CIRC } from '../src/scene/circuit/shots.ts';
+import { effectiveDistance } from '../src/scene/camera/room.ts';
+import { MAP_K } from '../src/scene/circuit/map.ts';
+
+test('S9: every Circuit view fills 90 % or more of the limiting side of the free room on a Mac, an iPad and an iPhone (the map stands upright on a phone), never closer than its kMax allows, and never stopped by the nearest distance', () => {
+  const slidesSeen = new Set<string>();
+  for (const [, deck] of decks) {
+    const stops = stopsOf(deck);
+    stops.forEach((s, i) => {
+      if (s.kind !== 'slide') return;
+      for (let b = 0; b <= (s.slide.beats?.length ?? 0) + 1; b++) {
+        const sc = viewAt(stops, { stop: i, beat: b }).scene;
+        if (sc?.view !== 'circuit') continue;
+        slidesSeen.add(`${deck.id}/${s.slide.id}`);
+        for (const dv of DEVICES) {
+          const upright = dv.w < dv.h * 0.95;
+          const shot: Shot = sc.circuit?.box ? circuitBoxShot(sc.circuit.box, upright, sc.circuit.kMax ?? null) : circuitShot(upright);
+          const d = effectiveDistance(shot, dv.room, dv.h, dv.w), pxu = dv.h / (2 * TAN) / d;
+          const fill = Math.max((shot.half[0] * 2 * pxu) / dv.room.w, (shot.half[1] * 2 * pxu) / dv.room.h);
+          assert.ok(fill >= 0.9 && fill <= 0.93, `${deck.id}/${s.slide.id} ${dv.name}: fills ${(fill * 100).toFixed(0)} % of its limiting side`);
+          assert.ok(d > shot.r, `${deck.id}/${s.slide.id} ${dv.name}: the room decides, not the nearest distance`);
+          if (sc.circuit?.kMax) {   // (2D's kMax: never more than kMax times the whole map's fit)
+            const whole = circuitShot(upright), dw = effectiveDistance(whole, dv.room, dv.h, dv.w);
+            assert.ok(d >= dw / sc.circuit.kMax - 1e-6, `${deck.id}/${s.slide.id} ${dv.name}: closer than kMax ${sc.circuit.kMax}`);
+          }
+        }
+      }
+    });
+  }
+  assert.equal(slidesSeen.size, 9, 'the nine Circuit slides');
+  assert.ok(ART_CIRC[2] > ART_CIRC[0] && MAP_K > 0);
+});
+
+// ---- F6 and S12: readable, and overviews only for orientation ----
+import { camPlan } from '../src/decks/hp/cams.ts';
+
+test('F6: any frame that is not the whole-figure overview draws a vein 8 px wide or more on a phone upright and 10 px or more on an iPad and a Mac (the whole-figure overview is exempt)', () => {
+  const whole = (camPlan('fit') as { shot: Shot }).shot.half;
+  const bad: string[] = [];
+  for (const [, deck] of decks) for (const v of bodyViews(deck)) {
+    const isWhole = Math.abs(v.shot.half[0] - whole[0]) < 1e-9 && Math.abs(v.shot.half[1] - whole[1]) < 1e-9;
+    if (isWhole) continue;
+    for (const dv of DEVICES) { const px = VEIN_UNITS * scaleOn(v.shot, dv).pxu; if (px < (dv.name === 'iPhone' ? 8 : 10)) bad.push(`${v.at} ${dv.name} ${px.toFixed(1)} px`); }
+  }
+  assert.deepEqual(bad, []);
+});
