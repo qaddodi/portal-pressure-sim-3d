@@ -13,7 +13,7 @@ import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { CAUDATE_HOST, CAUDATE_VEIN_ID, CAUDATE_WHEN } from '../src/scene/vessels/caudate-veins.ts';
 import { cavaPieceOf, fadeOf, opensIntoCava } from '../src/scene/vessels/fades.ts';
 import { figurePlan } from '../src/ui/deck/figure-plan.ts';
-import { figureCalls, EMPTY_CALLS } from '../src/ui/deck/figure-calls.ts';
+import { figureCalls, EMPTY_CALLS, organAnchor } from '../src/ui/deck/figure-calls.ts';
 import { loadAgDeck } from '../src/decks/ag/index.ts';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
 import { ORGAN_STYLE, ORGAN_ORDER } from '../src/scene/organs/layer.ts';
@@ -37,7 +37,7 @@ test('the lobe is a closed egg about PLACED_CAUDATE, its front facing the viewer
 });
 
 test('the callout\'s anchor lies inside the lobe (it points at the real lobe)', () => {
-  const [x, y] = ORGAN_ANCHOR_2D.caudate!.at;
+  const a = organAnchor('caudate') as { at2d: readonly [number, number] }, [x, y] = a.at2d;
   assert.ok(((x3(x) - PLACED_CAUDATE.c[0]) / PLACED_CAUDATE.ax[0]) ** 2 + ((y3(y) - PLACED_CAUDATE.c[1]) / PLACED_CAUDATE.ax[1]) ** 2 < 1, `anchor (${x}, ${y}) is inside the egg seen from the front`);
 });
 
@@ -119,8 +119,8 @@ test('the lobe on the liver\'s back is depth-tested and drawn before the liver; 
 
 test('a mark or step on the lobe sits on its dome, not at the organ plane in front of it; every other organ keeps its place', async () => {
   const deck = (await loadAgDeck('budd-chiari')) as unknown as CopiedDeck, s = deck.slides.find((x) => x.id === 'dx')!;
-  const cards = figureCalls(figurePlan(s)).cards, out = new Vector3();
-  const on = cards.filter((k) => 'at2d' in k.anchor && k.anchor.at2d[0] === ORGAN_ANCHOR_2D.caudate!.at[0] && k.anchor.at2d[1] === ORGAN_ANCHOR_2D.caudate!.at[1]);
+  const cards = figureCalls(figurePlan(s)).cards, out = new Vector3(), lobe = organAnchor('caudate') as { at2d: readonly [number, number] };
+  const on = cards.filter((k) => 'at2d' in k.anchor && k.anchor.at2d[0] === lobe.at2d[0] && k.anchor.at2d[1] === lobe.at2d[1]);
   assert.ok(on.length > 0, 'the slide has a card on the lobe');
   for (const k of on) { assert.equal((k.anchor as { z?: number }).z, CAUDATE_FRONT_Z); assert.equal(anchorPoint(k.anchor, out)!.z, CAUDATE_FRONT_Z); }
   assert.ok(Math.abs(CAUDATE_FRONT_Z - (PLACED_CAUDATE.c[2] + PLACED_CAUDATE.ax[2])) < 0.003, 'placed path: the egg\'s front');   // (the egg's own front pole)
