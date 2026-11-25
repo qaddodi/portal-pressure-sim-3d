@@ -18,7 +18,8 @@ import { FOV } from '../src/scene/camera/shots.ts';
 import { effectiveDistance } from '../src/scene/camera/room.ts';
 import { LOBULE_SCALE } from '../src/scene/lobule/frames.ts';
 import { LOBULE_R, lobuleShot } from '../src/scene/lobule/shots.ts';
-import { calloutSpot } from '../src/scene/lobule/callout-spot.ts';
+import { pairSpots } from '../src/scene/lobule/callout-spot.ts';
+import { PAIR_AIR, PAIR_AT, PAIR_LABEL_GAP, PAIR_LEAD, PAIR_RING_R, placeAbove } from '../src/scene/labels/pair.ts';
 import { cardKeepOut, placeCards } from '../src/scene/labels/figure-cards.ts';
 import { BAR } from '../src/ui/layout/plan.ts';
 import { SIZES, frame } from './lobule-frame.ts';
@@ -43,7 +44,7 @@ test('the callout stands on a sinusoid and says the WHVP, the number of the pati
   assert.deepEqual(plan.callout && { at: plan.callout.at, kind: plan.callout.kind }, { at: 'sin', kind: 'wedge' });
   const co = figureCalls(plan, { fp }).cards.find((c) => c.id === 'callout')!;
   assert.ok(co, 'the callout is a card of the figure');
-  assert.deepEqual(co.anchor, { lobule: 'sinusoid:mid' });
+  assert.deepEqual(co.anchor, { lobule: PAIR_AT }, 'the lower of a pair of readings on one sinusoid');
   assert.equal(co.text, `WHVP ${valueText('whvp', fp as never)}`);
   assert.equal(co.text, 'WHVP 16.3 mmHg');
   assert.equal(co.tone, 'wedge', 'the amber the slide\'s words give the sinusoids and the WHVP, not the danger red');
@@ -75,32 +76,48 @@ function slideFrame(f: (typeof FRAMES)[number]) {
 const touches = (b: Box, lines: readonly (readonly number[])[]) => lines.some((l) => crosses(l[0]!, l[1]!, l[2]!, l[3]!, b));
 
 for (const f of FRAMES) {
-  test(`${f.n}: the slide's Sinusoids name and central vein stand with their numbers, the WHVP words stand clear of the vessels, and none lies on another or on a card`, () => {
-    const { cards, view, proj, pxR, vp } = slideFrame(f);
-    const spot = calloutSpot(net, 'sinusoid:mid'), [sx, sy] = proj(spot.x, spot.y), ring = Math.max(8, spot.r * pxR);
-    const plain = buildLobuleCaptions({ proj, vp, measure, net, layers: { zones: false, lymph: false }, unit: true });
-    const text = `WHVP ${valueText('whvp', fp as never)}`;
-    const co = placeCards([{ id: 'callout', x: sx, y: sy, w: measure(text) + 4, h: 18, ring: ring + 8 }], view, cardKeepOut(cards), [], plain.lines)[0]!;
-    assert.equal(co.ok, true, 'the callout has a place');
-    assert.equal(touches(co.box, plain.lines), false, 'its words lie on no vessel');
-    const ringBox = { x0: sx - ring - 6, y0: sy - ring - 6, x1: sx + ring + 6, y1: sy + ring + 6 };
-    const walls = [...cards, co.box, ringBox];
+  test(`${f.n}: the pair stands on one sinusoid, Sinusoids above its ring and WHVP below its own, the central vein keeps its number, and none lies on another or on a card`, () => {
+    const { cards, view, proj, vp } = slideFrame(f);
+    const pair = pairSpots(net), [sx, sy] = proj(pair.sin[0], pair.sin[1]), [wx, wy] = proj(pair.whvp[0], pair.whvp[1]);
+    const course = net.courses.find((c) => c.id === pair.course)!;
+    assert.ok(course.pts.includes(pair.sin) && course.pts.includes(pair.whvp), 'both rings are samples of the same sinusoid');
+    assert.ok(Math.hypot(wx - sx, wy - sy) > 3 * PAIR_RING_R, 'the two rings stand apart');
+    for (const [x, y] of [[sx, sy], [wx, wy]] as const) assert.ok(x > view.x0 && x < view.x1 && y > view.y0 && y < view.y1, 'both rings are in the view');
     const c = buildLobuleCaptions({ proj, vp, measure, net, layers: { zones: false, lymph: false }, unit: true, must: new Set(['sin', 'cv']) });
-    const out = solve({ items: c.items, view, blockers: walls, lines: c.lines, keep: c.keep });
-    const boxes: { id: string; box: Box }[] = [];
-    for (const id of ['sin', 'cv']) {
-      const p = out.placed.find((x) => x.id === id), it = c.items.find((i) => i.id === id)!;
-      assert.ok(p, `${id} is placed (placed ${out.placed.map((x) => x.id)}, hidden ${out.hidden})`);
-      assert.equal(c.meta.get(id)!.forms[p.form]!.value, true, `${id} carries its number`);
-      assert.equal(p.leader, true, `${id} keeps its leader`);
-      const box = boxOf(p, it.ax, it.ay);
-      assert.ok(box.x0 >= view.x0 && box.x1 <= view.x1 && box.y0 >= view.y0 && box.y1 <= view.y1, `${id} inside the view`);
-      for (const w of walls) assert.ok(!hits(box, w), `${id} clear of a card or the callout`);
-      boxes.push({ id, box });
-    }
-    assert.ok(!hits(boxes[0]!.box, boxes[1]!.box), 'the two names clear of each other');
+    const sin = c.items.find((i) => i.id === 'sin')!;
+    assert.ok(Math.abs(sin.ax - sx) < 1e-6 && Math.abs(sin.ay - sy) < 1e-6, 'the Sinusoids station stands on the pair\'s upper ring');
+    // above: its widest form, which carries the number
+    assert.equal(c.meta.get('sin')!.forms[0]!.value, true);
+    const up = placeAbove({ x: sx, y: sy }, sin.forms[0]!, view, cards);
+    assert.ok(up, 'a clear place above the ring');
+    const text = `WHVP ${valueText('whvp', fp as never)}`;
+    const lo = placeCards([{ id: 'callout', x: wx, y: wy, w: measure(text) + 4, h: 18, ring: PAIR_AIR, below: true, pair: true }], view, cardKeepOut(cards), [], c.lines)[0]!;
+    assert.equal(lo.ok, true, 'the callout has a place');
+    assert.ok(up!.y1 <= sy - PAIR_RING_R, 'Sinusoids stands wholly above its ring');
+    assert.ok(lo.y0 >= wy + PAIR_RING_R, 'WHVP stands wholly below its ring');
+    assert.ok(!hits(up!, lo.box), 'the two words clear of each other');
+    // the central vein keeps its number beside the pair
+    const walls = [...cards, { x0: Math.min(up!.x0, sx - 1), y0: up!.y0, x1: Math.max(up!.x1, sx + 1), y1: sy + 4 }, lo.box];
+    const out = solve({ items: c.items.filter((i) => i.id !== 'sin'), view, blockers: walls, lines: c.lines, keep: c.keep });
+    const cv = out.placed.find((x) => x.id === 'cv')!, cvIt = c.items.find((i) => i.id === 'cv')!;
+    assert.ok(cv, `cv is placed (hidden ${out.hidden})`);
+    assert.equal(c.meta.get('cv')!.forms[cv.form]!.value, true, 'the central vein carries its number');
+    assert.equal(cv.leader, true, 'and keeps its leader');
+    const cvBox = boxOf(cv, cvIt.ax, cvIt.ay);
+    assert.ok(cvBox.x0 >= view.x0 && cvBox.x1 <= view.x1 && cvBox.y0 >= view.y0 && cvBox.y1 <= view.y1, 'cv inside the view');
+    for (const w of [...walls]) assert.ok(!hits(cvBox, w), 'cv clear of a card and of the pair');
   });
 }
+
+test('the pair\'s numbers are the ones the callout and the station share, and a slide with no pair draws no pair', () => {
+  const fc = readFileSync(new URL('../src/scene/labels/figure-cards.ts', import.meta.url), 'utf8');
+  assert.match(fc, new RegExp(`RING_LEAD_MIN = ${PAIR_LEAD};`));
+  assert.match(fc, new RegExp(`RING_LABEL_GAP = ${PAIR_LABEL_GAP};`));
+  // another slide's callout on a sinusoid, with no reading asked for, is not a pair
+  const lob = figurePlan({ ...slide, callout: { at: 'sin', label: 'Resistance', kind: 'block' } } as never);
+  const co = figureCalls(lob, { fp }).cards.find((x) => x.id === 'callout')!;
+  assert.deepEqual(co.anchor, { lobule: 'sinusoid:mid' });
+});
 
 test('without the slide\'s ask the Sinusoids name keeps its bare fallback (free play and other slides are unchanged)', () => {
   const f = frame(SIZES[5]!);

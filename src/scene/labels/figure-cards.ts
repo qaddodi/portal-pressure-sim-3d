@@ -9,6 +9,7 @@ import { type Box, hits, within, grow } from './geometry.ts';
 import { PILL_GAP, tagType, tagSize, type TagType, type Measure } from './cath.ts';
 import { calloutClaims } from './callout-claims.ts';
 import { lobuleLines, type CourseLine } from './lobule-lines.ts';
+import { PAIR_AIR, PAIR_AT, PAIR_RING_R, PAIR_STROKE } from './pair.ts';
 import { AIR_BLOCKER, LineGrid, onLine } from './solver.ts';
 import { makeTag, words, fade, place, size, show, TagLead, type Tag } from './tag-dom.ts';
 import { boxLeader, leaderToEdge, leaderShort, LEAD_AIR } from './tag-lead.ts';
@@ -123,7 +124,7 @@ export function cardSize(c: FigCard, t: TagType, measure: Measure): { w: number;
   return { w: ceil2(splitWidth(c, t, measure) + 8), h: ceil2(t.big * 1.1 + t.name * 3.6 + 6) };
 }
 
-export interface CardIn { id: string; /** a slide's ring on the figure (2D's lobule pointer): its radius with its stroke and air, px; the card stands clear of it, the leader runs from its edge */ ring?: number; /** the point it names, canvas px */ x: number; y: number; w: number; h: number; below?: boolean; /** a step's number: how far its edge stands from the point it names, px (2D `near`); it stands off the point, on a leader to it */ near?: number }
+export interface CardIn { id: string; /** the lower of a pair of readings on one sinusoid (pair.ts): its words stand straight below the ring, never moved to clear ground */ pair?: boolean; /** a slide's ring on the figure (2D's lobule pointer): its radius with its stroke and air, px; the card stands clear of it, the leader runs from its edge */ ring?: number; /** the point it names, canvas px */ x: number; y: number; w: number; h: number; below?: boolean; /** a step's number: how far its edge stands from the point it names, px (2D `near`); it stands off the point, on a leader to it */ near?: number }
 export interface CardOut { id: string; /** the words' corner */ x0: number; y0: number; /** the words and the run of a leader to their point (a station's name keeps clear of all of it) */ box: Box; /** false: no clear place in the view (the tag waits) */ ok: boolean; /** the words stand at their own spot (no leader needed), not where the sweep put them */ direct?: boolean }
 
 const overlap = (a: Box, b: Box) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
@@ -170,7 +171,7 @@ export function placeCards(items: readonly CardIn[], view: Box, blockers: readon
     if (it.w >= view.x1 - view.x0) { const x0 = Math.max(it.x - it.w / 2, view.x0 + 4); out.push({ id: it.id, x0, y0: it.y, box: { x0, y0: it.y, x1: x0 + it.w, y1: it.y + it.h }, ok: false }); continue; }
     if (it.near != null) { const o = placeStep(it, view, blockers, placed); placed.push(o.box); out.push(o); continue; }
     // a slide's ring callout stands its words in the clear between the vessels (the lobule's courses), as near its ring as such a place is: words over the net are hard to read
-    if (it.ring && courses.length) { const o = placeClear(it, view, blockers, placed, courses); if (o) { placed.push(o.box); out.push(o); continue; } }
+    if (it.ring && courses.length && !it.pair) { const o = placeClear(it, view, blockers, placed, courses); if (o) { placed.push(o.box); out.push(o); continue; } }
     const sides: boolean[] = it.below ? [false, true] : [true, false];
     const gap = it.ring ?? PILL_GAP, hold = it.ring ? [...blockers, { x0: it.x - it.ring, y0: it.y - it.ring, x1: it.x + it.ring, y1: it.y + it.ring }] : blockers;
     let best: { cost: number; o: CardOut } | null = null;
@@ -462,7 +463,8 @@ export class FigureCards {
         } else this.reach.delete(c.id);
       } else this.reach.delete(c.id);
       // a lobule callout's ring: its radius on the screen, from a point one ring radius off along the plate (it changes only as the camera does, so it hides the card like any other move)
-      if ('lobule' in c.anchor) { const e = d.lobuleRing(c.anchor.lobule, this.q); if (e) { const b = d.project(e, this.pt2); put(c.id + '#r', { x: ringPx(Math.hypot(b.x - at.x, b.y - at.y)), y: 0 }); } }
+      if ('lobule' in c.anchor && c.anchor.lobule === PAIR_AT) put(c.id + '#r', { x: PAIR_RING_R, y: 0 });   // (the pair's ring is the station dot's own, whatever the zoom)
+      else if ('lobule' in c.anchor) { const e = d.lobuleRing(c.anchor.lobule, this.q); if (e) { const b = d.project(e, this.pt2); put(c.id + '#r', { x: ringPx(Math.hypot(b.x - at.x, b.y - at.y)), y: 0 }); } }
       if (c.kind === 'step' && 'edges' in c.anchor) c.anchor.edges.forEach((e, i) => {
         const q = anchorPoint({ edge: e }, this.q, d.lobule, stepMidOf(e)); if (q) put(`${c.id}#${i}`, d.project(q, { x: 0, y: 0 }));
         // (each member vessel's own reach, so a group's lines stop at their vessel's edge too)
@@ -515,7 +517,8 @@ export class FigureCards {
     if (!hold && (this.dirty || sig !== this.sig)) {
       this.sig = sig; this.dirty = false;
       const ins: CardIn[] = [];
-      for (const c of this.cards) { const a = anchors.get(c.id); if (!a) continue; const s = cardSize(c, t, d.measure), rg = anchors.get(c.id + '#r'); ins.push({ id: c.id, x: a.x, y: a.y, w: s.w, h: s.h, below: c.below, ...(c.kind === 'step' ? { near: this.stepNear(c) } : null), ...(rg ? { ring: rg.x + RING_AIR } : null) }); }
+      for (const c of this.cards) { const a = anchors.get(c.id); if (!a) continue; const s = cardSize(c, t, d.measure), rg = anchors.get(c.id + '#r'); const pair = 'lobule' in c.anchor && c.anchor.lobule === PAIR_AT;
+        ins.push({ id: c.id, x: a.x, y: a.y, w: s.w, h: s.h, below: c.below || pair, ...(c.kind === 'step' ? { near: this.stepNear(c) } : null), ...(rg ? { ring: pair ? PAIR_AIR : rg.x + RING_AIR } : null), ...(pair ? { pair } : null) }); }
       const outs = placeCards(ins, view, blockers, [], lobuleLines.lines);
       const taken = outs.filter((o) => o.ok).map((o) => o.box);
       // a caliper's reading stands in line with it, past its far tick; a bracket's under the middle of its line: each with no leader. Only where that place is taken does a reading stand where the
@@ -700,8 +703,13 @@ export class FigureCards {
     // (the colour of the ring, its leader and its words changes while they show: they cross over to it)
     if (co.root.dataset.tone !== tone) restyle(co.root, () => { co.root.dataset.tone = tone; }, r.a);
     if (r.root.dataset.co !== tone) restyle(r.root, () => { r.root.dataset.co = tone; }, r.a);
-    const key = String(rad);
-    if (co.key !== key) { co.key = key; co.ring.style.width = co.ring.style.height = `${rad * 2 + RING_STROKE}px`; co.ring.style.margin = `${-(rad + RING_STROKE / 2)}px 0 0 ${-(rad + RING_STROKE / 2)}px`; }
+    // (the lower of a pair of readings draws the station dot's own ring and hairline: pair.ts)
+    const pair = 'lobule' in r.spec.anchor && r.spec.anchor.lobule === PAIR_AT, sw = pair ? PAIR_STROKE : RING_STROKE;
+    const key = `${rad}|${sw}`;
+    if (co.key !== key) {
+      co.key = key; co.ring.style.width = co.ring.style.height = `${rad * 2 + sw}px`; co.ring.style.margin = `${-(rad + sw / 2)}px 0 0 ${-(rad + sw / 2)}px`;
+      if (pair) co.root.style.setProperty('--co-w', `${sw}px`); else co.root.style.removeProperty('--co-w');
+    }
     const round = (n: number) => Math.round(n * 100) / 100;
     const tx = `translate3d(${round(a.x)}px,${round(a.y)}px,0)`;
     if (tx !== co.tx) { co.tx = tx; co.ring.style.transform = tx; }
