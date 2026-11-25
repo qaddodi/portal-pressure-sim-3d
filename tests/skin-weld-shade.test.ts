@@ -81,7 +81,7 @@ test('across every weld the shade is the drawn surface\'s: it turns no faster th
 // 0.1 % in today's flat figure. Two fixes. The hepatic veins now arrive in the cava's plane (anatomy/placed-network.ts joinEnd `flat`). Away from the seams the hold-out starts at 3 k (skin/shaders.ts SKIN_HOLD_FREE_FROM_K), while on a seam
 // it keeps 1 k, so the tube's line runs on (tests/skin-agreement.test.ts). Judged here by the fragment stage's twin (tests/skin-live-lib.ts) at a phone's screen, from the front and turned, with every arm there.
 // The portal fork the same (Mohammad, 24 Nov: "shadows from both sides make it look spherical"): laid straight to its gap, the DIPS left PVH 10 degrees from the left portal vein on the screen and 3.2 k behind it, and the left portal vein's
-// rim was drawn across the DIPS's lumen, 3.2 % of PVH as line only. It now leads out between the two portal branches first (anatomy/placed-network.ts DIPS_LEAD): 0.02 % at most.
+// rim was drawn across the DIPS's lumen, 3.2 % of PVH as line only. It leaves 0.05 up and across in the fork's own plane first, then straight to the cava (anatomy/placed-network.ts DIPS_LEAD, 25 Nov: the 0.22 lead between the branches bent the stent 56 degrees): 0.03 % at most.
 const BOUNDED: ReadonlySet<string> = new Set(['IVCS', 'PVH']);
 test('no junction skin of the placed figure inks more of its own lumen than the seam\'s ramp alone would, and the hepatic confluence and the portal fork stay under 0.5 %', async () => {
   const { gateSkins } = await import('./skin-gate-lib.ts');

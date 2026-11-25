@@ -130,6 +130,26 @@ test('the DIPS is a short tract from the portal bifurcation to the cava below th
   assert.ok(inside([tip.x, tip.y, tip.z], ['PV_TRUNK', 'PVH_R', 'PVH_L', 'DIPS']) < 1, 'the catheter\'s tip ends in the portal vein');
 });
 
+test('the DIPS is a straight stent, not a hook (Mohammad, 25 Nov: "Fix DIPS"): its course stays within a radius and a quarter of the chord between its ends, turns under 25 degrees at the fork, and the stent drawn on it follows the same line', () => {
+  for (const sj of [false, true]) {
+    setSmoothJoins(sj);
+    try {
+      const v = NETWORK_BY_ID.get('DIPS')!, c = coursesOf(v, REST)[0]!.pts as V[], a = c[0]!, b = c[c.length - 1]!, ch: V = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], cl = Math.hypot(...ch);
+      const offChord = (p: V): number => { const w = [p[0] - a[0], p[1] - a[1], p[2] - a[2]], t = (w[0]! * ch[0] + w[1]! * ch[1] + w[2]! * ch[2]) / cl ** 2; return Math.hypot(w[0]! - t * ch[0], w[1]! - t * ch[1], w[2]! - t * ch[2]); };
+      const r = coursesOf(v, REST)[0]!.radius, dev = Math.max(...c.map(offChord));
+      assert.ok(dev < 1.25 * r, `smooth joins ${sj}: the DIPS runs ${(dev / r).toFixed(2)} radii off its chord (it was 2.95 with the 0.22 lead; bound 1.25)`);
+      assert.ok(lenOf(c) < 1.1 * cl, `smooth joins ${sj}: the course is ${(lenOf(c) / cl).toFixed(2)} times its chord (at most 1.1)`);
+      const k = Math.min(3, c.length - 1), t0: V = [c[k]![0] - a[0], c[k]![1] - a[1], c[k]![2] - a[2]], turn = (Math.acos((t0[0] * ch[0] + t0[1] * ch[1] + t0[2] * ch[2]) / (Math.hypot(...t0) * cl)) * 180) / Math.PI;
+      assert.ok(turn < 25, `smooth joins ${sj}: it leaves the fork ${turn.toFixed(0)} degrees off its chord (at most 25; 56 with the 0.22 lead)`);
+      // the stent: its axis from the portal end to the cava end stays within the same band (the device lies on the course, stent-device.ts)
+      const s = new StentDevice('DIPS', createShared()), spec = s.specFor(null, 8), tip = spec.at(0, new Vector3()), end = spec.at(spec.A, new Vector3()), chord = end.clone().sub(tip), cs = chord.length();
+      let worst = 0;
+      for (let i = 0; i <= 40; i++) { const q = spec.at((spec.A * i) / 40, new Vector3()).sub(tip), along = q.dot(chord) / (cs * cs); worst = Math.max(worst, q.sub(chord.clone().multiplyScalar(along)).length()); }
+      assert.ok(worst < 1.25 * r, `smooth joins ${sj}: the stent's axis is ${(worst / r).toFixed(2)} radii off its own chord`);
+    } finally { setSmoothJoins(false); }
+  }
+});
+
 test('the TIPS and DIPS stents run their courses end to end (no bare tube past them), and the TIPS ends inside the right hepatic vein\'s trunk, clear of the cava', () => {
   const shared = createShared();
   for (const id of ['TIPS', 'DIPS'] as const) {
