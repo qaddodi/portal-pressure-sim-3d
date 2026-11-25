@@ -46,3 +46,14 @@ for (const [w, h, name] of [[356, 223, 'the iPhone card'], [520, 250, 'a wide ca
 test('the slide card asks for the headed frame', () => {
   assert.match(readFileSync(new URL('../src/ui/tests/slide/BeatCard.tsx', import.meta.url), 'utf8'), /headed: true/);
 });
+
+// Variceal bleed 3, capture 52ef8e63: the words say the blood pressure has fallen only slightly; the card showed the heart rate alone. A slide with tool.bp prints the pressure beside it, every other beat card is as before.
+for (const [w, h, name] of [[356, 223, 'the iPhone card'], [420, 250, 'an iPad card'], [520, 250, 'a wide card']] as const) {
+  test(`${name} (w ${w}): the blood pressure stands beside the heart rate only when the slide asks`, () => {
+    const f = recorded(30), now = { ...NOW, sbp: 118, dbp: 72 };
+    const run = (bp: boolean | undefined) => beatFrame({ rec: asRec(f) as never, head: 29.9, now, before: null, ekg: true, noPv: false, headed: true, ...(bp === undefined ? {} : { bp }) }, { w, h, pal }).frame.shapes.filter((s): s is TextShape => s.k === 'text').map((s) => s.s);
+    assert.ok(run(true).some((s) => s === 'BP 118/72'), 'the pressure is on the card');
+    assert.ok(!run(false).some((s) => /BP/.test(s)) && !run(undefined).some((s) => /BP/.test(s)), 'the other beat cards are as before');
+    assert.deepEqual(run(false), run(undefined));
+  });
+}

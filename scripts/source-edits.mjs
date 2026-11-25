@@ -324,6 +324,10 @@ export const CAPTURE_52EF8E63 = [
   // Tipping 6: the 12.4 on the card is the HVPG; the figure now reads it at the hepatic vein
   SET('tipping', 'slides.nocsph.mark', { edges: ['RHV_IVC'], label: 'HVPG {hvpg}' }),
   // TIPS complete 3: the four points on the figure, two places (the bleed's three, the ascites)
+  // Variceal bleed 3: "blood pressure has fallen only slightly" needs the pressure on the monitor beside the heart rate
+  SET('variceal-bleed', 'slides.tear.tool.bp', true),
+  // Choose treatment 6: the thrombus that has resolved is drawn as the dashed outline of what the slide before had (its 60%)
+  SET('choose-treatment', 'slides.a3-lumen.tool.was', 'a3'),
   SET('tips-complete', 'slides.indications.marks', [{ edges: ['C1a'], label: 'Bleed: preemptive, rescue, salvage' }, { organ: 'ascites', label: 'Ascites: elective' }]),
 ];
 
