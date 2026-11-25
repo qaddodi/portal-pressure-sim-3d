@@ -132,7 +132,7 @@ test('a vessel that runs on into exactly one other meets it at the mean width: n
 test('a shape that changes keeps its vertex count, so its positions are rewritten in place', () => {
   for (const id of ['C1a', 'C2', 'C4', 'C7', 'C8', 'C3~F:caput']) {
     const v = NETWORK_BY_ID.get(id)!, tub = tubularOf(v);
-    const a = buildTubes(coursesOf(v, REST), tub, v.radius).geometry, b = buildTubes(coursesOf(v, { wig: 5, spr: 0.55, rec: 0.5, bead: 0.2, bands: 2, strandsOn: false, live: 0.5 }), tub, v.radius).geometry;
+    const a = buildTubes(coursesOf(v, REST), tub, v.radius).geometry, b = buildTubes(coursesOf(v, { wig: 5, spr: 0.55, prs: 0, rec: 0.5, bead: 0.2, bands: 2, strandsOn: false, live: 0.5 }), tub, v.radius).geometry;
     assert.equal(a.getAttribute('position').count, b.getAttribute('position').count, id);
     assert.equal(a.getAttribute('rk').count, a.getAttribute('position').count, `${id} rk`);
   }

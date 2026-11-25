@@ -4,7 +4,7 @@ import { type NetVessel, type PresenceFrame, collateralOpen, feederLive, recruit
 import { CoilState, LOOK_SITE, type Pin, varixGrowth, varixSize, varixSpreadK } from './coil.ts';
 /** The least beading of the esophageal varices (share of a strand's radius), at their full size; the 2D figure's own (varix-bead.js BEAD_MAX 0.35) takes over once it is larger. */
 export const VARIX_BEAD_FLOOR = 0.16;
-import { REST, type ShapeState, coursesOf, seamState, tubularOf } from './shape.ts';
+import { REST, type ShapeState, coursesOf, seamState, tubularOf, varixPressRamp } from './shape.ts';
 import { buildTubes } from './tubes.ts';
 import { BEAD_SITE, varixBead } from './varix-bead.copied.js';
 import { bandsStep } from './band-ease.copied.js';
@@ -14,15 +14,17 @@ import { RESHAPE_ATTRIBUTES, type ReshapeFrame, type VesselObject } from './vess
 
 import { clock } from '../../clock/frame.ts';
 const VARIX_CHANNELS: Record<string, 'VAR' | 'GV'> = { C1a: 'VAR', C1b: 'VAR', C2: 'GV' };
-const VARIX_MEAN_MS = 2000, VARIX_JUMP_MM = 1.5;
+const VARIX_MEAN_MS = 2000, VARIX_JUMP_MM = 1.5, VARIX_JUMP_MMHG = 4;
+/** The pressure ramp is kept to steps of 1 / PRESS_STEPS of the thickening (a step is under a pixel of a strand's width; each one is a build of the shape, as the bead's steps are). */
+const PRESS_STEPS = 40;
 
-export interface ShapeFrame extends PresenceFrame { metrics?: { varix?: { d?: number; present?: boolean }; gastricVarix?: { d?: number; present?: boolean } }; bands?: number }
+export interface ShapeFrame extends PresenceFrame { metrics?: { varix?: { d?: number; ptm?: number; present?: boolean }; gastricVarix?: { d?: number; present?: boolean } }; bands?: number }
 
 /** The two key frames of one coil bracket: `lo` and `hi` rung (the coil strength is rung * COIL_STEP), built for the shape's other parts `base`; a frame is built when it is first needed. */
 interface KeyFrames { base: string; lo: number; a: ReshapeFrame | null; b: ReshapeFrame | null }
-interface Item { v: NetVessel; obj: VesselObject; coil: CoilState; state: ShapeState; tubular: number[]; shown: number; spread: number; live: number; strandsOn: boolean; bead: number; built: string; seam: string; /** the key frames the coil blends between (null: none built yet) */ kf: KeyFrames | null; /** the tick of its last rebuild (the one waiting longest goes first) */ at: number }
+interface Item { v: NetVessel; obj: VesselObject; coil: CoilState; state: ShapeState; tubular: number[]; shown: number; spread: number; /** the pressure's ramp, 0 to 1 (shape.ts varixPressRamp), the strands' thickening target */ press: number; live: number; strandsOn: boolean; bead: number; built: string; seam: string; /** the key frames the coil blends between (null: none built yet) */ kf: KeyFrames | null; /** the tick of its last rebuild (the one waiting longest goes first) */ at: number }
 
-const keyOf = (s: ShapeState) => `${s.wig.toFixed(2)}|${s.spr.toFixed(3)}|${s.rec.toFixed(2)}|${s.bead.toFixed(2)}|${s.bands.toFixed(2)}|${s.strandsOn ? 1 : 0}|${s.live.toFixed(2)}|${s.pin ? s.pin.map((x) => x.toFixed(3)).join(',') : ''}`;
+const keyOf = (s: ShapeState) => `${s.wig.toFixed(2)}|${s.spr.toFixed(3)}|${s.prs.toFixed(3)}|${s.rec.toFixed(2)}|${s.bead.toFixed(2)}|${s.bands.toFixed(2)}|${s.strandsOn ? 1 : 0}|${s.live.toFixed(2)}|${s.pin ? s.pin.map((x) => x.toFixed(3)).join(',') : ''}`;
 /** What of a shape reaches the seam of a skin standing on the vessel's end: everything but the coil (wig, spr), which the pin holds off the seam (coil.ts pinCourse). A vessel with no pin moves its seam with the coil too. */
 const seamKeyOf = (s: ShapeState) => keyOf(seamState(s));
 /** The coil strengths a coiling vessel's shape is built at, and between which it is blended (the centres and radii are linear in the coil: 0.08 radii off at most from 0 to 5, 0.006 across one step). The target is 1.5 + 3.5 of its opening, so 5 is the most. */
@@ -43,6 +45,8 @@ export class ShapeTracks {
   private bandsShown: number | null = null;
   /** the running mean of each varix's diameter (a pulse of the beat averages out; a real change is followed within two seconds) */
   private mean: Record<'VAR' | 'GV', { m: number | null; at: number }> = { VAR: { m: null, at: 0 }, GV: { m: null, at: 0 } };
+  /** the running mean of the varices' wall pressure (mmHg), the same average as the diameter's: the beat's pulse averages out and a real change is followed within two seconds */
+  private pmean: { m: number | null; at: number } = { m: null, at: 0 };
 
   constructor(vessels: readonly NetVessel[], objects: ReadonlyMap<string, VesselObject>) {
     for (const v of vessels) {
@@ -50,7 +54,7 @@ export class ShapeTracks {
       if (!obj || !p) continue;
       if (p.kind === 'coil' && !p.coils && !LOOK_SITE[v.id] && !p.strands) continue;
       if (p.kind === 'coil' && !p.coils && !p.strands) continue;
-      this.items.push({ v, obj, coil: new CoilState(), state: { ...REST }, tubular: tubularOf(v, slicesFor(v.id)), shown: 0, spread: 1, live: 1, strandsOn: false, bead: 0, built: keyOf(REST), seam: seamKeyOf(REST), kf: null, at: 0 });
+      this.items.push({ v, obj, coil: new CoilState(), state: { ...REST }, tubular: tubularOf(v, slicesFor(v.id)), shown: 0, spread: 1, press: 0, live: 1, strandsOn: false, bead: 0, built: keyOf(REST), seam: seamKeyOf(REST), kf: null, at: 0 });
     }
   }
 
@@ -71,6 +75,12 @@ export class ShapeTracks {
       h.m = instant || h.m == null || dt > 3000 || dt < 0 || Math.abs(x - h.m) > VARIX_JUMP_MM ? x : h.m + (x - h.m) * (1 - Math.exp(-dt / VARIX_MEAN_MS));
       h.at = now;
     }
+    const px = f.metrics?.varix?.ptm;
+    if (px != null && Number.isFinite(px)) {
+      const h = this.pmean, dt = now - h.at;
+      h.m = instant || h.m == null || dt > 3000 || dt < 0 || Math.abs(px - h.m) > VARIX_JUMP_MMHG ? px : h.m + (px - h.m) * (1 - Math.exp(-dt / VARIX_MEAN_MS));
+      h.at = now;
+    }
     this.bandsGoal = f.bands || 0;
     if (instant) this.bandsShown = this.bandsGoal;
     for (const it of this.items) {
@@ -84,6 +94,7 @@ export class ShapeTracks {
       it.shown = site ? Math.max(rf, varixGrowth(pres[site], this.mean[site].m ?? undefined)) : rf;
       const lookSite = LOOK_SITE[id];
       it.spread = lookSite ? varixSpreadK(varixSize(lookSite, this.mean[lookSite].m ?? undefined)) : 1;
+      it.press = lookSite === 'VAR' ? varixPressRamp(this.pmean.m ?? undefined) : 0;
       it.strandsOn = p.coils ? collateralOpen(id, f) : true;
     }
     if (instant) for (const it of this.items) { this.settle(it, 0, true); this.rebuild(it, true); }
@@ -94,8 +105,8 @@ export class ShapeTracks {
     let moving = false;
     if (p.kind === 'coil') {
       const strandsChanged = it.state.strandsOn !== it.strandsOn;
-      moving = it.coil.step(it.shown, it.spread, dtMs, instant) || strandsChanged;
-      it.state.wig = it.coil.wig; it.state.spr = it.coil.spr; it.state.strandsOn = it.strandsOn;
+      moving = it.coil.step(it.shown, it.spread, dtMs, instant, it.press) || strandsChanged;
+      it.state.wig = it.coil.wig; it.state.spr = it.coil.spr; it.state.prs = Math.round(it.coil.prs * PRESS_STEPS) / PRESS_STEPS; it.state.strandsOn = it.strandsOn;
       const bead = Math.round(it.bead * BEAD_STEPS) / BEAD_STEPS;   // (a beaded strand is built again at each new bead: 0.01 steps while the varix size eased were a rebuild of every beaded strand nearly every frame for seconds)
       if (it.state.bead !== bead) { it.state.bead = bead; moving = true; }
       if (it.v.id === 'C1a' || it.v.id === 'C1b') { const b = Math.round((this.bandsShown ?? this.bandsGoal) * 20) / 20; if (b !== it.state.bands) { it.state.bands = b; moving = true; } }

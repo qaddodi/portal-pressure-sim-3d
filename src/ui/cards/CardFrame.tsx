@@ -13,7 +13,7 @@ import { observeThenFit } from '../layout/fit-later.ts';
 import { scaleOf } from '../charts/fit.ts';
 import { heldBy, openCharts } from './card-want.ts';
 import { beginSink, beginReveal, finishSink, finishReveal, settle, committed, shiftWords, type GlideHost } from './card-glide.ts';
-import { boxOf, noteGrew, freezeOf, BOX_START, type Frozen } from './box-lock.ts';
+import { boxOf, noteGrew, freezeOf, tellsLayer, BOX_START, type Frozen } from './box-lock.ts';
 
 import { clock } from '../../clock/frame.ts';
 interface Props {
@@ -184,7 +184,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
       if (out.grew) noteGrew({ card: entry.id, slide: entry.key, px: out.grew });
       if (!out.report) {
         // (a measure the lock swallowed still tells the layer the card is measured at this slide's signature, at the height it stands: the camera and the new words wait for it)
-        if (fresh && box.current.h > 0) onHeight(entry.key, Math.round(rect.w), box.current.h, box.current.h + heldBy(el), openCharts(el));
+        if (tellsLayer(fresh, sameStepPass, box.current.h)) onHeight(entry.key, Math.round(rect.w), box.current.h, box.current.h + heldBy(el), openCharts(el));
         return;
       }
       growNow(h); shrinkNow(h);

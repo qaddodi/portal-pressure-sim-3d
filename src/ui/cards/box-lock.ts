@@ -22,6 +22,12 @@ export function boxOf(s: BoxState, ev: BoxEvent): BoxOut {
   return { state: s, report: false, grew: ev.h - s.h };
 }
 
+/** Whether a measure the lock swallowed still tells the layer "this card is measured at this slide's signature, at the height it stands" (CardLayer's `final` waits for it before it publishes the room the camera
+ *  fits the slide to). It must, on EVERY card's first pass for a slide: a new card's (`fresh`), and a KEPT data card's (`sameStepPass`: the instrument carried across slides is judged as an observer's measure, the
+ *  lock stands, but its signature starts with the words' key and so is new on every slide). Left out for the kept card, its recorded signature stayed the previous slide's, the room was never "final", and the camera's
+ *  move waited out the layer's crash net (8 s) on every slide that follows a kept instrument card (Mohammad, 25 Nov, Circulation 5: the lobule dive never came). Pure; tests/kept-card-reports-sig.test.ts. */
+export const tellsLayer = (fresh: boolean, sameStepPass: boolean, lockedH: number): boolean => (fresh || sameStepPass) && lockedH > 0;
+
 /** What the audit reads: every card that grew by itself after it was let in since the last mark. */
 export interface Grew { card: string; slide: string; px: number }
 let grewLog: Grew[] = [];

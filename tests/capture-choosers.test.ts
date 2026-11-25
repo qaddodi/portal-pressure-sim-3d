@@ -38,7 +38,7 @@ test('the openers that are options (quick-check questions, treatment orders, ste
 test('a capture press never leaves the slide: choices are looked for only in the standing slide cards, and never in the Tests card, instrument tabs, toolbar or anything that opens a card', async () => {
   const { pressable, CHOICE_ROOTS, CHOICE_OUT } = await import('../src/ui/capture/capture-model.ts');
   const inside = (sels: string[]) => ({ closest: (sel: string) => (sels.some((s) => sel.split(',').map((x) => x.trim()).includes(s)) ? {} : null) });
-  for (const s of ['.t-card', '.instr-tab', '[data-opens]', '.nb-tab', '.topbar']) assert.equal(pressable(inside([s])), false, s);
+  for (const s of ['.t-card', '.instr-tab', '[data-opens]', '.nb-tab', '.topbar', '.dk-pos[data-tucked]']) assert.equal(pressable(inside([s])), false, s);
   assert.equal(pressable(inside([])), true);
   assert.ok(!/t-card/.test(CHOICE_ROOTS), 'the Tests card is not a place to press');
   assert.match(CHOICE_OUT, /\.instr-tab/);

@@ -1,7 +1,8 @@
 // B13c: a 2D slide's camera becomes a 3D shot by arithmetic on the shared frame, and every camera form the decks use places.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { place, boxOf, shotOfBox, camProblems, namesBox, toX, toY, TARGET_Z, MIN_HALF } from '../src/decks/rw/cams.ts';
+import { place, boxOf, shotOfBox, shotOfBox3, box3Of, namesPlaced, camProblems, namesBox, toX, toY, TARGET_Z, MIN_HALF } from '../src/decks/rw/cams.ts';
+import { box2Of, boxOfNames } from '../src/scene/anatomy/source.ts';
 import { registerShots, shotName } from '../src/decks/rw/plan.ts';
 import { SHOTS } from '../src/scene/camera/shots.ts';
 import { lobuleShot, sinusoidShot } from '../src/scene/lobule/shots.ts';
@@ -31,8 +32,11 @@ test('"fit" and no camera are the free-play shot; a box, a region and a list of 
   assert.equal(u.view, 'body');
   const box = boxOf(['splenic', 'portal'])!;
   assert.deepEqual(box, [520, 230, 1110, 710]);
-  const raw = place([500, 300, 880, 520]);
-  assert.deepEqual(raw.view === 'body' && raw.box, [500, 300, 880, 520]);
+  // a raw box is carried onto the placed anatomy (the approved placement, anatomy/source.ts): the shot frames the placed box, and the box the plan carries is that box in the 2D figure's units
+  const raw = place([500, 300, 880, 520]), b3 = box3Of([500, 300, 880, 520])!;
+  assert.ok(b3, 'a raw box places');
+  assert.deepEqual(raw.view === 'body' && raw.box, box2Of(b3));
+  assert.deepEqual(raw.view === 'body' && raw.shot, shotOfBox3(b3));
 });
 
 test('the lobule and sinusoid cameras are the scene\'s own shots, so the views open as the 2D app\'s do', () => {
@@ -51,8 +55,12 @@ test('{ on: [names] } frames what the names point at: a vessel\'s whole course, 
   const p = place({ on: ['PVH_R'] });
   assert.equal(p.view, 'body');
   const b = p.view === 'body' ? p.box! : [0, 0, 0, 0];
-  assert.ok(b[0] <= box![0] && b[1] <= box![1] && b[2] >= box![2] && b[3] >= box![3], 'the camera box holds the vessel');
-  assert.ok(b[2] - b[0] >= 80, 'a lone thin vessel still gets room');
+  assert.ok(b[0] <= box![0] && b[1] <= box![1] && b[2] >= box![2] && b[3] >= box![3], 'the camera box holds the vessel (its 2D course)');
+  // (the placed anatomy: the box is the vessel's PLACED course, in the 2D figure's units, grown; a lone thin vessel still gets room all round it)
+  const course = box2Of(boxOfNames(namesPlaced(['PVH_R']).names).box!);
+  assert.ok(b[0] < course[0] && b[1] < course[1] && b[2] > course[2] && b[3] > course[3], 'the camera box holds the vessel placed, with room on every side');
+  assert.ok(b[2] - b[0] >= course[2] - course[0] + 40, 'a lone thin vessel still gets room');
+  assert.ok(p.view === 'body' && p.shot.half[0] >= MIN_HALF && p.shot.half[1] >= MIN_HALF);
   assert.deepEqual(namesBox(['NOT_A_VESSEL']).unknown, ['NOT_A_VESSEL']);
   assert.throws(() => place({ on: ['NOT_A_VESSEL'] }), /NOT_A_VESSEL/);
   assert.ok(camProblems('no-such-region').length);

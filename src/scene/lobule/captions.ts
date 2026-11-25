@@ -6,7 +6,7 @@
 import type { Dir } from '../labels/geometry.ts';
 import type { Form, Item } from '../labels/solver.ts';
 import { type Measure, type Vp, boxSize, nameRun, stationRuns } from '../labels/type.ts';
-import { lymphText } from '../../ui/action/lymph-day.ts';
+import { lymphText, LYMPH_UNIT } from '../../ui/action/lymph-day.ts';
 import type { LobuleNet, P2 } from './geometry.ts';
 import { DISC_R, RS_N } from './widths.ts';
 
@@ -160,7 +160,7 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
   for (const k of keys) {
     const w = WORDS[k], at = stationAt(ctx.net, tri, k), [ax, ay] = ctx.proj(at[0], at[1]);
     const reads = READ[k] !== null;
-    const mk = (name: string, v: boolean): Form => { const b = boxSize(stationRuns(name, v, false, ctx.hide ? '?' : k === 'lymph' ? '0,000' : ctx.unit ? '00.0 mmHg' : '00.0'), vp, measure); return form(name, b.w, b.h); };
+    const mk = (name: string, v: boolean): Form => { const b = boxSize(stationRuns(name, v, false, ctx.hide ? '?' : k === 'lymph' ? (ctx.unit ? `0,000 ${LYMPH_UNIT}` : '0,000') : ctx.unit ? '00.0 mmHg' : '00.0'), vp, measure); return form(name, b.w, b.h); };
     const formsM: { name: string; value: boolean }[] = [{ name: w.name, value: reads }];
     const forms: Form[] = [mk(w.name, reads)];
     if (w.short !== w.name) { forms.push(mk(w.short, reads)); formsM.push({ name: w.short, value: reads }); }
@@ -179,7 +179,7 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
 export function readingText(read: CapMeta['read'], m: { P1: number; P2: number; P3: number; lymph: number; oxy?: ArrayLike<number> }, hide: boolean, unit = false): string {
   if (!read) return '';
   if (hide) return '?';
-  if (read === 'lymph') return lymphText(m.lymph);
+  if (read === 'lymph') return unit ? `${lymphText(m.lymph)} ${LYMPH_UNIT}` : lymphText(m.lymph);   // (a slide's label carries its unit, as the pressures beside it do: "Lymph 3,580" had a number and no unit, capture 2a54261a)
   if (read[0] === 'O') {
     // a zone's oxygen: the saturation at its end of the sinusoid (zone 1 at the portal venule, zone 3 at the central vein), the same number the lens colours it by
     const sat = m.oxy?.[Number(read[1]) - 1];

@@ -47,6 +47,14 @@ export const VARIX_THICK = 1.22;
 export const VARIX_SIZE_THICK = 0.6;
 /** The width a varix's strands are drawn at against VARIX_THICK's, at its size `size` (0 to 1). */
 export const varixThickK = (size: number): number => { const u = Math.min(1, Math.max(0, size)); return 1 + VARIX_SIZE_THICK * (1 - (1 - u) * (1 - u)); };
+/** THE PRESSURE'S SHARE of a varix's width (Mohammad, 25 Nov: "the varices need to be more prominent/thick with such high pressure", Schistosomiasis at 17.2 mmHg, where the size alone had them barely as wide as the left gastric vein feeding them). The size (mm) tops out at 7 and a 6 mm varix is
+ *  already 0.8 of it, so the pressure the varix stands at (the engine's varix wall pressure, metrics.varix.ptm) thickens the strands on top: nothing under VARIX_PRESS_FROM mmHg, filling out from there and whole by VARIX_PRESS_FULL (smoothstep), where a strand is VARIX_PRESS_THICK times
+ *  what the size gave it, about twice the vein that feeds it (a 6 mm varix's strand is as wide as that vein at rest). The strands still lie their own drawn radius off the oesophagus's wall (wallGap), three of them on the tube without touching one another. */
+export const VARIX_PRESS_FROM = 10, VARIX_PRESS_FULL = 15, VARIX_PRESS_THICK = 1.9;
+/** The pressure's ramp, 0 to 1, at a varix wall pressure of `mmHg`: smoothstep from VARIX_PRESS_FROM to VARIX_PRESS_FULL (0 for a pressure that is not a number). */
+export const varixPressRamp = (mmHg: number | undefined): number => { if (mmHg == null || !Number.isFinite(mmHg)) return 0; const t = Math.min(1, Math.max(0, (mmHg - VARIX_PRESS_FROM) / (VARIX_PRESS_FULL - VARIX_PRESS_FROM))); return t * t * (3 - 2 * t); };
+/** The width a varix's strands are drawn at against what the size alone gave them, at the eased ramp `prs` (0 to 1). */
+export const varixPressK = (prs: number): number => 1 + (VARIX_PRESS_THICK - 1) * Math.min(1, Math.max(0, prs));
 /** What a banded strand keeps of its width: a closed varix is a thin sclerosed cord, never gone (Mohammad, 20 Nov: banding left "stumps" and floating bands). The varices shrink as each band closes one, and the path from the coronary vein to the azygos stays one tube end to end. */
 export const BANDED_CORD = 0.28;
 /** Placed: a vein that runs on into the liver and fades there narrows progressively to `tip` of its width over the last `span` of its length (the left portal vein: Mohammad, 25 Nov, "taper a bit more and fade earlier";
@@ -68,8 +76,8 @@ const strandLive = (banded: boolean, open: number, i: number, bands: number, cor
 export const beadsOn = (id: string): boolean => !!(BEAD_SITE as Record<string, string>)[id];
 import { type Buried, type Course, radiusAtU, sewnAt, tubularFor } from './tubes.ts';
 
-export interface ShapeState { wig: number; spr: number; /** how far the collaterals are recruited, 0 to 1 (the cavernoma's channels grow with it) */ rec: number; /** the varix's beading, 0 to 0.35 (varix-bead.js) */ bead: number; /** the bands on the esophageal varices, eased (band-ease.js) */ bands: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number; /** the stretch at each end (share of the course, from its start and from its end) that stays as at rest, because a junction skin stands on it: coil.ts `pinCourse`; absent: none */ pin?: Pin }
-export const REST: ShapeState = { wig: 0, spr: 1, rec: 1, bead: 0, bands: 0, strandsOn: true, live: 1 };
+export interface ShapeState { wig: number; spr: number; /** how far the varix's pressure has thickened its strands, 0 to 1 (varixPressRamp, eased) */ prs: number; /** how far the collaterals are recruited, 0 to 1 (the cavernoma's channels grow with it) */ rec: number; /** the varix's beading, 0 to 0.35 (varix-bead.js) */ bead: number; /** the bands on the esophageal varices, eased (band-ease.js) */ bands: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number; /** the stretch at each end (share of the course, from its start and from its end) that stays as at rest, because a junction skin stands on it: coil.ts `pinCourse`; absent: none */ pin?: Pin }
+export const REST: ShapeState = { wig: 0, spr: 1, prs: 0, rec: 1, bead: 0, bands: 0, strandsOn: true, live: 1 };
 /** The shape a junction skin is meshed on at a vessel's end: for a vessel whose seam is held (`pin`), the rest shape with only what still reaches the seam, and its live share (the bands are held off it too: the tube keeps its rest width inside the held stretch, `held` r0, and thins past it); coil, spread, bead, the strands being on or off and the recruitment never do (they are held off the seam, or the end is the same tube whether or not they are on). So the skin neither plans nor rebuilds for them. A vessel with no pin is meshed on its own shape. */
 export const seamState = (s: ShapeState | undefined): ShapeState => (!s || !s.pin ? (s ?? REST) : { ...REST, live: s.live, pin: s.pin });
 
@@ -285,8 +293,8 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     // the bands: each one closes a channel of the varices' plexus (strand i is live while the count is under i + 1) and the rest shrink (stage-tubes.js widthWrites: 0.14 a band, to four)
     const banded = BANDED.has(v.id), rad = banded ? v.radius * (1 - 0.14 * Math.min(4, s.bands)) : v.radius;
     // (the varices' strands are thicker the bigger the varix: its size rides on the eased spread, so it eases with it and costs no build of its own)
-    const thickK = banded ? varixThickK(varixSizeOfSpread(s.spr)) : 1, thick = banded ? VARIX_THICK * thickK : 1;
-    // (a closed strand is a cord of one width whatever the varix's size: BANDED_CORD of the full strand's width, so the size's thickening never thins a cord)
+    const thickK = banded ? varixThickK(varixSizeOfSpread(s.spr)) * varixPressK(s.prs) : 1, thick = banded ? VARIX_THICK * thickK : 1;
+    // (a closed strand is a cord of one width whatever the varix's size or pressure: BANDED_CORD of the full strand's width, so the thickening never thins a cord)
     const cord = BANDED_CORD * (banded ? varixThickK(1) / thickK : 1);
     // (the strands round the oesophagus lie their drawn radius out from its wall (the width built, the shader's swell at the varix's size and half the bead), so they touch it at every size: never in it, never off it)
     const wallGap: WallGap | undefined = WRAP.has(v.id) ? (i, n, k) => {
