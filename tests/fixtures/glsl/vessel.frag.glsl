@@ -1048,7 +1048,7 @@ vec3 clotAt(vec4 a, vec2 p, float u, float lat, float vRf, float rDev) {
   float body = fl + (1.0 - fl) * sqrt(max(sin(3.14159265 * fc), 0.0));
   float lump = 1.0 + 0.08 * sin(fc * 18.85 + p.x) + 0.05 * sin(fc * 43.98 + p.y);
   float h = min(CLOT_INSIDE, CLOT_INSIDE * clamp(0.1 + 0.9 * v, 0.0, 1.0) * body * lump);
-  float c = side * (CLOT_INSIDE - h) + side * (CLOT_WALL_SLACK_PX / max(rDev, 1.0));
+  float c = side * (CLOT_INSIDE - h) + side * min(CLOT_WALL_SLACK_PX / max(rDev, 1.0), h);
   float along = f < 0.0 ? -f : (f > 1.0 ? f - 1.0 : 0.0);
   float dn = along * a.w / max(CLOT_CAP_LEN * vRf, 1e-6);
   float q = (lat - c) / h;

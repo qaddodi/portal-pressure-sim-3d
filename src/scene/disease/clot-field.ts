@@ -54,7 +54,9 @@ export function clotDrawnShape(a: ClotUniform, fc: number, rDev: number): { h: n
   const body = fl + (1 - fl) * Math.sqrt(Math.max(Math.sin(Math.PI * fc), 0));
   const lump = 1 + 0.08 * Math.sin(fc * 18.85 + a.p1) + 0.05 * Math.sin(fc * 43.98 + a.p2);
   const h = Math.min(CLOT_INSIDE, CLOT_INSIDE * clamp(0.1 + 0.9 * v, 0, 1) * body * lump);
-  return { h, c: side * (CLOT_INSIDE - h) + side * (CLOT_WALL_SLACK_PX / Math.max(rDev, 1)), side };
+  // (the slack is never more than the clot's own half width: on a vein a few px wide (the placed caudate vein is under 2.5 px in radius on a phone) a whole px is more than the lumen's share the clot takes, and the push carried the whole clot past the
+  //  edge, under the ink: no clot was drawn at the ostium. Capped, at least half of it stays in the lumen.)
+  return { h, c: side * (CLOT_INSIDE - h) + side * Math.min(CLOT_WALL_SLACK_PX / Math.max(rDev, 1), h), side };
 }
 
 export function clotAtTwin(a: ClotUniform, u: number, lat: number, vRf: number, rDev: number): { cover: number; distIn: number; free: number } {
@@ -109,7 +111,7 @@ vec3 clotAt(vec4 a, vec2 p, float u, float lat, float vRf, float rDev) {
   float body = fl + (1.0 - fl) * sqrt(max(sin(3.14159265 * fc), 0.0));
   float lump = 1.0 + 0.08 * sin(fc * 18.85 + p.x) + 0.05 * sin(fc * 43.98 + p.y);
   float h = min(CLOT_INSIDE, CLOT_INSIDE * clamp(0.1 + 0.9 * v, 0.0, 1.0) * body * lump);
-  float c = side * (CLOT_INSIDE - h) + side * (CLOT_WALL_SLACK_PX / max(rDev, 1.0));
+  float c = side * (CLOT_INSIDE - h) + side * min(CLOT_WALL_SLACK_PX / max(rDev, 1.0), h);
   float along = f < 0.0 ? -f : (f > 1.0 ? f - 1.0 : 0.0);
   float dn = along * a.w / max(CLOT_CAP_LEN * vRf, 1e-6);
   float q = (lat - c) / h;
