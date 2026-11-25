@@ -924,19 +924,6 @@ vec4 lensHeadAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mo
   lensAcrossFw = keep;
   return vec4(c.rgb, max(c.a, 0.0) * step(0.5, pixelLens.a));
 }
-// the dye in the lumen: its concentration at u along a vessel, and the share of the colour it takes
-uniform sampler2D dyeTex;
-uniform vec3 dyeCol;
-uniform float dyeAmt;
-float dyeConc(float row, float u) {
-  if (row < 0.0) return 0.0;
-  float x = clamp(u, 0.0, 1.0) * float(47);
-  int i0 = int(floor(x));
-  int i1 = min(i0 + 1, 47);
-  return mix(texelFetch(dyeTex, ivec2(i0, int(row)), 0).r, texelFetch(dyeTex, ivec2(i1, int(row)), 0).r, fract(x));
-}
-float dyeShare(float c) { return c < 0.01 ? 0.0 : (1.0 - exp(-3.2 * c)) * 0.97 * dyeAmt; }
-uniform float dyeRow;   // this vessel's row of the dye texture (-1: none)
 // the flow heads' tone on a vessel under one lens set (1 cream .. 0 dark ink): the vessel's latched, eased ink from the fifth row of the colour texture (lenses/chevron-ink.ts) where the lens runs a colour along it (la.a, a set of
 // colours and not lanes), else the short eased step on the colour it is drawn in
 float chevCreamOf(vec4 la, sampler2D grad, float mode, float idx, vec3 col, float raw) {
@@ -1225,7 +1212,6 @@ void main() {
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
   float nbrT = nbrK;
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * mix(1.0 - circT, 1.0, nbrMap) * (1.0 - smoothstep(0.0, 0.8 * vNbr.y, vNbr.z)));   // (and the pull ends at the other's end plane, easing out over 0.8 of its radius past it: no pale step along the band where the other has ended)
-  { float dcT = dyeConc(dyeRow, vUv.x); if (dcT > 0.01) base = mix(base, dyeCol, dyeShare(dcT) * (1.0 - circT)); }   // (the dye in the lumen, before the cel tones: docs/approved/dye.md; the Circuit keeps none)
   vec3 c = celTubeToneArt(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev, 1.0 - lensUse);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, 0.080 * quietK);   // (0 for every tier but the back one)
 #ifdef VDBG

@@ -36,7 +36,6 @@ export type Verb = Base & (
   | { type: 'seg'; small?: boolean; options: [string | number, string][]; get(p: Params): string | number; set(act: Act, v: string | number, p: Params): void }
   | { type: 'button'; run(act: Act): void; danger?: boolean; quiet?: boolean; note?(env: Env): string | null }
   | { type: 'link'; run(act: Act): void }
-  | { type: 'dye'; run(act: Act): void }
   | { type: 'panel'; stent: string; run?(act: Act): void }
 );
 export interface Card {
@@ -89,7 +88,6 @@ const PETAL_COLL = new Set(['C8']);   // (collaterals that carry portal blood TO
 const PRESENT_ONLY_ESO = new Set(['C1a', 'C1b']), PRESENT_ONLY_GAS = new Set(['C2', 'C5']);
 
 const dopplerOn = (_id: string): Verb => ({ type: 'button', id: 'doppler', label: 'Doppler', icon: 'doppler', run: (a) => { a.feature('doppler', 'Doppler'); a.select(null); } });
-const dye: Verb = { type: 'dye', id: 'dye', label: 'Inject dye', short: 'Dye', icon: 'drop', run: (a) => a.feature('dye', 'Inject dye') };
 
 function varixVerbs(site: 'eso' | 'gas'): Verb[] {
   const eso = site === 'eso', out: Verb[] = [];
@@ -182,12 +180,11 @@ function edgeCard(e: Edge): Card {
     verbs.push(narrow, clot, doppler, shunt);
     if (id === 'SV_CONF' || id === 'SV_MID' || id === 'V_SPL') verbs.push({ type: 'link', label: 'Spleen', icon: 'vessel', run: (a) => a.select({ type: 'organ', id: 'spleen' }) });
   }
-  // Dye into this vessel, beside Doppler: a few seconds a press, or as long as it is held.
-  if (!SIN_EDGES.has(id)) {
+  // The TIPS and the DIPS open their own test, beside Doppler: Tests › IR › TIPS on this stent (a quiet word).
+  if (id === 'TIPS' || id === 'DIPS') {
     const at = verbs.indexOf(doppler);
-    if (at >= 0) verbs.splice(at + 1, 0, dye); else verbs.push(dye);
-    // The TIPS and the DIPS open their own test, beside Doppler and Dye: Tests › IR › TIPS on this stent (a quiet word).
-    if (id === 'TIPS' || id === 'DIPS') verbs.splice(verbs.indexOf(dye) + 1, 0, { type: 'button', id: 'ir', label: `Test ${id} in IR`, short: 'IR', icon: 'catheter', quiet: true, run: (a) => a.feature('ir', `Test ${id} in IR`) });
+    const ir: Verb = { type: 'button', id: 'ir', label: `Test ${id} in IR`, short: 'IR', icon: 'catheter', quiet: true, run: (a) => a.feature('ir', `Test ${id} in IR`) };
+    if (at >= 0) verbs.splice(at + 1, 0, ir); else verbs.push(ir);
   }
   return {
     key: `e:${id}`, sel: NORM_EDGE.get(id) ?? { type: 'edge', id }, kicker, title: e.label, why: edgeWhy(id), edge: id, verbs, span, noValue: id === 'TIPS' || id === 'DIPS',

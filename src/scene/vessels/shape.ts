@@ -5,9 +5,10 @@ import { FAN_TIP_FROM, fanCaps, fanLensRanges, fanTips } from './feeder-fan.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { len3, x3, y3 } from '../frame2d.ts';
 import { TIER_Z } from '../frame2d.ts';
-import { WEAVE, coilCourses, type Pin } from './coil.ts';
-import { NETWORK, NETWORK_BY_ID, SEGMENT_OF, cutEnd, type NetVessel } from './network.ts';
-import { TIP } from './liver-branches.ts';
+import { WEAVE, WRAP, coilCourses, varixDOfSize, varixSizeOfSpread, type Pin, type WallGap } from './coil.ts';
+import { widthSwell } from './live-width.ts';
+import { NETWORK, NETWORK_BY_ID, NODE_Z, SEGMENT_OF, SVC_TRIBUTARY_IDS, cutEnd, type NetVessel } from './network.ts';
+import { LIVER_BRANCH_HOSTS, SPLIT_AT, TIP } from './liver-branches.ts';
 import { CAV, cavChannels, cavGrowth } from './cav.ts';
 import { BEAD_LAMBDA_FUNDAL, BEAD_SITE, beadLambda } from './varix-bead.copied.js';
 import { STRAND_FROM_2D } from './coil.copied.ts';
@@ -40,16 +41,29 @@ const narrowTo = (v: NetVessel, end: 0 | 1): number => {
 };
 /** The varices are drawn thicker than the 2D figure's strands, so they read at fit zoom on a phone (Mohammad, 20 Nov: "esophageal varices should be more prominent in anatomy view"); the banding and the beads work on top. */
 export const VARIX_THICK = 1.22;
+/** How much thicker than VARIX_THICK a varix's strands grow with its size (coil.ts varixSize, 0 at 2 mm to 1 at 7 mm), on top of the shader's swell, which alone made a large varix barely 1.6 times a threshold one (Mohammad, 25 Nov: "the esophageal
+ *  varices should be more sensitive to pressure and appear thicker with earlier pressure cuz even grade 3 seem not that full on anatomy view"). The growth comes early (1 - (1 - size)^2: half of it by 3.5 mm, 84% at the 5 mm cut-off): a small varix
+ *  is already a column, a large one is plainly large, and a full one is a fat cord on the wall. */
+export const VARIX_SIZE_THICK = 0.6;
+/** The width a varix's strands are drawn at against VARIX_THICK's, at its size `size` (0 to 1). */
+export const varixThickK = (size: number): number => { const u = Math.min(1, Math.max(0, size)); return 1 + VARIX_SIZE_THICK * (1 - (1 - u) * (1 - u)); };
 /** What a banded strand keeps of its width: a closed varix is a thin sclerosed cord, never gone (Mohammad, 20 Nov: banding left "stumps" and floating bands). The varices shrink as each band closes one, and the path from the coronary vein to the azygos stays one tube end to end. */
 export const BANDED_CORD = 0.28;
+/** Placed: a vein that runs on into the liver and fades there narrows progressively to `tip` of its width over the last `span` of its length (the left portal vein: Mohammad, 25 Nov, "taper a bit more and fade earlier";
+ *  fades.ts PLACED_LIVER_FADE). The narrowing starts past the meso-Rex landing and the umbilical vein's root, so both meet the vein at its full width. */
+export const LIVER_TAPER: Readonly<Record<string, { tip: number; span: number }>> = { PVH_L_1: { tip: 0.4, span: 0.66 } };
 /** Whether end `e` of vessel `id` is the outer end of its segment (it meets another vessel, not its own other half): true for a vessel that is not in a segment. */
 export const outerEnd = (id: string, e: 0 | 1): boolean => { const seg = SEGMENT_OF.get(id); return !seg || (e === 0 ? seg[0] === id : seg[seg.length - 1] === id); };
 /** How far strand `i` of `n` has opened at the varix's spread `spr` (coil.ts varixSpreadK: 0.55 for a resting vein to 1 for a full varix), 0 to 1: the strands open one after another (V2, Mohammad 22 Nov), the last of the list first (the bands close the first), each over
- *  45% of the growth, and never all at once; a full varix has them all open, as at rest. */
+ *  45% of the growth, and never all at once; a full varix has them all open, as at rest. The last starts by STRAND_OPEN_LAST of the size (4 mm), so a small varix already shows two columns and a large one (5 mm) three, the third half open
+ *  (Mohammad, 25 Nov: "more sensitive to pressure ... thicker with earlier pressure"; it started at 0.55, 4.75 mm, so a large varix showed two). */
+export const STRAND_OPEN_LAST = 0.4;
 export const strandOpen = (i: number, n: number, spr: number): number => {
-  const size = Math.min(1, Math.max(0, (spr - 0.55) / 0.45)), start = n > 1 ? 0.55 * (1 - i / (n - 1)) : 0;
+  const size = varixSizeOfSpread(spr), start = n > 1 ? STRAND_OPEN_LAST * (1 - i / (n - 1)) : 0;
   return smooth((size - start) / 0.45);
 };
+/** What of strand `i`'s width is drawn: all of it as far as it has opened (`open`), a banded strand at least a sclerosed cord (`cord`, BANDED_CORD of the strand at the size it is drawn) and nothing more once a band has closed it. */
+const strandLive = (banded: boolean, open: number, i: number, bands: number, cord = BANDED_CORD): number => (banded ? Math.max(cord, Math.min(1, Math.max(0, i + 1 - bands)) * open) : 1);
 /** whether a vessel beads (varix-bead.js BEAD_SITE): its strands do, and the gastrorenal shunt itself does */
 export const beadsOn = (id: string): boolean => !!(BEAD_SITE as Record<string, string>)[id];
 import { type Buried, type Course, radiusAtU, sewnAt, tubularFor } from './tubes.ts';
@@ -268,7 +282,18 @@ function fairMain(v: NetVessel, m: Vec3[], coils: boolean): Vec3[] {
 export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
   const plan = v.plan!, z = TIER_Z[v.tier];
   if (plan.kind === 'coil') {
-    const coiled = coilCourses(v.id, plan.base as [number, number][], plan.coils, s.wig, s.spr, s.pin);
+    // the bands: each one closes a channel of the varices' plexus (strand i is live while the count is under i + 1) and the rest shrink (stage-tubes.js widthWrites: 0.14 a band, to four)
+    const banded = BANDED.has(v.id), rad = banded ? v.radius * (1 - 0.14 * Math.min(4, s.bands)) : v.radius;
+    // (the varices' strands are thicker the bigger the varix: its size rides on the eased spread, so it eases with it and costs no build of its own)
+    const thickK = banded ? varixThickK(varixSizeOfSpread(s.spr)) : 1, thick = banded ? VARIX_THICK * thickK : 1;
+    // (a closed strand is a cord of one width whatever the varix's size: BANDED_CORD of the full strand's width, so the size's thickening never thins a cord)
+    const cord = BANDED_CORD * (banded ? varixThickK(1) / thickK : 1);
+    // (the strands round the oesophagus lie their drawn radius out from its wall (the width built, the shader's swell at the varix's size and half the bead), so they touch it at every size: never in it, never off it)
+    const wallGap: WallGap | undefined = WRAP.has(v.id) ? (i, n, k) => {
+      const vsz = varixSizeOfSpread(s.spr), live = strandLive(banded, FAN_IDS.has(v.id) ? strandOpen(i, n, s.spr) : 1, i, s.bands, cord);
+      return Math.max(minR, rad * k * thick) * live * widthSwell(v.widthKind, v.baseD, varixDOfSize('VAR', vsz)) * (1 + 0.5 * s.bead);
+    } : undefined;
+    const coiled = coilCourses(v.id, plan.base as [number, number][], plan.coils, s.wig, s.spr, s.pin, wallGap);
     const { main } = coiled;
     let { strands } = coiled;
     if (v.id === 'C8') {
@@ -292,8 +317,6 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     let buried: readonly [Buried | null, Buried | null] | undefined;
     if (sj) { const f = fitEnds(v, m); m = f.pts; buried = f.buried; }
     if (smoothJoinsOn()) m = fairMain(v, m, plan.coils === true);
-    // the bands: each one closes a channel of the varices' plexus (strand i is live while the count is under i + 1) and the rest shrink (stage-tubes.js widthWrites: 0.14 a band, to four)
-    const banded = BANDED.has(v.id), rad = banded ? v.radius * (1 - 0.14 * Math.min(4, s.bands)) : v.radius;
     // the varices bead by their size: every strand, and the gastrorenal shunt itself (varix-bead.js)
     const lambda = beadLambda(v.id) as number, beads = s.bead > 0 && beadsOn(v.id);
     // (a vein that branches is one tube from its root to the tip of its through branch: it narrows gently to TIP of its width over its whole length, has no cap at its tip and fades to nothing there; its side branch starts inside it)
@@ -304,6 +327,8 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
       t[cut] = TIP; sp[cut] = 1; taper = t; taperSpan = sp;
       if (capless) { const cl: [boolean, boolean] = [capless[0], capless[1]]; cl[cut] = false; capless = cl; }
     }
+    const lt = LIVER_TAPER[v.id];
+    if (lt) { const t: [number, number] = [taper?.[0] ?? 1, Math.min(taper?.[1] ?? 1, lt.tip)], sp: [number, number] = [taperSpan?.[0] ?? 0.3, lt.span]; taper = t; taperSpan = sp; }
     // (a surgical shunt sewn onto a vein narrows to the host's caliber at that end, sinks inside its wall and flares at its heel: 2D SIDE_HOSTS / SINK / FLARED)
     if (sj && NARROWS_INTO_NEIGHBOUR(v) && !sj.taper) { const n0 = narrowTo(v, 0), n1 = narrowTo(v, 1); if (n0 < 1 || n1 < 1) taper = [Math.min(taper?.[0] ?? 1, n0), Math.min(taper?.[1] ?? 1, n1)]; }
     const sewn = shuntEnds(v.id);
@@ -323,12 +348,12 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     if (bundle) own.radius = 0;
     // (strands that wind round one axis meet on it: their union at a gathered end is one strand wide, so each is the trunk's whole width there; strands that part at once share it, coil.ts WEAVE)
     const gathered = WEAVE[v.id] ? 1 : strands.length;
-    const fit = bundle && FAN_IDS.has(v.id), thick = BANDED.has(v.id) ? VARIX_THICK : 1;
+    const fit = bundle && FAN_IDS.has(v.id);
     const out = [own, ...strands.map((c, i) => {
       if (!s.strandsOn) return own;
       // (the strands open one after another as the varix grows and close one after another as it shrinks: the strand the bands close first is the last to open; a banded one stays a cord, whatever its size)
       const open = fit ? strandOpen(i, strands.length, s.spr) : 1;
-      const live = (banded ? Math.max(BANDED_CORD, Math.min(1, Math.max(0, i + 1 - s.bands)) * open) : 1) * (c.live ?? 1);
+      const live = strandLive(banded, open, i, s.bands, cord) * (c.live ?? 1);
       return {
         pts: to3(c.pts, z, zf, zt, de.sf, de.st, de.through, atRest.strands[i]?.pts ?? (depth ? atRest.main : undefined), depth).map((p, j): Vec3 => (c.dz ? [p[0], p[1], p[2] + len3(c.dz[j] ?? 0)] : p)), radius: Math.max(minR, rad * c.k * thick) * live,   // (0: a channel not yet grown draws none of it; a strand a band has closed is a thin cord, BANDED_CORD)
         // THE CAVERNOMA'S CHANNELS end in a tip, not in a widened, collared, round-capped end: six channels each opened out to the whole C8 width (and a collar, and a ball) where they all meet at the node stood as a faceted star of overlapping

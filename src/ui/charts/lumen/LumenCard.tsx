@@ -8,7 +8,7 @@ import '../charts.css';
 
 /** A vessel in cross-section on a slide's data card (tool { kind: 'lumen', vessel }). It follows the model's params: a stream of small steps (a time-lapse, a slider)
  *  in a straight line, a jump (a compare button, a new slide) as a glide. The picture is moved by the clock, never through React state. */
-export function LumenCard({ params, vessel = 'PV_TRUNK', stented = null, site = null, name = null }: { params: LumenParams | null; vessel?: string; stented?: readonly string[] | null; site?: string | null; name?: string | null }) {
+export function LumenCard({ params, vessel = 'PV_TRUNK', stented = null, site = null, name = null, ghost = null }: { params: LumenParams | null; vessel?: string; stented?: readonly string[] | null; site?: string | null; ghost?: number | null; name?: string | null }) {
   const view = lumenViewOf(params, vessel, stented, { site, name });
   const fol = useRef(createFollow());
   const painter = useRef<ChartPainter | null>(null);
@@ -16,7 +16,7 @@ export function LumenCard({ params, vessel = 'PV_TRUNK', stented = null, site = 
   const shown = useRef(false);
   const live = useRef(view);
   live.current = view;
-  const frameNow = () => lumenFrame({ vessel, stenosis: fol.current.a, thrombus: fol.current.b, stent: live.current.stent, name: live.current.name, site: live.current.site }, ctx.current!);
+  const frameNow = () => lumenFrame({ vessel, stenosis: fol.current.a, thrombus: fol.current.b, stent: live.current.stent, name: live.current.name, site: live.current.site, ghost }, ctx.current!);
 
   useEffect(() => {
     const f = fol.current, t = view.target;
@@ -36,7 +36,7 @@ export function LumenCard({ params, vessel = 'PV_TRUNK', stented = null, site = 
   const st = pctI(view.target.stenosis), th = pctI(view.target.thrombus);
   return (
     <div className="pz-lumen">
-      <Chart tag="chart:lumen" painter={painter} deps={[vessel, view.stent, view.name, view.site]} label={lumenAria(vessel, pctI(1 - (1 - view.target.stenosis) * (1 - view.target.thrombus)), th, st, view.stent)}
+      <Chart tag="chart:lumen" painter={painter} deps={[vessel, view.stent, view.name, view.site, ghost]} label={lumenAria(vessel, pctI(1 - (1 - view.target.stenosis) * (1 - view.target.thrombus)), th, st, view.stent)}
         build={(c) => { ctx.current = c; if (!shown.current) { fol.current.snap(view.target.stenosis, view.target.thrombus); shown.current = true; } return frameNow(); }} />
     </div>
   );

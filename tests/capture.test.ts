@@ -336,7 +336,7 @@ test('the counter walk counts a step made on an element\'s ::before (the ordered
 
 test('the audit sheet steps aside during a run (title and form fade out, strip stays) and Animations: Skipped runs the capture at a clock scale where every ease lands in one frame', () => {
   const page = src('src/ui/debug/audit/page.ts');
-  assert.match(page, /const setRunning = /); assert.match(page, /setRunning\(true\)/); assert.match(page, /setRunning\(false\)/); assert.match(page, /transition = 'opacity \.2s ease'/);
+  assert.match(page, /const setRunning = /); assert.match(page, /setRunning\(true\)/); assert.match(page, /setRunning\(false\)/); assert.match(page, /e\.style\.transition = 'opacity var/);
   const m = page.match(/const SKIP_SPEED = (\d+)/); assert.ok(m && Number(m[1]) * 16 >= 3000, 'one 16 ms frame is at least 3 s of page time, the longest glide');
   assert.match(page, /speed: skip \? SKIP_SPEED/);
 });
@@ -369,4 +369,13 @@ test('upright iPhone and iPad capture each slide twice, the instrument card untu
   assert.deepEqual(captureViews({ w: 1440, h: 900, layout: 'wide', sideways: false }, has), ['']);
   assert.deepEqual(captureViews({ w: 440, h: 736, layout: 'stack', sideways: false }, { data: false, words: true }), ['']);
   const all = src('src/ui/debug/audit/capture-all.ts'); assert.match(all, /await shoot\(views\[1\]!\)/); assert.match(all, /-untucked \(the card up\) and -tucked/);
+});
+
+test('a teaching slide with several choices: each is pressed and captured, named for its button, in each state (untucked, tucked, teaching, instrument)', async () => {
+  const { choiceName, CHOICE_MAX, CHOICE_SEL } = await import('../src/ui/capture/capture-model.ts');
+  assert.equal(choiceName('  Cirrhosis  with ascites ', null, 0), 'cirrhosis-with-ascites'); assert.equal(choiceName('', 'Show the flow', 1), 'show-the-flow'); assert.equal(choiceName('', null, 2), 'choice3');
+  assert.ok(CHOICE_MAX >= 6); assert.match(CHOICE_SEL, /role="tab"/); assert.match(CHOICE_SEL, /aria-pressed="false"/);
+  const all = src('src/ui/debug/audit/capture-all.ts');
+  assert.match(all, /if \(ok && fresh\) await choiceShots\(views\[0\]\)/); assert.match(all, /if \(ok2 && fresh\) await choiceShots\(views\[1\]!\)/);
+  assert.match(all, /choice\$\{pad2\(i \+ 1\)\}-\$\{nm\}/, 'the file says which button');
 });

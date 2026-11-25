@@ -1,6 +1,8 @@
 # Dye injection (inject dye verb, J key)
 
-Status: A PICKED (Mohammad, 24 Nov 8:37 PM ET: "B", then "No wait A sorry", "A"). Reference: /mnt/project-files/dye-mocks-25nov/a.png. A = dye tints the whole lumen, lime #C7F533 (--blood-dye), ink outline unchanged, vessel's own width and fades. B (stream down the middle) and C (calmer cream) were NOT picked.
+Status: REMOVED from the app (Mohammad, 24 Nov 2026 9:15 PM ET: "Remove dye buttons and dye feature please. We can implement it later but now it's annoying and useless"). RESTORE FROM commit 77bab417 (the Inject dye button and J key, the bolus layer, and look A painted in the vessel and junction-skin shaders), then redo the diff of what has moved since. The rulings below stand for when it returns.
+
+Was: A PICKED (Mohammad, 24 Nov 8:37 PM ET: "B", then "No wait A sorry", "A"). Reference: /mnt/project-files/dye-mocks-25nov/a.png. A = dye tints the whole lumen, lime #C7F533 (--blood-dye), ink outline unchanged, vessel's own width and fades. B (stream down the middle) and C (calmer cream) were NOT picked.
 
 ## Ruled (Mohammad, 25 Nov 2026)
 - "Dye should only appear on visible vessels." Never on a hidden vessel, never on a faded-out stretch. In the body view the liver's beds (PRE_*, SIN_*, POST_*) are not drawn, so they never carry dye; the figure shows the portal branches fading into the lobe and the hepatic veins fading out of it, nothing between.

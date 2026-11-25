@@ -18,7 +18,7 @@ import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, showRings, writeRings }
 type P2 = [number, number];
 const U = UNITS_PER_SCENE;
 /** The varices' courses the glue is laid on: the drawn centrelines in 3D (route-placed.ts geo3: figure x and y, and depth in figure units). */
-const geoNow = (): Record<string, { cur: number[][] }> => geo3();
+export const geoNow = (): Record<string, { cur: number[][] }> => geo3();
 /** The depth of a figure point on the varix (scene units): its own course's at the nearest sample. */
 function depthOn(P: readonly number[][], x: number, y: number, flat: number): number {
   let best = Infinity, z = flat;

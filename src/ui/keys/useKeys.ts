@@ -15,7 +15,6 @@ import { useTreat } from '../treat/store.ts';
 import { useSelection, selectStructure } from '../action/selection.ts';
 import { triggerCardVerb, cardIsOpen, removeFromCard } from '../action/ActionCard.tsx';
 import { openGuide } from '../shell/HelpSheets.tsx';
-import { releaseDye } from '../action/dye.ts';
 import { SETTLED, lensToast, speedToast } from '../shell/words.ts';
 import { useTests } from '../tests/store.ts';
 import { escStep } from './escape.ts';
@@ -77,16 +76,11 @@ export function carryOut(a: KeyAction): void {
     case 'tests': runFeature('tests', 'Tests'); break;
     case 'treat': runFeature('treat', 'Treat'); break;
     case 'compare': runFeature('compare', 'Compare'); break;
-    case 'dye': runFeature('dye', 'Inject dye', { hold: true }); dyeKey = true; break;   // (2D keyboard.js: J held keeps injecting; its release, or the window losing focus, lets go)
     case 'card-verb': triggerCardVerb(a.n); break;
     case 'card-remove': removeFromCard(); break;
     case 'ignore': break;
   }
 }
-
-/** J is down: its keyup (or the window blurring) lets the dye go. */
-let dyeKey = false;
-export const dyeKeyUp = (): void => { if (dyeKey) { dyeKey = false; releaseDye(); } };
 
 export function useKeys() {
   useEffect(() => {
@@ -99,10 +93,7 @@ export function useKeys() {
       if (a.type === 'play-pause' ? a.prevent : a.type === 'search-toggle' || a.type === 'search-open' || a.type === 'help' || a.type === 'zoom' || a.type === 'step' || (a.type === 'card-remove' && removeFromCard.available())) e.preventDefault();
       carryOut(a);
     };
-    const up = (e: KeyboardEvent) => { if (e.key.toLowerCase() === 'j' || e.code === 'KeyJ') dyeKeyUp(); };
     window.addEventListener('keydown', down);
-    window.addEventListener('keyup', up);
-    window.addEventListener('blur', dyeKeyUp);
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', dyeKeyUp); };
+    return () => { window.removeEventListener('keydown', down); };
   }, []);
 }

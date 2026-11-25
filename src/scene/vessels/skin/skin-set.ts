@@ -43,8 +43,6 @@ export interface SkinDraw {
   setArc(i: number, seamArc: number, dir: number, length: number, restR: number, flow: number): void;
   setPres(i: number, p: number): void;
   /** arm `i`'s tube's clot (clotA, clotP): the skin paints it by the arm's weight */
-  /** the dye's concentration at arm `i`'s seam (the junction paints it in its lumen by the arms' weights: docs/approved/dye.md) */
-  setDye?(i: number, c: number): void;
   setClot?(i: number, a: { x: number; y: number; z: number; w: number }, p: { x: number; y: number }): void;
   /** the weights are shared among the arms that are there (shaders.ts armKeep): a growing arm that is not hands its weight to the arms that stay */
   setKeep?(i: number, on: boolean): void;
@@ -102,7 +100,7 @@ export function seamRingOf(ax: ArmAxis): SeamRing {
 export interface ArmSeam { vesselId: string; end: 0 | 1; node: string; ring: SeamRing; /** the tube's alpha at the seam (arm-twins.ts liveFadeAt), 1 before the first handover */ fade: number; /** how much of the tube is there at the seam (armPresenceAt) */ presence: number; /** the share of the cut end the welded skin has (1: the tube's cut end is wholly gone); a growing arm's is the node's weld, any other arm's 1 */ weld: number; obj: VesselObject; /** the seam ring's first vertex in the tube's geometry (the waist is read there) */ vi: number }
 
 /** One arm as the per-frame handover reads it: its tube, the seam's place along it and in the figure. */
-interface ArmLink { /** the shunt that divides this arm's vein (types.ts `leaves`), when this is the divided vein's start */ leaves?: string; /** the weights are shared among the arms that are there: a growing arm that is not holds none (skin-object.ts setKeep); last written */ keep?: boolean; /** the u-fade last written (arm-twins.ts uFadeOf; NaN before the first, -1 for none) */ fk: number[]; /** a growing arm is there now (not dotted, presence above 0): only such an arm holds the node's weld */ here?: boolean; /** the arm is a growing one (a collateral or a shunt): its growth drives the weld (it is whole in the skin, which is static) */ grow: boolean; /** the arm's place in the plain trunk (-1: not in it) */ pi: number; /** the tube's cut end at this arm is dithered with the weld (a growing arm's, and every arm's when there is no plain trunk to stand in) */ weld: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the wedge field last written (distance, amount, behind, front, frontSoft; NaN before the first) */ wedge: number[]; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[]; /** the clot's uniforms last written, as a key */ clot?: string; /** the dye's concentration at the seam last written (NaN before the first) */ dye?: number; /** the seam ring as the skin's axis has it (seamOf): its centre, the unit heading away from the node into the tube, and the ring's mean rest radius */ seam: SeamRing }
+interface ArmLink { /** the shunt that divides this arm's vein (types.ts `leaves`), when this is the divided vein's start */ leaves?: string; /** the weights are shared among the arms that are there: a growing arm that is not holds none (skin-object.ts setKeep); last written */ keep?: boolean; /** the u-fade last written (arm-twins.ts uFadeOf; NaN before the first, -1 for none) */ fk: number[]; /** a growing arm is there now (not dotted, presence above 0): only such an arm holds the node's weld */ here?: boolean; /** the arm is a growing one (a collateral or a shunt): its growth drives the weld (it is whole in the skin, which is static) */ grow: boolean; /** the arm's place in the plain trunk (-1: not in it) */ pi: number; /** the tube's cut end at this arm is dithered with the weld (a growing arm's, and every arm's when there is no plain trunk to stand in) */ weld: boolean; /** the seam ring's first vertex in the tube's geometry (`narrow` is read there) */ vi: number; obj: VesselObject; id: string; end: 0 | 1; u: number; x: number; y: number; span: readonly [number, number]; last: number[]; /** the wedge field last written (distance, amount, behind, front, frontSoft; NaN before the first) */ wedge: number[]; /** the copy shares last written (front, solid, veil), NaN before the first */ cp: number[]; /** the clot's uniforms last written, as a key */ clot?: string; /** the seam ring as the skin's axis has it (seamOf): its centre, the unit heading away from the node into the tube, and the ring's mean rest radius */ seam: SeamRing }
 /** One skin of the set. `draw` is null for a node that fell back at a rebuild (today's joins there): it stays listed so a later change of an arm tries it again. */
 /** The plain trunk of a skin with growing arms (plain.ts): the arms that stay, as a static skin of their own. */
 interface PlainBuilt { mesh: SkinMesh; draw: SkinDraw; keep: number[]; bake: PlainBake }
@@ -176,6 +174,12 @@ const TILT_MAX = 0.04;
 // Skins without a side-wall arm keep their axes: widening theirs moves other fillets unpredictably (LRV_S creases at any fraction, IMV and RPV_T bulge at 0.5 and 0.2 to 0.35).
 /** The shares of the way from a growing arm's end ring to its seam ring its capsule may be widened at J (axisOf `whole`), tried in this order: 0 is the tube as built. */
 export const NECK_FRACTIONS = [0, 0.25, 0.4, 0.5, 0.6, 0.35, 0.7] as const;
+/** The junction a skin is built and blended with: a growing arm's blend radius (types.ts `jointR`) is the neck its capsule really has, the built tube's ring at the node (`axes[i].radii[0]`), when that is narrower than its nominal radius. The blend width
+ *  (sdf.ts skinKOf, the same in the mesh and the shader, which reads the mesh's junction) was a share of the nominal radius while the capsule is the tube's narrowed neck: the left gastric vein lands on the splenic vein's divide (placed, SVD) with a
+ *  neck of 0.0088 against its nominal 0.0157, the fillet was sized for an arm nearly twice as wide, and the three caps' blend stood 0.0041 out of its 0.0088 neck (0.46 of its radius, BULGE_MAX) in the part where the splenic vein's own run is not there. A part (plain.ts partOf) that no widening brings inside BULGE_MAX is tried with it (built with it, every part's blend narrows and the SMV's
+ *  part with the Rex shunt only shades a ridge thinner than a pixel, 56 degrees, tests/skin-exact-normal.test.ts); the welded skins keep the nominal blend, which their seams' cuts were laid on (built with the neck's, two of the wall skins no
+ *  longer build and their growers lose the weld). */
+export const neckJunction = (j: SkinJunction, axes: readonly ArmAxis[]): SkinJunction => ({ ...j, arms: j.arms.map((a, i) => (a.grow && axes[i] ? { ...a, jointR: Math.min(armR(a), axes[i]!.radii[0]!) } : a)) });
 export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false, backR?: number, whole = 0): ArmAxis {
   const out = cut.end ? -1 : 1, last = tube.tubular;
   const end = startRing ?? (cut.end ? last : 0), a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
@@ -491,8 +495,8 @@ export class SkinSet {
       try {
         const sub = (ax: readonly ArmAxis[]): ArmAxis[] => pq.keep.map((i) => { const a = ax[i]!, m = a.mate === undefined ? -1 : pq.keep.indexOf(a.mate); return m >= 0 ? { ...a, mate: m } : { pts: a.pts, radii: a.radii }; });
         const axesFor = (f: number): ArmAxis[] => (spec.leave ? leaveAxesAt(pq.keep, f) : sub(f === 0 ? axes : axesAt(f)));
-        const make = (ax: ArmAxis[]): SkinMesh => {
-          const m = buildSkinSteady(pq.junction, pq.cuts, pq.keep.map((i) => pos[i]!), pq.keep.map((i) => nor[i]!), ax.map(capsuleOf), undefined, this.paces);
+        const make = (ax: ArmAxis[], neck = false): SkinMesh => {
+          const m = buildSkinSteady(neck ? neckJunction(pq.junction, ax) : pq.junction, pq.cuts, pq.keep.map((i) => pos[i]!), pq.keep.map((i) => nor[i]!), ax.map(capsuleOf), undefined, this.paces);
           m.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { m.restR[v] = rest[pq.keep[a]!]![q]!; }));
           return m;
         };
@@ -505,6 +509,14 @@ export class SkinSet {
             const ax = axesFor(NECK_FRACTIONS[q]!);
             let m: SkinMesh;
             try { m = make(ax); } catch (e) { if (e instanceof SkinBuildError) continue; throw e; }
+            const b = worstBulge(m, ax);
+            if (b < best) { best = b; axesQ = ax; meshQ = m; }
+          }
+          // (none inside: the same ladder with the blend sized from the growers' necks, neckJunction; only such a part takes it, every other keeps the nominal blend its neighbours' normals were judged with)
+          for (let q = 0; q < NECK_FRACTIONS.length && best > BULGE_MAX; q++) {
+            const ax = axesFor(NECK_FRACTIONS[q]!);
+            let m: SkinMesh;
+            try { m = make(ax, true); } catch (e) { if (e instanceof SkinBuildError) continue; throw e; }
             const b = worstBulge(m, ax);
             if (b < best) { best = b; axesQ = ax; meshQ = m; }
           }
@@ -798,7 +810,6 @@ export class SkinSet {
         }
         { const ca = u.clotA!.value as { x: number; y: number; z: number; w: number }, cp = u.clotP!.value as { x: number; y: number }, ck = `${ca.x}|${ca.y}|${ca.z}|${ca.w}|${cp.x}|${cp.y}`;
           if (a.clot !== ck) { a.clot = ck; both((d, k) => d.setClot?.(k, ca, cp)); any = true; } }
-        { const dc = a.obj.dyeAt(a.u); if (a.dye !== dc) { a.dye = dc; both((d, k) => d.setDye?.(k, dc)); any = true; } }   // (the dye in the lumen at this seam: the junction's stream runs on from its arms)
         if (a.last[10] !== pr) { a.last[10] = pr; both((d, k) => d.setPres(k, pr)); any = true; }
         // the wedge's one field at the seam (the tube's own distance line there), with the column's numbers: the amber runs on through the skin at the same front
         const wv = u.wedge!.value as { x: number; y: number; z: number; w: number }, wd = u.wedgeD!.value as { x: number; y: number; z: number; w: number };

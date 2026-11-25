@@ -8,15 +8,35 @@
 import { N_TRACK, PIN_FALL, type CircuitCourse, COURSES, type Pin } from './course.ts';
 import { chordPointInto, peelAt, reverses } from './peel.ts';
 import { turnScenePt } from './map.ts';
+import { WHOLE_PIECES, wholeOf } from '../anatomy/placed-network.ts';
+import { SEGMENT_OF } from '../vessels/network.ts';
 
 const smooth01 = (x: number): number => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
-/** Whether a course runs the other way in the circuit as it is laid out now (turned by rr). */
+/** Whether a course runs the other way in the circuit as it is laid out now (turned by rr). A vein cut into pieces (the splenic vein's three, the portal trunk's two:
+ *  placed-network.ts WHOLE_PIECES) or a collateral cut at its stations (network.ts SEGMENT_OF) is ONE vessel and turns one way, judged by the whole vessel's chord: judged
+ *  piece by piece, the placed splenic vein's first piece (spleen high, its chord 117 degrees from the map's, under the 120 degree cut) moved by the plain lerp while the two
+ *  pieces it runs into turned in their chord frame, a kink at their shared ends through the change. */
 export function revOf(g: CircuitCourse, rr: number): boolean {
   const n = g.C.length;
-  const a = turnScenePt(g.C[0]!.x, g.C[0]!.y, rr), b = turnScenePt(g.C[n - 1]!.x, g.C[n - 1]!.y, rr);
-  return n > 2 && reverses(g.A, b[0] - a[0], b[1] - a[1]);
+  if (n <= 2) return false;
+  const ids = chainOf(g.id), first = COURSES.get(ids[0]!) ?? g, last = COURSES.get(ids[ids.length - 1]!) ?? g;
+  const a = turnScenePt(first.C[0]!.x, first.C[0]!.y, rr), b = turnScenePt(last.C[last.C.length - 1]!.x, last.C[last.C.length - 1]!.y, rr);
+  const A0 = first.A[0]!, A1 = last.A[last.A.length - 1]!;
+  return reverses([A0, A1], b[0] - a[0], b[1] - a[1]);
+}
+/** The pieces of the one vessel course `id` belongs to, in flow order, that the Circuit maps (itself alone when it is whole). */
+const CHAIN = new Map<string, readonly string[]>();
+function chainOf(id: string): readonly string[] {
+  let c = CHAIN.get(id);
+  if (!c) {
+    const w = wholeOf(id), all = (w ? WHOLE_PIECES[w] : undefined) ?? SEGMENT_OF.get(id) ?? [id];
+    c = all.filter((p) => COURSES.has(p));
+    if (c.length === 0) c = [id];
+    CHAIN.set(id, c);
+  }
+  return c;
 }
 
 const LP = [0, 0], E0 = [0, 0], E1 = [0, 0], H0 = [0, 0], H1 = [0, 0], PS = [0, 0], CH = [0, 0], TP: [number, number] = [0, 0];

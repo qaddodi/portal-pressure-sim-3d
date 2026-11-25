@@ -85,11 +85,11 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
       if (fragW < 0) return best.d;
       // (the shader's hold-out, skin/shaders.ts skinArmPx: how far the pixel's own place in the figure lies from the arm's capsule, in 3D, in px at the pixel's depth; `screenDepth` is the rule before 22 Nov)
       const gap = screenDepth ? Math.abs(fragW - best.w) / Math.max(wpc(best.w), 1e-9) * dpr - best.r - inkPx : sd3(axes[a]!, fragP!) / Math.max(wpc(fragW), 1e-9) * dpr;
-      return best.d + 2 * kPx * (smooth(ramp[0] * kPx, ramp[1] * kPx, gap) - sub);
+      return best.d + (smooth(ramp[0] * kPx, ramp[1] * kPx, gap) - sub) * (2 * kPx + Math.max(-best.d, 0));   // (held out of reach: past the arm's own wall, shaders.ts skinSdPx)
     };
     // (the shader's skinArmHeld: the hold-out's share, 0 to 1; the outline takes it relative to the least-held arm, skin/shaders.ts skinSdPx)
     const armHeld = (a: number, fragW: number, kPx: number, fragP: readonly number[]): number => smooth(ramp[0] * kPx, ramp[1] * kPx, sd3(axes[a]!, fragP, 1) / Math.max(wpc(fragW), 1e-9) * dpr);
-    const sdPx = (fx: number, fy: number, fragW: number, kPx: number, inkPx: number, fragP?: readonly number[]): number => {
+    const sdPx = (fx: number, fy: number, fragW: number, kPx: number, inkPx: number, fragP?: readonly number[], seam?: { pin: number }): number => {
       const sub = fragW >= 0 && !screenDepth ? Math.min(...axes.map((_, i) => armHeld(i, fragW, kPx, fragP!))) : 0;
       const d = axes.map((_, i) => armPx(fx, fy, i, fragW, kPx, inkPx, fragP, sub));
       let o = 0, first = true;
@@ -99,6 +99,8 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
         let di = d[i]!; if (m > i + 0.5) di = Math.min(di, d[m]!);
         o = first ? di : smin(o, di, kPx); first = false;
       }
+      // (on a seam ring the outline is the arms' plain minimum, the tubes' own, shaders.ts skinSeamPin)
+      if (seam && seam.pin > 0) o += (Math.min(...d) - o) * seam.pin;
       return o;
     };
     // the vertex stage: the surface stands the line (CSS px of it from the lumen's radius at the axis' depth) out of the rest shape
@@ -125,9 +127,12 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
         const fragW = 1 / (l0 / sw[a]! + l1 / sw[b]! + l2 / sw[c]!), inkDev = (l0 * ink[a]! / sw[a]! + l1 * ink[b]! / sw[b]! + l2 * ink[c]! / sw[c]!) * fragW;
         // (the pixel's place in the figure: the vertices' lumen positions, interpolated perspective-correct, as the varying vPos is)
         const fragP = [0, 1, 2].map((k) => (l0 * mesh.position[a * 3 + k]! / sw[a]! + l1 * mesh.position[b * 3 + k]! / sw[b]! + l2 * mesh.position[c * 3 + k]! / sw[c]!) * fragW);
-        const sd = sdPx(fx, fy, ignoreDepth ? -1 : fragW, kPx, inkDev, fragP);
+        const wOf = (v: number, i: number): number => (i < 4 ? mesh.weight[4 * v + i]! : mesh.weight2[2 * v + i - 4]!);
+        let seamW = 0; for (let i = 0; i < n; i++) seamW = Math.max(seamW, (l0 * wOf(a, i) / sw[a]! + l1 * wOf(b, i) / sw[b]! + l2 * wOf(c, i) / sw[c]!) * fragW);
+        const seam = { pin: smooth(0.97, 1, seamW) };
+        const sd = sdPx(fx, fy, ignoreDepth ? -1 : fragW, kPx, inkDev, fragP, seam);
         st.pixels++;
-        if (!ignoreDepth && Math.abs(sd - sdPx(fx, fy, -1, kPx, inkDev)) > 1) st.held++;
+        if (!ignoreDepth && Math.abs(sd - sdPx(fx, fy, -1, kPx, inkDev, undefined, seam)) > 1) st.held++;
         if (sd > inkDev + 0.5) st.dropped++; else if (sd > -0.5) st.line++; else st.lumen++;
       }
     }

@@ -110,7 +110,7 @@ const SITES: Record<string, { n: number; how: 'graph' | 'micro' | 'stand-in' | '
   'scene/glow-fx.ts': { n: 2, how: 'pass', why: 'the glow\'s full-screen blur and lay (a pass, not a scene object): compiled under the splash with passMaterials (materials/warm.ts)' },
   'scene/materials/cel.ts': { n: 2, how: 'graph', why: 'the toon and the ink of every object' },
   'scene/materials/prototypes.ts': { n: 5, how: 'stand-in', why: 'the stand-ins themselves' },
-  'scene/organs/layer.ts': { n: 1, how: 'graph', why: 'the organ seat' },
+  'scene/organs/layer.ts': { n: 2, how: 'graph', why: 'the organ seat, and the gut\'s depth pass (a mesh in each gut part\'s group, so on the boot graph with its organ)' },
   'scene/post-aa.ts': { n: 1, how: 'pass', why: 'the anti-aliasing quad: compiled under the splash with passMaterials, into the canvas\'s colour space' },
   'scene/post-dof.ts': { n: 3, how: 'pass', why: 'the depth-of-field quads (the focus band uses them on every device): compiled under the splash with passMaterials' },
   'scene/vessels/skin/skin-object.ts': { n: 2, how: 'graph', why: 'junction skins' },

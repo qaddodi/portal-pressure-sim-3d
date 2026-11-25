@@ -30,7 +30,7 @@ A paragraph is rewritten in its own text block (the guides are ReportLab output:
 ## What is not done
 
 - **The pictures are the 2D app's.** The orange pill in them reads `PREVIEW · c101b179` (a 2D build), and the figure is the 2D flat figure. New pictures of the 3D app are taken on the Mac (no headless runs) and replace the 2D ones in place, keeping the file names and the layout. Until then a tester sees the right buttons in the right places on a different-looking figure.
-- **The words follow what the 3D app does today.** Where the 3D app does not yet do what the 2D guide says (the vessel card's Doppler, Inject dye and Add shunt buttons, Treat, the Tests tabs for the instruments not built yet), the guide still says what the 2D app does, because the owner's rule is to match 2D 1:1. Check each sentence against the app before the guide goes to a tester, and change `guides-edits.json` for any that is not true yet.
+- **The words follow what the 3D app does today.** Where the 3D app does not yet do what the 2D guide says (the vessel card's Doppler and Add shunt buttons, Treat, the Tests tabs for the instruments not built yet), the guide still says what the 2D app does, because the owner's rule is to match 2D 1:1. Check each sentence against the app before the guide goes to a tester, and change `guides-edits.json` for any that is not true yet.
 - No fonts are embedded: the guides use the PDF's own Helvetica, as the 2D guides do.
 
 ## When to update them

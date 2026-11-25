@@ -38,6 +38,8 @@ const KEEP = 16, SETTLE_LAG = 0.16, COL = 2;
 const BEAT_TEMPLATE_S = 6.5, MIN_PINNED_TEMPLATE_S = 3, JOIN_S = 0.5;
 const MINUS = '−';
 
+/** The hepatic artery's usual resistive index (Doppler of a native or transplanted liver; 0.55 to 0.80). */
+export const HA_RI = [0.55, 0.8] as const;
 export interface Tile { k: string; label: string; v: string; unit: string; show: boolean; out?: boolean; here?: boolean; seg?: string; title?: string }
 export interface Gauge { p0: number; p1: number; pm: number; pz: number; n0: number; n1: number; open: boolean; out: boolean; model: boolean; title: string }
 export interface Report {
@@ -394,6 +396,14 @@ export class DopplerModel {
     const shownV = (v: number) => Math.sign(v) * Number(fmt(Math.abs(v * gf), 0));
     const piV = p.kind === 'artery' ? (Math.abs(r.mean) > 0.5 ? (r.vmax - r.vmin) / Math.abs(r.mean) : 0) : pulsatility(shownV(hiB), shownV(loB));
     T('Pulsatility').v = fmt(piV, 2);
+    if (p.kind === 'artery') {
+      // the hepatic artery's resistive index, RI = (PSV − EDV) / PSV: the one number the pattern line prints ("Resistive index 0.62", doppler-reading.copied.js) read from the same window,
+      // judged against the usual 0.55 to 0.80 (a buffer-dilated artery falls under it; a stiff or obstructed one runs over it)
+      const ri = r.vmax > 0.5 ? (r.vmax - Math.max(0, r.vmin)) / r.vmax : 0, tr = T('RI');
+      tr.v = it.dir === 'No flow' || !(ri > 0) ? '—' : fmt(ri, 2);
+      tr.out = tr.v !== '—' && (ri < HA_RI[0] || ri > HA_RI[1]);
+      tr.title = `Resistive index = (peak systolic − end-diastolic velocity) / peak systolic. Usual ${HA_RI[0].toFixed(2)} to ${HA_RI[1].toFixed(2)} in the hepatic artery. Lower: the artery is dilated (the arterial buffer after a fall in portal flow, or an arteriovenous shunt); higher: a stiff graft, a narrowed or obstructed artery.`;
+    }
     if (this.probe === 'PV_TRUNK' && f?.D) {
       const D = Math.max(0.5, f.D[EI[this.probe]!]) / 10, area = Math.PI * D * D / 4;
       const vm = Math.abs(r.mean) / dopplerK(EDGES[EI[this.probe]!]);   // Moriyasu's index uses the mean across the lumen
@@ -437,7 +447,7 @@ export class DopplerModel {
     const mk = (k: string, label: string, show: boolean): Tile => ({ k, label, v: '—', unit: '', show, title: STAT_TITLE[k as keyof typeof STAT_TITLE] });
     void r;
     return [
-      mk('Speed', 'Speed', this.speedOn), mk('Peak', 'Max', true), mk('Trough', 'Trough', !stent), mk('Pulsatility', 'Pulsatility', !stent && kind !== 'hepatic' && kind !== 'ivc'),
+      mk('Speed', 'Speed', this.speedOn), mk('Peak', 'Max', true), mk('Trough', 'Trough', !stent), mk('Pulsatility', 'Pulsatility', !stent && kind !== 'hepatic' && kind !== 'ivc' && kind !== 'artery'), mk('RI', 'RI', kind === 'artery'),
       mk('CI', 'CI', this.probe === 'PV_TRUNK'), ...(SEGS as string[][]).map(([seg, name]) => ({ ...mk(name, name, stent), seg })),
     ];
   }

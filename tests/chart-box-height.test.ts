@@ -46,5 +46,5 @@ test('the frame takes the room and the cap: the height it draws at is the height
 test('FlowTimeCard hands the chart its room and a phone\'s height, and redraws when they change', () => {
   const src = readFileSync(new URL('../src/ui/charts/flowtime/FlowTimeCard.tsx', import.meta.url), 'utf8');
   assert.match(src, /useContext\(ToolRoom\)/);
-  assert.match(src, /deps=\{\[ser, rx\.join\(\), height, room, cap\]\}/);
+  assert.match(src, /deps=\{\[ser, rx\.join\(\), height, room, cap, JSON\.stringify\(refs\)\]\}/);
 });

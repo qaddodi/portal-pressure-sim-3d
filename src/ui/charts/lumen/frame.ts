@@ -6,7 +6,9 @@ import { look } from '../looks.ts';
 import type { Frame, Shape } from '../scene.ts';
 import { LUMEN_NUM_Y, LUMEN_R, LUMEN_WALL, LUMEN_WORD_Y, clotPoints, kindOfVessel, lumenAria, lumenLabel, lumenNameY, lumenNumOpacity, lumenOf, lumenShape, lumenSite, pctI, pictureSize, stentCut, wordSize, type LumenParams, type Site } from './model.ts';
 
-export interface LumenView { vessel: string; stenosis: number; thrombus: number; stent: boolean; name?: string | null; site?: Site }
+export interface LumenView { vessel: string; stenosis: number; thrombus: number; stent: boolean; name?: string | null; site?: Site;
+  /** the thrombus the slide before had (tool.was): drawn as a dashed outline while the clot now is smaller, so a recanalized vein shows what has gone (Choose treatment 6, capture 52ef8e63) */
+  ghost?: number | null }
 
 export function lumenFrame(v: LumenView, c: ChartCtx): Frame {
   const size = pictureSize(c.w), u = size / 100, ox = (c.w - size) / 2;
@@ -28,13 +30,17 @@ export function lumenFrame(v: LumenView, c: ChartCtx): Frame {
   const pts = clotPoints(g).map((q, i) => (i % 2 ? Y(q) : X(q)));
   shapes.push({ k: 'path', pts, closed: true, fill: a(clot.fill!, clotA), pen: { color: a(clot.stroke!, clotA), w: clot.width! * u, join: clot.join } });
   shapes.push({ k: 'circle', cx, cy, r: (LUMEN_R - LUMEN_WALL) * u, pen: { color: a(stent.stroke!, v.stent ? 1 : 0), w: stent.width! * u, dash: stent.dash!.map((d) => d * u) } });
+  // what was there: the earlier clot's outline, dashed, in the clot's own stroke, fading as the clot itself comes back
+  const gh = v.ghost && v.ghost > g.t + 0.05 ? Math.min(1, (v.ghost - g.t) / 0.15) * (1 - clotA) : 0;
+  shapes.push({ k: 'path', pts: clotPoints(lumenShape({ stenosis: v.stenosis, thrombus: v.ghost ?? 0 })).map((q, i) => (i % 2 ? Y(q) : X(q))), closed: true, pen: { color: a(clot.stroke!, 0.75 * gh), w: Math.max(1.2, clot.width! * u * 0.7), dash: [3 * u, 2.4 * u], join: clot.join } });
   const wsz = wordSize(u) * u, op = lumenNumOpacity(occlusion);
   const word = (s: string, y: number, size: number, l: typeof num, alpha: number): Shape => ({ k: 'text', x: cx, y: Y(y), s, size, weight: l.weight ?? 600, color: l.fill!, anchor: 'middle', baseline: 'middle', alpha, halo: { color: l.halo!.color, w: l.halo!.w * u } });
   shapes.push(word(lumenLabel(v.vessel, v.name, v.site ?? 'distal'), lumenNameY(occlusion), wsz, wordLook, 1));
   shapes.push(word(`${occ}%`, LUMEN_NUM_Y, num.size! * u, num, op));
   shapes.push(word('occluded', LUMEN_WORD_Y, wsz, wordLook, op));
   const st = pctI(v.stenosis), th = pctI(v.thrombus);
-  return { w: c.w, h: size, shapes, label: lumenAria(v.vessel, occ, th, st, v.stent) };
+  if (v.ghost) shapes.push(word(`Clot was ${pctI(v.ghost)}%`, LUMEN_WORD_Y, wsz, wordLook, gh));
+  return { w: c.w, h: size, shapes, label: lumenAria(v.vessel, occ, th, st, v.stent) + (gh > 0 && v.ghost ? `; the thrombus has gone from ${pctI(v.ghost)}%` : '') };
 }
 
 /** A vessel's picture from the model's params: the numbers the follower will move toward. */

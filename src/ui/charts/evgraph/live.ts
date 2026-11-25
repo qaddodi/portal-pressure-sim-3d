@@ -3,7 +3,7 @@
 // the slide is left so Back onto the played slide shows the line whole (`leaveEvRun` / `restoreEvRun`). The engine is not imported here: the caller hands in where the frames come from.
 import type { EngineFrame } from '../../../engine/hales/host/protocol.d.ts';
 import { evFeeder, type Fp } from './data.ts';
-import { EvRun, type EvSpec } from './model.ts';
+import { EvRun, EVENT_S, type EvSpec } from './model.ts';
 
 /** Where the frames come from: the newest one, and a tap on each new one. */
 /** `run`: sets the model going on its own clock at real time (2D liveSet's LIVE_RUN): a paused model, or one on the disease clock, gives no seconds after the change. */
@@ -18,6 +18,10 @@ let stashKey = '';
 let off: (() => void) | null = null;
 
 const stopFeed = (): void => { off?.(); off = null; };
+
+/** Whether the slide's run has started and its graph's seconds have not all run (the model's own clock, 20 s). The head's hold ('chart:evgraph') lets go each time the head has caught the newest reading, a hundred
+ *  milliseconds of model time apart, so it is not a sign that the run is over: the capture took Gastric varices 8 at +1 s with the PPG on its way to 19.4 (capture 52ef8e63). */
+export const evRunPending = (): boolean => !!run && run.on && !!off && run.goal < EVENT_S;
 
 /** The slide's run (made on first ask; the card and the link get the same one while the slide stands). */
 export function evRunFor(k: string, spec: Pick<EvSpec, 'lines'>): EvRun {

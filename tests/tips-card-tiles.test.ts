@@ -29,7 +29,6 @@ test('the vessel card draws the stent figure with its brackets and numbers, with
 
 test('the vessel card\'s actions are one row of equal columns with their icons attached, and its figure has its height from the first paint', () => {
   assert.match(plate, /\.ac-panel:has\(> \.tv\) \+ \.ac-as \{[^}]*grid-auto-flow: column; grid-auto-columns: minmax\(0, 1fr\)/);
-  assert.match(plate, /\.ac-panel:has\(> \.tv\) \+ \.ac-as \.ac-dye \.ac-bl \{ min-width: 0; \}/);
   assert.match(plate, /\.tv \.tf-card \{[^}]*height: calc\(27px \+ 12\.264cqi\)/);
   assert.match(plate, /\.tv \{[^}]*container-type: inline-size/);
 });

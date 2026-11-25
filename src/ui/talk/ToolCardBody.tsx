@@ -22,6 +22,7 @@ import { CurveCard, warmCurve } from '../charts/curve/CurveCard.tsx';
 import { FluidCard } from '../charts/fluid/FluidCard.tsx';
 import { StentCard } from '../charts/stent/StentCard.tsx';
 import { LumenCard } from '../charts/lumen/LumenCard.tsx';
+import { ghostThrombus } from '../charts/lumen/model.ts';
 import { FlowsCard } from '../charts/flows/FlowsCard.tsx';
 import { flowsInputOf } from '../charts/flows/parts.ts';
 import { PlaneCard } from '../charts/plane/PlaneCard.tsx';
@@ -43,6 +44,7 @@ import { SCORES_ON } from '../charts/scores/slides.ts';
 import { VitalsCard } from '../charts/vitals/VitalsCard.tsx';
 import { engine } from '../../engine/index.ts';
 import { FlowTimeCard } from '../charts/flowtime/FlowTimeCard.tsx';
+import { refsOf } from '../charts/flowtime/model.ts';
 import type { FlowView } from '../charts/flowtime/model.ts';
 import { SaagCard } from '../charts/saag/SaagCard.tsx';
 import { EvGraphCard } from '../charts/evgraph/EvGraphCard.tsx';
@@ -63,14 +65,15 @@ import { startFeed } from '../tests/feed.ts';
 import { useTests } from '../tests/store.ts';
 import { setDopplerProbe, useDopplerProbe, type Gate } from '../tests/doppler/probe-state.ts';
 import { planOf, type InstrumentKind } from './instruments.ts';
+import { paneModule } from './pane-load.ts';
 import { useToolPatch, withPatch } from './tool-options.ts';
 import { HvpgTool } from './HvpgTool.tsx';
 import { ReadingTool } from './ReadingTool.tsx';
 import '../tests/tests.css';
 import { clock } from '../../clock/frame.ts';
-const DopplerPane = lazyRetry(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
-const FibroPane = lazyRetry(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
-const EndoPane = lazyRetry(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
+const DopplerPane = lazyRetry(() => paneModule('doppler').then((m) => ({ default: m.DopplerPane })));   // (the panes' loaders are pane-load.ts's: the card layer waits for the same fetch before it lets a card in)
+const FibroPane = lazyRetry(() => paneModule('fibroscan').then((m) => ({ default: m.FibroPane })));
+const EndoPane = lazyRetry(() => paneModule('endo').then((m) => ({ default: m.EndoPane })));
 
 /** The kinds that draw the live model's frames. */
 const FRAMED = new Set(['fluid', 'stent']);
@@ -151,12 +154,12 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'menu': return <MenuCard rows={Array.isArray(tool.rows) ? (tool.rows as string[]) : null} slide={slideState} id={`${deck.id}/${slide.id}`} />;
     case 'fluid': return <FluidCard fp={fp as never} frame={frame as never} params={(params ?? patient.params) as never} window={!!tool.window} forces={!!tool.forces} caveat={!!tool.caveat} compare={(cs.compare as never) ?? null} />;
     case 'stent': return <StentCard vessel={tool.vessel as never} show={tool.show as never} lens={tool.lens as never} color={tool.color as never} colorSwitch={tool.colorSwitch !== false} pick={tool.pick as never} panels={tool.panels as never} to={tool.to as never} max={tool.max as number | undefined} gate={tool.gate as never} fp={fp as never} frame={frame as never} params={params ?? patient.params} />;
-    case 'lumen': return <LumenCard params={(params ?? patient.params ?? null) as never} vessel={(tool.vessel as string | undefined) ?? 'PV_TRUNK'} site={(tool.site as string | undefined) ?? null} name={(tool.name as string | undefined) ?? null} />;
+    case 'lumen': return <LumenCard params={(params ?? patient.params ?? null) as never} vessel={(tool.vessel as string | undefined) ?? 'PV_TRUNK'} site={(tool.site as string | undefined) ?? null} name={(tool.name as string | undefined) ?? null} ghost={typeof tool.was === 'string' ? ghostThrombus(results?.[copied.slides.findIndex((x) => x.id === tool.was)]?.params, (tool.vessel as string | undefined) ?? 'PV_TRUNK') : null} />;
     // (the slide's own fingerprint, as 2D's tool-flows reads it (fp.at.Q): never the live frame, whose flows pulse with every beat and made the bar jump between 57 % and 81 %)
     case 'flows': return <FlowsCard of={tool.of === 'inflow' ? 'inflow' : 'portal'} input={flowsInputOf(fp as never)} healthy={flowsInputOf(healthy as never)} />;
     case 'plane': return <PlaneCard plane={tool.plane as never} ring={fp as never} stops={trailStops(tool.trail as never, fpOf as never) ?? undefined} />;
     case 'trial': return typeof tool.id === 'string' ? <TrialCard id={tool.id} fit={fitFor(tool, fp, params, fpOf, results, copied.slides as CopiedSlide[])} head /> : null;
-    case 'flowtime': return <FlowTime deck={deck} slide={slide} i={i} tool={tool} trail={(results?.[i]?.trail as never) ?? null} before={(tool.delta ?? (cs as Rec).delta) != null ? refOf(cs, i, copied.slides as CopiedSlide[], fpOf, stateOf) : null} />;
+    case 'flowtime': return <FlowTime fpOf={fpOf} deck={deck} slide={slide} i={i} tool={tool} trail={(results?.[i]?.trail as never) ?? null} before={(tool.delta ?? (cs as Rec).delta) != null ? refOf(cs, i, copied.slides as CopiedSlide[], fpOf, stateOf) : null} />;
     case 'saag': return <SaagCard rows={(((tool.of ?? cs.of) as unknown[] | undefined) ?? []).map((o) => { const x = (typeof o === 'string' ? { id: o } : o) as { id?: string; name?: string; title?: string }; return { id: x.id, name: x.name ?? x.title ?? deck.slides.find((s) => s.id === x.id)?.title ?? x.id ?? '', f: x.id ? (fpOf(x.id) as never) : null }; })} extra={(tool.extra as never) ?? []} own={(tool.own as string | undefined) ?? null} room={room} />;
     case 'evgraph': return <EvGraph runKey={`${deck.id}/${slide.id}`} cs={cs} fp={fp} before={results?.[i]?.before as { fp: Fp } | undefined} opened={i > 0 ? ((results?.[i - 1]?.fp as Fp | undefined) ?? null) : null} />;
     case 'vitals': return <VitalsCard tool={tool} fp={fp as never} />;
@@ -164,7 +167,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'stiffness': return <StiffCard lsm={(fp?.lsm as number | null | undefined) ?? null} plt={(fp?.plt as number | null | undefined) ?? null} note />;
     case 'trace':
       // beat by beat: the live record on EKG paper, the numbers the slide's own, the state before its event as two dotted lines (2D pressure-time.js on a slide)
-      if (tool.range === 'beats') return <BeatCard fp={fp as never} before={(refOf(cs as never, i, copied.slides as never, fpOf, stateOf) as never) ?? null} deltaLabel={typeof tool.deltaLabel === 'string' ? tool.deltaLabel : undefined} ekg={tool.ekg !== false} />;
+      if (tool.range === 'beats') return <BeatCard fp={fp as never} before={(refOf(cs as never, i, copied.slides as never, fpOf, stateOf) as never) ?? null} deltaLabel={typeof tool.deltaLabel === 'string' ? tool.deltaLabel : undefined} ekg={tool.ekg !== false} bp={tool.bp === true} />;
       return <TraceCard chain={chainFor(copied.slides as never, stateOf, (results ?? []).map((r) => r && { fp: r.fp as never, params: r.params }), i, tool as never)} {...traceProps(tool as never)} />;
     case 'shift': return <Shift deck={deck} i={i} lit={(cs.key as string[] | undefined) ?? undefined} live={fp as never} />;
     case 'visual:plane': return <PlaneVisual deck={deck} cs={cs} fpOf={fpOf} />;
@@ -225,11 +228,11 @@ function Instrument({ kind, tool, slideKey, fp, cs }: { kind: InstrumentKind; to
 }
 
 /** Two readings over a time-lapse: the slide's days, drawn as they play (the heads follow the lapse's progress), whole once it is done or when it does not play. */
-function FlowTime({ deck, slide, i, tool, trail, before }: { deck: Deck; slide: Slide; i: number; tool: Rec; trail: never; before: Fp | null }) {
+function FlowTime({ deck, slide, i, tool, trail, before, fpOf }: { deck: Deck; slide: Slide; i: number; tool: Rec; trail: never; before: Fp | null; fpOf: (id: string) => Fp | null }) {
   const mine = useLapse((s) => s.key === `${deck.id}/${slide.id}`), d = useLapse((s) => s.d), n = useLapse((s) => s.n);
   const k = slide.lapse?.plays && mine && n ? Math.min(1, d / n) : 1;
   void i;
-  return <FlowTimeCard trail={trail} k={k} lines={(tool.lines as string[] | undefined) ?? undefined} clock={tool.clock === 'days' ? 'days' : 'meal'} given={(tool.given as Record<string, number> | undefined) ?? null} view={before ? { ...(tool.view as FlowView | undefined), before: before as Record<string, number> } : ((tool.view as FlowView | undefined) ?? null)} rx={Array.isArray(tool.bands) ? (tool.bands as string[]) : undefined} />;
+  return <FlowTimeCard trail={trail} k={k} lines={(tool.lines as string[] | undefined) ?? undefined} clock={tool.clock === 'days' ? 'days' : 'meal'} given={(tool.given as Record<string, number> | undefined) ?? null} view={before ? { ...(tool.view as FlowView | undefined), before: before as Record<string, number> } : ((tool.view as FlowView | undefined) ?? null)} rx={Array.isArray(tool.bands) ? (tool.bands as string[]) : undefined} refs={refsOf(tool, fpOf)} />;
 }
 
 /** A procedure's graph: the two readings before the change and where the slide's settled state ends them. */

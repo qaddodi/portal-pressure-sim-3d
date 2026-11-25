@@ -465,7 +465,7 @@ export class CelScene {
       if (st.particles !== prev.particles) clock.invalidate('streaks');   // (the cells read it per frame: a still figure wakes to ease the streaks, W8)
       if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });
-    // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
+    // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed): src/scene/disease/ (B4)
     yield;
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
@@ -1607,10 +1607,10 @@ export class CelScene {
     return moving || dots || tubesMoving || resMoving;
   }
 
-  /** What the disease layer puts on the vessels (clots, plexus strands, the bleed, the dye) is drawn with them, over the organs (the layers are made as the states come on, so they are tagged as they move). */
+  /** What the disease layer puts on the vessels (clots, plexus strands, the bleed) is drawn with them, over the organs (the layers are made as the states come on, so they are tagged as they move). */
   private tagOverOrgans(): void {
     const d = this.disease;
-    for (const g of [d.clots.group, d.strands.group, d.bleed.group, d.dye.group]) g.traverse((c) => { if (c.layers.mask !== 2) c.layers.set(VESSEL_LAYER); });
+    for (const g of [d.clots.group, d.strands.group, d.bleed.group]) g.traverse((c) => { if (c.layers.mask !== 2) c.layers.set(VESSEL_LAYER); });
   }
 
   // ---- the inspector's hooks (?inspect): layers on and off, wireframe. Nothing here runs unless the panel has set something. ------------------------------------------------------------------------
@@ -1626,7 +1626,7 @@ export class CelScene {
       { id: 'tubes', label: 'Vessel tubes', objects: () => this.vessels.map((o) => o.group) },
       { id: 'skins', label: 'Junction skins', objects: () => this.body.children.filter((c) => c.name.startsWith('skin:')) },
       { id: 'organs', label: 'Organs', objects: () => [d.organs.group] },
-      { id: 'disease', label: 'Clots, plexus, bleed, dye', objects: () => [d.clots.group, d.strands.group, d.bleed.group, d.dye.group] },
+      { id: 'disease', label: 'Clots, plexus, bleed', objects: () => [d.clots.group, d.strands.group, d.bleed.group] },
       { id: 'devices', label: 'Catheter, procedures, probes', objects: () => [this.catheter.group, this.procs.group, this.probes.group] },
       { id: 'circuit', label: 'Circuit map', objects: () => [this.tubes.group, this.mapLayer.group] },
       { id: 'dive', label: 'Lobule and sinusoid', objects: () => [this.dive] },

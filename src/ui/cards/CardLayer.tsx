@@ -7,6 +7,7 @@ import { dataKeys } from './keep.ts';
 import { useDockSwipe, openDock, goColumn, justDocked } from './useDockSwipe.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
 import { DataCap } from '../talk/tool-room.ts';
+import { usePaneIn } from '../talk/pane-load.ts';
 import { pairSteps, stepVars, dataFitOf, type PairBase } from './pair-ladder.ts';
 import { planLayout, widthOf, centredKind, centredBox, panelVisual, type CardId, type Need, type Plan } from '../layout/plan.ts';
 import { phoneView } from './phone-panel.ts';
@@ -226,7 +227,10 @@ export function CardLayer({ deck }: { deck: Deck }) {
     const t = clock.after(() => setGaveUp(numbersKey), GIVE_UP_MS);
     return () => clock.cancel(t);
   }, [numbers, deck.id, numbersKey]);
-  const go = fonts && !growing && (numbers || gaveUp === numbersKey) && (measured || late === pagesKey);
+  // (and the Tests pane the data card's instrument is, when it is one: its code is read in before the card is measured, never after, so the card is let in at the height the pane really has: pane-load.ts)
+  const paneKind = view?.data && here?.key.startsWith('tool:') && carried ? (carried.tool as { kind?: unknown } | undefined)?.kind : undefined;
+  const panesIn = usePaneIn(paneKind);
+  const go = fonts && !growing && (numbers || gaveUp === numbersKey) && (measured || late === pagesKey) && (panesIn || late === pagesKey);
   // the first cards of a talk fade in where they stand; every later one slides in from the side the talk comes from (2D's first card has no way to come from)
   const seen = useRef(false);
   const fresh = !seen.current;
