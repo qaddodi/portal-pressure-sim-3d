@@ -71,8 +71,8 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
     // measured under a zoom of 0.88 stayed laid out 1.13 times too wide after the fit went (cut at the right edge, its height overblown, the card sized to it). Look again when the card's style changes.
     const card = el.closest('.dk-card');
     let again: TimerId | null = null;
-    const mo = card && typeof MutationObserver === 'function' ? new MutationObserver((recs) => { if (!again && sizeStyleMoved(recs)) again = clock.after(() => { again = null; measure(); }, 0); }) : null;
-    mo?.observe(card!, { attributes: true, attributeFilter: ['style'], attributeOldValue: true, subtree: true });
+    const mo = card && typeof MutationObserver === 'function' ? new MutationObserver((recs) => { if (!again && sizeStyleMoved(recs, el)) again = clock.after(() => { again = null; measure(); }, 0); }) : null;
+    mo?.observe(card!, { attributes: true, attributeFilter: ['style', 'class'], attributeOldValue: true, subtree: true });
     return () => { mo?.disconnect(); clock.cancel(again); off(); p.dispose(); painter.current = null; if (painterOut) painterOut.current = null; first.current = true; };
   }, [tag]);
 
