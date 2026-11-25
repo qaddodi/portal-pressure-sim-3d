@@ -22,9 +22,15 @@ export interface EvInput {
   height?: number;
 }
 
+/** The graph's height in this box: the one number the drawn graph and the empty one before it both take. */
+export const evBoxHeight = (c: ChartCtx, height?: number): number => Math.round(Math.max(8 * c.type.sm, height ?? fitHeight(evHeight(Math.max(160, c.w), c.type.sm), c)));
+
+/** The graph's box with nothing drawn in it yet (the slide's numbers have not come): the height the drawn graph takes, so a card measured and locked now is the card it will be. */
+export const evPendingFrame = (spec: EvSpec, c: ChartCtx, height?: number): Frame => ({ w: Math.max(160, c.w), h: evBoxHeight(c, height), shapes: [], label: `${spec.lines.length} readings, not in yet` });
+
 /** The chart at t seconds after the change (t is where the heads stand; before the change, 0). */
 export function evGraphFrame(inp: EvInput, t: number, c: ChartCtx): Frame {
-  const { spec } = inp, f = c.type.sm, w = Math.max(160, c.w), h = Math.round(Math.max(8 * f, inp.height ?? fitHeight(evHeight(w, f), c)));
+  const { spec } = inp, f = c.type.sm, w = Math.max(160, c.w), h = evBoxHeight(c, inp.height);
   const x = spec.lines.map((k) => LINE[k]?.[4] ?? 1);
   const before = [inp.before[0] * x[0]!, inp.before[1] * x[1]!] as const;
   const endv = inp.end?.every(Number.isFinite) ? ([inp.end[0] * x[0]!, inp.end[1] * x[1]!] as const) : null;

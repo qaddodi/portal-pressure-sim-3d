@@ -3,7 +3,7 @@ import { clock } from '../../../clock/frame.ts';
 import { Chart, type ChartCtx } from '../Chart.tsx';
 import type { ChartPainter } from '../painter.ts';
 import { headStep, HEAD_DT0 } from '../plot/follow.ts';
-import { evGraphFrame, type EvInput } from './frame.ts';
+import { evGraphFrame, evPendingFrame, type EvInput } from './frame.ts';
 import { evLabel, type EvRun, type EvSpec } from './model.ts';
 import '../charts.css';
 
@@ -13,17 +13,18 @@ import '../charts.css';
  * run: the points the live model gives after the change (an EvRun the presenter pushes into: run.start() at the change, run.push(t, v0, v1) per reading, run.reset() going back);
  * the heads glide after its newest point, never jump. No run, or one not started: the graph before the change.
  */
-export function EvGraphCard({ spec, before, end = null, run = null, height }: { spec: EvSpec; before: readonly [number, number]; end?: readonly [number, number] | null; run?: EvRun | null; height?: number }) {
+export function EvGraphCard({ spec, before, end = null, run = null, height }: { spec: EvSpec; /** null: the slide's numbers are not in yet; the box stands, empty, at the height the graph takes (a card is locked at the height it lands with) */ before: readonly [number, number] | null; end?: readonly [number, number] | null; run?: EvRun | null; height?: number }) {
   const painter = useRef<ChartPainter | null>(null);
   const ctx = useRef<ChartCtx | null>(null);
   const shown = useRef(0);
-  const input: EvInput = { spec, before, end, run, height };
+  const input: EvInput | null = before ? { spec, before, end, run, height } : null;
   const inRef = useRef(input);
   inRef.current = input;
-  const draw = () => { if (ctx.current) painter.current?.show(evGraphFrame(inRef.current, shown.current, ctx.current), false); };
+  const draw = () => { if (ctx.current) painter.current?.show(frameOf(ctx.current), false); };
+  const frameOf = (c: ChartCtx) => (inRef.current ? evGraphFrame(inRef.current, shown.current, c) : evPendingFrame(spec, c, height));
 
   useEffect(() => {
-    if (!run) { shown.current = 0; draw(); return; }
+    if (!run || !before) { shown.current = 0; draw(); return; }
     let hold: { release(): void } | null = null, off: (() => void) | null = null;
     const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     const stop = () => { off?.(); off = null; hold?.release(); hold = null; };
@@ -45,12 +46,12 @@ export function EvGraphCard({ spec, before, end = null, run = null, height }: { 
     draw();
     const un = run.subscribe(chase);
     return () => { un(); stop(); };
-  }, [run, spec, before[0], before[1], end?.[0], end?.[1], height]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [run, spec, before?.[0], before?.[1], end?.[0], end?.[1], height]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="pz-flowtime pz-evgraph">
-      <Chart tag="chart:evgraph" painter={painter} deps={[spec, before[0], before[1], end?.[0], end?.[1], height, run]} label={evLabel(spec, before, before, false, 0)}
-        build={(c) => { ctx.current = c; return evGraphFrame(inRef.current, shown.current, c); }} />
+      <Chart tag="chart:evgraph" painter={painter} deps={[spec, before?.[0], before?.[1], end?.[0], end?.[1], height, run]} label={before ? evLabel(spec, before, before, false, 0) : 'Graph, readings not in yet'}
+        build={(c) => { ctx.current = c; return frameOf(c); }} />
     </div>
   );
 }

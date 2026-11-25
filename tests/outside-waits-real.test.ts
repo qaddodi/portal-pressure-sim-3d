@@ -12,6 +12,8 @@ const SITES: Record<string, RegExp> = {
   'src/boot/fonts.ts': /clock\.afterReal\(\(\) => res\(false\), timeoutMs\)/,
   'src/boot/ready.ts': /clock\.afterReal\(poll, STALL_POLL_MS\)/,
   'src/boot/lazy-retry.ts': /clock\.afterReal\(r, ms\)/,
+  // (the second engine's work out of the slide's numbers: 8 s of page time at the audit's 20x was 0.4 s, and the card came in before them, Ten years 13, capture f23a4c59)
+  'src/ui/cards/CardLayer.tsx': /clock\.afterReal\(\(\) => setGaveUp\(numbersKey\), GIVE_UP_MS\)/,
 };
 test('waits on the network, a decode, the fonts and the failsafe are real time', () => {
   for (const [f, re] of Object.entries(SITES)) assert.match(readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'), re, f);

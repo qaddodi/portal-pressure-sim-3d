@@ -243,7 +243,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     if (numbers) return;
     const c = copiedOf(deck.id);
     if (c) void ensureStates(c);
-    const t = clock.after(() => setGaveUp(numbersKey), GIVE_UP_MS);
+    const t = clock.afterReal(() => setGaveUp(numbersKey), GIVE_UP_MS);   // (REAL time: the second engine's work is not scaled by the clock; the audit's 20x clock turned 8 s into 0.4 s and let a card in before its numbers, Ten years 13, capture f23a4c59)
     return () => clock.cancel(t);
   }, [numbers, deck.id, numbersKey]);
   // (and the Tests pane the data card's instrument is, when it is one: its code is read in before the card is measured, never after, so the card is let in at the height the pane really has: pane-load.ts)

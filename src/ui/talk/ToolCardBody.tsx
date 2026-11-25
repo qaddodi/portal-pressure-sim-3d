@@ -239,11 +239,14 @@ function FlowTime({ deck, slide, i, tool, trail, before, fpOf }: { deck: Deck; s
 }
 
 /** A procedure's graph: the two readings before the change and where the slide's settled state ends them. */
-function EvGraph({ runKey, cs, fp, before, opened }: { runKey: string; cs: CopiedSlide; fp: Fp | null; before?: { fp: Fp }; opened: Fp | null }) {
+export function EvGraph({ runKey, cs, fp, before, opened }: { runKey: string; cs: CopiedSlide; fp: Fp | null; before?: { fp: Fp }; opened: Fp | null }) {
   const spec = useMemo(() => eventGraphOf(cs as never), [cs]);
   const b = spec && fp ? evBounds(spec, opened as never, { fp: fp as never, before: before as never }) : null;
   const run = useMemo(() => (spec ? evRunFor(runKey, spec) : null), [runKey, spec]);   // (the procedure link feeds it once the change is made: ui/deck/procs-link.ts)
-  return spec && b ? <EvGraphCard spec={spec} before={b.before} end={b.end} run={run} /> : null;
+  // The picture's box stands from the first frame, drawn or not: the card is measured and locked with whatever it holds when it lands, and a graph whose numbers had not come (the second engine still working
+  // out this slide, or the readings of the slide before) left the card its header alone, 46 px, with the graph clipped away when it came (Ten years 13, capture f23a4c59). The chart's box is as tall as the
+  // picture drawn in it (charts.css), so a pending graph draws an empty picture at the height the real one takes (evgraph/frame.ts evPendingFrame): the graph fills it and the card never changes.
+  return spec ? <EvGraphCard spec={spec} before={b?.before ?? null} end={b?.end ?? null} run={run} /> : null;
 }
 
 /** The change-from-healthy chart: one chart over the deck's states, a state's slot once its slide is reached. */

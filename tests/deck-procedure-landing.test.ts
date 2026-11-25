@@ -138,5 +138,5 @@ test('the procedure link starts and resets the run at the change, and the card r
   assert.match(pl, /const change = \(on: boolean\): void => \{ evChange\(kind, on\);/);
   assert.match(pl, /startEvRun\(key, spec, fp, currentParams\(\), engineFrames\)/);
   const card = readFileSync(new URL('../src/ui/talk/ToolCardBody.tsx', import.meta.url), 'utf8');
-  assert.match(card, /<EvGraphCard spec=\{spec\} before=\{b\.before\} end=\{b\.end\} run=\{run\} \/>/);
+  assert.match(card, /<EvGraphCard spec=\{spec\} before=\{b\?\.before \?\? null\} end=\{b\?\.end \?\? null\} run=\{run\} \/>/);   // (also with no numbers yet: its box stands, tests/evgraph-box-reserved.test.ts)
 });
