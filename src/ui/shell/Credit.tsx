@@ -150,7 +150,7 @@ export function Credit() {
       // (Mohammad, 25 Nov), on every view. It keeps the hunt below only where that band is too thin or covered, or the fps counter holds it.
       if (!talk && thumb && !fps && (lay === 'stack' || lay === 'tab')) {
         const dock = shownBoxes('.vdock:not(.mini)', vw, vh)[0];
-        const at = dock ? underDock({ vw, vh, dock, h, w, inset: M.creditInset, others: shownBoxes(OBSTACLES, vw, vh) }) : null;
+        const at = dock ? underDock({ vw, vh, dock, h, w, others: shownBoxes(OBSTACLES, vw, vh) }) : null;
         if (at) {
           clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
           el.classList.remove('covered', 'moving'); el.classList.add('placed'); at0 = at; shown = true; creditClaim.set({ x: at.x, y: at.y, w, h });

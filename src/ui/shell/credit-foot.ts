@@ -29,11 +29,11 @@ export const HOME_BAR_CLEAR = 13;
  *  above the home indicator, centred between the two (Mohammad, 25 Nov: "all the way under the timeline bar").
  *  Null where the band is too thin to hold the line (no home indicator; an upright iPad's band is 26 px) or `others`
  *  (the boxes that stand below the dock's foot edge) cover it: the hunt over the bare figure then keeps the line shown.
- *  The line stands `inset` px in from the dock's left edge. Pure. */
-export function underDock(i: { vw: number; vh: number; dock: Box; h: number; w: number; inset: number; others: readonly Box[] }): { x: number; y: number } | null {
+ *  The line is centred under the dock (Mohammad, 25 Nov, second look: "in the center below the time bar"). Pure. */
+export function underDock(i: { vw: number; vh: number; dock: Box; h: number; w: number; others: readonly Box[] }): { x: number; y: number } | null {
   const top = i.dock.b, room = i.vh - HOME_BAR_CLEAR - top;
   if (room < i.h + 4) return null;
-  const at = { x: Math.round(i.dock.l + i.inset), y: Math.round(top + (room - i.h) / 2) };
+  const at = { x: Math.round((i.dock.l + i.dock.r - i.w) / 2), y: Math.round(top + (room - i.h) / 2) };
   if (at.x < 0 || at.x + i.w > i.vw - 4) return null;
   return footClear(at, i.w, i.h, i.others.filter((q) => q.b > top + 1), 1) ? at : null;
 }
