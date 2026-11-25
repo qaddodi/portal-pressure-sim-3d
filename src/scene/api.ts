@@ -203,15 +203,6 @@ export const sceneApi = {
     /** The driven procedure's time, its goal and whether it is moving, or null. */
     get driven(): { kind: string; t: number; goal: number; moving: boolean } | null { return cel.procs.driven; },
   },
-  /** Dye (the 2D app's injectDye): into vessel `id` (default the gut's veins, as in mesenteric portography); `hold` keeps it going until release(). */
-  dye: {
-    inject(id: string | null, o: { hold?: boolean } = {}): void {
-      const edge = id && cel.disease.dye.inject(id, 0.15, { hold: !!o.hold }) ? id : (cel.disease.dye.inject('V_INT', 0, { hold: !!o.hold }), 'V_INT');
-      void edge; clock.invalidate('dye');
-    },
-    release(): void { cel.disease.dye.release(); clock.invalidate('dye'); },
-    get active(): boolean { return cel.disease.dye.active; },
-  },
   /** Edge IDs the slide talks about; in flow-mark option A these (and the picked vessel) carry chevrons. */
   setNamedVessels(ids: readonly string[]): void { cel.setNamedVessels(ids); clock.invalidate('named-vessels'); },
   /** The shunt waiting for its target (ui/action/shunt.ts): the vessel under a canvas point, the target under the pointer standing out, and the dashed guide from the vessel it starts at. */

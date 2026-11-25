@@ -370,7 +370,7 @@ endstream
 endobj
 19 0 obj
 <<
-/Contents 20 0 R
+/Contents 31 0 R
 /MediaBox [ 0 0 390 844 ]
 /Parent 2 0 R
 /Resources <<
@@ -660,8 +660,56 @@ endobj
 /Trapped /False
 >>
 endobj
+31 0 obj
+<<
+/Length 1526
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+350 0 0 312.1622 20 511.8378 cm
+/FormXob.b143755ea2320e57ade969a9d92de23d Do
+Q
+.815686 .815686 .815686 RG
+.5 w
+n 20 511.8378 350 312.1622 re S
+q
+1 0 0 1 20 493.2378 cm
+q
+.333333 .333333 .333333 rg
+BT 1 0 0 1 0 3.24 Tm /F1 9.36 Tf 12.6 TL (Mac: Tests opened.) Tj T* ET
+Q
+Q
+.85098 .282353 .058824 rg
+n
+37.28 468.5978 m
+37.28 473.3696 33.41174 477.2378 28.64 477.2378 c
+23.86826 477.2378 20 473.3696 20 468.5978 c
+20 463.8261 23.86826 459.9578 28.64 459.9578 c
+33.41174 459.9578 37.28 463.8261 37.28 468.5978 c
+f*
+1 1 1 rg
+BT /F2 11.4 Tf 13.68 TL ET
+BT 1 0 0 1 25.4708 464.6378 Tm (3) Tj T* ET
+.113725 .113725 .121569 rg
+BT /F2 14.4 Tf 17.28 TL ET
+BT 1 0 0 1 44.48 463.5578 Tm (Change something) Tj T* ET
+q
+1 0 0 1 20 371.7578 cm
+q
+BT 1 0 0 1 0 70.8 Tm 16.56 TL /F1 12 Tf .113725 .113725 .121569 rg (Tap a vessel \(or the liver\) on the figure. A card opens with sliders:) Tj T* /F2 12 Tf (Narrow) Tj /F1 12 Tf ( and ) Tj /F2 12 Tf (Clot) Tj /F1 12 Tf ( change that vessel, and ) Tj /F2 12 Tf (Doppler) Tj /F1 12 Tf ( and) Tj T* 0 Tw /F2 12 Tf (Add shunt) Tj /F1 12 Tf ( are one tap away. In ) Tj /F2 12 Tf (Patients) Tj /F1 12 Tf (, pick a case and try) Tj T* 0 Tw (something from ) Tj /F2 12 Tf (Treat) Tj /F1 12 Tf (. The pressures, colors and tiles update at) Tj T* (once.) Tj T* ET
+Q
+Q
+BT /F1 8.16 Tf 9.792 TL ET
+.333333 .333333 .333333 rg
+BT 1 0 0 1 20 14 Tm (Educational simulation; simplified values, not for clinical decisions.) Tj T* ET
+BT 1 0 0 1 365.463 14 Tm (4) Tj T* ET
+ 
+
+endstream
+endobj
 xref
-0 31
+0 32
 0000000000 65535 f 
 0000000015 00000 n 
 0000000083 00000 n 
@@ -693,13 +741,14 @@ xref
 0002632141 00000 n 
 0002668398 00000 n 
 0002708459 00000 n 
+0002708860 00000 n 
 trailer
 <<
-/Size 31
+/Size 32
 /Root 1 0 R
 /Info 30 0 R
 /ID [ <be73c1cf7c4a85cf0ce72964f389eabf> <be73c1cf7c4a85cf0ce72964f389eabf> ]
 >>
 startxref
-2708860
+2710439
 %%EOF

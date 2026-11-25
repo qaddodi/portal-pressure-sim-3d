@@ -20,7 +20,7 @@ import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, showRings, writeRings }
 type P2 = [number, number];
 const U = UNITS_PER_SCENE;
 /** The varices' courses the glue is laid on: the 2D figure's, or (the placed anatomy, `?anatomy=new`) the drawn centrelines in 3D (route-placed.ts geo3: figure x and y, and depth in figure units). */
-const geoNow = (): Record<string, { cur: number[][] }> => (PLACED ? geo3() : GEO2D);
+export const geoNow = (): Record<string, { cur: number[][] }> => (PLACED ? geo3() : GEO2D);
 /** The depth of a figure point on the varix (scene units): its own course's at the nearest sample on the placed anatomy, the tier's on today's. */
 function depthOn(P: readonly number[][], x: number, y: number, flat: number): number {
   if (!PLACED) return flat;

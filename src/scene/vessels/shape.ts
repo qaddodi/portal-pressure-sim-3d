@@ -51,6 +51,9 @@ export const VARIX_SIZE_THICK = 0.6;
 export const varixThickK = (size: number): number => { const u = Math.min(1, Math.max(0, size)); return 1 + VARIX_SIZE_THICK * (1 - (1 - u) * (1 - u)); };
 /** What a banded strand keeps of its width: a closed varix is a thin sclerosed cord, never gone (Mohammad, 20 Nov: banding left "stumps" and floating bands). The varices shrink as each band closes one, and the path from the coronary vein to the azygos stays one tube end to end. */
 export const BANDED_CORD = 0.28;
+/** Placed: a vein that runs on into the liver and fades there narrows progressively to `tip` of its width over the last `span` of its length (the left portal vein: Mohammad, 25 Nov, "taper a bit more and fade earlier";
+ *  fades.ts PLACED_LIVER_FADE). The narrowing starts past the meso-Rex landing and the umbilical vein's root, so both meet the vein at its full width. */
+export const LIVER_TAPER: Readonly<Record<string, { tip: number; span: number }>> = { PVH_L_1: { tip: 0.4, span: 0.66 } };
 /** Whether end `e` of vessel `id` is the outer end of its segment (it meets another vessel, not its own other half): true for a vessel that is not in a segment. */
 export const outerEnd = (id: string, e: 0 | 1): boolean => { const seg = SEGMENT_OF.get(id); return !seg || (e === 0 ? seg[0] === id : seg[seg.length - 1] === id); };
 /** How far strand `i` of `n` has opened at the varix's spread `spr` (coil.ts varixSpreadK: 0.55 for a resting vein to 1 for a full varix), 0 to 1: the strands open one after another (V2, Mohammad 22 Nov), the last of the list first (the bands close the first), each over
@@ -350,6 +353,8 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
       t[cut] = TIP; sp[cut] = 1; taper = t; taperSpan = sp;
       if (capless) { const cl: [boolean, boolean] = [capless[0], capless[1]]; cl[cut] = false; capless = cl; }
     }
+    const lt = PLACED ? LIVER_TAPER[v.id] : undefined;
+    if (lt) { const t: [number, number] = [taper?.[0] ?? 1, Math.min(taper?.[1] ?? 1, lt.tip)], sp: [number, number] = [taperSpan?.[0] ?? 0.3, lt.span]; taper = t; taperSpan = sp; }
     // (a surgical shunt sewn onto a vein narrows to the host's caliber at that end, sinks inside its wall and flares at its heel: 2D SIDE_HOSTS / SINK / FLARED)
     if (sj && NARROWS_INTO_NEIGHBOUR(v) && !sj.taper) { const n0 = narrowTo(v, 0), n1 = narrowTo(v, 1); if (n0 < 1 || n1 < 1) taper = [Math.min(taper?.[0] ?? 1, n0), Math.min(taper?.[1] ?? 1, n1)]; }
     const sewn = shuntEnds(v.id);

@@ -327,3 +327,4 @@ export const HIGHLIGHT_ALONG_GLSL = /* glsl */ `  float aU = uv.x * len;
   float limitH = hiDir < -0.5 ? hiBehind : hiAhead;
   float ownH = smoothstep(0.0, max(hiFade, 0.0001), min(hiEnds.x + aU, hiEnds.y + (len - aU)));   // the picked vein's own line: nothing at its two outer ends, full a fade's length in
   vHi = hiOn * (abs(hiDir) > 0.5 ? 1.0 - smoothstep(0.0, max(limitH, 0.0001), distH) : ownH);`;
+

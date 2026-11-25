@@ -12,7 +12,6 @@
   "src/scene/devices/probes/scope.ts": 4,
   "src/scene/disease/ascites.ts": 3,
   "src/scene/disease/bleed.ts": 3,
-  "src/scene/disease/dye.ts": 4,
   "src/scene/disease/landmarks.ts": 2,
   "src/scene/disease/scope-ring.ts": 2,
   "src/scene/disease/strands.ts": 3,

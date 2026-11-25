@@ -102,7 +102,6 @@ test('every material the real code makes from the stand-ins\' recipes spreads th
 
 /** Every `new ShaderMaterial(` and `new RawShaderMaterial(` in src/scene, by file, and how its programs are compiled under the splash. A new one fails here until it is listed with its answer. */
 const SITES: Record<string, { n: number; how: 'graph' | 'micro' | 'stand-in' | 'pass'; why: string }> = {
-  'scene/disease/dye.ts': { n: 1, how: 'graph', why: 'the dye overlay is on the vessels from the start (hidden)' },
   'scene/disease/bleed.ts': { n: 1, how: 'stand-in', why: 'JET_INK_FLAGS' },
   'scene/disease/ascites.ts': { n: 1, how: 'graph', why: 'the pool hulls' },
   'scene/disease/scope-ring.ts': { n: 1, how: 'graph', why: 'the scope ring on the varices is in the disease group from the start (hidden until a slide asks for it)' },

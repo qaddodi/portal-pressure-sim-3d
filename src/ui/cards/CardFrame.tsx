@@ -220,10 +220,10 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
   // (a words card that measured after it, a fit that settled) is not followed; a room that gets smaller is not either (a card never changes size once landed). A new step of its own (a page, a ladder step) or a new viewport takes the new height, and the plan is
   // given a short while to catch up with it (it lags the card's own measure by a render or two). The quick check grows by design and is exempt.
   const fz = useRef<Frozen | null>(null);
-  const fkey = `${lockKey}|${vp.w}x${vp.h}`;
+  const fkey = `${lockKey}|${vp.w}x${vp.h}|${tuck ? 'tucked' : ''}`;   // (a card the reader tucks or brings back is a change of its own, like a page: it takes the plan's height, the strip's or its own; frozen at its landing height it stayed a tall empty pane with its words hidden, Lowering pressure 11, capture af88a9c2)
   let hOn = rect.h;
   if (gate.current && ready && !out && !GROWS_BY_DESIGN.has(entry.id)) {
-    fz.current = freezeOf(fz.current, fkey, rect.h, clock.now());
+    fz.current = freezeOf(fz.current, fkey, rect.h, box.current.key === lockKey ? box.current.h : null);
     hOn = fz.current!.h;
   }
   // A change of height after landing glides, by clip-path on the card and a scaled shadow plate (compositor work, no layout per frame):

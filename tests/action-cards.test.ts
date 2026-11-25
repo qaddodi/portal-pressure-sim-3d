@@ -12,6 +12,8 @@ import type { Sel } from '../src/ui/action/selection.ts';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type J = any;
 const fx: J = JSON.parse(readFileSync('tests/fixtures/actions-2d.json', 'utf8'));
+// (the 3D app took the Inject dye button out on 24 Nov 2026, docs/approved/dye.md: the 2D catalogue's dye verb is not expected)
+for (const c of fx.cards) if (c.verbs) c.verbs = c.verbs.filter((v: J) => v.type !== 'dye');
 // Plan 17 (22 Nov): a piece of a split vein is the vein (its tap selects the host), so 2D's separate card for a piece is the one place 3D departs on purpose: tests/piece-sel.test.ts holds that.
 const isPiece = (s: J) => s?.type === 'edge' && partOf(s.id) !== s.id;
 fx.cards = fx.cards.filter((c: J) => !isPiece(c.sel));
@@ -88,7 +90,7 @@ for (const id of fx.presets as string[]) {
       assert.deepEqual(card.status ? card.status(env) : null, r.status ? r.status : null, `${w} status`);
       // (2D's span never swaps its ends for a vessel that runs backward: the `else` of that line sits inside its comment, so it keeps the last card's. 3D does what the comment says.)
       if (r.span && ((env.f.Qf ?? env.f.Q)[(card as Card).edge ? EI[card.edge!]! : 0]! >= -0.01 || !card.edge)) { const s = card.span!.at(env); near(s.a, r.span.a, `${w} span a`); near(s.b, r.span.b, `${w} span b`); near(s.d, r.span.d, `${w} span d`); assert.equal(s.ok, r.span.ok, `${w} span ok`); }
-      r.verbs.forEach((fv: J, i: number) => {
+      r.verbs.filter((fv: J) => fv.type !== 'dye').forEach((fv: J, i: number) => {
         const v = card.verbs[i] as Verb & J, x = `${w} verb ${i} (${fv.type} ${fv.id ?? ''})`;
         if (v.type === 'read' || v.type === 'stat') assert.equal(v.value(env), fv.value, x);
         else if (v.type === 'about') assert.deepEqual([...v.text(env)], fv.lines, x);

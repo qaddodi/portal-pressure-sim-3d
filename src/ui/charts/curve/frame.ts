@@ -344,6 +344,19 @@ function drawOnce(spec: CurveSpec, c: ChartCtx, w: number, h: number, f: number,
     if (pl.ok && pl.lead) { const ll = lk('cv.lead'); leadShapes.push({ k: 'line', x1: pl.lead[0], y1: pl.lead[1], x2: pl.lead[2], y2: pl.lead[3], pen: stroke(ll) }); }
     if (pl.ok) { boxes.push(pl.box); if (pl.lead) leads.push(seg(pl.lead, 2)); }
   });
+  // `ends`: each line's value where the sweep starts and where it ends ("3.8" at no clot, "19.2" at full block), beside its own end point, so the slide's two numbers are read off the chart (capture af88a9c2)
+  if (ser && t.ends) ls.forEach((l: Any, j: number) => {
+    const ys = ser.ys[j], xs = lineX(j), Y = Yj(j);
+    const idx = ys.map((v: number, i: number) => (Number.isFinite(v) ? i : -1)).filter((i: number) => i >= 0);
+    if (!idx.length) return;
+    for (const [i, side] of [[idx[0], -1], [idx[idx.length - 1], 1]] as [number, number][]) {
+      const txt = minusFixed(ys[i], l.d), tw = 1.1 * cw(txt, f, true), px = X(xs[i]), py = Y(ys[i]);
+      const an = side < 0 ? 'start' : 'end', cs = [-0.6, 1.4, -1.7, 2.5].map((dy) => ({ x: px - side * 0.5 * f, y: py + dy * f, anchor: an }));
+      const pl = P.placeWord(cs, tw, f, { ...ob, boxes, lines: ob.lines.map((q: Any) => ({ ...q, w: 3 })) });
+      boxes.push(pl.box);
+      say(wordShapes, pl.x, pl.y, txt, lk('cv.name', {}, l.c), { anchor: pl.anchor as TextShape['anchor'], weight: 700 });
+    }
+  });
   // the cut-offs' names
   cutLabs.forEach((q) => {
     const ly = q.cands[0].y + 0.35 * f, endN = (x0: number, x1: number) => ob.segs.filter((s2: Seg) => s2.w == null && P.segHits(s2 as unknown as [number, number, number, number], [x0, ly - 2 * f, x1, ly + 2 * f])).length;

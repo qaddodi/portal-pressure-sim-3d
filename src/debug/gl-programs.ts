@@ -145,7 +145,7 @@ export function uniqueNames(list: Program[]): Program[] {
   return list;
 }
 
-/** A ShaderMaterial the scene makes late (a Circuit resistor, a dye overlay), as three.js would build it: transparent, front faces, no defines. */
+/** A ShaderMaterial the scene makes late (a Circuit resistor), as three.js would build it: transparent, front faces, no defines. */
 export function lateMaterialProgram(name: string, vertex: string, fragment: string, defines?: Record<string, unknown>): Program {
   const a = assemble({ vertexShader: vertex, fragmentShader: fragment, defines, side: 0, transparent: true, blending: NormalBlending, alphaToCoverage: false });
   return { name, vertex, fragment, ...a };

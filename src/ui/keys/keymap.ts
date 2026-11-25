@@ -32,7 +32,7 @@ export type KeyAction =
   | { type: 'undo' } | { type: 'redo' }
   | { type: 'play-pause'; prevent: boolean } | { type: 'step' } | { type: 'speed'; dir: 1 | -1 }
   | { type: 'zoom'; dir: 'in' | 'out' | 'fit' } | { type: 'view-toggle' }
-  | { type: 'lens'; dir: 1 | -1 } | { type: 'settle' } | { type: 'help' } | { type: 'tests' } | { type: 'treat' } | { type: 'compare' } | { type: 'dye' }
+  | { type: 'lens'; dir: 1 | -1 } | { type: 'settle' } | { type: 'help' } | { type: 'tests' } | { type: 'treat' } | { type: 'compare' }
   | { type: 'card-verb'; n: number } | { type: 'card-remove' }
   | { type: 'ignore'; prevent?: boolean };
 
@@ -61,9 +61,9 @@ export function decideKey(e: KeyEv, c: KeyCtx): KeyAction | null {
   if (!c.keysOn && !mod) return null;                             // Settings › Keyboard shortcuts off: only Esc and Ctrl or Cmd with a key
   if (e.key === '/') return { type: 'search-open' };
   if (mod && lower === 'z') return { type: e.shiftKey ? 'redo' : 'undo' };
-  // A held key is one press (Space does not flicker play and pause, a number does not run its verb twenty times); J has its own rule.
+  // A held key is one press (Space does not flicker play and pause, a number does not run its verb twenty times).
   const spaceIsOurs = e.key === ' ' && !e.altKey && c.target !== 'button' && c.target !== 'figure';
-  if (e.repeat && !mod && letterOf(e) !== 'j') return spaceIsOurs ? { type: 'ignore', prevent: true } : null;
+  if (e.repeat && !mod) return spaceIsOurs ? { type: 'ignore', prevent: true } : null;
   // [ and ] need Option on a German, French or Spanish layout; AltGr makes other characters, which are not the letter's key.
   const bracket = e.key === '[' || e.key === ']';
   if (e.altGraph ? !bracket : mod || (e.altKey && !bracket)) return null;
@@ -84,7 +84,6 @@ export function decideKey(e: KeyEv, c: KeyCtx): KeyAction | null {
   if (k === 'i') return { type: 'tests' };
   if (k === 't') return { type: 'treat' };
   if (k === 'p') return { type: 'compare' };
-  if (k === 'j') return e.repeat ? null : { type: 'dye' };
   return null;
 }
 

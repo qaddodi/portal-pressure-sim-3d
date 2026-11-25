@@ -25,6 +25,19 @@ export const LINE: Record<string, LineDef> = {
   gv: ['Fundal varix', 'mm', 1, tokOf(RC.gv)], liver: ['Sinusoidal flow', '%', 0, tokOf(RC.liver), 1, { pad: 0.2 }], map: ['Mean arterial pressure', 'mmHg', 0, tokOf(RC.map)], co: ['Cardiac output', 'L/min', 1, tokOf(RC.co), 1, { pad: 0.2 }],
 };
 export const MEAL_LINES = ['pv', 'pvFlow'] as const;
+/** A reference mark on the chart: another state's value of one of the chart's lines (a dashed tick at the plot's right with its words), e.g. "EVL alone 7.3 mm" on the carvedilol slide that quotes it. */
+export interface FlowRef { /** 'pv' the first line (left axis), 'flow' the second (right axis) */ slot: 'pv' | 'flow'; /** the value in the line's shown units */ v: number; text: string }
+/** The refs a tool names (`refs: [{ line, from: <slide id>, text }]`), in the line's shown units, from each slide's settled state. A ref whose state has no number is left out. */
+export function refsOf(tool: { lines?: unknown; refs?: unknown } | null | undefined, fpOf: (id: string) => object | null): FlowRef[] {
+  const lines: readonly unknown[] = Array.isArray(tool?.lines) ? tool.lines : MEAL_LINES, out: FlowRef[] = [];
+  for (const r of Array.isArray(tool?.refs) ? tool.refs : []) {
+    if (!r || typeof r !== 'object' || typeof r.line !== 'string' || typeof r.from !== 'string' || typeof r.text !== 'string') continue;
+    const j = lines.indexOf(r.line), v = (fpOf(r.from) as Record<string, unknown> | null)?.[r.line];
+    if (j < 0 || j > 1 || typeof v !== 'number' || !Number.isFinite(v)) continue;
+    out.push({ slot: j ? 'flow' : 'pv', v: v * (LINE[r.line]?.[4] ?? 1), text: r.text });
+  }
+  return out;
+}
 const opt = (k: string): LineOpt => LINE[k]?.[5] || {};
 export const modelLines = (lines: readonly string[]) => lines.filter((k) => !opt(k).given);
 export const trailKeys = (tool: { lines?: readonly string[] } | null | undefined) => (tool?.lines ? modelLines(tool.lines) : true);
