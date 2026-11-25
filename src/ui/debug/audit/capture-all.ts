@@ -211,8 +211,9 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         let pushed = 0;
         const shoot = async (view: string, choice?: string): Promise<boolean> => {
           const t1 = new Date().getTime();
-          const when = new Date(), drawn = await drawScreen(when, { ratio: ui.promo ? ui.promo.ratio : Math.min(devicePixelRatio, 2), stamp: false });   // (the device's own sharpness, 2x at most; no stamp in the corner: the build and time are in the README and each JSON)
+          const when = new Date(), drawn = await drawScreen(when, { ratio: ui.promo ? ui.promo.ratio : Math.min(devicePixelRatio, 2) });   // (the device's own sharpness, 2x at most; the build and time are in the README and each JSON)
           if (!drawn) { notes.push(`${d.title}: ${n}${view ? ` ${view}` : ''} could not be drawn`); return false; }
+          for (const m of drawn.missing) if (!seen.has(`missing ${m}`)) { seen.add(`missing ${m}`); notes.push(`${d.title} ${n}: a picture of the page did not load and is missing from the pictures: ${m}`); }
           const jpegP = (ui.promo ? blobOf(drawn.canvas, 'image/png') : blobOf(drawn.canvas, 'image/jpeg', 0.85)).then(async (b) => (b ? bytesOf(b) : null));   // (the encoder takes its own copy of the picture at once and works off this thread while the next is reached)
           shape = { w: drawn.canvas.width, h: drawn.canvas.height }; shape0 = shape;
           const L = collageLayout(1, shape), thumb = document.createElement('canvas'); thumb.width = ui.promo ? 1 : L.cellW * 2; thumb.height = ui.promo ? 1 : L.cellH * 2;   // (twice the sheet's cell: a sharp one when the sheet is zoomed)

@@ -15,7 +15,9 @@ export type ScreenItem =
   /** a frosted glass: what is already painted under this box is blurred (`radius` is the blur's standard deviation in CSS px, as `backdrop-filter: blur()` takes it); drawn just before the box's own fill. `clip` is a glass cut to a path. */
   | { k: 'blur'; x: number; y: number; w: number; h: number; r: number; radius: number; alpha: number; clips?: ClipRect[]; clip?: { d: string; x: number; y: number } }
   /** an element painted through a mask image (the icon atlas: a colour seen through a cell of a picture); `img` is filled once the picture has loaded */
-  | { k: 'mask'; x: number; y: number; w: number; h: number; url: string; size: string; pos: string; color: string; alpha: number; clips?: ClipRect[]; img?: CanvasImageSource | null };
+  | { k: 'mask'; x: number; y: number; w: number; h: number; url: string; size: string; pos: string; color: string; alpha: number; clips?: ClipRect[]; img?: CanvasImageSource | null }
+  /** a `background-image: url(...)` (the app's mark, a select's chevron): one picture in the box's padding edge, cut to its corner radius `r`; `nat` is the picture's own size when the browser cannot say it (an SVG with only a viewBox) */
+  | { k: 'bgimg'; x: number; y: number; w: number; h: number; r: number; url: string; size: string; pos: string; alpha: number; clips?: ClipRect[]; img?: CanvasImageSource | null; nat?: { w: number; h: number } };
 
 /** The commas of `s` that are not inside brackets split it. */
 export function splitTop(s: string): string[] {
@@ -44,6 +46,14 @@ export function parseShadows(css: string): Shadow[] {
 /** The url of a computed `mask-image` ("url("https://...")"), or null (none, a gradient). */
 export const maskUrl = (css: string): string | null => /^url\(\s*["']?(.*?)["']?\s*\)$/.exec((css || '').trim())?.[1] || null;
 
+/** A computed length against the space it is a share of: `12px`, `40%`, `calc(40%)` and `calc(100% - 8px)` (what `background-position: right 8px center` computes to). Anything else reads as 0. */
+export function cssLen(t: string, of: number): number {
+  const s = t.trim(), m = /^calc\(\s*(-?[\d.]+)%\s*([+-])\s*(-?[\d.]+)px\s*\)$/.exec(s);
+  if (m) return (of * parseFloat(m[1]!)) / 100 + (m[2] === '-' ? -1 : 1) * parseFloat(m[3]!);
+  const n = parseFloat(s.replace(/^calc\(/, ''));
+  return !Number.isFinite(n) ? 0 : /%/.test(s) ? (of * n) / 100 : n;
+}
+
 /** Where a mask picture lands in its box (CSS `mask-size` and `mask-position`, no-repeat): `nat` is the picture's own size. */
 export function maskPlacement(size: string, pos: string, box: { w: number; h: number }, nat: { w: number; h: number }): { x: number; y: number; w: number; h: number } {
   const toks = (v: string) => (v || '').match(/calc\([^)]*\)|\S+/g) ?? [];
@@ -63,8 +73,32 @@ export function maskPlacement(size: string, pos: string, box: { w: number; h: nu
   }
   const KEY: Record<string, string> = { left: '0%', top: '0%', center: '50%', right: '100%', bottom: '100%' };
   const pt = toks(pos).map((t) => KEY[t] ?? t);
-  const at = (t: string | undefined, space: number) => { if (!t) return space * 0.5; const n = parseFloat(t.replace(/^calc\(/, '')); return !Number.isFinite(n) ? 0 : /%/.test(t) ? (space * n) / 100 : n; };
+  const at = (t: string | undefined, space: number) => (t ? cssLen(t, space) : space * 0.5);
   return { x: at(pt[0], box.w - w) + 0, y: at(pt[1], box.h - h) + 0, w, h };
+}
+
+/** The box of a `::before` / `::after` as the page draws it once its own `translate`, `scale` and `transform` (a scale or move matrix) are applied about its `transform-origin`: a pseudo-element has no box to
+ *  measure, so its left / top / width / height are all the walk has, and a piece placed by `translate` (the segmented control's gliding pill, `left: 0; top: 0; translate: var(--gx) var(--gy)`) stood at the control's corner. */
+export function moveBox(b: { x: number; y: number; w: number; h: number }, m: { translate?: string; scale?: string; transform?: string; origin?: string }): { x: number; y: number; w: number; h: number } {
+  const words = (v: string | undefined) => (!v || v === 'none' ? [] : v.trim().split(/\s+/));
+  const [t0, t1] = words(m.translate), [s0, s1] = words(m.scale), o = words(m.origin);
+  const tx = t0 ? cssLen(t0, b.w) : 0, ty = t1 ? cssLen(t1, b.h) : 0;
+  const sx = s0 && Number.isFinite(parseFloat(s0)) ? parseFloat(s0) : 1, sy = s1 && Number.isFinite(parseFloat(s1)) ? parseFloat(s1) : sx;
+  const mx = /^matrix\(([^)]*)\)$/.exec((m.transform ?? '').trim())?.[1]?.split(',').map(Number);
+  const plain = !!mx && mx.length === 6 && mx.every(Number.isFinite) && mx[1] === 0 && mx[2] === 0;
+  const [a, d, e, f] = plain ? [mx![0]!, mx![3]!, mx![4]!, mx![5]!] : [1, 1, 0, 0];
+  if (!tx && !ty && sx === 1 && sy === 1 && a === 1 && d === 1 && !e && !f) return b;
+  const ox = o[0] ? cssLen(o[0], b.w) : b.w / 2, oy = o[1] ? cssLen(o[1], b.h) : b.h / 2;
+  return { x: b.x + ox + tx + sx * (a * -ox + e), y: b.y + oy + ty + sy * (d * -oy + f), w: b.w * sx * a, h: b.h * sy * d };
+}
+
+/** The size an SVG picture says in its viewBox (an `<svg>` with a viewBox and no width or height has no size of its own in some browsers); null for anything else. */
+export function svgViewBox(url: string): { w: number; h: number } | null {
+  if (!/^data:image\/svg\+xml/i.test(url)) return null;
+  let text = url;
+  try { text = decodeURIComponent(url); } catch { /* left as it came */ }
+  const m = /viewBox\s*=\s*["']\s*-?[\d.]+[\s,]+-?[\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(text);
+  return m && +m[1]! > 0 && +m[2]! > 0 ? { w: +m[1]!, h: +m[2]! } : null;
 }
 
 /** Where a child stands in the paint order among its siblings: the browser paints a positioned element with a `z-index` by that number, not by its place in the page, so the slide pill (z 4, first in the page)
@@ -102,7 +136,6 @@ const pad = (n: number) => String(n).padStart(2, '0');
 /** "2026-11-23 15:38:08" in the device's own time (what the person's clock said when they pressed Capture). */
 export const stampTime = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 /** The small line in the picture's corner: the build and the time. */
-export const stampText = (build: string, at: Date): string => `${build} · ${stampTime(at)}`;
 
 /** The file's name: what the picture shows, the build and the time, so a folder of captures reads. */
 export function captureFileName(view: string, patient: string | null, commit: string, at: Date): string {

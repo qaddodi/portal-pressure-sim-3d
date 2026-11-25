@@ -5,7 +5,7 @@
 import { readBox, readStyle, readTextRects } from '../layout-snap.ts';
 import { parseGradient, type Item, type Paint, type Clip } from '../shell/figure-image.ts';
 import { paintItems } from '../shell/figure-image-dom.ts';
-import { zoomOf, stackRank, paintOrder, parseShadows, transformed, contentString, fractionBar, strokeWidthIn, counterCall, counterText, counterStep, SYMBOLS, symbolPath, maskUrl, maskPlacement, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
+import { zoomOf, stackRank, paintOrder, parseShadows, transformed, contentString, fractionBar, strokeWidthIn, counterCall, counterText, counterStep, SYMBOLS, symbolPath, maskUrl, maskPlacement, moveBox, svgViewBox, splitTop, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
 
 type Rect = { x: number; y: number; w: number; h: number };
 interface Ctx { out: ScreenItem[]; stage: Rect | null; stageImg: CanvasImageSource | null; stageDrawn: boolean }
@@ -130,9 +130,23 @@ function boxOf(c: Ctx, cs: CSSStyleDeclaration, r: R4, alpha: number, clips: Cli
   if (mask && typeof fill === 'string') {   // (an icon of the atlas: its colour seen through one cell of a picture)
     c.out.push({ k: 'mask', x: r.left, y: r.top, w: r.width, h: r.height, url: mask, size: cs.getPropertyValue('-webkit-mask-size') || cs.getPropertyValue('mask-size'), pos: cs.getPropertyValue('-webkit-mask-position') || cs.getPropertyValue('mask-position'), color: fill, alpha, clips });
   } else if (fill || (same && bT > 0 && colT)) c.out.push({ k: 'box', x: r.left, y: r.top, w: r.width, h: r.height, r: rad, fill, bw: same && colT ? bT : 0, bc: same ? colT : '', alpha, clip: own, clips } as Paintable);
+  backgroundPictures(c, cs, r, rad, { bT, bR, bB, bL }, alpha, clips);
   if (!same) {   // (one rule on one side: a card's header line, a tab's underline)
     const side = (x: number, y: number, w: number, h: number, col: string) => { if (col && w > 0 && h > 0) c.out.push({ k: 'box', x, y, w, h, r: 0, fill: col, bw: 0, bc: '', alpha, clip: own, clips } as Paintable); };
     side(r.left, r.top, r.width, bT, colT); side(r.left, r.bottom - bB, r.width, bB, colB); side(r.left, r.top, bL, r.height, colL); side(r.right - bR, r.top, bR, r.height, colR);
+  }
+}
+
+/** The `background-image: url(...)` layers of a box (the app's mark on its tile, a select's chevron): each one picture inside the padding edge, the first layer on top. The picture itself is loaded later (loadMasks). */
+function backgroundPictures(c: Ctx, cs: CSSStyleDeclaration, r: R4, rad: number, bw: { bT: number; bR: number; bB: number; bL: number }, alpha: number, clips: ClipRect[]): void {
+  if (!cs.backgroundImage || cs.backgroundImage === 'none' || !/url\(/.test(cs.backgroundImage)) return;
+  const layers = splitTop(cs.backgroundImage), sizes = splitTop(cs.backgroundSize || 'auto'), poses = splitTop(cs.backgroundPosition || '0% 0%');
+  const x = r.left + bw.bL, y = r.top + bw.bT, w = r.width - bw.bL - bw.bR, h = r.height - bw.bT - bw.bB;
+  if (!(w > 0 && h > 0)) return;
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const url = maskUrl(layers[i]!);
+    if (!url) continue;
+    c.out.push({ k: 'bgimg', x, y, w, h, r: Math.max(0, rad - Math.max(bw.bT, bw.bL)), url, size: sizes[i % sizes.length]!, pos: poses[i % poses.length]!, alpha, clips });
   }
 }
 
@@ -149,8 +163,9 @@ function pseudoBox(c: Ctx, el: Element, which: '::before' | '::after', cs: CSSSt
   const left = px(ps.left) ?? 0, top = px(ps.top) ?? 0;
   const w = px(ps.width) ?? cw - left - (px(ps.right) ?? 0), h = px(ps.height) ?? ch - top - (px(ps.bottom) ?? 0);
   if (!(w > 0 && h > 0)) return;
-  const x = ox + left, y = oy + top;
-  const box = { left: x, top: y, width: w, height: h, right: x + w, bottom: y + h };
+  // (the piece's own translate, scale and transform: the segmented control's gliding pill is at left 0, top 0 and moved to its button by `translate`)
+  const at = moveBox({ x: ox + left, y: oy + top, w, h }, { translate: ps.translate, scale: ps.scale, transform: ps.transform, origin: ps.transformOrigin });
+  const box = { left: at.x, top: at.y, width: at.w, height: at.h, right: at.x + at.w, bottom: at.y + at.h };
   boxOf(c, ps, box, a, clips, own, kk);
   pseudoWords(c, el, ps, box, a, clips, own, kk, null);
 }
@@ -350,6 +365,15 @@ export function paintScreen(g: CanvasRenderingContext2D, items: ScreenItem[], s:
           g.globalAlpha = i.alpha; g.drawImage(off, i.x, i.y, i.w, i.h);
         }
       }
+    } else if (i.k === 'bgimg') {
+      if (i.img) {
+        const im = i.img as { naturalWidth?: number; naturalHeight?: number; width: number; height: number };
+        const nat = i.nat ?? { w: im.naturalWidth || im.width, h: im.naturalHeight || im.height };
+        const p = maskPlacement(i.size, i.pos, { w: i.w, h: i.h }, nat);
+        roundedPath(g, i.x, i.y, i.w, i.h, i.r); g.clip();
+        g.globalAlpha = i.alpha;
+        try { g.drawImage(i.img, i.x + p.x, i.y + p.y, p.w, p.h); } catch { /* a picture that will not be read: left out */ }
+      }
     } else if (i.k === 'blur') {
       g.beginPath();
       if (i.clip) { g.translate(i.clip.x, i.clip.y); g.clip(new Path2D(i.clip.d)); g.translate(-i.clip.x, -i.clip.y); } else { roundedPath(g, i.x, i.y, i.w, i.h, i.r); g.clip(); }
@@ -386,17 +410,23 @@ export function paintScreen(g: CanvasRenderingContext2D, items: ScreenItem[], s:
   }
 }
 
-/** Loads the pictures the masks use (once each; they are the page's own, already fetched), so the painter has them in hand. A picture that will not load leaves its icon out. */
-export async function loadMasks(items: ScreenItem[], wait: (ms: number) => Promise<void>): Promise<void> {
+/** Loads the pictures the masks and the background images use (once each; they are the page's own, already fetched), so the painter has them in hand. A picture that will not load leaves its icon out;
+ *  the addresses of those are given back, so the capture can say what is missing instead of handing over a picture with a hole in it. */
+export async function loadMasks(items: ScreenItem[], wait: (ms: number) => Promise<void>): Promise<string[]> {
   const urls = new Set<string>();
-  for (const i of items) if (i.k === 'mask') urls.add(i.url);
+  for (const i of items) if (i.k === 'mask' || i.k === 'bgimg') urls.add(i.url);
   const got = new Map<string, HTMLImageElement | null>();
   await Promise.all([...urls].map(async (u) => {
     const img = new Image(); img.src = u;
     const ok = await Promise.race([img.decode().then(() => true, () => false), wait(4000).then(() => false)]);
     got.set(u, ok ? img : null);
   }));
-  for (const i of items) if (i.k === 'mask') i.img = got.get(i.url) ?? null;
+  for (const i of items) {
+    if (i.k !== 'mask' && i.k !== 'bgimg') continue;
+    i.img = got.get(i.url) ?? null;
+    if (i.k === 'bgimg') { const box = svgViewBox(i.url); if (box) i.nat = box; }
+  }
+  return [...got].filter(([, v]) => !v).map(([u]) => (u.startsWith('data:') ? `${u.slice(0, 40)}…` : u));
 }
 
 /** The frosted glass: the pixels already painted under the box, blurred, put back (inside the clip the caller set). Safari has no filter on a canvas, so the blur is made by halving the region (each halving

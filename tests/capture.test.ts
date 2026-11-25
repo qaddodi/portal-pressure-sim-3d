@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseShadows, splitTop, maskUrl, maskPlacement, backdropBlur, blurHalvings, collageLayout, slug, transformed, captureScale, stampText, stampTime, captureFileName, captureRecord, RECORD_MAX, deliverWay, isCaptureKey } from '../src/ui/capture/capture-model.ts';
+import { parseShadows, splitTop, maskUrl, maskPlacement, backdropBlur, blurHalvings, collageLayout, slug, transformed, captureScale, stampTime, cssLen, moveBox, svgViewBox, captureFileName, captureRecord, RECORD_MAX, deliverWay, isCaptureKey } from '../src/ui/capture/capture-model.ts';
 import { zipParts, zipNames } from '../src/ui/capture/zip.ts';
 import { pngWithText, readPngText, crc32, asciiJson } from '../src/ui/capture/png-text.ts';
 
@@ -81,7 +81,6 @@ test('the picture is made at the device\'s pixel ratio, kept inside what a phone
 
 test('the stamp and the file name carry the build and the device\'s time', () => {
   assert.equal(stampTime(at), '2026-11-23 07:05:09');
-  assert.equal(stampText('v1.0.0-beta.1 · PREVIEW · 48b3b5e4', at), 'v1.0.0-beta.1 · PREVIEW · 48b3b5e4 · 2026-11-23 07:05:09');
   assert.equal(captureFileName('lobule', 'cirr-decomp', '48b3b5e4', at), 'portal-pressure-capture-lobule-cirr-decomp-48b3b5e4-20261123-070509.png');
   assert.equal(captureFileName('anatomic', null, 'local', at), 'portal-pressure-capture-anatomic-local-20261123-070509.png');
 });
@@ -238,7 +237,7 @@ test('Capture draws a list\'s numbers, ticks and arrows (generated content and g
   const dom = src('src/ui/capture/capture-dom.ts'), cap = src('src/ui/capture/capture.ts'), all = src('src/ui/debug/audit/capture-all.ts');
   assert.match(dom, /function pseudoFlow/); assert.match(dom, /pseudoWords\(/); assert.match(dom, /counterValue\(/, 'a counter Safari leaves unresolved is worked out');
   assert.match(dom, /Math\.abs\(mw - tr\.width\)/, 'a word set at another width than the browser did goes one letter at a time');
-  assert.match(cap, /opts\.stamp !== false/); assert.match(all, /stamp: false/); assert.match(all, /Math\.min\(devicePixelRatio, 2\)/); assert.match(all, /pictures are \$\{shape0\.w\}x\$\{shape0\.h\} px/);
+  assert.ok(!/stamp/.test(cap.replace(/stamp(Time|ed)/g, '')), 'no build or time is drawn on a capture'); assert.match(all, /Math\.min\(devicePixelRatio, 2\)/); assert.match(all, /pictures are \$\{shape0\.w\}x\$\{shape0\.h\} px/);
   assert.match(all, /clock\.moving/); assert.match(all, /blockedSlide\(k\)/, 'a blocked-catheter slide waits for its words');
 });
 
@@ -382,4 +381,19 @@ test('a teaching slide with several choices: each is pressed and captured, named
   const all = src('src/ui/debug/audit/capture-all.ts');
   assert.match(all, /if \(ok && fresh\) await choiceShots\(views\[0\]\)/); assert.match(all, /if \(ok2 && fresh\) await choiceShots\(views\[1\]!\)/);
   assert.match(all, /choice\$\{pad2\(i \+ 1\)\}-\$\{nm\}/, 'the file says which button');
+});
+
+test('Capture places a pseudo-element by its own translate and scale, reads calc positions, and finds an SVG\'s size', () => {
+  assert.equal(cssLen('calc(100% - 8px)', 100), 92); assert.equal(cssLen('calc(50% + 4px)', 100), 54); assert.equal(cssLen('12px', 100), 12); assert.equal(cssLen('25%', 80), 20); assert.equal(cssLen('calc(0%)', 50), 0);
+  assert.deepEqual(maskPlacement('14px', 'calc(100% - 8px) 50%', { w: 100, h: 32 }, { w: 24, h: 24 }), { x: 78, y: 9, w: 14, h: 14 });
+  const b = { x: 10, y: 20, w: 90, h: 30 };
+  assert.deepEqual(moveBox(b, {}), b); assert.deepEqual(moveBox(b, { translate: 'none', scale: 'none', transform: 'none' }), b);
+  // the glide pill: left 0, top 0, moved to its button by translate, origin 0 0
+  assert.deepEqual(moveBox({ x: 0, y: 0, w: 60, h: 30 }, { translate: '120px 4px', scale: '1 1', origin: '0px 0px' }), { x: 120, y: 4, w: 60, h: 30 });
+  assert.deepEqual(moveBox({ x: 0, y: 0, w: 60, h: 30 }, { translate: '10px 0px', scale: '0.5 2', origin: '0px 0px' }), { x: 10, y: 0, w: 30, h: 60 });
+  assert.deepEqual(moveBox({ x: 0, y: 0, w: 60, h: 30 }, { scale: '2', origin: '30px 15px' }), { x: -30, y: -15, w: 120, h: 60 });
+  assert.deepEqual(moveBox({ x: 0, y: 0, w: 60, h: 30 }, { transform: 'matrix(1, 0, 0, 1, 5, 7)', origin: '0px 0px' }), { x: 5, y: 7, w: 60, h: 30 });
+  assert.deepEqual(moveBox(b, { transform: 'matrix(0, 1, -1, 0, 0, 0)' }), b, 'a turn is left to the box as laid out');
+  const svg = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\'%3E%3C/svg%3E")';
+  assert.deepEqual(svgViewBox(maskUrl(svg)!), { w: 24, h: 24 }); assert.equal(svgViewBox('https://x/y.png'), null); assert.equal(maskUrl('none'), null);
 });
