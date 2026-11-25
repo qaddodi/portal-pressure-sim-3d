@@ -11,7 +11,9 @@ import { centrelineOf } from '../vessels/centreline.ts';
 import { vesselAlphaAt } from '../vessels/fade-alpha.ts';
 import { widthSwell } from '../vessels/live-width.ts';
 import { neighbourAttr, NBR_STRIDE } from '../vessels/neighbour.ts';
-import { CAVA_RECEDE, cavaPieceOf, opensIntoCava } from '../vessels/fades.ts';
+import { CAVA_RECEDE, cavaPieceOf, opensIntoCava, trunkMateOf } from '../vessels/fades.ts';
+/** The vein whose wall a vein's ostium is on: the cava for a vein that opens into it, the common trunk for the middle hepatic vein on the placed anatomy (fades.ts trunkMateOf), else null. */
+const ostiumHostOf = (id: string): string | null => (opensIntoCava(id) ? cavaPieceOf(id) : trunkMateOf(id));
 import { cavaRamp } from '../vessels/fade-alpha.ts';
 
 /** Samples along each piece (the clot reads its place between them). */
@@ -75,7 +77,7 @@ export function drawnHost(id: string): Host | null {
 export type Swells = number[] & { /** the swell of the cava piece a vein that opens into the cava meets (1 for any other vein) */ cava?: number };
 export function swellsOf(h: Host, D: ArrayLike<number> | null | undefined): Swells {
   const out: Swells = h.pieces.map((p) => widthSwell(p.widthKind, p.baseD, D ? D[p.lens] : undefined));
-  const last = h.pieces[h.pieces.length - 1], cm = last && opensIntoCava(last.id) ? NETWORK_BY_ID.get(cavaPieceOf(last.id)) : undefined;
+  const last = h.pieces[h.pieces.length - 1], om = last ? ostiumHostOf(last.id) : null, cm = om ? NETWORK_BY_ID.get(om) : undefined;
   if (cm) out.cava = widthSwell(cm.widthKind, cm.baseD, D ? D[indexOf(cm.lensId)] : undefined);
   return out;
 }
@@ -123,7 +125,7 @@ function wallArcOf(s: readonly number[], nb: Float32Array, off: number, cavaSwel
  *  lumen at the radius the cava is DRAWN at (`cavaSwell`: its live width over the width it was built at). Null for a vein that does not open into the cava. A clot in such a vein runs to here, so it reaches the junction as the vein does. */
 export function cavaWallShare(h: Host, cavaSwell = 1): number | null {
   const last = h.pieces[h.pieces.length - 1];
-  if (!last || !opensIntoCava(last.id)) return null;
+  if (!last || !ostiumHostOf(last.id)) return null;
   if (!nbCache.has(h.id)) {
     const flat = new Float32Array(h.pts.length * 3);
     h.pts.forEach((p, i) => { flat[i * 3] = p.x; flat[i * 3 + 1] = p.y; flat[i * 3 + 2] = p.z; });
@@ -138,7 +140,7 @@ export function cavaWallShare(h: Host, cavaSwell = 1): number | null {
  *  (`veinSwell`: its live width over the built one) is still outside the cava: the far side of the slant. Null for a vein that does not open into the cava. */
 export function cavaFarWallShare(h: Host, cavaSwell = 1, veinSwell = 1): number | null {
   const last = h.pieces[h.pieces.length - 1];
-  if (!last || !opensIntoCava(last.id)) return null;
+  if (!last || !ostiumHostOf(last.id)) return null;
   const n = h.pts.length, m = n + WALL_EXTEND_N, e = h.pts[n - 1]!, p = h.pts[n - 2]!, tl = Math.hypot(e.x - p.x, e.y - p.y) || 1, tx = (e.x - p.x) / tl, ty = (e.y - p.y) / tl, Re = h.R[n - 1]!;
   const sx: number[] = h.s.slice();
   for (let q = 1; q <= WALL_EXTEND_N; q++) sx.push(h.s[n - 1]! + Re * WALL_EXTEND_R * q / WALL_EXTEND_N);
