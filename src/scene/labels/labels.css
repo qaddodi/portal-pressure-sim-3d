@@ -208,6 +208,7 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
    callLine, callRing; `small.call`: stroke 4, danger / accent / quiet ink). The marks on a vessel or an organ (block, treat) are 2D's solid pill in the same colour. ── */
 .lz-co { position: absolute; left: 0; top: 0; pointer-events: none; --co: var(--cl-danger, var(--danger)); --co-ink: var(--cl-danger-ink, var(--danger)); }
 .lz-co[data-tone="accent"] { --co: var(--accent); --co-ink: var(--accent); }
+.lz-co[data-tone="wedge"] { --co: var(--tr-wedge); --co-ink: var(--tr-wedge-ink); }
 .lz-co[data-tone="note"] { --co: var(--cl-text, var(--text-2)); --co-ink: var(--cl-text, var(--text)); }
 .lz-co-ring, .lz-co-line { opacity: 0; }   /* (clear inside: nothing is blurred, tinted or filled under the ring, Mohammad 23 Nov) */
 .lz-co-ring { position: absolute; left: 0; top: 0; box-sizing: border-box; border: var(--co-w) solid var(--co); border-radius: 50%; will-change: transform; }
@@ -215,6 +216,7 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 .cl[data-fig="callout"] { padding: 0; border-radius: 0; border-color: transparent; }   /* (words only: a tag has no glass or rim to hide) */
 .cl[data-fig="callout"] .cl-k { letter-spacing: 0; font-weight: 600; color: var(--co-ink, var(--cl-danger-ink)); -webkit-text-stroke: var(--lb-halo-w, 3px) var(--lb-halo, var(--cl-surface, #000)); paint-order: stroke fill; stroke-linejoin: round; }
 .cl[data-fig="callout"][data-co="accent"] .cl-k { color: var(--accent); }
+.cl[data-fig="callout"][data-co="wedge"] .cl-k { color: var(--tr-wedge-ink); }
 .cl[data-fig="callout"][data-co="note"] .cl-k { color: var(--cl-text, var(--text)); }
 /* a mark on a vessel or an organ (not the lobule's ring): a coloured label, as the station names are (words in their colour with the labels' halo, a dot on the place and a thin leader of the same colour), never a card:
    block = the danger red, treat = the accent, note = the quiet ink (22 Nov: the speech-bubble marks pointed at the wrong places and looked wrong beside "Portal vein 19.0 mmHg") */

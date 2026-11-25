@@ -24,6 +24,8 @@ export interface Settings {
   keys: boolean;
   showFps: boolean;
   showBreakdown: boolean;
+  /** Preview pill (preview builds only): the orange "PREVIEW · commit · checks" tab at the top edge. On by default; off hides it, and Settings › Diagnostics still says which build this is. */
+  showBuildPill: boolean;
   /** Figure depth (3D only, a deliberate step beyond 2D; Settings › Figure depth). Each is its own switch so the owner can compare with 2D: see DEPTH_KEYS. */
   organDepth: boolean;
   tilt: boolean;
@@ -67,7 +69,7 @@ export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { organDepth: true, til
 export const PARTICLES_VERSION = 2;
 /** A phone: its short side under 500 CSS px, held either way (the stage's own rule). Not a phone where there is no window (the node tests). */
 export const onPhone = (): boolean => typeof innerWidth === 'number' && typeof innerHeight === 'number' && Math.min(innerWidth, innerHeight) < 500;
-export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, autoDetail: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS, lite: false, liteBy: null };
+export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, autoDetail: true, keys: true, showFps: false, showBreakdown: false, showBuildPill: true, ...DEPTH_DEFAULTS, lite: false, liteBy: null };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
 export function parseSettings(raw: string | null, phone: boolean = onPhone()): Settings {
@@ -80,14 +82,14 @@ export function parseSettings(raw: string | null, phone: boolean = onPhone()): S
       lookChosen: o.lookChosen === true && (o.look === 'system' || LOOK_IDS.includes(o.look)),
       blur: bool(o.blur, DEFAULTS.blur),
       figureDetail: Number.isInteger(o.figureDetail) && o.figureDetail >= 0 && o.figureDetail < FIGURE_DETAIL.length ? o.figureDetail : DEFAULTS.figureDetail,
-      sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), autoDetail: bool(o.autoDetail, DEFAULTS.autoDetail), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false),
+      sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), autoDetail: bool(o.autoDetail, DEFAULTS.autoDetail), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false), showBuildPill: bool(o.showBuildPill, DEFAULTS.showBuildPill),
       organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(streaks, phone ? false : DEPTH_DEFAULTS.particles), fluidSurface: bool(fig.fluidSurface, DEPTH_DEFAULTS.fluidSurface), deviceShadow: bool(fig.deviceShadow, DEPTH_DEFAULTS.deviceShadow),
       lite: bool(o.lite, false), liteBy: liteBy(o.liteBy),
     };
   } catch { return { ...DEFAULTS }; }
 }
 const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY)); } catch { return parseSettings(null); } };
-const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, autoDetail: s.autoDetail, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, fluidSurface: s.fluidSurface, deviceShadow: s.deviceShadow, lite: s.lite, liteBy: s.liteBy });
+const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, autoDetail: s.autoDetail, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, showBuildPill: s.showBuildPill, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, fluidSurface: s.fluidSurface, deviceShadow: s.deviceShadow, lite: s.lite, liteBy: s.liteBy });
 /** The person's own values of the switches lite quiets (LITE_KEYS), whatever the figure reads while lite stands. Saved in place of the quiet ones, so a reload in lite still holds them. */
 const ownOf = (s: Settings): LiteOwn => Object.fromEntries(LITE_KEYS.map((k) => [k, s[k]])) as LiteOwn;
 const isLiteKey = (k: string): k is (typeof LITE_KEYS)[number] => (LITE_KEYS as readonly string[]).includes(k);

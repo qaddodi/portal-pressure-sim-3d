@@ -15,6 +15,7 @@ const CASES: Array<[rule: string, path: string, bad: string, good: string]> = [
   ['layout-read', 'src/ui/x.ts', 'const r = el.getBoundingClientRect(); const w = el.offsetWidth;', 'const r = readBox(el); const w = readMetric(el, "offsetWidth");'],
   ['unsafe-cast', 'src/scene/x.ts', 'const a = b as unknown as Rec; const c = d as never;', 'const a = b as Rec; const c = d as unknown;'],
   ['raw-idle', 'src/scene/x.ts', 'const ric = globalThis.requestIdleCallback; requestIdleCallback(f);', '// requestIdleCallback is the slot\'s\nwhenQuiet(step, { tag: "x" });'],
+  ['card-wait-page-time', 'src/ui/cards/CardLayer.tsx', 'const t = clock.after(() => setLate(k), 8000); const n = clock.now();', 'const t = clock.afterReal(() => setLate(k), 8000); const n = clock.nowReal();'],
   ['unnamed-shader', 'src/scene/x.ts', 'const m = new ShaderMaterial({ vertexShader: v, fragmentShader: f });', 'const m = new ShaderMaterial({ name: "x", vertexShader: v }); const n = new ShaderMaterial({ name, vertexShader: v });'],
   ['raw-setparams', 'src/ui/x.ts', "engine().send({ type: 'setParams', params, settle: true });", "sendParams(params, { settle: true }); const m = { type: 'setParam' };"],
   ['discarded-unsubscribe', 'src/ui/x.ts', "function mount() { useThing.subscribe(run); }", "function mount() { const off = useThing.subscribe(run); return off; } function page() { useThing.subscribe(run); // (lives for the page)\n }"],
@@ -36,6 +37,7 @@ test('every rule has a case here, and the exempt places stay exempt', () => {
   assert.deepEqual(lint('src/clock/idle.ts', 'requestIdleCallback(f)'), [], 'the slot owns idle time');
   assert.deepEqual(lint('src/ui/layout-snap.ts', 'el.getBoundingClientRect()'), [], 'the layout service reads layout');
   assert.deepEqual(lint('src/scene/anatomy/source.ts', "export { EDGE_PATH_2D } from '../vessels/paths.copied.ts';"), [], 'the anatomy source owns the copied courses');
+  assert.deepEqual(lint('src/ui/other.ts', 'clock.after(f, 1); clock.now()'), [], 'the card rule is for the card layer only');
   assert.deepEqual(lint('src/engine/host/worker.ts', 'setTimeout(f, 1); requestAnimationFrame(f)'), [], 'the copied engine is not this app');
 });
 

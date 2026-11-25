@@ -25,6 +25,7 @@ import { creditClaim } from './credit-claim.ts';
 import { rectToBox, type Box } from './geometry.ts';
 import { labelsProgress, labelsShown } from '../../boot/ready.ts';
 import { LabelController, type Draw, type LabelDeps, GHOST } from './controller.ts';
+import { lobuleLines } from './lobule-lines.ts';
 import { baselineAt, linesOf, lookVars, nameAbove, typeVars } from './type.ts';
 import { keyVars } from './key-dock.ts';
 import { STATIONS } from './stations.ts';
@@ -193,6 +194,7 @@ export function LabelLayer() {
       lobule: (name, out) => { if (cel.view !== 'lobule') return null; const a = cel.lobule.anchor(name, [0, 0, 0]); return out.set(a[0], a[1], a[2]); },
       lobuleRing: (name, out) => { if (cel.view !== 'lobule') return null; const a = cel.lobule.ringEdge(name, [0, 0, 0]); return out.set(a[0], a[1], a[2]); },
     });
+    const offLines = lobuleLines.subscribe(() => { clock.invalidate('figure-cards'); });
     const pushFigure = () => { const f = useFigure.getState(); figCards.set(f.cards, f.calipers, f.t0, f.spans); clock.invalidate('figure-cards'); };
     pushFigure();
     const offFigure = useFigure.subscribe(pushFigure);
@@ -300,7 +302,7 @@ export function LabelLayer() {
       else if (!wantFrames && hold) { hold.release(); hold = null; }
     }, 0);
 
-    return () => { warm.cancel(); figCards.destroy(); offFigure(); cath.destroy(); clampMarks.destroy(); waistBrackets.destroy(); probeLabels.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offTests(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
+    return () => { warm.cancel(); figCards.destroy(); offLines(); offFigure(); cath.destroy(); clampMarks.destroy(); waistBrackets.destroy(); probeLabels.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offTests(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
   }, []);
 
   return (

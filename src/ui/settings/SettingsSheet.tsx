@@ -5,7 +5,9 @@
 import { Fragment, useEffect, useState } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useSettings, FIGURE_DETAIL } from '../../state/settings.ts';
-import { DEPTH_ROWS, AUTO_DETAIL_ROW, LITE_ROW } from './depth-rows.ts';
+import { DEPTH_ROWS, AUTO_DETAIL_ROW, LITE_ROW, BUILD_PILL_ROW } from './depth-rows.ts';
+import { buildLabel, buildChecks, buildNote } from '../shell/build-pill.ts';
+import { useUpdate } from '../../pwa/update-state.ts';
 import { FigurePresets, useFigurePreset } from './FigurePresets.tsx';
 import { MORE_NOW, MORE_PAGE_TITLE } from './preset-rows.ts';
 import type { LookChoice } from '../../looks/looks.ts';
@@ -66,6 +68,20 @@ function LiteFigure() {
   const on = useSettings((s) => s.lite), by = useSettings((s) => s.liteBy);
   const sub = on && by === 'device' ? LITE_ROW.hintDevice : LITE_ROW.hint;
   return <MenuToggle checked={on} icon={LITE_ROW.icon} label={LITE_ROW.label} sub={sub} onChange={(v) => useSettings.getState().setLite(v, 'person')} />;
+}
+
+/**
+ * Preview pill (3D only, preview builds only): the switch for the orange tab at the top edge, shown by default. The line under it names this build in plain words, so the commit and the
+ * checks stay reachable with the pill hidden.
+ */
+function BuildPillRow() {
+  const on = useSettings((s) => s.showBuildPill);
+  const newer = useUpdate((u) => u.commit);
+  const note = buildNote(buildLabel(import.meta.env.VITE_BUILD as string | undefined), buildChecks(import.meta.env.VITE_CHECKS as string | undefined), newer);
+  return (<>
+    <MenuToggle checked={on} icon={BUILD_PILL_ROW.icon} label={BUILD_PILL_ROW.label} sub={BUILD_PILL_ROW.hint} onChange={(v) => useSettings.getState().set('showBuildPill', v)} />
+    <small className="fs-hint">{note}</small>
+  </>);
 }
 
 function useFullscreen() {
@@ -184,6 +200,7 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
               if (row.kind === 'switch') return <Switch key={row.label} row={row} />;
               return <Item key={row.label} row={row} push={setPageId} />;
             })}
+            {sec.title === 'Diagnostics' && import.meta.env.VITE_CHANNEL === 'preview' ? <BuildPillRow /> : null}
             {i === 0 ? <CaptureRow /> : null}
             {sec.title === 'Model' ? <MenuItem icon="rewind" label={FR_WORDS.title} kb={FR_WORDS.sub} title={FR_WORDS.hint} onClick={openFromReadings} /> : null}
           </MenuGroup>

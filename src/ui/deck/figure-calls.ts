@@ -48,12 +48,16 @@ export interface FigureCalls {
   /** The lobule's stations whose pressure the slide's callout asks to stand beside their names (`callout.reads`, 'sin' on the wedge slide):
    *  each stands first with its reading (lobule/captions.ts `must`). */
   reads: string[];
+  /** The colour those stations and the callout take (a station colour token, 'wedge' on the wedge slide), or null for none. */
+  readsTone: string | null;
+  /** the stations of `reads` that take that colour (the rest only show their pressure) */
+  lit: string[];
   /** Whatever the plan names that is not drawn: 2D draws nothing for it either (a ripple's halo, a lobule's pointer), or it is another view's. */
   notDrawn: string[];
 }
 
 export const EMPTY_CALLS: FigureCalls = {
-  named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, caudateVeins: false, cards: [], calipers: [], spans: [], reads: [], notDrawn: [],
+  named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, caudateVeins: false, cards: [], calipers: [], spans: [], reads: [], readsTone: null, lit: [], notDrawn: [],
 };
 
 /** The words of a clot mark that follows the model (callout-math.js clotWords). */
@@ -83,6 +87,10 @@ export const organAnchor = (organ: string): Anchor => {
 /** (the caudate lobe is in the organ layer but is shown by `caudate`, not outlined: 2D's lobe has its own line and no pin glow) */
 const pinsOf = (organs: readonly { id: string }[]): string[] => organs.map((o) => o.id).filter((id) => id in ORGAN_STYLE && id !== 'caudate');
 
+/** A callout's kind as the card's tone: block is the danger red, treat the accent, note the quiet ink;
+ *  'wedge' is the slide's own colour for the wedged pressure and the sinusoids (the amber of its words and its equation). */
+const CALLOUT_TONES: Readonly<Record<string, string>> = { treat: 'treat', note: 'note', wedge: 'wedge' };
+
 export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   const fp = r.fp ?? null, notDrawn: string[] = [];
   // named vessels: the glow's (each at its own moment), the note marks' pointers are in it already
@@ -107,7 +115,7 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   // the lobule's pointer at the lesion (lobule-zoom.js callSet): a block, treatment or note ring on the framed portal tract or on a sinusoid (the central-vein slides, postsinusoidal and SOS, ring the vein itself; only a label that names sinusoids rings a zone 3 sinusoid; lobule/callout-spot.ts); it stands only while the lobule is the figure
   if (plan.callout) {
     const at = plan.callout.at === 'cv' ? (/sinusoid/i.test(plan.callout.label) ? 'sinusoid:zone3' : 'central') : { triad: 'tract', sin: 'sinusoid:mid' }[plan.callout.at];
-    if (at) cards.push({ id: 'callout', kind: 'mark', text: liveLabel(plan.callout.label, fp), tone: plan.callout.kind === 'treat' ? 'treat' : plan.callout.kind === 'note' ? 'note' : 'block', anchor: { lobule: at } });
+    if (at) cards.push({ id: 'callout', kind: 'mark', text: liveLabel(plan.callout.label, fp), tone: CALLOUT_TONES[plan.callout.kind] ?? 'block', anchor: { lobule: at } });
     else notDrawn.push(`callout ${plan.callout.at}`);
   }
 
@@ -155,7 +163,9 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   if (plan.ripple) notDrawn.push('ripple (2D draws no halo: stage-glow.js, 13 Nov 2026)');
   // (the lobule's stations whose pressure the slide's callout asks to stand beside their names: only a slide that says so)
   const reads = plan.callout?.reads ?? [];
-  return { named, pins, normalSpleen: plan.normalOutline.includes('spleen'), marked, res: plan.res, caudate: plan.caudate, caudateVeins: plan.caudateVeins, cards, calipers, spans, reads, notDrawn };
+  const lit = (plan.callout?.lit ?? []).filter((k) => reads.includes(k));
+  const readsTone = reads.length && plan.callout?.kind === 'wedge' ? 'wedge' : null;
+  return { named, pins, normalSpleen: plan.normalOutline.includes('spleen'), marked, res: plan.res, caudate: plan.caudate, caudateVeins: plan.caudateVeins, cards, calipers, spans, reads, readsTone, lit, notDrawn };
 }
 
 export { toneCss };

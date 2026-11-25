@@ -8,7 +8,7 @@
 // that names sinusoids ("Dilated zone 3 sinusoids") rings a sinusoid (figure-calls.ts).
 import type { LobuleNet } from './geometry.ts';
 import { DISC_R } from './widths.ts';
-import { stationAt } from './captions.ts';
+import { framedTriad, stationAt } from './captions.ts';
 
 /** The places a slide's callout names (figure-calls.ts maps the deck's `at` to them): the portal tract the lobule shots frame, a sinusoid half way along (zone 2), a pericentral sinusoid (zone 3), the central vein. */
 export type CalloutName = 'tract' | 'sinusoid:mid' | 'sinusoid:zone3' | 'central';
@@ -28,13 +28,7 @@ export const BAND = { mid: { rho: 0.5, tol: 0.02 }, zone3: { rho: 0.235, tol: 0.
 
 export interface CalloutSpot { x: number; y: number; r: number; /** the sinusoid course the place stands on (a sinusoid place) */ course?: number }
 
-type Tri = { x: number; y: number }[];
-/** The triad the lobule shots frame: the one nearest the corner at angle pi, (-1, 0) (shots.ts: `along = -1 + wf`). Derived, never numbered. */
-export function framedTriad(triads: Tri): number {
-  let best = 0, bd = Infinity;
-  triads.forEach((t, i) => { const d = Math.hypot(t.x + 1, t.y); if (d < bd) { bd = d; best = i; } });
-  return best;
-}
+export { framedTriad };
 
 /** The angle (rad, 0 to pi) between a plate point and the framed corner's side, (-1, 0). */
 const offSide = (x: number, y: number): number => Math.atan2(Math.abs(y), -x);

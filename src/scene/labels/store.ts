@@ -56,8 +56,12 @@ export interface FigureState {
   spans: readonly FigSpan[];
   /** The lobule's stations the slide's words name, each of which stands first with its pressure (figure-calls.ts `reads`). */
   reads: readonly string[];
+  /** the colour they take with the callout beside them (a station colour token), or null */
+  readsTone: string | null;
+  /** the stations of `reads` that take it */
+  lit: readonly string[];
   /** when the slide landed (performance.now), for the numbered steps */
   t0: number;
   set(p: Partial<Omit<FigureState, 'set'>>): void;
 }
-export const useFigure = create<FigureState>((set) => ({ cards: [], calipers: [], spans: [], reads: [], t0: 0, set: (p) => set(p) }));
+export const useFigure = create<FigureState>((set) => ({ cards: [], calipers: [], spans: [], reads: [], readsTone: null, lit: [], t0: 0, set: (p) => set(p) }));
