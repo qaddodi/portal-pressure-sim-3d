@@ -7,7 +7,7 @@ import { clock, type Hold } from '../../clock/frame.ts';
 import { easeArrive } from '../../clock/tween.ts';
 import { useUi } from '../ui-store.ts';
 import { DOCK_MS } from '../cards/dock.ts';
-import { viewAt, cathPlace } from './presenter-machine.ts';
+import { viewAt, cathPlace, microAhead } from './presenter-machine.ts';
 import { makeCathClock, aimCath, stepCath, poseAt, cathScript, rankOf, ARRIVE_MS, readTaken, type CathPose } from './cath-clock.ts';
 import { tipCloseShot, closeUpOf } from './cath-shot.ts';
 import { hvpgChase, type ChasePose } from '../../scene/camera/chase.ts';
@@ -69,6 +69,8 @@ export function linkScene(): () => void {
     if (!stops.length) return;
     const v = viewAt(stops, pos);
     const at = cathPlace(stops, pos);
+    // (a dive coming later in the talk: the lobule and the sinusoid are built from its start, so Next starts the dive at once from wherever the camera is, never a wait at its start)
+    if (microAhead(stops, pos)) sceneApi.prepareMicro();
     if (at !== place || !drawn) {
       aimCath(cc, at, Math.abs(rankOf(at) - rankOf(place)) > 1);
       place = at; drawn = false;

@@ -29,6 +29,19 @@ export function stopsOf(deck: Deck): Stop[] {
 const beatsOf = (s: Stop) => (s.kind === 'slide' ? s.beats : 1);
 
 export const first = (): Pos => ({ stop: 0, beat: 0 });
+/** Whether the talk dives into the lobule or the sinusoid anywhere on from `p` (or within the next `n` steps): their parts are built ahead, from the talk's start, so a dive never waits at its start
+ *  for something to draw (Mohammad, 25 Nov, 4 to 5: "zooms out, glitches, stops, then zooms into the lobule"). The parts were built only while the page stood still, which a talk with the catheter
+ *  moving and its labels following never is, so the dive waited on Next for the whole build. */
+export function microAhead(stops: Stop[], p: Pos, n = Infinity): boolean {
+  for (let q = p, k = 0; k < n; k++) {
+    const nx = next(stops, q);
+    if (nx.stop === q.stop && nx.beat === q.beat) return false;
+    const view = viewAt(stops, nx).scene?.view;
+    if (view === 'lobule' || view === 'sinusoid') return true;
+    q = nx;
+  }
+  return false;
+}
 export const last = (stops: Stop[]): Pos => ({ stop: stops.length - 1, beat: beatsOf(stops[stops.length - 1]) - 1 });
 
 export function next(stops: Stop[], p: Pos): Pos {

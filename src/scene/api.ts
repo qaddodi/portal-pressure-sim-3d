@@ -103,6 +103,8 @@ export const sceneApi = {
     if (v.orbit != null) cel.rig.setOrbit(v.orbit);
     clock.invalidate('hand');
   },
+  /** The lobule and the sinusoid are about to be wanted (a talk's next slide dives into them): their parts are built now, rushed, so the dive is never held at its start. */
+  prepareMicro(): void { cel.buildMicroIdle(true); },
   /** Show the body, the lobule or the sinusoid and fly to it, straight from wherever the camera is (the view left behind stays up until the camera lands). `cam` is a lobule camera ('lobule', 'lobule:triad'…). */
   showView(v: FigureView, room: Room, cam: LobuleCam = 'lobule'): void {
     const from = cel.view;
