@@ -179,20 +179,19 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 
 /* The Doppler strip's pattern word wraps under the number and direction when the card is too narrow for one line; it is never cut (the copied rule hid it:
    "13 cm/s Hepatopetal · Ph", iPhone on its side, 23 Nov 2026; "High velocit", iPhone upright, TIPS Doppler 7, capture 49141fb9, 25 Nov 2026).
-   The build lays the base sheets (src/ui/styles) AFTER this one (vite.config.ts appPreload walks main's own CSS first), so a rule here that restates a base
-   selector at the same specificity loses to it. These two are one class stronger, so the order cannot decide them (tests/css-order-free.test.ts). */
+   Same selectors as the base rules, loaded after them (scripts/app-css.mjs appCssOrder, tests/css-load-order.test.ts). */
 :is(
   .pz:not(.stack):not(.low) .pz-data.pz-beside,
   .pz:not(.stack):not(.low) .pz-data.has-tool,
   .pz.stack .pz-data.has-tool,
   .pz.low .pz-data.has-tool
-) .pz-tool[data-kind="doppler"] .dop-report.dop-report { flex-wrap: wrap; white-space: normal; overflow: visible; gap: 2px calc(.6em * var(--dop-k, 1)); }
+) .pz-tool[data-kind="doppler"] .dop-report { flex-wrap: wrap; white-space: normal; overflow: visible; gap: 2px calc(.6em * var(--dop-k, 1)); }
 :is(
   .pz:not(.stack):not(.low) .pz-data.pz-beside,
   .pz:not(.stack):not(.low) .pz-data.has-tool,
   .pz.stack .pz-data.has-tool,
   .pz.low .pz-data.has-tool
-) .pz-tool[data-kind="doppler"] .dop-report > .dop-pattern.dop-pattern { flex: none; overflow: visible; text-overflow: clip; white-space: nowrap; }
+) .pz-tool[data-kind="doppler"] .dop-report > .dop-pattern { flex: none; overflow: visible; text-overflow: clip; white-space: nowrap; }
 
 /* A phone's only (or opened) instrument whose lines cannot get shorter (the criteria card, 563 px in a 354 px room) takes the data card's last-resort fit (`--pz-fit`, pair-ladder.ts dataFitOf).
    The copied rule gave the card's words their zoom of 1 to let the instrument give way, but here the instrument sits inside `.dk-in` with them, so the fit was worked out and never applied: the card

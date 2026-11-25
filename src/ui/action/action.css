@@ -49,7 +49,9 @@
 .ac-card[data-bottom] .ac-name { font-size: var(--t-body); }
 .ac-state { flex: none; font-size: var(--t-lab); font-weight: 500; color: var(--text-2); white-space: nowrap; }
 .ac-state:empty { display: none; }
-.st-word.rev, .st-word.bad { color: var(--danger); } .st-word.warn { color: var(--caution); }
+/* "Hepatofugal" and "Reversed flow" in the header keep the figure's reversed-flow orange, not the danger red (Mohammad, 25 Nov 2026: "orange is good") */
+.st-word.rev { color: color-mix(in srgb, var(--flow-reversed) 85%, var(--text)); }
+.st-word.bad { color: var(--danger); } .st-word.warn { color: var(--caution); }
 /* the bar: the pressure where the blood comes in and where it leaves, a track in the pressure colours between, and the drop above */
 .ac-sp { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px; row-gap: 4px; }
 .ac-el { font-size: var(--t-cap); color: var(--text-3); height: 15px; line-height: 15px; letter-spacing: 0; } .ac-el.r { text-align: right; }

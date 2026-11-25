@@ -4,7 +4,8 @@
 .lg-title b { color: var(--text); font-weight: 600; }
 .lg-bar-wrap { position: relative; width: var(--lg-width, 220px); padding-bottom: calc(var(--lg-num, 12px) + 6px); }
 .lg-bar { position: relative; height: 10px; border-radius: var(--r-control); box-shadow: inset 0 0 0 1px rgb(var(--shadow-rgb, 0 0 0) / 0.12); }
-.lg-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: rgb(255 255 255 / 0.55); }
+/* a small notch under the bar at each number between its ends, never across the colours (a white line vanished on a ramp's pale end; Mohammad kept the notch, 25 Nov 2026) */
+.lg-tick { position: absolute; top: calc(100% + 1px); width: 1px; height: 3px; margin-left: -.5px; background: var(--text-2); opacity: .7; }
 .lg-nums span { position: absolute; top: 14px; transform: translateX(-50%); font-size: var(--lg-num, var(--t-cap)); color: var(--text-2); white-space: nowrap; }
 .lg-nums span:first-child { transform: none; }
 .lg-nums span:last-child { transform: translateX(-100%); }

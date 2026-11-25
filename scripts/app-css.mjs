@@ -13,3 +13,26 @@ export function appCssTags(files) {
   const links = files.map((f) => `<link rel="stylesheet" crossorigin href="./${f}" media="print" fetchpriority="high" data-app-css>`);
   return links.length ? [...links, `<script>${APP_CSS_SCRIPT}</script>`] : [];
 }
+
+/** The base sheets (src/ui/styles/index.css, begun as the 2D app's): every other sheet of the app is written to win a tie against them, so they must load first. */
+export const BASE_SHEET = /\/src\/ui\/styles\/index\.css(\?|$)/;
+
+/**
+ * The order of the page's chunks and stylesheets. `chunks` maps a built file name to `{ imports, css, modules }` (its static imports, the stylesheets it carries, the source ids it holds).
+ * Scripts keep the walk order (the app's chunk, then what it imports). Stylesheets do not: the bundler puts the base sheets into a chunk the app's chunk imports
+ * (a second entry, the lazy deck view, also imports them), and the walk lists the importer's own sheets (css3d-over-2d.css, humanized.css, glass.css, the action card's) first.
+ * So the base sheets loaded after them and won every tie the 3D sheets were written to win (25 Nov 2026: "High velocit" on an iPhone, the Doppler strip's wrap rule lost to the
+ * base nowrap). The chunk that holds the base sheets goes first, as main.tsx imports them before every sheet of the app's own; the rest keep their order.
+ */
+export function appCssOrder(chunks, root) {
+  const js = new Set(), css = new Set(), base = new Set();
+  const walk = (name) => {
+    if (js.has(name)) return;
+    const c = chunks[name]; if (!c) return;
+    js.add(name);
+    for (const f of c.css) { css.add(f); if (c.modules.some((m) => BASE_SHEET.test(m.split('\\').join('/')))) base.add(f); }
+    for (const i of c.imports) walk(i);
+  };
+  walk(root);
+  return { js: [...js], css: [...base, ...[...css].filter((f) => !base.has(f))], base: [...base] };
+}

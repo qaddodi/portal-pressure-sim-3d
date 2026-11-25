@@ -21,12 +21,13 @@
 html, body, #root { height: 100%; margin: 0; }
 body {
   background: var(--bg); color: var(--text);
-  font: 400 var(--t-val)/1.5 var(--ui);
-  font-variant-numeric: lining-nums tabular-nums;
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   overflow: hidden; overscroll-behavior: none; touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
+/* The page font of a page with no base sheets (the plain pages, src/entry.ts). The app's page font is the base sheets' (styles/app-01-chrome.css body, 14 px):
+   this one has zero weight, so the base rule wins whatever the order. */
+:where(body) { font: 400 var(--t-val)/1.5 var(--ui); font-variant-numeric: lining-nums tabular-nums; }
 #root { position: fixed; inset: 0; }
 
 /* Nothing in the figure, the bars or the cards is selectable, callable or flashed (owner, 19 Nov 2026: "text is selectable, should not be"; kept 25 Nov, F14 of the independent review asked for selectable card words and the owner has not said yes).

@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { glslFiles } from './scripts/gl-scan.mjs';
 import { withCsp } from './scripts/csp.mjs';
 import { fadeHidden } from './scripts/fade-hidden.mjs';
-import { appCssTags } from './scripts/app-css.mjs';
+import { appCssTags, appCssOrder } from './scripts/app-css.mjs';
 
 /** The built page's Content-Security-Policy (scripts/csp.mjs). Build only: the dev server's own inline scripts would be refused. */
 function csp(): Plugin {
@@ -19,17 +19,15 @@ function appPreload(): Plugin {
       const bundle = ctx.bundle; if (!bundle) return html;
       const app = Object.values(bundle).find((o) => o.type === 'chunk' && o.facadeModuleId?.replace(/\\/g, '/').endsWith('/src/main.tsx'));
       if (!app || app.type !== 'chunk') throw new Error('app-preload: the app chunk (src/main.tsx) is not in the build');
-      const js = new Set<string>(), css = new Set<string>();
-      const walk = (name: string) => {
-        if (js.has(name)) return;
-        const c = bundle[name]; if (!c || c.type !== 'chunk') return;
-        js.add(name);
-        for (const f of c.viteMetadata?.importedCss ?? []) css.add(f);
-        for (const i of c.imports) walk(i);
-      };
-      walk(app.fileName);
+      // (the order of the stylesheets matters: scripts/app-css.mjs appCssOrder)
+      const chunks: Record<string, { imports: string[]; css: string[]; modules: string[] }> = {};
+      for (const [name, c] of Object.entries(bundle)) {
+        if (c.type === 'chunk') chunks[name] = { imports: c.imports, css: [...(c.viteMetadata?.importedCss ?? [])], modules: Object.keys(c.modules) };
+      }
+      const { js, css, base } = appCssOrder(chunks, app.fileName);
+      if (!base.length) console.warn('app-preload: no chunk holds src/ui/styles/index.css, so the stylesheets keep the walk order (the base sheets may load after the 3D ones)');
       // (the stylesheets are not render-blocking: scripts/app-css.mjs. The cover's own style is inline in index.html, so the first paint does not wait for them; the app waits for them, src/boot/styles.ts)
-      const tags = [...js].map((f) => `<link rel="modulepreload" crossorigin href="./${f}">`).concat(appCssTags([...css])).join('\n    ');
+      const tags = js.map((f) => `<link rel="modulepreload" crossorigin href="./${f}">`).concat(appCssTags([...css])).join('\n    ');
       return html.replace('</head>', `    ${tags}\n  </head>`);
     } },
   };
@@ -41,7 +39,7 @@ function glModules(): Plugin {
   return {
     name: 'gl-modules',
     resolveId: (s) => (s === id ? '\0' + id : undefined),
-    load: (i) => (i === '\0' + id ? `export const GL_MODULES = {\n${glslFiles().map((f) => `  ${JSON.stringify(f)}: () => import(${JSON.stringify('/src/' + f)}),`).join('\n')}\n};` : undefined),
+    load: (i) => (i === '\0' + id ? `export const GL_MODULES = {\n${glslFiles().map((f: string) => `  ${JSON.stringify(f)}: () => import(${JSON.stringify('/src/' + f)}),`).join('\n')}\n};` : undefined),
   };
 }
 
