@@ -37,9 +37,24 @@ export function sewnEnds(def: NetVessel): { ends: readonly [ShuntEnd | null, Shu
   return ends[0] || ends[1] ? { ends, own } : null;
 }
 
+/** THE MAP DRAWS A VESSEL AS ONE TUBE (2D's map has one lane per vessel). A vessel built of a trunk and its strands (the liver's sinusoid lanes SIN_RR and SIN_LL: five strands; the collaterals' braids) carries every strand on the
+ *  vessel's one map course, so on the map each strand is a second tube along the same line, with its own ring spacing, inside the trunk's: the lane drew streaky dark specks along its length (Mohammad, 24 Nov, iPhone, Healthy, Circuit;
+ *  with the strands' map radius share `rkc` set to 0 the lane draws clean, with them it does not: headless A/B on the same frame). Where the trunk is drawn, only run 0 has a map radius; every later run and its caps get none (the morph shrinks them
+ *  to nothing with the change, as a fan fades). Laid wherever a vessel's tubes are built (scene.ts, shape-track.ts, skins.ts), so a rebuild at a new shape keeps it. A vessel with no map course is left alone. */
+export function foldStrandsOnMap(id: string, g: BufferGeometry, runs: readonly TubeRun[]): void {
+  const rkc = g.getAttribute('rkc');
+  if (!rkc || runs.length < 2 || !COURSES.has(id) || !(rkc.getX(runs[0]!.tubeStart) > 0)) return;   // (a vessel whose trunk is not drawn, a collateral drawn by its strands, keeps them: they ARE its lane)
+  for (let r = 1; r < runs.length; r++) {
+    const run = runs[r]!;
+    for (let v = run.tubeStart; v < run.tubeStart + run.tubeCount + 2 * run.capCount; v++) rkc.setX(v, 0);
+  }
+  rkc.needsUpdate = true;
+}
+
 /** Lays the sewn ends of vessel `id` on the map's radius share (`rkc`) of its built geometry: every ring of every tube and the caps, multiplied by the share at its place along the MAP course. A no-op for a vessel with none. */
 export function sewOnMap(id: string, g: BufferGeometry, runs: readonly TubeRun[]): void {
   const def = NETWORK_BY_ID.get(id), course = COURSES.get(id), rkc = g.getAttribute('rkc');
+  foldStrandsOnMap(id, g, runs);
   const s = def && course && rkc ? sewnEnds(def) : null;
   if (!s || !course || !rkc) return;
   for (const run of runs) {
