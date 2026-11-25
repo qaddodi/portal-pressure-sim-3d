@@ -15,6 +15,7 @@ import { setInterventionLabels, timeline } from '../timeline/index.ts';
 import { MESHES_OF } from '../../scene/organs/pick.ts';
 import { useUi } from '../ui-store.ts';
 import { isPhone } from '../layout/device.ts';
+import { usesBottomBar } from '../shell/room.ts';
 import { startShunting } from './shunt.ts';
 import { goToView } from '../shell/view-actions.ts';
 import { logInput } from '../../scene/intent-log.ts';
@@ -63,8 +64,12 @@ export function startActions(): () => void {
   // a structure selected on a phone puts Treat away (2D onSelect)
   off.push(useSelection.subscribe((s, prev) => { if (s.sel && s.sel !== prev.sel && isPhone(useUi.getState().device) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
   // a phone has room for one sheet (2D openPanel, openTreat): the Tests card coming up puts Treat away (Treat's Paracentesis opens Ascites), and Treat coming up puts Tests away
-  off.push(useTests.subscribe((s, prev) => { if (s.open && !prev.open && isPhone(useUi.getState().device) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
-  off.push(useTreat.subscribe((s, prev) => { if (s.open && !prev.open && isPhone(useUi.getState().device) && useTests.getState().open) useTests.getState().close(); }));
+  // (every layout whose cards are sheets over the dock has that one slot, an upright iPad's too: both up drew one sheet over the other)
+  off.push(useTests.subscribe((s, prev) => { if (s.open && !prev.open && usesBottomBar(useUi.getState().device) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
+  off.push(useTreat.subscribe((s, prev) => { if (s.open && !prev.open && usesBottomBar(useUi.getState().device) && useTests.getState().open) useTests.getState().close(); }));
+  // a wide screen has room for both in the right-hand column, Treat standing beside the Tests card (treat/beside.ts); an instrument in focus fills the screen, so Treat and focus give way to each other
+  off.push(useTests.subscribe((s, prev) => { if (s.open && s.state === 'focus' && prev.state !== 'focus' && useTreat.getState().open) useTreat.getState().setOpen(false); }));
+  off.push(useTreat.subscribe((s, prev) => { if (s.open && !prev.open && useTests.getState().open && useTests.getState().state === 'focus') useTests.getState().setState('open'); }));
   // the right-hand column holds one card: Settings, the main menu, History, Compare and Help coming up put Treat away, as Treat coming up puts them away (above); both open together drew Settings over
   // Treat's rows (walk of 20 Nov, issue 7). The speed, lens and other popovers are not cards, and leave it be.
   off.push(useShell.subscribe((s, prev) => { if (s.sheet && s.sheet !== prev.sheet && CARD_SHEETS.has(s.sheet) && useTreat.getState().open) useTreat.getState().setOpen(false); }));

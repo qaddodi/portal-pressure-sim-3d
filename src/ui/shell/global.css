@@ -29,12 +29,20 @@ body {
 }
 #root { position: fixed; inset: 0; }
 
-/* Nothing in the app is selectable, callable or flashed (owner, 19 Nov 2026: "text is selectable, should not be"). One rule on every element, so a new UI root
-   inherits it without asking: no text selection, no iOS long-press callout (copy / look up / share), no tap highlight, no dragging of pictures.
-   The only exceptions are things the reader types into (a field, an editable region), and a block that opts in with .selectable. tests/ui-no-select.test.ts holds this. */
-*, *::before, *::after { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+/* What may be selected (owner: the figure, the bars and the controls are never selectable, 19 Nov 2026; the words inside a card are, F14 of the independent review, WCAG 1.4.4 and a reader copying a value from a card).
+   The page starts unselectable, so a new UI root is quiet by default, and no iOS long-press callout or tap flash anywhere. Three small exceptions, and nothing else turns selection on:
+   1. a field or editable region, and a block that opts in with .selectable;
+   2. the words inside a card: the Treat card, a test, a structure's card, a talk's card, and the sheets (history, why, compare, guide, help);
+   3. except what is operated or dragged inside a card (a button, a tab, a slider, a head that drags the card, a picture, a chart or a plot that is scrubbed): selection stays off there, so a press or a drag is never a selection.
+   The same two selector lists are SELECTABLE and NOT_SELECTABLE in no-page-zoom.ts (the document's selectstart); tests/ui-no-select.test.ts holds the three together. */
+*, *::before, *::after { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+html, body { -webkit-user-select: none; user-select: none; }
 img, canvas, svg { -webkit-user-drag: none; user-drag: none; }
 input, textarea, [contenteditable=""], [contenteditable="true"], .selectable { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+.treat-card, .instrument-workspace, .action-card, .dk-card, .sh-sheet { -webkit-user-select: text; user-select: text; }
+:is(.treat-card, .instrument-workspace, .action-card, .dk-card, .sh-sheet) :is(button, summary, [role="button"], [role="tab"], [role="slider"], .ib, .card-head, .sheet-grab, .sheet-head, canvas, svg, img, [data-chart], .bt-plot, .bt-strip) { -webkit-user-select: none; user-select: none; }
+/* the figure's canvas takes every touch itself (the double tap and slide that zooms, the hold and drag that tilts, no iOS magnifier or loupe): the browser is told so on the canvas, not only on the stage around it */
+.stage-root canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 button { font: inherit; color: inherit; }
 
 /* A change of look cross-fades the whole page and the figure (looks/glide.ts): the View Transition's one group, eased. Reduce Motion never starts it.

@@ -17,6 +17,7 @@ import { isPhone } from '../layout/device.ts';
 import { useTreat } from './store.ts';
 import { useTestsRoom } from '../tests/room.ts';
 import { sheetPlace } from './sheet-place.ts';
+import { treatStepLeft } from './beside.ts';
 import { TABS, drugChips, fluids, giveFluid, procedures, pressChip, ranOn, type TabId } from './orders.ts';
 import { appEnv } from './env.ts';
 import { TREAT_WORDS } from './treat.generated.ts';
@@ -109,7 +110,7 @@ function Fluid({ id, label, sub }: { id: string; label: string; sub: string }) {
 export function TreatCard() {
   const open = useTreat((s) => s.open), tab = useTreat((s) => s.tab), page = useTreat((s) => s.changesPage);
   const device = useUi((s) => s.device), vp = useUi((s) => s.vp);
-  const thumb = useThumb(), phone = isPhone(device);
+  const thumb = useThumb(), phone = isPhone(device), testsPlace = useTestsRoom((s) => s.place);
   const { about, mine, p } = useChanges();
   const ref = useRef<HTMLElement>(null), tabsRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), paneRef = useRef<HTMLDivElement>(null), rowRef = useRef<HTMLButtonElement>(null);
   const pageRef = useRef<HTMLDivElement>(null), secRef = useRef<HTMLDetailsElement>(null);
@@ -234,7 +235,7 @@ export function TreatCard() {
       </div>
     );
   };
-  const vars = layoutVars(vp, layoutClass(thumb)) as React.CSSProperties;
+  const vars = { ...layoutVars(vp, layoutClass(thumb)), '--instr-occ': `${thumb ? 0 : treatStepLeft(vp, testsPlace)}px` } as React.CSSProperties;   // (beside the Tests card when it stands in the right-hand column, glided by 2D's own `translate` transition)
   return (
     <section ref={ref} className="treat-card tr-card has-plate" id="treatCard" hidden={!open} data-open={open} data-bottom={thumb} data-device={device} data-page={page || undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
       <div className="sheet-plate" aria-hidden="true" />

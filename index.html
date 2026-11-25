@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#F1EBE0" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1A1917" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
@@ -89,8 +89,9 @@
   <style>
     /* the first paint is the Light ground (or Dark when the device is), never white: the saved look's ground is set by the first script below (a look chosen in Settings: Soft, Navy, Black, or Light on a dark device), so the cover never changes colour when the app applies it */
     html, body { margin: 0; background: var(--bg, #F1EBE0); }
-    /* and nothing selectable from the first paint (the full rule is in src/ui/shell/global.css) */
-    * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+    /* and the figure and the chrome unselectable from the first paint, with no callout and no tap flash (the full rules, with the cards that may be selected in, are in src/ui/shell/global.css) */
+    * { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+    html, body { -webkit-user-select: none; user-select: none; }
     input, textarea, [contenteditable=""], [contenteditable="true"], .selectable { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
     @media (prefers-color-scheme: dark) { html, body { background: var(--bg, #1A1917); } }
     /* The loading cover (the 2D page's #boot): the mark and the name on the look's ground from the first paint, the wait bar and "Getting ready" from the first paint (they ease in with the cover, plan 49). It lifts
