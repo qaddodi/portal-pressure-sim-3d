@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { Vector3 } from 'three';
 import { CameraRig } from '../src/scene/camera/rig.ts';
 import { LabelController, NO_STATE, type LabelDeps } from '../src/scene/labels/controller.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const vp = { w: 1440, h: 900, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
 const measure: LabelDeps['measure'] = (t, size, _w, track = 0) => t.length * size * 0.56 + track * t.length;
@@ -34,7 +35,7 @@ test('the catheter\'s cards leave as soon as the dive starts and come back only 
 
 test('the label layer\'s anatomy is the settled body: no dive in either direction', () => {
   assert.match(readFileSync('src/scene/labels/LabelLayer.tsx', 'utf8'), /anatomy: \(\) => cel\.view === 'body' && cel\.circuit\.t === 0 && !cel\.circuit\.toCircuit && !cel\.diving/);
-  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /get diving\(\): boolean \{ return this\.inDive\(\); \}/);
+  assert.match(sceneSource(), /get diving\(\): boolean \{ return this\.inDive\(\); \}/);
 });
 
 test('one gate, every readout: the station names, the catheter\'s and procedures\' cards and the probes\' readings all stand aside while the camera dives, and ease back after', () => {

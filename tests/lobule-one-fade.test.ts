@@ -11,6 +11,7 @@ import { Lobule3D } from '../src/scene/micro3d/lobule3d.ts';
 import { LOBULE_PLATE_FS } from '../src/scene/lobule/plate.ts';
 import { LobuleFade, LobuleRoot, readsFade } from '../src/scene/lobule/one-fade.ts';
 import { BoxGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, Points, PointsMaterial } from 'three';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const shared = createShared();
 const flat = new LobuleView(shared);
@@ -123,6 +124,6 @@ test('the fade values have ONE writer: no file but one-fade.ts and the lobule\'s
   assert.doesNotMatch(lob, /this\.fade\.value\s*=[^=]/, 'and never to the uniform directly');
   const field = readFileSync('src/scene/lobule/field.ts', 'utf8').replace(/\/\/.*$/gm, '');
   assert.doesNotMatch(field, /setFade|uniforms\.fade!?\.value\s*=[^=]/, 'the neighbours\' plate has no writer of its own');
-  const scene = readFileSync('src/scene/scene.ts', 'utf8');
+  const scene = sceneSource();
   assert.doesNotMatch(scene, /lobule\.group\.add\(/, 'the scene adds nothing to the Lobule root behind the fade\'s back (Lobule3D mounts itself, through add)');
 });

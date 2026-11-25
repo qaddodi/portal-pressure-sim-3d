@@ -23,6 +23,7 @@ import { ProcedureLayer } from '../src/scene/procedures/layer.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { createRouter } from '../src/scene/circuit/router.copied.js';
 import { x3, y3 } from '../src/scene/frame2d.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 // ── the flow peel's tangent ──
 test('the peel slope is the derivative of the peel with the rank', () => {
@@ -324,14 +325,14 @@ test('the procedure devices dissolve as the figure turns into the Circuit and ar
   p.setFade(0.5); assert.equal(p.group.visible, true);
   p.setFade(0); assert.equal(p.group.visible, false);
   p.setFade(1); assert.equal(p.group.visible, true);
-  const src = readFileSync('src/scene/scene.ts', 'utf8');
+  const src = sceneSource();
   assert.match(src, /this\.procs\.setFade\(fade\)/);
   p.dispose();
 });
 
 // ── the wiring ──
 test('the scene feeds the map\'s own parts and the body\'s labels stand aside in the Circuit', () => {
-  const scene = readFileSync('src/scene/scene.ts', 'utf8');
+  const scene = sceneSource();
   for (const need of ['this.tubes.update(', 'this.resistors.set(', 'setResistors(', 'setCaudatePin(', 'syncCircuitData', 'routeOpen(']) assert.ok(scene.includes(need), need);
   assert.match(readFileSync('src/scene/labels/LabelLayer.tsx', 'utf8'), /hidden: \(\) => cel\.circuit\.t > 0/);
   assert.match(readFileSync('src/scene/labels/controller.ts', 'utf8'), /d\.hidden\?\.\(\) \? \[\] : this\.active\(\)/);
@@ -412,7 +413,7 @@ test('the liver\'s beds and the hepatic arteries are drawn in the Circuit althou
     assert.equal(presenceOf(v, f as never, { collaterals: false, circuit: true }), 'shown', `${v.id}: on the map`);
   }
   for (const id of ['A_HEP', 'A_HR', 'A_HL']) assert.equal(presenceOf(NETWORK.find((v) => v.id === id)!, f as never, { collaterals: false, circuit: true }), 'shown', `${id} is drawn in the Circuit`);
-  const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const sc = sceneSource();
   assert.match(sc, /circuit: this\.figureView === 'circuit'/);
   assert.match(sc, /wasCircuit !== \(v === 'circuit'\)/, 'the presence is worked out again when the view changes');
 });
@@ -475,7 +476,7 @@ test('a liver branch\'s drawing is handed to the change: its presence only keeps
   p.drive('PRE_R', 0); assert.equal((o as { group: { visible: boolean } }).group.visible, false);
   const tubes = readFileSync(new URL('../src/scene/circuit/tubes.ts', import.meta.url), 'utf8');
   assert.match(tubes, /growOf\(e\.parent, c\.t\)/); assert.match(tubes, /setReveal\(grown\)/);
-  const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const scene = sceneSource();
   assert.match(scene, /this\.presence\.own\(this\.grownIds\)/); assert.match(scene, /this\.growLiver\(t\)/);
 });
 
@@ -505,7 +506,7 @@ test('the station dots are 2D\'s metro stops: a ring in the text\'s colour (ligh
   const src = readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8');
   assert.match(src, /this\.dots\.layers\.set\(VESSEL_LAYER\)/, 'in the vessels\' pass, over every vessel');
   assert.match(src, /setScale\(px: number\)/);
-  assert.match(readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8'), /this\.mapLayer\.setScale\(this\.mapScale\(\)\)/);
+  assert.match(sceneSource(), /this\.mapLayer\.setScale\(this\.mapScale\(\)\)/);
 });
 
 test('a station name with no abbreviation of its own is shortened before its reading stands alone ("Left sinusoids" to "L sinusoids")', async () => {
@@ -540,6 +541,6 @@ test('a vessel with no map course (the tributary fans, the liver\'s branching ve
   assert.ok(feeders.length >= 2, 'there are fans');
   assert.ok(feeders.every((v) => !COURSES.has(v.id)), 'none has a map course, so none carries cl (its length of the map course is 0 by default)');
   assert.ok(MAPPED.every((v) => COURSES.get(v.id)!.lenC > 0), 'every mapped vessel has a map course of some length');
-  const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const scene = sceneSource();
   assert.match(scene, /else this\.fans\.set\(o, def\.id\)/, 'and a vessel without one is a fan: the Circuit\'s shader fades it as 2D does (1 - 2 * T0)');
 });

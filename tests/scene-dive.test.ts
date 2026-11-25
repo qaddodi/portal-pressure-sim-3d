@@ -105,6 +105,7 @@ test('the dive arc is zero at both ends, peaks mid-move, and Reduce Motion (arc 
 
 import { buildLobule, hexFrac, zoneOf } from '../src/scene/lobule/geometry.ts';
 import { SIN_LOCAL } from '../src/scene/lobule/frames.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 test('the sinusoid view stands on a real sinusoid of the lobule, in zone 2, running along the view', () => {
   const net = buildLobule(7);
   let best = Infinity, ang = 1;
@@ -122,7 +123,7 @@ test('the sinusoid view stands on a real sinusoid of the lobule, in zone 2, runn
 });
 
 test('at the body\'s rest the whole dive frame is hidden, and the views settle on the camera\'s own move (not the tilt)', async () => {
-  const src = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const src = sceneSource();
   assert.match(src, /this\.dive\.visible = \(v === 'lobule' \|\| v === 'sinusoid'\) && this\.microReady;/);
   assert.match(src, /this\.dive\.visible = false;/);
   assert.match(src, /this\.hideLeftBehind && !this\.rig\.isMoving && !this\.circuit\.moving/);

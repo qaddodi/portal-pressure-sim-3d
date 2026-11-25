@@ -10,6 +10,7 @@ import { CIRCUIT_MATES, CIRC_EASE, EASE_SHARE, easeOf, flowLenAt, mapLen, taperW
 import { circuitWidthMap } from '../src/scene/circuit/width.ts';
 import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { readFileSync } from 'node:fs';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const widthOf = (id: string, boost = 1): number => { const v = NETWORK_BY_ID.get(id)!; return circuitWidthMap(v.widthKind, v.baseD, boost, v.circFine ?? 1); };
 
@@ -83,7 +84,7 @@ test('the shader joins the widths by the map\'s own distance (the course\'s leng
 });
 
 test('the scene gives every vessel with a pair its map mates once, not through the joins switch (a skin may take an end of the body, never of the map)', () => {
-  const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const sc = sceneSource();
   assert.match(sc, /o\.setCircuitMates\(mateUniform\(cm\[0\]\), mateUniform\(cm\[1\]\)/);
   const apply = sc.slice(sc.indexOf('private applyMates'), sc.indexOf('private applyMates') + 400);
   assert.doesNotMatch(apply, /setCircuitMates/);
@@ -98,6 +99,6 @@ test('the flow marks run over the lengths the vessels are drawn at: the body\'s 
   const chain = readFileSync(new URL('../src/scene/blood/chain.ts', import.meta.url), 'utf8'), routes = readFileSync(new URL('../src/scene/blood/routes.ts', import.meta.url), 'utf8');
   assert.match(chain, /flowLenAt\(inf\.id, inf\.len, view\)/);
   assert.match(routes, /flowLenAt\(inf\.id, inf\.len, view\)/);
-  const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const sc = sceneSource();
   assert.match(sc, /this\.flow\.carriesHeads\(id\), this\.circuit\.t\)/);
 });

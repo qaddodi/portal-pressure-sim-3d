@@ -7,6 +7,7 @@ import { Vector2, type Material } from 'three';
 import { PostAA, aaMode, canvasBuffers, AA_FS } from '../src/scene/post-aa.ts';
 import { installShaderGuard } from '../src/debug/shader-guard.ts';
 import { msaaFor } from '../src/scene/quality.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const gl = (w: number, h: number) => ({ getDrawingBufferSize: (v: Vector2) => v.set(w, h) });
 
@@ -48,7 +49,7 @@ test('a program the device refuses turns the pass off for good: the figure is dr
 });
 
 test('the scene draws both passes into the texture, then the canvas takes the filtered picture; the context is multisampled only on request', () => {
-  const scene = readFileSync('src/scene/scene.ts', 'utf8');
+  const scene = sceneSource();
   const at = (s: string) => scene.indexOf(s, scene.indexOf('render(gl: WebGLRenderer)'));
   assert.ok(at('this.post.target(gl)') > 0 && at('gl.setRenderTarget(into)') > at('this.post.target(gl)'));
   assert.ok(at('gl.setRenderTarget(null)') > at('cam.layers.set(VESSEL_LAYER)'), 'the canvas is back only after the vessels');

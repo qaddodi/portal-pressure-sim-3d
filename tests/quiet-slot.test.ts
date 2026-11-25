@@ -185,7 +185,7 @@ test('no file outside src/clock/idle.ts asks the browser for idle time (the raw-
   const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(`${d}/${e.name}`) : /\.tsx?$/.test(e.name) ? [`${d}/${e.name}`] : []);
   const bad = walk('src').filter((f) => f !== 'src/clock/idle.ts' && /requestIdleCallback|cancelIdleCallback/.test(readFileSync(f, 'utf8').replace(/\/\/.*$/gm, '')));
   assert.deepEqual(bad, []);
-  for (const f of ['src/scene/scene.ts', 'src/scene/Stage.tsx', 'src/scene/organs/layer.ts', 'src/pwa/register.ts', 'src/boot/warm.ts']) assert.match(readFileSync(f, 'utf8'), /whenQuiet(Once)?\(/, `${f} uses the slot`);
+  for (const f of ['src/scene/parts/micro.ts', 'src/scene/Stage.tsx', 'src/scene/organs/layer.ts', 'src/pwa/register.ts', 'src/boot/warm.ts']) assert.match(readFileSync(f, 'utf8'), /whenQuiet(Once)?\(/, `${f} uses the slot`);
 });
 
 test('the preload ladder runs its rungs on the shared slot (quietSlot), one per slot', async () => {

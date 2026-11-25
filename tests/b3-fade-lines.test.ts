@@ -9,6 +9,7 @@ import { x3, y3 } from '../src/scene/frame2d.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { EDGE_PATH_2D } from '../src/scene/anatomy/source.ts';
 import { PLACED_EDGE_3D } from '../src/scene/anatomy/placed-network.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('a liver bed fades along the line from its portal node to its venous node: 0.8, faintest 0.36 half way, solid at the end', () => {
   for (const [id, a, b] of [['SIN_RR', 'SIN_R', 'CV_R'], ['SIN_LL', 'SIN_L', 'CV_L']] as const) {
@@ -64,7 +65,7 @@ test('the azygos tributary (2D FEEDERS.AZY_SVC) fades out down the figure by FEE
   assert.equal(f.from, y3(110)); assert.equal(f.to, y3(176));
   assert.equal(f.a0, 1); assert.equal(f.a1, 0);
   assert.equal(fadeOf('C3~F', false, 'C3'), null);
-  assert.match(readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8'), /fadeOf\(def\.id, def\.tone === 'artery', def\.feeder\?\.host\)/);
+  assert.match(sceneSource(), /fadeOf\(def\.id, def\.tone === 'artery', def\.feeder\?\.host\)/);
 });
 
 // The rectal varices ended solid in mid-belly on the placed anatomy: their band (laid on the 2D course carried on to starts.ts END_ON) was moved by 2D's own last point, 82 units short of that run-on end,

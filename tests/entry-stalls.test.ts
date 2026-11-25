@@ -7,6 +7,7 @@ import { GeometryUploader, hiddenGeometries } from '../src/scene/materials/warm.
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { Sinusoid3D } from '../src/scene/micro3d/sinusoid3d.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const geo = () => { const g = new BufferGeometry(); g.setAttribute('position', new Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3)); return g; };
 
@@ -32,7 +33,7 @@ test('the uploader draws one geometry per step into its own target and puts the 
 });
 
 test('the page uploads the hidden geometries once the micro views are primed, at the patient\'s state', () => {
-  const stage = readFileSync('src/scene/Stage.tsx', 'utf8'), scene = readFileSync('src/scene/scene.ts', 'utf8');
+  const stage = readFileSync('src/scene/Stage.tsx', 'utf8'), scene = sceneSource();
   assert.match(stage, /cel\.onMicroPrimed = /); assert.match(stage, /new GeometryUploader\(/);
   assert.match(scene, /this\.onMicroPrimed\?\.\(\)/);
   // (the lobule is snapped to the patient's state once, before its cells are primed, and its first frame is then built hidden)

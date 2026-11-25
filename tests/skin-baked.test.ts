@@ -14,6 +14,7 @@ import { PACES } from '../src/scene/vessels/skin/mesh.ts';
 import { buildTubes } from '../src/scene/vessels/tubes.ts';
 import { decodeSkins, encodeSkins, skinsDigest, type BakedSkins } from '../src/scene/vessels/skin/baked.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const text = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
 
@@ -109,7 +110,7 @@ test('the digest hashes what the tubes are made FROM, so the trig last bits of a
 test('the build bakes the skins before the bundler, the scene builds nothing before the file is in, and the boot waits for it with the fonts and the engine', () => {
   const build = text('../scripts/build.mjs');
   assert.ok(build.indexOf('bake-skins.mjs') > 0 && build.indexOf('bake-skins.mjs') < build.indexOf('vite.js'));
-  const scene = text('../src/scene/scene.ts');
+  const scene = sceneSource();
   assert.match(scene, /if \(bakedPending\(\)\) \{[\s\S]*?void bakedReady\.then\(\(\) => \{[^}]*this\.refreshSkins\(\)/, 'with the file still on its way the skins are built when it lands');
   assert.match(scene, /baked: bakedSkins,/);
   assert.match(text('../src/main.tsx'), /await Promise\.all\(\[fontsReady\(\), engineBooted[^\]]*bakedReady[^\]]*\]\)/, 'the first picture is after the file');

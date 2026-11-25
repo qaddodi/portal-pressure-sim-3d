@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { quietOf, QUIET_WASH, QUIET_STEPS } from '../src/scene/camera/quiet.ts';
 import { organColour, PLAIN, type OrganInks } from '../src/scene/organs/organ-look.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const rad = (d: number) => (d * Math.PI) / 180;
 const K: OrganInks = { plate: [1, 1, 1], dark: false, bleed: [0.5, 0, 0], bg: [1, 1, 1] };
@@ -31,7 +32,7 @@ test('the organs\' wash does not change on a turn (owner, 20 Nov: "when I move t
 });
 
 test('the scene feeds the organ layer from the orbit', () => {
-  const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const sc = sceneSource();
   assert.match(sc, /const quiet = quietOf\(this\.rig\.orbitAngle\)/);
   assert.match(sc, /organs\.setQuiet\(quiet\)/);
   assert.match(sc, /for \(const o of this\.back\) o\.setQuiet\(quiet\)/);   // (the back tier of the vessels takes the same value)

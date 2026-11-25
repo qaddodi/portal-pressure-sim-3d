@@ -6,13 +6,13 @@ import { unitRbc } from '../src/scene/micro3d/cel3d.ts';
 import { RBC_SEG } from '../src/scene/micro3d/sinusoid3d.ts';
 
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-const scene = strip(readFileSync('src/scene/scene.ts', 'utf8'));
+const scene = strip(sceneSource());
 const stage = readFileSync('src/scene/Stage.tsx', 'utf8');
 
 test('the scene does not construct the 3D parts in its constructor', () => {
   assert.equal((scene.match(/new Sinusoid3D\(/g) ?? []).length, 1);
   assert.equal((scene.match(/new Lobule3D\(/g) ?? []).length, 1);
-  const build = scene.slice(scene.indexOf('private buildMicro()'), scene.indexOf('buildMicroIdle(urgent'));
+  const build = scene.slice(scene.indexOf('buildMicro(): {'), scene.indexOf('buildMicroIdle(urgent'));
   assert.match(build, /this\.makeSinus\(\)/); assert.match(build, /new Lobule3D\(/);   // (the sinusoid's constructor is a step of its own: makeSinus)
 });
 
@@ -52,6 +52,7 @@ test('the red cell has 16 segments and well under half its old triangles', () =>
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { Sinusoid3D, shapeKey, tailKey } from '../src/scene/micro3d/sinusoid3d.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('the shape key reads only the lumen, the pinch and the collagen; the tail key only the activation', () => {
   const S = { lum: 1, pinch: 0.2, col: 0.1, act: 0.3, mv: 1, bm: 0 };
@@ -83,7 +84,7 @@ test('easing the basement membrane or the microvilli rebuilds nothing; the activ
 
 // ---- the audit names the system that costs a frame (scene.systemMs, update and render laps, per step) ----
 test('render() laps its phases into systemMs, and the audit row carries the per-step delta into the LAGS line', () => {
-  const sc = readFileSync('src/scene/scene.ts', 'utf8');
+  const sc = sceneSource();
   for (const n of ['render: setup (dof, band, blur frame)', 'render: pass 1, layer 0 (organs; the lobule and the sinusoid are drawn here too)', 'render: pass 2, vessel layer', 'render: glow, blur, resolve']) assert.ok(sc.includes(`lap('${n}')`), n);
   const app = readFileSync('src/ui/debug/audit/app.ts', 'utf8'), rep = readFileSync('src/ui/debug/audit/report.ts', 'utf8');
   assert.match(app, /sys0 = \{ \.\.\.\(cel\.systemMs \?\? \{\}\) \}/);
@@ -92,7 +93,7 @@ test('render() laps its phases into systemMs, and the audit row carries the per-
 });
 
 test('the idle slices prime the lobule and the sinusoid hidden, so the first shown frame builds nothing', () => {
-  const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const sc = sceneSource();
   assert.match(sc, /this\.micro\.lobule\.update\(true, 0, 0, 1, true\)/);
   assert.match(sc, /this\.micro\.lobule\.primeCells\(\)/);
   assert.match(sc, /this\.micro\.sinus\.update\(true, 1, true, up\)/);
@@ -124,5 +125,5 @@ test('the sinusoid shape passes are cut into sections: many small steps, then re
   while (!sc.micro.sinus.prepareShapeStep()) steps++;
   assert.ok(steps > 40, `${steps} steps for the passes (was 8, one pass each)`);
   assert.equal(sc.micro.sinus.shapeReady, true);
-  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /whenQuiet\(\(\) => this\.microStep\(\), \{ tag: 'micro', budgetMs: SLICE_MS, label: \(\) => this\.microWhat \}\)/);
+  assert.match(sceneSource(), /whenQuiet\(\(\) => this\.microStep\(\), \{ tag: 'micro', budgetMs: SLICE_MS, label: \(\) => this\.microWhat \}\)/);
 });

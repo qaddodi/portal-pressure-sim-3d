@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('the scene audit runs in node, reports its steps in one shape, and notices a skin rebuild storm and a stuck ease', { timeout: 240000 }, (t) => {
   if (!existsSync(new URL('../public/anatomy/skins.bin', import.meta.url))) { t.skip('no baked skins: run node scripts/bake-skins.mjs'); return; }
@@ -21,7 +22,7 @@ test('the scene audit runs in node, reports its steps in one shape, and notices 
 });
 
 test('the scene warms the sewn ends\' seam curves in its constructor, so the first frame\'s update does not pay 32 ms for them (scene-audit "boot")', () => {
-  const src = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const src = sceneSource();
   assert.match(src, /for \(const id of SEWN_IDS\) seamsFor\(id, false\);/);
   const ctor = src.indexOf('for (const id of SEWN_IDS) seamsFor(id, false);'), update = src.indexOf('  update(now: number): boolean {');
   assert.ok(ctor > 0 && ctor < update, 'before the per-frame update');

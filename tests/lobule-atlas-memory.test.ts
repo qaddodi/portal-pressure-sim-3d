@@ -6,6 +6,7 @@ import type { Texture } from 'three';
 import { CollagenAtlas, atlasBytes } from '../src/scene/lobule/collagen-atlas.ts';
 import { ATLAS_W } from '../src/scene/lobule/collagen-paint.ts';
 import { PLATE_PX } from '../src/scene/lobule/plate.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const W = PLATE_PX * ATLAS_W, H = PLATE_PX, MB = 1e6, ONE = atlasBytes(W, H);
 class FakeBitmap { open = true; width = W; height = H; close() { this.open = false; } }
@@ -63,6 +64,6 @@ test('Plan 31c: the lobule scene keeps no spare atlas, no resident collagen canv
   const { readFileSync } = await import('node:fs');
   const l3 = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8'), wk = readFileSync('src/scene/lobule/plate-worker.ts', 'utf8'), st = readFileSync('src/scene/Stage.tsx', 'utf8');
   assert.doesNotMatch(l3, /collSpare|collFront|collTex|collCanvas\b/);
-  assert.match(l3, /contextRestored\(\)/); assert.match(st, /rewarm\.current = \(\) => \{\s*cel\.contextRestored\(\);/); assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /this\.micro\?\.lobule\.contextRestored\(\)/);
+  assert.match(l3, /contextRestored\(\)/); assert.match(st, /rewarm\.current = \(\) => \{\s*cel\.contextRestored\(\);/); assert.match(sceneSource(), /this\.micro\?\.lobule\.contextRestored\(\)/);
   assert.doesNotMatch(wk, /cCanvas \?\?=/); assert.match(wk, /cCanvas = null/);
 });

@@ -17,6 +17,7 @@ import { glowWeightGlsl } from '../src/scene/vessels/glsl-shared.ts';
 import { easeMove } from '../src/scene/gesture/ease.ts';
 import { withRk } from '../src/scene/vessels/vessel-object.ts';
 import { BufferAttribute, BufferGeometry } from 'three';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const src = (p: string): string => readFileSync(new URL(`../src/scene/${p}`, import.meta.url), 'utf8');
 
@@ -53,7 +54,7 @@ test('a geometry built with no morph attributes gets zeros for all five, and one
 });
 
 test('the fans are not on the Circuit\'s own (1 - t) leaving list: that fade, composed with the shader\'s, would take them out early and bring them back late', () => {
-  const scene = src('scene.ts');
+  const scene = sceneSource();
   assert.match(scene, /else this\.fans\.set\(o, def\.id\)/);
   assert.doesNotMatch(scene, /else this\.leaving\.push\(o\)/);
 });
@@ -94,7 +95,7 @@ test('the scene draws the fan groups from one composed fade: the dive\'s dissolv
   s.feeders.set('C3~F:caput', 1, true); s.pushFades();
   assert.equal(caput.fade, 1); assert.equal(caput.group.visible, true);
   for (const o of s.leavingSet) { s.lastFade = 0.3; s.fadeNow = 0.8; assert.equal(s.composeFade(o), 0.3, 'what leaves with the organs: the Circuit\'s share when it is the smaller'); s.lastFade = 1; s.fadeNow = 1; break; }
-  const text = src('scene.ts');
+  const text = sceneSource();
   assert.equal((text.match(/\.setFade\(/g) ?? []).length, 4, 'objects\' fade is written in pushFades only (the rest are the disease layer\'s and the procedures\' own)');
 });
 
@@ -133,7 +134,7 @@ test('the selected vessel\'s glow eases away over the first 15 % of the Circuit\
   assert.ok(glowGate(0.03) < 1 && glowGate(0.03) > 0.8, 'the first frame of the change is not a snap');
   let last = 1;
   for (let t = 0; t <= 0.15; t += 0.005) { const g = glowGate(t); assert.ok(g <= last + 1e-12); assert.ok(last - g < 0.12, 'small steps'); last = g; }
-  const scene = src('scene.ts');
+  const scene = sceneSource();
   assert.match(scene, /setGlowShown\(glowGate\(this\.circuit\.t\)\)/);
   assert.doesNotMatch(scene, /setGlowShown\(this\.circuit\.t < 0\.02/);
   assert.equal(GLOW_GATE_T, 0.15, 'the shader\'s gate is the same 15 %');

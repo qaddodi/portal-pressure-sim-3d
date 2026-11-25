@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixedSource, liveSource } from '../src/scene/model-source.ts';
 import { latest, patient } from '../src/engine/store.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('the live source reads the engine store', () => {
   assert.equal(liveSource.frame(), latest.frame);
@@ -24,7 +25,7 @@ test('a fixed source keeps its own patient and ignores the store', () => {
 
 test('the scene takes the source it is given and reads no engine global of its own', async () => {
   const { readFileSync } = await import('node:fs');
-  const text = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8').replace(/typeof latest\.frame/g, '');
+  const text = sceneSource().replace(/typeof latest\.frame/g, '');
   assert.ok(!/\blatest\.frame\b|\blive\.frame\b|\bshownParams\(|\bpatient\.(reference|params)\b/.test(text));
   assert.ok(/this\.src = opts\.source \?\? liveSource/.test(text));
 });

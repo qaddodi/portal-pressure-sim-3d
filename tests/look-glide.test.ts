@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createLookGlide, type GlideEnv } from '../src/looks/glide.ts';
 import type { LookId } from '../src/looks/looks.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const rig = (over: Partial<GlideEnv> = {}) => {
   const log: string[] = [];
@@ -53,7 +54,7 @@ test('the page and the figure are wired to it, and the stylesheet eases the fade
 });
 
 test('a new patient eases (organs, disease, collaterals), the colour key cross-fades, controls ease their states', () => {
-  const sc = readFileSync('src/scene/scene.ts', 'utf8');
+  const sc = sceneSource();
   assert.ok(!/instant: first \|\| f\.jump/.test(sc) && !/instant \|\| f\.jump/.test(sc) && !/\}, f\.jump\);/.test(sc), 'a jump frame no longer forces the disease, presence or shapes to snap');
   const key = readFileSync('src/ui/shell/LensKey.tsx', 'utf8');
   assert.match(key, /useLeaving/); assert.match(key, /lens-key/);

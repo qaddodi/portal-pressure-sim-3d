@@ -15,6 +15,7 @@ import { ART_CIRC, circuitShot } from '../src/scene/circuit/shots.ts';
 import { buildCaptions, type CapCtx } from '../src/scene/circuit/captions.ts';
 import { CIRCUIT_D, CIRCUIT_NODES, LANE_CAPTIONS } from '../src/scene/circuit/data.copied.ts';
 import { courseOf } from '../src/scene/circuit/paths.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('2D\'s widths on the map: a vein clamp(vesselPx * 0.95, 6, 15) and the boost, an artery 3, a bed 8 and the boost, a branch at least 1.2', () => {
   assert.equal(circuitWidthMap(0, 12, 1), Math.min(15, vesselPx(12) * 0.95));
@@ -113,7 +114,7 @@ test('the Circuit holds nothing faint: the tip fades let go, the bands run full 
   const layer = readFileSync(new URL('../src/scene/circuit/map-layer.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(layer, /float iy = /, 'the bands are not cut off across the map');
   assert.match(layer, /\/ \(BAND_SOFT \* pxW\) \+ 0\.5/);
-  const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const sc = sceneSource();
   assert.match(sc, /setCircCap\(free\(v\.from, v\.id\) \? 1 : 0, free\(v\.to, v\.id\) \? 1 : 0\)/);
   const cap = readFileSync(new URL('../src/scene/circuit/CircuitCaptions.tsx', import.meta.url), 'utf8');
   assert.match(cap, /CIRCUIT_TREES/, 'a caption keeps off the sinusoid bundle');

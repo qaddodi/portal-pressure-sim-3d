@@ -2,10 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { LOBULE_SCALE } from '../src/scene/lobule/frames.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('the lobule is liver-scale small (owner, 20 Nov: ~1/1500 of the scene)', () => { assert.ok(LOBULE_SCALE <= 1 / 1000); });
 test('the dive frame is never switched on at setView: only fadeBody shows it, once the body dissolves', () => {
-  const s = readFileSync('src/scene/scene.ts', 'utf8');
+  const s = sceneSource();
   assert.ok(!/this\.dive\.visible = true/.test(s));
 });
 test('in a dive the room moves with the aim (one clock), never on its own', () => {
@@ -23,7 +24,7 @@ test('a retarget carries only the speed that heads to the new framing, along the
   assert.match(s, /hv = \{ x: dx \* f, y: dy \* f, lh: dl \* f \}/);
 });
 test('the dive never opens a circular cut-out in the liver (owner, 20 Nov)', () => {
-  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /cutUniform\(Infinity,/);
+  assert.match(sceneSource(), /cutUniform\(Infinity,/);
 });
 test('cards arriving mid-dive (lobule -> sinusoid) never make the picture jump or zoom back out: the on-screen size of the place dived to only grows', async () => {
   const { CameraRig } = await import('../src/scene/camera/rig.ts');

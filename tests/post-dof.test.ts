@@ -8,6 +8,7 @@ import { DOF_COPY_FS, DOF_GATHER_FS, DOF_MAX_FRAC, DOF_MIN_WIDTH, DOF_MIX_FS, DO
 import { PostAA } from '../src/scene/post-aa.ts';
 import { installShaderGuard } from '../src/debug/shader-guard.ts';
 import { GL_FILES, namedSources, rawPrograms } from '../src/debug/gl-registry.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const MAC: DofEnv = { coarsePointer: false, hover: true, width: 1440, reducedMotion: false, touchMac: false };
 const gl = (w: number, h: number) => ({ getDrawingBufferSize: (v: Vector2) => v.set(w, h) });
@@ -206,7 +207,7 @@ test('the programs are registered: the glslang compile and the ?gl page both see
 });
 
 test('scene.ts: the second pass keeps the depth while the pass runs, the pass runs before the canvas takes the picture, the guard lends the materials', () => {
-  const scene = readFileSync('src/scene/scene.ts', 'utf8');
+  const scene = sceneSource();
   const at = (s: string) => scene.indexOf(s, scene.indexOf('render(gl: WebGLRenderer)'));
   assert.ok(at('this.post.dof.frame(') > 0 && at('this.post.target(gl)') > at('this.post.dof.frame('));
   assert.ok(at('if (!dof) { gl.clearDepth(); gl.clearStencil(); }') > at('gl.render(this.scene, cam)'), 'the depth is cleared between the passes only without the blur');

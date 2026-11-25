@@ -8,6 +8,7 @@ import { ORGAN_FS } from '../src/scene/organs/organ-shader.ts';
 import { GLOW_LAYER, GLOW_SIGMA, ORGAN_GLOW_LAYER } from '../src/scene/glow.ts';
 import { GlowFx, LAY_FS } from '../src/scene/glow-fx.ts';
 import { GLOW_A_MAX, GLOW_GAIN } from '../src/scene/glow.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const read = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
 
@@ -46,7 +47,7 @@ test('the lay is the vessels\' own (same blur sigma and the same lay shader); th
   assert.equal(fx.figure.material, fx.materials[1], 'the quad shares the lay material: no second program');
   assert.equal(fx.figure.visible, false);
   assert.equal(fx.figure.layers.mask, 1, 'layer 0: the figure\'s FIRST pass, which every vessel of the vessels\' pass (VESSEL_LAYER, over a cleared depth) is drawn after');
-  const sc = read('src/scene/scene.ts');
+  const sc = sceneSource();
   assert.ok(sc.indexOf('this.organGlowFx.prepare(') < sc.indexOf("lap('render: pass 1, layer 0"), 'the mask and blur run before the first pass');
   assert.ok(sc.indexOf("lap('render: pass 1, layer 0") < sc.indexOf('this.glowFx.run('), 'the vessels\' glow stays over the figure');
   fx.dispose(); vx.dispose();

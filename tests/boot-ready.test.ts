@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const doc = { documentElement: { dataset: {} as Record<string, string> } };
 (globalThis as { document?: unknown }).document = doc;
@@ -158,7 +159,7 @@ test('the baked-skin fetch is bounded by progress, and startup spans wrap decode
   assert.match(stage, /if \(!compiled\.current\) return;/, 'and the first frame waits for it too');
   assert.match(stage, /clock\.after\(\(\) => cel\.buildMicroIdle\(\), 400\)/, 'the meshes are built after the first picture, once everything is compiled');
   assert.doesNotMatch(stage, /warm\(\); cel\.buildMicroIdle\(\)/);
-  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /span\('build:lobule3d'/);
+  assert.match(sceneSource(), /span\('build:lobule3d'/);
   assert.match(readFileSync('src/ui/perf/mount.ts', 'utf8'), /spans: spans\(\)/);
 });
 

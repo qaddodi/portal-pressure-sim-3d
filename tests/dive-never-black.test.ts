@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createQuiet, RUSH_BUDGET_MS, type QuietEnv } from '../src/clock/idle.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 type Priv = {
   figureView: string; hideLeftBehind: boolean; fadeNow: number; microReady: boolean; microPrimedNow: boolean; diveHeld: boolean;
@@ -73,7 +74,7 @@ test('the body never dissolves into nothing: unbuilt parts keep it whole, built 
 
 test('every camera move goes through the one gate, and a dead micro job is made again', () => {
   const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-  const src = strip(readFileSync('src/scene/scene.ts', 'utf8'));
+  const src = strip(sceneSource());
   assert.equal((src.match(/this\.rig\.goTo\(/g) ?? []).length, 1, 'scene.goTo is the only caller of rig.goTo');
   for (const f of ['src/scene/api.ts', 'src/ui/shell/view-actions.ts', 'src/ui/talk/controls-run.ts']) assert.doesNotMatch(strip(readFileSync(f, 'utf8')), /rig\.goTo\(/, `${f} moves the camera through cel.goTo`);
   assert.match(src, /if \(this\.microJob\?\.done\) this\.microJob = null;/);

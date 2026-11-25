@@ -13,6 +13,7 @@ import { glowWeightGlsl } from '../src/scene/vessels/glsl-shared.ts';
 import { BLUR_FS, LAY_FS } from '../src/scene/glow-fx.ts';
 import * as GLOW from '../src/scene/glow.ts';
 import { outlineStrength, computeHighlight } from '../src/scene/highlight.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('the glow has no geometry of its own: no ribbon, no grown hull; the vessels\' vertex stages are untouched by it', () => {
   const src = readFileSync('src/scene/glow.ts', 'utf8');
@@ -42,7 +43,7 @@ test('the mask is blurred in two separable passes and laid outside itself, cappe
   assert.match(LAY_FS, /clamp\(g\.a \* 1\.25, 0\.0, 0\.93\)/);
   const fx = readFileSync('src/scene/glow-fx.ts', 'utf8');
   assert.match(fx, /GLOW_LAYER/); assert.match(fx, /blendEquation: AddEquation/);
-  const scene = readFileSync('src/scene/scene.ts', 'utf8');
+  const scene = sceneSource();
   assert.match(scene, /if \(this\.highlight\.glowing\) this\.glowFx\.run\(gl, into, cam, this\.scene, dpr\)/, 'only while a glow is showing');
 });
 

@@ -7,6 +7,7 @@ import { sinRadius } from '../src/scene/lobule/widths.ts';
 import { U } from '../src/scene/sinusoid/view.ts';
 import { UM } from '../src/scene/sinusoid/layout.ts';
 import { LOBULE_UNDER_FROM, SIN_SHOW_FROM } from '../src/scene/scene.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('the 3D sinusoid\'s lumen is as wide as the 3D lobule\'s tube it grows out of', () => {
   const rho = Math.hypot(SIN_LOCAL[0], SIN_LOCAL[1]) / LOBULE_R;
@@ -21,7 +22,7 @@ test('the focus pull is one blur over the whole screen that lets go everywhere a
   assert.match(src, /this\.focusOpen = open;/);
   const dof = fs.readFileSync(new URL('../src/scene/post-dof.ts', import.meta.url), 'utf8');
   assert.match(dof, /return mix\(1\.0, k, bandO\) \* bandK\.z \* bandK\.w;/, 'each pixel eases from the one level to its own');
-  assert.match(fs.readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8'), /this\.post\.dof\.bandOpen = this\.microReady \? this\.micro!\.sinus\.focusOpen : 1;/);
+  assert.match(sceneSource(), /this\.post\.dof\.bandOpen = this\.microReady \? this\.micro!\.sinus\.focusOpen : 1;/);
   // (the shader's own algebra: closed it is the same blur at every pixel, open it is the resting band)
   const mix = (a: number, b: number, t: number) => a + (b - a) * t;
   for (const k of [0, 0.3, 1]) { assert.equal(mix(1, k, 0), 1, 'closed: uniform everywhere'); assert.ok(Math.abs(mix(1, k, 1) - k) < 1e-12, 'open: the resting band'); }

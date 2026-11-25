@@ -13,6 +13,7 @@ import { specOf } from '../src/scene/procedures/copied/proc-anim.js';
 import '../src/scene/procedures/instrument-specs.ts';
 import { readFrame } from '../src/ui/tests/slide/reads.ts';
 import { setSlidePin } from '../src/ui/tests/slide/pin.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const NI: Record<string, number> = Object.fromEntries((NODES as { id: string }[]).map((n, i) => [n.id, i]));
 
@@ -65,7 +66,7 @@ test('a reading frame is the same object while the frame and the pin are the sam
 
 test('the lobule and the procedures are fed the shown pressures and flows, never the instant\'s', () => {
   const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
-  for (const p of ['src/scene/scene.ts', 'src/ui/action/read.ts']) assert.ok(!/lobuleModel\(\{ P: f\.P\b/.test(read(p)), `${p} feeds the lobule the instant's pressures`);
+  for (const [p, text] of [['src/scene (scene.ts and its parts)', sceneSource()], ['src/ui/action/read.ts', read('src/ui/action/read.ts')]]) assert.ok(!/lobuleModel\(\{ P: f\.P\b/.test(text), `${p} feeds the lobule the instant's pressures`);
   assert.ok(/readFrame\(latest\.frame\)/.test(read('src/ui/tests/endo/eus-run.ts')) && /readFrame\(latest\.frame\)/.test(read('src/ui/tests/ir/run.ts')) && /readFrame\(live0/.test(read('src/scene/labels/proc-cards.ts')));
   assert.ok(/readFrame\(latest\.frame\)/.test(read('src/ui/tests/ir/ir-shims.js')) && /readFrame\(latest\.frame\)\?\.P/.test(read('src/ui/tests/endo/eus-source.ts')));
 });

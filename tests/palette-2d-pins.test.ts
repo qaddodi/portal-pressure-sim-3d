@@ -10,6 +10,7 @@ import { CelScene } from '../src/scene/scene.ts';
 import { ASCITES_INK, AscitesLayer, DEEP_AT, POOL_ROWS, ROW_DEPTHS, SURFACE_SHARE, fluidTone } from '../src/scene/disease/ascites.ts';
 import { CASING, CASING_2D, RIM_A, RIM_INK } from '../src/scene/vessels/cel-ink.ts';
 import { CEL_STYLE } from '../src/scene/cel-style.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const css = readFileSync(new URL('../src/ui/styles/tokens.css', import.meta.url), 'utf8');
 /** The text of every block whose header line is `header {`. */
@@ -62,7 +63,7 @@ test('the scene clears to the page\'s ground into the pass\'s texture and to the
     s.clearColor(false).getRGB(o, SRGBColorSpace);
     assert.deepEqual([o.r, o.g, o.b].map((v) => Math.round(v * 255)), want, `${id}: on the canvas`);
   }
-  const src = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const src = sceneSource();
   assert.match(src, /gl\.setClearColor\(this\.clearColor\(this\.post\.on\)\)/, 'the frame asks for the ground that goes where the figure is drawn');
 });
 

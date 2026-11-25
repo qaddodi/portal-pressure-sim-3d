@@ -6,6 +6,7 @@ import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { coursesOf, REST } from '../src/scene/vessels/shape.ts';
 import { fanCaps, fanLensRanges } from '../src/scene/vessels/feeder-fan.ts';
 import { buildTubes } from '../src/scene/vessels/tubes.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const fanV = NETWORK_BY_ID.get('C3~F:caput')!;
 const fan = coursesOf(fanV, REST);
@@ -115,7 +116,7 @@ test('the caput fan is drawn over every other vessel (a depth offset, nothing mo
     for (const c of coursesOf(v, { ...REST, live: 1 })) for (const p of c.pts) for (const f of fan) for (const q of f.pts) if (Math.hypot(p[0] - q[0], p[1] - q[1]) < c.radius + f.radius && p[2] > q[2] - 0.2 * FAN_FRONT) tie++;
   }
   assert.ok(tie > 0, 'there are crossings that tie in depth');
-  assert.match(readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8'), /def\.id === CAPUT_FAN_ID\) o\.setFrontDepth\(FAN_FRONT\)/);
+  assert.match(sceneSource(), /def\.id === CAPUT_FAN_ID\) o\.setFrontDepth\(FAN_FRONT\)/);
   assert.match(readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8'), /c\.z -= frontDepth \* \(-projectionMatrix\[3\]\[2\]\) \/ c\.w;/);
   const { Landmarks } = await import('../src/scene/disease/landmarks.ts');
   const l = new Landmarks();

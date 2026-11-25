@@ -4,9 +4,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('a frame that arrives while the camera flies is laid at once in the micro views', () => {
-  const src = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const src = sceneSource();
   assert.match(src, /if \(this\.figureView !== 'body'\) this\.feedViews\(this\.rig\.isMoving\);/);
   assert.doesNotMatch(src, /this\.feedViews\(false\)/);
 });

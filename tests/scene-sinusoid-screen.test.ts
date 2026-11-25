@@ -7,6 +7,7 @@ import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { endsFor, measureScreen } from '../src/scene/sinusoid/portrait.ts';
 import { FACE_UM, legendOn } from '../src/scene/sinusoid/legend.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const run = (v: SinusoidView, ms: number) => { for (let t = 0; t <= ms; t += 16) v.update(t); };
 
@@ -49,7 +50,7 @@ test('the traffic runs over the stretch really on screen: centred where the scre
 });
 
 test('the scene measures the camera\'s own picture for the view (not the rest-scale model) while the sinusoid is up', () => {
-  const src = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const src = sceneSource();
   assert.match(src, /measureScreen\(o, a, this\.rig\.roomCentre\(\)\)/);
   assert.match(src, /if \(!this\.sinus\.isVisible\) return;/);
 });

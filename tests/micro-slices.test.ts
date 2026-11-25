@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import type { Object3D } from 'three';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const { CelScene } = await import('../src/scene/scene.ts');
 const { Sinusoid3D } = await import('../src/scene/micro3d/sinusoid3d.ts');
@@ -83,7 +84,7 @@ test('MeshBuilder.buildSteps is build(): same attributes, same index, and the me
 });
 
 test('the scene constructs the sinusoid and the lobule in steps of their own, and the build is driven by the steps, not by one call', () => {
-  const scene = readFileSync('src/scene/scene.ts', 'utf8');
+  const scene = sceneSource();
   assert.match(scene, /if \(!this\.microSinus\) this\.makeSinus\(\); else this\.buildMicro\(\);/);
   const lobule = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8'), sinusoid = readFileSync('src/scene/micro3d/sinusoid3d.ts', 'utf8');
   assert.doesNotMatch(lobule.slice(lobule.indexOf('private *vesselSteps()')), /\n\s+yield;\n/, 'a bare yield in the vessels\' steps is a step of unknown size: yield through the pace');

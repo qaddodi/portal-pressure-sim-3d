@@ -134,7 +134,7 @@ test('the outline is continuous by construction: painted in the tube\'s own frag
   assert.deepEqual(canvasBuffers('fxaa', false), { depth: false, stencil: false });
   assert.equal(canvasBuffers('off', false).stencil, true, 'a figure drawn straight to the canvas needs the stencil');
   assert.equal(canvasBuffers('fxaa', true).stencil, true, 'the inspector may switch the pass off live');
-  assert.match(read('../src/scene/scene.ts'), /gl\.clearDepth\(\); gl\.clearStencil\(\)/);
+  assert.match(sceneSource(), /gl\.clearDepth\(\); gl\.clearStencil\(\)/);
   const s = new CelScene();
   s.dispose();
 });
@@ -167,6 +167,7 @@ test('nothing inside the tube but the two tones and the flow heads: no highlight
 
 // ---- saturated, deep, hue-kept: the vessels are never pale or washed out ----
 import { celTubeBase, celTubeColor } from '../src/scene/vessels/cel-ink.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 const hueOf = (c: readonly number[]) => { const [r, g, b] = c as [number, number, number], mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn || 1e-9; const h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return (h * 60 + 360) % 360; };
 const chroma = (c: readonly number[]) => Math.max(...c) - Math.min(...c);
 const lumA = (c: readonly number[]) => 0.299 * c[0]! + 0.587 * c[1]! + 0.114 * c[2]!;

@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { isLate } from '../scripts/pwa.mjs';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const src = (f: string) => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
 
@@ -17,7 +18,7 @@ test('the boot waits for the Anatomy file only: baked.ts load() never fetches th
 });
 
 test('the scene builds the Circuit\'s skins only once the file is in, asks for it after the first picture, and at once when the Circuit opens', () => {
-  const scene = src('scene/scene.ts');
+  const scene = sceneSource();
   assert.match(scene, /if \(!bakedCircuitPending\(\)\) this\.circuitSkins\.build\(\)/, 'nothing is meshed live while the file is on its way');
   assert.match(scene, /setView[\s\S]{0,2500}v === 'circuit' && bakedCircuitPending\(\)\) \{[^}]*fetchCircuitSkins\(\)/);
   assert.match(src('scene/Stage.tsx'), /cel\.startCircuitSkins\(\)/);

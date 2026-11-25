@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { T } from '../src/scene/procedures/copied/hvpg-clock.js';
 import { readTaken, FREE_T, targetT } from '../src/ui/deck/cath-clock.ts';
 import { STEP_T } from '../src/ui/talk/hvpg-plan.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('the free reading is taken at the tracing card\'s own time, and not when the tip arrives', () => {
   assert.equal(FREE_T, STEP_T.free);
@@ -17,7 +18,7 @@ test('the free reading is taken at the tracing card\'s own time, and not when th
 });
 
 test('the figure\'s callouts ask for it: the catheter reads as not there to the labels until the reading is taken', () => {
-  const layer = readFileSync('src/scene/labels/LabelLayer.tsx', 'utf8'), link = readFileSync('src/ui/deck/scene-link.ts', 'utf8'), scene = readFileSync('src/scene/scene.ts', 'utf8');
+  const layer = readFileSync('src/scene/labels/LabelLayer.tsx', 'utf8'), link = readFileSync('src/ui/deck/scene-link.ts', 'utf8'), scene = sceneSource();
   assert.match(layer, /if \(!cel\.catheterRead\) return 0;/);
   assert.match(link, /read: rd/);
   assert.match(scene, /this\.catheterRead = s\.read \?\? true;/);

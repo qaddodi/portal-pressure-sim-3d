@@ -9,6 +9,7 @@ import { organsReady, setOrganData } from '../src/scene/organs/meshes.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { GUT_GROUP, GUT_RENDER, ORGAN_ORDER } from '../src/scene/organs/layer.ts';
 import { POOL_ORDER } from '../src/scene/disease/ascites.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
@@ -45,7 +46,7 @@ test('only the colon and the bowel fills mark and test the gut stencil bit; no o
 });
 
 test('the gut stencil is cleared with the depth each frame and is not the vessels\' bit', () => {
-  const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const scene = sceneSource();
   assert.match(scene, /gl\.clearDepth\(\); gl\.clearStencil\(\)/);
   assert.match(readFileSync(new URL('../src/scene/materials/cel.ts', import.meta.url), 'utf8'), /stencilRef = 1/);
 });

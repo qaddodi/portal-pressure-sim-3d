@@ -26,6 +26,7 @@ import { MAP_DROPPED } from '../src/scene/circuit/map-sewn.ts';
 import { circuitWidthMap } from '../src/scene/circuit/width.ts';
 import { TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
 import { GROW_REACH, SKIN_REACH } from '../src/scene/vessels/skin/inventory.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const text = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
 
@@ -369,7 +370,7 @@ test('the shaders: the tube has a second cut that takes effect over the END of t
 });
 
 test('the scene builds them with the Anatomy\'s, writes the map\'s mates without the skinned ends, turns and shows them with the change, and the build bakes their file', () => {
-  const scene = text('../src/scene/scene.ts');
+  const scene = sceneSource();
   assert.match(scene, /this\.circuitSkins \?\?= new CircuitSkinSet\(/);
   assert.match(scene, /new SkinObject\(skin, arms\[0\]!, axes, arms, true\)/);
   assert.match(scene, /this\.circuitSkins\?\.endsOf\(def\.id\)/, 'applyMates writes the map mates without the skinned ends');

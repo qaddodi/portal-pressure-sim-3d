@@ -59,15 +59,15 @@
   },
   "particles": {
    "reach": "per-frame+invalidate",
-   "file": "src/scene/scene.ts"
+   "file": "src/scene/parts/build.ts"
   },
   "fluidSurface": {
    "reach": "per-frame+invalidate",
-   "file": "src/scene/scene.ts"
+   "file": "src/scene/parts/build.ts"
   },
   "deviceShadow": {
    "reach": "ease",
-   "file": "src/scene/scene.ts"
+   "file": "src/scene/parts/build.ts"
   }
  },
  "messages": {

@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { sceneSource } from './helpers/scene-source.ts';
 
 interface FakeEl { tag: string; className: string; children: FakeEl[]; text: string; attrs: Record<string, string>; removed: boolean; classList: { add(c: string): void; remove(c: string): void; has(c: string): boolean }; append(...n: FakeEl[]): void; setAttribute(k: string, v: string): void; remove(): void; textContent: string }
 const mk = (tag: string): FakeEl => {
@@ -41,9 +42,9 @@ test('a cue inside a host sits in the host; the default wait is 300 ms', async (
 });
 
 test('every held path calls the one helper: a held dive (scene.ts), a pane whose code has not arrived (LazyBoundary); the cue\'s CSS is calm and over the figure, not a blank', () => {
-  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /private hold\([\s\S]{0,200}\): void \{[\s\S]{0,300}waitCue\(/, 'the dive held for its parts');
-  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /this\.hold\(\{ shot, room, ms, ease \}\)/);
-  assert.equal((readFileSync('src/scene/scene.ts', 'utf8').match(/this\.heldDive = /g) ?? []).length, 1, 'the held dive is set or cleared in one place only: the helper');
+  assert.match(sceneSource(), /\n  hold\([\s\S]{0,200}\): void \{[\s\S]{0,300}waitCue\(/, 'the dive held for its parts');
+  assert.match(sceneSource(), /this\.hold\(\{ shot, room, ms, ease \}\)/);
+  assert.equal((sceneSource().match(/this\.heldDive = /g) ?? []).length, 1, 'the held dive is set or cleared in one place only: the helper');
   const lazy = readFileSync('src/ui/shell/LazyBoundary.tsx', 'utf8');
   assert.match(lazy, /waitCue\('this part', \{ host: ref\.current, after: 400 \}\)/);
   const css = readFileSync('src/ui/shell/shell.css', 'utf8');

@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { Vector2, Vector4 } from 'three';
 import { DOF_BAND_FRAC, DOF_DIVE_PEAK, PostDof, diveBlur } from '../src/scene/post-dof.ts';
 import { DIVE_IN, DIVE_OUT } from '../src/scene/scene.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const rest = 0.009, gone = Math.max(DIVE_IN, 2 * rest);
 
@@ -48,6 +49,6 @@ test('the pass is the focus band\'s, fully eased out: the same circle at every p
 });
 
 test('the scene asks for it in the dive, never in Circuit, and leaves the pass to the sinusoid\'s own focus pull when that is drawn', () => {
-  const src = readFileSync('src/scene/scene.ts', 'utf8');
+  const src = sceneSource();
   assert.match(src, /if \(!band && into && this\.figureView !== 'circuit' && this\.inDive\(\)\) band = this\.post\.dof\.uniformFrame\(into\.height, diveBlur\(cam\.position\.distanceTo\(this\.livePoint\), this\.lobuleRest\(\), this\.diveIn\(\), DIVE_OUT\)\) > 0;/);
 });

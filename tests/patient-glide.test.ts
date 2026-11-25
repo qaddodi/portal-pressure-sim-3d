@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { VesselData, EDGE_COUNT, PATIENT_EASE_MS } from '../src/engine/vessel-data.ts';
 import { useSwitching, switchBegins, switchLands, switchEnds, SWITCH_WINDOW_MS } from '../src/ui/patients/switching.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const frame = (p: number, q: number, d: number, jump: boolean) => ({ Pf: new Float32Array(64).fill(p), Qf: new Float32Array(EDGE_COUNT).fill(q), D: new Float32Array(EDGE_COUNT).fill(d), jump }) as never;
 
@@ -37,7 +38,7 @@ test('the switching window opens at the load and closes a moment after it lands'
 });
 
 test('the wiring: the lens colours, stents, bands and tamponade ease on a jump; the tiles roll while a patient is switching', () => {
-  const sc = readFileSync('src/scene/scene.ts', 'utf8');
+  const sc = sceneSource();
   assert.match(sc, /lens\.onFrame\(f, !!f\?\.jump && this\.sawFrame/);
   assert.ok(!/f\.jump \|\| !this\.sawFrame/.test(sc), 'no stent, band or tamponade snaps on a jump');
   assert.match(readFileSync('src/scene/lenses/field.ts', 'utf8'), /onFrame\(frame: FrameLike \| null, jump = false/);

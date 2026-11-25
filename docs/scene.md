@@ -33,7 +33,8 @@ The rig tweens every field straight from the current pose to the next (no fit wa
 | `catheter.ts` | HVPG route and balloon from `{advance, balloon}` |
 | `gesture/` | the figure's hands, ported from the 2D app (`stage-gestures.js`): `view.ts` limits and rubber band, `ease.ts` glide curves, `flick.ts`, `wheel-glide.ts`, `frame-queue.ts` (every glide asks the clock for a frame, never rAF), `controller.ts` events |
 | `camera/tilt.ts`, `tilt-input.ts` | the gentle tilt (Settings > Figure depth > Tilt): pure core (target, easing, clamp, locks) and the pointer / device-orientation listeners |
-| `scene.ts` | assembles it; `update(now)` returns true while anything moves |
+| `scene.ts` | assembles it: the scene's state and construction; `update(now)` (in `parts/frame.ts`) returns true while anything moves |
+| `parts/` | `CelScene`'s methods, one file per frame system (`camera`, `circuit`, `dive`, `views`, `flow`, `micro`, `skins`, `vessels`, `look`, `disease`, `procedures`, `pick`, `frame`, `inspect`, `render`, `build`) and `shared.ts` (its constants and helpers). Each part is an object of methods whose `this` is the scene, mixed into the class's prototype (`parts/define.ts`); the state stays in `scene.ts`, so it is not `private`. A new method goes in the part of its frame system, not in `scene.ts` (no line over 200 characters: lint rule `long-line`). |
 
 Colour: the cel shaders do their banding in sRGB space (the spec's factors are written that way) and write their output as is, so a flat area is
 exactly the token hex. The body plate and the clear colour go through three's own colour management and land on the same hex. (The first mocks

@@ -7,6 +7,7 @@ import { CelScene } from '../src/scene/scene.ts';
 import { CUSTOM_EDGES } from '../src/scene/circuit/data.copied.ts';
 import { GLOW_LAYER } from '../src/scene/glow.ts';
 import { VESSEL_LAYER } from '../src/scene/layers.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const [ID] = CUSTOM_EDGES[0]!, [ID2] = CUSTOM_EDGES[5]!;
 const ctx = (open: Record<string, number>) => ({ ramp: 0, t: 0, body: 1, drawn: () => true, caudPin: false, open });
@@ -91,7 +92,7 @@ test('the finger\'s reach covers the custom shunts, on the body and on the map',
   assert.equal(c!.id, ID);
   assert.ok(c!.map && c!.map.length > 4, 'its routed course on the map');
   assert.ok(c!.body && c!.body.pts.length > 4 && c!.body.radius > 0, 'its own course on the body (when the plate draws one)');
-  const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const scene = sceneSource();
   assert.match(scene, /\[\.\.\.this\.vessels, \.\.\.this\.tubes\.pickable\(\)\]/, 'the ray looks at the custom tubes too');
   assert.match(scene, /for \(const c of this\.tubes\.pickCourses\(\)\) if \(c\.map\) along/, 'and so does the map\'s pick');
   s.dispose();

@@ -7,6 +7,7 @@ import { FIELD_HALF, LOBULE_FIELD_FS, fieldWide } from '../src/scene/lobule/fiel
 import { DIVE_OUT } from '../src/scene/scene.ts';
 import { LOBULE_SCALE } from '../src/scene/lobule/frames.ts';
 import { LOBULE_R } from '../src/scene/lobule/shots.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('the field reaches every edge from afar and narrows onto the lobule as the camera lands, monotonically, the same both ways', () => {
   const rest = 0.01;
@@ -27,7 +28,7 @@ test('the field is big enough to cover the screen from where the body begins to 
 });
 
 test('the scene drives the field\'s breadth from the camera\'s distance, and the 3D lobule\'s detail comes in as the field narrows onto it', () => {
-  const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const scene = sceneSource();
   assert.match(scene, /this\.lobule\.field\.setWide\(fieldWide\(d, this\.lobuleRest\(\)\)\)/);
   const l3 = readFileSync(new URL('../src/scene/micro3d/lobule3d.ts', import.meta.url), 'utf8');
   assert.match(l3, /const come = lobuleStays\(f\.field\.wideNow, body\);/);

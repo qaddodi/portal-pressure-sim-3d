@@ -24,6 +24,7 @@ import { createShared } from '../src/scene/materials/cel.ts';
 import { createLensShared } from '../src/scene/vessels/vessel-object.ts';
 import { createCircuitShared } from '../src/scene/circuit/uniforms.ts';
 import { FOV } from '../src/scene/camera/shots.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const text = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
 const trees = Object.entries(CIRCUIT_TREES).flatMap(([lane, list]) => list.map((b, i) => ({ lane, i, id: `${lane}#${i}`, d: b.d, k: b.k })));
@@ -263,7 +264,7 @@ test('the union rule\'s two gates read nbrMap, the vertex stage takes the two tu
   assert.match(VESSEL_VS, /uniform float nbrMap;/);
   assert.match(VESSEL_VS, /if \(nbrMap > 0\.5\) \{\s+float r0 = nbrHostR\(nbrW0\), r1 = nbrHostR\(nbrW1\);/);
   assert.match(VESSEL_VS, /hw\.w \* circPerPx\) \* CIRC_MAPK/, 'circSwell\'s own rule');
-  const sceneSrc = text('../src/scene/scene.ts'), objSrc = text('../src/scene/vessels/vessel-object.ts');
+  const sceneSrc = sceneSource(), objSrc = text('../src/scene/vessels/vessel-object.ts');
   assert.doesNotMatch(sceneSrc, /setNbrMap/, 'a network vessel never turns it on');
   assert.match(objSrc, /nbrMap: \{ value: 0 \}/, 'every vessel starts with it off');
   // the vessel program stays at its pinned 16 attributes: no attribute is added (the two distances ride in nbr.x and nbr.y)

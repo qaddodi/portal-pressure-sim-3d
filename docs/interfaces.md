@@ -6,7 +6,7 @@ Integration branch: `claude/project-thread-ge1swr` (publishes the site). Work on
 | Folder | Owner | Notes |
 |---|---|---|
 | `AGENTS.md`, `CLAUDE.md`, `package.json`, `index.html`, `vite.config.ts`, `src/main.tsx`, `src/App.tsx`, `src/boot/`, `src/looks/`, `src/state/`, `src/clock/`, `src/engine/`, `src/ui/perf/`, `scripts/`, `.github/` | Foundation | |
-| `src/scene/` (Stage, materials, anatomy, camera, catheter, highlight, labels) | Scene | `src/scene/Stage.tsx` mounts the one R3F canvas; the figure is `src/scene/scene.ts` (`CelScene`), driven through `sceneApi` / `cel` in `src/scene/api.ts` |
+| `src/scene/` (Stage, materials, anatomy, camera, catheter, highlight, labels) | Scene | `src/scene/Stage.tsx` mounts the one R3F canvas; the figure is `src/scene/scene.ts` (`CelScene`: its state, with its methods in `src/scene/parts/`, one file per frame system), driven through `sceneApi` / `cel` in `src/scene/api.ts` |
 | `src/ui/cards/`, `src/ui/wallet/`, `src/ui/shell/`, `src/ui/settings/` | Cards | the chrome: `ui/shell/Shell.tsx` (bars, menus, sheets) and `ui/shell/global.css` |
 | `src/decks/`, `src/ui/deck/`, `scripts/copy-decks.mjs` | Deck | |
 

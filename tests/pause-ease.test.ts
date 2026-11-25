@@ -15,12 +15,13 @@ import { live } from '../src/engine/store.ts';
 import { togglePlay } from '../src/ui/shell/transport.ts';
 import { createCore } from '../src/engine/hales/host/worker-core.js';
 import type { WorkerLike } from '../src/engine/client.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const src = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url), 'utf8');
 const FRAME = 1 / 60;
 
 test('one shared rate, exported from one module, is what the scene steps and every site reads', () => {
-  const fr = src('scene/flow-rate.ts'), sc = src('scene/scene.ts');
+  const fr = src('scene/flow-rate.ts'), sc = sceneSource();
   assert.match(fr, /export const flowRate = new FlowRate\(\)/);
   assert.match(sc, /this\.flowRate = this\.twin \? new FlowRate\(\) : flowRate;/, 'the page\'s scene steps the shared instance; only a split-orbit twin has a copy of its own');
   assert.equal((sc.match(/new FlowRate\(/g) ?? []).length, 1);

@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { bodyFade, DIVE_IN, DIVE_OUT } from '../src/scene/scene.ts';
 import { fieldWide } from '../src/scene/lobule/field.ts';
 import { lobuleStays } from '../src/scene/micro3d/lobule3d.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('along the whole dive the lobule and the body together cover the picture (never less than 1)', () => {
   for (const rest of [DIVE_IN * 3, DIVE_IN * 6, 0.2]) {
@@ -29,6 +30,6 @@ test('at the lobule and in the body nothing changes, and the scene hands the bod
   assert.equal(lobuleStays(0, 0.2), 1);
   assert.equal(lobuleStays(1, 1), 0);
   assert.equal(lobuleStays(0.4, 0), 1);
-  const sc = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const sc = sceneSource();
   assert.match(sc, /this\.lobule3d\.update\(this\.micro3d, under, now, this\.flowRate\.value, false, this\.fadeNow\)/);
 });

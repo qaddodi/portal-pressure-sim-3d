@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULTS, DEPTH_DEFAULTS, DEPTH_KEYS, FIGURE_SETTINGS_VERSION as V, parseSettings } from '../src/state/settings.ts';
 import { DEPTH_ROWS } from '../src/ui/settings/depth-rows.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 test('the Figure depth switches: on by default, except Free tilt (the blood streaks are on: a play-test with the switch off saw none)', () => {
   assert.deepEqual([...DEPTH_KEYS], ['organDepth', 'tilt', 'dof', 'particles', 'fluidSurface', 'deviceShadow']);
@@ -33,8 +34,8 @@ test('the lobule and the sinusoid are always 3D: no switch, no row, and a saved 
   assert.ok(!DEPTH_ROWS.some((r) => (r.key as string) === 'micro3d'));
   assert.ok(!('micro3d' in parseSettings(`{"micro3d":false,"figureV":${V}}`)));
   const { readFileSync } = await import('node:fs');
-  const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
-  assert.match(scene, /private readonly micro3d = true;/);
+  const scene = sceneSource();
+  assert.match(scene, /readonly micro3d = true;/);
   assert.doesNotMatch(scene, /useSettings\.getState\(\)\.micro3d/);
 });
 
@@ -46,8 +47,8 @@ test('smooth vessel joins are always on: no switch, no row, a saved "off" is dro
   assert.equal(kept.tilt, false, 'the other switches are kept');
   const { readFileSync } = await import('node:fs');
   const src = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8');
-  for (const p of ['../src/scene/scene.ts', '../src/scene/micro3d/lobule3d.ts']) assert.doesNotMatch(src(p), /\.smoothJoins\b/, p);
-  assert.match(src('../src/scene/scene.ts'), /setSmoothJoins\(true\);/);
+  for (const [p, text] of [['scene', sceneSource()], ['../src/scene/micro3d/lobule3d.ts', src('../src/scene/micro3d/lobule3d.ts')]]) assert.doesNotMatch(text, /\.smoothJoins\b/, p);
+  assert.match(sceneSource(), /setSmoothJoins\(true\);/);
   const { useSettings } = await import('../src/state/settings.ts');
   assert.ok(!('smoothJoins' in useSettings.getState()));
   assert.ok(!(await import('node:fs')).readFileSync(new URL('../src/state/settings.ts', import.meta.url), 'utf8').includes('smoothJoins: s.smoothJoins'), 'and it is not written back on the next save');

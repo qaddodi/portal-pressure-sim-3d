@@ -9,6 +9,7 @@ import { INK_FS } from '../src/scene/materials/shaders.ts';
 import { ORGAN_MESHES, organsReady, setOrganData } from '../src/scene/organs/meshes.ts';
 import { ringDistance, refineRim, smoothSilhouette } from '../src/scene/organs/contour.ts';
 import { CELS, DEFAULT_CEL } from '../src/scene/organs/liver-texture.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
@@ -64,7 +65,7 @@ test('the soft cirrhosis looks (cel8..cel11): defined, cel15 the default, bands 
 });
 
 test('C: the outline\'s pixel is the drawing buffer\'s (scene.render hands the canvas ratio to the organs), not the screen\'s', () => {
-  const scene = readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8');
+  const scene = sceneSource();
   assert.match(scene, /this\.disease\.organs\.setDpr\(dpr\);/);
   assert.match(readFileSync(new URL('../src/scene/organs/layer.ts', import.meta.url), 'utf8'), /setDpr\(d: number\): void \{ for \(const o of this\.objects\)/);
 });

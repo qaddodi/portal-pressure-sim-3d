@@ -5,6 +5,7 @@ import { Vector3 } from 'three';
 import { CameraRig } from '../src/scene/camera/rig.ts';
 import { effectiveDistance } from '../src/scene/camera/room.ts';
 import { lobuleShot } from '../src/scene/lobule/shots.ts';
+import { sceneSource } from './helpers/scene-source.ts';
 
 // Mohammad 21 Nov (iPhone, Circulation slide 5): tucking the data card up left the lobule small and the whole figure blurred.
 // Root cause, one: the dock's room hint only panned the camera (a room change alone keeps the zoom), so the figure never grew into the room the card left.
@@ -40,7 +41,7 @@ test('a refit room change grows the lobule into the room the tucked card left, a
 
 test('the dock glide refits the camera, and the dive\'s framing distance reads the fitted room, never the room the picture is merely centred in', () => {
   assert.match(readFileSync('src/ui/deck/scene-link.ts', 'utf8'), /frameRoom\(h\.free, h\.ms, easeArrive\)/);
-  const scene = readFileSync('src/scene/scene.ts', 'utf8');
+  const scene = sceneSource();
   assert.match(scene, /lobuleRest\(\): number \{\s*const r = this\.rig\.fitRoom/);
 });
 
