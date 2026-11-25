@@ -71,8 +71,16 @@ export function boxSize(runs: readonly Run[], vp: Vp, measure: Measure, organ = 
   return { w: w + padX * 2, h: h + padY * 2, padX, padY };
 }
 
-/** Where the baseline stands from the top of a label's box (the 2D app writes text at 0.78 of its line). */
-export const baselineAt = (boxH: number, padY: number): number => padY + LS.BASELINE * (boxH - padY * 2);
+/** Where the baseline stands from the top of a label's box (the 2D app writes text at 0.78 of its line). `above` is the height of the line or lines a two-line name stands on top of (nameAbove): the baseline is the last line's. */
+export const baselineAt = (boxH: number, padY: number, above = 0): number => padY + above + LS.BASELINE * (boxH - padY * 2 - above);
+
+/** Names that may take two lines where one line has no room (Mohammad, 25 Nov, "Yes" to the coordinator's question: the right sinusoids' name, 120 px wide with its dot 90 px from the phone's edge, had no place at a closer Zoom fit). The first line
+ *  stands over the second, which carries the reading: "Right" over "sinusoids 7.0". */
+export const TWO_LINES: Readonly<Record<string, string>> = { 'Right sinusoids': 'Right\nsinusoids' };
+/** How high the lines above a name's last line stand at this screen (px): one line of the name at the 2D line height for each. */
+export const nameAbove = (lines: number, vp: Vp): number => Math.max(0, lines - 1) * fontPx(LS.NAME.size, vp) * LS.LINE_H;
+/** The number of lines a form's words are written on. */
+export const linesOf = (word: string): number => (word.match(/\n/g)?.length ?? 0) + 1;
 
 /** The halo's width round a letter, px (the 2D stroke: at least 2, else 3 times the label size). */
 export const haloPx = (): number => Math.max(LS.HALO.min, LS.HALO.perK * LS.LABEL_K);

@@ -123,3 +123,26 @@ test('the 2D label words and type numbers in the copied file are the ones the 3D
   assert.ok(!/\b(11\.5|650|1\.24|0\.78)\b/.test(src.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')), 'type.ts holds no 2D number: all come from LABEL_STYLE');
   assert.equal(LABEL_NAMES.LABEL_STYLE.NAME.size, 11.5);
 });
+
+// ── a name that may take two lines (Mohammad, 25 Nov: the right sinusoids' name, "Yes") ──
+import { TWO_LINES, nameAbove, linesOf } from '../src/scene/labels/type.ts';
+import { stationById } from '../src/scene/labels/stations.ts';
+
+test('a two-line name: a second form with the first line over the last, one name line taller, as wide as its widest line, its baseline the last line\'s; only the names listed have one', () => {
+  const measure = (t: string, size: number) => t.length * size * 0.56;
+  const deps = { now: () => 1000, project: (_p: Vector3, o: { x: number; y: number }) => o, cameraMoving: () => false, free: () => ({ x0: 0, y0: 0, x1: PHONE.w, y1: PHONE.h }), view: () => ({ x0: 0, y0: 0, x1: PHONE.w, y1: PHONE.h }), vp: () => PHONE, reversed: () => false, words: () => null, blockers: () => [], measure, pressure: () => 5, reading: () => null, cathere: () => 0, zoom: () => 1 } as unknown as LabelDeps;
+  const ctl = new LabelController(deps);
+  const s = stationById('SIN_R')!, forms = ctl.stationForms(s);
+  assert.equal(forms[0]!.text, 'Right sinusoids');
+  assert.equal(forms[1]!.text, TWO_LINES['Right sinusoids']);
+  assert.equal(linesOf(forms[1]!.text), 2); assert.equal(linesOf(forms[0]!.text), 1);
+  assert.ok(forms[1]!.w < forms[0]!.w - 20, 'narrower: that is what it is for');
+  assert.ok(Math.abs(forms[1]!.h - forms[0]!.h - nameAbove(2, PHONE)) < 0.02, 'one name line taller');
+  assert.ok(nameAbove(2, PHONE) > 0 && nameAbove(1, PHONE) === 0);
+  const pad = LS.PAD.y, h = forms[1]!.h, above = nameAbove(2, PHONE);
+  assert.ok(Math.abs(baselineAt(h, pad, above) - (pad + above + LS.BASELINE * (h - 2 * pad - above))) < 1e-9);
+  assert.equal(baselineAt(forms[0]!.h, pad), baselineAt(forms[0]!.h, pad, 0), 'a one-line name: as before');
+  for (const st of STATIONS) if (st.kind !== 'organ' && st.name !== 'Right sinusoids') assert.ok(!ctl.stationForms(st).some((f) => f.text.includes('\n')), `${st.id} stays on one line`);
+  const css = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');
+  assert.match(css, /\.lb \.lb-name\[data-above\]::before \{ content: attr\(data-above\)/, 'the stylesheet writes the first line over the name');
+});

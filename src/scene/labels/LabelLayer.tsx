@@ -25,7 +25,7 @@ import { creditClaim } from './credit-claim.ts';
 import { rectToBox, type Box } from './geometry.ts';
 import { labelsProgress, labelsShown } from '../../boot/ready.ts';
 import { LabelController, type Draw, type LabelDeps, GHOST } from './controller.ts';
-import { baselineAt, lookVars, typeVars } from './type.ts';
+import { baselineAt, linesOf, lookVars, nameAbove, typeVars } from './type.ts';
 import { keyVars } from './key-dock.ts';
 import { STATIONS } from './stations.ts';
 import { STENT_STATIONS, decodeGeo, geoPx, geoGapPx, geoLineSize } from './stent-labels.ts';
@@ -350,10 +350,13 @@ function paint(r: Rec, d: Draw, ctl: LabelController): void {
     if (r.geo) writeGeo(r, d.word);
     if (r.name) {
       const word = r.geo ? '' : d.word;   // (the controller's own words for this form; an organ's already stand in capitals; a stent's lines are written in its own box)
-      r.name.textContent = word;   // (an empty name takes no room: labels.css `.lb-name:empty`)
+      // (a two-line name: its last line is the name, the lines over it stand in `data-above`, written by the stylesheet above it; the baseline is the last line's)
+      const cut = word.lastIndexOf('\n');
+      r.name.textContent = cut < 0 ? word : word.slice(cut + 1);   // (an empty name takes no room: labels.css `.lb-name:empty`)
+      if (cut < 0) r.name.removeAttribute('data-above'); else r.name.setAttribute('data-above', word.slice(0, cut));
       el.dataset.form = word ? '0' : '2';   // ('2' is the number alone, whatever index the form has: the solver's third form is the full name with its reading bare, whose gap was zeroed here: "Left portal vein22.4", capture 572259fd)
       if (d.rev) el.setAttribute('data-rev', ''); else el.removeAttribute('data-rev');
-      el.style.setProperty('--b', `${px(baselineAt(d.h, d.pad.y))}px`);
+      el.style.setProperty('--b', `${px(baselineAt(d.h, d.pad.y, nameAbove(linesOf(word), useUi.getState().vp)))}px`);
     }
   }
   if (d.kind === 'station') {

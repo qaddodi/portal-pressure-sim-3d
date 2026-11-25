@@ -27,6 +27,9 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 /* a label's old look, crossing over to its new one (roll.ts restyle): drawn, never hit */
 .lb-was { pointer-events: none; }
 .lb .lb-name { min-width: 0; flex: none; font-size: var(--lb-f-name); font-weight: var(--lb-w-name); color: var(--lb-name); }
+/* (a two-line name: the first line stands over the last, which is the name beside the reading; one line of the name's size at the 2D line height, 1.24, up) */
+.lb .lb-name[data-above] { position: relative; }
+.lb .lb-name[data-above]::before { content: attr(data-above); position: absolute; left: 0; bottom: calc(100% + 0.24em); white-space: nowrap; line-height: 1; }
 .lb .lb-val { margin-left: var(--lb-g-val); position: relative; display: inline-block; font-size: var(--lb-f-val); font-weight: var(--lb-w-val); color: var(--lb-val); }
 .lb[data-form="2"] .lb-val { margin-left: 0; }
 .lb.cc-zone .lb-val:empty { display: none; }   /* (a zone's reading is the oxygen lens's alone: with no reading it takes no room) */

@@ -50,7 +50,7 @@ test('the rig keeps a shot\'s fill and keep points when it lands (a copy that dr
   assert.equal(rig.pose.shot.fill, 0.97);
 });
 
-test('free play on the real rooms: the organs\' silhouette stands centred up and down (gaps equal) and across (within 1 % of the room\'s width), with 5.5 % (a phone) or 4 % (an iPad, a Mac) or less of the room\'s height empty at each end; measured on the organs, not the vessels', () => {
+test('free play on the real rooms: the organs\' silhouette stands centred up and down (gaps equal) and across (within 1 % of the room\'s width), with 3.5 % or less of the room\'s height empty at each end; measured on the organs, not the vessels', () => {
   const organs = VISIBLE_FIGURE_NAMES.map((n) => placedBoxOfName(n)!);
   const x0 = Math.min(...organs.map((b) => b[0])), x1 = Math.max(...organs.map((b) => b[3])), y0 = Math.min(...organs.map((b) => b[1])), y1 = Math.max(...organs.map((b) => b[4]));
   const screens = [
@@ -65,7 +65,7 @@ test('free play on the real rooms: the organs\' silhouette stands centred up and
     const left = X(x0) - room.x, right = room.x + room.w - X(x1), top = Y(y1) - room.y, bottom = room.y + room.h - Y(y0);
     assert.ok(Math.abs(top - bottom) < 1, `${name}: ${top.toFixed(1)} above, ${bottom.toFixed(1)} below`);
     assert.ok(Math.abs(left - right) <= room.w * 0.01, `${name}: ${left.toFixed(1)} left, ${right.toFixed(1)} right`);
-    const most = vp.w < 720 ? 0.055 : 0.04;   // (a phone fills 0.90, an iPad and a Mac 0.94: shots.ts)
+    const most = 0.035;   // (WHOLE_FILL 0.96 and a margin of 0.01: shots.ts)
     assert.ok(top <= room.h * most && bottom <= room.h * most, `${name}: ${top.toFixed(1)} above, ${bottom.toFixed(1)} below, of ${room.h.toFixed(0)}`);
     console.log(`# ${name}: room ${room.w} x ${room.h.toFixed(0)}; organs: left ${left.toFixed(0)}, right ${right.toFixed(0)}, top ${top.toFixed(0)}, bottom ${bottom.toFixed(0)} px`);
   }

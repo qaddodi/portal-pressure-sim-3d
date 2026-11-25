@@ -19,7 +19,7 @@ import { STATIONS, ORGAN_FRONT, figureCourses, type Station } from './stations.t
 import { silhouettes, onOtherOrgan, shareOnOther, spotOffsets, type Silhouettes, type To2Screen } from './organ-screen.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
-import { LS, boxSize, organRun, stationRuns, type Say } from './type.ts';
+import { LS, TWO_LINES, boxSize, nameAbove, nameRun, organRun, stationRuns, type Say } from './type.ts';
 import { dockKey, type Dock } from './key-dock.ts';
 import { setKeyRoom } from './probe-boxes.ts';
 import { RoomFade } from './ride.ts';
@@ -443,6 +443,12 @@ export class LabelController {
     else {
       const has = this.hasNumber(s);
       forms.push(form(s.name, stationRuns(s.name, has, reversed, '00.0', say)));
+      // (a name that may take two lines: the words' first line over the last, which carries the reading; as wide as the wider of the first line and the last with its reading, and one line taller)
+      const two = TWO_LINES[s.name];
+      if (two) {
+        const [top, last] = two.split('\n') as [string, string], f = form(two, stationRuns(last!, has, reversed, '00.0', say)), w1 = boxSize([nameRun(top!)], vp, d.measure).w;
+        f.w = Math.max(f.w, Math.ceil(w1 * 100) / 100); f.h = Math.ceil((f.h + nameAbove(2, vp)) * 100) / 100; forms.push(f);
+      }
       if (s.abbr && s.abbr !== s.name) forms.push(form(s.abbr, stationRuns(s.abbr, has, reversed, '00.0', say)));
       // (never the number alone: a reading with no name beside it says nothing, "5.0" floating in the liver. A name that has no room as its short form is left out, as the 2D app's solver does when none fits; Mohammad's play-test, 20 Nov)
       // (2D shortenItem: where a label has no room, the unit and the badge go first and the number stays: "Azygos 6.7". Forms here are wider first, so the same steps follow each other.)

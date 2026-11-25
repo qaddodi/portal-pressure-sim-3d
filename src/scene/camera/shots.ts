@@ -90,11 +90,11 @@ export function viewReach(b: Box3, s: Pick<Shot, 'yaw' | 'pitch' | 'target'>): [
 }
 /** The room kept round a placed subject inside a shot's half extents, scene units (about 1 cm of body). */
 export const SHOT_MARGIN = 0.04;
-/** The whole figure's share of the free room and the margin kept round it (Mohammad, 25 Nov: "Zoom fit: decrease the upper and lower margin ... so it's more zoomed"; then "it doesn't look centered"; then, on an iPad and a Mac, "bottom needs to have less margin").
- *  The margin is 0.01 (a part keeps SHOT_MARGIN 0.04). Free play (the Fit button's frame) fills WHOLE_FILL 0.94 of the room. On a phone (a stage under NARROW_STAGE) it fills WHOLE_FILL_PHONE 0.90, the most its names allow: from 0.91 on the right
- *  sinusoids' name finds no place on a 393 pt phone whatever point of its vessel its dot rests at (its dot stands about 90 px from the left edge and the name is 120 px wide; tests/labels-give-way.test.ts), so more needs that name to take a second line.
- *  A talk's overview has its stations held by `keep` and fills DECK_WHOLE_FILL 0.94. */
-export const WHOLE_FILL = 0.94, WHOLE_FILL_PHONE = 0.90, DECK_WHOLE_FILL = 0.94, WHOLE_MARGIN = 0.01;
+/** The whole figure's share of the free room and the margin kept round it (Mohammad, 25 Nov: "Zoom fit: decrease the upper and lower margin ... so it's more zoomed"; then "it doesn't look centered"; then "bottom needs to have less margin").
+ *  The margin is 0.01 (a part keeps SHOT_MARGIN 0.04). Free play (the Fit button's frame) and a talk's overview fill WHOLE_FILL 0.96 of the room. The limit on a 393 pt phone is its names: at 0.98 the right hepatic vein and the left sinusoids' names find no
+ *  place in the wide type (tests/labels-give-way.test.ts); the right sinusoids' name takes a second line where one has no room (type.ts TWO_LINES). */
+export const WHOLE_FILL = 0.96, WHOLE_MARGIN = 0.01;
+export const DECK_WHOLE_FILL = WHOLE_FILL;
 /** A shot carried onto the placed anatomy: the same turn, tilt and nearest distance; the target moved as its subject's middle moved, at the subject's depth; the half extents the shot's own,
  *  grown only where the placed subject would reach past them. */
 export function placedShot(s: Shot, names: readonly string[], margin = SHOT_MARGIN): Shot {
@@ -114,8 +114,7 @@ function wholeFigureShot(s: Shot, names: readonly string[]): Shot {
   const c = centreOf(now);
   // (the figure's own middle, across and up and down: not the 2D plate's aim, which stood 12.5 pt right of it and 0.125 units too high)
   const target: Vec3 = [c[0], c[1], c[2]], reach = viewReach(now, { ...s, target });
-  const half: [number, number] = [reach[0] + WHOLE_MARGIN, reach[1] + WHOLE_MARGIN], k = WHOLE_FILL / WHOLE_FILL_PHONE;
-  return { ...s, target, half, halfNarrow: [half[0] * k, half[1] * k], fill: WHOLE_FILL };
+  return { ...s, target, half: [reach[0] + WHOLE_MARGIN, reach[1] + WHOLE_MARGIN], fill: WHOLE_FILL };
 }
 export const SHOTS: Readonly<Record<ShotName, Shot>> = Object.fromEntries(Object.entries(TODAY_SHOTS).map(([k, s]) => [k, k === 'play' ? wholeFigureShot(s, SHOT_SUBJECTS.play) : placedShot(s, SHOT_SUBJECTS[k as ShotName])])) as Record<ShotName, Shot>;
 /** The whole figure as the organ veil measures zoom from (rig.zoomOverWhole, organ-veil/config.ts: whole at the whole framing, gone at twice as close, Mohammad's curves): the framing free play had before Zoom fit was tightened (the vessels' box, 0.04 of margin,

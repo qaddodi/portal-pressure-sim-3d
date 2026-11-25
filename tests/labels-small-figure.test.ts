@@ -100,6 +100,7 @@ test('with every drawn vessel known to the solver the phone\'s names cross fewer
 
 // ── a label's words are the words of the form it stands in ──
 import { stationById, STATIONS } from '../src/scene/labels/stations.ts';
+import { TWO_LINES } from '../src/scene/labels/type.ts';
 
 test('a label draws the words of its own form: a station with no abbreviation never has its full name drawn over its number alone ("P16.6nusoids", "IV4.9")', () => {
   const room = roomWith(freeRoom(phone, layoutClass(true)), null);
@@ -120,7 +121,7 @@ test('a label draws the words of its own form: a station with no abbreviation ne
   const lone = STATIONS.filter((s) => s.kind !== 'organ' && !s.abbr && s.node);
   assert.ok(lone.length > 0);
   for (const s of STATIONS) for (const f of ctl.stationForms(s)) assert.ok(f.text !== '', `${s.id} has a bare-number form`);
-  for (const s of lone) assert.equal(ctl.stationForms(s).length, 1, s.id);
+  for (const s of lone) assert.equal(ctl.stationForms(s).length, TWO_LINES[s.name] ? 2 : 1, `${s.id}: one form, and a second only for a name that may take two lines`);
   // "Lower IVC" stays "Lower IVC": its 2D short form is another station's name
   assert.equal(stationById('IVCI')!.abbr, null);
   assert.equal(stationById('IVCS')!.name, 'IVC');
