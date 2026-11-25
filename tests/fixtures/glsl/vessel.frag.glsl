@@ -914,6 +914,29 @@ vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode
   col = mix(col, pal[0], 1.0 - smoothstep(c.x - w, c.x + w, f));
   return vec4(col, 1.0);
 }
+// the lens colour a flow HEAD is judged by (its tone, one per head): a lane lens runs its lanes across the vessel and a head spans several, so the pixel's own lane would turn one head cream on one lane and dark on the next,
+// a head cut in two, its tip black on a teal lane (Mohammad, 24 Nov: chevrons hiding behind joints). The head is judged by the lane at the vessel's middle, where it stands. A ramp lens has no lanes: the pixel's own colour, as ever.
+vec4 lensHeadAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], vec4 pixelLens) {
+  if (mode < 1.5) return pixelLens;
+  float keep = lensAcrossFw; lensAcrossFw = 0.0;
+  float middle = 0.0;   // (the lane under the head's axis)
+  vec4 c = lensOfAt(lensIx, u, grad, lanes, mode, pal, middle);
+  lensAcrossFw = keep;
+  return vec4(c.rgb, max(c.a, 0.0) * step(0.5, pixelLens.a));
+}
+// the dye in the lumen: its concentration at u along a vessel, and the share of the colour it takes
+uniform sampler2D dyeTex;
+uniform vec3 dyeCol;
+uniform float dyeAmt;
+float dyeConc(float row, float u) {
+  if (row < 0.0) return 0.0;
+  float x = clamp(u, 0.0, 1.0) * float(47);
+  int i0 = int(floor(x));
+  int i1 = min(i0 + 1, 47);
+  return mix(texelFetch(dyeTex, ivec2(i0, int(row)), 0).r, texelFetch(dyeTex, ivec2(i1, int(row)), 0).r, fract(x));
+}
+float dyeShare(float c) { return c < 0.01 ? 0.0 : (1.0 - exp(-3.2 * c)) * 0.97 * dyeAmt; }
+uniform float dyeRow;   // this vessel's row of the dye texture (-1: none)
 // the flow heads' tone on a vessel under one lens set (1 cream .. 0 dark ink): the vessel's latched, eased ink from the fifth row of the colour texture (lenses/chevron-ink.ts) where the lens runs a colour along it (la.a, a set of
 // colours and not lanes), else the short eased step on the colour it is drawn in
 float chevCreamOf(vec4 la, sampler2D grad, float mode, float idx, vec3 col, float raw) {
@@ -973,6 +996,9 @@ vec4 flowHeads(float across, float acrossW, float s, float Lw, float vR, float w
   return vec4(core * ac + CHEV_RIM * ar * (1.0 - ac), ac + ar * (1.0 - ac));   // (the head's outline is always the dark ink: a flat head with a dark line, never a pale ring)
 }
 // the colour of one lens set at this pixel; .a says whether the lens colours this vessel (0: it keeps its tone)
+vec4 lensHead(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], vec4 pixelLens) {
+  return lensHeadAt(lensIndex, (vLensR.y > 0.0 ? vLensR.x + vLensR.y * vUv.x : mix(lensSpan.x, lensSpan.y, vUv.x)), grad, lanes, mode, pal, pixelLens);
+}
 vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float across) {
   return lensOfAt(lensIndex, (vLensR.y > 0.0 ? vLensR.x + vLensR.y * vUv.x : mix(lensSpan.x, lensSpan.y, vUv.x)), grad, lanes, mode, pal, across);   // (a branch of a vessel wears the stretch of its host's ramp it leaves from: no step in colour at the branch point)
 }
@@ -1199,6 +1225,7 @@ void main() {
   // (the shade band is not cut off at the other tube's wall: two tubes of a fork are one surface that blends, so the band thins and is gone by the time it reaches the other's lumen, over 0.8 of the other's radius: no ledge and no dash where the band would otherwise end)
   float nbrT = nbrK;
   if (vNbr.y > 0.0) nbrT = max(nbrK, smoothstep(-0.8, 0.0, (vNbr.y - abs(vNbr.x)) / vNbr.y) * mix(1.0 - circT, 1.0, nbrMap) * (1.0 - smoothstep(0.0, 0.8 * vNbr.y, vNbr.z)));   // (and the pull ends at the other's end plane, easing out over 0.8 of its radius past it: no pale step along the band where the other has ended)
+  { float dcT = dyeConc(dyeRow, vUv.x); if (dcT > 0.01) base = mix(base, dyeCol, dyeShare(dcT) * (1.0 - circT)); }   // (the dye in the lumen, before the cel tones: docs/approved/dye.md; the Circuit keeps none)
   vec3 c = celTubeToneArt(base, mix(sT, 1.0, nbrT), fwSt * (1.0 - nbrT), rDev, 1.0 - lensUse);   // two flat tones, matte and opaque: no highlight, no rim light
   c = mix(c, pageCol, 0.080 * quietK);   // (0 for every tier but the back one)
 #ifdef VDBG
@@ -1242,7 +1269,7 @@ void main() {
   // the flow heads, on the tube's surface as the 2D composite lays them
   float pxArc = fwPx;   // (derivatives taken at the top of main, before any discard)
   float acrossW = fwAw;
-  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, vW * 2.0 / (res.y * projY) * vU, pxArc, lensIndex, flowAmount, markK(vUv.x * len * vU, (1.0 - vUv.x) * len * vU) * stumpMk, la, lb, color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
+  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, vW * 2.0 / (res.y * projY) * vU, pxArc, lensIndex, flowAmount, markK(skinCut.x >= 0.0 ? 1e6 : vUv.x * len * vU, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk, lensHead(lensGradA, lensLaneA, lensModeA, laneColA, la), lensHead(lensGradB, lensLaneB, lensModeB, laneColB, lb), color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
   hd = clamp(hd, 0.0, 1.0);
 #ifdef VDBG
   if (dbgHeads < 0.5) hd = vec4(0.0);

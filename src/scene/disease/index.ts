@@ -16,6 +16,7 @@ import { ScopeRing } from './scope-ring.ts';
 import { varixWale } from './copied/varix-bead.js';
 import { ClotLayer } from './clots.ts';
 import { DyeLayer } from './dye.ts';
+import type { VesselObject } from '../vessels/vessel-object.ts';
 import { Eased, FluidFollow } from './follow.ts';
 import { StrandLayer } from './strands.ts';
 import { type BodyTargets, type DiseaseFrame, type DiseaseParams, bodyTargets } from './targets.ts';
@@ -70,7 +71,7 @@ export class DiseaseLayer {
     for (const v of vessels) if (v.edge) this.clamps.bind(v.edge.id, v.toonMesh.geometry);
     // a clot is painted in its vein's own fragment shader (plan 26): the layer writes its uniforms to the vein's pieces
     this.clots.bindPieces(vessels);
-    this.dye = new DyeLayer(vessels.filter((v) => v.edge).map((v) => ({ id: v.edge!.id, geometry: v.toonMesh.geometry })));
+    this.dye = new DyeLayer(vessels.filter((v) => v.edge).map((v) => ({ id: v.edge!.id, obj: v as VesselObject })));
     this.group.add(this.organs.group, this.landmarks.group, this.scopeRing.group, this.ascites.group, this.clots.group, this.strands.group, this.bleed.group, this.dye.group);
   }
 

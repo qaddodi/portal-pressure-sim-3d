@@ -18,6 +18,7 @@ import type { CircuitShared } from '../circuit/uniforms.ts';
 import { cavaWholeAlpha } from './fades.ts';
 import { SKIN_CUT_C_NONE, SKIN_CUT_NONE, SKIN_HOLE_NONE } from './skin/types.ts';
 import { GLOW_LAYER } from '../glow.ts';
+import { DYE_BINS, dyeShared } from './dye-shared.ts';
 
 /** Uniforms every vessel shares: the two lens textures held for the crossfade, their stream colours, and the cross-fade itself. */
 export interface LensShared {
@@ -119,6 +120,7 @@ export class VesselObject extends CelObject {
         liveW: { value: 1 }, skinWeld: { value: new Vector3(1, 1, 1) }, skinWeldC: { value: new Vector2(1, 1) }, lensSmooth: { value: 0 }, lensSpan: { value: new Vector2(0, 1) }, mateK: { value: new Vector2(1, 1) }, mate0: { value: new Vector3(-1, 1, 0) }, mate1: { value: new Vector3(-1, 1, 0) }, cmate0: { value: new Vector3(-1, 1, 0) }, cmate1: { value: new Vector3(-1, 1, 0) }, cease: { value: new Vector2(0, 0) }, bury: { value: new Vector2(0, 0) }, skinCut: { value: new Vector2(SKIN_CUT_NONE[0], SKIN_CUT_NONE[1]) }, skinCutC: { value: new Vector2(SKIN_CUT_C_NONE[0], SKIN_CUT_C_NONE[1]) }, skinHole: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, skinHole2: { value: new Vector2(SKIN_HOLE_NONE[0], SKIN_HOLE_NONE[1]) }, nbrOn: { value: 0 }, nbrMap: { value: 0 }, nbrW0: { value: new Vector4() }, nbrW1: { value: new Vector4() }, nbrMate: { value: new Vector3(-1, 1, 0) }, stump: { value: new Vector3(0, 0, 0) }, stentU: { value: new Vector4(0, 0, 1, 0) }, stentT0: { value: 0 }, stentWire: { value: new Vector4(0.9, 0.8, 0.5, 0) }, stentGoldC: { value: new Vector4(0.7, 0.5, 0.1, 0) }, seamA: { value: [new Vector4(), new Vector4()] }, seamB: { value: [new Vector4(), new Vector4()] }, px: { value: opts.px }, res: shared.res, hiColor: { value: new Color() }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, hiAhead: { value: 1 }, hiBehind: { value: 1 }, hiEnds: { value: new Vector2(HI_NONE, HI_NONE) }, hiFade: { value: 1 }, hiPx: { value: 1.6 },
         markDark: { value: rawColor(LENS_SHARED.chevron) }, markLight: { value: rawColor(LENS_SHARED.chevronLight) }, markRev: { value: rawColor(LENS_TOKENS.light.flowReversed) },
         circT: circuit.circT, circRot: circuit.circRot, circM: circuit.circM, circTrack: circuit.circTrack, circTrackSize: circuit.circTrackSize, circRow: { value: -1 }, circFlat: { value: 0 }, circAnchA: { value: new Vector3() }, circAnchC: { value: new Vector3() }, circBoost: circuit.circBoost, circPerPx: circuit.circPerPx, circW: { value: new Vector4(...(opts.circW ?? circuitWidth(opts.widthKind))) }, circCap: { value: new Vector2(opts.circCap?.[0] ?? 0, opts.circCap?.[1] ?? 0) },
+        dyeTex: dyeShared.texU, dyeCol: dyeShared.col, dyeAmt: dyeShared.amount, dyeRow: { value: -1 },
         glowK: { value: 1 }, fadeMode: { value: 0 }, fadeA: { value: new Vector4(0, 1, 1, 1) }, fadeLine: { value: new Vector4(0, 0, 0, 1) }, fadeKeep: { value: 0 }, mapFade: { value: new Vector3(0, 1, 0) }, cavaEnd: { value: new Vector2(0, 1) }, cavaCut: { value: 0 }, cavaA: { value: 1 }, solidK: { value: 1 }, veilK: { value: 1 }, cavaRef: { value: new Vector2(0, 1) },
         lensUse: { value: this.artery ? 0 : 1 }, streamTex: blood.streamTex, streakAmt: blood.streakAmt, dustP: blood.dustP, chainTex: blood.chainTex, routeTex: blood.routeTex, projY: blood.projY, dpr: blood.dpr, casingA: { value: 0.64 }, quietK: { value: 0 }, wedge: { value: new Vector4(0, 0.02, 0.6, 0) }, wedgeD: { value: new Vector4(0, 0, -1, 0.02) }, wedgeCol: { value: new Color() }, pageCol: { value: new Color() }, casingCircA: { value: 0.64 }, inkColorCirc: { value: new Color() }, rimInk: { value: new Vector4(0, 0, 0, 0) }, widthKind: { value: opts.widthKind }, lensIndex: { value: opts.lensIndex }, smokeOn: { value: 0 },
         lensGradA: lens.lensGradA, lensLaneA: lens.lensLaneA, lensModeA: lens.lensModeA, lensRawA: lens.lensRawA, lensGradB: lens.lensGradB, lensLaneB: lens.lensLaneB, lensModeB: lens.lensModeB, lensRawB: lens.lensRawB,
@@ -155,6 +157,22 @@ export class VesselObject extends CelObject {
       sm.raycast = () => {};   // (the pick is the tube's)
       this.group.add(sm);
     }
+  }
+
+  /** THE DYE in this vessel (disease/dye.ts writes it; the shader paints it, docs/approved/dye.md): the bins along it, and whether it holds any. The skins at its ends read them at their seams (skin-set.ts). */
+  readonly dyeBins = new Float32Array(DYE_BINS);
+  dyeOn = false;
+  /** Gives this vessel its row of the dye texture and its bins, or (row < 0) takes the dye out. */
+  setDye(row: number, bins: ArrayLike<number> | null): void {
+    this.toon.uniforms.dyeRow!.value = row;
+    this.dyeOn = row >= 0;
+    if (bins) this.dyeBins.set(bins); else this.dyeBins.fill(0);
+  }
+  /** The dye's concentration at `u` along this vessel (0..1), as the shader reads it. */
+  dyeAt(u: number): number {
+    if (!this.dyeOn) return 0;
+    const x = Math.min(1, Math.max(0, u)) * (DYE_BINS - 1), i = Math.floor(x), f = x - i;
+    return this.dyeBins[i]! * (1 - f) + this.dyeBins[Math.min(i + 1, DYE_BINS - 1)]! * f;
   }
 
   /** The crossing shadow's draw (null where this vessel casts none). */

@@ -35,7 +35,7 @@ import { VDBG_GLSL } from '../debug-view.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
 import { TUBE_DEPTH_SHARE } from '../shaders.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from '../glsl-shared.ts';
+import { LENS_OF_AT_GLSL, DYE_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from '../glsl-shared.ts';
 import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
@@ -305,6 +305,8 @@ float wAt(int i) { return rawW(i) * keepOf(i) * gWKeep; }
 float fadeOf(int i) { float v = i < 4 ? vFadeA[i] : vFadeB[i - 4]; return v >= 0.0 ? v : armAF[i].y; }
 float swAt(int i) { return i < 4 ? vSwell[i] : vSwell2[i - 4]; }
 ${LENS_OF_AT_GLSL}
+${DYE_GLSL}
+uniform vec4 armDye[2];   // per arm, the dye's concentration at its seam: arm i is armDye[i / 4][i % 4]
 ${CHEVRON_GLSL}
 ${DUST_GLSL}
 ${CHEV_ONE_GLSL}
@@ -579,6 +581,8 @@ void main() {
   }
 #endif
   float rDev = vR / max(${wpcGlsl('vW', 'projY', 'SKIN_U')}, 1e-6) * dpr;
+  { float dcS = (wAt(0) * armDye[0][0] + wAt(1) * armDye[0][1] + wAt(2) * armDye[0][2] + wAt(3) * armDye[0][3] + wAt(4) * armDye[1][0] + wAt(5) * armDye[1][1]);   // (the dye in the lumen at the seams, blended by the arms' weights: the stream runs on through the junction)
+    if (dcS > 0.01) base = mix(base, dyeCol, dyeShare(dcS) * (1.0 - circT)); }
   vec3 c = celTubeToneArt(base, sT, swT, rDev, skinArt);   // two flat tones, matte and opaque: the tube's own
 #ifdef VDBG
   c = dbgBody(c, base, n);   // (the inspector's shade mode: debug-view.ts)
