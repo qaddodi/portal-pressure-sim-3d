@@ -231,3 +231,8 @@ export function captureViews(size: { w: number; h: number; layout: string; sidew
   if ((size.layout === 'stack' || size.layout === 'tab') && has.data) return ['untucked', 'tucked'];
   return [''];
 }
+
+/** How long (page ms, before the speed is applied) the capture waits for a slide to be still. A procedure's graph draws its head to the run's end on the page's own frames, which are few on a slow screen: while that is
+ *  the only thing arriving the wait is the long one, so the picture (and the tucked one after it) is taken at the run's end, never in its middle (capture 2b947e48, Gastric varices 7). */
+export const GRAPH_WAIT_MS = 90000;
+export const settleLimitMs = (why: string, base: number): number => (why.startsWith('the procedure graph') ? Math.max(base, GRAPH_WAIT_MS) : base);
