@@ -1,53 +1,49 @@
 // The six ladders (2D: visual: 'ladders', presenter-question.js laddersGrid and tool-profile.js createProfileStrip): each case's Gut to heart pressures on one line with the
 // red blocks where the pressure falls, the stations named once over the six under the sinusoidal brace, and each case's HVPG and PPG as pills. The profile chart in a wide
-// screen's cell is the `profile` chart; what is here is the grid, the strips, the names strip and the rows. The pure parts of tool-profile.js are copied by
-// scripts/copy-chart-small.mjs (profile-pure.generated.js), so the numbers and the fit of the names are the 2D app's own.
-import * as P from './profile-pure.generated.js';
+// screen's cell is the `profile` chart; what is here is the grid, the strips, the names strip and the rows.
+// The profile itself (the stations, a fingerprint's readings, the blocks, the names' fit, the pills) is the profile chart's own model (../profile/model.ts) and its number
+// formatters are ../readings.ts: ONE source for the chart, the strip and the pills. (This file once held a second copy of the 2D tool's pure parts, whose "closed" wedge reading
+// and whole-number pills printed schistosomiasis 8 where the chart printed 9: capture 36b7deac.)
+import * as P from '../profile/model.ts';
 import { causeFit as causeFit0 } from './cause-fit.generated.js';
+import { stationTexts } from '../readings.ts';
 
 /** A fingerprint (the engine's: the tile keys in engine units, and `at.P` the model's node pressures). */
-export type Fp = { readonly [k: string]: unknown };
-export interface Profile { v: number[]; hvpg: number; eus: number; ppg: number }
-export interface Pill { k: string; name: string; v: string; rate: 'ok' | 'mid' | 'hi' }
+export type Fp = P.Fp;
+export type Profile = P.Prof;
+export type Pill = ReturnType<typeof P.pillReadings>[number];
 export interface Fit { names: string[]; rows: number; dx: number[]; low: boolean[] }
 export type TextWidth = (t: string, weight?: number) => number;
 
-export const STATIONS = P.STATIONS as string[];
-export const BRACE_NAME = P.BRACE_NAME as string;
-export const NUM_PAD = P.NUM_PAD as number;
-export const BLOCK_FALL = P.BLOCK_FALL as number;
+export const STATIONS = P.STATIONS;
+export const BRACE_NAME = P.BRACE_NAME;
+export const NUM_PAD = P.NUM_PAD;
+export const BLOCK_FALL = P.BLOCK_FALL;
 export const LIVER_STATIONS = ['RPV', 'CV_R'] as const;
-export const profileOf = P.profileOf as (fp: Fp | null | undefined) => Profile | null;
-export const blocksOf = P.blocksOf as (p: Profile | null, hl: Profile | null) => number[];
-export const blockSpan = P.blockSpan as (cx: number, slot: number, tw: TextWidth) => [number, number];
-export const zoneSpans = P.zoneSpans as () => [number, number][];
+export const profileOf = P.profileOf;
+export const blocksOf = P.blocksOf;
+export const blockSpan = P.blockSpan;
+export const zoneSpans = P.zoneSpans;
 export const nameFit = P.nameFit as (slot: number, tw: TextWidth) => Fit;
-export const braceD = P.braceD as (xa: number, xb: number, y0: number, d: number) => string;
-export const pillReadings = P.pillReadings as (fp: Fp | null | undefined) => Pill[];
-export const whole = P.whole as (v: number) => string;
+export const braceD = P.braceD;
+export const pillReadings = P.pillReadings;
+export const whole = P.whole;
 export const causeFit = causeFit0 as (size: number, width: number, room: number, floor: number) => { size: number; under: boolean };
 /** The look key of each zone's tint, in zoneSpans' order (pre, liver, post). */
 export const ZONE_LOOK = ['prof.zone.pre', 'prof.zone.liver', 'prof.zone.post'] as const;
 /** What a screen reader hears at each station (the wedged reading named). */
-export const SPOKEN: Record<string, string> = { ...(P.PATH_NAMES as Record<string, string>), SIN_R: 'Sinusoid (WHVP)' };
+export const SPOKEN: Record<string, string> = P.SPOKEN;
 
 /** The stations' x: slot px apart, each centred in its slot (a strip leaves 10 px at the right). */
 export const slotOf = (w: number) => { const slot = (w - 10) / STATIONS.length; return { slot, x: (i: number) => slot * (i + 0.5) }; };
 
-/** The strip's readings as whole numbers, with the wedged one closed on the free hepatic vein and the HVPG the row's pill reads: the unrounded 17.5 and 5.4 print 18 and 5 but their HVPG prints 12, so the row read
- *  "18 - 5 = 12" (Same gradient 7, High inflow, capture af88a9c2). The wedge reads as the hepatic vein plus the HVPG as printed; every other station is its own reading rounded. */
-export function closedLabels(p: Profile): string[] {
-  const labels = p.v.map(whole), w = STATIONS.indexOf('SIN_R'), f = STATIONS.indexOf('RHV');
-  if (w >= 0 && f >= 0 && Number.isFinite(p.hvpg)) labels[w] = String(Number(labels[f]) + Number(whole(p.hvpg)));
-  return labels;
-}
 export interface StripLayout { w: number; h: number; cy: number; slot: number; x(i: number): number; labels: string[]; segs: [number, number][]; blocks: [number, number][]; zones: [number, number][]; label: string }
 /** One case on one line at w px and type f px (2D drawStrip): the readings, the line between them (it stops NUM_PAD px short of each), the red blocks and the zones' tints. */
 export function stripLayout(w: number, f: number, fp: Fp, healthy: Fp | null, tw: TextWidth): StripLayout | null {
   const p = profileOf(fp);
   if (!p) return null;
   const hl = profileOf(healthy), n = p.v.length - 1, { slot, x } = slotOf(w);
-  const h = Math.ceil(1.9 * f), cy = h / 2, labels = closedLabels(p), hw = labels.map((t) => tw(t, 700) / 2);
+  const h = Math.ceil(1.9 * f), cy = h / 2, labels = stationTexts(p), hw = labels.map((t) => tw(t, 700) / 2);
   const segs = p.v.slice(0, n).map((_, i) => [x(i) + hw[i]! + NUM_PAD, x(i + 1) - hw[i + 1]! - NUM_PAD] as [number, number]);
   const blocks = blocksOf(p, hl).map((i) => blockSpan(x(i), slot, tw));
   const zones = zoneSpans().map(([a, b]) => [x(a) - slot / 2 + 0.5, slot * (b - a + 1) - 1] as [number, number]);

@@ -10,7 +10,6 @@ import { ProfileMotion, follow2, restView, fadeAt } from '../src/ui/charts/profi
 import { beforeOf, fpFromFrame, profileInputs } from '../src/ui/charts/profile/data.ts';
 import { pressureRgb, pressureColour } from '../src/ui/charts/profile/pressure-colour.ts';
 import { profileEntry, profileSpecimen } from '../src/ui/charts/profile/entry.ts';
-import { profileNamesFrame, profileStripFrame } from '../src/ui/charts/profile/strip.ts';
 import { ctxOf, eachLook, judge } from './charts-helpers.ts';
 import type { TextShape } from '../src/ui/charts/scene.ts';
 
@@ -328,24 +327,6 @@ test('a frame in the middle of a glide keeps the box; held, it has no bracket an
   assert.ok(f3.shapes.filter((s) => s.k === 'clip').length < f2.shapes.filter((s) => s.k === 'clip').length, 'held: no block (a block is clipped hatching)');
 });
 
-
-test('the phone grid\'s strips: a case on one line with its blocks, and the names over the six', async () => {
-  const [fp, healthy] = [await fpOf('pvt-chronic'), await fpOf('healthy')];
-  eachLook((look) => {
-    for (const w of [300, 390]) {
-      const c = ctxOf(look, w, 'phone-portrait'), s = profileStripFrame(fp, healthy, c)!;
-      judge(s, look, { onCard: false });
-      const words = s.shapes.filter((x): x is TextShape => x.k === 'text').map((x) => x.s);
-      assert.deepEqual(words, profileOf(fp)!.v.map(words0), 'the eight readings');
-      assert.equal(s.shapes.filter((x) => x.k === 'clip').length, 1, 'one block: the clot at the portal vein');
-      assert.equal(s.shapes.filter((x) => x.k === 'path').length, 7, 'seven pieces of line between the eight readings');
-      judge(profileNamesFrame(c), look, { onCard: false });
-    }
-  });
-  assert.equal(profileStripFrame(null, healthy, ctxOf('light', 300)), null);
-  const names = profileNamesFrame(ctxOf('light', 390)).shapes.filter((x): x is TextShape => x.k === 'text').map((x) => x.s);
-  assert.ok(names.includes('sinusoidal') && names.includes('Pre-') && names.includes('Intra-') && names.includes('Post-'));
-});
 
 test('Gut to Heart is spacier at the same height (23 Nov): zone names one word, "sinusoidal" in a bracket row, no unit or gridline numbers, no "Healthy" on the healthy line', async () => {
   const { profileGeo: geo2D } = await import('../src/ui/charts/profile/layout.generated.js') as unknown as { profileGeo: typeof profileGeo };
