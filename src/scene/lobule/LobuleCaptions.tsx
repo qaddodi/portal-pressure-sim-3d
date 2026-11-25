@@ -25,7 +25,7 @@ import { footBlocker, useFootNote } from '../../ui/shell/foot-note.ts';
 import { creditClaim } from '../labels/credit-claim.ts';
 import { calloutClaims } from '../labels/callout-claims.ts';
 import { lobuleLines } from '../labels/lobule-lines.ts';
-import { PAIR_AT, placeAbove } from '../labels/pair.ts';
+import { PAIR_AT, pinAbove } from '../labels/pair.ts';
 import { Ride, RoomFade, boxesFit } from '../labels/ride.ts';
 import { HandWatch } from '../labels/hand-watch.ts';
 
@@ -108,13 +108,12 @@ export function LobuleCaptions() {
       const hasPair = fig.cards.some((c) => 'lobule' in c.anchor && c.anchor.lobule === PAIR_AT);
       const paired = level !== 'none' && fig.reads.includes('sin') && hasPair;
       const sinIt = paired ? items.find((it) => it.id === 'sin') : undefined, sinForm = sinIt?.forms[0];
-      const above = sinIt && sinForm ? placeAbove({ x: sinIt.ax, y: sinIt.ay }, sinForm, vw, bl) : null;
+      const above = sinIt && sinForm ? pinAbove({ x: sinIt.ax, y: sinIt.ay }, sinForm, vw, bl) : null;
       const pinned: Placement | null = above && sinIt && sinForm
-        ? { id: 'sin', form: 0, dx: above.x0 - sinIt.ax, dy: above.y0 - sinIt.ay, w: sinForm.w, h: sinForm.h, leader: true, au: sinIt.au } : null;
+        ? { id: 'sin', form: 0, dx: above.box.x0 - sinIt.ax, dy: above.box.y0 - sinIt.ay, w: sinForm.w, h: sinForm.h, leader: true, au: sinIt.au } : null;
       const out = solve({
         items: pinned ? items.filter((it) => it.id !== 'sin') : items, view: vw, lines: built.lines, keep: built.keep,
-        blockers: pinned && above && sinIt
-          ? [...bl, { x0: Math.min(above.x0, sinIt.ax - 1), y0: above.y0, x1: Math.max(above.x1, sinIt.ax + 1), y1: sinIt.ay + 4 }] : bl,
+        blockers: above ? [...bl, above.claim] : bl,
       });
       if (pinned) out.placed.push(pinned);
       if (typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search)) console.info('[lobule-captions] solved:', JSON.stringify({ items: items.length, placed: out.placed.length, view: vw, room: cel.rig.targetRoom, fit: cel.rig.fitRoom, hand: cel.rig.handView, moving: cel.rig.isMoving, corners: [pa, pb, pc, pd], walls: bl.length }));

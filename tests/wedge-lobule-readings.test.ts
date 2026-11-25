@@ -19,8 +19,8 @@ import { effectiveDistance } from '../src/scene/camera/room.ts';
 import { LOBULE_SCALE } from '../src/scene/lobule/frames.ts';
 import { LOBULE_R, lobuleShot } from '../src/scene/lobule/shots.ts';
 import { pairSpots } from '../src/scene/lobule/callout-spot.ts';
-import { PAIR_AIR, PAIR_AT, PAIR_LABEL_GAP, PAIR_LEAD, PAIR_RING_R, placeAbove } from '../src/scene/labels/pair.ts';
-import { cardKeepOut, placeCards } from '../src/scene/labels/figure-cards.ts';
+import { PAIR_AIR, PAIR_AT, PAIR_LABEL_GAP, PAIR_LEAD, PAIR_RING_R, pinAbove, ringDisc } from '../src/scene/labels/pair.ts';
+import { cardClaims, cardKeepOut, placeCards } from '../src/scene/labels/figure-cards.ts';
 import { BAR } from '../src/ui/layout/plan.ts';
 import { SIZES, frame } from './lobule-frame.ts';
 
@@ -86,26 +86,46 @@ for (const f of FRAMES) {
     const c = buildLobuleCaptions({ proj, vp, measure, net, layers: { zones: false, lymph: false }, unit: true, must: new Set(['sin', 'cv']) });
     const sin = c.items.find((i) => i.id === 'sin')!;
     assert.ok(Math.abs(sin.ax - sx) < 1e-6 && Math.abs(sin.ay - sy) < 1e-6, 'the Sinusoids station stands on the pair\'s upper ring');
-    // above: its widest form, which carries the number
-    assert.equal(c.meta.get('sin')!.forms[0]!.value, true);
-    const up = placeAbove({ x: sx, y: sy }, sin.forms[0]!, view, cards);
-    assert.ok(up, 'a clear place above the ring');
+    assert.equal(c.meta.get('sin')!.forms[0]!.value, true, 'its widest form carries the number');
+    // the real order: the callout places first (keeping off the upper ring), and its claims are what the names stand round (figure-cards.ts cardClaims)
     const text = `WHVP ${valueText('whvp', fp as never)}`;
-    const lo = placeCards([{ id: 'callout', x: wx, y: wy, w: measure(text) + 4, h: 18, ring: PAIR_AIR, below: true, pair: true }], view, cardKeepOut(cards), [], c.lines)[0]!;
-    assert.equal(lo.ok, true, 'the callout has a place');
-    assert.ok(up!.y1 <= sy - PAIR_RING_R, 'Sinusoids stands wholly above its ring');
+    const ins = [{ id: 'callout', x: wx, y: wy, w: measure(text) + 4, h: 18, ring: PAIR_AIR, below: true, pair: true, avoid: [ringDisc(sx, sy)] }];
+    const outs = placeCards(ins, view, cardKeepOut(cards), [], c.lines);
+    const lo = outs[0]!, words: Box = { x0: lo.x0, y0: lo.y0, x1: lo.x0 + ins[0]!.w, y1: lo.y0 + ins[0]!.h };
+    assert.equal(lo.ok, true, 'the WHVP callout has a place');
     assert.ok(lo.y0 >= wy + PAIR_RING_R, 'WHVP stands wholly below its ring');
-    assert.ok(!hits(up!, lo.box), 'the two words clear of each other');
+    assert.ok(!hits(words, ringDisc(sx, sy)), 'and its words keep off the Sinusoids ring');
+    const claims = cardClaims(ins, outs), walls0 = [...cards, ...claims];
+    // the Sinusoids name: above its ring where a place is clear (the build's own function), else the solver places it with its number; either way it STANDS
+    const up = pinAbove({ x: sx, y: sy }, sin.forms[0]!, view, walls0);
+    assert.ok(up, 'a clear place above the ring on this screen (the approved look; the solver is only the net under it)');
+    const walls = up ? [...walls0, up.claim] : walls0;
+    const out = solve({ items: c.items.filter((i) => !up || i.id !== 'sin'), view, blockers: walls, lines: c.lines, keep: c.keep });
+    let sinBox: Box;
+    if (up) {
+      assert.ok(up.box.y1 <= sy - PAIR_RING_R, 'Sinusoids stands wholly above its ring');
+      sinBox = up.box;
+    } else {
+      const p = out.placed.find((x) => x.id === 'sin');
+      assert.ok(p, `the Sinusoids name is placed by the solver when no place above is clear (hidden ${out.hidden}, dropped ${out.dropped})`);
+      assert.equal(c.meta.get('sin')!.forms[p.form]!.value, true, 'with its number');
+      sinBox = boxOf(p, sin.ax, sin.ay);
+    }
+    assert.ok(!hits(sinBox, words), 'the two words clear of each other');
+    // both labels of the pair show: neither is under a card, the callout's claims or the other, and the view holds them (what the layer's room fade checks, ride.ts RoomFade)
+    for (const [n, b] of [['Sinusoids', sinBox], ['WHVP', words]] as const) {
+      assert.ok(b.x0 >= view.x0 && b.x1 <= view.x1 && b.y0 >= view.y0 && b.y1 <= view.y1, `${n} inside the view`);
+      for (const w of cards) assert.ok(!hits(b, w), `${n} clear of the cards`);
+    }
+    for (const w of claims) assert.ok(!hits(sinBox, w), 'the Sinusoids name clear of the callout\'s claims, so the layer never fades it out');
     // the central vein keeps its number beside the pair
-    const walls = [...cards, { x0: Math.min(up!.x0, sx - 1), y0: up!.y0, x1: Math.max(up!.x1, sx + 1), y1: sy + 4 }, lo.box];
-    const out = solve({ items: c.items.filter((i) => i.id !== 'sin'), view, blockers: walls, lines: c.lines, keep: c.keep });
     const cv = out.placed.find((x) => x.id === 'cv')!, cvIt = c.items.find((i) => i.id === 'cv')!;
     assert.ok(cv, `cv is placed (hidden ${out.hidden})`);
     assert.equal(c.meta.get('cv')!.forms[cv.form]!.value, true, 'the central vein carries its number');
     assert.equal(cv.leader, true, 'and keeps its leader');
     const cvBox = boxOf(cv, cvIt.ax, cvIt.ay);
     assert.ok(cvBox.x0 >= view.x0 && cvBox.x1 <= view.x1 && cvBox.y0 >= view.y0 && cvBox.y1 <= view.y1, 'cv inside the view');
-    for (const w of [...walls]) assert.ok(!hits(cvBox, w), 'cv clear of a card and of the pair');
+    for (const w of [...walls, sinBox]) assert.ok(!hits(cvBox, w), 'cv clear of a card and of the pair');
   });
 }
 

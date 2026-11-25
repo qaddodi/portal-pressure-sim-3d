@@ -18,8 +18,14 @@ export const PAIR_LABEL_GAP = 7;
 export const PAIR_AIR = PAIR_RING_R + PAIR_STROKE / 2 + PAIR_LEAD + PAIR_LABEL_GAP;
 /** How far apart the two rings stand along their sinusoid (lobule radii): far enough that the two rings and their leaders never touch, near enough that they read as one place. */
 export const PAIR_ARC = 0.075;
-/** The callout name the pair's lower end has (callout-spot.ts, figure-calls.ts). */
+/** The callout names of the pair's two ends (callout-spot.ts, figure-calls.ts): the lower, the slide's callout,
+ *  and the upper, the Sinusoids station's ring (named so the callout keeps its words off it). */
 export const PAIR_AT = 'sinusoid:pair';
+export const PAIR_SIN_AT = 'sinusoid:pair-sin';
+/** The room a pair's ring takes from every other writer: the ring and its stroke with a little air, never the whole circle
+ *  the words' gap makes (that square covered the other ring's words, and the name above was left out, 25 Nov). */
+export const PAIR_CLAIM_R = PAIR_RING_R + PAIR_STROKE + 3;
+export const ringDisc = (x: number, y: number): Box => ({ x0: x - PAIR_CLAIM_R, y0: y - PAIR_CLAIM_R, x1: x + PAIR_CLAIM_R, y1: y + PAIR_CLAIM_R });
 
 /** Where the words stand ABOVE a ring: PAIR_AIR over its centre, centred on it, slid sideways until the box is in the view and clear of every blocker; null when no slide clears it
  *  (then the name goes to the solver, which keeps its number wherever it stands). */
@@ -29,10 +35,17 @@ export function placeAbove(dot: { x: number; y: number }, size: { w: number; h: 
     const x0 = Math.min(Math.max(dot.x + k * size.w - size.w / 2, view.x0 + 4), view.x1 - size.w - 4);
     const box: Box = { x0, y0, x1: x0 + size.w, y1 };
     if (!within(box, view)) continue;
-    // (the box and the leader's run down to the ring)
-    const run: Box = { x0: Math.min(x0, dot.x - 1), y0, x1: Math.max(box.x1, dot.x + 1), y1: dot.y + PAIR_RING_R };
-    if (hold.some((b) => hits(run, b))) continue;
+    // (the words, and the leader's thin strip down to the ring: never a box as wide as the words, which would take the pair's other ring in)
+    const strip: Box = { x0: dot.x - 1, y0: y1, x1: dot.x + 1, y1: dot.y + PAIR_RING_R };
+    if (hold.some((b) => hits(box, b) || hits(strip, b))) continue;
     return box;
   }
   return null;
+}
+
+/** What the Sinusoids name does beside its pair: stands above its ring (`box`, with the room it takes, `claim`, for the other names
+ *  to keep off), or null where no clear place above exists and the solver must place it. */
+export function pinAbove(dot: { x: number; y: number }, size: { w: number; h: number }, view: Box, hold: readonly Box[]): { box: Box; claim: Box } | null {
+  const box = placeAbove(dot, size, view, hold);
+  return box ? { box, claim: { x0: Math.min(box.x0, dot.x - 1), y0: box.y0, x1: Math.max(box.x1, dot.x + 1), y1: dot.y + 4 } } : null;
 }
