@@ -54,7 +54,7 @@ test('a kept data card keeps the box it landed with when only the slide beside i
 
 test('a kept card whose new slide needs a taller box is replaced by a fresh card at its final size, never grown', () => {
   const frame = read('src/ui/cards/CardFrame.tsx'), layer = read('src/ui/cards/CardLayer.tsx');
-  assert.match(frame, /if \(out\.grew > 1 && sameStepPass && onOutgrown && !now\.current\.out\) \{ onOutgrown\(entry\.key\); return; \}/);
+  assert.match(frame, /if \(out\.grew > 1 && onOutgrown && !now\.current\.out\) \{ onOutgrown\(entry\.key\); return; \}/);
   assert.ok(frame.indexOf('onOutgrown(entry.key)') < frame.indexOf('box.current = out.state;'), 'the lock keeps what it landed with');
   assert.match(layer, /const dataKey = rekeys\[baseKey\] \? `\$\{baseKey\}~\$\{rekeys\[baseKey\]\}` : baseKey/);
   assert.match(layer, /onOutgrown=\{slot === 'data' \? outgrown : undefined\}/);
@@ -64,9 +64,9 @@ test('a kept card whose new slide needs a taller box is replaced by a fresh card
 test('a card is let in only once its measured height has stood still, so a late row or readout cannot grow it on screen', () => {
   const layer = read('src/ui/cards/CardLayer.tsx');
   assert.match(layer, /SETTLE_MS = 120, GIVE_UP_CARDS_MS = 8000/);
-  assert.match(layer, /t: clock\.now\(\) \}/, 'the time of the last change of each measure');
+  assert.match(layer, /t: clock\.nowReal\(\) \}/, 'the time of the last change of each measure (real time: tests/card-readiness-real-time.test.ts)');
   assert.match(layer, /&& settleLeft <= 0\)/, 'the gate (`measured`) waits for it');
-  assert.match(layer, /clock\.after\(\(\) => setLate\(pagesKey\), GIVE_UP_CARDS_MS\)/, 'the give-up leaves room for it');
+  assert.match(layer, /clock\.afterReal\(\(\) => setLate\(pagesKey\), GIVE_UP_CARDS_MS\)/, 'the give-up leaves room for it');
 });
 
 test('the instrument panes render their final content on the first paint (audit 24 Nov: the Doppler report, the slide options, the lazy panes)', () => {
@@ -99,7 +99,7 @@ test('the settle wait is declared before the gate that reads it (a use before it
   assert.ok(decl > 0 && use > 0 && decl < use, 'settleLeft must be declared above `measured`');
   // and a card is admitted whatever the fonts and the settle say once the give-up passes
   assert.match(layer, /\(measured \|\| \(late === pagesKey && !paneWaits\)\)/);
-  assert.match(layer, /clock\.after\(\(\) => setLate\(pagesKey\), GIVE_UP_CARDS_MS\)/);
+  assert.match(layer, /clock\.afterReal\(\(\) => setLate\(pagesKey\), GIVE_UP_CARDS_MS\)/);
 });
 
 test('a control row of the action card is one column by specificity, whichever stylesheet loads last (a lone slider filled half the card)', () => {

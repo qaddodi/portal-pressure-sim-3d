@@ -46,3 +46,11 @@ export function freezeOf(f: Frozen | null, key: string, rectH: number, measured:
   if (!f.pending) return f;
   return { key, h: rectH, pending: measured === null || rectH !== measured };
 }
+
+/** A data card that grew past the box it locked is replaced by a fresh one at its final size (CardFrame `onOutgrown`); `base` is its key without the `~n` of an earlier replacement.
+ *  A slide's card is replaced at most `max` times: a card whose content never stops growing keeps the lock after that (the audit logs it), not a replacement for ever.
+ *  Pure; tests/card-readiness-real-time.test.ts. */
+export function rekeyed(m: Readonly<Record<string, number>>, key: string, max: number): Record<string, number> {
+  const base = key.replace(/~\d+$/, '');
+  return (m[base] ?? 0) >= max ? { ...m } : { ...m, [base]: (m[base] ?? 0) + 1 };
+}

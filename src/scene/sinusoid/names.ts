@@ -35,6 +35,11 @@ export interface NamesInput {
   C: readonly [number, number]; k: number;
   /** The free room the cards leave (px) and the top inset the names keep under (px). */
   free: Rect; insTop: number;
+  /** The screen's visible left and right (px: the stage less its safe areas) and the boxes drawn over the figure (the cards, the presenter bar).
+   *  On a wide screen the ends' names stand at the visible ends of the vessel along its own band, whatever the free room's shape
+   *  (it keeps clear of a bar in the corner at the foot, which the vessel's band never meets). Absent: the free room's own sides. */
+  edge?: { l: number; r: number };
+  walls?: readonly { x: number; y: number; w: number; h: number }[];
   /** The legend's box (px), when it is drawn (the names keep clear of it on a tall screen). */
   legend?: { x: number; y: number; w: number; h: number } | null;
   g: NameGeom;
@@ -69,6 +74,20 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const LEAD_ON = 12, LEAD_OFF = 8;
 /** The least a name stands from the screen's side edges (px): the same 12 the figure's names keep (solver VIEW_INSET 8 plus the leader's ring). */
 export const EDGE = 12;
+/** Air between a card or bar and an end's name standing against it (px, plan.ts GAP: the room the figure is given keeps the same). */
+export const WALL_GAP = 16;
+
+/** The visible ends of the vessel's band `y0..y1` (px across the screen), as far as a name may stand:
+ *  the screen's sides less the same margin the free room keeps, held back by every box that crosses the band (the cards on its left, a bar on its right).
+ *  A name that stands at one end is then at the vessel's visible end, whatever the free room the camera was framed in. */
+export function vesselReach(cx: number, y0: number, y1: number, edge: { l: number; r: number }, walls: NamesInput['walls']): { l: number; r: number } {
+  let l = edge.l + 2 * EDGE, r = edge.r - EDGE;
+  for (const b of walls ?? []) {
+    if (!(b.w > 0 && b.h > 0) || b.y >= y1 || b.y + b.h <= y0) continue;
+    if (b.x + b.w / 2 < cx) l = Math.max(l, b.x + b.w + WALL_GAP + 2 * EDGE); else r = Math.min(r, b.x - WALL_GAP - EDGE);
+  }
+  return { l, r };
+}
 
 /** Lays the names out for a screen. Wide: across the screen (2D layoutTags); tall: top to bottom, every name level (2D layoutTall). */
 export function layoutNames(inp: NamesInput): NamePlacement[] {
@@ -178,8 +197,11 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
     const { w, hh, inl } = meas(key, name, value);
     let x: number, y: number;
     if (V) { x = C[0] - w / 2; y = u ? fe.b - hh - A : fe.t + A; } else {
-      // the central vein stands right out at the room's end, its arrow beyond it (Mohammad, 24 Nov: "move the central vein label to the right, there is room"), but never over the Kupffer cell's arms
-      x = u ? feGeom.r - w - A : fe.l + 8 + A; y = C[1] - hh / 2;
+      // the central vein stands right out at the vessel's visible right end, its arrow beyond it (Mohammad, 24 Nov: "move the central vein label to the right, there is room";
+      // 25 Nov: still short of the end: the free room stops left of the presenter bar at the foot, which the vessel's band never meets), but never over the Kupffer cell's arms
+      y = C[1] - hh / 2;
+      const reach = inp.edge ? vesselReach(C[0], y - 4, y + hh + 4, inp.edge, inp.walls) : null;
+      x = u ? (reach ? reach.r : feGeom.r) - w - A : (reach ? reach.l : fe.l) + 8 + A;
       if (u) { const cellL = C[0] + k * (g.xk - KUP_HALF) - 8, cellR = C[0] + k * (g.xk + KUP_HALF) + 8; if (cellL < x + w + ARROW_PX && cellR > x) x = cellL - ARROW_PX - w; }   // (the cell is fixed in the tissue: the name steps to its left)
     }
     if (V && !u && leg && leg.w && leg.x + leg.w > x - 6) y = Math.max(y, leg.y + leg.h + A);

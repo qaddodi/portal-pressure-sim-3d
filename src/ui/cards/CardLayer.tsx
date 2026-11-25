@@ -48,6 +48,7 @@ import { useDeckWheel } from '../deck/useDeckWheel.ts';
 import { swipeMove, apply, samePos, type Move } from '../deck/presenter-machine.ts';
 import { gapOf } from './ladder-model.ts';
 import { maxPages, clampPage, nextToMeasure, tallestPage } from './pages.ts';
+import { rekeyed } from './box-lock.ts';
 import { frameProps, wordsClasses, type FrameLive } from './frame-props.ts';
 
 import { clock } from '../../clock/frame.ts';
@@ -64,7 +65,7 @@ function useFontsReady(): boolean {
 const liveCard = (slot: string): HTMLElement | null => [...document.querySelectorAll<HTMLElement>(`.dk-pos[data-slot="${slot}"]`)].find((p) => !p.querySelector('.dk-card[data-phase="out"]')) ?? null;
 
 /** How long a card's measured height must stand still before the card is let in (a late row or readout shows up inside this), and the longest the cards wait for it before they come in as they are. */
-export const SETTLE_MS = 120, GIVE_UP_CARDS_MS = 8000, PANE_GIVE_UP_MS = 25000;   // (the readiness gate decides when cards come in; the 8 s is only the crash net that keeps a failed piece from hiding the talk for good, the same one the engine's numbers have: inputs-in.ts GIVE_UP_MS)
+export const MAX_REKEYS = 2, SETTLE_MS = 120, GIVE_UP_CARDS_MS = 8000, PANE_GIVE_UP_MS = 25000;   // (the readiness gate decides when cards come in; the 8 s is only the crash net that keeps a failed piece from hiding the talk for good, the same one the engine's numbers have: inputs-in.ts GIVE_UP_MS)
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
 interface Snap { /** the deck the card was drawn for: a card that is leaving as the talk changes keeps its own deck as it keeps its own slide (the table of Next bleed 11 was asked for with Next bleed's id and the Outflow slide the card still held) */ deck: Deck; /** the lens whose key is the data card's first row (cardKeyAt, asked with the stop the card came from) */ dkey: string | null; slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean; /** the slide's readings as they stood while the card was the current one: a card that leaves keeps its own numbers ("13 mmHg" on Ascites 12 did not turn into the next slide's as it went) */ readings: Readings }
 
@@ -97,7 +98,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const sigRef = useRef('');
   const onHeight = useCallback((key: string, w: number, h: number, want = h, open = 0) => {
     const sig = sigRef.current, f = fontsLoaded();   // (a height measured while a font was still loading is not final: the card is not let in on it, 24 Nov)
-    setHeights((m) => { const o = m[`${key}@${w}`]; return o && o.h === h && o.want === want && o.open === open && o.sig === sig && o.f === f ? m : { ...m, [`${key}@${w}`]: { h, want, open, sig, f, t: clock.now() } }; });
+    setHeights((m) => { const o = m[`${key}@${w}`]; return o && o.h === h && o.want === want && o.open === open && o.sig === sig && o.f === f ? m : { ...m, [`${key}@${w}`]: { h, want, open, sig, f, t: clock.nowReal() } }; });
   }, []);
   const [pagesMap, setPagesMap] = useState<Record<string, number>>({});
   const page = useUi((s) => s.page);
@@ -147,7 +148,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const [rekeys, setRekeys] = useState<Record<string, number>>({});
   const baseKey = here?.key ?? 'ladder';
   const dataKey = rekeys[baseKey] ? `${baseKey}~${rekeys[baseKey]}` : baseKey;
-  const outgrown = useCallback((k: string) => setRekeys((m) => { const base = k.replace(/~\d+$/, ''); return { ...m, [base]: (m[base] ?? 0) + 1 }; }), []);
+  const outgrown = useCallback((k: string) => setRekeys((m) => { const n = rekeyed(m, k, MAX_REKEYS); return Object.keys(n).every((b) => n[b] === m[b]) ? m : n; }), []);
   const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: h(wordsKey) > 0 ? Math.max(h(wordsKey), pageMax) : 0 }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey), want: hit(dataKey)?.want ?? 0 }] : [])] : [];
   const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked), [vp, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}:${n.want ?? ''}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -217,8 +218,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const growing = ladBusy || fitBusy || (tooTall && pages < (view ? capOf(view) : 1)) || tightens || surveying;
   // (and its height has stood still for SETTLE_MS: a row or a readout that mounts in the frame after the first measure, from an effect or a second render, has come by then, so the card is let in at the height it keeps)
   const [, setTick] = useState(0);
-  const settleLeft = needs.reduce((m, n) => { const e = hit(n.slot === 'words' ? wordsKey : dataKey); return e ? Math.max(m, SETTLE_MS - (clock.now() - e.t)) : m; }, 0);
-  useEffect(() => { if (settleLeft <= 0) return; const t = clock.after(() => setTick((k) => k + 1), settleLeft + 1); return () => clock.cancel(t); }, [settleLeft, heights]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const settleLeft = needs.reduce((m, n) => { const e = hit(n.slot === 'words' ? wordsKey : dataKey); return e ? Math.max(m, SETTLE_MS - (clock.nowReal() - e.t)) : m; }, 0);
+  useEffect(() => { if (settleLeft <= 0) return; const t = clock.afterReal(() => setTick((k) => k + 1), settleLeft + 1); return () => clock.cancel(t); }, [settleLeft, heights]);   // eslint-disable-line react-hooks/exhaustive-deps
   // (and every chart in a card is drawn once at its box: `open` is how many are not, so a chart never reaches its size while its card slides in; the 320 ms give-up is the net)
   const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig) && (hit(n.slot === 'words' ? wordsKey : dataKey)?.open ?? 0) === 0 && hit(n.slot === 'words' ? wordsKey : dataKey)?.f !== false && settleLeft <= 0) || (plan.docked && n.slot === 'data'));
   const [late, setLate] = useState('');
@@ -227,8 +228,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
     if (!surveying || !wordsHit || wordsHit.sig !== sig || wordsHit.f === false || wordsHit.open !== 0 || settleLeft > 0 || wordsHit.h <= 0) return;
     setSurveyMap((m) => { const cur = m[surveyKey] ?? []; if (cur[nextPage!] === wordsHit.h) return m; const nx = cur.slice(); nx[nextPage!] = wordsHit.h; return { ...m, [surveyKey]: nx }; });
   }, [surveying, wordsHit, sig, settleLeft, surveyKey, nextPage]);
-  useEffect(() => { const t = clock.after(() => setSurveyLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey]);
-  useEffect(() => { const t = clock.after(() => setLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey]);
+  useEffect(() => { const t = clock.afterReal(() => setSurveyLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey]);
+  useEffect(() => { const t = clock.afterReal(() => setLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey]);
   // (the instrument's numbers: a card with a chart waits for its slide's step from the second engine, and asks for it again if the first run failed)
   // (the states baked at build time count as in: the cards of a slide opened first by a link or a jump no longer wait for the whole live chain to be worked out, 6 s and more on a phone: Encephalopathy 8, review bbe955e5)
   const liveStates = useStates((st) => st.results[deck.id]);

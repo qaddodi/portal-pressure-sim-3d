@@ -37,13 +37,17 @@ export function poolUniforms(box: PoolBox, fill: number, bleed: { site: 'VAR' | 
 export const RIPPLE_LAMBDA = 24, RIPPLE_HZ = 0.9;
 /** How much darker the deepest blood is than its surface (organ-shader.ts, the same number): a little, so the pool reads as the jet's own colour, not a maroon. */
 export const DEPTH_DARK = 0.12;
+/** The cel bands the blood is lit in, below the surface: the bleeding jet's own (bleed.ts: `bands: 3`), so the pool and the stream are one material. */
+export const POOL_BANDS = 3;
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 const smoothstep = (a: number, b: number, x: number): number => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 
 /** The pool's part of the organ fragment shader (organ-shader.ts, the `poolA.z > 0.004` block), in JS, line for line: the node render (scripts/pool-render.mjs) and the tests run this, so what is judged
  *  without a GPU is the shader's own arithmetic. `fill` the wash so far, `layer` the organ layer's opacity; `dU` figure units below the surface (negative above), `lobe` the jet's landing (0..1),
  *  `aa` the edge's width floor (1.5). Returns the colour and the opacity it lies on the page at (blood is nearly opaque below the surface). */
-export function poolShade(fill: readonly number[], layer: number, p: { dU: number; dxU?: number; ripple?: number; phase?: number; lobe: number; amount: number; flow: number; delta: readonly number[]; light: readonly number[]; dark?: readonly number[]; aa?: number }): { fill: number[]; layer: number } {
+export function poolShade(fill: readonly number[], layer: number, p: { dU: number; dxU?: number; ripple?: number; phase?: number; lobe: number; amount: number; flow: number; delta: readonly number[]; light: readonly number[]; dark?: readonly number[]; aa?: number;
+  /** the blood as the jet is drawn: its colour, its shade and the lit share (0..1) of the world light's bands at the pixel; absent, the pool is the wash moved by `delta` */
+  cel?: { blood: readonly number[]; shade: readonly number[]; b: number } }): { fill: number[]; layer: number } {
   const aa = Math.max(p.aa ?? 1.5, 1.5), dx = p.dxU ?? 0, ad = Math.abs(dx);
   const env = (1 - Math.exp(-ad / 4)) * Math.exp(-ad / 70), th = 2 * Math.PI * ad / RIPPLE_LAMBDA - (p.phase ?? 0), amp = (p.ripple ?? 0) * (0.5 + 0.5 * p.flow) * 1.6;
   const slope = amp * env * Math.cos(th) * (2 * Math.PI / RIPPLE_LAMBDA) * Math.sign(dx), dU = p.dU - amp * env * Math.sin(th);
@@ -55,5 +59,11 @@ export function poolShade(fill: readonly number[], layer: number, p: { dU: numbe
   const k = clamp01((0.07 + p.flow * p.lobe * 0.12) * skin * p.amount);
   const lit = out.map((v, i) => v * dark + (p.light[i]! - v * dark) * k);
   const band = (1 - smoothstep(0, 9, dU)) * smoothstep(-1.5, 1, dU), rk = Math.min(0.2, Math.abs(slope) * 0.5) * band * p.amount, tone = slope > 0 ? p.light : (p.dark ?? p.light.map(() => 0));
-  return { fill: lit.map((v, i) => v + (tone[i]! - v) * rk), layer: layer + (1 - layer) * body * p.amount };
+  const lay = layer + (1 - layer) * body * p.amount, washed = lit.map((v, i) => v + (tone[i]! - v) * rk);
+  if (!p.cel) return { fill: washed, layer: lay };
+  // (the shader's end: below the surface the blood replaces the wash, a cel of shade to colour, deepened, with the surface's light skin and the ripples' crests laid on it)
+  const c = p.cel, deep = 1 - DEPTH_DARK * smoothstep(0, 90, dU) * body * p.amount;
+  const cel = c.shade.map((s, i) => (s + (c.blood[i]! - s) * c.b) * deep).map((v, i) => v + (p.light[i]! - v) * k).map((v, i) => v + (tone[i]! - v) * rk);
+  const mine = body * p.amount;
+  return { fill: washed.map((v, i) => v + (cel[i]! - v) * mine), layer: lay };
 }

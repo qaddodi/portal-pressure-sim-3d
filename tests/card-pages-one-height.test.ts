@@ -30,5 +30,5 @@ test('the layer walks before it lands, gives the plan the tallest, and holds the
   assert.match(layer, /\|\| tightens \|\| surveying;/);
   // a card on screen is never walked under the reader's eyes, and the walk gives up with the cards' own give-up
   assert.match(layer, /useEffect\(\(\) => \{ if \(go && view\) liveWords\.current = wordsKey; \}\);/);
-  assert.match(layer, /clock\.after\(\(\) => setSurveyLate\(pagesKey\), GIVE_UP_CARDS_MS\)/);
+  assert.match(layer, /clock\.afterReal\(\(\) => setSurveyLate\(pagesKey\), GIVE_UP_CARDS_MS\)/);
 });

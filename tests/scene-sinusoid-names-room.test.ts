@@ -144,6 +144,27 @@ for (const card of [false, true]) test(`the central vein's name and arrow stand 
   }
 });
 
+// A talk slide (Circulation 6, Mac): the words card on the left, the presenter bar in the lower right. The figure's room (the largest rectangle the cards leave) stops left of the bar, to hold the
+// tallest figure, so the end names must not read it: they stand at the vessel's visible ends along its own band, where the bar never is.
+test('the ends\' names stand at the visible ends of the vessel along its band, not at the figure room\'s side (a presenter bar in the corner narrowed the room; Mohammad, 25 Nov)', () => {
+  const W = 1884, H = 1167, card = { x: 22, y: 190, w: 635, h: 520 }, bar = { x: 1573, y: 1090, w: 264, h: 44 };
+  const roomX = card.x + card.w + 16, roomR = bar.x - 16, room = { x: roomX, y: 64, w: roomR - roomX, h: H - 64 - 24 };
+  const free = namesFree(room, { w: W, h: H }), k = restScale(room.h);
+  const v = new SinusoidView(createShared());
+  v.setVisible(true); v.snapTargets(targets()); v.setPortrait(false); v.update(0);
+  const C: [number, number] = [room.x + room.w / 2, room.y + room.h / 2];
+  const at = (walls: { x: number; y: number; w: number; h: number }[]) => v.names({ W, H, C, k, free, insTop: 56, text: TEXT, lit: new Set(), measure, edge: { l: 0, r: W }, walls });
+  const names = at([card, bar]), out = names.find((n) => n.key === 'out')!, inn = names.find((n) => n.key === 'in')!;
+  assert.equal(Math.round(box(out).x1), W - 12 - 48, 'Central vein ends 48 px (its arrow and gap) inside the screen\'s right margin');
+  assert.equal(Math.round(box(inn).x0), card.x + card.w + 16 + 24 + 8 + 48, 'Portal venule stands just clear of the card');
+  // a box that does cross the vessel's band on the right holds the name back
+  const blocked = at([card, { x: 1500, y: C[1] - 100, w: 300, h: 200 }]).find((n) => n.key === 'out')!;
+  assert.equal(Math.round(box(blocked).x1), 1500 - 16 - 12 - 48, 'a box on the band holds it back');
+  // no walls given: the free room's sides, as before
+  const old = v.names({ W, H, C, k, free, insTop: 56, text: TEXT, lit: new Set(), measure }).find((n) => n.key === 'out')!;
+  assert.equal(Math.round(box(old).x1), free.r - 48);
+});
+
 test('the Kupffer cell is fixed in the tissue: its place does not move with the zoom, the room or a card (it slid while he zoomed)', () => {
   const v = new SinusoidView(createShared());
   v.setVisible(true); v.snapTargets(targets()); v.setPortrait(false);

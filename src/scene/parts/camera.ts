@@ -34,6 +34,14 @@ export const cameraPart = scenePart<CelScene>()({
   },
   /** The cards changed room while a dive waits: it will land in the new one. */
   holdRoom(room: Room): void { if (this.heldDive) this.heldDive.room = room; },
+  /** Every change of the free room (a card landing, the dock gliding, the phone turning) comes here, the twin of `goTo`: the room alone, from where the camera is.
+   *  While a dive waits for its parts the camera has ONE pending move, the dive, so the room only goes into it (it lands in the newest room) and the camera stands still.
+   *  Before, each card that settled while the lobule was still building refitted the BODY to its room (a slight zoom in, then out, once per card) and the dive then
+   *  started from that: the "zoom in, zoom out, then jump into the lobule" of 25 Nov (tests/camera-one-owner.test.ts). */
+  setRoom(room: Room, now: number, ms?: number, homeTurn = false, refit = false, ease: ((k: number) => number) | null = null): void {
+    if (this.heldDive) { this.holdRoom(room); return; }
+    this.rig.setRoom(room, now, ms, homeTurn, refit, ease); this.moving = true;
+  },
   /** The micro views are ready: a waiting dive starts now (only while its view is still the one asked for: a tap back to the body in the meantime replaced it). */
   releaseDive(): void {
     const h = this.heldDive;

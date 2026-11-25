@@ -139,9 +139,8 @@
     @keyframes boot-det-in { from { opacity: 0; } }
     @keyframes boot-bar-in { to { opacity: 1; } }
     /* The hint that needs no script (the old computer stuck at "Almost there"): a machine that is blocked for a long time in the graphics driver can run no timer, so no note could come from the script. This opacity animation is run by
-       the compositor, and so is shown after 25 s whatever the page is doing; the link works whenever the page gets a turn. The cover's own notes (slow, failed) carry the same words and take its place. */
+       the compositor, and so is shown after 25 s whatever the page is doing; the cover's own notes (slow, failed) carry the same words and take its place. */
     #boot-late { position: fixed; left: 50%; bottom: 10%; translate: -50% 0; z-index: 2147483647; box-sizing: border-box; width: max-content; max-width: min(calc(100vw - 32px), 360px); margin: 0; text-align: center; font: 400 13px/1.45 var(--ui, system-ui, -apple-system, "Segoe UI", Arial, sans-serif); color: var(--text-3, #5A5347); opacity: 0; animation: boot-late-in 600ms ease 25s forwards; }
-    #boot-late a { color: inherit; text-decoration: underline; }
     #boot.slow ~ #boot-late, #boot.failed ~ #boot-late, #boot.done ~ #boot-late { display: none; }
     @keyframes boot-late-in { to { opacity: 1; } }
     @keyframes boot-name-in { to { opacity: 1; } }
@@ -154,7 +153,7 @@
 <body>
   <div id="boot" role="status" aria-live="polite"><div class="boot-in"><svg class="boot-mark" width="64" height="64" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><defs><linearGradient id="bootpv" gradientUnits="userSpaceOnUse" x1="24" y1="28" x2="9" y2="11"><stop offset="0" stop-color="#D2448A"/><stop offset=".5" stop-color="#7A86E0"/><stop offset="1" stop-color="#4FA9D6"/></linearGradient></defs><rect width="32" height="32" rx="7.5" fill="#16181D"/><path d="M3.2 11C3.2 6.9 7.4 4.6 13.8 4.6C20.2 4.6 25.9 5.2 29 6.6C29.6 6.9 29.4 7.7 28.8 8.1C26.2 9.9 22.8 11.9 20.2 13.9C18.4 15.3 16.8 16.9 15 17.8C14.2 18.2 13.5 17.6 12.8 17.9C11.6 18.5 11.2 19.4 9.6 19.6C7.4 19.9 5.2 18.8 4.2 16.8C3.5 15.3 3.2 13.3 3.2 11Z" fill="#F4E4E1"/><path d="M13.3 16.2C11.6 14.2 9.2 12.9 6.3 12.5M13.3 16.2C15.4 13.8 18.4 11.6 22 10" stroke="url(#bootpv)" stroke-width="1.9" stroke-linecap="round" fill="none"/><path d="M17.4 29.3V23.4M28.6 22.3C24.8 23.4 20.8 23.6 17.4 23.4M17.4 23.4C15.8 21 14.6 19 13.3 16.2" stroke="url(#bootpv)" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg><div class="boot-name">Portal Pressure Simulator 3D</div><div class="boot-prog"><div class="boot-bar"><u></u><b></b></div><div class="boot-row"><span class="boot-stage"><span>Getting ready</span></span><span class="boot-pct"></span></div></div><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Loading…</span></div></div>
   <noscript><div style="position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;background:#F1EBE0;font:15px/1.5 system-ui,Arial,sans-serif;padding:16px"><p style="max-width:480px">The Portal Pressure Simulator needs JavaScript, which is turned off in this browser. Please turn it on, or open the simulator in a current Chrome, Edge, Safari or Firefox.</p></div></noscript>
-  <p id="boot-late">Taking a while? This computer may be slow at drawing the 3D figure. You can wait, reload, or <a href="https://qaddodi.github.io/portal-pressure-simulator/">open the 2D simulator</a>, which is lighter.</p>
+  <p id="boot-late">Taking a while? This computer may be slow at drawing the 3D figure. You can wait, or reload this page.</p>
   <script>/* A page that cannot start says why, in plain words (the 2D page's #boot messages). ES5 on purpose, so an old browser still gets the note.
      window.ppsBootFail() puts the message up (a SyntaxError calls it). Loading is told by what arrives, never by the clock alone: the wait bar fills with the bytes that came (below), "Still loading…" is
      offered only after 8 s in which nothing new arrived, and a page opened offline with no saved copy says so (the 15 s timer of before could not tell a slow download from a stuck one). */
@@ -208,9 +207,8 @@ bar(progress(t));
 if(t>=hold){var idle=t-last;if(startedAt){if(t-startedAt>=WORK_MS&&t-last>=WORK_MS){slow();return}}else{if(idle>=OFFLINE_MS&&offlineNow()){offline();return}if(idle>=STALL_MS){slow();return}}}
 w.ppsBootTimer=setTimeout(tick,TICK_MS)}
 var KEEP='<button type="button" data-reload>Reload</button><button type="button" data-wait>Keep waiting</button>';
-var TWOD='<a href="https://qaddodi.github.io/portal-pressure-simulator/">Open the 2D simulator</a>';
 function phase(){return 'entry '+(startedAt?'running':'not started')+' · '+Math.round(bytes/1024)+' of '+Math.round(total/1024)+' kB · '+seen+' files · '+Math.round(now()/100)/10+' s'}
-function slow(){if(startedAt)show('Still loading…','<p>This is taking much longer than usual, and this computer may be slow at drawing the 3D figure. You can keep waiting, reload, or open the 2D simulator, which is lighter.</p>',phase(),KEEP+TWOD,'slow');else show('Still loading…','<p>The connection looks slow. It usually catches up; reload if it doesn’t.</p>',phase(),KEEP,'slow')}
+function slow(){if(startedAt)show('Still loading…','<p>This is taking much longer than usual, and this computer may be slow at drawing the 3D figure. You can keep waiting, or reload.</p>',phase(),KEEP,'slow');else show('Still loading…','<p>The connection looks slow. It usually catches up; reload if it doesn’t.</p>',phase(),KEEP,'slow')}
 function offline(){show('You’re offline','<p>You’re offline and the simulator isn’t saved on this device yet. Connect to the internet and it will load; after that it also works without a connection.</p>',phase(),KEEP,'slow')}
 /* The name waits for its face (at most NAME_MS), then shows in the face it has by then, so it neither pops in unstyled nor swaps later (index.html's CSS: data-name). */
 function named(how){var el=document.getElementById('boot');if(el&&!el.getAttribute('data-name'))el.setAttribute('data-name',how)}
