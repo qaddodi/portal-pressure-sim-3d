@@ -27,6 +27,7 @@ test('the Tests card has the usual-speed row and no gauge; a slide\'s card keeps
     const dl = (h: string) => h.slice(h.indexOf('<dl'), h.indexOf('</dl>'));
     assert.match(dl(card), /<div class="dop-usual"[^>]*><dt>Usual speed<\/dt><dd>[^<]*<\/dd><\/div>$/, 'the last row of the figures says the usual speed');
     assert.ok(!card.includes('dop-range'), 'no gauge on the Tests card');
+    assert.match(card, /<select[^>]*class="select dop-vessel"[^>]*style="width:(\d+)px"/, 'the vessel select is as wide as its name (measured), so the chevron stands after it without field-sizing');
     assert.ok(!slide.includes('dop-usual'), 'a slide\'s card has no such row');
   } finally { await server.close(); }
 });
@@ -80,6 +81,10 @@ test('a 2D longhand (a left border on each figure, its padding) cannot beat the 
     for (const p of ['padding-left', 'padding-right', 'padding-top', 'padding-bottom']) { const w = weakerThanOurs(pre, [...MAIN, 'div'], p, 'padding'); if (w) bad.push(`${ctx}: ${w}`); }
   }
   assert.deepEqual(bad, []);
+});
+
+test('no rule of ours leans on field-sizing (iOS Safari may not have it): the name\'s width is measured in code', () => {
+  assert.deepEqual(rules.filter((r) => r.file === FILE && r.decls.has('field-sizing')).map((r) => r.selector), []);
 });
 
 test('the figures hold three rows of 24 px (two on a short window), so the card\'s height never depends on how many figures a vessel has', () => {

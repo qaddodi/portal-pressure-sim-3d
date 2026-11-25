@@ -10,6 +10,7 @@ import { EDGES } from '../../../engine/hales/portal/topology.js';
 import { clock } from '../../../clock/frame.ts';
 import { onFrame, latest } from '../../../engine/index.ts';
 import { Chart, type ChartCtx } from '../../charts/Chart.tsx';
+import { measure } from '../../charts/measure.ts';
 import { onZoomK } from '../../cards/zoom-k.ts';
 import type { ChartPainter } from '../../charts/painter.ts';
 import { feed } from '../feed.ts';
@@ -123,6 +124,10 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
   }, [p.slide, stripKey, h]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { dirty.current = true; clock.invalidate('doppler'); }, [ovTop]);
 
+  // the vessel is its name and a chevron with no box (doppler-card.css): the select is as wide as the chosen name as the page sets it (Inter 16 px, 600) and the chevron's room, so the chevron stands right after the name on every browser
+  // (never `field-sizing`: iOS Safari may not have it). The name's own list is the native one.
+  const vesselName = probeName((PROBES as { id: string }[]).find((x) => x.id === probe) ?? (PROBES as never[])[0]);
+  const vesselW = Math.ceil(measure(vesselName, 16, 600)) + 24;
   const modes = DOPPLER_MODES as { id: DopMode; label: string; short: string }[];
   const kind = rep?.kind ?? 'portal';
   const g = rep?.gauge ?? null;
@@ -160,7 +165,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
   return (
     <div className="dop instrument-view" data-pane="doppler" data-kind={kind}>
       <div className="dop-head">
-        <select className="select dop-vessel" aria-label="Vessel" value={probe} onChange={(e) => setDopplerProbe(e.target.value)}>
+        <select className="select dop-vessel" aria-label="Vessel" value={probe} style={{ width: vesselW }} onChange={(e) => setDopplerProbe(e.target.value)}>
           {(PROBES as { id: string }[]).map((x) => <option key={x.id} value={x.id} title={EDGES[EI[x.id]!].label}>{probeName(x)}</option>)}
         </select>
         <div className="dop-btns">

@@ -4,8 +4,8 @@
    (`html:root #app` first). It is for the Tests card only: a slide's data card keeps its own strip and gauge (`p.slide` in DopplerPane.tsx). */
 
 /* ── the selection row ── */
-/* the vessel: its name and a chevron, no box (the 2D `.select` box, its hover border and its 220 px share are taken off); the list is still the native one, 16 px so a phone does not zoom on it */
-html:root #app .t-card .instrument-view.dop .dop-head .dop-vessel { flex: 0 1 auto; width: auto; min-width: 56px; max-width: 100%; padding: 0 22px 0 0; border-color: transparent; background-color: transparent; box-shadow: none; font-size: var(--fs-16); font-weight: 600; color: var(--text); field-sizing: content; }
+/* the vessel: its name and a chevron, no box (the 2D `.select` box, its hover border and its 220 px share are taken off); the list is still the native one, 16 px so a phone does not zoom on it; its width is the chosen name's, set by DopplerPane (a measured number, not `field-sizing`) */
+html:root #app .t-card .instrument-view.dop .dop-head .dop-vessel { flex: 0 1 auto; width: auto; min-width: 56px; max-width: 100%; padding: 0 22px 0 0; border-color: transparent; background-color: transparent; box-shadow: none; font-size: var(--fs-16); font-weight: 600; color: var(--text); }
 /* the display: today's raised control, its chosen word in full ink and the others quiet; every word stays 600 so a choice never moves the row; the change eases */
 html:root #app .t-card .instrument-view.dop .dop-modes .dop-mode-opt { color: var(--text-3); transition: color var(--d-small) var(--ease), background-color var(--d-small) var(--ease), box-shadow var(--d-small) var(--ease); }
 html:root #app .t-card .instrument-view.dop .dop-modes .dop-mode-opt[aria-pressed="true"] { color: var(--text); }
