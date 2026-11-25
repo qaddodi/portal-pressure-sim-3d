@@ -17,7 +17,7 @@ import { beatCardWaiting } from '../../tests/slide/beat-agree.ts';
 import { menuWaiting } from '../../charts/menu/MenuCard.tsx';
 import { drawScreen } from '../../capture/capture.ts';
 import { speedAnimations, sampleRealMs, skipAnimations, finishAnimations } from './speed.ts';
-import { captureViews, type CaptureView, collageLayout, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
+import { captureViews, type CaptureView, collageLayout, settleLimitMs, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
 import { isSideways, layoutOf } from '../../layout/rules2d.ts';
 import { lastPicked, stopKey, pickWords } from './capture-pick.ts';
 import { growCaptureTotal } from './progress.ts';
@@ -91,16 +91,19 @@ async function stillPage(real: (ms: number) => number, needWords = false, fast =
   await sleep(real(60 * q));   // (the press has reached the cards: they mount and begin on the next frames)
   let frames = 0;
   const off = clock.on('tween', () => { frames++; });   // (frames drawn since this wait began: a strip fills by frames, not by the clock)
-  const t0 = clock.now(), limit = real(needWords ? 14000 : 12000);
+  const t0 = clock.now(), base = needWords ? 14000 : 12000;
   let still = -1, why = '', words = '';
-  while (clock.now() - t0 < limit) {
+  // (a procedure's graph draws its head to the end on the page's own frames, which a slow screen makes few: the wait for it is the long one, so the picture and the tucked one after it show the run's end, never its middle.
+  //  Gastric varices 7, capture 2b947e48: "Left renal vein 1.0" in one picture and "LRV 0.9" in the next, the run still going)
+  const limitNow = () => real(settleLimitMs(why, base));
+  while (clock.now() - t0 < limitNow()) {
     why = arriving(clock.now() - t0 < real(10000), clock.now() - t0 < real(9000), frames); words = tagWords();   // (the clock's motion list counts for 4 s of the 5: a hold that is still there after that is a perpetual one, and is said in the README)
     if (!why && needWords && !words.includes(BLOCKED_SAYS.first) && !words.includes(BLOCKED_SAYS.then)) why = 'the blocked catheter has no words yet';
     if (!why) { if (still < 0) still = clock.now(); else if (clock.now() - still >= real((words.includes(BLOCKED_SAYS.first) ? 25 : 60) * q)) { why = ''; break; } } else still = -1;
     await sleep(real(fast ? 8 : 15));
   }
   off();
-  const gaveUp = clock.now() - t0 >= limit;
+  const gaveUp = clock.now() - t0 >= limitNow();
   if (!words.includes(BLOCKED_SAYS.first)) await sleep(real(30));   // (the last frame: the charts draw their last mesh, the callouts have placed)
   const soft = arriving(false, true, frames);
   const perpetual = [clock.moving > 0 ? `the clock still held motion after 4 s (${clock.movingTags().join(', ')})` : '', soft ? `${soft}, still, after 3 s (the picture shows it so; it may in the app too)` : ''].filter(Boolean).join('; ');

@@ -1,4 +1,4 @@
-// Controls that looked real and did nothing (21 Nov review, next-steps step 7), each wired at its root and pinned here: J held injects dye and its release lets go; the arrows step through the
+// Controls that looked real and did nothing (21 Nov review, next-steps step 7), each wired at its root and pinned here: the arrows step through the
 // figure's stations and Shift + arrow follows the flow; Search's "Guide & shortcuts" opens the Guide; Blood > Pressure values takes the number off every label (the anatomy's and the circuit's).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,16 +33,6 @@ test('the walk: Left and Right are the stations (announced), Shift keeps the old
   assert.match(walk, /if \(e\.shiftKey\) \{ const to = step\(id/);
   assert.match(walk, /stationStep\(all\(\)\.map/);
   assert.match(walk, /announce\(`Station \$\{st\.n\} of \$\{st\.of\}, \$\{st\.name\}\.`\)/);
-});
-
-test('J held injects and its release lets go: keydown asks for a held bolus, keyup and a blur release it', () => {
-  const keys = src('src/ui/keys/useKeys.ts');
-  assert.match(keys, /runFeature\('dye', 'Inject dye', \{ hold: true \}\); dyeKey = true/);
-  assert.match(keys, /window\.addEventListener\('keyup', up\)/);
-  assert.match(keys, /window\.addEventListener\('blur', dyeKeyUp\)/);
-  assert.match(keys, /export const dyeKeyUp = \(\): void => \{ if \(dyeKey\) \{ dyeKey = false; releaseDye\(\); \} \}/);
-  assert.match(src('src/ui/action/boot.ts'), /registerFeature\('dye', \(o\) => injectDye\(o\?\.hold \? \{ hold: true \} : \{\}\)\)/);
-  assert.match(src('src/ui/shell/features.ts'), /export function runFeature\(id: FeatureId, name: string, o\?: \{ hold\?: boolean \}\)/);
 });
 
 test('Search > Guide & shortcuts opens the Guide (2D ctx.help), not the Help menu', () => {

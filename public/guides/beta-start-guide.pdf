@@ -317,7 +317,7 @@ endstream
 endobj
 16 0 obj
 <<
-/Contents 17 0 R
+/Contents 23 0 R
 /MediaBox [ 0 0 612 792 ]
 /Parent 2 0 R
 /Resources <<
@@ -544,8 +544,139 @@ endobj
 /Trapped /False
 >>
 endobj
+23 0 obj
+<<
+/Length 4566
+>>
+stream
+1 0 0 1 0 0 cm  BT /F1 12 Tf 14.4 TL ET
+q
+40.32 0 0 40.32 42 709.68 cm
+/FormXob.2c9786982a23b158ad0c1512701125e8 Do
+Q
+.113725 .113725 .121569 rg
+BT /F2 14.88 Tf 17.856 TL ET
+BT 1 0 0 1 92.88 735.6 Tm (Portal Pressure Simulator) Tj T* ET
+.266667 .266667 .266667 rg
+BT /F1 9.12 Tf 10.944 TL ET
+BT 1 0 0 1 92.88 724.56 Tm (Beta tester start-up guide) Tj T* ET
+BT /F1 8.16 Tf 9.792 TL ET
+BT 1 0 0 1 92.88 714.48 Tm (Created by Mohammad Almeqdadi, MD) Tj T* ET
+.8 .8 .8 RG
+.6 w
+n 42 702 m 570 702 l S
+.85098 .282353 .058824 rg
+n
+55.824 683.568 m
+55.824 687.3854 52.72939 690.48 48.912 690.48 c
+45.09461 690.48 42 687.3854 42 683.568 c
+42 679.7506 45.09461 676.656 48.912 676.656 c
+52.72939 676.656 55.824 679.7506 55.824 683.568 c
+f*
+1 1 1 rg
+BT /F2 9.12 Tf 10.944 TL ET
+BT 1 0 0 1 46.37664 680.4 Tm (3) Tj T* ET
+.113725 .113725 .121569 rg
+BT /F2 11.52 Tf 13.824 TL ET
+BT 1 0 0 1 61.584 679.536 Tm (Change something and watch every number follow) Tj T* ET
+q
+1 0 0 1 65 632.592 cm
+q
+BT 1 0 0 1 0 30.144 Tm 13.248 TL /F1 9.6 Tf .113725 .113725 .121569 rg (Tap a vessel \(or the liver\) on the figure. A card opens with sliders: ) Tj /F2 9.6 Tf (Narrow) Tj /F1 9.6 Tf ( and ) Tj /F2 9.6 Tf (Clot) Tj /F1 9.6 Tf ( change that vessel, and ) Tj /F2 9.6 Tf (Doppler) Tj /F1 9.6 Tf ( and) Tj T* /F2 9.6 Tf (Add shunt) Tj /F1 9.6 Tf ( are one tap away. In ) Tj /F2 9.6 Tf (Patients) Tj /F1 9.6 Tf (, pick a case and try something from ) Tj /F2 9.6 Tf (Treat) Tj /F1 9.6 Tf (. The pressures,) Tj T* (colors and tiles update at once.) Tj T* ET
+Q
+Q
+q
+299.697 0 0 215 42 409.592 cm
+/FormXob.ad1ec3c88a5186dae9977c9121bd94ad Do
+Q
+.815686 .815686 .815686 RG
+.5 w
+n 42 409.592 299.697 215 re S
+q
+138.8245 0 0 215 351.697 409.592 cm
+/FormXob.d3286c968444c62fc85b1d91c9dfeb02 Do
+Q
+.815686 .815686 .815686 RG
+.5 w
+n 351.697 409.592 138.8245 215 re S
+q
+1 0 0 1 42 395.512 cm
+q
+.333333 .333333 .333333 rg
+BT 1 0 0 1 0 2.592 Tm /F1 7.488 Tf 10.08 TL (Mac: the portal vein selected \(left\). iPhone: a vessel card at the bottom \(right\).) Tj T* ET
+Q
+Q
+.85098 .282353 .058824 rg
+n
+55.824 374.6 m
+55.824 378.4174 52.72939 381.512 48.912 381.512 c
+45.09461 381.512 42 378.4174 42 374.6 c
+42 370.7826 45.09461 367.688 48.912 367.688 c
+52.72939 367.688 55.824 370.7826 55.824 374.6 c
+f*
+1 1 1 rg
+BT /F2 9.12 Tf 10.944 TL ET
+BT 1 0 0 1 46.37664 371.432 Tm (4) Tj T* ET
+.113725 .113725 .121569 rg
+BT /F2 11.52 Tf 13.824 TL ET
+BT 1 0 0 1 61.584 370.568 Tm (Send feedback) Tj T* ET
+q
+1 0 0 1 65 310.376 cm
+q
+BT 1 0 0 1 0 43.392 Tm 13.248 TL .113725 .113725 .121569 rg /F1 9.6 Tf (Tap the ) Tj /F2 9.6 Tf (gear) Tj /F1 9.6 Tf ( \(Settings, in the bottom bar on iPhone\), then ) Tj /F2 9.6 Tf (Send feedback) Tj /F1 9.6 Tf (. It starts an email to Mohammad with your) Tj T* (build, device, screen, a link to the exact view you were on and a short report of what the app's own checks found.) Tj T* (Nothing is sent until you send the email. Settings also has ) Tj /F2 9.6 Tf (Appearance) Tj /F1 9.6 Tf ( \(Light, Soft, Dark, Navy, Black or System\) and) Tj T* /F2 9.6 Tf (Display) Tj /F1 9.6 Tf (, where Auto detail softens the figure on a slow device.) Tj T* ET
+Q
+Q
+q
+240 0 0 135 42 167.376 cm
+/FormXob.e40456a3769152215973fcff53515b46 Do
+Q
+.815686 .815686 .815686 RG
+.5 w
+n 42 167.376 240 135 re S
+q
+197.4375 0 0 81 292 221.376 cm
+/FormXob.8aa7fa2a6de8d7e544292c02f99ad2f7 Do
+Q
+.815686 .815686 .815686 RG
+.5 w
+n 292 221.376 197.4375 81 re S
+q
+1 0 0 1 42 153.296 cm
+q
+.333333 .333333 .333333 rg
+BT 1 0 0 1 0 2.592 Tm /F1 7.488 Tf 10.08 TL (Tap the gear, then Send feedback: on Mac \(left\) and on iPhone \(right\).) Tj T* ET
+Q
+Q
+.85098 .282353 .058824 rg
+n
+55.824 132.384 m
+55.824 136.2014 52.72939 139.296 48.912 139.296 c
+45.09461 139.296 42 136.2014 42 132.384 c
+42 128.5666 45.09461 125.472 48.912 125.472 c
+52.72939 125.472 55.824 128.5666 55.824 132.384 c
+f*
+1 1 1 rg
+BT /F2 9.12 Tf 10.944 TL ET
+BT 1 0 0 1 46.37664 129.216 Tm (5) Tj T* ET
+.113725 .113725 .121569 rg
+BT /F2 11.52 Tf 13.824 TL ET
+BT 1 0 0 1 61.584 128.352 Tm (When you report a problem) Tj T* ET
+q
+1 0 0 1 65 94.656 cm
+q
+BT 1 0 0 1 0 16.896 Tm 13.248 TL /F1 9.6 Tf .113725 .113725 .121569 rg (Take a screenshot that shows the orange ) Tj /F2 9.6 Tf (PREVIEW) Tj /F1 9.6 Tf ( tab at the top, so the build is clear, and say what you were doing.) Tj T* (Slow, confusing or broken: all of it helps.) Tj T* ET
+Q
+Q
+BT /F1 6.528 Tf 7.8336 TL ET
+.333333 .333333 .333333 rg
+BT 1 0 0 1 42 29.4 Tm (Educational simulation with simplified, illustrative values; not for clinical decisions.) Tj T* ET
+BT 1 0 0 1 560.9261 29.4 Tm (2/2) Tj T* ET
+ 
+
+endstream
+endobj
 xref
-0 23
+0 24
 0000000000 65535 f 
 0000000015 00000 n 
 0000000083 00000 n 
@@ -569,13 +700,14 @@ xref
 0002161176 00000 n 
 0002666100 00000 n 
 0002706161 00000 n 
+0002706545 00000 n 
 trailer
 <<
-/Size 23
+/Size 24
 /Root 1 0 R
 /Info 22 0 R
 /ID [ <0861ad86bb7fdb53eb3d353341594fb0> <0861ad86bb7fdb53eb3d353341594fb0> ]
 >>
 startxref
-2706545
+2711164
 %%EOF

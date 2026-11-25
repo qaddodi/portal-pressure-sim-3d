@@ -223,7 +223,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
   const fkey = `${lockKey}|${vp.w}x${vp.h}`;
   let hOn = rect.h;
   if (gate.current && ready && !out && !GROWS_BY_DESIGN.has(entry.id)) {
-    fz.current = freezeOf(fz.current, fkey, rect.h, clock.now());
+    fz.current = freezeOf(fz.current, fkey, rect.h, box.current.key === lockKey ? box.current.h : null);
     hOn = fz.current!.h;
   }
   // A change of height after landing glides, by clip-path on the card and a scaled shadow plate (compositor work, no layout per frame):

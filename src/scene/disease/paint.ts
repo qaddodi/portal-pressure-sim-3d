@@ -1,4 +1,4 @@
-// A cel object in a colour the palette has no tone for (a clot's deep red, the dye, the blood): the object is made with the nearest tone and recoloured here,
+// A cel object in a colour the palette has no tone for (a clot's deep red, the blood): the object is made with the nearest tone and recoloured here,
 // in the same way CelObject.applyPalette bands it (shadow = colour x shade, 8% toward the ink).
 import { type CelObject, rawColor } from '../materials/cel.ts';
 import { type Palette } from '../palette.ts';

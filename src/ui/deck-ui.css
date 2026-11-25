@@ -236,6 +236,9 @@
 .dk-pageno { letter-spacing: var(--caps-ls); }
 /* The page count ("1 of 2") sits in the name tab's band, top left, level with the tab: no row of its own (owner 24 Nov, option 2). Same type as the tab, quieter ink, no box. */
 .pz-pageno { position: absolute; top: 0; left: var(--pz-cp); z-index: 1; height: var(--pz-tabh); display: flex; align-items: center; font: var(--caps-w) var(--pz-tabf)/1 var(--font-ui); letter-spacing: var(--caps-ls); text-transform: uppercase; white-space: nowrap; color: var(--text-3); pointer-events: none; user-select: none; }
+/* Where the level tab (.pz-sitetab) stands at the top left the page count has no room beside it (Gastric varices 7, capture 2b947e48: "SINUSOIDAL" and "2 OF 2" printed over each other). The name tab is hidden then (rules at the foot of this
+   file), so the count takes the top right, the name tab's own place, at the card's inner edge. Both the tab and the count are written before the words, so the sibling selector reaches it. */
+.pz-sitetab:not([data-rail]) ~ .pz-pageno, .pz-shade.stack .pz-sitetab[data-rail] ~ .pz-pageno { left: auto; right: var(--pz-cp); }
 .dk-page { animation: dk-fade var(--d-card-in) var(--ease-arrive) both; }
 
 /* (The glass is one style in glass.css, for every panel, menu, pill and card.) */

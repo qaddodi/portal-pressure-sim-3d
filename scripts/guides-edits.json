@@ -150,6 +150,67 @@
           ],
           "find": "a card also asks once",
           "width": 504
+        },
+        {
+          "page": 1,
+          "size": 9.6,
+          "leading": 13.248,
+          "find": "Inject dye",
+          "width": 504,
+          "runs": [
+            [
+              "Tap a vessel (or the liver) on the figure. A card opens with sliders: ",
+              false
+            ],
+            [
+              "Narrow",
+              true
+            ],
+            [
+              " and ",
+              false
+            ],
+            [
+              "Clot",
+              true
+            ],
+            [
+              " change that vessel, and ",
+              false
+            ],
+            [
+              "Doppler",
+              true
+            ],
+            [
+              " and ",
+              false
+            ],
+            [
+              "Add shunt",
+              true
+            ],
+            [
+              " are one tap away. In ",
+              false
+            ],
+            [
+              "Patients",
+              true
+            ],
+            [
+              ", pick a case and try something from ",
+              false
+            ],
+            [
+              "Treat",
+              true
+            ],
+            [
+              ". The pressures, colors and tiles update at once.",
+              false
+            ]
+          ]
         }
       ]
     },
@@ -266,6 +327,67 @@
           ],
           "find": "a card",
           "width": 350
+        },
+        {
+          "page": 3,
+          "size": 12,
+          "leading": 16.56,
+          "find": "Inject dye",
+          "width": 350,
+          "runs": [
+            [
+              "Tap a vessel (or the liver) on the figure. A card opens with sliders: ",
+              false
+            ],
+            [
+              "Narrow",
+              true
+            ],
+            [
+              " and ",
+              false
+            ],
+            [
+              "Clot",
+              true
+            ],
+            [
+              " change that vessel, and ",
+              false
+            ],
+            [
+              "Doppler",
+              true
+            ],
+            [
+              " and ",
+              false
+            ],
+            [
+              "Add shunt",
+              true
+            ],
+            [
+              " are one tap away. In ",
+              false
+            ],
+            [
+              "Patients",
+              true
+            ],
+            [
+              ", pick a case and try something from ",
+              false
+            ],
+            [
+              "Treat",
+              true
+            ],
+            [
+              ". The pressures, colors and tiles update at once.",
+              false
+            ]
+          ]
         }
       ]
     }
