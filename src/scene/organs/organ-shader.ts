@@ -4,7 +4,7 @@
 import { FADE_GLSL, INK_RIM_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { RIM_SPECK } from './rim-profile.ts';
-import { DEPTH_DARK } from './pool-level.ts';
+import { DEPTH_DARK, POOL_BANDS } from './pool-level.ts';
 import { SEE_DECL } from '../organ-veil/glsl.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
@@ -87,6 +87,9 @@ varying vec2 vRest;
 uniform vec4 poolA;
 uniform vec4 poolLand;
 uniform vec3 poolDelta;
+// the blood itself, as the bleeding jet wears it (disease/paint.ts recolour): its lit colour and its shade, lit in three cel bands by the world light and laid over the wash below the surface
+uniform vec3 poolBlood;
+uniform vec3 poolShadeC;
 // Settings > Figure depth: organDepth (0 off, 1 on, eased) adds the baked crease and contact shade and a soft light from the upper left
 uniform float depthAmt;
 // the dive's cutaway window (atlas-look-plan 3.1): x, y the dive point on the screen (ndc), z the radius that is cleared (ndc half-heights; below 0 nothing is), w the aspect; the same for every organ
@@ -139,7 +142,10 @@ void main() {
   fill += (vInk - color) * inkAmount;
 #endif
   float lay = layer;
-  if (poolA.z > 0.004) {
+  // (the funnel of the duodenum, the antrum up to the pylorus and a little over the bulb, shares the stomach's pool: gutLook gates poolZ by the funnel's share of the stomach's look)
+  float poolZ = poolA.z;
+  float poolBody = 0.0, poolSkin = 0.0, poolRip = 0.0, poolDeep = 1.0, poolSlope = 0.0;
+  if (poolZ > 0.004) {
     // the pool: a level in the figure (a line across the stomach, per pixel, never per vertex), mirrored by poolShade in pool-level.ts (which the node render and the tests run).
     // dU is how many figure units below the surface this pixel is (negative above it).
     // ripples: gentle waves run out along the surface from where the jet lands (the surface is seen edge-on, so a ring is a wave of the waterline): the level rises and falls by a unit or two,
@@ -155,14 +161,17 @@ void main() {
     float aa = max(fwPool, 1.5);   // the waterline is a soft blend a few units wide (colours blend, never step), and never narrower than a pixel
     float body = smoothstep(-aa, aa, dU);
     float wet = smoothstep(-3.5, -aa, dU) * (1.0 - body);   // the meniscus: the wall just above the surface is wet, a faint film that climbs a few units and fades
-    fill += poolDelta * (body + 0.25 * wet);
-    fill *= 1.0 - ${num(DEPTH_DARK)} * smoothstep(0.0, 90.0, dU) * body * poolA.z;   // deeper blood is a little darker, in the same hue
+    fill += poolDelta * (0.25 * wet);
+    // below the surface the blood is drawn at the end (the cel bands below): its depth, the jet's lit skin on the surface and the ripples' crests are kept here
+    poolBody = body * poolZ;
+    poolDeep = 1.0 - ${num(DEPTH_DARK)} * smoothstep(0.0, 90.0, dU) * poolBody;   // deeper blood is a little darker, in the same hue
     float lobe = exp(-pow((vBox.x - poolLand.x) / max(poolLand.y, 1e-4), 2.0));   // the jet lands: a lighter, fresher patch on the surface, a little wider than the jet
     float skin = (1.0 - smoothstep(0.0, 6.0, dU)) * smoothstep(-0.5, 2.0, dU);   // the lit skin of the surface: a few units under it
-    fill = mix(fill, ogLight.rgb, clamp((0.07 + poolA.w * lobe * 0.12) * skin * poolA.z, 0.0, 1.0));
+    poolSkin = clamp((0.07 + poolA.w * lobe * 0.12) * skin * poolZ, 0.0, 1.0);
     float band = (1.0 - smoothstep(0.0, 9.0, dU)) * smoothstep(-1.5, 1.0, dU);   // the ripples' light lies in the blood's top few units
-    fill = mix(fill, slope > 0.0 ? ogLight.rgb : ogDark.rgb, clamp(abs(slope) * 0.5, 0.0, 0.2) * band * poolA.z);
-    lay = mix(layer, 1.0, body * poolA.z);   // blood is not a wash: it lies on the page opaque, so it is the jet's red, not mauve
+    poolRip = clamp(abs(slope) * 0.5, 0.0, 0.2) * band * poolZ;
+    poolSlope = slope;
+    lay = mix(layer, 1.0, poolBody);   // blood is not a wash: it lies on the page opaque, so it is the jet's red, not mauve
   }
   if (nodAmt > 0.0) {
     fill += sepDelta * nt.r;
@@ -206,6 +215,17 @@ void main() {
   }
   // the organ lies on whatever is behind it at the layer's opacity, as 2D's organ groups do (blended in 2D's order: layer.ts); the dive fades the layer, no dots.
   // the organ veil (organ-veil/config.ts): an organ in front of the kidney, the spleen or the caudate lobe lets it show, its fill taken down where the one behind is, as the zoom closes (its line stays)
+  // the blood, as the jet is drawn (CelObject, bleed.ts): matte, three cel bands of the world light between its shade and its colour, the band edge one device pixel wide.
+  // It replaces the organ's wash below the surface, so the pool and the stream are one material, not a tinted wall.
+  if (poolBody > 0.001) {
+    float qd = (dot(nws, LIGHT) * 0.5 + 0.5) * ${num(POOL_BANDS)};
+    float wq = fwLam * 0.5 * ${num(POOL_BANDS)} * 0.5;
+    float bb = (floor(qd) + smoothstep(0.5 - wq, 0.5 + wq, fract(qd))) / ${num(POOL_BANDS)};
+    vec3 cel = mix(poolShadeC, poolBlood, clamp(bb, 0.0, 1.0)) * poolDeep;
+    cel = mix(cel, ogLight.rgb, poolSkin);
+    cel = mix(cel, poolSlope > 0.0 ? ogLight.rgb : ogDark.rgb, poolRip);
+    fill = mix(fill, cel, poolBody);
+  }
   lay *= 1.0 - seeAmount(gl_FragCoord.xy);
   gl_FragColor = vec4(fill, lay * fade * win);
 }`;

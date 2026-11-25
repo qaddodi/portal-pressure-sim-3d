@@ -40,3 +40,37 @@ test('a full pool fills the whole lumen, and a fuller one stands higher, never l
   assert.ok(poolSurfaceY(0.12) > poolSurfaceY(0.5) && poolSurfaceY(0.5) > poolSurfaceY(1), 'the surface only rises with the fill');
   assert.ok(poolSurfaceY(0) >= LUMEN_BOTTOM, 'empty is at the bottom of the lumen');
 });
+
+test('the pool is the jet\'s material: below the surface it is the blood\'s cel (shade to colour), not the wash moved toward red', async () => {
+  const { poolShade } = await import('../src/scene/organs/pool-level.ts');
+  const wash = [0.9, 0.75, 0.68], blood = [0.8, 0.25, 0.18], shade = [0.5, 0.12, 0.09], light = [1, 0.95, 0.9];
+  const at = (b: number, dU = 40) => poolShade(wash, 0.6, { dU, lobe: 0, amount: 1, flow: 0.8, delta: [-0.1, -0.5, -0.5], light, cel: { blood, shade, b } });
+  const lit = at(1).fill, dim = at(0).fill;
+  for (let i = 0; i < 3; i++) {
+    assert.ok(lit[i]! <= blood[i]! + 1e-9 && lit[i]! > blood[i]! * 0.9, 'the lit band is the blood\'s colour (a little deepened, never the wash)');
+    assert.ok(dim[i]! <= shade[i]! + 1e-9 && dim[i]! > shade[i]! * 0.9, 'the dark band is its shade');
+  }
+  assert.deepEqual(at(1, -40).fill.map((v) => +v.toFixed(3)), wash, 'above the surface the wall is untouched');
+  assert.equal(at(1).layer, 1, 'and the blood is opaque');
+});
+
+test('the antrum is filled to the pylorus: the funnel of the duodenum is lit by the stomach\'s own pool uniforms', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { organsReady, setOrganData, ORGAN_MESHES } = await import('../src/scene/organs/meshes.ts');
+  const { setArtData } = await import('../src/scene/organs/organ-art.ts');
+  const { createShared } = await import('../src/scene/materials/cel.ts');
+  const b = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
+  setOrganData(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
+  setArtData(JSON.parse(readFileSync(new URL('../public/anatomy/organ-art.json', import.meta.url), 'utf8')));
+  await organsReady;
+  const layer = new OrganLayer(createShared(), ORGAN_MESHES), palette = paletteFor('light');
+  layer.applyLook(palette); layer.setBlood(bloodColour('light', palette));
+  const t = bodyTargets((await presetState('cirr-decomp')).frame, {}, null);
+  layer.setBody({ ...t, bleed: { active: true, site: 'VAR', rate: 90, total: 900 } }, true);
+  for (let i = 0; i < 160; i++) layer.update(1000 + i * 33);
+  const st = layer.byId.get('stomach')!.toon.uniforms, du = layer.byId.get('duodenum')!.toon.uniforms;
+  for (const k of ['poolA', 'poolLand', 'poolDelta', 'poolBlood', 'poolShadeC']) assert.equal(du[k], st[k], `${k}: one pool across the stomach and the antrum`);
+  assert.ok((du.poolA!.value as { z: number }).z > 0.9, 'and it is on');
+  const want = bloodColour('light', palette), got = du.poolBlood!.value as { x: number; y: number; z: number };
+  assert.ok(Math.abs(got.x - want[0]) < 0.01 && Math.abs(got.y - want[1]) < 0.01 && Math.abs(got.z - want[2]) < 0.01, 'in the jet\'s blood');
+});
