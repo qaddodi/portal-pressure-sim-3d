@@ -9,14 +9,14 @@ import { EVENT_S } from '../src/ui/charts/evgraph/model.ts';
 const spec = { lines: ['ppg', 'fvx'] } as never;
 const frame = (t: number) => ({ t, metrics: { ascites: { volume: 0 }, varix: { d: 5 }, gastricVarix: { d: 8 }, spleen: { length: 12, platelets: 100 }, vitals: {} }, P: null, Q: null, D: null }) as never;
 test('a procedure run is pending from its start until its last second, whatever the head is doing', () => {
-  let tap: ((f: never) => void) | null = null;
-  const src = { now: () => frame(100), on: (fn: (f: never) => void) => { tap = fn; return () => { tap = null; }; }, run: () => {} };
+  const tap: { fn: ((f: never) => void) | null } = { fn: null };
+  const src = { now: () => frame(100), on: (fn: (f: never) => void) => { tap.fn = fn; return () => { tap.fn = null; }; }, run: () => {} };
   evRunFor('k', spec);
   assert.equal(evRunPending(), false, 'before the change there is nothing to wait for');
   startEvRun('k', spec, null, null, src);
   assert.equal(evRunPending(), true, 'started, no reading yet');
-  for (const t of [0.2, 5, 12]) { tap?.(frame(100 + t)); assert.equal(evRunPending(), true, `at +${t} s`); }
-  tap?.(frame(100 + EVENT_S + 0.1));
+  for (const t of [0.2, 5, 12]) { tap.fn?.(frame(100 + t)); assert.equal(evRunPending(), true, `at +${t} s`); }
+  tap.fn?.(frame(100 + EVENT_S + 0.1));
   assert.equal(evRunPending(), false, 'the graph\'s seconds have run');
   leaveEvRun('k');
 });
