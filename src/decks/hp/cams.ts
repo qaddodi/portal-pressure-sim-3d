@@ -86,13 +86,23 @@ export function withStations(shot: Shot, stations: readonly string[]): Shot {
 
 /** The camera of a slide, from its `cam` (and `view`) exactly as the 2D deck writes them. Throws on a name neither app has, so none is silently dropped. */
 export function camPlan(cam: CopiedSlide['cam'], view?: string | null, stations: readonly string[] = [], floor = 0): CamPlan {
-  const plan = camPlanOf(cam, view);
+  const plan = camPlanOf(cam === ROUTE_TO_STATIONS ? routeBox(stations) : cam, view);
   if (plan.kind !== 'body') return plan;
   let shot = floor > 0 ? { ...plan.shot, half: [Math.max(plan.shot.half[0], floor), Math.max(plan.shot.half[1], floor)] as [number, number] } : plan.shot;
   if (stations.length) shot = withStations(shot, stations);
   return shot === plan.shot ? plan : { ...plan, shot };
 }
 
+/** FRAMING RULE S6 (Mohammad, 25 Nov, "do it" to more rules for every scenario): the `route` region (liver to right atrium, 0.87 x 1.10 half) is taller than the labels on it. A route slide is framed to the route's width and only the height its labelled stations
+ *  need (plus STATION_AIR), so on a phone, where the cards leave a room barely 200 px tall, a vein still draws 8 px or more (F6) and the margin rule (F3) holds in the room the solver is given. Context above and below the stations may leave the room. */
+export const ROUTE_TO_STATIONS = 'route-stations';
+const ROUTE_X: readonly [number, number] = [380, 900];
+function routeBox(stations: readonly string[]): CopiedSlide['cam'] {
+  const ys = stations.map((n) => stationDot(n)).filter((p): p is [number, number] => !!p).map((p) => p[1]);
+  if (!ys.length) return 'route';
+  const y2d = (y: number) => 556 - 300 * y;
+  return [ROUTE_X[0], Math.round(y2d(Math.max(...ys) + STATION_AIR)), ROUTE_X[1], Math.round(y2d(Math.min(...ys) - STATION_AIR))];
+}
 /** FRAMING RULE F1 (Mohammad, 25 Nov, docs/approved/framing-rules.md): a slide whose copied 2D camera is a whole region but whose subject is a small part of it is framed on that part. Each entry names the slide, the 2D camera it
  *  replaces (so a re-copy that moves the camera is noticed: tests/camera-framing-rules.test.ts), the frame that replaces it, and the context floor (half extent, scene units: no tighter than this, F5). The 2D deck is never edited. */
 export interface FrameFix { was: string; cam: CopiedSlide['cam']; floor: number }
@@ -128,6 +138,12 @@ Object.assign(FRAME_FIXES, {
   'tipping/injury': { was: 'fit', cam: 'liver', floor: 0 },
   'tipping/injury-card': { was: 'fit', cam: 'liver', floor: 0 },
 } satisfies Record<string, FrameFix>);
+const ROUTE_SLIDES = ['circulation/ladder', 'circulation/define', 'circulation/path-ladder', 'circulation/relation', 'doppler/a4', 'gradients/where', 'masld/under', 'masld/parts', 'prehepatic/gradients', 'same-gradient/ref', 'same-gradient/up', 'same-gradient/cost', 'sites/healthy', 'tips-candidacy/heart-stent', 'tips-complete/heart', 'two-lesions/together', 'two-lesions/measure'];
+for (const k of ROUTE_SLIDES) FRAME_FIXES[k] = { was: 'route', cam: ROUTE_TO_STATIONS, floor: CONTEXT_FLOOR };
+FRAME_FIXES['doppler/meal'] = { was: 'gut', cam: [360, 360, 1070, 900], floor: CONTEXT_FLOOR };
+/** FRAMING RULE S6 (a collateral or whole route): the views that name a route from the gut or the abdominal wall to the heart or the rectum and cannot draw its veins 8 px wide in the room a phone's cards leave, because the named route is longer than that room (circulation/series: gut veins to the right atrium, 2.9 units; varices/umbilical#2: the umbilical and rectal routes together, 2.8 units, its two halves
+ *  already being the slide and its first beat). Nothing named is cropped for them; the test fails if one no longer needs the exemption. */
+export const WIDE_ROUTES: readonly string[] = ['circulation/series', 'varices/umbilical#2'];
 /** The camera a slide asks for and the floor it keeps: the fix's, when the slide has one and the copied camera is still the one it replaces. */
 export function slideCam(deck: string, slide: string, cam: CopiedSlide['cam']): { cam: CopiedSlide['cam']; floor: number } {
   const f = FRAME_FIXES[`${deck}/${slide}`];

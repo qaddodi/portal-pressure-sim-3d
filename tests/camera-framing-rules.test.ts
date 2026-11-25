@@ -7,7 +7,7 @@ import { loadBuiltin } from '../src/decks/registry.ts';
 import { stopsOf, viewAt } from '../src/ui/deck/presenter-machine.ts';
 import { FOV, SHOTS, type Shot } from '../src/scene/camera/shots.ts';
 import { effectiveDistance, KEEP_PX } from '../src/scene/camera/room.ts';
-import { stationDot } from '../src/decks/hp/cams.ts';
+import { stationDot, WIDE_ROUTES } from '../src/decks/hp/cams.ts';
 
 export const DEVICES = [
   { name: 'Mac', w: 1440, h: 900, room: { w: 1020, h: 900 } },
@@ -212,7 +212,7 @@ test('F3 in each slide\'s own card room: every labelled station stands 40 px or 
           const room = roomOfSlide(v.slide as unknown as Teach, !!v.data, vp, dock);
           if (!room) { noRoom++; continue; }
           smallest = Math.min(smallest, room.w, room.h);
-          { const vein = VEIN_UNITS * scaleOn(shot, { w: vp.w, h: vp.h, room }).pxu; if (vein < minVein.px && !isWholeFigure(shot)) { minVein.px = vein; minVein.at = `${deck.id}/${v.slide.id} ${vp.name}`; } if (vein < 8 && vp.name.startsWith('iPhone') && !isWholeFigure(shot)) thin.add(`${deck.id}/${v.slide.id}${b ? '#' + b : ''} ${vein.toFixed(1)}`); }
+          { const vein = VEIN_UNITS * scaleOn(shot, { w: vp.w, h: vp.h, room }).pxu; if (vein < minVein.px && !isWholeFigure(shot)) { minVein.px = vein; minVein.at = `${deck.id}/${v.slide.id} ${vp.name}`; } if (vein < 8 && vp.name.startsWith('iPhone') && !isWholeFigure(shot)) thin.add(`${deck.id}/${v.slide.id}${b ? '#' + b : ''}`); }
           for (const id of v.scene.labels) {
             const p = stationDot(id); if (!p) continue;
             checked++;
@@ -224,7 +224,26 @@ test('F3 in each slide\'s own card room: every labelled station stands 40 px or 
     });
   }
   console.log(`# slide rooms: ${checked} station checks, ${noRoom} slide/screen pairs with no estimate, smallest room side ${smallest.toFixed(0)} px, thinnest vein off the overview ${minVein.px.toFixed(1)} px (${minVein.at})`);
-  console.log(`# ${thin.size} frames draw a vein under 8 px on an iPhone in the slide's own card room: ${[...thin].join(' | ')}`);
+  for (const w of WIDE_ROUTES) assert.ok([...thin].some((t) => t === w), `${w} is declared wide and still is (a vein under 8 px)`);
+  assert.deepEqual([...thin].filter((t) => !WIDE_ROUTES.includes(t) && !WIDE_ROUTES.includes(t.replace(/#1$/, ''))), [], 'F6 in the slide\'s own card room: a vein 8 px or more on an iPhone, but for the declared wide routes');
   assert.ok(checked > 1000, `the sweep covered the labels (${checked})`);
   assert.deepEqual(bad, []);
+});
+
+// ---- S4: a lesion is framed with room round it (rule 4, Mohammad, 25 Nov: "do it") ----
+import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
+test('S4: a clot on the portal trunk is framed with at least 1.5 trunk lengths of vessel each side even when it fills the whole trunk (and at least 2.5 for a clot half its length), and the frame never goes past 6 trunk lengths', () => {
+  const pts = NETWORK_BY_ID.get('PV_TRUNK')!.pts as readonly (readonly number[])[];
+  let trunk = 0; for (let i = 1; i < pts.length; i++) trunk += Math.hypot(pts[i]![0]! - pts[i - 1]![0]!, pts[i]![1]! - pts[i - 1]![1]!, pts[i]![2]! - pts[i - 1]![2]!);
+  const slides = ['prehepatic/clot', 'prehepatic/anticoag', 'two-inflows/clot', 'two-lesions/clot', 'two-lesions/unclot', 'sites/pvt'];
+  const seen = new Set<string>();
+  for (const [, deck] of decks) for (const v of bodyViews(deck)) {
+    const at = v.at.replace(/#\d+$/, '');
+    if (!slides.includes(at)) continue;
+    seen.add(at);
+    const longHalf = Math.max(v.shot.half[0], v.shot.half[1]);
+    assert.ok(longHalf * 2 >= trunk * 4, `${v.at}: frame ${(longHalf * 2).toFixed(2)} units holds ${(longHalf * 2 / trunk).toFixed(1)} trunks (trunk ${trunk.toFixed(2)})`);
+    assert.ok(longHalf * 2 <= trunk * 6, `${v.at}: frame too wide, ${(longHalf * 2 / trunk).toFixed(1)} trunks`);
+  }
+  assert.deepEqual([...seen].sort(), [...slides].sort());
 });
