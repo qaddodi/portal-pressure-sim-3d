@@ -133,7 +133,6 @@ export function drawComposite(g: CanvasRenderingContext2D, L: Layout, shot: Canv
   const metal = g.createLinearGradient(body.x, body.y, body.x + body.w, body.y + body.h);
   metal.addColorStop(0, '#3a3d45'); metal.addColorStop(0.5, '#25272d'); metal.addColorStop(1, '#31343b');
   g.fillStyle = metal;
-  for (const b of L.buttons) { g.fillRect(b.x, b.y, b.w, b.h); }
   roundPath(g, body, L.kind === 'mac' ? 0.008 * u : body.r);
   g.fill();
   if (base) {
@@ -148,6 +147,10 @@ export function drawComposite(g: CanvasRenderingContext2D, L: Layout, shot: Canv
   g.save();
   g.lineWidth = Math.max(1, 0.0022 * u); g.strokeStyle = 'rgba(255,255,255,0.2)';
   roundPath(g, body, L.kind === 'mac' ? 0.008 * u : body.r); g.stroke();
+  // the buttons after the body, with no shadow of their own and the same light edge: drawn first, the body's shadow fell over them and they all but vanished (promotion e3238988),
+  // and the iPad's square top button read as a loose tab
+  g.fillStyle = '#3a3d45';
+  for (const b of L.buttons) { roundPath(g, { ...b, r: Math.min(b.w, b.h) * 0.45 }); g.fill(); g.stroke(); }
   g.restore();
   if (base) {
     // the thumb notch in the base's top edge
