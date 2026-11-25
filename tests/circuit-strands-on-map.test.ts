@@ -32,3 +32,26 @@ test('on the map a vessel whose trunk is drawn has no strand drawn along it (eve
   assert.equal(lanes, 2, 'both sinusoid lanes are checked');
   assert.ok(checked >= 2, 'at least the lanes are checked');
 });
+
+// ROOT CAUSE of the ragged dark seam down the sinusoid lane and the trunk to the central vein (Mohammad, 25 Nov, iPhone, Circuit; the 24ba3f05 fix zeroed the strands' map share `rkc` but they still drew): the vertex stage threw a
+// tube of no radius off the screen only when the BODY's share `rk` was 0, not the share of the view being drawn. A strand with rkc 0 and rk > 0 was collapsed to a line but still drew its crossing shadow hull, whose width (shadowPx)
+// does not depend on the lumen: five dark hairline tubes along the trunk's axis (hiding the lane's shadow mesh in a headless run removed the seam). The rule: the discard reads the radius share of the view (rkE = mix(rk, rkc, circShare)).
+import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
+test('the vertex stage drops a tube whose radius share IN THIS VIEW is 0 (rkE), not only the body\'s (rk): a strand folded on the map draws nothing, not even its shadow hull', () => {
+  assert.match(VESSEL_VS, /float rkE = mix\(rk, rkc, circShare\)/, 'rkE is the view\'s own radius share');
+  assert.match(VESSEL_VS, /if \(rkE <= 0\.0\) gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\)/, 'a tube with no radius in this view is sent off the screen');
+  assert.doesNotMatch(VESSEL_VS, /if \(rk <= 0\.0\)/, 'the body\'s share alone must not decide it');
+});
+
+test('every vessel the map folds has strand vertices with rk > 0 and rkc 0 (the case the discard must catch), the sinusoid lanes among them', () => {
+  const folded = new Set<string>();
+  for (const def of NETWORK) {
+    if (!def.plan || !COURSES.has(def.id)) continue;
+    const b = buildTubes(coursesOf(def, REST), tubularOf(def, slicesFor(def.id)), def.radius);
+    sewOnMap(def.id, b.geometry, b.runs);
+    if (b.runs.length < 2) continue;
+    const rk = b.geometry.getAttribute('rk'), rkc = b.geometry.getAttribute('rkc'), run = b.runs[1]!;
+    if (rkc.getX(run.tubeStart) === 0 && rk.getX(run.tubeStart) > 0) folded.add(def.id);
+  }
+  assert.ok(folded.has('SIN_RR') && folded.has('SIN_LL'), `folded: ${[...folded].join(',')}`);
+});
