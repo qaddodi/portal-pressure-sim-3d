@@ -60,6 +60,12 @@ export function calloutsFor(cath: CathState | null): CalloutKind[] {
  *  (`solve`) and for the controller's judgment of what a change of `got` does to the cards on show. */
 export const calloutNeeds = (k: CalloutKind): 1 | 2 => (k === 'f' ? 1 : 2);
 
+/** A reading whose number is not in yet ("—": the engine has not posted it) stands nowhere: a tag that came with a dash and changed to its number crossed over once it was already on show, and was sized for the dash. The catheter's own
+ *  readings wait for a digit; a procedure's cards and a blocked vein's words say what they say. */
+export const hasNumber = (v: string): boolean => /\d/.test(v);
+/** Whether every number the catheter's cards will print is in (the controller solves again when it becomes so). */
+export const numbersIn = (t: CathText): string => `${hasNumber(t.f) ? 1 : 0}${hasNumber(t.w) ? 1 : 0}${hasNumber(t.h) ? 1 : 0}`;
+
 export const toneOf = (hv: number | null): Tone => (hv == null || !Number.isFinite(hv) ? 'caution' : hvpgSev(hv));
 const reading = (kind: 'free' | 'wedge' | 'result', value: string, tone: Tone, kicker?: string): Reading => ({ kicker: kicker ?? N[kind].kicker, value, unit: value ? N[kind].unit : '', tone });
 /** The tag at a blocked vein's mouth: words only, in the caution ink. */
@@ -146,7 +152,8 @@ export class CathShow {
     let sum: SumTarget | null = null;
     const blocked = !inp.kinds && inp.cath === 'blocked';
     const rf = blocked ? blockedReading(inp.text.say ?? BLOCKED_SAYS.first) : reading('free', inp.text.f, inp.tones?.f ?? 'free', inp.kickers?.f), rw = reading('wedge', inp.text.w, inp.tones?.w ?? 'wedge', inp.kickers?.w), rh = reading('result', inp.text.h, toneOf(inp.text.hv), inp.kickers?.h);
-    const ids = kinds.filter((k): k is PillId => k !== 's').filter((id) => inp.got >= calloutNeeds(id));
+    const ready = (r: Reading) => inp.kinds !== undefined || blocked || hasNumber(r.value);
+    const ids = kinds.filter((k): k is PillId => k !== 's').filter((id) => inp.got >= calloutNeeds(id) && ready(id === 'f' ? rf : rw));
     if (ids.length && inp.tip && inp.ahead) {
       const items = ids.map((id) => {
         const r = id === 'f' ? rf : rw, p = id === 'f' ? inp.tip! : inp.ahead!, sz = tagSize(t, blocked ? { ...r, kicker: BLOCKED_SAYS.then } : r, inp.measure);   // (a blocked vein's tag is sized for its longer words, so the one crosses over to the other in place)
@@ -159,7 +166,7 @@ export class CathShow {
         pills.set(id, { id, reading: r, x: o.x0, y: o.y0, w: it.w, h: it.h, above: o.above, box: o.box, key: `${o.above ? 1 : 0}|${it.w}|${it.h}`, spot: `${o.above ? 1 : 0}|${it.w}|${it.h}`, ax: id === 'f' ? inp.tip![0] : inp.ahead![0], ay: id === 'f' ? inp.tip![1] : inp.ahead![1] });
       }
     } else for (const id of ['f', 'w'] as const) this.sides.delete(id);
-    if (kinds.includes('s') && inp.tip && inp.ahead && inp.got >= calloutNeeds('s')) {
+    if (kinds.includes('s') && inp.tip && inp.ahead && inp.got >= calloutNeeds('s') && ready(rw) && ready(rf) && ready(rh)) {
       const tight = tightFor(inp.band);
       const swap = swapOf(inp.tip[1], inp.ahead[1], this.swapWas);
       let geom = sumLayout(t, [rw, rf], rh, inp.measure, tight, swap);

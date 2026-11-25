@@ -24,7 +24,7 @@ test('what a card needs of the catheter is one rule', () => {
   assert.equal(calloutNeeds('s'), 2, 'the stack needs the balloon up');
 });
 
-test('the FHVP callout never dips while the balloon goes up and down under it, and each card eases in once', () => {
+function makeRig(reading: (k: string) => number | null) {
   const cel = new CelScene(), room = { x: 0, y: 279, w: 393, h: 320 };
   cel.rig.resize(vp.w, vp.h);
   let t = 1000; const now = () => t;
@@ -32,7 +32,7 @@ test('the FHVP callout never dips while the balloon goes up and down under it, a
   const d = {
     now, project: (p: Vector3, o: { x: number; y: number }) => cel.rig.project(p, o), cameraMoving: () => cel.rig.isMoving, hand: () => cel.rig.handView,
     free: () => FREE, view: () => ({ x0: 0, y0: 59, x1: vp.w, y1: vp.h - 34 }), vp: () => vp, reversed: () => false, words: () => null,
-    blockers: () => [], measure, pressure: () => 5, reading: (k: string) => (k === 'fhvp' ? 5.2 : k === 'whvp' ? 17.4 : k === 'hvpg' ? 12.2 : null), level: () => 'all', anatomy: () => true,
+    blockers: () => [], measure, pressure: () => 5, reading, level: () => 'all', anatomy: () => true,
     cathere: (tip: Vector3, ahead: Vector3) => {
       const c = cel.catheter;   // (LabelLayer's own rule)
       if (c.current.advance < 0.999 || !cel.catheterRead || !cel.procPoints('hvpg', tip, ahead)) return 0;
@@ -48,26 +48,29 @@ test('the FHVP callout never dips while the balloon goes up and down under it, a
     if (moving || !drawn || rd !== readWas) { readWas = rd; poseAt(cc.clk.t, P); cel.setCatheter({ advance: P.advance, balloon: P.balloon, column: P.column, read: rd }); drawn = true; cel.rig.setChase(hvpgChase(P.advance, chase)); }
     cel.rig.update(t); cel.procs.update(t); ctl.tick();
   };
-  const settle = (ms: number) => { for (let i = 0; i < ms / 16; i++) frame(); };
   const alpha = (id: 'f' | 'w') => ctl.cath.pills.find((p) => p.id === id)?.alpha ?? 0;
+  const to = (state: CathState, jump = false) => { ctl.setState({ ...NO_STATE, cath: state }); aimCath(cc, state, jump); drawn = false; const shot = tipCloseShot('tip'); if (shot) cel.goTo(shot, room, t); };
+  return { ctl, frame, alpha, to, now };
+}
 
-  settle(14000);   // the way in
+test('the FHVP callout never dips while the balloon goes up and down under it, and each card eases in once', () => {
+  const { ctl, frame, alpha, to } = makeRig((k) => (k === 'fhvp' ? 5.2 : k === 'whvp' ? 17.4 : k === 'hvpg' ? 12.2 : null));
+  for (let i = 0; i < 14000 / 16; i++) frame();   // the way in
   const stats: string[] = [];
-  const go = (to: CathState, jump = false) => {
-    const from = ctl.cath.pills.map((p) => p.id), stays = calloutsFor(to).includes('f') && alpha('f') >= 0.999;
-    ctl.setState({ ...NO_STATE, cath: to }); aimCath(cc, to, jump); drawn = false;
-    const shot = tipCloseShot('tip'); if (shot) cel.goTo(shot, room, t);
-    let dipped = 0, wBack = 0, wWas = alpha('w'), fWas = alpha('f'), fFull = fWas >= 0.999;
+  const go = (state: CathState, jump = false) => {
+    const from = ctl.cath.pills.map((p) => p.id), stays = calloutsFor(state).includes('f') && alpha('f') >= 0.999;
+    to(state, jump);
+    let dipped = 0, wBack = 0, wWas = alpha('w'), fFull = alpha('f') >= 0.999;
     for (let i = 0; i < 1200; i++) {
       frame();
       const f = alpha('f'), w = alpha('w');
       if (stays && f < 0.999) dipped++;                    // the free reading was on show and stays on show: it never dips
-      if (w < wWas - 1e-9 && w > 0 && calloutsFor(to).includes('w') && w < 0.999 && wWas > 0 && fFull) wBack++;   // the wedged one eases in: it never steps back while it comes
-      wWas = w; fWas = f; if (f >= 0.999) fFull = true;
+      if (w < wWas - 1e-9 && w > 0 && calloutsFor(state).includes('w') && w < 0.999 && fFull) wBack++;   // the wedged one eases in: it never steps back while it comes
+      wWas = w; if (f >= 0.999) fFull = true;
     }
-    stats.push(`${from.join('') || '-'} -> ${to}: dipped ${dipped}, w stepped back ${wBack}, f ${alpha('f').toFixed(2)}, w ${alpha('w').toFixed(2)}`);
-    assert.equal(dipped, 0, `the FHVP callout stays steady going to ${to} (dipped in ${dipped} frames)`);
-    assert.equal(wBack, 0, `the WHVP eases in once going to ${to}`);
+    stats.push(`${from.join('') || '-'} -> ${state}: dipped ${dipped}, w stepped back ${wBack}, f ${alpha('f').toFixed(2)}, w ${alpha('w').toFixed(2)}`);
+    assert.equal(dipped, 0, `the FHVP callout stays steady going to ${state} (dipped in ${dipped} frames)`);
+    assert.equal(wBack, 0, `the WHVP eases in once going to ${state}`);
   };
   go('free');      // Next from the way in: the callout comes with the tracing
   assert.ok(alpha('f') >= 0.999, 'the FHVP callout is up on the free step');
@@ -80,4 +83,29 @@ test('the FHVP callout never dips while the balloon goes up and down under it, a
   go('wedge');
   go('free');
   console.log(stats.join('\n'));
+});
+
+// "When the callout FHVP appears it flickers before it settles" (25 Nov), the other half: the engine's number is not always in when the reading is taken. The tag used to come with a dash ("—"), sized for it, and cross over
+// to the number once it was on show (and be sized again, as a new spot, at the next solve: out and in). Now a reading with no number stands nowhere; the callout lands once, with its number and its own size, and keeps both.
+test('the FHVP callout lands once with its final number and size, even when the number is late', () => {
+  let tNum = Infinity, ctlNow = () => 0;
+  const { frame, to, ctl, now } = makeRig((k) => (k === 'fhvp' ? (ctlNow() >= tNum ? 5.2 : null) : null));
+  ctlNow = now;
+  for (let i = 0; i < 14000 / 16; i++) frame();
+  to('free'); tNum = now() + 4600;   // the reading is taken after about 4.1 s: the number is 0.5 s late
+  const seen = new Set<string>(); let last = -1, backs = 0, firstW = 0, widths = new Set<number>(), shown = 0;
+  for (let i = 0; i < 700; i++) {
+    frame();
+    const p = ctl.cath.pills.find((q) => q.id === 'f');
+    if (!p || p.alpha <= 0) { assert.equal(shown, 0, 'once it has come it never leaves'); continue; }
+    shown++;
+    seen.add(p.reading.value); widths.add(p.w); if (!firstW) firstW = p.w;
+    if (p.alpha < last - 1e-9) backs++;
+    last = p.alpha;
+    assert.match(p.reading.value, /\d/, 'it never shows a dash');
+  }
+  assert.ok(shown > 0 && last >= 0.999, 'it comes');
+  assert.deepEqual([...seen], ['5.2'], 'one number the whole time');
+  assert.equal(widths.size, 1, `one size the whole time (${[...widths]})`);
+  assert.equal(backs, 0, 'its fade only rises');
 });
