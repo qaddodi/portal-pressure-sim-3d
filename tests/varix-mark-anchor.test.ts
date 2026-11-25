@@ -72,8 +72,11 @@ test('every slide with a mark on the varix: with a bleed running the mark is at 
 
 test('the old point was inside the ring (the fault), and a gastric bleed points at its fundus tear', () => {
   const c = curveOf('C1a')!, p = new Vector3();
-  c.getPointAt(0.5, p);
-  assert.ok(Math.hypot(p.x - ringCentre.x, p.y - ringCentre.y) < clear, 'the middle of C1a is within the ring and its badge');
+  // (C1a runs through the ring and its badge. Its middle stood inside them until the strands were made one run along the oesophagus (49ef512c, 25 Nov): the run is longer, the middle moved up and stands just clear, so the
+  //  fault is checked on the vessel's nearest point, not on its middle)
+  let nearest = Infinity;
+  for (let i = 0; i <= 100; i++) { c.getPointAt(i / 100, p); nearest = Math.min(nearest, Math.hypot(p.x - ringCentre.x, p.y - ringCentre.y)); }
+  assert.ok(nearest < clear, 'C1a runs through the ring and its badge');
   const gv = figureCalls({ ...(figurePlan(slides[0]!.s)), marks: [{ edges: ['C2'], organ: null, label: 'Gastric varix', kind: 'block', free: false }] } as never, { ...reads, bleed: 'GV' }).cards[0]!;
   assert.ok('at2d' in gv.anchor);
   assert.deepEqual([...(gv.anchor as { at2d: readonly number[] }).at2d], [...tearPoint('GV')]);

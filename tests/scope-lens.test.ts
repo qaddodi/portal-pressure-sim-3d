@@ -237,13 +237,18 @@ test('the ruler across the varices stands clear of the ring and its badge, above
   assert.ok(VARIX_CALIPERS.has('varix') && VARIX_CALIPERS.has('C1a'));
   const curve = curveOf('C1a')!, p = new Vector3(), centre = { x: x3(RING.x), y: y3(RING.y) }, clear = (RING.r + BADGE_R + 4) / U;
   const at = (t: number, o: { x: number; y: number }) => { curve.getPointAt(t, p); o.x = p.x; o.y = p.y; };
-  const mid = { x: 0, y: 0 }; at(0.5, mid);
-  assert.ok(Math.hypot(mid.x - centre.x, mid.y - centre.y) < clear, 'the middle of the varix vessel is inside the ring: the overlap the owner saw');
+  // (the vessel runs through the ring: the overlap the owner saw. Its middle stood inside the ring until the strands were made one run along the oesophagus, 49ef512c, 25 Nov: the run is longer, so its middle moved up
+  //  and stands just clear (0.10 against 0.09). The rule is the same: the point is the middle where that is clear, else a short way along; so the vessel's nearest point is what is checked, not its middle)
+  let nearest = Infinity; const probe = { x: 0, y: 0 };
+  for (let i = 0; i <= 100; i++) { at(i / 100, probe); nearest = Math.min(nearest, Math.hypot(probe.x - centre.x, probe.y - centre.y)); }
+  assert.ok(nearest < clear, 'the varix vessel runs through the ring: the overlap the owner saw');
   const t = clearParam(at, centre, clear);
   const q = { x: 0, y: 0 }; at(t, q);
   assert.ok(Math.hypot(q.x - centre.x, q.y - centre.y) >= clear, 'the ruler is clear');
   assert.ok(q.y > centre.y, 'above the ring (the tear and the stream into the stomach are below it)');
-  assert.ok(t > 0.5 && t < 0.8, `a short way along (${t})`);
+  assert.ok(t >= 0.5 && t < 0.8, `the middle where it is clear, else a short way along (${t})`);
+  const across = (u: number, o: { x: number; y: number }) => { o.x = centre.x; o.y = centre.y - 0.5 + u; };   // (a vessel straight through the ring's centre: its middle is inside, and the point moves a short way along)
+  const tAcross = clearParam(across, centre, clear); assert.ok(tAcross > 0.5 && tAcross < 1, `a middle inside the ring moves along (${tAcross})`);
   assert.equal(clearParam(at, { x: 99, y: 99 }, 0.1), 0.5, 'already clear: the middle, unmoved');
   // the claims
   assert.deepEqual(scopeClaims.boxes, []);
