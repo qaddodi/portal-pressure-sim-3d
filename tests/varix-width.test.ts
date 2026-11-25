@@ -5,7 +5,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-process.env.PPS_ANATOMY = 'placed';
 const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
 const { REST, coursesOf, VARIX_THICK, varixThickK, BANDED_CORD } = await import('../src/scene/vessels/shape.ts');
 const { varixSize, varixSpreadK } = await import('../src/scene/vessels/coil.ts');

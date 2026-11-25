@@ -6,7 +6,6 @@ import { BufferGeometry, Float32BufferAttribute, Uint16BufferAttribute } from 't
 import manifest from './organs-manifest.json' with { type: 'json' };
 import { decodeOrgans, type BakedOrgans } from './baked.ts';
 import { spanAsync } from '../../boot/spans.ts';
-import { PLACED } from '../anatomy/source.ts';
 import { placedMesh } from './placed.ts';
 
 type Entry = [posByte: number, verts: number, idxByte: number, indices: number];
@@ -21,7 +20,7 @@ export const organsReady: Promise<void> = new Promise((res) => { loaded = res; }
 /** Takes the organ file's bytes (the browser fetch below; tests read it from disk). */
 export function setOrganData(b: ArrayBuffer): void { buf = b; loaded(); }
 
-const env = (import.meta as { env?: { BASE_URL?: string; VITE_ORGANS_DIGEST?: string; VITE_ORGANS_PLACED_DIGEST?: string } }).env;
+const env = (import.meta as { env?: { BASE_URL?: string; VITE_ORGANS_DIGEST?: string } }).env;
 const base = env?.BASE_URL ?? '/';
 
 // The organs finished at build time (organs/baked.ts, scripts/bake-organs.mjs): with that file in, the page does none of prepare.ts's work (about 2 s of CPU a start) and never fetches organs.bin (the raw stomach the
@@ -32,11 +31,9 @@ export const bakedOrgans = (): BakedOrgans | null => baked;
 /** Takes the baked organs (the browser fetch below; a test hands it a decoded file). */
 export function setBakedOrgans(b: BakedOrgans): void { baked = b; loaded(); }
 
-/** The baked file of this anatomy: the approved placement's organs are baked to their own file, with their own digest (scripts/bake-organs.mjs), so today's is untouched. */
-const BAKED_NAME = PLACED ? 'anatomy/organs-baked-placed.bin' : 'anatomy/organs-baked.bin';
 async function fetchBaked(want: string): Promise<BakedOrgans | null> {
   try {
-    const r = await spanAsync('fetch:organs-baked', () => fetch(`${base}${BAKED_NAME}`));
+    const r = await spanAsync('fetch:organs-baked', () => fetch(`${base}anatomy/organs-baked.bin`));
     if (!r.ok || !r.body) return null;
     const body = r.body;
     const out = await spanAsync('decode:organs-baked', () => new Response(body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer().then(decodeOrgans));
@@ -50,14 +47,14 @@ const liveFile = (): void => {
     .then(setOrganData, (e) => console.error(e));
 };
 if (inBrowser) {
-  const want = PLACED ? env?.VITE_ORGANS_PLACED_DIGEST : env?.VITE_ORGANS_DIGEST;
+  const want = env?.VITE_ORGANS_DIGEST;
   (want && typeof DecompressionStream !== 'undefined' ? fetchBaked(want) : Promise.resolve(null)).then((b) => { if (b) setBakedOrgans(b); else liveFile(); });
 }
 
 const make = (id: string) => (): BufferGeometry => {
   if (!buf) { const r = baked?.raw[id]; if (r) return r(); throw new Error('organs: data not loaded (await organsReady)'); }
   // (the approved placement: the organ moved and re-inflated, or the gut tube, made from the file's outline: placed.ts. The baked file's raw organs are already these)
-  return (PLACED ? placedMesh(id, fileMesh(id)) : null) ?? fileMesh(id)();
+  return placedMesh(id, fileMesh(id)) ?? fileMesh(id)();
 };
 const fileMesh = (id: string) => (): BufferGeometry => {
   if (!buf) throw new Error('organs: data not loaded (await organsReady)');

@@ -1,6 +1,5 @@
 // The junction skin's shaders (src/scene/vessels/skin/shaders.ts, rebuild-3d/junction-skin-spec.md WP3): what can be held without a GPU. The glslang compile of both programs is in tests/glsl-compile.test.ts
 // (the skin is registered in src/debug/gl-registry.ts); the position, colour and ink agreement with the tubes at a seam is WP6 (tests/skin-agreement.test.ts).
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SKIN_ARMS, SKIN_FIGURE_UNITS, SKIN_FS, SKIN_VS } from '../src/scene/vessels/skin/shaders.ts';
@@ -55,7 +54,7 @@ test('the per-arm uniforms are the spec\'s section 3 names, with its sizes', () 
 test('the vertex attributes are the spec\'s (cen, weight, restR, sagK) on top of three\'s position and normal, and no growth second shape any more (spec 10.2: 6 with position and normal, inside the 16 every WebGL2 device has)', () => {
   const a = declarations(SKIN_VS).filter((d) => d.storage === 'attribute').map((d) => `${d.type} ${d.name}`).sort();
   // placed only: one more, the tube share by rows from the seam (exact-normal.ts tubeShareOf), which ends the placed skins' dark crotch shade
-  assert.deepEqual(a, ['float restR', 'float sagK', 'vec2 weight2', 'vec3 cen', 'vec4 weight', ...(PLACED ? ['float tubeShare'] : [])].sort());
+  assert.deepEqual(a, ['float restR', 'float sagK', 'vec2 weight2', 'vec3 cen', 'vec4 weight', 'float tubeShare'].sort());
     assert.ok(a.length + 2 <= 16, `${a.length} attributes + position + normal`);
 });
 

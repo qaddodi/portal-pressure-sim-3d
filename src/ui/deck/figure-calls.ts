@@ -5,6 +5,9 @@ import type { FigurePlan } from './figure-plan.ts';
 import { toneCss } from './figure-plan.ts';
 import { ORGAN_STYLE } from '../../scene/organs/layer.ts';
 import { CAUDATE_FRONT_Z } from '../../scene/organs/caudate.ts';
+import { planeMap, mapX, mapY } from '../../scene/organs/placed-map.ts';
+import { PLACED_CAUDATE } from '../../scene/anatomy/placement.generated.ts';
+import { x2d, x3, y2d, y3 } from '../../scene/frame2d.ts';
 import { SITE_DEF_2D, SPLEEN_AXIS_2D, ORGAN_ANCHOR_2D } from '../../scene/labels/figure2d.copied.ts';
 import type { FigCard, FigCaliper, FigSpan, Anchor } from '../../scene/labels/figure-cards.ts';
 import type { ResKey } from '../../scene/circuit/res-model.ts';
@@ -64,8 +67,13 @@ export function liveLabel(label: string, fp: Fp | null | undefined): string {
   });
 }
 
-/** An organ's anchor on the plate: 2D's point, at the organ's front (the caudate lobe lies on the cava's plane, so its mark sits on its dome, not 0.22 in front of it). */
-const organAnchor = (organ: string): Anchor => (organ === 'caudate' ? { at2d: ORGAN_ANCHOR_2D[organ]!.at, z: CAUDATE_FRONT_Z } : { at2d: ORGAN_ANCHOR_2D[organ]!.at });
+/** An organ's anchor: 2D's point carried by the organ's own move in the approved placement (organs/placed-map.ts planeMap), at the organ's front; the caudate lobe's is its egg's front pole
+ *  (PLACED_CAUDATE), so its mark sits on its dome. Root cause of a card beside its organ (kidney, spleen, atrium, caudate lobe off their placed meshes): the anchor was 2D's point read as if the organ had not moved. */
+export const organAnchor = (organ: string): Anchor => {
+  if (organ === 'caudate') return { at2d: [x2d(PLACED_CAUDATE.c[0]), y2d(PLACED_CAUDATE.c[1])], z: CAUDATE_FRONT_Z };
+  const [x, y] = ORGAN_ANCHOR_2D[organ]!.at, m = planeMap(organ);
+  return { at2d: [x2d(mapX(m, x3(x))), y2d(mapY(m, y3(y)))] };
+};
 
 /** (the caudate lobe is in the organ layer but is shown by `caudate`, not outlined: 2D's lobe has its own line and no pin glow) */
 const pinsOf = (organs: readonly { id: string }[]): string[] => organs.map((o) => o.id).filter((id) => id in ORGAN_STYLE && id !== 'caudate');

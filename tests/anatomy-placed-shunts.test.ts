@@ -8,8 +8,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-process.env.PPS_ANATOMY = 'placed';
-const { PLACED } = await import('../src/scene/anatomy/source.ts');
 const { PLACED_EDGE_3D, WHOLE_PIECES } = await import('../src/scene/anatomy/placed-network.ts');
 const { PLACED_COURSES } = await import('../src/scene/anatomy/placement.generated.ts');
 const { NETWORK, NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
@@ -48,7 +46,6 @@ function bends(pts: readonly V[]): { turn: number; jerk: number } {
   return { turn, jerk };
 }
 
-test('the switch is on in this file', () => assert.equal(PLACED, true));
 
 test('the umbilical vein and the Rex bypass leave the left portal vein at its umbilical portion: in its proximal half, where the placement draws them, on its last piece (Mohammad 24 Nov: "more proximal LPV")', () => {
   const lpv = WHOLE_PIECES.lpv!.flatMap((id, i) => (i ? PLACED_EDGE_3D[id]!.slice(1) : PLACED_EDGE_3D[id]!)) as V[], L = lenOf(lpv);

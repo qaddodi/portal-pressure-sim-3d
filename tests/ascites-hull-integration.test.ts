@@ -4,7 +4,6 @@
 //   - the layer builds ONE hull geometry under two materials, the belly's plane is the hull's middle, the flank lies on it, the tap goes through hullHit;
 //   - the projected outline of the turned hull is round (design section 9: <= 15 degrees between rows, no straight run over 40 CSS px), built from A's layout and B's vertex twin;
 //   (every GLSL file is on the compile list: tests/glsl-compile.test.ts, run with this one.)
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -101,7 +100,7 @@ test('round when turned: the projected outline turns <= 15 degrees between rows 
   };
   const NT = 20, NS = 96, SHEET = (NS + 1) * NT;
   // the floor's bands: 3 under 2D's shallow floor; the placed anatomy's floor is a round basin 160 units deep (ascites-cavity.ts), its corner is the cavity's own curve (docs/approved/ascites-surface.md, the round belly) and covers six
-  const FLOOR_BANDS = PLACED ? 6 : 3;
+  const FLOOR_BANDS = 6;
   // (the last three bands, the floor, are left out: there the outline runs near-horizontal, so extreme-x per band is ill-conditioned, and its turn is the cavity's own floor curve, not the hull's)
   // the silhouette: for each band of image rows, the extreme projected x of the whole hull (both sheets), right side then left; sampled every BAND px
   const BAND = 24, bands = new Map<number, [number, number]>();

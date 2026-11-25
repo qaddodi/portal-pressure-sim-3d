@@ -9,7 +9,6 @@
 import { WEDGE_ABSENT } from '../wedge-glsl.ts';
 import { facetSag } from './facet-sag.ts';
 import { tubeShareOf } from './exact-normal.ts';
-import { PLACED } from '../../anatomy/source.ts';
 import { BufferAttribute, BufferGeometry, Color, CustomBlending, DoubleSide, Group, MaxEquation, Mesh, OneFactor, ShaderMaterial, Vector2, Vector3, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
 import { markBlends, setBlendState } from '../../materials/warm.ts';
@@ -113,7 +112,7 @@ export class SkinObject implements SkinDraw {
     g.setAttribute('weight2', new BufferAttribute(skin.weight2, 2));
     g.setAttribute('restR', new BufferAttribute(skin.restR, 1));
     g.setAttribute('sagK', new BufferAttribute(facetSag(skin.position, skin.index, skin.restR, skin.seamVerts.flatMap((a) => [...a])), 1));
-    if (PLACED) g.setAttribute('tubeShare', new BufferAttribute(tubeShareOf(skin.index, skin.seamVerts, skin.position.length / 3), 1));
+    g.setAttribute('tubeShare', new BufferAttribute(tubeShareOf(skin.index, skin.seamVerts, skin.position.length / 3), 1));
     g.setIndex(new BufferAttribute(skin.index, 1));
     g.computeBoundingSphere();
     const du = donor.toon.uniforms, shared: Record<string, IUniform> = {};

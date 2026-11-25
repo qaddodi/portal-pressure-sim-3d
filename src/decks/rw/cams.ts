@@ -7,7 +7,7 @@
 // the shot's target is the box's centre, its half extents the box's, and the room solver (camera/room.ts) fits it into whatever room the cards leave.
 // The slide's `kMax` (the most the 2D camera may zoom) is the 3D shot's nearest distance.
 import { SHOTS, type Shot } from '../../scene/camera/shots.ts';
-import { NODE_POS_2D, EDGE_PATH_2D, HIDDEN_EDGES, PLACED, placedRegionBox, placedBoxOfBox2, boxOfNames, growBox3, unionBox3, box2Of, centreOf, FIGURE_NAMES, type Box3 } from '../../scene/anatomy/source.ts';
+import { NODE_POS_2D, EDGE_PATH_2D, HIDDEN_EDGES, placedRegionBox, placedBoxOfBox2, boxOfNames, growBox3, unionBox3, box2Of, centreOf, FIGURE_NAMES, type Box3 } from '../../scene/anatomy/source.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
 import { REGIONS_2D, SETS_2D, TARGETS_2D, ORGAN_BOX_2D, CIRC_REGIONS_2D, type Box2D } from './copied/plate.ts';
 
@@ -97,7 +97,7 @@ export function shotOfBox(box: Box2D): Shot {
   };
 }
 
-// ---- the approved placement (anatomy/source.ts PLACED): a camera frames its subject's placed bounds, by name ----
+// ---- the approved placement: a camera frames its subject's placed bounds, by name ----
 
 /** The organs a term target or a name may point at, as the placement calls them (the 2D 'caudate-lobe' is the caudate). */
 const PLACED_ORGAN: Readonly<Record<string, string>> = { 'caudate-lobe': 'caudate' };
@@ -168,7 +168,6 @@ export function place(cam: Cam2D, view?: unknown): Placed {
   if (typeof cam === 'string' && /^(lobule|sinusoid)/.test(cam)) {
     return cam === 'sinusoid' ? { view: 'sinusoid', shot: sinusoidShot() } : { view: 'lobule', cam: cam as LobuleCam, shot: lobuleShot(cam as LobuleCam) };
   }
-  if (PLACED) { const b3 = box3Of(cam); return b3 ? { view: 'body', shot: shotOfBox3(b3), box: box2Of(b3), fit: false } : { view: 'body', shot: SHOTS.play, box: null, fit: true }; }
-  const box = boxOf(cam);
-  return box ? { view: 'body', shot: shotOfBox(box), box, fit: false } : { view: 'body', shot: SHOTS.play, box: null, fit: true };
+  const b3 = box3Of(cam);
+  return b3 ? { view: 'body', shot: shotOfBox3(b3), box: box2Of(b3), fit: false } : { view: 'body', shot: SHOTS.play, box: null, fit: true };
 }

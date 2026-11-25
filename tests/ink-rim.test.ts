@@ -10,7 +10,6 @@ import { JET_INK_VS } from '../src/scene/disease/bleed.ts';
 import { organsReady, ORGAN_MESHES } from '../src/scene/organs/meshes.ts';
 import { smoothRestNormals } from '../src/scene/organs/normal-smooth.ts';
 import fs from 'node:fs';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 
 test('every outline hull takes its push through inkRim', () => {
   assert.match(INK_RIM_GLSL, /smoothstep\(0\.2, 0\.6, length\(v\.xy\) \/ l\)/);
@@ -37,8 +36,8 @@ test('a normal facing the eye is not pushed, one facing sideways is, and the org
     const g = ORMESH(id), pos = g.getAttribute('position').array, nor = g.getAttribute('normal').array;
     const h = smoothRestNormals(pos, nor, g.index ? g.index.array : []);
     // (placed path: the mesh is split finely only where its surface turns (placed.ts), so its vertices crowd the walls and a count by vertex says little; there each vertex counts by the front-view area round it)
-    const wt = new Float64Array(h.length / 3).fill(PLACED ? 0 : 1), ix = g.index ? g.index.array : [];
-    if (PLACED) for (let t = 0; t + 2 < ix.length; t += 3) { const a = ix[t]!, b = ix[t + 1]!, c = ix[t + 2]!, ar = Math.abs((pos[b * 3]! - pos[a * 3]!) * (pos[c * 3 + 1]! - pos[a * 3 + 1]!) - (pos[c * 3]! - pos[a * 3]!) * (pos[b * 3 + 1]! - pos[a * 3 + 1]!)) / 6; wt[a] += ar; wt[b] += ar; wt[c] += ar; }
+    const wt = new Float64Array(h.length / 3).fill(0), ix = g.index ? g.index.array : [];
+    for (let t = 0; t + 2 < ix.length; t += 3) { const a = ix[t]!, b = ix[t + 1]!, c = ix[t + 2]!, ar = Math.abs((pos[b * 3]! - pos[a * 3]!) * (pos[c * 3 + 1]! - pos[a * 3 + 1]!) - (pos[c * 3]! - pos[a * 3]!) * (pos[b * 3 + 1]! - pos[a * 3 + 1]!)) / 6; wt[a] += ar; wt[b] += ar; wt[c] += ar; }
     let faced = 0, rim = 0, n = 0;
     for (let i = 0; i < h.length; i += 3) { const w = weight(h[i]!, h[i + 1]!, h[i + 2]!); n += wt[i / 3]!; if (w === 0) faced += wt[i / 3]!; else if (w === 1) rim++; }
     assert.ok(faced / n > 0.05, `${id}: a good share of the surface faces the eye and takes no push (${(100 * faced / n).toFixed(0)}%)`);

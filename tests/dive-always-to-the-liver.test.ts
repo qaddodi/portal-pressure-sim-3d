@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { Vector3 } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
 import { ORGAN_MESHES, setOrganData } from '../src/scene/organs/meshes.ts';
-import { LIVER_2D, LIVER_POINT, LIVER_Z, lobuleWorld } from '../src/scene/lobule/frames.ts';
+import { LIVER_2D, LIVER_POINT, LIVER_Z, lobuleWorld, placedLiverPoint } from '../src/scene/lobule/frames.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
 import { lobuleShot } from '../src/scene/lobule/shots.ts';
 import { deviceClass } from '../src/ui/layout/device.ts';
@@ -19,7 +19,8 @@ const bin = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url
 setOrganData(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength));
 void ORGAN_MESHES;
 
-const ANCHOR = [x3(LIVER_2D.x), y3(LIVER_2D.y), LIVER_Z];
+// (restated for the placed anatomy, the only one now: the liver's one anchor is found by name on the placed courses, placedLiverPoint, not the old 2D plate's LIVER_2D)
+const ANCHOR = placedLiverPoint();
 const SIZES = [{ name: 'phone', w: 390, h: 780, safe: 34 }, { name: 'ipad', w: 820, h: 1180, safe: 20 }, { name: 'mac', w: 1440, h: 900, safe: 0 }];
 // the hand's zoom and pan: home, zoomed on the middle, and zoomed on other parts (stomach, colon, off the liver, far pans), the cases he reported
 const HANDS = [{ k: 1, x: 0, y: 0 }, { k: 3, x: 0, y: 0 }, { k: 3, x: -400, y: 150 }, { k: 2.2, x: 500, y: -250 }, { k: 6, x: 900, y: 300 }, { k: 4, x: 600, y: -300 }, { k: 5, x: -900, y: 500 }];

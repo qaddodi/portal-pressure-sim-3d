@@ -1,14 +1,12 @@
 // The routes a catheter travels, laid on the vessels' own courses (B5). The 2D app lays them in stage-cath.js `procRoute` / `cathRoute` from the figure's drawn courses
-// and the vessels' drawn radii; this is the same code on the same courses (paths.copied.ts: the 2D figure's 64 samples a vessel) in the 2D figure's world units, so every
-// number that belongs to a route (its lengths, where the tip stops, where each leg starts) is the 2D app's. `route3d.ts` carries the result into the scene.
+// and the vessels' drawn radii; route-placed.ts runs the same code on the approved placement's drawn courses, in 3D, in the 2D figure's world units, so every rule that
+// belongs to a route (where the tip stops, where each leg starts) is the 2D app's. `route3d.ts` carries the result into the scene.
 //
 // A route is a smoothed polyline `pts` through the vessels' centrelines, with `raw` (the vessels' own centrelines, where the walls are), `rad` (the lumen's radius at each
 // point), `cum` (arc length) and `parts` (each leg: its vessel, name, and where it starts and ends along the route). Positions along a route are lengths `d` in figure units.
-import { EDGE_PATH_2D, PLACED } from '../anatomy/source.ts';
+import { EDGE_PATH_2D } from '../anatomy/source.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { UNITS_PER_SCENE } from '../frame2d.ts';
-import { cutLen, headOf, legSubs, pieceAt, procSpecs, wholeOf } from './copied/proc-routes.js';
-import { expandPieces } from './copied/part-names.js';
 import { placedRoute } from './route-placed.ts';
 import { smoothJoinsOn } from '../vessels/join-mode.ts';
 
@@ -24,7 +22,7 @@ export interface Route {
   coilAt?: { id: string; f: number; dir: number };
   /** every vessel the route touches (a vein cut in pieces counts whole) */
   ids: string[];
-  /** the placed anatomy only (route-placed.ts): the vessels' own drawn centreline at every sample, in scene units (x, y, z), the route laid in 3D */
+  /** (route-placed.ts) the vessels' own drawn centreline at every sample, in scene units (x, y, z), the route laid in 3D */
   raw3?: [number, number, number][];
 }
 
@@ -69,99 +67,17 @@ export function smoothRoute(pts: P2[], rad: number[], marks: number[]): { P: P2[
   return { P, raw, Rr, idx };
 }
 
-interface Spec {
-  ids: string[]; start: number; tip: [string, number]; focus: [string, string];
-  build(B: Builder): void;
-  after?(r: Route): void;
-}
-interface LegOpts { rev?: boolean; a?: number; b?: number; until?: ((q: P2) => boolean) | null; near?: P2 | null; from?: P2 | null; name?: string; r?: number }
-interface Builder { pts(list: P2[], id: string, f: number, name?: string): void; vessel(id: string, o?: LegOpts): void }
-
-/** The HVPG catheter's route (stage-cath.js cathRoute): in from the neck, the SVC, the right atrium, down the IVC to the right hepatic vein's opening and out along it into its branch; the
- *  tip reads in the trunk of the right hepatic vein, 0.62 of the way along it. */
-const HVPG: Spec = {
-  ids: expandPieces(['SVC_RA', 'IVCS_RA', 'IVC_IS', 'RHV_IVC', 'POST_R_RHV']), start: 0.55, tip: ['hv', 0.62], focus: ['hv', 'branch'],
-  build(B) {
-    const top = headOf(GEO2D, 'SVC_RA') as P2, ost = GEO2D.RHV_IVC!.cur[GEO2D.RHV_IVC!.cur.length - 1]!;
-    B.pts([[top[0] - 6, top[1] - 150], [top[0] - 2, top[1] - 60], top], 'SVC_RA', 0);
-    B.vessel('SVC_RA'); B.vessel('IVCS_RA', { rev: true });
-    B.vessel('IVC_IS', { rev: true, until: (q) => q[1] >= ost[1] - 4, name: 'ivc' });
-    B.vessel('RHV_IVC', { rev: true, name: 'hv' }); B.vessel('POST_R_RHV', { rev: true, name: 'branch' });
-  },
-  after(r) { const hv = r.spans.hv!; r.hv0 = hv[0]; r.hvEnd = hv[1]; },
-};
-
-/** The DIPS's catheter (the 3D app's own: the 2D app's DIPS is a drawn stent only): in from the neck, the SVC, the right atrium and the whole cava down to where the shunt leaves it, then the shunt through the liver (as wide as
- *  the stent will be) to the portal vein, where the tip stops. */
-const DIPS: Spec = {
-  ids: expandPieces(['SVC_RA', 'IVCS_RA', 'IVC_IS', 'DIPS']), start: 0.55, tip: ['tract', 1], focus: ['ivc', 'tract'],
-  build(B) {
-    const top = headOf(GEO2D, 'SVC_RA') as P2, out = GEO2D.DIPS!.cur[GEO2D.DIPS!.cur.length - 1]!;
-    B.pts([[top[0] - 6, top[1] - 150], [top[0] - 2, top[1] - 60], top], 'SVC_RA', 0);
-    B.vessel('SVC_RA'); B.vessel('IVCS_RA', { rev: true });
-    B.vessel('IVC_IS', { rev: true, until: (q) => q[1] >= out[1] - 2, name: 'ivc' });   // (the cava is one vein in pieces: down to where the shunt leaves it, not on to the iliacs)
-    B.vessel('DIPS', { rev: true, name: 'tract', r: lumenRadius('PVH_R', 0.5) * 0.8 });
-  },
-};
-
-let specs: Record<string, Spec> | null = null;
-function specOf(kind: string): Spec | null {
-  specs ||= { ...(procSpecs(GEO2D, lumenRadius) as unknown as Record<string, Spec>), hvpg: HVPG, dips: DIPS };
-  return specs[kind] ?? null;
-}
 /** The route kinds this module lays (the 2D app's catheter routes; the echoendoscope's are B11's). */
 export const ROUTE_KINDS = ['hvpg', 'tips', 'tipscoil', 'tipscoilin', 'brto', 'brtoC6', 'ivcread', 'ppgperc', 'bato', 'dips'] as const;
 export type RouteKind = (typeof ROUTE_KINDS)[number];
 
 const kept = new Map<string, Route>();
-/** The route of a catheter kind on the 2D figure's courses, laid once. Null for a kind this module does not lay. */
+/** The route of a catheter kind on the drawn courses, laid once per join mode. Null for a kind this module does not lay. */
 export function routeOf(kind: string): Route | null {
-  const hit = kept.get(kind);
+  // (laid in 3D on the drawn courses, route-placed.ts, which follow the join mode)
+  const key = `${kind}|${smoothJoinsOn()}`, hit = kept.get(key);
   if (hit) return hit;
-  if (PLACED) {   // (laid in 3D on the drawn courses, which follow the join mode)
-    const key = `${kind}|${smoothJoinsOn()}`, h = kept.get(key);
-    if (h) return h;
-    const placed = placedRoute(kind, lumenRadius); if (placed) kept.set(key, placed); return placed;
-  }
-  const spec = specOf(kind === 'tipscoilin' ? 'tipscoil' : kind);
-  if (!spec) return null;
-  const pts: P2[] = [], rad: number[] = [], marks: number[] = [], parts: RoutePart[] = [];
-  const at = (id: string, f: number): number => lumenRadius(id, f);
-  const B: Builder = {
-    pts(list, id, f, name = 'lead') { marks.push(pts.length); parts.push({ id: null, name, fa: 0, fb: 0, d0: 0, d1: 0 }); for (const q of list) { pts.push(q); rad.push(at(id, f)); } },
-    vessel(id, { rev = false, a = 0, b = 1, until = null, near = null, from = null, name = id, r = 0 } = {}) {
-      const w = wholeOf(GEO2D, id), base: P2[] = w ? w.P : GEO2D[id]!.cur, P0 = rev ? base.slice().reverse() : base, c = lenTo(P0), n = c[c.length - 1] || 1;
-      if (near) { let best = Infinity; P0.forEach((q, i) => { const dd = Math.hypot(q[0] - near[0], q[1] - near[1]); if (dd < best) { best = dd; b = c[i]! / n; } }); }
-      if (from) { let best = Infinity; P0.forEach((q, i) => { const dd = Math.hypot(q[0] - from[0], q[1] - from[1]); if (dd < best) { best = dd; a = c[i]! / n; } }); }
-      if (until) { const i = P0.findIndex((q, k) => k > 0 && until(q)); if (i > 0) b = c[i - 1]! / n; }
-      const seg: P2[] = cutLen(P0, c, a * n, b * n), own = (f: number) => (rev ? 1 - f : f);
-      marks.push(pts.length);
-      const part: RoutePart = { id, name, fa: own(a), fb: own(b), d0: 0, d1: 0, whole: w ? { w, rev, a, b } : undefined };
-      parts.push(part);
-      for (let i = (a === 0 || from) && pts.length ? 1 : 0, run = a * n; i < seg.length; i++) {
-        if (i) run += Math.hypot(seg[i]![0] - seg[i - 1]![0], seg[i]![1] - seg[i - 1]![1]);
-        pts.push(seg[i]!);
-        if (r) rad.push(r);
-        else if (w) { const [pid, pf] = pieceAt(w, own(run / n)) as [string, number]; rad.push(at(pid, pf)); }
-        else rad.push(at(id, own(run / n)));
-      }
-    },
-  };
-  spec.build(B);
-  const { P, raw, Rr, idx } = smoothRoute(pts, rad, marks);
-  const cum = lenTo(P), total = cum[cum.length - 1]!, L = (i: number): number => (i < idx.length ? cum[Math.min(idx[i]!, cum.length - 1)]! : total);
-  parts.forEach((q, i) => { q.d0 = L(i); q.d1 = L(i + 1); const wh = q.whole as { w: unknown; rev: boolean; a: number; b: number } | undefined; if (wh) q.subs = legSubs(wh.w, wh.rev, wh.a, wh.b, q.d0, q.d1) as RoutePart[]; });
-  const span = (name: string): RoutePart => parts.find((q) => q.name === name)!;
-  const tp = span(spec.tip[0]), free = tp.d0 + (tp.d1 - tp.d0) * spec.tip[1];
-  const spans = Object.fromEntries(parts.filter((q) => q.name !== 'lead').map((q) => [q.name, [q.d0, q.d1] as [number, number]]));
-  const route: Route = {
-    kind, pts: P, raw, rad: Rr, cum, total, parts, spans, start: parts[1]!.d0 * spec.start, free, hv0: free, hvEnd: total,
-    focus: [span(spec.focus[0]).d0, span(spec.focus[1]).d1], ids: expandPieces(spec.ids),
-  };
-  if (spec.after) spec.after(route);
-  if (kind === 'tipscoil' || kind === 'tipscoilin') { const q = parts.find((x) => x.name === 'coronary'); if (q) route.coilAt = { id: q.id!, f: q.fb, dir: -1 }; }
-  kept.set(kind, route);
-  return route;
+  const placed = placedRoute(kind, lumenRadius); if (placed) kept.set(key, placed); return placed;
 }
 
 /** The point, direction, the vein's own centre (w) and lumen radius at length d along a route (stage-cath.js cathAt). */

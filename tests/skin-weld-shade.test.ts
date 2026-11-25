@@ -1,11 +1,10 @@
 // THE WELD'S SHADE IS THE DRAWN SURFACE'S (Mohammad, 24 Nov, iPhone, placed anatomy: the portal fork read as a blob, darker patches coming in from both sides of the crotch; the hepatic veins' mouths on the cava heavy with shade).
 // The shade's normal (skin/shaders.ts, its twin here) must be the surface's own: the mesh's normal over the rows from a seam where the mesh blends the tube's normal into the union's (so the shade runs on from the tube with no step), the
 // union's gradient at the surface's own blend after that. Judged on every junction skin the placed figure builds: across each weld the shade turns no faster than the surface it lies on, and no vertex is shaded darker than the surface
-// itself is at the same angle to the light. Run: PPS_ANATOMY=placed node --test tests/skin-weld-shade.test.ts (with the switch off it checks the hand-over rows only).
+// itself is at the same angle to the light. Run: node --test tests/skin-weld-shade.test.ts.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Group, type Object3D } from 'three';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { SkinSet, capsuleOf } from '../src/scene/vessels/skin/skin-set.ts';
@@ -30,7 +29,7 @@ test('the shade keeps the mesh normal over exactly the rows the mesh blends the 
   assert.deepEqual([...share], [1, 1, 0.5, 0.5, 0]);
 });
 
-test('across every weld the shade is the drawn surface\'s: it turns no faster than the surface, and no vertex is darker than the surface at the same angle to the light', { skip: !PLACED && 'placed anatomy only (PPS_ANATOMY=placed)' }, () => {
+test('across every weld the shade is the drawn surface\'s: it turns no faster than the surface, and no vertex is darker than the surface at the same angle to the light', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
   try {
@@ -84,7 +83,7 @@ test('across every weld the shade is the drawn surface\'s: it turns no faster th
 // The portal fork the same (Mohammad, 24 Nov: "shadows from both sides make it look spherical"): laid straight to its gap, the DIPS left PVH 10 degrees from the left portal vein on the screen and 3.2 k behind it, and the left portal vein's
 // rim was drawn across the DIPS's lumen, 3.2 % of PVH as line only. It now leads out between the two portal branches first (anatomy/placed-network.ts DIPS_LEAD): 0.02 % at most.
 const BOUNDED: ReadonlySet<string> = new Set(['IVCS', 'PVH']);
-test('no junction skin of the placed figure inks more of its own lumen than the seam\'s ramp alone would, and the hepatic confluence and the portal fork stay under 0.5 %', { skip: !PLACED && 'placed anatomy only (PPS_ANATOMY=placed)' }, async () => {
+test('no junction skin of the placed figure inks more of its own lumen than the seam\'s ramp alone would, and the hepatic confluence and the portal fork stay under 0.5 %', async () => {
   const { gateSkins } = await import('./skin-gate-lib.ts');
   const { closeCamera, rasterLive } = await import('./skin-live-lib.ts');
   const SCREEN = { w: 393, h: 852, dpr: 2, pxPerUnit: 500 } as const;

@@ -5,7 +5,6 @@
 // (organ-art.ts gutLook: every tone, and the box the gradient and volume run in), the tubes share one box (layer.ts oneGutBox) and the gut's depth term is baked as one part (prepare.ts joinParts).
 // Measured with the shader's JS twin (tests/anatomy/gut-colour.ts): at each point by a join, part A's fill against what part B's material lays at that same point, so the look's step is measured apart from the
 // surface's own turn (the hand-off of the normals is anatomy-smooth.test.ts's).
-// (placed only: run with PPS_ANATOMY=placed; with the switch off the gut is 2D's pillows and nothing here applies)
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -17,7 +16,6 @@ import { createShared } from '../src/scene/materials/cel.ts';
 import { PALETTES } from '../src/scene/palette.ts';
 import { GUT_SEGMENTS, PYL_CUT } from '../src/scene/organs/gut-tubes.ts';
 import { ORGAN_FS } from '../src/scene/organs/organ-shader.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { UNITS_PER_SCENE } from '../src/scene/frame2d.ts';
 import { fillAt } from './anatomy/gut-colour.ts';
 
@@ -55,7 +53,7 @@ function pairs(ga: BufferGeometry, pick: (i: number) => boolean, gb: BufferGeome
   return out;
 }
 
-test('placed: across every gut join the two parts lay the same colour at the same point (Light and Dark, depth on and off)', { skip: !PLACED }, async () => {
+test('placed: across every gut join the two parts lay the same colour at the same point (Light and Dark, depth on and off)', async () => {
   const layer = await built();
   const o = (id: string) => layer.byId.get(id)!;
   const geo = (id: string) => o(id).toonMesh.geometry;
@@ -84,7 +82,7 @@ test('placed: across every gut join the two parts lay the same colour at the sam
   console.log(worst.join('\n'));
 });
 
-test('placed: up the stomach the oesophagus\'s tone comes in as a ramp, never a step (Light and Dark)', { skip: !PLACED }, async () => {
+test('placed: up the stomach the oesophagus\'s tone comes in as a ramp, never a step (Light and Dark)', async () => {
   const layer = await built();
   const m = layer.byId.get('stomach')!.toon, g = layer.byId.get('stomach')!.toonMesh.geometry, E = g.getAttribute('eso'), I = g.index!;
   for (const look of LOOKS) {
@@ -104,7 +102,7 @@ test('placed: up the stomach the oesophagus\'s tone comes in as a ramp, never a 
   }
 });
 
-test('placed: the funnel\'s fill is the organ painter with the stomach\'s look mixed in by tos, every tone of it (no tone left in the gut\'s own)', { skip: !PLACED }, () => {
+test('placed: the funnel\'s fill is the organ painter with the stomach\'s look mixed in by tos, every tone of it (no tone left in the gut\'s own)', () => {
   const fs = gutLook(ORGAN_FS), body = fs.slice(fs.indexOf('void main() {'));
   for (const k of ['o1', 'o2', 'ogLight', 'ogDark', 'volLight', 'volShade', 'volGeo', 'volShadeAt', 'shadeSteps', 'rimK', 'layer']) {
     assert.ok(new RegExp(`uniform \\w+ ${k}S;`).test(fs), `${k}S declared`);
@@ -113,7 +111,7 @@ test('placed: the funnel\'s fill is the organ painter with the stomach\'s look m
   assert.equal(body.replace(/mix\(vBox, vBoxS, vTos\)/g, '').match(/\bvBox\b/), null, 'the box the fill runs in is mixed too');
 });
 
-test('placed: the funnel\'s stomach tones are the stomach\'s own uniforms, and the stomach\'s cut lies under the funnel', { skip: !PLACED }, async () => {
+test('placed: the funnel\'s stomach tones are the stomach\'s own uniforms, and the stomach\'s cut lies under the funnel', async () => {
   const layer = await built();
   const s = layer.byId.get('stomach')!, d = layer.byId.get('duodenum')!;
   for (const k of ['o1', 'o2', 'ogDark', 'volGeo', 'layer']) assert.equal(d.toon.uniforms[`${k}S`], s.toon.uniforms[k], `${k}S is the stomach's ${k}`);

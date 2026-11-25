@@ -4,8 +4,8 @@
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { x3, y3 } from '../frame2d.ts';
 import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
-import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D, PLACED } from '../anatomy/source.ts';
-import { PLACED_EDGE_3D, PLACED_HV_TRUNK } from '../anatomy/placed-network.ts';
+import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from '../anatomy/source.ts';
+import { PLACED_EDGE_3D, PLACED_HV_TRUNK, PLACED_PATH_2D } from '../anatomy/placed-network.ts';
 import { alongVein, alongVeinCompanion, alongVeinStretch, originsOf, startInOrganShare } from './starts.ts';
 import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare, treeOf } from './liver-branches.ts';
 import { CAUDATE_HOST, CAUDATE_VEIN_ID } from './caudate-veins.ts';
@@ -25,7 +25,7 @@ export const IVC_JOIN_LEN = 60;
  *  at the join of the two pieces in the Circuit, 20 Nov). */
 /** The vein a hepatic vein opens into when it is not the cava (placed anatomy, Mohammad 25 Nov: "RHV alone, MHV+LHV shared trunk"): the middle hepatic vein opens into the left one's common trunk (placed-network.ts PLACED_HV_TRUNK),
  *  which opens into the cava. Its tube is cut at that trunk's wall, its outline is the union's with it, and its Budd-Chiari clot runs to that wall, as a vein that opens into the cava does with the cava. Null for every other vessel. */
-export const trunkMateOf = (id: string): string | null => (PLACED && PLACED_HV_TRUNK.length > 0 && id === PLACED_HV_TRUNK.joiner ? PLACED_HV_TRUNK.piece : null);
+export const trunkMateOf = (id: string): string | null => (PLACED_HV_TRUNK.length > 0 && id === PLACED_HV_TRUNK.joiner ? PLACED_HV_TRUNK.piece : null);
 /** A carried-on start in the placed anatomy (starts.ts START_IN_ORGAN): the share of the placed course before the point where the collaterals that end on its start node land on it (their last points' nearest point of the course), or null with none.
  *  The fade-in covers exactly that, so the vein is whole where they join it. The 2D share (startInOrganShare: the 30 units carried on behind the 2D landing, over the 2D course's length) measured the 2D figure: the placed azygos arch is 0.14 long and
  *  its esophageal collateral (C1b) lands 0.7 of the way along it, so the 2D share (0.37) faded it over 1.6 of its widths and left it solid for half its run before the landing (the arch "should fade to the left", Mohammad 22 Nov). A vessel that runs on
@@ -149,7 +149,7 @@ export function cavaEndSpan(_id: string): number { return 0; }
 /** A hepatic vein that opens into the cava (not a renal vein, which is receded to the cava's tone already) keeps its alpha to the wall: 2D's end alpha for it (0.5) is dropped. */
 export const keepsAlphaToCava = (id: string): boolean => opensIntoCava(id) && id !== 'LRV_IVC' && id !== 'RRV_IVC';
 export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
-  const f = PLACED ? placedFade(id, fadeOf0(id, isArtery, feederHost)) : fadeOf0(id, isArtery, feederHost);
+  const f = placedFade(id, fadeOf0(id, isArtery, feederHost));
   if (CAVA_LIKE.has(id)) {
     // (the ascending lumbar collateral: the cava's tone along its whole run behind the liver and over the dome, climbing to full only over its last stretch where it joins the azygos arch, as the cava does at the atrium;
     //  2D's dip behind the liver and its solid return above the dome are gone: the part above the dome was a full-strength purple in a faded figure)
@@ -178,12 +178,18 @@ function placedFade(id: string, f: TipFade | null): TipFade | null {
  *  still had alpha where the vein's was gone). Its fade ENDS where its companion's does: the share of the artery's course nearest to the point where the portal branch (the last vein it runs beside) reaches nothing, so both vanish together and the rest of
  *  the artery is fully faded (not drawn). 1 for an artery with no branching companion. */
 const COMPANION_END = new Map<string, number>();
+/** The artery's course as the network draws it, in the same frame as its companion's tree (treeOf): the placed course itself on the placed anatomy (network.ts basePathOf), the 2D course run on beside the vein
+ *  otherwise. (Measured on the 2D course while the tree was the placed one, the fade's end was read off a different figure: A_HR's ended about 40 units from its portal branch's.) */
+const drawnArtery = (id: string): readonly (readonly [number, number])[] | null => (PLACED_PATH_2D[id] ?? null);
 export function companionEnd(id: string): number {
   const hit = COMPANION_END.get(id); if (hit != null) return hit;
-  const host = alongVeinCompanion(id), f = host ? fadeOf0(host, false) : null, tree = host ? treeOf(host) : null, art = alongVein(id, EDGE_PATH_2D);
+  const host = alongVeinCompanion(id), f = host ? fadeOf0(host, false) : null, tree = host ? treeOf(host) : null, art = drawnArtery(id);
   let u = 1;
-  if (f && tree && art && art.length > 1) {
-    const th = tree.through, k = Math.min(th.length - 1, Math.max(0, f.to * (th.length - 1))), i = Math.floor(k), j = Math.min(th.length - 1, i + 1), w = k - i;
+  // (the companion's course as drawn: its through branch where it branches; on the placed anatomy a vein the placement draws unbranched (the left portal vein, PVH_L_1) is its own placed course, whose fade
+  //  PLACED_LIVER_FADE ends early in the left lobe, so the left hepatic artery goes with it instead of running on to its bed: Mohammad 25 Nov, "the left portal vein ... fade earlier")
+  const th = tree?.through ?? (host ? PLACED_PATH_2D[host] ?? null : null);
+  if (f && th && th.length > 1 && art && art.length > 1) {
+    const k = Math.min(th.length - 1, Math.max(0, f.to * (th.length - 1))), i = Math.floor(k), j = Math.min(th.length - 1, i + 1), w = k - i;
     const px = th[i]![0] + (th[j]![0] - th[i]![0]) * w, py = th[i]![1] + (th[j]![1] - th[i]![1]) * w;
     // (the nearest point on the artery's polyline, as a share of its length)
     let total = 0, best = Infinity, at = 0;
@@ -209,7 +215,7 @@ function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | 
   // (a vein that branches is one tube to its tip: it fades out of / in from the liver along its through branch, over the same stretch of the course as its side branch does)
   const sp = isArtery ? null : splitShare(id);
   if (sp != null) return (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? { mode: 1, from: sp + FORK_CLEAR * (1 - sp), to: sp + 0.92 * (1 - sp), a0: 1, a1: 0, keep: false, connect: [] } : { mode: 1, from: 0.08 * sp, to: 0.75 * sp, a0: 0, a1: 1, keep: false, connect: [] };
-  if (!isArtery && PLACED && PLACED_LIVER_FADE[id]) return { mode: 1, from: PLACED_LIVER_FADE[id]![0], to: PLACED_LIVER_FADE[id]![1], a0: 1, a1: 0, keep: false, connect: [] };
+  if (!isArtery && PLACED_LIVER_FADE[id]) return { mode: 1, from: PLACED_LIVER_FADE[id]![0], to: PLACED_LIVER_FADE[id]![1], a0: 1, a1: 0, keep: false, connect: [] };
   if (!isArtery && LIVER_FADE_OUT[id] && !END_JOIN.has(id)) return { mode: 1, from: 1 - LIVER_FADE_OUT[id]!, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
   if (!isArtery && LIVER_FADE_IN[id]) return { mode: 1, from: 0, to: LIVER_FADE_IN[id]!, a0: 0, a1: 1, keep: false, connect: [] };
   // (the hepatic artery is cut short beside the portal trunk, starts/stub-free: it grows out of nothing over nearly all of what is drawn: starts.ts TRIM)
@@ -217,7 +223,7 @@ function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | 
   // (the lobar arteries fade out with the portal branch they run beside, over the same share of their length: Mohammad, 20 Nov, "the right branch doesn't fade at the end")
   // (the artery runs on to its bed's node now, starts.ts alongVein: the fade starts where it always did along the portal branch)
   if (art?.out) { const from = (1 - (ART_OUT_SHARE[id] ?? art.out)) * alongVeinStretch(id, EDGE_PATH_2D); return { mode: 1, from, to: Math.max(from + 0.1, companionEnd(id)), a0: 1, a1: 0, keep: false, mapFade: MAP_ART_FADE, connect: [] }; }
-  const inOrgan = (PLACED ? placedLandingShare(id) : null) ?? startInOrganShare(id, EDGE_PATH_2D[id] ?? []);
+  const inOrgan = placedLandingShare(id) ?? startInOrganShare(id, EDGE_PATH_2D[id] ?? []);
   if (inOrgan > 0 && !isArtery) return { mode: 1, from: 0, to: inOrgan, a0: 0, a1: 1, keep: false, connect: [...(TIP_CONNECT_2D[id] ?? []), ...originsOf(id)] };   // (the vein a carried-on start runs on from: the start is solid while it is drawn, eased: scene.ts syncTipJoins)
   const tip = TIP_FADE_2D[id];
   if (tip && !isArtery) return { mode: 1, from: 0, to: tip, a0: 0, a1: 1, keep: false, connect: TIP_CONNECT_2D[id] ?? [] };

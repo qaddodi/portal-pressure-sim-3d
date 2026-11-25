@@ -9,6 +9,9 @@ import { buildTubes } from '../src/scene/vessels/tubes.ts';
 import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
 import { FEEDERS_2D, STRANDS_2D } from '../src/scene/vessels/coil.copied.ts';
 import { CelScene } from '../src/scene/scene.ts';
+import { wholeOf } from '../src/scene/anatomy/placed-network.ts';
+import { centrelineOf } from '../src/scene/vessels/centreline.ts';
+import { endOn } from '../src/scene/vessels/starts.ts';
 
 const repo = process.env.PPS_2D_REPO;
 const line = (n: number): P2[] => Array.from({ length: 64 }, (_, i) => [100 + (i / 63) * 300, 200 + 20 * Math.sin(i / 9) + n]);
@@ -93,8 +96,21 @@ test('joined vessels meet at one depth: every course starts and ends at its node
     if (v.feeder) continue;
     const c = coursesOf(v, REST)[0]!, zf = NODE_Z.get(v.from)!, zt = NODE_Z.get(v.to)!;
     const cutStart = isCut(v.id) && !(LIVER_BRANCH_HOSTS.out as readonly string[]).includes(v.id), cutEnd = isCut(v.id) && (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(v.id);   // (a vein that branches is cut at its split)
-    if (!cutStart) assert.ok(Math.abs(c.pts[0]![2] - zf) < 1e-9, `${v.id} start`);
-    if (!cutEnd) assert.ok(Math.abs(c.pts[c.pts.length - 1]![2] - zt) < 1e-9, `${v.id} end`);
+    // (restated for the placed anatomy, the only one now: a vessel that joins another's WALL lands on that vein's own drawn course, at its depth there, not at the node's one depth: the collaterals, the
+    //  shunts, the hepatic veins into the cava and the trunk. So an end is at its node's depth, or on the axis of a piece of the same whole vein as one at its node (within its radius, depth included);
+    //  a run-on end of starts.ts END_ON (the rectal varices down the rectum) is free in both figures)
+    for (const k of [0, 1] as const) {
+      if (k ? cutEnd : cutStart) continue;
+      const node = k ? v.to : v.from, p = k ? c.pts[c.pts.length - 1]! : c.pts[0]!;
+      if (Math.abs(p[2] - (k ? zt : zf)) < 1e-9 || (k && endOn(v.id))) continue;
+      const wholes = new Set(NETWORK.filter((o) => o !== v && !o.feeder && (o.from === node || o.to === node)).map((o) => wholeOf(o.id) ?? o.id));
+      const on = NETWORK.filter((o) => o !== v && !o.feeder && wholes.has(wholeOf(o.id) ?? o.id)).some((o) => {
+        const cl = centrelineOf(o.id); if (!cl) return false;
+        const u = cl.nearestU(p), q = cl.pointAt(u);
+        return Math.hypot(p[0]! - q[0]!, p[1]! - q[1]!, p[2]! - q[2]!) <= cl.radiusAt(u);
+      });
+      assert.ok(on, `${v.id} ${k ? 'end' : 'start'}: off its node's depth and on no vein that meets there`);
+    }
   }
 });
 

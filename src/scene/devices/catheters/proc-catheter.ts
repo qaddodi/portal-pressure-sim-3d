@@ -16,7 +16,6 @@ import { FLASHBACK_K, flashbackEnv, flashbackFront } from '../flashback.ts';
 import { BALLOON_EDGE, CATH_EDGE, type EdgeRule } from '../edges.ts';
 import { type Route3D, drawnShare } from '../../procedures/route3d.ts';
 import { GEO2D, routeAt } from '../../procedures/route.ts';
-import { PLACED } from '../../anatomy/source.ts';
 import { balloonOutline, balloonRy } from '../../procedures/copied/hvpg-balloon.js';
 
 const U = UNITS_PER_SCENE;
@@ -236,7 +235,7 @@ export class ProcCatheter {
     const uAt = (id: string, d: number, fb: number): number => { const c = this.courseOf(id); if (!c) return fb; const p = r3.centre(d, this.v); return c.nearestU([p.x, p.y, p.z]); };
     const hv = r.parts.find((q) => q.name === 'hv'), br = r.parts.find((q) => q.name === 'branch');
     // (the placed anatomy wedges in the lower branch (route-placed.ts): the branch is one more stretch of the vein the tip is in, tinted from the balloon out to its tip like the trunk's pieces)
-    const inBranch = PLACED && !!br?.id && NETWORK_BY_ID.has(br.id);
+    const inBranch = !!br?.id && NETWORK_BY_ID.has(br.id);
     for (const sub of [...(hv?.subs?.length ? hv.subs : hv ? [hv] : []), ...(inBranch ? [br!] : [])]) {
       if (!sub.id || edgeD >= sub.d1 - 1e-6) continue;   // (downstream of the balloon: not tinted)
       const inside = edgeD > sub.d0;
@@ -431,8 +430,8 @@ const COIL_REACH = 16;
 const Z = new Vector3(0, 0, 1);
 /** A point and direction `len` figure units from share f along vein `id`, going with its drawn course (dir +1) or against it (-1), in the scene. */
 export function veinPoint(id: string, f: number, dir: number, len: number, pos: Vector3, tan: Vector3): void {
-  // (the placed anatomy: on the vein's drawn centreline, depth included, never its 2D course on a tier)
-  const c = PLACED ? centrelineOf(id) : null;
+  // (on the vein's drawn centreline, depth included, never its 2D course on a tier)
+  const c = centrelineOf(id);
   if (c) {
     const u = Math.min(1, Math.max(0, f + (dir * len) / Math.max(1e-6, c.length * U))), p = c.pointAt(u), t = c.tangentAt(u);
     pos.set(p[0], p[1], p[2]); tan.set(dir * t[0], dir * t[1], dir * t[2]).normalize();

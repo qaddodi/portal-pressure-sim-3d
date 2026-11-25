@@ -1,4 +1,4 @@
-// THE OESOPHAGUS'S WALL ON THE PLACED ANATOMY (`?anatomy=new`), for the vessels that lie on it: the oesophageal varices (Mohammad, 24 Nov: "varices should be surrounding the esophagus"). The varices are the
+// THE OESOPHAGUS'S WALL ON THE PLACED ANATOMY, for the vessels that lie on it: the oesophageal varices (Mohammad, 24 Nov: "varices should be surrounding the esophagus"). The varices are the
 // submucosal and para-oesophageal veins of the lower oesophagus: they run up its wall all round it, from the cardia, where the coronary vein brings them portal blood, to where they drain on to the azygos side. The
 // vessels are built at load, before the organ file is in, so the tube's axis and half-widths are a table: measured from the placed stomach mesh (organs/meshes.ts ORGAN_MESHES.stomach, the oesophagus is part of it)
 // in slices across y, its middle (x, z) and half-widths (x, z) per slice; tests/anatomy-varices-wrap.test.ts checks the table against the mesh, so a re-placed organ cannot leave the varices off its wall.
