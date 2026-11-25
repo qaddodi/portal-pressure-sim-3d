@@ -335,7 +335,7 @@ export function linkProcs(): () => void {
   /** Take a slide's features off the figure. `keepLayers`: moving to another slide, which sets its own (the zone bands stay through a way out of the lobule). */
   function release(keepLayers = false): void {
     stopPlay(); stopProbe(); clearProc();
-    if (key) { leaveEvRun(key); sceneApi.setStented([]); }
+    if (key) { leaveEvRun(key); sceneApi.setStented([]); sceneApi.setStentGhost(false); }
     if (washKey) { sceneApi.setWash(false); washKey = ''; }
     if (ringKey) { sceneApi.setCatheterRing(null); ringKey = ''; }
     if (layersOn && !keepLayers) { clock.cancel(layerTimer); const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones, bile: f.bile }); layersOn = false; }
@@ -356,6 +356,7 @@ export function linkProcs(): () => void {
       const ask = askOf(s), view = v!.scene?.view ?? 'body';
       lastView = view; washLand = view !== wasView ? DIVE_MS : 0;
       sceneApi.setStented(ask.stented);
+      sceneApi.setStentGhost(ask.ghostStent);
       // the lobule's layers: the viewer's own, zones off, and the slide's on; where the slide leaves the lobule they wait for the way out (2D slideLayers)
       const f = useShell.getState().figure, want = layersWant({ lymph: f.lymph, zones: f.zones, bile: f.bile }, s);
       layersOn = true;

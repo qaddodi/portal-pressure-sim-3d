@@ -27,27 +27,29 @@ export interface BeatCardProps {
   deltaLabel?: string;
   /** tool.ekg === false leaves the strip off */
   ekg?: boolean;
+  /** tool.bp: the blood pressure beside the heart rate */
+  bp?: boolean;
   /** the plot's height (px) */
   h?: number;
 }
 
-export function BeatCard({ fp, before = null, deltaLabel, ekg = true, h = 250 }: BeatCardProps) {
+export function BeatCard({ fp, before = null, deltaLabel, ekg = true, bp = false, h = 250 }: BeatCardProps) {
   useEffect(() => { startFeed(); }, []);
   const hid = hiddenNow();
   const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null);
   const wall = useRef(0), dirty = useRef(true);
-  const inp = useRef({ fp, before, deltaLabel, ekg });
-  inp.current = { fp, before, deltaLabel, ekg };
+  const inp = useRef({ fp, before, deltaLabel, ekg, bp });
+  inp.current = { fp, before, deltaLabel, ekg, bp };
   const hold = useRef<{ release(): void } | null>(null);
 
   const frame = (c: ChartCtx) => {
     const f = latest.frame, s = inp.current, live = beatReadings(metricsOf(f));
     const pin = s.fp ? beatReadings(s.fp) : null;
     // (A slide's numbers are its settled state's; a number it does not give is the live one's.)
-    const now: BeatReadings = pin ? { whvp: Number.isFinite(pin.whvp) ? pin.whvp : live.whvp, fhvp: Number.isFinite(pin.fhvp) ? pin.fhvp : live.fhvp, pv: Number.isFinite(pin.pv) ? pin.pv : live.pv, hr: Number.isFinite(pin.hr) ? pin.hr : live.hr, hvpg: Number.isFinite(pin.hvpg) ? pin.hvpg : live.hvpg } : live;
+    const now: BeatReadings = pin ? { whvp: Number.isFinite(pin.whvp) ? pin.whvp : live.whvp, fhvp: Number.isFinite(pin.fhvp) ? pin.fhvp : live.fhvp, pv: Number.isFinite(pin.pv) ? pin.pv : live.pv, hr: Number.isFinite(pin.hr) ? pin.hr : live.hr, hvpg: Number.isFinite(pin.hvpg) ? pin.hvpg : live.hvpg, sbp: Number.isFinite(pin.sbp) ? pin.sbp : live.sbp, dbp: Number.isFinite(pin.dbp) ? pin.dbp : live.dbp } : live;
     const head = feed.headNow(f, wall.current, clock.now());   // (the trace's own clock, forward only: never the model's, which runs backwards while a slide eases in)
     const noPv = !!hid?.has('pv');
-    return beatFrame({ rec: record as never, head, now, before: s.before ? { r: beatReadings(s.before), label: s.deltaLabel || 'before' } : null, ekg: s.ekg, noPv, headed: true }, { w: Math.round(c.w), h, pal: c.pal }).frame;
+    return beatFrame({ rec: record as never, head, now, before: s.before ? { r: beatReadings(s.before), label: s.deltaLabel || 'before' } : null, ekg: s.ekg, noPv, headed: true, bp: s.bp }, { w: Math.round(c.w), h, pal: c.pal }).frame;
   };
   const draw = () => { const c = ctx.current, p = painter.current; if (c && p) p.show(frame(c), false); };
   const sync = () => {
@@ -64,7 +66,7 @@ export function BeatCard({ fp, before = null, deltaLabel, ekg = true, h = 250 }:
     setBeatCard(me);   // (a capture waits until the strip agrees with the numbers: beat-agree.ts)
     return () => { off(); tick(); want(); hold.current?.release(); hold.current = null; setBeatCard(me, true); };
   }, [h]);  // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { dirty.current = true; clock.invalidate('beat-card'); }, [fp, before, deltaLabel, ekg, h]);
+  useEffect(() => { dirty.current = true; clock.invalidate('beat-card'); }, [fp, before, deltaLabel, ekg, bp, h]);
 
   // the header, as strings: a re-render only when a word changes
   const pinned = useMemo(() => (fp ? beatReadings(fp) : null), [fp]);
@@ -81,7 +83,7 @@ export function BeatCard({ fp, before = null, deltaLabel, ekg = true, h = 250 }:
         </div>
       </div>
       <div className="pt-box" style={{ height: h }}>
-        <Chart tag="beat-card" painter={painter} deps={[h, fp, before, deltaLabel, ekg]} label="Pressure beat by beat" build={(c) => { ctx.current = c; return frame(c); }} />
+        <Chart tag="beat-card" painter={painter} deps={[h, fp, before, deltaLabel, ekg, bp]} label="Pressure beat by beat" build={(c) => { ctx.current = c; return frame(c); }} />
       </div>
     </div>
   );

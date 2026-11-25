@@ -27,6 +27,8 @@ const WIRE_RADIAL = WIRE_SIDES, GRAFT_RADIAL = DEVICE_SIDES, GOLD_RADIAL = WIRE_
 /** (The 2D graft is white where the light falls, 0.86, and a tenth of that in the shade; here, lit from every side, a milky sleeve over the lumen: the cover reads as a cover.) */
 const GRAFT_ALPHA = 0.4;
 /** The far wires of the weave, thinner and half seen (the 2D draws the back half at 0.5 and 0.12 of the front's strength), and the bright core along the near ones (the 2D's glint). */
+/** How much of its look a ghost stent keeps. */
+const GHOST_SHARE = 0.3;
 /** The band and tab, faded with the rest (owner, 21 Nov 2026: option 4, "a bit faded"). */
 const GOLD_ALPHA = STENT_GOLD_ALPHA;
 const BACK_ALPHA = 0.18, FRONT_ALPHA = STENT_FRONT_ALPHA, GLINT_ALPHA = 0.4, BACK_R = 0.7, GLINT_R = 0.38;
@@ -152,8 +154,13 @@ export class StentDevice {
     nar.needsUpdate = true;
   }
 
+  /** A slide that asks whether to place the stent draws it as a ghost (capture 52ef8e63, TIPS complete 3): its share of the full look, eased on the stent's own clock. */
+  setGhost(on: boolean, instant = false): void { this.ghostGoal = on ? GHOST_SHARE : 1; if (instant) this.ghost = this.ghostGoal; this.dirty = true; }
+  private ghost = 1;
+  private ghostGoal = 1;
+
   private apply(): void {
-    const a = this.amount;
+    const a = this.amount * this.ghost;
     for (const o of this.objects) o.present();   // (the stent's own eased share is the whole fade: a part leaves the list when it reaches nothing)
     const w = this.paths ? 1 : 0;
     this.graft.setAlpha(w * a * GRAFT_ALPHA); this.back.setAlpha(w * a * BACK_ALPHA); this.wires.setAlpha(w * a * FRONT_ALPHA); this.glint.setAlpha(w * a * GLINT_ALPHA); this.gold.setAlpha(w * a * GOLD_ALPHA);
@@ -180,6 +187,11 @@ export class StentDevice {
   /** Eases the amount. True while it moves (or draws once more). */
   update(dtMs: number): boolean {
     let moving = this.dirty; this.dirty = false;
+    if (this.ghost !== this.ghostGoal) {
+      const k = Math.min(1, dtMs / FADE_MS) * (1 - GHOST_SHARE);
+      this.ghost = Math.abs(this.ghostGoal - this.ghost) <= k ? this.ghostGoal : this.ghost + Math.sign(this.ghostGoal - this.ghost) * k;
+      this.apply(); moving = true;
+    }
     if (this.amount !== this.goal) {
       const k = Math.min(1, dtMs / FADE_MS);
       this.amount = Math.abs(this.goal - this.amount) <= k ? this.goal : this.amount + Math.sign(this.goal - this.amount) * k;

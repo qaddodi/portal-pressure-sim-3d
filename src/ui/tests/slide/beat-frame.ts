@@ -21,7 +21,7 @@ export const HR_CUT = 110;
 const Z = (t: string): string => t.replace(/[0-9]/g, '0');
 
 /** What the card shows of a state: the two pressures, the portal vein's, the heart rate and the HVPG (a slide's pinned fingerprint, else the live metrics). */
-export interface BeatReadings { whvp: number; fhvp: number; pv: number; hr: number; hvpg: number }
+export interface BeatReadings { whvp: number; fhvp: number; pv: number; hr: number; hvpg: number; sbp?: number; dbp?: number }
 export interface BeatIn {
   rec: Record_;
   /** model seconds at the right edge */
@@ -35,6 +35,8 @@ export interface BeatIn {
   noPv: boolean;
   /** a header above the card already gives the HVPG and its word (the slide's BeatCard): the card says it nowhere else, so the number stands once. 2D's card had no header, so it keeps its own copies. */
   headed?: boolean;
+  /** the slide's words are about the blood pressure (tool.bp): the card prints it beside the heart rate (Variceal bleed 3, capture 52ef8e63: "blood pressure has fallen only slightly" with no pressure shown) */
+  bp?: boolean;
 }
 export interface BeatBox { w: number; h: number; pal: Palette }
 
@@ -43,7 +45,7 @@ const finite = (x: unknown): x is number => typeof x === 'number' && Number.isFi
 export function beatReadings(m: Record<string, unknown> | null | undefined): BeatReadings {
   const g = (k: string): number => (finite(m?.[k]) ? (m![k] as number) : NaN);
   const whvp = g('whvp'), fhvp = g('fhvp');
-  return { whvp, fhvp, pv: g('pv'), hr: g('hr'), hvpg: finite(whvp) && finite(fhvp) ? (tenthGap(whvp, fhvp, g('hvpg')) as number) : g('hvpg') };
+  return { whvp, fhvp, pv: g('pv'), hr: g('hr'), sbp: g('sbp'), dbp: g('dbp'), hvpg: finite(whvp) && finite(fhvp) ? (tenthGap(whvp, fhvp, g('hvpg')) as number) : g('hvpg') };
 }
 
 /** One frame of the card in a w × h box. */
@@ -85,6 +87,7 @@ export function beatFrame(inp: BeatIn, box: BeatBox): { frame: Frame; hvpg: numb
   const hvWas = showWas ? (tenthGap(wWas!, fWas!, was?.hvpg ?? NaN) as number) : was?.hvpg;
   const word = finite(hv) ? hvpgWordOf(Math.max(0, hv)) : '';
   const hair = withAlpha(text, 0.12);
+  const bpT = inp.bp && finite(now.sbp) && finite(now.dbp) ? `BP ${fmt(now.sbp, 0)}/${fmt(now.dbp, 0)}` : '', bpC = finite(now.sbp) && now.sbp < 90 ? ink('danger') : text;
   if (lay.wide && lay.colX != null) {
     const x = lay.colX, hrSince = sinceText(hr, was?.hr ?? NaN, 0) as string, hvSince = sinceText(hv, hvWas ?? NaN, 1) as string;
     const plan = colPlan(h, !!(hrSince || hvSince)) as { k: number; deltas: boolean; rows: boolean }, k = plan.k, cw = w - x - 14;
@@ -106,6 +109,7 @@ export function beatFrame(inp: BeatIn, box: BeatBox): { frame: Frame; hvpg: numb
       y += 24 * k; T(x, y, word, 14, 600, sevI, { baseline: 'alphabetic', key: 'hv-word' });
       if (plan.deltas) { y += 20 * k; since(x, y, hvSince, 'hv-since'); }
     }
+    if (bpT && y + 44 * k < h) { y += 26 * k; T(x, y, bpT, 13, 650, bpC, { baseline: 'alphabetic', key: 'bp' }); y += 6 * k; }   // (a wide card with room under the heart rate: the pressure beside it)
     if (plan.rows) {
       if (!inp.headed) { y += 14 * k; rule(y); }
       for (const r of keyRows) {
@@ -119,6 +123,7 @@ export function beatFrame(inp: BeatIn, box: BeatBox): { frame: Frame; hvpg: numb
     // (a narrow card: the line of readings on top, the heart rate and the HVPG)
     if (!inp.headed) T(L, 18, `HVPG ${hvT}`, 14, 650, sevI, { key: 'top-hv' });
     T(w - 12, 18, `${hrT} /min`, 14, 650, hrC, { anchor: 'end', key: 'top-hr' });
+    if (bpT) T(inp.headed ? L : L + measure(Z(`HVPG ${hvT}`), 14 * 13 / 12, 650) + 14, 18, bpT, 14, 650, bpC, { key: 'top-bp' });
   }
 
   // the paper, from the plot's bottom left corner up through the strip: a heavy line every 5 squares; its upright lines laid on time, so the paper scrolls left with the traces
