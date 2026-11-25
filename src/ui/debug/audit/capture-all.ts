@@ -27,6 +27,7 @@ import { zipBlob, type ZipFile } from '../../capture/zip.ts';
 import { feedbackBuild, commitOf } from '../../../boot/release.ts';
 
 export interface AllUi { /** only these talks (ids); absent: every talk */ decks?: ReadonlySet<string> | null; /** only these slides (`deck:k`, k the stop: 1 the first slide); null or absent: every slide */ pick?: ReadonlySet<string> | null; status(s: string): void; progress(done: number, total: number): void; stop(): boolean; /** the page clock's speed for the run (default 8) */ speed?: number; /** land every slide on its settled state at once: no CSS or script animation plays (see skipAnimations) */ skip?: boolean;
+  /** the promotion set (?promotion): one picture a slide at this pixel ratio, as a PNG, no choice pictures, no contact sheets */ promo?: { ratio: number };
   /** capture this one talk only (its id); default every talk */ only?: string;
   /** leave the talk open on this stop at the end (the talk the person was in); default the talk is left */ restore?: number }
 export interface AllResult { /** every file of the zip (name and bytes), for a page that joins several runs */ files: ZipFile[]; /** wall seconds for the whole run, and per slide: waiting for the slide to be still, drawing it */ secs: number; perSlide: { waitMs: number; drawMs: number }; speed: number; zip: Blob; zipName: string; collages: { name: string; blob: Blob }[]; shots: number; decks: number; stopped: boolean; notes: string[] }
@@ -202,25 +203,26 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         await showLanded();
         if (perpetual && !seen.has(perpetual)) { seen.add(perpetual); notes.push(`${d.title} ${n}: ${perpetual}; the picture was taken anyway`); }
         // a phone on its side with both cards (the words and the instrument stand in one column that a swipe up slides): two pictures of the slide, the teaching card in view, then the column slid up so the instrument is
-        const views = captureViews({ w: innerWidth, h: innerHeight, layout: layoutOf(innerWidth, innerHeight), sideways: isSideways(innerWidth, innerHeight) }, { data: !!useUi.getState().boxes.data, words: !!useUi.getState().boxes.words }), both = views.length === 2;   // (an upright phone or tablet: the instrument card up, then tucked)
-        const base0 = `${dir}/${pad2(k + 1)}-${pad2(sub + 1)}-${slug(title)}`;
+        const views = captureViews({ w: innerWidth, h: innerHeight, layout: layoutOf(innerWidth, innerHeight), sideways: isSideways(innerWidth, innerHeight) }, { data: !!useUi.getState().boxes.data, words: !!useUi.getState().boxes.words }), both = views.length === 2 && !ui.promo;   // (an upright phone or tablet: the instrument card up, then tucked)
+        const base0 = ui.promo ? `${d.id}-${k}` : `${dir}/${pad2(k + 1)}-${pad2(sub + 1)}-${slug(title)}`;
         if (single && !fresh) { thumbs.length = Math.max(0, thumbs.length - lastThumbs); }   // (a step replaces the one before it: its pictures' small copies go too)
         let pushed = 0;
         const shoot = async (view: string, choice?: string): Promise<boolean> => {
           const t1 = new Date().getTime();
-          const when = new Date(), drawn = await drawScreen(when, { ratio: Math.min(devicePixelRatio, 2), stamp: false });   // (the device's own sharpness, 2x at most; no stamp in the corner: the build and time are in the README and each JSON)
+          const when = new Date(), drawn = await drawScreen(when, { ratio: ui.promo ? ui.promo.ratio : Math.min(devicePixelRatio, 2), stamp: false });   // (the device's own sharpness, 2x at most; no stamp in the corner: the build and time are in the README and each JSON)
           if (!drawn) { notes.push(`${d.title}: ${n}${view ? ` ${view}` : ''} could not be drawn`); return false; }
-          const jpegP = blobOf(drawn.canvas, 'image/jpeg', 0.85).then(async (b) => (b ? bytesOf(b) : null));   // (the encoder takes its own copy of the picture at once and works off this thread while the next is reached)
+          const jpegP = (ui.promo ? blobOf(drawn.canvas, 'image/png') : blobOf(drawn.canvas, 'image/jpeg', 0.85)).then(async (b) => (b ? bytesOf(b) : null));   // (the encoder takes its own copy of the picture at once and works off this thread while the next is reached)
           shape = { w: drawn.canvas.width, h: drawn.canvas.height }; shape0 = shape;
-          const L = collageLayout(1, shape), thumb = document.createElement('canvas'); thumb.width = L.cellW * 2; thumb.height = L.cellH * 2;   // (twice the sheet's cell: a sharp one when the sheet is zoomed)
-          thumb.getContext('2d')?.drawImage(drawn.canvas, 0, 0, thumb.width, thumb.height);
+          const L = collageLayout(1, shape), thumb = document.createElement('canvas'); thumb.width = ui.promo ? 1 : L.cellW * 2; thumb.height = ui.promo ? 1 : L.cellH * 2;   // (twice the sheet's cell: a sharp one when the sheet is zoomed)
+          if (!ui.promo) thumb.getContext('2d')?.drawImage(drawn.canvas, 0, 0, thumb.width, thumb.height);
           drawn.canvas.width = 0; drawn.canvas.height = 0;   // (let the big picture go before the next)
           drawMs += new Date().getTime() - t1;
           const base = view ? `${base0}-${view}` : base0;
           const meta = enc.encode(JSON.stringify({ deck: d.id, deckTitle: d.title, stop: k + 1, step: sub + 1, of: stops, beat: p.beat + 1, page: useUi.getState().page, title, ...(view ? { card: view } : {}), ...(choice ? { choice } : {}), cards: cardBoxes(document), ...drawn.record }, null, 1));
-          encoding.push(jpegP.then((data) => { if (data) put({ name: `${base}.jpg`, data }); }));
+          encoding.push(jpegP.then((data) => { if (data) put({ name: `${base}.${ui.promo ? 'png' : 'jpg'}`, data }); }));
           put({ name: `${base}.json`, data: meta });
-          thumbs.push({ n: view ? `${n} ${view}` : n, title, img: thumb }); pushed++;
+          if (!ui.promo) thumbs.push({ n: view ? `${n} ${view}` : n, title, img: thumb });
+          pushed++;
           slidesSeen.add(`${d.id}/${k}`);
           if (!single || fresh) shots++;
           return true;
@@ -252,7 +254,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         };
         const d0 = new Date().getTime(); waitMs += d0 - w0;
         const ok = await shoot(views[0]);
-        if (ok && fresh) await choiceShots(views[0]);
+        if (ok && fresh && !ui.promo) await choiceShots(views[0]);
         if (both && ok) {
           useUi.getState().setDocked(true);   // (sideways: the swipe up, the column slides until the instrument card is the one in view; upright: the instrument card tucks into its strip)
           await stillPage(real, false, !!ui.skip);

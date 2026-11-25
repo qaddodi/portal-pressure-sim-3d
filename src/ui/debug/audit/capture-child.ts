@@ -5,6 +5,7 @@ import { attach } from '../pps.ts';
 import { settle } from './app.ts';
 import { speedOf } from './speed.ts';
 import { unpackPick } from './capture-pick.ts';
+import { promoRatio, preparePromo } from './promo-prep.ts';
 import { clock } from '../../../clock/frame.ts';
 
 export type CaptureMsg =
@@ -41,8 +42,10 @@ export function mountCaptureChild(): void {
       try {
         const m = await importAgain(() => import('./capture-all.ts'));
         const speed = speedOf(flagValue('speed')), pick = unpackPick(flagValue('pick')), decks = (flagValue('decks') ?? '').split(',').filter((x) => /^[\w-]+$/.test(x));
+        const ratio = promoRatio(flagValue('promo'));
+        if (ratio) preparePromo();
         const r = await m.captureAllDecks({
-          decks: decks.length ? new Set(decks) : null, pick, speed: speed > 1 ? speed : undefined,
+          decks: decks.length ? new Set(decks) : null, pick, speed: speed > 1 ? speed : undefined, promo: ratio ? { ratio } : undefined,
           status: (s) => { text = s; }, stop: () => stop,
           progress: (n, total) => post({ capture: 'progress', text, n, total }),
         });

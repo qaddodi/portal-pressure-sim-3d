@@ -37,6 +37,16 @@ One address, no AI, nothing sent anywhere (`src/ui/debug/audit`). On a Mac, `/pr
 
 If the browser ends the tab, the walk is written down after every step: open the same address again and it **resumes after the last step** and says so in the report (`?fresh=1` forgets it). The report also prints the **kill ledger**: what the page's memory estimate stood at each time the browser ended a tab on this device (the page writes its last moment once a second while it runs, and the next page reads it), so the memory limit can be set from facts. The ledger is local only (`pps.kills` in this browser's storage); nothing is sent.
 
+### The promotion pictures, `?promotion`
+
+On a Mac, `/preview/?promotion` makes the pictures for promotion: it takes the slides you name, each settled, in the look of the finished app, and lays every one in a plain outline of a Mac, an iPhone and an iPad (upright) under the app's logo and name. It uses the same capture as `?audit` (`capture-all.ts`, the app in a frame at the device's size), so a slide is as settled as in a capture, with these differences: the PREVIEW tab, the build and debug marks and the corner credit are not in the picture, the figure is on **Rich** for the frame only (nothing is saved to the browser), one picture a slide (no choice pictures), 2x on a Mac and an iPad and 3x on an iPhone.
+
+1. Open `/preview/?promotion` (or give the slides in the address: `?promotion&pick=circulation:1,lobule:4&sizes=mac,iphone`). The box holds the twenty proposed slides, one to a line as `deck:number`; edit it freely. The number counts from the first slide of the talk (1), so `lobule:9` is "10 / 12" on the presenter's counter (the title card is its first stop).
+2. Tick the sizes and press **Make pictures**. The three frames run at once; keep the tab in front. When it ends, each finished picture shows below.
+3. **Save zip** gives one file: a folder a size, a JPEG a slide (`03-lobule-4-cirrhosis-narrows-the-sinusoid-iphone.jpg`), and a README with the build and why each slide was chosen.
+
+The outlines are drawn in `src/ui/debug/promo/frames.ts` from rounded shapes (no maker's artwork, logo or model name); the look is in `docs/approved/promotion.md`. The address has no email and no picture can show one: the feedback address is a build variable that the capture frame never draws.
+
 ## 5. The rules, in plain words
 
 Each rule reads the screen as the app itself describes it. The tables are generated from the code: `npm run debug -- doc` after adding a rule, a limit or a flag, and a test fails until it is done.
@@ -179,6 +189,8 @@ Address flags, where each works (live site, or the preview and a local run only)
 | `?check` | preview and local run | Pages | The old spelling of ?debug=check, the Phone check (?check=full for the long walk). (old spelling of ?debug=check) |
 | `?sweep` | preview and local run | Pages | The debug page: run the Sweep over these specimens (a list, or affected). |
 | `?audit` | preview and local run | Pages | The self-test (src/ui/debug/audit): walks every view, sheet, patient and every slide of every talk by itself, measures layout spill and covered text, load times, fade lengths (snaps), frames a second, hitches and console errors, and ends in one report with Copy. Bare ?audit on a Mac runs the app in iPhone, iPad and Mac frames one after the other; ?audit=here runs this screen only (do this on the iPhone and iPad). No AI, nothing sent anywhere. |
+| `?promotion` | preview and local run | Pages | The promotion pictures (src/ui/debug/promo), on a Mac: ?promotion&pick=circulation:1,lobule:4&sizes=mac,iphone,ipad-portrait opens the app at each size, takes each slide settled, in the final-app look (no PREVIEW tab, no build or debug marks, the Rich figure, 2x on a Mac and an iPad, 3x on an iPhone), lays it in a plain device outline under the logo and name, and offers one zip. A bare ?promotion lists twenty proposed slides in its box. |
+| `?promo` | preview and local run | Pages | The capture frame of ?promotion (audit=capture&promo=3): takes its pictures at this pixel ratio, as PNG files, with the Rich figure and no corner credit. |
 | `?sizes` | preview and local run | Pages | The self-test frames: which sizes (comma list of device ids: iphone, ipad-portrait, ipad, mac, mac-short, iphone-landscape). |
 | `?parallel` | preview and local run | Pages | The self-test frames: parallel=1 runs every size at once (faster; frame rates and timings are then not valid). |
 | `?depth` | preview and local run | Pages | The self-test: depth=quick walks the views, three slides of every talk and the collateral patients; depth=full (the default) walks everything. |

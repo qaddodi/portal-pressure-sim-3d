@@ -61,6 +61,15 @@ async function plain(): Promise<boolean> {
     bootOuter();
     return true;
   }
+  // ?promotion (the preview copy and a local run only): the promotion pictures' outer page: sized frames, each slide laid in a device outline.
+  // It starts no app itself.
+  if (DEBUG && isPreview() && flagOn('promotion')) {
+    const { bootPromotion } = await import('./ui/debug/promo/outer.ts');
+    await styles;
+    plainPage();
+    bootPromotion();
+    return true;
+  }
   // ?look (the preview copy and a local run only): the Mac look board, an outer page that photographs the figure in a frame (WP11). It starts no app itself.
   if (DEBUG && isPreview() && flagValue('look') === '' && !flagOn('capture') && !debugPage()) {
     const { bootLookBoard } = await import('./debug/look-board.ts');

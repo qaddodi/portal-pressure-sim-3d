@@ -19,6 +19,16 @@ export const FLAGS: readonly Flag[] = Object.freeze([
   { id: 'check', group: 'Pages', gate: 'local', alias: 'debug=check', meaning: 'The old spelling of ?debug=check, the Phone check (?check=full for the long walk).' },
   { id: 'sweep', group: 'Pages', gate: 'local', meaning: 'The debug page: run the Sweep over these specimens (a list, or affected).' },
   { id: 'audit', group: 'Pages', gate: 'local', meaning: "The self-test (src/ui/debug/audit): walks every view, sheet, patient and every slide of every talk by itself, measures layout spill and covered text, load times, fade lengths (snaps), frames a second, hitches and console errors, and ends in one report with Copy. Bare ?audit on a Mac runs the app in iPhone, iPad and Mac frames one after the other; ?audit=here runs this screen only (do this on the iPhone and iPad). No AI, nothing sent anywhere." },
+  {
+    id: 'promotion', group: 'Pages', gate: 'local',
+    meaning: 'The promotion pictures (src/ui/debug/promo), on a Mac: ?promotion&pick=circulation:1,lobule:4&sizes=mac,iphone,ipad-portrait opens the app at each size, '
+      + 'takes each slide settled, in the final-app look (no PREVIEW tab, no build or debug marks, the Rich figure, 2x on a Mac and an iPad, 3x on an iPhone), '
+      + 'lays it in a plain device outline under the logo and name, and offers one zip. A bare ?promotion lists twenty proposed slides in its box.',
+  },
+  {
+    id: 'promo', group: 'Pages', gate: 'local',
+    meaning: 'The capture frame of ?promotion (audit=capture&promo=3): takes its pictures at this pixel ratio, as PNG files, with the Rich figure and no corner credit.',
+  },
   { id: 'sizes', group: 'Pages', gate: 'local', meaning: 'The self-test frames: which sizes (comma list of device ids: iphone, ipad-portrait, ipad, mac, mac-short, iphone-landscape).' },
   { id: 'parallel', group: 'Pages', gate: 'local', meaning: 'The self-test frames: parallel=1 runs every size at once (faster; frame rates and timings are then not valid).' },
   { id: 'depth', group: 'Pages', gate: 'local', meaning: 'The self-test: depth=quick walks the views, three slides of every talk and the collateral patients; depth=full (the default) walks everything.' },
