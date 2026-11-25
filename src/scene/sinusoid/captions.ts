@@ -22,6 +22,9 @@ export interface CapCtx {
   stage: { w: number; h: number };
   free: Rect;
   insTop: number;
+  /** the screen's visible sides and the boxes over the figure (the ends' names stand at the vessel's visible ends between them) */
+  edge?: NamesInput['edge'];
+  walls?: NamesInput['walls'];
   /** the model, or null before the first frame (the readings read "?") */
   model: CapModel | null;
   /** A caption's size on the canvas as it is drawn (px), when the layer can measure its own element: the 2D stylesheet sets the type, so its box is the page's. Without it the box is worked out from the label type. */
@@ -76,7 +79,7 @@ export function buildSinusoidNames(c: CapCtx): NamePlacement[] {
   const k = Math.hypot(a[0] - o[0], a[1] - o[1]);
   if (!(k > 0)) return [];
   return c.view.names({
-    W: c.stage.w, H: c.stage.h, C: o, k, free: c.free, insTop: c.insTop,
+    W: c.stage.w, H: c.stage.h, C: o, k, free: c.free, insTop: c.insTop, edge: c.edge, walls: c.walls,
     text: readings(c.model, c.view.porosity), lit: c.lit,
     measure: (key, name, value, inline) => (c.size ? c.size(key, name, value, c.explain === key ? SV_NOTE[key] ?? null : null, inline) : boxOf(linesOf(name, value, key, c.explain), c.vp, c.measure)),
   });

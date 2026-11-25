@@ -10,6 +10,7 @@ import { clock } from '../../clock/frame.ts';
 import { readModel } from '../lobule/read-model.ts';
 import { useLookId } from '../../looks/use-look.ts';
 import { BAR } from '../../ui/layout/plan.ts';
+import type { Rect } from '../../ui/layout/device.ts';
 import { useUi } from '../../ui/ui-store.ts';
 import { levelFor } from '../labels/free-set.ts';
 import { useShell } from '../../ui/shell/store.ts';
@@ -69,6 +70,9 @@ export function SinusoidCaptions() {
       return [pt.x, pt.y];
     };
     const key = (p: NamePlacement) => p.key;
+    /** the screen's visible sides, and the boxes drawn over the figure: the cards and the presenter bar (the ends' names stand between them along the vessel's band) */
+    const edgeOf = (v: { w: number; safe: { left: number; right: number } }) => ({ l: v.safe.left, r: v.w - v.safe.right });
+    const wallsOf = (b: { words: Rect | null; data: Rect | null; strip: Rect | null; bars: Rect[] }): Rect[] => [b.words, b.data, b.strip, ...b.bars].filter((r): r is Rect => !!r);
     /** an end's arrow, pointing toward its vessel off the view on the screen as it stands (the portal venule's back upstream, the central vein's on downstream) */
     const endArrow = (k: 'in' | 'out'): 'l' | 'r' | 'u' | 'd' => {
       const a = proj(0, 0), b = proj(1, 0), d = k === 'in' ? -1 : 1, dx = (b[0] - a[0]) * d, dy = (b[1] - a[1]) * d;
@@ -133,7 +137,7 @@ export function SinusoidCaptions() {
       const st = useSinusoidNames.getState();
       const free = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h }, useFootNote.getState().rect);
       const built = buildSinusoidNames({
-        view: cel.sinus, proj, vp, measure, size, stage: { w: vp.w, h: vp.h }, free, insTop: vp.safe.top + BAR,
+        view: cel.sinus, proj, vp, measure, size, stage: { w: vp.w, h: vp.h }, free, insTop: vp.safe.top + BAR, edge: edgeOf(vp), walls: wallsOf(useUi.getState().boxes),
         model: m ? { P1: m.P1, P2: m.P2, P3: m.P3, lymph: m.lymph, lyProt: m.lyProt } : null, explain: st.explain, lit: st.lit,
       });
       placed = level === 'none' ? [] : built;
@@ -172,7 +176,7 @@ export function SinusoidCaptions() {
         const { vp } = useUi.getState(), st = useSinusoidNames.getState();
         const m = readModel(cel.lobule.inkContext()?.model);
         const fr = namesFree(cel.rig.targetRoom, { w: vp.w, h: vp.h }, useFootNote.getState().rect);
-        const s = [vp.w, vp.h, refs, cel.sinus.isPortrait, levelFor(useShell.getState().figure.labelLevel, useLabels.getState().presenting), [fr.l, fr.t, fr.r, fr.b].join(','), lookRef.current, st.explain, [...st.lit].join(' '),
+        const s = [vp.w, vp.h, wallsOf(useUi.getState().boxes).map((b) => `${b.x},${b.y},${b.w},${b.h}`).join(';'), refs, cel.sinus.isPortrait, levelFor(useShell.getState().figure.labelLevel, useLabels.getState().presenting), [fr.l, fr.t, fr.r, fr.b].join(','), lookRef.current, st.explain, [...st.lit].join(' '),
           Math.round(cel.sinus.porosity * 100), readingsSig(m ? { P1: m.P1, P2: m.P2, P3: m.P3, lymph: m.lymph, lyProt: m.lyProt } : null)].join('|');
         if (s !== sig) { sig = s; solveNow(); } else refreshReadings();
       }
