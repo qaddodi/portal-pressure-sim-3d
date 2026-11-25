@@ -180,7 +180,8 @@ export function linkProcs(): () => void {
           phase = base > 0 ? 'between' : 'wait'; setProc({ phase: 'wait', at: base - 1, ring: base - 1 });
         } else if (done) {
           if (!c.applied) { c.applied = true; change(true); }
-          if (scope && !c.hold) useProbes.getState().setEndoscope({ on: false });
+          // (the EUS-PPG's scope too: left on, it was no longer driven once the run ended, so it carried on at its own pace from the hepatic vein's station, raised its elevator and put the needle in again: Mohammad, 25 Nov)
+          if ((scope || eus) && !c.hold) useProbes.getState().setEndoscope({ on: false });
         }
         const v = viewNow();
         if (v) sceneApi.goTo(v.shot, room());
