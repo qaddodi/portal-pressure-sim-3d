@@ -79,12 +79,13 @@ test('every camera name the 2D decks use has a shot, aimed at the lobule (or the
   assert.deepEqual(lobuleShot('lobule:fit'), fit);
   assert.deepEqual(fit.target, lobuleWorld([0, 0, 0]));
   const triad = lobuleShot('lobule:triad'), sin = lobuleShot('lobule:sinusoid'), cv = lobuleShot('lobule:central');
-  // the triad station is 12% of the way from the left portal tract toward the centre; the sinusoid station half way; both at twice the fit (shots are in world units: inside the liver)
-  assert.ok(Math.abs(triad.target[0] - lobuleWorld([-0.88 * LOBULE_R, 0, 0])[0]) < 1e-12);
+  // the triad station is centred ON the left portal tract (25 Nov, framing rule S7: it was 12% of the way toward the centre) at 1.75 times 2D's zoom; the sinusoid station half way at twice the fit (shots are in world units: inside the liver)
+  assert.ok(Math.abs(triad.target[0] - lobuleWorld([-1 * LOBULE_R, 0, 0])[0]) < 1e-12);
   assert.ok(Math.abs(sin.target[0] - lobuleWorld([-0.5 * LOBULE_R, 0, 0])[0]) < 1e-12);
   assert.deepEqual(cv.target, lobuleWorld([0, 0, 0]));
   // (the stations keep 2D's box, twice its zoom: 1.52 R of the fit before 24 Nov, unchanged when the whole-lobule fit tightened to its own bounds)
-  for (const s of [triad, sin, cv]) { assert.ok(Math.abs(s.half[0] * 2 - LOBULE_R * 1.52 * 0.92 * LOBULE_SCALE) < 1e-12); }
+  for (const s of [sin, cv]) { assert.ok(Math.abs(s.half[0] * 2 - LOBULE_R * 1.52 * 0.92 * LOBULE_SCALE) < 1e-12); }
+  assert.ok(Math.abs(triad.half[0] * 2 - (LOBULE_R * 1.52 * 0.92 * LOBULE_SCALE) / 1.75) < 1e-12, 'the triad frame is 1.75 times closer than 2D\'s station');
   const s = sinusoidShot();
   assert.deepEqual(s.target, sinusoidWorld([0, 0, 0]));
   assert.ok(s.half[0] > 3 * SIN_SCALE, 'the whole length of the sinusoid');

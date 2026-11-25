@@ -29,10 +29,13 @@ export const SINUSOID_L = 6;
 export type LobuleCam = 'lobule' | 'lobule:fit' | 'lobule:triad' | 'lobule:sinusoid' | 'lobule:central' | 'sinusoid';
 export const LOBULE_CAMS: readonly LobuleCam[] = ['lobule', 'lobule:fit', 'lobule:triad', 'lobule:sinusoid', 'lobule:central', 'sinusoid'];
 
+/** The portal triad's frame (Mohammad, 25 Nov, "do it", docs/approved/framing-rules.md S7): 1.75 times closer than 2D's 2x station (zoom 3.5), centred ON the tract (the corner at angle pi, x = -1 R; the small vessels stand out to -1.106 R and its collagen reaches 0.23 R,
+ *  collagen-edge.ts TRACT_REACH_PX), not 0.12 R in from it. The triad was 18 % of a Mac room's width and 24 % of a phone's; it is now 31 % to 45 %, the schisto cuff (0.23 R each way) still whole (30 px or more of air upright, 11 px on a phone held sideways: tests/scene-lobule-triad-frame.test.ts). */
+export const TRIAD_ZOOM = 3.5;
 /** The 2D app's framing of a part: how far from the portal corner (the left one, at angle π) toward the centre the station is, and the zoom over the fit. */
 const STATION = {
   fit: { wf: 1, zoom: 1 },
-  triad: { wf: 0.12, zoom: 2 },
+  triad: { wf: 0, zoom: TRIAD_ZOOM },
   sinusoid: { wf: 0.5, zoom: 2 },
   central: { wf: 1, zoom: 2 },
 } as const;
