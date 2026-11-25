@@ -17,7 +17,7 @@ import { HULL_MID, HULL_TB_MAX, HULL_TF_MAX, HULL_VS, hullVertex } from '../src/
 import { fluidBase, fluidLevel } from '../src/scene/disease/copied/fluid-step.js';
 import { ABDOMEN_OUTLINES } from '../src/scene/disease/copied/anatomy-b4.ts';
 import { Landmarks } from '../src/scene/disease/landmarks.ts';
-import { FOV, SHOTS } from '../src/scene/camera/shots.ts';
+import { FOV, VEIL_WHOLE } from '../src/scene/camera/shots.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
 
 const W = 1440, H = 900, D2R = Math.PI / 180;
@@ -88,7 +88,8 @@ test('round when turned: the projected outline turns <= 15 degrees between rows 
   const ml = 8500, step = bulgeStep(ml), poly = polyOf(step), { h } = fluidLevel(ml);
   let ymin = Infinity; for (const q of poly) ymin = Math.min(ymin, q[1]);
   const L = new HullLayout(); L.lay(poly, (x) => Math.max(fluidBase(x, h), ymin));
-  const s = SHOTS.play, [tx, ty, tz] = s.target, r = s.r, yaw = 25 * D2R;
+  const s = VEIL_WHOLE,   // (the figure's fixed reference framing, not the Fit frame: the hull's roundness is judged from where the camera always stood, so a closer Fit moves nothing here)
+    [tx, ty, tz] = s.target, r = s.r, yaw = 25 * D2R;
   const cam = new PerspectiveCamera(FOV, W / H, r * 0.02, r * 120);
   cam.position.set(tx + Math.sin(yaw) * r, ty, tz + Math.cos(yaw) * r); cam.lookAt(tx, ty, tz); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
   const rest: [number, number, number] = [tx, ty, tz + r], th = hullThickness(L.radius, 1);

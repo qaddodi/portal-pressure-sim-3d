@@ -200,8 +200,8 @@ export function seenAt(host: string, r: number, x: number, y: number, z: number)
 const unseen = new Set<string>();
 const REST_STEPS = 100;
 /** Where a name's dot rests on its vessel when the seen-and-apart search below would put it elsewhere: the lower IVC's is low on its vein (0.42 along it, among the veins' seen stretch below the liver). The search chose its top, among the liver's veins and beside the right sinusoids' name,
- *  and the name found no place near it once the figure was framed closer (a 112 px leader on a phone; Mohammad 25 Nov, "Zoom fit ... more zoomed", tests/labels-small-figure.test.ts). */
-const AT_REST_U: Readonly<Record<string, number>> = { IVCI: 0.42 };
+ *  and the name found no place near it once the figure was framed closer (a 112 px leader on a phone; Mohammad 25 Nov, "Zoom fit ... more zoomed", tests/labels-small-figure.test.ts). The right sinusoids' is 0.3 along its vessel, further out and clear of the HA, CONF and RHV dots and the CONF name: with the figure centred and filling 0.94 of a 393 pt phone's room, every other point of it (0.45 and on) left the name no place (tests/labels-give-way.test.ts). */
+const AT_REST_U: Readonly<Record<string, number>> = { IVCI: 0.42, SIN_R: 0.25 };
 (function spreadAtRest() {
   const dots: Vector3[] = [], tmp = new Vector3();
   // (the names the figure shows from the start first: a name only the slide or the viewer asks for keeps clear of them, never the other way round)

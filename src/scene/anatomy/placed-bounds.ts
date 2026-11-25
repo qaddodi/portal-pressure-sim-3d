@@ -129,8 +129,13 @@ export const unionBox3 = (boxes: readonly (Box3 | null)[]): Box3 | null => {
 const tubeBox = (pts: readonly V3[], r: number): Box3 | null => { const b = boxOfPts(pts); return b && [b[0] - r, b[1] - r, b[2] - r, b[3] + r, b[4] + r, b[5] + r]; };
 const radiusOf = (id: string): number => PLACED_VESSELS[PLACED_COURSES[id] ? id : WHOLE_OF[id] ?? '']?.r ?? 0.01;
 
+/** The lowest y the colon is seen at: the rectum fades out (the tube's fading end, gut-tubes.ts), and the point where its alpha is 0.5 stands here, 0.08 above where the tube ends and 0.18 above the colon's baked box
+ *  (PLACED_ORGAN_BOX.colon reaches y -1.808: the centreline's last point plus a round cap the faded end does not have). The name `colon-seen` is the colon's box down to here: the whole-figure frames take it, so the empty fade is not
+ *  framed as figure (Mohammad, 25 Nov, a desktop screenshot: "bottom needs to have less margin"). tests/camera-fit-margin.test.ts pins this number to the live tube. */
+export const RECTUM_SEEN_Y = -1.63;
 /** The placed 3D box of one name: an organ or organ part (PLACED_ORGAN_BOX), an engine edge, a whole-vessel key (rhvb, rpva, cv1, ...), or a topology node. Null: no such name. */
 export function placedBoxOfName(n: string): Box3 | null {
+  if (n === 'colon-seen') { const c = PLACED_ORGAN_BOX.colon; return c ? [c[0], Math.max(c[1], RECTUM_SEEN_Y), c[2], c[3], c[4], c[5]] : null; }
   const organ = PLACED_ORGAN_BOX[n];
   if (organ) return organ;
   const course = PLACED_COURSES[n] ?? (EDGE_PATH_2D[n] || WHOLE_OF[n] ? placedEdge(n) : null);
@@ -275,4 +280,4 @@ export const FIGURE_NAMES: readonly string[] = [
 
 /** What the whole figure shows as its body, placed: the organs (the esophagus down to the colon), without the vessels. The whole-figure frames (free play, a talk's overview, the Fit button) are framed on this, centred on it: the thin vein ends that stand a little past it
  *  (the superior vena cava's top, 0.11 units above the esophagus) need no room of their own (Mohammad, 25 Nov: "it doesn't look centered", measured by tests/camera-fit-margin.test.ts on the organs' silhouette). */
-export const VISIBLE_FIGURE_NAMES: readonly string[] = ['liver', 'stomach', 'esophagus', 'spleen', 'kidney-l', 'heart', 'duodenum', 'bowel', 'colon'];
+export const VISIBLE_FIGURE_NAMES: readonly string[] = ['liver', 'stomach', 'esophagus', 'spleen', 'kidney-l', 'heart', 'duodenum', 'bowel', 'colon-seen'];

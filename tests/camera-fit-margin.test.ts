@@ -7,7 +7,7 @@ import { SHOTS, WHOLE_FILL, DECK_WHOLE_FILL, WHOLE_MARGIN, SHOT_MARGIN, viewReac
 import { effectiveDistance, FILL, fullRoom } from '../src/scene/camera/room.ts';
 import { camPlan } from '../src/decks/hp/cams.ts';
 import { shotOfCam } from '../src/decks/ag/shots.ts';
-import { boxOfNames, FIGURE_NAMES, VISIBLE_FIGURE_NAMES, PLACED_ORGAN_BOX } from '../src/scene/anatomy/source.ts';
+import { boxOfNames, FIGURE_NAMES, VISIBLE_FIGURE_NAMES, placedBoxOfName, RECTUM_SEEN_Y } from '../src/scene/anatomy/source.ts';
 import { freeRoom, layoutClass } from '../src/ui/shell/room.ts';
 
 const SCREENS = [
@@ -20,7 +20,7 @@ const TAN = Math.tan((FOV * Math.PI) / 360);
 test('every whole-figure frame carries the whole figure\'s share of the room and margin, and the figure\'s ends stand within 7 % of the room\'s height of its edge, and the same at both ends', () => {
   const plan = camPlan('fit') as { shot: typeof SHOTS.play };
   const ag = shotOfCam('fit') as { shot: typeof SHOTS.play };
-  const box = boxOfNames(FIGURE_NAMES, true).box!;
+  const box = boxOfNames(VISIBLE_FIGURE_NAMES, true).box!;
   for (const [name, shot, fill] of [['play', SHOTS.play, WHOLE_FILL], ['hp fit', plan.shot, DECK_WHOLE_FILL], ['ag fit', ag.shot, DECK_WHOLE_FILL]] as const) {
     assert.equal(shot.fill, fill, `${name} fill`);
     const reach = viewReach(box, shot);
@@ -50,8 +50,8 @@ test('the rig keeps a shot\'s fill and keep points when it lands (a copy that dr
   assert.equal(rig.pose.shot.fill, 0.97);
 });
 
-test('free play on the real rooms: the organs\' silhouette stands centred up and down (gaps equal) and across (within 3 % of the room\'s width), with 7 % or less of the room\'s height empty at each end; measured on the organs, not the vessels', () => {
-  const organs = VISIBLE_FIGURE_NAMES.map((n) => PLACED_ORGAN_BOX[n]!);
+test('free play on the real rooms: the organs\' silhouette stands centred up and down (gaps equal) and across (within 1 % of the room\'s width), with 5.5 % (a phone) or 4 % (an iPad, a Mac) or less of the room\'s height empty at each end; measured on the organs, not the vessels', () => {
+  const organs = VISIBLE_FIGURE_NAMES.map((n) => placedBoxOfName(n)!);
   const x0 = Math.min(...organs.map((b) => b[0])), x1 = Math.max(...organs.map((b) => b[3])), y0 = Math.min(...organs.map((b) => b[1])), y1 = Math.max(...organs.map((b) => b[4]));
   const screens = [
     { name: 'iPhone', vp: { w: 393, h: 852, safe: { top: 59, right: 0, bottom: 34, left: 0 } }, thumb: true },
@@ -64,8 +64,20 @@ test('free play on the real rooms: the organs\' silhouette stands centred up and
     const X = (x: number) => room.x + room.w / 2 + (x - s.target[0]) * pxu, Y = (y: number) => room.y + room.h / 2 - (y - s.target[1]) * pxu;
     const left = X(x0) - room.x, right = room.x + room.w - X(x1), top = Y(y1) - room.y, bottom = room.y + room.h - Y(y0);
     assert.ok(Math.abs(top - bottom) < 1, `${name}: ${top.toFixed(1)} above, ${bottom.toFixed(1)} below`);
-    assert.ok(Math.abs(left - right) <= room.w * 0.03, `${name}: ${left.toFixed(1)} left, ${right.toFixed(1)} right`);
-    assert.ok(top <= room.h * 0.07 && bottom <= room.h * 0.07, `${name}: ${top.toFixed(1)} above, ${bottom.toFixed(1)} below, of ${room.h.toFixed(0)}`);
+    assert.ok(Math.abs(left - right) <= room.w * 0.01, `${name}: ${left.toFixed(1)} left, ${right.toFixed(1)} right`);
+    const most = vp.w < 720 ? 0.055 : 0.04;   // (a phone fills 0.90, an iPad and a Mac 0.94: shots.ts)
+    assert.ok(top <= room.h * most && bottom <= room.h * most, `${name}: ${top.toFixed(1)} above, ${bottom.toFixed(1)} below, of ${room.h.toFixed(0)}`);
     console.log(`# ${name}: room ${room.w} x ${room.h.toFixed(0)}; organs: left ${left.toFixed(0)}, right ${right.toFixed(0)}, top ${top.toFixed(0)}, bottom ${bottom.toFixed(0)} px`);
   }
+});
+
+test('the colon is framed down to where its rectum is seen: RECTUM_SEEN_Y is the live tube\'s half-alpha point, and the baked box reaches further than the tube', async () => {
+  const { gutTubes } = await import('../src/scene/organs/gut-tubes.ts');
+  const { PLACED_ORGAN_BOX } = await import('../src/scene/anatomy/source.ts');
+  const g = gutTubes().colon, pos = g.getAttribute('position'), a = g.getAttribute('esoA');
+  let half = Infinity, end = Infinity;
+  for (let i = 0; i < pos.count; i++) { end = Math.min(end, pos.getY(i)); if (a.getX(i) >= 0.5) half = Math.min(half, pos.getY(i)); }
+  assert.ok(Math.abs(half - RECTUM_SEEN_Y) < 0.01, `the tube is half seen at ${half.toFixed(3)}, RECTUM_SEEN_Y ${RECTUM_SEEN_Y}`);
+  assert.ok(PLACED_ORGAN_BOX.colon![1] < end - 0.05, 'the baked box has a cap the faded end lacks (that is why it is not what is framed)');
+  assert.equal(placedBoxOfName('colon-seen')![1], RECTUM_SEEN_Y);
 });

@@ -183,7 +183,7 @@ test('the play shot\'s middle and half extents hold every organ outline and ever
   let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
   const grow = (x: number, y: number) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
   // (the organs as the placed anatomy draws them: their placed boxes, front view; the 2D plate's outlines (organ2d) are the old figure's, which reached x 1104 where no placed organ does)
-  for (const n of ['liver', 'stomach', 'esophagus', 'spleen', 'kidney-l', 'heart', 'heart-ra', 'duodenum', 'bowel', 'colon']) {
+  for (const n of ['liver', 'stomach', 'esophagus', 'spleen', 'kidney-l', 'heart', 'heart-ra', 'duodenum', 'bowel', 'colon-seen']) {
     const b = placedBoxOfName(n); assert.ok(b, `no placed box for ${n}`);
     grow(b![0] * 300 + 700, -b![4] * 300 + 556); grow(b![3] * 300 + 700, -b![1] * 300 + 556);   // ([x0, y0, z0, x1, y1, z1])
   }

@@ -10,7 +10,7 @@ import { SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
 import { CELLS_FS } from '../src/scene/blood/cells/shader.ts';
 import { ORGAN_FS } from '../src/scene/organs/organ-shader.ts';
 import { ORGAN_VEIL_U } from '../src/scene/organ-veil/uniforms.ts';
-import { SHOTS } from '../src/scene/camera/shots.ts';
+import { SHOTS, VEIL_WHOLE } from '../src/scene/camera/shots.ts';
 
 const OFF = { ...ORGAN_VEIL, on: false };
 
@@ -46,7 +46,7 @@ test('the veil of a vessel grows with how deep it lies behind the organ\'s surfa
 });
 
 test('the shots the HVPG and the wedge are framed on are past the veil (crisp); the title shot keeps all of it (zoom measured from the shots\' own extents)', () => {
-  const whole = SHOTS.play.half[1];
+  const whole = VEIL_WHOLE.half[1];
   const z = (n: keyof typeof SHOTS) => whole / SHOTS[n].half[1];
   assert.equal(vesselZoomK(z('title')), 1, `title ${z('title').toFixed(2)}`);
   for (const n of ['hvpg', 'wedge', 'free', 'route'] as const) assert.equal(vesselZoomK(z(n)), 0, `${n} at ${z(n).toFixed(2)}x is crisp`);

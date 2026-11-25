@@ -10,7 +10,7 @@ import { Tilt } from './tilt.ts';
 import { LongPath } from './arc.ts';
 import { slideSpanOf, stepOf, wholeViewOf, zoomShare } from './slide-time.ts';
 import type { ChasePose } from './chase.ts';
-import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, TILT_LIMIT, TURN_LIMIT_DEG, SHOTS, SHOT_MS, type Shot, type ShotName } from './shots.ts';
+import { FOV, ORBIT_HOME_OMEGA, ORBIT_LIMIT, TILT_LIMIT, TURN_LIMIT_DEG, SHOTS, VEIL_WHOLE, SHOT_MS, type Shot, type ShotName } from './shots.ts';
 
 /** The lens swell in a plunge (dive.ts: 14 -> 35 degrees and back). OFF (20 Nov 2026, owner: the camera moves as 2D's do, 1:1; 2D has no lens): the dive is the distance and the framing alone. */
 export const LENS_SWELL = false;
@@ -775,7 +775,7 @@ export class CameraRig {
       shotYaw = lerp(shotYaw, cc.yaw, ck); shotPitch = lerp(shotPitch, cc.pitch, ck); fov = lerp(fov, cc.fov, ck); r = geo(r, cc.dist, ck);
       aim = [lerp(aim[0], cc.target[0], ck), lerp(aim[1], cc.target[1], ck), lerp(aim[2], cc.target[2], ck)];
     }
-    this.zoomW = (effectiveDistance(SHOTS.play, sc, h, w) / Math.max(r, 1e-9)) * this.hand.k;
+    this.zoomW = (effectiveDistance(VEIL_WHOLE, sc, h, w) / Math.max(r, 1e-9)) * this.hand.k;
     this.camera.fov = fov;
     // the tilt is added here, at render time, on top of the shot and the viewer's turn; `project` and every pick use this same camera, so tags and taps agree with what is drawn
     // (the viewer's turn and tilt are about the SCREEN's axes: a rolled camera (the sinusoid on a portrait screen) carries them round with the roll, so a drag to the right still swings the picture to the right)

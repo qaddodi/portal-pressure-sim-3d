@@ -2,7 +2,7 @@
 // placed anatomy. Run as a script it prints them as JSON (`node tests/anatomy/slide-frames.ts`).
 import { camPlan, DEFAULT_CAM } from '../../src/decks/hp/cams.ts';
 import { namesPlaced } from '../../src/decks/rw/cams.ts';
-import { boxOfNames, subjectOfBox2, FIGURE_NAMES, HIDDEN_EDGES, REGION_SUBJECTS, type Box3 } from '../../src/scene/anatomy/source.ts';
+import { boxOfNames, subjectOfBox2, VISIBLE_FIGURE_NAMES, HIDDEN_EDGES, REGION_SUBJECTS, type Box3 } from '../../src/scene/anatomy/source.ts';
 import { HP_IDS, loadHpDeck } from '../../src/decks/hp/index.ts';
 import { AG_IDS, loadAgDeck } from '../../src/decks/ag/index.ts';
 import { DECKS } from '../../src/decks/rw/copied/all.ts';
@@ -13,7 +13,7 @@ export interface SlideFrame { cam: string; shot: Pick<Shot, 'yaw' | 'pitch' | 'r
 
 /** What a slide camera names (the same reading the placed cameras make): a region's subjects, a raw box's subject, an `{ on, near }` list, or the whole figure. */
 export function subjectNames(cam: unknown): string[] {
-  if (cam == null || cam === 'fit') return [...FIGURE_NAMES];
+  if (cam == null || cam === 'fit') return [...VISIBLE_FIGURE_NAMES];
   if (typeof cam === 'string') return [...REGION_SUBJECTS[cam]!];
   if (Array.isArray(cam) && cam.length === 4 && cam.every((n) => typeof n === 'number')) return subjectOfBox2(cam as unknown as readonly [number, number, number, number], HIDDEN_EDGES);
   if (Array.isArray(cam)) return cam.flatMap((r) => [...REGION_SUBJECTS[r as string]!]);
