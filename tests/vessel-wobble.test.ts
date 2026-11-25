@@ -4,11 +4,11 @@
 // (2) The azygos arch (tier 'net', 0.02) met the superior cava (tier 'back', -0.02): its depth ease dived 0.047 in 0.045 of run, 45 degrees at the camera, onto the cava's wall, which the skin's depth rule holds out of the joint (ragged ink in the lumen).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { NETWORK, NETWORK_BY_ID, SVC_TRIBUTARY_IDS } from '../src/scene/vessels/network.ts';
+import { NETWORK, NETWORK_BY_ID, RUN_ONS, SVC_TRIBUTARY_IDS } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { buildTubes } from '../src/scene/vessels/tubes.ts';
 import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
-import { TIER_Z } from '../src/scene/frame2d.ts';
+import { slicesFor } from '../src/scene/circuit/geometry.ts';
 import { meanderWanted, hostsLanding, calibreOf, MEANDER_KEPT } from '../scripts/meander-rule.mjs';
 import { EDGES, dMinOf } from '../src/engine/hales/portal/topology.js';
 
@@ -22,8 +22,10 @@ const TURN_MAX_DEG = 1.5;
 const RADIUS_STEP_MAX = 0.04;
 
 setSmoothJoins(true);
+// (the tube is built with the rings the app builds it with, scene.ts reshape: tubularOf(def, slicesFor(id)); built with the 2D rule's count alone it had 16 rings where the app has 21, and the cava's run-on taper to the atrium
+//  stepped 0.051 between rings of a tube nothing draws)
 const rings = (id: string) => {
-  const v = NETWORK_BY_ID.get(id)!, { runs, geometry } = buildTubes(coursesOf(v, REST), tubularOf(v), v.radius), r = runs[0]!;
+  const v = NETWORK_BY_ID.get(id)!, { runs, geometry } = buildTubes(coursesOf(v, REST), tubularOf(v, slicesFor(id)), v.radius), r = runs[0]!;
   const rk = geometry.attributes.rk!;
   const pts = Array.from({ length: r.tubular + 1 }, (_, k) => r.curve.getPointAt(k / r.tubular));
   const rad = Array.from({ length: r.tubular + 1 }, (_, k) => rk.getX(k * (r.radial + 1)));
@@ -89,15 +91,29 @@ test('the azygos arch comes down to the superior cava on one gentle slope: no di
   assert.ok(SVC_TRIBUTARY_IDS.has('AZY_SVC'));
   const az = NETWORK_BY_ID.get('AZY_SVC')!, p = coursesOf(az, REST)[0]!.pts, n = p.length;
   // it ends on the cava's plane and starts on its own (the node the coronary and lumbar collaterals land on keeps its depth, or their wall skin is dropped)
-  assert.ok(Math.abs(p[n - 1]![2] - TIER_Z.back) <= 0.0085, `the arch ends at ${p[n - 1]![2]}, the cava's plane is ${TIER_Z.back} (the tuck behind the cava's wall is allowed)`);
-  assert.equal(p[0]![2], TIER_Z.net);
-  // no stretch of it, over a tenth of its run, changes depth by more than 0.3 of that run (about 17 degrees; it was 1.0, 45 degrees)
-  let worst = 0;
+  // (the placed anatomy has no tier planes: every vessel has its own depth, so the arch is held to the depth the superior cava's course has where it lands, and the AZY node to the depth its other vessels meet it at;
+  //  the 2D tiers 'back' -0.02 and 'net' 0.02 this test once named are the old figure's)
+  const svcAt = (q: readonly (readonly number[])[]) => q.reduce((b, x) => (Math.hypot(x[0]! - p[n - 1]![0], x[1]! - p[n - 1]![1]) < Math.hypot(b[0]! - p[n - 1]![0], b[1]! - p[n - 1]![1]) ? x : b));
+  const cavaZ = svcAt(coursesOf(NETWORK_BY_ID.get('SVC_RA_1')!, REST)[0]!.pts)[2]!;
+  assert.ok(Math.abs(p[n - 1]![2] - cavaZ) <= 0.0085, `the arch ends at ${p[n - 1]![2]}, the superior cava there is at ${cavaZ} (the tuck behind the cava's wall is allowed)`);
+  // (the vessel the arch runs on from: the ascending lumbar collateral C9 is the azygos' origin end to end; the varices' drain C1b welds into the azygos' side higher up the arch, so its end is at the wall's depth there, not the node's)
+  const atNode = NETWORK.filter((v) => RUN_ONS.some((r) => (r.a === az.id && r.ia === 0 && r.b === v.id) || (r.b === az.id && r.ib === 0 && r.a === v.id))).map((v) => { const q = coursesOf(v, REST)[0]!.pts; return (v.to === az.from ? q[q.length - 1]! : q[0]!)[2]; });
+  assert.ok(atNode.length > 0 && atNode.every((z) => Math.abs(z - p[0]![2]) <= 0.0085), `the azygos node keeps one depth: the arch starts at ${p[0]![2]}, its other vessels meet it at ${atNode.join(' ')}`);
+  // ONE GENTLE SLOPE: no stretch of it, over a tenth of its run, changes depth by more than 1.25 times the arch's own mean slope (no dive: the 2D figure's dove 0.047 in 0.045, 1.0 of its run at the weld, against a mean of about 0.3),
+  // and the tenth at the weld by no more than 0.3 of its run (17 degrees). (The placed arch climbs from the azygos by the spine to the superior cava's back wall, 0.054 forward over 0.127 of run, 0.43 on the mean: the anatomy's own
+  // arch over the right bronchus, approved in the frozen placement. The 2D test held every tenth to 0.3, a number for its two tier planes 0.04 apart.)
+  let runAll = 0;
+  for (let k = 1; k < n; k++) runAll += Math.hypot(p[k]![0] - p[k - 1]![0], p[k]![1] - p[k - 1]![1]);
+  const mean = Math.abs(p[n - 1]![2] - p[0]![2]) / runAll;
+  let worst = 0, atWeld = 0;
   const step = Math.max(2, Math.floor(n / 10));
   for (let i = 0; i + step < n; i++) {
     let run = 0;
     for (let k = i + 1; k <= i + step; k++) run += Math.hypot(p[k]![0] - p[k - 1]![0], p[k]![1] - p[k - 1]![1]);
-    worst = Math.max(worst, Math.abs(p[i + step]![2] - p[i]![2]) / run);
+    const sl = Math.abs(p[i + step]![2] - p[i]![2]) / run;
+    worst = Math.max(worst, sl);
+    if (i + step === n - 1) atWeld = sl;
   }
-  assert.ok(worst <= 0.3, `the azygos arch dives ${worst.toFixed(2)} of its run somewhere along it`);
+  assert.ok(worst <= 1.25 * mean, `the azygos arch dives ${worst.toFixed(2)} of its run somewhere along it (its mean slope is ${mean.toFixed(2)})`);
+  assert.ok(atWeld <= 0.3, `it dives ${atWeld.toFixed(2)} of its run onto the superior cava`);
 });

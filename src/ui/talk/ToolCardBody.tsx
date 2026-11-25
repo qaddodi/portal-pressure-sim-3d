@@ -58,6 +58,7 @@ import { lazyRetry } from '../../boot/lazy-retry.ts';
 import { LazyBoundary } from '../shell/LazyBoundary.tsx';
 import { useUi } from '../ui-store.ts';
 import { useToolRoomValue } from './tool-room.ts';
+import { useRoomFit } from './room-fit.ts';
 import { AbdomenPane } from '../tests/abdomen/AbdomenPane.tsx';
 import { BeatCard } from '../tests/slide/BeatCard.tsx';
 import { setSlidePin } from '../tests/slide/pin.ts';
@@ -216,10 +217,12 @@ function Instrument({ kind, tool, slideKey, fp, cs }: { kind: InstrumentKind; to
   // the slide's own numbers for the pane (2D presenter-tools pin): the settled state its tiles and words show, not the beat-to-beat live value
   useLayoutEffect(() => { setSlidePin(fp); }, [fp]);
   useEffect(() => claimSlide('pin', () => setSlidePin(null)), []);
-  const plot = Math.round(Math.min(220, Math.max(150, w * 0.32)));
+  const asked = Math.round(Math.min(220, Math.max(150, w * 0.32)));
+  const room = useToolRoomValue(), host = useRef<HTMLDivElement>(null);
+  const plot = useRoomFit(host, room, asked);   // (every pane on this path is fitted to the card's room, not just asked for 220 px: Endoscopy 3 ran off its card's foot)
   const p = { narrow: w < 470, plot, square: plot, roomy: false };
   return (
-    <div className="dock-pane-host" data-instrument={kind}>
+    <div className="dock-pane-host" data-instrument={kind} ref={host}>
       <LazyBoundary height={p.plot}>
         {kind === 'doppler' ? <DopplerPane {...p} options={opts} slide /> : kind === 'fibroscan' ? <FibroPane {...p} slide bar={tool.bar !== false} platelets={((cs.tiles as string[] | undefined) ?? []).includes('plt')} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={opts} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : null}
       </LazyBoundary>

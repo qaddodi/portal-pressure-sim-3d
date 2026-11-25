@@ -18,3 +18,12 @@ test('a course whose names are in the key row prints each line\'s end value', ()
   assert.equal(endText(0.02, 'L'), '0 L');
   assert.equal(endText(6.84, 'L'), '6.8 L');
 });
+
+// Capture 52ef8e63: the "before" word (Tense ascites) sat on the first stroke of the line. It finds a clear place (n = 0) at every width.
+test('the before word stands clear of the lines', () => {
+  const ser = courseSeriesSpecimen()!;
+  for (const w of [330, 430, 520, 700]) {
+    const { labels } = courseFrame({ tool: COURSE_TOOL, ser }, ctxOf('dark', w));
+    if (labels?.before) assert.equal(labels.before.n, 0, `${w}: before word lands on something`);
+  }
+});

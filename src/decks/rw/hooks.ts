@@ -24,7 +24,7 @@ const VISUAL_OWNER: Record<string, string> = { table: 'B12', ladders: 'B12', out
 /** The fields that carry words (the cards typeset them) or are read by another field's feature; they need nothing of their own. */
 const WORDS = new Set(['id', 'kicker', 'title', 'line', 'notes', 'ask', 'caveat', 'cite', 'site', 'vignette', 'causes', 'causesHead', 'eq', 'terms', 'tick', 'when', 'milestone', 'pill', 'bold', 'chartFoot']);
 /** The fields that steer the model (numbers.ts runs them) or the camera (cams.ts frames them). */
-const MODEL = new Set(['preset', 'presetDays', 'params', 'action', 'days', 'relax', 'ramp']);
+const MODEL = new Set(['preset', 'presetDays', 'params', 'action', 'days', 'relax', 'ramp', 'sameAs']);
 const CAMERA = new Set(['cam', 'kMax', 'zone']);
 /** Fields of a feature that another field names: the data card's tiles, the table's columns. They are part of that feature's hook. */
 const PART_OF: Record<string, string> = {
@@ -98,6 +98,7 @@ export function hooksOf(s: CopiedSlide): Hook[] {
         add(hook(`procedure:${k}`, PROCEDURE_OWNER, `the ${k} procedure the Play button plays on the figure`));
         break;
       }
+      case 'ghostStent': add(hook('procedure:ghost-stent', PROCEDURE_OWNER, 'the stent drawn faint beside the stents that are placed')); break;
       case 'rail': add(hook('card:rail', 'B12', 'the level rail on the teaching card')); break;
       case 'sides': add(hook('card:sides', 'S3', 'two guidelines side by side on the teaching card')); break;
       case 'caseQ': add(hook('card:case-question', 'S3', 'the short question on the case card')); break;

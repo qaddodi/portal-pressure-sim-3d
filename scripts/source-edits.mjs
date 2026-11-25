@@ -328,7 +328,18 @@ export const CAPTURE_52EF8E63 = [
   SET('variceal-bleed', 'slides.tear.tool.bp', true),
   // Choose treatment 6: the thrombus that has resolved is drawn as the dashed outline of what the slide before had (its 60%)
   SET('choose-treatment', 'slides.a3-lumen.tool.was', 'a3'),
+  SET('tips-complete', 'slides.indications.ghostStent', true),   // (the slide asks when to place a stent: the stent in the figure is drawn as a ghost, capture 52ef8e63 #17)
   SET('tips-complete', 'slides.indications.marks', [{ edges: ['C1a'], label: 'Bleed: preemptive, rescue, salvage' }, { organ: 'ascites', label: 'Ascites: elective' }]),
+];
+
+/** Capture 15c31759 (24 Nov 2026, Mohammad: "do all review findings"). */
+export const CAPTURE_15C31759 = [
+  // Two lesions 5 ran the congestion 60 days, still easing (right atrium 26.7), and slide 9 holds the same two lesions at 90 (26.2): the same state read two numbers. Both now stand at the 90-day state.
+  SET('two-lesions', 'slides.both.days', 90),
+  // Two lesions 9 teaches "measure the IVC and right atrial pressures beside the gradients": the figure named the right atrium and the hepatic vein only
+  // slide 9 is slide 5's patient: one state, one set of numbers (the engine's restoreStep), not the same lesions reached by another history
+  SET('two-lesions', 'slides.together.sameAs', 'both'),
+  SET('two-lesions', 'slides.measure.labels', ['CONF', 'RHV', 'IVCS', 'RA']),
 ];
 
 export const SOURCE_PATCHES = [
@@ -445,6 +456,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_6EC6D323,
   ...CAPTURE_AF88A9C2,
   ...CAPTURE_52EF8E63,
+  ...CAPTURE_15C31759,
 ];
 
 function step(node, key) {

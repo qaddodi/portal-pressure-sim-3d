@@ -253,3 +253,23 @@ test('the ruler across the varices stands clear of the ring and its badge, above
   scopeClaims.set([]); assert.equal(scopeClaims.boxes.length, 0);
   scopeClaims.setWants(true); assert.equal(scopeClaims.wantsRing, true); scopeClaims.setWants(false);
 });
+
+// Capture 52ef8e63: the ring stood up the esophagus and the "Bleeding varix" words at the tear. While a varix bleeds the ring stands on the tear (eased, never a jump), and goes back after.
+test('the ring stands on the tear while a varix bleeds and eases there and back', async () => {
+  const { tearPoint } = await import('../src/scene/disease/tear.ts');
+  const { RING } = await import('../src/scene/disease/copied/scope-lens-rule.js');
+  const r = new ScopeRing();
+  r.set(true, false); r.step(1, true);
+  assert.deepEqual([...r.centre()], [RING.x, RING.y]);
+  const [tx, ty] = tearPoint('VAR');
+  r.setCentre([tx, ty]);
+  r.step(0.05);
+  const [mx, my] = r.centre();
+  assert.ok(my > RING.y && my < ty, 'on its way, not there yet');
+  assert.ok(mx !== tx || my !== ty);
+  for (let i = 0; i < 80; i++) r.step(0.05);
+  assert.ok(Math.hypot(r.centre()[0] - tx, r.centre()[1] - ty) < 0.05, 'on the tear');
+  r.setCentre(null);
+  for (let i = 0; i < 80; i++) r.step(0.05);
+  assert.ok(Math.hypot(r.centre()[0] - RING.x, r.centre()[1] - RING.y) < 0.05, 'back at the scope rule\'s place');
+});

@@ -126,6 +126,7 @@ export class ProcedureLayer {
     if (this.palette) s.applyPalette(this.palette);
     s.setPhone(this.phone);
     this.group.add(inVesselPass(s.group));
+    s.setGhost(this.ghostOn, true);
     this.stents.set(id, s);
     return s;
   }
@@ -181,6 +182,9 @@ export class ProcedureLayer {
     return moved;
   }
 
+  /** The slide draws the shunts' stents as ghosts (a question about placing one). */
+  setStentGhost(on: boolean, instant = false): void { for (const s of this.stents.values()) s.setGhost(on, instant); this.ghostOn = on; this.dirty = true; }
+  private ghostOn = false;
   /** The veins a slide shows stented (edge ids): the stent comes in over each, and goes out of those the list leaves. An id the scene has no vein for is ignored. Returns the ids shown. */
   setStented(ids: readonly string[], instant = false): string[] {
     const want = new Set(ids.filter(canStent));
