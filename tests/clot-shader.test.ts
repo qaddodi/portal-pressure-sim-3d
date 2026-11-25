@@ -95,7 +95,7 @@ test('gate 6: the vessel and skin programs parse in pure JS', { skip: !parse }, 
 
 import { clotRange as range4, clotPiece as piece4 } from '../src/scene/disease/clot-field.ts';
 import { ClotGrow } from '../src/scene/disease/clot-ease.ts';
-test('plan 26b: jumps ease without a pop (<= 8 % of the final area per frame, no kink); drags follow the finger (lag, no overshoot, handover)', () => {
+test('plan 26b: jumps ease without a pop (<= 6 % of the final area per frame, no kink); drags follow the finger (lag, no overshoot, handover)', () => {
   const id = 'PV_TRUNK', { side } = clotPhases(id), cache = new Map<number, number>();
   const area = (v: number): number => {
     const k = Math.round(v * 5000); if (cache.has(k)) return cache.get(k)!;
@@ -115,8 +115,8 @@ test('plan 26b: jumps ease without a pop (<= 8 % of the final area per frame, no
     assert.equal(g.v, to); void pd; void pvel;
     return worst;
   };
-  // (the bound was 6 % until the 25 Nov fill: the last 18 % of occlusion (0.82 to 1) now takes the mural cast to a plug across the lumen, +70 % of its area, so the same 0.7 s ease moves up to 7.4 % of the final area in one frame at v 0.88; a pop is the whole area in a frame)
-  for (const [f, t] of [[0, 1], [0, 0.66], [1, 0], [0.66, 0], [0.3, 0.66]] as const) assert.ok(jump(f, t) <= 0.08, `${f} -> ${t}: ${jump(f, t)}`);
+  // (25 Nov fill: held at 6 %. The fill ramp is cubed (clotFillK): a smoothstep ramp measured 7.4 % at v 0.88, because the area the fill adds arrives early in its range; cubed it is 4.9 %)
+  for (const [f, t] of [[0, 1], [0, 0.66], [1, 0], [0.66, 0], [0.3, 0.66]] as const) assert.ok(jump(f, t) <= 0.06, `${f} -> ${t}: ${jump(f, t)}`);
   // follow: a drag replay at 60 fps, one pointer step per frame
   const drag = (secs: number): { gap: number; after: number } => {
     const g = new ClotGrow(); g.to(0, true); const n = Math.round(secs * 60); let gap = 0;
@@ -138,8 +138,8 @@ test('plan 26b: jumps ease without a pop (<= 8 % of the final area per frame, no
 });
 
 // 25 Nov (Mohammad, Budd-Chiari: the clots read as flat slabs along one wall instead of filling the vein): full occlusion fills the lumen edge to edge with blunt ends; below CLOT_FILL_FROM the approved mural cast is bit for bit what it was.
-import { CLOT_FILL_FROM, CLOT_FILL_TO, CLOT_CAP_LEN, clotDrawnShape, CLOT_CONST_GLSL } from '../src/scene/disease/clot-field.ts';
-test('25 Nov fill: under 0.82 the mural cast is exactly the approved one; at 1 the plug spans the lumen edge to edge with no side ink and ink on its caps; in between it is continuous', () => {
+import { CLOT_FILL_FROM, CLOT_FILL_TO, CLOT_CAP_LEN, clotDrawnShape, clotFillK, CLOT_CONST_GLSL } from '../src/scene/disease/clot-field.ts';
+test('25 Nov fill: under 0.82 the mural cast is exactly the approved one; at 1 the plug spans the lumen edge to edge with no side ink and ink on its caps; in between it is continuous and eased in (cubed)', () => {
   const old = (v: number, fc: number, p1: number, p2: number, side: number, rDev: number): { h: number; c: number } => {
     const fl = 0.3 + 0.5 * v * v * v, body = fl + (1 - fl) * Math.sqrt(Math.max(Math.sin(Math.PI * fc), 0)), lump = 1 + 0.08 * Math.sin(fc * 18.85 + p1) + 0.05 * Math.sin(fc * 43.98 + p2);
     const h = Math.min(CLOT_INSIDE, CLOT_INSIDE * Math.min(1, Math.max(0, 0.1 + 0.9 * v)) * body * lump);
@@ -166,7 +166,8 @@ test('25 Nov fill: under 0.82 the mural cast is exactly the approved one; at 1 t
     let prev: { h: number; c: number } | null = null;
     for (let v = 0.7; v <= 1.0001; v += 0.005) { const { side } = clotPhases(id), d = clotDrawnShape(clotPiece(0.3, 0.7, 1, 0, 1, side * Math.min(v, 1), id), i / 20, rDev); if (prev) assert.ok(Math.abs(d.h - prev.h) <= 0.04 && Math.abs(d.c - prev.c) <= 0.04, `${id} fc ${i / 20} v ${v.toFixed(3)}: step ${Math.abs(d.h - prev.h)}, ${Math.abs(d.c - prev.c)}`); prev = d; }
   }
-  assert.match(CLOT_FN_GLSL, /float kf = smoothstep\(CLOT_FILL_FROM, CLOT_FILL_TO, v\);/);
+  assert.match(CLOT_FN_GLSL, /float tf = clamp\(\(v - CLOT_FILL_FROM\) \/ \(CLOT_FILL_TO - CLOT_FILL_FROM\), 0\.0, 1\.0\);\s*float kf = tf \* tf \* tf;/);
+  for (const v of [0, 0.5, CLOT_FILL_FROM, 0.9, 1]) { const t = Math.min(1, Math.max(0, (v - CLOT_FILL_FROM) / (CLOT_FILL_TO - CLOT_FILL_FROM))); assert.equal(clotFillK(v), t * t * t); }
   assert.match(CLOT_FN_GLSL, /\(1\.0 - kf\)/);
   assert.match(CLOT_CONST_GLSL, new RegExp(`#define CLOT_FILL_FROM ${CLOT_FILL_FROM}`));
   assert.match(CLOT_CONST_GLSL, /#define CLOT_FILL_TO 1\.0/);

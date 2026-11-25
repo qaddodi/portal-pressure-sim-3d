@@ -35,6 +35,10 @@ export const CLOT_CAP_INK_FROM = 0.0, CLOT_CAP_INK_TO = 0.35;
 /** The free edge's ink: full on the face toward the lumen (side * q at or under FREE_FROM), none against the wall (at or over FREE_TO). */
 export const CLOT_FREE_FROM = 0.1, CLOT_FREE_TO = 0.7;
 
+/** How far the clot has opened to the plug at occlusion v: 0 under CLOT_FILL_FROM, 1 at CLOT_FILL_TO, and t cubed between (t the share of the range). Cubed, not a smoothstep: the lumen's width saturates once the half width reaches the lumen, so the area the fill adds arrives in the FIRST part of the range
+ *  whatever the ramp, and a smoothstep put 12.7k of area per unit v against the old 6.4k at v 0.88, so the eased 0 -> 1 jump moved up to 7.4 % of the final area in one frame (the jump bound is 6 %, plan 26b). Cubed, the area arrives late, where the ease has slowed: 4.9 %. */
+export const clotFillK = (v: number): number => { const t = clamp((v - CLOT_FILL_FROM) / (CLOT_FILL_TO - CLOT_FILL_FROM), 0, 1); return t * t * t; };
+
 const smooth = (a: number, b: number, x: number): number => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
 export interface ClotUniform { f0: number; df: number; /** side * v (0: no clot) */ sv: number; /** figure units */ length: number; p1: number; p2: number }
@@ -55,7 +59,7 @@ export function clotShapeAt(v: number, f: number, id: string): { h: number; c: n
  *  vessel length is not needed: `vRf` the lumen radius in figure units, `rDev` the lumen radius in device px. */
 /** The clot's half width and centre as the shader draws them at the share `fc` (0..1) along it, in lumen units, on a lumen `rDev` device px in radius (the wall side is pushed CLOT_WALL_SLACK_PX past the edge, under the ink): the one place the twin and the tests read them. */
 export function clotDrawnShape(a: ClotUniform, fc: number, rDev: number): { h: number; c: number; side: number } {
-  const v = Math.abs(a.sv), side = a.sv < 0 ? -1 : 1, k = smooth(CLOT_FILL_FROM, CLOT_FILL_TO, v);
+  const v = Math.abs(a.sv), side = a.sv < 0 ? -1 : 1, k = clotFillK(v);
   const fl = 0.3 + 0.5 * v * v * v;
   const body = fl + (1 - fl) * Math.sqrt(Math.max(Math.sin(Math.PI * fc), 0));
   const lump = 1 + (1 - k) * (0.08 * Math.sin(fc * 18.85 + a.p1) + 0.05 * Math.sin(fc * 43.98 + a.p2));
@@ -77,7 +81,7 @@ export function clotAtTwin(a: ClotUniform, u: number, lat: number, vRf: number, 
   const len = Math.max(Math.hypot(dn, q), 1e-4), F = len - 1;
   const gF = Math.hypot(dn / (CLOT_CAP_LEN * Math.max(rDev, 1e-3)), q / (h * Math.max(rDev, 1e-3))) / len;   // (the exact gradient of F per device px: one px of anti-aliasing on every part of the edge)
   const distIn = -F / gF;
-  const on = smooth(CLOT_V_FROM, CLOT_V_TO, v), kf = smooth(CLOT_FILL_FROM, CLOT_FILL_TO, v);
+  const on = smooth(CLOT_V_FROM, CLOT_V_TO, v), kf = clotFillK(v);
   return { cover: clamp(0.5 + distIn, 0, 1) * on, distIn, free: Math.max((1 - smooth(CLOT_FREE_FROM, CLOT_FREE_TO, side * q)) * (1 - kf), smooth(CLOT_CAP_INK_FROM, CLOT_CAP_INK_TO, dn)) };
 }
 
@@ -115,7 +119,8 @@ vec3 clotAt(vec4 a, vec2 p, float u, float lat, float vRf, float rDev) {
   float side = a.z < 0.0 ? -1.0 : 1.0;
   float f = a.x + a.y * u;
   float fc = clamp(f, 0.0, 1.0);
-  float kf = smoothstep(CLOT_FILL_FROM, CLOT_FILL_TO, v);
+  float tf = clamp((v - CLOT_FILL_FROM) / (CLOT_FILL_TO - CLOT_FILL_FROM), 0.0, 1.0);
+  float kf = tf * tf * tf;
   float fl = 0.3 + 0.5 * v * v * v;
   float body = fl + (1.0 - fl) * sqrt(max(sin(3.14159265 * fc), 0.0));
   float lump = 1.0 + (1.0 - kf) * (0.08 * sin(fc * 18.85 + p.x) + 0.05 * sin(fc * 43.98 + p.y));
