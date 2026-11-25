@@ -370,3 +370,12 @@ test('upright iPhone and iPad capture each slide twice, the instrument card untu
   assert.deepEqual(captureViews({ w: 440, h: 736, layout: 'stack', sideways: false }, { data: false, words: true }), ['']);
   const all = src('src/ui/debug/audit/capture-all.ts'); assert.match(all, /await shoot\(views\[1\]!\)/); assert.match(all, /-untucked \(the card up\) and -tucked/);
 });
+
+test('a teaching slide with several choices: each is pressed and captured, named for its button, in each state (untucked, tucked, teaching, instrument)', async () => {
+  const { choiceName, CHOICE_MAX, CHOICE_SEL } = await import('../src/ui/capture/capture-model.ts');
+  assert.equal(choiceName('  Cirrhosis  with ascites ', null, 0), 'cirrhosis-with-ascites'); assert.equal(choiceName('', 'Show the flow', 1), 'show-the-flow'); assert.equal(choiceName('', null, 2), 'choice3');
+  assert.ok(CHOICE_MAX >= 6); assert.match(CHOICE_SEL, /role="tab"/); assert.match(CHOICE_SEL, /aria-pressed="false"/);
+  const all = src('src/ui/debug/audit/capture-all.ts');
+  assert.match(all, /if \(ok && fresh\) await choiceShots\(views\[0\]\)/); assert.match(all, /if \(ok2 && fresh\) await choiceShots\(views\[1\]!\)/);
+  assert.match(all, /choice\$\{pad2\(i \+ 1\)\}-\$\{nm\}/, 'the file says which button');
+});
