@@ -45,11 +45,16 @@ export interface FigureCalls {
   calipers: FigCaliper[];
   /** The Circuit's brackets, each with its words filled from the slide's numbers. */
   spans: FigSpan[];
+  /** The lobule's stations whose pressure the slide's callout asks to stand beside their names (`callout.reads`, 'sin' on the wedge slide):
+   *  each stands first with its reading (lobule/captions.ts `must`). */
+  reads: string[];
   /** Whatever the plan names that is not drawn: 2D draws nothing for it either (a ripple's halo, a lobule's pointer), or it is another view's. */
   notDrawn: string[];
 }
 
-export const EMPTY_CALLS: FigureCalls = { named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, caudateVeins: false, cards: [], calipers: [], spans: [], notDrawn: [] };
+export const EMPTY_CALLS: FigureCalls = {
+  named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, caudateVeins: false, cards: [], calipers: [], spans: [], reads: [], notDrawn: [],
+};
 
 /** The words of a clot mark that follows the model (callout-math.js clotWords). */
 export function clotWords(v: number | undefined): string | null {
@@ -102,7 +107,7 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   // the lobule's pointer at the lesion (lobule-zoom.js callSet): a block, treatment or note ring on the framed portal tract or on a sinusoid (the central-vein slides, postsinusoidal and SOS, ring the vein itself; only a label that names sinusoids rings a zone 3 sinusoid; lobule/callout-spot.ts); it stands only while the lobule is the figure
   if (plan.callout) {
     const at = plan.callout.at === 'cv' ? (/sinusoid/i.test(plan.callout.label) ? 'sinusoid:zone3' : 'central') : { triad: 'tract', sin: 'sinusoid:mid' }[plan.callout.at];
-    if (at) cards.push({ id: 'callout', kind: 'mark', text: plan.callout.label, tone: plan.callout.kind === 'treat' ? 'treat' : plan.callout.kind === 'note' ? 'note' : 'block', anchor: { lobule: at } });
+    if (at) cards.push({ id: 'callout', kind: 'mark', text: liveLabel(plan.callout.label, fp), tone: plan.callout.kind === 'treat' ? 'treat' : plan.callout.kind === 'note' ? 'note' : 'block', anchor: { lobule: at } });
     else notDrawn.push(`callout ${plan.callout.at}`);
   }
 
@@ -148,7 +153,9 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   const spans: FigSpan[] = plan.spans.map((sp, i) => ({ id: `span:${i}`, from: sp.from, to: sp.to, text: liveLabel(sp.label, fp) }));
 
   if (plan.ripple) notDrawn.push('ripple (2D draws no halo: stage-glow.js, 13 Nov 2026)');
-  return { named, pins, normalSpleen: plan.normalOutline.includes('spleen'), marked, res: plan.res, caudate: plan.caudate, caudateVeins: plan.caudateVeins, cards, calipers, spans, notDrawn };
+  // (the lobule's stations whose pressure the slide's callout asks to stand beside their names: only a slide that says so)
+  const reads = plan.callout?.reads ?? [];
+  return { named, pins, normalSpleen: plan.normalOutline.includes('spleen'), marked, res: plan.res, caudate: plan.caudate, caudateVeins: plan.caudateVeins, cards, calipers, spans, reads, notDrawn };
 }
 
 export { toneCss };

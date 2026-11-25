@@ -54,8 +54,10 @@ export interface FigureState {
   calipers: readonly FigCaliper[];
   /** The Circuit's brackets between two stations (a slide's `span`). */
   spans: readonly FigSpan[];
+  /** The lobule's stations the slide's words name, each of which stands first with its pressure (figure-calls.ts `reads`). */
+  reads: readonly string[];
   /** when the slide landed (performance.now), for the numbered steps */
   t0: number;
   set(p: Partial<Omit<FigureState, 'set'>>): void;
 }
-export const useFigure = create<FigureState>((set) => ({ cards: [], calipers: [], spans: [], t0: 0, set: (p) => set(p) }));
+export const useFigure = create<FigureState>((set) => ({ cards: [], calipers: [], spans: [], reads: [], t0: 0, set: (p) => set(p) }));

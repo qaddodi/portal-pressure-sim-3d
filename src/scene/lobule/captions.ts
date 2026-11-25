@@ -159,17 +159,19 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
   }
   for (const k of keys) {
     const w = WORDS[k], at = stationAt(ctx.net, tri, k), [ax, ay] = ctx.proj(at[0], at[1]);
-    const reads = READ[k] !== null;
+    const reads = READ[k] !== null, must = !!ctx.must?.has(k);
     const mk = (name: string, v: boolean): Form => { const b = boxSize(stationRuns(name, v, false, ctx.hide ? '?' : k === 'lymph' ? (ctx.unit ? `0,000 ${LYMPH_UNIT}` : '0,000') : ctx.unit ? '00.0 mmHg' : '00.0'), vp, measure); return form(name, b.w, b.h); };
     const formsM: { name: string; value: boolean }[] = [{ name: w.name, value: reads }];
     const forms: Form[] = [mk(w.name, reads)];
     if (w.short !== w.name) { forms.push(mk(w.short, reads)); formsM.push({ name: w.short, value: reads }); }
-    if (reads) { forms.push(mk(w.short, false)); formsM.push({ name: w.short, value: false }); }
+    // a station the slide shows its reading for (`must`) keeps only the forms that carry it: "Sinusoids" with no number is not what the slide asked for,
+    // and the solver's cost took the narrower bare form over the wide one on a net this dense (Mohammad, 25 Nov, wedge slide: no 16.7 beside the WHVP card)
+    const stand = reads && must;
+    if (reads && !stand) { forms.push(mk(w.short, false)); formsM.push({ name: w.short, value: false }); }
     // (No form is a number alone, as 2D's: its lobule label always builds the name, long or short, `.n-long` / `.n-short` in lobule-zoom-labels.js labBuild; a name with no room is left out whole.)
     // a tract name stands out along the ray from the venule through what it names (its spoke); the others on the side their dot faces
     const spoke = spokeOf[k] ?? (k === 'cv' ? [0, 1] : [0, -1]);
-    const must = !!ctx.must?.has(k);
-    items.push({ id: k, ax, ay, au: 0.5, forms, pri: must ? 100 : w.pri, must, dirs: sidesToward(spoke[0]!, spoke[1]!), vw: rOf(k), minLead: MIN_LEAD, looseFar: true, reach: LOBULE_REACH + rOf(k) + 10, ...(k === 'cv' ? { clearLines: true, reach: CV_REACH, prefer: [-out[0], -out[1]] as const } : {}), ...(k === 'triad' || k === 'ha' || k === 'bd' || k === 'lymph' ? { face: { cx: venule[0], cy: venule[1], ux: spoke[0]!, uy: spoke[1]! } } : {}) });
+    items.push({ id: k, ax, ay, au: 0.5, forms, pri: must ? 100 : w.pri, must, dirs: sidesToward(spoke[0]!, spoke[1]!), vw: rOf(k), minLead: MIN_LEAD, looseFar: true, reach: LOBULE_REACH + rOf(k) + 10, ...(k === 'cv' ? { clearLines: true, reach: CV_REACH, prefer: [-out[0], -out[1]] as const } : stand ? { clearLines: true, reach: CV_REACH } : {}), ...(k === 'triad' || k === 'ha' || k === 'bd' || k === 'lymph' ? { face: { cx: venule[0], cy: venule[1], ux: spoke[0]!, uy: spoke[1]! } } : {}) });
     meta.set(k, { id: k, kind: 'station', forms: formsM, read: READ[k], label: w.name, target: w.target });
   }
   return { items, meta, tri, keep, lines };
