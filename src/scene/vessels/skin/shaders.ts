@@ -471,10 +471,10 @@ void main() {
   // pixels beside each other are dropped (back faces, the ink band, the presence dither), the marks of the pixels that stay came out as clusters of blocky, wrongly coloured specks (Mohammad, 20 Nov: green and navy specks at every junction, gone with ?joins=nomarks)
   float vLen = length(vV);
   vec3 viewDir = vLen > 1e-6 ? vV / vLen : vec3(0.0, 0.0, 1.0);
-  float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}], fwLn[${SKIN_ARMS}];
+  float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}], fwLn[${SKIN_ARMS}], latA[${SKIN_ARMS}], awLat[${SKIN_ARMS}];
   vec3 sideA[${SKIN_ARMS}], headA[${SKIN_ARMS}], tJA[${SKIN_ARMS}];
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
-    sIa[i] = 0.0; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; fwLn[i] = 0.0; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0); tJA[i] = vec3(1.0, 0.0, 0.0);
+    sIa[i] = 0.0; latA[i] = 0.0; awLat[i] = 0.03; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; fwLn[i] = 0.0; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0); tJA[i] = vec3(1.0, 0.0, 0.0);
     if (armData[i].x < 0.0) continue;
     vec3 toJ = armAxisP[i * ${SKIN_AXIS_PTS} + 1].xyz - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;   // (toward the node along the straight line through the seam)
     float tl = length(toJ);
@@ -488,6 +488,12 @@ void main() {
     sideA[i] = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
     acA[i] = clamp(dot(n, sideA[i]), -1.0, 1.0);
     pxA[i] = fwidth(sIa[i]);
+    // THE HEAD'S SECOND AXIS, SQUARE TO ITS FIRST (Mohammad, 24 Nov: chevrons at the hepatic veins' join twist, stretch to slivers, flip and pop). The arc above runs along the STRAIGHT seam line (tJ); the place across used to be measured from the
+    // nearest of the arm's three BENT segments (skinArmLat), so the two axes were not square wherever the chain bends: the head sheared to a sliver, turned each time the nearest segment changed and jumped across at the switch. Now the place across is the
+    // pixel's offset from that SAME straight axis, along the view-square side direction, over the arm's live radius: one orthogonal frame, equal to the tube's own across on the seam ring, continuous everywhere.
+    vec3 relH = mat3(modelViewMatrix) * (vPos - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz);
+    latA[i] = dot(relH, sideA[i]) * SKIN_U / max(armArc[i].w * swAt(i), 1e-4);
+    awLat[i] = max(fwidth(latA[i]), 0.03);
     awA[i] = max(fwidth(acA[i]), 0.03);
     fwLn[i] = fwidth(acA[i] * 0.5 + 0.5);   // (the lane lens's edge softness, as the tube's lensAcrossFw)
   }
@@ -617,12 +623,11 @@ void main() {
     if (vR > 0.0) {
       // (a head is sized by the ARM's own radius, never by the pixel's: the skin's radius at a pixel blends the arms' radii, so near a node it can be wider than this arm's lumen, and a head sized to it was wider than the lumen it lay in,
       // met the wall and was faded to a ghost: Mohammad, 24 Nov, the pale head on the portal vein under the hepatic artery's leader)
-      float vRH = min(vR, rOwn * swAt(i));
+      float vRH = rOwn * swAt(i);
       // (and its place across is the pixel's lateral from the arm's live axis, which is the tube's own across wherever the pixel lies: the normal-based one is true only inside the arm's cylinder, so a head carried past the seam into the
       // trunk beside it was sheared and cut to a crescent at a vein's mouth: Mohammad, 24 Nov, the left gastric vein)
-      float rPxH;
-      float latH = skinArmLat(gl_FragCoord.xy, i, swAt(i), rPxH);
-      vec4 hI = flowHeads(clamp(latH, -1.0, 1.0), acrossW, sI, Lw, vRH, wpcM, pxI, lensI, armFlowAt(i), 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
+      float latH = latA[i];
+      vec4 hI = flowHeads(clamp(latH, -1.0, 1.0), awLat[i], sI, Lw, vRH, wpcM, pxI, lensI, armFlowAt(i), 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
       if (hI.a > 0.002) {
         vec3 seamP = armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;
         // (the pixel's lateral from the arm's LIVE axis, the bent chain J - start - seam - far the mesh itself is built on, in lumen units: skinArmLat. It was the distance to the straight line through the seam, which a bending vessel

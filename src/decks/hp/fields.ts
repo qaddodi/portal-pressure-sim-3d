@@ -29,7 +29,7 @@ export const FIELD_HOME: Record<string, FieldHome> = {
   // read whole by a chart or instrument card
   plane: 'chart', cohort: 'chart', chartFoot: 'chart', graph: 'chart', dataTitle: 'chart', column: 'chart', tick: 'chart', milestone: 'chart', when: 'chart', hold: 'chart',
   // the figure's own marks and glow
-  glow: 'figure', glowSeq: 'figure', lapseGlow: 'figure', mark: 'figure', marks: 'figure', callout: 'figure', sites: 'figure', span: 'figure', spot: 'figure', stented: 'figure',
+  glow: 'figure', glowSeq: 'figure', lapseGlow: 'figure', mark: 'figure', marks: 'figure', callout: 'figure', sites: 'figure', span: 'figure', spot: 'figure', stented: 'figure', ghostStent: 'figure',
   calipers: 'figure', ripple: 'figure', normalOutline: 'figure', steps: 'figure', strain: 'figure', wave: 'figure', procedure: 'figure',
 };
 
