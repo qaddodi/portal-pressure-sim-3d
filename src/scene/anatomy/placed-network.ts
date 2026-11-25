@@ -347,6 +347,12 @@ function buildPlaced(): void {
     let j = 1; while (j < k && sT[j + 1]! <= want) j++;   // (the last point at least the trunk's length back)
     branch(joiner, 1, m, undefined, T[j]!);
     Object.assign(PLACED_HV_TRUNK, { at: T[j]!, length: sT[k]! - sT[j]! });
+    // (the right hepatic vein's mouth is level with the trunk's, within the skin's NEAR_R of the node's centre, so its end meets the node at the node's own depth, the skin's one tier (skin/inventory.ts tierSpread): its last stretch takes
+    //  the few thousandths of depth between the cava where it lands and the node, eased in over its last 3 cava radii)
+    {
+      const O = COURSE[HV_OSTIA.own]!, e = O[O.length - 1]!, Jz = T[T.length - 1]![2]!, dz = Jz - e[2]!, sO = arc(O), tot = sO[sO.length - 1]!, reach = 3 * R;
+      COURSE[HV_OSTIA.own] = O.map((p, i) => [p[0]!, p[1]!, p[2]! + dz * smooth(1 - (tot - sO[i]!) / reach)] as V3);
+    }
   }
   // ---- collaterals and shunts: each end lands on the vessel its engine node belongs to ----
   /** The whole vessels (and collaterals) that have a piece at `node`, but `self`. */

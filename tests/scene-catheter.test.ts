@@ -68,7 +68,8 @@ test('the route runs on the figure\'s own vessels: neck, SVC, atrium, IVC, then 
     return r.some((q) => Math.hypot(q[0] - p[0]!, q[1] - p[1]!, q[2] - p[2]!) < tol);
   };
   assert.ok(near('SVC_RA', 1), 'through the atrium');
-  assert.ok(near('IVC_IS', 0.8), 'down the IVC');
+  // (the right hepatic vein's mouth is on the cava's own last stretch, level with the shared trunk's (mock F, 25 Nov), so the route leaves the cava there: it runs down the cava piece under the atrium to that mouth)
+  assert.ok(near('IVCS_RA', 0.3), 'down the IVC to the right hepatic vein\'s mouth');
   assert.ok(near('RHV_IVC', 0.5), 'into the right hepatic vein');
   assert.ok(r[0]![1] > y3(0), 'it starts above the neck of the figure\'s SVC');
   // goes down the column and out to the viewer\'s left, never doubling back upward

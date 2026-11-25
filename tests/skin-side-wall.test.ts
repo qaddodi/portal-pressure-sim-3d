@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { Group, type Object3D } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
+import { centrelineOf } from '../src/scene/vessels/centreline.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { TUBE_RADIAL, buildTubes } from '../src/scene/vessels/tubes.ts';
@@ -167,7 +168,9 @@ test('IVCS is welded: five arms, the cava cut below the hepatic veins and its en
     assert.equal(scene.vesselObject('IVC_IS')!.skinCut()[1], cut.u, 'the cava is drawn only up to the seam: its end is inside the skin');
     assert.equal(set.endsOf('IVC_IS')[1], true, 'its end is skinned (mate and bury off there)');
     assert.deepEqual(set.holesOn('IVC_IS'), [], 'a cut, not a hole');
-    assert.ok(cut.u < 0.77 && cut.u > 0.2, `the cava's seam is ${cut.u.toFixed(2)} of its length`);
+    // (the seam lies below BOTH hepatic mouths, which are level since mock F (25 Nov): at least 2 cava radii under the lower of them, so the five arms' ring clears the cava's cut)
+    const seamY = centrelineOf('IVC_IS')!.pointAt(cut.u)[1]!, mouthY = Math.min(...m.junction.arms.filter((a) => a.vesselId === 'RHV_IVC' || a.vesselId === 'LHV_IVC').map((a) => (centrelineOf(a.vesselId)!.pointAt(a.end === 0 ? 0 : 1)[1])!));
+    assert.ok(cut.u > 0.2 && seamY < mouthY - 2 * NETWORK_BY_ID.get('IVC_IS')!.radius, `the cava's seam is ${cut.u.toFixed(2)} of its length, y ${seamY.toFixed(3)} (the lowest hepatic mouth ${mouthY.toFixed(3)})`);
     assert.deepEqual(foldedTriangles(m.position, m.normal, m.index), []);
     assertWatertight(m);
     let worst = 180;
