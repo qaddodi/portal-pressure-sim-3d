@@ -1,0 +1,126 @@
+// Every slide change, in every deck, is ONE camera move from the pose the camera stands in straight to the pose it lands on: frame by frame, the eye only ever gets closer to where it lands
+// (no detour) and it never jumps (no snap). Driven through the calls the talk makes (scene-link.ts: showShot, showCircuit, and frameRoom's refit as the cards settle), on the real scene.
+// Root cause of Circulation 4 to 5 (Mohammad, 25 Nov: "zooms out into the liver or something glitches for a bit THEN zooms into the lobule"): in a dive the rig read the camera's distance off the
+// blended pose, the farther of its r, its extents and the points the body slide keeps in frame. Those points, judged from an aim already on its way to the lobule, pulled the camera back out for
+// the first half of the dive; at the half the kept points became the lobule's (none) and the distance fell 30x in one frame. Ten dives in seven decks did it. A dive now glides its distance as
+// every other move does (rig.ts distNow), and a refit in flight carries only the landing distance over the rest of the move (rig.ts zoomLate).
+import { test, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { Vector3 } from 'three';
+import { UI } from '../src/ui/strings.generated.ts';
+import { loadBuiltin } from '../src/decks/registry.ts';
+import { stopsOf, viewAt, type View } from '../src/ui/deck/presenter-machine.ts';
+import type { Room } from '../src/scene/camera/room.ts';
+
+type Scene = {
+  resize(w: number, h: number): void; update(now: number): boolean; microStep(): boolean; dispose(): void; buildMicroIdle(u?: boolean): void;
+  diveHeld: boolean; rig: { isMoving: boolean; camera: { position: Vector3 }; pose: { shot: { target: number[] } } };
+};
+const { sceneApi, cel } = await import('../src/scene/api.ts');
+const s = cel as unknown as Scene;
+after(() => s.dispose());
+
+const DEVICES = [
+  // (the room the slide's cards leave, another slide's (its cards are other sizes), and the first once its data card's height has landed a beat late)
+  { name: 'Mac', w: 1440, h: 900, rooms: [{ x: 420, y: 60, w: 1000, h: 780 }, { x: 480, y: 60, w: 940, h: 780 }], late: 120 },
+  { name: 'iPhone', w: 390, h: 844, rooms: [{ x: 0, y: 60, w: 390, h: 520 }, { x: 0, y: 60, w: 390, h: 470 }], late: 60 },
+] as const;
+const viewOf = (v: View): string => v.scene?.view ?? 'body';
+/** What scene-link.ts sync() asks of the scene for a slide's framing. */
+function show(v: View, room: Room): void {
+  const c = v.scene?.circuit;
+  if (v.scene?.view === 'circuit') sceneApi.showCircuit(room, { box: c?.box ?? null, kMax: c?.kMax ?? null, resistors: [], caudate: !!c?.caudate });
+  else sceneApi.showShot(viewOf(v) as 'body', v.shot, room, true);
+}
+let t = 1000;
+const frame = () => { t += 16; s.update(t); };
+const eye = () => s.rig.camera.position.clone();
+const aimDist = () => { const a = s.rig.pose.shot.target; return s.rig.camera.position.distanceTo(new Vector3(a[0], a[1], a[2])); };
+const busy = () => s.rig.isMoving || s.diveHeld;
+
+/** Flies the move that was just asked for to its landing, frame by frame; `at` changes the room on given frames (a card settling). What went wrong, or nothing. */
+function fly(at: Map<number, Room> = new Map()): string[] {
+  const eyes: Vector3[] = [eye()], zoom: number[] = [aimDist()];
+  let from = 0;
+  for (let k = 1; k < 400 && (busy() || k < 4); k++) {
+    const r = at.get(k);
+    if (r) { sceneApi.setRoom(r, undefined, false, true); from = k - 1; }   // (frameRoom: a talk's room change always refits)
+    frame(); eyes.push(eye()); zoom.push(aimDist());
+  }
+  if (busy()) return ['never landed'];
+  const end = eyes[eyes.length - 1]!, bad: string[] = [];
+  // (the eye only closes on where it lands. A card that settles in flight can move the landing behind the eye (a smaller room lands farther out than the camera already is): then
+  //  the eye may turn round once, smoothly, and from there only closes; never a second turn, a zig and a zag)
+  for (let k = from + 1, last = eyes[from]!.distanceTo(end), turns = 0, out = false; k < eyes.length; k++) {
+    const d = eyes[k]!.distanceTo(end), up = d > last * 1.002 + 1e-7;
+    if (up && !out) turns++;
+    if (up && (from === 0 || turns > 1)) { bad.push(`detour at frame ${k}: ${last.toExponential(3)} -> ${d.toExponential(3)} from the landing`); break; }
+    if (d < last) out = false; else if (up) out = true;
+    last = d;
+  }
+  // (no snap: no frame moves the zoom or the eye much more than the frame before did. A step must stand out against the move's own pace (a quarter of its largest step), so the
+  //  quintic's start from rest, whose second frame is seven times its first, is no snap; the kept points' fall, 30x in one frame, and a zoom set off at full speed are)
+  const zs = zoom.map((z, k) => (k ? Math.abs(Math.log(z / zoom[k - 1]!)) : 0)), es = eyes.map((e, k) => (k ? e.distanceTo(eyes[k - 1]!) : 0));
+  const zMax = Math.max(...zs), eMax = Math.max(...es);
+  for (let k = 2; k < eyes.length; k++) {
+    if (zs[k]! > 4 * zs[k - 1]! + 0.25 * zMax + 1e-9) { bad.push(`zoom snap at frame ${k}: ${(zs[k]! * 100).toFixed(2)} % in a frame after ${(zs[k - 1]! * 100).toFixed(2)} %`); break; }
+    if (es[k]! > 4 * es[k - 1]! + 0.25 * eMax + 1e-9) { bad.push(`eye snap at frame ${k}: ${es[k]!.toExponential(3)} after ${es[k - 1]!.toExponential(3)}`); break; }
+  }
+  return bad;
+}
+
+const decks = await Promise.all((UI.decks as readonly { id: string }[]).map(async (d) => [d.id, (await loadBuiltin(d.id))!] as const));
+/** Every framing a talk walks through, in order: each slide and each of its beats. */
+function walk(deck: Parameters<typeof stopsOf>[0]): { at: string; v: View }[] {
+  const stops = stopsOf(deck), out: { at: string; v: View }[] = [];
+  stops.forEach((st, i) => { if (st.kind === 'slide') for (let b = 0; b < st.beats; b++) out.push({ at: `${i}.${b}`, v: viewAt(stops, { stop: i, beat: b }) }); });
+  return out;
+}
+
+test('Circulation 4 to 5 with the lobule still building: the camera stands still while the cards settle, then dives one way, with no snap', async () => {
+  const deck = decks.find(([id]) => id === 'circulation')![1], seq = walk(deck);
+  const v4 = seq.find((x) => x.v.slide?.id === 'ladder')!.v, v5 = seq.find((x) => x.v.slide?.id === 'lobule')!.v;
+  const D = DEVICES[0];
+  s.resize(D.w, D.h);
+  s.buildMicroIdle = () => {};   // (the parts are built by hand below, as the idle slot would)
+  show(v4, D.rooms[1]); for (let k = 0; k < 200 && (busy() || k < 4); k++) frame();
+  const still = eye();
+  show(v5, D.rooms[0]);
+  assert.equal(s.diveHeld, true, 'the dive waits for the lobule\'s parts');
+  for (const r of [D.rooms[0], { ...D.rooms[0], h: D.rooms[0].h - D.late }]) {
+    sceneApi.setRoom(r, undefined, false, true);
+    for (let k = 0; k < 10; k++) { frame(); assert.ok(eye().distanceTo(still) === 0, 'the body stands as slide 4 left it'); }
+  }
+  while (!s.microStep()) { /* the micro views' steps */ }
+  delete (s as unknown as Record<string, unknown>).buildMicroIdle;
+  assert.equal(s.diveHeld, false);
+  assert.deepEqual(fly(), []);
+});
+
+for (const D of DEVICES) {
+  test(`${D.name}: every slide to slide move in every deck goes straight to its landing, with no detour and no snap, cards settling in flight or not`, () => {
+    s.resize(D.w, D.h);
+    while (!s.microStep()) { /* primed: no dive waits */ }
+    const fails: string[] = [], seen = new Set<string>();
+    let moves = 0, i = 0;
+    for (const [id, deck] of decks) {
+      const seq = walk(deck);
+      for (let j = 1; j < seq.length; j++) {
+        const a = seq[j - 1]!, b = seq[j]!;
+        const key = JSON.stringify([viewOf(a.v), a.v.shot, viewOf(b.v), b.v.shot]);
+        if (seen.has(key) || (a.v.shot === b.v.shot && viewOf(a.v) === viewOf(b.v))) continue;
+        seen.add(key);
+        // (half the moves change room as they set off, as two slides' cards do, and have the data card's height land a beat late, early or near the landing)
+        const settle = i++ % 2 === 1, r0 = D.rooms[settle ? 1 : 0], r1 = D.rooms[settle ? 0 : 1];
+        show(a.v, r0); for (let k = 0; k < 400 && (busy() || k < 4); k++) frame();
+        show(b.v, r1);
+        const late = settle ? new Map([[[6, 30, 70][i % 3]!, { ...r1, h: r1.h - D.late }]]) : undefined;
+        const bad = fly(late);
+        moves++;
+        if (bad.length) fails.push(`${id} ${a.at} -> ${b.at} (${viewOf(a.v)} -> ${viewOf(b.v)}${late ? ', a card settled in flight' : ''}): ${bad.join('; ')}`);
+      }
+    }
+    assert.ok(moves > 150, `the walk found the talks' moves (${moves})`);
+    assert.deepEqual(fails, []);
+  });
+}

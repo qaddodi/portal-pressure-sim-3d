@@ -222,6 +222,16 @@ export class CameraRig {
    *  at rest, in a dive, and at the move's landing, where the two are the same number). The pose's own is the farther of `r` and what its two half extents need, each blended on its own, so it is not monotone: when the
    *  fitting axis changes between two shots (one frames the height, the next the width) the distance dipped between them, a zoom in and back out inside one move: the zigzag (22 Nov). tests/camera-slide-paths.test.ts. */
   private distNow = 0;
+  /** A refit that came while the camera flew (a card settled, the dock glided): the landing distance goes from the one the move was heading for (`from`) to the new room's
+   *  on the rest of the move's own share (from `e0`), so the zoom never steps in one frame; null otherwise. */
+  private zoomLate: { from: number; e0: number } | null = null;
+  /** The move's zoom ends as they stand this frame: the landing distance with a late refit carried in (zoomLate). */
+  private zoomNow(e: number): ZoomEnds | null {
+    const z = this.zoomEnds, L = this.zoomLate;
+    if (!z || !L || !(L.from > 0) || !(z.db > 0)) return z;
+    const u = easeMove(Math.min(1, Math.max(0, (e - L.e0) / Math.max(1e-6, 1 - L.e0))));
+    return { ...z, db: geo(L.from, z.db, u) };
+  }
   /** The speed the move began with (easeCarry's slope): zero from a standstill. */
   private carry = 0;
   /** The progress the last frame was drawn at (the eased value the pose is at now). */
@@ -231,9 +241,17 @@ export class CameraRig {
   private followT = 0;
   /** A move retargeted in flight starts with the velocity it had (a Hermite curve for the aim and the width: the curve bends toward the new target instead of stopping at a corner); null from a standstill. */
   private hv: { x: number; y: number; lh: number } | null = null;
-  /** The aim's speed per ms (x, y in world units, lh the log of the framing's width), sampled each frame of a move: what a retarget carries on. */
+  /** The camera's distance on that Hermite this frame (0: none). */
+  private hermD = 0;
+  /** The aim's speed per ms (x, y in world units, lh the log of the camera's distance: the zoom as it is drawn, not the shot's extents), sampled each frame of a move: what a retarget carries on. */
   private readonly vel = { on: false, t: 0, x: 0, y: 0, lh: 0 };
   private velLast = { t: 0, x: 0, y: 0, lh: 0, ok: false };
+  /** The camera's distance now, as `apply` draws it (the glide's while a move flies, the pose's own fit at rest). */
+  private distHere(): number {
+    if (this.distNow > 0) return this.distNow;
+    const room = this.cur.room, sc = this.scaleNow.w > 1 ? this.scaleNow : room.w > 1 ? room : { w: this.width, h: this.height };
+    return effectiveDistance(this.cur.shot, sc, this.height, this.width);
+  }
   /** 2D's long-move path (arc.ts) for this move, or null for the plain glide. */
   private long: LongPath | null = null;
   private readonly longPath = new LongPath();
@@ -470,15 +488,19 @@ export class CameraRig {
     // in the new glide's own progress per glide, so nothing slows to a stop and starts again whatever the new target is
     let carry = 0;
     const newDur = reducedMs(ms, this.reduceMotion || reduced());
+    // (the zoom is the camera's distance, where it is and where the new move lands: a refit to the same shot in a smaller room is a zoom with the same extents, and judged on the extents it had no
+    //  zoom at all, so the carried pan speed set the zoom off at full speed from rest, a kick)
+    const scTo = this.keepScale && this.scaleTo.w > 1 ? this.scaleTo : { w: room.w, h: room.h };
+    const zoomLog = Math.log(Math.max(1e-12, effectiveDistance(s, scTo, this.height, this.width)) / Math.max(1e-12, this.distHere()));
     if (this.active && this.vel.on && now - this.vel.t < 80 && newDur > 0) {
       const a = this.cur.shot, w = Math.max(1e-6, a.half[0] + s.half[0]);
-      const T0 = Math.log(Math.max(1e-6, s.half[0]) / Math.max(1e-6, a.half[0])) / (2 * Math.LN2), T1 = (s.target[0] - a.target[0]) / w, T2 = (s.target[1] - a.target[1]) / w;
+      const T0 = zoomLog / (2 * Math.LN2), T1 = (s.target[0] - a.target[0]) / w, T2 = (s.target[1] - a.target[1]) / w;
       const tt = T0 * T0 + T1 * T1 + T2 * T2;
       if (tt > 1e-12) carry = Math.min(CARRY_MAX, Math.max(0, ((this.vel.lh / (2 * Math.LN2)) * T0 + (this.vel.x / w) * T1 + (this.vel.y / w) * T2) / tt * newDur));
     }
     let hv: { x: number; y: number; lh: number } | null = null;
     if (this.active && this.vel.on && now - this.vel.t < 80 && newDur > 0 && !(this.reduceMotion || reduced())) {
-      const a = this.cur.shot, dx = s.target[0] - a.target[0], dy = s.target[1] - a.target[1], dl = Math.log(Math.max(1e-6, s.half[0]) / Math.max(1e-6, a.half[0]));
+      const a = this.cur.shot, dx = s.target[0] - a.target[0], dy = s.target[1] - a.target[1], dl = zoomLog;
       let vx = this.vel.x * newDur, vy = this.vel.y * newDur, vl = this.vel.lh * newDur;
       const w = a.half[0] + s.half[0], mv = Math.hypot(vx / w, vy / w, vl / (2 * Math.LN2)), md = Math.hypot(dx / w, dy / w, dl / (2 * Math.LN2));
       if (mv > 1e-9 && md > 1e-9) {
@@ -487,7 +509,9 @@ export class CameraRig {
         const along = ((vx / w) * (dx / w) + (vy / w) * (dy / w) + (vl / (2 * Math.LN2)) * (dl / (2 * Math.LN2))) / (md * md);
         if (along > 1e-6) {
           const f = Math.min(along, 2.5);   // (never carry so much that the curve overshoots its target)
-          hv = { x: dx * f, y: dy * f, lh: dl * f };
+          // (the zoom carries its OWN speed: on the pan's share it set off at the pan's pace, whatever it was doing, a kick when a card's refit turned it round)
+          const lh = vl * dl > 0 ? Math.sign(dl) * Math.min(Math.abs(vl), 2.5 * Math.abs(dl)) : vl * Math.min(0.5, (2.5 * Math.abs(dl)) / Math.max(1e-9, Math.abs(vl)));
+          hv = { x: dx * f, y: dy * f, lh };
         } else {
           // the new framing is behind or beside the way it was going: a straight line would stop dead (a jolt), so the old speed runs out over one short bulge (half the speed it had,
           // never more than the old cap) and the camera turns back once, smoothly: one bend, never a zig and a zag
@@ -523,6 +547,7 @@ export class CameraRig {
     this.bumpFrom = this.bump;
     this.plunge = LENS_SWELL && !(this.reduceMotion || reduced()) && Math.max(this.from.shot.r, this.to.shot.r) / Math.max(1e-9, Math.min(this.from.shot.r, this.to.shot.r)) > PLUNGE_RATIO;
     this.zoomEnds = this.measureZoom(this.active);   // (a move retargeted in flight starts from the distance the camera is really at: distNow)
+    this.zoomLate = null;
     // (carrying speed: the first frame is one frame in, so the retarget frame is not a stand-still)
     this.at = carry > 0 || hv || (this.active && this.vel.on) ? 16 : 0;
     this.lastT = -1; this.eNow = 0; this.roomP = 0; this.lateRoom = null; this.lateScale = null;
@@ -542,11 +567,20 @@ export class CameraRig {
     // a card opening in the middle of a dive keeps the dive's own time: it lands when it was going to, in the new room (not a fresh 950 ms from a standstill)
     // a move in flight whose room alone changes (a card opening or closing): the same move, the same clock and the same curve, with only its destination room swapped, so the picture never stops or restarts
     const scaleWas = { ...this.scaleNow };
-    if (refit) { this.scaleTo = { w: room.w, h: room.h }; this.zoomEnds = this.measureZoom(); }
+    if (refit) {
+      this.scaleTo = { w: room.w, h: room.h };
+      // (in flight, only the landing distance changes, and it changes over the rest of the move: re-measuring both ends at once moved the start (a retarget's live distance) and the
+      //  end in one frame, a step in the zoom. At rest the next move measures its own ends)
+      const z = this.zoomNow(this.eNow), db = effectiveDistance(this.to.shot, this.scaleTo, this.height, this.width);
+      if (this.active && z && z.da > 0 && z.db > 0) { this.zoomLate = { from: z.db, e0: this.eNow }; this.zoomEnds = { ...z, db }; }
+      else { this.zoomLate = null; this.zoomEnds = this.measureZoom(); }
+    }
     // (a DIVE in flight keeps its own clock and curve whatever a caller says (a dock glide's 300 ms and its curve): a new move to the same
     //  shot from the middle of a dive started the plain blend of a move that is no longer a dive once the distance had closed to under
     //  DIVE_RATIO, and ended the dive in the glide's time, a rush at its end. The room only goes into the move that flies)
-    if (this.active && (ms == null || isDive(this.from, this.to)) && !homeTurn && this.dur > 0) {
+    // (a refit of a plain move in flight changes where it lands, the zoom too: that is a new target, so it is a retarget from where the camera is (goTo below, its speed carried along the
+    //  straight way to the new landing). Swapping the room alone kept the old curve toward a landing it no longer had: the eye bent away from the new one and then hurried back)
+    if (this.active && (ms == null || isDive(this.from, this.to)) && !homeTurn && this.dur > 0 && (!refit || isDive(this.from, this.to))) {
       // (the room's own share, not the clock's: in a dive the room follows the aim (q). Rebuilding it with the clock's share made the picture jump each time a card arrived mid-dive,
       //  a zoom-out and a shift right per card: the Lobule -> Sinusoid staircase)
       const e = this.roomP;
@@ -704,20 +738,21 @@ export class CameraRig {
   }
 
   /** The aim and the width of a retargeted move on a cubic Hermite from where it was, starting at the speed it had and ending at rest. */
-  private hermiteAim(k: number): number {
+  private hermiteAim(k: number, z: ZoomEnds): number {
     const hv = this.hv!, a = this.from.shot, b = this.to.shot, c = this.cur.shot, k2 = k * k, k3 = k2 * k;
     const h01 = 3 * k2 - 2 * k3, h10 = k3 - 2 * k2 + k;
     c.target[0] = a.target[0] + (b.target[0] - a.target[0]) * h01 + hv.x * h10;
     c.target[1] = a.target[1] + (b.target[1] - a.target[1]) * h01 + hv.y * h10;
-    const la = Math.log(Math.max(1e-6, a.half[0])), lb = Math.log(Math.max(1e-6, b.half[0])), lc = la + (lb - la) * h01 + hv.lh * h10;
-    const q = Math.abs(lb - la) > 1e-6 ? Math.min(1, Math.max(0, (lc - la) / (lb - la))) : this.eNow, f = Math.exp(lc - la);
-    c.half[0] = a.half[0] * f;
-    c.half[1] = (a.half[1] + (b.half[1] - a.half[1]) * q) * (c.half[0] / (a.half[0] + (b.half[0] - a.half[0]) * q));
-    c.r = a.r * Math.pow(b.r / a.r, q);
+    // (the zoom on the same curve, in the log of the camera's distance between the move's two ends; the extents and r follow its share)
+    const la = Math.log(z.da), lb = Math.log(z.db), lc = la + (lb - la) * h01 + hv.lh * h10;
+    const q = Math.abs(lb - la) > 1e-6 ? Math.min(1, Math.max(0, (lc - la) / (lb - la))) : this.eNow;
+    c.half[0] = geo(a.half[0], b.half[0], q); c.half[1] = geo(a.half[1], b.half[1], q);
+    c.r = geo(a.r, b.r, q);
+    this.hermD = Math.exp(lc);
     return q;
   }
   private sampleVel(now: number, step: number): void {
-    const c = this.cur.shot, L = this.velLast, lh = Math.log(Math.max(1e-6, c.half[0]));
+    const c = this.cur.shot, L = this.velLast, lh = Math.log(Math.max(1e-12, this.distHere()));
     // (the speed is what the picture moved per ms of the move's own clock: a stalled frame moved it by STEP_MAX, not by the wall time it took)
     if (L.ok && now > L.t && now - L.t < 100 && step > 0) { const dt = step; this.vel.x = (c.target[0] - L.x) / dt; this.vel.y = (c.target[1] - L.y) / dt; this.vel.lh = (lh - L.lh) / dt; this.vel.t = now; this.vel.on = true; }
     L.t = now; L.x = c.target[0]; L.y = c.target[1]; L.lh = lh; L.ok = true;
@@ -734,9 +769,10 @@ export class CameraRig {
       const k = this.dur <= 0 ? 1 : Math.min(1, this.at / this.dur);
       const e = this.easeFn ? this.easeFn(k) : easeCarry(k, this.carry);
       this.eNow = e;
-      this.cur = blendPose(this.from, this.to, e, 0, this.zoomEnds ?? undefined);
+      const z = this.zoomNow(e);
+      this.cur = blendPose(this.from, this.to, e, 0, z ?? undefined);
       // the share of the way the room has gone (blendPose: the zoom's share, in a dive the aim's share q): what setRoom must rebuild a retargeted room from, or the picture jumps
-      this.roomP = isDive(this.from, this.to) ? roomShareOf(this.from, this.to, this.cur) : zoomShare(this.zoomEnds?.da ?? this.from.shot.r, this.zoomEnds?.db ?? this.to.shot.r, e);
+      this.roomP = isDive(this.from, this.to) ? roomShareOf(this.from, this.to, this.cur) : zoomShare(z?.da ?? this.from.shot.r, z?.db ?? this.to.shot.r, e);
       this.scaleNow = { w: lerp(this.scaleFrom.w, this.scaleTo.w, this.roomP), h: lerp(this.scaleFrom.h, this.scaleTo.h, this.roomP) };
       if (this.lateScale) {
         const L = this.lateScale, u = L.clock ? easeMove(Math.min(1, Math.max(0, (e - L.e0) / Math.max(1e-6, 1 - L.e0)))) : Math.min(1, Math.max(0, (this.roomP - L.p0) / Math.max(1e-6, 1 - L.p0)));
@@ -746,8 +782,14 @@ export class CameraRig {
         const L = this.lateRoom, u = easeMove(Math.min(1, Math.max(0, (e - L.e0) / Math.max(1e-6, 1 - L.e0)))), c = this.cur.room = copyRoom(this.cur.room), b = this.to.room;
         c.x = lerp(L.from.x, b.x, u); c.y = lerp(L.from.y, b.y, u); c.w = lerp(L.from.w, b.w, u); c.h = lerp(L.from.h, b.h, u);
       }
-      const z = this.zoomEnds, zq = this.hv && e < 1 ? this.hermiteAim(k) : e;
-      this.distNow = !isDive(this.from, this.to) && z && z.da > 0 && z.db > 0 && e < 1 ? geo(z.da, z.db, zq) : 0;
+      // ONE zoom for every move, a dive too: the camera's distance glides geometrically from where it stood to where it lands (the two ends as their rooms fit them). A dive read the distance
+      // off the blended pose instead (the farther of its r, its extents and its kept points), and a body slide's kept points, judged from an aim already on its way to the lobule, pulled the
+      // camera back out for the first half; at the half the kept points switched to the lobule's (none) and the distance fell 30x in one frame. Circulation 4 to 5, 25 Nov: "zooms out
+      // into the liver, glitches, THEN zooms into the lobule" (tests/camera-every-slide.test.ts).
+      this.distNow = 0;
+      if (z && z.da > 0 && z.db > 0 && e < 1) {
+        if (this.hv) { this.hermiteAim(k, z); this.distNow = this.hermD; } else this.distNow = geo(z.da, z.db, e);
+      }
       this.sampleVel(now, this.step);
       if (this.long && e < 1) this.long.at(e, this.cur.shot);
       this.bump = fovBump(k, this.bumpFrom, this.plunge);

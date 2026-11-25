@@ -19,10 +19,7 @@ test('blendPose runs for a plain move and for a dive (a throw here freezes every
   const shot = (r: number) => ({ yaw: 0, pitch: 0, r, target: [0, 0, 0] as [number, number, number], half: [r, r] as [number, number] });
   for (const rb of [1.2, 0.001]) for (const k of [0, 0.5, 1]) assert.ok(Number.isFinite(blendPose({ shot: shot(1), room }, { shot: shot(rb), room: { ...room, x: 100 } }, k, 0).room.x));
 });
-test('a retarget carries only the speed that heads to the new framing, along the straight way (no zigzag)', () => {
-  const s = readFileSync('src/scene/camera/rig.ts', 'utf8');
-  assert.match(s, /hv = \{ x: dx \* f, y: dy \* f, lh: dl \* f \}/);
-});
+// (a retarget's carried speed, along the straight way and the zoom on its own: pinned by what the camera does in tests/camera-every-slide.test.ts, not by its source)
 test('the dive never opens a circular cut-out in the liver (owner, 20 Nov)', () => {
   assert.match(sceneSource(), /cutUniform\(Infinity,/);
 });
