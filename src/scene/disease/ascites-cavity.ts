@@ -22,7 +22,7 @@ export const CAVITY = {
   /** The outward bow at mid height (2D units, a half sine from TOP to JOIN_Y). */
   BOW: 56, BOW_TO: 980,
   /** Where the wall hands over to the rounded floor, and how far under the gut's lowest point (the rectum, y 1098) the floor passes. */
-  JOIN_Y: 980, FLOOR_PAD: 40,
+  JOIN_Y: 980, FLOOR_PAD: 12,
   /** The gut is read from this y down; above it the wall holds the value at it. */
   GUT_FROM: 620, GUT_BOTTOM: 1100,
   /** The floor's axis: the rectum's x (the lowest point of the figure) pulled this share of the way from the wall's middle. */
