@@ -87,12 +87,12 @@ export const isCoiling = (id: string, kind: string, spontaneous: boolean): boole
 /** A collateral's coil and spread, eased as stage-tubes.js eases them: coiled once it has grown past a quarter (straight again below a fifth), the target moving
  *  only for a change over 0.6, the coil following it with a quarter-second time constant. */
 export class CoilState {
-  wig = 0; wigT = 0; spr = 1; sprT = 1;
+  wig = 0; wigT = 0; spr = 1; sprT = 1; prs = 0; prsT = 0;
   /** `shown`: how far the vessel is open (0 to 1); `spread`: the strands' target spread. Returns true while the shape is still changing. */
-  step(shown: number, spread: number, dtMs: number, instant: boolean): boolean {
+  step(shown: number, spread: number, dtMs: number, instant: boolean, press = 0): boolean {
     const coiled = this.wigT > 0 ? shown > 0.2 : shown > 0.25;
     const w = coiled ? 1.5 + 3.5 * shown : 0;
-    const before = this.wig * 1000 + this.spr;
+    const before = this.wig * 1000 + this.spr + this.prs * 1e6;
     if (Math.abs(w - this.wigT) > 0.6) this.wigT = w;
     this.sprT = spread;
     const k = instant ? 1 : -Math.expm1(-dtMs / 1000 / 0.25);
@@ -100,7 +100,10 @@ export class CoilState {
     this.wig = Math.abs(d) < 0.03 ? this.wigT : this.wig + d * k;
     const e = this.sprT - this.spr;
     this.spr = Math.abs(e) < 0.005 ? this.sprT : this.spr + e * k;
-    return this.wig !== this.wigT || this.spr !== this.sprT || before !== this.wig * 1000 + this.spr;
+    this.prsT = press;
+    const g = this.prsT - this.prs;
+    this.prs = Math.abs(g) < 0.005 ? this.prsT : this.prs + g * k;
+    return this.wig !== this.wigT || this.spr !== this.sprT || this.prs !== this.prsT || before !== this.wig * 1000 + this.spr + this.prs * 1e6;
   }
 }
 

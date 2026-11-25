@@ -40,6 +40,7 @@ Status: Mohammad approved the mock on 24 Nov ("i like the mock now"; "let's impl
 - **Oesophageal varices:**
   - C1a and C1b run on the oesophagus's right front wall.
   - They then make one wide bend above the heart into the top of the azygos arch (round 14).
+  - **Width follows pressure (Mohammad, 25 Nov: "the varices need to more prominent/thick with such high pressure"):** on top of the size, the varix's wall pressure thickens the strands: nothing under 10 mmHg, whole by 15, then about twice the width of the left gastric vein that feeds them (shape.ts `varixPressRamp`, `VARIX_PRESS_THICK` 1.9). They still lie on the oesophagus without touching each other, and a band still closes them to the same thin cord.
 - **Splenorenal shunts:** the spontaneous and distal shunts come down medial to and in front of the kidney into the renal vein, never through it (round 14).
 - **Caudate lobe (round 15, plan question 3):**
   - **Shape and place:** an upright soft egg on the liver's back, just left of the IVC, which lies in its groove. It sits between the hepatic vein confluence (above) and the portal fork (below), behind the left portal vein and the left hepatic artery.
