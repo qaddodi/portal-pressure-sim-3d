@@ -22,3 +22,18 @@ export function clipTo(r: Box, within: Box | null): Box | null {
   const l = Math.max(r.l, within.l), t = Math.max(r.t, within.t), rr = Math.min(r.r, within.r), b = Math.min(r.b, within.b);
   return rr > l && b > t ? { l, t, r: rr, b } : null;
 }
+
+/** The iPhone's home indicator stands about 8 px up from the screen's foot and is 5 px high: the line keeps its foot at least this far up. */
+export const HOME_BAR_CLEAR = 13;
+/** Where the credit stands in free play on a phone held upright: in the empty band under the bottom bar (the thumb dock),
+ *  above the home indicator, centred between the two (Mohammad, 25 Nov: "all the way under the timeline bar").
+ *  Null where the band is too thin to hold the line (no home indicator; an upright iPad's band is 26 px) or `others`
+ *  (the boxes that stand below the dock's foot edge) cover it: the hunt over the bare figure then keeps the line shown.
+ *  The line is centred under the dock (Mohammad, 25 Nov, second look: "in the center below the time bar"). Pure. */
+export function underDock(i: { vw: number; vh: number; dock: Box; h: number; w: number; others: readonly Box[] }): { x: number; y: number } | null {
+  const top = i.dock.b, room = i.vh - HOME_BAR_CLEAR - top;
+  if (room < i.h + 4) return null;
+  const at = { x: Math.round((i.dock.l + i.dock.r - i.w) / 2), y: Math.round(top + (room - i.h) / 2) };
+  if (at.x < 0 || at.x + i.w > i.vw - 4) return null;
+  return footClear(at, i.w, i.h, i.others.filter((q) => q.b > top + 1), 1) ? at : null;
+}

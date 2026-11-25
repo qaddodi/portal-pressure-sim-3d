@@ -22,3 +22,9 @@ export const AUTO_DETAIL_ROW = { label: 'Auto detail', hint: 'Lets the figure so
  * person's to turn on or off. Not in the 2D parity table.
  */
 export const LITE_ROW = { label: 'Lite figure', hintDevice: 'Chosen for this device', hint: 'A calmer figure for slower devices: it draws less and moves at about 20 frames a second', icon: 'layers' };
+
+/**
+ * Preview pill (Settings › Diagnostics, preview builds only; 3D only, so not in the 2D parity table): shows or hides the orange build tab at the top edge.
+ * Hiding it keeps the build in the line under the switch.
+ */
+export const BUILD_PILL_ROW = { label: 'Preview pill', hint: 'The orange tab at the top that names this build; tap it to load the newest', icon: 'info' };

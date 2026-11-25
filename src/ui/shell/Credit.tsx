@@ -10,7 +10,7 @@ import { M } from './metrics.ts';
 import { useThumb } from './thumb.ts';
 import { CORNERS, freeSpots } from './credit-spots.copied.js';
 import { layoutOf, margin, isSideways } from '../layout/rules2d.ts';
-import { footCredit, footClear, clipTo } from './credit-foot.ts';
+import { footCredit, footClear, clipTo, underDock } from './credit-foot.ts';
 import { useShell } from './store.ts';
 import { avoidVessel, vesselRect, widestWall } from './credit-avoid.ts';
 import { cel } from '../../scene/api.ts';
@@ -145,6 +145,17 @@ export function Credit() {
         clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
         el.classList.toggle('covered', !clear); el.classList.remove('moving'); el.classList.add('placed'); at0 = at; shown = clear; if (clear) creditClaim.set({ x: at.x, y: at.y, w, h }); else creditClaim.set(null);
         return;
+      }
+      // Free play on a phone held upright: the line stands in the empty band under the bottom bar, above the home indicator
+      // (Mohammad, 25 Nov), on every view. It keeps the hunt below only where that band is too thin or covered, or the fps counter holds it.
+      if (!talk && thumb && !fps && (lay === 'stack' || lay === 'tab')) {
+        const dock = shownBoxes('.vdock:not(.mini)', vw, vh)[0];
+        const at = dock ? underDock({ vw, vh, dock, h, w, others: shownBoxes(OBSTACLES, vw, vh) }) : null;
+        if (at) {
+          clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
+          el.classList.remove('covered', 'moving'); el.classList.add('placed'); at0 = at; shown = true; creditClaim.set({ x: at.x, y: at.y, w, h });
+          return;
+        }
       }
       // the figure is the screen inside the safe areas; the frame-rate counter stands at the bottom corner too, so the credit's bottom corner rides above it
       const rise = fps ? M.fpsInset + M.fpsFont * M.fpsLine + 4 : 0;
