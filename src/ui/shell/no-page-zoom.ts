@@ -7,12 +7,11 @@
 //  - Ctrl/⌘ + wheel (a Mac trackpad pinch in Chrome and Firefox, and Ctrl + scroll) over the figure is cancelled; the figure's own wheel handler still sees it;
 //  - a double tap does not zoom the page anywhere: `touch-action: manipulation` on the body (global.css), and the figure's canvas takes no touch gesture at all
 //    (`touch-action: none` on it, global.css), which keeps the double-tap-and-slide zoom, the hold-then-drag tilt and the absence of iOS's magnifier;
-//  - selectstart is cancelled except in a field made for typing and in the words of a card (SELECTABLE, minus what is operated there, NOT_SELECTABLE): no loupe or callout on the figure or the bars.
-// SELECTABLE and NOT_SELECTABLE are the selector lists of global.css, written once more here for `closest`; tests/ui-no-select.test.ts fails when the two differ.
+//  - selectstart is cancelled except in a field made for typing (SELECTABLE): no loupe or callout on the figure, the bars or a card.
+// SELECTABLE is the selector list of global.css, written once more here for `closest`; tests/ui-no-select.test.ts fails when the two differ.
 /** The figure's stage (scene/Stage.tsx): what a gesture on it is the figure's. */
 export const FIGURE = '.stage-root';
-export const SELECTABLE = 'input, textarea, [contenteditable=""], [contenteditable="true"], .selectable, .treat-card, .instrument-workspace, .action-card, .dk-card, .sh-sheet';
-export const NOT_SELECTABLE = 'button, summary, [role="button"], [role="tab"], [role="slider"], .ib, .card-head, .sheet-grab, .sheet-head, canvas, svg, img, [data-chart], .bt-plot, .bt-strip';
+export const SELECTABLE = 'input, textarea, [contenteditable=""], [contenteditable="true"], .selectable';
 
 export function installNoPageZoom(doc: Document = document): () => void {
   const off: (() => void)[] = [];
@@ -26,11 +25,10 @@ export function installNoPageZoom(doc: Document = document): () => void {
   for (const t of ['gesturestart', 'gesturechange', 'gestureend']) on(t, (e) => { if (onFigure(e)) stop(e); });
   on<TouchEvent>('touchmove', (e) => { if (e.touches.length > 1 && onFigure(e)) stop(e); });
   on<WheelEvent>('wheel', (e) => { if (e.ctrlKey && onFigure(e)) stop(e); });
-  // Text is selectable only where a person types and in the words of a card (owner: never on the figure or the bars): iOS's selection loupe and callout come from a double
-  // tap and hold on a label, so a selection never starts anywhere else.
+  // Text is selectable only where a person types (owner, rule 12): iOS's selection loupe and callout come from a double tap and hold on a label or a card, so a selection never starts anywhere else.
   on<Event>('selectstart', (e) => {
     const host = hostOf(e.target);
-    if (!host?.closest?.(SELECTABLE) || host.closest?.(NOT_SELECTABLE)) stop(e);
+    if (!host?.closest?.(SELECTABLE)) stop(e);
   });
   return () => { off.forEach((f) => f()); };
 }

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { installNoPageZoom, FIGURE, SELECTABLE, NOT_SELECTABLE } from '../src/ui/shell/no-page-zoom.ts';
+import { installNoPageZoom, FIGURE, SELECTABLE } from '../src/ui/shell/no-page-zoom.ts';
 
 test('the viewport allows scaling (WCAG 1.4.4), the body takes no double-tap zoom, the figure and its canvas take every touch themselves', () => {
   const html = readFileSync('index.html', 'utf8');
@@ -33,10 +33,9 @@ test('on the figure the document cancels pinch gestures, two-finger moves and Ct
   assert.ok(!fire('wheel', { ctrlKey: true, target: bar }), 'a trackpad pinch elsewhere is the browser zoom');
   assert.ok(!fire('wheel', { ctrlKey: false, target: figure }), 'a plain scroll');
   const sel = (target: unknown) => fire('selectstart', { target });
-  const only = (on: string) => ({ closest: (q: string) => (q === SELECTABLE ? (on === 'card' || on === 'control' ? {} : null) : q === NOT_SELECTABLE ? (on === 'control' ? {} : null) : null) });
-  assert.ok(sel(only('plain')), 'a label on the figure or a bar never starts a selection');
-  assert.ok(!sel(only('card')), 'the words of a card may be selected');
-  assert.ok(sel(only('control')), 'a button or a head inside a card may not');
+  const only = (on: string) => ({ closest: (q: string) => (q === SELECTABLE && on === 'field' ? {} : null) });
+  assert.ok(sel(only('plain')), 'a label on the figure, a bar or a card never starts a selection');
+  assert.ok(!sel(only('field')), 'a field still may');
   off();
   assert.equal((calls.wheel ?? []).length, 0);
 });

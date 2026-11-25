@@ -14,7 +14,7 @@ Portal Pressure Simulator, 3D build (updated 19 November 2026) · self-assessmen
 | Text contrast | Every look's text colours measure at least 4.5:1 against its card and its ground, and its signal colours 3:1 as marks (WCAG 1.4.3 and 1.4.11), computed by `tests/a11y-contrast.test.ts` on each push (the "Looks table" bench prints the same table on a device). A look that changes a token fails the test. |
 | Timing | No time limits; the model's clock can be paused at any time. |
 | Language | The interface is in English and the document declares `lang="en"` (the self-check `a11y-lang` reads it). |
-| Selecting text | The figure, the bars and every control are not selectable (owner's rule); fields are, and so are the words inside a card (Treat, a test, a structure's card, a talk's card, the sheets), but not the buttons, tabs, sliders, heads and charts inside one (`src/ui/shell/global.css`, held by `tests/ui-no-select.test.ts`; 23 Nov 2026). A screen reader reads the page by its own means. |
+| Selecting text | Text on the figure and the cards is not selectable (owner's rule, kept 25 Nov 2026 when the independent review asked for selectable card words); inputs and fields are. A screen reader reads the page by its own means. |
 
 ## WCAG 2.2 AA criteria with known gaps
 

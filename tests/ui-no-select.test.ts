@@ -1,12 +1,11 @@
-// The figure, the bars and every control are never selectable (owner, 19 Nov 2026: "text is selectable, should not be"), with no iOS long-press callout and no tap highlight anywhere. The one exception
-// beyond fields the reader types in (F14 of the independent review): the words inside a card, but not what is operated or dragged there. The page starts unselectable, so a new UI root inherits that;
-// these tests keep the rules, the document's selectstart (no-page-zoom.ts) and the first paint (index.html) saying the same thing.
+// Nothing in the app is selectable (owner, 19 Nov 2026: "text is selectable, should not be"), with no iOS long-press callout and no tap highlight anywhere, except where the reader types.
+// The page starts unselectable, so a new UI root inherits that; these tests keep the rules, the document's selectstart (no-page-zoom.ts) and the first paint (index.html) saying the same thing.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { SELECTABLE, NOT_SELECTABLE } from '../src/ui/shell/no-page-zoom.ts';
+import { SELECTABLE } from '../src/ui/shell/no-page-zoom.ts';
 
 const walk = (dir: string, ext: RegExp, out: string[] = []): string[] => {
   for (const f of readdirSync(dir)) { const p = join(dir, f); if (statSync(p).isDirectory()) walk(p, ext, out); else if (ext.test(f)) out.push(p); }
@@ -16,7 +15,6 @@ const css = readFileSync('src/ui/shell/global.css', 'utf8');
 const rules = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^}]*)\}/g)].map((m) => ({ sel: m[1].trim().replace(/\s+/g, ' '), body: m[2] }));
 const has = (body: string, prop: string, val: string) => new RegExp(`(^|[;\\s])${prop}\\s*:\\s*${val}\\s*(;|$)`).test(body);
 const list = (sel: string) => sel.replace(/^:is\(/, '').replace(/\)$/, '').split(',').map((s) => s.trim()).sort();
-const CARDS = ['.action-card', '.dk-card', '.instrument-workspace', '.sh-sheet', '.treat-card'];
 
 test('the page is unselectable, with no callout and no tap highlight (one rule on html and body, one on every element)', () => {
   const every = rules.find((r) => r.sel.startsWith('*,') && r.sel.includes('*::before') && r.body.includes('touch-callout'));
@@ -28,18 +26,11 @@ test('the page is unselectable, with no callout and no tap highlight (one rule o
   assert.ok(page && has(page.body, 'user-select', 'none') && has(page.body, '-webkit-user-select', 'none'), 'user-select none, with the WebKit prefix, on the page');
 });
 
-test('only fields, .selectable and the words of a card may select; a control inside a card may not', () => {
-  const fields = rules.find((r) => has(r.body, 'user-select', 'text') && r.sel.includes('textarea'));
-  assert.ok(fields, 'the fields rule exists');
-  assert.deepEqual(list(fields.sel), ['.selectable', '[contenteditable=""]', '[contenteditable="true"]', 'input', 'textarea']);
-  const cards = rules.find((r) => has(r.body, 'user-select', 'text') && r.sel.includes('.treat-card'));
-  assert.ok(cards, 'the cards rule exists');
-  assert.deepEqual(list(cards.sel), CARDS);
-  const controls = rules.find((r) => has(r.body, 'user-select', 'none') && r.sel.startsWith(':is(.treat-card'));
-  assert.ok(controls, 'the operated parts of a card stay unselectable');
-  const [, inner] = /^:is\([^)]*\) :is\((.*)\)$/.exec(controls.sel) ?? [];
-  assert.deepEqual(list(inner ?? ''), list(NOT_SELECTABLE));
-  assert.deepEqual(list(SELECTABLE), [...list(fields.sel), ...CARDS].sort(), 'selectstart (no-page-zoom.ts) allows what the stylesheet allows');
+test('only fields the reader types into (and .selectable) may select, and the document\'s selectstart says the same', () => {
+  const allow = rules.find((r) => has(r.body, 'user-select', 'text'));
+  assert.ok(allow, 'the exception rule exists');
+  assert.deepEqual(list(allow.sel), ['.selectable', '[contenteditable=""]', '[contenteditable="true"]', 'input', 'textarea']);
+  assert.deepEqual(list(SELECTABLE), list(allow.sel));
 });
 
 test('no other stylesheet turns selection on (outside the exception)', () => {
@@ -49,7 +40,7 @@ test('no other stylesheet turns selection on (outside the exception)', () => {
       const on = /(?:-webkit-)?user-select\s*:\s*(text|auto|all|contain)/.exec(m[2]);
       if (!on) continue;
       const sel = m[1].trim().replace(/\s+/g, ' ');
-      assert.ok((f.endsWith('global.css') || f.includes('/styles/')) && (f.endsWith('global.css') || sel.includes('contenteditable')), `${f}: "${sel}" turns selection on`);   // (the lifted 2D stylesheets turn it on for contenteditable only)
+>>>>>>> dd09c4f5 (Keep card text non-selectable for now (owner's 19 Nov rule); the rest of F14 stays)
     }
     assert.ok(!/-webkit-touch-callout\s*:\s*default/.test(text) || f.endsWith('global.css') || f.includes('/styles/'), `${f} turns the callout back on`);
   }
