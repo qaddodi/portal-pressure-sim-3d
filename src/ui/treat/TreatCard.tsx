@@ -235,7 +235,8 @@ export function TreatCard() {
       </div>
     );
   };
-  const vars = { ...layoutVars(vp, layoutClass(thumb)), '--instr-occ': `${thumb ? 0 : treatStepLeft(vp, testsPlace)}px` } as React.CSSProperties;   // (beside the Tests card when it stands in the right-hand column, glided by 2D's own `translate` transition)
+  // (beside the Tests card when it stands in the right-hand column: 2D's own `translate` transition glides it)
+  const vars = { ...layoutVars(vp, layoutClass(thumb)), '--instr-occ': `${thumb ? 0 : treatStepLeft(vp, testsPlace)}px` } as React.CSSProperties;
   return (
     <section ref={ref} className="treat-card tr-card has-plate" id="treatCard" hidden={!open} data-open={open} data-bottom={thumb} data-device={device} data-page={page || undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
       <div className="sheet-plate" aria-hidden="true" />

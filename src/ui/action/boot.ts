@@ -67,7 +67,8 @@ export function startActions(): () => void {
   // (every layout whose cards are sheets over the dock has that one slot, an upright iPad's too: both up drew one sheet over the other)
   off.push(useTests.subscribe((s, prev) => { if (s.open && !prev.open && usesBottomBar(useUi.getState().device) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
   off.push(useTreat.subscribe((s, prev) => { if (s.open && !prev.open && usesBottomBar(useUi.getState().device) && useTests.getState().open) useTests.getState().close(); }));
-  // a wide screen has room for both in the right-hand column, Treat standing beside the Tests card (treat/beside.ts); an instrument in focus fills the screen, so Treat and focus give way to each other
+  // a wide screen has room for both in the right-hand column, Treat standing beside the Tests card (treat/beside.ts); an instrument in focus fills the screen, so Treat and
+  // focus give way to each other
   off.push(useTests.subscribe((s, prev) => { if (s.open && s.state === 'focus' && prev.state !== 'focus' && useTreat.getState().open) useTreat.getState().setOpen(false); }));
   off.push(useTreat.subscribe((s, prev) => { if (s.open && !prev.open && useTests.getState().open && useTests.getState().state === 'focus') useTests.getState().setState('open'); }));
   // the right-hand column holds one card: Settings, the main menu, History, Compare and Help coming up put Treat away, as Treat coming up puts them away (above); both open together drew Settings over

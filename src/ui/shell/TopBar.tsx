@@ -132,7 +132,8 @@ export function TopBar() {
         <button type="button" className="menu-btn" id="btnMenu" data-opens="menu" aria-haspopup="dialog" aria-expanded={sheet === 'menu'} title={menu.title ?? undefined} onClick={() => useShell.getState().toggle('menu')}>
           <i className="brand-mark" aria-hidden="true" />
           <span className="scenario-v" id="scenarioName"><span className="sn-l">{patient}</span><span className="sn-s">{short}</span><span className="sn-c">{COMPACT[short] ?? short}</span></span>
-          {/* (the name is the words on the button first, then what it does: "Healthy, Menu: presentations and patients". WCAG 2.5.3: the visible words are in it, so voice control that says them finds it; the name follows the form shown, the other two are display: none) */}
+          {/* (the name is the words on the button first, then what it does: "Healthy, Menu: presentations and patients". WCAG 2.5.3: the visible words are in it, so voice control that says
+              them finds it; the name follows the form shown, the other two are display: none) */}
           {menu.label && <span className="sr-only">, {menu.label}</span>}
           <I n="chev-down" className="chev" />
         </button>
