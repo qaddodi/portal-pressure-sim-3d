@@ -201,7 +201,7 @@ test('Lowering portal pressure 12: the baseline row carries no second copy of th
   assert.ok(!/16\.5/.test(JSON.stringify(at(TREATMENT, 'summary'))));
   const f = (hvpg: number, tipsFlow: number | null) => ({ hvpg, ppg: 9, tipsFlow });
   const m = tableModel({ cols: ['hvpg', 'ppg'], asc: false, vs: 'first' } as never, [{ spec: { ref: true }, f: f(16.1, null), i: 0, title: 'Baseline', kicker: '' }, { spec: {}, f: f(8, 1.5), i: 1, title: 'TIPS', kicker: '' }] as never);
-  assert.equal(m.rows[1]!.cells[0]!.kind, 'blank'); assert.match(m.rows[1]!.cells[0]!.sr, /PPG/); assert.equal(m.rows[1]!.cells[1]!.kind, 'dir'); assert.match(m.legend, /HVPG is not read after a TIPS/);
+  assert.equal(m.rows[1]!.cells[0]!.kind, 'blank'); assert.match(m.rows[1]!.cells[0]!.sr, /PPG/); assert.equal(m.rows[1]!.cells[1]!.kind, 'dir'); assert.match(m.legend, /HVPG not read after a TIPS \(the PPG is\)/);
 });
 test('Who should get a TIPS 13: every row carries a decision and its reason', () => {
   const s = at(TIPS_CANDIDACY, 'summary'); assert.equal(s.note, 'Decision and reason');

@@ -4,7 +4,8 @@ import { Chart } from '../charts/Chart.tsx';
 import { waveFrame } from '../talk/table-wave-frame.ts';
 import type { Trace } from '../talk/table-wave.ts';
 
-export function WaveCell({ trace, vessel, max, words }: { trace: Trace; vessel: string; max: number; words: string }) {
-  return <Chart className="dk-wave" tag="chart:table-wave" label={words} deps={[trace, vessel, max]} glide={false}
-    build={(c) => waveFrame(trace, vessel, max, c.w, Math.round(Math.max(36, Math.min(56, c.w * 0.3))), c.pal.tok('text'), c.pal.tok('text-3'), words)} />;
+/** `maxH`: the tallest the trace is drawn (table-words.ts waveMaxH). */
+export function WaveCell({ trace, vessel, max, words, maxH = 56 }: { trace: Trace; vessel: string; max: number; words: string; maxH?: number }) {
+  return <Chart className="dk-wave" tag="chart:table-wave" label={words} deps={[trace, vessel, max, maxH]} glide={false}
+    build={(c) => waveFrame(trace, vessel, max, c.w, Math.round(Math.max(36, Math.min(maxH, c.w * 0.3))), c.pal.tok('text'), c.pal.tok('text-3'), words)} />;
 }

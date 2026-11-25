@@ -27,11 +27,19 @@ export function colChars(cells: ReadonlyArray<Printed | undefined>): number {
 }
 /** The cell's own padding and a hair of room, in px, on top of the characters (a phone's cells stand .1em apart; a bp cell's are 2 px). */
 export const COL_PAD_PX = 6;
-/** The grid's tracks for a table: the name (its least width is `--dk-name-fit`, deck-ui.css, which gives way when the value columns need the room), a value column from its printed width up, the Doppler a share of the rest.
- *  `cols`: each column's key; `chars`: colChars of its cells (ignored for the Doppler). Returns the template and the least width all the value columns need together (`calc(...)`, for `--dk-cols`). */
+/** The Doppler column's least width. It had none (`minmax(0, ...)`) and asked the name for nothing, so on a phone the name took its whole width and the trace was left ~25 px:
+ *  the column and "No flow" were cut at the panel's edge (Doppler 13, capture 49141fb9). Now the name gives way for it as it does for a value column.
+ *  4.5rem holds "No flow" and a trace worth reading. */
+export const WAVE_MIN = '4.5rem';
+/** The tallest a Doppler trace is drawn, in px: a table of six rows or more (Doppler 13) takes the shorter trace,
+ *  so its rows stand about as tall as their names and the last row is not cut on a laptop. */
+export const waveMaxH = (rows: number): number => (rows >= 6 ? 40 : 56);
+/** The grid's tracks for a table: the name (its least width is `--dk-name-fit`, deck-ui.css, which gives way when the value columns and the Doppler need the room), a value column from its printed width up, the Doppler a share of the rest from WAVE_MIN.
+ *  `cols`: each column's key; `chars`: colChars of its cells (ignored for the Doppler). Returns the template and the least width all the other columns need together (`calc(...)`, for `--dk-cols`). */
 export function gridOf(cols: readonly string[], chars: readonly number[]): { grid: string; need: string } {
   const value = cols.map((k, j) => (k === 'wave' ? null : chars[j]));
-  const tracks = value.map((n) => (n == null ? 'minmax(0, 3.4fr)' : `minmax(calc(${n}ch + ${COL_PAD_PX}px), 1fr)`));
+  const tracks = value.map((n) => (n == null ? `minmax(${WAVE_MIN}, 3.4fr)` : `minmax(calc(${n}ch + ${COL_PAD_PX}px), 1fr)`));
   const ch = value.reduce<number>((a, n) => a + (n ?? 0), 0), k = value.filter((n) => n != null).length;
-  return { grid: `minmax(var(--dk-name-fit), 2fr) ${tracks.join(' ')}`, need: `calc(${+ch.toFixed(2)}ch + ${k * COL_PAD_PX}px)` };
+  const wave = value.some((n) => n == null) ? ` + ${WAVE_MIN}` : '';
+  return { grid: `minmax(var(--dk-name-fit), 2fr) ${tracks.join(' ')}`, need: `calc(${+ch.toFixed(2)}ch + ${k * COL_PAD_PX}px${wave})` };
 }

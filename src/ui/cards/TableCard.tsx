@@ -8,7 +8,7 @@ import { useUi } from '../ui-store.ts';
 import { tableModel, type Cell } from '../talk/table-model.ts';
 import { resolveTable, useTables, fpOfSlide, pendingRows } from '../talk/table-rows.ts';
 import { CUT } from '../deck/from2d/table-marks.js';
-import { missWords, longestWord, colChars, gridOf } from './table-words.ts';
+import { missWords, longestWord, colChars, gridOf, waveMaxH } from './table-words.ts';
 import { WaveCell } from './WaveCell.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
 import { turnHeads } from './table-heads.ts';
@@ -32,9 +32,9 @@ export const bpBreaks = (t: string) => t.split('/').flatMap((x, i) => (i ? [<wbr
 /** What a flat trace says (table-wave.ts waveWords: the hover title of a row with no flow). */
 const NO_FLOW = 'No flow';
 
-function Td({ c }: { c: Cell }) {
+function Td({ c, waveH }: { c: Cell; waveH: number }) {
   switch (c.kind) {
-    case 'wave': return <td className="num wave" aria-hidden="true" title={c.wave!.title || undefined}>{c.wave!.trace ? <><WaveCell trace={c.wave!.trace} vessel={c.wave!.vessel} max={c.wave!.max} words={c.sr} />{c.wave!.title === NO_FLOW ? <span className="dk-tnone dk-noflow">{NO_FLOW}</span> : null}</> : c.wave!.pending ? <span className="dk-tpend" /> : <span className="dk-tnone">—</span>}<span className="sr-only">{c.sr}</span></td>;
+    case 'wave': return <td className="num wave" aria-hidden="true" title={c.wave!.title || undefined}>{c.wave!.trace ? <><WaveCell trace={c.wave!.trace} vessel={c.wave!.vessel} max={c.wave!.max} words={c.sr} maxH={waveH} />{c.wave!.title === NO_FLOW ? <span className="dk-tnone dk-noflow">{NO_FLOW}</span> : null}</> : c.wave!.pending ? <span className="dk-tpend" /> : <span className="dk-tnone">—</span>}<span className="sr-only">{c.sr}</span></td>;
     case 'pend': return <td className="num pend" aria-busy="true"><span className="dk-tpend" aria-hidden="true" /><span className="sr-only">calculating</span></td>;
     case 'blank': return <td className="num blank" title={c.sr}><None /><span className="sr-only">{c.sr}</span></td>;
     case 'removed': return <td className="num none">Removed</td>;
@@ -66,7 +66,7 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   useEffect(() => { resolveTable(deck, slide); }, [deck, slide]);
   const model = useMemo(() => tableModel(spec, rows, (id) => fpOfSlide(deck, id)), [rows, spec, deck]);
   const showCut = (k: string, label: string, cutText?: string) => () => setCut({ label, text: cutText || (CUT as Record<string, string>)[k] || '' });
-  const nc = model.cols.length;
+  const nc = model.cols.length, waveH = waveMaxH(model.rows.length);
   // 2D fitHeads (presenter.js): where the column heads are too wide for their columns (a phone, many columns) they stand upright (`tr.th-up`), and the name's column takes the room they give back.
   // Judged by measuring, with the upright style off, whenever the table's width or its columns change (the heads are set once, so no frame ever shows a clipped head).
   const root = useRef<HTMLDivElement>(null), headRow = useRef<HTMLTableRowElement>(null);
@@ -124,7 +124,7 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
                     <span className="pz-kick" data-site={r.site || 'none'}>{r.head}</span>
                     <span className="tw"><span className="tn">{r.title}</span>{r.vs ? <span className="vs">{r.vs}</span> : null}{r.notes.map((t, j) => (t ? <span key={j} className="vs dk-tfind">{model.noteHeads.length > 1 && model.noteHeads[j] ? `${model.noteHeads[j]}: ` : ''}{t}</span> : null))}{missWords(r.cells, model.cols) ? <span className="vs dk-tfind pz-missnote">{missWords(r.cells, model.cols)}</span> : null}</span>
                   </th>
-                  {r.cells.map((c, j) => <Td key={c.k + j} c={c} />)}
+                  {r.cells.map((c, j) => <Td key={c.k + j} c={c} waveH={waveH} />)}
                 </tr>
               </Fragment>
             );
