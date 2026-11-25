@@ -65,14 +65,15 @@ import { startFeed } from '../tests/feed.ts';
 import { useTests } from '../tests/store.ts';
 import { setDopplerProbe, useDopplerProbe, type Gate } from '../tests/doppler/probe-state.ts';
 import { planOf, type InstrumentKind } from './instruments.ts';
+import { paneModule } from './pane-load.ts';
 import { useToolPatch, withPatch } from './tool-options.ts';
 import { HvpgTool } from './HvpgTool.tsx';
 import { ReadingTool } from './ReadingTool.tsx';
 import '../tests/tests.css';
 import { clock } from '../../clock/frame.ts';
-const DopplerPane = lazyRetry(() => import('../tests/doppler/DopplerPane.tsx').then((m) => ({ default: m.DopplerPane })));
-const FibroPane = lazyRetry(() => import('../tests/fibro/FibroPane.tsx').then((m) => ({ default: m.FibroPane })));
-const EndoPane = lazyRetry(() => import('../tests/endo/EndoPane.tsx').then((m) => ({ default: m.EndoPane })));
+const DopplerPane = lazyRetry(() => paneModule('doppler').then((m) => ({ default: m.DopplerPane })));   // (the panes' loaders are pane-load.ts's: the card layer waits for the same fetch before it lets a card in)
+const FibroPane = lazyRetry(() => paneModule('fibroscan').then((m) => ({ default: m.FibroPane })));
+const EndoPane = lazyRetry(() => paneModule('endo').then((m) => ({ default: m.EndoPane })));
 
 /** The kinds that draw the live model's frames. */
 const FRAMED = new Set(['fluid', 'stent']);
