@@ -8,7 +8,7 @@ import { useUi } from '../ui-store.ts';
 import { tableModel, type Cell } from '../talk/table-model.ts';
 import { resolveTable, useTables, fpOfSlide, pendingRows } from '../talk/table-rows.ts';
 import { CUT } from '../deck/from2d/table-marks.js';
-import { missWords, longestWord } from './table-words.ts';
+import { missWords, longestWord, colChars, gridOf } from './table-words.ts';
 import { WaveCell } from './WaveCell.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
 import { turnHeads } from './table-heads.ts';
@@ -83,15 +83,25 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
       if (over !== was) setUp(over);
     };
     fit();
-    return observeThenFit([box], fit);   // (the pass writes `dk-up` on the box it observes: never inside the observer's own delivery)
+    // The heads are judged by measuring words, and a word's width is its font's: a judgement made in the fallback font stands wrong when the real one arrives (a width the box did not change, so the observer is silent): the heads
+    // stood flat, the name column narrower, every name taller, and the card was measured and locked at that taller table while the table sank to its upright one (Circuit 11 and Precipitants 11, ~100 px of empty card, capture f23a4c59).
+    // So the heads are judged again when fonts arrive (registered here, before the card's own fonts pass, so the card measures the table as it will stand).
+    let alive = true;
+    const again = () => { if (alive) fit(); };
+    const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
+    if (fonts && fonts.status !== 'loaded') void fonts.ready.then(again);
+    fonts?.addEventListener?.('loadingdone', again);
+    const off = observeThenFit([box], fit);   // (the pass writes `dk-up` on the box it observes: never inside the observer's own delivery)
+    return () => { alive = false; fonts?.removeEventListener?.('loadingdone', again); off(); };
   }, [colKey]);
   // (a Doppler column is wider than a pressure's: the grid's columns follow what each holds)
   // (the name's column takes what the value columns leave: fewer columns, a wider name; the site stands over its rows as a heading row on a phone, so a name has its column to itself)
   // (and never narrower than the longest word a name holds, which cannot break: "Schistosomiasis" ran under the next column's arrows, capture 4fb2f869)
   const longest = useMemo(() => longestWord(model.rows.map((r) => r.title)), [model.rows]);
-  const grid = `minmax(var(--dk-name), 2fr) ${model.cols.map((c) => (c.k === 'wave' ? 'minmax(0, 3.4fr)' : 'minmax(0, 1fr)')).join(' ')}`;
+  // (and each value column never narrower than what its cells print: "0.50" ran to the table's edge and "113/72 (86)" stood on three lines when every column was an equal share of what the name left, capture f23a4c59)
+  const { grid, need } = useMemo(() => gridOf(model.cols.map((c) => c.k), model.cols.map((c, j) => colChars(model.rows.map((r) => r.cells[j])))), [model]);
   return (
-    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${up ? ' dk-up' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-wn' as string]: longest, ['--dk-grid' as string]: grid }}>
+    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${up ? ' dk-up' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-wn' as string]: longest, ['--dk-grid' as string]: grid, ['--dk-cols' as string]: need }}>
       <table>
         <thead>
           <tr ref={headRow} className={up ? 'th-up' : undefined}>

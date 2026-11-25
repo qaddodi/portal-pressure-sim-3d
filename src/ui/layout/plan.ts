@@ -89,6 +89,8 @@ export const footDrop = (vp: Viewport) => Math.max(vp.safe.bottom, 0) + 8 - foot
 const DATA_LEAST = 150;
 export const CARD_GAP = 8;   // least room between two cards, or a card and a strip
 export const PILL_GAP = 6;   // least room between a strip and the pill
+/** The least room between a centred panel's foot and the pill under it (a phone's panel is 8 px from the top; its room ends this far over the pill's top). */
+export const PANEL_PILL_CLEAR = 4;
 export const topEdge = (vp: Viewport, m: number): number => Math.max(m, vp.safe.top);
 export const footEdge = (vp: Viewport, m: number): number => vp.h - Math.max(m, vp.safe.bottom);
 
@@ -163,8 +165,11 @@ export function centredBox(vp: Viewport, kind: CentredKind, visual = 'outline'):
   }
   if (stack) {
     // a phone's panel: 8 px from the top, 64 px (and the home bar) clear at the foot, centred between; an upright iPad's is 70% wide
+    // (and never past the pill: it stands at the screen's foot over the panel's room, so a screen with no home-bar inset, whose 72 px left the card's foot 22 px under the pill, gets the room above the pill instead:
+    //  Circuit 11 on a 390 x 844 capture. A phone with the inset keeps its 72 + inset, which already ends above the pill: the same number as before.)
     const sb = Math.max(safe.bottom, 0), w = layout === 'tab' ? 0.7 * vp.w : vp.w - 16;
-    return { w: Math.round(w), maxH: Math.round(vp.h - 72 - sb), top: 8, room: vp.h - 72 - sb };
+    const room = Math.min(vp.h - 72 - sb, Math.round(barOf(vp).rect.y - PANEL_PILL_CLEAR - 8));
+    return { w: Math.round(w), maxH: room, top: 8, room };
   }
   const m = clampN(4 * pzh, 16, 56);
   let w = Math.min(1560, vp.w - 2 * Math.max(clampN(0.03 * vp.w, 16, 64), safe.left, safe.right));
