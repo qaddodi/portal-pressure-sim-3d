@@ -9,7 +9,9 @@ test('wall landings: the paraumbilical collateral (C3), the umbilical (REX), the
   const ls = wallLandings(new Set());
   const key = (l: { v: { id: string }; end: number; host: { id: string } }) => `${l.v.id}:${l.end}->${l.host.id}`;
   const names = ls.map(key);
-  for (const want of ['C3:0->PVH_L_1', 'REX:1->PVH_L_1', 'S_PC:1->IVC_IS_1', 'C9:0->IVC_IS_1', 'DIPS:1->IVC_IS', 'S_MC:1->ILI_IVC_1', 'C1b:1->AZY_SVC']) assert.ok(names.includes(want), `${want} is found (${names.join(' ')})`);
+  for (const want of ['C3:0->PVH_L_1', 'REX:1->PVH_L_1', 'S_PC:1->IVC_IS_1', 'C9:0->IVC_IS_1', 'S_MC:1->ILI_IVC_1', 'C1b:1->AZY_SVC']) assert.ok(names.includes(want), `${want} is found (${names.join(' ')})`);
+  // (the DIPS's cava end is no wall landing on the placed anatomy: it ends at IVC_D, the node the cava is cut at, an arm of that node's skin; tests/skin-shunts.test.ts pins it welded at both ends)
+  assert.ok(!names.some((n) => n.startsWith('DIPS:1->')), 'the DIPS ends at the cava\'s node IVC_D, not on its wall');
   assert.ok(!names.includes('C9:1->AZY_SVC'), 'the lumbar vein is the azygos\'s start (Plan 16D, starts.ts RUNS_INTO), not a landing on its wall');
   assert.equal(typeof wall.wallJunctions, 'function', 'the virtual nodes are back, for STATIC full-size growers (the weld hands over at growth 0.9 to 1)');
   assert.equal(typeof wall.attachNear, 'function');
