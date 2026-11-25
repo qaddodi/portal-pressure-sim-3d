@@ -67,7 +67,7 @@ export function valueText(k: string, f: Fp): string {
 
 /** After a TIPS the gradient that is read is the PPG; the HVPG the model still prints is its own output, so a table shows it no arrow. */
 export const AFTER_TIPS_SR = 'not read after a TIPS: the gradient read is the PPG';
-const AFTER_TIPS_LEGEND = 'the HVPG is not read after a TIPS, the PPG is';
+const AFTER_TIPS_LEGEND = 'HVPG not read after a TIPS (the PPG is)';
 
 export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: string) => Fp | null = () => null): TableModel {
   const cols = spec.cols ?? DEFAULT_COLS, ascCols = spec.asc ?? !spec.cols;

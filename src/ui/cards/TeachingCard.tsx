@@ -1,4 +1,4 @@
-import { raisesOnly } from './roll-reserve.ts';
+import { raisesOnly, printedEnds } from './roll-reserve.ts';
 import { Fragment, useMemo, type CSSProperties } from 'react';
 import type { EqPart, Slide } from '../../decks/schema.ts';
 import { Line } from './Line.tsx';
@@ -56,7 +56,7 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
     const tl = (copiedOf(deck.id)?.slides[idx] as { tool?: { lines?: readonly string[] } } | undefined)?.tool?.lines;
     const model = tl ? modelLines(tl) : [], rows = Array.isArray(here.trail) ? (here.trail as readonly (readonly number[])[]) : [];
     return (key: string, whole: boolean): readonly string[] | undefined => {
-      if (key === 'map' || key === 'plt') return undefined;
+      if (key === 'map' || key === 'plt') return printedEnds(key, fps, whole);
       const vals = fps.map((f) => f[key]).filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
       const c = model.indexOf(key);
       if (c >= 0) for (const r of rows) { const v = r[1 + c]; if (typeof v === 'number' && Number.isFinite(v)) vals.push(v); }

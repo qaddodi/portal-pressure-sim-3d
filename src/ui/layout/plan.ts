@@ -85,8 +85,6 @@ export const footDrop = (vp: Viewport) => Math.max(vp.safe.bottom, 0) + 8 - foot
 
 /** ONE geometry for the gaps between cards, strips, the pill and the screen's edges (Plan 37: several literals for one gap, some ignoring the safe areas, put the words over the data strip,
  *  the data card over the words strip, the pill on the strip and a card under the home bar). Every top is `topEdge`, every bottom `footEdge`; the strip's lift and the cards' caps derive from them. */
-/** The least an instrument card keeps beside a words card too tall for the column (its title and a short chart). */
-const DATA_LEAST = 150;
 export const CARD_GAP = 8;   // least room between two cards, or a card and a strip
 export const PILL_GAP = 6;   // least room between a strip and the pill
 /** The least room between a centred panel's foot and the pill under it (a phone's panel is 8 px from the top; its room ends this far over the pill's top). */
@@ -249,8 +247,9 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     // A phone never closes a card on its own (Plan 42, Mohammad 23 Nov: "a card is supposed to be up"). With both cards the column between the data card's top and the words card's foot
     // (the figure keeps its 2D floor) is shared: the data card keeps what the words leave, never under 40% of the column; the words take the rest and page when they are taller.
     // `shut` and the strip stay for the wallet (an iPhone on its side) and the reader's own dock only.
+    // (the column the two cards share: what is left of the screen once the figure has its floor)
+    const col = bottom - dtop - figFloorOf(vp.h) - 2 * CARD_GAP;
     if (words && data) {
-      const col = bottom - dtop - figFloorOf(vp.h) - 2 * CARD_GAP;
       const dataFloor = Math.round(0.4 * col);
       maxH.data = Math.round(Math.min(dmax, Math.max(col - wh, dataFloor)));
       maxH.words = Math.round(col - Math.min(dh, maxH.data));
@@ -261,13 +260,14 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     short = !!data && !!words && (data.want ?? 0) > maxH.data + 0.5;   // (the instrument was held short by this room: the title steps first, Plan 43)
     // 2D's dock: the reader's choice (kept from slide to slide) puts the data card away to its edge at the top; the words stay where they are
     docked = dock && !!data && !!words;
-    // Two cards never stand on each other (Stiffness 12 page 2, capture 572259fd: a words card of 645 px under a 240 px instrument on a 894 px phone, 11 px of the instrument over its tag). The figure's floor
-    // above gave way first; when the two cards alone are taller than the column, the instrument keeps what the words leave (never under DATA_LEAST) and the words take the rest, which they report as
-    // an overflow, so the card layer pages or steps the card instead of the planner stacking one on the other.
+    // Two cards never stand on each other, and the figure never gives up its floor (Stiffness 12 page 2, capture 572259fd: a words card of 645 px under a 240 px instrument on a 894 px phone;
+    // Variceal bleed 14 and TIPS complete 4, capture 49141fb9: an instrument as tall as 547 px left the figure a speck). The figure's floor holds first: when the two cards together are taller
+    // than the shared column, the instrument keeps what the words leave (never under 40% of the column, never over its own cap) and the words take the rest, which they report as an overflow,
+    // so the card layer pages the words and zooms or holds the instrument instead of the planner taking the figure's room.
     let dh2 = dh, wh2 = wh;
-    if (words && data && !docked && wh + dh + CARD_GAP > bottom - dtop) {
-      dh2 = Math.round(Math.max(Math.min(dh, DATA_LEAST), Math.min(dh, bottom - dtop - CARD_GAP - wh)));
-      wh2 = Math.round(Math.min(wh, bottom - dtop - CARD_GAP - dh2));
+    if (words && data && !docked && wh + dh > col) {
+      dh2 = Math.round(Math.min(dh, maxH.data));
+      wh2 = Math.round(Math.min(wh, col - dh2));
       maxH.data = Math.min(maxH.data, dh2); maxH.words = Math.min(maxH.words, wh2);
     }
     if (data && !docked) placed.push({ id: data.id, slot: 'data', rect: { x, y: dtop, w, h: dh2 } });

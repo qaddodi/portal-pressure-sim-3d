@@ -34,6 +34,12 @@
 /* The credit fades, never pops (2D's page shows and hides it at once; here the Sinusoid's vessel takes its corner away on a phone and it comes back when the view is left). The class is `.covered` (no bare spot) or `.moving` (a new spot: out, move, in). */
 .sh-root > .app .stage-credit { transition: opacity var(--d-small) var(--ease-arrive); }
 .sh-root > .app .stage-credit:is(.covered, .moving) { opacity: 0; }
+/* The floating credit is page text over the figure: a vein, a catheter or a label under it ran through the line (Mac, Carvedilol 5 and Variceal bleed 14, capture 49141fb9).
+   A halo of the page's own colour keeps the line readable on any figure. */
+.sh-root > .app .stage-credit {
+  color: color-mix(in srgb, var(--text) 62%, transparent);
+  text-shadow: 0 0 2px var(--bg), 0 0 5px color-mix(in srgb, var(--bg) 90%, transparent), 0 0 10px color-mix(in srgb, var(--bg) 70%, transparent);
+}
 /* On an iPhone a talk's words card carries the credit in its own foot row (2D `.pz-cred`), so the floating one, which hunted for bare figure and could land on a card's words, is away for the whole talk (2D app-05: display none; here it fades, and stays away between two cards) */
 @media (min-height: 601px) { .deck-ui:is([data-layout="stack"], [data-layout="tab"]):has(.pz-cred) ~ .sh-root[data-mode="deck"] .stage-credit.placed { opacity: 0; }   /* (DeckUi is the .sh-root's previous sibling, Shell.tsx. Only while a card that carries the credit is up: a slide whose one card is a table has no words card and so no foot row, and the floating line, which keeps clear of cards, bars and labels, stands for it: capture 2a54261a, HVPG 14, Doppler 13 and Sites 11 had no © at all) */ }
 /* the 2D dialog (About the model, References, Privacy) sits in the shell, whose root takes no taps */

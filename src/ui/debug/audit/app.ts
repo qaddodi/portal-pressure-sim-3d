@@ -158,7 +158,14 @@ export function seenMemo(win: Window): (el: Element) => number {
   const f = (el: Element): number => { const hit = m.get(el); if (hit !== undefined) return hit; const up = el.parentElement && el.parentElement !== el.ownerDocument.documentElement ? f(el.parentElement) : 1; const v = up * (parseFloat(win.getComputedStyle(el).opacity) || 0); m.set(el, v); return v; };
   return f;
 }
-const BAR_SEL = BARS.map((b) => b[1]).join(', ');
+/** The credit line a words card carries in its own foot (phone, upright iPad, phone on its side). The floating one is `.stage-credit`, above. */
+export const CARD_CREDIT = '.dk-card .pz-cred';
+/** The smallest box around some boxes (the lines of one text), or null when there are none. */
+export function unionBox(boxes: readonly Box[]): Box | null {
+  if (!boxes.length) return null;
+  return boxes.reduce((a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])] as Box);
+}
+const BAR_SEL = [...BARS.map((b) => b[1]), CARD_CREDIT].join(', ');
 const KID_SEL = 'button, [class*="pill"], [class*="chip"], [class*="tile"], svg circle';
 
 /** The box that stays visible for an element: the overlap of every ancestor that clips (overflow other than visible on either axis, or paint containment), or null when nothing clips it. An svg is its own clip (its overflow is hidden by default). */
@@ -228,6 +235,13 @@ export function readLayout(doc: Document = document, win: Window = window): Layo
     .map((el) => ({ id: el.dataset.card ?? 'card', title: titleOf(el), box: box(el), kids: kidsOf(win, el, vis), charts: chartsOf(win, el, vis) }));
   const bars: LayoutRead['bars'] = [];
   for (const [id, sel] of BARS) doc.querySelectorAll<HTMLElement>(sel).forEach((el) => { const b = box(el); if (b[2] - b[0] > 1 && b[3] - b[1] > 1 && seen(win, el) > 0.5) bars.push({ id, box: b }); });
+  // the © in a words card's foot row is aria-hidden and its box spans the card: the bar is the printed line itself
+  const range = doc.createRange();
+  doc.querySelectorAll<HTMLElement>(CARD_CREDIT).forEach((el) => {
+    range.selectNodeContents(el);
+    const line = unionBox(Array.from(range.getClientRects(), (q) => [r1(q.left), r1(q.top), r1(q.right), r1(q.bottom)] as Box));
+    if (line && seen(win, el) > 0.5) bars.push({ id: 'card credit', box: line });
+  });
   const labels: LayoutRead['labels'] = [];
   doc.querySelectorAll<HTMLElement>('.lb[data-on]').forEach((el) => labels.push({ name: (el.querySelector('.lb-name')?.textContent ?? '').trim(), box: box(el), alpha: parseFloat(win.getComputedStyle(el).opacity) || 0 }));
   return { vw: win.innerWidth, vh: win.innerHeight, cards, bars, labels };

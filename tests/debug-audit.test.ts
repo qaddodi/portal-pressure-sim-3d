@@ -340,3 +340,16 @@ test('srOnlyMemo asks each element once and a hidden ancestor hides what is insi
   assert.equal(f(cell), true); assert.equal(f(table), true); assert.equal(f(other), false);
   assert.equal(reads, 3);   // (the cell under the hidden table is not even read)
 });
+
+test('the © a words card carries in its foot row is a bar: the choices of Carvedilol 5 stood on it (iPad, capture 49141fb9) and the audit had no word for that', async () => {
+  const { unionBox, CARD_CREDIT } = await import('../src/ui/debug/audit/app.ts');
+  assert.equal(CARD_CREDIT, '.dk-card .pz-cred');
+  assert.equal(unionBox([]), null);
+  assert.deepEqual(unionBox([[40, 700, 200, 717], [60, 690, 220, 705]]), [40, 690, 220, 717]);
+  // the line is as wide as its words, not as wide as the card: a button beside it is not under it
+  type B = [number, number, number, number];
+  const kids = [{ what: 'Usual responder', box: [150, 790, 240, 814] as B }, { what: 'Non-responder', box: [20, 790, 100, 814] as B }];
+  const card = { id: 'teach', box: [16, 500, 374, 820] as B, kids };
+  const under = layoutFindings({ vw: 390, vh: 844, cards: [card], bars: [{ id: 'card credit', box: [120, 800, 270, 817] }], labels: [] });
+  assert.deepEqual(under.filter((x) => x.kind === 'covered').map((x) => x.where), ['card teach, Usual responder, card credit']);
+});

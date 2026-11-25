@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { colChars, gridOf, VALUE_CH, COL_PAD_PX } from '../src/ui/cards/table-words.ts';
+import { colChars, gridOf, VALUE_CH, COL_PAD_PX, WAVE_MIN, waveMaxH } from '../src/ui/cards/table-words.ts';
 
 const read = (f: string) => readFileSync(new URL(f, import.meta.url), 'utf8');
 
@@ -22,8 +22,9 @@ test('the grid: the name\'s least is --dk-name-fit, a value column starts at its
   assert.equal(g.grid, `minmax(var(--dk-name-fit), 2fr) minmax(calc(4ch + ${COL_PAD_PX}px), 1fr) minmax(calc(2.5ch + ${COL_PAD_PX}px), 1fr) minmax(calc(2.5ch + ${COL_PAD_PX}px), 1fr) minmax(calc(4ch + ${COL_PAD_PX}px), 1fr)`);
   assert.equal(g.need, `calc(13ch + ${4 * COL_PAD_PX}px)`);
   const w = gridOf(['pv', 'wave'], [VALUE_CH, 0]);
-  assert.match(w.grid, /minmax\(0, 3\.4fr\)$/);
-  assert.equal(w.need, `calc(2.5ch + ${COL_PAD_PX}px)`, 'the Doppler column asks for nothing');
+  assert.equal(w.grid.split(' ').slice(-2).join(' '), `minmax(${WAVE_MIN}, 3.4fr)`, 'the Doppler column has a floor of its own');
+  assert.equal(w.need, `calc(2.5ch + ${COL_PAD_PX}px + ${WAVE_MIN})`, 'and the name gives way for it, as for a value column (Doppler 13, iPhone: a 25 px trace, "No flow" cut)');
+  assert.ok(waveMaxH(6) < waveMaxH(3), 'a table of six rows takes the shorter trace');
 });
 
 test('the card writes the grid from its printed cells, and the CSS lets the name give way for them (never under its longest word)', () => {

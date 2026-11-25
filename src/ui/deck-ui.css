@@ -230,7 +230,11 @@
 .pz-tight .pz-table.dk-pztable .pz-foot { padding: .32em 1em .4em; }
 .pz-table.dk-pztable .tn { margin: 0; line-height: 1.15; overflow-wrap: normal; -webkit-hyphens: manual; hyphens: manual; }
 .deck-ui .pz-table.dk-pztable tbody tr th[scope="row"] .pz-kick { display: none; }
-.dk-tnone.dk-noflow { font: 500 max(var(--t-cap), .72em) / 1.2 var(--ui, system-ui); letter-spacing: 0; }   /* (a flat trace says so in words, under its line) */
+.dk-tnone.dk-noflow { font: 500 max(var(--t-cap), .72em) / 1.2 var(--ui, system-ui); letter-spacing: 0; }
+/* A flat trace says so in words, in the empty half under its baseline: it was a line of its own, which made that row ~20 px taller than the rest (the last row of Doppler 13 cut on a laptop) and, in a narrow
+   column, ran past the cell. The label stays inside the cell and on one line. */
+.pz-table td.wave { position: relative; min-width: 0; }
+.pz-table td.wave .dk-noflow { position: absolute; inset: auto 0 3px; white-space: nowrap; }
 
 /* ── settings ── */
 .dk-settings { position: relative; }
