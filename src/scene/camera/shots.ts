@@ -1,6 +1,6 @@
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { x3, y3 } from '../frame2d.ts';
-import { boxOfNames, centreOf, FIGURE_NAMES, type Box3 } from '../anatomy/source.ts';
+import { boxOfNames, centreOf, FIGURE_NAMES, VISIBLE_FIGURE_NAMES, type Box3 } from '../anatomy/source.ts';
 
 // Named shots for the HVPG slice. A shot says what to look at (target, direction, how close at least, how much of the body it needs
 // on screen); the room solver (room.ts) then fits it into whatever room the cards leave free on this device. Frontal view: the patient's
@@ -69,7 +69,7 @@ export const SHOT_SUBJECTS: Readonly<Record<ShotName, readonly string[]>> = {
   // (the wedge sits in the main right hepatic vein's trunk, short of its fork: Mohammad 24 Nov, docs/approved/anatomy-placement.md; the frame keeps the fork and its branches round it)
   wedge: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'IVC_IS'],
   hvpg: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'IVC_IS'],
-  play: FIGURE_NAMES,
+  play: VISIBLE_FIGURE_NAMES,
   pick: ['PV_TRUNK', 'PV_TRUNK_1', 'SV_CONF', 'SV_MID', 'V_SPL', 'SMV_CONF', 'V_INT', 'V_INT_1', 'V_IMV', 'V_COL', 'LGV_CONF', 'PVH_R', 'PVH_R_1', 'PVH_R_2', 'PVH_L', 'PVH_L_1', 'rpva', 'rpvp'],
 };
 
@@ -90,10 +90,11 @@ export function viewReach(b: Box3, s: Pick<Shot, 'yaw' | 'pitch' | 'target'>): [
 }
 /** The room kept round a placed subject inside a shot's half extents, scene units (about 1 cm of body). */
 export const SHOT_MARGIN = 0.04;
-/** The whole figure's share of the free room and the margin kept round it (Mohammad, 25 Nov: "Zoom fit: decrease the upper and lower margin between end of figure and UI so it's more zoomed"). The margin is 0.01 (a part keeps SHOT_MARGIN 0.04): the two ends, the esophagus and the colon, fade out.
- *  Free play (the Fit button's frame) is aimed at the figure's own middle (wholeFigureShot) and fills WHOLE_FILL 0.89 of the room, the most its names allow (0.90 leaves the inferior vena cava's name 112 px from its vessel on a phone: tests/labels-small-figure.test.ts); because the frame is
- *  now the figure itself, not the 2D plate's larger box, that is 5 % closer than the 0.92 it had. A talk's overview has its stations held by `keep`, so it fills DECK_WHOLE_FILL 0.94. */
-export const WHOLE_FILL = 0.89, DECK_WHOLE_FILL = 0.94, WHOLE_MARGIN = 0.01;
+/** The whole figure's share of the free room and the margin kept round it (Mohammad, 25 Nov: "Zoom fit: decrease the upper and lower margin between end of figure and UI so it's more zoomed"; then "there is still quite a bit of margin, it doesn't look centered"). The margin is 0.01 (a part keeps SHOT_MARGIN 0.04).
+ *  Free play (the Fit button's frame) fills WHOLE_FILL 0.92 of the room, the most its names allow today: at 0.93 the right sinusoids' name finds no place on a 393 pt phone (tests/labels-give-way.test.ts). A talk's overview has its stations held by `keep`, so it fills DECK_WHOLE_FILL 0.94. */
+/** How much of the way from the 2D plate's old aim to the figure's own middle the figure is carried across: 0.75 leaves it 3 pt off centre on a phone (it was 12.5). All the way takes the right sinusoids' name out of the phone's figure (tests/labels-give-way.test.ts, phone 393): its dot stands 97 px from the left edge. */
+export const WHOLE_CENTRE_X = 0.75;
+export const WHOLE_FILL = 0.92, DECK_WHOLE_FILL = 0.94, WHOLE_MARGIN = 0.01;
 /** A shot carried onto the placed anatomy: the same turn, tilt and nearest distance; the target moved as its subject's middle moved, at the subject's depth; the half extents the shot's own,
  *  grown only where the placed subject would reach past them. */
 export function placedShot(s: Shot, names: readonly string[], margin = SHOT_MARGIN): Shot {
@@ -105,15 +106,15 @@ export function placedShot(s: Shot, names: readonly string[], margin = SHOT_MARG
   const grow = (h: number, k: 0 | 1) => Math.max(h, reach[k] + margin);
   return { ...s, target, half: [grow(s.half[0], 0), grow(s.half[1], 1)], ...(s.halfNarrow ? { halfNarrow: [grow(s.halfNarrow[0], 0), grow(s.halfNarrow[1], 1)] as [number, number] } : {}) };
 }
-/** The whole figure as a shot (free play): aimed at the middle of the placed figure, so both ends stand the same distance from the room's edge, and framed on what it reaches plus WHOLE_MARGIN. Root cause of the empty band above the esophagus: the 2D plate's aim (712, 491) stood 0.125 units above the placed figure's middle,
- *  so the half extent took the farther end and the nearer end had that much extra empty room on top of its margin (Mohammad, 25 Nov, a phone screenshot: 130 px above, 85 px below). */
+/** The whole figure as a shot (free play): aimed at the middle of the organs' silhouette (VISIBLE_FIGURE_NAMES), across and up and down, and framed on what it reaches plus WHOLE_MARGIN. Root cause of the lopsided figure (Mohammad, 25 Nov, a phone screenshot: 68 pt of empty room on the left and 43 on the right, 37 above and 23 below, measured
+ *  on the organs): the aim was the 2D plate's (712, 491) carried across, not the figure's own middle, and the frame took in the vessels and the esophagus' faded top as well. */
 function wholeFigureShot(s: Shot, names: readonly string[]): Shot {
-  const was = boxOfNames(names, false).box, now = boxOfNames(names, true).box;
-  if (!was || !now) throw new Error('the whole figure names nothing placed');
-  const cw = centreOf(was), cn = centreOf(now);
-  // (across, the placed aim as before: the names stand round the figure's width, so it keeps the room it had; up and down, the figure's own middle)
-  const target: Vec3 = [s.target[0] + cn[0] - cw[0], cn[1], cn[2]], reach = viewReach(now, { ...s, target });
-  return { ...s, target, half: [Math.max(s.half[0], reach[0] + WHOLE_MARGIN), reach[1] + WHOLE_MARGIN], fill: WHOLE_FILL };
+  const now = boxOfNames(names, true).box, was = boxOfNames(names, false).box;
+  if (!now || !was) throw new Error('the whole figure names nothing placed');
+  const c = centreOf(now), cw = centreOf(was);
+  // (across: the figure's middle, less WHOLE_OFF_LEFT of the way back to where the 2D plate's aim stood; up and down: the figure's own middle)
+  const old = s.target[0] + c[0] - cw[0], target: Vec3 = [c[0] + (old - c[0]) * (1 - WHOLE_CENTRE_X), c[1], c[2]], reach = viewReach(now, { ...s, target });
+  return { ...s, target, half: [reach[0] + WHOLE_MARGIN, reach[1] + WHOLE_MARGIN], fill: WHOLE_FILL };
 }
 export const SHOTS: Readonly<Record<ShotName, Shot>> = Object.fromEntries(Object.entries(TODAY_SHOTS).map(([k, s]) => [k, k === 'play' ? wholeFigureShot(s, SHOT_SUBJECTS.play) : placedShot(s, SHOT_SUBJECTS[k as ShotName])])) as Record<ShotName, Shot>;
 

@@ -199,6 +199,9 @@ export function seenAt(host: string, r: number, x: number, y: number, z: number)
 }
 const unseen = new Set<string>();
 const REST_STEPS = 100;
+/** Where a name's dot rests on its vessel when the seen-and-apart search below would put it elsewhere: the lower IVC's is low on its vein (0.42 along it, among the veins' seen stretch below the liver). The search chose its top, among the liver's veins and beside the right sinusoids' name,
+ *  and the name found no place near it once the figure was framed closer (a 112 px leader on a phone; Mohammad 25 Nov, "Zoom fit ... more zoomed", tests/labels-small-figure.test.ts). */
+const AT_REST_U: Readonly<Record<string, number>> = { IVCI: 0.42 };
 (function spreadAtRest() {
   const dots: Vector3[] = [], tmp = new Vector3();
   // (the names the figure shows from the start first: a name only the slide or the viewer asks for keeps clear of them, never the other way round)
@@ -225,7 +228,7 @@ const REST_STEPS = 100;
       }
       if (best < 0) { unseen.add(s.id); continue; }
       if (bestEdge !== s.vessel) { const c = curveOf(bestEdge)!; s.vessel = bestEdge; s.at = (u, out) => c.getPointAt(Math.min(1, Math.max(0, u)), out); }
-      s.u0 = best;
+      s.u0 = AT_REST_U[s.id] ?? best;
       // (where else the solver may slide it: the seen stretches, sampled every hundredth of the course)
       const v = NETWORK_BY_ID.get(s.vessel!)!, ok: boolean[] = [];
       for (let i = 0; i <= REST_STEPS; i++) { s.at(i / REST_STEPS, tmp); ok.push(seenAt(v.host, v.radius, tmp.x, tmp.y, tmp.z) > 0); }

@@ -73,11 +73,11 @@ test('the control: without the hand\'s view the same pinch IS a cut (names froze
 
 test('a true cut (the picture jumps and no hand moved it) fades the names out at the picture before it; the camera going on moving never leaves a name standing off its dot, and they come back riding it once it stops', () => {
   const w = world(true); w.run(1500);
-  w.set({ dx: 90 }); w.frame();
+  w.set({ dx: -70 }); w.frame();
   assert.ok(w.ctl.out.every((x) => x.alpha > 0), 'a cut never hides a label in one frame');
   w.set({ moving: true });
   let off = 0;
-  for (let i = 0; i < 90; i++) { w.set({ dx: 90 + i }); w.frame(); if (i * 16 > FADE.settleMs + 32 && !w.dotsOnAnchors()) off++; }   // (until the fade is over the names stand where they were, tied to their fade)
+  for (let i = 0; i < 90; i++) { w.set({ dx: -70 - i / 2 }); w.frame(); if (i * 16 > FADE.settleMs + 32 && !w.dotsOnAnchors()) off++; }   // (until the fade is over the names stand where they were, tied to their fade)
   assert.equal(off, 0, 'no frame draws a visible name off its dot');
   w.set({ moving: false }); w.run(1500);
   assert.ok(w.names().length >= 3 && w.dotsOnAnchors(), 'back, on their dots');

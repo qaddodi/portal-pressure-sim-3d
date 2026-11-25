@@ -272,3 +272,7 @@ export const FIGURE_NAMES: readonly string[] = [
   'liver', 'stomach', 'esophagus', 'spleen', 'kidney-l', 'heart', 'heart-ra', 'duodenum', 'bowel', 'colon',
   ...Object.keys(PLACED_COURSES).filter((k) => !PLACED_VESSELS[k]?.extra && !PLACED_VESSELS[k]?.aOnly),
 ];
+
+/** What the whole figure shows as its body, placed: the organs (the esophagus down to the colon), without the vessels. The whole-figure frames (free play, a talk's overview, the Fit button) are framed on this, centred on it: the thin vein ends that stand a little past it
+ *  (the superior vena cava's top, 0.11 units above the esophagus) need no room of their own (Mohammad, 25 Nov: "it doesn't look centered", measured by tests/camera-fit-margin.test.ts on the organs' silhouette). */
+export const VISIBLE_FIGURE_NAMES: readonly string[] = ['liver', 'stomach', 'esophagus', 'spleen', 'kidney-l', 'heart', 'duodenum', 'bowel', 'colon'];

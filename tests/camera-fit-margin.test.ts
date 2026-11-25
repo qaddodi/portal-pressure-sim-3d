@@ -7,7 +7,8 @@ import { SHOTS, WHOLE_FILL, DECK_WHOLE_FILL, WHOLE_MARGIN, SHOT_MARGIN, viewReac
 import { effectiveDistance, FILL, fullRoom } from '../src/scene/camera/room.ts';
 import { camPlan } from '../src/decks/hp/cams.ts';
 import { shotOfCam } from '../src/decks/ag/shots.ts';
-import { boxOfNames, FIGURE_NAMES } from '../src/scene/anatomy/source.ts';
+import { boxOfNames, FIGURE_NAMES, VISIBLE_FIGURE_NAMES, PLACED_ORGAN_BOX } from '../src/scene/anatomy/source.ts';
+import { freeRoom, layoutClass } from '../src/ui/shell/room.ts';
 
 const SCREENS = [
   { name: 'iPhone upright', w: 390, h: 844, room: { w: 390, h: 546 } },
@@ -49,7 +50,22 @@ test('the rig keeps a shot\'s fill and keep points when it lands (a copy that dr
   assert.equal(rig.pose.shot.fill, 0.97);
 });
 
-test('free play is aimed at the figure\'s own middle: as far from the room\'s top as from its bottom (the 2D plate\'s aim stood 0.125 units too high, leaving 130 px above and 85 below on a phone)', () => {
-  const box = boxOfNames(FIGURE_NAMES, true).box!, s = SHOTS.play;
-  assert.ok(Math.abs((box[4] - s.target[1]) - (s.target[1] - box[1])) < 1e-9, `top ${(box[4] - s.target[1]).toFixed(3)}, bottom ${(s.target[1] - box[1]).toFixed(3)}`);
+test('free play on the real rooms: the organs\' silhouette stands centred up and down (gaps equal) and across (within 3 % of the room\'s width), with 7 % or less of the room\'s height empty at each end; measured on the organs, not the vessels', () => {
+  const organs = VISIBLE_FIGURE_NAMES.map((n) => PLACED_ORGAN_BOX[n]!);
+  const x0 = Math.min(...organs.map((b) => b[0])), x1 = Math.max(...organs.map((b) => b[3])), y0 = Math.min(...organs.map((b) => b[1])), y1 = Math.max(...organs.map((b) => b[4]));
+  const screens = [
+    { name: 'iPhone', vp: { w: 393, h: 852, safe: { top: 59, right: 0, bottom: 34, left: 0 } }, thumb: true },
+    { name: 'iPad', vp: { w: 820, h: 1180, safe: { top: 24, right: 0, bottom: 20, left: 0 } }, thumb: true },
+    { name: 'Mac', vp: { w: 1440, h: 900, safe: { top: 0, right: 0, bottom: 0, left: 0 } }, thumb: false },
+  ] as const;
+  const s = SHOTS.play;
+  for (const { name, vp, thumb } of screens) {
+    const room = freeRoom(vp as never, layoutClass(thumb)), d = effectiveDistance(s, room, vp.h, vp.w), pxu = vp.h / (2 * TAN) / d;
+    const X = (x: number) => room.x + room.w / 2 + (x - s.target[0]) * pxu, Y = (y: number) => room.y + room.h / 2 - (y - s.target[1]) * pxu;
+    const left = X(x0) - room.x, right = room.x + room.w - X(x1), top = Y(y1) - room.y, bottom = room.y + room.h - Y(y0);
+    assert.ok(Math.abs(top - bottom) < 1, `${name}: ${top.toFixed(1)} above, ${bottom.toFixed(1)} below`);
+    assert.ok(Math.abs(left - right) <= room.w * 0.03, `${name}: ${left.toFixed(1)} left, ${right.toFixed(1)} right`);
+    assert.ok(top <= room.h * 0.07 && bottom <= room.h * 0.07, `${name}: ${top.toFixed(1)} above, ${bottom.toFixed(1)} below, of ${room.h.toFixed(0)}`);
+    console.log(`# ${name}: room ${room.w} x ${room.h.toFixed(0)}; organs: left ${left.toFixed(0)}, right ${right.toFixed(0)}, top ${top.toFixed(0)}, bottom ${bottom.toFixed(0)} px`);
+  }
 });

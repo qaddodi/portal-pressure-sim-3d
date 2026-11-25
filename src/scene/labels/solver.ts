@@ -248,6 +248,8 @@ export function slideInView(path: readonly (readonly [number, number])[], view: 
 
 // Dots kept apart: where two stations' dots stand closer than DOT_ROOM, the lower ranked slides along its own vessel to the nearest clear point.
 const SLIDES = [0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.18, 0.82];
+/** A name nobody asked for stands at most this far from its vessel (the length of its leader, px). */
+export const NAME_LEAD_MAX = 88;
 function spreadDots(items: Anchored[], view: Box, blockers: readonly Box[]): void {
   // (a dot gives way only to a more important one: the portal confluence never slides off its vessel's middle because the hepatic artery, which runs beside it and is named last, could not find a clear place)
   const near = (it: Anchored, x: number, y: number) => items.some((o) => o !== it && rank(o, it) < 0 && Math.hypot(o.ax - x, o.ay - y) < DOT_ROOM);
@@ -321,7 +323,7 @@ export function solve(input: SolveInput): Solved {
   let dropped: string[] = [];
   let skipped: string[] = [];
 
-  const tryItem = (it: Anchored, relax: 0 | 1 | 2, offOrgans = false, strictLines = false, nearOnly = false, standOnly = false) => {
+  const tryItem = (it: Anchored, relax: 0 | 1 | 2, offOrgans = false, strictLines = false, nearOnly = false, standOnly = false, maxLead = it.offVessels ? NAME_LEAD_MAX : Infinity) => {
     const blockers = relax >= 2 ? blockersRaw : blockersAir;
     let best: { cost: number; form: number; c: Cand; box: Box; leader: boolean; seg: Seg | null; hits: number } | null = null;
     const tally = input.why ? (input.why.get(it.id) ?? (input.why.set(it.id, {}), input.why.get(it.id)!)) : null;
@@ -365,6 +367,7 @@ export function solve(input: SolveInput): Solved {
             const [px, py] = nearestOn(it.pad ? { x0: box.x0 + it.pad.x, y0: box.y0 + it.pad.y, x1: box.x1 - it.pad.x, y1: box.y1 - it.pad.y } : box, it.ax, it.ay);
             seg = [it.ax, it.ay, px, py];
             const len = Math.hypot(px - it.ax, py - it.ay);
+            if (len > maxLead) { if (tally) no(c, 'maxLead'); continue; }
             if (len > (it.reach ?? LONG_LEAD + (it.vw ?? 0) + 10) && c.cost < 100) { if (tally) no(c, 'reach'); continue; }
             if (len > SHORT_LEAD) pen += (len - SHORT_LEAD) * 0.2;
             if (leaderLineCost > 0 && len > 1) {

@@ -62,7 +62,7 @@ function framesSubject(what: string, s: Shot, subject: Box3 | null): void {
 /** What a slide camera names, as placed names (the same reading the cameras make): the region subjects, a raw box's subject, an `{ on }` list, or the whole figure. */
 function subjectOf(cam: unknown): Box3 | null {
   const names = (c: unknown): string[] => {
-    if (c == null || c === 'fit') return [...src.FIGURE_NAMES];
+    if (c == null || c === 'fit') return [...src.VISIBLE_FIGURE_NAMES];
     if (typeof c === 'string') return [...src.REGION_SUBJECTS[c]!];
     if (Array.isArray(c) && c.length === 4 && c.every((n) => typeof n === 'number')) return src.subjectOfBox2(c as unknown as readonly [number, number, number, number], src.HIDDEN_EDGES);
     if (Array.isArray(c)) return c.flatMap((r) => [...src.REGION_SUBJECTS[r as string]!]);

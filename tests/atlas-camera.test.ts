@@ -187,7 +187,11 @@ test('the play shot\'s middle and half extents hold every organ outline and ever
     const b = placedBoxOfName(n); assert.ok(b, `no placed box for ${n}`);
     grow(b![0] * 300 + 700, -b![4] * 300 + 556); grow(b![3] * 300 + 700, -b![1] * 300 + 556);   // ([x0, y0, z0, x1, y1, z1])
   }
+  const [ox0, ox1, oy0, oy1] = [x0, x1, y0, y1];
+  // (the vessels' courses may run a little past the frame, 30 plate units (0.1 world units): their far ends fade out, so the frame is the organs' silhouette; Mohammad 25 Nov, "still quite a bit of margin")
+  const FADE_ENDS = 30;
   for (const c of figureCourses()) { if (c.v.kind === 'collateral' || c.v.kind === 'shunt') continue; for (const q of c.pts) grow(q.x * 300 + 700, -q.y * 300 + 556); }
+  x0 = Math.min(x0 + FADE_ENDS, ox0); x1 = Math.max(x1 - FADE_ENDS, ox1); y0 = Math.min(y0 + FADE_ENDS, oy0); y1 = Math.max(y1 - FADE_ENDS, oy1);
   const s = SHOTS.play, cx = s.target[0] * 300 + 700, cy = -s.target[1] * 300 + 556;
   assert.ok(cx - s.half[0] * 300 <= x0 + 3 && cx + s.half[0] * 300 >= x1 - 3, `x ${x0.toFixed(0)}..${x1.toFixed(0)} against ${(cx - s.half[0] * 300).toFixed(0)}..${(cx + s.half[0] * 300).toFixed(0)}`);
   assert.ok(cy - s.half[1] * 300 <= y0 + 3 && cy + s.half[1] * 300 >= y1 - 3, `y ${y0.toFixed(0)}..${y1.toFixed(0)} against ${(cy - s.half[1] * 300).toFixed(0)}..${(cy + s.half[1] * 300).toFixed(0)}`);

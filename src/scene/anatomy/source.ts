@@ -18,6 +18,6 @@ export const ANATOMY_ID: AnatomyId = 'placed';
  *  organs' placed silhouettes and name anchors (placed-organs.generated.ts, measured once by scripts/gen-placed-organs.mjs). The cameras and the organ names read them. */
 export {
   placedEdge, placedNode, placedMorph, placedBoxOfName, todayBoxOfName, boxOfNames, growBox3, box2Of, centreOf, unionBox3, REGION_SUBJECTS, placedRegionBox,
-  subjectOfBox2, placedBoxOfBox2, FIGURE_NAMES, WHOLE_OF, GROW, GROW_FLOOR, type Box3, type Box2,
+  subjectOfBox2, placedBoxOfBox2, FIGURE_NAMES, VISIBLE_FIGURE_NAMES, WHOLE_OF, GROW, GROW_FLOOR, type Box3, type Box2,
 } from './placed-bounds.ts';
 export { PLACED_ORGAN_BOX, PLACED_ORGAN_RINGS, PLACED_ORGAN_NAMES } from './placed-organs.generated.ts';
