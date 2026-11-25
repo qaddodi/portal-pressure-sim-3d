@@ -34,5 +34,9 @@ test('live is only ever said when build-info.txt names the commit', () => {
   const behind = verdict(info, 'ee227bc7', 5);
   assert.equal(behind.live, false); assert.match(behind.line, /^NOT LIVE after 5 min: preview serves 68f9aa30 .*expected ee227bc7/);
   assert.equal(verdict({}, 'ee227bc7', 5).live, false); assert.match(verdict({}, 'ee227bc7', 5).line, /could not be read/);
+  // a later build that carries the commit (git says so) is live too; an unrelated one is not
+  const later = verdict({ commit: '83b21ca3', built: '2026-11-25T18:10:26.449Z', checks: 'ok' }, 'eee0a8f4', 1, true);
+  assert.equal(later.live, true); assert.match(later.line, /^live: eee0a8f4 is inside the served build 83b21ca3/);
+  assert.equal(verdict({ commit: '83b21ca3' }, 'eee0a8f4', 5, false).live, false);
   assert.equal(namesCommit('68f9aa30', '68f9aa30cafe1234'), true); assert.equal(namesCommit('', ''), false); assert.equal(namesCommit('abc', 'abc'), false);
 });
