@@ -6,6 +6,8 @@ import { Fragment, useEffect, useState } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useSettings, FIGURE_DETAIL } from '../../state/settings.ts';
 import { DEPTH_ROWS, AUTO_DETAIL_ROW } from './depth-rows.ts';
+import { FigurePresets, useFigurePreset } from './FigurePresets.tsx';
+import { MORE_NOW, MORE_PAGE_TITLE } from './preset-rows.ts';
 import type { LookChoice } from '../../looks/looks.ts';
 import { useShell } from '../shell/store.ts';
 import { useUi } from '../ui-store.ts';
@@ -18,7 +20,7 @@ import { usesBottomBar } from '../shell/room.ts';
 import { FULLSCREEN, CAPTURE } from '../shell/words.ts';
 import { feedbackEmail } from '../shell/feedback.ts';
 import { sendFeedback } from '../shell/send-feedback.ts';
-import { SECTIONS, type Row } from './rows.ts';
+import { SECTIONS, settingsRow, type Row } from './rows.ts';
 import { Advanced } from './Advanced.tsx';
 import { FromReadings, FR_WORDS, openFromReadings, warmFromReadings } from '../readings/FromReadings.tsx';
 import { useTalkOn } from '../../state/deck.ts';
@@ -80,7 +82,7 @@ function CaptureRow() {
   </>);
 }
 
-type PageId = 'history' | 'help' | 'advanced';
+type PageId = 'history' | 'help' | 'advanced' | 'figure';
 function Item({ row, push }: { row: Row; push(p: PageId): void }) {
   const close = () => useShell.getState().close();
   const fs = useFullscreen();
@@ -134,6 +136,21 @@ function DepthSwitch({ row }: { row: (typeof DEPTH_ROWS)[number] }) {
   return <MenuToggle checked={on} icon={row.icon} label={row.label} sub={row.hint} onChange={(v) => useSettings.getState().set(row.key, v)} />;
 }
 
+/** The page behind Figure's "More" row (review R6): the ten switches the presets set, each on its own, as the sheet showed them before the presets. Changing one reads as Custom on the main page. */
+function FigureMore() {
+  const at = useFigurePreset();
+  return (<>
+    <small className="fs-hint">{MORE_NOW(at)}</small>
+    <MenuGroup title="Display">
+      <Switch row={settingsRow('Display', 'Blur effect')} />
+      <FigureDetail />
+      <AutoDetail />
+      <Switch row={settingsRow('Display', 'Sharp while moving')} />
+    </MenuGroup>
+    <DepthGroup />
+  </>);
+}
+
 export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
   const talk = useTalkOn();
   const phone = usesBottomBar(useUi((s) => s.device));
@@ -142,7 +159,7 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
   const [pageId, setPageId] = useState<PageId | null>(null);
   const open = useShell((s) => s.sheet === 'settings');
   useEffect(() => { if (!open) setPageId(null); else void warmFromReadings().catch(() => undefined); }, [open]);   // (From readings is loaded by the time its row is tapped)
-  const page: MenuPage | null = pageId === 'history' ? { back: label, title: HIST.title, body: <HistoryList /> } : pageId === 'help' ? { back: label, title: 'Help', body: <HelpRows /> } : pageId === 'advanced' ? { back: label, title: 'Advanced physiology', body: <Advanced /> } : null;
+  const page: MenuPage | null = pageId === 'history' ? { back: label, title: HIST.title, body: <HistoryList /> } : pageId === 'help' ? { back: label, title: 'Help', body: <HelpRows /> } : pageId === 'advanced' ? { back: label, title: 'Advanced physiology', body: <Advanced /> } : pageId === 'figure' ? { back: label, title: MORE_PAGE_TITLE, body: <FigureMore /> } : null;
   return (<>
     <MenuPop kind="settings" label={label} title={label} align="end" side={place === 'bar' ? 'above' : 'below'} page={page} onBack={() => setPageId(null)}>
       {SECTIONS.map((sec, i) => {
@@ -151,15 +168,14 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
         return (<Fragment key={i}>
           <MenuGroup title={sec.title}>
             {sec.title === 'Appearance' ? <Looks names={rows.map((r) => r.row)} /> : rows.map(({ row }) => {
-              if (row.label.startsWith('Figure detail: ')) return null;
-              if (row.label === 'Figure detail') return <Fragment key={row.label}><FigureDetail /><AutoDetail /></Fragment>;
+              if (row.label.startsWith('Figure detail: ') || row.label === 'Blur effect' || row.label === 'Sharp while moving') return null;   // (under Figure > More: FigureMore)
+              if (row.label === 'Figure detail') return <FigurePresets key={row.label} onMore={() => setPageId('figure')} />;
               if (row.kind === 'switch') return <Switch key={row.label} row={row} />;
               return <Item key={row.label} row={row} push={setPageId} />;
             })}
             {i === 0 ? <CaptureRow /> : null}
             {sec.title === 'Model' ? <MenuItem icon="rewind" label={FR_WORDS.title} kb={FR_WORDS.sub} title={FR_WORDS.hint} onClick={openFromReadings} /> : null}
           </MenuGroup>
-          {sec.title === 'Display' ? <DepthGroup /> : null}
         </Fragment>);
       })}
     </MenuPop>

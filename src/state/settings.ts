@@ -37,6 +37,8 @@ export interface Settings {
 interface Store extends Settings {
   setLook(l: LookChoice): void; setBlur(on: boolean): void;
   set<K extends keyof Settings>(key: K, value: Settings[K]): void;
+  /** Several settings in one change and one save (a Figure preset writes ten). */
+  setMany(patch: Partial<Settings>): void;
   reset(): void;
 }
 
@@ -83,6 +85,7 @@ export const useSettings = create<Store>((set, get) => ({
   setLook: (look) => { set({ look, lookChosen: true }); save({ ...get(), look, lookChosen: true }); },
   setBlur: (blur) => { set({ blur }); save({ ...get(), blur }); },
   set: (key, value) => { set({ [key]: value } as Pick<Settings, typeof key>); save({ ...get(), [key]: value }); },
+  setMany: (patch) => { set(patch); save({ ...get(), ...patch }); },
   reset: () => { const d = parseSettings(null); set(d); save(d); },
 }));
 

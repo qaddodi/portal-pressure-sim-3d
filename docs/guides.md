@@ -35,4 +35,4 @@ A paragraph is rewritten in its own text block (the guides are ReportLab output:
 
 ## When to update them
 
-When a change alters anything a guide shows or says (buttons, Settings rows, Send feedback, the first steps), update both PDFs in the same push and keep the file names. A Settings picture and its rows must match the app's Settings sheet (Appearance: Light, Soft, Dark, Navy, Black, System; Display: Blur effect, Figure detail, Sharp while moving, Keyboard shortcuts). `tests/guides.test.ts` checks the files exist, point at the 3D preview and carry no address.
+When a change alters anything a guide shows or says (buttons, Settings rows, Send feedback, the first steps), update both PDFs in the same push and keep the file names. A Settings picture and its rows must match the app's Settings sheet (Appearance: Light, Soft, Dark, Navy, Black, System; Display: Figure Cool, Balanced, Rich and a More page holding Blur effect, Figure detail, Auto detail, Sharp while moving and the Figure depth switches (docs/approved/figure-presets.md); Keyboard shortcuts). `tests/guides.test.ts` checks the files exist, point at the 3D preview and carry no address.

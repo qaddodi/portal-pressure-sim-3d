@@ -56,7 +56,7 @@ test('Auto detail is a setting (on by default, saved), a switch under the Figure
   assert.equal(parseSettings(JSON.stringify({ autoDetail: false })).autoDetail, false);
   assert.equal(parseSettings(null).autoDetail, true);
   const sheet = readFileSync(new URL('../src/ui/settings/SettingsSheet.tsx', import.meta.url), 'utf8');
-  assert.match(sheet, /<FigureDetail \/><AutoDetail \/>/);
+  assert.match(sheet, /<FigureDetail \/>\s*<AutoDetail \/>/);   // (under Figure > More since the presets, R6)
   const stage = readFileSync(new URL('../src/scene/Stage.tsx', import.meta.url), 'utf8');
   assert.match(stage, /st\.autoDetail \? gov\.drop : 0/);
 });
