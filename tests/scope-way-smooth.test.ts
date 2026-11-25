@@ -42,3 +42,20 @@ test('the sideways shift has no step: it changes by less than 0.0015 per 0.005 o
   for (let y = 2.5; y > 0.95; y -= 0.005) worst = Math.max(worst, Math.abs(wayShift(y) - wayShift(y - 0.005)));
   assert.ok(worst < 0.0015, `largest shift per 0.005 of height ${worst.toFixed(5)}`);
 });
+
+test('the scope stays in the middle of the drawn oesophagus at its top: within a fifth of the tube\'s width of the slice\'s middle, and the tube\'s own edges run straight there', async () => {
+  await organsReady;
+  const { ORGAN_MESHES } = await import('../src/scene/organs/meshes.ts');
+  const pos = ORGAN_MESHES.stomach!().getAttribute('position').array, w = scopeWay();
+  const edge = (y: number): [number, number] => { let lo = Infinity, hi = -Infinity; for (let i = 0; i < pos.length; i += 3) if (Math.abs(pos[i + 1]! - y) < 0.006) { lo = Math.min(lo, pos[i]!); hi = Math.max(hi, pos[i]!); } return [lo, hi]; };
+  let worstOff = 0, worstEdge = 0, prev: [number, number] | null = null;
+  for (const p of w.pts) {
+    const y = y3(p[1]); if (y > 2.02 || y < 1.7) continue;
+    const [lo, hi] = edge(y), x = x3(p[0]) + wayShift(y);
+    worstOff = Math.max(worstOff, Math.abs(x - (lo + hi) / 2) / (hi - lo));
+    if (prev) worstEdge = Math.max(worstEdge, Math.abs(lo - prev[0]), Math.abs(hi - prev[1]));
+    prev = [lo, hi];
+  }
+  assert.ok(worstOff < 0.2, `the scope is ${(worstOff * 100).toFixed(0)} % of the tube's width off its middle`);
+  assert.ok(worstEdge < 0.002, `the tube's edge moves ${worstEdge.toFixed(4)} between samples`);
+});
