@@ -60,6 +60,22 @@ export interface LobuleModel {
 
 const revOf = (q: number, q0: number | undefined) => q < -Math.max(0.12, 0.02 * Math.abs(q0 ?? 1));
 
+/** The sinusoids' blood as one beat has it: the live frame's sinusoid flow against the healthy patient's (signed), and whether it runs backwards at this instant. */
+export interface BloodBeat { flow: number; rev: boolean }
+
+/**
+ * The sinusoids' blood at this instant of the heart, from a frame's beat-by-beat flows `Q` (never the beat-averaged `Qf`). The one thing in the lobule and the sinusoid that pulses with the
+ * heart (right heart failure, tricuspid regurgitation, constriction swing it hard, a healthy liver a little): the blood's speed. Everything else, every colour, width and reading, is the
+ * shown, steady model (`lobuleModel` on `Pf`/`Qf`, the 23 Nov rule), so a number never shakes. Lost on 23 Nov when the whole model moved to the shown flows; restored here.
+ */
+export function bloodBeat(Q: ArrayLike<number>, healthy?: HealthyRef | null): BloodBeat {
+  const e = EI[LOBE.q]!, q = Q[e]!, q0 = healthy?.Q[e] || Math.abs(q) || 1;
+  return { flow: q / q0, rev: revOf(q, healthy?.Q[e]) };
+}
+
+/** The sinusoid's blood speed against healthy, signed, from a flow ratio and the sinusoidal resistance (2D sinusoidTargets `v`): shown or live, one rule. */
+export const bloodSpeed = (flow: number, rev: boolean, zoneSin: number): number => (rev ? -1 : 1) * clamp(Math.abs(flow) / Math.max(0.35, zoneSin ** -0.24), 0.08, 3);
+
 /** The lobule's state for a frame against the healthy reference. With no reference the flows read 1 (as healthy) and congestion 0.
  *  `params`: the patient's parameter set (the worker's `presetLoaded` and `setParams`); a frame carries them only when they changed, so the caller keeps the newest. */
 export function lobuleModel(f: LobuleFrame, healthy?: HealthyRef | null, params?: unknown): LobuleModel {
@@ -151,7 +167,7 @@ export function sinusoidTargets(m: LobuleModel): SinusoidTargets {
     act: m.act,
     lum: m.zone.sin ** -0.12 * (1 + 0.5 * m.congU),
     pinch: 0.22 * m.act,
-    v: (m.rev.sin ? -1 : 1) * clamp(Math.abs(m.flow) / Math.max(0.35, m.zone.sin ** -0.24), 0.08, 3),
+    v: bloodSpeed(m.flow, m.rev.sin, m.zone.sin),
     filt: clamp(lymph, 0, 6),
     prot: lymphProtein(m),
   };

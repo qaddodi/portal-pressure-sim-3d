@@ -59,6 +59,10 @@ export class SinusoidView {
   /** The way the blood runs along the sinusoid (+1 toward the central vein, -1 reversed). */
   get flowDir(): number { return Math.sign(this.cur.v || 1); }
   private goal: Cur = { ...REST };
+  /** The blood's speed as the traffic runs it (signed, against healthy): the shown mean's `cur.v` plus the heart's beat in it,
+   *  eased the same way. Only the traffic reads it; the end arrows, the names and every other reading go by `cur.v`, which holds still. */
+  private readonly run = { v: 1 };
+  private readonly runGoal = { v: 1 };
   private visible = false;
   private lastNow = -1;
   private look: LookId;
@@ -104,7 +108,9 @@ export class SinusoidView {
     this.geo = { xs, xk: xkFor(false), pores };
     const S = this.cur;
     this.g = createGeom({ S, geo: this.geo, UM });
-    this.traffic = createTraffic({ S, geo: this.geo, VW: this.VW, model: this.model, rng, clamp, lerp, smooth, poreOpenness, ...this.g });
+    // (the traffic sees the state with the blood's speed swapped for the beating one: every other number it reads is `cur`'s own, live)
+    const driven: Cur = Object.create(S, { v: { get: () => this.run.v, enumerable: true } });
+    this.traffic = createTraffic({ S: driven, geo: this.geo, VW: this.VW, model: this.model, rng, clamp, lerp, smooth, poreOpenness, ...this.g });
     this.pal = createPalette({
       S, model: this.model, cssv: (n: string, d?: string) => this.token(n, d), rgb: (c: unknown) => this.rgbOf(c),
       pressureColor: (p: number) => samplerFor(this.look, 'pressure').at(p, [0, 0, 0]),
@@ -141,9 +147,11 @@ export class SinusoidView {
   setVisible(v: boolean): void { this.visible = v; this.group.visible = v; this.dirty = true; if (!v) this.washOn = false; }
   get isVisible(): boolean { return this.visible; }
 
-  /** Targets from the model (sinusoidTargets of the lobule's model). They ease in. */
-  setTargets(t: SinusoidTargets): void { Object.assign(this.goal, t); this.dirty = true; }
-  snapTargets(t: SinusoidTargets): void { this.setTargets(t); Object.assign(this.cur, this.goal); }
+  /** Targets from the model (sinusoidTargets of the lobule's model, the shown, steady numbers). They ease in. `live` is the blood's
+   *  speed at this beat (bloodSpeed of a bloodBeat): the traffic runs at it, so the blood pulses with the heart while nothing else
+   *  shakes; without it the blood runs at the shown mean (a held moment, a patient with no beat). */
+  setTargets(t: SinusoidTargets, live?: number): void { Object.assign(this.goal, t); this.runGoal.v = live ?? t.v; this.dirty = true; }
+  snapTargets(t: SinusoidTargets, live?: number): void { this.setTargets(t, live); Object.assign(this.cur, this.goal); this.run.v = this.runGoal.v; }
   /** The lens, look, model and reference the lumen's colour comes from (the 2D sinusoid is coloured by the pressure of its sinusoids, P2). */
   setInk(ctx: InkContext): void { this.ink.ctx = ctx; this.model.P2 = ctx.model.P2; this.model.lyProt = ctx.model.lyProt; this.dirty = true; }
   /** The dive's share, 0 to 1 (see diveShare), while the camera flies between the lobule and this view; null at rest (the tissue whole, everywhere). */
@@ -201,6 +209,7 @@ export class SinusoidView {
     let moving = this.dirty;
     this.dirty = false;
     if (easeToward(this.cur as unknown as Record<string, number>, this.goal as unknown as Record<string, number>, this.reduce ? 1e6 : dt)) moving = true;
+    if (easeToward(this.run, this.runGoal, this.reduce ? 1e6 : dt)) moving = true;
     // the wedged column's wash (2D: only while a slide asks for it, and once the view has landed; it begins afresh each time it lands)
     const wantWash = this.washOn && this.dive == null;
     if (!wantWash) this.washLand = -1; else if (this.washLand < 0) this.washLand = Math.max(now, this.washAt);

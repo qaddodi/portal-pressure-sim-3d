@@ -39,7 +39,9 @@ export function HvpgTool({ fp, cath, catheter, forward }: { fp: Rec | null; cath
         const c = L.current;
         st.t = c.t; st.v = c.lv ?? { fhvp: 0, whvp: 0, hvpg: 0 }; st.running = c.running;
         if (c.running) syncWave(wave, latest.frame, c.t, clock.now());
-        return hvpgFrame(key, st, w, h, `HVPG catheter tracing${c.lv ? `: free ${c.lv.fhvp.toFixed(1)}, wedged ${c.lv.whvp.toFixed(1)}, HVPG ${c.lv.hvpg.toFixed(1)} mmHg` : ''}`);
+        // (the spoken label holds the HVPG back too, until the subtraction is on the trace: the headline's rule, T.sum)
+        const said = c.lv ? `: free ${c.lv.fhvp.toFixed(1)}, wedged ${c.lv.whvp.toFixed(1)}${c.t >= T.sum ? `, HVPG ${c.lv.hvpg.toFixed(1)}` : ''} mmHg` : '';
+        return hvpgFrame(key, st, w, h, `HVPG catheter tracing${said}`);
       },
     };
   }, []);

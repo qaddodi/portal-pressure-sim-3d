@@ -47,3 +47,27 @@ test('the tracing starts where the catheter is: carried on from the last slide, 
   assert.equal(startAt({ to, carry: null, follow: true, figure: to + 5000, forward: true }), to, 'a figure past the reading (a jump): the finished tracing');
   assert.equal(startAt({ to, carry: null, follow: true, figure: null, forward: false }), to, 'no catheter on the figure: the finished tracing');
 });
+
+// Mohammad, 25 Nov: "the monitor should not show the 11.1 HVPG yet, until we actually do the math on screen".
+// Root cause: HVPG_SCRIPT.status read the HVPG whenever the tracing was not running, so a card held at the end of the wedge (STEP_T.wedge = T.result) showed it before the bracket from the free to the
+// wedged level (the subtraction) was drawn; and the headline's words changed in one frame. Now it reads the HVPG only from T.sum, and eases in. The same script draws the talk card, the slide card and the IR pane.
+test('the HVPG headline waits for the subtraction on the trace, and eases in', async () => {
+  const { hvpgFrame } = await import('../src/ui/tests/ir/hvpg.ts');
+  const { T, newWave } = await import('../src/ui/tests/copied/hvpg-clock.copied.js');
+  const { STEP_T } = await import('../src/ui/talk/hvpg-plan.ts');
+  const v = { fhvp: 5.2, whvp: 16.3, hvpg: 11.1 };
+  const draw = (t: number, running: boolean) => {
+    const f = hvpgFrame({}, { ph: 'run', t, v, blocked: false, running, wave: newWave() }, 420, 230, 'x');
+    return (f.shapes.filter((s) => s.k === 'text') as unknown as { s: string; color: number[] }[]).map((s) => ({ s: s.s, a: s.color[3]! }));
+  };
+  const has = (t: number, running: boolean, w: string) => draw(t, running).some((x) => x.s === w);
+  for (const running of [false, true]) {
+    assert.equal(has(STEP_T.wedge, running, '11.1'), false, `held at the wedge reading (running ${running}): no HVPG number yet`);
+    assert.equal(has(T.sum - 1, running, '11.1'), false, 'until the result time');
+    assert.equal(has(T.sum - 1, running, '16.3'), true, 'the wedge reading stands in the headline');
+  }
+  assert.equal(draw(T.sum, false).some((x) => x.s === '11.1' && x.a < 0.1), true, 'the HVPG starts at nothing');
+  assert.equal(draw(T.sum + 225, false).some((x) => x.s === '11.1' && x.a > 0 && x.a < 1), true, 'part way: the HVPG eases in');
+  assert.equal(draw(T.sum + 225, false).some((x) => x.s === '16.3' && x.a > 0 && x.a < 1), true, 'while the wedge reading eases out');
+  assert.equal(draw(STEP_T.result, false).some((x) => x.s === '11.1' && x.a === 1), true, 'the finished tracing: the HVPG, whole');
+});
