@@ -16,3 +16,6 @@
 
 ## Never
 - A glow, a pill, a chip or a dot-and-pill; a box behind the numeral.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

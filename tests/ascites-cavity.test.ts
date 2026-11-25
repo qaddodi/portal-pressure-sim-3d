@@ -22,14 +22,16 @@ const gutAt = (y: number): [number, number] => {
   return [l, r];
 };
 
-test('the wall holds the whole gut at every volume, the rectum included, with room (it was 117 units wide each side and 57 short under the rectum)', () => {
+test('the wall holds the whole gut at every volume, the rectum included, with room (it was 117 units wide each side and 57 short under the rectum); the floor starts just under the rectum', () => {
   for (const st of STEPS) {
     const p = placedCavity(st, edges);
     for (let y = 560; y <= 1090; y += 10) {
       const [l, r] = gutAt(y), [wl, wr] = cross(p, y);
       assert.ok(wl <= l - 10 && wr >= r + 10, `step ${st} y ${y}: wall ${wl.toFixed(0)}..${wr.toFixed(0)} against gut ${l.toFixed(0)}..${r.toFixed(0)}`);
     }
-    assert.ok(Math.max(...p.map((q) => q[1])) >= 1098 + 20, `step ${st}: the floor stops short of the rectum`);
+    // the floor starts just a little under the rectum (Mohammad, 25 Nov: "a bit lower than the rectum"): 6 to 25 units under its lowest point, never short of it, never far under it
+    const under = Math.max(...p.map((q) => q[1])) - Math.max(...rings.colon.map((q) => q[1]));
+    assert.ok(under >= 6 && under <= 25, `step ${st}: the floor is ${under.toFixed(0)} under the rectum`);
   }
 });
 

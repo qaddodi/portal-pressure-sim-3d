@@ -203,7 +203,8 @@ function onScreen(f: Pick<Frame, 'shot'>, b: Box3, s: (typeof SCREENS)[number]) 
 }
 /** Least zoom a placed slide keeps of today's on the same screen (the body drawn as big as today's, within 5 %), unless its named subject needs the room. */
 const KEEP_ZOOM = 0.95;
-const todayFrames = JSON.parse(execFileSync(process.execPath, [`${root}tests/anatomy/slide-frames.ts`], { env: { ...process.env, PPS_ANATOMY: 'today' }, maxBuffer: 1 << 26 }).toString()) as Record<string, Frame>;
+// (the 2D figure's frames, frozen at the cut-over from its last default commit f17b151a: `PPS_ANATOMY=today node tests/anatomy/slide-frames.ts` there)
+const todayFrames = JSON.parse(readFileSync(`${root}tests/fixtures/slide-frames-today.json`, 'utf8')) as Record<string, Frame>;
 const placedFrames = await slideFrames();
 
 test('every region names only what today\'s region box shows at least half of (a vessel the box only touches pulls the frame away from the subject)', () => {

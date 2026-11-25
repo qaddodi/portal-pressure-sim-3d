@@ -9,16 +9,11 @@ export {
 export { REGIONS_2D, CIRC_REGIONS_2D } from '../../decks/ag/regions.generated.ts';
 export { REGIONS as REGIONS_HP, CIRC_REGIONS as CIRC_REGIONS_HP } from '../../decks/hp/regions.copied.ts';
 
-/** Which placement the source holds: 'today' (the 2D figure's, as shipped) or 'placed' (the approved placement, docs/approved/anatomy-placement.md, while it is being built in:
- *  `?anatomy=new` on the address, or PPS_ANATOMY=placed for node). Read once at load: every module builds its anatomy at import, so a change is a reload. The cut-over makes
- *  'placed' the only one and deletes this switch. */
-export type AnatomyId = 'today' | 'placed';
-const want = ((): string | undefined => {
-  const g = globalThis as { location?: { search?: string }; process?: { env?: Record<string, string | undefined> } };
-  return g.location?.search?.match(/[?&]anatomy=([a-z]+)/)?.[1] ?? g.process?.env?.PPS_ANATOMY;
-})();
-export const ANATOMY_ID: AnatomyId = want === 'new' || want === 'placed' ? 'placed' : 'today';
-export const PLACED = ANATOMY_ID === 'placed';
+/** Which placement the source holds. Since the cut-over (Mohammad, 24 Nov 2026 5:31 PM ET: "After the thread is done make this the default and remove the old"; done 25 Nov) it is the approved placement only
+ *  (docs/approved/anatomy-placement.md); the 2D figure's own placement was last the default at commit f17b151a. The name stays so the readers that still branch on it compile to the one path. */
+export type AnatomyId = 'placed';
+export const ANATOMY_ID: AnatomyId = 'placed';
+export const PLACED = true as boolean;
 
 /** The approved placement by name (placed-bounds.ts): each engine edge's placed course, each node's place, each organ part's 3D box, the camera regions as lists of names, and the
  *  organs' placed silhouettes and name anchors (placed-organs.generated.ts, measured once by scripts/gen-placed-organs.mjs). The cameras and the organ names read them when PLACED. */

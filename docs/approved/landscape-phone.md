@@ -20,3 +20,6 @@ Tests: `tests/landscape-phone-plan.test.ts`, `tests/ui-layout.test.ts`, `tests/c
 
 Update 24 Nov 2026 (capture 4fb2f869 review). Mohammad: "i feel the landscape iphone card afford to be wider ... like the deck slides cards". The column is `sideColW` = 38 % of the screen, 290 to 360 px (321 at 844, 354 at 932; it was 32 %, 250 to 310). The figure keeps at least 40 % of the screen (`tests/landscape-phone-plan.test.ts`). Every other trait above stands.
 A summary table or chart slide (`visual: 'table'`) no longer stands alone in the column on a phone on its side: it was one card (title, line and the table) far taller than the column's room, clipped at the foot with the © line on the table (Lobule 10, Gradients 13, Where is the resistance? 12, Lowering pressure 9). It is the pair every slide with an instrument is: the words card, the table or chart under it, the swipe (`src/ui/cards/phone-panel.ts`, `tests/capture-4fb2f869.test.ts`). The outline, the quick check and a case still stand alone.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

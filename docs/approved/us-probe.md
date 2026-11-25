@@ -19,3 +19,6 @@ Rejected options (same sheets): graphite slim, pebble, paddle with a curvilinear
 Tests: `tests/probe-shape.test.ts` (outline, bands, seams, room), `tests/device-edges.test.ts` (colours, edges, rim, raw tones, tail fade).
 
 Open: the cable bends to one side of the probe's axis in the probe's own frame, so it mirrors when the probe stands on the other side of a vessel; the head is 1.3 px wider than the layout search's HALF (17.5) and the cable reaches the search's LEN (84), both left as they are because placement is not part of this change.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

@@ -63,7 +63,7 @@ test('a kept card whose new slide needs a taller box is replaced by a fresh card
 
 test('a card is let in only once its measured height has stood still, so a late row or readout cannot grow it on screen', () => {
   const layer = read('src/ui/cards/CardLayer.tsx');
-  assert.match(layer, /SETTLE_MS = 120, GIVE_UP_CARDS_MS = 700/);
+  assert.match(layer, /SETTLE_MS = 120, GIVE_UP_CARDS_MS = 8000/);
   assert.match(layer, /t: clock\.now\(\) \}/, 'the time of the last change of each measure');
   assert.match(layer, /&& settleLeft <= 0\)/, 'the gate (`measured`) waits for it');
   assert.match(layer, /clock\.after\(\(\) => setLate\(pagesKey\), GIVE_UP_CARDS_MS\)/, 'the give-up leaves room for it');
@@ -106,4 +106,12 @@ test('a control row of the action card is one column by specificity, whichever s
   const css = read('src/ui/action/action.css');
   assert.match(css, /\n\.ac-card \.ac-cs \{ grid-template-columns: minmax\(0, 1fr\); \}/);
   assert.match(read('src/ui/css2d/app-03-layouts.css'), /\.ac-cs \{ display: grid; grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/, 'the lifted 2D rule that the specific one outranks');
+});
+
+test('the reveal is a readiness gate, not a clock: a card comes in when the fonts, the charts, the slide\'s numbers and the height are all ready, and the time only guards a failed piece', () => {
+  const layer = read('src/ui/cards/CardLayer.tsx');
+  const gate = layer.slice(layer.indexOf('const measured ='), layer.indexOf('const [late, setLate]'));
+  for (const ready of [/\.f !== false/, /\.open \?\? 0\) === 0/, /settleLeft <= 0/, /\.n\.h > 0|n\.h > 0/]) assert.match(gate, ready);
+  assert.match(layer, /const go = fonts && !growing && \(numbers \|\| gaveUp === numbersKey\) && \(measured \|\| late === pagesKey\)/);
+  assert.match(layer, /GIVE_UP_CARDS_MS = 8000/);
 });
