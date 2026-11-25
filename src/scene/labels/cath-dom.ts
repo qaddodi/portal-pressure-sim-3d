@@ -96,6 +96,6 @@ export function buildCath(parent: HTMLElement): CathDom {
       if (b !== braceOp) { braceOp = b; brace.style.opacity = b; }
       if (b !== leadsOp) { leadsOp = b; sleads.style.opacity = b; }
     },
-    destroy(): void { pills.f.root.remove(); pills.w.root.remove(); leads.f.destroy(); leads.w.destroy(); sum.remove(); },
+    destroy(): void { for (const n of [pills.f.root, pills.w.root, leads.f.root, leads.w.root, sum]) n.remove(); },
   };
 }

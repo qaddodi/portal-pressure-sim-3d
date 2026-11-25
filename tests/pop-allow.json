@@ -5,12 +5,11 @@
   "scene/ContextNote.tsx": 1,
   "scene/circuit/CircuitCaptions.tsx": 2,
   "scene/labels/LabelLayer.tsx": 2,
-  "scene/labels/cath-dom.ts": 3,
+  "scene/labels/cath-dom.ts": 1,
   "scene/labels/clamp-marks.ts": 2,
-  "scene/labels/figure-cards.ts": 17,
+  "scene/labels/figure-cards.ts": 10,
   "scene/labels/probe-labels-dom.ts": 3,
   "scene/labels/roll.ts": 4,
-  "scene/labels/tag-dom.ts": 1,
   "scene/labels/waist-bracket.ts": 3,
   "scene/lobule/LobuleCaptions.tsx": 3,
   "scene/sinusoid/SinusoidCaptions.tsx": 3,
@@ -82,7 +81,6 @@
   "ui/css3d-over-2d.css | .pz-prail-cap > span.on"
  ],
  "why": {
-  "scene/labels/tag-dom.ts": "TagLead.destroy takes out a leader that is already at opacity 0 (its owner removes it once its alpha is 0, or the layer is unmounting); nothing visible leaves.",
   "ui/deck-ui.css (pz-tabname, dk-pztable)": "structure, not state: which of the card's two tags a layout shows (level rail or deck tab), and which columns the summary table has; the markup decides, nothing switches while it is open.",
   "ui/fade.css": "the fade primitive itself (the transition on display with allow-discrete is the ease).",
   "ui/histories/histories.css": "the menu's third tab, the same rules as 2D's two-tab menu (app-07-floating.css): the settled state of an off tab, entered by enterCol's fade-rise and held by .um-peer while it leaves."

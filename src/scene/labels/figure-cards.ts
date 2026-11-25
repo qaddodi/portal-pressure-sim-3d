@@ -65,6 +65,9 @@ export const RING_LEAD_MIN = 16;
 /** The air the words keep off a ring (its centre line out to the words' box): half the stroke, the leader, and the gap the leader stops short of the words. */
 export const RING_AIR = RING_STROKE / 2 + RING_LEAD_MIN + RING_LABEL_GAP;
 
+/** A caliper's or span's three nodes, taken out together (only once it is at opacity 0, or the layer is going): the one place they leave. */
+function takeOut(r: { root: Element; card: Tag; lead: TagLead }): void { for (const n of [r.root, r.card.root, r.lead.root]) n.remove(); }
+
 /** A leader from a ring's edge to its label: it starts on the ring (at its radius, on the line to the label's centre) and stops RING_LABEL_GAP short of the label's box, where that line enters it.
  *  null when the label stands too close for a line to show. */
 export function ringLeader(at: { x: number; y: number }, r: number, box: Box): [number, number, number, number] | null {
@@ -394,11 +397,11 @@ export class FigureCards {
       r.spec = c;
     }
     const wantCal = new Set(this.calipers.map((c) => c.id));
-    for (const [id, r] of this.cals) if (!wantCal.has(id) && r.a <= 0) { r.root.remove(); r.card.root.remove(); r.lead.destroy(); this.cals.delete(id); }
+    for (const [id, r] of this.cals) if (!wantCal.has(id) && r.a <= 0) { takeOut(r); this.cals.delete(id); }
     for (const c of this.calipers) { let r = this.cals.get(c.id); if (!r) { r = this.makeCaliper(c); this.cals.set(c.id, r); } r.spec = c; }
 
     const wantSpan = new Set(this.spans.map((c) => c.id));
-    for (const [id, r] of this.spanRecs) if (!wantSpan.has(id) && r.a <= 0) { r.root.remove(); r.card.root.remove(); r.lead.destroy(); this.spanRecs.delete(id); }
+    for (const [id, r] of this.spanRecs) if (!wantSpan.has(id) && r.a <= 0) { takeOut(r); this.spanRecs.delete(id); }
     for (const c of this.spans) { let r = this.spanRecs.get(c.id); if (!r) { r = this.makeSpan(c); this.spanRecs.set(c.id, r); } r.spec = c; }
 
     // where each named place stands now; any that moved hides the cards until the picture is still
@@ -748,8 +751,8 @@ export class FigureCards {
 
   destroy(): void {
     for (const r of this.recs.values()) { r.root.remove(); r.lead?.root.remove(); r.co?.root.remove(); }
-    for (const r of this.cals.values()) { r.root.remove(); r.card.root.remove(); r.lead.destroy(); }
-    for (const r of this.spanRecs.values()) { r.root.remove(); r.card.root.remove(); r.lead.destroy(); }
+    for (const r of this.cals.values()) takeOut(r);
+    for (const r of this.spanRecs.values()) takeOut(r);
     this.recs.clear(); this.cals.clear(); this.spanRecs.clear();
     calloutClaims.set([]);
   }

@@ -96,5 +96,4 @@ export class TagLead {
     return (this.k > 0 && this.k < 1) || (this.kd > 0 && this.kd < 1);
   }
   hide(): void { if (this.op !== '0') { this.op = '0'; this.root.style.opacity = '0'; } }
-  destroy(): void { this.root.remove(); }
 }
