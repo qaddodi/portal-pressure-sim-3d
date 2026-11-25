@@ -89,7 +89,7 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
     };
     // (the shader's skinArmHeld: the hold-out's share, 0 to 1; the outline takes it relative to the least-held arm, skin/shaders.ts skinSdPx)
     const armHeld = (a: number, fragW: number, kPx: number, fragP: readonly number[]): number => smooth(ramp[0] * kPx, ramp[1] * kPx, sd3(axes[a]!, fragP, 1) / Math.max(wpc(fragW), 1e-9) * dpr);
-    const sdPx = (fx: number, fy: number, fragW: number, kPx: number, inkPx: number, fragP?: readonly number[], seam?: { arm: number; pin: number }): number => {
+    const sdPx = (fx: number, fy: number, fragW: number, kPx: number, inkPx: number, fragP?: readonly number[], seam?: { pin: number }): number => {
       const sub = fragW >= 0 && !screenDepth ? Math.min(...axes.map((_, i) => armHeld(i, fragW, kPx, fragP!))) : 0;
       const d = axes.map((_, i) => armPx(fx, fy, i, fragW, kPx, inkPx, fragP, sub));
       let o = 0, first = true;
@@ -99,8 +99,8 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
         let di = d[i]!; if (m > i + 0.5) di = Math.min(di, d[m]!);
         o = first ? di : smin(o, di, kPx); first = false;
       }
-      // (on a seam ring the outline is the seam arm's own, shaders.ts skinSeamPin)
-      if (seam && seam.arm >= 0) { const m = mates[seam.arm]!; let own = d[seam.arm]!; if (m > -0.5) own = Math.min(own, d[m]!); o += (own - o) * seam.pin; }
+      // (on a seam ring the outline is the arms' plain minimum, the tubes' own, shaders.ts skinSeamPin)
+      if (seam && seam.pin > 0) o += (Math.min(...d) - o) * seam.pin;
       return o;
     };
     // the vertex stage: the surface stands the line (CSS px of it from the lumen's radius at the axis' depth) out of the rest shape
@@ -128,8 +128,8 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
         // (the pixel's place in the figure: the vertices' lumen positions, interpolated perspective-correct, as the varying vPos is)
         const fragP = [0, 1, 2].map((k) => (l0 * mesh.position[a * 3 + k]! / sw[a]! + l1 * mesh.position[b * 3 + k]! / sw[b]! + l2 * mesh.position[c * 3 + k]! / sw[c]!) * fragW);
         const wOf = (v: number, i: number): number => (i < 4 ? mesh.weight[4 * v + i]! : mesh.weight2[2 * v + i - 4]!);
-        let seamArm = -1, seamW = 0; for (let i = 0; i < n; i++) { const wi = (l0 * wOf(a, i) / sw[a]! + l1 * wOf(b, i) / sw[b]! + l2 * wOf(c, i) / sw[c]!) * fragW; if (wi > seamW) { seamW = wi; seamArm = i; } }
-        const seam = { arm: seamArm, pin: smooth(0.97, 1, seamW) };
+        let seamW = 0; for (let i = 0; i < n; i++) seamW = Math.max(seamW, (l0 * wOf(a, i) / sw[a]! + l1 * wOf(b, i) / sw[b]! + l2 * wOf(c, i) / sw[c]!) * fragW);
+        const seam = { pin: smooth(0.97, 1, seamW) };
         const sd = sdPx(fx, fy, ignoreDepth ? -1 : fragW, kPx, inkDev, fragP, seam);
         st.pixels++;
         if (!ignoreDepth && Math.abs(sd - sdPx(fx, fy, -1, kPx, inkDev, undefined, seam)) > 1) st.held++;

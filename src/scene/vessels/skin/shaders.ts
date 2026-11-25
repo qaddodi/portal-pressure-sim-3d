@@ -383,9 +383,10 @@ float skinOutsideTrunk(vec2 frag) {
 // ON A SEAM RING THE OUTLINE IS THE TUBE'S OWN (the seam's kink, tests/skin-agreement.test.ts, and the owner's iPhone close-up of the cava: stepped notches in the outline at both of IVCS's seams). The union is the arms' smooth minimum in SCREEN
 // space, held out by depth over a ramp of 1 k to 2 k; a seam ring is only k clear of the other arms in 3D, so a ring 1 k to 2 k from an arm whose silhouette overlaps it on the screen was still pulled into the blend: RHV_IVC_1~F:b's seam
 // 0.59 px inside the tube's own line (the liver branch over the right hepatic vein, 1.37 k behind it), C1b's on SVC 0.52 (over the azygos). Where one arm's raw weight runs from 0.97 to 1 (the seam ring and the last of its row, as the shade's
-// own hand-over, exact-normal.ts skinTubeKeep) the outline eases to that arm's own distance, so the line and the lumen run on from the tube on every skin and from every side. Main sets both.
+// own hand-over, exact-normal.ts skinTubeKeep) the outline eases from the smooth union to the arms' plain minimum: the tubes' own outlines, each as the tube draws it, with no blend. The line and the lumen then run on from the tube on
+// every skin and from every side, and where another arm truly overlaps the ring (in its depth, not held) its lumen still covers the line, as the tubes' do: pinned to the seam arm's own distance instead, the DIPS's ring at the portal fork
+// drew the left portal vein's rim across PVH's lumen again (1.5 %). Main sets it.
 float skinSeamPin = 0.0;
-int skinSeamArm = -1;
 float skinHoldSeam = 1.0;   // (how near a seam ring this pixel is, 0 to 1: main sets it from the kept arms' raw weights before the outline is judged; the hold-out's ramp eases from the free skin's to the seam's by it)
 float skinArmHeld(int arm, float fragW, vec3 fragP, float kPx) {
   vec3 g3; float r3;
@@ -421,7 +422,7 @@ float skinSdPx(float kPx, bool noDepth) {
     d = first ? di : skinSmin(d, di, kPx);
     first = false;
   }
-  if (skinSeamArm >= 0) { int s = skinSeamArm; float m = armCopy[s].w; float own = dArm[s]; if (m > -0.5) own = min(own, dArm[int(m + 0.5)]); d = mix(d, own, skinSeamPin); }
+  if (skinSeamPin > 0.0) { float hard = 1.0e9; for (int i = 0; i < ${SKIN_ARMS}; i++) if (armData[i].x >= 0.0) hard = min(hard, dArm[i]); d = mix(d, hard, skinSeamPin); }
   return d;
 }
 // WHO OWNS A HEAD (Mohammad, 20 Nov: a chevron cut in two at the fork). A head is drawn in its arm's frame and was weighted by the arm's mesh weight AT THE PIXEL, so where the ownership of the skin changes across a head, the head was cut along the line.
@@ -544,7 +545,6 @@ void main() {
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
   float wMax = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) wMax = max(wMax, rawW(i) * keepOf(i));   // (the raw weights of the arms that are THERE: wAt renormalises them, so an absent arm's seam ring read as a kept arm's weight 1 and the band stayed wide there)
-  for (int i = 0; i < ${SKIN_ARMS}; i++) if (skinSeamArm < 0 && rawW(i) * keepOf(i) >= wMax) skinSeamArm = i;   // (the arm that holds it: on its seam ring the outline is its own, skinSeamPin)
   skinSeamPin = smoothstep(0.97, 1.0, wMax);
   skinHoldSeam = smoothstep(0.75, 0.97, wMax);
   float sdPx = skinSdPx(kPx, false);

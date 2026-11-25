@@ -143,11 +143,11 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
           let di = d[i]!; if (m > i + 0.5) di = Math.min(di, d[m]!);
           o = first ? di : smin(o, di, kPx); first = false;
         }
-        // (on a seam ring the outline is the seam arm's own, shaders.ts skinSeamPin)
-        if (seamArm >= 0) { const m = mates[seamArm]!; let own = d[seamArm]!; if (m > -0.5) own = Math.min(own, d[m]!); o += (own - o) * seamPin; }
+        // (on a seam ring the outline is the arms' plain minimum, the tubes' own, shaders.ts skinSeamPin)
+        if (seamPin > 0) o += (Math.min(...d) - o) * seamPin;
         return o;
       };
-      let seamArm = -1, seamW = 0; for (let i = 0; i < n; i++) { const wi = raw[i]! * (cs.keep[i] ? 1 : 0); if (wi > seamW) { seamW = wi; seamArm = i; } }
+      let seamW = 0; for (let i = 0; i < n; i++) seamW = Math.max(seamW, raw[i]! * (cs.keep[i] ? 1 : 0));
       const seamPin = smooth(0.97, 1, seamW);
       const ref = sdOf(false, false, false);   // (the kept arms' union at their live widths: where the vessel is)
       let sd = sdOf(true, !!variant.holdoutLive, !!variant.absentInUnion);
