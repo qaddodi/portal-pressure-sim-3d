@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 10
     environment:
       name: github-pages
-      url: ${{ steps.deployment2.outputs.page_url || steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment3.outputs.page_url || steps.deployment2.outputs.page_url || steps.deployment.outputs.page_url }}
     steps:
       # main first, only package.json: whether main has the app decides if it is built at all
       - uses: actions/checkout@v4
@@ -144,7 +144,10 @@ jobs:
           done
           echo "artifact not listed after 20 s; deploying anyway"
       # Run 1579 root cause: the listing above already showed the artifact on the first look, yet deploy-pages' own metadata fetch (a different, slower-to-update read)
-      # answered "Found 0 artifact(s)" one second later. So the first attempt may fail on that lag; a second one runs after a short wait. A real failure (a bad deploy) fails both.
+      # answered "Found 0 artifact(s)" one second later. Runs 1825 and 1826 (25 Nov) failed the other way: GitHub itself answered "Failed to create deployment (status: 500)", and the preview
+      # kept serving a build two commits old while a thread called its fix live. Both are GitHub-side hiccups that a later look gets past, so the deploy is tried up to three times, 15 s and
+      # then 45 s apart (deploy-pages does not hand over the status code, so any failure is retried; a real bad deploy fails all three and the job fails, red, as before).
+      # scripts/preview-live.mjs is the other half: after a push it polls /preview/build-info.txt until it names the commit, and says so plainly when it does not.
       - id: deployment
         continue-on-error: true
         uses: actions/deploy-pages@v4
@@ -155,6 +158,15 @@ jobs:
         run: sleep 15
       - id: deployment2
         if: steps.deployment.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
+      - name: Wait before the third deploy attempt
+        if: steps.deployment2.outcome == 'failure'
+        run: sleep 45
+      - id: deployment3
+        if: steps.deployment2.outcome == 'failure'
         uses: actions/deploy-pages@v4
         with:
           artifact_name: github-pages-${{ github.run_attempt }}

@@ -4,6 +4,8 @@
 export const buildLabel = (build: string | undefined): string => { const c = (build ?? '').split('@').pop() ?? ''; return c && c !== 'dev' && c !== 'local' ? c : ''; };
 /** What the build's own checks found (`VITE_CHECKS`, scripts/build.mjs: "types: 3 errors, lint failed"), or nothing when they were clean: the pill shows it so a broken branch is never a quiet one. */
 export const buildChecks = (raw: string | undefined): string => (raw ?? '').trim();
+/** Whether any of those checks is a failure: "tests: 0 failing" is a count, not a fault, so a clean suite leaves the pill orange. */
+export const checksFailed = (raw: string | undefined): boolean => buildChecks(raw).split(', ').some((c) => c !== '' && !/^tests: 0 failing/.test(c));
 export const BADGE_H = 16;
 /** The pill's words: always the commit this page RUNS; when a newer build is out (`newer`: its commit, '' when not known; the pill is one line wide, so only the running commit is named) the pill says so first, so a stale tab is never mistaken for the newest. */
 export const updateText = (label: string, checks: string, newer: string | null): string =>

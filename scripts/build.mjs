@@ -5,6 +5,7 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { organsDigest } from './organs-digest.mjs';
+import { testsNote } from './tests-status.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const sh = (...a) => { try { return execFileSync('git', a, { cwd: root, encoding: 'utf8' }).trim(); } catch { return ''; } };
@@ -42,16 +43,19 @@ const typeErrors = tsc.status === 0 ? 0 : ((tsc.stdout ?? '').match(/error TS\d+
 if (typeErrors) console.warn(`warning: ${typeErrors} type error(s)\n${(tsc.stdout ?? '').split('\n').slice(0, 20).join('\n')}`);
 if (lint.status !== 0) console.warn(`warning: lint failed\n${lint.stderr ?? ''}`);
 const checks = [typeErrors ? `types: ${typeErrors} error${typeErrors === 1 ? '' : 's'}` : '', lint.status !== 0 ? 'lint failed' : '', ...failed.map((f) => `${f} failed`)].filter(Boolean).join(', ');
+// The last full test run (scripts/tests-daily.mjs wrote tests-status.json; W6): "tests: N failing" rides on the pill and in build-info.txt, but never fails a build by itself (a stale or missing file says nothing).
+let testsLine = '';
+try { testsLine = testsNote(JSON.parse(readFileSync(`${root}tests-status.json`, 'utf8'))); } catch { /* (no run recorded yet) */ }
 if (onMain && checks) { console.error(`main does not ship with a failed check: ${checks}`); process.exit(1); }
 
-const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}`, VITE_RELEASE: release, VITE_CHECKS: checks, VITE_ORGANS_DIGEST: organsId } });
+const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}`, VITE_RELEASE: release, VITE_CHECKS: [checks, testsLine].filter(Boolean).join(', '), VITE_ORGANS_DIGEST: organsId } });
 if (r.status !== 0) process.exit(r.status ?? 1);
 // The 2D stylesheets are copied whole; the rules that style something this app never makes are taken out of the BUILT file (scripts/css-unused.mjs; the copies in src/ui/css2d stay byte for byte). PPS_NO_CSS_PRUNE=1 skips it.
 if (!process.env.PPS_NO_CSS_PRUNE) { const cp = spawnSync(process.execPath, [fileURLToPath(new URL('./css-unused.mjs', import.meta.url)), '--write'], { cwd: root, stdio: 'inherit' }); if (cp.status !== 0) { console.warn('warning: the stylesheet was not pruned; it ships whole'); failed.push('css prune'); if (onMain) { console.error('main does not ship with an unpruned stylesheet'); process.exit(1); } } }
 // The figure's data files get content-hashed names under assets/ (scripts/hash-data.mjs): a deploy that does not touch the figure downloads none of them again, and the worker needs no special case for them. A failure stops the build: the page would fetch a name that does not exist.
 const hd = spawnSync(process.execPath, [fileURLToPath(new URL('./hash-data.mjs', import.meta.url)), `${root}dist`], { cwd: root, stdio: 'inherit' });
 if (hd.status !== 0) process.exit(hd.status ?? 1);
-writeFileSync(`${root}dist/build-info.txt`, `version ${release}\nbranch ${branch}\ncommit ${commit}\nbuilt ${new Date().toISOString()}\nchecks ${[checks, ...(failed.includes('css prune') ? ['css prune failed'] : [])].filter(Boolean).join(', ') || 'ok'}\n`);
+writeFileSync(`${root}dist/build-info.txt`, `version ${release}\nbranch ${branch}\ncommit ${commit}\nbuilt ${new Date().toISOString()}\nchecks ${[checks, ...(failed.includes('css prune') ? ['css prune failed'] : [])].filter(Boolean).join(', ') || 'ok'}\n${testsLine ? `${testsLine}\n` : ''}`);
 const pw = spawnSync(process.execPath, [fileURLToPath(new URL('./pwa.mjs', import.meta.url)), `${root}dist`, `${commit}`], { cwd: root, stdio: 'inherit' });
 if (pw.status !== 0) process.exit(pw.status ?? 1);
 console.log(`built v${release} ${branch}@${commit} → dist/`);
