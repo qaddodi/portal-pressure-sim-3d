@@ -94,7 +94,11 @@ export function neighbourAttr(id: string, positions: ArrayLike<number>, state: S
       const i = bs, ax = P[i]![0]!, ay = P[i]![1]!, dx = P[i + 1]![0]! - ax, dy = P[i + 1]![1]! - ay;
       const side = dx * (y - ay) - dy * (x - ax) >= 0 ? 1 : -1;
       const past = (i === 0 && braw < 0) || (i === n - 2 && braw > 1);
-      const dist = side * Math.sqrt(best), rad = R[i]! + (R[i + 1]! - R[i]!) * bt;
+      // (the cava goes on past its piece's ends, into the next piece: past an end its axis is the end segment's own line carried on, not the end point. Measured to the end point, the signed distance flipped sign across that line's extension, +d on one
+      //  vertex and -d on the next, and the GPU's blend read "on the cava's axis" between them: the placed hepatic and renal veins open at the very end of their cava piece (LHV_IVC at IVC_IS's top, LRV_IVC at IVC_IS_1's foot), and a band of their mouth
+      //  read inside the lumen. On the carried-on line the distance is linear in the vertex, so the blend is exact.)
+      const pd = past && cava ? Math.abs(dx * (y - ay) - dy * (x - ax)) / (Math.hypot(dx, dy) || 1e-12) : Math.sqrt(best);
+      const dist = side * pd, rad = R[i]! + (R[i + 1]! - R[i]!) * bt;
       const depth = past && !cava ? Infinity : Math.abs(dist) - rad;   // (how far inside this mate's lumen: negative is inside; the cava goes on past its piece's ends, a vein that opens near one is inside it there too)
       // how far past the nearer end, on each end's own segment line: the larger of the two
       let z = NBR_NO_END;
