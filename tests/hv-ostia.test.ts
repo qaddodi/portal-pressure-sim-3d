@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 
 const { PLACED_EDGE_3D, PLACED_NODE_3D, PLACED_HV_TRUNK, HV_TRUNK_R } = await import('../src/scene/anatomy/placed-network.ts');
 const { NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
-const { drawnHost, cavaWallShare } = await import('../src/scene/disease/host.ts');
+const { drawnHost, cavaWallShare, radiusAtShare } = await import('../src/scene/disease/host.ts');
 const { ostialEnds, mergeShare } = await import('../src/scene/disease/clots.ts');
 
 type V = readonly number[];
@@ -65,16 +65,17 @@ test(`no hepatic vein runs within ${AXIS_CLEAR_R} cava radii of the cava's axis 
   assert.deepEqual(bad.slice(0, 5), []);
 });
 
-test('the Budd-Chiari clot sits at each vein\'s own outflow: the left one\'s in the common trunk, short of the middle one\'s mouth; the middle one\'s at its mouth on the trunk', () => {
+test('the Budd-Chiari clot sits at each vein\'s own outflow and ends before its join (25 Nov, Q+): the left one\'s fills the common trunk and runs on past the middle one\'s mouth, the middle one\'s is a plug short of the trunk\'s wall', () => {
   const l = drawnHost('LHV_IVC')!, m = drawnHost('MHV_IVC')!;
   const lm = mergeShare(l);
   assert.ok(lm > 0.5 && lm < 1, `the merge is on the left hepatic vein's last stretch (${lm.toFixed(3)})`);
   for (const v of [0.3, 0.66, 1]) {
-    const e = ostialEnds(l, v, 1)!;
-    assert.ok(e && e.a >= lm - 1e-9 && e.a < e.b0, `the left hepatic vein's clot (from ${e.a.toFixed(3)}) stays short of the middle one's mouth (${lm.toFixed(3)}) at v ${v}`);
+    const e = ostialEnds(l, v, 1)!, cap = 0.6 * radiusAtShare(l, e.b0) / l.length;
+    assert.ok(e && e.b + cap < e.wall && e.a < e.b0, `the left hepatic vein's clot (${e.a.toFixed(3)} to ${e.b.toFixed(3)}) ends before the cava's wall (${e.wall.toFixed(3)}) at v ${v}`);
   }
+  assert.ok(ostialEnds(l, 1, 1)!.a < lm, 'at full occlusion the trunk clot runs on past the middle vein\'s mouth');
   const wall = cavaWallShare(m);
   assert.ok(wall != null && wall > 0.85, `the middle hepatic vein meets the trunk's wall near its end (${wall?.toFixed(3)})`);
-  const em = ostialEnds(m, 1, 1)!;
-  assert.ok(em.b >= wall! - 1e-9 && em.a > 0.5, 'its clot runs to the trunk\'s wall, ostial');
+  const em = ostialEnds(m, 1, 1)!, capM = 0.6 * radiusAtShare(m, em.b0) / m.length;
+  assert.ok(em.b + capM < wall! - 0.9 * 2 * radiusAtShare(m, em.b0) / m.length && em.a > 0.4, 'its clot ends a vein width short of the trunk\'s wall, ostial');
 });

@@ -76,7 +76,7 @@ Cirrhosis means complete bridging septa around nodules at every stage: the septa
 ## Decisions (Mohammad, 22 Nov 2026, 6:21 PM ET)
 1. **Budd-Chiari lobule:** congestion only, no centrilobular ring.
 2. **Cardiac lobule (rhf, constrictive):** congestion only, no ring.
-3. **Budd-Chiari clot end:** the clot stops before the IVC (Plan 34c builds it).
+3. **Budd-Chiari clot end:** the clot stops a vein width before the IVC's wall and before the trunk's (25 Nov, `docs/approved/budd-chiari-clot.md`).
 4. **Liver size:** keep today's (2D's 2.4 % cirrhotic shrink; congested livers grow 2 to 3 %).
 
 ```json pathology-spec

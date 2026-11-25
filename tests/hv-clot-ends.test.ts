@@ -3,7 +3,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { drawnHost, cavaWallShare, cavaFarWallShare, radiusAtShare, type Host } from '../src/scene/disease/host.ts';
 import { type ClotUniform, clotRange, clotPhases, clotShapeAt, clotDrawnShape, clotPiece, clotAtTwin, trunkCutTwin, ostialLength, CLOT_CAP_LEN, OSTIAL_MAX_SHARE } from '../src/scene/disease/clot-field.ts';
-import { clotUniforms, clotAnchor, ostialEnds, pieceRanges, mergeShare } from '../src/scene/disease/clots.ts';
+import { clotUniforms, clotAnchor, ostialEnds, pieceRanges, mergeShare, CLOT_JOIN_GAP, TRUNK_CLOT_SHARE } from '../src/scene/disease/clots.ts';
 import { CAUDATE_VEIN_ID } from '../src/scene/vessels/caudate-veins.ts';
 import { neighbourAttr } from '../src/scene/vessels/neighbour.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
@@ -28,29 +28,33 @@ test('plan 34d: the anchor is a table: the hepatic veins and the caudate vein ar
   for (const id of ['PV_TRUNK', 'SV_CONF', 'LRV_IVC', 'RRV_IVC']) assert.equal(clotAnchor(id), 'mid');
 });
 
-test('plan 34d/34e: the distal end is 34d\'s (the cap\'s length short of the wall at the centre line, (1 + 2v) widths upstream), the proximal end is the far side of the wall\'s slant and the same at every v, the centroid is in the cava half', () => {
+test('25 Nov: the clot ends BEFORE the join (CLOT_JOIN_GAP vein widths short of the wall at the centre line), the common trunk\'s is longer (Q+), every other ostial clot is (1 + 2v) widths, b stays put as v rises and a falls', () => {
   let n = 0;
   for (const id of VEINS) {
     const h = hosts.get(id); if (!h) { console.log(`${id}: not drawn`); continue; }
     const wall = cavaWallShare(h); if (wall == null) { console.log(`${id}: does not open into the cava (keeps clotSpan)`); continue; }
-    const far = cavaFarWallShare(h)!;
     let prevA = Infinity; const bs: number[] = [];
     for (const v of [0.3, 0.66, 1]) {
       const e: NonNullable<ReturnType<typeof ostialEnds>> = ostialEnds(h, v, 1)!;
-      const cap: number = CLOT_CAP_LEN * radiusAtShare(h, e.b0) / h.length, lenD: number = (e.b0 - e.a) * h.length / e.D;
-      console.log(`${id} v=${v}: a ${e.a.toFixed(3)} b0 ${e.b0.toFixed(3)} (34d) b ${e.b.toFixed(3)} wall ${wall.toFixed(3)} far ${far.toFixed(3)} (${((far - wall) * h.length / e.D).toFixed(2)} D past the wall at the centre line), a..b0 ${lenD.toFixed(2)} D (D ${e.D.toFixed(4)}), vein ${h.length.toFixed(3)}, centroid ${((e.a + e.b) / 2).toFixed(3)}`);
+      const cap: number = CLOT_CAP_LEN * radiusAtShare(h, e.b0) / h.length, merge: number = mergeShare(h), tip: number = (wall - (e.b + cap)) * h.length / e.D;   // (the cap's tip to the wall, in vein widths)
+      console.log(`${id} v=${v}: a ${e.a.toFixed(3)} b ${e.b.toFixed(3)} (b0 ${e.b0.toFixed(3)}) wall ${wall.toFixed(3)} far ${e.far.toFixed(3)}: tip ${tip.toFixed(2)} D short of the wall, length ${((e.b - e.a) * h.length / e.D).toFixed(2)} D, vein ${h.length.toFixed(3)}${merge > 0 ? ', the shared trunk' : ''}`);
       assert.ok(Math.abs(wall - e.b0 - cap) <= 0.02 * cap, `${id} v=${v}: 34d's end b0 is the cap's length short of the wall`);
-      assert.equal(e.b, Math.max(far, e.b0), `${id} v=${v}: b is the far side of the slant`);
-      assert.ok(e.b >= wall - 1e-9, `${id} v=${v}: the body reaches the wall at the centre line`);
-      // (the cava half of the vein that is DRAWN, 0 .. the wall: the placed veins run on to the cava's axis, and the placed caudate vein is short (0.10 scene units, 0.29 of it inside the cava's lumen), so half of its whole length put the line 1.6
-      //  of its widths short of the ostium, and a 2.3-width clot that starts at the wall crossed it. The vein past the wall is inside the cava and is not drawn)
-      assert.ok((e.a + e.b) / 2 > wall / 2, `${id} v=${v}: centroid ${(e.a + e.b) / 2} is in the cava half of the drawn vein (wall ${wall})`);
-      // (a shared trunk's clot stops short of the middle hepatic vein's mouth on it: round 18, Mohammad 25 Nov "RHV alone, MHV+LHV shared trunk"; mergeShare is 0 for every other vein)
-      const merge = mergeShare(h), want = Math.min(ostialLength(v, e.D, h.length), (e.b0 - merge) * h.length);
-      assert.ok(e.a > 0 ? Math.abs((e.b0 - e.a) * h.length - want) <= 0.02 * want : (e.b0 - e.a) * h.length <= want + 1e-9, `${id} v=${v}: a..b0 equals L(v)`);
-      if (v === 1) assert.ok(lenD <= 3.1, `${id}: ${lenD} D at v = 1`);
-      assert.ok((e.b0 - e.a) * h.length <= OSTIAL_MAX_SHARE * h.length + 1e-9);
-      assert.ok((e.a < prevA || (merge > 0 && e.a === merge)) && e.a >= 0 && e.a >= merge, `${id}: a falls as v rises, never past the merge`); prevA = e.a; bs.push(e.b);
+      if (e.b > 0) assert.ok(Math.abs(tip - CLOT_JOIN_GAP) <= 0.02, `${id} v=${v}: the tip is ${tip} D short of the wall, want ${CLOT_JOIN_GAP}`);
+      assert.ok(e.b + cap < wall - 0.9 * CLOT_JOIN_GAP * e.D / h.length && e.b + cap < e.far, `${id} v=${v}: the whole clot, cap included, is short of the wall and of the far side of its slant`);
+      assert.ok((e.a + e.b) / 2 > wall / 2 - 0.2, `${id} v=${v}: centroid ${(e.a + e.b) / 2} is near the cava half of the drawn vein (wall ${wall})`);
+      const len: number = (e.b - e.a) * h.length;
+      if (merge > 0) {
+        // (the shared trunk's clot, Q+: (1 + 2v) / 3 of TRUNK_CLOT_SHARE of the drawn left hepatic vein, on past the middle vein's mouth)
+        const want: number = ((1 + 2 * v) / 3) * TRUNK_CLOT_SHARE * h.length;
+        assert.ok(e.a > 0 && Math.abs(len - want) <= 0.02 * want, `${id} v=${v}: the trunk clot is ${len} long, want ${want}`);
+        if (v === 1) assert.ok(e.a < merge, `${id}: the trunk clot runs on past the middle vein's mouth (${e.a.toFixed(3)} < ${merge.toFixed(3)})`);
+      } else {
+        const want: number = ostialLength(v, e.D, h.length);
+        assert.ok(e.a > 0 ? Math.abs(len - want) <= 0.02 * want : len <= want + 1e-9, `${id} v=${v}: a..b is (1 + 2v) widths`);
+        if (v === 1) assert.ok(len / e.D <= 3.1, `${id}: ${len / e.D} D at v = 1`);
+      }
+      assert.ok(len <= OSTIAL_MAX_SHARE * h.length + 1e-9);
+      assert.ok(e.a < prevA && e.a >= 0, `${id}: a falls as v rises`); prevA = e.a; bs.push(e.b);
       const us = clotUniforms(h, v, 1, id), last = us[us.length - 1]!, span: number = (e.b - e.a) * h.length;
       assert.ok(Math.abs(last.f0 + last.df * (1 - 1e-12) - (h.length - e.a * h.length) / span) < 1e-6, `${id} v=${v}: the last piece carries the share on past the vein's end`);
       n++;
@@ -64,9 +68,9 @@ test('plan 34d/34e: the distal end is 34d\'s (the cap\'s length short of the wal
 const SCALES = { phone: 250, ipad: 500, mac: 700 } as const;   // device px per scene unit
 const UNITS = 300;   // figure units per scene unit (clotPiece's)
 type Cut = 'trunk' | 'union';   // 'union': the clot is clipped to the union's lumen only (the skin before 34e: the cava is inside it)
-function joint(id: string, v: number, scale: number, cut: Cut, ends: 'new' | 'b0') {
+function joint(id: string, v: number, scale: number, cut: Cut, ends: 'new' | 'old') {
   const h = hosts.get(id)!, last = h.pieces[h.pieces.length - 1]!, e = ostialEnds(h, v, 1)!, { side } = clotPhases(id);
-  const b = ends === 'new' ? e.b : e.b0, uni = clotPiece(e.a, b, h.length, 0, h.length, side * v, id, UNITS);
+  const b = ends === 'new' ? e.b : Math.max(e.far, e.b0), uni = clotPiece(e.a, b, h.length, 0, h.length, side * v, id, UNITS);
   const n = h.pts.length, tail = h.pts[n - 1]!, prev = h.pts[n - 2]!, tl = Math.hypot(tail.x - prev.x, tail.y - prev.y), tx = (tail.x - prev.x) / tl, ty = (tail.y - prev.y) / tl;
   /** the clot's cover at a point of the figure (scene units), and how far outside the cava's lumen it is in device px */
   const at = (x: number, y: number): { cover: number; out: number; cutK: number; s: number; lat: number; f: number; distIn: number } => {
@@ -98,17 +102,17 @@ function joint(id: string, v: number, scale: number, cut: Cut, ends: 'new' | 'b0
   return { h, e, at, side, b, last, uni };
 }
 /** every pixel of the joint with a cover over 0.02: how many are inside the cava by more than half a pixel, the deepest (px), and the clot's area */
-function raster(id: string, v: number, scale: number, cut: Cut, ends: 'new' | 'b0') {
+function raster(id: string, v: number, scale: number, cut: Cut, ends: 'new' | 'old') {
   const j = joint(id, v, scale, cut, ends), { h, e } = j, st = 1 / scale;
   const p0 = h.pts[0]!, xs = h.pts.map((p) => p.x), ys = h.pts.map((p) => p.y), m = 0.08;
-  let inside = 0, deepest = 0, area = 0;
+  let inside = 0, deepest = 0, area = 0, nearest = Infinity;
   for (let y = Math.min(...ys) - m; y <= Math.max(...ys) + m; y += st) for (let x = Math.min(...xs) - m; x <= Math.max(...xs) + m; x += st) {
     // (only the clot's own neighbourhood: from the distal end to a little past the far wall)
     const q = j.at(x, y); if (q.s < (e.a - 0.05) * h.length || q.s > (e.b + 0.1) * h.length || Math.abs(q.lat) > 1.2) continue;
-    if (q.cover > 0.02) { area++; if (q.out < -0.5) { inside++; deepest = Math.max(deepest, -q.out); } }
+    if (q.cover > 0.02) { area++; nearest = Math.min(nearest, q.out); if (q.out < -0.5) { inside++; deepest = Math.max(deepest, -q.out); } }
   }
   void p0;
-  return { inside, deepest, area };
+  return { inside, deepest, area, nearest };
 }
 
 test('plan 34e gate 1: no pixel of the clot lies inside the IVC (cover > 0.02 under half a pixel inside its drawn wall: none), at phone, iPad and Mac scales, v = 0.3, 0.66 and 1, for the three hepatic veins and the caudate vein', () => {
@@ -124,24 +128,23 @@ test('plan 34e gate 1: no pixel of the clot lies inside the IVC (cover > 0.02 un
   assert.ok(rows >= 9);
 });
 
-test('plan 34e gate 1b (liveness): without the cut (the union\'s lumen only) the clot stands inside the IVC, and plan 34d\'s own end b0 with the cut leaves a gap at the wall', () => {
-  let worstNoCut = 0, gapSeen = 0;
+test('25 Nov gate 1b (liveness and clearance): with the clot\'s OLD end (the body out to the far side of the slant) and no cut it stands inside the IVC, and with the old end and the cut it reaches the wall; the new clot never comes within 0.25 vein width of the IVC\'s wall', () => {
+  let worstNoCut = 0, touched = 0;
   for (const id of VEINS) {
     if (!hosts.get(id) || cavaWallShare(hosts.get(id)!) == null) continue;
     for (const v of [0.3, 1]) {
-      const r = raster(id, v, SCALES.mac, 'union', 'new'), r0 = raster(id, v, SCALES.mac, 'union', 'b0');
-      const d = r.deepest / (2 * radiusAtShare(hosts.get(id)!, 1) * SCALES.mac);   // (in vein widths)
-      console.log(`${id} v=${v} mac, no cut: ${r.inside} px inside the IVC, deepest ${r.deepest.toFixed(1)} px = ${d.toFixed(2)} D; with 34d's b0 and no cut: deepest ${r0.deepest.toFixed(1)} px = ${(r0.deepest / (2 * radiusAtShare(hosts.get(id)!, 1) * SCALES.mac)).toFixed(2)} D`);
-      worstNoCut = Math.max(worstNoCut, r.inside); assert.ok(r.inside > 0, `${id} v=${v}: with the cut taken away the clot is inside the IVC (the gate sees it)`);
-      gapSeen += gaps(id, v, SCALES.mac, 'trunk', 'b0');
+      const D = 2 * radiusAtShare(hosts.get(id)!, 1) * SCALES.mac, old = raster(id, v, SCALES.mac, 'union', 'old'), cut = raster(id, v, SCALES.mac, 'trunk', 'old'), now = raster(id, v, SCALES.mac, 'trunk', 'new');
+      console.log(`${id} v=${v} mac: old end, no cut: ${old.inside} px inside the IVC (deepest ${(old.deepest / D).toFixed(2)} D); old end with the cut: nearest ${(cut.nearest / D).toFixed(2)} D from the wall; NEW end: nearest clot pixel ${(now.nearest / D).toFixed(2)} D from the wall`);
+      worstNoCut = Math.max(worstNoCut, old.inside); touched += cut.nearest <= 0.5 ? 1 : 0;
+      assert.ok(now.nearest >= 0.25 * D, `${id} v=${v}: the clot comes within ${(now.nearest / D).toFixed(2)} D of the wall`);
     }
   }
-  assert.ok(worstNoCut > 0 && gapSeen > 0, 'both halves of the fix are needed: the cut, and the far side of the slant');
+  assert.ok(worstNoCut > 0 && touched > 0, 'the gate sees the old clot inside the IVC and at the wall');
 });
 
 /** along the ostium: for laterals across the clot\'s own width at its proximal end (0.8 of its half width at f = 1, as the shader draws it: clotDrawnShape), how many are NOT in the clot\'s body one device pixel before the wall of that lateral: past the body's end (f over 1, the rounded cap) or outside its edge (distIn <= 0).
  *  (Not "cover over 0.5": at a phone the clot's end is under a pixel wide, so its own anti-aliasing is under 0.5 across; the geometry is what has no gap.) */
-function gaps(id: string, v: number, scale: number, cut: Cut, ends: 'new' | 'b0'): number {
+function clearance(id: string, v: number, scale: number, cut: Cut, ends: 'new' | 'old'): number {
   const j = joint(id, v, scale, cut, ends), { h, last } = j, R = radiusAtShare(h, 1), { h: hw, c } = clotDrawnShape(joint(id, v, scale, cut, ends).uni, 1, R * scale);
   const n = h.pts.length, tail = h.pts[n - 1]!, prev = h.pts[n - 2]!, tl = Math.hypot(tail.x - prev.x, tail.y - prev.y), tx = (tail.x - prev.x) / tl, ty = (tail.y - prev.y) / tl;
   const centre = (s: number): { x: number; y: number; hx: number; hy: number; r: number } => {
@@ -150,24 +153,26 @@ function gaps(id: string, v: number, scale: number, cut: Cut, ends: 'new' | 'b0'
     const w = (s - h.s[k - 1]!) / (h.s[k]! - h.s[k - 1]! || 1), p = h.pts[k - 1]!, q = h.pts[k]!, dl = Math.hypot(q.x - p.x, q.y - p.y) || 1;
     return { x: p.x + (q.x - p.x) * w, y: p.y + (q.y - p.y) * w, hx: (q.x - p.x) / dl, hy: (q.y - p.y) / dl, r: h.R[k - 1]! + (h.R[k]! - h.R[k - 1]!) * w };
   };
-  let missed = 0;
+  let least = Infinity;
   for (let i = 0; i <= 10; i++) {
     const lat = Math.max(-1, Math.min(1, c + hw * 0.8 * (i / 5 - 1)));   // (lumen units, left of the heading; the wall side of the clot is pushed a pixel past the lumen's edge under the ink, which is not a place of the lumen)
     // the wall at this lateral: the first arc length (from 0.5 of the vein) at which the line enters the IVC
     let sWall = h.length * 0.5;
     for (; sWall < h.s[n - 1]! + 2 * R; sWall += 0.0002) { const q = centre(sWall), nb = neighbourAttr(last.id, [q.x - q.hy * lat * q.r, q.y + q.hx * lat * q.r, 0])!; if (Math.abs(nb[0]!) - nb[1]! < 0) break; }
-    const q = centre(sWall - 1 / scale), at = j.at(q.x - q.hy * lat * q.r, q.y + q.hx * lat * q.r);
-    if (!(at.f <= 1 + 1e-9 && at.distIn > 0)) missed++;
+    // (walk back from the wall along this lateral to the first pixel in the clot: the clear stretch, in device px)
+    let back = 0; for (; back < 400 * scale / 100; back += 0.25) { const q = centre(sWall - back / scale), at = j.at(q.x - q.hy * lat * q.r, q.y + q.hx * lat * q.r); if (at.distIn > 0 && at.cover > 0.5) break; }
+    least = Math.min(least, back);
   }
-  return missed;
+  return least;
 }
 
-test('plan 34e gate 2: along the ostium the clot reaches the wall within one pixel at every lateral across its width (no gap), at every scale and v; the tube\'s and the skin\'s cuts are the same one-pixel edge', () => {
+test('25 Nov gate 2: along the ostium the clot ENDS BEFORE the wall at every lateral across its width: at least 0.2 vein width clear (the wall slants across the vein by up to 0.75 width, the gap is one), at every scale and v; the tube\'s and the skin\'s cuts are still the same one-pixel edge', () => {
   for (const id of VEINS) {
     if (!hosts.get(id) || cavaWallShare(hosts.get(id)!) == null) continue;
     for (const [name, scale] of Object.entries(SCALES)) for (const v of [0.3, 0.66, 1]) {
-      const m = gaps(id, v, scale, 'trunk', 'new');
-      assert.equal(m, 0, `${id} ${name} v=${v}: ${m} of 11 laterals are short of the wall by more than a pixel`);
+      const m = clearance(id, v, scale, 'trunk', 'new'), D = 2 * radiusAtShare(hosts.get(id)!, 1) * scale, old = clearance(id, v, scale, 'trunk', 'old');
+      assert.ok(m >= 0.2 * D, `${id} ${name} v=${v}: only ${m.toFixed(2)} px (${(m / D).toFixed(2)} D) clear of the wall`);
+      assert.ok(old <= 1.5, `${id} ${name} v=${v}: the old end reached the wall (${old} px), the gate sees the difference`);
     }
   }
   assert.equal(trunkCutTwin(-0.5), 0); assert.equal(trunkCutTwin(0.5), 1); assert.equal(trunkCutTwin(0), 0.5);

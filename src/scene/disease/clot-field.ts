@@ -24,6 +24,12 @@ export const CLOT_WALL_SLACK_PX = 1;
 export const CLOT_CAP_LEN = 0.6;
 /** The clot comes in over this range of v (a clot of a hair's width does not pop in: it eases up from 0.003, the layer's own floor). */
 export const CLOT_V_FROM = 0.003, CLOT_V_TO = 0.08;
+/** FULL OCCLUSION FILLS THE LUMEN (Mohammad, 25 Nov: the Budd-Chiari clots read as flat slabs along one wall instead of filling the vein; 2D's own words: at full occlusion the clot "spans the lumen with blunt ends"). Over this range of v the mural cast
+ *  (everything below, the approved look of 22 Nov, unchanged under CLOT_FILL_FROM) opens to span the lumen edge to edge: its half width goes to the lumen's whole, its centre to the lumen's axis, its lumps die out, and its free-edge ink leaves its sides (they are the
+ *  vein's own wall line) and stays on its caps. At v = CLOT_FILL_TO it is a plug with blunt ends. */
+export const CLOT_FILL_FROM = 0.82, CLOT_FILL_TO = 1.0;
+/** The plug is painted this much (never more, in lumen units) past the lumen's edge on BOTH walls, under the vein's ink, as the mural cast's wall side is: no pale rim between the plug and the wall. */
+export const CLOT_FILL_SLACK_MAX = 0.25;
 /** The cap's ink eases in over this much of the cap's own length (the ink is on the free edge and the caps, never along the wall side). */
 export const CLOT_CAP_INK_FROM = 0.0, CLOT_CAP_INK_TO = 0.35;
 /** The free edge's ink: full on the face toward the lumen (side * q at or under FREE_FROM), none against the wall (at or over FREE_TO). */
@@ -49,14 +55,16 @@ export function clotShapeAt(v: number, f: number, id: string): { h: number; c: n
  *  vessel length is not needed: `vRf` the lumen radius in figure units, `rDev` the lumen radius in device px. */
 /** The clot's half width and centre as the shader draws them at the share `fc` (0..1) along it, in lumen units, on a lumen `rDev` device px in radius (the wall side is pushed CLOT_WALL_SLACK_PX past the edge, under the ink): the one place the twin and the tests read them. */
 export function clotDrawnShape(a: ClotUniform, fc: number, rDev: number): { h: number; c: number; side: number } {
-  const v = Math.abs(a.sv), side = a.sv < 0 ? -1 : 1;
+  const v = Math.abs(a.sv), side = a.sv < 0 ? -1 : 1, k = smooth(CLOT_FILL_FROM, CLOT_FILL_TO, v);
   const fl = 0.3 + 0.5 * v * v * v;
   const body = fl + (1 - fl) * Math.sqrt(Math.max(Math.sin(Math.PI * fc), 0));
-  const lump = 1 + 0.08 * Math.sin(fc * 18.85 + a.p1) + 0.05 * Math.sin(fc * 43.98 + a.p2);
-  const h = Math.min(CLOT_INSIDE, CLOT_INSIDE * clamp(0.1 + 0.9 * v, 0, 1) * body * lump);
+  const lump = 1 + (1 - k) * (0.08 * Math.sin(fc * 18.85 + a.p1) + 0.05 * Math.sin(fc * 43.98 + a.p2));
+  const h0 = Math.min(CLOT_INSIDE, CLOT_INSIDE * clamp(0.1 + 0.9 * v, 0, 1) * body * lump);
   // (the slack is never more than the clot's own half width: on a vein a few px wide (the placed caudate vein is under 2.5 px in radius on a phone) a whole px is more than the lumen's share the clot takes, and the push carried the whole clot past the
   //  edge, under the ink: no clot was drawn at the ostium. Capped, at least half of it stays in the lumen.)
-  return { h, c: side * (CLOT_INSIDE - h) + side * Math.min(CLOT_WALL_SLACK_PX / Math.max(rDev, 1), h), side };
+  const c0 = side * (CLOT_INSIDE - h0) + side * Math.min(CLOT_WALL_SLACK_PX / Math.max(rDev, 1), h0);
+  const h = h0 + (CLOT_INSIDE + Math.min(CLOT_WALL_SLACK_PX / Math.max(rDev, 1), CLOT_FILL_SLACK_MAX) - h0) * k;
+  return { h, c: c0 * (1 - k), side };
 }
 
 export function clotAtTwin(a: ClotUniform, u: number, lat: number, vRf: number, rDev: number): { cover: number; distIn: number; free: number } {
@@ -69,8 +77,8 @@ export function clotAtTwin(a: ClotUniform, u: number, lat: number, vRf: number, 
   const len = Math.max(Math.hypot(dn, q), 1e-4), F = len - 1;
   const gF = Math.hypot(dn / (CLOT_CAP_LEN * Math.max(rDev, 1e-3)), q / (h * Math.max(rDev, 1e-3))) / len;   // (the exact gradient of F per device px: one px of anti-aliasing on every part of the edge)
   const distIn = -F / gF;
-  const on = smooth(CLOT_V_FROM, CLOT_V_TO, v);
-  return { cover: clamp(0.5 + distIn, 0, 1) * on, distIn, free: Math.max(1 - smooth(CLOT_FREE_FROM, CLOT_FREE_TO, side * q), smooth(CLOT_CAP_INK_FROM, CLOT_CAP_INK_TO, dn)) };
+  const on = smooth(CLOT_V_FROM, CLOT_V_TO, v), kf = smooth(CLOT_FILL_FROM, CLOT_FILL_TO, v);
+  return { cover: clamp(0.5 + distIn, 0, 1) * on, distIn, free: Math.max((1 - smooth(CLOT_FREE_FROM, CLOT_FREE_TO, side * q)) * (1 - kf), smooth(CLOT_CAP_INK_FROM, CLOT_CAP_INK_TO, dn)) };
 }
 
 /** The geometry of the shape on the wall: the wall side of a clot of occlusion `v` at share `f` is on the lumen's edge, never past it (the gate: |c| + h <= CLOT_INSIDE). */
@@ -107,11 +115,14 @@ vec3 clotAt(vec4 a, vec2 p, float u, float lat, float vRf, float rDev) {
   float side = a.z < 0.0 ? -1.0 : 1.0;
   float f = a.x + a.y * u;
   float fc = clamp(f, 0.0, 1.0);
+  float kf = smoothstep(CLOT_FILL_FROM, CLOT_FILL_TO, v);
   float fl = 0.3 + 0.5 * v * v * v;
   float body = fl + (1.0 - fl) * sqrt(max(sin(3.14159265 * fc), 0.0));
-  float lump = 1.0 + 0.08 * sin(fc * 18.85 + p.x) + 0.05 * sin(fc * 43.98 + p.y);
-  float h = min(CLOT_INSIDE, CLOT_INSIDE * clamp(0.1 + 0.9 * v, 0.0, 1.0) * body * lump);
-  float c = side * (CLOT_INSIDE - h) + side * min(CLOT_WALL_SLACK_PX / max(rDev, 1.0), h);
+  float lump = 1.0 + (1.0 - kf) * (0.08 * sin(fc * 18.85 + p.x) + 0.05 * sin(fc * 43.98 + p.y));
+  float h0 = min(CLOT_INSIDE, CLOT_INSIDE * clamp(0.1 + 0.9 * v, 0.0, 1.0) * body * lump);
+  float c0 = side * (CLOT_INSIDE - h0) + side * min(CLOT_WALL_SLACK_PX / max(rDev, 1.0), h0);
+  float h = h0 + (CLOT_INSIDE + min(CLOT_WALL_SLACK_PX / max(rDev, 1.0), CLOT_FILL_SLACK_MAX) - h0) * kf;
+  float c = c0 * (1.0 - kf);
   float along = f < 0.0 ? -f : (f > 1.0 ? f - 1.0 : 0.0);
   float dn = along * a.w / max(CLOT_CAP_LEN * vRf, 1e-6);
   float q = (lat - c) / h;
@@ -120,7 +131,7 @@ vec3 clotAt(vec4 a, vec2 p, float u, float lat, float vRf, float rDev) {
   float gF = length(vec2(dn / (CLOT_CAP_LEN * max(rDev, 1e-3)), q / (h * max(rDev, 1e-3)))) / len;
   float distIn = -F / gF;
   float on = smoothstep(CLOT_V_FROM, CLOT_V_TO, v);
-  float free = max(1.0 - smoothstep(CLOT_FREE_FROM, CLOT_FREE_TO, side * q), smoothstep(CLOT_CAP_INK_FROM, CLOT_CAP_INK_TO, dn));
+  float free = max((1.0 - smoothstep(CLOT_FREE_FROM, CLOT_FREE_TO, side * q)) * (1.0 - kf), smoothstep(CLOT_CAP_INK_FROM, CLOT_CAP_INK_TO, dn));
   return vec3(clamp(0.5 + distIn, 0.0, 1.0) * on, distIn, free);
 }`;
 
@@ -132,6 +143,9 @@ export const CLOT_CONST_GLSL = /* glsl */ `
 #define CLOT_CAP_LEN ${N(CLOT_CAP_LEN)}
 #define CLOT_V_FROM ${N(CLOT_V_FROM)}
 #define CLOT_V_TO ${N(CLOT_V_TO)}
+#define CLOT_FILL_FROM ${N(CLOT_FILL_FROM)}
+#define CLOT_FILL_TO ${N(CLOT_FILL_TO)}
+#define CLOT_FILL_SLACK_MAX ${N(CLOT_FILL_SLACK_MAX)}
 #define CLOT_CAP_INK_FROM ${N(CLOT_CAP_INK_FROM)}
 #define CLOT_CAP_INK_TO ${N(CLOT_CAP_INK_TO)}
 #define CLOT_FREE_FROM ${N(CLOT_FREE_FROM)}

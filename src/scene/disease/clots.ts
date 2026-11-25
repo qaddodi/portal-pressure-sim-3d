@@ -34,9 +34,6 @@ export function pieceRanges(host: Host): Array<[number, number]> {
 const OSTIUM = new Set(['RHV_IVC', 'MHV_IVC', 'LHV_IVC', CAUDATE_VEIN_ID]);
 export const clotAnchor = (id: string): 'ostium' | 'mid' => (OSTIUM.has(id) ? 'ostium' : 'mid');
 
-/** The ostial clot's ends (plan 34d, 34e), shares of the drawn vein. The distal end a is plan 34d's: the cap's length short of the IVC's drawn wall at the vein's centre line (b0, a fixed point), `ostialLength` (vein widths) upstream of that; it does not depend on the slant.
- *  The proximal end b is the FAR side of the wall's slant (cavaFarWallShare: the last place any line across the vein is outside the IVC), never before b0: the body runs out to the wall across the vein's whole width, and the cap and everything past the wall lie in the IVC,
- *  where the skin and the tube cut a clot away (clot-field.ts trunkCut). b does not depend on v. Null for a vein that does not open into the cava. */
 /** Where a clot in `host` must stop upstream (share of the drawn host): just downstream of the middle hepatic vein's mouth on the common trunk (its join point plus that vein's radius), for the trunk's host; 0 for every other vein. */
 export function mergeShare(host: Host): number {
   const t = PLACED_HV_TRUNK, last = host.pieces[host.pieces.length - 1];
@@ -44,15 +41,25 @@ export function mergeShare(host: Host): number {
   let bi = 0, bd = Infinity; host.pts.forEach((q, i) => { const d = Math.hypot(q.x - t.at[0], q.y - t.at[1], q.z - t.at[2]); if (d < bd) { bd = d; bi = i; } });
   return Math.min(1, (host.s[bi]! + (NETWORK_BY_ID.get(t.joiner)?.radius ?? 0)) / host.length);
 }
-export function ostialEnds(host: Host, v: number, cavaSwell: number, veinSwell = 1): { a: number; b: number; b0: number; D: number; wall: number } | null {
+/** WHERE THE CLOT ENDS BEFORE THE JOIN (Mohammad, 25 Nov: "can make the clot end before the actual join"): the clot used to run out to the IVC's wall and end there in a hard one-pixel cut. Now its cap's tip stops this many VEIN WIDTHS short of the wall at the vein's centre line
+ *  (the wall slants across the vein by 0.15 to 0.75 widths, so even at the near silhouette the clot is clear of it). The same for the middle hepatic vein and the trunk's wall it opens into, and the caudate vein. The wall's cut stays as the safety (nothing is ever inside the cava), but no clot reaches it. */
+export const CLOT_JOIN_GAP = 1;
+/** THE COMMON TRUNK CLOTTED MORE (Mohammad, 25 Nov: "Q+"): the vein that carries the shared trunk (the left hepatic vein, mergeShare > 0) has its clot run on past the middle vein's mouth and into the left vein, this share of the drawn vein at full occlusion, (1 + 2 v) / 3 of it at v;
+ *  every other ostial vein keeps its (1 + 2 v) widths. The share is under OSTIAL_MAX_SHARE. */
+export const TRUNK_CLOT_SHARE = 0.42;
+
+/** The ostial clot's ends (plans 34d, 34e, and the 25 Nov build): the distal end a and the proximal end b, shares of the drawn vein. b0 is plan 34d's end: the cap's length short of the IVC's drawn wall at the vein's centre line (a fixed point), where the cap's tip would touch the wall. The clot's body
+ *  ends CLOT_JOIN_GAP vein widths before that, so its tip stops that far short of the wall; a is `ostialLength` (vein widths) upstream of b, or the trunk's TRUNK_CLOT_SHARE of the vein. It does not depend on the slant. `far` (cavaFarWallShare) is the last place any line across the vein is outside the IVC, the old end of the body;
+ *  it is returned for the tests that hold the clot clear of the wall. Null for a vein that does not open into the cava. */
+export function ostialEnds(host: Host, v: number, cavaSwell: number, veinSwell = 1): { a: number; b: number; b0: number; D: number; wall: number; far: number } | null {
   const wall = cavaWallShare(host, cavaSwell), far = cavaFarWallShare(host, cavaSwell, veinSwell);
   if (wall == null || far == null) return null;
   let b0 = wall;
   for (let i = 0; i < 4; i++) b0 = wall - CLOT_CAP_LEN * radiusAtShare(host, b0) / host.length;   // (the cap's length is in lumen radii at the clot's own end: a fixed point)
-  const D = 2 * radiusAtShare(host, b0), { a: a0 } = clotRange(v, b0, ostialLength(v, D, host.length) / host.length);
-  // (A SHARED TRUNK (placed anatomy, Mohammad 25 Nov: "RHV alone, MHV+LHV shared trunk"): the left hepatic vein's ostium is the common trunk's, and its clot stays in that trunk, short of the middle hepatic vein's mouth on it)
-  const a = Math.max(a0, mergeShare(host));
-  return { a, b: Math.max(far, b0), b0, D, wall };
+  const D = 2 * radiusAtShare(host, b0), b = Math.max(b0 - CLOT_JOIN_GAP * D / host.length, 0);
+  // (A SHARED TRUNK (placed anatomy, Mohammad 25 Nov: "RHV alone, MHV+LHV shared trunk"; Q+: the trunk clotted more): the left hepatic vein's clot is the trunk's and runs on past the middle hepatic vein's mouth into the left vein)
+  const len = mergeShare(host) > 0 ? ((1 + 2 * v) / 3) * TRUNK_CLOT_SHARE : ostialLength(v, D, host.length) / host.length;
+  return { a: clotRange(v, b, len).a, b, b0, D, wall, far };
 }
 
 /** The clot's uniform for each piece of `host` at occlusion `v` (side * v: the seed's wall). An 'ostium' vein's clot runs to the IVC's wall across the vein's width and grows upstream (ostialEnds). `veinSwell`: the vein's live width over its built one at the cava end. */

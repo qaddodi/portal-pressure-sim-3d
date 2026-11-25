@@ -107,12 +107,12 @@ test('the TIPS and DIPS stents lie on their own courses, their ends inside the v
   for (let d = tr.d0 + 3; d < tr.d1 - 3; d += 2) { const p = r3.centre(d), s = drawnShare('TIPS', p.x, p.y, p.z)!; assert.ok(s.share < 0.2, `the tract at ${d.toFixed(1)} is on the stent's course (${s.share.toFixed(2)})`); }
 });
 
-test('the Budd-Chiari clot is ostial: about three vein widths, out to the cava\'s far wall and no further, and short of the right hepatic vein\'s fork', () => {
+test('the Budd-Chiari clot is ostial: about three vein widths, ending a vein width before the cava\'s wall (25 Nov), and short of the right hepatic vein\'s fork', () => {
   const h = drawnHost('RHV_IVC')!;
   assert.ok(h);
   const e = ostialEnds(h, 1, 1)!, far = cavaFarWallShare(h)!;
-  assert.ok((e.b0 - e.a) * h.length <= 3.1 * e.D, 'about three widths');
-  assert.ok(e.b <= far + 1e-9, 'no further than the cava\'s far wall');
+  assert.ok((e.b - e.a) * h.length <= 3.1 * e.D, 'about three widths');
+  assert.ok(e.b < e.b0 && e.b < far, 'ends before the cava\'s wall, not at it');
   // the fork: where the lower branch leaves the trunk, as a share of the drawn host
   const br = centrelineOf(rhvBranchIds()[0]!)!, a = br.pointAt(0), b = br.pointAt(1);
   const join = [a, b].map((p) => ({ p, d: Math.min(...h.pts.map((q) => Math.hypot(q.x - p[0], q.y - p[1], q.z - p[2]))) })).sort((x, y) => x.d - y.d)[0]!.p;
