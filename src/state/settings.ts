@@ -34,7 +34,10 @@ export interface Settings {
   fluidSurface: boolean;
   /** Device shadows: a soft contact shadow under every catheter, balloon tube, stent sleeve and scope, on what lies beneath it (devices/contact-shadow.ts). Off: the devices as 2D draws them, with none. */
   deviceShadow: boolean;
-  /** Lite figure (state/lite.ts): a calmer figure for a machine that cannot run the full one. While it stands the switches in LITE_KEYS READ off here and the person's own values are kept underneath (`own` below); `liteBy` says who chose it. */
+  /**
+   * Lite figure (state/lite.ts): a calmer figure for a machine that cannot run the full one. While it stands the switches in LITE_KEYS READ off here and
+   * the person's own values are kept underneath (`own` below); `liteBy` says who chose it.
+   */
   lite: boolean;
   liteBy: LiteBy;
 }

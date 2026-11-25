@@ -58,10 +58,14 @@ function AutoDetail() {
   return <MenuToggle checked={on} icon={AUTO_DETAIL_ROW.icon} label={AUTO_DETAIL_ROW.label} sub={AUTO_DETAIL_ROW.hint} onChange={(v) => useSettings.getState().set('autoDetail', v)} />;
 }
 
-/** Lite figure (3D only): on where the device chose it ("Chosen for this device") or the person did; the switch is how the full figure is tried, or the lite one asked for. A person's choice stands (state/lite.ts). */
+/**
+ * Lite figure (3D only): on where the device chose it ("Chosen for this device") or the person did; the switch is how the full figure is tried, or the
+ * lite one asked for. A person's choice stands (state/lite.ts).
+ */
 function LiteFigure() {
   const on = useSettings((s) => s.lite), by = useSettings((s) => s.liteBy);
-  return <MenuToggle checked={on} icon={LITE_ROW.icon} label={LITE_ROW.label} sub={on && by === 'device' ? LITE_ROW.hintDevice : LITE_ROW.hint} onChange={(v) => useSettings.getState().setLite(v, 'person')} />;
+  const sub = on && by === 'device' ? LITE_ROW.hintDevice : LITE_ROW.hint;
+  return <MenuToggle checked={on} icon={LITE_ROW.icon} label={LITE_ROW.label} sub={sub} onChange={(v) => useSettings.getState().setLite(v, 'person')} />;
 }
 
 function useFullscreen() {

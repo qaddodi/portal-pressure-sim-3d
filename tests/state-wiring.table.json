@@ -25,6 +25,14 @@
    "reach": "react",
    "file": "src/scene/Stage.tsx"
   },
+  "lite": {
+   "reach": "subscribe",
+   "file": "src/scene/Stage.tsx"
+  },
+  "liteBy": {
+   "reach": "react",
+   "file": "src/scene/Stage.tsx"
+  },
   "keys": {
    "reach": "react",
    "file": "src/ui/keys/useKeys.ts"

@@ -8,8 +8,11 @@ export function hasWebGL2(make: () => { getContext(id: string): unknown } = () =
   } catch { return false; }
 }
 
-/** The page's graphics are drawn in software (no GPU behind WebGL): the renderer's own name says so (WEBGL_debug_renderer_info), or a context made with failIfMajorPerformanceCaveat is refused while a plain one is given.
- *  Called after hasWebGL2 says there is WebGL. Each probe context is given back at once, so none counts against the page's two. The name is read here and never stored or sent anywhere. */
+/**
+ * The page's graphics are drawn in software (no GPU behind WebGL): the renderer's own name says so (WEBGL_debug_renderer_info), or a context made with
+ * failIfMajorPerformanceCaveat is refused while a plain one is given. Called after hasWebGL2 says there is WebGL. Each probe context is given back at
+ * once, so none counts against the page's two. The name is read here and never stored or sent anywhere.
+ */
 export function softwareRenderer(make: () => { getContext(id: string, o?: object): unknown } = () => document.createElement('canvas')): boolean {
   type Gl = { getExtension?(n: string): { loseContext?(): void; UNMASKED_RENDERER_WEBGL?: number } | null; getParameter?(p: number): unknown } | null;
   const give = (gl: Gl) => { try { gl?.getExtension?.('WEBGL_lose_context')?.loseContext?.(); } catch { /* (a probe) */ } };

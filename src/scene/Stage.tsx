@@ -89,7 +89,8 @@ function SceneBridge() {
   const size = useThree((s) => s.size);
   const raycaster = useRef(new Raycaster());
   const warmed = useRef(false);
-  // The lite figure's first-frames check (state/lite.ts FrameProbe): until the device or the person has decided, the first five drawn frames of the figure are timed; a machine that averages over 250 ms picks lite for itself.
+  // The lite figure's first-frames check (state/lite.ts FrameProbe): until the device or the person has decided, the first five drawn frames of the figure
+  // are timed; a machine that averages over 250 ms picks lite for itself.
   const probe = useRef<FrameProbe | null>(useSettings.getState().liteBy === null ? new FrameProbe() : null);
   // The renderer lost its context. Before the first picture the splash cannot wait for a figure that will not come (boot/ready.ts says so, with Reload and the 2D link). After it, the figure is kept and brought back
   // (scene/context-loss.ts): the render phase pauses, a note fades in, and on restore the warm-up runs again (three re-sends its own textures, targets and geometry; it does not know which programs were warm).
@@ -254,7 +255,8 @@ function SceneBridge() {
     return () => { off(); offGov(); un(); clock.cancel(settle); };
   }, [setDpr]);
 
-  // The lite figure paces its frames (clock.setFrameFloor): about 20 a second, the same frames further apart. Its pixel ratio is the Figure detail effect's, above; its quiet switches are read off by the settings store (state/lite.ts).
+  // The lite figure paces its frames (clock.setFrameFloor): about 20 a second, the same frames further apart. Its pixel ratio is the Figure detail
+  // effect's, above; its quiet switches are read off by the settings store (state/lite.ts).
   useEffect(() => {
     let was = useSettings.getState().lite;
     const pace = () => { clock.setFrameFloor(was ? LITE_FRAME_MS : 0); clock.invalidate('lite'); };

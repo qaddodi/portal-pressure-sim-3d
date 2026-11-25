@@ -76,7 +76,8 @@ async function start() {
   // The stylesheets are loaded beside the cover's first paint, not in front of it (boot/styles.ts): nothing is put in #root until they are all on, so no part of the app is ever drawn unstyled.
   const styles = appStylesReady();
   if (!hasWebGL2()) { await styles; createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
-  // A software renderer (no GPU behind WebGL) takes the lite figure before anything is drawn; a person who has already chosen, either way, is never overruled (state/lite.ts). Slow first frames decide later, in Stage.
+  // A software renderer (no GPU behind WebGL) takes the lite figure before anything is drawn; a person who has already chosen, either way, is never
+  // overruled (state/lite.ts). Slow first frames decide later, in Stage.
   if (useSettings.getState().liteBy === null && softwareRenderer()) useSettings.getState().setLite(true, 'device');
   // The scene is built a step per task while the worker computes the first patient and the fonts and the baked files arrive: no one task is the whole scene, so the cover's bar and the browser's input run between the steps.
   const sceneBuilt = buildSceneSliced(nextTask).then(wireScene);

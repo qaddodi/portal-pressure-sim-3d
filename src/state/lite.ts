@@ -1,5 +1,7 @@
-// The lite figure: a calmer figure for a machine that cannot run the full one (a software renderer, a browser with no GPU, a very old phone). Same app, same numbers; the figure draws at 1x, at about 20 frames a second,
-// with no glass blur, no organ shade, no depth of field, tilt, streaks, living fluid or device shadows (docs/approved/lite-figure.md). It is chosen by the device when it can tell (boot/webgl.ts softwareRenderer, FrameProbe
+// The lite figure: a calmer figure for a machine that cannot run the full one (a software renderer, a browser with no GPU, a very old phone). Same app,
+// same numbers; the figure draws at 1x, at about 20 frames a second,
+// with no glass blur, no organ shade, no depth of field, tilt, streaks, living fluid or device shadows (docs/approved/lite-figure.md). It is chosen by
+// the device when it can tell (boot/webgl.ts softwareRenderer, FrameProbe
 // below) and the person can turn it on or off in Settings > Display; a person's choice is never undone by the device.
 //
 // The switches it quiets are the person's own choices and are kept as they are: `withLite` is the view the figure reads while lite is on, and turning lite off gives the person's own values back.
@@ -37,7 +39,10 @@ export const PROBE_FRAMES = 5;
 /** A gap longer than this is a pause (a hidden tab, a long task before the figure), not a slow frame: the count starts again. */
 export const PROBE_PAUSE_MS = 5000;
 
-/** Judges the first five drawn frames of the figure. `note(t)` takes the page time of each drawn frame; it answers true (too slow), false (fine) or null (not yet). Pure: Stage feeds it the clock's times. */
+/**
+ * Judges the first five drawn frames of the figure. `note(t)` takes the page time of each drawn frame; it answers true (too slow), false (fine) or null
+ * (not yet). Pure: Stage feeds it the clock's times.
+ */
 export class FrameProbe {
   private last = -1; private n = 0; private sum = 0; done = false;
   note(t: number): boolean | null {
