@@ -5,7 +5,7 @@ import { EDGES } from '../../engine/hales/portal/topology.js';
 import { x3, y3 } from '../frame2d.ts';
 import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
 import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D, PLACED } from '../anatomy/source.ts';
-import { PLACED_EDGE_3D, PLACED_HV_TRUNK } from '../anatomy/placed-network.ts';
+import { PLACED_EDGE_3D, PLACED_HV_TRUNK, PLACED_PATH_2D } from '../anatomy/placed-network.ts';
 import { alongVein, alongVeinCompanion, alongVeinStretch, originsOf, startInOrganShare } from './starts.ts';
 import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare, treeOf } from './liver-branches.ts';
 import { CAUDATE_HOST, CAUDATE_VEIN_ID } from './caudate-veins.ts';
@@ -157,12 +157,18 @@ function placedFade(id: string, f: TipFade | null): TipFade | null {
  *  still had alpha where the vein's was gone). Its fade ENDS where its companion's does: the share of the artery's course nearest to the point where the portal branch (the last vein it runs beside) reaches nothing, so both vanish together and the rest of
  *  the artery is fully faded (not drawn). 1 for an artery with no branching companion. */
 const COMPANION_END = new Map<string, number>();
+/** The artery's course as the network draws it, in the same frame as its companion's tree (treeOf): the placed course itself on the placed anatomy (network.ts basePathOf), the 2D course run on beside the vein
+ *  otherwise. (Measured on the 2D course while the tree was the placed one, the fade's end was read off a different figure: A_HR's ended about 40 units from its portal branch's.) */
+const drawnArtery = (id: string): readonly (readonly [number, number])[] | null => (PLACED ? PLACED_PATH_2D[id] ?? null : alongVein(id, EDGE_PATH_2D));
 export function companionEnd(id: string): number {
   const hit = COMPANION_END.get(id); if (hit != null) return hit;
-  const host = alongVeinCompanion(id), f = host ? fadeOf0(host, false) : null, tree = host ? treeOf(host) : null, art = alongVein(id, EDGE_PATH_2D);
+  const host = alongVeinCompanion(id), f = host ? fadeOf0(host, false) : null, tree = host ? treeOf(host) : null, art = drawnArtery(id);
   let u = 1;
-  if (f && tree && art && art.length > 1) {
-    const th = tree.through, k = Math.min(th.length - 1, Math.max(0, f.to * (th.length - 1))), i = Math.floor(k), j = Math.min(th.length - 1, i + 1), w = k - i;
+  // (the companion's course as drawn: its through branch where it branches; on the placed anatomy a vein the placement draws unbranched (the left portal vein, PVH_L_1) is its own placed course, whose fade
+  //  PLACED_LIVER_FADE ends early in the left lobe, so the left hepatic artery goes with it instead of running on to its bed: Mohammad 25 Nov, "the left portal vein ... fade earlier")
+  const th = tree?.through ?? (PLACED && host ? PLACED_PATH_2D[host] ?? null : null);
+  if (f && th && th.length > 1 && art && art.length > 1) {
+    const k = Math.min(th.length - 1, Math.max(0, f.to * (th.length - 1))), i = Math.floor(k), j = Math.min(th.length - 1, i + 1), w = k - i;
     const px = th[i]![0] + (th[j]![0] - th[i]![0]) * w, py = th[i]![1] + (th[j]![1] - th[i]![1]) * w;
     // (the nearest point on the artery's polyline, as a share of its length)
     let total = 0, best = Infinity, at = 0;

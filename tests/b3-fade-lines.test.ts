@@ -7,12 +7,24 @@ import { CAVA_RECEDE, fadeOf } from '../src/scene/vessels/fades.ts';
 import { NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
 import { CelScene } from '../src/scene/scene.ts';
+import { PLACED, EDGE_PATH_2D } from '../src/scene/anatomy/source.ts';
+import { PLACED_EDGE_3D } from '../src/scene/anatomy/placed-network.ts';
 
 test('a liver bed fades along the line from its portal node to its venous node: 0.8, faintest 0.36 half way, solid at the end', () => {
   for (const [id, a, b] of [['SIN_RR', 'SIN_R', 'CV_R'], ['SIN_LL', 'SIN_L', 'CV_L']] as const) {
     const f = fadeOf(id, false)!;
     assert.equal(f.mode, 4, id);
-    assert.deepEqual(f.line, [x3(NODE_POS_2D[a]![0]), y3(NODE_POS_2D[a]![1]), x3(NODE_POS_2D[b]![0]), y3(NODE_POS_2D[b]![1])]);
+    const line2 = [x3(NODE_POS_2D[a]![0]), y3(NODE_POS_2D[a]![1]), x3(NODE_POS_2D[b]![0]), y3(NODE_POS_2D[b]![1])];
+    if (!PLACED) assert.deepEqual(f.line, line2);
+    else {
+      // (restated for the placed anatomy, the only one now: the 2D line moves with the vessel, rigidly, by how far the course's end nearest it moved from the 2D course to the placed one,
+      // so the bed still fades where it did along itself; fades.ts placedFade)
+      const dx = f.line![0] - line2[0]!, dy = f.line![1] - line2[1]!;
+      assert.ok(Math.abs(f.line![2] - line2[2]! - dx) < 1e-12 && Math.abs(f.line![3] - line2[3]! - dy) < 1e-12, `${id}: the line moved rigidly`);
+      const was = EDGE_PATH_2D[id]!, now = PLACED_EDGE_3D[id]!;
+      const moved = [[was[0]!, now[0]!], [was.at(-1)!, now.at(-1)!]].some(([w, n]) => Math.hypot(n![0]! - x3(w![0]!) - dx, n![1]! - y3(w![1]!) - dy) < 1e-9);
+      assert.ok(moved, `${id}: by the shift of one of its course's ends`);
+    }
     assert.equal(f.from, 0.5); assert.equal(f.a0, 0.8); assert.equal(f.a1, 0.36);
     assert.equal(f.keep, false);
   }

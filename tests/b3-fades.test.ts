@@ -11,6 +11,8 @@ import { alongVeinStretch, startInOrganShare } from '../src/scene/vessels/starts
 import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
 import { treeOf } from '../src/scene/vessels/liver-branches.ts';
 import { alongVein } from '../src/scene/vessels/starts.ts';
+import { PLACED } from '../src/scene/anatomy/source.ts';
+import { PLACED_PATH_2D } from '../src/scene/anatomy/placed-network.ts';
 
 test('a vein that ends in its organ fades in from nothing over the 2D share of its length', () => {
   const spl = fadeOf('V_SPL', false)!;
@@ -92,12 +94,20 @@ test('the cava is a background vessel: faint everywhere but where the superior c
 
 test('a lobar artery is gone where the portal branch it runs beside is gone: its fade ends at its companion\'s end, not at its bed (Mohammad, 20 Nov: "fade them earlier")', () => {
   for (const [a, host] of [['A_HR', 'PVH_R_2'], ['A_HL', 'PVH_L_1']] as const) {
-    const f = fadeOf(a, true)!, hf = fadeOf(host, false)!, art = alongVein(a, EDGE_PATH_2D)!, th = treeOf(host)!.through;
+    const f = fadeOf(a, true)!, hf = fadeOf(host, false)!, art = (PLACED ? PLACED_PATH_2D[a] : alongVein(a, EDGE_PATH_2D))!,   /* (restated for the placed anatomy, the only one now: the artery's drawn course is the placed one, in treeOf's frame) */ th = treeOf(host)?.through ?? PLACED_PATH_2D[host]!;
     assert.equal(f.to, companionEnd(a));
     assert.ok(f.to < 0.95 && f.to > f.from + 0.05, `${a} ends its fade before its bed's node (${f.to}), over a real stretch (from ${f.from})`);
     // the artery's point at the end of its fade lies at the portal branch's point where it reaches nothing (within the gap the artery keeps beside the vein, 8 units, and its drift toward its bed), so neither outlives the other
     const pa = art[Math.round(f.to * (art.length - 1))]!, pv = th[Math.round(hf.to * (th.length - 1))]!;
-    assert.ok(Math.hypot(pa[0] - pv[0], pa[1] - pv[1]) < 20, `${a} ends beside ${host}'s fade end`);
+    if (!PLACED) assert.ok(Math.hypot(pa[0] - pv[0], pa[1] - pv[1]) < 20, `${a} ends beside ${host}'s fade end`);
+    else {
+      // (restated for the placed anatomy, the only one now: the approved placement runs the right hepatic artery between the portal vein and the cava, not 8 units beside the vein's
+      // tip, so its fade ends at the point of its own drawn course NEAREST the portal branch's fade end, read in the one frame both are drawn in (fades.ts drawnArtery; it was read off
+      // the 2D course against the placed tree). The left one, beside its vein in the placement, ends beside it, the left portal vein's early fade included (no tree: its placed course).)
+      const d = (p: readonly number[]) => Math.hypot(p[0]! - pv[0], p[1]! - pv[1]);
+      assert.ok(d(pa) <= Math.min(...art.map(d)) + 2, `${a} ends at its course's nearest point to ${host}'s fade end (${d(pa).toFixed(1)} vs ${Math.min(...art.map(d)).toFixed(1)})`);
+      if (a === 'A_HL') assert.ok(d(pa) < 20, `${a} ends beside ${host}'s fade end (${d(pa).toFixed(1)})`);
+    }
     assert.equal(f.a1, 0, 'it fades to nothing, so what is left past it is not drawn (no dotted stub)');
   }
 });
