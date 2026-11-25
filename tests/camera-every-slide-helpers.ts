@@ -11,7 +11,7 @@ import { Vector3, type PerspectiveCamera } from 'three';
 import { UI } from '../src/ui/strings.generated.ts';
 import { loadBuiltin } from '../src/decks/registry.ts';
 import { cathPlace, stopsOf, viewAt, type View } from '../src/ui/deck/presenter-machine.ts';
-import { closeUpOf, tipCloseShot } from '../src/ui/deck/cath-shot.ts';
+import { cameraAsk } from '../src/ui/deck/camera-ask.ts';
 import { poseAt, targetT } from '../src/ui/deck/cath-clock.ts';
 import { hvpgChase } from '../src/scene/camera/chase.ts';
 import type { CathState } from '../src/decks/schema.ts';
@@ -31,18 +31,12 @@ export const DEVICES = [
   { name: 'Mac', w: 1440, h: 900, rooms: [{ x: 420, y: 60, w: 1000, h: 780 }, { x: 480, y: 60, w: 940, h: 780 }], late: 120 },
   { name: 'iPhone', w: 390, h: 844, rooms: [{ x: 0, y: 60, w: 390, h: 520 }, { x: 0, y: 60, w: 390, h: 470 }], late: 60 },
 ] as const;
-const viewOf = (v: View): string => v.scene?.view ?? 'body';
-/** The framing a slide asks for, as scene-link.ts sync() works it out: the catheter's tip close-up on a body slide that has the catheter at its tip, else the slide's own. */
-export function wantOf(v: View, cath: CathState | null): View['shot'] {
-  const close = viewOf(v) === 'body' && !v.slide?.visual ? closeUpOf(cath) : null;
-  return (close ? tipCloseShot(close) : null) ?? v.shot;
-}
-/** What scene-link.ts sync() asks of the scene for a slide: the chase camera on while a body slide has the HVPG catheter out (its pose where the catheter stands), then the framing. */
+/** What scene-link.ts sync() asks of the scene for a step: the one camera ask (camera-ask.ts), the chase camera on with its pose where the catheter stands, then the framing. */
 export function show(v: View, room: Room, cath: CathState | null = null): void {
-  const c = v.scene?.circuit, chase = viewOf(v) === 'body' && !v.slide?.visual && cath !== null;
-  sceneApi.setChase(chase ? hvpgChase(poseAt(targetT(cath)).advance) : null);
-  if (v.scene?.view === 'circuit') sceneApi.showCircuit(room, { box: c?.box ?? null, kMax: c?.kMax ?? null, resistors: [], caudate: !!c?.caudate });
-  else { const want = wantOf(v, cath); sceneApi.showShot(viewOf(v) as 'body', want, room, want === v.shot); }
+  const a = cameraAsk(v, cath), c = v.scene?.circuit;
+  sceneApi.setChase(a.chase ? hvpgChase(poseAt(targetT(cath)).advance) : null);
+  if (a.view === 'circuit') sceneApi.showCircuit(room, { box: c?.box ?? null, kMax: c?.kMax ?? null, resistors: [], caudate: !!c?.caudate });
+  else sceneApi.showShot(a.view, a.shot, room, a.own);
 }
 let t = 1000;  // (page time, ms: one clock for the file's frames)
 export const frame = () => { t += 16; s.update(t); };
@@ -54,12 +48,12 @@ export const busy = () => s.rig.isMoving || s.diveHeld;
 
 /** Flies the move that was just asked for to its landing, frame by frame; `at` changes the room on given frames (a card settling). What went wrong, or nothing. */
 export function fly(at: Map<number, Room> = new Map()): string[] {
-  const eyes: Vector3[] = [eye()], zoom: number[] = [aimDist()], looks: Vector3[] = [look()], ups: Vector3[] = [upOf()];
+  const eyes: Vector3[] = [eye()], fovs: number[] = [s.rig.camera.fov], looks: Vector3[] = [look()], ups: Vector3[] = [upOf()];
   let from = 0;
   for (let k = 1; k < 400 && (busy() || k < 4); k++) {
     const r = at.get(k);
     if (r) { sceneApi.setRoom(r, undefined, false, true); from = k - 1; }   // (frameRoom: a talk's room change always refits)
-    frame(); eyes.push(eye()); zoom.push(aimDist()); looks.push(look()); ups.push(upOf());
+    frame(); eyes.push(eye()); fovs.push(s.rig.camera.fov); looks.push(look()); ups.push(upOf());
   }
   if (busy()) return ['never landed'];
   const end = eyes[eyes.length - 1]!, bad: string[] = [];
@@ -84,6 +78,10 @@ export function fly(at: Map<number, Room> = new Map()): string[] {
   }
   // (no snap: no frame moves the zoom or the eye much more than the frame before did. A step must stand out against the move's own pace (a quarter of its largest step), so the
   //  quintic's start from rest, whose second frame is seven times its first, is no snap; the kept points' fall, 30x in one frame, and a zoom set off at full speed are)
+  // (the zoom is what is drawn: the eye's distance to the point it lands looking at, in the lens's width. Judged on the shot's own aim it read a step where nothing on screen moved: the HVPG chase
+  //  draws its own aim, and the hand-over to the slide's shot under it changes that aim by 1 % with the eye and the lens still)
+  const endAim = end.clone().addScaledVector(looks[looks.length - 1]!, aimDist());
+  const zoom = eyes.map((e, k) => e.distanceTo(endAim) * Math.tan((fovs[k]! * Math.PI) / 360));
   const zs = zoom.map((z, k) => (k ? Math.abs(Math.log(z / zoom[k - 1]!)) : 0)), es = eyes.map((e, k) => (k ? e.distanceTo(eyes[k - 1]!) : 0));
   const zMax = Math.max(...zs), eMax = Math.max(...es);
   for (let k = 2; k < eyes.length; k++) {
@@ -111,26 +109,26 @@ export function everyMove(D: (typeof DEVICES)[number]): string[] {
   const fails: string[] = [], seen = new Set<string>();
   let moves = 0, i = 0;
   // (where the camera stands: a move that starts where the last one landed needs no settling first, which halves the frames)
-  let here: { view: string; shot: View['shot']; chase: boolean; room: Room } | null = null;
+  let here: { view: string; shot: ReturnType<typeof cameraAsk>['shot']; chase: boolean; room: Room } | null = null;
   for (const [id, deck] of decks) {
     const seq = walk(deck);
     for (let j = 1; j < seq.length; j++) {
       const a = seq[j - 1]!, b = seq[j]!;
-      // (a move is what the camera is asked for: the view, the framing (a catheter's close-up or the slide's own) and whether the chase camera is on)
-      const wa = wantOf(a.v, a.cath), wb = wantOf(b.v, b.cath), ca = a.cath !== null && viewOf(a.v) === 'body', cb = b.cath !== null && viewOf(b.v) === 'body';
-      const key = JSON.stringify([viewOf(a.v), wa, ca, viewOf(b.v), wb, cb]);
-      if (seen.has(key) || (wa === wb && viewOf(a.v) === viewOf(b.v) && ca === cb)) continue;
+      // (a move is what the camera is asked for: the view, the framing (a case card's whole figure, a catheter's close-up or the slide's own) and whether the chase camera is on)
+      const A = cameraAsk(a.v, a.cath), B = cameraAsk(b.v, b.cath);
+      const key = JSON.stringify([A.view, A.shot, A.chase, B.view, B.shot, B.chase]);
+      if (seen.has(key) || (A.shot === B.shot && A.view === B.view && A.chase === B.chase)) continue;
       seen.add(key);
       // (half the moves change room as they set off, as two slides' cards do, and have the data card's height land a beat late, early or near the landing)
-      const settle = i++ % 2 === 1, at = here && here.view === viewOf(a.v) && here.shot === wa && here.chase === ca ? here.room : null;
+      const settle = i++ % 2 === 1, at = here && here.view === A.view && here.shot === A.shot && here.chase === A.chase ? here.room : null;
       const r0: Room = at ?? D.rooms[settle ? 1 : 0], r1: Room = r0.w === D.rooms[0].w && r0.h === D.rooms[0].h ? D.rooms[1] : D.rooms[0];
       if (!at) { show(a.v, r0, a.cath); for (let k = 0; k < 400 && (busy() || k < 4); k++) frame(); }
       show(b.v, r1, b.cath);
       const lateRoom = { ...r1, h: r1.h - D.late }, late = settle ? new Map([[[6, 30, 70][i % 3]!, lateRoom]]) : undefined;
       const bad = fly(late);
-      here = { view: viewOf(b.v), shot: wb, chase: cb, room: late ? lateRoom : r1 };
+      here = { view: B.view, shot: B.shot, chase: B.chase, room: late ? lateRoom : r1 };
       moves++;
-      if (bad.length) fails.push(`${id} ${a.at} -> ${b.at} (${viewOf(a.v)} -> ${viewOf(b.v)}${late ? ', a card settled in flight' : ''}): ${bad.join('; ')}`);
+      if (bad.length) fails.push(`${id} ${a.at} -> ${b.at} (${A.view} -> ${B.view}${late ? ', a card settled in flight' : ''}): ${bad.join('; ')}`);
     }
   }
   assert.ok(moves > 150, `the walk found the talks' moves (${moves})`);

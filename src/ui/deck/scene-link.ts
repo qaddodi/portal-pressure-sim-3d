@@ -9,7 +9,7 @@ import { useUi } from '../ui-store.ts';
 import { DOCK_MS } from '../cards/dock.ts';
 import { viewAt, cathPlace, microAhead } from './presenter-machine.ts';
 import { makeCathClock, aimCath, stepCath, poseAt, cathScript, rankOf, ARRIVE_MS, readTaken, type CathPose } from './cath-clock.ts';
-import { tipCloseShot, closeUpOf } from './cath-shot.ts';
+import { cameraAsk } from './camera-ask.ts';
 import { hvpgChase, type ChasePose } from '../../scene/camera/chase.ts';
 import type { Shot, ShotName } from '../../scene/camera/shots.ts';
 import { DEFAULT_LENS, type LensId } from '../../scene/lenses/model.ts';
@@ -86,20 +86,16 @@ export function linkScene(): () => void {
     if (room.w <= 0 || room.h <= 0) return;   // the cards have not been measured yet: no room to frame in
     // the room belongs to another slide (its cards are still being measured, stepped down or fitted): the slide's move waits for its own final room, so the camera goes there once, never to an early one and on to the final
     if (boxes.stop != null && boxes.stop !== pos.stop) { owed = owed || stepped; return; }
-    // a case slide's card comes first (24 Nov, Mohammad: "after I hit Next on the case card then we pan/zoom"): the camera stays where the last slide left it while the card shows and the new patient blends in
-    // (hp/link.ts), and the slide's own move starts at the press of Next on the card. `shot` null: nothing was framed yet (a jump straight onto the card), so the camera goes to the slide's framing as before.
-    if (v.words === 'case' && shot !== null) { owed = owed || stepped; return; }
     if (owed) { stepped = true; owed = false; }
-    // The catheter's own shots: the tip close up, the balloon just behind it and the vein ahead (2D cathFocus 'tip', both). The route step keeps the slide's own (the whole way in).
-    const view = v.scene ? v.scene.view : 'body', close = view === 'body' && !v.slide?.visual ? closeUpOf(at) : null;
-    const want = (close ? tipCloseShot(close) : null) ?? v.shot;
-    const chaseNow = view === 'body' && !v.slide?.visual && at !== null;
-    if (chaseNow !== chasing) { chasing = chaseNow; driveChase(); }
+    // (what the camera is asked for here: camera-ask.ts, the one place. A case card stands back on the whole figure, fitted to the patient coming in; Next is one move on to the slide's own)
+    const ask = cameraAsk(v, at), want = ask.shot;
+    if (ask.chase !== chasing) { chasing = ask.chase; driveChase(); }
     if (want !== shot) {
       shot = want;
       // a ported slide says its own view and its lens; the slice's slides are the body. A Circuit slide frames its region of the map and draws the resistors it names.
-      if (v.scene?.view === 'circuit') sceneApi.showCircuit(room, { box: v.scene.circuit?.box ?? null, kMax: v.scene.circuit?.kMax ?? null, resistors: (v.scene.circuit?.resistors ?? []) as never, caudate: !!v.scene.circuit?.caudate });
-      else sceneApi.showShot(v.scene ? v.scene.view : 'body', want, room, want === v.shot);   // (the slide's own framing takes a slide's time; the catheter's tip close-ups keep the hand's glide)
+      const c = v.scene?.circuit;
+      if (ask.view === 'circuit') sceneApi.showCircuit(room, { box: c?.box ?? null, kMax: c?.kMax ?? null, resistors: (c?.resistors ?? []) as never, caudate: !!c?.caudate });
+      else sceneApi.showShot(ask.view, want, room, ask.own);   // (the slide's own framing takes a slide's time; the catheter's tip close-ups keep the hand's glide)
     } else if (stepped || !sceneApi.roomIs(room)) { if (dockMoved && !stepped) frameRoom(room, DOCK_MS, easeArrive); else frameRoom(room, undefined, undefined, stepped); }   // (a step on to a slide with the same shot still brings the viewer's turn home; a dock glide that has landed where it told the camera to go asks for nothing more)
   };
 
