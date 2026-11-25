@@ -19,14 +19,19 @@ test('the azygos arch fades out to the left: alpha 0 at its free end rising to 1
     const c = coursesOf(NETWORK_BY_ID.get('AZY_SVC')!, REST)[0]!;
     assert.ok(!c.point?.[0] && !c.point?.[1], 'no pinpoint: the width holds over the faded stretch');
     assert.ok(!c.taper?.[0] || c.taper[0] >= 1, 'no taper at the free end');
-    let len = 0; const seg: number[] = [0];
+    // (seg[i]: the arc length to point i; it held a leading 0 too, so seg[i] was the length to point i - 1)
+    let len = 0; const seg: number[] = [];
     c.pts.forEach((p, i) => { if (i) { len += Math.hypot(p[0] - c.pts[i - 1]![0], p[1] - c.pts[i - 1]![1], p[2] - c.pts[i - 1]![2]); } seg.push(len); });
     const faded = f.to * len;
-    assert.ok(faded >= 3 * 2 * c.radius, `the fade spans ${(faded / (2 * c.radius)).toFixed(1)} vessel diameters`);
-    // (the stretch behind the landing is the carried-on one: the landing of the collaterals, the course's nearest point to the node, is at its end, where the alpha is 1)
-    const node = [-0.42, 1.753]; let bd = Infinity, at = 0;
-    c.pts.forEach((p, i) => { const d = Math.hypot(p[0] - node[0]!, p[1] - node[1]!); if (d < bd) { bd = d; at = seg[i]!; } });
-    assert.ok(Math.abs(at - faded) <= 0.35 * faded, `the collaterals land where the arch is whole (the carry-on ends at ${(faded / (2 * c.radius)).toFixed(1)} diameters, the landing is at ${(at / (2 * c.radius)).toFixed(1)})`);
+    // (the landing of the collaterals: in the placed anatomy the esophageal collateral C1b ends on the arch 0.65 of the way along it (the 2D figure's node at [-0.42, 1.753] is not on the placed arch, which starts where the ascending lumbar C9 runs into
+    //  it). The fade runs from the free end to that landing and no further, so the collateral joins where the arch is whole; the 2D arch carried 30 units on behind its landing and faded over 3+ diameters there, the placed arch has 2.9 diameters
+    //  before its landing, and the fade takes all of them)
+    const c1 = coursesOf(NETWORK_BY_ID.get('C1b')!, REST)[0]!, q = c1.pts[c1.pts.length - 1]!;
+    let bd = Infinity, at = 0;
+    c.pts.forEach((p, i) => { const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]); if (d < bd) { bd = d; at = seg[i]!; } });
+    assert.ok(bd < 2 * c.radius, `C1b lands on the arch (${bd.toFixed(4)} from its axis)`);
+    assert.ok(faded >= Math.min(3 * 2 * c.radius, at) - 0.02 * len, `the fade spans ${(faded / (2 * c.radius)).toFixed(1)} vessel diameters, the stretch before the landing ${(at / (2 * c.radius)).toFixed(1)}`);
+    assert.ok(faded <= at + 0.02 * len, `the collaterals land where the arch is whole (the fade ends at ${(faded / (2 * c.radius)).toFixed(1)} diameters, the landing is at ${(at / (2 * c.radius)).toFixed(1)})`);
   } finally { setSmoothJoins(was); }
 });
 
