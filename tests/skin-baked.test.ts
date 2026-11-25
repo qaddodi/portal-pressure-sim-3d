@@ -10,6 +10,7 @@ import { SkinSet, type SkinSetDeps } from '../src/scene/vessels/skin/skin-set.ts
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { REST } from '../src/scene/vessels/shape.ts';
 import { armTube } from '../src/scene/vessels/skin/braid-arm.ts';
+import { PACES } from '../src/scene/vessels/skin/mesh.ts';
 import { buildTubes } from '../src/scene/vessels/tubes.ts';
 import { decodeSkins, encodeSkins, skinsDigest, type BakedSkins } from '../src/scene/vessels/skin/baked.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
@@ -36,8 +37,11 @@ test('the baked file unpacks to the skins it was made from, and a build that is 
     const liveMs = performance.now() - t0, made = live.set.bake();
     assert.ok(made.skins.length >= 12, `${made.skins.length} skins baked`);
     assert.ok(made.digest.length > 10);
-    // (placed: the hepatic veins open at one point of the placed cava, arriving in its plane (placed-network.ts joinEnd `flat`), and its skin closes on the first rung)
-    assert.equal(made.skins.find((s) => s.plan.junction.node === 'IVCS')!.pace, 0, 'the cava closes on the slowest rung, which a later rebuild of it starts at');
+    // (placed anatomy, round 18: the hepatic veins open at two ostia apart along the cava, the right one 3 cava radii below the common trunk (placed-network.ts HV_OSTIA), and no hull of the five seam rings covers them all, so the cava's skin is
+    //  meshed from the surface itself (skin-set.ts: the retry before a node keeps today's joins), the last rung, FROM_SURFACE. Round 17's one mouth closed on the first rung. Either way a later rebuild starts at the rung that closed it)
+    const ivcs = made.skins.find((s) => s.plan.junction.node === 'IVCS')!;
+    assert.equal(ivcs.pace, PACES.length - 1, 'the cava closes on the slowest rung, which a later rebuild of it starts at');
+    assert.equal(ivcs.plan.junction.surface, true, 'the cava\'s skin is meshed from the surface');
 
     // the file: pack, unpack
     const bin = encodeSkins(made), back = decodeSkins(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength) as ArrayBuffer)!;
