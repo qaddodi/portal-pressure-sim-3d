@@ -33,7 +33,7 @@ function staticGraph(entry: string): Map<string, string | null> {
   return seen;
 }
 const graph = staticGraph('src/main.tsx');
-const BOOT_SOURCE_CEILING = 7700 * 1024, BOOT_FILES_CEILING = 1010;   // (24 Nov 2026: 966 files, 7387 kB, a little room. 25 Nov: raised to 7760 for the approved placed anatomy (7739 kB), then back to 7700 once the 2D figure's code left the app: 983 files, 7671 kB.)
+const BOOT_SOURCE_CEILING = 7700 * 1024, BOOT_FILES_CEILING = 1010;   // (24 Nov 2026: 966 files, 7387 kB, a little room. 25 Nov: raised to 7760 for the approved placed anatomy (7739 kB), then back to 7700 once the 2D figure's code left the app: 983 files, 7671 kB. Then the placed anatomy's growth took it to 7803 kB; the stent editor (with its chart code) became a chunk: see the budget test.)
 const files = [...graph.keys()].map((f) => relative(root, f).split('\\').join('/'));
 const chain = (f: string) => { const out: string[] = []; let c: string | null | undefined = resolve(root, f); while (c) { out.push(relative(root, c)); c = graph.get(c); } return out.join(' <- '); };
 

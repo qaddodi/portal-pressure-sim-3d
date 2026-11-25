@@ -83,7 +83,8 @@ test('the TIPS card lists the stent panel, and the editor is registered as the c
   const panel = readFileSync(new URL('../src/ui/action/stent/StentPanel.tsx', import.meta.url), 'utf8');
   assert.match(panel, /registerPanel\('stent', StentPanel\)/);
   const boot = readFileSync(new URL('../src/ui/action/boot.ts', import.meta.url), 'utf8');
-  assert.match(boot, /import '\.\/stent\/StentPanel\.tsx'/, 'the app imports the panel so it is registered');
+  assert.doesNotMatch(boot, /^import[^\n]*StentPanel/m, 'the panel is a chunk of its own (stent-load.ts), read in when idle or when its card is selected');
+  assert.match(readFileSync(new URL('../src/ui/action/stent/stent-load.ts', import.meta.url), 'utf8'), /import\('\.\/StentPanel\.tsx'\)/);
 });
 
 test('the vessel card\'s line of three numbers is the 2D list: PPG, flow, peak velocity', () => {

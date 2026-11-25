@@ -4,6 +4,7 @@
 //                     the shared chart context, then the instruments' GL programs on it (boot/warm-programs.ts).
 // A rung runs inside a slot the caller hands in (`slot(go)` calls go() when nobody is watching motion; the one background-work slot, clock/idle.ts: quietSlot) and never when the person asked the browser to save data (boot/data-saver.ts: Save-Data, a 2g link): those parts are then fetched on use and kept, as ever.
 import { loadToolCard } from '../ui/talk/tool-card-load.ts';
+import { loadStentPanel } from '../ui/action/stent/stent-load.ts';
 import { loadDeckUi } from '../ui/shell/deck-ui-load.ts';
 import { need, LOADERS } from '../ui/tests/dock/lazy.ts';
 import { sharedContext } from '../ui/charts/gl.ts';
@@ -25,6 +26,7 @@ export const MODULE_ORDER = ['doppler', 'endoscopy', 'hvpg', 'fibroscan', 'profi
 
 export const RUNGS: readonly Rung[] = [
   ...MODULE_ORDER.map((id): Rung => ({ id: `module:${id}`, run: () => need(id) })),   // (need(): shared with the tabs, so a tap during the rung waits on the same load)
+  { id: 'module:stent', run: () => loadStentPanel() },   // (the TIPS, DIPS and custom shunt cards' editor: a chunk of its own, 25 Nov)
   { id: 'module:talk-ui', run: () => loadDeckUi() },   // (a talk's own UI: cards, wallet, presenter pill; a chunk of its own, 24 Nov)
   { id: 'module:talk', run: () => loadToolCard() },   // (a talk's charts)
   { id: 'programs:charts', run: () => { sharedContext(); } },   // (the one shared chart context, with the chart program)

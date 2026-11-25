@@ -16,7 +16,6 @@ import { MESHES_OF } from '../../scene/organs/pick.ts';
 import { useUi } from '../ui-store.ts';
 import { isPhone } from '../layout/device.ts';
 import { startShunting } from './shunt.ts';
-import './stent/StentPanel.tsx';   // (registers the stent editor as the card's 'stent' panel)
 import { goToView } from '../shell/view-actions.ts';
 import { logInput } from '../../scene/intent-log.ts';
 

@@ -17,6 +17,7 @@ import { cardFor, type Card, type Verb } from './cards.ts';
 import { sameSnap, snapOf, type Snap, type VerbSnap } from './snap.ts';
 import { appAct } from './act.ts';
 import { panelFor, headFor } from './panels.ts';
+import { useStentPanelReady } from './stent/stent-load.ts';
 import { currentParams, updateParams, useParamsTick } from './params.ts';
 import { envNow } from './env.ts';
 import { detailsFor } from './details.ts';
@@ -195,7 +196,10 @@ export function ActionCard() {
   const device = useUi((s) => s.device);
   const vp = useUi((s) => s.vp);
   const bottom = usesBottomBar(device);
-  const card = useMemo(() => cardFor(sel), [sel]);
+  const cardAll = useMemo(() => cardFor(sel), [sel]);
+  // (a card with the stent editor waits for the editor's chunk, so it lands at its final size: stent/stent-load.ts)
+  const stentIn = useStentPanelReady(!!cardAll?.verbs.some((v) => v.type === 'panel'));
+  const card = cardAll && !stentIn && cardAll.verbs.some((v) => v.type === 'panel') ? null : cardAll;
   const [held, setHeld] = useState<Card | null>(null);   // the card on show, kept while it fades out
   const [fonts, setFonts] = useState(() => typeof document === 'undefined' || !document.fonts || document.fonts.status === 'loaded');
   const ref = useRef<HTMLElement>(null);
