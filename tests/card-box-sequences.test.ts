@@ -58,11 +58,11 @@ test('a viewport change (a new key, width or step: the measuring effect\'s own f
   assert.deepEqual(r.drawnAfter, [352, 352, 352, 300, 300, 300, 300]);
 });
 
-test('above the lock the card grows (the words are never clipped), the growth is logged for the audit, and it never shrinks back', () => {
+test('above the lock the card does NOT grow on screen (25 Nov, third report); the excess is logged for the audit', () => {
   clearGrew();
   const r = play([m(352, { fresh: true, shown: false }), { t: 'show', key: K }, m(352), m(378), m(352), m(366), m(300)]);
-  assert.deepEqual(r.drawnAfter, [352, 352, 352, 378, 378, 378, 378]);
-  assert.deepEqual(r.grew, [26]);
+  assert.deepEqual(r.drawnAfter, [352, 352, 352, 352, 352, 352, 352]);
+  assert.deepEqual(r.grew, [26, 14]);
   noteGrew({ card: 'teach', slide: 'teach:rhf', px: 26 });
   const f = grewFindings();
   assert.equal(f.length, 1);
@@ -75,7 +75,7 @@ test('above the lock the card grows (the words are never clipped), the growth is
 test('CardFrame asks the reducer on every measure and shows it only once let in; the quick check is the one card that grows by design', () => {
   const cf = readFileSync('src/ui/cards/CardFrame.tsx', 'utf8');
   assert.match(cf, /boxOf\(box\.current, \{ t: 'measure', key: lockKey, h, fresh, shown: gate\.current && !GROWS_BY_DESIGN\.has\(entry\.id\) \}\)/);
-  assert.match(cf, /if \(!out\.report\) \{[^}]*return;\s*\}\s*\n\s*if \(out\.grew\) noteGrew\(/);
+  assert.match(cf, /if \(out\.grew\) noteGrew\([^\n]*\n\s*if \(!out\.report\) \{/);
   assert.match(cf, /box\.current = boxOf\(box\.current, \{ t: 'show', key: lockKey \}\)\.state/);
   assert.match(cf, /report\(true, !sameStep\);/, 'the measuring effect\'s first pass is the fresh one (but for a kept data card at the same step)');
   assert.match(cf, /GROWS_BY_DESIGN: ReadonlySet<string> = new Set\(\['check'\]\)/);

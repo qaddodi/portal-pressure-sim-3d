@@ -30,3 +30,6 @@ Not built from the 12 proposed (the model cannot yet): MASH on a GLP-1, ACLF, JA
 
 ## Never
 - Type a number, an event or a day into a history by hand; change a course without baking again; name AASLD or EASL on screen.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).
