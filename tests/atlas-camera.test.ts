@@ -92,12 +92,19 @@ test('Lower IVC and the SMV: at every rest shot and across the whole ±25° turn
 });
 
 test('a point station stands at the depth of its vessel, not on the front tier: the atrium on the cava, the varices on the collaterals', () => {
-  assert.equal(nodeZ('RA'), TIER_Z.back);
-  assert.ok(Math.abs(nodeZ('VAR') - TIER_Z.mid) < 0.05);
+  // (the placed anatomy has no tier planes: the atrium's point is where the cava's drawn course ends, the varices' where their course reaches their node, and neither is on the 2D front tier)
+  const end = (id: string) => { const q = coursesOf(NETWORK_BY_ID.get(id)!, AT_REST)[0]!.pts; return q[q.length - 1]![2]; };
+  assert.ok(Math.abs(nodeZ('RA') - end('IVCS_RA')) < 1e-6, `the atrium's point ${nodeZ('RA')} is on the cava's end ${end('IVCS_RA')}`);
+  assert.ok(Math.abs(nodeZ('VAR') - end('C1a')) < 1e-6, `the varices' point ${nodeZ('VAR')} is on their course ${end('C1a')}`);
+  for (const id of ['RA', 'VAR']) assert.ok(nodeZ(id) < TIER_Z.front - 0.02, `${id} is not on the front tier`);
   for (const id of ['RA', 'SIN_R', 'VAR']) assert.equal(nodeZ(id), NODE_Z.get(id), `${id}: where the vessels that meet there are drawn`);
+  // (the dot is ON a drawn tube, inside its wall: stations.ts pointAt takes the placed node (the atrium's point, between the cava's and the superior cava's ends) or the nearest point of a drawn target course;
+  //  on the 2D figure it was the node at the tier depth)
   for (const id of ['RA', 'SIN_R', 'VAR']) {
-    const s = STATIONS.find((x) => x.id === id)!;
-    assert.equal(s.at(0, new Vector3()).z, nodeZ(id), id);
+    const p = STATIONS.find((x) => x.id === id)!.at(0, new Vector3());
+    let inside = Infinity;
+    for (const v of NETWORK) if (!v.feeder) for (const q of coursesOf(v, AT_REST)[0]!.pts) inside = Math.min(inside, Math.hypot(q[0]! - p.x, q[1]! - p.y, q[2]! - p.z) - v.radius);
+    assert.ok(inside <= 0, `${id}: its dot is ${inside.toFixed(4)} outside the nearest drawn tube`);
   }
 });
 
@@ -119,14 +126,16 @@ test('the deck link tells the camera a step happened, so a slide on the same sho
 
 test('the cava runs straight up the figure at one depth to the hepatic junction, with no rise there (a rise and a fall to the atrium was the kink at its upper end: Mohammad, 20 Nov), and the dot is on the tube at the junction end (iPhone, 19 Nov)', () => {
   const low = drawn('IVC_IS'), cava = drawn('IVCS_RA');
-  for (const p of low) assert.ok(Math.abs(p[2] - low[0]![2]) < 1e-6, 'the lower cava is at one depth');
+  // (placed: the cava climbs from behind the gut forward to the atrium on one slope, as the approved placement lays it; what the owner saw was a rise and a FALL, so the depth never turns back along the column)
+  const col = [...low, ...cava.slice(1)];
+  for (let i = 1; i < col.length; i++) assert.ok(col[i]![2] >= col[i - 1]![2] - 1e-6, `the cava's depth turns back at point ${i} (${col[i - 1]![2].toFixed(4)} then ${col[i]![2].toFixed(4)})`);
   assert.ok(Math.abs(cava[0]![2] - low[low.length - 1]![2]) < 1e-6, 'the cava leaves the junction at the depth it arrived at');
   const ivc = STATIONS.find((x) => x.id === 'IVCS')!;
   assert.ok(Math.abs(ivc.at(0, new Vector3()).z - cava[0]![2]) < 1e-6, 'the dot at the junction end is at the depth the tube is drawn at there, not the tier\'s');
 });
 
 // ── a station's dot does not move with the zoom ──
-import { DOT_UNITS, stationById } from '../src/scene/labels/stations.ts';
+import { DOT_UNITS, seenAt, stationById } from '../src/scene/labels/stations.ts';
 import { LabelController, NO_STATE as NO_LABEL_STATE, type LabelDeps as LDeps } from '../src/scene/labels/controller.ts';
 import { CameraRig as Rig } from '../src/scene/camera/rig.ts';
 import { Vector3 as Vec } from 'three';
@@ -145,27 +154,38 @@ test('every station keeps its dot at every zoom: "Lower IVC" stands on the cava 
     return { rig, out };
   };
   const iv = stationById('IVCI')!, conf = stationById('CONF')!;
-  assert.ok(Math.hypot(iv.at(iv.u0, new Vec()).x - conf.at(conf.u0, new Vec()).x, iv.at(iv.u0, new Vec()).y - conf.at(conf.u0, new Vec()).y) >= DOT_UNITS - 1e-6, 'at rest the two dots are a fixed distance apart in the plate');
+  // (at rest each dot is where its own vessel is SEEN in the front view (stations.ts seenAt, the placed anatomy's rule: the lower cava passes behind the portal trunk and the renal veins, so its dot no longer
+  //  keeps the 2D figure's DOT_UNITS from the confluence's: no spot of it that is seen is that far from every other dot); the two never share a point, and the label solver keeps their names apart)
+  const ivAt = iv.at(iv.u0, new Vec()), confAt = conf.at(conf.u0, new Vec()), ivV = NETWORK_BY_ID.get(iv.vessel!)!;
+  assert.ok(seenAt(ivV.host, ivV.radius, ivAt.x, ivAt.y, ivAt.z) > 0, 'Lower IVC rests where its cava is seen');
+  assert.ok(Math.hypot(ivAt.x - confAt.x, ivAt.y - confAt.y) >= ivV.radius + NETWORK_BY_ID.get(conf.vessel!)!.radius, 'at rest the two dots are on two vessels, not one blot');
   for (const k of [0.8, 1, 1.6, 2.4]) {
     const { rig, out } = at(k);
     for (const id of ['IVCI', 'CONF', 'RHV', 'SMV']) {
       const s = stationById(id)!, want = rig.project(s.at(s.u0, new Vec()), { x: 0, y: 0 }), got = out.get(id);
       if (!got) continue;   // (off the screen at that zoom: not placed)
-      assert.ok(Math.hypot(got.x - want.x, got.y - want.y) < 1.5, `${id} at zoom ${k}: dot ${got.x.toFixed(0)},${got.y.toFixed(0)} is not where its fixed place projects (${want.x.toFixed(0)},${want.y.toFixed(0)})`);
+      // (its fixed place, or, where a higher ranked dot stands within DOT_ROOM of it there (zoomed out, the placed lower cava's seen stretch is near the portal confluence's dot: it passes behind the portal trunk),
+      //  a place the solver slid it to ALONG ITS OWN VESSEL, on a stretch where that vessel is seen (solver.ts spreadDots, stations.ts rests): on the cava, never beside it)
+      let onOwn = Infinity;
+      if (s.rests) for (let i = 0; i <= 200; i++) { if (!s.rests(i / 200)) continue; const q = rig.project(s.at(i / 200, new Vec()), { x: 0, y: 0 }); onOwn = Math.min(onOwn, Math.hypot(got.x - q.x, got.y - q.y)); }
+      assert.ok(Math.hypot(got.x - want.x, got.y - want.y) < 1.5 || onOwn < 1.5, `${id} at zoom ${k}: dot ${got.x.toFixed(0)},${got.y.toFixed(0)} is neither where its fixed place projects (${want.x.toFixed(0)},${want.y.toFixed(0)}) nor on a seen stretch of its own vessel`);
     }
     assert.ok(out.has('IVCI') || k > 2, `Lower IVC stands at zoom ${k}`);
   }
 });
 
 // ── the play shot frames what the figure draws, not the plate ──
-import { ORGANS as ORGANS_2D } from '../src/scene/labels/organ2d/outlines.copied.js';
-import { flattenPath as flatten2D } from '../src/scene/labels/organ2d/flatten.js';
+import { placedBoxOfName } from '../src/scene/anatomy/source.ts';
 import { figureCourses } from '../src/scene/labels/stations.ts';
 
 test('the play shot\'s middle and half extents hold every organ outline and every vessel course at rest (it framed the plate, which is less: the foot was cut off in a short room: Tests sheet up, a slide)', () => {
   let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
   const grow = (x: number, y: number) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
-  for (const o of ORGANS_2D as { ring?: string; d?: string }[]) for (const p of flatten2D((o.ring ?? o.d)!, 4) as { pts: number[] }[]) for (let i = 0; i < p.pts.length; i += 2) grow(p.pts[i]!, p.pts[i + 1]!);
+  // (the organs as the placed anatomy draws them: their placed boxes, front view; the 2D plate's outlines (organ2d) are the old figure's, which reached x 1104 where no placed organ does)
+  for (const n of ['liver', 'stomach', 'esophagus', 'spleen', 'kidney-l', 'heart', 'heart-ra', 'duodenum', 'bowel', 'colon']) {
+    const b = placedBoxOfName(n); assert.ok(b, `no placed box for ${n}`);
+    grow(b![0] * 300 + 700, -b![4] * 300 + 556); grow(b![3] * 300 + 700, -b![1] * 300 + 556);   // ([x0, y0, z0, x1, y1, z1])
+  }
   for (const c of figureCourses()) { if (c.v.kind === 'collateral' || c.v.kind === 'shunt') continue; for (const q of c.pts) grow(q.x * 300 + 700, -q.y * 300 + 556); }
   const s = SHOTS.play, cx = s.target[0] * 300 + 700, cy = -s.target[1] * 300 + 556;
   assert.ok(cx - s.half[0] * 300 <= x0 + 3 && cx + s.half[0] * 300 >= x1 - 3, `x ${x0.toFixed(0)}..${x1.toFixed(0)} against ${(cx - s.half[0] * 300).toFixed(0)}..${(cx + s.half[0] * 300).toFixed(0)}`);
