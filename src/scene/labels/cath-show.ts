@@ -90,6 +90,8 @@ export interface SumDraw {
   /** Each row: its own opacity (a row that travels is there from the first frame; one that does not rises and fades in), the pixels still to travel, the rise. */
   row: [{ alpha: number; dx: number; dy: number; rise: number }, { alpha: number; dx: number; dy: number; rise: number }];
   lead: number; calcAlpha: number; calcRise: number;
+  /** The HVPG's card, pixels still to glide (a number that gained a digit re-fits the stack: each part glides from where it stood to its new place). */
+  calcShift: { dx: number; dy: number };
   key: string;
 }
 export interface CathFrame { pills: PillDraw[]; sum: SumDraw | null }
@@ -101,7 +103,8 @@ export interface CathFrame { pills: PillDraw[]; sum: SumDraw | null }
 interface PillTarget { id: PillId; reading: Reading; x: number; y: number; w: number; h: number; above: boolean; box: Box; key: string; spot: string; ax: number; ay: number }
 interface SumTarget { x: number; y: number; geom: SumGeom; rows: [Reading, Reading]; calc: Reading; leaders: SumDraw['leaders']; box: Box; key: string; spot: string; tip: Pt; ahead: Pt }
 interface PillRec { t: PillTarget; p: number; gx: number; gy: number }
-interface SumRec { t: SumTarget; fade: number; u: number; from: [{ x: number; y: number } | null, { x: number; y: number } | null]; gx: number; gy: number }
+interface SumRec { t: SumTarget; fade: number; u: number; from: [{ x: number; y: number } | null, { x: number; y: number } | null]; gx: number; gy: number;
+  /** Each part's own pixels still to glide (the WHVP's row, the FHVP's, the HVPG's card) when the stack was laid out again at another width. */ gm: [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }] }
 /** How fast a card that was placed again glides to its new place (the time constant, ms): about a third of the small step, so it arrives within it. */
 export const GLIDE_TAU_MS = C.MS.small / 3;
 const GLIDE_EPS = 0.05;
@@ -178,7 +181,7 @@ export class CathShow {
       this.swapWas = plan.swap;
       const leaders = { d: plan.d, dots: plan.dots };
       const box = { x0: at.x, y0: at.y, x1: at.x + geom.w, y1: at.y + geom.h };
-      sum = { x: at.x, y: at.y, geom, rows: [rw, rf], calc: rh, leaders, box, key: `${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}|${geom.w}|${geom.h}|${leaders.d.join('')}`, spot: `${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}|${geom.w}|${geom.h}`, tip: [inp.tip[0], inp.tip[1]], ahead: [inp.ahead[0], inp.ahead[1]] };
+      sum = { x: at.x, y: at.y, geom, rows: [rw, rf], calc: rh, leaders, box, key: `${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}|${geom.w}|${geom.h}|${leaders.d.join('')}`, spot: `${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}`, tip: [inp.tip[0], inp.tip[1]], ahead: [inp.ahead[0], inp.ahead[1]] };
     }
     this.want = { pills, sum };
     this.boxes = [...[...pills.values()].map((p) => p.box), ...(sum ? [sum.box] : [])];
@@ -195,10 +198,13 @@ export class CathShow {
       rec.gx = ox + ow / 2 - (nx + w.w / 2); rec.gy = oy - ny;
     }
     if (this.sum && sum && sum.spot === this.sum.t.spot) {
-      const [ox, oy] = this.sumAt(this.sum);
+      const [ox, oy] = this.sumAt(this.sum), og = this.sum.t.geom, ng = sum.geom, gm = this.sum.gm;
       this.sum.t = sum; this.sum.gx = 0; this.sum.gy = 0;
       const [nx, ny] = this.sumAt(this.sum);
       this.sum.gx = ox - nx; this.sum.gy = oy - ny;
+      // (a number that gained a digit lays the stack out at another width: the box glides, and each part glides from where it stood, so nothing jumps and nothing fades)
+      const was = [og.rows[0], og.rows[1], og.calc], now = [ng.rows[0], ng.rows[1], ng.calc];
+      this.sum.gm = [0, 1, 2].map((i) => ({ x: was[i]!.x + gm[i]!.x - now[i]!.x, y: was[i]!.y + gm[i]!.y - now[i]!.y })) as SumRec['gm'];
     }
   }
 
@@ -224,6 +230,12 @@ export class CathShow {
     const sameSpot = (a: PillTarget, b: PillTarget) => a.spot === b.spot;
     // a card that was placed again glides to its place (and a card that is riding a little move needs frames for as long as the picture does)
     const glide = 1 - Math.exp(-dt / GLIDE_TAU_MS);
+    const settle2 = (m: { x: number; y: number }): boolean => {
+      if (m.x === 0 && m.y === 0) return false;
+      m.x *= 1 - glide; m.y *= 1 - glide;
+      if (Math.abs(m.x) < GLIDE_EPS && Math.abs(m.y) < GLIDE_EPS) { m.x = 0; m.y = 0; return false; }
+      return true;
+    };
     const settle = (r: { gx: number; gy: number }): boolean => {
       if (r.gx === 0 && r.gy === 0) return false;
       r.gx *= 1 - glide; r.gy *= 1 - glide;
@@ -238,7 +250,7 @@ export class CathShow {
       const f = this.pills.get('w'), g = this.pills.get('f');
       if (f && f.p > 0.2) { const [x, y] = this.pillAt(f); from[0] = { x, y }; }
       if (g && g.p > 0.2) { const [x, y] = this.pillAt(g); from[1] = { x, y }; }
-      this.sum = { t: sumWanted, fade: 0, u: 0, from, gx: 0, gy: 0 };
+      this.sum = { t: sumWanted, fade: 0, u: 0, from, gx: 0, gy: 0, gm: [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }] };
       this.pills.clear();
     }
     for (const id of ['f', 'w'] as const) {
@@ -261,6 +273,7 @@ export class CathShow {
     if (s) {
       s.u += dt;
       if (settle(s)) busy = true;
+      for (const m of s.gm) if (settle2(m)) busy = true;
       let target = 1;
       if (hold || !sumWanted) target = 0;
       else if (s.t.spot !== sumWanted.spot) target = 0;
@@ -293,13 +306,13 @@ export class CathShow {
     const rowAt = (j: 0 | 1) => {
       const from = s.from[j], flow = sumFlow(s.u, !!from);
       const R = t.geom.rows[j], rx = sx + R.x, ry = sy + R.y;
-      return { alpha: from ? 1 : 1 - flow.rise / C.RISE, dx: from ? (from.x - rx) * flow.flip || 0 : 0, dy: from ? (from.y - ry) * flow.flip || 0 : 0, rise: from ? 0 : flow.rise };
+      return { alpha: from ? 1 : 1 - flow.rise / C.RISE, dx: (from ? (from.x - rx) * flow.flip || 0 : 0) + s.gm[j]!.x, dy: (from ? (from.y - ry) * flow.flip || 0 : 0) + s.gm[j]!.y, rise: from ? 0 : flow.rise };
     };
     const a = rowAt(0), b = rowAt(1), flow = sumFlow(s.u, !!(s.from[0] || s.from[1]));
     f.sum = {
       x: sx, y: sy, geom: t.geom, rows: t.rows, calc: t.calc, leaders: t.leaders, alpha: s.fade,
       row: [a, b],
-      lead: flow.lead, calcAlpha: flow.calc, calcRise: flow.calcRise, key: t.key,
+      lead: flow.lead, calcAlpha: flow.calc, calcRise: flow.calcRise, calcShift: { dx: s.gm[2]!.x, dy: s.gm[2]!.y }, key: t.key,
     };
   }
 }

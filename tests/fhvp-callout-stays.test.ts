@@ -136,3 +136,31 @@ test('a callout whose number gains a digit on screen takes its new width, glides
   assert.equal(dipped, 0, 'the card never dips');
   assert.ok(jump < 2, `its words never jump (the largest step of their middle ${jump.toFixed(2)} px)`);
 });
+
+// The same for the HVPG stack (the WHVP over the FHVP with the HVPG beside them): a number that gains a digit lays the stack out at another width, and the whole stack faded out and back (its spot held its size). It is
+// the same stack at another width now: the box glides by its top left, each row and the HVPG's card glide from where they stood, the bracket and the leaders cross over, and nothing dips.
+test('the HVPG stack whose WHVP gains a digit on screen glides to its new layout and never dips', () => {
+  let tNum = Infinity, ctlNow = () => 0;
+  const { frame, to, ctl, now } = makeRig((k) => (k === 'fhvp' ? 4.8 : k === 'whvp' ? (ctlNow() >= tNum ? 10.4 : 9.6) : k === 'hvpg' ? (ctlNow() >= tNum ? 5.6 : 4.8) : null));
+  ctlNow = now;
+  for (let i = 0; i < 14000 / 16; i++) frame();
+  to('free'); for (let i = 0; i < 6000 / 16; i++) frame();
+  to('wedge'); for (let i = 0; i < 8000 / 16; i++) frame();
+  to('result'); for (let i = 0; i < 8000 / 16; i++) frame();
+  const s0 = ctl.cath.sum!;
+  assert.ok(s0 && s0.alpha >= 0.999, 'the stack stands');
+  const spots = (s: NonNullable<typeof s0>) => [s.x + s.geom.rows[0].x + s.row[0].dx, s.y + s.geom.rows[0].y + s.row[0].dy, s.x + s.geom.rows[1].x + s.row[1].dx, s.y + s.geom.rows[1].y + s.row[1].dy, s.x + s.geom.calc.x + s.calcShift.dx, s.y + s.geom.calc.y + s.calcShift.dy];
+  let was = spots(s0), jump = 0, dipped = 0;
+  const w0 = s0.geom.w; tNum = now();
+  for (let i = 0; i < 1500 / 16; i++) {
+    frame();
+    const s = ctl.cath.sum;
+    if (!s || s.alpha < 0.999) { dipped++; continue; }
+    const at = spots(s); jump = Math.max(jump, ...at.map((v, k) => Math.abs(v - was[k]!))); was = at;
+  }
+  const s1 = ctl.cath.sum!;
+  assert.equal(s1.rows[0].value, '10.4');
+  assert.ok(s1.geom.w > w0 + 3, `the stack took the wider number (${w0} to ${s1.geom.w})`);
+  assert.equal(dipped, 0, 'the stack never dips');
+  assert.ok(jump < 4, `no part of it jumps (the largest step of any part ${jump.toFixed(2)} px)`);
+});
