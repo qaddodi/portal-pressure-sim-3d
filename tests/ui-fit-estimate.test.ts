@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { HVPG_DECK } from '../src/decks/hvpg.ts';
 import { parseLine, plainLine } from '../src/ui/text/line.ts';
 import { typeFor } from '../src/ui/layout/device.ts';
-import { planLayout, widthOf, stepsFor, type CardId } from '../src/ui/layout/plan.ts';
+import { planLayout, widthOf, stepsFor, credRow, type CardId } from '../src/ui/layout/plan.ts';
 import { cardPad, isSideways, layoutOf } from '../src/ui/layout/rules2d.ts';
 import { sentences, pageOf } from '../src/ui/cards/pages.ts';
 
@@ -52,7 +52,7 @@ function estimate(id: CardId, slideIdx: number, vp: Vp, pair: boolean, step: num
   }
   // a stacked words card keeps 50 px of its foot clear for the pill that stands in it (deck-ui.css)
   const l = layoutOf(vp.w, vp.h);
-  if ((l === 'stack' || l === 'tab') && id !== 'ladder') h += 50;
+  if ((l === 'stack' || l === 'tab') && id !== 'ladder') h += 50 + credRow(vp as never);   // (and the credit's row under the pill: a phone's and an upright iPad's, plan.ts CRED_ROW)
   return Math.ceil(h);
 }
 
