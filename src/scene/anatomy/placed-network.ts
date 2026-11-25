@@ -363,10 +363,9 @@ function buildPlaced(): void {
   //  - a node only collaterals and shunts join inside a main vessel (the splenic vein's SVD, the left renal vein's LRV_S and LRV) is drawn at its own end's drawn landing (the shunt that divides the vein there, else the widest),
   //    unless an end drawn off its own node lies within SNAP_R of one of its ends: then the node moves to that end, and its skin takes it too (the short gastric veins leave the splenic vein near the hilum, beside SVD, though the
   //    engine joins them at SV: SVD is drawn at their take-off);
-  //  - an end within PARALLEL_DEG of its node's own end runs beside it and one skin of both folds: it opens at the next main vessel's node downstream, or on the host's wall past the next node;
-  //  - two such nodes closer than NODE_GAP_R radii, or a wall landing closer than WALL_GAP_R to a node, are moved apart along the vein, downstream, never past a main vessel's mouth (LRV_S and LRV were 4 radii apart: one skin
-  //    for both had two permanent arms and failed).
-  const SNAP_R = 6, NODE_GAP_R = 10, WALL_GAP_R = 22, PARALLEL_DEG = 30, PAIR_GAP_R = 5;
+  //  - an end within PARALLEL_DEG of its node's own end runs beside it: it opens at the next node downstream when a main vessel joins there (a skin with room for it), else at its own node, an arm of that node's skin;
+  //  - two such nodes closer than NODE_GAP_R radii are moved apart along the vein, downstream, never past a main vessel's mouth (LRV_S and LRV were 4 radii apart: one skin for both had two permanent arms and failed).
+  const SNAP_R = 6, NODE_GAP_R = 10, PARALLEL_DEG = 30, PAIR_GAP_R = 5;
   /** The shunts that divide the vein whose start is their node (skin/divide.ts DIVIDED): each opens at that node. */
   const DIVIDERS = new Set(['S_DSR|0', 'S_DSR|1']);
   const endDir = (id: string, end: 0 | 1): V3 => { const D = COURSE[id]!, k = Math.min(D.length - 1, 6); return norm(end ? sub(D[D.length - 1 - k]!, D[D.length - 1]!) : sub(D[k]!, D[0]!)); };
@@ -408,6 +407,8 @@ function buildPlaced(): void {
   }
   /** Where each node that only collaterals and shunts join is drawn on its whole (arc length): the cut between its pieces. */
   const NODE_S = new Map<string, number>();
+  /** The pairs `a|b` of ends that open side by side at one node, arms of one skin (below): converging there is no crossing (THE TRACTS CROSS NOTHING). */
+  const BESIDE = new Set<string>();
   interface Land { id: string; end: 0 | 1; node: string; w: string; s: number; p: V3; force?: V3; off?: boolean; keep?: boolean }
   const lands: Land[] = [];
   for (const id of OWN) {
@@ -436,37 +437,39 @@ function buildPlaced(): void {
   }
   for (const [w, ps] of Object.entries(WHOLE_PIECES)) {
     const C = ownCourse(w), L = lengthOf(C), R = rOf(w);
-    const stops: { s: number; fixed: boolean; node: string; land?: Land; others: Land[] }[] = [];
+    const stops: { s: number; fixed: boolean; node: string; land?: Land; others: Land[]; beside: Land[] }[] = [];
     for (let pi = 0; pi < ps.length - 1; pi++) {
       const n = edgeById.get(ps[pi]!)!.to;
       // (the azygos's start: a collateral piece run on by a drawn one keeps its own rule, the cut below)
       if ((edgeById.get(ps[pi]!)!.kind === 'collateral') !== (edgeById.get(ps[pi + 1]!)!.kind === 'collateral')) continue;
       const M = mouth.get(`${w}|${n}`);
       const at = lands.filter((l) => l.w === w && l.node === n && !l.force && !l.keep);
-      if (M) { stops.push({ s: nearestOn(C, M).s, fixed: true, node: n, others: [] }); continue; }
+      if (M) { stops.push({ s: nearestOn(C, M).s, fixed: true, node: n, others: [], beside: [] }); continue; }
       if (!at.length) continue;
       // (the node's own end: the shunt that divides the vein starting there (skin/divide.ts: the distal splenorenal shunt takes the splenic vein's start at SVD), else the widest)
       const owner = at.find((l) => DIVIDERS.has(`${l.id}|${l.end}`)) ?? at.reduce((x, y) => (rOf(y.id) > rOf(x.id) ? y : x));
       const near = lands.find((l) => l.w === w && l.off && at.some((m) => Math.abs(l.s - m.s) <= SNAP_R * R));
-      stops.push({ s: near ? near.s : owner.s, fixed: false, node: n, land: owner, others: at.filter((l) => l !== owner) });
+      stops.push({ s: near ? near.s : owner.s, fixed: false, node: n, land: owner, others: at.filter((l) => l !== owner), beside: [] });
     }
     stops.sort((x, y) => x.s - y.s);
-    // (an end that leaves or arrives within PARALLEL_DEG of its node's own end runs beside it, and one skin of the two folds (the spontaneous and the distal splenorenal shunts, 16 to 22 degrees apart at both ends;
-    //  the gastrorenal shunt and the spontaneous one at the renal vein, 9): it opens at the next node downstream when a main vessel joins there (a skin with room for it), else on the host's wall past that node, a skin of its own)
-    for (const x of [...stops]) for (const o of x.others) {
+    // (an end that leaves or arrives within PARALLEL_DEG of its node's own end runs beside it (the spontaneous and the distal splenorenal shunts, 5 degrees apart on the splenic vein, 14 on the renal vein): it opens at the next
+    //  node downstream when a main vessel joins there (a skin with room for it), else at its own node, beside the node's own end, an arm of the same skin (LRV_S builds with both shunts: tests/skin-crotch.test.ts).
+    //  ROOT CAUSE (C6 on the cava, 25 Nov): it used to open on the host's wall past the next node instead, and a wall landing was kept WALL_GAP_R (22) of the host's radii from that node, so the spontaneous splenorenal shunt's
+    //  mouth went 0.54 from where the placement draws it, from the renal vein (0.500, -0.035) to (-0.012, -0.223) beside the cava, and its course swept across the gastrorenal shunt just above that one's mouth (tests/overlaps.test.ts).
+    //  At its own node it opens 3.7 of the renal vein's radii from its drawn landing, within SNAP_R: tests/landing-frozen.test.ts)
+    for (const x of stops) for (const o of x.others) {
       if (!x.land || angleDeg(endDir(o.id, o.end), endDir(x.land.id, x.land.end)) >= PARALLEL_DEG) continue;
       const next = stops[stops.indexOf(x) + 1];
-      if (next?.fixed) o.force = along(C, next.s); else stops.push({ s: (next ?? x).s + 1e-4, fixed: false, node: '', land: o, others: [] });
+      if (next?.fixed) o.force = along(C, next.s); else { x.beside.push(o); BESIDE.add(`${o.id}|${x.land.id}`).add(`${x.land.id}|${o.id}`); }
     }
-    stops.sort((x, y) => x.s - y.s);
     for (let i = 1; i < stops.length; i++) {
-      // (a wall skin needs more of the host either side of it than a node's skin does: its own arm's capsule lies along the host over several rings)
-      const x = stops[i]!, gap = (x.node && stops[i - 1]!.node ? NODE_GAP_R : WALL_GAP_R) * R;
+      const x = stops[i]!, gap = NODE_GAP_R * R;
       if (!x.fixed && !stops[i - 1]!.fixed && x.s - stops[i - 1]!.s < gap) x.s = Math.min(stops[i - 1]!.s + gap, L - 2 * R, stops[i + 1]?.fixed ? stops[i + 1]!.s - gap : Infinity);
     }
     for (const x of stops) {
       if (!x.fixed && x.node) NODE_S.set(`${w}|${x.node}`, x.s);
       if (x.land && Math.abs(x.s - x.land.s) > 1e-6) x.land.force = along(C, x.s);
+      for (const o of x.beside) o.force = along(C, x.s);
     }
   }
   // TWO ENDS ON ONE WALL: two ends that open on a host's wall (no node's skin takes them) closer than PAIR_GAP_R of its radii crowd one skin. The Meso-Rex bypass and the paraumbilical vein are drawn leaving the left portal vein 0.9 radii
@@ -626,12 +629,13 @@ function buildPlaced(): void {
     for (const id of TRACTS) {
       let D = PLACED_EDGE_3D[id]!;
       const r = rOf(id), e = edgeById.get(id)!;
-      // (the vessels it opens into, those that meet them at its two nodes, and their draw-only branches, count only away from its ends: within three of the two radii of an end the tract is entering them)
+      // (the vessels it opens into, those that meet them at its two nodes, and their draw-only branches, count only away from its ends: within three of the two radii of an end the tract is entering them; an end that opens
+      //  beside the tract's own at one node (BESIDE: the spontaneous splenorenal shunt beside the distal one at LRV_S, 14 degrees apart) converges on it over far more than that, as the skin's two arms, and is not counted)
       const at = (node: string): Set<string> => new Set(atNode(node, id).map((c) => c.piece));
       const near0 = at(e.from), near1 = at(e.to), hostR = (n: Set<string>): number => Math.max(0, ...[...n].map(radOf));
       const z0 = 3 * (hostR(near0) + r), z1 = 3 * (hostR(near1) + r), inner = [hostR(near0) + r, hostR(near1) + r];
       const os = [
-        ...Object.entries(PLACED_EDGE_3D).filter(([o]) => o !== id && edgeById.get(o)?.kind !== 'liver').map(([o, c]) => ({ c, r: radOf(o), end: near0.has(o) ? 0 : near1.has(o) ? 1 : -1 })),
+        ...Object.entries(PLACED_EDGE_3D).filter(([o]) => o !== id && edgeById.get(o)?.kind !== 'liver' && !BESIDE.has(`${id}|${o}`)).map(([o, c]) => ({ c, r: radOf(o), end: near0.has(o) ? 0 : near1.has(o) ? 1 : -1 })),
         ...Object.entries(PLACED_SPLIT).map(([h, sp]) => ({ c: sp.side, r: 0.6 * radOf(h), end: near0.has(h) ? 0 : near1.has(h) ? 1 : -1 })),
         ...PLACED_CAUDATE_VEINS.map((c, i) => ({ c, r: PLACED_CAUDATE_R[i] ?? 0.009, end: -1 })),
       ];
