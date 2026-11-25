@@ -10,7 +10,7 @@ import { saveFiles } from '../../capture/save-files.ts';
 import { commitOf } from '../../../boot/release.ts';
 import { clock } from '../../../clock/frame.ts';
 import { readBox } from '../../layout-snap.ts';
-import { layoutFor, drawComposite, FRAME_KIND, type Brand } from './frames.ts';
+import { layoutFor, drawComposite, FRAME_KIND, FRAME_SAFE, type Brand } from './frames.ts';
 import { PROMO_SIZES, PROMO_RATIO, PROMO_SLIDES, parseSlides, slidesText, promoName } from './slides.ts';
 
 /** The app's name as it stands on the pictures. */
@@ -18,9 +18,11 @@ export const BRAND_NAME = 'Portal Pressure Simulator';
 const SILENT_MS = 300000;
 
 /** The address of the app inside a frame: the capture child's (`?audit=capture`) with the promotion flags; the promotion page's own flags are dropped, any other kept. */
-export function promoSrc(pathname: string, search: string, o: { keys: string[]; ratio: number }): string {
-  const rest = queryWithout(search, ['promotion', 'audit', 'sizes', 'pick', 'speed', 'promo', 'decks', 'only', 'depth', 'parallel']);
-  return `${pathname}?audit=capture&promo=${o.ratio}&pick=${packPick(o.keys)}${rest ? `&${rest}` : ''}`;
+// (`safe`: the device's safe edges, top, right, bottom, left in CSS px, frames.ts FRAME_SAFE: the app in the frame lays out round the island and home bar as on the device; none when all are 0)
+export function promoSrc(pathname: string, search: string, o: { keys: string[]; ratio: number; safe?: readonly number[] }): string {
+  const rest = queryWithout(search, ['promotion', 'audit', 'sizes', 'pick', 'speed', 'promo', 'decks', 'only', 'depth', 'parallel', 'safe']);
+  const safe = o.safe && o.safe.some((n) => n > 0) ? `&safe=${o.safe.join(',')}` : '';
+  return `${pathname}?audit=capture&promo=${o.ratio}${safe}&pick=${packPick(o.keys)}${rest ? `&${rest}` : ''}`;
 }
 /** The sizes an address names (`sizes=mac,iphone`), or all three. */
 export function promoSizes(v: string | null): string[] {
@@ -92,7 +94,7 @@ export function bootPromotion(doc: Document = document, win: Window = window): v
   /** One size: a fresh frame at the device's size, its pictures (PNG and a state file each) when it ends. */
   const one = (id: string, keys: string[], again: number, of: number): Promise<{ files: { name: string; data: Uint8Array }[]; notes: string[]; why?: string }> => new Promise((done) => {
     const d = FRAME_DEVICES[id]!, wrap = mk('div', 'pr-wrap'), frame = doc.createElement('iframe'); frame.title = `${d.label} ${d.w}x${d.h}`;
-    frame.src = promoSrc(win.location.pathname, searchNow(), { keys, ratio: PROMO_RATIO[id]! }) + (again ? `&retry=${again}-${new Date().getTime()}` : '');
+    frame.src = promoSrc(win.location.pathname, searchNow(), { keys, ratio: PROMO_RATIO[id]!, safe: FRAME_SAFE[id] }) + (again ? `&retry=${again}-${new Date().getTime()}` : '');
     wrap.append(frame); room.append(wrap);
     const r = readBox(room), s = fitScale(d.w, d.h, Math.max(1, (r.width - 24 - 12 * (of - 1)) / of), Math.max(1, r.height - 24));
     wrap.style.width = `${Math.round(d.w * s)}px`; wrap.style.height = `${Math.round(d.h * s)}px`;
