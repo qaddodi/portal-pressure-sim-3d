@@ -115,7 +115,7 @@ const MERGE_MAX = 60;
 /** The wholes that open into the cava at the hepatic confluence, IVCS: their arrival lies in the cava's plane (joinEnd `flat`). */
 const HEPATIC_WHOLES: ReadonlySet<string> = new Set(['rhv', 'mhv', 'lhv']);
 /** THREE OSTIA ON THE CAVA (Mohammad, 25 Nov 2026: "Move the middle hepatic vein to be separate from left", replacing round 18's common trunk; the right one's "RHV alone" stands): each hepatic vein opens into the cava on its own,
- *  where the placement draws it: the right one on the cava's right wall, lowest; the middle one, up the middle of the liver, on its left wall above that; the left one highest, on its left wall just below the diaphragm. The engine still
+ *  where the placement draws it: the right one on the cava's right wall, lowest; the middle one, up the middle of the liver on the patient's left of the cava, on its left wall just below the right one's mouth (the left vein's diagonal leaves no room above it); the left one highest, on its left wall just below the diaphragm. The engine still
  *  ends all three at IVCS: the cava is cut there at the left one's ostium (`mouth`, the highest), and the right and middle ones land lower on the cava's wall as arms of the same node. */
 export const HV_OSTIA = { node: 'IVCS', host: 'ivc', mouth: 'lhv' } as const;
 /** The least a branch's arrival is off its host's axis (joinEnd). */

@@ -1,5 +1,5 @@
 // The hepatic veins' openings on the cava (frozen round 19; art/anatomy-placement/RULINGS.md). Mohammad, 25 Nov: "RHV alone, MHV+LHV shared trunk" (round 18), then, seeing the preview with the middle and left veins fused and the middle one crossing the face of the cava:
-// "Move the middle hepatic vein to be separate from left" (round 19). Each hepatic vein opens into the cava on its own: the right one on its right wall, lowest; the middle one on its left wall, above it; the left one on its left wall, highest, just below the diaphragm.
+// "Move the middle hepatic vein to be separate from left" (round 19). Each hepatic vein opens into the cava on its own: the right one on its right wall; the middle one on its left wall, a little below the right one's mouth (the left vein's diagonal leaves no room for it above: 0.7 to 0.9 % of the cava's lumen was ink); the left one on its left wall, highest, just below the diaphragm.
 // The middle one comes up on the patient's left of the cava and never crosses its face, and no hepatic vein runs along the cava's axis before its own ostium. The Budd-Chiari clot sits at each vein's own outflow.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,16 +28,18 @@ const CAVA = [...PLACED_EDGE_3D.IVC_IS_1!, ...PLACED_EDGE_3D.IVC_IS!, ...PLACED_
 const R = NETWORK_BY_ID.get('IVC_IS')!.radius;
 const end = (id: string): V => { const c = PLACED_EDGE_3D[id]!; return c[c.length - 1]!; };
 
-/** The least distance between ostia along the cava, in its radii: the middle one above the right one (they open on opposite walls, so they may be level; 0.5 at least) and at least 2 below the left one (the same wall). */
-const RM_APART_R = 0.5, ML_APART_R = 2;
+/** The middle one's mouth is on the cava's left wall, level with the right one's on the opposite wall or a little below it (at most 2 cava radii below), and at least 4 cava radii below the left one's on the same wall: the left vein's diagonal leaves no room between its mouth and the right one's (the cava's junction then inks 0.7 to 0.9 % of its lumen, tests/skin-weld-shade.test.ts bars 0.5). */
+const M_BELOW_R_MAX = 2, M_BELOW_L_MIN = 4;
 /** How near a hepatic vein may come to the cava's axis (in its radii) before its own ostium, and how much of its course before its end counts as the ostium (in the cava's radii: the arrival through the wall at an angle). */
 const AXIS_CLEAR_R = 2, OSTIUM_REACH_R = 3;
 const HV = ['RHV_IVC', 'MHV_IVC', 'LHV_IVC'] as const;
 
-test('three ostia: each hepatic vein opens inside the cava on its own, the right one lowest, the middle one above it and the left one highest, the cava\'s node at the left one\'s', () => {
+test('three ostia: each hepatic vein opens inside the cava on its own, the middle one on the left wall just below the right one\'s mouth and well below the left one\'s, the cava\'s node at the left one\'s', () => {
   const [r, m, l] = HV.map((id) => nearest(CAVA, end(id)));
   assert.ok([r, m, l].every((x) => x!.d < R), `all three ends open inside the cava (${[r, m, l].map((x) => (x!.d / R).toFixed(2)).join(', ')} of its radius off its axis)`);
-  assert.ok((m!.s - r!.s) / R >= RM_APART_R && (l!.s - m!.s) / R >= ML_APART_R, `ostia along the cava, in its radii: right to middle ${((m!.s - r!.s) / R).toFixed(2)} (at least ${RM_APART_R}), middle to left ${((l!.s - m!.s) / R).toFixed(2)} (at least ${ML_APART_R}), in that order`);
+  const below = (r!.s - m!.s) / R, belowL = (l!.s - m!.s) / R;
+  assert.ok(below >= 0 && below <= M_BELOW_R_MAX, `the middle mouth is ${below.toFixed(2)} cava radii below the right one's (0 to ${M_BELOW_R_MAX})`);
+  assert.ok(belowL >= M_BELOW_L_MIN && l!.s > r!.s, `the left mouth is ${belowL.toFixed(2)} cava radii above the middle one's (at least ${M_BELOW_L_MIN}), and the highest`);
   assert.ok(dist(PLACED_NODE_3D.IVCS!, end('LHV_IVC')) < 1e-3, 'the cava\'s node IVCS is the left hepatic vein\'s ostium, the highest');
   // (each from its own side: the right hepatic vein from the patient's right; the middle and left ones from the left)
   const back = (id: string): V => { const c = PLACED_EDGE_3D[id]!; return c[Math.max(0, c.length - 1 - Math.round(OSTIUM_REACH_R * R / 0.006))]!; };

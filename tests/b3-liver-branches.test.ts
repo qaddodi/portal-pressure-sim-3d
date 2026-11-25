@@ -233,7 +233,7 @@ test('a hepatic vein opens into the cava with a clean edge: it is cut away exact
   assert.equal(cavaMateOf('MHV_IVC'), 'IVC_IS');
   assert.equal(cavaMateOf('LHV_IVC'), 'IVC_IS');
   assert.equal(cavaMateOf('LRV_IVC'), 'IVC_IS_1', 'a renal vein meets the cava below the hepatic veins');
-  // the vein's last vertices lie inside its host's lumen (distance to its axis under its radius: the cava's, the trunk's for the middle one), its first ones outside
+  // the vein's last vertices lie inside its host's lumen (distance to its axis under its radius: the cava's), its first ones outside
   for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) {
     const c = coursesOf(B.get(id)!, REST)[0]!, flat = new Float32Array(c.pts.length * 3);
     c.pts.forEach((p, i) => { flat[3 * i] = p[0]; flat[3 * i + 1] = p[1]; flat[3 * i + 2] = p[2]; });
