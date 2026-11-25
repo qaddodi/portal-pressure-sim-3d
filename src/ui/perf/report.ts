@@ -5,12 +5,15 @@ import type { RenderStats } from '../../clock/render-stats.ts';
 import type { Span } from '../../boot/spans.ts';
 import { bootLines, type BootDigest } from '../../boot/boot-lines.ts';
 
-export interface PerfStats { framesDrawn: number; windowFrames: number; p50: number; p95: number; max: number; slow: SlowFrame[]; awake: boolean; holds: string[]; boundCpu?: number; boundGpu?: number }
+export interface PerfStats { framesDrawn: number; windowFrames: number; p50: number; p95: number; max: number; slow: SlowFrame[]; awake: boolean; holds: string[]; boundCpu?: number; boundGpu?: number; ambientFps?: number; deferred?: number }
 
+/** Which scene system still asks for frames (a figure that never rests is found by name: the review's D1 was the `disease` system, then the bleed jet inside it). */
+const sceneLine = (sc: { moving: readonly string[]; ambientOnly: boolean }, awake: boolean): string =>
+  sc.moving.length ? `scene still moving: ${sc.moving.join(', ')}${sc.ambientOnly ? ' (ambient only: the flow marks going round)' : ''}` : `scene still moving: nothing${awake ? ' (the frames now are a hold or a one-off ask)' : ''}`;
 const f1 = (n: number) => n.toFixed(1);
 const glLine = (g: unknown): string => { const r = g as RenderStats | null | undefined; return r && typeof r.calls === 'number' ? ` · ${r.calls} calls, ${r.triangles} tris` : ''; };
 
-export function perfReport(s: PerfStats, ctx: { ua: string; dpr: number; size: string; look: string; hash: string; shaders?: string; gl?: RenderStats | null; skin?: { rebuilds: number; worstMs: number } | null; spans?: readonly Span[]; boot?: BootDigest }): string {
+export function perfReport(s: PerfStats, ctx: { ua: string; dpr: number; size: string; look: string; hash: string; shaders?: string; gl?: RenderStats | null; skin?: { rebuilds: number; worstMs: number } | null; scene?: { moving: readonly string[]; ambientOnly: boolean }; spans?: readonly Span[]; boot?: BootDigest }): string {
   const lines = [
     `Portal Pressure 3D ?perf · ${ctx.hash}`,
     ...(ctx.shaders ? [`!! ${ctx.shaders} (the device's driver refused a program; those parts are drawn plain; open ?gl for the log)`] : []),
@@ -18,6 +21,8 @@ export function perfReport(s: PerfStats, ctx: { ua: string; dpr: number; size: s
     ctx.ua,
     `frames drawn ${s.framesDrawn} · last ${s.windowFrames}: median ${f1(s.p50)} ms, p95 ${f1(s.p95)} ms, worst ${f1(s.max)} ms · ${s.awake ? 'drawing' : 'idle (nothing drawn)'}`,
     s.holds.length ? `asking for frames: ${s.holds.join(', ')}` : 'asking for frames: nobody',
+    ...(ctx.scene ? [sceneLine(ctx.scene, s.awake)] : []),
+    ...(s.ambientFps ? [`ambient frames (flow marks, cells, ripple only) run at ${Math.round(s.ambientFps)} a second; ${s.deferred ?? 0} display ticks waited for it since Reset`] : []),
     ...(ctx.gl ? [`renderer, last frame: ${ctx.gl.calls} draw calls · ${ctx.gl.triangles} triangles · ${ctx.gl.lines} lines · ${ctx.gl.programs} programs · ${ctx.gl.geometries} geometries · ${ctx.gl.textures} textures`] : []),
     ...(ctx.skin ? [`junction skins: ${ctx.skin.rebuilds} rebuilds so far, worst ${f1(ctx.skin.worstMs)} ms`] : []),
     ...(s.boundCpu || s.boundGpu ? [`slow frames waited on: scripts ${s.boundCpu ?? 0}, GPU or compositor ${s.boundGpu ?? 0} (a long gap after short work is the GPU or the glass blur, not the scripts)`] : []),

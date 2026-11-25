@@ -69,7 +69,7 @@ export function wireScene(): void {
     if (vesselData.easing) clock.invalidate('patient-glide');
   }, 0));
   unwire.push(clock.on('tween', (f) => frames.run(f.time), 0));
-  unwire.push(clock.on('camera', (f) => { if (cel.update(f.time)) clock.invalidate('scene'); }, 0));
+  unwire.push(clock.on('camera', (f) => { if (cel.update(f.time)) clock.invalidate(cel.ambientOnly ? 'scene-ambient' : 'scene', { ambient: cel.ambientOnly }); }, 0));
 }
 let gestureTimerN = 0;
 const gestureTimers = new Map<number, TimerId>();
@@ -354,7 +354,7 @@ export function Stage() {
   // no depth or stencil on the canvas then, about 12 MB less on a 3x phone; `?aa=msaa`, `?aa=off` and the inspector page draw (or may draw) straight to the canvas and keep both)
   return (
     <div className="stage-root" style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
-      <Canvas key={`${msaa ? 'msaa' : 'no-msaa'}-${post ? 'post' : 'direct'}`} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, depth: buffers.depth, stencil: buffers.stencil, powerPreference: 'high-performance' }}>
+      <Canvas key={`${msaa ? 'msaa' : 'no-msaa'}-${post ? 'post' : 'direct'}`} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, depth: buffers.depth, stencil: buffers.stencil }}>
         <ClockBridge />
         <SceneBridge />
       </Canvas>

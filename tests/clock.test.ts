@@ -212,3 +212,32 @@ test('setDrawing(false) holds back only the gated render systems (the figure), n
   assert.equal(fig, 0); assert.equal(painter, 2, 'a chart glide (chart:path, flowtime, evgraph, shift) finishes while the figure waits');
   c.setDrawing(true); f.tick(); assert.equal(fig, 1);
 });
+
+test('ambient frames run at 30 a second on a 60 Hz display, 24 for a phone, and a hold or an ordinary ask keeps the display rate', () => {
+  const f = fake(), c = createClock(f.env); let n = 0, kind: 'ambient' | 'full' = 'ambient';
+  // (the scene's own pattern: a system that, while the figure goes round, asks again from inside its frame)
+  c.on('camera', () => { c.invalidate('scene', { ambient: kind === 'ambient' }); }, 0);
+  c.on('render', () => { n++; });
+  const drive = (ms: number) => { n = 0; for (let t = 0; t < ms; t += 1000 / 60) f.tick(1000 / 60); return n; };
+  c.invalidate('start', { ambient: true });
+  assert.ok(Math.abs(drive(2000) - 60) <= 2, 'about 30 a second');
+  c.setAmbientFps(24);
+  assert.ok(Math.abs(drive(2000) - 48) <= 3, 'about 24 a second');
+  c.setAmbientFps(30);
+  kind = 'full';
+  assert.ok(drive(1000) >= 58, 'an ordinary invalidation draws every display tick');
+  kind = 'ambient';
+  const h = c.hold('gesture');
+  assert.ok(drive(1000) >= 58, 'a hold lifts the cap');
+  h.release();
+  drive(500);
+  f.tick(1000 / 60); const m = n; c.invalidate('z'); f.tick(1000 / 60); assert.equal(n, m + 1, 'an ordinary ask among ambient ones is drawn on the next tick');
+  assert.ok(c.stats().deferred > 0 && Math.round(c.stats().ambientFps) === 30);
+});
+
+test('ambient frames keep nothing awake once the asker stops', () => {
+  const f = fake(), c = createClock(f.env);
+  c.invalidate('x', { ambient: true }); f.tick();
+  for (let i = 0; i < 4; i++) f.tick();
+  assert.equal(f.pending(), 0); assert.equal(c.awake, false);
+});

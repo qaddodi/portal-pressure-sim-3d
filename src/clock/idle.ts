@@ -12,6 +12,7 @@
 //   · and it is in a task of its own: requestIdleCallback where the browser has it, otherwise a MessageChannel task (the post-frame task Safari needs; never a fixed timer). Never inside a frame.
 // If input is pending mid-slice (isInputPending, where it exists) the slice stops and the next step waits. `rush()` lets a job the user is already waiting for (a dive straight after the load)
 // run through motion; it still works in budgeted slices with a rest between. `maxWaitMs` lets a job that is not about the picture (the offline worker) go after that long even while busy.
+// A rushed job also skips requestIdleCallback (a busy page never idles, and the callback then waits for its 1 s timeout every slice: the Lobule did not open on a slow machine, review F10).
 // Every slice is counted per tag (`slotStats()`: slices, total ms, worst single step), shown in ?perf; a finished job leaves a `slot:<tag>` row in the startup spans.
 import { clock } from './frame.ts';
 
@@ -90,12 +91,14 @@ export function createQuiet<H = number>(env: QuietEnv<H>) {
         if (armed) return;
         armed = true;
         const go = () => { armed = false; pump(true); };
-        if (env.idle) env.idle(go); else env.post(go);
+        // A job the user is waiting for (rushed) never waits for the browser's idle time: a page drawing a heavy frame every tick is never idle, and requestIdleCallback then answers only at its timeout (a second a slice),
+        // which is how the Lobule never opened on a slow machine (review F10). It takes a task of its own between two frames, as the Safari path always did.
+        if (env.idle && !pick.rush) env.idle(go); else env.post(go);
         return;
       }
       slice(pick);
-      // (a rest, then the next slice: the page's own frames and input get the thread in between)
-      wake(REST_MS);
+      // (a rest, then the next slice: the page's own frames and input get the thread in between; a rushed job rests half as long, the user is waiting)
+      wake(pick.rush ? REST_MS / 2 : REST_MS);
       return;
     }
     // nothing may run now: arm what lets one run — a job's start time, the end of the input gap, a max wait, or the last hold letting go

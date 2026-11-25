@@ -10,6 +10,9 @@
 // Render on demand: the loop runs only while something needs it. A system asks for frames with
 //   const hold = clock.hold('camera-shot');  …  hold.release();       (as long as it moves)
 //   clock.invalidate('engine-frame');                                    (exactly one more frame)
+//   clock.invalidate('flow-marks', { ambient: true });                    (one more frame of AMBIENT motion: marks, cells and dust going round, nothing the eye is waiting on)
+// Ambient frames: when the only askers are ambient invalidations (no hold, no ordinary invalidation), the loop runs at ambientFps (30; 24 on a phone) instead of the display's rate, so a figure that
+// only shows flow marks costs half of the GPU work at 60 Hz and a quarter at 120 Hz. A gesture, a camera move, any eased change (a hold, or an ordinary invalidation) runs at the display's rate.
 // and when nothing asks, no frame is drawn and no timer runs ("0 frames drawn when nothing moves").
 // Every frame is timed; the slowest ones (with the tags that were asking for frames, and the phase that cost most) feed ?perf.
 
@@ -68,6 +71,8 @@ export interface Env {
 /** A timer's scaled wait: 1/n of it, but a short one (a poll, a retry, a debounce) keeps at least 16 ms, or it becomes a hot loop (a 50 ms poll at 20x would run every 2.5 ms and starve the page). */
 export const scaledDelay = (ms: number, n: number): number => (ms <= 0 ? ms : Math.max(ms / n, Math.min(ms, 16)));
 
+/** Frames a second for frames asked only by ambient motion (a phone: AMBIENT_FPS_PHONE). */
+export const AMBIENT_FPS = 30, AMBIENT_FPS_PHONE = 24;
 const RING = 240;      // frames of history kept for ?perf
 const FLOOR_SLACK_MS = 8;   // (the frame floor lets a frame through this much early: half a 60 Hz vsync)
 const SLOW_KEEP = 40;  // slowest frames listed
@@ -100,6 +105,10 @@ export function createClock(env: Env) {
   const asked = new Set<string>();       // one-frame invalidations made since the last frame started
   let nextAsked = new Set<string>();     // invalidations made while a frame runs: they ask for the following frame
   let skipOn = false, drawing = true;
+  let ambientMs = 1000 / AMBIENT_FPS;     // (the shortest wait between frames asked for only by ambient motion)
+  let askedFull = false, nextFull = false;   // (an ordinary invalidation is in `asked` / `nextAsked`: the frame is not ambient)
+  let ambientDue = 0;                         // (the page time the next ambient frame is due: a due time that moves by whole intervals, so 24 a second on a 60 Hz display is 2 and 3 ticks in turn, not 20)
+  let deferred = 0;                          // (animation callbacks that waited for the ambient interval and drew nothing, for ?perf)
   let rafId = 0, running = false, last = 0, frame = 0, lastStart = 0;
   let floorMs = 0, floorAt = 0;   // (the frame floor: the lite figure's pacing, setFrameFloor)
   const ring = new Float32Array(RING);   // frame work times (ms)
@@ -122,16 +131,21 @@ export function createClock(env: Env) {
 
   function run() {
     rafId = 0;
+    const start = now();
+    // An ambient-only frame (asked, and only by ambient invalidations) waits for its interval (nothing is consumed, nothing is drawn: the next display tick asks again). A hold, an ordinary invalidation or skip mode keep the display's rate.
+    if (last && !skipOn && holds.size === 0 && !askedFull && !nextFull && (asked.size > 0 || nextAsked.size > 0) && start < ambientDue - 1) { deferred++; rafId = env.raf(run); return; }
     // The frame floor (lite figure): a vsync that falls inside the floor is let go by, the frame asked for waits for the next one. Real time, so the audit's
     // speed mode does not change it; half a vsync of slack, so 50 ms is every third frame at 60 Hz.
     if (floorMs > 0 && floorAt > 0) { const t = env.now(); if (t - floorAt < floorMs - FLOOR_SLACK_MS) { rafId = env.raf(run); return; } }
     if (floorMs > 0) floorAt = env.now();
-    const start = now();
+    const hold0 = holds.size > 0 || askedFull || nextFull || !(asked.size > 0 || nextAsked.size > 0);   // (not an ambient-only frame)
     const tags = [...holds.values(), ...asked, ...nextAsked];
     // (asked and nextAsked are both answered by this frame; an invalidate made while it runs asks for the next)
     nextAsked = new Set();
+    askedFull = false; nextFull = false;   // (this frame answers everything asked so far, of either kind)
     const info: FrameInfo = { time: start, dt: last ? start - last : 0, frame: frame++ };
     last = start;
+    ambientDue = hold0 ? start + ambientMs : Math.max(ambientDue + ambientMs, start + ambientMs * 0.5);   // (a frame run for a hold or an ordinary ask restarts the count; an ambient one keeps to whole intervals, and never bursts after a stall)
     asked.clear();
     // Skip mode (the audit's "Animations: Skipped"): a frame at a huge scale is seconds of page time, and the systems that integrate by dt clamp it (50 ms, 0.05 s), so a glide would still take many
     // frames. The frame's time is cut into steps of SKIP_CHUNK ms and the motion phases (not the render) run once per step, so every glide finishes inside one drawn frame.
@@ -238,10 +252,14 @@ export function createClock(env: Env) {
       if (t) { timers.delete(id.key); t.cancel(); }
     },
     /** Ask for exactly one more frame. */
-    invalidate(tag: string) {
-      if (running && rafId === 0) nextAsked.add(tag); else asked.add(tag);
+    invalidate(tag: string, o: { ambient?: boolean } = {}) {
+      const full = !o.ambient;
+      if (running && rafId === 0) { nextAsked.add(tag); if (full) nextFull = true; } else { asked.add(tag); if (full) askedFull = true; }
       schedule();
     },
+    /** The frame rate for frames asked only by ambient motion (30 by default, 24 on a phone). Held and ordinary frames are never limited. */
+    setAmbientFps(fps: number) { ambientMs = Number.isFinite(fps) && fps > 0 ? 1000 / fps : 1000 / AMBIENT_FPS; },
+    get ambientFps() { return 1000 / ambientMs; },
     /** How many holds are live: a tween, a camera move, a gesture, a deck entry or an instrument asking for frames as long as it moves (not the one-frame invalidations of the ambient flow). 0 is "nothing is moving". */
     get held() { return holds.size; },
     /** How many MOTION holds are live (a tween, a camera move, a gesture, a card glide): `held` less the steady ones (`hold(tag, { steady: true })`: an instrument that runs). 0 is "nothing the eye follows is moving";
@@ -257,9 +275,9 @@ export function createClock(env: Env) {
     stats() {
       const n = Math.min(drawn, RING), times = Array.from(ring.subarray(0, n)).sort((a, b) => a - b);
       const q = (p: number) => (n ? times[Math.min(n - 1, Math.floor(p * n))]! : 0);
-      return { timers: [...timers.values()].map((t) => t.tag), framesDrawn: drawn, windowFrames: n, p50: q(0.5), p95: q(0.95), max: n ? times[n - 1]! : 0, slow: slow.slice(), awake: running, holds: [...holds.values()], wokeAt, boundCpu, boundGpu };
+      return { timers: [...timers.values()].map((t) => t.tag), framesDrawn: drawn, windowFrames: n, p50: q(0.5), p95: q(0.95), max: n ? times[n - 1]! : 0, slow: slow.slice(), awake: running, holds: [...holds.values()], ambientFps: 1000 / ambientMs, deferred, wokeAt, boundCpu, boundGpu };
     },
-    resetStats() { ring.fill(0); gaps.fill(0); ringAt = 0; drawn = 0; slow.length = 0; boundCpu = 0; boundGpu = 0; },
+    resetStats() { deferred = 0; ring.fill(0); gaps.fill(0); ringAt = 0; drawn = 0; slow.length = 0; boundCpu = 0; boundGpu = 0; },
     /**
      * One drawn frame in this many ms of real time at the most (0: every frame the display gives, the default). The lite figure sets it (state/lite.ts
      * LITE_FRAME_MS): the same frames, further apart, so a machine that cannot keep up has room.
