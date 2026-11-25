@@ -204,6 +204,12 @@ test('a style write that is only motion does not make a chart look again; a fit 
   assert.equal(sizeStyleMoved(rec('opacity: 0.3; transform: translateX(4px);', 'opacity: 0.6; transform: translateX(9px);')), false, 'a glide');
   assert.equal(sizeStyleMoved(rec('--pz-fit: 0.880; translate: 1px 2px;', '--pz-fit: 0.900; translate: 3px 4px;')), true, 'the card fit moved');
   assert.equal(sizeStyleMoved(rec('height: 200px;', 'height: 240px;')), true, 'a size moved');
+  // a class on an ancestor of the chart can switch the card's zoom rule on or off (no style, no size change): the chart looks again; a class elsewhere does not
+  const host = { id: 'host' } as unknown as Element;
+  const cls = (before: string, after: string, holds: boolean) => [{ attributeName: 'class', oldValue: before, target: { contains: (e: Element) => holds && e === host, getAttribute: () => after } }] as unknown as MutationRecord[];
+  assert.equal(sizeStyleMoved(cls('pz-data', 'pz-data col', true), host), true, 'an ancestor class moved');
+  assert.equal(sizeStyleMoved(cls('pz-data', 'pz-data col', false), host), false, 'a class elsewhere');
+  assert.equal(sizeStyleMoved(cls('pz-data col', 'pz-data col', true), host), false, 'same class');
 });
 
 test('the card and its chart take their sizes from a rect with the card zoom divided out', () => {
@@ -211,5 +217,5 @@ test('the card and its chart take their sizes from a rect with the card zoom div
   assert.equal([...frame.matchAll(/getBoundingClientRect\(\)\.height/g)].length, [...frame.matchAll(/getBoundingClientRect\(\)\.height \/ scaleOf\(el\)/g)].length, 'every height CardFrame reads of its words is divided by the transform scale');
   const chart = readFileSync(new URL('../src/ui/charts/Chart.tsx', import.meta.url), 'utf8');
   assert.match(chart, /ownWidth\(el, z\)/);
-  assert.match(chart, /sizeStyleMoved\(recs\)/);
+  assert.match(chart, /sizeStyleMoved\(recs, el\)/);
 });
