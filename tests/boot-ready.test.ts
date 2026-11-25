@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 
 const doc = { documentElement: { dataset: {} as Record<string, string> } };
 (globalThis as { document?: unknown }).document = doc;
-const { holdSplash, figureDrawn, labelsShown, release, compileDone, programsCompiled, setRevealHooks, watchStall, BOOT_STALL_MS, BOOT_HARD_MS, REVEAL_MS, REVEAL_DELAY_MS, REVEAL_ZOOM } = await import('../src/boot/ready.ts');
+const { holdSplash, figureDrawn, labelsShown, release, compileDone, programsCompiled, setRevealHooks, watchStall, BOOT_STALL_MS, REVEAL_MS, REVEAL_DELAY_MS, REVEAL_ZOOM } = await import('../src/boot/ready.ts');
 const { stamp, resetTimeline } = await import('../src/boot/timeline.ts');
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -122,10 +122,12 @@ test('inline cover: Keep waiting restores the splash and a ready signal after it
   c.advance(8500); c.boot.children['data-wait'].onclick();
   assert.equal(c.boot.className, '', 'Keep waiting buys a fresh 8 s'); c.advance(12000); assert.equal(c.boot.className, ''); c.ready(); c.advance(13000);
   assert.equal(c.boot.className, 'done');
-  // the unguarded 20 s timer also lifts a slow note whatever happened (the 2D page's last word)
+  // no word of the clock lifts a slow note (independent review F12): it stays, with Reload and Keep waiting, until the app is ready
   const d = await runCover('slow-then-ready'); d.advance(8500); d.advance(21000); assert.equal(d.boot.className, 'slow', 'a held app is not lifted at 20 s');
-  d.advance(46000);
-  assert.equal(d.boot.className, 'done', 'the last word lifts a slow (not failed) cover 25 s later');
+  d.advance(46000); d.advance(120000);
+  assert.equal(d.boot.className, 'slow', 'nor later: the clock never lifts a cover onto a figure that is not drawn');
+  d.ready(); d.advance(121000);
+  assert.equal(d.boot.className, 'done', 'the app being ready does');
 });
 
 test('inline cover: a genuinely failed renderer stays up with Reload and a link to the 2D simulator, and nothing lifts it', async () => {
@@ -146,9 +148,9 @@ test('rendererFailed: before the first picture it calls the page, after a releas
   delete (globalThis as any).window;
 });
 
-test('the baked-skin fetch and decode are bounded, and startup spans wrap decode, build, compile and each view\'s first draw; the warm-up and the late build are serialised', () => {
+test('the baked-skin fetch is bounded by progress, and startup spans wrap decode, build, compile and each view\'s first draw; the warm-up and the late build are serialised', () => {
   const baked = readFileSync('src/scene/vessels/skin/baked.ts', 'utf8');
-  assert.match(baked, /BAKED_FETCH_MS/); assert.match(baked, /BAKED_DECODE_MS/); assert.match(baked, /spanAsync\(`decode:/);
+  assert.match(baked, /fetchBin\(/); assert.doesNotMatch(baked, /BAKED_FETCH_MS|BAKED_DECODE_MS/, 'no clock bound on the fetch or the decode'); assert.match(baked, /spanAsync\(`decode:/);
   const stage = readFileSync('src/scene/Stage.tsx', 'utf8');
   assert.match(stage, /firstDraw\(cel\.view/); assert.match(stage, /spanAsync\('compile:warm'/);
   assert.match(stage, /Promise\.race\(\[all, new Promise[\s\S]{0,320}compileDone\(\)/, 'the warm-up is capped and then reports the compile done: the cover waits for it');
@@ -160,9 +162,9 @@ test('the baked-skin fetch and decode are bounded, and startup spans wrap decode
 });
 
 // The failsafe is about progress, not the clock (22 Nov splash review, item 5): a start that keeps stamping stages keeps the cover; one that stops for the stall time lifts it.
-test('watchStall: a new stage stamped restarts the quiet time; no stage for the quiet time stalls; the hard limit and a dead watch are honoured', async () => {
+test('watchStall: a new stage stamped restarts the quiet time; no stage for the quiet time stalls; a dead watch is honoured (and there is no total limit: only progress is watched)', async () => {
   resetTimeline();
-  assert.ok(BOOT_STALL_MS < BOOT_HARD_MS);
+  assert.ok(BOOT_STALL_MS > 0);
   const t0 = Date.now(); let stalledAt = 0;
   watchStall(() => { stalledAt = Date.now() - t0; }, 1000, () => true);
   await wait(700); stamp('engine'); await wait(700); stamp('scene');   // (progress at 0.7 s and 1.4 s: the quiet time starts again each time)
@@ -180,7 +182,8 @@ test('watchStall: a new stage stamped restarts the quiet time; no stage for the 
 
 test('the failsafe is the stall watch, not a fixed timer, and the warm-up\'s cap is the same watch', () => {
   const ready = readFileSync('src/boot/ready.ts', 'utf8'), stage = readFileSync('src/scene/Stage.tsx', 'utf8');
-  assert.match(ready, /stallOff = watchStall\(\(hard\) => \(hard || frames >= 0 \? release\(\) : false\)\)/);
+  assert.match(ready, /stallOff = watchStall\(\(\) => \(frames >= 0 \? release\(\) : false\)\)/);
+  assert.doesNotMatch(ready, /BOOT_HARD_MS/, 'no total-time limit lifts the cover (independent review F12)');
   assert.doesNotMatch(ready, /BOOT_FAILSAFE_MS/);
   assert.match(stage, /watchStall\(\(\) => r\(\), undefined, \(\) => alive && !compiled\.current\)/);
   assert.doesNotMatch(stage, /WARM_CAP_MS/);
@@ -188,15 +191,15 @@ test('the failsafe is the stall watch, not a fixed timer, and the warm-up\'s cap
 
 // ---- 22 Nov, Mohammad: "even after the loading finishes, black screen for a bit, then the figure pops out without labels, then the labels pop out". Root cause: the cover was lifted by a quiet spell
 // (watchStall) BEFORE the figure had drawn: the warm-up's own cap fires on the same spell, so the cover went up as the first frame was about to be drawn, onto the bare ground; then the figure came in, then the labels.
-test('a quiet spell before the first frame never lifts the cover (only the hard limit does); after the first frame it does; labels still coming in are waited for', async () => {
+test('a quiet spell before the first frame never lifts the cover (nothing does but the figure being drawn); after the first frame it does; labels still coming in are waited for', async () => {
   resetTimeline();
   let lifted = 0;
   holdSplash(() => { lifted++; });
-  const calls: boolean[] = []; const keep = watchStall((hard) => { calls.push(hard); return false; }, 300, () => true);
+  const calls: boolean[] = []; const keep = watchStall(() => { calls.push(false); return false; }, 300, () => true);
   await wait(2300); keep();
   assert.ok(calls.length >= 3 && calls.every((h) => h === false), `a handler that says "not yet" is asked again after each new quiet spell (${calls.length})`);
   const src = readFileSync('src/boot/ready.ts', 'utf8');
-  assert.match(src, /watchStall\(\(hard\) => \(hard \|\| frames >= 0 \? release\(\) : false\)\)/, 'the cover\'s own stall watch lifts before the first frame only at the hard limit');
+  assert.match(src, /watchStall\(\(\) => \(frames >= 0 \? release\(\) : false\)\)/, 'the cover\'s own stall watch lifts only a start that has drawn its figure');
   assert.equal(lifted, 0);
   release();
   // labels: progress restarts the grace; the same sum does not

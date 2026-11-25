@@ -704,7 +704,6 @@
  "src/ui/shell/icons.tsx": 7,
  "src/ui/shell/lobule-strip.ts": 1,
  "src/ui/shell/metrics.ts": 8,
- "src/ui/shell/no-page-zoom.ts": 2,
  "src/ui/shell/page-push.ts": 1,
  "src/ui/shell/pill-fold.ts": 6,
  "src/ui/shell/room.ts": 6,

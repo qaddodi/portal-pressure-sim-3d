@@ -2,29 +2,40 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { installNoPageZoom } from '../src/ui/shell/no-page-zoom.ts';
+import { installNoPageZoom, FIGURE, SELECTABLE } from '../src/ui/shell/no-page-zoom.ts';
 
-test('the viewport forbids scaling, the body takes no double-tap zoom, the canvas takes no touch gesture', () => {
+test('the viewport allows scaling (WCAG 1.4.4), the body takes no double-tap zoom, the figure and its canvas take every touch themselves', () => {
   const html = readFileSync('index.html', 'utf8');
-  assert.match(html, /name="viewport"[^>]*maximum-scale=1[^>]*user-scalable=no/);
-  assert.match(readFileSync('src/ui/shell/global.css', 'utf8'), /touch-action: manipulation/);
-  assert.match(readFileSync('src/scene/Stage.tsx', 'utf8'), /touchAction: 'none'/);
-  assert.match(readFileSync('src/main.tsx', 'utf8'), /installNoPageZoom\(\)/);
+  const viewport = (/<meta name="viewport" content="([^"]*)"/.exec(html) ?? [])[1] ?? '';
+  const parts = viewport.split(',').map((x) => x.trim().split('=')[0]);
+  assert.ok(parts.includes('width') && parts.includes('initial-scale'), 'a viewport that fits the device');
+  assert.ok(!parts.includes('maximum-scale') && !parts.includes('user-scalable'), `the viewport must not forbid zooming in: ${viewport}`);
+  const css = readFileSync('src/ui/shell/global.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = (sel: string) => [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter((m) => m[1].trim() === sel).map((m) => m[2]).join(';');
+  assert.ok(/touch-action:\s*manipulation/.test(rule('body') + rule('html, body') + css.slice(css.indexOf('body {'), css.indexOf('#root'))), 'the body takes no double-tap zoom');
+  assert.ok(/touch-action:\s*none/.test(rule('.stage-root canvas')), 'the canvas itself takes no browser gesture (double-tap-and-slide zoom, hold-then-drag tilt, no magnifier)');
+  assert.ok(readFileSync('src/scene/Stage.tsx', 'utf8').includes("touchAction: 'none'"), 'and so does its stage');
+  assert.ok(readFileSync('src/main.tsx', 'utf8').includes('installNoPageZoom()'));
 });
 
-test('the document cancels pinch gestures, two-finger moves and Ctrl + wheel, and lets everything else through', () => {
+test('on the figure the document cancels pinch gestures, two-finger moves and Ctrl + wheel; on a card, a sheet or the bars it lets the page zoom', () => {
   const calls: Record<string, ((e: any) => void)[]> = {};
   const doc = { addEventListener: (t: string, f: (e: any) => void) => { (calls[t] ??= []).push(f); }, removeEventListener: (t: string, f: (e: any) => void) => { calls[t] = (calls[t] ?? []).filter((x) => x !== f); } } as unknown as Document;
   const off = installNoPageZoom(doc);
   const fire = (t: string, e: Record<string, unknown>) => { let stopped = false; for (const f of calls[t] ?? []) f({ cancelable: true, preventDefault: () => { stopped = true; }, ...e }); return stopped; };
-  for (const t of ['gesturestart', 'gesturechange', 'gestureend']) assert.ok(fire(t, {}), t);
-  assert.ok(fire('touchmove', { touches: [1, 2] }), 'two fingers');
-  assert.ok(!fire('touchmove', { touches: [1] }), 'one finger scrolls and drags');
-  assert.ok(fire('wheel', { ctrlKey: true }), 'a trackpad pinch');
-  assert.ok(!fire('wheel', { ctrlKey: false }), 'a plain scroll');
+  const el = (...on: string[]) => ({ closest: (sel: string) => (sel.split(',').map((x) => x.trim()).some((x) => on.includes(x)) ? {} : null) });
+  const figure = el(FIGURE), card = el('.treat-card'), bar = el();
+  for (const t of ['gesturestart', 'gesturechange', 'gestureend']) { assert.ok(fire(t, { target: figure }), `${t} on the figure`); assert.ok(!fire(t, { target: card }), `${t} on a card is the page's`); }
+  assert.ok(fire('touchmove', { touches: [1, 2], target: figure }), 'two fingers on the figure');
+  assert.ok(!fire('touchmove', { touches: [1, 2], target: card }), 'two fingers on a card zoom the page');
+  assert.ok(!fire('touchmove', { touches: [1], target: figure }), 'one finger scrolls and drags');
+  assert.ok(fire('wheel', { ctrlKey: true, target: figure }), 'a trackpad pinch on the figure');
+  assert.ok(!fire('wheel', { ctrlKey: true, target: bar }), 'a trackpad pinch elsewhere is the browser zoom');
+  assert.ok(!fire('wheel', { ctrlKey: false, target: figure }), 'a plain scroll');
   const sel = (target: unknown) => fire('selectstart', { target });
-  const plain = { closest: () => null }, field = { closest: () => ({}) };
-  assert.ok(sel(plain), 'a label or card never starts a selection'); assert.ok(!sel(field), 'a field still may');
+  const only = (on: string) => ({ closest: (q: string) => (q === SELECTABLE && on === 'field' ? {} : null) });
+  assert.ok(sel(only('plain')), 'a label on the figure, a bar or a card never starts a selection');
+  assert.ok(!sel(only('field')), 'a field still may');
   off();
   assert.equal((calls.wheel ?? []).length, 0);
 });

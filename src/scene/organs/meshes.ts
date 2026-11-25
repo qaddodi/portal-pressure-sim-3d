@@ -6,6 +6,8 @@ import { BufferGeometry, Float32BufferAttribute, Uint16BufferAttribute } from 't
 import manifest from './organs-manifest.json' with { type: 'json' };
 import { decodeOrgans, type BakedOrgans } from './baked.ts';
 import { spanAsync } from '../../boot/spans.ts';
+import { fetchBin } from '../../boot/fetch-bin.ts';
+import { reportFileLoss } from '../file-loss.ts';
 import { placedMesh } from './placed.ts';
 
 type Entry = [posByte: number, verts: number, idxByte: number, indices: number];
@@ -14,9 +16,12 @@ export const ORGAN_IDS = Object.keys(M.organs);
 
 let buf: ArrayBuffer | null = null;
 let loaded: () => void = () => {};
+let failed: (e: Error) => void = () => {};
 const inBrowser = typeof fetch === 'function' && typeof window !== 'undefined';
-/** Resolves once the organ file is in; the scene adds the organs then. Outside a browser it waits for setOrganData. */
-export const organsReady: Promise<void> = new Promise((res) => { loaded = res; });
+/** Resolves once the organ file is in; the scene adds the organs then. Outside a browser it waits for setOrganData. It REJECTS when the file could not be had after the one more try (the note over the figure says so,
+ *  file-loss.ts): the scene's waits end instead of hanging for ever on organs that will not come. */
+export const organsReady: Promise<void> = new Promise((res, rej) => { loaded = res; failed = rej; });
+organsReady.catch(() => undefined);   // (handled here, so a rejection before the scene has asked is not an unhandled one; whoever awaits it still sees it)
 /** Takes the organ file's bytes (the browser fetch below; tests read it from disk). */
 export function setOrganData(b: ArrayBuffer): void { buf = b; loaded(); }
 
@@ -33,22 +38,28 @@ export function setBakedOrgans(b: BakedOrgans): void { baked = b; loaded(); }
 
 async function fetchBaked(want: string): Promise<BakedOrgans | null> {
   try {
-    const r = await spanAsync('fetch:organs-baked', () => fetch(`${base}anatomy/organs-baked.bin`));
-    if (!r.ok || !r.body) return null;
-    const body = r.body;
-    const out = await spanAsync('decode:organs-baked', () => new Response(body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer().then(decodeOrgans));
+    const buf = await fetchBin(`${base}anatomy/organs-baked.bin`, { gunzip: true, label: 'organs-baked' });
+    if (!buf) return null;
+    const out = await spanAsync('decode:organs-baked', async () => decodeOrgans(buf));
     if (out && out.digest !== want) { console.warn('[boot] baked organs are for another build, making them live'); return null; }
     return out;
   } catch (e) { console.warn('[boot] baked organs unavailable, making them live:', e instanceof Error ? e.message : e); return null; }
 }
-const liveFile = (): void => {
-  fetch(`${base}anatomy/organs.bin`)
-    .then((r) => { if (!r.ok) throw new Error(`organs.bin ${r.status}`); return r.arrayBuffer(); })
-    .then(setOrganData, (e) => console.error(e));
+/** The raw organs file, the last resort: asked for twice (boot/fetch-bin.ts); if it still does not come the organs are missing and the figure SAYS so (file-loss.ts, ContextNote), with Reload. */
+const liveFile = async (): Promise<void> => {
+  try {
+    const buf = await fetchBin(`${base}anatomy/organs.bin`, { label: 'organs' });
+    if (!buf) throw new Error('organs.bin was not found');
+    setOrganData(buf);
+  } catch (e) {
+    console.error(e);
+    reportFileLoss('organs');
+    failed(e instanceof Error ? e : new Error('the organs did not load'));
+  }
 };
 if (inBrowser) {
   const want = env?.VITE_ORGANS_DIGEST;
-  (want && typeof DecompressionStream !== 'undefined' ? fetchBaked(want) : Promise.resolve(null)).then((b) => { if (b) setBakedOrgans(b); else liveFile(); });
+  (want && typeof DecompressionStream !== 'undefined' ? fetchBaked(want) : Promise.resolve(null)).then((b) => { if (b) setBakedOrgans(b); else void liveFile(); });
 }
 
 const make = (id: string) => (): BufferGeometry => {

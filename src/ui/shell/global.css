@@ -29,12 +29,15 @@ body {
 }
 #root { position: fixed; inset: 0; }
 
-/* Nothing in the app is selectable, callable or flashed (owner, 19 Nov 2026: "text is selectable, should not be"). One rule on every element, so a new UI root
-   inherits it without asking: no text selection, no iOS long-press callout (copy / look up / share), no tap highlight, no dragging of pictures.
-   The only exceptions are things the reader types into (a field, an editable region), and a block that opts in with .selectable. tests/ui-no-select.test.ts holds this. */
-*, *::before, *::after { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+/* Nothing in the figure, the bars or the cards is selectable, callable or flashed (owner, 19 Nov 2026: "text is selectable, should not be"; kept 25 Nov, F14 of the independent review asked for selectable card words and the owner has not said yes).
+   The page starts unselectable, so a new UI root is quiet by default; no iOS long-press callout, no tap highlight, no dragging of pictures. The only exceptions are things the reader types into (a field, an editable region)
+   and a block that opts in with .selectable. The same list is SELECTABLE in no-page-zoom.ts (the document's selectstart); tests/ui-no-select.test.ts holds the three together. */
+*, *::before, *::after { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+html, body { -webkit-user-select: none; user-select: none; }
 img, canvas, svg { -webkit-user-drag: none; user-drag: none; }
 input, textarea, [contenteditable=""], [contenteditable="true"], .selectable { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+/* the figure's canvas takes every touch itself (the double tap and slide that zooms, the hold and drag that tilts, no iOS magnifier or loupe): the browser is told so on the canvas, not only on the stage around it */
+.stage-root canvas { touch-action: none; -webkit-user-select: none; user-select: none; }
 button { font: inherit; color: inherit; }
 
 /* A change of look cross-fades the whole page and the figure (looks/glide.ts): the View Transition's one group, eased. Reduce Motion never starts it.
