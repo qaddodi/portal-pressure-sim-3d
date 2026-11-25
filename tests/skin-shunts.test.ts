@@ -31,9 +31,9 @@ test('S_DSR is welded at both ends (SVD, LRV_S): a static full-size arm, no fold
     for (const d of ['SVD:S_DSR', 'LRV_S:S_DSR']) assert.ok(!b.set.dropped.includes(d), `${d} is not dropped`);
     const svd = b.set.skinOf('SVD'), lrv = b.set.skinOf('LRV_S');
     assert.ok(armsOf(svd).includes('S_DSR:0'), 'S_DSR is an arm of SVD');
-    // (placed anatomy: C6's renal end lands on the renal vein's side, past SKIN_REACH of LRV_S, so it is the wall skin's arm on LRV_IVC and not LRV_S's, as the 2D figure had it beside S_DSR)
+    // (placed anatomy: C6's renal end opens at LRV_S beside S_DSR, an arm of the same skin, as the 2D figure has it, not on a wall skin down the renal vein by the cava: placed-network.ts, tests/landing-frozen.test.ts)
     assert.ok(armsOf(lrv).includes('S_DSR:1'), 'S_DSR is an arm of LRV_S');
-    assert.ok(armsOf(b.set.skinOf('wall:LRV_IVC:C61')).includes('C6:1') && !armsOf(lrv).includes('C6:1'), 'C6\'s renal end is welded on the renal vein\'s wall');
+    assert.ok(armsOf(lrv).includes('C6:1') && !b.set.skinOf('wall:LRV_IVC:C61'), 'C6\'s renal end is welded at LRV_S, beside S_DSR');
     for (const [name, m] of [['SVD', svd], ['LRV_S', lrv]] as const) {
       assert.equal(foldedTriangles(m!.position, m!.normal, m!.index).length, 0, `${name}: no folds`);
     }
