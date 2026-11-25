@@ -2,6 +2,7 @@
 // Settings rows (Display: Blur effect, Figure detail, Sharp while moving, Keyboard shortcuts; Diagnostics: frame rate, frame breakdown).
 import { create } from 'zustand';
 import { LOOK_IDS, type LookChoice } from '../looks/looks.ts';
+import { LITE_KEYS, liteBy, withLite, type LiteBy, type LiteOwn } from './lite.ts';
 
 /** Settings › Figure detail: the figure's pixel-ratio cap (parity plan section 6: the 2D megapixel steps become 1x, 1.5x and 2x). Names follow the 2D app's words
  *  (fig-detail-words.js): Standard is the default, one step below is Soft, one above Sharp. */
@@ -33,9 +34,14 @@ export interface Settings {
   fluidSurface: boolean;
   /** Device shadows: a soft contact shadow under every catheter, balloon tube, stent sleeve and scope, on what lies beneath it (devices/contact-shadow.ts). Off: the devices as 2D draws them, with none. */
   deviceShadow: boolean;
+  /** Lite figure (state/lite.ts): a calmer figure for a machine that cannot run the full one. While it stands the switches in LITE_KEYS READ off here and the person's own values are kept underneath (`own` below); `liteBy` says who chose it. */
+  lite: boolean;
+  liteBy: LiteBy;
 }
 interface Store extends Settings {
   setLook(l: LookChoice): void; setBlur(on: boolean): void;
+  /** Turn lite on or off, as the device (chosen for this device) or the person (Settings). A person's choice stands: the device never undoes it. */
+  setLite(on: boolean, by: 'device' | 'person'): void;
   set<K extends keyof Settings>(key: K, value: Settings[K]): void;
   /** Several settings in one change and one save (a Figure preset writes ten). */
   setMany(patch: Partial<Settings>): void;
@@ -58,7 +64,7 @@ export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { organDepth: true, til
 export const PARTICLES_VERSION = 2;
 /** A phone: its short side under 500 CSS px, held either way (the stage's own rule). Not a phone where there is no window (the node tests). */
 export const onPhone = (): boolean => typeof innerWidth === 'number' && typeof innerHeight === 'number' && Math.min(innerWidth, innerHeight) < 500;
-export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, autoDetail: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS };
+export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, autoDetail: true, keys: true, showFps: false, showBreakdown: false, ...DEPTH_DEFAULTS, lite: false, liteBy: null };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
 export function parseSettings(raw: string | null, phone: boolean = onPhone()): Settings {
@@ -73,20 +79,36 @@ export function parseSettings(raw: string | null, phone: boolean = onPhone()): S
       figureDetail: Number.isInteger(o.figureDetail) && o.figureDetail >= 0 && o.figureDetail < FIGURE_DETAIL.length ? o.figureDetail : DEFAULTS.figureDetail,
       sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), autoDetail: bool(o.autoDetail, DEFAULTS.autoDetail), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false),
       organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(streaks, phone ? false : DEPTH_DEFAULTS.particles), fluidSurface: bool(fig.fluidSurface, DEPTH_DEFAULTS.fluidSurface), deviceShadow: bool(fig.deviceShadow, DEPTH_DEFAULTS.deviceShadow),
+      lite: bool(o.lite, false), liteBy: liteBy(o.liteBy),
     };
   } catch { return { ...DEFAULTS }; }
 }
 const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY)); } catch { return parseSettings(null); } };
-const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, autoDetail: s.autoDetail, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, fluidSurface: s.fluidSurface, deviceShadow: s.deviceShadow });
-const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify({ ...pick(s), figureV: FIGURE_SETTINGS_VERSION, particlesV: PARTICLES_VERSION })); } catch { /* private window: the choice lasts for this visit */ } };
+const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, autoDetail: s.autoDetail, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, fluidSurface: s.fluidSurface, deviceShadow: s.deviceShadow, lite: s.lite, liteBy: s.liteBy });
+/** The person's own values of the switches lite quiets (LITE_KEYS), whatever the figure reads while lite stands. Saved in place of the quiet ones, so a reload in lite still holds them. */
+const ownOf = (s: Settings): LiteOwn => Object.fromEntries(LITE_KEYS.map((k) => [k, s[k]])) as LiteOwn;
+const isLiteKey = (k: string): k is (typeof LITE_KEYS)[number] => (LITE_KEYS as readonly string[]).includes(k);
+const initial = read();
+let own: LiteOwn = ownOf(initial);
+const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify({ ...pick(s), ...own, figureV: FIGURE_SETTINGS_VERSION, particlesV: PARTICLES_VERSION })); } catch { /* private window: the choice lasts for this visit */ } };
+
+/** The settings with the person's own values of the quiet switches (what a preset reads back, so Settings still shows the person's own choice while lite stands). */
+export const ownSettings = (s: Settings): Settings => ({ ...s, ...own });
 
 export const useSettings = create<Store>((set, get) => ({
-  ...read(),
+  ...initial, ...withLite(own, initial.lite),
   setLook: (look) => { set({ look, lookChosen: true }); save({ ...get(), look, lookChosen: true }); },
-  setBlur: (blur) => { set({ blur }); save({ ...get(), blur }); },
-  set: (key, value) => { set({ [key]: value } as Pick<Settings, typeof key>); save({ ...get(), [key]: value }); },
-  setMany: (patch) => { set(patch); save({ ...get(), ...patch }); },
-  reset: () => { const d = parseSettings(null); set(d); save(d); },
+  setBlur: (blur) => { own.blur = blur; set({ blur }); save({ ...get(), blur }); },
+  set: (key, value) => {
+    if (isLiteKey(key)) own[key] = value as boolean;   // (a switch chosen while lite stands is the person's: it reads on, and stays theirs when lite goes)
+    set({ [key]: value } as Pick<Settings, typeof key>); save({ ...get(), [key]: value });
+  },
+  setMany: (patch) => {
+    for (const k of Object.keys(patch)) if (isLiteKey(k)) own[k] = patch[k as keyof typeof patch] as boolean;   // (a preset's switches are the person's own, as one switch is)
+    set(patch); save({ ...get(), ...patch });
+  },
+  setLite: (on, by) => { const next = { lite: on, liteBy: by, ...withLite(own, on) }; set(next); save({ ...get(), ...next }); },
+  reset: () => { const d = parseSettings(null); own = ownOf(d); set({ ...d, ...withLite(own, d.lite) }); save(d); },
 }));
 
 /** Blur off is the page's solid look: html[data-noglass] (the stylesheet draws no glass under it). Written before anything paints, then on every change. */

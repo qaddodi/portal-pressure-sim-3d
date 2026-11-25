@@ -16,3 +16,6 @@ export const DEPTH_ROWS: readonly DepthRow[] = [
 
 /** Auto detail (N1): 3D only, so it is not in the 2D parity table. It sits under the Figure detail steps it works with. */
 export const AUTO_DETAIL_ROW = { label: 'Auto detail', hint: 'Lets the figure soften itself when it runs slow, and sharpen again when it settles. Figure detail is the most it will use', icon: 'layers' };
+
+/** Lite figure (3D only, state/lite.ts): a calmer figure for a machine that cannot run the full one. Chosen by the device when it can tell, and the person's to turn on or off. Not in the 2D parity table. */
+export const LITE_ROW = { label: 'Lite figure', hintDevice: 'Chosen for this device', hint: 'A calmer figure for slower devices: it draws less and moves at about 20 frames a second', icon: 'layers' };

@@ -69,6 +69,7 @@ export interface Env {
 export const scaledDelay = (ms: number, n: number): number => (ms <= 0 ? ms : Math.max(ms / n, Math.min(ms, 16)));
 
 const RING = 240;      // frames of history kept for ?perf
+const FLOOR_SLACK_MS = 8;   // (the frame floor lets a frame through this much early: half a 60 Hz vsync)
 const SLOW_KEEP = 40;  // slowest frames listed
 export const SLOW_MS = 20;   // done bar: no frame over 20 ms in a 10 s run of the deck
 
@@ -100,6 +101,7 @@ export function createClock(env: Env) {
   let nextAsked = new Set<string>();     // invalidations made while a frame runs: they ask for the following frame
   let skipOn = false, drawing = true;
   let rafId = 0, running = false, last = 0, frame = 0, lastStart = 0;
+  let floorMs = 0, floorAt = 0;   // (the frame floor: the lite figure's pacing, setFrameFloor)
   const ring = new Float32Array(RING);   // frame work times (ms)
   const gaps = new Float32Array(RING);
   const realAt = new Float64Array(RING), realMs = new Float32Array(RING), worstPh = new Uint8Array(RING);   // (when each recent frame really ran, for naming what a long task was: frameAround)
@@ -120,6 +122,9 @@ export function createClock(env: Env) {
 
   function run() {
     rafId = 0;
+    // The frame floor (lite figure): a vsync that falls inside the floor is let go by, the frame asked for waits for the next one. Real time, so the audit's speed mode does not change it; half a vsync of slack, so 50 ms is every third frame at 60 Hz.
+    if (floorMs > 0 && floorAt > 0) { const t = env.now(); if (t - floorAt < floorMs - FLOOR_SLACK_MS) { rafId = env.raf(run); return; } }
+    if (floorMs > 0) floorAt = env.now();
     const start = now();
     const tags = [...holds.values(), ...asked, ...nextAsked];
     // (asked and nextAsked are both answered by this frame; an invalidate made while it runs asks for the next)
@@ -254,6 +259,9 @@ export function createClock(env: Env) {
       return { timers: [...timers.values()].map((t) => t.tag), framesDrawn: drawn, windowFrames: n, p50: q(0.5), p95: q(0.95), max: n ? times[n - 1]! : 0, slow: slow.slice(), awake: running, holds: [...holds.values()], wokeAt, boundCpu, boundGpu };
     },
     resetStats() { ring.fill(0); gaps.fill(0); ringAt = 0; drawn = 0; slow.length = 0; boundCpu = 0; boundGpu = 0; },
+    /** One drawn frame in this many ms of real time at the most (0: every frame the display gives, the default). The lite figure sets it (state/lite.ts LITE_FRAME_MS): the same frames, further apart, so a machine that cannot keep up has room. */
+    setFrameFloor(ms: number) { floorMs = Number.isFinite(ms) && ms > 0 ? ms : 0; floorAt = 0; },
+    get frameFloor() { return floorMs; },
     /** A reader of the renderer's numbers, called only for a frame kept as slow. */
     setProbe(fn: (() => unknown) | null) { probe = fn; },
   };

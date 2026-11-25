@@ -5,7 +5,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useSettings, FIGURE_DETAIL } from '../../state/settings.ts';
-import { DEPTH_ROWS, AUTO_DETAIL_ROW } from './depth-rows.ts';
+import { DEPTH_ROWS, AUTO_DETAIL_ROW, LITE_ROW } from './depth-rows.ts';
 import { FigurePresets, useFigurePreset } from './FigurePresets.tsx';
 import { MORE_NOW, MORE_PAGE_TITLE } from './preset-rows.ts';
 import type { LookChoice } from '../../looks/looks.ts';
@@ -56,6 +56,12 @@ function FigureDetail() {
 function AutoDetail() {
   const on = useSettings((s) => s.autoDetail);
   return <MenuToggle checked={on} icon={AUTO_DETAIL_ROW.icon} label={AUTO_DETAIL_ROW.label} sub={AUTO_DETAIL_ROW.hint} onChange={(v) => useSettings.getState().set('autoDetail', v)} />;
+}
+
+/** Lite figure (3D only): on where the device chose it ("Chosen for this device") or the person did; the switch is how the full figure is tried, or the lite one asked for. A person's choice stands (state/lite.ts). */
+function LiteFigure() {
+  const on = useSettings((s) => s.lite), by = useSettings((s) => s.liteBy);
+  return <MenuToggle checked={on} icon={LITE_ROW.icon} label={LITE_ROW.label} sub={on && by === 'device' ? LITE_ROW.hintDevice : LITE_ROW.hint} onChange={(v) => useSettings.getState().setLite(v, 'person')} />;
 }
 
 function useFullscreen() {
@@ -167,6 +173,7 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
         if (!rows.length) return null;
         return (<Fragment key={i}>
           <MenuGroup title={sec.title}>
+            {sec.title === 'Display' ? <LiteFigure /> : null}
             {sec.title === 'Appearance' ? <Looks names={rows.map((r) => r.row)} /> : rows.map(({ row }) => {
               if (row.label.startsWith('Figure detail: ') || row.label === 'Blur effect' || row.label === 'Sharp while moving') return null;   // (under Figure > More: FigureMore)
               if (row.label === 'Figure detail') return <FigurePresets key={row.label} onMore={() => setPageId('figure')} />;

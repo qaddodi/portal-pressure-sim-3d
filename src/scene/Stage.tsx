@@ -23,6 +23,7 @@ import { talkOn } from '../state/deck.ts';
 import { useSettings } from '../state/settings.ts';
 import { figureDpr } from './quality.ts';
 import { govern, newGovernor } from './detail-governor.ts';
+import { FrameProbe, LITE_FRAME_MS } from '../state/lite.ts';
 import { aaMode, canvasBuffers } from './post-aa.ts';
 import { INSPECT } from './vessels/debug-view.ts';
 import { installShaderGuard } from '../debug/shader-guard.ts';
@@ -88,6 +89,8 @@ function SceneBridge() {
   const size = useThree((s) => s.size);
   const raycaster = useRef(new Raycaster());
   const warmed = useRef(false);
+  // The lite figure's first-frames check (state/lite.ts FrameProbe): until the device or the person has decided, the first five drawn frames of the figure are timed; a machine that averages over 250 ms picks lite for itself.
+  const probe = useRef<FrameProbe | null>(useSettings.getState().liteBy === null ? new FrameProbe() : null);
   // The renderer lost its context. Before the first picture the splash cannot wait for a figure that will not come (boot/ready.ts says so, with Reload and the 2D link). After it, the figure is kept and brought back
   // (scene/context-loss.ts): the render phase pauses, a note fades in, and on restore the warm-up runs again (three re-sends its own textures, targets and geometry; it does not know which programs were warm).
   const rewarm = useRef<() => void>(() => undefined);
@@ -164,6 +167,14 @@ function SceneBridge() {
     // the canvas comes in once, with its first drawn frame (until then the page's own ground shows, never the context's black); a reduced-motion viewer gets it at once
     const el = gl.domElement;
     if (el.style.opacity !== '1') { el.style.transition = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'none' : `opacity ${D_SMALL}ms ${EASE_ARRIVE}`; el.style.opacity = '1'; }
+    if (cel.rig.placed && probe.current) {
+      const st = useSettings.getState();
+      if (st.liteBy !== null) probe.current = null;   // (someone has decided: the device's check is over)
+      else {
+        const slow = probe.current.note(clock.now());
+        if (slow !== null) { probe.current = null; if (slow) st.setLite(true, 'device'); }
+      }
+    }
     if (cel.rig.placed) figureDrawn();   // (the splash waits for this: the first frame WITH the figure, then the labels it places; boot/ready.ts. A frame that only cleared (the camera has no room yet) is not the figure)
     if (!warmed.current) {
       warmed.current = true;
@@ -230,7 +241,7 @@ function SceneBridge() {
       const st = useSettings.getState();
       const moving = !!(cel.rig.isMoving || gesturesRef.current?.active);
       if (!moving) applied = st.autoDetail ? gov.drop : 0;
-      const d = figureDpr(Math.max(0, st.figureDetail - applied), st.sharpMoving, moving, window.devicePixelRatio || 1);
+      const d = figureDpr(Math.max(0, st.figureDetail - applied), st.sharpMoving, moving, window.devicePixelRatio || 1, st.lite);
       if (d !== was) { was = d; setDpr(d); clock.invalidate('figure-detail'); document.documentElement.dataset.detailDrop = String(applied); }
       // (no frame runs once everything has stopped, so a motion that ended between frames is looked at again shortly)
       clock.cancel(settle);
@@ -242,6 +253,15 @@ function SceneBridge() {
     const un = useSettings.subscribe(apply);
     return () => { off(); offGov(); un(); clock.cancel(settle); };
   }, [setDpr]);
+
+  // The lite figure paces its frames (clock.setFrameFloor): about 20 a second, the same frames further apart. Its pixel ratio is the Figure detail effect's, above; its quiet switches are read off by the settings store (state/lite.ts).
+  useEffect(() => {
+    let was = useSettings.getState().lite;
+    const pace = () => { clock.setFrameFloor(was ? LITE_FRAME_MS : 0); clock.invalidate('lite'); };
+    pace();
+    const un = useSettings.subscribe((s) => { if (s.lite !== was) { was = s.lite; pace(); } });
+    return () => { un(); clock.setFrameFloor(0); };
+  }, []);
 
   // the figure's gestures (src/scene/gesture/): turn, pinch, pan, wheel and trackpad, the 2D app's pan and zoom ported
   useEffect(() => {
@@ -319,7 +339,8 @@ export function Stage() {
   useEffect(() => { clock.invalidate('stage-mounted'); }, []);
   // the pixel ratio the figure rests at, and whether the context is multisampled (only on ?aa=msaa, at any ratio); the canvas is made again only when that answer changes
   const detail = useSettings((s) => s.figureDetail);
-  const rest = figureDpr(detail, true, false, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1);
+  const lite = useSettings((s) => s.lite);
+  const rest = figureDpr(detail, true, false, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1, lite);
   // (the anti-aliasing pass, the default, does the canvas's job: the context is multisampled only when the address asks for `?aa=msaa`, and then at ANY pixel ratio: the post pass is off in that mode, so
   // refusing the samples at 2x left the figure with no anti-aliasing at all)
   const mode = aaMode();

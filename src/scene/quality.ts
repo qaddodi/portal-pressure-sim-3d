@@ -1,13 +1,15 @@
 // Settings > Figure detail and Sharp while moving, as pixel ratios for the canvas (parity plan section 6). Detail caps the figure's pixel ratio at 1x, 1.5x or 2x
 // (never above what the screen has); with Sharp while moving off, a gesture or a camera move draws at 1x and the figure comes back to its detail when it settles.
 import { FIGURE_DETAIL } from '../state/settings.ts';
+import { LITE_DPR } from '../state/lite.ts';
 
 /** The figure never draws above 2x, on any screen (a 3x phone gains nothing from it at this line width, and costs a third more pixels than 2x for no change in the art). */
 export const MAX_FIGURE_DPR = 2;
 /** From this pixel ratio up the canvas has no multisampling: the lines are anti-aliased in their shaders and 4x samples on every pass is what a phone cannot spare (plan 8.2). */
 export const MSAA_OFF_FROM_DPR = 2;
 
-export function figureDpr(detail: number, sharpMoving: boolean, moving: boolean, deviceRatio: number): number {
+export function figureDpr(detail: number, sharpMoving: boolean, moving: boolean, deviceRatio: number, lite = false): number {
+  if (lite) return Math.max(1, Math.min(LITE_DPR, deviceRatio || 1));   // (the lite figure draws at 1x, whatever Figure detail says)
   const cap = FIGURE_DETAIL[Math.max(0, Math.min(FIGURE_DETAIL.length - 1, Math.round(detail)))].dpr;
   const want = moving && !sharpMoving ? 1 : cap;
   return Math.max(1, Math.min(want, MAX_FIGURE_DPR, deviceRatio || 1));
