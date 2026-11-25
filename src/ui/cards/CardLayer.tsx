@@ -62,7 +62,7 @@ function useFontsReady(): boolean {
 const liveCard = (slot: string): HTMLElement | null => [...document.querySelectorAll<HTMLElement>(`.dk-pos[data-slot="${slot}"]`)].find((p) => !p.querySelector('.dk-card[data-phase="out"]')) ?? null;
 
 /** How long a card's measured height must stand still before the card is let in (a late row or readout shows up inside this), and the longest the cards wait for it before they come in as they are. */
-export const SETTLE_MS = 120, GIVE_UP_CARDS_MS = 700;
+export const SETTLE_MS = 120, GIVE_UP_CARDS_MS = 8000;   // (the readiness gate decides when cards come in; the 8 s is only the crash net that keeps a failed piece from hiding the talk for good, the same one the engine's numbers have: inputs-in.ts GIVE_UP_MS)
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
 interface Snap { /** the lens whose key is the data card's first row (cardKeyAt, asked with the stop the card came from) */ dkey: string | null; slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean; /** the slide's readings as they stood while the card was the current one: a card that leaves keeps its own numbers ("13 mmHg" on Ascites 12 did not turn into the next slide's as it went) */ readings: Readings }
 
