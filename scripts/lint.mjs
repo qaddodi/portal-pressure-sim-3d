@@ -5,7 +5,7 @@ import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { lintFiles, judge, RULES, conflictMarkers, css2dEdits } from './lint-rules.mjs';
+import { lintFiles, judge, RULES, conflictMarkers, css2dEdits, longLines, judgeLongLines, LONG_LINE } from './lint-rules.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const problems = [];
@@ -35,11 +35,34 @@ const allow = existsSync(allowPath) ? JSON.parse(readFileSync(allowPath, 'utf8')
 const hits = lintFiles(files);
 const { counts, over, under } = judge(hits, allow);
 
+// The long-line ratchet (rule long-line): per-file counts of lines over LONG_LINE characters, in scripts/lint-long-lines.json. A file may not gain one; `--update` only lowers (and drops files that are clean now).
+const longPath = join(root, 'scripts/lint-long-lines.json');
+const longAllow = existsSync(longPath) ? JSON.parse(readFileSync(longPath, 'utf8')) : {};
+const longCounts = longLines(files);
+const long = judgeLongLines(longCounts, longAllow);
+
+const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+const writeLong = (o) => writeFileSync(longPath, `${JSON.stringify(Object.fromEntries(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : 1))), null, 1)}\n`);
+if (process.argv.includes('--rebaseline-long')) {
+  // for a move (a file split in parts carries its long lines into new files): accept today's per-file counts as the allowances, but only when the total does not grow
+  if (existsSync(longPath) && sum(longCounts) > sum(longAllow)) { console.error(`lint: long lines went from ${sum(longAllow)} to ${sum(longCounts)}: not rebaselined`); process.exit(1); }
+  writeLong(longCounts);
+  console.log(`lint: long-line allowances written (${sum(longCounts)} lines in ${Object.keys(longCounts).length} files)`);
+  process.exit(0);
+}
 if (process.argv.includes('--update')) {
+  writeLong(Object.fromEntries(Object.entries(longCounts).filter(([p, n]) => n <= (longAllow[p] ?? 0))));
+  if (long.over.length) for (const o of long.over) problems.push(`long-line: ${o.path} has ${o.count} lines over ${LONG_LINE} characters, allowance ${o.allowed}: it was not raised`);
   const next = Object.fromEntries(Object.keys(RULES).map((r) => [r, Math.min(counts[r], allow[r] ?? counts[r])]));
   writeFileSync(allowPath, `${JSON.stringify(next, null, 2)}\n`);
   console.log('lint: allowances written to scripts/lint-allow.json', next);
   process.exit(problems.length ? 1 : 0);
+}
+for (const o of long.over) {
+  problems.push(`long-line: ${o.path} has ${o.count} line(s) over ${LONG_LINE} characters, allowance ${o.allowed} (put a comment on its own line above the code, or split the line)`);
+  const lines = readFileSync(join(root, o.path), 'utf8').split('\n');
+  let shown = 0;
+  lines.forEach((l, i) => { if (l.length > LONG_LINE && shown++ < 5) problems.push(`  ${o.path}:${i + 1}  (${l.length} chars) ${l.slice(0, 90)}...`); });
 }
 for (const r of over) {
   problems.push(`${r}: ${counts[r]} hits, allowance ${allow[r] ?? 0} (what the rule says: the comment above it in scripts/lint-rules.mjs)`);
@@ -47,5 +70,6 @@ for (const r of over) {
   for (const h of hits.filter((x) => x.rule === r).slice(0, 12)) if (!seen.has(`${h.path}:${h.line}`)) { seen.add(`${h.path}:${h.line}`); problems.push(`  ${h.path}:${h.line}  ${h.text}`); }
 }
 if (problems.length) { console.error(problems.join('\n')); process.exit(1); }
+if (long.under.length || long.gone.length) console.log(`lint: long-line allowances are higher than the code now (${long.under.length + long.gone.length} files): run node scripts/lint.mjs --update and commit scripts/lint-long-lines.json`);
 for (const r of under) console.log(`lint: ${r} is down to ${counts[r]} (allowance ${allow[r] ?? 0}): run node scripts/lint.mjs --update and commit scripts/lint-allow.json`);
-console.log(`lint: ok (${files.length} files, ${Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(', ')})`);
+console.log(`lint: ok (${files.length} files, ${Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(', ')}, long-line ${Object.values(longCounts).reduce((a, b) => a + b, 0)} in ${Object.keys(longCounts).length} files)`);

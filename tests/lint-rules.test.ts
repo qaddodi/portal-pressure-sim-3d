@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { lintFiles, judge, RULES, conflictMarkers, css2dEdits } from '../scripts/lint-rules.mjs';
+import { lintFiles, judge, RULES, conflictMarkers, css2dEdits, longLines, judgeLongLines, LONG_LINE } from '../scripts/lint-rules.mjs';
 import { createHash } from 'node:crypto';
 
 type Hit = { rule: string; path: string; line: number; text: string };
@@ -67,4 +67,30 @@ test('no-css2d-edit: a hand-edited or hand-made 2D stylesheet is caught, the cop
   assert.equal(css2dEdits([f('tokens.css', 'a{}'), f('app-01.css', 'b{ gap: 12px }')], source).length, 1, 'an edited copy fails');
   assert.equal(css2dEdits([...good, f('mine.css', 'c{}')], source).length, 1, 'a sheet SOURCE.json does not list fails');
   assert.equal(css2dEdits([f('tokens.css', 'a{}')], source).length, 1, 'a missing copy fails');
+});
+
+test('long-line: a new line over the limit is caught, existing ones are tolerated, and a file may not gain one', () => {
+  const long = `const a = 1; ${'x'.repeat(LONG_LINE)}`;
+  const exactly = 'y'.repeat(LONG_LINE);
+  const counts = longLines([
+    { path: 'src/scene/a.ts', text: `ok\n${long}\n${exactly}\n${long}` },
+    { path: 'src/scene/b.ts', text: 'short\n// a comment on its own line' },
+    { path: 'src/engine/hales/core/c.ts', text: long },
+    { path: 'src/decks/hp/data/d.copied.ts', text: long },
+    { path: 'src/ui/strings.generated.ts', text: long },
+  ]) as Record<string, number>;
+  assert.deepEqual(counts, { 'src/scene/a.ts': 2 }, 'a line of exactly the limit passes; the copied engine, 2D copies and generated data are not counted');
+  assert.deepEqual(judgeLongLines(counts, { 'src/scene/a.ts': 2 }).over, [], 'the file as it stands is inside its allowance');
+  assert.equal(judgeLongLines({ 'src/scene/a.ts': 3 }, { 'src/scene/a.ts': 2 }).over.length, 1, 'a third long line fails');
+  assert.equal(judgeLongLines({ 'src/scene/new.ts': 1 }, {}).over.length, 1, 'a file that is not listed has an allowance of 0');
+  assert.deepEqual(judgeLongLines({ 'src/scene/a.ts': 1 }, { 'src/scene/a.ts': 2, 'src/scene/gone.ts': 4 }).under.map((u: { path: string }) => u.path), ['src/scene/a.ts']);
+  assert.deepEqual(judgeLongLines({}, { 'src/scene/gone.ts': 4 }).gone, ['src/scene/gone.ts'], 'an allowance whose file is clean (or gone) is a prompt to drop it');
+});
+
+test('long-line: the repo has no more long lines than scripts/lint-long-lines.json allows', () => {
+  const walk = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(`${dir}/${e.name}`) : /\.tsx?$/.test(e.name) && !e.name.endsWith('.d.ts') ? [`${dir}/${e.name}`] : []);
+  const files = walk('src').map((path) => ({ path, text: readFileSync(path, 'utf8') }));
+  const allow = JSON.parse(readFileSync('scripts/lint-long-lines.json', 'utf8')) as Record<string, number>;
+  const { over } = judgeLongLines(longLines(files), allow) as { over: Array<{ path: string; count: number; allowed: number }> };
+  assert.deepEqual(over, [], `lines over ${LONG_LINE} characters: ${over.map((o) => `${o.path} ${o.count} > ${o.allowed}`).join(', ')}`);
 });

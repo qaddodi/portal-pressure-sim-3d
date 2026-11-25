@@ -151,3 +151,27 @@ export function css2dEdits(files, source) {
   for (const name of listed) if (!files.some((f) => f.name === name)) out.push(`src/ui/css2d/${name}: listed in SOURCE.json but missing`);
   return out;
 }
+
+/** Rule `long-line` (ratchet, scripts/lint-long-lines.json): no new source line over LONG_LINE characters. The review (F16) counted 1,169 lines over 300, mostly code with a long comment after it, which makes diffs and reviews hard to read.
+ *  The existing long lines are not failed: each file's count today is its allowance, so a file may not gain a long line, and a file with none may not get one. A comment goes on its own line, above the code.
+ *  The copied engine, the 2D copies (`.copied.`) and generated data (`.generated.`) are not hand-written here and are not counted. `files` is [{ path, text }]; returns { [path]: number of lines over the limit } for the files with any. */
+export const LONG_LINE = 200;
+export const longLineExempt = (p) => vendored(p) || /\.(copied|generated)\./.test(p);
+export function longLines(files) {
+  const out = {};
+  for (const { path, text } of files) {
+    if (longLineExempt(path)) continue;
+    let n = 0;
+    for (const l of text.split('\n')) if (l.length > LONG_LINE) n++;
+    if (n) out[path] = n;
+  }
+  return out;
+}
+
+/** Compare per-file long-line counts with the allowances: `over` names each file that has more than its allowance (0 when unlisted), `under` each file that has fewer (a prompt to lower it), `gone` allowances for files that no longer exist or have no long line left. */
+export function judgeLongLines(counts, allow) {
+  const over = [], under = [], gone = [];
+  for (const [p, n] of Object.entries(counts)) { const a = allow[p] ?? 0; if (n > a) over.push({ path: p, count: n, allowed: a }); else if (n < a) under.push({ path: p, count: n, allowed: a }); }
+  for (const p of Object.keys(allow)) if (!counts[p]) gone.push(p);
+  return { over, under, gone };
+}
