@@ -124,5 +124,5 @@ test('the sinusoid shape passes are cut into sections: many small steps, then re
   while (!sc.micro.sinus.prepareShapeStep()) steps++;
   assert.ok(steps > 40, `${steps} steps for the passes (was 8, one pass each)`);
   assert.equal(sc.micro.sinus.shapeReady, true);
-  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /whenQuiet\(\(\) => this\.microStep\(\), \{ tag: 'micro', budgetMs: SLICE_MS \}\)/);
+  assert.match(readFileSync('src/scene/scene.ts', 'utf8'), /whenQuiet\(\(\) => this\.microStep\(\), \{ tag: 'micro', budgetMs: SLICE_MS, label: \(\) => this\.microWhat \}\)/);
 });

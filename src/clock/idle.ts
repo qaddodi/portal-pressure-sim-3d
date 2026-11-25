@@ -25,6 +25,8 @@ export const RUSH_BUDGET_MS = 12;
 export interface QuietOpts {
   /** Names the job in ?perf and in the span log. */
   tag: string;
+  /** What the job is doing now, read after each step: the slowest step's name is kept in the job's stat (the audit's boot digest prints it). */
+  label?: () => string;
   /** How long one slice keeps taking steps (ms). */
   budgetMs?: number;
   /** Do not start before this long (page time): the first picture comes first. */
@@ -33,7 +35,7 @@ export interface QuietOpts {
   maxWaitMs?: number;
 }
 export interface QuietJob { cancel(): void; rush(): void; readonly done: boolean }
-export interface SlotStat { tag: string; slices: number; steps: number; totalMs: number; worstStepMs: number; done: boolean; /** the motion holds the job last waited behind (?perf, the boot digest): a tag here for long is a hold nobody lets go */ parkedBy?: string[] }
+export interface SlotStat { tag: string; slices: number; steps: number; totalMs: number; worstStepMs: number; /** what the job said it was doing in its slowest step (QuietOpts.label), so a long step is named in the report, not guessed */ worstLabel?: string; done: boolean; /** the motion holds the job last waited behind (?perf, the boot digest): a tag here for long is a hold nobody lets go */ parkedBy?: string[] }
 
 export interface QuietEnv<H = number> {
   now(): number;
@@ -57,7 +59,7 @@ export interface QuietEnv<H = number> {
 }
 
 interface Job {
-  step: () => boolean; tag: string; budget: number; readyAt: number; since: number; maxWait: number;
+  step: () => boolean; label?: () => string; tag: string; budget: number; readyAt: number; since: number; maxWait: number;
   rush: boolean; cancelled: boolean; done: boolean; stat: SlotStat;
 }
 
@@ -121,7 +123,7 @@ export function createQuiet<H = number>(env: QuietEnv<H>) {
         const s0 = env.now();
         const fin = j.step();
         const d = env.now() - s0;
-        j.stat.steps++; if (d > j.stat.worstStepMs) j.stat.worstStepMs = d;
+        j.stat.steps++; if (d > j.stat.worstStepMs) { j.stat.worstStepMs = d; if (j.label) j.stat.worstLabel = j.label(); }
         if (fin) { j.done = true; break; }
       }
     } catch (e) {
@@ -139,7 +141,7 @@ export function createQuiet<H = number>(env: QuietEnv<H>) {
     whenQuiet(step: () => boolean, o: QuietOpts): QuietJob {
       const t = env.now();
       const stat: SlotStat = { tag: o.tag, slices: 0, steps: 0, totalMs: 0, worstStepMs: 0, done: false };
-      const j: Job = { step, tag: o.tag, budget: o.budgetMs ?? DEFAULT_BUDGET_MS, readyAt: t + (o.delayMs ?? 0), since: t, maxWait: o.maxWaitMs ?? 0, rush: false, cancelled: false, done: false, stat };
+      const j: Job = { step, label: o.label, tag: o.tag, budget: o.budgetMs ?? DEFAULT_BUDGET_MS, readyAt: t + (o.delayMs ?? 0), since: t, maxWait: o.maxWaitMs ?? 0, rush: false, cancelled: false, done: false, stat };
       jobs.push(j); stats.push(stat);
       pump(false);
       return {
