@@ -64,7 +64,7 @@ export function linkFigure(): () => void {
     setLayer('talk', { marked: c.marked });
     setLayer('talk', { pins: c.pins, normalSpleen: c.normalSpleen, resistors: c.res, caudate: c.caudate, caudateVeins: c.caudateVeins });
     t0 = clock.now();
-    useFigure.getState().set({ cards: c.cards, calipers: c.calipers, spans: c.spans, reads: c.reads, t0 });
+    useFigure.getState().set({ cards: c.cards, calipers: c.calipers, spans: c.spans, reads: c.reads, readsTone: c.readsTone, t0 });
   };
 
   const sync = () => {

@@ -24,6 +24,7 @@ const slide = deck.slides.find((s) => s.id === 'wedge-sinusoid')!;
 test('the slide asks for the Sinusoids name to stand first with its reading, and only this slide does', async () => {
   const calls = figureCalls(figurePlan(slide), { fp });
   assert.deepEqual(calls.reads, ['sin']);
+  assert.equal(calls.readsTone, 'wedge', 'the Sinusoids name takes the callout\'s colour, so the two read together');
   for (const id of ['presin', 'wedge']) assert.deepEqual(figureCalls(figurePlan(deck.slides.find((x) => x.id === id)!), { fp }).reads, [], `${id}: unchanged`);
   const lob = await loadHpDeck('lobule');
   for (const x of lob.slides) assert.deepEqual(figureCalls(figurePlan(x), { fp }).reads, [], `lobule/${x.id}: unchanged`);
@@ -31,13 +32,13 @@ test('the slide asks for the Sinusoids name to stand first with its reading, and
 
 test('the callout stands on a sinusoid and says the WHVP, the number of the patient card\'s tile', () => {
   const plan = figurePlan(slide);
-  assert.deepEqual(plan.callout && { at: plan.callout.at, kind: plan.callout.kind }, { at: 'sin', kind: 'note' });
+  assert.deepEqual(plan.callout && { at: plan.callout.at, kind: plan.callout.kind }, { at: 'sin', kind: 'wedge' });
   const co = figureCalls(plan, { fp }).cards.find((c) => c.id === 'callout')!;
   assert.ok(co, 'the callout is a card of the figure');
   assert.deepEqual(co.anchor, { lobule: 'sinusoid:mid' });
   assert.equal(co.text, `WHVP ${valueText('whvp', fp as never)}`);
   assert.equal(co.text, 'WHVP 16.3 mmHg');
-  assert.equal(co.tone, 'note', 'a plain tone: the WHVP is a reading, not a block or a treatment');
+  assert.equal(co.tone, 'wedge', 'the amber the slide\'s words give the sinusoids and the WHVP, not the danger red');
   // the same slide's tiles read the same fingerprint, so the callout and the card cannot differ
   assert.equal(readingText('P2', { P1: 0, P2: fp.sin!, P3: 0, lymph: 0 }, false, true), '16.7 mmHg');
 });
@@ -72,4 +73,18 @@ test('without the slide\'s ask the Sinusoids name keeps its bare fallback (free 
   const f = frame(SIZES[5]!);
   const c = buildLobuleCaptions({ proj: f.proj, vp: { w: 1440, h: 900 }, measure, net, layers: { zones: false, lymph: false }, unit: true });
   assert.deepEqual(c.meta.get('sin')!.forms.map((x) => x.value), [true, false]);
+});
+
+test('the wedge colour is drawn for the callout\'s ring, its words and the station name it sits beside (a token of the app\'s own, never a new colour)', () => {
+  const css = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');
+  assert.match(css, /\.lz-co\[data-tone="wedge"\]\s*\{[^}]*--tr-wedge\)/);
+  assert.match(css, /\.cl\[data-fig="callout"\]\[data-co="wedge"\] \.cl-k\s*\{\s*color: var\(--tr-wedge-ink\)/);
+  const cap = readFileSync(new URL('../src/scene/lobule/LobuleCaptions.tsx', import.meta.url), 'utf8');
+  assert.match(cap, /fig\.reads\.includes\(id\) && fig\.readsTone/, 'a named station takes the tone');
+  assert.match(cap, /restyle\(e\.root, \(\) => writeTone/, 'and crosses over to it');
+});
+
+test('the callout comes from a source patch, so a re-copy from 2D keeps it', () => {
+  const src = readFileSync(new URL('../scripts/source-edits.mjs', import.meta.url), 'utf8');
+  assert.match(src, /slides\.wedge-sinusoid\.callout/);
 });

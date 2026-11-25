@@ -654,7 +654,7 @@ export class FigureCards {
   private paintRing(r: Rec, box: CardOut, a: { x: number; y: number }, sz: { w: number; h: number }): void {
     const co = r.co!, rg = this.anchors.get(r.spec.id + '#r');
     if (!rg) { fadeRing(co, 0); return; }
-    const rad = rg.x, tone = r.spec.tone === 'block' ? 'danger' : r.spec.tone === 'note' ? 'note' : 'accent';
+    const rad = rg.x, tone = r.spec.tone === 'block' ? 'danger' : r.spec.tone === 'note' ? 'note' : r.spec.tone === 'wedge' ? 'wedge' : 'accent';
     // (the colour of the ring, its leader and its words changes while they show: they cross over to it)
     if (co.root.dataset.tone !== tone) restyle(co.root, () => { co.root.dataset.tone = tone; }, r.a);
     if (r.root.dataset.co !== tone) restyle(r.root, () => { r.root.dataset.co = tone; }, r.a);
