@@ -66,3 +66,24 @@ test('the azygos tributary (2D FEEDERS.AZY_SVC) fades out down the figure by FEE
   assert.equal(fadeOf('C3~F', false, 'C3'), null);
   assert.match(readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8'), /fadeOf\(def\.id, def\.tone === 'artery', def\.feeder\?\.host\)/);
 });
+
+// The rectal varices ended solid in mid-belly on the placed anatomy: their band (laid on the 2D course carried on to starts.ts END_ON) was moved by 2D's own last point, 82 units short of that run-on end,
+// so it sat below the placed course's end and never touched it (fades.ts placedFade now moves it by the carried-on end). Every fade down (or up) the figure to nothing starts on its vessel's course and
+// is complete before the course's far end, so no such end is ever a solid cut in mid-air.
+test('every fade down or up the figure to nothing lies on its placed course and is complete before the course\'s far end (the rectal varices included)', async () => {
+  const { NETWORK } = await import('../src/scene/vessels/network.ts');
+  const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
+  let n = 0;
+  for (const v of NETWORK) {
+    if (v.feeder) continue;
+    const f = fadeOf(v.id, v.tone === 'artery');
+    if (!f || f.mode !== 2 || f.a1 !== 0) continue;
+    n++;
+    const ys = coursesOf(v, REST)[0]!.pts.map((p) => p[1]), lo = Math.min(...ys), hi = Math.max(...ys);
+    assert.ok(f.from >= lo - 1e-9 && f.from <= hi + 1e-9, `${v.id}: its fade starts on its course (${f.from.toFixed(3)} in ${lo.toFixed(3)}..${hi.toFixed(3)})`);
+    const far = f.to < f.from ? lo : hi;
+    assert.ok(f.to < f.from ? far <= f.to + 1e-9 : far >= f.to - 1e-9, `${v.id}: gone before its far end (fade ends at ${f.to.toFixed(3)}, course at ${far.toFixed(3)})`);
+  }
+  assert.ok(n >= 3, `${n} fades along the figure`);
+  assert.ok(NETWORK.some((v) => v.id === 'C4') && fadeOf('C4', false)!.mode === 2, 'the rectal varices are among them');
+});

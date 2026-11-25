@@ -6,7 +6,7 @@ import { x3, y3 } from '../frame2d.ts';
 import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
 import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from '../anatomy/source.ts';
 import { PLACED_EDGE_3D, PLACED_HV_TRUNK, PLACED_PATH_2D } from '../anatomy/placed-network.ts';
-import { alongVein, alongVeinCompanion, alongVeinStretch, originsOf, startInOrganShare } from './starts.ts';
+import { alongVein, alongVeinCompanion, alongVeinStretch, originsOf, startInOrganShare, endOn } from './starts.ts';
 import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare, treeOf } from './liver-branches.ts';
 import { CAUDATE_HOST, CAUDATE_VEIN_ID } from './caudate-veins.ts';
 
@@ -146,7 +146,10 @@ function placedFade(id: string, f: TipFade | null): TipFade | null {
   if (!f || f.mode === 1) return f;
   const was = EDGE_PATH_2D[id], now = PLACED_EDGE_3D[id];
   if (!was || !now || was.length < 2 || now.length < 2) return f;
-  const ends = [[x3(was[0]![0]), y3(was[0]![1]), now[0]!] as const, [x3(was[was.length - 1]![0]), y3(was[was.length - 1]![1]), now[now.length - 1]!] as const];
+  // (a vessel that runs on further than 2D draws it (starts.ts END_ON: the rectal varices) had its fade laid on that carried-on end, so that end is what moved to the placed one; read off 2D's own last
+  //  point instead, the rectal varices' band was shifted 82 units too far down, below the placed course's end, and the varices ended solid in mid-belly)
+  const last = endOn(id) ?? was[was.length - 1]!;
+  const ends = [[x3(was[0]![0]), y3(was[0]![1]), now[0]!] as const, [x3(last[0]), y3(last[1]), now[now.length - 1]!] as const];
   const at = f.line ? [(f.line[0] + f.line[2]) / 2, (f.line[1] + f.line[3]) / 2] : [0, (f.from + f.to) / 2];
   const near = f.line ? ends.reduce((a, b) => (Math.hypot(b[0] - at[0]!, b[1] - at[1]!) < Math.hypot(a[0] - at[0]!, a[1] - at[1]!) ? b : a)) : ends.reduce((a, b) => (Math.abs(b[1] - at[1]!) < Math.abs(a[1] - at[1]!) ? b : a));
   const dx = near[2][0] - near[0], dy = near[2][1] - near[1];
