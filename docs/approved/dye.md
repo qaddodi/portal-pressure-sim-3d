@@ -1,6 +1,6 @@
 # Dye injection (inject dye verb, J key)
 
-Status: look NOT yet picked (25 Nov 2026). Mocks A, B, C in /mnt/project-files/dye-mocks-25nov/ (A dye in the lumen, lime; B stream down the middle; C = A in a calmer cream). Recommended: C. Nothing built.
+Status: A PICKED (Mohammad, 24 Nov 8:37 PM ET: "B", then "No wait A sorry", "A"). Reference: /mnt/project-files/dye-mocks-25nov/a.png. A = dye tints the whole lumen, lime #C7F533 (--blood-dye), ink outline unchanged, vessel's own width and fades. B (stream down the middle) and C (calmer cream) were NOT picked.
 
 ## Ruled (Mohammad, 25 Nov 2026)
 - "Dye should only appear on visible vessels." Never on a hidden vessel, never on a faded-out stretch. In the body view the liver's beds (PRE_*, SIN_*, POST_*) are not drawn, so they never carry dye; the figure shows the portal branches fading into the lobe and the hepatic veins fading out of it, nothing between.
