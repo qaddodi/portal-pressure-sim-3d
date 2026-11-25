@@ -4,6 +4,7 @@
 //   camera phase  the scene steps its tweens (shot, highlight, flow marks) and says whether it needs another frame
 //   render phase  one gl.render of the cel scene (a useFrame with a render priority, so R3F does not draw its own empty scene)
 import { useEffect, useRef } from 'react';
+import './three-console.ts';   // (before the Canvas makes R3F's store: names the one library warning dropped, three-console.ts)
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Raycaster, WebGLRenderTarget } from 'three';
 import { ClockBridge } from '../clock/r3f.tsx';
@@ -12,7 +13,7 @@ import { clock, type TimerId } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
 import { useEngine } from '../engine/store.ts';
 import { lookGlide } from '../looks/glide.ts';
-import { compileDone, figureDrawn, rendererFailed, setRevealHooks, splashHeld, watchStall } from '../boot/ready.ts';
+import { bootBeat, compileDone, figureDrawn, rendererFailed, setRevealHooks, splashHeld, watchStall } from '../boot/ready.ts';
 import { easeArrive } from '../clock/tween.ts';
 import { watchContext } from './context-loss.ts';
 import { setGlLoss } from './gl-loss.ts';
@@ -116,9 +117,9 @@ function SceneBridge() {
     const pm = passMaterials(cel.post, cel.glowFx), warmPass = passWarmScene(pm.target), warmAa = passWarmScene(pm.canvas);
     const wgl = gl as unknown as WarmRenderer;
     const warmP = (): Promise<unknown> => spanAsync('compile:warm', () => Promise.all([
-      warmPrograms(wgl, cel.scene, cel.rig.camera, cel.post.target(gl)),
-      warmPrograms(wgl, warmPass, cel.rig.camera, cel.post.target(gl)),
-      warmPrograms(wgl, warmAa, cel.rig.camera, null),
+      warmPrograms(wgl, cel.scene, cel.rig.camera, cel.post.target(gl), bootBeat),
+      warmPrograms(wgl, warmPass, cel.rig.camera, cel.post.target(gl), bootBeat),
+      warmPrograms(wgl, warmAa, cel.rig.camera, null, bootBeat),
     ])).catch(() => undefined).finally(() => stamp('compile'));
     rewarm.current = () => {
       cel.contextRestored();

@@ -17,7 +17,7 @@ import { stopsOf, catheterAt, viewAt } from '../src/ui/deck/presenter-machine.ts
 import { commandOf, validSession, newSession, fromTalk, PROTOCOL } from '../src/ui/deck/from2d/presenter-view.js';
 import { copyAll } from '../scripts/copy-presenter.mjs';
 
-test('every deck the app has opens with an outline of 3 to 5 lines and 2 to 3 objectives of 100 characters or fewer, and is valid', () => {
+test('every deck the app has opens with an outline of 3 to 5 lines and 2 to 4 objectives of 100 characters or fewer, and is valid', () => {
   assert.ok(builtinDecks().length >= 1);
   for (const d of builtinDecks()) { assert.deepEqual(outlineProblems(d), [], d.id); assert.deepEqual(validateDeck(d), [], d.id); }
 });

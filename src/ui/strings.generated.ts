@@ -2448,8 +2448,8 @@ export const UI = {
    "summary": "Six months of progression, then the esophageal varices, carvedilol at CSPH, and the other collateral routes. Ends with why heart failure rarely causes varices.",
    "topic": "complications",
    "level": "core",
-   "minutes": 14,
-   "slides": 9
+   "minutes": 17,
+   "slides": 13
   },
   {
    "id": "where-resistance",

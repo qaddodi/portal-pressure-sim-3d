@@ -354,7 +354,7 @@ function drawOnce(spec: CurveSpec, c: ChartCtx, w: number, h: number, f: number,
       const an = side < 0 ? 'start' : 'end', cs = [-0.6, 1.4, -1.7, 2.5].map((dy) => ({ x: px - side * 0.5 * f, y: py + dy * f, anchor: an }));
       const pl = P.placeWord(cs, tw, f, { ...ob, boxes, lines: ob.lines.map((q: Any) => ({ ...q, w: 3 })) });
       boxes.push(pl.box);
-      say(wordShapes, pl.x, pl.y, txt, lk('cv.name', {}, l.c), { anchor: pl.anchor as TextShape['anchor'], weight: 700 });
+      say(wordShapes, pl.x, pl.y, txt, lk('cv.name', {}, l.c), { anchor: pl.anchor as TextShape['anchor'] });   // (the weight is the look's own, cv.name: 2D's 700, as the line names have)
     }
   });
   // the cut-offs' names

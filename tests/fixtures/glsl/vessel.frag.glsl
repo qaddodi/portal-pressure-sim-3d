@@ -1048,6 +1048,9 @@ uniform vec3 clotLift;
 #define CLOT_CAP_LEN 0.6
 #define CLOT_V_FROM 0.003
 #define CLOT_V_TO 0.08
+#define CLOT_FILL_FROM 0.82
+#define CLOT_FILL_TO 1.0
+#define CLOT_FILL_SLACK_MAX 0.25
 #define CLOT_CAP_INK_FROM 0.0
 #define CLOT_CAP_INK_TO 0.35
 #define CLOT_FREE_FROM 0.1
@@ -1060,11 +1063,15 @@ vec3 clotAt(vec4 a, vec2 p, float u, float lat, float vRf, float rDev) {
   float side = a.z < 0.0 ? -1.0 : 1.0;
   float f = a.x + a.y * u;
   float fc = clamp(f, 0.0, 1.0);
+  float tf = clamp((v - CLOT_FILL_FROM) / (CLOT_FILL_TO - CLOT_FILL_FROM), 0.0, 1.0);
+  float kf = tf * tf * tf;
   float fl = 0.3 + 0.5 * v * v * v;
   float body = fl + (1.0 - fl) * sqrt(max(sin(3.14159265 * fc), 0.0));
-  float lump = 1.0 + 0.08 * sin(fc * 18.85 + p.x) + 0.05 * sin(fc * 43.98 + p.y);
-  float h = min(CLOT_INSIDE, CLOT_INSIDE * clamp(0.1 + 0.9 * v, 0.0, 1.0) * body * lump);
-  float c = side * (CLOT_INSIDE - h) + side * min(CLOT_WALL_SLACK_PX / max(rDev, 1.0), h);
+  float lump = 1.0 + (1.0 - kf) * (0.08 * sin(fc * 18.85 + p.x) + 0.05 * sin(fc * 43.98 + p.y));
+  float h0 = min(CLOT_INSIDE, CLOT_INSIDE * clamp(0.1 + 0.9 * v, 0.0, 1.0) * body * lump);
+  float c0 = side * (CLOT_INSIDE - h0) + side * min(CLOT_WALL_SLACK_PX / max(rDev, 1.0), h0);
+  float h = h0 + (CLOT_INSIDE + min(CLOT_WALL_SLACK_PX / max(rDev, 1.0), CLOT_FILL_SLACK_MAX) - h0) * kf;
+  float c = c0 * (1.0 - kf);
   float along = f < 0.0 ? -f : (f > 1.0 ? f - 1.0 : 0.0);
   float dn = along * a.w / max(CLOT_CAP_LEN * vRf, 1e-6);
   float q = (lat - c) / h;
@@ -1073,7 +1080,7 @@ vec3 clotAt(vec4 a, vec2 p, float u, float lat, float vRf, float rDev) {
   float gF = length(vec2(dn / (CLOT_CAP_LEN * max(rDev, 1e-3)), q / (h * max(rDev, 1e-3)))) / len;
   float distIn = -F / gF;
   float on = smoothstep(CLOT_V_FROM, CLOT_V_TO, v);
-  float free = max(1.0 - smoothstep(CLOT_FREE_FROM, CLOT_FREE_TO, side * q), smoothstep(CLOT_CAP_INK_FROM, CLOT_CAP_INK_TO, dn));
+  float free = max((1.0 - smoothstep(CLOT_FREE_FROM, CLOT_FREE_TO, side * q)) * (1.0 - kf), smoothstep(CLOT_CAP_INK_FROM, CLOT_CAP_INK_TO, dn));
   return vec3(clamp(0.5 + distIn, 0.0, 1.0) * on, distIn, free);
 }
 

@@ -8,7 +8,7 @@ How a build gets its version, what the live site ships, and the checklist for a 
 - To release: change `version` in `package.json` and `package-lock.json` (both top entries), commit, tag `v<version>` on the merge commit.
 
 ## The feedback address
-It is never in the repository (`tests/release.test.ts` greps `src`, `scripts`, `public`, `index.html` and `.github` for a mail address). The workflow passes the repository variable `FEEDBACK_EMAIL` to both builds as `VITE_FEEDBACK_EMAIL`: GitHub repo Settings > Secrets and variables > Actions > Variables > New repository variable `FEEDBACK_EMAIL`. Unset, the Send feedback row and the Privacy paragraph about it are absent. The address is necessarily in the shipped JavaScript (a mailto link); the rule is only that it is not in the repo.
+It is never in the repository (`tests/release.test.ts` greps `src`, `scripts`, `public`, `index.html` and `.github` for a mail address). The workflow passes the repository secret `FEEDBACK_EMAIL` to both builds as `VITE_FEEDBACK_EMAIL`: GitHub repo Settings > Secrets and variables > Actions > Secrets > New repository secret `FEEDBACK_EMAIL` (a secret, not a variable, so the run's log masks it). Unset, the Send feedback row and the Privacy paragraph about it are absent. The address is necessarily in the shipped JavaScript (a mailto link); the rule is only that it is not in the repo.
 
 ## What each copy ships
 - `/preview/` (integration branch, `VITE_CHANNEL=preview`): everything, with the orange build pill and every debug tool (`?audit`, `?inspect`, `?joins`, `?dust`, `?look`, `?charts`, `?trials`, `?parity`, `?debug`, `?watch`).
@@ -24,7 +24,7 @@ It is never in the repository (`tests/release.test.ts` greps `src`, `scripts`, `
 ## Release checklist
 1. The review's P0 items (error boundaries, lazy-load retry, context loss) pushed and seen by Mohammad.
 2. Stall work (`rebuild-3d/code-review-21nov.md` items 1 to 5) closed, or listed as known.
-3. Version bumped; `FEEDBACK_EMAIL` variable set; tester guides updated to the live address (they still say `/preview/` and the PREVIEW tab).
+3. Version bumped; `FEEDBACK_EMAIL` secret set; tester guides updated to the live address (they still say `/preview/` and the PREVIEW tab).
 4. Device pass on the exact commit: `docs/device-checklist.md`.
 5. Mohammad says merge: merge the integration branch into `main`; `/` becomes the app and `/preview/` equals it.
 6. Tag `v<version>`; the previous tag's commit is the rollback (revert the merge on `main`).

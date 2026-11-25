@@ -53,10 +53,10 @@ test('the copy is the 2D app\'s: with a 2D checkout at hand, scripts/copy-decks-
   execFileSync('node', ['scripts/copy-decks-ag.mjs', '--from', two.repo, '--check', '--no-numbers'], { cwd: root, stdio: 'pipe' });
 });
 
-test('every deck has what the cards need: a title, 2 or 3 objectives, a quick check, and the 2D menu\'s names', () => {
+test('every deck has what the cards need: a title, 2 to 4 objectives, a quick check, and the 2D menu\'s names', () => {
   for (const d of decks) {
     assert.ok(d.title && d.summary && d.level, d.id);
-    assert.ok(d.objectives.length >= 2 && d.objectives.length <= 3, `${d.id} objectives`);
+    assert.ok(d.objectives.length >= 2 && d.objectives.length <= 4, `${d.id} objectives`);
     assert.ok(d.checks.length > 0 && d.checks.every((c) => c.length === 2 && c[0] && c[1]), `${d.id} checks`);
     assert.ok(d.topic && d.short, `${d.id} has its menu topic and short name`);
   }

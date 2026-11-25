@@ -40,6 +40,8 @@ test('the scene has exactly one R3F <Canvas>, and the charts\' drawer makes one 
   assert.equal((gl.match(/new Drawer\(/g) ?? []).length, 2, 'the shared drawer and the per-canvas fallback, nothing else');
 });
 
+const TWO_D_ONLY = new Set([join('src', 'scene', 'labels', 'measure.ts'), join('src', 'ui', 'capture', 'capture-dom.ts'), join('src', 'ui', 'capture', 'capture.ts'), join('src', 'ui', 'debug', 'audit', 'capture-all.ts')]);
+
 test('a chart, a card or a deck never makes a chart canvas by hand: it goes through ChartPainter', () => {
   const bad: string[] = [];
   for (const f of files) {
@@ -52,6 +54,8 @@ test('a chart, a card or a deck never makes a chart canvas by hand: it goes thro
     if (f === join('src', 'debug', 'look-pixels.ts')) { assert.ok(!/getContext\(\s*['"`]webgl/.test(readFileSync(f, 'utf8')), 'the look board\'s canvases are 2D only'); continue; }
     // (Copy / Save figure: one 2D canvas made on a click to lay the labels over the canvas's picture, never per frame, no GL context; shell/figure-image-dom.ts)
     if (f === join('src', 'ui', 'shell', 'figure-image-dom.ts') || f === join('src', 'scene', 'figure-shot.ts')) { assert.ok(!/getContext\(\s*['"`]webgl/.test(readFileSync(f, 'utf8')), 'the figure picture\'s canvas is 2D only'); continue; }
+    // (2D canvases that make no GL context, each for a click or a measurement and never per frame: the label measurer's text-measuring canvas; Copy / Save slide, the figure picture and the capture sweep's canvases that lay a page's pieces into one picture)
+    if (TWO_D_ONLY.has(f)) { assert.ok(!/getContext\(\s*['"`]webgl/.test(readFileSync(f, 'utf8')), `${f}: its canvases are 2D only`); continue; }
     const t = strip(readFileSync(f, 'utf8'));
     if (/createElement\(\s*['"`]canvas['"`]\s*\)/.test(t)) bad.push(f);
   }

@@ -211,5 +211,6 @@ test('the varices bead by their size: the strands of the esophageal and fundal v
 });
 
 test('a tube of no radius is not drawn, not even its ink', () => {
-  assert.match(VESSEL_VS, /if \(rk <= 0\.0\) gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\);/);
+  // (the radius share of the view being drawn, rkE: on the Circuit's map a strand of a drawn trunk has map share 0 while the body's rk is not, and it drew a ragged dark seam; a1372c9f)
+  assert.match(VESSEL_VS, /if \(rkE <= 0\.0\) gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\);/);
 });
