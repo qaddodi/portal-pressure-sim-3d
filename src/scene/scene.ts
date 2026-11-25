@@ -342,6 +342,8 @@ export class CelScene {
   readonly post = new PostAA();
   /** The organ veil's map of the organs and the mask of the ones behind (organ-veil/): drawn before the figure's first pass while the veil or the show-through has any strength. */
   private readonly organMap = new OrganMap();
+  /** How often the organ map was drawn and how often it was kept (?perf). */
+  get organMapStats(): { drawn: number; kept: number; unkeyed: number } { return this.organMap.stats; }
   private readonly veilSize = new Vector2();
   /** The picked vessel's glow, made on the screen from its mask (glow-fx.ts). */
   readonly glowFx = new GlowFx();

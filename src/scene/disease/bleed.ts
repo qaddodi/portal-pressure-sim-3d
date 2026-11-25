@@ -92,8 +92,8 @@ export class BleedLayer {
     if (instant) { this.grow.value = live ? 1 : 0; this.drain.value = 0; }
     else if (live) { moving = this.grow.to(1, dt) || moving; moving = this.drain.to(0, dt) || moving; }   // (it grows out, whatever it was doing)
     else if (this.grow.value > 0.003) moving = this.drain.to(1, dt) || moving;   // (the tail leaves; the head stays where it was)
-    // (a jet that never grew has no tail to drain: easing the drain toward 1 and then resetting it to 0 below, as "nothing is shown", restarted that ease on every frame, so the figure asked for a frame
-    //  forever and Pause never let the Anatomy rest: the cause of "paused still draws 47 to 50 frames a second", review D1)
+    // (a jet that never grew has no tail to drain: easing the drain toward 1 and then resetting it to 0 below, as "nothing is shown",
+    //  restarted that ease on every frame, so the figure asked for a frame forever and Pause never let the Anatomy rest: review D1)
     else this.drain.value = 0;
     this.wanted = this.grow.value > 0.003 && this.drain.value < 0.995 && !!this.last;
     this.group.visible = this.wanted && this.body > 0.001;

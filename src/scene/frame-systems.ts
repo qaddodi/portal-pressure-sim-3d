@@ -13,11 +13,17 @@ export interface FrameCtx {
   streams: boolean;
   /** a procedure is on the figure: the flow marks ease out */
   procQuiet: boolean;
-  /** the ids of systems whose "still moving" this frame is AMBIENT only (the flow marks and the cells riding them going round, nothing eased): a frame asked only by those runs at the ambient rate (clock/frame.ts) */
+  /**
+   * the ids of systems whose "still moving" this frame is AMBIENT only (the flow marks and the cells riding them going round, nothing eased):
+   * a frame asked only by those runs at the ambient rate (clock/frame.ts)
+   */
   ambient: Set<string>;
 }
 
-/** Runs every system once, in order. Returns whether any still moves; `movers` (when given) is filled with the ids of the ones that do (?perf names them: a figure that never rests is found by name). */
+/**
+ * Runs every system once, in order. Returns whether any still moves; `movers` (when given) is filled with the ids of the ones that do
+ * (?perf names them: a figure that never rests is found by name).
+ */
 export function runSystems<C>(systems: readonly FrameSystem<C>[], ctx: C, totals: Record<string, number>, now: () => number, movers?: string[]): boolean {
   let moving = false;
   if (movers) movers.length = 0;

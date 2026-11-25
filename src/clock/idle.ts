@@ -91,8 +91,9 @@ export function createQuiet<H = number>(env: QuietEnv<H>) {
         if (armed) return;
         armed = true;
         const go = () => { armed = false; pump(true); };
-        // A job the user is waiting for (rushed) never waits for the browser's idle time: a page drawing a heavy frame every tick is never idle, and requestIdleCallback then answers only at its timeout (a second a slice),
-        // which is how the Lobule never opened on a slow machine (review F10). It takes a task of its own between two frames, as the Safari path always did.
+        // A job the user is waiting for (rushed) never waits for the browser's idle time: a page drawing a heavy frame every tick is never idle,
+        // and requestIdleCallback then answers only at its timeout (a second a slice), which is how the Lobule never opened on a slow machine
+        // (review F10). It takes a task of its own between two frames, as the Safari path always did.
         if (env.idle && !pick.rush) env.idle(go); else env.post(go);
         return;
       }
