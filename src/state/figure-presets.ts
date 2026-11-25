@@ -14,16 +14,23 @@ export type PresetValues = Pick<Settings, PresetKey>;
 const SOFT = 0, SHARP = 2;   // (indexes into FIGURE_DETAIL: Soft 1x, Standard 1.5x, Sharp 2x)
 
 /**
- * Cool: the low-cost end, for a phone, an old laptop or a long talk. Everything that asks the GPU for more than the flat figure is off: the soft 1x picture that stays 1x in a gesture, no frosted glass,
- *   no blood streaks, no soft light on the organs, no tilt, no depth of field, no living fluid, no device shadows. Auto detail stays on, so it can still soften further on a slow device.
+ * Cool: the low-cost end, for a phone, an old laptop or a long talk. Everything that asks the GPU for more than the flat figure is off: the soft 1x picture that stays 1x in a gesture,
+ *   no frosted glass, no blood streaks, no soft light on the organs, no tilt, no depth of field, no living fluid, no device shadows.
+ *   Auto detail stays on, so it can still soften further on a slow device.
  * Balanced: what the app starts with (a phone starts with the blood streaks off, as `parseSettings` has it, so Balanced is that on a phone too).
  * Rich: every effect on at the sharpest picture, held there (Auto detail off): for a Mac that has the room.
  */
 export function presetValues(id: PresetId, phone: boolean = onPhone()): PresetValues {
   switch (id) {
-    case 'cool': return { blur: false, figureDetail: SOFT, autoDetail: true, sharpMoving: false, organDepth: false, tilt: false, dof: false, particles: false, fluidSurface: false, deviceShadow: false };
-    case 'balanced': return { blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, autoDetail: true, sharpMoving: true, organDepth: true, tilt: true, dof: true, particles: !phone, fluidSurface: true, deviceShadow: true };
-    case 'rich': return { blur: true, figureDetail: SHARP, autoDetail: false, sharpMoving: true, organDepth: true, tilt: true, dof: true, particles: true, fluidSurface: true, deviceShadow: true };
+    case 'cool':
+      return { blur: false, figureDetail: SOFT, autoDetail: true, sharpMoving: false, organDepth: false, tilt: false, dof: false, particles: false, fluidSurface: false, deviceShadow: false };
+    case 'balanced':
+      return {
+        blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, autoDetail: true, sharpMoving: true,
+        organDepth: true, tilt: true, dof: true, particles: !phone, fluidSurface: true, deviceShadow: true,
+      };
+    case 'rich':
+      return { blur: true, figureDetail: SHARP, autoDetail: false, sharpMoving: true, organDepth: true, tilt: true, dof: true, particles: true, fluidSurface: true, deviceShadow: true };
   }
 }
 

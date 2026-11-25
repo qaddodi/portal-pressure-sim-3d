@@ -12,4 +12,5 @@ export const PRESET_LINE: Record<PresetId | 'custom', string> = {
 export const FIGURE_TITLE = 'Figure';
 export const MORE_ROW = { label: 'More', hint: 'Each figure switch on its own' } as const;
 export const MORE_PAGE_TITLE = 'Figure, switch by switch';
-export const MORE_NOW = (id: PresetId | null): string => (id ? `Now: ${PRESET_LABEL[id]}. Changing a switch here makes it Custom.` : 'Now: Custom. Pick Cool, Balanced or Rich in Settings to set them all at once.');
+const NOW_CUSTOM = 'Now: Custom. Pick Cool, Balanced or Rich in Settings to set them all at once.';
+export const MORE_NOW = (id: PresetId | null): string => (id ? `Now: ${PRESET_LABEL[id]}. Changing a switch here makes it Custom.` : NOW_CUSTOM);
