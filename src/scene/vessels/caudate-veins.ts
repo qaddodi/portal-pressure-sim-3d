@@ -2,55 +2,19 @@
 // Budd-Chiari they are the liver's outflow, patent while the three main hepatic veins are clotted. They are one tributary group on the IVC piece they enter (`<host>~F:caudate`, three courses), drawn only while a slide is about the lobe
 // and eased in and out by the scene (scene.ts setCaudate), and they open into the cava by the same rule as the hepatic veins (fades.ts CAVA_FEEDERS: the vein takes the cava's colour and its faint alpha at the wall and is cut away inside
 // the lumen, so both have one fade at the junction). Each one rises out of the lobe's own tissue (fades in over its first stretch, no end to see).
-import { EDGE_PATH_2D, PLACED } from '../anatomy/source.ts';
 import { PLACED_CAUDATE_HOST, PLACED_CAUDATE_VEINS, shareOn, to2D } from '../anatomy/placed-network.ts';
-import { CAUDATE_VEINS } from '../organs/caudate.ts';
 import { JOIN_SPAN, type BranchItem, type BranchSet } from './liver-branches.ts';
 
-/** The IVC piece the veins enter (the cava below the TIPS/DIPS junction at y 306: the lobe lies at y 300 to 418; placed, the piece their ends lie on: the DIPS lands at the lobe's foot, below them) and the `when` of their group. */
-export const CAUDATE_HOST: string = PLACED ? PLACED_CAUDATE_HOST : 'IVC_IS_1';
+/** The IVC piece the veins enter (the piece their ends lie on: the DIPS lands at the lobe's foot, below them) and the `when` of their group. */
+export const CAUDATE_HOST: string = PLACED_CAUDATE_HOST;
 export const CAUDATE_WHEN = 'caudate-veins';
 /** The group's vessel id (network.ts). */
 export const CAUDATE_VEIN_ID = `${CAUDATE_HOST}~F:${CAUDATE_WHEN}`;
 /** Each vein's width at the cava, 2D units: 2D draws 3, 3.6 and 2.8 (a 3-unit tube is 1.5 px on a phone, under the cel outline's own width); here about twice that, still a third of the cava's 16. */
 export const CAUDATE_WIDTHS: readonly number[] = [5.6, 6.6, 5.2];
-const N = 48;
-type P2 = readonly [number, number];
-
-const nums = (d: string): number[] => d.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
-/** The cava's centreline x at `y` on its piece (2D plane). */
-function cavaX(y: number): number {
-  const p = EDGE_PATH_2D[CAUDATE_HOST]!;
-  let best = p[0]!, bd = Infinity;
-  for (const q of p) { const d = Math.abs(q[1] - y); if (d < bd) { bd = d; best = q; } }
-  return best[0];
-}
-/** Where along the cava's piece (0 at its start, 1 at its end) the veins enter: the stretch of its colour ramp they wear, so they begin in the colour the cava has there. */
-function entrySpan(): readonly [number, number] {
-  const p = EDGE_PATH_2D[CAUDATE_HOST]!, s = [0];
-  for (let i = 1; i < p.length; i++) s.push(s[i - 1]! + Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]));
-  const at = (y: number): number => { let k = 0, bd = Infinity; p.forEach((q, i) => { const d = Math.abs(q[1] - y); if (d < bd) { bd = d; k = i; } }); return s[k]! / s[s.length - 1]!; };
-  const ys = CAUDATE_VEINS.map(([d]) => nums(d)[5]!), a = at(Math.max(...ys)), b = at(Math.min(...ys));
-  return [Math.min(a, b), Math.max(a, b)];
-}
-
-/** One vein: 2D's quadratic from inside the lobe to the cava's wall, carried on to the cava's axis (the shader cuts it away inside the lumen), flow order (lobe to cava). */
-function vein([d]: readonly [string, number], width: number, hostW: number): BranchItem {
-  const [x0, y0, cx, cy, , y1] = nums(d) as [number, number, number, number, number, number], ex = cavaX(y1), ey = y1 - 1.5;
-  const pts: P2[] = [];
-  for (let i = 0; i < N; i++) { const t = i / (N - 1), u = 1 - t; pts.push([u * u * x0 + 2 * u * t * cx + t * t * ex, u * u * y0 + 2 * u * t * cy + t * t * ey]); }
-  // (the end goes into the cava level with its axis: the cava's wall covers it, and its cut and ink hold-back are the hepatic veins' own)
-  return { k: width / hostW, fan: true, when: CAUDATE_WHEN, src: null, out: false, pts, dz: pts.map(() => 0), taper: [0.5, 1], taperSpan: [1, JOIN_SPAN], join: 1 };
-}
-
 /** The group: three veins on the cava's piece. `hostW` is the cava's width in 2D units (network.ts NETWORK_HOST_W). */
+/** The approved placement's three caudate veins (cv1 to cv3: out of the lobe on the liver's back into the cava's left wall), already joined into the cava's centreline (placed-network.ts), each at its own depth. */
 export function caudateVeinSet(hostW: number): BranchSet {
-  if (PLACED) return placedSet(hostW);
-  return { host: CAUDATE_HOST, when: CAUDATE_WHEN, span: entrySpan(), list: CAUDATE_VEINS.map((c, i) => vein(c, CAUDATE_WIDTHS[i]!, hostW)) };
-}
-
-/** The approved placement's three caudate veins (cv1 to cv3: out of the lobe on the liver's back into the cava's left wall), already joined into the cava's centreline (placed-network.ts), each at its own depth; the same group, widths and show rule. */
-function placedSet(hostW: number): BranchSet {
   const list = PLACED_CAUDATE_VEINS.map((c, i): BranchItem => {
     const { pts, z } = to2D(c);
     return { k: CAUDATE_WIDTHS[i]! / hostW, fan: true, when: CAUDATE_WHEN, src: null, out: false, pts, dz: pts.map(() => 0), zs: z, taper: [0.5, 1], taperSpan: [1, JOIN_SPAN], join: 1 };

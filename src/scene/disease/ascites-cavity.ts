@@ -1,11 +1,11 @@
-// The ascites cavity for the PLACED anatomy (`?anatomy=new`; docs/approved/ascites-surface.md, "Round belly"): the water's wall fitted to the new gut, picked by Mohammad on 24 Nov (mock B of
+// The ascites cavity for the placed anatomy (docs/approved/ascites-surface.md, "Round belly"): the water's wall fitted to the new gut, picked by Mohammad on 24 Nov (mock B of
 // /mnt/project-files/ascites-new-anatomy-24nov/ascites-options-A-B-C.png: "B"). Why a new wall: today's cavity (ABDOMEN_OUTLINES, 2D's outline, ascites-pool.ts) is a fixed 336..1088 tub drawn for the OLD organs; the placed
 // gut is narrower (the colon spans x 453 to 1038, bowel 503 to 962 in the 2D frame) and its rectum reaches y 1098, below the old floor (1041), so the tub was 117 units wider than the gut each side and the rectum stuck out under it.
 //
 // Each side of the wall is the gut's own edge (colon and small bowel front silhouettes, PLACED_ORGAN_RINGS, per 2D y) plus a margin that grows with the volume (36 empty to 58 full), smoothed (a Gaussian of SIGMA), limited so the
 // wall never closes in faster than LEAN going down, and less and less toward the join (the low-fill flare toward the colon, docs/approved/ascites-surface.md "Low-fill contour": a pool standing low has upright sides, never a wedge), bowed outward by BOW
 // at its middle (a belly, not a tub) and joined at JOIN_Y to a rounded floor that passes FLOOR_PAD under the rectum. Above y 620 the wall holds the gut's x at 620 (the colon's flexures start there).
-// Pure: `placedCavity(step, rings)` takes the rings, so the tests need no anatomy switch; polyOf (ascites-pool.ts) picks it when PLACED.
+// Pure: `placedCavity(step, rings)` takes the rings, so the tests need no anatomy switch; polyOf (ascites-pool.ts) uses it.
 export const CAVITY = {
   /** The wall's top (2D y): the polygon's top corners, as 2D's outline has them. */
   TOP: 440, DY: 4,

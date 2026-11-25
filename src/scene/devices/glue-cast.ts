@@ -8,8 +8,6 @@ import type { CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
 import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
 import { NETWORK_BY_ID, radiusOf, widthPx } from '../vessels/network.ts';
-import { GEO2D } from '../procedures/route.ts';
-import { PLACED } from '../anatomy/source.ts';
 import { geo3 } from '../procedures/route-placed.ts';
 import { indexOf } from '../../engine/vessel-data.ts';
 import { EUS_GLUE_ROUTE, EUS_GLUE_TARGET, coilReach, layCoil, pointOn } from './probes/copied/eus-scope.copied.js';
@@ -19,11 +17,10 @@ import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, showRings, writeRings }
 
 type P2 = [number, number];
 const U = UNITS_PER_SCENE;
-/** The varices' courses the glue is laid on: the 2D figure's, or (the placed anatomy, `?anatomy=new`) the drawn centrelines in 3D (route-placed.ts geo3: figure x and y, and depth in figure units). */
-const geoNow = (): Record<string, { cur: number[][] }> => (PLACED ? geo3() : GEO2D);
-/** The depth of a figure point on the varix (scene units): its own course's at the nearest sample on the placed anatomy, the tier's on today's. */
+/** The varices' courses the glue is laid on: the drawn centrelines in 3D (route-placed.ts geo3: figure x and y, and depth in figure units). */
+const geoNow = (): Record<string, { cur: number[][] }> => geo3();
+/** The depth of a figure point on the varix (scene units): its own course's at the nearest sample. */
 function depthOn(P: readonly number[][], x: number, y: number, flat: number): number {
-  if (!PLACED) return flat;
   let best = Infinity, z = flat;
   for (const q of P) { const d = (q[0]! - x) ** 2 + (q[1]! - y) ** 2; if (d < best) { best = d; z = (q[2] ?? flat * U) / U; } }
   return z;
@@ -117,8 +114,8 @@ export class GlueCast {
     const { P, cum, L } = this.course, s = clamp01(f) * L;
     let i = 1; while (i < P.length - 1 && cum[i]! < s) i++;
     const a = P[i - 1]!, b = P[i]!, d = cum[i]! - cum[i - 1]!, u = d > 0 ? (s - cum[i - 1]!) / d : 0;
-    // (the placed anatomy: the course's own depth, and its heading in depth too)
-    const za = PLACED ? a[2]! / U : this.z, zb = PLACED ? b[2]! / U : this.z;
+    // (the course's own depth, and its heading in depth too)
+    const za = a[2]! / U, zb = b[2]! / U;
     p.set(x3(a[0]! + (b[0]! - a[0]!) * u), y3(a[1]! + (b[1]! - a[1]!) * u), za + (zb - za) * u);
     t.set((b[0]! - a[0]!) / U, -(b[1]! - a[1]!) / U, zb - za).normalize();
   }
@@ -145,8 +142,8 @@ export class GlueCast {
         const rs = this.coilRings, r = Math.max(0.56 * 1.25 / U, 0.0012);
         for (let i = 0; i < COIL_RINGS; i++) {
           const j = Math.min(i, line.length - 1), q = line[j]!, a = line[Math.max(0, j - 1)]!, b = line[Math.min(line.length - 1, j + 1)]!;
-          // (the coil curls inside the varix: on the placed anatomy at the varix's own depth where it lies, today in front of its tier by a hair)
-          const zq = PLACED ? depthOn(this.course.P, q[0], q[1], this.z) : this.z + 0.004, za = PLACED ? depthOn(this.course.P, a[0], a[1], this.z) : 0, zb = PLACED ? depthOn(this.course.P, b[0], b[1], this.z) : 0;
+          // (the coil curls inside the varix, at the varix's own depth where it lies)
+          const zq = depthOn(this.course.P, q[0], q[1], this.z), za = depthOn(this.course.P, a[0], a[1], this.z), zb = depthOn(this.course.P, b[0], b[1], this.z);
           rs[i]!.c.set(x3(q[0]), y3(q[1]), zq); rs[i]!.t.set((b[0] - a[0]) / U, -(b[1] - a[1]) / U, zb - za).normalize(); rs[i]!.r = r;
         }
         writeRings(this.coilGeo, rs, COIL_RADIAL);

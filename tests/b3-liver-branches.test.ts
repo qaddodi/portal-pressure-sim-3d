@@ -144,18 +144,8 @@ test('a vein that branches runs on as one tube inside the liver\'s outline, past
   }
 });
 
-test('a side branch stays behind its vein for as long as the two overlap and never dives at the camera (so no outline or darker fill is drawn across the vein at a fork)', async () => {
-  const { LIVER_BRANCHES, tuckedDepth, SIDE_SLOPE } = await import('../src/scene/vessels/liver-branches.ts');
-  const { len3 } = await import('../src/scene/frame2d.ts');
-  assert.ok(tuckedDepth(0, 0.1) < 0 && tuckedDepth(3, 0.1) < 0, 'behind while on the vein');
-  assert.ok(tuckedDepth(12, 0.1) < 0.002, 'behind or level with the vein by the time it has cleared it (two radii out)');
-  assert.ok(tuckedDepth(1e4, 0.1) < 0.0801 && tuckedDepth(1e4, 0.1) > 0.079, 'it comes forward to its own depth and does not pass it');
-  let prev = -1;
-  for (let w = 0; w < 60; w += 0.5) {
-    const z = tuckedDepth(w, 0.1); assert.ok(z >= prev - 1e-12, 'never goes back');
-    if (w > 0) assert.ok((z - prev) / len3(0.5) <= SIDE_SLOPE + 1e-9, `no steeper than SIDE_SLOPE at ${w}`);
-    prev = z;
-  }
+test('every liver branch carries a finite depth for each of its points', async () => {
+  const { LIVER_BRANCHES } = await import('../src/scene/vessels/liver-branches.ts');
   for (const b of LIVER_BRANCHES) {
     const item = b.list[0]! as { dz: readonly number[]; pts: readonly (readonly [number, number])[] };
     assert.ok(item.dz.length === item.pts.length && item.dz.every(Number.isFinite), b.host);

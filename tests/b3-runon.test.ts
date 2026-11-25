@@ -3,15 +3,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RUN_ONS } from '../src/scene/vessels/network.ts';
-import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
 import { courseOf } from '../src/scene/vessels/network.ts';
-import { x3, y3 } from '../src/scene/frame2d.ts';
-import { findRunOns, smoothRunOns } from '../src/scene/vessels/joins.ts';
+import { findRunOns } from '../src/scene/vessels/joins.ts';
 
 const has = (a: string, b: string) => RUN_ONS.some((r) => (r.a === a && r.b === b) || (r.a === b && r.b === a));
 
-import { withStartInOrgan } from '../src/scene/vessels/starts.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { PLACED_EDGE_3D } from '../src/scene/anatomy/placed-network.ts';
 import { centrelineOf } from '../src/scene/vessels/centreline.ts';
 
@@ -31,54 +27,19 @@ test('no vessel runs on into two at one end, and a vessel never into itself', ()
   }
 });
 
-/** The turn (degrees) between the two courses' directions through the join, 0 when they continue straight. */
-function turnAt(P: readonly (readonly [number, number])[], ia: number, Q: readonly (readonly [number, number])[], ib: number): number {
-  const dir = (C: readonly (readonly [number, number])[], i: number, k: number) => { const n = C.length, a = i ? C[n - 1]! : C[0]!, b = i ? C[n - 1 - k]! : C[k]!; return Math.atan2(b[1] - a[1], b[0] - a[0]); };
-  let d = Math.abs(dir(P, ia, 2) - dir(Q, ib, 2)) * 180 / Math.PI;
-  d = Math.abs(((d % 360) + 360) % 360 - 180);
-  return d;
-}
-
 test('through a run-on the two courses meet with no kink (the cubic follows each course), where the raw 2D samples turned by up to 57 degrees', () => {
   // (placed: the run-ons are made one curve in 3D by the placed network (placed-network.ts runOn), not by the 2D cubic: the two centrelines meet heading on, under the smooth bar's 5 degrees)
-  if (PLACED) {
-    for (const r of RUN_ONS) {
-      const a = centrelineOf(r.a)!, b = centrelineOf(r.b)!, h = (c: typeof a, u: 0 | 1) => { const p = c.pointAt(u), q = c.pointAt(u ? 1 - 0.003 / c.length : 0.003 / c.length); return [p[0] - q[0], p[1] - q[1], p[2] - q[2]]; };
-      const A = h(a, r.ia), B = h(b, r.ib), turn = 180 - (Math.acos(Math.max(-1, Math.min(1, (A[0]! * B[0]! + A[1]! * B[1]! + A[2]! * B[2]!) / Math.hypot(...A) / Math.hypot(...B)))) * 180) / Math.PI;
-      assert.ok(turn < 5, `${r.a} to ${r.b} turns ${turn.toFixed(1)} degrees`);
-    }
-    return;
-  }
-  const paths = new Map(Object.entries(EDGE_PATH_2D));
-  const smooth = smoothRunOns(paths, RUN_ONS);
-  let worstBefore = 0, worstAfter = 0;
   for (const r of RUN_ONS) {
-    const P = paths.get(r.a)!, Q = paths.get(r.b)!, Ps = smooth.get(r.a) ?? P, Qs = smooth.get(r.b) ?? Q;
-    worstBefore = Math.max(worstBefore, turnAt(P, r.ia, Q, r.ib));
-    const after = turnAt(Ps, r.ia, Qs, r.ib);
-    worstAfter = Math.max(worstAfter, after);
-    if (!/^C\d/.test(r.a) && !/^C\d/.test(r.b)) assert.ok(after < 25, `${r.a} to ${r.b} still turns ${after.toFixed(1)} degrees`);   // (a collateral's strands braid along it: its own pair is left to the coil)
-    // the samples keep their count and the join stays near where it was (the 2D cubic passes the node within 2 units at its middle; its ends move a few more, 16 at the worst, on the cava's pieces)
-    assert.equal(Ps.length, P.length);
-    const e0 = r.ia ? Ps[Ps.length - 1]! : Ps[0]!, o0 = r.ia ? P[P.length - 1]! : P[0]!;
-    assert.ok(Math.hypot(e0[0] - o0[0], e0[1] - o0[1]) < 20, `${r.a}'s end moved too far`);
+    const a = centrelineOf(r.a)!, b = centrelineOf(r.b)!, h = (c: typeof a, u: 0 | 1) => { const p = c.pointAt(u), q = c.pointAt(u ? 1 - 0.003 / c.length : 0.003 / c.length); return [p[0] - q[0], p[1] - q[1], p[2] - q[2]]; };
+    const A = h(a, r.ia), B = h(b, r.ib), turn = 180 - (Math.acos(Math.max(-1, Math.min(1, (A[0]! * B[0]! + A[1]! * B[1]! + A[2]! * B[2]!) / Math.hypot(...A) / Math.hypot(...B)))) * 180) / Math.PI;
+    assert.ok(turn < 5, `${r.a} to ${r.b} turns ${turn.toFixed(1)} degrees`);
   }
-  assert.ok(worstBefore > 30, 'the raw courses do kink somewhere (the test means something)');
-  assert.ok(worstAfter < worstBefore);
 });
 
 test('the scene course carries the smooth one: x and y by the one linear map', () => {
   const r = RUN_ONS.find((q) => q.a === 'V_SPL' && q.b === 'SV_MID')!;
   // (placed: the course is the placed network's, point for point: the 2D course and its extension into the spleen are today's)
-  if (PLACED) { const c = courseOf('V_SPL'), P = PLACED_EDGE_3D.V_SPL!; assert.equal(c.length, P.length); c.forEach((p, i) => assert.ok(Math.hypot(p[0] - P[i]![0], p[1] - P[i]![1]) < 1e-9, `point ${i}`)); assert.ok(r); return; }
-  const c = courseOf('V_SPL'), n = c.length, raw = EDGE_PATH_2D.V_SPL!;
-  const ext = withStartInOrgan('V_SPL', raw).length - raw.length;   // (carried on into the spleen: starts.ts)
-  assert.ok(ext > 0);
-  assert.equal(n, raw.length + ext);
-  // away from the join the course is the 2D sample itself, after the stretch inside the spleen
-  assert.equal(c[ext]![0], x3(raw[0]![0]));
-  assert.equal(c[ext]![1], y3(raw[0]![1]));
-  assert.ok(r);
+  const c = courseOf('V_SPL'), P = PLACED_EDGE_3D.V_SPL!; assert.equal(c.length, P.length); c.forEach((p, i) => assert.ok(Math.hypot(p[0] - P[i]![0], p[1] - P[i]![1]) < 1e-9, `point ${i}`)); assert.ok(r);
 });
 
 test('a node of two vessels meeting head on is a run-on pair, one meeting at a right angle is not', () => {

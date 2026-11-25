@@ -2,7 +2,6 @@
 // rings (minus the rings' own caps), subdivided on a regular grid, projected onto the smooth union of the arms and relaxed. Pure: numbers in, typed arrays out; the
 // only three.js it touches is `Vector3` and `ConvexHull`. Never marching cubes: an irregular mesh makes the cel bands wobble.
 import { sdfSheet } from './sheet.ts';
-import { PLACED } from '../../anatomy/source.ts';
 import { Vector3 } from 'three';
 import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
 import { SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
@@ -523,13 +522,11 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     else if (rw < NORMAL_BLEND_ROWS) {
       const t = rw / NORMAL_BLEND_ROWS, sv = src[v]!, a = Math.floor(sv / n), q = sv % n;
       const tx = seamNormals[a]![3 * q]!, ty = seamNormals[a]![3 * q + 1]!, tz = seamNormals[a]![3 * q + 2]!;
-      if (PLACED) {
-        // (placed: the gradient HERE turned by what the tube's normal differs from the gradient at its seam vertex, that difference fading over the rows: a crotch one row from the seam (the placed portal fork's) keeps its own fast
-        //  turn, where a blend toward the seam's own normal held the tube's orientation into it and the shade there came out up to 0.25 n.L off the surface: tests/skin-weld-shade.test.ts)
-        sdUnionGrad(cs, k, seamRings[a]![3 * q]!, seamRings[a]![3 * q + 1]!, seamRings[a]![3 * q + 2]!, g);
-        const sl = Math.hypot(g[0]!, g[1]!, g[2]!) || 1;
-        nx += (tx - g[0]! / sl) * (1 - t); ny += (ty - g[1]! / sl) * (1 - t); nz += (tz - g[2]! / sl) * (1 - t);
-      } else { nx = tx + (nx - tx) * t; ny = ty + (ny - ty) * t; nz = tz + (nz - tz) * t; }
+      // (the gradient HERE turned by what the tube's normal differs from the gradient at its seam vertex, that difference fading over the rows: a crotch one row from the seam (the placed portal fork's) keeps its own fast
+      //  turn, where a blend toward the seam's own normal held the tube's orientation into it and the shade there came out up to 0.25 n.L off the surface: tests/skin-weld-shade.test.ts)
+      sdUnionGrad(cs, k, seamRings[a]![3 * q]!, seamRings[a]![3 * q + 1]!, seamRings[a]![3 * q + 2]!, g);
+      const sl = Math.hypot(g[0]!, g[1]!, g[2]!) || 1;
+      nx += (tx - g[0]! / sl) * (1 - t); ny += (ty - g[1]! / sl) * (1 - t); nz += (tz - g[2]! / sl) * (1 - t);
       const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
     }
     out[0] = nx; out[1] = ny; out[2] = nz;

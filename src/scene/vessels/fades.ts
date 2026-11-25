@@ -4,7 +4,7 @@
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { x3, y3 } from '../frame2d.ts';
 import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
-import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D, PLACED } from '../anatomy/source.ts';
+import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D } from '../anatomy/source.ts';
 import { PLACED_EDGE_3D } from '../anatomy/placed-network.ts';
 import { alongVein, alongVeinCompanion, alongVeinStretch, originsOf, startInOrganShare } from './starts.ts';
 import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare, treeOf } from './liver-branches.ts';
@@ -117,7 +117,7 @@ export function cavaEndSpan(_id: string): number { return 0; }
 /** A hepatic vein that opens into the cava (not a renal vein, which is receded to the cava's tone already) keeps its alpha to the wall: 2D's end alpha for it (0.5) is dropped. */
 export const keepsAlphaToCava = (id: string): boolean => opensIntoCava(id) && id !== 'LRV_IVC' && id !== 'RRV_IVC';
 export function fadeOf(id: string, isArtery: boolean, feederHost?: string): TipFade | null {
-  const f = PLACED ? placedFade(id, fadeOf0(id, isArtery, feederHost)) : fadeOf0(id, isArtery, feederHost);
+  const f = placedFade(id, fadeOf0(id, isArtery, feederHost));
   if (CAVA_LIKE.has(id)) {
     // (the ascending lumbar collateral: the cava's tone along its whole run behind the liver and over the dome, climbing to full only over its last stretch where it joins the azygos arch, as the cava does at the atrium;
     //  2D's dip behind the liver and its solid return above the dome are gone: the part above the dome was a full-strength purple in a faded figure)

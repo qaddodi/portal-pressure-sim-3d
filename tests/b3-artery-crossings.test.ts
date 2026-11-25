@@ -60,20 +60,6 @@ test('the paraumbilical vein leaves the left portal branch as a branch off its w
   assert.ok(!c3.flare?.[0], 'no collar at its start: it leaves the wall along the vein\'s axis, not the node where the vein is thin');
 });
 
-test('the cava, the hepatic veins and the right atrium lie in one plane: no S in depth (a side-tilted view showed one: Mohammad, 20 Nov)', async () => {
-  const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
-  const { TIER_Z } = await import('../src/scene/frame2d.ts');
-  const { ORGAN_Z } = await import('../src/scene/organs/z.ts');
-  const { NODE_RISE } = await import('../src/scene/vessels/smooth-joins.ts');
-  for (const id of ['IVC_IS_1', 'IVC_IS', 'IVCS_RA', 'SVC_RA', 'RHV_IVC', 'LRV_IVC']) {
-    const z = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts.map((p) => p[2]);
-    assert.ok(Math.max(...z) - Math.min(...z) < 0.02, `${id} is level`);
-    assert.ok(Math.abs(z[0]! - TIER_Z.back) < 0.02, `${id} is on the cava's plane`);
-  }
-  assert.equal(NODE_RISE.get('RA')!.z, TIER_Z.back, 'the cava enters the atrium level');
-  assert.ok(Math.abs(ORGAN_Z['heart-ra']! + 0.11 - TIER_Z.back) < 1e-9, 'the atrium (mesh centre 0.11) is centred on the same plane');
-});
-
 test('the sinusoid beds are not drawn: the portal branches fade out into the liver and the hepatic veins fade in from it (Mohammad, 20 Nov)', async () => {
   const { presenceOf, NETWORK: N } = await import('../src/scene/vessels/network.ts');
   const { fadeOf } = await import('../src/scene/vessels/fades.ts');

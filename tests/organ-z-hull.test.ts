@@ -4,50 +4,39 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ORGAN_Z } from '../src/scene/organs/z.ts';
 import { caudateGeometry } from '../src/scene/organs/caudate.ts';
-import { TIER_Z, x3 } from '../src/scene/frame2d.ts';
+import { x3 } from '../src/scene/frame2d.ts';
 import { ORGAN_STYLE } from '../src/scene/organs/layer.ts';
 import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/meshes.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { smoothRestNormals } from '../src/scene/organs/normal-smooth.ts';
 import { ORGAN_INK_VS } from '../src/scene/organs/organ-shader.ts';
-import { MAX_MOVE, rimRoughness, smoothSilhouette, tailFade } from '../src/scene/organs/contour.ts';
-import { patchedShaders } from '../src/scene/organs/organ-art.ts';
+import { MAX_MOVE, rimRoughness, smoothSilhouette } from '../src/scene/organs/contour.ts';
 import { LiverShape, edgeFree } from '../src/scene/organs/liver-shape.ts';
 import { BufferGeometry, Float32BufferAttribute } from 'three';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { TUBE_IDS } from '../src/scene/organs/placed.ts';
 
 const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
 setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
 
 test('organ depth: the liver is in front of the stomach (and the heart), the kidney is at the IVC\'s depth, every organ has one', () => {
-  if (PLACED) {   // (placed path: every mesh carries the approved placement's own depth and ORGAN_Z moves none of them; the same order, read from the meshes' fronts and middles)
-    for (const id of Object.keys(ORGAN_STYLE)) assert.equal(ORGAN_Z[id], 0, `${id}: not moved again`);
-    const box = (id: string) => { const g = id === 'caudate' ? caudateGeometry() : ORGAN_MESHES[id]!(); g.computeBoundingBox(); return g.boundingBox!; }, front = (id: string) => box(id).max.z, mid = (id: string) => (box(id).max.z + box(id).min.z) / 2;
-    assert.ok(front('liver') > front('stomach') && front('liver') > front('heart-ra'), 'liver in front of the stomach and the atrium');
-    assert.ok(front('spleen') < front('stomach'), 'the spleen lies behind the stomach');
-    assert.ok(mid('kidney-l') < mid('stomach') && mid('kidney-l') < mid('spleen') + 0.01, 'the kidney lies at the back');
-    assert.ok(front('duodenum') < front('colon'), 'the duodenum lies behind the colon');   // (by its front: the colon's loops run from the back to the front)
-    return;
-  }
-  assert.ok(ORGAN_Z.liver! > ORGAN_Z.stomach!, 'liver in front of the stomach');
-  assert.ok(ORGAN_Z.liver! > ORGAN_Z.heart! && ORGAN_Z.liver! > ORGAN_Z['heart-ra']!);
-  assert.equal(ORGAN_Z['kidney-l'], TIER_Z.back, 'the kidney lies where the cava and the renal veins lie (the back tier)');
-  assert.ok(ORGAN_Z.spleen! < ORGAN_Z.stomach!, 'the spleen lies behind the stomach');
-  assert.ok(ORGAN_Z.bowel! < ORGAN_Z.liver! && ORGAN_Z.colon! < ORGAN_Z.liver!, 'the gut lies behind the liver');
-  assert.ok(ORGAN_Z.duodenum! < ORGAN_Z.colon!, 'the duodenum lies behind the colon');
-  for (const id of Object.keys(ORGAN_STYLE)) assert.ok(typeof ORGAN_Z[id] === 'number', `${id} has a z`);
+  // (placed path: every mesh carries the approved placement's own depth and ORGAN_Z moves none of them; the same order, read from the meshes' fronts and middles)
+  for (const id of Object.keys(ORGAN_STYLE)) assert.equal(ORGAN_Z[id], 0, `${id}: not moved again`);
+  const box = (id: string) => { const g = id === 'caudate' ? caudateGeometry() : ORGAN_MESHES[id]!(); g.computeBoundingBox(); return g.boundingBox!; }, front = (id: string) => box(id).max.z, mid = (id: string) => (box(id).max.z + box(id).min.z) / 2;
+  assert.ok(front('liver') > front('stomach') && front('liver') > front('heart-ra'), 'liver in front of the stomach and the atrium');
+  assert.ok(front('spleen') < front('stomach'), 'the spleen lies behind the stomach');
+  assert.ok(mid('kidney-l') < mid('stomach') && mid('kidney-l') < mid('spleen') + 0.01, 'the kidney lies at the back');
+  assert.ok(front('duodenum') < front('colon'), 'the duodenum lies behind the colon');   // (by its front: the colon's loops run from the back to the front)
 });
 
 test('smooth silhouette: every organ\'s rim is smoother than the file\'s, moved by at most MAX_MOVE, and the surface stays whole', async () => {
   await organsReady;
   for (const [id, make] of Object.entries(ORGAN_MESHES)) {
-    if (PLACED && TUBE_IDS.has(id)) continue;   // (placed path: a gut tube is never smoothed, prepare.ts: its rim is its round rings', not an outline's)
+    if (TUBE_IDS.has(id)) continue;   // (placed path: a gut tube is never smoothed, prepare.ts: its rim is its round rings', not an outline's)
     const raw = make(), sm = make(), before = rimRoughness(raw), moved = smoothSilhouette(sm), after = rimRoughness(sm);
     if (before === 0) continue;   // (no silhouette ring in this mesh)
     assert.ok(moved <= MAX_MOVE + 1e-9, `${id}: moved ${moved}`);
     // (placed path: the approved mock's rims are refined twice and already about 1e-4 smooth, a twentieth of today's; there the smoothing may leave one level within that floor)
-    assert.ok(after <= (PLACED ? Math.max(before, 1e-4) : before), `${id}: rim roughness ${before.toFixed(5)} -> ${after.toFixed(5)}`);
+    assert.ok(after <= Math.max(before, 1e-4), `${id}: rim roughness ${before.toFixed(5)} -> ${after.toFixed(5)}`);
     const p = sm.getAttribute('position'), n = sm.getAttribute('normal');
     for (let i = 0; i < p.count; i++) assert.ok(Number.isFinite(p.getX(i) + p.getY(i) + p.getZ(i) + n.getX(i)), `${id}: finite`);
   }
@@ -69,29 +58,6 @@ test('the cirrhotic liver\'s rim is scalloped by its nodules, outward only and b
   ls.apply(0); assert.ok(Math.abs(rimRoughness(g) - rest) < 1e-9, 'no scarring: the healthy rim');
   assert.equal(edgeFree(0), 0); assert.equal(edgeFree(1), 1); assert.ok(edgeFree(0.5) > 0 && edgeFree(0.5) < 1);
   console.log('liver rim', rest.toFixed(5), out.join(' '));
-});
-
-test('duodenum fade: its free end fades to clear along its last stretch, the end at the stomach is whole, and the shaders carry the ramp', async () => {
-  await organsReady;
-  const duo = ORGAN_MESHES.duodenum!(), stom = ORGAN_MESHES.stomach!();
-  const a = tailFade(duo, stom), pos = duo.getAttribute('position');
-  assert.equal(a.length, pos.count);
-  let lo = Infinity, hi = -Infinity, clear = 0, whole = 0;
-  for (const v of a) { lo = Math.min(lo, v); hi = Math.max(hi, v); if (v < 0.05) clear++; if (v > 0.999) whole++; }
-  assert.ok(lo < 0.01 && hi > 0.999, `the ramp runs from clear to whole (${lo}..${hi})`);
-  assert.ok(clear > 0 && whole > a.length * 0.4, 'a clear end and most of the tube whole');
-  // the clear end is the one away from the stomach
-  const sp = stom.getAttribute('position');
-  const away = (i: number) => { let m = Infinity; for (let j = 0; j < sp.count; j++) m = Math.min(m, Math.hypot(sp.getX(j) - pos.getX(i), sp.getY(j) - pos.getY(i))); return m; };
-  let dClear = 0, nClear = 0, dWhole = 0, nWhole = 0;
-  for (let i = 0; i < a.length; i += 5) { if (a[i]! < 0.05) { dClear += away(i); nClear++; } else if (a[i]! > 0.999) { dWhole += away(i); nWhole++; } }
-  assert.ok(dClear / nClear > dWhole / nWhole, 'the faded end is the one farther from the stomach');
-  // wired: the built duodenum carries the attribute, and its fill and its outline multiply their alpha by it
-  const s = new CelScene(); s.disease.organs.build();
-  assert.ok(s.disease.organs.byId.get('duodenum')!.toonMesh.geometry.getAttribute('esoA'), 'esoA on the duodenum');
-  const p = patchedShaders('void main() {\n}', 'void main() {\n}', 'void main() {\n}', 'void main() {\n}', { art: false, eso: null, fade: true });
-  assert.match(p.fs, /gl_FragColor\.a \*= vEsoA/); assert.match(p.inkFs, /gl_FragColor\.a \*= vEsoA/);
-  s.dispose?.();
 });
 
 test('organ depth: each mesh is moved along z only, x and y exact, and the front face stays behind the vessels\' arteries', async () => {

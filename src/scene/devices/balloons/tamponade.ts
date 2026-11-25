@@ -5,18 +5,16 @@
 import { Group, Vector3 } from 'three';
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
-import { TIER_Z, x3, y3 } from '../../frame2d.ts';
+import { x3, y3 } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
 import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, type Ring, writeRings } from '../tube-rings.ts';
 import { BALLOON, BALLOON_MS, balloonShape, esoAt } from '../../procedures/copied/balloon-eso.js';
 import { GAS, gasShape, pathAt, pullArrow, sheathArcs, tubePath, tubeTip } from '../../procedures/copied/balloon-gas.js';
 import { sectionsOf } from './tamponade-shape.ts';
 import { easeMove } from '../../procedures/copied/ease.js';
-import { PLACED } from '../../anatomy/source.ts';
 import { scopeZ, wayShift } from '../probes/scope.ts';
 
 const U = 300;
-const Z = TIER_Z.mid;
 const PULL_N = 5;
 const TUBE_N = 120, ESO_N = 64, GAS_N = 64, RADIAL = DEVICE_SIDES, MARK_N = 3, HEAD_N = 6;
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
@@ -106,9 +104,8 @@ export class Tamponade {
 
   get isIn(): boolean { return this.state.adv > 0.001; }
 
-  // (the placed anatomy, `?anatomy=new`: the tube and its balloons are carried, with the scope's way, onto the oesophagus and stomach the stomach mesh has (probes/eso-axis.ts), at their middle in depth)
+  // (the tube and its balloons are carried, with the scope's way, onto the oesophagus and stomach the stomach mesh has (probes/eso-axis.ts), at their middle in depth)
   private pt(x: number, y: number, out: Vector3): Vector3 {
-    if (!PLACED) return out.set(x3(x), y3(y), Z);
     const Y = y3(y), X = x3(x) + wayShift(Y);
     return out.set(X, Y, scopeZ(X, Y));
   }

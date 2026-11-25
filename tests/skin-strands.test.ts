@@ -4,7 +4,6 @@
 // Pinned here: which roots are welded (named), that the closed skin is the plain trunk (nothing pops), and that no strand starts outside the skin. The ends that stay on the fork method are named, never silent.
 // Node only: the real network and the real scene's tubes. Run: node --test tests/skin-strands.test.ts
 import { test } from 'node:test';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import assert from 'node:assert/strict';
 import { Group, type Object3D } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
@@ -23,10 +22,10 @@ import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 
 /** The braid roots that are welded: the end of the braid, the node whose skin it is an arm of. Pinned (a braid or a node added to the network is seen here). */
 // placed only: C2 leaves the splenic vein near the hilum where the approved placement draws it (the V_SPL|SV_MID cut, node SVD), not at its engine node SV, so SVD's skin welds it
-const WELDED: Record<string, readonly string[]> = { 'C2:0': [PLACED ? 'SVD' : 'SV'], 'C4:0': ['IMV'], 'C7:0': ['SMV_R'] };
+const WELDED: Record<string, readonly string[]> = { 'C2:0': ['SVD'], 'C4:0': ['IMV'], 'C7:0': ['SMV_R'] };
 /** A bundle root that is an arm of its node in the inventory but that the retry ladder drops: the strands leave IMV 25 degrees from the run-on V_COL, a growing arm along a permanent one, whose closed footprint folds (the mesher's limit as PVH's DIPS and the S_DSR pair: tests/skin-closed-footprint.test.ts). Named, not hidden. */
 // placed only: the SV skin, its engine node, lets C2 go for SVD's (above)
-const DROPPED_ROOT: Record<string, string> = PLACED ? { 'C2:0': 'SV' } : {};
+const DROPPED_ROOT: Record<string, string> = { 'C2:0': 'SV' };
 /** The braid ends that keep the fork method, each for a reason a person can read. */
 const FORK: Record<string, string> = {
   'C1a:0': 'LGV is the free start of the left gastric vein: one permanent arm, a run-on of two, no junction',
@@ -47,7 +46,7 @@ test('the braid roots are named: the ends where the strands leave a node as one 
     const ends = BRAIDS.flatMap((id) => [0, 1].map((e) => `${id}:${e}`));
     assert.deepEqual(ends.filter((e) => !(e in WELDED)).sort(), Object.keys(FORK).sort(), 'every braid end is welded or named');
     // (placed only: none. The placed varices wrap the oesophagus (coil.ts WRAP), so C1a's strands part as they leave LGV: its start is no bundle, and it keeps the fork method for the reason FORK gives)
-    assert.deepEqual(roots.filter((e) => !(e in WELDED)).sort(), PLACED ? [] : ['C1a:0'], 'the bundle roots that are not welded: C1a\'s node has a single permanent arm');
+    assert.deepEqual(roots.filter((e) => !(e in WELDED)).sort(), [], 'the bundle roots that are not welded: C1a\'s node has a single permanent arm');
     for (const e of Object.keys(WELDED)) assert.ok(roots.includes(e), `${e} is a bundle root`);
     for (const [key, node] of Object.entries(DROPPED_ROOT)) { const v = NETWORK_BY_ID.get(key.split(':')[0]!)!; assert.equal(node, key.endsWith(':0') ? v.from : v.to); assert.ok(findSkinJunctions().find((x) => x.node === node)!.arms.some((a) => a.vesselId === v.id && a.grow)); }
     const js = findSkinJunctions();

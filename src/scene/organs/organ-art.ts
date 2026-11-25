@@ -11,7 +11,6 @@ import { LUMA } from '../disease/copied/anatomy-b4.ts';
 import { type OrganInks, type OrganState, organColour, rgbOf } from './organ-look.ts';
 import { type Art, type ArtTokens, type Ctx2D, type Surface, paintArt } from './organ-art-paint.ts';
 import { UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
-import { PLACED } from '../anatomy/source.ts';
 import { type PlaneMap, mapBox, planeMap, unmapX, unmapY } from './placed-map.ts';
 
 export interface ArtData {
@@ -54,20 +53,7 @@ const lookOf = (p: Palette): LookId => LOOK_IDS.find((id) => ORGAN_TONES_2D[id] 
 /** The per-vertex numbers of the esophagus on the stomach's pillow (the pillow is one shape with it, as 2D's SEAM_D is): `eso` how much of the esophagus's own tone shows
  *  (1 above y 226, none below y 262, as seamFG), `esoA` how much of the figure shows (1 below y 40, none above y -40, as esoFadeG). Linear in y, so the pillow's fine
  *  triangles carry them exactly. Positions are the scene's: y2d = 556 - 300 y. */
-/** The rectum tube is the colon's part right of this x (2D units); the cecum is left of it. Its alpha is gone by RECTUM_GONE_BY, after falling from RECTUM_GONE_FROM (Mohammad 23 Nov: "fade to nothing"). */
-export const RECTUM_X = 700, RECTUM_GONE_FROM = 950, RECTUM_GONE_BY = 1000;
 const smooth01 = (t: number): number => { const c = Math.min(1, Math.max(0, t)); return c * c * (3 - 2 * c); };
-/** The rectum's fade as `esoA` on the colon's pillow: 1 above the first y, 0 below the second (2D's rectFadeG, linear in y). */
-export function rectumAttribute(g: BufferGeometry, fade: [number, number]): void {
-  const pos = g.getAttribute('position'), a = new Float32Array(pos.count);
-  for (let i = 0; i < pos.count; i++) {
-    const y = 556 - pos.getY(i) * UNITS_PER_SCENE, x = pos.getX(i) * UNITS_PER_SCENE + 700;
-    // the rectum tube's last stretch (right of RECTUM_X, below RECTUM_GONE_FROM) goes fully clear sooner: the colour is untouched, only alpha reaches 0 by RECTUM_GONE_BY. The cecum and the rest keep 2D's linear fade exactly.
-    const tail = x >= RECTUM_X ? 1 - smooth01((y - RECTUM_GONE_FROM) / (RECTUM_GONE_BY - RECTUM_GONE_FROM)) : 1;
-    a[i] = Math.min(1, Math.max(0, (fade[1] - y) / (fade[1] - fade[0]))) * tail;
-  }
-  g.setAttribute('esoA', new Float32BufferAttribute(a, 1));
-}
 export function esoAttributes(g: BufferGeometry, eso: ArtData['eso'], m: PlaneMap = planeMap('stomach')): void {
   const pos = g.getAttribute('position');
   const n = pos.count, a = new Float32Array(n), b = new Float32Array(n);
@@ -76,8 +62,8 @@ export function esoAttributes(g: BufferGeometry, eso: ArtData['eso'], m: PlaneMa
   const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
   for (let i = 0; i < n; i++) {
     const x = unmapX(m, pos.getX(i)) * UNITS_PER_SCENE + 700, y = 556 - unmapY(m, pos.getY(i)) * UNITS_PER_SCENE;   // (the place on the 2D figure: the placed stomach is moved, placed-map.ts)
-    // (placed: the oesophagus's right edge gives way over ESO_RIGHT_SOFT units from its outline, not as a cut at `right`: the placed stomach's surface runs on past it there, and the cut laid a step of its tone across the cardia)
-    const side = PLACED ? 1 - smooth01((x - (right - ESO_RIGHT_MARGIN)) / ESO_RIGHT_SOFT) : x < right ? 1 : 0;
+    // (the oesophagus's right edge gives way over ESO_RIGHT_SOFT units from its outline, not as a cut at `right`: the placed stomach's surface runs on past it there, and a cut laid a step of its tone across the cardia)
+    const side = 1 - smooth01((x - (right - ESO_RIGHT_MARGIN)) / ESO_RIGHT_SOFT);
     a[i] = side * clamp01((s1 - y) / (s1 - s0));
     b[i] = clamp01((y - f1) / (f0 - f1));
   }
@@ -94,7 +80,7 @@ export function wrapMain(src: string, decl: string, body: string): string {
 }
 
 const f = (v: number) => v.toFixed(5);
-/** The stomach's move (placed-map.ts; the identity with the switch off), which the oesophagus's own gradient undoes to find its place on the 2D figure. */
+/** The stomach's move (placed-map.ts), which the oesophagus's own gradient undoes to find its place on the 2D figure. */
 const ESO_MAP = planeMap('stomach');
 export interface PatchOpts { art: boolean; eso: ArtData['eso'] | null; /** the organ fades out along y (the colon's rectum): fill and outline both, by the per-vertex `esoA` */ fade?: boolean;
   /** the placed stomach's cut (placed.ts stomachCut): fill and outline drop where the per-vertex `cutA` is under one half, a clean edge inside the duodenum's funnel */ cut?: boolean;
@@ -161,7 +147,7 @@ export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: str
     vd += 'attribute float eso;\nvarying float vEso;\nvarying float vEsoT;\n';
     // the esophagus's own gradient over its own box (2D: og-eso, x1 .15 y1 0 to x2 .85 y2 1)
     vb += `  vEso = eso;
-  vec2 xy2d = vec2(${PLACED ? `(position.x - ${f(ESO_MAP.ox)}) / ${f(ESO_MAP.sx)}` : 'position.x'} * ${UNITS_PER_SCENE.toFixed(1)} + 700.0, 556.0 - ${PLACED ? `(position.y - ${f(ESO_MAP.oy)})` : 'position.y'} * ${UNITS_PER_SCENE.toFixed(1)});
+  vec2 xy2d = vec2((position.x - ${f(ESO_MAP.ox)}) / ${f(ESO_MAP.sx)} * ${UNITS_PER_SCENE.toFixed(1)} + 700.0, 556.0 - (position.y - ${f(ESO_MAP.oy)}) * ${UNITS_PER_SCENE.toFixed(1)});
   vEsoT = clamp(dot(vec2((xy2d.x - ${f(ex)}) / ${f(ew)}, (xy2d.y - ${f(ey)}) / ${f(eh)}) - vec2(0.15, 0.0), vec2(0.7, 1.0)) / 1.49, 0.0, 1.0);
 `;
     fd += 'uniform vec3 eso1;\nuniform vec3 eso2;\nvarying float vEso;\nvarying float vEsoT;\n';
@@ -198,14 +184,14 @@ export class OrganArt {
   /** Patches the organ's materials when the art knows it (and the file is in). Returns whether it did. Call after the organ painter is on the material, before the first draw. */
   attach(id: string, toon: ShaderMaterial, ink: ShaderMaterial, g: BufferGeometry, seat?: ShaderMaterial | null): boolean {
     if (id === 'stomach') { this.stomachToon = toon; this.shareGutLook(); }
-    const d = data, tail = id === 'duodenum' && !!g.getAttribute('esoA') && !PLACED;   // (the duodenum has no art: it is patched only for its tail's fade, with or without the file)
-    // the approved placement (anatomy/source.ts PLACED): the gut is tubes, and the bowel's loops and the colon's haustra and bands painted on the 2D pillows are retired (plan question 7); the colon's rectum fades by its tube's
+    const d = data;
+    // the approved placement: the gut is tubes, and the bowel's loops and the colon's haustra and bands painted on the 2D pillows are retired (plan question 7); the colon's rectum fades by its tube's
     // own `esoA`, the duodenum wears the stomach's look by its `tos`, the stomach is cut where the funnel takes over (`cutA`). The art that stays (the stomach's rugae, the hairlines) is laid by the organ's move (placed-map.ts).
-    const tube = PLACED && (id === 'duodenum' || id === 'bowel' || id === 'colon'), cut = PLACED && !!g.getAttribute('cutA'), tos = PLACED && !!g.getAttribute('tos');
-    if (!d && !tail && !tube && !cut) return false;
+    const tube = id === 'duodenum' || id === 'bowel' || id === 'colon', cut = !!g.getAttribute('cutA'), tos = !!g.getAttribute('tos');
+    if (!d && !tube && !cut) return false;
     const art = tube ? null : d?.arts[id] ?? null, isStomach = id === 'stomach' && !!d;
-    const fade = id === 'colon' || tail;
-    if (!art && !isStomach && !tail && !fade && !cut && !tos) return false;
+    const fade = id === 'colon';
+    if (!art && !isStomach && !fade && !cut && !tos) return false;
     const eso = isStomach ? d!.eso : null, m = planeMap(id);
     const p = patchedShaders(toon.vertexShader, toon.fragmentShader, ink.vertexShader, ink.fragmentShader, { art: !!art, eso, fade, cut, tos });
     toon.vertexShader = p.vs; toon.fragmentShader = p.fs; ink.vertexShader = p.inkVs; ink.fragmentShader = p.inkFs;
@@ -229,7 +215,6 @@ export class OrganArt {
       this.duodenum = toon;
     }
     this.shareGutLook();
-    if (id === 'colon' && d && !PLACED) rectumAttribute(g, d.rectum);
     if (art) {
       const [bx, by, bw, bh] = mapBox(m, [x3(art.box[0]), y3(art.box[1]), art.box[2] / UNITS_PER_SCENE, art.box[3] / UNITS_PER_SCENE]);   // (laid where the organ is: the art moves with it, placed-map.ts)
       const scale = Math.min(ART_PX_PER_UNIT, MAX_SIDE / Math.max(art.box[2], art.box[3]));

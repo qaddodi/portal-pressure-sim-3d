@@ -4,13 +4,12 @@
 // host's own first and last 2D points, so a carried-on start does not move it), the SIDE of the host (the sign of the cross product of the host's heading and the offset, in the figure's plane: the normal is z),
 // and the distance from the axis in host radii. Tolerances: u 0.03, across 1 host radius (or the end's own radius where that is the wider against a thin host), same side (where both stand off the axis), and the 3D end stands within SEWN_TOL_R radii of the host axis in 3D (depth included),
 // so it never floats off it. The table is printed. A departure from 2D that the owner asked for is named in DELIBERATE, with its reason, and is checked to still be what it says. Node only; PPS_2D_REPO pins the copy to 2D.
-import { FAN_REACH } from '../src/scene/vessels/strand-fan.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { JUNCTION_PIECES } from '../src/engine/hales/portal/topology.js';
-import { NETWORK, NETWORK_BY_ID, jointPath2D, type NetVessel } from '../src/scene/vessels/network.ts';
+import { NETWORK, NETWORK_BY_ID, type NetVessel } from '../src/scene/vessels/network.ts';
 import { isPermanent } from '../src/scene/vessels/skin/inventory.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
@@ -26,7 +25,6 @@ import { circuitWidthMap } from '../src/scene/circuit/width.ts';
 import { createRouter } from '../src/scene/circuit/router.copied.js';
 
 const TOL_U = 0.03, TOL_R = 1;
-type P3 = readonly [number, number, number];
 type P2 = readonly [number, number];
 
 // ---- the measure: host, share along it, side, distance from the axis in radii ----
@@ -67,26 +65,6 @@ function landings(p2: readonly number[], p3: readonly number[], hosts: readonly 
   }
   return { two, three };
 }
-
-// ---- the Anatomy's hosts: every permanent vessel's whole vein ----
-function anatomyHosts(): Host[] {
-  const whole = new Map<string, NetVessel[]>();
-  for (const v of NETWORK) if (isPermanent(v)) (whole.get(v.host) ?? whole.set(v.host, []).get(v.host)!).push(v);
-  const out: Host[] = [];
-  for (const [id, parts] of whole) {
-    const order = (JUNCTION_PIECES as Record<string, string[] | undefined>)[id];
-    if (order) parts.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-    out.push({ id, r: Math.max(...parts.map((p) => p.radius)), pts2: chain(parts.map((p) => EDGE_PATH_2D[p.id]!.map(([x, y]) => [x3(x), y3(y), 0]))), pts3: chain(parts.map((p) => coursesOf(p, REST)[0]!.pts as number[][])) });
-  }
-  return out;
-}
-
-/** The ends the owner asked to depart from 2D, with the reason (checked: the 3D end really is where the reason says, and a host landing named here is the one it lands on). `free` is an end that is on no host in 2D. */
-const DELIBERATE: Readonly<Record<string, { reason: string; lands?: string }>> = {
-  'C3:0': { reason: 'the paraumbilical vein leaves the left portal vein forward off its wall, 30 units in (starts.ts leaveVein), where 2D starts it on the vein end', lands: 'PVH_L' },
-  'C4:1': { reason: 'the rectal varices run on down the rectum (starts.ts END_ON, owner 20 Nov: "rectal varices should reach more"); a free end in 2D and in 3D' },
-  'C9:1': { reason: 'the ascending lumbar vein runs on into the azygos start (starts.ts RUNS_INTO, Plan 16D, owner 22 Nov: it is the azygos origin), where 2D ends it on the azygos trunk strand at y 108 that 3D does not draw', lands: 'AZY_SVC' },
-};
 
 const rows: string[] = [];
 const fmt = (l: Landing | undefined): string => (l ? `${l.host.padEnd(9)} u${l.u.toFixed(3)} ${l.side > 0 ? '+' : l.side < 0 ? '-' : '0'} ${l.dR.toFixed(2)}R` : 'free'.padEnd(9));
@@ -132,36 +110,6 @@ test('the copied 2D anchors are 2D\'s own (run with PPS_2D_REPO set to a 2D chec
   for (const [id, [, c]] of Object.entries(two.NODE_POS as Record<string, [number[], number[]]>)) assert.deepEqual([...(NODE_CIRCUIT[id] ?? [])], c, `${id}: NODE_POS circuit`);
 });
 
-test('Anatomy: every collateral, shunt and stent end opens and closes where 2D puts it, on the same host, share, side and distance across', () => {
-  setSmoothJoins(true);
-  const hosts = anatomyHosts(), failures: string[] = [];
-  let checked = 0;
-  // at rest and fully open (the collaterals coiled as far as they go, the strands spread, the varices beaded and banded): the ends hold where they are, the coil tapers to nothing at them
-  for (const [name, state] of [['rest', REST], ['open', { ...REST, wig: 5, spr: 1, rec: 1, bead: 0.35, bands: 4 }]] as const) for (const v of NETWORK) {
-    if (isPermanent(v) || v.feeder) continue;
-    if (name === 'open') rows.push('-- open --');
-    const raw = EDGE_PATH_2D[v.id], courses = coursesOf(v, state), main = courses[0]!.pts as P3[];
-    assert.ok(raw && main, `${v.id}: no course`);
-    for (const end of [0, 1] as const) {
-      const r = raw[end ? raw.length - 1 : 0]!, p2 = [x3(r[0]), y3(r[1]), 0], p3 = main[end ? main.length - 1 : 0]!;
-      const { two, three } = landings(p2, p3, hosts, SEWN_TOL_R, v.radius);
-      compare(`${v.id}:${end}`, two, three, failures, DELIBERATE[`${v.id}:${end}`]);
-      checked++;
-      // the strands (a braided collateral's channels) leave and rejoin the trunk: their ends are the trunk's end, so they open and close where it does
-      for (let k = 1; k < courses.length; k++) {
-        const s = courses[k]!.pts as P3[], q = s[end ? s.length - 1 : 0]!;
-        // (a braid that lands on a host fans its strands out along the host, strand-fan.ts: each end stays on the host, within FAN_REACH radii of the trunk's end)
-        const fanned = v.id === 'C7' && end === 1, slack = fanned ? FAN_REACH * v.radius * 2 : 0.004;
-        if (Math.hypot(q[0] - p3[0], q[1] - p3[1]) > slack || Math.abs(q[2] - p3[2]) > 0.03) failures.push(`${v.id} strand ${k} end ${end} is ${(Math.hypot(q[0] - p3[0], q[1] - p3[1]) * 300).toFixed(1)} units from the trunk's end`);
-        checked++;
-      }
-    }
-  }
-  assert.ok(checked >= 80, `${checked} ends checked`);
-  console.log(rows.join('\n'));
-  assert.deepEqual(failures, [], failures.join('\n'));
-});
-
 test('Anatomy: the caput fan and the liver branches\' tributaries end on their host where 2D puts them', () => {
   setSmoothJoins(true);
   const failures: string[] = [], lines: string[] = [];
@@ -171,7 +119,7 @@ test('Anatomy: the caput fan and the liver branches\' tributaries end on their h
     const host = NETWORK_BY_ID.get(v.feeder.host);
     if (!host) { failures.push(`${v.id}: its host ${v.feeder.host} is not in the network`); continue; }
     const plan = v.plan as { kind: 'feeder'; list: readonly { pts: readonly (readonly [number, number])[] }[] };
-    const host2 = jointPath2D(host.id).map(([x, y]) => [x3(x), y3(y), 0]), host3 = coursesOf(host, REST)[0]!.pts as number[][], r = host.radius;
+    const host2 = EDGE_PATH_2D[host.id]!.map(([x, y]) => [x3(x), y3(y), 0]), host3 = coursesOf(host, REST)[0]!.pts as number[][], r = host.radius;
     const cs = coursesOf(v, REST);
     assert.equal(cs.length, plan.list.length, `${v.id}: a course for each tributary`);
     let on2 = 0, on3 = 0, off = 0;

@@ -9,7 +9,7 @@ import { join, basename, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** The data files the page fetches by name (relative to the site's root). A name missing from the build is skipped (a bake that failed); one present but named by no chunk is an error. */
-export const DATA_FILES = ['anatomy/organs-baked.bin', 'anatomy/skins.bin', 'anatomy/circuit-skins.bin', 'anatomy/skins-placed.bin', 'anatomy/circuit-skins-placed.bin', 'anatomy/organs.bin', 'anatomy/organ-art.json'];
+export const DATA_FILES = ['anatomy/organs-baked.bin', 'anatomy/skins.bin', 'anatomy/circuit-skins.bin', 'anatomy/organs.bin', 'anatomy/organ-art.json'];
 
 /** The data files the first picture waits for (the finished organs, the Anatomy's welds, the organs' art): the page's head asks for them at once, at low priority, so they download beside the app's code instead of after it. Root cause of the
  *  long cold splash (24 Nov): each was fetched by the app's own code, which only began to run once its 1.5 MB (gzipped) had arrived and been read, so the line sat idle for that long and then carried 4 MB one after the other. A file

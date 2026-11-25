@@ -77,7 +77,6 @@ import { liveSource, type ModelSource } from './model-source.ts';
 import { confine, splitRegions, type Region } from './twin/region.ts';
 import { x2d, x3, y3 } from './frame2d.ts';
 import { type FigureHit, organHit } from './organs/pick.ts';
-import { PLACED } from './anatomy/source.ts';
 import { buildLobuleSteps } from './lobule/geometry.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
 import { LIVER_POINT, LIVER_Z, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
@@ -1367,8 +1366,8 @@ export class CelScene {
     if (this.figureView !== 'body' || this.circuit.t > 0.5 || this.bodyShown < 0.5) return null;
     const o = this.disease.organs.pick(raycaster);   // (the ray is the one pickAt set)
     if (o) return organHit(o.id, x2d(o.x));
-    // (the approved placement, PLACED: the gut is one surface over the belly; a tap on it, where no liver, heart or spleen lies beneath, lights the part it is on)
-    const gut = PLACED ? this.disease.organs.pickGut(raycaster) : null;
+    // (the gut is one surface over the belly; a tap on it, where no liver, heart or spleen lies beneath, lights the part it is on)
+    const gut = this.disease.organs.pickGut(raycaster);
     if (gut) return organHit(gut.id, x2d(gut.x));
     const wet = this.disease.ascites.pick(raycaster);   // (the drawn pool and its top, by ray: no plane of its own)
     if (wet) return organHit('abdomen', wet.x);

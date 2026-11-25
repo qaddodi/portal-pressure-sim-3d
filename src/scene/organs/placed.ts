@@ -1,4 +1,4 @@
-// The organs' meshes with the approved placement switched on (anatomy/source.ts PLACED; docs/approved/anatomy-placement.md): heart, atrium, kidney, liver, spleen and stomach are the organs file's own outlines refined at the
+// The organs' meshes of the approved placement (docs/approved/anatomy-placement.md): heart, atrium, kidney, liver, spleen and stomach are the organs file's own outlines refined at the
 // rim and re-inflated round where the mock put them (inflate.ts: its own code, held to art/anatomy-placement/organsA.json), each at its own depth already (so organs/z.ts moves none of them again); the oesophagus stays part of
 // the stomach's mesh. The 2D gut pillows (duodenum, bowel, colon) are not drawn: those ids are the gut tubes (gut-tubes.ts). What the shader needs on top (the rim, the normals, the depth term, the outline's steps) is made by
 // prepare.ts as for every organ; this file only adds the stomach's cut where the duodenum's funnel takes over. Pure arithmetic.

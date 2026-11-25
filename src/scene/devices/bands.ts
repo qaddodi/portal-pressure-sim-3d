@@ -10,7 +10,6 @@ import { inVesselPass } from '../layers.ts';
 import { WIRE_SIDES, allocTube, makeRings, writeRings } from './tube-rings.ts';
 import { BAND, bandRing } from '../procedures/copied/band-ring.js';
 import { bandsStep } from '../procedures/copied/band-ease.js';
-import { PLACED } from '../anatomy/source.ts';
 import { scopeZ, wayReady, wayShift } from './probes/scope.ts';
 import type { BufferGeometry } from 'three';
 
@@ -25,9 +24,9 @@ export class Bands {
   shown: number | null = null;
   goal = 0;
   private readonly geos: BufferGeometry[] = [];
-  private laid3 = !PLACED;
+  private laid3 = false;
 
-  /** THE PLACED ANATOMY (`?anatomy=new`): each band is a true ring round the oesophagus the stomach mesh has (the scope's way, carried onto it: probes/eso-axis.ts), at the oesophagus's middle in depth,
+  /** Each band is a true ring round the oesophagus the stomach mesh has (the scope's way, carried onto it: probes/eso-axis.ts), at the oesophagus's middle in depth,
    *  square to its lean and as wide as the 2D rule keeps it inside the walls, so it sits in the oesophageal wall at any turn of the figure. Laid once the organ file is in. */
   private lay3(): void {
     if (this.laid3 || !wayReady()) return;

@@ -1,4 +1,4 @@
-// THE ROUTES ON THE PLACED ANATOMY (anatomy integration, docs/approved/anatomy-placement.md; `?anatomy=new`). With the switch on, a catheter's route is laid IN 3D on the vessels' drawn centrelines
+// THE ROUTES ON THE PLACED ANATOMY (anatomy integration, docs/approved/anatomy-placement.md). A catheter's route is laid IN 3D on the vessels' drawn centrelines
 // (vessels/centreline.ts centrelineOf: the course and radius each tube is built from, whatever placement the network holds), never on the 2D courses with tier depths: the same specs as route.ts (the 2D
 // app's legs, names, stops and shares), the same builder, on a geometry whose points are [figure x, figure y, depth in figure units]. The route's `raw3` is the vessels' own centreline at every sample
 // (route3d.ts lays the device on it and rounds the corners inside the lumen), `pts` its projection on the figure, `cum` its length in 3D, so every reader of a route keeps working.

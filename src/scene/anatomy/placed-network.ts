@@ -9,10 +9,10 @@
 //   4. each whole vessel is cut into its engine pieces at the 3D attach point of what joins there (the nearest point of the course to the joining vessel's end), not at the old length shares;
 //   5. the draw-only branches (rhva, rhvb, rpva, rpvp) hang on their host: the straighter one runs on from the trunk as its through branch (one tube to the tip, as liver-branches.ts draws a branching vein), the other is
 //      a side branch; the caudate veins (cv1-3) are joined into the cava the same way; the liver beds (no placed course) are today's beds carried onto the moved nodes.
-// Pure data, no three.js, no reader of network.ts (network.ts reads this when PLACED is on).
+// Pure data, no three.js, no reader of network.ts (network.ts reads this).
 import { PLACED_COURSES, PLACED_VESSELS, PLACED_JOINS, PLACED_ORGANS, PLACED_CAUDATE } from './placement.generated.ts';
 import { EDGES, JUNCTIONS } from '../../engine/hales/portal/topology.js';
-import { ANAT_HIDDEN, EDGE_PATH_2D, HIDDEN_EDGES, PLACED } from './source.ts';
+import { ANAT_HIDDEN, EDGE_PATH_2D, HIDDEN_EDGES } from './source.ts';
 import { x2d, y2d } from '../frame2d.ts';
 import { aroundEso, onEso } from './eso-wall.ts';
 
@@ -166,7 +166,7 @@ export const PLACED_CAUDATE_R: number[] = [];
 export const PLACED_PATH_2D: Record<string, readonly (readonly [number, number])[]> = {};
 export const PLACED_Z: Record<string, readonly number[]> = {};
 export const PLACED_NODE_2D: Record<string, readonly [number, number]> = {};
-/** Built only with the approved placement switched on (`?anatomy=new`, PPS_ANATOMY=placed). */
+/** Built once, at load: the approved placement is the app's only anatomy. */
 function buildPlaced(): void {
   const COURSE: Record<string, V3[]> = {};
   const rOf = (k: string): number => PLACED_VESSELS[k]?.r ?? 0.01;
@@ -641,7 +641,7 @@ function buildPlaced(): void {
   for (const [id, c] of Object.entries(PLACED_EDGE_3D)) { PLACED_PATH_2D[id] = c.map((p): P2 => [x2d(p[0]), y2d(p[1])]); PLACED_Z[id] = c.map((p) => p[2]); }
   for (const [n, p] of Object.entries(PLACED_NODE_3D)) PLACED_NODE_2D[n] = [x2d(p[0]), y2d(p[1])];
 }
-if (PLACED) buildPlaced();
+buildPlaced();
 /** The cava's piece the caudate veins open into (vessels/caudate-veins.ts CAUDATE_HOST): the piece their ends lie on, wherever the cava is cut (the DIPS lands at the caudate's foot, below them). */
 export const PLACED_CAUDATE_HOST: string = (() => {
   const ends = PLACED_CAUDATE_VEINS.map((c) => c[c.length - 1]!);

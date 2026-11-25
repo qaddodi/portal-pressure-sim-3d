@@ -72,10 +72,6 @@ jobs:
             preview/public/anatomy/skins.bin.sig
             preview/public/anatomy/circuit-skins.bin
             preview/public/anatomy/circuit-skins.bin.sig
-            preview/public/anatomy/skins-placed.bin
-            preview/public/anatomy/skins-placed.bin.sig
-            preview/public/anatomy/circuit-skins-placed.bin
-            preview/public/anatomy/circuit-skins-placed.bin.sig
             preview/public/anatomy/organs-baked.bin
             preview/public/anatomy/organs-baked.bin.sig
           key: bakes-${{ github.sha }}
@@ -111,10 +107,6 @@ jobs:
             preview/public/anatomy/skins.bin.sig
             preview/public/anatomy/circuit-skins.bin
             preview/public/anatomy/circuit-skins.bin.sig
-            preview/public/anatomy/skins-placed.bin
-            preview/public/anatomy/skins-placed.bin.sig
-            preview/public/anatomy/circuit-skins-placed.bin
-            preview/public/anatomy/circuit-skins-placed.bin.sig
             preview/public/anatomy/organs-baked.bin
             preview/public/anatomy/organs-baked.bin.sig
           key: bakes-${{ github.sha }}

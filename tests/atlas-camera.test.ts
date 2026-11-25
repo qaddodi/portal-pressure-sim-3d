@@ -8,10 +8,9 @@ import { CameraRig } from '../src/scene/camera/rig.ts';
 import { FOV, SHOTS, lensDistance, type ShotName } from '../src/scene/camera/shots.ts';
 import { fitDistance, fullRoom } from '../src/scene/camera/room.ts';
 import { ORBIT_LIMIT } from '../src/scene/camera/shots.ts';
-import { NETWORK, NETWORK_BY_ID, NODE_Z } from '../src/scene/vessels/network.ts';
+import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { REST as AT_REST, coursesOf } from '../src/scene/vessels/shape.ts';
-import { STATIONS, nodeZ } from '../src/scene/labels/stations.ts';
-import { TIER_Z } from '../src/scene/frame2d.ts';
+import { STATIONS } from '../src/scene/labels/stations.ts';
 
 const REST: ShotName[] = ['title', 'play', 'pick'];
 
@@ -88,16 +87,6 @@ test('Lower IVC and the SMV: at every rest shot and across the whole ±25° turn
       // (turned far enough, the front tier's vessels project over the back tier's cava: a real overlap in the picture, not a mislabel; the other-tube check holds while the turn is small)
       if (Math.abs(orbit) <= 0.2) assert.ok(pxDistance(rig, p, drawn(b.id)) - pxRadius(rig, p, b.radius) > 2, `${own.id} is not on ${other.id}'s tube (${w}x${h}, ${name}, ${orbit.toFixed(2)})`);
     }
-  }
-});
-
-test('a point station stands at the depth of its vessel, not on the front tier: the atrium on the cava, the varices on the collaterals', () => {
-  assert.equal(nodeZ('RA'), TIER_Z.back);
-  assert.ok(Math.abs(nodeZ('VAR') - TIER_Z.mid) < 0.05);
-  for (const id of ['RA', 'SIN_R', 'VAR']) assert.equal(nodeZ(id), NODE_Z.get(id), `${id}: where the vessels that meet there are drawn`);
-  for (const id of ['RA', 'SIN_R', 'VAR']) {
-    const s = STATIONS.find((x) => x.id === id)!;
-    assert.equal(s.at(0, new Vector3()).z, nodeZ(id), id);
   }
 });
 

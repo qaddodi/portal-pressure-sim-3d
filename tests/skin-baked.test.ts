@@ -1,7 +1,6 @@
 // The Anatomy's junction skins are baked at build time (skin/baked.ts, scripts/bake-skins.mjs): the page plans and meshes nothing at load, the figure's first frame has its welds, and nothing is fetched late enough to pop
 // (20 Nov: a first-frame stall is not acceptable). Run: node --test tests/skin-baked.test.ts
 import { test } from 'node:test';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { BufferGeometry, Float32BufferAttribute, Group, type Object3D } from 'three';
@@ -37,8 +36,8 @@ test('the baked file unpacks to the skins it was made from, and a build that is 
     const liveMs = performance.now() - t0, made = live.set.bake();
     assert.ok(made.skins.length >= 12, `${made.skins.length} skins baked`);
     assert.ok(made.digest.length > 10);
-    // (placed, PPS_ANATOMY=placed: the hepatic veins open at one point of the placed cava, arriving in its plane (placed-network.ts joinEnd `flat`), and its skin closes on the first rung)
-    assert.equal(made.skins.find((s) => s.plan.junction.node === 'IVCS')!.pace, PLACED ? 0 : 2, 'the cava closes on the slowest rung, which a later rebuild of it starts at');
+    // (placed: the hepatic veins open at one point of the placed cava, arriving in its plane (placed-network.ts joinEnd `flat`), and its skin closes on the first rung)
+    assert.equal(made.skins.find((s) => s.plan.junction.node === 'IVCS')!.pace, 0, 'the cava closes on the slowest rung, which a later rebuild of it starts at');
 
     // the file: pack, unpack
     const bin = encodeSkins(made), back = decodeSkins(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength) as ArrayBuffer)!;

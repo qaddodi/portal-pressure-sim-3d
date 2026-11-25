@@ -1,9 +1,8 @@
 // Every talk's slides as the player frames them (hp/cams.ts camPlan, the one path all 42 talks play through): each body slide's shot and the box of what it names, in whichever
-// anatomy the process holds (PPS_ANATOMY). Run as a script it prints them as JSON, so a placed-mode test can read today's numbers from a second process
-// (`node tests/anatomy/slide-frames.ts`): the switch is read once at load, so one process holds one anatomy.
+// placed anatomy. Run as a script it prints them as JSON (`node tests/anatomy/slide-frames.ts`).
 import { camPlan, DEFAULT_CAM } from '../../src/decks/hp/cams.ts';
 import { namesPlaced } from '../../src/decks/rw/cams.ts';
-import { boxOfNames, subjectOfBox2, FIGURE_NAMES, HIDDEN_EDGES, REGION_SUBJECTS, PLACED, type Box3 } from '../../src/scene/anatomy/source.ts';
+import { boxOfNames, subjectOfBox2, FIGURE_NAMES, HIDDEN_EDGES, REGION_SUBJECTS, type Box3 } from '../../src/scene/anatomy/source.ts';
 import { HP_IDS, loadHpDeck } from '../../src/decks/hp/index.ts';
 import { AG_IDS, loadAgDeck } from '../../src/decks/ag/index.ts';
 import { DECKS } from '../../src/decks/rw/copied/all.ts';
@@ -35,7 +34,7 @@ export async function slideFrames(): Promise<Record<string, SlideFrame>> {
     const p = camPlan(cam as never, s.view as never);
     if (p.kind !== 'body') return;
     const named = cam ?? DEFAULT_CAM;
-    const { box } = boxOfNames(subjectNames(named), PLACED);
+    const { box } = boxOfNames(subjectNames(named), true);
     const { yaw, pitch, r, target, half } = p.shot;
     out[`${d.id}/${i + 1}`] = { cam: JSON.stringify(named), shot: { yaw, pitch, r, target, half }, subject: box! };
   });

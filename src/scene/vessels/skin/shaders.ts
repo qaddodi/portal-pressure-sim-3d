@@ -41,7 +41,6 @@ import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
 import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
 import { CEL_STYLE } from '../../cel-style.ts';
-import { PLACED } from '../../anatomy/source.ts';
 import { MAP_K, MAP_CENTRE, CIRC_C } from '../../circuit/map.ts';
 import { PEEL_DL, PEEL_SPAN } from '../../circuit/peel.ts';
 import { VB_CIRC } from '../../circuit/data.copied.ts';
@@ -66,12 +65,12 @@ export const SKIN_ARM_ABSENT = 0.3;
  *  a pixel a quarter k from an arm already lies in the smooth union of the mesh and was held out of the outline's: the stem's edge was inked inside the fillet, the two lines that ran on into the azygos (Plan 16C, 22 Nov, node numbers: 281 pixels of ink inside the union at the azygos landing, 0 from 1 to 2). */
 export const SKIN_HOLD_FROM_K = 1;
 export const SKIN_HOLD_TO_K = 2;
-/** PLACED: AWAY FROM THE SEAMS, 3 k to 6 k. The ramp above was set on today's flat figure, where every arm of a junction lies within a k of one plane. The approved placement's arms meet with real depth: where a branch opens into its host,
+/** AWAY FROM THE SEAMS, 3 k to 6 k. The ramp above was set on today's flat figure, where every arm of a junction lies within a k of one plane. The approved placement's arms meet with real depth: where a branch opens into its host,
  *  its rim stands in front of the host's wall, as far as 1.6 k (the middle hepatic vein at IVCS), while on the screen it lies inside the host's lumen. From 1 k that rim held the host out of the outline, and the branch's silhouette was inked
  *  across the host: the hepatic confluence's heavy dark lines, 1.1 % of IVCS's lumen drawn as line only (6.7 % at SMV, 3.3 % at PVH, 0.1 % today). On a seam ring the tube's own silhouette decides and the hold-out keeps 1 k to 2 k, because
- *  there it keeps a wall skin's arm from pulling in its host's line (tests/skin-agreement.test.ts). Between them it eases by the seam's weight, the seam pad's own 0.75 to 0.97 (skinHoldSeam). Today both are 1 k to 2 k. */
-export const SKIN_HOLD_FREE_FROM_K = PLACED ? 3 : SKIN_HOLD_FROM_K;
-export const SKIN_HOLD_FREE_TO_K = PLACED ? 6 : SKIN_HOLD_TO_K;
+ *  there it keeps a wall skin's arm from pulling in its host's line (tests/skin-agreement.test.ts). Between them it eases by the seam's weight, the seam pad's own 0.75 to 0.97 (skinHoldSeam). (On the 2D figure both were 1 k to 2 k.) */
+export const SKIN_HOLD_FREE_FROM_K = 3;
+export const SKIN_HOLD_FREE_TO_K = 6;
 /** How many CSS px wider the outline's band is on a seam ring, so the skin never trims a pixel of the silhouette the cut tube no longer covers (the specks along the walls, Mohammad 20 Nov). */
 export const SKIN_SEAM_PAD_PX = 1.5;
 /** A head of an arm's frame is drawn only within that arm's own cylinder: fully inside SKIN_HEAD_LAT_FROM radii of its axis line, gone by SKIN_HEAD_LAT_TO. */
@@ -102,7 +101,8 @@ attribute vec4 weight;   // how much of this vertex belongs to each arm (arms 0 
 attribute vec2 weight2;  // arms 4 and 5
 attribute float restR;   // the blended rest radius here (scene units)
 attribute float sagK;    // the share of the radius this vertex stands out for its facets' chord sag (facet-sag.ts; a seam ring's is the tube's TUBE_SAG)
-${PLACED ? "attribute float tubeShare;   // placed only: how much of the mesh's own normal the shade keeps here, 1 on a seam ring, 0 from SKIN_TUBE_ROWS rows in (exact-normal.ts tubeShareOf)\n" : ''}uniform float inflate;
+attribute float tubeShare;   // how much of the mesh's own normal the shade keeps here, 1 on a seam ring, 0 from SKIN_TUBE_ROWS rows in (exact-normal.ts tubeShareOf)
+uniform float inflate;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
 uniform float useData;
@@ -187,7 +187,7 @@ void main() {
   vCenW = cc.w;
   vWeight = wA;
   vWeight2 = wB;
-  vRest = vec2(rst, ${PLACED ? 'tubeShare' : '0.0'});
+  vRest = vec2(rst, tubeShare);
   vSwell = vec4(swT[0], swT[1], swT[2], swT[3]);
   vSwell2 = vec2(swT[4], swT[5]);
   // EACH ARM'S FADE AT THIS VERTEX (the junction's seam far out on a fading vein washed the whole skin and drew its neighbour's fork branch as a ghost, 21 Nov): the tube's own fade rule at this vertex's arc along the arm, the arc the flow marks use. An arm whose seam is whole keeps -1: its seam value, as before
@@ -384,7 +384,7 @@ float skinHoldSeam = 1.0;   // (how near a seam ring this pixel is, 0 to 1: main
 float skinArmHeld(int arm, float fragW, vec3 fragP, float kPx) {
   vec3 g3; float r3;
   float gap = skinArmSd3(fragP, arm, 1.0, g3, r3) / max(${wpcGlsl('fragW', 'projY', '1.0')}, 1e-9) * dpr;
-  return ${PLACED ? `smoothstep(mix(${F(SKIN_HOLD_FREE_FROM_K)}, ${F(SKIN_HOLD_FROM_K)}, skinHoldSeam) * kPx, mix(${F(SKIN_HOLD_FREE_TO_K)}, ${F(SKIN_HOLD_TO_K)}, skinHoldSeam) * kPx, gap)` : `smoothstep(${F(SKIN_HOLD_FROM_K)} * kPx, ${F(SKIN_HOLD_TO_K)} * kPx, gap)`};
+  return smoothstep(mix(${F(SKIN_HOLD_FREE_FROM_K)}, ${F(SKIN_HOLD_FROM_K)}, skinHoldSeam) * kPx, mix(${F(SKIN_HOLD_FREE_TO_K)}, ${F(SKIN_HOLD_TO_K)}, skinHoldSeam) * kPx, gap);
 }
 // the outline of the smooth union of the live arms, in device px: negative inside the lumen, 0 on the wall (in arm order, as the mesh's own SDF: sdf.ts sdUnion). Two arms that run THROUGH the node (armCopy.w, through.ts: the trunk above and below
 // a side vein) are united by a plain minimum and count as one: a blend between the halves of one trunk only adds a bulge

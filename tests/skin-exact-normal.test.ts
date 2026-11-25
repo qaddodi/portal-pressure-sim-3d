@@ -2,7 +2,6 @@
 // normals lerped over a triangle, which across a fillet are wrong by tens of degrees (ROOT CAUSE, exact-normal.ts). The pixel now takes the smooth union's own gradient. Pinned here: the twin of the shader's function is the CPU's
 // sdUnionGrad (the gradient the vertices' normals were sampled from) on every built skin, at rest, with an arm's width changed and with an arm absent; on a seam ring it is the tube's own normal; and the shader reads it before any derivative.
 import { test } from 'node:test';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import assert from 'node:assert/strict';
 import { Group, type Object3D } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
@@ -123,14 +122,14 @@ test('the shader takes the normal from the union\'s gradient at the pixel, befor
   assert.ok(at < main.indexOf('fwidth(sT)') && at < main.indexOf('discard'), 'before the derivative of the shade and before the first discard');
   // the shade's blend: 1.5 k, and never narrower than SKIN_SHADE_FLOOR_PX of the screen (a ridge thinner than a pixel is drawn as a one-pixel line of the crotch's own normal: the dark line this fix was made to end)
   // placed only: k itself, the drawn surface's own blend (a 1.5 k union read normals up to 27 degrees off the placed surface and shaded the crotches darker than both arms)
-  assert.equal(SKIN_SHADE_K, PLACED ? 1 : 1.5);
-  assert.match(main, PLACED ? /skinNormalExact\(vPos, max\(skinK \* 1\.0, 2\.0 \* vCenW \* 2\.0 \/ \(res\.y \* projY\) \* 1\.0\), vec3\(0\.0\)\)/ : /skinNormalExact\(vPos, max\(skinK \* 1\.5, 2\.0 \* vCenW \* 2\.0 \/ \(res\.y \* projY\) \* 1\.0\), vec3\(0\.0\)\)/);
+  assert.equal(SKIN_SHADE_K, 1);
+  assert.match(main, /skinNormalExact\(vPos, max\(skinK \* 1\.0, 2\.0 \* vCenW \* 2\.0 \/ \(res\.y \* projY\) \* 1\.0\), vec3\(0\.0\)\)/);
   assert.equal(SKIN_SHADE_FLOOR_PX, 2);
-  assert.equal(skinShadeK(0.004, 0.0015), PLACED ? 0.004 : 0.006, 'at a laptop\'s zoom k is already wider than two pixels: nothing changes');
+  assert.equal(skinShadeK(0.004, 0.0015), 0.004, 'at a laptop\'s zoom k is already wider than two pixels: nothing changes');
   assert.equal(skinShadeK(0.004, 0.004), 0.008, 'on a phone\'s fit two pixels are wider: the shade reads the union there');
   assert.equal(skinShadeK(0, 0.004), 0.008, 'a skin with no blend at all is still given the floor');
   // placed only: the mesh's normal is kept by rows from the seam (vRest.y, exact-normal.ts skinTubeKeep), not by the weight alone
-  assert.match(main, PLACED ? /n = normalize\(mix\(n, normalize\(mat3\(modelViewMatrix\) \* gx\), \(1\.0 - \(smoothstep\(0\.0, 1\.0, vRest\.y\) \* smoothstep\(0\.2, 0\.6, wTop\)\)\)\)\)/ : /n = normalize\(mix\(n, normalize\(mat3\(modelViewMatrix\) \* gx\), \(1\.0 - smoothstep\(0\.97, 1\.0, wTop\)\)\)\)/);
+  assert.match(main, /n = normalize\(mix\(n, normalize\(mat3\(modelViewMatrix\) \* gx\), \(1\.0 - \(smoothstep\(0\.0, 1\.0, vRest\.y\) \* smoothstep\(0\.2, 0\.6, wTop\)\)\)\)\)/);
   assert.equal(SKIN_RING_W_FROM, 0.97);
   // the same rules as the CPU: arm order, the run's halves as a minimum first, the absent arm held out of reach by the outline's own smoothstep
   const g = skinNormalGlsl(6, 4, (sw) => `ABS(${sw})`);

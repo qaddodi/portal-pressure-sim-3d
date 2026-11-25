@@ -5,7 +5,6 @@
 // copied/liver-morph.js) and the same sum, once; ascites.ts hands the table to the pool's program as a texture.
 import { LIVER_OUTLINE, FLUID_COLS, FLUID_R } from './copied/liver-outline.js';
 import { contourNodules, liverShrink, morphOutline, outlineNormals, smooth01 } from './copied/liver-morph.js';
-import { PLACED } from '../anatomy/source.ts';
 import { ORGAN_MESHES } from '../organs/meshes.ts';
 import { x2d, y2d } from '../frame2d.ts';
 
@@ -47,8 +46,8 @@ function lowerEdgeInto(P: ArrayLike<ArrayLike<number>>, out: Float32Array): Floa
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 /** The liver's lower edge for the shown cirrhosis `c` and congestion `g` (0..1), written into `out` (FLUID_COLS floats): the outline as the 2D reshapes it (morphOutline, in the liver's own frame, before its shrink). */
 export function liverEdgeTable(c: number, g: number, out: Float32Array = new Float32Array(FLUID_COLS)): Float32Array {
-  // (the placed anatomy, `?anatomy=new`: the lower edge of the liver mesh as it is built, whatever placement it holds, once the organ file is in; until then the 2D outline's)
-  const m = PLACED ? meshEdge() : null;
+  // (the lower edge of the liver mesh as it is built, once the organ file is in; until then the 2D outline's)
+  const m = meshEdge();
   if (m) { out.set(m); return out; }
   const q = EDGE_STEPS, cc = Math.round(clamp01(c) * q) / q, gg = Math.round(clamp01(g) * q) / q, b = baseLiver();
   return lowerEdge(cc + gg > 0 ? morphOutline(b, cc, gg).out : b.pts, out);
