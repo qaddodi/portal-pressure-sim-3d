@@ -17,6 +17,7 @@ import { beatCardWaiting } from '../../tests/slide/beat-agree.ts';
 import { menuWaiting } from '../../charts/menu/MenuCard.tsx';
 import { drawScreen } from '../../capture/capture.ts';
 import { speedAnimations, sampleRealMs, skipAnimations, finishAnimations } from './speed.ts';
+import { evRunPending } from '../../charts/evgraph/live.ts';
 import { captureViews, CHOICE_SEL, CHOICE_ON_SEL, CHOICE_MAX, choiceName, collageLayout, settleLimitMs, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
 import { isSideways, layoutOf } from '../../layout/rules2d.ts';
 import { lastPicked, stopKey, pickWords } from './capture-pick.ts';
@@ -60,7 +61,7 @@ function arriving(clockToo = true, stripsToo = true, frames = 99): string {
     if (document.querySelector('.dk-card[data-phase="out"], .dk-plate[data-phase="out"]')) return 'a card is leaving';
     if (document.fonts && document.fonts.status === 'loading') return 'fonts are loading';
     if ([...document.querySelectorAll('.dk-card .dk-roll-in, .dk-card .dk-roll-now')].some((e) => (e.textContent ?? '').trim() === '…')) return 'a reading on a card is still "…" (its number has not arrived)';   // (the line's blank gap, TIPS follow-up 5 "her PPG is …", build e4810ea9)
-    if (clock.stats().holds.includes('chart:evgraph')) return 'the procedure graph is still drawing to its end';   // (the card says the slide's end value while the plot's head is still on its way: Gastric varices 7, 19.4 against 18.1)
+    if (clock.stats().holds.includes('chart:evgraph') || evRunPending()) return 'the procedure graph is still drawing to its end';   // (the card says the slide's end value while the plot's head is still on its way: Gastric varices 7, 19.4 against 18.1)
     if (menuWaiting()) return 'the treatment menu has not worked out its dots yet';
     if (beatCardWaiting()) return 'the pressure strip has not caught up with the slide\'s numbers (its history is still coming, or the model is still easing to the slide)';
     if (figureWaiting()) return 'the figure has not reached the slide\'s state yet (its labels would print the slide before\'s patient)';
