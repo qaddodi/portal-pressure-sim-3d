@@ -114,6 +114,8 @@ let axTop = 0, axBot = 0, axMax = 15, axL = 0, axR = 0, axT0 = 0, axT1 = 1;
 const Y = (p) => axBot - (clamp(p, 0, axMax) / axMax) * (axBot - axTop);
 const X = (tt) => axL + k01(tt, axT0, axT1) * (axR - axL);
 const ST = { label: '', num: '', col: 'text' };   // (what a script's status writes: kept, written in place)
+const PREV = { label: '', num: '', col: 'text' };   // (what the status read just before the result arrived, while that fades out)
+const RESULT_FADE_MS = 450;   // (the result tag's own fade: the headline eases into the result over the same time)
 
 /** Draw script S's monitor on canvas cv (g: the GPU drawer, trace-gl.js, or null). st: { ph: 'idle' (no tip yet: its note), 'enter' (on its way:
  *  its note), 'abort' (the vein will not take it), 'run' (the trace); t: ms on the script's clock; v: the readings the script reads; running: the
@@ -152,16 +154,30 @@ function monOn({ ctx, w, h: hh }, S, st) {
   if (ph === 'idle') ST.label = 'Ready';
   else if (ph === 'enter') ST.label = S.enterWord || 'Catheter advancing';
   else S.status(t, v, st, ST);
+  // (The result never snaps in: for RESULT_FADE_MS after the script's result time the reading that stood before it fades out as the result fades in, the header words gliding with it.)
+  const rs = S.result, fadeK = ph === 'run' && rs && t >= rs.at && t < rs.at + RESULT_FADE_MS ? ease(k01(t, rs.at, rs.at + RESULT_FADE_MS)) : 1;
+  PREV.label = ''; PREV.num = ''; PREV.col = 'text';
+  if (fadeK < 1) S.status(rs.at - 1, v, st, PREV);
+  const fading = fadeK < 1 && (PREV.label !== ST.label || PREV.num !== ST.num);
   const col = C[ST.col] || C.text;
   // (The words for the axis on the same row as what the tip reads when they fit, else under it; drawn in the order the card has always had: axis words, what the tip reads, the number.)
   ctx.font = FONT(700, FS + 2);
-  const lw = ST.label ? ctx.measureText(ST.label).width + 14 : 0, room1 = room - lw;
+  const lwNow = ST.label ? ctx.measureText(ST.label).width + 14 : 0, lwWas = fading && PREV.label ? ctx.measureText(PREV.label).width + 14 : 0;
+  const lw = fading ? lwWas + (lwNow - lwWas) * fadeK : lwNow, room1 = room - lw;
   ctx.font = FONT(600, FS); ctx.fillStyle = C.text;
   const head1 = fitLine(ctx, S.heads, room1), sameRow = ctx.measureText(head1).width <= room1;
   if (sameRow) ctx.fillText(head1, x + lw, y + 15 * HK);
   else ctx.fillText(fitLine(ctx, S.heads, room), x, y + 34 * HK);
+  if (fading) {
+    const colWas = C[PREV.col] || C.text;
+    ctx.globalAlpha = 1 - fadeK;
+    ctx.font = FONT(700, FS + 2); ctx.fillStyle = PREV.col === 'text' ? C.bright : colWas; ctx.fillText(PREV.label, x, y + 15 * HK);
+    if (PREV.num) { ctx.font = FONT(700, big); ctx.fillStyle = PREV.col === 'text' ? C.bright : colWas; ctx.textAlign = 'right'; ctx.fillText(PREV.num, x + W, y + 14 + big); ctx.textAlign = 'left'; }
+    ctx.globalAlpha = fadeK;
+  }
   ctx.font = FONT(700, FS + 2); ctx.fillStyle = ST.col === 'text' ? C.bright : col; ctx.fillText(ST.label, x, y + 15 * HK);
   if (ST.num) { ctx.font = FONT(700, big); ctx.fillStyle = ST.col === 'text' ? C.bright : col; ctx.textAlign = 'right'; ctx.fillText(ST.num, x + W, y + 14 + big); ctx.textAlign = 'left'; }
+  ctx.globalAlpha = 1;
   // (The trace takes the monitor's whole width, its axis numbers inside it and each reading's tag at the right end of its dashed line: Mohammad, 13 Nov 2026, option C.)
   const { top, bot } = traceRoom(W, H, y), L = x, R = x + W;
   const note = st.probing ? S.notes.probe : ph === 'idle' ? S.notes.idle : S.notes.wait;
