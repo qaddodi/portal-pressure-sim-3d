@@ -123,3 +123,21 @@ test('the pieces are wired: boot decides on a software renderer, Stage times the
   assert.match(sheet, /sec\.title === 'Display' \? <LiteFigure \/>/);
   assert.match(sheet, /setLite\(v, 'person'\)/);
 });
+
+test('a preset keeps working under lite: it is read back from the person\'s own values, and one chosen while lite stands reads as chosen', async () => {
+  const mem = new Map<string, string>();
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); }, removeItem: (k: string) => { mem.delete(k); } };
+  const { useSettings, ownSettings } = await import('../src/state/settings.ts');
+  const { presetOf, presetValues } = await import('../src/state/figure-presets.ts');
+  const st = () => useSettings.getState();
+  st().reset();
+  st().setMany(presetValues('rich', false));
+  st().setLite(true, 'device');
+  assert.equal(st().organDepth, false, 'the figure reads the quiet values');
+  assert.equal(presetOf(ownSettings(st()), false), 'rich', 'Settings still shows the preset the person chose');
+  assert.equal(presetOf(st(), false), null, 'the live values are a mix');
+  st().setMany(presetValues('cool', false));
+  assert.equal(presetOf(ownSettings(st()), false), 'cool');
+  st().setLite(false, 'person');
+  assert.equal(presetOf(st(), false), 'cool', 'and it is what comes back');
+});
