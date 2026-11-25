@@ -125,8 +125,11 @@ jobs:
             echo "main has no app yet: / redirects to /preview/"
             printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=./preview/"><title>Portal Pressure 3D</title><a href="./preview/">Open the preview</a>' > site/index.html
           fi
+      # The artifact's name carries the attempt: a re-run of a run (Re-run failed jobs) uploads again into the SAME run, and two artifacts named "github-pages" made deploy-pages stop with
+      # "Multiple artifacts named github-pages were unexpectedly found" (25 Nov, a16515d0). One name per attempt, handed to deploy-pages below, so a re-run always deploys its own.
       - uses: actions/upload-pages-artifact@v3
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: site
       # GitHub lists a freshly uploaded artifact a moment late: deploy-pages straight after the upload sometimes finds "No artifacts named github-pages" (runs 4, 42 and 1579).
       # Instead of a fixed sleep, wait until this run lists it (usually the first or second look), up to 20 seconds.
@@ -135,7 +138,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           for i in $(seq 1 20); do
-            n=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" --jq '[.artifacts[] | select(.name == "github-pages" and (.expired | not))] | length' 2>/dev/null || echo 0)
+            n=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" --jq '[.artifacts[] | select(.name == "github-pages-${{ github.run_attempt }}" and (.expired | not))] | length' 2>/dev/null || echo 0)
             if [ "$n" -ge 1 ]; then echo "artifact listed after $i look(s)"; exit 0; fi
             sleep 1
           done
@@ -145,9 +148,13 @@ jobs:
       - id: deployment
         continue-on-error: true
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
       - name: Wait before the second deploy attempt
         if: steps.deployment.outcome == 'failure'
         run: sleep 15
       - id: deployment2
         if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
