@@ -18,6 +18,8 @@ import { createWheelGlide, isPadWheel } from './wheel-glide.ts';
 //   one finger after a pinch       carries on as a pan (never a tap, never thrown)
 //   trackpad two-finger scroll     pan        trackpad pinch (and Ctrl or ⌘ + wheel)   zoom about the pointer
 //   mouse wheel                    zoom about the pointer, glided      double click   zoom in ×2 (Shift: out) about the point
+//   double tap, hold, slide        one-finger zoom about the point (down: in, up: out)
+//   one finger held still ~0.4 s   then drag: turns and tilts the camera (like the mouse) instead of panning
 //   tap                            pick a vessel, an organ or the belly's fluid
 // Touches that start at the screen's edge are the system's (back swipe, home bar). Cards and the wallet are page elements above the canvas, so a gesture that
 // starts on one never reaches this controller: the figure and the cards never fight over a finger.
@@ -75,6 +77,10 @@ export interface GestureHost {
 
 export const TAP_SLOP_TOUCH = 8, TAP_SLOP_MOUSE = 4;
 export const DOUBLE_TAP_MS = 320, DOUBLE_TAP_PX = 30;
+/** A finger held this long without moving turns from a pan into a turn and tilt of the camera (owner, 25 Nov: "if I hold my finger without moving ... tilting rather than panning"). */
+export const HOLD_MS = 380;
+/** One-finger zoom after a double tap (Google Maps): the zoom's log per pixel of slide; sliding down zooms in, up zooms out. */
+export const DZOOM_PER_PX = 0.007;
 /** A touch that starts this close to the screen's edge is the system's (the 2D app's systemEdge). */
 export const isSystemEdge = (e: { pointerType: string; clientX: number; clientY: number }, vp: { w: number; h: number }): boolean =>
   e.pointerType === 'touch' && (e.clientY > vp.h - 34 || e.clientX < 12 || e.clientX > vp.w - 12);
@@ -83,6 +89,7 @@ type Drag =
   | { type: 'rotate'; x: number; y: number; orbit0: number; pitch0?: number; moved: boolean; trail: number[]; touch: boolean }
   | { type: 'pan'; x: number; y: number; v0: View; moved: boolean; trail: number[]; noFling: boolean; touch: boolean }
   | { type: 'pinch'; pa: [number, number]; pb: [number, number]; d0: number; k0: number; anchor: Pt; moved: boolean; m0: Pt; tilt?: { o0: number; p0: number }; mode?: 'zoom' | 'tilt' }
+  | { type: 'dzoom'; m: Pt; y0: number; k0: number; anchor: Pt; moved: boolean; prev: unknown }
   | { type: 'ignore' };
 
 export interface Gestures {
@@ -118,6 +125,8 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   let lastTap: { t: number; x: number; y: number; sel: unknown } | null = null;
   let animId = 0, cancelFlick: (() => void) | null = null, flicking = false, orbitId = 0;
   const touchesDown = new Set<number>();
+  let holdT = 0;
+  const holdClear = () => { if (holdT) env.clearTimer(holdT); holdT = 0; };
   const offs: (() => void)[] = [];
   const on = (t: GestureTarget, type: string, fn: unknown, opts?: unknown) => {
     t.addEventListener(type, fn as (e: never) => void, opts);
@@ -340,12 +349,28 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     host.holdHand(); stopAnim(); stopFlick(); stopOrbitMomentum(); stopOrbitHome(); wheelGlide.cancel(); hand.begin(); env.clearTimer(settleT);
     (el as GestureTarget).setPointerCapture?.(ev.pointerId);
     if (env.locked?.()) { if (pointers.size < 2) drag = { type: 'rotate', x: ev.clientX, y: ev.clientY, orbit0: host.orbit(), moved: false, trail: trail(ev.clientX, ev.clientY), touch: ev.pointerType === 'touch' }; else if (drag && drag.type === 'rotate') drag.moved = true; return; }   // (a talk: the touch is a tap or nothing)
+    holdClear();
     if (pointers.size >= 2) { drag = pointers.size === 2 ? startPinch() : drag; return; }
     if (ev.button === 2) { drag = { type: 'ignore' }; return; }   // the context menu is the pick's
     const touch = ev.pointerType === 'touch';
+    // a finger that comes down again right after a tap, close to it: the double tap's second touch. Held and slid up or down it zooms about that point; lifted without sliding it is an ordinary tap
+    if (touch && lastTap && env.now() - lastTap.t < DOUBLE_TAP_MS && Math.hypot(ev.clientX - lastTap.x, ev.clientY - lastTap.y) < DOUBLE_TAP_PX) {
+      const m = { x: ev.clientX, y: ev.clientY };
+      drag = { type: 'dzoom', m, y0: ev.clientY, k0: host.hand().k, anchor: anchorAt(m, host.hand(), host.centre()), moved: false, prev: lastTap.sel };
+      return;
+    }
     // a mouse turns the figure; Shift or the middle button pans (a trackpad's own two fingers pan through wheel events)
     const free = !!host.free?.();
     // A finger always pans, in every view and whatever the setting (two fingers pinch, or tilt where allowed, see startPinch); a mouse drag turns the figure (both axes with Tilt all around)
+    if (touch && !ev.shiftKey && ev.button !== 1) {
+      // held still, a finger pans no more: it turns the camera (and tilts it where tilt is allowed), as the mouse does
+      holdT = env.timer(() => {
+        holdT = 0;
+        if (env.locked?.() || pointers.size !== 1 || !drag || drag.type !== 'pan' || drag.moved) return;
+        const { x, y } = drag;
+        drag = { type: 'rotate', x, y, orbit0: host.orbit(), pitch0: free ? host.orbitPitch?.() ?? 0 : undefined, moved: false, trail: trail(x, y), touch: true };
+      }, HOLD_MS);
+    }
     drag = ev.shiftKey || ev.button === 1 || touch ? startPan(ev.clientX, ev.clientY, touch) : { type: 'rotate', x: ev.clientX, y: ev.clientY, orbit0: host.orbit(), pitch0: free ? host.orbitPitch?.() ?? 0 : undefined, moved: false, trail: trail(ev.clientX, ev.clientY), touch };
   };
   const pushTrail = (tr: number[], x: number, y: number) => {
@@ -360,6 +385,18 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     if (env.locked?.()) {
       // (nothing moves, but a touch that travelled is not a tap)
       if (drag.type === 'rotate' && !drag.moved && Math.abs(ev.clientX - drag.x) + Math.abs(ev.clientY - drag.y) > (drag.touch ? TAP_SLOP_TOUCH : TAP_SLOP_MOUSE)) drag.moved = true;
+      return;
+    }
+    if (drag.type === 'dzoom') {
+      const dy = ev.clientY - drag.y0;
+      if (!drag.moved) {
+        if (Math.abs(dy) + Math.abs(ev.clientX - drag.m.x) <= TAP_SLOP_TOUCH) return;
+        drag.moved = true; lastTap = null; host.setPicked(drag.prev);   // the first tap's pick is put back: this is a zoom, not a double pick
+        drag.y0 = ev.clientY;
+        return;
+      }
+      const k = softK(drag.k0 * Math.exp((ev.clientY - drag.y0) * DZOOM_PER_PX), kMin(), kMax()), p = panFor(drag.m, drag.anchor, k, host.centre());
+      host.setHand({ k, x: p.x, y: p.y }); handSample(80);
       return;
     }
     if (drag.type === 'pinch') {
@@ -393,10 +430,12 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   };
   const onUp = (ev: PtrEv & { type: string }) => {
     if (!pointers.delete(ev.pointerId)) return;
+    holdClear();
     if (!pointers.size) homeLater();
     const d = drag;
     if (!d) return;
     if (d.type === 'ignore') { if (!pointers.size) { drag = null; springBack(); } return; }
+    if (d.type === 'dzoom') { drag = null; if (d.moved) springBack(); else if (ev.type === 'pointerup') tap(ev); return; }
     if (d.type === 'pinch') {
       // one finger stays down: it carries on as a pan (never as a tap, never thrown on release)
       const rest = [...pointers.values()][0];
@@ -452,7 +491,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     animateTo(to, ms) { handsOff(); animateTo(to, ms, null); },
     zoomStep(factor) { if (env.locked?.()) return; const goal = animId && animGoal ? { ...animGoal } : null; handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor, goal); },
     dispose() {
-      handsOff(); stopOrbitHome();
+      handsOff(); stopOrbitHome(); holdClear();
       for (const off of offs) off();
       offs.length = 0;
     },

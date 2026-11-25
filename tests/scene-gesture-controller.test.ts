@@ -407,3 +407,49 @@ test('zoom presses stack: pressed again while a glide runs, the step goes on fro
   r.g.zoomStep(1.4); r.run(100); r.g.zoomStep(1.4); r.run(3000);
   assert.ok(Math.abs(r.hand.k - 1.4 * 1.4) < 1e-6, `${r.hand.k}`);
 });
+
+test('double tap, keep the finger down and slide: one-finger zoom about that point; down zooms in, up out, and the first tap\'s pick is put back (owner, 25 Nov)', () => {
+  const r = rig(); const T = { pointerType: 'touch' };
+  r.ptr('pointerdown', 1, 300, 200, T); r.ptr('pointerup', 1, 300, 200, T);
+  r.host.setPicked('LGV'); r.advance(100);
+  r.ptr('pointerdown', 1, 301, 200, T);
+  r.ptr('pointermove', 1, 301, 230, T); r.ptr('pointermove', 1, 301, 300, T);
+  assert.ok(r.hand.k > 1.3, `k ${r.hand.k}`);
+  assert.equal(r.picked, null, 'the first tap\'s pick is undone');
+  // the figure point under the finger stays under it
+  const p = { x: 400 + r.hand.x + r.hand.k * (301 - 400), y: 300 + r.hand.y + r.hand.k * (200 - 300) };
+  assert.ok(Math.abs(p.x - 301) < 1e-6 && Math.abs(p.y - 200) < 1e-6);
+  const kIn = r.hand.k;
+  r.ptr('pointermove', 1, 301, 150, T);
+  assert.ok(r.hand.k < kIn, 'sliding up zooms out');
+  assert.equal(r.orbit, 0, 'no turn, no pan');
+  r.ptr('pointerup', 1, 301, 150, T);
+  assert.equal(r.taps.length, 1, 'the zoom is not a second pick');
+});
+
+test('a finger held still for ~0.4 s turns and tilts the camera when dragged; a drag without the hold still pans (owner, 25 Nov)', () => {
+  let pitch = 0;
+  const mk = () => rig({ free: () => true, orbitPitch: () => pitch, setOrbitPitch: (p) => { pitch = p; return true; } });
+  const T = { pointerType: 'touch' };
+  const a = mk();
+  a.ptr('pointerdown', 1, 400, 300, T); a.run(500);
+  a.ptr('pointermove', 1, 440, 330, T); a.ptr('pointermove', 1, 460, 350, T);
+  assert.ok(a.orbit !== 0 && pitch !== 0, 'held then dragged: it turns and tilts');
+  assert.deepEqual({ x: a.hand.x, y: a.hand.y }, { x: 0, y: 0 }, 'and does not pan');
+  pitch = 0;
+  const b = mk();
+  b.ptr('pointerdown', 1, 400, 300, T); b.run(100);
+  b.ptr('pointermove', 1, 440, 330, T); b.ptr('pointermove', 1, 460, 350, T); b.run(500);
+  assert.equal(b.orbit, 0); assert.equal(pitch, 0);
+  assert.ok(b.hand.x > 0 && b.hand.y > 0, 'dragged at once: it pans as before');
+});
+
+test('the hold never fires once a second finger is down or the finger lifted, and dispose clears it', () => {
+  const T = { pointerType: 'touch' };
+  const r = rig();
+  r.ptr('pointerdown', 1, 400, 300, T); r.ptr('pointerup', 1, 400, 300, T); r.run(500);
+  assert.equal(r.orbit, 0, 'lifted: nothing turned');
+  r.ptr('pointerdown', 1, 350, 300, T); r.ptr('pointerdown', 2, 450, 300, T); r.run(600);
+  r.ptr('pointermove', 2, 550, 300, T);
+  assert.ok(r.hand.k > 1.5 && r.orbit === 0, 'two fingers still pinch');
+});
