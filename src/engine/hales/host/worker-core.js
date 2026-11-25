@@ -681,8 +681,11 @@ export function createCore(post) {
     *sequence({ steps, base, reqId }) {
       let e = new Engine(), w = null;
       if (base) e.restore(base);
+      const kept = [];   // (each step's settled model, for a step that stands on an earlier one's: restoreStep)
       for (let i = 0; i < (steps || []).length; i++) {
         const st = steps[i] || {};
+        // restoreStep: this slide shows exactly the state of an earlier slide of the chain (same lesions, same history), so the two read the same numbers, not two histories' neighbours
+        if (st.restoreStep != null && kept[st.restoreStep]) { e = new Engine(); e.restore(kept[st.restoreStep]); w = null; }
         if (st.restart && i) { e = new Engine(); if (base) e.restore(base); }
         // (A preset starts the patient over, so it starts on a fresh engine: a load on an engine that has run other patients left a hair of their solver
         // state in the numbers, enough to change a rounded reading between a chain and the same slides alone, 8 Nov: the ascites chart's dot and the slide.)
@@ -717,7 +720,7 @@ export function createCore(post) {
         }
         if (st.preset || st.params || st.action || st.days) { e.settle(); e.finishInfusions(); }   // (a transfusion on the slide is done, not still dripping)
         // (What the page is handed is read from a copy run at the bedside; the chain goes on from the settled model, so a slide's state never depends on the warm-up of the one before.)
-        const moved = !!(st.preset || st.params || st.action || st.days || st.relax || st.restart);
+        const moved = !!(st.restoreStep != null || st.preset || st.params || st.action || st.days || st.relax || st.restart);
         if (moved || !w) { w = new Engine(); w.restore(e.snapshot()); atBedside(w); }   // (a slide that changes nothing is the one before)
         const m = computeMetrics(w);
         if (trail) {
@@ -733,6 +736,7 @@ export function createCore(post) {
           const b = new Engine(); b.restore(e.snapshot()); b.setParams(deepMerge(b.params, st.before)); b.settle(); atBedside(b);
           before = { snap: b.snapshot({ rest: true }), params: structuredClone(b.params), fp: fingerprint(computeMetrics(b), b) };
         }
+        kept[i] = e.snapshot();
         post({ type: 'seqStep', reqId, i, snap: w.snapshot({ rest: true }), base: e.snapshot(), params: structuredClone(e.params), fp: fingerprint(m, w), trail: trail && calmTrail(trail, tk.length), start, before, ...(extra ? { extra } : {}) });
         yield;
       }

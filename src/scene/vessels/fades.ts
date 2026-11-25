@@ -34,6 +34,10 @@ export function opensIntoCava(id: string): boolean {
 }
 /** The cava's piece a vein that opens into it meets: the inferior cava below the hepatic veins' node (the renal veins' side) or above it. */
 export const cavaPieceOf = (id: string): string => (id === CAUDATE_VEIN_ID ? CAUDATE_HOST : edgeById.get(id)?.to === 'ILI_R' ? 'ILI_IVC_1' : edgeById.get(id)?.to === 'IVCI' ? 'IVC_IS_1' : 'IVC_IS');
+/** THE OSTIUM, read from the topology as drawn (never from the engine's node alone): the vein whose wall vein `id` opens into. The cava's piece for a vein that opens into the cava; on the placed anatomy the common trunk for the middle hepatic vein, whose
+ *  engine edge still ends at the cava's node IVCS but whose drawn course ends on the left hepatic vein (trunkMateOf); null for every other vessel. The ostium's cut, colour and opacity (scene.ts setCavaCut), the neighbour data (neighbour.ts) and the
+ *  Budd-Chiari clot (disease/host.ts) all read this, and so do the tests that pin them (root cause of tests that still asked the middle hepatic vein to open into the cava after round 18). */
+export const ostiumHostOf = (id: string): string | null => (opensIntoCava(id) ? cavaPieceOf(id) : trunkMateOf(id));
 /** The share along `cavaPieceOf(id)` where the vessel joins it: 0 for a piece that starts at the vessel's node (the lower cava's two pieces), else 1. */
 export const cavaJoinShare = (id: string): number => (cavaPieceOf(id) === 'IVC_IS_1' || cavaPieceOf(id) === 'ILI_IVC_1' ? 0 : 1);
 /** A collateral that fades into the cava (the retroperitoneal veins, C7: `ivcJoinSpan`) is one tube with it like a hepatic vein is (Mohammad, 22 Nov: "retroperitoneal veins aren't welded into the IVC"): it takes the cava's colour and opacity as it nears the wall and is cut at the wall,

@@ -59,8 +59,10 @@ test('the shade pull ends at the mate\'s end: no pulled sample where the mate is
 });
 
 test('the cava carries on past its pieces: z is NBR_NO_END against it; the shader cuts by vNbr.z', () => {
-  assert.ok(cavaMateOf('MHV_IVC'));
-  const v = NETWORK_BY_ID.get('MHV_IVC')!, b = buildTubes(coursesOf(v, REST), tubularOf(v, slicesFor('MHV_IVC')), v.radius), nb = neighbourAttr('MHV_IVC', b.geometry.getAttribute('position').array)!;
+  // (a hepatic vein that opens into the cava itself, read from the placed topology: since round 18 the middle one opens into the left one's common trunk (fades.ts trunkMateOf), whose ends are real end planes, so the left one, the trunk, is the example)
+  const id = 'LHV_IVC';
+  assert.equal(cavaMateOf(id), 'IVC_IS');
+  const v = NETWORK_BY_ID.get(id)!, b = buildTubes(coursesOf(v, REST), tubularOf(v, slicesFor(id)), v.radius), nb = neighbourAttr(id, b.geometry.getAttribute('position').array)!;
   for (let i = 2; i < nb.length; i += NBR_STRIDE) assert.equal(nb[i], NBR_NO_END);
   assert.match(VESSEL_VS, /attribute vec3 nbr;/);
   assert.match(VESSEL_VS, /vNbr = vec3\(nbr\.x, nbr\.y \* \(/);

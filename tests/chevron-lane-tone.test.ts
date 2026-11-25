@@ -22,6 +22,6 @@ test('the head tone is read at the middle lane, never at the pixel\'s lane, in t
 test('the tube\'s heads are not faded toward an end a skin takes over (as the dust is not), and the skin\'s tube side holds until the tube\'s tail is gone', async () => {
   const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
   const { SKIN_FS, SKIN_HEAD_TUBE_SIDE } = await import('../src/scene/vessels/skin/shaders.ts');
-  assert.ok(VESSEL_FS.includes('markK(skinCut.x >= 0.0 ? 1e6 : vUv.x * len * vU, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk, lensHead('));
+  assert.ok(VESSEL_FS.includes('markK(skinCut.x >= 0.0 ? 1e6 : vUv.x * len * vU, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk * endOn, lensHead('));
   assert.ok(SKIN_FS.includes('smoothstep(' + SKIN_HEAD_TUBE_SIDE.toFixed(1) + ', ' + (SKIN_HEAD_TUBE_SIDE + 0.3).toFixed(1) + ', aIn)'), 'the tube side stays whole until the tail stops reaching the tube');
 });

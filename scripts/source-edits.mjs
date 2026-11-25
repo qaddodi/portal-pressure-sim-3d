@@ -337,6 +337,8 @@ export const CAPTURE_15C31759 = [
   // Two lesions 5 ran the congestion 60 days, still easing (right atrium 26.7), and slide 9 holds the same two lesions at 90 (26.2): the same state read two numbers. Both now stand at the 90-day state.
   SET('two-lesions', 'slides.both.days', 90),
   // Two lesions 9 teaches "measure the IVC and right atrial pressures beside the gradients": the figure named the right atrium and the hepatic vein only
+  // slide 9 is slide 5's patient: one state, one set of numbers (the engine's restoreStep), not the same lesions reached by another history
+  SET('two-lesions', 'slides.together.sameAs', 'both'),
   SET('two-lesions', 'slides.measure.labels', ['CONF', 'RHV', 'IVCS', 'RA']),
 ];
 
