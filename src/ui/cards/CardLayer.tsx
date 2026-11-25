@@ -46,7 +46,7 @@ import { isSwapSwipe } from '../wallet/wallet-machine.ts';
 import { useDeckWheel } from '../deck/useDeckWheel.ts';
 import { swipeMove, apply, samePos, type Move } from '../deck/presenter-machine.ts';
 import { gapOf } from './ladder-model.ts';
-import { maxPages, clampPage } from './pages.ts';
+import { maxPages, clampPage, nextToMeasure, tallestPage } from './pages.ts';
 import { frameProps, wordsClasses, type FrameLive } from './frame-props.ts';
 
 import { clock } from '../../clock/frame.ts';
@@ -117,7 +117,18 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const h = (key: string) => hit(key)?.h ?? 0;
   const capOf = (v: NonNullable<typeof view>) => maxPages(v.words, v.slide && v.words === 'case' ? caseOf(v.slide)?.text : v.slide?.line, v.words === 'check' ? deck.checks.length : 0);
   const pages = view ? Math.min(pagesMap[pagesKey] ?? 1, capOf(view)) : 1;
-  const at = clampPage(page, pages);
+  // A card that pages is one height on every page (Mohammad, 25 Nov: a card never changes size on screen; Carvedilol 10, iPhone: page 2 of 2 was a line longer than page 1 and the card grew 30 px on the turn). Before a words card lands
+  // the layer walks its pages once, out of sight (the card is not let in until it is done), takes each page's measured height, and every page is then the tallest: `pageMax` is what the plan is given. The walk is by
+  // the card's own measure at that page's signature, so it needs no clock; it is skipped for a card already on screen (a resize) and past the cards' give-up.
+  const [surveyMap, setSurveyMap] = useState<Record<string, (number | undefined)[]>>({});
+  const [surveyLate, setSurveyLate] = useState('');
+  const liveWords = useRef('');   // (the words card the layer last let in: its pages are not walked again under the reader's eyes)
+  const surveyKey = `${pagesKey}#${pages}`;
+  const got = surveyMap[surveyKey];
+  const nextPage = nextToMeasure(got, pages);
+  const surveying = nextPage !== undefined && liveWords.current !== wordsKey && surveyLate !== pagesKey;
+  const pageMax = tallestPage(got, pages);
+  const at = surveying ? nextPage! : clampPage(page, pages);
   const ladOn = pair && !!view && !centredKind(view.words);
   const cands = useMemo(() => (ladBase[pagesKey] ? pairSteps(ladBase[pagesKey]) : []), [ladBase, pagesKey]);
   const lad = ladOn ? Math.min(ladMap[pagesKey] ?? 0, Math.max(0, cands.length - 1)) : 0;
@@ -135,7 +146,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const baseKey = here?.key ?? 'ladder';
   const dataKey = rekeys[baseKey] ? `${baseKey}~${rekeys[baseKey]}` : baseKey;
   const outgrown = useCallback((k: string) => setRekeys((m) => { const base = k.replace(/~\d+$/, ''); return { ...m, [base]: (m[base] ?? 0) + 1 }; }), []);
-  const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: h(wordsKey) }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey), want: hit(dataKey)?.want ?? 0 }] : [])] : [];
+  const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: h(wordsKey) > 0 ? Math.max(h(wordsKey), pageMax) : 0 }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey), want: hit(dataKey)?.want ?? 0 }] : [])] : [];
   const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked), [vp, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}:${n.want ?? ''}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The dock glide sets off: the figure's room for where the card is going is told at once, with the glide's length, so the camera reframes with the card, not after it lands (2D presenter-zoom.js dockTo:
@@ -201,7 +212,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // and the fonts are in (a card that came in on its own measure then grew, and the second card showed up after the first). A slow measure never
   // holds a slide back for good: past GIVE_UP_CARDS_MS the cards come in as they are.
   const fonts = useFontsReady();
-  const growing = ladBusy || fitBusy || (tooTall && pages < (view ? capOf(view) : 1)) || tightens;
+  const growing = ladBusy || fitBusy || (tooTall && pages < (view ? capOf(view) : 1)) || tightens || surveying;
   // (and its height has stood still for SETTLE_MS: a row or a readout that mounts in the frame after the first measure, from an effect or a second render, has come by then, so the card is let in at the height it keeps)
   const [, setTick] = useState(0);
   const settleLeft = needs.reduce((m, n) => { const e = hit(n.slot === 'words' ? wordsKey : dataKey); return e ? Math.max(m, SETTLE_MS - (clock.now() - e.t)) : m; }, 0);
@@ -209,6 +220,12 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // (and every chart in a card is drawn once at its box: `open` is how many are not, so a chart never reaches its size while its card slides in; the 320 ms give-up is the net)
   const measured = needs.length > 0 && needs.every((n) => (n.h > 0 && (n.slot === 'data' || hit(wordsKey)?.sig === sig) && (hit(n.slot === 'words' ? wordsKey : dataKey)?.open ?? 0) === 0 && hit(n.slot === 'words' ? wordsKey : dataKey)?.f !== false && settleLeft <= 0) || (plan.docked && n.slot === 'data'));
   const [late, setLate] = useState('');
+  // each page's height is taken from the card's own measure at that page, once it has stood still (the same readiness the card is let in on)
+  useEffect(() => {
+    if (!surveying || !wordsHit || wordsHit.sig !== sig || wordsHit.f === false || wordsHit.open !== 0 || settleLeft > 0 || wordsHit.h <= 0) return;
+    setSurveyMap((m) => { const cur = m[surveyKey] ?? []; if (cur[nextPage!] === wordsHit.h) return m; const nx = cur.slice(); nx[nextPage!] = wordsHit.h; return { ...m, [surveyKey]: nx }; });
+  }, [surveying, wordsHit, sig, settleLeft, surveyKey, nextPage]);
+  useEffect(() => { const t = clock.after(() => setSurveyLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey]);
   useEffect(() => { const t = clock.after(() => setLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey]);
   // (the instrument's numbers: a card with a chart waits for its slide's step from the second engine, and asks for it again if the first run failed)
   // (the states baked at build time count as in: the cards of a slide opened first by a link or a jump no longer wait for the whole live chain to be worked out, 6 s and more on a phone: Encephalopathy 8, review bbe955e5)
@@ -238,6 +255,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   useEffect(() => { if (!paneUsed) return; const t = clock.afterReal(() => setPaneLate(pagesKey), PANE_GIVE_UP_MS); return () => clock.cancel(t); }, [paneUsed, pagesKey]);
   const paneWaits = paneUsed && paneLate !== pagesKey;
   const go = fonts && !growing && (numbers || gaveUp === numbersKey) && (measured || (late === pagesKey && !paneWaits)) && (panesIn || paneLate === pagesKey);
+  useEffect(() => { if (go && view) liveWords.current = wordsKey; });
   // the first cards of a talk fade in where they stand; every later one slides in from the side the talk comes from (2D's first card has no way to come from)
   const seen = useRef(false);
   const fresh = !seen.current;

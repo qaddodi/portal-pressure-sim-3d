@@ -24,3 +24,16 @@ export function maxPages(id: string, line: string | undefined, items = 0): numbe
 }
 
 export const clampPage = (page: number | 'last', pages: number) => (page === 'last' ? pages - 1 : Math.max(0, Math.min(pages - 1, page)));
+
+/** The page the layer has not measured yet (0-based), or undefined when every page of a card of `pages` pages has a height: the walk that makes every page of a card the tallest one's height before the card lands
+ *  (CardLayer; a card never changes size on a page turn, Carvedilol 10). `got` holds the heights measured so far, by page. */
+export function nextToMeasure(got: readonly (number | undefined)[] | undefined, pages: number): number | undefined {
+  if (pages <= 1) return undefined;
+  for (let i = 0; i < pages; i++) if (got?.[i] === undefined) return i;
+  return undefined;
+}
+/** The height every page of a paging card takes: the tallest measured so far (0 when none, or when the card does not page). */
+export function tallestPage(got: readonly (number | undefined)[] | undefined, pages: number): number {
+  if (pages <= 1 || !got) return 0;
+  return Math.max(0, ...got.filter((v): v is number => v !== undefined));
+}
