@@ -45,6 +45,10 @@
    "reach": "react",
    "file": "src/ui/shell/Diagnostics.tsx"
   },
+  "showBuildPill": {
+   "reach": "react",
+   "file": "src/ui/shell/BuildPill.tsx"
+  },
   "organDepth": {
    "reach": "subscribe",
    "file": "src/scene/organs/organ-settings.ts"

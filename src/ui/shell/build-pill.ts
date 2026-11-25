@@ -12,6 +12,10 @@ export const updateText = (label: string, checks: string, newer: string | null):
   newer === null ? `PREVIEW${label ? ` · ${label}` : ''}${checks ? ` · ${checks}` : ''}`
     : `NEW BUILD · TAP TO UPDATE${label ? ` · on ${label}` : ''}`;   // (short: one line on a phone; the new commit is in the build note once reloaded)
 
+/** The build in plain words, for the line in Settings that stands in for the pill while it is hidden: "Build 56cb768a · tests: 0 failing", with a newer build named when one is out. */
+export const buildNote = (label: string, checks: string, newer: string | null): string =>
+  `Build ${label || 'local'}${checks ? ` · ${checks}` : ''}${newer !== null ? ' · a newer build is out' : ''}`;
+
 /** This copy's service worker scope and cache-name prefix (2D: `pps@<scope path>@`; the 3D app's caches use `pps3d@`). */
 export const cachePrefix = (href: string) => `pps3d@${new URL('./', href).pathname}@`;
 /** The address to reload to: this page's own, with `r` set to now, and (when `state` is given: the link to what is on the screen, share-wire.ts shareLinkNow) the talk and slide, or the
