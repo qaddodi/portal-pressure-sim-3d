@@ -1,0 +1,6 @@
+{
+  "note": "Wire bytes a first visit downloads before the app is usable (scripts/boot-bytes.mjs: the install list of scripts/pwa.mjs, text gzipped as the host sends it, the baked .bin files as they are). The number only goes down: when a change makes it smaller, lower budgetKb to just above the new figure in the same change. targetKb is the review's goal (25 Nov, D3 and W2); the budget comes down to it step by step. geometryKb bounds the baked geometry alone (organs, skins, organ art), which tests/boot-entry.test.ts measures from the baked files without a build.",
+  "targetKb": 4000,
+  "budgetKb": 6000,
+  "geometryKb": 4150
+}

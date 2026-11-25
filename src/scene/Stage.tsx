@@ -113,6 +113,7 @@ function SceneBridge() {
   useEffect(() => {
     let alive = true;
     cel.constructMicro();
+    cel.takeWeldCalls();   // (the quiet ladder's weld rung, boot/warm.ts, reaches the Lobule through this scene)
     // (the passes drawn outside the scene graph compile in the same breath: the DoF and glow quads and the uploader's plain material into the post target, the anti-aliasing quad into the canvas's colour space)
     const pm = passMaterials(cel.post, cel.glowFx), warmPass = passWarmScene(pm.target), warmAa = passWarmScene(pm.canvas);
     const wgl = gl as unknown as WarmRenderer;

@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { buildSw, listFiles, orderFiles, isLate, stampBootBytes, wireBytes } from '../scripts/pwa.mjs';
+import { buildSw, listFiles, orderFiles, isLate, isFallback, stampBootBytes, wireBytes } from '../scripts/pwa.mjs';
 import { isUpdate, mayRegister, takesOverNow, persistOnce, PERSIST_KEY, CHECK_MS, CHECK_GAP_MS } from '../src/pwa/register.ts';
 import { lowData } from '../src/boot/data-saver.ts';
 import { cachePrefix } from '../src/ui/shell/build-pill.ts';
@@ -193,12 +193,14 @@ test('the Lobule\'s baked weld plan, its planner worker and the fonts\' other al
   assert.ok(isLate('lobule/welds.bin') && !isLate('anatomy/skins.bin') && !isLate('fonts/inter-latin.woff2'));
 });
 
-test('the page asks for the weld plan after the first picture, not in the Lobule\'s constructor', () => {
+test('the page does not ask for the weld plan in the Lobule\'s constructor or on a timer: the quiet ladder asks once the cover is up, a dive asks at once', () => {
   const l = readFileSync('src/scene/micro3d/lobule3d.ts', 'utf8');
-  assert.match(l, /clock.after\(\(\) => this\.askWelds\(\), WELDS_ASK_MS\)/);
-  assert.match(l, /if \(!this\.weldsAsked && on && this\.flat\.isVisible\) this\.askWelds\(\)/, 'a Lobule that is wanted before the timer asks at once');
+  assert.doesNotMatch(l, /WELDS_ASK_MS/, 'no timer from the constructor');
+  assert.match(l, /if \(typeof window === 'undefined'\) this\.askWelds\(\);/, 'off a page (a test) it asks at once, as before');
+  assert.match(l, /if \(!this\.weldsAsked && on && this\.flat\.isVisible\) this\.askWelds\(\)/, 'a Lobule that is wanted and not asked for asks at once');
+  const warm = readFileSync('src/boot/warm.ts', 'utf8');
+  assert.match(warm, /id: 'welds', load: async \(\) => \{ await afterCover\(\); return weldBytes\(\); \}, run: \(\) => wantWelds\(\)/, 'the ladder reads the file in after the cover');
 });
-
 
 // ---- loading plan L5/L6: the boot byte total, the quicker offline launch, the polite fill ------------------------------------------------------------------------------
 const navigate = (w: ReturnType<typeof runSw>) => { let answered: Promise<unknown> | undefined; w.on.fetch!({ request: { method: 'GET', url: 'https://x.test/app/', mode: 'navigate' }, respondWith: (p: Promise<unknown>) => { answered = p; }, waitUntil() {} } as never); return answered!; };
@@ -298,4 +300,16 @@ test('a file with no hash in its name is never served from the build before it (
   const off = runSw(sw, [`${pre}old`], { fetch: () => Promise.reject(new Error('offline')) });
   off.store.get(`${pre}old`)!.set(bin, { tag: 'old build' });
   assert.equal((await (await ask(off, bin))).tag, 'old build', 'offline, with nothing of this build\'s, the build before still answers');
+});
+
+test('the organs file the page reads only when the baked organs cannot be used is held in neither list (the install and the quiet fill hold the baked organs, which carry every organ)', () => {
+  const built: Record<string, string> = {
+    'index.html': '<script type="module" src="./assets/index-Zz.js"></script>',
+    'assets/index-Zz.js': 'fetch(`anatomy/organs.bin`);',
+    'assets/organs-Ab12Cd34.bin': '', 'assets/organs-baked-Ab12Cd34.bin': '', 'assets/mark-Mm.png': '',
+  };
+  const { boot, later } = orderFiles(Object.keys(built).sort(), (f: string) => built[f] ?? '');
+  for (const f of ['assets/organs-Ab12Cd34.bin']) { assert.ok(!boot.includes(f) && !later.includes(f), `${f} is held in no list`); assert.ok(isFallback(f)); }
+  assert.ok(!isFallback('assets/organs-baked-Ab12Cd34.bin') && !isFallback('assets/skins-Ab12Cd34.bin'), 'the baked organs and the skins are not fallbacks');
+  assert.ok(boot.concat(later).includes('assets/mark-Mm.png'));
 });

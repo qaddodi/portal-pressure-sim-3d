@@ -4,11 +4,14 @@
 // the talk's ToolCard: about 900 kB of chart source in the boot entry. The charts are now one chunk a talk waits for (ui/talk/ToolCard.tsx, ui/shell/talk.ts).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { gzipSync } from 'node:zlib';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CHART_KINDS } from '../src/ui/charts/kinds.ts';
 import { CHARTS } from '../src/ui/charts/registry.ts';
+import { bootBytes, kindOf, readBudget, report, within } from '../scripts/boot-bytes.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 // (an import or re-export statement at the start of a line; comments are not stripped: a "/*" inside a path in a comment, like styles/*.css, would swallow the imports after it)
@@ -33,7 +36,7 @@ function staticGraph(entry: string): Map<string, string | null> {
   return seen;
 }
 const graph = staticGraph('src/main.tsx');
-const BOOT_SOURCE_CEILING = 7700 * 1024, BOOT_FILES_CEILING = 1010;   // (24 Nov 2026: 966 files, 7387 kB, a little room. 25 Nov: raised to 7760 for the approved placed anatomy (7739 kB), then back to 7700 once the 2D figure's code left the app: 983 files, 7671 kB. Then the placed anatomy's growth took it to 7803 kB; the stent editor (with its chart code) became a chunk: see the budget test.)
+const BOOT_FILES_CEILING = 1010;   // (24 Nov 2026: 966 files, a little room. The code's weight is no longer a ceiling on its source bytes (7700 kB, the owner's rule until 25 Nov: it counted source with its comments and no geometry at all): the budget is the wire bytes before usable, geometry included, below)
 const files = [...graph.keys()].map((f) => relative(root, f).split('\\').join('/'));
 const chain = (f: string) => { const out: string[] = []; let c: string | null | undefined = resolve(root, f); while (c) { out.push(relative(root, c)); c = graph.get(c); } return out.join(' <- '); };
 
@@ -116,12 +119,61 @@ test('the talk\'s own UI (DeckUi: the cards, the wallet, the presenter pill) is 
   loader.resetDeckUi();
 });
 
-test('the boot entry stays within its source budget (the code a normal load downloads, parses and runs before the first picture)', () => {
-  // Source bytes of every file in the static walk (comments included, so a ceiling, not a build size). 24 Nov 2026: the talk's UI left it (DeckUi and what only it reads: 1099 files became 966, the boot's JavaScript 1405 to 1291 kB gzipped).
-  // A change that makes this fail has pulled something in that the first picture does not draw: load it with a dynamic import (ui/shell/deck-ui-load.ts is the pattern) or raise the ceiling in the same change, with the reason.
-  const bytes = files.reduce((n, f) => n + statSync(resolve(root, f)).size, 0);
-  assert.ok(bytes < BOOT_SOURCE_CEILING, `the boot entry is ${(bytes / 1024).toFixed(0)} kB of source (ceiling ${(BOOT_SOURCE_CEILING / 1024).toFixed(0)} kB): ${files.length} files`);
+test('the boot entry stays within its file budget (what a normal load parses and runs before the first picture)', () => {
+  // A change that makes this fail has pulled something in that the first picture does not draw: load it with a dynamic import (ui/shell/deck-ui-load.ts is the pattern).
   assert.ok(files.length < BOOT_FILES_CEILING, `${files.length} files in the boot entry (ceiling ${BOOT_FILES_CEILING})`);
+});
+
+// ---- the wire-byte budget before usable (25 Nov, review D3 and W2; replaces the source-byte ceiling) -----------------------------------------------------------------------------
+// What counts is what a first visit DOWNLOADS before the app can be used, geometry included (it was 80% of the 10,071 kB the review measured, and no guard saw it). The whole figure needs the built site (scripts/boot-bytes.mjs, which the
+// build runs and writes to build-info.txt: over the budget fails main and is named on a branch); this file holds what a node test can measure without a build: the baked geometry, byte for byte, and the accounting itself.
+const wire = (f: string): number => statSync(resolve(root, f)).size;
+const gz = (f: string): number => gzipSync(readFileSync(resolve(root, f))).length;
+const baked = ['public/anatomy/organs-baked.bin', 'public/anatomy/skins.bin'].every((f) => existsSync(resolve(root, f)));
+
+test('the baked geometry the first picture waits for stays within its wire-byte budget (organs, skins, organ art: the files go as they are, gzipped at build time)', { skip: !baked && 'the baked files are made by the bakes (npm test bakes them first)' }, () => {
+  const kb = (wire('public/anatomy/organs-baked.bin') + wire('public/anatomy/skins.bin') + gz('public/anatomy/organ-art.json')) / 1024;
+  const { geometryKb } = readBudget();
+  assert.ok(kb <= geometryKb, `the baked geometry is ${kb.toFixed(0)} kB on the wire (budget ${geometryKb} kB): thin or pack what grew (src/scene/bake-pack.ts), or lower the budget when it shrinks`);
+  assert.ok(kb > 500, 'the files are the baked ones, not stubs');
+});
+
+test('the Lobule\'s weld plan is not downloaded before the app is usable', () => {
+  // (the page reads it in the quiet ladder after the cover, or when the Lobule is first asked for: lobule/weld-want.ts, boot/warm.ts)
+  assert.ok(!files.some((f) => /\.bin$/.test(f) && /welds/.test(f)), 'no weld file is imported by the boot entry');
+  const index = readFileSync(resolve(root, 'index.html'), 'utf8'), hash = readFileSync(resolve(root, 'scripts/hash-data.mjs'), 'utf8');
+  assert.doesNotMatch(index, /welds/, 'the page does not preload it');
+  assert.match(hash, /BOOT_PRELOAD = \['anatomy\/organs-baked\.bin', 'anatomy\/skins\.bin', 'anatomy\/organ-art\.json'\]/, 'the preload list is the figure\'s own files');
+  const lobule = readFileSync(resolve(root, 'src/scene/micro3d/lobule3d.ts'), 'utf8');
+  assert.doesNotMatch(lobule, /clock\.after\(\(\) => this\.askWelds\(\)/, 'the Lobule does not ask for it on a timer after the boot');
+});
+
+test('the boot-byte accounting: the install list on the wire by kind, text gzipped, data as it is, late files left out, a total over the budget refused', () => {
+  const dir = mkdtempSync(resolve(tmpdir(), 'bootbytes-'));
+  const put = (f: string, b: Buffer | string) => { const p = resolve(dir, f); mkdirSync(resolve(p, '..'), { recursive: true }); writeFileSync(p, b); };
+  const js = 'const a = "' + 'x'.repeat(40_000) + '";';
+  put('index.html', '<link rel="stylesheet" href="./assets/a.css"><script type="module" src="./assets/index-Zz.js"></script><link rel="preload" as="fetch" href="./assets/organs-baked-Aa11Bb22.bin">');
+  put('assets/index-Zz.js', js + 'fetch(`assets/skins-Cc33Dd44.bin`);');
+  put('assets/a.css', 'a{color:red}');
+  put('assets/organs-baked-Aa11Bb22.bin', Buffer.alloc(100_000, 7)); put('assets/skins-Cc33Dd44.bin', Buffer.alloc(50_000, 9));
+  put('lobule/welds.bin', Buffer.alloc(200_000, 1));   // (late: never counted)
+  put('assets/organs-Ee55Ff66.bin', Buffer.alloc(80_000, 3));   // (the fallback: never counted)
+  const files = ['index.html', 'assets/index-Zz.js', 'assets/a.css', 'assets/organs-baked-Aa11Bb22.bin', 'assets/skins-Cc33Dd44.bin', 'lobule/welds.bin', 'assets/organs-Ee55Ff66.bin'];
+  const r = bootBytes(files, (f: string) => readFileSync(resolve(dir, f)));
+  assert.deepEqual(Object.keys(r.kinds).sort(), ['css', 'geometry (baked)', 'javascript', 'json and html']);
+  assert.equal(r.kinds['geometry (baked)']!.bytes, 150_000, 'the baked files go as they are');
+  assert.ok(r.kinds.javascript!.bytes < 1000, 'text goes gzipped');
+  assert.ok(!r.files.some((f: { file: string }) => /welds|organs-Ee/.test(f.file)), 'the weld plan and the fallback organs are not before usable');
+  assert.equal(r.total, r.files.reduce((n: number, f: { bytes: number }) => n + f.bytes, 0));
+  assert.match(report(r, { targetKb: 4000, budgetKb: 5000 }), /before usable: 5 files, \d+ kB on the wire \(budget 5,000 kB, target 4,000 kB\)/);
+  assert.ok(within(r, { targetKb: 1, budgetKb: 200 }) && !within(r, { targetKb: 1, budgetKb: 100 }), 'a total over the budget is refused');
+  assert.equal(kindOf('assets/organ-art-Aa11Bb22.json'), 'geometry (organ art)');
+});
+
+test('the budget file: the target is the review\'s 4,000 kB, the budget is at or above it and only comes down to it', () => {
+  const b = readBudget();
+  assert.equal(b.targetKb, 4000);
+  assert.ok(b.budgetKb >= b.targetKb && b.geometryKb <= b.budgetKb, JSON.stringify(b));
 });
 
 test('the libraries are chunks of their own, so the boot entry is the app and their files keep their names across deploys', async () => {

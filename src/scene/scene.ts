@@ -1,4 +1,5 @@
-import { waitCue } from '../ui/shell/wait-cue.ts';
+import { waitCue, type Cue } from '../ui/shell/wait-cue.ts';
+import { setWeldWanter } from './lobule/weld-want.ts';
 import { edgeOnLine, maskOf } from './devices/probes/organ-edge.ts';
 import { span } from '../boot/spans.ts';
 import { stamp } from '../boot/timeline.ts';
@@ -262,6 +263,10 @@ export class CelScene {
     const sinus = this.makeSinus();
     const lobule = span('build:lobule3d', () => new Lobule3D(this.lobule, this.shared, true));   // (it mounts itself under the Lobule's root: lobule/one-fade.ts)
     this.micro = { sinus, lobule };
+    // (the weld plan is read in when the quiet ladder gets to it or a dive asks, not at boot: a dive waits for it behind the cue, which says how far it has come, and the preparation goes on when it is in)
+    lobule.onWeldProgress = (k) => { if (lobule.weldsWait) this.holdCue?.progress?.(k); };
+    lobule.onWeldsSettled = () => { this.holdCue?.progress?.(null); this.resumeMicro(); };
+    if (this.weldsWanted) lobule.wantWelds();
     if (this.microDpr) lobule.setDpr(this.microDpr);
     this.moving = true;
     this.onMicroBuilt?.();
@@ -283,6 +288,7 @@ export class CelScene {
    *  `microReady`. Once. */
   buildMicroIdle(urgent = false): void {
     if (this.microPrimedNow || this.disposed) return;
+    if (urgent) this.wantWelds();   // (a person is about to look: the weld plan is wanted now, whatever the quiet ladder was going to do)
     // (a job that ended without priming (a step threw: the slot marks it done) is made again, so one bad slice can never leave every later dive waiting on a job that will not run)
     if (this.microJob?.done) this.microJob = null;
     // (many small steps per slice up to SLICE_MS, one slot with the rest of the page's background work: clock/idle.ts)
@@ -291,6 +297,13 @@ export class CelScene {
     //  Before, only a job that already existed was rushed: a dive that was the first caller made an unrushed one, which waited behind the screen's own holds: the black first dive, 22 Nov)
     if (urgent) this.microJob.rush();
   }
+  /** The weld plan is wanted: by a dive straight away, by the quiet ladder when the page is usable (boot/warm.ts). Asks the Lobule once it is built (a later build asks as it is made). */
+  private weldsWanted = false;
+  wantWelds(): void { this.weldsWanted = true; this.micro?.lobule.wantWelds(); }
+  /** The quiet ladder's call (boot/warm.ts rung `welds`) comes here while this scene is the page's. */
+  takeWeldCalls(): void { setWeldWanter(() => this.wantWelds()); }
+  /** The weld plan came (or is known to be missing): the micro views' preparation goes on, rushed when a dive waits for it. */
+  private resumeMicro(): void { if (!this.disposed && !this.microPrimedNow) this.buildMicroIdle(this.heldDive !== null); }
   /** What the micro slot's step in hand is (the slot keeps the slowest step's name in its stat: the audit's boot digest says which step was long, clock/idle.ts QuietOpts.label). */
   private microWhat = '';
   /** One small step of the micro views' preparation; true when everything is built and primed. */
@@ -299,6 +312,11 @@ export class CelScene {
       if (this.disposed) return true;
       if (!this.micro) { this.microWhat = this.microSinus ? 'lobule constructor' : 'sinusoid constructor'; if (!this.microSinus) this.makeSinus(); else this.buildMicro(); }   // (one constructor a step)
       else if (!this.micro.sinus.shapeReady) { this.microWhat = 'sinusoid shapes'; this.micro.sinus.prepareShapeStep(); }
+      else if (this.micro.lobule.weldsWait) {
+        // (the vessels are built once, welded, so they wait for the plan: ask for it if a person is waiting, and stand down; the job is made again when the plan is in, `resumeMicro`. No slice spins on a download.)
+        this.microWhat = 'weld plan'; if (this.weldsWanted) this.micro.lobule.wantWelds();
+        this.microJob = null; return true;
+      }
       else if ((this.microWhat = 'lobule vessels', this.micro.lobule.prepareVessels())) { /* (the lobule's vessel meshes, a slice of their own) */ }
       else if (!this.microPrimed) {   // (what the lobule's first shown frame would build: built now, hidden; the tiles in steps of their own, then the rest of the frame)
         this.microWhat = 'lobule tiles';
@@ -980,10 +998,10 @@ export class CelScene {
   private heldDive: { shot: ShotName | Shot; room: Room; ms?: number; ease?: (k: number) => number } | null = null;
   get diveHeld(): boolean { return this.heldDive !== null; }
   /** A dive waits (or stops waiting). A wait that passes 300 ms shows the one calm cue (ui/shell/wait-cue.ts, splash plan A7), so the held dive is never a silent blank; a short one shows nothing. */
-  private holdCue: (() => void) | null = null;
+  private holdCue: Cue | null = null;
   private hold(h: { shot: ShotName | Shot; room: Room; ms?: number; ease?: (k: number) => number } | null): void {
     this.heldDive = h;
-    if (h) this.holdCue ??= waitCue(this.figureView === 'sinusoid' ? 'the sinusoid' : 'the lobule');
+    if (h) { this.holdCue ??= waitCue(this.figureView === 'sinusoid' ? 'the sinusoid' : 'the lobule'); if (this.micro?.lobule.weldsWait) this.holdCue.progress?.(this.micro.lobule.weldsProgress); }
     else { this.holdCue?.(); this.holdCue = null; }
   }
   /** The cards changed room while a dive waits: it will land in the new one. */

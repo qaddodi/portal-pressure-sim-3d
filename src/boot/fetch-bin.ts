@@ -20,6 +20,8 @@ export interface FetchBinOptions {
   quietMs?: number;
   /** Tries after the first one (default 1). */
   retries?: number;
+  /** Told how much of the file has come, 0 to 1 of its size on the wire (only when the host says the size), each time more of it arrives: the Lobule's weld file, behind the "Preparing the lobule" note. */
+  onProgress?: (share: number) => void;
 }
 
 /** Aborts `ctl` once `quietMs` of poll steps go by with no `seen()`. */
@@ -39,7 +41,7 @@ function quietWatch(ctl: AbortController, quietMs: number, what: string): { seen
 const retryable = (status: number): boolean => status >= 500 || status === 408 || status === 429;
 
 /** One try: the whole file, or null when it is not there (a 4xx), or an error (the network, a 5xx, a stall). */
-async function attempt(url: string, gunzip: boolean, quietMs: number): Promise<ArrayBuffer | null> {
+async function attempt(url: string, gunzip: boolean, quietMs: number, onProgress?: (share: number) => void): Promise<ArrayBuffer | null> {
   const ctl = new AbortController();
   const watch = quietWatch(ctl, quietMs, url);
   try {
@@ -47,7 +49,11 @@ async function attempt(url: string, gunzip: boolean, quietMs: number): Promise<A
     if (!r.ok) { if (retryable(r.status)) throw new Error(`${url} ${r.status}`); return null; }
     watch.seen();   // (the headers are bytes too: the body's first chunk gets the same quiet time)
     if (!r.body) return await r.arrayBuffer();   // (an old browser with no streaming body: no progress to watch, the whole file or an error)
-    const reader = (gunzip ? r.body.pipeThrough(new DecompressionStream('gzip')) : r.body).getReader();
+    // (progress counts the bytes on the wire, before the unzip: what a link carries, against the size the host gave)
+    const size = Number(r.headers.get('content-length')) || 0;
+    let got = 0;
+    const wire = onProgress && size > 0 ? r.body.pipeThrough(new TransformStream<Uint8Array<ArrayBuffer>, Uint8Array<ArrayBuffer>>({ transform(chunk, out) { out.enqueue(chunk); got += chunk.byteLength; onProgress(Math.min(1, got / size)); } })) : r.body;
+    const reader = (gunzip ? wire.pipeThrough(new DecompressionStream('gzip')) : wire).getReader();
     const chunks: Uint8Array[] = []; let n = 0;
     for (;;) {
       const { done, value } = await reader.read();
@@ -65,11 +71,11 @@ async function attempt(url: string, gunzip: boolean, quietMs: number): Promise<A
 
 /** The file's bytes (gunzipped when asked), or null when the file is not there (a 4xx: the caller's fallback), or throws what the last try failed with, after the one more try. */
 export async function fetchBin(url: string, o: FetchBinOptions = {}): Promise<ArrayBuffer | null> {
-  const { gunzip = false, label = url, quietMs = BIN_QUIET_MS, retries = 1 } = o;
+  const { gunzip = false, label = url, quietMs = BIN_QUIET_MS, retries = 1, onProgress } = o;
   let last: unknown;
   for (let i = 0; i <= retries; i++) {
     if (i > 0) await new Promise<void>((done) => { clock.afterReal(done, BIN_RETRY_PAUSE_MS, 'fetch-retry'); });
-    try { return await spanAsync(`fetch:${label}`, () => attempt(url, gunzip, quietMs)); } catch (e) {
+    try { return await spanAsync(`fetch:${label}`, () => attempt(url, gunzip, quietMs, onProgress)); } catch (e) {
       last = e;
       console.warn(`[boot] ${label}: try ${i + 1} of ${retries + 1} failed:`, e instanceof Error ? e.message : e);
     }

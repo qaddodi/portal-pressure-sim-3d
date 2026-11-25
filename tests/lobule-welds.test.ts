@@ -244,5 +244,6 @@ test('the build bakes the plan before the bundler, and the page asks for that fi
   const build = readFileSync(new URL('../scripts/build.mjs', import.meta.url), 'utf8');
   assert.ok(build.indexOf('bake-welds.mjs') > 0 && build.indexOf('bake-welds.mjs') < build.indexOf('vite.js'));
   const client = readFileSync(new URL('../src/scene/lobule/weld-client.ts', import.meta.url), 'utf8');
-  assert.ok(client.indexOf('await baked(req)') > 0 && client.indexOf('await baked(req)') < client.indexOf('new Worker('));
+  const ask = client.slice(client.indexOf('export async function requestWelds'));
+  assert.ok(ask.indexOf('await baked(req)') > 0 && ask.indexOf('await baked(req)') < ask.indexOf('planWeldsInWorker('), 'requestWelds reads the baked file first and makes a worker plan only after');
 });

@@ -1,10 +1,9 @@
-// The weld plan as one binary file (baked at build time, scripts/bake-welds.mjs; the phone fetches it and plans nothing). Layout: "LWB1", u32 header length, the header as JSON (the plan with every
-// typed array replaced by {$t, o, n} and every Map by {$m: [[key, value]...]}), padding to 4 bytes, then the arrays' bytes one after another (each 4-byte aligned).
+// The weld plan as one binary file (baked at build time, scripts/bake-welds.mjs; the phone fetches it and plans nothing). Layout: "LWB2", u32 header length, the header as JSON (the plan with every
+// typed array replaced by its reference {$t, o, n, m} and every Map by {$m: [[key, value]...]}), padding to 4 bytes, then the arrays' bytes (written through a reversible transform each, bake-pack.ts: read back bit for bit).
 import type { WeldPlan } from './welds.ts';
+import { PackWriter, isRef, unpackRef } from '../bake-pack.ts';
 
-const MAGIC = 0x3142574c;   // "LWB1"
-type TA = Float32Array | Uint32Array | Int32Array;
-const KINDS = { Float32Array, Uint32Array, Int32Array } as const;
+const MAGIC = 0x3242574c;   // "LWB2"
 
 /** A cheap digest of what the plan was made from (the courses and the discs to avoid, to 1e-5), so a baked file made for other numbers is never laid in. */
 export function weldDigest(req: unknown): string {
@@ -22,21 +21,19 @@ export function weldDigest(req: unknown): string {
   return `${h1.toString(16)}-${h2.toString(16)}-${n}`;
 }
 
-export function encodePlan(plan: WeldPlan, digest: string): Uint8Array {
-  const blobs: TA[] = []; let bytes = 0;
+export function encodePlan(plan: WeldPlan, digest: string, gz?: (b: Uint8Array) => number): Uint8Array {
+  const w = new PackWriter(gz);
   const pack = (v: unknown): unknown => {
     if (v instanceof Map) return { $m: [...v].map(([k, x]) => [k, pack(x)]) };
-    if (v instanceof Float32Array || v instanceof Uint32Array || v instanceof Int32Array) { const o = bytes; blobs.push(v); bytes += v.byteLength; return { $t: v.constructor.name, o, n: v.length }; }
+    if (v instanceof Float32Array || v instanceof Uint32Array || v instanceof Int32Array) return w.add(v);
     if (Array.isArray(v)) return v.map(pack);
     if (v && typeof v === 'object') { const out: Record<string, unknown> = {}; for (const k of Object.keys(v)) out[k] = pack((v as Record<string, unknown>)[k]); return out; }
     return v;
   };
   const head = new TextEncoder().encode(JSON.stringify({ digest, plan: pack(plan) }));
-  const headPad = (4 - ((8 + head.length) % 4)) % 4, start = 8 + head.length + headPad;
-  const out = new Uint8Array(start + bytes), dv = new DataView(out.buffer);
-  dv.setUint32(0, MAGIC, true); dv.setUint32(4, head.length, true); out.set(head, 8);
-  let at = start;
-  for (const b of blobs) { out.set(new Uint8Array(b.buffer, b.byteOffset, b.byteLength), at); at += b.byteLength; }
+  const data = w.finish(), start = 8 + head.length + ((4 - ((8 + head.length) % 4)) % 4);
+  const out = new Uint8Array(start + data.length), dv = new DataView(out.buffer);
+  dv.setUint32(0, MAGIC, true); dv.setUint32(4, head.length, true); out.set(head, 8); out.set(data, start);
   return out;
 }
 
@@ -51,13 +48,13 @@ export function decodePlan(buf: ArrayBuffer, digest: string): WeldPlan | null {
   if (head.digest !== digest) return null;
   const unpack = (v: unknown): unknown => {
     if (Array.isArray(v)) return v.map(unpack);
+    if (isRef(v)) return unpackRef(buf, start, v);
     if (v && typeof v === 'object') {
       const o = v as Record<string, unknown>;
-      if (typeof o.$t === 'string') { const K = KINDS[o.$t as keyof typeof KINDS]; return new K(buf.slice(start + (o.o as number), start + (o.o as number) + (o.n as number) * 4)); }
       if (Array.isArray(o.$m)) return new Map((o.$m as [string, unknown][]).map(([k, x]) => [k, unpack(x)]));
       const out: Record<string, unknown> = {}; for (const k of Object.keys(o)) out[k] = unpack(o[k]); return out;
     }
     return v;
   };
-  return unpack(head.plan) as WeldPlan;
+  try { return unpack(head.plan) as WeldPlan; } catch { return null; }
 }

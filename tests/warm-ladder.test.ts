@@ -45,6 +45,7 @@ test('every instrument module and the talk\'s charts are on the ladder, in the l
   const ids = RUNGS.map((r) => r.id);
   assert.deepEqual(ids.slice(0, 9), ['module:doppler', 'module:endoscopy', 'module:hvpg', 'module:fibroscan', 'module:profile', 'module:trials', 'module:stent', 'module:talk-ui', 'module:talk']);
   assert.ok(ids.indexOf('programs:charts') > ids.indexOf('module:talk'));
+  assert.ok(ids.indexOf('welds') > ids.indexOf('module:talk') && ids.indexOf('welds') < ids.indexOf('programs:charts'), 'the Lobule\'s weld plan is read in after the modules, before the programs');
   for (const s of PROGRAM_SETS) assert.ok(ids.includes(`programs:${s.name}`));
   assert.equal(new Set(ids).size, ids.length);
   assert.match(readFileSync('src/boot/warm.ts', 'utf8'), /loadToolCard\(\)/);

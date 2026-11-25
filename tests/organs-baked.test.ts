@@ -75,3 +75,15 @@ test('the layer takes the baked organs when the page has them, and builds the sa
   assert.deepEqual([...bakedLayer.byId.keys()], [...liveLayer.byId.keys()]);
   assert.ok(bakedLayer.byId.size >= 9);
 });
+
+test('the raw stomach the scope fits to is the finished stomach\'s own arrays, stored once (25 Nov): the file has no second copy, and what the raw organ makes is what the file always held', () => {
+  const head = JSON.parse(new TextDecoder().decode(new Uint8Array(bytes.buffer, bytes.byteOffset + 8, new DataView(bytes.buffer, bytes.byteOffset).getUint32(4, true))));
+  assert.deepEqual(head.raw.map((r: { id: string; of?: string }) => [r.id, r.of]), [['stomach', 'stomach']], 'the raw stomach points at the finished one');
+  assert.ok(!head.raw[0].a, 'and holds no arrays of its own');
+  const raw = back.raw.stomach!(), fin = back.organs.find(([id]) => id === 'stomach')![1], src = ORGAN_MESHES.stomach!();
+  assert.deepEqual(Array.from(raw.index!.array), Array.from(src.index!.array), 'the raw triangles are the organ file\'s');
+  const pa = arr(raw, 'position'), pb = arr(src, 'position');
+  let worst = 0; for (let i = 0; i < pa.length; i++) worst = Math.max(worst, Math.abs(pa[i]! - pb[i]!));
+  assert.ok(worst <= 0.5 / BAKED_Q + 1e-6, `the raw positions are the file's to its grid (${worst})`);
+  assert.deepEqual(Array.from(arr(raw, 'position')), Array.from(arr(fin, 'position')), 'and are the finished stomach\'s positions exactly');
+});

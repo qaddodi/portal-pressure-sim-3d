@@ -58,4 +58,9 @@ if (hd.status !== 0) process.exit(hd.status ?? 1);
 writeFileSync(`${root}dist/build-info.txt`, `version ${release}\nbranch ${branch}\ncommit ${commit}\nbuilt ${new Date().toISOString()}\nchecks ${[checks, ...(failed.includes('css prune') ? ['css prune failed'] : [])].filter(Boolean).join(', ') || 'ok'}\n${testsLine ? `${testsLine}\n` : ''}`);
 const pw = spawnSync(process.execPath, [fileURLToPath(new URL('./pwa.mjs', import.meta.url)), `${root}dist`, `${commit}`], { cwd: root, stdio: 'inherit' });
 if (pw.status !== 0) process.exit(pw.status ?? 1);
+// What a first visit downloads before the app is usable (scripts/boot-bytes.mjs, the budget in scripts/boot-budget.json): printed, written to build-info.txt, and a build over the budget fails on main and says so on a branch.
+const bb = spawnSync(process.execPath, [fileURLToPath(new URL('./boot-bytes.mjs', import.meta.url)), `${root}dist`, '--check'], { cwd: root, encoding: 'utf8' });
+process.stdout.write(bb.stdout ?? ''); process.stderr.write(bb.stderr ?? '');
+writeFileSync(`${root}dist/build-info.txt`, `${readFileSync(`${root}dist/build-info.txt`, 'utf8')}boot ${((bb.stdout ?? '').match(/before usable: \d+ files, ([\d,]+) kB/) ?? [])[1] ?? '?'} kB before usable${bb.status === 1 ? ', OVER BUDGET' : ''}\n`);
+if (onMain && bb.status === 1) { console.error('main does not ship over its boot-byte budget'); process.exit(1); }
 console.log(`built v${release} ${branch}@${commit} → dist/`);

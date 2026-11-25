@@ -3,18 +3,20 @@
 // resolution of the source file), the triangles, the baked depth (bytes), the outline's steps from the rim (0..3, bytes), the two smoothed normals (snorm16) and the duodenum's tail fade; the surface normal is
 // recomputed from the positions on load (a few ms). The digest it carries is of everything it was made from (the organs file, the caudate outline's code, the pipeline's source): a page built from other inputs
 // never lays it in and runs prepare.ts live, as before (a dev server, a build whose bake failed).
-// Layout: "ORB1", u32 header length, the header as JSON, padding to 4 bytes, then each organ's arrays one after another, each padded to 4.
+// Layout: "ORB2", u32 header length, the header as JSON (each array a reference: where, how many, and the reversible transform it was written under, bake-pack.ts), then the arrays' bytes. The arrays come back bit for bit; the
+// stomach as the organs file has it (RAW_IDS) is the finished stomach's own positions and triangles (the placed organs keep their vertices where the file has them), so the file holds it once.
 import { splitIndex } from './subdivide.ts';
+import { PackWriter, unpackRef, type PackArray, type PackRef } from '../bake-pack.ts';
 import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Uint16BufferAttribute, Uint32BufferAttribute } from 'three';
 
-const MAGIC = 0x31425f4f;   // "O_B1" little-endian: bytes 'O','_','B','1'
+const MAGIC = 0x32425f4f;   // "O_B2" little-endian: bytes 'O','_','B','2'
 /** Position resolution: the organs file's own (organs-manifest.json q). */
 export const BAKED_Q = 8000;
 const SNORM = 32767;
 /** The organs kept as the organs file has them, besides the finished ones: the scope fits its esophagus to the raw stomach (devices/probes/scope.ts), and with the file laid in the page never fetches organs.bin. */
 export const RAW_IDS: readonly string[] = ['stomach'];
 
-interface Head { digest: string; organs: { id: string; verts: number; indices: number; wide: boolean; eso: boolean; /** a subdivided organ keeps only its parent triangles (this many indices); the children are made on load */ sub?: number; /** the rim strip's profile (rim-profile.ts), when the organ has one */ prof?: number[]; /** further per-vertex floats it carries (EXTRA_ATTRS: the placed stomach's cut, the duodenum's share of the stomach's look) */ extra?: string[]; /** its surface normal is kept in the file, not made again from the triangles: a gut tube's round one, or one the file's grid cannot give back (the placed stomach's twice-split esophagus has triangles a few grid steps wide) */ nrm?: true; /** a gut tube (prepare.ts userData.tube) */ tube?: true }[]; raw: { id: string; verts: number; indices: number }[] }
+interface Head { digest: string; organs: { id: string; /** the organ's arrays by name (q, ix, depthAo, ringD, rimD, rimC, shadeN, hullN, esoA, nrm, and each EXTRA_ATTRS name) */ a: Record<string, PackRef>; verts: number; indices: number; wide: boolean; eso: boolean; /** a subdivided organ keeps only its parent triangles (this many indices); the children are made on load */ sub?: number; /** the rim strip's profile (rim-profile.ts), when the organ has one */ prof?: number[]; /** further per-vertex floats it carries (EXTRA_ATTRS: the placed stomach's cut, the duodenum's share of the stomach's look) */ extra?: string[]; /** its surface normal is kept in the file, not made again from the triangles: a gut tube's round one, or one the file's grid cannot give back (the placed stomach's twice-split esophagus has triangles a few grid steps wide) */ nrm?: true; /** a gut tube (prepare.ts userData.tube) */ tube?: true }[]; raw: { id: string; verts: number; indices: number; /** the finished organ whose positions and triangles these are (no arrays of its own) */ of?: string; a?: { q: PackRef; ix: PackRef } }[] }
 const pad4 = (n: number) => (n + 3) & ~3;
 /** The per-vertex floats an organ may carry besides the ones every organ has (the approved placement's: organs/placed.ts stomachCut `cutA`, organs/gut-tubes.ts `tos`), kept exactly. */
 export const EXTRA_ATTRS: readonly string[] = ['cutA', 'tos'];
@@ -38,44 +40,45 @@ function octDecode(s: Int16Array, out: Float32Array): void {
   }
 }
 
-/** The finished geometries as a file's bytes (what `prepareOrgans` returned, in its order). */
-export function encodeOrgans(made: readonly (readonly [string, BufferGeometry])[], digest: string, raw: readonly (readonly [string, BufferGeometry])[] = []): Uint8Array {
-  const parts: Uint8Array[] = [];
+/** The finished geometries as a file's bytes (what `prepareOrgans` returned, in its order). `gz`: the size gzip gives some bytes (bake-pack.ts PackWriter; node's by default). */
+export function encodeOrgans(made: readonly (readonly [string, BufferGeometry])[], digest: string, raw: readonly (readonly [string, BufferGeometry])[] = [], gz?: (b: Uint8Array) => number): Uint8Array {
+  const w = new PackWriter(gz);
   const head: Head = { digest, organs: [], raw: [] };
-  const put = (view: ArrayBufferView) => { const b = new Uint8Array(view.buffer, view.byteOffset, view.byteLength); const p = new Uint8Array(pad4(b.length)); p.set(b); parts.push(p); };
+  const kept = new Map<string, { q: Int16Array; ix: Uint16Array }>();   // (what the raw organs may point at)
   for (const [id, g] of made) {
     const pos = g.getAttribute('position').array, n = pos.length / 3, idx = g.index!.array;
     let top = 0; for (let i = 0; i < idx.length; i++) if (idx[i]! > top) top = idx[i]!;
     const wide = top > 65535;
     const q = new Int16Array(n * 3);
     for (let i = 0; i < q.length; i++) q[i] = Math.round(pos[i]! * BAKED_Q);
-    put(q);
+    const a: Record<string, PackRef> = { q: w.add(q) };
     const parent = g.userData.subParent as Uint32Array | undefined;   // (subdivide.ts: the file keeps the parent triangles and the page splits them again: a third of the bytes)
-    if (parent && parent.length * 4 === idx.length) put(Uint16Array.from(parent)); else put(wide ? new Uint32Array(idx) : new Uint16Array(idx));
-    put(g.getAttribute('depthAo').array as Uint8Array);
-    put(Uint8Array.from(g.getAttribute('ringD').array, (v) => v));
+    const ix = parent && parent.length * 4 === idx.length ? Uint16Array.from(parent) : wide ? new Uint32Array(idx) : new Uint16Array(idx);
+    a.ix = w.add(ix);
+    if (ix instanceof Uint16Array && !(parent && parent.length * 4 === idx.length)) kept.set(id, { q, ix });
+    a.depthAo = w.add(g.getAttribute('depthAo').array as Uint8Array);
+    a.ringD = w.add(Uint8Array.from(g.getAttribute('ringD').array, (v) => v));
     const prof = g.userData.rimProfile as number[] | undefined;   // (rim-profile.ts: two whole bytes a vertex and the organ's eight-point profile)
-    if (prof) for (const k of ['rimD', 'rimC']) put(Uint8Array.from(g.getAttribute(k).array, (v) => Math.round(v * 255)));
-    for (const k of ['shadeN', 'hullN']) { const s = new Int16Array(n * 2); octEncode(g.getAttribute(k).array, s); put(s); }
+    if (prof) for (const k of ['rimD', 'rimC']) a[k] = w.add(Uint8Array.from(g.getAttribute(k).array, (v) => Math.round(v * 255)));
+    for (const k of ['shadeN', 'hullN']) { const s = new Int16Array(n * 2); octEncode(g.getAttribute(k).array, s); a[k] = w.add(s); }
     const eso = g.getAttribute('esoA');
-    if (eso) put(eso.array as Float32Array);
+    if (eso) a.esoA = w.add(eso.array as Float32Array);
     const extra = EXTRA_ATTRS.filter((k) => g.getAttribute(k));
-    for (const k of extra) put(Float32Array.from(g.getAttribute(k).array));
+    for (const k of extra) a[k] = w.add(Float32Array.from(g.getAttribute(k).array));
     const tube = !!g.userData.tube, nrm = tube || !gridKeepsNormals(q, idx, g.getAttribute('normal').array);
-    if (nrm) { const s = new Int16Array(n * 2); octEncode(g.getAttribute('normal').array, s); put(s); }
-    head.organs.push({ id, verts: n, indices: idx.length, wide, eso: !!eso, ...(parent && parent.length * 4 === idx.length ? { sub: parent.length } : {}), ...(prof ? { prof } : {}), ...(extra.length ? { extra } : {}), ...(nrm ? { nrm: true as const } : {}), ...(tube ? { tube: true as const } : {}) });
+    if (nrm) { const s = new Int16Array(n * 2); octEncode(g.getAttribute('normal').array, s); a.nrm = w.add(s); }
+    head.organs.push({ id, a, verts: n, indices: idx.length, wide, eso: !!eso, ...(parent && parent.length * 4 === idx.length ? { sub: parent.length } : {}), ...(prof ? { prof } : {}), ...(extra.length ? { extra } : {}), ...(nrm ? { nrm: true as const } : {}), ...(tube ? { tube: true as const } : {}) });
   }
   for (const [id, g] of raw) {   // (organs as the file gives them, before prepare: what the scope's esophagus is fitted to; the stomach's mesh in meshes.ts)
     const pos = g.getAttribute('position').array, q = new Int16Array(pos.length);
     for (let i = 0; i < q.length; i++) q[i] = Math.round(pos[i]! * BAKED_Q);
-    put(q); put(new Uint16Array(g.index!.array));
-    head.raw.push({ id, verts: pos.length / 3, indices: g.index!.array.length });
+    const ix = new Uint16Array(g.index!.array), twin = kept.get(id);
+    const alike = !!twin && twin.q.length === q.length && twin.ix.length === ix.length && twin.q.every((v, i) => v === q[i]) && twin.ix.every((v, i) => v === ix[i]);
+    head.raw.push({ id, verts: pos.length / 3, indices: g.index!.array.length, ...(alike ? { of: id } : { a: { q: w.add(q), ix: w.add(ix) } }) });
   }
-  const json = new TextEncoder().encode(JSON.stringify(head)), start = pad4(8 + json.length);
-  const total = parts.reduce((s, p) => s + p.length, start), out = new Uint8Array(total), dv = new DataView(out.buffer);
-  dv.setUint32(0, MAGIC, true); dv.setUint32(4, json.length, true); out.set(json, 8);
-  let at = start;
-  for (const p of parts) { out.set(p, at); at += p.length; }
+  const json = new TextEncoder().encode(JSON.stringify(head)), data = w.finish(), start = pad4(8 + json.length);
+  const out = new Uint8Array(start + data.length), dv = new DataView(out.buffer);
+  dv.setUint32(0, MAGIC, true); dv.setUint32(4, json.length, true); out.set(json, 8); out.set(data, start);
   return out;
 }
 
@@ -98,31 +101,35 @@ export function decodeOrgans(buf: ArrayBuffer): BakedOrgans | null {
   const hl = dv.getUint32(4, true);
   let head: Head;
   try { head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, hl))); } catch { return null; }
-  let at = pad4(8 + hl);
-  const take = <T extends ArrayBufferView>(K: { new (b: ArrayBuffer, o: number, n: number): T; BYTES_PER_ELEMENT: number }, n: number): T => { const v = new K(buf, at, n); at += pad4(n * K.BYTES_PER_ELEMENT); return v; };
+  const start = pad4(8 + hl);
+  const get = <T extends PackArray>(r: PackRef | undefined): T => { if (!r) throw new Error('baked organs: an array is missing'); return unpackRef(buf, start, r) as T; };
   try {
+    const own = new Map<string, { q: Int16Array; ix: Uint16Array }>();
     const organs = head.organs.map((o): [string, BufferGeometry] => {
-      const g = new BufferGeometry(), n = o.verts;
-      const q = take(Int16Array, n * 3), pos = new Float32Array(n * 3);
+      const g = new BufferGeometry(), n = o.verts, A = o.a;
+      const q = get<Int16Array>(A.q), pos = new Float32Array(n * 3);
       for (let i = 0; i < pos.length; i++) pos[i] = q[i]! / BAKED_Q;
       g.setAttribute('position', new Float32BufferAttribute(pos, 3));
-      if (o.sub) { const kids = splitIndex(take(Uint16Array, o.sub)).index; g.setIndex(o.wide ? new Uint32BufferAttribute(kids, 1) : new Uint16BufferAttribute(Uint16Array.from(kids), 1)); }
-      else g.setIndex(o.wide ? new Uint32BufferAttribute(take(Uint32Array, o.indices).slice(), 1) : new Uint16BufferAttribute(take(Uint16Array, o.indices).slice(), 1));
+      if (o.sub) { const kids = splitIndex(get<Uint16Array>(A.ix)).index; g.setIndex(o.wide ? new Uint32BufferAttribute(kids, 1) : new Uint16BufferAttribute(Uint16Array.from(kids), 1)); }
+      else if (o.wide) g.setIndex(new Uint32BufferAttribute(get<Uint32Array>(A.ix), 1));
+      else { const ix = get<Uint16Array>(A.ix); g.setIndex(new Uint16BufferAttribute(ix, 1)); own.set(o.id, { q, ix }); }
       g.computeVertexNormals();
-      g.setAttribute('depthAo', new BufferAttribute(take(Uint8Array, n).slice(), 1, true));
-      g.setAttribute('ringD', new Float32BufferAttribute(Float32Array.from(take(Uint8Array, n)), 1));
-      if (o.prof) { for (const k of ['rimD', 'rimC']) g.setAttribute(k, new Float32BufferAttribute(Float32Array.from(take(Uint8Array, n), (v) => v / 255), 1)); g.userData.rimProfile = o.prof; }
-      for (const k of ['shadeN', 'hullN']) { const f = new Float32Array(n * 3); octDecode(take(Int16Array, n * 2), f); g.setAttribute(k, new Float32BufferAttribute(f, 3)); }
-      if (o.eso) g.setAttribute('esoA', new Float32BufferAttribute(take(Float32Array, n).slice(), 1));
-      for (const k of o.extra ?? []) g.setAttribute(k, new Float32BufferAttribute(take(Float32Array, n).slice(), 1));
-      if (o.nrm) { const f = new Float32Array(n * 3); octDecode(take(Int16Array, n * 2), f); g.setAttribute('normal', new Float32BufferAttribute(f, 3)); }
+      g.setAttribute('depthAo', new BufferAttribute(get<Uint8Array>(A.depthAo), 1, true));
+      g.setAttribute('ringD', new Float32BufferAttribute(Float32Array.from(get<Uint8Array>(A.ringD)), 1));
+      if (o.prof) { for (const k of ['rimD', 'rimC']) g.setAttribute(k, new Float32BufferAttribute(Float32Array.from(get<Uint8Array>(A[k]), (v) => v / 255), 1)); g.userData.rimProfile = o.prof; }
+      for (const k of ['shadeN', 'hullN']) { const f = new Float32Array(n * 3); octDecode(get<Int16Array>(A[k]), f); g.setAttribute(k, new Float32BufferAttribute(f, 3)); }
+      if (o.eso) g.setAttribute('esoA', new Float32BufferAttribute(get<Float32Array>(A.esoA), 1));
+      for (const k of o.extra ?? []) g.setAttribute(k, new Float32BufferAttribute(get<Float32Array>(A[k]), 1));
+      if (o.nrm) { const f = new Float32Array(n * 3); octDecode(get<Int16Array>(A.nrm), f); g.setAttribute('normal', new Float32BufferAttribute(f, 3)); }
       if (o.tube) g.userData.tube = true;
       g.computeBoundingBox(); g.boundingSphere = null;
       return [o.id, g];
     });
     const raw: BakedOrgans['raw'] = {};
     for (const r of head.raw) {
-      const q = take(Int16Array, r.verts * 3), ix = take(Uint16Array, r.indices);
+      const twin = r.of ? own.get(r.of) : undefined;
+      if (r.of && !twin) return null;
+      const q = twin ? twin.q : get<Int16Array>(r.a?.q), ix = twin ? twin.ix : get<Uint16Array>(r.a?.ix);
       raw[r.id] = () => { const g = new BufferGeometry(), pos = new Float32Array(q.length); for (let i = 0; i < pos.length; i++) pos[i] = q[i]! / BAKED_Q; g.setAttribute('position', new Float32BufferAttribute(pos, 3)); g.setIndex(new Uint16BufferAttribute(ix.slice(), 1)); g.computeVertexNormals(); return g; };
     }
     return { digest: head.digest, organs, raw };

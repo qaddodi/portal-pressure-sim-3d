@@ -45,10 +45,15 @@ function needsOf(file, text, files) {
 }
 
 /** Files the first picture does not need, kept out of the install list whatever names them (a boot script's string or `new URL` names them, but the page asks for them only later, or never on most devices):
- *  the Lobule's baked weld plan and the worker that plans it when there is none (asked ~3 s after the first picture, src/scene/micro3d/lobule3d.ts WELDS_ASK_MS), and the fonts' other alphabets
+ *  the Lobule's baked weld plan and the worker that plans it when there is none (read in by the quiet ladder once the cover is up, boot/warm.ts rung `welds`, or by the first dive into the Lobule), and the fonts' other alphabets
  *  (the browser fetches one only when a character in its range is drawn). They are filled when the page is quiet, and a page that asks first is served from the network and keeps the copy. */
 export const LATE = [/^lobule\//, /^assets\/circuit-skins-[\w-]{8}\.bin$/, /^assets\/organs-[\w-]{8}\.bin$/, /^assets\/weld-worker-[^/]*\.js$/, /^fonts\/.*-(?:latin-ext|greek|greek-ext|cyrillic|cyrillic-ext|vietnamese)\.woff2$/];
 export const isLate = (f) => LATE.some((re) => re.test(f));
+
+/** Files the build ships but the worker never fetches ahead: the organs file as the 2D app had it (1.4 MB), which the page reads only when the baked organs cannot be used (a browser that cannot unzip, a bake that failed): every
+ *  finished organ and the raw stomach are in organs-baked.bin, so on a page that works it is a second copy of what the install already holds. A page that does ask for it is served from the network and the worker keeps its copy. */
+export const FALLBACK = [/^assets\/organs-[\w-]{8}\.bin$/];
+export const isFallback = (f) => FALLBACK.some((re) => re.test(f));
 
 /** What `list` costs on the wire, in bytes: text is sent gzipped by the host (Pages), the .bin data is already compressed or int16 and goes as it is. `read(file)` gives a file's bytes. */
 export function wireBytes(list, read) {
@@ -71,7 +76,7 @@ export function orderFiles(files, read, page = 'index.html') {
     if (isText(f)) for (const n of needsOf(f, read(f), all)) visit(n);
   };
   if (all.has(page)) visit(page);
-  return { boot, later: files.filter((f) => !seen.has(f)) };
+  return { boot, later: files.filter((f) => !seen.has(f) && !isFallback(f)) };
 }
 
 /** The worker's text. `boot` and `later` are orderFiles' two lists (left out: every file is a boot file).

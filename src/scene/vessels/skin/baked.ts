@@ -2,10 +2,11 @@
 // (the cava's IVCS alone 2 s), a stall before the first picture. The page fetches this one file as soon as the scene module loads (`bakedReady`; the Circuit's twin is fetched later, see `requestCircuitSkins`), the boot waits for it with the fonts and the engine, the scene builds its skins from it
 // and not from the planner, and the figure's first frame has them. The file carries the digest of what it was made from (the junctions and every arm tube's vertices, to 1e-4): a file for other numbers, or a page whose figure is not at rest
 // when it loads, never lays it in, and the set plans and meshes live as before (a dev server, a build whose bake failed, a disease state loaded first).
-// Layout, as the Lobule's (lobule/weld-codec.ts): "SKB1", u32 header length, the header as JSON (every typed array replaced by {$t, o, n}), padding to 4 bytes, then the arrays' bytes one after another.
+// Layout, as the Lobule's (lobule/weld-codec.ts): "SKB2", u32 header length, the header as JSON (every typed array replaced by its reference {$t, o, n, m}), padding to 4 bytes, then the arrays' bytes, each through a reversible transform (bake-pack.ts: read back bit for bit).
 import { fetchBin } from '../../../boot/fetch-bin.ts';
 import { spanAsync } from '../../../boot/spans.ts';
 import { weldDigest } from '../../lobule/weld-codec.ts';
+import { PackWriter, isRef, unpackRef } from '../../bake-pack.ts';
 import type { ArmTube, SkinPlan } from './cuts.ts';
 import type { ArmAxis } from './skin-object.ts';
 import type { SkinJunction, SkinMesh } from './types.ts';
@@ -19,9 +20,7 @@ export interface PlainBake { axes: ArmAxis[]; mesh: SkinMesh; pace: number }
 /** What `SkinSet.build` makes of the junctions it is given: the skins, the nodes that could not be built (named, with why) and the growing arms it dropped to build the rest. */
 export interface BakedSkins { digest: string; skins: BakedSkin[]; lost: { node: string; message: string }[]; dropped: string[] }
 
-const MAGIC = 0x31424b53;   // "SKB1"
-type TA = Float32Array | Uint32Array | Int32Array;
-const KINDS = { Float32Array, Uint32Array, Int32Array } as const;
+const MAGIC = 0x32424b53;   // "SKB2"
 
 /** What the skins are made from: the junctions (arms, centres, widths) and every arm tube's vertices to 1e-4 (the browser's sin and cos may differ from node's in the last bits, a phone must still know the file for its own). */
 export function skinsDigest(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>): string {
@@ -49,10 +48,10 @@ export function skinsDigest(js: readonly SkinJunction[], tubes: ReadonlyMap<stri
   return `${ANATOMY_ID}/${weldDigest(js)}/${h1.toString(16)}-${h2.toString(16)}-${n}`;
 }
 
-export function encodeSkins(b: BakedSkins): Uint8Array {
-  const blobs: TA[] = []; let bytes = 0;
+export function encodeSkins(b: BakedSkins, gz?: (b: Uint8Array) => number): Uint8Array {
+  const w = new PackWriter(gz);
   const pack = (v: unknown): unknown => {
-    if (v instanceof Float32Array || v instanceof Uint32Array || v instanceof Int32Array) { const o = bytes; blobs.push(v); bytes += v.byteLength; return { $t: v.constructor.name, o, n: v.length }; }
+    if (v instanceof Float32Array || v instanceof Uint32Array || v instanceof Int32Array) return w.add(v);
     if (Array.isArray(v)) return v.map(pack);
     if (v && typeof v === 'object') { const out: Record<string, unknown> = {}; for (const k of Object.keys(v)) out[k] = pack((v as Record<string, unknown>)[k]); return out; }
     return v;
@@ -62,11 +61,9 @@ export function encodeSkins(b: BakedSkins): Uint8Array {
     ...(s.plain === undefined ? {} : { plain: s.plain === null ? null : { axes: pack(s.plain.axes), pace: s.plain.pace, mesh: pack({ ...s.plain.mesh, junction: undefined, cuts: undefined }) } }),
     ...(s.parts === undefined ? {} : { parts: Object.fromEntries(Object.entries(s.parts).map(([k, v]) => [k, v === null ? null : { axes: pack(v.axes), pace: v.pace, mesh: pack({ ...v.mesh, junction: undefined, cuts: undefined }) }])) }) }));
   const head = new TextEncoder().encode(JSON.stringify({ digest: b.digest, lost: b.lost, dropped: b.dropped, skins }));
-  const headPad = (4 - ((8 + head.length) % 4)) % 4, start = 8 + head.length + headPad;
-  const out = new Uint8Array(start + bytes), dv = new DataView(out.buffer);
-  dv.setUint32(0, MAGIC, true); dv.setUint32(4, head.length, true); out.set(head, 8);
-  let at = start;
-  for (const t of blobs) { out.set(new Uint8Array(t.buffer, t.byteOffset, t.byteLength), at); at += t.byteLength; }
+  const data = w.finish(), headPad = (4 - ((8 + head.length) % 4)) % 4, start = 8 + head.length + headPad;
+  const out = new Uint8Array(start + data.length), dv = new DataView(out.buffer);
+  dv.setUint32(0, MAGIC, true); dv.setUint32(4, head.length, true); out.set(head, 8); out.set(data, start);
   return out;
 }
 
@@ -82,7 +79,7 @@ export function decodeSkins(buf: ArrayBuffer): BakedSkins | null {
     if (Array.isArray(v)) return v.map(unpack);
     if (v && typeof v === 'object') {
       const o = v as Record<string, unknown>;
-      if (typeof o.$t === 'string') { const K = KINDS[o.$t as keyof typeof KINDS]; return new K(buf.slice(start + (o.o as number), start + (o.o as number) + (o.n as number) * 4)); }
+      if (isRef(o)) return unpackRef(buf, start, o);
       const out: Record<string, unknown> = {}; for (const k of Object.keys(o)) out[k] = unpack(o[k]); return out;
     }
     return v;

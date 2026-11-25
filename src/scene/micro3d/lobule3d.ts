@@ -53,7 +53,7 @@ import { staticRouteTexture } from '../blood/routes.ts';
 import { MICRO_DPR, MeshBuilder, MicroPart, Pacer, meshWork, type P2, type RGB, ellipsoid, microMaterials, pillow, tube } from './cel3d.ts';
 import { joinsMode } from '../vessels/skin/joins-mode.ts';
 import { bileWeldCourses, bloodWeldCourses, trimmedInside } from '../lobule/weld-courses.ts';
-import { requestWelds, type WeldRequest } from '../lobule/weld-client.ts';
+import { planWeldsInWorker, requestBakedWelds, watchWelds, type WeldRequest } from '../lobule/weld-client.ts';
 import { HA_K, BD_K } from '../lobule/weld-bend.ts';
 import type { WeldCourseOut, WeldPlan } from '../lobule/welds.ts';
 import { type EmitOpts, type PartData, emitCourse, emitSkin } from './lobule-welded.ts';
@@ -138,8 +138,6 @@ const CELL_EASE_MS = 900, MARKS_DIP_MS = 260, PLATE_CROSS_MS = 700;
 
 /** The scene's fade below which a waiting weld plan may be laid in (nothing of it can be told). */
 const WELD_SWAP_FADE = 0.02;
-/** How long after the Lobule is built the page waits before asking for the baked weld plan (it is not part of the first download: scripts/pwa.mjs LATE). */
-export const WELDS_ASK_MS = 3000;
 
 /** What the weld planner is given for a network (lobule/welds.ts): its courses as the scene draws them, and the discs of the vessels' mouths (a meeting inside a mouth is the pool's, not a junction). The same call
  *  makes the baked plan at build time (scripts/bake-welds.mjs) and asks for it at run time, so a baked file made for other numbers is known by its digest and never laid in. */
@@ -332,22 +330,42 @@ export class Lobule3D {
     if (!lazy) this.buildVessels();
     this.group.visible = false;
     flat.group.add(this.group);   // (the Lobule's root takes everything under it into its one fade)
-    // (on a page, the baked plan (1.8 MB) is asked for once the first picture is up, or at once when the Lobule is about to show: release review 21 Nov P1-6; off a page, a test, at once as before)
-    if (typeof window === 'undefined') this.askWelds(); else clock.after(() => this.askWelds(), WELDS_ASK_MS);
+    // (on a page the baked plan (1.7 MB) is NOT asked for here: it is not part of the first download. The quiet ladder asks for it once the page is usable and the link is not saving data (boot/warm.ts rung `welds`, `wantWelds`),
+    // and the first dive into the Lobule asks at once and waits for it (`weldsWait`, scene.ts microStep). Off a page, a test, at once as before)
+    if (typeof window === 'undefined') this.askWelds();
   }
 
   // ---- welded junctions (lobule/welds.ts) -------------------------------------------------------------------------------------------
 
-  /** Asks the worker to plan the welds (once; never with `?joins=old` ). The plan is laid in while the Lobule is out of sight, so no junction changes in front of the eye. */
+  /** Asks for the weld plan, once (never with `?joins=old`): the baked file first, a worker only when there is none. The plan is laid in while the Lobule is out of sight, so no junction changes in front of the eye. */
   private askWelds(): void {
-    if (this.weldsAsked || this.disposed || joinsMode() === 'old') return;
+    if (this.weldsAsked || this.disposed || joinsMode() === 'old') { if (!this.weldsAsked) this.settleWelds(); return; }
     this.weldsAsked = true;
-    void requestWelds(weldRequest(this.flat.net)).then((plan) => {
-      if (!plan || this.disposed) return;
-      this.pendingWelds = plan;
-      this.layWelds();
+    const stop = watchWelds((k) => { this.weldProgress = k; this.onWeldProgress?.(k); });
+    const lay = (plan: WeldPlan | null): void => { if (!plan || this.disposed) return; this.pendingWelds = plan; this.layWelds(); };
+    const req = weldRequest(this.flat.net);
+    void requestBakedWelds(req).then((plan) => {
+      stop();
+      if (plan) { lay(plan); this.settleWelds(); return; }
+      // (no baked plan: a person never waits for ten seconds of planning. The Lobule is let in with its round-ended tubes, and the plan made in a worker is laid in while it is out of sight, as it always was)
+      this.settleWelds();
+      void planWeldsInWorker(req).then(lay);
     });
   }
+  /** The plan is in, or known to be unavailable: whoever waited for it (the dive) may go on. */
+  private settleWelds(): void { if (this.weldsSettled) return; this.weldsSettled = true; this.weldProgress = 1; this.onWeldProgress?.(1); this.onWeldsSettled?.(); }
+  private weldsSettled = false;
+  /** How far the baked file has come (0 to 1), and who is told. */
+  private weldProgress = 0;
+  onWeldProgress: ((k: number) => void) | null = null;
+  /** Called once when the weld plan is in or known to be unavailable (scene.ts takes up the micro views' preparation again). */
+  onWeldsSettled: (() => void) | null = null;
+  /** Whether the Lobule still waits for its baked weld plan: only on a page, from the moment the Lobule is built until the plan has come or failed. A Lobule shown before the plan is in would draw round-ended tubes, and the plan
+   *  could be laid in only after it went out of sight again, so the dive waits (scene.ts) and the vessels are built once, welded. */
+  get weldsWait(): boolean { return typeof window !== 'undefined' && !this.weldsSettled && joinsMode() !== 'old'; }
+  /** The plan is wanted now (the quiet ladder's turn, or a dive): asks for it if nobody has. */
+  wantWelds(): void { this.askWelds(); }
+  get weldsProgress(): number { return this.weldProgress; }
   /** Lays a waiting plan into the vessels, when the Lobule is not on the screen. */
   private layWelds(): void {
     // (out of sight, or so faded in or out that the swap cannot be told: the baked plan is here at boot, so a Lobule entered from the body comes in already welded)
@@ -370,7 +388,7 @@ export class Lobule3D {
   /** `force`: the priming pass (Scene's idle slices): everything a first shown frame would build is built now, hidden, so the first show costs a frame's worth. */
   update(on: boolean, under = 0, now = 0, rate = 1, force = false, body = 0): boolean {
     if (!this.vesselsBuilt) this.buildVessels();
-    if (!this.weldsAsked && on && this.flat.isVisible) this.askWelds();   // (the Lobule is wanted before the timer: ask now)
+    if (!this.weldsAsked && on && this.flat.isVisible) this.askWelds();   // (the Lobule is wanted and nobody has asked yet: ask now)
     if (this.pendingWelds && (!this.group.visible || this.fade.value <= WELD_SWAP_FADE)) this.layWelds();
     const f = this.flat, changed = on !== this.on;
     this.on = on;
