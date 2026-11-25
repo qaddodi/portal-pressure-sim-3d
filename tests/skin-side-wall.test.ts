@@ -13,7 +13,7 @@ import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { shaderText } from './shader-text.ts';
 import { armWalk, chooseCuts, type ArmTube } from '../src/scene/vessels/skin/cuts.ts';
 import { SIDE_TOL_R, SKIN_REACH, armReach, findSkinJunctions, nearestOnPolyline, pointAtShare } from '../src/scene/vessels/skin/inventory.ts';
-import { GENTLE, SLOW, buildSkin, buildSkinSteady, foldedTriangles, hullCovers, minAngleDeg } from '../src/scene/vessels/skin/mesh.ts';
+import { GENTLE, PACES, SLOW, buildSkin, buildSkinSteady, foldedTriangles, hullCovers, minAngleDeg } from '../src/scene/vessels/skin/mesh.ts';
 import { SkinSet, axisOf, holesOf } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
 import { SKIN_HOLE_NONE, SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type Vec3 } from '../src/scene/vessels/skin/types.ts';
@@ -129,65 +129,59 @@ test('the set keeps a vessel\'s holes (two slots), writes them to the tube, and 
 // ---- the real network: the cava ----
 const withSmooth = <T,>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(true); try { return f(); } finally { setSmoothJoins(was); } };
 
-test('IVCS: the hepatic veins end inside the cava\'s wall, so the junction is a side-wall one: the cava (IVC_IS) is a side arm below the middle of the three, J is a point of its axis, and every arm is within the reach', () => {
+// (placed anatomy, round 18 (Mohammad, 25 Nov: "RHV alone, MHV+LHV shared trunk"): the hepatic veins open at the cava's node itself, IVC_IS's end, not 1.7 to 7.1 cava radii down its side as the 2D art spread them. IVCS is a NODE junction of five arms
+//  (the cava below and above, the three veins), no side arm; the side-wall rule's real cases are the left portal vein's LPV (PVH_L_1 runs on past the node into the left lobe) and the hepatic vein's mid-host fork)
+test('IVCS: the hepatic veins open at the cava\'s node, so the junction is a node one of five arms: no side arm, every arm within the reach', () => {
   withSmooth(() => {
     const j = findSkinJunctions().find((x) => x.node === 'IVCS')!;
     assert.ok(j, 'IVCS is a junction');
-    const side = j.arms.filter((a) => a.side);
-    assert.equal(side.length, 1); assert.equal(side[0]!.vesselId, 'IVC_IS'); assert.equal(side[0]!.side!.dir, -1); assert.equal(side[0]!.end, 1);
+    assert.equal(j.arms.filter((a) => a.side).length, 0, 'no side arm');
+    assert.deepEqual(j.arms.map((a) => `${a.vesselId}:${a.end}`).sort(), ['IVCS_RA:0', 'IVC_IS:1', 'LHV_IVC:1', 'MHV_IVC:1', 'RHV_IVC:1']);
     const cava = coursesOf(NETWORK_BY_ID.get('IVC_IS')!, REST)[0]!.pts as Vec3[];
-    const u = side[0]!.side!.u;
-    assert.ok(u > 0.5 && u < 0.9, `the middle of the attachments, u = ${u.toFixed(2)}`);
-    assert.deepEqual([...j.J], [...pointAtShare(cava, u)], 'J is the cava\'s axis at u');
-    // every vein ends in the cava's wall (the reason it is a side-wall junction), 1.7 to 7.1 radii of the cava down it from the node
-    for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) {
+    // (the right hepatic vein and the common trunk open into the cava; the middle hepatic vein opens into the trunk beside it (fades.ts trunkMateOf), so it ends on the trunk's axis, not the cava's)
+    for (const id of ['RHV_IVC', 'LHV_IVC']) {
       const pts = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts, e = pts[pts.length - 1]!, n = nearestOnPolyline(cava, e);
       assert.ok(n.d <= SIDE_TOL_R * NETWORK_BY_ID.get('IVC_IS')!.radius, `${id} ends ${(n.d / NETWORK_BY_ID.get('IVC_IS')!.radius).toFixed(2)} cava radii from its axis`);
-      assert.ok(n.u > 0.02 && n.u < 0.98, `${id} lands mid-cava, not at an end`);
     }
+    { const t = coursesOf(NETWORK_BY_ID.get('LHV_IVC')!, REST)[0]!.pts as Vec3[], pts = coursesOf(NETWORK_BY_ID.get('MHV_IVC')!, REST)[0]!.pts, n = nearestOnPolyline(t, pts[pts.length - 1]!);
+      assert.ok(n.d <= SIDE_TOL_R * NETWORK_BY_ID.get('LHV_IVC')!.radius, `MHV_IVC ends ${(n.d / NETWORK_BY_ID.get('LHV_IVC')!.radius).toFixed(2)} trunk radii from the common trunk's axis`); }
     assert.ok(armReach(j).every((r) => r <= SKIN_REACH), `reach ${armReach(j).map((r) => r.toFixed(1)).join(', ')}`);
-    assert.equal(armReach(j)[j.arms.indexOf(side[0]!)], 0, 'a side arm runs through J');
+    void pointAtShare;
   });
 });
 
-test('IVCS is welded: five arms, the cava cut below the hepatic veins and its end inside the skin, no fold, closed, a fair mesh; the gentle remesh is what builds it (the quick pace folds)', () => {
+test('IVCS is welded: five arms, the cava cut below the hepatic veins and its end inside the skin, no fold, closed, a fair mesh, meshed from the union\'s surface (the last rung of the pace ladder)', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
   try {
-    const draws: SkinObject[] = [], warnings: string[] = [];
-    const set = new SkinSet({ vessel: (id) => scene.vesselObject(id), stateOf: () => undefined, make: (mesh, axes, arms) => { const d = new SkinObject(mesh, arms[0]!, axes, arms); draws.push(d); return d; }, add: (o: Object3D) => new Group().add(o), remove: () => {}, warn: (m) => warnings.push(m) });
+    const warnings: string[] = [];
+    const set = new SkinSet({ vessel: (id) => scene.vesselObject(id), stateOf: () => undefined, make: (mesh, axes, arms) => new SkinObject(mesh, arms[0]!, axes, arms), add: (o: Object3D) => new Group().add(o), remove: () => {}, warn: (m) => warnings.push(m) });
     set.build(2);
     assert.deepEqual(warnings, []);
     const m = set.skinOf('IVCS')!;
     assert.ok(m, 'IVCS has a skin');
     assert.equal(m.junction.arms.length, 5);
     const cut = m.cuts[m.junction.arms.findIndex((a) => a.vesselId === 'IVC_IS')]!;
-    assert.equal(cut.side, -1);
+    assert.equal(cut.side, undefined, 'an end cut, not a side one');
     // (its START is the IVC_D junction's seam since the DIPS stent's skin: the IVCS end is what this test is about)
-    assert.deepEqual([...scene.vesselObject('IVC_IS')!.skinCut()], [set.skinOf('IVC_D') ? 0.25 : -1, cut.u], 'the cava is drawn only up to the seam: its end is inside the skin');
+    assert.equal(scene.vesselObject('IVC_IS')!.skinCut()[1], cut.u, 'the cava is drawn only up to the seam: its end is inside the skin');
     assert.equal(set.endsOf('IVC_IS')[1], true, 'its end is skinned (mate and bury off there)');
-    assert.deepEqual(set.holesOn('IVC_IS'), [], 'one side only: a cut, not a hole');
+    assert.deepEqual(set.holesOn('IVC_IS'), [], 'a cut, not a hole');
     assert.ok(cut.u < 0.77 && cut.u > 0.2, `the cava's seam is ${cut.u.toFixed(2)} of its length`);
     assert.deepEqual(foldedTriangles(m.position, m.normal, m.index), []);
     assertWatertight(m);
     let worst = 180;
     for (let i = 0; i < m.index.length; i += 3) worst = Math.min(worst, minAngleDeg(m.position, m.index[i]!, m.index[i + 1]!, m.index[i + 2]!));
     assert.ok(worst > 8, `smallest angle ${worst.toFixed(1)} degrees`);
-    // the root cause of the fold the first build had: the hull's sheet is far from the surface (five arms spread along a long host), and pulling it onto the surface half way per round crosses itself; a gentler pull does not
-    const j = m.junction, tubes = (set as unknown as { tubesOf(js: SkinJunction[]): Map<string, ArmTube> }).tubesOf([j]);
-    const rings = m.cuts.map((c) => ringOf(tubes.get(c.vesselId)!, c.ring));
-    const axes = j.arms.map((a, i) => { const t = tubes.get(a.vesselId)!; return axisOf(t, a.restR, m.cuts[i]!, j.J, a.side ? armWalk(a, t.tubular).from : undefined); });
-    const seam = rings.map((x) => x.pos), nor = rings.map((x) => x.nor), cap = axes.map(capsuleOf);
-    assert.throws(() => buildSkin(j, m.cuts, seam, nor, cap, 12000), /folds/, 'the usual pace folds on IVCS');
-    assert.throws(() => buildSkin(j, m.cuts, seam, nor, cap, 12000, GENTLE), /folds/, 'and so does the lobule\'s gentle one (8 triangles)');
-    assert.doesNotThrow(() => buildSkin(j, m.cuts, seam, nor, cap, 12000, SLOW), 'the slow one closes it');
-    assert.doesNotThrow(() => buildSkinSteady(j, m.cuts, seam, nor, cap), 'buildSkinSteady tries the three in turn');
+    assert.ok(m.junction.surface, 'meshed from the surface (five arms close together: the hull starts far from it)');
+    assert.equal((set as unknown as { paces: Map<string, number> }).paces.get('IVCS'), PACES.length - 1, 'on the last rung');
   } finally { scene.dispose?.(); setSmoothJoins(was); }
 });
 
 test('the side-wall rule changes only a node the art spreads past SKIN_REACH: every other junction is as it was (no side arm, J at the widest arm\'s end)', () => {
   withSmooth(() => {
     const sides = findSkinJunctions().filter((j) => j.arms.some((a) => a.side)).map((j) => j.node);
-    assert.deepEqual(sides, ['IVCS', 'RHV_IVC_1~F:b'], 'the cava, and the hepatic vein fork that leaves its host mid-run (a liver branch: a virtual node on the host with two side arms)');
+    // (placed: LPV, where the left portal vein runs on past the node into the left lobe, replaces the 2D art's IVCS: see above)
+    assert.deepEqual(sides, ['LPV', 'RHV_IVC_1~F:b'], 'the left portal vein\'s umbilical node, and the hepatic vein fork that leaves its host mid-run (a liver branch: a virtual node on the host with two side arms)');
   });
 });

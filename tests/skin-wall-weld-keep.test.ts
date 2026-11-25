@@ -54,7 +54,10 @@ test('the fragment stage shares the weights among the kept arms (one wAt for the
 test('Healthy: the cava wall skin (S_PC and C9 closed) never writes the weld of the IVC tube\'s ends: the IVCI skin\'s seam stays whole, so the tube is not drawn again under the skin', () => {
   const b = body([]);
   try {
-    assert.ok(b.set.plainOf('IVCI'), 'IVCI has a plain trunk (the IVC both ways and the left renal vein)');
+    // (placed anatomy: the portocaval shunt and C9 land on the cava's wall skin, not on IVCI, so IVCI has no growing arm and its one skin IS the plain trunk (the IVC both ways and the left renal vein); the 2D figure carried them on IVCI with a plain trunk beside)
+    const ivci = b.set.skinOf('IVCI');
+    assert.ok(ivci && ivci.junction.arms.every((a) => !a.grow) && !b.set.plainOf('IVCI'), 'IVCI is one static skin of the IVC both ways and the left renal vein');
+    assert.deepEqual(ivci!.junction.arms.map((a) => a.vesselId).sort(), ['ILI_IVC_1', 'IVC_IS_1', 'LRV_IVC']);
     const w = weldOf(b.scene, 'IVC_IS_1');
     assert.equal(w[0], 1, 'IVC_IS_1 start: the seam the IVCI skin leaves it at is whole (0 drew the cut part again under the skin, 0.70 where the veil should be 0.45)');
     assert.equal(weldOf(b.scene, 'ILI_IVC_1')[1], 1, 'the same at ILI_IVC_1, the other side of the node');

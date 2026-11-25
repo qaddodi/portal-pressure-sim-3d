@@ -42,7 +42,9 @@ test('plan 34d/34e: the distal end is 34d\'s (the cap\'s length short of the wal
       assert.ok(Math.abs(wall - e.b0 - cap) <= 0.02 * cap, `${id} v=${v}: 34d's end b0 is the cap's length short of the wall`);
       assert.equal(e.b, Math.max(far, e.b0), `${id} v=${v}: b is the far side of the slant`);
       assert.ok(e.b >= wall - 1e-9, `${id} v=${v}: the body reaches the wall at the centre line`);
-      assert.ok((e.a + e.b) / 2 > 0.5, `${id} v=${v}: centroid ${(e.a + e.b) / 2} is in the cava half`);
+      // (the cava half of the vein that is DRAWN, 0 .. the wall: the placed veins run on to the cava's axis, and the placed caudate vein is short (0.10 scene units, 0.29 of it inside the cava's lumen), so half of its whole length put the line 1.6
+      //  of its widths short of the ostium, and a 2.3-width clot that starts at the wall crossed it. The vein past the wall is inside the cava and is not drawn)
+      assert.ok((e.a + e.b) / 2 > wall / 2, `${id} v=${v}: centroid ${(e.a + e.b) / 2} is in the cava half of the drawn vein (wall ${wall})`);
       // (a shared trunk's clot stops short of the middle hepatic vein's mouth on it: round 18, Mohammad 25 Nov "RHV alone, MHV+LHV shared trunk"; mergeShare is 0 for every other vein)
       const merge = mergeShare(h), want = Math.min(ostialLength(v, e.D, h.length), (e.b0 - merge) * h.length);
       assert.ok(e.a > 0 ? Math.abs((e.b0 - e.a) * h.length - want) <= 0.02 * want : (e.b0 - e.a) * h.length <= want + 1e-9, `${id} v=${v}: a..b0 equals L(v)`);
@@ -69,13 +71,24 @@ function joint(id: string, v: number, scale: number, cut: Cut, ends: 'new' | 'b0
   /** the clot's cover at a point of the figure (scene units), and how far outside the cava's lumen it is in device px */
   const at = (x: number, y: number): { cover: number; out: number; cutK: number; s: number; lat: number; f: number; distIn: number } => {
     let best = Infinity, bs = 0, bl = 0, bR = 1;
-    for (let k = 0; k < n; k++) {   // (the nearest point of the centre line, carried on straight past the end as the skin\'s arc is)
-      const p = h.pts[k]!, q = h.pts[Math.min(k + 1, n - 1)]!;
-      const dx = q.x - p.x, dy = q.y - p.y, dl = dx * dx + dy * dy;
-      let t = dl > 0 ? ((x - p.x) * dx + (y - p.y) * dy) / dl : 0;
-      if (k < n - 1) t = Math.min(1, Math.max(0, t)); else { const ex = (x - tail.x) * tx + (y - tail.y) * ty; t = 0; const d2 = (x - tail.x - tx * ex) ** 2 + (y - tail.y - ty * ex) ** 2; if (d2 < best) { best = d2; bs = h.s[n - 1]! + ex; bl = ((x - tail.x) * -ty + (y - tail.y) * tx); bR = h.R[n - 1]!; } continue; }
-      const px = p.x + dx * t, py = p.y + dy * t, d2 = (x - px) ** 2 + (y - py) ** 2;
-      if (d2 < best) { best = d2; bs = h.s[k]! + (h.s[k + 1]! - h.s[k]!) * t; const l = Math.sqrt(dl); bl = ((x - px) * -dy + (y - py) * dx) / l; bR = h.R[k]! + (h.R[k + 1]! - h.R[k]!) * t; }
+    // (THE TUBE'S OWN FRAME: a pixel between two rings reads the share and the lateral interpolated between them, each ring square to the centre line's tangent at its vertex (the bisector of its two segments), as the tube's mesh carries u and the
+    //  lateral. The nearest point of the polyline, as this twin read it before, jumps along the inside of every vertex (by 2 lat tan(turn / 2)): the placed right hepatic vein turns two degrees a vertex near its mouth, and at 0.7 of its lumen
+    //  that jump moved a wall-anchored clot's free edge 0.7 px between samples a quarter pixel apart, a step no shader draws. Past the end the line is carried on straight, as the skin's arc is, and only past it: carried backwards it ran across
+    //  the inside of the placed caudate vein's bend.)
+    const tan = (k: number): { x: number; y: number } => {
+      if (k >= n - 1) return { x: tx, y: ty };
+      const a = h.pts[Math.max(k - 1, 0)]!, b = h.pts[k + 1]!, l = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      return { x: (b.x - a.x) / l, y: (b.y - a.y) / l };
+    };
+    for (let k = 0; k < n; k++) {
+      if (k === n - 1) { const ex = (x - tail.x) * tx + (y - tail.y) * ty; if (ex < 0) continue; const l = (x - tail.x) * -ty + (y - tail.y) * tx; if (Math.abs(l) < best) { best = Math.abs(l); bs = h.s[n - 1]! + ex; bl = l; bR = h.R[n - 1]!; } continue; }
+      const p = h.pts[k]!, q = h.pts[k + 1]!, T0 = tan(k), T1 = tan(k + 1);
+      const d0 = (x - p.x) * T0.x + (y - p.y) * T0.y, d1 = (x - q.x) * T1.x + (y - q.y) * T1.y;
+      if (d1 > 0 || (d0 < 0 && k > 0)) continue;
+      const t = Math.min(1, Math.max(0, d0 / (d0 - d1 || 1e-12)));
+      const cx = p.x + (q.x - p.x) * t, cy = p.y + (q.y - p.y) * t, mx = T0.x + (T1.x - T0.x) * t, my = T0.y + (T1.y - T0.y) * t, ml = Math.hypot(mx, my) || 1;
+      const l = ((x - cx) * -my + (y - cy) * mx) / ml;
+      if (Math.abs(l) < best) { best = Math.abs(l); bs = h.s[k]! + (h.s[k + 1]! - h.s[k]!) * t; bl = l; bR = h.R[k]! + (h.R[k + 1]! - h.R[k]!) * t; }
     }
     const nb = neighbourAttr(last.id, [x, y, 0])!, out = (Math.abs(nb[0]!) - nb[1]!) * scale;
     const c = clotAtTwin(uni, bs / h.length, bl / bR, bR * UNITS, bR * scale);

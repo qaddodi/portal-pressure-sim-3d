@@ -21,5 +21,9 @@ test('LRV_S clears the 80 degree limit with margin, and the refinement leaves ev
   assert.ok(worst.get('LRV_S')! < 75, `LRV_S ${worst.get('LRV_S')}`);
   for (const [n, w] of worst) assert.ok(w < 80, `${n} ${w.toFixed(1)}`);
   assert.ok([...worst].filter(([n, w]) => w < REFINE_AT && n !== 'LRV_S').length > 15, 'most skins are under the refinement threshold and were built once');
-  assert.ok(set.dropped.includes('RHV_T:TIPS'), 'the same dropped arms as before');
+  // (placed anatomy: the TIPS arm of RHV_T builds (the 2D figure's crotch dropped it). What is named dropped is the growing ends that land past SKIN_REACH of their node (skin-set.ts farGone): no skin failed and lost an arm (why is empty). Those ends land
+  //  on a host's wall instead where a wall skin takes them (REX and C3 on PVH_L_1, S_PC and C9 on IVC_IS_1, C6's renal end on LRV_IVC), or keep the tube's own sewn end (C2 at the splenic vein, C6's splenic end))
+  assert.ok(!set.dropped.includes('RHV_T:TIPS'), 'the TIPS arm of RHV_T is kept');
+  assert.deepEqual((set as unknown as { why: Record<string, string> }).why, {}, 'no arm was dropped by a failed build');
+  assert.deepEqual([...set.dropped].sort(), ['IVCI:C9', 'IVCI:S_PC', 'LPV:C3', 'LPV:REX', 'LRV_S:C6', 'SV:C2', 'SVD:C6'], 'the same far ends as before');
 });

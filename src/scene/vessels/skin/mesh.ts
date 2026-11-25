@@ -124,6 +124,9 @@ export function worstNormalAngle(m: { normal: ArrayLike<number>; index: ArrayLik
 }
 /** The most a skin's surface may stand out of the union of its arms, as a share of the local arm radius, at rest (tests/skin-joint-bulge.test.ts holds every skin to it). */
 export const BULGE_MAX = 0.45;
+/** What the neck-widening search (skin-set.ts NECK_FRACTIONS) aims for at rest: under BULGE_MAX by the room the live widths take. A skin is built at rest, and the vertex stage moves each vertex by its arms' blended swell, so a fillet that is just inside
+ *  BULGE_MAX at rest stands past it when the trunks swell and a growing arm does not (IMV: 0.44 at rest, 0.46 at the CSPH patient's widths, where the colic and the inferior mesenteric veins swell 7 % and C4 is held at its built width). */
+export const BULGE_AIM = 0.4;
 /** The largest share of the local arm radius by which a vertex of `m` stands out of the union of the arms' capsules `axes` at rest (the test's `worstExcess` with every arm at its built width). */
 export function worstBulge(m: { position: ArrayLike<number>; normal: ArrayLike<number>; weight: ArrayLike<number>; weight2: ArrayLike<number>; restR: ArrayLike<number> }, axes: readonly { pts: readonly (readonly number[])[]; radii: readonly number[] }[]): number {
   const P = m.position, N = m.normal, n = P.length / 3;
@@ -220,6 +223,7 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   const pos: number[] = sheet ? sheet.pos : [];
   if (!sheet) for (let a = 0; a < A; a++) for (let q = 0; q < n; q++) pos.push(seamRings[a]![3 * q]!, seamRings[a]![3 * q + 1]!, seamRings[a]![3 * q + 2]!);
   let tris = sheet ? sheet.tris : hull!.faces.slice();
+  const startVerts = pos.length / 3;
   const ringEdge = new Set<number>();   // the seam edges: never split, collapsed or flipped
   for (let a = 0; a < A; a++) for (let q = 0; q < n; q++) ringEdge.add(ekey(a * n + q, a * n + ((q + 1) % n)));
   const g = new Float64Array(3);
@@ -268,8 +272,16 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     // before the limit is judged. A runaway remesh is one that is LIVE past it.)
     if (pos.length / 3 + want.size > maxVerts) {
       dropUnused();
-      if (pos.length / 3 + want.size > maxVerts) throw new SkinBuildError(j.node, 'the mesh grew past its vertex limit');
-      return split();
+      // (the limit is a CEILING during the remesh and a test of what it ends with: a round that would cross it splits only the longest of its edges (by their share of the target), up to the room left, and the collapses run as ever; a runaway is
+      //  a mesh that ENDS past it (below). A sheet started on the surface may start past it (the map's merged cava skin IVCS+IVC_D, six arms along the hidden cava: 14523 vertices of surface nets, 1127 when meshed): its ceiling is where it started.
+      //  Before, the first split of such a sheet failed the skin outright and the DIPS was dropped from the map)
+      const room = Math.max(maxVerts, startVerts) - pos.length / 3;
+      if (room <= 0) return 0;
+      if (want.size > room) {
+        const ratio = (kk: number): number => { const a = Math.floor(kk / 1e7), b = kk - a * 1e7; return dist(a, b) / target(a, b); };
+        const keep = [...want].map((kk) => ({ kk, r: ratio(kk) })).sort((x, y) => y.r - x.r || x.kk - y.kk).slice(0, room);
+        want.clear(); for (const e of keep) want.add(e.kk);
+      }
     }
     const mid = new Map<number, number>();
     const midOf = (a: number, b: number): number => {
@@ -441,6 +453,8 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
     if (r >= shrinkRounds && changes <= Math.max(2, SETTLED * tris.length / 3)) break;   // settled: only a stray edge still changes
   }
   for (let r = 0; r < (pace?.polish ?? POLISH_ROUNDS); r++) { flip(); smooth(1); }
+  dropUnused();
+  if (pos.length / 3 > maxVerts) throw new SkinBuildError(j.node, 'the mesh grew past its vertex limit');   // (a remesh that did not come back under the limit: a runaway)
   // a triangle turned against the surface (its normal against the field's gradient at its centre) is turned over by flipping one of its edges, when that gives two that face outward: a sheet started on the surface (sheet.ts) can have a few where its quads were cut
   if (pace?.sdf) {
     const faces = (a: number, b: number, c: number): boolean => {

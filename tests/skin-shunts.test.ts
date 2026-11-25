@@ -31,22 +31,29 @@ test('S_DSR is welded at both ends (SVD, LRV_S): a static full-size arm, no fold
     for (const d of ['SVD:S_DSR', 'LRV_S:S_DSR']) assert.ok(!b.set.dropped.includes(d), `${d} is not dropped`);
     const svd = b.set.skinOf('SVD'), lrv = b.set.skinOf('LRV_S');
     assert.ok(armsOf(svd).includes('S_DSR:0'), 'S_DSR is an arm of SVD');
-    assert.ok(armsOf(lrv).includes('S_DSR:1') && armsOf(lrv).includes('C6:1'), 'S_DSR and C6 are arms of LRV_S, running along one axis');
+    // (placed anatomy: C6's renal end lands on the renal vein's side, past SKIN_REACH of LRV_S, so it is the wall skin's arm on LRV_IVC and not LRV_S's, as the 2D figure had it beside S_DSR)
+    assert.ok(armsOf(lrv).includes('S_DSR:1'), 'S_DSR is an arm of LRV_S');
+    assert.ok(armsOf(b.set.skinOf('wall:LRV_IVC:C61')).includes('C6:1') && !armsOf(lrv).includes('C6:1'), 'C6\'s renal end is welded on the renal vein\'s wall');
     for (const [name, m] of [['SVD', svd], ['LRV_S', lrv]] as const) {
       assert.equal(foldedTriangles(m!.position, m!.normal, m!.index).length, 0, `${name}: no folds`);
     }
     for (const n of ['SVD', 'LRV_S']) assert.equal(b.set.plainOf(n), undefined, `${n}: the tubes' cut ends carry the weld`);
-    assert.ok(b.set.dropped.includes('RHV_T:TIPS'), 'RHV_T:TIPS stays flared and named');
+    // (placed anatomy: the TIPS lands on the right hepatic vein where it builds, a static full-size arm; the 2D figure's crotch dropped it, flared and named)
+    assert.ok(!b.set.dropped.includes('RHV_T:TIPS') && armsOf(b.set.skinOf('RHV_T')).includes('TIPS:1'), 'the TIPS is welded at RHV_T');
+    assert.equal(foldedTriangles(b.set.skinOf('RHV_T')!.position, b.set.skinOf('RHV_T')!.normal, b.set.skinOf('RHV_T')!.index).length, 0, 'RHV_T: no folds');
   } finally { b.done(); }
 });
 
-test('PVH:DIPS stays flared and named: PVH_R is shorter than the DIPS lies over it, so no ring of it clears the blend (rule 1), surface rung or not', () => {
+test('PVH:DIPS is welded at both ends in the placed anatomy (PVH and IVC_D): a static full-size arm, no fold, nothing dropped for it', () => {
+  // (the 2D figure's PVH_R was shorter than the DIPS lay over it, so no ring cleared the blend and the DIPS stayed flared and named (rule 1); the placed right portal vein is long enough, and the DIPS builds at both of its nodes)
   const b = built();
   try {
-    assert.ok(b.set.dropped.includes('PVH:DIPS'));
-    assert.match(b.set.why['PVH:DIPS'] ?? '', /PVH_R has no ring that clears the blend/);
-    assert.ok(b.set.skinOf('PVH'), 'the portal vein\'s hepatic end keeps its skin without the DIPS');
-    assert.ok(!armsOf(b.set.skinOf('PVH')).includes('DIPS:0'));
+    assert.ok(!b.set.dropped.includes('PVH:DIPS') && !b.set.why['PVH:DIPS']);
+    for (const [n, end] of [['PVH', 0], ['IVC_D', 1]] as const) {
+      const m = b.set.skinOf(n);
+      assert.ok(armsOf(m).includes(`DIPS:${end}`), `the DIPS is an arm of ${n}`);
+      assert.equal(foldedTriangles(m!.position, m!.normal, m!.index).length, 0, `${n}: no folds`);
+    }
   } finally { b.done(); }
 });
 

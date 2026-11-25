@@ -43,20 +43,22 @@ test('the two halves of a run have weights that cross over between their seams a
   assert.ok(w3[2]! > 0.5, 'the side vein is the pixel\'s on its own capsule');
 });
 
-test('the real SVC skin: from the vein above to the trunk below the weights grade along the whole stretch the skin hides, with no plateau and no step at either seam', () => {
+test('the real SVC skin: from the vein above to the trunk below the weights grade along the whole run through the skin, with no plateau and no step at either seam', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' }), parent = new Group();
   try {
     const set = new SkinSet({ vessel: (id) => scene.vesselObject(id), stateOf: () => undefined, make: (m, ax, arms) => new SkinObject(m, arms[0]!, ax, arms), add: (o: Object3D) => parent.add(o), remove: (o: Object3D) => parent.remove(o), warn: () => {} });
     set.build(2);
-    const m = set.skinOf('SVC_E+SVC')!, ids = m.junction.arms.map((x) => x.vesselId), below = ids.indexOf('SVC_RA'), above = ids.indexOf('V_UP');
-    assert.ok(below >= 0 && above >= 0 && set.hiddenOf('SVC_E+SVC').includes('SVC_RA_1'), 'the merged SVC skin: the trunk below, the vein above, the stretch between hidden');
+    // (placed anatomy: the SVC's two junctions are 6.2 radii apart, so no skin merges them and hides SVC_RA_1 (the 2D figure's 'SVC_E+SVC'). The run through the azygos's junction SVC is the same weld: the vein above (V_UP) and the trunk below
+    //  (SVC_RA_1) are one through-run, and its weights must grade along it the same way. The 2D axis was at x -0.267; the placed one is J's)
+    const m = set.skinOf('SVC')!, ids = m.junction.arms.map((x) => x.vesselId), below = ids.indexOf('SVC_RA_1'), above = ids.indexOf('V_UP'), axisX = m.junction.J[0];
+    assert.ok(below >= 0 && above >= 0, 'the SVC skin: the trunk below, the vein above');
     // the weights of the trunk below along the SVC's axis, by height: one bin per hundredth
     const bins = new Map<number, number[]>();
     for (let i = 0; i < m.position.length / 3; i++) {
       if (Math.abs(m.position[3 * i]! - m.position[0]!) > 1) continue;
       const x = m.position[3 * i]!, y = m.position[3 * i + 1]!;
-      if (Math.abs(x + 0.267) > 0.012) continue;
+      if (Math.abs(x - axisX) > 0.012) continue;
       const b = Math.round(y / 0.01), a = bins.get(b) ?? []; a.push(m.weight[4 * i + below]!); bins.set(b, a);
     }
     const ys = [...bins.keys()].sort((p, q) => q - p), w = ys.map((y) => bins.get(y)!.reduce((s, v) => s + v, 0) / bins.get(y)!.length);

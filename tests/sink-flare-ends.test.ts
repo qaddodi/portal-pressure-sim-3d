@@ -35,7 +35,12 @@ test('every sewn end: last ring inside its host or within half its radius of the
       assert.ok(worst <= 0.5 * pe.hostR, `${v.id} end ${end}: the last ring stands ${(worst / pe.hostR).toFixed(2)} host radii outside the wall`);
       // the radius along the end's last rings (30, or up to the middle of a short tube): at most one change of direction (the flare falls away from the wall, the narrowing eases back out to the tube's own width)
       let dir = 0, turns = 0;
-      for (let q = 1; q < Math.min(30, (run.tubular >> 1) - 1); q++) {   // (not the end ring itself: a sunk end closes to nothing inside the wall, 2D sideEndScale)
+      // (not the rings of the closing itself: an end inside its host closes to nothing over the last 0.6 host radii (2D sideEndScale). That stretch was under one ring on the 2D courses, so only the end ring was skipped; the placed S_DSR is 0.30 long
+      //  on 32 rings (0.0094 apart) against a closing of 0.0116, so its first ring in still closes, and that rise toward the flare's peak is no wobble)
+      const closing = pe.inside && !pe.sink ? 0.6 * pe.hostR : 0;
+      let q0 = 1;
+      for (let along = 0; q0 < (run.tubular >> 1) - 1; q0++) { const c0 = centre(last + step * (q0 - 1)), c1 = centre(last + step * q0); along += Math.hypot(c1[0]! - c0[0]!, c1[1]! - c0[1]!, c1[2]! - c0[2]!); if (along >= closing) break; }
+      for (let q = q0; q < Math.min(30, (run.tubular >> 1) - 1); q++) {
         const a = rk.getX(ring(last + step * q)), b = rk.getX(ring(last + step * (q + 1))), d = b - a;
         if (Math.abs(d) < 0.006) continue;   // (6 parts in a thousand of the width is under a pixel: S_PC's end narrows to 0.995 of its width ahead of the flare, a dip that sat at 0.0039 and a faired course moved to 0.0041)
         const sg = Math.sign(d);

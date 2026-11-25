@@ -13,6 +13,7 @@ import { SkinObject, type ArmAxis } from '../src/scene/vessels/skin/skin-object.
 import { SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
 import { ENTER_DEPTH_R, THROUGH_DEG, throughMates, weldThrough } from '../src/scene/vessels/skin/through.ts';
 import { MIN_STUB_R } from '../src/scene/vessels/skin/cuts.ts';
+import { centrelineOf } from '../src/scene/vessels/centreline.ts';
 import { sdArm, sdUnion, smin, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 
@@ -150,20 +151,27 @@ test('real network: through the weld the skin keeps the trunk\'s calibre: on the
   } finally { b.scene.dispose(); setSmoothJoins(b.was); }
 });
 
-test('real network: the SVC\'s two junctions (azygos arch and epigastric vein, 0.9 radii apart on the trunk) are ONE skin, and no two skins on a vessel leave less than MIN_STUB_R radii of it between their seams', () => {
+test('real network: no two skins on a vessel leave less than MIN_STUB_R radii of it between their seams (the SVC\'s azygos and epigastric junctions are two skins in the placed anatomy, 6.2 radii apart on the trunk)', () => {
+  // (the 2D figure put the azygos arch and the epigastric vein 0.9 radii apart on the SVC, and the rule merged them into ONE skin 'SVC_E+SVC'; the placed anatomy puts them 6.2 radii apart (SVC_RA_1, 0.129 long at radius 0.0209), past MIN_STUB_R,
+  //  so they are two skins with the trunk's own tube between, and what the rule guarantees is pinned on every vessel instead: the stretch between two skins' seams is never a sliver)
   const b = built();
   try {
     const nodes = b.draws.map(nodeOf);
-    assert.ok(nodes.includes('SVC_E+SVC'), nodes.join(','));
-    assert.ok(!nodes.includes('SVC') && !nodes.includes('SVC_E'), 'not two skins with a sliver of tube between');
-    const m = b.set.skinOf('SVC_E+SVC')!;
-    assert.deepEqual(m.junction.arms.map((a) => a.vesselId).sort(), ['AZY_SVC', 'EPI_SVC', 'SVC_RA', 'V_UP']);
-    assert.ok(m.junction.arms.every((a) => a.vesselId !== 'SVC_RA_1'), 'the piece between them is inside the skin');
-    assert.ok(MIN_STUB_R > 0.9 && MIN_STUB_R < 2.18, 'the threshold splits the SVC pair (0.9) from the portal confluence pair CONF / PVT_L (2.2), which has always been two skins');
+    assert.ok(nodes.includes('SVC') && nodes.includes('SVC_E') && !nodes.includes('SVC_E+SVC'), nodes.join(','));
+    assert.ok(b.set.skinOf('SVC')!.junction.arms.some((a) => a.vesselId === 'SVC_RA_1') && b.set.skinOf('SVC_E')!.junction.arms.some((a) => a.vesselId === 'SVC_RA_1'), 'the piece between them is an arm of both');
+    assert.ok(MIN_STUB_R > 0.9 && MIN_STUB_R < 2.18, 'the threshold still splits a sliver (the 2D SVC pair, 0.9) from a stretch of trunk (the 2D CONF / PVT_L pair, 2.2)');
     const ends = new Map<string, { node: string; u: number; end: number }[]>();
     const sideCut = new Set<string>();   // (a vessel with a hole in its wall, a side-wall junction's two cuts: the end 1 cut lies before the end 0 cut there, on purpose)
     for (const d of b.draws) { const sm = b.set.skinOf(nodeOf(d))!; for (const c of sm.cuts) if (c.side) sideCut.add(c.vesselId); }
     for (const d of b.draws) { const sm = b.set.skinOf(nodeOf(d))!; for (const c of sm.cuts) ends.set(c.vesselId, [...(ends.get(c.vesselId) ?? []), { node: nodeOf(d), u: c.u, end: c.end }]); }
-    for (const [id, es] of ends) if (es.length > 1 && !sideCut.has(id)) { const lo = es.find((e) => e.end === 0), hi = es.find((e) => e.end === 1); if (lo && hi) assert.ok(hi.u > lo.u, `${id}: the seams do not cross`); }
+    let stubs = 0;
+    for (const [id, es] of ends) if (es.length > 1 && !sideCut.has(id)) {
+      const lo = es.find((e) => e.end === 0), hi = es.find((e) => e.end === 1);
+      if (!lo || !hi) continue;
+      assert.ok(hi.u > lo.u, `${id}: the seams do not cross`);
+      const c = centrelineOf(id)!, r = Math.min(c.radiusAt(lo.u), c.radiusAt(hi.u)), len = (hi.u - lo.u) * c.length;
+      if (lo.node !== hi.node) { stubs++; assert.ok(len >= MIN_STUB_R * r, `${id}: ${(len / r).toFixed(2)} radii of tube between ${lo.node} and ${hi.node}, a sliver under MIN_STUB_R`); }
+    }
+    assert.ok(stubs >= 1, `${stubs} vessels run between two skins`);
   } finally { b.scene.dispose(); setSmoothJoins(b.was); }
 });

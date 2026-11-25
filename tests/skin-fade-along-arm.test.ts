@@ -53,11 +53,14 @@ test('the left portal vein in Healthy: the skin is whole near the node and takes
       if (!p) continue;
       withFade++;
       assert.ok(Math.abs(uFadeAt(p, a.u) - seam) < 1e-9, `${b.node} ${a.id}: on the seam the fade is the seam's`);
-      if (b.node === 'LPV_A') lpv.push({ id: a.id, seam, near: uFadeAt(p, 0.3) });
+      // (the left portal vein's skin is the wall skin of REX and C3 on PVH_L_1 in the placed anatomy, which has no LPV_A fork: its node lies upstream of the seam, at u 0.3 of the vein as LPV_A's did; the liver-branch fork is the hepatic vein's,
+      //  RHV_IVC_1~F:b, which ENDS on its host (flow toward the cava), so its node end is u 1)
+      if (b.node === 'wall:PVH_L_1:REX1,C30' && a.id === 'PVH_L_1') lpv.push({ id: a.id, seam, near: uFadeAt(p, 0.3) });
+      if (b.node === 'RHV_IVC_1~F:b' && a.id === 'RHV_IVC_1~F:b') lpv.push({ id: a.id, seam, near: uFadeAt(p, 1) });
     }
     assert.ok(whole > 0 && withFade > 0, `${whole} whole seams, ${withFade} with a fade`);
-    const pv = lpv.find((x) => x.id === 'PVH_L_1')!, fb = lpv.find((x) => x.id === 'PVH_L_1~F:b')!;
+    const pv = lpv.find((x) => x.id === 'PVH_L_1')!, fb = lpv.find((x) => x.id === 'RHV_IVC_1~F:b')!;
     assert.ok(pv && pv.seam < 1 && pv.near > pv.seam, `the left portal vein's seam ${pv?.seam} is in its fade and the skin is whole toward the node (${pv?.near})`);
-    assert.ok(fb && fb.near > fb.seam, 'the fork branch too');
+    assert.ok(fb && fb.near > fb.seam, `the fork branch too (seam ${fb?.seam}, toward its node ${fb?.near})`);
   } finally { scene.dispose(); }
 });

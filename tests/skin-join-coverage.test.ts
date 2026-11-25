@@ -47,7 +47,10 @@ test('every vessel a merged skin hides whole lies inside the skin that replaces 
         checked++;
       }
     }
-    assert.ok(checked >= 1, 'the real network has at least one hidden vessel (PV_TRUNK_1 between CONF and PVT_L)');
+    // (the 2D figure merged CONF and PVT_L over PV_TRUNK_1 and hid it; in the placed anatomy every piece between two junctions is longer than MIN_STUB_R radii (PV_TRUNK_1 8.1, SVC_RA_1 6.2), so no junctions merge and nothing is hidden today.
+    //  The guard stays for any merge: a hidden vessel is exactly a merged skin's (its node joins two junctions' names with '+'), so every merged node hides one and nothing else hides any)
+    for (const node of set.nodes) assert.equal(set.hiddenOf(node).length > 0, node.includes('+'), `${node}: a merged skin hides the piece between its junctions, and only a merged skin hides one`);
+    assert.equal(checked, set.nodes.reduce((n, node) => n + set.hiddenOf(node).length, 0));
     assert.deepEqual(gaps, []);
   } finally { scene.dispose(); setSmoothJoins(was); }
 });

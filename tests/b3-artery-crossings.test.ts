@@ -133,11 +133,14 @@ test('the azygos arch fades out on its left, behind the collaterals\' landing (t
   const { fadeOf } = await import('../src/scene/vessels/fades.ts');
   const f = fadeOf('AZY_SVC', false)!;
   assert.ok(f && f.mode === 1 && f.a0 === 0 && f.a1 === 1, 'it fades in from its free end: a flat faded end read as open only with the ink running on, and body and ink now share one alpha');
-  // (the esophageal collateral meets the arch at its 2D start: the arch is carried on to the left, so the collateral joins where the arch is whole)
-  const { startInOrganShare } = await import('../src/scene/vessels/starts.ts');
-  const { EDGE_PATH_2D } = await import('../src/scene/vessels/paths.copied.ts');
-  const share = startInOrganShare('AZY_SVC', EDGE_PATH_2D.AZY_SVC!);
-  assert.ok(share > 0.15 && Math.abs(f.to - share) < 1e-9, `the fade spans the carried-on stretch (${share})`);
+  // (placed anatomy: the fade runs from the free end to where the esophageal collateral lands on the placed arch, so it joins where the arch is whole (fades.ts placedLandingShare; tests/lead-in-and-thin-arm.test.ts pins the landing). The 2D share
+  //  (startInOrganShare, the 30 units carried on behind the 2D landing: 0.37) measured the 2D course and faded the placed arch over half the run before its landing)
+  const { PLACED_EDGE_3D } = await import('../src/scene/anatomy/placed-network.ts');
+  const c = PLACED_EDGE_3D.AZY_SVC!, q = PLACED_EDGE_3D.C1b![PLACED_EDGE_3D.C1b!.length - 1]!, cum = [0];
+  for (let i = 1; i < c.length; i++) cum.push(cum[i - 1]! + Math.hypot(c[i]![0] - c[i - 1]![0], c[i]![1] - c[i - 1]![1], c[i]![2] - c[i - 1]![2]));
+  let bd = Infinity, share = 0;
+  c.forEach((p, i) => { const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]); if (d < bd) { bd = d; share = cum[i]! / cum[cum.length - 1]!; } });
+  assert.ok(share > 0.15 && Math.abs(f.to - share) < 1e-9, `the fade spans the stretch before the collateral's landing (${share})`);
 });
 
 test('the hepatic artery\'s blood runs on through its junction into both branches (the stream chain carries it), and the lobar arteries fade out with their portal branches', async () => {
