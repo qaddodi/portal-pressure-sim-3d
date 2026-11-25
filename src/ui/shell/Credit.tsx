@@ -10,7 +10,7 @@ import { M } from './metrics.ts';
 import { useThumb } from './thumb.ts';
 import { CORNERS, freeSpots } from './credit-spots.copied.js';
 import { layoutOf, margin, isSideways } from '../layout/rules2d.ts';
-import { footCredit, footClear } from './credit-foot.ts';
+import { footCredit, footClear, clipTo } from './credit-foot.ts';
 import { useShell } from './store.ts';
 import { avoidVessel, vesselRect, widestWall } from './credit-avoid.ts';
 import { cel } from '../../scene/api.ts';
@@ -74,11 +74,15 @@ const CARDS = '.pz-shade, .pz-data, .pz-case, .pz-panel';
 const CARD_ART = 'canvas, img, svg, .pz-tool, .pz-tile, .pz-tiles, .pz-sitetab, .pz-kick, button';
 function cardContent(vw: number, vh: number, edges = true): { l: number; t: number; r: number; b: number }[] {
   const out: { l: number; t: number; r: number; b: number }[] = [];
-  const add = (r: DOMRect) => { if (r.width >= 1 && r.height >= 1 && r.right > 0 && r.bottom > 0 && r.left < vw && r.top < vh) out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom }); };
+  // (a card clips what lies outside it: `shows` is the card's box, and what stands outside it is not drawn, so it is no obstacle)
+  let shows: { l: number; t: number; r: number; b: number } | null = null;
+  const add = (r: DOMRect) => { if (r.width >= 1 && r.height >= 1 && r.right > 0 && r.bottom > 0 && r.left < vw && r.top < vh) { const q = clipTo({ l: r.left, t: r.top, r: r.right, b: r.bottom }, shows); if (q) out.push(q); } };
   const range = document.createRange();
   for (const card of document.querySelectorAll<HTMLElement>(CARDS)) {
     const cs = getComputedStyle(card);
     if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05 || card.closest('[hidden]')) continue;
+    const c = card.getBoundingClientRect(), frame = card.classList.contains('dk-card') ? { l: c.left, t: c.top, r: c.right, b: c.bottom } : null;   // (every card surface is the `.dk-card` itself: its box is the part that shows)
+    shows = frame;
     const walk = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
       if (!n.nodeValue?.trim() || n.parentElement?.closest('[hidden], .stage-credit')) continue;   // (aria-hidden words are drawn words too: the card's tab, CARDIAC, is one)
@@ -86,9 +90,11 @@ function cardContent(vw: number, vh: number, edges = true): { l: number; t: numb
       for (const r of range.getClientRects()) add(r);
     }
     // the card's own edge (its border and rounded corners) is a line the credit keeps off too: it stood in the top padding of the HVPG cards with its glyphs touching the border
-    const c = card.getBoundingClientRect();
+    shows = null;   // (the card's own edge is its own box)
     if (edges && c.width > 4 && c.height > 4) for (const e of [new DOMRect(c.left, c.top, c.width, 2), new DOMRect(c.left, c.bottom - 2, c.width, 2), new DOMRect(c.left, c.top, 2, c.height), new DOMRect(c.right - 2, c.top, 2, c.height)]) add(e);
+    shows = frame;
     for (const a of card.querySelectorAll<HTMLElement>(CARD_ART)) { if (!a.closest('[hidden]')) add(a.getBoundingClientRect()); }
+    shows = null;
   }
   return out;
 }

@@ -13,3 +13,12 @@ export interface Box { l: number; t: number; r: number; b: number }
 export function footClear(at: { x: number; y: number }, w: number, h: number, boxes: readonly Box[], gap = 4): boolean {
   return !boxes.some((q) => at.x - gap < q.r && q.l < at.x + w + gap && at.y - gap < q.b && q.t < at.y + h + gap);
 }
+
+/** What of a card's content shows: the part of `r` inside the card's own box (a card clips what lies outside it), or null when none of it does. A word or picture that stands outside its card, a chart's hidden
+ *  layer or a label parked off the card, is not drawn, so it is not a thing the credit keeps clear of. Root of the missing © on the iPad's chart slides (Circuit 10, Choose treatment 12: the credit judged "covered" with no
+ *  card, bar or word anywhere near its foot corner, capture 84496815). Pure; tests/credit-clip-to-card.test.ts. */
+export function clipTo(r: Box, within: Box | null): Box | null {
+  if (!within) return r;
+  const l = Math.max(r.l, within.l), t = Math.max(r.t, within.t), rr = Math.min(r.r, within.r), b = Math.min(r.b, within.b);
+  return rr > l && b > t ? { l, t, r: rr, b } : null;
+}
