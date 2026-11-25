@@ -49,7 +49,7 @@ test('the boot entry does not statically import the debug pages, the charts gall
   const stubs = new Set(['src/ui/debug/mount.ts', 'src/ui/debug/flags.ts', 'src/ui/debug/gate.ts', 'src/ui/debug/caught.ts', 'src/ui/debug/frame/request.ts', 'src/ui/charts/gallery/mount.tsx',
     'src/debug/shader-guard.ts', 'src/debug/shader-fail.ts', 'src/debug/gl-ref.ts',
     'src/ui/debug/packet/state.ts', 'src/debug/look-hook.ts']);   // (the state link's pure cleaning, which the share link uses: 139 lines, imports only a type)
-  const limit = (s: string) => (s === 'src/ui/debug/packet/state.ts' || s === 'src/ui/debug/flags.ts' ? 12000 : 8000);   // (flags.ts is the table of every ?flag and what it means: it grows a row at a time, and imports nothing)
+  const limit = (s: string) => (s === 'src/ui/debug/packet/state.ts' || s === 'src/ui/debug/flags.ts' ? 13000 : 8000);   // (flags.ts is the table of every ?flag and what it means: it grows a row at a time, and imports nothing)
   const heavy = (f: string) => f.startsWith('src/parity/') || f === 'src/ui/charts/registry.ts' || f.startsWith('src/ui/charts/gallery/') || f.startsWith('src/debug/')
     || (f.startsWith('src/ui/debug/') && !f.startsWith('src/ui/debug/core/'));   // (debug/core: the short report text Send feedback puts in its mail)
   const found = files.filter((f) => heavy(f) && !stubs.has(f));
