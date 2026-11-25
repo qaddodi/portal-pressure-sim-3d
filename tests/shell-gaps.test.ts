@@ -85,5 +85,6 @@ test('the parity claims say what the code does: Help pages, the shortcuts of a t
   const by = new Map(claims.map((c) => [c.id, c.wired]));
   for (const id of ['help:About the model', 'help:References', 'help:Privacy', 'topbar:btnTreat', 'topbar:tabInstruments', 'bottombar:Treat', 'bottombar:Tests',
     'shortcut:While presenting/Number, then Enter', 'shortcut:While presenting/G', 'shortcut:While presenting/P', 'shortcut:While presenting/B or .', 'shortcut:While presenting/F', 'shortcut:While presenting/L',
-    'shortcut:Run the model/J', 'shortcut:Change the view/I', 'shortcut:Change the view/T']) assert.equal(by.get(id), true, id);
+    'shortcut:Change the view/I', 'shortcut:Change the view/T']) assert.equal(by.get(id), true, id);
+  assert.equal(by.has('shortcut:Run the model/J'), false, 'J (Inject dye) is gone with the dye feature (docs/approved/dye.md): no row in the shortcut list, so no claim');
 });

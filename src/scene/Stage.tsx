@@ -4,6 +4,7 @@
 //   camera phase  the scene steps its tweens (shot, highlight, flow marks) and says whether it needs another frame
 //   render phase  one gl.render of the cel scene (a useFrame with a render priority, so R3F does not draw its own empty scene)
 import { useEffect, useRef } from 'react';
+import './three-console.ts';   // (before the Canvas makes R3F's store: names the one library warning dropped, three-console.ts)
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Raycaster, WebGLRenderTarget } from 'three';
 import { ClockBridge } from '../clock/r3f.tsx';

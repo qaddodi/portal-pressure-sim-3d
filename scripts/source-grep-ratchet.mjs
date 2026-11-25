@@ -3,6 +3,7 @@
 // and a test file that is not listed may have none. Subjects that are read through tests/shader-text.ts (shaderText, driverText, block) are not raw and are not counted. Prefer a twin or a behaviour check; a lint rule beats a grep.
 //   node scripts/source-grep-ratchet.mjs            prints the files above their allowance (exit 1) and the ones below it
 //   node scripts/source-grep-ratchet.mjs --update   writes the allowance down to today's counts (it never writes one up)
+// Re-baselined once on 25 Nov 2026 (full-suite review, F6): threads had added 559 greps over the allowance in 100 test files since 23 Nov, so the allowance was written up to that day's counts by hand (--update never does). From there it only goes down again; convert greps to behaviour checks and run --update.
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';

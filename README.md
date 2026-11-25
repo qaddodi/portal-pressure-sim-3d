@@ -5,7 +5,8 @@
 ```
 npm install
 npm run dev          # local dev server
-npm run check        # typecheck + lint + unit tests (about a second)
+npm run check        # typecheck (10 s) + lint (3 s) + the whole suite (about 26 min on 4 cores, 6,000 tests)
+npm run pre-push     # the quick one: typecheck, lint and only the tests that import what changed (under 2 min)
 npm run build        # production build to dist/
 npm run sync:engine  # re-copy hales-engine and the simulation host at their pinned commits
 ```

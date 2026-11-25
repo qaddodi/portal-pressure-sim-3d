@@ -55,6 +55,9 @@ export function fieldQuantizer(): (s: { septU: number; fibPre: number; fibPost: 
 }
 export const fieldKey = (s: FieldState, look: LookId): string => `${look}|${s.su},${s.pre},${s.post},${s.sin},${s.cong}`;
 
+/** The tile is painted and then read back (getImageData, for the blur): a canvas that is read back is kept in main memory. On a GPU canvas every read stalls the GPU (the console's "GPU stall due to ReadPixels"). */
+const READ_BACK: CanvasRenderingContext2DSettings = { willReadFrequently: true };
+
 /** Paints 2D's tile for a look and state into a canvas made by mk(w, h) (null in node: the tile's size is still worked out). Returns the canvas. */
 export function paintFieldTile(look: LookId, fs: FieldState, mk: (w: number, h: number) => HTMLCanvasElement | null, R = FIELD_TILE_R): { cv: HTMLCanvasElement | null; tw: number; th: number } {
   const L = lookColours(look);
@@ -65,7 +68,7 @@ export function paintFieldTile(look: LookId, fs: FieldState, mk: (w: number, h: 
     cssRGB01: (n: string) => L.rgb01(n),
     recordPaint: (w: number, h: number, paint: (c: CanvasRenderingContext2D) => void) => {
       cv = mk(w, h);
-      const ctx = cv?.getContext('2d');
+      const ctx = cv?.getContext('2d', READ_BACK);
       if (ctx) paint(ctx);
       return cv;
     },
@@ -74,7 +77,7 @@ export function paintFieldTile(look: LookId, fs: FieldState, mk: (w: number, h: 
   drawTile(t, { cell: L.text('--og-liver-1'), gap: L.text('--og-liver-2'), cvc: L.text('--vein-systemic'), pvc: L.text('--vein-portal'), art: L.text('--artery'), duct: L.text('--bile-duct'), dark: L.dark, fs });
   // 2D's quiet copy's blur (a Gaussian of neighbourBlur(R) tile pixels, wrapping round the repeat so it shows no seam)
   const c = cv as HTMLCanvasElement | null;
-  const ctx = c?.getContext('2d');
+  const ctx = c?.getContext('2d', READ_BACK);   // (the same context: the attributes of the first getContext call stand)
   if (c && ctx) {
     const img = ctx.getImageData(0, 0, c.width, c.height);
     img.data.set(blurWrapped(img.data, c.width, c.height, neighbourBlur(R)));

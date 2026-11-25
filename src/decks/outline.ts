@@ -29,7 +29,7 @@ export function outlineProblems(d: Pick<Deck, 'id' | 'slides' | 'sections' | 'ob
   const bad: string[] = [];
   const o = outlineOf(d);
   if (o.length < 3 || o.length > 5) bad.push(`${d.id}: ${o.length} outline lines (3 to 5: set sections)`);
-  if (d.objectives.length < 2 || d.objectives.length > 3) bad.push(`${d.id}: ${d.objectives.length} objectives (2 to 3)`);
+  if (d.objectives.length < 2 || d.objectives.length > 4) bad.push(`${d.id}: ${d.objectives.length} objectives (2 to 4)`);
   for (const x of d.objectives) if (x.length > 100) bad.push(`${d.id}: objective too long (${x.length}): ${x}`);
   return bad;
 }

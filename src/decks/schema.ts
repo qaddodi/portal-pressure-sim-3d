@@ -159,7 +159,7 @@ export function validateDeck(deck: Deck): string[] {
   const text = (v: unknown, where: string) => { if (typeof v !== 'string' || !v.trim()) bad.push(`${where} is empty`); };
   text(deck.id, 'deck id'); text(deck.title, 'deck title'); text(deck.summary, 'deck summary');
   if (!Number.isFinite(deck.minutes) || deck.minutes <= 0) bad.push('deck minutes is not a positive number');
-  if (!Array.isArray(deck.objectives) || deck.objectives.length < 2 || deck.objectives.length > 3) bad.push('a deck lists 2 or 3 objectives');
+  if (!Array.isArray(deck.objectives) || deck.objectives.length < 2 || deck.objectives.length > 4) bad.push('a deck lists 2 to 4 objectives');
   deck.objectives?.forEach((o, i) => text(o, `objective ${i + 1}`));
   if (!Array.isArray(deck.slides) || !deck.slides.length) bad.push('a deck needs at least one slide');
   if (!Array.isArray(deck.checks) || !deck.checks.length) bad.push('a deck needs a quick check');

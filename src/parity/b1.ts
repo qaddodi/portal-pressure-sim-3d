@@ -38,7 +38,7 @@ for (const p of UI.helpPages) claim(`help:${p.label}`, true);   // (Guide and Ke
 // ── shortcuts: the key map (keys/keymap.ts, carried out in keys/useKeys.ts). Wired = the key does what the 2D one does here. ──
 const KEYS_WIRED = new Set(['Run the model/Space', 'Run the model/[ ]', 'Run the model/.', 'Run the model/Z', 'Run the model/Ctrl/⌘ Z', 'Run the model/P', 'Change the view/A', 'Change the view/L', 'Change the view/+ / − / 0', 'Change the view/Ctrl/⌘ K or /', 'Change the view/?', 'Reach and act/Esc',
   'While presenting/Home · End', 'While presenting/?', 'While presenting/→ · Space · Enter',
-  'Run the model/J', 'Change the view/I', 'Change the view/T', 'While presenting/← · Backspace', 'While presenting/↑ · ↓', 'While presenting/Esc',
+  'Change the view/I', 'Change the view/T', 'While presenting/← · Backspace', 'While presenting/↑ · ↓', 'While presenting/Esc',
   'While presenting/Number, then Enter', 'While presenting/G', 'While presenting/P', 'While presenting/B or .', 'While presenting/F', 'While presenting/L',
   'Reach and act/Click', 'Reach and act/1 – 9', 'Reach and act/Tab · Enter']);
 const KEYS_PRESENT = new Set<string>([]);

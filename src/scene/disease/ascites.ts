@@ -62,8 +62,9 @@ export class AscitesLayer {
     const tex = new DataTexture(this.edge, FLUID_COLS, 1, RedFormat, FloatType);
     tex.minFilter = tex.magFilter = NearestFilter; tex.needsUpdate = true;
     this.uniforms.uLiverEdge.value = tex;
+    // (a key left out, not `defines: undefined`: three.js warns "parameter defines has value of undefined" for every key it is handed undefined)
     const mk = (name: string, side: typeof BackSide | typeof FrontSide, defines?: Record<string, string>): ShaderMaterial =>
-      new ShaderMaterial({ name, vertexShader: HULL_VS, fragmentShader: HULL_FS, uniforms: this.uniforms, defines, side, transparent: true, depthWrite: false, depthTest: false });
+      new ShaderMaterial({ name, vertexShader: HULL_VS, fragmentShader: HULL_FS, uniforms: this.uniforms, ...(defines ? { defines } : {}), side, transparent: true, depthWrite: false, depthTest: false });
     const bm = mk('pool-hull-back', BackSide, { HULL_BACK: '' }), fm = mk('pool-hull-front', FrontSide);
     this.mats = [bm, fm];
     const g: BufferGeometry = this.hull.geometry;
