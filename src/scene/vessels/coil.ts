@@ -154,7 +154,10 @@ export const WRAP: ReadonlySet<string> = new Set(['C1a']);
 /** Where along the course (share of its length) the strands start to part: where the trunk has come up off the cardia onto the tube's wall (the trunk's own course is the strands' until there, so no blend is needed). */
 const WRAP_FROM = 0.1;
 /** How the strands part from the trunk and gather again along their stretch: a longer easing than the weave's, so a strand going a third of the way round the tube turns no tighter than the bar (tests/anatomy/smooth.ts). */
-const wrapEnv = (v: number): number => smooth01(v / 0.5) * (1 - smooth01((v - 0.5) / 0.5));
+const wrapEnv = (v: number): number => smooth01(v / WRAP_RISE) * (1 - smooth01((v - (1 - WRAP_RISE)) / WRAP_RISE));
+/** The share of the parted stretch over which the strands part from the trunk, and over which they gather again at its end. The run now goes on to where the vein turns off the oesophagus (placed-network.ts: C1a carried on along the drain, 25 Nov), half as long again as the coronary vein's run was,
+ *  so the bump that took half of it to open left them 2 quadrants round the tube at height 1.14: they part over the same length as before (0.4 of this longer run, 0.18 scene units, so no tighter a turn) and stay round it until the last 0.4. */
+const WRAP_RISE = 0.4;
 /** How a strand comes out to (or in to) its gap from the wall: over the first and last fifth of its parted stretch, so the whole column lies its own radius off the wall. With the turn's bump (wrapEnv) a strand wider than its trunk reached its gap only half way up and lay in the wall either side of it. */
 const WALL_EASE = 0.2;
 const wallEnv = (v: number): number => smooth01(v / WALL_EASE) * smooth01((1 - v) / WALL_EASE);
