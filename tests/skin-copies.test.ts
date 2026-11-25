@@ -24,8 +24,9 @@ function withScene<T>(f: (s: CelScene, built: Built[]) => T): T {
   // (a node that fell back is listed with no draw: left out)
   try { return f(s, (s as unknown as Inner).skins.built.filter((b) => b.draw)); } finally { s.dispose(); setSmoothJoins(was); }
 }
-// (the SVC's two junctions, SVC_E and SVC, are ONE skin: their seams are 0.9 radii apart, cuts.ts MIN_STUB_R)
-const BACK_NODES = ['IVCI', 'SVC_E+SVC'];
+// (placed anatomy: the SVC's two junctions are two skins, SVC_E and SVC, 6.2 radii apart (the 2D figure's 0.9 merged them, cuts.ts MIN_STUB_R), and IVCS, the hepatic veins' ostia on the cava, is one five-arm skin (round 18) whose cava arms are
+//  behind the organs too. The other skins with a back arm (the wall skins and IVC_D on the lower cava, SMV_R's C7) are pinned by the plain-junction test below)
+const BACK_NODES = ['IVCI', 'SVC_E', 'SVC', 'IVCS'];
 const sync = (s: CelScene): boolean => (s as unknown as Inner).skins.sync();
 
 /** What the tube draws of each of its copies, read from the tube's OWN state (layer, uniforms, mesh) and not through `copyShares`: the front copy is the tube's mesh in the vessels' pass, the solid copy the same mesh with the organs (layer 0), the veil the second mesh. */
@@ -36,7 +37,7 @@ function tubeCopies(o: VesselObject): [number, number, number] {
   return [lay === 'front' ? solidK : 0, lay === 'solid' ? solidK : 0, veil && veil.mesh.visible ? veilK : 0];
 }
 
-test('the junctions with an arm behind the organs are skinned: IVCI and the two SVC junctions as one skin (IVCS keeps the old join: its hepatic veins land too far apart along the cava to be a junction)', () => {
+test('the junctions with an arm behind the organs are skinned: IVCI, the two SVC junctions and the hepatic veins\' ostia (IVCS)', () => {
   withScene((s) => { for (const n of BACK_NODES) assert.ok(s.skinNodes.includes(n), `${n} is skinned (${s.skinNodes.join(', ')})`); });
 });
 
@@ -75,7 +76,7 @@ test('a plain junction (no arm behind the organs) draws its front copy alone, as
 test('at every arm\'s seam each copy\'s alpha is the arm tube\'s own alpha of that copy (its front, solid and veil), for the Hide-vessels-behind-organs share k in {0, 0.5, 1} and the cava whole or not', () => {
   withScene((s, built) => {
     const back = built.filter((b) => BACK_NODES.includes(b.node));
-    assert.ok(back.length === 2);
+    assert.ok(back.length === BACK_NODES.length, `${back.length} of ${BACK_NODES.length} back skins built`);
     for (const k of [0, 0.5, 1]) for (const whole of [0, 1]) {
       for (const b of back) for (const a of b.arms) { if (a.obj.behindOrgans) { a.obj.setOcclusion(k); if (CAVA_LIKE.has(a.id)) a.obj.setWholeShare(whole); } }
       sync(s);
@@ -84,7 +85,8 @@ test('at every arm\'s seam each copy\'s alpha is the arm tube\'s own alpha of th
         const fades = (b.draw.material.uniforms.armAF!.value as Array<{ y: number }>).map((v) => v.y).slice(0, b.arms.length);
         b.arms.forEach((a, i) => {
           const tube = tubeCopies(a.obj), seam = m.seamVerts[i]![0]!;
-          const w = Array.from(m.weight.subarray(seam * 4, seam * 4 + 4));
+          // (an arm past the fourth weighs in weight2: IVCS has five, round 18)
+          const w = [...Array.from(m.weight.subarray(seam * 4, seam * 4 + 4)), ...Array.from(m.weight2.subarray(seam * 2, seam * 2 + 2))].slice(0, Math.max(4, b.arms.length));
           assert.deepEqual(w.map((x) => Math.round(x * 1e4) / 1e4), w.map((_, q) => (q === i ? 1 : 0)), `${b.node}/${a.id}: a seam vertex is wholly its own arm`);
           for (const c of [0, 1, 2] as const) {
             const skin = copyAlpha(w, shares.map((x, q) => (q === i ? x : [0, 0, 0])), fades, c);
@@ -98,7 +100,7 @@ test('at every arm\'s seam each copy\'s alpha is the arm tube\'s own alpha of th
 
 test('a skin has no visibility of its own: it shows a copy only where an arm that is there has a share of it, and a hidden arm or one not yet drawn gives it nothing', () => {
   withScene((s, built) => {
-    const b = built.find((x) => x.node === 'SVC_E+SVC')!;
+    const b = built.find((x) => x.node === 'SVC_E')!;   // (the epigastric vein's junction on the SVC: its arm 2 is the epigastric vein, drawn in front. The azygos's junction SVC carries the growing C1b, so in Healthy its plain trunk is the drawn skin, not this one)
     sync(s);
     assert.ok(b.draw.copies.some((m) => m.visible));
     // every arm hidden by the scene (presence): no copy is drawn
