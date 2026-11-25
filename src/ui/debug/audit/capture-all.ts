@@ -226,13 +226,18 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         };
         // a teaching slide with several choices (tabs, toggles, options): each is pressed and the result taken, named for the button; the first picture's choice is put back before the next state
         const choiceShots = async (view: string): Promise<void> => {
-          const names = standing(CHOICE_SEL).map((t, i) => choiceName(t.textContent, t.getAttribute('aria-label'), i)), was = standing(CHOICE_ON_SEL).map((t, i) => choiceName(t.textContent, t.getAttribute('aria-label'), i));
+          // (the choices to press are fixed from the slide as it arrived: every one that is not standing, by name. Looking again after each press for "the first not pressed yet" found the choice the press had just put down,
+          //  so on a group of three the last was never shot and the first was shot twice: Gastric varices 11, capture f23a4c59, "Removed")
+          const nameOf = (e: HTMLElement, j: number): string => choiceName(e.textContent, e.getAttribute('aria-label'), j);
+          const every = (): HTMLElement[] => standing(`${CHOICE_SEL}, ${CHOICE_ON_SEL}`);
+          const list0 = every(), names = list0.filter((e) => !e.matches(CHOICE_ON_SEL)).map((e) => nameOf(e, list0.indexOf(e))), was = list0.filter((e) => e.matches(CHOICE_ON_SEL)).map((e) => nameOf(e, list0.indexOf(e)));
           const pressed = new Set<string>(), ids0 = cardIds(), tests0 = !!document.querySelector('.t-card');
           for (let i = 0; i < Math.min(names.length, CHOICE_MAX); i++) {
             if (ui.stop()) break;
-            const t = standing(CHOICE_SEL).find((e, j) => { const nm = choiceName(e.textContent, e.getAttribute('aria-label'), j); return !pressed.has(nm); });
-            if (!t) break;
-            const nm = choiceName(t.textContent, t.getAttribute('aria-label'), i); pressed.add(nm);
+            const nm = names[i]!;
+            const t = every().find((e, j) => !e.matches(CHOICE_ON_SEL) && nameOf(e, j) === nm);
+            if (!t) continue;
+            pressed.add(nm);
             if (ui.skip) clock.setDrawing(false);
             t.click();
             await stillPage(real, false, !!ui.skip); await showLanded();
@@ -241,7 +246,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
             if (t.isConnected && t.hasAttribute('aria-expanded')) t.click();   // (an opener is closed again: the next choice and the next state start from the slide as it arrived)
           }
           if (pressed.size) {   // (put back what stood: the first of the cards' choices)
-            for (const nm of was) { const back = standing(CHOICE_SEL).find((e, j) => choiceName(e.textContent, e.getAttribute('aria-label'), j) === nm); if (back) { if (ui.skip) clock.setDrawing(false); back.click(); await stillPage(real, false, !!ui.skip); await showLanded(); } }
+            for (const nm of was) { const back = every().find((e, j) => !e.matches(CHOICE_ON_SEL) && nameOf(e, j) === nm); if (back) { if (ui.skip) clock.setDrawing(false); back.click(); await stillPage(real, false, !!ui.skip); await showLanded(); } }
           }
         };
         const d0 = new Date().getTime(); waitMs += d0 - w0;

@@ -30,6 +30,11 @@ export function infarctAt(x: number, y: number): { dead: number; line: number } 
   return { dead: smooth(-1, 1.5, y - ey), line: 1 - smooth(0.6, 2.2, Math.abs(y - ey)) };
 }
 
+/** Where the plate's stroke lies along the spleen that stands now: the stroke (x 990 to 1120 on 2D's plate) was drawn across 2D's own spleen, and the approved placement's spleen is narrower and further left (2D x 934 to 1018), so a stroke
+ *  laid on the plate's x left the spleen's left two thirds with no edge and a straight upright cut where the stroke began (capture f23a4c59, Gastric varices 11, Embolized). The stroke is stretched across the spleen's own
+ *  width (`x0` to `x1`, its leftmost and rightmost vertex), so it runs from one side of the organ to the other whatever the organ is; its height is the plate's. */
+export const infarctX = (x0: number, x1: number, x: number): number => EDGE[0]![0] + ((x - x0) / Math.max(1e-6, x1 - x0)) * (EDGE[EDGE.length - 1]![0] - EDGE[0]![0]);
+
 export class VertexPaint {
   readonly attr: BufferAttribute;
   /** the vertices' places in the 2D figure at rest */
@@ -44,7 +49,8 @@ export class VertexPaint {
     for (let i = 0; i < n; i++) { this.xs[i] = x2d(pos.getX(i)); this.ys[i] = y2d(pos.getY(i)); }
     if (id === 'spleen') {
       this.dead = new Float32Array(n); this.line = new Float32Array(n);
-      for (let i = 0; i < n; i++) { const q = infarctAt(this.xs[i]!, this.ys[i]!); this.dead[i] = q.dead; this.line[i] = q.line; }
+      let x0 = Infinity, x1 = -Infinity; for (let i = 0; i < n; i++) { x0 = Math.min(x0, this.xs[i]!); x1 = Math.max(x1, this.xs[i]!); }
+      for (let i = 0; i < n; i++) { const q = infarctAt(infarctX(x0, x1, this.xs[i]!), this.ys[i]!); this.dead[i] = q.dead; this.line[i] = q.line; }
     } else { this.dead = null; this.line = null; }
     this.attr = new Float32BufferAttribute(new Float32Array(n * 3), 3);
     g.setAttribute('ink', this.attr);

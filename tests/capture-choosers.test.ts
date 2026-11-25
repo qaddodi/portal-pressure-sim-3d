@@ -46,3 +46,11 @@ test('a capture press never leaves the slide: choices are looked for only in the
   assert.match(all, /querySelectorAll<HTMLElement>\(CHOICE_ROOTS\)/); assert.match(all, /if \(!pressable\(t\)\) return false/);
   assert.match(all, /it opened another card/, 'a press that changes the standing cards is undone and reported');
 });
+
+test('the capture fixes the choices it will press from the slide as it arrived, by name, so a group of three is shot whole (Gastric varices 11, capture f23a4c59: "Removed" was never shot and "None" twice)', () => {
+  const all = readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8');
+  const body = all.slice(all.indexOf('const choiceShots'), all.indexOf('const d0 = new Date().getTime(); waitMs += d0 - w0;'));
+  assert.match(body, /names = list0\.filter\(\(e\) => !e\.matches\(CHOICE_ON_SEL\)\)/, 'the list is made once, before the first press');
+  assert.doesNotMatch(body, /pressed\.has\(/, 'no looking again for "the first one not pressed yet"');
+  assert.match(body, /const nm = names\[i\]!;/);
+});

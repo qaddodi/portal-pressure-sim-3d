@@ -24,3 +24,11 @@ test('a step marker in the words is the numeral alone: no disc, no pill, bold, t
   assert.match(r, /background: none/); assert.match(r, /border-radius: 0/); assert.match(r, /font-weight: 700/); assert.match(r, /display: inline/);
   assert.doesNotMatch(r, /box-shadow|outline|border-radius: (?!0)/);
 });
+
+test('a step marker beside a stop sits against it: proportional numerals (not the tabular cell) and no end margin or padding (capture f23a4c59, Circulation 3: "1 ," and "2 .")', () => {
+  const hum = strip('src/ui/humanized.css'), deck = strip('src/ui/deck-ui.css');
+  assert.match(rule(hum, 'html:root .pz-step'), /font-variant-numeric: proportional-nums/);
+  assert.match(hum, /\.pz-stop \.pz-step \{ margin-inline-end: 0; padding-inline-end: 0; \}/);
+  assert.doesNotMatch(deck, /:is\(\.dk-num, \.pz-val, \.pz-step,/, 'the words\' tabular rule no longer takes the step marker');
+  assert.match(deck, /:is\(\.pz-step, \.pz-step \*\) \{ font-variant-numeric: proportional-nums/);
+});

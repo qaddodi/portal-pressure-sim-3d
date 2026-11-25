@@ -10,6 +10,8 @@
 
 - The talk-so-far chart's numbered stops (Pressure over the talk: 1 to 7 over the plot, the latest beside its year) follow the same rule (23 Nov, review bbe955e5 item 7): bold numeral with the card's halo, the latest in the full text colour, no ring.
 
+- In the words the numeral sits against the stop that follows it ("1," and "2."): proportional digits, no margin or padding at its end (25 Nov, capture f23a4c59: tabular digits left a blank before the comma).
+
 ## Rejected / replaced
 - The white frosted disc with a dark numeral (the 19-23 Nov look). Replaced by his choice, not a bug.
 - Not chosen: 1 plain centred disc, 2 ring-end leader, 3 gradient disc with a tapered leader.

@@ -91,6 +91,12 @@ export function along(course: readonly (readonly [number, number])[], u: number)
 
 const SHORT = LABEL_NAMES.SHORT as Record<string, string>;
 const ABBR = LABEL_NAMES.ABBR as Record<string, string>;
+/** A station's 2D abbreviation, unless it is another station's whole name: "Lower IVC" shortens to "IVC", which is the upper IVC's own name, so a phone's two cava readings (4.0 and 5.0) were both captioned "IVC" and read as one vessel
+ *  that disagrees with itself (capture f23a4c59, Circuit 2, iPhone, card tucked). The labels' own solver drops such an abbreviation the same way (labels/stations.ts `abbrs`). */
+export const abbrOf = (id: string): string | null => {
+  const a = ABBR[id];
+  return a && !Object.entries(SHORT).some(([o, n]) => o !== id && n === a) ? a : null;
+};
 /** The station ID -> the topology node whose pressure it reads (the same id: the 2D app's captions read the station's own). */
 const readsNode = (id: string): string => id;
 
@@ -191,7 +197,7 @@ export function buildCaptions(ctx: CapCtx): Built {
     if (!shows(id, ctx)) continue;
     const at = ctx.station(id);
     if (!at) continue;
-    const name = SHORT[id] ?? id, abbr = ABBR[id] ?? null;
+    const name = SHORT[id] ?? id, abbr = abbrOf(id);
     const [ax, ay] = ctx.proj(at[0], at[1]);
     const mk = (n: string, v: boolean): { f: Form; name: string } => { const b = boxSize(stationRuns(n, v, false), vp, measure); return { f: form(n, b.w, b.h), name: n }; };
     // (The hepatic artery has no number: 2D draws its name alone, and "HA" where it is crowded, stage-label-items.js `id === 'HA' ? null : pressureRuns`. A pressure of 74.9 beside it had made it the
