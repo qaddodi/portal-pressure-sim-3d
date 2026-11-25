@@ -15,7 +15,6 @@ import { setInterventionLabels, timeline } from '../timeline/index.ts';
 import { MESHES_OF } from '../../scene/organs/pick.ts';
 import { useUi } from '../ui-store.ts';
 import { isPhone } from '../layout/device.ts';
-import { injectDye } from './dye.ts';
 import { startShunting } from './shunt.ts';
 import './stent/StentPanel.tsx';   // (registers the stent editor as the card's 'stent' panel)
 import { goToView } from '../shell/view-actions.ts';
@@ -32,8 +31,7 @@ export function startActions(): () => void {
     if (!t.open) { useShell.getState().close(); if (isPhone(useUi.getState().device)) useSelection.setState({ sel: null }); }
     t.toggle();
   }));
-  // the card buttons the other batches own: Inject dye (the J key too), and the lobule and sinusoid views a liver card opens
-  off.push(registerFeature('dye', (o) => injectDye(o?.hold ? { hold: true } : {})));
+  // the card buttons the other batches own: the lobule and sinusoid views a liver card opens
   off.push(registerFeature('view:lobule', () => { goToView('lobule'); }));
   off.push(registerFeature('view:sinusoid', () => { goToView('sinusoid'); }));
   off.push(registerFeature('view:circuit', () => { goToView('circuit'); }));

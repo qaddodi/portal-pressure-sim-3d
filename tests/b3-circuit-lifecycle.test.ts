@@ -1,12 +1,12 @@
 // The Circuit's change has one owner of the anatomy's visibility (DiseaseLayer.setFade): the organs, the lines on them, and every overlay that lies on the anatomy
-// (strands, clots, the bleed, the ascites pool, the dye) dissolve together, and what is made while the anatomy is away stays away.
+// (strands, clots, the bleed, the ascites pool) dissolve together, and what is made while the anatomy is away stays away.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
 import { presetState } from './b4-presets.ts';
 
 
-test('the anatomy\'s other overlays follow the same owner: clots, the bleed, the ascites pool and the dye', async () => {
+test('the anatomy\'s other overlays follow the same owner: clots, the bleed and the ascites pool', async () => {
   const s = new CelScene(); const d = s.disease;
   const f = (await presetState('cirr-decomp')).frame;
   d.feed(f as never, { }, null, { instant: true, presence: () => 1, recruit: () => 1 }, true); d.update(1000);
@@ -15,10 +15,8 @@ test('the anatomy\'s other overlays follow the same owner: clots, the bleed, the
   assert.ok(pool() > 0, 'a pool');
   d.setFade(0);
   assert.equal(pool(), 0, 'no pool on the map');
-  assert.equal((d.dye as unknown as { amount: { value: number } }).amount.value, 0, 'no dye on the anatomy\'s vessels on the map');
   d.setFade(1);
   assert.ok(pool() > 0, 'the pool is back');
-  assert.equal((d.dye as unknown as { amount: { value: number } }).amount.value, 1);
   for (const c of (d.clots as unknown as { clots: Map<string, { obj: { group: { visible: boolean } } | null }> }).clots.values()) d.setFade(0), assert.ok(!c.obj?.group.visible);
   s.dispose?.();
 });

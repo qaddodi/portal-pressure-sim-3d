@@ -26,7 +26,6 @@ export const DISEASE_LOOKS: Record<string, string> = {
   'bleed-pool': 'Variceal bleed: the pool in the stomach',
   'sin-strands': 'Sinusoid strands, faint and fine',
   'lens-grey': 'A colour lens greys the organs',
-  'dye': 'Dye bolus carried by the flow',
 };
 const rows = (area: string, items: Record<string, string>): Row[] => Object.entries(items).map(([k, label]) => ({ id: `${area}:${k}`, area: 'figure', batch: 'B4', label }));
 export const B4_ROWS: readonly Row[] = [...rows('organ', ORGAN_LABELS), ...rows('figure', DISEASE_LOOKS)];

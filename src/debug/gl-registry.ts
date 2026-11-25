@@ -43,7 +43,6 @@ export const GL_FILES: Record<string, string> = {
   'scene/circuit/map-layer.ts': 'the Circuit plate and dots: found on the scene graph',
   'scene/circuit/resistors.ts': 'the Circuit resistor ribbons (made when the Circuit opens): registered by name',
   'scene/disease/bleed.ts': 'the bleed jet\'s ink (a hull whose line thins toward the tip; made when a bleed first shows): registered by name',
-  'scene/disease/dye.ts': 'the dye is painted by the vessels\' own programs (vessels/shaders.ts, skin/shaders.ts): no program of its own',
   'scene/shunt-guide.ts': 'the shunt\'s dashed guide (a quad on the vessels\' pass, in the body group): found on the scene graph',
   'scene/devices/device-object.ts': 'a device wears the toon shader with an alpha: found on the scene graph',
   'scene/lobule/plate.ts': 'the lobule\'s tissue plate under the 3D cells (2D\'s painter on a canvas texture): found on the scene graph',
@@ -71,7 +70,7 @@ export function namedSources(): Map<string, string> {
   ]);
 }
 
-/** The programs the scene graph does not hold until something happens (a Circuit, a dye bolus) and the ones outside the scene (charts, Doppler, FibroScan). */
+/** The programs the scene graph does not hold until something happens (a Circuit, a bleed) and the ones outside the scene (charts, Doppler, FibroScan). */
 /** The organ wash wrapped for the art (the heart's line: art only), the stomach (art, the esophagus's tone and fade; its pool is per pixel) and the colon (art, the rectum's fade): fill and outline. */
 function organArtPrograms(): Program[] {
   const eso = { poly: [775, -90, 799, -90, 813, 266, 792, 266], box: [775, -90, 38, 356] as [number, number, number, number], fade: [40, -40] as [number, number], seam: [226, 262] as [number, number] };

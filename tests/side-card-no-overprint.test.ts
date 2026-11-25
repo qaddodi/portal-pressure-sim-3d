@@ -37,8 +37,8 @@ test('at the side card\'s width the widest header line and the widest action row
   // header line 2: three readings (PPG 3.0 mmHg · flow 4.5 L/min · peak 107 cm/s) with their gaps
   const keys = w('PPG', 12) + w('3.0', 14) + w('mmHg', 12) + w('4.5', 14) + w('L/min', 12) + w('107', 14) + w('cm/s', 12) + 2 * 8 + 6 * 4;
   assert.ok(keys <= inner, `readings ${keys} <= ${inner}`);
-  // the action row: Remove, Doppler, Dye, IR, each an 18 px icon, a 5 px gap, its word and 4 px of padding
+  // the action row: Remove, Doppler, IR, each an 18 px icon, a 5 px gap, its word and 4 px of padding
   const btn = (t: string) => 18 + 5 + w(t, 13) + 4;
-  const row = ['Remove', 'Doppler', 'Dye', 'IR'].map(btn).reduce((a, b) => a + b, 0) + 3 * 4;
+  const row = ['Remove', 'Doppler', 'IR'].map(btn).reduce((a, b) => a + b, 0) + 2 * 4;
   assert.ok(row <= inner, `actions ${row} <= ${inner}`);
 });

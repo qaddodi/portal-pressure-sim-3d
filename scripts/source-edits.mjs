@@ -439,6 +439,9 @@ export function sourceEdits(json, patches = SOURCE_PATCHES) {
 // Same rule as the talks: Baveno VIII is the only guideline named on screen. The generators of those files call uiTextEdits() on the text they are about to write
 // (gen-ui-strings, copy-about, copy-presenter, copy-b11, copy-chart-catalog, copy-chart-path). About's reference list keeps its citations (a citation is not guidance).
 const UI_EDITS = [
+  // (the dye was taken out of the 3D app, 24 Nov 2026, docs/approved/dye.md: its shortcut row and its sentence in the Blood help go)
+  [' Tap a vessel and use Inject dye on its card (or press J; hold for longer) to watch dye travel and split.', ''],
+  ['  {\n   "group": "Run the model",\n   "keys": "J",\n   "what": "Inject dye (hold for longer)"\n  },\n', ''],
   ['the directly measured portosystemic gradient (AASLD 2024).', 'the directly measured portosystemic gradient.'],
   ['The presentations follow Baveno VIII (J Hepatol, 2026), with AASLD guidance where US practice differs, for example the vasoactive drug and the antibiotic in variceal bleeding.', 'The presentations follow Baveno VIII (J Hepatol, 2026). Where it is silent, for example on doses, the speaker notes name the source.'],
   ['Baveno VIII consensus on portal hypertension (2026); AASLD guidance on risk stratification and management of portal hypertension and varices in cirrhosis (2024). Thresholds', 'Baveno VIII consensus on portal hypertension (2026). Thresholds'],

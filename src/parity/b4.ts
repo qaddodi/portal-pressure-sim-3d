@@ -10,7 +10,6 @@ import { RED_WALE } from '../scene/disease/strands.ts';
 import { AscitesLayer } from '../scene/disease/ascites.ts';
 import { BleedLayer } from '../scene/disease/bleed.ts';
 import { ClotLayer } from '../scene/disease/clots.ts';
-import { DyeLayer } from '../scene/disease/dye.ts';
 import { StrandLayer } from '../scene/disease/strands.ts';
 import { B4_ROWS } from './b4-rows.ts';
 import type { Claim } from './claim.ts';
@@ -20,6 +19,6 @@ const built: Record<string, boolean> = {
   'spleen-infarct': typeof infarctAt === 'function', 'ascites-pool': typeof AscitesLayer === 'function', 'ascites-flank': typeof Landmarks === 'function', 'caput-umbilicus': typeof Landmarks === 'function',
   'stenosis-clamp': typeof ClampLayer === 'function', 'thrombus-clot': typeof ClotLayer === 'function', 'cavernoma': typeof StrandLayer === 'function', 'varices-bands': typeof StrandLayer === 'function',
   'varix-bead': typeof StrandLayer === 'function', 'red-wale': RED_WALE.length === 3, 'bleed-stream': typeof BleedLayer === 'function', 'bleed-pool': 'stomach' in ORGAN_STYLE,
-  'sin-strands': typeof StrandLayer === 'function', 'lens-grey': 'liver' in ORGAN_STYLE, 'dye': typeof DyeLayer === 'function',
+  'sin-strands': typeof StrandLayer === 'function', 'lens-grey': 'liver' in ORGAN_STYLE,
 };
 export const claims: readonly Claim[] = B4_ROWS.filter((r) => r.id.startsWith('organ:') ? ORGAN_IDS.includes(r.id.slice(6)) : built[r.id.slice(7)]).map((r) => ({ id: r.id, wired: true }));

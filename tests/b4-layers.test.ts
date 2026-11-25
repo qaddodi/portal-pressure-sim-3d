@@ -1,4 +1,4 @@
-// The B4 layers on their own: the ascites pool, the clots, the bleed, the dye and the organs, stepped the way the clock steps them.
+// The B4 layers on their own: the ascites pool, the clots, the bleed and the organs, stepped the way the clock steps them.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BoxGeometry, BufferGeometry } from 'three';
@@ -51,18 +51,6 @@ test('the bleed fades in and out, never pops, and shows only while it runs', () 
   b.set({ ...on, active: false }, 0.016); assert.equal(b.group.visible, true, 'still fading');
   for (let i = 0; i < 400; i++) b.set({ ...on, active: false }, 0.016);
   assert.equal(b.group.visible, false);
-  s.dispose?.();
-});
-
-test('dye: a bolus goes in, is carried by the flow, and the layer says when it is done', async () => {
-  const s = new CelScene(); const d = s.disease.dye;
-  const st = await presetState('healthy');
-  assert.equal(d.step(0.1, st.frame), false, 'nothing in the body: no frames asked for');
-  assert.equal(d.inject('NOT_A_VESSEL'), false);
-  assert.equal(d.inject('PV_TRUNK', 0), true);
-  let steps = 0; while (d.step(0.1, st.frame) && steps < 4000) steps++;
-  assert.ok(steps > 5 && steps < 4000, `the bolus runs ${steps} steps and ends`);
-  assert.equal(d.group.children.every((m) => !m.visible), true, 'every overlay hidden after');
   s.dispose?.();
 });
 

@@ -5,7 +5,7 @@ import { useShell } from './store.ts';
 import { notYet } from './words.ts';
 
 export type FeatureId =
-  | 'treat' | 'tests' | 'history' | 'compare' | 'undo' | 'redo' | 'dye' | 'advanced' | 'feedback' | 'lens' | 'blood' | 'rotate' | 'zoom-in' | 'zoom-out'
+  | 'treat' | 'tests' | 'history' | 'compare' | 'undo' | 'redo' | 'advanced' | 'feedback' | 'lens' | 'blood' | 'rotate' | 'zoom-in' | 'zoom-out'
   | 'doppler' | 'endoscopy' | 'fibroscan' | 'ir' | 'shunt' | 'view:circuit' | 'view:lobule' | 'view:sinusoid' | 'guide-about' | 'guide-references' | 'guide-privacy' | 'figure-detail';
 
 const handlers = new Map<FeatureId, (o?: { hold?: boolean }) => void>();
