@@ -26,10 +26,10 @@ export function bootLines(d: BootDigest): string[] {
   // the slot times its own steps (clock/idle.ts), so this signal exists on every browser: Safari (the Mac, iPad and iPhone) has no long-task observer
   const slow = d.slots.filter((s) => s.worstStepMs > SLOW_STEP_MS).sort((a, b) => b.worstStepMs - a.worstStepMs);
   L.push(`slow background steps (a step over ${SLOW_STEP_MS} ms, measured by the slot itself; zero is the goal): ${slow.length}`);
-  for (const s of slow.slice(0, 8)) L.push(`  slot:${s.tag} · worst step ${f1(s.worstStepMs)} ms over ${s.steps} steps`);
+  for (const s of slow.slice(0, 8)) L.push(`  slot:${s.tag} · worst step ${f1(s.worstStepMs)} ms${s.worstLabel ? ` (${s.worstLabel})` : ''} over ${s.steps} steps`);
   if (d.slots.length) {
     L.push('background slots (clock/idle.ts; a step over 16 ms is a stall risk):');
-    for (const s of d.slots) L.push(`  slot:${s.tag} · ${s.slices} slices, ${s.steps} steps, ${f1(s.totalMs)} ms in all, worst step ${f1(s.worstStepMs)} ms${s.done ? '' : ' · not finished'}`);
+    for (const s of d.slots) L.push(`  slot:${s.tag} · ${s.slices} slices, ${s.steps} steps, ${f1(s.totalMs)} ms in all, worst step ${f1(s.worstStepMs)} ms${s.worstLabel ? ` (${s.worstLabel})` : ''}${s.done ? '' : ' · not finished'}`);
   }
   return L;
 }

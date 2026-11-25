@@ -282,24 +282,28 @@ export class CelScene {
     // (a job that ended without priming (a step threw: the slot marks it done) is made again, so one bad slice can never leave every later dive waiting on a job that will not run)
     if (this.microJob?.done) this.microJob = null;
     // (many small steps per slice up to SLICE_MS, one slot with the rest of the page's background work: clock/idle.ts)
-    this.microJob ??= whenQuiet(() => this.microStep(), { tag: 'micro', budgetMs: SLICE_MS });
+    this.microJob ??= whenQuiet(() => this.microStep(), { tag: 'micro', budgetMs: SLICE_MS, label: () => this.microWhat });
     // (a view change: the user is waiting for it. The slot never runs an unrushed job under a live clock hold, so the job must be rushed whether the dive made it or Stage's boot call did.
     //  Before, only a job that already existed was rushed: a dive that was the first caller made an unrushed one, which waited behind the screen's own holds: the black first dive, 22 Nov)
     if (urgent) this.microJob.rush();
   }
+  /** What the micro slot's step in hand is (the slot keeps the slowest step's name in its stat: the audit's boot digest says which step was long, clock/idle.ts QuietOpts.label). */
+  private microWhat = '';
   /** One small step of the micro views' preparation; true when everything is built and primed. */
   private microStep(): boolean {
     {
       if (this.disposed) return true;
-      if (!this.micro) { if (!this.microSinus) this.makeSinus(); else this.buildMicro(); }   // (one constructor a step)
-      else if (!this.micro.sinus.shapeReady) this.micro.sinus.prepareShapeStep();
-      else if (this.micro.lobule.prepareVessels()) { /* (the lobule's vessel meshes, a slice of their own) */ }
+      if (!this.micro) { this.microWhat = this.microSinus ? 'lobule constructor' : 'sinusoid constructor'; if (!this.microSinus) this.makeSinus(); else this.buildMicro(); }   // (one constructor a step)
+      else if (!this.micro.sinus.shapeReady) { this.microWhat = 'sinusoid shapes'; this.micro.sinus.prepareShapeStep(); }
+      else if ((this.microWhat = 'lobule vessels', this.micro.lobule.prepareVessels())) { /* (the lobule's vessel meshes, a slice of their own) */ }
       else if (!this.microPrimed) {   // (what the lobule's first shown frame would build: built now, hidden; the tiles in steps of their own, then the rest of the frame)
-        if (!this.primeSnapped) { this.primeSnapped = true; this.snapMicroToModel(); }
-        if (this.micro.lobule.primeCells()) { this.microPrimed = true; this.micro.lobule.update(true, 0, 0, 1, true); }
+        this.microWhat = 'lobule tiles';
+        if (!this.primeSnapped) { this.primeSnapped = true; this.microWhat = 'snap to the model'; this.snapMicroToModel(); this.microWhat = 'lobule tiles'; }
+        if (this.micro.lobule.primeCells()) { this.microPrimed = true; this.microWhat = 'lobule first frame'; this.micro.lobule.update(true, 0, 0, 1, true); }
       }
       else if (!this.microPrimed2) {   // (the same for the sinusoid's tail, Kupffer cell, pores and colours: one keyed piece a step)
         const up = ++this.primeSinusAt;
+        this.microWhat = `sinusoid piece ${up}`;
         this.micro.sinus.update(true, 1, true, up);
         if (up >= 4) this.microPrimed2 = true;
       }

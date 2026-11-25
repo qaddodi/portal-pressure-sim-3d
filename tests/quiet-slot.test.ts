@@ -201,3 +201,17 @@ test('the slot never keeps a Node process alive on its own (its MessageChannel i
   assert.notEqual(r.signal, 'SIGTERM', 'the process hung on the slot');
   assert.equal(r.status, 0, r.stderr);
 });
+
+test('the stat names the job\'s slowest step (QuietOpts.label), and the boot digest prints it (audit 1161e159: a 2 819 ms step in the micro slot had no name)', async () => {
+  const f = fake(), q = createQuiet(f.env);
+  let what = '', n = 0;
+  const costs = [1, 1, 40, 1, 2];
+  q.whenQuiet(() => { what = `step ${n}`; f.advance(costs[n]!); return ++n >= costs.length; }, { tag: 'a', label: () => what, budgetMs: 1000 });
+  f.run(f.t + 1000);
+  const st = q.stats()[0]!;
+  assert.equal(st.worstStepMs, 40);
+  assert.equal(st.worstLabel, 'step 2');
+  const { bootLines } = await import('../src/boot/boot-lines.ts');
+  const lines = bootLines({ stamps: {}, firstByte: 0, late: { total: 0, rows: [] }, longTasks: { measured: true, by: 'timer', total: 0, rows: [] }, slots: [st], parallelCompile: true } as never);
+  assert.ok(lines.some((l) => l.includes('worst step 40.0 ms (step 2)')), lines.join('\n'));
+});
