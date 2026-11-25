@@ -562,6 +562,10 @@ export class LabelController {
     const sig = cathSig + '|' + shapeOf(this.cathText()) + '|' + (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + [...this.state.shown].sort().join(',') + this.state.cath + (this.state.proc?.sig ?? '');
     // A new card (or a new view or card box) comes in while the points slide (a tilt, a follow, the scope bending), which never rests: the reading cards ride their points (`show.ride`), so they are placed
     // now, without the names, which keep waiting for the picture to be still. Without this a card that came while anything slid waited for ever and never appeared (EUS-PPG's PV and HV, 21 Nov).
+    // No reading cards are wanted (the slide went, the run ended, the view left the body): they ease out NOW. Waiting for a rest to say so left the old ones wanted
+    // for as long as the camera glides, and they came back at their last screen place, frozen while the anatomy moved (25 Nov, the zoom from the EUS-PPG slide to the next).
+    // Pure and cheap: nothing is placed.
+    if (!cathNow && !procNow && this.show.wanting) this.show.clear();
     if (!hold && !resting && (cathNow || procNow)) {
       const cs = `${this.state.proc?.sig ?? ''}|${this.state.cath ?? ''}|${here ? 1 : 0}|${this.cGot}|${shapeOf(this.cathText())}|${keyBox ? boxKey(keyBox) : '-'}|${boxKey(view)}|${blockers.map(boxKey).join(';')}`;
       if (cs !== this.cardSig) {

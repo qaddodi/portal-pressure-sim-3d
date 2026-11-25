@@ -131,6 +131,16 @@ export class CathShow {
 
   /** Where the two points stand now. Called every frame, before `step`: the cards ride them (a little move of the picture never hides a card). */
   ride(tip: Pt | null, ahead: Pt | null): void { this.cur.tip = tip; this.cur.ahead = ahead; }
+  /** Whether the point a card names has a place on the screen now. A card is pinned to its point: it is drawn at its solved place plus how far the point has moved.
+   *  With no point there is nothing to be pinned to (`away` reads 0), so the card would stand at its solved screen place while the camera moves on under it.
+   *  A card whose point is gone is never drawn: it eases out, and does not come back until its point does. */
+  private anchored(id: PillId | 's'): boolean { return id === 'f' ? !!this.cur.tip : id === 'w' ? !!this.cur.ahead : !!this.cur.tip && !!this.cur.ahead; }
+  /** Whether any card is wanted (the controller clears them the moment their source, a catheter state or a procedure's run, is gone: see `clear`). */
+  get wanting(): boolean { return this.want.pills.size > 0 || !!this.want.sum; }
+  /** The source of the cards is gone (the slide moved on, the run ended): nothing is wanted any more, so every card on show eases out and none comes back.
+   *  Placing them again waits for a rest, which a camera that glides never gives. Until then the cards stayed wanted and faded back in at their last screen place,
+   *  frozen on a picture that had moved (Mohammad, 25 Nov, the zoom from the HVPG deck's EUS-PPG slide). */
+  clear(): void { this.want = { pills: new Map(), sum: null }; this.boxes = []; this.cards = []; }
   /** How far a point has moved since a card was placed for it. */
   private away(at: Pt | null, ax: number, ay: number): [number, number] { return at ? [at[0] - ax, at[1] - ay] : [0, 0]; }
   /** The stack's leaders are drawn once, in the box's own frame, to the points as they stood when it was placed, and the box rides the AVERAGE of the two points' moves. While the camera turns or zooms the two
@@ -244,7 +254,7 @@ export class CathShow {
     };
     // the result's stack takes over the cards: its rows start where the cards stood (a card not yet drawn leaves its row to rise in)
     const sumWanted = this.want.sum;
-    if (sumWanted && !this.sum && !hold) {
+    if (sumWanted && !this.sum && !hold && this.anchored('s')) {
       const from: SumRec['from'] = [null, null];
       // row 0 is the wedged reading, row 1 the free one
       const f = this.pills.get('w'), g = this.pills.get('f');
@@ -256,17 +266,17 @@ export class CathShow {
     for (const id of ['f', 'w'] as const) {
       const w = this.want.pills.get(id);
       const rec = this.pills.get(id);
-      if (!rec) { if (w && !hold && !this.sum) { this.pills.set(id, { t: w, p: 0, gx: 0, gy: 0 }); busy = true; } continue; }
+      if (!rec) { if (w && !hold && !this.sum && this.anchored(id)) { this.pills.set(id, { t: w, p: 0, gx: 0, gy: 0 }); busy = true; } continue; }
       if (settle(rec)) busy = true;
       let target = 1;
-      if (hold || !w || this.sum) target = 0;
+      if (hold || !w || this.sum || !this.anchored(id)) target = 0;
       else if (!sameSpot(rec.t, w)) target = 0;
       if (rec.p < target) { rec.p = Math.min(target, rec.p + inn); if (rec.p !== target) busy = true; }
       else if (rec.p > target) { rec.p = Math.max(target, rec.p - out); if (rec.p !== target) busy = true; }
       if (rec.p <= 0) {
         if (!w || this.sum) this.pills.delete(id);
         else if (!hold && !sameSpot(rec.t, w)) { rec.t = w; busy = true; }
-        else if (!hold) busy = true;
+        else if (!hold && this.anchored(id)) busy = true;
       }
     }
     const s = this.sum;
@@ -275,7 +285,7 @@ export class CathShow {
       if (settle(s)) busy = true;
       for (const m of s.gm) if (settle2(m)) busy = true;
       let target = 1;
-      if (hold || !sumWanted) target = 0;
+      if (hold || !sumWanted || !this.anchored('s')) target = 0;
       else if (s.t.spot !== sumWanted.spot) target = 0;
       else if (this.skewed(s)) target = 0;
       if (s.fade < target) { s.fade = Math.min(target, s.fade + (s.u < SUM_MS.travel ? 1 : inn)); busy = true; }
@@ -283,7 +293,7 @@ export class CathShow {
       if (s.fade <= 0) {
         if (!sumWanted) { this.sum = null; }
         else if (!hold && s.t.spot !== sumWanted.spot) { s.t = sumWanted; s.from = [null, null]; s.u = SUM_MS.total; s.gx = 0; s.gy = 0; busy = true; }
-        else if (!hold) busy = true;
+        else if (!hold && this.anchored('s')) busy = true;
       }
       if (this.sum && this.sum.u < SUM_MS.total) busy = true;
     }
