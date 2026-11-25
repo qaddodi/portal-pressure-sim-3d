@@ -17,8 +17,8 @@ import { beatCardWaiting } from '../../tests/slide/beat-agree.ts';
 import { menuWaiting } from '../../charts/menu/MenuCard.tsx';
 import { drawScreen } from '../../capture/capture.ts';
 import { speedAnimations, sampleRealMs, skipAnimations, finishAnimations } from './speed.ts';
-import { collageLayout, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
-import { isSideways } from '../../layout/rules2d.ts';
+import { captureViews, type CaptureView, collageLayout, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
+import { isSideways, layoutOf } from '../../layout/rules2d.ts';
 import { lastPicked, stopKey, pickWords } from './capture-pick.ts';
 import { growCaptureTotal } from './progress.ts';
 import { zipBlob, type ZipFile } from '../../capture/zip.ts';
@@ -195,11 +195,11 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         if (ui.skip) { let drawn = 0; const offR = clock.on('render', () => { drawn++; }); clock.setDrawing(true); await until(() => drawn >= 1, real(2000)); offR(); }   // (the landed slide is drawn, a frame or two, before the picture)
         if (perpetual && !seen.has(perpetual)) { seen.add(perpetual); notes.push(`${d.title} ${n}: ${perpetual}; the picture was taken anyway`); }
         // a phone on its side with both cards (the words and the instrument stand in one column that a swipe up slides): two pictures of the slide, the teaching card in view, then the column slid up so the instrument is
-        const both = isSideways(innerWidth, innerHeight) && !!useUi.getState().boxes.data && !!useUi.getState().boxes.words;
+        const views = captureViews({ w: innerWidth, h: innerHeight, layout: layoutOf(innerWidth, innerHeight), sideways: isSideways(innerWidth, innerHeight) }, { data: !!useUi.getState().boxes.data, words: !!useUi.getState().boxes.words }), both = views.length === 2;   // (an upright phone or tablet: the instrument card up, then tucked)
         const base0 = `${dir}/${pad2(k + 1)}-${pad2(sub + 1)}-${slug(title)}`;
         if (single && !fresh) { thumbs.length = Math.max(0, thumbs.length - lastThumbs); }   // (a step replaces the one before it: its pictures' small copies go too)
         let pushed = 0;
-        const shoot = async (view: '' | 'teaching' | 'instrument'): Promise<boolean> => {
+        const shoot = async (view: CaptureView): Promise<boolean> => {
           const t1 = new Date().getTime();
           const when = new Date(), drawn = await drawScreen(when, { ratio: Math.min(devicePixelRatio, 2), stamp: false });   // (the device's own sharpness, 2x at most; no stamp in the corner: the build and time are in the README and each JSON)
           if (!drawn) { notes.push(`${d.title}: ${n}${view ? ` ${view}` : ''} could not be drawn`); return false; }
@@ -219,11 +219,11 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
           return true;
         };
         const d0 = new Date().getTime(); waitMs += d0 - w0;
-        const ok = await shoot(both ? 'teaching' : '');
+        const ok = await shoot(views[0]);
         if (both && ok) {
-          useUi.getState().setDocked(true);   // (the swipe up: the column slides until the instrument card is the one in view)
-          await stillPage(real);
-          await shoot('instrument');
+          useUi.getState().setDocked(true);   // (sideways: the swipe up, the column slides until the instrument card is the one in view; upright: the instrument card tucks into its strip)
+          await stillPage(real, false, !!ui.skip);
+          await shoot(views[1]!);
           useUi.getState().setDocked(false);   // (and back: the next slide starts on its words)
           await sleep(real(60));
         }
@@ -273,7 +273,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   }
   await Promise.all(encoding);
   const secs = Math.round((new Date().getTime() - t0) / 100) / 10;
-  files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x; the pictures are ${shape0.w}x${shape0.h} px`, countWords(files.filter((f) => f.name.endsWith('.jpg')).length, slidesSeen.size, decksDone)+`${stopped ? ' (stopped early)' : ''}${pick ? ` (picked slides: ${pickWords([...pick])})` : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that slide, and the patient, the look, the lens and the view it was taken with).', 'On a phone on its side a slide with both cards has two pictures: -teaching (the words in view) and -instrument (the column swiped up). A random sample counts slides, not pictures.', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
+  files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x; the pictures are ${shape0.w}x${shape0.h} px`, countWords(files.filter((f) => f.name.endsWith('.jpg')).length, slidesSeen.size, decksDone)+`${stopped ? ' (stopped early)' : ''}${pick ? ` (picked slides: ${pickWords([...pick])})` : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that slide, and the patient, the look, the lens and the view it was taken with).', 'On a phone on its side a slide with both cards has two pictures: -teaching (the words in view) and -instrument (the column swiped up). On an upright iPhone or iPad a slide with an instrument card has two: -untucked (the card up) and -tucked (the card in its strip). A random sample counts slides, not pictures.', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
   const commit = commitOf(import.meta.env.VITE_BUILD) || 'local';
   const stamp = `${at.getFullYear()}${pad2(at.getMonth() + 1)}${pad2(at.getDate())}-${pad2(at.getHours())}${pad2(at.getMinutes())}${pad2(at.getSeconds())}`;
   return { files, secs, perSlide: { waitMs: shots ? Math.round(waitMs / shots) : 0, drawMs: shots ? Math.round(drawMs / shots) : 0 }, speed, zip: zipBlob(files, at), zipName: `portal-pressure-${ui.only ? slug(ui.only) : 'all-decks'}-${commit}-${stamp}.zip`, collages, shots, decks: decksDone, stopped, notes };
