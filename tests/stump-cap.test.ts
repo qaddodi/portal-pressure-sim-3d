@@ -37,8 +37,8 @@ test('the tie and the running stitch are a pale suture with a dark edge, never o
 
 test('no dust and no chevron stands in the blind end of a stump, up to a head past the tie, and it eases in with the cut', () => {
   assert.match(VESSEL_FS, /stumpMk = \(stump\.x > 0\.0 && circT < 0\.001\) \? mix\(1\.0, smoothstep\(stump\.y \+ 2\.5/);
-  assert.match(VESSEL_FS, /\* stumpMk;\n  fd = clamp/, 'the dust');
-  assert.match(VESSEL_FS, /markK\(vUv\.x \* len \* vU, \(1\.0 - vUv\.x\) \* len \* vU\) \* stumpMk/, 'the heads');
+  assert.match(VESSEL_FS, /\* stumpMk;\n  fd = dSafe\(clamp/, 'the dust');   // (the dust's alpha is made whole first since b3afc9a4: dSafe)
+  assert.match(VESSEL_FS, /flowHeads\([^;]*markK\([^;]*\) \* stumpMk, lensHead/, 'the heads');   // (markK's ends are lifted where a skin takes over since 8c46c7bd; the stump's mask still multiplies it)
 });
 
 test('a divided vein is not cut at its start seam: no skin joins its tied end (the skin arm is absent, arm-twins.ts), so the tube draws its own round end', () => {
