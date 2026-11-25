@@ -19,7 +19,7 @@ export const cameraPart = scenePart<CelScene>()({
    *  It always lands on the liver's one place (`LIVER_POINT`, the lobule's anchor), whatever zoom and pan the hand had: the place is never chosen from the camera (23 Nov, docs/approved/dive.md); the rig
    *  carries the hand home with the dive's own share (camera/rig.ts startDiveHand). */
   goTo(shot: ShotName | Shot, room: Room, now: number, ms?: number, ease?: (k: number) => number): void {
-    if ((this.figureView === 'lobule' || this.figureView === 'sinusoid') && !this.microPrimedNow) { this.hold({ shot, room, ms, ease }); this.buildMicroIdle(true); return; }
+    if ((this.figureView === 'lobule' || this.figureView === 'sinusoid') && (!this.microPrimedNow || this.rig.chaseLeaving)) { this.hold({ shot, room, ms, ease }); this.buildMicroIdle(true); return; }
     this.hold(null);
     this.rig.goTo(shot, room, now, ms, false, ease ?? null); this.moving = true;
   },
@@ -29,8 +29,12 @@ export const cameraPart = scenePart<CelScene>()({
   get diveHeld(): boolean { return this.heldDive !== null; },
   hold(h: { shot: ShotName | Shot; room: Room; ms?: number; ease?: (k: number) => number } | null): void {
     this.heldDive = h;
-    if (h) { this.holdCue ??= waitCue(this.figureView === 'sinusoid' ? 'the sinusoid' : 'the lobule'); if (this.micro?.lobule.weldsWait) this.holdCue.progress?.(this.micro.lobule.weldsProgress); }
-    else { this.holdCue?.(); this.holdCue = null; }
+    // (the wait cue is for a wait on the parts: a dive held only for the chase camera to ease out shows none)
+    if (h && !this.microPrimedNow) {
+      this.holdCue ??= waitCue(this.figureView === 'sinusoid' ? 'the sinusoid' : 'the lobule');
+      if (this.micro?.lobule.weldsWait) this.holdCue.progress?.(this.micro.lobule.weldsProgress);
+    }
+    else if (!h) { this.holdCue?.(); this.holdCue = null; }
   },
   /** The cards changed room while a dive waits: it will land in the new one. */
   holdRoom(room: Room): void { if (this.heldDive) this.heldDive.room = room; },
@@ -45,7 +49,8 @@ export const cameraPart = scenePart<CelScene>()({
   /** The micro views are ready: a waiting dive starts now (only while its view is still the one asked for: a tap back to the body in the meantime replaced it). */
   releaseDive(): void {
     const h = this.heldDive;
-    if (!h || !this.microPrimedNow) return;
+    // (also waits for the chase camera to be out of the picture: the dive begins from the body's own framing, never from a catheter close-up still easing away)
+    if (!h || !this.microPrimedNow || this.rig.chaseLeaving) return;
     this.hold(null);
     if (this.figureView === 'lobule' || this.figureView === 'sinusoid') this.goTo(h.shot, h.room, clock.now(), h.ms, h.ease);
   },

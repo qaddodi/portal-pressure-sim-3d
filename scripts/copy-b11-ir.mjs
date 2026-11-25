@@ -11,6 +11,7 @@
 // Usage: node scripts/copy-b11-ir.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { patchMonitor, patchHvpgScript } from './ir-patches.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null; };
@@ -51,7 +52,8 @@ function rewrite(name, src) {
   });
 }
 
-put('monitor.copied.js', HEAD('monitor.js') + rewrite('monitor.js', read('src/ui/monitor.js')));
+// (patchMonitor: this app's headline fade, scripts/ir-patches.mjs)
+put('monitor.copied.js', HEAD('monitor.js') + patchMonitor(rewrite('monitor.js', read('src/ui/monitor.js'))));
 put('trace-callouts.copied.js', HEAD('trace-callouts.js') + rewrite('trace-callouts.js', read('src/ui/trace-callouts.js')));
 
 // ── hvpg-proc.js: the pure head (words, steps, timings) and the monitor script at the foot; the pane's DOM and the figure's catheter in between are the 3D pane's own ──
@@ -73,7 +75,8 @@ export { hvBlocked, NOT_SHOWN, NOT_MEASURABLE };
     .replace(/^const sevOf = /m, 'export const sevOf = ').replace(/^const SEV_WORD = /m, 'export const SEV_WORD = ').replace(/^const sevWord = /m, 'export const sevWord = ')
     .replace(/^const ABORT_CAP = /m, 'export const ABORT_CAP = ').replace(/^const RESULT_CAP = /m, 'export const RESULT_CAP = ').replace(/^const RESULT_CLS = /m, 'export const RESULT_CLS = ')
     .replace(/^const sevOfRead = /m, 'export const sevOfRead = ').replace(/^function drawTrace\(/m, 'export function drawTrace(');
-  put('hvpg-script.copied.js', HEAD('hvpg-proc.js, its pure parts') + head + body);
+  // (patchHvpgScript: the HVPG headline waits for the subtraction, scripts/ir-patches.mjs)
+  put('hvpg-script.copied.js', HEAD('hvpg-proc.js, its pure parts') + patchHvpgScript(head + body));
 }
 
 // ── tool-reading.js: everything before createReading (the DOM card), which the pane replaces ──

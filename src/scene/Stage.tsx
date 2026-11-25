@@ -311,7 +311,9 @@ function SceneBridge() {
       timer: (fn, ms) => { const n = ++gestureTimerN; gestureTimers.set(n, clock.after(() => { gestureTimers.delete(n); fn(); }, ms)); return n; },
       clearTimer: (id) => { clock.cancel(gestureTimers.get(id)); gestureTimers.delete(id); },
       reduceMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
-      locked: () => talkOn(),   // (in a talk the camera is the slide's: the figure is not turned, panned or zoomed by hand)
+      // (in a talk the camera is the slide's: the figure is not turned, panned or zoomed by hand.
+      //  Nor while a dive waits for its parts: the view is already the lobule's, with its limits, on a body still standing)
+      locked: () => talkOn() || cel.diveHeld,
       viewport: () => cel.rig.stageSize,
     }, window as unknown as GestureTarget);
     gesturesRef.current = g;

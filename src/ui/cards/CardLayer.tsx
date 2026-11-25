@@ -65,7 +65,7 @@ function useFontsReady(): boolean {
 const liveCard = (slot: string): HTMLElement | null => [...document.querySelectorAll<HTMLElement>(`.dk-pos[data-slot="${slot}"]`)].find((p) => !p.querySelector('.dk-card[data-phase="out"]')) ?? null;
 
 /** How long a card's measured height must stand still before the card is let in (a late row or readout shows up inside this), and the longest the cards wait for it before they come in as they are. */
-export const MAX_REKEYS = 2, SETTLE_MS = 120, GIVE_UP_CARDS_MS = 8000, PANE_GIVE_UP_MS = 25000;   // (the readiness gate decides when cards come in; the 8 s is only the crash net that keeps a failed piece from hiding the talk for good, the same one the engine's numbers have: inputs-in.ts GIVE_UP_MS)
+export const MAX_REKEYS = 2, SETTLE_MS = 120, GIVE_UP_CARDS_MS = 8000, GIVE_UP_HARD_MS = 30000, PANE_GIVE_UP_MS = 25000;   // (the readiness gate decides when cards come in; the 8 s is only the crash net that keeps a failed piece from hiding the talk for good, the same one the engine's numbers have: inputs-in.ts GIVE_UP_MS)
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
 interface Snap { /** the deck the card was drawn for: a card that is leaving as the talk changes keeps its own deck as it keeps its own slide (the table of Next bleed 11 was asked for with Next bleed's id and the Outflow slide the card still held) */ deck: Deck; /** the lens whose key is the data card's first row (cardKeyAt, asked with the stop the card came from) */ dkey: string | null; slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean; /** the slide's readings as they stood while the card was the current one: a card that leaves keeps its own numbers ("13 mmHg" on Ascites 12 did not turn into the next slide's as it went) */ readings: Readings }
 
@@ -228,8 +228,17 @@ export function CardLayer({ deck }: { deck: Deck }) {
     if (!surveying || !wordsHit || wordsHit.sig !== sig || wordsHit.f === false || wordsHit.open !== 0 || settleLeft > 0 || wordsHit.h <= 0) return;
     setSurveyMap((m) => { const cur = m[surveyKey] ?? []; if (cur[nextPage!] === wordsHit.h) return m; const nx = cur.slice(); nx[nextPage!] = wordsHit.h; return { ...m, [surveyKey]: nx }; });
   }, [surveying, wordsHit, sig, settleLeft, surveyKey, nextPage]);
-  useEffect(() => { const t = clock.afterReal(() => setSurveyLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey]);
-  useEffect(() => { const t = clock.afterReal(() => setLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey]);
+  // The crash net counts from the last step the negotiation made (a measure, a ladder step, the fit, a page of the walk), not from the slide's start:
+  // a slow screen (a heavy figure, a phone) takes many seconds over those steps, and a net on the wall clock let the card in half-negotiated,
+  // its words short of their last lines and its instrument past its room (Portal day 3, Carvedilol 5, Mac, 25 Nov).
+  // A hard cap keeps a card that never stops changing from hiding the talk. Real time both (tests/card-readiness-real-time.test.ts).
+  const progress = [wordsHit?.h, wordsHit?.sig, dataHit?.h, dataHit?.sig, lad, fitK, pages, tight, got?.join(',')].join('|');
+  useEffect(() => { const t = clock.afterReal(() => setSurveyLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey, progress]);
+  useEffect(() => { const t = clock.afterReal(() => setLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey, progress]);
+  useEffect(() => {
+    const t = clock.afterReal(() => { setSurveyLate(pagesKey); setLate(pagesKey); }, GIVE_UP_HARD_MS);
+    return () => clock.cancel(t);
+  }, [pagesKey]);
   // (the instrument's numbers: a card with a chart waits for its slide's step from the second engine, and asks for it again if the first run failed)
   // (the states baked at build time count as in: the cards of a slide opened first by a link or a jump no longer wait for the whole live chain to be worked out, 6 s and more on a phone: Encephalopathy 8, review bbe955e5)
   const liveStates = useStates((st) => st.results[deck.id]);
