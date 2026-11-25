@@ -27,7 +27,7 @@ test('2D\'s rule: a stage narrower than 0.95 of its height is a portrait stage',
   assert.equal(isPortrait(900, 900), false);
   assert.equal(isPortrait(0.95 * 1000, 1000), false, 'exactly 0.95 is still wide');
   assert.equal(isPortrait(0.95 * 1000 - 1, 1000), true);
-  assert.ok(Math.abs(xkFor(true) - 12) < 12 && Math.abs(xkFor(false) - 22) < 12, 'near the wanted places, moved onto bare lining');
+  assert.ok(Math.abs(xkFor(true) - 12) < 12 && Math.abs(xkFor(false) - 6) < 12, 'near the wanted places, moved onto bare lining');
 });
 
 test('the plane\'s turn puts the portal end at the top and 2D\'s upper lining on the right (2D: ang = PI/2 on a y-down screen)', () => {

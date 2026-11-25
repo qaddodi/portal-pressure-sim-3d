@@ -3,7 +3,7 @@
 // capillary it was dived into, so the lobule and the sinusoid turn together in one move of the camera and the tissue, the pores, the albumin, the names' anchors and the hits all follow it
 // (Mohammad 20 Nov 2026: a plane turned alone, inside the dive, "flips only the sinusoid, not the lobule"). Pure numbers, no GPU: tests/scene-sinusoid-portrait.test.ts.
 import { FILL } from '../camera/room.ts';
-import { SEED, kupfferClear, kupfferSpot } from './layout.ts';
+import { SEED, kupfferClear } from './layout.ts';
 
 
 /** 2D's rule: a stage narrower than 0.95 of its height is a portrait stage (W < H * 0.95). */
@@ -12,12 +12,13 @@ export const isPortrait = (w: number, h: number): boolean => w < h * 0.95;
 export const PORTRAIT_ANGLE = -Math.PI / 2;
 /** The camera's roll (radians about its view axis, a shot's `roll`) that shows the world turned by PORTRAIT_ANGLE: rolling the camera one way turns the picture the other. */
 export const PORTRAIT_ROLL = -PORTRAIT_ANGLE;
-/** Where the Kupffer cell stands (µm along): 22 on a wide screen, nearer the middle (12) on a tall one, clear of the central vein's name (2D: geo.xk). */
-export const XK = { wide: 22, tall: 12 } as const;
+/** Where the Kupffer cell stands (µm along): near the middle on a wide screen (6) as on a tall one (12), so the central vein's name and arrow stand out at the room's end beyond it, never beside the
+ *  Sinusoid's name (22, 2D's place, put the cell where the name stands at the end of a room with a card open: Mohammad, 25 Nov). The lining's bare stretches hold it between 0 and 13 µm. */
+export const XK = { wide: 6, tall: 12 } as const;
 /** The Kupffer cell's place for a screen: the wanted place moved onto the nearest bare stretch of its (lower) lining, never on top of an endothelial cell (layout.ts kupfferClear). */
 export function xkFor(portrait: boolean): number {
   // a fixed place in the tissue, never a function of the camera, the room or a card (it slid while he zoomed): just right of the first endothelial nucleus past the middle; the names move around it
-  return portrait ? kupfferClear(XK.tall, SEED.nucDn) : kupfferSpot(0, SEED.nucDn, () => true);
+  return kupfferClear(portrait ? XK.tall : XK.wide, SEED.nucDn);
 }
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
