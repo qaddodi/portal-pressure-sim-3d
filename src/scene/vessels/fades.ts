@@ -96,6 +96,9 @@ export const HEP_FADE_IN = 0.85;
 
 /** The portal branches end, and the hepatic veins begin, in the liver's tissue (the sinusoids between are not drawn): the share of each one's length it fades over. */
 export const LIVER_FADE_OUT: Readonly<Record<string, number>> = { PVH_R_2: 0.6, PVH_L_1: 0.6 };
+/** Placed: the left portal vein runs on into the left lobe as one vessel (round 16) and fades out over this stretch of its second piece [from, to], earlier than LIVER_FADE_OUT's 0.4 to 1, and narrows on the way
+ *  (shape.ts LIVER_TAPER): it ran "too far into the left lobe, same caliber" (Mohammad, 25 Nov). It starts past the meso-Rex landing (0.31 along it) and the umbilical vein's root (0.14), so both leave a whole vein. */
+export const PLACED_LIVER_FADE: Readonly<Record<string, readonly [number, number]>> = { PVH_L_1: [0.34, 0.74] };
 export const LIVER_FADE_IN: Readonly<Record<string, number>> = { RHV_IVC_1: 0.6, MHV_IVC: 0.6, LHV_IVC: 0.6 };
 
 /** The rectal varices run on further down (starts.ts END_ON): they fade out over the new stretch instead of the 2D one. */
@@ -181,6 +184,7 @@ function fadeOf0(id: string, isArtery: boolean, feederHost?: string): TipFade | 
   // (a vein that branches is one tube to its tip: it fades out of / in from the liver along its through branch, over the same stretch of the course as its side branch does)
   const sp = isArtery ? null : splitShare(id);
   if (sp != null) return (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id) ? { mode: 1, from: sp + FORK_CLEAR * (1 - sp), to: sp + 0.92 * (1 - sp), a0: 1, a1: 0, keep: false, connect: [] } : { mode: 1, from: 0.08 * sp, to: 0.75 * sp, a0: 0, a1: 1, keep: false, connect: [] };
+  if (!isArtery && PLACED && PLACED_LIVER_FADE[id]) return { mode: 1, from: PLACED_LIVER_FADE[id]![0], to: PLACED_LIVER_FADE[id]![1], a0: 1, a1: 0, keep: false, connect: [] };
   if (!isArtery && LIVER_FADE_OUT[id] && !END_JOIN.has(id)) return { mode: 1, from: 1 - LIVER_FADE_OUT[id]!, to: 1, a0: 1, a1: 0, keep: false, connect: [] };
   if (!isArtery && LIVER_FADE_IN[id]) return { mode: 1, from: 0, to: LIVER_FADE_IN[id]!, a0: 0, a1: 1, keep: false, connect: [] };
   // (the hepatic artery is cut short beside the portal trunk, starts/stub-free: it grows out of nothing over nearly all of what is drawn: starts.ts TRIM)

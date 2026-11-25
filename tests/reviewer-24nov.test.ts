@@ -153,10 +153,10 @@ test('TIPS follow-up 7 and candidacy: "reduces", not "clears", and the share of 
     assert.match(s.notes, /shunt fraction, 92%/);
   }
 });
-test('TIPS follow-up 11: a raised right atrial pressure supports a cardiac contribution, with the cardiac output on the heart', () => {
+test('TIPS follow-up 11: a raised right atrial pressure supports a cardiac contribution, with the atrial reading on the figure', () => {
   const s = at(TIPS_COMPLETE, 'heart');
   assert.match(s.title, /supports a cardiac contribution to the ascites/); assert.match(s.line, /raise venous return/);
-  assert.ok(!/not the liver/.test(s.title)); assert.deepEqual(s.mark, { organ: 'heart', label: 'Cardiac output {co}', kind: 'note' });
+  assert.ok(!/not the liver/.test(s.title)); assert.equal(s.mark, undefined, 'the cardiac output is the instrument\'s, not a second note'); assert.ok(s.labels.includes('RA') && s.sites.includes('ra'));
 });
 test('TIPS follow-up 22: the Doppler velocities are this case\'s findings, and venography with pressures evaluates a suspected dysfunction', () => {
   const s = at(TIPS_COMPLETE, 'jet'); assert.match(s.line, /In this case/); assert.match(s.line, /Doppler criteria vary/); assert.match(s.line, /venography with pressure measurements/);

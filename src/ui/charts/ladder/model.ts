@@ -34,13 +34,20 @@ export const SPOKEN: Record<string, string> = { ...(P.PATH_NAMES as Record<strin
 /** The stations' x: slot px apart, each centred in its slot (a strip leaves 10 px at the right). */
 export const slotOf = (w: number) => { const slot = (w - 10) / STATIONS.length; return { slot, x: (i: number) => slot * (i + 0.5) }; };
 
+/** The strip's readings as whole numbers, with the wedged one closed on the free hepatic vein and the HVPG the row's pill reads: the unrounded 17.5 and 5.4 print 18 and 5 but their HVPG prints 12, so the row read
+ *  "18 - 5 = 12" (Same gradient 7, High inflow, capture af88a9c2). The wedge reads as the hepatic vein plus the HVPG as printed; every other station is its own reading rounded. */
+export function closedLabels(p: Profile): string[] {
+  const labels = p.v.map(whole), w = STATIONS.indexOf('SIN_R'), f = STATIONS.indexOf('RHV');
+  if (w >= 0 && f >= 0 && Number.isFinite(p.hvpg)) labels[w] = String(Number(labels[f]) + Number(whole(p.hvpg)));
+  return labels;
+}
 export interface StripLayout { w: number; h: number; cy: number; slot: number; x(i: number): number; labels: string[]; segs: [number, number][]; blocks: [number, number][]; zones: [number, number][]; label: string }
 /** One case on one line at w px and type f px (2D drawStrip): the readings, the line between them (it stops NUM_PAD px short of each), the red blocks and the zones' tints. */
 export function stripLayout(w: number, f: number, fp: Fp, healthy: Fp | null, tw: TextWidth): StripLayout | null {
   const p = profileOf(fp);
   if (!p) return null;
   const hl = profileOf(healthy), n = p.v.length - 1, { slot, x } = slotOf(w);
-  const h = Math.ceil(1.9 * f), cy = h / 2, labels = p.v.map(whole), hw = labels.map((t) => tw(t, 700) / 2);
+  const h = Math.ceil(1.9 * f), cy = h / 2, labels = closedLabels(p), hw = labels.map((t) => tw(t, 700) / 2);
   const segs = p.v.slice(0, n).map((_, i) => [x(i) + hw[i]! + NUM_PAD, x(i + 1) - hw[i + 1]! - NUM_PAD] as [number, number]);
   const blocks = blocksOf(p, hl).map((i) => blockSpan(x(i), slot, tw));
   const zones = zoneSpans().map(([a, b]) => [x(a) - slot / 2 + 0.5, slot * (b - a + 1) - 1] as [number, number]);

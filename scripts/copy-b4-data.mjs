@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Copies what the organs and the disease states need from the 2D app, so nothing is retyped (parity plan section 5: values come from the 2D source):
 //   src/scene/disease/copied/*.js        the 2D app's own pure modules, byte for byte but for their import lines
-//                                        (num, clot-shape, cavernoma-strand, organ-ease, fluid-step, varix-look, varix-bead, liver-geo, liver-morph, dye-bolus)
+//                                        (num, clot-shape, cavernoma-strand, organ-ease, fluid-step, varix-look, varix-bead, liver-geo, liver-morph)
 //   src/scene/disease/copied/anatomy-b4.ts  the constants of anatomy.js the states read (organ ids and tones, spleen centre, strands, cavernoma channels, ...)
 //   tests/fixtures/b4-2d.json            numbers the 2D functions give, for the tests that hold the ports to them
 // Usage: node scripts/copy-b4-data.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
@@ -52,18 +52,6 @@ for (const f of ['sin-perfusion.js', 'stomach-lumen.js', 'num.js', 'clot-shape.j
 // liver-morph.js: its `smooth01` comes from motion.js in 2D, which is num.js's own (motion.js re-exports it)
 copyModule('liver-morph.js');
 
-// The dye bolus: the part of blood.js between its "Dye bolus" header and the end of createBolus (the rest of blood.js is the figure's streaks and the GPU's tables).
-{
-  const t = read('src/ui/blood.js');
-  const a = t.indexOf('// ── Dye bolus');
-  const f = t.indexOf('export function createBolus');
-  const end = t.indexOf('\n}\n', f) + 3;
-  if (a < 0 || f < 0 || end < f) throw new Error('blood.js: the dye bolus markers moved');
-  const sp = t.indexOf('// Display speed, world units per second'), spEnd = t.indexOf('\n', t.indexOf('export const displaySpeed')) + 1;
-  const sm = /^(const|function) smoothstep[^\n]*\n/m.exec(t);
-  if (sp < 0 || !sm) throw new Error('blood.js: the display speed markers moved');
-  put(`${DIR}/dye-bolus.js`, `${HEAD('src/ui/blood.js, the Dye bolus section and displaySpeed')}${sm[0]}${t.slice(sp, spEnd)}\n${t.slice(a, end)}`);
-}
 
 // The bleed's shapes (the pool and the thread): blood.js between "The bleed's strength" and the end of bleedShapes, with the stomach's lumen they read.
 {

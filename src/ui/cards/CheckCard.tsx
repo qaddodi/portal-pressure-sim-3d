@@ -60,7 +60,7 @@ export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: nu
       <ol className="pz-check" ref={list} start={first + 1}>
         {shown.map(([q, a], j) => { const k = first + j; return (
           <li key={k} className={open.has(k) ? 'open' : undefined}>
-            <button type="button" className="pzc-q" aria-expanded={open.has(k)} aria-controls={`pzc-a${k}`} onClick={() => toggle(k)}>
+            <button type="button" className="pzc-q" data-audit-select="" aria-expanded={open.has(k)} aria-controls={`pzc-a${k}`} onClick={() => toggle(k)}>
               <span><Line text={q} read={read} /></span><span className="pzc-hint" aria-hidden="true">{CHECK_HINT}</span>
             </button>
             {open.has(k) && <div className="pzc-a" id={`pzc-a${k}`}><p><Line text={a} read={read} /></p></div>}

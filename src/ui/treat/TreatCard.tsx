@@ -261,7 +261,7 @@ export function TreatCard() {
             {paneOf('procs', 'order-grid', procedures().map((x) => {
               const on = !!x.placed?.(p);
               return (
-                <button key={x.id} type="button" className="order-btn" data-on={on ? '' : undefined} title={`${x.long}: ${x.sub}`} aria-label={on ? `${x.long}, in place` : x.long} onClick={() => x.run(appEnv)}>
+                <button key={x.id} type="button" className="order-btn" data-audit-select="" data-on={on ? '' : undefined} title={`${x.long}: ${x.sub}`} aria-label={on ? `${x.long}, in place` : x.long} onClick={() => x.run(appEnv)}>
                   <I n={x.icon} className="ac-ic" /><span className="ob-t">{x.label}</span>
                   {x.placed && <span className="ob-on" aria-hidden="true"><I n="check" /></span>}
                 </button>

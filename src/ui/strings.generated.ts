@@ -190,7 +190,7 @@ export const UI = {
   "presentIntro": "A presentation clicker sends the same keys. On a touch screen, swipe sideways on the slide to go on or back.",
   "reading": [
    "Veins are colored by mean pressure on a perceptually uniform scale (0–30 mmHg), and the legend names the unit once. A label gives a station’s value. Select the station, color by Change or compare with an earlier moment to see ▲ / ▼, the change from healthy, shown from 5 mmHg. Arteries are thinner, in a fixed red.",
-   "Chevrons (Blood menu) point the way blood moves in each vessel, orange where the flow is reversed. Smoke marks stagnant blood in a large vein. Coloring the vessels by blood origin shows where blood comes from. Tap a vessel and use Inject dye on its card (or press J; hold for longer) to watch dye travel and split. Dotted vessel outlines are closed potential collaterals.",
+   "Chevrons (Blood menu) point the way blood moves in each vessel, orange where the flow is reversed. Smoke marks stagnant blood in a large vein. Coloring the vessels by blood origin shows where blood comes from. Dotted vessel outlines are closed potential collaterals.",
    "Line width follows vessel diameter (compressed, so the venae cavae do not dwarf the portal tree). Watch collaterals and varices swell.",
    "The circuit view is a transit map: pressure falls from left to right; collaterals and shunts run in their own lanes as bypasses."
   ],
@@ -356,11 +356,6 @@ export const UI = {
    "group": "Run the model",
    "keys": "P",
    "what": "Compare from here / stop comparing"
-  },
-  {
-   "group": "Run the model",
-   "keys": "J",
-   "what": "Inject dye (hold for longer)"
   },
   {
    "group": "Change the view",

@@ -30,13 +30,13 @@ export const clearGrew = (): void => { grewLog = []; };
 export const grewFindings = (): AuditFinding[] => grewLog.map((g) => ({ kind: 'card-grew-live', sev: 'fail' as const, what: `the ${g.card} card grew ${g.px} px on its own after it showed (its box is decided before it shows; the content that changed has to reserve its room)`, where: g.slide }));
 
 /** The height a landed card is DRAWN at (25 Nov, third report: a card never grows on screen). `f` is what it was drawn with (null before it landed): the height stays what it landed with for as long as its key
- *  (its own step and the viewport) stands; a room that gets smaller or bigger is not followed (a card never changes size after it landed, in either direction). A new key takes the plan's height, and the plan is given `CATCH_UP_MS` to catch up with it
- *  (it lags the card's own measure by a render or two). Pure; tests/card-height-frames.test.ts drives it frame by frame. */
-export interface Frozen { key: string; h: number; until: number }
-export const CATCH_UP_MS = 250;
-export function freezeOf(f: Frozen | null, key: string, rectH: number, now: number): Frozen {
-  if (!f) return { key, h: rectH, until: 0 };
-  if (f.key !== key) return { key, h: rectH, until: now + CATCH_UP_MS };
-  if (rectH > f.h && now < f.until) return { ...f, h: rectH };
-  return f;
+ *  (its own step and the viewport) stands, whatever the plan does later (more room, less room). A new key is a new card box: until the plan has caught up with what the card itself measured for that key (`measured`:
+ *  its locked height when the lock is for this key, else null: not measured yet) the drawn height IS the plan's, both ways; then it holds again. No clock is read, so the capture's 300x speed and a slow
+ *  phone alike never close the window early or leave it open (a card must never lock a height that is not its slide's content height, 25 Nov: Meso-rex 11 clipped at 270 px). Pure; tests/card-height-frames.test.ts. */
+export interface Frozen { key: string; h: number; pending: boolean }
+export function freezeOf(f: Frozen | null, key: string, rectH: number, measured: number | null): Frozen {
+  if (!f) return { key, h: rectH, pending: false };
+  if (f.key !== key) return { key, h: rectH, pending: measured === null || rectH !== measured };
+  if (!f.pending) return f;
+  return { key, h: rectH, pending: measured === null || rectH !== measured };
 }

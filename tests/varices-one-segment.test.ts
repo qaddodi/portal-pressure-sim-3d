@@ -3,7 +3,7 @@
 // Node only: the real network. Run: node --test tests/varices-one-segment.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { NETWORK_BY_ID, SEGMENT_OF, collateralOpen, recruitFrac, sameSegment, type PresenceFrame } from '../src/scene/vessels/network.ts';
+import { NETWORK_BY_ID, RUN_ONS, SEGMENT_OF, collateralOpen, recruitFrac, sameSegment, type PresenceFrame } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf, strandOpen, BANDED_CORD } from '../src/scene/vessels/shape.ts';
 import { SMOOTH } from '../src/scene/vessels/smooth-joins.ts';
 import { CIRCUIT_MATES } from '../src/scene/circuit/mates.ts';
@@ -130,12 +130,16 @@ test('the segment meets the coronary vein and the azygos at their own width, wha
   setSmoothJoins(true);
   const r = (c: { radius: number; taper?: readonly [number, number]; taperSpan?: readonly [number, number] }, u: number) => c.radius * factorSpan(c.taper ?? [1, 1], c.taperSpan ?? [0.3, 0.3], u);
   const lgv = coursesOf(NETWORK_BY_ID.get('LGV_CONF')!, REST)[0]!, azy = NETWORK_BY_ID.get('AZY_SVC')!.radius;
+  // (the end of the coronary vein that runs on into the varices, from the run-on table: its end on today's figure, its START on the placed anatomy, where it runs from the cardia down to the portal vein; reading u = 1 there compared the strands with
+  //  the coronary vein's far end, at the portal vein, the cause of 'a strand starts as wide as the coronary vein ends: 0.0140 vs 0.0100')
+  const ro = RUN_ONS.find((x) => (x.a === 'LGV_CONF' && x.b === 'C1a') || (x.b === 'LGV_CONF' && x.a === 'C1a'));
+  const lgvEnd: 0 | 1 = ro ? ((ro.a === 'LGV_CONF' ? ro.ia : ro.ib) as 0 | 1) : 1;
   for (const bands of [0, 1, 2, 3, 4]) for (const spr of [0.55, 0.7, 1]) {
     const st = { ...REST, bands, spr, strandsOn: true };
     const strands = coursesOf(NETWORK_BY_ID.get('C1a')!, st).filter((c) => c.radius > 0), c1b = coursesOf(NETWORK_BY_ID.get('C1b')!, st)[0]!;
     const here = `bands ${bands}, spread ${spr}`;
     for (const c of strands) {
-      assert.ok(Math.abs(r(c, 0) - r(lgv, 1)) < 1e-9, `a strand starts as wide as the coronary vein ends (${here}): ${r(c, 0)} vs ${r(lgv, 1)}`);
+      assert.ok(Math.abs(r(c, 0) - r(lgv, lgvEnd)) < 1e-9, `a strand starts as wide as the coronary vein ends (${here}): ${r(c, 0)} vs ${r(lgv, lgvEnd)}`);
       assert.ok(Math.abs(r(c, 1) - r(c1b, 0)) < 1e-9, `and ends as wide as the azygos' drain begins, the station inside the segment (${here})`);
     }
     assert.ok(Math.abs(r(c1b, 1) - azy) < 1e-9, `the drain meets the azygos at its width (${here}): ${r(c1b, 1)} vs ${azy}`);
@@ -143,5 +147,5 @@ test('the segment meets the coronary vein and the azygos at their own width, wha
   // (the tube is not capped there either: the other tube covers the join)
   const strands = coursesOf(NETWORK_BY_ID.get('C1a')!, { ...REST, strandsOn: true }).filter((c) => c.radius > 0);
   for (const c of strands) assert.deepEqual([...(c.capless ?? [])], [true, true]);
-  assert.deepEqual([...(lgv.capless ?? [])][0], true);
+  assert.deepEqual([...(lgv.capless ?? [])][lgvEnd], true);
 });

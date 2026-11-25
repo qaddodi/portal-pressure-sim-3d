@@ -29,6 +29,7 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 .lb .lb-name { min-width: 0; flex: none; font-size: var(--lb-f-name); font-weight: var(--lb-w-name); color: var(--lb-name); }
 .lb .lb-val { margin-left: var(--lb-g-val); position: relative; display: inline-block; font-size: var(--lb-f-val); font-weight: var(--lb-w-val); color: var(--lb-val); }
 .lb[data-form="2"] .lb-val { margin-left: 0; }
+.lb.cc-zone .lb-val:empty { display: none; }   /* (a zone's reading is the oxygen lens's alone: with no reading it takes no room) */
 .lb .lb-rev { display: none; margin-left: var(--lb-g-rev); font-size: var(--lb-f-rev); font-weight: var(--lb-w-rev); color: var(--lb-rev); }
 .lb[data-rev] .lb-rev { display: inline-block; }
 /* what follows the number (2D lb-unit, lb-delta, lb-alert): the unit in the quiet ink, a change in the reading's own ink (neutral: red is kept for crossed thresholds), an alert in the danger ink */

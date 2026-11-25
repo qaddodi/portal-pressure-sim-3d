@@ -78,3 +78,11 @@ export function keyLine(k: unknown): { parts: string[]; swatch: 'hatch' | null; 
 
 /** Whether a tool has the case column: a row with a note on the case or a live reading. */
 export const criteriaHasCase = (t: { rows?: unknown } | null | undefined): boolean => criteriaRows(t).some((r) => r.note || r.key);
+
+/** The head of the case column. When every live row reads the same measure it is named ("HVPG, this case": a bare "12.4 mmHg" never said which pressure it was, Tipping 6, capture 52ef8e63); a long or mixed
+ *  set of names keeps "This case". */
+export function criteriaCaseHead(rows: readonly Row[]): string {
+  const keys = [...new Set(rows.filter((r) => r.key).map((r) => r.key!))];
+  const T = keys.length === 1 ? tile(keys[0]!) : undefined, name = T ? (T.n ?? T.t) : '';
+  return name && name.length <= 10 ? `${name}, this case` : 'This case';
+}

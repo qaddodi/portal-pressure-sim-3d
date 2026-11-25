@@ -93,7 +93,7 @@ export function mountAudit(mode: 'here' | 'run'): void {
   const copy = (t: string, what: string) => { navigator.clipboard?.writeText(t).then(() => { status.textContent = `${what} copied (${t.length.toLocaleString('en-US')} characters).`; }, () => { out.hidden = false; out.textContent = t; status.textContent = 'The browser would not copy: select the text below.'; }); };
   // While a run is going the sheet steps aside: the form and the title fade out (eased), leaving the status, the bar, the percent and Stop.
   const body = document.createElement('div'), fadeBits = [head, body]; let fadeT: ReturnType<typeof clock.after> | null = null;
-  for (const e of fadeBits) e.style.transition = 'opacity .2s ease';
+  for (const e of fadeBits) e.style.transition = 'opacity var(--d-small) var(--ease)';
   const setRunning = (on: boolean) => {
     if (mode !== 'here') return;
     if (fadeT !== null) { clock.cancel(fadeT); fadeT = null; }

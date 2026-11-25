@@ -169,7 +169,7 @@ export function StentEditor({ id, lead = false }: StentEditorProps) {
             const w = tileWords(r.id, id, p) as [string, string, string], t = rowValue(r.id, id, p);
             return (
               <div key={r.id} className="sr-item" data-row={r.id}>
-                <button ref={(el) => { if (el) rowEls.current.set(r.id, el); else rowEls.current.delete(r.id); }} type="button" className="sr-row" aria-expanded={open === r.id} aria-label={`Edit ${r.name}: ${t}`} onClick={() => choose(r.id)}>
+                <button ref={(el) => { if (el) rowEls.current.set(r.id, el); else rowEls.current.delete(r.id); }} type="button" className="sr-row" data-audit-select="" aria-expanded={open === r.id} aria-label={`Edit ${r.name}: ${t}`} onClick={() => choose(r.id)}>
                   <span className="sr-n">{r.name}</span>
                   <span className="sr-vv"><span className="sr-v"><b>{w[0]}</b><u>{w[1] ? ` ${w[1]}` : ''}</u></span><span className="sr-ts">{w[2]}</span></span>
                   <Icon n="chev-down" className="sr-c" />

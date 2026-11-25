@@ -121,6 +121,7 @@ test('every look, width and head position: a sound frame, 12 px words, the heads
   assert.ok(words(done).includes('Stent open'));
   assert.ok(words(done).includes('Variceal <12'));
   assert.ok(words(done).includes('s'));
+  assert.ok(!done.shapes.some((s) => s.k === 'text' && s.s === 's' && s.upper), 'the seconds unit is never capitals (+20 S, capture 52ef8e63)');
   assert.ok(words(before).includes('19.3 mmHg') && words(before).includes('61%'), 'before the change the heads read where the lines start');
   assert.ok(words(done).some((w) => /^11\.\d mmHg$/.test(w) || w === '11.0 mmHg'), 'the PPG head reads where it ended');
   assert.match(before.label, /^PPG and sinusoidal flow, before stent open: PPG 19\.3 mmHg, Sinusoidal flow 61%$/);

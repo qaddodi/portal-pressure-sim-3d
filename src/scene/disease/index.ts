@@ -1,6 +1,6 @@
 // The disease layer: everything the patient's illness changes on the figure besides the vessels' own width and colour (B3), driven from one engine frame and the patient's
 // parameters, on the one clock. Organs (the liver's shape and dusk, the spleen's size and ghost, the grey of a lens), the ascites pool, clots, the plexuses and the cavernoma,
-// the bleed, the dye. `feed` takes the newest model state (cheap, call it whenever a frame arrives); `update(now)` eases and returns true while something moves.
+// the bleed. `feed` takes the newest model state (cheap, call it whenever a frame arrives); `update(now)` eases and returns true while something moves.
 //   const d = new DiseaseLayer(shared, vesselObjects); scene.add(d.group); d.applyLook(look, palette);
 //   d.feed(frame, params, healthyP, { instant, presence, recruit });  …  in the clock's render phase: if (d.update(now)) clock.invalidate('disease');
 import { Group } from 'three';
@@ -15,7 +15,6 @@ import { Landmarks } from './landmarks.ts';
 import { ScopeRing } from './scope-ring.ts';
 import { varixWale } from './copied/varix-bead.js';
 import { ClotLayer } from './clots.ts';
-import { DyeLayer } from './dye.ts';
 import { Eased, FluidFollow } from './follow.ts';
 import { StrandLayer } from './strands.ts';
 import { type BodyTargets, type DiseaseFrame, type DiseaseParams, bodyTargets } from './targets.ts';
@@ -46,7 +45,6 @@ export class DiseaseLayer {
   readonly landmarks = new Landmarks();
   /** the scope ring on the varices (the scope view's way in; the talk and the lens ask for it) */
   readonly scopeRing = new ScopeRing();
-  readonly dye: DyeLayer;
   private fluid = new FluidFollow();
   private bandsShown = new Eased(0, 0.2, 0.01);
   private frame: FrameData | null = null;
@@ -70,8 +68,7 @@ export class DiseaseLayer {
     for (const v of vessels) if (v.edge) this.clamps.bind(v.edge.id, v.toonMesh.geometry);
     // a clot is painted in its vein's own fragment shader (plan 26): the layer writes its uniforms to the vein's pieces
     this.clots.bindPieces(vessels);
-    this.dye = new DyeLayer(vessels.filter((v) => v.edge).map((v) => ({ id: v.edge!.id, geometry: v.toonMesh.geometry })));
-    this.group.add(this.organs.group, this.landmarks.group, this.scopeRing.group, this.ascites.group, this.clots.group, this.strands.group, this.bleed.group, this.dye.group);
+    this.group.add(this.organs.group, this.landmarks.group, this.scopeRing.group, this.ascites.group, this.clots.group, this.strands.group, this.bleed.group);
   }
 
   applyLook(look: LookId, p: Palette): void {
@@ -122,7 +119,6 @@ export class DiseaseLayer {
       wale: this.lensGrey ? 0 : varixWale(!!(m.varix as { redWale?: boolean } | undefined)?.redWale, ((m.varix as { ratioMean?: number; ratio?: number } | undefined)?.ratioMean ?? (m.varix as { ratio?: number } | undefined)?.ratio) as number, t.varix.VAR),
     }, dt * 1000, inst) || moving;
     moving = this.bleed.set(t.bleed, dt, inst) || moving;
-    moving = this.dye.step(dt, f) || moving;
     return moving;
   }
 
@@ -132,11 +128,11 @@ export class DiseaseLayer {
     this.organs.setFade(f);
     this.landmarks.setFade(f); this.scopeRing.setFade(f); this.clamps.setFade(f);
     // everything that lies on the anatomy goes with it, and what is made while it is away stays away (the Circuit has its own schematic of the disease)
-    this.strands.setFade(f); this.clots.setFade(f); this.bleed.setFade(f); this.ascites.setFade(f); this.dye.setFade(f);
+    this.strands.setFade(f); this.clots.setFade(f); this.bleed.setFade(f); this.ascites.setFade(f);
     this.moving = true;
   }
   /** How much of the anatomy is shown now, 0..1 (the one value every overlay follows). */
   body = 1;
 
-  dispose(): void { this.landmarks.dispose(); this.scopeRing.dispose(); this.clamps.dispose(); this.organs.dispose(); this.clots.dispose(); this.strands.dispose(); this.ascites.dispose(); this.bleed.dispose(); this.dye.dispose(); }
+  dispose(): void { this.landmarks.dispose(); this.scopeRing.dispose(); this.clamps.dispose(); this.organs.dispose(); this.clots.dispose(); this.strands.dispose(); this.ascites.dispose(); this.bleed.dispose(); }
 }
