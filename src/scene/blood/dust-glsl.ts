@@ -196,29 +196,42 @@ void dTones(vec3 lit, out vec3 t0, out vec3 t1, out vec3 t2, out vec3 t3) {
   t2 = dShift(pc, -0.55 * D_hue, D_satShift, D_lightBias);
   t3 = dShift(pc, 0.0, D_satShift + 0.03, D_lightBias - D_lightSpread * 0.67);
 }
-// the particle of class k, cell jj of root root's lattice (its hashes, its place in the root's section, where it is along the root's stream now)
-DPart dPart(float root, int k, float jj, float Pf, float flowFig) {
-  DPart P;
+// the ring band of class k, written once a class (not once a cell): its inner and outer rho and the lab's flat profile at its middle
+vec3 dClassOf(int k) {
   float fk = float(k), fK = max(D_nCls, 1.0);
   float rlo = D_rhoMax * pow(fk / fK, D_radExp), rhi = D_rhoMax * pow((fk + 1.0) / fK, D_radExp);
-  P.prof = 1.0 + D_flat * (1.0 - 2.0 * (0.5 * (rlo + rhi)) * (0.5 * (rlo + rhi)));
+  float rmid = 0.5 * (rlo + rhi);
+  return vec3(rlo, rhi, 1.0 + D_flat * (1.0 - 2.0 * rmid * rmid));
+}
+// the particle of class k (cls: dClassOf), cell jj of root root's lattice, in TWO STEPS: the cost is the scan's cell count, and most cells are empty or out of reach
+// (look B's rule, the same numbers found later).
+// Step 1 (dPart): the alive hash alone, and for a live cell its lane (two more hashes) and its place along the stream.
+// Step 2 (dPartFill): the other four hashes and the depth, only for a particle that is in reach.
+DPart dPart(float root, int k, vec3 cls, float jj, float Pf, float flowFig) {
+  DPart P = DPart(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, root, 0.5, 0.0, 0.0);
+  float fk = float(k);
+  P.prof = cls.z;
   vec2 sd = vec2(mod(jj, 4093.0) + 0.5, fk * 7.13 + fract(root * 0.6180339) * 50.0);
   P.alive = clamp((D_densK - dHash(sd)) * 12.0, 0.0, 1.0);   // (thinned by a threshold: a density change fades single particles in and out, nothing pops)
-  P.h1 = dHash(sd + vec2(17.1, 3.7)); P.h2 = dHash(sd + vec2(5.3, 29.9)); P.h3 = dHash(sd + vec2(41.3, 11.1)); P.h4 = dHash(sd + vec2(23.7, 53.9));
-  P.h5 = dHash(sd + vec2(61.3, 7.9)); P.h6 = dHash(sd + vec2(2.9, 71.7)); P.h7 = dHash(sd + vec2(37.7, 19.3));
-  P.rho = mix(rlo, rhi, P.h3);
-  float th = P.h2 * 6.2831853;
-  P.yl = P.rho * cos(th) / max(D_rhoMax, 0.05);   // its lane in the root (-1 .. 1)
-  P.zr = P.rho * sin(th);
+  if (P.alive <= 0.0) return P;   // (an empty cell costs this one hash and no more)
+  P.sx = sd.x; P.sy = sd.y;
+  P.h1 = dHash(sd + vec2(17.1, 3.7)); P.h2 = dHash(sd + vec2(5.3, 29.9)); P.h3 = dHash(sd + vec2(41.3, 11.1));
+  P.rho = mix(cls.x, cls.y, P.h3);
+  P.yl = P.rho * cos(P.h2 * 6.2831853) / max(D_rhoMax, 0.05);   // its lane in the root (-1 .. 1)
   P.se = (jj + 0.1 + 0.8 * P.h1 - 0.37 * fk) * Pf + flowFig * P.prof * D_flowK;
-  P.root = root; P.cf = 0.5; P.sx = 0.0; P.sy = 0.0;
   return P;
 }
-// the cell of class k nearest the pixel's place se on the root's stream
-float dCell(float se, int k, float Pf, float flowFig) {
-  float fk = float(k), fK = max(D_nCls, 1.0);
-  float rlo = D_rhoMax * pow(fk / fK, D_radExp), rhi = D_rhoMax * pow((fk + 1.0) / fK, D_radExp);
-  float prof = 1.0 + D_flat * (1.0 - 2.0 * (0.5 * (rlo + rhi)) * (0.5 * (rlo + rhi)));
+// the rest of the particle (its other hashes and its depth in the root's section), worked out only for one that passed the lane and reach tests
+DPart dPartFill(DPart P) {
+  vec2 sd = vec2(P.sx, P.sy);
+  P.h4 = dHash(sd + vec2(23.7, 53.9));
+  P.h5 = dHash(sd + vec2(61.3, 7.9)); P.h6 = dHash(sd + vec2(2.9, 71.7)); P.h7 = dHash(sd + vec2(37.7, 19.3));
+  P.zr = P.rho * sin(P.h2 * 6.2831853);
+  return P;
+}
+// the cell of class k (prof: its flat profile, dClassOf) nearest the pixel's place se on the root's stream
+float dCell(float se, int k, float prof, float Pf, float flowFig) {
+  float fk = float(k);
   return floor((se - flowFig * prof * D_flowK) / Pf + 0.37 * fk);
 }
 // which lanes of the vessel can hold a particle the pixel sees (the section seen at a slant shows more of it)
@@ -279,12 +292,14 @@ vec4 dustTubeA(DFrame F, vec3 lit, vec3 ink, float rev) {
       float se = g.A + Bs * F.a;
       for (int kk = 0; kk < K; kk++) {
         int k = K - 1 - kk;   // the outer rings first: the inner ones (nearer the axis, faster) lie over them
-        float j0 = dCell(se, k, Pf, flowFig);
+        vec3 cls = dClassOf(k);
+        float j0 = dCell(se, k, cls.z, Pf, flowFig);
         for (int n = -N; n <= N; n++) {
-          DPart P = dPart(g.root, k, j0 + float(n), Pf, flowFig);
+          DPart P = dPart(g.root, k, cls, j0 + float(n), Pf, flowFig);
           if (P.alive <= 0.0) continue;
           vec2 mb = dMember(g, P.yl);
           if (mb.y <= 0.0 || !dNear(F, g, mb.x, P)) continue;
+          P = dPartFill(P);
           vec4 c = dDraw(dPlace(F, g, mb.x, P), P, t0, t1, t2, t3, ink, rev) * (mb.y * wSet);
           c = clamp(dSafe(c), 0.0, 1.0);   // (a particle that is not a number is no particle; one that is past 0 .. 1 would invert what it lies over)
           acc = c + acc * (1.0 - c.a);
@@ -338,9 +353,10 @@ vec4 dustSkinA(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
       float se = g.A + Bs * Fa.a;
       for (int kk = 0; kk < K; kk++) {
         int k = K - 1 - kk;
-        float j0 = dCell(se, k, Pf, flowFig);
+        vec3 cls = dClassOf(k);
+        float j0 = dCell(se, k, cls.z, Pf, flowFig);
         for (int n = -N; n <= N; n++) {
-          DPart P = dPart(g.root, k, j0 + float(n), Pf, flowFig);
+          DPart P = dPart(g.root, k, cls, j0 + float(n), Pf, flowFig);
           if (P.alive <= 0.0) continue;
           vec2 ma = dMember(g, P.yl);
           if (ma.y <= 0.0) continue;
@@ -348,6 +364,7 @@ vec4 dustSkinA(DFrame F0, DFrame F1, float w1, vec3 lit, vec3 ink, float rev) {
           if (arm == 1 && fb.x >= 0.0) continue;   // (the first arm drew it)
           DSeg gb = dSeg(Fb.edge, 1 + 2 * int(max(fb.x, 0.0) + 0.5));
           if (!dNear(Fa, g, ma.x, P) && (fb.x < 0.0 || !dNear(Fb, gb, fb.y, P))) continue;   // (out of reach in both frames: its blend is too)
+          P = dPartFill(P);
           DMark M = dPlace(Fa, g, ma.x, P);
           float sa = wa * ma.y, sb = 0.0;
           if (fb.x >= 0.0) {

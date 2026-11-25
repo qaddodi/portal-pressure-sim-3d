@@ -123,7 +123,7 @@ test('?joins=nodust and ?joins=noheads split the marks for the A/B that finds a 
   assert.equal(skinLeaveOut('?joins=noheads'), 'heads');
   assert.equal(skinLeaveOut('?joins=nomarks'), 'marks');
   assert.match(SKIN_FS, /#ifndef SKIN_NOHEADS[^#]*vec4 hI = flowHeads\([^]*?headAcc \+= hI;\s*\}\s*\n#endif/);
-  assert.match(SKIN_FS, /#ifndef SKIN_NODUST\s+if \(dOn > 0\.002\) \{/);
+  assert.match(SKIN_FS, /#ifndef SKIN_NODUST\s+(?:\/\/[^\n]*\s+)?if \(dOn > 0\.002 && alpha > 0\.05\) \{/);
 });
 
 // THE DUST SPECKS (Mohammad, 20 Nov: black and lime specks at every crotch and seam band; gone with ?joins=nodust, not with noheads). The two-frame blend (dustSkin) drew a particle at the average of its places in two frames
