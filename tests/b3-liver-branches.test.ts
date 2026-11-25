@@ -225,13 +225,12 @@ test('a hepatic vein opens into the cava with a clean edge: it is cut away exact
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
   const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
   const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
-  // (placed anatomy, round 18, "RHV alone, MHV+LHV shared trunk": the middle hepatic vein's engine edge still ends at the cava's node, but as drawn it opens into the left one's common trunk, which opens into the cava. The rule is keyed by
-  //  where the drawn vein ENDS: the right and left hepatic veins and the renal vein open into the cava, the middle one into the trunk, with the same clean edge at the trunk's wall)
-  for (const id of ['RHV_IVC', 'LHV_IVC', 'LRV_IVC']) assert.equal(opensIntoCava(id), true, `${id} opens into the cava`);
-  for (const id of ['RHV_IVC_1', 'PVH_R_2', 'IVC_IS', 'MHV_IVC']) assert.equal(opensIntoCava(id), false, `${id} does not`);
-  assert.equal(ostiumHostOf('MHV_IVC'), 'LHV_IVC', 'the middle hepatic vein opens into the common trunk');
+  // (placed anatomy, round 19: each of the three hepatic veins opens into the cava on its own: the rule is keyed by where the drawn vein ENDS)
+  for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC', 'LRV_IVC']) assert.equal(opensIntoCava(id), true, `${id} opens into the cava`);
+  for (const id of ['RHV_IVC_1', 'PVH_R_2', 'IVC_IS']) assert.equal(opensIntoCava(id), false, `${id} does not`);
+  assert.equal(ostiumHostOf('MHV_IVC'), 'IVC_IS', 'the middle hepatic vein opens into the cava');
   assert.equal(cavaMateOf('RHV_IVC_1'), null);
-  assert.equal(cavaMateOf('MHV_IVC'), null);
+  assert.equal(cavaMateOf('MHV_IVC'), 'IVC_IS');
   assert.equal(cavaMateOf('LHV_IVC'), 'IVC_IS');
   assert.equal(cavaMateOf('LRV_IVC'), 'IVC_IS_1', 'a renal vein meets the cava below the hepatic veins');
   // the vein's last vertices lie inside its host's lumen (distance to its axis under its radius: the cava's, the trunk's for the middle one), its first ones outside
@@ -269,7 +268,6 @@ test('a vein that opens into the cava takes the cava\'s colour as it nears the w
   const { CelScene } = await import('../src/scene/scene.ts');
   const { indexOf } = await import('../src/engine/vessel-data.ts');
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
-  const { trunkJoin } = await import('../src/scene/disease/host.ts');
   assert.match(shaderText(VESSEL_FS), /vec4 lensOfAt\(float lensIx, float u,/);
   assert.match(shaderText(VESSEL_FS), /base = mix\(base, mix\(mix\(color, la2\.rgb, la2\.a\), mix\(color, lb2\.rgb, lb2\.a\), lensMix\), wB\);/);
   assert.match(shaderText(VESSEL_FS), /fadeHere = mix\(vFade, cavaA, wA\);/, 'the vein comes to the cava\'s opacity at the wall, by its distance from the wall (Mohammad, 20 Nov: both have the same fade at the point of junction)');
@@ -279,9 +277,7 @@ test('a vein that opens into the cava takes the cava\'s colour as it nears the w
   const s = new CelScene();
   try {
     const ref = (id: string) => (s.vesselObject(id)!.toon.uniforms as unknown as { cavaRef: { value: { x: number; y: number } } }).cavaRef.value;
-    for (const id of ['RHV_IVC', 'LHV_IVC']) { const r = ref(id); assert.equal(r.x, indexOf(B.get('IVC_IS')!.lensId), id); assert.equal(r.y, 1, `${id} joins at the cava's end`); }
-    // (the middle hepatic vein opens into the common trunk (placed anatomy, round 18): it takes the TRUNK's colour, where on the trunk it joins (disease/host.ts trunkJoin), short of the trunk's own end at the cava)
-    { const r = ref('MHV_IVC'), tj = trunkJoin('MHV_IVC')!; assert.equal(r.x, indexOf(B.get('LHV_IVC')!.lensId), 'MHV_IVC takes the trunk\'s colour'); assert.equal(r.y, tj.u); assert.ok(tj.u > 0.5 && tj.u < 1, `on the trunk's last stretch (${tj.u.toFixed(3)})`); }
+    for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) { const r = ref(id); assert.equal(r.x, indexOf(B.get('IVC_IS')!.lensId), id); assert.equal(r.y, 1, `${id} joins at the cava's end`); }
     const r = ref('LRV_IVC'); assert.equal(r.x, indexOf(B.get('IVC_IS_1')!.lensId)); assert.equal(r.y, 0);
   } finally { s.dispose(); }
 });

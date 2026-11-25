@@ -1,8 +1,8 @@
 {
- "round": 18,
- "from": "/mnt/project-files/anatomy-placement-mocks/frozen/round-18",
+ "round": 19,
+ "from": "/mnt/project-files/anatomy-placement-mocks/frozen/round-19",
  "files": {
-  "placement-data.json": "ae30b8f68aee0ff67c0e44d28e7115b05141e7d0f0a5d629e4ba35f34db606e3",
+  "placement-data.json": "0c16b20f6a3dbeaf33fd31f9a08424675c9181ba737c5d7b022037e3b3e48d75",
   "pack.json": "4ab566921b82990167b1a5d2d4fc39d3d558df22907d2accfdaeba69acc5940d",
   "organsA.json": "ffaaffb3825ac2265948c261e945bcb450b7062609ecf7b9e86de60b0203fadc"
  }

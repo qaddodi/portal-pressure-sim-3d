@@ -91,7 +91,6 @@ import { U as SIN_UNIT } from './sinusoid/view.ts';
 import { sinusoidBox } from './lobule/shots.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
-import { trunkJoin } from './disease/host.ts';
 import type { ScopeRingScreen } from './disease/scope-ring.ts';
 import { ProbeLayer } from './devices/probes/layer.ts';
 import { VESSEL_LAYER, inVesselPass } from './layers.ts';
@@ -721,9 +720,6 @@ export class CelScene {
         const args: [number, number, number] = [indexOf(NETWORK_BY_ID.get(cm)!.lensId), cavaJoinShare(def.id), fadeOf(cm, false)?.a0 ?? 1];
         o.setCavaCut(true, ...args); this.cavaCuts.push(o); this.cavaCutArgs.set(def.id, args);
       }
-      // (the middle hepatic vein opens into the common trunk, which is its cava: cut at the trunk's wall, its colour and its opacity there, disease/host.ts trunkJoin)
-      const tj = cm ? null : trunkJoin(def.id);
-      if (tj) { const args: [number, number, number] = [tj.lens, tj.u, tj.a]; o.setCavaCut(true, ...args); this.cavaCuts.push(o); this.cavaCutArgs.set(def.id, args); }
     }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     if (def.id === CAPUT_FAN_ID) o.setFrontDepth(FAN_FRONT);   // (the caput veins lie on the abdominal wall: over every other vein)

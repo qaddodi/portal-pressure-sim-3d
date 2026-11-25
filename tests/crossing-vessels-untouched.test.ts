@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
-import { landsOnCava, opensIntoCava, trunkMateOf } from '../src/scene/vessels/fades.ts';
+import { landsOnCava, opensIntoCava } from '../src/scene/vessels/fades.ts';
 import { indexOf } from '../src/engine/vessel-data.ts';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { cavaMateOf } from '../src/scene/vessels/neighbour.ts';
@@ -21,11 +21,7 @@ test('only a vessel that ends on the cava has the cava\'s cut and fade; every ot
       const o = s.vesselObject(v.id);
       if (!o) continue;
       const u = o.toon.uniforms as unknown as { cavaCut: { value: number }; cavaA: { value: number }; cavaRef: { value: { x: number } } };
-      // (placed anatomy, round 18: the middle hepatic vein's engine edge still ends at the cava's node, but its drawn course ends on the left hepatic vein's common trunk, fades.ts trunkMateOf. It opens into the TRUNK: cut at the trunk's
-      //  wall, in the trunk's colour (cavaRef is the trunk's lens) and opacity, never the cava's, and the cava is no mate of it. Read from the placed topology, not from the engine's node)
-      const trunk = trunkMateOf(v.id);
-      if (trunk) { ends++; assert.equal(u.cavaCut.value, skinnedAtCava(s, v.id) ? 2 : 1, v.id); assert.equal(cavaMateOf(v.id), null, `${v.id} opens into the common trunk, not the cava`); assert.equal(u.cavaRef.value.x, indexOf(NETWORK_BY_ID.get(trunk)!.lensId), `${v.id} takes the trunk's colour`); }
-      else if (opensIntoCava(v.id) || landsOnCava(v.id)) { ends++; assert.equal(u.cavaCut.value, skinnedAtCava(s, v.id) ? 2 : 1, v.id); assert.ok(cavaMateOf(v.id), v.id); }   // (a skin that has taken the cava end is the opening: no cut there, spec 10.4)
+      if (opensIntoCava(v.id) || landsOnCava(v.id)) { ends++; assert.equal(u.cavaCut.value, skinnedAtCava(s, v.id) ? 2 : 1, v.id); assert.ok(cavaMateOf(v.id), v.id); }   // (a skin that has taken the cava end is the opening: no cut there, spec 10.4)
       else { others++; assert.equal(u.cavaCut.value, 0, `${v.id} only crosses or lies near the cava`); assert.equal(cavaMateOf(v.id), null, v.id); assert.equal(u.cavaA.value, 1, v.id); }
     }
     assert.ok(ends >= 4 && others > 30);

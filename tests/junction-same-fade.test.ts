@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
-import { CAVA_RECEDE, IVC_JOIN_ALPHA, fadeOf, ivcJoinSpan, opensIntoCava, trunkMateOf } from '../src/scene/vessels/fades.ts';
+import { CAVA_RECEDE, IVC_JOIN_ALPHA, fadeOf, ivcJoinSpan, opensIntoCava } from '../src/scene/vessels/fades.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { VDBG_GLSL } from '../src/scene/vessels/debug-view.ts';
@@ -57,18 +57,14 @@ test('no vein end renders open: back faces are never drawn and the cut at the wa
 });
 
 test('what lies in a vein that opens into the cava reads the same fade: the drawn vein comes to the cava\'s opacity at its wall, and a clot there is as faint', () => {
-  // (the vein it opens into: the cava, or for the middle hepatic vein the common trunk it shares with the left one since round 18, fades.ts trunkMateOf; it comes to THAT vessel's opacity at its wall, the trunk's where it opens into the trunk)
   const at = (h: NonNullable<ReturnType<typeof drawnHost>>, share: number): number => { let k = h.s.length - 1; while (k > 0 && h.s[k]! / h.length > share) k--; return h.A[k]!; };
   for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) {
-    const h = drawnHost(id)!, w = cavaWallShare(h)!, mate = trunkMateOf(id);
+    const h = drawnHost(id)!, w = cavaWallShare(h)!;
     assert.ok(w > 0.5 && w <= 1);
-    // (the trunk's opacity at its axis point nearest the vein's end: where the two meet)
-    const nearestA = (t: NonNullable<ReturnType<typeof drawnHost>>, p: { x: number; y: number; z: number }): number => { let bi = 0, bd = Infinity; t.pts.forEach((q, i) => { const d = Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z); if (d < bd) { bd = d; bi = i; } }); return t.A[bi]!; };
-    const into = mate ? nearestA(drawnHost(mate)!, h.pts[h.pts.length - 1]!) : CAVA_RECEDE;
-    assert.ok(Math.abs(at(h, w) - into) < 0.08, `${id}: vein opacity at the wall ${at(h, w)}, the ${mate ? 'common trunk' : 'cava'}'s ${into}`);
+    assert.ok(Math.abs(at(h, w) - CAVA_RECEDE) < 0.08, `${id}: vein opacity at the wall ${at(h, w)}, the cava's ${CAVA_RECEDE}`);
     // (the clot is painted in the vein's own fragment: its opacity at the wall is the vein's, by construction: plan 26)
   }
-  assert.equal(trunkMateOf('MHV_IVC'), 'LHV_IVC', 'the middle hepatic vein opens into the common trunk (round 18)');
+  assert.equal(opensIntoCava('MHV_IVC'), true, 'the middle hepatic vein opens into the cava on its own (round 19)');
 });
 
 test('the other tube is taken at the radius it is DRAWN at: every vessel measured against a mate (a fork, the cava) carries the mate\'s data index, built diameter and kind, and the vertex stage scales nbr by the mate\'s live swell', async () => {
