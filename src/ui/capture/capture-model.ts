@@ -67,6 +67,19 @@ export function maskPlacement(size: string, pos: string, box: { w: number; h: nu
   return { x: at(pt[0], box.w - w) + 0, y: at(pt[1], box.h - h) + 0, w, h };
 }
 
+/** Where a child stands in the paint order among its siblings: the browser paints a positioned element with a `z-index` by that number, not by its place in the page, so the slide pill (z 4, first in the page)
+ *  stands over the cards (z 2, later in the page). A drawing list that took the page's order put the cards over the pill and the pill showed as a dark smudge under the glass (capture 84496815, every iPad words card).
+ *  An element that is not positioned, or whose `z-index` is `auto`, stands at 0 (the order of the page between equals). */
+export function stackRank(position: string | null | undefined, zIndex: string | null | undefined): number {
+  if (!position || position === 'static') return 0;
+  const z = parseInt(zIndex ?? '', 10);
+  return Number.isFinite(z) ? z : 0;
+}
+/** The items in paint order: by rank, the page's order among equals (stable). */
+export function paintOrder<T>(items: readonly T[], rank: (t: T) => number): T[] {
+  return items.map((t, i) => ({ t, i, z: rank(t) })).sort((a, b) => a.z - b.z || a.i - b.i).map((x) => x.t);
+}
+
 /** `text-transform` applied to a run of words (the canvas draws the characters, not the style). */
 /** The CSS `zoom` of one element as its computed style reports it (its own, not its ancestors'; 1 when none or unusable). The computed lengths under a zoom (font size, borders, radii) are the unzoomed ones, so the
  *  picture multiplies them by it: a data card fitted down to 0.5 drew its 12 px words at 12 px on boxes laid out at 6, and the lines printed over one another (iPad and iPhone on its side, 23 Nov 2026). */

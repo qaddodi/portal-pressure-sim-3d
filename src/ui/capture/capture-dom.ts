@@ -5,7 +5,7 @@
 import { readBox, readStyle, readTextRects } from '../layout-snap.ts';
 import { parseGradient, type Item, type Paint, type Clip } from '../shell/figure-image.ts';
 import { paintItems } from '../shell/figure-image-dom.ts';
-import { zoomOf, parseShadows, transformed, contentString, fractionBar, strokeWidthIn, counterCall, counterText, counterStep, SYMBOLS, symbolPath, maskUrl, maskPlacement, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
+import { zoomOf, stackRank, paintOrder, parseShadows, transformed, contentString, fractionBar, strokeWidthIn, counterCall, counterText, counterStep, SYMBOLS, symbolPath, maskUrl, maskPlacement, backdropBlur, blurHalvings, type ClipRect, type Shadow, type ScreenItem } from './capture-model.ts';
 
 type Rect = { x: number; y: number; w: number; h: number };
 interface Ctx { out: ScreenItem[]; stage: Rect | null; stageImg: CanvasImageSource | null; stageDrawn: boolean }
@@ -229,6 +229,9 @@ function pseudoFlow(c: Ctx, el: Element, which: '::before' | '::after', cs: CSSS
   } else pseudoWords(c, el, ps, null, a, clips, own, kk, { x, midY });
 }
 
+/** Children in the browser's paint order (capture-model.ts stackRank): a positioned child with a z-index is drawn by it. */
+const inOrder = (kids: HTMLCollection): Element[] => paintOrder(Array.from(kids), (k) => { const cs = readStyle(k); return stackRank(cs.position, cs.zIndex); });
+
 function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number, pclip: Clip | undefined): void {
   if (el.matches(SKIP)) return;
   if (el instanceof SVGElement) { if (el.tagName.toLowerCase() === 'svg' || el.ownerSVGElement) visitSvg(el, c, above, clips, pclip); return; }
@@ -312,14 +315,14 @@ function visit(el: Element, c: Ctx, above: number, clips: ClipRect[], k: number,
     }
     c.out.push(...halos, ...fills);
   }
-  for (const ch of el.children) visit(ch, c, alpha, inner, kk, own);
+  for (const ch of inOrder(el.children)) visit(ch, c, alpha, inner, kk, own);
   if (shown && r.width > 0 && r.height > 0 && !(el instanceof HTMLInputElement)) pseudoBox(c, el, '::after', cs, r, alpha, clips, own, kk);
 }
 
 /** Everything on the page now, in paint order. `stage`: where the figure's canvas stands (CSS px) and `stageImg` its picture, which takes the canvas's place in the order. */
 export function readScreen(stage: Rect | null, stageImg: CanvasImageSource | null): ScreenItem[] {
   const c: Ctx = { out: [], stage, stageImg, stageDrawn: false };
-  for (const ch of document.body.children) visit(ch, c, 1, [], 1, undefined);
+  for (const ch of inOrder(document.body.children)) visit(ch, c, 1, [], 1, undefined);
   if (stage && stageImg && !c.stageDrawn) c.out.unshift({ k: 'img', ...stage, src: stageImg, alpha: 1 });   // (the page's canvas was not found where the stage reported: the figure goes under everything)
   return c.out;
 }

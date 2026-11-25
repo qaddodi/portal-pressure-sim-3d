@@ -49,3 +49,19 @@ test('a turned word with a glow is turned in its glow pass too: no upright copy 
     assert.ok(log.slice(from, i).includes(`rotate:${-Math.PI / 2}`), `fillText #${i} is turned`);
   }
 });
+
+// Capture 84496815, every iPad words card: the slide pill (z-index 4, first in the page) showed as a dark smudge in the card's foot. Root: the drawing list took the page's order, so the cards (z-index 2, later in the
+// page) were drawn over the pill, and the card's frosted glass blurred it. The browser paints a positioned child by its z-index.
+test('a positioned child is drawn by its z-index, the page order among equals', async () => {
+  const { stackRank, paintOrder } = await import('../src/ui/capture/capture-model.ts');
+  assert.equal(stackRank('absolute', '4'), 4);
+  assert.equal(stackRank('absolute', 'auto'), 0);
+  assert.equal(stackRank('static', '9'), 0, 'z-index does not apply to a static box');
+  assert.equal(stackRank('relative', '-1'), -1);
+  const kids = [{ n: 'scope', z: 'auto', p: 'static' }, { n: 'bar', z: '4', p: 'absolute' }, { n: 'cards', z: '2', p: 'absolute' }, { n: 'jump', z: '5', p: 'absolute' }, { n: 'black', z: 'auto', p: 'static' }];
+  assert.deepEqual(paintOrder(kids, (k) => stackRank(k.p, k.z)).map((k) => k.n), ['scope', 'black', 'cards', 'bar', 'jump'], 'cards under the pill, the slide list over it');
+  assert.deepEqual(paintOrder([{ n: 'a' }, { n: 'b' }, { n: 'c' }], () => 0).map((k) => k.n), ['a', 'b', 'c'], 'equal ranks keep the page order');
+  const src = readFileSync(new URL('../src/ui/capture/capture-dom.ts', import.meta.url), 'utf8');
+  assert.match(src, /for \(const ch of inOrder\(el\.children\)\) visit\(/);
+  assert.match(src, /for \(const ch of inOrder\(document\.body\.children\)\) visit\(/);
+});

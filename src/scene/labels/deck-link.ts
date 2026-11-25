@@ -41,9 +41,17 @@ export function keyAtStop(stops: Stop[], i: number, beat = 0): string | null {
   return buttons || lens === 'heat' || lensOfStop(stops, i - 1) !== lens ? lens : null;   // (the heat lens's glow is not self-explaining: every heat slide names it, 23 Nov, TIPS candidacy 10)
 }
 /** The lens whose key is the first row of the slide's own data card (the stream lenses: key.ts keyPlace). The card keeps its key as long as it stands, so ask with the stop the card came from (keep.ts `from`). */
-export function cardKeyAt(stops: Stop[], i: number): string | null {
+export function cardKeyAt(stops: Stop[], i: number, live: string | null = null): string | null {
   const s = stops[i], k = s && s.kind === 'slide' ? keyAtStop(stops, i, s.slide.vignette || s.slide.question ? 1 : 0) : null;
-  return k && keyPlace(k) === 'card' ? k : null;
+  const buttons = !!s && s.kind === 'slide' && !!s.slide.controls?.compare?.opts.some((o) => o.how === 'lens');
+  return cardKeyFollows(k, buttons, live);
+}
+/** The data card's key row (pure). A slide with lens buttons whose press has put another lens on the figure (the labels' key, set by pickCompare: one whose key stands on the figure's dock, never a card's): the row was the
+ *  key of the slide's own lens and no longer says what the figure wears (Two inflows 3, Oxygen pressed: "Origin" over the oxygen colours, capture 84496815). It goes, and the dock carries the new lens's key.
+ *  The key follows the slide on every move (linkLabelsToDeck), so `live` is the slide's own key until a button is pressed. */
+export function cardKeyFollows(k: string | null, buttons: boolean, live: string | null): string | null {
+  if (!k || keyPlace(k) !== 'card') return null;
+  return buttons && live && keyPlace(live) === 'dock' ? null : k;
 }
 
 /** The copied 2D slide a played slide came from (a talk ported from 2D keeps its words in `copiedOf`). */
