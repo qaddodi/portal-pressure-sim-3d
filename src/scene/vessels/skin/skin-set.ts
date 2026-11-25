@@ -398,13 +398,14 @@ export class SkinSet {
           const j = todo.find((x) => x.node === n);
           if (!j || again.has(n)) continue;
           const g = j.arms.filter((a) => a.grow);
+          // a skin whose full-size shape does not build from the hull of its rings is tried once more meshed from the surface itself (sheet.ts, no hull: the rung the liver's forks use) before it loses a growing arm, or, with none
+          // to lose, before the node keeps today's joins (the cava's IVCS since round 18: the right hepatic vein opens on the cava's wall 3 radii below the common trunk, and no hull of the five rings has them all)
+          if (!j.surface && (g.length || f.nodes.length === 1)) { again.set(n, f.message); next.push({ ...j, surface: true }); continue; }
           if (!g.length) {
             // a merged skin that failed: this node has nothing to drop, but its partner's growing arm goes (with fewer than three arms the partner is no junction), so the merge goes too and this node is planned again alone: the cava's IVCS and the run-on RHV_T the TIPS lands on
             if (f.nodes.length > 1 && f.nodes.some((m) => m !== n && todo.find((x) => x.node === m)?.arms.some((a) => a.grow))) { again.set(n, f.message); next.push(j); continue; }
             lost.push({ node: f.nodes.join('+'), message: f.message }); continue;
           }
-          // a skin whose full-size shape does not build from the hull of its rings is tried once more meshed from the surface itself (sheet.ts, no hull: the rung the liver's forks use) before it loses a growing arm
-          if (!j.surface) { again.set(n, f.message); next.push({ ...j, surface: true }); continue; }
           const drop = g[g.length - 1]!, arms = j.arms.filter((a) => a !== drop);
           this.dropped.push(`${n}:${drop.vesselId}`); this.why[`${n}:${drop.vesselId}`] = f.message;
           again.set(n, f.message);

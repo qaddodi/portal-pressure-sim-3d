@@ -5,7 +5,7 @@ import { EDGES } from '../../engine/hales/portal/topology.js';
 import { x3, y3 } from '../frame2d.ts';
 import { ART_FADE_2D, FADE_DOWN_Y_2D, FADE_IN_2D, FEEDER_FADE_Y_2D, SIN_EDGES_2D, SIN_FADE_C9_2D, SIN_FADE_ROW_2D, TIP_CONNECT_2D, TIP_FADE_2D } from './fades.copied.ts';
 import { EDGE_PATH_2D, IVC_EDGES, NODE_POS_2D, PLACED } from '../anatomy/source.ts';
-import { PLACED_EDGE_3D } from '../anatomy/placed-network.ts';
+import { PLACED_EDGE_3D, PLACED_HV_TRUNK } from '../anatomy/placed-network.ts';
 import { alongVein, alongVeinCompanion, alongVeinStretch, originsOf, startInOrganShare } from './starts.ts';
 import { END_JOIN, LIVER_BRANCH_HOSTS, splitShare, treeOf } from './liver-branches.ts';
 import { CAUDATE_HOST, CAUDATE_VEIN_ID } from './caudate-veins.ts';
@@ -23,8 +23,12 @@ export const IVC_JOIN_LEN = 60;
 /** A hepatic vein that opens into the cava: one of the hepatic veins whose END is on the cava's node. The right hepatic vein is two pieces (RHV_IVC_1 from the liver to the TIPS junction, RHV_IVC from there to the cava), and only the second one opens into
  *  the cava: the rules for "a vein into the cava" (the end eased to the cava's alpha, the ink held back inside the cava, the part inside the lumen cut away) are keyed by where the vein ENDS, never by its name (root cause of the broken outline and the light line
  *  at the join of the two pieces in the Circuit, 20 Nov). */
+/** The vein a hepatic vein opens into when it is not the cava (placed anatomy, Mohammad 25 Nov: "RHV alone, MHV+LHV shared trunk"): the middle hepatic vein opens into the left one's common trunk (placed-network.ts PLACED_HV_TRUNK),
+ *  which opens into the cava. Its tube is cut at that trunk's wall, its outline is the union's with it, and its Budd-Chiari clot runs to that wall, as a vein that opens into the cava does with the cava. Null for every other vessel. */
+export const trunkMateOf = (id: string): string | null => (PLACED && PLACED_HV_TRUNK.length > 0 && id === PLACED_HV_TRUNK.joiner ? PLACED_HV_TRUNK.piece : null);
 export function opensIntoCava(id: string): boolean {
   if (id === CAUDATE_VEIN_ID) return true;   // (the caudate lobe's short veins open into the cava's left wall by the same rule: caudate-veins.ts)
+  if (trunkMateOf(id)) return false;   // (it opens into the common trunk, which opens into the cava)
   const e = edgeById.get(id);
   return HEPATIC_VEINS.has(id) && !!e && IVC_NODES.has(e.to);
 }

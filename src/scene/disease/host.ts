@@ -11,8 +11,12 @@ import { centrelineOf } from '../vessels/centreline.ts';
 import { vesselAlphaAt } from '../vessels/fade-alpha.ts';
 import { widthSwell } from '../vessels/live-width.ts';
 import { neighbourAttr, NBR_STRIDE } from '../vessels/neighbour.ts';
-import { CAVA_RECEDE, cavaPieceOf, opensIntoCava } from '../vessels/fades.ts';
+import { CAVA_RECEDE, cavaPieceOf, opensIntoCava, trunkMateOf } from '../vessels/fades.ts';
 import { cavaRamp } from '../vessels/fade-alpha.ts';
+import { PLACED_HV_TRUNK } from '../anatomy/placed-network.ts';
+
+/** The vein whose wall a vein's ostium is on: the cava for a vein that opens into it, the common trunk for the middle hepatic vein on the placed anatomy (fades.ts trunkMateOf), else null. */
+const ostiumHostOf = (id: string): string | null => (opensIntoCava(id) ? cavaPieceOf(id) : trunkMateOf(id));
 
 /** Samples along each piece (the clot reads its place between them). */
 export const HOST_SAMPLES = 48;
@@ -35,6 +39,17 @@ export interface Host {
 
 const cache = new Map<string, Host | null>();
 
+/** Where the middle hepatic vein opens into the common trunk (placed anatomy, round 18: fades.ts trunkMateOf): the trunk's lens index, the share along it of the trunk's axis point nearest the join (PLACED_HV_TRUNK.at), and the trunk's own
+ *  opacity there. The trunk is already easing to the cava's opacity (it opens into the cava 3 of its radii on), so a vein that came to the trunk's FULL opacity at its wall would meet it with a step (1 against 0.72): it comes to this instead,
+ *  the shader's cava rule with the trunk as its cava (scene.ts setCavaCut). Null for every other vessel. */
+export function trunkJoin(id: string): { mate: string; lens: number; u: number; a: number } | null {
+  const mate = trunkMateOf(id), h = mate ? drawnHost(mate) : null;
+  if (!mate || !h || h.pieces.length !== 1) return null;
+  const t = PLACED_HV_TRUNK.at;
+  let bi = 0, bd = Infinity; h.pts.forEach((q, i) => { const d = Math.hypot(q.x - t[0], q.y - t[1], q.z - t[2]); if (d < bd) { bd = d; bi = i; } });
+  return { mate, lens: h.pieces[0]!.lens, u: bi / (h.pts.length - 1), a: h.A[bi]! };
+}
+
 /** The drawn vein of host `id` (a vein cut in pieces is one vein), or null for an id with no drawn course. */
 export function drawnHost(id: string): Host | null {
   if (cache.has(id)) return cache.get(id)!;
@@ -50,14 +65,15 @@ export function drawnHost(id: string): Host | null {
       if (pts.length && pts[pts.length - 1]!.distanceTo(at) < 1e-6) continue;   // (the pieces share their joint)
       pts.push(at); R.push(c.radiusAt(u)); A.push(vesselAlphaAt(q, u, p[0], p[1])); piece.push(k);
     }
-    if (opensIntoCava(q)) {
-      // (a vein that merges into the faded cava comes to the cava's opacity at its wall, by its distance from the wall, as the shader does it: shaders.ts fadeHere)
+    const into = opensIntoCava(q) ? CAVA_RECEDE : trunkMateOf(q) ? trunkJoin(q)?.a ?? null : null;
+    if (into != null) {
+      // (a vein that merges into the faded cava comes to the cava's opacity at its wall, by its distance from the wall, as the shader does it: shaders.ts fadeHere; the middle hepatic vein to the common trunk's opacity where it opens into it, trunkJoin)
       const flat = new Float32Array((pts.length - from) * 3);
       for (let i = from; i < pts.length; i++) { flat[(i - from) * 3] = pts[i]!.x; flat[(i - from) * 3 + 1] = pts[i]!.y; flat[(i - from) * 3 + 2] = pts[i]!.z; }
       const nb = neighbourAttr(q, flat);
       if (nb) for (let i = from; i < pts.length; i++) {
         const Rc = nb[(i - from) * NBR_STRIDE + 1]!, cd = Rc - Math.abs(nb[(i - from) * NBR_STRIDE]!);
-        if (Rc > 0) A[i] = A[i]! + (CAVA_RECEDE - A[i]!) * cavaRamp(cd / Rc);
+        if (Rc > 0) A[i] = A[i]! + (into - A[i]!) * cavaRamp(cd / Rc);
       }
     }
   }
@@ -75,7 +91,7 @@ export function drawnHost(id: string): Host | null {
 export type Swells = number[] & { /** the swell of the cava piece a vein that opens into the cava meets (1 for any other vein) */ cava?: number };
 export function swellsOf(h: Host, D: ArrayLike<number> | null | undefined): Swells {
   const out: Swells = h.pieces.map((p) => widthSwell(p.widthKind, p.baseD, D ? D[p.lens] : undefined));
-  const last = h.pieces[h.pieces.length - 1], cm = last && opensIntoCava(last.id) ? NETWORK_BY_ID.get(cavaPieceOf(last.id)) : undefined;
+  const last = h.pieces[h.pieces.length - 1], om = last ? ostiumHostOf(last.id) : null, cm = om ? NETWORK_BY_ID.get(om) : undefined;
   if (cm) out.cava = widthSwell(cm.widthKind, cm.baseD, D ? D[indexOf(cm.lensId)] : undefined);
   return out;
 }
@@ -123,7 +139,7 @@ function wallArcOf(s: readonly number[], nb: Float32Array, off: number, cavaSwel
  *  lumen at the radius the cava is DRAWN at (`cavaSwell`: its live width over the width it was built at). Null for a vein that does not open into the cava. A clot in such a vein runs to here, so it reaches the junction as the vein does. */
 export function cavaWallShare(h: Host, cavaSwell = 1): number | null {
   const last = h.pieces[h.pieces.length - 1];
-  if (!last || !opensIntoCava(last.id)) return null;
+  if (!last || !ostiumHostOf(last.id)) return null;
   if (!nbCache.has(h.id)) {
     const flat = new Float32Array(h.pts.length * 3);
     h.pts.forEach((p, i) => { flat[i * 3] = p.x; flat[i * 3 + 1] = p.y; flat[i * 3 + 2] = p.z; });
@@ -138,7 +154,7 @@ export function cavaWallShare(h: Host, cavaSwell = 1): number | null {
  *  (`veinSwell`: its live width over the built one) is still outside the cava: the far side of the slant. Null for a vein that does not open into the cava. */
 export function cavaFarWallShare(h: Host, cavaSwell = 1, veinSwell = 1): number | null {
   const last = h.pieces[h.pieces.length - 1];
-  if (!last || !opensIntoCava(last.id)) return null;
+  if (!last || !ostiumHostOf(last.id)) return null;
   const n = h.pts.length, m = n + WALL_EXTEND_N, e = h.pts[n - 1]!, p = h.pts[n - 2]!, tl = Math.hypot(e.x - p.x, e.y - p.y) || 1, tx = (e.x - p.x) / tl, ty = (e.y - p.y) / tl, Re = h.R[n - 1]!;
   const sx: number[] = h.s.slice();
   for (let q = 1; q <= WALL_EXTEND_N; q++) sx.push(h.s[n - 1]! + Re * WALL_EXTEND_R * q / WALL_EXTEND_N);

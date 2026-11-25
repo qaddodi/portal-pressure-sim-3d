@@ -252,13 +252,26 @@ export function armReach(j: SkinJunction, network: readonly NetVessel[] = NETWOR
 }
 
 /** How far apart in depth the arms' tiers are at the node (scene units), read on the 2D rule's own courses: a vessel's depth eases to its node's (shape.ts `to3`), so arms of different tiers still meet at one depth, and this is
- *  0 unless a vessel's course does not ease there. (Smooth joins' tuck, a branch ending a little behind its trunk's axis, is deliberate and is not counted.) The skin's screen-space ink (spec 4.7) is exact only when this is 0. */
+ *  0 unless a vessel's course does not ease there. An arm that opens on another arm's wall away from J is read where it meets that wall, against its host's axis there. (Smooth joins' tuck, a branch ending a little behind its trunk's axis, is deliberate and is not counted.) The skin's screen-space ink (spec 4.7) is exact only when this is 0. */
 export function tierSpread(j: SkinJunction, network: readonly NetVessel[] = NETWORK, state: ShapeState = REST): number {
   const was = smoothJoinsOn();
   setSmoothJoins(false);
   try {
     const byId = new Map(network.map((v) => [v.id, v]));
-    const zs = j.arms.map((a) => endPoint(byId.get(a.vesselId)!, a.end, state)[2]);
+    const ends = j.arms.map((a) => endPoint(byId.get(a.vesselId)!, a.end, state)), R0 = j.arms[0]!.restR;
+    const pts = j.arms.map((a) => coursesOf(byId.get(a.vesselId)!, state)[0]!.pts as readonly Vec3[]);
+    // (an arm that opens on another arm's WALL, away from J (the right hepatic vein on the cava 3.3 radii below the common trunk, the middle one on the trunk: round 18), meets the skin there, not at J: its tier is its depth against its
+    //  host's axis at that point, carried to J along the host)
+    const zs = j.arms.map((a, i) => {
+      const e = ends[i]!, J = j.J;
+      if (a.side || a.grow || Math.hypot(e[0] - J[0], e[1] - J[1], e[2] - J[2]) / R0 <= NEAR_R) return e[2];
+      for (let h = 0; h < j.arms.length; h++) {
+        if (h === i || j.arms[h]!.grow) continue;
+        const r = nearestOnPolyline(pts[h]!, e);
+        if (r.d <= SIDE_TOL_R * j.arms[h]!.restR && r.u > SIDE_EDGE && r.u < 1 - SIDE_EDGE) return e[2] - r.at[2] + ends[h]![2];
+      }
+      return e[2];
+    });
     return Math.max(...zs) - Math.min(...zs);
   } finally { setSmoothJoins(was); }
 }

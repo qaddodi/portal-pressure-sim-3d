@@ -6,7 +6,7 @@ import { SMOOTH, isPlain } from './smooth-joins.ts';
 import { smoothJoinsOn } from './join-mode.ts';
 import { REST, coursesOf, type ShapeState } from './shape.ts';
 import { radiusAtU } from './tubes.ts';
-import { cavaPieceOf, landsOnCava, opensIntoCava } from './fades.ts';
+import { cavaPieceOf, landsOnCava, opensIntoCava, trunkMateOf } from './fades.ts';
 
 /** The side branches (feeders that join into a vein and leave it as one more tube) of each vein: host id to its branch ids. */
 export const SIDE_BRANCHES: ReadonlyMap<string, readonly string[]> = (() => {
@@ -45,7 +45,7 @@ export const JUNCTION_MATES: ReadonlyMap<string, readonly string[]> = (() => {
 
 /** Every vessel `id` is a fork mate of (its side branch or vein, the cava it opens into, or the vessels it meets at a junction), first the one its live width is read against. */
 export function nbrMatesOf(id: string): readonly string[] {
-  const f = forkMateOf(id) ?? cavaMateOf(id);
+  const f = forkMateOf(id) ?? cavaMateOf(id) ?? trunkMateOf(id);   // (the middle hepatic vein sees the common trunk it opens into: fades.ts trunkMateOf)
   return f ? [f] : smoothJoinsOn() ? JUNCTION_MATES.get(id) ?? [] : [];   // (the junctions are forks only with Smooth vessel joins on: off, the figure is the 2D rule's own)
 }
 

@@ -3,7 +3,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { drawnHost, cavaWallShare, cavaFarWallShare, radiusAtShare, type Host } from '../src/scene/disease/host.ts';
 import { type ClotUniform, clotRange, clotPhases, clotShapeAt, clotDrawnShape, clotPiece, clotAtTwin, trunkCutTwin, ostialLength, CLOT_CAP_LEN, OSTIAL_MAX_SHARE } from '../src/scene/disease/clot-field.ts';
-import { clotUniforms, clotAnchor, ostialEnds, pieceRanges } from '../src/scene/disease/clots.ts';
+import { clotUniforms, clotAnchor, ostialEnds, pieceRanges, mergeShare } from '../src/scene/disease/clots.ts';
 import { CAUDATE_VEIN_ID } from '../src/scene/vessels/caudate-veins.ts';
 import { neighbourAttr } from '../src/scene/vessels/neighbour.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
@@ -43,11 +43,12 @@ test('plan 34d/34e: the distal end is 34d\'s (the cap\'s length short of the wal
       assert.equal(e.b, Math.max(far, e.b0), `${id} v=${v}: b is the far side of the slant`);
       assert.ok(e.b >= wall - 1e-9, `${id} v=${v}: the body reaches the wall at the centre line`);
       assert.ok((e.a + e.b) / 2 > 0.5, `${id} v=${v}: centroid ${(e.a + e.b) / 2} is in the cava half`);
-      const want = ostialLength(v, e.D, h.length);
+      // (a shared trunk's clot stops short of the middle hepatic vein's mouth on it: round 18, Mohammad 25 Nov "RHV alone, MHV+LHV shared trunk"; mergeShare is 0 for every other vein)
+      const merge = mergeShare(h), want = Math.min(ostialLength(v, e.D, h.length), (e.b0 - merge) * h.length);
       assert.ok(e.a > 0 ? Math.abs((e.b0 - e.a) * h.length - want) <= 0.02 * want : (e.b0 - e.a) * h.length <= want + 1e-9, `${id} v=${v}: a..b0 equals L(v)`);
       if (v === 1) assert.ok(lenD <= 3.1, `${id}: ${lenD} D at v = 1`);
       assert.ok((e.b0 - e.a) * h.length <= OSTIAL_MAX_SHARE * h.length + 1e-9);
-      assert.ok(e.a < prevA && e.a >= 0, `${id}: a falls as v rises`); prevA = e.a; bs.push(e.b);
+      assert.ok((e.a < prevA || (merge > 0 && e.a === merge)) && e.a >= 0 && e.a >= merge, `${id}: a falls as v rises, never past the merge`); prevA = e.a; bs.push(e.b);
       const us = clotUniforms(h, v, 1, id), last = us[us.length - 1]!, span: number = (e.b - e.a) * h.length;
       assert.ok(Math.abs(last.f0 + last.df * (1 - 1e-12) - (h.length - e.a * h.length) / span) < 1e-6, `${id} v=${v}: the last piece carries the share on past the vein's end`);
       n++;
