@@ -38,7 +38,7 @@ test('the words card carries the credit line and the foot padding leaves its row
 // Capture 2a54261a, HVPG 14 / Doppler 13 / Sites 11 (a table is the slide's one card, so there is no words card and no foot row): the floating credit stands in the screen's foot band, never a hunt over the table.
 test('an upright phone slide with no card carrying the credit row puts the floating line in the foot band, and hides it where a card, the pill or a drawer is on that band', async () => {
   const src = readFileSync('src/ui/shell/Credit.tsx', 'utf8');
-  assert.match(src, /talk && lay === 'stack' && !document\.querySelector\('\.dk-card \.pz-cred'\)\) \{\s*const at = foot, clear = footClear\(at, w, h, shownBoxes\('\.dk-strip, \.dk-card, \.dk-bar', vw, vh\)\);/);
+  assert.match(src, /talk && lay === 'stack' && !document\.querySelector\('\.dk-card \.pz-cred'\)\) \{\s*const at = foot, clear = footShown\(at, w, h, vw, vh, '\.dk-strip, \.dk-card, \.dk-bar'\);/);
   const { footCredit, footClear } = await import('../src/ui/shell/credit-foot.ts');
   const vw = 440, vh = 736, h = 17, w = 210, safe = { top: 0, right: 0, bottom: 0, left: 0 };
   const at = footCredit({ vw, vh, safe, h, margin: 8 });
@@ -46,4 +46,20 @@ test('an upright phone slide with no card carrying the credit row puts the float
   assert.equal(footClear(at, w, h, [{ l: 8, t: 40, r: 432, b: 640 }]), true, 'the table card (HVPG 14: 40 to 640) leaves the band clear');
   assert.equal(footClear(at, w, h, [{ l: 8, t: 40, r: 432, b: 725 }]), false, 'a card on the band hides it');
   assert.equal(footClear(at, w, h, [{ l: 200, t: 700, r: 330, b: 730 }]), false, 'the pill on the band hides it');
+});
+
+// Regression from 1161e159 (25 Nov, coordinator: "the floating © sits over the last outline lines on the outline card in five decks"). Root cause: every foot-band branch judged only the cards' boxes (or nothing, on a
+// laptop), and the outline card stands centred and as tall as its lines need, so its last lines reach the band. The one judge, footShown, now also counts every line of words and every picture of every card.
+test('the © in the foot band never stands over a card\'s words or pictures, in every layout that uses the band', async () => {
+  const src = readFileSync('src/ui/shell/Credit.tsx', 'utf8');
+  assert.match(src, /function footShown\([^)]*\): boolean \{\s*return footClear\(at, w, h, \[.*cardContent\(vw, vh, false\)\]\);/, 'the judge counts the cards\' content');
+  assert.equal((src.match(/footClear\(/g) ?? []).length, 1, 'footClear is called once, by footShown: no foot branch judges by boxes alone');
+  assert.ok((src.match(/footShown\(/g) ?? []).length >= 4, 'the laptop, tablet, phone-on-its-side and upright-phone branches all use it');
+  assert.match(src, /edges && c\.width > 4/, 'the card\'s own edge is left out of the foot judgement: the line may stand in a card\'s foot padding');
+  const { footCredit, footClear } = await import('../src/ui/shell/credit-foot.ts');
+  const at = footCredit({ vw: 440, vh: 736, safe: { top: 0, right: 0, bottom: 0, left: 0 }, h: 17, margin: 16 }), w = 220, h = 17;
+  // an outline card 8 to 432 across, its last numbered line at 706 to 722: on the band
+  const lastLine = { l: 40, t: 706, r: 300, b: 722 };
+  assert.equal(footClear(at, w, h, [lastLine]), false, 'a line of the outline on the band hides the ©');
+  assert.equal(footClear(at, w, h, [{ l: 40, t: 560, r: 300, b: 576 }]), true, 'lines above the band leave it');
 });
