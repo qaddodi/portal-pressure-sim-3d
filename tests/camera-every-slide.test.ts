@@ -103,6 +103,8 @@ for (const D of DEVICES) {
     while (!s.microStep()) { /* primed: no dive waits */ }
     const fails: string[] = [], seen = new Set<string>();
     let moves = 0, i = 0;
+    // (where the camera stands: a move that starts where the last one landed needs no settling first, which halves the frames)
+    let here: { view: string; shot: View['shot']; room: Room } | null = null;
     for (const [id, deck] of decks) {
       const seq = walk(deck);
       for (let j = 1; j < seq.length; j++) {
@@ -111,11 +113,13 @@ for (const D of DEVICES) {
         if (seen.has(key) || (a.v.shot === b.v.shot && viewOf(a.v) === viewOf(b.v))) continue;
         seen.add(key);
         // (half the moves change room as they set off, as two slides' cards do, and have the data card's height land a beat late, early or near the landing)
-        const settle = i++ % 2 === 1, r0 = D.rooms[settle ? 1 : 0], r1 = D.rooms[settle ? 0 : 1];
-        show(a.v, r0); for (let k = 0; k < 400 && (busy() || k < 4); k++) frame();
+        const settle = i++ % 2 === 1, at = here && here.view === viewOf(a.v) && here.shot === a.v.shot ? here.room : null;
+        const r0: Room = at ?? D.rooms[settle ? 1 : 0], r1: Room = r0.w === D.rooms[0].w && r0.h === D.rooms[0].h ? D.rooms[1] : D.rooms[0];
+        if (!at) { show(a.v, r0); for (let k = 0; k < 400 && (busy() || k < 4); k++) frame(); }
         show(b.v, r1);
-        const late = settle ? new Map([[[6, 30, 70][i % 3]!, { ...r1, h: r1.h - D.late }]]) : undefined;
+        const lateRoom = { ...r1, h: r1.h - D.late }, late = settle ? new Map([[[6, 30, 70][i % 3]!, lateRoom]]) : undefined;
         const bad = fly(late);
+        here = { view: viewOf(b.v), shot: b.v.shot, room: late ? lateRoom : r1 };
         moves++;
         if (bad.length) fails.push(`${id} ${a.at} -> ${b.at} (${viewOf(a.v)} -> ${viewOf(b.v)}${late ? ', a card settled in flight' : ''}): ${bad.join('; ')}`);
       }
