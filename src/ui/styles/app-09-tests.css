@@ -201,13 +201,13 @@
   .topbar:not(.two-rows):not([data-fit="0"]) .scenario-v .sn-s { display: inline; }
   .topbar .lg-title { display: none; }   /* (the key keeps its caption and its numbers: the bar compacts, or takes two rows, instead) */
   .topbar[data-fit] #viewSeg button { padding: 6px 7px; }
-  .app.dock-open:has(#dock.side:not([data-state="peek"])) .instrument-workspace.side { bottom: calc(env(safe-area-inset-bottom) + 6px); }
-  .app.dock-open:has(#dock.side) .vdock { right: calc(env(safe-area-inset-right) + var(--side-ws-w, 340px) + var(--rail-w, 0px) + 14px); width: auto; }   /* (width: auto lets `right` hold over the slim bar's fixed 640 px from 768 px wide, 88e0a8d: an 844 px phone's bar ran under the card) */
+  .app.dock-open:has(#dock.side:not([data-state="peek"])) .instrument-workspace.side { bottom: calc(var(--safe-b) + 6px); }
+  .app.dock-open:has(#dock.side) .vdock { right: calc(var(--safe-r) + var(--side-ws-w, 340px) + var(--rail-w, 0px) + 14px); width: auto; }   /* (width: auto lets `right` hold over the slim bar's fixed 640 px from 768 px wide, 88e0a8d: an 844 px phone's bar ran under the card) */
   .app.dock-open:has(#dock.side) .vdock .readouts { display: none; }
   /* A vessel card opened with the side Tests card up ends 6 px before it, as the bar below does, so Tests no longer covers its close,
      Why?, Details and right-hand controls (the card was the full width, half of it under Tests). `right` eases both ways. */
 
-  .app.dock-open:not(.instrument-focus):has(#dock.side) .action-card.docked { right: calc(env(safe-area-inset-right) + var(--instr-occ, 0px) + 6px); }
+  .app.dock-open:not(.instrument-focus):has(#dock.side) .action-card.docked { right: calc(var(--safe-r) + var(--instr-occ, 0px) + 6px); }
   .instrument-workspace.side .dop-vessel { min-width: 84px; }
   .instrument-workspace.side .dop-tint { gap: 5px; padding: 0 8px; }
   .instrument-workspace.side .dock-pane { padding-left: 12px; padding-right: 12px; }

@@ -25,7 +25,7 @@
 @keyframes pzw-rise { 0% { transform: translateY(40px); opacity: 0; } 25%, 75% { opacity: 1; } 100% { transform: translateY(-44px); opacity: 0; } }
 .pz-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--hairline); }
 /* (An iPhone opened from the Home Screen, or held sideways, draws the page to the screen's rounded corners (55 px): the line's first and last 34-48 px were cut off, so slide 1 of a deck showed nothing. It starts 28 px in, 2 px up, where the corner's arc has cleared, and on its side inside the notch's inset.) */
-.pz.low .pz-prog { left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); }
+.pz.low .pz-prog { left: var(--safe-l); right: var(--safe-r); }
 .pz-prog i { display: block; height: 100%; width: 100%; transform: scaleX(var(--p, 0)); transform-origin: 0 0; background: color-mix(in srgb, var(--text) 42%, transparent); transition: transform var(--d-surface) var(--ease); }   /* (quiet ink: the accent is kept for what the learner touches, DG3) */
 /* (Since 1 Nov 2026 (Mohammad: "Move everything to GPU") the line grows by a scale the compositor eases on the GPU, alongside the slide change's
    camera glide; it grew by its width, laid out and painted again on the main thread every frame of the change.) */
@@ -42,7 +42,7 @@
 .pz-bar .ib.pzb-next:not(:disabled) { color: var(--accent); }
 @media (hover: hover) { .pz-bar .ib.pzb-next:not(:disabled) { --hv-bg: var(--accent-soft); } .pz-bar .ib.pzb-next:not(:disabled):hover::before { opacity: 1 } .pz-bar .ib.pzb-next:not(:disabled):hover { color: var(--accent-ink); } }
 .app.pz-hi .pz-bar .ib { color: var(--text); }
-.pz-bar.pzb-pill { left: auto; right: var(--pz-cm); bottom: max(var(--pz-cm), calc(env(safe-area-inset-bottom, 0px) + 8px)); translate: none; max-width: none; height: 44px; gap: 0; padding: 0; overflow: visible; border-radius: var(--r-sheet); }   /* (a wide screen: the phone's pill at the lower right, with back and next) */
+.pz-bar.pzb-pill { left: auto; right: var(--pz-cm); bottom: max(var(--pz-cm), calc(var(--safe-b) + 8px)); translate: none; max-width: none; height: 44px; gap: 0; padding: 0; overflow: visible; border-radius: var(--r-sheet); }   /* (a wide screen: the phone's pill at the lower right, with back and next) */
 .pz-bar.pzb-pill .ib { width: 44px; height: 44px; }
 /* The views of a slide with several (presenter-scales.js): short strokes under the slide count (no dots, his rule), the one on show full. Opacity only. */
 .pz-bar .pzb-n { position: relative; }
@@ -159,7 +159,7 @@
 .pz-cred { display: none; }
 @media (min-height: 601px) {
   .pz-shade.stack:not(.tab) .pz-cred { display: block; position: absolute; left: 11px; right: 11px; bottom: 6px; text-align: center; font: 500 12px/17px var(--font-ui); letter-spacing: .01em; white-space: nowrap; color: var(--text-3); pointer-events: none; user-select: none; }   /* (centred: clear of the card's rounded foot corners, which follow the screen's on an iPhone Home Screen app (an iPhone 16 Pro Max put the © outside the corner); --text-3: quieter than the words, over 4.5:1 in both themes) */
-  .pz.stack:not(.tab) { --pz-sb: calc(env(safe-area-inset-bottom, 0px) + 20px); }
+  .pz.stack:not(.tab) { --pz-sb: calc(var(--safe-b) + 20px); }
   .app.presenting:has(.pz-shade.stack:not(.tab)) .stage-credit { display: none; }
 }
 .pz.stack.tab .pz-text { bottom: calc(max(26px, 65px - var(--pz-lh)) + 8px + var(--pz-sb)); }
@@ -517,7 +517,7 @@
 .pz-bar button.pzb-n[aria-expanded="true"] { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
 @media (hover: hover) { .pz-bar button.pzb-n { --hv-bg: color-mix(in srgb, var(--text) 8%, transparent); } .pz-bar button.pzb-n:hover::before { opacity: 1 } .pz-bar button.pzb-n:hover { color: var(--text); } }
 .pz-bar .pzb-next.skipping:not(:disabled) { background: var(--accent-soft); }
-.pz-jump { position: absolute; left: 50%; bottom: max(88px, calc(max(var(--pz-cm, 0px), calc(env(safe-area-inset-bottom, 0px) + 8px)) + 52px)); translate: -50% 0; width: min(560px, calc(100% - 24px)); max-height: min(70svh, calc(100% - 120px)); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sheet); box-shadow: var(--shadow-3); pointer-events: auto; overflow: hidden; transition: opacity var(--d-small) var(--ease), transform var(--d-small) var(--ease); }
+.pz-jump { position: absolute; left: 50%; bottom: max(88px, calc(max(var(--pz-cm, 0px), calc(var(--safe-b) + 8px)) + 52px)); translate: -50% 0; width: min(560px, calc(100% - 24px)); max-height: min(70svh, calc(100% - 120px)); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sheet); box-shadow: var(--shadow-3); pointer-events: auto; overflow: hidden; transition: opacity var(--d-small) var(--ease), transform var(--d-small) var(--ease); }
 .pz-jump.pz-leave { opacity: 0; transform: translateY(8px); }
 .pzj-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 8px 18px; border-bottom: 1px solid var(--border); font: 600 var(--fs-14) var(--font-ui); color: var(--text-2); }
 .pzj-list { overflow-y: auto; overscroll-behavior: contain; padding: 6px 8px 12px; }
@@ -532,7 +532,7 @@
   .pzj-list button { padding-block: 11.2px; }   /* (21.6 + 22.4: a 44 px row for a finger; 37.6 px before) */
   .pzj-h .ib { width: 44px; height: 44px; margin-block: -2px; }   /* (the header keeps its height) */
 }
-.pz.stack .pz-jump { left: 8px; right: 8px; width: auto; translate: none; bottom: calc(72px + var(--pz-sb)); max-height: min(calc(100% - 96px - max(0px, var(--pz-sb) - 20px)), calc(100% - 80px - var(--pz-sb) - env(safe-area-inset-top, 0px))); }   /* (the height gives back what --pz-sb lifts the bottom by above 20 px: in Safari on a home-indicator iPhone a long list's top and its close button were 30 px off the screen; and its top stays 8 px under the status bar or island where the page runs beneath it) */
+.pz.stack .pz-jump { left: 8px; right: 8px; width: auto; translate: none; bottom: calc(72px + var(--pz-sb)); max-height: min(calc(100% - 96px - max(0px, var(--pz-sb) - 20px)), calc(100% - 80px - var(--pz-sb) - var(--safe-t))); }   /* (the height gives back what --pz-sb lifts the bottom by above 20 px: in Safari on a home-indicator iPhone a long list's top and its close button were 30 px off the screen; and its top stays 8 px under the status bar or island where the page runs beneath it) */
 /* The words, the data card and the full-width panel never scroll, on any screen: what does not fit is made to fit
    (presenter.js fitCards sets --pz-fit, the zoom of the card's contents), never clipped or hidden. */
 .app.presenting .stage-view { touch-action: pan-x pan-y; }

@@ -18,10 +18,10 @@ html, body { height: 100%; }
 /* Installed on an iPhone or iPad, the page runs edge to edge under the status bar. The top bar
    owns that strip (its own color runs up behind the clock), and the document never scrolls, so
    nothing slides up under the status bar. */
-:root { --safe-top: env(safe-area-inset-top, 0px);
+:root { --safe-top: var(--safe-t);
   /* The phone's teaching card and its controls sit above the bottom safe area; installed to the Home Screen on an iPhone (class `iphone-app`, set in src/ui/main.js)
      the card drops to 8 px above the screen's edge instead, its bottom corners concentric with the screen's (iOS gives pages no corner radius: 55 px is the iPhone 14 Pro to 16 size). */
-  --pz-sb: env(safe-area-inset-bottom, 0px); --pz-card-br: 18px; --screen-r: 55px; }
+  --pz-sb: var(--safe-b); --pz-card-br: 18px; --screen-r: 55px; }
 /* The presenter sizes its type by the screen height; an upright tablet is tall and narrow, so there it follows the width (as tall as a landscape screen of that width), or the words outgrow their column. A phone (< 700 px) keeps its own stack layout. */
 :root { --pzh: 1vh; }
 @media (orientation: portrait) and (min-width: 700px) { :root { --pzh: min(1vh, .75vw); } }
@@ -72,7 +72,7 @@ html.fr :is(.lens-btn, .ps-btn, .tl-pop-ic, .pz-zbtn, .ask-field, .pz-abb, .pzc-
 .topbar {
   position: absolute; top: 0; left: 0; right: 0; z-index: var(--z-panel);
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-  padding: calc(var(--safe-top) + 10px) calc(env(safe-area-inset-right) + 12px) 0 calc(env(safe-area-inset-left) + 12px);
+  padding: calc(var(--safe-top) + 10px) calc(var(--safe-r) + 12px) 0 calc(var(--safe-l) + 12px);
   min-width: 0; pointer-events: none;
 }
 .topbar > * { pointer-events: auto; }

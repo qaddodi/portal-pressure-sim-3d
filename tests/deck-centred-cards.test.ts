@@ -109,7 +109,7 @@ test('the measures are 2D\'s CSS (the lifted copy): the panel, the stacked panel
   assert.match(lifted, /\.pz-panel \{[^}]*max-height: calc\(100% - 2 \* clamp\(16px, calc\(4 \* var\(--pzh\)\), 56px\)\)/);
   assert.match(lifted, /\.pz\.stack \.pz-panel \{ top: 8px; bottom: calc\(64px \+ var\(--pz-sb\)\); height: fit-content; margin-block: auto; translate: -50% 0; width: calc\(100% - 16px\); max-height: calc\(100% - 72px - var\(--pz-sb\)\)/);
   assert.match(lifted, /\.pz\.stack\.tab \.pz-panel \{ width: 70%; \}/);
-  assert.match(lifted, /\.pz-case \{[^}]*width: min\(calc\(100% - 32px - 2 \* max\(env\(safe-area-inset-left, 0px\), env\(safe-area-inset-right, 0px\)\)\), 920px\)[^}]*max-height: calc\(100% - 2 \* max\(84px, 11vh\)\)/);
+  assert.match(lifted, /\.pz-case \{[^}]*width: min\(calc\(100% - 32px - 2 \* max\(var\(--safe-l\), var\(--safe-r\)\)\), 920px\)[^}]*max-height: calc\(100% - 2 \* max\(84px, 11vh\)\)/);
   assert.match(lifted, /\.pz\.stack\.tab \.pz-case \{ width: 70%; \}/);
 });
 

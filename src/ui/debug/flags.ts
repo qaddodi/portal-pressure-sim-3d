@@ -20,6 +20,7 @@ export const FLAGS: readonly Flag[] = Object.freeze([
   { id: 'sweep', group: 'Pages', gate: 'local', meaning: 'The debug page: run the Sweep over these specimens (a list, or affected).' },
   { id: 'audit', group: 'Pages', gate: 'local', meaning: "The self-test (src/ui/debug/audit): walks every view, sheet, patient and every slide of every talk by itself, measures layout spill and covered text, load times, fade lengths (snaps), frames a second, hitches and console errors, and ends in one report with Copy. Bare ?audit on a Mac runs the app in iPhone, iPad and Mac frames one after the other; ?audit=here runs this screen only (do this on the iPhone and iPad). No AI, nothing sent anywhere." },
   { id: 'promotion', group: 'Pages', gate: 'local', meaning: 'The promotion pictures on a Mac (src/ui/debug/promo, docs/debug.md): ?promotion&pick=lobule:4&sizes=mac,iphone.' },
+  { id: 'safe', group: 'Pages', gate: 'local', meaning: "A framed phone's safe edges, px (safe=47,0,34,0)." },
   { id: 'promo', group: 'Pages', gate: 'local', meaning: "The promotion capture frame's pixel ratio (audit=capture&promo=3)." },
   { id: 'sizes', group: 'Pages', gate: 'local', meaning: 'The self-test frames: which sizes (comma list of device ids: iphone, ipad-portrait, ipad, mac, mac-short, iphone-landscape).' },
   { id: 'parallel', group: 'Pages', gate: 'local', meaning: 'The self-test frames: parallel=1 runs every size at once (faster; frame rates and timings are then not valid).' },

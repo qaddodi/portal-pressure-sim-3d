@@ -485,7 +485,7 @@
   .instrument-workspace .dock-head .ib { width: 30px; height: 34px; }
   .instrument-workspace[data-state="peek"] { height: 70px; }
   .instrument-workspace[data-state="peek"] .dock-head { height: 70px; }
-  .instrument-workspace .dock-pane { padding: 12px 14px calc(16px + env(safe-area-inset-bottom)); }
+  .instrument-workspace .dock-pane { padding: 12px 14px calc(16px + var(--safe-b)); }
   .instrument-workspace .instrument-view .chart-box { min-height: 190px; }
   .workspace-comparison { gap: 14px; padding: 7px 14px; }
   .workspace-comparison .comparison-label { display: none; }

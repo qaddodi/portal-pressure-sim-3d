@@ -93,7 +93,7 @@ export class SinusoidView {
     void (opts.flowMode ?? DEFAULT_FLOW_MODE);
     void shared;
 
-    // placement, as ensureGeo makes it: the fenestrae of both linings out to X µm, the stellate cell at the junction nearest -10 µm, the Kupffer cell at 22 µm
+    // placement, as ensureGeo makes it: the fenestrae of both linings out to X µm, the stellate cell at the junction nearest -10 µm, the Kupffer cell near the middle (portrait.ts XK)
     const X = 130, pores = [SEED.poreUp, SEED.poreDn].map((sd) => {
       const a: Pore[] = [];
       for (let j = Math.floor(-X / SLOT) - 1; j * SLOT < X + SLOT; j++) { const p = poreAt(j, sd); if (p) a.push(p); }
@@ -152,7 +152,7 @@ export class SinusoidView {
 
   /** A portrait screen (2D's W < H * 0.95: see portrait.ts isPortrait) runs the sinusoid top to bottom, the portal end up. The plane itself never turns: the camera rolls (the shot's `roll`, so the lobule
    *  and the sinusoid turn together, in the dive and at rest), and everything on the plane (tissue, pores, albumin, anchors, hits) follows it. Here the layout follows: the Kupffer cell moves nearer
-   *  the middle (2D: xk 12 against 22) and the names take their tall places. */
+   *  the middle (xk 12 against 6) and the names take their tall places. */
   setPortrait(portrait: boolean): void {
     if (portrait === this.portrait) return;
     this.portrait = portrait; this.xkGoal = xkFor(portrait); this.geo.xk = this.xkGoal; this.dirty = true;

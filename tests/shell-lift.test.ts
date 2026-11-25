@@ -69,7 +69,7 @@ test('6. the © credit and the frame-rate readout are the 2D elements (.stage-cr
   assert.ok(src('src/ui/shell/Credit.tsx').includes('className="stage-credit"'));
   assert.ok(src('src/ui/shell/Diagnostics.tsx').includes('className="fps-counter"'));
   assert.match(baseCss, /\.stage-credit \{[^\n]*font-size: var\(--fs-12\)[^\n]*line-height: 1\.4/);
-  assert.match(baseCss, /\.fps-counter \{ position: fixed; left: max\(8px, env\(safe-area-inset-left\)\); bottom: max\(8px/);
+  assert.match(baseCss, /\.fps-counter \{ position: fixed; left: max\(8px, var\(--safe-l\)\); bottom: max\(8px/);
   assert.equal(M.creditInset, 12); assert.equal(M.fpsInset, 8);
 });
 

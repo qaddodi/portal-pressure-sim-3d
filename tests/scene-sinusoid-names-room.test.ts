@@ -115,20 +115,32 @@ function layScreen(W: number, H: number, card: boolean) {
   return { names, free, room, k, C, xk, cell };
 }
 const SCREENS: [string, number, number][] = [['Mac 1440x900', 1440, 900], ['Mac 1280x800', 1280, 800], ['iPad landscape', 1024, 768], ['iPhone landscape', 844, 390]];
-for (const card of [false, true]) test(`the Kupffer cell stands just right of an endothelial nucleus where the room has the space, the Sinusoid name in the middle of the vessel, and nothing of the names over the cell (${card ? 'a card open' : 'free play'})`, () => {
+for (const card of [false, true]) test(`the Kupffer cell stands on bare lining near the middle, the Sinusoid name in the middle of the vessel, and nothing of the names over the cell (${card ? 'a card open' : 'free play'})`, () => {
   for (const [label, W, H] of SCREENS) {
     const L = layScreen(W, H, card), tag = `${label}${card ? ' + card' : ''}`;
     const sin = L.names.find((n) => n.key === 'sin')!, inn = L.names.find((n) => n.key === 'in')!, out = L.names.find((n) => n.key === 'out')!;
     const mid = (box(inn).x1 + box(out).x0) / 2;
     assert.ok(Math.abs(sin.cx - mid) < 0.5 * sin.w + 40 || Math.abs(sin.cx - L.cell.x0) < 0.5 * sin.w + 40, `${tag}: Sinusoid name in the middle between the ends (${sin.cx.toFixed(0)} against ${mid.toFixed(0)})`);
     for (let n = -6; n <= 6; n++) assert.ok(Math.abs(L.xk - nucAt(n, SEED.nucDn)) >= KUP_CLEAR - 1e-9, `${tag}: the cell clear of every endothelial cell`);
-    assert.ok(Math.abs(L.xk - (nucAt(0, SEED.nucDn) + KUP_CLEAR)) < 1e-9, `${tag}: the cell stands just right of the nucleus past the middle, whatever the room`);
+    assert.ok(Math.abs(L.xk) <= 13.5, `${tag}: the cell stands near the middle (${L.xk.toFixed(1)} µm), leaving the room's right end to the central vein`);
     for (const n of L.names) {
       if (n.key === 'kup' || (L.k < 8 && L.room.w < 520)) continue;   // (a phone on its side with a card: a lumen 50 px tall and 118 px between the ends' names has no place for a name and a cell apart)
       const b = box(n), c = L.cell;
       assert.ok(!(b.x0 < c.x1 && c.x0 < b.x1 && b.y0 < c.y1 && c.y0 < b.y1), `${tag}: ${n.key} (${b.x0.toFixed(0)}..${b.x1.toFixed(0)}, ${b.y0.toFixed(0)}..${b.y1.toFixed(0)}) is off the Kupffer cell (${c.x0.toFixed(0)}..${c.x1.toFixed(0)}, ${c.y0.toFixed(0)}..${c.y1.toFixed(0)})`);
     }
     if (process.env.DBG) console.log(tag, 'xk', L.xk.toFixed(1), 'cell px', L.cell.x0.toFixed(0), L.cell.x1.toFixed(0), 'in', box(inn).x0.toFixed(0), box(inn).x1.toFixed(0), 'sin', sin.cx.toFixed(0), 'out', box(out).x0.toFixed(0), box(out).x1.toFixed(0), 'free', L.free.l, L.free.r);
+  }
+});
+
+for (const card of [false, true]) test(`the central vein's name and arrow stand at the room's right end, the portal venule's at its left, on every wide screen (${card ? 'a card open' : 'free play'}; Mohammad, 25 Nov)`, () => {
+  for (const [label, W, H] of SCREENS) {
+    const L = layScreen(W, H, card), tag = `${label}${card ? ' + card' : ''}`;
+    const out = L.names.find((n) => n.key === 'out')!, inn = L.names.find((n) => n.key === 'in')!;
+    // (a phone on its side with a card has 466 px for two ends, a cell and a name: the names step aside there)
+    if (L.k < 8 && L.room.w < 520) continue;
+    // the name's room is the free room less the arrow's share (A = 48) at the right, and the arrow's own 36 px beyond the name
+    assert.ok(Math.abs(box(out).x1 - (L.free.r - 48)) < 1, `${tag}: Central vein ends at ${box(out).x1.toFixed(0)}, the room's end less its arrow's share is ${L.free.r - 48}`);
+    assert.ok(Math.abs(box(inn).x0 - (L.free.l + 12 + 8 + 48)) < 1, `${tag}: Portal venule stands at the room's left end (${box(inn).x0.toFixed(0)})`);
   }
 });
 
