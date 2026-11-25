@@ -255,8 +255,9 @@ ${HIGHLIGHT_ALONG_GLSL}
 #endif
   vW = c.w;
   gl_Position = c;
-  // a tube of no radius (a strand a band has closed, a channel not yet grown) is not drawn: not even its ink, which has a width of its own on screen
-  if (rk <= 0.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+  // a tube of no radius HERE (a strand a band has closed, a channel not yet grown; on the Circuit's map the strands of a drawn trunk, whose map share rkc is 0 while the body's rk is not) is not drawn: not even its ink or its crossing
+  // shadow, which have a width of their own on screen (they drew a ragged dark seam down the sinusoid lane and the trunk to the central vein). The radius share is the one this view draws (rkE), not the body's.
+  if (rkE <= 0.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
 }`;
 
 export const VESSEL_FS = /* glsl */ `
