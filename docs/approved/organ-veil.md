@@ -21,7 +21,7 @@ No picture yet: nothing has been seen on screen. The reference is this sheet, th
 `src/scene/organ-veil/` (config.ts is the whole spec in numbers; glsl.ts the two shader chunks; organ-map.ts the half-size map; uniforms.ts the shared uniforms), read by `vessels/shaders.ts`, `vessels/skin/shaders.ts`, `blood/cells/shader.ts` and `organs/organ-shader.ts`; drawn from `scene.ts render`; the zoom is `rig.zoomOverWhole`. Test: `tests/organ-veil.test.ts`.
 
 ## How to take it back in ONE STEP
-Set `ORGAN_VEIL.on` to `false` in `src/scene/organ-veil/config.ts` (one line). No map is drawn, every shader reads strength 0, no organ is put on the map's layers, and every picture is the one before it. To remove it for good, revert the commit that built it: ORGAN_VEIL_COMMIT.
+Set `ORGAN_VEIL.on` to `false` in `src/scene/organ-veil/config.ts` (one line). No map is drawn, every shader reads strength 0, no organ is put on the map's layers, and every picture is the one before it. To remove it for good, revert the commit that built it: the two commits 095a55c9 and 38c0819d (git revert 38c0819d 095a55c9).
 
 ## Rejected
 None yet. The line "Vessels stay crisp over the organs (plan question 1)" in `anatomy-placement.md` is replaced by this look (his newest word, 25 Nov).
