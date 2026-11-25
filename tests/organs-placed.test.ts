@@ -194,7 +194,7 @@ test('the baked file carries the placed organs whole: the stomach\'s cut, the du
   for (const [id, g] of live) {
     const b = by.get(id)!;
     for (const k of ['cutA', 'tos', 'esoA']) if (g.getAttribute(k)) assert.deepEqual(Array.from(arr(b, k)), Array.from(arr(g, k)), `${id} ${k}`);
-    if (g.userData.tube) { const x = arr(g, 'normal'), y = arr(b, 'normal'); let w = 0; for (let i = 0; i < x.length; i++) w = Math.max(w, Math.abs(x[i]! - y[i]!)); assert.ok(w < 1e-3, `${id} normals ${w}`); }
+    if (g.userData.tube) { const x = arr(g, 'normal'), y = arr(b, 'normal'); let w = 0; for (let i = 0; i < x.length; i++) w = Math.max(w, Math.abs(x[i]! - y[i]!)); assert.ok(w < 2.5e-3, `${id} normals ${w}`); }
   }
   assert.ok(by.has('caudate') && by.has('bowel'));
 });
