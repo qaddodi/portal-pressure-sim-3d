@@ -169,6 +169,15 @@ export const REVIEWER_24NOV_B = [
   P('two-inflows', 'slides.relation.notes', 'at the end of the lines, a normal liver with the vein closed keeps 71% with the buffer and 38% without.', 'the lines end at this patient\'s own values, 79% with the buffer and 44% without; a normal liver with the vein closed would keep 71% and 38%.'),
 ];
 
+/** The hepatic artery's resistive index (Mohammad, 25 Nov 2026: "mention and show hepatic artery resistive index"): the Doppler tile shows it (src/ui/tests/doppler/model.ts, HA_RI 0.55 to 0.80); the talk names it. Applied to the copied deck by scripts/apply-ha-ri.mjs. */
+export const HA_RI_REVIEW = [
+  APPEND('two-inflows', 'slides.dual.notes', 'The resistive index, RI = (peak systolic − end-diastolic velocity) / peak systolic, measures that low resistance; the usual hepatic artery value is 0.55 to 0.80.'),
+  APPEND('two-inflows', 'slides.clot.line', 'The dilated artery offers less resistance, so its resistive index falls below the usual 0.55 to 0.80.'),
+  APPEND('two-inflows', 'slides.clot.notes', 'On the Doppler the resistive index, (peak systolic − end-diastolic velocity) / peak systolic, falls below the usual 0.55 to 0.80 as the buffer dilates the arterioles and diastolic flow rises.'),
+  APPEND('two-inflows', 'slides.artery.notes', 'With no arterial signal the resistive index cannot be read. In a graft that still has flow, a high index early after transplant or a low one (under 0.5) with a slow systolic upstroke (tardus parvus) calls for a look at the artery.'),
+  APPEND('two-inflows', 'slides.cirr.notes', 'The Doppler gives the artery\'s resistive index beside its velocity; the usual hepatic artery range is 0.55 to 0.80, and in real cirrhosis a high index tracks stiff, advanced disease.'),
+];
+
 /** The third reviewer report (Hales Engine 3252079e, 440 x 736, 24 Nov 2026): words that say what the model's values show (reduces, not clears; the share of portal blood that bypasses the liver), a cardiac contribution not a proof, Doppler findings as this case's, and no volume grades. Applied by scripts/apply-reviewer-edits.mjs to the copies. */
 const BYPASS_NOTE = 'In the model the ascites falls to 0.6 L at two months; it is reduced, not gone. The 28% is the flow through the sinusoids, not the share of portal blood that bypasses the liver: that share is the shunt fraction, 92% here.';
 export const REVIEWER_24NOV_C = [
@@ -393,6 +402,7 @@ export const SOURCE_PATCHES = [
   // ---- the TIPS Doppler deck, review of 23 Nov 2026 (capture 5f2dbfd3). The same patches are also applied to the copied file by scripts/apply-tips-doppler-review.mjs, so the copy and a re-copy agree. ----
   ...TIPS_DOPPLER_REVIEW,
   ...VARICES_REVIEW,
+  ...HA_RI_REVIEW,
   ...REVIEWER_24NOV,
   ...REVIEWER_24NOV_B,
   ...REVIEWER_24NOV_C,
