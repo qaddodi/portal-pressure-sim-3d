@@ -4,6 +4,7 @@
 // The words and judgements are the 2D app's (copied: copied/doppler-*.copied.js); the spectrum is drawn on the GPU by the shared chart drawer (model.ts says how).
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import './copied/doppler-2d.copied.css';
+import './doppler-card.css';
 import { I } from '../../shell/icons.tsx';
 import { EDGES } from '../../../engine/hales/portal/topology.js';
 import { clock } from '../../../clock/frame.ts';
@@ -13,7 +14,7 @@ import { onZoomK } from '../../cards/zoom-k.ts';
 import type { ChartPainter } from '../../charts/painter.ts';
 import { feed } from '../feed.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
-import { DopplerModel, WINDOWS, type DopMode, type Report } from './model.ts';
+import { DopplerModel, WINDOWS, usualSpeed, type DopMode, type Gauge, type Report } from './model.ts';
 import { PROBES, EI, PAD_L, PAD_R, probeName } from './copied/doppler-tables.copied.js';
 import { DOPPLER_MODES } from './copied/doppler-colours.copied.js';
 import { setDopplerProbe, useDopplerProbe, type Gate } from './probe-state.ts';
@@ -133,6 +134,10 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
     if (!el || typeof ResizeObserver !== 'function') return;
     return observeThenFit([el], () => { const w = el.getBoundingClientRect().width || 0; if (w && Math.abs(w - trackW) > 0.5) setTrackW(w); });   // (after the observer's delivery: what it sets changes the size of a box above it)
   }, [!!g, trackW]);  // eslint-disable-line react-hooks/exhaustive-deps
+  // the Tests card says the speed's usual range in words, a ruled row of the figures ("Usual speed 15 to 40", "≥30"); a slide's card keeps the gauge. (Mohammad, 25 Nov, mock Q: no bar.) The row fades with the range, and holds the last words while it does.
+  const usualG = useRef<Gauge | null>(null);
+  if (g) usualG.current = g;
+  const usualWords = usualSpeed(usualG.current);
   const sw = g ? Math.max(0.001, (g.p1 - g.p0) / 100) : 1;
   const kMid = trackW > 8 ? Math.max(0, (sw * trackW - 8) / (trackW - 8)) : sw;
   const gaugeEl = g && (
@@ -192,9 +197,10 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
                     : t.label}
                 </dt>
                 <dd>{t.v}{t.unit && t.v !== '—' ? <small>{t.unit}</small> : null}</dd>
-                {t.k === 'Speed' && gaugeEl}
+                {t.k === 'Speed' && p.slide && gaugeEl}
               </div>
             ))}
+            {!p.slide && <div className="dop-usual" title={usualG.current?.title} {...fadeAttrs(!!g)}><dt>Usual speed</dt><dd>{usualWords}</dd></div>}
           </dl>
           <p className="dop-note">{rep?.note || ''}</p>
         </div>

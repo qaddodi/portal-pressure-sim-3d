@@ -48,6 +48,11 @@ export interface Report {
   tiles: Tile[]; gauge: Gauge | null; kind: string; aria: string;
 }
 
+/** The speed's usual range in words, as the Tests card's ruled row says it: "15 to 40", or "≥30" where the range has no top end. Empty where the vessel has no usual range. */
+export function usualSpeed(g: Pick<Gauge, 'n0' | 'n1' | 'open'> | null): string {
+  return g ? (g.open ? `≥${g.n0}` : `${g.n0} to ${g.n1}`) : '';
+}
+
 export class DopplerModel {
   readonly rd: Any = createReading({ params: () => paramsNow(), dopGate: () => useDopplerProbe.getState().gate });
   buf: number[][] = [];
