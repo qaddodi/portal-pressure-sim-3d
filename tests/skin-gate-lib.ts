@@ -9,7 +9,6 @@ import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { skinKOf } from '../src/scene/vessels/skin/sdf.ts';
 import { SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K } from '../src/scene/vessels/skin/shaders.ts';
-import { throughMates } from '../src/scene/vessels/skin/through.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 
@@ -72,7 +71,7 @@ export function rasterSkins(scene: CelScene, skins: readonly GateSkin[], w: numb
   const px = (p: ArrayLike<number>, R: number): number[] => { const q = clip(p); return [(q.x / q.w * 0.5 + 0.5) * w * dpr, (q.y / q.w * 0.5 + 0.5) * h * dpr, R / wpc(q.w) * dpr, q.w]; };
   const W2 = w * dpr, H2 = h * dpr, out: GateStat[] = [];
   for (const { node, mesh, axes } of skins) {
-    const n = axes.length, mates = throughMates(axes, mesh.junction.arms.map((a) => !!(a as { growing?: boolean }).growing)), kM = skinKOf(mesh.junction.arms);
+    const n = axes.length, mates = axes.map((a) => a.mate ?? -1), kM = skinKOf(mesh.junction.arms);
     const ap = axes.map((ax) => ax.pts.map((p, i) => px(p, ax.radii[i]!)));
     // skinArmPx
     const armPx = (fx: number, fy: number, a: number, fragW: number, kPx: number, inkPx: number, fragP?: readonly number[], sub = 0): number => {

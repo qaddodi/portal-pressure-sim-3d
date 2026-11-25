@@ -18,7 +18,7 @@ import { REST, seamState, type ShapeState } from '../shape.ts';
 import { PIN_MARGIN, type Pin } from '../coil.ts';
 import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { attachNear, nearLandings, wallJunctions, wallLandings } from './wall.ts';
-import { MIN_ARMS, dropFarGrowers, growerEndsByNode, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
+import { MIN_ARMS, declaredRuns, dropFarGrowers, growerEndsByNode, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
 import { BULGE_AIM, BULGE_MAX, PACES, buildSkinSteady, hullCovers, onWall, worstBulge } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
@@ -457,9 +457,9 @@ export class SkinSet {
     // fails to build, 0.55 makes IMV bulge): each skin with growing arms is built at the least widening in NECK_FRACTIONS whose mesh builds and stays inside BULGE_MAX; one that none satisfies keeps the least bulging that built. A skin that is within the limit
     // at no widening (every one but those two today) is built once, as before.
     const rawAt = (f: number): ArmAxis[] => j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, a.at ?? j.J, a.side ? armWalk(a, tb.tubular).from : undefined, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined, a.grow ? f : 0); });
-    const axesAt = (f: number): ArmAxis[] => weldThrough(rawAt(f), j.arms.map((a) => !!a.grow));   // (a trunk that runs through the node is one vessel to the union: through.ts)
+    const axesAt = (f: number): ArmAxis[] => weldThrough(rawAt(f), j.arms.map((a) => !!a.grow), declaredRuns(j.arms));   // (a trunk that runs through the node is one vessel to the union: through.ts)
     // A part without a divided vein's start (plain.ts `leave`): the shunt that stands for the rest of the vein IS the run's other half, so it is no branch here and the run goes through it (through.ts `skip` false for it), one straight capsule from the vein's seam to the shunt's.
-    const leaveAxesAt = (keep: readonly number[], f: number): ArmAxis[] => { const raw = rawAt(f); return weldThrough(keep.map((i) => raw[i]!), keep.map((i) => !!j.arms[i]!.grow && !j.arms.some((x) => x.leaves === j.arms[i]!.vesselId))); };
+    const leaveAxesAt = (keep: readonly number[], f: number): ArmAxis[] => { const raw = rawAt(f); return weldThrough(keep.map((i) => raw[i]!), keep.map((i) => !!j.arms[i]!.grow && !j.arms.some((x) => x.leaves === j.arms[i]!.vesselId)), declaredRuns(keep.map((i) => j.arms[i]!))); };
     if (ready) this.paces.set(j.node, ready.pace);
     if (!ready && hasLiverBranch(j)) this.paces.set(j.node, Math.max(this.paces.get(j.node) ?? 0, PACES.length - 1));   // (meshed from the surface from the start)
     // a junction with growing arms is built STILL: they are whole arms of one static shape (the welded skin), and the arms that stay get a static skin of their own (the plain trunk); the tube's own flared end is what grows, and the weld hands over at growth 0.9 to 1

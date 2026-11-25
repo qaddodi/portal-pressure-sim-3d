@@ -1,6 +1,6 @@
 // Junction skins, WP1 (spec 4.1 and 4.2): which nodes of the network get a skin, which tubes are its arms, and where its centre is. Computed from the network's own data, never from a list of ids:
 // the one literal here is the kind filter (a permanent vessel is a vein, an artery, an arteriole or a liver bed). Nothing is drawn here; the scene reads this once and builds the skins from it.
-import { NETWORK, NETWORK_BY_ID, cutEnd, type NetVessel } from '../network.ts';
+import { NETWORK, NETWORK_BY_ID, RUN_ONS, cutEnd, type NetVessel } from '../network.ts';
 import { REST, coursesOf, type ShapeState } from '../shape.ts';
 import { centrelineOf } from '../centreline.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../join-mode.ts';
@@ -24,6 +24,16 @@ export const GROWER_KINDS: ReadonlySet<string> = new Set(['collateral', 'shunt']
  *  a collateral that is drawn as strands (C1a the varices, C2, C4, C7, C8 the cavernoma: `plan.strands`) has no tube of its own, its three or six strands part from the node over the first half of the vessel and each ends at the trunk's width, so at the node they are a bundle
  *  of identical overlapping tubes, not a branch. They keep today's fork method (`nbr`, `bury`) and are named in tests/skin-grow.test.ts, never hidden. */
 export const isGrower = (v: NetVessel): boolean => !v.feeder && !v.id.includes('~F') && GROWER_KINDS.has(v.kind) && !(v.plan?.kind === 'coil' && v.plan.strands);
+/** The pairs of a skin's arms (indices into `arms`) that the network declares as one vessel running on through the node (RUN_ONS: the pair a fork's headings pick as the continuing trunk, or the two pieces of one whole vessel): through.ts welds them as a run
+ *  whatever way the seam rings happen to be cut. Two arms of one vessel (the halves of a side-wall skin) are no declared pair; their own angle decides. */
+export function declaredRuns(arms: readonly Pick<SkinArm, 'vesselId' | 'end'>[]): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i < arms.length; i++) for (let j = i + 1; j < arms.length; j++) {
+    const a = arms[i]!, b = arms[j]!;
+    if (a.vesselId !== b.vesselId && RUN_ONS.some((r) => (r.a === a.vesselId && r.ia === a.end && r.b === b.vesselId && r.ib === b.end) || (r.b === a.vesselId && r.ib === a.end && r.a === b.vesselId && r.ia === b.end))) out.push([i, j]);
+  }
+  return out;
+}
 /** A node needs this many permanent ends for a skin, and at most this many (the shader's `armData[4]`). */
 export const MIN_ARMS = 3;
 export const MAX_ARMS = 6;
