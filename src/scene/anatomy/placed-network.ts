@@ -137,6 +137,8 @@ const RHV_MIN = 0.26;
 const FAIR_SPAN = 0.05;
 /** How far above the hepatic artery's fork, on the bisector of its two branches, the DIPS crosses the arteries' depth (scene units): clear of both branches by more than the two radii. */
 const DIPS_GAP = 0.1;
+/** The DIPS first leads out of the portal fork between its two branches (along their bisector on the screen, this far) and this share of its way back in depth, so it opens in the fork's gap (PVH, the DIPS block below). */
+const DIPS_LEAD = 0.22, DIPS_LEAD_Z = 0.25;
 /** The least a stent's tract keeps from any other drawn vessel, wall to wall, away from its own ends (scene units), and the stretch along it over which a push away eases out. */
 const TRACT_CLEAR = 0.009, TRACT_SPAN = 0.1;
 /** The stents and surgical shunts: tracts laid between two ends. */
@@ -396,7 +398,13 @@ function buildPlaced(): void {
     const M = add(fork, mul(up, DIPS_GAP));
     const yE = PLACED_CAUDATE.c[1] - PLACED_CAUDATE.ax[1];
     let E = iv[0]!; for (const q of iv) if (Math.abs(q[1] - yE) < Math.abs(E[1] - yE)) E = q;
-    COURSE.DIPS = fair(relax(denseCurve([P0, M, E]), PLACED_JOINS.relax ?? 40));
+    // (THE DIPS AT THE PORTAL FORK, Mohammad 24 Nov: "shadows from both sides make it look spherical". Laid straight to the gap, the DIPS left the bifurcation 10 degrees from the left portal vein on the screen and 3.2 k behind
+    //  it, inside the blend: the left portal vein's rim, a full arm held in front, was drawn across the DIPS's lumen, 3.2 % of PVH's lumen as line only (2.3 % turned 0.3). It first leads out between the two portal branches,
+    //  DIPS_LEAD along their bisector on the screen and DIPS_LEAD_Z of its way back in depth, so it opens in the fork's own gap, clear of both rims: 0.00 % and 0.02 %)
+    const d2 = (c: readonly V3[]): [number, number] => { const q = c[Math.min(c.length - 1, 4)]!, x = q[0] - c[0]![0], y = q[1] - c[0]![1], l = Math.hypot(x, y) || 1; return [x / l, y / l]; };
+    const a = d2(COURSE.lpv!), b = d2(COURSE.rpv!), bx = a[0] + b[0], by = a[1] + b[1], bl = Math.hypot(bx, by) || 1;
+    const W: V3 = [P0[0] + (bx / bl) * DIPS_LEAD, P0[1] + (by / bl) * DIPS_LEAD, P0[2] + (M[2] - P0[2]) * DIPS_LEAD_Z];
+    COURSE.DIPS = fair(relax(denseCurve([P0, W, M, E]), PLACED_JOINS.relax ?? 40));
   }
   /** Where each node that only collaterals and shunts join is drawn on its whole (arc length): the cut between its pieces. */
   const NODE_S = new Map<string, number>();
