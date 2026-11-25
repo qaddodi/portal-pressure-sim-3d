@@ -9,7 +9,7 @@ import { BufferAttribute, BufferGeometry, Color, DoubleSide, Float32BufferAttrib
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
 import { TIER_Z, VESSEL_PLANE_Z, len3, x3, y3 } from '../../frame2d.ts';
-import { EDGE_PATH_2D, PLACED } from '../../anatomy/source.ts';
+import { EDGE_PATH_2D } from '../../anatomy/source.ts';
 import { centrelineOf } from '../../vessels/centreline.ts';
 import { esoShift } from './eso-axis.ts';
 import { x2d, y2d } from '../../frame2d.ts';
@@ -95,10 +95,9 @@ function esoCentre(): CentreGrid | null {
 // (The organ is drawn moved along z by ORGAN_Z (organs/z.ts), but the grid is baked from the raw mesh: the scope ran 0.06 in front of the oesophagus's real middle, so any turned view slid it off the tube
 //  (owner, 20 Nov 2026: "the scope is NOT inside the esophagus"). The middle is the placed organ's: the raw middle plus the organ's own shift.)
 export const scopeZ = (x: number, y: number): number => { const g = esoCentre(); return g ? centreAt(g, x, y) + (ORGAN_Z.stomach ?? 0) : SCOPE_Z; };
-/** THE PLACED ANATOMY (`?anatomy=new`): the 2D way carried sideways onto the oesophagus the stomach mesh has (eso-axis.ts), worked out once when the organ file is in (0 until then, and always 0 with the switch off). */
+/** The 2D way carried sideways onto the oesophagus the stomach mesh has (eso-axis.ts), worked out once when the organ file is in (0 until then). */
 let shiftFn: ((y: number) => number) | null = null;
 export function wayShift(y: number): number {
-  if (!PLACED) return 0;
   if (!shiftFn) {
     let geo; try { geo = ORGAN_MESHES.stomach!(); } catch { return 0; }   // (not loaded yet: asked again at the next pose)
     const w = scopeWay(), eso = w.pts.filter((_, i) => w.cum[i]! <= w.cardiaD);
@@ -112,8 +111,8 @@ export function wayShift(y: number): number {
   }
   return shiftFn(y);
 }
-/** Whether the placed shift is known (the organ file is in); always true with the switch off. */
-export function wayReady(): boolean { if (!PLACED) return true; wayShift(0); return !!shiftFn; }
+/** Whether the placed shift is known (the organ file is in). */
+export function wayReady(): boolean { wayShift(0); return !!shiftFn; }
 /** The scene point of a figure point on the scope's way: through the middle of the oesophagus and stomach. */
 const at3 = (p: readonly number[], out: Vector3): Vector3 => { const y = y3(p[1]!), x = x3(p[0]!) + wayShift(y); return out.set(x, y, scopeZ(x, y)); };
 /** A scene point back on the scope's own figure plane (the 2D way's units, the placed shift taken off): where the 2D pose aims. */
@@ -294,8 +293,8 @@ export class EndoScope {
   private setTargets(): void {
     (['pv', 'hv'] as const).forEach((station, i) => {
       const [id, f] = (EUS_TARGETS as unknown as Record<string, [string, number]>)[station]!;
-      // (the placed anatomy: the target is ON the vein's drawn centreline, depth included, and the 2D pose aims at it on the way's own plane)
-      const c = PLACED ? centrelineOf(id) : null;
+      // (the target is ON the vein's drawn centreline, depth included, and the 2D pose aims at it on the way's own plane)
+      const c = centrelineOf(id);
       if (c) { const p = c.pointAt(f); this.targets3[i].set(p[0], p[1], p[2]); this.targets[i] = onWay(this.targets3[i]); return; }
       const path = (EDGE_PATH_2D as Record<string, P2[]>)[id]!;
       const q = pointOn(path, f) as P2;
@@ -309,7 +308,7 @@ export class EndoScope {
   /** The aim's target now in the scene: between the two (the 2D TGT), or the varix's point. */
   private target3(out: Vector3): Vector3 { return this.mode === 'glue' ? out.copy(this.glueT3) : out.lerpVectors(this.targets3[0], this.targets3[1], this.tgt); }
   /** One of the two targets in the scope's plane (0 the portal vein's, 1 the hepatic vein's): where the EUS-PPG's cards point. */
-  targetAt(i: 0 | 1, out: Vector3): Vector3 { return PLACED ? out.copy(this.targets3[i]) : atVessel(this.targets[i]!, out); }
+  targetAt(i: 0 | 1, out: Vector3): Vector3 { return out.copy(this.targets3[i]); }
   /** The aim's target now: between the two (the 2D TGT). */
   private target(out: P2 = [0, 0]): P2 {
     if (this.mode === 'glue') { out[0] = this.glueT[0]; out[1] = this.glueT[1]; return out; }
@@ -320,7 +319,7 @@ export class EndoScope {
   /** The glue slide's target: the varix, at its needle's point (EUS_GLUE_TARGET). */
   private setGlueTarget(): void {
     const [id, f] = EUS_GLUE_TARGET as unknown as [string, number];
-    const c = PLACED ? centrelineOf(id) : null;
+    const c = centrelineOf(id);
     if (c) { const p = c.pointAt(f); this.glueT3.set(p[0], p[1], p[2]); this.glueT = onWay(this.glueT3); return; }
     const q = pointOn((EDGE_PATH_2D as Record<string, P2[]>)[id]!, f) as P2;
     this.glueT = [q[0], q[1]];
@@ -330,7 +329,7 @@ export class EndoScope {
   /** Lays the scope for the tip at `this.d`: the shaft along the way to where its bend starts, the bending section, the rigid tip with its lens, the needle and its sector. */
   private lay(): void {
     // (the placed shift is known once the organ file is in: the targets' places on the way's plane are worked out again then)
-    if (PLACED && !this.placedAimed && shiftFn) { this.placedAimed = true; this.setTargets(); if (this.mode === 'glue') this.setGlueTarget(); }
+    if (!this.placedAimed && shiftFn) { this.placedAimed = true; this.setTargets(); if (this.mode === 'glue') this.setGlueTarget(); }
     const way = this.way, R = len3(EUS_SCOPE_R as number) * SCOPE_SLIM, g = this.g, v = this.v, w = this.w, dv = this.dv;
     const D = this.d, eus = this.mode === 'eus' || this.mode === 'glue';
     const dA = Math.max(0, D - (EUS_RIGID as number));
@@ -426,9 +425,9 @@ export class EndoScope {
       this.portBuf.line(ps.clone(), pe, pr);
       // the needle: steel from the port to its bevelled point, the last 2.6 units narrowing to a fifth of its width (2D nw)
       const ex = at3(g.exit, this.v), nd = this.dv.set(g.nd[0], -g.nd[1], 0);
-      // (the placed anatomy: the needle crosses the wall straight to its target ON the vein's centreline, depth included, so at a full throw its point is in the lumen of the vein it reads)
+      // (the needle crosses the wall straight to its target ON the vein's centreline, depth included, so at a full throw its point is in the lumen of the vein it reads)
       let nl = g.len * this.needle;
-      if (PLACED) { const T3 = this.target3(this.w); nd.subVectors(T3, ex); const l = nd.length(); if (l > 1e-6) { nd.multiplyScalar(1 / l); nl = (l / len3(1)) * this.needle; } else nd.set(g.nd[0], -g.nd[1], 0); }
+      { const T3 = this.target3(this.w); nd.subVectors(T3, ex); const l = nd.length(); if (l > 1e-6) { nd.multiplyScalar(1 / l); nl = (l / len3(1)) * this.needle; } else nd.set(g.nd[0], -g.nd[1], 0); }
       const nU = len3(nl), bev = Math.min(len3(NEEDLE_BEV), nU);
       const stem = nU - bev, last = this.needleBuf.n - 1, body = this.needleBuf.n - 5;
       for (let i = 0; i <= last; i++) {
@@ -465,7 +464,7 @@ export class EndoScope {
 
   /** The hit's rings and the manometer's ripples at the target (2D eusDraw: two discs running out and fading, in the vein's colour), at `now` ms. */
   private layRings(now: number, vis: boolean): void {
-    const eus = this.mode === 'eus' && vis, T = PLACED ? this.target3(this.v) : atVessel(this.target(this.tgtPt), this.v);
+    const eus = this.mode === 'eus' && vis, T = this.target3(this.v);
     const hv = this.tgt >= 0.5, pvC: PartColour = PV_RING, hvC: PartColour = HV_RING as PartColour;
     const rings = (parts: ProbePart[], on: boolean, ph: number, r0: number, r1: number, a0: number, colour: PartColour): void => {
       parts.forEach((o, i) => {

@@ -9,6 +9,7 @@ import { MM, SHORT, STENT_STATIONS, decodeGeo, encodeGeo, geoId, geoLines, geoSe
 import { BeatMean, pointVelocity } from '../src/scene/labels/stent-reads.ts';
 
 const mac = { w: 1440, h: 900, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
+// Since the placed anatomy became the app's (77b24d5a) the whole-body camera of this test world shows the stent small, so the three points and the stent's label do not all find room on the old screens: these two are 1.5 and 2 times the old ones. The label logic is under test, not the camera.
 const phone = { w: 393, h: 852, safe: { top: 59, right: 0, bottom: 34, left: 0 } };
 const measure: LabelDeps['measure'] = (t, size, _w, track = 0) => t.length * size * 0.56 + track * t.length;
 
@@ -83,7 +84,7 @@ test('a drawn, settled stent has its own label; one not yet settled has none', (
 });
 
 test('a slide that reads the stent at its three points calls all of them out, with the stent label beside', () => {
-  const w = world(mac, { all: true }); w.step();
+  const w = world({ ...mac, w: 2880, h: 1800 }, { all: true }); w.step();
   const ids = w.ids().filter((i) => i.startsWith('TIPS'));
   assert.deepEqual(ids, ['TIPS:distal', 'TIPS:geo', 'TIPS:mid', 'TIPS:proximal']);
   assert.equal(w.byId('TIPS:proximal')!.word, 'TIPS proximal');
@@ -99,7 +100,7 @@ test('an occluded point says "No flow" and no unit; the point the Doppler sample
 });
 
 test('a phone names the points short', () => {
-  const w = world(phone, { all: true }); w.step();
+  const w = world({ ...phone, w: 590, h: 1278 }, { all: true }); w.step();
   const words = ['proximal', 'mid', 'distal'].map((p) => w.byId(`TIPS:${p}`)?.word).filter(Boolean);
   assert.equal(words.length, 3, 'all three stand');
   assert.ok(words.every((x) => ['Prox', 'Mid', 'Dist'].includes(x!)), words.join());

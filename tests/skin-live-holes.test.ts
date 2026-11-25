@@ -3,7 +3,6 @@
 // by tests/skin-live-lib.ts (the fragment stage's outline rule at the engine's live swells, each pixel's nearest kept fragment): the hold-out is now taken relative to the least-held arm that is there (skinSdPx), so such a pixel is judged by the host's lumen.
 // The same cause held at every skin with a growing arm (SVD, CONF, LRV_S, S_PC1/C90, the azygos). Never reverts b9154a0c (the rest capsule), which is right.
 import { test } from 'node:test';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import assert from 'node:assert/strict';
 import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { collateralOpen } from '../src/scene/vessels/network.ts';
@@ -78,7 +77,7 @@ test('the shade follows the outline: at the Budd-Chiari cava wall skin, the stub
     const r = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { ramp: OLD_RAMP }, { normals: true });
     assert.ok(r.newlyDrawn > 200, `${r.newlyDrawn} stub pixels are drawn in the host's lumen`);
     // (placed only: 0.05. The bite is the fixture's size: the placed cava wall skin's stub meets the host at its own depth and angle, and 74 of its 886 pixels (8 %) would flip a band. That is still a bite; today's skin is 0.15)
-    assert.ok(r.newlyDrawnBandFlip / r.newlyDrawn > (PLACED ? 0.05 : 0.15), `${r.newlyDrawnBandFlip} of ${r.newlyDrawn} would change cel band if shaded as a stub`);
+    assert.ok(r.newlyDrawnBandFlip / r.newlyDrawn > 0.05, `${r.newlyDrawnBandFlip} of ${r.newlyDrawn} would change cel band if shaded as a stub`);
     const { SKIN_FS } = await import('../src/scene/vessels/skin/shaders.ts');
     assert.match(SKIN_FS, /\* keepOf\(i\)\);/, 'and the shader leaves the arms that are not there out of the shade union');
   } finally { g.done(); }

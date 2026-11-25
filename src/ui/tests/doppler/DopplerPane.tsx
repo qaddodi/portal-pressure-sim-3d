@@ -185,8 +185,8 @@ export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool:
           </div>
           <dl className="dop-stats">
             {(rep?.tiles ?? []).map((t) => (
-              <div key={t.k} className={[t.k === 'Speed' ? 'dop-speed' : '', t.here ? 'on' : ''].filter(Boolean).join(' ') || undefined} {...fadeAttrs(t.show)} data-out={t.k === 'Speed' || t.seg ? String(!!t.out) : undefined} title={t.title}>
-                <dt aria-label={t.k === 'CI' ? 'Congestion index' : undefined}>
+              <div key={t.k} className={[t.k === 'Speed' ? 'dop-speed' : '', t.here ? 'on' : ''].filter(Boolean).join(' ') || undefined} {...fadeAttrs(t.show)} data-out={t.k === 'Speed' || t.k === 'RI' || t.seg ? String(!!t.out) : undefined} title={t.title}>
+                <dt aria-label={t.k === 'CI' ? 'Congestion index' : t.k === 'RI' ? 'Resistive index' : undefined}>
                   {t.seg && !p.slide
                     ? <button type="button" className="dop-seg" aria-pressed={!!t.here} title={`Sample the stent at its ${t.label.toLowerCase()} end`} aria-label={`${t.label}, ${t.v} centimeters per second${t.here ? ', sampling here' : ''}. Activate to sample here.`} onClick={() => setGate(t.seg as Gate)}>{t.label}</button>
                     : t.label}

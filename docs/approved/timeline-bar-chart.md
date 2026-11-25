@@ -16,3 +16,6 @@
 
 ## Also fixed the same day (not a look): the fast-forward and 1x menus put the view pill away
 The pill hangs from the dock, above the cards layer the two menus stand in, so it was drawn over their foot. `src/ui/shell/sheets-over-pill.ts` lists them; `tests/sheet-over-pill.test.ts` finds every menu that opens above the timeline bar.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

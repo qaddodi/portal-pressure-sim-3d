@@ -8,6 +8,7 @@ import { BACK_EDGES, CONTEXT_EDGES, EDGE_PATH_2D } from '../src/scene/vessels/pa
 import { fadeOf } from '../src/scene/vessels/fades.ts';
 import { CIRCUIT_D } from '../src/scene/circuit/data.copied.ts';
 import { y3 } from '../src/scene/frame2d.ts';
+import { PLACED_EDGE_3D } from '../src/scene/anatomy/placed-network.ts';
 
 const CHAIN = ['V_UP', 'SVC_RA_1', 'SVC_RA'] as const;
 
@@ -38,7 +39,13 @@ test('Anatomy: it fades out going up (2D FADE_DOWN_Y) and is solid where it meet
   const f = fadeOf('V_UP', false)!;
   assert.equal(f.mode, 2);
   assert.ok(f.a0 === 1 && f.a1 === 0, 'solid at the top of the SVC, gone toward the top of the figure');
-  assert.ok(f.from < y3(4) && f.from === y3(38) && f.to === y3(4), 'over 2D y 38 to 4');
+  {
+    // (restated for the placed anatomy, the only one now: the 2D band y 38 to 4 moves with the vessel, by how far its course's end moved to the placed one (fades.ts placedFade),
+    // so it is the same span, still running upward, and it lies on the placed course)
+    assert.ok(Math.abs((f.to - f.from) - (y3(4) - y3(38))) < 1e-12 && f.from < f.to, 'the span of 2D y 38 to 4, moved with the vessel');
+    const ys = PLACED_EDGE_3D.V_UP!.map((p) => p[1]);
+    assert.ok(f.from >= Math.min(...ys) - 1e-9 && f.to <= Math.max(...ys) + 1e-9, 'on the placed course');
+  }
   assert.equal(f.keep, false, 'the Circuit lets the fade go: the bar is drawn whole there');
   for (const id of ['SVC_RA_1', 'SVC_RA']) { const g = fadeOf(id, false); assert.ok(!g || (g.a0 === 1 && g.a1 === 1), `${id} is solid`); }
   assert.ok(EDGE_PATH_2D.V_UP![0]![1] < 0, 'its 2D course starts above the figure (y < 0)');

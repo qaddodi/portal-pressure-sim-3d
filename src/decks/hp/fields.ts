@@ -23,13 +23,13 @@ export const FIELD_HOME: Record<string, FieldHome> = {
   compare: 'slide', whatIf: 'slide', response: 'slide', hvpgResp: 'slide', scales: 'slide',
   cols: 'slide', of: 'slide', vs: 'slide', asc: 'slide', rowHead: 'slide', foot: 'slide', note: 'slide', calm: 'slide', focusRow: 'slide',
   // the model
-  preset: 'model', presetDays: 'model', params: 'model', action: 'model', days: 'model', relax: 'model', ramp: 'model',
+  preset: 'model', presetDays: 'model', params: 'model', action: 'model', days: 'model', relax: 'model', sameAs: 'model', ramp: 'model',
   // the camera, view and lens
   cam: 'scene', view: 'scene', kMax: 'scene', zone: 'scene', lens: 'scene', labels: 'scene', tint: 'scene', cathKeep: 'scene', wash: 'scene', layers: 'scene', since: 'scene', sinceLabel: 'scene',
   // read whole by a chart or instrument card
   plane: 'chart', cohort: 'chart', chartFoot: 'chart', graph: 'chart', dataTitle: 'chart', column: 'chart', tick: 'chart', milestone: 'chart', when: 'chart', hold: 'chart',
   // the figure's own marks and glow
-  glow: 'figure', glowSeq: 'figure', lapseGlow: 'figure', mark: 'figure', marks: 'figure', callout: 'figure', sites: 'figure', span: 'figure', spot: 'figure', stented: 'figure',
+  glow: 'figure', glowSeq: 'figure', lapseGlow: 'figure', mark: 'figure', marks: 'figure', callout: 'figure', sites: 'figure', span: 'figure', spot: 'figure', stented: 'figure', ghostStent: 'figure',
   calipers: 'figure', ripple: 'figure', normalOutline: 'figure', steps: 'figure', strain: 'figure', wave: 'figure', procedure: 'figure',
 };
 

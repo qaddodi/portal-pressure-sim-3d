@@ -9,10 +9,10 @@
 //   4. each whole vessel is cut into its engine pieces at the 3D attach point of what joins there (the nearest point of the course to the joining vessel's end), not at the old length shares;
 //   5. the draw-only branches (rhva, rhvb, rpva, rpvp) hang on their host: the straighter one runs on from the trunk as its through branch (one tube to the tip, as liver-branches.ts draws a branching vein), the other is
 //      a side branch; the caudate veins (cv1-3) are joined into the cava the same way; the liver beds (no placed course) are today's beds carried onto the moved nodes.
-// Pure data, no three.js, no reader of network.ts (network.ts reads this when PLACED is on).
+// Pure data, no three.js, no reader of network.ts (network.ts reads this).
 import { PLACED_COURSES, PLACED_VESSELS, PLACED_JOINS, PLACED_ORGANS, PLACED_CAUDATE } from './placement.generated.ts';
 import { EDGES, JUNCTIONS } from '../../engine/hales/portal/topology.js';
-import { ANAT_HIDDEN, EDGE_PATH_2D, HIDDEN_EDGES, PLACED } from './source.ts';
+import { ANAT_HIDDEN, EDGE_PATH_2D, HIDDEN_EDGES } from './source.ts';
 import { x2d, y2d } from '../frame2d.ts';
 import { aroundEso, onEso } from './eso-wall.ts';
 
@@ -114,6 +114,14 @@ export const FAIR_TURN = 8.5;
 const MERGE_MAX = 60;
 /** The wholes that open into the cava at the hepatic confluence, IVCS: their arrival lies in the cava's plane (joinEnd `flat`). */
 const HEPATIC_WHOLES: ReadonlySet<string> = new Set(['rhv', 'mhv', 'lhv']);
+/** TWO OSTIA ON THE CAVA (Mohammad, 25 Nov: "RHV alone, MHV+LHV shared trunk"): the right hepatic vein opens on its own into the cava's right wall, and the middle hepatic vein joins the left one in a short common trunk, which
+ *  opens higher, on the cava's left wall, just below the diaphragm. The engine still ends all three at IVCS: the cava is cut there at the common trunk's ostium (`mouth`), the right hepatic vein lands lower on the cava's wall as an
+ *  arm of the same node, and the middle hepatic vein lands on the left one's course `trunk` back from where it crosses the cava's wall (the common trunk is the left hepatic vein's tube: a draw-only run-on). */
+export const HV_OSTIA = { node: 'IVCS', host: 'ivc', mouth: 'lhv', joiner: 'mhv', own: 'rhv' } as const;
+/** The common trunk's length, from where the middle hepatic vein meets the left one to the cava's wall, in the left hepatic vein's radii (the anatomy's 1 to 1.5 cm). */
+export const HV_TRUNK_R = 3;
+/** The common trunk as drawn: the left hepatic vein's piece, the point where the middle one joins it, and its length to the cava's wall (scene units). Set at load (placed only). */
+export const PLACED_HV_TRUNK: { piece: string; joiner: string; at: V3; length: number } = { piece: 'LHV_IVC', joiner: 'MHV_IVC', at: [0, 0, 0], length: 0 };
 /** The least a branch's arrival is off its host's axis (joinEnd). */
 // (a branch wider than its host arrives MERGE_MIN times their width ratio off its axis: C6, 1.34 times the renal vein, slid in at 40 and left a wall crotch whose normals turned 84 degrees between neighbours; at 54 it is 74)
 const MERGE_MIN = 40;
@@ -129,6 +137,8 @@ const RHV_MIN = 0.26;
 const FAIR_SPAN = 0.05;
 /** How far above the hepatic artery's fork, on the bisector of its two branches, the DIPS crosses the arteries' depth (scene units): clear of both branches by more than the two radii. */
 const DIPS_GAP = 0.1;
+/** The DIPS first leads out of the portal fork between its two branches (along their bisector on the screen, this far) and this share of its way back in depth, so it opens in the fork's gap (PVH, the DIPS block below). */
+const DIPS_LEAD = 0.22, DIPS_LEAD_Z = 0.25;
 /** The least a stent's tract keeps from any other drawn vessel, wall to wall, away from its own ends (scene units), and the stretch along it over which a push away eases out. */
 const TRACT_CLEAR = 0.009, TRACT_SPAN = 0.1;
 /** The stents and surgical shunts: tracts laid between two ends. */
@@ -166,7 +176,7 @@ export const PLACED_CAUDATE_R: number[] = [];
 export const PLACED_PATH_2D: Record<string, readonly (readonly [number, number])[]> = {};
 export const PLACED_Z: Record<string, readonly number[]> = {};
 export const PLACED_NODE_2D: Record<string, readonly [number, number]> = {};
-/** Built only with the approved placement switched on (`?anatomy=new`, PPS_ANATOMY=placed). */
+/** Built once, at load: the approved placement is the app's only anatomy. */
 function buildPlaced(): void {
   const COURSE: Record<string, V3[]> = {};
   const rOf = (k: string): number => PLACED_VESSELS[k]?.r ?? 0.01;
@@ -308,6 +318,7 @@ function buildPlaced(): void {
     if (['rpvp', 'rhvb', 'rha'].includes(jn.v) || (jn.v === 'rpv' && jn.to === 'pv')) continue;   // (run-ons above)
     if (jn.v === 'rpva') { branch('rpva', 0, 'rpv', [...COURSE.rpv!, ...COURSE.rpvp!.slice(1)], SPLIT_POINT.rpv); continue; }
     if (jn.v === 'rhva') { branch('rhva', 0, 'rhv', [...rev(COURSE.rhvb!), ...COURSE.rhv!.slice(1)].reverse(), SPLIT_POINT.rhv); continue; }
+    if (jn.v === HV_OSTIA.mouth || jn.v === HV_OSTIA.joiner) continue;   // (the common trunk, below)
     // (a main vessel whose engine node is its host's own end (the splenic vein at the confluence, where the SMV runs on into the portal vein) lands exactly there: a landing a hair beside it put the confluence's arms at
     //  three depths, 0.00026 apart, and the skin's ink needs one)
     const vp = WHOLE_PIECES[jn.v], hp = WHOLE_PIECES[jn.to];
@@ -316,20 +327,18 @@ function buildPlaced(): void {
     branch(jn.v, jn.end, jn.to, undefined, hostEnd, HEPATIC_WHOLES.has(jn.v));
   }
 
-  // ONE MOUTH: main vessels that the engine joins to one host at one node (the three hepatic veins at the cava's top, IVCS) open at one point of it, the widest one's mouth, as one skin's arms. Placed 3 radii
-  // apart along the cava, the skin's hull bridged the two outer veins unevenly and folded (Mohammad, 24 Nov: no old-style join may ship)
+  // TWO OSTIA (HV_OSTIA): the right hepatic vein has landed on the cava where the placement draws it (the loop above); the left one lands on the cava where its placement ends, its common trunk's ostium; and the middle one lands
+  // on the left one's course HV_TRUNK_R of its radii back from where it crosses the cava's wall, merging along its flow (joinEnd), so the two share one tube into the cava. Before (round 17 and earlier) all three opened at ONE point of
+  // the cava's axis, the right one's, and the middle one ran within 1.3 cava radii of the axis for its last 0.07: the crowded arms notched the junction's skin
   {
-    const groups = new Map<string, { v: string; end: 0 | 1 }[]>();
-    for (const jn of J.joins) {
-      if (jn.runon || jn.end == null || !WHOLE_PIECES[jn.v] || !WHOLE_PIECES[jn.to]) continue;
-      const vp = WHOLE_PIECES[jn.v]!, node = jn.end ? edgeById.get(vp[vp.length - 1]!)!.to : edgeById.get(vp[0]!)!.from;
-      const k = `${jn.to}|${node}`; groups.set(k, [...(groups.get(k) ?? []), { v: jn.v, end: jn.end }]);
-    }
-    for (const [k, g] of groups) {
-      if (g.length < 3) continue;
-      const host = k.split('|')[0]!, first = g.reduce((a, b) => (rOf(b.v) > rOf(a.v) ? b : a)), C = COURSE[first.v]!, J0 = first.end ? C[C.length - 1]! : C[0]!;
-      for (const x of g) if (x !== first) branch(x.v, x.end, host, undefined, J0, HEPATIC_WHOLES.has(x.v));
-    }
+    const { host, mouth: m, joiner } = HV_OSTIA;
+    branch(m, 1, host, undefined, undefined, true);
+    const T = COURSE[m]!, sT = arc(T), H = COURSE[host]!, R = rOf(host);
+    let k = T.length - 1; while (k > 0 && nearestOn(H, T[k]!).d < R) k--;   // (where the trunk crosses the cava's wall)
+    const want = sT[k]! - HV_TRUNK_R * rOf(m);
+    let j = 1; while (j < k && sT[j + 1]! <= want) j++;   // (the last point at least the trunk's length back)
+    branch(joiner, 1, m, undefined, T[j]!);
+    Object.assign(PLACED_HV_TRUNK, { at: T[j]!, length: sT[k]! - sT[j]! });
   }
   // ---- collaterals and shunts: each end lands on the vessel its engine node belongs to ----
   /** The whole vessels (and collaterals) that have a piece at `node`, but `self`. */
@@ -369,6 +378,7 @@ function buildPlaced(): void {
     const n = nodeOfWholeEnd(jn.v, jn.end), C = COURSE[jn.v]!;
     if (n && !mouth.has(`${jn.to}|${n}`)) mouth.set(`${jn.to}|${n}`, jn.end ? C[C.length - 1]! : C[0]!);
   }
+  { const C = COURSE[HV_OSTIA.mouth]!; mouth.set(`${HV_OSTIA.host}|${HV_OSTIA.node}`, C[C.length - 1]!); }   // (the cava's node at the hepatic veins is the common trunk's ostium: TWO OSTIA)
   // (A FADING END IS NO MOUTH (Mohammad, 24 Nov: "Umbilical vein should grow from more proximal LPV"): the engine's LPV node is the left portal vein's far end, which the placement fades into the left lobe; the paraumbilical
   //  vein and the Meso-Rex bypass, which the engine joins there, were forced onto that fading tip, 0.37 past where the placement draws them leave, at the umbilical portion (the recessus of Rex). An end that fades is not
   //  a place a vessel can open: a branch whose node is such an end lands on the host's wall where the placement draws it, as the 2D figure's umbilical vein leaves its wall (starts.ts leaveVein))
@@ -388,7 +398,13 @@ function buildPlaced(): void {
     const M = add(fork, mul(up, DIPS_GAP));
     const yE = PLACED_CAUDATE.c[1] - PLACED_CAUDATE.ax[1];
     let E = iv[0]!; for (const q of iv) if (Math.abs(q[1] - yE) < Math.abs(E[1] - yE)) E = q;
-    COURSE.DIPS = fair(relax(denseCurve([P0, M, E]), PLACED_JOINS.relax ?? 40));
+    // (THE DIPS AT THE PORTAL FORK, Mohammad 24 Nov: "shadows from both sides make it look spherical". Laid straight to the gap, the DIPS left the bifurcation 10 degrees from the left portal vein on the screen and 3.2 k behind
+    //  it, inside the blend: the left portal vein's rim, a full arm held in front, was drawn across the DIPS's lumen, 3.2 % of PVH's lumen as line only (2.3 % turned 0.3). It first leads out between the two portal branches,
+    //  DIPS_LEAD along their bisector on the screen and DIPS_LEAD_Z of its way back in depth, so it opens in the fork's own gap, clear of both rims: 0.00 % and 0.02 %)
+    const d2 = (c: readonly V3[]): [number, number] => { const q = c[Math.min(c.length - 1, 4)]!, x = q[0] - c[0]![0], y = q[1] - c[0]![1], l = Math.hypot(x, y) || 1; return [x / l, y / l]; };
+    const a = d2(COURSE.lpv!), b = d2(COURSE.rpv!), bx = a[0] + b[0], by = a[1] + b[1], bl = Math.hypot(bx, by) || 1;
+    const W: V3 = [P0[0] + (bx / bl) * DIPS_LEAD, P0[1] + (by / bl) * DIPS_LEAD, P0[2] + (M[2] - P0[2]) * DIPS_LEAD_Z];
+    COURSE.DIPS = fair(relax(denseCurve([P0, W, M, E]), PLACED_JOINS.relax ?? 40));
   }
   /** Where each node that only collaterals and shunts join is drawn on its whole (arc length): the cut between its pieces. */
   const NODE_S = new Map<string, number>();
@@ -495,7 +511,8 @@ function buildPlaced(): void {
       js.sort((a, b) => (a.main !== b.main ? (a.main ? -1 : 1) : b.r - a.r));
       let at: number;
       const ns = NODE_S.get(`${w}|${node}`);
-      if (ns !== undefined) at = ns / L;
+      if (w === HV_OSTIA.host && node === HV_OSTIA.node) at = nearestOn(D, mouth.get(`${w}|${node}`)!).s / L;   // (TWO OSTIA: the cava is cut at the common trunk's ostium, not at the widest vein's, the right one's, lower down)
+      else if (ns !== undefined) at = ns / L;
       else if (js.length) {
         at = js[0]!.hit.s / L;
         // (a collateral piece of a whole, drawn only when it is open (the lumbar vein, C9, the azygos's lower course): a branch that lands at its cut would meet its run-on at one point, and with it hidden would sit on the
@@ -540,6 +557,7 @@ function buildPlaced(): void {
     if (!PLACED_NODE_3D[e.from]) PLACED_NODE_3D[e.from] = c[0]!;
     if (!PLACED_NODE_3D[e.to]) PLACED_NODE_3D[e.to] = c[c.length - 1]!;
   }
+  { const c = PLACED_EDGE_3D.IVC_IS!; PLACED_NODE_3D[HV_OSTIA.node] = c[c.length - 1]!; }   // (the node is the cava's cut, whichever hepatic vein's edge came first)
 
   // ---- the draw-only branches: the through branch carried on in the host's piece, the side branch on its own ----
   for (const [host, b] of Object.entries(PLACED_BRANCHES)) {
@@ -641,7 +659,7 @@ function buildPlaced(): void {
   for (const [id, c] of Object.entries(PLACED_EDGE_3D)) { PLACED_PATH_2D[id] = c.map((p): P2 => [x2d(p[0]), y2d(p[1])]); PLACED_Z[id] = c.map((p) => p[2]); }
   for (const [n, p] of Object.entries(PLACED_NODE_3D)) PLACED_NODE_2D[n] = [x2d(p[0]), y2d(p[1])];
 }
-if (PLACED) buildPlaced();
+buildPlaced();
 /** The cava's piece the caudate veins open into (vessels/caudate-veins.ts CAUDATE_HOST): the piece their ends lie on, wherever the cava is cut (the DIPS lands at the caudate's foot, below them). */
 export const PLACED_CAUDATE_HOST: string = (() => {
   const ends = PLACED_CAUDATE_VEINS.map((c) => c[c.length - 1]!);

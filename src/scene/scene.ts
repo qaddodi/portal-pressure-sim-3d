@@ -77,7 +77,6 @@ import { liveSource, type ModelSource } from './model-source.ts';
 import { confine, splitRegions, type Region } from './twin/region.ts';
 import { x2d, x3, y3 } from './frame2d.ts';
 import { type FigureHit, organHit } from './organs/pick.ts';
-import { PLACED } from './anatomy/source.ts';
 import { buildLobuleSteps } from './lobule/geometry.ts';
 import { LobuleView, lobuleModel, sinusoidTargets, type LobuleHit, type LobuleLayers, type LobulePartName } from './lobule/index.ts';
 import { LIVER_POINT, LIVER_Z, LOBULE_SCALE, SIN_LOCAL, SIN_REL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './lobule/frames.ts';
@@ -92,6 +91,7 @@ import { U as SIN_UNIT } from './sinusoid/view.ts';
 import { sinusoidBox } from './lobule/shots.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer, type DiseaseParams } from './disease/index.ts';
+import { trunkJoin } from './disease/host.ts';
 import type { ScopeRingScreen } from './disease/scope-ring.ts';
 import { ProbeLayer } from './devices/probes/layer.ts';
 import { VESSEL_LAYER, inVesselPass } from './layers.ts';
@@ -466,7 +466,7 @@ export class CelScene {
       if (st.particles !== prev.particles) clock.invalidate('streaks');   // (the cells read it per frame: a still figure wakes to ease the streaks, W8)
       if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });
-    // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed, dye): src/scene/disease/ (B4)
+    // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed): src/scene/disease/ (B4)
     yield;
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
@@ -721,6 +721,9 @@ export class CelScene {
         const args: [number, number, number] = [indexOf(NETWORK_BY_ID.get(cm)!.lensId), cavaJoinShare(def.id), fadeOf(cm, false)?.a0 ?? 1];
         o.setCavaCut(true, ...args); this.cavaCuts.push(o); this.cavaCutArgs.set(def.id, args);
       }
+      // (the middle hepatic vein opens into the common trunk, which is its cava: cut at the trunk's wall, its colour and its opacity there, disease/host.ts trunkJoin)
+      const tj = cm ? null : trunkJoin(def.id);
+      if (tj) { const args: [number, number, number] = [tj.lens, tj.u, tj.a]; o.setCavaCut(true, ...args); this.cavaCuts.push(o); this.cavaCutArgs.set(def.id, args); }
     }
     if (def.lensSpan) o.setLensSpan(def.lensSpan[0], def.lensSpan[1]);
     if (def.id === CAPUT_FAN_ID) o.setFrontDepth(FAN_FRONT);   // (the caput veins lie on the abdominal wall: over every other vein)
@@ -1367,8 +1370,8 @@ export class CelScene {
     if (this.figureView !== 'body' || this.circuit.t > 0.5 || this.bodyShown < 0.5) return null;
     const o = this.disease.organs.pick(raycaster);   // (the ray is the one pickAt set)
     if (o) return organHit(o.id, x2d(o.x));
-    // (the approved placement, PLACED: the gut is one surface over the belly; a tap on it, where no liver, heart or spleen lies beneath, lights the part it is on)
-    const gut = PLACED ? this.disease.organs.pickGut(raycaster) : null;
+    // (the gut is one surface over the belly; a tap on it, where no liver, heart or spleen lies beneath, lights the part it is on)
+    const gut = this.disease.organs.pickGut(raycaster);
     if (gut) return organHit(gut.id, x2d(gut.x));
     const wet = this.disease.ascites.pick(raycaster);   // (the drawn pool and its top, by ray: no plane of its own)
     if (wet) return organHit('abdomen', wet.x);
@@ -1608,10 +1611,10 @@ export class CelScene {
     return moving || dots || tubesMoving || resMoving;
   }
 
-  /** What the disease layer puts on the vessels (clots, plexus strands, the bleed, the dye) is drawn with them, over the organs (the layers are made as the states come on, so they are tagged as they move). */
+  /** What the disease layer puts on the vessels (clots, plexus strands, the bleed) is drawn with them, over the organs (the layers are made as the states come on, so they are tagged as they move). */
   private tagOverOrgans(): void {
     const d = this.disease;
-    for (const g of [d.clots.group, d.strands.group, d.bleed.group, d.dye.group]) g.traverse((c) => { if (c.layers.mask !== 2) c.layers.set(VESSEL_LAYER); });
+    for (const g of [d.clots.group, d.strands.group, d.bleed.group]) g.traverse((c) => { if (c.layers.mask !== 2) c.layers.set(VESSEL_LAYER); });
   }
 
   // ---- the inspector's hooks (?inspect): layers on and off, wireframe. Nothing here runs unless the panel has set something. ------------------------------------------------------------------------
@@ -1627,7 +1630,7 @@ export class CelScene {
       { id: 'tubes', label: 'Vessel tubes', objects: () => this.vessels.map((o) => o.group) },
       { id: 'skins', label: 'Junction skins', objects: () => this.body.children.filter((c) => c.name.startsWith('skin:')) },
       { id: 'organs', label: 'Organs', objects: () => [d.organs.group] },
-      { id: 'disease', label: 'Clots, plexus, bleed, dye', objects: () => [d.clots.group, d.strands.group, d.bleed.group, d.dye.group] },
+      { id: 'disease', label: 'Clots, plexus, bleed', objects: () => [d.clots.group, d.strands.group, d.bleed.group] },
       { id: 'devices', label: 'Catheter, procedures, probes', objects: () => [this.catheter.group, this.procs.group, this.probes.group] },
       { id: 'circuit', label: 'Circuit map', objects: () => [this.tubes.group, this.mapLayer.group] },
       { id: 'dive', label: 'Lobule and sinusoid', objects: () => [this.dive] },

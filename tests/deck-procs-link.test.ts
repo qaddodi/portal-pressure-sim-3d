@@ -126,3 +126,10 @@ test('the camera follows the tip on the way in and at the work, and not for a st
   assert.ok(way.r > tip.r && way.half[0] > tip.half[0]);
   assert.equal(tipShot('', at), null);
 });
+
+// Capture 52ef8e63, TIPS complete 3: a slide that asks when to place a stent draws the stent as a ghost; no other slide does.
+test('only the indications slide asks for a ghost stent', async () => {
+  const rows = await everySlide();
+  const ghosts = rows.filter((r) => askOf(r.slide).ghostStent).map((r) => `${r.deck}/${r.slide.id}`);
+  assert.deepEqual(ghosts, ['tips-complete/indications']);
+});

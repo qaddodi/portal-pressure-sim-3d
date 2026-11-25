@@ -117,12 +117,12 @@ export const BAR = {
   organ: { crease: 25 },
 } as const;
 
-/** What is rougher than the bar today, by how much at most (tests/anatomy/smooth-allow.json). Like the lint allowances it only goes down: a piece that now passes the bar comes off the list. */
-export type SmoothAllow = { vessel: Record<string, Partial<Record<'turn' | 'jerk' | 'widen', number>>>; join: Record<string, Partial<Record<'gap' | 'turn' | 'step' | 'wturn' | 'wjerk' | 'widen', number>>>; organ: Record<string, { crease: number }> };
+/** The measures over the bar, by kind (the approved placement allows none: anatomy-smooth.test.ts). */
+export type SmoothKinds = { vessel: Record<string, Partial<Record<'turn' | 'jerk' | 'widen', number>>>; join: Record<string, Partial<Record<'gap' | 'turn' | 'step' | 'wturn' | 'wjerk' | 'widen', number>>>; organ: Record<string, { crease: number }> };
 
 /** Every number over the bar: [kind, name, measure, value]. */
-export function overBar(v: VesselSmooth[], j: JoinSmooth[], o: OrganSmooth[]): [keyof SmoothAllow, string, string, number][] {
-  const out: [keyof SmoothAllow, string, string, number][] = [];
+export function overBar(v: VesselSmooth[], j: JoinSmooth[], o: OrganSmooth[]): [keyof SmoothKinds, string, string, number][] {
+  const out: [keyof SmoothKinds, string, string, number][] = [];
   for (const x of v) for (const k of ['turn', 'jerk', 'widen'] as const) if (x[k] > BAR.vessel[k]) out.push(['vessel', x.id, k, x[k]]);
   for (const x of j) for (const k of ['gap', 'turn', 'step', 'wturn', 'wjerk', 'widen'] as const) if (x[k] > BAR.join[k]) out.push(['join', `${x.a}>${x.b}`, k, x[k]]);
   for (const x of o) if (x.crease > BAR.organ.crease) out.push(['organ', x.id, 'crease', x.crease]);

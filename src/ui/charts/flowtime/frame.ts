@@ -5,13 +5,13 @@ import { look, type Look } from '../looks.ts';
 import type { Frame, Shape } from '../scene.ts';
 import { RX as RX0 } from '../plot/rx-bands.generated.js';
 import { yOf, decOf } from '../plot/scales.ts';
-import { MINUTES, clockTicks, cw, flowGeo, flowTimeFit, headLeft, linesOf, legendOf, showsOf, startPlan, withUnit, xAt, rxGap, type FlowSeries, type Geo, type LineRow } from './model.ts';
+import { MINUTES, type FlowRef, clockTicks, cw, flowGeo, flowTimeFit, headLeft, linesOf, legendOf, showsOf, startPlan, withUnit, xAt, rxGap, type FlowSeries, type Geo, type LineRow } from './model.ts';
 
 export const RX = RX0 as unknown as Record<string, [name: string, on: (params: unknown) => boolean, tone: string]>;
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const tokOf = (v: string) => v.replace(/^--/, '');
 
-export interface FlowSpec { ser: FlowSeries; clock: 'meal' | 'days'; keys: readonly string[]; /** the treatments shown (rx-bands.js keys) */ rx?: readonly string[]; height?: number; /** the room the card leaves the chart, px (2D --ft-room); 0: none */ room?: number; /** a phone's stacked card's one height, px (2D --ft-h); 0: none */ cap?: number }
+export interface FlowSpec { /** reference ticks (model.ts refsOf) */ refs?: readonly FlowRef[]; ser: FlowSeries; clock: 'meal' | 'days'; keys: readonly string[]; /** the treatments shown (rx-bands.js keys) */ rx?: readonly string[]; height?: number; /** the room the card leaves the chart, px (2D --ft-room); 0: none */ room?: number; /** a phone's stacked card's one height, px (2D --ft-h); 0: none */ cap?: number }
 export interface FlowOut { frame: Frame; G: Geo }
 
 /** A line's colour as a word: its -ink form where the look has one (a trace colour is 3:1, a word needs 4.5:1). */
@@ -161,6 +161,13 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
       leader(hd.hx, hd.hy, Math.max(4, f * 0.42), x0, x0 + wd, t.y - 0.85 * f, t.y + 0.25 * f, lk('plot.line', {}, LINES[hd.i]![3]).stroke!);
     });
     plan.starts.forEach(({ box: q }, i) => leader(plan.own[i]![0], plan.own[i]![1], Math.max(3, f * 0.3), q[0]!, q[1]!, q[2]!, q[3]!, lk('plot.line', {}, LINES[i]![3]).stroke!));
+  }
+  // a reference: another state's value of a line, a dashed tick over the plot's right third in the line's colour with its words at the tick's left, on its own row, so the words never meet a head's value (those stand at the right)
+  for (const r of spec.refs ?? []) {
+    const j = r.slot === 'flow' ? 1 : 0, Y = j ? upY : lowY, col = LINES[j]![3], y = clamp(Y(r.v), T, B), x0 = X(ax.from + (ax.end - ax.from) * 0.62);
+    const rl = lk('plot.line', {}, col), words = `${r.text} ${withUnit(r.v, LINES[j]![6], LINES[j]![5])}`;
+    shapes.push({ k: 'line', x1: x0, x2: R, y1: y, y2: y, pen: { color: rl.stroke!, w: Math.max(1, (rl.width ?? 2) * 0.7), dash: [4, 3] } });
+    say(x0 - 6, y + 0.36 * f, words, lk('ft.v', { off: false }, col), { anchor: 'end' });
   }
   const label = flowTimeLabel(ser, keys, clock, heads.map((hd) => hd.v));
   return { frame: { w, h, shapes, label, ...(want > h + 0.5 ? { want: Math.round(want) } : null) }, G };

@@ -1,4 +1,3 @@
-import { LEAVE_VEIN_IDS } from '../src/scene/vessels/starts.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { ORGAN_Z } from '../src/scene/organs/z.ts';
 import { readFileSync } from 'node:fs';
@@ -8,20 +7,18 @@ import assert from 'node:assert/strict';
 import { EDGES, NODES } from '../src/engine/hales/portal/topology.js';
 import { EDGE_IDS, hasVessel, indexOf } from '../src/engine/vessel-data.ts';
 import { DRAWN_EDGE_IDS, NETWORK, NETWORK_BY_ID, RUN_ONS, NEEDS_C3_IDS, collateralOpen, presenceOf, recruitFrac, SURGICAL_SHUNT_IDS, radiusOf, vesselPx, widthPx } from '../src/scene/vessels/network.ts';
-import { EDGE_PATH_2D, NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
+import { NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
 import { TIER_Z, UNITS_PER_SCENE, x2d, x3, y2d, y3 } from '../src/scene/frame2d.ts';
 import { pathToFileURL } from 'node:url';
 import { PresenceTracks, presenceMs } from '../src/scene/vessels/presence-track.ts';
 import { frameFor } from './b3-frames.ts';
 import { HIDDEN_EDGES } from '../src/scene/vessels/paths.copied.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
+import { ORGAN_MESHES, setOrganData } from '../src/scene/organs/meshes.ts';
 import { PLACED_EDGE_3D, PLACED_NODE_3D } from '../src/scene/anatomy/placed-network.ts';
 
 const nodeIds = new Set((NODES as { id: string }[]).map((n) => n.id));
 const edge = new Map((EDGES as { id: string; kind: string; from: string; to: string }[]).map((e) => [e.id, e]));
 
-import { ALONG_VEIN_IDS, withStartInOrgan } from '../src/scene/vessels/starts.ts';
-import { SPLIT_AT, trimHost } from '../src/scene/vessels/liver-branches.ts';
 
 test('every vessel the 2D figure draws is a vessel here, named by its engine edge id', () => {
   const have = new Set(NETWORK.map((v) => v.id));
@@ -126,24 +123,9 @@ test('the vessel vertex shader parses; there is no hull attribute and the outlin
 });
 
 
-// ---- the vessels are the 2D figure's, point for point ----
-test('every vessel is its 2D course through the one linear map: back through it, each point is the 2D point', () => {
-  // (placed, PPS_ANATOMY=placed: the course is the approved placement's in 3D, not a 2D course lifted: each point is the placed network's own, point for point)
-  if (PLACED) { for (const v of NETWORK) if (!v.feeder) { const P = PLACED_EDGE_3D[v.id]!; assert.equal(v.pts.length, P.length, v.id); v.pts.forEach((p, i) => assert.ok(Math.hypot(p[0] - P[i]![0], p[1] - P[i]![1], p[2] - P[i]![2]) < 1e-9, `${v.id} point ${i}`)); } return; }
-  for (const v of NETWORK) {
-    if (v.feeder) continue;   // (a fan of tributaries: its own test, below)
-    if (ALONG_VEIN_IDS.has(v.id)) continue;   // (the hepatic arteries run beside their portal branches: starts.ts alongVein)
-    if (LEAVE_VEIN_IDS.has(v.id)) continue;   // (the umbilical vein leaves the left portal vein's wall: its own test, tests/b3-umbilical-join.test.ts)
-    const c = trimHost(v.id, withStartInOrgan(v.id, EDGE_PATH_2D[v.id]!));   // (the splenic vein is carried on into the spleen: starts.ts; a vein that branches is drawn to its split: liver-branches.ts)
-    assert.equal(v.pts.length, c.length, v.id);
-    // (the 2D figure redraws the last 11 samples either side of a run-on as one smooth cubic through the join: joins.ts)
-    const near = (i: number) => RUN_ONS.some((r) => (r.a === v.id && (r.ia ? i >= c.length - 12 : i <= 11)) || (r.b === v.id && (r.ib ? i >= c.length - 12 : i <= 11)));
-    const cut = SPLIT_AT[v.id] != null && SPLIT_AT[v.id]! < 0.9;   // (a vein cut at its split: the smoothed stretch at its run-on end is a larger share of what is left)
-    v.pts.forEach((p, i) => {
-      if (near(i) || (cut && (i <= 40 || i >= c.length - 41))) return;
-      assert.ok(Math.abs(x2d(p[0]) - c[i]![0]) < 1e-6 && Math.abs(y2d(p[1]) - c[i]![1]) < 1e-6, `${v.id} point ${i}`);
-    });
-  }
+// ---- the vessels are the placed network's, point for point ----
+test('every vessel is the placed network\'s course, point for point', () => {
+  for (const v of NETWORK) if (!v.feeder) { const P = PLACED_EDGE_3D[v.id]!; assert.equal(v.pts.length, P.length, v.id); v.pts.forEach((p, i) => assert.ok(Math.hypot(p[0] - P[i]![0], p[1] - P[i]![1], p[2] - P[i]![2]) < 1e-9, `${v.id} point ${i}`)); }
 });
 
 test('the vessels lie in one plane through the organs, not in front of them: every tier is inside the liver, the heart, the kidney and the stomach, and the tiers are close (Mohammad, 20 Nov)', () => {
@@ -152,7 +134,13 @@ test('the vessels lie in one plane through the organs, not in front of them: eve
   const zr = (id: string) => { const [pb, nv] = M.organs[id]!, q = new Int16Array(buf, pb, nv * 3); let lo = Infinity, hi = -Infinity; for (let i = 0; i < nv; i++) { const z = q[i * 3 + 2]! / M.q; lo = Math.min(lo, z); hi = Math.max(hi, z); } return { lo, hi }; };
   const zs = Object.entries(TIER_Z).filter(([k]) => k !== 'fwd').map(([, z]) => z);
   for (const id of ['liver', 'heart', 'kidney-l', 'stomach']) { const r0 = zr(id), r = { lo: r0.lo + ORGAN_Z[id]!, hi: r0.hi + ORGAN_Z[id]! }; for (const t of Object.entries(TIER_Z).filter(([k]) => k !== 'fwd')) assert.ok(t[1] > r.lo && t[1] < r.hi, `${t[0]} (${t[1]}) is inside ${id} (${r.lo} to ${r.hi})`); }
-  { const r0 = zr('spleen'), z = NZ.get('SPL')!; assert.ok(z > r0.lo + ORGAN_Z.spleen! && z < r0.hi + ORGAN_Z.spleen!, 'the splenic vein starts inside the spleen'); }
+  {
+    // (restated for the placed anatomy, the only one now: the spleen is the placed mesh (organs/placed.ts, moved and re-inflated), not the file's relief at ORGAN_Z, so the splenic vein's
+    // first point, at the SPL node's depth, is inside the placed spleen's box in all three axes)
+    setOrganData(buf); const g = ORGAN_MESHES.spleen!(); g.computeBoundingBox(); const bb = g.boundingBox!, p = coursesOf(NETWORK_BY_ID.get('V_SPL')!, REST)[0]!.pts[0]!;
+    assert.ok(Math.abs(p[2] - NZ.get('SPL')!) < 1e-9, 'the splenic vein starts at its node\'s depth');
+    assert.ok(p[0] > bb.min.x && p[0] < bb.max.x && p[1] > bb.min.y && p[1] < bb.max.y && p[2] > bb.min.z && p[2] < bb.max.z, 'the splenic vein starts inside the spleen');
+  }
   assert.ok(Math.max(...zs) - Math.min(...zs) <= 0.2, 'one plane: the tiers differ by a crossing only');
   // the paraumbilical vein runs in front of the main portal vein where they cross, by more than both their radii (never through it)
   { const c3 = NETWORK_BY_ID.get('C3')!, pv = NETWORK_BY_ID.get('PV_TRUNK')!, a = coursesOf(c3, REST)[0]!.pts, b = coursesOf(pv, REST)[0]!.pts;
@@ -162,7 +150,7 @@ test('the vessels lie in one plane through the organs, not in front of them: eve
     assert.ok(min > 0, `C3 passes ${min.toFixed(3)} clear in front of the portal trunk`); }
   // a vessel's own depth never moves more than that along its course (a jog of a quarter unit in z was a 14 degree sideways zigzag)
   // (placed: the approved placement carries each course's own depth, front to back through the body, so this bound on today's flat plane does not apply; the placed depths are pinned point for point above)
-  if (!PLACED) for (const v of NETWORK) if (!v.feeder) { const zz = v.pts.map((p) => p[2]); assert.ok(Math.max(...zz) - Math.min(...zz) <= 0.2, `${v.id} stays in the plane`); }
+  
 });
 
 test('the map is the artist\'s: confluence at the origin, 300 2D units to a scene unit, y up', () => {
@@ -175,29 +163,13 @@ test('the map is the artist\'s: confluence at the origin, 300 2D units to a scen
 
 test('a vessel starts and ends where the 2D figure puts its end nodes (a course that runs from node to node)', () => {
   // (placed: the nodes are the placed network's 3D attach points; a collateral or a shunt that lands on its host where the placement drew it, away from the node's cut, is the rest)
-  if (PLACED) { let on = 0; const mapped = NETWORK.filter((v) => !v.feeder); for (const v of mapped) for (const [n, p] of [[v.from, v.pts[0]!], [v.to, v.pts[v.pts.length - 1]!]] as const) { const q = PLACED_NODE_3D[n]; if (q && Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 0.002) on++; } assert.ok(on > mapped.length, `${on} ends sit on their nodes`); return; }
-  let checked = 0;
-  for (const v of NETWORK) {
-    const a = NODE_POS_2D[v.from], b = NODE_POS_2D[v.to];
-    const p0 = v.pts[0]!, p1 = v.pts[v.pts.length - 1]!;
-    if (a && Math.hypot(x2d(p0[0]) - a[0], y2d(p0[1]) - a[1]) < 6) checked++;
-    if (b && Math.hypot(x2d(p1[0]) - b[0], y2d(p1[1]) - b[1]) < 6) checked++;
-  }
-  assert.ok(checked > NETWORK.length, `${checked} ends sit on their nodes`);
+  let on = 0; const mapped = NETWORK.filter((v) => !v.feeder); for (const v of mapped) for (const [n, p] of [[v.from, v.pts[0]!], [v.to, v.pts[v.pts.length - 1]!]] as const) { const q = PLACED_NODE_3D[n]; if (q && Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 0.002) on++; } assert.ok(on > mapped.length, `${on} ends sit on their nodes`);
 });
 
 test('over and under follow the 2D tiers: the portal tree over the network, the network over the collaterals, arteries beside, the cava behind', () => {
   const z = (id: string) => NETWORK_BY_ID.get(id)!.pts[0]![2];
   // (placed: tiers are draw-order hints only, each course has the placement's depth: the portal trunk is still in front of the hepatic vein and the cava, the rest is the placement's, pinned point for point above)
-  if (PLACED) { assert.ok(z('PV_TRUNK') > z('RHV_IVC') && z('PV_TRUNK') > z('IVCS_RA'), 'portal trunk over the hepatic vein and the cava'); return; }
-  assert.ok(z('PV_TRUNK') > z('RHV_IVC'), 'portal trunk over the hepatic vein');
-  assert.ok(z('RHV_IVC') > z('C1a') || z('RHV_IVC') < z('C1a'), 'distinct tiers');
-  assert.equal(z('PV_TRUNK'), TIER_Z.front);
-  assert.equal(z('A_HEP'), TIER_Z.art);
-  assert.ok(z('IVCS_RA') < z('A_HEP') && z('A_HEP') < z('PV_TRUNK'), 'the hepatic artery runs in front of the cava and behind the portal vein (Mohammad, 20 Nov)');
-  assert.ok(z('IVCS_RA') < z('PV_TRUNK') && z('IVCS_RA') <= TIER_Z.back + 1e-9, 'the cava is the rearmost tier');
-  assert.ok(TIER_Z.back < TIER_Z.art && TIER_Z.art < TIER_Z.mid && TIER_Z.mid < TIER_Z.net && TIER_Z.net < TIER_Z.front && TIER_Z.front < TIER_Z.over);
-  for (const v of NETWORK) assert.ok(v.pts.every((p) => p[2] === TIER_Z[v.tier]), `${v.id} is one plane`);
+  assert.ok(z('PV_TRUNK') > z('RHV_IVC') && z('PV_TRUNK') > z('IVCS_RA'), 'portal trunk over the hepatic vein and the cava');
 });
 
 test('widths are the 2D figure\'s: the portal trunk, an artery at half, the liver\'s beds fixed', () => {
@@ -259,16 +231,15 @@ test('against the 2D app\'s own SVG courses: every sample lies on its path (with
 });
 
 import { NETWORK as NET_Z, NODE_Z as NZ } from '../src/scene/vessels/network.ts';
-import { TIER_Z as TZ } from '../src/scene/frame2d.ts';
 test('at a fork the widest vessels keep their tier (the cava does not bulge toward the camera at each hepatic or renal vein: the zigzag IVC)', () => {
   // (placed: a node's depth is its placed attach point's, no tier; the cava's rise, below, still holds)
-  if (!PLACED) for (const n of ['IVCI', 'IVC_D', 'ILI', 'ILI_R']) assert.equal(NZ.get(n), TZ.back, `${n} stays on the cava's own tier`);
+  
   // one rise along the cava, to the hepatic junction: no bulge at the renal veins or the shunts' ends, then a dip, then the rise
   const z = ['ILI', 'IVCI', 'IVC_D', 'IVCS'].map((n) => NZ.get(n)!);
   for (let i = 1; i < z.length; i++) assert.ok(z[i]! >= z[i - 1]! - 1e-9, `the cava never dips back on its way up: ${z.join(', ')}`);
-  if (!PLACED) for (const n of ['PVH', 'CONF']) assert.equal(NZ.get(n), TZ.front, `${n} stays on the portal tree's tier`);
+  
   // (the SVC node is a fork of three since the cava runs up out of the figure as V_UP: the cava's two pieces keep the cava's tier, the azygos eases down to it)
   const svc = NET_Z.filter((v) => !v.feeder && (v.from === 'SVC' || v.to === 'SVC'));
   assert.deepEqual(svc.map((v) => v.id).sort(), ['AZY_SVC', 'SVC_RA_1', 'V_UP'], 'the SVC node: the cava above and below, and the azygos');
-  if (!PLACED) assert.equal(NZ.get('SVC'), TZ.back, 'the cava keeps its own tier through the fork');
+  
 });

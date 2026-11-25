@@ -144,18 +144,8 @@ test('a vein that branches runs on as one tube inside the liver\'s outline, past
   }
 });
 
-test('a side branch stays behind its vein for as long as the two overlap and never dives at the camera (so no outline or darker fill is drawn across the vein at a fork)', async () => {
-  const { LIVER_BRANCHES, tuckedDepth, SIDE_SLOPE } = await import('../src/scene/vessels/liver-branches.ts');
-  const { len3 } = await import('../src/scene/frame2d.ts');
-  assert.ok(tuckedDepth(0, 0.1) < 0 && tuckedDepth(3, 0.1) < 0, 'behind while on the vein');
-  assert.ok(tuckedDepth(12, 0.1) < 0.002, 'behind or level with the vein by the time it has cleared it (two radii out)');
-  assert.ok(tuckedDepth(1e4, 0.1) < 0.0801 && tuckedDepth(1e4, 0.1) > 0.079, 'it comes forward to its own depth and does not pass it');
-  let prev = -1;
-  for (let w = 0; w < 60; w += 0.5) {
-    const z = tuckedDepth(w, 0.1); assert.ok(z >= prev - 1e-12, 'never goes back');
-    if (w > 0) assert.ok((z - prev) / len3(0.5) <= SIDE_SLOPE + 1e-9, `no steeper than SIDE_SLOPE at ${w}`);
-    prev = z;
-  }
+test('every liver branch carries a finite depth for each of its points', async () => {
+  const { LIVER_BRANCHES } = await import('../src/scene/vessels/liver-branches.ts');
   for (const b of LIVER_BRANCHES) {
     const item = b.list[0]! as { dz: readonly number[]; pts: readonly (readonly [number, number])[] };
     assert.ok(item.dz.length === item.pts.length && item.dz.every(Number.isFinite), b.host);
@@ -223,24 +213,28 @@ test('flow marks hold back inside the vessel a tube leaves: the shader multiplie
 });
 
 test('a hepatic vein opens into the cava with a clean edge: it is cut away exactly where it lies inside the cava\'s lumen, and only a piece that ENDS on the cava does it (root cause of the round end inside the IVC, and of the broken outline at the join of the right hepatic vein\'s two pieces in the Circuit: the rule was keyed by the vein\'s name)', async () => {
-  const { opensIntoCava } = await import('../src/scene/vessels/fades.ts');
+  const { opensIntoCava, ostiumHostOf } = await import('../src/scene/vessels/fades.ts');
   const { cavaMateOf, neighbourAttr } = await import('../src/scene/vessels/neighbour.ts');
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
   const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
   const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
-  for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC', 'LRV_IVC']) assert.equal(opensIntoCava(id), true, `${id} opens into the cava`);
-  for (const id of ['RHV_IVC_1', 'PVH_R_2', 'IVC_IS']) assert.equal(opensIntoCava(id), false, `${id} does not`);
+  // (placed anatomy, round 18, "RHV alone, MHV+LHV shared trunk": the middle hepatic vein's engine edge still ends at the cava's node, but as drawn it opens into the left one's common trunk, which opens into the cava. The rule is keyed by
+  //  where the drawn vein ENDS: the right and left hepatic veins and the renal vein open into the cava, the middle one into the trunk, with the same clean edge at the trunk's wall)
+  for (const id of ['RHV_IVC', 'LHV_IVC', 'LRV_IVC']) assert.equal(opensIntoCava(id), true, `${id} opens into the cava`);
+  for (const id of ['RHV_IVC_1', 'PVH_R_2', 'IVC_IS', 'MHV_IVC']) assert.equal(opensIntoCava(id), false, `${id} does not`);
+  assert.equal(ostiumHostOf('MHV_IVC'), 'LHV_IVC', 'the middle hepatic vein opens into the common trunk');
   assert.equal(cavaMateOf('RHV_IVC_1'), null);
-  assert.equal(cavaMateOf('MHV_IVC'), 'IVC_IS');
+  assert.equal(cavaMateOf('MHV_IVC'), null);
+  assert.equal(cavaMateOf('LHV_IVC'), 'IVC_IS');
   assert.equal(cavaMateOf('LRV_IVC'), 'IVC_IS_1', 'a renal vein meets the cava below the hepatic veins');
-  // the vein's last vertices lie inside the cava's lumen (distance to its axis under its radius), its first ones outside
+  // the vein's last vertices lie inside its host's lumen (distance to its axis under its radius: the cava's, the trunk's for the middle one), its first ones outside
   for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) {
     const c = coursesOf(B.get(id)!, REST)[0]!, flat = new Float32Array(c.pts.length * 3);
     c.pts.forEach((p, i) => { flat[3 * i] = p[0]; flat[3 * i + 1] = p[1]; flat[3 * i + 2] = p[2]; });
     const a = neighbourAttr(id, flat)!, n = c.pts.length;
-    assert.ok(a, `${id} knows the cava`);
+    assert.ok(a, `${id} knows ${ostiumHostOf(id)}`);
     const inside = (i: number): boolean => a[3 * i + 1]! > 0 && Math.abs(a[3 * i]!) < a[3 * i + 1]!;
-    assert.ok(!inside(0) && inside(n - 1), `${id}: starts outside the cava, ends inside it`);
+    assert.ok(!inside(0) && inside(n - 1), `${id}: starts outside ${ostiumHostOf(id)}, ends inside it`);
   }
   assert.match(shaderText(VESSEL_FS), /uniform float cavaCut;/);
   assert.match(shaderText(VESSEL_FS), /if \(cavA < 0\.004\) discard;/);
@@ -266,6 +260,7 @@ test('a vein that opens into the cava takes the cava\'s colour as it nears the w
   const { CelScene } = await import('../src/scene/scene.ts');
   const { indexOf } = await import('../src/engine/vessel-data.ts');
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
+  const { trunkJoin } = await import('../src/scene/disease/host.ts');
   assert.match(shaderText(VESSEL_FS), /vec4 lensOfAt\(float lensIx, float u,/);
   assert.match(shaderText(VESSEL_FS), /base = mix\(base, mix\(mix\(color, la2\.rgb, la2\.a\), mix\(color, lb2\.rgb, lb2\.a\), lensMix\), wB\);/);
   assert.match(shaderText(VESSEL_FS), /fadeHere = mix\(vFade, cavaA, wA\);/, 'the vein comes to the cava\'s opacity at the wall, by its distance from the wall (Mohammad, 20 Nov: both have the same fade at the point of junction)');
@@ -275,7 +270,9 @@ test('a vein that opens into the cava takes the cava\'s colour as it nears the w
   const s = new CelScene();
   try {
     const ref = (id: string) => (s.vesselObject(id)!.toon.uniforms as unknown as { cavaRef: { value: { x: number; y: number } } }).cavaRef.value;
-    for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) { const r = ref(id); assert.equal(r.x, indexOf(B.get('IVC_IS')!.lensId), id); assert.equal(r.y, 1, `${id} joins at the cava's end`); }
+    for (const id of ['RHV_IVC', 'LHV_IVC']) { const r = ref(id); assert.equal(r.x, indexOf(B.get('IVC_IS')!.lensId), id); assert.equal(r.y, 1, `${id} joins at the cava's end`); }
+    // (the middle hepatic vein opens into the common trunk (placed anatomy, round 18): it takes the TRUNK's colour, where on the trunk it joins (disease/host.ts trunkJoin), short of the trunk's own end at the cava)
+    { const r = ref('MHV_IVC'), tj = trunkJoin('MHV_IVC')!; assert.equal(r.x, indexOf(B.get('LHV_IVC')!.lensId), 'MHV_IVC takes the trunk\'s colour'); assert.equal(r.y, tj.u); assert.ok(tj.u > 0.5 && tj.u < 1, `on the trunk's last stretch (${tj.u.toFixed(3)})`); }
     const r = ref('LRV_IVC'); assert.equal(r.x, indexOf(B.get('IVC_IS_1')!.lensId)); assert.equal(r.y, 0);
   } finally { s.dispose(); }
 });

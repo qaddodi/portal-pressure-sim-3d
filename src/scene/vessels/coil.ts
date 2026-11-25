@@ -2,7 +2,7 @@
 // tests compare them with the 2D source when PPS_2D_REPO is set). A collateral coils as it opens (stage-tubes.js: amplitude 1.5 + 3.5 of its opening once
 // past a quarter), the varices' strands fan out as far as their varix is big, and the strands leave and rejoin their trunk (anatomy.js STRANDS).
 import { STRANDS_2D, STRAND_FROM_2D, STRAND_HOLD_2D, STRAND_SOFT_2D, STRAIGHT_COLL_2D, WIG_CAP_2D } from './coil.copied.ts';
-import { EDGE_PATH_2D as TODAY_PATH_2D, PLACED } from '../anatomy/source.ts';
+import { EDGE_PATH_2D as TODAY_PATH_2D } from '../anatomy/source.ts';
 import { PLACED_Z } from '../anatomy/placed-network.ts';
 import { aroundEso, onEso, ESO_VARIX_GAP } from '../anatomy/eso-wall.ts';
 import { UNITS_PER_SCENE, x2d, x3, y2d, y3 } from '../frame2d.ts';
@@ -26,8 +26,8 @@ export function wiggle(pts: readonly P2[], amp: number, seed: number, hold = 0):
     let nx = -(b[1] - a[1]), ny = b[0] - a[0];
     const n = Math.hypot(nx, ny) || 1; nx /= n; ny /= n;
     const u = cum[i]! / L;
-    // (placed: the envelope eases in and out (smoothstep), so the coil starts with no bend of its own at a sixth of the way; the 2D rule's ramp is a corner in its curvature)
-    let env = PLACED ? smooth01(u * 6) * smooth01((1 - u) * 6) : Math.min(1, u * 6, (1 - u) * 6);
+    // (the envelope eases in and out (smoothstep), so the coil starts with no bend of its own at a sixth of the way; the 2D rule's ramp, min(1, 6u, 6(1 - u)), is a corner in its curvature)
+    let env = smooth01(u * 6) * smooth01((1 - u) * 6);
     if (hold) env *= smooth01((u - hold) / (1.4 * hold)) * smooth01((1 - u - hold) / (1.4 * hold));
     const w = wiggleAt(amp, env, cum[i]!, k, seed);
     return [p[0] + nx * w, p[1] + ny * w];
@@ -55,7 +55,7 @@ export function braid(pts: readonly P2[], off: number, u0 = 0, span: readonly [n
     const n = Math.hypot(nx, ny) || 1; nx /= n; ny /= n;
     if (soft) { nx = cx; ny = cy; }
     const s = Math.sin(Math.PI * clamp((i / (pts.length - 1) - u0) / (1 - u0), 0, 1));
-    const o = off * (soft || PLACED ? s * s : s);   // (placed: every strand parts from its trunk tangent to it, sin squared; the sine left it at an angle, a corner where the strand begins)
+    const o = off * s * s;   // (every strand parts from its trunk tangent to it, sin squared; 2D's sine left it at an angle, a corner where the strand begins)
     return [p[0] + nx * o, p[1] + ny * o];
   });
 }
@@ -73,6 +73,10 @@ const VARIX_REST_MM = 2, VARIX_FULL_MM = { VAR: 7, GV: 8 };
 export const varixSize = (site: 'VAR' | 'GV', d: number | undefined): number => (Number.isFinite(d) ? clamp(((d as number) - VARIX_REST_MM) / (VARIX_FULL_MM[site] - VARIX_REST_MM), 0, 1) : 1);
 /** How far the strands fan out from the vessel against their full spread. */
 export const varixSpreadK = (size: number): number => 0.55 + 0.45 * size;
+/** The size a spread stands for (varixSpreadK undone): the eased spread carries the size into the shape (shape.ts ShapeState.spr), so a strand's width follows it without a field or a rebuild of its own. */
+export const varixSizeOfSpread = (spr: number): number => clamp((spr - 0.55) / 0.45, 0, 1);
+/** The diameter (mm) a varix of `size` has (varixSize undone; 1 stands for its full size). */
+export const varixDOfSize = (site: 'VAR' | 'GV', size: number): number => VARIX_REST_MM + size * (VARIX_FULL_MM[site] - VARIX_REST_MM);
 /** How far the varices have grown (store.js varixGrowth): 0 at the 2.5 mm cut-off, 1 at about 5.5 mm; none when absent. */
 export const varixGrowth = (present: boolean, d: number | undefined): number => (present && Number.isFinite(d) ? clamp(((d as number) - 2.5) / 3, 0.2, 1) : 0);
 
@@ -148,11 +152,16 @@ export const WRAP: ReadonlySet<string> = new Set(['C1a']);
 const WRAP_FROM = 0.1;
 /** How the strands part from the trunk and gather again along their stretch: a longer easing than the weave's, so a strand going a third of the way round the tube turns no tighter than the bar (tests/anatomy/smooth.ts). */
 const wrapEnv = (v: number): number => smooth01(v / 0.5) * (1 - smooth01((v - 0.5) / 0.5));
-function wrapEso(base: readonly P2[], z: readonly number[], i: number, n: number, u0: number): { pts: P2[]; dz: number[] } {
+/** How a strand comes out to (or in to) its gap from the wall: over the first and last fifth of its parted stretch, so the whole column lies its own radius off the wall. With the turn's bump (wrapEnv) a strand wider than its trunk reached its gap only half way up and lay in the wall either side of it. */
+const WALL_EASE = 0.2;
+const wallEnv = (v: number): number => smooth01(v / WALL_EASE) * smooth01((1 - v) / WALL_EASE);
+/** How far out from the oesophagus's wall strand `i` of `n` (its 2D width share `k`) lies: shape.ts hands the strand's drawn radius at the present size, so it touches the wall at every size (ESO_VARIX_GAP when none is handed: the widest, at full size). */
+export type WallGap = (i: number, n: number, k: number) => number;
+function wrapEso(base: readonly P2[], z: readonly number[], i: number, n: number, u0: number, gap: number): { pts: P2[]; dz: number[] } {
   const m = base.length - 1, off = (2 * Math.PI * (((i + Math.floor(n / 2)) % n) - Math.floor(n / 2))) / n, dz: number[] = [];
   const pts = base.map((p, j): P2 => {
     const P = [x3(p[0]), y3(p[1]), z[j]!], a = aroundEso(P), v = clamp((j / m - u0) / (1 - u0), 0, 1), e = wrapEnv(v);
-    const th = a.th + e * off, q = onEso(P[1]!, th, a.out + (ESO_VARIX_GAP - a.out) * e);
+    const th = a.th + e * off, q = onEso(P[1]!, th, a.out + (gap - a.out) * wallEnv(v));
     dz.push(e > 0 ? (q[2] - P[2]!) * UNITS_PER_SCENE : 0);
     return e > 0 ? [x2d(q[0]), y2d(q[1])] : p;
   });
@@ -160,13 +169,13 @@ function wrapEso(base: readonly P2[], z: readonly number[], i: number, n: number
 }
 
 /** The 2D course of a collateral (or a liver bed) and its strands at coil `wig` and spread `spr`, as stage-frame.js builds them in the anatomic view. */
-export function coilCourses(id: string, base: readonly P2[], coils: boolean, wig: number, spr: number, pin?: Pin): { main: P2[]; strands: CoilCourse[] } {
-  const live = coilCoursesFree(id, base, coils, wig, spr);
+export function coilCourses(id: string, base: readonly P2[], coils: boolean, wig: number, spr: number, pin?: Pin, gap?: WallGap): { main: P2[]; strands: CoilCourse[] } {
+  const live = coilCoursesFree(id, base, coils, wig, spr, gap);
   if (!pin || (pin[0] <= 0 && pin[1] <= 0)) return live;
   const rest = coilCoursesFree(id, base, coils, 0, 1);
   return { main: pinCourse(live.main, rest.main, pin), strands: live.strands.map((c, i) => ({ ...c, pts: pinCourse(c.pts, rest.strands[i]!.pts, pin) })) };
 }
-function coilCoursesFree(id: string, base: readonly P2[], coils: boolean, wig: number, spr: number): { main: P2[]; strands: CoilCourse[] } {
+function coilCoursesFree(id: string, base: readonly P2[], coils: boolean, wig: number, spr: number, gap?: WallGap): { main: P2[]; strands: CoilCourse[] } {
   const u0 = STRAND_FROM_2D[id] ?? 0;
   let main = base as P2[];
   if (coils) { const wz = wiggle(base, Math.min(wig, WIG_CAP_2D[id] ?? Infinity), id.length); main = u0 ? blendFrom(base, wz, u0) : wz; }
@@ -177,10 +186,10 @@ function coilCoursesFree(id: string, base: readonly P2[], coils: boolean, wig: n
   const strands = rows.map((r, i): CoilCourse => {
     const [off, ph, k, ua, ub] = r as [number, number, number, number?, number?];
     if (wv) {
-      // (placed: a course shorter than the 2D figure's (the varices, half as long) winds at the same pitch, not in the same number of turns: its turns and reach shrink with its length, so it curls no tighter)
-      const kL = PLACED ? Math.min(1, len2(base) / (len2(TODAY_PATH_2D[id] ?? base) || 1)) : 1;
-      const z = PLACED && WRAP.has(id) ? PLACED_Z[id] : undefined;
-      if (z && z.length === base.length) { const w = wrapEso(base, z, i, rows.length, WRAP_FROM); return { pts: w.pts, k, ph, dz: w.dz }; }
+      // (a course shorter than the 2D figure's (the varices, half as long) winds at the same pitch, not in the same number of turns: its turns and reach shrink with its length, so it curls no tighter)
+      const kL = Math.min(1, len2(base) / (len2(TODAY_PATH_2D[id] ?? base) || 1));
+      const z = WRAP.has(id) ? PLACED_Z[id] : undefined;
+      if (z && z.length === base.length) { const w = wrapEso(base, z, i, rows.length, WRAP_FROM, gap ? gap(i, rows.length, k) : ESO_VARIX_GAP); return { pts: w.pts, k, ph, dz: w.dz }; }
       const w = weave(base, wv.reach * sp0 * kL, wv.turns * kL, (2 * Math.PI * i) / rows.length, u0);
       return { pts: u0 ? blendFrom(main, w.pts, u0) : w.pts, k, ph, dz: w.dz };
     }

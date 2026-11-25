@@ -1,4 +1,4 @@
-// Every pressure label on the approved placement (PPS_ANATOMY=placed, `?anatomy=new`) hangs on its own drawn vessel, where that vessel is the one seen. The placed vessels cross in depth, so a dot
+// Every pressure label on the approved placement hangs on its own drawn vessel, where that vessel is the one seen. The placed vessels cross in depth, so a dot
 // chosen only by its distance from the other dots stood under another vessel and its leader pointed at that one: "Lower IVC" on the left portal vein, "Hepatic artery" on the portal vein (the
 // artery's trunk runs behind it, 0.034 from its centreline where the radii make 0.033), "IVC" at the hepatic veins' mouth, "Right sinusoids" at a node nothing drawn marks, and a slide's card
 // at today's 2D place of its node (owner's iPhone, Anatomy and the Circulation deck, 24 Nov). Root: stations.ts `spreadAtRest` and the solver's slides knew the other dots, not the other
@@ -6,8 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-process.env.PPS_ANATOMY = 'placed';
-const { PLACED, placedNode } = await import('../src/scene/anatomy/source.ts');
+const { placedNode } = await import('../src/scene/anatomy/source.ts');
 const { STATIONS, UNSEEN_STATIONS, SEEN_MARGIN, SEEN_BEHIND, nodeAt } = await import('../src/scene/labels/stations.ts');
 const { MAPPED, NETWORK_BY_ID } = await import('../src/scene/vessels/network.ts');
 const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
@@ -56,7 +55,6 @@ function covering(own: NetVessel, p: InstanceType<typeof Vector3>, drawn: (v: Ne
 const BASE = (v: NetVessel) => v.kind !== 'collateral' && v.kind !== 'shunt';
 const ALL = () => true;
 
-test('the switch is on for this file', () => assert.equal(PLACED, true));
 
 test('no station is named twice, and every placed station has a label (none is left without a seen vessel)', () => {
   const ids = STATIONS.map((s) => s.id);

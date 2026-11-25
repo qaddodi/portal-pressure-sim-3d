@@ -2,7 +2,6 @@
 // are the mock's own re-inflated surfaces (held to the frozen vertices, art/anatomy-placement/organsA.json), at their own depth (nothing moves them again), the 2D art and fields laid through each organ's move; the gut is the mock's
 // tubes (the duodenum's funnel from the stomach's cut with no seam, the packed loops, the colon whose rectum end alone fades); the gut draws as one surface (a depth pass, one fill a pixel, the outlines last); the caudate lobe is
 // the mock's egg, hidden until a slide or a case calls for it; and the baked file carries all of it.
-process.env.PPS_ANATOMY = 'placed';
 import type { Object3D } from 'three';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +9,6 @@ import { readFileSync } from 'node:fs';
 import type { BufferGeometry } from 'three';
 
 const R = (p: string) => new URL(`../${p}`, import.meta.url);
-const { PLACED } = await import('../src/scene/anatomy/source.ts');
 const { PLACED_CAUDATE, PLACED_GUT } = await import('../src/scene/anatomy/placement.generated.ts');
 const { ORGAN_MESHES, setOrganData, organsReady } = await import('../src/scene/organs/meshes.ts');
 const { ORGAN_Z, ORGAN_DEPTH } = await import('../src/scene/organs/z.ts');
@@ -30,8 +28,7 @@ await organsReady;
 const FROZEN = JSON.parse(readFileSync(R('art/anatomy-placement/organsA.json'), 'utf8')) as Record<string, number[]>;
 const arr = (g: BufferGeometry, k: string) => g.getAttribute(k).array as ArrayLike<number>;
 
-test('the switch is on in this file, and every organ mesh carries its own depth (ORGAN_Z moves none again)', () => {
-  assert.equal(PLACED, true);
+test('every organ mesh carries its own depth (ORGAN_Z moves none again)', () => {
   assert.deepEqual(INFLATED_IDS.slice().sort(), ['heart', 'heart-ra', 'kidney-l', 'liver', 'spleen', 'stomach']);
   for (const [id, z] of Object.entries(ORGAN_Z)) assert.equal(z, 0, id);
   // a reader that needs the organ's place reads ORGAN_DEPTH: the spleen's own depth (the splenic vein starts there, vessels/network.ts), not ORGAN_Z's 0

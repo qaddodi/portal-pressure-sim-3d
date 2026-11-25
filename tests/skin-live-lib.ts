@@ -130,7 +130,7 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
         const d = Math.min(...segs);
         if (!depth) return d;
         const gap = sd3(axes[arm]!, fragPOf(arm), holdLive ? cs.swell[arm]! : 1) / Math.max(wpc(fragW), 1e-9) * dpr;
-        return d + 2 * kPx * (smooth(ramp[0] * kPx, ramp[1] * kPx, gap) - sub);
+        return d + (smooth(ramp[0] * kPx, ramp[1] * kPx, gap) - sub) * (2 * kPx + Math.max(-d, 0));   // (held out of reach: past the arm's own wall, shaders.ts skinSdPx)
       };
       const sdOf = (depth: boolean, holdLive: boolean, absentIn: boolean, subOverride?: number): number => {
         const live = axes.map((_, i) => arms[i] != null && (absentIn || cs.keep[i]));
@@ -143,8 +143,12 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
           let di = d[i]!; if (m > i + 0.5) di = Math.min(di, d[m]!);
           o = first ? di : smin(o, di, kPx); first = false;
         }
+        // (on a seam ring the outline is the arms' plain minimum, the tubes' own, shaders.ts skinSeamPin)
+        if (seamPin > 0) o += (Math.min(...d) - o) * seamPin;
         return o;
       };
+      let seamW = 0; for (let i = 0; i < n; i++) seamW = Math.max(seamW, raw[i]! * (cs.keep[i] ? 1 : 0));
+      const seamPin = smooth(0.97, 1, seamW);
       const ref = sdOf(false, false, false);   // (the kept arms' union at their live widths: where the vessel is)
       let sd = sdOf(true, !!variant.holdoutLive, !!variant.absentInUnion);
       let wMax = 0; for (let i = 0; i < n; i++) wMax = Math.max(wMax, variant.absentInUnion ? wAt[i]! : raw[i]! * (cs.keep[i] ? 1 : 0));

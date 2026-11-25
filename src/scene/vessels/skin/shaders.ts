@@ -35,13 +35,12 @@ import { VDBG_GLSL } from '../debug-view.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { FADE_GLSL } from '../../materials/shaders.ts';
 import { TUBE_DEPTH_SHARE } from '../shaders.ts';
-import { LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from '../glsl-shared.ts';
+import { HEAD_FORE_MIN, HEAD_FORE_FROM, HEAD_FORE_TO, LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from '../glsl-shared.ts';
 import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
 import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
 import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
 import { CEL_STYLE } from '../../cel-style.ts';
-import { PLACED } from '../../anatomy/source.ts';
 import { MAP_K, MAP_CENTRE, CIRC_C } from '../../circuit/map.ts';
 import { PEEL_DL, PEEL_SPAN } from '../../circuit/peel.ts';
 import { VB_CIRC } from '../../circuit/data.copied.ts';
@@ -66,12 +65,12 @@ export const SKIN_ARM_ABSENT = 0.3;
  *  a pixel a quarter k from an arm already lies in the smooth union of the mesh and was held out of the outline's: the stem's edge was inked inside the fillet, the two lines that ran on into the azygos (Plan 16C, 22 Nov, node numbers: 281 pixels of ink inside the union at the azygos landing, 0 from 1 to 2). */
 export const SKIN_HOLD_FROM_K = 1;
 export const SKIN_HOLD_TO_K = 2;
-/** PLACED: AWAY FROM THE SEAMS, 3 k to 6 k. The ramp above was set on today's flat figure, where every arm of a junction lies within a k of one plane. The approved placement's arms meet with real depth: where a branch opens into its host,
+/** AWAY FROM THE SEAMS, 3 k to 6 k. The ramp above was set on today's flat figure, where every arm of a junction lies within a k of one plane. The approved placement's arms meet with real depth: where a branch opens into its host,
  *  its rim stands in front of the host's wall, as far as 1.6 k (the middle hepatic vein at IVCS), while on the screen it lies inside the host's lumen. From 1 k that rim held the host out of the outline, and the branch's silhouette was inked
  *  across the host: the hepatic confluence's heavy dark lines, 1.1 % of IVCS's lumen drawn as line only (6.7 % at SMV, 3.3 % at PVH, 0.1 % today). On a seam ring the tube's own silhouette decides and the hold-out keeps 1 k to 2 k, because
- *  there it keeps a wall skin's arm from pulling in its host's line (tests/skin-agreement.test.ts). Between them it eases by the seam's weight, the seam pad's own 0.75 to 0.97 (skinHoldSeam). Today both are 1 k to 2 k. */
-export const SKIN_HOLD_FREE_FROM_K = PLACED ? 3 : SKIN_HOLD_FROM_K;
-export const SKIN_HOLD_FREE_TO_K = PLACED ? 6 : SKIN_HOLD_TO_K;
+ *  there it keeps a wall skin's arm from pulling in its host's line (tests/skin-agreement.test.ts). Between them it eases by the seam's weight, the seam pad's own 0.75 to 0.97 (skinHoldSeam). (On the 2D figure both were 1 k to 2 k.) */
+export const SKIN_HOLD_FREE_FROM_K = 3;
+export const SKIN_HOLD_FREE_TO_K = 6;
 /** How many CSS px wider the outline's band is on a seam ring, so the skin never trims a pixel of the silhouette the cut tube no longer covers (the specks along the walls, Mohammad 20 Nov). */
 export const SKIN_SEAM_PAD_PX = 1.5;
 /** A head of an arm's frame is drawn only within that arm's own cylinder: fully inside SKIN_HEAD_LAT_FROM radii of its axis line, gone by SKIN_HEAD_LAT_TO. */
@@ -102,7 +101,8 @@ attribute vec4 weight;   // how much of this vertex belongs to each arm (arms 0 
 attribute vec2 weight2;  // arms 4 and 5
 attribute float restR;   // the blended rest radius here (scene units)
 attribute float sagK;    // the share of the radius this vertex stands out for its facets' chord sag (facet-sag.ts; a seam ring's is the tube's TUBE_SAG)
-${PLACED ? "attribute float tubeShare;   // placed only: how much of the mesh's own normal the shade keeps here, 1 on a seam ring, 0 from SKIN_TUBE_ROWS rows in (exact-normal.ts tubeShareOf)\n" : ''}uniform float inflate;
+attribute float tubeShare;   // how much of the mesh's own normal the shade keeps here, 1 on a seam ring, 0 from SKIN_TUBE_ROWS rows in (exact-normal.ts tubeShareOf)
+uniform float inflate;
 uniform sampler2D vdata;
 uniform vec2 vdataSize;
 uniform float useData;
@@ -187,7 +187,7 @@ void main() {
   vCenW = cc.w;
   vWeight = wA;
   vWeight2 = wB;
-  vRest = vec2(rst, ${PLACED ? 'tubeShare' : '0.0'});
+  vRest = vec2(rst, tubeShare);
   vSwell = vec4(swT[0], swT[1], swT[2], swT[3]);
   vSwell2 = vec2(swT[4], swT[5]);
   // EACH ARM'S FADE AT THIS VERTEX (the junction's seam far out on a fading vein washed the whole skin and drew its neighbour's fork branch as a ghost, 21 Nov): the tube's own fade rule at this vertex's arc along the arm, the arc the flow marks use. An arm whose seam is whole keeps -1: its seam value, as before
@@ -380,11 +380,18 @@ float skinOutsideTrunk(vec2 frag) {
 // Mohammad 22 Nov). In px at the pixel's depth: nothing within SKIN_HOLD_FROM_K (1) k of the arm's wall, all of it from SKIN_HOLD_TO_K (2) k: the fillet spans k.
 // (THE CAPSULE AT REST, NOT AT THE LIVE WIDTH, Mohammad 22 Nov: the collaterals' arms at the azygos were thin spikes. fragP is the lumen's REST surface, a whole radius out, so an arm narrower than its built width (swell 0.53 for C1b, 0.61 for C9) put its own rest
 // surface 1 - swell radii outside itself: held out as if absent. The rest surface is judged against the arm's rest capsule, so the gap is the pixel's own distance to the arm whatever the engine's width is.)
+// ON A SEAM RING THE OUTLINE IS THE TUBE'S OWN (the seam's kink, tests/skin-agreement.test.ts, and the owner's iPhone close-up of the cava: stepped notches in the outline at both of IVCS's seams). The union is the arms' smooth minimum in SCREEN
+// space, held out by depth over a ramp of 1 k to 2 k; a seam ring is only k clear of the other arms in 3D, so a ring 1 k to 2 k from an arm whose silhouette overlaps it on the screen was still pulled into the blend: RHV_IVC_1~F:b's seam
+// 0.59 px inside the tube's own line (the liver branch over the right hepatic vein, 1.37 k behind it), C1b's on SVC 0.52 (over the azygos). Where one arm's raw weight runs from 0.97 to 1 (the seam ring and the last of its row, as the shade's
+// own hand-over, exact-normal.ts skinTubeKeep) the outline eases from the smooth union to the arms' plain minimum: the tubes' own outlines, each as the tube draws it, with no blend. The line and the lumen then run on from the tube on
+// every skin and from every side, and where another arm truly overlaps the ring (in its depth, not held) its lumen still covers the line, as the tubes' do: pinned to the seam arm's own distance instead, the DIPS's ring at the portal fork
+// drew the left portal vein's rim across PVH's lumen again (1.5 %). Main sets it.
+float skinSeamPin = 0.0;
 float skinHoldSeam = 1.0;   // (how near a seam ring this pixel is, 0 to 1: main sets it from the kept arms' raw weights before the outline is judged; the hold-out's ramp eases from the free skin's to the seam's by it)
 float skinArmHeld(int arm, float fragW, vec3 fragP, float kPx) {
   vec3 g3; float r3;
   float gap = skinArmSd3(fragP, arm, 1.0, g3, r3) / max(${wpcGlsl('fragW', 'projY', '1.0')}, 1e-9) * dpr;
-  return ${PLACED ? `smoothstep(mix(${F(SKIN_HOLD_FREE_FROM_K)}, ${F(SKIN_HOLD_FROM_K)}, skinHoldSeam) * kPx, mix(${F(SKIN_HOLD_FREE_TO_K)}, ${F(SKIN_HOLD_TO_K)}, skinHoldSeam) * kPx, gap)` : `smoothstep(${F(SKIN_HOLD_FROM_K)} * kPx, ${F(SKIN_HOLD_TO_K)} * kPx, gap)`};
+  return smoothstep(mix(${F(SKIN_HOLD_FREE_FROM_K)}, ${F(SKIN_HOLD_FROM_K)}, skinHoldSeam) * kPx, mix(${F(SKIN_HOLD_FREE_TO_K)}, ${F(SKIN_HOLD_TO_K)}, skinHoldSeam) * kPx, gap);
 }
 // the outline of the smooth union of the live arms, in device px: negative inside the lumen, 0 on the wall (in arm order, as the mesh's own SDF: sdf.ts sdUnion). Two arms that run THROUGH the node (armCopy.w, through.ts: the trunk above and below
 // a side vein) are united by a plain minimum and count as one: a blend between the halves of one trunk only adds a bulge
@@ -401,7 +408,9 @@ float skinSdPx(float kPx, bool noDepth) {
   float heldOf[${SKIN_ARMS}];
   float heldMin = 1.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) { heldOf[i] = (noDepth || armData[i].x < 0.0 || keepOf(i) < 0.5) ? (noDepth ? 0.0 : 1.0) : skinArmHeld(i, 1.0 / gl_FragCoord.w, vPos, kPx); heldMin = min(heldMin, heldOf[i]); }
-  for (int i = 0; i < ${SKIN_ARMS}; i++) dArm[i] = (armData[i].x < 0.0 || keepOf(i) < 0.5) ? 1.0e9 : skinArmPx(gl_FragCoord.xy, i, swAt(i)) + 2.0 * kPx * (heldOf[i] - heldMin) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i)));
+  // (A HELD ARM IS HELD OUT OF REACH: the push is 2 k past the arm's own wall, not 2 k from where the pixel lies. A pixel deep inside a held arm's silhouette on the screen (a seam drawn over a vessel that crosses it in front or behind) was pushed
+  //  from -24 px only to +13, still inside the blend of k 18.7, and the seam's outline was pulled 0.52 px inside the tube's own: C1b's seam on SVC, over the azygos, tests/skin-agreement.test.ts. Outside an arm's silhouette nothing changes.)
+  for (int i = 0; i < ${SKIN_ARMS}; i++) { if (armData[i].x < 0.0 || keepOf(i) < 0.5) { dArm[i] = 1.0e9; continue; } float a = skinArmPx(gl_FragCoord.xy, i, swAt(i)); dArm[i] = a + (heldOf[i] - heldMin) * (2.0 * kPx + max(-a, 0.0)) + 2.0 * kPx * (1.0 - smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, swAt(i))); }
   float d = 0.0;
   bool first = true;
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
@@ -413,6 +422,7 @@ float skinSdPx(float kPx, bool noDepth) {
     d = first ? di : skinSmin(d, di, kPx);
     first = false;
   }
+  if (skinSeamPin > 0.0) { float hard = 1.0e9; for (int i = 0; i < ${SKIN_ARMS}; i++) if (armData[i].x >= 0.0) hard = min(hard, dArm[i]); d = mix(d, hard, skinSeamPin); }
   return d;
 }
 // WHO OWNS A HEAD (Mohammad, 20 Nov: a chevron cut in two at the fork). A head is drawn in its arm's frame and was weighted by the arm's mesh weight AT THE PIXEL, so where the ownership of the skin changes across a head, the head was cut along the line.
@@ -461,10 +471,10 @@ void main() {
   // pixels beside each other are dropped (back faces, the ink band, the presence dither), the marks of the pixels that stay came out as clusters of blocky, wrongly coloured specks (Mohammad, 20 Nov: green and navy specks at every junction, gone with ?joins=nomarks)
   float vLen = length(vV);
   vec3 viewDir = vLen > 1e-6 ? vV / vLen : vec3(0.0, 0.0, 1.0);
-  float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}], fwLn[${SKIN_ARMS}];
+  float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}], fwLn[${SKIN_ARMS}], latA[${SKIN_ARMS}], awLat[${SKIN_ARMS}], sHa[${SKIN_ARMS}], pxH[${SKIN_ARMS}], endA[${SKIN_ARMS}];
   vec3 sideA[${SKIN_ARMS}], headA[${SKIN_ARMS}], tJA[${SKIN_ARMS}];
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
-    sIa[i] = 0.0; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; fwLn[i] = 0.0; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0); tJA[i] = vec3(1.0, 0.0, 0.0);
+    sIa[i] = 0.0; latA[i] = 0.0; awLat[i] = 0.03; sHa[i] = 0.0; pxH[i] = 0.0; endA[i] = 0.0; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; fwLn[i] = 0.0; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0); tJA[i] = vec3(1.0, 0.0, 0.0);
     if (armData[i].x < 0.0) continue;
     vec3 toJ = armAxisP[i * ${SKIN_AXIS_PTS} + 1].xyz - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;   // (toward the node along the straight line through the seam)
     float tl = length(toJ);
@@ -478,6 +488,19 @@ void main() {
     sideA[i] = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
     acA[i] = clamp(dot(n, sideA[i]), -1.0, 1.0);
     pxA[i] = fwidth(sIa[i]);
+    // THE HEAD'S SECOND AXIS, SQUARE TO ITS FIRST (Mohammad, 24 Nov: chevrons at the hepatic veins' join twist, stretch to slivers, flip and pop). The arc above runs along the STRAIGHT seam line (tJ); the place across used to be measured from the
+    // nearest of the arm's three BENT segments (skinArmLat), so the two axes were not square wherever the chain bends: the head sheared to a sliver, turned each time the nearest segment changed and jumped across at the switch. Now the place across is the
+    // pixel's offset from that SAME straight axis, along the view-square side direction, over the arm's live radius: one orthogonal frame, equal to the tube's own across on the seam ring, continuous everywhere.
+    vec3 relH = mat3(modelViewMatrix) * (vPos - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz);
+    latA[i] = dot(relH, sideA[i]) * SKIN_U / max(armArc[i].w * swAt(i), 1e-4);
+    awLat[i] = max(fwidth(latA[i]), 0.03);
+    // and its arc on the SCREEN too (the tube's rule, shared: HEAD_FORE_*): the offset's projection on the arm's screen heading over its foreshortening, so a skin on a tilted arm bows no head and meets the tube's at the seam
+    vec3 tvS = headL > 1e-6 ? headA[i] / headL * armArc[i].y : vec3(0.0);   // (the arm's heading toward the node, in view space)
+    float hxyS = length(tvS.xy);
+    float fS = clamp(hxyS, ${F(HEAD_FORE_MIN)}, 1.0);
+    sHa[i] = armArc[i].x + armArc[i].y * dot(relH.xy, tvS.xy) / (fS * fS) * SKIN_U;
+    pxH[i] = fwidth(sHa[i]);
+    endA[i] = smoothstep(${F(HEAD_FORE_FROM)}, ${F(HEAD_FORE_TO)}, hxyS);
     awA[i] = max(fwidth(acA[i]), 0.03);
     fwLn[i] = fwidth(acA[i] * 0.5 + 0.5);   // (the lane lens's edge softness, as the tube's lensAcrossFw)
   }
@@ -535,6 +558,7 @@ void main() {
   float kPx = skinK / max(wpcAx / SKIN_U, 1e-9) * dpr;
   float wMax = 0.0;
   for (int i = 0; i < ${SKIN_ARMS}; i++) wMax = max(wMax, rawW(i) * keepOf(i));   // (the raw weights of the arms that are THERE: wAt renormalises them, so an absent arm's seam ring read as a kept arm's weight 1 and the band stayed wide there)
+  skinSeamPin = smoothstep(0.97, 1.0, wMax);
   skinHoldSeam = smoothstep(0.75, 0.97, wMax);
   float sdPx = skinSdPx(kPx, false);
   // NEAR A SEAM THE TUBE'S OWN SILHOUETTE DECIDES, NOT THE OUTLINE'S APPROXIMATION OF IT (the black and brown specks along the walls at every junction: they are the background, a pixel or two of the seam's edge that the band
@@ -606,12 +630,11 @@ void main() {
     if (vR > 0.0) {
       // (a head is sized by the ARM's own radius, never by the pixel's: the skin's radius at a pixel blends the arms' radii, so near a node it can be wider than this arm's lumen, and a head sized to it was wider than the lumen it lay in,
       // met the wall and was faded to a ghost: Mohammad, 24 Nov, the pale head on the portal vein under the hepatic artery's leader)
-      float vRH = min(vR, rOwn * swAt(i));
+      float vRH = rOwn * swAt(i);
       // (and its place across is the pixel's lateral from the arm's live axis, which is the tube's own across wherever the pixel lies: the normal-based one is true only inside the arm's cylinder, so a head carried past the seam into the
       // trunk beside it was sheared and cut to a crescent at a vein's mouth: Mohammad, 24 Nov, the left gastric vein)
-      float rPxH;
-      float latH = skinArmLat(gl_FragCoord.xy, i, swAt(i), rPxH);
-      vec4 hI = flowHeads(clamp(latH, -1.0, 1.0), acrossW, sI, Lw, vRH, wpcM, pxI, lensI, armFlowAt(i), 1.0, laArm[i], lbArm[i], armColor[i].rgb, base);
+      float latH = latA[i];
+      vec4 hI = flowHeads(clamp(latH, -1.0, 1.0), awLat[i], sHa[i], Lw, vRH, wpcM, pxH[i], lensI, armFlowAt(i), endA[i], laArm[i], lbArm[i], armColor[i].rgb, base);
       if (hI.a > 0.002) {
         vec3 seamP = armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;
         // (the pixel's lateral from the arm's LIVE axis, the bent chain J - start - seam - far the mesh itself is built on, in lumen units: skinArmLat. It was the distance to the straight line through the seam, which a bending vessel

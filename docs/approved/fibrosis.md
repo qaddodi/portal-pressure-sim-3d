@@ -32,3 +32,6 @@ analytic band (cv-band.ts: opaque tan ring, polygonal edge, glow collar) is reti
 - A stipple or speckle (two overlapping bands tying in the arrival times).
 - Braids or cords, a 3D look, dark worms.
 - Cutting septa or tracts off at the hexagon line.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

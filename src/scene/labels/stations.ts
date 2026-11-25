@@ -3,9 +3,9 @@
 // Words and priorities are copied; only the 3D anchors are written here. The vessels are the scene's (anatomy/vessels.ts), named by
 // topology edge, so a station whose vessel is not drawn yet simply has no label (a test lists them).
 import { CatmullRomCurve3, Vector3 } from 'three';
-import { NETWORK_BY_ID, NODE_Z, MAPPED, type NetVessel } from '../vessels/network.ts';
+import { NETWORK_BY_ID, MAPPED, type NetVessel } from '../vessels/network.ts';
 import { REST, coursesOf } from '../vessels/shape.ts';
-import { NODE_POS_2D, PLACED, placedNode, placedEdge, PLACED_ORGAN_NAMES } from '../anatomy/source.ts';
+import { placedNode, placedEdge, PLACED_ORGAN_NAMES } from '../anatomy/source.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { LABEL_NAMES as N } from './names.copied.ts';
 import type { Dir } from './geometry.ts';
@@ -67,27 +67,18 @@ export const curveOf = (edge: string): CatmullRomCurve3 | null => {
   return c;
 };
 
-/** Fixed scene points for stations that are not one vessel: the right atrium, the right liver's sinusoids, the varices and the fundal varices. Where each stands is the 2D
- *  figure's own place for it (NODE_POS_2D), carried onto the scene by the one map (frame2d.ts), at the depth the vessels that meet there are drawn at (nodeZ): a
- *  dot put on the front tier hung 0.4 to 0.8 of a unit in front of the atrium's back-tier cava, which a turned camera shows as a dot off its vessel. An organ's name stands where the 2D app puts it (ORGAN_LABELS, copied), on the organ's front face. */
+/** Fixed scene points for stations that are not one vessel: the right atrium, the right liver's sinusoids, the varices and the fundal varices. An organ's name stands at the placed organ's
+ *  name anchor, on its front face. */
 const at2d = (x: number, y: number, z: number): [number, number, number] => [x3(x), y3(y), z];
-/** The depth of a topology node: where the drawn vessels that meet there stand (NODE_Z: each course eases to it over its end, shape.ts), so the dot sits on the tubes in a turned view. */
-export function nodeZ(id: string): number {
-  const z = NODE_Z.get(id);
-  if (z === undefined) throw new Error(`no drawn vessel ends at ${id}`);
-  return z;
-}
-/** Where a topology node stands in the scene, as the figure draws it now (the approved placement's node, or the 2D place at its vessels' depth). Every reader of a node's place reads it here. */
+/** Where a topology node stands in the scene, as the figure draws it: the approved placement's node (where its vessels that meet there end, anatomy/placed-bounds.ts). Every reader of a node's place reads it here. */
 export const nodeAt = (id: string): [number, number, number] => {
-  if (PLACED) { const p = placedNode(id); if (!p) throw new Error(`no placed node ${id}`); return [p[0], p[1], p[2]]; }   // (the approved placement: where its vessels that meet there end, anatomy/placed-bounds.ts)
-  return at2d(NODE_POS_2D[id]![0], NODE_POS_2D[id]![1], nodeZ(id));
+  const p = placedNode(id); if (!p) throw new Error(`no placed node ${id}`); return [p[0], p[1], p[2]];
 };
-/** A point station's place: its node, and on the approved placement the nearest point of the drawn vessels the 2D app lights for it (TARGETS), so the dot is on a tube: the placed fundal varices' node is
+/** A point station's place: its node, and the nearest point of the drawn vessels the 2D app lights for it (TARGETS), so the dot is on a tube: the placed fundal varices' node is
  *  the mean of the ends that meet there, 0.042 off the gastric varix drawn through it (2.2 px off its edge on a phone). */
 const ON_PLACED = 0.015;
 function pointAt(id: string): [number, number, number] {
   const p = nodeAt(id);
-  if (!PLACED) return p;
   let best: [number, number, number] = p, bd = Infinity;
   for (const e of TARGETS_FIG[id]?.edges ?? []) {
     const def = NETWORK_BY_ID.get(e);
@@ -107,16 +98,13 @@ const POINTS: Record<string, [number, number, number]> = { RA: pointAt('RA'), SI
 export const ORGAN_FRONT = 0.26;
 /** Every organ the 2D app names (ORGAN_LABELS): its id here, and the word the 2D plate writes. */
 const ORGAN_WORD: Record<string, string> = { liver: 'Liver', spleen: 'Spleen', stomach: 'Stomach', colon: 'Colon', kidney: 'Kidney', bowel: 'Small bowel', esophagus: 'Esophagus', heart: 'Right atrium' };
-/** Where an organ's name stands, 2D world units: the 2D plate's place, or on the approved placement a point inside the placed organ's front silhouette nearest it (or beside the organ as the
- *  2D name stands beside it), measured once by scripts/gen-placed-organs.mjs. */
-const organAt = (word: string): readonly [number, number] | undefined => {
-  if (PLACED) { const p = PLACED_ORGAN_NAMES[word]; return p && [p[0], p[1]]; }
-  return (N.ORGAN_AT as Record<string, readonly [number, number]>)[word];
-};
+/** Where an organ's name stands, 2D world units: a point inside the placed organ's front silhouette nearest the 2D plate's place (or beside the organ as the 2D name stands beside it),
+ *  measured once by scripts/gen-placed-organs.mjs. */
+const organAt = (word: string): readonly [number, number] | undefined => { const p = PLACED_ORGAN_NAMES[word]; return p && [p[0], p[1]]; };
 const ORGAN_POINTS: Record<string, [number, number, number]> = Object.fromEntries(Object.entries(ORGAN_WORD).map(([id, word]) => {
   const p = organAt(word);
   if (!p) throw new Error(`the 2D app has no organ name "${word}"`);
-  return [id, at2d(p[0], p[1], PLACED ? PLACED_ORGAN_NAMES[word]![2] : ORGAN_FRONT)];   // (placed: on the organ's own front face, which has real depth now)
+  return [id, at2d(p[0], p[1], PLACED_ORGAN_NAMES[word]![2])];   // (on the organ's own front face, which has real depth)
 }));
 
 const DIRS: Record<string, readonly Dir[]> = {
@@ -156,7 +144,7 @@ function organStation(id: string): Station {
 /** Every station the figure has (before the rest places are chosen: a placed station whose vessel is nowhere seen is left out below). */
 /** (the approved placement: the right sinusoids' dot rests on their drawn bed, as the left sinusoids' does, not at the node where the bed's pieces meet, which nothing drawn marks: "Right sinusoids" on
  *  the liver with a leader ending nowhere, Circulation slides 8 and 10, 24 Nov) */
-const ON_VESSEL: ReadonlySet<string> = new Set(PLACED ? ['SIN_R'] : []);
+const ON_VESSEL: ReadonlySet<string> = new Set(['SIN_R']);
 const ALL_STATIONS: Station[] = [
   ...Object.keys(lv).filter((id) => (!(id in POINTS) || ON_VESSEL.has(id)) && !!names[id]).map(vesselStation).filter((s): s is Station => !!s),
   ...['RA', 'SIN_R', 'VAR', 'GV'].filter((id) => !ON_VESSEL.has(id)).map(pointStation).filter((s): s is Station => !!s),
@@ -165,15 +153,14 @@ const ALL_STATIONS: Station[] = [
 
 /** The least distance between two stations' dots at rest, scene units (about 40 px on a phone: solver.ts DOT_ROOM; a laptop's figure is larger, so its dots are farther apart still). */
 export const DOT_UNITS = 0.3;
-const U_TRIES = [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.18, 0.82, 0.1, 0.9];
 
-/** SEEN (the approved placement, `?anatomy=new`): a dot rests only where its own vessel is the one the eye sees there. The placed vessels cross in depth (the hepatic artery runs behind the
+/** SEEN: a dot rests only where its own vessel is the one the eye sees there. The placed vessels cross in depth (the hepatic artery runs behind the
  *  portal vein along its whole trunk, 0.034 from its centreline where the two radii make 0.033; the lower cava passes behind the left portal vein, the hepatic veins' mouths and the portal trunk;
  *  the IVC's first tenth is the hepatic veins' mouth), so a dot chosen only by its distance from the other dots stood under another vessel and its leader pointed at that one ("Lower IVC" on the
  *  left portal vein, "Hepatic artery" on the portal vein, "IVC" at the veins' mouth; owner's iPhone, 24 Nov). In the front view (the plane the figure is read in) the dot keeps clear of every other
  *  vessel's centreline by both radii and SEEN_MARGIN: first of every vessel the figure can draw (the collaterals and shunts a preset adds), else of the ones always drawn. A station with no such
  *  spot on its vessel rests on the next vessel the 2D app lights for it (the hepatic artery's trunk is nowhere seen: its name stands on its right branch), and with none has no label, as a vessel
- *  not drawn has none. Today's flat figure keeps its approved rest places (its crossings are lifted by the clearance table, shape.ts). */
+ *  not drawn has none. */
 export const SEEN_MARGIN = 0.012;
 const SEEN_US = Array.from({ length: 45 }, (_, i) => 0.06 + i * 0.02).sort((a, b) => Math.abs(a - 0.5) - Math.abs(b - 0.5) || a - b);
 interface Seg { ax: number; ay: number; az: number; bx: number; by: number; bz: number; r: number; base: boolean; host: string }
@@ -219,7 +206,7 @@ const REST_STEPS = 100;
     if (s.kind === 'organ') continue;
     const apart = (p: Vector3) => dots.every((q) => Math.hypot(q.x - p.x, q.y - p.y) >= DOT_UNITS);
     const nearest = (p: Vector3) => (dots.length ? Math.min(...dots.map((q) => Math.hypot(q.x - p.x, q.y - p.y))) : Infinity);
-    if (s.slides && PLACED) {
+    if (s.slides) {
       // its own vessel, else the other vessels the 2D app lights for it (TARGETS: the hepatic artery's are its trunk and its right and left branches), where it is seen
       let best = -1, bestK = -1, bestEdge = s.vessel!;
       // (its own vessel first; failing that, the seen spot of the others nearest the middle of its own, where the 2D app puts the name)
@@ -243,15 +230,6 @@ const REST_STEPS = 100;
       const v = NETWORK_BY_ID.get(s.vessel!)!, ok: boolean[] = [];
       for (let i = 0; i <= REST_STEPS; i++) { s.at(i / REST_STEPS, tmp); ok.push(seenAt(v.host, v.radius, tmp.x, tmp.y, tmp.z) > 0); }
       s.rests = (u) => ok[Math.round(Math.min(1, Math.max(0, u)) * REST_STEPS)]!;
-    } else if (s.slides) {
-      let best = s.u0, bestD = -1;
-      for (const u of U_TRIES) {
-        s.at(u, tmp);
-        if (apart(tmp)) { best = u; bestD = Infinity; break; }
-        const d = nearest(tmp);
-        if (d > bestD) { best = u; bestD = d; }
-      }
-      s.u0 = best;
     }
     dots.push(s.at(s.u0, new Vector3()));
   }

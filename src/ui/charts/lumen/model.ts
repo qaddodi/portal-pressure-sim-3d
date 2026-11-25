@@ -89,6 +89,9 @@ export function lumenOf(params: LumenParams | null | undefined, id: string): Lum
   return { stenosis: st, thrombus: th, occlusion, open: 1 - occlusion, stent: STENTS.has(id) };
 }
 
+/** The thrombus a vessel had in the params of an earlier slide (tool.was), or null when it had none: the picture's dashed ghost of what has gone. */
+export const ghostThrombus = (params: unknown, id: string): number | null => { const t = lumenOf(params as LumenParams | null | undefined, id).thrombus; return t >= 0.05 ? t : null; };
+
 /** The picture in a 100-unit box: the wall's outer edge R, the lumen inside any narrowing (ri), a clot rising from the lower wall to a height of clot × the lumen's diameter. */
 export const LUMEN_R = 46, LUMEN_WALL = 5;
 export function lumenShape({ stenosis = 0, thrombus = 0 }: { stenosis?: number; thrombus?: number }) {

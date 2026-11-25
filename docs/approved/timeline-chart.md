@@ -83,3 +83,6 @@ Mohammad, 24 Nov: "when it expands it doesn't animate transition." Root cause: t
 - Every event row ends in a chevron (the atlas's `ic-chev-down`, 16 px, quiet grey): down while shut, turning up (and to the text colour) while its details are open, eased over the small duration. Rows are otherwise as before. Every device.
 - Rejected: a raised fill on each event (B), a blue "Details" word (C).
 - Cut-offs on the stiffness, platelet, flow, pressure, varix and encephalopathy lanes stay (Mohammad, 24 Nov: "Do it we can remove if it sucks").
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

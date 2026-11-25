@@ -14,7 +14,7 @@ import { Eased } from './follow.ts';
 /** The ring's depth: the plane the bleed leaves the varix in (disease/bleed.ts STREAM_Z), in front of the organs; the ring draws over everything of the figure by its order, not by depth. */
 export const RING_Z = 0.36;
 /** How long the ring takes to come in and go (an eased fade, ms) and its dashes to close into the solid ring when its lens opens: tau of the ease, seconds. */
-export const SHOW_TAU = 0.14, OPEN_TAU = 0.1;
+export const SHOW_TAU = 0.14, OPEN_TAU = 0.1, CENTRE_TAU = 0.16;
 /** The quad's half side in 2D units: the ring, the badge beyond it and their halos. */
 const HALF = 28;
 
@@ -90,6 +90,11 @@ export class ScopeRing {
   private mesh: Mesh;
   private shown = new Eased(0, SHOW_TAU, 0.004);
   private solid = new Eased(0, OPEN_TAU, 0.004);
+  /** The ring's centre in 2D units: the scope rule's (RING) at rest, the tear's while a varix bleeds (capture 52ef8e63: the ring stood up the esophagus and the "Bleeding varix" words at the tear, 26 units apart); it eases between them. */
+  private cx = new Eased(RING.x, CENTRE_TAU, 0.02);
+  private cy = new Eased(RING.y, CENTRE_TAU, 0.02);
+  private gx = RING.x;
+  private gy = RING.y;
   private want = false; private open = false;
   private fade = 1;
   private readonly c = new Vector3();
@@ -119,17 +124,24 @@ export class ScopeRing {
   set(on: boolean, open: boolean): void { this.want = on; this.open = open; }
   /** The body's dissolve (the dive, the Circuit): 1 whole. */
   setFade(f: number): void { this.fade = f; this.sync(); }
+  /** Where the ring stands (2D units; null: the scope rule's place). It glides there. */
+  setCentre(at: readonly [number, number] | null): void { this.gx = at ? at[0] : RING.x; this.gy = at ? at[1] : RING.y; }
+  /** The ring's centre now, 2D units. */
+  centre(): readonly [number, number] { return [this.cx.value, this.cy.value]; }
   /** Eases on the clock (dt in seconds); true while it moves. */
   step(dt: number, instant = false): boolean {
     const a = this.shown.to(this.want ? 1 : 0, dt, instant), b = this.solid.to(this.want && this.open ? 1 : 0, dt, instant);
+    // (a ring that is not showing goes to its place at once: nothing to see move)
+    const c = this.cx.to(this.gx, dt, instant || this.shown.value < 0.01), d = this.cy.to(this.gy, dt, instant || this.shown.value < 0.01);
     this.sync();
-    return a || b;
+    return a || b || c || d;
   }
   private sync(): void {
     const a = this.shown.value * this.fade;
     this.mesh.visible = a > 0.003;
     this.mat.uniforms.uAlpha!.value = a;
     this.mat.uniforms.uSolid!.value = this.solid.value;
+    (this.mat.uniforms.uC!.value as Vector3).set(x3(this.cx.value), y3(this.cy.value), RING_Z);
   }
   /** How much of the ring shows now, 0..1 (the tap is taken only while it shows). */
   get alpha(): number { return this.shown.value * this.fade; }
@@ -137,8 +149,8 @@ export class ScopeRing {
    *  it returns a new point), `cameraRight` the camera's right axis in the world. Null when it is not on the screen. */
   screen(project: (p: Vector3, out: { x: number; y: number }) => { x: number; y: number }, toWorld: (p: Vector3) => Vector3, cameraRight: Vector3, out: ScopeRingScreen): ScopeRingScreen | null {
     const s = this.group.parent ? this.group.parent.matrixWorld.getMaxScaleOnAxis() : 1;
-    const wc = toWorld(this.c.set(x3(RING.x), y3(RING.y), RING_Z));
-    const bd = badgeAt(), wb = toWorld(this.c.set(x3(bd.x), y3(bd.y), RING_Z));
+    const wc = toWorld(this.c.set(x3(this.cx.value), y3(this.cy.value), RING_Z));
+    const bd = badgeAt(), wb = toWorld(this.c.set(x3(bd.x + this.cx.value - RING.x), y3(bd.y + this.cy.value - RING.y), RING_Z));
     const a = project(wc, this.pa), b = project(wb, this.pb);
     // (the radii: where a point one radius along the camera's right lands, so the figure's turn and its zoom both count)
     const r = project(this.e.copy(wc).addScaledVector(cameraRight, (RING.r / U) * s), this.pr), r2 = project(this.e.copy(wc).addScaledVector(cameraRight, (BADGE_R / U) * s), this.pr2);

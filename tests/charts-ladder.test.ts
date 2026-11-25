@@ -127,3 +127,13 @@ test('the copied files are what the 2D app gives (the script says so), and the r
   assert.equal(ladderEntry.status, 'done');
   assert.ok(ladderEntry.specimens.length >= 3);
 });
+
+// Capture af88a9c2, Same gradient 7: High inflow read 18 (wedge) and 5 (hepatic vein) with an HVPG of 12. The printed readings close: wedge = hepatic vein + the HVPG as printed.
+test('a ladder strip\'s wedge reading closes on its hepatic vein and its HVPG', async () => {
+  const { closedLabels } = await import('../src/ui/charts/ladder/model.ts');
+  const p = { v: [23, 19, 19, 17.5, 8, 5.4, 5.2, 4], hvpg: 12.1, eus: 0, ppg: 14 };
+  const l = closedLabels(p);
+  assert.equal(l[3], '17');   // 5 + 12, not the 18 that 17.5 rounds to
+  assert.equal(Number(l[3]) - Number(l[5]), Math.round(p.hvpg));
+  assert.deepEqual(closedLabels({ ...p, v: [23, 19, 19, 17.2, 8, 5.4, 5.2, 4], hvpg: 11.8 }).slice(3, 6), ['17', '8', '5']);
+});

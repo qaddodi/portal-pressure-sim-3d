@@ -8,7 +8,7 @@ import { ORGAN_MESHES, setOrganData } from '../src/scene/organs/meshes.ts';
 import { CameraRig, DIVE_RATIO, blendPose } from '../src/scene/camera/rig.ts';
 import { SHOTS } from '../src/scene/camera/shots.ts';
 import { bodyFade, lobuleCorners, sinusoidCorners, DIVE_IN, DIVE_OUT } from '../src/scene/scene.ts';
-import { LIVER_2D, LIVER_POINT, LOBULE_SCALE, SIN_POINT, SIN_SCALE, liver2d, lobuleWorld } from '../src/scene/lobule/frames.ts';
+import { LIVER_2D, LIVER_POINT, LOBULE_SCALE, SIN_POINT, SIN_SCALE, liver2d, lobuleWorld, placedLiverPoint } from '../src/scene/lobule/frames.ts';
 import { lobuleShot, sinusoidShot, LOBULE_R, LOBULE_T } from '../src/scene/lobule/shots.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
 
@@ -22,9 +22,11 @@ test('the lobule stands inside the right lobe of the liver, and the sinusoid ins
   const inside = (p: readonly number[], pad = 0) => p[0]! > bb.min.x + pad && p[0]! < bb.max.x - pad && p[1]! > bb.min.y + pad && p[1]! < bb.max.y - pad;   // (in the picture's plane; the lobule's depth LIVER_Z -0.15 is behind the artist's thin relief, which runs -0.06 to 0.26: owner's call, see the hand-off)
   assert.ok(inside(LIVER_POINT, 0.05), 'the place is well inside the liver');
   for (const c of lobuleCorners()) assert.ok(inside(c), 'every corner of the lobule box is inside the liver');
-  // the shared 2D frame: the place is a point of the 2D figure, and maps back to it
-  assert.ok(Math.abs(x3(LIVER_2D.x) - LIVER_POINT[0]) < 1e-12 && Math.abs(y3(LIVER_2D.y) - LIVER_POINT[1]) < 1e-12);
-  assert.ok(Math.abs(liver2d().x - LIVER_2D.x) < 1e-9 && Math.abs(liver2d().y - LIVER_2D.y) < 1e-9);
+  // the shared 2D frame: the place is a point of the figure, and maps back to it. (Restated for the placed anatomy, the only one now: the place is found by name
+  // on the placed courses, placedLiverPoint, not the old 2D plate's constant LIVER_2D; liver2d is still its exact image in the 2D frame.)
+  const want = placedLiverPoint();
+  assert.ok(Math.abs(want[0]! - LIVER_POINT[0]) < 1e-12 && Math.abs(want[1]! - LIVER_POINT[1]) < 1e-12);
+  assert.ok(Math.abs(x3(liver2d().x) - LIVER_POINT[0]) < 1e-9 && Math.abs(y3(liver2d().y) - LIVER_POINT[1]) < 1e-9);
   // the sinusoid's box is inside the lobule's slab
   const lo = lobuleWorld([-LOBULE_R, -LOBULE_R, -LOBULE_T / 2]), hi = lobuleWorld([LOBULE_R, LOBULE_R, LOBULE_T / 2]);
   for (const c of sinusoidCorners()) for (let i = 0; i < 2; i++) assert.ok(c[i]! > lo[i]! && c[i]! < hi[i]!, `sinusoid corner axis ${i} inside the lobule`);

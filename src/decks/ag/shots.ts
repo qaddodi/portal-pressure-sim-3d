@@ -5,7 +5,7 @@ import { x3, y3 } from '../../scene/frame2d.ts';
 import type { Shot } from '../../scene/camera/shots.ts';
 import { lobuleShot } from '../../scene/lobule/index.ts';
 import { NODE_POS_2D, EDGE_PATH_2D } from '../../scene/anatomy/source.ts';
-import { REGIONS_2D, CIRC_REGIONS_2D, PLACED, box2Of, centreOf, type Box3 } from '../../scene/anatomy/source.ts';
+import { REGIONS_2D, CIRC_REGIONS_2D, box2Of, centreOf, type Box3 } from '../../scene/anatomy/source.ts';
 import { box3Of, placedFitBox } from '../rw/cams.ts';
 import type { CopiedSlide } from './types.ts';
 
@@ -87,19 +87,12 @@ export function shotOfCam(cam: unknown, view?: string, zone?: string): ShotSpec 
     return { kind: 'circuit', name: typeof cam === 'string' ? cam : typeof zone === 'string' ? zone : 'fit', box };
   }
   if (isLobuleCam(cam)) return { kind: 'lobule', name: cam, cam };
-  if (cam == null || cam === 'fit') return PLACED ? placedSpec('fit', placedFitBox()) : { kind: 'body', name: 'fit', box: FIT_BOX, shot: shotOfBox(FIT_BOX) };
-  if (PLACED && typeof cam === 'object' && !Array.isArray(cam) && Array.isArray((cam as { on?: unknown }).on)) return placedSpec('on', box3Of(cam) ?? placedFitBox());
-  if (typeof cam === 'object' && !Array.isArray(cam) && Array.isArray((cam as { on?: unknown }).on)) {
-    const c = cam as { on: string[]; near?: string };
-    const base = c.near ? regionBox(c.near) : null;
-    const { boxes } = namedBoxes(c.on);
-    const box = growBox(base, boxes.length ? union(boxes) : null, 24) ?? FIT_BOX;
-    return { kind: 'body', name: 'on', box, shot: shotOfBox(box) };
-  }
+  if (cam == null || cam === 'fit') return placedSpec('fit', placedFitBox());
+  if (typeof cam === 'object' && !Array.isArray(cam) && Array.isArray((cam as { on?: unknown }).on)) return placedSpec('on', box3Of(cam) ?? placedFitBox());
   const box = regionBox(cam);
   if (!box) throw new Error(`the camera ${JSON.stringify(cam)} names no region of the 2D figure`);
   const name = typeof cam === 'string' ? cam : isBox(cam) ? 'box' : (cam as string[]).join('+');
-  if (PLACED) { const b3 = box3Of(cam); if (b3) return placedSpec(name, b3); }
+  const b3 = box3Of(cam); if (b3) return placedSpec(name, b3);
   return { kind: 'body', name, box, shot: shotOfBox(box) };
 }
 

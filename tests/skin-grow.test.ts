@@ -6,8 +6,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Group, type Object3D } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
-import { JOINT_REACH_R } from '../src/scene/vessels/network.ts';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { GROW_REACH, GROWER_KINDS, dropFarGrowers, findSkinJunctions, isGrower, isPermanent, isLiverBranch, withoutGrowers } from '../src/scene/vessels/skin/inventory.ts';
@@ -25,13 +23,6 @@ import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 
 const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(true); try { return f(); } finally { setSmoothJoins(was); } };
 
-/** The growing arms of each node as the network's own rule gives them on 20 Nov 2026 (node -> `vessel:end`, widest first): every single-tube collateral and shunt that lands on a node with a permanent run-on pair or junction. Pinned, so a vessel added to or taken from the network is seen here. */
-const GROWERS_TODAY: Record<string, readonly string[]> = {
-  SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'],
-  IVCI: ['S_PC:1', 'C9:0'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
-  // (the braids' roots where the strands leave the node as one bundle: ONE stand-in arm, braid-arm.ts, tests/skin-strands.test.ts)
-  SV: ['C2:0'], IMV: ['C4:0'], SMV_R: ['C7:0'],
-};
 /** The collaterals drawn as BRAIDS of strands (plan.strands): no tube of their own, three or six strands that part from the node and each end at the trunk's width, so at the node they are a bundle of identical overlapping tubes, not a branch. The ends where the strands leave the node as ONE bundle are arms of its skin (braid-arm.ts); the others keep today's fork method (tests/skin-strands.test.ts names both). */
 const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 /** The growing arms a skin could not take on the real network (`node:vessel`), each for a reason a person can read: a landing on a host's wall (GROW_REACH), or an arm that runs along another (the surface cannot clear the blend: SVD's S_DSR and LRV_S's S_DSR run along C6). */
@@ -43,8 +34,7 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 // (21 Nov: PVH:DIPS and SVD:S_DSR drop on the integration branch as built here (the surface folds at a triangle; 3 seam loops for 4 arms) though their commits say welded: named, for the shunts threads to look at. wall:PVH_L_1:REX1 stays flared: REX meets the left portal vein at 36 degrees, its lower seam needs 6 radii of a host 10.7 long and LPV_A's skin has the first 2.5; a merged skin needs a seam-less capsule for the cut-away host, mesh.ts)
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
 // (21 Nov: IVC_D's DIPS is a welded static full-size arm of its node: its end lies 2.29 radii from J, inside ATTACH_NEAR_R (2.6) that a node made a junction by its growing arm alone allows (inventory.ts dropFarGrowers), so it no longer lands on IVC_IS's wall (that virtual node had no ring that clears the blend on the short stub between IVCS and IVC_D). PVH's end of DIPS stays flared and named: no ring of the 4-radius stub PVH_R clears it.)
-const DROPPED_TODAY = ['IVCI:C9', 'IVCI:S_PC', 'PVH:DIPS', 'RHV_T:TIPS', 'wall:PVH_L_1:REX1:REX'];
-/** THE PLACED ARRANGEMENT (PPS_ANATOMY=placed, anatomy/placed-network.ts WHERE EACH END OPENS), judged by the same rules. The growing arms by the network's node names: the left portal vein is one vessel there with no fork, so the umbilical vein
+/** The growing arms of each node on THE PLACED ARRANGEMENT (anatomy/placed-network.ts WHERE EACH END OPENS), every single-tube collateral and shunt that lands on a node with a permanent run-on pair or junction, pinned so a vessel added to or taken from the network is seen here. The growing arms by the network's node names: the left portal vein is one vessel there with no fork, so the umbilical vein
  *  and the meso-Rex meet its end, LPV. */
 const GROWERS_PLACED: Record<string, readonly string[]> = {
   SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], LPV: ['REX:1', 'C3:0'],
@@ -55,8 +45,8 @@ const GROWERS_PLACED: Record<string, readonly string[]> = {
  *  splenorenal shunt runs 16 to 22 degrees beside the distal one, so it opens at SV and on the renal vein's wall), IVCI:C9 and IVCI:S_PC (their wall skin on the cava, as today), LPV:C3 and LPV:REX (the LPV's end fades, so the umbilical
  *  vein and the Meso-Rex bypass open on its wall where the placement draws them: one wall skin). None keeps the tube's flared end: the TIPS is welded at both ends (RHV_SPLIT 10). */
 const DROPPED_PLACED = ['IVCI:C9', 'IVCI:S_PC', 'LPV:C3', 'LPV:REX', 'LRV_S:C6', 'SV:C2', 'SVD:C6'];
-const GROWERS = PLACED ? GROWERS_PLACED : GROWERS_TODAY;
-const DROPPED = PLACED ? DROPPED_PLACED : DROPPED_TODAY;
+const GROWERS = GROWERS_PLACED;
+const DROPPED = DROPPED_PLACED;
 /** Placed: the growing arms every skin is built with, welded static full-size arms (the wall skins on the cava, the iliac and the renal vein, wall.ts; the short gastric veins on SVD's skin and the spontaneous splenorenal shunt on SV's, wall.ts nearLandings). */
 const WELDED_PLACED: Record<string, readonly string[]> = {
   IMV: ['C4:0'], SV: ['C6:0'], SVD: ['S_DSR:0', 'C2:0'], LRV_S: ['S_DSR:1'], EPI: ['C3:1'], SVC: ['C1b:1'], SMV: ['S_MC:0', 'REX:0'], IVC_D: ['DIPS:1'], SMV_R: ['C7:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'],
@@ -137,15 +127,10 @@ test('the real network builds the growing arms it can as STATIC full-size arms, 
     assert.deepEqual([...b.set.dropped].sort(), DROPPED);
     for (const d of DROPPED) assert.ok(b.set.why[d] === undefined || /^skin: junction /.test(b.set.why[d]!), `${d}: named with its SkinBuildError message`);
     const grown = new Map(b.draws.map((d) => [nodeOf(d), meshOf(b, d).junction.arms.filter((a) => a.grow).map(armKey)]));
-    const want: Record<string, string[]> = {};
-    for (const [n, gs] of Object.entries(GROWERS)) { const kept = gs.filter((g) => !DROPPED.includes(`${n}:${g.split(':')[0]}`)); if (kept.length) want[n] = kept; }
-    // (the landings on a host's wall that build as static full-size arms, wall.ts: C3 within 2.6 R of the left portal vein's node, S_MC on the iliac beside IVCI, the azygos pair on their own virtual node)
-    want.LPV_A = ['C3:0']; want.IVCI = ['S_MC:1']; want['wall:AZY_SVC:C1b1'] = ['C1b:1'];   // (the lumbar vein runs on into the arch's start, Plan 16D: only the varices land on its wall)
-     want['wall:IVC_IS_1:S_PC1,C90'] = ['S_PC:1', 'C9:0'];   // (S_PC and C9 land 5.9 and 8.9 radii up the cava from IVCI: their wall node and IVCI's skin abut on one seam ring, cuts.ts)
     const got = Object.fromEntries([...grown].filter(([, g]) => g.length));
-    assert.deepEqual(got, PLACED ? WELDED_PLACED : want);
+    assert.deepEqual(got, WELDED_PLACED);
     assert.deepEqual(grown.get('IVC_D'), ['DIPS:1'], 'IVC_D: DIPS is a static full-size growing arm of its node');
-    for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'IVC_D', ...(PLACED ? ['SVC_E', 'SVC'] : ['SVC_E+SVC'])]) assert.ok(grown.has(n), `${n} still has its skin`);
+    for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'IVC_D', 'SVC_E', 'SVC']) assert.ok(grown.has(n), `${n} still has its skin`);
   } finally { done(b); }
 });
 
@@ -177,7 +162,7 @@ test('IMV builds with the varices\' bundle C4 as a growing arm 25 degrees from V
     assert.ok(!b.set.dropped.includes('IMV:C4'), 'C4 is not dropped at IMV');
     const m = b.set.skinOf('IMV')!;
     // (placed: the colic vein is the wider of the two, so it is the first permanent arm, the widest first)
-    assert.deepEqual(m.junction.arms.map(armKey), PLACED ? ['V_COL:1', 'V_IMV:0', 'C4:0'] : ['V_IMV:0', 'V_COL:1', 'C4:0'], 'IMV: its two permanent arms, then the bundle');
+    assert.deepEqual(m.junction.arms.map(armKey), ['V_COL:1', 'V_IMV:0', 'C4:0'], 'IMV: its two permanent arms, then the bundle');
     assert.ok(m.junction.arms[2]!.grow);
     assert.equal(foldedTriangles(m.position, m.normal, m.index).length, 0, 'no fold');
     const dir = new Map<number, number>();
@@ -368,7 +353,6 @@ test('the growth morph is gone: no second shape in the mesh, no growth uniform, 
 
 test('a collateral that ends off the joint of the trunks at its node (the epigastric pair\'s fillet moves the V\'s joint 12 px off the umbilicus) ends ON the joint: the umbilical vein is an arm of the epigastric skin, welded, not flared', () => {
   on(() => {
-    assert.ok(2 * JOINT_REACH_R >= GROW_REACH, 'network.ts cannot import the inventory (it imports the network): an end the joint rule moves is one the skin could not take as an arm');
     const epi = findSkinJunctions().find((j) => j.node === 'EPI')!, c3 = epi.arms.findIndex((a) => a.vesselId === 'C3');
     assert.ok(c3 >= 0, 'C3 is an arm of EPI');
     const d = dropFarGrowers(epi);
@@ -378,17 +362,6 @@ test('a collateral that ends off the joint of the trunks at its node (the epigas
     const end = c3plan.base[c3plan.base.length - 1]!, roots = fan.list.filter((f) => Math.hypot(f.pts[0]![0] - end[0], f.pts[0]![1] - end[1]) < 0.01);
     assert.ok(roots.length >= 1, 'a tributary of the caput fan starts on the umbilical vein\'s moved end');
   });
-});
-
-test('REX on the left portal vein (absent in Healthy) never moves the seams of the left portal vein\'s own skin: the arms that stay are the plain trunk, drawn whenever REX is not whole', { skip: PLACED && 'placed: the left portal vein has no fork skin (LPV_A), and the meso-Rex landing on it is the shunts-placed thread\'s' }, () => {
-  const b = built();
-  try {
-    const lpv = b.set.skinOf('LPV_A')!, cut = (id: string): number => lpv.cuts[lpv.junction.arms.findIndex((a) => a.vesselId === id)]!.ring;
-    assert.ok(!lpv.junction.arms.some((a) => a.vesselId === 'REX'), 'REX is no arm of the skin (a merged one pushed the seams of PVH_L_1 and its branch from rings 12 and 9 to 14 and made the plain skin a big washed-out one)');
-    assert.ok(cut('PVH_L_1') <= 12 && cut('PVH_L_1~F:b') <= 9, `PVH_L_1 seam ${cut('PVH_L_1')}, branch seam ${cut('PVH_L_1~F:b')}`);
-    assert.ok(lpv.junction.arms.some((a) => a.vesselId === 'PVH_L_1~F:b'), 'the branch keeps its fork weld');
-    assert.ok(b.set.dropped.includes('wall:PVH_L_1:REX1:REX'), 'REX keeps the tube\'s own flared end, named');
-  } finally { done(b); }
 });
 
 test('a growing arm that is not there never holds back the weld of the one beside it: S_PC closed (dotted) with C9 whole welds the lower cava\'s wall skin (Budd-Chiari: C9 ended in a flat cap with no join)', () => {

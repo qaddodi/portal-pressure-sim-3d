@@ -4,8 +4,8 @@
 // seen face-on, and the scene's room solver pulls back until it fits the room the cards leave. Nothing here is a drawing.
 import type { Shot } from '../../scene/camera/shots.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
-import { REGIONS_HP as REGIONS, CIRC_REGIONS_HP as CIRC_REGIONS, PLACED, box2Of, centreOf, type Box3 } from '../../scene/anatomy/source.ts';
-import { boxOf as boxOfOn, camProblems as onProblems, box3Of, placedFitBox } from '../rw/cams.ts';   // (the by-name camera { on: [names], near }: one implementation, shared by every deck)
+import { REGIONS_HP as REGIONS, CIRC_REGIONS_HP as CIRC_REGIONS, box2Of, centreOf, type Box3 } from '../../scene/anatomy/source.ts';
+import { camProblems as onProblems, box3Of, placedFitBox } from '../rw/cams.ts';   // (the by-name camera { on: [names], near }: one implementation, shared by every deck)
 import type { CopiedSlide } from './types.ts';
 
 export type Box = readonly [number, number, number, number];
@@ -66,29 +66,26 @@ export function camPlan(cam: CopiedSlide['cam'], view?: string | null): CamPlan 
     return { kind: 'circuit', name: typeof cam === 'string' ? cam : 'box', box: b };
   }
   if (cam == null) return camPlan(DEFAULT_CAM);
-  if (cam === 'fit') return PLACED ? placedBody('fit', placedFitBox()) : { kind: 'body', name: 'fit', box: PLATE, shot: boxToShot(PLATE) };
+  if (cam === 'fit') return placedBody('fit', placedFitBox());
   if (typeof cam === 'string' && /^(lobule|sinusoid)/.test(cam)) {
     if (!(LOBULE_CAMS as readonly string[]).includes(cam)) throw new CamError(`no lobule camera "${cam}"`);
     const name = cam as LobuleCam;
     return { kind: 'lobule', name, shot: name === 'sinusoid' ? sinusoidShot() : lobuleShot(name) };
   }
   if (typeof cam === 'string') {
-    const b = REGIONS[cam];
-    if (!b) throw new CamError(`no region "${cam}"`);
-    return PLACED ? placedBody(cam, box3Of(cam)!) : { kind: 'body', name: cam, box: b, shot: boxToShot(b) };
+    if (!REGIONS[cam]) throw new CamError(`no region "${cam}"`);
+    return placedBody(cam, box3Of(cam)!);
   }
-  if (isBox(cam)) return PLACED ? placedBody('box', box3Of(cam)!) : { kind: 'body', name: 'box', box: cam, shot: boxToShot(cam) };
+  if (isBox(cam)) return placedBody('box', box3Of(cam)!);
   if (cam && typeof cam === 'object' && !Array.isArray(cam) && Array.isArray((cam as { on?: unknown }).on)) {
     const bad = onProblems(cam as never);
     if (bad.length) throw new CamError(`camera ${JSON.stringify(cam)}: ${bad.join('; ')}`);
-    if (PLACED) { const b3 = box3Of(cam); return b3 ? placedBody('on', b3) : camPlan('fit'); }
-    const b = boxOfOn(cam as never) as Box | null;
-    return b ? { kind: 'body', name: 'on', box: b, shot: boxToShot(b) } : camPlan('fit');
+    const b3 = box3Of(cam);
+    return b3 ? placedBody('on', b3) : camPlan('fit');
   }
   if (isNames(cam)) {
-    const boxes = cam.map((n) => { const b = REGIONS[n]; if (!b) throw new CamError(`no region "${n}"`); return b; });
-    const b = unionBox(boxes);
-    return PLACED ? placedBody(cam.join('+'), box3Of(cam)!) : { kind: 'body', name: cam.join('+'), box: b, shot: boxToShot(b) };
+    for (const n of cam) if (!REGIONS[n]) throw new CamError(`no region "${n}"`);
+    return placedBody(cam.join('+'), box3Of(cam)!);
   }
   throw new CamError(`a camera is a region, a box, a list of regions, 'fit' or a lobule camera, not ${JSON.stringify(cam)}`);
 }

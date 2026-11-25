@@ -3,9 +3,10 @@
 // Node only: the real network. Run: node --test tests/varices-one-segment.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { NETWORK_BY_ID, SEGMENT_OF, collateralOpen, recruitFrac, sameSegment, type PresenceFrame } from '../src/scene/vessels/network.ts';
+import { NETWORK_BY_ID, RUN_ONS, SEGMENT_OF, collateralOpen, recruitFrac, sameSegment, type PresenceFrame } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf, strandOpen, BANDED_CORD } from '../src/scene/vessels/shape.ts';
 import { SMOOTH } from '../src/scene/vessels/smooth-joins.ts';
+import { aroundEso } from '../src/scene/anatomy/eso-wall.ts';
 import { CIRCUIT_MATES } from '../src/scene/circuit/mates.ts';
 import { WEAVE, weave } from '../src/scene/vessels/coil.ts';
 import { EDGES } from '../src/engine/hales/portal/topology.js';
@@ -58,22 +59,23 @@ test('the two halves meet as one vessel at their station: no round cap, live wid
   assert.equal(a.mate[0] === 'C1b' || b.mate[1] === 'C1a', false);
 });
 
-test('the varices\' strands are woven: they cross over and under each other, in depth as well as across, and gather again into one vein at both ends', () => {
+test('the varices\' strands surround the oesophagus: they part round its wall, never run through each other, and gather again into one vein at both ends', () => {
+  // (Mohammad, 24 Nov: "varices should be surrounding the esophagus". On the 2D figure the strands were a flat braid that changed lateral order and crossed over and under; on the placed anatomy they part round the
+  //  oesophagus' wall (anatomy/eso-wall.ts), one in front and two round its sides to the back, so they no longer cross: what they must do is spread round the wall and stay apart.)
   setSmoothJoins(true);
   const v = NETWORK_BY_ID.get('C1a')!, cs = coursesOf(v, { ...REST, strandsOn: true }).filter((c) => c.radius > 0);
   assert.equal(cs.length, 3);
   const n = cs[0]!.pts.length;
-  // (laterally ordered strands change order along the course: they cross; and where two of them cross they are a tube apart in depth, one over the other)
-  const order = (i: number) => cs.map((c, k) => [k, c.pts[i]![0]] as const).sort((p, q) => p[1] - q[1]).map((p) => p[0]).join('');
-  const orders = new Set<string>(); for (let i = Math.round(n * 0.3); i < Math.round(n * 0.7); i++) orders.add(order(i));
-  assert.ok(orders.size >= 3, `the lateral order of the strands changes along the weave (${[...orders].join(' ')})`);
-  let over = 0;
-  for (let i = 1; i < n; i++) for (let a = 0; a < 3; a++) for (let b = a + 1; b < 3; b++) {
-    const A = cs[a]!, B = cs[b]!, d0 = A.pts[i - 1]![0] - B.pts[i - 1]![0], d1 = A.pts[i]![0] - B.pts[i]![0];
-    if (d0 * d1 < 0 && Math.abs(A.pts[i]![1] - B.pts[i]![1]) < 0.02) { over++; assert.ok(Math.abs(A.pts[i]![2] - B.pts[i]![2]) > A.radius * 0.8, 'at a crossing one strand is over the other, not through it'); }
+  let span = 0, nearest = Infinity;
+  for (let i = Math.round(n * 0.3); i < Math.round(n * 0.7); i++) {
+    const th = cs.map((c) => aroundEso(c.pts[i]!).th).sort((a, b) => a - b);
+    const gaps = th.map((t, k) => (k < th.length - 1 ? th[k + 1]! - t : th[0]! + 2 * Math.PI - t));
+    span = Math.max(span, 2 * Math.PI - Math.max(...gaps));
+    for (let a = 0; a < 3; a++) for (let b = a + 1; b < 3; b++) { const A = cs[a]!.pts[i]!, B = cs[b]!.pts[i]!; nearest = Math.min(nearest, Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]) / (cs[a]!.radius + cs[b]!.radius)); }
   }
-  assert.ok(over >= 3, `strands cross at least three times (${over})`);
-  // (the winding is eased to nothing at both ends: the three strands start together and end together)
+  assert.ok(span * 180 / Math.PI >= 150, `the strands spread round the oesophagus (${(span * 180 / Math.PI).toFixed(0)} degrees round its wall)`);
+  assert.ok(nearest >= 1, `in the middle of their run no two strands run through each other (closest ${nearest.toFixed(2)} of their two radii)`);
+  // (the parting is eased to nothing at both ends: the three strands start together and end together)
   for (const i of [0, n - 1]) for (const c of cs) for (let k = 0; k < 3; k++) assert.ok(Math.abs(c.pts[i]![k]! - cs[0]!.pts[i]![k]!) < 1e-6, 'the strands gather into one vein at the ends');
 });
 
@@ -130,12 +132,16 @@ test('the segment meets the coronary vein and the azygos at their own width, wha
   setSmoothJoins(true);
   const r = (c: { radius: number; taper?: readonly [number, number]; taperSpan?: readonly [number, number] }, u: number) => c.radius * factorSpan(c.taper ?? [1, 1], c.taperSpan ?? [0.3, 0.3], u);
   const lgv = coursesOf(NETWORK_BY_ID.get('LGV_CONF')!, REST)[0]!, azy = NETWORK_BY_ID.get('AZY_SVC')!.radius;
+  // (the end of the coronary vein that runs on into the varices, from the run-on table: its end on today's figure, its START on the placed anatomy, where it runs from the cardia down to the portal vein; reading u = 1 there compared the strands with
+  //  the coronary vein's far end, at the portal vein, the cause of 'a strand starts as wide as the coronary vein ends: 0.0140 vs 0.0100')
+  const ro = RUN_ONS.find((x) => (x.a === 'LGV_CONF' && x.b === 'C1a') || (x.b === 'LGV_CONF' && x.a === 'C1a'));
+  const lgvEnd: 0 | 1 = ro ? ((ro.a === 'LGV_CONF' ? ro.ia : ro.ib) as 0 | 1) : 1;
   for (const bands of [0, 1, 2, 3, 4]) for (const spr of [0.55, 0.7, 1]) {
     const st = { ...REST, bands, spr, strandsOn: true };
     const strands = coursesOf(NETWORK_BY_ID.get('C1a')!, st).filter((c) => c.radius > 0), c1b = coursesOf(NETWORK_BY_ID.get('C1b')!, st)[0]!;
     const here = `bands ${bands}, spread ${spr}`;
     for (const c of strands) {
-      assert.ok(Math.abs(r(c, 0) - r(lgv, 1)) < 1e-9, `a strand starts as wide as the coronary vein ends (${here}): ${r(c, 0)} vs ${r(lgv, 1)}`);
+      assert.ok(Math.abs(r(c, 0) - r(lgv, lgvEnd)) < 1e-9, `a strand starts as wide as the coronary vein ends (${here}): ${r(c, 0)} vs ${r(lgv, lgvEnd)}`);
       assert.ok(Math.abs(r(c, 1) - r(c1b, 0)) < 1e-9, `and ends as wide as the azygos' drain begins, the station inside the segment (${here})`);
     }
     assert.ok(Math.abs(r(c1b, 1) - azy) < 1e-9, `the drain meets the azygos at its width (${here}): ${r(c1b, 1)} vs ${azy}`);
@@ -143,5 +149,5 @@ test('the segment meets the coronary vein and the azygos at their own width, wha
   // (the tube is not capped there either: the other tube covers the join)
   const strands = coursesOf(NETWORK_BY_ID.get('C1a')!, { ...REST, strandsOn: true }).filter((c) => c.radius > 0);
   for (const c of strands) assert.deepEqual([...(c.capless ?? [])], [true, true]);
-  assert.deepEqual([...(lgv.capless ?? [])][0], true);
+  assert.deepEqual([...(lgv.capless ?? [])][lgvEnd], true);
 });

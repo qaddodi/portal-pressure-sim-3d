@@ -29,3 +29,6 @@ Rejected: A "wraps the gut" (a pelvic funnel), C "full belly" (a wide basin); th
 Tests: `tests/ascites-cavity.test.ts`; `tests/ascites-hull-integration.test.ts` (the floor is six bands under the placed anatomy). Side by side: `/mnt/project-files/ascites-new-anatomy-24nov/before-mock-built.png` and `overlay-mock-vs-built.png` (built vs picked mock: 11 units at most), headless node renders from the app's own code.
 
 Floor ruling (25 Nov, Mohammad on capture 349aee92: "make the ascites start a little bit higher place? its initial base a bit higher, just a bit lower than the rectum basically"): the floor's lowest point is 14 units under the rectum (`FLOOR_PAD` 12, it was 40, so 42 under). Only the floor rose; the wall, the bow, the flare, the surface and the depth are as above. Test: `tests/ascites-cavity.test.ts` (6 to 25 units under the rectum). Side by side: `/mnt/project-files/ascites-new-anatomy-24nov/floor-before-after.png`.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

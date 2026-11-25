@@ -169,6 +169,15 @@ export const REVIEWER_24NOV_B = [
   P('two-inflows', 'slides.relation.notes', 'at the end of the lines, a normal liver with the vein closed keeps 71% with the buffer and 38% without.', 'the lines end at this patient\'s own values, 79% with the buffer and 44% without; a normal liver with the vein closed would keep 71% and 38%.'),
 ];
 
+/** The hepatic artery's resistive index (Mohammad, 25 Nov 2026: "mention and show hepatic artery resistive index"): the Doppler tile shows it (src/ui/tests/doppler/model.ts, HA_RI 0.55 to 0.80); the talk names it. Applied to the copied deck by scripts/apply-ha-ri.mjs. */
+export const HA_RI_REVIEW = [
+  APPEND('two-inflows', 'slides.dual.notes', 'The resistive index, RI = (peak systolic − end-diastolic velocity) / peak systolic, measures that low resistance; the usual hepatic artery value is 0.55 to 0.80.'),
+  APPEND('two-inflows', 'slides.clot.line', 'The dilated artery offers less resistance, so its resistive index falls below the usual 0.55 to 0.80.'),
+  APPEND('two-inflows', 'slides.clot.notes', 'On the Doppler the resistive index, (peak systolic − end-diastolic velocity) / peak systolic, falls below the usual 0.55 to 0.80 as the buffer dilates the arterioles and diastolic flow rises.'),
+  APPEND('two-inflows', 'slides.artery.notes', 'With no arterial signal the resistive index cannot be read. In a graft that still has flow, a high index early after transplant or a low one (under 0.5) with a slow systolic upstroke (tardus parvus) calls for a look at the artery.'),
+  APPEND('two-inflows', 'slides.cirr.notes', 'The Doppler gives the artery\'s resistive index beside its velocity; the usual hepatic artery range is 0.55 to 0.80, and in real cirrhosis a high index tracks stiff, advanced disease.'),
+];
+
 /** The third reviewer report (Hales Engine 3252079e, 440 x 736, 24 Nov 2026): words that say what the model's values show (reduces, not clears; the share of portal blood that bypasses the liver), a cardiac contribution not a proof, Doppler findings as this case's, and no volume grades. Applied by scripts/apply-reviewer-edits.mjs to the copies. */
 const BYPASS_NOTE = 'In the model the ascites falls to 0.6 L at two months; it is reduced, not gone. The 28% is the flow through the sinusoids, not the share of portal blood that bypasses the liver: that share is the shunt fraction, 92% here.';
 export const REVIEWER_24NOV_C = [
@@ -288,6 +297,51 @@ export const CAPTURE_6EC6D323 = [
   P('stiffness', 'slides.spleen.line', 'The dashed outline is a normal spleen.', 'The thin outline is a normal spleen.'),
 ];
 
+// ---- capture af88a9c2 / 2b947e48 slide review (25 Nov 2026) ----
+export const CAPTURE_AF88A9C2 = [
+  // the clot slides name the junction, the right hepatic vein and the wedge, show the full clot, and read both ends of each line off the chart
+  SET('prehepatic', 'slides.relation.labels', ['CONF', 'RHV', 'SIN_R']),
+  SET('prehepatic', 'slides.relation.params', { thrombus: { PV_TRUNK: 1 } }),
+  SET('prehepatic', 'slides.relation.tool.ends', true),
+  SET('two-inflows', 'slides.relation.params', { thrombus: { PV_TRUNK: 1 } }),
+  SET('two-inflows', 'slides.relation.tool.ends', true),
+  // the carvedilol slide quotes the EVL-alone varix on its chart
+  SET('next-bleed', 'slides.held.tool.refs', [{ line: 'varix', from: 'slough', text: 'EVL alone' }]),
+  SET('treatment', 'slides.relation.tool.title', 'HVPG on the drug by HVPG before it'),
+  SET('gastric-varices', 'slides.tips.cam', 'fit'),
+  SET('variceal-bleed', 'slides.path.mark', { edges: ['C1a', 'C1b'], label: 'Banded varices', kind: 'treat' }),
+  SET('two-inflows', 'slides.artery.mark', [{ edges: ['A_HEP'], label: 'Clot' }, { organ: 'liver', label: 'Sinusoidal flow {liver}', kind: 'note' }]),
+  // the lobule two years after cure can be set against the lobule before it (the same cure's two states, on the slide's own camera)
+  SET('cause-treated', 'slides.year2-lobule.compare', [{ label: 'Two years after', short: 'After', own: true }, { label: 'Before the cure', short: 'Before', preset: 'csph' }]),
+  // the right atrium's reading is on the figure already: the cardiac output note repeated the instrument
+  DROP('tips-complete', 'slides.heart.mark'),
+];
+
+/** Capture 52ef8e63 (24 Nov 2026): the figure carries the numbers and places the slide's words are about. */
+export const CAPTURE_52EF8E63 = [
+  // Landmark 12: the slide is about litres; the figure carried none
+  SET('landmark-trials', 'slides.covered.mark', { organ: 'ascites', label: 'Ascites {asc}' }),
+  // Tipping 6: the 12.4 on the card is the HVPG; the figure now reads it at the hepatic vein
+  SET('tipping', 'slides.nocsph.mark', { edges: ['RHV_IVC'], label: 'HVPG {hvpg}' }),
+  // TIPS complete 3: the four points on the figure, two places (the bleed's three, the ascites)
+  // Variceal bleed 3: "blood pressure has fallen only slightly" needs the pressure on the monitor beside the heart rate
+  SET('variceal-bleed', 'slides.tear.tool.bp', true),
+  // Choose treatment 6: the thrombus that has resolved is drawn as the dashed outline of what the slide before had (its 60%)
+  SET('choose-treatment', 'slides.a3-lumen.tool.was', 'a3'),
+  SET('tips-complete', 'slides.indications.ghostStent', true),   // (the slide asks when to place a stent: the stent in the figure is drawn as a ghost, capture 52ef8e63 #17)
+  SET('tips-complete', 'slides.indications.marks', [{ edges: ['C1a'], label: 'Bleed: preemptive, rescue, salvage' }, { organ: 'ascites', label: 'Ascites: elective' }]),
+];
+
+/** Capture 15c31759 (24 Nov 2026, Mohammad: "do all review findings"). */
+export const CAPTURE_15C31759 = [
+  // Two lesions 5 ran the congestion 60 days, still easing (right atrium 26.7), and slide 9 holds the same two lesions at 90 (26.2): the same state read two numbers. Both now stand at the 90-day state.
+  SET('two-lesions', 'slides.both.days', 90),
+  // Two lesions 9 teaches "measure the IVC and right atrial pressures beside the gradients": the figure named the right atrium and the hepatic vein only
+  // slide 9 is slide 5's patient: one state, one set of numbers (the engine's restoreStep), not the same lesions reached by another history
+  SET('two-lesions', 'slides.together.sameAs', 'both'),
+  SET('two-lesions', 'slides.measure.labels', ['CONF', 'RHV', 'IVCS', 'RA']),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -393,12 +447,16 @@ export const SOURCE_PATCHES = [
   // ---- the TIPS Doppler deck, review of 23 Nov 2026 (capture 5f2dbfd3). The same patches are also applied to the copied file by scripts/apply-tips-doppler-review.mjs, so the copy and a re-copy agree. ----
   ...TIPS_DOPPLER_REVIEW,
   ...VARICES_REVIEW,
+  ...HA_RI_REVIEW,
   ...REVIEWER_24NOV,
   ...REVIEWER_24NOV_B,
   ...REVIEWER_24NOV_C,
   ...REVIEWER_24NOV_D,
   ...REVIEWER_24NOV_E,
   ...CAPTURE_6EC6D323,
+  ...CAPTURE_AF88A9C2,
+  ...CAPTURE_52EF8E63,
+  ...CAPTURE_15C31759,
 ];
 
 function step(node, key) {
@@ -439,6 +497,9 @@ export function sourceEdits(json, patches = SOURCE_PATCHES) {
 // Same rule as the talks: Baveno VIII is the only guideline named on screen. The generators of those files call uiTextEdits() on the text they are about to write
 // (gen-ui-strings, copy-about, copy-presenter, copy-b11, copy-chart-catalog, copy-chart-path). About's reference list keeps its citations (a citation is not guidance).
 const UI_EDITS = [
+  // (the dye was taken out of the 3D app, 24 Nov 2026, docs/approved/dye.md: its shortcut row and its sentence in the Blood help go)
+  [' Tap a vessel and use Inject dye on its card (or press J; hold for longer) to watch dye travel and split.', ''],
+  ['  {\n   "group": "Run the model",\n   "keys": "J",\n   "what": "Inject dye (hold for longer)"\n  },\n', ''],
   ['the directly measured portosystemic gradient (AASLD 2024).', 'the directly measured portosystemic gradient.'],
   ['The presentations follow Baveno VIII (J Hepatol, 2026), with AASLD guidance where US practice differs, for example the vasoactive drug and the antibiotic in variceal bleeding.', 'The presentations follow Baveno VIII (J Hepatol, 2026). Where it is silent, for example on doses, the speaker notes name the source.'],
   ['Baveno VIII consensus on portal hypertension (2026); AASLD guidance on risk stratification and management of portal hypertension and varices in cirrhosis (2024). Thresholds', 'Baveno VIII consensus on portal hypertension (2026). Thresholds'],

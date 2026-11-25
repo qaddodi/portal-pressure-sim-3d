@@ -16,7 +16,6 @@ import { useSelection } from './selection.ts';
 import { cardFor, type Card, type Verb } from './cards.ts';
 import { sameSnap, snapOf, type Snap, type VerbSnap } from './snap.ts';
 import { appAct } from './act.ts';
-import { injectDye, releaseDye } from './dye.ts';
 import { panelFor, headFor } from './panels.ts';
 import { currentParams, updateParams, useParamsTick } from './params.ts';
 import { envNow } from './env.ts';
@@ -120,28 +119,18 @@ function VerbView({ card, v, vs, index, setRef }: { card: Card; v: Verb; vs: Ver
         </div>
       );
     case 'panel': { const View = panelFor(v.id ?? 'stent'); return View ? <div className="ac-panel"><View id={card.edge ?? ''} /></div> : null; }
-    case 'button': case 'dye': case 'link':
+    case 'button': case 'link':
       return (
-        <button type="button" className={`ac-btn${v.type === 'button' && v.danger ? ' danger' : ''}${v.type === 'button' && v.quiet ? ' quiet' : ''}${v.type === 'dye' ? ' ac-dye' : ''}`} aria-label={v.label ?? undefined} title={vs.note || v.label || undefined}
-          {...(v.type === 'dye' ? dyeHandlers : { onClick: () => v.run(appAct) })}>
+        <button type="button" className={`ac-btn${v.type === 'button' && v.danger ? ' danger' : ''}${v.type === 'button' && v.quiet ? ' quiet' : ''}`} aria-label={v.label ?? undefined} title={vs.note || v.label || undefined}
+          onClick={() => v.run(appAct)}>
           {v.icon && <OrderIcon n={v.icon} className="ac-ic" />}<span className="ac-bl">{v.short || v.label}</span>
         </button>
       );
   }
 }
 
-/** The dye button (2D card.js): a press of the pointer holds the dye going until it lifts; a key press (no pointer, detail 0) gives one bolus. */
-let dyeHeld = false;
-const dyeUp = () => { if (dyeHeld) { dyeHeld = false; releaseDye(); } };
-const dyeHandlers = {
-  onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => { if (e.button > 0) return; dyeHeld = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* no capture */ } injectDye({ hold: true }); },
-  onPointerUp: dyeUp, onPointerCancel: dyeUp, onLostPointerCapture: dyeUp,
-  onClick: (e: React.MouseEvent) => { if (e.detail === 0) injectDye({}); },
-  onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
-};
-
 const kindOf = (v: Verb): 'read' | 'about' | 'ctl' | 'act' | 'panel' => v.type === 'read' || v.type === 'stat' ? 'read' : v.type === 'about' ? 'about' : v.type === 'panel' ? 'panel'
-  : v.type === 'button' || v.type === 'dye' || v.type === 'link' ? 'act' : 'ctl';
+  : v.type === 'button' || v.type === 'link' ? 'act' : 'ctl';
 
 function Face({ card, onKeys, onDetails }: { card: Card; onKeys: (list: (() => void)[]) => void; onDetails: (() => void) | null }) {
   const snap = useSnap(card);
@@ -156,7 +145,7 @@ function Face({ card, onKeys, onDetails }: { card: Card; onKeys: (list: (() => v
       if (!snap.verbs[i]!.show) return;
       if (v.type === 'slider') list.push(() => inputs.current.get(i)?.focus());
       else if (v.type === 'toggle') list.push(() => updateParams((p) => { v.set(p, !snap.verbs[i]!.on); return p; }, { label: `${v.hist || v.label} ${snap.verbs[i]!.on ? 'off' : 'on'}` }));
-      else if (v.type === 'button' || v.type === 'dye') list.push(() => v.run(appAct));
+      else if (v.type === 'button') list.push(() => v.run(appAct));
     });
     onKeys(list.slice(0, 9));
     const ri = verbs.findIndex((v, i) => v.type === 'button' && v.id === 'remove' && snap.verbs[i]!.show);

@@ -52,7 +52,7 @@ test('every instrument module and the talk\'s charts are on the ladder, in the l
 
 test('every instrument program in the ?gl list is compiled by the ladder, or named as not needing it; the sources are the ?gl list\'s', async () => {
   const raw = rawPrograms(FIBRO);
-  const scene = /^(circuit|dye|skin|vessel|clot|organ|blood|post|lobule|bleed)/;
+  const scene = /^(circuit|skin|vessel|clot|organ|blood|post|lobule|bleed)/;
   const instruments = raw.filter((p) => !scene.test(p.name));
   assert.ok(instruments.length >= 5);
   const warmed = new Map<string, Prog>();

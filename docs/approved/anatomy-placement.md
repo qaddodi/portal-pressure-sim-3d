@@ -1,15 +1,15 @@
-# Anatomy placement (approved spec, frozen round 17, 24 Nov)
+# Anatomy placement (approved spec, frozen round 18, 25 Nov)
 
 Status: Mohammad approved the mock on 24 Nov ("i like the mock now"; "let's implement based on the plan too; I agree with the recs of the plan"). The integration follows `/mnt/project-files/anatomy-integration-plan.md` (all 8 recommendations approved). 
 
-**Source of truth.** The files in `/mnt/project-files/anatomy-placement-mocks/frozen/round-17/` are the frozen spec (round 16 with only the right portal and right hepatic veins' branches re-aimed; `CHANGES.md`). Later rounds of the mock never change this folder.
+**Source of truth.** The files in `/mnt/project-files/anatomy-placement-mocks/frozen/round-18/` are the frozen spec: round 16 with the right portal and right hepatic veins' branches re-aimed (round 17) and the hepatic veins' openings on the cava (round 18); `CHANGES.md`. Later rounds of the mock never change this folder.
 - **Data:**
   - `placement-data.json` is the mock's data block: organs A, vessels A and today, vjoin joins, gut, pack, caudate, collaterals and shunts.
   - `pack.json` and `organsA.json` hold the inflated organ vertices as the page builds them. The caudate is not in `organsA.json`; it is built in `page/script2.js` from `placement-data.json` `caudate`.
 - **Page:** `page/` holds `geom.js`, `script2.js`, the inlined `index.html`, and the app's organ file copy.
 - **Tools:** `tools/` holds `mkdata.py`, which writes the data block, the checks `check2.mts`, `c3.mts` and `bend.mjs`, and the packer.
 - **Checksums:** `SHA256SUMS`.
-- **Live page:** the artifact https://claude.ai/artifact/Kz6JYsrEeYm2Bq3XS8ZqSw, version 16 (round 16; round 17's four branch courses are not on it yet, and `stills/` are round 16's).
+- **Live page:** the artifact https://claude.ai/artifact/Kz6JYsrEeYm2Bq3XS8ZqSw, version 16 (round 16; round 17's and 18's courses are not on it yet, and `stills/` are round 16's).
 
 ## What he asked for and approved (rounds 1 to 15)
 - **The view and depth:**
@@ -33,6 +33,8 @@ Status: Mohammad approved the mock on 24 Nov ("i like the mock now"; "let's impl
   - The right portal vein has two branches (round 17, Mohammad 24 Nov: "RPV need to be posterior and anterior and from front look less 90 degree and appropriate"): the **anterior** one (rpva) runs forward and up-lateral toward segments 5 and 8, the **posterior** one (rpvp) back, lateral and down toward segments 6 and 7; from the front they leave as a Y (about 48 degrees apart), not a T.
   - The left portal vein climbs, then runs on into the left lobe as one vessel that fades there, with no fork (round 16: the upper branch was too long and too prominent, and hid the caudate lobe).
 - **Right hepatic vein:** a short trunk with two fading branches (round 17, Mohammad 24 Nov: "RHV branch shouldn't be going upwards"): both drain the right lobe from lateral and below, up and medially into the trunk; neither runs toward the head from the split. The anterior one (rhva) runs lateral and level, in front; the posterior one (rhvb) lateral and down, behind it.
+- **The hepatic veins' openings (round 18, Mohammad 25 Nov: "RHV alone, MHV+LHV shared trunk"):** the right hepatic vein opens on its own into the cava's right wall, lower; the middle hepatic vein joins the left one in a short common trunk (3 of its radii, about 1.4 cm), which opens into the cava's left wall just below the diaphragm and the atrium, 3.3 cava radii above the right one. No hepatic vein runs along the cava's axis before its own opening.
+- **Two crossings apart in depth (round 18):** the left hepatic artery ends higher on the left lobe's inflow bed, (0.068, 0.775, -0.020), so its last stretch stays 0.013 behind the left portal vein where they overlap on the screen (it stays behind the vein); the spontaneous splenorenal shunt (C6) comes down at -0.128 to -0.135 in depth, so the gastrorenal shunt (C5) passes 0.013 behind it on its way onto the renal vein, not at its depth (`tests/vessel-crossings.test.ts`).
 - **Splenic vein:** it leaves the hilum straight, with **no branches** into the spleen (round 13).
 - **Coronary (left gastric) vein:** it hugs the lesser curve, 0.016 outside the stomach's border (round 13).
 - **Oesophageal varices:**
@@ -46,7 +48,7 @@ Status: Mohammad approved the mock on 24 Nov ("i like the mock now"; "let's impl
   - **Look and visibility:** liver tones with the rim light. Shown in A only.
 - **Looks:** all five looks (Light, Soft, Dark, Navy, Black) from the app's tokens.
 
-## Rules the checks enforce (all pass on round 16; on round 17 the app's node checks hold them for the four new branch courses)
+## Rules the checks enforce (all pass on round 16; on rounds 17 and 18 the app's node checks hold them for the changed courses)
 - **No passing through:** no vessel passes through another vessel, the gut or an organ, except at joins and intended entries.
   - **Intended entries:**
     - the IVC into the liver and heart;
@@ -85,6 +87,10 @@ Stills (headless, software GL): `stills/`, front, right side and top in five loo
 - **Vessels stay crisp over the organs** (plan question 1); **TIPS on the portal and hepatic vein trunks** (question 5); **HVPG wedge in the MAIN right hepatic vein, not its branch** (Mohammad 24 Nov 5:22 PM, replacing question 4's lower branch); **bowel and colon painted art retired** (question 7).
 - **The right portal vein's two branches (Mohammad, 24 Nov: "RPV need to be posterior and anterior and from front look less 90 degree and appropriate"; frozen round 17):** an ANTERIOR branch (rpva) that runs forward and up-lateral toward segments 5 and 8, and a POSTERIOR one (rpvp) back, lateral and down toward segments 6 and 7, with real depth between them. From the front they leave the split as a Y (48 degrees apart over their first 0.05; tip to tip 74), not a T. Held by `tests/placed-branches.test.ts`.
 - **The right hepatic vein's branches never run upward (Mohammad, 24 Nov: "RHV branch shouldn't be going upwards"; frozen round 17):** both drain the right lobe from lateral and below, up and medially into the trunk: from the split the anterior one (rhva) runs lateral and level, in front, the posterior one (rhvb) lateral and down, behind it. No point of either is above the split. Held by `tests/placed-branches.test.ts`.
+- **Cut-over (25 Nov 2026):** this placement is the app's only anatomy (Mohammad, 24 Nov 5:31 PM ET: "make this the default and remove the old"). The 2D figure's placement was last the default at f17b151a. **The old anatomy's code was deleted (25 Nov):** the `PLACED` flag and every old-placement branch, the old organs' and vessels' bakes (`organs-baked.bin`, `skins.bin`, `circuit-skins.bin`) and the tests that compared against it. To see it again, check out f17b151a (the last commit that has it, on the integration branch, before the removal); the 2D courses `paths.copied.ts` stay because the placed vessels are still derived from them. The boot entry ceiling went back to 7700 kB.
+- **The left portal vein tapers and fades early (Mohammad, 25 Nov: "make the left portal vein taper a bit more and fade earlier than appear going too far into the left lobe same caliber doesn't look good"):** past the umbilical vein's root (0.14 along its second piece) and the meso-Rex landing (0.31) it narrows progressively to 0.4 of its width at its tip, and it fades from 0.34 to nothing at 0.74 of that piece (before: full width, fading 0.4 to 1). Held by `tests/lpv-taper.test.ts`.
+- **The hepatic veins' two openings (Mohammad, 25 Nov, decision card: "RHV alone, MHV+LHV shared trunk"; frozen round 18):** the right hepatic vein opens on its own into the cava's right wall, lower; the middle hepatic vein joins the left one in a short common trunk (3 of its radii, 1 to 1.5 cm) that opens into the cava's left wall just below the diaphragm and the atrium, arriving in the cava's own depth plane (from in front its rim inked the cava's lumen: the confluence's ink rule of 24 Nov); the middle one crosses in front of the cava below the confluence and rises on its left. The two ostia are at least 3 cava radii apart along the cava (3.3), each arrives through the wall at an angle, and no hepatic vein runs within 2 cava radii of the cava's axis except at its own ostium. The engine still ends all three at IVCS (the cava's cut is the common trunk's ostium). The Budd-Chiari clot sits at each vein's own outflow: the left one's in the common trunk, short of the middle one's mouth; the middle one's at its mouth on the trunk. Held by `tests/hv-ostia.test.ts`.
+- **The left hepatic artery behind the left portal vein, further (25 Nov, frozen round 18):** it stays behind the vein, as ruled, now 0.013 behind it where they overlap on the screen (0.003 in round 17): its end is placed higher on the left lobe's inflow bed. In the same round the gastrorenal shunt passes 0.013 behind the spontaneous splenorenal one, which comes down in front of the renal vein's depth, instead of crossing it at its depth.
 
 
-_Copied into the repo by `scripts/copy-placement.mjs` from `/mnt/project-files/anatomy-placement-mocks/frozen/round-17` (round 17); its data is `art/anatomy-placement/`._
+_Copied into the repo by `scripts/copy-placement.mjs` from `/mnt/project-files/anatomy-placement-mocks/frozen/round-18` (round 18); its data is `art/anatomy-placement/`._

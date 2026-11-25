@@ -504,6 +504,8 @@ export function createCore(post) {
     last = null;
   }
 
+  /** Days a retained volume is spread over in a time-lapse. */
+  const RETAIN_RAMP_DAYS = 20;
   function applyAction(e, a) {
     switch (a.kind) {
       case 'infuse': e.infuse(a.fluid); break;
@@ -679,15 +681,21 @@ export function createCore(post) {
     *sequence({ steps, base, reqId }) {
       let e = new Engine(), w = null;
       if (base) e.restore(base);
+      const kept = [];   // (each step's settled model, for a step that stands on an earlier one's: restoreStep)
       for (let i = 0; i < (steps || []).length; i++) {
         const st = steps[i] || {};
+        // restoreStep: this slide shows exactly the state of an earlier slide of the chain (same lesions, same history), so the two read the same numbers, not two histories' neighbours
+        if (st.restoreStep != null && kept[st.restoreStep]) { e = new Engine(); e.restore(kept[st.restoreStep]); w = null; }
         if (st.restart && i) { e = new Engine(); if (base) e.restore(base); }
         // (A preset starts the patient over, so it starts on a fresh engine: a load on an engine that has run other patients left a hair of their solver
         // state in the numbers, enough to change a rounded reading between a chain and the same slides alone, 8 Nov: the ascites chart's dot and the slide.)
         if (st.preset && i) e = new Engine();
         if (st.preset) yield* loadPresetKept(e, keptPresets, st.preset, st.presetDays != null ? { days: st.presetDays + (PRESETS.find((p) => p.id === st.preset)?.days || 0) } : {});
         if (st.params) { e.setParams(deepMerge(e.params, st.params)); e.settle(); }
-        for (const a of [st.action || []].flat()) applyAction(e, a);
+        // Retained salt and water builds up over the first RETAIN_RAMP_DAYS of a time-lapse (a constricted heart keeps fluid day by day); put in as one bolus on day 0 it threw the portal pressure to 74 mmHg
+        // on day 12 before the trail settled (Two lesions 5, capture 15c31759). Any other action, and a retention with no days to spread it over, is done at once as before.
+        const rampVol = [];
+        for (const a of [st.action || []].flat()) { if (a.kind === 'retain' && a.mL > 0 && (st.days || 0) >= RETAIN_RAMP_DAYS) rampVol.push(a.mL); else applyAction(e, a); }
         // relax: days the patient lives at the state just set, before any ramp, so the slow organs (the spleen, and so the platelets) have settled to it.
         // A preset's years of disease settle it at the preset's own cirrhosis; params set after that (a worse or better scar) leave the spleen and the
         // platelets at the old one, and the first months of a ramp then ran them to the new one, a dip that is no part of the story.
@@ -703,15 +711,16 @@ export function createCore(post) {
         // start: a time-lapse with its own params plays from here (params set and settled, no day run yet), not from the slide before.
         const start = st.fine && st.days && st.params ? (() => { const c = new Engine(); c.restore(e.snapshot()); atBedside(c); return { snap: c.snapshot({ rest: true }), params: structuredClone(e.params), fp: fingerprint(computeMetrics(c), c) }; })() : null;
         for (let done = 0; done < (st.days || 0);) {
-          const n = fine ? 1 : Math.min(30, st.days - done);
+          const n = fine || (rampVol.length && done < RETAIN_RAMP_DAYS) ? 1 : Math.min(30, st.days - done);
           if (ramp) e.setParams(deepMerge(e.params, rampAt(ramp, done + 1, st.days)));
+          if (rampVol.length && done < RETAIN_RAMP_DAYS) for (const mL of rampVol) e.addVolume(mL * Math.min(n, RETAIN_RAMP_DAYS - done) / RETAIN_RAMP_DAYS, 0.35, true);
           yield* e.advanceDaySteps(n, { noRupture: true, silent: true });
           done += n;
           if (trail && done < st.days) trail.push(at(done, computeMetrics(e)));
         }
         if (st.preset || st.params || st.action || st.days) { e.settle(); e.finishInfusions(); }   // (a transfusion on the slide is done, not still dripping)
         // (What the page is handed is read from a copy run at the bedside; the chain goes on from the settled model, so a slide's state never depends on the warm-up of the one before.)
-        const moved = !!(st.preset || st.params || st.action || st.days || st.relax || st.restart);
+        const moved = !!(st.restoreStep != null || st.preset || st.params || st.action || st.days || st.relax || st.restart);
         if (moved || !w) { w = new Engine(); w.restore(e.snapshot()); atBedside(w); }   // (a slide that changes nothing is the one before)
         const m = computeMetrics(w);
         if (trail) {
@@ -727,6 +736,7 @@ export function createCore(post) {
           const b = new Engine(); b.restore(e.snapshot()); b.setParams(deepMerge(b.params, st.before)); b.settle(); atBedside(b);
           before = { snap: b.snapshot({ rest: true }), params: structuredClone(b.params), fp: fingerprint(computeMetrics(b), b) };
         }
+        kept[i] = e.snapshot();
         post({ type: 'seqStep', reqId, i, snap: w.snapshot({ rest: true }), base: e.snapshot(), params: structuredClone(e.params), fp: fingerprint(m, w), trail: trail && calmTrail(trail, tk.length), start, before, ...(extra ? { extra } : {}) });
         yield;
       }

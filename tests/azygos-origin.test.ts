@@ -16,9 +16,8 @@ import { PresenceTracks } from '../src/scene/vessels/presence-track.ts';
 import { findSkinJunctions } from '../src/scene/vessels/skin/inventory.ts';
 import { wallJunctions, wallLandings } from '../src/scene/vessels/skin/wall.ts';
 import { swellOf } from './skin-live-lib.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
-// (placed, PPS_ANATOMY=placed: the courses have their own depth, so a bend and an angle are measured in 3D; the flat figure's x and y are its 3D, z one plane)
-const Z = PLACED ? 1 : 0;
+// (placed: the courses have their own depth, so a bend and an angle are measured in 3D; the flat figure's x and y are its 3D, z one plane)
+const Z = 1;
 
 setSmoothJoins(true);
 const PX = 700;   // px per scene unit, the gate's screen

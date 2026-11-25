@@ -5,10 +5,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { MAPPED, NETWORK_BY_ID, NODE_Z, RUN_ONS, cutEnd, meetRadius } from '../src/scene/vessels/network.ts';
-import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
+import { LIVER_TAPER, REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { TIP_K, buildTubes, buriedRadius, pointFactor, pointLength } from '../src/scene/vessels/tubes.ts';
-import { ORGAN_Z } from '../src/scene/organs/z.ts';
-import { CEIL, NODE_RISE, SMOOTH, UNEQUAL, joinSwell } from '../src/scene/vessels/smooth-joins.ts';
+import { CEIL, SMOOTH, UNEQUAL, joinSwell } from '../src/scene/vessels/smooth-joins.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { computeLens, lensColourAt, edgeIndex } from '../src/scene/lenses/model.ts';
@@ -19,7 +18,6 @@ import { useSettings } from '../src/state/settings.ts';
 import manifest from '../src/scene/organs/organs-manifest.json' with { type: 'json' };
 import { AlwaysStencilFunc, KeepStencilOp } from 'three';
 import { VESSEL_STENCIL } from '../src/scene/vessels/cel-ink.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { PLACED_ORGANS } from '../src/scene/anatomy/placement.generated.ts';
 import { PLACED_ORGAN_BOX } from '../src/scene/anatomy/placed-organs.generated.ts';
 
@@ -55,6 +53,8 @@ test('the switch is off in the vessel code until the scene sets it, and off the 
     assert.equal(c.clamp, undefined, v.id); assert.equal(c.point, undefined, v.id);
     if (c.sewn) continue;   // (a shunt sewn onto a vein narrows to its host's caliber there, shunt-ends.ts, switch or not)
     if (cutEnd(v.id) != null) continue;   // (a vein that branches narrows to its tip whatever the switch says: liver-branches.ts)
+    // (restated for the placed anatomy, the only one now: the left portal vein narrows on into the left lobe whatever the switch says, as it fades there (shape.ts LIVER_TAPER, fades.ts PLACED_LIVER_FADE))
+    if (LIVER_TAPER[v.id]) { assert.deepEqual(c.capless, v.joined, v.id); assert.deepEqual(c.taper, [v.taper?.[0] ?? 1, Math.min(v.taper?.[1] ?? 1, LIVER_TAPER[v.id]!.tip)], v.id); continue; }
     assert.deepEqual(c.capless, v.joined, v.id); assert.deepEqual(c.taper, v.taper, v.id);
   }
 });
@@ -82,25 +82,18 @@ test('a run-on carries on as one tube: the two end rings share one centre and on
       if (sa.joined[r.ia]) assert.ok(sb.joined[r.ib], `${r.a} and ${r.b} agree on their cap`);
     }
     // (placed: one calibre per whole vessel (network.ts oneCalibre) makes the pieces of a vein equal, which leaves three unequal pairs)
-    assert.ok(pairs > 25 && unequal >= (PLACED ? 3 : 4), `${pairs} pairs, ${unequal} of unequal caliber`);
+    assert.ok(pairs > 25 && unequal >= 3, `${pairs} pairs, ${unequal} of unequal caliber`);
   });
   // off, those unequal pairs keep their step (the 2D rule) (placed: one calibre per whole leaves no pair twice apart)
-  if (!PLACED) off(() => { const r = RUN_ONS.find((x) => { const a = NETWORK_BY_ID.get(x.a)!, b = NETWORK_BY_ID.get(x.b)!; return a.kind !== 'collateral' && b.kind !== 'collateral' && Math.max(a.radius, b.radius) > 2 * Math.min(a.radius, b.radius); })!; const ra = ring(r.a, r.ia), rb = ring(r.b, r.ib); assert.ok(Math.max(ra.r, rb.r) > Math.min(ra.r, rb.r) * 1.5, `${r.a} to ${r.b} keeps its step`); });
+  
 });
 
 test('a vein narrowing into a thin bed keeps the bed as drawn (only the wide one narrows); two stretches of one vein ease to their mean', () => {
   const s = SMOOTH.get('PRE_R')!, w = SMOOTH.get('PVH_R_2')!, bed = NETWORK_BY_ID.get('PRE_R')!, vein = NETWORK_BY_ID.get('PVH_R_2')!;
   // (placed: a vein and its bed, a few hundredths long, share the change by length (network.ts meetRadius): the bed keeps its own 3.6 along it and meets the vein at one width; two stretches of one vein likewise)
-  if (PLACED) {
-    assert.ok(Math.abs(s.taper![0]! * bed.radius - w.taper![1]! * vein.radius) < 1e-9 && Math.abs(s.taper![0]! * bed.radius - meetRadius(bed, vein)) < 1e-9, 'they meet at one width');
-    const a = NETWORK_BY_ID.get('PV_TRUNK_1')!, b = NETWORK_BY_ID.get('PV_TRUNK')!;
-    assert.ok(Math.abs(SMOOTH.get('PV_TRUNK_1')!.taper![1]! * a.radius - SMOOTH.get('PV_TRUNK')!.taper![0]! * b.radius) < 1e-9);
-    return;
-  }
-  assert.equal(s.taper![0], 1);
-  assert.ok(Math.abs(w.taper![1]! * vein.radius - bed.radius) < 1e-9);
-  const a = NETWORK_BY_ID.get('PV_TRUNK_1')!, b = NETWORK_BY_ID.get('PV_TRUNK')!, m = (a.radius + b.radius) / 2;
-  assert.ok(Math.abs(SMOOTH.get('PV_TRUNK_1')!.taper![1]! * a.radius - m) < 1e-9 && Math.abs(SMOOTH.get('PV_TRUNK')!.taper![0]! * b.radius - m) < 1e-9);
+  assert.ok(Math.abs(s.taper![0]! * bed.radius - w.taper![1]! * vein.radius) < 1e-9 && Math.abs(s.taper![0]! * bed.radius - meetRadius(bed, vein)) < 1e-9, 'they meet at one width');
+  const a = NETWORK_BY_ID.get('PV_TRUNK_1')!, b = NETWORK_BY_ID.get('PV_TRUNK')!;
+  assert.ok(Math.abs(SMOOTH.get('PV_TRUNK_1')!.taper![1]! * a.radius - SMOOTH.get('PV_TRUNK')!.taper![0]! * b.radius) < 1e-9);
 });
 
 test('tapers are monotone: along the first and last 30 % the radius moves from the join\'s width to the vessel\'s own and never back', () => {
@@ -122,12 +115,12 @@ test('tapers are monotone: along the first and last 30 % the radius moves from t
           prev = x;
         }
         // (placed: a taper spans a length, shape.ts lengthSpans, so its own spans say whether it reaches the vessel's own width by the middle)
-        if ((PLACED ? c.taperSpan ?? [0.3, 0.3] : SMOOTH.get(v.id)!.span).every((x) => x < 0.5)) assert.ok(Math.abs(prev - at(Math.floor(N / 2))) < 0.02 * at(Math.floor(N / 2)) + 1e-9, `${v.id} end ${end} reaches its own width`);
+        if ((c.taperSpan ?? [0.3, 0.3]).every((x) => x < 0.5)) assert.ok(Math.abs(prev - at(Math.floor(N / 2))) < 0.02 * at(Math.floor(N / 2)) + 1e-9, `${v.id} end ${end} reaches its own width`);
         checked++;
       }
     }
     // (placed: one calibre per whole vessel leaves fewer ends that change width: 6)
-    assert.ok(checked >= (PLACED ? 6 : 12), `${checked} tapered ends`);   // (was 21, less the four split ends of the veins that branch, which keep their width: liver-branches.ts; before: 21: the two arterioles into the sinusoid fans are no longer drawn)
+    assert.ok(checked >= 6, `${checked} tapered ends`);   // (was 21, less the four split ends of the veins that branch, which keep their width: liver-branches.ts; before: 21: the two arterioles into the sinusoid fans are no longer drawn)
   });
 });
 
@@ -208,9 +201,9 @@ test('the cava and the SVC end in the right atrium: they run on one monotone slo
     return { zmin, zmax };
   })();
   // (placed: the atrium is the placed organ, placement A's heart-ra: its centre depth and its box)
-  const ra = PLACED ? { z: PLACED_ORGANS.A['heart-ra'].zc } : NODE_RISE.get('RA')!;
+  const ra = { z: PLACED_ORGANS.A['heart-ra'].zc };
   const raBox = PLACED_ORGAN_BOX['heart-ra']!;
-  assert.ok(PLACED ? ra.z > raBox[2] && ra.z < raBox[5] : ra.z > heart.zmin + ORGAN_Z['heart-ra']! && ra.z < heart.zmax + ORGAN_Z['heart-ra']!, `the end depth ${ra.z} is inside the atrium (${heart.zmin} to ${heart.zmax})`);
+  assert.ok(ra.z > raBox[2] && ra.z < raBox[5], `the end depth ${ra.z} is inside the atrium (${heart.zmin} to ${heart.zmax})`);
   on(() => {
     const ivc = coursesOf(NETWORK_BY_ID.get('IVCS_RA')!, REST)[0]!.pts, svc = coursesOf(NETWORK_BY_ID.get('SVC_RA')!, REST)[0]!.pts;
     const eI = ivc[ivc.length - 1]!, eS = svc[svc.length - 1]!;
@@ -300,14 +293,13 @@ test('the switch applies live: toggling it rewrites every tube in place (same ve
     const toggle = (on: boolean) => (s as unknown as { useSmoothJoins(on: boolean): void }).useSmoothJoins(on);
     const obj = (id: string) => s.vesselObject(id) as unknown as { toonMesh: { geometry: { getAttribute(n: string): { array: Float32Array; count: number } } }; toon: { uniforms: Record<string, { value: { x: number } | number }> } };
     const posOn = Float32Array.from(obj('PVH_L').toonMesh.geometry.getAttribute('position').array), nOn = obj('PVH_L').toonMesh.geometry.getAttribute('position').count;
-    const rkOn = Float32Array.from(obj('SMV_CONF').toonMesh.geometry.getAttribute('rk').array);
     assert.ok((obj('PV_TRUNK').toon.uniforms.mate1!.value as { x: number }).x >= 0 && obj('PV_TRUNK').toon.uniforms.lensSmooth!.value === 1);
     toggle(false);
     assert.equal(smoothJoinsOn(), false);
     assert.equal(obj('PVH_L').toonMesh.geometry.getAttribute('position').count, nOn, 'the same vertices');
     assert.notDeepEqual(Array.from(posOn), Array.from(obj('PVH_L').toonMesh.geometry.getAttribute('position').array), 'the branch end moved back');
     // (placed: the widths meet at one width with the switch off too (network.ts meetRadius), so there is no step to come back)
-    if (!PLACED) assert.notDeepEqual(Array.from(rkOn), Array.from(obj('SMV_CONF').toonMesh.geometry.getAttribute('rk').array), 'the step is back');
+    
     assert.equal((obj('PV_TRUNK').toon.uniforms.mate1!.value as { x: number }).x, -1);
     assert.equal(obj('PV_TRUNK').toon.uniforms.lensSmooth!.value, 0);
     toggle(true);
@@ -335,7 +327,7 @@ test('a vein narrowing into a thin bed funnels over its whole length: its radius
       }
     }
     // (placed: no vein funnels over its whole length into a bed: the two share the change by length, network.ts meetRadius, and the taper rules above pin them)
-    assert.ok(PLACED ? funnels === 0 : funnels >= 4, `${funnels} funnels`);
+    assert.ok(funnels === 0, `${funnels} funnels`);
   });
 });
 
@@ -355,7 +347,7 @@ test('the centreline is the 2D course with smooth joins on too: snapping only mo
     assert.ok(end < 0.06, `${v.id}: an end moved ${end.toFixed(3)}`);
   }
   // (placed: the courses already meet at their 3D attach points (placed-network.ts), so smooth joins move no end; the middle and the wiggle checks above still hold)
-  assert.ok(PLACED ? moved === 0 : moved >= 5, `${moved} vessels have an end fitted`);
+  assert.ok(moved === 0, `${moved} vessels have an end fitted`);
 });
 
 test('one outline rule at every junction: a vein that opens into the cava, and a liver branch that leaves a vein, hold their ink back where they lie inside the other vessel\'s lumen', () => {

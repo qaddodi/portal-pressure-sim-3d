@@ -4,7 +4,8 @@
 #   /          the live site, built from main (until main has the app, a redirect to /preview/)
 #   /preview/  the integration branch claude/project-thread-ge1swr, with the orange "PREVIEW · <commit>" pill
 #
-# The feedback address is the repository VARIABLE FEEDBACK_EMAIL (Settings > Secrets and variables > Actions > Variables), never a file in the repo; unset, the Send feedback row is absent.
+# The feedback address is the repository SECRET FEEDBACK_EMAIL (Settings > Secrets and variables > Actions > Secrets), never a file in the repo, so the run's log masks it (a
+# variable printed in the log's env dump; moved to a secret 25 Nov). Unset, the Send feedback row is absent.
 # Either push rebuilds both, so the two copies are always one consistent site (after a merge into main, /preview/ equals the live site).
 #
 # Fast on purpose (Plan 50, owner: "from writing code to push to me testing online should be very, very extremely fast"; target about 80 s from push to live):
@@ -72,10 +73,6 @@ jobs:
             preview/public/anatomy/skins.bin.sig
             preview/public/anatomy/circuit-skins.bin
             preview/public/anatomy/circuit-skins.bin.sig
-            preview/public/anatomy/skins-placed.bin
-            preview/public/anatomy/skins-placed.bin.sig
-            preview/public/anatomy/circuit-skins-placed.bin
-            preview/public/anatomy/circuit-skins-placed.bin.sig
             preview/public/anatomy/organs-baked.bin
             preview/public/anatomy/organs-baked.bin.sig
           key: bakes-${{ github.sha }}
@@ -94,7 +91,7 @@ jobs:
         working-directory: preview
         env:
           VITE_CHANNEL: preview
-          VITE_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
+          VITE_FEEDBACK_EMAIL: ${{ secrets.FEEDBACK_EMAIL }}
         run: |
           VITE_BUILD="claude/project-thread-ge1swr@$(git rev-parse --short=8 HEAD)" npm run build
           mkdir -p ../site
@@ -111,16 +108,12 @@ jobs:
             preview/public/anatomy/skins.bin.sig
             preview/public/anatomy/circuit-skins.bin
             preview/public/anatomy/circuit-skins.bin.sig
-            preview/public/anatomy/skins-placed.bin
-            preview/public/anatomy/skins-placed.bin.sig
-            preview/public/anatomy/circuit-skins-placed.bin
-            preview/public/anatomy/circuit-skins-placed.bin.sig
             preview/public/anatomy/organs-baked.bin
             preview/public/anatomy/organs-baked.bin.sig
           key: bakes-${{ github.sha }}
       - name: Build the live site (main) into site/
         env:
-          VITE_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
+          VITE_FEEDBACK_EMAIL: ${{ secrets.FEEDBACK_EMAIL }}
         run: |
           if grep -q '"build"' live/package.json; then
             git -C live sparse-checkout disable

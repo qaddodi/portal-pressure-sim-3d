@@ -192,3 +192,14 @@ test('the styles key stands inside the chart, and a cut-off a line lies on is a 
     for (const s of out.frame.shapes) if (s.k === 'text' && s.s === 'GRS closed') assert.ok(s.x + measure(s.s, s.size, s.weight ?? 500) <= out.frame.w + 0.5, `"GRS closed" ends inside the ${w} px chart`);
   }
 });
+
+// Capture af88a9c2 (Portal vein thrombosis 8, Two inflows 9): the clot charts name only the lines, never the numbers the slide talks about. `ends` writes each line's first and last value beside its own end point.
+test('ends: each line\'s two end values stand on the chart, inside it, at every width', () => {
+  const t: Any = { ...RELATION_TOOL, ends: true };
+  const ser = P.curveSeries(t, sweepStates(t, (x) => ({ lsm: 50 - x * 40, hvpg: 3.8 + x * 15.4 })));
+  for (const w of [300, 360, 420]) {
+    const c = ctxOf('light' as never, w), on = words(curveFrame({ tool: t, ser, goal: null as never }, c).frame), off = words(curveFrame({ tool: { ...t, ends: false }, ser, goal: null as never }, c).frame);
+    assert.ok(on.length > off.length, `${w} px: the end values are drawn`);
+    for (const s of (curveFrame({ tool: t, ser, goal: null as never }, c).frame.shapes.filter((q) => q.k === 'text') as TextShape[])) assert.ok(s.anchor === 'end' ? s.x - measure(s.s, s.size, s.weight ?? 500) >= -0.5 : s.x + measure(s.s, s.size, s.weight ?? 500) <= c.w + 0.5 || s.anchor !== 'start', `${w} px: "${s.s}" inside`);
+  }
+});

@@ -103,15 +103,11 @@
 .ac-btn:active { scale: 0.96; }
 .ac-btn .ac-ic { width: 18px; height: 18px; color: currentColor; }
 .ac-btn.danger { color: var(--danger); margin-left: auto; } .ac-btn.quiet { color: var(--text-2); }
-.ac-dye { touch-action: none; }
-/* (The Dye word's room for "Injecting" is kept so the row does not jump, but the word starts at the icon: a button's own centring had put it 25 px away from its drop, 22 Nov 2026.) */
-.ac-dye .ac-bl { display: inline-block; min-width: 4.9em; text-align: start; }
-/* The card's actions (Remove, Doppler, Dye, Shunt, IR…) are one row of equal columns on every card, side or sheet, each icon attached to its word and centred in its column. A column is never narrower than its icon and word
+/* The card's actions (Remove, Doppler, Shunt, IR…) are one row of equal columns on every card, side or sheet, each icon attached to its word and centred in its column. A column is never narrower than its icon and word
    (min-width: max-content), so when they do not fit one row the last wrap to the next line instead of printing over each other (the Mac's TIPS card, 22 Nov 2026). The row outranks the 2D stent rule's fixed grid
-   (app-06-plate.css `.ac-panel:has(> .tv) + .ac-as`, columns that could shrink below their words). The Dye word's reserved room is the column's. */
+   (app-06-plate.css `.ac-panel:has(> .tv) + .ac-as`, columns that could shrink below their words). */
 .ac-card > .ac-body > .ac-as.ac-acts { display: flex; flex-wrap: wrap; gap: 0 4px; justify-content: center; align-content: center; }
 .ac-card > .ac-body > .ac-as.ac-acts > .ac-btn { flex: 1 1 0; min-width: max-content; justify-content: center; margin: 0; padding: 10px 2px; min-height: 44px; gap: 5px; }
-.ac-card > .ac-body > .ac-as.ac-acts > .ac-dye .ac-bl { min-width: 0; text-align: start; }
 .ac-panel { min-width: 0; }
 @media (prefers-reduced-motion: reduce) { .ac-card, .ac-body, .ac-switch, .ac-switch i { transition: none; animation: none; } }
 

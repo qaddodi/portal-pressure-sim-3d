@@ -7,14 +7,10 @@
 //   * Branch ends (a vessel that ends on a trunk without carrying on into it): the end is moved onto the trunk's centreline (`attach`, shape.ts `fitEnds`) and its collar and cap kept
 //     inside the trunk, so there is no gap between the branch's last ring and the trunk's wall and no cap standing out of the far side.
 //   * Free ends (the end of a vessel nothing meets, with no alpha fade of its own): the tube tapers to a point (`free`) instead of ending in a round cap.
-//   * The cava ends in the right atrium: it and the SVC run on one slope to the atrium's back wall (`NODE_RISE`), so in a turned view they enter the heart instead of passing 0.3 behind it.
-import { IVC_EDGES, PLACED } from '../anatomy/source.ts';
-import { TIER_Z } from '../frame2d.ts';
-import { NETWORK, RUN_ONS, meetRadius, sameSegment, type NetVessel } from './network.ts';
+//   * The cava ends in the right atrium where the approved placement puts the atrium (placed-network.ts): the 2D figure's slope to its back wall (NODE_RISE) went with the cut-over.
+import { IVC_EDGES } from '../anatomy/source.ts';
+import { NETWORK, RUN_ONS, meetRadius, type NetVessel } from './network.ts';
 import { runsInto } from './starts.ts';
-
-/** A node the cava runs into, and its depth: the cava's own, so it runs level into the atrium and a tilted view shows no S (Mohammad, 20 Nov: "move the RA to the same plane as the IVC"; the atrium's mesh is moved to this plane by ORGAN_Z['heart-ra']). */
-export const NODE_RISE: ReadonlyMap<string, { z: number }> = new Map([['RA', { z: TIER_Z.back }]]);
 
 export interface SmoothEnds {
   /** radius at each end as a share of `radius` (a run-on pair eases to the mean of the two) */
@@ -66,27 +62,23 @@ function build(): ReadonlyMap<string, SmoothEnds> {
     // strands it feeds (Mohammad, 20 Nov: "this junction should be smooth. I thought you smoothened every junction"). Only the live width and the cap: a collateral keeps its own end radius (shape.ts narrowTo, the strands' own taper), so
     // no `taper`, no funnel here.
     if (isCollateral(a.v) || isCollateral(b.v)) {
-      // (two collaterals are one vessel when the engine's route is: the coronary vein and the varices' drain to the azygos, one segment: network.ts SEGMENT_OF. Any other two are branches of a node and meet as before)
-      // (placed: two collaterals the 2D rule runs on into one another are one vessel at that node too: the fundal varices into the gastrorenal shunt)
-      if (isCollateral(a.v) && isCollateral(b.v) && !sameSegment(a.v.id, b.v.id) && !PLACED) return;
+      // (two collaterals the 2D rule runs on into one another are one vessel at that node: the coronary vein and the varices' drain to the azygos, the fundal varices into the gastrorenal shunt)
       taken.add(`${a.v.id}|${a.end}`); taken.add(`${b.v.id}|${b.end}`);
       const da = outward(a.v, a.end), db = outward(b.v, b.end);
       const straight = !!da && !!db && da[0] * db[0] + da[1] * db[1] + da[2] * db[2] < -0.9;
-      // (placed: they ease to one width too, over a length (shape.ts lengthSpans): the coronary vein into the varices met them at 0.64 of their width, a step; Mohammad, 24 Nov)
+      // (they ease to one width too, over a length (shape.ts lengthSpans): the coronary vein into the varices met them at 0.64 of their width, a step; Mohammad, 24 Nov)
       const m = meetRadius(a.v, b.v);
-      for (const [x, y] of [[a, b], [b, a]] as const) { const i = get(x.v); i.mate[x.end] = y.v.id; if (straight) i.joined[x.end] = true; if (PLACED) { i.taper[x.end] = m / x.v.radius; i.paired = true; } }
+      for (const [x, y] of [[a, b], [b, a]] as const) { const i = get(x.v); i.mate[x.end] = y.v.id; if (straight) i.joined[x.end] = true; i.taper[x.end] = m / x.v.radius; i.paired = true; }
       return;
     }
     taken.add(`${a.v.id}|${a.end}`); taken.add(`${b.v.id}|${b.end}`);
-    // two of nearly one caliber ease to their mean (the 2D tubes' own end profile); a big vein into a thin bed (more than a quarter apart) is the wider one narrowing to the thin one's width, which keeps
-    // the thin one as drawn (a mean would swell the bed's first stretch into a bulb)
-    const hi = Math.max(a.v.radius, b.v.radius), lo = Math.min(a.v.radius, b.v.radius), m = hi > lo * UNEQUAL && !PLACED ? lo : meetRadius(a.v, b.v);   // (placed: a vein and its bed share the change by length, network.ts meetRadius: the bed alone could not take it in its few hundredths)
+    // the two ease to their meeting width (network.ts meetRadius): a vein and its bed share the change by length, the bed alone could not take it in its few hundredths
+    const m = meetRadius(a.v, b.v);
     const da = outward(a.v, a.end), db = outward(b.v, b.end);
     const straight = !!da && !!db && da[0] * db[0] + da[1] * db[1] + da[2] * db[2] < -0.9;
     for (const [x, y] of [[a, b], [b, a]] as const) {
       const i = get(x.v);
       i.taper[x.end] = m / x.v.radius; i.mate[x.end] = y.v.id; i.paired = true;
-      if (hi > lo * UNEQUAL && x.v.radius === hi && !PLACED) i.span[x.end] = 1;
       if (straight) i.joined[x.end] = true;
     }
   };
@@ -122,12 +114,6 @@ function build(): ReadonlyMap<string, SmoothEnds> {
 
 /** Per vessel (by id): how its ends are drawn with smooth joins on. */
 export const SMOOTH: ReadonlyMap<string, SmoothEnds> = build();
-
-/** The depth a vessel's end goes to with smooth joins on: the right atrium's back wall where it has one (`rise`), else the node's depth (network.ts NODE_Z). */
-export function endDepth(node: string, fallback: number | undefined): { z: number | undefined; rise: boolean } {
-  const r = NODE_RISE.get(node);
-  return r ? { z: r.z, rise: true } : { z: fallback, rise: false };
-}
 
 /** Both of a pair's widths at the join, the mean of the two as the geometry has it (`taper`), for the shader's live width: the same easing as tubes.ts `factorAt`, so a width the engine changes
  *  moves the join's ring by the same share on both sides. `own` and `mate` are the two vessels' live swells (the engine's diameter against the one the tube was built at), `u` the place along

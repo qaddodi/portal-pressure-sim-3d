@@ -169,7 +169,7 @@ export function placeLabels(G, ser) {
     const [ex, ey] = tailPx[j].at(-1), x = ex - 0.9 * f;
     return put(q.name, [...[-1.0, -1.5, -2.0, 1.7, 2.2].map((k) => ({ x, y: ey + k * f, anchor: 'end' })), ...[-1.0, 1.7, -1.5].map((k) => ({ x: ex - 4 * f, y: ey + k * f, anchor: 'end' }))]);
   });
-  const before = c.words.before ? put(c.words.before, [-1.0, -1.3, -1.6, -0.8].map((k) => ({ x: xd + 0.5 * f, y: yd + k * f, anchor: 'start' }))) : null;
+  const before = c.words.before ? put(c.words.before, [-1.0, -1.3, -1.6, -0.8, -2.0, -2.5, -3.0].flatMap((k) => [0.5, 1.6, 3].map((dx) => ({ x: xd + dx * f, y: yd + k * f, anchor: 'start' })))) : null;
   const start = c.words.start ? put(c.words.start, [1.35, 1.7, 2.1, 2.6].map((k) => ({ x: xw + 0.5 * f, y: Y(lastCut) + k * f, anchor: 'start' })), true) : null;
   const zoneNames = placeZoneNames(G, obs, ser.wait);
   const rise = c.words.rise ? put(c.words.rise, [4.55, 4.3, 4.8, 4.1].flatMap((v) => [1.2, 2.4].map((d) => ({ x: X(d), y: Y(v), anchor: 'start' }))), true) : null;

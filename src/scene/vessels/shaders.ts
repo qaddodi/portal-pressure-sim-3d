@@ -22,7 +22,7 @@ import { CEL_STYLE } from '../cel-style.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
 import { TUBE_RADIAL } from './tubes.ts';
 import { SKIN_CIRC_IN, SKIN_CIRC_SPAN, SKIN_CUT_EPS } from './skin/types.ts';
-import { CAP_CARVED_GLSL, CIRC_WIDTH_OF_GLSL, FADE_ALPHA_GLSL, HIGHLIGHT_ALONG_GLSL, PROCEDURE_MARKS_GLSL, SEAM_STITCH_GLSL, STUMP_K_GLSL, LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from './glsl-shared.ts';
+import { HEAD_FORE_MIN, HEAD_FORE_FROM, HEAD_FORE_TO, CAP_CARVED_GLSL, CIRC_WIDTH_OF_GLSL, FADE_ALPHA_GLSL, HIGHLIGHT_ALONG_GLSL, PROCEDURE_MARKS_GLSL, SEAM_STITCH_GLSL, STUMP_K_GLSL, LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from './glsl-shared.ts';
 
 /** The tube's ring is a polygon of TUBE_RADIAL sides: its corners stand 1 / cos(pi / n) - 1 of the radius outside its flats. The tube is built that much fatter, so the silhouette never falls inside the outline. */
 /** plainHere(): within this many CSS px of a joined end, a seam or a hole the tube keeps its whole hull (the junction owns that edge). */
@@ -654,7 +654,13 @@ void main() {
   // the flow heads, on the tube's surface as the 2D composite lays them
   float pxArc = fwPx;   // (derivatives taken at the top of main, before any discard)
   float acrossW = fwAw;
-  vec4 hd = flowHeads(across, acrossW, vUv.x * len * vU, len * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, markK(skinCut.x >= 0.0 ? 1e6 : vUv.x * len * vU, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk, lensHead(lensGradA, lensLaneA, lensModeA, laneColA, la), lensHead(lensGradB, lensLaneB, lensModeB, laneColB, lb), color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
+  // THE HEAD'S ARC ON THE SCREEN, not on the surface (25 Nov: heads bow when the tube tilts out of the screen). vUv.x is the arc of the AXIS point of this pixel's ring; the surface point sits a radius nearer the eye, so on a tilted tube its plane of constant arc
+  // meets the screen along a curve (a head's back edge bowed by R x tan(tilt)). The head is placed by the pixel's offset from the axis point ALONG THE TUBE'S SCREEN HEADING over the heading's foreshortening (|vT.xy|): a straight line square to the lateral. Untilted
+  // (|vT.xy| = 1, no depth offset) it is exactly vUv.x's arc. A tube nearly end-on has no heading to speak of: its heads fade out as the heading's screen length falls under HEAD_ENDON.
+  float hxy = clamp(tl, ${F(HEAD_FORE_MIN)}, 1.0);
+  float sHead = vUv.x * len * vU + (tl > 1e-3 ? dot(dvPx, tS / tl) : 0.0) / dpr * ${wpcGlsl('vCen.z', 'projY', 'vU')} / hxy;
+  float endOn = smoothstep(${F(HEAD_FORE_FROM)}, ${F(HEAD_FORE_TO)}, tl);
+  vec4 hd = flowHeads(across, acrossW, sHead, len * vU, vR, ${wpcGlsl('vW', 'projY', 'vU')}, pxArc, lensIndex, flowAmount, markK(skinCut.x >= 0.0 ? 1e6 : vUv.x * len * vU, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk * endOn, lensHead(lensGradA, lensLaneA, lensModeA, laneColA, la), lensHead(lensGradB, lensLaneB, lensModeB, laneColB, lb), color, base);   // (a head stands inside the lumen, 55 percent of it, and is cut at the wall: never on the ink)
   hd = clamp(hd, 0.0, 1.0);
 #ifdef VDBG
   if (dbgHeads < 0.5) hd = vec4(0.0);

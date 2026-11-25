@@ -7,12 +7,23 @@ import { CAVA_RECEDE, fadeOf } from '../src/scene/vessels/fades.ts';
 import { NODE_POS_2D } from '../src/scene/vessels/paths.copied.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
 import { CelScene } from '../src/scene/scene.ts';
+import { EDGE_PATH_2D } from '../src/scene/anatomy/source.ts';
+import { PLACED_EDGE_3D } from '../src/scene/anatomy/placed-network.ts';
 
 test('a liver bed fades along the line from its portal node to its venous node: 0.8, faintest 0.36 half way, solid at the end', () => {
   for (const [id, a, b] of [['SIN_RR', 'SIN_R', 'CV_R'], ['SIN_LL', 'SIN_L', 'CV_L']] as const) {
     const f = fadeOf(id, false)!;
     assert.equal(f.mode, 4, id);
-    assert.deepEqual(f.line, [x3(NODE_POS_2D[a]![0]), y3(NODE_POS_2D[a]![1]), x3(NODE_POS_2D[b]![0]), y3(NODE_POS_2D[b]![1])]);
+    const line2 = [x3(NODE_POS_2D[a]![0]), y3(NODE_POS_2D[a]![1]), x3(NODE_POS_2D[b]![0]), y3(NODE_POS_2D[b]![1])];
+    {
+      // (restated for the placed anatomy, the only one now: the 2D line moves with the vessel, rigidly, by how far the course's end nearest it moved from the 2D course to the placed one,
+      // so the bed still fades where it did along itself; fades.ts placedFade)
+      const dx = f.line![0] - line2[0]!, dy = f.line![1] - line2[1]!;
+      assert.ok(Math.abs(f.line![2] - line2[2]! - dx) < 1e-12 && Math.abs(f.line![3] - line2[3]! - dy) < 1e-12, `${id}: the line moved rigidly`);
+      const was = EDGE_PATH_2D[id]!, now = PLACED_EDGE_3D[id]!;
+      const moved = [[was[0]!, now[0]!], [was.at(-1)!, now.at(-1)!]].some(([w, n]) => Math.hypot(n![0]! - x3(w![0]!) - dx, n![1]! - y3(w![1]!) - dy) < 1e-9);
+      assert.ok(moved, `${id}: by the shift of one of its course's ends`);
+    }
     assert.equal(f.from, 0.5); assert.equal(f.a0, 0.8); assert.equal(f.a1, 0.36);
     assert.equal(f.keep, false);
   }
@@ -54,4 +65,25 @@ test('the azygos tributary (2D FEEDERS.AZY_SVC) fades out down the figure by FEE
   assert.equal(f.a0, 1); assert.equal(f.a1, 0);
   assert.equal(fadeOf('C3~F', false, 'C3'), null);
   assert.match(readFileSync(new URL('../src/scene/scene.ts', import.meta.url), 'utf8'), /fadeOf\(def\.id, def\.tone === 'artery', def\.feeder\?\.host\)/);
+});
+
+// The rectal varices ended solid in mid-belly on the placed anatomy: their band (laid on the 2D course carried on to starts.ts END_ON) was moved by 2D's own last point, 82 units short of that run-on end,
+// so it sat below the placed course's end and never touched it (fades.ts placedFade now moves it by the carried-on end). Every fade down (or up) the figure to nothing starts on its vessel's course and
+// is complete before the course's far end, so no such end is ever a solid cut in mid-air.
+test('every fade down or up the figure to nothing lies on its placed course and is complete before the course\'s far end (the rectal varices included)', async () => {
+  const { NETWORK } = await import('../src/scene/vessels/network.ts');
+  const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
+  let n = 0;
+  for (const v of NETWORK) {
+    if (v.feeder) continue;
+    const f = fadeOf(v.id, v.tone === 'artery');
+    if (!f || f.mode !== 2 || f.a1 !== 0) continue;
+    n++;
+    const ys = coursesOf(v, REST)[0]!.pts.map((p) => p[1]), lo = Math.min(...ys), hi = Math.max(...ys);
+    assert.ok(f.from >= lo - 1e-9 && f.from <= hi + 1e-9, `${v.id}: its fade starts on its course (${f.from.toFixed(3)} in ${lo.toFixed(3)}..${hi.toFixed(3)})`);
+    const far = f.to < f.from ? lo : hi;
+    assert.ok(f.to < f.from ? far <= f.to + 1e-9 : far >= f.to - 1e-9, `${v.id}: gone before its far end (fade ends at ${f.to.toFixed(3)}, course at ${far.toFixed(3)})`);
+  }
+  assert.ok(n >= 3, `${n} fades along the figure`);
+  assert.ok(NETWORK.some((v) => v.id === 'C4') && fadeOf('C4', false)!.mode === 2, 'the rectal varices are among them');
 });

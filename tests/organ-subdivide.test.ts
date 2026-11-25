@@ -11,7 +11,6 @@ import { smoothSilhouette } from '../src/scene/organs/contour.ts';
 import { COARSE_VERTS, splitIndex, subdivideOrgan } from '../src/scene/organs/subdivide.ts';
 import { prepareOrgans } from '../src/scene/organs/prepare.ts';
 import { decodeOrgans, encodeOrgans } from '../src/scene/organs/baked.ts';
-import { PLACED } from '../src/scene/anatomy/source.ts';
 import { TUBE_IDS } from '../src/scene/organs/placed.ts';
 import { INFLATED_IDS } from '../src/scene/organs/placed-map.ts';
 
@@ -19,7 +18,7 @@ const file = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.ur
 setOrganData(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer);
 const ALL: Record<string, () => BufferGeometry> = { ...ORGAN_MESHES, caudate: caudateGeometry };
 // (placed path: a gut tube and an inflated organ are never subdivided, prepare.ts: the tube's rings are already round, and the mock's organs are refined twice already)
-const COARSE = Object.keys(ALL).filter((id) => !(PLACED && (TUBE_IDS.has(id) || INFLATED_IDS.includes(id))) && ALL[id]!().getAttribute('position').count < COARSE_VERTS);
+const COARSE = Object.keys(ALL).filter((id) => !(TUBE_IDS.has(id) || INFLATED_IDS.includes(id)) && ALL[id]!().getAttribute('position').count < COARSE_VERTS);
 
 /** The mean angle (radians) between the face normals of triangles that share an edge: how faceted the surface is. */
 function facet(g: BufferGeometry): number {
@@ -67,11 +66,9 @@ const edgeCounts = (g: BufferGeometry): number[] => {
   return [...m.values()];
 };
 
-test('the small organs are the ones subdivided: kidney, spleen, heart, atrium, duodenum and the caudate lobe', () => {
-  // (placed path: the six organs are the approved mock's twice-refined meshes, the gut is tubes and the lobe's egg is made fine enough: no organ is coarse, and the split is held on today's organs)
-  if (PLACED) { assert.deepEqual(COARSE, []); return; }
-  for (const id of ['kidney-l', 'spleen', 'heart', 'heart-ra', 'duodenum', 'caudate']) assert.ok(COARSE.includes(id), `${id} is coarse`);
-  for (const id of ['liver', 'stomach', 'colon', 'bowel']) assert.ok(!COARSE.includes(id), `${id} is not`);
+test('no organ of the approved placement is coarse enough to subdivide', () => {
+  // (placed path: the six organs are the approved mock's twice-refined meshes, the gut is tubes and the lobe's egg is made fine enough: no organ is coarse)
+  assert.deepEqual(COARSE, []);
 });
 
 test('subdivideOrgan: every original point stays exactly, each triangle becomes four, the surface stays closed and the same size', () => {

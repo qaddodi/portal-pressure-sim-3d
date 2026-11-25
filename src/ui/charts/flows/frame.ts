@@ -2,12 +2,11 @@
 // 0 and alpha 0, so two frames always pair up and a share, a name or a place glides instead of popping.
 import type { ChartCtx } from '../Chart.tsx';
 import { measure } from '../measure.ts';
-import { withAlpha } from '../colour.ts';
-import { inkFor } from '../legible.ts';
+import { contrast, withAlpha, type Rgba } from '../colour.ts';
 import { look } from '../looks.ts';
 import type { Frame, Shape } from '../scene.ts';
 import { LIVER, OTHER, ROUTES, INFLOW, barOrder, flowsSummary, type Part } from './parts.ts';
-import { inflowGeo, inflowLabels, inflowMarker, inflowSpans, routeGeo, routeLayout, routeHeight, INFLOW_SHORT, type Tiers } from './layout.ts';
+import { inflowGeo, inflowLabels, inflowMarker, inflowSpans, routeGeo, routeLayout, routeHeight, INFLOW_SHORT, VAL_W, type Tiers } from './layout.ts';
 
 const PORTAL_IDS = [LIVER, ...ROUTES.map(([id, name, tone]) => [id, name, tone] as const), OTHER];
 const NAME = new Map<string, string>([...PORTAL_IDS, ...INFLOW].map(([id, name]) => [id, name]));
@@ -22,7 +21,11 @@ export function flowsFrame(a: FlowsArgs, c: ChartCtx): FlowsOut {
   return a.of === 'inflow' ? inflowFrame(a, c) : routesFrame(a, c);
 }
 
-const dead = (s: Shape): Shape => s;
+const WHITE: Rgba = [1, 1, 1, 1], NEAR_BLACK: Rgba = [0.05, 0.05, 0.06, 1];
+const over = (a: Rgba, b: Rgba): Rgba => [a[0] * a[3] + b[0] * (1 - a[3]), a[1] * a[3] + b[1] * (1 - a[3]), a[2] * a[3] + b[2] * (1 - a[3]), 1];
+/** The ink for words on a segment: white or near-black, whichever reads better on that segment over the card, solid, never a halo (a halo on a flat bar only smears). One rule for every
+ *  segment of every bar, so the same part is the same ink in every slide. */
+const barInk = (seg: Rgba, surface: Rgba): Rgba => { const bg = over(seg, surface); return contrast(WHITE, bg) > contrast(NEAR_BLACK, bg) ? WHITE : NEAR_BLACK; };
 
 function routesFrame(a: FlowsArgs, c: ChartCtx): FlowsOut {
   const f = c.type.sm, w = Math.max(160, c.w);
@@ -31,8 +34,8 @@ function routesFrame(a: FlowsArgs, c: ChartCtx): FlowsOut {
   const lay = routeLayout(a.parts, w, hh, f, measure, a.healthy, a.tiers);
   const { geo, spans, tiers, pills, mark } = lay;
   const h = Math.ceil(routeHeight(lay.rows, geo)) + 2, yT = geo.barT;
-  const nameL = lk('flows.lab.n'), valL = lk('flows.lab.v'), mkLine = lk('flows.mk.line'), mkText = lk('flows.mk.text'), pillText = lk('flows.pill.text');
-  const text = nameL.fill!, halo = nameL.halo;
+  const nameL = lk('flows.lab.n'), valL = lk('flows.lab.v'), mkLine = lk('flows.mk.line'), mkText = lk('flows.mk.text'), pillText = lk('flows.pill.text'), lead = lk('flows.lead');
+  const surface = c.pal.tok('surface');
   const by = new Map(spans.map((s, i) => [s.id, { s, tier: tiers[i]!, pill: pills.find((p) => p.id === s.id) }]));
   const shapes: Shape[] = [{ k: 'clip', x: 0, y: yT, w, h: geo.barH, r: Math.min(6, geo.barH / 2) }];
   for (const [id] of PORTAL_IDS) {
@@ -49,19 +52,18 @@ function routesFrame(a: FlowsArgs, c: ChartCtx): FlowsOut {
   shapes.push({ k: 'text', x: mark ? (mark.L + mark.R) / 2 : w / 2, y: geo.base, s: mark?.text ?? '', size: mkText.size!, weight: mkText.weight, color: withAlpha(mkText.fill!, mark ? 1 : 0), anchor: 'middle', halo: mkText.halo });
   for (const [id] of PORTAL_IDS) {
     const e = by.get(id);
-    const pillL = lk('flows.pill.rect', TONE.get(id)!), cx = e ? (e.s.a + e.s.b) / 2 : w / 2;
-    const onBar = !!e && e.tier !== 3 && true;
-    const full = !!e && e.tier === 0, alone = !!e && e.tier === 2;
-    shapes.push({ k: 'text', x: cx, y: yT + geo.n1, s: full ? NAME.get(id)! : '', size: nameL.size!, weight: nameL.weight, color: text, alpha: full ? 1 : 0, anchor: 'middle', halo });
-    shapes.push({ k: 'text', x: cx, y: full ? yT + geo.n2 : yT + geo.mid, s: onBar && e ? `${e.s.pct}%` : '', size: valL.size!, weight: valL.weight, color: text, alpha: full || alone ? 1 : 0, anchor: 'middle', halo });
-    // the part's name (and percent) under the bar where it does not fit on it: plain words in the part's colour, no capsule (docs/HUMANIZED-DESIGN.md section 0).
-    // (the slot's rectangle stays, empty, so two frames still pair up and the words glide)
-    const pill = e?.pill;
-    const pw = pill?.w ?? 0, px = pill ? Math.min(Math.max(pill.cx - pw / 2, 0), w - pw) : cx, py = pill ? geo.pillsT + pill.row * (geo.ph + geo.pg) : geo.pillsT;
-    shapes.push({ k: 'rect', x: px, y: py, w: pw, h: geo.ph, r: 0, fill: [0, 0, 0, 0] });
-    shapes.push({ k: 'text', x: px + pw / 2, y: py + geo.ph / 2 + 0.36 * f, s: pill && e ? (e.tier === 3 ? `${NAME.get(id)} ${e.s.pct}%` : NAME.get(id)!) : '', size: pillText.size!, weight: pillText.weight, color: inkFor(lk('flows.seg', TONE.get(id)!).fill!, pillL.fill!, pillText.fill!), alpha: pill ? 1 : 0, anchor: 'middle', halo });
+    const cx = e ? (e.s.a + e.s.b) / 2 : w / 2, ink = barInk(lk('flows.seg', TONE.get(id)!).fill!, surface);
+    const full = !!e && e.tier === 0;
+    // on the segment: its name and percent, solid ink, no halo; the same weights for every part (name 500, percent 600)
+    shapes.push({ k: 'text', x: cx, y: yT + geo.n1, s: full ? NAME.get(id)! : '', size: nameL.size!, weight: nameL.weight, color: ink, alpha: full ? 1 : 0, anchor: 'middle' });
+    shapes.push({ k: 'text', x: cx, y: full ? yT + geo.n2 : yT + geo.mid, s: full && e ? `${e.s.pct}%` : '', size: valL.size!, weight: VAL_W, color: ink, alpha: full ? 1 : 0, anchor: 'middle' });
+    // a part too narrow for its name: name and percent under the bar in the card's text colour, on a thin leader from the part (docs/HUMANIZED-DESIGN.md: plain words, no capsule).
+    // (the slot's leader stays, clear, so two frames still pair up and the words glide)
+    const pill = e?.pill, py = pill ? geo.pillsT + pill.row * (geo.ph + geo.pg) : geo.pillsT, lx = pill ? pill.lx : cx;
+    shapes.push({ k: 'line', x1: lx, y1: geo.barB + 0.15 * f, x2: lx, y2: pill ? py - 0.1 * f : geo.barB + 0.15 * f, pen: { color: withAlpha(lead.stroke!, pill ? 1 : 0), w: lead.width!, cap: 'round' } });
+    shapes.push({ k: 'text', x: pill ? pill.cx : cx, y: py + geo.ph / 2 + 0.36 * f, s: pill && e ? `${NAME.get(id)} ${e.s.pct}%` : '', size: pillText.size!, weight: VAL_W, color: pillText.fill!, alpha: pill ? 1 : 0, anchor: 'middle' });
   }
-  const frame: Frame = { w, h, shapes: shapes.map(dead), label: flowsSummary(lay.parts, a.healthy, 'portal') };
+  const frame: Frame = { w, h, shapes, label: flowsSummary(lay.parts, a.healthy, 'portal') };
   return { frame, tiers: Object.fromEntries(spans.map((s, i) => [s.id, tiers[i]!])), parts: lay.parts };
 }
 
@@ -72,7 +74,8 @@ function inflowFrame(a: FlowsArgs, c: ChartCtx): FlowsOut {
   const mark = inflowMarker(a.healthy, w, f, measure), spans = inflowSpans(barOrder(a.parts, 'inflow'), w);
   const labs = inflowLabels(spans, w, geo, measure, mark, a.tiers);
   const at = new Map(spans.map((s, i) => [s.id, { s, l: labs[i]! }]));
-  const yT = geo.top, yB = geo.bottom, text = nameL.fill!, halo = nameL.halo;
+  const yT = geo.top, yB = geo.bottom, text = nameL.fill!, halo = nameL.halo, surface = c.pal.tok('surface');
+  const valW = VAL_W;
   const shapes: Shape[] = [{ k: 'clip', x: 0, y: yT, w, h: geo.barH, r: Math.min(6, geo.barH / 2) }];
   for (const [id] of INFLOW) {
     const e = at.get(id), seg = lk('flows.seg', TONE.get(id)!).fill!;
@@ -86,26 +89,26 @@ function inflowFrame(a: FlowsArgs, c: ChartCtx): FlowsOut {
   for (const [id] of INFLOW) {
     const e = at.get(id);
     if (!e) {
-      shapes.push({ k: 'text', x: w / 2, y: yT + geo.n1, s: '', size: nameL.size!, weight: nameL.weight, color: text, alpha: 0, anchor: 'middle', halo }, { k: 'text', x: w / 2, y: yT + geo.n2, s: '', size: valL.size!, weight: valL.weight, color: text, alpha: 0, anchor: 'middle', halo },
+      shapes.push({ k: 'text', x: w / 2, y: yT + geo.n1, s: '', size: nameL.size!, weight: nameL.weight, color: text, alpha: 0, anchor: 'middle', halo }, { k: 'text', x: w / 2, y: yT + geo.n2, s: '', size: valL.size!, weight: valW, color: text, alpha: 0, anchor: 'middle', halo },
         { k: 'line', x1: w / 2, y1: 0, x2: w / 2, y2: 0, pen: { color: withAlpha(text, 0), w: 1 } });
       continue;
     }
-    const { s, l } = e, d = l.tier;
+    const { s, l } = e, d = l.tier, ink = barInk(lk('flows.seg', TONE.get(id)!).fill!, surface);
     if (d <= 1) {
-      shapes.push({ k: 'text', x: l.cx, y: yT + geo.n1, s: d ? INFLOW_SHORT[id]! : NAME.get(id)!, size: nameL.size!, weight: nameL.weight, color: text, anchor: 'middle', halo },
-        { k: 'text', x: l.cx, y: yT + geo.n2, s: `${s.pct}%`, size: valL.size!, weight: valL.weight, color: text, anchor: 'middle', halo },
+      shapes.push({ k: 'text', x: l.cx, y: yT + geo.n1, s: d ? INFLOW_SHORT[id]! : NAME.get(id)!, size: nameL.size!, weight: nameL.weight, color: ink, anchor: 'middle' },
+        { k: 'text', x: l.cx, y: yT + geo.n2, s: `${s.pct}%`, size: valL.size!, weight: valW, color: ink, anchor: 'middle' },
         { k: 'line', x1: l.cx, y1: yT, x2: l.cx, y2: yT, pen: { color: withAlpha(text, 0), w: 1 } });
     } else if (d === 2) {
       shapes.push({ k: 'text', x: l.cx, y: yT + geo.n1, s: '', size: nameL.size!, weight: nameL.weight, color: text, alpha: 0, anchor: 'middle', halo },
-        { k: 'text', x: l.cx, y: yT + geo.mid, s: `${s.pct}%`, size: valL.size!, weight: valL.weight, color: text, anchor: 'middle', halo },
+        { k: 'text', x: l.cx, y: yT + geo.mid, s: `${s.pct}%`, size: valL.size!, weight: valW, color: ink, anchor: 'middle' },
         { k: 'line', x1: l.cx, y1: yT, x2: l.cx, y2: yT, pen: { color: withAlpha(text, 0), w: 1 } });
     } else if (d === 3) {
       const half = (l.tw ?? 0) / 2, cx = Math.min(Math.max((s.a + s.b) / 2, l.cx - half), l.cx + half);
       shapes.push({ k: 'text', x: l.cx, y: geo.base, s: l.text ?? '', size: nameL.size!, weight: lk('flows.pill.k').weight, color: text, anchor: 'middle', halo },
-        { k: 'text', x: l.cx, y: yT + geo.n2, s: '', size: valL.size!, weight: valL.weight, color: text, alpha: 0, anchor: 'middle', halo },
+        { k: 'text', x: l.cx, y: yT + geo.n2, s: '', size: valL.size!, weight: valW, color: text, alpha: 0, anchor: 'middle', halo },
         { k: 'line', x1: cx, y1: yT, x2: cx, y2: geo.base + 0.3 * f, pen: { color: lead.stroke!, w: lead.width! } });
     } else {
-      shapes.push({ k: 'text', x: l.cx, y: yT + geo.n1, s: '', size: nameL.size!, weight: nameL.weight, color: text, alpha: 0, anchor: 'middle', halo }, { k: 'text', x: l.cx, y: yT + geo.n2, s: '', size: valL.size!, weight: valL.weight, color: text, alpha: 0, anchor: 'middle', halo },
+      shapes.push({ k: 'text', x: l.cx, y: yT + geo.n1, s: '', size: nameL.size!, weight: nameL.weight, color: text, alpha: 0, anchor: 'middle', halo }, { k: 'text', x: l.cx, y: yT + geo.n2, s: '', size: valL.size!, weight: valW, color: text, alpha: 0, anchor: 'middle', halo },
         { k: 'line', x1: l.cx, y1: yT, x2: l.cx, y2: yT, pen: { color: withAlpha(text, 0), w: 1 } });
     }
   }

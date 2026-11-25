@@ -157,6 +157,7 @@ export const sceneApi = {
   /** The wedge's wash on the lobule and the sinusoid (a slide that says `wash`); `landedAtMs` is when the view lands, the wash begins a beat after it. */
   setWash(on: boolean, landedAtMs?: number): void { cel.setWash(on, landedAtMs); clock.invalidate('wash'); },
   /** The veins a slide shows stented (edge ids): a stent comes in over each, and goes out of the ones left off the list. Returns the ids the scene could stent. */
+  setStentGhost(on: boolean, instant = false): void { cel.procs.setStentGhost(on, instant); clock.invalidate('stented'); },
   setStented(ids: readonly string[], instant = false): string[] { const r = cel.procs.setStented(ids, instant); clock.invalidate('stented'); return r; },
   /** The ring the HVPG catheter reads in while a deck slide holds it (free, wedge, bad); null for none. */
   setCatheterRing(ring: 'free' | 'wedge' | 'bad' | null): void { cel.procs.keptRing = ring; clock.invalidate('catheter'); },
@@ -202,15 +203,6 @@ export const sceneApi = {
     pause(ms: number): void { cel.procs.pauseUntil(clock.now() + ms); clock.invalidate('procedure'); },
     /** The driven procedure's time, its goal and whether it is moving, or null. */
     get driven(): { kind: string; t: number; goal: number; moving: boolean } | null { return cel.procs.driven; },
-  },
-  /** Dye (the 2D app's injectDye): into vessel `id` (default the gut's veins, as in mesenteric portography); `hold` keeps it going until release(). */
-  dye: {
-    inject(id: string | null, o: { hold?: boolean } = {}): void {
-      const edge = id && cel.disease.dye.inject(id, 0.15, { hold: !!o.hold }) ? id : (cel.disease.dye.inject('V_INT', 0, { hold: !!o.hold }), 'V_INT');
-      void edge; clock.invalidate('dye');
-    },
-    release(): void { cel.disease.dye.release(); clock.invalidate('dye'); },
-    get active(): boolean { return cel.disease.dye.active; },
   },
   /** Edge IDs the slide talks about; in flow-mark option A these (and the picked vessel) carry chevrons. */
   setNamedVessels(ids: readonly string[]): void { cel.setNamedVessels(ids); clock.invalidate('named-vessels'); },

@@ -37,3 +37,6 @@ Title (serif 540), Body, Data, Kicker, Big number. At 1440 x 900: 49.9 / 20.8 / 
 - Add a stylesheet that the walk in `tests/type-vocabulary.test.ts` skips, or weaken it. It finds every `src/**/*.css` we own (not `css2d/`, `*.copied.*`, `*.generated.*`, debug, parity, perf) and the weights and tracking written in TS.
 - Edit the 2D copy (`css2d/`) to match: it keeps 2D's own values (700 in places, its trackings, 540 titles).
 - Take away the step numeral's 700, or the deck title's 540.
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

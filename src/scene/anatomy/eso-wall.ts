@@ -1,4 +1,4 @@
-// THE OESOPHAGUS'S WALL ON THE PLACED ANATOMY (`?anatomy=new`), for the vessels that lie on it: the oesophageal varices (Mohammad, 24 Nov: "varices should be surrounding the esophagus"). The varices are the
+// THE OESOPHAGUS'S WALL ON THE PLACED ANATOMY, for the vessels that lie on it: the oesophageal varices (Mohammad, 24 Nov: "varices should be surrounding the esophagus"). The varices are the
 // submucosal and para-oesophageal veins of the lower oesophagus: they run up its wall all round it, from the cardia, where the coronary vein brings them portal blood, to where they drain on to the azygos side. The
 // vessels are built at load, before the organ file is in, so the tube's axis and half-widths are a table: measured from the placed stomach mesh (organs/meshes.ts ORGAN_MESHES.stomach, the oesophagus is part of it)
 // in slices across y, its middle (x, z) and half-widths (x, z) per slice; tests/anatomy-varices-wrap.test.ts checks the table against the mesh, so a re-placed organ cannot leave the varices off its wall.
@@ -10,8 +10,9 @@ export const ESO_ROWS: readonly (readonly [number, number, number, number, numbe
   [1.34, 0.293, -0.127, 0.028, 0.035], [1.40, 0.290, -0.142, 0.027, 0.035], [1.46, 0.287, -0.153, 0.028, 0.035], [1.52, 0.285, -0.159, 0.028, 0.035],
   [1.58, 0.282, -0.160, 0.028, 0.035], [1.70, 0.278, -0.160, 0.029, 0.036], [1.82, 0.273, -0.160, 0.030, 0.038],
 ];
-/** How far out from the wall a varix's centreline lies (scene units): the widest strand's radius (the column, beaded: shape.ts VARIX_THICK, bead floor), so the strands lie ON the wall, touching it, never in it. */
-export const ESO_VARIX_GAP = 0.012;
+/** How far out from the wall a varix's centreline lies (scene units) at its full size: the widest strand's drawn radius there (shape.ts VARIX_THICK and varixThickK, the shader's swell at 7 mm), so the strands lie ON the wall, touching it, never in it.
+ *  A smaller varix's strands lie their own drawn radius out (shape.ts wallGap hands it to coil.ts wrapEso), so they touch the wall at every size; this is the widest, and what a course built with no size takes. */
+export const ESO_VARIX_GAP = 0.019;
 
 export interface EsoSlice { cx: number; cz: number; rx: number; rz: number }
 /** The oesophagus's slice at height `y` (held at the table's ends). */

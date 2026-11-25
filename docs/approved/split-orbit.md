@@ -28,3 +28,6 @@ Mohammad, 24 Nov 06:31 UTC: slide 7 stays in the lobule and "even slide 11 is no
 - Names over the figures: `twin/SplitLabels.tsx`, plain words.
 - Not yet seen on screen. Known cost: building the twin is one task (about 1.5 s in node software GL).
 
+
+
+**Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

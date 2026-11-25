@@ -11,7 +11,11 @@ import { chainOf, sequencer, plainText, parseToken, tokensOf, valueText, stepOf,
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
 
 interface Gold { from: string; decks: Record<string, { id: string; fp: Record<string, number>; tokens: [string, string][] }[]> }
-const gold = JSON.parse(readFileSync(new URL('./fixtures/decks-hp-numbers.json', import.meta.url), 'utf8')) as Gold;
+const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/${f}`, import.meta.url), 'utf8')) as Gold;
+// The 2D app's numbers, except for the decks where this app's engine has deliberately moved on since the copy (decks-hp-numbers-3d.json,
+// scripts/gen-hp-numbers-3d.mjs: engine ac66c99b, ascites forms and clears gradually, and c92bf66b, a retained volume builds up over 20 days;
+// with the engine before them every deck replays to the 2D fixture). Those decks are recorded from this engine, so any further drift still fails.
+const gold: Gold = { from: read('decks-hp-numbers.json').from, decks: { ...read('decks-hp-numbers.json').decks, ...read('decks-hp-numbers-3d.json').decks } };
 const FULL = process.env.DECKS_HP_FULL === '1';
 const WHOLE = 'pregnancy';
 const FIRST = 1;

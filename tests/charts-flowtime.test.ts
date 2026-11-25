@@ -142,3 +142,27 @@ test('a head value never stands on the clock\'s axis (4.0 mmHg struck through by
   }
   assert.ok(heads >= 20, `${heads} head values judged`);
 });
+
+// Next bleed 9 (capture af88a9c2): the words say "7.3 mm with EVL alone" and only the 5.0 mm line was drawn. A tool's `refs` draw another state's value as a dashed tick with its words, clear of the lines and the head values.
+test('a reference tick draws another state\'s value, in the line\'s units, clear of the heads, in every look and width', async () => {
+  const { refsOf } = await import('../src/ui/charts/flowtime/model.ts');
+  const refs = refsOf({ lines: ['hvpg', 'varix'], refs: [{ line: 'varix', from: 'slough', text: 'EVL alone' }, { line: 'asc', from: 'slough', text: 'x' }, { line: 'varix', from: 'none', text: 'y' }] }, (id) => (id === 'slough' ? { varix: 7.3 } : null));
+  assert.deepEqual(refs, [{ slot: 'flow', v: 7.3, text: 'EVL alone' }], 'a line the chart lacks, or a state without the number, is left out');
+  const ser = flowTimeSeries(await trailOf('healthy', 'cirr-decomp', ['hvpg', 'varix'], 300), 'days', ['hvpg', 'varix'], null, { scales: { hvpg: [0, 20, 5], varix: [0, 8, 2] } })!;
+  assert.ok(ser);
+  for (const look of ['light', 'dark'] as const) for (const [w, d] of [[300, 'phone-portrait'], [430, 'tablet-portrait'], [330, 'desktop']] as const) {
+    const c = ctxOf(look, w, d), { frame, G } = flowTimeFrame({ ser, clock: 'days', keys: ['hvpg', 'varix'], refs }, ser.ax.end, c);
+    const word = frame.shapes.find((x): x is TextShape => x.k === 'text' && x.s.startsWith('EVL alone'))!;
+    assert.ok(word, `${look} ${w}: the words stand`);
+    assert.match(word.s, /^EVL alone 7\.3 mm$/);
+    assert.ok(word.y > G.T && word.y < G.B, `${look} ${w}: inside the plot`);
+    const tick = frame.shapes.find((x) => x.k === 'line' && (x as { pen: { dash?: number[] } }).pen.dash && Math.abs((x as { y1: number }).y1 - (word.y - 0.36 * c.type.sm)) < 1e-6);
+    assert.ok(tick, `${look} ${w}: the dashed tick`);
+    // clear of every head value (those stand at the plot's right, bold, 1.1 x type)
+    for (const t of frame.shapes.filter((x): x is TextShape => x.k === 'text' && x !== word && x.weight === 700 && Math.abs(x.size - 1.1 * c.type.sm) < 1e-9)) {
+      const hw = (t.anchor === 'end' ? [t.x - 60, t.x] : [t.x, t.x + 60]), ww = [word.x - 120, word.x];
+      const overlapX = hw[0]! < ww[1]! && ww[0]! < hw[1]!, overlapY = Math.abs(t.y - word.y) < 1.1 * c.type.sm;
+      assert.ok(!(overlapX && overlapY), `${look} ${w}: "${t.s}" and the reference words meet`);
+    }
+  }
+});

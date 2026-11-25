@@ -28,7 +28,7 @@ test('the letters of the guide', () => {
   assert.deepEqual(a('t'), { type: 'treat' });
   assert.deepEqual(a('p'), { type: 'compare' });
   assert.deepEqual(a('z'), { type: 'settle' });
-  assert.deepEqual(a('j'), { type: 'dye' });
+  assert.equal(a('j'), null, 'J is no key now (the dye was taken out, 24 Nov)');
   assert.deepEqual(a('.'), { type: 'step' });
   assert.deepEqual(a('?'), { type: 'help' });
   assert.deepEqual(a('/'), { type: 'search-open' });

@@ -6,7 +6,7 @@ export const LIVER_SPLIT_X = 640;   // anatomy.js: the liver's right lobe lies l
 /** The 2D organ ids that take a tap, and the card each opens (stage-hover.js ORGAN_OF: heart-ra is the heart's). */
 export const PICK_OF: Readonly<Record<string, 'liver' | 'heart' | 'spleen'>> = { liver: 'liver', heart: 'heart', 'heart-ra': 'heart', spleen: 'spleen' };
 
-/** The approved placement's gut parts (anatomy/source.ts PLACED): one gut surface in front of the vessels, so a tap on it lights the part it is on (layer.ts pickGut). They have no card: the tap outlines the part. */
+/** The approved placement's gut parts: one gut surface in front of the vessels, so a tap on it lights the part it is on (layer.ts pickGut). They have no card: the tap outlines the part. */
 export type GutPart = 'stomach' | 'duodenum' | 'bowel' | 'colon';
 
 export type FigureHit =

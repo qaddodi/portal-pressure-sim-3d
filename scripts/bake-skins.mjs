@@ -6,22 +6,12 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
-import { spawnSync } from 'node:child_process';
 import { SKINS_EXTRAS, SKINS_SKIP, bakeSig, isCurrent, writeSig } from './bake-sig.mjs';
 
-// BOTH ANATOMIES: the anatomy is chosen once at load (src/scene/anatomy/source.ts), so each is baked in its own process: today's into skins.bin and circuit-skins.bin, the approved placement's (PPS_ANATOMY=placed,
-// `?anatomy=new`) into skins-placed.bin and circuit-skins-placed.bin, so a placed page lays its skins in and never builds them live. PPS_ANATOMY set by the caller bakes that one only.
-if (!process.env.PPS_ANATOMY) {
-  const run = (anatomy) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...process.argv.slice(2)], { stdio: 'inherit', env: { ...process.env, PPS_ANATOMY: anatomy } }).status ?? 1;
-  const a = run('today'), b = run('placed');
-  process.exit(a || b);
-}
-
 process.env.PPS_NO_BAKED = '1';   // (the bake builds live: it must never lay in the file it is about to replace)
-// (PPS_ANATOMY=placed bakes the approved placement's skins into their own files, skins-placed.bin and circuit-skins-placed.bin, with digests that name it: a placed bake never replaces or passes for today's)
-const placed = process.env.PPS_ANATOMY === 'placed' || process.env.PPS_ANATOMY === 'new';
-const out = fileURLToPath(new URL(`../public/anatomy/skins${placed ? '-placed' : ''}.bin`, import.meta.url));
-const outCircuit = fileURLToPath(new URL(`../public/anatomy/circuit-skins${placed ? '-placed' : ''}.bin`, import.meta.url));
+// (the approved placement is the one anatomy since the cut-over: its digests name it (skin/baked.ts), so a file the 2D figure's anatomy baked under these names never passes for it)
+const out = fileURLToPath(new URL('../public/anatomy/skins.bin', import.meta.url));
+const outCircuit = fileURLToPath(new URL('../public/anatomy/circuit-skins.bin', import.meta.url));
 // Plan 50: a bake whose inputs are unchanged does nothing (the signature is in <out>.sig). The skins are the figure's vessels and their joins: what the lobule, the sinusoid, the decks and the UI do
 // (and every shader) cannot change them; the one file of those folders the skins read is the weld codec's digest.
 const sig = bakeSig(fileURLToPath(import.meta.url), SKINS_EXTRAS, SKINS_SKIP);
