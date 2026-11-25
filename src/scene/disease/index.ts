@@ -16,6 +16,7 @@ import { Landmarks } from './landmarks.ts';
 import { ScopeRing } from './scope-ring.ts';
 import { varixWale } from './copied/varix-bead.js';
 import { ClotLayer } from './clots.ts';
+import { bloodColour } from './paint.ts';
 import { Eased, FluidFollow } from './follow.ts';
 import { StrandLayer } from './strands.ts';
 import { type BodyTargets, type DiseaseFrame, type DiseaseParams, bodyTargets } from './targets.ts';
@@ -73,7 +74,7 @@ export class DiseaseLayer {
   }
 
   applyLook(look: LookId, p: Palette): void {
-    this.organs.applyLook(p); this.clots.applyLook(look, p); this.strands.applyLook(p, look); this.bleed.applyLook(look, p); this.landmarks.applyLook(look); this.scopeRing.applyLook(look); this.ascites.applyLook(look); this.moving = true;
+    this.organs.applyLook(p); this.organs.setBlood(bloodColour(look, p)); this.clots.applyLook(look, p); this.strands.applyLook(p, look); this.bleed.applyLook(look, p); this.landmarks.applyLook(look); this.scopeRing.applyLook(look); this.ascites.applyLook(look); this.moving = true;
   }
   setPhone(phone: boolean): void { this.organs.setPhone(phone); this.clots.setPhone(phone); this.strands.setPhone(phone); this.moving = true; }
 
@@ -120,7 +121,7 @@ export class DiseaseLayer {
       // the red wale: on the pressure lens only (the other lenses' colours are data), by the wall-stress ratio and the varix's size (stage-tubes.js)
       wale: this.lensGrey ? 0 : varixWale(!!(m.varix as { redWale?: boolean } | undefined)?.redWale, ((m.varix as { ratioMean?: number; ratio?: number } | undefined)?.ratioMean ?? (m.varix as { ratio?: number } | undefined)?.ratio) as number, t.varix.VAR),
     }, dt * 1000, inst) || moving;
-    moving = this.bleed.set(t.bleed, dt, inst) || moving;
+    moving = this.bleed.set(t.bleed, dt, inst, this.organs.poolShown) || moving;
     // the scope ring stands on the tear while a varix bleeds, so the ring and the words that name it are one place
     this.scopeRing.setCentre(t.bleed.active && t.bleed.site === 'VAR' ? tearPoint('VAR') : null);
     this.ambientOnly = !moving && rippling && this.ascites.rippleOnly;

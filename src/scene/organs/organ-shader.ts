@@ -4,6 +4,7 @@
 import { FADE_GLSL, INK_RIM_GLSL } from '../materials/shaders.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { RIM_SPECK } from './rim-profile.ts';
+import { DEPTH_DARK } from './pool-level.ts';
 import { SEE_DECL } from '../organ-veil/glsl.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
@@ -155,13 +156,13 @@ void main() {
     float body = smoothstep(-aa, aa, dU);
     float wet = smoothstep(-3.5, -aa, dU) * (1.0 - body);   // the meniscus: the wall just above the surface is wet, a faint film that climbs a few units and fades
     fill += poolDelta * (body + 0.25 * wet);
-    fill *= 1.0 - 0.26 * smoothstep(0.0, 90.0, dU) * body * poolA.z;   // deeper blood is darker, in the same hue
+    fill *= 1.0 - ${num(DEPTH_DARK)} * smoothstep(0.0, 90.0, dU) * body * poolA.z;   // deeper blood is a little darker, in the same hue
     float lobe = exp(-pow((vBox.x - poolLand.x) / max(poolLand.y, 1e-4), 2.0));   // the jet lands: a lighter, fresher patch on the surface, a little wider than the jet
     float skin = (1.0 - smoothstep(0.0, 6.0, dU)) * smoothstep(-0.5, 2.0, dU);   // the lit skin of the surface: a few units under it
     fill = mix(fill, ogLight.rgb, clamp((0.07 + poolA.w * lobe * 0.12) * skin * poolA.z, 0.0, 1.0));
     float band = (1.0 - smoothstep(0.0, 9.0, dU)) * smoothstep(-1.5, 1.0, dU);   // the ripples' light lies in the blood's top few units
     fill = mix(fill, slope > 0.0 ? ogLight.rgb : ogDark.rgb, clamp(abs(slope) * 0.5, 0.0, 0.2) * band * poolA.z);
-    lay = mix(layer, max(layer, 0.9), body * poolA.z);   // blood is not a wash: it lies on the page nearly opaque, so it reads red, not mauve
+    lay = mix(layer, 1.0, body * poolA.z);   // blood is not a wash: it lies on the page opaque, so it is the jet's red, not mauve
   }
   if (nodAmt > 0.0) {
     fill += sepDelta * nt.r;

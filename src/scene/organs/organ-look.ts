@@ -15,8 +15,9 @@ export const LIVER_TOKENS = {
 };
 /** A septum is painted twice as pale as 2D's flat fill (the 3D liver has no gloss beneath, so at 2D's strength a wall and a nodule would differ by 2%). */
 export const SEPTUM_BOOST = 1;
-/** How much of the pool's red the stomach wall takes below the blood's surface (the 2D pool is drawn at 0.92). */
-export const POOL_TINT = 0.75;
+/** How much of the blood's colour the stomach takes below the pool's surface: all of it, so the pool is the jet's blood
+ *  (disease/paint.ts bloodColour), not a tint of it (the 2D pool is drawn at 0.92). */
+export const POOL_TINT = 1;
 /** The embolized spleen's dead part: the stage's colour at 0.8 (app-06-plate.css .pse-dead), and its edge line at 0.7. */
 export const PSE_DEAD_A = 0.8, PSE_EDGE_A = 0.7;
 /** What a lens other than Pressure does to the organs (organ-dim.js LENS_GREY), and the ghost a removed spleen is (stage-diaphragm.js: opacity 0.14). */

@@ -277,6 +277,11 @@ export class OrganLayer {
   get spleenScaleNow(): number { return this.spleenScale.value; }
 
   applyLook(p: Palette): void { this.palette = p; this.art.applyLook(p); this.dirtyColours = true; }
+  /** The blood's colour, the one the bleeding jet wears (disease/paint.ts bloodColour): the stomach's pool takes exactly it, so the stream and the pool are one blood. */
+  setBlood(c: RGB): void { this.bloodRGB = c; this.dirtyColours = true; }
+  private bloodRGB: RGB | null = null;
+  /** How full the pool stands (poolFill, eased): the jet lands on the level this gives, so the stream never lands above or below the pool's own surface. */
+  get poolShown(): number { return this.pool.value; }
   /** The organ outline is in the figure's units (ORGAN_INK_VS), so it needs no phone trim: keep 2D's 1.1 (kidney 1.4) on every device. */
   setPhone(phone: boolean): void { this.phone = phone; for (const [id, o] of this.byId) { o.setPhone(phone); o.ink.uniforms.px!.value = ORGAN_STYLE[id]!.px; } }
   /** The organs' dim besides the lens's, 0..1: its goal (eased by the clock in `update`), and the eased value the ascites' pool reads. */
@@ -364,7 +369,8 @@ export class OrganLayer {
     if (!p) return false;
     // the organs lie on the page, not on a plate (2D's #backdrop is off): a dimmed or ghosted organ goes toward the page
     const page = rgbOf(p.bg), dark = p.highlight === 'white';
-    const k = { plate: page, dark, bleed: rgbOf('#8E1A20'), bg: page };
+    // (the blood is the jet's own colour, handed in by the disease layer: disease/paint.ts bloodColour. The fallback is only for a layer used alone.)
+    const k = { plate: page, dark, bleed: this.bloodRGB ?? rgbOf('#8E1A20'), bg: page };
     for (const [id, o] of this.byId) {
       const s: OrganState = { ...PLAIN, sat: this.sat.value, dim: this.dimmed.value * this.figureDimE.value, quiet: this.quiet };
       if (id === 'liver') { const ls = this.liverFollow.shown; s.congestion = ls.congestion; s.tint = ls.tint; s.cirrhosisNod = liverSurface(ls.cirrhosis).nod; }
