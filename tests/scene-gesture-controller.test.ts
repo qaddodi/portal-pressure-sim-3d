@@ -155,7 +155,7 @@ test('a trackpad pinch (ctrl + wheel) and Safari gesture events zoom about the p
   assert.ok(r.hand.k <= K_MAX + 1e-9 && r.hand.k >= K_MIN - 1e-9);
 });
 
-test('a double click zooms in ×2 about the point and puts back what the first click picked; touch never does', () => {
+test('a double click zooms in ×2 about the point and puts back what the first click picked; touch zooms the same way, never picking', () => {
   const r = rig();
   r.ptr('pointerdown', 1, 300, 300, { pointerType: 'mouse' }); r.ptr('pointerup', 1, 300, 300, { pointerType: 'mouse' });
   r.host.setPicked('LGV');
@@ -168,8 +168,11 @@ test('a double click zooms in ×2 about the point and puts back what the first c
   t.ptr('pointerdown', 1, 300, 300, T); t.ptr('pointerup', 1, 300, 300, T); t.advance(100);
   t.ptr('pointerdown', 1, 300, 300, T); t.ptr('pointerup', 1, 300, 300, T);
   t.run(1500);
-  assert.equal(t.hand.k, 1);
-  assert.equal(t.taps.length, 2);
+  assert.ok(Math.abs(t.hand.k - 2) < 1e-6, 'a double tap by finger zooms ×2');
+  assert.equal(t.taps.length, 0, 'and picks nothing, not even the first tap');
+  const u = rig(); u.ptr('pointerdown', 1, 300, 300, T); u.ptr('pointerup', 1, 300, 300, T);
+  assert.equal(u.taps.length, 0, 'a lone finger tap waits out the double-tap window'); u.run(400);
+  assert.deepEqual(u.taps, [[300, 300]], 'then picks');
 });
 
 test('refit glides the hand home, and a button or new shot (handsOff) stops everything the hand started', () => {
@@ -408,14 +411,13 @@ test('zoom presses stack: pressed again while a glide runs, the step goes on fro
   assert.ok(Math.abs(r.hand.k - 1.4 * 1.4) < 1e-6, `${r.hand.k}`);
 });
 
-test('double tap, keep the finger down and slide: one-finger zoom about that point; down zooms in, up out, and the first tap\'s pick is put back (owner, 25 Nov)', () => {
+test('double tap, keep the finger down and slide: one-finger zoom about that point; down zooms in, up out, and nothing is ever picked (owner, 25 Nov)', () => {
   const r = rig(); const T = { pointerType: 'touch' };
   r.ptr('pointerdown', 1, 300, 200, T); r.ptr('pointerup', 1, 300, 200, T);
-  r.host.setPicked('LGV'); r.advance(100);
+  r.advance(100);
   r.ptr('pointerdown', 1, 301, 200, T);
   r.ptr('pointermove', 1, 301, 230, T); r.ptr('pointermove', 1, 301, 300, T);
   assert.ok(r.hand.k > 1.3, `k ${r.hand.k}`);
-  assert.equal(r.picked, null, 'the first tap\'s pick is undone');
   // the figure point under the finger stays under it
   const p = { x: 400 + r.hand.x + r.hand.k * (301 - 400), y: 300 + r.hand.y + r.hand.k * (200 - 300) };
   assert.ok(Math.abs(p.x - 301) < 1e-6 && Math.abs(p.y - 200) < 1e-6);
@@ -424,7 +426,7 @@ test('double tap, keep the finger down and slide: one-finger zoom about that poi
   assert.ok(r.hand.k < kIn, 'sliding up zooms out');
   assert.equal(r.orbit, 0, 'no turn, no pan');
   r.ptr('pointerup', 1, 301, 150, T);
-  assert.equal(r.taps.length, 1, 'the zoom is not a second pick');
+  r.run(500); assert.equal(r.taps.length, 0, 'the first tap never picks and the zoom is not a pick');
 });
 
 test('a finger held still for ~0.4 s turns and tilts the camera when dragged; a drag without the hold still pans (owner, 25 Nov)', () => {

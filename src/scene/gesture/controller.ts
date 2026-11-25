@@ -18,6 +18,7 @@ import { createWheelGlide, isPadWheel } from './wheel-glide.ts';
 //   one finger after a pinch       carries on as a pan (never a tap, never thrown)
 //   trackpad two-finger scroll     pan        trackpad pinch (and Ctrl or ⌘ + wheel)   zoom about the pointer
 //   mouse wheel                    zoom about the pointer, glided      double click   zoom in ×2 (Shift: out) about the point
+//   double tap                     zoom in ×2 about the point; a finger's tap picks after 0.32 s, so a double tap never highlights
 //   double tap, hold, slide        one-finger zoom about the point (down: in, up: out)
 //   one finger held still ~0.4 s   then drag: turns and tilts the camera (like the mouse) instead of panning
 //   tap                            pick a vessel, an organ or the belly's fluid
@@ -125,7 +126,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
   let lastTap: { t: number; x: number; y: number; sel: unknown } | null = null;
   let animId = 0, cancelFlick: (() => void) | null = null, flicking = false, orbitId = 0;
   const touchesDown = new Set<number>();
-  let holdT = 0;
+  let holdT = 0, tapT = 0;   // tapT: a finger's tap waits out the double-tap window before it picks
   const holdClear = () => { if (holdT) env.clearTimer(holdT); holdT = 0; };
   const offs: (() => void)[] = [];
   const on = (t: GestureTarget, type: string, fn: unknown, opts?: unknown) => {
@@ -356,6 +357,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     // a finger that comes down again right after a tap, close to it: the double tap's second touch. Held and slid up or down it zooms about that point; lifted without sliding it is an ordinary tap
     if (touch && lastTap && env.now() - lastTap.t < DOUBLE_TAP_MS && Math.hypot(ev.clientX - lastTap.x, ev.clientY - lastTap.y) < DOUBLE_TAP_PX) {
       const m = { x: ev.clientX, y: ev.clientY };
+      if (tapT) { env.clearTimer(tapT); tapT = 0; }   // the first tap never picks: the viewer is zooming
       drag = { type: 'dzoom', m, y0: ev.clientY, k0: host.hand().k, anchor: anchorAt(m, host.hand(), host.centre()), moved: false, prev: lastTap.sel };
       return;
     }
@@ -391,7 +393,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       const dy = ev.clientY - drag.y0;
       if (!drag.moved) {
         if (Math.abs(dy) + Math.abs(ev.clientX - drag.m.x) <= TAP_SLOP_TOUCH) return;
-        drag.moved = true; lastTap = null; host.setPicked(drag.prev);   // the first tap's pick is put back: this is a zoom, not a double pick
+        drag.moved = true; lastTap = null;
         drag.y0 = ev.clientY;
         return;
       }
@@ -435,7 +437,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     const d = drag;
     if (!d) return;
     if (d.type === 'ignore') { if (!pointers.size) { drag = null; springBack(); } return; }
-    if (d.type === 'dzoom') { drag = null; if (d.moved) springBack(); else if (ev.type === 'pointerup') tap(ev); return; }
+    if (d.type === 'dzoom') { drag = null; if (d.moved) springBack(); else if (ev.type === 'pointerup') { lastTap = null; animZoomAt(ev.clientX, ev.clientY, 2); } return; }
     if (d.type === 'pinch') {
       // one finger stays down: it carries on as a pan (never as a tap, never thrown on release)
       const rest = [...pointers.values()][0];
@@ -468,6 +470,13 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
       return;
     }
     lastTap = { t: now, x: ev.clientX, y: ev.clientY, sel: host.picked() };
+    if (ev.pointerType === 'touch' && !env.locked?.()) {
+      // a finger's tap waits for a possible second tap (a double tap zooms and never highlights, not even for a moment); then it picks as before
+      const x = ev.clientX, y = ev.clientY;
+      if (tapT) env.clearTimer(tapT);
+      tapT = env.timer(() => { tapT = 0; host.tap(x, y, true); }, DOUBLE_TAP_MS);
+      return;
+    }
     host.tap(ev.clientX, ev.clientY, ev.pointerType === 'touch');
   }
   const onContext = (ev: PtrEv) => { ev.preventDefault?.(); if (env.locked?.()) return; host.context(ev.clientX, ev.clientY, ev.pointerType === 'touch'); };
@@ -491,7 +500,7 @@ export function createGestures(el: GestureTarget, host: GestureHost, env: Gestur
     animateTo(to, ms) { handsOff(); animateTo(to, ms, null); },
     zoomStep(factor) { if (env.locked?.()) return; const goal = animId && animGoal ? { ...animGoal } : null; handsOff(); const c = host.centre(); animZoomAt(c.x, c.y, factor, goal); },
     dispose() {
-      handsOff(); stopOrbitHome(); holdClear();
+      handsOff(); stopOrbitHome(); holdClear(); if (tapT) env.clearTimer(tapT); tapT = 0;
       for (const off of offs) off();
       offs.length = 0;
     },
