@@ -64,11 +64,16 @@ test('wherever two vessels that do not join cross on the screen, the one whose a
   assert.deepEqual(bad, [], bad.slice(0, 8).join('\n'));
 });
 
-test('the old depth (the whole bulge) would turn a crossing over: the gastrorenal shunt passes just behind the spontaneous splenorenal one (round 18), and only the share keeps it there', () => {
-  // (Before the cut-over this was the cava bulging past the hepatic artery; placed, the cava is 0.05 behind the artery and no bulge reaches it. The closest call on the placed figure is C5 under C6, 0.013 apart.)
+test('the old depth (the whole bulge) would turn a crossing over, and only the share keeps the nearer axis in front: the formula, with the real radii of two shunts that once crossed 0.013 apart', () => {
+  // (Before the cut-over this was the cava bulging past the hepatic artery; placed, the gastrorenal shunt (C5) passed 0.013 behind the spontaneous splenorenal one (C6), round 18. C6 is bowed off its sibling since
+  //  25 Nov (placed-network.ts SIBLINGS APART) and the two no longer overlap on the screen at all, so the pair is no longer a drawn crossing and the drawn crossings are judged by the test above. The claim itself is the
+  //  shader's: a tube 0.013 nearer than another, over a back tube of C5's radius, is turned over by the whole bulge and not by the share.)
   const c5 = net.find((v) => v.id === 'C5')!, c6 = net.find((v) => v.id === 'C6')!;
   assert.ok(c5 && c6, 'both shunts are drawn');
-  assert.ok(inFront(c5, c6, 1).miss.length > 0 || inFront(c6, c5, 1).miss.length > 0, 'with the full bulge one shunt stands past the other where they cross');
-  const share = inFront(c6, c5);
-  assert.ok(share.n > 0 && share.miss.length === 0, `with the share the splenorenal one is in front everywhere: ${share.miss.join('; ')}`);
+  const gap = 0.013, bz = 0, az = bz + gap;
+  const wholeBulgePutsBackInFront = bz + 1 * c5.radius >= az, shareKeepsFront = az > bz + TUBE_DEPTH_SHARE * c5.radius;
+  assert.ok(wholeBulgePutsBackInFront, `the whole bulge of a ${c5.radius.toFixed(4)} tube passes a ${gap} gap`);
+  assert.ok(shareKeepsFront, `the share (${TUBE_DEPTH_SHARE} of it) does not`);
+  assert.ok(written(az, c6.radius, 1) > written(bz, c5.radius, 0), 'and the nearer axis stays in front at every lateral position');
+  assert.equal(screenOverlaps(c5, c6).length, 0, 'C5 and C6 no longer overlap on the screen: the old closest call is gone');
 });
