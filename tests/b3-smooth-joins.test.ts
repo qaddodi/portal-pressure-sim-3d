@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { MAPPED, NETWORK_BY_ID, NODE_Z, RUN_ONS, cutEnd, meetRadius } from '../src/scene/vessels/network.ts';
-import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
+import { LIVER_TAPER, REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { TIP_K, buildTubes, buriedRadius, pointFactor, pointLength } from '../src/scene/vessels/tubes.ts';
 import { ORGAN_Z } from '../src/scene/organs/z.ts';
 import { CEIL, NODE_RISE, SMOOTH, UNEQUAL, joinSwell } from '../src/scene/vessels/smooth-joins.ts';
@@ -55,6 +55,8 @@ test('the switch is off in the vessel code until the scene sets it, and off the 
     assert.equal(c.clamp, undefined, v.id); assert.equal(c.point, undefined, v.id);
     if (c.sewn) continue;   // (a shunt sewn onto a vein narrows to its host's caliber there, shunt-ends.ts, switch or not)
     if (cutEnd(v.id) != null) continue;   // (a vein that branches narrows to its tip whatever the switch says: liver-branches.ts)
+    // (restated for the placed anatomy, the only one now: the left portal vein narrows on into the left lobe whatever the switch says, as it fades there (shape.ts LIVER_TAPER, fades.ts PLACED_LIVER_FADE))
+    if (PLACED && LIVER_TAPER[v.id]) { assert.deepEqual(c.capless, v.joined, v.id); assert.deepEqual(c.taper, [v.taper?.[0] ?? 1, Math.min(v.taper?.[1] ?? 1, LIVER_TAPER[v.id]!.tip)], v.id); continue; }
     assert.deepEqual(c.capless, v.joined, v.id); assert.deepEqual(c.taper, v.taper, v.id);
   }
 });
