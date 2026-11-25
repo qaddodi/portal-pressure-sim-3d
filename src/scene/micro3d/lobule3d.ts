@@ -132,6 +132,8 @@ interface Coloured {
 const quant = (s: PlateState): PlateState => { const q = (x: number) => Math.round(clamp(x, 0, 1) * 32) / 32; return { congU: q(s.congU), septU: q(s.septU), fibSin: q(s.fibSin), act: q(s.act), fibPre: q(s.fibPre), fibPost: q(s.fibPost) }; };
 
 /** How long the tiles take to ease from one build to the next (ms). */
+/** Whether two builds of one attribute differ anywhere (exactly: a single float). */
+const differs = (a: Float32Array, b: Float32Array): boolean => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return true; return false; };
 const CELL_EASE_MS = 900, MARKS_DIP_MS = 260, PLATE_CROSS_MS = 700;
 
 /** The scene's fade below which a waiting weld plan may be laid in (nothing of it can be told). */
@@ -180,7 +182,7 @@ export class Lobule3D {
   private cellGen: Generator<void> | null = null;
   private cellPrime: Generator<void> | null = null;
   private cellNext: { cb: MeshBuilder; nb: MeshBuilder } | null = null;
-  private cellTween: { from: Float32Array[]; to: Float32Array[]; t: number } | null = null;
+  private cellTween: { from: Float32Array[]; to: Float32Array[]; /** which of the six arrays differ between the two builds: only those are eased and sent to the GPU each frame (the rest are the same bytes in both) */ live: boolean[]; t: number } | null = null;
   private cellAt = -1;
   private marksFade = 1;
   // the marks plate's second slot (a patient change is painted in a worker, and the new plate crossfades over the old: plate-client.ts)
@@ -567,7 +569,7 @@ export class Lobule3D {
         const to = [nx.cb.p, nx.cb.n, nx.cb.c, nx.nb.p, nx.nb.n, nx.nb.c].map((a) => Float32Array.from(a)), at = this.cellAttrs();
         if (to.some((a, i) => a.length !== at[i]!.array.length)) { nx.cb.build(this.cells.geometry); nx.nb.build(this.nuclei.geometry); this.cellTween = null; }
         else if (unseen) { to.forEach((a, i) => { (at[i]!.array as Float32Array).set(a); at[i]!.needsUpdate = true; }); this.cellTween = null; }
-        else this.cellTween = { from: at.map((a) => Float32Array.from(a.array as Float32Array)), to, t: 0 };
+        else { const from = at.map((a) => Float32Array.from(a.array as Float32Array)); this.cellTween = { from, to, live: to.map((b, j) => differs(from[j]!, b)), t: 0 }; }
         break;
       }
     }
@@ -575,7 +577,8 @@ export class Lobule3D {
     if (tw) {
       tw.t = Math.min(1, tw.t + dt / CELL_EASE_MS);
       const e = tw.t * tw.t * (3 - 2 * tw.t), at = this.cellAttrs();
-      for (let j = 0; j < at.length; j++) { const out = at[j]!.array as Float32Array, a = tw.from[j]!, b = tw.to[j]!; for (let i = 0; i < out.length; i++) out[i] = a[i]! + (b[i]! - a[i]!) * e; at[j]!.needsUpdate = true; }
+      // (an array the two builds share byte for byte, the tiles' colours when only the septa moved, the nuclei's normals and colours: nothing to ease and nothing to send to the GPU. 670 000 floats a frame for 900 ms were the lobule's whole per-frame cost, MASLD 7, audit 1161e159)
+      for (let j = 0; j < at.length; j++) { if (!tw.live[j]) continue; const out = at[j]!.array as Float32Array, a = tw.from[j]!, b = tw.to[j]!; for (let i = 0; i < out.length; i++) out[i] = a[i]! + (b[i]! - a[i]!) * e; at[j]!.needsUpdate = true; }
       if (tw.t >= 1) this.cellTween = null;
     }
     return !!this.cellGen || !!this.cellTween;
