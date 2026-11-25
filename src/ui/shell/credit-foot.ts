@@ -25,6 +25,12 @@ export function clipTo(r: Box, within: Box | null): Box | null {
 
 /** The iPhone's home indicator stands about 8 px up from the screen's foot and is 5 px high: the line keeps its foot at least this far up. */
 export const HOME_BAR_CLEAR = 13;
+/**
+ * Free play on a phone held upright (a stacked or tabbed layout, not the talk, the frame-rate counter off) is where the credit
+ * tries the band under the bottom bar first; every other case leaves the line to the hunt.
+ */
+export const takesFootBand = (o: { talk: boolean; thumb: boolean; fps: boolean; lay: string }): boolean =>
+  !o.talk && o.thumb && !o.fps && (o.lay === 'stack' || o.lay === 'tab');
 /** Where the credit stands in free play on a phone held upright: in the empty band under the bottom bar (the thumb dock),
  *  above the home indicator, centred between the two (Mohammad, 25 Nov: "all the way under the timeline bar").
  *  Null where the band is too thin to hold the line (no home indicator; an upright iPad's band is 26 px) or `others`

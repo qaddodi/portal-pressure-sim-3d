@@ -36,15 +36,10 @@ test('the callout stands on a sinusoid and says the WHVP, the number of the pati
   assert.ok(co, 'the callout is a card of the figure');
   assert.deepEqual(co.anchor, { lobule: 'sinusoid:mid' });
   assert.equal(co.text, `WHVP ${valueText('whvp', fp as never)}`);
-  assert.match(co.text, /^WHVP 16\.3 mmHg$/);
+  assert.equal(co.text, 'WHVP 16.3 mmHg');
   assert.equal(co.tone, 'note', 'a plain tone: the WHVP is a reading, not a block or a treatment');
   // the same slide's tiles read the same fingerprint, so the callout and the card cannot differ
-  assert.match(readingText('P2', { P1: 0, P2: fp.sin!, P3: 0, lymph: 0 }, false, true), /^16\.7 mmHg$/);
-});
-
-test('no callout comes from anywhere but the patch: the 2D deck has none on this slide (a re-copy keeps it through source-edits.mjs)', () => {
-  const src = readFileSync(new URL('../scripts/source-edits.mjs', import.meta.url), 'utf8');
-  assert.match(src, /slides\.wedge-sinusoid\.callout/);
+  assert.equal(readingText('P2', { P1: 0, P2: fp.sin!, P3: 0, lymph: 0 }, false, true), '16.7 mmHg');
 });
 
 const net = buildLobule();

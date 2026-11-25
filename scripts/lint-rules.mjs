@@ -45,6 +45,12 @@ export const RULES = {
     applies: (p) => !vendored(p) && p !== 'src/clock/idle.ts',
     visit: (n) => n.type === 'Identifier' && (n.name === 'requestIdleCallback' || n.name === 'cancelIdleCallback'),
   },
+  /** A card's readiness waits (its stand-still, the crash net) are on the page's REAL work (a layout, a measure, a font), so the layer never waits or reads time on the scaled page clock: the audit's speed mode shrank
+   *  the 120 ms stand-still to 2 ms and let cards in half-measured. Use clock.afterReal / clock.nowReal (tests/card-readiness-real-time.test.ts). */
+  'card-wait-page-time': {
+    applies: (p) => p === 'src/ui/cards/CardLayer.tsx',
+    visit: (n) => n.type === 'CallExpression' && ['clock.after', 'clock.now', 'clock.every'].includes(dotted(unwrap(n.callee))),
+  },
   /** Every shader material is named: the late-program row of ?perf and the audit name a program by `material.name` (three.js WebGLPrograms), so an unnamed one shows only as "program" and cannot be traced to its owner. */
   'unnamed-shader': {
     applies: (p) => !vendored(p),

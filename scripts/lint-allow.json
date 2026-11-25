@@ -9,5 +9,6 @@
   "raw-setparams": 0,
   "discarded-unsubscribe": 0,
   "canvas-own-loop": 0,
-  "anatomy-through-source": 0
+  "anatomy-through-source": 0,
+  "card-wait-page-time": 0
 }

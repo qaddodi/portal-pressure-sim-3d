@@ -28,6 +28,8 @@ const read = (f: string) => {
 };
 /** The words of the page streams: every (string) the PDF shows, run together with single spaces (a wrapped line ends a string; a bold word is its own). */
 const words = (f: string) => [...read(f).matchAll(/\(((?:\\.|[^\\)])*)\) Tj/g)].map((m) => m[1]!.replace(/\\([()\\])/g, '$1')).join(' ').replace(/\s+/g, ' ');
+/** The guide's words say something: a check on the PDF's text, not on source. */
+const says = (w: string, re: RegExp, why: string): void => assert.ok(re.test(w), why);
 const edits = JSON.parse(readFileSync(new URL('../scripts/guides-edits.json', import.meta.url), 'utf8'));
 
 test('both guides are there under the stable names the testers get as links, as PDFs of a size a phone opens', () => {
@@ -53,14 +55,14 @@ test('the words that are not true of the 3D app are gone (a loading screen, a fe
     const w = words(f);
     assert.ok(!/loading screen/.test(w), `${f} still mentions a loading screen`);
     assert.ok(!/asks once/.test(w), `${f} still mentions the timed feedback card`);
-    assert.match(w, /a short report of what the app's own checks found/, `${f} does not say what Send feedback carries`);
-    assert.match(w, /3D build/, f);
-    assert.match(w, /Light, Soft, Dark, Navy, Black or System/, `${f}: the Settings row list changed`);
+    says(w, /a short report of what the app's own checks found/, `${f} does not say what Send feedback carries`);
+    says(w, /3D build/, f);
+    says(w, /Light, Soft, Dark, Navy, Black or System/, `${f}: the Settings row list changed`);
   }
 });
 
 test('the edits table is whole: every paragraph says where it is and what it may be found by, and the new link is the one in the table', () => {
-  assert.match(edits.url.to, /^https:\/\/qaddodi\.github\.io\/portal-pressure-sim-3d\/preview\/$/);
+  assert.equal(edits.url.to, 'https://qaddodi.github.io/portal-pressure-sim-3d/preview/');
   for (const [name, f] of Object.entries<any>(edits.files)) {
     assert.ok(f.title && f.subtitle?.from && f.subtitle?.to, name);
     for (const p of f.paragraphs) { assert.ok(Number.isInteger(p.page) && p.find && p.width > 100 && p.size > 6 && p.leading > p.size && Array.isArray(p.runs), `${name} page ${p.page}`); }
@@ -71,9 +73,9 @@ test('the words name what the 3D app shows now (R8, 25 Nov): the vessel card row
   for (const f of FILES) {
     const w = words(f);
     for (const gone of [/Narrow and Clot/, /Add shunt/, /Inject dye/, /Auto detail/, /Pressure, HVPG/]) assert.ok(!gone.test(w), `${f} still says ${gone}`);
-    assert.match(w, /Stenosis and Thrombus/, f);
-    assert.match(w, /Pressure, IR, Doppler, Scope, Ascites, Fibro, Readouts and Trials/, f);
-    assert.match(w, /Figure:? ?\(?Cool, Balanced or Rich/, f);
+    says(w, /Stenosis and Thrombus/, f);
+    says(w, /Pressure, IR, Doppler, Scope, Ascites, Fibro, Readouts and Trials/, f);
+    says(w, /Figure:? ?\(?Cool, Balanced or Rich/, f);
   }
 });
 

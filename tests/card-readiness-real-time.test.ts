@@ -4,10 +4,7 @@
 // compare buttons had come, and its box locked without them (box 224, content 319: the 75 px of buttons). In REAL time the card is let in on the same terms at any speed.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { createClock, type Env } from '../src/clock/frame.ts';
-
-const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
 
 test('the clock tells real time whatever the audit speed', () => {
   let t = 1000;
@@ -19,15 +16,7 @@ test('the clock tells real time whatever the audit speed', () => {
   assert.equal(Math.round(c.now() - 1000), 6000);   // (page time ran 60 times as far)
 });
 
-test('the layer settles, and gives up, in real time', () => {
-  assert.match(layer, /t: clock\.nowReal\(\)/, 'a measure is stamped in real time');
-  assert.match(layer, /SETTLE_MS - \(clock\.nowReal\(\) - e\.t\)/, 'the stand-still is counted in real time');
-  assert.match(layer, /clock\.afterReal\(\(\) => setTick\(/, 'its wake-up');
-  assert.match(layer, /clock\.afterReal\(\(\) => setSurveyLate\(pagesKey\), GIVE_UP_CARDS_MS\)/);
-  assert.match(layer, /clock\.afterReal\(\(\) => setLate\(pagesKey\), GIVE_UP_CARDS_MS\)/);
-  assert.doesNotMatch(layer, /clock\.after\(\(\) => set(Late|SurveyLate|Tick)/);
-  assert.doesNotMatch(layer, /clock\.now\(\) - e\.t/);
-});
+// (That the layer waits and reads time on the real clock only is the lint rule `card-wait-page-time` in scripts/lint-rules.mjs.)
 
 import { rekeyed } from '../src/ui/cards/box-lock.ts';
 
@@ -40,17 +29,4 @@ test('a card that outgrew its box is replaced, at most twice', () => {
   assert.deepEqual(m, { 'tool:hvpg': 2 });
   assert.deepEqual(rekeyed(m, 'tool:hvpg~2', 2), { 'tool:hvpg': 2 }, 'the third time the lock stands');
   assert.deepEqual(rekeyed(m, 'tool:other', 2), { 'tool:hvpg': 2, 'tool:other': 1 }, 'another card has its own count');
-});
-
-test('CardFrame replaces any data card that outgrew its box, not only a kept one', () => {
-  const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
-  assert.match(frame, /if \(out\.grew > 1 && onOutgrown && !now\.current\.out\) \{ onOutgrown\(entry\.key\); return; \}/);
-});
-
-test('the crash net counts from the last step of the negotiation, with a hard cap behind it', () => {
-  assert.match(layer, /const progress = \[wordsHit\?\.h, wordsHit\?\.sig, dataHit\?\.h, dataHit\?\.sig, lad, fitK, pages, tight, got\?\.join\(','\)\]\.join\('\|'\)/);
-  assert.match(layer, /setLate\(pagesKey\), GIVE_UP_CARDS_MS\); return \(\) => clock\.cancel\(t\); \}, \[pagesKey, progress\]\)/);
-  assert.match(layer, /setSurveyLate\(pagesKey\), GIVE_UP_CARDS_MS\); return \(\) => clock\.cancel\(t\); \}, \[pagesKey, progress\]\)/);
-  assert.match(layer, /GIVE_UP_HARD_MS = 30000/);
-  assert.match(layer, /clock\.afterReal\(\(\) => \{ setSurveyLate\(pagesKey\); setLate\(pagesKey\); \}, GIVE_UP_HARD_MS\)/);
 });

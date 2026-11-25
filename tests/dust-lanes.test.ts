@@ -3,6 +3,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { shaderText } from './shader-text.ts';
+import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
+import { SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
 import { DUST_GLSL, DUST_MACROS } from '../src/scene/blood/dust-glsl.ts';
 import { DUST_KMAX, DUST_LANES_MAX, DUST_LANE_LOOK, DUST_NMAX, DUST_NUMERIC, DUST_PRESETS, DUST_SELECTS, DUST_UNIFORMS, dustDefaults, dustDerive, dustText, parseDust } from '../src/scene/blood/dust-spec.ts';
 import { DUST_EASE_MS, DustTuner } from '../src/scene/blood/dust.ts';
@@ -143,29 +146,28 @@ test('an alpha that is not a number is made whole before it is written (tube and
 // empty (about two cells in three are) or out of reach. It now costs look B's way: the alive hash alone, then the lane (two more hashes and a cosine), and the other four hashes and the depth only for a particle that passed the lane and reach tests.
 // Same numbers, found later, so the picture is the same; the class's band (two pows and the flat profile) is worked out once a class, not once a cell.
 test('look A hashes a particle in two steps and works a class out once: the alive hash alone for an empty cell, the rest only for a particle within reach', () => {
-  const src = DUST_GLSL;
+  const src = shaderText(DUST_GLSL);
   const first = src.slice(src.indexOf('DPart dPart('), src.indexOf('DPart dPartFill('));
   assert.equal((first.match(/dHash\(/g) ?? []).length, 4, 'step 1: the alive hash, then the three that place the particle (along, lane)');
-  assert.match(first, /if \(P\.alive <= 0\.0\) return P;/, 'an empty cell stops after the alive hash');
-  assert.doesNotMatch(first, /pow\(|sin\(/, 'no pow and no sine in a cell: the band is the class\'s and the depth is the fill\'s');
+  assert.match(shaderText(first), /if \(P\.alive <= 0\.0\) return P;/, 'an empty cell stops after the alive hash');
+  assert.doesNotMatch(shaderText(first), /pow\(|sin\(/, 'no pow and no sine in a cell: the band is the class\'s and the depth is the fill\'s');
   const fill = src.slice(src.indexOf('DPart dPartFill('), src.indexOf('float dCell('));
   assert.equal((fill.match(/dHash\(/g) ?? []).length, 4, 'step 2: the other four hashes');
-  assert.match(fill, /P\.zr = P\.rho \* sin\(P\.h2 \* 6\.2831853\);/, 'and the depth');
+  assert.match(shaderText(fill), /P\.zr = P\.rho \* sin\(P\.h2 \* 6\.2831853\);/, 'and the depth');
   assert.equal((src.match(/vec3 cls = dClassOf\(k\);/g) ?? []).length, 2, 'the tube and the skin take the class once, outside the cell loop');
   assert.equal((src.match(/pow\(/g) ?? []).length, 2, 'two pows in all, both in dClassOf (they were two in the cell and two in dCell)');
   const a = src.slice(src.indexOf('vec4 dustTubeA('), src.indexOf('vec3 dFind('));
-  assert.match(a, /!dNear\(F, g, mb\.x, P\)\) continue;\s+P = dPartFill\(P\);\s+vec4 c = dDraw\(dPlace\(F, g, mb\.x, P\)/, 'the tube fills only after the lane and reach tests');
+  assert.match(shaderText(a), /!dNear\(F, g, mb\.x, P\)\) continue;\s+P = dPartFill\(P\);\s+vec4 c = dDraw\(dPlace\(F, g, mb\.x, P\)/, 'the tube fills only after the lane and reach tests');
   const s = src.slice(src.indexOf('vec4 dustSkinA('), src.indexOf('// LOOK B, THE LANE STREAKS'));
-  assert.match(s, /continue;   \/\/ \(out of reach in both frames: its blend is too\)\s+P = dPartFill\(P\);\s+DMark M = dPlace\(Fa, g, ma\.x, P\);/, 'and the skin after its reach test in both frames');
+  assert.match(shaderText(s), /continue;   \/\/ \(out of reach in both frames: its blend is too\)\s+P = dPartFill\(P\);\s+DMark M = dPlace\(Fa, g, ma\.x, P\);/, 'and the skin after its reach test in both frames');
   for (const body of [a, s]) assert.ok(body.indexOf('P = dPartFill(P);') > body.indexOf('dNear('), 'never before the reach test');
 });
 
 // A pixel that ends under 0.05 of alpha shows no dust (dHold is 0 there), so the scan is not run for it: the same picture, and a veiled, faded or half-present vessel costs none of the dust.
 test('the dust is not scanned for a pixel that dHold would hide', () => {
-  assert.match(DUST_GLSL, /float dHold\(float a\) \{ return smoothstep\(0\.05, 0\.6, a\); \}/, 'dHold is 0 up to 0.05');
-  const tube = fs.readFileSync(new URL('../src/scene/vessels/shaders.ts', import.meta.url), 'utf8');
-  const skin = fs.readFileSync(new URL('../src/scene/vessels/skin/shaders.ts', import.meta.url), 'utf8');
-  assert.match(tube, /vec4 fd = vec4\(0\.0\);\s+if \(fadeHere \* cavA > 0\.05\) fd = flowDust\(/, 'the tube scans only where its final alpha is over the hold');
-  assert.match(skin, /if \(dOn > 0\.002 && alpha > 0\.05\) \{/, 'the skin too');
-  assert.match(skin, /dustAcc \*= dHold\(alpha\);/, 'and the skin still holds the dust by that same alpha');
+  assert.match(shaderText(DUST_GLSL), /float dHold\(float a\) \{ return smoothstep\(0\.05, 0\.6, a\); \}/, 'dHold is 0 up to 0.05');
+  const tube = shaderText(VESSEL_FS), skin = shaderText(SKIN_FS);
+  assert.match(shaderText(tube), /vec4 fd = vec4\(0\.0\);\s+if \(fadeHere \* cavA > 0\.05\) fd = flowDust\(/, 'the tube scans only where its final alpha is over the hold');
+  assert.match(shaderText(skin), /if \(dOn > 0\.002 && alpha > 0\.05\) \{/, 'the skin too');
+  assert.match(shaderText(skin), /dustAcc \*= dHold\(alpha\);/, 'and the skin still holds the dust by that same alpha');
 });
