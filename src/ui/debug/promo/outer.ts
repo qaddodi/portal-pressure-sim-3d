@@ -16,13 +16,11 @@ import { PROMO_SIZES, PROMO_RATIO, PROMO_SLIDES, parseSlides, slidesText, promoN
 /** The app's name as it stands on the pictures. */
 export const BRAND_NAME = 'Portal Pressure Simulator';
 const SILENT_MS = 300000;
-/** How fast the frames' clocks run while they wait for each slide to settle (the pictures are of the settled slide, so this only saves time). */
-const SPEED = 10;
 
 /** The address of the app inside a frame: the capture child's (`?audit=capture`) with the promotion flags; the promotion page's own flags are dropped, any other kept. */
-export function promoSrc(pathname: string, search: string, o: { keys: string[]; ratio: number; speed: number }): string {
+export function promoSrc(pathname: string, search: string, o: { keys: string[]; ratio: number }): string {
   const rest = queryWithout(search, ['promotion', 'audit', 'sizes', 'pick', 'speed', 'promo', 'decks', 'only', 'depth', 'parallel']);
-  return `${pathname}?audit=capture&speed=${o.speed}&promo=${o.ratio}&pick=${packPick(o.keys)}${rest ? `&${rest}` : ''}`;
+  return `${pathname}?audit=capture&promo=${o.ratio}&pick=${packPick(o.keys)}${rest ? `&${rest}` : ''}`;
 }
 /** The sizes an address names (`sizes=mac,iphone`), or all three. */
 export function promoSizes(v: string | null): string[] {
@@ -36,6 +34,8 @@ const CSS = `html,body{margin:0;height:100%}body{font:500 14px/1.4 system-ui,-ap
 .pr-side{display:flex;flex-direction:column;gap:8px;min-width:200px}
 .pr-bar button{font:inherit;font-weight:600;color:inherit;min-height:36px;padding:0 14px;border-radius:9px;border:1px solid rgba(255,255,255,.3);background:transparent}
 .pr-bar button:disabled{opacity:.45}.pr-status{flex:1 1 100%;color:#b7b7bd}
+.pr-segs{display:flex;gap:4px}.pr-segs button{flex:1 1 0;padding:0 8px}.pr-segs button[aria-pressed=true]{background:rgba(255,255,255,.22);border-color:transparent}
+.pr-cap{font-size:12px;font-weight:600;letter-spacing:.04em;opacity:.6}
 .pr-room{flex:1;min-height:200px;display:flex;align-items:center;justify-content:center;gap:12px;overflow:hidden;padding:12px}
 .pr-wrap{position:relative;flex:none}.pr-wrap iframe{position:absolute;left:0;top:0;border:0;background:#fff;transform-origin:0 0;border-radius:6px}
 .pr-out{display:flex;flex-wrap:wrap;gap:10px;padding:12px;overflow:auto}.pr-out figure{margin:0;width:200px}.pr-out img{width:100%;border-radius:6px;display:block}
@@ -58,24 +58,31 @@ export function bootPromotion(doc: Document = document, win: Window = window): v
   const st = doc.createElement('style'); st.textContent = CSS; doc.head.append(st); doc.title = 'Promotion pictures';
   const mk = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = doc.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
   const bar = mk('div', 'pr-bar'), room = mk('div', 'pr-room'), out = mk('div', 'pr-out'), side = mk('div', 'pr-side');
-  const status = mk('div', 'pr-status', 'Slides, one to a line as deck:number (the first slide of a talk is 1). Pick the sizes and press Make pictures. Keep this tab in front.');
+  const status = mk('div', 'pr-status', 'Slides, one to a line as deck:number (the first slide of a talk is 1). Choose iPhone, iPad or Mac, then press Make pictures. Keep this tab in front.');
   status.setAttribute('role', 'status');
   const box = doc.createElement('textarea'); box.spellcheck = false; box.setAttribute('aria-label', 'Slides to capture');
   const asked = parseSlides((flagValue('pick') ?? '').split(',').join('\n'));
   box.value = asked.keys.length ? asked.keys.join('\n') : slidesText();
-  const wanted = new Set(promoSizes(flagValue('sizes')));
-  const checks = PROMO_SIZES.map((id) => {
-    const l = mk('label'), c = doc.createElement('input'); c.type = 'checkbox'; c.checked = wanted.has(id);
-    c.onchange = () => { if (c.checked) wanted.add(id); else wanted.delete(id); };
-    l.append(c, ` ${FRAME_DEVICES[id]!.label} (${PROMO_RATIO[id]}x)`); return l;
+  // which device: one of the three, or all three at once (the address's `sizes=` starts it on that choice)
+  const first = promoSizes(flagValue('sizes'));
+  let choice: string = first.length === PROMO_SIZES.length ? 'all' : first[0]!;
+  const CHOICES: [string, string][] = [['iphone', 'iPhone'], ['ipad-portrait', 'iPad'], ['mac', 'Mac'], ['all', 'All three']];
+  const picks = CHOICES.map(([id, label]) => {
+    const b = mk('button', 'pr-seg', label); b.type = 'button';
+    b.onclick = () => { choice = id; for (const [k, e] of picks) e.setAttribute('aria-pressed', String(k === id)); };
+    return [id, b] as const;
   });
+  for (const [k, e] of picks) e.setAttribute('aria-pressed', String(k === choice));
+  const seg = mk('div', 'pr-segs'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Device to capture');
+  seg.append(...picks.map(([, b]) => b));
+  const chosen = (): string[] => (choice === 'all' ? [...PROMO_SIZES] : [choice]);
   let stop = false, running = false, zip: { blob: Blob; name: string } | null = null;
   const btn = (label: string, on: () => void) => { const b = mk('button', '', label); b.type = 'button'; b.onclick = on; return b; };
   const go = btn('Make pictures', () => { void run(); });
   const halt = btn('Stop', () => { stop = true; status.textContent = 'Stopping: each frame finishes its slide, then what is done is kept.'; });
   const save = btn('Save zip', () => { if (zip) void saveFiles([new File([zip.blob], zip.name, { type: 'application/zip' })]); });
   save.hidden = true;
-  side.append(...checks, go, halt, save);
+  side.append(mk('div', 'pr-cap', 'DEVICE'), seg, go, halt, save);
   bar.append(box, side, status);
   doc.body.append(bar, room, out);
 
@@ -85,7 +92,7 @@ export function bootPromotion(doc: Document = document, win: Window = window): v
   /** One size: a fresh frame at the device's size, its pictures (PNG and a state file each) when it ends. */
   const one = (id: string, keys: string[], again: number, of: number): Promise<{ files: { name: string; data: Uint8Array }[]; notes: string[]; why?: string }> => new Promise((done) => {
     const d = FRAME_DEVICES[id]!, wrap = mk('div', 'pr-wrap'), frame = doc.createElement('iframe'); frame.title = `${d.label} ${d.w}x${d.h}`;
-    frame.src = promoSrc(win.location.pathname, searchNow(), { keys, ratio: PROMO_RATIO[id]!, speed: SPEED }) + (again ? `&retry=${again}-${new Date().getTime()}` : '');
+    frame.src = promoSrc(win.location.pathname, searchNow(), { keys, ratio: PROMO_RATIO[id]! }) + (again ? `&retry=${again}-${new Date().getTime()}` : '');
     wrap.append(frame); room.append(wrap);
     const r = readBox(room), s = fitScale(d.w, d.h, Math.max(1, (r.width - 24 - 12 * (of - 1)) / of), Math.max(1, r.height - 24));
     wrap.style.width = `${Math.round(d.w * s)}px`; wrap.style.height = `${Math.round(d.h * s)}px`;
@@ -121,11 +128,10 @@ export function bootPromotion(doc: Document = document, win: Window = window): v
 
   async function run(): Promise<void> {
     if (running) return;
-    const { keys, bad } = parseSlides(box.value), ids = PROMO_SIZES.filter((s) => wanted.has(s));
+    const { keys, bad } = parseSlides(box.value), ids = chosen();
     if (bad.length) { status.textContent = `These are not deck:number, so nothing was made: ${bad.join(', ')}`; return; }
     if (!keys.length) { status.textContent = 'Type at least one slide, as deck:number.'; return; }
-    if (!ids.length) { status.textContent = 'Tick at least one size.'; return; }
-    running = true; stop = false; zip = null; save.hidden = true; go.disabled = true; room.textContent = ''; out.textContent = ''; lines.clear();
+        running = true; stop = false; zip = null; save.hidden = true; go.disabled = true; room.textContent = ''; out.textContent = ''; lines.clear();
     const at = new Date(), enc = new TextEncoder(), all: ZipFile[] = [], notes: string[] = [], made: { n: number; key: string; title: string }[] = [];
     try {
       const brand = await brandNow(doc);

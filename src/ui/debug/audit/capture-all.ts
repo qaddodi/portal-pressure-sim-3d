@@ -147,13 +147,15 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   const { failed } = ui.only && builtinDecks().some((d) => d.id === ui.only) ? { failed: [] as string[] } : await loadAllDecks();
   if (failed.length) notes.push(`these talks would not load, so they are not captured: ${failed.join(', ')}`);
   const decks = builtinDecks().filter((d) => (!ui.only || d.id === ui.only) && (!ui.decks || ui.decks.has(d.id))), build = feedbackBuild(import.meta.env.VITE_RELEASE, import.meta.env.VITE_BUILD, import.meta.env.VITE_CHANNEL);
-  const speed = ui.speed && ui.speed > 1 ? ui.speed : 60, real = (ms: number) => ms * speed, t0 = new Date().getTime();
+  // (the promotion set runs at the page's own speed: a clock run faster can leave a card short of its settled height)
+  const speed = ui.promo ? 1 : ui.speed && ui.speed > 1 ? ui.speed : 60, real = (ms: number) => ms * speed, t0 = new Date().getTime();
   clock.setScale(speed);   // (every glide, fade and wait of the page runs `speed` times faster: a camera flight lands in a few frames. The audit's own speed mode, audit/speed.ts)
   const off = ui.skip ? skipAnimations(document) : null;
   if (ui.skip) clock.setSkip(true);
   const rate = clock.every(() => { speedAnimations(document, speed); if (ui.skip) finishAnimations(document); }, ui.skip ? 16 : sampleRealMs(33, speed));
   const seen = new Set<string>(), single = !!(ui.pick && ui.pick.size);
   let reached = 0;
+  const writes = new Map<string, number>();
   const put = (f: ZipFile): void => { const i = files.findIndex((x) => x.name === f.name); if (i >= 0) files[i] = f; else files.push(f); };
   let waitMs = 0, drawMs = 0, shape0 = { w: 0, h: 0 };
   const pick = ui.pick && ui.pick.size ? ui.pick : null;
@@ -219,7 +221,8 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
           drawMs += new Date().getTime() - t1;
           const base = view ? `${base0}-${view}` : base0;
           const meta = enc.encode(JSON.stringify({ deck: d.id, deckTitle: d.title, stop: k + 1, step: sub + 1, of: stops, beat: p.beat + 1, page: useUi.getState().page, title, ...(view ? { card: view } : {}), ...(choice ? { choice } : {}), cards: cardBoxes(document), ...drawn.record }, null, 1));
-          encoding.push(jpegP.then((data) => { if (data) put({ name: `${base}.${ui.promo ? 'png' : 'jpg'}`, data }); }));
+          const wrote = (writes.get(base) ?? 0) + 1; writes.set(base, wrote);   // (the encoder's answers can arrive out of order: only the latest picture of a name is kept)
+          encoding.push(jpegP.then((data) => { if (data && writes.get(base) === wrote) put({ name: `${base}.${ui.promo ? 'png' : 'jpg'}`, data }); }));
           put({ name: `${base}.json`, data: meta });
           if (!ui.promo) thumbs.push({ n: view ? `${n} ${view}` : n, title, img: thumb });
           pushed++;
@@ -254,7 +257,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
           }
         };
         const d0 = new Date().getTime(); waitMs += d0 - w0;
-        const ok = await shoot(views[0]);
+        const ok = await shoot(ui.promo ? '' : views[0]);
         if (ok && fresh) await choiceShots(views[0]);
         if (both && ok) {
           useUi.getState().setDocked(true);   // (sideways: the swipe up, the column slides until the instrument card is the one in view; upright: the instrument card tucks into its strip)
@@ -278,6 +281,20 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         await until(() => tagWords().includes(BLOCKED_SAYS.then), BLOCKED_SAYS.afterMs + real(2000));   // (the words come on the label layer's FRAMES, a few a second on a slow screen: so the wait is two REAL seconds past the 2.6 s, not 1.5 s of page time, which at speed N is 1/N of a second and a handful of frames)
         if (tagWords().includes(BLOCKED_SAYS.then)) await grab(); else notes.push(`${d.title} ${sub + 1}: the words "${BLOCKED_SAYS.then}" did not come`);
       };
+      // the promotion set goes straight to each picked slide, as an opened link does, never through the slides before it
+      if (ui.promo) {
+        const wanted = [...(pick ?? [])].map((x) => x.split(':')).filter((x) => x[0] === d.id).map((x) => Number(x[1])).sort((a, b) => a - b);
+        for (const k of wanted) {
+          if (ui.stop()) { stopped = true; break; }
+          if (k >= stops) { notes.push(`${d.title}: slide ${k} is past the last stop (${stops - 1})`); continue; }
+          // (a jump forward meets the slide's case card, a jump back lands on the slide itself: so go to the last stop first, then back to the one asked for)
+          if (k < stops - 1 && useUi.getState().pos.stop <= k) useUi.getState().go(stops - 1);
+          useUi.getState().go(k);
+          await grab(); await blockedThen();
+        }
+        if (stopped) break;
+        continue;
+      }
       if (ui.skip) clock.setDrawing(false); useUi.getState().go(0);
       await grab(); await blockedThen();
       for (; presses < stops * 40; presses++) {

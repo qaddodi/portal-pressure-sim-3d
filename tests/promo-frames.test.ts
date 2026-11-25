@@ -64,8 +64,8 @@ test('file names carry the place, the slide and the device', () => {
 });
 
 test("the frame's address is the capture child's with the promotion flags, and drops the page's own", () => {
-  const src = promoSrc('/preview/', '?promotion&pick=a:1&sizes=mac&speed=2&look=light', { keys: ['lobule:4', 'hvpg:3'], ratio: 3, speed: 10 });
-  assert.equal(src, '/preview/?audit=capture&speed=10&promo=3&pick=lobule:4,hvpg:3&look=light');
+  const src = promoSrc('/preview/', '?promotion&pick=a:1&sizes=mac&speed=2&look=light', { keys: ['lobule:4', 'hvpg:3'], ratio: 3 });
+  assert.equal(src, '/preview/?audit=capture&promo=3&pick=lobule:4,hvpg:3&look=light');
   assert.deepEqual([...(unpackPick('lobule:4,hvpg:3') ?? [])], ['lobule:4', 'hvpg:3']);
   assert.deepEqual(promoSizes('iphone,tv,mac'), ['iphone', 'mac']);
   assert.deepEqual(promoSizes(null), [...PROMO_SIZES]);
