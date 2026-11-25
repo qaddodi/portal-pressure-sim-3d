@@ -12,7 +12,9 @@ import { findSkinJunctions, isLiverBranch } from '../src/scene/vessels/skin/inve
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 
-const LIVER_NODES = ['RPV_T', 'LPV_A', 'RHV_IVC_1~F:b'];
+// (the placed anatomy's liver branches: the right portal vein's second branch on RPV_T and the right hepatic vein's mid-host fork. The 2D figure's left portal fork (PVH_L_1~F:b on LPV_A) is not in it: the placed left portal vein runs to its tip
+//  unbranched, so LPV_A is no liver-branch junction)
+const LIVER_NODES = ['RPV_T', 'RHV_IVC_1~F:b'];
 
 function build(): { set: SkinSet; meshes: Map<string, SkinMesh>; warnings: string[]; done(): void } {
   const was = smoothJoinsOn(); setSmoothJoins(true);
@@ -34,7 +36,7 @@ test('the junction inventory holds the liver branches: a fork child is an arm of
     for (const n of LIVER_NODES) assert.ok(js.some((j) => j.node === n), `${n} is a junction`);
     const arms = (n: string) => js.find((j) => j.node === n)!.arms;
     assert.ok(arms('RPV_T').some((a) => a.vesselId === 'PVH_R_2~F:b'), 'the right portal vein\'s second branch is an arm of RPV_T');
-    assert.ok(arms('LPV_A').some((a) => a.vesselId === 'PVH_L_1~F:b'), 'the left portal vein\'s branch is an arm of LPV_A');
+    assert.ok(!NETWORK_BY_ID.has('PVH_L_1~F:b') && !js.some((j) => j.node === 'LPV_A'), 'the placed left portal vein has no fork, so no LPV_A junction');
     const v = arms('RHV_IVC_1~F:b');
     assert.equal(v.filter((a) => a.side).length, 2, 'the virtual node on the hepatic vein: two side arms (the host, either side of the branch)');
     assert.ok(v.some((a) => isLiverBranch(NETWORK_BY_ID.get(a.vesselId)!)), 'and the branch');
@@ -71,7 +73,7 @@ test('every liver-branch junction builds a skin from the surface sheet: closed, 
 test('the skins that stand together on one vessel are planned together: LPV_A and PVH_L cross no seams, and RPV_T keeps its TIPS arm', () => {
   const b = build();
   try {
-    assert.ok(b.set.nodes.includes('RPV_T') && b.set.nodes.includes('LPV_A') && b.set.nodes.some((n) => n.split('+').includes('PVH')));
+    assert.ok(b.set.nodes.includes('RPV_T') && b.set.nodes.some((n) => n.split('+').includes('PVH')));   // (no LPV_A in the placed anatomy: LIVER_NODES)
     assert.ok(!b.set.dropped.includes('RPV_T:TIPS'), 'the TIPS arm of RPV_T is kept');
     for (const n of LIVER_NODES) {
       const m = b.meshes.get(n)!;
