@@ -4,7 +4,7 @@ import { cutUniform, fieldSoft } from '../camera/dive.ts';
 import { fieldWide } from '../lobule/field.ts';
 import { ORGAN_CUT } from '../organs/layer.ts';
 import { effectiveDistance } from '../camera/room.ts';
-import { type LobuleHit, lobuleModel, sinusoidTargets, type LobuleLayers } from '../lobule/index.ts';
+import { type LobuleHit, bloodBeat, bloodSpeed, lobuleModel, sinusoidTargets, type BloodBeat, type LobuleLayers } from '../lobule/index.ts';
 import { LOBULE_SCALE, SIN_SCALE, sinusoidWorld } from '../lobule/frames.ts';
 import { lobuleShot } from '../lobule/shots.ts';
 import { shortSide } from '../sinusoid/portrait.ts';
@@ -85,16 +85,26 @@ export const divePart = scenePart<CelScene>()({
     if (!f) return;
     const shown = this.src.shown();   // (the shown pressures and flows, as every reading is: not the instant's beat)
     const m = lobuleModel({ P: f.Pf ?? f.P, Q: f.Qf ?? f.Q, params: shown ?? undefined, metrics: f.metrics }, this.src.reference(), shown);
-    this.lobule.snapModel(m); this.sinus.snapTargets(sinusoidTargets(m)); this.feedSinusInk();
+    const beat = this.liveBeat(f);
+    this.lobule.snapModel(m, beat ?? undefined); this.sinus.snapTargets(sinusoidTargets(m), beat ? bloodSpeed(beat.flow, beat.rev, m.zone.sin) : undefined); this.feedSinusInk();
+  },
+  /** The sinusoids' blood at this beat of the heart, from the live frame's beat-by-beat flows: the blood's speed is the one thing
+   *  in the lobule and the sinusoid that pulses (right heart failure, tricuspid regurgitation, constriction); every reading,
+   *  colour and width stays on the shown, steady numbers. Null when no beat is running (a held moment: a pinned slide state,
+   *  Compare's Then view; a stopped clock; a time-lapse of days, whose flows are one instant of the heart): the blood then runs at the shown mean. */
+  liveBeat(f: { Q: ArrayLike<number>; running?: boolean; clock?: string; pulsing?: boolean }): BloodBeat | null {
+    if (f !== this.src.liveFrame() || !f.running || f.clock !== 'hemo' || !f.pulsing) return null;
+    return bloodBeat(f.Q, this.src.reference());
   },
   feedViews(snap: boolean): void {
     const f = this.src.frame();
     if (!f) return;
     const m = lobuleModel({ P: f.Pf ?? f.P, Q: f.Qf ?? f.Q, params: this.src.shown() ?? undefined, metrics: f.metrics }, this.src.reference(), this.src.shown());
-    if (this.figureView === 'lobule') snap ? this.lobule.snapModel(m) : this.lobule.setModel(m);
+    const beat = this.liveBeat(f), live = beat ? bloodSpeed(beat.flow, beat.rev, m.zone.sin) : undefined;
+    if (this.figureView === 'lobule') snap ? this.lobule.snapModel(m, beat ?? undefined) : this.lobule.setModel(m, beat ?? undefined);
     else if (this.figureView === 'sinusoid') {
-      snap ? this.sinus.snapTargets(sinusoidTargets(m)) : this.sinus.setTargets(sinusoidTargets(m));
-      this.lobule.snapModel(m);   // (the lobule is hidden; it keeps the model the sinusoid's colour is worked out from)
+      snap ? this.sinus.snapTargets(sinusoidTargets(m), live) : this.sinus.setTargets(sinusoidTargets(m), live);
+      this.lobule.snapModel(m, beat ?? undefined);   // (the lobule is hidden; it keeps the model the sinusoid's colour is worked out from)
       this.feedSinusInk();
     }
   },
