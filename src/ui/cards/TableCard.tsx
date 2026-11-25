@@ -11,6 +11,7 @@ import { CUT } from '../deck/from2d/table-marks.js';
 import { missWords, longestWord } from './table-words.ts';
 import { WaveCell } from './WaveCell.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
+import { turnHeads } from './table-heads.ts';
 
 /** 2D's purpose-drawn arrow (css2d `.pz-arr`): one arrow, two, or the level dash for a cell within normal. */
 export const Arrow = ({ n }: { n: number }) => {
@@ -78,7 +79,7 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
       const was = tr.classList.contains('th-up');
       tr.classList.remove('th-up'); box.classList.remove('dk-up');
       const over = Array.from(tr.querySelectorAll<HTMLElement>('th.num')).some((t) => headOver(t));
-      if (was) { tr.classList.add('th-up'); box.classList.add('dk-up'); }
+      turnHeads(tr, box, over);   // (written on the page now: the card that holds this table measures in the effect that follows this one, and must see the heads as they will stand)
       if (over !== was) setUp(over);
     };
     fit();
