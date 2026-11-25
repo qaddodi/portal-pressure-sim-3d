@@ -19,13 +19,13 @@ function run(o: Opts = {}) {
       querySelector: (sel: string) => { if (o.glide && sel === '.boot-bar u') return (el.children[sel] ??= { animate(frames: Keyframe[], opt: { duration: number; easing: string; fill: string }) { const a = { frames, opt, cancelled: false }; o.glide!.push(a); return { cancel() { a.cancelled = true; } }; } }); if (o.rows && (sel === '.boot-stage' || sel === '.boot-pct')) return (el.children[sel] ??= { textContent: '', attrs: {} as Record<string, string>, setAttribute(k: string, v: string) { this.attrs[k] = v; }, removeAttribute(k: string) { delete this.attrs[k]; } }); if (o.richBar && sel === '.boot-prog' && !el.innerHTML.includes('boot-msg')) return (el.children['.boot-prog'] ??= { style: {}, offsetHeight: 1 }); const m = /\[(data-[a-z]+)\]/.exec(sel)?.[1]; if (!m || !el.innerHTML.includes(m)) return null; return (el.children[m] ??= {}); } };
     return el;
   };
-  const boot = mkEl('boot'), root = mkEl('root'); root.firstChild = null;
+  const boot = mkEl('boot'), root = mkEl('root'), late = mkEl('boot-late'); root.firstChild = null;
   if (o.realCover) boot.innerHTML = HTML.slice(HTML.indexOf('<div id="boot"'), HTML.indexOf('<noscript>')).replace(/^<div id="boot"[^>]*>/, '').replace(/<\/div>\s*$/, '');
   const listeners: Record<string, (() => void)[]> = {};
   const fonts = o.fonts === 'now' ? { load: () => ({ then: (ok: () => void) => { ok(); } }) } : o.fonts === 'never' ? { load: () => ({ then: () => undefined }) } : undefined;
   const meta = { getAttribute: () => String(o.total ?? 0) };
   const ctx: any = {
-    document: { getElementById: (i: string) => (i === 'boot' ? boot : i === 'root' ? root : null), documentElement: { getAttribute: () => (o.held === false ? null : 'wait') }, fonts,
+    document: { getElementById: (i: string) => (i === 'boot' ? boot : i === 'root' ? root : i === 'boot-late' && !late.removed ? late : null), documentElement: { getAttribute: () => (o.held === false ? null : 'wait') }, fonts,
       querySelector: (s: string) => (s.includes('pps-boot-bytes') ? meta : null), addEventListener: (e: string, f: () => void) => { (listeners[e] ??= []).push(f); } },
     addEventListener() {}, MutationObserver: class { observe() {} disconnect() {} }, location: { protocol: 'https:', host: 'x.test', reload() {} },
     navigator: { userAgent: 'test', onLine: o.onLine ?? true, serviceWorker: o.controller ? { controller: {} } : undefined },
@@ -34,7 +34,7 @@ function run(o: Opts = {}) {
   ctx.window = ctx; createContext(ctx); new Script(code).runInContext(ctx);
   if (o.dcl !== false) listeners.DOMContentLoaded!.forEach((f) => f());
   const advance = (to: number) => { for (;;) { timers.sort((a, b) => a.at - b.at); const t = timers[0]; if (!t || t.at > to) break; timers.shift(); now = t.at; t.fn(); } now = to; };
-  return { ctx, boot, root, advance, at: () => now };
+  return { ctx, boot, root, late, advance, at: () => now };
 }
 const file = (n: number, size = 100_000) => Array.from({ length: n }, (_, i) => ({ name: `https://x.test/assets/f${i}.js`, encodedBodySize: size }));
 
@@ -345,4 +345,12 @@ test('the creep\'s fitted curve stays within 1% of the span of the fill\'s own c
   const m = /GLIDE_EASE='cubic-bezier\(([^)]*)\)'/.exec(HTML)!, [x1, y1, x2, y2] = m[1]!.split(',').map(Number) as [number, number, number, number];
   const f = (x: number) => { let lo = 0, hi = 1, s = .5; for (let i = 0; i < 40; i++) { s = (lo + hi) / 2; const k = 1 - s; if (3 * k * k * s * x1 + 3 * k * s * s * x2 + s ** 3 < x) lo = s; else hi = s; } const k = 1 - s; return 3 * k * k * s * y1 + 3 * k * s * s * y2 + s ** 3; };
   for (let x = 0; x <= 1; x += 0.02) assert.ok(Math.abs(f(x) - (1 - Math.exp(-4 * x)) / (1 - Math.exp(-4))) < 0.01, `at ${x}`);
+});
+
+test('the hint that needs no script is taken away when the cover lifts, and never outlives it', () => {
+  const c = run({ entries: () => file(3), dcl: false });
+  c.advance(2000);
+  assert.equal(c.late.removed, false, 'there while the cover is up');
+  c.ctx.ppsBootLift();
+  assert.equal(c.late.removed, true, 'gone with the cover');
 });
