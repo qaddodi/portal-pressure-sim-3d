@@ -3,11 +3,12 @@ import { caseOf, type Slide } from '../../decks/schema.ts';
 import { useUi } from '../ui-store.ts';
 import { centredBox } from '../layout/plan.ts';
 import { sentences, pageOf } from './pages.ts';
+import { glueShort } from '../text/glue-short.ts';
 
 /** The patient the slide starts with, on a card of its own before the slide's words (the 2D deck's "Case"). */
 export function CaseCard({ slide, page, pages }: { slide: Slide; page: number; pages: number }) {
   const c = caseOf(slide) ?? { kicker: 'Case', text: '' };
-  const text = pageOf(sentences(c.text), pages, page).join(' ');
+  const text = glueShort(pageOf(sentences(c.text), pages, page).join(' '));
   const mark = useRef<HTMLSpanElement>(null);
   const vp = useUi((s) => s.vp);
   // 2D (presenter-case.js cardUp): the words run 2.5x the teaching card's (2x on a phone) and ease down, a tenth at a time, only as far as the card's room needs, never under 1.2x
@@ -22,7 +23,7 @@ export function CaseCard({ slide, page, pages }: { slide: Slide; page: number; p
     <>
       <span ref={mark} className="pz-site pz-case-tag">{c.kicker}</span>
       <p className="pz-case-p">{text}</p>
-      {slide.caseQ && page >= pages - 1 ? <p className="pz-case-p pz-case-q">{slide.caseQ}</p> : null}
+      {slide.caseQ && page >= pages - 1 ? <p className="pz-case-p pz-case-q">{glueShort(slide.caseQ)}</p> : null}
     </>
   );
 }

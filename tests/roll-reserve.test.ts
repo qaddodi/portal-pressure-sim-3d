@@ -42,7 +42,7 @@ test('the blood pressure and the platelets keep three digits', () => {
 
 test('Roll sizes its box to the reserve and the line gives it', () => {
   assert.match(readFileSync('src/ui/cards/Roll.tsx', 'utf8'), /\{reserve \?\? \(latest\.prev/);
-  assert.match(readFileSync('src/ui/cards/Line.tsx', 'utf8'), /<Roll text=\{text\} reserve=\{reserveOf\(text, p\.key, p\.decimals === 0, still, \{ seen: seen\?\.\(p\.key, p\.decimals === 0\), minus, raises \}\)\} alts=\{altsOf\(text, still, \{ seen: seen\?\.\(p\.key, p\.decimals === 0\) \}\)\} fit after=\{stop\} \/>/);
+  assert.match(readFileSync('src/ui/cards/Line.tsx', 'utf8'), /<Roll text=\{text\} reserve=\{reserveOf\(text, p\.key, p\.decimals === 0, stillHere, \{ seen: p\.at \? undefined : seen\?\.\(p\.key, p\.decimals === 0\), minus, raises \}\)\} alts=\{altsOf\(text, stillHere, \{ seen: p\.at \? undefined : seen\?\.\(p\.key, p\.decimals === 0\) \}\)\} fit after=\{stop\} \/>/);
   assert.match(readFileSync('src/ui/deck-ui.css', 'utf8'), /\.dk-num \{[^}]*font-variant-numeric: tabular-nums/);
 });
 

@@ -35,3 +35,15 @@ test('a card carries one tag: the deck tab steps aside where a level tab shows',
   const card = readFileSync('src/ui/cards/TeachingCard.tsx', 'utf8');
   assert.ok(card.indexOf('<NameTab deck={deck} />') < card.indexOf('className="pz-sitetab"'), 'the deck tab comes before the level tab in the DOM, which the sibling selector needs');
 });
+
+// Audit af1c51a0 (Circuit 8, every device): "the PPG falls from 17.1 mmHg      without a stent to 9.0 mmHg": a reading taken at another slide ({ppg@parallel}) wore the live reading's reserve (a minus slot and a
+// padded digit, because the slide has a stent-width slider) although nothing on this slide can move it. A fixed reading holds only its own width, wherever it stands in a deck.
+test('a reading taken at another slide holds only its own width, never the slider\'s reserve', () => {
+  assert.match(line, /const stillHere = still \|\| !!p\.at;/);
+  assert.match(line, /reserve=\{reserveOf\(text, p\.key, p\.decimals === 0, stillHere, \{ seen: p\.at \? undefined/);
+  assert.match(line, /alts=\{altsOf\(text, stillHere, \{ seen: p\.at \? undefined/);
+  assert.equal(reserveOf('17.1 mmHg', 'ppg', false, true), '17.1 mmHg', 'still: the reading\'s own text');
+  assert.ok(reserveOf('17.1 mmHg', 'ppg', false, false).length > '17.1 mmHg'.length, 'a live reading under a slider keeps its minus slot');
+  const s = parseLine('the PPG falls from {ppg@parallel} without a stent to {ppg}.').filter((x) => x.t === 'value');
+  assert.deepEqual(s.map((x) => ('at' in x ? x.at : undefined)), ['parallel', undefined]);
+});

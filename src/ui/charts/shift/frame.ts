@@ -6,7 +6,7 @@ import { measure } from '../measure.ts';
 import type { Frame, Shape } from '../scene.ts';
 import {
   SHIFT_KEYS, SHIFT_LINE, SHIFT_LOW, SHIFT_TOP, SHIFT_MIN, endsLapse, fmtV, keepClear, lapseHead, lapsePts, litOf, monotone, pinStage, rowVals, shiftColour, shiftGeo, shiftScales, shiftY,
-  shownCount, spread, thin, type Geo, type LapseState, type Readings, type Scales, type ShiftInput, type Trail,
+  shownCount, spread, stageNameX, thin, type Geo, type LapseState, type Readings, type Scales, type ShiftInput, type Trail,
 } from './model.ts';
 
 const isTop = (k: string) => (SHIFT_TOP as readonly string[]).includes(k);
@@ -113,11 +113,15 @@ export function shiftFrame(spec: ShiftSpec, c: ChartCtx): ShiftOut {
   }
   // The states' names under the lower panel: the last shown always, the others where they stand clear.
   const m = lapse ? lapse.i + 1 : n, xs = Array.from({ length: m }, (_, i) => G.X(i)), names = stages.slice(0, m).map((s) => s.name);
-  const keep = keepClear(xs, names.map((t, i) => tw(t, 0.92 * f, i === m - 1 ? 700 : 500)), G.R + G.numR);
+  // (a name stands whole inside the card: centred on its state but never past either edge, and one wider than the card is not drawn at all; text never shrinks and is never cut off. Hyperdynamic 3 to 5,
+  //  whose states are named by the slide's title, were cut at the card's left edge on an iPhone: audit af1c51a0)
+  const wideW = G.R + G.numR, ws = names.map((t, i) => tw(t, 0.92 * f, i === m - 1 ? 700 : 500));
+  const xc = xs.map((x, i) => (ws[i]! <= wideW - 4 ? stageNameX(x, ws[i]!, wideW) : x));
+  const keep = keepClear(xc, ws.map((w) => (w > wideW - 4 ? 0 : w)), wideW);
   names.forEach((t, i) => {
-    if (!keep.has(i)) return;
+    if (!keep.has(i) || ws[i]! > wideW - 4) return;
     const l = lk('shift.stage', { now: i === m - 1 });
-    say(xs[i]!, G.nameY, t, { ...l, size: l.size ?? 0.92 * f }, { anchor: i === 0 && xs[i]! - tw(t, 0.92 * f) / 2 < 2 ? 'start' : 'middle' });
+    say(xc[i]!, G.nameY, t, { ...l, size: l.size ?? 0.92 * f }, { anchor: 'middle' });
   });
   return { frame: { w: G.w, h: G.h, shapes, label: shiftLabel(spec, n, at) }, G, S, n };
 }

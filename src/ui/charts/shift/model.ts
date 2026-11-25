@@ -110,6 +110,8 @@ export function spread(ys: readonly number[], gap: number, lo: number, hi: numbe
   if (over) for (let i = 0; i < at.length; i++) at[i]! -= over;
   return at;
 }
+/** Where a state's name (width `w`) is centred: on its state, held 2 px inside the card's edges (a name that fits is never cut off). */
+export const stageNameX = (x: number, w: number, W: number): number => Math.min(Math.max(x, w / 2 + 2), W - w / 2 - 2);
 /** The names under the lower panel to keep, right to left, the last always: each clear of the one after it (talk-trace.js keepClear). */
 export function keepClear(xs: readonly number[], ws: readonly number[], W: number, gap = 8): Set<number> {
   const kept = new Set<number>();

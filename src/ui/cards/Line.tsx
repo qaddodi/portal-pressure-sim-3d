@@ -48,11 +48,14 @@ export function Line({ text, read, slide, fp, pill, still = false, seen, minus, 
       case 'literal': return stopped(<b className="pz-nw">{p.text}</b>, stop, i, open);
       case 'value': {
         // a reading as its tile prints it, with its unit (the blood pressure beside its two numbers, the platelets in thousands)
+        // (a reading taken at another slide of the deck, {ppg@parallel}, is fixed text: no slider, strain or time-lapse on THIS slide moves it, so it holds only its own width. It wore the live reading's reserve, a
+        //  minus slot and a padded digit, which stood as a gap after it, "17.1 mmHg      without a stent to 9.0 mmHg" on Circuit 8, audit af1c51a0)
+        const stillHere = still || !!p.at;
         const v = read(p.key, p.at);
         const text = v == null ? '…' : valueText(p.key, { [p.key]: v, sbp: read('sbp', p.at), dbp: read('dbp', p.at) }, p.decimals === 0);
         const { tone, rate } = v == null ? { tone: null, rate: null } : pillTone(p.key, p.at ? { ...fp, [p.key]: fp?.[`${p.key}@${p.at}`] } : fp);
         // (its stop is set inside the reading's own box, right after the digits: the reserve is wider than a short value, and that spare width must fall after the stop, not before it)
-        return stopped(<span className="pz-nw"><span className={`pz-val dk-num${tone ? ' tone' : ''}`} data-rate={rate ?? undefined} data-k={p.key} style={style(tone)}><Roll text={text} reserve={reserveOf(text, p.key, p.decimals === 0, still, { seen: seen?.(p.key, p.decimals === 0), minus, raises })} alts={altsOf(text, still, { seen: seen?.(p.key, p.decimals === 0) })} fit after={stop} /></span></span>, '', i, open);
+        return stopped(<span className="pz-nw"><span className={`pz-val dk-num${tone ? ' tone' : ''}`} data-rate={rate ?? undefined} data-k={p.key} style={style(tone)}><Roll text={text} reserve={reserveOf(text, p.key, p.decimals === 0, stillHere, { seen: p.at ? undefined : seen?.(p.key, p.decimals === 0), minus, raises })} alts={altsOf(text, stillHere, { seen: p.at ? undefined : seen?.(p.key, p.decimals === 0) })} fit after={stop} /></span></span>, '', i, open);
       }
     }
   });

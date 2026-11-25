@@ -106,3 +106,29 @@ test('the chart\'s SVR is MAP over CO, so CO x SVR is the MAP it names (hyperdyn
   assert.ok(Math.abs((c.fp!.co! / h.co!) * (c.fp!.svr! / h.svr!) - c.fp!.map! / h.map!) < 1e-9);
   assert.ok(Math.abs(c.trail![1]![2]! - 84.6 / 6.65) < 1e-9);
 });
+
+// Audit af1c51a0 (iPhone, Hyperdynamic 5): the state's name was the slide's title ("Splanchnic vasodilation keeps the portal pressure high"), centred on its state, so its left end was cut off at the card's edge.
+// Every name under the lower panel now stands whole inside the card, in every deck that names a state by its title, at every width; one wider than the card is not drawn (text never shrinks, nothing is cut off).
+test('a state\'s name under the lower panel is never cut off by the card\'s edge, at any width, for the hyperdynamic deck\'s own states', async () => {
+  const { DECK } = await import('../src/decks/hp/data/hyperdynamic.copied.ts');
+  const { measure } = await import('../src/ui/charts/measure.ts');
+  const { stageNameX } = await import('../src/ui/charts/shift/model.ts');
+  assert.equal(stageNameX(10, 100, 300), 52, 'held 2 px inside the left edge');
+  assert.equal(stageNameX(290, 100, 300), 248, 'held 2 px inside the right edge');
+  assert.equal(stageNameX(150, 100, 300), 150, 'a name clear of both edges stays on its state');
+  const slides = ((DECK as unknown as { slides: { tool?: { kind?: string }; tick?: string; lapse?: { from?: string; to?: string }; title?: string }[] }).slides);
+  const R = (j: number) => ({ co: 5 + 0.4 * j, svr: 1000 - 40 * j, map: 90 - j, bv: 5000 + 150 * j, pv: 8 + 1.5 * j, spl: 1 + 0.12 * j });
+  const d = shiftData(slides, (j) => ({ fp: R(j), start: { fp: R(j - 0.5) } }));
+  for (const [w, dev] of [[300, 'phone-portrait'], [340, 'phone-portrait'], [390, 'phone-portrait'], [430, 'tablet-portrait'], [330, 'phone-landscape']] as const) {
+    const c = ctxOf('dark', w, dev);
+    for (let at = 0; at < slides.length; at++) {
+      const fr = shiftFrame({ ...d, at }, c).frame;
+      for (const t of fr.shapes) {
+        if (t.k !== 'text' || !t.s.trim()) continue;
+        const wd = measure(t.s, t.size, t.weight ?? 500);
+        const x0 = t.anchor === 'end' ? t.x - wd : t.anchor === 'middle' ? t.x - wd / 2 : t.x;
+        assert.ok(x0 >= -0.5 && x0 + wd <= fr.w + 0.5, `${w} px, slide ${at + 1}: "${t.s}" stands ${x0.toFixed(1)} to ${(x0 + wd).toFixed(1)} in a card ${fr.w.toFixed(0)} px wide`);
+      }
+    }
+  }
+});
