@@ -13,7 +13,7 @@ import { observeThenFit } from '../layout/fit-later.ts';
 import { scaleOf } from '../charts/fit.ts';
 import { heldBy, openCharts } from './card-want.ts';
 import { beginSink, beginReveal, finishSink, finishReveal, settle, committed, shiftWords, type GlideHost } from './card-glide.ts';
-import { boxOf, noteGrew, BOX_START } from './box-lock.ts';
+import { boxOf, noteGrew, freezeOf, BOX_START, type Frozen } from './box-lock.ts';
 
 import { clock } from '../../clock/frame.ts';
 interface Props {
@@ -91,7 +91,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
   const anims = useRef<Animation[]>([]);
   const lastStep = useRef<string | null>(null);      // the step part of the signature the card was last measured at (see stepKey)
   const box = useRef(BOX_START);                    // the card's lock (box-lock.ts): its height is decided before it shows and stands until a new key, width, step or viewport
-  const now = useRef({ live: false, out: false, overflow: false, r: 0, rr: '', anchor: 'top' as Anchor });   // (what the measuring callback, made once, needs to know of the latest render)
+  const now = useRef({ landed: false, live: false, out: false, overflow: false, r: 0, rr: '', anchor: 'top' as Anchor });   // (what the measuring callback, made once, needs to know of the latest render)
   const out = entry.phase === 'out';
   const ready = rect.h > 0;
   // A phone's (and an upright tablet's) words card stands on the screen's foot: its BOTTOM edge is the fixed one (the card hangs from the foot: deck-ui.css `[data-anchor]`), and a card the plan
@@ -100,14 +100,14 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
   // new place came a React round trip later: the answer stood outside the card, then the card jumped up by the growth (eyes on c70021f, 20 Nov: "overshoots and jumps 65 px").
   const lay0 = layoutOf(vp.w, vp.h);
   const anchor: Anchor = centredKind(entry.id) ? 'mid' : !data && (lay0 === 'stack' || lay0 === 'tab') ? 'foot' : 'top';
-  now.current = { live, out, overflow: !!overflow, r, rr: round(r), anchor };
+  now.current = { landed: live, live, out, overflow: !!overflow, r, rr: round(r), anchor };
 
   // A card whose own words grow (an answer opens under its question) is that tall at once and revealed down to it by the same glide the rows under the question ease down by,
   // started in the measuring callback itself, before the frame is painted: the height the plan gives it comes a React round trip later, and until then the words stood below the
   // card's edge (Mohammad, 20 Nov: "the card is not expanding as fast as the text"). The plan's later height is the same, and finds the card already there.
   const growNow = (h: number) => {
     const card = cardRef.current, plate = plateRef.current, n = now.current, prev = shownH.current;
-    if (!card || !plate || prev == null || !n.live || n.out || n.overflow || h <= prev + 1 || typeof card.animate !== 'function' || reduced()) return;
+    if (!card || !plate || prev == null || !n.landed || n.out || n.overflow || h <= prev + 1 || typeof card.animate !== 'function' || reduced()) return;
     shownH.current = h;
     card.style.height = `${h}px`; plate.style.height = `${h}px`;
     if (n.anchor === 'mid') card.style.top = `${-h / 2}px`;
@@ -117,7 +117,7 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
   // and its frame sinks to it by the glide: clipped from the top (a card on the foot) or from the foot, its shadow plate scaled to match
   const shrinkNow = (h: number) => {
     const card = cardRef.current, n = now.current, prev = shownH.current;
-    if (!card || prev == null || !n.live || n.out || n.overflow || h >= prev - 1 || typeof card.animate !== 'function' || reduced()) return;
+    if (!card || prev == null || !n.landed || n.out || n.overflow || h >= prev - 1 || typeof card.animate !== 'function' || reduced()) return;
     shownH.current = h;
     sink(prev, h);
   };
@@ -181,12 +181,12 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
       // (a kept card at the same step whose new slide needs more room than it landed with: no growth, a fresh card at its final size takes its place; the lock keeps what it landed with while this one leaves)
       if (out.grew > 1 && sameStepPass && onOutgrown && !now.current.out) { onOutgrown(entry.key); return; }
       box.current = out.state;
+      if (out.grew) noteGrew({ card: entry.id, slide: entry.key, px: out.grew });
       if (!out.report) {
         // (a measure the lock swallowed still tells the layer the card is measured at this slide's signature, at the height it stands: the camera and the new words wait for it)
         if (fresh && box.current.h > 0) onHeight(entry.key, Math.round(rect.w), box.current.h, box.current.h + heldBy(el), openCharts(el));
         return;
       }
-      if (out.grew) noteGrew({ card: entry.id, slide: entry.key, px: out.grew });
       growNow(h); shrinkNow(h);
       onHeight(entry.key, Math.round(rect.w), h, h + heldBy(el), openCharts(el));
     };
@@ -205,28 +205,6 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.key, Math.round(rect.w), remeasure]);
 
-  // A change of height after landing glides, by clip-path on the card and a scaled shadow plate (compositor work, no layout per frame):
-  // growing, the card is its new height at once and is revealed down to it; shrinking, it stays its old height, is clipped up to the new
-  // one, and takes the new height only when the glide has finished.
-  const [animH, setAnimH] = useState<number | null>(null);
-  useLayoutEffect(() => {
-    const card = cardRef.current, plate = plateRef.current;
-    if (!card || !plate || !ready) return;
-    const prev = shownH.current;
-    shownH.current = rect.h;
-    if (out) { settle(host); return; }   // (a card on its way out is never clipped by a height glide)
-    if (prev == null || prev === rect.h || !(live || gate.current)) return;
-    if (typeof card.animate !== 'function' || reduced()) return;
-    const opts: KeyframeAnimationOptions = swap ? { duration: IN_MS, delay: OUT_DONE, easing: RAIL_CSS, fill: 'both' } : { duration: GLIDE_MS, easing: ARRIVE_CSS, fill: 'forwards' };
-    if (rect.h > prev) {
-      reveal(prev, rect.h, opts);
-    } else {
-      sink(prev, rect.h, opts);
-    }
-  }, [rect.h, ready, live, out]);
-  // the new height is in place: let go of the glide (cancelled here, after the commit, so no frame shows the full old card)
-  useLayoutEffect(() => { committed(host, animH); }, [animH]);
-
   // a card comes in only when its whole group can (every card measured at its final height, the fonts in), never on its own measure:
   // once let in it stays in, whatever the group does after
   const gate = useRef(false);
@@ -237,6 +215,40 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
   const lockKey = `${entry.key}|${Math.round(rect.w)}|${stepKey}`;
   if (go && ready && !gate.current) { gate.current = true; box.current = boxOf(box.current, { t: 'show', key: lockKey }).state; }
   now.current.live = live || gate.current;   // (a card sliding in is on screen: a change of its height glides, it never snaps)
+  // THE HEIGHT IS LOCKED FROM THE FIRST FRAME THE CARD SHOWS (Mohammad, 25 Nov, third report: "teaching/instrument cards arrive in their final height, they do NOT grow ever"):
+  // `hOn` is the height the card is drawn at. Once the card is let in it is the height it landed with for as long as its own step (lockKey) and the viewport stand: a plan that gives it more room later
+  // (a words card that measured after it, a fit that settled) is not followed; a room that gets smaller is. A new step of its own (a page, a ladder step) or a new viewport takes the new height, and the plan is
+  // given a short while to catch up with it (it lags the card's own measure by a render or two). The quick check grows by design and is exempt.
+  const fz = useRef<Frozen | null>(null);
+  const fkey = `${lockKey}|${vp.w}x${vp.h}`;
+  let hOn = rect.h;
+  if (gate.current && ready && !out && !GROWS_BY_DESIGN.has(entry.id)) {
+    fz.current = freezeOf(fz.current, fkey, rect.h, clock.now());
+    hOn = fz.current!.h;
+  }
+  // A change of height after landing glides, by clip-path on the card and a scaled shadow plate (compositor work, no layout per frame):
+  // growing, the card is its new height at once and is revealed down to it; shrinking, it stays its old height, is clipped up to the new
+  // one, and takes the new height only when the glide has finished.
+  const [animH, setAnimH] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const card = cardRef.current, plate = plateRef.current;
+    if (!card || !plate || !ready) return;
+    const prev = shownH.current;
+    shownH.current = hOn;
+    if (out) { settle(host); return; }   // (a card on its way out is never clipped by a height glide)
+    // (only a card that has landed glides to a new height: one that is still arriving takes its height at once, so no arrival ever shows a card growing from below)
+    if (prev == null || prev === hOn || !live) return;
+    if (typeof card.animate !== 'function' || reduced()) return;
+    const opts: KeyframeAnimationOptions = swap ? { duration: IN_MS, delay: OUT_DONE, easing: RAIL_CSS, fill: 'both' } : { duration: GLIDE_MS, easing: ARRIVE_CSS, fill: 'forwards' };
+    if (hOn > prev) {
+      reveal(prev, hOn, opts);
+    } else {
+      sink(prev, hOn, opts);
+    }
+  }, [hOn, ready, live, out]);
+  // the new height is in place: let go of the glide (cancelled here, after the commit, so no frame shows the full old card)
+  useLayoutEffect(() => { committed(host, animH); }, [animH]);
+
   const phase = out ? 'out' : ready && gate.current ? 'in' : 'wait';
   // A card that is going stays up, whole and readable, until the cards that replace it can come in (`go`: measured, fonts in), so no slide change shows an interval with nothing readable
   // (the old title gone, the case not yet there: review #14). Never for long: past HOLD_OUT_MS it goes anyway, and a card with nothing coming (the talk closing) is not held (go is not false).
@@ -274,9 +286,9 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
   const surface = alone === 'panel' ? `pz-panel${extra ? ` ${extra}` : ''}` : alone === 'case' ? 'pz-case on' : entry.id === 'ladder' ? `pz-data${extra ? ` ${extra}` : ''}` : `pz-shade pz-card${stackCls}`;
   return (
     <div className="dk-pos" data-anchor={anchor !== 'top' ? anchor : undefined} data-live={live && !out} data-centred={alone || undefined} data-slot={data ? 'data' : 'words'} data-tucked={tuck || undefined} style={{ ...vars, width: rect.w, transform: `translate3d(${rect.x}px, ${anchor === 'foot' ? rect.y + rect.h : anchor === 'mid' ? rect.y + rect.h / 2 : rect.y}px, 0)`, ...(tuck ? { translate: `0 ${-closedPx(rect.h)}px` } : lift ? { translate: `0 ${-lift}px` } : null), ...(swap && !reduced() ? { transition: `transform ${IN_MS}ms ${RAIL_CSS} ${OUT_DONE}ms` } : null) }}>
-      <div ref={plateRef} className="dk-plate" data-phase={phase} style={{ height: ready ? (animH ?? rect.h) : undefined, ...(bottomR != null ? { borderRadius: round(r) } : null) }} aria-hidden="true" />
+      <div ref={plateRef} className="dk-plate" data-phase={phase} style={{ height: ready ? (animH ?? hOn) : undefined, ...(bottomR != null ? { borderRadius: round(r) } : null) }} aria-hidden="true" />
       <div ref={cardRef} className={`dk-card ${surface}`} data-card={entry.id} data-phase={phase} data-overflow={overflow || undefined}
-        role="group" aria-label={label} onClick={onTap} data-zoomable={zoomable || undefined} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? rect.h) : undefined, ...(anchor === 'mid' && ready ? { top: -(animH ?? rect.h) / 2 } : null), ...(bottomR != null ? { borderRadius: round(r) } : null) }} {...pointer}>
+        role="group" aria-label={label} onClick={onTap} data-zoomable={zoomable || undefined} data-visual={entry.id === 'title' ? 'outline' : entry.id === 'check' ? 'check' : entry.id === 'visual' ? visual || 'table' : undefined} style={{ height: ready ? (animH ?? hOn) : undefined, ...(anchor === 'mid' && ready ? { top: -(animH ?? hOn) / 2 } : null), ...(bottomR != null ? { borderRadius: round(r) } : null) }} {...pointer}>
         <div ref={innerRef} className={entry.id === 'ladder' || alone ? 'dk-in' : 'dk-in pz-text'} style={tuck ? { opacity: 0 } : undefined}>{children}</div>
         {/* 2D's handle in the data card's foot (a touch screen, both cards up): a push up on the card puts it away. Every data card has it (the summary table's too: it docks the same way) */}
         {/* An iPhone's credit: one line in the foot of the words card, in the same place on every slide, never over its words (2D `.pz-cred`; the foot's padding and the pill's place leave its row, plan.ts CRED_ROW) */}
