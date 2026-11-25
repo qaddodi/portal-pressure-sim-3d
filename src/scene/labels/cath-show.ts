@@ -56,6 +56,17 @@ export function calloutsFor(cath: CathState | null): CalloutKind[] {
   }
 }
 
+/** How much of the catheter a card needs to stand (`got` of CathIn): the free reading only the tip (1), the wedged one and the stack the point ahead of it too (2: the balloon is up). One source for the card that stands
+ *  (`solve`) and for the controller's judgment of what a change of `got` does to the cards on show. */
+export const calloutNeeds = (k: CalloutKind): 1 | 2 => (k === 'f' ? 1 : 2);
+
+/** A reading whose number is not in yet ("—": the engine has not posted it) stands nowhere: a tag that came with a dash and changed to its number crossed over once it was already on show, and was sized for the dash. The catheter's own
+ *  readings wait for a digit; a procedure's cards and a blocked vein's words say what they say. */
+export const hasNumber = (v: string): boolean => /\d/.test(v);
+/** The shape of the numbers the catheter's cards print: their digits as zeros, so a dash, a number, and a number that gains a digit (9.9 to 10.1) each read differently and a tick (5.2 to 5.3) does not. The controller solves
+ *  again when it changes: a card is sized by its shape (cath.ts tagSize), and a box that did not follow its number stood one size behind. */
+export const shapeOf = (t: CathText): string => `${t.f.replace(/\d/g, '0')}|${t.w.replace(/\d/g, '0')}|${t.h.replace(/\d/g, '0')}`;
+
 export const toneOf = (hv: number | null): Tone => (hv == null || !Number.isFinite(hv) ? 'caution' : hvpgSev(hv));
 const reading = (kind: 'free' | 'wedge' | 'result', value: string, tone: Tone, kicker?: string): Reading => ({ kicker: kicker ?? N[kind].kicker, value, unit: value ? N[kind].unit : '', tone });
 /** The tag at a blocked vein's mouth: words only, in the caution ink. */
@@ -79,18 +90,21 @@ export interface SumDraw {
   /** Each row: its own opacity (a row that travels is there from the first frame; one that does not rises and fades in), the pixels still to travel, the rise. */
   row: [{ alpha: number; dx: number; dy: number; rise: number }, { alpha: number; dx: number; dy: number; rise: number }];
   lead: number; calcAlpha: number; calcRise: number;
+  /** The HVPG's card, pixels still to glide (a number that gained a digit re-fits the stack: each part glides from where it stood to its new place). */
+  calcShift: { dx: number; dy: number };
   key: string;
 }
 export interface CathFrame { pills: PillDraw[]; sum: SumDraw | null }
 
-// `key` is what the layer redraws the leaders by (no place in it); `spot` is what a card IS: its side, its size. A card that stands at a new place with the same spot GLIDES
+// `key` is what the layer redraws the leaders by (no place in it); `spot` is what a card IS: its side (a tag's width follows its number: a digit more or less is the same card, glided by its middle). A card that stands at a new place with the same spot GLIDES
 // there; only a card that changes spot (it flips to the other side, it takes another size) fades out where it stood and in again. `ax`/`ay` is the point the card was placed for: while the
 // picture moves a little (a tilt, the camera following the tip) the card rides it, drawn at its solved place plus how far its point has moved since (2D stage-cath.js: a reading is pinned
 // to its point in the world and "any move glides there, never jumps"; it is placed again only at rest).
 interface PillTarget { id: PillId; reading: Reading; x: number; y: number; w: number; h: number; above: boolean; box: Box; key: string; spot: string; ax: number; ay: number }
 interface SumTarget { x: number; y: number; geom: SumGeom; rows: [Reading, Reading]; calc: Reading; leaders: SumDraw['leaders']; box: Box; key: string; spot: string; tip: Pt; ahead: Pt }
 interface PillRec { t: PillTarget; p: number; gx: number; gy: number }
-interface SumRec { t: SumTarget; fade: number; u: number; from: [{ x: number; y: number } | null, { x: number; y: number } | null]; gx: number; gy: number }
+interface SumRec { t: SumTarget; fade: number; u: number; from: [{ x: number; y: number } | null, { x: number; y: number } | null]; gx: number; gy: number;
+  /** Each part's own pixels still to glide (the WHVP's row, the FHVP's, the HVPG's card) when the stack was laid out again at another width. */ gm: [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }] }
 /** How fast a card that was placed again glides to its new place (the time constant, ms): about a third of the small step, so it arrives within it. */
 export const GLIDE_TAU_MS = C.MS.small / 3;
 const GLIDE_EPS = 0.05;
@@ -142,7 +156,8 @@ export class CathShow {
     let sum: SumTarget | null = null;
     const blocked = !inp.kinds && inp.cath === 'blocked';
     const rf = blocked ? blockedReading(inp.text.say ?? BLOCKED_SAYS.first) : reading('free', inp.text.f, inp.tones?.f ?? 'free', inp.kickers?.f), rw = reading('wedge', inp.text.w, inp.tones?.w ?? 'wedge', inp.kickers?.w), rh = reading('result', inp.text.h, toneOf(inp.text.hv), inp.kickers?.h);
-    const ids = kinds.filter((k): k is PillId => k !== 's').filter((id) => inp.got >= (id === 'f' ? 1 : 2));
+    const ready = (r: Reading) => inp.kinds !== undefined || blocked || hasNumber(r.value);
+    const ids = kinds.filter((k): k is PillId => k !== 's').filter((id) => inp.got >= calloutNeeds(id) && ready(id === 'f' ? rf : rw));
     if (ids.length && inp.tip && inp.ahead) {
       const items = ids.map((id) => {
         const r = id === 'f' ? rf : rw, p = id === 'f' ? inp.tip! : inp.ahead!, sz = tagSize(t, blocked ? { ...r, kicker: BLOCKED_SAYS.then } : r, inp.measure);   // (a blocked vein's tag is sized for its longer words, so the one crosses over to the other in place)
@@ -152,10 +167,10 @@ export class CathShow {
       for (const o of out) {
         const it = items.find((i) => i.id === o.id)!, id = o.id as PillId, r = id === 'f' ? rf : rw;
         this.sides.set(id, o.side);
-        pills.set(id, { id, reading: r, x: o.x0, y: o.y0, w: it.w, h: it.h, above: o.above, box: o.box, key: `${o.above ? 1 : 0}|${it.w}|${it.h}`, spot: `${o.above ? 1 : 0}|${it.w}|${it.h}`, ax: id === 'f' ? inp.tip![0] : inp.ahead![0], ay: id === 'f' ? inp.tip![1] : inp.ahead![1] });
+        pills.set(id, { id, reading: r, x: o.x0, y: o.y0, w: it.w, h: it.h, above: o.above, box: o.box, key: `${o.above ? 1 : 0}|${it.w}|${it.h}`, spot: `${o.above ? 1 : 0}|${it.h}`, ax: id === 'f' ? inp.tip![0] : inp.ahead![0], ay: id === 'f' ? inp.tip![1] : inp.ahead![1] });
       }
     } else for (const id of ['f', 'w'] as const) this.sides.delete(id);
-    if (kinds.includes('s') && inp.tip && inp.ahead && inp.got >= 2) {
+    if (kinds.includes('s') && inp.tip && inp.ahead && inp.got >= calloutNeeds('s') && ready(rw) && ready(rf) && ready(rh)) {
       const tight = tightFor(inp.band);
       const swap = swapOf(inp.tip[1], inp.ahead[1], this.swapWas);
       let geom = sumLayout(t, [rw, rf], rh, inp.measure, tight, swap);
@@ -166,26 +181,30 @@ export class CathShow {
       this.swapWas = plan.swap;
       const leaders = { d: plan.d, dots: plan.dots };
       const box = { x0: at.x, y0: at.y, x1: at.x + geom.w, y1: at.y + geom.h };
-      sum = { x: at.x, y: at.y, geom, rows: [rw, rf], calc: rh, leaders, box, key: `${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}|${geom.w}|${geom.h}|${leaders.d.join('')}`, spot: `${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}|${geom.w}|${geom.h}`, tip: [inp.tip[0], inp.tip[1]], ahead: [inp.ahead[0], inp.ahead[1]] };
+      sum = { x: at.x, y: at.y, geom, rows: [rw, rf], calc: rh, leaders, box, key: `${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}|${geom.w}|${geom.h}|${leaders.d.join('')}`, spot: `${geom.swap ? 1 : 0}${geom.tight ? 1 : 0}`, tip: [inp.tip[0], inp.tip[1]], ahead: [inp.ahead[0], inp.ahead[1]] };
     }
     this.want = { pills, sum };
     this.boxes = [...[...pills.values()].map((p) => p.box), ...(sum ? [sum.box] : [])];
     this.cards = [...[...pills.values()].map((p) => ({ x0: p.x, y0: p.y, x1: p.x + p.w, y1: p.y + p.h })), ...(sum ? [sum.box] : [])];
-    // A card on show that is placed again with the same spot (the same side and size) takes its new place at once and glides there from where it is drawn now (its glide offset keeps the
+    // A card on show that is placed again with the same spot (the same side; a tag's width follows its number) takes its new place at once and glides there from where it is drawn now (its glide offset keeps the
     // picture continuous); a ticking number is no new spot either. Only a card that changes spot fades out and in (step).
     for (const [id, rec] of this.pills) {
       const w = pills.get(id);
       if (!w || w.spot !== rec.t.spot) continue;
-      const [ox, oy] = this.pillAt(rec);
+      const [ox, oy] = this.pillAt(rec), ow = rec.t.w;
       rec.t = w; rec.gx = 0; rec.gy = 0;
       const [nx, ny] = this.pillAt(rec);
-      rec.gx = ox - nx; rec.gy = oy - ny;
+      // (a number that gained or lost a digit is the same card at another width: its words stand where they stood, by the middle, and glide to their new place)
+      rec.gx = ox + ow / 2 - (nx + w.w / 2); rec.gy = oy - ny;
     }
     if (this.sum && sum && sum.spot === this.sum.t.spot) {
-      const [ox, oy] = this.sumAt(this.sum);
+      const [ox, oy] = this.sumAt(this.sum), og = this.sum.t.geom, ng = sum.geom, gm = this.sum.gm;
       this.sum.t = sum; this.sum.gx = 0; this.sum.gy = 0;
       const [nx, ny] = this.sumAt(this.sum);
       this.sum.gx = ox - nx; this.sum.gy = oy - ny;
+      // (a number that gained a digit lays the stack out at another width: the box glides, and each part glides from where it stood, so nothing jumps and nothing fades)
+      const was = [og.rows[0], og.rows[1], og.calc], now = [ng.rows[0], ng.rows[1], ng.calc];
+      this.sum.gm = [0, 1, 2].map((i) => ({ x: was[i]!.x + gm[i]!.x - now[i]!.x, y: was[i]!.y + gm[i]!.y - now[i]!.y })) as SumRec['gm'];
     }
   }
 
@@ -211,6 +230,12 @@ export class CathShow {
     const sameSpot = (a: PillTarget, b: PillTarget) => a.spot === b.spot;
     // a card that was placed again glides to its place (and a card that is riding a little move needs frames for as long as the picture does)
     const glide = 1 - Math.exp(-dt / GLIDE_TAU_MS);
+    const settle2 = (m: { x: number; y: number }): boolean => {
+      if (m.x === 0 && m.y === 0) return false;
+      m.x *= 1 - glide; m.y *= 1 - glide;
+      if (Math.abs(m.x) < GLIDE_EPS && Math.abs(m.y) < GLIDE_EPS) { m.x = 0; m.y = 0; return false; }
+      return true;
+    };
     const settle = (r: { gx: number; gy: number }): boolean => {
       if (r.gx === 0 && r.gy === 0) return false;
       r.gx *= 1 - glide; r.gy *= 1 - glide;
@@ -225,7 +250,7 @@ export class CathShow {
       const f = this.pills.get('w'), g = this.pills.get('f');
       if (f && f.p > 0.2) { const [x, y] = this.pillAt(f); from[0] = { x, y }; }
       if (g && g.p > 0.2) { const [x, y] = this.pillAt(g); from[1] = { x, y }; }
-      this.sum = { t: sumWanted, fade: 0, u: 0, from, gx: 0, gy: 0 };
+      this.sum = { t: sumWanted, fade: 0, u: 0, from, gx: 0, gy: 0, gm: [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }] };
       this.pills.clear();
     }
     for (const id of ['f', 'w'] as const) {
@@ -248,6 +273,7 @@ export class CathShow {
     if (s) {
       s.u += dt;
       if (settle(s)) busy = true;
+      for (const m of s.gm) if (settle2(m)) busy = true;
       let target = 1;
       if (hold || !sumWanted) target = 0;
       else if (s.t.spot !== sumWanted.spot) target = 0;
@@ -280,13 +306,13 @@ export class CathShow {
     const rowAt = (j: 0 | 1) => {
       const from = s.from[j], flow = sumFlow(s.u, !!from);
       const R = t.geom.rows[j], rx = sx + R.x, ry = sy + R.y;
-      return { alpha: from ? 1 : 1 - flow.rise / C.RISE, dx: from ? (from.x - rx) * flow.flip || 0 : 0, dy: from ? (from.y - ry) * flow.flip || 0 : 0, rise: from ? 0 : flow.rise };
+      return { alpha: from ? 1 : 1 - flow.rise / C.RISE, dx: (from ? (from.x - rx) * flow.flip || 0 : 0) + s.gm[j]!.x, dy: (from ? (from.y - ry) * flow.flip || 0 : 0) + s.gm[j]!.y, rise: from ? 0 : flow.rise };
     };
     const a = rowAt(0), b = rowAt(1), flow = sumFlow(s.u, !!(s.from[0] || s.from[1]));
     f.sum = {
       x: sx, y: sy, geom: t.geom, rows: t.rows, calc: t.calc, leaders: t.leaders, alpha: s.fade,
       row: [a, b],
-      lead: flow.lead, calcAlpha: flow.calc, calcRise: flow.calcRise, key: t.key,
+      lead: flow.lead, calcAlpha: flow.calc, calcRise: flow.calcRise, calcShift: { dx: s.gm[2]!.x, dy: s.gm[2]!.y }, key: t.key,
     };
   }
 }

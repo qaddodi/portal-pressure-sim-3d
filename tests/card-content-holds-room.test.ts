@@ -115,3 +115,11 @@ test('the reveal is a readiness gate, not a clock: a card comes in when the font
   assert.match(layer, /const go = fonts && !growing && \(numbers \|\| gaveUp === numbersKey\) && \(measured \|\| late === pagesKey\)/);
   assert.match(layer, /GIVE_UP_CARDS_MS = 8000/);
 });
+
+test('a pane\'s wait is real time and longer than the cards\' own (Stiffness 2: the audit\'s 20x clock cut 8 s to a third of a second and the card came in at the placeholder\'s height)', () => {
+  const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
+  assert.match(layer, /PANE_GIVE_UP_MS = 25000/);
+  assert.match(layer, /clock\.afterReal\(\(\) => setPaneLate\(pagesKey\), PANE_GIVE_UP_MS\)/);
+  assert.match(layer, /\(panesIn \|\| paneLate === pagesKey\)/);
+  assert.doesNotMatch(layer, /\(panesIn \|\| late === pagesKey\)/);
+});

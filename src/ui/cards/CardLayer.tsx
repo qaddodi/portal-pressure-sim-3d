@@ -63,7 +63,7 @@ function useFontsReady(): boolean {
 const liveCard = (slot: string): HTMLElement | null => [...document.querySelectorAll<HTMLElement>(`.dk-pos[data-slot="${slot}"]`)].find((p) => !p.querySelector('.dk-card[data-phase="out"]')) ?? null;
 
 /** How long a card's measured height must stand still before the card is let in (a late row or readout shows up inside this), and the longest the cards wait for it before they come in as they are. */
-export const SETTLE_MS = 120, GIVE_UP_CARDS_MS = 8000;   // (the readiness gate decides when cards come in; the 8 s is only the crash net that keeps a failed piece from hiding the talk for good, the same one the engine's numbers have: inputs-in.ts GIVE_UP_MS)
+export const SETTLE_MS = 120, GIVE_UP_CARDS_MS = 8000, PANE_GIVE_UP_MS = 25000;   // (the readiness gate decides when cards come in; the 8 s is only the crash net that keeps a failed piece from hiding the talk for good, the same one the engine's numbers have: inputs-in.ts GIVE_UP_MS)
 const ZERO: Rect = { x: 0, y: 0, w: 0, h: 0 };
 interface Snap { /** the lens whose key is the data card's first row (cardKeyAt, asked with the stop the card came from) */ dkey: string | null; slide: Slide | null; /** the slide whose instrument the data card shows (the slide itself, or the one before it whose card stays) */ dslide: Slide | null; pages: number; at: number; trim: boolean; /** the slide's readings as they stood while the card was the current one: a card that leaves keeps its own numbers ("13 mmHg" on Ascites 12 did not turn into the next slide's as it went) */ readings: Readings }
 
@@ -230,7 +230,11 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // (and the Tests pane the data card's instrument is, when it is one: its code is read in before the card is measured, never after, so the card is let in at the height the pane really has: pane-load.ts)
   const paneKind = view?.data && here?.key.startsWith('tool:') && carried ? (carried.tool as { kind?: unknown } | undefined)?.kind : undefined;
   const panesIn = usePaneIn(paneKind);
-  const go = fonts && !growing && (numbers || gaveUp === numbersKey) && (measured || late === pagesKey) && (panesIn || late === pagesKey);
+  // (a pane's code is a fetch, so its wait is REAL time and longer than the cards' own: the audit's 20x clock made the 8 s a third of a second, a slow phone's first use of a pane took longer than 8 s, and in both the
+  // card came in at the placeholder's height and the pane, arriving after it, stood 145 px past its foot: Stiffness 2, audit 1161e159 and the dev server's first load)
+  const [paneLate, setPaneLate] = useState('');
+  useEffect(() => { if (panesIn) return; const t = clock.afterReal(() => setPaneLate(pagesKey), PANE_GIVE_UP_MS); return () => clock.cancel(t); }, [panesIn, pagesKey]);
+  const go = fonts && !growing && (numbers || gaveUp === numbersKey) && (measured || late === pagesKey) && (panesIn || paneLate === pagesKey);
   // the first cards of a talk fade in where they stand; every later one slides in from the side the talk comes from (2D's first card has no way to come from)
   const seen = useRef(false);
   const fresh = !seen.current;

@@ -20,7 +20,7 @@ function world(cath: 'free' | 'wedge' | 'result') {
   const d = {
     now: () => t, project: (p: Vector3, o: { x: number; y: number }) => { rig.project(p, o); o.x += dx; o.y += dy; return o; }, cameraMoving: () => false,
     free: () => ({ x0: 0, y0: 0, x1: vp.w, y1: vp.h }), view: () => ({ x0: 0, y0: 56, x1: vp.w, y1: vp.h }), vp: () => vp, reversed: () => false, words: () => null,
-    blockers: () => [], measure, pressure: () => 5, reading: () => null, level: () => 'all',
+    blockers: () => [], measure, pressure: () => 5, reading: () => 5.2, level: () => 'all',
     cathere: (tip: Vector3, ahead: Vector3) => { tip.set(0.02, 0.02, 0); ahead.set(0.1, 0.12, 0); return 2; },
   } as unknown as LabelDeps;
   const ctl = new LabelController(d); ctl.setState({ ...NO_STATE, cath });

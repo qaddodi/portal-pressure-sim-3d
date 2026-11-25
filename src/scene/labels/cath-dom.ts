@@ -67,12 +67,18 @@ export function buildCath(parent: HTMLElement): CathDom {
       if (sumKey !== s.key) {
         sumKey = s.key;
         sum.style.width = `${px(g.w)}px`; sum.style.height = `${px(g.h)}px`;
-        brace.style.left = `${px(g.brace.x)}px`; brace.style.top = '0px';
-        brace.setAttribute('width', String(g.brace.w)); brace.setAttribute('height', String(px(g.brace.h))); bpath.setAttribute('d', g.brace.d);
-        for (let j = 0; j < 2; j++) {
-          lead[j].setAttribute('d', s.leaders.d[j]);
-          dot[j].setAttribute('cx', String(px(s.leaders.dots[j][0]))); dot[j].setAttribute('cy', String(px(s.leaders.dots[j][1])));
-        }
+        // (a stack laid out again while it shows, a number having gained a digit: the bracket and the leaders cross over to their new lines, the old fading off the new, and never step; the rows and the HVPG glide, cath-show.ts)
+        const a = s.lead * s.alpha;
+        restyle(brace, () => {
+          brace.style.left = `${px(g.brace.x)}px`; brace.style.top = '0px';
+          brace.setAttribute('width', String(g.brace.w)); brace.setAttribute('height', String(px(g.brace.h))); bpath.setAttribute('d', g.brace.d);
+        }, a);
+        restyle(sleads, () => {
+          for (let j = 0; j < 2; j++) {
+            lead[j].setAttribute('d', s.leaders.d[j]);
+            dot[j].setAttribute('cx', String(px(s.leaders.dots[j][0]))); dot[j].setAttribute('cy', String(px(s.leaders.dots[j][1])));
+          }
+        }, a);
       }
       // (a leader takes its row's colour: when that changes while they show, they cross over to it)
       if ([0, 1].some((j) => lead[j]!.getAttribute('data-tone') !== s.rows[j]!.tone)) {
@@ -85,7 +91,7 @@ export function buildCath(parent: HTMLElement): CathDom {
       }
       const K = g.calc;
       words(calc, s.calc, s.calcAlpha * s.alpha); size(calc, K.w, K.h);
-      place(calc, K.x, K.y + s.calcRise); fade(calc, s.calcAlpha * s.alpha);
+      place(calc, K.x + s.calcShift.dx, K.y + s.calcRise + s.calcShift.dy); fade(calc, s.calcAlpha * s.alpha);
       const b = opacity(s.lead * s.alpha);
       if (b !== braceOp) { braceOp = b; brace.style.opacity = b; }
       if (b !== leadsOp) { leadsOp = b; sleads.style.opacity = b; }

@@ -29,7 +29,7 @@ import type { Rect, Viewport } from '../../ui/layout/device.ts';
 import type { CathState, ReadingKey } from '../../decks/schema.ts';
 import type { ProcCards } from './store.ts';
 import { HandWatch, isCut, type HandView } from './hand-watch.ts';
-import { CathShow, calloutsFor, BLOCKED_SAYS, type CathFrame, type CathText, type CalloutKind } from './cath-show.ts';
+import { CathShow, calloutsFor, calloutNeeds, shapeOf, BLOCKED_SAYS, type CathFrame, type CathText, type CalloutKind } from './cath-show.ts';
 
 export interface LabelDeps {
   now(): number;
@@ -246,6 +246,8 @@ export class LabelController {
   private cTipPx: [number, number] | null = null;
   private cAheadPx: [number, number] | null = null;
   private cGot: 0 | 1 | 2 = 0;
+  /** Which of the catheter's cards could stand last frame (calloutNeeds): a change of `got` is a cut only for the cards it takes away. */
+  private cAvail = new Map<CalloutKind, boolean>();
   /** When the tip's words at a blocked vein came in (BLOCKED_SAYS): -1 while they are not on the figure. */
   private blockedAt = -1;
   private blockSay: string = BLOCKED_SAYS.first;
@@ -518,7 +520,13 @@ export class LabelController {
     // 150 px when the tip crosses into the next part of the route (the end of the part it is in, layer.ts aheadAt), and that leap was a "cut" that faded the tip's own tag out and back for as long as the
     // catheter moved (Mohammad, 23 Nov: "Occluded and No reading flicker as the catheter moves"; the live replay in tests/blocked-tag-steady.test.ts).
     const kindsNow = pr ? pr.kinds : calloutsFor(this.state.cath), usesAhead = kindsNow.some((k) => k !== 'f');
-    if (cutPt(nowTip, this.cTipPx) || (usesAhead && cutPt(nowAhead, this.cAheadPx)) || got !== this.cGot) { moved = true; if (!this.cutCard) this.cutCard = { tip: this.cTipPx, ahead: this.cAheadPx }; }
+    // How far the catheter has come (`got`) changes as the balloon goes up and down, and that was a cut for every card on show: the FHVP, which stays where it was taken while the balloon seals (Next) or lets down (Back), faded
+    // out and came back 270 ms later, a flicker of a card that never moved. Only a card the change takes away, or the first one to come, is a cut; a card that comes with it (the WHVP when the balloon is up) is an arrival of its own.
+    const avail = new Map<CalloutKind, boolean>(kindsNow.map((k) => [k, got >= calloutNeeds(k)]));
+    let reach = false;
+    for (const [k, on] of avail) { const was = this.cAvail.get(k); if (was !== undefined && was !== on && (!on || k === 'f')) reach = true; }
+    this.cAvail = avail;
+    if (cutPt(nowTip, this.cTipPx) || (usesAhead && cutPt(nowAhead, this.cAheadPx)) || reach) { moved = true; if (!this.cutCard) this.cutCard = { tip: this.cTipPx, ahead: this.cAheadPx }; }
     else if (slidPt(nowTip, this.cTipPx) || (usesAhead && slidPt(nowAhead, this.cAheadPx))) following = true;
     this.cTipPx = nowTip; this.cAheadPx = nowAhead; this.cGot = got;
     // A picture that moved places its labels again once it is still: the solve judges screen positions (cards, other labels, the vessels' lines), and none of them is in the signature below. Without
@@ -545,11 +553,11 @@ export class LabelController {
     const here = d.anatomy ? d.anatomy() : true;
     const cathNow = here ? this.state.cath : null, procNow = here ? this.state.proc : null;
     const cathSig = (here ? '' : 'away|') + (this.state.cath || this.state.proc ? `${this.state.proc?.sig ?? ''}|${this.cGot}|${this.cTipPx ? Math.round(this.cTipPx[0]) + ',' + Math.round(this.cTipPx[1]) : '-'}|${this.cAheadPx ? Math.round(this.cAheadPx[0]) + ',' + Math.round(this.cAheadPx[1]) : '-'}` : '');
-    const sig = cathSig + '|' + (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + [...this.state.shown].sort().join(',') + this.state.cath + (this.state.proc?.sig ?? '');
+    const sig = cathSig + '|' + shapeOf(this.cathText()) + '|' + (keyBox ? boxKey(keyBox) : '-') + '|' + setSig + '|' + boxKey(view) + '|' + blockers.map(boxKey).join(';') + '|' + [...this.state.named].sort().join(',') + [...this.state.shown].sort().join(',') + this.state.cath + (this.state.proc?.sig ?? '');
     // A new card (or a new view or card box) comes in while the points slide (a tilt, a follow, the scope bending), which never rests: the reading cards ride their points (`show.ride`), so they are placed
     // now, without the names, which keep waiting for the picture to be still. Without this a card that came while anything slid waited for ever and never appeared (EUS-PPG's PV and HV, 21 Nov).
     if (!hold && !resting && (cathNow || procNow)) {
-      const cs = `${this.state.proc?.sig ?? ''}|${this.state.cath ?? ''}|${here ? 1 : 0}|${this.cGot}|${keyBox ? boxKey(keyBox) : '-'}|${boxKey(view)}|${blockers.map(boxKey).join(';')}`;
+      const cs = `${this.state.proc?.sig ?? ''}|${this.state.cath ?? ''}|${here ? 1 : 0}|${this.cGot}|${shapeOf(this.cathText())}|${keyBox ? boxKey(keyBox) : '-'}|${boxKey(view)}|${blockers.map(boxKey).join(';')}`;
       if (cs !== this.cardSig) {
         this.cardSig = cs;
         this.show.solve({ vp: d.vp(), cath: cathNow, measure: d.measure, band: this.cathBand(view), blockers, tip: this.cTipPx, ahead: this.cAheadPx, got: this.cGot, text: this.cathText(), ...(procNow ? { kinds: procNow.kinds, kickers: procNow.kickers, tones: procNow.tones, ...(procNow.mid ? { mid: true } : {}) } : {}) });

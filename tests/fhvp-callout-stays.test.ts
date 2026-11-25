@@ -1,0 +1,166 @@
+// Mohammad, 25 Nov (iPhone, HVPG and PPG 3/15): "when the callout FHVP appears it flickers before it settles".
+// Root cause: the controller took every change of how far the catheter has come (`got`: 0 nothing, 1 the tip, 2 the balloon up) for a cut of the picture, and a cut fades every card out and brings it back
+// FADE.settleMs after. The balloon goes up (Next, slide 3 to 4) and comes down (Back) with the tip standing still, so the FHVP, which stays where it was taken the whole time, dipped from 1 to 0 and returned
+// 270 ms later: a card that never moved, flashing. Now a change of `got` is a cut only for a card it takes away (or the first free reading to come); the card it brings (the WHVP) is an arrival of its own.
+// The live pieces together at a phone's size (the real scene's catheter and route, the deck's catheter clock, the chase camera, the real label controller), stepped at 16 ms, through every step of the talk.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { Vector3 } from 'three';
+import { CelScene } from '../src/scene/scene.ts';
+import { LabelController, NO_STATE, type LabelDeps } from '../src/scene/labels/controller.ts';
+import { makeCathClock, aimCath, stepCath, poseAt, readTaken } from '../src/ui/deck/cath-clock.ts';
+import { tipCloseShot } from '../src/ui/deck/cath-shot.ts';
+import { hvpgChase, type ChasePose } from '../src/scene/camera/chase.ts';
+import { calloutNeeds, calloutsFor } from '../src/scene/labels/cath-show.ts';
+import type { CathState } from '../src/decks/schema.ts';
+
+const vp = { w: 393, h: 852, safe: { top: 59, right: 0, bottom: 34, left: 0 } };
+const measure: LabelDeps['measure'] = (t, size, _w, track = 0) => t.length * size * 0.56 + track * t.length;
+const FREE = { x0: 0, y0: 279, x1: 393, y1: 599 };
+
+test('what a card needs of the catheter is one rule', () => {
+  assert.equal(calloutNeeds('f'), 1, 'the free reading stands with the tip');
+  assert.equal(calloutNeeds('w'), 2, 'the wedged reading needs the balloon up');
+  assert.equal(calloutNeeds('s'), 2, 'the stack needs the balloon up');
+});
+
+function makeRig(reading: (k: string) => number | null) {
+  const cel = new CelScene(), room = { x: 0, y: 279, w: 393, h: 320 };
+  cel.rig.resize(vp.w, vp.h);
+  let t = 1000; const now = () => t;
+  const cc = makeCathClock(); aimCath(cc, 'route');
+  const d = {
+    now, project: (p: Vector3, o: { x: number; y: number }) => cel.rig.project(p, o), cameraMoving: () => cel.rig.isMoving, hand: () => cel.rig.handView,
+    free: () => FREE, view: () => ({ x0: 0, y0: 59, x1: vp.w, y1: vp.h - 34 }), vp: () => vp, reversed: () => false, words: () => null,
+    blockers: () => [], measure, pressure: () => 5, reading, level: () => 'all', anatomy: () => true,
+    cathere: (tip: Vector3, ahead: Vector3) => {
+      const c = cel.catheter;   // (LabelLayer's own rule)
+      if (c.current.advance < 0.999 || !cel.catheterRead || !cel.procPoints('hvpg', tip, ahead)) return 0;
+      return c.current.balloon >= 0.999 ? 2 : 1;
+    },
+  } as unknown as LabelDeps;
+  const ctl = new LabelController(d); ctl.setState({ ...NO_STATE, cath: 'route' });
+  const P = { advance: 0, balloon: 0, column: 0 }, chase: ChasePose = { yaw: 0, pitch: 0, dist: 1, fov: 14, target: [0, 0, 0] };
+  let drawn = false, readWas = false;
+  const frame = () => {
+    t += 16;
+    const moving = stepCath(cc, 16, 64), rd = readTaken(cc.clk.t);
+    if (moving || !drawn || rd !== readWas) { readWas = rd; poseAt(cc.clk.t, P); cel.setCatheter({ advance: P.advance, balloon: P.balloon, column: P.column, read: rd }); drawn = true; cel.rig.setChase(hvpgChase(P.advance, chase)); }
+    cel.rig.update(t); cel.procs.update(t); ctl.tick();
+  };
+  const alpha = (id: 'f' | 'w') => ctl.cath.pills.find((p) => p.id === id)?.alpha ?? 0;
+  const to = (state: CathState, jump = false) => { ctl.setState({ ...NO_STATE, cath: state }); aimCath(cc, state, jump); drawn = false; const shot = tipCloseShot('tip'); if (shot) cel.goTo(shot, room, t); };
+  return { ctl, frame, alpha, to, now };
+}
+
+test('the FHVP callout never dips while the balloon goes up and down under it, and each card eases in once', () => {
+  const { ctl, frame, alpha, to } = makeRig((k) => (k === 'fhvp' ? 5.2 : k === 'whvp' ? 17.4 : k === 'hvpg' ? 12.2 : null));
+  for (let i = 0; i < 14000 / 16; i++) frame();   // the way in
+  const stats: string[] = [];
+  const go = (state: CathState, jump = false) => {
+    const from = ctl.cath.pills.map((p) => p.id), stays = calloutsFor(state).includes('f') && alpha('f') >= 0.999;
+    to(state, jump);
+    let dipped = 0, wBack = 0, wWas = alpha('w'), fFull = alpha('f') >= 0.999;
+    for (let i = 0; i < 1200; i++) {
+      frame();
+      const f = alpha('f'), w = alpha('w');
+      if (stays && f < 0.999) dipped++;                    // the free reading was on show and stays on show: it never dips
+      if (w < wWas - 1e-9 && w > 0 && calloutsFor(state).includes('w') && w < 0.999 && fFull) wBack++;   // the wedged one eases in: it never steps back while it comes
+      wWas = w; if (f >= 0.999) fFull = true;
+    }
+    stats.push(`${from.join('') || '-'} -> ${state}: dipped ${dipped}, w stepped back ${wBack}, f ${alpha('f').toFixed(2)}, w ${alpha('w').toFixed(2)}`);
+    assert.equal(dipped, 0, `the FHVP callout stays steady going to ${state} (dipped in ${dipped} frames)`);
+    assert.equal(wBack, 0, `the WHVP eases in once going to ${state}`);
+  };
+  go('free');      // Next from the way in: the callout comes with the tracing
+  assert.ok(alpha('f') >= 0.999, 'the FHVP callout is up on the free step');
+  go('wedge');     // the balloon goes up under it: the FHVP stays, the WHVP comes
+  assert.ok(alpha('f') >= 0.999 && alpha('w') >= 0.999, 'FHVP and WHVP stand on the wedge step');
+  go('free');      // Back: the balloon lets down under it: the FHVP stays, the WHVP leaves
+  assert.ok(alpha('f') >= 0.999 && alpha('w') === 0, 'only the FHVP stands again');
+  go('wedge');
+  go('result');    // the stack takes the cards' place
+  go('wedge');
+  go('free');
+  console.log(stats.join('\n'));
+});
+
+// "When the callout FHVP appears it flickers before it settles" (25 Nov), the other half: the engine's number is not always in when the reading is taken. The tag used to come with a dash ("—"), sized for it, and cross over
+// to the number once it was on show (and be sized again, as a new spot, at the next solve: out and in). Now a reading with no number stands nowhere; the callout lands once, with its number and its own size, and keeps both.
+test('the FHVP callout lands once with its final number and size, even when the number is late', () => {
+  let tNum = Infinity, ctlNow = () => 0;
+  const { frame, to, ctl, now } = makeRig((k) => (k === 'fhvp' ? (ctlNow() >= tNum ? 5.2 : null) : null));
+  ctlNow = now;
+  for (let i = 0; i < 14000 / 16; i++) frame();
+  to('free'); tNum = now() + 4600;   // the reading is taken after about 4.1 s: the number is 0.5 s late
+  const seen = new Set<string>(); let last = -1, backs = 0, firstW = 0, widths = new Set<number>(), shown = 0;
+  for (let i = 0; i < 700; i++) {
+    frame();
+    const p = ctl.cath.pills.find((q) => q.id === 'f');
+    if (!p || p.alpha <= 0) { assert.equal(shown, 0, 'once it has come it never leaves'); continue; }
+    shown++;
+    seen.add(p.reading.value); widths.add(p.w); if (!firstW) firstW = p.w;
+    if (p.alpha < last - 1e-9) backs++;
+    last = p.alpha;
+    assert.match(p.reading.value, /\d/, 'it never shows a dash');
+  }
+  assert.ok(shown > 0 && last >= 0.999, 'it comes');
+  assert.deepEqual([...seen], ['5.2'], 'one number the whole time');
+  assert.equal(widths.size, 1, `one size the whole time (${[...widths]})`);
+  assert.equal(backs, 0, 'its fade only rises');
+});
+
+// The box followed its number one size behind: it was sized when the callout was placed, and a number that gained a digit on screen (9.9 to 10.1: a new patient, a changed slider) kept the old box, its words overflowing it,
+// until some later solve sized it again as a new spot (the card fading out and in). Now the digits' shape is in what the controller solves by, and a tag's width is no part of its spot: it is the same card at another width,
+// and its words stand where they stood, by the middle.
+test('a callout whose number gains a digit on screen takes its new width, glides by its middle and never dips', () => {
+  let tNum = Infinity, ctlNow = () => 0;
+  const { frame, to, ctl, now } = makeRig((k) => (k === 'fhvp' ? (ctlNow() >= tNum ? 10.1 : 9.9) : null));
+  ctlNow = now;
+  for (let i = 0; i < 14000 / 16; i++) frame();
+  to('free');
+  for (let i = 0; i < 6000 / 16; i++) frame();   // landed, steady at 9.9
+  const f0 = ctl.cath.pills.find((q) => q.id === 'f')!;
+  assert.equal(f0.reading.value, '9.9'); assert.ok(f0.alpha >= 0.999);
+  const w0 = f0.w; let cx = f0.x + f0.w / 2, jump = 0, dipped = 0;
+  tNum = now();
+  for (let i = 0; i < 1500 / 16; i++) {
+    frame();
+    const p = ctl.cath.pills.find((q) => q.id === 'f');
+    if (!p || p.alpha < 0.999) { dipped++; continue; }
+    jump = Math.max(jump, Math.abs(p.x + p.w / 2 - cx)); cx = p.x + p.w / 2;
+  }
+  const f1 = ctl.cath.pills.find((q) => q.id === 'f')!;
+  assert.equal(f1.reading.value, '10.1');
+  assert.ok(f1.w > w0 + 4, `the box took the wider number (${w0} to ${f1.w})`);
+  assert.equal(dipped, 0, 'the card never dips');
+  assert.ok(jump < 2, `its words never jump (the largest step of their middle ${jump.toFixed(2)} px)`);
+});
+
+// The same for the HVPG stack (the WHVP over the FHVP with the HVPG beside them): a number that gains a digit lays the stack out at another width, and the whole stack faded out and back (its spot held its size). It is
+// the same stack at another width now: the box glides by its top left, each row and the HVPG's card glide from where they stood, the bracket and the leaders cross over, and nothing dips.
+test('the HVPG stack whose WHVP gains a digit on screen glides to its new layout and never dips', () => {
+  let tNum = Infinity, ctlNow = () => 0;
+  const { frame, to, ctl, now } = makeRig((k) => (k === 'fhvp' ? 4.8 : k === 'whvp' ? (ctlNow() >= tNum ? 10.4 : 9.6) : k === 'hvpg' ? (ctlNow() >= tNum ? 5.6 : 4.8) : null));
+  ctlNow = now;
+  for (let i = 0; i < 14000 / 16; i++) frame();
+  to('free'); for (let i = 0; i < 6000 / 16; i++) frame();
+  to('wedge'); for (let i = 0; i < 8000 / 16; i++) frame();
+  to('result'); for (let i = 0; i < 8000 / 16; i++) frame();
+  const s0 = ctl.cath.sum!;
+  assert.ok(s0 && s0.alpha >= 0.999, 'the stack stands');
+  const spots = (s: NonNullable<typeof s0>) => [s.x + s.geom.rows[0].x + s.row[0].dx, s.y + s.geom.rows[0].y + s.row[0].dy, s.x + s.geom.rows[1].x + s.row[1].dx, s.y + s.geom.rows[1].y + s.row[1].dy, s.x + s.geom.calc.x + s.calcShift.dx, s.y + s.geom.calc.y + s.calcShift.dy];
+  let was = spots(s0), jump = 0, dipped = 0;
+  const w0 = s0.geom.w; tNum = now();
+  for (let i = 0; i < 1500 / 16; i++) {
+    frame();
+    const s = ctl.cath.sum;
+    if (!s || s.alpha < 0.999) { dipped++; continue; }
+    const at = spots(s); jump = Math.max(jump, ...at.map((v, k) => Math.abs(v - was[k]!))); was = at;
+  }
+  const s1 = ctl.cath.sum!;
+  assert.equal(s1.rows[0].value, '10.4');
+  assert.ok(s1.geom.w > w0 + 3, `the stack took the wider number (${w0} to ${s1.geom.w})`);
+  assert.equal(dipped, 0, 'the stack never dips');
+  assert.ok(jump < 4, `no part of it jumps (the largest step of any part ${jump.toFixed(2)} px)`);
+});
