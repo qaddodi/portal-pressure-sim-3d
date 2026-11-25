@@ -1,5 +1,5 @@
-# The only workflow in this repo: build the site and publish it on GitHub Pages. Build only: no tests, no browser runs (owner's rule:
-# no Actions minutes for checks; tests run in the cloud thread, fast and targeted, before a push).
+# The only workflow in this repo: build the site and publish it on GitHub Pages, plus ONE full test run a day (owner, 25 Nov: allowed for that run only; every push still tests only
+# what it touched, in the cloud thread, before the push). No browser runs.
 #
 #   /          the live site, built from main (until main has the app, a redirect to /preview/)
 #   /preview/  the integration branch claude/project-thread-ge1swr, with the orange "PREVIEW · <commit>" pill
@@ -27,14 +27,16 @@ permissions:
   id-token: write
   actions: read
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
   deploy:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # (a newer push cancels an older deploy; the daily test job below is NOT cancelled with it)
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    outputs:
+      tests_due: ${{ steps.started.outputs.cache-hit != 'true' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment3.outputs.page_url || steps.deployment2.outputs.page_url || steps.deployment.outputs.page_url }}
@@ -53,7 +55,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # restore and save are separate steps on purpose: a push that lands while a run is going CANCELS it (concurrency below), and the plain cache action saves only when the whole job
+      # The last full test run's result (the daily job below saves it as a cache entry; the newest comes back here) is laid at preview/tests-status.json for the build to stamp on the pill.
+      # No entry yet: the pill says nothing about tests. Whether today's run has started is a free lookup (no download), so a push that finds it started starts no test job at all.
+      - name: Restore the last test result
+        uses: actions/cache/restore@v4
+        with:
+          path: preview/tests-status.json
+          key: tests-status-none
+          restore-keys: tests-status-
+      - id: day
+        run: echo "d=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - id: started
+        uses: actions/cache/restore@v4
+        with:
+          path: preview/.tests-started
+          key: tests-started-${{ steps.day.outputs.d }}
+          lookup-only: true
+      # restore and save are separate steps on purpose: a push that lands while a run is going CANCELS it (the deploy job's concurrency), and the plain cache action saves only when the whole job
       # succeeds, so a cold run (about 3 minutes of bakes) that kept being cancelled would never fill the cache. Each save runs the moment its files exist, and the bakes' save runs even on a cancel.
       - name: Restore node_modules
         id: modules
@@ -170,3 +188,77 @@ jobs:
         uses: actions/deploy-pages@v4
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
+
+  # One full run of the suite a day (W6: "tests: N failing" on the pill). Started by the first push of a UTC day (a skipped job costs no minutes); a started marker is saved first, so a run that dies
+  # is not retried until tomorrow. Its own concurrency group and never cancelled: a push that cancels the deploy above must not kill an hour-long run. The result is a cache entry that the
+  # next deploy lays at preview/tests-status.json (scripts/tests-daily.mjs writes it, scripts/build.mjs stamps it). It never fails a deploy.
+  tests:
+    needs: deploy
+    if: needs.deploy.outputs.tests_due == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
+    concurrency:
+      group: tests-daily
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/project-thread-ge1swr
+          path: preview
+      - id: day
+        run: echo "d=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      # (looked at again: a run queued behind another one finds the day already taken)
+      - id: started
+        uses: actions/cache/restore@v4
+        with:
+          path: preview/.tests-started
+          key: tests-started-${{ steps.day.outputs.d }}
+          lookup-only: true
+      - if: steps.started.outputs.cache-hit != 'true'
+        run: date -u +%FT%TZ > preview/.tests-started
+      - if: steps.started.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: preview/.tests-started
+          key: tests-started-${{ steps.day.outputs.d }}
+      - if: steps.started.outputs.cache-hit != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: modules
+        if: steps.started.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: preview/node_modules
+          key: modules-${{ runner.os }}-node22-${{ hashFiles('preview/package-lock.json') }}
+      - if: steps.started.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            preview/public/baked
+            preview/public/lobule
+            preview/public/anatomy/skins.bin
+            preview/public/anatomy/skins.bin.sig
+            preview/public/anatomy/circuit-skins.bin
+            preview/public/anatomy/circuit-skins.bin.sig
+            preview/public/anatomy/organs-baked.bin
+            preview/public/anatomy/organs-baked.bin.sig
+          key: bakes-none
+          restore-keys: bakes-
+      - name: Install packages (only without a cached node_modules)
+        if: steps.started.outputs.cache-hit != 'true' && steps.modules.outputs.cache-hit != 'true'
+        working-directory: preview
+        run: npm ci
+      - name: Run the whole suite
+        if: steps.started.outputs.cache-hit != 'true'
+        working-directory: preview
+        run: node scripts/tests-daily.mjs
+      - name: Keep the result for the next deploy
+        if: steps.started.outputs.cache-hit != 'true' && hashFiles('preview/tests-status.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: preview/tests-status.json
+          key: tests-status-${{ steps.day.outputs.d }}-${{ github.run_id }}

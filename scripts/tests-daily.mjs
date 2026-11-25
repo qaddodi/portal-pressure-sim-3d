@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// The one full test run a day (W6, 25 Nov review; owner's rule: never on GitHub Actions, never a runner for checks). Run it where the suite has room: a Mac, or one scheduled cloud thread.
+// The one full test run a day (W6, 25 Nov review). The `tests` job in .github/workflows/pages.yml runs it (owner allowed Actions for this run only, 25 Nov) and keeps the file as a cache entry;
+// by hand, run it where the suite has room: a Mac, or one scheduled cloud thread.
 //
 //   node scripts/tests-daily.mjs            run every test file, write tests-status.json (commit, day, total, failing, minutes)
 //   node scripts/tests-daily.mjs --push     the same, then commit that one file and push it to the branch you are on (the next deploy stamps it on the pill)
