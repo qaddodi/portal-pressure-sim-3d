@@ -48,12 +48,36 @@ export function skinsDigest(js: readonly SkinJunction[], tubes: ReadonlyMap<stri
   return `${ANATOMY_ID}/${weldDigest(js)}/${h1.toString(16)}-${h2.toString(16)}-${n}`;
 }
 
+/** The skin mesh's blend numbers and directions whose low mantissa bits are written as zeros (25 Nov): the position is not here, so the seams still meet the tubes' own rings exactly. */
+export const ROUNDED_KEYS: ReadonlySet<string> = new Set(['normal', 'cen', 'weight', 'weight2', 'restR']);
+/**
+ * Mantissa bits dropped from those: 8 of 23 leaves a relative step of 2^-15 (3e-5): a unit normal moves by 3e-5, a blend weight
+ * and a radius by 3e-5 of themselves: far under what a pixel can show.
+ */
+export const ROUND_DROP = 8;
+/** `a` with its `drop` lowest mantissa bits rounded to the nearest (ties up), as a new array; zeros, infinities and NaN stay as they are. */
+export function roundMantissa(a: Float32Array, drop = ROUND_DROP): Float32Array {
+  const out = new Float32Array(a.length), u = new Uint32Array(out.buffer), src = new Uint32Array(a.buffer, a.byteOffset, a.length), half = 1 << (drop - 1);
+  for (let i = 0; i < u.length; i++) {
+    const exp = (src[i]! >>> 23) & 255;
+    u[i] = exp === 255 || exp === 0 ? src[i]! : (((src[i]! + half) >>> drop) << drop) >>> 0;
+  }
+  return out;
+}
+
 export function encodeSkins(b: BakedSkins, gz?: (b: Uint8Array) => number): Uint8Array {
   const w = new PackWriter(gz);
   const pack = (v: unknown): unknown => {
     if (v instanceof Float32Array || v instanceof Uint32Array || v instanceof Int32Array) return w.add(v);
     if (Array.isArray(v)) return v.map(pack);
-    if (v && typeof v === 'object') { const out: Record<string, unknown> = {}; for (const k of Object.keys(v)) out[k] = pack((v as Record<string, unknown>)[k]); return out; }
+    if (v && typeof v === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const k of Object.keys(v)) {
+        const x = (v as Record<string, unknown>)[k];
+        out[k] = x instanceof Float32Array && ROUNDED_KEYS.has(k) ? w.add(roundMantissa(x)) : pack(x);
+      }
+      return out;
+    }
     return v;
   };
   // (the mesh holds the plan's junction and cuts again: they are put back on unpacking, not written twice)

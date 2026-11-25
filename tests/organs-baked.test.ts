@@ -31,12 +31,12 @@ test('the baked organs are the live ones: same organs in the same order, same tr
   }
 });
 
-test('the baked attributes equal the live ones: depth and rim steps exactly, outline normals within 1e-3, the tail fade exactly', () => {
+test('the baked attributes equal the live ones: depth and rim steps exactly, outline normals within 2.5e-3 (the file keeps a normal to 1/1023), the tail fade exactly', () => {
   for (let k = 0; k < live.length; k++) {
     const [id, a] = live[k]!, b = back.organs[k]![1];
     assert.deepEqual(Array.from(arr(b, 'depthAo')), Array.from(arr(a, 'depthAo')), `${id} depthAo`);
     assert.deepEqual(Array.from(arr(b, 'ringD')), Array.from(arr(a, 'ringD')), `${id} ringD`);
-    for (const n of ['shadeN', 'hullN']) { const x = arr(a, n), y = arr(b, n); let worst = 0; for (let i = 0; i < x.length; i++) worst = Math.max(worst, Math.abs(x[i]! - y[i]!)); assert.ok(worst < 1e-3, `${id} ${n} ${worst}`); }
+    for (const n of ['shadeN', 'hullN']) { const x = arr(a, n), y = arr(b, n); let worst = 0; for (let i = 0; i < x.length; i++) worst = Math.max(worst, Math.abs(x[i]! - y[i]!)); assert.ok(worst < 2.5e-3, `${id} ${n} ${worst}`); }
     assert.equal(!!a.getAttribute('esoA'), !!b.getAttribute('esoA'), `${id} esoA`);
     if (a.getAttribute('esoA')) assert.deepEqual(Array.from(arr(b, 'esoA')), Array.from(arr(a, 'esoA')));
     const na = arr(a, 'normal'), nb = arr(b, 'normal'); let dot = 1; for (let i = 0; i < na.length; i += 3) dot = Math.min(dot, na[i]! * nb[i]! + na[i + 1]! * nb[i + 1]! + na[i + 2]! * nb[i + 2]!);

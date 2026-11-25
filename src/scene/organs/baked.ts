@@ -10,10 +10,17 @@ import { splitIndex } from './subdivide.ts';
 import { PackWriter, unpackRef, type PackArray, type PackRef } from '../bake-pack.ts';
 import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Uint16BufferAttribute, Uint32BufferAttribute } from 'three';
 
-const MAGIC = 0x32425f4f;   // "O_B2" little-endian: bytes 'O','_','B','2'
+const MAGIC = 0x33425f4f;   // "O_B3" little-endian: bytes 'O','_','B','3'
 /** Position resolution: the organs file's own (organs-manifest.json q). */
 export const BAKED_Q = 8000;
-const SNORM = 32767;
+/**
+ * The octahedral normals' resolution: each of the two numbers a normal is stored as is a whole number from -SNORM to SNORM
+ * (11 bits and a sign; 25 Nov, before: 32767). The step is 1/1023 of the fold's square, which turns a unit normal by at most
+ * 1.5e-3 radians (a tenth of a degree): a shade (dot with the light) moves by under 0.4 of a level in 255, and a cel band's edge
+ * by less than a thousandth of a pixel's run. The low bits of sixteen were noise that gzip could not shrink: a third of the
+ * organs' bytes (tests/organs-baked.test.ts holds the error).
+ */
+export const SNORM = 1023;
 /** The organs kept as the organs file has them, besides the finished ones: the scope fits its esophagus to the raw stomach (devices/probes/scope.ts), and with the file laid in the page never fetches organs.bin. */
 export const RAW_IDS: readonly string[] = ['stomach'];
 

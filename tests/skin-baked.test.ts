@@ -12,7 +12,7 @@ import { REST } from '../src/scene/vessels/shape.ts';
 import { armTube } from '../src/scene/vessels/skin/braid-arm.ts';
 import { PACES } from '../src/scene/vessels/skin/mesh.ts';
 import { buildTubes } from '../src/scene/vessels/tubes.ts';
-import { decodeSkins, encodeSkins, skinsDigest, type BakedSkins } from '../src/scene/vessels/skin/baked.ts';
+import { ROUNDED_KEYS, decodeSkins, encodeSkins, roundMantissa, skinsDigest, type BakedSkins } from '../src/scene/vessels/skin/baked.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 import { sceneSource } from './helpers/scene-source.ts';
 
@@ -28,6 +28,12 @@ function setOf(scene: CelScene, baked?: () => BakedSkins | null): { set: SkinSet
   const set = new SkinSet(deps);
   return { set, get meshes() { const live = new Set<unknown>(set.liveDraws().map((d) => (d as unknown as { mesh: SkinMesh }).mesh)); return all.filter((m) => live.has(m)); } };
 }
+
+/**
+ * What the file holds of one mesh array (25 Nov): the position and the triangles exactly (the seams meet the tubes' own rings), the normals, centres, blend weights and radii with their 8 lowest mantissa bits rounded
+ * (ROUND_DROP: a relative step of 3e-5, which tests/skin-rounded.test.ts bounds).
+ */
+const same = <T extends Float32Array | Uint32Array>(a: T, k: string): T => (a instanceof Float32Array && ROUNDED_KEYS.has(k) ? (roundMantissa(a) as T) : a);
 
 test('the baked file unpacks to the skins it was made from, and a build that is given it lays those in and meshes nothing (live build once, then the baked one)', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
@@ -53,13 +59,13 @@ test('the baked file unpacks to the skins it was made from, and a build that is 
       const a = made.skins[i]!;
       assert.deepEqual(b.plan, a.plan); assert.deepEqual(b.axes, a.axes); assert.equal(b.pace, a.pace);
       assert.equal(b.mesh.junction, b.plan.junction, 'the mesh and its plan share one junction, as they do when built live'); assert.equal(b.mesh.cuts, b.plan.cuts);
-      for (const k of ['position', 'normal', 'cen', 'weight', 'weight2', 'restR', 'index'] as const) assert.deepEqual(b.mesh[k], a.mesh[k], `${a.plan.junction.node} ${k}`);
+      for (const k of ['position', 'normal', 'cen', 'weight', 'weight2', 'restR', 'index'] as const) assert.deepEqual(b.mesh[k], same(a.mesh[k], k), `${a.plan.junction.node} ${k}`);
       assert.deepEqual(b.mesh.seamVerts, a.mesh.seamVerts);
       // the plain trunk of a skin with growing arms (plain.ts) ships baked too: its axes, mesh and pace, or the null that says it could not be built
       assert.equal(b.plain === undefined, a.plain === undefined, `${a.plan.junction.node}: the plain trunk is carried`);
       if (a.plain && b.plain) {
         assert.deepEqual(b.plain.axes, a.plain.axes); assert.equal(b.plain.pace, a.plain.pace);
-        for (const k of ['position', 'normal', 'cen', 'weight', 'weight2', 'restR', 'index'] as const) assert.deepEqual(b.plain.mesh[k], a.plain.mesh[k], `${a.plan.junction.node}~plain ${k}`);
+        for (const k of ['position', 'normal', 'cen', 'weight', 'weight2', 'restR', 'index'] as const) assert.deepEqual(b.plain.mesh[k], same(a.plain.mesh[k], k), `${a.plan.junction.node}~plain ${k}`);
         assert.equal(b.plain.mesh.junction.node, `${a.plan.junction.node}~plain`); assert.equal(b.plain.mesh.cuts.length, b.plain.mesh.junction.arms.length);
       } else assert.equal(b.plain, a.plain);
     });
@@ -79,6 +85,15 @@ test('the baked file unpacks to the skins it was made from, and a build that is 
     for (const x of back.skins) if (x.plain) assert.equal(baked.set.plainOf(x.plan.junction.node), x.plain.mesh, `${x.plan.junction.node}: the plain trunk drawn is the baked mesh itself`);
     assert.ok(bakedMs < liveMs / 4 && bakedMs < 2000, `baked ${Math.round(bakedMs)} ms against ${Math.round(liveMs)} ms live`);
   } finally { scene.dispose(); setSmoothJoins(was); }
+});
+
+test('the rounding is bounded: a rounded number is within 2^-15 of itself (relative), zeros and non-finite numbers stay, and positions are never rounded', () => {
+  const a = new Float32Array([0, -0, 1, -1, 0.123456789, -987.654321, 1e-30, 3.4e38, Infinity, NaN]), r = roundMantissa(a);
+  for (let i = 0; i < a.length; i++) {
+    if (!Number.isFinite(a[i]!) || a[i] === 0) assert.ok(Object.is(r[i], a[i]) || (Number.isNaN(r[i]) && Number.isNaN(a[i])), `index ${i} stays`);
+    else assert.ok(Math.abs(r[i]! - a[i]!) <= Math.abs(a[i]!) * 2 ** -15, `index ${i} moves by ${Math.abs(r[i]! - a[i]!)}`);
+  }
+  assert.ok(!ROUNDED_KEYS.has('position') && !ROUNDED_KEYS.has('index'));
 });
 
 test('a baked file is the file for one figure: the digest moves with a junction or with one vertex of an arm tube, and not with noise below 1e-4', () => {
