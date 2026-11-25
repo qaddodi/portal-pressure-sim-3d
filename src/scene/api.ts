@@ -157,6 +157,7 @@ export const sceneApi = {
   /** The wedge's wash on the lobule and the sinusoid (a slide that says `wash`); `landedAtMs` is when the view lands, the wash begins a beat after it. */
   setWash(on: boolean, landedAtMs?: number): void { cel.setWash(on, landedAtMs); clock.invalidate('wash'); },
   /** The veins a slide shows stented (edge ids): a stent comes in over each, and goes out of the ones left off the list. Returns the ids the scene could stent. */
+  setStentGhost(on: boolean, instant = false): void { cel.procs.setStentGhost(on, instant); clock.invalidate('stented'); },
   setStented(ids: readonly string[], instant = false): string[] { const r = cel.procs.setStented(ids, instant); clock.invalidate('stented'); return r; },
   /** The ring the HVPG catheter reads in while a deck slide holds it (free, wedge, bad); null for none. */
   setCatheterRing(ring: 'free' | 'wedge' | 'bad' | null): void { cel.procs.keptRing = ring; clock.invalidate('catheter'); },

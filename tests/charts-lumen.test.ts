@@ -112,3 +112,21 @@ test('every look, device and state: the picture is sound, its words are at least
   assert.equal(v.stent, false);
   assert.equal(lumenViewOf(preset('cirr-decomp-tips'), 'TIPS', null).stent, true);
 });
+
+// Choose treatment 6, capture 52ef8e63: "the thrombus that occluded >50% has resolved" over a plain pink disc. A slide that names the one before (tool.was) draws the earlier clot as a dashed outline while the clot now is smaller.
+import { ghostThrombus } from '../src/ui/charts/lumen/model.ts';
+test('a lumen whose clot has gone shows the clot it had as a dashed outline and says its size; with a clot now, or none before, it draws no ghost', () => {
+  assert.equal(ghostThrombus({ thrombus: { PV_TRUNK: 0.6 } } as never, 'PV_TRUNK'), 0.6);
+  assert.equal(ghostThrombus({} as never, 'PV_TRUNK'), null);
+  const c = ctxOf('dark', 300);
+  const dashed = (f: ReturnType<typeof lumenFrame>) => f.shapes.filter((s) => s.k === 'path' && s.pen?.dash && (s.pen.color[3] ?? 0) > 0.01).length;
+  const base = { vessel: 'PV_TRUNK', stenosis: 0, stent: false };
+  const gone = lumenFrame({ ...base, thrombus: 0, ghost: 0.6 }, c), none = lumenFrame({ ...base, thrombus: 0 }, c), still = lumenFrame({ ...base, thrombus: 0.6, ghost: 0.6 }, c);
+  assert.equal(dashed(gone), 1, 'the earlier clot is outlined');
+  assert.equal(dashed(none), 0);
+  assert.equal(dashed(still), 0, 'the clot is back: the ghost is gone');
+  assert.ok(gone.shapes.some((s) => s.k === 'text' && s.s === 'Clot was 60%' && (s.alpha ?? 1) > 0.9));
+  assert.match(gone.label, /thrombus has gone from 60%/);
+  assert.equal(gone.h, none.h, 'the card is the same size with or without the ghost');
+  judge(gone, 'dark', { onCard: false });
+});

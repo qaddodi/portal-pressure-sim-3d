@@ -192,5 +192,5 @@ test('a table head that spills into its cell\'s own padding counts as too wide, 
 
 test('a chart looks at its zoom again when its card\'s style changes, not only when its own box resizes (the card\'s fit changes the zoom and not the box: the chart stayed laid out 1.13 times too wide, cut at the right edge, its card sized to it)', () => {
   const s = src('src/ui/charts/Chart.tsx');
-  assert.match(s, /new MutationObserver\(/); assert.match(s, /attributeFilter: \['style'\]/); assert.match(s, /el\.closest\('\.dk-card'\)/);
+  assert.match(s, /new MutationObserver\(/); assert.match(s, /attributeFilter: \['style', 'class'\]/); assert.match(s, /el\.closest\('\.dk-card'\)/);
 });

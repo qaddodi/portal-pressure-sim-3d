@@ -10,6 +10,7 @@ import type { LookId } from '../../looks/looks.ts';
 import { OrganLayer } from '../organs/layer.ts';
 import { AscitesLayer } from './ascites.ts';
 import { BleedLayer } from './bleed.ts';
+import { tearPoint } from './tear.ts';
 import { ClampLayer } from './clamps.ts';
 import { Landmarks } from './landmarks.ts';
 import { ScopeRing } from './scope-ring.ts';
@@ -119,6 +120,8 @@ export class DiseaseLayer {
       wale: this.lensGrey ? 0 : varixWale(!!(m.varix as { redWale?: boolean } | undefined)?.redWale, ((m.varix as { ratioMean?: number; ratio?: number } | undefined)?.ratioMean ?? (m.varix as { ratio?: number } | undefined)?.ratio) as number, t.varix.VAR),
     }, dt * 1000, inst) || moving;
     moving = this.bleed.set(t.bleed, dt, inst) || moving;
+    // the scope ring stands on the tear while a varix bleeds, so the ring and the words that name it are one place
+    this.scopeRing.setCentre(t.bleed.active && t.bleed.site === 'VAR' ? tearPoint('VAR') : null);
     return moving;
   }
 

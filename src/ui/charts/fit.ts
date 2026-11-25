@@ -34,6 +34,11 @@ const MOTION = /(?:^|;)\s*(?:translate|scale|transform-origin|transform|opacity)
 const stripped = (s: string | null) => (s ?? '').replace(MOTION, '').replace(/[;\s]+/g, ' ').trim();
 /** Whether style attributes changed in something other than motion (`translate`, `scale`, `transform`, `opacity`: the clock's per-frame writes and the card zoom). Those never change the size of a box or the zoom it lives
  *  under, so a pass that looks again "when the card's style changes" ignores them: it ran on every frame of a card zoom and of a rail glide (needs `attributeOldValue`). */
-export function sizeStyleMoved(records: readonly MutationRecord[]): boolean {
-  return records.some((r) => stripped(r.oldValue) !== stripped((r.target as Element).getAttribute('style')));
+export function sizeStyleMoved(records: readonly MutationRecord[], host?: Element): boolean {
+  return records.some((r) => {
+    // A class on an ANCESTOR of the chart (`col`, `tool-open`, a layout step) switches a `zoom` rule on or off with no style written and no size of the box changed: the chart stood laid out for the
+    // zoom it was measured under (Prehepatic 7: words 1.85 times their size once the card's zoom went). Only a class on the chart's own ancestors counts: a class elsewhere never moves its zoom.
+    if (r.attributeName === 'class') return !!host && (r.target as Element).contains(host) && r.oldValue !== (r.target as Element).getAttribute('class');
+    return stripped(r.oldValue) !== stripped((r.target as Element).getAttribute('style'));
+  });
 }

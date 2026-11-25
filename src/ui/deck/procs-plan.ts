@@ -63,9 +63,9 @@ export function layersWant(viewer: Record<LayerKey, boolean>, s: { layers?: unkn
 }
 
 /** Everything a slide asks of the figure's procedures, as a plain record (the test reads it, procs-link.ts carries it out). */
-export interface ProcsAsk { procedure: ProcPlan | null; stented: string[]; layers: string[]; wash: boolean; cath: string | null }
+export interface ProcsAsk { procedure: ProcPlan | null; stented: string[]; layers: string[]; wash: boolean; cath: string | null; ghostStent: boolean }
 export function askOf(s: CopiedSlide): ProcsAsk {
-  return { procedure: procPlanOf(s), stented: stentedOf(s), layers: layersOf(s), wash: washOf(s), cath: typeof s.cath === 'string' ? s.cath : null };
+  return { procedure: procPlanOf(s), stented: stentedOf(s), layers: layersOf(s), wash: washOf(s), cath: typeof s.cath === 'string' ? s.cath : null, ghostStent: (s as { ghostStent?: unknown }).ghostStent === true };
 }
 
 /** The camera's own shots for a procedure's steps, on the tip (the 2D `way`, `tip`, `fill`, `work` legs). */

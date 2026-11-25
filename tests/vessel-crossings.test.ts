@@ -11,8 +11,19 @@ import { CelScene } from '../src/scene/scene.ts';
 import { VESSEL_FS, VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 
 const named = (id: string) => NETWORK.find((v) => v.id === id)!;
+/** An end of `a` that lies on `b` in 3D (within their two radii): a landing. Placed, a collateral's or shunt's end is laid on its host's course where the placement puts it, not at a shared node name (C6 leaves the
+ *  splenic vein where the IMV joins it; its node is SVD, the IMV's is SV), so the node names alone called those landings crossings at zero depth. */
+const landsOn = (a: (typeof NETWORK)[number], b: (typeof NETWORK)[number]) => {
+  const reach = a.radius + b.radius;
+  return [a.pts[0]!, a.pts[a.pts.length - 1]!].some((e) => b.pts.some((q, j) => {
+    const r = b.pts[j + 1]; if (!r) return Math.hypot(e[0]! - q[0]!, e[1]! - q[1]!, e[2]! - q[2]!) < reach;
+    const d = [r[0]! - q[0]!, r[1]! - q[1]!, r[2]! - q[2]!], L2 = d[0]! * d[0]! + d[1]! * d[1]! + d[2]! * d[2]! || 1;
+    const u = Math.min(1, Math.max(0, ((e[0]! - q[0]!) * d[0]! + (e[1]! - q[1]!) * d[1]! + (e[2]! - q[2]!) * d[2]!) / L2));
+    return Math.hypot(e[0]! - q[0]! - d[0]! * u, e[1]! - q[1]! - d[1]! * u, e[2]! - q[2]! - d[2]! * u) < reach;
+  }));
+};
 const connected = (a: (typeof NETWORK)[number], b: (typeof NETWORK)[number]) =>
-  a.host === b.host || a.from === b.from || a.from === b.to || a.to === b.from || a.to === b.to || SMOOTH.get(a.id)?.mate.includes(b.id) === true || SMOOTH.get(b.id)?.mate.includes(a.id) === true;
+  a.host === b.host || a.from === b.from || a.from === b.to || a.to === b.from || a.to === b.to || SMOOTH.get(a.id)?.mate.includes(b.id) === true || SMOOTH.get(b.id)?.mate.includes(a.id) === true || landsOn(a, b) || landsOn(b, a);
 
 /** The closest the two centrelines come in depth where they overlap on the screen (null: they do not overlap). */
 function crossing(a: (typeof NETWORK)[number], b: (typeof NETWORK)[number]): { gap: number; need: number } | null {
