@@ -4,7 +4,7 @@
 //                      Portal vein thrombosis were three names for one cause);
 //   defineFirst(deck)  a cause's abbreviation (SOS, PVT) is spelled out where its talk first uses it, as "Sinusoidal obstruction syndrome (SOS)";
 //   namesEdits(json)   both of those on a deck's JSON text (what bavenoEdits() calls, so the four deck generators and apply-names.mjs agree);
-//   zoneEdit(text)     the two profile charts' zone strip says Before the liver / In the liver / After the liver (one word each where the room is short), from LIVER_ZONES.
+//   zoneEdit(text)     the profile chart's zone strip says Before the liver / In the liver / After the liver (one word each where the room is short), from LIVER_ZONES.
 // Capture 36b7deac review items 3 and 6. tests/names-table.test.ts pins the result.
 import { CAUSES, LIVER_ZONES, causeOfName } from '../src/decks/names.ts';
 
@@ -103,7 +103,7 @@ export function namesEdits(json) {
   return after === before ? json : after;
 }
 
-/** The profile charts' generated text with the zone strip's words taken from LIVER_ZONES (the two generators call it, and apply-names.mjs on the files already written). */
+/** The profile charts' generated text with the zone strip's words taken from LIVER_ZONES (the generator calls it, and apply-names.mjs on the files already written). */
 export function zoneEdit(text) {
   const cls = ['ppf-zone ppf-pre', 'ppf-zone ppf-liver', 'ppf-zone ppf-post'];
   const zones = '// 3D departure (25 Nov 2026, capture 36b7deac review item 3): the strip over the plot says Before the liver / In the liver / After the liver (src/decks/names.ts LIVER_ZONES),\n'

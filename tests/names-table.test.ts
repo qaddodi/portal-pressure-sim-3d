@@ -5,7 +5,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CAUSES, LIVER_ZONES, STATION_SUBLABELS, ABBREVIATIONS, causeOfName } from '../src/decks/names.ts';
 import { ZONES as PROFILE_ZONES, ZONE_SECOND } from '../src/ui/charts/profile/layout.generated.js';
-import { ZONES as LADDER_ZONES } from '../src/ui/charts/ladder/profile-pure.generated.js';
 import { RW_LOADERS } from '../src/decks/rw/copied/index.ts';
 import { AG_IDS, loadAgDeck } from '../src/decks/ag/index.ts';
 import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
@@ -17,9 +16,9 @@ for (const f of Object.values(RW_LOADERS)) decks.push(structuredClone(await f())
 for (const id of AG_IDS) decks.push(structuredClone(await loadAgDeck(id)) as unknown as Deck);
 for (const id of HP_IDS) decks.push(structuredClone(await loadHpDeck(id)) as unknown as Deck);
 
-test('the zone strip over the profile says what the first slide\'s outline says, from the table, in both generated charts', () => {
+test('the zone strip over the profile says what the first slide\'s outline says, from the table, in the generated chart (the ladders draw the same strip)', () => {
   assert.deepEqual(LIVER_ZONES.map((z) => z.one), ['Before the liver', 'In the liver', 'After the liver']);
-  for (const zones of [PROFILE_ZONES, LADDER_ZONES] as { one: string; top: string }[][]) {
+  for (const zones of [PROFILE_ZONES] as { one: string; top: string }[][]) {
     assert.deepEqual(zones.map((z) => z.one), LIVER_ZONES.map((z) => z.one.toUpperCase()));
     assert.deepEqual(zones.map((z) => z.top), LIVER_ZONES.map((z) => z.word.toUpperCase()));
   }
@@ -29,7 +28,7 @@ test('the zone strip over the profile says what the first slide\'s outline says,
     assert.ok(!sub.includes(w.toLowerCase().replace(/-$/, '')), `a zone header word "${w}" is a station's sub-label`);
   }
   // (a generator and the file agree: running the edit on the file changes nothing)
-  for (const f of ['../src/ui/charts/profile/layout.generated.js', '../src/ui/charts/ladder/profile-pure.generated.js']) {
+  for (const f of ['../src/ui/charts/profile/layout.generated.js']) {
     const text = readFileSync(new URL(f, import.meta.url), 'utf8');
     assert.equal(zoneEdit(text), text, f);
   }

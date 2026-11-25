@@ -8,6 +8,7 @@ import { NOT_MEASURABLE } from '../../engine/hales/portal/pressure-cuts.js';
 import { lcFirst } from '../../engine/hales/portal/lc-first.js';
 import { bedsideMean } from '../../engine/hales/portal/bedside-mean.js';
 import { fmt } from '../charts/fmt.ts';
+import { gapText, stationText } from '../charts/readings.ts';
 import { HEADING as WAVE_HEADING, CUT as WAVE_CUT, waveVessel, waveScale, waveWords, type Trace } from './table-wave.ts';
 
 const TILES = TILE as Record<string, { x?: number; d?: number }>;
@@ -59,7 +60,8 @@ export function valueText(k: string, f: Fp): string {
   const v = fpv(k, f);
   if (v == null) return '—';
   if (k === 'map') return bpText(f.sbp, f.dbp, v);
-  if (PRESS.has(k)) return fmt(v, pressDp(k));
+  // (a pressure is the one reading formatter's: a station whole, a gradient to a tenth: charts/readings.ts)
+  if (PRESS.has(k)) return pressDp(k) ? gapText(v) : stationText(v);
   if (k === 'res') return fmt(v, 1);
   const T = TILES[k];
   return fmt(v * (T?.x ?? 1), T?.d ?? 1);

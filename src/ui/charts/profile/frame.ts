@@ -5,6 +5,7 @@
 // sinusoidal brace, the brackets and the pills.
 import type { ChartCtx } from '../Chart.tsx';
 import { measure } from '../measure.ts';
+import { stationText } from '../readings.ts';
 import { look, type Look, type LookCtxIn } from '../looks.ts';
 import type { Rgba } from '../colour.ts';
 import type { Frame, Shape, TextShape } from '../scene.ts';
@@ -21,8 +22,8 @@ export interface CellOpts { chCap?: number; lad?: number }
 
 const fade = (c: Rgba | undefined, a: number): Rgba | undefined => (c && a < 1 ? [c[0], c[1], c[2], c[3] * a] : c);
 const plotR = (w: number, h: number) => Math.max(0, Math.min(10, w / 4, h / 4));
-/** A reading's words: a whole number, a true minus (2D num-words.js numWords(v, 0)). */
-export const words0 = (v: number) => { const r = Math.round(v); return r < 0 ? `−${-r}` : String(r); };
+/** A reading's words: a whole number, a true minus (2D num-words.js numWords(v, 0)); the one formatter of every station's reading (../readings.ts). */
+export const words0 = stationText;
 
 /** The looks of this chart for a context: asked once each (a glide asks for a frame every tick). */
 export function profileLooks(c: ChartCtx, f: number, cell?: CellOpts | null) {

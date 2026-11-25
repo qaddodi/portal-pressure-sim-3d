@@ -3,13 +3,13 @@
 // scripts/copy-chart-profile.mjs into layout.generated.js; this file types it and adds the drawing's own numbers (the smooth line, the cuts the readings
 // make in it, the gridlines, the brace, the hatching), each lifted from the 2D tool's model builder (buildModel / paintNow).
 import { measure } from '../measure.ts';
-import { fmt } from '../fmt.ts';
+import { gapText, stationText } from '../readings.ts';
 import * as L from './layout.generated.js';
 import { hvpgSentence } from './wedge.ts';
 
 export const {
   STATIONS, SPANS, NO_SPANS, BRACE_NAME, FULL_NAMES, SHORT_NAMES, ZONES, BLOCK_FALL, NUM_PAD, BR_PAD, BR_GAP, PILL_GAP,
-  spansOf, spansStented, hasStent, profileOf, axisTop, blocksOf, blockSpan, chartScale, pillReadings, whole, zoneSpans, zoneSize,
+  spansOf, spansStented, hasStent, profileOf, axisTop, blocksOf, blockSpan, chartScale, zoneSpans, zoneSize,
   profileGeo: profileGeo2D, nameFit, zoneFit, bracketFit, braceD, numberSides, placePills, placeLineNames, pillSize, LIVER_NAMES, SPOKEN, RATE_OF, PATH,
 } = L as unknown as {
   STATIONS: string[]; SPANS: Span[]; NO_SPANS: Span[]; BRACE_NAME: string; FULL_NAMES: Record<string, string>; SHORT_NAMES: Record<string, string>;
@@ -17,7 +17,6 @@ export const {
   spansOf(keys?: readonly string[] | null): Span[]; spansStented(list: Span[]): Span[]; hasStent(fp: Fp | null | undefined): boolean;
   profileOf(fp: Fp | null | undefined): Prof | null; axisTop(...lines: (Prof | null | undefined)[]): number; blocksOf(p: Prof | null, hl: Prof | null): number[];
   blockSpan(cx: number, slot: number, tw: Tw): [number, number]; chartScale(W: number, w0: number, f0: number, floor?: number): { k: number; s: number };
-  pillReadings(fp: Fp | null | undefined): { k: string; name: string; v: string; rate: Rate }[]; whole(v: number): string;
   zoneSpans(): [number, number][]; zoneSize(f: number): number;
   profileGeo(w: number, h: number, f: number, tw: Tw, inside?: boolean, spans?: Span[]): Geo; nameFit(slot: number, tw: Tw): unknown; zoneFit(slot: number, f: number, tw: Tw): unknown;
   bracketFit(span: number, name: string, tw: Tw, f: number): { mode: 'gap' | 'tight' | 'stack'; fs: number }; braceD(xa: number, xb: number, y0: number, d: number): string;
@@ -86,7 +85,17 @@ export const SEG_K = 10;
 /** A reading's width is tabled to here, a whole mmHg at a time; past it the last one stands. */
 export const V_MAX = 300;
 /** A bracket's or pill's reading (HVPG, PPG, EUS-PPG): one decimal, as the card's pill prints it ("0.5", never "1"). The stations' own readings stay whole numbers. */
-export const gap1 = (v: number): string => fmt(v, 1);
+export const gap1 = gapText;
+/** A station's reading as printed (the one formatter, ../readings.ts). */
+export const whole = stationText;
+/** A case's HVPG and PPG as pills ([] where there is no profile; a stent takes the HVPG away): each reading printed by the one gradient formatter,
+ *  rated on the guideline cut-offs. Phone strips and the chart's own pills read this. */
+export function pillReadings(fp: Fp | null | undefined): { k: string; name: string; v: string; rate: Rate }[] {
+  const p = profileOf(fp);
+  if (!p) return [];
+  const of = (k: string) => (k === 'ppg' ? p.ppg : k === 'eus' ? p.eus : p.hvpg);
+  return (hasStent(fp) ? spansStented(SPANS) : SPANS).filter(([k]) => Number.isFinite(of(k))).map(([k, name]) => ({ k, name, v: gapText(of(k)), rate: RATE_OF[k]!(of(k)) }));
+}
 export const whole0 = (v: number) => { const r = Math.round(v); return r > V_MAX ? V_MAX : r > 0 ? r : 0; };
 export const toneOf = (r: Rate) => (r === 'hi' ? 2 : r === 'mid' ? 1 : 0);
 

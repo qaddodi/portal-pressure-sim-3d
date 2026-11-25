@@ -20,7 +20,7 @@ for (const file of decks) {
   if (!check) writeFileSync(file, text.replace(m[2], () => json).replace(/content hash [0-9a-f]+/, `content hash ${hash}`).replace(`${m[3]} = '${m[4]}'`, `${m[3]} = '${hash}'`));
   console.log(`${file.replace(root, '')}: ${check ? 'would change' : 'patched'}, hash ${hash}`); n++;
 }
-for (const f of ['ui/charts/profile/layout.generated.js', 'ui/charts/ladder/profile-pure.generated.js']) {
+for (const f of ['ui/charts/profile/layout.generated.js']) {
   const text = readFileSync(root + f, 'utf8'), out = zoneEdit(text);
   if (out === text) continue;
   if (!check) writeFileSync(root + f, out);
