@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 const SITES: Record<string, RegExp> = {
   'src/engine/pool.ts': /clock\.afterReal\(\(\) => this\.fail\(/,
   'src/engine/boot.ts': /clock\.afterReal\(\(\) => mine\.crash\(/,
-  'src/scene/vessels/skin/baked.ts': /clock\.afterReal\(\(\) => no\(new Error\(`\$\{what\} took over/,
+  'src/boot/fetch-bin.ts': /timer = clock\.afterReal\(poll, step, 'fetch-quiet'\)/,   // (every data file's quiet watch: the baked skins, welds, organs and the organs' art)
   'src/boot/fonts.ts': /clock\.afterReal\(\(\) => res\(false\), timeoutMs\)/,
   'src/boot/ready.ts': /clock\.afterReal\(poll, STALL_POLL_MS\)/,
   'src/boot/lazy-retry.ts': /clock\.afterReal\(r, ms\)/,

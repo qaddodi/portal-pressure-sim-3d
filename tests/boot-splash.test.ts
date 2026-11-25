@@ -155,17 +155,25 @@ test('the mark is inline SVG, not an image that arrives after the first paint; t
   assert.match(HTML, /<meta name="pps-boot-bytes" content="0">/);
 });
 
-test('the 20 s last word, the 600 ms minimum and the terminal state are kept', () => {
+test('no word of the clock lifts the cover (independent review F12): a held app and a page that never mounts keep it, with the note; the terminal state is kept', () => {
   const c = run({ entries: () => file(3) });
   c.advance(19000); assert.equal(c.boot.className, 'slow', 'a quiet 8 s is told');
-  c.advance(21000); assert.equal(c.boot.className, 'slow', 'a held app (html[data-boot=wait]) is not lifted at 20 s: it is still working under the cover and has its own progress watch and hard limit');
-  c.advance(46000); assert.equal(c.boot.className, 'done', 'but the page\'s last word still comes, 25 s later');
-  const p = run({ entries: () => file(3), held: false }); p.advance(19000); p.advance(21000);
-  assert.equal(p.boot.className, 'done', 'a page that holds nothing (the crash and debug pages) is lifted by the 20 s timer as before');
+  c.advance(21000); assert.equal(c.boot.className, 'slow', 'a held app (html[data-boot=wait]) is not lifted at 20 s: it is still working under the cover and has its own progress watch');
+  c.advance(46000); assert.equal(c.boot.className, 'slow', 'nor 25 s later: no last word on the clock lifts a cover onto a figure that is not drawn');
+  const p = run({ entries: () => file(3), held: false }); p.advance(19000); p.advance(21000); p.advance(120000);
+  assert.equal(p.boot.className, 'slow', 'a page that has not mounted keeps its cover and its note too (it lifts when something is in #root)');
   const f = run({ dcl: false }); f.ctx.ppsBootRendererFail('lost'); f.advance(30000);
   assert.equal(f.boot.className, 'failed');
 });
 
+test('a stage finished is progress: a slow start that keeps stamping stages never gets the "Still loading…" note', () => {
+  const c = run({ entries: () => file(40), dcl: false });
+  c.advance(1000); c.ctx.ppsBootStarted = true;
+  const stages = ['engine', 'scene', 'compile', 'first-draw'];
+  stages.forEach((s, i) => { c.advance(1000 + 12000 * (i + 1)); assert.notEqual(c.boot.className, 'slow', `before ${s}`); c.ctx.ppsBootStage(s); });
+  c.advance(1000 + 12000 * 4 + 14000); assert.notEqual(c.boot.className, 'slow', '14 s after the last stage');
+  c.advance(1000 + 12000 * 4 + 16500); assert.equal(c.boot.className, 'slow', 'and 15 s of nothing at all is told');
+});
 
 // ---- 22 Nov: "Still loading… a slow connection" on an iPhone on good Wi-Fi. Root cause: the wait was told by FILES ARRIVING alone, so after the last file came, the seconds of CPU the app needs (engine,
 // fonts, scene, first frame) read as "nothing new for 8 s". From the moment the app's own code runs the cover no longer waits on bytes, and the note neither blames the connection nor comes before 15 s.

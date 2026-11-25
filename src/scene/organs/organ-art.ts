@@ -11,6 +11,8 @@ import { LUMA } from '../disease/copied/anatomy-b4.ts';
 import { type OrganInks, type OrganState, organColour, rgbOf } from './organ-look.ts';
 import { type Art, type ArtTokens, type Ctx2D, type Surface, paintArt } from './organ-art-paint.ts';
 import { UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
+import { fetchBin } from '../../boot/fetch-bin.ts';
+import { reportFileLoss } from '../file-loss.ts';
 import { type PlaneMap, mapBox, planeMap, unmapX, unmapY } from './placed-map.ts';
 
 export interface ArtData {
@@ -33,9 +35,10 @@ export const artData = (): ArtData | null => data;
 
 const env = (import.meta as { env?: { BASE_URL?: string } }).env;
 if (typeof fetch === 'function' && typeof window !== 'undefined') {
-  fetch(`${env?.BASE_URL ?? '/'}anatomy/organ-art.json`)
-    .then((r) => { if (!r.ok) throw new Error(`organ-art.json ${r.status}`); return r.json() as Promise<ArtData>; })
-    .then(setArtData, (e) => { console.error(e); settle(); });
+  // (asked for twice, by progress: boot/fetch-bin.ts. If it still does not come the figure draws without the detail AND says so, with Reload: file-loss.ts, ContextNote)
+  fetchBin(`${env?.BASE_URL ?? '/'}anatomy/organ-art.json`, { label: 'organ-art' })
+    .then((buf) => { if (!buf) throw new Error('organ-art.json was not found'); return JSON.parse(new TextDecoder().decode(buf)) as ArtData; })
+    .then(setArtData, (e) => { console.error(e); reportFileLoss('organ-art'); settle(); });
 } else settle();   // (outside a browser nothing is fetched: the tests give the data with setArtData, or run without it)
 
 /** Texture pixels to a 2D unit: the figure is drawn at one to three pixels a unit, and the hairlines are 0.9 wide. */

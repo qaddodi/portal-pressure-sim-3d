@@ -9,10 +9,10 @@ import { stamp, stamps } from './timeline.ts';
 import { armLateWatch } from './late-programs.ts';
 import { startLongTasks } from './longtasks.ts';
 
-/** The cover's failsafe is about progress, not the clock (22 Nov splash review, item 5): it lifts only when no stage of the start (engine, scene, compile, first draw, labels) has been stamped for this long... */
+/** The cover's failsafe is about progress, not the clock (22 Nov splash review, item 5; independent review F12): once the figure is DRAWN, it lifts when no stage of the start (engine, scene, compile, first draw, labels) has been stamped for this long.
+ *  There is no total limit: a slow phone that keeps getting somewhere keeps the cover however long that takes, and a start that stops before its first picture is never lifted onto the bare ground. It keeps the cover and index.html's note
+ *  says so ("Still loading…", with Reload and Keep waiting) after 15 s with nothing new. */
 export const BOOT_STALL_MS = 5000;
-/** ...or after this long in all, whatever happened (a start that never finishes: the page's own 20 s word in index.html is for a page that never mounts). A slow phone that keeps getting somewhere keeps the cover. */
-export const BOOT_HARD_MS = 30000;
 const STALL_POLL_MS = 500;
 /** A view with no labels to show (or labels that never settle) does not hold the cover for ever: this long after the first frame, or after the last time the labels came further in, it lifts. */
 export const LABELS_GRACE_MS = 2500;
@@ -35,23 +35,22 @@ export function holdSplash(lifter?: Lift): void {
   waiting = true; done = false; frames = -1; labels = false; compiled = false; labelsAt = 0; labelSum = 0;
   document.documentElement.dataset.boot = 'wait';
   clock.cancel(timer); stallOff?.();
-  // (only a start that HAS drawn its figure may be lifted for a quiet spell; one that has not drawn lifts only at the hard limit: lifting onto an undrawn scene is the black ground, then the figure, then the labels, one after the other.
-  //  The warm-up's own cap fires on the same quiet spell, so the two used to meet and the cover went up at the very moment the first frame was about to be drawn: 22 Nov, Mohammad.)
-  stallOff = watchStall((hard) => (hard || frames >= 0 ? release() : false));
+  // (only a start that HAS drawn its figure may be lifted for a quiet spell; one that has not drawn is never lifted by the watch: lifting onto an undrawn scene is the black ground, then the figure, then the labels, one after the other.
+  //  The warm-up's own cap fires on the same quiet spell, so the two used to meet and the cover went up at the very moment the first frame was about to be drawn: 22 Nov, Mohammad.
+  //  A start that never draws keeps the cover, and the cover says it is still coming and offers Reload: index.html `slow`, which counts the stages as progress too.)
+  stallOff = watchStall(() => (frames >= 0 ? release() : false));
 }
 
-/** Calls `onStall(hard)` when no boot stage has been stamped for `quietMs` of real time (the page clock's audit speed does not shorten it), or after BOOT_HARD_MS (`hard`); never when `live()` turns false first.
- *  A handler that returns `false` is not done: the watch goes on (a new quiet spell starts, and the hard limit still comes). Returns its canceller. */
-export function watchStall(onStall: (hard: boolean) => void | boolean, quietMs = BOOT_STALL_MS, live: () => boolean = () => waiting && !done): () => void {
+/** Calls `onStall()` when no boot stage has been stamped for `quietMs` of real time (the page clock's audit speed does not shorten it); never when `live()` turns false first. Only progress is watched, never the total time.
+ *  A handler that returns `false` is not done: the watch goes on (a new quiet spell starts). Returns its canceller. */
+export function watchStall(onStall: () => void | boolean, quietMs = BOOT_STALL_MS, live: () => boolean = () => waiting && !done): () => void {
   let next: TimerId | undefined;
-  let seen = Object.keys(stamps()).length, quiet = 0, total = 0;
+  let seen = Object.keys(stamps()).length, quiet = 0;
   const poll = (): void => {
     if (!live()) return;
-    total += STALL_POLL_MS;
     const n = Object.keys(stamps()).length;
     if (n !== seen) { seen = n; quiet = 0; } else quiet += STALL_POLL_MS;
-    const hard = total >= BOOT_HARD_MS;
-    if ((quiet >= quietMs || hard) && onStall(hard) !== false) return;
+    if (quiet >= quietMs && onStall() !== false) return;
     if (quiet >= quietMs) quiet = 0;
     next = clock.afterReal(poll, STALL_POLL_MS);
   };

@@ -4,6 +4,7 @@
 // is asked for, only when the caller says so (`inline`). The scene lays the plan in while the Lobule is out of sight, so nothing pops.
 import { planWelds, type WeldCourse, type WeldPlan } from './welds.ts';
 import { decodePlan, weldDigest } from './weld-codec.ts';
+import { fetchBin } from '../../boot/fetch-bin.ts';
 
 export interface WeldRequest { courses: WeldCourse[]; avoid: { x: number; y: number; r: number }[] }
 
@@ -11,14 +12,12 @@ export interface WeldRequest { courses: WeldCourse[]; avoid: { x: number; y: num
 export const BAKED_WELDS = 'lobule/welds.bin';
 
 async function baked(req: WeldRequest): Promise<WeldPlan | null> {
-  if (typeof window === 'undefined' || typeof fetch === 'undefined') return null;
+  // (a gzip file; no DecompressionStream, no baked plan: the worker plans it)
+  if (typeof window === 'undefined' || typeof fetch === 'undefined' || typeof DecompressionStream === 'undefined') return null;
   try {
     const env = (import.meta as { env?: { BASE_URL?: string } }).env;
-    const r = await fetch(`${env?.BASE_URL ?? '/'}${BAKED_WELDS}`);
-    if (!r.ok) return null;
-    // (a gzip file; no DecompressionStream, no baked plan: the worker plans it)
-    if (typeof DecompressionStream === 'undefined' || !r.body) return null;
-    return decodePlan(await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer(), weldDigest(req));
+    const buf = await fetchBin(`${env?.BASE_URL ?? '/'}${BAKED_WELDS}`, { gunzip: true, label: 'welds' });   // (by progress, and asked for once more: boot/fetch-bin.ts)
+    return buf ? decodePlan(buf, weldDigest(req)) : null;
   } catch { return null; }
 }
 

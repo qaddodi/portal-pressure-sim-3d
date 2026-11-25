@@ -3,6 +3,7 @@
 // and not from the planner, and the figure's first frame has them. The file carries the digest of what it was made from (the junctions and every arm tube's vertices, to 1e-4): a file for other numbers, or a page whose figure is not at rest
 // when it loads, never lays it in, and the set plans and meshes live as before (a dev server, a build whose bake failed, a disease state loaded first).
 // Layout, as the Lobule's (lobule/weld-codec.ts): "SKB1", u32 header length, the header as JSON (every typed array replaced by {$t, o, n}), padding to 4 bytes, then the arrays' bytes one after another.
+import { fetchBin } from '../../../boot/fetch-bin.ts';
 import { spanAsync } from '../../../boot/spans.ts';
 import { weldDigest } from '../../lobule/weld-codec.ts';
 import type { ArmTube, SkinPlan } from './cuts.ts';
@@ -10,7 +11,6 @@ import type { ArmAxis } from './skin-object.ts';
 import type { SkinJunction, SkinMesh } from './types.ts';
 import { partOf, partSpecs, plainOf } from './plain.ts';
 
-import { clock } from '../../../clock/frame.ts';
 import { ANATOMY_ID } from '../../anatomy/source.ts';
 /** One baked skin: the plan it was made from (its cuts, the vessels it hides whole, the node it merged with), the arms' drawn axes, the mesh, and the rung of the pace ladder (mesh.ts PACES) that closed it. */
 export interface BakedSkin { plan: SkinPlan; axes: ArmAxis[]; mesh: SkinMesh; pace: number; /** the plain trunk of a skin with growing arms (plain.ts): its axes, mesh and pace; null when it could not be built (the weld then runs over the tubes' cut ends alone); absent on a skin with no growing arm */ plain?: PlainBake | null; /** the parts of a skin with more than one growing arm (plain.ts partOf), by the key of the growers that are there (partKey): the skin of the permanent arms and just those growers; null when one could not be built; absent in a file made before parts */ parts?: Record<string, PlainBake | null> }
@@ -127,19 +127,15 @@ export const BAKED_CIRCUIT_SKINS = 'anatomy/circuit-skins.bin';
 let held: BakedSkins | null = null;
 let heldCircuit: BakedSkins | null = null;
 const browser = typeof window !== 'undefined' && typeof fetch !== 'undefined' && typeof DecompressionStream !== 'undefined';
-/** The fetch and the decode are each bounded (release review 21 Nov #1): a pending file must not hold the boot for ever; past this the scene plans its skins live (slower, never blank) and says why in the console. */
-export const BAKED_FETCH_MS = 8000;
-export const BAKED_DECODE_MS = 8000;
-const within = <T,>(p: Promise<T>, ms: number, what: string): Promise<T> => new Promise<T>((ok, no) => { const t = clock.afterReal(() => no(new Error(`${what} took over ${ms} ms`)), ms); p.then((v) => { clock.cancel(t); ok(v); }, (e) => { clock.cancel(t); no(e); }); });
+/** The fetch is bounded by PROGRESS, not the clock (boot/fetch-bin.ts, F12): a file that keeps arriving is waited for however long it takes; one that stops for BIN_QUIET_MS is dropped, asked for once more, and after that the scene plans its
+ *  skins live (slower, never blank) and says why in the console. The decode is CPU on the page, so it has no clock to be held to. */
 async function fetchSkins(name: string): Promise<BakedSkins | null> {
-  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   try {
     const env = (import.meta as { env?: { BASE_URL?: string } }).env;
-    const r = await spanAsync(`fetch:${name}`, () => within(fetch(`${env?.BASE_URL ?? '/'}${name}`, ctl ? { signal: ctl.signal } : undefined), BAKED_FETCH_MS, `fetch ${name}`));
-    if (!r.ok || !r.body) return null;
-    const body = r.body;
-    return await spanAsync(`decode:${name}`, () => within(new Response(body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer().then(decodeSkins), BAKED_DECODE_MS, `decode ${name}`));
-  } catch (e) { ctl?.abort(); console.warn(`[boot] baked skins ${name} unavailable, planning live:`, e instanceof Error ? e.message : e); return null; }
+    const buf = await fetchBin(`${env?.BASE_URL ?? '/'}${name}`, { gunzip: true, label: name });
+    if (!buf) return null;
+    return await spanAsync(`decode:${name}`, async () => decodeSkins(buf));
+  } catch (e) { console.warn(`[boot] baked skins ${name} unavailable, planning live:`, e instanceof Error ? e.message : e); return null; }
 }
 async function load(): Promise<void> { held = await fetchSkins(BAKED_SKINS); }
 const loading: Promise<void> | null = browser ? load() : null;
