@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { NAMES_SIDE, NAMES_TOP, namesFree, readings } from '../src/scene/sinusoid/captions.ts';
-import { type NameKey, type NamePlacement } from '../src/scene/sinusoid/names.ts';
+import { END_GAP, type NameKey, type NamePlacement, vesselReach } from '../src/scene/sinusoid/names.ts';
 import { KUP_CLEAR, KUP_HALF, SEED, nucAt } from '../src/scene/sinusoid/layout.ts';
 import { isPortrait, restScale } from '../src/scene/sinusoid/portrait.ts';
 import { acrossUm } from '../src/scene/sinusoid/portrait.ts';
@@ -173,4 +173,46 @@ test('the Kupffer cell is fixed in the tissue: its place does not move with the 
   assert.equal(seen.size, 1, 'one place');
   const { geo } = v as unknown as { geo: { xk: number } };
   assert.equal(geo.xk, [...seen][0], 'the cell itself stands there at once');
+});
+
+// The root rule for the ends' names on a wide screen (Mohammad, 26 Nov, iPhone on its side, Circulation 6: the central vein's name stood mid-vessel, stepped left of the Kupffer cell onto the
+// portal venule's: "Portal ver|Central vein"). The portal venule's name is at the vessel's visible left end, the central vein's at the visible right end, in that order and never touching, at every
+// size, safe area, card and zoom (so at every place the fixed Kupffer cell can land relative to the ends).
+const CASES: { tag: string; W: number; H: number; safe: number; walls: { x: number; y: number; w: number; h: number }[]; roomX: number }[] = [
+  { tag: 'iPhone landscape + words and data cards + bar (the capture)', W: 956, H: 440, safe: 62, roomX: 437, walls: [{ x: 62, y: 0, w: 359, h: 115 }, { x: 62, y: 129, w: 359, h: 182 }, { x: 570, y: 368, w: 185, h: 43 }] },
+  { tag: 'iPhone landscape, no card', W: 956, H: 440, safe: 62, roomX: 62, walls: [{ x: 570, y: 368, w: 185, h: 43 }] },
+  { tag: 'iPad landscape + card', W: 1194, H: 834, safe: 0, roomX: 480, walls: [{ x: 22, y: 150, w: 440, h: 500 }, { x: 460, y: 770, w: 264, h: 44 }] },
+  { tag: 'Mac + card', W: 1884, H: 1167, safe: 0, roomX: 673, walls: [{ x: 22, y: 190, w: 635, h: 520 }, { x: 1573, y: 1090, w: 264, h: 44 }] },
+  { tag: 'Mac, no card', W: 1440, H: 900, safe: 0, roomX: 0, walls: [] },
+];
+test('the ends\' names stand at the vessel\'s visible ends, in order and never touching, at every screen, card and zoom', () => {
+  for (const c of CASES) for (const k of [6, 8, 9.7, 12, 16, 24]) for (const ctr of [-0.3, 0, 0.3]) {
+    const room = { x: c.roomX, y: 50, w: c.W - c.safe - c.roomX, h: c.H - 60 };
+    const v = new SinusoidView(createShared());
+    v.setVisible(true); v.snapTargets(targets()); v.setPortrait(false); v.setScreen(k, room.w, c.W, 0); v.update(0);
+    const free = namesFree(room, { w: c.W, h: c.H }), C: [number, number] = [room.x + room.w * (0.5 + ctr * 0.3), room.y + room.h / 2];
+    const edge = { l: c.safe, r: c.W - c.safe };
+    const names = v.names({ W: c.W, H: c.H, C, k, free, insTop: 56, text: TEXT, lit: new Set(), measure, edge, walls: c.walls });
+    const inn = names.find((n) => n.key === 'in')!, out = names.find((n) => n.key === 'out')!, tag = `${c.tag}, ${k} px/µm, centre ${ctr}`;
+    assert.ok(box(inn).x1 + END_GAP <= box(out).x0 + 1e-6, `${tag}: Portal venule (…${box(inn).x1.toFixed(0)}) then Central vein (${box(out).x0.toFixed(0)}…), apart`);
+    const reach = vesselReach(C[0], box(out).y0 - 4, box(out).y1 + 4, edge, c.walls);
+    // the central vein is at the right end, unless the cell holds it back and the room between the ends lets it step left of the cell
+    const cellL = C[0] + k * (v.kupfferGoal - KUP_HALF) - 8;
+    const atEnd = Math.abs(box(out).x1 - (reach.r - 48)) < 1, leftOfCell = box(out).x1 + 36 <= cellL + 1;
+    assert.ok(atEnd || leftOfCell, `${tag}: Central vein at the right end (${box(out).x1.toFixed(0)} against ${(reach.r - 48).toFixed(0)}) or left of the cell`);
+    if (atEnd) assert.ok(box(out).x1 > box(inn).x1, `${tag}: Central vein right of the Portal venule`);
+  }
+});
+
+test('iPhone on its side with the cards up (the capture): the central vein stands at the right end, lifted clear of the Kupffer cell, off the portal venule', () => {
+  const c = CASES[0]!, k = 9.7, room = { x: c.roomX, y: 50, w: c.W - c.safe - c.roomX, h: c.H - 60 };
+  const v = new SinusoidView(createShared());
+  v.setVisible(true); v.snapTargets(targets()); v.setPortrait(false); v.setScreen(k, room.w, c.W, 0); v.update(0);
+  const free = namesFree(room, { w: c.W, h: c.H }), C: [number, number] = [room.x + room.w / 2, 222];
+  const names = v.names({ W: c.W, H: c.H, C, k, free, insTop: 56, text: TEXT, lit: new Set(), measure, edge: { l: c.safe, r: c.W - c.safe }, walls: c.walls });
+  const inn = names.find((n) => n.key === 'in')!, out = names.find((n) => n.key === 'out')!;
+  const cellX1 = C[0] + k * (v.kupfferGoal + KUP_HALF);
+  assert.equal(Math.round(box(out).x1), c.W - c.safe - 12 - 48, 'at the right end');
+  assert.ok(box(out).x0 > box(inn).x1, 'right of the portal venule\'s name');
+  assert.ok(box(out).x1 > cellX1, 'beyond the Kupffer cell');
 });

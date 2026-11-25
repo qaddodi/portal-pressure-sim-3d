@@ -76,6 +76,8 @@ export const LEAD_ON = 12, LEAD_OFF = 8;
 export const EDGE = 12;
 /** Air between a card or bar and an end's name standing against it (px, plan.ts GAP: the room the figure is given keeps the same). */
 export const WALL_GAP = 16;
+/** Air between the portal venule's name (with its arrow) and the central vein's when the vessel is short (px). */
+export const END_GAP = 8;
 
 /** The visible ends of the vessel's band `y0..y1` (px across the screen), as far as a name may stand:
  *  the screen's sides less the same margin the free room keeps, held back by every box that crosses the band (the cards on its left, a bar on its right).
@@ -192,17 +194,40 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
   const band: [number, number] = [0, 0];
   const A = tight ? 36 : 22 + 26;
   const leg = inp.legend;
+  // The wide screen's rule, in one place (Mohammad, 24 Nov "move the central vein label to the right", 25 Nov "still short of the end", 26 Nov "way on the right"):
+  //   1. each end's name stands at its own visible end of the vessel (reach), the portal venule at the left one and the central vein at the right one, its arrow beyond it, so the two are always
+  //      in that order and never on one another (END_GAP between them is a hard floor, whatever else gives way);
+  //   2. the Kupffer cell is fixed in the tissue and may stand near that end (a phone on its side, a card up): the name still stands at the end, lifted over the cell's arms when the lumen has
+  //      room for that, else stepped left of the cell if the room between the two ends allows, and only then left over the arms. It never steps left of the cell into the portal venule
+  //      (it did: "Portal ver|Central vein", iPhone on its side, Circulation 6, 25 Nov).
+  const cell = V ? null : (() => {
+    const hw = g.halfW(g.xk);
+    return { l: C[0] + k * (g.xk - KUP_HALF) - 8, r: C[0] + k * (g.xk + KUP_HALF) + 8, y0: C[1] + k * (hw - 4.2), top: C[1] - k * hw };
+  })();
+  const endsLift = (() => {
+    if (V || !cell) return 0;
+    const o = meas('out', END_NAMES[1], inp.text.outValue), y = C[1] - o.hh / 2;
+    const reach = inp.edge ? vesselReach(C[0], y - 4, y + o.hh + 4, inp.edge, inp.walls) : null;
+    const x = (reach ? reach.r : feGeom.r) - o.w - A;
+    if (!(cell.l < x + o.w + ARROW_PX && cell.r > x)) return 0;
+    const lift = y + o.hh - (cell.y0 - 4);
+    return lift > 0 && C[1] - lift >= cell.top ? lift : 0;
+  })();
   for (let u = 0; u < 2; u++) {
     const key: NameKey = u ? 'out' : 'in', name = END_NAMES[u]!, value = u ? inp.text.outValue : inp.text.inValue;
     const { w, hh, inl } = meas(key, name, value);
     let x: number, y: number;
     if (V) { x = C[0] - w / 2; y = u ? fe.b - hh - A : fe.t + A; } else {
-      // the central vein stands right out at the vessel's visible right end, its arrow beyond it (Mohammad, 24 Nov: "move the central vein label to the right, there is room";
-      // 25 Nov: still short of the end: the free room stops left of the presenter bar at the foot, which the vessel's band never meets), but never over the Kupffer cell's arms
-      y = C[1] - hh / 2;
+      y = C[1] - hh / 2 - endsLift;
       const reach = inp.edge ? vesselReach(C[0], y - 4, y + hh + 4, inp.edge, inp.walls) : null;
       x = u ? (reach ? reach.r : feGeom.r) - w - A : (reach ? reach.l : fe.l) + 8 + A;
-      if (u) { const cellL = C[0] + k * (g.xk - KUP_HALF) - 8, cellR = C[0] + k * (g.xk + KUP_HALF) + 8; if (cellL < x + w + ARROW_PX && cellR > x) x = cellL - ARROW_PX - w; }   // (the cell is fixed in the tissue: the name steps to its left)
+      if (u && cell && cell.l < x + w + ARROW_PX && cell.r > x && !(y + hh <= cell.y0 - 4)) {
+        // (still over the cell's arms at the end: left of the cell if it clears the portal venule's name and arrow, else it stays at the end)
+        const left = cell.l - ARROW_PX - w, floor = (endBox[0] ? endBox[0].x1 : -Infinity) + END_GAP;
+        if (left >= floor) x = left;
+      }
+      // the floor: never on the portal venule's name, whatever room is left
+      if (u && endBox[0]) x = Math.max(x, endBox[0].x1 + END_GAP);
     }
     if (V && !u && leg && leg.w && leg.x + leg.w > x - 6) y = Math.max(y, leg.y + leg.h + A);
     const P: NamePlacement = { key, name, value, x: 0, y: 0, cx: x + w / 2, cy: y + hh / 2, w, hh, end: true, leader: null, ...(inl ? { inline: true } : {}) };
