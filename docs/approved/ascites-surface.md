@@ -17,3 +17,13 @@ Root cause: 2D's wall closes in 26 deg at its lower belly (y 954) and its floor 
 Fix: `roundedFoot` (ascites-pool.ts, `FOOT`): below y 760 the wall eases to a near-vertical tangent (`endSlope` 0.15, about 9 deg) at y 962, then rounds into 2D's floor bottom. Above y 760 (fuller than about 5 L) nothing moves; the meniscus, sag, hull depth, ink and ripple are untouched.
 Now: 1 L 20 deg, 1.5 L 9 deg, 2.5 L 12 deg at the waterline; the waterline at 1.5 L sits about 25 units outside the colon's edge. A 0.3 to 0.6 L film is still a shallow lens (it is under the 70 units the floor is deep).
 Tests: `tests/ascites-belly-curve.test.ts`. Side by side: /mnt/project-files/ascites-lowfill-24nov/before-after-1500ml-4x.png (headless node render of the 2D contour, not a device shot).
+
+## Round belly for the placed anatomy (24 Nov 2026)
+Approved look: **B, "round belly"** of `/mnt/project-files/ascites-new-anatomy-24nov/ascites-options-A-B-C.png`. Mohammad picked it ("B") on 24 Nov. Complaint it answers: with `?anatomy=new` the ascites was a flat-walled yellow tub around the gut (the old 2D outline, drawn for the old organs).
+Root cause: `polyOf` returned 2D's fixed outline (x 336..1088, floor 1041). The placed gut spans x 453..1038 and its rectum reaches y 1098, so the tub stood 117 units wider than the gut each side and the rectum stuck out under the floor.
+Traits (keep every one):
+- The wall is the gut's own edge (colon and small bowel silhouettes) plus a margin that grows with the volume (36 empty to 58 full), smoothed (SIGMA 70), bowed out 56 at mid height, flared 14 at the top corners (the costal margin), and rounded into a floor 40 under the rectum (`src/scene/disease/ascites-cavity.ts`, `CAVITY`).
+- The low-fill flare is kept: the wall closes in no faster than 0.3 per unit going down and eases to upright at the join (y 980), so at 1.5 L the waterline stands out past the colon's lower flank with sides leaning about 5 degrees.
+- Everything else on this sheet holds: mock C meniscus and sag, volumetric hull, real AP depth, ink, colour and ripple (only the polygon changed). Today's anatomy still uses 2D's outline with the belly curve and rounded foot until the cut-over deletes it.
+Rejected: A "wraps the gut" (a pelvic funnel), C "full belly" (a wide basin); the old tub.
+Tests: `tests/ascites-cavity.test.ts`; `tests/ascites-hull-integration.test.ts` (the floor is six bands under the placed anatomy). Side by side: `/mnt/project-files/ascites-new-anatomy-24nov/before-mock-built.png` and `overlay-mock-vs-built.png` (built vs picked mock: 11 units at most), headless node renders from the app's own code.

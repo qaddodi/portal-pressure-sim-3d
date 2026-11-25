@@ -2,10 +2,12 @@
 // and the water's top is flat, so the 3D hull inherited a trapezoid. polyOf now bows each flank outward (bellyPolygon); the waist, the lower belly and the floor are 2D's own points.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BELLY, FOOT, bellyPolygon, outlinePolygon, polyOf, POOL_X0, POOL_STEP, POOL_COLS } from '../src/scene/disease/ascites-pool.ts';
+import { BELLY, FOOT, bellyPolygon, outlinePolygon, POOL_X0, POOL_STEP, POOL_COLS } from '../src/scene/disease/ascites-pool.ts';
 import { ABDOMEN_OUTLINES } from '../src/scene/disease/copied/anatomy-b4.ts';
 
 const STEPS = [0, 10, 20, 34, 50, 68];
+/** 2D's own cavity with the belly curve (today's anatomy). The placed anatomy's cavity is ascites-cavity.ts (tests/ascites-cavity.test.ts); these tests judge bellyPolygon, whichever anatomy is on. */
+const polyOf = (step: number) => bellyPolygon(outlinePolygon(ABDOMEN_OUTLINES[step]!));
 const flank = (p: readonly (readonly [number, number])[]) => p.filter((q) => q[0] < 712 && q[1] > BELLY.top && q[1] < BELLY.foot);
 
 /** x of the flank at height y (2D units): the left-most or right-most crossing of the polygon. */
