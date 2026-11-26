@@ -48,22 +48,27 @@
 .cb-leave { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; border: 0; border-radius: var(--r-card); background: transparent; color: var(--text-2); font: 600 var(--t-lab) / 1 var(--ui); white-space: nowrap; }
 .cb-leave .sh-ic { width: 16px; height: 16px; }
 @media (hover: hover) { .cb-leave:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); } }
-/* (a phone and an upright iPad: the bar is its own card over the tab row, one gap above it; an upright iPad keeps the dock's 70 % of the width) */
+/* (the thumb dock, a phone and an upright iPad (owner, 26 Nov: "still not 100% the bottom portion"): the bar stands flush on the tab row, at its width, the two one dock: one glass,
+   round only at the dock's top, one hairline between the rows, one shadow round the whole (each part's shadow cut where they meet). Its height and pads are the one sum, set inline
+   from case/room.ts (CASE_BAR_THUMB_H), so the strip and its names stay inside it. Its sides are the dock's: the phone's inset, an upright iPad's 70 %.) */
 .case-layer[data-thumb] .case-bar {
-  left: calc(var(--safe-l, 0px) + var(--m-phone-inset, 6px)); right: calc(var(--safe-r, 0px) + var(--m-phone-inset, 6px)); height: 96px; gap: 14px;
-  bottom: calc(var(--safe-b, 0px) + var(--m-phone-inset, 6px) + var(--m-phone-tabs-pad-top, 3px) + var(--m-phone-tab-h, 48px) + var(--m-phone-tabs-pad-bottom, 4px) + 6px);
+  left: calc(var(--safe-l, 0px) + var(--m-phone-inset, 6px)); right: calc(var(--safe-r, 0px) + var(--m-phone-inset, 6px)); gap: 14px;
+  bottom: calc(var(--safe-b, 0px) + var(--m-phone-inset, 6px) + var(--m-phone-tabs-pad-top, 3px) + var(--m-phone-tab-h, 48px) + var(--m-phone-tabs-pad-bottom, 4px));
+  border-bottom: 0; border-radius: var(--r-sheet) var(--r-sheet) 0 0; clip-path: inset(-40px -40px 0 -40px);
 }
-/* (an upright iPad: the bar spans the screen as in the mock, pad-stop, so its strip has room; the stop's sheet keeps the cards' 70 %) */
-@media (min-width: 700px) and (max-width: 1100px) and (orientation: portrait) { .case-layer[data-thumb] .case-bar { left: calc(var(--safe-l, 0px) + 12px); right: calc(var(--safe-r, 0px) + 12px); } .case-layer[data-thumb] .cb-when { width: 96px; } }
+@media (min-width: 700px) and (max-width: 1100px) and (orientation: portrait) { .case-layer[data-thumb] .case-bar { left: 15%; right: 15%; } }
+/* (the tab row under it: square at the top, its own shadow cut at its top line, so the two read as one card) */
+.app.thumb.case-on .vdock:not(.mini) > .thumb-bar { border-top-left-radius: 0; border-top-right-radius: 0; }
+.app.thumb.case-on .vdock:not(.mini) > .thumb-bar::after { clip-path: inset(0 -40px -40px -40px); }
 /* (the thumb dock stands over the sheets; the bar stands with it, and the dock's empty play row lets touches through to the bar) */
 .case-layer[data-thumb] .case-bar { z-index: calc(var(--z-panel) + 21); }
 .app.thumb.case-on .vdock:not(.mini) { pointer-events: none; }
 .app.thumb.case-on .vdock:not(.mini) > .thumb-bar { pointer-events: auto; }
-.case-bar[data-phone] { flex-direction: column; align-items: stretch; gap: 4px; padding: 7px 12px 10px; }
-.case-bar[data-phone] .cb-row { display: flex; align-items: center; gap: 10px; }
-.case-bar[data-phone] .cb-when { width: auto; }
-.case-bar[data-phone] .cb-leave { margin-left: auto; padding: 0 6px; }
-.case-bar[data-phone] .cb-strip { flex: none; align-self: stretch; }
+.case-bar[data-rows] { flex-direction: column; align-items: stretch; padding-left: 12px; padding-right: 12px; }
+.case-bar[data-rows] .cb-row { flex: none; display: flex; align-items: center; gap: 10px; }
+.case-bar[data-rows] .cb-when { width: auto; }
+.case-bar[data-rows] .cb-leave { margin-left: auto; padding: 0 6px; }
+.case-bar[data-rows] .cb-strip { flex: none; align-self: stretch; }
 
 /* ── the cards ── */
 .cs-card {

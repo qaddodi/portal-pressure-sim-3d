@@ -17,6 +17,10 @@ import type { Stop } from './types.ts';
 export const CASE_STRIP = { NAMES: 18, RAIL: 4, NOTCH: 12, CHAPTERS: 17, PAD: 6, FS: 12, GAP: 3 } as const;
 /** where the rail's middle stands, px from the strip's top (CaseBar.tsx lays the played rail and the playhead there) */
 export const railY = (names: boolean): number => (names ? CASE_STRIP.NAMES : 0) + CASE_STRIP.NOTCH / 2 + 2;
+/** the chapters' names' baseline, px from the strip's top */
+export const chapterY = (names: boolean): number => railY(names) + CASE_STRIP.NOTCH / 2 + 3 + CASE_STRIP.FS;
+/** The height the strip's drawing needs: down to the chapters' names' descenders. The bar gives it at least this (case/room.ts CASE_STRIP_H; tests/case-bar.test.ts). */
+export const stripNeeds = (names: boolean): number => Math.ceil(chapterY(names) + CASE_STRIP.FS * 0.3);
 
 export interface CaseStripIn {
   chapters: readonly Chapter[];
@@ -96,7 +100,7 @@ export function caseStripScene(inp: CaseStripIn, c: ChartCtx): Frame {
   }
   // the chapters' names under the rail, each from its start; the current one in ink and always shown
   if (named.length > 1 || named[0]?.label) {
-    const cy = ry + NOTCH / 2 + 3 + FS;
+    const cy = chapterY(inp.names);
     const items = named.map((ch, i) => ({ x: X(ch.from) + (i ? GAP : 0), w: measure(ch.label, FS, 500), first: true, keep: inp.chapters.indexOf(ch) === chNow }));
     const xs = placeNames(items, W, 10);
     named.forEach((ch, i) => {

@@ -1,6 +1,7 @@
 // The case bar (docs/approved/play-the-case.md, "The bar"): it stands in the play bar's place while a case plays. Previous stop, Play or Pause, next stop; the day and where the case is;
 // History's strip, the course already played in full ink and the rest faint; Leave the case. Dragging the strip moves the playhead; letting go goes to the stop nearest it.
-// Mac and an iPad: one row at the foot. iPhone: two rows, the strip under the buttons. The playhead and the played rail are one layer moved by a transform on the
+// A Mac and an iPad on its side: one row at the foot. The thumb dock (iPhone, upright iPad): two rows, the strip under the buttons,
+// the bar flush on the tab row as one dock. The playhead and the played rail are one layer moved by a transform on the
 // one clock (History's strip does the same), so the days running never rebuild the chart.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Chart } from '../charts/Chart.tsx';
@@ -12,6 +13,7 @@ import { continueCase, goStop, leaveCase, nextStop, pauseCase, resumeCase } from
 import { caseAxis, caseStripScene, railY, stopAtFrac, CASE_STRIP } from './strip.ts';
 import { barWords, dragWords, CASE } from './words.ts';
 import { nearestStop } from './stops.ts';
+import { CASE_BAR_ROWS, CASE_BAR_THUMB_H, CASE_STRIP_H } from './room.ts';
 import type { CaseView } from './view.ts';
 
 /** The strip with its playhead: drawn once per stop (the names' weights), the playhead and the played rail moved on the clock, a drag surface over it. */
@@ -96,7 +98,7 @@ function CaseStrip({ cv, at, day, h, names, onDrag, onBuilt }: { cv: CaseView; a
   );
 }
 
-export function CaseBar({ cv, thumb, phone, exploring, on }: { cv: CaseView | null; thumb: boolean; phone: boolean; exploring: boolean; on: boolean }) {
+export function CaseBar({ cv, thumb, exploring, on }: { cv: CaseView | null; thumb: boolean; exploring: boolean; on: boolean }) {
   const s = useCase();
   const [dragDay, setDragDay] = useState<number | null>(null);
   const [built, setBuilt] = useState(false);
@@ -117,11 +119,13 @@ export function CaseBar({ cv, thumb, phone, exploring, on }: { cv: CaseView | nu
     </div>
   );
   const when = <div className="cb-when" aria-live="off"><b>{words.day}</b><small>{words.small}</small></div>;
-  const leave = <button type="button" className="cb-leave" onClick={() => leaveCase()}><Icon n="close" /><span>{phone || thumb ? CASE.leaveShort : CASE.leave}</span></button>;
-  const strip = cv && <CaseStrip cv={cv} at={s.at} day={dragDay ?? s.day} h={phone ? 34 : 56} names={!phone} onDrag={setDragDay} onBuilt={onBuilt} />;
+  const leave = <button type="button" className="cb-leave" onClick={() => leaveCase()}><Icon n="close" /><span>{thumb ? CASE.leaveShort : CASE.leave}</span></button>;
+  // (the thumb bar, phone and upright iPad: two rows, the strip without the stops' names, its height from the one sum, case/room.ts)
+  const strip = cv && <CaseStrip cv={cv} at={s.at} day={dragDay ?? s.day} h={thumb ? CASE_STRIP_H.bare : CASE_STRIP_H.names} names={!thumb} onDrag={setDragDay} onBuilt={onBuilt} />;
+  const rows = thumb ? { height: CASE_BAR_THUMB_H, paddingTop: CASE_BAR_ROWS.PAD_T, paddingBottom: CASE_BAR_ROWS.PAD_B, rowGap: CASE_BAR_ROWS.GAP } : undefined;
   return (
-    <div className="case-bar stage-blocker" data-on={on && built} data-phone={phone || undefined} role="group" aria-label="The case" inert={!on}>
-      {phone ? <><div className="cb-row">{ctl}{when}{leave}</div>{strip}</> : <>{ctl}{when}{strip}{leave}</>}
+    <div className="case-bar stage-blocker" data-on={on && built} data-rows={thumb || undefined} style={rows} role="group" aria-label="The case" inert={!on}>
+      {thumb ? <><div className="cb-row" style={{ height: CASE_BAR_ROWS.ROW }}>{ctl}{when}{leave}</div>{strip}</> : <>{ctl}{when}{strip}{leave}</>}
     </div>
   );
 }
