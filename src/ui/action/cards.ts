@@ -87,7 +87,7 @@ const HEP_ART = new Set(['A_HEP', 'A_HR', 'A_HL']);
 const PETAL_COLL = new Set(['C8']);   // (collaterals that carry portal blood TOWARD the liver: the cavernoma bypasses the clot into the portal hilum)
 const PRESENT_ONLY_ESO = new Set(['C1a', 'C1b']), PRESENT_ONLY_GAS = new Set(['C2', 'C5']);
 
-const dopplerOn = (_id: string): Verb => ({ type: 'button', id: 'doppler', label: 'Doppler', icon: 'doppler', run: (a) => { a.feature('doppler', 'Doppler'); a.select(null); } });
+const dopplerOn = (_id: string): Verb => ({ type: 'button', id: 'doppler', label: 'Doppler', icon: 'doppler', run: (a) => { a.feature('doppler', 'Doppler'); } });
 
 function varixVerbs(site: 'eso' | 'gas'): Verb[] {
   const eso = site === 'eso', out: Verb[] = [];
@@ -226,7 +226,7 @@ function liverVerbs(): Verb[] {
     read('L/min', (env) => flowNum(qOf(env, EI.A_HEP!) * 0.06), 'Arterial'),
     CIRRHOSIS,
     { type: 'button', id: 'lobule', label: 'Open the lobule view', short: 'Lobule', icon: 'zones', run: (a) => a.feature('view:lobule', 'Lobule view') },
-    { type: 'button', id: 'fibroscan', label: 'FibroScan', short: 'FibroScan', icon: 'probe', run: (a) => { a.feature('fibroscan', 'FibroScan'); a.select(null); } },
+    { type: 'button', id: 'fibroscan', label: 'FibroScan', short: 'FibroScan', icon: 'probe', run: (a) => { a.feature('fibroscan', 'FibroScan'); } },
   ];
 }
 function organCard(id: string): Card | null {
