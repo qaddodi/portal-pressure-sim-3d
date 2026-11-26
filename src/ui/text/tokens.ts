@@ -37,7 +37,8 @@ export function parseToken(body: string): Token {
   let m: RegExpExecArray | null;
   if ((m = /^#(\d+)$/.exec(body))) return { kind: 'step', n: Number(m[1]) };
   if (TILE[body]) return { kind: 'value', key: body, whole: false, at: null };
-  if ((m = /^(\w+):0$/.exec(body)) && TILE[m[1]!]) return { kind: 'value', key: m[1]!, whole: true, at: null };
+  // ({key:0} asks for a whole number only where the tile prints one: a pressure is one number at one decimal on a slide, in its words as on its chart, tests/one-number.test.ts)
+  if ((m = /^(\w+):0$/.exec(body)) && TILE[m[1]!]) return { kind: 'value', key: m[1]!, whole: TILE[m[1]!]!.d === 0, at: null };
   if ((m = /^(\w+)@([\w-]+)$/.exec(body)) && TILE[m[1]!]) return { kind: 'value', key: m[1]!, whole: false, at: m[2]! };
   if (/^[<>≥≤]=?/.test(body)) return { kind: 'cut', text: cutText(body) };
   return { kind: 'literal', text: body };

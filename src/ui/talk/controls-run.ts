@@ -80,10 +80,10 @@ async function pickCompareRun(deck: Deck, i: number, o: CompareOpt): Promise<voi
     sendParams(o.params ?? {}, { settle: false, ease: EASE_MS });
     // (only a row where some button speaks brings words: a row of plain parameter buttons keeps the slide's)
     const w = speaks(slide.controls?.compare?.opts ?? []) ? words : null;
-    useVariant.getState().set(key, w);
-    // the charts of the slide read the patient this press makes (the slide's own state with the change), as they do for a patient button
+    // the words and the state they print are set together, once the state is in (worked out ahead of the press, warmControls, so at once): the button's words never stand over the last
+    // button's numbers for the moment between (capture 3531bdfa, E-D1: "Propranolol" over carvedilol's 12.9). The charts of the slide read the patient this press makes, as for a patient button.
     const got = await variantStateOf(seq, picked, { slideKey: key }, o, stateOf(deck, i), undefined);
-    if (n === pickN && got) useVariant.getState().set(key, w, got.state);
+    if (n === pickN) useVariant.getState().set(key, w, got?.state ?? null);
     return;
   }
   const got = await variantStateOf(seq, picked, { slideKey: key }, o, stateOf(deck, i), stateOf(deck, j));
