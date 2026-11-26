@@ -153,6 +153,8 @@ export interface Deck {
   head?: string;
   /** A deck built from a script, or imported, that lives on this device (the Present menu's "Your scripts"). */
   mine?: boolean;
+  /** What a deck of your own asked for that the app could not play, in plain words (decks/author.ts); absent or empty when nothing was left out. */
+  notices?: string[];
 }
 
 import { parseToken } from '../ui/text/tokens.ts';

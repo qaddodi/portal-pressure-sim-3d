@@ -9,6 +9,7 @@ import { validateDeck, type Deck } from '../src/decks/schema.ts';
 import { deckOf, isAlias, DECK_ALIAS } from '../src/ui/deck/deck-of.ts';
 import { enc, dec, exportName } from '../src/ui/deck/script-library.ts';
 import { userDeck } from '../src/ui/deck/user-deck.ts';
+import { copiedOf } from '../src/decks/hp/deck.ts';
 import { parseDeckSource, checkDeck } from '../src/ui/deck/from2d/deck-source.js';
 import { clickerKey, addDigit, type ClickCtx } from '../src/ui/deck/clicker.ts';
 import { lineText, handoutHTML } from '../src/ui/deck/handout.ts';
@@ -52,7 +53,9 @@ test('a script travels as a link and comes back the same, with any letters (the 
 test('a script of live states plays as a deck (a slide per step, its patient the slide\'s model); an imported deck keeps its words; neither has a catheter', () => {
   const d = userDeck({ id: 'my-1', title: 'Mine', summary: 's', steps: [{ title: 'One', preset: 'csph', notes: 'n' }, { title: 'Two', preset: 'cirr-decomp', params: { p: 1 }, notes: '' }] });
   assert.equal(d.slides.length, 2); assert.equal(d.mine, true);
-  assert.deepEqual(d.slides[1].model, { preset: 'cirr-decomp', params: { p: 1 } });
+  // (the patient is the slide's own step in the deck's copied form, played like a built-in deck's: copiedOf gives the engine the chain of them)
+  const c = copiedOf(d.id)!;
+  assert.equal(c.slides[1]!.preset, 'cirr-decomp'); assert.deepEqual(c.slides[1]!.params, { p: 1 });
   assert.ok(d.slides.every((s) => s.cath === undefined));
   const stops = stopsOf(d);
   assert.deepEqual(catheterAt(stops, { stop: 1, beat: 0 }), { advance: 0, balloon: 0 });
