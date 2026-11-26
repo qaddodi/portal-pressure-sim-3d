@@ -44,3 +44,27 @@ export function hvWaves(buf: readonly (readonly number[])[], t0: number, t1: num
   }
   return null;
 }
+
+/**
+ * Where the four wave letters (a, S, v, D, in time order) stand across the trace: each at its wave's own x, moved
+ * apart where two would touch (a letter is `gap` px wide with its halo). On a short sweep a beat's waves are only a
+ * few pixels apart, so the letters printed over one another (iPhone 05.5, 05.8.2); a clump spreads about its middle
+ * and the row slides back inside [lo, hi]. Pure arithmetic.
+ */
+export function spreadLetters(xs: readonly number[], gap: number, lo: number, hi: number): number[] {
+  const n = xs.length, out = xs.map((x) => Math.min(hi, Math.max(lo, x)));
+  if (n < 2) return out;
+  if (hi - lo < gap * (n - 1)) return out.map((_, i) => lo + ((hi - lo) * i) / (n - 1));
+  // the least total move that gives every neighbour `gap`: x_i - i*gap made non-decreasing by pooling adjacent violators, then put back
+  const blocks: { sum: number; n: number }[] = [];
+  out.forEach((x, i) => {
+    blocks.push({ sum: x - i * gap, n: 1 });
+    while (blocks.length > 1 && blocks[blocks.length - 2]!.sum / blocks[blocks.length - 2]!.n > blocks[blocks.length - 1]!.sum / blocks[blocks.length - 1]!.n) {
+      const b = blocks.pop()!, a = blocks.pop()!; blocks.push({ sum: a.sum + b.sum, n: a.n + b.n });
+    }
+  });
+  let i = 0;
+  for (const b of blocks) for (let j = 0; j < b.n; j++, i++) out[i] = b.sum / b.n + i * gap;
+  const d = Math.max(0, lo - out[0]!) - Math.max(0, out[n - 1]! - hi);
+  return out.map((x) => x + d);
+}

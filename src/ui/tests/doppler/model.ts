@@ -14,7 +14,7 @@ import { lineBand } from '../copied/doppler-synth.copied.js';
 import { pulsatility, caliperFrame, caliperLevel, caliperX, CAL_FADE, pairOf, pairBand, pairScale, PAIR_GAP, riForms } from '../copied/doppler-marks.copied.js';
 import { smooth01 } from '../copied/motion.copied.js';
 import { D_SURFACE } from '../copied/motion.copied.js';
-import { hvWaves, type WavePts } from './waves.ts';
+import { hvWaves, spreadLetters, type WavePts } from './waves.ts';
 import { createReading } from './copied/doppler-reading.copied.js';
 import { EI, PROBES, SEGS, SETTINGS, SWEEP_SECONDS, STAT_TITLE, num, PAD_L, PAD_R } from './copied/doppler-tables.copied.js';
 import { dopplerColor, shadeColor, THETA } from './copied/doppler-colours.copied.js';
@@ -712,9 +712,12 @@ export class DopplerModel {
     wl.alpha = clamp(wl.alpha + (wl.out ? -1 : 1) * dtL / (D_SURFACE / 1000), 0, 1);
     if (wl.out ? wl.alpha > 0 : wl.alpha < 1) this.motion = true;
     const A = smooth01(wl.alpha), PX = 20;
-    for (const [t, lv, name] of wl.pts) {
-      const up = name === 'a', x = xAt(t), y0 = padT + baseY - lv * k * pxPerV, y = up ? Math.min(y0, padT + baseY) : y0;
-      if (x < padL + 2 || x > padL + W - 2) continue;
+    // the four letters keep a letter's width apart: a short sweep puts a beat's waves a few px from one another (spreadLetters)
+    const xs = spreadLetters(wl.pts.map((q) => xAt(q[0])), PX * 0.7 + 4, padL + 2 + PX * 0.35, padL + W - 2 - PX * 0.35);
+    for (let q = 0; q < wl.pts.length; q++) {
+      const [t, lv, name] = wl.pts[q]!;
+      const up = name === 'a', x = xs[q]!, y0 = padT + baseY - lv * k * pxPerV, y = up ? Math.min(y0, padT + baseY) : y0;
+      if (xAt(t) < padL + 2 || xAt(t) > padL + W - 2) continue;
       const ty = clamp(y + (up ? -5 : 5), padT + (up ? PX + 1 : 0), padT + H - (up ? 0 : PX + 1));
       shapes.push({ k: 'text', x, y: ty, s: name, size: PX, weight: 600, color: [1, 1, 1, A], anchor: 'middle', baseline: up ? 'alphabetic' : 'top', halo: { color: [0, 0, 0, 0.9 * A], w: 5 }, key: `wave-${name}` });
     }

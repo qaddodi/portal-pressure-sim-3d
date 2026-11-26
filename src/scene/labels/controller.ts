@@ -15,6 +15,7 @@ import { NO_EXTRAS, WIDEST, reservedDelta, readingLensOf, type Extras } from './
 import { LabelFader, easeMove, lookKey, type Want } from './fade.ts';
 import { type Box, leaderGeom } from './geometry.ts';
 import { type Form, type Item, type Placement, type SolveInput, STAY, boxOf, solve } from './solver.ts';
+import { mixedUnits, bareItems } from './unit-rule.ts';
 import { STATIONS, ORGAN_FRONT, figureCourses, type Station } from './stations.ts';
 import { silhouettes, onOtherOrgan, shareOnOther, spotOffsets, type Silhouettes, type To2Screen } from './organ-screen.ts';
 import { x3, y3 } from '../frame2d.ts';
@@ -757,7 +758,13 @@ export class LabelController {
     for (const it of items) { const st = this.fader.frame.get(it.id); if (st && st.alpha > 0 && st.ref.form >= 0) it.was = { form: st.ref.form, dx: st.ref.dx, dy: st.ref.dy, au: st.ref.au }; }
     const input: SolveInput = { items, view, blockers, lines, stay, leaderLineCost: LEADER_LINE_COST, ...(why ? { why } : {}) };
     this.solvedFrom = input;
-    const res = solve(input);
+    let res = solve(input);
+    // one unit rule for the figure (unit-rule.ts): where any reading label stood bare, every reading label does, and the key says the unit
+    if (mixedUnits(items, res.placed)) {
+      const full = new Map(metas.map((m) => [m.id, m.forms] as const));
+      const again: SolveInput = { ...input, items: bareItems(items, full) };
+      this.solvedFrom = again; res = solve(again);
+    }
     if (why) for (const p of res.placed) if (p.leader) console.info('[anatomy-labels]', p.id, 'form', p.form, 'dx,dy', Math.round(p.dx), Math.round(p.dy), 'near spots lost to', JSON.stringify(why.get(p.id) ?? {}));
     this.dropped = res.dropped; this.hiddenIds = res.hidden;
     const wants = new Map<string, Want>();
