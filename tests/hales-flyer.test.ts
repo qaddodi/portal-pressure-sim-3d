@@ -1,5 +1,5 @@
-// The "About Hales Engine" flyer (art/hales-flyer/README.md): a two-page PDF built from art/hales-flyer/flyer.html by render.cjs.
-// Node only: the rules are checked on the sources the PDF is built from, and built-from.json ties the committed PDF to those exact sources.
+// The "About Hales Engine" flyer (art/hales-flyer/README.md): two PDFs (8 x 12 in, and the iPhone's 390 x 844 pt) built from art/hales-flyer/flyer.html by render.cjs.
+// Node only: the rules are checked on the sources the PDFs are built from, and built-from.json ties the committed PDFs to those exact sources.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -10,18 +10,29 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const dir = new URL('../art/hales-flyer/', import.meta.url);
-const PDF = new URL('../public/about/hales-engine.pdf', import.meta.url);
+/** The two sizes render.cjs makes from the one flyer.html, with the page size each must have (pt). */
+const PDFS = { 'hales-engine.pdf': [576, 864], 'hales-engine-iphone.pdf': [391, 844] } as const;
+const pdf = (f: string) => new URL(`../public/about/${f}`, import.meta.url);
 const read = (f: string) => readFileSync(new URL(f, dir));
 const text = (f: string) => read(f).toString('utf8');
 /** What a reader sees: the markup's words, without tags or the stylesheet. */
 const seen = (f: string) => text(f).replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ');
 
-test('the PDF is there, a PDF, small enough for a phone, and built from the sources as they are now (rebuild with node art/hales-flyer/render.cjs)', () => {
-  const b = readFileSync(PDF);
-  assert.equal(b.subarray(0, 5).toString('latin1'), '%PDF-');
-  assert.ok(statSync(PDF).size < 4 * 1024 * 1024, 'the flyer is over 4 MB');
+test('both PDFs are there, PDFs of their own page size (8 x 12 in; the iPhone guide\'s 390 x 844 pt), small enough for a phone', () => {
+  for (const [f, [w, h]] of Object.entries(PDFS)) {
+    const b = readFileSync(pdf(f));
+    assert.equal(b.subarray(0, 5).toString('latin1'), '%PDF-', f);
+    assert.ok(statSync(pdf(f)).size < 4 * 1024 * 1024, `${f} is over 4 MB`);
+    const boxes = [...b.toString('latin1').matchAll(/\/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]/g)];
+    assert.ok(boxes.length >= 2, `${f}: fewer than two pages`);
+    for (const m of boxes) assert.ok(Math.abs(Number(m[1]) - w) < 1 && Math.abs(Number(m[2]) - h) < 1, `${f}: a page is ${m[1]} x ${m[2]}`);
+  }
+});
+
+test('both PDFs are built from the sources as they are now (rebuild with node art/hales-flyer/render.cjs)', () => {
   const from = JSON.parse(text('built-from.json')) as Record<string, string>;
-  assert.deepEqual(Object.keys(from).sort(), ['circuit.svg', 'credit', 'flyer.html', 'page1-bg.jpg', 'page2-bg.jpg']);
+  const sources = ['circuit-phone.svg', 'circuit.svg', 'flyer.html', 'page1-bg.jpg', 'page2-bg.jpg', 'paper-tile.jpg', 'phone.html', 'scene.jpg'];
+  assert.deepEqual(Object.keys(from).sort(), ['credit', ...sources].sort());
   assert.equal(from.credit, RIGHTS, 'the copyright line changed after the PDF was built');
   for (const [f, sha] of Object.entries(from).filter(([k]) => k !== 'credit')) {
     assert.equal(createHash('sha256').update(read(f)).digest('hex'), sha, `${f} changed after the PDF was built`);
@@ -32,7 +43,7 @@ test('one engine, one app: the flyer never says 2D or 3D, in its words, its alt 
   const dim = /\b[23]\s?-?D\b/i;
   const alts = [...text('flyer.html').matchAll(/alt="([^"]*)"/g)].map((m) => m[1]).join(' ');
   assert.ok(!dim.test(seen('flyer.html') + ' ' + alts), 'flyer.html mentions 2D or 3D');
-  assert.ok(!dim.test(seen('circuit.svg')), 'the circuit mentions 2D or 3D');
+  for (const f of ['circuit.svg', 'circuit-phone.svg', 'phone.html']) assert.ok(!dim.test(seen(f)), `${f} mentions 2D or 3D`);
 });
 
 test('the flyer\'s copyright line comes from the one source (render.cjs fills each data-credit) and its disclaimer is the About page\'s, word for word', () => {
@@ -45,9 +56,8 @@ test('the flyer\'s copyright line comes from the one source (render.cjs fills ea
   assert.ok(words.includes(line), 'the flyer\'s disclaimer is not the About page\'s');
 });
 
-test('the circuit names the parts the words explain: the liver\'s three resistors, the collaterals, TIPS, PPG and HVPG', () => {
-  const svg = seen('circuit.svg');
-  for (const w of ['pre-', 'sinusoidal', 'post-', 'collaterals', 'TIPS', 'PPG', 'HVPG', 'hepatic artery', 'Heart']) assert.ok(svg.includes(w), w);
+test('both circuits name the parts the words explain: the liver\'s three resistors, the collaterals, TIPS, PPG and HVPG', () => {
+  for (const svg of [seen('circuit.svg'), seen('circuit-phone.svg')]) for (const w of ['pre-', 'sinusoidal', 'post-', 'collaterals', 'TIPS', 'PPG', 'HVPG', 'hepatic', 'artery', 'Heart']) assert.ok(svg.includes(w), w);
 });
 
 test('the flyer is never held offline: the service worker leaves about/ out, as it does the guides', () => {
