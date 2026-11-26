@@ -21,6 +21,8 @@ const REPEAT_DAYS = 60;
 const SETTLING_DAYS = 3;
 /** The model's own minute after a rupture, stepped (the bleed's hemodynamics are time, not days). */
 const BLEED_SECONDS = 60;
+/** What only an endoscopy sees: the engine's events named for the varix's own look (events.js), known on the day of a scope (Course.scoped). */
+export const ENDOSCOPIC = ['VARIX_LARGE', 'RED_WALE'] as const;
 const TREATMENTS = (k: string): boolean => k.startsWith('drug:') || k === 'diuretics' || k === 'anticoag';
 
 const nest = (key: string, v: number): Record<string, unknown> => key.split('.').reduceRight<unknown>((acc, k) => ({ [k]: acc }), v) as Record<string, unknown>;
@@ -41,6 +43,8 @@ export function playCourse(c: Course): Baked {
   const settled = ((PRESETS as { id: string; days?: number }[]).find((p) => p.id === c.preset)?.days ?? 0) > 0;
   const feed = new SampleFeed(), entries: EntryOut[] = [];
   const lastEv = new Map<string, number>();
+  /** the endoscopic events raised since the last scope, held for the next (Course.scoped) */
+  const unseen = new Map<string, { title: string; detail?: string | null; severity: string }>();
   const moments = new Map<number, Snap>();
   let baseline = labelsOf(e.params);
   const note = () => {
@@ -52,9 +56,19 @@ export function playCourse(c: Course): Baked {
       if (settled && ev.day < (c.settle ?? SETTLING_DAYS)) continue;
       const was = lastEv.get(ev.id);
       if (was != null && e.day - was < REPEAT_DAYS && ev.severity !== 'critical') continue;
+      if (c.scoped && (ENDOSCOPIC as readonly string[]).includes(ev.id)) { unseen.set(ev.id, ev); continue; }
       lastEv.set(ev.id, e.day);
       entries.push({ kind: 'event', label: ev.title, day: ev.day, t: round(ev.t, 2), ...(ev.detail ? { detail: ev.detail } : {}), sev: ev.severity, evId: ev.id });
     }
+  };
+  /** A scope: what it sees is told now, on this day, if it still holds (the engine keeps each event's state), and what no longer holds was never seen. */
+  const scope = () => {
+    for (const [id, ev] of unseen) {
+      if (!e.evState?.[id]?.active) continue;
+      lastEv.set(id, e.day);
+      entries.push({ kind: 'event', label: ev.title, day: e.day, t: round(e.t, 2), ...(ev.detail ? { detail: ev.detail } : {}), sev: ev.severity, evId: id });
+    }
+    unseen.clear();
   };
   /** the model's clock a little on (the page's frames run between days), so a condition that holds is raised: events need model time to hold (events.js HOLD_S) */
   const watch = (steps: number, dt: number, every = 1, quiet = false) => {
@@ -75,6 +89,12 @@ export function playCourse(c: Course): Baked {
     const label = s.label ?? (parts.length ? parts.slice(0, 3).join(' · ') + (parts.length > 3 ? ` · +${parts.length - 3} more` : '') : 'Change');
     entries.push({ kind: 'change', label, day: e.day, t: round(e.t, 2), ...(s.detail ? { detail: s.detail } : {}), keys, ...(s.id ? { step: s.id } : {}), params: structuredClone(e.params) });
   };
+  /** a line the course adds that the model does not raise (a step's `note`) */
+  const addNote = (s: Step) => {
+    if (!s.note) return;
+    const { title, detail, sev } = s.note;
+    entries.push({ kind: 'event', label: title, day: e.day, t: round(e.t, 2), detail, sev, evId: 'COURSE_' + (s.id ?? 'NOTE'), ...(s.id ? { step: s.id } : {}) });
+  };
   const act = (s: Step) => {
     if (s.act === 'bleed') { e.rupture(s.site ?? 'VAR', 0.6); watch(BLEED_SECONDS * 10, 0.1, 5); const r = entries.find((x) => x.evId === 'VARIX_RUPTURE' && x.day === e.day); if (r && s.id) r.step = s.id; return; }
     const a = s.act === 'band' ? { kind: 'band' } : { kind: 'paracentesis', mL: Math.floor(e.slow.ascites / 100) * 100, albumin: true };
@@ -87,9 +107,12 @@ export function playCourse(c: Course): Baked {
   for (let d = 0; d < c.days; d++) {
     for (const r of c.ramps ?? []) if (d >= r.from && d <= r.to) e.setParams(deepMerge(e.params, nest(r.key, r.a + (r.b - r.a) * (d - r.from) / Math.max(1, r.to - r.from))));
     for (const s of c.steps.filter((x) => x.day === d)) {
+      // (a scope's own line comes first, then what it found, then what is done about it)
+      if (s.scope) addNote(s);
+      if (c.scoped && (s.scope || s.act === 'band')) scope();
       if (s.act) act(s);
       if (s.set) { e.setParams(deepMerge(e.params, s.set)); e.settle(); change(s); }
-      if (s.note) entries.push({ kind: 'event', label: s.note.title, day: e.day, t: round(e.t, 2), detail: s.note.detail, sev: s.note.sev, evId: 'COURSE_' + (s.id ?? 'NOTE'), ...(s.id ? { step: s.id } : {}) });
+      if (!s.scope) addNote(s);
       note();   // (the same day again: a change is a step in the days list)
     }
     // (A day the story headlines keeps the model as it was at the day's end, after all of its steps, so "Show on the figure" can go back to it: a bleed's day is after the band.
@@ -138,7 +161,7 @@ export function chaptersOf(c: Course): { from: number; label: string }[] {
   return c.chapters.map((ch, i) => {
     if (!ch.at) { if (i) throw new Error(`${c.id}: chapter "${ch.label}" has no anchor`); return { from: 0, label: ch.label }; }
     const at = ch.at;
-    const day = typeof at === 'string' ? c.steps.find((s) => s.id === at)?.day : c.ramps?.find((r) => r.key === at.ramp)?.from;
+    const day = typeof at === 'string' ? c.steps.find((s) => s.id === at)?.day : 'day' in at ? at.day : c.ramps?.find((r) => r.key === at.ramp)?.from;
     if (day == null) throw new Error(`${c.id}: chapter "${ch.label}" is anchored to ${JSON.stringify(at)}, which the course does not have`);
     return { from: day, label: ch.label };
   });
@@ -162,8 +185,8 @@ export function playOf(c: Course, b: Baked): { play?: NonNullable<HistoryMeta['p
 }
 const MARK_WORD: Record<string, string> = {
   carvedilol: 'Carvedilol', bleed: 'Bled', band: 'Banded', tips: 'TIPS', tap1: 'Tap', tap2: 'Tap', tap3: 'Tap', anticoag: 'Anticoagulation', angioplasty: 'Angioplasty', doppler: 'Doppler',
-  daa: 'Antiviral', svr: 'Cured', abstain: 'Abstinent', diurOff: 'Diuretics off', recomp: 'Recompensated', brto: 'BRTO', preg: 'Pregnant', prop: 'Propranolol', delivery: 'Delivery',
-  hf: 'Heart treated', confusion: 'Confusion',
+  daa: 'Antiviral', svr: 'Cured', abstain: 'Abstinent', diurOff: 'Diuretics off', recomp: 'Recompensated', brto: 'BRTO',
+  preg: 'Pregnant', egd: 'Scope', prop: 'Propranolol', third: 'Pressure up', delivery: 'Delivery', hf: 'Heart treated', confusion: 'Confusion',
 };
 /** how many different medicines the history ran (Treat's drugs, diuretics, anticoagulation): the card's "3 medicines" */
 const medCount = (b: Baked): number => {

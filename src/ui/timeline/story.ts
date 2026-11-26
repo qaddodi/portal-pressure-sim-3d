@@ -84,9 +84,10 @@ export function humanize(label: string): { title: string; also: string[] } {
 
 const tone = (e: StoryEntry): Tone =>
   e.kind === 'change' ? 'change' : e.sev === 'critical' || e.sev === 'danger' ? 'danger' : e.sev === 'ok' ? 'ok' : e.sev === 'caution' ? 'caution' : 'info';
-/** which entry heads a day's card: an emergency, then a procedure, an action, a dangerous event, a medicine, a bleed controlled, a course note */
+/** which entry heads a day's card: an emergency, then a procedure, an action, a dangerous line the course wrote about the day (it says what the engine's own line means), a dangerous event,
+ *  a medicine, a bleed controlled, a course note */
 const rank = (e: StoryEntry): number =>
-  e.sev === 'critical' ? 90 : isProcedure(e) ? 85 : e.kind === 'change' && e.action ? 80 : e.sev === 'danger' ? 70 : e.kind === 'change' ? 60 : e.step ? 55 : e.sev === 'ok' ? 50
+  e.sev === 'critical' ? 90 : isProcedure(e) ? 85 : e.kind === 'change' && e.action ? 80 : e.sev === 'danger' ? (e.step ? 71 : 70) : e.kind === 'change' ? 60 : e.step ? 55 : e.sev === 'ok' ? 50
     : e.sev === 'caution' ? 30 : 10;
 const kindWord = (e: StoryEntry): string =>
   e.kind === 'change' ? (isMedicine(e) ? 'Medicine' : e.action || isProcedure(e) ? 'Procedure' : 'Change') : e.sev === 'critical' ? 'Emergency' : 'Event';

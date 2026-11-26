@@ -38,6 +38,8 @@ export interface Stop {
   shot: StopShot;
   look: CaseLook[];
   say: string | null;
+  /** where the course's own clock stands (pregnancy: "18 weeks", "4 weeks after delivery"), or '' when the course has none (when.ts) */
+  when?: string;
 }
 
 /** Where the case is: not playing, waiting at a stop, on the way to the next, or left (the patient is the learner's own from a stop on, with the way back kept). */

@@ -1579,8 +1579,8 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "text": "on propranolol"
    }
   ],
-  "story": "Compensated cirrhosis; pregnant on Day 30. The blood volume and the portal flow rise and the varices grow, so propranolol from Day 114 and bands on Day 128 and 156. Delivery on Day 254.",
-  "path": "Pregnancy, propranolol, bands, delivery",
+  "story": "Compensated cirrhosis; pregnant on Day 30. The varices are first scoped in the second trimester, Day 114: propranolol that day and bands on Day 128 and 156. The pressure climbs again from Day 191, with no scope until after the delivery on Day 254.",
+  "path": "Pregnancy, scope, propranolol, bands, delivery",
   "pv": [
    19,
    18.9,
@@ -1636,6 +1636,11 @@ export const HISTORIES: readonly HistoryMeta[] = [
    },
    {
     "day": 114,
+    "word": "Scope",
+    "tone": "danger"
+   },
+   {
+    "day": 114,
     "word": "Propranolol",
     "tone": "change"
    },
@@ -1643,6 +1648,11 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "day": 128,
     "word": "Banded",
     "tone": "change"
+   },
+   {
+    "day": 191,
+    "word": "Pressure up",
+    "tone": "danger"
    },
    {
     "day": 254,
@@ -1657,11 +1667,15 @@ export const HISTORIES: readonly HistoryMeta[] = [
    },
    {
     "from": 30,
-    "label": "Pregnant"
+    "label": "First trimester"
    },
    {
-    "from": 114,
-    "label": "Second trimester: propranolol and bands"
+    "from": 86,
+    "label": "Second trimester: scope, propranolol, bands"
+   },
+   {
+    "from": 184,
+    "label": "Third trimester: pressure climbing"
    },
    {
     "from": 254,
@@ -1692,15 +1706,6 @@ export const HISTORIES: readonly HistoryMeta[] = [
      ]
     },
     {
-     "day": 58,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
      "day": 114,
      "look": [
       {
@@ -1724,7 +1729,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 6,
+   "events": 8,
    "medicines": 1
   }
  },

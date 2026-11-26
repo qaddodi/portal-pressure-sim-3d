@@ -34,7 +34,7 @@ const reduced = (): boolean => { try { return !!globalThis.matchMedia?.('(prefer
 /** The stops of the patient on the page now (the story of its History, the course's own word on each). */
 export function caseStops(id: string): Stop[] {
   const v = viewOf({ tl: timeline, days: record.days, future: record.future, hidden: null, labelsOf: getInterventionLabels(), chapters: historyOf(id)?.chapters ?? null });
-  return stopsOf(v.chapters, timeline.entries(), historyOf(id)?.play?.stops ?? []);
+  return stopsOf(v.chapters, timeline.entries(), historyOf(id)?.play?.stops ?? [], historyOf(id)?.play?.ramps);
 }
 
 function clearLeg(): void {

@@ -21,6 +21,8 @@ export const CASE = {
 } as const;
 
 const day = (d: number): string => `Day ${Math.round(d)}`;
+/** A stop's day with its course's own clock beside it when it has one: "Day 114 · 18 weeks" (when.ts). */
+const dayOf = (s: Stop): string => [day(s.day), s.when].filter(Boolean).join(' · ');
 
 /** The chapter a day is in (its name), or '' with none named. */
 export function chapterAt(chapters: readonly { from: number; label: string }[], d: number): string {
@@ -42,11 +44,11 @@ export function dragWords(d: number, stops: readonly Stop[], i: number): { day: 
   return { day: day(d), small: `Stop ${i + 1} of ${stops.length}` };
 }
 
-/** The stop card's kicker: "Stop 6 of 8 · Day 70 · The bleed" (the chapter the stop is in, when one is named). */
+/** The stop card's kicker: "Stop 6 of 8 · Day 70 · The bleed" (the chapter the stop is in, when one is named; a pregnancy says its week after the day: "Day 114 · 18 weeks"). */
 export function kickerWords(stops: readonly Stop[], at: number, chapter: string): string {
   const s = stops[at];
   if (!s) return '';
-  return [`Stop ${at + 1} of ${stops.length}`, day(s.day), chapter].filter(Boolean).join(' · ');
+  return [`Stop ${at + 1} of ${stops.length}`, dayOf(s), chapter].filter(Boolean).join(' · ');
 }
 
 /** A stop's name after Continue: today's is "today", the rest their title. */
@@ -55,7 +57,7 @@ const nextName = (s: Stop): string => (s.type === 'today' ? 'today' : s.title);
 export function continueWords(stops: readonly Stop[], at: number, short = false): string | null {
   const n = stops[at + 1];
   if (!n) return null;
-  return short ? `Continue to ${day(n.day)}` : `Continue to ${day(n.day)} · ${nextName(n)}`;
+  return short ? `Continue to ${day(n.day)}` : `Continue to ${dayOf(n)} · ${nextName(n)}`;
 }
 
 /** The days left to the next stop, in words ("in 18 days", "in a day", "now"). */
@@ -72,7 +74,7 @@ export function travelWords(stops: readonly Stop[], to: number, d: number, chapt
   const name = stopName(s, chapters), chapter = chapterAt(chapters, d);
   return {
     kicker: [CASE.onTheWay, chapter].filter(Boolean).join(' · '),
-    head: `Next stop: ${day(s.day)}`,
+    head: `Next stop: ${dayOf(s)}`,
     sub: `${name}, ${inDays(Math.round(s.day - d))}`,
     line: `Next stop: ${day(s.day)} · ${name}`,
   };

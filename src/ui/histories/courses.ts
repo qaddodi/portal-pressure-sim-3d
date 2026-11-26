@@ -270,25 +270,43 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-pregnancy', name: 'Cirrhosis in pregnancy', group: 'Pregnancy', where: 'Varices in pregnancy',
-    chapters: [{ label: 'Before pregnancy' }, { at: 'preg', label: 'Pregnant' }, { at: 'prop', label: 'Second trimester: propranolol and bands' }, { at: 'delivery', label: 'After delivery' }],
+    // (the weeks are the ramp's: week = 6 + (day - 30) / 7. The trimesters start at 14 and 28 weeks, Days 86 and 184.)
+    chapters: [
+      { label: 'Before pregnancy' }, { at: 'preg', label: 'First trimester' }, { at: { day: 86 }, label: 'Second trimester: scope, propranolol, bands' },
+      { at: { day: 184 }, label: 'Third trimester: pressure climbing' }, { at: 'delivery', label: 'After delivery' },
+    ],
     preset: 'csph', days: 330, init: { cirrhosis: 0.65 },
     ramps: [{ key: 'gestation', from: 30, to: 254, a: 6, b: 38 }],
     quiet: ['cirrhosis', 'gestation'], still: true,
+    // (nobody can scope before the second trimester: the varices' large size and red wale signs, which the model raises as the blood volume grows, are known at the screening endoscopy, 18 weeks)
+    scoped: true,
     steps: [
-      { day: 30, id: 'preg', set: { gestation: 6 }, label: 'Pregnant, 6 weeks', detail: 'Compensated cirrhosis with small varices, a planned pregnancy.' },
-      { day: 114, id: 'prop', set: { drugs: { propranolol: true } }, detail: 'Endoscopy at 18 weeks: large varices with red signs. Propranolol, 20 mg twice a day, raised to a heart rate of 55 to 60. It is the usual beta-blocker in pregnancy.' },
+      { day: 30, id: 'preg', set: { gestation: 6 }, label: 'Pregnant', detail: 'Compensated cirrhosis, a planned pregnancy. The varices are not scoped in the first trimester.' },
+      {
+        day: 114, id: 'egd', scope: true,
+        note: { title: 'Screening endoscopy', detail: 'The first look at the varices, in the second trimester, with sedation and fetal monitoring: large varices with red wale signs.', sev: 'danger' },
+      },
+      { day: 114, id: 'prop', set: { drugs: { propranolol: true } }, detail: 'Propranolol, 20 mg twice a day, raised to a heart rate of 55 to 60. It is the usual beta-blocker in pregnancy.' },
       { day: 128, id: 'band', act: 'band', detail: 'Banding at 20 weeks, because the varices are large and high risk.' },
       { day: 156, id: 'band2', act: 'band', detail: 'A second session at 24 weeks. The varices stay small for the delivery.' },
+      {
+        day: 191, id: 'third',
+        note: {
+          title: 'Pressure climbing, no scope now', sev: 'danger',
+          detail: 'The blood volume peaks in the third trimester and the gradient is back over 12, so bleeding is more likely. '
+            + 'No scope until after the delivery: the propranolol stays at the full dose and no more bands are put in. '
+            + 'Plan a short second stage, and scope again about 6 weeks after the delivery.',
+        },
+      },
       { day: 254, id: 'delivery', set: { gestation: 0 }, label: 'Delivery', detail: 'Vaginal delivery at 38 weeks with a short second stage. The propranolol goes on after, as it is safe in breastfeeding.' },
     ],
-    story: 'Compensated cirrhosis; pregnant on Day {preg}. The blood volume and the portal flow rise and the varices grow, so propranolol from Day {prop} and bands on Day {band} and {band2}. Delivery on Day {delivery}.',
-    path: 'Pregnancy, propranolol, bands, delivery',
+    story: 'Compensated cirrhosis; pregnant on Day {preg}. The varices are first scoped in the second trimester, Day {egd}: propranolol that day and bands on Day {band} and {band2}. The pressure climbs again from Day {third}, with no scope until after the delivery on Day {delivery}.',
+    path: 'Pregnancy, scope, propranolol, bands, delivery',
     state: ['hvpg', 'meds'],
     // (pregnancy raises the blood volume and the flow into the gut and the spleen, and delivery lets it fall: both on the Circuit's splanchnic inflow, in the flow lens)
     play: { stops: [
       { at: 'preg', view: 'circuit', cam: 'splanchnic', lens: 'flow', look: [L.overTime] },
-      { at: { day: 58 }, look: [L.endoscopy] },
-      { at: 'prop', look: [L.endoscopy] },
+      { at: 'egd', look: [L.endoscopy] },
       { at: 'delivery', view: 'circuit', cam: 'splanchnic', lens: 'flow', look: [L.overTime] },
     ] },
   },

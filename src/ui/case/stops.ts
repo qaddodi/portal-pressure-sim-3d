@@ -3,7 +3,8 @@
 // stent, a medicine the portal flow ...); a course's `play.stops` (baked as days) changes a stop's fields or drops it. Pure: the story and the entries in, the stops out.
 import type { Chapter, Moment } from '../timeline/story.ts';
 import { momentKey } from '../timeline/story-view.ts';
-import type { CaseStopBaked, Stop, StopShot } from './types.ts';
+import type { CaseRamp, CaseStopBaked, Stop, StopShot } from './types.ts';
+import { whenWords } from './when.ts';
 
 /** The fields of a History entry the stops read (the page's Entry and a baked one both have them). */
 export interface StopEntryIn { kind: string; label: string; day: number; snap?: unknown; evId?: string; keys?: readonly string[]; action?: boolean; step?: string }
@@ -36,7 +37,7 @@ export function defaultShot(m: Moment, es: readonly StopEntryIn[]): StopShot {
 const entryOf = (es: readonly StopEntryIn[], ids: readonly number[]): number => { for (let k = ids.length - 1; k >= 0; k--) if (es[ids[k]!]?.snap) return ids[k]!; return -1; };
 
 /** The case's stops: the start, every key moment and today that kept the model, in order, with the course's own word on each applied (by its day). */
-export function stopsOf(chapters: readonly Chapter[], es: readonly StopEntryIn[], own: readonly CaseStopBaked[] = []): Stop[] {
+export function stopsOf(chapters: readonly Chapter[], es: readonly StopEntryIn[], own: readonly CaseStopBaked[] = [], ramps?: readonly CaseRamp[]): Stop[] {
   const out: Stop[] = [];
   for (const m of chapters.flatMap((c) => c.moments)) {
     if (m.type !== 'start' && m.type !== 'key' && m.type !== 'today') continue;
@@ -54,7 +55,7 @@ export function stopsOf(chapters: readonly Chapter[], es: readonly StopEntryIn[]
     out.push({
       key: momentKey(m), type: m.type, day: m.day, entry, title,
       kind: m.type === 'start' ? START_KIND : m.type === 'today' ? TODAY_KIND : m.kind,
-      shot, look: (mine?.look ?? []).slice(0, 3), say: mine?.say ?? null,
+      shot, look: (mine?.look ?? []).slice(0, 3), say: mine?.say ?? null, when: whenWords(ramps, m.day),
     });
   }
   // (two stops on one day are one: the later, which is the day's end)
