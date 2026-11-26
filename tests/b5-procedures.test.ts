@@ -8,7 +8,6 @@ import { PROCS, PLUGS, MEASURES, procFrame, specOf } from '../src/scene/procedur
 import { CATH_END } from '../src/scene/procedures/copied/cath-arrival.js';
 import { DEVICE_TOKENS } from '../src/scene/procedures/copied/device-tokens.copied.ts';
 import { NETWORK_BY_ID, SHUNT_IDS, presenceOf } from '../src/scene/vessels/network.ts';
-import { TIER_Z } from '../src/scene/frame2d.ts';
 
 test('every catheter route of the 2D app is laid on the 3D vessels, from the neck or the skin to its stop', () => {
   for (const k of ROUTE_KINDS) {
@@ -89,16 +88,7 @@ test('the six shunts are vessels: drawn while the engine gives them a diameter, 
   }
 });
 
-test('Meso-Rex runs under the splenic and coronary veins and the portocaval shunt while it is shown', () => {
-  const s = new CelScene();
-  s.procs.setRexUnder(true, (id) => s.vesselObject(id));
-  const rex = s.vesselObject('REX')!, z = (id: string) => s.vesselObject(id)!.group.position.z + TIER_Z[NETWORK_BY_ID.get(id)!.tier];
-  const zr = rex.group.position.z + TIER_Z[NETWORK_BY_ID.get('REX')!.tier];
-  for (const id of ['SV_CONF', 'LGV_CONF', 'S_PC']) assert.ok(z(id) > zr, `${id} is above REX`);
-  s.procs.setRexUnder(false, (id) => s.vesselObject(id));
-  assert.equal(rex.group.position.z, 0);
-  s.dispose();
-});
+// (the Meso-Rex bypass's tube is no longer slid back in depth while it is shown: in 3D its crossings are real ones, and the slide left its welded ends behind. tests/shunt-continuity.test.ts holds every shunt on its course)
 
 test('the specs the layer plays are the 2D app\'s: BRTO, BATO, TIPS and the coils, the measurements', () => {
   for (const k of [...Object.keys(PROCS), ...Object.keys(PLUGS)]) {
