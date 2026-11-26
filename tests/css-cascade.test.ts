@@ -24,13 +24,9 @@ function stretchers(): Map<string, string[]> {
 test('an absolute or fixed element with left and right both set and width auto stretches across: only the listed bars may', () => {
   const hits = stretchers();
   const extra = [...hits].filter(([c]) => !allow.includes(c)).map(([c, v]) => `${c} (${v.join(', ')})`);
-  assert.deepEqual(extra, [], `a new full-width absolute element (the Protein legend bar class of bug): ${extra.join('; ')}`);
+  assert.deepEqual(extra, [], `a new full-width absolute element (the old Protein legend bar's class of bug): ${extra.join('; ')}`);
   const gone = allow.filter((c) => !hits.has(c));
   assert.deepEqual(gone, [], `no longer stretches, remove from stretch-allow.json: ${gone.join(', ')}`);
-});
-
-test('the Protein legend resolves to no background, with and without glass', () => {
-  for (const root of ['html', 'html[data-noglass]', 'html.thumb-ui']) assert.equal((resolve(rules, [root, 'div.sv-legend'], ['background']) as Record<string, string | null>).background, 'none', root);
 });
 
 test('a choice group inside a teaching card sits in the card\'s flow (position static), on every layout', () => {

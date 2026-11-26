@@ -50,5 +50,8 @@ test('the pass is the focus band\'s, fully eased out: the same circle at every p
 
 test('the scene asks for it in the dive, never in Circuit, and leaves the pass to the sinusoid\'s own focus pull when that is drawn', () => {
   const src = sceneSource();
-  assert.match(src, /if \(!band && into && this\.figureView !== 'circuit' && this\.inDive\(\)\) band = this\.post\.dof\.uniformFrame\(into\.height, diveBlur\(cam\.position\.distanceTo\(this\.livePoint\), this\.lobuleRest\(\), this\.diveIn\(\), DIVE_OUT\)\) > 0;/);
+  assert.match(src, /o\.whole = this\.figureView !== 'circuit' && this\.inDive\(\) \? diveBlur\(d, this\.lobuleRest\(\), this\.diveIn\(\), DIVE_OUT, this\.passHold\.value\) : 0;/);
+  assert.match(src, /if \(!band && into && fk\.whole > 0\) band = this\.post\.dof\.uniformFrame\(into\.height, fk\.whole\) > 0;/);
+  // (the band, when the sinusoid's is drawn, takes the stronger of the two: a lobule passed through hands its blur over without a step, tests/dive-pass-through.test.ts)
+  assert.match(src, /this\.post\.dof\.bandFrame\(cam, _bA, _bB, _bE0, _bE1, into!\.width, into!\.height, Math\.max\(bandK, fk\.whole\), _bEnds\)/);
 });

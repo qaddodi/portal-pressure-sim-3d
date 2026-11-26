@@ -1,18 +1,22 @@
-// The balloon tamponade tube (Sengstaken-Blakemore style, the 2D app's balloon-gas.js and balloon-eso.js, copied): a tube slides down the esophagus into the stomach, its gastric balloon fills and the tube
-// is drawn up so the balloon seats against the cardia, and only then the esophageal balloon fills. Let down, the reverse. The tube follows the 2D path (`tubePath`), the gastric balloon is the pear fitted to the stomach as
-// drawn (`gasShape`), the esophageal one the long balloon that follows the esophagus's own walls (`balloonShape`); here they are tubes of rings along the tube's line; the gastric balloon's rings are cut from the outline pressed on the stomach's wall (`sectionsOf`, tamponade-shape.ts), so under traction it lies along the cardia and the EG junction. Both balloons are glass (translucent, the tube seen through them). While a procedure run is on the figure (`follow`) the tube and the gastric balloon follow the PROCEDURE's clock (`tamponadeAt`), because the params change only at the run's T.apply. Driven by params.balloonGas and
-// params.balloonEso (the esophageal balloon is filled only on a tube whose gastric balloon is up: scenario.js gastricUp), eased on the clock, rebuilt in place (no allocation of buffers) while it moves.
+// The balloon tamponade tube (Sengstaken-Blakemore style, the 2D app's balloon-gas.js and balloon-eso.js, copied): a tube slides down the esophagus into the stomach, its gastric
+// balloon fills and the tube
+// is drawn up so the balloon seats against the cardia, and only then the esophageal balloon fills. Let down, the reverse. The tube follows the 2D path (`tubePath`) with its turn at the
+// cardia rounded to the tube's minimum bend radius (the one path builder, bend-path.ts; tamponade-path.ts `tubeLine`); both balloons are bodies of
+// revolution about the tube: rings centred ON the tube's line, round about it. The gastric one is a flattened sphere held in by the stomach's wall on both sides alike, drawn up so its
+// face lies against the GE junction (`gasRings`), the esophageal one the long balloon that follows the esophagus's own walls (`balloonShape`). Both balloons are glass (translucent, the
+// tube seen through them). While a procedure run is on the figure (`follow`) the tube and the gastric balloon follow the PROCEDURE's clock (`tamponadeAt`), because the params change
+// only at the run's T.apply. Driven by params.balloonGas and
+// params.balloonEso (the esophageal balloon is filled only on a tube whose gastric balloon is up: scenario.js gastricUp), eased on the clock, rebuilt in place (no allocation of
+// buffers) while it moves.
 import { Group, Vector3 } from 'three';
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
-import { x3, y3 } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
 import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, type Ring, writeRings } from '../tube-rings.ts';
 import { BALLOON, BALLOON_MS, balloonShape, esoAt } from '../../procedures/copied/balloon-eso.js';
-import { GAS, gasShape, pathAt, pullArrow, sheathArcs, tubePath, tubeTip } from '../../procedures/copied/balloon-gas.js';
-import { sectionsOf } from './tamponade-shape.ts';
+import { GAS, arcAtY, pathAt, pullArrow, sheathArcs, tubePath, tubeTip } from '../../procedures/copied/balloon-gas.js';
+import { gasRings, gasSeat, lineScene, scenePoint, tubeLine } from './tamponade-path.ts';
 import { easeMove } from '../../procedures/copied/ease.js';
-import { scopeZ, wayShift } from '../probes/scope.ts';
 
 const U = 300;
 const PULL_N = 5;
@@ -21,12 +25,14 @@ const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 
 export interface TamponadeState { adv: number; gas: number; eso: number }
 
-/** A balloon is glass (as the HVPG and the dilation balloons are): its body at this alpha when whole, firmer toward the rim (`setGlass`), its outline the rim only and firmer. The tube is seen through it. */
+/** A balloon is glass (as the HVPG and the dilation balloons are): its body at this alpha when whole, firmer toward the rim (`setGlass`), its outline the rim only and firmer. The tube
+  * is seen through it. */
 const GLASS_FILL = 0.42, GLASS_FILL_RIM = 1.4, GLASS_RIM = 0.4;
 const inkOf = (k: number): number => 0.45 + 0.5 * k;
 /** The tube's fine centimetre marks (as the catheters': a thin ring every 22 figure units back from the tip, a heavier one every fifth), none on the balloon's stretch. */
 const MARK_UNITS = 22, MARK_HALF = 0.26, MARK_HEX = '#7E889A';
-/** A balloon grows from nothing: its alpha rises with its size (`k`, the eased fill), so it is invisible at zero and whole by a tenth of the way up. (The radius cannot go below the tube it sits on; the alpha is what takes it to a true zero.) */
+/** A balloon grows from nothing: its alpha rises with its size (`k`, the eased fill), so it is invisible at zero and whole by a tenth of the way up. (The radius cannot go below the
+  * tube it sits on; the alpha is what takes it to a true zero.) */
 const GROW_FULL = 0.1;
 const grow = (k: number): number => Math.min(1, Math.max(0, k / GROW_FULL));
 
@@ -72,7 +78,8 @@ export class Tamponade {
     const g = gas || eso, e = eso;
     if (g !== this.wantGas || e !== this.wantEso) { this.wantGas = g; this.wantEso = e; this.dirty = true; }
   }
-  /** A procedure run is on the figure: the tube goes in and the gastric balloon fills as the run's own clock says (null: the run is over or none is on, the params say). The esophageal balloon stays the params'. */
+  /** A procedure run is on the figure: the tube goes in and the gastric balloon fills as the run's own clock says (null: the run is over or none is on, the params say). The esophageal
+    * balloon stays the params'. */
   follow(p: { adv: number; gas: number } | null): void {
     if (!p && !this.followed) return;
     if (p && this.followed && p.adv === this.followed.adv && p.gas === this.followed.gas) return;
@@ -104,11 +111,8 @@ export class Tamponade {
 
   get isIn(): boolean { return this.state.adv > 0.001; }
 
-  // (the tube and its balloons are carried, with the scope's way, onto the oesophagus and stomach the stomach mesh has (probes/eso-axis.ts), at their middle in depth)
-  private pt(x: number, y: number, out: Vector3): Vector3 {
-    const Y = y3(y), X = x3(x) + wayShift(Y);
-    return out.set(X, Y, scopeZ(X, Y));
-  }
+  // (the tube and its balloons are carried, with the scope's way, onto the oesophagus and stomach the stomach mesh has (probes/eso-axis.ts), at their middle in depth: tamponade-path.ts `scenePoint`)
+  private pt(x: number, y: number, out: Vector3): Vector3 { return scenePoint(x, y, out); }
 
   private draw(): void {
     const { adv, gas, eso } = this.state;
@@ -118,27 +122,26 @@ export class Tamponade {
     if (!show) { for (const o of [this.gas, this.eso, ...this.marks, this.pullLine, this.pullHead]) o.show(false); this.pull = 0; return; }
     const k = easeMove(gas), ke = easeMove(eso);
     const q = easeMove(clamp01((gas - 0.45) / 0.55));   // the traction runs in the second half of the gastric balloon's filling (stage-balloon.js `pull`)
-    const path = tubePath();
+    const path = tubePath(), line = tubeLine(path);
     const tip = tubeTip(easeMove(adv), q, path);
     const tubeR = BALLOON.shaftR / U;
     // the tube: the path from the figure's top to the tip
     for (let i = 0; i < TUBE_N; i++) {
-      const sA = (tip * i) / (TUBE_N - 1), { p, t } = pathAt(sA, path), r = this.tubeRings[i]!;
-      this.pt(p[0], p[1], r.c); r.t.set(t[0], -t[1], 0); r.r = tubeR;
+      const r = this.tubeRings[i]!;
+      lineScene(line, (tip * i) / (TUBE_N - 1), r.c, r.t); r.r = tubeR;
     }
     writeRings(this.tube.toonMesh.geometry, this.tubeRings, DEVICE_SIDES);
     // fine marks counted back from the tip, none on the balloon's stretch (the tube's uv runs 0 at the figure's top to 1 at the tip, so they ride the tube as it goes in)
-    const bare = path.f.L + GAS.tail + GAS.slack;
+    const bare = path.total - gasSeat(line).top;
     this.tube.setStripes(MARK_UNITS / tip, 1, MARK_HALF / tip, bare / tip, MARK_HEX, 1.7);
-    // the gastric balloon: the pear pressed on the stomach's wall (gasShape's outline), cut into rings along the axis
+    // the gastric balloon: a body of revolution about the tube (tamponade-path.ts gasRings): every ring centred on the tube's line, round about it, the same radius both sides
     const showGas = gas > 0.001;
     this.gas.show(showGas);
     if (showGas) {
-      const g = gasShape(k, q, 40) as unknown as { p0: [number, number]; dir: [number, number]; outline: [number, number][] };
-      const sec = sectionsOf(g.outline, g.p0, g.dir, GAS_N, tubeR * U), nx = -g.dir[1], ny = g.dir[0];
+      const sec = gasRings(line, k, q, GAS_N);
       for (let i = 0; i < GAS_N; i++) {
         const sc = sec[i]!, r = this.gasRings[i]!;
-        this.pt(g.p0[0] + g.dir[0] * sc.a + nx * sc.c, g.p0[1] + g.dir[1] * sc.a + ny * sc.c, r.c); r.t.set(g.dir[0], -g.dir[1], 0); r.r = Math.max(tubeR, sc.r / U);
+        r.c.set(sc.c[0], sc.c[1], sc.c[2]); r.t.set(sc.t[0], sc.t[1], sc.t[2]); r.r = Math.max(tubeR, sc.r);
       }
       writeRings(this.gas.toonMesh.geometry, this.gasRings, RADIAL);
       this.gas.setAlphas(GLASS_FILL * grow(k), inkOf(k) * grow(k));
@@ -147,11 +150,13 @@ export class Tamponade {
     const showEso = eso > 0.001;
     this.eso.show(showEso);
     if (showEso) {
-      const { outline } = balloonShape(ke, ESO_N - 1) as unknown as { outline: [number, number][] };
-      const n = ESO_N, Lft = outline.slice(0, n), Rgt = outline.slice(n).reverse();
+      // (centred ON the tube's line, as the gastric one is: the long balloon's half width at each height, held to the oesophagus's wall)
+      const { outline, half } = balloonShape(ke, ESO_N - 1) as unknown as { outline: [number, number][]; half: (y: number) => number };
+      const n = ESO_N, Lft = outline.slice(0, n);
       for (let i = 0; i < n; i++) {
-        const l = Lft[i]!, rr = Rgt[i]!, r = this.esoRings[i]!;
-        this.pt((l[0] + rr[0]) / 2, l[1], r.c); r.t.set(0, -1, 0); r.r = Math.max(tubeR, (rr[0] - l[0]) / 2 / U);
+        const y = Lft[i]![1], r = this.esoRings[i]!, s = arcAtY(y, path) as number, e = esoAt(y) as { c: number; h: number };
+        lineScene(line, s, r.c, r.t);
+        r.r = Math.max(tubeR, Math.min(half(y), e.h - BALLOON.wall) / U);
       }
       writeRings(this.eso.toonMesh.geometry, this.esoRings, RADIAL);
       this.eso.setAlphas(GLASS_FILL * grow(ke), inkOf(ke) * grow(ke));
@@ -165,8 +170,8 @@ export class Tamponade {
       mark.show(on);
       if (!on) return;
       for (let i = 0; i < MARK_N; i++) {
-        const { p, t } = pathAt(Math.max(0, sb + (i - 1) * 0.5), path), r = rings[i]!;
-        this.pt(p[0], p[1], r.c); r.t.set(t[0], -t[1], 0); r.r = markR;
+        const r = rings[i]!;
+        lineScene(line, Math.max(0, sb + (i - 1) * 0.5), r.c, r.t); r.r = markR;
       }
       writeRings(mark.toonMesh.geometry, rings, DEVICE_SIDES);
     });

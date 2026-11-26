@@ -950,10 +950,10 @@ export function unitRod(seg = 8): BufferGeometry {
 }
 
 /** A red cell: a biconcave disc of radius 1 lying in the xy plane (thickness about 0.32 at the rim, 0.14 in the dimple), as a lathe. */
-export function unitRbc(seg = 24): BufferGeometry {
+export function unitRbc(seg = 24, rings = 16): BufferGeometry {
   // the classic profile (Evans and Fung), half thickness against radius
   const prof: [number, number][] = [];
-  const K = 16;
+  const K = rings;
   for (let i = 0; i <= K; i++) {
     const r = Math.sin((i / K) * Math.PI / 2);   // (denser at the rim)
     const r2 = r * r, h = 0.5 * Math.sqrt(Math.max(0, 1 - r2)) * (0.14 + 1.0 * r2 - 0.56 * r2 * r2);

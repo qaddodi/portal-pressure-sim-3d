@@ -12,6 +12,7 @@ import { circuitBounds } from '../circuit/shots.ts';
 import type { CelScene } from '../scene.ts';
 import { scenePart } from './define.ts';
 import { type FigureView, lobuleCorners, DIVE_READY_MS, bodyFade } from './shared.ts';
+import { passedThrough, PASS_HOLD_MS } from '../camera/dive.ts';
 
 export const viewsPart = scenePart<CelScene>()({
   // ---- the figure's view: body, lobule, sinusoid ---------------------------------------------
@@ -20,6 +21,14 @@ export const viewsPart = scenePart<CelScene>()({
   /** Show the body, the lobule or the sinusoid: the others are hidden and cost nothing (nothing is built or compiled here; the views were made at start). The camera is the caller's. */
   setView(v: FigureView, now = clock.now()): void {
     const wasCircuit = this.figureView === 'circuit', wasSinusoid = this.figureView === 'sinusoid';
+    // a view the move only flies through stays blurred (the lobule on Anatomy <-> Sinusoid). The move's near end is the view left at rest, or, turned mid-flight, the side of the lobule the camera
+    // is on now (a move body -> lobule turned to the sinusoid still passes it). From rest it is set at once, where nothing shows it (the body whole: no dive blur; the sinusoid: its own band is
+    // stronger); mid-flight it eases, so a turned move never steps its blur
+    {
+      const flying = this.hideLeftBehind, near = flying ? (this.rig.camera.position.distanceTo(this.livePoint) >= this.lobuleRest() ? 'body' : 'sinusoid') : this.figureView;
+      const held = passedThrough(near, v).includes('lobule') ? 1 : 0;
+      if (flying) this.passHold.to(held, { ms: PASS_HOLD_MS, at: now }); else this.passHold.snap(held);
+    }
     this.figureView = v;
     { const f = this.src.frame(); if (wasCircuit !== (v === 'circuit') && f) this.syncPresence(f, false); }   // (the liver's beds are drawn on the map only: they draw on as the body turns into it, and draw back as it returns)
     this.rig.setSubject(v === 'lobule' ? lobuleCorners() : v === 'sinusoid' ? (sinusoidBox() as Vec3[]) : null);
@@ -49,6 +58,7 @@ export const viewsPart = scenePart<CelScene>()({
     this.lobule.setVisible(v === 'lobule'); this.sinus.setVisible(v === 'sinusoid');
     this.dive.visible = (v === 'lobule' || v === 'sinusoid') && this.microReady;
     this.hideLeftBehind = false;
+    this.passHold.snap(0);   // (landed: nothing is passed through. At the sinusoid its band is stronger than the hold, so this is never seen)
   },
   /** The body dissolves as the camera goes into the liver and comes back as it leaves (a function of the camera's distance to the lobule's place, so the dive in and the way out are the same picture run both ways). */
   fadeBody(): void {

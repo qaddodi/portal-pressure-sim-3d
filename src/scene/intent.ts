@@ -31,9 +31,11 @@ export interface FigureIntent {
   caudate: boolean;
   /** the lobe is drawn with its short hepatic veins in the anatomy (a slide that pins `caudate`, not only `caudate-lobe`) */
   caudateVeins: boolean;
+  /** the foci the slide is about (focus-reveal/config.ts FOCI ids, by the stations it labels): the organ hiding each fades round it while it is in the room */
+  focus: readonly string[];
 }
 
-export const EMPTY_INTENT: FigureIntent = { named: [], pins: [], normalSpleen: false, sinceRef: null, marked: [], picked: null, resistors: [], caudate: false, caudateVeins: false };
+export const EMPTY_INTENT: FigureIntent = { named: [], pins: [], normalSpleen: false, sinceRef: null, marked: [], picked: null, resistors: [], caudate: false, caudateVeins: false, focus: [] };
 
 /** Lowest first: a higher layer decides a field it says anything about. */
 export const LAYER_ORDER = ['base', 'talk', 'tool'] as const;

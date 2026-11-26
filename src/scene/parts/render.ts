@@ -8,11 +8,11 @@ import { splitRegions, confine, type Region } from '../twin/region.ts';
 import { VESSEL_LAYER } from '../layers.ts';
 import { ORGAN_VEIL, vesselZoomK, seeZoomK, veilShare } from '../organ-veil/config.ts';
 import { ORGAN_VEIL_U, resetOrganVeil } from '../organ-veil/uniforms.ts';
-import { diveBlur } from '../post-dof.ts';
+import { FOCUS_REVEAL_U, resetFocusReveal } from '../focus-reveal/uniforms.ts';
 import { gate } from '../gate.ts';
 import type { CelScene } from '../scene.ts';
 import { scenePart } from './define.ts';
-import { DIVE_IN, _bA, _bB, _bE0, _bE1, _bEnds, DIVE_OUT } from './shared.ts';
+import { DIVE_IN, _bA, _bB, _bE0, _bE1, _bEnds } from './shared.ts';
 
 export const renderPart = scenePart<CelScene>()({
   /** How often the organ map was drawn and how often it was kept (?perf). */
@@ -39,11 +39,12 @@ export const renderPart = scenePart<CelScene>()({
     const into = this.post.target(gl);
     const dof = dofShare > 0 && !!into?.depthTexture;
     // the sinusoid's focus band (every device): its own lumen and plates sharp, the neighbours and whatever drifts off them blurring by distance (post-dof.ts bandFrame)
-    const bandK = into && (this.figureView === 'sinusoid' || this.sinus.diveShareNow != null) && this.microReady ? this.micro!.sinus.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
+    // the Anatomy <-> Lobule move: the same one blur over the whole screen, from the camera's distance alone (post-dof.ts diveBlur), in and out, held over a lobule the move only passes through;
+    // the sinusoid's own focus pull has the pass when it is drawn, at the stronger of the two (parts/dive.ts focusNow)
+    const fk = this.focusNow(), bandK = into ? fk.band : 0;
     this.post.dof.bandOpen = this.microReady ? this.micro!.sinus.focusOpen : 1;
-    let band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, bandK, _bEnds) > 0;
-    // the Anatomy <-> Lobule move: the same one blur over the whole screen, from the camera's distance alone (post-dof.ts diveBlur), in and out; the sinusoid's own focus pull has the pass when it is drawn
-    if (!band && into && this.figureView !== 'circuit' && this.inDive()) band = this.post.dof.uniformFrame(into.height, diveBlur(cam.position.distanceTo(this.livePoint), this.lobuleRest(), this.diveIn(), DIVE_OUT)) > 0;
+    let band = bandK > 0 && this.post.dof.bandFrame(cam, _bA, _bB, _bE0, _bE1, into!.width, into!.height, Math.max(bandK, fk.whole), _bEnds) > 0;
+    if (!band && into && fk.whole > 0) band = this.post.dof.uniformFrame(into.height, fk.whole) > 0;
     if (!band) this.post.dof.bandShare = 0;
     // an organ's glow: its mask and blur are made BEFORE the figure's first pass, because its lay is a quad inside that pass (behind the vessels, at the organ's own place in the organs' order),
     // gated by the sharp mask so the organ itself is never tinted
@@ -58,8 +59,15 @@ export const renderPart = scenePart<CelScene>()({
       const u = ORGAN_VEIL_U, [vk, sk] = this.veilNow(dof);
       const tw = into ? into.width : gl.getDrawingBufferSize(this.veilSize).x, th = into ? into.height : this.veilSize.y;
       u.ovlP.value.set(0, ORGAN_VEIL.gapFrom, ORGAN_VEIL.gapTo, 0); u.seeP.value.set(0, ORGAN_VEIL.seeMax, 1 / tw, 1 / th);   // (off while the map itself is drawn)
+      // THE FOCUS REVEAL (focus-reveal/config.ts): set before the map, so the map's liver fades where the figure's does and the vessels' veil eases off over the focus with it. It goes with the organs
+      // (their own fade) and, as the veil, never in the split orbit or the depth-of-field pass.
+      const fr = this.focusReveal;
+      fr.write(cam, tw, th, !this.split && !dof ? veilShare(this.fadeNow, this.lastFade) : 0);
+      this.disease.organs.setFocusReveal(FOCUS_REVEAL_U.frvP.value.x > 0 && fr.active ? fr.active.id : null);
       if (vk > 0 || sk > 0) {
+        fr.drawingInto(Math.max(2, Math.ceil(tw / 2)), Math.max(2, Math.ceil(th / 2)));   // (the map's size: organ-map.ts ensure)
         this.organMap.render(gl, cam, this.scene, tw, th, { veil: vk > 0, see: sk > 0 });
+        fr.drawingInto(tw, th);
         u.ovlP.value.x = vk * ORGAN_VEIL.vesselMax; u.seeP.value.x = sk;
         u.ovlC.value.set(cam.near, cam.far, 1 / tw, 1 / th);
       }
@@ -126,7 +134,7 @@ export const renderPart = scenePart<CelScene>()({
     this.blood.routes.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.procs.dispose(); this.probes.dispose();
-    this.organMap.dispose(); resetOrganVeil();
+    this.organMap.dispose(); resetOrganVeil(); resetFocusReveal();
     this.tubes.dispose(); this.resistors.dispose(); this.post.dispose(); this.glowFx.dispose(); this.organGlowFx.dispose();
   },
 });

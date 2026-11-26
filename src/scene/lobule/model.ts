@@ -17,7 +17,11 @@ export const smooth = (a: number, b: number, x: number): number => { const t = c
 export interface HealthyRef { P: ArrayLike<number>; Q: ArrayLike<number>; hepLymph?: number }
 
 interface FrameParams { fibrosis?: { R?: { pre?: number; sin?: number; post?: number } }; cirrhosis?: number; albumin?: number }
-interface FrameMetrics { ascites?: { iap?: number; hepLymph?: number; lymphProt?: number; lymphSigma?: number } }
+interface FrameMetrics { ascites?: { iap?: number; hepLymph?: number; lymphProt?: number; lymphSigma?: number }; blood?: { hct?: number } }
+
+/** The healthy patient's hematocrit: the engine's own reference (HCT_BASE 0.42, which the viscosity and the red cell account are measured from).
+ *  The red cells in the Sinusoid view are counted against it. */
+export const HCT_HEALTHY = 0.42;
 
 /** The parts of an engine frame the lobule reads. `params` is the frame's parameter set (fibrosis resistances, cirrhosis 0..1, albumin). */
 export interface LobuleFrame {
@@ -56,6 +60,8 @@ export interface LobuleModel {
   lymph: number; lymph0: number; lyProt: number; sigma: number; iap: number; alb: number;
   /** cirrhosis 0..1 and what the lobule makes of it (all 0..1) */
   s: number; cong: number; fibSin: number; fibPre: number; fibPost: number; congU: number; shuntU: number; septU: number; act: number;
+  /** the patient's hematocrit now (the engine's `metrics.blood.hct`: the anemia of liver disease, a bleed and what was given back included); absent, a healthy patient's */
+  hct?: number;
 }
 
 const revOf = (q: number, q0: number | undefined) => q < -Math.max(0.12, 0.02 * Math.abs(q0 ?? 1));
@@ -108,6 +114,7 @@ export function lobuleModel(f: LobuleFrame, healthy?: HealthyRef | null, params?
     fibPost: clamp(Math.log(zone.post) / 4.8, 0, 1) ** 0.6,
     congU: clamp(cong / 12, 0, 1), shuntU: clamp((sc - 0.45) / 0.35, 0, 1), septU: clamp(sc / 0.85, 0, 1) ** 0.7,   // (cirrhosis is complete bridging septa at every stage: they lead from the first of it, not from c 0.3; docs/pathology-spec.md)
     act: clamp(Math.max(fibSin, sc * 0.9), 0, 1),
+    hct: ((f.metrics ?? {}) as FrameMetrics).blood?.hct ?? HCT_HEALTHY,
   };
 }
 
@@ -152,6 +159,7 @@ export interface SinusoidTargets {
   /** blood speed against healthy, signed (negative: reversed) */ v: number;
   /** plasma filtered into Disse, × healthy */ filt: number;
   /** the lymph's protein 0..1 */ prot: number;
+  /** the hematocrit, which the red cells in the lumen are counted from (absent: healthy's, HCT_HEALTHY) */ hct?: number;
 }
 
 /** Targets for the sinusoid view's drawing, from a lobule model (the 2D sinusoidTargets). */
@@ -170,6 +178,7 @@ export function sinusoidTargets(m: LobuleModel): SinusoidTargets {
     v: bloodSpeed(m.flow, m.rev.sin, m.zone.sin),
     filt: clamp(lymph, 0, 6),
     prot: lymphProtein(m),
+    hct: m.hct ?? HCT_HEALTHY,
   };
 }
 

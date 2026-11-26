@@ -21,6 +21,7 @@ import { LOOKS, type LookId } from '../../looks/looks.ts';
 import type { SinusoidView } from '../sinusoid/view.ts';
 import { U } from '../sinusoid/view.ts';
 import { SIN_REL } from '../lobule/frames.ts';
+import { HCT_HEALTHY } from '../lobule/model.ts';
 import { CELL, SEED, SLOT, UM, canaliculusAt, cellOf, edgeAt, nucAt, poreAt, poreOpenness, underNucleus, type Pore } from '../sinusoid/layout.ts';
 import { TROUGH_K, WALL, buildBore, buildCut, buildNucleusSection, buildShellSteps, newWeights, phiAt, wallColumns, type Weights } from './sinusoid-wall.ts';
 import { CEL_STYLE } from '../cel-style.ts';
@@ -96,10 +97,31 @@ export const BLUR_RUN = UM.hep * 0.5 + UM.disse + UM.endo + UM.lum * 0.5;
 const HAZE_RUN = BLUR_RUN;
 /** The scene's ends: the blur along the sinusoid starts this far (µm) inside each end and is whole this far in. */
 const END_BLUR = [95, 55] as const;
-/** Red cells in this sinusoid's lumen, and in each of the two next ones (beyond the plates). */
 /** The bile canaliculus's radius (µm): a round lumen about 1.6 µm across between two hepatocytes. */
 export const CANAL_R = 0.72;
-const RBC_N = 50, RBC_FAR = 20, RBC_R = 1.05;
+/** A red cell's radius (µm). Mohammad 26 Nov 2026: "don't make the RBCs any bigger than they are now; just make them much more", so the blood fills with more cells, never bigger ones:
+ *  this number is the size, and tests/sinusoid-rbc-density.test.ts pins it. */
+export const RBC_R = 1.05;
+/** The stretch the red cells run over (µm along the flow): the albumin's, which the blur hides the ends of (TRAFFIC_REACH). */
+export const RBC_SPAN = 2 * TRAFFIC_REACH + 16;
+/** How much of its picture a red cell covers (µm²): its disc turned a little off the view (the tilts run 0.2 to 0.9 rad). */
+export const RBC_SHADOW = Math.PI * RBC_R * RBC_R * 0.8;
+/** The red cells' count is the blood's: the share of the lumen's picture they cover equals the hematocrit (`HCT_HEALTHY` 0.42 for a healthy patient), so anemia thins the stream and a transfusion packs it.
+ *  Cells are not drawn larger to fill the lumen (that is RBC_R's rule), so a healthy sinusoid carries `RBC_N` of them over its stretch,
+ *  the blood nearly touching cell to cell with the lens colour and the protein showing between. */
+export const RBC_N = Math.round(HCT_HEALTHY * 2 * UM.lum * RBC_SPAN / RBC_SHADOW);
+/** The next sinusoids' share of that (they are out of focus beyond the plates, and each is a cost in triangles): each of the two carries this many at a healthy hematocrit. */
+export const RBC_FAR_SHARE = 0.5;
+export const RBC_FAR = Math.round(RBC_N * RBC_FAR_SHARE);
+/** The most the stream is packed (against healthy: a hematocrit of 0.525): what a transfusion can reach, and what the instance buffers are sized for. */
+export const RBC_DENSITY_MAX = 1.25;
+/** Rings of a red cell's profile (its dimple is drawn from them); the cell is a few pixels across, so 8 read as smooth as 16 and the thousand cells of a healthy stream cost half the triangles. */
+export const RBC_RINGS = 8;
+/** The stream's density against healthy (1) from the hematocrit: the cells in each lane are `RBC_N * density` (a float: the one cell beyond the whole ones grows in as it is added, never pops). */
+export const rbcDensity = (hct: number): number => clamp(hct / HCT_HEALTHY, 0, RBC_DENSITY_MAX);
+/** The red cells drawn in this sinusoid's lumen and in each of the two next ones at a hematocrit (fractions count the cell growing in). */
+const RBC_CAP_MAIN = Math.ceil(RBC_N * RBC_DENSITY_MAX), RBC_CAP_FAR = Math.ceil(RBC_FAR * RBC_DENSITY_MAX), RBC_CAP = RBC_CAP_MAIN + 2 * RBC_CAP_FAR;
+export const rbcWanted = (hct: number): { main: number; far: number } => { const d = rbcDensity(hct); return { main: RBC_N * d, far: RBC_FAR * d }; };
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -115,7 +137,7 @@ const deep = (a: RGB, k = 0.48): [number, number, number] => mul3(a, k);
 
 /** What this scene reads of its host (sinusoid/view.ts: the state, palette, traffic and places). */
 interface Flat {
-  cur: { por: number; col: number; bm: number; mv: number; act: number; lum: number; pinch: number; v: number; filt: number; prot: number };
+  cur: { por: number; col: number; bm: number; mv: number; act: number; lum: number; pinch: number; v: number; filt: number; prot: number; hct: number };
   pal: { palette(dark: boolean): Record<string, unknown> };
   traffic: { pts: Float32Array; readonly flowX: number; readonly lymX: number };
   geo: { xs: number; xk: number; pores: Pore[][] };
@@ -206,7 +228,9 @@ export class Sinusoid3D {
   private readonly fibres: MicroMany;
   private readonly albumin: MicroMany;
   private readonly rbc: MicroMany;
+  /** The red cells of the three lanes (this sinusoid's, then the next one's each way), each lane in the order they are added as the hematocrit rises; `rbcStart` is where each lane begins. */
   private readonly rbcs: { u: number; y: number; z: number; tilt: number; spin: number; ph: number; lane: -1 | 0 | 1 }[] = [];
+  private readonly rbcStart: [number, number, number, number] = [0, 0, 0, 0];
 
   constructor(flat: SinusoidView, shared: CelShared) {
     this.flat = flat as unknown as Flat;
@@ -257,13 +281,22 @@ export class Sinusoid3D {
     this.albumin = many('albumin', unitSphere(12, 8), 2000, { ink: null, rim: S.LINE_SMALL, rimK: this.rimKAlb });   // (its own ramp: a bead well under a micrometre is all line long before a red cell is)
     // (RBC_SEG round. 40 was set against a dashed outline (22 segments, eyes 20 Nov) before the ink hull went DoubleSide and stopped culling by normal (6f7d101), which is what the dashes were;
     //  the cell is a few px across, so 16 segments read round and cost 40% of the triangles: 2560 to 1024 a cell, review 21 Nov #12)
-    this.rbc = many('red-cells', unitRbc(RBC_SEG), RBC_N + 2 * RBC_FAR, { ink: null, rim: S.LINE });
+    this.rbc = many('red-cells', unitRbc(RBC_SEG, RBC_RINGS), RBC_CAP, { ink: null, rim: S.LINE });
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
     for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.bores, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
     for (const p of [this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);
     this.bm.renderOrder = 20;
-    const r = mulberry(91);
-    for (let i = 0; i < RBC_N + 2 * RBC_FAR; i++) this.rbcs.push({ u: r(), y: r() * 1.5 - 0.75, z: r(), tilt: 0.2 + r() * 0.7, spin: (r() - 0.5) * 0.8, ph: r() * Math.PI * 2, lane: i < RBC_N ? 0 : i < RBC_N + RBC_FAR ? -1 : 1 });
+    // (each lane's cells sit on a low-discrepancy lattice in (along, across, depth), so however many are drawn they are spread evenly, never clumped or leaving a hole:
+    //  a random scatter of a thousand cells piled some on top of each other beside empty stretches)
+    const r = mulberry(91), lanes = [[0, RBC_CAP_MAIN], [-1, RBC_CAP_FAR], [1, RBC_CAP_FAR]] as const;
+    for (const [lane, cap] of lanes) {
+      this.rbcStart[lane === 0 ? 0 : lane < 0 ? 1 : 2] = this.rbcs.length;
+      for (let k = 0; k < cap; k++) {
+        const o = lattice(k + 1, lane === 0 ? 0 : 0.37 * (lane + 1));
+        this.rbcs.push({ u: o[0], y: o[1] * 1.5 - 0.75, z: o[2], tilt: 0.2 + r() * 0.7, spin: (r() - 0.5) * 0.8, ph: r() * Math.PI * 2, lane });
+      }
+    }
+    this.rbcStart[3] = this.rbcs.length;
     this.group.visible = false;
   }
 
@@ -806,33 +839,43 @@ export class Sinusoid3D {
     this.albumin.commit(n);
   }
 
-  /** The red cells: biconcave discs carried in the stream at the albumin's own lane speeds (fastest in the middle), tumbling a little; a few ride in each of the next sinusoids too. */
+  /** The red cells: biconcave discs carried in the stream at the albumin's own lane speeds (fastest in the middle), tumbling a little; a few ride in each of the next sinusoids too.
+   *  How many is the blood's (rbcWanted: the patient's hematocrit against a healthy one); a cell that is being added or taken grows or shrinks over one cell's share, never pops. */
   private stepRbc(): void {
-    const f = this.flat, g = f.g, v0 = -REACH, span = 2 * REACH + 16, flow = f.traffic.flowX;
+    const f = this.flat, g = f.g, v0 = -TRAFFIC_REACH - 8, span = RBC_SPAN, flow = f.traffic.flowX;
     const farH = UM.lum + UM.endo * 0.5, farLim = farH - RBC_R * 0.62;
     // Blood origin and First pass: each cell wears the colour of the source its fixed draw falls in (the blood has mixed by here), eased in from its own red
-    const lens = f.cellColours, red = this.rbcRed, col = this.rbcCol;
+    const lens = f.cellColours, red = this.rbcRed, col = this.rbcCol, want = rbcWanted(f.cur.hct);
     let n = 0;
-    for (const c of this.rbcs) {
-      if (lens) cellColour(lens, hash(n * 0.618 + 0.37), red, col);
-      else { col[0] = red[0]!; col[1] = red[1]!; col[2] = red[2]!; }
-      const sp = 1.5 * (1 - c.y * c.y) + 0.08;
-      const x = v0 - 8 + ((((c.u * span + flow * sp) % span) + span) % span);
-      let yd: number, z: number, fold = 1;
-      if (c.lane === 0) {
-        const h = g.halfW(x), lim = Math.max(0, h - RBC_R * 0.62);
-        yd = clamp(c.y * h, -lim, lim);
-        const t = Math.abs(yd) / Math.max(h, 1e-3);
-        z = -h * Z.trough * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.42, 0.62, c.z);
-        // a squeeze where the lumen is narrow (the stellate cell's pinch): the disc folds a little
-        fold = clamp(h / (RBC_R + 1.2), 0.62, 1);
-      } else {
-        const mid = g.hepIn(x) + UM.hep + UM.disse + UM.endo + UM.lum, o = clamp(c.y * farH, -farLim, farLim), t = Math.abs(o) / farH;
-        yd = c.lane * (mid + o);
-        z = -farH * 0.7 * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.4, 0.6, c.z) + 0.1;
+    for (let l = 0; l < 3; l++) {
+      const start = this.rbcStart[l]!, total = this.rbcStart[l + 1]! - start, wanted = l === 0 ? want.main : want.far;
+      for (let k = 0; k < total; k++) {
+        const have = clamp(wanted - k, 0, 1);
+        if (have <= 0) break;
+        const c = this.rbcs[start + k]!;
+        // (the colour is the cell's own, fixed by its place in the list, whoever else is drawn: a cell never changes source as the stream thins)
+        if (lens) cellColour(lens, hash((start + k) * 0.618 + 0.37), red, col);
+        else { col[0] = red[0]!; col[1] = red[1]!; col[2] = red[2]!; }
+        const sp = 1.5 * (1 - c.y * c.y) + 0.08;
+        const x = v0 + ((((c.u * span + flow * sp) % span) + span) % span);
+        let yd: number, z: number, fold = 1;
+        if (c.lane === 0) {
+          const h = g.halfW(x), lim = Math.max(0, h - RBC_R * 0.62);
+          yd = clamp(c.y * h, -lim, lim);
+          const t = Math.abs(yd) / Math.max(h, 1e-3);
+          z = -h * Z.trough * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.42, 0.62, c.z);
+          // a squeeze where the lumen is narrow (the stellate cell's pinch): the disc folds a little
+          fold = clamp(h / (RBC_R + 1.2), 0.62, 1);
+        } else {
+          const mid = g.hepIn(x) + UM.hep + UM.disse + UM.endo + UM.lum, o = clamp(c.y * farH, -farLim, farLim), t = Math.abs(o) / farH;
+          yd = c.lane * (mid + o);
+          z = -farH * 0.7 * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.4, 0.6, c.z) + 0.1;
+        }
+        // (a whole cell is RBC_R; only the one being added or taken is smaller, never larger)
+        const r = RBC_R * smooth(0, 1, have);
+        placeAt(this.m4, x, Y(yd), z, r, r * fold, r, c.ph + c.spin * flow * 0.02, c.tilt);
+        this.rbc.setAt(n++, this.m4, col);
       }
-      placeAt(this.m4, x, Y(yd), z, RBC_R, RBC_R * fold, RBC_R, c.ph + c.spin * flow * 0.02, c.tilt);
-      this.rbc.setAt(n++, this.m4, col);
     }
     this.rbc.commit(n);
   }
@@ -940,3 +983,10 @@ function mulberry(a: number): () => number {
 }
 /** A hash of a number to [0, 1). */
 const hash = (x: number): number => { const s = Math.sin(x * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+/** The k-th point (each coordinate 0..1) of the R3 lattice (Roberts' generalized golden ratio, the plastic-like constant of three dimensions), `shift` along its first axis:
+ *  any run of the first n points is spread evenly. */
+const GOLD3 = 1.2207440846057596;
+const lattice = (k: number, shift = 0): [number, number, number] => {
+  const f = (x: number) => x - Math.floor(x);
+  return [f(0.5 + shift + k / GOLD3), f(0.5 + k / (GOLD3 * GOLD3)), f(0.5 + k / (GOLD3 * GOLD3 * GOLD3))];
+};
