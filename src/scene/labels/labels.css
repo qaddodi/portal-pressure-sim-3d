@@ -204,7 +204,7 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
    labels' halo as an svg stroke, not a filter: a drop-shadow on a tiny svg root clipped the bracket away on Safari, Mohammad 26 Nov "no more bracket on the waist?"). The svg is the layer's size, its paths in screen pixels. */
 .wb-curve { inset: 0; width: 100%; height: 100%; overflow: visible; will-change: opacity; }
 .wb-halo, .wb-path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.wb-halo { stroke: var(--lb-halo); stroke-width: calc(var(--wb-w) + 3px); stroke-opacity: 0.5; }
+.wb-halo { stroke: color-mix(in srgb, var(--lb-halo) 50%, transparent); stroke-width: calc(var(--wb-w) + 3px); }
 .wb-path { stroke: var(--lb-val); stroke-width: var(--wb-w); }
 
 /* ── a slide's callout, as the 2D app draws it (every callout of a slide: a thick ring on the place, a leader of the same stroke, the words in the same colour, no card; lobule-zoom.js callEl,
