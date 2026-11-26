@@ -287,10 +287,18 @@ export function profileWords(goal: Prof, spans: readonly Span[]): string {
   return `Pressure from gut to heart: ${STATIONS.map((n, i) => `${SPOKEN[n]} ${labels[i]}`).join(', ')} mmHg.${spans.length ? ` ${spans.map(([k, name]) => `${name} ${gap1((goal as unknown as Record<string, number>)[k]!)}`).join(', ')}.` : ''}${hv ? ` ${hv}.` : ''}`;
 }
 
-/** The brackets in force: the slide's, less the HVPG once a stent is in (2D setSpans). */
-export function spansFor(want: readonly string[] | null | undefined, fp: Fp | null | undefined): Span[] {
+/** True for a slide whose catheter cannot enter a hepatic vein (its `cath` is 'blocked': Budd-Chiari). One test for every surface that would print what that catheter reads. */
+export const catheterBlocked = (slide: { cath?: string | null } | null | undefined): boolean => slide?.cath === 'blocked';
+
+/** The brackets that read a catheter in a hepatic vein: the HVPG, and the EUS-PPG whose needle goes through the same veins. */
+export const HEPATIC_VEIN_SPANS: readonly string[] = ['hvpg', 'eus'];
+
+/** The brackets in force: the slide's, less the HVPG once a stent is in (2D setSpans), and less the two that need a catheter in a hepatic vein on a slide whose catheter cannot enter one
+ *  (`blocked`: Budd-Chiari, the slide's `cath: 'blocked'`, whose words say these cannot be measured; capture 3531bdfa 26.10 printed "HVPG 0.3" under them). */
+export function spansFor(want: readonly string[] | null | undefined, fp: Fp | null | undefined, blocked = false): Span[] {
   const list = spansOf(want);
-  return hasStent(fp) ? spansStented(list) : list;
+  const open = blocked ? list.filter(([k]) => !HEPATIC_VEIN_SPANS.includes(k)) : list;
+  return hasStent(fp) ? spansStented(open) : open;
 }
 
 /** The ladder's height in its own layout, as 2D's CSS gives it (app-11 `--prof-h`): beside the words on a wide screen `min(max(62 % of the width, 28 pzh), 40 pzh) - 1.6 em`

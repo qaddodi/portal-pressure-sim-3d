@@ -3,6 +3,7 @@ import { Fragment, useMemo, type CSSProperties } from 'react';
 import type { EqPart, Slide } from '../../decks/schema.ts';
 import { Line } from './Line.tsx';
 import { sentences, pageOf } from './pages.ts';
+import { tieAbbreviations } from './title-breaks.ts';
 import { NameTab, nameTabOf } from './NameTab.tsx';
 import { SlideControls, LapseRow } from './SlideControls.tsx';
 import { ProcRow } from './ProcRow.tsx';
@@ -80,8 +81,8 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
     };
   }, [deck, slide, live, moves, liveStates, warm]);
   const titles = (Tag: 'h1' | 'h2', style?: CSSProperties) => many
-    ? <div className="pz-vars">{list.map((w) => { const on = idOf(w) === here; return <Tag key={idOf(w)} className="pz-h" style={style} data-var={on ? 'on' : 'off'} {...(on ? null : { 'aria-hidden': true, inert: true })}>{w.title}</Tag>; })}</div>
-    : <Tag className="pz-h" style={style}>{shown.title}</Tag>;
+    ? <div className="pz-vars">{list.map((w) => { const on = idOf(w) === here; return <Tag key={idOf(w)} className="pz-h" style={style} data-var={on ? 'on' : 'off'} {...(on ? null : { 'aria-hidden': true, inert: true })}>{tieAbbreviations(w.title)}</Tag>; })}</div>
+    : <Tag className="pz-h" style={style}>{tieAbbreviations(shown.title)}</Tag>;
   const lines = () => many
     ? <div className="pz-vars">{list.map((w) => { const on = idOf(w) === here, t = on ? text : pageOf(sentences(w.line), pages, page).join(' '), g = on ? f : cardFields(deck, slide, { ...slide, ...w }, page, pages); return t ? <p key={idOf(w)} className="pz-line" data-var={on ? 'on' : 'off'} {...(on ? null : { 'aria-hidden': true, inert: true })}><Line text={t} read={read} slide={rich} fp={fp} pill={g.pill} still={still} seen={seen} minus={live} raises={raises} /></p> : null; })}</div>
     : text ? <p className="pz-line"><Line text={text} read={read} slide={rich} fp={fp} pill={f.pill} still={still} seen={seen} minus={live} raises={raises} /></p> : null;

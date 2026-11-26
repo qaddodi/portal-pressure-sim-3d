@@ -17,6 +17,7 @@ import { useShown } from './shown-state.ts';
 import { CriteriaCard } from '../charts/criteria/CriteriaCard.tsx';
 import { PathCard } from '../charts/path/PathCard.tsx';
 import { ProfileCard } from '../charts/profile/ProfileCard.tsx';
+import { catheterBlocked } from '../charts/profile/model.ts';
 import { MenuCard } from '../charts/menu/MenuCard.tsx';
 import { CurveCard, warmCurve } from '../charts/curve/CurveCard.tsx';
 import { FluidCard } from '../charts/fluid/FluidCard.tsx';
@@ -147,7 +148,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     }
     case 'scores': return <ScoresCard facts={(tool.facts as never) ?? {}} albumin={(fp?.salb as number | null | undefined) ?? null} />;
     case 'path': return <PathCard of={tool.of as string | undefined} patient={(tool.patient as Rec | undefined) ?? null} fp={fp as never} room={room} />;
-    case 'profile': return <ProfileCard fp={fp as never} healthy={healthy as never} before={before as never} fromLabel={typeof tool.fromLabel === 'string' ? tool.fromLabel : 'Before'} spans={tool.spans as string[] | undefined} hold={!!cs.hold} room={room} />;
+    case 'profile': return <ProfileCard fp={fp as never} healthy={healthy as never} before={before as never} fromLabel={typeof tool.fromLabel === 'string' ? tool.fromLabel : 'Before'} spans={tool.spans as string[] | undefined} hold={!!cs.hold} blocked={catheterBlocked(cs)} room={room} />;
     case 'curve': case 'course': return <CurveCard tool={tool as never} slide={slideState} fpOf={fpOf as never} id={`${deck.id}/${slide.id}`} room={room} />;
     case 'menu': return <MenuCard rows={Array.isArray(tool.rows) ? (tool.rows as string[]) : null} slide={slideState} id={`${deck.id}/${slide.id}`} />;
     case 'fluid': return <FluidCard fp={fp as never} frame={frame as never} params={(params ?? patient.params) as never} window={!!tool.window} forces={!!tool.forces} caveat={!!tool.caveat} compare={(cs.compare as never) ?? null} />;

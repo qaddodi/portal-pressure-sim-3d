@@ -27,6 +27,8 @@ export interface ProfileCardProps {
   spans?: readonly string[];
   /** a question slide's hold: no red blocks and no brackets, the line and its numbers as they are */
   hold?: boolean;
+  /** the slide's catheter cannot enter a hepatic vein (Budd-Chiari): no HVPG or EUS-PPG bracket is drawn, they cannot be measured */
+  blocked?: boolean;
   /** the chart's height, px; absent: the stacked card's (74 % of the width up to 270, less 1.6 em), never under what the layout needs */
   height?: number;
   /** the ladder's cell variant (the instrument in a wide screen's grid cell) */
@@ -39,10 +41,10 @@ const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-r
 const empty: Frame = { w: 0, h: 0, shapes: [], label: '' };
 
 /** The pressure from gut to heart through the circuit's eight stations, the healthy line dashed beneath it, the liver's stations on a tint, the HVPG and PPG (and the EUS-PPG) as brackets. */
-export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Before', spans: want, hold = false, height, cell, room }: ProfileCardProps) {
+export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Before', spans: want, hold = false, blocked = false, height, cell, room }: ProfileCardProps) {
   const vpNow = useUi((st) => st.vp);   // (the ladder's height is the window's: a new height redraws it)
   const inp = useMemo(() => profileInputs(fp, healthy, before), [fp, healthy, before]);
-  const spans = useMemo(() => spansFor(want, fp), [want?.join(), fp]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const spans = useMemo(() => spansFor(want, fp, blocked), [want?.join(), fp, blocked]);  // eslint-disable-line react-hooks/exhaustive-deps
   const motion = useRef<ProfileMotion | null>(null);
   if (!motion.current) motion.current = new ProfileMotion();
   const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null), plan = useRef<ProfilePlan | null>(null), planKey = useRef('');

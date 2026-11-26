@@ -55,4 +55,8 @@ export function cardTitle(s: S, small: boolean): string {
   return t.replace(/-/g, '‑');
 }
 /** A title cut at its units ('Fluid balance · mL/day' → [words, unit, words]): the odd entries are units, each for a `.pz-unit` span (2D unitSpans). */
-export const titleUnits = titleParts as (text: string) => string[];
+const parts2d = titleParts as (text: string) => string[];
+/** A word that keeps its own case in a title set in capitals: a lower-case letter, then capitals ("cACLD"; "FIRST VISIT WITH CACLD" printed the c as a capital, capture 3531bdfa 28.8). */
+const MIXED_CASE = /(\b[a-z]+[A-Z]{2,}\b)/;
+/** A title cut at its units and its mixed-case acronyms: the odd entries keep their case (a `.pz-unit` span each), so the capitals the card sets its title in never change an acronym's own letters. */
+export const titleUnits = (text: string): string[] => parts2d(text).flatMap((p, i) => (i % 2 ? [p] : p.split(MIXED_CASE)));
