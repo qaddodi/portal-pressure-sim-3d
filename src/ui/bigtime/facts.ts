@@ -9,8 +9,8 @@ export function before(s: Series | null | undefined, day: number): number | null
   let i = -1; for (let k = 0; k < s.x.length; k++) { if (s.x[k]! < day - 1e-9) i = k; else break; }
   return i < 0 ? s.y[0]! : s.y[i]!;
 }
-/** The reading just before an action that acts at once (a tap, a band): the earlier of the two points its own day has (a step records one before and one after it), else the last reading before the day.
- *  A tap reads the belly of ITS day, not of the day before: the belly refills about 0.4 L a day, so yesterday's reading is not the volume the tap drained. */
+/** The reading just before an action that acts at once (a tap, a band): the earlier of the two points its own day has (a step records one before and one after it), else the last reading
+ *  before the day. A tap reads the belly of ITS day, not of the day before: the belly refills about 0.4 L a day, so yesterday's reading is not the volume the tap drained. */
 export function beforeAction(s: Series | null | undefined, day: number): number | null {
   if (!s || !s.x.length) return null;
   const k = s.x.findIndex((x) => Math.abs(x - day) < 1e-9);
