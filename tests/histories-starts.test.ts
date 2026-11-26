@@ -4,11 +4,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { COURSES } from '../src/ui/histories/courses.ts';
-import { playCourse, startPreset } from '../src/ui/histories/play.ts';
+import { startPreset } from '../src/ui/histories/play.ts';
 import { deepMerge, defaultParams } from '../src/engine/hales/portal/scenario.js';
 import type { Baked } from '../src/ui/histories/types.ts';
 
-const played = COURSES.map((c) => ({ c, b: playCourse(c) as Baked }));
+// (the baked records are what the page opens; tests/histories.test.ts keeps them equal to what the courses play, so this file need not replay twelve courses)
+const played = await Promise.all(COURSES.map(async (c) => ({ c, b: (await import(`../src/ui/histories/baked/${c.id}.generated.ts`)).baked as Baked })));
 const day0 = (b: Baked) => b.days[0]!.v;
 const settings = (b: Baked) => b.entries[0]!.params as Record<string, unknown>;
 
