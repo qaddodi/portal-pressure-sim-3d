@@ -78,7 +78,7 @@
  "src/entry.ts": 8,
  "src/looks/follow-device.ts": 2,
  "src/looks/looks.ts": 9,
- "src/main.tsx": 8,
+ "src/main.tsx": 7,
  "src/parity/ParityPage.tsx": 2,
  "src/parity/b1.ts": 3,
  "src/parity/b10.ts": 4,
