@@ -107,6 +107,17 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "After the TIPS"
    }
   ],
+  "play": {
+   "ramps": [
+    {
+     "key": "cirrhosis",
+     "from": 0,
+     "to": 55,
+     "a": 0.4,
+     "b": 0.86
+    }
+   ]
+  },
   "counts": {
    "events": 19,
    "medicines": 2
@@ -489,6 +500,17 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "Doppler finds it"
    }
   ],
+  "play": {
+   "ramps": [
+    {
+     "key": "stenosis.TIPS",
+     "from": 50,
+     "to": 185,
+     "a": 0,
+     "b": 0.5
+    }
+   ]
+  },
   "counts": {
    "events": 6,
    "medicines": 1
@@ -706,6 +728,17 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "Cured, the pressure persists"
    }
   ],
+  "play": {
+   "ramps": [
+    {
+     "key": "cirrhosis",
+     "from": 90,
+     "to": 480,
+     "a": 0.7,
+     "b": 0.62
+    }
+   ]
+  },
   "counts": {
    "events": 2,
    "medicines": 1
@@ -817,6 +850,24 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "Recompensated"
    }
   ],
+  "play": {
+   "ramps": [
+    {
+     "key": "cirrhosis",
+     "from": 0,
+     "to": 420,
+     "a": 0.85,
+     "b": 0.6
+    },
+    {
+     "key": "albumin",
+     "from": 0,
+     "to": 420,
+     "a": 2.8,
+     "b": 3.9
+    }
+   ]
+  },
   "counts": {
    "events": 2,
    "medicines": 2
@@ -1141,6 +1192,17 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "After delivery"
    }
   ],
+  "play": {
+   "ramps": [
+    {
+     "key": "gestation",
+     "from": 30,
+     "to": 254,
+     "a": 6,
+     "b": 38
+    }
+   ]
+  },
   "counts": {
    "events": 6,
    "medicines": 1

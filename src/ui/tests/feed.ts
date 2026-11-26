@@ -239,6 +239,8 @@ export class SampleFeed {
     const v: Record<string, number> = { hvpg: m.hvpg! };
     for (const t of TRACES) if (t.day) v[t.id] = m[t.day]!;
     Object.assign(v, dayExtras(f));   // (the timeline chart's own lanes: ascites, the shunt, the cardiac output, the varix: bigtime/day-keys.ts)
+    // (Playing the case: the days run along the course kept as the future, so they are its own points, laid in as the model reaches them, never a second copy that ends the course.)
+    if (this.replaying) { this.replayTo(f.day!); this.stepNext = false; return; }
     // (The patient moved past the moment History went back to, or the clock went back: the course after it is not this patient's any more.)
     if (this.future.length && this.futureAt != null && f.day! !== this.futureAt) this.dropFuture();
     const grew = recordDay(this.days, f.day!, v, this.stepNext);
@@ -248,6 +250,17 @@ export class SampleFeed {
   /** An action that moves a reading at once (a tap, a fluid) is a step, as a treatment is: the day's point before it stays as it was, and the next frame's starts a point of its own, so
    *  the calmed lane drops at the tap instead of smoothing it away (the Over time chart and the timeline's "right after" read the same record). */
   markStep() { this.stepNext = true; }
+  /** Playing a case (ui/case/run.ts): while on, the model's days are the course's own, kept as the future; each day the model reaches moves its points into the record. */
+  private replaying = false;
+  replay(on: boolean) { this.replaying = on; }
+  private replayTo(day: number) {
+    let n = 0;
+    while (n < this.future.length && this.future[n]!.day <= day + 1e-9) n++;
+    if (!n) return;
+    this.days.push(...this.future.splice(0, n));
+    this.futureAt = this.future.length ? day : null;
+    this.daysVer++;
+  }
   /** History is restoring the entry of this day: the record keeps its points up to it, not the later ones. */
   keepDaysTo(day: number) { this.keepTo = day; }
   /** Something new was done at the moment History went back to (timeline.ts truncateFuture): the days after it go, as the entries after it do. */
@@ -314,5 +327,5 @@ export function startFeed(): void {
 export const record = {
   get t() { return feed.t; }, get ch() { return feed.ch; }, get binT() { return feed.binT; }, get bin() { return feed.bin; }, get beats() { return feed.beat.times; },
   get days() { return feed.days; }, get daysVer() { return feed.daysVer; }, keepDaysTo: (day: number) => feed.keepDaysTo(day), calm: (key: string) => feed.calmOf(key),
-  get future() { return feed.future; }, dropFuture: () => feed.dropFuture(), markStep: () => feed.markStep(),
+  get future() { return feed.future; }, dropFuture: () => feed.dropFuture(), markStep: () => feed.markStep(), replay: (on: boolean) => feed.replay(on),
 };

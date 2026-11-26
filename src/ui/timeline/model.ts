@@ -34,7 +34,8 @@ export interface TimelineHost {
   /** the worker's snapshot of the model now (null or a throw: it could not be taken) */
   snapshot(): Promise<Snap | null>;
   /** put the model back as the snapshot had it, and the page's copy of its parameters */
-  restore(snap: Snap): void;
+  /** put the model back to a kept state: at once (a jump, the figure switching as for a new patient), or eased over `ease` ms (playing a case lands on its next stop) */
+  restore(snap: Snap, ease?: number): void;
   /** the newest frame, and the parameters now */
   frame(): EngineFrame | null;
   params(): unknown;
@@ -230,11 +231,11 @@ export class Timeline {
   }
 
   // ---- going back ----
-  goTo(i: number, { quiet = false } = {}): boolean {
+  goTo(i: number, { quiet = false, ease = 0 } = {}): boolean {
     const e = this.entries_[i];
     if (!e?.snap) return false;
     this.flush();
-    this.host.restore(e.snap);
+    this.host.restore(e.snap, ease > 0 ? ease : undefined);
     this.baseline = clone(e.snap.params);
     this.cursor_ = i === this.liveIndex() && !this.entries_.slice(i + 1).length ? -1 : i;
     if (!quiet) this.host.say(`Back to: ${e.label}`);

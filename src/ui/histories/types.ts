@@ -1,5 +1,6 @@
 // The shapes of a model patient's history (the Histories tab). A course is the script the generator plays on the real engine (courses.ts); what comes out is baked (baked/*.generated.ts):
 // the day-by-day record the timeline chart draws, History's entries, and the model's state today (a snapshot the worker restores). Plain data: no engine, no page.
+import type { CaseRamp, CaseStopBaked, CaseStopIn } from '../case/types.ts';
 
 /** What one scripted step does on its day (the engine is driven exactly as the page's buttons drive it). */
 export interface Step {
@@ -48,6 +49,8 @@ export interface Course {
   path: string;
   /** what the row's second line says about the patient today, in order */
   state: ('tips' | 'hvpg' | 'ppg' | 'meds' | 'ascites' | 'clot')[];
+  /** playing the case (ui/case): the stops whose default shot is not right, or that are dropped (every key moment is a stop by default) */
+  play?: { stops?: CaseStopIn[] };
 }
 
 export interface DaySample { day: number; v: Record<string, number>; start?: boolean }
@@ -87,5 +90,7 @@ export interface HistoryMeta {
   marks: { day: number; word: string; tone: Tone | 'change' }[];
   /** the story's chapters, each from the day of the step or ramp it is anchored to (timeline/story.ts) */
   chapters?: { from: number; label: string }[];
+  /** playing the case: the course's ramps (the disease between stops) and its own stops, anchored to their days */
+  play?: { ramps?: CaseRamp[]; stops?: CaseStopBaked[] };
   counts: { events: number; medicines: number };
 }

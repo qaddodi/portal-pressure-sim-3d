@@ -51,7 +51,14 @@ async function advanceUntilEvent(): Promise<void> {
 
 /** Going back (or forward) to a moment is a switch of the figure, like opening a patient: the numbers roll to the moment's instead of landing at once, and the days after it
  *  are kept as the future (the feed keeps them until a change branches the patient). The curtain lands on the first frame of the restored state. */
-function restoreThrough(snap: Snap): void {
+function restoreThrough(snap: Snap, ease?: number): void {
+  // (eased: the model blends onto the moment, as a slide's time-lapse lands (the worker's 'morph'); the numbers follow the frames, so no switch is shown)
+  if (ease) {
+    record.keepDaysTo(snap.day);
+    engine().send({ type: 'morph', snap, ms: ease });
+    setParams(sanitizeParams(snap.params));
+    return;
+  }
   switchBegins();
   record.keepDaysTo(snap.day);
   const off = onFrame((f) => { if (f.jump) { off(); switchLands(); } });
@@ -61,7 +68,7 @@ function restoreThrough(snap: Snap): void {
 
 const host: TimelineHost = {
   snapshot: async () => ((await engine().request({ type: 'snapshot' })) as unknown as { snap?: Snap }).snap ?? null,
-  restore: (snap) => restoreThrough(snap),
+  restore: (snap, ease) => restoreThrough(snap, ease),
   branched: () => record.dropFuture(),
   frame: () => latest.frame,
   params: () => patient.params,
