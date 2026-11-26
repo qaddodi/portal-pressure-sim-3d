@@ -18,12 +18,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
 /** Every file under `dir` as a path relative to it, '/'-separated, without the worker itself, the build note the tester guides (two 2.6 MB PDFs testers open from a link: not worth holding offline)
+ *  the About flyer (about/, a 2 MB PDF opened from a link)
  *  and the printed notes' pictures (brand/handout/, 14 MB, asked for only when a person prints a talk's notes: never part of the first load or of an install). */
 export function listFiles(dir) {
   const out = [];
   const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else out.push(relative(dir, p).split('\\').join('/')); } };
   walk(dir);
-  return out.filter((f) => f !== 'sw.js' && f !== 'build-info.txt' && !f.startsWith('guides/') && !f.startsWith('brand/handout/')).sort();
+  return out.filter((f) => f !== 'sw.js' && f !== 'build-info.txt' && !f.startsWith('guides/') && !f.startsWith('about/') && !f.startsWith('brand/handout/')).sort();
 }
 
 /** The figure's data files, which the build names by content under assets/ (scripts/hash-data.mjs): a script that names one needs it, as it needed the fixed name before. */
