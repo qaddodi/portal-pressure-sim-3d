@@ -1,6 +1,6 @@
 // The HVPG deck as the 3D app plays it: all 13 slides of the 2D deck, in the 2D order. The four slides of the first slice (route, free, wedge, hvpg) keep their plates:
-// a named camera shot, the catheter and the ladder card (hvpg.copied.ts, written by scripts/copy-decks.mjs, plus the 3D fields below). The other nine are planned from the
-// 2D deck's own fields by batch B13b (src/decks/hp), exactly as every other ported deck; their numbers, like the slice's, come from each slide's own state.
+// a named camera shot, the catheter and the ladder card (hvpg.copied.ts, written by scripts/copy-decks.mjs, plus the 3D fields below). Their words are the planned deck's.
+// The other nine are planned from the 2D deck's own fields by batch B13b (src/decks/hp), exactly as every other ported deck; their numbers, like the slice's, come from each slide's own state.
 
 import { HVPG_COPIED } from './hvpg.copied.ts';
 import type { Deck, Slide, ShotName } from './schema.ts';
@@ -34,7 +34,12 @@ export const HVPG_DECK: Deck = (() => {
   const full = toDeck(withOverlay(HVPG_2D));
   // (the slice's slides keep their plates; the fields the cards carry beyond the words come from the 2D deck's own slide: the level tab, the guidelines side by side, the causes, the beats)
   const CARD_FIELDS = ['site', 'rail', 'sides', 'pill', 'causes', 'causesHead', 'beats', 'tool'] as const;   // ('tool': the HVPG monitor the free, wedge and result slides ask for; the slice's plates left it out, so its card was the pressures alone)
-  for (const [id, p] of plates) { const f = full.slides.find((x) => x.id === id); if (f) for (const k of CARD_FIELDS) if (k in f) (p as unknown as Record<string, unknown>)[k] = f[k]; }
+  // (the slice's words are the planned deck's, never a second copy: a review's edit to a slide's words (scripts/source-edits.mjs) reaches the one copy only, so the slice read the old text until now)
+  const WORDS = ['kicker', 'title', 'line', 'notes', 'ask', 'caveat', 'cite', 'vignette', 'question'] as const;
+  for (const [id, p] of plates) {
+    const f = full.slides.find((x) => x.id === id);
+    if (f) for (const k of [...CARD_FIELDS, ...WORDS]) if (k in f) (p as unknown as Record<string, unknown>)[k] = f[k as keyof typeof f];
+  }
   for (const id of plates.keys()) if (!full.slides.some((s) => s.id === id)) throw new Error(`the slice's slide "${id}" is not in the 2D deck`);
   // (the quick check is the 2D deck's four questions: the check card pages them on an iPhone on its side, cards/CheckCard.tsx)
   return { ...full, slides: full.slides.map((s) => plates.get(s.id) ?? s) };
