@@ -8,11 +8,12 @@ import { entriesOf } from '../src/ui/histories/entries.ts';
 import { Timeline, type TimelineHost, type Snap } from '../src/ui/timeline/model.ts';
 import { viewOf } from '../src/ui/timeline/story-view.ts';
 import { stopsOf } from '../src/ui/case/stops.ts';
+import type { Stop } from '../src/ui/case/types.ts';
 import { caseViewOf } from '../src/ui/case/view.ts';
-import { caseAxis, placeNames, stopAtFrac, stripNeeds } from '../src/ui/case/strip.ts';
+import { caseAxis, placeNames, stopAtFrac, stripNames, stripNeeds, NAME_GAP } from '../src/ui/case/strip.ts';
 import { caseLiftFor, caseRoom, CASE_BAR_H, CASE_BAR_ROWS, CASE_BAR_THUMB_H, CASE_STRIP_H } from '../src/ui/case/room.ts';
 import { M } from '../src/ui/shell/metrics.ts';
-import { barWords, chapterAt, continueWords, dragWords, inDays, kickerWords, passedNotes, shortName, shotWords, travelWords, lookSide } from '../src/ui/case/words.ts';
+import { barWords, chapterAt, continueWords, dragWords, inDays, kickerWords, passedNotes, shortName, SHORT_MAX, shotWords, travelWords, lookSide } from '../src/ui/case/words.ts';
 
 const host = (): TimelineHost => ({
   snapshot: async () => ({ t: 0, day: 0, params: {} }), restore: (_s: Snap) => undefined,
@@ -76,7 +77,7 @@ test('the strip: a short name over each stop, the stop tones from the story, and
   assert.equal(cv.tones[5], 'danger', 'the bleed is red');
   assert.equal(cv.tones[6], 'change', 'the TIPS is a change');
   assert.equal(cv.tones[0], 'info');
-  assert.equal(shortName({ type: 'key', title: 'Ascites, grade 2 now' }), 'Ascites,', 'a long title keeps its first words, at most 12 letters');
+  assert.equal(shortName({ type: 'key', title: 'Ascites, grade 2 now' }), 'Ascites', 'a long title is cut where it pauses, never on its comma');
   const axis = caseAxis(v.marks.map((k) => k.day), v.full);
   for (const d of [0, 18, 40, 70, 73, 100, 120]) assert.ok(Math.abs(axis.dayAt(axis.frac(d)) - d) < 1e-6, `Day ${d}: the place and the day agree`);
   assert.equal(axis.dayAt(0), v.full[0]);
@@ -94,6 +95,67 @@ test('the names over the strip never touch: one that would is left out, the stop
   assert.ok(Number.isNaN(xs[2]!), 'touches the kept name after it: left out');
   assert.equal(xs[3], 120, 'the stop the case is at keeps its name');
   assert.equal(xs[4], 280, 'held inside the strip');
+});
+
+test('the names keep the gap: the stops that say something win over the start and today, and the stop the case is at never leaves', () => {
+  const items = [{ x: 4, w: 30, first: true, low: true }, { x: 40, w: 30 }, { x: 300, w: 40, keep: true }, { x: 310, w: 40, low: true }];
+  const xs = placeNames(items, 400);
+  assert.ok(Number.isNaN(xs[0]!), 'the start gives way to a name that says something (" Start TIPS" read as one phrase)');
+  assert.equal(xs[1], 25);
+  assert.equal(xs[2], 280);
+  assert.ok(Number.isNaN(xs[3]!), 'today touches the kept name');
+  const near = placeNames([{ x: 10, w: 30, first: true }, { x: 50, w: 30, first: true }], 300);
+  assert.ok(Number.isNaN(near[1]!), 'less than NAME_GAP between two names: one is left out');
+  assert.ok(NAME_GAP >= 8);
+});
+
+// (capture 0bc14020, owner: names cut mid-phrase ("Angioplasty," "Pregnant, 6" "Intra-abdominal") and names run together ("Start TIPS"). Root cause: a name was the title's first words up to 12
+// letters, and the strip drew them a space apart. Now a name is cut where its title pauses, and the strip keeps clear air between names, on every course at every strip width.)
+const COURSES = HISTORIES.map((h) => h.id);
+async function stopsOfCourse(id: string): Promise<{ stops: Stop[]; keyDays: number[]; full: [number, number] }> {
+  const b = await LOAD[id]!();
+  const meta = HISTORIES.find((h) => h.id === id)!;
+  const tl = new Timeline(host());
+  tl.adopt(entriesOf(b, meta.name), b.snap.params);
+  const v = viewOf({ tl, days: b.days, future: [], hidden: null, labelsOf: () => new Map(), chapters: meta.chapters ?? null });
+  return { stops: stopsOf(v.chapters, tl.entries(), meta.play?.stops ?? []), keyDays: v.marks.map((k) => k.day), full: [v.full[0], v.full[1]] };
+}
+const DANGLING = /^(?:a|an|the|of|to|in|on|at|for|and|or|with|after|before|from|by|than|is|are|\d[\d.,]*|mm|ml|l|cm|%|weeks?|days?)$/i;
+
+test('every stop of every course has a name that ends on a word: no punctuation, no bare number or unit, no joining word, and none longer than the limit', async () => {
+  assert.equal(COURSES.length, 12);
+  for (const id of COURSES) {
+    const { stops } = await stopsOfCourse(id);
+    for (const s of stops) {
+      const n = shortName(s);
+      assert.ok(n.length > 0 && n.length <= SHORT_MAX, `${id} "${s.title}": "${n}" fits ${SHORT_MAX} letters`);
+      assert.ok(!/[\s,:;.(\-\u2013\u2014]$/.test(n), `${id} "${s.title}": "${n}" ends on punctuation`);
+      assert.ok(!DANGLING.test(n.split(' ').pop()!), `${id} "${s.title}": "${n}" ends on a number, a unit or a joining word`);
+    }
+  }
+  const t = (title: string) => shortName({ type: 'key', title });
+  assert.equal(t('Angioplasty, right hepatic vein'), 'Angioplasty');
+  assert.equal(t('Pregnant, 6 weeks'), 'Pregnant');
+  assert.equal(t('Intra-abdominal hypertension'), 'IAH');
+  assert.equal(t('Tricuspid repair and heart failure treatment'), 'Tricuspid repair');
+  assert.equal(t('Diuretics stopped'), 'Diuretics stopped', 'a stop that ends a medicine is not named as one that starts it');
+  assert.equal(t('Cured (SVR12)'), 'Cured');
+  assert.equal(t('Doppler shows a narrowed TIPS'), 'Doppler');
+});
+
+test('on every course, at the Mac and iPad strip widths, no two names touch, every name is inside the strip, and the stop the case is at keeps its own', async () => {
+  // (the strip is the bar less the buttons, the day and Leave: about 960 px on a 1440 Mac, 800 on a 1280, and 540 to 700 on an iPad on its side)
+  for (const id of COURSES) {
+    const { stops, keyDays, full } = await stopsOfCourse(id);
+    const short = stops.map(shortName);
+    for (const W of [540, 700, 800, 960]) for (let at = 0; at < stops.length; at++) {
+      const boxes = stripNames({ keyDays, full, at, stops: stops.map((s, i) => ({ day: s.day, tone: 'info' as const, short: short[i]! })) }, W);
+      assert.ok(boxes[at], `${id} @${W}: stop ${at + 1} keeps its name`);
+      const shown = boxes.filter((b): b is { x: number; w: number } => !!b).sort((a, b) => a.x - b.x);
+      for (const b of shown) assert.ok(b.x >= 0 && b.x + b.w <= W + 1e-6, `${id} @${W}: a name stays inside the strip`);
+      for (let k = 1; k < shown.length; k++) assert.ok(shown[k]!.x >= shown[k - 1]!.x + shown[k - 1]!.w + NAME_GAP - 1e-6, `${id} @${W} at ${at}: two names touch`);
+    }
+  }
 });
 
 test('the bar lifts the foot by what it takes over the play bar\'s row, the same on every sum (the figure\'s room, the cards on the dock, the zoom and view pills)', () => {
