@@ -88,10 +88,16 @@ export function resolveNeed(pane: PaneId, i: Omit<NeedIn, 'note'>, half: number,
   return { needH: headH + without, noteAside: without < withNote };
 }
 
-/** The Tests card's place with the open pane's least content held: the one composition TestsLayer and the tests read. A side card (no Half) is placed as it is. */
-export function fitPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts, pane: PaneId, organ: 'liver' | 'spleen'): { place: TestsPlace; noteAside: boolean } {
+/** The Tests card's place with the open pane's least content held: the one composition TestsLayer and the tests read. A side card (no Half) is placed as it is.
+ *  `scrollMin` is the fallback for a pane whose least still does not fit the sheet as it stands (Half grown as far as it may, or Full): the pane's view keeps that height (its body less the card's
+ *  padding) and the pane scrolls inside the card, by 2D's own `.dock-pane { overflow: hidden auto }`, instead of clipping its last rows. 0 when the pane fits. */
+export function fitPlace(
+  vp: Viewport, device: DeviceClass, o: PlaceOpts, pane: PaneId, organ: 'liver' | 'spleen',
+): { place: TestsPlace; noteAside: boolean; scrollMin: number } {
   const base = testsPlace(vp, device, o);
-  if (base.kind !== 'sheet' || !base.stops) return { place: base, noteAside: false };
+  if (base.kind !== 'sheet' || !base.stops) return { place: base, noteAside: false, scrollMin: 0 };
   const { needH, noteAside } = resolveNeed(pane, { w: vp.w, h: vp.h, organ }, base.stops[0], base.stops[1], HEAD_H);
-  return { place: needH ? testsPlace(vp, device, { ...o, needH }) : base, noteAside };
+  const place = needH ? testsPlace(vp, device, { ...o, needH }) : base;
+  const short = needH > place.rect.h && o.sheetSize !== 2;
+  return { place, noteAside, scrollMin: short ? needH - HEAD_H - AROUND.pad : 0 };
 }
