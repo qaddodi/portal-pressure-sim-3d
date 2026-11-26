@@ -11,6 +11,7 @@ const SURFACES = [
   '.topbar .tb-face', '.topbar .float-pill', '.zoom-pill', '.vdock > .vd-face', '.nb-views > .vp-face',
   '.sh-sheet', '.sh-pop', '.sh-dialog', '.dk-jump', '.toast', '.sh-toast', '.modal', '.pal', '.why-pop',
   '.tr-card', '.ac-card', '.t-card', '.cmp-banner', '.dk-card', '.dk-strip', '.pz-shade', '.pz-data', '.pz-case', '.pz-scales', '.pz-fk', '.lb-key',
+  '.case-bar', '.cs-card', '.cs-pass', '.cs-own', '.sh-waitcue', '.pz-jump',
 ];
 test('the one glass lists every panel, menu, pill and card', () => {
   for (const s of SURFACES) assert.ok(bare.includes(s), `${s} is not in glass.css`);
@@ -84,3 +85,38 @@ test('the glass weigher sees an id', () => {
   const glass: [number, number, number] = [0, 1, 1];   // html:not([data-noglass]) :where(...)
   assert.ok(higher(weigh('.topbar #viewSeg'), glass) > 0, 'the weigher sees an id');
 });
+
+// The root of "the blur is messed up" (owner, 26 Nov, playing a case on the iPhone): a new panel over the figure painted its own solid fill and never joined the list, and nothing said so.
+// Now every panel a stylesheet floats over the figure (placed absolutely, with a surface or glass fill and the sheet's or a card's corners) is in the glass list, or named here with why not.
+const NOT_GLASS: readonly [RegExp, string][] = [
+  [/^\.vdock$/, 'the dock: its face (.vdock > .vd-face) is its glass, so the view pill above it is not nested in a glass'],
+  [/^\.treat-card$/, 'Treat: its sheet plate (.tr-card > .sheet-plate) is the glass, so its height can glide'],
+  [/^\.action-card$/, 'the action card: its plate (.ac-card > .ac-plate) is the glass'],
+  [/^\.um-pv$/, 'the menu row preview: glass when it is on (.um-pv.on)'],
+  [/^\.tool-card$/, "2D's tool card: no 3D component renders it"],
+];
+test('every panel floated over the figure wears the one glass, or says why not', () => {
+  const list = [...bare.matchAll(/:where\(([\s\S]*?)\n  \) \{/g)][0]![1]!.replace(/\/\*[\s\S]*?\*\//g, '');
+  const inList = new Set(list.split(',').map((x) => x.trim().replace(/\s+/g, ' ')));
+  const files = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? files(p) : p.endsWith('.css') && !p.endsWith('glass.css') ? [p] : []; });
+  const strays: string[] = [];
+  for (const f of files('src/ui')) {
+    const t = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const m of t.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const b = m[2]!;
+      if (!/position:\s*(absolute|fixed)/.test(b) || !/background(-color)?:\s*var\(--(surface|glass|glass-tint)\)/.test(b) || !/border-radius:\s*var\(--r-(sheet|card)\)/.test(b)) continue;
+      for (const sel of m[1]!.split(',').map((x) => x.trim().replace(/\s+/g, ' '))) {
+        const glassed = [...inList].some((g) => g === sel || g.startsWith(`${sel}:`) || g.startsWith(`${sel} >`) || g.startsWith(`${sel}.`));
+        if (!glassed && !NOT_GLASS.some(([re]) => re.test(sel))) strays.push(`${f}: ${sel}`);
+      }
+    }
+  }
+  assert.deepEqual(strays, [], 'a panel over the figure with a solid fill: put it in the glass list (glass.css), or say here why it is not glass');
+});
+test('playing a case: on a phone the tab row keeps the glass while the dock\'s face steps aside for the case bar', () => {
+  const caseCss = readFileSync('src/ui/case/case.css', 'utf8');
+  assert.match(caseCss, /\.app\.thumb\.case-on \.vdock:not\(\.mini\) > :is\(\.vd-face/, 'the face steps aside');
+  assert.ok(bare.includes('.app.thumb.case-on .vdock:not(.mini) > .thumb-bar'), 'the tab row wears the glass');
+  assert.doesNotMatch(caseCss.replace(/\/\*[\s\S]*?\*\//g, ''), /\.cs-passing\[data-on="true"\] \{[^}]*opacity/, 'the notes\' wrapper never fades (the notes fade themselves)');
+});
+

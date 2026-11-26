@@ -4,8 +4,8 @@
 // back until it has stopped (capture 2274649a: one
 // picture of Albumin 3 "Needle out" said "0.4 L removed", the same slide on another device "0.8 L removed"). Pure, so tests/capture-still.test.ts runs it without a page.
 
-/** The parts of the page that print readings: the cards, the instrument cards, the callouts' layer, the strips. */
-export const READING_ROOTS = '.dk-card, .dk-plate, .pz-data, .pz-shade, .pz-panel, .pz-case, .instrument-view, .lb-layer, .vdock, .dk-strip';
+/** The parts of the page that print readings: the cards, the instrument cards, the callouts' layer, the strips, and a playing case's bar and stop cards. */
+export const READING_ROOTS = '.dk-card, .dk-plate, .pz-data, .pz-shade, .pz-panel, .pz-case, .instrument-view, .lb-layer, .vdock, .dk-strip, .case-layer';
 /** What is never a reading of the slide: the tool's own panels and the toast. */
 export const READING_SKIP = '[data-debug], [data-capture-skip], .sh-toast';
 

@@ -19,10 +19,14 @@ import { dayReadings, type Chapter, type Item, type Moment, type Numbers } from 
 import { viewOf, momentKey, type View } from '../timeline/story-view.ts';
 import { stripScene, stripAxis, stripReading, STRIP_METRICS, type StripMetric } from '../timeline/strip.ts';
 import { STORY } from '../timeline/story-words.ts';
-import { chaptersOf } from '../histories/meta.ts';
+import { chaptersOf, isHistory } from '../histories/meta.ts';
 import { fmt } from '../charts/fmt.ts';
 import { isThumb } from '../shell/thumb.ts';
 import { useUi } from '../ui-store.ts';
+import { useCase } from '../case/store.ts';
+import { playCase, showInCase } from '../case/doors.ts';
+import { I } from '../shell/icons.tsx';
+import { Fade } from '../fade.tsx';
 
 /** the reading the strip shows, kept while the page is open */
 export const useStoryMetric = create<{ metric: StripMetric | null }>(() => ({ metric: null }));
@@ -41,7 +45,8 @@ function useView(on: boolean): View {
 }
 
 const ROWS_TONE = (r: { k: string; up?: boolean; a?: number }): string => (r.a == null || r.k === 'shunt' ? '' : r.up ? 'up' : 'down');
-function Nums({ n }: { n: Numbers }) {
+/** The readings before and after a change, or on the day (the moment card's; the case's stop card shows the same). */
+export function Nums({ n }: { n: Numbers }) {
   if (!n.rows.length) return null;
   return (
     <div className="hs-nums">
@@ -70,7 +75,8 @@ function Acts({ m, here }: { m: Moment; here: boolean }) {
   if (go < 0 && !pin) return null;
   return (
     <div className="hs-acts">
-      {go >= 0 && <button type="button" className="hs-go" onClick={() => { if (isThumb()) useShell.getState().close(); timeline.goTo(go); }}>{STORY.show}</button>}
+      {/* (while a case plays, the figure goes to that moment's stop and the case waits there: case/doors.ts) */}
+      {go >= 0 && <button type="button" className="hs-go" onClick={() => { if (isThumb()) useShell.getState().close(); if (!showInCase(go, m.day)) timeline.goTo(go); }}>{STORY.show}</button>}
       {pin && <Compare e={pin} />}
     </div>
   );
@@ -80,6 +86,21 @@ function Compare({ e }: { e: Entry }) {
 }
 
 const Then = ({ t }: { t: Item }) => <li data-tone={t.tone}><b>{t.title}</b>{t.detail ? ` · ${t.detail}` : ''}{t.also.length ? ` · ${t.also.join(' · ')}` : ''}</li>;
+
+/** What a moment says under its title: its detail (or a course's own line, `say`), what else that day, what followed, the smaller changes and the numbers.
+ *  History's card and the case's stop card both. */
+export function MomentWords({ m, v, say = null }: { m: Extract<Moment, { type: 'start' | 'key' | 'today' }>; v: View; say?: string | null }) {
+  const head = m.head, nums = m.type === 'key' ? m.nums : dayReadings(v.series, m.day);
+  return (
+    <>
+      {say ? <p>{say}</p> : head?.detail ? <p>{head.detail}</p> : null}
+      {head && head.also.length > 0 && <p className="hs-also">{head.also.join(' · ')}</p>}
+      {m.type === 'key' && m.then.length > 0 && <ol className="hs-then">{m.then.map((t) => <Then key={t.i} t={t} />)}</ol>}
+      {m.type === 'key' && m.minor > 0 && <p className="hs-minor">{STORY.smaller(m.minor)}</p>}
+      <Nums n={nums} />
+    </>
+  );
+}
 
 function MomentCard({ m, v, n, here }: { m: Moment; v: View; n: number; here: boolean }) {
   const common = { 'data-moment': momentKey(m), 'data-day': m.day, 'data-n': n, 'data-future': m.future || undefined, 'data-here': here || undefined };
@@ -99,21 +120,15 @@ function MomentCard({ m, v, n, here }: { m: Moment; v: View; n: number; here: bo
     );
   }
   const kind = m.type === 'start' ? STORY.start : m.type === 'today' ? STORY.today : m.kind;
-  const head = m.type === 'today' ? m.head : m.head;
   const title = m.type === 'start' ? HIST.patient(m.head.title) : m.type === 'today' ? (m.head?.title ?? STORY.now) : m.head.title;
   const tone = m.type === 'key' ? m.head.tone : 'info';
-  const nums = m.type === 'key' ? m.nums : dayReadings(v.series, m.day);
   return (
     <article className="hs-mo key" data-tone={tone} {...common}>
       <div className="hs-when">{STORY.day(m.day)}</div><i className="hs-node" />
       <div className="hs-body">
         <span className="hs-kick">{kind}</span>
         <h4>{title}</h4>
-        {head?.detail && <p>{head.detail}</p>}
-        {head && head.also.length > 0 && <p className="hs-also">{head.also.join(' · ')}</p>}
-        {m.type === 'key' && m.then.length > 0 && <ol className="hs-then">{m.then.map((t) => <Then key={t.i} t={t} />)}</ol>}
-        {m.type === 'key' && m.minor > 0 && <p className="hs-minor">{STORY.smaller(m.minor)}</p>}
-        <Nums n={nums} />
+        <MomentWords m={m} v={v} />
         <Acts m={m} here={here} />
       </div>
     </article>
@@ -175,6 +190,19 @@ function Strip({ v, metric, day, setMetric }: { v: View; metric: StripMetric; da
   );
 }
 
+/** "Play the case" for a model patient on the page (not while its case is already playing: the case bar holds it then; it eases out and gives its room back). On a phone the sheet
+ *  goes once the case starts, so the figure is seen. */
+function PlayCase() {
+  const preset = useEngine((s) => s.presetId), playing = useCase((s) => s.phase === 'stop' || s.phase === 'travel');
+  const id = preset && isHistory(preset) ? preset : null;
+  const play = () => { if (id) void playCase(id).then((ok) => { if (ok && isThumb()) useShell.getState().close(); }); };
+  return (
+    <Fade as="div" axis="y" className="hs-case" on={!!id && !playing}>
+      <span className="hs-case-row"><button type="button" className="btn sm primary" onClick={play}><I n="play" className="mi-ic" />{STORY.play}</button></span>
+    </Fade>
+  );
+}
+
 export function HistoryList() {
   const open = useShell((s) => s.sheet === 'history');
   const v = useView(open);
@@ -227,6 +255,7 @@ export function HistoryList() {
   let n = 0;
   return (
     <div ref={story} className="hs-story">
+      <PlayCase />
       {metric && <Strip v={v} metric={metric} day={day} setMetric={(id) => useStoryMetric.setState({ metric: id })} />}
       <div ref={list} className="hs-list" onClick={pick}>
         {v.chapters.map((c, k) => { const b = <ChapterBlock key={`${c.from}:${c.label}`} c={c} v={v} first={k === 0} n0={n} aheadAt={aheadAt} />; n += c.moments.length; return b; })}

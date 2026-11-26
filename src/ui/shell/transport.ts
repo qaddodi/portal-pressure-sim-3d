@@ -5,6 +5,7 @@ import { clock } from '../../clock/frame.ts';
 import { useShell } from './store.ts';
 import { jumpAhead } from '../timeline/index.ts';
 import { restartPatient } from '../patients/index.ts';
+import { guarded } from '../case/guard.ts';
 
 /** 2D: timeline.js fmtClock. A day count once days have passed; minutes and seconds (or hours) before. */
 export function fmtClock(t: number, day: number): string {
@@ -13,7 +14,13 @@ export function fmtClock(t: number, day: number): string {
   return m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 }
 
-export const play = (running: boolean) => engine().send({ type: 'run', running });
+/** the disease clock is the one the play bar runs (its days change the patient's course; the heart's seconds do not) */
+const daysRun = (): boolean => useShell.getState().transport.lapse > 0;
+/** Play or pause. Running the disease clock in a case asks first (case/guard.ts); pausing never does. */
+export const play = (running: boolean): void => {
+  const go = () => engine().send({ type: 'run', running });
+  if (running && daysRun()) guarded('time', '', go); else go();
+};
 /** (the LIVE model's running state: the shown frame is a pinned one in Compare's Then and a forged one in Force, and says nothing about the model) */
 export const togglePlay = () => play(!(live.frame?.running ?? useShell.getState().transport.running));
 /** A speed just asked for: the next frames may still carry the old one (they were posted before the worker saw the message), so the pill keeps the asked value until a frame agrees or this runs out. */
@@ -24,7 +31,12 @@ export function askSpeed(v: number, lapse: boolean): void {
   useShell.setState({ transport: { ...useShell.getState().transport, speed: lapse ? useShell.getState().transport.speed : v, lapse: lapse ? v : 0 } });
   asked = { speed: v, clock: lapse ? 'disease' : 'hemo', until: clock.now() + ASK_MS };
 }
-export function setSpeed(v: number, lapse: boolean) {
+export function setSpeed(v: number, lapse: boolean): void {
+  // (the days running already, a new pace of them is the disease clock run: in a case it asks first)
+  if (lapse && v > 0 && (live.frame?.running ?? useShell.getState().transport.running)) { guarded('time', '', () => { sendSpeed(v, lapse); }); return; }
+  sendSpeed(v, lapse);
+}
+function sendSpeed(v: number, lapse: boolean): void {
   askSpeed(v, lapse);
   engine().send(lapse ? { type: 'run', speed: v, clock: 'disease' } : { type: 'run', speed: v, clock: 'hemo' });
 }
@@ -32,7 +44,10 @@ export function setSpeed(v: number, lapse: boolean) {
 export const jump = (days: number | 'event') => jumpAhead(days);
 export const settle = () => engine().send({ type: 'settle' });
 export const restart = () => { void restartPatient(); };
-export const step = () => { engine().send({ type: 'run', running: true }); clock.after(() => engine().send({ type: 'run', running: false }), 60); };
+export const step = (): void => {
+  const go = () => { engine().send({ type: 'run', running: true }); clock.after(() => engine().send({ type: 'run', running: false }), 60); };
+  if (daysRun()) guarded('time', '', go); else go();
+};
 
 /** Start mirroring the engine into the store (call once, after the engine has booted). The clock's engine phase reads the newest frame; the store changes only
  *  when the running state, the speed or the clock's words do. Returns the remover. */

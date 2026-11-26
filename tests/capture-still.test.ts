@@ -40,7 +40,7 @@ test('what changed is named by the segments that are new', () => {
 });
 test('the instrument cards and the tiles are among the places read and watched for animation', () => {
   for (const s of ['.dk-card', '.pz-data', '.instrument-view', '.lb-layer']) assert.ok(READING_ROOTS.includes(s), s);
-  const src = readFileSync(new URL('../src/ui/debug/audit/capture-all.ts', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../src/ui/debug/audit/capture-settle.ts', import.meta.url), 'utf8');
   assert.match(src, /const CONTENT = `\$\{READING_ROOTS\}/);   // (the running-animation check looks in the same places: the Abdomen's belly slides on a CSS transition)
   assert.match(src, /readingWatch\(/);
   assert.match(src, /watch\.see\(readingsNow\(\)/);

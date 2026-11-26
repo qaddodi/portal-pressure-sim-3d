@@ -61,7 +61,8 @@ test('a history\'s moments can be shown on the figure; Undo and Redo walk only t
   const tl = new Timeline(host(log));
   tl.adopt(entriesOf(b, 'x'), b.snap.params);
   const es = tl.entries();
-  const moment = es.findIndex((e) => e.snap && e.past);
+  // (the first moment after the start: the start keeps the model too, as the patient came, where playing the case begins)
+  const moment = es.findIndex((e, i) => i > 0 && e.snap && e.past);
   assert.ok(moment > 0, 'a baked moment carries the model');
   assert.equal(tl.canUndo(), false, 'Undo does not walk the history\'s past');
   assert.ok(tl.goTo(moment));
@@ -80,9 +81,10 @@ test('a history\'s moments can be shown on the figure; Undo and Redo walk only t
 test('every day a baked history headlines carries the model at its end, on its last line, and the restored model reads the day record; what it re-raises keeps the future', async () => {
   for (const h of HISTORIES) {
     const b = await LOAD[h.id]!();
-    const keyDays = new Set(b.entries.filter(isKeyEntry).map((e) => e.day).filter((d) => d < b.snap.day));
+    // (and Day 0: the patient as they came, where playing the case starts)
+    const keyDays = new Set([0, ...b.entries.filter(isKeyEntry).map((e) => e.day).filter((d) => d < b.snap.day)]);
     const snapped = b.entries.filter((e) => e.snap);
-    assert.deepEqual(snapped.map((e) => e.day), [...keyDays].sort((x, y) => x - y), `${h.id}: one moment for each key day`);
+    assert.deepEqual(snapped.map((e) => e.day), [...keyDays].sort((x, y) => x - y), `${h.id}: one moment for each key day, and Day 0`);
     for (const e of snapped) {
       const sameDay = b.entries.filter((x) => x.day === e.day);
       assert.equal(sameDay[sameDay.length - 1], e, `${h.id} Day ${e.day}: the moment is the day's last line`);

@@ -15,6 +15,11 @@
 .sh-sheet[data-kind="history"] .sh-sheet-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; padding: 0 0 4px; }
 
 .hs-story { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+/* (Play the case, for a model patient: one button over the strip, the app's own small primary; .fade-in is its eased room: fade.tsx) */
+.hs-case { flex: none; }
+.hs-case-row { display: flex; padding: 0 10px 8px; }
+.hs-case .btn { gap: 6px; }
+.hs-case .mi-ic { width: var(--ic-s); height: var(--ic-s); }
 
 /* ── the strip ── */
 .hs-strip { flex: none; margin: 0 10px 4px; padding: 8px 0 6px; border-radius: var(--r-card); background: color-mix(in srgb, var(--text) 4%, transparent); }

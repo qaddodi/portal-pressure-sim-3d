@@ -73,7 +73,7 @@ test('the capture waits for the slide\'s state to reach the figure, past the lab
   setFigurePending(true); assert.equal(figureWaiting(), true); assert.equal(figurePending(), true);
   setFigurePending(false); assert.equal(figureWaiting(), false);
   const { readFileSync } = await import('node:fs');
-  assert.match(readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8'), /figureWaiting\(\)\) return/);
+  assert.match(pipeline(), /figureWaiting\(\)\) return/);
 });
 
 test('a label never prints the slide before\'s patient: the figure stays pending however long the state takes, there is no timeout fallback', async () => {
@@ -137,7 +137,7 @@ test('a tile\'s status word is one short row under its value, and the README cou
   const { countWords } = await import('../src/ui/capture/capture-model.ts');
   assert.equal(countWords(53, 43, 10), '53 pictures of 43 slides in 10 talks'); assert.equal(countWords(1, 1, 1), '1 picture of 1 slide in 1 talk');
   const { readFileSync } = await import('node:fs');
-  assert.match(readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8'), /files\.filter\(\(f\) => f\.name\.endsWith\('\.jpg'\)\)\.length, slidesSeen\.size/);
+  assert.match(pipeline(), /files\.filter\(\(f\) => f\.name\.endsWith\('\.jpg'\)\)\.length, slidesSeen\.size/);
 });
 
 // ---- third report (build 3252079e, 440 x 736): the words say what the model's values show; no grade bands on a volume axis; the <12 target is the gradient's ----
@@ -237,6 +237,7 @@ test('a pressure label says what its change is a change from (Where is the resis
 });
 import { readFileSync } from 'node:fs';
 import { DECK as DECK_PREHEPATIC } from '../src/decks/hp/data/prehepatic.copied.ts';
+import { pipeline } from './capture-source.ts';
 test('round 6 (fourth review): the tables compare each row with the state before it, and the model index has one name', async () => {
   const { DECK: KIDNEY } = await import('../src/decks/hp/data/kidney.copied.ts');
   const { DECK: HVPG } = await import('../src/decks/hp/data/hvpg.copied.ts');

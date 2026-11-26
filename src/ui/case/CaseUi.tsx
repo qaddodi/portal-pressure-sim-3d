@@ -1,0 +1,59 @@
+// Playing a case, on the screen (docs/approved/play-the-case.md): the case bar in the play bar's place, the stop's card (or sheet), the card on the way, and the room they leave the figure.
+// Its own chunk, mounted when the first case starts (Shell.tsx) and kept: every part stays in the page and fades in and out by `data-on` (case.css), so nothing pops in, and a part
+// comes up only once its content is there (the bar once its strip is drawn).
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import './case.css';
+import '../history/history.css';
+import { useUi } from '../ui-store.ts';
+import { useTests } from '../tests/store.ts';
+import { layoutClass, sheetFoot } from '../shell/room.ts';
+import { useCase } from './store.ts';
+import { caseBarUp, useCaseRoom, type CaseCut } from './room.ts';
+import { useCaseView } from './view.ts';
+import { useSwap } from './swap.ts';
+import { CaseBar } from './CaseBar.tsx';
+import { PhoneStopSheet, StopCards, TravelCard, stopShown, useStopMoved } from './StopCard.tsx';
+
+/** The stop card's width on a Mac (the mock's column at the left: 400 px, the card on the way 360 px inside it). */
+export const CASE_CARD_W = 400, CASE_CARD_GAP = 12;
+/** The iPhone's layout: the bar in two rows and the stop sheet pulled up for the rest (below this width; an upright iPad keeps one row and the whole card). */
+export const PHONE_MAX_W = 700;
+
+export function CaseUi({ thumb }: { thumb: boolean }) {
+  const cv = useCaseView();
+  const phase = useCase((s) => s.phase), at = useCase((s) => s.at), stops = useCase((s) => s.stops), id = useCase((s) => s.id);
+  const vp = useUi((s) => s.vp);
+  const phone = thumb && vp.w < PHONE_MAX_W;
+  const up = caseBarUp(phase);
+  const testsOpen = useTests((s) => s.open);
+  const exploring = phase === 'stop' && testsOpen;
+  const shownNow = useMemo(() => (cv ? stopShown(cv, stops, at) : null), [cv, stops, at]);
+  const stop = useSwap(shownNow, `${id}:${at}`, phase === 'stop' && !!cv);
+  const [moved, back] = useStopMoved(stop.shown, phase === 'stop');
+  // (on a phone or an upright iPad the Tests card is a sheet from the same foot: the stop's sheet makes way for it, and the bar says the case waits)
+  const stopOn = stop.on && !(thumb && exploring);
+  const [sheetH, setSheetH] = useState(0);
+  const onHeight = useCallback((h: number) => setSheetH(h), []);
+
+  // the room the cards leave the figure: the column at the left on a Mac (the same for the card on the way, so the figure does not swing between them), the stop's sheet over the foot
+  useEffect(() => {
+    let cut: CaseCut | null = useCaseRoom.getState().cut;
+    if (!up) cut = null;
+    else if (!thumb) cut = { kind: 'left', x: vp.safe.left + CASE_CARD_GAP + CASE_CARD_W };
+    else if (exploring) cut = null;
+    else if (stopOn && sheetH > 0) cut = { kind: 'foot', y: vp.h - vp.safe.bottom - sheetFoot(layoutClass(true)) - sheetH };
+    const was = useCaseRoom.getState().cut;
+    if (JSON.stringify(was) !== JSON.stringify(cut)) useCaseRoom.setState({ cut });
+  }, [up, thumb, exploring, stopOn, sheetH, vp]);
+  useEffect(() => () => useCaseRoom.setState({ cut: null }), []);
+
+  return (
+    <div className="case-layer" data-thumb={thumb || undefined} data-phone={phone || undefined}>
+      {cv && (phone
+        ? <PhoneStopSheet cv={cv} s={stop.shown} on={stopOn} moved={moved} back={back} onHeight={onHeight} />
+        : <StopCards cv={cv} s={stop.shown} on={stopOn} fold={exploring} moved={moved} back={back} sheet={thumb} onHeight={onHeight} />)}
+      {cv && <TravelCard cv={cv} on={phase === 'travel'} sheet={thumb} phone={phone} />}
+      <CaseBar cv={cv} thumb={thumb} exploring={exploring} on={up} />
+    </div>
+  );
+}

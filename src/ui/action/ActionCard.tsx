@@ -28,6 +28,7 @@ import { rampStops, LG_MAX } from '../../scene/lenses/legend.ts';
 import { useLookId } from '../../looks/use-look.ts';
 import { hvpgSev, ppgSev } from '../../engine/hales/portal/pressure-cuts.js';
 import { fmt } from '../charts/fmt.ts';
+import { useCaseBarUp } from '../case/room.ts';
 import { D_SURFACE, EASE_ARRIVE } from '../tests/copied/ease.copied.js';
 
 // ── the number keys: the card's first nine controls, in the order the card lists them (a slider takes the focus so the arrow keys move it) ──
@@ -240,6 +241,8 @@ export function ActionCard() {
     ro.observe(el);
     return () => { ro.disconnect(); for (const a of run) a.cancel(); };
   }, [open, bottom]);
+  // (read so the card is placed again when a playing case's bar raises the foot it rests on: case/room.ts)
+  useCaseBarUp();
   const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${sheetFoot(device)}px)`, maxHeight: cardMaxHeight(vp.h, vp.safe.top, topBarH(vp, device), vp.safe.bottom, sheetFoot(device)) } : undefined;
   return (
     <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} style={style} role="dialog" aria-label="Actions" inert={!open}>

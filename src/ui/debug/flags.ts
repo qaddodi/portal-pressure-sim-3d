@@ -27,6 +27,14 @@ export const FLAGS: readonly Flag[] = Object.freeze([
   { id: 'depth', group: 'Pages', gate: 'local', meaning: 'The self-test: depth=quick walks the views, three slides of every talk and the collateral patients; depth=full (the default) walks everything.' },
   { id: 'speed', group: 'Pages', gate: 'local', meaning: 'The self-test: speed=N (1 to 20) runs the page\'s clock, its timers and every CSS animation N times faster. Layout, words, coverage, errors and settle times stay valid (page time); frame rates and GPU-bound never are (stalls are: frame gaps are measured in real time), and above 4 fade, snap and pop findings are left out too (the page draws only a frame or two of each ease). The report says what it dropped.' },
   { id: 'sequence', group: 'Pages', gate: 'local', meaning: 'The self-test: sequence=1 walks every talk with Next and Back one press at a time (Back and Next at each stop edge, headings, targets, tab selectors; also an element with data-audit-select counts as a selector); sequence=0 leaves it out. Default: on for depth=full, off for quick (the banner has the toggle "Walk every press").' },
+  {
+    id: 'cases', group: 'Pages', gate: 'local',
+    meaning: "The capture plays every model patient's case with Play the case and photographs every stop (the figure with the stop card and the case bar, "
+      + 'the card pulled up on a phone, and each Look closer here), into one folder a case with a manifest, in the same zip (src/ui/debug/audit/capture-cases.ts): '
+      + '?audit=frames&capture=1&sizes=iphone,mac&cases=all (or ?audit=here&cases=all on a device; cases=hist-bleed,hist-tips names some). Cases alone unless slides=1 adds the slides.',
+  },
+  { id: 'slides', group: 'Pages', gate: 'local', meaning: 'The capture with cases: slides=1 takes the slides of the talks as well (before the cases), in the same zip.' },
+  { id: 'looks', group: 'Pages', gate: 'local', meaning: 'The capture of cases: looks=0 leaves out the Look closer here pictures of each stop.' },
   { id: 'noglass', group: 'Pages', gate: 'local', meaning: 'The self-test: noglass=1 turns the frosted-glass blur off for the run (html[data-noglass]), so a second run shows what the glass costs the talk-open frame rate.' },
   { id: 'look', group: 'Pages', gate: 'local', meaning: 'The Mac look board (bare ?look; ?look&twod adds the 2D app beside each row): walks about 40 fixed states (patient, view, look, device) in one frame, reads the figure canvas in the frame that draws it, shows it beside the saved baseline and the difference (src/debug/look-board.ts, look/README.md).' },
   { id: 'twod', group: 'Pages', gate: 'local', meaning: 'The look board: a button per row opens the 2D app\'s preview of the same patient in the row.' },

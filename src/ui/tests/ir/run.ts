@@ -28,6 +28,7 @@ import type { MonitorState } from './monitor.ts';
 import { useMeasured } from '../hidden.ts';
 import { claim } from '../owner.ts';
 import { readFrame } from '../slide/reads.ts';
+import { caseAsk } from '../../case/guard.ts';
 
 export interface Readings { fhvp: number; whvp: number; hvpg: number }
 type Obj = Record<string, number>;
@@ -147,8 +148,11 @@ export function playProc(kind: string): void {
   R.playT = clock.now();
   const why = procBlocked(kind, params(), metrics());
   if (why) { say(why); return; }
-  onBody();
   const T0 = (PROCS as Record<string, { T: { apply: number }; label: string; apply: (p: unknown) => unknown }>)[kind]!;
+  // (a procedure changes the patient's course: in a case it asks before it starts, not halfway when the model takes it; case/guard.ts)
+  const q = caseAsk('procedure', T0.label);
+  if (q) { void q.then((go) => { if (go) { R.playT = -Infinity; playProc(kind); } }); return; }
+  onBody();
   R.procKind = kind; R.procStep = 0; R.procApplied = false; R.procCam = '';
   let shown = -3;   // (the step whose callout stands on the figure: 2D onMark; a step's word once the step has happened, none while it plays)
   sceneApi.procedure.play(kind, {

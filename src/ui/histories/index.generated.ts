@@ -107,6 +107,63 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "After the TIPS"
    }
   ],
+  "play": {
+   "ramps": [
+    {
+     "key": "cirrhosis",
+     "from": 0,
+     "to": 55,
+     "a": 0.4,
+     "b": 0.86
+    }
+   ],
+   "stops": [
+    {
+     "day": 18,
+     "look": [
+      {
+       "tool": "hvpg",
+       "label": "HVPG"
+      },
+      {
+       "tool": "fibroscan",
+       "label": "Liver stiffness"
+      }
+     ]
+    },
+    {
+     "day": 40,
+     "look": [
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    },
+    {
+     "day": 70,
+     "look": [
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    },
+    {
+     "day": 73,
+     "look": [
+      {
+       "tool": "profile",
+       "label": "Pressure along the circuit"
+      },
+      {
+       "tool": "doppler",
+       "label": "Doppler"
+      }
+     ]
+    }
+   ]
+  },
   "counts": {
    "events": 18,
    "medicines": 2
@@ -212,6 +269,59 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "After the TIPS"
    }
   ],
+  "play": {
+   "stops": [
+    {
+     "day": 0,
+     "look": [
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      }
+     ]
+    },
+    {
+     "day": 35,
+     "look": [
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      }
+     ]
+    },
+    {
+     "day": 65,
+     "look": [
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      }
+     ]
+    },
+    {
+     "day": 95,
+     "look": [
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      }
+     ]
+    },
+    {
+     "day": 110,
+     "look": [
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      },
+      {
+       "tool": "profile",
+       "label": "Pressure along the circuit"
+      }
+     ]
+    }
+   ]
+  },
   "counts": {
    "events": 6,
    "medicines": 1
@@ -295,6 +405,49 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "On anticoagulation, the clot clears"
    }
   ],
+  "play": {
+   "stops": [
+    {
+     "day": 0,
+     "cam": "portal",
+     "look": [
+      {
+       "tool": "doppler",
+       "label": "Doppler of the portal vein"
+      }
+     ]
+    },
+    {
+     "day": 1,
+     "cam": "portal",
+     "look": [
+      {
+       "tool": "doppler",
+       "label": "Doppler of the portal vein"
+      }
+     ]
+    },
+    {
+     "day": 4,
+     "look": [
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    },
+    {
+     "day": 105,
+     "cam": "portal",
+     "look": [
+      {
+       "tool": "doppler",
+       "label": "Doppler of the portal vein"
+      }
+     ]
+    }
+   ]
+  },
   "counts": {
    "events": 9,
    "medicines": 1
@@ -389,6 +542,61 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "After the angioplasty"
    }
   ],
+  "play": {
+   "stops": [
+    {
+     "day": 0,
+     "cam": "hepatic",
+     "look": [
+      {
+       "tool": "doppler",
+       "label": "Doppler"
+      },
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      }
+     ]
+    },
+    {
+     "day": 2,
+     "cam": "hepatic",
+     "look": [
+      {
+       "tool": "doppler",
+       "label": "Doppler"
+      }
+     ]
+    },
+    {
+     "day": 60,
+     "look": [
+      {
+       "tool": "doppler",
+       "label": "Doppler"
+      },
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      }
+     ]
+    },
+    {
+     "day": 150,
+     "cam": "hepatic",
+     "look": [
+      {
+       "tool": "doppler",
+       "label": "Doppler"
+      },
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      }
+     ]
+    }
+   ]
+  },
   "counts": {
    "events": 2,
    "medicines": 1
@@ -489,6 +697,60 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "Doppler finds it"
    }
   ],
+  "play": {
+   "ramps": [
+    {
+     "key": "stenosis.TIPS",
+     "from": 50,
+     "to": 185,
+     "a": 0,
+     "b": 0.65
+    }
+   ],
+   "stops": [
+    {
+     "day": 10,
+     "look": [
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      },
+      {
+       "tool": "profile",
+       "label": "Pressure along the circuit"
+      }
+     ]
+    },
+    {
+     "day": 140,
+     "look": [
+      {
+       "tool": "doppler",
+       "label": "Doppler"
+      },
+      {
+       "tool": "hvpg",
+       "label": "Pressures across the stent"
+      }
+     ]
+    },
+    {
+     "day": 190,
+     "view": "circuit",
+     "cam": "tips",
+     "look": [
+      {
+       "tool": "doppler",
+       "label": "Doppler"
+      },
+      {
+       "tool": "hvpg",
+       "label": "Pressures across the stent"
+      }
+     ]
+    }
+   ]
+  },
   "counts": {
    "events": 6,
    "medicines": 1
@@ -598,6 +860,37 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "Confusion, treated"
    }
   ],
+  "play": {
+   "stops": [
+    {
+     "day": 10,
+     "look": [
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    },
+    {
+     "day": 11,
+     "look": [
+      {
+       "tool": "profile",
+       "label": "Pressure along the circuit"
+      },
+      {
+       "tool": "doppler",
+       "label": "Doppler"
+      }
+     ]
+    },
+    {
+     "day": 45,
+     "cam": "liver",
+     "lens": "firstpass"
+    }
+   ]
+  },
   "counts": {
    "events": 7,
    "medicines": 2
@@ -706,6 +999,70 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "Cured, the pressure persists"
    }
   ],
+  "play": {
+   "ramps": [
+    {
+     "key": "cirrhosis",
+     "from": 90,
+     "to": 480,
+     "a": 0.7,
+     "b": 0.62
+    }
+   ],
+   "stops": [
+    {
+     "day": 0,
+     "look": [
+      {
+       "tool": "hvpg",
+       "label": "HVPG"
+      },
+      {
+       "tool": "fibroscan",
+       "label": "Liver stiffness"
+      }
+     ]
+    },
+    {
+     "day": 60,
+     "cam": "liver",
+     "look": [
+      {
+       "tool": "fibroscan",
+       "label": "Liver stiffness"
+      }
+     ]
+    },
+    {
+     "day": 228,
+     "view": "lobule",
+     "cam": "lobule:sinusoid",
+     "look": [
+      {
+       "tool": "hvpg",
+       "label": "HVPG"
+      },
+      {
+       "tool": "fibroscan",
+       "label": "Liver stiffness"
+      }
+     ]
+    },
+    {
+     "day": 600,
+     "look": [
+      {
+       "tool": "hvpg",
+       "label": "HVPG"
+      },
+      {
+       "tool": "fibroscan",
+       "label": "Liver stiffness"
+      }
+     ]
+    }
+   ]
+  },
   "counts": {
    "events": 2,
    "medicines": 1
@@ -817,6 +1174,69 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "Recompensated"
    }
   ],
+  "play": {
+   "ramps": [
+    {
+     "key": "cirrhosis",
+     "from": 0,
+     "to": 420,
+     "a": 0.85,
+     "b": 0.6
+    },
+    {
+     "key": "albumin",
+     "from": 0,
+     "to": 420,
+     "a": 2.8,
+     "b": 3.9
+    }
+   ],
+   "stops": [
+    {
+     "day": 0,
+     "look": [
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      }
+     ]
+    },
+    {
+     "day": 1,
+     "cam": "liver",
+     "look": [
+      {
+       "tool": "fibroscan",
+       "label": "Liver stiffness"
+      }
+     ]
+    },
+    {
+     "day": 250,
+     "look": [
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      }
+     ]
+    },
+    {
+     "day": 620,
+     "view": "lobule",
+     "cam": "lobule:sinusoid",
+     "look": [
+      {
+       "tool": "hvpg",
+       "label": "HVPG"
+      },
+      {
+       "tool": "fibroscan",
+       "label": "Liver stiffness"
+      }
+     ]
+    }
+   ]
+  },
   "counts": {
    "events": 2,
    "medicines": 2
@@ -922,6 +1342,69 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "After the last band"
    }
   ],
+  "play": {
+   "stops": [
+    {
+     "day": 0,
+     "view": "lobule",
+     "cam": "lobule:triad",
+     "look": [
+      {
+       "tool": "hvpg",
+       "label": "HVPG"
+      },
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    },
+    {
+     "day": 20,
+     "look": [
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      },
+      {
+       "tool": "hvpg",
+       "label": "HVPG, normal here"
+      }
+     ]
+    },
+    {
+     "day": 48,
+     "look": [
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    },
+    {
+     "day": 76,
+     "look": [
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    },
+    {
+     "day": 300,
+     "look": [
+      {
+       "tool": "hvpg",
+       "label": "HVPG"
+      },
+      {
+       "tool": "profile",
+       "label": "Pressure along the circuit"
+      }
+     ]
+    }
+   ]
+  },
   "counts": {
    "events": 2,
    "medicines": 2
@@ -1031,6 +1514,50 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "New esophageal varices"
    }
   ],
+  "play": {
+   "stops": [
+    {
+     "day": 20,
+     "look": [
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    },
+    {
+     "day": 23,
+     "look": [
+      {
+       "tool": "profile",
+       "label": "Pressure along the circuit"
+      },
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    },
+    {
+     "day": 29,
+     "look": [
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    },
+    {
+     "day": 40,
+     "look": [
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    }
+   ]
+  },
   "counts": {
    "events": 8,
    "medicines": 3
@@ -1141,6 +1668,61 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "After delivery"
    }
   ],
+  "play": {
+   "ramps": [
+    {
+     "key": "gestation",
+     "from": 30,
+     "to": 254,
+     "a": 6,
+     "b": 38
+    }
+   ],
+   "stops": [
+    {
+     "day": 30,
+     "view": "circuit",
+     "cam": "splanchnic",
+     "lens": "flow",
+     "look": [
+      {
+       "tool": "scope",
+       "label": "Pressure over time"
+      }
+     ]
+    },
+    {
+     "day": 58,
+     "look": [
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    },
+    {
+     "day": 114,
+     "look": [
+      {
+       "tool": "endoscopy",
+       "label": "Endoscopy"
+      }
+     ]
+    },
+    {
+     "day": 254,
+     "view": "circuit",
+     "cam": "splanchnic",
+     "lens": "flow",
+     "look": [
+      {
+       "tool": "scope",
+       "label": "Pressure over time"
+      }
+     ]
+    }
+   ]
+  },
   "counts": {
    "events": 6,
    "medicines": 1
@@ -1230,6 +1812,61 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "After the tricuspid repair"
    }
   ],
+  "play": {
+   "stops": [
+    {
+     "day": 0,
+     "cam": "route",
+     "look": [
+      {
+       "tool": "hvpg",
+       "label": "HVPG"
+      },
+      {
+       "tool": "profile",
+       "label": "Pressure along the circuit"
+      }
+     ]
+    },
+    {
+     "day": 20,
+     "cam": "fit",
+     "look": [
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      }
+     ]
+    },
+    {
+     "day": 120,
+     "look": [
+      {
+       "tool": "hvpg",
+       "label": "HVPG"
+      },
+      {
+       "tool": "profile",
+       "label": "Pressure along the circuit"
+      }
+     ]
+    },
+    {
+     "day": 300,
+     "cam": "route",
+     "look": [
+      {
+       "tool": "hvpg",
+       "label": "HVPG"
+      },
+      {
+       "tool": "abdomen",
+       "label": "Ascites"
+      }
+     ]
+    }
+   ]
+  },
   "counts": {
    "events": 2,
    "medicines": 1

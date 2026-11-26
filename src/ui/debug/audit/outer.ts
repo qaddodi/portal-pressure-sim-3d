@@ -90,7 +90,8 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
   const stopTest = btn('Stop', () => { stop = true; status.textContent = 'Stopping: the frame finishes its step, then this ends.'; });
   const copies = [btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }), btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }), btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); })];
   bar.prepend(stamp); bar.append(meter, meterText, status, note);
-  // two pages in one: the self-test's many choices, and Capture slides (the sizes, the talks, how many slides, Capture, Stop). Capture is the one that opens; the self-test's controls are hidden under it, one tap away.
+  // two pages in one: the self-test's many choices, and Capture slides (the sizes, the talks, how many slides, Capture, Stop). Capture is the one that opens; the self-test's
+  // controls are hidden under it, one tap away.
   const testOnly = [dsel, ssel, sqL, ngL, parL, start, stopTest, ...copies, meter, meterText, note];
   for (const e of testOnly) e.classList.add('ao-test');
   const modeBtn = mk('button', 'ao-mode', ''); modeBtn.type = 'button';
@@ -143,5 +144,7 @@ export function bootOuter(doc: Document = document, win: Window = window): void 
     showPace(true); status.textContent = `Finished ${parts.length} of ${ids.length} sizes in ${((clock.now() - t0) / 60000).toFixed(1)} min${failed.length ? ` (${failed.length} did not finish)` : ''}. Copy the report.`;
     running = false; start.disabled = false;
   }
-  if (flagValue('audit') === 'frames' && flagValue('sizes') !== null) clock.after(() => { void run(); }, 300);   // (an address that names its sizes starts itself)
+  // (an address that names its sizes starts the self-test itself; one that asks for a capture (`capture=1`, capture-outer.ts) starts the capture instead, never both: the
+  // first to start holds the frames)
+  if (flagValue('audit') === 'frames' && flagValue('sizes') !== null && flagValue('capture') !== '1') clock.after(() => { void run(); }, 300);
 }

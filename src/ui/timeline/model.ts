@@ -34,7 +34,8 @@ export interface TimelineHost {
   /** the worker's snapshot of the model now (null or a throw: it could not be taken) */
   snapshot(): Promise<Snap | null>;
   /** put the model back as the snapshot had it, and the page's copy of its parameters */
-  restore(snap: Snap): void;
+  /** put the model back to a kept state: at once (a jump, the figure switching as for a new patient), or eased over `ease` ms (playing a case lands on its next stop) */
+  restore(snap: Snap, ease?: number): void;
   /** the newest frame, and the parameters now */
   frame(): EngineFrame | null;
   params(): unknown;
@@ -208,6 +209,7 @@ export class Timeline {
 
   /** The model's threshold events: each is an entry (the same event again within 30 s is not, unless critical). */
   addEvents(evs: readonly EventIn[]): void {
+    if (this.following_) return;
     for (const ev of evs) {
       // (Looking at a moment of the past, the model raises what that moment already was (a bleed still in shock, a clot still there) as its detectors start over from the restored
       // state. That is the moment's own state, not something new: it must not end the future. An event on another day is the patient moving on, and is recorded.)
@@ -221,6 +223,12 @@ export class Timeline {
     }
   }
 
+  /** Playing a case (ui/case/run.ts): the model walks the course History already holds, so what it raises on the way is the course's own (in History already), never news that ends
+   *  the course ahead. On from the walk's start until the stop has landed. */
+  private following_ = false;
+  follow(on: boolean): void { this.following_ = on; }
+  following(): boolean { return this.following_; }
+
   /** Jump the disease clock ahead (or until the next event): its own entry, a snapshot just after. */
   jump(days: number | 'event', long: string): void {
     this.flush();
@@ -230,11 +238,11 @@ export class Timeline {
   }
 
   // ---- going back ----
-  goTo(i: number, { quiet = false } = {}): boolean {
+  goTo(i: number, { quiet = false, ease = 0 } = {}): boolean {
     const e = this.entries_[i];
     if (!e?.snap) return false;
     this.flush();
-    this.host.restore(e.snap);
+    this.host.restore(e.snap, ease > 0 ? ease : undefined);
     this.baseline = clone(e.snap.params);
     this.cursor_ = i === this.liveIndex() && !this.entries_.slice(i + 1).length ? -1 : i;
     if (!quiet) this.host.say(`Back to: ${e.label}`);
