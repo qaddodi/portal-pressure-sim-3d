@@ -27,10 +27,19 @@ export const PEEK_H = 72;
 /** A phone's Half is 2D's (testsHalfPx: about 90 % of the room, 520 px at most) but never more than HALF_SHARE of the screen: tall enough for a pane's own content (owner, 20 Nov: cards not opening full, unlike 2D),
  *  low enough that it does not open high up. The figure is not zoomed out under it (panRoom) and is seen over it by pulling the card down to Peek. */
 export const HALF_SHARE = 0.52;
-export function sheetStops(device: DeviceClass, H: number, R: number, vesselCard = false): [number, number] {
-  if (device === 'tablet-portrait') return [Math.round(Math.min(1, testsHalfPx(R, 0.45 * H, vesselCard) / R) * R), Math.round(Math.min(1, (0.62 * H) / R) * R)];
+/** Half stays at least this far under Full, so the two are still two stops. */
+export const FULL_CLEAR = 24;
+/** The tallest Half may be: under Full by FULL_CLEAR, never under the share Half already had. */
+export const halfCap = (half: number, R: number): number => Math.max(half, Math.round(R) - FULL_CLEAR);
+/** Half grown to hold `needH` (the head row and the open pane's least body, pane-need.ts), within the cap: no pane's content clips at Half. */
+export const halfFor = (half: number, R: number, needH: number): number => Math.min(Math.max(half, needH), halfCap(half, R));
+export function sheetStops(device: DeviceClass, H: number, R: number, vesselCard = false, needH = 0): [number, number] {
+  if (device === 'tablet-portrait') {
+    const half = Math.round(Math.min(1, testsHalfPx(R, 0.45 * H, vesselCard) / R) * R);
+    return [halfFor(half, R, needH), Math.round(Math.min(1, (0.62 * H) / R) * R)];
+  }
   const half = Math.min(Math.round(Math.min(0.9, testsHalfPx(R, TESTS_HALF_PX, vesselCard) / R) * R), Math.max(MIN_HALF, Math.round(HALF_SHARE * H)), Math.round(R));
-  return [half, Math.round(R)];
+  return [halfFor(half, R, needH), Math.round(R)];
 }
 /** The sizes a card on the right hands its panes (dock.js sizeObserver): the plots share the body's height, a square is the card's width less its padding. */
 export const sideVars = (w: number, bodyH: number, count: number): { plot: number; square: number } => ({ plot: clamp(bodyH / Math.max(1, count) - 90, 190, 380), square: clamp(w - 80, 220, 380) });
@@ -67,6 +76,8 @@ export interface PlaceOpts {
   vesselCard?: boolean;
   /** (a content height, px: a card that is shorter than its room) */
   contentH?: number;
+  /** the head row and the open pane's least body, px (pane-need.ts): a sheet's Half grows to hold it, within the cap */
+  needH?: number;
 }
 
 export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {}): TestsPlace {
@@ -104,7 +115,7 @@ export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {})
   //  shows the short names, where a full-width sheet cut "Endoscopy" to "Endosc…", 20 Nov play-test)
   const tab = device === 'tablet-portrait', margin = 8, w = tab ? Math.round(vp.w * 0.7) : vp.w - vp.safe.left - vp.safe.right - 2 * margin, x = tab ? Math.round(vp.w * 0.15) : vp.safe.left + margin, foot = vp.safe.bottom + sheetFoot(device);
   const R = Math.max(1, vp.h - vp.safe.top - barH - foot - 22);
-  const stops = sheetStops(device, vp.h, R, !!o.vesselCard);
+  const stops = sheetStops(device, vp.h, R, !!o.vesselCard, o.needH ?? 0);
   const maxH = stops[1];
   // (a sheet has its stops and nothing else: a remembered side-card ratio or a content height never sets it, so it never opens at some height in between, owner 20 Nov)
   const h = o.sheetSize === 2 ? PEEK_H : stops[o.sheetSize === 1 ? 1 : 0];

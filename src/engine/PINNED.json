@@ -2,7 +2,7 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "19b5bf96f423724c24a661289d16dcc79c9e0291"
+    "commit": "a97104613cec1549e14fc577fa5438c0986bff56"
   },
   "files": {
     "hales/core/ease-move.js": "8b1ec51ee324cb2f95242b568c623e2dcd801b3ec48c11712a82c92852ac6449",
@@ -17,7 +17,7 @@
     "hales/portal/bedside-rest.js": "26bbf32f4fd82ddc370d496b7c8caefa36dec9f4b630d4745b1fad55c1875788",
     "hales/portal/change-events.js": "f25e06a42083474c447c1b1b52a7133db3f9d419a390160775ecde4c0833e646",
     "hales/portal/display-mean.js": "607b08cbc06b175bc45192e6f4cbe2e9eb32a05cfd47b8d653730f1690c20b3f",
-    "hales/portal/engine.js": "2c3ecf15f70d091f242ea70d22dd0f7b75da790f4fdcdbc5b3cd72e31dbb3014",
+    "hales/portal/engine.js": "e20e13c895b3a18f71532ff861e7e61d4477086843d4ffa6b42f2fcf64410316",
     "hales/portal/events.js": "c3a1a5e5f331985422d9868c9c87418d9b2a5819f8f951bea94c894c8e484af8",
     "hales/portal/explain-ids.js": "326c21384fb0757403a9fb924d7aff0395e970dbb09a11d2aff3f5c5c09a70d4",
     "hales/portal/explain.js": "4bd3405d5ec6e7e30c40a8e68c707406b3afaaaa7332458df8d79903209228f1",

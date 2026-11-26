@@ -14,6 +14,7 @@ import { useTests } from './store.ts';
 import { PaneHost } from './Cv.tsx';
 import { TABS, PANE_ORDER, tabOf, shortName, tinyName, PANES, type PaneId } from './panes.ts';
 import { testsPlace, sideVars, HEAD_H, PEEK_H } from './place.ts';
+import { fitPlace } from './pane-need.ts';
 import { useTestsRoom } from './room.ts';
 import { I } from '../shell/icons.tsx';
 import { TAB_ICONS } from './copied/dock-words.copied.js';
@@ -57,7 +58,8 @@ const FibroPane = lazyRetry(() => LOADERS.fibroscan().then((m) => ({ default: m.
 const TrialsPane = lazyRetry(() => LOADERS.trials().then((m) => ({ default: m.TrialsPane })));
 
 /** The panes built so far; a tab whose pane is not here yet says so in a line (never a dead tab). */
-export interface PaneProps { narrow: boolean; /** a plot's height and a square's (dock-vars.js) */ plot: number; square: number }
+// (noteAside: the sheet cannot hold the pane's optional note under its chart, so leave it out, pane-need.ts)
+export interface PaneProps { narrow: boolean; noteAside?: boolean; /** a plot's height and a square's (dock-vars.js) */ plot: number; square: number }
 const BUILT: Partial<Record<PaneId, (p: PaneProps) => ReactNode>> = {
   trials: () => <LazyBoundary><TrialsPane /></LazyBoundary>,
   readouts: (p) => <ReadoutsPane narrow={p.narrow} />,
@@ -98,7 +100,13 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   const focus = tstate === 'focus';
   // (a playing case's bar raises the foot a sheet rests on: case/room.ts)
   const caseUp = useCaseBarUp();
-  const place = useMemo(() => testsPlace(vp, device, { widthPx, heightRatio, sheetSize, focus }), [vp, device, widthPx, heightRatio, sheetSize, focus, caseUp]);
+  // (the open pane's least content: Half grows to hold it, and the pane's optional note steps aside
+  //  where even that cannot, pane-need.ts; judged against the sheet as the screen gives it, then placed again)
+  const organ = useTests((s) => s.fibro);
+  const { place, noteAside, scrollMin } = useMemo(
+    () => fitPlace(vp, device, { widthPx, heightRatio, sheetSize, focus }, pane, organ),
+    [vp, device, widthPx, heightRatio, sheetSize, focus, caseUp, pane, organ],
+  );
   const narrow = place.rect.w < 470;
   const layout = layoutOf(vp.w, vp.h);
   const roles = cardScale({ vw: vp.w, vh: vp.h, layout, part: 'data' });
@@ -280,12 +288,14 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   const render = (id: PaneId) => {
     const body = BUILT[id];
     // (no element between the pane and its view: 2D's child rules, .dock-pane > .instrument-view, reach it; the provider says this is the dock, where the 2D stylesheet sizes every box)
-    return body ? <PaneHost.Provider value="dock">{body({ narrow, plot: vars.plot, square: vars.square })}</PaneHost.Provider> : <p className="t-note t-pane">{notYet(PANES[id].name)}</p>;
+    return body ? <PaneHost.Provider value="dock">{body({ narrow, plot: vars.plot, square: vars.square, noteAside })}</PaneHost.Provider> : <p className="t-note t-pane">{notYet(PANES[id].name)}</p>;
   };
 
   const style = {
     width: place.rect.w, height: place.rect.h, transform: `translate(${Math.round(place.rect.x)}px, ${Math.round(place.rect.y)}px)`,
     ['--t-sm' as string]: `${Math.max(12, Math.round(roles.lab))}px`, ['--t-plot' as string]: `${vars.plot}px`, ['--t-square' as string]: `${vars.square}px`,
+    // (a pane whose least does not fit the sheet keeps its least and scrolls in the card: css3d-over-2d.css, pane-need.ts)
+    ...(scrollMin ? { ['--pane-min' as string]: `${scrollMin}px` } : null),
   } as CSSProperties;
   // the sizes 2D's dock hands its panes (dock.js sizeObserver: --plot-h, --square-size on the workspace)
   const card = { ['--plot-h' as string]: `${vars.plot}px`, ['--square-size' as string]: `${vars.square}px`, ['--instrument-w' as string]: `${place.rect.w}px` } as CSSProperties;

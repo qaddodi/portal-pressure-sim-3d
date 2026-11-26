@@ -91,7 +91,7 @@ test('the chart reads the medicines and the procedures from a history', async ()
   const entries: EntryIn[] = tl.entries().map((e) => ({ id: e.id, kind: e.kind, label: e.label, day: e.day, ...(e.sev ? { sev: e.sev } : {}), ...(e.keys ? { keys: e.keys } : {}), ...(e.action ? { action: true } : {}), ...(e.detail ? { detail: e.detail } : {}), ...(e.snap ? { params: e.snap.params } : e.params != null ? { params: e.params } : {}) }));
   const m = marksOf(entries, labelsOf);
   const carv = m.meds.find((x) => x.key === 'drug:carvedilol')!, vaso = m.meds.find((x) => x.key === 'drug:terlipressin')!;
-  assert.deepEqual(carv.spans, [{ from: 19, to: 73 }]);
+  assert.deepEqual(carv.spans, [{ from: 20, to: 73 }]);
   assert.deepEqual(vaso.spans, [{ from: 70, to: 73 }]);
   const words = m.lines.map((l) => l.label);
   for (const w of ['Esophageal varix ruptured', 'Band (EVL)', 'TIPS 8 mm']) assert.ok(words.includes(w), `${w} is a line of the chart`);

@@ -51,7 +51,7 @@ function readingNow(slide = false): Reading {
   };
 }
 
-export function FibroPane({ plot, slide = false, bar = true, platelets = false }: PaneProps & { /** a slide's data card: the slide's own numbers (slide/pin.ts), no Liver/Spleen switch (2D createFibroScan switcher: false) */ slide?: boolean; /** a slide's tool.bar === false leaves the stiffness bar out; platelets: the slide's tiles name `plt` (the bar then says the platelets too) */ bar?: boolean; platelets?: boolean }) {
+export function FibroPane({ plot, noteAside = false, slide = false, bar = true, platelets = false }: PaneProps & { /** a slide's data card: the slide's own numbers (slide/pin.ts), no Liver/Spleen switch (2D createFibroScan switcher: false) */ slide?: boolean; /** a slide's tool.bar === false leaves the stiffness bar out; platelets: the slide's tiles name `plt` (the bar then says the platelets too) */ bar?: boolean; platelets?: boolean }) {
   useSlidePin((s) => s.n);
   const organ = useTests((s) => s.fibro), setFibro = useTests((s) => s.setFibro);
   // the reading, as text: the pane re-renders only when a number or a word changes
@@ -151,7 +151,7 @@ export function FibroPane({ plot, slide = false, bar = true, platelets = false }
             {rows.flatMap(([t, v]) => [<dt key={`t${t}`}>{t}</dt>, <dd key={`v${t}`}>{v}</dd>])}
           </dl>
         )}
-        {bar ? <div style={{ flex: 'none', width: '100%', minWidth: 0, marginTop: 10 }}><StiffCard lsm={none ? null : Math.round(parseFloat(shownTxt) * 10) / 10} plt={organ === 'liver' && (!isSlide || platelets) ? r.plt : null} organ={organ} ctx={r.ctx} note={!isSlide} /></div> : null}
+        {bar ? <div style={{ flex: 'none', width: '100%', minWidth: 0, marginTop: 10 }}><StiffCard lsm={none ? null : Math.round(parseFloat(shownTxt) * 10) / 10} plt={organ === 'liver' && (!isSlide || platelets) ? r.plt : null} organ={organ} ctx={r.ctx} note={!isSlide && !noteAside} /></div> : null}
       </div>
     </>
   );

@@ -139,7 +139,7 @@ test('the cirrhosis bleed reads as the course: a tap and a TIPS show what they d
 
 test('the derived chapters: before treatment, the first start of each medicine, each procedure; a patient who comes on a medicine begins on it', async () => {
   const { s } = await storyIn('hist-bleed');
-  assert.deepEqual(storyOf(s).map((c) => [c.from, c.label]), [[0, 'Before treatment'], [19, 'On carvedilol'], [70, 'On terlipressin'], [73, 'After the TIPS']]);
+  assert.deepEqual(storyOf(s).map((c) => [c.from, c.label]), [[0, 'Before treatment'], [20, 'On carvedilol'], [70, 'On terlipressin'], [73, 'After the TIPS']]);
   const { s: a } = await storyIn('hist-ascites');
   assert.deepEqual(storyOf(a).map((c) => [c.from, c.label]), [[0, 'On diuretics'], [110, 'After the TIPS']]);
   const { s: g } = await storyIn('hist-brto');

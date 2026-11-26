@@ -7,7 +7,8 @@ how the pieces plug together.
 ## The bible (judge every change against all six before calling it done)
 1. production level 2. intuitive 3. elegant 4. beautiful 5. humanized 6. performant.
 Nothing pops in or out; cards never show before their content and fonts are ready; text never shrinks to fit; nothing scrolls inside a
-card. Clinical text is for US physicians: Baveno VIII (never VII) is the only guideline named on screen; other sources (AASLD, EASL) are named in the speaker notes only (`scripts/source-edits.mjs`, `tests/guideline-names.test.ts`).
+card, with one narrow exception (owner, 26 Nov): a Tests pane whose declared minimum (`src/ui/tests/pane-need.ts` NEEDS) cannot fit the sheet even with Half grown to its cap
+(a 375 x 667 phone while a case's bar is up) keeps that minimum and scrolls in the card instead of clipping (`fitPlace` scrollMin, `--pane-min`; `tests/sheet-content-fits.test.ts`). Every Tests pane declares a minimum or that it scrolls; a new pane adds its entry. Clinical text is for US physicians: Baveno VIII (never VII) is the only guideline named on screen; other sources (AASLD, EASL) are named in the speaker notes only (`scripts/source-edits.mjs`, `tests/guideline-names.test.ts`).
 
 ## Rules that do not bend
 - **One clock.** `requestAnimationFrame` is called in `src/clock/frame.ts` and nowhere else (lint rule `raf-outside-clock`, `scripts/lint-rules.mjs`). Ask for frames
