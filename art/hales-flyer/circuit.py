@@ -129,11 +129,11 @@ for i,hw in enumerate((10,6,2.5)): L((XM-hw,672+i*4),(XM+hw,672+i*4),w=1.2)
 T(XM+20,662,'chest pressure',F-2.5,'start',c=SOFT,it=True); T(XM+14,BOT-6,'right atrium',F,'start')
 T(100,BOT-7,'systemic veins',F-1,'middle')
 T(XM+100,280,'belly pressure',F-2.5,'middle',c=SOFT,it=True)
-# measurements: vertical brackets on the right, each named along its own line
-def vbr(x,y1,y2,label,m=None):
-    L((x-6,y1),(x,y1),(x,y2),(x-6,y2),c=RED,w=1.1)
-    m=(y1+y2)/2 if m is None else m; out.append(f'<text x="{x+15}" y="{m}" font-size="{F:.2f}" text-anchor="middle" fill="{RED}" font-weight="700" transform="rotate(90 {x+15} {m})">{label}</text>')
-vbr(352,236,560,'PPG',317)   # (named above where the HVPG bracket starts, so the two never touch)
-vbr(378,398,560,'HVPG')
-svg=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 690" font-family="Liberation Serif, FreeSerif, serif">'+''.join(out)+'</svg>'
+# measurements: vertical brackets on the right, each named flat beside its own line, clear of the hepatic artery (x 332) and of each other.
+# (They were named sideways against the page edge, where the iPhone page cut HVPG; owner, 26 Nov 2026.)
+def vbr(x,y1,y2,label,ly):
+    L((x-6,y1),(x,y1),(x,y2),(x-6,y2),c=RED,w=1.1); T(x-10,ly,label,F,'end',c=RED,b=True)
+vbr(412,236,560,'PPG',322)
+vbr(368,398,560,'HVPG',484)
+svg=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 424 690" font-family="Liberation Serif, FreeSerif, serif">'+''.join(out)+'</svg>'
 open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'circuit-phone.svg'),'w').write(svg)
