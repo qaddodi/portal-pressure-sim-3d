@@ -53,7 +53,7 @@ export function CaseUi({ thumb }: { thumb: boolean }) {
         ? <PhoneStopSheet cv={cv} s={stop.shown} on={stopOn} moved={moved} back={back} onHeight={onHeight} />
         : <StopCards cv={cv} s={stop.shown} on={stopOn} fold={exploring} moved={moved} back={back} sheet={thumb} onHeight={onHeight} />)}
       {cv && <TravelCard cv={cv} on={phase === 'travel'} sheet={thumb} phone={phone} />}
-      <CaseBar cv={cv} thumb={thumb} phone={phone} exploring={exploring} on={up} />
+      <CaseBar cv={cv} thumb={thumb} exploring={exploring} on={up} />
     </div>
   );
 }

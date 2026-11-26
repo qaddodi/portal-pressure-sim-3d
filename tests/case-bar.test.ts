@@ -9,8 +9,8 @@ import { Timeline, type TimelineHost, type Snap } from '../src/ui/timeline/model
 import { viewOf } from '../src/ui/timeline/story-view.ts';
 import { stopsOf } from '../src/ui/case/stops.ts';
 import { caseViewOf } from '../src/ui/case/view.ts';
-import { caseAxis, placeNames, stopAtFrac } from '../src/ui/case/strip.ts';
-import { caseLiftFor, caseRoom, CASE_BAR_H } from '../src/ui/case/room.ts';
+import { caseAxis, placeNames, stopAtFrac, stripNeeds } from '../src/ui/case/strip.ts';
+import { caseLiftFor, caseRoom, CASE_BAR_H, CASE_BAR_ROWS, CASE_BAR_THUMB_H, CASE_STRIP_H } from '../src/ui/case/room.ts';
 import { M } from '../src/ui/shell/metrics.ts';
 import { barWords, chapterAt, continueWords, dragWords, inDays, kickerWords, passedNotes, shortName, shotWords, travelWords, lookSide } from '../src/ui/case/words.ts';
 
@@ -101,6 +101,30 @@ test('the bar lifts the foot by what it takes over the play bar\'s row, the same
   assert.equal(caseLiftFor('desktop', false), 0);
   assert.ok(caseLiftFor('phone-portrait', true) > 0);
   assert.equal(caseLiftFor('tablet-portrait', true), caseLiftFor('phone-portrait', true));
+});
+
+// (owner, 26 Nov, iPhone: "still not 100% the bottom portion": the thumb bar was a fixed 96 px over 103 px of rows, so the chapters' names spilled out of it onto the tab row, and it
+// stood 6 px over the tab row as a second slab. Root cause: a height set apart from its parts. Now it is their sum, and it stands flush on the tab row, one dock.)
+test('the thumb bar is the sum of its rows, its strip has the room its drawing needs, and it stands flush on the tab row as one dock', () => {
+  const R = CASE_BAR_ROWS;
+  assert.equal(CASE_BAR_THUMB_H, R.PAD_T + R.ROW + R.GAP + CASE_STRIP_H.bare + R.PAD_B);
+  assert.ok(stripNeeds(false) <= CASE_STRIP_H.bare, `the phone strip draws ${stripNeeds(false)} px in ${CASE_STRIP_H.bare}`);
+  assert.ok(stripNeeds(true) <= CASE_STRIP_H.names, `the strip with names draws ${stripNeeds(true)} px in ${CASE_STRIP_H.names}`);
+  assert.ok(R.PAD_T + CASE_STRIP_H.names + R.PAD_B <= CASE_BAR_H, 'the one-row bar holds the strip with its names');
+  assert.equal(caseLiftFor('phone-portrait', true), CASE_BAR_THUMB_H - M.phoneTimelineH, 'no gap between the bar and the tab row');
+  const css = readFileSync(new URL('../src/ui/case/case.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const px = (sel: string, prop: string) => Number(new RegExp(`${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{[^}]*?${prop}:\\s*(\\d+)px`).exec(css)?.[1]);
+  // the buttons' row: the buttons, the group's padding and its edge, both sides
+  assert.equal(R.ROW, px('.cb-ib', 'height') + 2 * px('.cb-ctl', 'padding') + 2, 'the buttons fit their row');
+  const thumb = /\.case-layer\[data-thumb\] \.case-bar \{([^}]*)\}/.exec(css)?.[1] ?? '';
+  const bottom = /bottom:\s*calc\(([^;]*)\);/.exec(thumb)?.[1] ?? '';
+  assert.deepEqual(bottom.split('+').map((t) => t.trim().replace(/,.*$/, '').replace(/^var\(/, '')).sort(),
+    ['--m-phone-inset', '--m-phone-tab-h', '--m-phone-tabs-pad-bottom', '--m-phone-tabs-pad-top', '--safe-b'], 'the bar rests on the tab row\'s top line, no gap');
+  assert.match(thumb, /border-radius:\s*var\(--r-sheet\) var\(--r-sheet\) 0 0/, 'round only at the dock\'s top');
+  assert.match(thumb, /border-bottom:\s*0/);
+  assert.match(css, /\.app\.thumb\.case-on \.vdock:not\(\.mini\) > \.thumb-bar \{[^}]*border-top-left-radius:\s*0/, 'the tab row is square at the top under the bar');
+  assert.match(css, /@media \(min-width: 700px\) and \(max-width: 1100px\) and \(orientation: portrait\) \{ \.case-layer\[data-thumb\] \.case-bar \{ left: 15%; right: 15%; \} \}/,
+    'an upright iPad: the bar at the dock\'s 70 %');
 });
 
 test('the stop card leaves the figure its room: the same size, centred in what the card leaves (it pans, never zooms)', () => {
