@@ -1,8 +1,8 @@
-// "Recover last capture": the capture page (the Mac's outer page and `?audit=here`) offers the last run that was written to the device's storage (capture-store.ts) and not
-// saved: a page that crashed or
-// was ended by the browser leaves its files there. Press Recover to make the zip from them (one file at a time), then Save zip; Discard lets them go. Hidden when there is nothing to recover.
+// "Recover last capture": the capture pages (the Mac's outer page, `?audit=here` and the promotion page) offer the last run that was written to the device's storage (capture-store.ts) and
+// not saved: a page that crashed or was ended by the browser leaves its files there. Press Recover and the run is offered like a finished one (capture-deliver.ts: its zips are made from
+// storage one file at a time, in parts where the browser cannot hold the whole); Discard lets the files go. Hidden when there is nothing to recover.
 import { idbBackend, recoverable, recoverLine, reopenSession, type Backend, type Session } from './capture-store.ts';
-import { saveFiles } from '../../capture/save-files.ts';
+import { deliverUi } from './capture-deliver.ts';
 
 export function recoverUi(doc: Document, say: (t: string) => void): { el: HTMLElement; refresh(): Promise<void> } {
   const el = doc.createElement('div'); el.hidden = true; el.style.cssText = 'flex:1 1 100%;margin:6px 0 10px;padding:10px 12px;border:1px solid rgba(255,255,255,.28);border-radius:10px';
@@ -13,30 +13,24 @@ export function recoverUi(doc: Document, say: (t: string) => void): { el: HTMLEl
     b.style.cssText = 'min-height:38px;padding:0 12px;border-radius:9px';
     return b;
   };
-  let be: Backend | null = null, session: Session | null = null, zip: { blob: Blob; name: string } | null = null, busy = false;
+  const deliver = deliverUi(doc);
+  let be: Backend | null = null, session: Session | null = null, meta: { zipName: string } | null = null;
   const recover = mk('Recover last capture', () => {
-    if (busy || !session) return;
-    busy = true; recover.disabled = true; say('Making the zip from the saved files…');
-    void session.zip(new Date(), (n, of) => { if (n % 25 === 0 || n === of) say(`Making the zip from the saved files: ${n} of ${of}…`); }).then((blob) => {
-      zip = { blob, name: `portal-pressure-recovered-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}.zip` };
-      save.hidden = false; say(`The zip is ready (${Math.round(blob.size / 1e5) / 10} MB). Tap Save zip.`);
-    }, (e: unknown) => { say(`The zip could not be made: ${String((e as Error)?.message ?? e)}`); recover.disabled = false; }).finally(() => { busy = false; });
+    if (!session || !meta) return;
+    const s = session;
+    recover.hidden = true; drop.hidden = true;
+    say('The saved capture is ready to save, from storage.');
+    deliver.offer(s, meta.zipName.replace(/^portal-pressure-/, 'portal-pressure-recovered-'), new Date(), () => { void s.saved().then(() => { el.hidden = true; }); });
   });
-  const save = mk('Save zip', () => {
-    if (!zip || !session) return;
-    const s = session, z = zip;
-    void saveFiles([new File([z.blob], z.name, { type: 'application/zip' })]).then((ok) => { if (ok) { void s.saved().then(() => { el.hidden = true; }); } });
-  });
-  save.hidden = true;
-  const drop = mk('Discard', () => { if (session && !busy) void session.discard().then(() => { el.hidden = true; say('The saved capture was discarded.'); }); });
-  row.append(recover, save, drop); el.append(line, row);
+  const drop = mk('Discard', () => { if (session) void session.discard().then(() => { el.hidden = true; deliver.clear(); say('The saved capture was discarded.'); }); });
+  row.append(recover, drop); el.append(line, row, deliver.el);
   async function refresh(): Promise<void> {
     try {
       be = be ?? await idbBackend();
       if (!be) { el.hidden = true; return; }
       const r = recoverable(await be.listRuns());
       if (!r) { el.hidden = true; return; }
-      session = await reopenSession(be, r); zip = null; save.hidden = true; recover.disabled = false;
+      session = await reopenSession(be, r); meta = r; deliver.clear(); recover.hidden = false; drop.hidden = false;
       line.textContent = recoverLine(r); el.hidden = false;
     } catch { el.hidden = true; }
   }

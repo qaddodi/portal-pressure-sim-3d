@@ -43,7 +43,15 @@ If the browser ends the tab, the walk is written down after every step: open the
 
 ### A capture survives a crashed page: Recover last capture
 
-Every picture is written to the device's own storage (IndexedDB) as its talk (or case) ends, in the Mac's capture and in `?audit=here`; the page keeps only the names, each frame lets go of its bytes once they are sent, and **Save zip** is made from storage one file at a time (`capture-store.ts`, `zipStream` in `capture/zip.ts`). If the browser ends the page (Safari did, 26 Nov, after a whole audit and before the zip was saved), open the capture page again: **Recover last capture** shows what is there (files, size, build, how it ended). **Recover** makes the zip from the saved files, **Save zip** gives it to you, **Discard** lets it go. A run that was saved is not offered again; the next run keeps the one before it only if that was not saved. A browser that gives the page no storage (a private window) keeps working in memory, and the README says a crash would lose it. `tests/capture-store.test.ts`.
+Every picture is written to the device's own storage (IndexedDB) as its talk (or case) ends, in the Mac's capture, in `?audit=here` and in `?promotion` (one store for all three: `capture-store.ts`, no in-memory exception; the promotion page frames each picture as its talk ends and writes only the finished JPEG); the page keeps only the names and each frame lets go of its bytes once they are sent. If the browser ends the page (Safari did, 26 Nov, after a whole audit and before the zip was saved), open the capture page again: **Recover last capture** shows what is there (files, size, build, how it ended). **Recover last capture** offers the run for saving the way a finished run is (next section); **Discard** lets it go. A run that was saved is not offered again; the next run keeps the one before it only if that was not saved. A browser that gives the page no storage (a private window) keeps working in memory, and the README says a crash would lose it. `tests/capture-store.test.ts`, `tests/capture-deliver.test.ts`.
+
+### Saving a big capture: no single huge zip
+
+Making one Blob of a whole audit's zip is what ran Safari out of memory, so no page does it (`capture-deliver.ts`, one delivery for the Mac's capture, `?audit=here`, `?promotion` and Recover):
+
+- **Chrome or Edge** (a browser with the save dialog): **Save zip** opens the dialog in your tap and streams the zip into the file you pick one picture at a time, straight from storage (`zipWrite`): no Blob of it exists. One zip, unless the capture nears a zip's 4 GB.
+- **Safari** (no save dialog): the run is planned into zips of at most 200 MB each, whole folders kept together (a size, then a talk or a case; `planParts` in `capture-parts.ts`; the README and the manifest are in every part), and the page says so: "612 MB in all, so it comes as 4 zips". One part is made from storage at a time and offered with its own **Save part 1 of 4** (the share sheet or download has to happen inside the tap, so the part is made before the button says Save); once saved it is let go and the next is made. Names: `...-part2of4.zip`. The run counts as saved only when every part is.
+- A capture under 200 MB is one zip on both, as before.
 
 ### Picked slides go straight there
 

@@ -6,7 +6,7 @@
 // storage one file at a time (zipStream),
 // and the next visit to the capture page offers "Recover last capture".
 // This file is the logic over a small `Backend`; the browser's IndexedDB is one (idbBackend), a Map in memory is the other (the tests, and a browser that gives no storage). Nothing is sent anywhere.
-import { zipStream, type ZipFile } from '../../capture/zip.ts';
+import { zipStream, zipWrite, type ZipFile } from '../../capture/zip.ts';
 
 export interface RunMeta {
   id: string;
@@ -29,6 +29,8 @@ export interface Backend {
   listRuns(): Promise<RunMeta[]>;
   putFiles(run: string, files: readonly ZipFile[]): Promise<void>;
   fileNames(run: string): Promise<string[]>;
+  /** every file's size in bytes, by name (-1 for a file stored before sizes were kept: the session reads it to measure it) */
+  fileSizes(run: string): Promise<Map<string, number>>;
   readFile(run: string, name: string): Promise<Uint8Array | null>;
   deleteRun(run: string): Promise<void>;
 }
@@ -41,6 +43,7 @@ export function memoryBackend(): Backend {
     async listRuns() { return [...runs.values()].map((r) => ({ ...r })); },
     async putFiles(run, fs) { const m = files.get(run) ?? new Map<string, Uint8Array>(); files.set(run, m); for (const f of fs) m.set(f.name, f.data.slice()); },
     async fileNames(run) { return [...(files.get(run)?.keys() ?? [])]; },
+    async fileSizes(run) { return new Map([...(files.get(run) ?? new Map<string, Uint8Array>())].map(([n, d]) => [n, d.length] as const)); },
     async readFile(run, name) { return files.get(run)?.get(name) ?? null; },
     async deleteRun(run) { runs.delete(run); files.delete(run); },
   };
@@ -63,8 +66,12 @@ export interface Session {
   read(name: string): Promise<Uint8Array | null>;
   /** the run ended (or the person stopped it) */
   finish(status: 'finished' | 'stopped'): Promise<void>;
-  /** the zip, made one file at a time from storage */
-  zip(at: Date, progress?: (done: number, of: number) => void): Promise<Blob>;
+  /** every file's name and size, in the order they came (capture-parts.ts plans the zips from them) */
+  files(): { name: string; bytes: number }[];
+  /** a zip of the files (all, or only the names given), made one file at a time from storage */
+  zip(at: Date, progress?: (done: number, of: number) => void, only?: readonly string[]): Promise<Blob>;
+  /** the same zip written to a sink as it is made (a file the person chose), with no Blob of it at all; resolves with its size */
+  zipTo(write: (chunk: Uint8Array) => Promise<void>, at: Date, progress?: (done: number, of: number) => void, only?: readonly string[]): Promise<number>;
   /** the person saved the zip: it is not offered again */
   saved(): Promise<void>;
   /** the run's files are no longer needed */
@@ -81,7 +88,7 @@ const guard = async <T>(f: () => Promise<T>): Promise<{ ok: true; v: T } | { ok:
 export async function openSession(be: Backend | null, meta: Omit<RunMeta, 'id' | 'updatedAt' | 'status' | 'files' | 'bytes'>, id = `run-${new Date().getTime().toString(36)}`): Promise<Session> {
   const now = (): string => new Date().toISOString();
   const run: RunMeta = { ...meta, id, updatedAt: now(), status: 'running', files: 0, bytes: 0 };
-  const order: string[] = [], mem = new Map<string, Uint8Array>();
+  const order: string[] = [], mem = new Map<string, Uint8Array>(), size = new Map<string, number>();
   let degraded = be ? '' : 'this browser gives the page no storage';
   let b = be;
   if (b) {
@@ -101,13 +108,14 @@ export async function openSession(be: Backend | null, meta: Omit<RunMeta, 'id' |
     get degraded() { return degraded; },
     async add(files) {
       if (!files.length) return;
-      for (const f of files) if (!order.includes(f.name)) order.push(f.name);
-      run.files = order.length; run.bytes += files.reduce((n, f) => n + f.data.length, 0);
+      for (const f of files) { if (!size.has(f.name)) order.push(f.name); size.set(f.name, f.data.length); }
+      run.files = order.length; run.bytes = [...size.values()].reduce((n, x) => n + x, 0);
       const r = b ? await guard(() => b!.putFiles(id, files)) : ({ ok: false, why: degraded } as const);
       if (!r.ok) { degraded = r.why; for (const f of files) mem.set(f.name, f.data); }
       await write();
     },
     names: () => [...order],
+    files: () => order.map((name) => ({ name, bytes: size.get(name) ?? 0 })),
     async read(name) {
       const held = mem.get(name);
       if (held) return held;
@@ -116,7 +124,8 @@ export async function openSession(be: Backend | null, meta: Omit<RunMeta, 'id' |
       return r.ok ? r.v : null;
     },
     async finish(status) { run.status = status; await write(); },
-    zip: (at, progress) => zipStream([...order].sort(), (n) => self.read(n), at, { progress }),
+    zip: (at, progress, only) => zipStream([...(only ?? order)].sort(), (n) => self.read(n), at, { progress }),
+    zipTo: (write, at, progress, only) => zipWrite([...(only ?? order)].sort(), (n) => self.read(n), at, write, { progress }),
     async saved() { run.savedAt = now(); await write(); },
     async discard() { mem.clear(); order.length = 0; if (b) await guard(() => b!.deleteRun(id)); },
   };
@@ -125,15 +134,19 @@ export async function openSession(be: Backend | null, meta: Omit<RunMeta, 'id' |
 
 /** A stored run, opened again (after a reload): its files by name, and the zip from them. */
 export async function reopenSession(be: Backend, run: RunMeta): Promise<Session> {
-  const names = (await be.fileNames(run.id)).sort();
-  const r = { ...run };
+  const sizes = await be.fileSizes(run.id), r = { ...run };
+  // (a file stored before sizes were kept is read once to measure it)
+  for (const [n, b] of sizes) if (b < 0) sizes.set(n, (await be.readFile(run.id, n))?.length ?? 0);
+  const names = [...sizes.keys()].sort();
   const self: Session = {
     id: run.id, degraded: '',
     async add() { /* a recovered run is read, not written */ },
     names: () => [...names],
+    files: () => names.map((name) => ({ name, bytes: sizes.get(name) ?? 0 })),
     read: (n) => be.readFile(run.id, n),
     async finish() { /* as it was */ },
-    zip: (at, progress) => zipStream(names, (n) => self.read(n), at, { progress }),
+    zip: (at, progress, only) => zipStream([...(only ?? names)].sort(), (n) => self.read(n), at, { progress }),
+    zipTo: (write, at, progress, only) => zipWrite([...(only ?? names)].sort(), (n) => self.read(n), at, write, { progress }),
     async saved() { r.savedAt = new Date().toISOString(); await be.putRun(r); },
     async discard() { await be.deleteRun(run.id); },
   };
@@ -145,11 +158,14 @@ export async function idbBackend(): Promise<Backend | null> {
   if (typeof indexedDB === 'undefined') return null;
   const db = await new Promise<IDBDatabase | null>((ok) => {
     try {
-      const q = indexedDB.open('pps-capture', 1);
+      // (version 2 adds the index that lists each file's size without reading the file; a version 1 store keeps its files, which the session measures when it reads them)
+      const q = indexedDB.open('pps-capture', 2);
       q.onupgradeneeded = () => {
-        const d = q.result;
-        d.createObjectStore('runs', { keyPath: 'id' });
-        d.createObjectStore('files', { keyPath: ['run', 'name'] }).createIndex('run', 'run');
+        const d = q.result, t = q.transaction!;
+        if (!d.objectStoreNames.contains('runs')) d.createObjectStore('runs', { keyPath: 'id' });
+        const files = d.objectStoreNames.contains('files') ? t.objectStore('files') : d.createObjectStore('files', { keyPath: ['run', 'name'] });
+        if (!files.indexNames.contains('run')) files.createIndex('run', 'run');
+        if (!files.indexNames.contains('sized')) files.createIndex('sized', ['run', 'name', 'size']);
       };
       q.onsuccess = () => ok(q.result);
       q.onerror = () => ok(null);
@@ -165,13 +181,23 @@ export async function idbBackend(): Promise<Backend | null> {
     t.onabort = () => no(t.error ?? new Error('storage aborted (no room?)'));
   });
   const own = (d: Uint8Array): ArrayBuffer => (d.byteOffset === 0 && d.byteLength === d.buffer.byteLength ? (d.buffer as ArrayBuffer) : (d.slice().buffer as ArrayBuffer));
+  const fileNames = async (run: string): Promise<string[]> => {
+    const keys = (await tx<IDBValidKey[]>(['files'], 'readonly', (t) => t.objectStore('files').index('run').getAllKeys(IDBKeyRange.only(run)))) ?? [];
+    return keys.map((k) => String((k as unknown[])[1]));
+  };
   return {
     async putRun(r) { await tx(['runs'], 'readwrite', (t) => { t.objectStore('runs').put(r); }); },
     async listRuns() { return (await tx<RunMeta[]>(['runs'], 'readonly', (t) => t.objectStore('runs').getAll())) ?? []; },
-    async putFiles(run, files) { await tx(['files'], 'readwrite', (t) => { const s = t.objectStore('files'); for (const f of files) s.put({ run, name: f.name, data: own(f.data) }); }); },
-    async fileNames(run) {
-      const keys = (await tx<IDBValidKey[]>(['files'], 'readonly', (t) => t.objectStore('files').index('run').getAllKeys(IDBKeyRange.only(run)))) ?? [];
-      return keys.map((k) => String((k as unknown[])[1]));
+    async putFiles(run, files) {
+      await tx(['files'], 'readwrite', (t) => { const s = t.objectStore('files'); for (const f of files) s.put({ run, name: f.name, size: f.data.byteLength, data: own(f.data) }); });
+    },
+    fileNames,
+    async fileSizes(run) {
+      const out = new Map<string, number>(), names = await fileNames(run);
+      for (const n of names) out.set(n, -1);
+      const keys = (await tx<IDBValidKey[]>(['files'], 'readonly', (t) => t.objectStore('files').index('sized').getAllKeys(IDBKeyRange.bound([run], [run, '￿', Infinity])))) ?? [];
+      for (const k of keys) { const [, n, b] = k as [string, string, number]; out.set(n, b); }
+      return out;
     },
     async readFile(run, name) {
       const row = await tx<{ data: ArrayBuffer } | undefined>(['files'], 'readonly', (t) => t.objectStore('files').get([run, name]));

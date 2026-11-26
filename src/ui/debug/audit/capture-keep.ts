@@ -1,5 +1,5 @@
-// What a capture frame has handed up so far, kept by the outer page (capture-outer.ts) so that Stop, a crash, a hang or a frame that is slow to stop still ends in a zip of
-// everything that was finished, in every size.
+// What a capture frame has handed up so far, written to storage by the outer page (capture-outer.ts, the promotion page) so that Stop, a crash, a hang or a frame that is slow to stop
+// still ends in a zip of everything that was finished, in every size.
 // A frame sends each talk's (or case's) files as that talk ends (`part`) and the rest when it ends (`done`); a frame that never says `done` has still given every talk it
 // finished. Pure: tests/capture-stop.test.ts.
 import type { ZipFile } from '../../capture/zip.ts';
@@ -11,21 +11,7 @@ export const stopOverdue = (stopAt: number, now: number, grace: number = STOP_GR
 
 export interface Ended { files: ZipFile[]; notes: string[]; why?: string }
 
-export function fileKeeper(): { add(files: readonly ZipFile[]): void; readonly size: number; end(res: Ended): Ended } {
-  const kept = new Map<string, Uint8Array>();
-  return {
-    add(files) { for (const f of files) kept.set(f.name, f.data); },
-    get size() { return kept.size; },
-    /** The frame's end, however it came: everything kept plus what it ended with (a later file of a name replaces an earlier one); a reason it did not finish says how many files were kept. */
-    end(res) {
-      for (const f of res.files) kept.set(f.name, f.data);
-      const why = res.why && kept.size ? `${res.why}; the ${kept.size} files it had finished are kept` : res.why;
-      return { files: [...kept].map(([name, data]) => ({ name, data })), notes: res.notes, ...(why ? { why } : {}) };
-    },
-  };
-}
-
-/** The same, for a page that writes what its frames hand up to storage as it arrives and keeps only the count (capture-store.ts):
+/** What a page does with what its frames hand up: write it to storage as it arrives (capture-store.ts) and keep only the count. There is no in-memory way: every capture page is on the one store.
  *  `add` queues a write (in order), `end` waits for them all. `prefix` puts the files in
  *  the frame's own folder in the zip (`iphone/`). A frame that crashes or is cut off after Stop has still given every talk it finished. */
 export interface FrameSink { add(files: readonly ZipFile[]): void; readonly count: number; end(res: Ended): Promise<{ notes: string[]; why?: string; count: number }> }

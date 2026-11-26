@@ -18,7 +18,7 @@ import { SPEEDS } from './outer.ts';
 import { pickerUi } from './capture-pick.ts';
 import { whatUi } from './capture-what.ts';
 import { recoverUi } from './capture-recover.ts';
-import type { Session } from './capture-store.ts';
+import { deliverUi } from './capture-deliver.ts';
 import { parseCases, whatOf } from './capture-cases-plan.ts';
 import { saveFiles } from '../../capture/save-files.ts';
 
@@ -119,7 +119,8 @@ export function mountAudit(mode: 'here' | 'run'): void {
   // Capture all decks: every slide of every talk through the Capture pipeline, then one zip and a contact sheet per talk. The save buttons come when it ends (the share sheet needs a fresh tap).
   let cap: import('./capture-run.ts').RunResult | null = null;
   // (the capture's files are written to the device's storage as each talk ends: a page the browser ends keeps them, and "Recover last capture" offers them back; capture-store.ts)
-  let sess: Session | null = null;
+  // (the finished run is offered by `deliver`: written straight to a file where the browser can, else as zips of a size Safari holds, one Save a part; capture-deliver.ts)
+  const deliver = deliverUi(document);
   const recover = recoverUi(document, (t) => { status.textContent = t; });
   void recover.refresh();
   const saveRow = document.createElement('div'); saveRow.hidden = true;
@@ -135,28 +136,27 @@ export function mountAudit(mode: 'here' | 'run'): void {
     if (running) return;
     const sel = picker.read(), take = what.read();
     if (sel.none && take !== 'cases') { status.textContent = 'Tick at least one talk first.'; return; }
-    running = true; setRunning(true); stop = false; cap = null; saveRow.hidden = true; capStop.hidden = false; capStop.disabled = false; out.hidden = true; bar.value = 0; bar.hidden = false; pctLine.hidden = false; startedAt = clock.now(); status.textContent = take === 'cases' ? 'Playing every case… keep this tab in front.' : 'Capturing every slide… keep this tab in front.'; pctLine.textContent = 'counting the slides…';
+    running = true; setRunning(true); stop = false; cap = null; saveRow.hidden = true; deliver.clear(); capStop.hidden = false; capStop.disabled = false; out.hidden = true; bar.value = 0; bar.hidden = false; pctLine.hidden = false; startedAt = clock.now(); status.textContent = take === 'cases' ? 'Playing every case… keep this tab in front.' : 'Capturing every slide… keep this tab in front.'; pctLine.textContent = 'counting the slides…';
     try {
       const m = await import('./capture-run.ts'), cm = await import('./capture-cases.ts'), st = await import('./capture-store.ts');
       const at = new Date(), build = buildInfo().badge || buildInfo().commit || 'dev';
       const zipName = `portal-pressure-${take === 'cases' ? 'cases' : 'all-decks'}-${build.replace(/[^\w.-]+/g, '-')}-${at.toISOString().slice(0, 19).replace(/[-:T]/g, '')}.zip`;
       const opened = await st.openSession(await st.idbBackend().catch(() => null), { startedAt: at.toISOString(), build, words: take, sizes: [`${innerWidth}x${innerHeight}`], zipName });
-      sess = opened;
       const res = await m.runCapture({ release: true, partial: (fs) => opened.add(fs), what: take, cases: parseCases(flagValue('cases') ?? 'all', cm.everyCaseId()), looks: flagValue('looks') !== '0', decks: sel.decks ? new Set(sel.decks) : null, pick: sel.pick ? new Set(sel.pick) : null, speed: skip ? SKIP_SPEED : speed > 1 ? speed : undefined, skip, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
       // (what the talks did not hand up as they ended: the README and the manifest; then the zip, made from storage one file at a time)
       await opened.add(res.files);
       await opened.finish(res.stopped ? 'stopped' : 'finished');
-      status.textContent = 'Making the zip…';
-      const blob = await opened.zip(at, (n, of) => { if (n % 50 === 0 || n === of) status.textContent = `Making the zip: ${n} of ${of} files…`; });
-      cap = { ...res, zip: blob };
+      cap = res;
       bar.value = 100;
-      status.textContent = `${cap.stopped ? 'Stopped. ' : 'Done in ' + cap.secs + ' s. '}${take === 'cases' ? `${cap.shots} pictures from ${cap.cases} cases (${cap.caseStops} stops), one folder and one contact sheet a case, and a manifest.` : `${cap.shots} pictures from ${cap.decks} talks${take === 'both' ? ` and ${cap.cases} cases` : ''} (${cap.perSlide.waitMs + cap.perSlide.drawMs} ms a picture at ${cap.speed}x), one contact sheet per talk${take === 'both' ? ' and per case' : ''}.`} Tap Save zip.${cap.notes.length ? ` Notes: ${cap.notes.join('; ')}` : ''}`;
+      status.textContent = `${cap.stopped ? 'Stopped. ' : 'Done in ' + cap.secs + ' s. '}${take === 'cases' ? `${cap.shots} pictures from ${cap.cases} cases (${cap.caseStops} stops), one folder and one contact sheet a case, and a manifest.` : `${cap.shots} pictures from ${cap.decks} talks${take === 'both' ? ` and ${cap.cases} cases` : ''} (${cap.perSlide.waitMs + cap.perSlide.drawMs} ms a picture at ${cap.speed}x), one contact sheet per talk${take === 'both' ? ' and per case' : ''}.`} Tap Save.${cap.notes.length ? ` Notes: ${cap.notes.join('; ')}` : ''}`;
       saveRow.hidden = false;
+      deliver.offer(opened, zipName, at, () => { void opened.saved(); });
     } catch (e) { status.textContent = `Capture failed: ${String((e as Error)?.message ?? e)}`; } finally { running = false; capStop.hidden = true; setRunning(false); }
   };
-  const saveBtn = (label: string, files: () => File[] | null) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (label === 'Save zip') b.className = 'au-primary'; b.onclick = () => { const f = files(); if (f) void saveFiles(f).then((ok) => { if (ok && label === 'Save zip') void sess?.saved(); }); }; saveRow.append(b); };
-  saveBtn('Save zip', () => (cap ? [new File([cap.zip], cap.zipName, { type: 'application/zip' })] : null));
-  saveBtn('Share contact sheets', () => (cap && cap.collages.length ? cap.collages.map((c) => new File([c.blob], c.name, { type: 'image/png' })) : null));
+  saveRow.append(deliver.el);
+  const sheets = document.createElement('button'); sheets.type = 'button'; sheets.textContent = 'Share contact sheets';
+  sheets.onclick = () => { if (cap && cap.collages.length) void saveFiles(cap.collages.map((c) => new File([c.blob], c.name, { type: 'image/png' }))); };
+  saveRow.append(sheets);
   const cmds = document.createElement('div'); cmds.style.cssText = 'display:flex;align-items:center;margin:14px 0 0';
   const link = (label: string, on: () => void, into: HTMLElement) => { const l = document.createElement('button'); l.type = 'button'; l.className = 'au-link'; l.textContent = label; l.onclick = on; into.append(l); return l; };
   const copies = document.createElement('div'); copies.hidden = true; copies.style.cssText = 'margin:6px 0 0';

@@ -5,38 +5,44 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileKeeper, stopOverdue, STOP_GRACE_MS } from '../src/ui/debug/audit/capture-keep.ts';
+import { frameSink, stopOverdue, STOP_GRACE_MS } from '../src/ui/debug/audit/capture-keep.ts';
+import { openSession, memoryBackend } from '../src/ui/debug/audit/capture-store.ts';
 
 const bytes = (...n: number[]) => new Uint8Array(n);
 const src = (p: string): string => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
-test('a frame that ends cleanly: the talks it handed up as it went and the rest it ends with, all kept', () => {
-  const k = fileKeeper();
-  k.add([{ name: '01-a/01.jpg', data: bytes(1) }, { name: '01-a/01.json', data: bytes(2) }]);
-  k.add([{ name: '02-b/01.jpg', data: bytes(3) }]);
-  const r = k.end({ files: [{ name: 'README.txt', data: bytes(9) }], notes: ['n'] });
-  assert.deepEqual(r.files.map((f) => f.name), ['01-a/01.jpg', '01-a/01.json', '02-b/01.jpg', 'README.txt']);
+/** A sink that writes into a run on the in-memory store, and the names it holds. */
+const sinkOf = async (prefix: string): Promise<{ sink: ReturnType<typeof frameSink>; names(): string[]; bytesOf(n: string): Promise<number[]> }> => {
+  const s = await openSession(memoryBackend(), { startedAt: '2026-11-26T00:00:00Z', build: 'b', words: 'w', sizes: [], zipName: 'z.zip' }, 'r');
+  return { sink: frameSink((fs) => s.add(fs), prefix), names: () => s.names(), bytesOf: async (n) => [...((await s.read(n)) ?? [])] };
+};
+
+test('a frame that ends cleanly: the talks it handed up as it went and the rest it ends with, all kept', async () => {
+  const k = await sinkOf('mac/');
+  k.sink.add([{ name: '01-a/01.jpg', data: bytes(1) }, { name: '01-a/01.json', data: bytes(2) }]);
+  k.sink.add([{ name: '02-b/01.jpg', data: bytes(3) }]);
+  const r = await k.sink.end({ files: [{ name: 'README.txt', data: bytes(9) }], notes: ['n'] });
+  assert.deepEqual(k.names(), ['mac/01-a/01.jpg', 'mac/01-a/01.json', 'mac/02-b/01.jpg', 'mac/README.txt']);
   assert.equal(r.why, undefined);
   assert.deepEqual(r.notes, ['n']);
 });
 
-test('a frame that crashes, hangs or is cut off after Stop gives every talk it had finished, and says so', () => {
-  const k = fileKeeper();
-  k.add([{ name: '01-a/01.jpg', data: bytes(1) }, { name: '01-a-contact-sheet.png', data: bytes(2) }]);
-  const r = k.end({ files: [], notes: [], why: 'silent for 5 minutes (the frame crashed or never booted)' });
-  assert.equal(r.files.length, 2, 'the finished talk is in the zip');
+test('a frame that crashes, hangs or is cut off after Stop gives every talk it had finished, and says so', async () => {
+  const k = await sinkOf('');
+  k.sink.add([{ name: '01-a/01.jpg', data: bytes(1) }, { name: '01-a-contact-sheet.png', data: bytes(2) }]);
+  const r = await k.sink.end({ files: [], notes: [], why: 'silent for 5 minutes (the frame crashed or never booted)' });
+  assert.equal(k.names().length, 2, 'the finished talk is in the run');
   assert.match(r.why!, /silent for 5 minutes.*; the 2 files it had finished are kept/);
-  const none = fileKeeper().end({ files: [], notes: [], why: 'the frame failed' });
+  const none = await (await sinkOf('')).sink.end({ files: [], notes: [], why: 'the frame failed' });
   assert.equal(none.why, 'the frame failed', 'nothing finished: the reason alone');
-  assert.deepEqual(none.files, []);
 });
 
-test('a file named again replaces the one before it (a later picture of the same name wins), never doubles', () => {
-  const k = fileKeeper();
-  k.add([{ name: 'a.jpg', data: bytes(1) }]);
-  const r = k.end({ files: [{ name: 'a.jpg', data: bytes(2) }], notes: [] });
-  assert.equal(r.files.length, 1);
-  assert.deepEqual([...r.files[0]!.data], [2]);
+test('a file named again replaces the one before it (a later picture of the same name wins), never doubles', async () => {
+  const k = await sinkOf('');
+  k.sink.add([{ name: 'a.jpg', data: bytes(1) }]);
+  await k.sink.end({ files: [{ name: 'a.jpg', data: bytes(2) }], notes: [] });
+  assert.deepEqual(k.names(), ['a.jpg']);
+  assert.deepEqual(await k.bytesOf('a.jpg'), [2]);
 });
 
 test('a frame is cut off only once Stop was pressed and the grace has passed', () => {
@@ -58,7 +64,8 @@ test('every page that holds a capture frame keeps what the frame hands up as it 
   for (const f of holders) {
     const s = readFileSync(f, 'utf8');
     assert.match(s, /capture === 'part'/, `${f} must keep a frame's finished talks`);
-    assert.match(s, /fileKeeper\(\)|frameSink\(/, `${f} keeps them (in memory, or written to storage as they arrive)`);
+    assert.match(s, /frameSink\(/, `${f} writes them to the one capture store as they arrive`);
+    assert.doesNotMatch(s, /fileKeeper|zipBlob\(/, `${f} holds nothing in memory: no in-memory keeper, no zip of the whole`);
     assert.match(s, /stopOverdue\(/, `${f} cuts off a frame that does not stop`);
   }
 });

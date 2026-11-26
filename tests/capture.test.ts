@@ -172,7 +172,7 @@ test('a deck\'s contact sheet: three across for a laptop or iPad, five for a pho
 
 test('Capture all decks: in the audit panel, every talk and stop, kept out of its own pictures, saved from a fresh tap', () => {
   const page = src('src/ui/debug/audit/page.ts'), all = pipeline();
-  assert.match(page, /capBtn.textContent = 'Capture'/); assert.match(page, /data-capture-skip/); assert.match(page, /Save zip/); assert.match(page, /Share contact sheets/);
+  assert.match(page, /capBtn.textContent = 'Capture'/); assert.match(page, /data-capture-skip/); assert.match(page, /deliverUi\(/); assert.match(page, /Share contact sheets/);
   assert.match(all, /loadAllDecks\(\)/); assert.match(all, /builtinDecks\(\)/); assert.match(all, /ui\.stop\(\)/); assert.match(all, /stillPage\(real, /); assert.match(all, /drawScreen\(/); assert.match(all, /'image\/jpeg'/); assert.match(all, /contact-sheet\.png/);
   assert.ok(!/fetch\(|sendBeacon|XMLHttpRequest/.test(all), 'nothing leaves the device');
 });

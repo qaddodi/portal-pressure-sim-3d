@@ -9,13 +9,13 @@ import { whatUi } from './capture-what.ts';
 import { frameSink, stopOverdue, STOP_GRACE_MS } from './capture-keep.ts';
 import { openSession, idbBackend, type Session } from './capture-store.ts';
 import { recoverUi } from './capture-recover.ts';
+import { deliverUi } from './capture-deliver.ts';
 import { whatOf, joinManifests, manifestJson, type CaptureWhat, type Manifest } from './capture-cases-plan.ts';
 import type { ZipFile } from '../../capture/zip.ts';
 import { commitOf } from '../../../boot/release.ts';
 import type { CaptureMsg } from './capture-child.ts';
 import { readBox } from '../../layout-snap.ts';
 import { clock } from '../../../clock/frame.ts';
-import { saveFiles } from '../../capture/save-files.ts';
 
 /** The address of the app in a capture frame: the same path with the capture flags (and none of the self-test's). */
 export function captureSrc(pathname: string, search: string, o: { speed: number; pick: string[] | null; decks: string[] | null; what?: CaptureWhat; cases?: string | null }): string {
@@ -42,22 +42,18 @@ export function addCaptureControls(k: OuterKit): void {
   void Promise.all(lazyDecks().map((l) => loadBuiltin(l.id).catch(() => null))).then(() => picker.refresh());   // (the talks' data only: the app itself is started in the frames)
   const wrap = doc.createElement('div'); wrap.className = 'ao-cap'; wrap.style.cssText = 'flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center';
   const b = (label: string, on: () => void) => { const e = doc.createElement('button'); e.type = 'button'; e.textContent = label; e.onclick = on; return e; };
-  let stop = false, stopAt = -1, zip: { blob: Blob; name: string } | null = null, session: Session | null = null;
+  let stop = false, stopAt = -1, session: Session | null = null;
   const go = b('Capture', () => { void run(); });
   const stopBtn = b('Stop', () => {
     stop = true; stopAt = clock.now();
     status.textContent = `Stopping: each frame finishes its slide, then what is done in every size is kept and Save zip comes (a frame that has not ended in ${STOP_GRACE_MS / 1000} s is cut off, keeping its finished talks).`;
   });
-  const save = b('Save zip', () => {
-    if (!zip) return;
-    const s = session;
-    void saveFiles([new File([zip.blob], zip.name, { type: 'application/zip' })]).then((ok) => { if (ok) void s?.saved(); });
-  });
-  save.hidden = true;
+  // (the finished run is offered here: written straight to a file where the browser can, else as zips of a size Safari holds, one Save a part; capture-deliver.ts)
+  const deliver = deliverUi(doc);
   // (a capture the page was ended in the middle of, or before its zip was saved, is offered back: capture-store.ts)
   const recover = recoverUi(doc, (t) => { status.textContent = t; });
   void recover.refresh();
-  wrap.append(recover.el, what.el, picker.el, go, stopBtn, save); bar.append(wrap);
+  wrap.append(recover.el, what.el, picker.el, go, stopBtn, deliver.el); bar.append(wrap);
 
   /** What each size says now: the status shows them side by side. */
   const lines = new Map<string, string>();
@@ -102,13 +98,12 @@ export function addCaptureControls(k: OuterKit): void {
     const sel0 = picker.read(), ids = k.sizes(), sel = { ...sel0, what: what.read() };
     if (!ids.length) { status.textContent = 'Tick at least one size in the bar.'; return; }
     if (sel.none && sel.what !== 'cases') { status.textContent = 'Tick at least one talk first.'; return; }
-    k.setBusy(true); stop = false; stopAt = -1; zip = null; save.hidden = true; go.disabled = true;
+    k.setBusy(true); stop = false; stopAt = -1; deliver.clear(); go.disabled = true;
     const at = new Date(), enc = new TextEncoder(), notes: string[] = [], speed = k.speed() > 1 ? k.speed() : 20;
     const zipName = captureZipName(commitOf(import.meta.env.VITE_BUILD) || 'local', ids, at);
     const takenWords = sel.what === 'cases' ? 'every history case, played' : sel.what === 'both' ? `${sel.words}, and every history case played` : sel.words;
     // (every picture is written to the device's storage as its talk ends and the page keeps only the names: a page the browser ends keeps the capture, and "Recover last capture" offers it back)
-    session = await openSession(await idbBackend().catch(() => null), { startedAt: at.toISOString(), build: buildOf(), words: takenWords, sizes: ids, zipName });
-    const sess = session;
+    const sess = session = await openSession(await idbBackend().catch(() => null), { startedAt: at.toISOString(), build: buildOf(), words: takenWords, sizes: ids, zipName });
     try {
       // every size at once, side by side in the room (a frame is its own page: its own clock, its own GPU canvas; a Mac holds well over six). Each size's pictures wait for its
       // own frames, so the sizes slow one another a little and the whole run is about as long as the slowest.
@@ -138,12 +133,10 @@ export function addCaptureControls(k: OuterKit): void {
       extra.push({ name: 'README.txt', data: enc.encode(readme.join('\n')) });
       await sess.add(extra);
       await sess.finish(stop ? 'stopped' : 'finished');
-      // (the zip is made from storage one file at a time, so the page never holds the whole of it as arrays)
-      status.textContent = 'Making the zip…';
-      zip = { blob: await sess.zip(at, (n, of) => { if (n % 50 === 0 || n === of) status.textContent = `Making the zip: ${n} of ${of} files…`; }), name: zipName };
       const pictures = sess.names().filter((n) => /\.(jpg|png)$/.test(n) && !n.endsWith('contact-sheet.png')).length;
-      status.textContent = `${stop ? 'Stopped. ' : 'Done. '}${pictures} pictures in ${ids.length} size${ids.length > 1 ? 's' : ''}. Tap Save zip.${notes.length ? ` ${notes.join('; ')}` : ''}`;
-      save.hidden = false;
+      status.textContent = `${stop ? 'Stopped. ' : 'Done. '}${pictures} pictures in ${ids.length} size${ids.length > 1 ? 's' : ''}. Tap Save.${notes.length ? ` ${notes.join('; ')}` : ''}`;
+      // (no zip is made here: the delivery makes each from storage when it is saved, so the page never holds the whole of it)
+      deliver.offer(sess, zipName, at, () => { void sess.saved(); });
     } catch (e) { status.textContent = `Capture failed: ${String((e as Error)?.message ?? e)}`; }
     finally { k.setBusy(false); go.disabled = false; }
   }

@@ -582,7 +582,7 @@
  "src/ui/debug/audit/judge.ts": 9,
  "src/ui/debug/audit/ledger.ts": 14,
  "src/ui/debug/audit/outer.ts": 25,
- "src/ui/debug/audit/page.ts": 24,
+ "src/ui/debug/audit/page.ts": 23,
  "src/ui/debug/audit/progress.ts": 2,
  "src/ui/debug/audit/report.ts": 32,
  "src/ui/debug/audit/run.ts": 8,

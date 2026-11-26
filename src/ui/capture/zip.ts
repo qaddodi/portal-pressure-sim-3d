@@ -62,6 +62,28 @@ export async function zipStream(
   return new Blob([...chunks, new Blob(parts as BlobPart[]), ...(central as BlobPart[]), zipEnd(count, cdSize, offset) as BlobPart], { type: 'application/zip' });
 }
 
+/** The same zip written to a sink as it is made (a file the person chose with the browser's save dialog, say): nothing is held but the file in hand and the directory, so no Blob of the whole zip
+ *  exists at all. A name `read` gives no bytes for is left out. Resolves with the zip's size in bytes. (No zip64: a zip stays under 4 GB and 65535 files, which capture-parts.ts plans for.) */
+export async function zipWrite(
+  names: readonly string[], read: (name: string) => Promise<Uint8Array | null>, at: Date, write: (chunk: Uint8Array) => Promise<void>,
+  o: { progress?(done: number, of: number): void } = {},
+): Promise<number> {
+  const stamp = zipStamp(at), central: Uint8Array[] = [];
+  let offset = 0, count = 0;
+  for (const [i, name] of names.entries()) {
+    const data = await read(name);
+    o.progress?.(i + 1, names.length);
+    if (!data) continue;
+    const e = zipEntry({ name, data }, offset, stamp);
+    for (const p of e.local) await write(p);
+    central.push(...e.central); offset += e.size; count++;
+  }
+  const cdSize = central.reduce((n, p) => n + p.length, 0);
+  for (const p of central) await write(p);
+  await write(zipEnd(count, cdSize, offset));
+  return offset + cdSize + 22;
+}
+
 export const zipBlob = (files: ZipFile[], at: Date): Blob => new Blob(zipParts(files, at) as BlobPart[], { type: 'application/zip' });
 
 /** The names, sizes and checksums in a zip made above (read from its central directory). */

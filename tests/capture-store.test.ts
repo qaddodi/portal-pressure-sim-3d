@@ -132,14 +132,16 @@ test('the pages write to storage and let go of the bytes: the frame releases wha
   const outer = src('src/ui/debug/audit/capture-outer.ts'), page = src('src/ui/debug/audit/page.ts');
   for (const s of [all, cases]) { assert.match(s, /f\.data = RELEASED/); assert.match(s, /await ui\.partial\?\.\(fresh\)/); }
   assert.match(run, /release: ui\.release/); assert.match(child, /release: true/);
-  assert.match(outer, /openSession\(/); assert.match(outer, /frameSink\(/); assert.match(outer, /\.zip\(at/); assert.doesNotMatch(outer, /zipBlob\(/, 'no list of every picture is joined in memory');
-  assert.match(page, /openSession\(/); assert.match(page, /release: true, partial:/); assert.match(page, /opened\.zip\(at/);
-  for (const [n, s] of [['outer', outer], ['page', page]] as const) { assert.match(s, /recoverUi\(/, `${n}: Recover last capture`); assert.match(s, /saved\(\)/, `${n}: a saved zip is not offered again`); }
+  assert.match(outer, /openSession\(/); assert.match(outer, /frameSink\(/); assert.match(outer, /deliver\.offer\(/); assert.doesNotMatch(outer, /zipBlob\(/, 'no list of every picture is joined in memory');
+  assert.match(page, /openSession\(/); assert.match(page, /release: true, partial:/); assert.match(page, /deliver\.offer\(opened/);
+  for (const [n, s] of [['outer', outer], ['page', page]] as const) { assert.match(s, /recoverUi\(/, `${n}: Recover last capture`); assert.match(s, /saved\(\)/, `${n}: a saved zip is not offered again`); assert.doesNotMatch(s, /\.zip\(at|saveFiles\(\[new File\(\[(zip|cap)/, `${n}: no whole-zip Blob`); }
 });
 
 test('the IndexedDB backend keeps each file as its own record keyed by run and name, and reads them one at a time', () => {
   const s = src('src/ui/debug/audit/capture-store.ts');
-  assert.match(s, /createObjectStore\('files', \{ keyPath: \['run', 'name'\] \}\)\.createIndex\('run', 'run'\)/);
+  assert.match(s, /createObjectStore\('files', \{ keyPath: \['run', 'name'\] \}\)/); assert.match(s, /createIndex\('run', 'run'\)/);
+  assert.match(s, /createIndex\('sized', \['run', 'name', 'size'\]\)/, 'each file\'s size is listed from an index, without reading the file');
+  assert.match(s, /indexedDB\.open\('pps-capture', 2\)/); assert.match(s, /size: f\.data\.byteLength/);
   assert.match(s, /readFile\(run, name\)/); assert.match(s, /getAllKeys\(IDBKeyRange\.only\(run\)\)/);
   assert.match(s, /onabort = \(\) => no\(/, 'a write that fails (no room) is an error the session catches, and falls back to memory');
 });
