@@ -22,6 +22,7 @@ import { type NameGeom, type NamePlacement, type NamesInput, layoutNames } from 
 import { endsFor, framePoint, planePoint, xkFor } from './portrait.ts';
 import { createGeom, createTraffic } from './traffic.copied.js';
 import { createPalette } from './palette.copied.js';
+import { ALBUMIN_TOKENS } from './legend.ts';
 
 /** Micrometres across the stretch the shot frames (four hepatocytes of the 2D plate), and the plane's local units per micrometre. */
 export const SPAN_UM = 97.4;
@@ -122,7 +123,7 @@ export class SinusoidView {
 
   // ---- tokens, from the look: the 2D theme's own, resolved (ui/charts/palette.ts) ------------------------------------------------
 
-  private static readonly ALIAS: Record<string, string> = { '--sv-gl-bile': '--bile-duct', '--sv-gl-albumin': '--albumin' };
+  private static readonly ALIAS: Record<string, string> = { '--sv-gl-bile': '--bile-duct', '--sv-gl-albumin': ALBUMIN_TOKENS.fill };
   private static readonly FIXED: Record<string, string> = { '--sv-gl-shade': '#2A2430' };
   private token(n: string, d?: string): string {
     const p = paletteOf(this.look);
