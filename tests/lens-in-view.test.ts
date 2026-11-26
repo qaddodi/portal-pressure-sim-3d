@@ -118,7 +118,7 @@ test('the Sinusoid view eases its lumen to a new lens (never a swap) and colours
   assert.equal(v.cellColours, null, 'the cells stay red under Oxygen');
   v.setInk(ctx(), 'origin');
   for (let t = 1016; t <= 1800; t += 16) v.update(t);
-  assert.equal(v.cellColours?.k, 1, 'under Blood origin the cells wear their sources');
+  assert.equal((v.cellColours as { k: number } | null)?.k, 1, 'under Blood origin the cells wear their sources');
   assert.equal(v.lensShown, 'origin');
 });
 
