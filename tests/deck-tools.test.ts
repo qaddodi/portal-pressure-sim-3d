@@ -16,10 +16,7 @@ import { readingPlan } from '../src/ui/talk/reading-plan.ts';
 import { stepsOf, levelsOf, STEP_T, HVPG_STEPS } from '../src/ui/talk/hvpg-plan.ts';
 import { withPatch } from '../src/ui/talk/tool-options.ts';
 import { PROBES } from '../src/ui/tests/doppler/copied/doppler-tables.copied.js';
-import { hookOf, needsOf } from '../src/decks/ag/needs.ts';
-import { registerBuiltinHooks } from '../src/decks/rw/hooks-builtin.ts';
-import { hasHook } from '../src/decks/rw/hooks.ts';
-import { FEATURES } from '../src/decks/hp/hooks.ts';
+import { featureOf, needsOf } from '../src/decks/hp/hooks.ts';
 import { loadSource } from '../src/decks/source.ts';
 
 type Rec = Record<string, unknown>;
@@ -171,18 +168,10 @@ test('a tool kind is landed only with evidence: a chart the registry calls done,
   assert.equal(toolLanded('course'), true);
 });
 
-test('the three readiness tables read the same answer for every tool kind', () => {
-  registerBuiltinHooks();
-  for (const k of new Set(TOOLS.map((t) => t.kind))) {
-    const here = toolLanded(k);
-    assert.equal(hookOf(`tool:${k}`)!.landed(), here, `ag tool:${k}`);
-    assert.equal(hasHook(`tool:${k}`), here, `rw tool:${k}`);
-    const f = FEATURES.get(`tool:${k}`);
-    if (f) assert.equal(f.landed, here, `hp tool:${k}`);
-  }
-  // the compare buttons that move an instrument are carried by ui/talk/controls-run.ts
-  assert.equal(hookOf('compare:gate')!.landed(), true); assert.equal(hookOf('compare:tool')!.landed(), true);
-  assert.equal(hasHook('compare:gate'), true); assert.equal(hasHook('compare:tool'), true);
+test('the readiness table reads the same answer as the tool registries for every tool kind', () => {
+  for (const k of new Set(TOOLS.map((t) => t.kind))) assert.equal(featureOf(`tool:${k}`)!.landed, toolLanded(k), `tool:${k}`);
+  // the compare buttons that move an instrument are carried by ui/talk/controls-run.ts (the one `compare` need covers every button kind)
+  assert.equal(featureOf('compare')!.landed, true);
   // every slide that names a tool has its need
   for (const t of TOOLS) assert.ok(needsOf(t.s as never).includes(`tool:${t.kind}`));
 });
@@ -198,7 +187,6 @@ test('the hold-to-strain button is carried by every slide that asks for it, and 
     assert.equal(c!.strain!.label, want, x.at);
   }
   for (const x of SLIDES.filter((y) => !y.s.strain)) assert.equal(controlsOf(x.s)?.strain, undefined, `${x.at}: no strain button`);
-  assert.equal(hookOf('fig:strain')!.landed(), true);
   const evidence = readFileSync(new URL('../src/ui/cards/SlideControls.tsx', import.meta.url), 'utf8');
   assert.ok(/strainHold\(/.test(evidence), 'SlideControls drives strainHold');
 });

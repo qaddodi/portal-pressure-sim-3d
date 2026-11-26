@@ -8,7 +8,8 @@ import { UI } from '../src/ui/strings.generated.ts';
 import { loadBuiltin } from '../src/decks/registry.ts';
 import { copiedOf } from '../src/decks/hp/deck.ts';
 import { FIELD_HOME, SLIDE_PROP } from '../src/decks/hp/fields.ts';
-import { CARD_LANDED, hookOf, needsOf } from '../src/decks/ag/needs.ts';
+import { CARD_LANDED, readiness } from '../src/decks/hp/hooks.ts';
+import { loadSource, SOURCE_IDS } from '../src/decks/source.ts';
 import { AG_IDS, loadAgDeck } from '../src/decks/ag/index.ts';
 import { cardFields, SITE_TAGS, siteTag, tabOf, railOf, RAIL_LEVELS, autoPill, listCase } from '../src/ui/cards/card-fields.ts';
 import { stopsOf, viewAt, next, back, goto } from '../src/ui/deck/presenter-machine.ts';
@@ -152,7 +153,7 @@ test('a step marker of the line ({#n}) is a step, not a typed number', () => {
   assert.deepEqual(parseLine('First {#1} then {#2}.').filter((p) => p.t === 'step'), [{ t: 'step', n: 1 }, { t: 'step', n: 2 }]);
   const withSteps = everySlide().filter(({ c }) => /\{#\d+\}/.test(c.line ?? ''));
   assert.ok(withSteps.length >= 2, 'the decks use step markers');
-  for (const { c } of withSteps) assert.ok(parseLine(c.line).some((p) => p.t === 'step'));
+  for (const { c } of withSteps) assert.ok(parseLine(c.line ?? '').some((p) => p.t === 'step'));
 });
 
 test('a time-lapse\'s graph is its instrument card: a slide with a `graph` list has the flow-time or procedure chart (the copy gives it, 2D slide-instrument.js) and the data card mounts it', () => {
@@ -270,7 +271,6 @@ test('the intrahepatic resistance column of the summary table is the engine\'s r
 test('a need counts as landed on the cards only with a file that prints it', () => {
   for (const [id, file] of Object.entries(CARD_LANDED)) {
     assert.ok(existsSync(new URL(`../${file}`, import.meta.url)), `${id}: ${file} is not there`);
-    assert.equal(hookOf(id)?.landed(), true, id);
   }
   // the markers the cards print, each in the file named
   const src = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
@@ -284,11 +284,11 @@ test('a need counts as landed on the cards only with a file that prints it', () 
   assert.match(src('src/ui/charts/small/AllPatientsCard.tsx'), /chartFoot/);
   assert.match(src('src/ui/cards/SlideControls.tsx'), /useVariant/);
   // the Circuit's bracket is the figure's (labels/figure-cards.ts), judged in tests/deck-spans.test.ts
-  assert.equal(hookOf('data:spans')?.landed(), true);
+  assert.ok('data:spans' in CARD_LANDED);
 });
 
-test('every slide of decks A to G that waits on a field of the cards names only what the cards do not carry', async () => {
+test('every slide of every deck is wired: each feature it needs is owned by the one readiness table and has landed', async () => {
   const waiting = new Set<string>();
-  for (const id of AG_IDS) for (const s of (await loadAgDeck(id)).slides) for (const n of needsOf(s)) { const h = hookOf(n); if (h && !h.landed() && /^(card|field):/.test(n)) waiting.add(n); }
-  assert.deepEqual([...waiting].sort(), [], 'a slide field of the cards that still waits');
+  for (const id of SOURCE_IDS) for (const s of (await loadSource(id)).slides) { const r = readiness(s); for (const n of [...r.unowned, ...r.open.map((f) => f.id)]) waiting.add(`${id}/${s.id}: ${n}`); }
+  assert.deepEqual([...waiting].sort(), [], 'a slide waits on a feature');
 });

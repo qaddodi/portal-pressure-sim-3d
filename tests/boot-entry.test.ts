@@ -74,7 +74,7 @@ test('no chart family is in the boot entry through the registry: only what a car
 
 test('the light list of chart kinds (what the decks\' hooks read) says what the registry says', () => {
   assert.deepEqual(CHART_KINDS, Object.fromEntries(CHARTS.map((c) => [c.kind, c.status])));
-  for (const f of ['src/decks/hp/hooks.ts', 'src/decks/ag/needs.ts', 'src/decks/rw/hooks-builtin.ts']) {
+  for (const f of ['src/decks/hp/hooks.ts']) {
     assert.doesNotMatch(readFileSync(resolve(root, f), 'utf8'), /^import[^\n]*charts\/registry/m,`${f} asks kinds.ts, not the registry`);
   }
   const kinds = readFileSync(resolve(root, 'src/ui/charts/kinds.ts'), 'utf8');

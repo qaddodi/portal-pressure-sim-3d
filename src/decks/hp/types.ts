@@ -6,11 +6,12 @@ type Table = { [k: string]: Json };
 
 export interface CopiedSlide {
   id: string;
-  kicker: string;
-  title: string;
-  line: string;
-  notes: string;
-  ask: [string, string];
+  /** (a slide that is only a visual, the ladders, has none of its own words) */
+  kicker?: string;
+  title?: string;
+  line?: string;
+  notes?: string;
+  ask?: [string, string];
   site?: string | null;
   vignette?: string | null;
   caseQ?: string | null;
@@ -31,7 +32,7 @@ export interface CopiedSlide {
   ramp?: Table | null;
   lapse?: Table | null;
   // the figure
-  cam?: string | number[] | Table | null;
+  cam?: string | string[] | number[] | Table | null;
   view?: string | null;
   lens?: string | null;
   labels?: string[] | null;

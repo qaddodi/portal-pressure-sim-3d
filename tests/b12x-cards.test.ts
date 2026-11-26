@@ -7,8 +7,8 @@ import { execFileSync } from 'node:child_process';
 import { claims } from '../src/parity/b12x.ts';
 import { claims as b12 } from '../src/parity/b12.ts';
 import { CARD_CATALOG } from '../src/ui/cards/gallery/catalog.generated.ts';
-import { hooksOf, hasHook, missingHooks } from '../src/decks/rw/hooks.ts';
-import { registerBuiltinHooks } from '../src/decks/rw/hooks-builtin.ts';
+import { readiness } from '../src/decks/hp/hooks.ts';
+import { unclassified } from '../src/decks/hp/fields.ts';
 import { camPlan } from '../src/decks/hp/cams.ts';
 import { tileKeys } from '../src/ui/deck/from2d/card-tiles.js';
 import { tileRows } from '../src/decks/hp/tiles-model.ts';
@@ -16,7 +16,6 @@ import { useShell } from '../src/ui/shell/store.ts';
 import { pinned2D } from './two-d-pin.ts';
 import inventory from '../parity/inventory.json' with { type: 'json' };
 
-registerBuiltinHooks();
 const byId = new Map(claims.map((c) => [c.id, c]));
 const spec = (id: string) => CARD_CATALOG.find((e) => e.id === id)!;
 const inv = new Set((inventory as { rows: { id: string }[] }).rows.map((r) => r.id));
@@ -40,10 +39,10 @@ test('the specimens the gallery lists are the ones the claims cover: 21 sheet ro
 
 test('what is left open is open for the reason the report gives', () => {
   for (const id of ['teaching/scope-tile', 'visual/scale', 'visual/quadrant']) assert.ok(!byId.has(`card:${id}`), id);
-  // visual/scale: its `scale` field is one the slide classifier does not know; visual/quadrant: the hook that names it is registered by nothing
+  // visual/scale: its `scale` field is one the slide classifier does not know; visual/quadrant: the readiness table has no owner for it
   const cs = (id: string) => ({ id: 'x', kicker: '', title: '', line: '', notes: '', preset: 'healthy', cam: 'fit', ...spec(id).slide }) as never;
-  assert.throws(() => hooksOf(cs('visual/scale')), /scale/);
-  assert.deepEqual(missingHooks(hooksOf(cs('visual/quadrant')), hasHook).map((h) => h.id), ['visual:quadrant']);
+  assert.deepEqual(unclassified(cs('visual/scale') as Record<string, unknown>), ['scale']);
+  assert.deepEqual(readiness(cs('visual/quadrant')).unowned, ['visual:quadrant']);
   // teaching/scope-tile: the card asks for a `scope` tile and the tiles card prints only readings it knows, so it is dropped
   const s = spec('teaching/scope-tile').slide as { tiles: string[] };
   const keys = tileKeys(s, false) as string[];

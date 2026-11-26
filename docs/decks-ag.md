@@ -12,17 +12,14 @@ doppler, encephalopathy, endoscopy, gastric-varices, gradients): 167 slides. H t
 | The 2D camera regions | `src/decks/ag/regions.generated.ts` | the same script |
 | The engine's numbers per slide, and every `{brace}` value as 2D prints it | `tests/fixtures/deck-numbers-ag.json` | the same script (2D `tests/deck-states.js`, `valueText`) |
 | A slide's camera | `src/decks/ag/shots.ts` | derived: the 2D `cam` to a box to a Shot by `scene/frame2d.ts`; lobule cams are the lobule batch's; Circuit slides carry the circuit box (B7) |
-| A slide's dependency list and who owns each need | `src/decks/ag/needs.ts` | derived from the slide's fields; golden list `tests/fixtures/deck-needs-ag.json` (`PPS_UPDATE_GOLDEN=1` records it) |
-| The model chain (what the engine host's `sequence` plays) | `src/decks/ag/steps.ts` | the 2D presenter's rule |
-| `{pv}`, `{pv:0}`, `{co@slide}`, `{6 to 8 g}`, `{>=10 mmHg}`, `{#2}` | `src/decks/ag/tokens.ts` | `valueText` = the 2D formatter |
+| What a slide needs, and who owns each need | `src/decks/hp/hooks.ts` | one readiness table for every deck (`readiness(slide)`); see `docs/deck-authoring.md` |
+| The model chain (what the engine host's `sequence` plays) | `src/decks/hp/numbers.ts` (`chainOf`) | the 2D presenter's rule, one copy for every deck |
+| `{pv}`, `{pv:0}`, `{co@slide}`, `{6 to 8 g}`, `{>=10 mmHg}`, `{#2}` | `src/ui/text/tokens.ts` | `valueText` = the 2D formatter |
 | Parity rows | `src/parity/b13a.ts` | `deck:*` and `slide:*` rows, derived |
 
-**Present and wired.** A slide is present when its words, steps, camera and needs are here. It is wired when every need has landed. Every slide waits on
-`present:slide-plate` (the presenter plays a deck by id; `DeckUi.tsx` still plays only HVPG), so none is wired yet; `needs.ts` lists the rest by owner.
-A batch that lands a feature flips its `landed()` in `hookOf` and every slide that waited for it turns wired.
+**Present and wired.** A slide is present when its words, steps and camera are here. It is wired when every feature it needs has landed (`readiness(slide).wired`, `src/decks/hp/hooks.ts`). All 516 slides of the 42 decks are wired, and `tests/deck-readiness.test.ts` holds that, and that no slide needs a feature nobody owns.
 
-**Loading.** `loadAgDeck(id)` imports one deck on demand; `plate(deck)` gives `{ steps, stateOf, plates[{ slide, shots, needs, waiting }] }`. To show a slide:
-`sceneApi.goTo(sceneShot(plate.shots.main), room)`; for the numbers send `steps` to the engine's `sequence` and read the fingerprint at `stateOf[i]`.
+**Loading.** `loadAgDeck(id)` imports one deck on demand, with the 3D overlay laid on. To show a slide the presenter plans it (`src/decks/hp/plan.ts`).
 
 **Checks.** `node --test tests/decks-ag.test.ts` (6 s): ids and order equal the 2D inventory, one test per slide (needs known, owned, equal to the golden list, no field of
 a 2D slide dropped), the words equal 2D when a 2D checkout is beside this one, every `{number}` equals the 2D print, and the first model step of five decks replays to the

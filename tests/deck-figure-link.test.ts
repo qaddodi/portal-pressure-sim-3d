@@ -84,7 +84,7 @@ test('each field lands as scene calls: the ones that draw something draw it, the
 });
 
 test('a slide that lights nothing draws nothing: the plan of a slide with no figure field is empty, so a slide change starts from nothing', () => {
-  const bare = slides.find(({ s }) => !s.glow && !s.mark && !s.marks && !s.callout && !s.sites && !s.labels && !s.terms && !s.calipers && !s.spot && !s.line.includes(']('))!;
+  const bare = slides.find(({ s }) => !s.glow && !s.mark && !s.marks && !s.callout && !s.sites && !s.labels && !s.terms && !s.calipers && !s.spot && !(s.line ?? '').includes(']('))!;
   const p = figurePlan(bare.s);
   assert.deepEqual({ ...p, unresolved: [] }, { ...EMPTY_PLAN });
   assert.deepEqual(figureCalls(p, reads), EMPTY_CALLS);

@@ -98,9 +98,9 @@ export function shotOfCam(cam: unknown, view?: string, zone?: string): ShotSpec 
 
 /** Every camera a slide uses: its own, a time-lapse's push (`lapse.cam`), and the other scales of a scale switch. */
 export function slideShots(s: CopiedSlide): { main: ShotSpec; lapse?: ShotSpec; scales?: Record<string, ShotSpec> } {
-  const main = shotOfCam(s.cam, s.view, s.zone);
+  const main = shotOfCam(s.cam, s.view ?? undefined, s.zone as string | undefined);
   const out: { main: ShotSpec; lapse?: ShotSpec; scales?: Record<string, ShotSpec> } = { main };
-  if (s.lapse?.cam != null) out.lapse = shotOfCam(s.lapse.cam, s.view, s.zone);
+  if (s.lapse?.cam != null) out.lapse = shotOfCam(s.lapse.cam, s.view ?? undefined, s.zone as string | undefined);
   if (s.scales) {
     out.scales = {};
     for (const [k, v] of Object.entries(s.scales)) {

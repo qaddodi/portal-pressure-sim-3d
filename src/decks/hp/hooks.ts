@@ -9,6 +9,7 @@
 // Rule for this table: a feature is listed once, with ONE owner. A slide that needs a feature nobody owns fails the test, so none is forgotten.
 import { chartDone } from '../../ui/charts/kinds.ts';
 import { toolEvidence } from '../../ui/talk/tool-landed.ts';
+import { PROCEDURE_PLAYS } from '../../scene/procedures/plays.ts';
 import { STATIONS, TERM_STATIONS } from '../../scene/labels/stations.ts';
 import { LENS_IDS, SINCE_BASELINE_FED } from '../../scene/lenses/model.ts';
 import type { CopiedSlide } from './types.ts';
@@ -78,7 +79,7 @@ const TABLE: Feature[] = [
   done('calipers', 'B11', 'Calipers on a varix or the spleen', 'src/ui/deck/figure-link.ts'),
   done('layers:zones', 'B8', 'The lobule\'s zone bands', 'src/ui/deck/procs-link.ts'),
   done('scales', 'B12', 'The Anatomy / Lobule / Sinusoid scale switch on the slide', 'src/ui/cards/SlideControls.tsx'),
-  hook('view:circuit', 'B7', 'The Circuit view'),
+  done('view:circuit', 'B7', 'The Circuit view', 'src/scene/circuit/geometry.ts'),
   // what the person can do on the slide
   done('compare', 'B12', 'Compare buttons that switch the live model between states', 'src/ui/talk/controls-run.ts'),
   done('whatIf', 'B12', 'A slider that drags one parameter of the live model', 'src/ui/cards/SlideControls.tsx'),
@@ -88,7 +89,51 @@ const TABLE: Feature[] = [
   { id: 'since', batch: 'B3', what: 'The Since lens: change since another slide\'s state', landed: SINCE_BASELINE_FED, evidence: SINCE_BASELINE_FED ? 'src/scene/lenses/field.ts' : undefined },
 ];
 
+/** The slide-field needs the cards print now, each with the file that prints it (tests/deck-card-fields.test.ts holds the file and the printing). A need is added here only once the card shows
+ *  the field the way the 2D card does; the fields' own table is decks/hp/fields.ts. */
+export const CARD_LANDED: Readonly<Record<string, string>> = {
+  'card:site': 'src/ui/cards/TeachingCard.tsx',          // the level tab and the kicker colour (cards/card-fields.ts siteTag)
+  'card:cite': 'src/ui/cards/TeachingCard.tsx',          // the source line under the words
+  'card:note': 'src/ui/cards/TableCard.tsx',             // a summary table's note column, named by its head
+  'card:pill': 'src/ui/cards/Line.tsx',                  // the line's one pill, and `pill: false` for none (card-fields.ts autoPill)
+  'card:steps': 'src/ui/cards/Line.tsx',                 // the {#n} step markers in the words (the figure's numbered glow is fig:glow-steps)
+  'card:cohort': 'src/ui/charts/small/AllPatientsCard.tsx',      // the all-patients chart reads the slide's cohort
+  'card:chart-foot': 'src/ui/charts/small/AllPatientsCard.tsx',  // and its footnote
+  // a time-lapse's graph is its instrument card: the copy gives the slide the flow-time or procedure chart (2D slide-instrument.js), the data card mounts it
+  'data:graph': 'src/ui/talk/ToolCard.tsx',
+  'visual:plane-options': 'src/ui/talk/ToolCard.tsx',    // the plane visual hands the slide's own plane to the chart
+  'data:spans': 'src/scene/labels/figure-cards.ts',      // the Circuit's bracket under a span of stations and its reading (ui/deck/figure-plan.ts spans, figure-calls.ts, labels/span-math.ts)
+  'visual:walls': 'src/ui/charts/walls/WallsCard.tsx',   // the two walls
+  'reading:res': 'src/ui/talk/table-model.ts',           // the table's intrahepatic resistance column (the engine's rih)
+  'reading:wave': 'src/ui/cards/WaveCell.tsx',             // the summary table's Doppler wave column (talk/table-wave.ts)
+  'reading:hvpgFall': 'src/decks/hp/derived-tiles.ts',   // the response tile: the fall from the slide `hvpgResp` names
+};
+
 export const FEATURES: ReadonlyMap<string, Feature> = new Map(TABLE.map((f) => [f.id, f]));
+
+/** The visuals that are charts: landed when the chart registry says so (the 2D name on the left, the chart kind on the right). */
+const VISUAL_CHART: Readonly<Record<string, string>> = { allpatients: 'small', ladders: 'ladder', walls: 'walls' };
+
+/** The feature a need id stands for: a line of the table, or one of the families the registries keep (a tool kind, a procedure, a visual that is a chart), so a feature that lands in
+ *  its registry lands here with no line to add. `null`: nobody owns it (readiness says so, and a test fails on it). */
+export function featureOf(id: string): Feature | null {
+  const f = FEATURES.get(id);
+  if (f) return f;
+  const [family, kind = ''] = id.split(':') as [string, string?];
+  if (family === 'tool' && kind) {
+    const ev = toolEvidence(kind);
+    return { id, batch: 'B10', what: `The ${kind} instrument or chart`, landed: ev != null, evidence: ev ?? undefined };
+  }
+  if (family === 'procedure' && kind) {
+    const on = PROCEDURE_PLAYS.has(kind);
+    return { id, batch: 'B5', what: `The ${kind} procedure the Play button plays on the figure`, landed: on, evidence: on ? 'src/ui/deck/procs-link.ts' : undefined };
+  }
+  if (family === 'visual' && kind && VISUAL_CHART[kind]) {
+    const on = chartDone(VISUAL_CHART[kind]!);
+    return { id, batch: 'B10', what: `The ${kind} visual`, landed: on, evidence: on ? 'src/ui/charts/kinds.ts' : undefined };
+  }
+  return null;
+}
 
 /** Stations the 3D labels know now; a slide that names another has a hook for it (batch B6 adds stations as decks come over). */
 const STATION_IDS = new Set(STATIONS.map((s) => s.id));
@@ -134,11 +179,14 @@ export function missingTerms(s: CopiedSlide): string[] {
   return parts.filter((t) => !(t in TERM_STATIONS) && !/^(lobule|sinusoid):/.test(t));
 }
 
-export interface Readiness { present: boolean; wired: boolean; needs: Feature[]; open: Feature[] }
+/** `unowned` are the needs nobody owns (a typo, or a feature with no line yet): they count as open, so a slide never reads wired on a feature the table does not know. */
+export interface Readiness { present: boolean; wired: boolean; needs: Feature[]; open: Feature[]; unowned: string[] }
 export function readiness(s: CopiedSlide): Readiness {
-  const needs = needsOf(s).map((id) => FEATURES.get(id)).filter((f): f is Feature => !!f);
+  const ids = needsOf(s), found = ids.map((id) => ({ id, f: featureOf(id) }));
+  const needs = found.flatMap((x) => (x.f ? [x.f] : []));
+  const unowned = found.filter((x) => !x.f).map((x) => x.id);
   const open = needs.filter((f) => !f.landed);
   const gaps = missingStations(s).length + missingTerms(s).length;
-  return { present: true, wired: open.length === 0 && gaps === 0, needs, open };
+  return { present: true, wired: open.length === 0 && unowned.length === 0 && gaps === 0, needs, open, unowned };
 }
 

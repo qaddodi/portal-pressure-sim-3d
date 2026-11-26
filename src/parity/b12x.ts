@@ -2,7 +2,7 @@
 // from the 2D app (scripts/copy-card-catalog.mjs -> ui/cards/gallery/catalog.generated.ts: a slide as a 2D deck writes it, or the sheet the gallery opens), so a row is claimed only while the 3D
 // app can do what that exact specimen asks, never from a typed list of ids. A row some other claim file already has (b12.ts: `card:sheet/menu-present`, `card:visual/table`) is left to it.
 //
-//   teaching/*, visual/*   the specimen goes through the same path a deck's slide does: hp/deck.ts slideOf (the Slide the cards draw), rw/hooks.ts hooksOf (every field the slide has is one the
+//   teaching/*, visual/*   the specimen goes through the same path a deck's slide does: hp/deck.ts slideOf (the Slide the cards draw), hp/fields.ts unclassified (every field the slide has is one the
 //                          app knows; a field it cannot classify, or a feature nothing has registered, leaves the row unclaimed), then one probe of the card that draws the variant (VARIANT below:
 //                          the case card, the equation, the compare buttons, the what-if slider, the response tile, the figure's marks ...). present = the probe holds and no hook is missing;
 //                          wired = also the slide plans (camera, scene) and hp/hooks.ts readiness says every feature it needs has landed.
@@ -15,9 +15,8 @@
 import { clock, type TimerId } from '../clock/frame.ts';
 import { CARD_CATALOG, type CardSpecimen } from '../ui/cards/gallery/catalog.generated.ts';
 import { slideOf } from '../decks/hp/deck.ts';
-import { hooksOf, hasHook, missingHooks, type Hook } from '../decks/rw/hooks.ts';
-import { registerBuiltinHooks } from '../decks/rw/hooks-builtin.ts';
 import { readiness } from '../decks/hp/hooks.ts';
+import { unclassified } from '../decks/hp/fields.ts';
 import type { CopiedSlide } from '../decks/hp/types.ts';
 import { caseOf, type Slide } from '../decks/schema.ts';
 import { NSBB_LEVELS } from '../decks/controls.ts';
@@ -53,7 +52,6 @@ import { claims as b11 } from './b11.ts';
 import { claims as b12 } from './b12.ts';
 import type { Claim } from './claim.ts';
 
-registerBuiltinHooks();
 
 type Cs = CopiedSlide & Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 const chartDone = (kind: string) => CHARTS.some((c) => c.kind === kind && c.status === 'done');
@@ -140,7 +138,7 @@ const TOASTS: Record<string, () => Sheet> = {
 };
 
 // ── the teaching card's variants and the visuals: one probe of the card that draws each ──
-interface Ctx { cs: Cs; s: Slide; hooks: Hook[] }
+interface Ctx { cs: Cs; s: Slide }
 const labelsOf = (v: unknown): string[] => (Array.isArray(v) ? v.map((o) => String((o as { label?: unknown }).label ?? '')) : []);
 const pieces = (cs: Cs) => parseLine(String(cs.line ?? ''));
 const VARIANT: Record<string, (c: Ctx) => boolean> = {
@@ -200,9 +198,11 @@ const VARIANT: Record<string, (c: Ctx) => boolean> = {
   // every patient on one chart: the cohort's slides are the points
   'visual/allpatients': ({ cs, s }) => hasVisualChart(s) && chartDone('small') && Array.isArray(cs.cohort) && cs.cohort.every((c: { c?: string; slides?: string[] }) => !!c.c && !!c.slides?.length),
   // (no chart draws these two: `scale` is not a field the app classifies and `visual:quadrant` is a hook nothing registers)
-  'visual/scale': ({ hooks }) => missingHooks(hooks, hasHook).length === 0,
-  'visual/quadrant': ({ hooks }) => missingHooks(hooks, hasHook).length === 0,
+  'visual/scale': ({ cs }) => ready(cs),
+  'visual/quadrant': ({ cs }) => ready(cs),
 };
+/** Every feature the slide needs is owned and has landed (the one readiness table, decks/hp/hooks.ts). */
+const ready = (cs: Cs): boolean => { const r = readiness(cs); return r.open.length === 0 && r.unowned.length === 0; };
 /** Visuals that are present but whose card is not what 2D draws (the summary table's blocks), as b12.ts says of `visual/table`. */
 const PRESENT_ONLY = new Set(['visual/table-wave']);
 
@@ -211,8 +211,7 @@ function build(e: CardSpecimen): { ctx: Ctx; plans: boolean } | null {
   const cs: Cs = { id: e.id.replace(/[^a-z0-9]+/gi, '-').toLowerCase(), kicker: 'Gallery', title: e.title, line: `Gallery specimen ${e.id}.`, notes: '', ...e.slide } as Cs;
   if (!e.carry && !cs.preset) cs.preset = 'healthy';
   if (!cs.cam) cs.cam = 'fit';
-  let hooks: Hook[];
-  try { hooks = hooksOf(cs); } catch { return null; }   // (a field the app cannot classify)
+  if (unclassified(cs).length) return null;   // (a field the app cannot classify)
   let plans = true;
   let s: Slide;
   try { s = slideOf('gallery', cs, 0, undefined); } catch {
@@ -220,7 +219,7 @@ function build(e: CardSpecimen): { ctx: Ctx; plans: boolean } | null {
     plans = false;
     try { s = slideOf('gallery', { ...cs, cam: 'fit' } as Cs, 0, undefined); } catch { return null; }
   }
-  return { ctx: { cs, s, hooks }, plans };
+  return { ctx: { cs, s }, plans };
 }
 
 const out: Claim[] = [];
@@ -239,7 +238,7 @@ for (const e of CARD_CATALOG) {
   if (!probe || !b) continue;
   let ok = false;
   try { ok = probe(b.ctx); } catch { ok = false; }
-  if (!ok || missingHooks(b.ctx.hooks, hasHook).length > 0) continue;
+  if (!ok || !ready(b.ctx.cs)) continue;
   out.push({ id: `card:${e.id}`, wired: b.plans && !PRESENT_ONLY.has(e.id) && readiness(b.ctx.cs).wired });
 }
 

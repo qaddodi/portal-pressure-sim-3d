@@ -13,9 +13,7 @@ import { ctxOf } from './charts-helpers.ts';
 import {  menuPoints, menuSteps, baseName, ratingTok } from '../src/ui/charts/menu/menu-pure.generated.js';
 import { menuOptionsOf } from '../src/ui/charts/menu/menu-types.ts';
 import { menuFrame } from '../src/ui/charts/menu/frame.ts';
-import { hookOf } from '../src/decks/ag/needs.ts';
-import { hasHook, registeredHooks } from '../src/decks/rw/hooks.ts';
-import { registerBuiltinHooks } from '../src/decks/rw/hooks-builtin.ts';
+import { featureOf, CARD_LANDED } from '../src/decks/hp/hooks.ts';
 import { ownKeys } from '../src/ui/deck/from2d/card-tiles.js';
 import { keysFor, tileRows } from '../src/decks/hp/tiles-model.ts';
 
@@ -85,11 +83,10 @@ test('the treatment menu offers what the 2D rules offer, and draws one dot for e
   assert.match(f.label, /Treatment menu/);
 });
 
-test('the hooks this batch landed are registered, each held to the thing that does it', () => {
-  registerBuiltinHooks();
-  for (const h of ['card:tiles', 'tool:menu', 'tool:course']) assert.ok(hasHook(h), h);
-  assert.ok(registeredHooks().includes('card:tiles'));
-  for (const h of ['tool:menu', 'tool:course', 'card:chart-foot', 'card:cohort', 'data:graph', 'visual:plane-options']) assert.ok(hookOf(h)!.landed(), `ag hook ${h}`);
+test('the features this batch landed are in the readiness table, each held to the thing that does it', () => {
+  for (const h of ['tiles', 'tool:menu', 'tool:course']) assert.equal(featureOf(h)?.landed, true, h);
+  for (const h of ['tool:menu', 'tool:course']) assert.equal(featureOf(h)?.landed, true, `hook ${h}`);
+  for (const h of ['card:chart-foot', 'card:cohort', 'data:graph', 'visual:plane-options']) assert.ok(h in CARD_LANDED, `${h} is held to the file that prints it`);
   assert.ok(readFileSync('src/ui/talk/ToolCard.tsx', 'utf8') + readFileSync('src/ui/talk/ToolCardBody.tsx', 'utf8').includes('<MenuCard'));
   assert.ok(readFileSync('src/ui/cards/CardLayer.tsx', 'utf8').includes('<TilesCard'));
 });

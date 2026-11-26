@@ -11,7 +11,7 @@
 // Built after the first round (the rows themselves were claimed already; what they say is now true): the data card's heading (ui/talk/tool-title.ts, drawn by ui/cards/TilesCard.tsx TilesHead for every
 // card with an instrument: 2D's cardTitle), and the time-lapse graph. At the 2D pin the graph is the slide's instrument card (slide-instrument.js, PC-6), not part of the teaching card: the copied decks
 // name its flow-time chart as the slide's tool, and what was missing was the deck steps' ask for its trail (hp/numbers.ts stepOf: `trail`, and a procedure's `before`), so every flow-time and
-// event-graph card was drawn with no data. `data:graph` (decks/ag/needs.ts) now reads the thing that does it.
+// event-graph card was drawn with no data. `data:graph` (decks/hp/hooks.ts) now reads the thing that does it.
 // Not claimed, on purpose: `chart:inst` (the Tests abdomen dial's looks: no chart of src/ui/charts draws with them, the abdomen pane is the Tests thread's), `chart:small` stays present only (the timeline
 // clock chart, ui/charts/timeline, is mounted by no page: 2D mounts it in the play bar's .tl-time, src/ui/shell/PlayBar.tsx, which needs the jump's {from, days} from ui/timeline), the still column /
 // SAAG quadrant / walls of `chart:card`, and `data:spans` (the slide field `span` is the Circuit figure's bracket and live words, ext-callouts.js, not a chart).
@@ -22,12 +22,11 @@ import * as RESOLVE from '../ui/charts/looks2d/chart-looks/resolve.js';
 import { CHART_TOOLS, CHART_VISUALS } from '../decks/charts.ts';
 import { CATALOG } from '../ui/charts/gallery/catalog.generated.ts';
 import { TILE } from '../ui/charts/tiles.generated.ts';
-import { hooksOf, hasHook, missingHooks } from '../decks/rw/hooks.ts';
-import { registerBuiltinHooks } from '../decks/rw/hooks-builtin.ts';
+import { readiness } from '../decks/hp/hooks.ts';
+import { unclassified } from '../decks/hp/fields.ts';
 import type { CopiedSlide } from '../decks/hp/types.ts';
 import { rowId, type Claim } from './claim.ts';
 
-registerBuiltinHooks();
 
 const chartDone = (kind: string) => CHARTS.some((c) => c.kind === kind && c.status === 'done');
 /** The registry kind a 2D tool kind or visual is drawn by (the course is the curve chart's second mode). */
@@ -117,7 +116,8 @@ for (const e of CATALOG) {
   if (!present) continue;
   // the rest of what the slide needs, as the deck rows count it (a lens, the Circuit view, a procedure, a what-if slider ...); a field no hook table knows leaves it present only
   if (wired) {
-    try { wired = missingHooks(hooksOf({ id: e.id.replace(/\W+/g, '-'), ...e.slide } as unknown as CopiedSlide), hasHook).length === 0; } catch { wired = false; }
+    const probe = { id: e.id.replace(/\W+/g, '-'), ...e.slide } as unknown as CopiedSlide;
+    wired = unclassified(probe).length === 0 && readiness(probe).wired;
   }
   out.push({ id: rowId('card', e.id), wired });
 }

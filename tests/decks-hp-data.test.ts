@@ -65,7 +65,7 @@ test('every slide has its words, and every brace in them is a reading, a reading
     const ids = new Set(d.slides.map((s) => s.id));
     for (const s of d.slides) {
       for (const f of ['kicker', 'title', 'line', 'notes'] as const) assert.ok(typeof s[f] === 'string' && s[f].trim(), `${d.id}/${s.id} has no ${f}`);
-      assert.equal(s.ask.length, 2, `${d.id}/${s.id} ask`);
+      assert.equal(s.ask?.length, 2, `${d.id}/${s.id} ask`);
       for (const { raw, token } of tokensOf(`${s.line} ${s.vignette ?? ''}`)) {
         if (token.kind === 'literal') assert.ok(/[\d%<>≥≤]|\s/.test(raw), `${d.id}/${s.id}: ${raw} is no reading, and reads like a mistyped one`);
         if (token.kind === 'value' && token.at) assert.ok(ids.has(token.at), `${d.id}/${s.id}: ${raw} names a slide the deck lacks`);

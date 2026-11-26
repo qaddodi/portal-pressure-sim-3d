@@ -14,7 +14,7 @@ import { canStent, VEIN_STENT_SPAN } from '../src/scene/devices/stent/vein-stent
 import { CATHS } from '../src/decks/schema.ts';
 import { catheterAt, stopsOf } from '../src/ui/deck/presenter-machine.ts';
 import { toDeck } from '../src/decks/hp/deck.ts';
-import { hookOf } from '../src/decks/ag/needs.ts';
+import { featureOf } from '../src/decks/hp/hooks.ts';
 import { CATH_END } from '../src/scene/procedures/copied/cath-arrival.js';
 import { loadSource } from '../src/decks/source.ts';
 
@@ -74,10 +74,10 @@ test('a procedure takes the model\'s change and gives it back (a patient who has
   }
 });
 
-test('the kinds named open say why, and the readiness tables follow the list (the glue scope has landed: nothing is open)', () => {
+test('the kinds named open say why, and the readiness table follows the list (the glue scope has landed: nothing is open)', () => {
   assert.ok(PROCEDURE_PLAYS.has('eusglue') && !('eusglue' in PROCEDURE_OPEN));
-  for (const [k, why] of Object.entries(PROCEDURE_OPEN)) { assert.ok(why.length > 20); assert.equal(hookOf(`procedure:${k}`)!.landed(), false, k); }
-  for (const k of PROCEDURE_PLAYS) assert.equal(hookOf(`procedure:${k}`)!.landed(), true, k);
+  for (const [k, why] of Object.entries(PROCEDURE_OPEN)) { assert.ok(why.length > 20); assert.equal(featureOf(`procedure:${k}`)!.landed, false, k); }
+  for (const k of PROCEDURE_PLAYS) assert.equal(featureOf(`procedure:${k}`)!.landed, true, k);
 });
 
 test('every stented vein is one the scene can stent, and the stent covers the vein\'s middle', () => {

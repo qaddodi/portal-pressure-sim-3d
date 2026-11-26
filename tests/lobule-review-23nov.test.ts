@@ -49,10 +49,10 @@ test('the schistosomiasis slide\'s title does not say "normal" over a gauge that
   const slide = DECK.slides.find((s) => s.id === 'wedge-sinusoid')!;
   const f = await fp('schisto');
   assert.ok((f.sin as number) >= 9, 'its sinusoidal pressure is past the gauge\'s amber (9 mmHg, table-marks RATE.sin)');
-  assert.doesNotMatch(slide.title, /normal/i);
-  assert.match(slide.title, /well below the portal pressure/);
+  assert.doesNotMatch((slide.title ?? ''), /normal/i);
+  assert.match((slide.title ?? ''), /well below the portal pressure/);
   assert.ok((f.pv as number) > 2 * (f.sin as number), 'which is true: the portal pressure is more than twice it');
-  assert.match(slide.line, /\{sin\}/); assert.match(slide.line, /\{pv\}/);
+  assert.match((slide.line ?? ''), /\{sin\}/); assert.match((slide.line ?? ''), /\{pv\}/);
   const src = readFileSync(new URL('../scripts/source-edits.mjs', import.meta.url), 'utf8');
   assert.match(src, /wedge-sinusoid\.title/, 'the edit is a source patch, so a re-copy from 2D keeps it');
 });

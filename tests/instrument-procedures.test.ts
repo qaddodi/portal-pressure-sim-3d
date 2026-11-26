@@ -10,7 +10,7 @@ import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
 import { AG_IDS, loadAgDeck } from '../src/decks/ag/index.ts';
 import { RW_IDS, RW_LOADERS } from '../src/decks/rw/copied/index.ts';
 import { markCards } from '../src/scene/labels/proc-marks.ts';
-import { hookOf } from '../src/decks/ag/needs.ts';
+import { featureOf } from '../src/decks/hp/hooks.ts';
 import { PROCEDURES } from '../src/scene/procedures/copied/procedure-names.js';
 import { loadSource } from '../src/decks/source.ts';
 
@@ -31,7 +31,7 @@ test('each kind is a timeline the card, the layer and the camera already know: s
   for (const k of INSTRUMENT_KINDS) {
     const sp = INSTRUMENT_SPECS[k]!;
     assert.ok(PROCEDURE_PLAYS.has(k), `${k} plays`);
-    assert.equal(hookOf(`procedure:${k}`)!.landed(), true, `${k}: the readiness tables follow`);
+    assert.equal(featureOf(`procedure:${k}`)!.landed, true, `${k}: the readiness table follows`);
     assert.equal(specOf(k), sp, `${k} is in the table the layer reads`);
     assert.equal(sp.stops.length, sp.steps.length, `${k}: one stop to a step`);
     assert.ok(sp.stops.every((t, i) => t > (i ? sp.stops[i - 1]! : 0)) && sp.stops.at(-1) === sp.T.end, `${k}: stops rise to the end`);

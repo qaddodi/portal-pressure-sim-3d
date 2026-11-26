@@ -42,3 +42,6 @@ export const SLIDE_PROP: Record<string, string> = {
   cols: 'table', of: 'table', vs: 'table', asc: 'table', rowHead: 'table', foot: 'table', note: 'table', calm: 'table', focusRow: 'table',
   ask: 'ask',
 };
+
+/** The fields of a slide that no home in FIELD_HOME names (empty: every field of the slide is one the app knows what to do with). */
+export const unclassified = (slide: Readonly<Record<string, unknown>>): string[] => Object.keys(slide).filter((k) => !(k in FIELD_HOME));

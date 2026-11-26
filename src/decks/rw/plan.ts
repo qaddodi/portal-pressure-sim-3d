@@ -1,9 +1,8 @@
-// A 2D deck as the 3D app plays it: the words (copied, never retyped), the camera shot of every slide (cams.ts), the hooks it needs from other batches (hooks.ts), and its
+// A 2D deck as the 3D app plays it: the words (copied, never retyped), the camera shot of every slide (cams.ts), what it needs is read from decks/hp/hooks.ts, and its
 // model chain (numbers.ts). Everything 3D here is DERIVED from the copied slide, so a change in the 2D deck changes the 3D one with it and nothing is typed twice.
 // Deck-agnostic: `buildDeck` takes any copied 2D deck; the R-to-W loaders are in ./copied/index.ts.
 import { SHOTS, type Shot } from '../../scene/camera/shots.ts';
 import { place, type Cam2D, type Placed } from './cams.ts';
-import { hooksOf, missingHooks, hasHook, type Hook } from './hooks.ts';
 import { parseWords, type Piece } from './numbers.ts';
 import type { CopiedDeck, CopiedSlide } from './types.ts';
 
@@ -25,7 +24,6 @@ export interface RwSlide {
   placed: Placed;
   /** The name this slide's camera shot is registered under (SHOTS), for the scene's `goTo`. A lobule or sinusoid slide has the scale view's shot. */
   shot: string;
-  hooks: Hook[];
   /** The 2D slide, whole (every other field: tiles, tool, compare, lens …), for the batches that carry it out. */
   copied: CopiedSlide;
 }
@@ -61,7 +59,6 @@ export function buildDeck(c: CopiedDeck): RwDeck {
       },
       placed: place(s.cam as Cam2D, s.view),
       shot: shotName(c.id, s.id),
-      hooks: hooksOf(s),
       copied: s,
     };
   });
@@ -84,16 +81,4 @@ export function shotOf(s: RwSlide): Shot {
 export function registerShots(d: RwDeck): void {
   const table = SHOTS as Record<string, Shot>;
   for (const s of d.slides) table[s.shot] = shotOf(s);
-}
-
-/** The slides of a deck that still lack a feature, with what they lack: the dependency list the parity page and the tests print. */
-export function dependencies(d: RwDeck, has: (id: string) => boolean = hasHook): { slide: string; missing: Hook[] }[] {
-  return d.slides.map((s) => ({ slide: s.id, missing: missingHooks(s.hooks, has) }));
-}
-
-/** Decks whose every slide has every feature it needs: only these may be offered by the menu. */
-export function playable(decks: readonly RwDeck[], has: (id: string) => boolean = hasHook): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const d of decks) if (dependencies(d, has).every((x) => !x.missing.length)) out[d.id] = d.slides.length + 2;   // (the outline and the quick check come with them)
-  return out;
 }

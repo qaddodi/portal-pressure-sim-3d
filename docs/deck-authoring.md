@@ -35,7 +35,7 @@ looks a deck or slide up by name.
 | `chart` | read whole by a chart or instrument card | `plane`, `cohort`, `graph`, `milestone` |
 | `figure` | marks and glow drawn on the figure | `glow`, `mark`, `callout`, `procedure` |
 
-`tests/deck-card-fields.test.ts` reads every slide of every deck and fails on a field this table does not list. A new field is one line here.
+`tests/deck-card-fields.test.ts` reads every slide of every deck and fails on a field this table does not list. A new field is one line here (`unclassified(slide)` lists any field that has no home).
 
 ## What the 3D app adds (the overlay)
 
@@ -95,6 +95,13 @@ The room commits (thinks, chooses, or guesses a number), then the model reveals:
 `back` names a slide of the same deck. `interactProblems` (`src/decks/interact.ts`) is the one rule for what can be played; a slide that fails it plays without the question and with a notice.
 
 **A new way of asking is a new `commit` kind in `interact.ts` and one branch in `src/ui/cards/InteractControls.tsx`. It is never a new slide field.**
+
+## What a slide needs (readiness)
+
+`readiness(slide)` in `src/decks/hp/hooks.ts` is the one answer to "can this slide play whole?" for every deck, copied or written by you. A slide's fields name the features it needs (a tool, a
+procedure, a lens, a view, a card); each feature has one owner and says whether it has landed. Tools, procedures and chart visuals are read from their own registries, so a feature that lands
+there lands here with no line to add. `wired` is true when every need has landed; `unowned` lists a need nobody owns, which also stops a slide reading as wired. `tests/deck-readiness.test.ts`
+holds all of this over the 42 decks and checks that the parity rows say the same thing.
 
 ## Adding things
 

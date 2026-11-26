@@ -12,7 +12,7 @@ import { figureCalls, EMPTY_CALLS } from '../src/ui/deck/figure-calls.ts';
 import { spanOf, spanStrokes, spanY, SPAN_Y, SPAN_TICK } from '../src/scene/labels/span-math.ts';
 import { CIRCUIT_NODES, NODE_CIRCUIT } from '../src/scene/circuit/data.copied.ts';
 import { tokensOf } from '../src/decks/hp/numbers.ts';
-import { hookOf, needsOf } from '../src/decks/ag/needs.ts';
+import { CARD_LANDED, readiness } from '../src/decks/hp/hooks.ts';
 import { loadSource } from '../src/decks/source.ts';
 
 const decks: CopiedDeck[] = [];
@@ -80,9 +80,9 @@ test('the layer draws it and the figure link hands it over and clears it', () =>
 });
 
 test('the readiness table: the field\'s need is landed, and the four slides wait for nothing else', () => {
-  assert.equal(hookOf('data:spans')?.landed(), true);
+  assert.ok('data:spans' in CARD_LANDED);
   for (const { id, s } of withSpan) {
-    const open = needsOf(s as never).filter((n) => { const h = hookOf(n); return h && !h.landed(); });
-    assert.deepEqual(open, [], id);
+    const r = readiness(s as never);
+    assert.deepEqual([...r.unowned, ...r.open.map((f) => f.id)], [], id);
   }
 });

@@ -30,7 +30,7 @@ export function shownSlides(deck: CopiedDeck): CopiedSlide[] {
   if (!first) return [];
   const keep = !first.lapse && !first.ramp;
   const outline: CopiedSlide = { id: 'outline' };
-  if (keep) for (const k of MODEL_FIELDS) if (first[k] !== undefined) outline[k] = first[k];
+  if (keep) for (const k of MODEL_FIELDS) if (first[k] !== undefined) (outline as Record<string, unknown>)[k] = first[k];
   const firstNow: CopiedSlide = keep && !first.vignette ? Object.fromEntries(Object.entries(first).filter(([k]) => !(MODEL_FIELDS as readonly string[]).includes(k))) as CopiedSlide : first;
   return [outline, firstNow, ...rest];
 }
