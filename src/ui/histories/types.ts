@@ -9,8 +9,11 @@ export interface Step {
   id?: string;
   /** parameters merged into the patient's (the treatment panel's change) */
   set?: Record<string, unknown>;
-  /** an engine action: a bleed (the model's own rupture, run for a minute), a band, a large-volume paracentesis with albumin (all the fluid there is, to 0.1 L) */
+  /** an engine action: a bleed (the model's own rupture, run for a minute), a band, a large-volume paracentesis with albumin (all the fluid there is; the title says the litres the engine took off) */
   act?: 'bleed' | 'band' | 'paracentesis';
+  /** The step that stops a bleed under way: hemostasis. A band stops an esophageal bleed by itself (the engine's band); a gastric varix has no band, so a step says it (the vasoactive drug's
+   *  control, a BRTO). The generator stops when a bleed runs on past BLEED_END_DAYS with none. */
+  stopsBleed?: true;
   /** where a bleed comes from: the esophageal varices (the default) or a gastric varix */
   site?: 'VAR' | 'GV';
   /** History's words for the step, when the change's own labels would not say it (an angioplasty is a thrombus put away) */
@@ -23,6 +26,9 @@ export interface Step {
 export interface Course {
   id: string;
   name: string;
+  /** the name on a phone's top pill (two lines of 15 characters at most), only when the full name is longer than that;
+   *  without it the name itself is shown (tests/pill-name.test.ts holds every history to it) */
+  short?: string;
   /** the menu's group and the words beside it */
   group: string; where: string;
   /** the engine preset the patient starts from (day 0) */
@@ -81,7 +87,7 @@ export type Tone = 'ok' | 'caution' | 'danger' | 'info';
 export interface Seg { text: string; tone?: 'danger' | 'caution' | 'ok' }
 /** What the menu needs before a history is loaded: the row, and the folded-open card with its small chart. */
 export interface HistoryMeta {
-  id: string; name: string; group: string; where: string;
+  id: string; name: string; short?: string; group: string; where: string;
   /** the preset the patient started from (a shared link carries the settings on it) */
   preset: string;
   months: number; state: Seg[]; story: string; path: string;

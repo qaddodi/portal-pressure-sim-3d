@@ -92,6 +92,9 @@ export function IrPane(p: PaneProps) {
   // a new patient starts with no measurement (the pane going away stops nothing: what plays goes on, the figure shows it, and the owner's claim says so: owner.ts)
   const presetId = useEngine((s) => s.presetId);
   useEffect(() => { resetAll(); }, [presetId]);
+  // the case's Look closer on an HVPG card asks for the measurement: it runs once the pane is up (declared after the reset above, so a mount's reset does not stop it)
+  const measureAsk = useIr((s) => s.measureAsk);
+  useEffect(() => { if (useIr.getState().takeMeasure()) startHvpg(); }, [measureAsk]);
   // "Test TIPS in IR" on a stent card: this pane on the TIPS view, on that stent. The card closes with the tap, so the stent is the one the Tests card handed over (from-orders.ts), or, while the
   // card is still up (this pane's own handler runs before it closes, and a tap on the IR tab leaves it up), the selected one.
   useEffect(() => {

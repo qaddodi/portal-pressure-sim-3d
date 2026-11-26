@@ -6,6 +6,7 @@ import { SIZE_TAU_MS, DEFLATE_TAU_MS, BAND_TAU_MS, BAND_DELAY_MS, glide } from '
 import { varixMean } from '../../../scene/disease/copied/varix-look.js';
 import { poolFill } from '../copied/blood-slice.copied.js';
 import type { FieldState } from './field.ts';
+import { bandsPlaced } from '../../action/bands-on.ts';
 
 const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
 
@@ -41,7 +42,7 @@ export class FieldMotion {
   /** Take the model's state at `wall` ms (the display clock); returns true while anything still moves. */
   step(inp: ScopeIn, wall: number): boolean {
     const dt = Math.min(0.1, Math.max(0, (wall - (this.lastWall || wall)) / 1000)); this.lastWall = wall;
-    const bands = Math.round(inp.bands || 0);
+    const bands = bandsPlaced(inp.bands);
     // (the field shows the varix over the beat, not each beat's swell: the same running mean the figure's varices follow)
     this.held.snap = inp.snap;
     const dMean = varixMean(this.held, inp.d, wall) as number, kb = this.held.k ?? 1;

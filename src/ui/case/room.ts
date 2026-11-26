@@ -36,7 +36,16 @@ export const useCaseBarUp = (): boolean => useCase((s) => caseBarUp(s.phase));
 
 /** A card at the left, its right edge `x` px from the screen's left; or a sheet over the foot, its top `y` px from the screen's top. */
 export type CaseCut = { kind: 'left'; x: number } | { kind: 'foot'; y: number };
-export const useCaseRoom = create<{ cut: CaseCut | null }>(() => ({ cut: null }));
+/** `cardH`: the height of the card standing at the left of a Mac (0 with none, or when a sheet takes its place); the labels keep off it (scene/labels/chrome-claims.ts). */
+export const useCaseRoom = create<{ cut: CaseCut | null; cardH: number }>(() => ({ cut: null, cardH: 0 }));
+/** The Mac's stop card column (its width and its gap from the screen's left): its right edge is the cut (CaseUi.tsx). */
+export const CASE_CARD_W = 400, CASE_CARD_GAP = 12;
+/** The share of the figure's room the stop's sheet takes at the thumb layouts, when it has not been measured yet (a phone: the sheet stands about 60 % of the room; an iPad, about 47 %). */
+export const SHEET_SHARE = 0.6;
+/** The cut a stop's card makes on a device class, before it has been measured: the column on a Mac, the sheet's usual share on a thumb layout. */
+export function typicalCut(d: DeviceClass, room: Rect, left = 0): CaseCut {
+  return bottomBar(d) ? { kind: 'foot', y: room.y + room.h * (1 - SHEET_SHARE) } : { kind: 'left', x: left + CASE_CARD_GAP + CASE_CARD_W };
+}
 
 const AIR = 8;
 /** The room of the same size, centred in what the card leaves of it (the room itself with no card, or when the card leaves it nothing). */
@@ -48,6 +57,16 @@ export function caseRoom(room: Rect, cut: CaseCut | null): Rect {
   }
   const b = Math.max(room.y, Math.min(room.y + room.h, cut.y - AIR));
   return { ...room, y: room.y - (room.y + room.h - b) / 2 };
+}
+/** What the card leaves of the room, as it stands (the rectangle the figure is centred in, which caseRoom gives at the room's own size): the part of the room no card covers. */
+export function caseFree(room: Rect, cut: CaseCut | null): Rect {
+  if (!cut) return room;
+  if (cut.kind === 'left') {
+    const l = Math.min(room.x + room.w, Math.max(room.x, cut.x + AIR));
+    return { ...room, x: l, w: room.x + room.w - l };
+  }
+  const b = Math.max(room.y, Math.min(room.y + room.h, cut.y - AIR));
+  return { ...room, h: b - room.y };
 }
 /** The same, for the card up now. */
 export const caseCutRoom = (room: Rect): Rect => caseRoom(room, useCaseRoom.getState().cut);
