@@ -13,6 +13,7 @@ import { leaveTalk } from '../../shell/talk.ts';
 import { clock } from '../../../clock/frame.ts';
 import { latest } from '../../../engine/index.ts';
 import { figureWaiting } from '../../deck/figure-pending.ts';
+import { pressWaiting, pressWhat } from '../../talk/press-pending.ts';
 import { beatCardWaiting } from '../../tests/slide/beat-agree.ts';
 import { menuWaiting } from '../../charts/menu/MenuCard.tsx';
 import { drawScreen } from '../../capture/capture.ts';
@@ -54,10 +55,13 @@ function dopplerAcquiring(): boolean {
  *  half seconds (a toast's timer rule, a loop of many turns) or one on anything but the cards, the labels and the bars is a perpetual motion, not a slide settling, and is left out. The audit's own check (page/live.ts busyWhy)
  *  counts every running animation, which kept this waiting five seconds on a slide that had been still for a moment. */
 /** What a wait that is about the slide's own state says (figure, pressure strip, treatment menu): the capture keeps waiting for these, and flags a picture taken without them. */
-const STATE_WAIT = /has not reached the slide|has not caught up with the slide|has not worked out its dots/;
+const STATE_WAIT = /has not reached the slide|has not caught up with the slide|has not worked out its dots|press has not reached the slide/;
 const CONTENT = '.dk-card, .dk-plate, .lb-layer, .dk-bar, .vdock, .topbar, .stage-credit, .zoom-pill, .dk-strip';
 function arriving(clockToo = true, stripsToo = true, frames = 99): string {
   try {
+    // (a chip, a toggle or a slider answers after its click: the engine works the patient out, the charts then read it, the figure then eases to it. Until it has, the page is showing the
+    // slide before the press: capture 36b7deac, Sites and causes 10, five chips and one chart)
+    if (pressWaiting()) return `a control's press has not reached the slide yet (${pressWhat()})`;
     if (cel.rig.isMoving) return 'the camera is moving';
     if (clockToo && clock.moving > 0) return `moving: ${clock.movingTags().join(', ')}`;   // (a glide, a tween, a card sliding, the labels placing: the clock's own list of what is in motion; the steady instruments, a live trace, are not in it)
     if (clockToo && latest.frame?.morphing) return 'the model is morphing';   // (a procedure's change runs in the engine for seconds of its own time: a paracentesis slide's litres read 5.9 on every step until it ended, Ascites 13, build 572259fd)
@@ -179,9 +183,18 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       const dir = `${pad2(di + 1)}-${d.id}`, thumbs: { n: string; title: string; img: HTMLCanvasElement }[] = [];
       let shape = { w: innerWidth, h: innerHeight };
       // one picture of what stands now: the talk's own position says which (stop, then the step within it: the case card, each beat, each page, each procedure step and reading)
+      const choicesDone = new Set<string>();   // (each group of choices is pressed once per stop and view, whichever step of the stop it first stands on)
       let prevIds = '', sub = 0, lastStop = -1, presses = 0, shownNow = '', inStop = 0, inStopAt = -1, lastThumbs = 0;
       const showLanded = async (): Promise<void> => { if (!ui.skip) return; let drawn = 0; const offR = clock.on('render', () => { drawn++; }); clock.setDrawing(true); await until(() => drawn >= 1, real(2000)); offR(); };   // (the landed slide is drawn, a frame or two, before the picture)
       const standing = (sel: string): HTMLElement[] => Array.from(document.querySelectorAll<HTMLElement>(CHOICE_ROOTS)).flatMap((c) => Array.from(c.querySelectorAll<HTMLElement>(sel))).filter((t) => { if (!pressable(t)) return false; const r = readBox(t); return r.width > 1 && r.height > 1 && Number(readStyle(t).opacity) > 0.1 && !(t as HTMLButtonElement).disabled; });
+      // (a picture whose figure, strip, menu or pressed control has not reached the state it shows would show the case wrong, whatever the cards say: it waits up to a minute more, and if
+      // it still has not, the README says the picture FAILED, so it is retaken, never read: One patient, ten years 9, reviewer 24 Nov 2026. Every picture waits this way, a slide's and a
+      // choice's alike)
+      const stillAndState = async (needWords: boolean): Promise<{ moving: string; words: string; perpetual: string }> => {
+        let r = await stillPage(real, needWords, !!ui.skip);
+        for (let tries = 0; r.moving && STATE_WAIT.test(r.moving) && tries < 11; tries++) r = await stillPage(real, needWords, !!ui.skip);
+        return r;
+      };
       const grab = async (): Promise<void> => {
         const p = useUi.getState().pos, k = p.stop;
         const fresh = k !== lastStop;   // (the first picture of this slide)
@@ -198,9 +211,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         ui.status(single ? `${reached} of ${pick!.size}: ${d.title} “${title}”` : `${d.title}: ${n} of ${stops} “${title}”`);
         const w0 = new Date().getTime();
         if (ui.skip && fresh && prevIds) await until(() => cardIds() !== prevIds || !!document.querySelector('.dk-card[data-phase="out"]'), real(1200));   // (skip mode: the press has reached the screen before anything is judged still; else the slide before reads as settled)
-        let { moving, words, perpetual } = await stillPage(real, blockedSlide(k), !!ui.skip);
-        // (a picture whose figure, strip or menu has not reached the slide's own state shows the case wrong, whatever the cards say: it waits up to a minute more, and if it still has not, the README says the picture FAILED, so it is retaken, never read: One patient, ten years 9, reviewer 24 Nov 2026)
-        for (let tries = 0; moving && STATE_WAIT.test(moving) && tries < 11; tries++) ({ moving, words, perpetual } = await stillPage(real, blockedSlide(k), !!ui.skip));
+        let { moving, words, perpetual } = await stillAndState(blockedSlide(k));
         if (moving) notes.push(STATE_WAIT.test(moving) ? `${d.title} ${n}: CAPTURE FAILED, the picture does not show the slide's own state (${moving}); retake it` : `${d.title} ${n}: still not still after 5 s (${moving}); captured as it was`);
         shownNow = words; prevIds = cardIds();
         await showLanded();
@@ -245,6 +256,11 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
           const nameOf = (e: HTMLElement, j: number): string => choiceName(e.textContent, e.getAttribute('aria-label'), j);
           const every = (): HTMLElement[] => standing(`${CHOICE_SEL}, ${CHOICE_ON_SEL}`);
           const list0 = every(), names = list0.filter((e) => !e.matches(CHOICE_ON_SEL)).map((e) => nameOf(e, list0.indexOf(e))), was = list0.filter((e) => e.matches(CHOICE_ON_SEL)).map((e) => nameOf(e, list0.indexOf(e)));
+          // (a stop's first picture is not always the one that holds the controls: a slide with a case card shows the case first and its chips and toggles on the next step, Sites and
+          // causes 9, whose Normal-heart toggle was never pressed in capture 36b7deac. So every step looks, and a group is pressed once, the first time it stands)
+          const sig = `${k}|${view}|${list0.map((e, j) => nameOf(e, j)).join('/')}`;
+          if (!list0.length || choicesDone.has(sig)) return;
+          choicesDone.add(sig);
           const pressed = new Set<string>(), ids0 = cardIds(), tests0 = !!document.querySelector('.t-card');
           for (let i = 0; i < Math.min(names.length, CHOICE_MAX); i++) {
             if (ui.stop()) break;
@@ -254,23 +270,24 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
             pressed.add(nm);
             if (ui.skip) clock.setDrawing(false);
             t.click();
-            await stillPage(real, false, !!ui.skip); await showLanded();
+            const after = await stillAndState(false); await showLanded();
+            if (after.moving && STATE_WAIT.test(after.moving)) notes.push(`${d.title} ${n}: CAPTURE FAILED, the picture after pressing "${nm}" does not show its state (${after.moving}); retake it`);
             if (cardIds() !== ids0 || (!tests0 && !!document.querySelector('.t-card'))) { notes.push(`${d.title} ${n}: pressing "${nm}" changed which cards stand (it opened another card); put back, and no more choices on this slide`); if (t.isConnected) t.click(); break; }
             await shoot(`${view ? `${view}-` : ''}choice${pad2(i + 1)}-${nm}`, nm);
             if (t.isConnected && t.hasAttribute('aria-expanded')) t.click();   // (an opener is closed again: the next choice and the next state start from the slide as it arrived)
           }
           if (pressed.size) {   // (put back what stood: the first of the cards' choices)
-            for (const nm of was) { const back = every().find((e, j) => !e.matches(CHOICE_ON_SEL) && nameOf(e, j) === nm); if (back) { if (ui.skip) clock.setDrawing(false); back.click(); await stillPage(real, false, !!ui.skip); await showLanded(); } }
+            for (const nm of was) { const back = every().find((e, j) => !e.matches(CHOICE_ON_SEL) && nameOf(e, j) === nm); if (back) { if (ui.skip) clock.setDrawing(false); back.click(); await stillAndState(false); await showLanded(); } }
           }
         };
         const d0 = new Date().getTime(); waitMs += d0 - w0;
         const ok = await shoot(ui.promo ? '' : views[0]);
-        if (ok && fresh) await choiceShots(views[0]);
+        if (ok) await choiceShots(views[0]);
         if (both && ok) {
           useUi.getState().setDocked(true);   // (sideways: the swipe up, the column slides until the instrument card is the one in view; upright: the instrument card tucks into its strip)
-          await stillPage(real, false, !!ui.skip);
+          await stillAndState(false);
           const ok2 = await shoot(views[1]!);
-          if (ok2 && fresh) await choiceShots(views[1]!);
+          if (ok2) await choiceShots(views[1]!);
           useUi.getState().setDocked(false);   // (and back: the next slide starts on its words)
           await sleep(real(60));
         }

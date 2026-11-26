@@ -28,14 +28,13 @@ export function SlideControls({ slide, deck }: { slide: Slide; deck: Deck }) {
   );
 }
 
-function Compare({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
-  const { opts, name } = slide.controls!.compare!;
-  const own = Math.max(0, opts.findIndex((o) => o.own));
-  const [on, setOn] = useState(own);
-  // a slide shown again starts with its own words and its own button
-  useEffect(() => { setOn(own); useVariant.getState().set(`${deck.id}/${slide.id}`, null); }, [slide.id, own, deck.id]);
-  // 2D's one row (ab-short.ts): measured with the full names, then the compact names where it would wrap; again whenever the card's width changes or the fonts arrive
-  const row = useRef<HTMLDivElement>(null);
+/** 2D's one row (ab-short.ts) for ANY row of choices on a teaching card: measured with the full names, then the compact names where it would wrap, then closed up and scaled, then two
+ * balanced rows; again whenever
+ *  the card's width changes or the fonts arrive. One hook for every row (the compare chips and the scale pill alike), so a row of choices cannot stand unfitted: Mohammad, 25 Nov, "in
+  * teaching slides make sure
+ *  the buttons are one row if possible; if two rows, never one button alone on row 2". */
+function useChoiceRowFit<T extends HTMLElement>(deps: readonly unknown[]) {
+  const row = useRef<T>(null);
   const vw = useUi((st) => st.vp.w), vh = useUi((st) => st.vp.h);
   useLayoutEffect(() => {
     const el = row.current, host = el?.parentElement;
@@ -49,7 +48,18 @@ function Compare({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
     const ro = new ResizeObserver(() => { if (host.clientWidth !== w) { w = host.clientWidth; fit(); } });
     ro.observe(host);
     return () => { live = false; ro.disconnect(); };
-  }, [slide.id, opts, vw, vh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [...deps, vw, vh]);
+  return row;
+}
+
+function Compare({ slide, deck, i }: { slide: Slide; deck: Deck; i: number }) {
+  const { opts, name } = slide.controls!.compare!;
+  const own = Math.max(0, opts.findIndex((o) => o.own));
+  const [on, setOn] = useState(own);
+  // a slide shown again starts with its own words and its own button
+  useEffect(() => { setOn(own); useVariant.getState().set(`${deck.id}/${slide.id}`, null); }, [slide.id, own, deck.id]);
+  const row = useChoiceRowFit<HTMLDivElement>([slide.id, opts]);
   return (
     <div ref={row} className="pz-ab" role="group" aria-label={name}>
       {opts.map((o, k) => (
@@ -115,8 +125,9 @@ export function ScalePill({ slide, deck, i }: { slide: Slide; deck: Deck; i: num
   const { own, list, cam } = slide.controls!.scales!;
   const [on, setOn] = useState(own);
   useEffect(() => setOn(own), [slide.id, own]);
+  const row = useChoiceRowFit<HTMLDivElement>([slide.id, list]);
   return (
-    <div className="pz-ab" role="group" aria-label="Scale">
+    <div ref={row} className="pz-ab" role="group" aria-label="Scale">
       {list.map((sc) => (
         <button key={sc} type="button" className="pz-abb" aria-pressed={on === sc} onClick={() => { setOn(sc); pickScale(deck, i, sc, sc === own ? undefined : cam[sc]); }}>{SCALE_LABEL[sc]}</button>
       ))}
