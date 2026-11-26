@@ -1,4 +1,5 @@
-// The view pill changes its buttons with the view (views.ts: the current view and its neighbours), and nothing pops (Mohammad, 20 Nov: "segments ease in and out, the pill's width animates").
+// The view pill changes its buttons when the set it shows changes (views.ts pillViews: every view today, so the fold has nothing to move), and nothing pops
+// (Mohammad, 20 Nov: "segments ease in and out, the pill's width animates").
 // 2D's pill-motion.js idea, on the Web Animations API (transform and opacity only, on the compositor; written once per change of the view, never in a frame):
 //   - the pill's glass (.vp-face) grows or shrinks about its centre, by a scaleX from the old width to the new;
 //   - a button that stays slides from where it was to where it rests;
