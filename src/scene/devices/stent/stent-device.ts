@@ -184,6 +184,19 @@ export class StentDevice {
     return { r: this.lastR, shown: this.amount * Math.min(1, Math.max(0, ((g.red || 0) - 0.004) / 0.03)) };
   }
 
+  /** The waist's own stretch of the stent's axis (the curve, not the chord between its ends): `out.length` points from where the flat floor starts
+   *  to where it ends, equally spaced along the curve (the bracket follows it). */
+  waistAxis(out: Vector3[]): boolean {
+    const g = this.geom;
+    if (!g || !this.paths || out.length < 2) return false;
+    const sp = waistSpan(g) as { a1: number; b1: number }, A = Math.max(0.01, this.L - 2 * INSET), k = out.length - 1;
+    for (let i = 0; i <= k; i++) {
+      const at = sp.a1 + (sp.b1 - sp.a1) * (i / k);
+      this.curve.getPointAt(Math.min(1, Math.max(0, (INSET + at * A) / this.L)), out[i]!);
+    }
+    return true;
+  }
+
   /** Eases the amount. True while it moves (or draws once more). */
   update(dtMs: number): boolean {
     let moving = this.dirty; this.dirty = false;
