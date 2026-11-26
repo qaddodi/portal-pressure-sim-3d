@@ -32,7 +32,9 @@ test('the card writes the grid from its printed cells, and the CSS lets the name
   assert.match(tsx, /gridOf\(model\.cols\.map\(\(c\) => c\.k\), model\.cols\.map\(\(c, j\) => colChars\(model\.rows\.map\(\(r\) => r\.cells\[j\]\)\)\)\)/);
   assert.match(tsx, /\['--dk-cols' as string\]: need/);
   assert.doesNotMatch(tsx, /minmax\(0, 1fr\)/, 'no value column may shrink under its own text');
-  assert.match(css, /--dk-name-fit: max\(calc\(var\(--dk-wn, 0\) \* \.62em \+ 20px\), min\(var\(--dk-name\), calc\(100% - var\(--dk-cols, 0px\)\)\)\)/);
+  // (the name asks for its least of the heads' formula or two lines of its longest name, and yields to the value columns' need, never under its longest word)
+  assert.match(css, /--dk-name-fit: max\(calc\(var\(--dk-wn, 0\) \* \.62em \+ 20px\), min\(max\(var\(--dk-name\), calc\(var\(--dk-wn2, 0\) \* \.62em \+ 20px\)\), calc\(100% - var\(--dk-cols, 0px\)\)\)\)/);
+  assert.match(tsx, /\['--dk-wn2' as string\]: twoLines/);
 });
 
 // The same capture: Circuit 11's card stood 9 px under the pill and ~100 px taller than its table.

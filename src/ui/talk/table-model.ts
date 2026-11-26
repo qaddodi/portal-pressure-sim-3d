@@ -105,9 +105,12 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
     if (!r.f) return [pend('saag'), pend('tp')];
     if ((r.f.asc ?? 0) < NO_ASC) return [{ k: 'saag', kind: 'none', text: 'No ascites', arrow: 0, rate: null, eff: null, miss: '', sr: 'no ascites' }];
     const hiS = saagPortal(r.f.saag), hiP = tpHigh(r.f.tp);
-    if (isRef(r, n)) return [{ k: 'saag', kind: 'ref', text: fmt(r.f.saag, 1), arrow: 0, rate: hiS ? 'hi' : null, eff: null, miss: '', sr: `SAAG ${fmt(r.f.saag, 1)} g/dL` }, { k: 'tp', kind: 'ref', text: fmt(r.f.tp, 1), arrow: 0, rate: null, eff: null, miss: '', sr: `protein ${fmt(r.f.tp, 1)} g/dL` }];
+    // (A SAAG at or over the cut-off is one arrow, and one arrow wears the colour the legend gives it on every table,
+    //  amber (rateAbs), not a red of its own: the arrow, its colour and its legend entry are one rule. Under it: quiet.)
+    const rateS = hiS ? rateOf(rateAbs('saag', 1)) : null;
+    if (isRef(r, n)) return [{ k: 'saag', kind: 'ref', text: fmt(r.f.saag, 1), arrow: 0, rate: rateS, eff: null, miss: '', sr: `SAAG ${fmt(r.f.saag, 1)} g/dL` }, { k: 'tp', kind: 'ref', text: fmt(r.f.tp, 1), arrow: 0, rate: null, eff: null, miss: '', sr: `protein ${fmt(r.f.tp, 1)} g/dL` }];
     return [
-      { k: 'saag', kind: 'dir', text: fmt(r.f.saag, 1), arrow: hiS ? 1 : -1, rate: hiS ? 'hi' : null, eff: null, miss: '', sr: `SAAG ${hiS ? `${SAAG_PORTAL} or more` : `under ${SAAG_PORTAL}`}, ${fmt(r.f.saag, 1)}` },
+      { k: 'saag', kind: 'dir', text: fmt(r.f.saag, 1), arrow: hiS ? 1 : -1, rate: rateS, eff: null, miss: '', sr: `SAAG ${hiS ? `${SAAG_PORTAL} or more` : `under ${SAAG_PORTAL}`}, ${fmt(r.f.saag, 1)}` },
       { k: 'tp', kind: 'dir', text: fmt(r.f.tp, 1), arrow: hiP ? 1 : -1, rate: null, eff: null, miss: '', sr: `protein ${hiP ? `${TP_HIGH} or more` : `under ${TP_HIGH}`}, ${fmt(r.f.tp, 1)} g/dL` },
     ];
   };

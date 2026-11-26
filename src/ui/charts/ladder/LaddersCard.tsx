@@ -8,7 +8,7 @@ import { chartScale } from '../profile/model.ts';
 import { ensureStates } from '../../../decks/hp/calc.ts';
 import { bakedLadders, ladderData, type LadderData } from './data.ts';
 import { namesFrame, stripFrame } from './frame.ts';
-import { causeFit, headOf, pillReadings, stripLabel, type Fp, type LadderRow, type OfRow } from './model.ts';
+import { causeFit, headOf, headsStack, HEADS_EVENT, pillReadings, stripLabel, type Fp, type LadderRow, type OfRow } from './model.ts';
 import { observeThenFit } from '../../layout/fit-later.ts';
 import { scaleOf } from '../fit.ts';
 import '../charts.css';
@@ -39,13 +39,27 @@ function CellHead({ r }: { r: LadderRow }) {
       const z = Math.min(2, Math.max(0.5, row.getBoundingClientRect().width / row.offsetWidth / scaleOf(row) || 1)), fs = parseFloat(getComputedStyle(tt).fontSize) || 12;
       const gap = parseFloat(getComputedStyle(row).columnGap) || 0, pw = pills.current?.offsetWidth ?? 0, room = row.clientWidth - tg.offsetWidth - gap - (pw ? pw + gap : 0) - 1;
       let f = causeFit(fs, tt.offsetWidth, room, 12 / z);
-      if (f.under) f = { ...causeFit(fs, tt.offsetWidth, row.clientWidth - 1, 12 / z), under: true };
+      // (This cell's own verdict is written on it for its neighbours; the grid's rule then decides: one cell under
+      //  means every cell under, so the six heads stand alike and the rows are one height: headsStack.)
+      row.dataset.fit = f.under ? 'under' : 'beside';
+      const grid = row.closest<HTMLElement>('.pz-grid');
+      const all = grid ? Array.from(grid.querySelectorAll<HTMLElement>('.pz-cell-k')).map((h) => h.dataset.fit === 'under') : [f.under];
+      const stack = headsStack(all);
+      if (stack) f = { ...causeFit(fs, tt.offsetWidth, row.clientWidth - 1, 12 / z), under: true };
       // (Applied to the DOM here, as 2D does, never through React state: this pass strips the size and the class first, and a state that came out the same would leave them stripped.)
       if (f.size !== fs) tt.style.fontSize = `${f.size.toFixed(2)}px`;
       row.classList.toggle('under', f.under);
+      // (A neighbour that has already measured is told when the grid's rule changes under it: it measures again, once.)
+      if (grid && grid.dataset.heads !== (stack ? 'under' : 'beside')) {
+        grid.dataset.heads = stack ? 'under' : 'beside';
+        grid.dispatchEvent(new Event(HEADS_EVENT));
+      }
     };
     run();
-    return observeThenFit([row, tt, tg, pills.current], run);   // (the pass writes the cause's size and `under` on what it observes)
+    const grid = row.closest('.pz-grid');
+    grid?.addEventListener(HEADS_EVENT, run);
+    const off = observeThenFit([row, tt, tg, pills.current], run);   // (the pass writes the cause's size and `under` on what it observes)
+    return () => { grid?.removeEventListener(HEADS_EVENT, run); off(); };
   }, [r.name, r.kicker, pl.length]);
   return (
     <div ref={k} className="pz-cell-k">

@@ -217,7 +217,8 @@
 .pz-table.dk-pztable { --dk-name: max(calc(14.5rem - var(--nc) * 1.1rem), calc(var(--dk-wn, 0) * .62em + 20px)); }   /* (the name's least width: the fewer value columns, the wider) */
 .pz-table.dk-pztable.dk-up { --dk-name: max(calc(20.5rem - var(--nc) * 1.75rem), calc(var(--dk-wn, 0) * .62em + 20px)); }   /* (heads upright: the columns need only their arrows) */
 /* The name takes its least width, unless the value columns need that room for what they print (`--dk-cols`, TableCard: gridOf): then it gives way, never under its longest word. */
-.pz-table.dk-pztable { --dk-name-fit: max(calc(var(--dk-wn, 0) * .62em + 20px), min(var(--dk-name), calc(100% - var(--dk-cols, 0px)))); }
+/* A name asks for two lines of its longest (--dk-wn2, TableCard: twoLineWidest), more than the heads' own formula gives it, and yields to the value columns' need as before: three lines for one name made its row taller than the rest. */
+.pz-table.dk-pztable { --dk-name-fit: max(calc(var(--dk-wn, 0) * .62em + 20px), min(max(var(--dk-name), calc(var(--dk-wn2, 0) * .62em + 20px)), calc(100% - var(--dk-cols, 0px)))); }
 .pz-table.dk-pztable :is(table, thead, tbody) { display: block; }
 .pz-table.dk-pztable tr { display: grid; grid-template-columns: var(--dk-grid); align-items: center; }
 .pz-table.dk-pztable td[colspan="2"] { grid-column: span 2; }
