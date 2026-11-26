@@ -96,8 +96,6 @@ export const SLOSH_W = 4.8, SLOSH_ZETA = 0.28, SLOSH_GAIN = 0.025, SLOSH_MAX = 6
 export const RIPPLE_PERIOD = 1.1, RIPPLE_WRAP = 20 * Math.PI;
 /** The Living fluid switch glides over this many seconds (a smoothed exponential: it never snaps). */
 export const LIVING_TAU = 0.15;
-/** One 2D unit in CSS px at the figure's own scale 1 (1400 units over ~1400 px): the floor of the boost below. */
-export const PXU_FLOOR = 1;
 
 const ss = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** How much the ripple and the slosh are enlarged where a 2D unit is under a pixel: RIPPLE_PX over the pixels of 2D's own full amplitude, from 1 (a big figure) to 5. */

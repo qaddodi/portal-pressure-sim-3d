@@ -10,12 +10,6 @@ export interface TileSpec { deck: string; slide: string; keys: string[]; key: st
 /** The keys the card prints on this screen: the slide's tiles less those its chart or instrument already shows (2D ownKeys). */
 export const keysFor = (spec: TileSpec, onPhone: boolean): string[] => (spec.own ? (onPhone ? spec.own.phone : spec.own.wide) : spec.keys);
 
-/** The slide a tile's change counts from: the one named, or the one before when the slide says `delta: true`. */
-export function deltaFrom(spec: TileSpec, ids: readonly string[]): string | null {
-  if (typeof spec.delta === 'string') return spec.delta;
-  if (spec.delta === true) { const i = ids.indexOf(spec.slide); return i > 0 ? ids[i - 1]! : null; }
-  return null;
-}
 export interface TileRow { key: string; name: string; sub: string; text: string; key_: boolean; delta: { text: string; good: boolean | null } | null }
 
 /** The change of a tile's reading from another state, as its tile prints it ("+3.2", "−4"): null when either is unknown or nothing moved at the printed digits. */

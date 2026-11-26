@@ -127,8 +127,6 @@ export interface LabelState {
 const LEADER_LINE_COST = 9;
 export const NO_STATE: LabelState = { named: new Set(), shown: new Set(), tones: {}, picked: null, cath: null, organNames: false, quiet: false, proc: null, key: null, presenting: false };
 
-/** Space between the key and the edge of the free room. */
-export const KEY_MARGIN = 12;
 
 export type Kind = 'station' | 'key';
 
@@ -212,7 +210,6 @@ function sayOf(ex: Extras): Say {
 }
 
 const FORM_NAMES = ['full', 'abbr', 'value'] as const;
-export const formNames = FORM_NAMES;
 
 const PATH_SAMPLES = 20;
 

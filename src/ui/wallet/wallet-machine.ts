@@ -4,8 +4,6 @@
 import type { Slot } from '../layout/plan.ts';
 import { EASE_ARRIVE } from '../motion.ts';
 
-/** The wallet swap's own pace (tween.ts MOTION.walletMs, the card entry's 280 ms): neither D_SMALL nor D_SURFACE, on purpose. */
-export const WALLET_MS = 280;
 export const WALLET_EASE = EASE_ARRIVE;
 /** How far (px) a swipe must travel, or how fast (px/ms), before it counts. Under that it is a tap or a slow drag, which does nothing. */
 export const SWIPE_MIN_PX = 36;

@@ -49,7 +49,5 @@ export function seeZoomK(z: number, c: OrganVeilConfig = ORGAN_VEIL): number {
   const l = Math.log(Math.max(z, 1e-6));
   return smooth(Math.log(c.seeFrom), Math.log(c.seeTo), l);
 }
-/** What the body's dive and the Circuit take off both: they are not on the anatomy figure. `away` is 0 on the figure, 1 gone. */
-export const figureShare = (away: number): number => clamp01(1 - away);
 /** The share of a vessel the organ covers: the veil's maximum at depth `gap` behind the organ's front surface (the JS twin of glsl.ts veilAmount). */
 export function veilOf(gap: number, strength: number, c: OrganVeilConfig = ORGAN_VEIL): number { return strength * smooth(c.gapFrom, c.gapTo, gap); }

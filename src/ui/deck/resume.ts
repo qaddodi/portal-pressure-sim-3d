@@ -28,4 +28,3 @@ export function resumeFor(id: string, n: number): { at: number; n: number } | nu
   const r = readAll()[id];
   return r && Number.isInteger(r.at) && r.n === n && r.at > 0 && r.at < n - 1 ? { at: r.at, n } : null;
 }
-export function forgetResume(id: string): void { const all = readAll(); if (id in all) { delete all[id]; writeAll(all); } }

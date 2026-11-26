@@ -37,5 +37,3 @@ export function liveWidest(id: string): Course | null {
 }
 /** The vessel's own course (the first) as drawn now. */
 export const liveMain = (id: string): Course | null => liveCourses(id)?.[0] ?? null;
-/** The state a vessel is drawn at (REST until reported). */
-export const liveStateOf = (id: string): ShapeState => states.get(id) ?? REST;

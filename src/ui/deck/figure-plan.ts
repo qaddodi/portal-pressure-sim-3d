@@ -123,8 +123,6 @@ function spotOf(listIn: Json[]): { edges: string[]; organs: OrganPin[]; unknown:
   return { edges, organs, unknown };
 }
 
-/** A live word in a mark's label ({asc}, {varix}) stands for a tile's reading; the plan keeps the label as written and the link fills it. */
-export const hasLive = (label: string): boolean => /\{\w+\}/.test(label);
 
 /** What a slide asks the figure to draw. `fp` is not needed here: readings are filled when the slide is on (figure-link.ts). */
 export function figurePlan(s: CopiedSlide): FigurePlan {

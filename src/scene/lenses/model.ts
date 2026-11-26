@@ -27,8 +27,6 @@ const EF = Int16Array.from(edges.map((e) => nodeIx.get(e.from) ?? -1));
 const ET = Int16Array.from(edges.map((e) => nodeIx.get(e.to) ?? -1));
 export const edgeIndex = new Map(edges.map((e, i) => [e.id, i]));
 
-// scales (colormap.js, main.js)
-export const PRESSURE_MAX = 35;
 export const FLOW_MIN = 0.02, FLOW_MAX = 6;
 export const flowPos = (lpm: number) => Math.log10(Math.max(FLOW_MIN, lpm) / FLOW_MIN) / Math.log10(FLOW_MAX / FLOW_MIN);
 export const HEAT_MAX = 15, DROP_MAX = 12, DELTA_RANGE = 12;

@@ -55,8 +55,6 @@ export const FILE_LOSS = {
 } as const;
 /** The quiet note when the app is left broken by errors no boundary sees (ErrorNote.tsx, boot/crash-net.ts). */
 export const ERROR_NOTE = { text: 'Something small went wrong in the background. You can keep going, or reload to be safe.', reload: 'Reload', copy: 'Copy details', copied: 'Copied', keep: 'Keep going' } as const;
-/** Settings › Blur effect in the 3D app today */
-export const FIGURE_DETAIL_TITLE = 'Figure detail';
 
 /** 2D: src/ui/timeline.js (titles of the play bar's controls) */
 export const PLAY_TITLES = {

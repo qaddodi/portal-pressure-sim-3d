@@ -15,7 +15,6 @@ export interface SinusoidNamesState {
 export const useSinusoidNames = create<SinusoidNamesState>(() => ({ placed: [], explain: null, target: null, lit: new Set() }));
 
 export const setSinusoidPlaced = (placed: readonly NamePlacement[]): void => useSinusoidNames.setState({ placed });
-export const setSinusoidLit = (terms: Iterable<string>): void => useSinusoidNames.setState({ lit: new Set(terms) });
 export const clearSinusoidExplain = (): void => useSinusoidNames.setState({ explain: null, target: null });
 
 /** A tap at canvas point (x, y): in a talk, explains the name drawn there (or lets go of it when it is the one explained). True when a name took the tap. */
