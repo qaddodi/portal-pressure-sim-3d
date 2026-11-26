@@ -35,7 +35,7 @@ test('CardFrame: a leaving card never measures; a card already let in is never r
   const cf = rd('src/ui/cards/CardFrame.tsx');
   assert.match(cf, /const report = \(full = true, fresh = false\) => \{\s*if \(now\.current\.out\) return;/);
   assert.match(cf, /observeThenFit\(\[el\], \(\) => report\(!now\.current\.live\)\)/);
-  assert.match(cf, /if \(full\) markLong\(/, 'the title\'s class is judged on a full pass only');
+  assert.match(cf, /if \(full\) \{[^}]*markLong\([^}]*balanceTitles\(/, 'the title\'s class and its breaks are judged on a full pass only');
   assert.match(cf, /if \(full\) card\.style\.removeProperty\('--pz-fit'\)/, 'a pass that is not full continues from the fit it has, it never resets it');
   assert.match(cf, /pz-chart-built/, 'a chart that has drawn tells the card');
 });

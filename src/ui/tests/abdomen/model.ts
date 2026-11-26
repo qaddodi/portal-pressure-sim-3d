@@ -8,6 +8,7 @@ import { fmt, fmtG } from '../../charts/fmt.ts';
 import { SAAG_PORTAL } from '../../../engine/hales/portal/ascites-cuts.js';
 import { SEV, GRADE, GRADE_TIP, IAP_MAX, iapSev, IAP_WORD, IAP_SAY, r1 } from '../copied/abdomen-slice.copied.js';
 import type { M } from '../frame.ts';
+import { ALBUMIN_PER_L, LVP_OVER_L, PER_L_TEXT, litres1, lvpAlbuminText } from '../../../decks/lvp-albumin.ts';
 
 export const FLUID_MIN_ML = 150;   // (below this there is nothing to tap: 2D `a.volume > 150`)
 export { IAP_MAX, IAP_SAY, IAP_WORD, GRADE, GRADE_TIP };
@@ -22,14 +23,16 @@ export const WORDS = {
   paracentesis: 'Paracentesis', volumeToDrain: 'Volume to drain, liters', decrease: 'Decrease volume to drain', increase: 'Increase volume to drain',
   tiles: ['SAAG', 'Fluid protein', 'Fluid albumin'], unit: 'g/dL', none: 'No ascites to sample', little: 'Too little ascites to sample',
 } as const;
+// (the 2D card gives one dose, the rule's high end, ALBUMIN_PER_L[1]; the cut-off and the grams are the shared rule's, decks/lvp-albumin.ts)
+const HI = ALBUMIN_PER_L[1];
 export const albuminTip = (L: number, warn: boolean): string => (warn
-  ? `For >5 L, give albumin (${Math.round(L * 8)} g, 8 g per liter of ascites removed) to prevent post-paracentesis circulatory dysfunction.`
-  : 'Albumin 8 g per liter of ascites removed: advised for >5 L, optional for ≤5 L.');
+  ? `For >${LVP_OVER_L} L, give albumin (${Math.round(L * HI)} g, ${HI} g per liter of ascites removed) to prevent post-paracentesis circulatory dysfunction.`
+  : `Albumin ${HI} g per liter of ascites removed: advised for >${LVP_OVER_L} L, optional for ≤${LVP_OVER_L} L.`);
 const IAP_RESERVE_L = 20;
 /** What a slide's paracentesis has taken off so far, in words (Ascites 13): the litres removed, and the albumin to give. Baveno VIII: 6 to 8 g per liter removed when more than 5 L is removed; under that it is optional. */
 export const tapWords = (removedL: number): { removed: string; dose: string } => {
-  const r = Math.max(0, Math.round(removedL * 10) / 10);
-  return { removed: `${fmt(r, 1)} L removed`, dose: r > 5 ? `Albumin ${Math.round(r * 6)} to ${Math.round(r * 8)} g (6 to 8 g per liter)` : 'Albumin optional under 5 L' };
+  const r = litres1(removedL), g = lvpAlbuminText(r);
+  return { removed: `${fmt(r, 1)} L removed`, dose: g ? `Albumin ${g} (${PER_L_TEXT} per liter)` : `Albumin optional under ${LVP_OVER_L} L` };
 };
 /** The longest and the shortest the two lines of a slide's paracentesis can read (nothing taken off, the most the belly holds): the lines' box holds the tallest and widest of them from the first frame, so the card never grows as the litres go. */
 /** The most the belly held since the paracentesis began (Ascites 13: "7.7 L removed" under words that say the LVP drains the whole 5.9 L, capture 84496815). The count starts WHEN the procedure does (`began`: the render
@@ -37,8 +40,18 @@ export const tapWords = (removedL: number): { removed: string; dose: string } =>
  *  `prev` is the peak so far, `litres` the belly now (NaN: no reading). Pure; tests/abdomen-tap-peak.test.ts. */
 export const tapPeak = (prev: number, litres: number, began: boolean): number => (Number.isFinite(litres) ? (began ? litres : Math.max(prev, litres)) : prev);
 
+/** The litres a slide's paracentesis takes off in the model: the belly of the state before the slide less the slide's own (the very two states its run morphs between,
+ *  ui/deck/procs-link.ts snapsOfSlide), in liters; 0 while either is unknown. Pure. */
+export const tapDrainL = (beforeML: unknown, ownML: unknown): number =>
+  (typeof beforeML === 'number' && typeof ownML === 'number' && Number.isFinite(beforeML - ownML) ? Math.max(0, (beforeML - ownML) / 1000) : 0);
+
+/** The litres taken off as the card counts them: the belly's fall since the procedure began, never more than the model's drained volume (`drainL`, tapDrainL),
+ *  and the whole of it once the procedure is done, so the count, the dose beside it and the slide's words are one number
+ *  (capture 2274649a, Albumin 3: "0.8 L removed" after an LVP of 5.1 L). `drainL` 0 (unknown): the fall alone. Pure. */
+export const tapRemoved = (fall: number, drainL: number, done: boolean): number => (drainL > 0 ? (done ? drainL : Math.min(drainL, Math.max(0, fall))) : Math.max(0, fall));
+
 export const TAP_RESERVE: readonly { removed: string; dose: string }[] = [tapWords(0), tapWords(IAP_RESERVE_L)];
-export const albuminText = (L: number, on: boolean): string => (on ? `${Math.round(L * 8)} g` : L > 5 ? WORDS.advised : WORDS.optional);
+export const albuminText = (L: number, on: boolean): string => (on ? `${Math.round(L * HI)} g` : L > LVP_OVER_L ? WORDS.advised : WORDS.optional);
 
 export interface AbView {
   num: string; grade: string; gradeTip: string; sev: string; trend: string; rate: string; rateDir: 'up' | 'down' | 'steady';

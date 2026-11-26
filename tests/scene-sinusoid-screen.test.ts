@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import { endsFor, measureScreen } from '../src/scene/sinusoid/portrait.ts';
-import { FACE_UM, legendOn } from '../src/scene/sinusoid/legend.ts';
+import { FACE_UM } from '../src/scene/sinusoid/legend.ts';
 import { sceneSource } from './helpers/scene-source.ts';
 
 const run = (v: SinusoidView, ms: number) => { for (let t = 0; t <= ms; t += 16) v.update(t); };
@@ -55,21 +55,6 @@ test('the scene measures the camera\'s own picture for the view (not the rest-sc
   assert.match(src, /if \(!this\.sinus\.isVisible\) return;/);
 });
 
-test('the Protein legend: 2D\'s own look, only while the sinusoid is the view, in the top bar beside the lens key', () => {
-  assert.equal(legendOn('sinusoid', true), true);
-  for (const [v, d] of [['sinusoid', false], ['lobule', true], ['body', true]] as const) assert.equal(legendOn(v, d), false);
+test('the figure\'s top bar keeps no Protein legend: the Protein is a callout on the figure (tests/protein-callout.test.ts)', () => {
   assert.ok(Math.abs(FACE_UM - 9.2) < 1e-9);
-  const css = readFileSync(new URL('../src/ui/styles/app-03-layouts.css', import.meta.url), 'utf8');
-  assert.match(css, /\.sv-legend i\.alb \{ width: 8px; height: 8px; background: var\(--albumin\)/);
-  const comp = readFileSync(new URL('../src/scene/sinusoid/ProteinLegend.tsx', import.meta.url), 'utf8');
-  assert.match(comp, /className="alb"/); assert.match(comp, /getElementById\('stageTop'\)/); assert.match(comp, /Protein/);
-  assert.match(readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8'), /<ProteinLegend \/>/);
-});
-
-test('the Protein legend sits beside the lens key: before the figure\'s pill in the bar on a laptop, under it on a phone, faded in and out', () => {
-  const css = readFileSync(new URL('../src/scene/sinusoid/legend.css', import.meta.url), 'utf8');
-  assert.match(css, /\.topbar \.stage-bar\.top > \.sv-legend \{ position: static; order: 1;[^}]*margin-left: auto/);
-  assert.match(css, /\.stage-bar\.top:has\(> \.sv-legend\) > \.sb-right \{ margin-left: 0; \}/);
-  assert.match(css, /\.app\.thumb \.topbar \.stage-bar\.top > \.sv-legend \{ position: absolute; left: auto; top: calc\(100% \+ 8px\); right: 0;/);
-  assert.match(css, /\.sv-legend\.out \{ animation: lk-out/);
 });

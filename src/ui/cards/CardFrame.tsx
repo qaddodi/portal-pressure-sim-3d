@@ -14,6 +14,7 @@ import { scaleOf } from '../charts/fit.ts';
 import { heldBy, openCharts } from './card-want.ts';
 import { beginSink, beginReveal, finishSink, finishReveal, settle, committed, shiftWords, type GlideHost } from './card-glide.ts';
 import { boxOf, noteGrew, freezeOf, tellsLayer, BOX_START, type Frozen } from './box-lock.ts';
+import { releaseTitles, balanceTitles } from './title-balance.ts';
 
 import { clock } from '../../clock/frame.ts';
 interface Props {
@@ -162,7 +163,12 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
     let sameStepPass = false;   // (set around the one measure a kept data card makes when only its slide changed)
     const report = (full = true, fresh = false) => {
       if (now.current.out) return;
-      if (full) markLong(innerRef.current, layoutOf(vp.w, vp.h) !== 'stack' && layoutOf(vp.w, vp.h) !== 'tab');
+      // (every title is judged afresh: let go of the width it was held to, mark the long ones, then hold each to the width of its best breaks, title-breaks.ts)
+      if (full) {
+        releaseTitles(innerRef.current);
+        markLong(innerRef.current, layoutOf(vp.w, vp.h) !== 'stack' && layoutOf(vp.w, vp.h) !== 'tab');
+        balanceTitles(innerRef.current);
+      }
       const card = cardRef.current, cs = card && centredKind(entry.id) ? getComputedStyle(card) : null;
       const pad = cs ? (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) : 0;
       // 2D's fit (presenter-zoom.js): a panel taller than its room zooms its contents down (--pz-fit, `.pz-panel > *`) until they fit, the words never under 12 px; only past that does the card split

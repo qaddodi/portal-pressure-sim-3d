@@ -37,6 +37,9 @@ test('every key with swatches takes the legend\'s colours: velocity\'s ends are 
     assert.equal(sw[1]!.colour.toUpperCase(), vel[vel.length - 1]![0].toUpperCase());
     const dir = legendFor('direction', look).dots!, ds = keyModel('direction', look)!.swatches!;
     ds.forEach((s, i) => assert.equal(s.colour.toUpperCase(), dir[i]!.colour.toUpperCase(), `direction ${look} ${i}`));
+    const sysDots = legendFor('system', look).dots!, ss = keyModel('system', look)!.swatches!;
+    ss.forEach((x, i) => { assert.equal(x.colour.toUpperCase(), sysDots[i]!.colour.toUpperCase(), `system ${look} ${i}`); assert.equal(x.label, sysDots[i]!.name); });
+    assert.deepEqual(hexes(keyModel('since', look)!.scale!.gradient), hexes(keyModel('delta', look)!.scale!.gradient), `since wears Change's colours (${look})`);
     const org = legendFor('origin', look).dots!, os = keyModel('origin', look)!.swatches!;
     // the key lists SMV, IMV, Spleen, Artery, Systemic; the legend lists SMV, IMV, SV, Sys, HA
     const byName = (n: string) => org.find((d) => d.name === n)!.colour.toUpperCase();
