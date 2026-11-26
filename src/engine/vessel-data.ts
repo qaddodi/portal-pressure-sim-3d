@@ -14,7 +14,7 @@ import type { EngineFrame } from './hales/host/protocol.d.ts';
 import { easeInOutCubic } from '../clock/tween.ts';
 
 import { clock } from '../clock/frame.ts';
-import { drawnDiameterIds, drawnDiameterVersion, hasDrawnDiameters } from './tract-override.ts';
+import { drawnDiameterIds, drawnDiameterVersion, drawnWidthD, hasDrawnDiameters } from './tract-override.ts';
 interface Edge { id: string; from: string; to: string }
 const edges = EDGES as Edge[];
 const nodeIndex = new Map<string, number>((NODES as { id: string }[]).map((n, i) => [n.id, i]));
@@ -45,7 +45,7 @@ export function fillVesselData(f: Pick<EngineFrame, 'Pf' | 'Qf' | 'D'>, out: Flo
     out[i * 4 + 3] = b >= 0 ? f.Pf[b]! : 0;
   }
   // a vessel a procedure is making is drawn from its own table until the model has it, then at the larger of the two (tract-override.ts)
-  if (hasDrawnDiameters()) for (const [id, d] of drawnDiameterIds()) { const k = indexById.get(id); if (k !== undefined && d > out[k * 4 + 2]!) out[k * 4 + 2] = d; }
+  if (hasDrawnDiameters()) for (const [id] of drawnDiameterIds()) { const k = indexById.get(id); if (k !== undefined) out[k * 4 + 2] = drawnWidthD(id, out[k * 4 + 2])!; }
   return out;
 }
 

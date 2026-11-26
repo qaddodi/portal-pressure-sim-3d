@@ -28,6 +28,7 @@ import { SHAPE_NODES, SHAPE_RAMP, restDisseW, restHalfW, shapeInverse, shapeUnif
 import {
   MeshBuilder, MicroMany, MicroPart, COPY_W, Pacer, meshWork, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
 } from './cel3d.ts';
+import { type CellColours, cellColour } from '../sinusoid/lens.ts';
 
 /** How far along the sinusoid (µm each way) the scene is built: past anything the camera can hold (the host's reach). */
 /** Segments round a red cell's lathe (sinusoid3d: 16, was 40). */
@@ -130,6 +131,8 @@ interface Flat {
   isVisible: boolean;
   trafficSpeed: number;
   ends: readonly [number, number, number];
+  /** The red cells' colouring under Blood origin or First pass (sinusoid/lens.ts), null under every other lens. */
+  readonly cellColours?: CellColours | null;
 }
 
 interface Pal {
@@ -440,8 +443,12 @@ export class Sinusoid3D {
     this.fibres.setTint(P.cCol);
     this.albumin.setTint(P.cAlb); this.albumin.setInk(inkOf(P.cAlbE));
     // (a red cell is a clear, bright red in two tones with a bold dark line of its own red, as every solid here: 2D's darker red read as brown under the shade, Mohammad 20 Nov "should not be colored brown")
-    this.rbc.setTint(mix3(P.cRbc, [0.96, 0.3, 0.32], 0.45)); this.rbc.setInk(inkOf(P.cRbc));
+    // (the red is each cell's own colour, not the part's tint, so a lens that colours the cells by their source (sinusoid/lens.ts) eases each one from it:
+    //  the tint is white, stepRbc writes the colour)
+    this.rbcRed = mix3(P.cRbc, [0.96, 0.3, 0.32], 0.45); this.rbc.setTint([1, 1, 1]); this.rbc.setInk(inkOf(P.cRbc));
   }
+  private rbcRed: RGB = [0.9, 0.3, 0.32];
+  private readonly rbcCol: [number, number, number] = [0, 0, 0];
 
   /** The stellate cell's colour by its activation (a few uniforms). */
   private colourHsc(P: Pal, act: number): void {
@@ -803,8 +810,12 @@ export class Sinusoid3D {
   private stepRbc(): void {
     const f = this.flat, g = f.g, v0 = -REACH, span = 2 * REACH + 16, flow = f.traffic.flowX;
     const farH = UM.lum + UM.endo * 0.5, farLim = farH - RBC_R * 0.62;
+    // Blood origin and First pass: each cell wears the colour of the source its fixed draw falls in (the blood has mixed by here), eased in from its own red
+    const lens = f.cellColours, red = this.rbcRed, col = this.rbcCol;
     let n = 0;
     for (const c of this.rbcs) {
+      if (lens) cellColour(lens, hash(n * 0.618 + 0.37), red, col);
+      else { col[0] = red[0]!; col[1] = red[1]!; col[2] = red[2]!; }
       const sp = 1.5 * (1 - c.y * c.y) + 0.08;
       const x = v0 - 8 + ((((c.u * span + flow * sp) % span) + span) % span);
       let yd: number, z: number, fold = 1;
@@ -821,7 +832,7 @@ export class Sinusoid3D {
         z = -farH * 0.7 * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.4, 0.6, c.z) + 0.1;
       }
       placeAt(this.m4, x, Y(yd), z, RBC_R, RBC_R * fold, RBC_R, c.ph + c.spin * flow * 0.02, c.tilt);
-      this.rbc.setAt(n++, this.m4);
+      this.rbc.setAt(n++, this.m4, col);
     }
     this.rbc.commit(n);
   }

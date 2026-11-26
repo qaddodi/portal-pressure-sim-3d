@@ -10,11 +10,12 @@ import { DeviceObject } from '../device-object.ts';
 import { WIRE_SIDES, mergeTubes } from '../tube-rings.ts';
 import { vesselFit, type VesselFit } from './fit.ts';
 import { buildStent, WIRE_MAX_R, type StentSpec } from './stent-build.ts';
+import { STENT_DEPLOY_MS, STENT_RETRACT_MS, stentDeploy } from './stent-deploy.ts';
 import { indexOf } from '../../../engine/vessel-data.ts';
 
 /** The stretch of the vein the stent covers, as shares of its length (stage-venous.js VST_SPAN). */
 export const VEIN_STENT_SPAN: readonly [number, number] = [0.25, 0.75];
-export const VEIN_STENT_IN_MS = 1100, VEIN_STENT_OUT_MS = 660;
+export const VEIN_STENT_IN_MS = STENT_DEPLOY_MS, VEIN_STENT_OUT_MS = STENT_RETRACT_MS;
 const WIRE_RADIAL = WIRE_SIDES;
 /** The vein's diameter when no frame has come yet (mm). */
 const D_DEFAULT = 8;
@@ -90,8 +91,10 @@ export class VeinStent {
   }
 
   private apply(): void {
-    const a = this.amount * this.amount * (3 - 2 * this.amount);   // (easeInOut, as the 2D stent's strength is)
-    this.wires.present(); this.wires.setAlpha(this.key ? a : 0);   // (its own eased share is the whole fade: the part leaves the list when it reaches nothing)
+    // (opens as a front from the course's start, as every stent does: stent-deploy.ts)
+    const dep = stentDeploy(this.amount);
+    this.wires.setReveal(dep.front);
+    this.wires.present(); this.wires.setAlpha(this.key ? dep.alpha : 0);   // (its own eased share is the whole fade: the part leaves the list when it reaches nothing)
     if (this.lastPalette) for (const o of this.objects) o.applyPalette(this.lastPalette);
   }
 

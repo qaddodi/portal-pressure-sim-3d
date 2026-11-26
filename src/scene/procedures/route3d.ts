@@ -9,6 +9,7 @@ import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
 import { type Route, type RoutePart, catheterRadius, routeAt, routeOf } from './route.ts';
 import { type Course, radiusAtU } from '../vessels/tubes.ts';
 import { widthSwell } from '../vessels/live-width.ts';
+import { drawnWidthD } from '../../engine/tract-override.ts';
 import { indexOf } from '../../engine/vessel-data.ts';
 import { liveWidest, liveShapeVersion } from '../vessels/live-shape.ts';
 import { DEVICE_BEND_RADII, limitBend, type V3 } from '../devices/bend-path.ts';
@@ -338,7 +339,7 @@ export function route3d(kind: string): Route3D | null {
     swellAt, liveVersion: () => version, follow, followVersion: () => followVer,
     setLive(D) {
       const by = new Map<string, number>();
-      for (const id of vesselsHere) { const v = NETWORK_BY_ID.get(id)!; by.set(id, widthSwell(v.widthKind, v.baseD, D ? D[indexOf(v.lensId)] : undefined)); }
+      for (const id of vesselsHere) { const v = NETWORK_BY_ID.get(id)!; by.set(id, widthSwell(v.widthKind, v.baseD, drawnWidthD(id, D ? D[indexOf(v.lensId)] : undefined))); }
       const key = vesselsHere.map((id) => by.get(id)!.toFixed(3)).join('|');
       if (key === liveKey) return false;
       liveKey = key; version++;
