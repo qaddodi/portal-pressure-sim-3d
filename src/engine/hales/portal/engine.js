@@ -37,7 +37,12 @@ export const BALLOON_SEAL_S = 3;
 const ruptureHazardPerDay = (x) => (x <= 1 ? 0 : 0.01 * Math.pow((x - 1) / 0.25, 3));
 /** A vein this occluded (a clot or a stenosis, 0 to 1) carries no flow on any of its pieces (fillJunctionFlows). */
 const OCCLUDED = 0.995;
-const COLLATERAL = { open: 7.5, span: 14, tauGrow: 50, tauRegress: 120, acute: 0,
+// regressExtra: days added to a remodelled collateral's shrink-back with advanced cirrhosis (RELAX.advLow to advHigh, as the spleen and the vasodilation),
+// so 120 days in a compensated liver and 840 in a decompensated one (Mohammad's OK, 26 Nov 2026). The shunts of advanced cirrhosis stay open long after
+// the pressure behind them falls (they persist after a TIPS and after a transplant), and a beta-blocker's fall in HVPG holds for months: carvedilol 19.3 %
+// at 90 days (Hobolth 2012, PMID 22401315), 19 % long term (Banares 2002, PMID 12447861); with a 120-day shrink-back the decompensated patient's 20.8 %
+// fell to 13.6 % by 3 months as the shunts closed and the blood went back through the liver. No source measures how fast a collateral shrinks; a model choice.
+const COLLATERAL = { open: 7.5, span: 14, tauGrow: 50, tauRegress: 120, regressExtra: 720, acute: 0,
   acuteClot: 0.15 };   // acute: a clotted portal trunk opens the small pre-existing bypass veins this far (PV about 30 mmHg, not 46)
 // (The stents' hydraulics, the TIPS, the DIPS and a drawn stent, live in stent-geom.js: stentConductance below.)
 /** mmHg of hepatic venous rise the sinusoids still dilate with (a tense belly, a little fluid); only a congested outflow beyond it is taken off. */
@@ -1309,7 +1314,8 @@ export class Engine {
     // A meal lasts hours: the slow organs (the spleen, the collaterals, the ascites, the blood volume) do not follow its pressures. A meal slide plays
     // its ramp over "8 days" (circuit, doppler), and without this the cirrhotic patient's spleen, varix and belly moved with it (doc 4.6, 8 Nov 2026).
     if (p.meal > 0) return;
-    // Collateral remodeling (§7.4): diameter relaxes toward a pressure-driven target.
+    // Collateral remodeling (§7.4): diameter relaxes toward a pressure-driven target (shrinking back more slowly the more advanced the cirrhosis: COLLATERAL.regressExtra).
+    const advCol = clamp((p.cirrhosis - RELAX.advLow) / (RELAX.advHigh - RELAX.advLow), 0, 1);
     for (const k of this.collaterals) {
       const e = EDGES[k];
       let driver = this.routeExcess(e.route);
@@ -1318,7 +1324,7 @@ export class Engine {
       const frac = clamp((driver - (e.open ?? COLLATERAL.open)) / COLLATERAL.span, 0, 1);
       const target = dMin + (e.dMax - dMin) * Math.sqrt(frac);
       const d = s.d[e.id];
-      const tau = target > d ? COLLATERAL.tauGrow : COLLATERAL.tauRegress;
+      const tau = target > d ? COLLATERAL.tauGrow : COLLATERAL.tauRegress + COLLATERAL.regressExtra * advCol;
       s.d[e.id] = clamp(d + (target - d) * Math.min(1, days / tau), dMin, e.dMax);
     }
     // Varix size rises with the portosystemic gradient at once and falls from it over weeks (VARIX.tauFall; see varixTarget).

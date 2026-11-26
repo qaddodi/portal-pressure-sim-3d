@@ -86,7 +86,9 @@ export const COURSES: readonly Course[] = [
       { at: 'doppler', label: 'Doppler finds it' },
     ],
     preset: 'cirr-decomp', days: 190,
-    ramps: [{ key: 'stenosis.TIPS', from: 50, to: 185, a: 0, b: 0.5 }],
+    // (0.65, not 0.5, since hales-engine b95ecb5: the shunts of advanced cirrhosis stay open months after a TIPS, so a stent narrowed by half left the
+    // gradient at 11.3; narrowed by about two thirds it is back over 12 at the end, as the course says.)
+    ramps: [{ key: 'stenosis.TIPS', from: 50, to: 185, a: 0, b: 0.65 }],
     quiet: ['sten:', 'albumin'],
     settle: 14,
     steps: [
