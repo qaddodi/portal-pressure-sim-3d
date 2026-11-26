@@ -58,7 +58,8 @@ const FibroPane = lazyRetry(() => LOADERS.fibroscan().then((m) => ({ default: m.
 const TrialsPane = lazyRetry(() => LOADERS.trials().then((m) => ({ default: m.TrialsPane })));
 
 /** The panes built so far; a tab whose pane is not here yet says so in a line (never a dead tab). */
-export interface PaneProps { narrow: boolean; /** the sheet cannot hold the pane's optional note under its chart: leave it out (pane-need.ts) */ noteAside?: boolean; /** a plot's height and a square's (dock-vars.js) */ plot: number; square: number }
+// (noteAside: the sheet cannot hold the pane's optional note under its chart, so leave it out, pane-need.ts)
+export interface PaneProps { narrow: boolean; noteAside?: boolean; /** a plot's height and a square's (dock-vars.js) */ plot: number; square: number }
 const BUILT: Partial<Record<PaneId, (p: PaneProps) => ReactNode>> = {
   trials: () => <LazyBoundary><TrialsPane /></LazyBoundary>,
   readouts: (p) => <ReadoutsPane narrow={p.narrow} />,
@@ -99,7 +100,8 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   const focus = tstate === 'focus';
   // (a playing case's bar raises the foot a sheet rests on: case/room.ts)
   const caseUp = useCaseBarUp();
-  // (the open pane's least content: Half grows to hold it, and the pane's optional note steps aside where even that cannot, pane-need.ts; judged against the sheet as the screen gives it, then placed again with it)
+  // (the open pane's least content: Half grows to hold it, and the pane's optional note steps aside
+  //  where even that cannot, pane-need.ts; judged against the sheet as the screen gives it, then placed again)
   const organ = useTests((s) => s.fibro);
   const { place, noteAside } = useMemo(() => fitPlace(vp, device, { widthPx, heightRatio, sheetSize, focus }, pane, organ), [vp, device, widthPx, heightRatio, sheetSize, focus, caseUp, pane, organ]);
   const narrow = place.rect.w < 470;
