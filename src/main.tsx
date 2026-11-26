@@ -33,6 +33,7 @@ import { installNoPageZoom } from './ui/shell/no-page-zoom.ts';
 import { installReturnFocus } from './ui/shell/return-focus.ts';
 import { holdSplash } from './boot/ready.ts';
 import { stamp } from './boot/timeline.ts';
+import { spanAsync } from './boot/spans.ts';
 import { bakedReady } from './scene/vessels/skin/baked.ts';
 import { registerPwa } from './pwa/register.ts';
 import { warmLater } from './boot/warm.ts';
@@ -81,7 +82,11 @@ async function start() {
   if (useSettings.getState().liteBy === null && softwareRenderer()) useSettings.getState().setLite(true, 'device');
   // The scene is built a step per task while the worker computes the first patient and the fonts and the baked files arrive: no one task is the whole scene, so the cover's bar and the browser's input run between the steps.
   const sceneBuilt = buildSceneSliced(nextTask).then(wireScene);
-  const [fonts] = await Promise.all([fontsReady(), engineBooted, bakedReady, sceneBuilt, styles]);   // (the junction skins baked at build time are fetched with them: the figure's first frame has its welds)
+  // (each wait is a startup span, `wait:<name>` until it settled: ?perf then says which of them held "engine ready" back)
+  const waitFor = <T,>(name: string, p: Promise<T>): Promise<T> => spanAsync(`wait:${name}`, () => p);
+  const [fonts] = await Promise.all([
+    waitFor('fonts', fontsReady()), waitFor('engine', engineBooted), waitFor('skins file', bakedReady), waitFor('scene', sceneBuilt), waitFor('styles', styles),
+  ]);   // (the junction skins baked at build time are fetched with them: the figure's first frame has its welds)
   if (!fonts) console.warn('[boot] fonts were late; continuing with fallback faces');
   // The engine did not start (its worker failed, crashed or never answered: bootEngine leaves the reason in the store): say so, with Reload, never a page that waits for ever.
   const eng = useEngine.getState();

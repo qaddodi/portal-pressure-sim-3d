@@ -223,6 +223,8 @@ export class CelScene {
   look!: LookId;
   phone!: boolean;
   lastNow = -1;
+  /** The build's phase now (?perf's startup spans: parts/build.ts finishSliced sums each phase's work under this name). */
+  buildWhat = 'start';
   /** Where this scene reads its patient from. */
   src!: ModelSource;
   width = 1;
