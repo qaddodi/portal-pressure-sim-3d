@@ -2,7 +2,7 @@
 // and a test can judge it; every size is the 2D app's (metrics.ts). In a talk the cards' own plan (ui/layout/plan.ts) gives the room.
 import type { Rect, Viewport } from '../layout/device.ts';
 import type { DeviceClass } from '../layout/device.ts';
-import { M, botOcc, viewPillHeight } from './metrics.ts';
+import { M, FIBRO_MAP_MIN, botOcc, viewPillHeight } from './metrics.ts';
 import { isSideways } from '../layout/rules2d.ts';
 import { caseLift } from '../case/room.ts';
 
@@ -55,7 +55,7 @@ export function layoutVars(vp: Viewport, d: DeviceClass): Record<string, string>
     '--top-safe': px(vp.safe.top + topBarH(vp, d)), '--vdock-h': px(vdock), '--vdock-top': px(gap + vdH + nbvH), '--vdock-edge': px(gap + vdH),
     '--bot-occ': px(vdock + gap), '--dock-occ': px(vdock + gap),
     // 2D main.js: --nb-occ (= --sheet-foot) is where the cards on the dock rest, from the app's bottom (the bottom safe area included); --sheet-gap is the one gap over the dock's top edge
-    '--nb-occ': px(vp.safe.bottom + sheetFoot(d)), '--sheet-foot': px(vp.safe.bottom + sheetFoot(d)), '--sheet-gap': px(M.sheetGap),
+    '--nb-occ': px(vp.safe.bottom + sheetFoot(d)), '--sheet-foot': px(vp.safe.bottom + sheetFoot(d)), '--sheet-gap': px(M.sheetGap), '--fibro-map-min': px(FIBRO_MAP_MIN),
   };
 }
 
