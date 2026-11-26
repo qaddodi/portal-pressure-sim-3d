@@ -21,6 +21,9 @@ Before the liver's fill: the liver's silhouette marks stencil bit 8 (no colour, 
 ## Code
 `src/scene/focus-reveal/` (config.ts the rule in numbers; glsl.ts the one chunk; reveal.ts the scene's measure, ease and uniforms; uniforms.ts), `organs/layer.ts buildFocusReveal`, `organs/organ-shader.ts` (one line), `parts/frame.ts` (the camera step eases it), `parts/render.ts` (writes it), the slide's word through `ui/deck/figure-calls.ts` -> intent `focus` -> `reconcile.ts setSlideFocus`. Test: `tests/focus-reveal.test.ts`.
 
+## A fade shows what is behind, never the page (Mohammad, 26 Nov, iPhone: "the transparent liver ... look black")
+Root cause: the liver's opacity was taken down by the band alone, so where the band reached past the stomach and esophagus only the dark page lay behind it, and the liver faded to black. Now bit 8 (the occluder's silhouette) is cleared by the hidden organ's fill wherever that draws, so after those passes it stands exactly where nothing is behind. The occluder's fading fill draws only where the bit is clear (something is behind: it shows through); a solid twin of the same fill (same program and uniforms, `frvOcc` 0) draws only where it stands (nothing behind: whole). The edge of the see-through part is the hidden organ's own outline. One gate in `organs/layer.ts` (`solidTwinOf`, `setOccluderGate`, `gateSolidTwin`) for every rule and occluder. Test: `tests/focus-reveal.test.ts`, "a fade reveals what is behind, never the page".
+
 ## A new focus
 One more row in `FOCI`: its segment, the organs that hide it, the organs drawn under the fade, the stations that make a slide about it.
 

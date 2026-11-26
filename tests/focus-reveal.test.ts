@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { AlwaysStencilFunc, EqualStencilFunc, Mesh, MeshBasicMaterial, Raycaster, ReplaceStencilOp, ShaderMaterial, Vector3, ZeroStencilOp, DoubleSide } from 'three';
+import { AlwaysStencilFunc, EqualStencilFunc, KeepStencilOp, Mesh, MeshBasicMaterial, NotEqualStencilFunc, Raycaster, ReplaceStencilOp, ShaderMaterial, Vector3, ZeroStencilOp, DoubleSide } from 'three';
 import { FOCI, FOCUS_TAU, easeReveal, focusOfStations, lookShare, occluderLeft, revealAt, segDist } from '../src/scene/focus-reveal/config.ts';
 import { FocusReveal, lookOf } from '../src/scene/focus-reveal/reveal.ts';
 import { FOCUS_REVEAL_DECL, revealPassFs } from '../src/scene/focus-reveal/glsl.ts';
@@ -163,6 +163,40 @@ test('the organs draw the rule: the liver\'s fill reads the fade, the stomach is
   layer.setFocusReveal(null);
   for (const p of [cover, fill, line]) assert.equal(p.visible, false);
   assert.equal(liver.toon.uniforms.frvOcc!.value, 0);
+});
+
+test('a fade reveals what is behind, never the page: the occluder fades only where the hidden organ is drawn, and stays whole where nothing is (every rule, every occluder)', async () => {
+  // Root cause of the black liver tip (Mohammad, 26 Nov, iPhone): the occluder's opacity was taken down by the band alone, so where the band reached past the stomach the liver faded to the page. A fade
+  // is gated by what lies behind: bit 8 stands over the occluder's silhouette and the hidden organ's fill clears it where it draws; the fading fill draws where it is clear, a solid twin where it stands.
+  const bin = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
+  setOrganData(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength));
+  const layer = new OrganLayer(createShared(), ORGAN_MESHES);
+  layer.applyLook(PALETTES.dark);
+  for (const rule of FOCI) {
+    for (const id of rule.occluders) {
+      const occ = layer.byId.get(id)!, faded = occ.toon;
+      const [twin] = occ.group.children.filter((c) => c.name === 'reveal-solid') as Mesh[];
+      assert.ok(twin, `${rule.id}/${id}: a solid twin of the occluder's fill is built`);
+      const tm = twin.material as ShaderMaterial;
+      assert.equal(twin.visible, false, 'off until the rule is on'); assert.equal(faded.stencilWrite, false, 'the fading fill is ungated while the rule is off');
+      layer.setFocusReveal(rule.id);
+      assert.equal(twin.visible, true);
+      // (the fading fill: only where something is behind, i.e. where bit 8 was cleared by the hidden organ's fill; it never writes the stencil)
+      assert.ok(faded.stencilWrite && faded.stencilFunc === NotEqualStencilFunc && faded.stencilRef === REVEAL_STENCIL && faded.stencilFuncMask === REVEAL_STENCIL && faded.stencilWriteMask === 0, 'fades only where the hidden organ is drawn');
+      assert.ok(faded.stencilZPass === KeepStencilOp, 'and leaves the stencil as it found it');
+      assert.equal(faded.uniforms.frvOcc!.value, 1);
+      // (the twin: only where nothing is behind, whole, and it clears the bit)
+      assert.ok(tm.stencilWrite && tm.stencilFunc === EqualStencilFunc && tm.stencilRef === REVEAL_STENCIL && tm.stencilFuncMask === REVEAL_STENCIL && tm.stencilZPass === ZeroStencilOp, 'stays whole where nothing is behind');
+      assert.equal(tm.uniforms.frvOcc!.value, 0, 'the twin never fades');
+      // (the SAME program and uniforms, so it is the same organ: its paint, its look, the clock and the veil reach it too)
+      assert.equal(tm.fragmentShader, faded.fragmentShader); assert.equal(tm.vertexShader, faded.vertexShader);
+      for (const k of Object.keys(faded.uniforms)) if (k !== 'frvOcc') assert.equal(tm.uniforms[k], faded.uniforms[k], `uniform ${k} is shared`);
+      assert.equal(tm.depthWrite, faded.depthWrite); assert.equal(tm.transparent, faded.transparent); assert.equal(tm.side, faded.side);
+      assert.equal(twin.geometry, occ.toonMesh.geometry); assert.equal(twin.renderOrder, occ.toonMesh.renderOrder, 'drawn in the occluder\'s own slot');
+      layer.setFocusReveal(null);
+      assert.equal(twin.visible, false); assert.equal(faded.stencilWrite, false); assert.equal(faded.uniforms.frvOcc!.value, 0);
+    }
+  }
 });
 
 test('the shaders: every organ\'s fill reads the reveal through the one chunk; the see-through pass lays its result by the same function, last', () => {
