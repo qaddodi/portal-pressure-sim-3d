@@ -17,6 +17,7 @@ import { bareHalfWidths, STENT_CHAMPAGNE, STENT_GLASS, STENT_FRONT_ALPHA, STENT_
 import { buildStent, RING_STEPS, WIRE_MAX_R, type StentPaths, type StentSpec } from './stent-build.ts';
 import { EDGES, STENT_SITES } from '../../../engine/hales/portal/topology.js';
 import { endOf, endSiteOf, geomOf, kindOf, waistSpan } from '../../../engine/hales/portal/stent-geom.js';
+import { STENT_DEPLOY_MS, STENT_RETRACT_MS, stentDeploy } from './stent-deploy.ts';
 import { stentOpen } from '../../../engine/hales/portal/stent-ease.js';
 import { indexOf } from '../../../engine/vessel-data.ts';
 
@@ -160,7 +161,9 @@ export class StentDevice {
   private ghostGoal = 1;
 
   private apply(): void {
-    const a = this.amount * this.ghost;
+    // the stent opens as a front from its portal (distal) end to the hepatic vein (proximal) end (stent-deploy.ts); its strength fades up only over the first of that
+    const dep = stentDeploy(this.amount), a = dep.alpha * this.ghost;
+    for (const o of this.objects) o.setReveal(dep.front);
     for (const o of this.objects) o.present();   // (the stent's own eased share is the whole fade: a part leaves the list when it reaches nothing)
     const w = this.paths ? 1 : 0;
     this.graft.setAlpha(w * a * GRAFT_ALPHA); this.back.setAlpha(w * a * BACK_ALPHA); this.wires.setAlpha(w * a * FRONT_ALPHA); this.glint.setAlpha(w * a * GLINT_ALPHA); this.gold.setAlpha(w * a * GOLD_ALPHA);
@@ -168,6 +171,7 @@ export class StentDevice {
     if (this.lastPalette) { for (const o of this.objects) o.applyPalette(this.lastPalette); this.paintWire(); }
     // the Circuit draws the stent on the shunt's own tube (the device is the body's, and fades with it): the same share, so both ease with the stent's own clock
     this.vessel?.setStent(this.paths ? a : 0, INSET / this.L, 1 - INSET / this.L, this.paths && this.paths.bareEnd < this.paths.graftEnd ? bareHalfWidths(this.dq) : 0);
+    this.vessel?.setStentReveal(dep.front);   // (the Circuit's stent opens the same way, on the lane's own course)
     if (!this.paths) return;
     // the vessel's own narrowing eases with the stent: it is only there while the stent is
     if (a < 0.999 && this.vessel) { /* the vessel keeps the narrowing while it fades; the stent leaves with the vessel */ }
@@ -206,7 +210,7 @@ export class StentDevice {
       this.apply(); moving = true;
     }
     if (this.amount !== this.goal) {
-      const k = Math.min(1, dtMs / FADE_MS);
+      const k = Math.min(1, dtMs / (this.goal ? STENT_DEPLOY_MS : STENT_RETRACT_MS));
       this.amount = Math.abs(this.goal - this.amount) <= k ? this.goal : this.amount + Math.sign(this.goal - this.amount) * k;
       this.apply(); moving = true;
     }

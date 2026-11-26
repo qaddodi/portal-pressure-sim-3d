@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useShell, LENS_IDS } from '../shell/store.ts';
 import { useLens } from '../../scene/lenses/store.ts';
+import { lensesFor } from '../../scene/lenses/in-view.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { useSettings } from '../../state/settings.ts';
 import { decideKey, stepSpeed, type KeyAction, type Target } from './keymap.ts';
@@ -65,7 +66,10 @@ export function carryOut(a: KeyAction): void {
     case 'zoom': if (a.dir === 'fit') refitFigure(); else zoomFigure(a.dir); break;
     case 'view-toggle': flipView(); break;
     case 'lens': {
-      const i = Math.max(0, LENS_IDS.indexOf(useLens.getState().lens)), next = LENS_IDS[(i + a.dir + LENS_IDS.length) % LENS_IDS.length];
+      // (the lenses this view offers, lenses/in-view.ts: the L key never puts on a lens the view cannot draw)
+      const ids = lensesFor(useShell.getState().view, LENS_IDS);
+      if (ids.length < 2) break;
+      const i = Math.max(0, ids.indexOf(useLens.getState().lens)), next = ids[(i + a.dir + ids.length) % ids.length]!;
       const l = UI.lenses.find((x) => x.id === next)!;
       sceneApi.setLens(next);
       sh.say(lensToast(l.name, l.note));

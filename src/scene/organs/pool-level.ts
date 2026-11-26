@@ -4,6 +4,7 @@
 import { SITES } from '../disease/copied/anatomy-b4.ts';
 import { bleedShapesInto, makeBleedRows } from '../disease/copied/bleed-shapes.js';
 import { lumenSurface } from '../disease/copied/stomach-lumen.js';
+import { fitStream } from '../disease/stream-fit.ts';
 import { UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
 
 /** An organ's box as the shader has it: (min x, max y, width, height) in scene units (`box`). */
@@ -27,10 +28,12 @@ export const poolSurfaceY = (fill: number): number => lumenSurface(POOL_FULL * f
 /** Where the pool's level and the jet's landing are in `box`, for `fill` (poolFill, eased) and the bleed that feeds it. */
 export function poolUniforms(box: PoolBox, fill: number, bleed: { site: 'VAR' | 'GV'; rate: number; total: number }): PoolUniforms {
   const surf = poolSurfaceY(fill);
-  // (row 0 is [surface, .5, landing x, flow, ...]; only its landing x and flow are read, the surface is the eased one above)
+  // (row 0 is [surface, .5, landing x, flow, ...]; only its flow is read: the surface is the eased one above, and the landing is the stream's own, fitted
+  // inside the organs, so the ripples run out from where it lands)
   const row = bleedShapesInto(makeBleedRows(), bleed, bleed.rate, SITES)[0] as number[];
+  const landing = fitStream(bleed.site, bleed.rate, surf).xl;
   const top = box[1], h = Math.max(box[3], 1e-5), w = Math.max(box[2], 1e-5);
-  return { level: (top - y3(surf)) / h, unitsPerBox: h * UNITS_PER_SCENE, landX: (x3(row[2]!) - box[0]) / w, landHalf: 16 / (w * UNITS_PER_SCENE), flow: row[3]! };
+  return { level: (top - y3(surf)) / h, unitsPerBox: h * UNITS_PER_SCENE, landX: (x3(landing) - box[0]) / w, landHalf: 16 / (w * UNITS_PER_SCENE), flow: row[3]! };
 }
 
 /** The ripples' wavelength along the surface, in figure units (organ-shader.ts: 24), and how fast they run out (cycles a second). */
