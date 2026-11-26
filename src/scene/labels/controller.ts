@@ -592,8 +592,8 @@ export class LabelController {
     this.show.setText(this.cathText(), hold || !(cathNow || procNow));   // (frozen on the outgoing slide's numbers while the cards fade: the next patient's do not belong on them)
     if (!hold) this.cutCard = null;   // (still again: the cards ride the picture as it is now)
     this.show.ride(this.cutCard ? this.cutCard.tip : this.cTipPx, this.cutCard ? this.cutCard.ahead : this.cAheadPx);
-    this.refreshLooks(next);
     const fadeDt = covered ? COVERED_DT : dt;
+    this.refreshLooks(next);
     const busy = anyMoving(this.fader.step(fadeDt, this.wants, hold), this.show.step(fadeDt, hold));   // (both step every frame: `||` froze the catheter cards while a label faded)
 
     // 4. what to draw: each shown label at its spot, following its dot (a cut's dots: where they stood, see cutAnchors)
