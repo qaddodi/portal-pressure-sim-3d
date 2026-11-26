@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-# Draws the engine's portal circuit as an engraving-style SVG (sepia ink, one oxblood accent).
+# Draws the engine's portal circuit as an engraving-style SVG (sepia ink, one oxblood accent): circuit.svg (landscape, the 8 x 12 in flyer)
+# and circuit-phone.svg (portrait, the iPhone flyer: the same parts and words, flowing top to bottom, with larger type).
 INK='#3a2a1c'; RED='#7A2A22'; SOFT='#8a735a'
 out=[]
+TSCALE=1.13   # text size multiplier (the phone drawing sets its own)
 def L(*pts,c=INK,w=1.6,dash=None):
     d=' '.join(f'{x},{y}' for x,y in pts)
     out.append(f'<polyline points="{d}" fill="none" stroke="{c}" stroke-width="{w}" stroke-linejoin="round" stroke-linecap="round"{f" stroke-dasharray=\"{dash}\"" if dash else ""}/>')
 def T(x,y,s,size=9.5,anchor='middle',c=INK,it=False,b=False):
-    out.append(f'<text x="{x}" y="{y}" font-size="{size*1.13:.2f}" text-anchor="{anchor}" fill="{c}"{" font-style=\"italic\"" if it else ""}{" font-weight=\"700\"" if b else ""}>{s}</text>')
+    out.append(f'<text x="{x}" y="{y}" font-size="{size*TSCALE:.2f}" text-anchor="{anchor}" fill="{c}"{" font-style=\"italic\"" if it else ""}{" font-weight=\"700\"" if b else ""}>{s}</text>')
 def R(x1,x2,y,c=INK,var=False):   # horizontal resistor
     n=6; w=(x2-x1); pts=[(x1,y)]
     for i in range(n): pts.append((x1+w*(i+0.5)/n, y+(-6 if i%2==0 else 6)))
@@ -79,3 +81,59 @@ T(95,Y+72,'',7.5)
 svg=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 450" font-family="Liberation Serif, FreeSerif, serif">'+''.join(out)+'</svg>'
 import os
 open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'circuit.svg'),'w').write(svg)
+
+
+# ---- the phone drawing: the same circuit, top to bottom (arteries at the top, the right atrium at the foot), the return on the left ----
+out=[]; TSCALE=1.0
+def CR(x,y):   # a capacitor to the right of a node: a short stub, then down to its ground
+    L((x,y),(x+44,y),(x+44,y+8)); L((x+33,y+8),(x+55,y+8),w=2.2); L((x+33,y+15),(x+55,y+15),w=2.2); L((x+44,y+15),(x+44,y+26))
+    for i,hw in enumerate((10,6,2.5)): L((x+44-hw,y+26+i*4),(x+44+hw,y+26+i*4),w=1.2)
+XL=34; XM=170; TOP=34; BOT=640
+F=13.4   # label size (viewBox units: about 11 pt on a 390 pt page)
+# return wire and heart
+L((XM,BOT),(XL,BOT),(XL,TOP),(XM,TOP))
+out.append(f'<circle cx="{XL}" cy="150" r="21" fill="#F3EAD7" stroke="{INK}" stroke-width="1.8"/>'); arrow(XL,164,XL,136)
+T(62,140,'Heart',F+1,'start',b=True); T(62,156,'a pump whose',F-2,'start',it=True); T(62,170,'output rises',F-2,'start',it=True); T(62,184,'with its filling',F-2,'start',it=True)
+# main column
+dot(XM,TOP); L((XM,TOP),(XM,58)); dot(XM,58); CR(XM,58); T(XM+62,74,'arteries',F,'start')
+L((XM,58),(XM,92)); RV(XM,92,140); T(XM+14,112,'gut &amp; spleen',F,'start'); T(XM+14,127,'arterioles',F,'start')
+L((XM,140),(XM,158)); dot(XM,158); CR(XM,158)
+L((XM,158),(XM,184)); RV(XM,184,222); T(XM+62,207,'portal vein',F,'start')
+T(XM+76,196,'',F)
+L((XM,222),(XM,300)); dot(XM,236); CR(XM,236); T(XM+62,252,'',F)
+T(XM+102,190,'belly pressure',F-2.5,'middle',c=SOFT,it=True) if False else None
+# collaterals: portal vein to the systemic veins (the return wire), opening as pressure rises
+dot(XM,262); L((XM,262),(140,262)); R(80,140,262,var=True); L((80,262),(XL,262)); dot(XL,262)
+T(110,236,'collaterals',F,'middle',b=True); T(110,250,'',F)
+T(110,284,'&amp; varices: open as',F-2.5,'middle',it=True); T(110,297,'portal pressure rises',F-2.5,'middle',it=True)
+# liver
+out.append(f'<rect x="{XM-30}" y="312" width="164" height="232" rx="9" fill="{RED}" fill-opacity="0.07" stroke="{RED}" stroke-opacity="0.35" stroke-width="0.8"/>')
+T(XM+128,332,'LIVER',F,'end',c=RED,b=True)
+dot(XM,312); L((XM,300),(XM,342)); RV(XM,342,378); T(XM+14,357,'pre-',F-1,'start'); T(XM+14,371,'sinusoidal',F-1,'start')
+L((XM,378),(XM,398)); dot(XM,398)
+RV(XM,398,452,var=True); T(XM+18,429,'sinusoidal',F-1,'start')
+L((XM,452),(XM,470)); dot(XM,470)
+RV(XM,470,506); T(XM+14,485,'post-',F-1,'start'); T(XM+14,499,'sinusoidal',F-1,'start')
+L((XM,506),(XM,560)); dot(XM,560); T(XM+14,578,'hepatic veins',F,'start')
+# hepatic artery: from the top wire down the right into the sinusoids
+L((XM,TOP),(332,TOP),(332,150)); RV(332,150,204); L((332,204),(332,398),(XM,398)); T(318,170,'hepatic',F,'end'); T(318,185,'artery',F,'end')
+# TIPS: on the left, from the portal vein to the hepatic veins
+L((XM,312),(112,312),(112,360),c=RED); L((112,360),(100,386),c=RED,w=1.8); dot(112,360)
+out.append(f'<circle cx="112" cy="390" r="2.6" fill="none" stroke="{RED}" stroke-width="1.4"/>')
+L((112,392),(112,440),c=RED); RV(112,440,486,c=RED); L((112,486),(112,560),(XM,560),c=RED)
+T(76,404,'TIPS:',F,'middle',c=RED,b=True); T(76,420,'a switch',F-1.5,'middle',c=RED); T(76,434,'that',F-1.5,'middle',c=RED); T(76,448,'bypasses',F-1.5,'middle',c=RED); T(76,462,'the liver',F-1.5,'middle',c=RED)
+# IVC and the right atrium
+L((XM,560),(XM,584)); RV(XM,584,620); T(XM+14,606,'IVC',F,'start'); L((XM,620),(XM,BOT)); dot(XM,BOT)
+L((XM,BOT),(XM,654)); L((XM-11,654),(XM+11,654),w=2.2); L((XM-11,661),(XM+11,661),w=2.2); L((XM,661),(XM,672))
+for i,hw in enumerate((10,6,2.5)): L((XM-hw,672+i*4),(XM+hw,672+i*4),w=1.2)
+T(XM+20,662,'chest pressure',F-2.5,'start',c=SOFT,it=True); T(XM+14,BOT-6,'right atrium',F,'start')
+T(100,BOT-7,'systemic veins',F-1,'middle')
+T(XM+100,280,'belly pressure',F-2.5,'middle',c=SOFT,it=True)
+# measurements: vertical brackets on the right, each named along its own line
+def vbr(x,y1,y2,label,m=None):
+    L((x-6,y1),(x,y1),(x,y2),(x-6,y2),c=RED,w=1.1)
+    m=(y1+y2)/2 if m is None else m; out.append(f'<text x="{x+15}" y="{m}" font-size="{F:.2f}" text-anchor="middle" fill="{RED}" font-weight="700" transform="rotate(90 {x+15} {m})">{label}</text>')
+vbr(352,236,560,'PPG',317)   # (named above where the HVPG bracket starts, so the two never touch)
+vbr(378,398,560,'HVPG')
+svg=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 690" font-family="Liberation Serif, FreeSerif, serif">'+''.join(out)+'</svg>'
+open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'circuit-phone.svg'),'w').write(svg)
