@@ -16,6 +16,8 @@ import type { SequenceProof } from './sequence.ts';
 import { speedOf } from './speed.ts';
 import { SPEEDS } from './outer.ts';
 import { pickerUi } from './capture-pick.ts';
+import { whatUi } from './capture-what.ts';
+import { parseCases, whatOf } from './capture-cases-plan.ts';
 import { saveFiles } from '../../capture/save-files.ts';
 
 import { clock } from '../../../clock/frame.ts';
@@ -113,24 +115,26 @@ export function mountAudit(mode: 'here' | 'run'): void {
     } catch (e) { const why = String((e as Error)?.message ?? e); status.textContent = `The audit failed: ${why}`; if (mode === 'run') post({ audit: 'failed', why }); } finally { running = false; sel.disabled = false; capStop.hidden = true; setRunning(false); }
   };
   // Capture all decks: every slide of every talk through the Capture pipeline, then one zip and a contact sheet per talk. The save buttons come when it ends (the share sheet needs a fresh tap).
-  let cap: import('./capture-all.ts').AllResult | null = null;
+  let cap: import('./capture-run.ts').RunResult | null = null;
   const saveRow = document.createElement('div'); saveRow.hidden = true;
   // which talk and which slides: all, ticked, or a random 5, 10 or 25 (the list is read in once the talks are loaded)
   const picker = pickerUi(document, () => builtinDecks());
+  // (an address that names cases starts on them: `?audit=here&cases=all`, and `&slides=1` for both)
+  const what = whatUi(document, whatOf({ cases: !!flagValue('cases'), slides: flagValue('slides'), pick: !!flagValue('pick'), decks: !!flagValue('decks') }));
   void loadAllDecks().then(() => picker.refresh());
   // Stop: big and red, there from the first slide to the last (what is captured so far is kept and saved)
   const capStop = document.createElement('button'); capStop.type = 'button'; capStop.hidden = true; capStop.textContent = 'Stop and keep what’s done'; capStop.style.cssText = 'display:block;width:100%;min-height:50px;font-size:15px;background:#c62828;border-color:#c62828;color:#fff;margin:10px 0 0';
   capStop.onclick = () => { stop = true; capStop.disabled = true; status.textContent = 'Stopping after this slide…'; };
   const goCapture = async () => {
     if (running) return;
-    const sel = picker.read();
-    if (sel.none) { status.textContent = 'Tick at least one talk first.'; return; }
-    running = true; setRunning(true); stop = false; cap = null; saveRow.hidden = true; capStop.hidden = false; capStop.disabled = false; out.hidden = true; bar.value = 0; bar.hidden = false; pctLine.hidden = false; startedAt = clock.now(); status.textContent = 'Capturing every slide… keep this tab in front.'; pctLine.textContent = 'counting the slides…';
+    const sel = picker.read(), take = what.read();
+    if (sel.none && take !== 'cases') { status.textContent = 'Tick at least one talk first.'; return; }
+    running = true; setRunning(true); stop = false; cap = null; saveRow.hidden = true; capStop.hidden = false; capStop.disabled = false; out.hidden = true; bar.value = 0; bar.hidden = false; pctLine.hidden = false; startedAt = clock.now(); status.textContent = take === 'cases' ? 'Playing every case… keep this tab in front.' : 'Capturing every slide… keep this tab in front.'; pctLine.textContent = 'counting the slides…';
     try {
-      const m = await import('./capture-all.ts');
-      cap = await m.captureAllDecks({ decks: sel.decks ? new Set(sel.decks) : null, pick: sel.pick ? new Set(sel.pick) : null, speed: skip ? SKIP_SPEED : speed > 1 ? speed : undefined, skip, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
+      const m = await import('./capture-run.ts'), cm = await import('./capture-cases.ts');
+      cap = await m.runCapture({ what: take, cases: parseCases(flagValue('cases') ?? 'all', cm.everyCaseId()), looks: flagValue('looks') !== '0', decks: sel.decks ? new Set(sel.decks) : null, pick: sel.pick ? new Set(sel.pick) : null, speed: skip ? SKIP_SPEED : speed > 1 ? speed : undefined, skip, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
       bar.value = 100;
-      status.textContent = `${cap.stopped ? 'Stopped. ' : 'Done in ' + cap.secs + ' s. '}${cap.shots} slides from ${cap.decks} talks (${cap.perSlide.waitMs + cap.perSlide.drawMs} ms a slide at ${cap.speed}x), one contact sheet per talk. Tap Save zip.${cap.notes.length ? ` Notes: ${cap.notes.join('; ')}` : ''}`;
+      status.textContent = `${cap.stopped ? 'Stopped. ' : 'Done in ' + cap.secs + ' s. '}${take === 'cases' ? `${cap.shots} pictures from ${cap.cases} cases (${cap.caseStops} stops), one folder and one contact sheet a case, and a manifest.` : `${cap.shots} pictures from ${cap.decks} talks${take === 'both' ? ` and ${cap.cases} cases` : ''} (${cap.perSlide.waitMs + cap.perSlide.drawMs} ms a picture at ${cap.speed}x), one contact sheet per talk${take === 'both' ? ' and per case' : ''}.`} Tap Save zip.${cap.notes.length ? ` Notes: ${cap.notes.join('; ')}` : ''}`;
       saveRow.hidden = false;
     } catch (e) { status.textContent = `Capture failed: ${String((e as Error)?.message ?? e)}`; } finally { running = false; capStop.hidden = true; setRunning(false); }
   };
@@ -147,7 +151,7 @@ export function mountAudit(mode: 'here' | 'run'): void {
     cmds.append(lab); link('Run full', () => { void go('full'); }, cmds); link('Run quick', () => { void go('quick'); }, cmds);
     const more = link('Copy report  ›', () => { copies.hidden = !copies.hidden; }, cmds); more.style.cssText = 'margin:0 0 0 auto';
     copyRow();
-    body.append(picker.el, speedRow, animRow, capBtn, cmds, copies);
+    body.append(what.el, picker.el, speedRow, animRow, capBtn, cmds, copies);
     root.append(head, status, bar, pctLine, capStop, body, saveRow, out);
   } else {
     btn('Copy report', () => { if (last) copy(renderText(last), 'The report'); }); btn('Copy short', () => { if (last) copy(renderText(last, { short: true }), 'The short report'); }); btn('Copy JSON', () => { if (last) copy(renderJson(last), 'The JSON'); });

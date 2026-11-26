@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { pressBegin, pressWaiting, pressWhat, pressHeld } from '../src/ui/talk/press-pending.ts';
+import { pipeline } from './capture-source.ts';
 
 test('a press is waiting from its click until its result is on the way to the screen, however it ends', async () => {
   assert.equal(pressWaiting(), false);
@@ -29,7 +30,7 @@ test('every control that finishes after its click holds a press token: the chips
 });
 
 test('the capture waits on every pending press before any picture (a slide\'s or a choice\'s), and calls a picture taken without it FAILED', () => {
-  const all = readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8');
+  const all = pipeline();
   assert.match(all, /if \(pressWaiting\(\)\) return `a control's press has not reached the slide yet/);
   assert.match(all, /const STATE_WAIT = \/[^\n]*press has not reached the slide/);
   // a pressed choice waits the same way as a slide does
@@ -39,7 +40,7 @@ test('the capture waits on every pending press before any picture (a slide\'s or
 });
 
 test('choices are looked for on every step of a stop, and each group is pressed once (a slide with a case card shows its chips and toggles on the step after the case)', () => {
-  const all = readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8');
+  const all = pipeline();
   assert.match(all, /const choicesDone = new Set<string>\(\)/);
   assert.match(all, /if \(!list0\.length \|\| choicesDone\.has\(sig\)\) return;/);
   assert.match(all, /if \(ok\) await choiceShots\(views\[0\]\)/);

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { rateText } from '../src/ui/tests/abdomen/model.ts';
+import { pipeline } from './capture-source.ts';
 
 const css3 = (f: string) => readFileSync(new URL(`../src/ui/${f}`, import.meta.url), 'utf8');
 
@@ -18,7 +19,7 @@ test('a stopped time-lapse counter is set in proportional digits', () => {
 });
 
 test('the capture waits for the engine\'s morph (a paracentesis slide\'s gauge read 5.9 on every step until it ended)', () => {
-  assert.match(readFileSync(new URL('../src/ui/debug/audit/capture-all.ts', import.meta.url), 'utf8'), /latest\.frame\?\.morphing\) return 'the model is morphing'/);
+  assert.match(pipeline(), /latest\.frame\?\.morphing\) return 'the model is morphing'/);
 });
 
 test('an equation sign keeps its own air on both sides (SAAG minus touched "Albumin serum", slide 7)', () => {
