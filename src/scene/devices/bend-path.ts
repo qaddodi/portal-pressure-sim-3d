@@ -144,9 +144,6 @@ export function limitBend(pts: readonly V3[], o: BendLimit): V3[] {
       if (i < lo || i >= hi || f < 1e-4) continue;
       const { a, b } = windowOf(P, cum, i, h), goal: V3 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
       let d: [number, number, number] = [(goal[0] - P[i]![0]) * f, (goal[1] - P[i]![1]) * f, (goal[2] - P[i]![2]) * f];
-      // (sideways only: a move along the path would bunch the samples, which turns a corner into a stall and a jump instead of rounding it)
-      const cx = b[0] - a[0], cy = b[1] - a[1], cz = b[2] - a[2], cl = Math.hypot(cx, cy, cz) || 1, al = (d[0] * cx + d[1] * cy + d[2] * cz) / cl;
-      d = [d[0] - (al * cx) / cl, d[1] - (al * cy) / cl, d[2] - (al * cz) / cl];
       // (and never further from where the sample began than its room)
       const o0 = o.anchor?.[i] ?? pts[i]!, rm = room(i);
       for (let k = 0; k < 8; k++) {
