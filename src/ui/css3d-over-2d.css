@@ -147,7 +147,8 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 .deck-ui.deck-ui.deck-ui.deck-ui.stack:not(.low) .pze-plot.pze-incard.pze-ownwords:not(.pze-short) { height: calc(min(var(--pz-chart-px) * var(--pz-fit, 1), max(150px, var(--pz-ph, 9999px))) + 1.3em + 6px); }
 
 /* A docked action card stands over the dock (--card-occ, Shell.tsx): the zoom pill rides above it by its own transform, as it does above a Tests sheet (--sheet-h); the note does the same in shell.css (23 Nov, Mohammad: the note covered the card's rows) */
-.zoom-pill { translate: 0 calc(-1 * (var(--sheet-h, 0px) + var(--card-occ, 0px))); }
+/* (and over a case's bar by its lift, case/case.css) */
+.zoom-pill { translate: 0 calc(-1 * (var(--sheet-h, 0px) + var(--card-occ, 0px) + var(--case-lift, 0px))); }
 
 /* Capture review 86fc123e, 23 Nov 2026. The slide pill stands over the slide's 92% veil (a table, outline or quick-check slide): the veil comes later in the layer and washed it out. */
 .pz-bar { z-index: 1; }

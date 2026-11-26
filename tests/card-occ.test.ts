@@ -22,5 +22,5 @@ test('the note rides above the card by `translate` (it glides with the card), it
 });
 
 test('the zoom pill rides above the card as it does above a Tests sheet', () => {
-  assert.match(read('css3d-over-2d.css'), /\.zoom-pill \{ translate: 0 calc\(-1 \* \(var\(--sheet-h, 0px\) \+ var\(--card-occ, 0px\)\)\); \}/);
+  assert.match(read('css3d-over-2d.css'), /\.zoom-pill \{ translate: 0 calc\(-1 \* \(var\(--sheet-h, 0px\) \+ var\(--card-occ, 0px\)( \+ var\(--case-lift, 0px\))?\)\); \}/);
 });

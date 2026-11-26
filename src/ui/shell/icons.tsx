@@ -1,6 +1,10 @@
 // The shell's icons: one stroke family (24 px grid, 1.8 stroke, round caps), drawn as inline paths so nothing loads and nothing flashes in.
 const P: Record<string, string> = {
   menu: 'M4 7h16M4 12h16M4 17h10',
+  // (the case bar's stop to stop, and its Look closer rows: a view or a Tests card, ui/case)
+  'skip-back': 'M6 5v14M19 5.5v13L9 12z', 'skip-next': 'M18 5v14M5 5.5v13L15 12z', 'scope-ring': 'M12 4.5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
+  'lobule-hex': 'M12 3.5l7.4 4.25v8.5L12 20.5l-7.4-4.25v-8.5zM12 10.4a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2z',
+  'circuit-map': 'M5 7h14M5 17h14M5 7v10M19 7v10', 'body-fig': 'M12 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM8 9h8l-1 6h-2l-1 6-1-6H9z',
   play: 'M8 5.5v13l11-6.5z', pause: 'M8 5v14M16 5v14', playlapse: 'M8 5.5v13l11-6.5z',
   reset: 'M4 12a8 8 0 1 0 2.6-5.9M4 4v4h4', ffwd: 'M4 6l8 6-8 6zM13 6l8 6-8 6z',
   clock: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z', compare: 'M9 4v16M15 4v16M4 8h5M15 16h5',
