@@ -4,7 +4,8 @@
 // copy drew green for Pressure drop while the vessels were purple (Mohammad, 22 Nov). `tests/key-colours.test.ts` fails on any divergence.
 import { LABEL_NAMES } from './names.copied.ts';
 import type { LookId } from '../../looks/looks.ts';
-import { rampStops as lensRampStops, deltaStops, LG_MAX } from '../lenses/legend.ts';
+import { rampStops as lensRampStops, deltaStops, legendFor, LG_MAX } from '../lenses/legend.ts';
+import type { LensId } from '../lenses/model.ts';
 import { figureHex } from '../vessels/cel-ink.ts';
 
 export type Scheme = 'light' | 'soft' | 'dark';
@@ -35,6 +36,13 @@ export function gradientOf(lens: string, look: LookId): string {
 
 export function keyModel(lens: string | null, look: LookId): KeyModel | null {
   if (!lens) return null;
+  // (the two lenses the 2D key table never named: Since colours the vessels as Change does, so its key is Change's; System's key is the legend's three dots)
+  if (lens === 'since') return { ...keyModel('delta', look)!, lens };
+  if (lens === 'system') {
+    const dots = legendFor('system', look).dots!;
+    const aria = 'Vessels colored by system: portal, systemic, and the collaterals and shunts between them';
+    return { lens, name: 'System', scale: null, swatches: dots.map((d) => ({ colour: d.colour, label: d.name })), aria };
+  }
   const spec = (LABEL_NAMES.LENS_KEY as unknown as Record<string, { name: string; ramp?: string; lo?: string; hi?: string; swatches?: { cssVar: string; label: string; short?: string }[] }>)[lens];
   if (!spec) throw new Error(`no figure key for the lens "${lens}"`);
   const name = spec.name[0].toUpperCase() + spec.name.slice(1);
@@ -60,7 +68,11 @@ export function keyModel(lens: string | null, look: LookId): KeyModel | null {
   };
 }
 
-export const KEY_LENSES: readonly string[] = Object.keys(LABEL_NAMES.LENS_KEY);
+/** The lenses the 2D app's key table names (names.copied.ts), then the two it never did, that the figure wears all the same. */
+export const KEY_LENSES_2D: readonly string[] = Object.keys(LABEL_NAMES.LENS_KEY);
+export const KEY_LENSES: readonly string[] = [...KEY_LENSES_2D, 'since', 'system'];
+/** Whether a lens colours the figure (so it must have a key): every lens but Anatomy, which keeps the vessels' own tones. `tests/labels-deck-key.test.ts` pins that each of these is in KEY_LENSES. */
+export const lensColours = (lens: LensId): boolean => lens !== 'neutral';
 
 /** Where a lens's key stands (Mohammad, 22 Nov: "just choose best location"). The stream lenses name the same things the instrument card beside them counts (Origin: the inflows, First pass: the clearance), so
  *  their key is the first row of that card and comes and goes with it; a ramp (pressure, drop, flow, heat) explains the figure's colouring, so it stands in the foot of the story card (key-dock.ts). docs/HUMANIZED-DESIGN.md has the rule. */

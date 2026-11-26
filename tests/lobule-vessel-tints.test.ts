@@ -23,8 +23,9 @@ const mouthR: Partial<Record<string, number>> = { pv: DISC_R.pv, ha: DISC_R.ha *
 const avoid = net.courses.filter((c) => mouthR[c.kind] !== undefined).map((c) => { const p = c.pts[Math.floor(c.pts.length / 2)]!; return { x: p[0] * R, y: -p[1] * R, r: mouthR[c.kind]! * R }; });
 const plan = planWelds([...bloodWeldCourses(net, HEIGHTS, SEGS), ...bileWeldCourses(net, HEIGHTS, SEGS)], { avoid });
 
-const ONE_TONE: Record<string, string[]> = { artery: ['twigs', 'mouthHa'], bile: ['bile', 'mouthBd'], lymph: ['lt', 'duct', 'mouthLv'] };
-const LENS = ['s0', 's1', 's2', 'an', 'inlets', 'mouthPv', 'mouthCv'];
+// (the arterioles are lens-coloured by their vertices since 26 Nov: their own tone under every lens, the hepatic artery's blood under the stream lenses, lobule/ink.ts inkAt 'art')
+const ONE_TONE: Record<string, string[]> = { bile: ['bile', 'mouthBd'], lymph: ['lt', 'duct', 'mouthLv'] };
+const LENS = ['s0', 's1', 's2', 'an', 'inlets', 'mouthPv', 'mouthCv', 'twigs', 'mouthHa'];
 const NAMES = ['ground', 'cells', 'nuclei', 's0', 's1', 's2', 'an', 'inlets', 'twigs', 'lt', 'duct', 'bile', 'mouthPv', 'mouthHa', 'mouthBd', 'mouthLv', 'mouthCv', 'cvScar'];
 const LOOKS = (['light', 'dark', 'navy', 'black'] as LookId[]).filter((l) => LOBULE_PALETTES[l]);
 

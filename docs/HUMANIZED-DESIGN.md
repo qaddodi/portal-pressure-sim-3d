@@ -61,8 +61,9 @@ Keep it, but never add new glass surfaces or glows beyond it.
 - **The lens legend (key) stands where it reads best, and only when needed** (owner, 22 Nov: "just choose best location", "only use the lens legend when needed").
   It never floats over the figure between cards. A stream lens (Origin, First pass) names what the instrument card beside it counts, so its key is
   the first row of that data card (`CardKey.tsx`) and comes and goes with the card. A ramp lens (pressure, pressure drop, flow, heat) explains the
-  figure's colouring, so it stands in the foot of the story card (`key-dock.ts`). It is shown only on a slide that changes the lens from the one
-  before it, or has lens buttons of its own: a run of slides on one lens names it once. `keyPlace` in `scene/labels/key.ts` is the one rule.
+  figure's colouring, so it stands in the foot of the story card (`key-dock.ts`). It is shown on every slide that draws the figure (owner, 26 Nov: "every slide that colours the figure"; Pressure colours it too, so
+  no lens is exempt), named after the lens the view draws, and by no slide with no figure behind its words (title, case card, centred panel, quick check).
+  Every lens but Anatomy has a key (`lensColours`; Since uses Change's, System its three dots); `tests/labels-deck-key.test.ts` walks every slide of every deck. `keyPlace` in `scene/labels/key.ts` is the one rule.
 
 - **Type:** `docs/approved/type.md` is the one scale (two fonts, weights 400/500/600, a name is serif, the 12 px floor); a stylesheet that drifts fails `tests/type-vocabulary.test.ts`.
 

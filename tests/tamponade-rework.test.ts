@@ -1,10 +1,9 @@
 // The tamponade rework (22 Nov 2026, the variceal-bleed audit area C: items 2, 3, 9a): the tube follows the PROCEDURE's clock (the "Tube in" step draws the tube, the balloon fills and is drawn up in step 2),
-// the gastric balloon is glass that lies along the cardia / EG junction as it is drawn up, the tube is light and fine-marked, and the bleeding jet never runs through a seated balloon.
+// the gastric balloon is glass drawn up against the cardia / EG junction (its shape and seating: tests/tamponade-balloon.test.ts), the tube is light and fine-marked, and the bleeding jet never runs through a seated balloon.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
-import { gasShape, clearance } from '../src/scene/procedures/copied/balloon-gas.js';
-import { sectionsOf, tamponadeAt } from '../src/scene/devices/balloons/tamponade-shape.ts';
+import { tamponadeAt } from '../src/scene/devices/balloons/tamponade-shape.ts';
 import { INSTRUMENT_SPECS } from '../src/scene/procedures/instrument-specs.ts';
 import { SEAT_STOPS_JET } from '../src/scene/disease/bleed.ts';
 
@@ -48,25 +47,6 @@ test('a driven tamponade run draws the tube in step 1 although the model has no 
   assert.equal(t.following, false);
   assert.equal(t.state.adv, 0);
   sc.dispose();
-});
-
-test('the balloon lies along the cardia / EG junction when drawn up: its rings come from the outline pressed on the wall, inside the wall', () => {
-  for (const [k, q] of [[1, 1], [1, 0.5], [1, 0], [0.5, 0.2]] as const) {
-    const g = gasShape(k, q, 40) as unknown as { outline: [number, number][]; raw: [number, number][]; p0: [number, number]; dir: [number, number] };
-    const sec = sectionsOf(g.outline, g.p0, g.dir, 64, 0.8), nx = -g.dir[1], ny = g.dir[0];
-    for (const s of sec) for (const sg of [-1, 1]) {
-      const pt: [number, number] = [g.p0[0] + g.dir[0] * s.a + nx * (s.c + sg * s.r), g.p0[1] + g.dir[1] * s.a + ny * (s.c + sg * s.r)];
-      assert.ok(clearance(pt) >= 0, `k ${k} q ${q}: a ring edge is through the stomach's wall (${clearance(pt).toFixed(2)})`);
-    }
-  }
-  // drawn up, the shoulder is wider than the free pear's, and off the tube's line (it spreads across the junction); let go, it is the free pear
-  const up = gasShape(1, 1, 40) as unknown as { outline: [number, number][]; raw: [number, number][]; p0: [number, number]; dir: [number, number] };
-  const a = sectionsOf(up.outline, up.p0, up.dir, 64, 0.8), b = sectionsOf(up.raw, up.p0, up.dir, 64, 0.8);
-  const gain = Math.max(...a.map((s, i) => s.r - b[i]!.r)), shift = Math.max(...a.map((s) => Math.abs(s.c)));
-  assert.ok(gain > 1.5 && shift > 3, `pressed shoulder gains ${gain.toFixed(1)} and shifts ${shift.toFixed(1)}`);
-  const free = gasShape(0.5, 0, 40) as unknown as typeof up;
-  const f = sectionsOf(free.outline, free.p0, free.dir, 64, 0.8), fr = sectionsOf(free.raw, free.p0, free.dir, 64, 0.8);
-  assert.ok(Math.max(...f.map((s, i) => Math.abs(s.r - fr[i]!.r))) < 0.3, 'a balloon clear of the wall is the free pear');
 });
 
 test('the balloons are glass (a faint body, a firm rim) and the tube is pale with fine marks', () => {
