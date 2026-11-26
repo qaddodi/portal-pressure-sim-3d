@@ -6,7 +6,7 @@ import { dustTuner } from '../blood/dust.ts';
 import { MICRO_DPR } from '../micro3d/cel3d.ts';
 import { splitRegions, confine, type Region } from '../twin/region.ts';
 import { VESSEL_LAYER } from '../layers.ts';
-import { ORGAN_VEIL, vesselZoomK, seeZoomK } from '../organ-veil/config.ts';
+import { ORGAN_VEIL, vesselZoomK, seeZoomK, veilShare } from '../organ-veil/config.ts';
 import { ORGAN_VEIL_U, resetOrganVeil } from '../organ-veil/uniforms.ts';
 import { diveBlur } from '../post-dof.ts';
 import { gate } from '../gate.ts';
@@ -50,11 +50,12 @@ export const renderPart = scenePart<CelScene>()({
     const og = this.pins.glowing, ogQuad = this.organGlowFx.figure;
     if (og) { this.organGlowFx.prepare(gl, cam, this.scene, dpr); ogQuad.renderOrder = this.pins.glowOrder; }
     gate(ogQuad, this.pins.glowAmount);   // (the lay quad follows the eased weight of the lit masks, as they do)
-    // THE ORGAN VEIL (organ-veil/config.ts): on the body only, never in the dive, the Circuit, the split orbit or the depth-of-field pass. The vessels' veil is whole at the whole-figure framing and gone at twice as close; the organs'
-    // show-through starts at 1.5 times and is whole at 3. Nothing is drawn while both are 0; the map is half the figure's size.
+    // THE ORGAN VEIL (organ-veil/config.ts): the vessels' veil is whole at the whole-figure framing and gone at twice as close; the organs' show-through starts at 1.5 times and is
+    // whole at 3. It is the organs' effect, so it goes WITH the organs, by their own fade (the dive's dissolve, the Circuit's leaving: veilShare), never by a switch on the view.
+    // (Before, the view's name turned it off in the dive's first frame, on in the way out's landing frame and off at the Circuit's start: every vessel in the liver changed colour
+    // at once, part of the Anatomy to Lobule flicker, Mohammad 26 Nov.) Never in the split orbit or the depth-of-field pass. Nothing is drawn while both are 0; the map is half size.
     {
-      const u = ORGAN_VEIL_U, face = ORGAN_VEIL.on && this.figureView === 'body' && !this.inDive() && !this.split && !dof, z = this.rig.zoomOverWhole;
-      const vk = face ? vesselZoomK(z) : 0, sk = face ? seeZoomK(z) : 0;
+      const u = ORGAN_VEIL_U, [vk, sk] = this.veilNow(dof);
       const tw = into ? into.width : gl.getDrawingBufferSize(this.veilSize).x, th = into ? into.height : this.veilSize.y;
       u.ovlP.value.set(0, ORGAN_VEIL.gapFrom, ORGAN_VEIL.gapTo, 0); u.seeP.value.set(0, ORGAN_VEIL.seeMax, 1 / tw, 1 / th);   // (off while the map itself is drawn)
       if (vk > 0 || sk > 0) {
@@ -87,6 +88,11 @@ export const renderPart = scenePart<CelScene>()({
     gl.autoClear = ac;
     cam.layers.mask = mask;
     inspectEnd?.();
+  },
+  /** The organ veil's two strengths now, each 0..1 of its maximum: the vessels' veil and the organs' show-through (render reads them; tests/dive-nothing-switches.test.ts steps them). */
+  veilNow(dof = false): [number, number] {
+    const share = ORGAN_VEIL.on && !this.split && !dof ? veilShare(this.fadeNow, this.lastFade) : 0, z = this.rig.zoomOverWhole;
+    return share > 0 ? [vesselZoomK(z) * share, seeZoomK(z) * share] : [0, 0];
   },
   /** A twin's picture drawn into the render target the page's scene shares, confined to `region` (docs/approved/split-orbit.md): the organs,
    *  then the vessels over cleared depth; no glow, no blur, no resolve (the page's scene does those once). */

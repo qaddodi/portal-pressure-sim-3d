@@ -168,6 +168,11 @@ const cellKeyOf = (g: { congU: number; septU: number }): string => { const q = (
 /** How much of the lobule's own detail stays on a dive: it follows the field's breadth, but never less than the body has yet to cover (`body` is the body's share, 0 gone, 1 whole). Before, it was gone by
  *  the time the body was half back, and the screen was darker than both ends of the move: the black dive, slide 7 to 8, Black look. One picture both ways: the same on the way in. */
 export const lobuleStays = (wideNow: number, body: number): number => Math.max(1 - wideNow, 1 - Math.min(1, Math.max(0, body)));
+/** How much of the neighbours' ground is drawn on a dive (`body` the body's share, 0 gone, 1 whole): none while the body is whole, all of it once the body is half gone, smooth between.
+ *  The ground is the dive frame's backdrop, so it must be 0 at the frame the dive frame is switched on (the body's first step under 1). Before, it was whole at that frame: the page
+ *  behind and around the body turned to the lobules' tone in one frame, and back in one frame on the way out (the Anatomy to Lobule flicker, Mohammad 26 Nov). Whole by half-way: no
+ *  dip toward the page in the middle. */
+export const groundStays = (body: number): number => { const t = Math.min(1, Math.max(0, (1 - Math.min(1, Math.max(0, body))) * 2)); return t * t * (3 - 2 * t); };
 
 export class Lobule3D {
   readonly group = new Group();
@@ -406,10 +411,11 @@ export class Lobule3D {
     const come = lobuleStays(f.field.wideNow, body);
     // (whole once it is all but whole: the fade dissolves pixels in a screen pattern below 0.999, and a field that settles a hair short of 0 left the lobule speckled at rest, its lines dotted)
     const fv = (1 - under) * come, fs = fv > FADE_SNAP ? 1 : fv;
-    // (the neighbours' plate goes under the sinusoid on the same curve as the tiles and tubes, `1 - under`; it is NOT also faded by the field's own breadth `come`, which is how the field itself widens)
+    // (the neighbours' plate goes under the sinusoid on the same curve as the tiles and tubes, `1 - under`; it is NOT also faded by the field's own breadth `come`, which is how the
+    //  field itself widens. It comes in from the body on its own curve, groundStays: nothing of it while the body is whole, so the dive frame's switch is never seen)
     // (the ONE dissolve, written here and nowhere else: every tile, tube, mark and the marks plate drop the same pixels of one screen pattern at `fs`, the neighbours' ground fades at `1 - under`, and
     //  nothing else is scaled by either; the root group hands both to everything under it, lobule/one-fade.ts)
-    f.group.setFade(fs, 1 - under > FADE_SNAP ? 1 : 1 - under);
+    f.group.setFade(fs, (1 - under > FADE_SNAP ? 1 : 1 - under) * groundStays(body));
     const shown = force || (on && f.isVisible && under < 1);
     this.group.visible = shown && !force;
     // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
