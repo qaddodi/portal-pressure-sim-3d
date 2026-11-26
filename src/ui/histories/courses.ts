@@ -174,7 +174,7 @@ export const COURSES: readonly Course[] = [
     ] },
   },
   {
-    id: 'hist-hcv', name: 'Hepatitis C cured, pressure persists', group: 'Cause removed', where: 'After the cause is treated',
+    id: 'hist-hcv', name: 'Hepatitis C cured, pressure persists', short: 'HCV cured, PH persists', group: 'Cause removed', where: 'After the cause is treated',
     chapters: [{ label: 'Before treatment' }, { at: 'carvedilol', label: 'On carvedilol' }, { at: 'daa', label: 'Antiviral treatment' }, { at: 'svr', label: 'Cured, the pressure persists' }],
     preset: 'csph', days: 600, init: { cirrhosis: 0.7, nsbbGain: 0.5 },
     ramps: [{ key: 'cirrhosis', from: 90, to: 480, a: 0.7, b: 0.62 }],
@@ -196,7 +196,7 @@ export const COURSES: readonly Course[] = [
     ] },
   },
   {
-    id: 'hist-alcohol', name: 'Alcohol cirrhosis, recompensated', group: 'Cause removed', where: 'After the cause is treated',
+    id: 'hist-alcohol', name: 'Alcohol cirrhosis, recompensated', short: 'Alcohol, recompensated', group: 'Cause removed', where: 'After the cause is treated',
     chapters: [{ label: 'Decompensated' }, { at: 'abstain', label: 'Abstinent, on carvedilol' }, { at: 'diurOff', label: 'Diuretics stopped' }, { at: 'recomp', label: 'Recompensated' }],
     preset: 'cirr-decomp', days: 720,
     ramps: [{ key: 'cirrhosis', from: 0, to: 420, a: 0.85, b: 0.6 }, { key: 'albumin', from: 0, to: 420, a: 2.8, b: 3.9 }],
@@ -219,7 +219,7 @@ export const COURSES: readonly Course[] = [
     ] },
   },
   {
-    id: 'hist-psvd', name: 'PSVD: a bleed with a normal HVPG', group: 'Without cirrhosis', where: 'Porto-sinusoidal vascular disorder',
+    id: 'hist-psvd', name: 'PSVD: a bleed with a normal HVPG', short: 'PSVD bleed, normal HVPG', group: 'Without cirrhosis', where: 'Porto-sinusoidal vascular disorder',
     chapters: [{ label: 'Large varices, normal HVPG' }, { at: 'bleed', label: 'The bleed' }, { at: 'carvedilol', label: 'Carvedilol and bands' }, { at: 'band3', label: 'After the last band' }],
     preset: 'psvd', days: 300,
     quiet: ['albumin'], still: true,

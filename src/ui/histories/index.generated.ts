@@ -899,6 +899,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
  {
   "id": "hist-hcv",
   "name": "Hepatitis C cured, pressure persists",
+  "short": "HCV cured, PH persists",
   "group": "Cause removed",
   "where": "After the cause is treated",
   "preset": "csph",
@@ -1071,6 +1072,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
  {
   "id": "hist-alcohol",
   "name": "Alcohol cirrhosis, recompensated",
+  "short": "Alcohol, recompensated",
   "group": "Cause removed",
   "where": "After the cause is treated",
   "preset": "cirr-decomp",
@@ -1245,6 +1247,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
  {
   "id": "hist-psvd",
   "name": "PSVD: a bleed with a normal HVPG",
+  "short": "PSVD bleed, normal HVPG",
   "group": "Without cirrhosis",
   "where": "Porto-sinusoidal vascular disorder",
   "preset": "psvd",
