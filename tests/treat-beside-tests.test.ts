@@ -7,7 +7,7 @@ import { deviceClass, type Viewport } from '../src/ui/layout/device.ts';
 import { testsPlace } from '../src/ui/tests/place.ts';
 import { treatStepLeft } from '../src/ui/treat/beside.ts';
 
-const TREAT_W = 400, GAP = 12;   // (app-07-floating.css .treat-card: width min(400px, 100vw - 2 gap), right: safe-right + --gap)
+const TREAT_W = 400, GAP = 12;   // (app-07-floating.css: .treat-card width var(--card-treat), min(400px, 100vw - 2 gap) on .app; right: safe-right + --gap)
 const vpOf = (w: number, h: number): Viewport => ({ w, h, safe: { top: 0, right: 0, bottom: 0, left: 0 } });
 
 for (const [w, h] of [[1280, 800], [1440, 900], [1920, 1080]] as const) {
