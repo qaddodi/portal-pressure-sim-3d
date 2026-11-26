@@ -6,6 +6,7 @@ import { useShell, LENS_IDS } from './store.ts';
 import { useLens } from '../../scene/lenses/store.ts';
 import { sceneApi } from '../../scene/api.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
+import { lensNoteIn, lensPickable, lensesFor, shownLens } from '../../scene/lenses/in-view.ts';
 import { Anchored } from './Pop.tsx';
 import { I } from './icons.tsx';
 import { lensSwatch } from './lens-art.ts';
@@ -71,11 +72,14 @@ function tapPill(id: ViewId, cur: ViewId) {
 
 /** The lens button: the colour key and a chevron (2D's #btnLayers). The lens menu opens from it. */
 export function LensButton() {
-  const lens = useLens((s) => s.lens);
+  const view = useShell((s) => s.view);
+  // (the name and the key are the lens the view DRAWS: lenses/in-view.ts shownLens, never one it cannot show)
+  const lens = shownLens(view, useLens((s) => s.lens));
+  const pickable = lensPickable(view, LENS_IDS);
   return (
     <Anchored sheet="lens" label={labelOf('btnLayers')} cls="layers-pop" align="end" button={({ id, open, toggle, ref }) => (
       <div ref={ref as React.Ref<HTMLDivElement>} className="lens-btn" id="btnLayers" role="button" tabIndex={0} data-opens="lens" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} title={tb('btnLayers').title ?? undefined}
-        onClick={toggle} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}>
+        onClick={() => { if (pickable) toggle(); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (pickable) toggle(); } }}>
         <span className="lens-name" id="colorModeLabel">{UI.lenses.find((l) => l.id === lens)?.name ?? ''}</span>
         <LensKey />
         <I n="chev-down" className="chev" />
@@ -84,16 +88,18 @@ export function LensButton() {
     </Anchored>
   );
 }
+/** The lens menu: the lenses the view offers (lenses/in-view.ts lensesFor, the one table), each with what it colours in this view where that differs from the menu's own words. */
 function LensMenu() {
-  const lens = useLens((s) => s.lens);
+  const view = useShell((s) => s.view);
+  const lens = shownLens(view, useLens((s) => s.lens));
   const look = useLook();
   return (
     <div className="lens-grid" role="radiogroup" aria-label="Color the vessels by">
-      {LENS_IDS.map((id) => {
+      {lensesFor(view, LENS_IDS).map((id) => {
         const l = UI.lenses.find((x) => x.id === id)!;
         return (
           <button key={id} type="button" role="radio" className={`lens${lens === id ? ' on' : ''}`} aria-checked={lens === id} onClick={() => setLens(id)}>
-            <span className="lens-sw" style={{ background: lensSwatch(id, look) }} /><span className="lens-t">{l.name}</span><span className="lens-d">{l.note}</span>
+            <span className="lens-sw" style={{ background: lensSwatch(id, look) }} /><span className="lens-t">{l.name}</span><span className="lens-d">{lensNoteIn(view, id) ?? l.note}</span>
           </button>
         );
       })}

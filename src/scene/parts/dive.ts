@@ -116,7 +116,8 @@ export const divePart = scenePart<CelScene>()({
       this.feedSinusInk();
     }
   },
-  feedSinusInk(): void { const c = this.lobule.inkContext(); if (c) this.sinus.setInk(c); },
+  /** The sinusoid reads the lobule's model under the FIGURE's lens (it applies its own fallback, lenses/in-view.ts), not the lobule's. */
+  feedSinusInk(): void { const c = this.lobule.inkContext(); if (c) this.sinus.setInk(c, this.lobule.askedLens); },
   setLobuleLayers(l: Partial<LobuleLayers>): void { this.lobule.setLayers(l); this.moving = true; },
   /** The wedge's wash (a slide that says `wash`): amber from the central vein along the sinusoids, counted from `landedAtMs` in both small views. Off clears it. */
   setWash(on: boolean, landedAtMs = clock.now()): void {

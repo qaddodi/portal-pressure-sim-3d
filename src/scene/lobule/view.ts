@@ -14,6 +14,7 @@ import { highlightColour } from '../palette.ts';
 import type { LookId } from '../../looks/looks.ts';
 import { FLOW_FADE_MS } from '../flow.ts';
 import type { LensId } from '../lenses/model.ts';
+import { shownLens } from '../lenses/in-view.ts';
 import type { V3 } from './shots.ts';
 import { type LobuleHit, type PickTube, lobuleHit } from './pick.ts';
 import { buildBile } from './bile.ts';
@@ -139,9 +140,12 @@ export class LobuleView {
   setLayers(l: Partial<LobuleLayers>): void { this.layers = { ...this.layers, ...l }; this.dirty = true; }
   get currentLayers(): Readonly<LobuleLayers> { return this.layers; }
 
-  /** The colour lens the vessels wear (the Layers menu's, as the 2D lobule colours its lumen by it). */
-  setLens(lens: LensId): void { if (lens === this.lens) return; this.lens = lens; this.dirty = true; }
+  /** The colour lens the vessels wear (the Layers menu's, as the 2D lobule colours its lumen by it): the figure's lens where the lobule defines it, Pressure where it does not (lenses/in-view.ts). */
+  setLens(lens: LensId): void { this.asked = lens; const s = shownLens('lobule', lens); if (s === this.lens) return; this.lens = s; this.dirty = true; }
+  /** The lens the lobule draws (its own, after in-view.ts); `askedLens` is the figure's, for a view that reads the lobule's model under its own lens (the sinusoid). */
   get currentLens(): LensId { return this.lens; }
+  get askedLens(): LensId { return this.asked; }
+  private asked: LensId = 'pressure';
   /** Every lens but Pressure (and the neutral one) greys the anatomy's organs; the neighbouring lobules take the same grey (2D: surroundGrade). */
   private greyGoal(): number { return this.lens !== 'pressure' && this.lens !== ('neutral' as LensId) ? 1 : 0; }
   /** The tissue the field should show: the model's targets (painted once per state, not every eased frame). */
