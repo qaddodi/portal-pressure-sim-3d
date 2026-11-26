@@ -10,6 +10,7 @@ import { CATHS } from './schema.ts';
 import { OVERLAY_FIELDS } from './overlay.ts';
 import { isSource } from './source.ts';
 import { expandTemplate } from './templates.ts';
+import { interactProblems } from './interact.ts';
 import { PROCEDURE_PLAYS } from '../scene/procedures/plays.ts';
 import { PRESETS } from '../engine/hales/portal/scenario.js';
 import { cleanEq, unsafeIn } from '../ui/deck/from2d/import-safety.js';
@@ -91,6 +92,12 @@ export function authorDeck(id: string, title: string, d: Obj, summary = ''): Aut
   const slides = (Array.isArray(d.slides) ? d.slides : []).filter(isObj).map((x, i) => authorSlide(x, i, own, title, used, notices));
   const checks = (Array.isArray(d.checks) ? d.checks : []).filter((c): c is [string, string] => Array.isArray(c) && typeof c[0] === 'string' && typeof c[1] === 'string').map((c) => [c[0], c[1]] as [string, string]);
   const sections = Array.isArray(d.sections) ? (d.sections as unknown[]).filter((x): x is [string, string[]] => Array.isArray(x) && typeof x[0] === 'string' && Array.isArray(x[1])) : undefined;
+  // (a question's `back` names another slide, so it can only be checked once the deck's slides are all here)
+  slides.forEach((s, i) => {
+    if (s.interact == null) return;
+    const why = interactProblems(s.interact, slides.map((x) => x.id));
+    if (why.length) { notices.push(`Slide ${i + 1} (“${s.title}”): the question for the room cannot be played (${why.join('; ')}), so “interact” was left out.`); delete s.interact; }
+  });
   return {
     notices,
     deck: {

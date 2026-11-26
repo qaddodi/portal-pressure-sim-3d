@@ -60,7 +60,7 @@ export interface CopiedSlide {
   /** the split orbit: the words over each liver (decks/split-slides.ts) */
   split?: import('../split-slides.ts').SplitSlide | null;
   /** a question the room answers before the model reveals (decks/interact.ts) */
-  interact?: Record<string, unknown> | null;
+  interact?: import('../interact.ts').Interact | null;
   [k: string]: unknown;
 }
 

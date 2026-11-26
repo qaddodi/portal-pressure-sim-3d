@@ -10,6 +10,7 @@ import type { CardId } from '../layout/plan.ts';
 import { TITLE_SHOT } from '../../decks/hvpg.ts';
 import { OSTIUM_U } from '../../scene/procedures/ostium.ts';
 import { hasToolChart, hasVisualChart } from '../../decks/charts.ts';
+import { INTERACT_KICKER } from '../../decks/interact.ts';
 
 export type Stop =
   | { kind: 'title' }
@@ -50,7 +51,7 @@ export function next(stops: Stop[], p: Pos): Pos {
 }
 
 /** A slide that opens on a case card (2D `vignette`; a question is the other kind of first card, and keeps its own way). */
-const hasCase = (s: Stop | undefined): boolean => s?.kind === 'slide' && caseOf(s.slide)?.kicker === 'Case';
+const hasCase = (s: Stop | undefined): boolean => s?.kind === 'slide' && (caseOf(s.slide)?.kicker === 'Case' || caseOf(s.slide)?.kicker === INTERACT_KICKER);
 
 /** Back. The case card shows only going forward (2D presenter.js `to > lastAt`): Back from the slide it opens goes on to the slide before, never onto the card again. */
 export function back(stops: Stop[], p: Pos): Pos {

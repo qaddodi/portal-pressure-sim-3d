@@ -1,12 +1,13 @@
 import { useLayoutEffect, useRef } from 'react';
-import { caseOf, type Slide } from '../../decks/schema.ts';
+import { caseOf, type Deck, type Slide } from '../../decks/schema.ts';
 import { useUi } from '../ui-store.ts';
 import { centredBox } from '../layout/plan.ts';
 import { sentences, pageOf } from './pages.ts';
 import { glueShort } from '../text/glue-short.ts';
+import { InteractControls } from './InteractControls.tsx';
 
 /** The patient the slide starts with, on a card of its own before the slide's words (the 2D deck's "Case"). */
-export function CaseCard({ slide, page, pages }: { slide: Slide; page: number; pages: number }) {
+export function CaseCard({ slide, deck, page, pages }: { slide: Slide; deck: Deck; page: number; pages: number }) {
   const c = caseOf(slide) ?? { kicker: 'Case', text: '' };
   const text = glueShort(pageOf(sentences(c.text), pages, page).join(' '));
   const mark = useRef<HTMLSpanElement>(null);
@@ -24,6 +25,7 @@ export function CaseCard({ slide, page, pages }: { slide: Slide; page: number; p
       <span ref={mark} className="pz-site pz-case-tag">{c.kicker}</span>
       <p className="pz-case-p">{text}</p>
       {slide.caseQ && page >= pages - 1 ? <p className="pz-case-p pz-case-q">{glueShort(slide.caseQ)}</p> : null}
+      {slide.interact && deck && page >= pages - 1 ? <InteractControls slide={slide} deck={deck} /> : null}
     </>
   );
 }

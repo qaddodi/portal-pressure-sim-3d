@@ -389,7 +389,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     const own = sn.readings, readOwn = (k: string, at?: string) => own[at ? `${k}@${at}` : k];
     switch (e.id) {
       case 'title': return <TitleCard deck={sn.deck} page={sn.at} pages={sn.pages} />;
-      case 'case': return sn.slide ? <CaseCard slide={sn.slide} page={sn.at} pages={sn.pages} /> : null;   // (a leaving card with no snapshot falls back to the view now, which on the title or the quick check has no slide: Back from slide 2 crashed the app)
+      case 'case': return sn.slide ? <CaseCard slide={sn.slide} deck={sn.deck} page={sn.at} pages={sn.pages} /> : null;   // (a leaving card with no snapshot falls back to the view now, which on the title or the quick check has no slide: Back from slide 2 crashed the app)
       case 'teach': return sn.slide ? <TeachingCard slide={sn.slide} deck={sn.deck} read={readOwn} fp={own} page={sn.at} pages={sn.pages} trim={sn.trim} /> : null;
       case 'table': return sn.dslide?.table ? <TableCard deck={sn.deck} slide={sn.dslide} /> : sn.dslide ? <ToolCard deck={sn.deck} slide={sn.dslide} /> : null;
       case 'ladder': return (

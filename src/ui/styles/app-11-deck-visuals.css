@@ -269,6 +269,17 @@
 /* The rounded plot (his G2 look, 27 Oct; plot-look.js): the panel behind a chart's lines, the app's own tile tone, its corners the plot's. */
 /* A case card's own question (slide caseQ): the case's type and size, on a line of its own under it, in the accent so it reads as the ask. */
 .pz-case-q { margin-top: .55em; }
+/* the room's part of a slide that asks (decks/interact.ts): the question's controls, and what the card says once the room has committed, drawn in one grid cell so the card never changes size */
+.pz-int { margin-top: .7em; font-size: .62em; }
+.pz-int-stack { display: grid; }
+.pz-int-ask, .pz-int-said { grid-area: 1 / 1; display: flex; flex-direction: column; align-items: center; gap: .5em; }
+.pz-int-ask[inert], .pz-int-said[aria-hidden="true"] { visibility: hidden; }
+.pz-int-opts { justify-content: center; }
+.pz-int-guess { display: flex; align-items: center; gap: .6em; width: 100%; justify-content: center; }
+.pz-int-guess input[type="range"] { flex: 1 1 8em; max-width: 16em; }
+.pz-int-p { margin: 0; text-align: center; }
+.pz-int-said[data-right="false"] .pz-int-p:first-child { color: var(--ink-mid, inherit); }
+
 
 
 /* The endoscopic view in the readings card (scope-tile.js): a round picture with its name over it and what it shows under it. The tile

@@ -118,7 +118,7 @@ export interface Slide {
   /** The liver-function card under the criteria (decks/overlay/scores.ts). */
   scores?: import('./overlay/scores.ts').SlideScores;
   /** A question the room answers before the model reveals (decks/interact.ts). */
-  interact?: Record<string, unknown>;
+  interact?: import('./interact.ts').Interact;
   /** The level rail under the line (2D `rail`): every level named ('all') or the slide's own level marked (true). */
   rail?: 'all' | true;
   /** Two guidelines side by side under the line (2D `sides`). `text` takes the line's own tokens. */
@@ -133,7 +133,7 @@ export interface Slide {
 }
 
 /** The words of a slide's first card (its case, or its question) and its kicker; null when the slide opens on its words. */
-export const caseOf = (s: Slide): { kicker: string; text: string } | null => (s.vignette ? { kicker: 'Case', text: s.vignette } : s.question ? { kicker: 'Question', text: s.question } : null);
+export const caseOf = (s: Slide): { kicker: string; text: string } | null => (s.vignette ? { kicker: 'Case', text: s.vignette } : s.question ? { kicker: 'Question', text: s.question } : s.interact ? { kicker: 'Your turn', text: s.interact.prompt } : null);
 
 export interface Deck {
   id: string;

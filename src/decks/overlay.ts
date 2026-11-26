@@ -9,6 +9,7 @@ import type { CopiedDeck, CopiedSlide } from './hp/types.ts';
 import { FRAME_FIXES, type FrameFix } from './overlay/frames.ts';
 import { SCORES, type SlideScores } from './overlay/scores.ts';
 import type { SplitSlide } from './split-slides.ts';
+import type { Interact } from './interact.ts';
 import { amendAscites } from './ag/ascites-amend.ts';
 import { amendAlbumin } from './ag/albumin-amend.ts';
 
@@ -23,7 +24,7 @@ export interface SlideOverlay {
   /** the split orbit: the healthy liver on the left, this slide's patient on the right */
   split?: SplitSlide;
   /** a question the room answers before the model reveals (decks/interact.ts) */
-  interact?: Record<string, unknown>;
+  interact?: Interact;
 }
 export const OVERLAY_FIELDS = ['also', 'frame', 'scores', 'split', 'interact'] as const satisfies readonly (keyof SlideOverlay)[];
 
@@ -36,7 +37,7 @@ const ALSO: Readonly<Record<string, string>> = { 'prehepatic/carv': 'pre' };
 const SPLIT: Readonly<Record<string, SplitSlide>> = {};
 
 /** Questions inside the talk, by slide (decks/interact.ts). No clinical wording lives here until the owner has approved it. */
-const INTERACT: Readonly<Record<string, Record<string, unknown>>> = {};
+const INTERACT: Readonly<Record<string, Interact>> = {};
 
 const put = <K extends keyof SlideOverlay>(out: Record<string, SlideOverlay>, field: K, table: Readonly<Record<string, SlideOverlay[K]>>): void => {
   for (const [key, v] of Object.entries(table)) (out[key] ??= {})[field] = v;
