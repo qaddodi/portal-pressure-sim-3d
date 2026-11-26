@@ -89,6 +89,24 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "tone": "change"
    }
   ],
+  "chapters": [
+   {
+    "from": 0,
+    "label": "Before treatment"
+   },
+   {
+    "from": 19,
+    "label": "On carvedilol"
+   },
+   {
+    "from": 70,
+    "label": "The bleed"
+   },
+   {
+    "from": 73,
+    "label": "After the TIPS"
+   }
+  ],
   "counts": {
    "events": 19,
    "medicines": 2
@@ -180,6 +198,20 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "tone": "change"
    }
   ],
+  "chapters": [
+   {
+    "from": 0,
+    "label": "On diuretics"
+   },
+   {
+    "from": 35,
+    "label": "Taps, and the fluid returns"
+   },
+   {
+    "from": 110,
+    "label": "After the TIPS"
+   }
+  ],
   "counts": {
    "events": 9,
    "medicines": 1
@@ -251,6 +283,16 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "day": 1,
     "word": "Anticoagulation",
     "tone": "change"
+   }
+  ],
+  "chapters": [
+   {
+    "from": 0,
+    "label": "A fresh clot"
+   },
+   {
+    "from": 1,
+    "label": "On anticoagulation, the clot clears"
    }
   ],
   "counts": {
@@ -333,6 +375,20 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "tone": "change"
    }
   ],
+  "chapters": [
+   {
+    "from": 0,
+    "label": "Three hepatic veins blocked"
+   },
+   {
+    "from": 2,
+    "label": "On anticoagulation"
+   },
+   {
+    "from": 60,
+    "label": "After the angioplasty"
+   }
+  ],
   "counts": {
    "events": 2,
    "medicines": 1
@@ -413,6 +469,24 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "day": 140,
     "word": "Doppler",
     "tone": "caution"
+   }
+  ],
+  "chapters": [
+   {
+    "from": 0,
+    "label": "Ascites on diuretics"
+   },
+   {
+    "from": 10,
+    "label": "The TIPS holds the fluid"
+   },
+   {
+    "from": 50,
+    "label": "The stent narrows"
+   },
+   {
+    "from": 140,
+    "label": "Doppler finds it"
    }
   ],
   "counts": {
@@ -506,6 +580,24 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "tone": "caution"
    }
   ],
+  "chapters": [
+   {
+    "from": 0,
+    "label": "Before the bleed"
+   },
+   {
+    "from": 10,
+    "label": "The bleed"
+   },
+   {
+    "from": 11,
+    "label": "After the TIPS"
+   },
+   {
+    "from": 45,
+    "label": "Confusion, treated"
+   }
+  ],
   "counts": {
    "events": 6,
    "medicines": 2
@@ -594,6 +686,24 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "day": 228,
     "word": "Cured",
     "tone": "ok"
+   }
+  ],
+  "chapters": [
+   {
+    "from": 0,
+    "label": "Before treatment"
+   },
+   {
+    "from": 14,
+    "label": "On carvedilol"
+   },
+   {
+    "from": 60,
+    "label": "Antiviral treatment"
+   },
+   {
+    "from": 228,
+    "label": "Cured, the pressure persists"
    }
   ],
   "counts": {
@@ -689,6 +799,24 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "tone": "ok"
    }
   ],
+  "chapters": [
+   {
+    "from": 0,
+    "label": "Decompensated"
+   },
+   {
+    "from": 1,
+    "label": "Abstinent, on carvedilol"
+   },
+   {
+    "from": 250,
+    "label": "Diuretics stopped"
+   },
+   {
+    "from": 620,
+    "label": "Recompensated"
+   }
+  ],
   "counts": {
    "events": 2,
    "medicines": 2
@@ -774,6 +902,24 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "day": 24,
     "word": "Carvedilol",
     "tone": "change"
+   }
+  ],
+  "chapters": [
+   {
+    "from": 0,
+    "label": "Large varices, normal HVPG"
+   },
+   {
+    "from": 20,
+    "label": "The bleed"
+   },
+   {
+    "from": 24,
+    "label": "Carvedilol and bands"
+   },
+   {
+    "from": 76,
+    "label": "After the last band"
    }
   ],
   "counts": {
@@ -865,6 +1011,24 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "day": 47,
     "word": "Banded",
     "tone": "change"
+   }
+  ],
+  "chapters": [
+   {
+    "from": 0,
+    "label": "Before the bleed"
+   },
+   {
+    "from": 20,
+    "label": "The gastric bleed"
+   },
+   {
+    "from": 23,
+    "label": "After BRTO"
+   },
+   {
+    "from": 40,
+    "label": "New esophageal varices"
    }
   ],
   "counts": {
@@ -959,6 +1123,24 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "tone": "change"
    }
   ],
+  "chapters": [
+   {
+    "from": 0,
+    "label": "Before pregnancy"
+   },
+   {
+    "from": 30,
+    "label": "Pregnant"
+   },
+   {
+    "from": 114,
+    "label": "Second trimester: propranolol and bands"
+   },
+   {
+    "from": 254,
+    "label": "After delivery"
+   }
+  ],
   "counts": {
    "events": 6,
    "medicines": 1
@@ -1032,6 +1214,20 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "day": 120,
     "word": "Heart treated",
     "tone": "change"
+   }
+  ],
+  "chapters": [
+   {
+    "from": 0,
+    "label": "Congestion from the right heart"
+   },
+   {
+    "from": 20,
+    "label": "On diuretics"
+   },
+   {
+    "from": 120,
+    "label": "After the tricuspid repair"
    }
   ],
   "counts": {

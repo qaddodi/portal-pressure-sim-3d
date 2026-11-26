@@ -128,9 +128,19 @@ export function metaOf(c: Course, b: Baked): HistoryMeta {
   }
   return {
     id: c.id, name: c.name, group: c.group, where: c.where, preset: c.preset, months: Math.round(c.days / 30.4), state: stateOf(b.now, c.state), story: storyOf(c), path: c.path,
-    pv, days: c.days, max: Math.max(12, Math.ceil(Math.max(...pv) / 4) * 4), marks: marks.sort((a, z) => a.day - z.day),
+    pv, days: c.days, max: Math.max(12, Math.ceil(Math.max(...pv) / 4) * 4), marks: marks.sort((a, z) => a.day - z.day), chapters: chaptersOf(c),
     counts: { events: b.entries.filter((x) => x.kind === 'event').length, medicines: medCount(b) },
   };
+}
+/** A course's chapters as days: each anchor is a step's day or a ramp's start. An anchor that names nothing is an error (the generator stops), never a chapter at a guessed day. */
+export function chaptersOf(c: Course): { from: number; label: string }[] {
+  return c.chapters.map((ch, i) => {
+    if (!ch.at) { if (i) throw new Error(`${c.id}: chapter "${ch.label}" has no anchor`); return { from: 0, label: ch.label }; }
+    const at = ch.at;
+    const day = typeof at === 'string' ? c.steps.find((s) => s.id === at)?.day : c.ramps?.find((r) => r.key === at.ramp)?.from;
+    if (day == null) throw new Error(`${c.id}: chapter "${ch.label}" is anchored to ${JSON.stringify(at)}, which the course does not have`);
+    return { from: day, label: ch.label };
+  });
 }
 const MARK_WORD: Record<string, string> = {
   carvedilol: 'Carvedilol', bleed: 'Bled', band: 'Banded', tips: 'TIPS', tap1: 'Tap', tap2: 'Tap', tap3: 'Tap', anticoag: 'Anticoagulation', angioplasty: 'Angioplasty', doppler: 'Doppler',

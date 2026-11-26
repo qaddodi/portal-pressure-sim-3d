@@ -5,7 +5,19 @@
 .sh-root { position: fixed; inset: 0; z-index: var(--z-chrome, 20); pointer-events: none; font-family: var(--ui); color: var(--text);
   --sh-pad-top: calc(var(--safe-t, 0px) + var(--m-top-pad)); --sh-pad-x: var(--m-side-pad);
   /* a top sheet ends over the dock and the view pill (2D's --bot-occ, published on the page), never under them: Compare and the Guide ran down to y 760 on a laptop, under the dock and the zoom pill */
-  --sh-max-h: calc(100% - var(--sh-pad-top) - var(--bot-occ, 84px) - 20px); }
+  --sh-max-h: calc(100% - var(--sh-pad-top) - var(--bot-occ, 84px) - 20px);
+  /* the side panels' widths, in one place: each panel's own rule takes its width from here, and the floating controls (the zoom pill) step aside by it while it is open (below) */
+  --panel-settings: 360px; --panel-help: 360px; --panel-compare: 400px; --panel-why: min(440px, calc(100vw - 24px)); --panel-history: min(460px, calc(100vw - 2 * var(--sh-pad-x))); }
+/* A side panel open at the right: the floating controls there (the zoom pill) glide left, clear of it, on every screen where the panel stands beside the figure (a phone's sheet from the foot
+   covers them instead, and the History column of a phone held sideways is at the left). `--fs-zoom-r` is the pill's own aside (app-07-floating.css): a transform, so it glides. */
+.sh-root:not([data-bottom="true"]):has(.sh-sheet[data-kind="settings"][data-open="true"]) { --panel-r: var(--panel-settings); }
+.sh-root:not([data-bottom="true"]):has(.sh-sheet[data-kind="help"][data-open="true"]) { --panel-r: var(--panel-help); }
+.sh-root:not([data-bottom="true"]):has(.sh-sheet[data-kind="compare"][data-open="true"]) { --panel-r: var(--panel-compare); }
+.sh-root:not([data-bottom="true"]):has(.sh-sheet[data-kind="why"][data-open="true"]) { --panel-r: var(--panel-why); }
+.sh-root:not([data-bottom="true"]):not([data-device="phone-landscape"]):has(.sh-sheet[data-kind="history"][data-open="true"]) { --panel-r: var(--panel-history); }
+.sh-root:not([data-bottom="true"]):has(.sh-sheet[data-open="true"]:is([data-kind="settings"], [data-kind="help"], [data-kind="compare"], [data-kind="why"], [data-kind="history"])) .zoom-pill {
+  --fs-zoom-r: max(0px, calc(var(--panel-r, 0px) + var(--sh-pad-x) + 8px - var(--gap, 12px)));
+}
 .sh-root [hidden] { display: none !important; }
 :where(.sh-root button) { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .sh-root :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -54,7 +66,8 @@
   opacity: 0; visibility: hidden; transform: translateY(12px); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .sh-sheet[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
 .sh-sheet[data-kind="menu"] { left: calc(var(--safe-l, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); width: 380px; max-height: var(--sh-max-h); }
-.sh-sheet[data-kind="settings"], .sh-sheet[data-kind="help"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); width: 360px; max-height: var(--sh-max-h); }
+.sh-sheet[data-kind="settings"], .sh-sheet[data-kind="help"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); width: var(--panel-settings); max-height: var(--sh-max-h); }
+.sh-sheet[data-kind="help"] { width: var(--panel-help); }
 .sh-sheet[data-kind="search"], .sh-sheet[data-kind="guide"] { left: 50%; top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); width: min(620px, calc(100vw - 24px)); margin-left: calc(min(620px, 100vw - 24px) / -2); max-height: var(--sh-max-h); }
 .sh-sheet[data-kind="guide"] { width: min(720px, calc(100vw - 24px)); margin-left: calc(min(720px, 100vw - 24px) / -2); }
 .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet { left: calc(var(--safe-l, 0px) + 6px) !important; right: calc(var(--safe-r, 0px) + 6px) !important; margin-left: 0 !important; width: auto !important; top: auto !important; bottom: calc(var(--safe-b, 0px) + var(--m-phone-inset) + var(--m-phone-timeline-h) + var(--m-phone-tabs-pad-top) + var(--m-phone-tab-h) + var(--m-phone-tabs-pad-bottom) + var(--m-phone-inset)); border-radius: var(--r-sheet); max-height: 78%; transform: translateY(var(--sheet-rise, 24px)); }   /* (a phone's sheet is inset 6 px and rounded all round, like every sheet in 2D's thumb layout: app-10-thumb-dock.css) */

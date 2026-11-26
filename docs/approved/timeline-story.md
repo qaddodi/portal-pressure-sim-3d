@@ -21,5 +21,9 @@
 - No round mark beside the words: the rail beside a key day takes the day's colour.
 - **A deliberate difference from the 2D app**: 2D's History lists every entry newest first in a small popover. The words (Go back here, Compare with now, the empty note) are 2D's; the order, the grouping and the strip are this design's (Mohammad, 26 Nov).
 
+## Chapters and the side panels (step 4)
+- The 12 histories carry the approved chapter names (plan.md), in `courses.ts`, each anchored to a step id or a ramp's start; the generator bakes them as days into the menu's meta and stops on an anchor that names nothing.
+- The side panels' widths live in one place (`shell.css --panel-<kind>`); while one is open at the right beside the figure, the zoom pill glides left clear of it (`--fs-zoom-r`). On a phone's sheet the pill is covered or hidden; History held sideways is at the left, so the pill stays (`tests/side-panels-clear.test.ts`).
+
 ## Known difference
 - A restored reading can print 0.1 apart from the day record when it sat on a rounding edge: the engine's readings dead band (`holdShown`) starts over on a restore. The fix belongs in hales-engine (keep the dead band in the snapshot).
