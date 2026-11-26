@@ -1,7 +1,8 @@
 // Carries out a slide's live controls on the live model and the figure (decks/controls.ts says what they are). The model changes the way the 2D presenter's buttons do:
 // a treatment or a response is `setParams` eased in, a patient or another slide's state is a `morph` to a state worked out off screen, a lens is the scene's lens,
 // a scale is the scene's view. The slide's own state comes back whenever the slide is shown again (hp/link.ts morphs to it).
-import { engine } from '../../engine/index.ts';
+import { engine, onFrame } from '../../engine/index.ts';
+import { pressBegin, pressHeld } from './press-pending.ts';
 import { sendParams } from '../../engine/params-send.ts';
 import { useStates } from '../../decks/hp/calc.ts';
 import { stopLapse } from '../../decks/hp/lapse.ts';
@@ -27,11 +28,23 @@ export const EASE_MS = 700, MORPH_MS = 1100, SLIDER_EASE_MS = 350;
 const stateOf = (deck: Deck, i: number) => useStates.getState().results[deck.id]?.[i];
 const picked = new Map<string, Promise<Picked>>();
 let pickN = 0;
-const morph = (snap: unknown) => { if (snap) engine().send({ type: 'morph', snap, ms: MORPH_MS }); };
+/** The model is sent to a state: it is a press still on its way until the engine has answered with a few frames of its own (a frame in flight from before the morph does not show it), or
+ * after 4 s of page time. */
+const MORPH_ANSWER_FRAMES = 3;
+function morph(snap: unknown): void {
+  if (!snap) return;
+  engine().send({ type: 'morph', snap, ms: MORPH_MS });
+  const done = pressBegin('the model has not begun easing to the press');
+  let frames = 0, off: () => void = () => {}, guard: TimerId | null = null;
+  const end = () => { off(); if (guard != null) clock.cancel(guard); done(); };
+  guard = clock.after(end, 4000, 'press-morph');
+  off = onFrame(() => { if (++frames >= MORPH_ANSWER_FRAMES) end(); });
+}
 
 /** A compare button, by what it does (decks/controls.ts howOf, 2D abChoice): switch the lens, ease the model to a state (a patient, another slide's, the slide's own), or patch the live
  *  parameters. A button that speaks brings its words to the card (variant-words.ts). `i` is the slide's index in the deck. */
-export async function pickCompare(deck: Deck, i: number, o: CompareOpt): Promise<void> {
+export const pickCompare = (deck: Deck, i: number, o: CompareOpt): Promise<void> => pressHeld(`the "${o.label}" button`, () => pickCompareRun(deck, i, o));
+async function pickCompareRun(deck: Deck, i: number, o: CompareOpt): Promise<void> {
   const slide = deck.slides[i];
   if (!slide) return;
   const key = `${deck.id}/${slide.id}`;
@@ -75,18 +88,21 @@ export const toolOptionStart = (deck: Deck, i: number, name: string, min: number
 /** The what-if slider: one value at its parameter paths, eased in. The slide's charts follow it too (the same state a parameter button gives them), once the slider has rested a moment: each value is a
  *  settled model worked out off screen, so a drag asks for the last one only. At the slide's own value the slide's own state is back. */
 const SLIDER_REST_MS = 250;
-let dragTimer: TimerId | null = null, dragN = 0;
+let dragTimer: TimerId | null = null, dragN = 0, dragDone: (() => void) | null = null;
+const dragRelease = (): void => { const d = dragDone; dragDone = null; d?.(); };
 export function dragWhatIf(deck: Deck, i: number, paths: readonly string[], x: number): void {
   sendParams(patchOf(paths, x), { settle: false, ease: SLIDER_EASE_MS });
   const key = slideKey(deck, i), n = ++dragN;
+  dragDone ??= pressBegin('the slider');   // (held from the first move until the last one's state has been worked out)
   if (dragTimer != null) clock.cancel(dragTimer);
   dragTimer = clock.after(() => {
     dragTimer = null;
     const own = stateOf(deck, i), words = variantOf(key);
-    if (x === whatIfStart(deck, i, paths, NaN)) { if (n === dragN) useVariant.getState().set(key, words, null); return; }
+    if (x === whatIfStart(deck, i, paths, NaN)) { if (n === dragN) { useVariant.getState().set(key, words, null); dragRelease(); } return; }
     void variantStateOf((st, base) => engine().sequence(st, base), picked, { slideKey: key }, sliderOpt(paths, x), own, undefined).then((got) => {
       if (n === dragN && got?.state) useVariant.getState().set(key, words, got.state);
-    });
+      if (n === dragN) dragRelease();
+    }, () => { if (n === dragN) dragRelease(); });
   }, SLIDER_REST_MS);
 }
 /** Where the slider starts: the slide's own value at its first path (its computed state's parameters), else the low end. */

@@ -134,7 +134,19 @@ export const FAN_ROWS = 4, FAN_COLS = 19, FAN_VERTS = 1 + FAN_ROWS * FAN_COLS, F
 const FACE_Z = new Vector3(), FACE_N = new Vector3(), FACE_A = new Vector3(), FACE_B = new Vector3();
 /** The needle (owner, 20 Nov 2026: "more needle-y"): a thin bright steel shaft (half width NEEDLE_HALF), a long sharp bevel (NEEDLE_BEV units, down to NEEDLE_POINT of its width), and the
  *  catheter's sheath round its base, out of the working channel for SHEATH_LEN units at SHEATH_HALF, a matte blue-grey plastic. */
-export const NEEDLE_HALF = 0.42, NEEDLE_BEV = 5, NEEDLE_POINT = 0.04, NEEDLE_RINGS = 16, SHEATH_LEN = 9, SHEATH_HALF = 0.95;
+export const NEEDLE_HALF = 0.42, NEEDLE_BEV = 6.5, NEEDLE_POINT = 0.01, NEEDLE_BEV_RINGS = 10, NEEDLE_STEM_RINGS = 4;
+export const NEEDLE_RINGS = NEEDLE_STEM_RINGS + NEEDLE_BEV_RINGS, SHEATH_LEN = 9, SHEATH_HALF = 0.95;
+/** The share of the needle's width at `k` (0 at the bevel's start, 1 at its point): a straight cone, so the sides run in at one steady slope right to the point.
+ *  (It was a smoothstep: flat at the shoulder AND flat at the end, so the last rings stayed nearly full width and the tip drew as a rounded nib;
+ *  the sharpness asked for on 20 and 25 Nov 2026 never reached the point.) */
+export const needleTaper = (k: number): number => 1 - (1 - NEEDLE_POINT) * Math.min(1, Math.max(0, k));
+/** Where ring `i` of the needle (of NEEDLE_RINGS) lies along a needle `nU` long whose bevel is `bev` long: the stem's rings (few: it is straight) spread over the stem,
+ *  the bevel's (many: the taper is where the eye looks) over the bevel, the last one on the point. */
+export function needleRingAt(i: number, nU: number, bev: number): { l: number; k: number } {
+  const stem = nU - bev, last = NEEDLE_RINGS - 1, first = NEEDLE_STEM_RINGS - 1;
+  const l = i <= first ? (stem * i) / Math.max(1, first) : stem + (bev * (i - first)) / (last - first);
+  return { l, k: bev > 0 ? Math.min(1, Math.max(0, (l - stem) / bev)) : 0 };
+}
 export const SCOPE_SHEATH = '#5E7186';
 /** The insertion tube's depth marks (a real scope's thin white rings, a heavier one every fifth): every MARK_UNITS figure units back from the tip, half MARK_HALF wide; the bending section's fine grooves (BEND_GROOVES of them). */
 export const MARK_UNITS = 30, MARK_HALF = 0.2, MARK_EVERY = 5, BEND_GROOVES = 8;
@@ -423,18 +435,17 @@ export class EndoScope {
       // the working channel's port, where the needle leaves the scope
       const pr = len3(R2 * (EUS_PORT_R as number)), ps = at3(g.exit, this.v), pe = this.w.copy(ps).addScaledVector(dv.set(g.a1[0], -g.a1[1], 0), len3(0.15));
       this.portBuf.line(ps.clone(), pe, pr);
-      // the needle: steel from the port to its bevelled point, the last 2.6 units narrowing to a fifth of its width (2D nw)
+      // the needle: steel from the port to its bevelled point, the last NEEDLE_BEV units a straight cone down to NEEDLE_POINT of its width (needleTaper)
       const ex = at3(g.exit, this.v), nd = this.dv.set(g.nd[0], -g.nd[1], 0);
       // (the needle crosses the wall straight to its target ON the vein's centreline, depth included, so at a full throw its point is in the lumen of the vein it reads)
       let nl = g.len * this.needle;
       { const T3 = this.target3(this.w); nd.subVectors(T3, ex); const l = nd.length(); if (l > 1e-6) { nd.multiplyScalar(1 / l); nl = (l / len3(1)) * this.needle; } else nd.set(g.nd[0], -g.nd[1], 0); }
       const nU = len3(nl), bev = Math.min(len3(NEEDLE_BEV), nU);
-      const stem = nU - bev, last = this.needleBuf.n - 1, body = this.needleBuf.n - 5;
-      for (let i = 0; i <= last; i++) {
-        const l = i <= body ? (stem * i) / Math.max(1, body) : stem + (bev * (i - body)) / (last - body), r = this.needleBuf.rings[i]!;
+      const stem = nU - bev;
+      for (let i = 0; i < NEEDLE_RINGS; i++) {
+        const { l, k } = needleRingAt(i, nU, bev), r = this.needleBuf.rings[i]!;
         r.c.copy(ex).addScaledVector(nd, l); r.t.copy(nd);
-        const k = bev > 0 ? ease01((l - stem) / bev) : 0;
-        r.r = len3(NEEDLE_HALF) * (1 - (1 - NEEDLE_POINT) * k);
+        r.r = len3(NEEDLE_HALF) * needleTaper(k);
       }
       this.needleBuf.commit();
       // the sheath: from just inside the port along the needle, as far out as the needle has gone (never past its bevel)

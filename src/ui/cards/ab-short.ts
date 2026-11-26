@@ -25,6 +25,10 @@ export function tightFit(contentW: number, roomW: number, floor = MIN_AB_ZOOM): 
 /** The two rows a row of `n` choices that cannot stand in one stands in: the first holds ceil(n / 2), the second the rest, so the rows are as equal as they can be (six: 3 and 3; five: 3 and 2). */
 export const rowSplit = (n: number): [number, number] => [Math.ceil(n / 2), Math.floor(n / 2)];
 
+/** Does a grid of `n` choices in `cols` columns leave ONE button alone on its last row (three choices in two columns: 2 + 1)? That button is then spread across the whole row (Mohammad, 25
+ * Nov: "if two rows, never one button only on row 2"). */
+export const loneOnLastRow = (n: number, cols: number): boolean => cols > 1 && n > cols && n % cols === 1;
+
 export type RowStep = 'full' | 'compact' | 'tight' | 'two';
 /** The step a row ends at, from what fits (pure: fitChoiceRow reads the widths, this decides): the full names, the compact labels, the tight row (padding and gap closed, zoomed to the floor), else two balanced rows. Never a nowrap row that overflows. */
 export function rowStep(o: { fullFits: boolean; compactable: boolean; compactFits: boolean; contentW: number; roomW: number; floor: number }): { step: RowStep; zoom: number } {
@@ -46,7 +50,7 @@ export function labelPxOf(vw: number, vh: number): number {
  *  (--ab-z, never under the floor in px: `labelPx`, from labelPxOf); where even that does not fit, two balanced rows (data-two, --ab-cols). Every button is one line (CSS: nowrap), so a row never overflows its card: it
  *  is never `nowrap` and wider than its room. Reads layout, so it runs while the card is still waiting to come in (CardFrame's gate), and again only when the card's width changes. */
 export function fitChoiceRow(row: HTMLElement, labelPx = 0): boolean {
-  for (const a of ['data-compact', 'data-tight', 'data-two']) row.removeAttribute(a);
+  for (const a of ['data-compact', 'data-tight', 'data-two', 'data-lone']) row.removeAttribute(a);
   row.style.removeProperty('--ab-z'); row.style.removeProperty('--ab-cols');
   const compactable = row.querySelector('.pz-abb[data-short]') !== null;   // (a row with no compact labels still closes up and scales)
   const all = [...row.querySelectorAll<HTMLElement>('.pz-abb')];
@@ -58,6 +62,8 @@ export function fitChoiceRow(row: HTMLElement, labelPx = 0): boolean {
   const { step, zoom } = rowStep({ fullFits: false, compactable, compactFits, contentW: row.scrollWidth, roomW: row.clientWidth, floor: zoomFloor(labelPx) });
   if (step === 'tight') { if (zoom < 1) row.style.setProperty('--ab-z', String(zoom)); return true; }
   row.removeAttribute('data-tight');
-  row.setAttribute('data-two', ''); row.style.setProperty('--ab-cols', String(rowSplit(all.length)[0]));
+  const cols = rowSplit(all.length)[0];
+  row.setAttribute('data-two', ''); row.style.setProperty('--ab-cols', String(cols));
+  if (loneOnLastRow(all.length, cols)) row.setAttribute('data-lone', '');
   return true;
 }

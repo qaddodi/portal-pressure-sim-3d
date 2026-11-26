@@ -380,7 +380,8 @@ test('a teaching slide with several choices: each is pressed and captured, named
   assert.equal(choiceName('  Cirrhosis  with ascites ', null, 0), 'cirrhosis-with-ascites'); assert.equal(choiceName('', 'Show the flow', 1), 'show-the-flow'); assert.equal(choiceName('', null, 2), 'choice3');
   assert.ok(CHOICE_MAX >= 6); assert.match(CHOICE_SEL, /role="tab"/); assert.match(CHOICE_SEL, /aria-pressed="false"/);
   const all = src('src/ui/debug/audit/capture-all.ts');
-  assert.match(all, /if \(ok && fresh\) await choiceShots\(views\[0\]\)/); assert.match(all, /if \(ok2 && fresh\) await choiceShots\(views\[1\]!\)/);
+  // (every step looks for choices and each group is pressed once per stop and view: tests/press-pending.test.ts)
+  assert.match(all, /if \(ok\) await choiceShots\(views\[0\]\)/); assert.match(all, /if \(ok2\) await choiceShots\(views\[1\]!\)/);
   assert.match(all, /choice\$\{pad2\(i \+ 1\)\}-\$\{nm\}/, 'the file says which button');
 });
 
