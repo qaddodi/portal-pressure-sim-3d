@@ -22,6 +22,7 @@ import { CEL_TUBE_GLSL } from '../../cel-glsl.ts';
 import { VEIL_DECL } from '../../organ-veil/glsl.ts';
 import { CELL_SAMPLES, NO_FLOW, STREAK, UNITS } from './core.ts';
 import { STREAK_MARK_GLSL, STREAK_LANE_GLSL } from '../streak-glsl.ts';
+import { LENS_PROFILE_GLSL } from '../../lenses/profile-rows.ts';
 
 export const CELLS_VS = /* glsl */ `
 attribute vec4 aB;
@@ -64,6 +65,7 @@ const float NO_FLOW = ${NO_FLOW.toFixed(2)};
 
 float smooth01(float x) { float t = clamp(x, 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
 
+${LENS_PROFILE_GLSL}
 // the colour of one lens set for the vessel e at u along it; .a says whether the lens colours it (the vessel shader's lensOf, for one point)
 vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], int e, float u, float across) {
   if (mode < 0.5) return vec4(0.0);
@@ -71,7 +73,7 @@ vec4 lensOf(sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], int e, flo
   vec4 g0 = texelFetch(grad, i0, 0), g1 = texelFetch(grad, i1, 0);
   if (g0.a + g1.a < 0.5) return vec4(0.0);
   float t = g1.a > 1.5 ? smoothstep(0.55, 1.0, u) : u;
-  if (mode < 1.5) return vec4(mix(g0.rgb, g1.rgb, t), 1.0);
+  if (mode < 1.5) { vec4 pr = lensProfileAt(grad, e, u); return pr.a > 0.5 ? pr : vec4(mix(g0.rgb, g1.rgb, t), 1.0); }
   vec4 c = mix(texelFetch(lanes, i0, 0), texelFetch(lanes, i1, 0), t);
   float f = across * 0.5 + 0.5, w = 0.02;
   vec3 col = pal[4];

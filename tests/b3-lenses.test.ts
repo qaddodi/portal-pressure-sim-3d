@@ -177,9 +177,10 @@ test('heads fade at the highlight\'s speed, never switch', () => {
   assert.ok(fake.amount < 1 && fake.amount > 0);
 });
 
-test('newLensData has the 208 x 5 x RGBA gradient layout (ends, a third and two thirds along, then the flow-head ink) and the 208 x 2 lanes the shader reads', () => {
+test('newLensData has the 208 x GRAD_ROWS x RGBA gradient layout (ends, a third and two thirds along, the flow-head ink, then the stent colour profile) and the 208 x 2 lanes the shader reads', async () => {
+  const { GRAD_ROWS } = await import('../src/scene/lenses/model.ts');
   const d = newLensData();
-  assert.equal(d.grad.length, 208 * 4 * 5); assert.equal(d.lanes.length, 208 * 2 * 4);
+  assert.equal(d.grad.length, 208 * 4 * GRAD_ROWS); assert.equal(d.lanes.length, 208 * 2 * 4);
   assert.equal(LENS_EDGE_COUNT, 208);
 });
 

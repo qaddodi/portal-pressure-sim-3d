@@ -36,6 +36,8 @@ export function search(cmds: readonly Command[], q: string, emptyOrder: readonly
       const i = c.kw.indexOf(w);
       if (i < 0) { ok = false; break; }
       score += (i === 0 ? 6 : c.kw[i - 1] === ' ' ? 4 : 1) + (c.title.toLowerCase().includes(w) ? 3 : 0);
+      // a whole word of the title beats the start of a longer one ("sinusoid" finds the Sinusoid view before "Sinusoids (right)")
+      if (norm(c.title).split(/\s+/).includes(w)) score += 2;
     }
     if (!ok) continue;
     if (num != null && c.num) score += 3;

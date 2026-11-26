@@ -11,6 +11,7 @@ import { Lobule3D, LZ, OVER_Z, TUBE_SEG, weldRequest } from '../src/scene/micro3
 import { bileWeldCourses, bloodWeldCourses } from '../src/scene/lobule/weld-courses.ts';
 import { planWelds, TOUCH, type V3, type WeldCourse, type WeldPlan } from '../src/scene/lobule/welds.ts';
 import { decodePlan, encodePlan, weldDigest } from '../src/scene/lobule/weld-codec.ts';
+import { samePrint } from '../src/scene/fingerprint.ts';
 import { tubeFrames } from '../src/scene/micro3d/cel3d.ts';
 import { joinsMode } from '../src/scene/vessels/skin/joins-mode.ts';
 
@@ -231,13 +232,13 @@ test('the baked plan unpacks to the same plan, and only for the numbers it was m
   assert.equal(decodePlan(new ArrayBuffer(4), digest), null);
 });
 
-test('the digest is what the scene asks the planner with: the same for the same network, to the last bits of sin and cos, and different for a moved course', () => {
+test('the digest is what the scene asks the planner with: the same for the same network, to the last bits of sin and cos, and another for a course moved', () => {
   const req = weldRequest(net), d = weldDigest(req);
-  assert.equal(d, weldDigest({ courses, avoid }), 'weldRequest is the one place the planner\'s inputs are made');
+  assert.ok(samePrint(d, weldDigest({ courses, avoid })), 'weldRequest is the one place the planner\'s inputs are made');
   const noisy = JSON.parse(JSON.stringify(req)); noisy.courses[3].pts[2][0] += 1e-9;
-  assert.equal(weldDigest(noisy), d, 'ulp noise between engines does not change it');
-  const moved = JSON.parse(JSON.stringify(req)); moved.courses[3].pts[2][0] += 1e-3;
-  assert.notEqual(weldDigest(moved), d);
+  assert.ok(samePrint(weldDigest(noisy), d), 'ulp noise between engines does not change it');
+  const moved = JSON.parse(JSON.stringify(req)); for (const p of moved.courses[3].pts) p[0] += 0.05;
+  assert.ok(!samePrint(weldDigest(moved), d));
 });
 
 test('the build bakes the plan before the bundler, and the page asks for that file first and a worker only after', () => {

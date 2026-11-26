@@ -3,23 +3,25 @@
 // transform each, bake-pack.ts: read back bit for bit).
 import type { WeldPlan } from './welds.ts';
 import { PackWriter, isRef, unpackRef } from '../bake-pack.ts';
+import { Printer, printString, samePrint } from '../fingerprint.ts';
 
 const MAGIC = 0x3242574c;   // "LWB2"
 
-/** A cheap digest of what the plan was made from (the courses and the discs to avoid, to 1e-5), so a baked file made for other numbers is never laid in. */
+/** What the plan was made from (the courses and the discs to avoid), as a fingerprint (scene/fingerprint.ts):
+ *  strings and shape exactly, the numbers as sums compared with a tolerance, so the last bits of
+ *  another engine's sin and cos never cost a phone its baked file, and a moved course always does. Compare two with `samePrint`, never `===`. */
 export function weldDigest(req: unknown): string {
-  let h1 = 0x811c9dc5, h2 = 0x1b873593, n = 0;
-  const mix = (x: number) => { h1 = Math.imul(h1 ^ x, 16777619) >>> 0; h2 = Math.imul(h2 + x, 0x85ebca6b) >>> 0; h2 ^= h2 >>> 13; n++; };
-  // (numbers to 1e-5: the browser's own sin and cos may differ from node's in the last bits, and a phone must still know the file for its own)
-  const walk = (v: unknown): void => {
-    if (typeof v === 'number') mix(Math.round(v * 1e5) | 0);
-    else if (typeof v === 'string') { for (let i = 0; i < v.length; i++) mix(v.charCodeAt(i)); mix(0x7f); }
-    else if (Array.isArray(v)) { mix(0x5b); for (const x of v) walk(x); mix(0x5d); }
-    else if (v && typeof v === 'object') for (const k of Object.keys(v).sort()) { walk(k); walk((v as Record<string, unknown>)[k]); }
-    else mix(v === true ? 1 : 2);
-  };
-  walk(req);
-  return `${h1.toString(16)}-${h2.toString(16)}-${n}`;
+  const p = new Printer();
+  // (each element of a top-level list is a group of its own, a course or a disc: a change to one is judged against that one's size, not the whole network's)
+  if (req && typeof req === 'object' && !Array.isArray(req)) {
+    for (const k of Object.keys(req).sort()) {
+      const v = (req as Record<string, unknown>)[k];
+      p.text(k);
+      if (Array.isArray(v)) for (const x of v) { p.walk(x); p.group(); }
+      else { p.walk(v); p.group(); }
+    }
+  } else p.walk(req);
+  return printString(p.finish());
 }
 
 export function encodePlan(plan: WeldPlan, digest: string, gz?: (b: Uint8Array) => number): Uint8Array {
@@ -46,7 +48,7 @@ export function decodePlan(buf: ArrayBuffer, digest: string): WeldPlan | null {
   const hl = dv.getUint32(4, true), headPad = (4 - ((8 + hl) % 4)) % 4, start = 8 + hl + headPad;
   let head: { digest: string; plan: unknown };
   try { head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, hl))); } catch { return null; }
-  if (head.digest !== digest) return null;
+  if (typeof head.digest !== 'string' || !samePrint(head.digest, digest)) return null;
   const unpack = (v: unknown): unknown => {
     if (Array.isArray(v)) return v.map(unpack);
     if (isRef(v)) return unpackRef(buf, start, v);

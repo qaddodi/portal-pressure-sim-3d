@@ -7,6 +7,7 @@
 // Each patch addresses one field of one talk: `deck` is the talk id, `at` a path in it ("slides.<slide id>.line", "checks.3.1", "objectives.2", "slides.a3.sides.1.who").
 //   { from, to }  replaces that text inside the field (the field must hold `from`, or the generator stops: the 2D text moved and the patch has to be looked at again)
 //   { set }       replaces the whole field          { drop: true } removes the field          { append } adds a sentence to the end of the field
+import { RIGHTS } from './credit.mjs';
 const P = (deck, at, from, to) => ({ deck, at, from, to });
 const SET = (deck, at, set) => ({ deck, at, set });
 const DROP = (deck, at) => ({ deck, at, drop: true });
@@ -521,6 +522,8 @@ export function sourceEdits(json, patches = SOURCE_PATCHES) {
 // Same rule as the talks: Baveno VIII is the only guideline named on screen. The generators of those files call uiTextEdits() on the text they are about to write
 // (gen-ui-strings, copy-about, copy-presenter, copy-b11, copy-chart-catalog, copy-chart-path). About's reference list keeps its citations (a citation is not guidance).
 const UI_EDITS = [
+  // (the one copyright line, with the MD: scripts/credit.mjs; the 2D About prints it without; owner, 26 Nov 2026)
+  ['© 2026 Mohammad Almeqdadi. All rights reserved.', RIGHTS],
   // (the dye was taken out of the 3D app, 24 Nov 2026, docs/approved/dye.md: its shortcut row and its sentence in the Blood help go)
   [' Tap a vessel and use Inject dye on its card (or press J; hold for longer) to watch dye travel and split.', ''],
   ['  {\n   "group": "Run the model",\n   "keys": "J",\n   "what": "Inject dye (hold for longer)"\n  },\n', ''],
