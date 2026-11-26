@@ -64,7 +64,7 @@ test('the key stands over the cards (its own layer), under the chrome, and a key
   assert.ok(d.box.y1 <= words.y - 6, 'above the card, clear of its name tab');
 });
 
-test('the key stands where it reads best and only where it is needed (Mohammad, 22 Nov): a stream lens in its data card, a ramp in the story card\'s foot, once per run of slides on one lens', async () => {
+test('the key stands where it reads best and only where it is needed (Mohammad, 22 Nov): a stream lens in its data card, a ramp in the story card\'s foot, on every slide that colours the figure', async () => {
   assert.equal(keyPlace('origin'), 'card'); assert.equal(keyPlace('firstpass'), 'card');
   assert.equal(keyPlace('drop'), 'dock'); assert.equal(keyPlace('pressure'), 'dock'); assert.equal(keyPlace('velocity'), 'dock');
   let cards = 0, runs = 0;
@@ -77,15 +77,29 @@ test('the key stands where it reads best and only where it is needed (Mohammad, 
       if (c) { cards++; assert.equal(c, k); assert.equal(keyPlace(c), 'card'); }
       if (l.key) assert.equal(keyPlace(l.key), 'dock');
       if (k) { runs++; const before = i > 0 ? keyAtStop(stops, i - 1) : null; assert.notEqual(before, undefined); }
-      // a slide on the same lens as the one before it (no lens buttons) names it again nowhere
-      if (k && i > 0 && st.kind === 'slide' && stops[i - 1]!.kind === 'slide') {
-        const prev = stops[i - 1] as { slide: Slide }, same = (prev.slide.scene?.lens ?? 'pressure') === (st.slide.scene?.lens ?? 'pressure');
-        const buttons = !!st.slide.controls?.compare?.opts.some((o) => o.how === 'lens');
-        const lens = st.slide.scene?.lens ?? 'pressure';   // (23 Nov, Mohammad: TIPS candidacy 10 names the heat lens too; the glow is not self-explaining, so every heat slide does)
-        if (same && !prev.slide.visual && !buttons && lens !== 'heat') assert.fail(`${id}/${i}: the lens did not change, the key is not needed`);
+      // every slide whose figure a lens colours shows its key, run or not (Mohammad, 26 Nov, capture 36b7deac)
+      if (st.kind === 'slide' && beat === 0 || st.kind === 'slide' && !st.slide.vignette) {
+        const lens = st.slide.scene?.lens ?? 'pressure', buttons = !!st.slide.controls?.compare?.opts.some((o) => o.how === 'lens');
+        const profile = (st.slide.tool as { kind?: string } | undefined)?.kind === 'profile';
+        const colours = KEY_LENSES.includes(lens) && (lens !== 'pressure' || buttons || profile) && !st.slide.visual;
+        if (colours && !st.slide.table) assert.ok(k, `${id}/${i}: the figure wears ${lens}, so its key shows`);
       }
     });
   }
   assert.ok(cards >= 3, `stream-lens keys in data cards (${cards})`);
   assert.ok(runs > 0);
+});
+
+test('a slide that opens on a case card shows its lens key once the card has gone, and the card itself shows none (capture 36b7deac, Sites and causes 4 to 9)', async () => {
+  const stops = stopsOf((await loadBuiltin('sites'))!);
+  let seen = 0;
+  stops.forEach((st, i) => {
+    if (st.kind !== 'slide' || !st.slide.vignette || (st.slide.scene?.lens ?? 'pressure') === 'pressure') return;
+    seen++;
+    assert.equal(labelsAt(stops, { stop: i, beat: 0 }, 'sites').key, null, `${st.slide.id}: no key behind the case card`);
+    const k = keyAtStop(stops, i, 1);
+    assert.ok(k, `${st.slide.id}: the key stands after the case card`);
+    assert.equal(k, st.slide.scene?.lens);
+  });
+  assert.ok(seen >= 6, `case slides on a lens (${seen})`);
 });

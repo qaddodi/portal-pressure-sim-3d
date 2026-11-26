@@ -194,6 +194,9 @@ export function figurePlan(s: CopiedSlide): FigurePlan {
   const siteStations = siteKeys.map((k) => SITE_NODE_2D[k]).filter((n): n is string => !!n && STATION_IDS.has(n));
   const labelSet = [...new Set([...(s.labels ?? []), ...labels, ...siteStations])];
   for (const k of siteKeys) { const n = SITE_NODE_2D[k]; if (n && labelSet.includes(n)) tones[n] ??= TARGETS_FIG[k]?.tone ?? VAL_TONE_2D[k] ?? 'accent'; }
+  // A KEY READING is never the dimmest label on the screen (capture 36b7deac, 25 Nov: Budd-Chiari's RHV 25.0, the number the slide is about, stood at the dim alpha beside the right atrium the
+  // line named). While any station is lit the rest step back, so each station a key reading stands at is lit too, in its own colour. A slide that lights nothing dims nothing and needs none.
+  if (Object.keys(tones).length) for (const k of list(s.key as string[] | undefined)) { const t = TARGETS_FIG[k]; if (t?.node && !tones[t.node]) tones[t.node] = t.tone; }
   for (const id of s.labels ?? []) if (!STATION_IDS.has(id)) bad('label', id);
   for (const id of labels) if (!STATION_IDS.has(id)) bad('term station', id);
   // sites no station label carries

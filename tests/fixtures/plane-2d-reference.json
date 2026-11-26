@@ -1,5 +1,5 @@
 {
- "note": "computed once by running the 2D app visual-plane.js pure functions in node, in the order its draw() asks for them",
+ "note": "computed once by running the 2D app visual-plane.js pure functions in node, in the order its draw() asks for them (the hvpg-ppg summary's third name re-recorded 25 Nov 2026, capture 36b7deac: a name keeps to its point's side of a cut-off line, so it stands on two lines left of the CSPH line instead of across it)",
  "ref": {
   "hp": {
    "max": [
@@ -22,10 +22,10 @@
      false
     ],
     [
-     "Presinusoidal obstruction",
-     101.5,
-     147.3,
-     "start",
+     "Presinusoidal/obstruction",
+     85.5,
+     107.9,
+     "middle",
      false
     ]
    ],
