@@ -25,8 +25,12 @@ export interface Course {
   name: string;
   /** the menu's group and the words beside it */
   group: string; where: string;
-  /** the engine preset the patient starts from (day 0) */
+  /** the engine preset the patient starts from (day 0): the family the history belongs to, and the id a shared link carries */
   preset: string;
+  /** This history's own patient: a patch on the preset's settings, and the years of disease the model runs before day 0 (the preset's own when left out).
+   *  Every history says who comes in: two histories never start from the same patient (tests/histories-starts.test.ts), whatever family they share.
+   *  The disease clock runs on it, so the fluid and the readings are settled for this patient. */
+  start?: { patch: Record<string, unknown>; days?: number };
   days: number;
   /** parameters merged in before day 0 */
   init?: Record<string, unknown>;
