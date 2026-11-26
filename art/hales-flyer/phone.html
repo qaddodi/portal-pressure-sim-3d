@@ -8,10 +8,10 @@ body{font-family:'Liberation Serif','FreeSerif',serif;color:#3a2a1c}
 .page::before{content:'';position:absolute;inset:9pt;border:1.2pt solid #4a3424;outline:0.6pt solid #4a3424;outline-offset:2.5pt;pointer-events:none}
 .content{position:absolute;top:30pt;left:26pt;right:26pt;bottom:50pt;display:flex;flex-direction:column;gap:9pt}
 .foot{position:absolute;left:26pt;right:26pt;bottom:20pt;font-size:8.5pt;line-height:1.2;color:#5a4330;border-top:0.5pt solid #9b8467;padding-top:4pt;text-align:center}
-.title{text-align:center}
-.title h1{margin:4pt 0 0;font-size:25pt;letter-spacing:0.14em;font-weight:700;color:#3a2618;line-height:1.1}
+.title,.title *{text-align:center}   /* (every line of a title, over the page-wide p rule below) */
+.title h1{margin:4pt 0 0;font-size:25pt;letter-spacing:0.14em;padding-left:0.14em;font-weight:700;color:#3a2618;line-height:1.1}
 .title p{margin:3pt 0 0;font-style:italic;font-size:12.5pt;color:#5a4330}
-.title.section h1{font-size:18.5pt;letter-spacing:0.1em}
+.title.section h1{font-size:18.5pt;letter-spacing:0.1em;padding-left:0.1em}
 .fig img{width:100%;display:block}
 h2{font-size:15.5pt;margin:4pt 0 0;font-variant:small-caps;letter-spacing:.04em;color:#7A2A22}
 p{margin:0;font-size:14.5pt;line-height:1.36;text-align:left}

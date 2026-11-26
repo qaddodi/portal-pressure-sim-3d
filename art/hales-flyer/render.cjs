@@ -49,6 +49,14 @@ function rules(src) {
       }
     }
   });
+  // every line of a title is centred: its own text-align is center (a page-wide p rule once left the subtitle flush left on the iPhone,
+  // 26 Nov 2026), and a spaced-out heading is padded on the left by its letter-spacing, which the browser adds after the last letter too
+  document.querySelectorAll('.title, .title *').forEach((e) => {
+    const cs = getComputedStyle(e);
+    if (e.textContent.trim() && cs.textAlign !== 'center') r.push(`a title line is not centred: "${e.textContent.trim().slice(0, 30)}"`);
+    const ls = parseFloat(cs.letterSpacing) || 0;
+    if (ls > 0 && Math.abs(parseFloat(cs.paddingLeft) - ls) > 0.5) r.push(`"${e.textContent.trim().slice(0, 30)}" is spaced out but not padded by its spacing`);
+  });
   document.querySelectorAll('.body,.legend,.foot,.content').forEach((e) => {
     if (e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1) r.push('overflow: ' + e.className);
   });
