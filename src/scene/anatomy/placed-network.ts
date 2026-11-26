@@ -81,6 +81,13 @@ function resample(p: readonly V3[], step: number): V3[] {
   }
   return out;
 }
+/** Re-spaces the stretch of `D` between arc lengths `a` and `b` (widened to its points) to about STEP, keeping every point outside it. */
+function respace(D: V3[], a: number, b: number): V3[] {
+  const s = arc(D), i0 = Math.max(0, s.findIndex((x) => x >= a) - 1);
+  let i1 = s.findIndex((x) => x > b); i1 = i1 < 0 ? D.length - 1 : i1;
+  if (i1 - i0 < 2) return D;
+  return [...D.slice(0, i0), ...resample(D.slice(i0, i1 + 1), STEP), ...D.slice(i1 + 1)];
+}
 /** Laplacian relax, `w(i)` the share each point takes (0 holds it); the two ends are always held. */
 function relax(D: V3[], iters: number, w: (i: number) => number = () => 1): V3[] {
   const W = D.map((_, i) => (i === 0 || i === D.length - 1 ? 0 : w(i)));
@@ -141,6 +148,17 @@ export const DIPS_DRAWN: readonly (readonly [number, number])[] = [[-0.322, 0.48
 const TRACT_CLEAR = 0.009, TRACT_SPAN = 0.1;
 /** The stents and surgical shunts: tracts laid between two ends. */
 const TRACTS = ['TIPS', 'DIPS', 'S_PC', 'S_MC', 'S_DSR', 'REX'] as const;
+/** The surgical shunts, whose ends are sewn end to side onto their hosts (vessels/seams.ts SEWN_IDS), and the least angle each end leaves its host's through axis at (degrees),
+ *  measured over its first SEWN_HEAD_R radii; an end that leaves nearer is turned out to it and eases back onto its course over SEWN_SPAN (scene units). The stents (TIPS, DIPS)
+ *  are tracts through the liver, not anastomoses: their courses are Mohammad's own. */
+export const SEWN_ENDS = ['S_PC', 'S_MC', 'S_DSR', 'REX'] as const;
+export const SEWN_MIN = 45, SEWN_HEAD_R = 3;
+/** The angle such an end is turned out to at its mouth (it eases back toward its course from there, so its first stretch is left between SEWN_MIN and this). */
+const SEWN_TURN = 80;
+const SEWN_SPAN = 0.35;
+/** What the turn gives on the screen (tests/shunt-continuity.test.ts): from SEWN_FRONT_FROM of the two radii past its mouth out to SEWN_FRONT_TO along it, a sewn shunt's wall clears its
+ *  host's wall, in the front view, by at least SEWN_FRONT_GAP of its own radius (it is never a second tube lying along its host). */
+export const SEWN_FRONT_GAP = 0.3, SEWN_FRONT_FROM = 3, SEWN_FRONT_TO = 0.6;
 /** Where along the whole left portal vein (by length from the bifurcation) its lobe's bed leaves it: where it starts to fade into the lobe. */
 const LPV_BED = 0.6;
 /** Where the varices' courses ease onto the oesophagus's wall above the cardia, and off it where the drain turns toward the azygos (scene y, from and to). */
@@ -659,6 +677,50 @@ function buildPlaced(): void {
   /** Their radii (the placement's). */
   for (const k of ['cv1', 'cv2', 'cv3']) if (COURSE[k]) PLACED_CAUDATE_R.push(rOf(k));
 
+  // ---- A SEWN END LEAVES ITS HOST (Mohammad, 26 Nov: "mesorex shunt is completely broken ... the shunt breaks and is not continuous"). A surgical shunt's end is an END-TO-SIDE
+  // anastomosis, the graft sewn onto the host's side, so it leaves the host's wall at a decided angle. The placement drew the Meso-Rex bypass peeling off the superior mesenteric vein
+  // 26 degrees off its axis (32 as laid), so for 3.4 of its radii the graft, wider than the vein, lay along the vein's own continuation and read as a second tube beside it with a knob
+  // at its root. Every sewn end (SEWN_ENDS) whose first stretch is nearer than SEWN_MIN to its host's through axis turns out to SEWN_TURN at its mouth, across the screen, on the side
+  // it already leaves to (the figure is seen from the front: turned toward the viewer, as first done, the bypass still lay over the vein on the screen, wall on wall), and eases back
+  // onto its own course over SEWN_SPAN, so past the turn it keeps its depth in front of the pancreas. The mouth stays where it is. ----
+  {
+    for (const id of SEWN_ENDS) {
+      const e = edgeById.get(id)!;
+      for (const end of [0, 1] as const) {
+        const D = end ? rev(PLACED_EDGE_3D[id]!) : PLACED_EDGE_3D[id]!.slice(), P0 = D[0]!, r = rOf(id);
+        // (the host: the drawn vessel whose wall the mouth is on, at its node or on its side. Its THROUGH axis is its whole course, so a mouth at a run-on node
+        //  (the SMV, where V_INT_1 runs on into SMV_CONF) is judged against the vein going on)
+        let host: { C: V3[]; d: number } | null = null;
+        for (const c of atNode(end ? e.to : e.from, id)) {
+          const k = edgeById.get(c.piece)?.kind;
+          if (k === 'collateral' || k === 'shunt' || k === 'liver') continue;
+          const C = COURSE[c.whole] ?? PLACED_EDGE_3D[c.piece]; if (!C) continue;
+          const h = nearestOn(C, P0);
+          if (h.d < 1.5 * rOf(c.whole) && (!host || h.d < host.d)) host = { C, d: h.d };
+        }
+        if (!host) continue;
+        const tp = tangentAt(host.C, nearestOn(host.C, P0).i), s = arc(D);
+        const at = (len0: number): number => Math.max(1, s.findIndex((x) => x >= len0));
+        const h0 = norm(sub(D[at(SEWN_HEAD_R * r)]!, P0)), c0 = dot(h0, tp);
+        if (Math.acos(Math.min(1, Math.abs(c0))) * 180 / Math.PI >= SEWN_MIN) continue;
+        // (the turn's direction: its heading on the screen, square to the host's axis)
+        const f: V3 = [h0[0], h0[1], 0];
+        let n = sub(f, mul(tp, dot(f, tp)));
+        if (len(n) < 1e-6) continue; n = norm(n);
+        const a = (SEWN_TURN * Math.PI) / 180, t0 = norm(add(mul(tp, Math.sign(c0) * Math.cos(a)), mul(n, Math.sin(a))));
+        const k = at(SEWN_SPAN), Pk = D[k]!, tk = tangentAt(D, k), L = len(sub(Pk, P0)), m = Math.max(8, Math.round(L / STEP));
+        const lead: V3[] = [];
+        for (let i = 0; i < m; i++) {
+          const u = i / m, u2 = u * u, u3 = u2 * u, h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
+          lead.push([0, 1, 2].map((q) => h00 * P0[q]! + h10 * t0[q]! * L + h01 * Pk[q]! + h11 * tk[q]! * L) as V3);
+        }
+        // (only the new lead is spaced afresh: the rest keeps its own points, so the far mouth's weld is laid on the very samples it was before)
+        const R = [...resample([...lead, Pk], STEP).slice(0, -1), ...D.slice(k)], F = fair(R, [SEWN_SPAN, SEWN_SPAN + FAIR_SPAN]);
+        PLACED_EDGE_3D[id] = end ? rev(F) : F;
+      }
+    }
+  }
+
   // ---- THE TRACTS CROSS NOTHING (Mohammad, 24 Nov: nothing crosses): a stent's or a surgical shunt's tract (TRACTS) is laid between its two ends with no regard for what lies between them (the TIPS ran through the right hepatic artery, 0.016 into its
   // wall). Where a tract comes within TRACT_CLEAR, wall to wall, of another drawn vessel away from its own two ends, the stretch round there moves straight away from it, easing to nothing over TRACT_SPAN along the tract and
   // inside its ends' lumens, until it clears; then it is faired. ----
@@ -691,7 +753,9 @@ function buildPlaced(): void {
         if (worst.gap >= TRACT_CLEAR) break;
         const push = TRACT_CLEAR + 0.001 - worst.gap, s0 = s[worst.i]!;
         D = D.map((p, i) => { const w = (1 - smooth(Math.abs(s[i]! - s0) / TRACT_SPAN)) * smooth(s[i]! / inner[0]!) * smooth((L - s[i]!) / inner[1]!); return w > 0 ? add(p, mul(worst.away, push * w)) : p; });
-        D = resample(fair(D), STEP);
+        // (faired and re-spaced only round the stretch it moved: the rest keeps its points, so a change at one end of a tract never re-lays the weld at its other)
+        const zone = [s0 - TRACT_SPAN - FAIR_SPAN, s0 + TRACT_SPAN + FAIR_SPAN] as const;
+        D = respace(fair(D, zone), zone[0] - FAIR_SPAN, zone[1] + FAIR_SPAN);
       }
       PLACED_EDGE_3D[id] = D;
     }
