@@ -104,23 +104,43 @@ export function laneShares(c: InkContext, seg: Seg, w: number, out: number[]): n
   return out;
 }
 
-/** The three colours across a lobule vessel at `w` along it (written into `out`, 9 numbers). Under every lens but Blood origin and First pass the three are the one colour of `inkAt`; under those
- *  the blood's sources run as lanes side by side (the 2D app's streams of the vessel), each as wide as its share, the sources in the lens's order and the systemic remainder last. */
-export function inkLanes(c: InkContext, seg: Seg, w: number, out: number[]): number[] {
+/** The colour (sRGB 0..1, into `out`) at `w` along a lobule vessel and `across` it (-1 one wall, +1 the other; 0 the middle, for a cap or a place with no side).
+ *  Under Blood origin and First pass the blood's sources run as lanes side by side (the 2D app's streams of the vessel), each as wide as its share, the sources in the lens's order and the
+ *  systemic remainder last; under every other lens, and on an arteriole's twig, `inkAt`. The ONE rule the 3D lobule's vertices (micro3d/lobule3d.ts stepInk) and `inkLanes` are coloured by.
+ *  `shares` may carry laneShares(c, seg, w) already worked out. */
+export function inkAcross(c: InkContext, seg: Seg, w: number, across: number, out: Rgb, shares?: ArrayLike<number>): Rgb {
   const lens = c.lens;
-  if (lens !== 'origin' && lens !== 'firstpass') {
-    inkAt(c, seg, w, tmp);
-    for (let i = 0; i < 3; i++) { out[i * 3] = tmp[0]; out[i * 3 + 1] = tmp[1]; out[i * 3 + 2] = tmp[2]; }
-    return out;
-  }
-  const cols = laneColours(lens), f = laneShares(c, seg, w, []);
-  let sum = 0; for (const v of f) sum += v;
+  if ((lens !== 'origin' && lens !== 'firstpass') || seg === 'art') return inkAt(c, seg, w, out);
+  const f = shares ?? laneShares(c, seg, w, []);
+  let sum = 0; for (let i = 0; i < 5; i++) sum += f[i]!;
+  const a = Number.isFinite(across) && Math.abs(across) <= 1 ? across : 0, t = (a + 1) / 2 * sum, cols = laneColours(lens);
+  let acc = 0, pick = 4;
+  for (let i = 0; i < 5; i++) { acc += f[i]!; if (t <= acc) { pick = i; break; } }
+  const col = cols[pick]!;
+  out[0] = col[0]; out[1] = col[1]; out[2] = col[2];
+  return out;
+}
+
+/** The three colours across a lobule vessel at `w` along it (written into `out`, 9 numbers), at LANE_X: `inkAcross` at three places. */
+export function inkLanes(c: InkContext, seg: Seg, w: number, out: number[]): number[] {
+  const shares = c.lens === 'origin' || c.lens === 'firstpass' ? laneShares(c, seg, w, []) : undefined;
   LANE_X.forEach((x, s) => {
-    const t = (x + 1) / 2 * sum;
-    let acc = 0, pick = 4;
-    for (let i = 0; i < 5; i++) { acc += f[i]!; if (t <= acc) { pick = i; break; } }
-    const col = cols[pick]!;
-    out[s * 3] = col[0]; out[s * 3 + 1] = col[1]; out[s * 3 + 2] = col[2];
+    inkAcross(c, seg, w, x, tmp, shares);
+    out[s * 3] = tmp[0]; out[s * 3 + 1] = tmp[1]; out[s * 3 + 2] = tmp[2];
   });
   return out;
+}
+
+const SIG_SEGS: readonly Seg[] = ['pv', 'in', 'sin', 'cv'];
+const SIG_W = [0, 0.5, 1] as const;
+/** A signature of every colour the lens gives the lobule now: the colours themselves (each segment at its ends and middle, to the 8 bits a screen shows) and, under the stream lenses, the
+ *  shares. Whatever an input `inkAt`/`inkAcross` reads changes (a pressure, a flow, a reversal, the reference, the shares, the look), the signature changes with the colour, so the vertices
+ *  are never left on an old one. (The 3D lobule's key had listed its inputs by hand and missed the flows, the reversals, the hepatic vein's pressure and the reference's values: Flow,
+ *  Velocity, Direction, Drop and Change went stale.) */
+export function inkSignature(c: InkContext): string {
+  const q = (x: number) => Math.round(x * 255);
+  const parts: (string | number)[] = [c.lens, c.look];
+  for (const seg of SIG_SEGS) for (const w of SIG_W) { inkAt(c, seg, w, tmp); parts.push(q(tmp[0]), q(tmp[1]), q(tmp[2])); }
+  if (c.lens === 'origin' || c.lens === 'firstpass') for (const seg of SIG_SEGS) for (const w of SIG_W) for (const v of laneShares(c, seg, w, [])) parts.push(q(v));
+  return parts.join(',');
 }
