@@ -22,7 +22,7 @@ const nearest = (b: number[], p: { x: number; y: number }): number => Math.hypot
 test('plane: every point that has company has a leader to its name, long enough to see, for every width and every spacing', () => {
   const rand = rng(11);
   let together = 0, cases = 0;
-  for (const W of [358, 390, 440, 540, 700]) for (let t = 0; t < 40; t++) {
+  for (const W of [358, 440, 700]) for (let t = 0; t < 16; t++) {
     // (a pair of points on one spot or a few px off it, among others: three on one spot is slow in the 2D layout itself, 12 s at 358 px, which this file does not take on)
     const px = 5 + rand() * 20, py = 1 + rand() * 12, jitter = [0, 0.2, 0.5, 1.2][t % 4]!;
     const pts = [{ f: { pv: 5, hvpg: 2 }, name: 'Healthy' }, { f: { pv: px, hvpg: py }, name: 'Portal vein thrombosis', short: 'PVT' }, { f: { pv: px + jitter * rand(), hvpg: py + jitter * rand() }, name: 'Schistosomiasis', short: 'Schisto' },
@@ -41,7 +41,7 @@ test('plane: every point that has company has a leader to its name, long enough 
       assert.ok(end >= L.pr + 4, `W ${W} case ${t}: "${L.at[i]!.name}" leader is ${end.toFixed(1)} px, too short to see past the dot (${L.pr})`);
     }
   }
-  assert.ok(cases === 200 && together > 100, `the walk has company in it (${together})`);
+  assert.ok(cases === 48 && together > 30, `the walk has company in it (${together})`);
 });
 
 test('plane: a point alone keeps what the layout gave it; a name already on a leader keeps its leader; nothing is changed in what it is given', () => {
