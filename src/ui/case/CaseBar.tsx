@@ -1,6 +1,6 @@
 // The case bar (docs/approved/play-the-case.md, "The bar"): it stands in the play bar's place while a case plays. Previous stop, Play or Pause, next stop; the day and where the case is;
 // History's strip, the course already played in full ink and the rest faint; Leave the case. Dragging the strip moves the playhead; letting go goes to the stop nearest it.
-// Mac and an iPad: one row at the foot. iPhone: two rows, the strip under the buttons. The playhead and the veil over what is still to come are one layer moved by a transform on the
+// Mac and an iPad: one row at the foot. iPhone: two rows, the strip under the buttons. The playhead and the played rail are one layer moved by a transform on the
 // one clock (History's strip does the same), so the days running never rebuild the chart.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Chart } from '../charts/Chart.tsx';
@@ -9,21 +9,20 @@ import { Tweened, easeArrive, linear } from '../../clock/tween.ts';
 import { I, Icon } from '../shell/icons.tsx';
 import { useCase } from './store.ts';
 import { continueCase, goStop, leaveCase, nextStop, pauseCase, resumeCase } from './run.ts';
-import { caseAxis, caseStripScene, stopAtFrac, CASE_STRIP } from './strip.ts';
+import { caseAxis, caseStripScene, railY, stopAtFrac, CASE_STRIP } from './strip.ts';
 import { barWords, dragWords, CASE } from './words.ts';
 import { nearestStop } from './stops.ts';
 import type { CaseView } from './view.ts';
 
-/** The strip with its playhead: drawn once per stop (the names' weights), the playhead and the veil moved on the clock, a drag surface over it. */
+/** The strip with its playhead: drawn once per stop (the names' weights), the playhead and the played rail moved on the clock, a drag surface over it. */
 function CaseStrip({ cv, at, day, h, names, onDrag, onBuilt }: { cv: CaseView; at: number; day: number; h: number; names: boolean; onDrag(d: number | null): void; onBuilt(): void }) {
   const { v } = cv, stops = useCase((s) => s.stops);
   const axis = useMemo(() => caseAxis(v.marks.map((k) => k.day), v.full), [v]);
-  const metric = v.metrics.includes('ppg') ? 'ppg' : v.metrics[0] ?? null;
   const head = useRef<HTMLDivElement>(null), surf = useRef<HTMLDivElement>(null), host = useRef<HTMLDivElement>(null);
   const pos = useRef<Tweened | null>(null), width = useRef(0), drag = useRef<{ id: number; f: number } | null>(null);
   const travel = useCase((s) => s.phase === 'travel' && !s.paused);
   useEffect(() => () => { pos.current?.dispose(); }, []);
-  // the playhead and the veil: one transform, eased to the day (the days running: a short linear step each tick, so it runs on smoothly)
+  // the playhead and the played rail: one transform, eased to the day (the days running: a short linear step each tick, so it runs on smoothly)
   const glide = (f: number, ms: number, ease = easeArrive) => {
     const el = head.current;
     if (!el) return;
@@ -80,17 +79,16 @@ function CaseStrip({ cv, at, day, h, names, onDrag, onBuilt }: { cv: CaseView; a
     if (e.key === 'ArrowLeft' && i > 0) { e.preventDefault(); goStop(i - 1); }
     if (e.key === 'ArrowRight' && i < stops.length - 1) { e.preventDefault(); goStop(i + 1); }
   };
-  useEffect(() => { if (!metric) onBuilt(); }, [metric, onBuilt]);
-  if (!metric) return null;
-  const top = names ? CASE_STRIP.NAMES : 2;
+  // (the played rail and the playhead: a layer over the rail's span, its middle on the rail's)
+  const top = railY(names) - CASE_STRIP.NOTCH / 2 - 3;
   return (
     <div className="cb-strip" ref={host}>
-      <Chart tag="case-strip" deps={[v, metric, at, h, names, cv.tones]} label={`${CASE.strip}`}
+      <Chart tag="case-strip" deps={[v, at, h, names, cv.tones]} label={`${CASE.strip}`}
         build={(c) => caseStripScene({
-          series: v.series, metric, chapters: v.chapters, keyDays: v.marks.map((k) => k.day), meds: v.meds, full: v.full, at, h, names,
+          chapters: v.chapters, keyDays: v.marks.map((k) => k.day), full: v.full, at, h, names,
           stops: stops.map((s, i) => ({ day: s.day, tone: cv.tones[i] ?? 'info', short: cv.shorts[i] ?? '' })),
         }, c)} />
-      <div className="cb-ph-span" aria-hidden="true" style={{ top: `${top - 2}px` }}><div ref={head} className="cb-ph"><i className="cb-veil" /><i className="cb-head" /></div></div>
+      <div className="cb-ph-span" aria-hidden="true" style={{ top: `${top}px` }}><div ref={head} className="cb-ph"><i className="cb-fill" /><i className="cb-head" /></div></div>
       <div ref={surf} className="cb-drag" role="slider" tabIndex={0} aria-label={CASE.strip}
         aria-valuemin={1} aria-valuemax={stops.length} aria-valuenow={at + 1} aria-valuetext={barWords(useCase.getState()).small}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel} onKeyDown={keys} />
@@ -120,7 +118,7 @@ export function CaseBar({ cv, thumb, phone, exploring, on }: { cv: CaseView | nu
   );
   const when = <div className="cb-when" aria-live="off"><b>{words.day}</b><small>{words.small}</small></div>;
   const leave = <button type="button" className="cb-leave" onClick={() => leaveCase()}><Icon n="close" /><span>{phone || thumb ? CASE.leaveShort : CASE.leave}</span></button>;
-  const strip = cv && <CaseStrip cv={cv} at={s.at} day={dragDay ?? s.day} h={phone ? 30 : 66} names={!phone} onDrag={setDragDay} onBuilt={onBuilt} />;
+  const strip = cv && <CaseStrip cv={cv} at={s.at} day={dragDay ?? s.day} h={phone ? 34 : 56} names={!phone} onDrag={setDragDay} onBuilt={onBuilt} />;
   return (
     <div className="case-bar stage-blocker" data-on={on && built} data-phone={phone || undefined} role="group" aria-label="The case" inert={!on}>
       {phone ? <><div className="cb-row">{ctl}{when}{leave}</div>{strip}</> : <>{ctl}{when}{strip}{leave}</>}

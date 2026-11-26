@@ -39,11 +39,11 @@
 .cb-when b { font: 600 var(--t-val) / 1.1 var(--ui); letter-spacing: var(--ls-tight); color: var(--text); font-variant-numeric: tabular-nums; }
 .cb-when small { font: 500 var(--t-cap) / 1.3 var(--ui); color: var(--text-3); white-space: nowrap; }
 .cb-strip { position: relative; flex: 1; min-width: 0; align-self: center; }
-.cb-ph-span { position: absolute; left: 2px; right: 2px; bottom: 0; overflow: hidden; pointer-events: none; }
+.cb-ph-span { position: absolute; left: 6px; right: 6px; height: 18px; clip-path: inset(0 -2px); pointer-events: none; }
 .cb-ph { position: absolute; inset: 0; will-change: transform; }
-/* (what is still to come is faint: a veil from the playhead on, in the bar's own colour) */
-.cb-veil { position: absolute; top: 0; bottom: 0; left: 0; width: 100%; background: color-mix(in srgb, var(--surface) 62%, transparent); }
-.cb-head { position: absolute; left: -1px; top: 0; bottom: 0; width: 2px; border-radius: 1px; background: var(--text); opacity: 0.75; }
+/* (what is played: the rail in ink, from the start to the playhead; it rides on the playhead's own transform) */
+.cb-fill { position: absolute; top: 7px; height: 4px; right: 100%; width: 100%; border-radius: 2px; background: var(--text); opacity: 0.78; }
+.cb-head { position: absolute; left: -1px; top: 0; bottom: 0; width: 3px; border-radius: 1.5px; background: var(--text); }
 .cb-drag { position: absolute; inset: 0; cursor: ew-resize; touch-action: none; border-radius: var(--r-card); outline-offset: 2px; }
 .cb-leave { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; border: 0; border-radius: var(--r-card); background: transparent; color: var(--text-2); font: 600 var(--t-lab) / 1 var(--ui); white-space: nowrap; }
 .cb-leave .sh-ic { width: 16px; height: 16px; }
@@ -110,8 +110,10 @@
 
 /* (on the way: the smaller events passing under the card, the newest at the foot, the one before it fainter, the one before that gone; each glides up a row as a new one comes) */
 .cs-passing { position: absolute; z-index: var(--z-hud); left: calc(var(--safe-l, 0px) + var(--gap, 12px)); top: calc(var(--top-safe, 56px) + 8px + 104px); width: 360px; height: 96px; pointer-events: none;
-  opacity: 0; transition: opacity var(--d-small) var(--ease-arrive); }
-.cs-passing[data-on="true"] { opacity: 1; transition-duration: var(--d-surface); }
+  visibility: hidden; transition: visibility 0s linear var(--d-small); }
+.cs-passing[data-on="true"] { visibility: visible; transition-delay: 0s; }
+/* (the notes fade themselves, never their wrapper: a glass inside a fading wrapper is drawn unblurred until the fade ends, glass.css) */
+.cs-passing:not([data-on="true"]) .cs-pass { opacity: 0; }
 .cs-pass { position: absolute; left: 0; right: 0; top: 0; box-sizing: border-box; padding: 7px 12px; border-radius: var(--r-card); background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--edge);
   font: 500 var(--t-lab) / 1.3 var(--ui); color: var(--text-2); box-shadow: 0 4px 14px -8px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.2));
   transition: opacity var(--d-surface) var(--ease-arrive), transform var(--d-surface) var(--ease-arrive); animation: cs-pass-in var(--d-surface) var(--ease-arrive); }
