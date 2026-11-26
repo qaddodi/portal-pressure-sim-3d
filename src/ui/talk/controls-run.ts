@@ -4,11 +4,13 @@
 import { engine, onFrame } from '../../engine/index.ts';
 import { pressBegin, pressHeld } from './press-pending.ts';
 import { sendParams } from '../../engine/params-send.ts';
-import { useStates } from '../../decks/hp/calc.ts';
+import { useStates, snapsOf } from '../../decks/hp/calc.ts';
+import { stepOf, type Step } from '../../decks/hp/numbers.ts';
 import { stopLapse } from '../../decks/hp/lapse.ts';
 import { patchOf, valueAt, speaks, variantWords, type CompareOpt, type Scale } from '../../decks/controls.ts';
-import { useVariant, variantOf } from './variant-words.ts';
-import { variantStateOf, sliderOpt, type Picked, type Seq } from './variant-state.ts';
+import { useVariant, variantOf, type VariantState } from './variant-words.ts';
+import { create } from 'zustand';
+import { variantStateOf, sliderOpt, replayOf, type Picked, type Seq, type Replay } from './variant-state.ts';
 import { clock, type TimerId } from '../../clock/frame.ts';
 import { sceneApi } from '../../scene/api.ts';
 import { LENS_IDS, type LensId, DEFAULT_LENS } from '../../scene/lenses/model.ts';
@@ -62,6 +64,15 @@ async function pickCompareRun(deck: Deck, i: number, o: CompareOpt): Promise<voi
   const n = ++pickN;   // (a later press wins: an earlier one that is still being worked out must not land after it)
   const seq: Seq = (steps, base) => engine().sequence(steps, base);
   const j = o.slide ? deck.slides.findIndex((s) => s.id === o.slide) : i;
+  const replay = replayAt(deck, i);
+  if (o.how === 'params' && replay) {
+    // a slide that lives days: the button's days are lived again off screen (the second engine), and the figure eases to where they end, as a patient button's does
+    const got = await variantStateOf(secondSeq, picked, { slideKey: key, replay }, o, stateOf(deck, i), undefined);
+    if (n !== pickN) return;
+    morph(got?.snap);
+    useVariant.getState().set(key, speaks(slide.controls?.compare?.opts ?? []) ? words : null, got?.state ?? null);
+    return;
+  }
   if (o.how === 'params') {
     sendParams(o.params ?? {}, { settle: false, ease: EASE_MS });
     // (only a row where some button speaks brings words: a row of plain parameter buttons keeps the slide's)
@@ -76,6 +87,38 @@ async function pickCompareRun(deck: Deck, i: number, o: CompareOpt): Promise<voi
   if (n !== pickN) return;
   morph(got?.snap);
   useVariant.getState().set(key, words, got?.state ?? null);
+}
+
+/** The second engine's `sequence`: a state worked out off screen, queued behind the deck's own (decks/hp/calc.ts snapsOf). */
+const secondSeq: Seq = (steps, base) => snapsOf(steps as Step[], base);
+/** What a parameter button on slide i replays: the slide's own step from the slide before's state, when the slide lives days (variant-state.ts replayOf). */
+function replayAt(deck: Deck, i: number): Replay | undefined {
+  const cs = copiedOf(deck.id)?.slides[i];
+  return i > 0 && cs ? replayOf(stepOf(cs) as Replay['step'], stateOf(deck, i - 1)) : undefined;
+}
+
+/** What every button of a slide's compare row puts the slide's readings at, worked out ahead of the press (the slide on show and the next one): the press is then at once, and the words hold room for
+ *  the widest reading any button gives, so a press never re-wraps the line (roll-reserve.ts `seen`). Keyed by `deck/slide`. */
+export const useWarm = create<{ fps: Record<string, readonly VariantState['fp'][]>; put(key: string, fps: readonly VariantState['fp'][]): void }>((set) => ({
+  fps: {}, put: (key, fps) => set((s) => ({ fps: { ...s.fps, [key]: fps } })),
+}));
+const warming = new Set<string>();
+/** The buttons of a compare row that move the model (not a lens, a Doppler gate or an instrument option). */
+export const movesModel = (o: CompareOpt): boolean => o.how !== 'lens' && !o.gate && !o.tool;
+/** Work out every model-moving button's state for slide i (once, when its own state is in). */
+export function warmControls(deck: Deck, i: number): void {
+  const slide = deck.slides[i], opts = slide?.controls?.compare?.opts.filter(movesModel) ?? [];
+  const own = stateOf(deck, i);
+  if (!slide || !opts.length || !own?.base) return;
+  const key = `${deck.id}/${slide.id}`;
+  if (warming.has(key) || useWarm.getState().fps[key]) return;
+  warming.add(key);
+  // (on the second engine, queued behind the deck's own states: the live figure's worker is never kept busy by a press nobody has made)
+  const replay = replayAt(deck, i);
+  void Promise.all(opts.map((o) => {
+    const j = o.slide ? deck.slides.findIndex((s) => s.id === o.slide) : i;
+    return variantStateOf(secondSeq, picked, { slideKey: key, ...(replay ? { replay } : {}) }, o, own, stateOf(deck, j)).then((g) => g?.state?.fp ?? null, () => null);
+  })).then((fps) => { useWarm.getState().put(key, fps.filter((f): f is VariantState['fp'] => !!f)); }).finally(() => warming.delete(key));
 }
 
 /** The key a slide's instrument options are kept under. */

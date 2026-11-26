@@ -19,6 +19,9 @@ import { pushShotOf } from './lapse-cam.ts';
 import { specOf, procKindOf } from '../../scene/procedures/copied/proc-anim.js';
 import '../../scene/procedures/instrument-specs.ts';   // (registers EVL and paracentesis, the procedures that are engine actions)
 import { landsDone, morphMsFor, opensBefore } from './slide-motion.ts';
+import { useVariant } from '../../ui/talk/variant-words.ts';
+import { withVariant, releaseVariantOff } from '../../ui/talk/shown-state.ts';
+import { warmControls } from '../../ui/talk/controls-run.ts';
 
 import { clock } from '../../clock/frame.ts';
 /** How long the figure takes to ease to the next slide's state when the patient stays (ms; slide-motion.ts: 2D's MORPH_ONE_MS). */
@@ -68,7 +71,9 @@ export function linkStates(deck: Deck): () => void {
     // (the readings the words print come from the live states and, where those are not yet in, the ones baked at build time: the cards gate on the same merge (CardLayer), so a line is never let in ahead of its numbers, "recurred to …", Ten years 12)
     // (the figure is on the slide once its live state is in: the labels wait for it, see figure-pending.ts)
     setFigurePending(stop.kind === 'slide' && !res?.[i]?.snap && !useStates.getState().failed[deck.id]);
-    const shown = mergeStates(deck.id, res);
+    // (a press belongs to the slide it was made on; the words and the figure's callouts print the state the slide stands at now: its own, or the one a pressed control made, shown-state.ts)
+    releaseVariantOff(stop.kind === 'slide' ? `${deck.id}/${ids[i]}` : null);
+    const shown = withVariant(deck.id, mergeStates(deck.id, res));
     const r: Readings = readingsOf(shown?.[i]?.fp, live);
     for (const n of named) {
       const fp = shown?.[ids.indexOf(n.at)]?.fp;
@@ -76,6 +81,8 @@ export function linkStates(deck: Deck): () => void {
       if (n.key === 'map') for (const k of ['sbp', 'dbp']) if (typeof fp?.[k] === 'number') r[`${k}@${n.at}`] = fp[k] as number;
     }
     useUi.getState().setReadings(r);
+    // (every button of this slide's and the next slide's controls is worked out ahead of a press: the press is at once, and the words hold room for its readings)
+    if (stop.kind === 'slide') { warmControls(deck, i); if (i + 1 < ids.length) warmControls(deck, i + 1); }
     const own = res?.[i]?.snap, cs0 = stop.kind === 'slide' ? copied.slides[i] : undefined;
     // (2D `pre`: a slide that plays its procedure, going forward, lands on the state BEFORE it; its own state, with the result, comes only from the run, or Back from the slide after)
     // (a procedure that is an engine action, a band or a tap, has no params to undo: the state before it is the slide before's, as procs-link.ts snapsOfSlide runs it)
@@ -116,6 +123,7 @@ export function linkStates(deck: Deck): () => void {
   sync();
   const offUi = useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops) sync(); });
   const offStates = useStates.subscribe((s, p) => { if (s.results[deck.id] !== p.results[deck.id]) sync(); });
+  const offVariant = useVariant.subscribe((s, p) => { if (s.state !== p.state || s.key !== p.key) sync(); });
   const offLanded = onLanded(tryRun);
-  return () => { setFigurePending(false); offUi(); offStates(); offLanded(); waiting = null; stopLapse(); };
+  return () => { setFigurePending(false); offUi(); offStates(); offVariant(); offLanded(); waiting = null; stopLapse(); };
 }

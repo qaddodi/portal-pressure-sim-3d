@@ -14,6 +14,12 @@ import { HVPG_STEPS, STEP_T, stepsOf, levelsOf, startAt } from './hvpg-plan.ts';
 import { setToolStep } from './tool-step.ts';
 import { claimSlide } from './slide-claim.ts';
 import { cathScript } from '../deck/cath-clock.ts';
+import { tenthGap } from '../../engine/hales/core/gap.js';
+import { reduceMotionMQ } from '../tests/copied/motion.copied.js';
+
+/** How long the tracing's levels take to ease to a new state on the slide (ms). */
+const LEVEL_EASE_MS = 600;
+const REDUCED = (): boolean => !!reduceMotionMQ?.matches;
 
 type Rec = Record<string, unknown>;
 /** What the card was showing when it was last taken down: a card that comes back within a moment (the next slide of the same measurement, or its re-mount) carries on from there (2D card-keep.js). */
@@ -26,15 +32,34 @@ export function HvpgTool({ fp, cath, catheter, forward }: { fp: Rec | null; cath
   const first = useRef(true);
   const [at, setAt] = useState<number>(() => (follow ? HVPG_STEPS.indexOf(follow) : forward ? 0 : 2));
   const [n, setN] = useState(0);
-  const L = useRef({ lv, t: 0, to: 0, running: false, at: -1, follow: false, off: null as null | (() => void) });
-  L.current.lv = lv; L.current.follow = !!follow;
+  const L = useRef({ lv, t: 0, to: 0, running: false, easing: false, at: -1, follow: false, off: null as null | (() => void) });
+  L.current.follow = !!follow;
+  // a new state on the slide (a control pressed: the beta-blocker's response, a what-if) eases the levels from where they stand to the new ones, and the tracing redraws as they move
+  // (the levels were set and never drawn: the chart's deps did not hold them, so "None" left the trace at the slide's own HVPG; Landmark trials 3, 26 Nov)
+  const [lvN, setLvN] = useState(0);
+  useEffect(() => {
+    const c = L.current, from = c.lv;
+    if (!lv || !from || REDUCED() || (from.fhvp === lv.fhvp && from.whvp === lv.whvp)) { c.lv = lv; c.easing = false; setLvN((x) => x + 1); return; }
+    const t0 = clock.now(), hold = clock.hold('hvpg-tool-levels');
+    c.easing = true;
+    const off = clock.on('tween', () => {
+      const k = Math.min(1, (clock.now() - t0) / LEVEL_EASE_MS), e = k * k * (3 - 2 * k);
+      const fhvp = from.fhvp + (lv.fhvp - from.fhvp) * e, whvp = from.whvp + (lv.whvp - from.whvp) * e;
+      c.lv = k >= 1 ? lv : { fhvp, whvp, hvpg: tenthGap(whvp, fhvp) as number };
+      if (k >= 1) { c.easing = false; end(); setLvN((x) => x + 1); }
+    });
+    let done = false;
+    const end = () => { if (done) return; done = true; off(); hold.release(); };
+    clock.invalidate('hvpg-tool-levels');
+    return () => { end(); c.easing = false; };
+  }, [lv]);
   const stepped = useRef(false);
   useEffect(() => { if (follow) setAt(HVPG_STEPS.indexOf(follow)); }, [follow]);
   const src = useMemo<MonSource>(() => {
     const key = {}, wave = newWave(), st: TraceSt = { ph: 'run', t: 0, v: null, blocked: false, running: false, wave };
     return {
       id: 'hvpg-tool', label: () => 'HVPG catheter tracing',
-      active: () => L.current.running,
+      active: () => L.current.running || L.current.easing,
       frame(w, h) {
         const c = L.current;
         st.t = c.t; st.v = c.lv ?? { fhvp: 0, whvp: 0, hvpg: 0 }; st.running = c.running;
@@ -78,7 +103,7 @@ export function HvpgTool({ fp, cath, catheter, forward }: { fp: Rec | null; cath
   if (!lv) return null;
   return (
     <div className="pz-mon pz-hvpg dock-pane-host" data-instrument="hvpg" data-reading={at < 2 ? 'pending' : undefined}>
-      <Monitor src={src} h={190} deps={[n, at]} className="chart-box hvpg-box" />
+      <Monitor src={src} h={190} deps={[n, at, lvN]} className="chart-box hvpg-box" />
       {!follow && (
         <ol className="mon-steps" aria-label="Readings, one for each Next" data-at={at}>
           {([['FHVP', 'Free pressure'], ['WHVP', 'Wedge pressure'], ['HVPG', 'Wedge minus free']] as const).map(([k, t], i) => (

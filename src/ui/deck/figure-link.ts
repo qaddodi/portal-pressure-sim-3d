@@ -12,6 +12,8 @@ import { viewAt } from './presenter-machine.ts';
 import { useFigure } from '../../scene/labels/store.ts';
 import { copiedSlideOf } from '../../scene/labels/deck-link.ts';
 import { useStates } from '../../decks/hp/calc.ts';
+import { useVariant } from '../talk/variant-words.ts';
+import { shownResult } from '../talk/shown-state.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { figurePlan } from './figure-plan.ts';
 import { slideLanded, onLanded } from './landing.ts';
@@ -32,7 +34,8 @@ export function sinceP(deckId: string, index: number, plan: ReturnType<typeof fi
 
 /** The numbers a slide's cards read: its state's fingerprint and parameters once they are in, the live model until then. */
 function readsOf(deckId: string, index: number, action?: { kind?: string; site?: string } | null): Reads {
-  const r = useStates.getState().results[deckId]?.[index];
+  // (the state the slide stands at: a pressed control's, else its own, shown-state.ts)
+  const r = shownResult(deckId, useStates.getState().results[deckId], index);
   return {
     bleed: action?.kind === 'rupture' ? (action.site === 'GV' ? 'GV' : 'VAR') : null,
     fp: (r?.fp as Fp | undefined) ?? null, params: (r?.params as Reads['params']) ?? null,
@@ -103,6 +106,7 @@ export function linkFigure(): () => void {
   sync();
   const off = useUi.subscribe((s, p) => { if (s.pos !== p.pos || s.stops !== p.stops || s.deck !== p.deck) sync(); });
   const offStates = useStates.subscribe(() => sync());
+  const offVariant = useVariant.subscribe((s, p) => { if (s.state !== p.state || s.key !== p.key) sync(); });
   const offLanded = onLanded(flush);
-  return () => { off(); offStates(); offLanded(); offClock(); stopSeq(); pending = null; apply(EMPTY_CALLS); clearLayer('talk'); setSlidePressures(null); };
+  return () => { off(); offStates(); offVariant(); offLanded(); offClock(); stopSeq(); pending = null; apply(EMPTY_CALLS); clearLayer('talk'); setSlidePressures(null); };
 }

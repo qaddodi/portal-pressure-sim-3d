@@ -7,6 +7,7 @@ import { observeThenFit } from '../layout/fit-later.ts';
 import { useLayoutEffect, useMemo, useRef, type MouseEvent, type RefObject } from 'react';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { useStates } from '../../decks/hp/calc.ts';
+import { useShown } from '../talk/shown-state.ts';
 import { useLapse } from '../../decks/hp/lapse.ts';
 import { liveFp } from '../../decks/hp/figure-engine.ts';
 import { mergeStates } from '../charts/baked/view.ts';
@@ -24,7 +25,9 @@ import { Fade, fadeAttrs } from '../fade.tsx';
 export function useSlideTiles(deckId: string, slideId: string): (SlideTiles & { live?: boolean }) | null {
   // (the baked states count as in: the words card has always read them, and a tile that waited for the live chain showed "—" under words that already had the number, audit f9a5d2e0, tips-complete 10 and two-lesions 9)
   const liveResults_ = useStates((s) => s.results[deckId]);
-  const results = useMemo(() => mergeStates(deckId, liveResults_) as typeof liveResults_, [deckId, liveResults_]);
+  const merged = useMemo(() => mergeStates(deckId, liveResults_) as typeof liveResults_, [deckId, liveResults_]);
+  // (the state the slide stands at: a pressed control's, else its own: the tiles move with the words and the figure, shown-state.ts)
+  const results = useShown(deckId, merged) as typeof liveResults_;
   const vp = useUi((s) => s.vp);
   const copied = copiedOf(deckId);
   // while the slide's days run the tiles stand where they begin and then climb with them (2D presenter-case.js playLapse: every poll `dataTo(liveFp(fr))`, but "only once a day has run: before that the live

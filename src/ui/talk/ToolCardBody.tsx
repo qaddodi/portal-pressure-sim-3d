@@ -13,7 +13,7 @@ import { latest, patient, useEngine } from '../../engine/index.ts';
 import { mergeStates } from '../charts/baked/view.ts';
 import { bakedHealthy } from '../charts/baked/store.ts';
 import { healthyFp, beforeOf } from '../charts/profile/data.ts';
-import { useVariant } from './variant-words.ts';
+import { useShown } from './shown-state.ts';
 import { CriteriaCard } from '../charts/criteria/CriteriaCard.tsx';
 import { PathCard } from '../charts/path/PathCard.tsx';
 import { ProfileCard } from '../charts/profile/ProfileCard.tsx';
@@ -100,10 +100,8 @@ function useEnv(deck: Deck, i: number) {
   const [healthy, setHealthy] = useState<Fp | null>(() => bakedHealthy() as Fp | null);
   useEffect(() => { let on = true; void healthyFp().then((h) => { if (on) setHealthy(h as Fp | null); }); return () => { on = false; }; }, []);
   const cs = copied.slides[i] as CopiedSlide;
-  const own = results?.[i];
-  // the patient a compare button has put the model in, if one is pressed: every chart of the slide reads it, as the figure does (variant-words.ts)
-  const variant = useVariant((v) => (v.key === `${deck.id}/${cs.id}` ? v.state : null));
-  const st = useMemo(() => (variant && own ? { ...own, fp: variant.fp, params: variant.params ?? own.params } : own), [own, variant]);
+  // the patient a compare button has put the model in, if one is pressed: every chart of the slide reads it, as the words, the tiles and the figure do (shown-state.ts)
+  const st = useShown(deck.id, results)?.[i];
   const fpOf = (id: string): Fp | null => { const j = copied.slides.findIndex((x) => x.id === id); return (results?.[j]?.fp as Fp | undefined) ?? null; };
   return { copied, cs, st, fp: (st?.fp ?? null) as Fp | null, params: st?.params, healthy, results, fpOf };
 }

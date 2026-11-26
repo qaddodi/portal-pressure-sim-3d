@@ -49,12 +49,13 @@ export function ensureStates(deck: CopiedDeck): Promise<void> {
   return queue;
 }
 
-/** The states a short chain of steps ends in, computed on the second engine (queued behind a deck's own run): every step's result, in order. The live figure is never touched. */
-export function snapsOf(steps: Step[]): Promise<StepResult[]> {
+/** The states a short chain of steps ends in, computed on the second engine (queued behind a deck's own run): every step's result, in order. The live figure is never touched.
+ *  `base`: a state to start from (a slide's own, for what one of its controls makes of it). */
+export function snapsOf(steps: Step[], base?: unknown): Promise<StepResult[]> {
   const run = queue.then(async () => {
     const c = calc, reqId = nextReq++, seq = sequencer(reqId);
     c.subscribe((m) => seq.message(m as Parameters<typeof seq.message>[0])); // (lives for the page) the one callback; the next request replaces it
-    c.post({ type: 'sequence', steps, reqId });
+    c.post({ type: 'sequence', steps, reqId, ...(base ? { base } : {}) });
     try { await seq.done; } finally { c.idle(); }
     return steps.map((_, i) => seq.results[i]!);
   });

@@ -19,6 +19,7 @@ import { landsDone } from '../../decks/hp/slide-motion.ts';
 import { eventGraphOf } from '../charts/evgraph/model.ts';
 import { leaveEvRun, resetEvRun, restoreEvRun, startEvRun } from '../charts/evgraph/live.ts';
 import { useStates } from '../../decks/hp/calc.ts';
+import { shownResult } from '../talk/shown-state.ts';
 import { useProbes } from '../../scene/devices/probes/state.ts';
 import { route3d } from '../../scene/procedures/route3d.ts';
 import { CATH_END } from '../../scene/procedures/copied/cath-arrival.js';
@@ -90,7 +91,7 @@ export function linkProcs(): () => void {
   let pinned = false;
   const pinSlide = (): void => {
     const s = slideNow(), { deck } = useUi.getState(), i = s && deck ? copiedOf(deck.id)?.slides.indexOf(s) ?? -1 : -1;
-    const fp = deck && i >= 0 ? (useStates.getState().results[deck.id]?.[i]?.fp as Record<string, unknown> | undefined) ?? null : null;
+    const fp = deck && i >= 0 ? (shownResult(deck.id, useStates.getState().results[deck.id], i)?.fp as Record<string, unknown> | undefined) ?? null : null;
     if (fp) { setSlidePin(fp); pinned = true; }
   };
   const unpinSlide = (): void => { if (pinned) { pinned = false; setSlidePin(null); } };
@@ -143,7 +144,8 @@ export function linkProcs(): () => void {
     if (!on) { resetEvRun(key); return; }
     const s = slideNow(), spec = s ? eventGraphOf(s) : null, { deck } = useUi.getState();
     if (!s || !spec || !deck) return;
-    const i = copiedOf(deck.id)?.slides.indexOf(s) ?? -1, fp = i >= 0 ? (useStates.getState().results[deck.id]?.[i]?.fp as Record<string, number | null | undefined> | undefined) ?? null : null;
+    const i = copiedOf(deck.id)?.slides.indexOf(s) ?? -1;
+    const fp = i >= 0 ? (shownResult(deck.id, useStates.getState().results[deck.id], i)?.fp as Record<string, number | null | undefined> | undefined) ?? null : null;
     startEvRun(key, spec, fp, currentParams(), engineFrames);
   }
 

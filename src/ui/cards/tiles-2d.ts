@@ -133,10 +133,12 @@ export function tilesAt(slides: readonly CopiedSlide[], results: readonly ({ fp:
   let last = 0;
   const stateOf = slides.map((x, j) => (j === 0 || changes(x) ? (last = j) : last));
   const fpAt = (j: number): Fp | null => (j >= 0 ? results?.[stateOf[j]!]?.fp ?? null : null);
+  // (the slide's own reading is its own result's: one that changes nothing holds the same numbers as the slide it stands on, and a pressed control's state is laid on THIS slide's, shown-state.ts)
+  const here = results?.[i]?.fp ?? fpAt(i);
   const refFor = (d: string | boolean | null): Fp | null => (d === true ? (i > 0 ? fpAt(i - 1) : null) : typeof d === 'string' ? fpAt(slides.findIndex((x) => x.id === d)) : null);
   const base = s.hvpgResp ? refFor(s.hvpgResp as string | boolean)?.hvpg : null;
   const tips = !!(results?.[stateOf[i]!]?.params as { tips?: { on?: boolean } } | undefined)?.tips?.on;
-  return slideTiles(s, fpAt(i), { ref: refFor(deltaOf(s, i, changes as (x: CopiedSlide) => boolean)), respBase: base, phone, tips });
+  return slideTiles(s, here, { ref: refFor(deltaOf(s, i, changes as (x: CopiedSlide) => boolean)), respBase: base, phone, tips });
 }
 
 /** The deck's states with slide `i`'s reading replaced by the live one (its parameters stay: the live figure's own settings are not the slide's). */

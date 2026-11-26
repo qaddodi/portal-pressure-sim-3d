@@ -1,9 +1,19 @@
 {
+ "controls-effect-a.test.ts": 13.1,
+ "controls-effect-b.test.ts": 22.9,
+ "controls-effect-c.test.ts": 27.4,
+ "controls-effect-d.test.ts": 22.1,
+ "controls-effect-e.test.ts": 28,
+ "controls-effect-f.test.ts": 27.9,
+ "controls-effect-g.test.ts": 25.3,
+ "controls-effect-h.test.ts": 16.3,
+ "controls-effect-i.test.ts": 17.4,
  "ink-radius.test.ts": 20,
  "lobule-vessel-tints.test.ts": 13,
  "lobule-welds.test.ts": 12,
  "micro-lazy.test.ts": 15,
  "micro-slices.test.ts": 45,
  "septa-dominant.test.ts": 20,
+ "shown-state.test.ts": 3.4,
  "weld-splay-c2.test.ts": 11
 }
