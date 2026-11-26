@@ -20,14 +20,14 @@ const HEX = /^#[0-9a-f]{6}$/i;
 const hue = (h: string) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255) as [number, number, number]; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; if (!d) return -1; const x = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return x * 60; };
 const rgbHex = (c: readonly number[] /* 0 to 1 */) => '#' + [c[0], c[1], c[2]].map((v) => Math.round(v! * 255).toString(16).padStart(2, '0')).join('');
 
-test('the sinusoid\'s key entries are callouts: every one has a word and a round mark, and SinusoidCaptions draws the mark of every entry of the list (none is written by hand)', () => {
+test('the sinusoid\'s key entries are callouts: every one has a word and a round mark, and SinusoidCaptions writes the circle of every entry of the list (none is written by hand)', () => {
   assert.ok(SINUSOID_CALLOUTS.length >= 1);
   for (const k of SINUSOID_CALLOUTS) { assert.ok(k.word.trim()); assert.equal(k.mark.shape, 'circle'); assert.match(k.mark.fill, /^--[\w-]+$/); assert.match(k.mark.edge, /^--[\w-]+$/); }
-  const comp = read('src/scene/sinusoid/SinusoidCaptions.tsx');
-  assert.match(comp, /calloutOf\(id\)/);
-  assert.match(comp, /className = 'sv-mark'/);
-  assert.match(comp, /setProperty\('--key-fill', `var\(\$\{co\.mark\.fill\}\)`\)/, 'the circle is painted from the tokens of the list');
-  assert.match(comp, /setProperty\('--key-edge', `var\(\$\{co\.mark\.edge\}\)`\)/);
+  const comp = read('src/scene/sinusoid/SinusoidCaptions.tsx'), region = read('src/scene/sinusoid/region.ts');
+  assert.match(comp, /calloutOf\(key\)/);
+  assert.match(comp, /fill: co\.mark\.fill, edge: co\.mark\.edge/);
+  assert.match(region, /cls: 'sv-mark'/);
+  assert.match(region, /'--key-fill': `var\(\$\{mark\.fill\}\)`, '--key-edge': `var\(\$\{mark\.edge\}\)`/, 'the circle is painted from the tokens of the list');
 });
 
 test('the Protein swatch and the scene\'s protein particles are painted from the same two tokens', () => {
@@ -56,15 +56,15 @@ test('no stylesheet hides or collapses the callout\'s circle, and it is drawn fr
   const rules: [string, string, string][] = [];
   for (const f of walk(dir)) for (const m of strip(readFileSync(f, 'utf8')).matchAll(/([^{}@][^{}]*)\{([^{}]*)\}/g)) rules.push([m[1]!.trim(), m[2]!, f.pathname]);
   const mark = rules.filter(([s]) => /\.sv-mark\b/.test(s));
-  assert.ok(mark.length >= 2);
-  for (const [s, b] of mark) assert.doesNotMatch(b, /display:\s*none/, `${s} hides the circle`);
+  assert.ok(mark.length >= 1);
+  for (const [s, b] of mark) { assert.doesNotMatch(b, /display:\s*none|visibility:\s*hidden|opacity:\s*0\b/, `${s} hides the circle`); }
   const mine = rules.find(([s, , f]) => /^\.sv-layer \.sv-mark$/.test(s) && f.endsWith('sinusoid/names.css'));
   assert.ok(mine, 'names.css draws the circle');
   const b = mine![1];
   assert.match(b, /border-radius:\s*50%/); assert.match(b, /width:\s*var\(--mark-px, 8px\)/); assert.match(b, /height:\s*var\(--mark-px, 8px\)/);
   assert.ok(MARK_PX >= 8, 'a circle, at least 8 px');
   assert.match(b, /background:\s*var\(--key-fill/); assert.match(b, /inset 0 0 0 1px var\(--key-edge/);
-  // the only thing that hides it is the layer's own data-on, and no media rule takes it away on a phone or a tablet
+  // (it is part of the caption, so it shows and fades with the name) and no media rule takes it away on a phone or a tablet
   assert.doesNotMatch(strip(read('src/scene/sinusoid/names.css')), /@media[^{]*\{[^}]*\.sv-mark[^}]*display:\s*none/);
 });
 

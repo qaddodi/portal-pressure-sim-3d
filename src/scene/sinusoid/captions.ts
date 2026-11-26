@@ -3,6 +3,7 @@
 import { type Measure, type Vp, LS, lineSize, nameRun, valueRun } from '../labels/type.ts';
 import { LYMPH_UNIT, lymphText } from '../../ui/action/lymph-day.ts';
 import { type NameKey, type NamePlacement, type NamesInput, type Rect, SV_NOTE } from './names.ts';
+import { MARK_GAP, MARK_PX, calloutOf } from './legend.ts';
 
 /** The numbers the names read (the lobule's model: the pressures at the ends and in the sinusoid, the hepatic lymph and its protein). */
 export interface CapModel { P1: number; P2: number; P3: number; lymph: number; lyProt: number }
@@ -81,7 +82,12 @@ export function buildSinusoidNames(c: CapCtx): NamePlacement[] {
   return c.view.names({
     W: c.stage.w, H: c.stage.h, C: o, k, free: c.free, insTop: c.insTop, edge: c.edge, walls: c.walls,
     text: readings(c.model, c.view.porosity), lit: c.lit,
-    measure: (key, name, value, inline) => (c.size ? c.size(key, name, value, c.explain === key ? SV_NOTE[key] ?? null : null, inline) : boxOf(linesOf(name, value, key, c.explain), c.vp, c.measure)),
+    measure: (key, name, value, inline) => {
+      if (c.size) return c.size(key, name, value, c.explain === key ? SV_NOTE[key] ?? null : null, inline);
+      const [w, h] = boxOf(linesOf(name, value, key, c.explain), c.vp, c.measure);
+      // (a key entry's name wears its circle beside the word: its width and the gap)
+      return [w + (calloutOf(key) ? MARK_PX + MARK_GAP : 0), h];
+    },
   });
 }
 

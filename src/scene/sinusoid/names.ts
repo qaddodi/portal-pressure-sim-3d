@@ -44,11 +44,6 @@ export interface NamesInput {
    *  (it keeps clear of a bar in the corner at the foot, which the vessel's band never meets). Absent: the free room's own sides. */
   edge?: { l: number; r: number };
   walls?: readonly { x: number; y: number; w: number; h: number }[];
-  /**
-   * The protein particle the Protein callout points at now (µm along, µm across with y down as the shader has it), or absent before any is out: the callout's box stands still in
-   * the plate and its leader is laid to this place; the layer then follows the particle each frame and hands on to another one when it has gone (protein-pick.ts).
-   */
-  protein?: { x: number; y: number } | null;
   g: NameGeom;
   /** The stellate cell's state (0 quiescent .. 1 activated). */
   act: number;
@@ -243,8 +238,11 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
   if (V) band[0] = Math.max(band[0], inp.insTop + 12 + 8);
 
   const m = inp.text;
-  /** Where Protein's leader lands: the particle the layer follows, or, before one is out, a place in the lumen on the callout's side (the layer re-aims it every frame). */
-  const proteinAt = (x: number, side: number): [number, number] => (inp.protein ? [inp.protein.x, inp.protein.y] : [x, side * g.halfW(x) * 0.4]);
+  /**
+   * Where the Protein's leader lands: a fixed spot in the lumen on the callout's side, never a particle
+   * (Mohammad, 26 Nov: "do NOT have it ride on a protein particle ... just somewhere in the sinusoid, it's obvious").
+   */
+  const lumenAim = (x: number, side: number): [number, number] => [x, side * g.halfW(x) * 0.4];
   const midTall = (x: number) => g.hepIn(x) + Math.min(UM.hep * 0.5, (W / 2 / k - g.hepIn(x)) * 0.5);   // the middle of the plate's part on screen
   const disX = (x: number) => g.wallIn(x) + g.disseW(x) * 0.5;
   const fenAt = (x: number) => calloutPore(g.pores[0]!, x, fr[0] + 3, fr[1] - 3, SEED.nucUp);
@@ -267,7 +265,7 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
     leader(region('sin', 'Sinusoid', m.sin, x, -midTall(x)), x, -g.halfW(x) * 0.3);
     // the Protein in the left column, in the gap between the Space of Disse's name and the lymph's, its leader to the particle
     x = pick(0.27);
-    { const [px, py] = proteinAt(x, 1); leader(region('alb', calloutOf('alb')!.word, '', x, midTall(x)), px, py); }
+    { const [px, py] = lumenAim(x, 1); leader(region('alb', calloutOf('alb')!.word, '', x, midTall(x)), px, py); }
     x = pick(0.08);
     leader(region('disse', 'Space of\nDisse', '', x, midTall(x)), x, disX(x));
     x = pick(0.46);
@@ -379,7 +377,7 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
     leader(region(key, name, value, bx, sign * (g.hepIn(bx) + depth)), ax, ay);
   };
   lumenName('sin', 'Sinusoid', m.sin, -1, 6, SEED.plateUp, [hs, rf, by.disse, by.kup], (x) => [x, -g.halfW(x) * 0.3]);
-  lumenName('alb', calloutOf('alb')!.word, '', 1, 9.5, SEED.plateDn, [hl, ly, by.bc], (x) => proteinAt(x, 1));
+  lumenName('alb', calloutOf('alb')!.word, '', 1, 9.5, SEED.plateDn, [hl, ly, by.bc], (x) => lumenAim(x, 1));
   return settle(out);
 }
 

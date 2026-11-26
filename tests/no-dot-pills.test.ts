@@ -126,7 +126,7 @@ const ALLOWED_ANY: Record<string, string> = {
   'bt-tick': 'the Over time "What to graph" tick circle, owner-picked (graph-rows mock A, 24 Nov; docs/approved/timeline-chart.md)', 'zoom-pill': 'a rounded bar of icon buttons', 'float-pill': 'a rounded bar of controls', 'pzb-pill': 'the presenter bar of buttons', 'chip-btn': 'a top-bar button',
 };
 Object.assign(ALLOWED_ANY, {
-  'lb-anchor': 'a leader\'s anchor mark on the figure', 'sv-mark': 'the Protein callout\'s circle at its leader\'s end, on a protein particle of the figure (a figure mark in the particle\'s colour, not a pill beside words)', 'lz-co-ring': 'a ring drawn on the figure', 'lb-bar': 'the lens key\'s colour bar (no words in it)', 'pzc-rule': 'a thin rule line, no words',
+  'lb-anchor': 'a leader\'s anchor mark on the figure', 'sv-mark': 'the Protein callout\'s circle beside its word on the figure: the key\'s swatch, in the particle\'s colour (owner-approved 26 Nov, "circle beside the word"), not a status pill', 'lz-co-ring': 'a ring drawn on the figure', 'lb-bar': 'the lens key\'s colour bar (no words in it)', 'pzc-rule': 'a thin rule line, no words',
   'info-i': 'the info button\'s "i"', 'sl-start': 'slider thumb', 'switch-vis': 'on/off switch knob', 'sh-sw': 'on/off switch knob', 'mt-sw': 'on/off switch knob', 'look-spin': 'a spinner',
   'ab-belly': 'figure art (the belly drawing)', 'pz-lens-disc': 'the scope lens on the figure', 'pz-lens-x': 'the scope lens\' close button (an icon)', 'pz-lens-hit': 'the scope lens\' hit area',
   'sh-x': 'an icon close button (no words)', 'sh-btn': 'a dialog button: owner call pending, not in Plan 39', 'pz-nm': 'retired in humanized.css (ROUND_RETIRED)', 'ms-fill': 'retired in humanized.css (display: none)',
