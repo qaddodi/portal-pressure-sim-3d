@@ -8,7 +8,7 @@ import type { StentDevice } from '../devices/stent/stent-device.ts';
 import { CURVE_PTS, bracketPath, placeCurve } from './waist-place.ts';
 export { CURVE_PTS, GAP, TICK, bracketPath, placeCurve, waistOn } from './waist-place.ts';
 
-interface Rec { svg: SVGSVGElement; path: SVGPathElement; d: string; op: string; on: boolean }
+interface Rec { svg: SVGSVGElement; paths: SVGPathElement[]; d: string; op: string; on: boolean }
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** The brackets' DOM, one set per stent, built when it first has a waist. */
@@ -24,10 +24,13 @@ export class WaistBrackets {
   constructor(root: HTMLElement, project: (p: Vector3, out: { x: number; y: number }) => { x: number; y: number }) { this.root = root; this.project = project; }
 
   private make(): Rec {
-    const svg = document.createElementNS(SVG_NS, 'svg'), path = document.createElementNS(SVG_NS, 'path');
-    svg.setAttribute('class', 'wb wb-curve'); svg.setAttribute('aria-hidden', 'true'); path.setAttribute('class', 'wb-path');
-    svg.appendChild(path); this.root.appendChild(svg);
-    return { svg, path, d: '', op: '', on: false };
+    // The svg is as big as the layer and its paths are in screen pixels, with no filter on it (a filter on a tiny svg root clipped the line away on Safari,
+    // so the bracket vanished): the halo is a wider, softer stroke under the line, drawn by the svg itself.
+    const svg = document.createElementNS(SVG_NS, 'svg'), halo = document.createElementNS(SVG_NS, 'path'), line = document.createElementNS(SVG_NS, 'path');
+    svg.setAttribute('class', 'wb wb-curve'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%'); svg.setAttribute('overflow', 'visible');
+    halo.setAttribute('class', 'wb-halo'); line.setAttribute('class', 'wb-path');
+    svg.append(halo, line); this.root.appendChild(svg);
+    return { svg, paths: [halo, line], d: '', op: '', on: false };
   }
 
   /** One frame. Returns true while any bracket shows. */
@@ -50,7 +53,7 @@ export class WaistBrackets {
       if (!rec) { rec = this.make(); this.recs.set(id, rec); }
       this.seen.add(id);
       const d = bracketPath(pl);
-      if (d !== rec.d) { rec.path.setAttribute('d', d); rec.d = d; }
+      if (d !== rec.d) { for (const q of rec.paths) q.setAttribute('d', d); rec.d = d; }
       const op = String(Math.round(w.shown * 1000) / 1000);
       if (op !== rec.op) { rec.svg.style.opacity = op; rec.op = op; }
       if (!rec.on) { rec.on = true; rec.svg.setAttribute('data-on', ''); }

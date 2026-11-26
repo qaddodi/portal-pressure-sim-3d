@@ -200,10 +200,12 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 .wb { transform-origin: 0 0; pointer-events: none; transition: opacity var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .wb[data-on] { transition: opacity var(--d-small) var(--ease-arrive), visibility 0s; }
 .wb { --wb-w: 2px; --wb-a: 0.8; }
-/* a quiet dimension line that follows the stent: one path (the bracket and its two ticks), the label ink, a soft halo (a blur, not a hard ring: the hard 1px ring read as a thick black bar with a
-   white core on the dark look), slightly heavier than a hairline (Mohammad, 26 Nov). The svg is a point at the layer's origin; the path's own coordinates are the screen's. */
-.wb-curve { width: 1px; height: 1px; overflow: visible; filter: drop-shadow(0 0 1.5px var(--lb-halo)); }
-.wb-path { fill: none; stroke: var(--lb-val); stroke-width: var(--wb-w); stroke-linecap: round; stroke-linejoin: round; }
+/* a quiet dimension line that follows the stent: one path (the bracket and its two ticks) in the label ink, slightly heavier than a hairline (Mohammad, 26 Nov), over a wider soft stroke in the halo colour (the
+   labels' halo as an svg stroke, not a filter: a drop-shadow on a tiny svg root clipped the bracket away on Safari, Mohammad 26 Nov "no more bracket on the waist?"). The svg is the layer's size, its paths in screen pixels. */
+.wb-curve { inset: 0; width: 100%; height: 100%; overflow: visible; will-change: opacity; }
+.wb-halo, .wb-path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.wb-halo { stroke: var(--lb-halo); stroke-width: calc(var(--wb-w) + 3px); stroke-opacity: 0.5; }
+.wb-path { stroke: var(--lb-val); stroke-width: var(--wb-w); }
 
 /* ── a slide's callout, as the 2D app draws it (every callout of a slide: a thick ring on the place, a leader of the same stroke, the words in the same colour, no card; lobule-zoom.js callEl,
    callLine, callRing; `small.call`: stroke 4, danger / accent / quiet ink). The marks on a vessel or an organ (block, treat) are 2D's solid pill in the same colour. ── */
