@@ -25,6 +25,19 @@ export function howOf(list: readonly { lens?: unknown; preset?: unknown; slide?:
   return 'params';
 }
 export interface WhatIf { label: string; paths: string[]; min: number; max: number; step: number; ends?: [string, string]; unit?: string; tool?: string }
+/** A slider that moves the MODEL (its paths are parameters); one that sets an instrument's option (`tool`) moves no reading the slide prints. */
+export const movesReadings = (w: WhatIf | undefined): boolean => !!w && !w.tool;
+/** The values a what-if slider is worked out at ahead of the drag (controls-run.ts warmControls): both ends and the points between, on the slider's step,
+ *  so the words hold room for the widest reading it can give
+ *  (roll-reserve.ts `seen`), measured and not guessed from a padded digit ("7.1 L      and", Pregnancy 3, review 3531bdfa F-D16). */
+export function sliderStops(w: Pick<WhatIf, 'min' | 'max' | 'step'>, n = 5): number[] {
+  const step = w.step > 0 ? w.step : (w.max - w.min) / 20 || 1, dp = Math.max(0, Math.ceil(-Math.log10(step) - 1e-9)) + 1;
+  const at = (k: number): number => {
+    const x = k >= n - 1 ? w.max : w.min + Math.round(((w.max - w.min) * k) / (n - 1) / step) * step;
+    return +Math.min(w.max, Math.max(w.min, x)).toFixed(dp);
+  };
+  return [...new Set(Array.from({ length: n }, (_, k) => at(k)))];
+}
 export type Scale = 'anatomy' | 'lobule' | 'sinusoid';
 export interface SlideControls {
   compare?: { opts: CompareOpt[]; name: string };
