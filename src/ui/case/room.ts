@@ -36,7 +36,8 @@ export const useCaseBarUp = (): boolean => useCase((s) => caseBarUp(s.phase));
 
 /** A card at the left, its right edge `x` px from the screen's left; or a sheet over the foot, its top `y` px from the screen's top. */
 export type CaseCut = { kind: 'left'; x: number } | { kind: 'foot'; y: number };
-export const useCaseRoom = create<{ cut: CaseCut | null }>(() => ({ cut: null }));
+/** `cardH`: the height of the card standing at the left of a Mac (0 with none, or when a sheet takes its place); the labels keep off it (scene/labels/chrome-claims.ts). */
+export const useCaseRoom = create<{ cut: CaseCut | null; cardH: number }>(() => ({ cut: null, cardH: 0 }));
 /** The Mac's stop card column (its width and its gap from the screen's left): its right edge is the cut (CaseUi.tsx). */
 export const CASE_CARD_W = 400, CASE_CARD_GAP = 12;
 /** The share of the figure's room the stop's sheet takes at the thumb layouts, when it has not been measured yet (a phone: the sheet stands about 60 % of the room; an iPad, about 47 %). */

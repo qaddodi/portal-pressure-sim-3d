@@ -30,7 +30,7 @@ import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, LIVER_EDGES } 
 import { courseOf } from './paths.ts';
 import { laneCourseOf, laneKeyOf } from './segment-lane.ts';
 import { halfWidthOfVessel, halfWidthPx } from './cap-width.ts';
-import { readUiWalls } from './ui-walls.ts';
+import { chromeClaims } from '../labels/chrome-claims.ts';
 import { resSig, resText } from './res-model.ts';
 import { selectStructure } from '../../ui/action/selection.ts';
 import { Ride, RoomFade, boxesFit } from '../labels/ride.ts';
@@ -97,18 +97,10 @@ export function CircuitCaptions() {
     };
 
     const view = (): Box => { const { vp } = useUi.getState(); return { x0: vp.safe.left, y0: vp.safe.top + BAR, x1: vp.w - vp.safe.right, y1: vp.h - vp.safe.bottom }; };
-    // the floating bars are read at rest (once the layout has settled after a change), not in a frame
-    let uiWalls: Box[] = [], wallTimer: TimerId | null = null;
-    const readWalls = () => { uiWalls = readUiWalls(); clock.invalidate('circuit-captions'); };   // (the signature holds the walls' boxes: a changed wall is seen there, never forced)
-    const wallsLater = () => { clock.cancel(wallTimer); wallTimer = clock.after(readWalls, 260); };
-    wallsLater();
-    addEventListener('resize', wallsLater);
-    const offWalls = useUi.subscribe((s, p) => { if (s.vp !== p.vp || s.dockShown !== p.dockShown || s.boxes !== p.boxes) wallsLater(); });
-    // (the figure key stands where it docks, over the Circuit too: it is a wall like the pills, read again when it comes, goes or changes its words; "Flow volume" sat on "Umbilicus" on a Mac)
-    const keyMo = new MutationObserver(wallsLater);
-    for (const k of document.querySelectorAll('.lb-key-wrap')) keyMo.observe(k, { attributes: true, attributeFilter: ['data-on'], childList: true });
+    // the app's own chrome (the floating bars and chips, the Tests card, a playing case's cards and bar) is one list for every writer of words on the figure: labels/chrome-claims.ts
+    const offChrome = chromeClaims.subscribe(() => { clock.invalidate('circuit-captions'); });
     // (the figure's callouts stand first, at the points a slide names: the captions keep off them as they keep off the cards and bars)
-    const blockers = (): Box[] => { return [...talkRects(useUi.getState().boxes).map(rectToBox), ...uiWalls, ...calloutClaims.boxes, ...creditClaim.boxes]; };   // (the © line is a wall like the bars: no name or leader stands under it)
+    const blockers = (): Box[] => { return [...talkRects(useUi.getState().boxes).map(rectToBox), ...chromeClaims.boxes, ...calloutClaims.boxes, ...creditClaim.boxes]; };   // (the © line is a wall like the bars: no name or leader stands under it)
     const offClaims = calloutClaims.subscribe(() => { clock.invalidate('circuit-captions'); });
     const offCredit = creditClaim.subscribe(() => { clock.invalidate('circuit-captions'); });
 
@@ -310,7 +302,7 @@ export function CircuitCaptions() {
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) { clock.invalidate('circuit-captions'); } });
     void document.fonts?.ready.then(() => { measureReset(); });
     const measureReset = () => { gate.invalidate(); clock.invalidate('circuit-captions'); };
-    return () => { off(); offClaims(); offCredit(); offLabels(); offPick(); offShell(); offUi(); offUi2(); offWalls(); keyMo.disconnect(); clock.cancel(wallTimer); removeEventListener('resize', wallsLater); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
+    return () => { off(); offClaims(); offCredit(); offLabels(); offPick(); offShell(); offUi(); offUi2(); offChrome(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); } };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer" aria-hidden="true" />;
