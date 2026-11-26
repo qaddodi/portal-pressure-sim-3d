@@ -15,8 +15,10 @@ export interface ProcState {
   /** why it cannot play on this patient ('' it can) */
   why: string;
   name: string;
+  /** the volume the slide's procedure takes off, in mL (a paracentesis's `mL`; 0 none): the card's count is held to it, so the words never depend on when the pane first read the belly */
+  mL: number;
 }
-export const NO_PROC: ProcState = { key: '', steps: [], at: -1, ring: -1, phase: 'idle', why: '', name: '' };
+export const NO_PROC: ProcState = { key: '', steps: [], at: -1, ring: -1, phase: 'idle', why: '', name: '', mL: 0 };
 export const useProc = create<ProcState>(() => NO_PROC);
 export const setProc = (p: Partial<ProcState>): void => useProc.setState(p);
 export const clearProc = (): void => useProc.setState(NO_PROC, true);

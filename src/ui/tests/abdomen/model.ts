@@ -37,6 +37,9 @@ export const tapWords = (removedL: number): { removed: string; dose: string } =>
  *  `prev` is the peak so far, `litres` the belly now (NaN: no reading). Pure; tests/abdomen-tap-peak.test.ts. */
 export const tapPeak = (prev: number, litres: number, began: boolean): number => (Number.isFinite(litres) ? (began ? litres : Math.max(prev, litres)) : prev);
 
+/** The litres taken off as the card counts them: the belly's fall since the procedure began, never more than the slide's planned volume, and the whole planned volume once the procedure is done (capture 2274649a, Albumin 3: "0.8 L removed" after a 5.1 L LVP, the pane having first read the belly mid-drain). `plannedL` 0: no plan, the fall alone. Pure. */
+export const tapRemoved = (fall: number, plannedL: number, done: boolean): number => (plannedL > 0 ? (done ? plannedL : Math.min(plannedL, Math.max(0, fall))) : Math.max(0, fall));
+
 export const TAP_RESERVE: readonly { removed: string; dose: string }[] = [tapWords(0), tapWords(IAP_RESERVE_L)];
 export const albuminText = (L: number, on: boolean): string => (on ? `${Math.round(L * 8)} g` : L > 5 ? WORDS.advised : WORDS.optional);
 

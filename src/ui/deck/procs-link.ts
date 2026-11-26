@@ -385,7 +385,7 @@ export function linkProcs(): () => void {
         // (why: the spec's own refusal for this patient, on the card from the start, as 2D's procEl)
         const params = currentParams(), why = sp && params && !sp.had(params) ? sp.can(params, latestMetrics() as never) || '' : '';
         const done = landsDone(prevStop, pos.stop);
-        setProc({ key: k, steps, at: done ? steps.length - 1 : -1, ring: done ? -1 : 0, phase: done ? 'done' : 'wait', why, name: sp?.name ?? plan.kind });
+        setProc({ key: k, steps, at: done ? steps.length - 1 : -1, ring: done ? -1 : 0, phase: done ? 'done' : 'wait', why, name: sp?.name ?? plan.kind, mL: Number((plan as { mL?: number }).mL) || 0 });
         // (Back from the slide after onto a played-through slide: it stands done, with its graph's line whole; Next moves on, the button plays it again. Any other way in lands before the procedure.)
         // Going forward the first Next starts it; `auto` starts it as the slide lands, after the camera and the cards have settled.
         phase = done ? 'done' : 'wait';
