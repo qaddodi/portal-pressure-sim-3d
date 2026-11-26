@@ -436,6 +436,7 @@ export function solve(input: SolveInput): Solved {
       if (it.optional) { if (!tryItem(it, 0, false, true, true)) skipped.push(it.id); continue; }
       if (it.region && it.onOther) { if (tryItem(it, 0, true) || tryItem(it, 0, false)) continue; dropped.push(it.id); continue; }
       if (it.clearLines && tryItem(it, 0, false, true)) continue;
+      if (it.must && !it.region && tryItem(it, 0, false, true)) continue;
       if (tryItem(it, 0)) continue;
       if (it.must && (tryItem(it, 1) || tryItem(it, 2))) continue;
       dropped.push(it.id);

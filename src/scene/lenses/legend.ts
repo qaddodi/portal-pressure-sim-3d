@@ -76,7 +76,7 @@ export function legendFor(lens: LensId, look: LookId, ref = 'healthy'): LegendSp
         aria: 'Legend: flow volume from 0.02 to 6 liters per minute on a log scale, pale mint to deep blue; line width grows with flow' };
     case 'velocity':
       return { lens, name: lensTitle('velocity'), title: ['Velocity', 'vs normal'], caption: ['Velocity', 'vs normal'],
-        bar: { stops: rampStops(look, 'velocity', 1), nums: [{ at: 0, text: 'Slow' }, { at: 100, text: 'Fast' }], ticks: [33.3, 66.7] },
+        bar: { stops: rampStops(look, 'velocity', 1), nums: [{ at: 0, text: 'Slow' }, { at: 50, text: 'Normal' }, { at: 100, text: 'Fast' }], ticks: [33.3, 66.7] },
         aria: "Legend: each vessel's mean velocity against its normal range: a continuous scale from indigo (slower than normal) through teal (normal) to coral (faster), stronger the further from normal; collaterals stay gray" };
     case 'heat':
       return { lens, name: lensTitle('heat'), title: ['Congestion', w.heatUnit], caption: ['Congestion', 'mmHg'],

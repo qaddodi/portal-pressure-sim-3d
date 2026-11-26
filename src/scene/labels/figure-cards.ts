@@ -161,8 +161,13 @@ export function stepLeader(circle: { cx: number; cy: number; r: number }, to: { 
 
 /** Where each card stands (the 2D callout rule: above its point, or below it, slid sideways until it clears the cards, the view's edges and the others; the first clear
  *  spot in that order wins, and a card with none takes the one that covers least). In order, so the first of a slide has its pick. */
-export function placeCards(items: readonly CardIn[], view: Box, blockers: readonly Box[], before: readonly Box[] = [], courses: readonly CourseLine[] = []): CardOut[] {
+export function placeCards(
+  items: readonly CardIn[], view: Box, blockers: readonly Box[], before: readonly Box[] = [], courses: readonly CourseLine[] = [], vessels: readonly CourseLine[] = [],
+): CardOut[] {
   const placed: Box[] = [...before];
+  // (the body figure's vessels on the screen: a mark's or the split's words keep off them where a place near the point allows, C-D14: "70% bypasses the liver" stood across the paraumbilical vein)
+  const vgrid = vessels.length ? new LineGrid(vessels.map((l) => [l[0], l[1], l[2], l[3]] as const)) : null;
+  const onVessel = (b: Box): number => { let n = 0; vgrid?.some(b.x0, b.y0, b.x1, b.y1, 0, (l) => { if (onLine(l, b, 0)) n++; return false; }); return n; };
   // The biggest card first (a stable sort: equal areas keep the slide's order). A small mark stood first in the middle of a short view left bands too thin for the portal blood's split, which then stood on
   // the mark ("94% bypasses the liver" over "Covered stent", Encephalopathy 10 on an iPhone: a 440 x 138 view, a 204 x 73 split and a 93 x 19 mark; 120 of 4480 anchor pairs had no clear place before).
   const order = items.map((it, i) => ({ it, i })).sort((a, b) => b.it.w * b.it.h - a.it.w * a.it.h || a.i - b.i);
@@ -187,9 +192,15 @@ export function placeCards(items: readonly CardIn[], view: Box, blockers: readon
       if (!within(box, view)) cost += 1e6;
       for (const b of hold) if (hits(box, b)) cost += 1e4 + overlap(box, b);
       for (const b of placed) if (hits(reach, b)) cost += 1e4 + overlap(reach, b);
+      if (vgrid && !it.ring && !it.pair && cost < 1e4) cost += VESSEL_HIT * Math.min(onVessel(box), 6);
       const o: CardOut = { id: it.id, x0, y0, box: reach, ok: cost < 1e6 };
       if (!best || cost < best.cost) best = { cost, o };
       if (cost < 1) break;
+    }
+    // the sweep's best still has a vessel under its words: the nearest place on a grid that has none, within a leader's reach of the point
+    if (vgrid && !it.ring && !it.pair && best!.cost >= VESSEL_HIT && best!.cost < 1e4) {
+      const o = placeClear(it, view, blockers, placed, vessels, VESSEL_FAR);
+      if (o) best = { cost: 0, o };
     }
     // No clear spot in the sweep above (a talk's cards and the key leave only a pocket far from the point): the nearest clear place anywhere in the view, rather than the one under a card.
     if (best!.cost >= 1e4) {
@@ -226,11 +237,13 @@ const COURSE_AIRS = [5, 3, 0] as const;
 /** The grid a ring callout's place is looked for on (px), and the farthest its words may stand from the ring's centre (px):
  *  past it the old sweep decides (words on the net, at least near the ring). */
 const CLEAR_STEP = 6, CLEAR_FAR = 300;
+/** What a vessel under a card's words costs a sweep place (a place with none is always better), and the farthest the grid looks for one (px from the point). */
+const VESSEL_HIT = 40, VESSEL_FAR = 160;
 /** Where a ring callout's words stand in the clear: the nearest place in the view, on a grid, whose box no course crosses and no card, view edge,
  *  earlier card or the ring itself takes (above its ring is worth a little: 2D's side); null when every place has a vessel under it.
  *  Why a grid and not rings round the ring: on a phone's zoomed lobule the clear brown lies
  *  a hundred pixels off in whatever direction the net leaves it, and a sweep of eight spots found none (wedge slide, iPhone, 25 Nov). */
-export function placeClear(it: CardIn, view: Box, blockers: readonly Box[], placed: readonly Box[], courses: readonly CourseLine[]): CardOut | null {
+export function placeClear(it: CardIn, view: Box, blockers: readonly Box[], placed: readonly Box[], courses: readonly CourseLine[], far = CLEAR_FAR): CardOut | null {
   const ring = it.ring ?? 0, hold = [...blockers, ...placed, { x0: it.x - ring, y0: it.y - ring, x1: it.x + ring, y1: it.y + ring }];
   const grid = new LineGrid(courses.map((l) => [l[0], l[1], l[2], l[3]] as const));
   for (const air of COURSE_AIRS) {
@@ -240,7 +253,7 @@ export function placeClear(it: CardIn, view: Box, blockers: readonly Box[], plac
         const box: Box = { x0, y0, x1: x0 + it.w, y1: y0 + it.h };
         const dx = (box.x0 + box.x1) / 2 - it.x, dy = (box.y0 + box.y1) / 2 - it.y, d = Math.hypot(dx, dy);
         const cost = d + (dy > 0 ? 8 : 0);
-        if (d > CLEAR_FAR || (best && cost >= best.cost)) continue;
+        if (d > far || (best && cost >= best.cost)) continue;
         if (hold.some((b) => hits(box, b))) continue;
         if (grid.some(box.x0, box.y0, box.x1, box.y1, air, (l) => onLine(l, box, air))) continue;
         best = { cost, box };
@@ -315,6 +328,8 @@ export interface CardDeps {
   lobuleRing(name: string, out: Vector3): Vector3 | null;
   /** The Circuit once it is the figure: pixels one map unit covers, and a map point (units) on the canvas; null while another view is. */
   circuit(): { k: number; project(x: number, y: number, out: { x: number; y: number }): { x: number; y: number } } | null;
+  /** The body figure's vessels on the canvas, when it is the figure (a mark's or the split's words keep off them); none in another view. */
+  vessels?(): readonly CourseLine[];
 }
 
 /** The point along a varix column (0..1) that stands clear of the scope ring and its badge: the middle when it is clear already (the calipers' rule, one for every mark and ruler on the varices). */
@@ -542,7 +557,7 @@ export class FigureCards {
       for (const c of this.cards) { const a = anchors.get(c.id); if (!a) continue; const s = cardSize(c, t, d.measure), rg = anchors.get(c.id + '#r'); const pair = 'lobule' in c.anchor && c.anchor.lobule === PAIR_AT, sinAt = pair ? anchors.get(c.id + '#s') : undefined;
         const ring = rg ? { ring: pair ? PAIR_AIR : rg.x + RING_AIR } : null, pairIn = pair ? { pair, avoid: sinAt ? [ringDisc(sinAt.x, sinAt.y)] : [] } : null;
         ins.push({ id: c.id, x: a.x, y: a.y, w: s.w, h: s.h, below: c.below || pair, ...(c.kind === 'step' ? { near: this.stepNear(c) } : null), ...ring, ...pairIn }); }
-      const outs = placeCards(ins, view, blockers, [], lobuleLines.lines);
+      const outs = placeCards(ins, view, blockers, [], lobuleLines.lines, d.vessels?.() ?? []);
       const taken = outs.filter((o) => o.ok).map((o) => o.box);
       // a caliper's reading stands in line with it, past its far tick; a bracket's under the middle of its line: each with no leader. Only where that place is taken does a reading stand where the
       // sweep finds room, with a leader to the tick (the caliper) or to the middle of the line (the bracket).

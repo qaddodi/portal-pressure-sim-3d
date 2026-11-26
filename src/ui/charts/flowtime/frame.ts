@@ -167,7 +167,25 @@ export function flowTimeFrame(spec: FlowSpec, m: number, c: ChartCtx): FlowOut {
     const j = r.slot === 'flow' ? 1 : 0, Y = j ? upY : lowY, col = LINES[j]![3], y = clamp(Y(r.v), T, B), x0 = X(ax.from + (ax.end - ax.from) * 0.62);
     const rl = lk('plot.line', {}, col), words = `${r.text} ${withUnit(r.v, LINES[j]![6], LINES[j]![5])}`;
     shapes.push({ k: 'line', x1: x0, x2: R, y1: y, y2: y, pen: { color: rl.stroke!, w: Math.max(1, (rl.width ?? 2) * 0.7), dash: [4, 3] } });
-    say(x0 - 6, y + 0.36 * f, words, lk('ft.v', { off: false }, col), { anchor: 'end' });
+    // its words keep off every other word and, where a place allows, off the lines (A-D10, capture 3531bdfa:
+    // "EVL alone 6.5 mm" printed over "16.4 mmHg" and an axis number): the row beside the tick first,
+    // then the rows round it, then over the tick at the plot's right end; the least-covered place when none is clear
+    const wl = lk('ft.v', { off: false }, col), wd = cw(words, wl.size ?? f, true);
+    const others = shapes.filter((q): q is Extract<Shape, { k: 'text' }> => q.k === 'text').map((q) => {
+      const qw = cw(q.s, q.size ?? f, true), qx = q.anchor === 'end' ? q.x - qw : q.anchor === 'middle' ? q.x - qw / 2 : q.x;
+      return [qx, qx + qw, q.y - 0.85 * f, q.y + 0.25 * f] as const;
+    });
+    const at = (x: number, yy: number, end: boolean) => [end ? x - wd : x, end ? x : x + wd, yy - 0.85 * f, yy + 0.25 * f] as const;
+    const spots: { x: number; y: number }[] = [];
+    for (const dy of [0, -1.15, 1.15, -2.3, 2.3, -3.45, 3.45, -4.6, 4.6]) spots.push({ x: x0 - 6, y: y + 0.36 * f + dy * f });
+    for (const dy of [-0.9, 0.9 + 0.5, -2.05, 2.05 + 0.5]) spots.push({ x: R - 2, y: y + dy * f });
+    const inside = (b: readonly number[]) => b[0]! >= L && b[1]! <= w - 2 && b[2]! > top && b[3]! < B;
+    const cover = (b: readonly number[]) => others.reduce((a, q) => a + Math.max(0, Math.min(b[1]!, q[1]) - Math.max(b[0]!, q[0])) * Math.max(0, Math.min(b[3]!, q[3]) - Math.max(b[2]!, q[2])), 0);
+    const ranked = spots.map((sp) => ({ sp, b: at(sp.x, sp.y, true) })).filter((q) => inside(q.b));
+    const clear = ranked.find((q) => cover(q.b) < 1 && !drawn.some((pts) => pathHitsBox(pts, q.b, 0.2 * f))) ?? ranked.find((q) => cover(q.b) < 1)
+      ?? ranked.reduce<(typeof ranked)[number] | undefined>((a, q) => (!a || cover(q.b) < cover(a.b) ? q : a), undefined);
+    const sp = clear?.sp ?? spots[0]!;
+    say(sp.x, sp.y, words, wl, { anchor: 'end' });
   }
   const label = flowTimeLabel(ser, keys, clock, heads.map((hd) => hd.v));
   return { frame: { w, h, shapes, label, ...(want > h + 0.5 ? { want: Math.round(want) } : null) }, G };
