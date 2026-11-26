@@ -36,10 +36,10 @@ export function useCaseView(): CaseView | null {
 }
 
 // The readings the stop's card names, for every Tests card: the same numbers as its "that day" line (stop-read.ts).
-// Only while the case waits at a stop whose story is kept; the same object for the same stop.
+// Only while the case waits at a stop; the story is the case's own, made from the baked course; the same object for the same stop.
 let stopKept: { v: View; day: number; reads: StopReads } | null = null;
 setStopSource(() => {
-  const s = useCase.getState(), first = s.stops[0], stop = s.stops[s.at], v = first ? kept.get(first) : undefined;
+  const s = useCase.getState(), stop = s.stops[s.at], v = s.story;
   if (s.phase !== 'stop' || !stop || !v) return null;
   if (stopKept && stopKept.v === v && stopKept.day === stop.day) return stopKept.reads;
   stopKept = { v, day: stop.day, reads: stopReadsOf(v.series, stop.day) };
