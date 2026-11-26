@@ -3,6 +3,7 @@
 import { computeMetrics } from './metrics.js';
 import { FLOW_CUTS } from './flow-cuts.js';
 import { HVPG_CUTS } from './pressure-cuts.js';
+import { isRedWale, redWaleCleared } from './wall-read.js';
 
 const COLLATERAL_NAMES = {
   C1b: ['Esophageal varices', 'VAR'], C3: ['Paraumbilical vein (caput medusae)', 'C3'], C4: ['Anorectal varices', 'C4'],
@@ -36,7 +37,7 @@ const DEFS = [
     title: 'Bleeding more likely', detail: `HVPG ≥${HVPG_CUTS.bleed} mmHg. Bleeding risk climbs with the gradient from about ${HVPG_CUTS.bleed} mmHg, but varices can bleed below it.` },
   { id: 'VARIX_LARGE', on: (m) => m.varix.d >= 5, off: (m) => m.varix.d < 4.5, severity: 'caution', anchor: 'VAR',
     title: 'Large esophageal varices', detail: 'Diameter ≥5 mm: high-risk varices.' },
-  { id: 'RED_WALE', on: (m) => m.varix.ratioMean > 0.7, off: (m) => m.varix.ratioMean < 0.65, severity: 'danger', anchor: 'VAR',
+  { id: 'RED_WALE', on: (m) => isRedWale(m.varix.ratioMean), off: (m) => redWaleCleared(m.varix.ratioMean), severity: 'danger', anchor: 'VAR',
     title: 'Red wale signs', detail: 'Modeled wall stress is approaching the rupture threshold (index = ΔP·r / w).' },
   { id: 'ASCITES_FORMING', on: (m) => m.ascites.ratePerDay > 80 && m.ascites.volume > 150, off: (m) => m.ascites.ratePerDay < -50, severity: 'caution', anchor: 'PERITONEUM',
     title: 'Ascites forming', detail: 'Lymph formation exceeds lymphatic drainage capacity.' },
@@ -77,24 +78,31 @@ for (const id of Object.keys(COLLATERAL_NAMES)) {
 const TAU = 8;
 const VIEW = { co: 0, svr: 0, ra: 0, hvpg: 0, pvVel: 0, liverPerfPct: 0, shuntFraction: 0, splanchnicIn: 0, varix: null, spleen: null, blood: null,
   ascites: { ratePerDay: 0, volume: 0, iap: 0 } };
+/** The portal vein's velocity an event judges: the settled (breath-mean) one the vessel card, the Doppler and the tiles show (metrics pvVelMean), never the instant. The instant swings with the
+ *  breath and the heartbeat (8.2 to 11.8 cm/s about a mean of 9.2), and a new day seeds the average from it, so a patient above the cut was called stagnant on the one reading that dipped
+ *  under it (bleed-TIPS Day 11, 26 Nov 2026: "Portal vein stasis" at a settled 9.2 cm/s, a day before the TIPS was even placed). */
+const pvVelOf = (m) => (Number.isFinite(m.pvVelMean) ? m.pvVelMean : m.pvVel);
 const avg = (v, key, x, fresh, k) => { const p = v[key]; return fresh || !Number.isFinite(p) ? x : p + (x - p) * k; };
 function breathAveraged(m, eng, init) {
   let a = eng.evAvg;
   const day = (eng.day || 0) + (eng.dayFrac || 0), dt = a ? eng.t - a.t : 0;
-  const fresh = init || !a || a.day !== day || dt < 0 || dt > 30;
+  const rev = eng.paramsRev | 0;
+  // (A change to the patient, a TIPS or a drug, moves the whole state at once: the average starts over from the new state. Blended with the old one it passes through
+  // values the patient never had, as a flow that turns from backward to forward does through zero, which read as stasis.)
+  const fresh = init || !a || a.day !== day || a.rev !== rev || dt < 0 || dt > 30;
   const k = fresh ? 1 : Math.min(1, dt / TAU);
   // (The average object is kept and written in place; it is made only when the average starts over.)
   // alloc-rare: only when the average starts over (a new engine, a reset or a restored state clears evAvg)
   if (!a) a = eng.evAvg = { t: 0, day: 0, v: { co: 0, svr: 0, ra: 0, hvpg: 0, pvVel: 0, perf: 0, shunt: 0, rate: 0, iap: 0 } };
   const v = a.v, A = m.ascites;
   const co = avg(v, 'co', m.co, fresh, k), svr = avg(v, 'svr', m.svr, fresh, k), ra = avg(v, 'ra', m.ra, fresh, k);
-  const hvpg = avg(v, 'hvpg', m.hvpg, fresh, k), pvVel = avg(v, 'pvVel', m.pvVel, fresh, k), perf = avg(v, 'perf', m.liverPerfPct, fresh, k);
+  const hvpg = avg(v, 'hvpg', m.hvpg, fresh, k), pvVel = avg(v, 'pvVel', pvVelOf(m), fresh, k), perf = avg(v, 'perf', m.liverPerfPct, fresh, k);
   const shunt = avg(v, 'shunt', m.shuntFraction, fresh, k), rate = avg(v, 'rate', A.ratePerDay, fresh, k), iap = avg(v, 'iap', A.iap, fresh, k);
   v.co = co; v.svr = svr; v.ra = ra; v.hvpg = hvpg; v.pvVel = pvVel; v.perf = perf; v.shunt = shunt; v.rate = rate; v.iap = iap;
-  a.t = eng.t; a.day = day;
+  a.t = eng.t; a.day = day; a.rev = rev;
   const s = VIEW, sa = s.ascites;
   s.co = Number.isFinite(co) ? co : m.co; s.svr = Number.isFinite(svr) ? svr : m.svr; s.ra = Number.isFinite(ra) ? ra : m.ra;
-  s.hvpg = Number.isFinite(hvpg) ? hvpg : m.hvpg; s.pvVel = Number.isFinite(pvVel) ? pvVel : m.pvVel;
+  s.hvpg = Number.isFinite(hvpg) ? hvpg : m.hvpg; s.pvVel = Number.isFinite(pvVel) ? pvVel : pvVelOf(m);
   s.liverPerfPct = Number.isFinite(perf) ? perf : m.liverPerfPct; s.shuntFraction = Number.isFinite(shunt) ? shunt : m.shuntFraction;
   sa.ratePerDay = Number.isFinite(rate) ? rate : A.ratePerDay; sa.iap = Number.isFinite(iap) ? iap : A.iap; sa.volume = A.volume;
   s.splanchnicIn = m.splanchnicIn; s.varix = m.varix; s.spleen = m.spleen; s.blood = m.blood;

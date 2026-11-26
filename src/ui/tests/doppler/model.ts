@@ -399,7 +399,9 @@ export class DopplerModel {
     T('Peak').v = num(pk * gf); T('Peak').unit = 'cm/s';
     T('Trough').v = num(tr * gf); T('Trough').unit = 'cm/s';
     const shownV = (v: number) => Math.sign(v) * Number(fmt(Math.abs(v * gf), 0));
-    const piV = p.kind === 'artery' ? (Math.abs(r.mean) > 0.5 ? (r.vmax - r.vmin) / Math.abs(r.mean) : 0) : pulsatility(shownV(hiB), shownV(loB));
+    // (A portal vein's Pulsatility tile is the number its Phasic / Monophasic class is cut from, interpret's `pi`, the median of the window's beats:
+    // the tile and the word are one source and cannot disagree, B13.)
+    const piV = p.kind === 'artery' ? (Math.abs(r.mean) > 0.5 ? (r.vmax - r.vmin) / Math.abs(r.mean) : 0) : p.kind === 'portal' ? it.pi as number : pulsatility(shownV(hiB), shownV(loB));
     T('Pulsatility').v = fmt(piV, 2);
     if (p.kind === 'artery') {
       // the hepatic artery's resistive index, RI = (PSV − EDV) / PSV: the one number the pattern line prints ("Resistive index 0.62", doppler-reading.copied.js) read from the same window,
@@ -432,7 +434,8 @@ export class DopplerModel {
       const hi = Math.max(Math.round((openEnd ? 2 * n0 : n1) * 1.7), Math.ceil(mean * 1.1)), lo = Math.min(0, Math.floor(mean * 1.1));
       const pos = (v: number) => Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100));
       const model = p.kind === 'tips' && normal !== p.normal;
-      const out = !it.expected && !(p.kind === 'tips' && model) && (mean < n0 || mean > n1);
+      // (the verdict's own judgment of the speed, copied interpret's `out`: the amber flag and the words are one answer)
+      const out = it.out as boolean;
       gauge = { p0: pos(n0), p1: pos(n1), pm: pos(mean), pz: pos(0), n0, n1, open: openEnd, out, model,
         title: model ? `Model band ${n0}–${n1} cm/s (provisional: scaled from the reported 8 to 10 mm range)` : openEnd ? `Usual ≥${n0} cm/s` : `Usual ${n0}–${n1} cm/s` };
       T('Speed').out = out;

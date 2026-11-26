@@ -1,4 +1,4 @@
-// Where the bleeding stream leaves, and where it lands, so that it stays INSIDE the esophagus and the stomach for any fill level (Mohammad, 26 Nov: it
+// Where the bleeding stream leaves (ON the bleeding varix itself: tearAt), and where it lands, so that it stays INSIDE the esophagus and the stomach for any fill level (Mohammad, 26 Nov: it
 // started right of the esophagus, arced out over the
 // gap beside it, and looked outside the organs; he asked for it to start at the esophagus's far left wall, with a shallow arc). One pure place, read by
 // the jet (bleed.ts), by the pool's ripples that run
@@ -8,8 +8,10 @@
 // farther than the organs allow: the landing is the farthest point toward the 2D app's own landing at which every point of the path is `STREAM_MARGIN` clear of the wall and the landing itself is
 // `SPLASH_MARGIN` clear (the splash drops spread about that far). The wall is the real mesh as the screen covers it (lumen.ts), notch beside the esophagus and all.
 import { SITES } from './copied/anatomy-b4.ts';
-import { lumenClearance } from './lumen.ts';
+import { lumenClearance, streamZ } from './lumen.ts';
 import { pathAt, spurtOf, type JetParams, type PathPoint } from './jet.ts';
+import { PLACED_PATH_2D, PLACED_Z } from '../anatomy/placed-network.ts';
+import { PLACED_VESSELS } from '../anatomy/placement.generated.ts';
 
 export type BleedSite = 'VAR' | 'GV';
 
@@ -28,24 +30,74 @@ export const FIT_STEPS = 64;
 /** The tear's height at the esophageal varix (figure units): the 2D app's (the varix site's y plus 12, and one more for the thread's first row), where the varix meets the cardia. */
 const VAR_TEAR_DROP = 13;
 
-const gridX = (y: number): number => {
-  // (the first x, from the left, with room for the stream: the far left wall of the esophagus at the tear's height)
-  for (let x = 700; x < 1000; x += 0.5) if (lumenClearance(x, y) >= STREAM_MARGIN) return x;
-  return SITES.varix![0]!;
-};
-
-const TEAR: Record<BleedSite, readonly [number, number]> = {
-  VAR: [0, SITES.varix![1]! + VAR_TEAR_DROP],
+/** The vessels that carry each site's varix, as the 3D figure places them (anatomy/placed-network.ts), in flow order: the coronary vein's run up the
+ *  esophagus, and the short gastric veins on to the gastrorenal shunt round the fundus. */
+export const VARIX_COURSE: Readonly<Record<BleedSite, readonly string[]>> = { VAR: ['C1a'], GV: ['C2', 'C5'] };
+/** Where the 2D app leaves its tear (figure units): only an aim. The 3D placement moves every vessel (the fundal loops crest 10 units below the 2D app's
+ *  point), so the tear is the vessel's own nearest point, never this one. */
+const AIM: Record<BleedSite, readonly [number, number]> = {
+  VAR: [SITES.varix![0]!, SITES.varix![1]! + VAR_TEAR_DROP],
   GV: [SITES.fundus![0]!, SITES.fundus![1]! - 3],
 };
-let varX: number | null = null;
-/** The tear's point (figure units, x right, y down): the esophageal varix's at the esophagus's far left wall, the gastric varix's at the fundus. */
-export function tearOf(site: BleedSite): readonly [number, number] {
-  if (site === 'GV') return TEAR.GV;
-  if (varX === null) varX = gridX(TEAR.VAR[1]);
-  return [varX, TEAR.VAR[1]];
+
+export interface CoursePoint { x: number; y: number; z: number }
+/** The point on a drawn course (2D points with a depth each) nearest to `aim`, found on its segments (not only its points), with the depth interpolated
+ *  there. Pure: the rule every bleed's tear stands on. */
+export function nearestOnCourse(pts: readonly (readonly [number, number])[], zs: readonly number[], aim: readonly [number, number]): CoursePoint {
+  let best = Infinity, out: CoursePoint = { x: pts[0]![0], y: pts[0]![1], z: zs[0] ?? 0 };
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i]!, b = pts[i + 1]!, dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy;
+    const t = L > 0 ? Math.min(1, Math.max(0, ((aim[0] - a[0]) * dx + (aim[1] - a[1]) * dy) / L)) : 0;
+    const x = a[0] + t * dx, y = a[1] + t * dy, d = Math.hypot(aim[0] - x, aim[1] - y);
+    if (d < best) { best = d; out = { x, y, z: (zs[i] ?? 0) + t * ((zs[i + 1] ?? zs[i] ?? 0) - (zs[i] ?? 0)) }; }
+  }
+  return out;
+}
+/** Slides a point sideways, toward the deeper part of the lumen, only as far as the stream needs its room from the wall (an esophageal varix lies ON the
+ *  wall: its blood leaves into the lumen beside it). A point that already has the room stays. */
+export function inwardTo(x: number, y: number, margin: number): number {
+  let bx = x, bc = lumenClearance(x, y);
+  for (let dx = -40; dx <= 40; dx++) { const c = lumenClearance(x + dx, y); if (c > bc + 1e-9) { bc = c; bx = x + dx; } }
+  if (lumenClearance(x, y) >= margin || bx === x) return x;
+  const dir = bx > x ? 0.5 : -0.5;
+  let u = x;
+  while (lumenClearance(u, y) < margin && Math.abs(u - x) < Math.abs(bx - x)) u += dir;
+  return u;
 }
 
+export interface Tear { x: number; y: number; /** scene depth of the vessel's near surface at the tear: where the blood leaves it */ z: number }
+const TEARS: Partial<Record<BleedSite, Tear>> = {};
+/** The tear's point (figure units, x right, y down) and depth, for `site`: ON the site's own placed varix vessel (the point of its drawn course nearest
+ *  the 2D app's aim), moved inward only as far as the stream's room from the wall needs; the depth is the vessel's near surface there. One rule for the
+ *  esophageal varix and the gastric one, so a bleed always leaves the vein that is bleeding. */
+export function tearAt(site: BleedSite): Tear {
+  const kept = TEARS[site];
+  if (kept) return kept;
+  const pts: [number, number][] = [], zs: number[] = [];
+  let r = 0.016;
+  for (const id of VARIX_COURSE[site]) {
+    const c = PLACED_PATH_2D[id], z = PLACED_Z[id];
+    if (!c || !z) continue;
+    c.forEach((p, i) => { pts.push([p[0], p[1]]); zs.push(z[i] ?? 0); });
+    r = Math.max(r, PLACED_VESSELS[id]?.r ?? 0);
+  }
+  if (!pts.length) return (TEARS[site] = { x: AIM[site][0], y: AIM[site][1], z: streamZ(AIM[site][0], AIM[site][1]) });
+  const on = nearestOnCourse(pts, zs, AIM[site]), x = inwardTo(on.x, on.y, STREAM_MARGIN);
+  return (TEARS[site] = { x, y: on.y, z: on.z + r });
+}
+/** The tear's point (figure units, x right, y down) for `site`. */
+export const tearOf = (site: BleedSite): readonly [number, number] => { const t = tearAt(site); return [t.x, t.y]; };
+
+/** How far (figure units) from the tear the stream's depth has come back to the organ's wall plane. */
+export const TEAR_DEPTH_EASE = 30;
+const ease01 = (t: number): number => { const c = Math.min(1, Math.max(0, t)); return c * c * (3 - 2 * c); };
+/** The depth the stream is drawn at over the figure's point (x, y): at the tear it is the vein's own near surface (so the blood leaves the vessel from
+ *  every camera angle: the 14 degree view turns the 0.2 or so between the vein and the stomach's
+ *  front wall into a sideways shift of the tear), and it eases over TEAR_DEPTH_EASE to just in front of the organ's wall, where it rides for the rest of its fall (lumen.ts streamZ). */
+export function streamDepth(site: BleedSite, x: number, y: number): number {
+  const t = tearAt(site), w = 1 - ease01(Math.hypot(x - t.x, y - t.y) / TEAR_DEPTH_EASE), z = streamZ(x, y);
+  return z + (t.z - z) * w;
+}
 /** Where the 2D app aims the stream's landing, before the organs' walls are asked (copied/bleed-shapes.js: the tear's x plus 62 for the esophageal varix, plus 3 for the gastric). */
 const aimX = (site: BleedSite): number => (site === 'GV' ? SITES.fundus![0]! + 3 : SITES.varix![0]! + 8 + 62);
 

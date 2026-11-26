@@ -70,7 +70,15 @@ export function bodyTargets(f: DiseaseFrame, p: DiseaseParams, healthyP: ArrayLi
 }
 
 
-/** How full the bleed's pool is (0..1) for the blood lost so far: a puddle at once, full by 1.5 L (blood.js poolFill). */
-export const poolFill = (total: number): number => Math.min(1, Math.max(0.12, Math.sqrt(Math.max(0, total || 0) / 1500)));
+/** What the stomach holds when blood fills the whole lumen, mL: the 2D figure's own 1.5 L (blood.js poolFill reached 1 there). */
+export const STOMACH_BLOOD_ML = 1500;
+/** The pool's least fill, so the first blood still shows as a puddle. */
+export const PUDDLE_FILL = 0.12;
+/** How full the bleed's pool is (0..1) for the blood lost so far: THE VOLUME'S SHARE of what the stomach holds, a puddle at first, the whole lumen at 1.5
+ *  L. The pool is a volume of blood in a stomach of fixed size, so its share of the lumen
+  *  grows in step with the blood lost (Mohammad, 26 Nov: "the stomach is too full of blood"). The 2D app's rule is the square root of that share, which
+  *  doubles a small bleed's fill (400 mL read as 52% full, not 27%); the 3D stomach, drawn
+ *  whole and opaque, shows that as a stomach brimming with blood. */
+export const poolFill = (total: number): number => Math.min(1, Math.max(PUDDLE_FILL, Math.max(0, total || 0) / STOMACH_BLOOD_ML));
 
 export { liverSurface };

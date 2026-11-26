@@ -21,7 +21,7 @@ export function createReading(env) {
   // (The reading, and the same scaled to a stent's gate, are two kept records written in place: a caller uses one at once and does not keep it.)
   const READ = { mean: 0, vmax: 0, vmin: 0, vmaxMean: 0, vminMean: 0, beatPi: -1, beatB0: 0, beatB1: 0, beatHi: 0, beatLo: 0 }, GATED = { mean: 0, vmax: 0, vmin: 0, vmaxMean: 0, vminMean: 0, beatPi: -1, beatB0: 0, beatB1: 0, beatHi: 0, beatLo: 0 };
   // (What interpret() answers, written in place, and the options it hands judgeFlow.)
-  const IT = { dir: '', sev: '', pattern: '', note: '', pi: 0, expected: false }, OPT_SWINGS = { swings: false }, OPT_STENT = { stent: true };
+  const IT = { dir: '', sev: '', pattern: '', note: '', pi: 0, expected: false, out: false }, OPT_SWINGS = { swings: false }, OPT_STENT = { stent: true };
   function reading() {
     if (buf.length < 4) return null;
     const tNow = buf[buf.length - 1][0];
@@ -54,6 +54,25 @@ export function createReading(env) {
   // a real beat, not a mean, so the calipers can stand on it and read the same number (BEAT_PICK.b0, b1). −1 with no whole beat recorded
   // (a time lapse replays its template without phase, and the first second of a vessel has none).
   const BEAT_PICK = { pi: -1, b0: 0, b1: 0, hi: 0, lo: 0 }, BEAT_HI = new Float64Array(BEAT_MAX), BEAT_LO = new Float64Array(BEAT_MAX), BEAT_MEAN = new Float64Array(BEAT_MAX), BEAT_PIS = new Float64Array(BEAT_MAX), BEAT_B0 = new Float64Array(BEAT_MAX), BEAT_ORD = new Int32Array(BEAT_MAX);
+  // (A portal vein's phasicity class is the median pulsatility of the whole beats of the last breath's worth of the record (6.5 s, never before the settled change), not of the one beat the
+  // tiles' Max and Trough stand on, nor of the two or three a 3 s window holds: a vein near the cut read Phasic on one screen and Monophasic on another, B13. The calipers still stand
+  // on a real beat, BEAT_PICK.b0 and b1.)
+  const CLASS_SPAN = 6.5, BEAT_SORT = new Float64Array(BEAT_MAX);
+  const windowPi = (to, nb0, pis) => {
+    const n = Math.min(beatN, BEAT_MAX), lo0 = Math.max(to - CLASS_SPAN, heldTo ?? -Infinity) + 0.05, hi1 = to - 0.05;
+    let m = 0;
+    for (let j = 1; j < n; j++) {
+      const b0 = beatT[(beatN - n + j - 1) % BEAT_MAX], b1 = beatT[(beatN - n + j) % BEAT_MAX];
+      if (b0 < lo0 || b1 > hi1 || !(b1 > b0)) continue;
+      let hi = -Infinity, lo = Infinity;
+      for (let i = buf.length - 1; i >= 0 && buf[i][0] >= b0; i--) { if (buf[i][0] > b1) continue; const v = buf[i][1]; if (v > hi) hi = v; if (v < lo) lo = v; }
+      if (!(hi > -Infinity)) continue;
+      const v = pulsatility(hi, lo); let k = m++;
+      while (k > 0 && BEAT_SORT[k - 1] > v) { BEAT_SORT[k] = BEAT_SORT[k - 1]; k--; }
+      BEAT_SORT[k] = v;
+    }
+    return m ? (m & 1 ? BEAT_SORT[m >> 1] : (BEAT_SORT[(m >> 1) - 1] + BEAT_SORT[m >> 1]) / 2) : pis[nb0];
+  };
   function medianBeat(from, to, level) {
     BEAT_PICK.pi = -1;
     const n = Math.min(beatN, BEAT_MAX), lo0 = from + 0.05, hi1 = to - 0.05;
@@ -72,7 +91,7 @@ export function createReading(env) {
     // either side of the speed shown, the breath's high and low beats never read as the vessel's own: 36, 21 and a speed of 14 did not agree, 16 Nov 2026.)
     let pick = 0;
     for (let i = 1; i < nb; i++) if (Math.abs(BEAT_MEAN[i] - level) < Math.abs(BEAT_MEAN[pick] - level)) pick = i;
-    BEAT_PICK.pi = BEAT_PIS[pick]; BEAT_PICK.b0 = BEAT_B0[pick]; BEAT_PICK.hi = BEAT_HI[pick]; BEAT_PICK.lo = BEAT_LO[pick];
+    BEAT_PICK.pi = windowPi(to, pick, BEAT_PIS); BEAT_PICK.b0 = BEAT_B0[pick]; BEAT_PICK.hi = BEAT_HI[pick]; BEAT_PICK.lo = BEAT_LO[pick];
     // (the beat's end: the next beat's start after b0)
     for (let j = 0; j < n; j++) { const t = beatT[(beatN - n + j) % BEAT_MAX]; if (t > BEAT_PICK.b0) { BEAT_PICK.b1 = t; break; } }
     return BEAT_PICK;
@@ -143,7 +162,9 @@ export function createReading(env) {
     const reverses = r.vminMean < -1.5 && r.vmaxMean > 1.5;
     // (The cut-offs for no flow, stasis and slow flow are velNormal.js's judgeFlow, read the same here as in the figure's labels, the Details sentences and the summary tables.)
     OPT_SWINGS.swings = reverses;
-    const j = judgeFlow(r.mean, null, normal, OPT_SWINGS), js = p.kind === 'tips' ? judgeFlow(r.mean, null, normal, OPT_STENT) : j;
+    // (The speed judged is the one shown beside the words, the gauge's: with none shown yet, the 3 s mean.)
+    const mj = seen && Number.isFinite(seen.gated) ? seen.gated : r.mean;
+    const j = judgeFlow(mj, null, normal, OPT_SWINGS), js = p.kind === 'tips' ? judgeFlow(mj, null, normal, OPT_STENT) : j;
     let dir, sev, pattern, note;
     if (j.none && big < 2 && p.kind !== 'collateral') {
       dir = 'No flow'; sev = 'critical'; pattern = 'No signal';
@@ -164,13 +185,14 @@ export function createReading(env) {
       if (!reverses && (j.none || j.stasis)) { dir = 'Stasis'; sev = 'danger'; }
       else if (reverses && Math.abs(r.mean) < swing * 0.35) { dir = 'To-and-fro'; sev = 'danger'; }
       else if (r.mean < 0) { dir = 'Hepatofugal'; sev = 'critical'; }
-      else { dir = 'Hepatopetal'; sev = j.slow ? 'caution' : 'ok'; }
+      else { dir = 'Hepatopetal'; sev = j.slow || j.fast ? 'caution' : 'ok'; }
       pattern = pi > 0.5 ? 'Pulsatile' : pi > PORTAL_PHASIC_PI ? 'Phasic' : 'Monophasic';
       note = dir === 'Hepatofugal' ? 'Hepatofugal flow: portal blood exits through portosystemic collaterals.'
         : dir === 'To-and-fro' ? 'Bidirectional flow each cycle, preceding flow reversal.'
         : dir === 'Stasis' ? 'Near-zero net flow: stasis predisposes to portal vein thrombosis.'
         : pattern === 'Pulsatile' ? 'A pulsatile portal vein suggests transmitted right heart pressure (heart failure, tricuspid regurgitation) or an arterioportal shunt.'
         : j.slow ? (stent ? NOTE_SLOW[stent] : 'Hepatopetal but slow: typical of portal hypertension.')
+        : j.fast ? 'Hepatopetal but fast: above the usual range for this vein.'
         : pattern === 'Monophasic' ? 'Hepatopetal and continuous: a stiff liver, as in cirrhosis, damps the phasicity a healthy portal vein shows.'
         : 'Normal: hepatopetal with mild phasicity.';
       // Flow toward the liver in a branch that a working stent would reverse: the stent no longer draws it, as when it narrows.
@@ -223,9 +245,20 @@ export function createReading(env) {
       pattern = j.none ? 'No signal' : 'Open collateral';
       note = j.none ? 'This collateral carries no flow.' : 'Portal blood is bypassing the liver through this collateral.';
     }
-    return say(dir, sev, pattern, note, pi, jetOk);
+    return judged(say(dir, sev, pattern, note, pi, jetOk), mj, normal, p);
   }
-  const say = (dir, sev, pattern, note, pi, expected) => { const o = IT; o.dir = dir; o.sev = sev; o.pattern = pattern; o.note = note; o.pi = pi; o.expected = expected; return o; };
+  const say = (dir, sev, pattern, note, pi, expected) => { const o = IT; o.dir = dir; o.sev = sev; o.pattern = pattern; o.note = note; o.pi = pi; o.expected = expected; o.out = false; return o; };
+  // (One judgment of the speed against the usual range, run on every verdict: the verdict's tone and words and the gauge's amber flag (`out`) all read it, so a speed flagged outside its
+  // usual range is never called normal. A stent's deliberate reduction jet is expected and a stent of another diameter has a model band, neither is flagged, B13.)
+  const judged = (o, m, normal, p) => {
+    const low = !!normal && m < normal[0], high = !!normal && m > normal[1];
+    o.out = !!normal && !o.expected && !(p.kind === 'tips' && normal !== p.normal) && (low || high);
+    if (o.out) {
+      if (o.sev === 'ok') o.sev = 'caution';
+      if (/^Normal/.test(o.note)) o.note = `Speed is ${low ? 'below' : 'above'} the usual range for this vessel. ` + o.note.replace(/^Normal: ?(.)/, (_, c) => c.toUpperCase());
+    }
+    return o;
+  };
 
   const HOLD_AFTER = SETTLE;   // s of the settled signal recorded before the scale fits it (and the reading reads only it)
   return {

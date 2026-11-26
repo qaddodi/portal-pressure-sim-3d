@@ -183,6 +183,31 @@ export const REVEAL_STENCIL = 8;
  *  depth, so nothing is drawn twice; outside it these passes draw nothing and the organ is drawn as ever. The fill clears the bit where it draws, so the line (a hull behind it) shows only
  *  round its silhouette. */
 export interface RevealParts { meshes: Mesh[]; occluders: ShaderMaterial[] }
+
+/** An organ's fill as a copy that never fades for a focus: the SAME program and the SAME uniform objects (so the organ's paint, the clock and the veil reach it too),
+ *  but its own `frvOcc`, held at 0. */
+export function solidTwinOf(m: ShaderMaterial, name: string): ShaderMaterial {
+  const t = new ShaderMaterial({
+    name, vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, uniforms: { ...m.uniforms, frvOcc: { value: 0 } },
+    side: m.side, transparent: m.transparent, depthWrite: m.depthWrite, depthTest: m.depthTest, blending: m.blending, premultipliedAlpha: m.premultipliedAlpha,
+    polygonOffset: m.polygonOffset, polygonOffsetFactor: m.polygonOffsetFactor, polygonOffsetUnits: m.polygonOffsetUnits,
+  });
+  t.defines = { ...(m.defines ?? {}) };
+  return t;
+}
+/** The stencil the occluder's two fills read while a reveal is on. Bit 8 is marked over the occluder's silhouette and CLEARED by the hidden organ's fill wherever
+ *  that is drawn, so after the hidden organ's passes it stands exactly where there is NOTHING behind the occluder. The fading fill draws only where the bit is
+ *  clear (something is behind: it shows through), the solid twin only where it is set (nothing behind: it stays whole, and clears the bit). So a fade can
+ *  reveal the hidden organ, never the page. */
+export function setOccluderGate(faded: ShaderMaterial, on: boolean): void {
+  faded.stencilWrite = on; faded.stencilRef = REVEAL_STENCIL; faded.stencilFuncMask = REVEAL_STENCIL; faded.stencilWriteMask = 0;
+  faded.stencilFunc = NotEqualStencilFunc; faded.stencilFail = KeepStencilOp; faded.stencilZFail = KeepStencilOp; faded.stencilZPass = KeepStencilOp;
+}
+export function gateSolidTwin(t: ShaderMaterial): ShaderMaterial {
+  t.stencilWrite = true; t.stencilRef = REVEAL_STENCIL; t.stencilFuncMask = REVEAL_STENCIL; t.stencilWriteMask = REVEAL_STENCIL;
+  t.stencilFunc = EqualStencilFunc; t.stencilFail = KeepStencilOp; t.stencilZFail = KeepStencilOp; t.stencilZPass = ZeroStencilOp;
+  return t;
+}
 export function buildFocusReveal(rule: FocusRule, byId: ReadonlyMap<string, CelObject>): RevealParts | null {
   const occ = rule.occluders.map((id) => byId.get(id)).filter((o): o is CelObject => !!o);
   const shows = rule.shows.map((id) => byId.get(id)).filter((o): o is CelObject => !!o);
@@ -195,6 +220,9 @@ export function buildFocusReveal(rule: FocusRule, byId: ReadonlyMap<string, CelO
     cover.stencilWrite = true; cover.stencilRef = REVEAL_STENCIL; cover.stencilWriteMask = REVEAL_STENCIL; cover.stencilFuncMask = REVEAL_STENCIL;
     cover.stencilFunc = AlwaysStencilFunc; cover.stencilFail = KeepStencilOp; cover.stencilZFail = ReplaceStencilOp; cover.stencilZPass = ReplaceStencilOp;
     o.group.add(quiet(new Mesh(o.toonMesh.geometry, cover), first - 0.8, 'reveal-silhouette'));
+    // (the occluder's fill where nothing is behind it: whole, as if no reveal ran; same draw slot as its own fill)
+    const twin = new Mesh(o.toonMesh.geometry, gateSolidTwin(solidTwinOf(o.toon, 'organ reveal solid')));
+    o.group.add(quiet(twin, o.toonMesh.renderOrder, 'reveal-solid'));
   }
   const once = (m: ShaderMaterial): ShaderMaterial => {
     m.stencilWrite = true; m.stencilRef = REVEAL_STENCIL; m.stencilFuncMask = REVEAL_STENCIL; m.stencilWriteMask = REVEAL_STENCIL;
@@ -320,9 +348,9 @@ export class OrganLayer {
     if (id === this.revealOn) return;
     this.revealOn = id;
     // (all off first, then the one on: two rules may share an occluder)
-    for (const p of this.reveals.values()) { for (const m of p.meshes) m.visible = false; for (const t of p.occluders) t.uniforms.frvOcc!.value = 0; }
+    for (const p of this.reveals.values()) { for (const m of p.meshes) m.visible = false; for (const t of p.occluders) { t.uniforms.frvOcc!.value = 0; setOccluderGate(t, false); } }
     const p = id ? this.reveals.get(id) : undefined;
-    if (p) { for (const m of p.meshes) m.visible = true; for (const t of p.occluders) t.uniforms.frvOcc!.value = 1; }
+    if (p) { for (const m of p.meshes) m.visible = true; for (const t of p.occluders) { t.uniforms.frvOcc!.value = 1; setOccluderGate(t, true); } }
   }
   get focusRevealOn(): string | null { return this.revealOn; }
   /** The canvas's pixel ratio (the drawing buffer's, which Settings > Figure detail caps: 1.5 on a 2x screen), so the outline's one-pixel feather and floor are one pixel of the buffer drawn, not of the screen. */

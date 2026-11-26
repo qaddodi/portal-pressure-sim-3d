@@ -31,6 +31,17 @@ export function wallRead(v) {
  *  explainer give one number, not the breath's own (A6, play-test 16 Nov 2026: 139% on one tab, 153% on the other, for one patient). v: metrics.varix. */
 export const wallShare = (v) => (Number.isFinite(v.ratioMean) ? v.ratioMean : v.ratioShown);
 
+/** The red wale's cuts, one place (B9, capture review 26 Nov 2026: the stop read "Red wale signs" while the scope's Stigmata read None, because the event read the two-breath mean and the scope's flag read the breath's own
+ *  index). The flag goes on above ON and, for an event that must not chatter, off only below OFF. */
+export const RED_WALE_ON = 0.7, RED_WALE_OFF = 0.65;
+/** The red wale flag, as every screen prints it (the Scope's Stigmata, the figure's varix, the cards, the caption): the wall share over the cut. `share` is the two-breath mean (wallShare), never the breath's own index. */
+export const isRedWale = (share) => share > RED_WALE_ON;
+/** The flag a screen prints: what the event says once it is running (it stays on between the two cuts and starts only after the share has held, so a varix at 0.68 that came down from 0.72 is still red wale, and the scope, the cards and
+ *  the event never disagree about it), and the plain cut before the event has looked (`state`: the event's own record, engine.evState.RED_WALE). */
+export const redWaleFlag = (state, share) => (state ? state.active === true : isRedWale(share));
+/** The event's condition (events.js RED_WALE): it starts when the flag goes on and ends only when the share has fallen below the lower cut. */
+export const redWaleCleared = (share) => share < RED_WALE_OFF;
+
 /** The wall stress's bands in words, one table (B7, play-test 16 Nov 2026: "143% of rupture threshold / Rupture risk" in a patient who never bleeds). Past 100% the model's tear point is passed; whether the varix then tears is a separate switch. */
 export const WALL_WORDS = Object.freeze({ ok: 'Low', caution: 'High', danger: 'Near rupture threshold', critical: 'Past rupture threshold' });
 /** What a share over 100% means, said once for the tile's tooltip, the card's note and the explainer. */

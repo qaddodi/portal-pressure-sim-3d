@@ -15,7 +15,7 @@ import { scopeTear } from '../copied/endo-motion.copied.js';
 import { ENDO_WORDS as W } from '../copied/endo-words.copied.js';
 import { metricsOf } from '../frame.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
-import { FieldMotion, OverlayMotion, type ScopeIn } from './motion.ts';
+import { FieldMotion, OverlayMotion, scopeRatio, type ScopeIn } from './motion.ts';
 import { scopeFrame, type OverlayState } from './frame.ts';
 import { endoUnder } from './endo-under.ts';
 import { EusPpg, useEusReset } from './EusPpg.tsx';
@@ -55,7 +55,7 @@ export function ScopeView({ square, opt, slide }: { square: number; opt: EndoOpt
     const f = latest.frame as Any, m = metricsOf(f), c = ctx.current, p = painter.current;
     if (!f || !m?.varix || !c || !p) return;
     const vx = m.varix;
-    const inp: ScopeIn = { d: pinRef.current && Number.isFinite(pinRef.current.d) ? pinRef.current.d : vx.d, ratio: vx.ratio, air: vx.air, bands: f.bands || 0, snap: f.running === false || !!f.jump, airOpt: optRef.current.air, redOpt: optRef.current.red };
+    const inp: ScopeIn = { d: pinRef.current && Number.isFinite(pinRef.current.d) ? pinRef.current.d : vx.d, ratio: scopeRatio(vx), air: vx.air, bands: f.bands || 0, snap: f.running === false || !!f.jump, airOpt: optRef.current.air, redOpt: optRef.current.red };
     const busy = field.current.step(inp, now);
     const bleedNow = !!(f.bleed?.active && f.bleed.site === 'VAR');
     const moving = over.current.step(now, { balloon: !!f.params?.balloonEso, shut: gastricUp(f.params || {}), bleedNow, total: f.bleed?.total ?? 0, still: still() });

@@ -21,6 +21,8 @@ export const CASE = {
 } as const;
 
 const day = (d: number): string => `Day ${Math.round(d)}`;
+/** A stop's day with its course's own clock beside it when it has one: "Day 114 · 18 weeks" (when.ts). */
+const dayOf = (s: Stop): string => [day(s.day), s.when].filter(Boolean).join(' · ');
 
 /** The chapter a day is in (its name), or '' with none named. */
 export function chapterAt(chapters: readonly { from: number; label: string }[], d: number): string {
@@ -42,37 +44,43 @@ export function dragWords(d: number, stops: readonly Stop[], i: number): { day: 
   return { day: day(d), small: `Stop ${i + 1} of ${stops.length}` };
 }
 
-/** The stop card's kicker: "Stop 6 of 8 · Day 70 · The bleed" (the chapter the stop is in, when one is named). */
+/** The stop card's kicker: "Stop 6 of 8 · Day 70 · The bleed" (the chapter the stop is in, when one is named; a pregnancy says its week after the day: "Day 114 · 18 weeks"). */
 export function kickerWords(stops: readonly Stop[], at: number, chapter: string): string {
   const s = stops[at];
   if (!s) return '';
-  return [`Stop ${at + 1} of ${stops.length}`, day(s.day), chapter].filter(Boolean).join(' · ');
+  return [`Stop ${at + 1} of ${stops.length}`, dayOf(s), chapter].filter(Boolean).join(' · ');
 }
 
 /** A stop's name after Continue: today's is "today", the rest their title. */
 const nextName = (s: Stop): string => (s.type === 'today' ? 'today' : s.title);
+/** The most letters the phone's Continue button holds on one line at the card's width (390 pt, 15 pt text with the arrow). */
+export const SHORT_LINE_FITS = 32;
 /** Continue's words at stop `at`: "Continue to Day 73 · TIPS 8 mm" ("Continue to Day 73" where room is short), null at the last stop. */
 export function continueWords(stops: readonly Stop[], at: number, short = false): string | null {
   const n = stops[at + 1];
   if (!n) return null;
-  return short ? `Continue to ${day(n.day)}` : `Continue to ${day(n.day)} · ${nextName(n)}`;
+  if (!short) return `Continue to ${dayOf(n)} · ${nextName(n)}`;
+  // (on a phone the course's own clock comes with the day only when the line still fits the button: "Continue to Day 114 · 18 weeks", not "... 10 weeks after delivery")
+  const withWhen = `Continue to ${dayOf(n)}`;
+  return withWhen.length <= SHORT_LINE_FITS ? withWhen : `Continue to ${day(n.day)}`;
 }
 
 /** The days left to the next stop, in words ("in 18 days", "in a day", "now"). */
 export const inDays = (n: number): string => (n <= 0 ? 'now' : n === 1 ? 'in a day' : `in ${n} days`);
 /** What the next stop is called on the way: the chapter that starts on its day ("The bleed"), else its own title. */
-export function stopName(s: Stop, chapters: readonly { from: number; label: string }[]): string {
-  const c = chapters.find((x) => Math.round(x.from) === Math.round(s.day) && x.label);
+export function stopName(s: Stop, chapters: readonly { from: number; label: string }[], first = true): string {
+  // (a chapter begins at the first stop of its day: the second of a day, what is done about a bleed, is named by its own title)
+  const c = first ? chapters.find((x) => Math.round(x.from) === Math.round(s.day) && x.label) : undefined;
   return c ? c.label : s.type === 'today' ? 'Today' : s.title;
 }
 /** The card on the way: "Next stop: Day 70", "The bleed, in 18 days"; on a phone one line, "Next stop: Day 70 · The bleed". */
 export function travelWords(stops: readonly Stop[], to: number, d: number, chapters: readonly { from: number; label: string }[]): { kicker: string; head: string; sub: string; line: string } {
   const s = stops[to];
   if (!s) return { kicker: CASE.onTheWay, head: '', sub: '', line: '' };
-  const name = stopName(s, chapters), chapter = chapterAt(chapters, d);
+  const name = stopName(s, chapters, !(to > 0 && stops[to - 1]!.day === s.day)), chapter = chapterAt(chapters, d);
   return {
     kicker: [CASE.onTheWay, chapter].filter(Boolean).join(' · '),
-    head: `Next stop: ${day(s.day)}`,
+    head: `Next stop: ${dayOf(s)}`,
     sub: `${name}, ${inDays(Math.round(s.day - d))}`,
     line: `Next stop: ${day(s.day)} · ${name}`,
   };
@@ -94,24 +102,34 @@ export function shotWords(s: StopShot): string {
 /** A Look closer item's word at the right: a view's name, or "Tests" for a Tests card. */
 export const lookSide = (tool: string): string => VIEW_WORDS[tool] ?? CASE.tests;
 
-/** A stop's short name over its line on the strip: the start and today, a known moment by its standard short form, else its title's first words (at most 12 letters). */
+/** The longest a stop's name is, in letters (the strip leaves out a name that would touch the one beside it, strip.ts placeNames, so a longer name costs a neighbour). */
+export const SHORT_MAX = 18;
+/** A stop's short name over its line on the strip: the start and today; a known moment by its standard short form; else the title's head, cut where the title itself pauses (a comma,
+ *  colon, bracket, dash, "and", "after", "with" ...), else at a word that fits in SHORT_MAX letters. It never ends on punctuation, a bare number or unit, or a joining word. */
 const SHORT: readonly [RegExp, string][] = [
   [/clinically significant portal hypertension/i, 'CSPH'],
   [/varix ruptured|variceal bleed|bleed(ing)? (again|recurred)|rebleed/i, 'Bleed'],
   [/bleeding more likely/i, 'Bleed risk'],
+  [/intra-abdominal hypertension/i, 'IAH'],
   [/^TIPS\b/, 'TIPS'],
   [/red wale/i, 'Red wale'],
   [/paracentesis/i, 'Paracentesis'],
   [/band(ing)?\b.*\(EVL\)|^band/i, 'EVL'],
+  [/coils and glue|\bglue\b/i, 'Glue'],
 ];
+const PAUSE = /\s*[,:;(]\s*|\s+[-\u2013\u2014]\s+|\s+(?:and|after|with|from|shows|before|\+)\s+/i;
+const DANGLING = /^(?:a|an|the|of|to|in|on|at|for|and|or|with|after|before|from|by|than|is|are|\d[\d.,]*|mm|ml|l|cm|%|weeks?|days?)$/i;
 export function shortName(s: Pick<Stop, 'type' | 'title'>): string {
   if (s.type === 'start') return 'Start';
   if (s.type === 'today') return 'Today';
   for (const [re, w] of SHORT) if (re.test(s.title)) return w;
-  const words = s.title.split(/\s+/);
-  let out = words[0] ?? s.title;
-  for (const w of words.slice(1)) { if ((out + ' ' + w).length > 12) break; out += ' ' + w; }
-  return out;
+  const out: string[] = [];
+  for (const w of (s.title.split(PAUSE)[0] ?? s.title).trim().split(/\s+/)) {
+    if (out.length && (out.join(' ') + ' ' + w).length > SHORT_MAX) break;
+    out.push(w);
+  }
+  while (out.length > 1 && DANGLING.test(out[out.length - 1]!)) out.pop();
+  return out.join(' ').replace(/[\s,:;.(\-\u2013\u2014]+$/, '') || s.title;
 }
 
 /** A smaller event passed on the way (the story's quiet lines): its day and its words. */

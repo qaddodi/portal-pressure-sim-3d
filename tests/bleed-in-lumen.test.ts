@@ -10,7 +10,7 @@ import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/mes
 import { FRONT_Z_ROWS, LUMEN_MASK_ROWS } from '../src/scene/disease/lumen-mask.generated.ts';
 import { rasterFront, rasterMask } from '../src/scene/disease/lumen-raster.ts';
 import { frontZ, insideLumen, lumenClearance, streamZ, STREAM_STANDOFF } from '../src/scene/disease/lumen.ts';
-import { fitStream, marginAt, CARDIA_Y, BODY_MARGIN, SPLASH_MARGIN, STREAM_MARGIN, tearOf, FIT_STEPS, type BleedSite } from '../src/scene/disease/stream-fit.ts';
+import { fitStream, streamDepth, marginAt, CARDIA_Y, BODY_MARGIN, SPLASH_MARGIN, STREAM_MARGIN, tearOf, FIT_STEPS, type BleedSite } from '../src/scene/disease/stream-fit.ts';
 import { N_BLOB, N_SPLASH, N_SPRAY, BLOB_VERTS, TUBE_VERTS, pathAt, spurtOf, type JetParams } from '../src/scene/disease/jet.ts';
 import { BleedLayer } from '../src/scene/disease/bleed.ts';
 import { poolSurfaceY, poolUniforms } from '../src/scene/organs/pool-level.ts';
@@ -112,7 +112,7 @@ test('the splash stands on the pool\'s surface: its level is the fill\'s level, 
   }
 });
 
-test('the stream rides just in front of the organ wall under it, so a turned or tilted camera cannot slide it off the organ', () => {
+test('the stream rides just in front of the organ wall under it (leaving the vein at its own depth at the tear: tests/bleed-on-vessel.test.ts), so a turned or tilted camera cannot slide it off the organ', () => {
   for (const site of SITES) {
     const layer = new BleedLayer(createShared());
     layer.set({ active: true, site, rate: 90, total: 600 }, 0.05, true, 0.6);
@@ -122,7 +122,8 @@ test('the stream rides just in front of the organ wall under it, so a turned or 
       let x = 0, y = 0, z = 0;
       for (let j = 0; j < 7; j++) { const i = ring * 8 + j; x += pos.getX(i) / 7; y += pos.getY(i) / 7; z += pos.getZ(i) / 7; }
       const fx = x2d(x), fy = y2d(y);
-      assert.ok(Math.abs(z - streamZ(fx, fy)) < 0.012, `${site} ring ${ring}: z ${z.toFixed(3)} is the wall's ${frontZ(fx, fy).toFixed(3)} + ${STREAM_STANDOFF}`);
+      assert.ok(Math.abs(z - streamDepth(site, fx, fy)) < 0.012, `${site} ring ${ring}: z ${z.toFixed(3)} is the shared depth ${streamDepth(site, fx, fy).toFixed(3)}`);
+      if (ring === 24) assert.ok(Math.abs(z - streamZ(fx, fy)) < 0.012, `${site} at the landing: z ${z.toFixed(3)} is the wall's ${frontZ(fx, fy).toFixed(3)} + ${STREAM_STANDOFF}`);
     }
     layer.dispose();
   }

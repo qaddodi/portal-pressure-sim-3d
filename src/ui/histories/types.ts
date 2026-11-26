@@ -9,8 +9,11 @@ export interface Step {
   id?: string;
   /** parameters merged into the patient's (the treatment panel's change) */
   set?: Record<string, unknown>;
-  /** an engine action: a bleed (the model's own rupture, run for a minute), a band, a large-volume paracentesis with albumin (all the fluid there is, to 0.1 L) */
+  /** an engine action: a bleed (the model's own rupture, run for a minute), a band, a large-volume paracentesis with albumin (all the fluid there is; the title says the litres the engine took off) */
   act?: 'bleed' | 'band' | 'paracentesis';
+  /** The step that stops a bleed under way: hemostasis. A band stops an esophageal bleed by itself (the engine's band); a gastric varix has no band, so a step says it (the vasoactive drug's
+   *  control, a BRTO). The generator stops when a bleed runs on past BLEED_END_DAYS with none. */
+  stopsBleed?: true | string;   // (a string is the days list's words for it: "Bleeding controlled by EUS coils and glue")
   /** where a bleed comes from: the esophageal varices (the default) or a gastric varix */
   site?: 'VAR' | 'GV';
   /** History's words for the step, when the change's own labels would not say it (an angioplasty is a thrombus put away) */
@@ -18,15 +21,26 @@ export interface Step {
   detail?: string;
   /** a line the course adds that the model does not raise (a Doppler follow-up): shown as an event */
   note?: { title: string; detail: string; sev: 'ok' | 'caution' | 'danger' | 'info' };
+  /** an endoscopy (a band session is one too, without saying so). What only an endoscopy sees (large varices, red wale signs) is known on the days of the scopes, never on the model's own clock:
+   *  the engine raises it when the varix crosses its cut, the course holds it until the next scope and drops it if it no longer holds then.
+   *  The `note` is the scope's own line, told before its findings. */
+  scope?: boolean;
 }
 
 export interface Course {
   id: string;
   name: string;
+  /** the name on a phone's top pill (two lines of 15 characters at most), only when the full name is longer than that;
+   *  without it the name itself is shown (tests/pill-name.test.ts holds every history to it) */
+  short?: string;
   /** the menu's group and the words beside it */
   group: string; where: string;
-  /** the engine preset the patient starts from (day 0) */
+  /** the engine preset the patient starts from (day 0): the family the history belongs to, and the id a shared link carries */
   preset: string;
+  /** This history's own patient: a patch on the preset's settings, and the years of disease the model runs before day 0 (the preset's own when left out).
+   *  Every history says who comes in: two histories never start from the same patient (tests/histories-starts.test.ts), whatever family they share.
+   *  The disease clock runs on it, so the fluid and the readings are settled for this patient. */
+  start?: { patch: Record<string, unknown>; days?: number };
   days: number;
   /** parameters merged in before day 0 */
   init?: Record<string, unknown>;
@@ -41,8 +55,8 @@ export interface Course {
   still?: boolean;
   steps: Step[];
   /** the story's chapters (docs/approved/timeline-story.md): the first from Day 0, each other from the day of the step it names (`at`, a step's id) or the start of a ramp (`{ ramp }`, its key).
-   *  Anchored to the course, never to a day the engine raised something on, so a rebake cannot slide a chapter. */
-  chapters: { at?: string | { ramp: string }; label: string }[];
+   *  Anchored to the course, never to a day the engine raised something on, so a rebake cannot slide a chapter (`{ day }` is a day the course names itself: a trimester's first). */
+  chapters: { at?: string | { ramp: string } | { day: number }; label: string }[];
   /** the story: {id} is the day of the step with that id */
   story: string;
   /** the course in a few words, for the row's tip */
@@ -81,7 +95,7 @@ export type Tone = 'ok' | 'caution' | 'danger' | 'info';
 export interface Seg { text: string; tone?: 'danger' | 'caution' | 'ok' }
 /** What the menu needs before a history is loaded: the row, and the folded-open card with its small chart. */
 export interface HistoryMeta {
-  id: string; name: string; group: string; where: string;
+  id: string; name: string; short?: string; group: string; where: string;
   /** the preset the patient started from (a shared link carries the settings on it) */
   preset: string;
   months: number; state: Seg[]; story: string; path: string;

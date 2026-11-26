@@ -2,8 +2,25 @@
 // fields (the view, the named camera, the lens, the labels), so the camera does there exactly what a slide's would. Plain data: no engine, no page.
 import type { ViewId } from '../shell/views.ts';
 
-/** "Look closer here": a Tests card or a view worth opening at this stop (up to three). `tool` is a Tests tool's id or a view's ('circuit', 'lobule', ...). */
-export interface CaseLook { tool: string; label: string }
+/** The state a Look closer card opens in, where its label names one (look-pane.ts applies it through each pane's own store). A look that names a site or a mode must set it: the pane
+ *  otherwise opens as the last visit left it (the portal vein for a stent's Doppler, Measure for the stent's pressures, 10 s for a pregnancy's days, an empty HVPG tracing). */
+export interface LookPane {
+  /** IR (hvpg): the TIPS tab, on this stent */
+  stent?: 'TIPS' | 'DIPS';
+  /** IR (hvpg): the Measure tab with the HVPG measurement already running, so its tracing is not empty */
+  measure?: true;
+  /** Doppler: the vessel (an edge id of the Doppler's own list) the probe samples */
+  probe?: string;
+  /** Over time (scope): the range on screen */
+  range?: 'beats' | 'minutes' | 'days';
+  /** a treatment to watch play on the figure (scene/procedures' kind, 'eusglue'), the patient untouched: the course has already done it (case/watch.ts) */
+  watch?: string;
+}
+
+/** "Look closer here": a Tests card or a view worth opening at this stop (up to three). `tool` is a Tests tool's id or a view's ('circuit', 'lobule', ...); `pane` the state the card opens in. */
+export interface CaseLook {
+  tool: string; label: string; pane?: LookPane;
+}
 
 /** Where the camera goes at a stop: a view, a slide's named camera in it ('bleed', 'tips', 'lobule:sinusoid' ... decks/hp/cams.ts), the lens, the stations it labels. */
 export interface StopShot { view: ViewId; cam: string; lens?: string; labels?: string[] }
@@ -15,11 +32,17 @@ export interface CaseStopIn {
   drop?: boolean;
   view?: ViewId; cam?: string; lens?: string; labels?: string[];
   look?: CaseLook[];
+  /** a Tests card this stop opens by itself on arrival (the bleed, seen through the scope) */
+  open?: CaseLook;
   /** an authored line in place of the story's own sentence */
   say?: string;
 }
 /** The same, baked: anchored to its day (index.generated.ts, as the chapters are). */
-export type CaseStopBaked = Omit<CaseStopIn, 'at'> & { day: number };
+export type CaseStopBaked = Omit<CaseStopIn, 'at'> & {
+  day: number;
+  /** the course step it was anchored to, when it was (a day with two stops, a bleed and what is done about it, tells them apart by it) */
+  step?: string;
+};
 
 /** The disease moving by itself between stops (a course's ramps, baked): `key` eased from a to b over the days from..to. */
 export interface CaseRamp { key: string; from: number; to: number; a: number; b: number }
@@ -37,7 +60,11 @@ export interface Stop {
   kind: string;
   shot: StopShot;
   look: CaseLook[];
+  /** the Tests card the stop opens by itself on arrival, or null */
+  open: CaseLook | null;
   say: string | null;
+  /** where the course's own clock stands (pregnancy: "18 weeks", "4 weeks after delivery"), or '' when the course has none (when.ts) */
+  when?: string;
 }
 
 /** Where the case is: not playing, waiting at a stop, on the way to the next, or left (the patient is the learner's own from a stop on, with the way back kept). */

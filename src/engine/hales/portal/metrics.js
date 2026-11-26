@@ -5,6 +5,7 @@ import { clamp } from '../core/physiology.js';
 import { tenthGap } from '../core/gap.js';
 import { ssmOf } from './ssm-cuts.js';
 import { bedsideMean } from './bedside-mean.js';
+import { isRedWale, redWaleFlag } from './wall-read.js';
 
 const STENTS = new Set(['TIPS', 'DIPS']);   // the stents from the portal side: their flow is part arterial (see computeMetrics)
 
@@ -138,12 +139,14 @@ export function computeMetrics(eng, out = null) {
     measured = spareOf(r).meas;
     measured.vein = cath.vein; measured.fhvp = hold(eng, 'mfhvp', P[ni[HV_NODE[cath.vein]]]); measured.wedged = cath.wedged; measured.whvp = cath.wedged ? hold(eng, 'mwhvp', P[ni[WEDGE_NODE[cath.vein]]]) : null;
   }
+  // (the red wale is the event's own state (the two-breath mean, with the event's hold and its lower clear), so the scope, the cards and the event say one thing: wall-read.js redWaleFlag)
+  const ratioMean = eng.vitM?.[4] ?? varE.ratio;
   const vx = part(r, 'varix'), gx = noGRS ? spareOf(r).gOff : spareOf(r).gOn;
-  copyInto(vx, varE); vx.d = 2 * varE.r; vx.air = eng.varixAir('VAR', P, 21, extS); vx.grade = varixGrade(eng.varixGraded('VAR', 2 * varE.r)); vx.present = varixPresent(2 * varE.r, eng.bands > 0); vx.redWale = varE.ratio > 0.7; vx.closed = eng.varixObliterated('VAR'); vx.ratioMean = eng.vitM?.[4] ?? varE.ratio;
+  copyInto(vx, varE); vx.d = 2 * varE.r; vx.air = eng.varixAir('VAR', P, 21, extS); vx.grade = varixGrade(eng.varixGraded('VAR', 2 * varE.r)); vx.present = varixPresent(2 * varE.r, eng.bands > 0); vx.redWale = redWaleFlag(eng.evState?.RED_WALE, ratioMean); vx.closed = eng.varixObliterated('VAR'); vx.ratioMean = ratioMean;
   copyInto(gx, varG);
   gx.closed = !noGRS && eng.varixObliterated('GV');   // (obliterated: BRTO or coils closed it, so its card reads no pressure)
   if (noGRS) { gx.d = 0; gx.grade = varixGrade(0); gx.present = false; gx.redWale = false; }
-  else { gx.d = 2 * varG.r; gx.grade = varixGrade(eng.varixGraded('GV', 2 * varG.r)); gx.present = varixPresent(2 * varG.r, false); gx.redWale = varG.ratio > 0.7; }
+  else { gx.d = 2 * varG.r; gx.grade = varixGrade(eng.varixGraded('GV', 2 * varG.r)); gx.present = varixPresent(2 * varG.r, false); gx.redWale = isRedWale(varG.ratio); }
   const ax = part(r, 'ascites');
   ax.volume = eng.slow.ascites; ax.ratePerDay = st.net * 1440; ax.iap = eng.iapf ?? eng.iap ?? 5; ax.grade = asc.grade; ax.label = asc.label;
   ax.highProtein = st.highProtein; ax.totalProtein = st.ascTP; ax.albumin = st.ascAlb; ax.saag = st.saag; ax.lymphProt = st.prot.lymphProt; ax.lymphSigma = st.prot.sigma;

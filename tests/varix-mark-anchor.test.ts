@@ -32,16 +32,17 @@ const clear = (RING.r + BADGE_R + 4) / UNITS_PER_SCENE;
 const marksOnVarix = slides.filter(({ s }) => figurePlan(s).marks.some((m) => m.edges.some((e) => VARIX_CALIPERS.has(e))));
 
 test('the tear is the jet\'s own first point, outside the scope ring', () => {
-  // the esophageal varix's tear is the jet's first point on the esophagus's far left wall (stream-fit.ts), at the 2D app's height; the gastric one is the 2D app's own
+  // each tear is the jet's first point, on its own varix vessel (stream-fit.ts tearAt): the esophageal one on the esophagus's far left wall, at the 2D app's height
   const rows = bleedShapes({ site: 'VAR', total: 0 }, 50, { varix: SITES.varix, fundus: SITES.fundus }) as number[][];
-  assert.equal(tearPoint('VAR')[1], rows[1]![1]);
+  assert.ok(Math.abs(tearPoint('VAR')[1] - rows[1]![1]) < 5, 'about the 2D app\'s height: the esophageal varix runs the length of the tube');
   assert.ok(tearPoint('VAR')[0] < rows[1]![0]! - 8, 'on the far left wall: left of where the 2D app starts it');
   const fit = fitStream('VAR', 50, 330);
   assert.deepEqual([fit.x0, fit.y0], [...tearPoint('VAR')], 'the jet starts at the tear');
   const [tx, ty] = tearPoint('VAR');
   assert.ok(Math.hypot(tx - RING.x, ty - RING.y) > RING.r + BADGE_R + 4, 'the tear is clear of the ring and its badge');
   const gv = bleedShapes({ site: 'GV', total: 0 }, 50, { varix: SITES.varix, fundus: SITES.fundus }) as number[][];
-  assert.deepEqual([...tearPoint('GV')], [gv[1]![0], gv[1]![1]]);
+  // (the gastric tear is on the fundal loops as the 3D figure draws them, not at the 2D app's point: tests/bleed-on-vessel.test.ts)
+  assert.ok(Math.hypot(tearPoint('GV')[0] - gv[1]![0]!, tearPoint('GV')[1] - gv[1]![1]!) < 25, 'near where the 2D app has it');
 });
 
 test('there are slides with a mark on the varix columns', () => assert.ok(marksOnVarix.length >= 1));

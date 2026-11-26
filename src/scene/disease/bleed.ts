@@ -9,8 +9,7 @@
 import { BackSide, BufferAttribute, BufferGeometry, DynamicDrawUsage, Group, Mesh, ShaderMaterial } from 'three';
 import { SITES } from './copied/anatomy-b4.ts';
 import { bleedShapesInto, makeBleedRows } from './copied/bleed-shapes.js';
-import { fitStream } from './stream-fit.ts';
-import { streamZ } from './lumen.ts';
+import { fitStream, streamDepth } from './stream-fit.ts';
 import { poolSurfaceY } from '../organs/pool-level.ts';
 import { CelObject, type CelShared } from '../materials/cel.ts';
 import { FADE_GLSL, INK_RIM_GLSL } from '../materials/shaders.ts';
@@ -81,6 +80,8 @@ export class BleedLayer {
   private wanted = false;
   private time = 0;
   private rows = makeBleedRows();
+  /** The depth the stream is drawn at over a figure point: the bleeding vein's own surface at the tear, easing to the organ's wall (stream-fit.ts streamDepth). */
+  private zAt = (x: number, y: number): number => streamDepth(this.last?.site ?? 'VAR', x, y);
   private params: JetParams = { x0: 0, y0: 0, xl: 0, yl: 0, r0: 3, brk: 0.7, spurt: 0.5 };
   /** How far the tamponade's gastric balloon is drawn up against the cardia (0..1, the scene sets it each frame): a seated balloon covers the tear, so the jet stops as it comes (its tail drains, easing) and runs again if it is let go. */
   seat = 0;
@@ -126,7 +127,7 @@ export class BleedLayer {
     p.x0 = fit.x0; p.y0 = fit.y0; p.lift = this.lift.value; p.xl = this.land.value; p.yl = this.surf.value; p.r0 = this.radius.value; p.brk = st[5]!; p.spurt = spurtOf(s.rate);
     if (!this.still) this.time += Math.min(dt, 0.05);
     this.ensure();
-    const thick = fillJet(this.bufs, p, { grow: this.grow.value, drain: this.drain.value }, this.time, STREAM_Z, streamZ);
+    const thick = fillJet(this.bufs, p, { grow: this.grow.value, drain: this.drain.value }, this.time, STREAM_Z, this.zAt);
     const g = this.geo!;
     for (const a of ['position', 'normal', 'tang', 'ik'] as const) (g.getAttribute(a) as BufferAttribute).needsUpdate = true;
     if (this.inkMat) this.inkMat.uniforms.inkK!.value = smooth(0, 0.45, thick);
