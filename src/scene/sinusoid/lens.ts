@@ -1,13 +1,13 @@
 // What the colour lens paints in the Sinusoid view (the table of what it means: lenses/in-view.ts). Pure: a lens, a look and the lobule's model in, colours out.
 //   the lumen       every lens but the stream ones, at the sinusoid node (the lobule's ink at the sinusoid's own value: inkAt 'sin', w = 1).
 //                   Pressure keeps the 2D sinusoid's own rule (P2, not rounded).
-//   the red cells   Blood origin and First pass: the blood has mixed by here, so each cell wears one source's colour, picked by its own fixed draw against the shares halfway along the sinusoid
-//                   (laneShares, the very blend the lobule's lanes are drawn from). Under every other lens the cells keep their own red.
+//   the red cells   Blood origin and First pass: the blood has mixed by here, so each cell wears one stream's colour, picked by its own fixed draw against the shares halfway along the sinusoid
+//                   (streamsOf, the very streams the lobule's vessels are drawn with; First pass: the gut blood half cleared). Under every other lens the cells keep their own red.
 import { samplerFor } from '../lenses/model.ts';
 import { shownLens } from '../lenses/in-view.ts';
 import type { Rgb } from '../lenses/oklab.ts';
 import type { LensId } from '../lenses/model.ts';
-import { type InkContext, inkAt, laneColours, laneShares } from '../lobule/ink.ts';
+import { type InkContext, inkAt, laneShares, streamsOf } from '../lobule/ink.ts';
 
 /** Where along the sinusoid the stretch the view shows sits, for the shares of the stream lenses: halfway (0 the central vein, 1 the portal end, as the lobule's `w`). */
 export const SINUSOID_MID_W = 0.5;
@@ -29,13 +29,14 @@ export function sinusoidLumen(c: InkContext, lens: LensId, out: Rgb): Rgb {
 export function sinusoidCellSources(c: InkContext, lens: LensId): { cols: readonly Rgb[]; cum: number[] } | null {
   const shown = shownLens('sinusoid', lens);
   if (!coloursCells(shown)) return null;
-  const f = laneShares({ ...c, lens: shown }, 'sin', SINUSOID_MID_W, []);
-  let sum = 0; for (const v of f) sum += v;
+  // (the streams of the one rule, lobule/ink.ts streamsOf: under First pass the gut blood is one stream, halfway cleared here)
+  const st = streamsOf(shown, laneShares({ ...c, lens: shown }, 'sin', SINUSOID_MID_W, []), { cols: [], w: [] });
+  let sum = 0; for (const v of st.w) sum += v;
   const cum: number[] = [];
   let acc = 0;
-  for (const v of f) { acc += sum > 0 ? v / sum : 0; cum.push(acc); }
+  for (const v of st.w) { acc += sum > 0 ? v / sum : 0; cum.push(acc); }
   cum[cum.length - 1] = 1;
-  return { cols: laneColours(shown), cum };
+  return { cols: st.cols, cum };
 }
 
 /** The red cells' colouring across a lens change (sinusoid/view.ts cellColours): the sources before and after (null: their own red) and the share of the after (lenses/fade.ts). */

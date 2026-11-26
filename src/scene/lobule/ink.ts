@@ -6,7 +6,7 @@
 //   blends from it).
 import { DELTA_RANGE, DROP_MAX, HEAT_MAX, MPS_TO_LPM, type LensId, firstPassColours, flowPos, originColours, oxygenPos, samplerFor } from '../lenses/model.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../lenses/tokens.copied.ts';
-import { delta3, hexToRgb01, type Rgb } from '../lenses/oklab.ts';
+import { delta3, fromOklab, hexToRgb01, toOklab, type Rgb } from '../lenses/oklab.ts';
 import { velPos } from '../lenses/vel-normal.copied.js';
 import { NODES } from '../../engine/hales/portal/topology.js';
 import type { LookId } from '../palette.ts';
@@ -46,7 +46,11 @@ const tmp: Rgb = [0, 0, 0];
 
 /** The colour (sRGB 0..1, written into `out`) a lobule vessel wears at `w` along it, under the lens. */
 export function inkAt(c: InkContext, seg: Seg, w: number, out: Rgb): Rgb {
-  if (seg === 'art') { const a = hexToRgb01((LOBULE_PALETTES[c.look].tones as Record<string, string>).artery!); out[0] = a[0]; out[1] = a[1]; out[2] = a[2]; return out; }
+  // (an arteriole keeps the artery's own tone under every lens, as the vessels' arteries do; under the stream lenses it is a source, the hepatic artery's blood, in its key colour)
+  if (seg === 'art') {
+    const a = c.lens === 'origin' || c.lens === 'firstpass' ? ORIGIN_COLS[HA_SLOT]! : hexToRgb01((LOBULE_PALETTES[c.look].tones as Record<string, string>).artery!);
+    out[0] = a[0]; out[1] = a[1]; out[2] = a[2]; return out;
+  }
   const m = c.model, lens = c.lens, tok = LENS_TOKENS[c.look];
   let v: Rgb;
   if (lens === 'pressure' || lens === 'delta' || lens === 'since' || lens === 'heat') {
@@ -87,6 +91,8 @@ export function inkAt(c: InkContext, seg: Seg, w: number, out: Rgb): Rgb {
 /** Where across a vessel the three colour samples sit (-1 one wall, +1 the other): the tube's vertices take colours between them. */
 export const LANE_X = [-0.67, 0, 0.67] as const;
 const ORIGIN_COLS = originColours(), PASS_COLS = firstPassColours();
+/** The hepatic artery's slot in the sources (blood.js: 0 SMV, 1 IMV, 2 SV, 3 HA, 4 systemic). */
+const HA_SLOT = 3;
 
 /** The colours of the blood's sources under Blood origin or First pass, in the lanes' order (the systemic remainder last). */
 export const laneColours = (lens: 'origin' | 'firstpass'): readonly Rgb[] => (lens === 'origin' ? ORIGIN_COLS : PASS_COLS);
@@ -104,19 +110,41 @@ export function laneShares(c: InkContext, seg: Seg, w: number, out: number[]): n
   return out;
 }
 
-/** The colour (sRGB 0..1, into `out`) at `w` along a lobule vessel and `across` it (-1 one wall, +1 the other; 0 the middle, for a cap or a place with no side).
- *  Under Blood origin and First pass the blood's sources run as lanes side by side (the 2D app's streams of the vessel), each as wide as its share, the sources in the lens's order and the
- *  systemic remainder last; under every other lens, and on an arteriole's twig, `inkAt`. The ONE rule the 3D lobule's vertices (micro3d/lobule3d.ts stepInk) and `inkLanes` are coloured by.
- *  `shares` may carry laneShares(c, seg, w) already worked out. */
+/** The blood's streams at a place under a stream lens, in the order they lie across the vessel: their colours and shares (into `out`). Blood origin: its five sources as they are.
+ *  First pass: raw and cleared gut blood are ONE stream, the same blood before and after the sinusoids, its colour the share of it cleared so far (OKLab, raw to clear), so it turns
+ *  smoothly from raw at the portal venule to clear at the central vein; the hepatic artery's and the systemic blood run beside it all the way (owner, 26 Nov). */
+export function streamsOf(lens: 'origin' | 'firstpass', f: ArrayLike<number>, out: { cols: Rgb[]; w: number[] }): { cols: Rgb[]; w: number[] } {
+  out.cols.length = 0; out.w.length = 0;
+  if (lens === 'origin') { for (let i = 0; i < 5; i++) { out.cols.push(ORIGIN_COLS[i]!); out.w.push(f[i] ?? 0); } return out; }
+  const gut = (f[0] ?? 0) + (f[1] ?? 0), k = gut > 1e-9 ? (f[1] ?? 0) / gut : 0;
+  out.cols.push(clearing(k), PASS_COLS[3]!, PASS_COLS[4]!);
+  out.w.push(gut, f[3] ?? 0, f[4] ?? 0);
+  return out;
+}
+const STREAMS = { cols: [] as Rgb[], w: [] as number[] };
+/** Gut blood a share `k` cleared (0 raw, 1 clear): raw's colour turning to clear's round the shorter way of the hue circle in OKLCh, lightness and colourfulness eased between the two, so the
+ *  turn stays a clear colour all the way (a straight OKLab line between the orange and the teal passes through a muddy beige). */
+export function clearing(k: number): Rgb {
+  const a = toOklab(PASS_COLS[0]!), b = toOklab(PASS_COLS[1]!), t = Math.min(1, Math.max(0, k));
+  const ca = Math.hypot(a[1], a[2]), cb = Math.hypot(b[1], b[2]), ha = Math.atan2(a[2], a[1]);
+  let dh = Math.atan2(b[2], b[1]) - ha;
+  if (dh > Math.PI) dh -= 2 * Math.PI; else if (dh < -Math.PI) dh += 2 * Math.PI;
+  const L = a[0] + (b[0] - a[0]) * t, C = ca + (cb - ca) * t, h = ha + dh * t;
+  return fromOklab([L, C * Math.cos(h), C * Math.sin(h)]);
+}
+
+/** The colour (sRGB 0..1, into `out`) at `w` along a lobule vessel and `across` it (-1 one wall, +1 the other; 0 the middle, for a place with no side).
+ *  Under Blood origin and First pass the blood's streams (streamsOf) lie side by side, each as wide as its share; under every other lens, and on an arteriole's twig, `inkAt`.
+ *  The ONE rule the 3D lobule's vertices (micro3d/lobule3d.ts writeInk), the sinusoid's red cells and `inkLanes` are coloured by. `shares` may carry laneShares(c, seg, w) worked out. */
 export function inkAcross(c: InkContext, seg: Seg, w: number, across: number, out: Rgb, shares?: ArrayLike<number>): Rgb {
   const lens = c.lens;
   if ((lens !== 'origin' && lens !== 'firstpass') || seg === 'art') return inkAt(c, seg, w, out);
-  const f = shares ?? laneShares(c, seg, w, []);
-  let sum = 0; for (let i = 0; i < 5; i++) sum += f[i]!;
-  const a = Number.isFinite(across) && Math.abs(across) <= 1 ? across : 0, t = (a + 1) / 2 * sum, cols = laneColours(lens);
-  let acc = 0, pick = 4;
-  for (let i = 0; i < 5; i++) { acc += f[i]!; if (t <= acc) { pick = i; break; } }
-  const col = cols[pick]!;
+  const st = streamsOf(lens, shares ?? laneShares(c, seg, w, []), STREAMS);
+  let sum = 0; for (const v of st.w) sum += v;
+  const a = Number.isFinite(across) && Math.abs(across) <= 1 ? across : 0, t = (a + 1) / 2 * sum;
+  let acc = 0, pick = st.w.length - 1;
+  for (let i = 0; i < st.w.length; i++) { acc += st.w[i]!; if (t <= acc && st.w[i]! > 0) { pick = i; break; } }
+  const col = st.cols[pick]!;
   out[0] = col[0]; out[1] = col[1]; out[2] = col[2];
   return out;
 }
