@@ -168,11 +168,18 @@ const cellKeyOf = (g: { congU: number; septU: number }): string => { const q = (
 /** How much of the lobule's own detail stays on a dive: it follows the field's breadth, but never less than the body has yet to cover (`body` is the body's share, 0 gone, 1 whole). Before, it was gone by
  *  the time the body was half back, and the screen was darker than both ends of the move: the black dive, slide 7 to 8, Black look. One picture both ways: the same on the way in. */
 export const lobuleStays = (wideNow: number, body: number): number => Math.max(1 - wideNow, 1 - Math.min(1, Math.max(0, body)));
-/** How much of the neighbours' ground is drawn on a dive (`body` the body's share, 0 gone, 1 whole): none while the body is whole, all of it once the body is half gone, smooth between.
+/** How much of the neighbours' ground is drawn on a dive (`body` the body's share, 0 gone, 1 whole): what the body leaves, 1 - body (eased in over the first tenth), so it moves
+ *  hardly faster than the body does.
  *  The ground is the dive frame's backdrop, so it must be 0 at the frame the dive frame is switched on (the body's first step under 1). Before, it was whole at that frame: the page
- *  behind and around the body turned to the lobules' tone in one frame, and back in one frame on the way out (the Anatomy to Lobule flicker, Mohammad 26 Nov). Whole by half-way: no
- *  dip toward the page in the middle. */
-export const groundStays = (body: number): number => { const t = Math.min(1, Math.max(0, (1 - Math.min(1, Math.max(0, body))) * 2)); return t * t * (3 - 2 * t); };
+ *  behind and around the body turned to the lobules' tone in one frame, and back in one frame on the way out (the Anatomy to Lobule flicker, Mohammad 26 Nov). (It was whole by half-way
+ *  until the body was made to go before the camera reaches the liver's surface: over that shorter run, twice the body's pace was a step of a third a frame. The straight share dips no
+ *  more than 0.03 toward the page in the middle, tests/dive-nothing-switches.test.ts.) */
+export const GROUND_EASE = 0.1;
+export const groundStays = (body: number): number => {
+  const u = 1 - Math.min(1, Math.max(0, body)), e = GROUND_EASE;
+  // (eased in over the first tenth, so the frame the dive frame is switched on, the body's first small step under 1, has next to none of it; straight after, at the body's own pace)
+  return (u < e ? (0.5 * u * u) / e : u - 0.5 * e) / (1 - 0.5 * e);
+};
 
 export class Lobule3D {
   readonly group = new Group();

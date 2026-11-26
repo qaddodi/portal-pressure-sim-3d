@@ -45,6 +45,12 @@ export const SIN_SHOW_FROM = 0.2;
 export const LOBULE_UNDER_FROM = 0.7;
 
 export const DIVE_OUT = 1.9, DIVE_IN = 40 * LOBULE_SCALE;
+/** The figure's front (scene z): every organ's front face is at or behind it (organs/meshes.ts) and every vessel lies behind it too (frame2d.ts TIER_Z, the radius included). */
+// (the dive's body is gone before the camera reaches this plane: nothing the camera flies through is ever drawn. Before, the body was still a third drawn when the camera went
+//  through the liver's surface and then the right sinusoids' bed, and each surface was cut by the near plane for a frame: a straight-edged dark sheet across the screen, Mohammad 26 Nov)
+export const FIGURE_FRONT_Z = 0.26;
+/** How far before that plane the last of the body has gone (a share of the distance to it): the dissolve's tail is never at the surface. */
+export const FRONT_MARGIN = 1.15;
 
 /** How much of the body is drawn with the camera `d` scene units from the lobule's place: 1 whole, 0 gone (smoothstep between DIVE_IN and DIVE_OUT). */
 // (in log distance: the zoom is geometric, so the dissolve runs evenly through the whole dive instead of all at once at its end)
