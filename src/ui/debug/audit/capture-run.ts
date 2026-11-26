@@ -23,7 +23,7 @@ export async function runCapture(ui: RunUi): Promise<RunResult> {
   }
   const c = await captureCases({
     ids: ui.cases ?? everyCaseId(), status: ui.status, stop: ui.stop, speed: ui.speed, skip: ui.skip, looks: ui.looks,
-    progress: (n, total) => ui.progress(n0 + n, total0 + total),
+    progress: (n, total) => ui.progress(n0 + n, total0 + total), partial: ui.partial,
   });
   const at = new Date(), files = [...(first?.files ?? []), ...c.files];
   // (a run of cases alone has the README at the top too: the first thing a person opens)

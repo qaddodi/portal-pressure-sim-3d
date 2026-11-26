@@ -37,6 +37,10 @@ One address, no AI, nothing sent anywhere (`src/ui/debug/audit`). On a Mac, `/pr
 
 If the browser ends the tab, the walk is written down after every step: open the same address again and it **resumes after the last step** and says so in the report (`?fresh=1` forgets it). The report also prints the **kill ledger**: what the page's memory estimate stood at each time the browser ended a tab on this device (the page writes its last moment once a second while it runs, and the next page reads it), so the memory limit can be set from facts. The ledger is local only (`pps.kills` in this browser's storage); nothing is sent.
 
+### Stop on a capture keeps everything that was finished
+
+**Stop** on the Mac's capture (every size at once) ends in one zip with what every size had finished, and **Save zip** comes. Each frame stops at its next moment of stillness (no picture is taken of a page that was not still); a frame that has not ended 60 s after Stop is cut off. A frame sends each talk's (or case's) files as that talk ends, so a frame that crashes, hangs or is cut off still gives every talk it had finished; the README says which size did not finish and why. The same holds for the promotion pictures. `tests/capture-stop.test.ts`.
+
 ### Picked slides go straight there
 
 A capture of **Random 5, 10, 25** or ticked slides (and every `?promotion` picture) goes straight to each picked slide, as an opened link does, and never presses Next through the slides before it. The audit's pictures stand on the slide's end state, the one a person is left on after the last Next within it (its last beat and page, a procedure done, the readings taken) and wait, in real time, for the page to be still before the picture. The promotion pictures stand on the slide as it opens. This is the tool's own hand: the app's shape changes still ease (`src/ui/debug/audit/capture-jump.ts`, `tests/capture-jump.test.ts`).

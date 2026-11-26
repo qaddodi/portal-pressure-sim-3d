@@ -1,4 +1,5 @@
-// ?audit=capture: the app inside one frame of the outer page (capture-outer.ts). It boots, settles, takes the pictures the address names (`&pick=`, `&only=`, `&speed=`), reports its progress to the page
+// ?audit=capture: the app inside one frame of the outer page (capture-outer.ts). It boots, settles, takes the pictures the address names (`&pick=`, `&only=`, `&speed=`),
+// reports its progress to the page
 // around it and hands up the files of its zip (name and bytes), so the outer page can join every size into one. Standing alone (no outer page) it says so and does nothing.
 import { flagValue } from '../flags.ts';
 import { attach } from '../pps.ts';
@@ -12,6 +13,8 @@ import { clock } from '../../../clock/frame.ts';
 export type CaptureMsg =
   | { capture: 'hello' }
   | { capture: 'progress'; text: string; n: number; total: number }
+  /** a talk's (or a case's) finished files, sent as it ends: the outer page keeps them if the frame never says `done` */
+  | { capture: 'part'; files: { name: string; data: Uint8Array }[] }
   | { capture: 'done'; files: { name: string; data: Uint8Array }[]; notes: string[]; shots: number; secs: number; stopped: boolean; speed: number }
   | { capture: 'failed'; why: string };
 
@@ -36,6 +39,7 @@ const post = (m: CaptureMsg): void => { try { parent.postMessage(m, location.ori
 export function mountCaptureChild(): void {
   if (parent === window) return;   // (the self-test's outer page holds the frame: opened alone, this does nothing)
   let stop = false, text = '';
+  const sent = new Set<string>();
   attach('audit', { stop: () => { stop = true; } });
   post({ capture: 'hello' });
   clock.after(() => {
@@ -54,8 +58,10 @@ export function mountCaptureChild(): void {
           decks: decks.length ? new Set(decks) : null, pick, speed: speed > 1 ? speed : undefined, promo: ratio ? { ratio } : undefined,
           status: (s) => { text = s; }, stop: () => stop,
           progress: (n, total) => post({ capture: 'progress', text, n, total }),
+          partial: (fs) => { for (const f of fs) sent.add(f.name); post({ capture: 'part', files: fs.map((f) => ({ name: f.name, data: f.data })) }); },
         });
-        post({ capture: 'done', files: r.files.map((f) => ({ name: f.name, data: f.data })), notes: r.notes, shots: r.shots, secs: r.secs, stopped: r.stopped, speed: r.speed });
+        // (what was handed up as the talks ended is not sent twice)
+        post({ capture: 'done', files: r.files.filter((f) => !sent.has(f.name)).map((f) => ({ name: f.name, data: f.data })), notes: r.notes, shots: r.shots, secs: r.secs, stopped: r.stopped, speed: r.speed });
       } catch (e) { post({ capture: 'failed', why: String((e as Error)?.message ?? e) }); }
     });
   }, 1500);

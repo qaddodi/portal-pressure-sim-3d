@@ -10,6 +10,7 @@ import { saveFiles } from '../../capture/save-files.ts';
 import { commitOf } from '../../../boot/release.ts';
 import { clock } from '../../../clock/frame.ts';
 import { readBox } from '../../layout-snap.ts';
+import { fileKeeper, stopOverdue, STOP_GRACE_MS } from '../audit/capture-keep.ts';
 import { layoutFor, drawComposite, FRAME_KIND, FRAME_SAFE, type Brand } from './frames.ts';
 import { PROMO_SIZES, PROMO_RATIO, PROMO_SLIDES, parseSlides, slidesText, promoName } from './slides.ts';
 
@@ -78,10 +79,13 @@ export function bootPromotion(doc: Document = document, win: Window = window): v
   const seg = mk('div', 'pr-segs'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Device to capture');
   seg.append(...picks.map(([, b]) => b));
   const chosen = (): string[] => (choice === 'all' ? [...PROMO_SIZES] : [choice]);
-  let stop = false, running = false, zip: { blob: Blob; name: string } | null = null;
+  let stop = false, stopAt = -1, running = false, zip: { blob: Blob; name: string } | null = null;
   const btn = (label: string, on: () => void) => { const b = mk('button', '', label); b.type = 'button'; b.onclick = on; return b; };
   const go = btn('Make pictures', () => { void run(); });
-  const halt = btn('Stop', () => { stop = true; status.textContent = 'Stopping: each frame finishes its slide, then what is done is kept.'; });
+  const halt = btn('Stop', () => {
+    stop = true; stopAt = clock.now();
+    status.textContent = `Stopping: each frame finishes its slide, then what is done is kept (a frame that has not ended in ${STOP_GRACE_MS / 1000} s is cut off, keeping its finished pictures).`;
+  });
   const save = btn('Save zip', () => { if (zip) void saveFiles([new File([zip.blob], zip.name, { type: 'application/zip' })]); });
   save.hidden = true;
   side.append(mk('div', 'pr-cap', 'DEVICE'), seg, go, halt, save);
@@ -100,18 +104,23 @@ export function bootPromotion(doc: Document = document, win: Window = window): v
     wrap.style.width = `${Math.round(d.w * s)}px`; wrap.style.height = `${Math.round(d.h * s)}px`;
     frame.style.width = `${d.w}px`; frame.style.height = `${d.h}px`; frame.style.transform = `scale(${s})`;
     type Res = { files: { name: string; data: Uint8Array }[]; notes: string[]; why?: string };
+    // (the files a frame hands up as it goes, and the ones it ends with: a frame that crashes or is cut off after Stop still gives what it had finished)
+    const kept = fileKeeper();
     let finished = false, silent = clock.after(() => end({ files: [], notes: [], why: 'silent for 5 minutes (the frame crashed or never booted)' }), SILENT_MS);
-    const end = (res: Res) => { if (finished) return; finished = true; clock.cancel(silent); clock.cancel(poll); win.removeEventListener('message', on); wrap.remove(); done(res); };
+    const end = (res: Res) => { if (finished) return; finished = true; clock.cancel(silent); clock.cancel(poll); win.removeEventListener('message', on); wrap.remove(); done(kept.end(res)); };
     const on = (e: MessageEvent) => {
       if (e.origin !== win.location.origin || e.source !== frame.contentWindow) return;
       const m = e.data as CaptureMsg | null; if (!m || typeof m !== 'object' || !('capture' in m)) return;
       clock.cancel(silent); silent = clock.after(() => end({ files: [], notes: [], why: 'silent for 5 minutes (the frame crashed or never booted)' }), SILENT_MS);
       if (m.capture === 'hello') say(id, `${d.label}: the app has started`);
       else if (m.capture === 'progress') say(id, `${d.label}: ${m.text}`);
+      else if (m.capture === 'part') kept.add(m.files);
       else if (m.capture === 'done') end({ files: m.files, notes: m.notes });
       else if (m.capture === 'failed') end({ files: [], notes: [], why: m.why });
     };
-    const poll = clock.every(() => { if (stop) { try { (frame.contentWindow as (Window & { pps?: { audit?: { stop(): void } } }) | null)?.pps?.audit?.stop(); } catch { /* same origin */ } } }, 1000);
+    const poll = clock.every(() => {
+      if (stop && stopOverdue(stopAt, clock.now())) { end({ files: [], notes: [], why: `it did not stop within ${STOP_GRACE_MS / 1000} s of Stop` }); return; }
+      if (stop) { try { (frame.contentWindow as (Window & { pps?: { audit?: { stop(): void } } }) | null)?.pps?.audit?.stop(); } catch { /* same origin */ } } }, 1000);
     win.addEventListener('message', on);
   });
 
@@ -133,7 +142,7 @@ export function bootPromotion(doc: Document = document, win: Window = window): v
     const { keys, bad } = parseSlides(box.value), ids = chosen();
     if (bad.length) { status.textContent = `These are not deck:number, so nothing was made: ${bad.join(', ')}`; return; }
     if (!keys.length) { status.textContent = 'Type at least one slide, as deck:number.'; return; }
-        running = true; stop = false; zip = null; save.hidden = true; go.disabled = true; room.textContent = ''; out.textContent = ''; lines.clear();
+        running = true; stop = false; stopAt = -1; zip = null; save.hidden = true; go.disabled = true; room.textContent = ''; out.textContent = ''; lines.clear();
     const at = new Date(), enc = new TextEncoder(), all: ZipFile[] = [], notes: string[] = [], made: { n: number; key: string; title: string }[] = [];
     try {
       const brand = await brandNow(doc);
