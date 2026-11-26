@@ -5,12 +5,13 @@
 //     cannot are counted and the count may only go down. Organ names are drawn on their organ (approved placement, docs/approved/anatomy-placement.md): their count is a ratchet, not a rule, until Mohammad rules.
 //  3. Units are consistent per figure: every reading label of a figure says its unit or none does (unit-rule.ts), for a pressure (mmHg) and a flow (L/min) unit.
 //  4. A label more than 24 px from the point it names has a leader.
+//  5. No leader crosses another leader, another label's box, or a vessel (past the 8 px that leave its own).
 // Not covered (needs the live engine frame or a browser): collaterals and shunts the slide draws, the catheter, the needle, the scope's shaft and the web or band marks (the scope's settled body is a solver blocker at run time, probe-claims.ts).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadDecks, slideFigure, SCREENS, type ScreenName } from './helpers-slide-labels.ts';
 import { onLine } from '../src/scene/labels/solver.ts';
-import { hits } from '../src/scene/labels/geometry.ts';
+import { hits, segsCross, crosses, nearestOn } from '../src/scene/labels/geometry.ts';
 
 const decks = await loadDecks();
 const isOrgan = (id: string) => id.startsWith('organ:');
@@ -91,4 +92,39 @@ test('the velocity key names the colour most vessels wear: Slow, Normal, Fast, i
     const g = legendFor('velocity', look, 'healthy');
     assert.deepEqual(g.bar!.nums.map((n) => [n.at, n.text]), [[0, 'Slow'], [50, 'Normal'], [100, 'Fast']], look);
   }
+});
+
+test('no leader crosses another leader, another label, or a vessel, on any slide (D-D9: the 27.2 leaders)', () => {
+  let leaders = 0;
+  const bad: string[] = [];
+  for (const [id, stops] of decks) {
+    for (let i = 0; i < stops.length; i++) {
+      for (const sc of Object.keys(SCREENS) as ScreenName[]) {
+        const f = slideFigure(id, stops, i, sc);
+        if (!f || f.panel) continue;
+        f.settle(800);
+        const out = f.ctl.out.filter((d) => d.kind === 'station' && !d.ghost && d.dot && d.anchor && !isOrgan(d.id));
+        const segs = out.map((d) => {
+          const b = { x0: d.x, y0: d.y, x1: d.x + d.w, y1: d.y + d.h }, [px, py] = nearestOn(b, d.anchor!.x, d.anchor!.y);
+          return { d, b, s: [d.anchor!.x, d.anchor!.y, px, py] as [number, number, number, number] };
+        });
+        segs.forEach((a, n) => {
+          leaders++;
+          const at = `${id}#${i} ${sc} ${a.d.id}`;
+          segs.forEach((c, m) => {
+            if (m === n) return;
+            if (m > n && segsCross(a.s, c.s)) bad.push(`${at} crosses the leader of ${c.d.id}`);
+            if (crosses(a.s[0], a.s[1], a.s[2], a.s[3], c.b)) bad.push(`${at} runs through ${c.d.id}`);
+          });
+          const len = Math.hypot(a.s[2] - a.s[0], a.s[3] - a.s[1]);
+          if (len > 20) {
+            const k = 8 / len, from: [number, number, number, number] = [a.s[0] + (a.s[2] - a.s[0]) * k, a.s[1] + (a.s[3] - a.s[1]) * k, a.s[2], a.s[3]];
+            if (f.lines.some((v) => segsCross(from, [v[0], v[1], v[2], v[3]]))) bad.push(`${at} crosses a vessel`);
+          }
+        });
+      }
+    }
+  }
+  assert.ok(leaders > 60, `${leaders} leaders judged`);
+  assert.deepEqual(bad, []);
 });
