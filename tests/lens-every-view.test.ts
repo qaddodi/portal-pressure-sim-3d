@@ -90,7 +90,7 @@ test('Sinusoid: every menu lens paints the lumen or, for the streams, the red ce
 
 test('the 3D lobule colours every vertex by the one rule and redraws by the colours, not a hand-kept key', () => {
   const src = readFileSync(new URL('../src/scene/micro3d/lobule3d.ts', import.meta.url), 'utf8');
-  assert.match(src, /const key = inkSignature\(ctx\);/);
+  assert.match(src, /const key = inkSignature\(ctx\), keyChanged = key !== this\.inkKey;/);
   assert.match(src, /inkAcross\(ctx, seg, j \/ N, across, out/);
   assert.match(src, /getAttribute\('fcourse'\)/, 'the streams are laid by each vertex\'s place across');
   assert.doesNotMatch(src, /m\.P1\.toFixed\(1\)/, 'the hand-kept key is gone');

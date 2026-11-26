@@ -25,6 +25,8 @@ import { AN_K, DISC_R, DUCT_R, LT_R, RS_N, lyTaper, congShare, inletRadius, sinR
 /** The space of Disse's band and the widest bile canaliculus (lobule radii), which shrink to nothing as their layers go off (2D: lobule-zoom-field.js, lobule-bile.js). */
 const BILE_BC_R = 0.0036;
 import { CASING } from '../vessels/cel-ink.ts';
+import { LensFade } from '../lenses/fade.ts';
+import type { LensId } from '../lenses/model.ts';
 import { type InkContext, type Seg, inkAcross, inkAt, inkSignature, laneShares, sinW } from '../lobule/ink.ts';
 import { lookColours } from '../lobule/lz-colours.ts';
 import { LOBULE_PALETTES } from '../lobule/tones.ts';
@@ -127,6 +129,8 @@ interface Coloured {
   part: MicroPart; seg: Seg | null; w: Float32Array; k: Float32Array;
   /** Where a welded junction blends two colour families (a sinusoid leaving an inlet): the other segment, each vertex's place on it, and how much of it the vertex wears (0 to 1). */
   seg2?: Seg; w2?: Float32Array; m?: Float32Array;
+  /** The lens's colours for each vertex now, and those that showed when the lens last changed (stepInk fades from one to the other). */
+  to?: Float32Array; from?: Float32Array;
 }
 
 const quant = (s: PlateState): PlateState => { const q = (x: number) => Math.round(clamp(x, 0, 1) * 32) / 32; return { congU: q(s.congU), septU: q(s.septU), fibSin: q(s.fibSin), act: q(s.act), fibPre: q(s.fibPre), fibPost: q(s.fibPost) }; };
@@ -428,8 +432,8 @@ export class Lobule3D {
     // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
     const hide = on && under >= 1 && f.isVisible;
     if (hide !== this.hidLobule) { this.hidLobule = hide; f.group.visible = !hide && f.isVisible; }
-    if (hide) return changed;
-    if (!shown) return changed;
+    // (unseen, a lens change is not faded: the lobule comes back in the lens on now, as the sinusoid does)
+    if (hide || !shown) { this.inkLens = null; return changed; }
     const look = f.look, c = f.cur;
     // The tiles are built for the state the model ASKS for, once, in small steps across frames, and eased between the two builds on the CPU (no rebuild per eased step: 388 cells a step, a stall each on a phone).
     // The first build, a look change, or a build that lands while the lobule is still dissolved (the zoom's far end) is laid at once.
@@ -438,7 +442,7 @@ export class Lobule3D {
     else if (ck !== this.cellKey) { this.cellKey = ck; this.cellGen = this.cellSteps(look, goal.congU, goal.septU); }
     const cellsBusy = this.stepCells(unseen);
     if (look !== this.lookKey) { this.lookKey = look; this.applyLook(look); }
-    this.stepInk();
+    const inkBusy = this.stepInk(now);
     const marksBusy = this.stepMarks(unseen);
     // widths and layers as the state has them now: each sinusoid swells and shrinks with congestion and capillarization (inflate, the absolute change of its radius), the lymph and the bile
     // shrink away with their layers and only then hide
@@ -459,7 +463,7 @@ export class Lobule3D {
     this.buildGround(kcv, lymphOn);
     const washing = this.stepWash(now);
     const flowing = this.stepFlow(now, rate, lymphOn, bileOn);
-    return flowing || washing || changed || cellsBusy || marksBusy;
+    return flowing || washing || changed || cellsBusy || marksBusy || inkBusy;
   }
 
   // ---- the flow marks (quiet chevrons inside each vessel, streaks in the blood; they stop at the central vein's mouth and with the simulation) ------------------------
@@ -540,12 +544,41 @@ export class Lobule3D {
   /** The lens's colours along the vessels (2D's inkOf: the portal venule's at the edge to the central vein's) and, under Blood origin and First pass, across them (the streams side by
    *  side, each vertex at its place across, the dust's `fcourse` w): lobule/ink.ts inkAcross, the one rule. Rewritten whenever a colour would change (inkSignature: the colours
    *  themselves, never a hand-kept list of inputs). */
-  private stepInk(): void {
+  private stepInk(now: number): boolean {
     const ctx = this.flat.inkContext();
-    if (!ctx) return;
-    const key = inkSignature(ctx);
-    if (key === this.inkKey) return;
-    this.inkKey = key;
+    if (!ctx) return false;
+    // a new lens fades in from the colours showing (lenses/fade.ts, the one fade of every view); a rebuild or a new look (inkKey '') lands at once
+    const lensChanged = this.inkLens != null && ctx.lens !== this.inkLens && this.inkKey !== '';
+    if (lensChanged) {
+      for (const e of this.coloured) {
+        const col = e.part.geometry.getAttribute('color') as BufferAttribute | undefined;
+        if (!col) continue;
+        const arr = col.array as Float32Array;
+        if (e.from?.length !== arr.length) e.from = new Float32Array(arr.length);
+        e.from.set(arr);
+      }
+      this.inkFade.start(now);
+    }
+    this.inkLens = ctx.lens;
+    const key = inkSignature(ctx), keyChanged = key !== this.inkKey;
+    if (keyChanged) { this.inkKey = key; this.writeInk(ctx); }
+    if (!keyChanged && !lensChanged && !this.inkFade.moving) return false;
+    const k = this.inkFade.step(now);
+    for (const e of this.coloured) {
+      const col = e.part.geometry.getAttribute('color') as BufferAttribute | undefined;
+      if (!col || !e.to) continue;
+      const arr = col.array as Float32Array, to = e.to, from = this.inkFade.moving && e.from?.length === arr.length ? e.from : null;
+      if (from) for (let i = 0; i < arr.length; i++) arr[i] = from[i]! + (to[i]! - from[i]!) * k;
+      else arr.set(to);
+      col.needsUpdate = true;
+    }
+    return this.inkFade.moving;
+  }
+  private inkLens: LensId | null = null;
+  private readonly inkFade = new LensFade();
+
+  /** The lens's colours for every coloured vertex now, into each part's `to` (stepInk shows them, faded in from `from` across a lens change). */
+  private writeInk(ctx: InkContext): void {
     const lanes = ctx.lens === 'origin' || ctx.lens === 'firstpass';
     const N = 64, tmp: [number, number, number] = [0, 0, 0], tmp2: [number, number, number] = [0, 0, 0];
     // per segment and place along: the colour (every lens) and the sources' shares (the stream lenses), read once, not per vertex
@@ -570,7 +603,8 @@ export class Lobule3D {
     for (const e of this.coloured) {
       const col = e.part.geometry.getAttribute('color') as BufferAttribute | undefined;
       if (!col) continue;
-      const arr = col.array as Float32Array;
+      if (e.to?.length !== col.array.length) e.to = new Float32Array(col.array.length);
+      const arr = e.to;
       // (each vertex's place across its vessel, -1 .. 1, the round ends 3: what the streams are laid by; a part without it takes the middle)
       const fc = lanes ? (e.part.geometry.getAttribute('fcourse') as BufferAttribute | undefined)?.array as Float32Array | undefined : undefined;
       for (let v = 0; v < e.k.length; v++) {
@@ -583,7 +617,6 @@ export class Lobule3D {
         } else if (e.seg) { colourAt(e.seg, e.w[v]!, across, tmp); arr[v * 3] = tmp[0] * k; arr[v * 3 + 1] = tmp[1] * k; arr[v * 3 + 2] = tmp[2] * k; }
         else { arr[v * 3] = k; arr[v * 3 + 1] = k; arr[v * 3 + 2] = k; }
       }
-      col.needsUpdate = true;
     }
   }
 

@@ -10,7 +10,7 @@ import { FALLBACK_LENS, LENSES_EVERYWHERE, LENS_IN_VIEW, LENS_VIEWS, lensIn, len
 import { legendFor } from '../src/scene/lenses/legend.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../src/scene/lenses/tokens.copied.ts';
 import { hexToRgb01, type Rgb } from '../src/scene/lenses/oklab.ts';
-import { cellSource, sinusoidCellSources, sinusoidLumen } from '../src/scene/sinusoid/lens.ts';
+import { type CellColours, cellSource, sinusoidCellSources, sinusoidLumen } from '../src/scene/sinusoid/lens.ts';
 import { inkAt, laneColours } from '../src/scene/lobule/ink.ts';
 import type { LobuleModel } from '../src/scene/lobule/model.ts';
 import { createShared } from '../src/scene/materials/cel.ts';
@@ -118,7 +118,8 @@ test('the Sinusoid view eases its lumen to a new lens (never a swap) and colours
   assert.equal(v.cellColours, null, 'the cells stay red under Oxygen');
   v.setInk(ctx(), 'origin');
   for (let t = 1016; t <= 1800; t += 16) v.update(t);
-  assert.equal((v.cellColours as { k: number } | null)?.k, 1, 'under Blood origin the cells wear their sources');
+  const cc = v.cellColours as CellColours | null;
+  assert.equal(cc?.mix, 1, 'under Blood origin the cells wear their sources'); assert.ok(cc?.to && !cc.from);
   assert.equal(v.lensShown, 'origin');
 });
 

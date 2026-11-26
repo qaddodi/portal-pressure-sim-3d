@@ -23,9 +23,9 @@ import { endsFor, framePoint, planePoint, xkFor } from './portrait.ts';
 import { createGeom, createTraffic } from './traffic.copied.js';
 import { createPalette } from './palette.copied.js';
 import { ALBUMIN_TOKENS } from './legend.ts';
-import { coloursCells, sinusoidCellSources, sinusoidLumen } from './lens.ts';
+import { type CellColours, coloursCells, sinusoidCellSources, sinusoidLumen } from './lens.ts';
 import { shownLens } from '../lenses/in-view.ts';
-import { LENS_MS } from '../lenses/field.ts';
+import { LensFade, lensMotionReduced } from '../lenses/fade.ts';
 import type { LensId } from '../lenses/model.ts';
 import type { Rgb } from '../lenses/oklab.ts';
 
@@ -165,46 +165,42 @@ export class SinusoidView {
   /** The lens this view draws now (the figure's, or its fallback: lenses/in-view.ts). */
   get lensShown(): LensId { return shownLens('sinusoid', this.ink.lens); }
 
-  // ---- the lens: the lumen's colour and the red cells' (sinusoid/lens.ts), each eased over a lens change (LENS_MS, the vessels' own crossfade) --------------------------------
+  // ---- the lens: the lumen's colour and the red cells' (sinusoid/lens.ts), eased over a lens change by the one fade every view steps (lenses/fade.ts) ------------------------------------
 
-  private readonly lumen = { now: [0, 0, 0] as Rgb, from: [0, 0, 0] as Rgb, goal: [0, 0, 0] as Rgb, at: -1, lens: null as LensId | null, t: 1 };
-  /** How much the red cells wear their sources' colours (0 their own red, 1 the sources'), eased; and the sources they wear. */
-  private cellK = 0;
-  private cellSrc: ReturnType<typeof sinusoidCellSources> = null;
+  private readonly fade = new LensFade();
+  private readonly lumen = { now: [0, 0, 0] as Rgb, from: [0, 0, 0] as Rgb, goal: [0, 0, 0] as Rgb, lens: null as LensId | null };
+  /** The red cells' sources before the change and now (null: their own red); a cell eases from the one's colour to the other's with the fade. */
+  private cellFrom: ReturnType<typeof sinusoidCellSources> = null;
+  private cellTo: ReturnType<typeof sinusoidCellSources> = null;
   /** The lumen's colour now; before the first lens step (or without a model) the 2D rule, the pressure's colour at P2. */
   private lumenColour(p: number): Rgb {
     if (!this.ink.ctx) return samplerFor(this.look, 'pressure').at(p, this.lumen.now);
     // (before the first step after the view shows, the lens's own colour, no ease: the first frame drawn is already right)
     return this.lumen.lens == null ? sinusoidLumen(this.ink.ctx, this.ink.lens, this.lumen.now) : this.lumen.now;
   }
-  /** One step of the lens's ease: a new lens starts a crossfade from the colour showing; the goal follows the model live. True while it moves. */
+  /** One step of the lens: a new lens starts the fade from what shows; the goal follows the model live. True while it moves. */
   private stepLens(now: number): boolean {
     const c = this.ink.ctx, L = this.lumen;
     if (!c) return false;
     const shown = shownLens('sinusoid', this.ink.lens);
-    const first = L.lens == null;
     if (shown !== L.lens) {
-      if (!first && !this.reduce) { L.from[0] = L.now[0]; L.from[1] = L.now[1]; L.from[2] = L.now[2]; L.at = now; L.t = 0; } else L.t = 1;
+      const first = L.lens == null;
+      L.from[0] = L.now[0]; L.from[1] = L.now[1]; L.from[2] = L.now[2];
+      this.cellFrom = first ? null : this.cellTo;
+      this.fade.start(now, first || this.reduce || lensMotionReduced());
       L.lens = shown;
     }
     sinusoidLumen(c, shown, L.goal);
-    if (L.t < 1) L.t = clamp((now - L.at) / LENS_MS, 0, 1);
-    const k = smooth(0, 1, L.t);
+    this.cellTo = coloursCells(shown) ? sinusoidCellSources(c, shown) : null;
+    const k = this.fade.step(now);
     for (let i = 0; i < 3; i++) L.now[i] = lerp(L.from[i]!, L.goal[i]!, k);
-    const want = coloursCells(shown) ? 1 : 0;
-    if (want) this.cellSrc = sinusoidCellSources(c, shown);
-    const dt = this.lastStep < 0 ? 16 : Math.max(0, now - this.lastStep);
-    this.lastStep = now;
-    const was = this.cellK;
-    this.cellK = this.reduce || first ? want : want > this.cellK ? Math.min(want, this.cellK + dt / LENS_MS) : Math.max(want, this.cellK - dt / LENS_MS);
-    if (this.cellK === 0 && !want) this.cellSrc = null;
-    return L.t < 1 || this.cellK !== was;
+    if (!this.fade.moving) this.cellFrom = null;
+    return this.fade.moving;
   }
-  private lastStep = -1;
-  /** The red cells' colouring now: their sources' colours and cumulative shares, and how much they show (0: their own red). Null when they keep their red. */
-  get cellColours(): { cols: readonly Rgb[]; cum: readonly number[]; k: number } | null {
-    const s = this.cellSrc;
-    return s && this.cellK > 0 ? { cols: s.cols, cum: s.cum, k: smooth(0, 1, this.cellK) } : null;
+  /** The red cells' colouring now: the sources before and after the change (null: their own red) and the share of the after. Null when they keep their red. */
+  get cellColours(): CellColours | null {
+    const from = this.cellFrom, to = this.cellTo;
+    return from || to ? { from, to, mix: this.fade.mix } : null;
   }
   /** The dive's share, 0 to 1 (see diveShare), while the camera flies between the lobule and this view; null at rest (the tissue whole, everywhere). */
   setDive(g: number | null): void { if (g !== this.dive) { this.dive = g; this.dirty = true; } }
@@ -255,7 +251,7 @@ export class SinusoidView {
 
   /** One step: eases the state, runs the albumin, writes every uniform. True while anything moves (the blood always does while the view is up, unless motion is reduced). */
   update(now: number): boolean {
-    if (!this.visible) { this.lastNow = -1; this.lastStep = -1; return false; }
+    if (!this.visible) { this.lastNow = -1; return false; }
     const dt = this.lastNow < 0 ? 16 : Math.min(100, now - this.lastNow);
     this.lastNow = now;
     let moving = this.dirty;
