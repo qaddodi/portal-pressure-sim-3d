@@ -26,6 +26,9 @@ export interface Step {
 export interface Course {
   id: string;
   name: string;
+  /** the name on a phone's top pill (two lines of 15 characters at most), only when the full name is longer than that;
+   *  without it the name itself is shown (tests/pill-name.test.ts holds every history to it) */
+  short?: string;
   /** the menu's group and the words beside it */
   group: string; where: string;
   /** the engine preset the patient starts from (day 0) */
@@ -84,7 +87,7 @@ export type Tone = 'ok' | 'caution' | 'danger' | 'info';
 export interface Seg { text: string; tone?: 'danger' | 'caution' | 'ok' }
 /** What the menu needs before a history is loaded: the row, and the folded-open card with its small chart. */
 export interface HistoryMeta {
-  id: string; name: string; group: string; where: string;
+  id: string; name: string; short?: string; group: string; where: string;
   /** the preset the patient started from (a shared link carries the settings on it) */
   preset: string;
   months: number; state: Seg[]; story: string; path: string;

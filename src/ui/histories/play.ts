@@ -136,7 +136,7 @@ export function metaOf(c: Course, b: Baked): HistoryMeta {
     if (word) marks.push({ day: e.day, word, tone: e.kind === 'change' ? 'change' : tone(e.sev) });
   }
   return {
-    id: c.id, name: c.name, group: c.group, where: c.where, preset: c.preset, months: Math.round(c.days / 30.4), state: stateOf(b.now, c.state), story: storyOf(c), path: c.path,
+    id: c.id, name: c.name, short: c.short, group: c.group, where: c.where, preset: c.preset, months: Math.round(c.days / 30.4), state: stateOf(b.now, c.state), story: storyOf(c), path: c.path,
     pv, days: c.days, max: Math.max(12, Math.ceil(Math.max(...pv) / 4) * 4), marks: marks.sort((a, z) => a.day - z.day), chapters: chaptersOf(c), ...playOf(c, b),
     counts: { events: b.entries.filter((x) => x.kind === 'event').length, medicines: medCount(b) },
   };
