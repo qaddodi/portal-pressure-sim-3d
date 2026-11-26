@@ -234,10 +234,10 @@ function sanitize(p, rep) {
   pruneTo(out.fibrosis, d.fibrosis, 'fibrosis', fixed);
   for (const k of CLAMPED) for (const id of Object.keys(out[k])) { const v = out[k][id], n = num(v, 0, k === 'stenosis' ? 0.95 : 1, 0); out[k][id] = n; if (rep && n !== v) fixed(`${k}.${id}`, v, n); }   // alloc-rare: checked when parameters are set, in the simulation worker (a few tiny key lists)
   // (A stent's stenosis is at an end, proximal or distal; a narrowing mid stent is its waist, stentGeom.red: stent-geom.js. A saved state from
-  // before 17 Nov 2026 may hold a stenosis 'mid': it is the same focal narrowing as a waist of PINCH of the length, so it is carried over as one.)
+  // before 17 Nov 2026 may hold a stenosis 'mid': it is the same focal narrowing as a waist of PINCH of the length, so it is carried over as one, with the abrupt ends it always had.)
   for (const id of Object.keys(out.stenosisSite)) if (out.stenosisSite[id] === 'mid' && STENT_EDGE.has(id)) {   // alloc-rare: checked when parameters are set (a few tiny key lists)
     const kind = kindOf(STENT_EDGE.get(id)), sten = num(out.stenosis[id], 0, 0.95, 0), g = isObj(out.stentGeom[id]) ? out.stentGeom[id] : {};
-    if (sten > 0) out.stentGeom[id] = { ...geomFix(g, kind), red: Math.max(num(g.red, 0, 1, 0), Math.min(GEOM_RANGE.red[1], sten)) };   // alloc-rare: the same check
+    if (sten > 0) out.stentGeom[id] = { ...geomFix({ trans: 0, ...g }, kind), red: Math.max(num(g.red, 0, 1, 0), Math.min(GEOM_RANGE.red[1], sten)) };   // alloc-rare: the same check
     fixed(`stenosisSite.${id}`, 'mid', sten > 0 ? 'waist' : 'dropped');
     delete out.stenosis[id]; delete out.stenosisSite[id];
   }

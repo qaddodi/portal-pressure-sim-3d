@@ -2,7 +2,7 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "413ab581ae94a1a972fe660ad1035409346f1fff"
+    "commit": "68d4964569ca82f249d7393de4a50801af03f3e8"
   },
   "files": {
     "hales/core/ease-move.js": "8b1ec51ee324cb2f95242b568c623e2dcd801b3ec48c11712a82c92852ac6449",
@@ -35,10 +35,10 @@
     "hales/portal/metrics.js": "3a14d3688e166d08936408db9f30337e5c6777caf9916e493ca9c059991a74b0",
     "hales/portal/pressure-cuts.js": "7f96e7d40a3584ba0aa0dad13da019b22b00bcc9164a76d657501347d656e990",
     "hales/portal/risk-scores.js": "623e2f926b510e0f32d2cc80bd00ca16aac41a10314af4d4b58e6a9307c87bf3",
-    "hales/portal/scenario.js": "d7122e950865b91fcd93994a675014c7ead9a5ab01fbd044207133d21cf36f6a",
+    "hales/portal/scenario.js": "918e047bc91b6bd3d372040aa2d39dc83cd2e54a0c3f5c3ecf6c2171b1ac44ee",
     "hales/portal/ssm-cuts.js": "86a2a77662721a8b2c0c8150f97492716fa80a8ff69fba9d0f390c08646f52a2",
     "hales/portal/stent-ease.js": "371c7231827ac20ebe9a94bd9ebe061ca3e4477e0740f70e6e33298911ac715e",
-    "hales/portal/stent-geom.js": "c7d22183e39e87eaded35944376249df4ee9923e013873f38bdffd977517b642",
+    "hales/portal/stent-geom.js": "8200e0eca62b4df01b32a7eb14a0f6f0c7cbbbb6402682bce5c1945f1cc5320b",
     "hales/portal/stent-trace.js": "4325e93743b3365c48661f8361efe4ef5eb972f89f67301cdc6b71d85ce05da4",
     "hales/portal/topology.js": "4e4c07b291cbca209a023bded6909e717f424ee5a85ccc352a8024b183bcc26b",
     "hales/portal/trail-calm.js": "2c6799c883feda1a58edfe545f2b89306e2de712da7ce23af1bfefa9334855b1",
