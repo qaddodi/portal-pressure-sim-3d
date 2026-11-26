@@ -35,7 +35,7 @@ node --test tests/hales-flyer.test.ts
 ## Rules
 
 - **One engine, one app.** The flyer never mentions "2D" or "3D", or any earlier version (owner, 26 Nov 2026). `render.cjs` and the test both check this.
-- **The © line is the app's:** "© 2026 Mohammad Almeqdadi, MD. All rights reserved."
+- **The © line is the app's one line.** `flyer.html` has an empty `<b data-credit>` in each footer, and `render.cjs` fills it from `scripts/credit.mjs`, whose source is `CREDIT` in `src/ui/shell/words.ts`. To change the line, edit it there and rebuild.
 - **The circuit is drawn from the engine's own network.** The nodes come from `topology.js`. The liver's three resistances come from the `pre`, `sin` and `post` fibrosis terms in `scenario.js`. It is simplified to one resistor per segment.
 - **Hales's facts are as checked below.** The mare's age and an mmHg conversion are left out on purpose, because sources disagree.
 

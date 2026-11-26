@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { listFiles } from '../scripts/pwa.mjs';
+import { RIGHTS } from '../scripts/credit.mjs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -20,8 +21,9 @@ test('the PDF is there, a PDF, small enough for a phone, and built from the sour
   assert.equal(b.subarray(0, 5).toString('latin1'), '%PDF-');
   assert.ok(statSync(PDF).size < 4 * 1024 * 1024, 'the flyer is over 4 MB');
   const from = JSON.parse(text('built-from.json')) as Record<string, string>;
-  assert.deepEqual(Object.keys(from).sort(), ['circuit.svg', 'flyer.html', 'page1-bg.jpg', 'page2-bg.jpg']);
-  for (const [f, sha] of Object.entries(from)) {
+  assert.deepEqual(Object.keys(from).sort(), ['circuit.svg', 'credit', 'flyer.html', 'page1-bg.jpg', 'page2-bg.jpg']);
+  assert.equal(from.credit, RIGHTS, 'the copyright line changed after the PDF was built');
+  for (const [f, sha] of Object.entries(from).filter(([k]) => k !== 'credit')) {
     assert.equal(createHash('sha256').update(read(f)).digest('hex'), sha, `${f} changed after the PDF was built`);
   }
 });
@@ -33,9 +35,10 @@ test('one engine, one app: the flyer never says 2D or 3D, in its words, its alt 
   assert.ok(!dim.test(seen('circuit.svg')), 'the circuit mentions 2D or 3D');
 });
 
-test('the flyer carries the copyright line and the app\'s own disclaimer, word for word as the About page has it', () => {
+test('the flyer\'s copyright line comes from the one source (render.cjs fills each data-credit) and its disclaimer is the About page\'s, word for word', () => {
   const words = seen('flyer.html').replace(/\s+/g, ' ');
-  assert.match(words, /© 2026 Mohammad Almeqdadi, MD\. All rights reserved\./);
+  assert.equal(text('flyer.html').match(/<b data-credit><\/b>/g)?.length, 2, 'each page\'s footer has an empty data-credit');
+  assert.ok(!/©|&copy;/.test(text('flyer.html')), 'flyer.html types a copyright line of its own');
   const about = readFileSync(new URL('../src/ui/shell/about.copied.ts', import.meta.url), 'utf8');
   const line = /Educational simulation\.[^"'`]*/.exec(about)?.[0];
   assert.ok(line, 'the About page no longer has its disclaimer');
