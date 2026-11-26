@@ -123,7 +123,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -158,7 +161,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
       },
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the stent",
+       "pane": {
+        "probe": "TIPS"
+       }
       }
      ]
     }
@@ -413,7 +419,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler of the portal vein"
+       "label": "Doppler of the portal vein",
+       "pane": {
+        "probe": "PV_TRUNK"
+       }
       }
      ]
     },
@@ -423,7 +432,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler of the portal vein"
+       "label": "Doppler of the portal vein",
+       "pane": {
+        "probe": "PV_TRUNK"
+       }
       }
      ]
     },
@@ -442,7 +454,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler of the portal vein"
+       "label": "Doppler of the portal vein",
+       "pane": {
+        "probe": "PV_TRUNK"
+       }
       }
      ]
     }
@@ -550,7 +565,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the right hepatic vein",
+       "pane": {
+        "probe": "RHV_IVC"
+       }
       },
       {
        "tool": "abdomen",
@@ -564,7 +582,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the right hepatic vein",
+       "pane": {
+        "probe": "RHV_IVC"
+       }
       }
      ]
     },
@@ -573,7 +594,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the right hepatic vein",
+       "pane": {
+        "probe": "RHV_IVC"
+       }
       },
       {
        "tool": "abdomen",
@@ -587,7 +611,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the right hepatic vein",
+       "pane": {
+        "probe": "RHV_IVC"
+       }
       },
       {
        "tool": "abdomen",
@@ -726,11 +753,17 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the stent",
+       "pane": {
+        "probe": "TIPS"
+       }
       },
       {
        "tool": "hvpg",
-       "label": "Pressures across the stent"
+       "label": "Pressures across the stent",
+       "pane": {
+        "stent": "TIPS"
+       }
       }
      ]
     },
@@ -741,11 +774,17 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the stent",
+       "pane": {
+        "probe": "TIPS"
+       }
       },
       {
        "tool": "hvpg",
-       "label": "Pressures across the stent"
+       "label": "Pressures across the stent",
+       "pane": {
+        "stent": "TIPS"
+       }
       }
      ]
     }
@@ -880,7 +919,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
       },
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the stent",
+       "pane": {
+        "probe": "TIPS"
+       }
       }
      ]
     },
@@ -1016,7 +1058,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -1041,7 +1086,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -1054,7 +1102,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -1229,7 +1280,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -1354,7 +1408,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "endoscopy",
@@ -1371,7 +1428,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
       },
       {
        "tool": "hvpg",
-       "label": "HVPG, normal here"
+       "label": "HVPG, normal here",
+       "pane": {
+        "measure": true
+       }
       }
      ]
     },
@@ -1398,7 +1458,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "profile",
@@ -1690,7 +1753,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "scope",
-       "label": "Pressure over time"
+       "label": "Pressure over time",
+       "pane": {
+        "range": "days"
+       }
       }
      ]
     },
@@ -1720,7 +1786,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "scope",
-       "label": "Pressure over time"
+       "label": "Pressure over time",
+       "pane": {
+        "range": "days"
+       }
       }
      ]
     }
@@ -1823,7 +1892,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "profile",
@@ -1846,7 +1918,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "profile",
@@ -1860,7 +1935,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "abdomen",
