@@ -18,8 +18,9 @@ import { Credit } from './Credit.tsx';
 import { metricVars } from './metrics.ts';
 import { SHEETS_OVER_PILL } from './sheets-over-pill.ts';
 import { useThumb } from './thumb.ts';
+import { useChromeClaims } from './chrome-claims-writer.ts';
 import { ZoomGroup } from './ZoomGroup.tsx';
-import { Sheets } from './Sheets.tsx';
+import { SheetsSlot } from './SheetsSlot.tsx';
 import { Toast } from './Toast.tsx';
 import { Diagnostics } from './Diagnostics.tsx';
 import { useKeys } from '../keys/useKeys.ts';
@@ -172,6 +173,7 @@ export function Shell() {
   const [caseSeen, setCaseSeen] = useState(false);
   if (caseOn && !caseSeen) setCaseSeen(true);
   usePublishedLayout(appRef, thumb);
+  useChromeClaims(thumb);
   return (
     <>
       {mode === 'deck' && <DeckUiSlot />}
@@ -189,7 +191,7 @@ export function Shell() {
           <TestsLayer away={mode === 'deck'} />
         </div>
         <CompareBanner />
-        <Sheets />
+        <SheetsSlot />
         <Toast />
         <Diagnostics />
       </div>

@@ -9,7 +9,7 @@ import { entriesOf } from '../src/ui/histories/entries.ts';
 import { HISTORIES, LOAD } from '../src/ui/histories/index.generated.ts';
 import { buildData } from '../src/ui/bigtime/data.ts';
 import { valueAt } from '../src/ui/bigtime/record.ts';
-import { before, SETTLE_DAYS } from '../src/ui/bigtime/facts.ts';
+import { before, beforeAction, SETTLE_DAYS } from '../src/ui/bigtime/facts.ts';
 import { calmedDays } from '../src/engine/hales/portal/trail-calm.js';
 import { activeInterventions } from '../src/ui/action/changes.ts';
 import type { Baked } from '../src/ui/histories/types.ts';
@@ -78,11 +78,37 @@ test('a change\'s "after" is read on its own day for an action, a week on for a 
       if (next != null) assert.ok(m.day + n < next, `${h.id} Day ${m.day}: "after" (Day ${m.day + n}) is before the next change (Day ${next})`);
       for (const r of m.nums.rows) {
         const sc = r.k === 'shunt' ? 100 : 1, ser = s.series[r.k]!;
-        assert.equal(r.a, +(before(ser, m.day)! * sc).toFixed(r.k === 'shunt' ? 0 : 1), `${h.id} Day ${m.day} ${r.name} before`);
+        assert.equal(r.a, +((n === 0 ? beforeAction : before)(ser, m.day)! * sc).toFixed(r.k === 'shunt' ? 0 : 1), `${h.id} Day ${m.day} ${r.name} before`);
         assert.equal(r.b, +(valueAt(ser, m.day + n)! * sc).toFixed(r.k === 'shunt' ? 0 : 1), `${h.id} Day ${m.day} ${r.name} after`);
       }
     }
   }
+});
+
+test('a tap\'s title and its card say one volume: "Paracentesis 3.8 L" is the "Ascites 3.8 → 0.0 L" the card reads, for every tap of every history', async () => {
+  let taps = 0;
+  for (const h of HISTORIES) {
+    const { s } = await storyIn(h.id);
+    for (const m of storyOf(s).flatMap((c) => c.moments)) {
+      if (m.type !== 'key') continue;
+      const e = m.ids.map((i) => s.entries[i]!).find((x) => x.action && /^Paracentesis/.test(x.label));
+      if (!e) continue;
+      taps++;
+      const litres = +/^Paracentesis (\d+\.\d) L/.exec(e.label)![1]!, asc = m.nums.rows.find((r) => r.k === 'asc');
+      assert.ok(asc && asc.a != null, `${h.id} Day ${m.day}: the tap's card reads the ascites before and after`);
+      assert.equal(asc.a, litres, `${h.id} Day ${m.day}: "${e.label}" drained what the card says was in the belly before (${asc.a} L), not the day before's`);
+      assert.equal(asc.b, 0, `${h.id} Day ${m.day}: a large-volume tap leaves the belly dry to 0.1 L`);
+    }
+  }
+  assert.ok(taps >= 3, 'the ascites history taps three times');
+});
+
+test('beforeAction reads the earlier of a step\'s two points on its own day, else the last reading before the day', () => {
+  const s = { x: [1, 2, 2, 3], y: [10, 20, 5, 6] } as never;
+  assert.equal(beforeAction(s, 2), 20, 'a step\'s day: the point before the step, not yesterday\'s');
+  assert.equal(before(s, 2), 10);
+  assert.equal(beforeAction(s, 3), 5, 'a day with one point: the last reading before it');
+  assert.equal(beforeAction(null, 2), null);
 });
 
 test('the cirrhosis bleed reads as the course: a tap and a TIPS show what they did, a medicine shows the day', async () => {

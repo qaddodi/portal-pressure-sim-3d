@@ -1,14 +1,12 @@
-// The story the case plays, as its bar and cards read it: History's own view of the patient (timeline/story-view.ts viewOf, as run.ts caseStops reads it), made once when a case starts,
-// with each stop's moment, its tone and short name, and the smaller events between the stops (the story's quiet lines) the card on the way passes.
+// The story the case plays, as its bar and cards read it: History's own view of the patient (timeline/story-view.ts viewOf), made once when a case starts, from the baked course
+// (case/story.ts, never the live record), with each stop's moment, its tone and short name, and the smaller events between the stops (the story's quiet lines) the card on the way passes.
 import { useMemo } from 'react';
-import { timeline, getInterventionLabels } from '../timeline/index.ts';
-import { viewOf, momentKey, type View } from '../timeline/story-view.ts';
+import { momentKey, type View } from '../timeline/story-view.ts';
 import type { Moment, Tone } from '../timeline/story.ts';
-import { record } from '../tests/feed.ts';
-import { historyOf } from '../histories/meta.ts';
 import { useCase } from './store.ts';
 import { shortName, type PassNote } from './words.ts';
 import type { Stop } from './types.ts';
+import { setStopSource, stopReadsOf, type StopReads } from './stop-read.ts';
 
 export interface CaseView {
   v: View;
@@ -31,20 +29,19 @@ export function caseViewOf(v: View, stops: readonly Stop[]): CaseView {
   return { v, moments, tones, shorts: stops.map(shortName), notes };
 }
 
-/** The story as it stood when the case started, by the case's first stop (each start makes its stops anew), kept for the whole case: once the days run, the record moves the
- *  course's points from its future into its days and a landing can let the future go (tests/feed.ts), so a view made again then would end at the stop the case is at. */
-const kept = new WeakMap<Stop, View>();
-function storyOf(id: string, first: Stop): View {
-  let v = kept.get(first);
-  if (!v) {
-    v = viewOf({ tl: timeline, days: record.days, future: record.future, hidden: null, labelsOf: getInterventionLabels(), chapters: historyOf(id)?.chapters ?? null });
-    kept.set(first, v);
-  }
-  return v;
+/** The case's view: the story made from the baked course when the case started (run.ts startCase), with its stops as they are now. */
+export function useCaseView(): CaseView | null {
+  const story = useCase((s) => s.story), stops = useCase((s) => s.stops);
+  return useMemo(() => (!story || !stops[0] ? null : caseViewOf(story, stops)), [story, stops]);
 }
 
-/** The case's view: the story kept for this case, with its stops as they are now. */
-export function useCaseView(): CaseView | null {
-  const id = useCase((s) => s.id), stops = useCase((s) => s.stops);
-  return useMemo(() => (!id || !stops[0] ? null : caseViewOf(storyOf(id, stops[0]), stops)), [id, stops]);
-}
+// The readings the stop's card names, for every Tests card: the same numbers as its "that day" line (stop-read.ts).
+// Only while the case waits at a stop; the story is the case's own, made from the baked course; the same object for the same stop.
+let stopKept: { v: View; day: number; reads: StopReads } | null = null;
+setStopSource(() => {
+  const s = useCase.getState(), stop = s.stops[s.at], v = s.story;
+  if (s.phase !== 'stop' || !stop || !v) return null;
+  if (stopKept && stopKept.v === v && stopKept.day === stop.day) return stopKept.reads;
+  stopKept = { v, day: stop.day, reads: stopReadsOf(v.series, stop.day) };
+  return stopKept.reads;
+});

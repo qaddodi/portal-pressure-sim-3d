@@ -7,11 +7,13 @@
 import { engine, latest, onFrame, type ToWorker } from '../../engine/index.ts';
 import { clock, type TimerId } from '../../clock/frame.ts';
 import { timeline, getInterventionLabels } from '../timeline/index.ts';
-import { viewOf } from '../timeline/story-view.ts';
+import type { View } from '../timeline/story-view.ts';
+import type { Series } from '../bigtime/record.ts';
 import { record } from '../tests/feed.ts';
 import { openHistory } from '../histories/open.ts';
 import { historyOf } from '../histories/meta.ts';
-import { stopsOf } from './stops.ts';
+import { LOAD } from '../histories/index.generated.ts';
+import { caseOf } from './story.ts';
 import { CAMERA_LEAD_MS, LAND_MS, RUSH_MS, daysAt, legMs, legRamp, skipPace, skipSpeed, type Pace } from './walk.ts';
 import { CASE_OFF, useCase } from './store.ts';
 import { showShot } from './shot.ts';
@@ -31,10 +33,13 @@ let replayOff: (() => void) | null = null;
 const send = (m: ToWorker) => { try { engine().send(m); } catch { /* the engine is not up yet */ } };
 const reduced = (): boolean => { try { return !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
 
-/** The stops of the patient on the page now (the story of its History, the course's own word on each). */
-export function caseStops(id: string): Stop[] {
-  const v = viewOf({ tl: timeline, days: record.days, future: record.future, hidden: null, labelsOf: getInterventionLabels(), chapters: historyOf(id)?.chapters ?? null });
-  return stopsOf(v.chapters, timeline.entries(), historyOf(id)?.play?.stops ?? [], historyOf(id)?.play?.ramps);
+/** The story and the stops of a model patient's course, made from the baked course and History's entries (the page's record of live days is never read: its newest point is rewritten by each
+ *  frame the model draws, so a card's numbers would differ by device, case/story.ts). */
+async function caseFor(id: string): Promise<{ story: View; stops: Stop[]; asc: Series } | null> {
+  const load = LOAD[id];
+  if (!load) return null;
+  const baked = await load();
+  return caseOf(timeline, baked.days, historyOf(id), getInterventionLabels());
 }
 
 function clearLeg(): void {
@@ -98,9 +103,10 @@ function land(i: number, eased: boolean): void {
 export async function startCase(id: string): Promise<boolean> {
   endCase();
   if (!historyOf(id) || !(await asCase(() => openHistory(id)))) return false;
-  const stops = caseStops(id);
-  if (stops.length < 2) return false;
-  useCase.setState({ ...CASE_OFF, phase: 'stop', id, stops, at: 0, day: stops[0]!.day });
+  const made = await caseFor(id);
+  if (!made || made.stops.length < 2) return false;
+  const { story, stops, asc } = made;
+  useCase.setState({ ...CASE_OFF, phase: 'stop', id, stops, story, asc, at: 0, day: stops[0]!.day });
   arrive(0, false);
   return true;
 }
@@ -185,10 +191,11 @@ export async function backToCase(): Promise<boolean> {
   // (another patient was opened while the history came in: the case is not taken back over it)
   const now = useCase.getState();
   if (now.phase !== 'left' || now.id !== id) return false;
-  const stops = caseStops(id);
-  if (!stops.length) { endCase(); return false; }
+  const made = await caseFor(id);
+  if (!made || !made.stops.length) { endCase(); return false; }
+  const { story, stops, asc } = made;
   const i = Math.min(at, stops.length - 1);
-  useCase.setState({ phase: 'stop', stops, at: i, to: null, day: stops[i]!.day, paused: false, leftDay: null });
+  useCase.setState({ phase: 'stop', stops, story, asc, at: i, to: null, day: stops[i]!.day, paused: false, leftDay: null });
   arrive(i, false);
   return true;
 }

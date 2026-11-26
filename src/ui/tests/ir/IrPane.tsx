@@ -22,6 +22,7 @@ import { useIr, stentsNow } from './store.ts';
 import { NO_STENT_WHY } from './copied/tips-parts.copied.js';
 import { TipsView } from './TipsView.tsx';
 import { hvpgNote, useMeasured } from '../hidden.ts';
+import { withStopReads } from '../../case/stop-read.ts';
 import { usePaneHost } from '../Cv.tsx';
 import { OwnerNote, useBlocker } from '../OwnerNote.tsx';
 import { useTalkOn } from '../../../state/deck.ts';
@@ -33,7 +34,11 @@ const KV: [keyof ReturnType<typeof values>, string][] = [['fhvp', 'FHVP'], ['whv
 function Measure({ h }: { h: number }) {
   useRun((s) => s.n);
   // the readings follow the model while idle: a re-render only when a printed tenth changes
-  useEngine((s) => { void s.frames; const m = latest.frame?.metrics; return `${Math.round(((m?.fhvp as number) ?? 0) * 10)}|${Math.round(((m?.whvp as number) ?? 0) * 10)}|${m?.pv ? 1 : 0}`; });
+  useEngine((s) => {
+    void s.frames;
+    const m = withStopReads(latest.frame?.metrics);
+    return `${Math.round(((m?.fhvp as number) ?? 0) * 10)}|${Math.round(((m?.whvp as number) ?? 0) * 10)}|${m?.pv ? 1 : 0}`;
+  });
   useParamsTick((s) => s.tick);
   const mode = useTalkOn() ? 'deck' : 'free', measured = useMeasured((s) => s.hvpgMeasured);
   const ph = phase(), running = hvpgRunning(), other = useBlocker('ir'), isBusy = busy() || !!other;
@@ -91,6 +96,9 @@ export function IrPane(p: PaneProps) {
   // a new patient starts with no measurement (the pane going away stops nothing: what plays goes on, the figure shows it, and the owner's claim says so: owner.ts)
   const presetId = useEngine((s) => s.presetId);
   useEffect(() => { resetAll(); }, [presetId]);
+  // the case's Look closer on an HVPG card asks for the measurement: it runs once the pane is up (declared after the reset above, so a mount's reset does not stop it)
+  const measureAsk = useIr((s) => s.measureAsk);
+  useEffect(() => { if (useIr.getState().takeMeasure()) startHvpg(); }, [measureAsk]);
   // "Test TIPS in IR" on a stent card: this pane on the TIPS view, on that stent. The card closes with the tap, so the stent is the one the Tests card handed over (from-orders.ts), or, while the
   // card is still up (this pane's own handler runs before it closes, and a tap on the IR tab leaves it up), the selected one.
   useEffect(() => {
