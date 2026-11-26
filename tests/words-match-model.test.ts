@@ -33,14 +33,22 @@ function decks(): Promise<CopiedDeck[]> {
   })();
   return all;
 }
-/** The engine's state at each slide of a deck (index i is slide i), by the host's own `sequence`. */
-async function statesOf(d: CopiedDeck): Promise<Record<string, number | null>[]> {
-  const seq = sequencer(1);
-  const core = createCore((m: never) => seq.message(m));
-  core.handle({ type: 'run', running: false });
-  await core.handle({ type: 'sequence', steps: chainOf(d.slides as never), reqId: 1 });
-  core.dispose();
-  return d.slides.map((_, i) => (seq.results[i + 1]?.fp ?? {}) as Record<string, number | null>);
+/** The engine's state at each slide of a deck (index i is slide i), by the host's own `sequence`; one chain a deck, shared by every test. */
+const chains = new Map<string, { n: number; run: Promise<Record<string, number | null>[]> }>();
+/** The engine's state at each slide of a deck up to slide `upto` (index i is slide i), by the host's own `sequence`; one chain a deck, kept for the next test and run again only for a later slide. */
+function statesOf(d: CopiedDeck, upto = d.slides.length - 1): Promise<Record<string, number | null>[]> {
+  const had = chains.get(d.id);
+  if (had && had.n >= upto) return had.run;
+  const run = (async () => {
+    const seq = sequencer(1);
+    const core = createCore((m: never) => seq.message(m));
+    core.handle({ type: 'run', running: false });
+    await core.handle({ type: 'sequence', steps: chainOf(d.slides.slice(0, upto + 1) as never), reqId: 1 });
+    core.dispose();
+    return d.slides.slice(0, upto + 1).map((_, i) => (seq.results[i + 1]?.fp ?? {}) as Record<string, number | null>);
+  })();
+  chains.set(d.id, { n: upto, run });
+  return run;
 }
 const words = (s: CopiedSlide): string => [s.title, s.line, ...((s.ask as string[] | undefined) ?? [])].join(' ');
 
@@ -87,7 +95,10 @@ test('words that say the plane\'s trail stays in a zone hold for every point of 
   for (const d of await decks()) {
     const slides = d.slides as CopiedSlide[], claims = slides.map((s, i) => ({ s, i, m: STAYS.exec(words(s)) })).filter((x) => x.m && (x.s.tool as { kind?: string } | undefined)?.kind === 'plane');
     if (!claims.length) continue;
-    const fps = await statesOf(d);
+    const reads = claims.flatMap(({ s, i }) => [i, ...(((s.tool as { trail?: { slide: string }[] }).trail ?? []).map((t) => slides.findIndex((x) => x.id === t.slide)))]);
+    // (a slide a later test reads in this deck is in the same chain, so the deck's states are worked out once)
+    const later = d.id === 'cause-treated' ? slides.findIndex((x) => x.id === 'high2-plane') : 0;
+    const fps = await statesOf(d, Math.max(...reads, later));
     for (const { s, i, m } of claims) {
       const tool = s.tool as { plane?: never; trail?: { slide: string }[] }, pl = toolPlane(tool as never)!;
       const want = zoneName((m![1] ?? m![2])!);
@@ -105,7 +116,7 @@ test('words that say the plane\'s trail stays in a zone hold for every point of 
 
 test('Cause treated 10 names the zone the trail ends in, and the HVPG that stays', async () => {
   const d = (await decks()).find((x) => x.id === 'cause-treated')!, slides = d.slides as CopiedSlide[];
-  const s = slides.find((x) => x.id === 'high2-plane')!, fps = await statesOf(d);
+  const s = slides.find((x) => x.id === 'high2-plane')!, fps = await statesOf(d, slides.findIndex((x) => x.id === 'high2-plane'));
   const pl = toolPlane(s.tool as never)!, zone = (id: string) => zoneOf(pl, shownReading(pl, fps[slides.findIndex((x) => x.id === id)] as never) as never)?.t;
   assert.equal(zone('high'), 'CSPH', 'the trail starts in the CSPH zone');
   assert.equal(zone('high2-plane'), 'Indeterminate', 'and ends outside it');
@@ -116,7 +127,7 @@ test('Cause treated 10 names the zone the trail ends in, and the HVPG that stays
 });
 
 test('Shunts 12 says the occluded gradient as the model has it: close to the pre-TIPS gradient, not "no lower"', async () => {
-  const d = (await decks()).find((x) => x.id === 'shunts')!, slides = d.slides as CopiedSlide[], fps = await statesOf(d);
+  const d = (await decks()).find((x) => x.id === 'shunts')!, slides = d.slides as CopiedSlide[], fps = await statesOf(d, slides.findIndex((x) => x.id === 'occl'));
   const at = (id: string) => fps[slides.findIndex((x) => x.id === id)]!.ppg as number;
   const occl = slides.find((x) => x.id === 'occl')!;
   assert.doesNotMatch((occl.line ?? ''), /no lower than before/);
