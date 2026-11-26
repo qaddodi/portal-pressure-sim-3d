@@ -82,5 +82,7 @@ export interface HistoryMeta {
   /** the portal vein pressure along the course, one value in about three days, and the lines the story draws on it (day, word, tone) */
   pv: number[]; days: number; max: number;
   marks: { day: number; word: string; tone: Tone | 'change' }[];
+  /** the story's chapters, each from the day of the step or ramp it is anchored to (timeline/story.ts) */
+  chapters?: { from: number; label: string }[];
   counts: { events: number; medicines: number };
 }

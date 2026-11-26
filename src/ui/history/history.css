@@ -1,21 +1,87 @@
-/* History rows (2D styles/app-03-layouts.css .tl-pop*), in the 3D shell's tokens. Moves are opacity and transform only. */
+/* History as the patient's timeline (docs/approved/timeline-story.md, option A). Tokens only; moves are opacity and transform only.
+   Mac and iPad on its side: History's place at the right, widened to about 460 px and as tall as the room, so the list scrolls inside it (approved for this card, 26 Nov).
+   iPad and iPhone upright: the phone sheet from the foot (shell.css). iPhone on its side: the one card column at the left (docs/approved/landscape-phone.md), the figure at the right. */
 .sh-sheet[data-kind="history"], .sh-sheet[data-kind="compare"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + 52px); width: 360px; max-height: var(--sh-max-h); }
+.sh-sheet[data-kind="history"] { width: min(460px, calc(100vw - 2 * var(--sh-pad-x))); height: var(--sh-max-h); }
 .sh-sheet[data-kind="compare"] { width: 400px; }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="history"] { height: 78%; }
+.sh-root[data-device="phone-landscape"] .sh-sheet[data-kind="history"] {
+  left: calc(var(--safe-l, 0px) + 6px) !important; right: auto !important; width: clamp(290px, 38vw, 360px) !important; margin-left: 0 !important;
+  top: calc(var(--sh-pad-top) + 52px) !important; bottom: auto !important; height: var(--sh-max-h); max-height: none;
+}
+/* (held sideways the column is short: the strip scrolls away with the list instead of standing over it, and the chapter headings stick under the column's top) */
+.sh-root[data-device="phone-landscape"] .sh-sheet[data-kind="history"] .hs-story { overflow: hidden auto; overscroll-behavior: contain; }
+.sh-root[data-device="phone-landscape"] .sh-sheet[data-kind="history"] .hs-list { flex: none; overflow: visible; }
+.sh-sheet[data-kind="history"] .sh-sheet-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; padding: 0 0 4px; }
+
+.hs-story { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+/* ── the strip ── */
+.hs-strip { flex: none; margin: 0 10px 4px; padding: 8px 0 6px; border-radius: var(--r-card); background: color-mix(in srgb, var(--text) 4%, transparent); }
+.hs-strip-top { display: flex; align-items: center; gap: 8px; padding: 0 10px 4px; }
+.hs-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--r-card); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.hs-seg button { min-height: 30px; padding: 0 10px; border: 0; border-radius: calc(var(--r-card) - 2px); background: transparent; color: var(--text-2); font: 600 var(--t-lab) / 1 var(--ui); transition: background-color var(--d-small) var(--ease-arrive), color var(--d-small) var(--ease-arrive); }
+.hs-seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+.hs-chart { margin-left: auto; padding: 6px 2px; border: 0; background: none; color: var(--accent); font: 600 var(--t-lab) / 1.2 var(--ui); text-align: right; }
+.hs-plot { position: relative; overflow: hidden; }
+.hs-ph-span { position: absolute; left: 12px; right: 12px; top: 0; height: 84px; pointer-events: none; }
+.hs-ph { width: 100%; height: 100%; will-change: transform; }
+.hs-ph i { position: absolute; left: -1px; top: 0; bottom: 0; width: 2px; border-radius: 1px; background: var(--text); opacity: 0.7; }
+.hs-read { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin: 2px 12px 0; font: 500 var(--t-lab) / 1.3 var(--ui); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.hs-read b { color: var(--text); font-weight: 700; }
+.hs-read span { margin-left: auto; color: var(--text-3); font-variant-numeric: normal; }
+
+/* ── the list ── */
+.hs-list { flex: 1; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; padding: 0 10px 12px; }
+.hs-ch-h { position: sticky; top: 0; z-index: 1; margin: 0 -10px; padding: 10px 12px 6px; background: var(--surface); box-shadow: 0 6px 8px -8px rgb(0 0 0 / 0.35); }
+.hs-ch-h h3 { margin: 0; font: 600 var(--t-name) / 1.2 var(--display); color: var(--text); }
+.hs-ch-h p { margin: 2px 0 0; font: 500 var(--t-cap) / 1.3 var(--ui); color: var(--text-3); }
+.hs-mo { display: grid; grid-template-columns: 64px 14px minmax(0, 1fr); column-gap: 8px; padding: 8px 0; scroll-margin-top: 56px; transition: opacity var(--d-small) var(--ease-arrive); }
+.hs-slot[data-first] .hs-mo { scroll-margin-top: 0; }
+.hs-mo[data-future] { opacity: 0.45; }
+.hs-when { padding-top: 15px; font: 600 var(--t-lab) / 1.2 var(--ui); color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.hs-mo.quiet .hs-when { padding-top: 1px; font-weight: 500; font-size: var(--t-cap); color: var(--text-3); white-space: nowrap; }
+.hs-node { position: relative; align-self: stretch; }
+/* (the rail: one line down the days, no round marks beside the words (docs/HUMANIZED-DESIGN.md section 0); beside a key day it takes the day's colour and weight) */
+.hs-node::before { content: ''; position: absolute; left: 6px; top: 0; height: calc(100% + 8px); width: 2px; border-radius: 1px; background: var(--edge); }
+.hs-mo.key .hs-node::before { top: 14px; height: calc(100% - 20px); width: 3px; left: 5.5px; background: var(--text-3); }
+.hs-mo.key[data-tone="danger"] .hs-node::before { background: var(--danger); }
+.hs-mo.key[data-tone="ok"] .hs-node::before { background: var(--ok); }
+.hs-mo.key[data-tone="change"] .hs-node::before { background: var(--accent); }
+.hs-mo.key[data-tone="caution"] .hs-node::before { background: var(--caution); }
+.hs-body { min-width: 0; }
+.hs-kick { display: block; font: 600 var(--t-cap) / 1.3 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
+.hs-mo.key[data-tone="danger"] .hs-kick, .hs-mo.key[data-tone="danger"] h4 { color: var(--danger-ink); }
+.hs-mo.key[data-tone="change"] .hs-kick { color: var(--accent); }
+.hs-mo.key[data-tone="ok"] .hs-kick, .hs-mo.key[data-tone="ok"] h4 { color: var(--ok-ink); }
+.hs-body h4 { margin: 1px 0 0; font: 600 var(--t-name) / 1.25 var(--display); color: var(--text); }
+.hs-mo.quiet h4 { font: 500 var(--t-body) / 1.3 var(--ui); color: var(--text-2); }
+.hs-body p { margin: 3px 0 0; font: 400 var(--t-body) / 1.4 var(--ui); color: var(--text-2); }
+.hs-mo.quiet p { font-size: var(--t-cap); color: var(--text-3); }
+.hs-also { color: var(--text-2); }
+.hs-then { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font: 400 var(--t-body) / 1.35 var(--ui); color: var(--text-2); }
+.hs-then b { color: var(--text); font-weight: 600; }
+.hs-then li[data-tone="ok"] b { color: var(--ok-ink); }
+.hs-then li[data-tone="danger"] b { color: var(--danger-ink); }
+.hs-then li[data-tone="caution"] b { color: var(--caution-ink); }
+.hs-minor { font-size: var(--t-cap) !important; color: var(--text-3) !important; }
+.hs-nums { margin-top: 8px; padding: 7px 10px 8px; border-radius: var(--r-card); background: color-mix(in srgb, var(--text) 5%, transparent); display: flex; flex-direction: column; gap: 3px; }
+.hs-nums-w { font: 600 var(--t-cap) / 1.2 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
+.hs-nums-r { display: flex; flex-wrap: wrap; gap: 2px 14px; font: 500 var(--t-lab) / 1.35 var(--ui); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.hs-nums-r b { color: var(--text); font-weight: 700; }
+.hs-nums-r .down b { color: var(--ok-ink); }
+.hs-nums-r .up b { color: var(--caution-ink); }
+.hs-a { color: var(--text-3); }
+.hs-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 6px; }
+.hs-go { min-height: 32px; padding: 0; border: 0; background: none; color: var(--accent); font: 600 var(--t-lab) / 1.2 var(--ui); text-align: left; }
+.hs-go.plain { color: var(--text-2); }
+.hs-here { font: 600 var(--t-lab) / 1.2 var(--ui); color: var(--text); min-height: 32px; display: inline-flex; align-items: center; }
+.hs-ahead { margin: 6px 0 2px 86px; padding-top: 8px; border-top: 1px dashed var(--edge); font: 500 var(--t-cap) / 1.3 var(--ui); color: var(--text-3); }
+.hs-trim p { grid-column: 3; margin: 0; font: 500 var(--t-cap) / 1.3 var(--ui); color: var(--text-3); }
+@media (pointer: coarse) { .hs-go, .hs-here { min-height: 44px; } .hs-seg button { min-height: 36px; } }
+
+/* ── the empty History, and the count the bar shows ── */
 .hist-list { display: flex; flex-direction: column; padding: 0 6px; }
-.hist-row { padding: 6px 6px 7px; border-bottom: 1px solid var(--edge); display: flex; flex-direction: column; gap: 2px; transition: opacity var(--d-small) var(--ease-arrive); }
-.hist-row:last-child { border-bottom: 0; }
-.hist-row[data-future] { opacity: 0.45; }
-.hist-head { display: grid; grid-template-columns: minmax(0, 1fr) auto 56px; align-items: center; gap: 8px; font: 500 var(--t-body) / 1.25 var(--ui); }
-.hist-head b { font: 600 var(--t-name) / 1.25 var(--display); min-width: 0; transition: color var(--d-small) var(--ease); }   /* (a name is serif: docs/approved/type.md) */
-.hist-head .when { font: 500 var(--t-cap) / 1 var(--ui); color: var(--text-3); white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; }
-.hist-t.jump { color: var(--accent); }
-.hist-t.start { color: var(--text-2); }
-.hist-d { font: 400 var(--t-cap) / 1.3 var(--ui); color: var(--text-2); }
-.hist-acts { display: grid; grid-template-columns: 26px 26px; gap: 2px; min-height: 26px; }
-.hist-ic { display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: var(--r-card); background: transparent; color: var(--text-2); }
-.hist-ic:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
-.hist-ic .sh-ic { width: 18px; height: 18px; }
 .hist-empty { margin: 6px 14px 14px; font: 400 var(--t-body) / 1.45 var(--ui); color: var(--text-2); } .hist-empty b { color: var(--text); font-weight: 600; }
-@media (pointer: coarse) { .hist-acts { grid-template-columns: 34px 34px; gap: 8px; } .hist-head { grid-template-columns: auto minmax(0, 1fr) auto 76px; } .hist-ic { width: 34px; height: 34px; } }
 .sh-count { font: 600 var(--t-cap) / 1 var(--ui); color: var(--text-3); font-variant-numeric: tabular-nums; }
 .hist-chart { margin: 2px 6px 4px; padding: 9px 6px 10px; border: 0; border-bottom: 1px solid var(--edge); background: none; font: 600 var(--t-body) / 1.25 var(--ui); color: var(--accent); text-align: left; }

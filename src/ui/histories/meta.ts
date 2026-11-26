@@ -7,3 +7,5 @@ export const isHistory = (id: string | null | undefined): boolean => !!historyOf
 export const historyName = (id: string | null | undefined): string => historyOf(id)?.name ?? '';
 /** The id a shared link can carry: a model patient's settings are shared on the preset it began from (the link has no history). */
 export const shareableId = (id: string): string => historyOf(id)?.preset ?? id;
+/** A model patient's chapters (authored in courses.ts, anchored to its steps, baked as days); any other patient's are derived from its History (timeline/story.ts). */
+export const chaptersOf = (id: string | null | undefined): readonly { from: number; label: string }[] | null => historyOf(id)?.chapters ?? null;

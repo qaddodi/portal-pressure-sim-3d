@@ -111,7 +111,7 @@ export function numbers(series: StoryIn['series'], es: readonly StoryEntry[], da
   // (a change that moved none of them (a band, a drug stopped) says where the readings stand that day instead of an empty line)
   return moved?.rows.length ? moved : dayReadings(series, day);
 }
-function dayReadings(series: StoryIn['series'], day: number): Numbers {
+export function dayReadings(series: StoryIn['series'], day: number): Numbers {
   const rows: Reading[] = [];
   for (const [k, name, unit, , dp, scale] of READ) {
     const v = valueAt(series[k], day);
@@ -145,7 +145,7 @@ export function chapterStarts(entries: readonly StoryEntry[], begin: number, end
   const starts: ChapterStart[] = [{ from: begin, label: on.length ? `On ${and(on.map(([, l]) => lowerFirst(bareName(l))))}` : 'Before treatment' }];
   const seen = new Set<string>(on.map(([k]) => k));
   for (const e of entries) {
-    if (e.kind !== 'change' || e.future || e.day <= begin) continue;
+    if (e.kind !== 'change' || e.day <= begin) continue;   // (the moments ahead keep their chapters: going back does not rename the course)
     const parts = e.label.split(' · ');
     if (isProcedure(e)) {
       const word = parts.find((p) => !/^No /.test(p) && !/^\+\d+ more$/.test(p)) ?? e.label;
