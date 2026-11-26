@@ -5,7 +5,7 @@ import { LENS_SHARED, LENS_TOKENS } from './tokens.copied.ts';
 import { LENS_WORDS } from './words.copied.ts';
 import { type LensId, HEAT_MAX, flowPos, oxygenPos, rampOf } from './model.ts';
 import { type Rgb, delta3, hexToRgb01, rgb01ToHex, sampler } from './oklab.ts';
-import type { LookId } from '../palette.ts';
+import { type LookId, PALETTES } from '../palette.ts';
 import { figureHex } from '../vessels/cel-ink.ts';
 import { RAW_LENSES } from './pressure-ramp.ts';
 
@@ -104,7 +104,9 @@ export function legendFor(lens: LensId, look: LookId, ref = 'healthy'): LegendSp
           { colour: dot(LENS_SHARED.origin[4]), name: 'Sys', title: 'Systemic venous blood' }],
         aria: 'Legend: splanchnic blood colored by whether it has passed through the liver. Orange Raw: splanchnic blood that has not passed the sinusoids, including blood that took a collateral, a shunt or a stent. Teal Clear: splanchnic blood after the sinusoids. Crimson HA: hepatic artery blood. Slate blue Sys: systemic venous blood. This shows the route the blood took, not an ammonia level' };
     case 'neutral':
-      return { lens, name: 'Anatomy', dots: [{ colour: '', name: 'Portal veins', title: '' }, { colour: '', name: 'Systemic veins', title: '' }], note: 'Pressures unmeasured',
+      // (the dots are the look's own portal and systemic tones, as the vessels wear them: a key word with no colour beside it names nothing)
+      return { lens, name: 'Anatomy', note: 'Pressures unmeasured',
+        dots: [{ colour: dot(PALETTES[look].tones.portal), name: 'Portal veins', title: '' }, { colour: dot(PALETTES[look].tones.sys), name: 'Systemic veins', title: '' }],
         aria: 'Legend: violet portal veins, blue systemic veins. Pressures are unmeasured in this case: investigate with the tools.' };
     case 'system':
       return { lens, name: 'System', dots: [{ colour: dot(LENS_TOKENS[look].trPv), name: 'Portal', title: '' }, { colour: dot(LENS_TOKENS[look].trIvc), name: 'Systemic', title: '' }, { colour: dot(LENS_TOKENS[look].trVar), name: 'Collateral or shunt', title: '' }],
