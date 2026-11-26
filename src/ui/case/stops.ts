@@ -41,8 +41,8 @@ const ruptureOf = (es: readonly StopEntryIn[], ids: readonly number[]): StopEntr
 /** Where a bleed is: a fundal varix, or the esophageal ones. */
 const siteOf = (e: StopEntryIn): 'GV' | 'VAR' => (/gastric/i.test(e.label) ? 'GV' : 'VAR');
 
-/** What a bleed's two stops look at by default: the bleeding stop opens the scope's own view of it (an esophageal bleed, the Endoscopy card) or looks at the fundus (a fundal one: the esophageal scope shows
- *  no varix there); what is done about it looks again (the bands, or the glue to watch). A course's own `look` replaces these. */
+/** What a bleed's two stops look at by default: the bleeding stop opens the scope's own view of it (an esophageal bleed, the Endoscopy card) or looks at the fundus (a fundal one: the
+ *  esophageal scope shows no varix there); what is done about it looks again (the bands, or the glue to watch). A course's own `look` replaces these. */
 const bleedLooks = (site: 'GV' | 'VAR', bleeding: boolean): { look: CaseLook[]; open: CaseLook | null } =>
   bleeding ? (site === 'VAR' ? { look: [SCOPE_LOOK], open: SCOPE_LOOK } : { look: [], open: null }) : { look: site === 'VAR' ? [SCOPE_LOOK] : [GLUE_LOOK], open: null };
 

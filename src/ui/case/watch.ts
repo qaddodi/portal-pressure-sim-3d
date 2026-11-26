@@ -1,7 +1,8 @@
-// Watching a treatment the case has already done (Mohammad, 26 Nov: "we have EUS glue of gastric varix animation"): a stop's Look closer that plays the figure's own procedure choreography (the slides'
-// EUS coils and glue: the echoendoscope down to the fundus, the needle into the varix, the coil and the cyanoacrylate cast) on the patient the stop stands on. Nothing is changed in the patient: the
-// course did it on the day (the model the stop kept already has the varix obliterated), so nothing is asked, and nothing waits on the model. The camera follows the scope as the slides' does and goes
-// back to the stop's own shot when the run ends; leaving the stop (Continue, the bar, the end of the case) stops it. The scope itself is the figure's (scene/devices/probes), driven by the run.
+// Watching a treatment the case has already done (Mohammad, 26 Nov: "we have EUS glue of gastric varix animation"): a stop's Look closer that plays the figure's own procedure
+// choreography (the slides' EUS coils and glue: the echoendoscope down to the fundus, the needle into the varix, the coil and the cyanoacrylate cast) on the patient the stop
+// stands on. Nothing is changed in the patient: the course did it on the day (the model the stop kept already has the varix obliterated), so nothing is asked, and nothing
+// waits on the model. The camera follows the scope as the slides' does and goes back to the stop's own shot when the run ends; leaving the stop (Continue, the bar, the end of
+// the case) stops it. The scope itself is the figure's (scene/devices/probes), driven by the run.
 import { Vector3 } from 'three';
 import { sceneApi } from '../../scene/api.ts';
 import { useUi } from '../ui-store.ts';

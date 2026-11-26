@@ -120,9 +120,13 @@ test('the cirrhosis bleed reads as the course: a tap and a TIPS show what they d
   assert.equal(tips.nums.when, '8 days later');
   const ppg = tips.nums.rows.find((r) => r.k === 'ppg')!;
   assert.ok(ppg.a! > 12 && ppg.b < 12 && !ppg.up, 'the TIPS brings the PPG under 12');
-  const bleed = keys.find((m) => m.day === 70)!;
+  // (the bleed is two moments on its day: the bleeding, on the model as it bled, then what is done about it)
+  const [bleed, done] = keys.filter((m) => m.day === 70) as [typeof keys[number], typeof keys[number]];
   assert.equal(bleed.kind, 'Emergency'); assert.equal(bleed.head.title, 'Esophageal varix ruptured');
-  assert.deepEqual(bleed.then.map((t) => t.title), ['Terlipressin', 'Bleeding controlled by banding', 'Band (EVL)']);
+  assert.deepEqual(bleed.then.map((t) => t.title), [], 'the rupture stands alone');
+  assert.equal(done.head.title, 'Band (EVL)'); assert.equal(done.kind, 'Procedure');
+  assert.deepEqual(done.then.map((t) => t.title), ['Terlipressin', 'Bleeding controlled by banding']);
+  assert.equal(keys.filter((m) => m.day === 70).length, 2);
   const carv = keys.find((m) => m.head.title === 'Carvedilol')!;
   assert.equal(carv.nums.mode, 'day', 'a medicine\'s start is not credited with a week of the disease');
   const { s: a } = await storyIn('hist-ascites');
