@@ -471,7 +471,8 @@ void main() {
   vec3 sideD = cross(normalize(vT), normalize(vV));
   float sideDL = length(sideD);
   sideD = sideDL > 1e-4 ? sideD / sideDL : vec3(1.0, 0.0, 0.0);
-  float fwSt = fwidth(dot(nD, celLightView())), fwPx = fwidth(vUv.x * vArcLen * vU), fwAw = max(fwidth(dot(nD, sideD)), 0.03);
+  vec3 lightD = celTubeLight(vT);   // (the light this tube is shaded by: the world light, its part square to the axis never under CEL_STYLE.TUBE_LIGHT_MIN, cel-glsl.ts)
+  float fwSt = fwidth(dot(nD, lightD)), fwPx = fwidth(vUv.x * vArcLen * vU), fwAw = max(fwidth(dot(nD, sideD)), 0.03);
   lensAcrossFw = fwidth(dot(nD, sideD) * 0.5 + 0.5);
   // (the stent crowns, the suture dashes and the smoke below each want one more: the across angle's, the raw across's and the smoke's own, taken here for the same reason)
   float acrossD = dot(nD, sideD), fwAcr = fwidth(acrossD), fwTh = fwidth(asin(clamp(acrossD, -0.999, 0.999)));
@@ -603,7 +604,7 @@ void main() {
   }
 #endif
   if (fadeHere < 0.004) DROP(11);
-  float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
+  float sT = dot(n, lightD);   // n.L against the WORLD light (cel-glsl.ts celTubeLight), so the camera never changes a shade and a tube along the light still has its stripe
   float rDevAx = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
   // (plan 12: on a plain stretch the outer edge is the true circle of the lumen plus its line, half a pixel out as the skin's is, so the polygon's corners are gone and both sides of a seam stand on one curve)
   if (plainHere(wpc0)) {
