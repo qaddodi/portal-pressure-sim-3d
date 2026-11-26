@@ -14,6 +14,8 @@ import { nearestStop } from './stops.ts';
 import type { Stop } from './types.ts';
 
 /** The strip's sizes: the stop names' row over the rail (none on a phone), the rail, the chapters' row under it, the side pads (the played rail and the playhead stand over the same span). */
+/** the least clear air between two names over the rail, px (a gap of one space read "Start TIPS" as one phrase) */
+export const NAME_GAP = 12;
 export const CASE_STRIP = { NAMES: 18, RAIL: 4, NOTCH: 12, CHAPTERS: 17, PAD: 6, FS: 12, GAP: 3 } as const;
 /** where the rail's middle stands, px from the strip's top (CaseBar.tsx lays the played rail and the playhead there) */
 export const railY = (names: boolean): number => (names ? CASE_STRIP.NAMES : 0) + CASE_STRIP.NOTCH / 2 + 2;
@@ -46,21 +48,30 @@ export function stopAtFrac(stops: readonly Stop[], axis: { dayAt(f: number): num
   return nearestStop(stops, axis.dayAt(f));
 }
 
-/** The names over the stops' lines: each centred on its line (the first starts at it), held inside the strip, and one that would touch the name before it is left out
- *  (the stop the case is at never is). NaN for a name left out. */
-export function placeNames(items: readonly { x: number; w: number; first?: boolean; keep?: boolean }[], W: number, gap = 4): number[] {
+/** The names over the stops' lines: each centred on its line (the first starts at it), held inside the strip, and one that would come within `gap` px of another is left out. The stop
+ *  the case is at never is; then the names that say something (`low` is the start and today, which the chapters and the bar already say) win over each other left to right, and
+ *  the low ones last. NaN for a name left out. */
+export function placeNames(items: readonly { x: number; w: number; first?: boolean; keep?: boolean; low?: boolean }[], W: number, gap = NAME_GAP): number[] {
   const xs = items.map((it) => Math.max(0, Math.min(W - it.w, it.first ? it.x : it.x - it.w / 2)));
-  const shown = new Set<number>();
-  const keep = items.findIndex((it) => it.keep);
-  if (keep >= 0) shown.add(keep);
-  let last = -1e9;
-  for (let i = 0; i < items.length; i++) {
-    if (i === keep) { last = xs[i]! + items[i]!.w; continue; }
-    const next = keep > i ? xs[keep]! : Infinity;
-    if (xs[i]! < last + gap || xs[i]! + items[i]!.w + gap > next) continue;
-    shown.add(i); last = xs[i]! + items[i]!.w;
+  const order = items.map((_, i) => i).sort((a, b) => Number(!items[a]!.keep) - Number(!items[b]!.keep) || Number(!!items[a]!.low) - Number(!!items[b]!.low) || a - b);
+  const taken: number[] = [];
+  for (const i of order) {
+    const a = xs[i]!, b = a + items[i]!.w;
+    if (!items[i]!.keep && taken.some((j) => a < xs[j]! + items[j]!.w + gap && xs[j]! < b + gap)) continue;
+    taken.push(i);
   }
+  const shown = new Set(taken);
   return items.map((_, i) => (shown.has(i) ? xs[i]! : NaN));
+}
+
+/** The stops' names as they stand on a strip `W` px wide: the box of each that is shown (null for one left out). One place for the drawing and the tests. */
+export function stripNames(inp: Pick<CaseStripIn, 'keyDays' | 'full' | 'stops' | 'at'>, W: number): ({ x: number; w: number } | null)[] {
+  const axis = stripAxis(inp.keyDays, inp.full), { PAD, FS } = CASE_STRIP;
+  const items = inp.stops.map((st, i) => ({
+    x: PAD + axis.frac(st.day) * (W - 2 * PAD), w: measure(st.short, FS, 600), first: i === 0, keep: i === inp.at, low: i === 0 || i === inp.stops.length - 1,
+  }));
+  const xs = placeNames(items, W);
+  return items.map((it, i) => (Number.isFinite(xs[i]!) ? { x: xs[i]!, w: it.w } : null));
 }
 
 /** the chapter a day is in (the last that starts on or before it) */
@@ -90,11 +101,10 @@ export function caseStripScene(inp: CaseStripIn, c: ChartCtx): Frame {
   });
   // the stops' names over the rail (not on a phone: too many for its width)
   if (inp.names) {
-    const items = inp.stops.map((st, i) => ({ x: X(st.day), w: measure(st.short, FS, 600), first: i === 0, keep: i === inp.at }));
-    const xs = placeNames(items, W);
+    const boxes = stripNames(inp, W);
     inp.stops.forEach((st, i) => {
-      const x = xs[i]!;
-      if (!Number.isFinite(x)) return;
+      const x = boxes[i]?.x;
+      if (x == null) return;
       shapes.push({ k: 'text', x, y: 12, s: st.short, size: FS, weight: 600, color: i === inp.at ? c.pal.tok('text') : i < inp.at ? c.pal.tok('text-2') : t3, key: `n${i}` });
     });
   }

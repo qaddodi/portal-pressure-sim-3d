@@ -23,6 +23,7 @@ import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
 import { type CapMeta, buildLobuleCaptions, lobuleLabelView, readingSig, readingText } from './captions.ts';
 import { footBlocker, useFootNote } from '../../ui/shell/foot-note.ts';
 import { creditClaim } from '../labels/credit-claim.ts';
+import { chromeClaims } from '../labels/chrome-claims.ts';
 import { calloutClaims } from '../labels/callout-claims.ts';
 import { lobuleLines } from '../labels/lobule-lines.ts';
 import { PAIR_AT, pinAbove } from '../labels/pair.ts';
@@ -70,7 +71,8 @@ export function LobuleCaptions() {
       const out = talkRects(useUi.getState().boxes).map(rectToBox), note = footBlocker(useFootNote.getState().rect);
       // (the foot note, while it shows: no name, reading or leader stands under it. The slide's callout ("Resistance") stands first, at the point the slide names, and the names keep off its words, as the Circuit's captions do: the words
       //  of "Resistance" lay over "Hepatic arteriole" and its leader on slide 4.2, 23 Nov)
-      return note ? [...out, note, ...calloutClaims.boxes, ...creditClaim.boxes] : [...out, ...calloutClaims.boxes, ...creditClaim.boxes];
+      // (the app's own chrome too: the Tests card, a playing case's cards and bar, the pills, labels/chrome-claims.ts)
+      return note ? [...out, note, ...calloutClaims.boxes, ...creditClaim.boxes, ...chromeClaims.boxes] : [...out, ...calloutClaims.boxes, ...creditClaim.boxes, ...chromeClaims.boxes];
     };
 
     const make = (id: string, m: CapMeta): El => {
@@ -239,10 +241,11 @@ export function LobuleCaptions() {
     const offUi2 = useUi.subscribe((s, p) => { if (s.boxes !== p.boxes) wake(); });
     const offFoot = useFootNote.subscribe(wake);
     const offClaims = calloutClaims.subscribe(wake);
+    const offChrome = chromeClaims.subscribe(wake);
     const offReads = useFigure.subscribe((s, p) => { if (s.reads !== p.reads || s.readsTone !== p.readsTone || s.lit !== p.lit) wake(); });
     void document.fonts?.ready.then(refont);
     return () => {
-      off(); offShell(); offUi(); offUi2(); offFoot(); offClaims(); offReads(); lobuleLines.set([]);
+      off(); offShell(); offUi(); offUi2(); offFoot(); offClaims(); offChrome(); offReads(); lobuleLines.set([]);
       hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
   }, []);
 
