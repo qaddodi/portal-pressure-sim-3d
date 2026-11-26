@@ -14,6 +14,7 @@ import { announce } from './announce.ts';
 import { record } from '../tests/feed.ts';
 import { useTimeline } from './store.ts';
 import { isCustomCase } from '../action/case-name.ts';
+import { switchBegins, switchLands } from '../patients/switching.ts';
 
 export { fmtClock, captureFrame } from './model.ts';
 export type { Entry, Pinned } from './model.ts';
@@ -48,9 +49,20 @@ async function advanceUntilEvent(): Promise<void> {
   } catch { /* the worker went away: nothing more to run */ } finally { off(); }
 }
 
+/** Going back (or forward) to a moment is a switch of the figure, like opening a patient: the numbers roll to the moment's instead of landing at once, and the days after it
+ *  are kept as the future (the feed keeps them until a change branches the patient). The curtain lands on the first frame of the restored state. */
+function restoreThrough(snap: Snap): void {
+  switchBegins();
+  record.keepDaysTo(snap.day);
+  const off = onFrame((f) => { if (f.jump) { off(); switchLands(); } });
+  engine().send({ type: 'restore', snap });
+  setParams(sanitizeParams(snap.params));
+}
+
 const host: TimelineHost = {
   snapshot: async () => ((await engine().request({ type: 'snapshot' })) as unknown as { snap?: Snap }).snap ?? null,
-  restore: (snap) => { record.keepDaysTo(snap.day); engine().send({ type: 'restore', snap }); setParams(sanitizeParams(snap.params)); },
+  restore: (snap) => restoreThrough(snap),
+  branched: () => record.dropFuture(),
   frame: () => latest.frame,
   params: () => patient.params,
   advance: (days) => { if (days === 'event') void advanceUntilEvent(); else advanceDays(days); },

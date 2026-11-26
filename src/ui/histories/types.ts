@@ -56,7 +56,11 @@ export interface EntryOut {
   step?: string;
   /** the patient's settings after this entry (a start and a change; the chart's medicine bars read them) */
   params?: unknown;
+  /** the model at the end of this entry's day, on the last line of a day the story headlines (timeline/story.ts isKeyEntry): "Show on the figure" restores it */
+  snap?: Snap;
 }
+/** What the worker's restore takes (the engine's snapshot): opaque but for the clock and the settings. */
+export interface Snap { t: number; day: number; params: unknown; [k: string]: unknown }
 /** The model's state today, in numbers the rows and the card word. */
 export interface Now {
   day: number; hvpg: number; ppg: number; pv: number; ascitesL: number; shunt: number;
@@ -64,7 +68,7 @@ export interface Now {
   /** the treatments running today, as Treat words ("Carvedilol", "Anticoagulation", "Diuretics") */
   meds: string[];
 }
-export interface Baked { id: string; days: DaySample[]; entries: EntryOut[]; snap: { t: number; day: number; params: unknown; [k: string]: unknown }; now: Now }
+export interface Baked { id: string; days: DaySample[]; entries: EntryOut[]; snap: Snap; now: Now }
 
 export type Tone = 'ok' | 'caution' | 'danger' | 'info';
 /** a piece of the row's second line */

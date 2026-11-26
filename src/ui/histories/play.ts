@@ -11,8 +11,9 @@ import type { Params } from '../action/params.ts';
 import { actionLabel } from '../action/action-label.ts';
 import { removedLabel } from '../timeline/removed-label.ts';
 import { storyOf } from './courses.ts';
+import { isKeyEntry } from '../timeline/story.ts';
 import { stateOf, lengthWords } from './state-words.ts';
-import type { Baked, Course, DaySample, EntryOut, HistoryMeta, Now, Step, Tone } from './types.ts';
+import type { Baked, Course, DaySample, EntryOut, HistoryMeta, Now, Snap, Step, Tone } from './types.ts';
 
 /** The same event again within this many days is one line (the page's own rule is 30 seconds of page time, which is days of model time here; a critical one always counts). */
 const REPEAT_DAYS = 60;
@@ -40,6 +41,7 @@ export function playCourse(c: Course): Baked {
   const settled = ((PRESETS as { id: string; days?: number }[]).find((p) => p.id === c.preset)?.days ?? 0) > 0;
   const feed = new SampleFeed(), entries: EntryOut[] = [];
   const lastEv = new Map<string, number>();
+  const moments = new Map<number, Snap>();
   let baseline = labelsOf(e.params);
   const note = () => {
     const m = computeMetrics(e);
@@ -90,6 +92,8 @@ export function playCourse(c: Course): Baked {
       if (s.note) entries.push({ kind: 'event', label: s.note.title, day: e.day, t: round(e.t, 2), detail: s.note.detail, sev: s.note.sev, evId: 'COURSE_' + (s.id ?? 'NOTE'), ...(s.id ? { step: s.id } : {}) });
       note();   // (the same day again: a change is a step in the days list)
     }
+    // (A day the story headlines keeps the model as it was at the day's end, after all of its steps, so "Show on the figure" can go back to it: a bleed's day is after the band.)
+    if (entries.some((x) => x.day === e.day && isKeyEntry(x))) moments.set(e.day, e.snapshot());
     e.advanceDays(1, { noRupture: true, silent: true });
     watch(4, 0.1, 1, !!c.still);
     note();
@@ -105,7 +109,10 @@ export function playCourse(c: Course): Baked {
   };
   // the last change carries today's snapshot, so Undo can come back to today from an earlier moment (entry snapshots are the model's own)
   const days: DaySample[] = feed.days.map((d) => ({ day: d.day, v: Object.fromEntries(Object.entries(d.v).map(([k, v]) => [k, round(v)])), ...(d.start ? { start: true } : {}) }));
-  return { id: c.id, days, entries: entries.sort((a, b) => a.day * 86400 + a.t - (b.day * 86400 + b.t)), snap: e.snapshot(), now };
+  entries.sort((a, b) => a.day * 86400 + a.t - (b.day * 86400 + b.t));
+  // (each moment goes on the last line of its day: the model then is the day's end, so the lines before it on that day are its past, not its future)
+  for (const [day, snap] of moments) { const i = entries.findLastIndex((x) => x.day === day); if (i >= 0) entries[i]!.snap = snap; }
+  return { id: c.id, days, entries, snap: e.snapshot(), now };
 }
 
 /** What the menu keeps eagerly of a baked history (the row, and the little course in its card). */

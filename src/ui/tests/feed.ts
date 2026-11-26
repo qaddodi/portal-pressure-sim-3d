@@ -68,6 +68,10 @@ export class SampleFeed {
   off = 0;
   /** the Days chart's points, one a day (2D days), and what changed them */
   days: DayPoint[] = [];
+  /** the days after the moment History went back to: still the patient's course (Redo comes back to them), until the patient moves on from that moment or something new is done there */
+  future: DayPoint[] = [];
+  /** the day History went back to (the future is the days after it) */
+  private futureAt: number | null = null;
   daysVer = 0;
   /** a patient that comes with its past: these days are laid in when the frame that replaced the model's state arrives (seedDays) */
   private seed: DayPoint[] | null = null;
@@ -146,7 +150,13 @@ export class SampleFeed {
       const g = f.gen ?? 0, keep = this.keepTo; this.keepTo = null;
       if (g !== this.daysGen) {
         this.daysGen = g;
-        if (keep != null) { const kept = this.days.filter((d) => d.day <= keep); this.days.length = 0; this.days.push(...kept); } else this.days.length = 0;
+        // (Going back keeps the later days as the future, as History keeps its later entries: Redo comes back to the whole course, not to a gap.)
+        if (keep != null) {
+          const all = this.days.concat(this.future);
+          this.days.length = 0; this.future = [];
+          for (const d of all) (d.day <= keep ? this.days : this.future).push(d);
+          this.futureAt = this.future.length ? keep : null;
+        } else { this.days.length = 0; this.future = []; this.futureAt = null; }
         this.treatKey = null; this.bandsNow = null; this.calmKept.clear(); this.daysVer++;
         this.layInSeed();
       }
@@ -229,12 +239,16 @@ export class SampleFeed {
     const v: Record<string, number> = { hvpg: m.hvpg! };
     for (const t of TRACES) if (t.day) v[t.id] = m[t.day]!;
     Object.assign(v, dayExtras(f));   // (the timeline chart's own lanes: ascites, the shunt, the cardiac output, the varix: bigtime/day-keys.ts)
+    // (The patient moved past the moment History went back to, or the clock went back: the course after it is not this patient's any more.)
+    if (this.future.length && this.futureAt != null && f.day! !== this.futureAt) this.dropFuture();
     const grew = recordDay(this.days, f.day!, v, this.stepNext);
     this.stepNext = false;
     if (grew) { this.daysVer++; if (!this.days.length) this.calmKept.clear(); }
   }
   /** History is restoring the entry of this day: the record keeps its points up to it, not the later ones. */
   keepDaysTo(day: number) { this.keepTo = day; }
+  /** Something new was done at the moment History went back to (timeline.ts truncateFuture): the days after it go, as the entries after it do. */
+  dropFuture() { this.futureAt = null; if (this.future.length) { this.future = []; this.daysVer++; } }
   /** The Days list's trace, calmed (2D calmOf): made once for each change of the days, never for a frame that drew the same ones. */
   calmOf(key: string): { x: number[]; mid: number[] } | null {
     const c = this.calmKept.get(key);
@@ -297,4 +311,5 @@ export function startFeed(): void {
 export const record = {
   get t() { return feed.t; }, get ch() { return feed.ch; }, get binT() { return feed.binT; }, get bin() { return feed.bin; }, get beats() { return feed.beat.times; },
   get days() { return feed.days; }, get daysVer() { return feed.daysVer; }, keepDaysTo: (day: number) => feed.keepDaysTo(day), calm: (key: string) => feed.calmOf(key),
+  get future() { return feed.future; }, dropFuture: () => feed.dropFuture(),
 };
