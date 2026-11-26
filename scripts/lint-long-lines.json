@@ -36,7 +36,7 @@
  "src/decks/ag/shots.ts": 1,
  "src/decks/all.ts": 2,
  "src/decks/charts.ts": 1,
- "src/decks/controls.ts": 3,
+ "src/decks/controls.ts": 2,
  "src/decks/hp/cams.ts": 4,
  "src/decks/hp/deck.ts": 2,
  "src/decks/hp/figure-engine.ts": 1,
