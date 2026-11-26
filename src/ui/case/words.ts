@@ -21,6 +21,8 @@ export const CASE = {
 } as const;
 
 const day = (d: number): string => `Day ${Math.round(d)}`;
+/** A stop's day with its course's own clock beside it when it has one: "Day 114 · 18 weeks" (when.ts). */
+const dayOf = (s: Stop): string => [day(s.day), s.when].filter(Boolean).join(' · ');
 
 /** The chapter a day is in (its name), or '' with none named. */
 export function chapterAt(chapters: readonly { from: number; label: string }[], d: number): string {
@@ -42,11 +44,11 @@ export function dragWords(d: number, stops: readonly Stop[], i: number): { day: 
   return { day: day(d), small: `Stop ${i + 1} of ${stops.length}` };
 }
 
-/** The stop card's kicker: "Stop 6 of 8 · Day 70 · The bleed" (the chapter the stop is in, when one is named). */
+/** The stop card's kicker: "Stop 6 of 8 · Day 70 · The bleed" (the chapter the stop is in, when one is named; a pregnancy says its week after the day: "Day 114 · 18 weeks"). */
 export function kickerWords(stops: readonly Stop[], at: number, chapter: string): string {
   const s = stops[at];
   if (!s) return '';
-  return [`Stop ${at + 1} of ${stops.length}`, day(s.day), chapter].filter(Boolean).join(' · ');
+  return [`Stop ${at + 1} of ${stops.length}`, dayOf(s), chapter].filter(Boolean).join(' · ');
 }
 
 /** A stop's name after Continue: today's is "today", the rest their title. */
@@ -55,24 +57,25 @@ const nextName = (s: Stop): string => (s.type === 'today' ? 'today' : s.title);
 export function continueWords(stops: readonly Stop[], at: number, short = false): string | null {
   const n = stops[at + 1];
   if (!n) return null;
-  return short ? `Continue to ${day(n.day)}` : `Continue to ${day(n.day)} · ${nextName(n)}`;
+  return short ? `Continue to ${day(n.day)}` : `Continue to ${dayOf(n)} · ${nextName(n)}`;
 }
 
 /** The days left to the next stop, in words ("in 18 days", "in a day", "now"). */
 export const inDays = (n: number): string => (n <= 0 ? 'now' : n === 1 ? 'in a day' : `in ${n} days`);
 /** What the next stop is called on the way: the chapter that starts on its day ("The bleed"), else its own title. */
-export function stopName(s: Stop, chapters: readonly { from: number; label: string }[]): string {
-  const c = chapters.find((x) => Math.round(x.from) === Math.round(s.day) && x.label);
+export function stopName(s: Stop, chapters: readonly { from: number; label: string }[], first = true): string {
+  // (a chapter begins at the first stop of its day: the second of a day, what is done about a bleed, is named by its own title)
+  const c = first ? chapters.find((x) => Math.round(x.from) === Math.round(s.day) && x.label) : undefined;
   return c ? c.label : s.type === 'today' ? 'Today' : s.title;
 }
 /** The card on the way: "Next stop: Day 70", "The bleed, in 18 days"; on a phone one line, "Next stop: Day 70 · The bleed". */
 export function travelWords(stops: readonly Stop[], to: number, d: number, chapters: readonly { from: number; label: string }[]): { kicker: string; head: string; sub: string; line: string } {
   const s = stops[to];
   if (!s) return { kicker: CASE.onTheWay, head: '', sub: '', line: '' };
-  const name = stopName(s, chapters), chapter = chapterAt(chapters, d);
+  const name = stopName(s, chapters, !(to > 0 && stops[to - 1]!.day === s.day)), chapter = chapterAt(chapters, d);
   return {
     kicker: [CASE.onTheWay, chapter].filter(Boolean).join(' · '),
-    head: `Next stop: ${day(s.day)}`,
+    head: `Next stop: ${dayOf(s)}`,
     sub: `${name}, ${inDays(Math.round(s.day - d))}`,
     line: `Next stop: ${day(s.day)} · ${name}`,
   };
@@ -107,6 +110,7 @@ const SHORT: readonly [RegExp, string][] = [
   [/red wale/i, 'Red wale'],
   [/paracentesis/i, 'Paracentesis'],
   [/band(ing)?\b.*\(EVL\)|^band/i, 'EVL'],
+  [/coils and glue|\bglue\b/i, 'Glue'],
 ];
 const PAUSE = /\s*[,:;(]\s*|\s+[-\u2013\u2014]\s+|\s+(?:and|after|with|from|shows|before|\+)\s+/i;
 const DANGLING = /^(?:a|an|the|of|to|in|on|at|for|and|or|with|after|before|from|by|than|is|are|\d[\d.,]*|mm|ml|l|cm|%|weeks?|days?)$/i;

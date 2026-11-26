@@ -120,6 +120,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    "stops": [
     {
      "day": 19,
+     "step": "carvedilol",
      "look": [
       {
        "tool": "hvpg",
@@ -144,16 +145,8 @@ export const HISTORIES: readonly HistoryMeta[] = [
      ]
     },
     {
-     "day": 70,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
      "day": 73,
+     "step": "tips",
      "look": [
       {
        "tool": "profile",
@@ -187,7 +180,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "text": "TIPS 8 mm"
    },
    {
-    "text": "ascites 0.4 L"
+    "text": "ascites 0.7 L"
    },
    {
     "text": "on diuretics"
@@ -196,49 +189,49 @@ export const HISTORIES: readonly HistoryMeta[] = [
   "story": "Diuretics from the start, and the fluid still came back: a large tap with albumin on Day 35, 65 and 95. A TIPS on Day 110.",
   "path": "Diuretics, paracentesis, TIPS",
   "pv": [
-   23.4,
-   23.4,
-   23.4,
-   23.4,
-   23.4,
-   23.4,
-   23.4,
-   23.4,
-   23.4,
-   23.4,
-   23.2,
-   23.2,
-   23.2,
-   23.2,
-   23.2,
-   23.2,
-   23.2,
-   22.9,
-   23.1,
-   23.1,
-   23.1,
-   23.1,
-   23.1,
-   23.1,
-   23.1,
-   23,
-   23.1,
-   23.1,
-   23.1,
-   15.8,
-   15.3,
-   15,
-   14.7,
+   25,
+   25.1,
+   25,
+   25,
+   25,
+   25,
+   25.1,
+   24.9,
+   25,
+   25.1,
+   24.5,
+   24.9,
+   24.8,
+   25,
+   25,
+   24.8,
+   25,
+   23.9,
+   24.4,
+   24.8,
+   24.6,
+   24.6,
+   24.4,
+   24.7,
+   24.7,
+   23.8,
+   24.3,
+   24.5,
+   24.5,
+   17.4,
+   16.7,
+   16.1,
+   15.4,
+   14.8,
+   14.6,
    14.3,
    14.1,
    13.8,
-   13.7,
-   13.5,
-   13.3,
-   13.2
+   13.6,
+   13.5
   ],
   "days": 150,
-  "max": 24,
+  "max": 28,
   "marks": [
    {
     "day": 35,
@@ -288,6 +281,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 35,
+     "step": "tap1",
      "look": [
       {
        "tool": "abdomen",
@@ -297,6 +291,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 65,
+     "step": "tap2",
      "look": [
       {
        "tool": "abdomen",
@@ -306,6 +301,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 95,
+     "step": "tap3",
      "look": [
       {
        "tool": "abdomen",
@@ -315,6 +311,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 110,
+     "step": "tips",
      "look": [
       {
        "tool": "abdomen",
@@ -329,7 +326,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 3,
+   "events": 4,
    "medicines": 1
   }
  },
@@ -428,6 +425,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 1,
+     "step": "anticoag",
      "cam": "portal",
      "look": [
       {
@@ -578,6 +576,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 2,
+     "step": "anticoag",
      "cam": "hepatic",
      "look": [
       {
@@ -591,6 +590,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 60,
+     "step": "angioplasty",
      "look": [
       {
        "tool": "doppler",
@@ -641,56 +641,56 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "text": "TIPS 8 mm"
    },
    {
-    "text": "PPG 14.8 · high",
+    "text": "PPG 15.3 · high",
     "tone": "danger"
    },
    {
-    "text": "ascites 0.3 L"
+    "text": "ascites 1.7 L"
    }
   ],
   "story": "A TIPS on Day 10 for fluid that diuretics did not control. Months later the stent narrows and the pressure and the fluid climb back; Doppler shows it on Day 140.",
   "path": "TIPS, then the stent narrows",
   "pv": [
-   21.8,
-   21.8,
-   21.8,
-   14.9,
+   23.7,
+   23.6,
+   23.5,
+   16.8,
+   15.9,
+   15.2,
    14.4,
-   14,
-   13.7,
-   13.4,
-   13.2,
-   13,
+   14.1,
+   13.8,
+   13.5,
+   13.3,
+   13.1,
+   12.9,
    12.8,
+   12.7,
    12.6,
    12.5,
+   12.5,
    12.4,
-   12.3,
-   12.3,
-   12.2,
-   12.2,
-   12.2,
-   12.3,
-   12.3,
-   12.4,
-   12.4,
+   12.5,
+   12.5,
    12.6,
-   12.7,
-   13,
+   12.6,
+   12.8,
+   12.9,
    13.2,
-   13.5,
-   13.8,
-   14.2,
-   14.6,
-   15.1,
-   15.6,
-   16.1,
-   16.7,
-   17.3,
+   13.3,
+   13.7,
+   13.9,
+   14.3,
+   14.8,
+   15.3,
+   15.9,
+   16.6,
+   17.1,
    17.8,
    18.5,
-   18.8,
-   18.9
+   19.2,
+   19.5,
+   19.6
   ],
   "days": 190,
   "max": 24,
@@ -737,6 +737,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    "stops": [
     {
      "day": 10,
+     "step": "tips",
      "look": [
       {
        "tool": "abdomen",
@@ -750,6 +751,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 140,
+     "step": "doppler",
      "look": [
       {
        "tool": "doppler",
@@ -791,7 +793,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 2,
+   "events": 1,
    "medicines": 1
   }
  },
@@ -902,16 +904,8 @@ export const HISTORIES: readonly HistoryMeta[] = [
   "play": {
    "stops": [
     {
-     "day": 10,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
      "day": 11,
+     "step": "tips",
      "look": [
       {
        "tool": "profile",
@@ -928,6 +922,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 45,
+     "step": "confusion",
      "cam": "liver",
      "lens": "firstpass"
     }
@@ -1071,6 +1066,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 60,
+     "step": "daa",
      "cam": "liver",
      "look": [
       {
@@ -1081,6 +1077,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 228,
+     "step": "svr",
      "view": "lobule",
      "cam": "lobule:sinusoid",
      "look": [
@@ -1256,6 +1253,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 1,
+     "step": "abstain",
      "cam": "liver",
      "look": [
       {
@@ -1266,6 +1264,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 250,
+     "step": "diurOff",
      "look": [
       {
        "tool": "abdomen",
@@ -1275,6 +1274,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 620,
+     "step": "recomp",
      "view": "lobule",
      "cam": "lobule:sinusoid",
      "look": [
@@ -1294,7 +1294,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 8,
+   "events": 4,
    "medicines": 2
   }
  },
@@ -1421,6 +1421,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 20,
+     "step": "bleed",
      "look": [
       {
        "tool": "endoscopy",
@@ -1437,6 +1438,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 48,
+     "step": "band2",
      "look": [
       {
        "tool": "endoscopy",
@@ -1446,6 +1448,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 76,
+     "step": "band3",
      "look": [
       {
        "tool": "endoscopy",
@@ -1492,27 +1495,27 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "text": "on carvedilol and diuretics"
    }
   ],
-  "story": "A fundal varix bleeds on Day 20. A vasoactive drug, then BRTO on Day 23. The shunt that fed it is closed, the portal pressure rises, and new esophageal varices need carvedilol from Day 40 and bands to Day 103.",
+  "story": "A fundal varix bleeds on Day 20. A vasoactive drug and antibiotics, EUS-guided coils and glue the same day, then BRTO on Day 23. The shunt that fed it is closed, the portal pressure rises, and new esophageal varices need carvedilol from Day 40 and bands to Day 103.",
   "path": "Bleed, BRTO, then the esophageal varices",
   "pv": [
    23.3,
    23.3,
    23.4,
    23.3,
-   21,
+   22.4,
    24.8,
-   24.3,
-   23.7,
+   24.4,
+   23.9,
+   21,
    20.8,
-   20.8,
-   20.5,
+   20.6,
    20.4,
-   20.1,
+   20.2,
    20.1,
    20.1,
    20,
    19.9,
-   19.8,
+   19.9,
    19.8,
    19.9,
    19.9,
@@ -1522,7 +1525,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    19.7,
    19.7,
    19.6,
-   19.6,
+   19.7,
    19.6,
    19.6,
    19.6,
@@ -1532,10 +1535,11 @@ export const HISTORIES: readonly HistoryMeta[] = [
    19.6,
    19.7,
    19.7,
-   19.7,
+   19.8,
    19.8,
    19.8,
    19.9,
+   19.8,
    19.9
   ],
   "days": 240,
@@ -1583,16 +1587,8 @@ export const HISTORIES: readonly HistoryMeta[] = [
   "play": {
    "stops": [
     {
-     "day": 20,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
      "day": 23,
+     "step": "brto",
      "look": [
       {
        "tool": "profile",
@@ -1615,6 +1611,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 40,
+     "step": "carvedilol",
      "look": [
       {
        "tool": "endoscopy",
@@ -1625,7 +1622,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 13,
+   "events": 10,
    "medicines": 3
   }
  },
@@ -1645,8 +1642,8 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "text": "on propranolol"
    }
   ],
-  "story": "Compensated cirrhosis; pregnant on Day 30. The blood volume and the portal flow rise and the varices grow, so propranolol from Day 114 and bands on Day 128 and 156. Delivery on Day 254.",
-  "path": "Pregnancy, propranolol, bands, delivery",
+  "story": "Compensated cirrhosis; pregnant on Day 30. The varices are first scoped in the second trimester, Day 114: propranolol that day and bands on Day 128 and 156. The pressure climbs again from Day 191, with no scope until after the delivery on Day 254.",
+  "path": "Pregnancy, scope, propranolol, bands, delivery",
   "pv": [
    19,
    18.9,
@@ -1702,6 +1699,11 @@ export const HISTORIES: readonly HistoryMeta[] = [
    },
    {
     "day": 114,
+    "word": "Scope",
+    "tone": "danger"
+   },
+   {
+    "day": 114,
     "word": "Propranolol",
     "tone": "change"
    },
@@ -1709,6 +1711,11 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "day": 128,
     "word": "Banded",
     "tone": "change"
+   },
+   {
+    "day": 191,
+    "word": "Pressure up",
+    "tone": "danger"
    },
    {
     "day": 254,
@@ -1723,11 +1730,15 @@ export const HISTORIES: readonly HistoryMeta[] = [
    },
    {
     "from": 30,
-    "label": "Pregnant"
+    "label": "First trimester"
    },
    {
-    "from": 114,
-    "label": "Second trimester: propranolol and bands"
+    "from": 86,
+    "label": "Second trimester: scope, propranolol, bands"
+   },
+   {
+    "from": 184,
+    "label": "Third trimester: pressure climbing"
    },
    {
     "from": 254,
@@ -1747,6 +1758,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    "stops": [
     {
      "day": 30,
+     "step": "preg",
      "view": "circuit",
      "cam": "splanchnic",
      "lens": "flow",
@@ -1761,16 +1773,8 @@ export const HISTORIES: readonly HistoryMeta[] = [
      ]
     },
     {
-     "day": 58,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
      "day": 114,
+     "step": "egd",
      "look": [
       {
        "tool": "endoscopy",
@@ -1780,6 +1784,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 254,
+     "step": "delivery",
      "view": "circuit",
      "cam": "splanchnic",
      "lens": "flow",
@@ -1796,7 +1801,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 6,
+   "events": 8,
    "medicines": 1
   }
  },
@@ -1905,6 +1910,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 20,
+     "step": "diur",
      "cam": "fit",
      "look": [
       {
@@ -1915,6 +1921,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 120,
+     "step": "hf",
      "look": [
       {
        "tool": "hvpg",
@@ -1949,7 +1956,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 6,
+   "events": 4,
    "medicines": 1
   }
  }

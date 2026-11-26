@@ -96,7 +96,8 @@ test('TIPS that has narrowed: the TIPS first brings the gradient under 12; month
   const tips = find(b, (e) => e.step === 'tips')!, dop = find(b, (e) => e.step === 'doppler')!;
   assert.ok(at(b, tips.day + 8).ppg < 12, 'it worked at first');
   assert.ok(b.now.ppg >= 12, `the gradient is high again (${b.now.ppg})`);
-  assert.ok(b.now.ascitesL > 2, 'and the fluid is back');
+  // (over 1.5 L: moderate ascites, back as the stent narrows; Mohammad's OK, 26 Nov 2026, at about 1.7 L once the beat's leak no longer refilled it)
+  assert.ok(b.now.ascitesL > 1.5, `and the fluid is back (${b.now.ascitesL} L)`);
   assert.ok(dop.day > tips.day + 60 && dop.day < b.snap.day);
   assert.equal(dop.kind, 'event');
   assert.equal((b.snap.params as { stenosis: { TIPS: number } }).stenosis.TIPS > 0.3, true, 'the stent really is narrowed in the model');

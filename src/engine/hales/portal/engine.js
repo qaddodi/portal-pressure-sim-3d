@@ -65,6 +65,12 @@ const CARRY_S = 0.033;
 // (which counts the store) read nothing wrong. A history's daily live look paused the beat once a day: the right atrium of a portal vein
 // thrombosis climbed from 2.7 to 11 mmHg in two months, with the ascites it pushed out (Mohammad, 26 Nov 2026; test/beat-pause.mjs).
 const BEAT_GAP_S = 0.5;
+// Albumin given (an infusion, or with a large tap) raises the serum albumin, and the rise wears off as the albumin is catabolized: a half-life of about
+// 19 days (Peters, All About Albumin, 1996), so an e-folding of 27 days on the disease clock (slow.albGiven, the g/dL still on; giveAlbumin). It was
+// permanent: each 5 L tap's 0.3 g/dL stayed for good, so three taps raised a refractory patient's albumin from 2.2 to about 2.8 and every refill came
+// back smaller (4.2, 3.6, 2.4 L; Mohammad, 26 Nov 2026). A change to the albumin from outside (a slider, a course's setting) is the new level: nothing
+// given is left to wear off.
+const ALB_GIVEN = { tauDays: 27 };
 // How far (mmHg) below the outside pressure a vein's downstream end goes before its flow is wholly the collapsed vein's.
 const WF_BAND = 1;
 // A live change's numbers (a narrowing, a stent's width, a leak) ease in with this time constant (s) of model time, so a
@@ -1414,6 +1420,11 @@ export class Engine {
       s.ascites = (lo + hi) / 2;
     } else s.ascites = a1;
     this.iap = iap0;
+    // Albumin given wears off (ALB_GIVEN); a level set from outside since keeps nothing to wear off.
+    if (s.albGiven > 0) {
+      if (s.albAt !== p.albumin) s.albGiven = 0;
+      else { const off = s.albGiven * (1 - Math.exp(-days / ALB_GIVEN.tauDays)); s.albGiven -= off; p.albumin -= off; s.albAt = p.albumin; }
+    }
     // Anticoagulation slowly lyses thrombus
     if (p.anticoag) {
       for (const k of Object.keys(p.thrombus)) {
@@ -1540,7 +1551,7 @@ export class Engine {
     }[kind];
     if (!spec) return;
     this.infusions.push({ kind, rate: spec.vol / spec.dur, remaining: spec.vol, hct: spec.hct });
-    if (kind === 'albumin') this.params.albumin = Math.min(4.5, this.params.albumin + 0.25);
+    if (kind === 'albumin') this.giveAlbumin(0.25);
   }
 
   hemorrhage(mL) {
@@ -1578,13 +1589,20 @@ export class Engine {
   paracentesis(mL, albumin) {
     const removed = Math.min(mL, this.slow.ascites);
     this.slow.ascites -= removed;
-    if (albumin) this.params.albumin = Math.min(4.5, this.params.albumin + 0.3 * removed / 5000);
+    if (albumin) this.giveAlbumin(0.3 * removed / 5000);
     else if (removed > 5000) {
       // Post-paracentesis circulatory dysfunction: effective hypovolemia
       this.hemorrhageSilent(0.12 * (removed - 5000));
       this.pushEvent({ id: 'PICD', severity: 'caution', title: 'Post-paracentesis circulatory dysfunction', anchor: 'PERITONEUM' });
     }
     return removed;
+  }
+  /** Albumin given raises the serum albumin by `g` g/dL (to 4.5 at most), the rise wearing off over the disease clock's days (ALB_GIVEN). */
+  giveAlbumin(g) {
+    const s = this.slow, p = this.params, was = p.albumin;
+    if (s.albAt !== was) s.albGiven = 0;   // (set from outside since: that level is the patient's own)
+    p.albumin = Math.min(4.5, was + g);
+    s.albGiven = (s.albGiven || 0) + (p.albumin - was); s.albAt = p.albumin;
   }
   hemorrhageSilent(mL) { const l = this.blood.lost; this.hemorrhage(mL); this.blood.lost = l; this.blood.held = (this.blood.held || 0) + mL; }
 
