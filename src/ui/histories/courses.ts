@@ -20,15 +20,17 @@ import type { CaseLook } from '../case/types.ts';
 /** "Look closer here" at a stop (ui/case): the Tests cards a course opens (tests/panes.ts PaneId; tests/case-shots.test.ts keeps every one real). */
 const L = {
   endoscopy: { tool: 'endoscopy', label: 'Endoscopy' },
-  hvpg: { tool: 'hvpg', label: 'HVPG' },
-  hvpgNormal: { tool: 'hvpg', label: 'HVPG, normal here' },
-  acrossStent: { tool: 'hvpg', label: 'Pressures across the stent' },
+  // (a look that names a site or a mode opens in it: `pane`, case/look-pane.ts; an HVPG card opens already measuring, not on an empty tracing)
+  hvpg: { tool: 'hvpg', label: 'HVPG', pane: { measure: true } },
+  hvpgNormal: { tool: 'hvpg', label: 'HVPG, normal here', pane: { measure: true } },
+  acrossStent: { tool: 'hvpg', label: 'Pressures across the stent', pane: { stent: 'TIPS' } },
   stiffness: { tool: 'fibroscan', label: 'Liver stiffness' },
   ascites: { tool: 'abdomen', label: 'Ascites' },
-  doppler: { tool: 'doppler', label: 'Doppler' },
-  dopplerPv: { tool: 'doppler', label: 'Doppler of the portal vein' },
+  dopplerStent: { tool: 'doppler', label: 'Doppler of the stent', pane: { probe: 'TIPS' } },
+  dopplerHv: { tool: 'doppler', label: 'Doppler of the right hepatic vein', pane: { probe: 'RHV_IVC' } },
+  dopplerPv: { tool: 'doppler', label: 'Doppler of the portal vein', pane: { probe: 'PV_TRUNK' } },
   along: { tool: 'profile', label: 'Pressure along the circuit' },
-  overTime: { tool: 'scope', label: 'Pressure over time' },
+  overTime: { tool: 'scope', label: 'Pressure over time', pane: { range: 'days' } },
 } satisfies Record<string, CaseLook>;
 
 export const COURSES: readonly Course[] = [
@@ -54,7 +56,7 @@ export const COURSES: readonly Course[] = [
       { at: { day: 18 }, look: [L.hvpg, L.stiffness] },
       { at: { day: 40 }, look: [L.endoscopy] },
       { at: 'bleed', look: [L.endoscopy] },
-      { at: 'tips', look: [L.along, L.doppler] },
+      { at: 'tips', look: [L.along, L.dopplerStent] },
     ] },
   },
   {
@@ -115,10 +117,10 @@ export const COURSES: readonly Course[] = [
     state: ['ascites', 'ppg', 'meds'],
     // (the block is in the hepatic veins: the case looks at them, not at the portal flow, from the start to today)
     play: { stops: [
-      { at: { day: 0 }, cam: 'hepatic', look: [L.doppler, L.ascites] },
-      { at: 'anticoag', cam: 'hepatic', look: [L.doppler] },
-      { at: 'angioplasty', look: [L.doppler, L.ascites] },
-      { at: { day: 150 }, cam: 'hepatic', look: [L.doppler, L.ascites] },
+      { at: { day: 0 }, cam: 'hepatic', look: [L.dopplerHv, L.ascites] },
+      { at: 'anticoag', cam: 'hepatic', look: [L.dopplerHv] },
+      { at: 'angioplasty', look: [L.dopplerHv, L.ascites] },
+      { at: { day: 150 }, cam: 'hepatic', look: [L.dopplerHv, L.ascites] },
     ] },
   },
   {
@@ -145,8 +147,8 @@ export const COURSES: readonly Course[] = [
     // (the Doppler's day opens the Doppler and the pressures across the stent; today stands on the narrowed stent)
     play: { stops: [
       { at: 'tips', look: [L.ascites, L.along] },
-      { at: 'doppler', look: [L.doppler, L.acrossStent] },
-      { at: { day: 190 }, view: 'circuit', cam: 'tips', look: [L.doppler, L.acrossStent] },
+      { at: 'doppler', look: [L.dopplerStent, L.acrossStent] },
+      { at: { day: 190 }, view: 'circuit', cam: 'tips', look: [L.dopplerStent, L.acrossStent] },
     ] },
   },
 
@@ -169,12 +171,12 @@ export const COURSES: readonly Course[] = [
     // (the confusion is the gut's blood going round the liver through the stent: the slides' own first-pass shot of the liver, as the encephalopathy deck takes it)
     play: { stops: [
       { at: 'bleed', look: [L.endoscopy] },
-      { at: 'tips', look: [L.along, L.doppler] },
+      { at: 'tips', look: [L.along, L.dopplerStent] },
       { at: 'confusion', cam: 'liver', lens: 'firstpass' },
     ] },
   },
   {
-    id: 'hist-hcv', name: 'Hepatitis C cured, pressure persists', group: 'Cause removed', where: 'After the cause is treated',
+    id: 'hist-hcv', name: 'Hepatitis C cured, pressure persists', short: 'HCV cured, PH persists', group: 'Cause removed', where: 'After the cause is treated',
     chapters: [{ label: 'Before treatment' }, { at: 'carvedilol', label: 'On carvedilol' }, { at: 'daa', label: 'Antiviral treatment' }, { at: 'svr', label: 'Cured, the pressure persists' }],
     preset: 'csph', days: 600, init: { cirrhosis: 0.7, nsbbGain: 0.5 },
     ramps: [{ key: 'cirrhosis', from: 90, to: 480, a: 0.7, b: 0.62 }],
@@ -196,7 +198,7 @@ export const COURSES: readonly Course[] = [
     ] },
   },
   {
-    id: 'hist-alcohol', name: 'Alcohol cirrhosis, recompensated', group: 'Cause removed', where: 'After the cause is treated',
+    id: 'hist-alcohol', name: 'Alcohol cirrhosis, recompensated', short: 'Alcohol, recompensated', group: 'Cause removed', where: 'After the cause is treated',
     chapters: [{ label: 'Decompensated' }, { at: 'abstain', label: 'Abstinent, on carvedilol' }, { at: 'diurOff', label: 'Diuretics stopped' }, { at: 'recomp', label: 'Recompensated' }],
     preset: 'cirr-decomp', days: 720,
     ramps: [{ key: 'cirrhosis', from: 0, to: 420, a: 0.85, b: 0.6 }, { key: 'albumin', from: 0, to: 420, a: 2.8, b: 3.9 }],
@@ -219,7 +221,7 @@ export const COURSES: readonly Course[] = [
     ] },
   },
   {
-    id: 'hist-psvd', name: 'PSVD: a bleed with a normal HVPG', group: 'Without cirrhosis', where: 'Porto-sinusoidal vascular disorder',
+    id: 'hist-psvd', name: 'PSVD: a bleed with a normal HVPG', short: 'PSVD bleed, normal HVPG', group: 'Without cirrhosis', where: 'Porto-sinusoidal vascular disorder',
     chapters: [{ label: 'Large varices, normal HVPG' }, { at: 'bleed', label: 'The bleed' }, { at: 'carvedilol', label: 'Carvedilol and bands' }, { at: 'band3', label: 'After the last band' }],
     preset: 'psvd', days: 300,
     quiet: ['albumin'], still: true,
@@ -250,7 +252,7 @@ export const COURSES: readonly Course[] = [
     quiet: ['albumin'], still: true, settle: 14,
     steps: [
       { day: 20, id: 'bleed', act: 'bleed', site: 'GV' },
-      { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: 'A vasoactive drug, with antibiotics, for the bleed from a gastric varix. A band cannot close a varix this large.' },
+      { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, stopsBleed: true, label: 'Terlipressin', detail: 'A vasoactive drug, with antibiotics, for the bleed from a gastric varix, which stops the bleed. A band cannot close a varix this large.' },
       { day: 23, id: 'brto', set: { drugs: { terlipressin: false }, occluded: { C5: true } }, label: 'BRTO', detail: 'Balloon-occluded retrograde transvenous obliteration of the gastrorenal shunt, three days after the bleed. The varix thromboses; the portal pressure and the ascites can rise afterwards.' },
       { day: 40, id: 'carvedilol', set: { drugs: { carvedilol: true } }, detail: 'Endoscopy after the BRTO finds new large esophageal varices: carvedilol, 12.5 mg a day.' },
       { day: 47, id: 'band', act: 'band', detail: 'The first band session on the new esophageal varices.' },

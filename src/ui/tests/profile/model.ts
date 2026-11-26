@@ -1,7 +1,7 @@
 // Tests > Pressure > Along the circuit (2D charts.js createProfile, "the hydraulic grade line"): the pressure from gut to heart through the stations of the 2D app's own path, the
 // healthy line dashed beneath it, the compared moment dotted, each station's value placed where it stands clear of the line and the dots, the LIVER band, and the HVPG and PPG
 // brackets with their pills. Where the plot is too short for its pills the brackets take rows of their own under the names ("band"), and where even that is too short the chart
-// becomes five stations in a row ("strip"), as in 2D. A pure function of the pressures, the box and the form lock: the same inputs give the same frame, so a test reads the words
+// becomes five stations in a row ("strip"), as in 2D. A pure function of the pressures and the box: the same inputs give the same frame, and the form (plot, band or strip) is a function of the box alone (formOf), so a test reads the words
 // without a browser. The stations, names, offsets and words are the 2D app's, copied by scripts/copy-b11-profile.mjs; the drawing below is charts.js drawWith/drawStrip written as
 // shapes (the GPU chart's display list) instead of canvas calls.
 import type { Frame, Shape, TextShape } from '../../charts/scene.ts';
@@ -42,9 +42,10 @@ export interface ProfileInput {
   pathId?: string;
 }
 export interface ProfileBox { w: number; h: number; pal: Palette }
-/** The form the chart keeps for a size and a path (2D formLock): it starts in the plot, drops to the band under the names where a label finds no spot, and to the strip where the band finds none either. */
-export interface FormLock { key: string; band: boolean; strip: boolean }
-export const newLock = (): FormLock => ({ key: '', band: false, strip: false });
+/** The form the chart keeps for a size and a path. It is decided from the room alone (formOf), never from the live pressures or from what the chart drew before, so the same room
+ *  is always the same layout; the lock only remembers the verdict for the size it was given for, so a frame does not ask again. */
+export interface FormLock { key: string; form: Form | null }
+export const newLock = (): FormLock => ({ key: '', form: null });
 export type Form = 'plot' | 'band' | 'strip';
 export interface ProfileOut { frame: Frame; form: Form; /** the axis top, mmHg */ maxP: number; /** whether the compared moment is drawn (the legend names it) */ compared: boolean; /** whether an arterial station is drawn above a broken axis */ offscale: boolean; /** the words a screen reader gets */ items: { name: string; v: number }[] }
 
@@ -213,20 +214,65 @@ export function profileFrame(inp: ProfileInput, box: ProfileBox, lock: FormLock 
   for (const n of path.nodes) { if (ARTERIAL.has(n)) continue; const i = NI[n]!; top = Math.max(top, inp.P[i] ?? 0, inp.healthy?.[i] ?? 0, inp.snap?.[i] ?? 0); }
   const maxP = axisTop(top);
 
-  const key = `${Math.round(w)}|${Math.round(hh)}|${path.id}|${hid ? [...hid].sort().join(',') : ''}`;
-  if (lock.key !== key) { lock.key = key; lock.strip = false; lock.band = stripNeed(geometry(path, w, hh, maxP, false)); }
+  const key = `${Math.round(w)}|${Math.round(hh)}|${path.id}|${hid ? [...hid].sort().join(',') : ''}|${look}`;
+  if (lock.key !== key || !lock.form) { lock.key = key; lock.form = formOf(path, w, hh, hid, pal); }
+  const form = lock.form;
   const stripForm = (): Shape[] => [{ k: 'rect', x: 0, y: 0, w, h: hh, r: plotR(w, hh), fill: pal.tok('surface-2') }, ...stripShapes(inp, path, pal, look, w, hh)];
-  const g0 = geometry(path, w, hh, maxP, lock.band);
-  if (stripNeed(g0) || lock.strip) { lock.strip = true; return done(stripForm(), 'strip', maxP, false, false); }
+  if (form === 'strip') return done(stripForm(), 'strip', maxP, false, false);
+  // (the live pressures draw in the form the room chose; a value label with no clear spot is left to the readings under the chart, never a reason to change the layout)
+  const g0 = geometry(path, w, hh, maxP, form === 'band');
+  const r = drawPlot(inp, path, pal, look, g0, hid, true);
+  return done(r.shapes, form, maxP, r.compared, g0.hasArt);
+}
 
-  const r = drawPlot(inp, path, pal, look, g0, hid);
-  if (r.fail && !g0.band) { lock.band = true; return profileFrame(inp, box, lock); }
-  if (r.fail) { lock.strip = true; return done(stripForm(), 'strip', maxP, false, false); }
-  return done(r.shapes, g0.band ? 'band' : 'plot', maxP, r.compared, g0.hasArt);
+/** Typical pressures gut to heart, for judging a room: the layout must hold for a case with pressures and not only for the one on screen. */
+const refP = (over: Record<string, number>): Float32Array => {
+  const P = new Float32Array(NODES.length);
+  const base: Record<string, number> = { INT: 19, CONF: 18, RPV: 17.5, SIN_R: 15, CV_R: 8.5, RHV: 7, IVCS: 5, RA: 3, ...over };
+  for (const [k, v] of Object.entries(base)) { const i = NI[k]; if (i != null) P[i] = v; }
+  return P;
+};
+let REFS: ProfileInput[] | null = null;
+/** Three fixed cases: portal hypertension with the healthy line, a severe one with a compared moment pinned, and the healthy one. Each draws with both brackets (HVPG measured). */
+const references = (hid: ReadonlySet<string> | null): ProfileInput[] => {
+  if (!REFS) {
+    const healthy = refP({ INT: 8, CONF: 7, RPV: 6.5, SIN_R: 5, CV_R: 4, RHV: 3.5, IVCS: 3, RA: 2 });
+    const typical = refP({}), severe = refP({ INT: 32, CONF: 30, RPV: 29, SIN_R: 26, CV_R: 12, RHV: 9, IVCS: 6, RA: 4 });
+    REFS = [
+      { P: typical, metrics: { whvp: 15, fhvp: 7, hvpg: 8, pv: 18, ivc: 5, ppg: 13 }, healthy },
+      { P: severe, metrics: { whvp: 26, fhvp: 9, hvpg: 17, pv: 30, ivc: 6, ppg: 24 }, healthy, snap: typical },
+      { P: healthy, metrics: { whvp: 5, fhvp: 3.5, hvpg: 1.5, pv: 7, ivc: 3, ppg: 4 }, healthy },
+    ];
+  }
+  return REFS.map((r) => ({ ...r, hidden: hid }));
+};
+/** The form for a room: a pure function of the path, the box and the readouts the case hides (never of the live pressures). The most compact form any of the reference cases needs. */
+export function formOf(path: ProfilePath, w: number, hh: number, hid: ReadonlySet<string> | null, pal: Palette): Form {
+  const rank: Form[] = ['plot', 'band', 'strip'];
+  let worst = 0;
+  for (const ref of references(hid)) {
+    let top = 0;
+    for (const n of path.nodes) { if (ARTERIAL.has(n)) continue; const i = NI[n]!; top = Math.max(top, ref.P[i] ?? 0, ref.healthy?.[i] ?? 0, ref.snap?.[i] ?? 0); }
+    const maxP = axisTop(top);
+    let band = stripNeed(geometry(path, w, hh, maxP, false)), f: Form = band ? 'band' : 'plot';
+    if (stripNeed(geometry(path, w, hh, maxP, band))) f = 'strip';
+    else {
+      let r = drawPlot(ref, path, pal, pal.look, geometry(path, w, hh, maxP, band), hid);
+      if (r.fail && !band) {
+        band = true; f = 'band';
+        if (stripNeed(geometry(path, w, hh, maxP, true))) f = 'strip';
+        else r = drawPlot(ref, path, pal, pal.look, geometry(path, w, hh, maxP, true), hid);
+      }
+      if (f !== 'strip' && r.fail) f = 'strip';
+    }
+    worst = Math.max(worst, rank.indexOf(f));
+    if (worst === 2) break;
+  }
+  return rank[worst]!;
 }
 const stripNeed = (g: Geo) => g.hh - g.T - g.B < (g.band ? BAND_PLOT_MIN : PLOT_MIN);
 
-function drawPlot(inp: ProfileInput, path: ProfilePath, pal: Palette, look: string, g: Geo, hid: ReadonlySet<string> | null): { shapes: Shape[]; fail: boolean; compared: boolean } {
+function drawPlot(inp: ProfileInput, path: ProfilePath, pal: Palette, look: string, g: Geo, hid: ReadonlySet<string> | null, force = false): { shapes: Shape[]; fail: boolean; compared: boolean } {
   const { w, hh, stations, L, R, T, B, slot, maxP, x, y, stagger, hasArt, artY, roomy } = g;
   const N = stations.length, m = inp.metrics ?? {};
   const out: Shape[] = [];
@@ -418,7 +464,7 @@ function drawPlot(inp: ProfileInput, path: ProfilePath, pal: Palette, look: stri
     if (!(spotFound && g.band)) claimed.push({ x0: Math.min(x0, x1) - 3, x1: Math.max(x0, x1) + 3, y0: best.yy - 9, y1: best.yy + 9 });
     pills.push({ a, b, col, txt, num, tw1, tw, x0, x1, ty: best.yy, tx: best.lx, mk });
   }
-  if (fail) return { shapes: out, fail, compared };
+  if (fail && !force) return { shapes: out, fail, compared };
   for (const p of pills) {
     const { a, b, col, txt, num, tw1, tw, x0, x1, mk } = p, yy = p.ty, lx = p.tx;
     // faint leaders from the bracket ends to the two station dots, broken around any value label (none from the band: the brackets stand under their stations' names there)
@@ -468,5 +514,5 @@ function drawPlot(inp: ProfileInput, path: ProfilePath, pal: Palette, look: stri
   }
   // the station values, where they were placed
   for (const v of vals) TX(v.x, v.y, v.s, 12, 600, text, 'middle', 'middle');
-  return { shapes: out, fail: false, compared };
+  return { shapes: out, fail, compared };
 }
