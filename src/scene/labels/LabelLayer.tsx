@@ -20,6 +20,7 @@ import { useTestsRoom } from '../../ui/tests/room.ts';
 import { labelView, placeBlockers } from './room.ts';
 import { cel, sceneApi, usePick } from '../api.ts';
 import { scopeClaims } from './scope-claims.ts';
+import { vesselLines } from './vessel-lines.ts';
 import { chromeClaims } from './chrome-claims.ts';
 import { probeClaims } from './probe-claims.ts';
 import { creditClaim } from './credit-claim.ts';
@@ -196,6 +197,7 @@ export function LabelLayer() {
       blockers: () => talkRects(ui.getState().boxes).map(rectToBox).concat(placeBlockers(useTestsRoom.getState().place), scopeClaims.boxes, probeClaims.boxes, chromeClaims.boxes),
       vp: () => ui.getState().vp, measure: deps.measure, now: deps.now, spleenScale: () => cel.disease.organs.spleenScaleNow,
       circuit: () => (cel.view === 'circuit' && cel.circuit.t >= 1 ? { k: cel.mapScale(), project: (x, y, out) => cel.mapPoint(x, y, out) } : null),
+      vessels: () => (cel.view === 'body' && cel.circuit.t === 0 && !cel.circuit.toCircuit && !cel.diving ? vesselLines((p, o) => sceneApi.project(p, o), deps.drawn) : []),
       lobule: (name, out) => { if (cel.view !== 'lobule') return null; const a = cel.lobule.anchor(name, [0, 0, 0]); return out.set(a[0], a[1], a[2]); },
       lobuleRing: (name, out) => { if (cel.view !== 'lobule') return null; const a = cel.lobule.ringEdge(name, [0, 0, 0]); return out.set(a[0], a[1], a[2]); },
     });

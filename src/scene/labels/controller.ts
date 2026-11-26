@@ -16,6 +16,7 @@ import { LabelFader, easeMove, lookKey, type Want } from './fade.ts';
 import { type Box, leaderGeom } from './geometry.ts';
 import { type Form, type Item, type Placement, type SolveInput, STAY, boxOf, solve } from './solver.ts';
 import { mixedUnits, bareItems } from './unit-rule.ts';
+import { vesselLines } from './vessel-lines.ts';
 import { STATIONS, ORGAN_FRONT, figureCourses, type Station } from './stations.ts';
 import { silhouettes, onOtherOrgan, shareOnOther, spotOffsets, type Silhouettes, type To2Screen } from './organ-screen.ts';
 import { x3, y3 } from '../frame2d.ts';
@@ -742,16 +743,7 @@ export class LabelController {
     // every vessel the figure draws is a line a name keeps off (the named ones' courses above, the rest here)
     if (d.drawn) {
       lines.length = 0;
-      for (const c of figureCourses()) {
-        if (!d.drawn(c.v)) continue;
-        let prev: { x: number; y: number } | null = null;
-        for (const q of c.pts) {
-          const a = d.project(q, { x: 0, y: 0 });
-          const ok = Number.isFinite(a.x) && Number.isFinite(a.y);
-          if (prev && ok) lines.push([prev.x, prev.y, a.x, a.y]);
-          prev = ok ? a : null;
-        }
-      }
+      lines.push(...vesselLines((p, o) => d.project(p, o), d.drawn));
     }
     // (?capwhy: for each label that stands on a leader, how many of its near spots each rule threw out and who stood in the way, to find what pushed it away)
     const why = typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search) ? new Map<string, Record<string, number>>() : undefined;
