@@ -35,7 +35,7 @@ test('wide: the 2D names across the screen, level, on screen, each key once, non
   for (const [W, H] of [[1440, 900], [1024, 768], [844, 390]] as const) {
     const L = layout(W, H);
     const keys = L.names.map((n) => n.key).sort();
-    assert.deepEqual(keys, ['bc', 'disse', 'fen', 'hep', 'hsc', 'in', 'kup', 'lymph', 'out', 'sin'], `${W}x${H}`);
+    assert.deepEqual(keys, ['alb', 'bc', 'disse', 'fen', 'hep', 'hsc', 'in', 'kup', 'lymph', 'out', 'sin'], `${W}x${H}`);
     for (const n of L.names) assert.ok(n.cx - n.w / 2 >= -1 && n.cx + n.w / 2 <= W + 1, `${W}x${H}: ${n.key} inside the screen (${n.cx.toFixed(0)}±${(n.w / 2).toFixed(0)})`);
     assert.equal(by(L.names, 'in').name, END_NAMES[0]); assert.equal(by(L.names, 'out').name, END_NAMES[1]);
     assert.ok(by(L.names, 'in').cx < L.C[0] && by(L.names, 'out').cx > L.C[0], 'the portal venule at the left end, the central vein at the right');
@@ -58,29 +58,29 @@ test('wide: the activated stellate cell is named so, and a narrower room still p
   assert.equal(by(layout(1440, 900, { act: 1 }).names, 'hsc').name, 'Activated stellate cell');
   assert.equal(by(layout(1440, 900).names, 'hsc').name, 'Stellate cell');
   const narrow = layout(700, 520);
-  assert.equal(narrow.names.length, 10);
+  assert.equal(narrow.names.length, 11);
 });
 
 test('tall: top to bottom, every name level, the stellate cell\'s side on the right and the Kupffer cell\'s on the left (2D layoutTall)', () => {
   for (const [W, H] of [[390, 844], [430, 932], [820, 1180]] as const) {
     const L = layout(W, H), n = (k: NameKey) => by(L.names, k);
-    assert.deepEqual(L.names.map((x) => x.key).sort(), ['disse', 'fen', 'hep', 'hsc', 'in', 'kup', 'lymph', 'out', 'sin'], `${W}x${H}: no canaliculus unless a slide points at it`);
+    assert.deepEqual(L.names.map((x) => x.key).sort(), ['alb', 'disse', 'fen', 'hep', 'hsc', 'in', 'kup', 'lymph', 'out', 'sin'], `${W}x${H}: no canaliculus unless a slide points at it`);
     assert.ok(n('in').cy < n('sin').cy && n('sin').cy < n('out').cy, 'portal venule at the top, the central vein below');
     assert.ok(Math.abs(n('in').cx - L.C[0]) < 1 && Math.abs(n('out').cx - L.C[0]) < 1, 'the ends on the axis');
-    for (const k of ['fen', 'hsc', 'hep'] as const) assert.ok(n(k).cx > L.C[0], `${W}x${H}: ${k} in the right plate`);
-    for (const k of ['disse', 'lymph', 'kup'] as const) assert.ok(n(k).cx < L.C[0], `${W}x${H}: ${k} in the left plate`);
-    assert.ok(n('fen').cy < n('hsc').cy && n('hsc').cy < n('hep').cy, 'the right column runs fenestrae, stellate cell, hepatocyte');
-    assert.ok(n('disse').cy < n('lymph').cy, 'the left column runs Disse, lymph');
+    for (const k of ['fen', 'hsc', 'sin', 'hep'] as const) assert.ok(n(k).cx > L.C[0], `${W}x${H}: ${k} in the right plate`);
+    for (const k of ['disse', 'alb', 'lymph', 'kup'] as const) assert.ok(n(k).cx < L.C[0], `${W}x${H}: ${k} in the left plate`);
+    assert.ok(n('fen').cy < n('hsc').cy && n('hsc').cy < n('sin').cy && n('sin').cy < n('hep').cy, 'the right column runs fenestrae, stellate cell, Sinusoid, hepatocyte');
+    assert.ok(n('disse').cy < n('alb').cy && n('alb').cy < n('lymph').cy, 'the left column runs Disse, Protein, lymph');
     for (const x of L.names) assert.ok(x.cy - x.hh / 2 >= L.free.t - 1 && x.cy + x.hh / 2 <= L.free.b + 1, `${W}x${H}: ${x.key} inside the free room`);
     assert.equal(n('disse').name, 'Space of\nDisse'); assert.equal(n('hsc').name, 'Stellate\ncell');
-    for (const k of ['fen', 'hsc', 'disse', 'lymph', 'kup'] as const) assert.ok(n(k).leader || Math.abs(n(k).cx - L.C[0]) < n(k).w + 2 * EDGE, `${k} is tied to what it names`);
+    for (const k of ['fen', 'hsc', 'sin', 'alb', 'disse', 'lymph', 'kup'] as const) assert.ok(n(k).leader || Math.abs(n(k).cx - L.C[0]) < n(k).w + 2 * EDGE, `${k} is tied to what it names`);
   }
 });
 
 test('tall: the right column\'s names do not overlap, nor the left\'s, at phone and tablet widths', () => {
   for (const [W, H] of [[390, 844], [430, 932], [820, 1180]] as const) {
     const L = layout(W, H);
-    for (const col of [['fen', 'hsc', 'hep'], ['disse', 'lymph', 'kup']] as const) for (let i = 0; i < col.length; i++) for (let j = i + 1; j < col.length; j++) {
+    for (const col of [['fen', 'hsc', 'sin', 'hep'], ['disse', 'alb', 'lymph', 'kup']] as const) for (let i = 0; i < col.length; i++) for (let j = i + 1; j < col.length; j++) {
       assert.ok(!overlap(by(L.names, col[i]!), by(L.names, col[j]!)), `${W}x${H}: ${col[i]} and ${col[j]}`);
     }
   }

@@ -21,3 +21,11 @@
 
 /* a tall screen whose room is short: a name and its readings on one line (names.ts `inline`, measured so) */
 .sv-layer .sv-region[data-inline] { flex-direction: row; align-items: baseline; gap: 6px; }
+
+/* The Protein callout (legend.ts SINUSOID_CALLOUTS; Mohammad, 26 Nov: the Protein is no legend in the bar but a name with a leader): its word in the albumin's colour as the legend wore it (the 2D base rule gives
+   the small capitals and the halo), and the circle at its leader's end: the old key's swatch (a small round mark painted from the tokens the particles wear, `--key-fill` / `--key-edge` written by the layer from legend.ts),
+   standing on the particle the leader follows, over the halo-ringed leader. Moved by a transform, shown by opacity and visibility, as every part of the layer. */
+.sv-layer .sv-region-alb { color: color-mix(in srgb, var(--albumin-line, var(--albumin)) 80%, var(--text)); font-weight: 600; }
+.sv-layer .sv-mark { position: absolute; left: 0; top: 0; width: var(--mark-px, 8px); height: var(--mark-px, 8px); margin: calc(var(--mark-px, 8px) / -2) 0 0 calc(var(--mark-px, 8px) / -2); border-radius: 50%; pointer-events: none;
+  background: var(--key-fill, var(--albumin)); box-shadow: inset 0 0 0 1px var(--key-edge, var(--sv-gl-albumin-edge)), 0 0 0 1.5px var(--lb-ring-fill); opacity: 0; visibility: hidden; will-change: transform, opacity; }
+.sv-layer .sv-mark[data-on] { visibility: visible; }

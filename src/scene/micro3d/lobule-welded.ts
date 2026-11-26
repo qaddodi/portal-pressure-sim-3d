@@ -9,7 +9,18 @@ import type { WeldCourseOut, WeldSkin } from '../lobule/welds.ts';
 
 /** The parallel arrays a part keeps beside its mesh (every vertex pushes one number to each, in the order the mesh's vertices are written). */
 /** `fc`: the dust's place on each vertex (cel3d `fcourse`: the course's column of the dust's route table, its arc, its length, the true place across; 3 where none is drawn), for the blood's parts. */
-export interface PartData { b: MeshBuilder; W: number[]; K: number[]; sw?: number[]; /** each vertex's own tube radius (local units): the ink's width never outgrows it (cel3d `inkR`) */ ir?: number[]; W2?: number[]; M?: number[]; fc?: number[] }
+export interface PartData {
+  b: MeshBuilder; W: number[]; K: number[]; sw?: number[];
+  /** each vertex's own tube radius (local units): the ink's width never outgrows it (cel3d `inkR`) */
+  ir?: number[]; W2?: number[]; M?: number[]; fc?: number[];
+  /** each vertex's place across its vessel, -1 .. 1 (the stream lenses' lanes: lobule/ink.ts inkAcross), on every vertex, the round ends too */
+  ac?: number[];
+  /** the junction skins' vertices, each arm's own share, place across and place along (SkinInk): a junction's streams are each arm's, blended where the arms meet */
+  skins?: SkinInk[];
+}
+/** One junction skin's vertices (from `v0`, `n` of them) as the stream lenses read them: per vertex and arm (4 slots), the arm's weight, the vertex's place across that arm, and the arm's
+ *  colour place along; `other[i]` marks an arm of the other colour family (the part's second segment). */
+export interface SkinInk { v0: number; n: number; wt: Float32Array; acr: Float32Array; place: Float32Array; other: Uint8Array }
 
 export interface EmitOpts {
   /** Radius scale: the lobule's radius in local units. */
@@ -66,6 +77,7 @@ export function emitCourse(d: PartData, out: WeldCourseOut, o: EmitOpts): void {
       b.aux2.push(!ring || hushed(i) ? 3 : acr);
       // (the dust is never hushed at a joint: its particles run on through it, lobule-routes.ts)
       if (d.fc) d.fc.push(o.dustCol!(out.key), out.arc[i]!, out.arc[last]!, ring ? acr : 3);
+      d.ac?.push(acr);
     }
   }
 }
@@ -75,6 +87,9 @@ export function emitSkin(d: PartData, skin: WeldSkin, byKey: ReadonlyMap<string,
   const { b } = d, m = skin.mesh, n = m.position.length / 3, base = b.count;
   const host = byKey.get(skin.host)!, phase = host.phase;
   const hostArms = skin.arms.map((a) => hostFamily(a.key));
+  const arms = skin.arms.map((a) => byKey.get(a.key) ?? null);
+  const other = Uint8Array.from([0, 1, 2, 3], (i) => (i < hostArms.length && !hostArms[i] ? 1 : 0));
+  const ink: SkinInk | null = d.skins ? { v0: base, n, wt: new Float32Array(4 * n), acr: new Float32Array(4 * n), place: new Float32Array(4 * n), other } : null;
   for (let v = 0; v < n; v++) {
     const x = m.position[3 * v]!, y = m.position[3 * v + 1]!, z = m.position[3 * v + 2]!;
     b.v(x, y, z, m.normal[3 * v]!, m.normal[3 * v + 1]!, m.normal[3 * v + 2]!, [1, 1, 1]);
@@ -82,6 +97,13 @@ export function emitSkin(d: PartData, skin: WeldSkin, byKey: ReadonlyMap<string,
     let w = 0, share = 0, other = 0;
     skin.arms.forEach((a, i) => { const k = wt[i]!; if (hostArms[i]) { w += k * a.wSeam; share += k; } else other += k; });
     d.W.push(share > 1e-6 ? w / share : (o.altW?.(rho) ?? 0)); d.K.push(1);
+    // (each arm's own streams: the vertex's place across that arm's path, from its normal as a tube's ring has it, and the arm's place along; the colours blend by the skin's weights)
+    if (ink) skin.arms.forEach((a, i) => {
+      if (i > 3) return;
+      const c = arms[i], nx = m.normal[3 * v]!, ny = m.normal[3 * v + 1]!;
+      const pr = c ? projectArc(c, x, y) : { tx: 1, ty: 0 };
+      ink.wt[4 * v + i] = wt[i]!; ink.acr[4 * v + i] = -pr.ty * nx + pr.tx * ny; ink.place[4 * v + i] = hostArms[i] ? a.wSeam : (o.altW?.(rho) ?? 0);
+    });
     if (d.sw) { const r = m.restR[v]!; d.sw.push(r, r * (o.cong?.(rho) ?? 0)); }
     d.ir?.push(m.restR[v]!);
     if (d.W2) { d.W2.push(o.altW?.(rho) ?? 0); d.M!.push(Math.min(1, Math.max(0, other))); }
@@ -100,6 +122,7 @@ export function emitSkin(d: PartData, skin: WeldSkin, byKey: ReadonlyMap<string,
     b.aux.push(aux); b.aux2.push(aux2);
     // the dust over the skin: the host's own particles where the host owns the vertex (its arc and across projected on its path, as the marks), none elsewhere. One column on every vertex of the skin, so no
     // triangle interpolates between two courses' columns (that would read a third course's lanes)
+    if (d.ac) { const pr = projectArc(host, x, y); d.ac.push(-pr.ty * m.normal[3 * v]! + pr.tx * m.normal[3 * v + 1]!); }
     if (d.fc) {
       let hw = 0;
       skin.arms.forEach((a, i) => { if (a.key === skin.host) hw += wt[i]!; });
@@ -108,6 +131,7 @@ export function emitSkin(d: PartData, skin: WeldSkin, byKey: ReadonlyMap<string,
     }
   }
   for (let i = 0; i < m.index.length; i++) b.idx.push(m.index[i]! + base);
+  if (ink) d.skins!.push(ink);
 }
 
 /** Where a point lies along a course (the arc length of its foot on the planned path) and the direction there. */

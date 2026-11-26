@@ -74,7 +74,7 @@ export class DiseaseLayer {
   }
 
   applyLook(look: LookId, p: Palette): void {
-    this.organs.applyLook(p); this.organs.setBlood(bloodColour(look, p)); this.clots.applyLook(look, p); this.strands.applyLook(p, look); this.bleed.applyLook(look, p); this.landmarks.applyLook(look); this.scopeRing.applyLook(look); this.ascites.applyLook(look); this.moving = true;
+    this.organs.applyLook(p); this.organs.setBlood(bloodColour()); this.clots.applyLook(look, p); this.strands.applyLook(p, look); this.bleed.applyLook(look, p); this.landmarks.applyLook(look); this.scopeRing.applyLook(look); this.ascites.applyLook(look); this.moving = true;
   }
   setPhone(phone: boolean): void { this.organs.setPhone(phone); this.clots.setPhone(phone); this.strands.setPhone(phone); this.moving = true; }
 

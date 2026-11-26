@@ -4,10 +4,11 @@
 // bottom, the names still read across), and a tap takes the name's own card (`explainHit`, 2D's label-explain.js hitLabel, with the card's one line `SV_NOTE`).
 // What this does not do (2D's `declutter`: names that still overlap at a large text size step apart): left to the label layer.
 import { boxGap } from '../labels/geometry.ts';
-import { type Pore, CELL, KUP_HALF, SEED, UM, calloutPore, canaliculusAt, cellAt } from './layout.ts';
+import { type Pore, CELL, KUP_HALF, SEED, UM, calloutPore, canaliculusAt, cellAt, cellOf } from './layout.ts';
 import { placeFenDisse } from './fen-place.copied.js';
+import { calloutOf } from './legend.ts';
 
-export type NameKey = 'in' | 'out' | 'sin' | 'fen' | 'hsc' | 'disse' | 'lymph' | 'hep' | 'kup' | 'bc';
+export type NameKey = 'in' | 'out' | 'sin' | 'fen' | 'hsc' | 'disse' | 'lymph' | 'hep' | 'kup' | 'bc' | 'alb';
 
 /** The one line a tap on a name adds (2D: SV_NOTE), and what each name is called in a slide's terms (SV_TARGET: `sinusoid:<target>`). */
 export const SV_NOTE: Readonly<Partial<Record<NameKey, string>>> = {
@@ -15,8 +16,11 @@ export const SV_NOTE: Readonly<Partial<Record<NameKey, string>>> = {
   hep: 'hepatocytes: uptake and metabolism of plasma solutes', hsc: 'stores vitamin A; deposits collagen when activated', kup: 'resident macrophage of the sinusoid',
   sin: 'blood from the portal tract and the hepatic artery mixes here', in: 'blood arrives from the portal venule', out: 'blood leaves to the central vein',
   bc: 'sealed channel between hepatocytes: bile drains to the portal tract, against the blood',
+  alb: 'albumin: the main protein of plasma, it holds water in the vessel',
 };
-export const SV_TARGET: Readonly<Partial<Record<NameKey, string>>> = { bc: 'canaliculus', fen: 'fenestrae', hsc: 'stellate', kup: 'kupffer', hep: 'hepatocyte', sin: 'lumen', in: 'in', out: 'out' };
+export const SV_TARGET: Readonly<Partial<Record<NameKey, string>>> = {
+  bc: 'canaliculus', fen: 'fenestrae', hsc: 'stellate', kup: 'kupffer', hep: 'hepatocyte', sin: 'lumen', in: 'in', out: 'out', alb: 'protein',
+};
 export const END_NAMES = ['Portal venule', 'Central vein'] as const;
 /** The name a tap on a part of the plane takes, as 2D's slides call it: `sinusoid:<target>` (disse, lymph keep their own names). */
 export const targetOf = (key: NameKey): string => `sinusoid:${SV_TARGET[key] ?? key}`;
@@ -40,8 +44,11 @@ export interface NamesInput {
    *  (it keeps clear of a bar in the corner at the foot, which the vessel's band never meets). Absent: the free room's own sides. */
   edge?: { l: number; r: number };
   walls?: readonly { x: number; y: number; w: number; h: number }[];
-  /** The legend's box (px), when it is drawn (the names keep clear of it on a tall screen). */
-  legend?: { x: number; y: number; w: number; h: number } | null;
+  /**
+   * The protein particle the Protein callout points at now (µm along, µm across with y down as the shader has it), or absent before any is out: the callout's box stands still in
+   * the plate and its leader is laid to this place; the layer then follows the particle each frame and hands on to another one when it has gone (protein-pick.ts).
+   */
+  protein?: { x: number; y: number } | null;
   g: NameGeom;
   /** The stellate cell's state (0 quiescent .. 1 activated). */
   act: number;
@@ -193,7 +200,6 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
   // ── the ends: the portal venule above (left of) the vessel, the central vein below (right of) it, each with its arrow outside the name (2D layoutEnds) ──
   const band: [number, number] = [0, 0];
   const A = tight ? 36 : 22 + 26;
-  const leg = inp.legend;
   // The wide screen's rule, in one place (Mohammad, 24 Nov "move the central vein label to the right", 25 Nov "still short of the end", 26 Nov "way on the right"):
   //   1. each end's name stands at its own visible end of the vessel (reach), the portal venule at the left one and the central vein at the right one, its arrow beyond it, so the two are always
   //      in that order and never on one another (END_GAP between them is a hard floor, whatever else gives way);
@@ -229,32 +235,39 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
       // the floor: never on the portal venule's name, whatever room is left
       if (u && endBox[0]) x = Math.max(x, endBox[0].x1 + END_GAP);
     }
-    if (V && !u && leg && leg.w && leg.x + leg.w > x - 6) y = Math.max(y, leg.y + leg.h + A);
     const P: NamePlacement = { key, name, value, x: 0, y: 0, cx: x + w / 2, cy: y + hh / 2, w, hh, end: true, leader: null, ...(inl ? { inline: true } : {}) };
     out.push(P); by[key] = P;
     if (!V) endBox[u] = { u, x0: u ? x : x - A, x1: u ? x + w + A : x + w, y0: y, y1: y + hh };
     if (V) band[u] = u ? y - 6 : y + hh + 6;
   }
-  if (V) band[0] = Math.max(band[0], inp.insTop + 12 + (leg?.h ?? 0) + 8);
+  if (V) band[0] = Math.max(band[0], inp.insTop + 12 + 8);
 
   const m = inp.text;
+  /** Where Protein's leader lands: the particle the layer follows, or, before one is out, a place in the lumen on the callout's side (the layer re-aims it every frame). */
+  const proteinAt = (x: number, side: number): [number, number] => (inp.protein ? [inp.protein.x, inp.protein.y] : [x, side * g.halfW(x) * 0.4]);
   const midTall = (x: number) => g.hepIn(x) + Math.min(UM.hep * 0.5, (W / 2 / k - g.hepIn(x)) * 0.5);   // the middle of the plate's part on screen
   const disX = (x: number) => g.wallIn(x) + g.disseW(x) * 0.5;
   const fenAt = (x: number) => calloutPore(g.pores[0]!, x, fr[0] + 3, fr[1] - 3, SEED.nucUp);
   const stellate = inp.act > 0.5;
 
   if (V) {
-    // a portrait screen: the lumen keeps only its own name; the narrow bands and the cells are named in the plates beside them, the stellate cell's side (right) and the Kupffer cell's
-    // side (left) each in its own column, spaced down the screen between the ends' names, each tied to what it names by a thin leader
+    // a portrait screen: every part is named in the plate beside it, never on it (the lumen too: the Sinusoid is a callout with its leader into the lumen, and so is the Protein,
+    // Mohammad 26 Nov), the stellate cell's side (right) and the Kupffer cell's side (left) each in its own column, spaced down the screen between the ends' names,
+    // each tied to what it names by a thin leader
     const u0 = Math.max(fr[0], (band[0] - C[1]) / k), u1 = Math.min(fr[1], (band[1] - C[1]) / k);
     const pick = (u: number) => lerp(u0, u1, u);
-    region('sin', 'Sinusoid', m.sin, pick(0.42), 0);
     let x = pick(0.08);
     const xp = fenAt(x);
     leader(region('fen', 'Fenestrae', m.fen, x, -midTall(x)), xp, -(g.halfW(xp) + UM.endo * 0.5));
     x = clamp(g.xs, pick(0.3), pick(0.62));
     leader(region('hsc', stellate ? 'Activated\nstellate cell' : 'Stellate\ncell', '', x, -midTall(x)), g.xs, -(disX(g.xs) + 0.6));
     region('hep', 'Hepatocyte', '', pick(0.92), -midTall(pick(0.92)));
+    // the Sinusoid in the right column, between the stellate cell's name and the hepatocyte's, its leader across the plate into the lumen
+    x = pick(0.78);
+    leader(region('sin', 'Sinusoid', m.sin, x, -midTall(x)), x, -g.halfW(x) * 0.3);
+    // the Protein in the left column, in the gap between the Space of Disse's name and the lymph's, its leader to the particle
+    x = pick(0.27);
+    { const [px, py] = proteinAt(x, 1); leader(region('alb', calloutOf('alb')!.word, '', x, midTall(x)), px, py); }
     x = pick(0.08);
     leader(region('disse', 'Space of\nDisse', '', x, midTall(x)), x, disX(x));
     x = pick(0.46);
@@ -287,11 +300,6 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
   }
 
   // ── across the screen (2D layoutTags) ──
-  // the sinusoid's name stands in the middle of the vessel: halfway between the two ends' names, and clear of the Kupffer cell's arms whichever way they are (Mohammad, 24 Nov: it stood crowded against the portal venule)
-  const mid = ((endBox[0]?.x1 ?? fe.l) + (endBox[1]?.x0 ?? fe.r)) / 2, sinW = meas('sin', 'Sinusoid', m.sin).w / 2 / k, kupHalf = KUP_HALF + 1;
-  let xc = (mid - C[0]) / k;
-  if (Math.abs(xc - g.xk) < sinW + kupHalf) xc = g.xk + (xc < g.xk ? -1 : 1) * (sinW + kupHalf);
-  region('sin', 'Sinusoid', m.sin, xc, 0, { along: true });
   // the Kupffer cell on one line just above it, clear of its highest process, in the lumen, never over its body
   const kupTop = g.halfW(g.xk) - 6.6 * clamp(g.halfW(g.xk) / 5.2, 0.6, 1);
   // (a name that has had to step aside, for an end's name or the room's edge, is tied to the cell by a leader)
@@ -345,6 +353,33 @@ export function layoutNames(inp: NamesInput): NamePlacement[] {
     const x = pickTags(0.8), sg = 1, sd = SEED.plateDn, xe = canaliculusAt(Math.round(x / CELL), sd), yd = sg * (g.hepIn(xe) + UM.hep * 0.5);
     leader(region('bc', 'Bile canaliculus', '', xe, yd + sg * 3, { side: 1 }), xe, yd + sg * 1.4);
   }
+  // the Sinusoid and the Protein are callouts like every other name (Mohammad, 26 Nov: "callout the sinusoid somewhere with a leader" and "move the protein legend to be a
+  // callout"): each stands in a plate, never on the lumen it names, in the stretch the plate's other names and its nuclei leave widest, and its leader goes into the lumen.
+  // The Sinusoid keeps its reading (the pressure) with it.
+  const lumenName = (
+    key: NameKey, name: string, value: string, sign: number, depth: number, seed: number,
+    mates: readonly (NamePlacement | undefined)[], aimOf: (x: number) => [number, number],
+  ) => {
+    const sz = probe(() => region(key, name, value, 0, 0)), wHalf = sz.w / 2 / k;
+    const lo = pickTags(0.04), hi = pickTags(0.96);
+    const obst: { x: number; half: number }[] = [];
+    for (const R of mates) if (R) obst.push({ x: R.x, half: half(R) });
+    // (the ends' names stand in the lumen at its ends: a leader never runs through one)
+    for (const b of endBox) if (b) obst.push({ x: ((b.x0 + b.x1) / 2 - C[0]) / k, half: (b.x1 - b.x0) / 2 / k + 1 });
+    for (let j = Math.floor(lo / CELL) - 1; j <= Math.ceil(hi / CELL) + 1; j++) { const c = cellOf(j, seed); obst.push({ x: c.x0 + (c.x1 - c.x0) * c.nu, half: c.nr }); }
+    let bx = (lo + hi) / 2, bs = -Infinity;
+    for (let x = lo; x <= hi; x += 0.5) {
+      let sc = Infinity;
+      for (const o of obst) sc = Math.min(sc, Math.abs(x - o.x) - o.half - wHalf);
+      // (clear by 2 µm is clear enough: past that the nearer-the-middle place wins, so the name does not run to the room's side)
+      sc = Math.min(sc, 2) - 0.002 * Math.abs(x - (lo + hi) / 2);
+      if (sc > bs) { bs = sc; bx = x; }
+    }
+    const [ax, ay] = aimOf(bx);
+    leader(region(key, name, value, bx, sign * (g.hepIn(bx) + depth)), ax, ay);
+  };
+  lumenName('sin', 'Sinusoid', m.sin, -1, 6, SEED.plateUp, [hs, rf, by.disse, by.kup], (x) => [x, -g.halfW(x) * 0.3]);
+  lumenName('alb', calloutOf('alb')!.word, '', 1, 9.5, SEED.plateDn, [hl, ly, by.bc], (x) => proteinAt(x, 1));
   return settle(out);
 }
 

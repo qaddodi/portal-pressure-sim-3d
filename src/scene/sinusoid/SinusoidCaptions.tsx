@@ -29,13 +29,15 @@ import { buildSinusoidNames, namesFree, namesOn, placeOf, readingOf, readingsSig
 import { type RNode, dotCss, regionClass, regionTree, treeKey } from './region.ts';
 import { U } from './view.ts';
 import { framePoint } from './portrait.ts';
+import { MARK_PX, calloutOf } from './legend.ts';
+import { ProteinFollow } from './protein-pick.ts';
 
 /** 2D's end arrow (sinusoid's shader, the 3D scene's arrowOutline): a short broad shaft and a wide head, pointing along +x, its size 1 (the head 0.92 tall). */
 export const END_ARROW_D = 'M-0.58 -0.17 L0 -0.17 L0 -0.46 L0.52 0 L0 0.46 L0 0.17 L-0.58 0.17 Z';
 import { setSinusoidPlaced, useSinusoidNames } from './explain-store.ts';
 
 const SETTLE_MS = 180, FADE_MS = 180;
-interface El { root: HTMLElement; lead: HTMLElement | null; ring: HTMLElement | null; ringTx: string; tx: string; words: string }
+interface El { root: HTMLElement; lead: HTMLElement | null; ring: HTMLElement | null; mark: HTMLElement | null; ringTx: string; tx: string; words: string }
 
 export function SinusoidCaptions() {
   const layer = useRef<HTMLDivElement>(null);
@@ -49,6 +51,7 @@ export function SinusoidCaptions() {
     const measure = makeMeasure();
     const els = new Map<string, El>();
     const v3 = new Vector3(), pt = { x: 0, y: 0 }, f3: [number, number, number] = [0, 0, 0];
+    const follow = new ProteinFollow();
     let placed: NamePlacement[] = [], sig = '', lastMove = -1e9, lastRefs = '', alpha = 0, last = -1, hold: { release(): void } | null = null;
 
     const putVars = () => {
@@ -95,7 +98,15 @@ export function SinusoidCaptions() {
       const lead = document.createElement('i'); lead.className = 'lb-lead'; root.appendChild(lead);
       // (no ring at the leader's end: 2D's paper-and-ink dot read as a white circle on the cell it names, mistaken for a nucleus, Mohammad 20 Nov 2026 "there is a white circle in it ... not
       //  sure what that circle is"; the leader simply ends on the part)
-      const e: El = { root: r, lead, ring: null, ringTx: '', tx: '', words: '' };
+      // a name that stands for a key entry (legend.ts SINUSOID_CALLOUTS: the Protein) ends its leader in the entry's circle, painted from the tokens of the thing it points at
+      const co = calloutOf(id);
+      let mark: HTMLElement | null = null;
+      if (co) {
+        mark = document.createElement('i'); mark.className = 'sv-mark'; mark.dataset.callout = co.key; mark.dataset.shape = co.mark.shape;
+        mark.style.setProperty('--key-fill', `var(${co.mark.fill})`); mark.style.setProperty('--key-edge', `var(${co.mark.edge})`); mark.style.setProperty('--mark-px', `${MARK_PX}px`);
+        root.appendChild(mark);
+      }
+      const e: El = { root: r, lead, ring: null, mark, ringTx: '', tx: '', words: '' };
       els.set(id, e);
       return e;
     };
@@ -143,7 +154,7 @@ export function SinusoidCaptions() {
       placed = level === 'none' ? [] : built;
       setSinusoidPlaced(placed);
       const stand = new Set<string>(placed.map(key));
-      for (const [id, e] of els) if (!stand.has(id)) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); e.ring?.removeAttribute('data-on'); }
+      for (const [id, e] of els) if (!stand.has(id)) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); e.ring?.removeAttribute('data-on'); e.mark?.removeAttribute('data-on'); }
       for (const p of placed) {
         const e = els.get(p.key) ?? make(p.key);
         fill(e, p.name, p.value, p.key, st.explain);
@@ -184,6 +195,13 @@ export function SinusoidCaptions() {
       if (alpha !== to) alpha = Math.abs(to - alpha) <= dt / FADE_MS ? to : alpha + Math.sign(to - alpha) * (dt / FADE_MS);
       if (alpha > 0 || wasAlpha > 0) {
         const ex = useSinusoidNames.getState().explain;
+        // the protein the callout points at (protein-pick.ts): followed along the lumen, handed on before it leaves the leader's reach
+        const pa = placed.find((p) => calloutOf(p.key));
+        if (pa) {
+          const sv = cel.sinus, kpx = Math.hypot(proj(1, 0)[0] - proj(0, 0)[0], proj(1, 0)[1] - proj(0, 0)[1]);
+          const reach = Math.min(30, Math.max(8, 200 / Math.max(1, kpx))), speed = Math.abs(sv.state.v) * sv.trafficSpeed;
+          follow.step(sv.albumin, sv.spriteCount, { halfW: sv.g.halfW, ax: pa.x, ay: pa.leader?.ty ?? 0, reach, flowDir: sv.flowDir, speed }, dt);
+        }
         for (const p of placed) {
           const e = els.get(p.key);
           if (!e) continue;
@@ -194,7 +212,18 @@ export function SinusoidCaptions() {
           if (tx !== e.tx) { e.root.style.transform = tx; e.tx = tx; }
           e.root.style.opacity = String(Math.round(o * 1000) / 1000);
           e.root.setAttribute('data-on', '');
-          if (e.lead) {
+          if (e.mark && e.lead) {
+            // (the callout's leader runs to the particle's place now, its circle on it; with no particle yet there is none, and the leader and its circle ease out as the particle goes)
+            const lo = Math.round(o * follow.shown * 1000) / 1000;
+            if (follow.shown > 0) {
+              const [px, py] = proj(follow.x, follow.y);
+              const g = leaderGeom(px, py, { x0: box.x, y0: box.y, x1: box.x + box.w, y1: box.y + box.h });
+              e.lead.style.transform = `translate(${Math.round(g.x * 100) / 100}px,${Math.round(g.y * 100) / 100}px) rotate(${g.angle.toFixed(4)}rad) scaleX(${Math.round(g.len * 100) / 100})`;
+              e.mark.style.transform = `translate3d(${Math.round(px * 100) / 100}px,${Math.round(py * 100) / 100}px,0)`;
+              e.lead.style.opacity = String(lo); e.mark.style.opacity = String(lo);
+              e.lead.setAttribute('data-on', ''); e.mark.setAttribute('data-on', '');
+            } else { e.lead.removeAttribute('data-on'); e.mark.removeAttribute('data-on'); }
+          } else if (e.lead) {
             if (p.leader) {
               const g = leaderGeom(p.leader.x2, p.leader.y2, { x0: box.x, y0: box.y, x1: box.x + box.w, y1: box.y + box.h });
               e.lead.style.transform = `translate(${Math.round(g.x * 100) / 100}px,${Math.round(g.y * 100) / 100}px) rotate(${g.angle.toFixed(4)}rad) scaleX(${Math.round(g.len * 100) / 100})`;
@@ -209,12 +238,14 @@ export function SinusoidCaptions() {
             } else e.ring.removeAttribute('data-on');
           }
         }
-        if (alpha === 0) for (const e of els.values()) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); e.ring?.removeAttribute('data-on'); }
+        if (alpha === 0) {
+          for (const e of els.values()) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); e.ring?.removeAttribute('data-on'); e.mark?.removeAttribute('data-on'); }
+        }
       }
       // the end arrows follow their names (2D: a presenter slide that is not about an end dims both; outside a talk, 1)
       const endA = on ? Math.max(0, Math.min(1, alpha)) : 0;
       cel.sinus.setEndShown(alpha > 0 || !on ? 1 : endA, alpha > 0 || !on ? 1 : endA);
-      const busy = alpha !== to || (on && !still);
+      const busy = alpha !== to || (on && !still) || (alpha > 0 && follow.shown !== (follow.idx >= 0 ? 1 : 0));
       if (busy && !hold) hold = clock.hold('sinusoid-captions');
       else if (!busy && hold) { hold.release(); hold = null; }
     };
@@ -229,7 +260,10 @@ export function SinusoidCaptions() {
     const offEx = useSinusoidNames.subscribe((s, p) => { if (s.explain !== p.explain || s.lit !== p.lit) wake(); });
     void document.fonts?.ready.then(refont);
     void DIM_ALPHA; void SINUSOID_L;
-    return () => { off(); offShell(); offLab(); offFoot(); offUi(); offUi2(); offEx(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
+    return () => {
+      off(); offShell(); offLab(); offFoot(); offUi(); offUi2(); offEx(); hold?.release();
+      for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); e.mark?.remove(); }
+    };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer sv-layer" aria-hidden="true" />;
