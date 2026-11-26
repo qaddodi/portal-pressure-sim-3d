@@ -1,4 +1,4 @@
-// The TIPS view of Tests > IR (2D ir-tips.js, 17 Nov 2026, the approved mock tips-cards-elegant.html): its title (the stent, its state, Velocity | Pressure, and a menu for Tube vs patient and Compare), one
+// The TIPS view of Tests > IR (2D ir-tips.js, 17 Nov 2026, the approved mock tips-cards-elegant.html): its title (the stent, its state, Pressure | Velocity, and a menu for Tube vs patient and Compare), one
 // line of numbers (no tiles), the stent drawn to scale with its chart under it on the same x (tips-figure.ts, a frame on the shared chart GL), and the three rows that edit it (the stent editor, whose
 // tray unrolls under the tiles, under the chart). Tube vs patient is CurvesView, Compare is CompareView. The words, the numbers and the rules are the 2D file's own (copied/tips-parts.copied.js).
 import { useEffect, useRef } from 'react';
@@ -14,6 +14,8 @@ import { CompareView } from './CompareView.tsx';
 import { CurvesView } from './CurvesView.tsx';
 import { newKeep, tipsFigureFrame } from './tips-figure.ts';
 import { stentsNow, useIr, type IrLens, type IrSub, type StentId } from './store.ts';
+import { MEASURE_TABS } from '../../../scene/lenses/measure.ts';
+import { useMeasureLens } from '../../charts/useMeasureLens.ts';
 import { useState } from 'react';
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -40,7 +42,9 @@ function Figure({ id, lens }: { id: StentId; lens: IrLens }) {
 export function TipsView({ h }: { h: number }) {
   useEngine((s) => { void s.frames; const m = latest.frame?.metrics as { ppg?: number } | undefined; return `${Math.round((m?.ppg ?? 0) * 10)}`; });
   useParamsTick((s) => s.tick);
-  const stent = useIr((s) => s.stent), pick = useIr((s) => s.pick), lens = useIr((s) => s.lens), setLens = useIr((s) => s.setLens), sub = useIr((s) => s.sub), setSub = useIr((s) => s.setSub);
+  const stent = useIr((s) => s.stent), pick = useIr((s) => s.pick), sub = useIr((s) => s.sub), setSub = useIr((s) => s.setSub);
+  // (the tab is the figure's lens: Pressure when it opens, and a tap on Velocity or Pressure sets the figure's lens, src/scene/lenses/measure.ts)
+  const [lens, setLens] = useMeasureLens();
   const ids = stentsNow(), at: StentId = ids.includes(stent) ? stent : ids[0] ?? 'TIPS';
   // the stent set changes under the view (one taken away): the title follows the stent that is left
   useEffect(() => { if (ids.length && !ids.includes(stent)) pick(ids[0]!); });
@@ -61,7 +65,7 @@ export function TipsView({ h }: { h: number }) {
         </div>
         <span className="ir-status" data-sev={still ? 'caution' : 'none'}><span className="ir-status-t">{still ? 'No flow' : 'Patent'}</span></span>
         <div className="pressure-switch ir-lens" role="group" aria-label="What the stent shows">
-          {(['velocity', 'pressure'] as IrLens[]).map((k) => <button key={k} type="button" className="ps-btn" data-lens={k} aria-pressed={lens === k} onClick={() => setLens(k)}>{k === 'velocity' ? 'Velocity' : 'Pressure'}</button>)}
+          {MEASURE_TABS.map(([k, name]) => <button key={k} type="button" className="ps-btn" data-lens={k} aria-pressed={lens === k} onClick={() => setLens(k)}>{name}</button>)}
         </div>
         <button ref={more} type="button" className="ir-more" aria-label="More views" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><Icon n="more" /></button>
         <div ref={menu} className="ir-menu" role="menu" aria-label="TIPS views" data-open={open ? 'true' : 'false'} inert={!open}

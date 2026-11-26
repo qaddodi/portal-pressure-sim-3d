@@ -187,8 +187,8 @@ test('the TIPS view\'s own parts are the 2D file\'s: the numbers, the menu\'s vi
   assert.deepEqual(stentIds({ tips: { on: true }, dips: { on: true } }), ['TIPS', 'DIPS']);
   assert.equal(stentLine(null), 'No stent'); assert.match(NO_STENT_WHY, /Place one from Treat/);
   const { useIr } = await import('../src/ui/tests/ir/store.ts');
-  useIr.getState().setSub('compare'); useIr.getState().setLens('pressure');
-  assert.deepEqual([useIr.getState().sub, useIr.getState().lens], ['compare', 'pressure']);
+  useIr.getState().setSub('compare');
+  assert.equal(useIr.getState().sub, 'compare');
 });
 
 test('the monitor draws no pill: a level\'s tag and the gradient\'s are words with a halo, never a rounded box (owner, 22 Nov: no pill, chip or badge)', () => {
