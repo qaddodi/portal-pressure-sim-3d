@@ -2,7 +2,7 @@
 // reading the slide is at. Both follow the presenter's position; nothing else here reads a deck.
 import { useUi } from '../../ui/ui-store.ts';
 import { viewAt, lastSlideShot, lastCath, type Stop } from '../../ui/deck/presenter-machine.ts';
-import type { CathState, Slide } from '../../decks/schema.ts';
+import type { CathState, Slide, SlideScene } from '../../decks/schema.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
 import { figurePlan } from '../../ui/deck/figure-plan.ts';
@@ -10,28 +10,32 @@ import { stationsOfTerms } from './stations.ts';
 import { useLabels } from './store.ts';
 import { KEY_LENSES, keyPlace } from './key.ts';
 import { DEFAULT_LENS, type LensId } from '../lenses/model.ts';
+import { shownLens } from '../lenses/in-view.ts';
 
 export interface LabelsAt { named: Set<string>; shown: Set<string>; tones: Record<string, string>; cath: CathState | null; /** the lens whose colour key the slide shows on the figure (null: none) */ key: string | null; /** a centred panel stands over the figure: its names stand aside */ panel?: boolean }
 const NONE = (cath: CathState | null = null, key: string | null = null): LabelsAt => ({ named: new Set(), shown: new Set(), tones: {}, cath, key });
 
-/** The colour key a slide shows on the figure (2D presenter.js paintKey): the slide's lens when it is not pressure (the default needs none), and the lens a slide with lens buttons is on, pressure
- *  included; a slide that is a table, a chart or a case card has none. */
-export function keyOfSlide(slide: Slide | null, lens: string | undefined, words: string): string | null {
+/** The colour key a slide shows on the figure (Mohammad, 26 Nov: "every slide that colours the figure", captures 36b7deac and 2274649a).
+ *  The rule is the figure's, not the slide's controls: a figure on screen is always drawn in some lens, Pressure included (the default colours the vessels
+ *  pink to blue on every patient), so its key shows on every slide that draws it, named after the lens the VIEW draws (lenses/in-view.ts shownLens: a lens a
+ *  view cannot show falls back to Pressure, and so does the key). Only a slide with no figure behind its words has none: a title, a case card, a centred
+ *  panel (table or chart), the quick check; and a lens with no key (Anatomy). The earlier rule (pressure only with lens buttons or a profile) let
+ *  Encephalopathy 11, Albumin 3 and Budd-Chiari 2 wear pressure colours with no key. */
+export function keyOfSlide(slide: Slide | null, lens: string | undefined, words: string, view?: SlideScene['view']): string | null {
   if (!slide || words === 'case' || words === 'visual' || words === 'title' || words === 'check') return null;
-  const own = lens ?? DEFAULT_LENS;
-  const buttons = !!slide.controls?.compare?.opts.some((o) => o.how === 'lens');
-  // (the default lens colours the figure too on a slide that draws the pressure profile beside it: capture 36b7deac, slide 10 of Sites and causes, pink to blue with no key)
-  const profile = (slide.tool as { kind?: string } | undefined)?.kind === 'profile';
-  return KEY_LENSES.includes(own) && (own !== DEFAULT_LENS || buttons || profile) ? own : null;
+  const asked = (lens ?? DEFAULT_LENS) as LensId;
+  const drawn = view ? shownLens(view === 'body' ? 'anatomic' : view, asked) : asked;
+  return KEY_LENSES.includes(drawn) ? drawn : null;
 }
 
-/** The key's lens at a stop: every slide whose figure a lens colours shows its key (Mohammad, 26 Nov, capture 36b7deac: "every slide that colours the figure"; this replaces the 22 Nov rule
- *  that a run of slides on one lens named it once, on the first). Null where the figure wears no lens colour: the default lens on a slide with no lens buttons and no profile, a table, a chart, a case card. */
+/** The key's lens at a stop: every slide whose figure a lens colours shows its key (Mohammad, 26 Nov: "every slide that colours the figure"; this replaces the
+ *  22 Nov rule that a run of slides on one lens named it once, on the first). Null where no figure stands behind the words: a title, a table or chart panel,
+ *  a case card, the quick check, or a lens with no key. */
 export function keyAtStop(stops: Stop[], i: number, beat = 0): string | null {
   const s = stops[i];
   if (!s || s.kind !== 'slide') return null;
   const v = viewAt(stops, { stop: i, beat }, lastSlideShot(stops));
-  return keyOfSlide(v.slide, v.scene?.lens, v.words);
+  return keyOfSlide(v.slide, v.scene?.lens, v.words, v.scene?.view);
 }
 /** The lens whose key is the first row of the slide's own data card (the stream lenses: key.ts keyPlace). The card keeps its key as long as it stands, so ask with the stop the card came from (keep.ts `from`). */
 export function cardKeyAt(stops: Stop[], i: number, live: string | null = null): string | null {

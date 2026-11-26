@@ -29,6 +29,7 @@ import { buildSinusoidNames, namesFree, namesOn, placeOf, readingOf, readingsSig
 import { type RNode, dotCss, regionClass, regionTree, treeKey } from './region.ts';
 import { U } from './view.ts';
 import { framePoint } from './portrait.ts';
+import { MARK_PX, calloutOf } from './legend.ts';
 
 /** 2D's end arrow (sinusoid's shader, the 3D scene's arrowOutline): a short broad shaft and a wide head, pointing along +x, its size 1 (the head 0.92 tall). */
 export const END_ARROW_D = 'M-0.58 -0.17 L0 -0.17 L0 -0.46 L0.52 0 L0 0.46 L0 0.17 L-0.58 0.17 Z';
@@ -104,12 +105,14 @@ export function SinusoidCaptions() {
       if (typeof n === 'string') return document.createTextNode(n);
       const e = document.createElement(n.tag);
       if (n.cls) e.className = n.cls;
+      for (const [k, v] of Object.entries(n.style ?? {})) e.style.setProperty(k, v);
       e.append(...n.kids.map(node));
       return e;
     };
     /** a caption's words written as 2D's pageRun writes them (only when they changed), and its element returned */
     const fill = (e: El, name: string, value: string, key: NameKey, explain: NameKey | null): El => {
-      const tree = regionTree(name, value, explain === key ? SV_NOTE[key] ?? null : null);
+      const co = calloutOf(key);
+      const tree = regionTree(name, value, explain === key ? SV_NOTE[key] ?? null : null, co ? { fill: co.mark.fill, edge: co.mark.edge, px: MARK_PX } : null);
       // the ends' arrows are 2D's (sinusoid-view.js layoutEnds and its shader's end arrow: a short broad shaft and a wide head, 22 px, in the name's ink on its halo), part of the name and
       // moving with it, outside it toward its vessel: left of the portal venule and right of the central vein on a wide screen, above the one and below the other on a tall one
       // (Mohammad 20 Nov 2026: "the arrow should not be a 3D thing; just make it part of the label", "should still be like the 2D version")
@@ -209,7 +212,9 @@ export function SinusoidCaptions() {
             } else e.ring.removeAttribute('data-on');
           }
         }
-        if (alpha === 0) for (const e of els.values()) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); e.ring?.removeAttribute('data-on'); }
+        if (alpha === 0) {
+          for (const e of els.values()) { e.root.removeAttribute('data-on'); e.lead?.removeAttribute('data-on'); e.ring?.removeAttribute('data-on'); }
+        }
       }
       // the end arrows follow their names (2D: a presenter slide that is not about an end dims both; outside a talk, 1)
       const endA = on ? Math.max(0, Math.min(1, alpha)) : 0;
@@ -229,7 +234,10 @@ export function SinusoidCaptions() {
     const offEx = useSinusoidNames.subscribe((s, p) => { if (s.explain !== p.explain || s.lit !== p.lit) wake(); });
     void document.fonts?.ready.then(refont);
     void DIM_ALPHA; void SINUSOID_L;
-    return () => { off(); offShell(); offLab(); offFoot(); offUi(); offUi2(); offEx(); hold?.release(); for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); } };
+    return () => {
+      off(); offShell(); offLab(); offFoot(); offUi(); offUi2(); offEx(); hold?.release();
+      for (const e of els.values()) { e.root.remove(); e.lead?.remove(); e.ring?.remove(); }
+    };
   }, []);
 
   return <div ref={layer} className="lb-layer cc-layer sv-layer" aria-hidden="true" />;

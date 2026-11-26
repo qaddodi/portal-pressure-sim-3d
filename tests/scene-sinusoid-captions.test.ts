@@ -35,9 +35,9 @@ test('the names stand only while the sinusoid is the view and drawn', () => {
   assert.equal(namesOn('sinusoid', false), false);
 });
 
-test('wide: ten names, readings as 2D writes them, and each name box is on the screen', () => {
+test('wide: eleven names, readings as 2D writes them, and each name box is on the screen', () => {
   const { placed, W, H } = build(1440, 900);
-  assert.equal(placed.length, 10);
+  assert.equal(placed.length, 11);
   const by = (k: string) => placed.find((p) => p.key === k)!;
   assert.match(by('in').value, /^17\.0/); assert.match(by('out').value, /^3\.0/); assert.match(by('sin').value, /^10\.0/);
   assert.match(by('lymph').value, /Protein 91%/);
@@ -87,8 +87,9 @@ test('outside a talk, and on nothing, a tap is not taken', () => {
 test('a leader ends in 2D\'s ringed dot on the part it names: the layer draws one at every leader\'s end, and across a wide screen the names that stand on their part (the cells, the Disse) have none', async () => {
   const { placed } = build(1440, 900);
   const led = placed.filter((p) => p.leader).map((p) => p.key).sort();
-  for (const k of led) assert.ok(['fen', 'lymph', 'bc'].includes(k), `${k} has a leader across a wide screen`);   // (2D: layoutTags gives the lymph and the fenestrae one, the bile canaliculus's own function its short one)
+  for (const k of led) assert.ok(['fen', 'lymph', 'bc', 'sin', 'alb'].includes(k), `${k} has a leader across a wide screen`);   // (2D: layoutTags gives the lymph and the fenestrae one, the bile canaliculus's own function its short one)
   assert.ok(led.includes('fen'), 'the fenestrae are tied to their pore');
+  assert.ok(led.includes('sin') && led.includes('alb'), 'the Sinusoid and the Protein are callouts: each is tied to what it names');
   for (const p of placed.filter((q) => q.leader)) assert.ok(Number.isFinite(p.leader!.x2) && Number.isFinite(p.leader!.y2), `${p.key}'s dot has a place`);
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/scene/sinusoid/SinusoidCaptions.tsx', import.meta.url), 'utf8');
