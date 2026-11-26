@@ -132,6 +132,7 @@ export function createCardZoom(clock: Clock = theClock) {
       s.cell?.card?.setAttribute('data-cell-zoom', 'back');   // (the other panels come back up while it glides home: deck-ui.css)
       if (o.instant || o.reduce) { end(); return Promise.resolve(); }
       const ms = reverseMs(SHUT_MS, s.cur.s, s.plan.s);
+      // (page time: the glide it is raced against is the page's own tween)
       s.closing = Promise.race([drive({ dx: 0, dy: 0, s: 1 }, ms), new Promise<void>((r) => clock.after(r, ms + 200))]).then(() => { if (st === s) end(); });
       return s.closing;
     },

@@ -42,7 +42,7 @@ export async function openHistory(id: string): Promise<boolean> {
   useShell.setState({ patientId: id });
   timeline.adopt(entriesOf(baked, patientLabel(id)), baked.snap.params);
   // (the card or the chart that opens next draws the days: it waits for them, a second at most, so it never shows the last patient's)
-  await Promise.race([landed, new Promise<void>((done) => { clock.after(done, DAYS_WAIT_MS, 'histories-open'); })]);
+  await Promise.race([landed, new Promise<void>((done) => { clock.afterReal(done, DAYS_WAIT_MS, 'histories-open'); })]);
   if (mine !== gen) return false;
   switchLands();
   return true;

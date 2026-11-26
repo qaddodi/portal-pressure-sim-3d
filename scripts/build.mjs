@@ -55,6 +55,9 @@ if (!process.env.PPS_NO_CSS_PRUNE) { const cp = spawnSync(process.execPath, [fil
 // The figure's data files get content-hashed names under assets/ (scripts/hash-data.mjs): a deploy that does not touch the figure downloads none of them again, and the worker needs no special case for them. A failure stops the build: the page would fetch a name that does not exist.
 const hd = spawnSync(process.execPath, [fileURLToPath(new URL('./hash-data.mjs', import.meta.url)), `${root}dist`], { cwd: root, stdio: 'inherit' });
 if (hd.status !== 0) process.exit(hd.status ?? 1);
+// Every name a page, style sheet or script gives must be a file the build wrote (scripts/dist-refs.mjs): a dangling name is a 404 for every visitor, so it stops the build on a branch as well as on main.
+const dr = spawnSync(process.execPath, [fileURLToPath(new URL('./dist-refs.mjs', import.meta.url)), `${root}dist`], { cwd: root, stdio: 'inherit' });
+if (dr.status !== 0) process.exit(dr.status ?? 1);
 writeFileSync(`${root}dist/build-info.txt`, `version ${release}\nbranch ${branch}\ncommit ${commit}\nbuilt ${new Date().toISOString()}\nchecks ${[checks, ...(failed.includes('css prune') ? ['css prune failed'] : [])].filter(Boolean).join(', ') || 'ok'}\n${testsLine ? `${testsLine}\n` : ''}`);
 const pw = spawnSync(process.execPath, [fileURLToPath(new URL('./pwa.mjs', import.meta.url)), `${root}dist`, `${commit}`], { cwd: root, stdio: 'inherit' });
 if (pw.status !== 0) process.exit(pw.status ?? 1);

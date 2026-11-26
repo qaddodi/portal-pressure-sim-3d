@@ -62,7 +62,7 @@ export async function drawScreen(at: Date, opts: { ratio?: number } = {}): Promi
   g.fillStyle = !bs.backgroundColor || bs.backgroundColor === 'transparent' || /,\s*0\)$/.test(bs.backgroundColor) ? (readStyle(document.documentElement).getPropertyValue('--bg').trim() || '#fff') : bs.backgroundColor;
   g.fillRect(0, 0, out.width, out.height);
   const items = readScreen(taken ? { x: taken.css.x, y: taken.css.y, w: taken.css.w, h: taken.css.h } : null, taken?.canvas ?? null);
-  const missing = await loadMasks(items, (ms) => new Promise<void>((ok) => clock.after(ok, ms)));
+  const missing = await loadMasks(items);
   g.setTransform(s, 0, 0, s, -rb.left * s, -rb.top * s);
   paintScreen(g, items, s);
   if (missing.length) console.warn('[capture] pictures that did not load, left out:', missing.join(', '));

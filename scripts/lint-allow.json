@@ -6,6 +6,7 @@
   "unsafe-cast": 331,
   "raw-idle": 0,
   "card-wait-page-time": 0,
+  "race-page-time": 0,
   "unnamed-shader": 0,
   "raw-setparams": 0,
   "discarded-unsubscribe": 0,

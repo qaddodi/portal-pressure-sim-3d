@@ -2,6 +2,7 @@
 // and that list painted on one 2D canvas at the device's pixel ratio. The figure itself is the stage drawn once at that ratio (scene/figure-shot.ts), laid in where its canvas stands, so
 // the cards, tags, legends, bars and sheets come out over it in the order the page paints them. Runs on a tap, never in a frame. (figure-image-dom.ts does the same for the label layers only;
 // the two share the painter for boxes, words, shapes and lines.) What a picture cannot carry: a frosted glass's blur and a CSS mask; the glass's colour and its shadow come out.
+import { clock, type TimerId } from '../../clock/frame.ts';
 import { readBox, readStyle, readTextRects } from '../layout-snap.ts';
 import { parseGradient, type Item, type Paint, type Clip } from '../shell/figure-image.ts';
 import { paintItems } from '../shell/figure-image-dom.ts';
@@ -412,15 +413,24 @@ export function paintScreen(g: CanvasRenderingContext2D, items: ScreenItem[], s:
   }
 }
 
-/** Loads the pictures the masks and the background images use (once each; they are the page's own, already fetched), so the painter has them in hand. A picture that will not load leaves its icon out;
- *  the addresses of those are given back, so the capture can say what is missing instead of handing over a picture with a hole in it. */
-export async function loadMasks(items: ScreenItem[], wait: (ms: number) => Promise<void>): Promise<string[]> {
+/** How long a mask or background picture may take to decode before it is called missing, in REAL milliseconds. */
+export const MASK_WAIT_MS = 4000;
+
+/** Loads the pictures the masks and the background images use (once each; they are the page's own, already fetched), so the painter has them in hand.
+ *  A picture that will not load leaves its icon out; the addresses of those are given back, so the capture can say what is missing instead of handing
+ *  over a picture with a hole in it. The wait is on the network and the decoder, which the page does not drive, so it is REAL time (clock.afterReal).
+ *  In page time the audit's 20x made the 4 s a 0.2 s wait, and the first picture of a run, taken while the icons file was still arriving, reported
+ *  "icons-r-....png did not load" for a file the site serves (capture 414a0ce2, MASLD 3). */
+export async function loadMasks(items: ScreenItem[], waitMs = MASK_WAIT_MS): Promise<string[]> {
   const urls = new Set<string>();
   for (const i of items) if (i.k === 'mask' || i.k === 'bgimg') urls.add(i.url);
   const got = new Map<string, HTMLImageElement | null>();
   await Promise.all([...urls].map(async (u) => {
     const img = new Image(); img.src = u;
-    const ok = await Promise.race([img.decode().then(() => true, () => false), wait(4000).then(() => false)]);
+    let timer: TimerId | null = null;
+    const late = new Promise<boolean>((no) => { timer = clock.afterReal(() => no(false), waitMs, 'mask-load'); });
+    const ok = await Promise.race([img.decode().then(() => true, () => false), late]);
+    clock.cancel(timer);
     got.set(u, ok ? img : null);
   }));
   for (const i of items) {

@@ -51,6 +51,27 @@ export const RULES = {
     applies: (p) => p === 'src/ui/cards/CardLayer.tsx',
     visit: (n) => n.type === 'CallExpression' && ['clock.after', 'clock.now', 'clock.every'].includes(dotted(unwrap(n.callee))),
   },
+  /** A timeout raced against outside work is REAL time. `Promise.race([work, new Promise(r => clock.after(r, ms))])` bounds work the page does not drive (the network, a decode, the fonts, the second engine), and
+   *  `clock.after` is page time, which the audit's speed mode runs N times faster: the bound fires N times early and a capture reports a picture "did not load" for a file the site serves (capture 414a0ce2, MASLD 3).
+   *  Use clock.afterReal; a race between the page's OWN tweens (both legs page time) keeps `// (page time: why)` on the line above or the same line. (tests/outside-waits-real.test.ts lists the known sites.) */
+  'race-page-time': {
+    applies: (p) => !vendored(p) && !under(p, 'src/clock'),
+    visit: (n, text) => {
+      if (n.type !== 'CallExpression' || dotted(unwrap(n.callee)) !== 'Promise.race') return [];
+      const lineStart = text.lastIndexOf('\n', n.start - 1) + 1, prevStart = text.lastIndexOf('\n', Math.max(0, lineStart - 2)) + 1;
+      const end = text.indexOf('\n', n.end), nearby = text.slice(prevStart, end < 0 ? text.length : end);
+      if (nearby.includes('(page time')) return [];
+      const out = [];
+      const walk = (x) => {
+        if (!x || typeof x !== 'object') return;
+        if (Array.isArray(x)) { for (const y of x) walk(y); return; }
+        if (x.type === 'CallExpression' && dotted(unwrap(x.callee)) === 'clock.after') out.push(x);
+        for (const k of Object.keys(x)) if (k !== 'type' && k !== 'start' && k !== 'end') walk(x[k]);
+      };
+      walk(n.arguments);
+      return out;
+    },
+  },
   /** Every shader material is named: the late-program row of ?perf and the audit name a program by `material.name` (three.js WebGLPrograms), so an unnamed one shows only as "program" and cannot be traced to its owner. */
   'unnamed-shader': {
     applies: (p) => !vendored(p),

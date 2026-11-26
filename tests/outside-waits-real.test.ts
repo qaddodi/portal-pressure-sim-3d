@@ -9,6 +9,11 @@ const SITES: Record<string, RegExp> = {
   'src/engine/pool.ts': /clock\.afterReal\(\(\) => this\.fail\(/,
   'src/engine/boot.ts': /clock\.afterReal\(\(\) => mine\.crash\(/,
   'src/boot/fetch-bin.ts': /timer = clock\.afterReal\(poll, step, 'fetch-quiet'\)/,   // (every data file's quiet watch: the baked skins, welds, organs and the organs' art)
+  // (the capture's picture decode: at 20x its 4 s was 0.2 s and the first picture of a run reported icons-r-....png missing, capture 414a0ce2, MASLD 3)
+  'src/ui/capture/capture-dom.ts': /clock\.afterReal\(\(\) => no\(false\), waitMs, 'mask-load'\)/,
+  'src/ui/shell/talk.ts': /waitReal\(1500\)/,
+  'src/ui/histories/open.ts': /clock\.afterReal\(done, DAYS_WAIT_MS/,
+  'src/ui/shell/send-feedback.ts': /clock\.afterReal\(\(\) => ok\(null\), FEEDBACK_READ_MS\)/,
   'src/boot/fonts.ts': /clock\.afterReal\(\(\) => res\(false\), timeoutMs\)/,
   'src/boot/ready.ts': /clock\.afterReal\(poll, STALL_POLL_MS\)/,
   'src/boot/lazy-retry.ts': /clock\.afterReal\(r, ms\)/,

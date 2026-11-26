@@ -11,7 +11,7 @@ export async function sendFeedback(email: string): Promise<void> {
   let fb: { short: string; full: string; link: string; build: string } | null = null;
   try {
     await new Promise((ok) => clock.after(ok, FEEDBACK_SHEET_MS));
-    fb = await Promise.race([import('../debug/packet/feedback.ts').then((m) => m.readFeedback()), new Promise<null>((ok) => clock.after(() => ok(null), FEEDBACK_READ_MS))]);
+    fb = await Promise.race([import('../debug/packet/feedback.ts').then((m) => m.readFeedback()), new Promise<null>((ok) => clock.afterReal(() => ok(null), FEEDBACK_READ_MS))]);
   } catch (e) { console.warn('[feedback] the screen could not be read; the draft goes without it', e); }
   location.href = feedbackHref(email, fb ? { ...plain, build: fb.build, view: fb.link } : plain, fb?.short ?? '');
   const full = fb?.full;
