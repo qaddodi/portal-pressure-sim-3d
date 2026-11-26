@@ -16,3 +16,7 @@ Rejected: choosing the place from where he looks or the nearest liver point on s
 
 ## 25 Nov 2026 ruling (Mohammad)
 - A phone's whole-lobule shot (`lobule`, `lobule:fit`) is the lobule's own bounds wide (1.12 R a side) instead of 2D's 1.05 R: the corners' arteriole and bile-ductule dots and the tract glow were cut at the screen's edge (capture af1c51a0, iPhone Circulation 5 and Ascites 3). The hexagon is about 89 % of the room's width on a phone (was 95 %). Stations are unchanged. Test: `tests/scene-lobule-fit-2d.test.ts`.
+
+## 26 Nov 2026: nothing switches in the dive (Mohammad: "zooming from anatomy to lobule ... some flickering happens")
+Stepping the real scene frame by frame (node) found two things that changed in ONE frame, both ways: the organ veil, switched by the view's name (off at the dive's first frame, on at the way out's landing), and the neighbours' ground (the dive frame's backdrop), whole at the frame the dive frame is switched on, so the page behind and around the body turned to the lobules' tone at once (Dark look: grey 26 to 62).
+Rule now: a switch on a view is never seen. The veil goes with the organs' own fade (`veilShare`); the ground comes in with the body's dissolve (`groundStays` in micro3d/lobule3d.ts: none while the body is whole, all of it by half-way). Test: `tests/dive-nothing-switches.test.ts` flies Anatomy to Lobule and back on a Mac and a phone, and Anatomy to the Circuit and back, and bounds every frame's step.

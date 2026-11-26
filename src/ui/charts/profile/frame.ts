@@ -48,9 +48,6 @@ const text = (x: number, y: number, s: string, k: Look, o: Partial<TextShape> = 
   return t;
 };
 
-/** The frame of `plan` as `view` shows it (a moment of a glide, or the chart at rest: restView). */
-/** Where the unit's baseline goes: just over the top gridline's number (the smallest y of the gridlines, less a line of the type). */
-export const profileUnitY = (ys: readonly number[], f: number): number => Math.min(...ys) - 0.75 * f;
 
 export function profileFrame(plan: ProfilePlan, view: View, c: ChartCtx, o: { cell?: CellOpts | null } = {}): Frame {
   const { G, f, tw, w, spans } = plan, sh = view.shown, top = sh.top, lk = profileLooks(c, f, o.cell);

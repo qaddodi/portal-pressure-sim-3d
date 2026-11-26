@@ -48,5 +48,3 @@ export function usePaneIn(kind: unknown): boolean {
   return paneIn(key);
 }
 
-/** For tests: forget what is held. */
-export function resetPanes(): void { done.clear(); asked.clear(); }

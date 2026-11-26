@@ -94,5 +94,3 @@ export function planSlide(deck: string, s: CopiedSlide, index: number): SlidePla
 
 export function planDeck(d: CopiedDeck): SlidePlan[] { return d.slides.map((s, i) => planSlide(d.id, s, i)); }
 
-/** Terms the labels table answers (the others wait for batch B6, or belong to the lobule view). */
-export const knownTerm = (t: string) => t in TERM_STATIONS;

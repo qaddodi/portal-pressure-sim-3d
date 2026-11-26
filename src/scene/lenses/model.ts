@@ -30,8 +30,6 @@ export const edgeIndex = new Map(edges.map((e, i) => [e.id, i]));
 /** The nodes an edge runs from and to (-1: none), by edge index. */
 export const edgeNodes = (k: number): [number, number] => [EF[k]!, ET[k]!];
 
-// scales (colormap.js, main.js)
-export const PRESSURE_MAX = 35;
 export const FLOW_MIN = 0.02, FLOW_MAX = 6;
 export const flowPos = (lpm: number) => Math.log10(Math.max(FLOW_MIN, lpm) / FLOW_MIN) / Math.log10(FLOW_MAX / FLOW_MIN);
 export const HEAT_MAX = 15, DROP_MAX = 12, DELTA_RANGE = 12;

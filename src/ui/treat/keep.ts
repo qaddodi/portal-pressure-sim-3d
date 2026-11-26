@@ -29,5 +29,3 @@ let live: Set<string> | null = null;
 /** The one set in this page's memory (read once from storage, kept in step). */
 export const openSet = (): Set<string> => (live ??= readOpen());
 export function remember(id: string, isOpen: boolean): void { writeOpen(toggled(id, isOpen, openSet())); }
-/** For a test: forget the in-memory copy. */
-export const forgetOpen = (): void => { live = null; };

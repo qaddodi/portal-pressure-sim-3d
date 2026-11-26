@@ -43,8 +43,6 @@ export const vdbgDefines = (): Record<string, number> => (INSPECT ? { VDBG: 1 } 
 
 /** The uniforms of a part whether or not the page carries them (the panel writes them either way; a test reads them). */
 export const partUniformValues = (part: PartId): Record<string, IUniform> => U[part];
-/** A part's view now (a copy). */
-export const partView = (part: PartId): Readonly<PartView> => ({ ...STATE[part] });
 
 const _c = new Color();
 /** Changes a part's view; writes the uniforms. Returns the keys that changed. */
@@ -60,8 +58,6 @@ export function setPart(part: PartId, patch: Partial<PartView>): (keyof PartView
   (u.dbgCol!.value as Vector4).set(_c.r, _c.g, _c.b, Math.min(1, Math.max(0, s.amount)));
   return changed;
 }
-/** Every part back to as drawn. */
-export function resetParts(): void { for (const p of ['tube', 'skin'] as const) setPart(p, partDefault()); }
 
 /** The chunk below is spliced into the vessel and skin programs when the inspector is on; those are compiled as 'vessel (inspector)' and the 'skin (inspector…)' variants (debug/gl-registry.ts). */
 export const GL_ON_SCENE_GRAPH = 'the inspector hooks spliced into the vessel and skin programs (gl-registry.ts: vessel (inspector), skin (inspector))';

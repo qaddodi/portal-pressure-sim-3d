@@ -31,7 +31,6 @@ let settle: () => void = () => {};
 export const artReady: Promise<void> = new Promise((res) => { settle = res; });
 /** Takes the art file's data (the browser fetch below; tests read it from disk). */
 export function setArtData(d: ArtData): void { data = d; settle(); }
-export const artData = (): ArtData | null => data;
 
 const env = (import.meta as { env?: { BASE_URL?: string } }).env;
 if (typeof fetch === 'function' && typeof window !== 'undefined') {

@@ -94,8 +94,6 @@ export function plotHeightOf(pl: PlaneDef, W: number, card: boolean, o: { room?:
   return Math.round(h);
 }
 
-/** The zone rectangles of the plot, back to front as 2D draws them (the first listed on top), in data units, with the tone (or the guide's rate). */
-export interface ZoneRectOut { x: [number, number]; y: [number, number]; tone?: string; rate?: string }
 
 export interface LayoutIn {
   plane: PlaneDef;

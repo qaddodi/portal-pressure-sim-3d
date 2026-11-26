@@ -1,5 +1,6 @@
 // A tapped vein is lit on its own and fades out a short way past its ends: it never runs on through the liver to light the cava, the shunts and every collateral (iPhone, 20 Nov: "i'm only
 // choosing the portal vein; why am i highlighting everything"). And the lobule's tapped part has a mark of its own shape (lobule/mark.ts), where it had none.
+import { GLOW_LAYER } from '../src/scene/layers.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CelScene } from '../src/scene/scene.ts';
@@ -74,7 +75,7 @@ test('a picked vessel lights its glow mask, eased in and out, in the body only; 
   s.highlight.step(16);
   const part = glows();
   assert.ok(part.length >= 1 && part.every((g) => ['PV_TRUNK', 'PV_TRUNK_1'].includes(g.id)), 'only the picked vein: ' + part.map((g) => g.id).join());
-  assert.equal(part[0]!.mesh.layers.mask, 8, 'on the glow\'s own layer (glow.ts GLOW_LAYER): drawn by the mask pass only');
+  assert.equal(part[0]!.mesh.layers.mask, 1 << GLOW_LAYER, 'on the glow\'s own layer (glow.ts GLOW_LAYER): drawn by the mask pass only');
   const pv = s.vessels.find((o) => o.edge!.id === 'PV_TRUNK')!;
   assert.ok((pv.toon.uniforms.hiOn!.value as number) > 0 && (pv.toon.uniforms.hiOn!.value as number) < 1, 'eases in (the pick\'s weight the shader reads)');
   while (s.highlight.step(16)) { /* settle */ }

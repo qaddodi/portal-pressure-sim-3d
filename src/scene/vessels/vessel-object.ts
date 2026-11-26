@@ -19,6 +19,7 @@ import type { CircuitShared } from '../circuit/uniforms.ts';
 import { cavaWholeAlpha } from './fades.ts';
 import { SKIN_CUT_C_NONE, SKIN_CUT_NONE, SKIN_HOLE_NONE } from './skin/types.ts';
 import { GLOW_LAYER } from '../glow.ts';
+import { FAINT_ONLY_LAYER } from '../layers.ts';
 
 /** Uniforms every vessel shares: the two lens textures held for the crossfade, their stream colours, and the cross-fade itself. */
 export interface LensShared {
@@ -88,8 +89,7 @@ export const RESHAPE_ATTRIBUTES = ['position', 'normal', 'uv', 'tang', 'rk', 'rk
 /** A key frame of a vessel's shape: its reshape attributes and the course's length. */
 export interface ReshapeFrame { arrays: Map<string, Float32Array>; length: number }
 
-/** The camera layer nothing is drawn from: the cava's solid mesh, kept only to be picked. */
-export const FAINT_ONLY_LAYER = 2;
+export { FAINT_ONLY_LAYER };   // (numbered in layers.ts, with every other camera layer)
 /** The draw order of a vessel's veil copy (over the organs, after the vessels): what a clot in a vein behind the organs follows (disease/clots.ts). */
 export const VEIL_ORDER = 2;
 /** The copies' shares of a vessel that is not behind the organs, or one that is shown whole: its front copy alone (`copyShares`). */

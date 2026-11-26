@@ -16,8 +16,6 @@ export function profileInputs(fp: Fp | null | undefined, healthy?: Fp | null, be
   return { p, hl, bf, goal: { ...goalOf(p, hl, bf), whvp: num(fp?.whvp), fhvp: num(fp?.fhvp) } };
 }
 
-/** The brackets of a slide for a state: the slide's `spans` option, less the HVPG once a stent is in. */
-export const spansOfSlide = (want: readonly string[] | null | undefined, fp: Fp | null | undefined): Span[] => spansFor(want, fp);
 
 /** The earlier state a slide's `from` names (2D before()): a slide id → that slide's fingerprint; `true` → the nearest slide before this one whose state differs.
  *  slides: the slides in order, each with its id; fpOf(id): a slide's fingerprint; index: this slide's place. */

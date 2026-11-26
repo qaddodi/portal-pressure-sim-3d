@@ -168,6 +168,11 @@ const cellKeyOf = (g: { congU: number; septU: number }): string => { const q = (
 /** How much of the lobule's own detail stays on a dive: it follows the field's breadth, but never less than the body has yet to cover (`body` is the body's share, 0 gone, 1 whole). Before, it was gone by
  *  the time the body was half back, and the screen was darker than both ends of the move: the black dive, slide 7 to 8, Black look. One picture both ways: the same on the way in. */
 export const lobuleStays = (wideNow: number, body: number): number => Math.max(1 - wideNow, 1 - Math.min(1, Math.max(0, body)));
+/** How much of the neighbours' ground is drawn on a dive (`body` the body's share, 0 gone, 1 whole): none while the body is whole, all of it once the body is half gone, smooth between.
+ *  The ground is the dive frame's backdrop, so it must be 0 at the frame the dive frame is switched on (the body's first step under 1). Before, it was whole at that frame: the page
+ *  behind and around the body turned to the lobules' tone in one frame, and back in one frame on the way out (the Anatomy to Lobule flicker, Mohammad 26 Nov). Whole by half-way: no
+ *  dip toward the page in the middle. */
+export const groundStays = (body: number): number => { const t = Math.min(1, Math.max(0, (1 - Math.min(1, Math.max(0, body))) * 2)); return t * t * (3 - 2 * t); };
 
 export class Lobule3D {
   readonly group = new Group();
@@ -406,10 +411,11 @@ export class Lobule3D {
     const come = lobuleStays(f.field.wideNow, body);
     // (whole once it is all but whole: the fade dissolves pixels in a screen pattern below 0.999, and a field that settles a hair short of 0 left the lobule speckled at rest, its lines dotted)
     const fv = (1 - under) * come, fs = fv > FADE_SNAP ? 1 : fv;
-    // (the neighbours' plate goes under the sinusoid on the same curve as the tiles and tubes, `1 - under`; it is NOT also faded by the field's own breadth `come`, which is how the field itself widens)
+    // (the neighbours' plate goes under the sinusoid on the same curve as the tiles and tubes, `1 - under`; it is NOT also faded by the field's own breadth `come`, which is how the
+    //  field itself widens. It comes in from the body on its own curve, groundStays: nothing of it while the body is whole, so the dive frame's switch is never seen)
     // (the ONE dissolve, written here and nowhere else: every tile, tube, mark and the marks plate drop the same pixels of one screen pattern at `fs`, the neighbours' ground fades at `1 - under`, and
     //  nothing else is scaled by either; the root group hands both to everything under it, lobule/one-fade.ts)
-    f.group.setFade(fs, 1 - under > FADE_SNAP ? 1 : 1 - under);
+    f.group.setFade(fs, (1 - under > FADE_SNAP ? 1 : 1 - under) * groundStays(body));
     const shown = force || (on && f.isVisible && under < 1);
     this.group.visible = shown && !force;
     // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
@@ -1178,29 +1184,6 @@ export function flowAux(b: MeshBuilder, before: number, pts: readonly (readonly 
   for (let v = before + ringVerts + capVerts; v < before + ringVerts + 2 * capVerts; v++) { b.aux.push(arc[m - 1]!); b.aux2.push(3); }
 }
 
-/** The Bile layer's courses, as the flat view builds them (lobule/view.ts channel()): the canaliculi midway between neighbouring sinusoids, and from each the first generation's canal of Hering to its tract's ductule. */
-export function bileCourses(net: LobuleNet): { pts: LP2[]; canal: boolean }[] {
-  const by = (k: Course['kind']) => net.courses.filter((c) => c.kind === k);
-  const out: { pts: LP2[]; canal: boolean }[] = [];
-  const mid = (a: Course, b: Course, i: number): LP2 => [(a.pts[i]![0] + b.pts[i]![0]) / 2, (a.pts[i]![1] + b.pts[i]![1]) / 2];
-  const channel = (cs: Course[], i0: number, i1: number, canals: boolean) => {
-    cs.forEach((a, k) => {
-      const b = cs[(k + 1) % cs.length]!;
-      if (a.tri === undefined) return;
-      const pts: LP2[] = [];
-      for (let i = i0; i <= i1; i++) pts.push(mid(a, b, i));
-      if (Math.hypot(pts[0]![0] - pts[pts.length - 1]![0], pts[0]![1] - pts[pts.length - 1]![1]) < 0.05) return;
-      out.push({ pts, canal: false });
-      if (canals) {
-        const tr = net.triads[a.tri]!, p0 = pts[0]!, bd = tr.bd, pc: LP2[] = [];
-        for (let j = 0; j <= 8; j++) { const u = j / 8; pc.push([bd[0] + (p0[0] - bd[0]) * u + tr.x * -0.012 * Math.sin(Math.PI * u), bd[1] + (p0[1] - bd[1]) * u + tr.y * -0.012 * Math.sin(Math.PI * u)]); }
-        out.push({ pts: pc, canal: true });
-      }
-    });
-  };
-  channel(by('s0'), 2, 22, true); channel(by('s1'), 2, 20, false); channel(by('s2'), 3, 22, false);
-  return out;
-}
 void BILE_ID;
 
 /** A 2D context that ignores its first `n` fill() calls (2D's painter fills the hexagon's ground and the gap before the cells: the 3D tiles and ground stand for those). */

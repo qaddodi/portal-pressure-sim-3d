@@ -9,7 +9,7 @@
 //   the end stenosis   dysfunction: params.stenosis × params.thrombus (engine.js occlusion), s, at the portal (proximal) or hepatic vein (distal)
 //                      end (params.stenosisSite, distal if unset), always short and focal: PINCH of the stent's length, abrupt.
 //   the waist          a reduction made on purpose, always mid stent: params.stentGeom[id].red, the share of the diameter it takes (the waist's
-//                      diameter is d·(1 − red)), over a length `waist` (cm), reached through a transition of `trans` (cm) at each end (0: an abrupt step).
+//                      diameter is d·(1 − red)), over a length `waist` (cm), reached through a transition of `trans` (cm) at each end (0: an abrupt step; unset: TRANS_DEFAULT, tapered).
 // Either, both or neither may be there. Each is counted on its own (its friction along it and the jet leaving it), and they add in series.
 //
 // The pressure across it, ΔP = R_lin·Q + B·Q|Q| (the engine solves it as a conductance with B lagged on |Q|), is made of five parts, each
@@ -45,6 +45,8 @@ export const K_C = 0;
 export const PINCH = 0.125;
 /** Tapered ends, cm each side (the card's "Tapered"). */
 export const TAPER_CM = 1;
+/** The ends a waist has when nothing sets them (cm each side): tapered. A stored `trans` of 0 is the card's Abrupt and stays abrupt; only an unset one reads as this. */
+export const TRANS_DEFAULT = TAPER_CM;
 /** The waist length's step (cm): the slider moves by it, and every number that prints a waist length shows it on that step, a glide's too (Mohammad, 17 Nov:
  *  "Waist cm in 0.5 increments on slider"; the figures' labels counted 3.1, 3.2, 3.3 through a glide from 3 to 3.5). */
 export const WAIST_STEP = 0.5;
@@ -76,10 +78,10 @@ export const tractOf = (kind) => KIND[kind]?.tract ?? 0;
 
 const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 
-/** A stent's geometry when none is set: its length, no waist (red 0; were one set, waistDefault of the length long with abrupt ends). */
+/** A stent's geometry when none is set: its length, no waist (red 0; were one set, waistDefault of the length long with tapered ends: TRANS_DEFAULT, Mohammad 26 Nov, "the waist of the TIPS should always be tapered by default"; the card's Ends choice switches it to abrupt, `trans` 0). */
 export const geomDefault = (kind, out = null) => {
   const len = KIND[kind]?.len ?? 8, o = out || {};   // alloc-rare: only a caller that brings no record (a test, a card's setter)
-  o.len = len; o.waist = waistDefault(len); o.trans = 0; o.red = 0;
+  o.len = len; o.waist = waistDefault(len); o.trans = TRANS_DEFAULT; o.red = 0;
   return o;
 };
 
@@ -87,7 +89,7 @@ export const geomDefault = (kind, out = null) => {
 export function geomFix(g, kind, out = null) {
   const d = KIND[kind]?.len ?? 8, o = out || {};   // alloc-rare: only a caller that brings no record
   const len = clamp(num(g?.len, d), GEOM_RANGE.len[0], GEOM_RANGE.len[1]);
-  const trans = clamp(num(g?.trans, 0), 0, Math.min(GEOM_RANGE.trans[1], len / 2));
+  const trans = clamp(num(g?.trans, TRANS_DEFAULT), 0, Math.min(GEOM_RANGE.trans[1], len / 2));
   const waist = clamp(num(g?.waist, waistDefault(len)), 0, Math.min(GEOM_RANGE.waist[1], len - 2 * trans));
   o.len = len; o.waist = waist; o.trans = trans; o.red = clamp(num(g?.red, 0), GEOM_RANGE.red[0], GEOM_RANGE.red[1]);
   return o;

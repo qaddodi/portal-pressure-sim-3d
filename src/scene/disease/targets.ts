@@ -69,11 +69,6 @@ export function bodyTargets(f: DiseaseFrame, p: DiseaseParams, healthyP: ArrayLi
   };
 }
 
-/** The pool's standing level for a volume, and whether it shows yet (nothing under 150 mL, fading in over the next 150: fluid-step.js POOL_MIN). */
-export function ascitesPool(ml: number): { h: number; amp: number; floor: number; fade: number } {
-  const l = fluidLevel(ml);
-  return { h: l.h, amp: l.amp, floor: l.floor, fade: poolFade(ml) };
-}
 
 /** How full the bleed's pool is (0..1) for the blood lost so far: a puddle at once, full by 1.5 L (blood.js poolFill). */
 export const poolFill = (total: number): number => Math.min(1, Math.max(0.12, Math.sqrt(Math.max(0, total || 0) / 1500)));

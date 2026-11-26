@@ -22,11 +22,8 @@ export const GLOW_A_MAX = 0.93;
 export const GLOW_LIFT = 0.25;
 /** The Circuit's change takes the glow away over its first GLOW_GATE_T (a smoothstep of circT): the map lays the vessels out afresh. (highlight.ts `glowGate` is the JS twin.) */
 export const GLOW_GATE_T = 0.15;
-/** The camera layer the mask pass draws (the vessels' glow meshes live on it and nowhere else; the figure's own two passes never draw it). */
-export const GLOW_LAYER = 3;
-/** The camera layer of a tapped or pinned ORGAN's mask (organs/glow-mask.ts): its own pass and its own textures (glow-fx.ts, a second GlowFx), so the vessels' lay over the figure and the organs' lay behind the vessels never
- *  paint each other's glow twice. The organ's glow is the same pipeline as the vessels': GLOW_SIGMA, GLOW_GAIN and GLOW_A_MAX are shared. */
-export const ORGAN_GLOW_LAYER = 4;
+import { GLOW_LAYER, ORGAN_GLOW_LAYER } from './layers.ts';
+export { GLOW_LAYER, ORGAN_GLOW_LAYER };   // (the camera layers are numbered in layers.ts, one registry: two passes once shared layer 3 and lit the whole figure)
 
 const sm = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 

@@ -66,7 +66,16 @@ export function defineFirst(deck) {
       for (const l of per[s]) {
         if (typeof l.key !== 'string' || !PROSE.includes(l.key)) continue;
         const m = longRe.exec(l.text);
-        if (!m || inBraces(l.text, m.index)) continue;
+        if (!m) {
+          // (a talk that says "Heart failure gives high-SAAG ascites" names the cause by an alias: it becomes the long name with its abbreviation)
+          const al = c.aliases.filter((x) => x.includes(' ')).map((x) => new RegExp(`(^|[^A-Za-z])${esc(x)}(?![A-Za-z])`).exec(l.text)).find(Boolean);
+          if (!al) continue;
+          const i = al.index + al[1].length, phrase = al[0].slice(al[1].length);
+          if (inBraces(l.text, i)) continue;
+          l.holder[l.key] = `${l.text.slice(0, i)}${c.long} (${A})${l.text.slice(i + phrase.length)}`;
+          placed = true; break;
+        }
+        if (inBraces(l.text, m.index)) continue;
         const at = m.index + m[0].length;
         if (l.text[at] === ' ' && l.text[at + 1] === '(') continue;
         l.holder[l.key] = `${l.text.slice(0, at)} (${A})${l.text.slice(at)}`;

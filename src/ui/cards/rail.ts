@@ -44,10 +44,6 @@ export const throwAt = (kind: Kind, k: number, from: Pt, to: Pt): Pt => throwInt
 
 /** Which way a move goes: +1 forward (cards leave to the left, come in from the right), -1 back. */
 export type Dir = 1 | -1;
-/** (no longer used by the rail: a card leaves by a short slide and a fade, not off the screen) */
-export const outDistance = (x: number, cardW: number): number => Math.max(120, x + cardW) + RAIL_GAP;
-/** Distance a coming card travels from the right: from a gap beyond the screen's right edge to its place. */
-export const inDistance = (x: number, vw: number): number => Math.max(120, vw - x) + RAIL_GAP;
 
 /** The finger's drag: the card follows it the whole way, finger-true at first, easing to a stop at `max` px; it fades with the travel. */
 export function followOf(dx: number, w: number, out: Pt = { x: 0, o: 1 }): Pt {

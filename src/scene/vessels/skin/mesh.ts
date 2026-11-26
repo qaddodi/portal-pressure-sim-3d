@@ -37,8 +37,6 @@ export const MAX_VERTS = 12000;
 /** Tangential smoothing per round: how far a free vertex moves toward its neighbours' mean, and the final rounds of smoothing and projecting (spec 4.5.6). */
 export const SMOOTH_LAMBDA = 0.6;
 export const POLISH_ROUNDS = 2;
-/** Newton steps that put a vertex on the surface (spec 4.5.5), and the central-difference step as a share of k. */
-export const PROJECT_STEPS = 12;
 export const GRADIENT_H = 0.05;
 /** Edge flips: an edge flips when that raises the sine of the smaller of its two triangles' smallest angles by `FLIP_GAIN` times and keeps the two faces facing the same way. */
 export const FLIP_GAIN = 1.05;
@@ -53,8 +51,6 @@ export const CREASE_STOP_DEG = 70;
 export const CREASE_MAX_ROUNDS = 80;
 /** The farthest a seam may be pushed out (spec 4.4). */
 export const MAX_TRIES = 40;
-/** A vertex of the second shape that is this close to the closing arm's axis (in that arm's radii) is on its thread, where the surface has no direction: it keeps the normal it had. */
-export const THREAD_R = 0.05;
 
 export { SkinBuildError };
 

@@ -28,7 +28,8 @@ export const CAUSES: readonly Cause[] = [
   { id: 'cirrhosis', long: 'Cirrhosis', short: 'Cirrhosis', site: 'Sinusoidal', aliases: [] },
   { id: 'sos', long: 'Sinusoidal obstruction syndrome', short: 'SOS', abbr: 'SOS', site: 'Postsinusoidal', aliases: ['Sinusoidal obstruction', 'Sinusoidal obstr. synd.'] },
   { id: 'bcs', long: 'Budd–Chiari syndrome', short: 'Budd–Chiari', site: 'Post-hepatic', aliases: [] },
-  { id: 'rhf', long: 'Right heart failure', short: 'Heart failure', site: 'Cardiac', aliases: ['Heart failure', 'Heart'] },
+  // (Mohammad, 26 Nov: the short name is "Rt HF"; Budd–Chiari stays "Budd–Chiari", "or BCS" being as good)
+  { id: 'rhf', long: 'Right heart failure', short: 'Rt HF', abbr: 'Rt HF', site: 'Cardiac', aliases: ['Heart failure', 'Heart'] },
 ];
 
 /** A cause's name, any spelling in (a long name, a short name, an alias), or undefined. Exact, whole-string, and case as written. */
@@ -41,6 +42,7 @@ export function causeOfName(name: string): Cause | undefined {
 export const ABBREVIATIONS: Readonly<Record<string, string>> = {
   SOS: 'sinusoidal obstruction syndrome',
   PVT: 'portal vein thrombosis',
+  'Rt HF': 'right heart failure',
   PV: 'portal vein',
   RHV: 'right hepatic vein',
   IVC: 'inferior vena cava',

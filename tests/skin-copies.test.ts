@@ -1,5 +1,6 @@
 // Junction skins drawn as three copies (docs/junction-skin-spec.md 10.4): a junction with an arm the 2D figure draws behind the organs (the cava, the SVC's pieces) is ONE geometry on three meshes, front, solid and veil, each weighted by the arms' own
 // shares of those copies, so a skin is never visible where its arms are not (Mohammad saw a stray floating skin). Node only: the real scene, no browser.
+import { GLOW_LAYER } from '../src/scene/layers.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
@@ -55,7 +56,7 @@ test('a skin is ONE geometry on three meshes, one source in three programs (SKIN
       c.forEach((m, k) => { assert.equal(m.layers.mask, 1 << COPY_LAYER[k]!, `${b.node} copy ${k} layer`); assert.equal(m.renderOrder, COPY_ORDER[k]!, `${b.node} copy ${k} order`); });
       assert.equal(b.draw.object.children.length, 4, 'the three copies and the selection glow\'s hull');
       assert.ok(b.draw.object.children.includes(b.draw.glow) && !b.draw.glow.visible, 'the glow is hidden until an arm is picked');
-      assert.equal(b.draw.glow.layers.mask, 1 << 3, 'on the glow\'s own layer (glow.ts GLOW_LAYER), drawn only by the mask pass'); assert.equal((b.draw.glow.material as ShaderMaterial).defines.GLOW, 1); assert.equal((b.draw.glow.material as ShaderMaterial).uniforms, mats[0]!.uniforms, 'the skin\'s own uniforms');
+      assert.equal(b.draw.glow.layers.mask, 1 << GLOW_LAYER, 'on the glow\'s own layer (glow.ts GLOW_LAYER), drawn only by the mask pass'); assert.equal((b.draw.glow.material as ShaderMaterial).defines.GLOW, 1); assert.equal((b.draw.glow.material as ShaderMaterial).uniforms, mats[0]!.uniforms, 'the skin\'s own uniforms');
     }
   });
   assert.match(SKIN_FS, /#ifndef SKIN_COPY[\s\S]*#define SKIN_COPY 0/, 'a skin with no define is its front copy');
