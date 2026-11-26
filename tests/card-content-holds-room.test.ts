@@ -57,8 +57,9 @@ test('a kept card whose new slide needs a taller box is replaced by a fresh card
   assert.match(frame, /if \(out\.grew > 1 && onOutgrown && !now\.current\.out\) \{ onOutgrown\(entry\.key\); return; \}/);
   assert.ok(frame.indexOf('onOutgrown(entry.key)') < frame.indexOf('box.current = out.state;'), 'the lock keeps what it landed with');
   assert.match(layer, /const dataKey = rekeys\[baseKey\] \? `\$\{baseKey\}~\$\{rekeys\[baseKey\]\}` : baseKey/);
-  assert.match(layer, /onOutgrown=\{slot === 'data' \? outgrown : undefined\}/);
-  assert.match(layer, /to\.key === baseKey/);
+  // (the words' card too, but not a card that stands alone: a fresh card of the same words would be the same height)
+  assert.match(layer, /onOutgrown=\{alone \? undefined : outgrown\}/);
+  assert.match(layer, /cardKey\(deck\.id, to\.key\) === baseKey/);
 });
 
 test('a card is let in only once its measured height has stood still, so a late row or readout cannot grow it on screen', () => {

@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { freezeOf, boxOf, BOX_START, type Frozen } from '../src/ui/cards/box-lock.ts';
 
-/** The heights drawn on each frame for a card let in at frame 0, given the plan's height for it on every frame, the step key of each, and the height the card itself measured for that key (null until it has). No clock anywhere. */
-function frames(plan: number[], key: (i: number) => string = () => 'ladder|390|1|0|||390x844', measured: (i: number) => number | null = () => null): number[] {
+/** The heights drawn on each frame for a card let in at frame 0, given the plan's height for it on every frame, the step key of each, and the height the card itself measured for that key (null until it has; by default the height it was let in at: a card is let in only on a measure). No clock anywhere. */
+function frames(plan: number[], key: (i: number) => string = () => 'ladder|390|1|0|||390x844', measured: (i: number) => number | null = () => plan[0]!): number[] {
   let f: Frozen | null = null; const out: number[] = [];
   plan.forEach((h, i) => { f = freezeOf(f, key(i), h, measured(i)); out.push(f.h); });
   return out;

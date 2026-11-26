@@ -41,7 +41,9 @@ export const grewFindings = (): AuditFinding[] => grewLog.map((g) => ({ kind: 'c
  *  phone alike never close the window early or leave it open (a card must never lock a height that is not its slide's content height, 25 Nov: Meso-rex 11 clipped at 270 px). Pure; tests/card-height-frames.test.ts. */
 export interface Frozen { key: string; h: number; pending: boolean }
 export function freezeOf(f: Frozen | null, key: string, rectH: number, measured: number | null): Frozen {
-  if (!f) return { key, h: rectH, pending: false };
+  // (the first height is the plan's too, and holds only once it IS what the card measured: a plan still on another card's number, or a slide's earlier
+  // one, is followed until it catches up; a card must never lock a height that is not its own content's, Mac 04.5 at 461 px for 387 px of words)
+  if (!f) return { key, h: rectH, pending: measured === null || rectH !== measured };
   if (f.key !== key) return { key, h: rectH, pending: measured === null || rectH !== measured };
   if (!f.pending) return f;
   return { key, h: rectH, pending: measured === null || rectH !== measured };

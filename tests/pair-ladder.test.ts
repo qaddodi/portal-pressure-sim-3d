@@ -58,7 +58,9 @@ test('the data card\'s own fit is the last step: to its room, never under 12 px'
   assert.equal(dataFitOf(900, 383, Infinity), 1);
   const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
   assert.match(layer, /dataFitOf\(dataHit\?\.h \?\? 0, plan\.maxH\.data, minPx\)/);
-  assert.match(layer, /vars: \(slot === 'data' \? dataVars : ladVars\) as CSSProperties/, 'the fit is the data card\'s alone: the words never zoom');
+  // (the words zoom only as the last resort past their last page, where the alternative is a clipped card: card-fit.ts wordsFitOf, tests/card-fit-rule.test.ts)
+  assert.match(layer, /vars: \(slot === 'data' \? dataVars : wordsVars\) as CSSProperties/, 'the fit is the data card\'s; the words\' only past their last page');
+  assert.match(layer, /const wordsVars = wfitK != null && wfitK < 1 \? \{ \.\.\.ladVars, '--pz-fit': wfitK \} : ladVars/);
   assert.match(layer, /!ladBusy && !fitBusy;/, 'the words page only when the fit is spent too');
 });
 

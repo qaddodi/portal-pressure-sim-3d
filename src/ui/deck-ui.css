@@ -229,6 +229,8 @@
 .pz-tight .pz-table.dk-pztable tbody :is(th, td) { padding-block: .14em; }
 .pz-tight .pz-table.dk-pztable thead th { padding-block: .32em; }
 .pz-tight .pz-table.dk-pztable .pz-foot { padding: .32em 1em .4em; }
+/* (2D pinned a table's legend to the foot of a table that scrolls; nothing scrolls in a card here, so a pinned legend only ever stood over the rows a clipped card cut off: it follows the last row, A-D1 of capture 3531bdfa) */
+.deck-ui .pz-table .pz-foot { position: static; }
 .pz-table.dk-pztable .tn { margin: 0; line-height: 1.15; overflow-wrap: normal; -webkit-hyphens: manual; hyphens: manual; }
 .deck-ui .pz-table.dk-pztable tbody tr th[scope="row"] .pz-kick { display: none; }
 .dk-tnone.dk-noflow { font: 500 max(var(--t-cap), .72em) / 1.2 var(--ui, system-ui); letter-spacing: 0; }

@@ -49,6 +49,8 @@ import { swipeMove, apply, samePos, type Move } from '../deck/presenter-machine.
 import { gapOf } from './ladder-model.ts';
 import { maxPages, clampPage, nextToMeasure, tallestPage } from './pages.ts';
 import { rekeyed } from './box-lock.ts';
+import { cardKey, wordsCardKey } from './card-key.ts';
+import { wordsFitOf } from './card-fit.ts';
 import { frameProps, wordsClasses, type FrameLive } from './frame-props.ts';
 
 import { clock } from '../../clock/frame.ts';
@@ -104,8 +106,15 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const page = useUi((s) => s.page);
   const setPageCount = useUi((s) => s.setPageCount);
 
-  const wordsKey = view ? (view.slide && (view.words === 'teach' || view.words === 'case' || view.words === 'visual') ? `${view.words}:${view.slide.id}` : view.words) : '';
-  const pagesKey = `${wordsKey}@${vp.w}x${vp.h}`;
+  // (a card's key is its talk and its slide: a slide id alone is shared by several talks, card-key.ts)
+  const keyOfWords = (v: NonNullable<typeof view>) => wordsCardKey(deck.id, v.words, v.slide?.id);
+  // A card that grew past the box it locked is not grown: it is replaced by a fresh card at its final size (CardFrame `onOutgrown`; Mohammad, 24 Nov: a
+  // card never visibly changes size), the words' card as the data card.
+  const [rekeys, setRekeys] = useState<Record<string, number>>({});
+  const outgrown = useCallback((k: string) => setRekeys((m) => { const n = rekeyed(m, k, MAX_REKEYS); return Object.keys(n).every((b) => n[b] === m[b]) ? m : n; }), []);
+  const wordsBase = view ? keyOfWords(view) : '';
+  const wordsKey = rekeys[wordsBase] ? `${wordsBase}~${rekeys[wordsBase]}` : wordsBase;
+  const pagesKey = `${wordsBase}@${vp.w}x${vp.h}`;
   const pair = !!view?.data;
   // 2D's steps for a stacked pair too tall for the screen (pair-ladder.ts): the title, then the data card's blocks; one index per slide and size, taken before the words page
   const [ladMap, setLadMap] = useState<Record<string, number>>({});
@@ -129,7 +138,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const surveyKey = `${pagesKey}#${pages}`;
   const got = surveyMap[surveyKey];
   const nextPage = nextToMeasure(got, pages);
-  const surveying = nextPage !== undefined && liveWords.current !== wordsKey && surveyLate !== pagesKey;
+  const surveying = nextPage !== undefined && liveWords.current !== wordsBase && surveyLate !== pagesKey;
   const pageMax = tallestPage(got, pages);
   const at = surveying ? nextPage! : clampPage(page, pages);
   const ladOn = pair && !!view && !centredKind(view.words);
@@ -141,15 +150,20 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // (a phone on its side, a table card past its room after every step: its rows sit closer, one last step; the type never shrinks)
   const [tightMap, setTightMap] = useState<Record<string, boolean>>({});
   const tight = !!tightMap[pagesKey];
-  const sig = `${wordsKey}|${pages}|${at}|${vp.w}x${vp.h}|${lad}|${fitK ?? ''}|${tight ? 't' : ''}`;
+  // The words' last resort (card-fit.ts): past their last page they still stand taller than their room, so their contents zoom to it (--pz-fit, never
+  // under the 12 px floor) rather than stand clipped. Before the last page they page.
+  const [wfitMap, setWfitMap] = useState<Record<string, number>>({});
+  const wfitK = alone ? undefined : wfitMap[pagesKey];
+  const wordsVars = wfitK != null && wfitK < 1 ? { ...ladVars, '--pz-fit': wfitK } : ladVars;
+  const sig = `${wordsKey}|${pages}|${at}|${vp.w}x${vp.h}|${lad}|${fitK ?? ''}|${tight ? 't' : ''}|${wfitK ?? ''}`;
   sigRef.current = sig;
 
-  // A kept data card whose new slide needs a taller box than it landed with is not grown: it is replaced by a fresh card at its final size (CardFrame `onOutgrown`; Mohammad, 24 Nov: a card never visibly changes size).
-  const [rekeys, setRekeys] = useState<Record<string, number>>({});
-  const baseKey = here?.key ?? 'ladder';
+  // A kept data card whose new slide needs a taller box than it landed with is replaced like the words' (above).
+  const baseKey = cardKey(deck.id, here?.key ?? 'ladder');
   const dataKey = rekeys[baseKey] ? `${baseKey}~${rekeys[baseKey]}` : baseKey;
-  const outgrown = useCallback((k: string) => setRekeys((m) => { const n = rekeyed(m, k, MAX_REKEYS); return Object.keys(n).every((b) => n[b] === m[b]) ? m : n; }), []);
-  const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: h(wordsKey) > 0 ? Math.max(h(wordsKey), pageMax) : 0 }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey), want: hit(dataKey)?.want ?? 0 }] : [])] : [];
+  // (a words card replaced by a fresh one at its final size stands at the height of the one it replaces until the fresh one has measured: the pair does not rearrange meanwhile)
+  const wordsH = h(wordsKey) || h(wordsBase);
+  const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: wordsH > 0 ? Math.max(wordsH, pageMax) : 0 }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey), want: hit(dataKey)?.want ?? 0 }] : [])] : [];
   const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked), [vp, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}:${n.want ?? ''}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The dock glide sets off: the figure's room for where the card is going is told at once, with the glide's length, so the camera reframes with the card, not after it lands (2D presenter-zoom.js dockTo:
@@ -177,13 +191,15 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const tooTall = !!view && plan.overflow.includes(view.words) && wordsHit?.sig === sig && !ladBusy && !fitBusy;
   // (a phone on its side, a table card past its room at its one width: its rows sit closer, one last step; the type never shrinks)
   const tightens = plan.sideways && tooTall && !tight && !!view && pages >= capOf(view) && view.slide?.visual === 'table';
+  const wfitBusy = tooTall && !alone && !tightens && !!view && pages >= capOf(view) && wfitK === undefined;
   useLayoutEffect(() => {
     if (!view) return;
+    // (the size of a card's lettering where it stands now: the ladder's base sizes, and the words' fit floor)
+    const px = (slot: string, sel: string) => { const e = liveCard(slot)?.querySelector<HTMLElement>(sel); return e ? parseFloat(getComputedStyle(e).fontSize) || 0 : 0; };
     if (ladBusy) {
       // the first measure at the full size gives the ladder its sizes (the title's, the words', the tiles' names), read where they stand; each step after it is the next index
       if (!ladBase[pagesKey]) {
         // (from the cards now standing, never one leaving: during a slide change the old card is still first in the page, and its sizes gave a wrong floor, a title at 1.24 times its words)
-        const px = (slot: string, sel: string) => { const e = liveCard(slot)?.querySelector<HTMLElement>(sel); return e ? parseFloat(getComputedStyle(e).fontSize) || 0 : 0; };
         setLadBase((m) => ({ ...m, [pagesKey]: { titlePx: px('words', '.pz-h'), bodyPx: px('words', '.pz-line, p'), labelPx: px('data', '.pz-tiles .pzt-k') } }));
       } else setLadMap((m) => ({ ...m, [pagesKey]: lad + 1 }));
       return;
@@ -197,10 +213,14 @@ export function CardLayer({ deck }: { deck: Deck }) {
       setFitMap((m) => ({ ...m, [pagesKey]: k }));
       return;
     }
+    if (wfitBusy) {
+      setWfitMap((m) => ({ ...m, [pagesKey]: wordsFitOf(wordsHit?.h ?? 0, plan.maxH.words, px('words', '.pz-line, p'), true) }));
+      return;
+    }
     const cap = capOf(view);
     if (tooTall && pages < cap) setPagesMap((m) => ({ ...m, [pagesKey]: pages + 1 }));
     else if (tightens) setTightMap((m) => ({ ...m, [pagesKey]: true }));
-  }, [tightens, tooTall, ladBusy, fitBusy, lad, cands.length, pages, pagesKey, view, deck.checks.length]);
+  }, [tightens, tooTall, wfitBusy, ladBusy, fitBusy, lad, cands.length, pages, pagesKey, view, deck.checks.length]);
   useLayoutEffect(() => { setPageCount(pages); }, [pages, setPageCount, wordsKey]);
 
   // a leaving card stays where it was while it goes
@@ -215,7 +235,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // and the fonts are in (a card that came in on its own measure then grew, and the second card showed up after the first). A slow measure never
   // holds a slide back for good: past GIVE_UP_CARDS_MS the cards come in as they are.
   const fonts = useFontsReady();
-  const growing = ladBusy || fitBusy || (tooTall && pages < (view ? capOf(view) : 1)) || tightens || surveying;
+  const growing = ladBusy || fitBusy || wfitBusy || (tooTall && pages < (view ? capOf(view) : 1)) || tightens || surveying;
   // (and its height has stood still for SETTLE_MS: a row or a readout that mounts in the frame after the first measure, from an effect or a second render, has come by then, so the card is let in at the height it keeps)
   const [, setTick] = useState(0);
   const settleLeft = needs.reduce((m, n) => { const e = hit(n.slot === 'words' ? wordsKey : dataKey); return e ? Math.max(m, SETTLE_MS - (clock.nowReal() - e.t)) : m; }, 0);
@@ -232,7 +252,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // a slow screen (a heavy figure, a phone) takes many seconds over those steps, and a net on the wall clock let the card in half-negotiated,
   // its words short of their last lines and its instrument past its room (Portal day 3, Carvedilol 5, Mac, 25 Nov).
   // A hard cap keeps a card that never stops changing from hiding the talk. Real time both (tests/card-readiness-real-time.test.ts).
-  const progress = [wordsHit?.h, wordsHit?.sig, dataHit?.h, dataHit?.sig, lad, fitK, pages, tight, got?.join(',')].join('|');
+  const progress = [wordsHit?.h, wordsHit?.sig, dataHit?.h, dataHit?.sig, lad, fitK, wfitK, pages, tight, got?.join(',')].join('|');
   useEffect(() => { const t = clock.afterReal(() => setSurveyLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey, progress]);
   useEffect(() => { const t = clock.afterReal(() => setLate(pagesKey), GIVE_UP_CARDS_MS); return () => clock.cancel(t); }, [pagesKey, progress]);
   useEffect(() => {
@@ -267,7 +287,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   useEffect(() => { if (!paneUsed) return; const t = clock.afterReal(() => setPaneLate(pagesKey), PANE_GIVE_UP_MS); return () => clock.cancel(t); }, [paneUsed, pagesKey]);
   const paneWaits = paneUsed && paneLate !== pagesKey;
   const go = fonts && !growing && (numbers || gaveUp === numbersKey) && (measured || (late === pagesKey && !paneWaits)) && (panesIn || paneLate === pagesKey);
-  useEffect(() => { if (go && view) liveWords.current = wordsKey; });
+  useEffect(() => { if (go && view) liveWords.current = wordsBase; });
   // the first cards of a talk fade in where they stand; every later one slides in from the side the talk comes from (2D's first card has no way to come from)
   const seen = useRef(false);
   const fresh = !seen.current;
@@ -360,7 +380,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     onMove: goTo,
     // a drag follows only where it will do something: a slide to go to (or a page to turn), not the first slide's Back
     // the data card the next slide keeps (same key) stays put under a drag: only the cards that change follow the finger
-    keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return false; const to = dataAt[apply(stops, pos, dx < 0 ? 'next' : 'back').stop]; return !!view?.data && !!to && to.key === baseKey; },
+    keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return false; const to = dataAt[apply(stops, pos, dx < 0 ? 'next' : 'back').stop]; return !!view?.data && !!to && cardKey(deck.id, to.key) === baseKey; },
     // a slide whose procedure (or whose data card's readings) takes Next as a step: the swipe steps through the steps and no card follows the finger (Mohammad, 24 Nov)
     stays: stepsHere,
     // a slide change sends the cards out from where the finger let go; a page turned, or a beat of this slide, leaves them where they are (they ease back)
@@ -369,7 +389,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
       const to = apply(stops, pos, m);
       if (samePos(to, pos)) return false;
       const v2 = phoneView(viewAt(stops, to, lastSlideShot(stops)), sidewaysNow, dataAt[to.stop]?.kind);
-      return (v2.slide && (v2.words === 'teach' || v2.words === 'case' || v2.words === 'visual') ? `${v2.words}:${v2.slide.id}` : v2.words) !== wordsKey;
+      return keyOfWords(v2) !== wordsBase;
     },
     can: (dx) => !cardZoom.on && (pages > 1 || (dx < 0 && atEnd(useUi.getState())) || !samePos(apply(stops, pos, dx < 0 ? 'next' : 'back'), pos)),
     width: vp.w,
@@ -415,12 +435,12 @@ export function CardLayer({ deck }: { deck: Deck }) {
     const rect = placed ?? last.current[e.key] ?? ZERO;
     // Each card is drawn from what it was let in with (frame-props.ts): a card on its way out keeps its own step, visual and signature, never the new slide's, so it is not re-spaced or measured while it goes
     const isCurrent = e.phase === 'in' && e.key === wantedKey;
-    const live: FrameLive = { vars: (slot === 'data' ? dataVars : ladVars) as CSSProperties | undefined, visual: view.slide?.visual, sig, tight };
+    const live: FrameLive = { vars: (slot === 'data' ? dataVars : wordsVars) as CSSProperties | undefined, visual: view.slide?.visual, sig, tight };
     if (isCurrent) frameSnap.current[e.key] = live;
     const fp = frameProps(isCurrent, live, frameSnap.current[e.key]);
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
-      <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onOutgrown={slot === 'data' ? outgrown : undefined} onGone={stack.gone} label={labelOf(e.id)}
+      <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onOutgrown={alone ? undefined : outgrown} onGone={stack.gone} label={labelOf(e.id)}
         pointer={swipe} go={go} data={slot === 'data'} vars={fp.vars as never} remeasure={fp.sig} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} lift={plan.scrolled ? plan.scrollDy : undefined} zoomable={zoomsHere && e.phase === 'in'} onTap={plan.sideways && plan.scrollDy > 0 && e.phase === 'in' && (slot === 'data' ? !plan.scrolled : plan.scrolled) ? () => { if (!justDocked() && !justDragged()) goColumn(slot === 'data' ? 1 : 0, plan.scrollDy, setDocked); } : slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsOn(plan.layout, plan.sideways) && e.phase === 'in' && (zoomsHere || view.slide?.visual === 'ladders') ? zoomTap : undefined} visual={fp.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : wordsClasses(e.id, fp.visual, !!nameTabOf(deck))}>
         {slot === 'data' ? <DataCap.Provider value={alone || !(wordsHit && wordsHit.h > 0) ? 0 : plan.maxH.data}>{content(e)}</DataCap.Provider>
           // (a chart in a centred panel keeps inside what the panel leaves it, as one in a data card does: only past its floor does the panel's fit zoom take over)

@@ -24,11 +24,11 @@ test('every page takes the tallest page\'s height (298 then 328: both 328)', () 
 });
 
 test('the layer walks before it lands, gives the plan the tallest, and holds the cards while it walks', () => {
-  assert.match(layer, /const surveying = nextPage !== undefined && liveWords\.current !== wordsKey && surveyLate !== pagesKey/);
+  assert.match(layer, /const surveying = nextPage !== undefined && liveWords\.current !== wordsBase && surveyLate !== pagesKey/);
   assert.match(layer, /const at = surveying \? nextPage! : clampPage\(page, pages\)/);
-  assert.match(layer, /h: h\(wordsKey\) > 0 \? Math\.max\(h\(wordsKey\), pageMax\) : 0/);
+  assert.match(layer, /h: wordsH > 0 \? Math\.max\(wordsH, pageMax\) : 0/);
   assert.match(layer, /\|\| tightens \|\| surveying;/);
   // a card on screen is never walked under the reader's eyes, and the walk gives up with the cards' own give-up
-  assert.match(layer, /useEffect\(\(\) => \{ if \(go && view\) liveWords\.current = wordsKey; \}\);/);
+  assert.match(layer, /useEffect\(\(\) => \{ if \(go && view\) liveWords\.current = wordsBase; \}\);/);
   assert.match(layer, /clock\.afterReal\(\(\) => setSurveyLate\(pagesKey\), GIVE_UP_CARDS_MS\)/);
 });

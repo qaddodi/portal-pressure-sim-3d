@@ -15,6 +15,7 @@ import { heldBy, openCharts } from './card-want.ts';
 import { beginSink, beginReveal, finishSink, finishReveal, settle, committed, shiftWords, type GlideHost } from './card-glide.ts';
 import { boxOf, noteGrew, freezeOf, tellsLayer, BOX_START, type Frozen } from './box-lock.ts';
 import { releaseTitles, balanceTitles } from './title-balance.ts';
+import { floorOf } from './card-fit.ts';
 
 import { clock } from '../../clock/frame.ts';
 interface Props {
@@ -171,12 +172,16 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
       }
       const card = cardRef.current, cs = card && centredKind(entry.id) ? getComputedStyle(card) : null;
       const pad = cs ? (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) : 0;
-      // 2D's fit (presenter-zoom.js): a panel taller than its room zooms its contents down (--pz-fit, `.pz-panel > *`) until they fit, the words never under 12 px; only past that does the card split
+      // 2D's fit (presenter-zoom.js): a panel taller than its room zooms its contents down (--pz-fit, `.pz-panel > *`) until they fit, the words never under 12 px; only past that does the card split.
+      // A pass the observer makes after the card landed fits to the box the card LANDED with when that is the smaller room (the box never grows, so what came after the lock, a late row, a title re-broken, a table's heads
+      // set again, zooms down into it instead of standing clipped: A-D1, A-D2, C-D1 of capture 3531bdfa); the check card, which opens its answers by design, is judged by the screen's room alone.
       if (card && cs && centredKind(entry.id) === 'panel') {
-        const room = centredBox(vp, 'panel', panelVisual({ id: entry.id, visual })).maxH, size = () => el.getBoundingClientRect().height / scaleOf(el) + pad + 2 + heldBy(el);   // (+ what a picture held to its room still wants: the content zooms down until the picture has its height, never drawn past the panel, Plan 43)
+        const screenRoom = centredBox(vp, 'panel', panelVisual({ id: entry.id, visual })).maxH, size = () => el.getBoundingClientRect().height / scaleOf(el) + pad + 2 + heldBy(el);   // (+ what a picture held to its room still wants: the content zooms down until the picture has its height, never drawn past the panel, Plan 43)
+        const landed = !full && gate.current && box.current.key === lockKey && box.current.h > 0 && !GROWS_BY_DESIGN.has(entry.id) ? box.current.h : Infinity;
+        const room = Math.min(screenRoom, landed);
         const cur = parseFloat(card.style.getPropertyValue('--pz-fit')) || 1;
         if (full) card.style.removeProperty('--pz-fit');
-        const probe = card.querySelector('.pz-line, .pz-outline li, p'), lb = probe ? parseFloat(getComputedStyle(probe).getPropertyValue('font-size')) : 0, floor = lb > 12 ? Math.ceil((12 / lb) * 1000) / 1000 : 0.5;
+        const probe = card.querySelector('.pz-line, .pz-outline li, p'), floor = floorOf(probe ? parseFloat(getComputedStyle(probe).getPropertyValue('font-size')) : 0);
         let k = full ? 1 : cur, hgt = size();
         for (let n = 0; n < 8 && hgt > room && k > floor; n++) { k = Math.max(floor, k * Math.min(0.97, (room / hgt) ** 0.9)); card.style.setProperty('--pz-fit', k.toFixed(3)); hgt = size(); }
       }

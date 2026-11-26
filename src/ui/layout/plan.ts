@@ -292,8 +292,16 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     maxH.data = Math.round(foot - capTop - (words ? gap + wh : 0));
     // the instrument was held short by this room: what the card would stand at with it at its wanted height is more than the card may be (Plan 43)
     short = !!data && (data.want ?? 0) > maxH.data + 0.5;
-    if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(y0), w, h: wh } });
-    if (data) placed.push({ id: data.id, slot: 'data', rect: { x, y: Math.round(y0 + wh + (words ? gap : 0)), w, h: dh } });
+    // The pair is never drawn past the screen (the stacked branch's rule, for a wide screen): a card taller than the room it has stands at that room, and
+    // the plan says so in `overflow` (which reads the measured
+    // height, not the drawn one), so the layer pages it, steps it or fits it. The instrument keeps what the words leave (never under 40% of the room), the words take the rest.
+    const both = !!words && !!data, pairGap0 = both ? gap : 0, avail = foot - capTop - pairGap0;
+    const dh2 = both && wh + dh > avail ? Math.round(Math.min(dh, Math.max(avail - wh, 0.4 * avail))) : both ? dh : Math.min(dh, avail);
+    const wh2 = both ? (wh + dh2 > avail ? Math.round(Math.max(avail - dh2, 0)) : wh) : Math.min(wh, avail);
+    const total2 = wh2 + dh2 + pairGap0;
+    const y1 = total2 < total ? Math.max(capTop, Math.min(pairTop(vp.h, total2, top0, foot), foot - total2)) : y0;
+    if (words) placed.push({ id: words.id, slot: 'words', rect: { x, y: Math.round(y1), w, h: wh2 } });
+    if (data) placed.push({ id: data.id, slot: 'data', rect: { x, y: Math.round(y1 + wh2 + (words ? gap : 0)), w, h: dh2 } });
     bounds = { x: safe.left, y: safe.top + 8, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - 8 };
     extra.push(bar.rect);
   }
@@ -301,7 +309,7 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
   const blockers = placed.map((p) => p.rect).concat(strip ? [strip.rect] : [], extra);
   // (a card's own height, not the room it stands in: a pair's two cards stand the room's whole height whatever their words need)
   const need = (p: Placed) => needs.find((n) => n.slot === p.slot)?.h ?? p.rect.h;
-  const overflow = placed.filter((p) => (sideways || (!alone && (layout === 'stack' || layout === 'tab')) ? need(p) : p.rect.h) > maxH[p.slot] + 0.5).map((p) => p.id);
+  const overflow = placed.filter((p) => need(p) > maxH[p.slot] + 0.5).map((p) => p.id);
   return { device, layout, sideways, cards: placed, strip, shut: false, docked, tucked, scrolled, scrollDy, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, short, bar };
 }
 

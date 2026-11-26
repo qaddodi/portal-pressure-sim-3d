@@ -188,7 +188,7 @@ test('the data card a slide keeps does not follow the finger, and glides with th
   const layer = readFileSync(new URL('../src/ui/cards/CardLayer.tsx', import.meta.url), 'utf8');
   const drag = readFileSync(new URL('../src/ui/cards/useCardDrag.ts', import.meta.url), 'utf8');
   const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
-  assert.match(layer, /keeps: \(dx\) => .*to\.key === baseKey/, 'the layer says whether the data card is kept by the slide a drag goes to');
+  assert.match(layer, /keeps: \(dx\) => .*cardKey\(deck\.id, to\.key\) === baseKey/, 'the layer says whether the data card is kept by the slide a drag goes to');
   assert.match(drag, /filter\(\(c\) => !\(keep && c\.data\)\)/, 'a kept data card is left out of the drag');
   assert.match(frame, /transition: `transform \$\{IN_MS\}ms \$\{RAIL_CSS\} \$\{OUT_DONE\}ms`/, 'its move to a new place waits for the old cards to be gone, then runs as long as the new cards\' entrance');
   assert.equal(OUT_DONE, 272);
