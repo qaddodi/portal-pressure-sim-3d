@@ -106,3 +106,10 @@ export function rowsOf(of: readonly OfRow[], slides: readonly SlideLike[], fps: 
 }
 /** The heading over a row's name (2D table-marks.js headOf: a site's "Intrahepatic · " is left off, its colour says it). */
 export const headOf = (r: { kicker?: string }) => (r.kicker || '').replace('Intrahepatic · ', '');
+
+/** The heads of a ladders grid stand alike (capture 36b7deac, slide 11 of Sites and causes: two causes fit beside their site,
+ *  four stood under it, so the rows had two heights). Each cell measures whether its own cause fits beside its site (2D's causeFit);
+ *  the grid has one answer for all of them: when any cell must stack, every cell stacks. natural: each cell's own verdict, true for "under". */
+export const headsStack = (natural: readonly boolean[]): boolean => natural.some(Boolean);
+/** What a cell's head tells its grid when the grid's verdict changes, so the cells that measured before it measure once more. */
+export const HEADS_EVENT = 'pz-heads';

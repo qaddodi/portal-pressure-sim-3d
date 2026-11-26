@@ -8,7 +8,7 @@ import { useUi } from '../ui-store.ts';
 import { tableModel, type Cell } from '../talk/table-model.ts';
 import { resolveTable, useTables, fpOfSlide, pendingRows } from '../talk/table-rows.ts';
 import { CUT } from '../deck/from2d/table-marks.js';
-import { missWords, longestWord, colChars, gridOf, waveMaxH } from './table-words.ts';
+import { missWords, longestWord, twoLineWidest, colChars, gridOf, waveMaxH } from './table-words.ts';
 import { WaveCell } from './WaveCell.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
 import { turnHeads } from './table-heads.ts';
@@ -98,10 +98,12 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   // (the name's column takes what the value columns leave: fewer columns, a wider name; the site stands over its rows as a heading row on a phone, so a name has its column to itself)
   // (and never narrower than the longest word a name holds, which cannot break: "Schistosomiasis" ran under the next column's arrows, capture 4fb2f869)
   const longest = useMemo(() => longestWord(model.rows.map((r) => r.title)), [model.rows]);
+  // (and, where the value columns leave the room, two lines of the longest name rather than three: --dk-wn2, deck-ui.css)
+  const twoLines = useMemo(() => twoLineWidest(model.rows.map((r) => r.title)), [model.rows]);
   // (and each value column never narrower than what its cells print: "0.50" ran to the table's edge and "113/72 (86)" stood on three lines when every column was an equal share of what the name left, capture f23a4c59)
   const { grid, need } = useMemo(() => gridOf(model.cols.map((c) => c.k), model.cols.map((c, j) => colChars(model.rows.map((r) => r.cells[j])))), [model]);
   return (
-    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${up ? ' dk-up' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-wn' as string]: longest, ['--dk-grid' as string]: grid, ['--dk-cols' as string]: need }}>
+    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${up ? ' dk-up' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-wn' as string]: longest, ['--dk-wn2' as string]: twoLines, ['--dk-grid' as string]: grid, ['--dk-cols' as string]: need }}>
       <table>
         <thead>
           <tr ref={headRow} className={up ? 'th-up' : undefined}>

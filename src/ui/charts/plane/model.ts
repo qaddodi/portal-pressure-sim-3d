@@ -9,6 +9,7 @@ import {
 } from './layout.generated.js';
 import { tileShown } from './shim.ts';
 import { fullIsoNames } from './iso-names.ts';
+import { leadTogether } from './close-leads.ts';
 import { TILE } from '../tiles.generated.ts';
 import { fmt } from '../fmt.ts';
 import { lcFirst } from '../../../engine/hales/portal/lc-first.js';
@@ -155,7 +156,9 @@ export function planeLayout(inp: LayoutIn): PlaneLayout {
   const extra = [...axisNames.map((n) => n.box), ...(card || axed ? [] : (cutNumbers0(pl, fr, X, Y, fs, [...pointBoxes, ...axisNames.map((n) => n.box)]) as Box[]))].map((b) => widen0(b, (pl.nameGap || 3) - 3));
   const lay = card ? { names: [] as (PlacedName | null)[], words: [] as ZoneWords[], lines: [] as { text: string; x: number; y: number; anchor: 'start' | 'middle' | 'end'; box: Box }[] }
     : layoutPlane0(pl, fr, X, Y, fs, at, card, extra, pr, axed ? 3 : pl.nameGap || 0);
-  const { names, words, lines } = lay;
+  const { words, lines } = lay;
+  // (A point with company has a leader to its name: close-leads.ts.)
+  const names = card ? lay.names : leadTogether(at, lay.names, pr, fr, [...words.map((w: ZoneWords) => w.box), ...lines.map((l: { box: Box }) => l.box)]);
   const nums: Word[] = card ? cardNums : axed ? [...ax!.nums, ...ax!.names] : [...axisNames, ...plotNumbers0(pl, fr, X, Y, fs, [...pointBoxes, ...axisNames.map((n) => n.box), ...names.filter(Boolean).map((n) => n!.box), ...words.map((w: ZoneWords) => w.box), ...lines.map((l: { box: Box }) => l.box)], 'ticks')];
   const boxes = (pl.boxes || []).map((b) => { const [x0, x1, y0, y1] = zoneRect0(pl, b); return { x: X(x0), y: Y(y1), w: X(x1) - X(x0), h: Y(y0) - Y(y1) }; });
   // The cut-off lines, broken 4 px clear of a name that sits across one, and of a number a line runs to.
