@@ -78,7 +78,7 @@ export function playCourse(c: Course): Baked {
   const act = (s: Step) => {
     if (s.act === 'bleed') { e.rupture(s.site ?? 'VAR', 0.6); watch(BLEED_SECONDS * 10, 0.1, 5); const r = entries.find((x) => x.evId === 'VARIX_RUPTURE' && x.day === e.day); if (r && s.id) r.step = s.id; return; }
     const a = s.act === 'band' ? { kind: 'band' } : { kind: 'paracentesis', mL: Math.floor(e.slow.ascites / 100) * 100, albumin: true };
-    if (a.kind === 'band') e.band(); else e.paracentesis(a.mL as number, true);
+    if (a.kind === 'band') e.band(); else { e.paracentesis(a.mL as number, true); feed.markStep(); }   // (a tap is a step of the record, as on the page: send.ts STEPS)
     drain();
     entries.push({ kind: 'change', label: actionLabel(a), day: e.day, t: round(e.t, 2), action: true, ...(s.id ? { step: s.id } : {}), ...(s.detail ? { detail: s.detail } : {}) });
     baseline = labelsOf(e.params);   // (the albumin the tap gave is not a change anyone made)

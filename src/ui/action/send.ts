@@ -6,6 +6,7 @@ import { timeline } from '../timeline/index.ts';
 import { useShell } from '../shell/store.ts';
 import { actionLabel, type Action } from './action-label.ts';
 import { talkOn } from '../../state/deck.ts';
+import { record } from '../tests/feed.ts';
 
 export { actionLabel };
 
@@ -28,12 +29,16 @@ export function actionAnswer(a: Action, f: Seen, quiet = false): { send: boolean
   return { send: true, say: null };
 }
 
+/** the actions that move a reading at once: the day record makes them a step (a tap drops the ascites the same day; a band is counted by the feed itself) */
+export const STEPS = (a: Action): boolean => a.kind === 'paracentesis' || a.kind === 'infuse';
+
 export function sendAction(a: Action): void {
   const sh = useShell.getState();
   const ans = actionAnswer(a, live.frame as Seen, talkOn());
   if (ans.say) sh.say(ans.say);
   if (!ans.send) return;
   engine().send({ type: 'action', action: a });
+  if (STEPS(a)) record.markStep();
   const label = actionLabel(a);
   if (label) timeline.recordAction(label);
 }

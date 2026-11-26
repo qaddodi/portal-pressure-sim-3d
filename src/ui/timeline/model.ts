@@ -24,6 +24,8 @@ export interface Entry {
   snapFailed?: boolean;
   /** a moment of a history that came with the patient (baked): it can be shown again (goTo), but it is the past, not a change of this page's for Undo and Redo to walk */
   past?: boolean;
+  /** the course step that made it (a model patient's: the story's chapters and marks are anchored to steps) */
+  step?: string;
 }
 
 export interface EventIn { id: string; title: string; detail?: string; severity?: string; t: number; day: number }
@@ -79,6 +81,8 @@ const EVENT_REPEAT_MS = 30000;
 export class Timeline {
   private entries_: Entry[] = [];
   private cursor_ = -1;
+  /** History let go of its earliest entries (it keeps 300): the story says so where they were */
+  private trimmed_ = false;
   private seq = 0;
   private baseline: unknown = null;
   private pending: { label: string; timer: unknown } | null = null;
@@ -104,6 +108,7 @@ export class Timeline {
   private currentIndex(): number { return this.cursor_ >= 0 ? this.cursor_ : this.liveIndex(); }
   /** the entry the model is at now (the History row marked "Back to this moment"), or -1 */
   isLive(i: number): boolean { return i === this.liveIndex() && this.cursor_ < 0; }
+  trimmed(): boolean { return this.trimmed_; }
   isFuture(i: number): boolean { return this.cursor_ >= 0 && i > this.cursor_; }
 
   canUndo(): boolean {
@@ -154,7 +159,7 @@ export class Timeline {
     const f = this.host.frame();
     const entry: Entry = { ...e, id: ++this.seq, t: e.t ?? f?.t ?? 0, day: e.day ?? f?.day ?? 0 };
     this.entries_.push(entry);
-    if (this.entries_.length > 300) this.entries_.splice(1, 1);
+    if (this.entries_.length > 300) { this.entries_.splice(1, 1); this.trimmed_ = true; }
     this.fire();
     return entry;
   }
@@ -163,7 +168,7 @@ export class Timeline {
   reset(label?: string): void {
     if (this.pending) this.host.cancel(this.pending.timer);
     this.gen++;
-    this.entries_ = []; this.cursor_ = -1; this.pending = null; this.lastEv = {};
+    this.entries_ = []; this.cursor_ = -1; this.pending = null; this.lastEv = {}; this.trimmed_ = false;
     const e = this.push({ kind: 'start', label: label || this.host.scenarioLabel() });
     this.baseline = clone(this.host.params());
     void this.snapInto(e);
@@ -260,15 +265,15 @@ export class Timeline {
     if (this.pending) this.host.cancel(this.pending.timer);
     this.gen++; this.pending = null; this.lastEv = {};
     this.seq = 0;
-    this.entries_ = entries.map((e) => ({ ...e, id: ++this.seq }));
+    this.entries_ = entries.map((e) => ({ ...e, id: ++this.seq })); this.trimmed_ = false;
     this.cursor_ = -1; this.baseline = clone(baseline); this.fire();
   }
 
   // ---- a patient's history kept while a talk shows another (2D: patientHistory.save / load) ----
-  save() { return { entries: this.entries_.slice(), cursor: this.cursor_, baseline: clone(this.baseline) }; }
-  load(s: { entries: Entry[]; cursor: number; baseline: unknown }): void {
+  save() { return { entries: this.entries_.slice(), cursor: this.cursor_, baseline: clone(this.baseline), trimmed: this.trimmed_ }; }
+  load(s: { entries: Entry[]; cursor: number; baseline: unknown; trimmed?: boolean }): void {
     if (this.pending) this.host.cancel(this.pending.timer);
     this.gen++; this.pending = null; this.lastEv = {};
-    this.entries_ = s.entries; this.cursor_ = s.cursor; this.baseline = s.baseline; this.fire();
+    this.entries_ = s.entries; this.cursor_ = s.cursor; this.baseline = s.baseline; this.trimmed_ = !!s.trimmed; this.fire();
   }
 }
