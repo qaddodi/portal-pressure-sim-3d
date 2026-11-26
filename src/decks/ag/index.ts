@@ -6,12 +6,13 @@ import { slideShots, type ShotSpec } from './shots.ts';
 import { needsOf, waitingOn, type Owner } from './needs.ts';
 import { stepsOf, stateOf, type ModelStep } from './steps.ts';
 import { amendAscites } from './ascites-amend.ts';
+import { amendAlbumin } from './albumin-amend.ts';
 
 export const AG_IDS = ['albumin', 'ascites', 'budd-chiari', 'carvedilol', 'cause-treated', 'choose-treatment', 'circuit', 'circulation', 'day', 'doppler', 'encephalopathy', 'endoscopy', 'gastric-varices', 'gradients'] as const;
 export type AgId = (typeof AG_IDS)[number];
 
 const LOADERS: Record<AgId, () => Promise<CopiedDeck>> = {
-  albumin: async () => (await import('./albumin.copied.ts')).ALBUMIN,
+  albumin: async () => amendAlbumin((await import('./albumin.copied.ts')).ALBUMIN),
   ascites: async () => amendAscites((await import('./ascites.copied.ts')).ASCITES),
   'budd-chiari': async () => (await import('./budd-chiari.copied.ts')).BUDD_CHIARI,
   carvedilol: async () => (await import('./carvedilol.copied.ts')).CARVEDILOL,

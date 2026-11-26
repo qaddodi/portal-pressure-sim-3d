@@ -1,7 +1,9 @@
 // Rule (Mohammad, 26 Nov: "for sinusoid view, just callout the sinusoid somewhere with a leader and then move the protein legend to be a callout with a circle next to it"; then "do NOT have it ride
-// on a protein particle ... just somewhere in the sinusoid" and "circle beside the word so a learner knows what we're pointing at"): a key entry that names a thing the figure draws is a CALLOUT on the
+// on a protein particle ... just somewhere in the sinusoid" and "circle beside the word so a learner knows what we're pointing at"): a key entry that names a thing the
+// figure draws is a CALLOUT on the
 // figure, a name standing in a plate with a leader to a FIXED spot of that thing and the entry's circle beside its word; the top bar keeps only keys that name a scale. This pins the general rule
-// (every entry of SINUSOID_CALLOUTS, at every screen size), the Sinusoid's own callout, that nothing follows a particle, and that no legend bar for the sinusoid comes back. Pure numbers and source reading, node only.
+// (every entry of SINUSOID_CALLOUTS, at every screen size), the Sinusoid's own callout, that nothing follows a particle, and that no legend bar for the sinusoid comes back.
+// Pure numbers and source reading, node only.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -38,10 +40,10 @@ function lay(W: number, H: number) {
 }
 const box = (n: NamePlacement) => ({ x0: n.cx - n.w / 2, x1: n.cx + n.w / 2, y0: n.cy - n.hh / 2, y1: n.cy + n.hh / 2 });
 
-test('the general rule: every key entry of the sinusoid is a callout, at every screen size: a name off the lumen, in the room, with a leader that ends in the lumen, each at the same spot every time', () => {
+test('the general rule: every key entry of the sinusoid is a callout, at every screen size: a name off the lumen, in the room, with a short leader that ends in the lumen, each at the same spot every time', () => {
   assert.ok(SINUSOID_CALLOUTS.length >= 1);
   for (const [label, W, H] of SIZES) {
-    const L = lay(W, H), keys = [...SINUSOID_CALLOUTS.map((c) => c.key), 'sin' as const];
+    const L = lay(W, H), keys = SINUSOID_CALLOUTS.map((c) => c.key);
     for (const key of keys) {
       const n = L.names.find((x) => x.key === key);
       assert.ok(n, `${label}: ${key} is named`);
@@ -52,6 +54,10 @@ test('the general rule: every key entry of the sinusoid is a callout, at every s
       assert.ok(n!.leader, `${label}: ${key} has a leader`);
       const end = L.portrait ? n!.leader!.x2 : n!.leader!.y2;
       assert.ok(Math.abs(end - axis) < hw, `${label}: ${key}'s leader ends in the lumen (${end.toFixed(0)} against the axis ${axis.toFixed(0)}, half width ${hw.toFixed(0)})`);
+      // close to the sinusoid: the leader is short (Mohammad, 26 Nov: "the callout for protein should be closer to the sinusoid"): across the Disse, the lining and the lumen's
+      // lower half, and the room the box needs
+      const len = Math.hypot(n!.leader!.x2 - n!.leader!.x1, n!.leader!.y2 - n!.leader!.y1), lim = (3.4 + 0.8 + 5) * L.k + (L.portrait ? n!.w : n!.hh) + 40;
+      assert.ok(len <= lim, `${label}: ${key}'s leader is short (${len.toFixed(0)} px against ${lim.toFixed(0)})`);
     }
     // (a fixed spot: laid out again, the leader ends where it did, whatever the blood is doing)
     const again = lay(W, H).names;
@@ -101,4 +107,16 @@ test('nothing rides on a protein particle: no follower, no picker, no circle at 
   assert.doesNotMatch(src, /ProteinFollow|protein-pick|\.albumin|spriteCount|follow\./);
   assert.doesNotMatch(src, /createElement\('i'\)[^;]*sv-mark/, 'the circle is written inside the caption, not as a mark at the leader\'s end');
   assert.throws(() => readFileSync('src/scene/sinusoid/protein-pick.ts', 'utf8'), /ENOENT/);
+});
+
+test('the Sinusoid is no callout: its name and its pressure stand INSIDE the lumen with no leader, as they always did, at every screen size', () => {
+  for (const [label, W, H] of SIZES) {
+    const L = lay(W, H), sin = L.names.find((n) => n.key === 'sin')!;
+    assert.ok(sin, `${label}: named`);
+    assert.equal(sin.leader, null, `${label}: no leader`);
+    assert.match(sin.value, /^\d/, `${label}: with its pressure`);
+    const axis = L.portrait ? L.C[0] : L.C[1], centre = L.portrait ? sin.cx : sin.cy, hw = L.k * 5 * 0.97;
+    assert.ok(Math.abs(centre - axis) < hw, `${label}: its middle is inside the lumen (${centre.toFixed(0)} against ${axis.toFixed(0)})`);
+  }
+  assert.equal(calloutOf('sin'), undefined, 'the Sinusoid is not a key entry');
 });

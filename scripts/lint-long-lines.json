@@ -581,7 +581,6 @@
  "src/ui/debug/audit/capture-child.ts": 2,
  "src/ui/debug/audit/capture-outer.ts": 8,
  "src/ui/debug/audit/capture-pick.ts": 9,
- "src/ui/debug/audit/card-boxes.ts": 3,
  "src/ui/debug/audit/judge.ts": 9,
  "src/ui/debug/audit/ledger.ts": 14,
  "src/ui/debug/audit/outer.ts": 26,
