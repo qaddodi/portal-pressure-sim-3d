@@ -10,7 +10,7 @@ import { M } from './metrics.ts';
 import { useThumb } from './thumb.ts';
 import { CORNERS, freeSpots } from './credit-spots.copied.js';
 import { layoutOf, margin, isSideways } from '../layout/rules2d.ts';
-import { footCredit, footClear, clipTo, underDock, takesFootBand } from './credit-foot.ts';
+import { footCredit, footClear, clipTo, underDock, takesFootBand, topHome } from './credit-foot.ts';
 import { useShell } from './store.ts';
 import { useCase } from '../case/store.ts';
 import { avoidVessel, vesselRect, widestWall } from './credit-avoid.ts';
@@ -157,6 +157,21 @@ export function Credit() {
         if (at) {
           clock.cancel(hop); el.style.setProperty('--cx', `${at.x}px`); el.style.setProperty('--cy', `${at.y}px`);
           el.classList.remove('covered', 'moving'); el.classList.add('placed'); at0 = at; shown = true; creditClaim.set({ x: at.x, y: at.y, w, h });
+          return;
+        }
+        // The band is too thin (no home indicator) or something stands in it: the one fixed home, under the top bar's chips
+        // at the figure's top-left, the same at every stop of a case and every view (B11, capture 0bc14020: the hunt below
+        // followed the names as they stood and hopped between stops). Where a card, a menu or the Sinusoid's vessel
+        // covers it, the hunt below still finds the line a place.
+        const sinus0 = view === 'sinusoid', ves0 = sinus0 ? sinusoidVessel() : null;
+        if (sinus0 && !ves0) { el.classList.add('moving'); again(); return; }
+        const home = topHome({ left: vp.safe.left, top: vp.safe.top, inset: M.creditInset, gap: 10, w, h, chips: shownBoxes('.topbar, .topbar > *', vw, vh) });
+        const homeBox = { l: home.x, t: home.y, r: home.x + w, b: home.y + h };
+        const covered = ves0 ? avoidVessel(ves0)(homeBox) : false;
+        const homeShown = !covered && footClear(home, w, h, [...shownBoxes(OBSTACLES, vw, vh), ...cardContent(vw, vh, false)]);
+        if (homeShown) {
+          clock.cancel(hop); el.style.setProperty('--cx', `${home.x}px`); el.style.setProperty('--cy', `${home.y}px`);
+          el.classList.remove('covered', 'moving'); el.classList.add('placed'); at0 = home; shown = true; creditClaim.set({ x: home.x, y: home.y, w, h });
           return;
         }
       }

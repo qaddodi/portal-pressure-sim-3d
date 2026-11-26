@@ -38,6 +38,13 @@ export const M = {
   phoneInset: 6, phoneTimelineH: 52, phoneTabH: 48, phoneTabsPadTop: 3, phoneTabsPadBottom: 4,
 } as const;
 
+/** The least the FibroScan map is drawn at on a phone's or an upright iPad's Tests sheet, px. The map takes the height
+ *  left under its switch and over the stiffness bar's words, and gives way to them down to this: 2D's rule kept it at
+ *  180 px, so on a Half sheet the three lines of the bar's note ran out of the card's foot (capture 0bc14020, the
+ *  iPhone: "re-evaluate in 12 months" cut off). Published as `--fibro-map-min` (room.ts layoutVars) for
+ *  css3d-over-2d.css, and judged against the sheet's stops by tests/sheet-content-fits.test.ts. */
+export const FIBRO_MAP_MIN = 120;
+
 /** The metrics as the custom properties the shell's CSS reads (--m-pill-h …). */
 export function metricVars(): Record<string, string> {
   const kebab = (k: string) => k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
