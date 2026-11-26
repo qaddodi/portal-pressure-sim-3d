@@ -62,13 +62,13 @@ const RATE_OF = { hvpg: hvpgRate, eus: hvpgRate, ppg: ppgRate };   // (EUS-PPG i
 // plot, as wide as it can be set: on one line, else with its letters closer, else on two lines ("PRE" over "HEPATIC"), else on two with
 // its letters closer; the same for all three, so no name touches another or leaves its zone. A chart too narrow even for that keeps the
 // tints and no names (never a bare PRE or POST, which would read as the Pre- and Post- stations).
-// 3D departure (25 Nov 2026, capture 36b7deac review item 3): the strip over the plot says Before the liver / In the liver / After the liver (src/decks/names.ts LIVER_ZONES),
-// and where those do not fit, BEFORE, LIVER, AFTER: never a bare PRE, INTRA or POST, which are the stations' own Pre-, Intra- and Post- under the axis.
+// 3D departure (25 Nov 2026, capture 36b7deac review item 3): the strip over the plot reads its words from src/decks/names.ts LIVER_ZONES (PRE-HEPATIC where they fit, else PRE / INTRA / POST),
+// (Mohammad, 26 Nov: the bare PRE, INTRA and POST are obvious; the Before / In / After the liver the review suggested was not wanted.)
 export const ZONES = [
-  { cls: 'ppf-zone ppf-pre', one: 'BEFORE THE LIVER', top: 'BEFORE' },
-  { cls: 'ppf-zone ppf-liver', one: 'IN THE LIVER', top: 'LIVER' },
-  { cls: 'ppf-zone ppf-post', one: 'AFTER THE LIVER', top: 'AFTER' }];
-export const ZONE_SECOND = 'THE LIVER';
+  { cls: 'ppf-zone ppf-pre', one: 'PRE-HEPATIC', top: 'PRE' },
+  { cls: 'ppf-zone ppf-liver', one: 'INTRAHEPATIC', top: 'INTRA' },
+  { cls: 'ppf-zone ppf-post', one: 'POST-HEPATIC', top: 'POST' }];
+export const ZONE_SECOND = 'HEPATIC';
 const ZONE_LOOK = ['prof.zone.pre', 'prof.zone.liver', 'prof.zone.post'];   // (the look of each zone's tint, in ZONES' order)
 export const ZONE_GAP = 4;
 /** The stations each zone covers: [first, last] indexes (none where the path has no liver). */

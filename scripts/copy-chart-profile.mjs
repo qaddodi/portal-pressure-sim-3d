@@ -63,7 +63,7 @@ const decimals = (src) => {
   for (const [a, b, n] of swaps) { if (src.split(a).length - 1 !== n) throw new Error(`decimals: ${a} not found ${n} times`); src = src.split(a).join(b); }
   return src;
 };
-// 3D departure (25 Nov 2026, capture 36b7deac review item 3): the zone strip says Before the liver / In the liver / After the liver (src/decks/names.ts LIVER_ZONES), never a bare PRE, INTRA or POST.
+// 3D departure (25 Nov 2026, capture 36b7deac review item 3): the zone strip reads its words from src/decks/names.ts LIVER_ZONES (the 2D words: PRE-HEPATIC, else PRE; Mohammad, 26 Nov).
 const layout = banner('tool-profile.js') + head + zoneEdit(decimals(A + B)) + tail;
 
 const files = [[join(OUT, 'curve-near.generated.js'), curve], [join(OUT, 'layout.generated.js'), layout]];

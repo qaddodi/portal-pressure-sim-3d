@@ -4,7 +4,7 @@
 //                      Portal vein thrombosis were three names for one cause);
 //   defineFirst(deck)  a cause's abbreviation (SOS, PVT) is spelled out where its talk first uses it, as "Sinusoidal obstruction syndrome (SOS)";
 //   namesEdits(json)   both of those on a deck's JSON text (what bavenoEdits() calls, so the four deck generators and apply-names.mjs agree);
-//   zoneEdit(text)     the profile chart's zone strip says Before the liver / In the liver / After the liver (one word each where the room is short), from LIVER_ZONES.
+//   zoneEdit(text)     the profile chart's zone strip says PRE-HEPATIC / INTRAHEPATIC / POST-HEPATIC (PRE / INTRA / POST where the room is short), from LIVER_ZONES.
 // Capture 36b7deac review items 3 and 6. tests/names-table.test.ts pins the result.
 import { CAUSES, LIVER_ZONES, causeOfName } from '../src/decks/names.ts';
 
@@ -106,10 +106,10 @@ export function namesEdits(json) {
 /** The profile charts' generated text with the zone strip's words taken from LIVER_ZONES (the generator calls it, and apply-names.mjs on the files already written). */
 export function zoneEdit(text) {
   const cls = ['ppf-zone ppf-pre', 'ppf-zone ppf-liver', 'ppf-zone ppf-post'];
-  const zones = '// 3D departure (25 Nov 2026, capture 36b7deac review item 3): the strip over the plot says Before the liver / In the liver / After the liver (src/decks/names.ts LIVER_ZONES),\n'
-    + '// and where those do not fit, BEFORE, LIVER, AFTER: never a bare PRE, INTRA or POST, which are the stations\' own Pre-, Intra- and Post- under the axis.\n'
+  const zones = '// 3D departure (25 Nov 2026, capture 36b7deac review item 3): the strip over the plot reads its words from src/decks/names.ts LIVER_ZONES (PRE-HEPATIC where they fit, else PRE / INTRA / POST),\n'
+    + '// (Mohammad, 26 Nov: the bare PRE, INTRA and POST are obvious; the Before / In / After the liver the review suggested was not wanted.)\n'
     + `export const ZONES = [\n${LIVER_ZONES.map((z, k) => `  { cls: '${cls[k]}', one: '${z.one.toUpperCase()}', top: '${z.word.toUpperCase()}' }`).join(',\n')}];`;
-  let out = text.replace(/(?:\/\/ 3D departure \(25 Nov 2026, capture 36b7deac review item 3\)[^\n]*\n\/\/ and where[^\n]*\n)?export const ZONES = \[[\s\S]*?\];/, zones);
+  let out = text.replace(/(?:(?:\/\/ 3D departure \(25 Nov 2026, capture 36b7deac review item 3\)[^\n]*\n|\/\/ \(Mohammad, 26 Nov: the bare PRE[^\n]*\n|\/\/ and where[^\n]*\n)+)?export const ZONES = \[[\s\S]*?\];/, zones);
   if (out.includes('export const ZONE_SECOND')) out = out.replace(/export const ZONE_SECOND = '[^']*';/, `export const ZONE_SECOND = '${LIVER_ZONES[0].second.toUpperCase()}';`);
   return out;
 }

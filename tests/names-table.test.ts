@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CAUSES, LIVER_ZONES, STATION_SUBLABELS, ABBREVIATIONS, causeOfName } from '../src/decks/names.ts';
+import { CAUSES, LIVER_ZONES, ABBREVIATIONS, causeOfName } from '../src/decks/names.ts';
 import { ZONES as PROFILE_ZONES, ZONE_SECOND } from '../src/ui/charts/profile/layout.generated.js';
 import { RW_LOADERS } from '../src/decks/rw/copied/index.ts';
 import { AG_IDS, loadAgDeck } from '../src/decks/ag/index.ts';
@@ -16,22 +16,14 @@ for (const f of Object.values(RW_LOADERS)) decks.push(structuredClone(await f())
 for (const id of AG_IDS) decks.push(structuredClone(await loadAgDeck(id)) as unknown as Deck);
 for (const id of HP_IDS) decks.push(structuredClone(await loadHpDeck(id)) as unknown as Deck);
 
-test('the zone strip over the profile says what the first slide\'s outline says, from the table, in the generated chart (the ladders draw the same strip)', () => {
-  assert.deepEqual(LIVER_ZONES.map((z) => z.one), ['Before the liver', 'In the liver', 'After the liver']);
-  for (const zones of [PROFILE_ZONES] as { one: string; top: string }[][]) {
-    assert.deepEqual(zones.map((z) => z.one), LIVER_ZONES.map((z) => z.one.toUpperCase()));
-    assert.deepEqual(zones.map((z) => z.top), LIVER_ZONES.map((z) => z.word.toUpperCase()));
-  }
+test('the zone strip over the profile reads its words from the table (PRE-HEPATIC, else PRE / INTRA / POST: Mohammad, 26 Nov), and the generated chart agrees', () => {
+  assert.deepEqual(LIVER_ZONES.map((z) => z.one), ['Pre-hepatic', 'Intrahepatic', 'Post-hepatic']);
+  assert.deepEqual(PROFILE_ZONES.map((z: { one: string }) => z.one), LIVER_ZONES.map((z) => z.one.toUpperCase()));
+  assert.deepEqual(PROFILE_ZONES.map((z: { top: string }) => z.top), LIVER_ZONES.map((z) => z.word.toUpperCase()));
   assert.equal(ZONE_SECOND, LIVER_ZONES[0].second.toUpperCase());
-  const sub = STATION_SUBLABELS.map((s) => s.replace(/-$/, '').toLowerCase());
-  for (const z of LIVER_ZONES) for (const w of [z.word, z.one, ...z.one.split(' ')].filter((x) => x.length > 2 || x === 'In')) {
-    assert.ok(!sub.includes(w.toLowerCase().replace(/-$/, '')), `a zone header word "${w}" is a station's sub-label`);
-  }
   // (a generator and the file agree: running the edit on the file changes nothing)
-  for (const f of ['../src/ui/charts/profile/layout.generated.js']) {
-    const text = readFileSync(new URL(f, import.meta.url), 'utf8');
-    assert.equal(zoneEdit(text), text, f);
-  }
+  const text = readFileSync(new URL('../src/ui/charts/profile/layout.generated.js', import.meta.url), 'utf8');
+  assert.equal(zoneEdit(text), text);
 });
 
 test('one cause, one long name and one short name: no alias survives in any copied deck', () => {
