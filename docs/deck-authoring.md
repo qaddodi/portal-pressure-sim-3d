@@ -123,6 +123,9 @@ node scripts/port-decks-hp.mjs --from <2D checkout>        # H to P
 node scripts/port-decks-rw.mjs --from <2D checkout>        # R to W
 ```
 
+The HVPG deck is copied by the H to P script into the one copy every deck reads. `node scripts/copy-decks.mjs --from <2D checkout>` still writes `src/decks/hvpg.copied.ts` for the first four
+slides' camera plates and ladder rows, but their words are taken from the one copy (`tests/hvpg-one-words.test.ts`), so a review's edit to the words only ever needs to go in one place.
+
 After a deck changes, rebake its charts: `node scripts/bake-charts.mjs` (`--check` says which are stale).
 
 ## Checks to run
