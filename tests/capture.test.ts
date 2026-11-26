@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { parseShadows, splitTop, maskUrl, maskPlacement, backdropBlur, blurHalvings, collageLayout, slug, transformed, captureScale, stampTime, cssLen, moveBox, svgViewBox, captureFileName, captureRecord, RECORD_MAX, deliverWay, isCaptureKey } from '../src/ui/capture/capture-model.ts';
 import { zipParts, zipNames } from '../src/ui/capture/zip.ts';
 import { pngWithText, readPngText, crc32, asciiJson } from '../src/ui/capture/png-text.ts';
+import { pipeline } from './capture-source.ts';
 
 const src = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const at = new Date(2026, 10, 23, 7, 5, 9);   // 23 Nov 2026, 07:05:09 (device time)
@@ -170,14 +171,14 @@ test('a deck\'s contact sheet: three across for a laptop or iPad, five for a pho
 });
 
 test('Capture all decks: in the audit panel, every talk and stop, kept out of its own pictures, saved from a fresh tap', () => {
-  const page = src('src/ui/debug/audit/page.ts'), all = src('src/ui/debug/audit/capture-all.ts');
+  const page = src('src/ui/debug/audit/page.ts'), all = pipeline();
   assert.match(page, /capBtn.textContent = 'Capture'/); assert.match(page, /data-capture-skip/); assert.match(page, /Save zip/); assert.match(page, /Share contact sheets/);
   assert.match(all, /loadAllDecks\(\)/); assert.match(all, /builtinDecks\(\)/); assert.match(all, /ui\.stop\(\)/); assert.match(all, /stillPage\(real, /); assert.match(all, /drawScreen\(/); assert.match(all, /'image\/jpeg'/); assert.match(all, /contact-sheet\.png/);
   assert.ok(!/fetch\(|sendBeacon|XMLHttpRequest/.test(all), 'nothing leaves the device');
 });
 
 test('Capture all decks runs the page fast: the clock at speed, the animations at speed, encoding off the main thread, the page put back', () => {
-  const all = src('src/ui/debug/audit/capture-all.ts');
+  const all = pipeline();
   assert.match(all, /clock\.setScale\(speed\)/); assert.match(all, /speedAnimations\(document, speed\)/); assert.match(all, /clock\.setScale\(1\)/);
   assert.match(all, /encoding\.push\(/); assert.match(all, /await Promise\.all\(encoding\)/);
   assert.match(all, /ratio: ui\.promo \? ui\.promo\.ratio : Math\.min\(devicePixelRatio, 2\)/, 'the device\'s own sharpness, 2x at most (the promotion set names its own)');
@@ -185,7 +186,7 @@ test('Capture all decks runs the page fast: the clock at speed, the animations a
 });
 
 test('Capture this deck: a Settings row inside a talk, a Stop in the toast that keeps what is done, one Save at the end; the audit has a talk picker and a big Stop', () => {
-  const sheet = src('src/ui/settings/SettingsSheet.tsx'), deck = src('src/ui/capture/capture-deck.ts'), page = src('src/ui/debug/audit/page.ts'), all = src('src/ui/debug/audit/capture-all.ts');
+  const sheet = src('src/ui/settings/SettingsSheet.tsx'), deck = src('src/ui/capture/capture-deck.ts'), page = src('src/ui/debug/audit/page.ts'), all = pipeline();
   assert.match(sheet, /talk \? <MenuItem icon="grid" label=\{CAPTURE\.deckRow\}/);
   assert.match(deck, /only: id/); assert.match(deck, /stop: \(\) => stopped/); assert.match(deck, /restore: back/); assert.match(deck, /CAPTURE\.save/);
   assert.match(all, /ui\.only/); assert.match(all, /ui\.restore/);
@@ -204,7 +205,7 @@ test('the frosted glass: the blur radius is read from the computed backdrop-filt
 });
 
 test('Capture draws what the page draws: the glass blur, the pills\' pseudo-element faces, no counters or build pill; the talk is walked by Next, which says whether it did anything', () => {
-  const dom = src('src/ui/capture/capture-dom.ts'), all = src('src/ui/debug/audit/capture-all.ts'), store = src('src/ui/ui-store.ts');
+  const dom = src('src/ui/capture/capture-dom.ts'), all = pipeline(), store = src('src/ui/ui-store.ts');
   assert.match(dom, /k: 'blur'/); assert.match(dom, /pseudoBox\(c, el, '::before'/); assert.match(dom, /pseudoBox\(c, el, '::after'/); assert.match(dom, /function blurBehind/);
   for (const f of ['src/ui/shell/Diagnostics.tsx', 'src/ui/shell/BuildPill.tsx']) assert.match(src(f), /data-capture-skip/);
   assert.match(store, /move\(m: Move\): boolean/); assert.match(store, /if \(m === 'next' && lapseNext\(\)\) return true;/); assert.match(store, /if \(samePos\(to, pos\)\) return false;/);
@@ -219,8 +220,8 @@ test('Capture draws what the page draws: the glass blur, the pills\' pseudo-elem
 });
 
 test('Capture all decks waits on arrivals only (not the audit\'s every-animation check) and takes both words of a blocked catheter', () => {
-  const all = src('src/ui/debug/audit/capture-all.ts');
-  assert.ok(!/\bsettle\b/.test(all.replace(/\/\/.*$/gm, '')), 'the audit settle counts every running animation: a perpetual one kept each picture waiting five seconds');
+  const all = pipeline();
+  assert.ok(!/(?<![-\w])settle\b/.test(all.replace(/\/\/.*$/gm, '')), 'the audit settle counts every running animation: a perpetual one kept each picture waiting five seconds');
   assert.match(all, /function arriving\(/); assert.match(all, /endTime\) > 2500/, 'a long or endless animation is not a slide settling');
   assert.match(all, /cel\.rig\.isMoving/); assert.match(all, /data-phase="out"/);
   assert.match(all, /BLOCKED_SAYS\.first/); assert.match(all, /BLOCKED_SAYS\.then/); assert.match(all, /blockedThen\(\)/, 'Occluded and then No reading are two pictures');
@@ -235,7 +236,7 @@ test('Capture draws a list\'s numbers, ticks and arrows (generated content and g
   assert.equal(m.counterStep('dko', 'dko'), 1); assert.equal(m.counterStep('a 2 dko 3', 'dko'), 3); assert.equal(m.counterStep('none', 'dko'), null); assert.equal(m.counterStep('', 'dko'), null);
   assert.ok(m.SYMBOLS.test('↑') && m.SYMBOLS.test('✓') && !m.SYMBOLS.test('a'));
   for (const ch of ['↑', '↓', '←', '→', '✓']) assert.match(m.symbolPath(ch, 0, 0, 12, 12), /^M[\d. -]+L/, ch);
-  const dom = src('src/ui/capture/capture-dom.ts'), cap = src('src/ui/capture/capture.ts'), all = src('src/ui/debug/audit/capture-all.ts');
+  const dom = src('src/ui/capture/capture-dom.ts'), cap = src('src/ui/capture/capture.ts'), all = pipeline();
   assert.match(dom, /function pseudoFlow/); assert.match(dom, /pseudoWords\(/); assert.match(dom, /counterValue\(/, 'a counter Safari leaves unresolved is worked out');
   assert.match(dom, /Math\.abs\(mw - tr\.width\)/, 'a word set at another width than the browser did goes one letter at a time');
   assert.ok(!/stamp/.test(cap.replace(/stamp(Time|ed)/g, '')), 'no build or time is drawn on a capture'); assert.match(all, /Math\.min\(devicePixelRatio, 2\)/); assert.match(all, /pictures are \$\{shape0\.w\}x\$\{shape0\.h\} px/);
@@ -243,7 +244,7 @@ test('Capture draws a list\'s numbers, ticks and arrows (generated content and g
 });
 
 test('Capture: halos under every letter, polygon clips (the table arrows), the Doppler\'s acquiring wait, and a stalled-frame cap that follows the audit speed', () => {
-  const dom = src('src/ui/capture/capture-dom.ts'), all = src('src/ui/debug/audit/capture-all.ts'), frame = src('src/clock/frame.ts');
+  const dom = src('src/ui/capture/capture-dom.ts'), all = pipeline(), frame = src('src/clock/frame.ts');
   assert.match(dom, /halos\.push/); assert.match(dom, /c\.out\.push\(\.\.\.halos, \.\.\.fills\)/, 'every halo first, then every letter: no letter\'s outline covers the one before');
   assert.match(dom, /function polygonClip/); assert.match(dom, /polygon\\\(/);
   assert.match(all, /the Doppler is acquiring/);
@@ -267,9 +268,9 @@ test('Capture picks: ticked slides, a seeded random sample from random talks, an
   const outer = await import('../src/ui/debug/audit/capture-outer.ts');
   assert.equal(outer.captureSrc('/x/', '?audit=frames&sizes=mac&speed=20&look=dark', { speed: 20, pick: ['a:1', 'b:2'], decks: ['a', 'b'] }), '/x/?audit=capture&speed=20&pick=a:1,b:2&decks=a,b&look=dark');
   assert.match(outer.captureZipName('abc123', ['iphone', 'mac'], new Date(2026, 10, 23, 9, 5, 7)), /^portal-pressure-capture-abc123-iphone\+mac-20261123-090507\.zip$/);
-  const all = src('src/ui/debug/audit/capture-all.ts'), child = src('src/ui/debug/audit/capture-child.ts'), mount = src('src/ui/debug/mount.ts');
+  const all = pipeline(), child = src('src/ui/debug/audit/capture-child.ts'), mount = src('src/ui/debug/mount.ts');
   assert.match(all, /pick\.has\(stopKey\(d\.id, k\)\)/, 'a slide not picked is walked past'); assert.match(all, /pos\.stop > last/, 'the walk ends after the last picked slide');
-  assert.match(child, /captureAllDecks\(/); assert.match(mount, /audit === 'capture'/);
+  assert.match(child, /runCapture\(/); assert.match(src('src/ui/debug/audit/capture-run.ts'), /captureAllDecks\(/); assert.match(mount, /audit === 'capture'/);
 });
 
 test('The Mac capture page is simple: sizes, decks with All and None, one how-many choice, Capture and Stop; the self-test sits behind one button; a frame that cannot fetch a part is started again', () => {
@@ -287,14 +288,14 @@ test('The Mac capture runs every ticked size at once, side by side', () => {
 });
 
 test('A random sample is one picture a slide: its last step, counted "n of 25", the same in every size', () => {
-  const all = src('src/ui/debug/audit/capture-all.ts');
+  const all = pipeline();
   assert.match(all, /single = !!\(ui\.pick && ui\.pick\.size\)/); assert.match(all, /sub = single \? 0 :/, 'a step replaces the one before it');
   assert.match(all, /const put = \(f: ZipFile\)/); assert.match(all, /\$\{reached\} of \$\{pick!\.size\}/);
   assert.match(all, /if \(!single \|\| fresh\) shots\+\+/); assert.match(all, /if \(!single \|\| fresh\) done\+\+/, 'steps are not extra pictures');
 });
 
 test('Capture: a half turn is a turn (the table\'s down arrows), a stuck Next does not end the walk, a strip fills by frames, and a card must be up', () => {
-  const dom = src('src/ui/capture/capture-dom.ts'), all = src('src/ui/debug/audit/capture-all.ts');
+  const dom = src('src/ui/capture/capture-dom.ts'), all = pipeline();
   assert.match(dom, /const turned = \(m: DOMMatrix\) => spin\(m\) \|\| \(m\.a < -1e-3 && m\.d < -1e-3\)/); assert.match(dom, /if \(turned\(m\)\) return Math\.atan2\(m\.b, m\.a\)/);
   assert.match(all, /inStop > 30/); assert.match(all, /st\.go\(here \+ 1\)/); assert.match(all, /the walk jumped on/);
   assert.match(all, /STRIP_FRAMES/); assert.match(all, /no card is up yet/); assert.match(all, /lens and the view it was taken with/, 'the README says what the JSON holds');
@@ -319,7 +320,7 @@ test('A step number is centred in its round face, both ways (the base tag rule a
 });
 
 test('A phone on its side takes both cards: -teaching with the words in view, -instrument after the column slides up; Random N counts slides', () => {
-  const all = src('src/ui/debug/audit/capture-all.ts');
+  const all = pipeline();
   assert.match(all, /sideways: isSideways\(innerWidth, innerHeight\) \}, \{ data: !!useUi\.getState\(\)\.boxes\.data, words: !!useUi\.getState\(\)\.boxes\.words/);
   assert.match(all, /shoot\(ui\.promo \? '' : views\[0\]\)/); assert.match(all, /setDocked\(true\)/); assert.match(all, /shoot\(views\[1\]!\)/); assert.match(all, /setDocked\(false\)/);
   assert.match(all, /\$\{base0\}-\$\{view\}/, 'the file name says which card');
@@ -346,7 +347,7 @@ test('the audit sheet steps aside during a run (title and form fade out, strip s
 });
 
 test('a skipped capture draws nothing while a slide is on its way: setDrawing(false) before each Next, true once it is still, no cover over the app', () => {
-  const all = src('src/ui/debug/audit/capture-all.ts'), page = src('src/ui/debug/audit/page.ts');
+  const all = pipeline(), page = src('src/ui/debug/audit/page.ts');
   assert.match(all, /clock\.setDrawing\(false\);\s*\n\s*if \(!useUi\.getState\(\)\.move\('next'\)\) break;/); assert.match(all, /clock\.setDrawing\(true\)/);
   assert.ok(!/veil/.test(page), 'no cover');
 });
@@ -354,13 +355,13 @@ test('a skipped capture draws nothing while a slide is on its way: setDrawing(fa
 test('capture waits are in WALL time: until() counts page time, so at the skip clock scale a bare 25000 is 83 ms and the cold first talk "did not open"; the open wait is real(25000)', async () => {
   const { scaledDelay } = await import('../src/clock/frame.ts');
   assert.ok(scaledDelay(25000, 300) < 100, 'a bare 25000 at 300x is under 100 ms of wall time (the HVPG talk, loaded cold, failed at that)');
-  const all = src('src/ui/debug/audit/capture-all.ts');
+  const all = pipeline();
   assert.match(all, /until\(\(\) => talkUp\(d\.id\), real\(25000\)\)/); assert.ok(!/until\([^\n]*, 25000\)/.test(all));
   assert.ok(!/opened again/.test(all), 'no retry patch');
 });
 
 test('the capture opens the talk it NAMES: talkUp checks the talk id, so the talk still open from before cannot pass for the next one (capture 2c00c0ce, Circuit 2)', () => {
-  const all = src('src/ui/debug/audit/capture-all.ts');
+  const all = pipeline();
   assert.match(all, /const talkUp = \(id: string\) => talkId\(\) === id/); assert.match(all, /until\(\(\) => talkUp\(d\.id\), real\(25000\)\)/);
 });
 
@@ -372,14 +373,14 @@ test('upright iPhone and iPad capture each slide twice, the instrument card untu
   assert.deepEqual(captureViews({ w: 736, h: 440, layout: 'short', sideways: true }, has), ['teaching', 'instrument']);
   assert.deepEqual(captureViews({ w: 1440, h: 900, layout: 'wide', sideways: false }, has), ['']);
   assert.deepEqual(captureViews({ w: 440, h: 736, layout: 'stack', sideways: false }, { data: false, words: true }), ['']);
-  const all = src('src/ui/debug/audit/capture-all.ts'); assert.match(all, /await shoot\(views\[1\]!\)/); assert.match(all, /-untucked \(the card up\) and -tucked/);
+  const all = pipeline(); assert.match(all, /await shoot\(views\[1\]!\)/); assert.match(all, /-untucked \(the card up\) and -tucked/);
 });
 
 test('a teaching slide with several choices: each is pressed and captured, named for its button, in each state (untucked, tucked, teaching, instrument)', async () => {
   const { choiceName, CHOICE_MAX, CHOICE_SEL } = await import('../src/ui/capture/capture-model.ts');
   assert.equal(choiceName('  Cirrhosis  with ascites ', null, 0), 'cirrhosis-with-ascites'); assert.equal(choiceName('', 'Show the flow', 1), 'show-the-flow'); assert.equal(choiceName('', null, 2), 'choice3');
   assert.ok(CHOICE_MAX >= 6); assert.match(CHOICE_SEL, /role="tab"/); assert.match(CHOICE_SEL, /aria-pressed="false"/);
-  const all = src('src/ui/debug/audit/capture-all.ts');
+  const all = pipeline();
   // (every step looks for choices and each group is pressed once per stop and view: tests/press-pending.test.ts)
   assert.match(all, /if \(ok\) await choiceShots\(views\[0\]\)/); assert.match(all, /if \(ok2\) await choiceShots\(views\[1\]!\)/);
   assert.match(all, /choice\$\{pad2\(i \+ 1\)\}-\$\{nm\}/, 'the file says which button');

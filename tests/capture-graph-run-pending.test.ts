@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { evRunFor, startEvRun, evRunPending, leaveEvRun } from '../src/ui/charts/evgraph/live.ts';
 import { EVENT_S } from '../src/ui/charts/evgraph/model.ts';
+import { pipeline } from './capture-source.ts';
 
 // Capture 52ef8e63, Gastric varices 8: the picture was taken at +1 s with the PPG still on its way to 19.4 (the card's words say 19.4, the chart ended at 17.6). The head's hold lets go each time the head catches the newest
 // reading, so the capture saw a still page between two readings. The run itself says whether it is over.
@@ -21,6 +22,6 @@ test('a procedure run is pending from its start until its last second, whatever 
   leaveEvRun('k');
 });
 test('the capture counts a pending run as the graph still drawing', () => {
-  const src = readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8');
+  const src = pipeline();
   assert.match(src, /holds\.includes\('chart:evgraph'\) \|\| evRunPending\(\)\) return 'the procedure graph/);
 });

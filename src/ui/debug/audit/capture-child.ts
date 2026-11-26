@@ -5,6 +5,7 @@ import { attach } from '../pps.ts';
 import { settle } from './app.ts';
 import { speedOf } from './speed.ts';
 import { unpackPick } from './capture-pick.ts';
+import { parseCases, whatOf } from './capture-cases-plan.ts';
 import { promoRatio, preparePromo } from './promo-prep.ts';
 import { clock } from '../../../clock/frame.ts';
 
@@ -40,11 +41,16 @@ export function mountCaptureChild(): void {
   clock.after(() => {
     void settle().then(async () => {
       try {
-        const m = await importAgain(() => import('./capture-all.ts'));
+        const m = await importAgain(() => import('./capture-run.ts'));
+        const cm = await importAgain(() => import('./capture-cases.ts'));
         const speed = speedOf(flagValue('speed')), pick = unpackPick(flagValue('pick')), decks = (flagValue('decks') ?? '').split(',').filter((x) => /^[\w-]+$/.test(x));
         const ratio = promoRatio(flagValue('promo'));
         if (ratio) preparePromo();
-        const r = await m.captureAllDecks({
+        // (`&cases=all` or a list of model patients plays their cases; alone unless `&slides=1` or a pick adds the slides)
+        const cases = parseCases(flagValue('cases'), cm.everyCaseId());
+        const what = whatOf({ cases: !!cases, slides: flagValue('slides'), pick: !!pick, decks: decks.length > 0 });
+        const r = await m.runCapture({
+          what, cases, looks: flagValue('looks') !== '0',
           decks: decks.length ? new Set(decks) : null, pick, speed: speed > 1 ? speed : undefined, promo: ratio ? { ratio } : undefined,
           status: (s) => { text = s; }, stop: () => stop,
           progress: (n, total) => post({ capture: 'progress', text, n, total }),
