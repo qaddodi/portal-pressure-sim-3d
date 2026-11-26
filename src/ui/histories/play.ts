@@ -34,7 +34,8 @@ interface M { hvpg: number; ppg: number; pv?: number; ascites: { volume: number 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Eng = any;
 
-export function playCourse(c: Course): Baked {
+/** `onDay` (tests): called with the engine and its metrics at the end of each day, after the day's events were raised (the state the stop on that day keeps). */
+export function playCourse(c: Course, onDay?: (e: Eng, m: unknown, day: number) => void): Baked {
   const e = new Engine() as Eng;
   e.loadPreset(c.preset);
   if (c.init) { e.setParams(deepMerge(e.params, c.init)); e.settle(); }
@@ -98,6 +99,7 @@ export function playCourse(c: Course): Baked {
     e.advanceDays(1, { noRupture: true, silent: true });
     watch(4, 0.1, 1, !!c.still);
     note();
+    if (onDay) onDay(e, computeMetrics(e), e.day);
   }
 
   const m = computeMetrics(e) as M, p = e.params, lab = labelsOf(p);

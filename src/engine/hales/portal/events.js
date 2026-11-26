@@ -3,6 +3,7 @@
 import { computeMetrics } from './metrics.js';
 import { FLOW_CUTS } from './flow-cuts.js';
 import { HVPG_CUTS } from './pressure-cuts.js';
+import { isRedWale, redWaleCleared } from './wall-read.js';
 
 const COLLATERAL_NAMES = {
   C1b: ['Esophageal varices', 'VAR'], C3: ['Paraumbilical vein (caput medusae)', 'C3'], C4: ['Anorectal varices', 'C4'],
@@ -36,7 +37,7 @@ const DEFS = [
     title: 'Bleeding more likely', detail: `HVPG ≥${HVPG_CUTS.bleed} mmHg. Bleeding risk climbs with the gradient from about ${HVPG_CUTS.bleed} mmHg, but varices can bleed below it.` },
   { id: 'VARIX_LARGE', on: (m) => m.varix.d >= 5, off: (m) => m.varix.d < 4.5, severity: 'caution', anchor: 'VAR',
     title: 'Large esophageal varices', detail: 'Diameter ≥5 mm: high-risk varices.' },
-  { id: 'RED_WALE', on: (m) => m.varix.ratioMean > 0.7, off: (m) => m.varix.ratioMean < 0.65, severity: 'danger', anchor: 'VAR',
+  { id: 'RED_WALE', on: (m) => isRedWale(m.varix.ratioMean), off: (m) => redWaleCleared(m.varix.ratioMean), severity: 'danger', anchor: 'VAR',
     title: 'Red wale signs', detail: 'Modeled wall stress is approaching the rupture threshold (index = ΔP·r / w).' },
   { id: 'ASCITES_FORMING', on: (m) => m.ascites.ratePerDay > 80 && m.ascites.volume > 150, off: (m) => m.ascites.ratePerDay < -50, severity: 'caution', anchor: 'PERITONEUM',
     title: 'Ascites forming', detail: 'Lymph formation exceeds lymphatic drainage capacity.' },
