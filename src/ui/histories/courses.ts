@@ -17,6 +17,10 @@
 import type { Course } from './types.ts';
 import type { CaseLook } from '../case/types.ts';
 
+/** Antibiotic prophylaxis is part of every variceal bleed's first hour (Baveno VIII: ceftriaxone, 1 g a day, for up to 7 days), whoever bleeds and wherever: each course's vasoactive step says it, and
+ *  tests/bleed-bundle.test.ts keeps that true of every course that has a bleed. */
+export const ANTIBIOTICS = 'Antibiotic prophylaxis from the start: ceftriaxone, 1 g a day, for up to 7 days.';
+
 /** "Look closer here" at a stop (ui/case): the Tests cards a course opens (tests/panes.ts PaneId; tests/case-shots.test.ts keeps every one real). */
 const L = {
   endoscopy: { tool: 'endoscopy', label: 'Endoscopy' },
@@ -41,7 +45,7 @@ export const COURSES: readonly Course[] = [
     steps: [
       { day: 19, id: 'carvedilol', set: { drugs: { carvedilol: true } }, detail: 'Started once the portal hypertension was clinically significant.' },
       { day: 70, id: 'bleed', act: 'bleed' },
-      { day: 70, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: 'A vasoactive drug for the bleed, for three days.' },
+      { day: 70, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: `A vasoactive drug for the bleed, for three days. ${ANTIBIOTICS}` },
       { day: 70, id: 'band', act: 'band', detail: 'Endoscopic band ligation at the first endoscopy.' },
       { day: 73, id: 'tips', set: { drugs: { terlipressin: false, carvedilol: false }, tips: { on: true, d: 8 } },
         detail: 'Pre-emptive, within 72 hours of the bleed: a patient at high risk of rebleeding. The beta-blocker is not needed with a TIPS.' },
@@ -53,7 +57,6 @@ export const COURSES: readonly Course[] = [
     play: { stops: [
       { at: { day: 18 }, look: [L.hvpg, L.stiffness] },
       { at: { day: 40 }, look: [L.endoscopy] },
-      { at: 'bleed', look: [L.endoscopy] },
       { at: 'tips', look: [L.along, L.doppler] },
     ] },
   },
@@ -157,7 +160,7 @@ export const COURSES: readonly Course[] = [
     quiet: ['albumin'], still: true, settle: 8,
     steps: [
       { day: 10, id: 'bleed', act: 'bleed' },
-      { day: 10, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: '2 mg every 4 hours for the first 48 hours, then 1 mg every 4 hours, for up to 5 days. Antibiotics (ceftriaxone, 1 g a day) and a restrictive transfusion (hemoglobin 7 to 8 g/dL) alongside.' },
+      { day: 10, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: `2 mg every 4 hours for the first 48 hours, then 1 mg every 4 hours, for up to 5 days. ${ANTIBIOTICS} A restrictive transfusion (hemoglobin 7 to 8 g/dL) alongside.` },
       { day: 10, id: 'band', act: 'band', detail: 'Endoscopy within 12 hours: a spurting varix, banded. Active bleeding at endoscopy in a Child-Pugh B patient is a reason for a pre-emptive TIPS.' },
       { day: 11, id: 'tips', set: { drugs: { terlipressin: false }, tips: { on: true, d: 8 } },
         detail: 'A covered 8 mm TIPS within 24 hours of the bleed (Baveno VIII: within 72 hours, the sooner the better) for a Child-Pugh B patient who was bleeding at endoscopy. The vasoactive drug stops; no beta-blocker is needed with a TIPS.' },
@@ -168,7 +171,6 @@ export const COURSES: readonly Course[] = [
     state: ['tips', 'ppg', 'ascites'],
     // (the confusion is the gut's blood going round the liver through the stent: the slides' own first-pass shot of the liver, as the encephalopathy deck takes it)
     play: { stops: [
-      { at: 'bleed', look: [L.endoscopy] },
       { at: 'tips', look: [L.along, L.doppler] },
       { at: 'confusion', cam: 'liver', lens: 'firstpass' },
     ] },
@@ -225,7 +227,7 @@ export const COURSES: readonly Course[] = [
     quiet: ['albumin'], still: true,
     steps: [
       { day: 20, id: 'bleed', act: 'bleed' },
-      { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: 'A vasoactive drug for the bleed, for four days.' },
+      { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: `A vasoactive drug for the bleed, for four days. ${ANTIBIOTICS}` },
       { day: 20, id: 'band', act: 'band', detail: 'Banding at endoscopy: large varices, and no cirrhosis on the biopsy. The HVPG is normal because the block is before the sinusoids, and it says nothing of the bleeding risk (Baveno VIII).' },
       { day: 24, id: 'carvedilol', set: { drugs: { terlipressin: false, carvedilol: true } }, detail: 'Secondary prophylaxis: a beta-blocker with banding, 12.5 mg a day.' },
       { day: 48, id: 'band2', act: 'band', detail: 'Banding again, every 2 to 4 weeks, until the varices are gone.' },
@@ -250,19 +252,21 @@ export const COURSES: readonly Course[] = [
     quiet: ['albumin'], still: true, settle: 14,
     steps: [
       { day: 20, id: 'bleed', act: 'bleed', site: 'GV' },
-      { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, stopsBleed: true, label: 'Terlipressin', detail: 'A vasoactive drug, with antibiotics, for the bleed from a gastric varix, which stops the bleed. A band cannot close a varix this large.' },
+      { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: `A vasoactive drug for the bleed from a gastric varix, for up to 5 days. ${ANTIBIOTICS}` },
+      { day: 20, id: 'glue', set: { occluded: { C2: true } }, stopsBleed: 'Bleeding controlled by EUS coils and glue', label: 'EUS coils and glue',
+        detail: 'Endoscopy within 12 hours. A band cannot close a varix this large: EUS-guided coils hold cyanoacrylate glue in it, the varix is obliterated and the bleeding stops (Baveno VIII). The gastrorenal shunt stays open, so it is closed next.' },
       { day: 23, id: 'brto', set: { drugs: { terlipressin: false }, occluded: { C5: true } }, label: 'BRTO', detail: 'Balloon-occluded retrograde transvenous obliteration of the gastrorenal shunt, three days after the bleed. The varix thromboses; the portal pressure and the ascites can rise afterwards.' },
       { day: 40, id: 'carvedilol', set: { drugs: { carvedilol: true } }, detail: 'Endoscopy after the BRTO finds new large esophageal varices: carvedilol, 12.5 mg a day.' },
       { day: 47, id: 'band', act: 'band', detail: 'The first band session on the new esophageal varices.' },
       { day: 75, id: 'band2', act: 'band', detail: 'A second session, a month on.' },
       { day: 103, id: 'band3', act: 'band', detail: 'The third session, to eradicate them.' },
     ],
-    story: 'A fundal varix bleeds on Day {bleed}. A vasoactive drug, then BRTO on Day {brto}. The shunt that fed it is closed, the portal pressure rises, and new esophageal varices need carvedilol from Day {carvedilol} and bands to Day {band3}.',
+    story: 'A fundal varix bleeds on Day {bleed}. A vasoactive drug and antibiotics, EUS-guided coils and glue the same day, then BRTO on Day {brto}. The shunt that fed it is closed, the portal pressure rises, and new esophageal varices need carvedilol from Day {carvedilol} and bands to Day {band3}.',
     path: 'Bleed, BRTO, then the esophageal varices',
     state: ['ppg', 'meds'],
-    // (the fundal varix and its shunt on the fundus, as the gastric varices deck frames BRTO; the esophageal varices after it at endoscopy)
+    // (the fundal varix and its shunt on the fundus, as the gastric varices deck frames BRTO; the esophageal varices after it at endoscopy. The bleed stops are the bleed's own: it bleeds at the
+    // fundus, where the esophageal scope has nothing to see, and the glue that stops it is watched on the figure: case/looks.ts GLUE_LOOK, the stops' default for a fundal bleed)
     play: { stops: [
-      { at: 'bleed', look: [L.endoscopy] },
       { at: 'brto', look: [L.along, L.endoscopy] },
       { at: { day: 29 }, look: [L.endoscopy] },
       { at: 'carvedilol', look: [L.endoscopy] },

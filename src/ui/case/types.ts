@@ -3,7 +3,11 @@
 import type { ViewId } from '../shell/views.ts';
 
 /** "Look closer here": a Tests card or a view worth opening at this stop (up to three). `tool` is a Tests tool's id or a view's ('circuit', 'lobule', ...). */
-export interface CaseLook { tool: string; label: string }
+export interface CaseLook {
+  tool: string; label: string;
+  /** a procedure to watch play on the figure (scene/procedures' kind: 'eusglue'): the card opens and the animation plays, the patient untouched (the course has already done it) */
+  watch?: string;
+}
 
 /** Where the camera goes at a stop: a view, a slide's named camera in it ('bleed', 'tips', 'lobule:sinusoid' ... decks/hp/cams.ts), the lens, the stations it labels. */
 export interface StopShot { view: ViewId; cam: string; lens?: string; labels?: string[] }
@@ -15,11 +19,17 @@ export interface CaseStopIn {
   drop?: boolean;
   view?: ViewId; cam?: string; lens?: string; labels?: string[];
   look?: CaseLook[];
+  /** a Tests card this stop opens by itself on arrival (the bleed, seen through the scope) */
+  open?: CaseLook;
   /** an authored line in place of the story's own sentence */
   say?: string;
 }
 /** The same, baked: anchored to its day (index.generated.ts, as the chapters are). */
-export type CaseStopBaked = Omit<CaseStopIn, 'at'> & { day: number };
+export type CaseStopBaked = Omit<CaseStopIn, 'at'> & {
+  day: number;
+  /** the course step it was anchored to, when it was (a day with two stops, a bleed and what is done about it, tells them apart by it) */
+  step?: string;
+};
 
 /** The disease moving by itself between stops (a course's ramps, baked): `key` eased from a to b over the days from..to. */
 export interface CaseRamp { key: string; from: number; to: number; a: number; b: number }
@@ -37,6 +47,8 @@ export interface Stop {
   kind: string;
   shot: StopShot;
   look: CaseLook[];
+  /** the Tests card the stop opens by itself on arrival, or null */
+  open: CaseLook | null;
   say: string | null;
 }
 
