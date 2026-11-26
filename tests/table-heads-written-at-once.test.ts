@@ -26,7 +26,7 @@ test('turning them back lays them down on the page at once', () => {
 test('the table\'s fit pass writes its judgement through turnHeads, not only through state, and the card measures after it', () => {
   const t = readFileSync('src/ui/cards/TableCard.tsx', 'utf8');
   const fit = /const fit = \(\) => \{([\s\S]*?)\n    \};/.exec(t)![1];
-  assert.match(fit, /turnHeads\(tr, box, over\)/);
+  assert.match(fit, /setHeads\(tr, box, next\)/);
   assert.doesNotMatch(fit, /if \(was\) \{ tr\.classList\.add/, 'the old form restored only the heads that were already up; a new turn waited for the render');
   // every table slide goes through this one card (the table is a `visual` panel; the card frame measures in a layout effect of its own, after its child's)
   assert.match(readFileSync('src/ui/cards/CardFrame.tsx', 'utf8'), /useLayoutEffect\(\(\) => \{\n    const el = innerRef\.current;/);

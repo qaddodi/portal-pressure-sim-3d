@@ -59,7 +59,7 @@ test('the table fits its heads: upright when they do not fit, the name column fo
   const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
   const model = readFileSync(new URL('../src/ui/talk/table-model.ts', import.meta.url), 'utf8');
   assert.match(tsx, /scrollWidth > t\.clientWidth \+ 1/, 'measured, not guessed');
-  assert.match(tsx, /className=\{up \? 'th-up' : undefined\}/);
+  assert.match(tsx, /className=\{mode === 'turned' \? 'th-up' : mode === 'stagger' \? 'th-st' : undefined\}/);
   assert.match(css, /\.pz-table\.dk-pztable\.dk-up \{ --dk-name: max\(calc\(20\.5rem - var\(--nc\) \* 1\.75rem\)/);
   assert.match(model, /rowHead: spec\.rowHead \|\| 'Level'/, '2D words 1:1 (presenter.js summaryTable)');
 });

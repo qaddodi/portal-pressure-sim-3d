@@ -745,7 +745,7 @@
  "src/ui/talk/room-fit.ts": 4,
  "src/ui/talk/slide-claim.ts": 2,
  "src/ui/talk/slide-states.ts": 2,
- "src/ui/talk/table-model.ts": 8,
+ "src/ui/talk/table-model.ts": 7,
  "src/ui/talk/table-rows.ts": 6,
  "src/ui/talk/table-wave-frame.ts": 1,
  "src/ui/talk/table-wave.ts": 5,

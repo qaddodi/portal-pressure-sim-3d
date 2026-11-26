@@ -136,3 +136,45 @@ test('tables: a column head that lies on its side has the body\'s ink and a full
   const css = readFileSync('src/ui/css3d-over-2d.css', 'utf8');
   assert.match(css, /thead tr\.th-up th\.num > \.hd \{ color: var\(--text-2\); font-weight: 700;/);
 });
+
+// Mohammad, 26 Nov, slide 13: "B", full flat heads staggered on two levels under group names, in place of the turned heads. The general rule, for every table on a phone.
+import { chooseHeads, fitsStaggered, setHeads, groupRuns, showGroups, type ClassHost } from '../src/ui/cards/table-heads.ts';
+import { groupOf } from '../src/ui/talk/table-model.ts';
+const host = (...c: string[]): ClassHost & { set: Set<string> } => { const set = new Set(c); return { set, classList: { add: (x) => void set.add(x), remove: (x) => void set.delete(x), contains: (x) => set.has(x) } }; };
+
+test('heads: the first way that fits wins (flat, then staggered, then turned)', () => {
+  assert.equal(chooseHeads(false, false), 'flat');
+  assert.equal(chooseHeads(false, true), 'flat', 'a table that fits flat never staggers');
+  assert.equal(chooseHeads(true, false), 'stagger');
+  assert.equal(chooseHeads(true, true), 'turned');
+  // two columns of room less a gap; the end heads stay within the table's edge
+  assert.ok(fitsStaggered(38, 30) && !fitsStaggered(55, 30));
+  assert.ok(fitsStaggered(54, 30) && !fitsStaggered(55, 30), 'two columns less a 6 px gap');
+});
+
+test('heads: setHeads writes the one state on the page at once, leaving nothing of the others', () => {
+  const row = host(), box = host('pz-table');
+  assert.equal(setHeads(row, box, 'stagger'), true);
+  assert.ok(row.set.has('th-st') && !row.set.has('th-up') && box.set.has('dk-up') && box.set.has('dk-st'));
+  assert.equal(setHeads(row, box, 'stagger'), false);
+  assert.equal(setHeads(row, box, 'turned'), true);
+  assert.ok(row.set.has('th-up') && !row.set.has('th-st') && box.set.has('dk-up') && !box.set.has('dk-st'), 'turned: no group row');
+  assert.equal(setHeads(row, box, 'flat'), true);
+  assert.ok(!row.set.has('th-up') && !row.set.has('th-st') && !box.set.has('dk-up') && !box.set.has('dk-st') && box.set.has('pz-table'));
+});
+
+test('heads: columns group by what they are (pressures, ascites); the group row shows only when a group names two or more', () => {
+  assert.deepEqual(['pv', 'whvp', 'fhvp', 'ra', 'hvpg', 'ppg', 'saag', 'tp'].map(groupOf), ['Pressures', 'Pressures', 'Pressures', 'Pressures', 'Pressures', 'Pressures', 'Ascites', 'Ascites']);
+  const runs = groupRuns(['Pressures', 'Pressures', 'Pressures', 'Ascites', 'Ascites']);
+  assert.deepEqual(runs, [{ label: 'Pressures', span: 3 }, { label: 'Ascites', span: 2 }]);
+  assert.equal(showGroups(runs), true);
+  assert.equal(showGroups(groupRuns(['', 'Pressures', '', 'Ascites'])), false, 'single columns need no group row');
+  assert.deepEqual(groupRuns(['Pressures', '', '', 'Pressures']), [{ label: 'Pressures', span: 1 }, { label: '', span: 2 }, { label: 'Pressures', span: 1 }], 'a run is consecutive columns only');
+  const css = readFileSync('src/ui/css3d-over-2d.css', 'utf8'), tsx = readFileSync('src/ui/cards/TableCard.tsx', 'utf8');
+  assert.match(css, /\.pz-table\.dk-pztable thead tr\.th-grp \{ display: none; \}/);
+  assert.match(css, /\.pz-table\.dk-pztable\.dk-st thead tr\.th-grp \{ display: grid; grid-template-columns: var\(--dk-grid\)/);
+  assert.match(css, /thead tr\.th-st th\.num:nth-child\(even\) > \.hd \{ bottom: 22px; \}/, 'every other head a line higher');
+  assert.match(tsx, /chooseHeads\(true, staggerOver\(\)\)/);
+  assert.match(css, /th\.num:last-child > \.hd \{ left: auto; right: 2px/, 'the last head keeps to the table\'s edge');
+  assert.match(css, /thead tr\.th-grp th\.num\.g \{[^}]*font-size: 12px/, 'the group names keep the 12 px floor');
+});
