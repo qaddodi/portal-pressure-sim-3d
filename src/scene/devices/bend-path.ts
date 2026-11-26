@@ -21,8 +21,9 @@ export const DEVICE_BEND_RADII = {
   /** the endoscope's insertion tube (the oesophagus, the cardia and the stomach): its way was already round (about 9.5 radii at the tightest, the glue slide's turn under the fundus),
       and this holds it */
   scope: 9,
-  /** the Sengstaken-Blakemore / Minnesota tube: stiff, turning from the oesophagus into the stomach over about the oesophagus's own width, never an elbow (the scope's tube is the next stiffest) */
-  tamponade: 75,
+  /** the Sengstaken-Blakemore / Minnesota tube: stiff, turning from the oesophagus into the stomach over about one and a half of the oesophagus's widths, never an elbow (the scope's tube
+      is the next stiffest). 30 radii, not 75: the wider turn ran the tube along the cardia's thin wall, where no round balloon on it fits inside the lumen (owner, 26 Nov 2026) */
+  tamponade: 30,
 } as const;
 export type DeviceKind = keyof typeof DEVICE_BEND_RADII;
 
