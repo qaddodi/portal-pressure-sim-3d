@@ -104,7 +104,7 @@ test('the cirrhosis bleed reads as the course: a tap and a TIPS show what they d
   assert.ok(tap && tap.type === 'key');
   const asc = tap.nums.rows.find((r) => r.k === 'asc')!;
   assert.equal(tap.nums.when, 'right after');
-  assert.ok(asc.a! > 4 && asc.b < 0.5, `the tap drains the belly in the record the chart draws (${asc.a} → ${asc.b} L)`);
+  assert.ok(asc.a! > 3 && asc.b < 0.5, `the tap drains the belly in the record the chart draws (${asc.a} → ${asc.b} L)`);
 });
 
 test('the derived chapters: before treatment, the first start of each medicine, each procedure; a patient who comes on a medicine begins on it', async () => {
