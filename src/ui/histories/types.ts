@@ -11,6 +11,9 @@ export interface Step {
   set?: Record<string, unknown>;
   /** an engine action: a bleed (the model's own rupture, run for a minute), a band, a large-volume paracentesis with albumin (all the fluid there is, to 0.1 L) */
   act?: 'bleed' | 'band' | 'paracentesis';
+  /** The step that stops a bleed under way: hemostasis. A band stops an esophageal bleed by itself (the engine's band); a gastric varix has no band, so a step says it (the vasoactive drug's
+   *  control, a BRTO). The generator stops when a bleed runs on past BLEED_END_DAYS with none. */
+  stopsBleed?: true;
   /** where a bleed comes from: the esophageal varices (the default) or a gastric varix */
   site?: 'VAR' | 'GV';
   /** History's words for the step, when the change's own labels would not say it (an angioplasty is a thrombus put away) */
