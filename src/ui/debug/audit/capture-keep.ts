@@ -24,3 +24,28 @@ export function fileKeeper(): { add(files: readonly ZipFile[]): void; readonly s
     },
   };
 }
+
+/** The same, for a page that writes what its frames hand up to storage as it arrives and keeps only the count (capture-store.ts):
+ *  `add` queues a write (in order), `end` waits for them all. `prefix` puts the files in
+ *  the frame's own folder in the zip (`iphone/`). A frame that crashes or is cut off after Stop has still given every talk it finished. */
+export interface FrameSink { add(files: readonly ZipFile[]): void; readonly count: number; end(res: Ended): Promise<{ notes: string[]; why?: string; count: number }> }
+export function frameSink(write: (files: ZipFile[]) => Promise<void>, prefix: string): FrameSink {
+  let chain: Promise<void> = Promise.resolve(), count = 0;
+  const names = new Set<string>();
+  const put = (files: readonly ZipFile[]): void => {
+    const fs = files.map((f) => ({ name: `${prefix}${f.name}`, data: f.data }));
+    for (const f of fs) names.add(f.name);
+    count = names.size;
+    chain = chain.then(() => write(fs));
+  };
+  return {
+    add: put,
+    get count() { return count; },
+    async end(res) {
+      put(res.files);
+      await chain;
+      const why = res.why && count ? `${res.why}; the ${count} files it had finished are kept` : res.why;
+      return { notes: res.notes, count, ...(why ? { why } : {}) };
+    },
+  };
+}

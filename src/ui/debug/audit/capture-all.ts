@@ -14,7 +14,7 @@ import { clock } from '../../../clock/frame.ts';
 import { latest } from '../../../engine/index.ts';
 import { drawShot } from './capture-shot.ts';
 import { cardBoxes } from './card-boxes.ts';
-import { sleep, until, pad2, blobOf, bytesOf, STATE_WAIT, tagWords, stillPage, sheet, startCaptureClock, deckKit } from './capture-settle.ts';
+import { sleep, until, pad2, blobOf, bytesOf, STATE_WAIT, tagWords, stillPage, sheet, startCaptureClock, deckKit, RELEASED } from './capture-settle.ts';
 import { captureViews, CHOICE_SEL, CHOICE_ON_SEL, CHOICE_MAX, CHOICE_ROOTS, pressable, choiceName, collageLayout, countWords, slug, stampTime } from '../../capture/capture-model.ts';
 import { isSideways, layoutOf } from '../../layout/rules2d.ts';
 import { lastPicked, stopKey, pickWords, deckFolder } from './capture-pick.ts';
@@ -27,7 +27,10 @@ export interface AllUi { /** only these talks (ids); absent: every talk */ decks
   /** the promotion set (?promotion): one picture a slide at this pixel ratio, as a PNG, no choice pictures, no contact sheets */ promo?: { ratio: number };
   /** capture this one talk only (its id); default every talk */ only?: string;
   /** called with each talk's finished files (its pictures, states and contact sheet) as soon as the talk ends, so a page that holds the run can keep them if the run never ends */
-  partial?(files: ZipFile[]): void;
+  partial?(files: ZipFile[]): void | Promise<void>;
+  /** let each talk's bytes go from memory once `partial` has them (the frame, whose parent keeps them; a page that writes them to storage):
+   *  the result then holds only the files not handed up, and no zip */
+  release?: boolean;
   /** leave the talk open on this stop at the end (the talk the person was in); default the talk is left */ restore?: number }
 export interface AllResult { /** every file of the zip (name and bytes), for a page that joins several runs */ files: ZipFile[]; /** wall seconds for the whole run, and per slide: waiting for the slide to be still, drawing it */ secs: number; perSlide: { waitMs: number; drawMs: number }; speed: number; zip: Blob; zipName: string; collages: { name: string; blob: Blob }[]; shots: number; decks: number; stopped: boolean; notes: string[] }
 
@@ -62,7 +65,8 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
     await Promise.all(encoding);
     const fresh = files.filter((f) => !flushed.has(f.name));
     for (const f of fresh) flushed.add(f.name);
-    if (fresh.length) ui.partial?.(fresh);
+    if (fresh.length) await ui.partial?.(fresh);
+    if (ui.release) for (const f of fresh) f.data = RELEASED;
   };
   const seen = new Set<string>(), single = !!(ui.pick && ui.pick.size);
   let reached = 0;
@@ -280,7 +284,9 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   files.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: every slide of every talk`, `Build: ${build}`, `Made: ${stampTime(at)} on ${innerWidth}x${innerHeight} at ${devicePixelRatio}x; the pictures are ${shape0.w}x${shape0.h} px`, countWords(files.filter((f) => f.name.endsWith('.jpg')).length, slidesSeen.size, decksDone)+`${stopped ? ' (stopped early)' : ''}${pick ? ` (picked slides: ${pickWords([...pick])})` : ''}`, `Took ${secs} s at ${speed}x: about ${shots ? Math.round(waitMs / shots) : 0} ms waiting for each slide to be still and ${shots ? Math.round(drawMs / shots) : 0} ms drawing it (real time)`, '', 'Each talk has a folder: one JPEG per slide and a JSON beside it (the link that reopens that slide, and the patient, the look, the lens and the view it was taken with).', 'On a phone on its side a slide with both cards has two pictures: -teaching (the words in view) and -instrument (the column swiped up). On an upright iPhone or iPad a slide with an instrument card has two: -untucked (the card up) and -tucked (the card in its strip). A slide with several choices (tabs, options, toggles) has a picture for each, named -choiceNN-<the button> (after -untucked, -tucked, -teaching or -instrument when it has those). A random sample counts slides, not pictures.', 'The contact sheets (one PNG per talk) sit at the top.', ...notes].join('\n')) });
   const commit = commitOf(import.meta.env.VITE_BUILD) || 'local';
   const stamp = `${at.getFullYear()}${pad2(at.getMonth() + 1)}${pad2(at.getDate())}-${pad2(at.getHours())}${pad2(at.getMinutes())}${pad2(at.getSeconds())}`;
-  return { files, secs, perSlide: { waitMs: shots ? Math.round(waitMs / shots) : 0, drawMs: shots ? Math.round(drawMs / shots) : 0 }, speed, zip: zipBlob(files, at), zipName: `portal-pressure-${ui.only ? slug(ui.only) : 'all-decks'}-${commit}-${stamp}.zip`, collages, shots, decks: decksDone, stopped, notes };
+  // (released: only the files not yet handed up, and no zip made from nothing)
+  const left = ui.release ? files.filter((f) => !flushed.has(f.name)) : files;
+  return { files: left, secs, perSlide: { waitMs: shots ? Math.round(waitMs / shots) : 0, drawMs: shots ? Math.round(drawMs / shots) : 0 }, speed, zip: ui.release ? new Blob([]) : zipBlob(files, at), zipName: `portal-pressure-${ui.only ? slug(ui.only) : 'all-decks'}-${commit}-${stamp}.zip`, collages, shots, decks: decksDone, stopped, notes };
 }
 
 export { saveFiles } from '../../capture/save-files.ts';

@@ -58,7 +58,7 @@ test('every page that holds a capture frame keeps what the frame hands up as it 
   for (const f of holders) {
     const s = readFileSync(f, 'utf8');
     assert.match(s, /capture === 'part'/, `${f} must keep a frame's finished talks`);
-    assert.match(s, /fileKeeper\(\)/, `${f} keeps them through the one keeper`);
+    assert.match(s, /fileKeeper\(\)|frameSink\(/, `${f} keeps them (in memory, or written to storage as they arrive)`);
     assert.match(s, /stopOverdue\(/, `${f} cuts off a frame that does not stop`);
   }
 });

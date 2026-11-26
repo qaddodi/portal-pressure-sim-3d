@@ -6,9 +6,11 @@ import { flagValue, queryWithout, searchNow } from '../flags.ts';
 import { builtinDecks, lazyDecks, loadBuiltin } from '../../../decks/registry.ts';
 import { pickerUi, packPick } from './capture-pick.ts';
 import { whatUi } from './capture-what.ts';
-import { fileKeeper, stopOverdue, STOP_GRACE_MS } from './capture-keep.ts';
+import { frameSink, stopOverdue, STOP_GRACE_MS } from './capture-keep.ts';
+import { openSession, idbBackend, type Session } from './capture-store.ts';
+import { recoverUi } from './capture-recover.ts';
 import { whatOf, joinManifests, manifestJson, type CaptureWhat, type Manifest } from './capture-cases-plan.ts';
-import { zipBlob, type ZipFile } from '../../capture/zip.ts';
+import type { ZipFile } from '../../capture/zip.ts';
 import { commitOf } from '../../../boot/release.ts';
 import type { CaptureMsg } from './capture-child.ts';
 import { readBox } from '../../layout-snap.ts';
@@ -40,22 +42,29 @@ export function addCaptureControls(k: OuterKit): void {
   void Promise.all(lazyDecks().map((l) => loadBuiltin(l.id).catch(() => null))).then(() => picker.refresh());   // (the talks' data only: the app itself is started in the frames)
   const wrap = doc.createElement('div'); wrap.className = 'ao-cap'; wrap.style.cssText = 'flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center';
   const b = (label: string, on: () => void) => { const e = doc.createElement('button'); e.type = 'button'; e.textContent = label; e.onclick = on; return e; };
-  let stop = false, stopAt = -1, zip: { blob: Blob; name: string } | null = null;
+  let stop = false, stopAt = -1, zip: { blob: Blob; name: string } | null = null, session: Session | null = null;
   const go = b('Capture', () => { void run(); });
   const stopBtn = b('Stop', () => {
     stop = true; stopAt = clock.now();
     status.textContent = `Stopping: each frame finishes its slide, then what is done in every size is kept and Save zip comes (a frame that has not ended in ${STOP_GRACE_MS / 1000} s is cut off, keeping its finished talks).`;
   });
-  const save = b('Save zip', () => { if (zip) void saveFiles([new File([zip.blob], zip.name, { type: 'application/zip' })]); });
+  const save = b('Save zip', () => {
+    if (!zip) return;
+    const s = session;
+    void saveFiles([new File([zip.blob], zip.name, { type: 'application/zip' })]).then((ok) => { if (ok) void s?.saved(); });
+  });
   save.hidden = true;
-  wrap.append(what.el, picker.el, go, stopBtn, save); bar.append(wrap);
+  // (a capture the page was ended in the middle of, or before its zip was saved, is offered back: capture-store.ts)
+  const recover = recoverUi(doc, (t) => { status.textContent = t; });
+  void recover.refresh();
+  wrap.append(recover.el, what.el, picker.el, go, stopBtn, save); bar.append(wrap);
 
   /** What each size says now: the status shows them side by side. */
   const lines = new Map<string, string>();
   const say = (id: string, t: string) => { lines.set(id, t); status.textContent = [...lines.values()].join(' | '); };
-  /** One size: a fresh frame, its files when it ends. */
+  /** One size: a fresh frame; its files go to the session as they arrive, and it says how many it gave when it ends. */
   type Sel = { decks: string[] | null; pick: string[] | null; what: CaptureWhat };
-  const one = (id: string, sel: Sel, speed: number, again = 0, of = 1): Promise<{ files: ZipFile[]; notes: string[]; why?: string }> => new Promise((done) => {
+  const one = (id: string, sel: Sel, speed: number, again = 0, of = 1): Promise<{ count: number; notes: string[]; why?: string }> => new Promise((done) => {
     const d = FRAME_DEVICES[id]!;
     const box = doc.createElement('div'), frame = doc.createElement('iframe'); box.className = 'ao-wrap'; frame.title = `${d.label} ${d.w}x${d.h}`;
     const q = { speed, pick: sel.pick, decks: sel.decks, what: sel.what, cases: casesFlag };
@@ -65,12 +74,12 @@ export function addCaptureControls(k: OuterKit): void {
     box.style.width = `${Math.round(d.w * s)}px`; box.style.height = `${Math.round(d.h * s)}px`;
     frame.style.width = `${d.w}px`; frame.style.height = `${d.h}px`; frame.style.transform = `scale(${s})`;
     // (every file the frame handed up as its talks ended, and the ones it ends with: a frame that crashes, hangs or is cut off after Stop still gives what it had finished)
-    const kept = fileKeeper();
+    const kept = frameSink((fs) => session!.add(fs), `${id}/`);
     let finished = false, silent = clock.after(() => end({ files: [], notes: [], why: 'silent for 5 minutes (the frame crashed or never booted)' }), 300000);
     const end = (res: { files: ZipFile[]; notes: string[]; why?: string }) => {
       if (finished) return;
       finished = true; clock.cancel(silent); clock.cancel(poll); win.removeEventListener('message', on); box.remove();
-      done(kept.end(res));
+      void kept.end(res).then(done);
     };
     const on = (e: MessageEvent) => {
       if (e.origin !== win.location.origin || e.source !== frame.contentWindow) return;
@@ -94,7 +103,12 @@ export function addCaptureControls(k: OuterKit): void {
     if (!ids.length) { status.textContent = 'Tick at least one size in the bar.'; return; }
     if (sel.none && sel.what !== 'cases') { status.textContent = 'Tick at least one talk first.'; return; }
     k.setBusy(true); stop = false; stopAt = -1; zip = null; save.hidden = true; go.disabled = true;
-    const at = new Date(), all: ZipFile[] = [], enc = new TextEncoder(), notes: string[] = [], speed = k.speed() > 1 ? k.speed() : 20;
+    const at = new Date(), enc = new TextEncoder(), notes: string[] = [], speed = k.speed() > 1 ? k.speed() : 20;
+    const zipName = captureZipName(commitOf(import.meta.env.VITE_BUILD) || 'local', ids, at);
+    const takenWords = sel.what === 'cases' ? 'every history case, played' : sel.what === 'both' ? `${sel.words}, and every history case played` : sel.words;
+    // (every picture is written to the device's storage as its talk ends and the page keeps only the names: a page the browser ends keeps the capture, and "Recover last capture" offers it back)
+    session = await openSession(await idbBackend().catch(() => null), { startedAt: at.toISOString(), build: buildOf(), words: takenWords, sizes: ids, zipName });
+    const sess = session;
     try {
       // every size at once, side by side in the room (a frame is its own page: its own clock, its own GPU canvas; a Mac holds well over six). Each size's pictures wait for its
       // own frames, so the sizes slow one another a little and the whole run is about as long as the slowest.
@@ -109,17 +123,26 @@ export function addCaptureControls(k: OuterKit): void {
       const manifests: Record<string, Manifest> = {};
       for (const { id, r } of done) {
         if (r.why) notes.push(`${FRAME_DEVICES[id]!.label}: ${r.why}`);
-        for (const f of r.files) {
-          all.push({ name: `${id}/${f.name}`, data: f.data });
-          // (a size that played the cases has a manifest of them: the zip's own, at the top, joins every size's)
-          if (f.name !== 'cases/manifest.json') continue;
-          try { manifests[id] = JSON.parse(new TextDecoder().decode(f.data)) as Manifest; } catch { notes.push(`${FRAME_DEVICES[id]!.label}: its cases manifest could not be read`); }
-        }
+        // (a size that played the cases has a manifest of them: the zip's own, at the top, joins every size's)
+        const raw = await sess.read(`${id}/cases/manifest.json`);
+        if (!raw) continue;
+        try { manifests[id] = JSON.parse(new TextDecoder().decode(raw)) as Manifest; } catch { notes.push(`${FRAME_DEVICES[id]!.label}: its cases manifest could not be read`); }
       }
-      if (Object.keys(manifests).length) all.push({ name: 'cases-manifest.json', data: enc.encode(manifestJson(joinManifests(manifests))) });
-      all.push({ name: 'README.txt', data: enc.encode([`Portal pressure simulator: captured on a computer at the sizes ${ids.join(', ')}`, `Taken: ${sel.what === 'cases' ? 'every history case, played' : sel.what === 'both' ? `${sel.words}, and every history case played` : sel.words}`, `Build: ${buildOf()}`, `Made: ${at.toISOString()}`, 'One folder per size (each with its own README, pictures, state files and contact sheets).', ...notes].join('\n')) });
-      zip = { blob: zipBlob(all, at), name: captureZipName(commitOf(import.meta.env.VITE_BUILD) || 'local', ids, at) };
-      status.textContent = `${stop ? 'Stopped. ' : 'Done. '}${all.filter((f) => f.name.endsWith('.jpg')).length} pictures in ${ids.length} size${ids.length > 1 ? 's' : ''}. Tap Save zip.${notes.length ? ` ${notes.join('; ')}` : ''}`;
+      if (sess.degraded) notes.push(`NOTE: the device's storage would not take the pictures (${sess.degraded}); they were held in memory, and a crash would lose them`);
+      const extra: ZipFile[] = [];
+      if (Object.keys(manifests).length) extra.push({ name: 'cases-manifest.json', data: enc.encode(manifestJson(joinManifests(manifests))) });
+      const readme = [
+        `Portal pressure simulator: captured on a computer at the sizes ${ids.join(', ')}`, `Taken: ${takenWords}`, `Build: ${buildOf()}`, `Made: ${at.toISOString()}`,
+        'One folder per size (each with its own README, pictures, state files and contact sheets).', ...notes,
+      ];
+      extra.push({ name: 'README.txt', data: enc.encode(readme.join('\n')) });
+      await sess.add(extra);
+      await sess.finish(stop ? 'stopped' : 'finished');
+      // (the zip is made from storage one file at a time, so the page never holds the whole of it as arrays)
+      status.textContent = 'Making the zip…';
+      zip = { blob: await sess.zip(at, (n, of) => { if (n % 50 === 0 || n === of) status.textContent = `Making the zip: ${n} of ${of} files…`; }), name: zipName };
+      const pictures = sess.names().filter((n) => /\.(jpg|png)$/.test(n) && !n.endsWith('contact-sheet.png')).length;
+      status.textContent = `${stop ? 'Stopped. ' : 'Done. '}${pictures} pictures in ${ids.length} size${ids.length > 1 ? 's' : ''}. Tap Save zip.${notes.length ? ` ${notes.join('; ')}` : ''}`;
       save.hidden = false;
     } catch (e) { status.textContent = `Capture failed: ${String((e as Error)?.message ?? e)}`; }
     finally { k.setBusy(false); go.disabled = false; }

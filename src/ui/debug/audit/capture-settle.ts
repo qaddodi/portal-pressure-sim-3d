@@ -36,6 +36,9 @@ export const STATE_WAIT = /has not reached the slide|has not caught up with the 
 export const CONTENT = `${READING_ROOTS}, .dk-bar, .topbar, .stage-credit, .zoom-pill`;
 /** What the cards, tiles and callouts print now, as one string (outermost roots only: a card inside a card is read once). */
 export const readingsNow = (): string => readingsOf([...document.querySelectorAll<HTMLElement>(READING_ROOTS)].filter((e) => !e.parentElement?.closest(READING_ROOTS) && !e.closest(READING_SKIP)));
+/** What a file's bytes become once they have been handed up and let go (capture-all.ts `release`). */
+export const RELEASED = new Uint8Array(0);
+
 /** What "a card is up" means for the pass that waits: a talk's card by default (a case's stop card for the case pass). */
 export interface SettleKit {
   cardUp(): boolean;

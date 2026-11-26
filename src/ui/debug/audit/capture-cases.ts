@@ -18,7 +18,7 @@ import { useTests } from '../../tests/store.ts';
 import { useShell } from '../../shell/store.ts';
 import { VIEWS } from '../../shell/views.ts';
 import type { Stop } from '../../case/types.ts';
-import { sleep, until, pad2, tagWords, stillPage, sheet, startCaptureClock, showLanded, type SettleKit } from './capture-settle.ts';
+import { sleep, until, pad2, tagWords, stillPage, sheet, startCaptureClock, showLanded, RELEASED, type SettleKit } from './capture-settle.ts';
 import { drawShot } from './capture-shot.ts';
 import { cardBoxes } from './card-boxes.ts';
 import { stopBase, pulledBase, lookBase, caseFolder, stopIssues, casesReadme, manifestJson, totalsOf } from './capture-cases-plan.ts';
@@ -41,7 +41,9 @@ export interface CasesUi {
   /** take the look-closer pictures too (default yes) */
   looks?: boolean;
   /** called with each case's finished files as soon as the case ends (see AllUi.partial) */
-  partial?(files: ZipFile[]): void;
+  partial?(files: ZipFile[]): void | Promise<void>;
+  /** let each case's bytes go once `partial` has them (see AllUi.release) */
+  release?: boolean;
 }
 export interface CasesResult {
   files: ZipFile[]; manifest: Manifest; notes: string[];
@@ -212,7 +214,8 @@ export async function captureCases(ui: CasesUi): Promise<CasesResult> {
       await Promise.all(encoding);
       const fresh = files.filter((f) => !flushed.has(f.name));
       for (const f of fresh) flushed.add(f.name);
-      if (fresh.length) ui.partial?.(fresh);
+      if (fresh.length) await ui.partial?.(fresh);
+      if (ui.release) for (const f of fresh) f.data = RELEASED;
       if (skip) clock.setDrawing(false);
       run.endCase();
       await sleep(real(120));
@@ -233,8 +236,10 @@ export async function captureCases(ui: CasesUi): Promise<CasesResult> {
   const commit = commitOf(import.meta.env.VITE_BUILD) || 'local', p2 = pad2;
   const stamp = `${at.getFullYear()}${p2(at.getMonth() + 1)}${p2(at.getDate())}-${p2(at.getHours())}${p2(at.getMinutes())}${p2(at.getSeconds())}`;
   files.sort((a, b) => (a.name < b.name ? -1 : 1));
+  // (released: only the files not yet handed up, and no zip made from nothing)
+  const left = ui.release ? files.filter((f) => !flushed.has(f.name)) : files;
   return {
-    files, manifest, notes, shots, cases: records.length, stops: manifest.totals.stops, secs, stopped, speed,
-    zip: zipBlob(files, at), zipName: `portal-pressure-cases-${commit}-${stamp}.zip`, collages,
+    files: left, manifest, notes, shots, cases: records.length, stops: manifest.totals.stops, secs, stopped, speed,
+    zip: ui.release ? new Blob([]) : zipBlob(files, at), zipName: `portal-pressure-cases-${commit}-${stamp}.zip`, collages,
   };
 }

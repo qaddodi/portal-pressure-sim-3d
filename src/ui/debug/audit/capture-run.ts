@@ -23,7 +23,7 @@ export async function runCapture(ui: RunUi): Promise<RunResult> {
   }
   const c = await captureCases({
     ids: ui.cases ?? everyCaseId(), status: ui.status, stop: ui.stop, speed: ui.speed, skip: ui.skip, looks: ui.looks,
-    progress: (n, total) => ui.progress(n0 + n, total0 + total), partial: ui.partial,
+    progress: (n, total) => ui.progress(n0 + n, total0 + total), partial: ui.partial, release: ui.release,
   });
   const at = new Date(), files = [...(first?.files ?? []), ...c.files];
   // (a run of cases alone has the README at the top too: the first thing a person opens)
@@ -31,7 +31,7 @@ export async function runCapture(ui: RunUi): Promise<RunResult> {
   return {
     files, secs: Math.round(((first?.secs ?? 0) + c.secs) * 10) / 10,
     perSlide: first?.perSlide ?? { waitMs: c.shots ? Math.round((c.secs * 1000) / c.shots) : 0, drawMs: 0 }, speed: c.speed,
-    zip: zipBlob(files, at), zipName: first ? first.zipName.replace(/\.zip$/, '-and-cases.zip') : c.zipName,
+    zip: ui.release ? new Blob([]) : zipBlob(files, at), zipName: first ? first.zipName.replace(/\.zip$/, '-and-cases.zip') : c.zipName,
     collages: [...(first?.collages ?? []), ...c.collages], shots: (first?.shots ?? 0) + c.shots, decks: first?.decks ?? 0,
     stopped: c.stopped, notes: [...(first?.notes ?? []), ...c.notes], caseStops: c.stops, cases: c.cases,
   };
