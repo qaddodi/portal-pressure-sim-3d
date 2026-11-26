@@ -6,6 +6,7 @@ import { flagValue, queryWithout, searchNow } from '../flags.ts';
 import { builtinDecks, lazyDecks, loadBuiltin } from '../../../decks/registry.ts';
 import { pickerUi, packPick } from './capture-pick.ts';
 import { whatUi } from './capture-what.ts';
+import { fileKeeper, stopOverdue, STOP_GRACE_MS } from './capture-keep.ts';
 import { whatOf, joinManifests, manifestJson, type CaptureWhat, type Manifest } from './capture-cases-plan.ts';
 import { zipBlob, type ZipFile } from '../../capture/zip.ts';
 import { commitOf } from '../../../boot/release.ts';
@@ -39,9 +40,12 @@ export function addCaptureControls(k: OuterKit): void {
   void Promise.all(lazyDecks().map((l) => loadBuiltin(l.id).catch(() => null))).then(() => picker.refresh());   // (the talks' data only: the app itself is started in the frames)
   const wrap = doc.createElement('div'); wrap.className = 'ao-cap'; wrap.style.cssText = 'flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center';
   const b = (label: string, on: () => void) => { const e = doc.createElement('button'); e.type = 'button'; e.textContent = label; e.onclick = on; return e; };
-  let stop = false, zip: { blob: Blob; name: string } | null = null;
+  let stop = false, stopAt = -1, zip: { blob: Blob; name: string } | null = null;
   const go = b('Capture', () => { void run(); });
-  const stopBtn = b('Stop', () => { stop = true; status.textContent = 'Stopping: the frame finishes its slide, then what is done is kept.'; });
+  const stopBtn = b('Stop', () => {
+    stop = true; stopAt = clock.now();
+    status.textContent = `Stopping: each frame finishes its slide, then what is done in every size is kept and Save zip comes (a frame that has not ended in ${STOP_GRACE_MS / 1000} s is cut off, keeping its finished talks).`;
+  });
   const save = b('Save zip', () => { if (zip) void saveFiles([new File([zip.blob], zip.name, { type: 'application/zip' })]); });
   save.hidden = true;
   wrap.append(what.el, picker.el, go, stopBtn, save); bar.append(wrap);
@@ -60,18 +64,27 @@ export function addCaptureControls(k: OuterKit): void {
     const r = readBox(room), s = fitScale(d.w, d.h, Math.max(1, (r.width - 24 - 12 * (of - 1)) / of), Math.max(1, r.height - 24));
     box.style.width = `${Math.round(d.w * s)}px`; box.style.height = `${Math.round(d.h * s)}px`;
     frame.style.width = `${d.w}px`; frame.style.height = `${d.h}px`; frame.style.transform = `scale(${s})`;
+    // (every file the frame handed up as its talks ended, and the ones it ends with: a frame that crashes, hangs or is cut off after Stop still gives what it had finished)
+    const kept = fileKeeper();
     let finished = false, silent = clock.after(() => end({ files: [], notes: [], why: 'silent for 5 minutes (the frame crashed or never booted)' }), 300000);
-    const end = (res: { files: ZipFile[]; notes: string[]; why?: string }) => { if (finished) return; finished = true; clock.cancel(silent); clock.cancel(poll); win.removeEventListener('message', on); box.remove(); done(res); };
+    const end = (res: { files: ZipFile[]; notes: string[]; why?: string }) => {
+      if (finished) return;
+      finished = true; clock.cancel(silent); clock.cancel(poll); win.removeEventListener('message', on); box.remove();
+      done(kept.end(res));
+    };
     const on = (e: MessageEvent) => {
       if (e.origin !== win.location.origin || e.source !== frame.contentWindow) return;
       const m = e.data as CaptureMsg | null; if (!m || typeof m !== 'object' || !('capture' in m)) return;
       clock.cancel(silent); silent = clock.after(() => end({ files: [], notes: [], why: 'silent for 5 minutes (the frame crashed or never booted)' }), 300000);
       if (m.capture === 'hello') say(id, `${d.label}: the app has started; capturing…`);
       else if (m.capture === 'progress') say(id, `${d.label}: ${m.text}`);
+      else if (m.capture === 'part') kept.add(m.files);
       else if (m.capture === 'done') end({ files: m.files, notes: m.notes });
       else if (m.capture === 'failed') end({ files: [], notes: [], why: m.why });
     };
-    const poll = clock.every(() => { if (stop) { try { (frame.contentWindow as (Window & { pps?: { audit?: { stop(): void } } }) | null)?.pps?.audit?.stop(); } catch { /* same origin */ } } }, 1000);
+    const poll = clock.every(() => {
+      if (stop && stopOverdue(stopAt, clock.now())) { end({ files: [], notes: [], why: `it did not stop within ${STOP_GRACE_MS / 1000} s of Stop` }); return; }
+      if (stop) { try { (frame.contentWindow as (Window & { pps?: { audit?: { stop(): void } } }) | null)?.pps?.audit?.stop(); } catch { /* same origin */ } } }, 1000);
     win.addEventListener('message', on);
   });
 
@@ -80,7 +93,7 @@ export function addCaptureControls(k: OuterKit): void {
     const sel0 = picker.read(), ids = k.sizes(), sel = { ...sel0, what: what.read() };
     if (!ids.length) { status.textContent = 'Tick at least one size in the bar.'; return; }
     if (sel.none && sel.what !== 'cases') { status.textContent = 'Tick at least one talk first.'; return; }
-    k.setBusy(true); stop = false; zip = null; save.hidden = true; go.disabled = true;
+    k.setBusy(true); stop = false; stopAt = -1; zip = null; save.hidden = true; go.disabled = true;
     const at = new Date(), all: ZipFile[] = [], enc = new TextEncoder(), notes: string[] = [], speed = k.speed() > 1 ? k.speed() : 20;
     try {
       // every size at once, side by side in the room (a frame is its own page: its own clock, its own GPU canvas; a Mac holds well over six). Each size's pictures wait for its

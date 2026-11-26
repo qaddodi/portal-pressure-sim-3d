@@ -30,6 +30,9 @@ function tween(t: Tw, target: number, wall: number, dtMs: number, tau: number, d
   return t.cur !== t.to;
 }
 
+/** The wall share the scope's field follows: the engine's two-breath mean, the number the event, the Stigmata chip and every card read (B9), never the breath's own index. */
+export const scopeRatio = (vx: { ratio: number; ratioMean?: number }): number => (Number.isFinite(vx.ratioMean) ? (vx.ratioMean as number) : vx.ratio);
+
 export class FieldMotion {
   private mv: { d: number; ratio: number; air?: number[] } | null = null;
   private held: { at?: number; m?: number | null; k?: number; snap?: boolean } = {};

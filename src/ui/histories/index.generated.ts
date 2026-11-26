@@ -74,6 +74,11 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "tone": "change"
    },
    {
+    "day": 42,
+    "word": "Scope",
+    "tone": "danger"
+   },
+   {
     "day": 70,
     "word": "Bled",
     "tone": "danger"
@@ -135,7 +140,8 @@ export const HISTORIES: readonly HistoryMeta[] = [
      ]
     },
     {
-     "day": 41,
+     "day": 42,
+     "step": "egd",
      "look": [
       {
        "tool": "endoscopy",
@@ -163,7 +169,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 16,
+   "events": 17,
    "medicines": 2
   }
  },
@@ -395,6 +401,11 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "day": 1,
     "word": "Anticoagulation",
     "tone": "change"
+   },
+   {
+    "day": 4,
+    "word": "Scope",
+    "tone": "danger"
    }
   ],
   "chapters": [
@@ -438,6 +449,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 4,
+     "step": "egd",
      "look": [
       {
        "tool": "endoscopy",
@@ -1600,15 +1612,6 @@ export const HISTORIES: readonly HistoryMeta[] = [
      ]
     },
     {
-     "day": 29,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
      "day": 40,
      "step": "carvedilol",
      "look": [
@@ -1621,7 +1624,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 9,
+   "events": 8,
    "medicines": 3
   }
  },

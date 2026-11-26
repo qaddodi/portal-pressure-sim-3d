@@ -40,6 +40,8 @@ export interface CasesUi {
   skip?: boolean;
   /** take the look-closer pictures too (default yes) */
   looks?: boolean;
+  /** called with each case's finished files as soon as the case ends (see AllUi.partial) */
+  partial?(files: ZipFile[]): void;
 }
 export interface CasesResult {
   files: ZipFile[]; manifest: Manifest; notes: string[];
@@ -91,7 +93,7 @@ export async function captureCases(ui: CasesUi): Promise<CasesResult> {
   const speed = ui.speed && ui.speed > 1 ? ui.speed : 60, real = (ms: number) => ms * speed, skip = !!ui.skip, wantLooks = ui.looks !== false;
   const build = feedbackBuild(import.meta.env.VITE_RELEASE, import.meta.env.VITE_BUILD, import.meta.env.VITE_CHANNEL);
   const putBack = startCaptureClock(speed, skip);
-  const missing = new Set<string>();
+  const missing = new Set<string>(), flushed = new Set<string>();
   let shape = { w: 0, h: 0 }, done = 0, shots = 0, stopped = false, avgPerCase = 9;
   try {
     const run = await import('../../case/run.ts');
@@ -116,7 +118,9 @@ export async function captureCases(ui: CasesUi): Promise<CasesResult> {
       /** Settle at the stop and take its picture: `name` is the file's base, `what` says which picture it is. */
       const shoot = async (name: string, what: Record<string, unknown>, label: string, i: number, issues?: string[]): Promise<string | null> => {
         const s = stops[i]!;
-        const r = await stillPage(real, false, skip, issues ? stopKit(i, s) : lookKit);
+        const r = await stillPage(real, false, skip, { ...(issues ? stopKit(i, s) : lookKit), stop: ui.stop });
+        // (Stop pressed while the page was still arriving: no picture of it; what is done is kept)
+        if (r.moving && ui.stop()) return null;
         if (r.moving) note(`stop ${i + 1} "${s.title}": still not still after the wait (${r.moving}); taken as it was`);
         await showLanded(skip, real);
         const shot = await drawShot({ ratio: Math.min(devicePixelRatio, 2) });
@@ -205,6 +209,10 @@ export async function captureCases(ui: CasesUi): Promise<CasesResult> {
           files.push({ name: rec.sheet, data: new Uint8Array(await png.arrayBuffer()) });
         }
       }
+      await Promise.all(encoding);
+      const fresh = files.filter((f) => !flushed.has(f.name));
+      for (const f of fresh) flushed.add(f.name);
+      if (fresh.length) ui.partial?.(fresh);
       if (skip) clock.setDrawing(false);
       run.endCase();
       await sleep(real(120));

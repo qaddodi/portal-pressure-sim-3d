@@ -64,10 +64,10 @@ test('the first bleed stops where the mock does, each on the shot its moment cal
   const b = await LOAD['hist-bleed']!();
   const stops = stopsFor(b, opened(b, 'Cirrhosis, first bleed'));
   const shot = (day: number) => { const s = stops.find((x) => x.day === day)!.shot; return [s.view, s.cam, s.lens ?? ''].join(' '); };
-  assert.deepEqual(stops.map((s) => s.day), [0, 19, 20, 32, 41, 70, 70, 73, 120], 'the bleed is two stops on its day: the bleeding, then the band');
+  assert.deepEqual(stops.map((s) => s.day), [0, 19, 20, 32, 42, 70, 70, 73, 120], 'the bleed is two stops on its day: the bleeding, then the band');
   assert.equal(shot(19), 'lobule lobule:sinusoid ', 'portal hypertension clinically significant: the sinusoid, where the resistance is');
   assert.equal(shot(20), 'circuit portal flow', 'a medicine: the portal flow on the Circuit');
-  assert.equal(shot(41), 'anatomic varices ', 'red wale signs: the varices');
+  assert.equal(shot(42), 'anatomic varices ', 'red wale signs: the varices');
   assert.equal(shot(70), 'anatomic bleed ', 'the bleed: the bleeding varix');
   assert.equal(stops[6]!.shot.cam, 'varices', 'the band, after the bleed: the varices');
   assert.equal(shot(73), 'circuit tips ', 'the TIPS: the Circuit at the stent');
@@ -84,7 +84,7 @@ test('a course changes a stop\'s shot, drops one, or adds a look closer; the sta
     { day: 70, cam: 'varices', look: [{ tool: 'endoscope', label: 'Endoscopy' }, { tool: 'a', label: 'a' }, { tool: 'b', label: 'b' }, { tool: 'c', label: 'c' }], say: 'The varix bled.' },
     { day: 32, drop: true }, { day: 0, drop: true }, { day: 20, lens: 'pressure' },
   ]);
-  assert.deepEqual(stops.map((s) => s.day), [0, 19, 20, 41, 70, 70, 73, 120], 'Day 32 dropped; the start cannot be');
+  assert.deepEqual(stops.map((s) => s.day), [0, 19, 20, 42, 70, 70, 73, 120], 'Day 32 dropped; the start cannot be');
   // (a course's word on a day is on the day's last stop, what is done about the bleed; the bleeding itself keeps its own)
   assert.equal(stops[4]!.shot.cam, 'bleed');
   const bleed = stops[5]!;

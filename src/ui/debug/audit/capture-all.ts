@@ -14,7 +14,7 @@ import { clock } from '../../../clock/frame.ts';
 import { latest } from '../../../engine/index.ts';
 import { drawShot } from './capture-shot.ts';
 import { cardBoxes } from './card-boxes.ts';
-import { sleep, until, pad2, blobOf, bytesOf, STATE_WAIT, tagWords, stillPage, sheet, startCaptureClock } from './capture-settle.ts';
+import { sleep, until, pad2, blobOf, bytesOf, STATE_WAIT, tagWords, stillPage, sheet, startCaptureClock, deckKit } from './capture-settle.ts';
 import { captureViews, CHOICE_SEL, CHOICE_ON_SEL, CHOICE_MAX, CHOICE_ROOTS, pressable, choiceName, collageLayout, countWords, slug, stampTime } from '../../capture/capture-model.ts';
 import { isSideways, layoutOf } from '../../layout/rules2d.ts';
 import { lastPicked, stopKey, pickWords, deckFolder } from './capture-pick.ts';
@@ -26,6 +26,8 @@ import { feedbackBuild, commitOf } from '../../../boot/release.ts';
 export interface AllUi { /** only these talks (ids); absent: every talk */ decks?: ReadonlySet<string> | null; /** only these slides (`deck:k`, k the stop: 1 the first slide); null or absent: every slide */ pick?: ReadonlySet<string> | null; status(s: string): void; progress(done: number, total: number): void; stop(): boolean; /** the page clock's speed for the run (default 8) */ speed?: number; /** land every slide on its settled state at once: no CSS or script animation plays (see skipAnimations) */ skip?: boolean;
   /** the promotion set (?promotion): one picture a slide at this pixel ratio, as a PNG, no choice pictures, no contact sheets */ promo?: { ratio: number };
   /** capture this one talk only (its id); default every talk */ only?: string;
+  /** called with each talk's finished files (its pictures, states and contact sheet) as soon as the talk ends, so a page that holds the run can keep them if the run never ends */
+  partial?(files: ZipFile[]): void;
   /** leave the talk open on this stop at the end (the talk the person was in); default the talk is left */ restore?: number }
 export interface AllResult { /** every file of the zip (name and bytes), for a page that joins several runs */ files: ZipFile[]; /** wall seconds for the whole run, and per slide: waiting for the slide to be still, drawing it */ secs: number; perSlide: { waitMs: number; drawMs: number }; speed: number; zip: Blob; zipName: string; collages: { name: string; blob: Blob }[]; shots: number; decks: number; stopped: boolean; notes: string[] }
 
@@ -41,6 +43,8 @@ const stopName = (k: number): string => { const st = useUi.getState().stops[k]; 
 /** Every slide of every talk, captured. */
 export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   const encoding: Promise<void>[] = [];
+  // (a wait for the page to be still ends when Stop is pressed)
+  const kit = { ...deckKit, stop: ui.stop };
   const at = new Date(), notes: string[] = [], files: ZipFile[] = [], collages: { name: string; blob: Blob }[] = [], enc = new TextEncoder();
   const { failed } = ui.only && builtinDecks().some((d) => d.id === ui.only) ? { failed: [] as string[] } : await loadAllDecks();
   if (failed.length) notes.push(`these talks would not load, so they are not captured: ${failed.join(', ')}`);
@@ -52,6 +56,14 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   const speed = ui.promo ? 1 : ui.speed && ui.speed > 1 ? ui.speed : 60, real = (ms: number) => ms * speed, t0 = new Date().getTime();
   // (every glide, fade and wait of the page runs `speed` times faster: a camera flight lands in a few frames. The audit's own speed mode, audit/speed.ts)
   const putBack = startCaptureClock(speed, !!ui.skip);
+  // the talk's files, handed up as it ends (the encoders have finished them first): a run that dies or is cut off keeps every talk that was done
+  const flushed = new Set<string>();
+  const flush = async (): Promise<void> => {
+    await Promise.all(encoding);
+    const fresh = files.filter((f) => !flushed.has(f.name));
+    for (const f of fresh) flushed.add(f.name);
+    if (fresh.length) ui.partial?.(fresh);
+  };
   const seen = new Set<string>(), single = !!(ui.pick && ui.pick.size);
   let reached = 0;
   const writes = new Map<string, number>();
@@ -85,8 +97,8 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       // it still has not, the README says the picture FAILED, so it is retaken, never read: One patient, ten years 9, reviewer 24 Nov 2026. Every picture waits this way, a slide's and a
       // choice's alike)
       const stillAndState = async (needWords: boolean): Promise<{ moving: string; words: string; perpetual: string }> => {
-        let r = await stillPage(real, needWords, !!ui.skip);
-        for (let tries = 0; r.moving && STATE_WAIT.test(r.moving) && tries < 11; tries++) r = await stillPage(real, needWords, !!ui.skip);
+        let r = await stillPage(real, needWords, !!ui.skip, kit);
+        for (let tries = 0; r.moving && !ui.stop() && STATE_WAIT.test(r.moving) && tries < 11; tries++) r = await stillPage(real, needWords, !!ui.skip, kit);
         return r;
       };
       const grab = async (): Promise<void> => {
@@ -106,6 +118,8 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         const w0 = new Date().getTime();
         if (ui.skip && fresh && prevIds) await until(() => cardIds() !== prevIds || !!document.querySelector('.dk-card[data-phase="out"]'), real(1200));   // (skip mode: the press has reached the screen before anything is judged still; else the slide before reads as settled)
         let { moving, words, perpetual } = await stillAndState(blockedSlide(k));
+        // (Stop pressed while the slide was still arriving: no picture of a page that was not still; what is done is kept)
+        if (moving && ui.stop()) return;
         if (moving) notes.push(STATE_WAIT.test(moving) ? `${d.title} ${n}: CAPTURE FAILED, the picture does not show the slide's own state (${moving}); retake it` : `${d.title} ${n}: still not still after 5 s (${moving}); captured as it was`);
         shownNow = words; prevIds = cardIds();
         await showLanded();
@@ -198,10 +212,12 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       };
       // the talk's contact sheet, once its pictures are taken
       const wrapUp = async (): Promise<void> => {
-        if (!thumbs.length) return;
-        const png = await sheet(d.title, thumbs, shape);
-        if (png) { const name = `${dir}-contact-sheet.png`; collages.push({ name, blob: png }); files.push({ name, data: await bytesOf(png) }); }
-        decksDone++;
+        if (thumbs.length) {
+          const png = await sheet(d.title, thumbs, shape);
+          if (png) { const name = `${dir}-contact-sheet.png`; collages.push({ name, blob: png }); files.push({ name, data: await bytesOf(png) }); }
+          decksDone++;
+        }
+        await flush();
       };
       // a picked slide is gone to directly, as an opened link does, never through the slides before it (Random 5, 10, 25, ticked slides, ?promotion).
       // The audit's pictures stand on the slide's END state (the last Next within it, a procedure done); the promotion pictures on the slide as it opens.
@@ -211,7 +227,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         const walker = {
           stop: () => store().pos.stop,
           move: (m: 'next' | 'back') => store().move(m),
-          still: async (): Promise<void> => { if (ui.skip) clock.setDrawing(false); await stillPage(real, false, !!ui.skip); },
+          still: async (): Promise<void> => { if (ui.skip) clock.setDrawing(false); await stillPage(real, false, !!ui.skip, kit); },
         };
         for (const k of wantedStops(pick, d.id)) {
           if (ui.stop()) { stopped = true; break; }

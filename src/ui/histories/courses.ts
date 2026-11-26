@@ -45,6 +45,7 @@ export const COURSES: readonly Course[] = [
     quiet: ['cirrhosis', 'albumin'],
     steps: [
       { day: 20, id: 'carvedilol', set: { drugs: { carvedilol: true } }, detail: 'Started once the portal hypertension was clinically significant.' },
+      { day: 42, id: 'egd', scope: true, note: { title: 'Endoscopy', detail: 'Large varices with red wale signs, even on carvedilol.', sev: 'danger' } },
       { day: 70, id: 'bleed', act: 'bleed' },
       { day: 70, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: `A vasoactive drug for the bleed, for three days. ${ANTIBIOTICS}` },
       { day: 70, id: 'band', act: 'band', detail: 'Endoscopic band ligation at the first endoscopy.' },
@@ -57,7 +58,7 @@ export const COURSES: readonly Course[] = [
     // (the case: an HVPG and a stiffness for the gradient crossing 10, the scope for the varices and the bleed, the pressure along the circuit and the stent's Doppler at the TIPS)
     play: { stops: [
       { at: { day: 19 }, look: [L.hvpg, L.stiffness] },
-      { at: { day: 41 }, look: [L.endoscopy] },
+      { at: 'egd', look: [L.endoscopy] },
       { at: 'tips', look: [L.along, L.dopplerStent] },
     ] },
   },
@@ -95,6 +96,7 @@ export const COURSES: readonly Course[] = [
     quiet: ['thr:'],
     steps: [
       { day: 1, id: 'anticoag', set: { anticoag: true }, detail: 'Started at once, and kept up while the clot clears.' },
+      { day: 4, id: 'egd', scope: true, note: { title: 'Endoscopy for varices', detail: 'Looking for varices with the portal pressure up: small varices, with red wale signs.', sev: 'danger' } },
     ],
     story: 'A fresh clot in the main portal vein. Anticoagulation from Day {anticoag}; the clot slowly clears and the pressure comes down.',
     path: 'Anticoagulation, the clot clears',
@@ -103,7 +105,7 @@ export const COURSES: readonly Course[] = [
     play: { stops: [
       { at: { day: 0 }, cam: 'portal', look: [L.dopplerPv] },
       { at: 'anticoag', cam: 'portal', look: [L.dopplerPv] },
-      { at: { day: 4 }, look: [L.endoscopy] },
+      { at: 'egd', look: [L.endoscopy] },
       { at: { day: 105 }, cam: 'portal', look: [L.dopplerPv] },
     ] },
   },
@@ -264,10 +266,10 @@ export const COURSES: readonly Course[] = [
     steps: [
       { day: 20, id: 'bleed', act: 'bleed', site: 'GV' },
       { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: `A vasoactive drug for the bleed from a gastric varix, for up to 5 days. ${ANTIBIOTICS}` },
-      { day: 20, id: 'glue', set: { occluded: { C2: true } }, stopsBleed: 'Bleeding controlled by EUS coils and glue', label: 'EUS coils and glue',
+      { day: 20, id: 'glue', scope: true, set: { occluded: { C2: true } }, stopsBleed: 'Bleeding controlled by EUS coils and glue', label: 'EUS coils and glue',
         detail: 'Endoscopy within 12 hours. A band cannot close a varix this large: EUS-guided coils hold cyanoacrylate glue in it, the varix is obliterated and the bleeding stops (Baveno VIII). The gastrorenal shunt stays open, so it is closed next.' },
       { day: 23, id: 'brto', set: { drugs: { terlipressin: false }, occluded: { C5: true } }, label: 'BRTO', detail: 'Balloon-occluded retrograde transvenous obliteration of the gastrorenal shunt, three days after the bleed. The varix thromboses; the portal pressure and the ascites can rise afterwards.' },
-      { day: 40, id: 'carvedilol', set: { drugs: { carvedilol: true } }, detail: 'Endoscopy after the BRTO finds new large esophageal varices: carvedilol, 12.5 mg a day.' },
+      { day: 40, id: 'carvedilol', scope: true, set: { drugs: { carvedilol: true } }, detail: 'Endoscopy after the BRTO finds new large esophageal varices: carvedilol, 12.5 mg a day.' },
       { day: 47, id: 'band', act: 'band', detail: 'The first band session on the new esophageal varices.' },
       { day: 75, id: 'band2', act: 'band', detail: 'A second session, a month on.' },
       { day: 103, id: 'band3', act: 'band', detail: 'The third session, to eradicate them.' },
@@ -294,7 +296,6 @@ export const COURSES: readonly Course[] = [
     ramps: [{ key: 'gestation', from: 30, to: 254, a: 6, b: 38 }],
     quiet: ['cirrhosis', 'gestation'],
     // (nobody can scope before the second trimester: the varices' large size and red wale signs, which the model raises as the blood volume grows, are known at the screening endoscopy, 18 weeks)
-    scoped: true,
     steps: [
       { day: 30, id: 'preg', set: { gestation: 6 }, label: 'Pregnant', detail: 'Compensated cirrhosis, a planned pregnancy. The varices are not scoped in the first trimester.' },
       {

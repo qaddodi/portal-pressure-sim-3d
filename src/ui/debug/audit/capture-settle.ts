@@ -37,7 +37,13 @@ export const CONTENT = `${READING_ROOTS}, .dk-bar, .topbar, .stage-credit, .zoom
 /** What the cards, tiles and callouts print now, as one string (outermost roots only: a card inside a card is read once). */
 export const readingsNow = (): string => readingsOf([...document.querySelectorAll<HTMLElement>(READING_ROOTS)].filter((e) => !e.parentElement?.closest(READING_ROOTS) && !e.closest(READING_SKIP)));
 /** What "a card is up" means for the pass that waits: a talk's card by default (a case's stop card for the case pass). */
-export interface SettleKit { cardUp(): boolean; /** a reason it is not yet still that only this pass knows (empty when still) */ extra?(): string }
+export interface SettleKit {
+  cardUp(): boolean;
+  /** the run was told to stop: the wait ends at once (what is waited for is not yet there, and the picture is not taken) */
+  stop?(): boolean;
+  /** a reason it is not yet still that only this pass knows (empty when still) */
+  extra?(): string;
+}
 export const deckKit: SettleKit = { cardUp: () => !!document.querySelector('.dk-card[data-phase="in"], .dk-plate[data-phase="in"]') };
 export function arriving(clockToo = true, stripsToo = true, frames = 99, kit: SettleKit = deckKit): string {
   try {
@@ -89,7 +95,7 @@ export async function stillPage(real: (ms: number) => number, needWords = false,
   // (a procedure's graph draws its head to the end on the page's own frames, which a slow screen makes few: the wait for it is the long one, so the picture and the tucked one after it show the run's end, never its middle.
   //  Gastric varices 7, capture 2b947e48: "Left renal vein 1.0" in one picture and "LRV 0.9" in the next, the run still going)
   const limitNow = () => real(settleLimitMs(why, base));
-  while (clock.now() - t0 < limitNow()) {
+  while (clock.now() - t0 < limitNow() && !kit.stop?.()) {
     why = arriving(clock.now() - t0 < real(10000), clock.now() - t0 < real(9000), frames, kit) || kit.extra?.() || ''; words = tagWords();   // (the clock's motion list counts for 4 s of the 5: a hold that is still there after that is a perpetual one, and is said in the README)
     const moved = watch.see(readingsNow(), clock.now());   // (every poll, so the baseline is always the last read)
     if (!why && moved && clock.now() - t0 < real(6000)) why = moved;
@@ -102,7 +108,8 @@ export async function stillPage(real: (ms: number) => number, needWords = false,
   if (!words.includes(BLOCKED_SAYS.first)) await sleep(real(30));   // (the last frame: the charts draw their last mesh, the callouts have placed)
   const soft = arriving(false, true, frames, kit);
   const perpetual = [clock.moving > 0 ? `the clock still held motion after 4 s (${clock.movingTags().join(', ')})` : '', soft ? `${soft}, still, after 3 s (the picture shows it so; it may in the app too)` : ''].filter(Boolean).join('; ');
-  return { moving: gaveUp ? why : '', words: tagWords(), perpetual };
+  // (a wait cut short by Stop says what it was still waiting for, so the caller does not take a picture of a page that was not still)
+  return { moving: gaveUp || kit.stop?.() ? why : '', words: tagWords(), perpetual };
 }
 /** The contact sheet of one deck as a PNG. */
 export async function sheet(title: string, thumbs: { n: string; title: string; img: HTMLCanvasElement }[], shot: { w: number; h: number }): Promise<Blob | null> {

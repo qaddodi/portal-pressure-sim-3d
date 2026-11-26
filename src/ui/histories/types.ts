@@ -21,7 +21,9 @@ export interface Step {
   detail?: string;
   /** a line the course adds that the model does not raise (a Doppler follow-up): shown as an event */
   note?: { title: string; detail: string; sev: 'ok' | 'caution' | 'danger' | 'info' };
-  /** an endoscopy (a band session is one too, without saying so): a course with `scoped` shows the scope's findings (large varices, red wale signs) here, and the `note` is its own line */
+  /** an endoscopy (a band session is one too, without saying so). What only an endoscopy sees (large varices, red wale signs) is known on the days of the scopes, never on the model's own clock:
+   *  the engine raises it when the varix crosses its cut, the course holds it until the next scope and drops it if it no longer holds then.
+   *  The `note` is the scope's own line, told before its findings. */
   scope?: boolean;
 }
 
@@ -48,9 +50,6 @@ export interface Course {
   quiet: string[];
   /** days at the start in which the model's detectors are still finding the state the patient came with (a patient who starts with ascites is not "forming" it): their lines are left out. Default 3. */
   settle?: number;
-  /** what only an endoscopy sees (large varices, red wale signs) is known on the days of the scopes, never on the model's own clock: the engine raises it when the varix crosses its cut,
-   *  the course holds it until the next step with `scope` (or a band), and drops it if it no longer holds then. A patient who cannot be scoped for weeks (a pregnancy) needs this. */
-  scoped?: boolean;
   steps: Step[];
   /** the story's chapters (docs/approved/timeline-story.md): the first from Day 0, each other from the day of the step it names (`at`, a step's id) or the start of a ramp (`{ ramp }`, its key).
    *  Anchored to the course, never to a day the engine raised something on, so a rebake cannot slide a chapter (`{ day }` is a day the course names itself: a trimester's first). */

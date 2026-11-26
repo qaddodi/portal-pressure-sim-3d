@@ -21,7 +21,7 @@ const REPEAT_DAYS = 60;
 const SETTLING_DAYS = 3;
 /** The model's own minute after a rupture, stepped (the bleed's hemodynamics are time, not days). */
 const BLEED_SECONDS = 60;
-/** What only an endoscopy sees: the engine's events named for the varix's own look (events.js), known on the day of a scope (Course.scoped). */
+/** What only an endoscopy sees: the engine's events named for the varix's own look (events.js), known on the day of a scope (Step.scope, a band), for every course. */
 export const ENDOSCOPIC = ['VARIX_LARGE', 'RED_WALE'] as const;
 /** The most days a bleed may run on after its rupture before the course must have ended it (a band, or a step with stopsBleed). No act of the model's own ends one for good: a course that
  *  never ended it left the stomach full of blood for the rest of the case. */
@@ -48,7 +48,8 @@ export function startPreset(c: Course): { id: string; days?: number; apply: (p: 
   return { ...base, id: c.id, days: c.start.days ?? base.days, apply: (p) => sanitizeParams(deepMerge(base.apply(p), patch)) };
 }
 
-export function playCourse(c: Course): Baked {
+/** `onDay` (tests): called with the engine and its metrics at the end of each day, after the day's events were raised (the state the stop on that day keeps). */
+export function playCourse(c: Course, onDay?: (e: Eng, m: unknown, day: number) => void): Baked {
   const e = new Engine() as Eng;
   const pre = startPreset(c);
   e.loadPreset(c.preset, { preset: pre });
@@ -56,7 +57,7 @@ export function playCourse(c: Course): Baked {
   const settled = (pre.days ?? 0) > 0;
   const feed = new SampleFeed(), entries: EntryOut[] = [];
   const lastEv = new Map<string, number>();
-  /** the endoscopic events raised since the last scope, held for the next (Course.scoped) */
+  /** the endoscopic events raised since the last scope, held for the next */
   const unseen = new Map<string, { title: string; detail?: string | null; severity: string }>();
   const moments = new Map<number, Snap>();
   let baseline = labelsOf(e.params);
@@ -69,7 +70,7 @@ export function playCourse(c: Course): Baked {
       if (settled && ev.day < (c.settle ?? SETTLING_DAYS)) continue;
       const was = lastEv.get(ev.id);
       if (was != null && e.day - was < REPEAT_DAYS && ev.severity !== 'critical') continue;
-      if (c.scoped && (ENDOSCOPIC as readonly string[]).includes(ev.id)) { unseen.set(ev.id, ev); continue; }
+      if ((ENDOSCOPIC as readonly string[]).includes(ev.id)) { unseen.set(ev.id, ev); continue; }
       lastEv.set(ev.id, e.day);
       entries.push({ kind: 'event', label: ev.title, day: ev.day, t: round(ev.t, 2), ...(ev.detail ? { detail: ev.detail } : {}), sev: ev.severity, evId: ev.id });
     }
@@ -132,7 +133,7 @@ export function playCourse(c: Course): Baked {
     for (const s of c.steps.filter((x) => x.day === d)) {
       // (a scope's own line comes first, then what it found, then what is done about it)
       if (s.scope) addNote(s);
-      if (c.scoped && (s.scope || s.act === 'band')) scope();
+      if (s.scope || s.act === 'band') scope();
       if (s.act) act(s);
       if (s.set) { e.setParams(deepMerge(e.params, s.set)); e.settle(); change(s); }
       // (hemostasis by the step's own word: the engine ends the bleed and says so in the days list, as a band's does)
@@ -157,6 +158,7 @@ export function playCourse(c: Course): Baked {
       throw new Error(`${c.id}: the bleed of Day ${e.bleed.day} is still going on Day ${e.day}: a band, or a step with stopsBleed, must end it`);
     }
     note();
+    if (onDay) onDay(e, computeMetrics(e), e.day);
   }
 
   const m = computeMetrics(e) as M, p = e.params, lab = labelsOf(p);
