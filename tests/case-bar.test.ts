@@ -208,7 +208,7 @@ test('the stop card leaves the figure its room: the same size, centred in what t
 // (iPhone capture, 26 Nov: the Tests sheet opened at a stop stood behind the case bar. Its place was a memo made before the case started, so the foot the bar raises never reached it.)
 test('every sheet placed on the foot is placed again when the case bar comes and goes', () => {
   const layer = readFileSync(new URL('../src/ui/tests/TestsLayer.tsx', import.meta.url), 'utf8');
-  assert.match(layer, /const caseUp = useCaseBarUp\(\);[\s\S]*?useMemo\(\(\) => fitPlace\([^\n]*\[[^\]\n]*caseUp[^\]\n]*\]\)/, 'the Tests sheet');
+  assert.match(layer, /const caseUp = useCaseBarUp\(\);[\s\S]*?useMemo\(\s*\(\) => fitPlace\([^\n]*\n\s*\[[^\]\n]*caseUp[^\]\n]*\]/, 'the Tests sheet');
   assert.match(readFileSync(new URL('../src/ui/action/ActionCard.tsx', import.meta.url), 'utf8'), /useCaseBarUp\(\);/, 'the action card');
 });
 

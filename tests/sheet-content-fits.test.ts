@@ -89,26 +89,37 @@ test('every Tests pane declares how it meets the sheet\'s height: a minimum, or 
   }
 });
 
-// (the one place the least cannot be given: a 375x667 phone while a case plays, whose Full is 402 px with the bar up; Half may not stand within 24 px of it)
-const SHORT: Record<string, string[]> = { 'stop 375x667': ['scope', 'abdomen'], 'travel 375x667': ['scope', 'abdomen'] };
+// (the one place the least cannot be given in the sheet: a 375x667 phone while a case plays, whose Full is 402 px with the bar up; Half may not stand within 24 px of it. Those panes keep their least and scroll.)
+const SCROLLS: Record<string, string[]> = { 'stop 375x667': ['scope', 'abdomen'], 'travel 375x667': ['scope', 'abdomen'] };
 
-test('every pane at the Half stop: grown to its minimum within the cap, and short only where the cap is lower, which is named', () => {
+test('no pane clips at the Half stop: it fits, or it keeps its least and scrolls in the card; Half is grown to the minimum within the cap', () => {
   for (const phase of PHASES) {
     inPhase(phase);
     for (const { vp, d } of SCREENS) {
-      const short: string[] = [];
+      const scrolls: string[] = [];
       for (const pane of PANE_ORDER) {
-        const { place, noteAside } = fitPlace(vp, d, { sheetSize: 0 }, pane, 'liver');
+        const { place, noteAside, scrollMin } = fitPlace(vp, d, { sheetSize: 0 }, pane, 'liver');
         const base = testsPlace(vp, d, { sheetSize: 0 }), cap = Math.max(base.stops![0], base.stops![1] - FULL_CLEAR);
-        const need = HEAD_H + paneNeed(pane, { w: vp.w, h: vp.h, organ: 'liver', note: !noteAside });
-        assert.equal(place.rect.h, Math.min(Math.max(base.stops![0], need), cap), `${pane} ${phase} ${vp.w}x${vp.h}: Half is the share, grown to the minimum, within the cap`);
-        assert.ok(place.rect.h <= place.stops![1] - FULL_CLEAR || place.rect.h === base.stops![0], `${pane}: Half stays under Full`);
-        if (place.rect.h < need) short.push(pane);
+        const need = HEAD_H + paneNeed(pane, { w: vp.w, h: vp.h, organ: 'liver', note: !noteAside }), tag = `${pane} ${phase} ${vp.w}x${vp.h}`;
+        assert.equal(place.rect.h, Math.min(Math.max(base.stops![0], need), cap), `${tag}: Half is the share, grown to the minimum, within the cap`);
+        assert.ok(place.rect.h <= place.stops![1] - FULL_CLEAR || place.rect.h === base.stops![0], `${tag}: Half stays under Full`);
+        // the rule: a pane either fits (nothing to scroll) or says how tall it keeps (--pane-min, the pane scrolls in the card); never neither
+        const fits = place.rect.h >= need;
+        assert.ok(fits ? scrollMin === 0 : scrollMin > 0, `${tag}: ${fits ? 'fits, so no scroll' : `needs ${need} in ${place.rect.h}: it must keep its least and scroll`}`);
+        if (!fits) { scrolls.push(pane); assert.equal(scrollMin, need - HEAD_H - AROUND.pad, `${tag}: it keeps its body less the card's padding`); }
       }
-      const known = (phase === 'off' || phase === 'left' ? [] : SHORT[`${phase === 'stop' ? 'stop' : 'travel'} ${vp.w}x${vp.h}`]) ?? [];
-      assert.deepEqual(short, known, `${phase} ${vp.w}x${vp.h}: the panes whose content would still clip`);
+      const known = SCROLLS[`${phase} ${vp.w}x${vp.h}`] ?? [];
+      assert.deepEqual(scrolls, phase === 'off' || phase === 'left' ? [] : known, `${phase} ${vp.w}x${vp.h}: the panes that scroll`);
     }
   }
+  inPhase('off');
+});
+
+test('Peek and a side card ask nothing of the pane: no scroll is published for them', () => {
+  inPhase('stop');
+  const { vp, d } = SCREENS[0]!;
+  assert.equal(fitPlace(vp, d, { sheetSize: 2 }, 'abdomen', 'liver').scrollMin, 0, 'Peek hides the pane');
+  assert.equal(fitPlace({ w: 1280, h: 800, safe: { top: 0, right: 0, bottom: 0, left: 0 } }, 'desktop', {}, 'abdomen', 'liver').scrollMin, 0, 'a side card is sized by the pane');
   inPhase('off');
 });
 

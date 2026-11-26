@@ -103,7 +103,10 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   // (the open pane's least content: Half grows to hold it, and the pane's optional note steps aside
   //  where even that cannot, pane-need.ts; judged against the sheet as the screen gives it, then placed again)
   const organ = useTests((s) => s.fibro);
-  const { place, noteAside } = useMemo(() => fitPlace(vp, device, { widthPx, heightRatio, sheetSize, focus }, pane, organ), [vp, device, widthPx, heightRatio, sheetSize, focus, caseUp, pane, organ]);
+  const { place, noteAside, scrollMin } = useMemo(
+    () => fitPlace(vp, device, { widthPx, heightRatio, sheetSize, focus }, pane, organ),
+    [vp, device, widthPx, heightRatio, sheetSize, focus, caseUp, pane, organ],
+  );
   const narrow = place.rect.w < 470;
   const layout = layoutOf(vp.w, vp.h);
   const roles = cardScale({ vw: vp.w, vh: vp.h, layout, part: 'data' });
@@ -291,6 +294,8 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   const style = {
     width: place.rect.w, height: place.rect.h, transform: `translate(${Math.round(place.rect.x)}px, ${Math.round(place.rect.y)}px)`,
     ['--t-sm' as string]: `${Math.max(12, Math.round(roles.lab))}px`, ['--t-plot' as string]: `${vars.plot}px`, ['--t-square' as string]: `${vars.square}px`,
+    // (a pane whose least does not fit the sheet keeps its least and scrolls in the card: css3d-over-2d.css, pane-need.ts)
+    ...(scrollMin ? { ['--pane-min' as string]: `${scrollMin}px` } : null),
   } as CSSProperties;
   // the sizes 2D's dock hands its panes (dock.js sizeObserver: --plot-h, --square-size on the workspace)
   const card = { ['--plot-h' as string]: `${vars.plot}px`, ['--square-size' as string]: `${vars.square}px`, ['--instrument-w' as string]: `${place.rect.w}px` } as CSSProperties;
