@@ -105,10 +105,13 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
     if (!r.f) return [pend('saag'), pend('tp')];
     if ((r.f.asc ?? 0) < NO_ASC) return [{ k: 'saag', kind: 'none', text: 'No ascites', arrow: 0, rate: null, eff: null, miss: '', sr: 'no ascites' }];
     const hiS = saagPortal(r.f.saag), hiP = tpHigh(r.f.tp);
-    if (isRef(r, n)) return [{ k: 'saag', kind: 'ref', text: fmt(r.f.saag, 1), arrow: 0, rate: hiS ? 'hi' : null, eff: null, miss: '', sr: `SAAG ${fmt(r.f.saag, 1)} g/dL` }, { k: 'tp', kind: 'ref', text: fmt(r.f.tp, 1), arrow: 0, rate: null, eff: null, miss: '', sr: `protein ${fmt(r.f.tp, 1)} g/dL` }];
+    // (A SAAG, and likewise the ascitic protein, at or over its cut-off is one arrow, and one arrow wears the colour the legend gives it on every table,
+    //  amber (rateAbs), not a red of its own: the arrow, its colour and its legend entry are one rule. Under it: quiet.)
+    const rateS = hiS ? rateOf(rateAbs('saag', 1)) : null, rateP = hiP ? rateOf(rateAbs('tp', 1)) : null;
+    if (isRef(r, n)) return [{ k: 'saag', kind: 'ref', text: fmt(r.f.saag, 1), arrow: 0, rate: rateS, eff: null, miss: '', sr: `SAAG ${fmt(r.f.saag, 1)} g/dL` }, { k: 'tp', kind: 'ref', text: fmt(r.f.tp, 1), arrow: 0, rate: rateP, eff: null, miss: '', sr: `protein ${fmt(r.f.tp, 1)} g/dL` }];
     return [
-      { k: 'saag', kind: 'dir', text: fmt(r.f.saag, 1), arrow: hiS ? 1 : -1, rate: hiS ? 'hi' : null, eff: null, miss: '', sr: `SAAG ${hiS ? `${SAAG_PORTAL} or more` : `under ${SAAG_PORTAL}`}, ${fmt(r.f.saag, 1)}` },
-      { k: 'tp', kind: 'dir', text: fmt(r.f.tp, 1), arrow: hiP ? 1 : -1, rate: null, eff: null, miss: '', sr: `protein ${hiP ? `${TP_HIGH} or more` : `under ${TP_HIGH}`}, ${fmt(r.f.tp, 1)} g/dL` },
+      { k: 'saag', kind: 'dir', text: fmt(r.f.saag, 1), arrow: hiS ? 1 : -1, rate: rateS, eff: null, miss: '', sr: `SAAG ${hiS ? `${SAAG_PORTAL} or more` : `under ${SAAG_PORTAL}`}, ${fmt(r.f.saag, 1)}` },
+      { k: 'tp', kind: 'dir', text: fmt(r.f.tp, 1), arrow: hiP ? 1 : -1, rate: rateP, eff: null, miss: '', sr: `protein ${hiP ? `${TP_HIGH} or more` : `under ${TP_HIGH}`}, ${fmt(r.f.tp, 1)} g/dL` },
     ];
   };
   const colModels: ColModel[] = [...cols.map((k) => (k === 'wave' ? { k, label: WAVE_HEADING, cut: WAVE_CUT } : { k, label: COLNAMES[k] || k, cut: CUTS[k] ?? '' })), ...(ascCols ? [{ k: 'saag', label: 'SAAG', cut: CUTS.saag ?? '' }, { k: 'tp', label: 'Prot.', cut: CUTS.tp ?? '' }] : [])];
