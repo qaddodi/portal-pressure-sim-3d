@@ -319,6 +319,7 @@ uniform vec4 seamA[2];   // a surgical shunt's stitches, its start's then its en
 uniform vec4 seamB[2];   // (c4, how many dashes (0: three ticks), one dash's share of the seam, one dash and its gap's share)
 uniform vec4 stentWire;   // the stent's wire in the Circuit: rgb the Anatomy stent's own wire colour, a its strength (stent-look.ts, one source for both views)
 uniform vec4 stentGoldC;  // the band's colour and strength, the same way
+uniform float stentRev;   // how far the Circuit's stent has opened along its length, 0 to 1 (stent-deploy.ts: from its start, the portal end of a TIPS, to its end)
 uniform vec4 stentU;   // a stent in this vessel, drawn on the tube in the Circuit (where the 3D device is faded out): x its share shown (0 none), y and z where it starts and ends along the course (0..1), w where its graft starts
 // smooth joins, as in the vertex shader: the ends that carry on into another vessel (x < 0 where nothing); their last stretch draws no ink, so no flat cut is outlined where a branch meets its trunk
 uniform vec3 mate0;

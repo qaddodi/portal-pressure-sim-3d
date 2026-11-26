@@ -3,7 +3,11 @@
 // The geometry is indexed and its attribute buffers are kept: `writeRings` fills them in place (a balloon that swells every frame allocates nothing).
 import { BufferAttribute, BufferGeometry, Vector3 } from 'three';
 
-export interface Ring { c: Vector3; t: Vector3; r: number }
+/**
+ * `u`: where along the whole device this ring lies (0 to 1), for a ring that is one of many paths of ONE device (a stent's wires, its graft, its band).
+ * uv.x then reads the same along-the-device place on every path, so a front can sweep them together (stent-deploy.ts). Absent: the path's own 0..1.
+ */
+export interface Ring { c: Vector3; t: Vector3; r: number; u?: number }
 /** The sideways direction a ring is built on: across the tube as the figure sees it (the frame's up is toward the viewer), so a flat figure's tube always has its widest side in view. */
 const Z = new Vector3(0, 0, 1), X = new Vector3(1, 0, 0);
 
@@ -56,7 +60,7 @@ export function writeRings(g: BufferGeometry, rings: readonly Ring[], radialArg:
       const l = Math.hypot(nor.getX(k), nor.getY(k), nor.getZ(k)) || 1;
       nor.setXYZ(k, nor.getX(k) / l, nor.getY(k) / l, nor.getZ(k) / l);
       tan.setXYZ(k, tt.x, tt.y, tt.z);
-      uv.setXY(k, us ? us[i]! : u0 + (u1 - u0) * (i / (n - 1)), j / radial);
+      uv.setXY(k, us ? us[i]! : ring.u ?? u0 + (u1 - u0) * (i / (n - 1)), j / radial);
     }
   }
   pos.needsUpdate = nor.needsUpdate = tan.needsUpdate = uv.needsUpdate = true;

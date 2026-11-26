@@ -11,6 +11,12 @@ export function setDrawnDiameter(id: string, d: number): void {
   version++;
 }
 export const drawnDiameter = (id: string): number => mm.get(id) ?? 0;
+/** The ONE width rule for a vessel the table may be drawing: the larger of the engine's diameter `d` (mm, undefined when unknown) and the table's, as the vessel texture draws it. Everything that sizes itself to the vein
+ *  as drawn (the vessel shader's data, the catheters' balloons) reads the width through this, so a balloon in a tract the run is dilating sees the tract it is widening, not the engine's still-closed shunt. */
+export function drawnWidthD(id: string, d: number | undefined): number | undefined {
+  const o = mm.get(id) ?? 0;
+  return o > 0 ? Math.max(o, d != null && Number.isFinite(d) ? d : 0) : d;
+}
 /** Bumps whenever a diameter changes (the texture refills when it moves). */
 export const drawnDiameterVersion = (): number => version;
 /** The ids with an override now (a texture fill walks only these). */

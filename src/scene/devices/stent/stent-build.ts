@@ -86,7 +86,7 @@ export function buildStent(spec: StentSpec): StentPaths {
   const station = (a: number, rad: number, th: number): Ring => {
     const { n1, n2, t } = frameAt(spec, a, tmpN1, tmpN2, tmpT);
     const c = spec.at(a, tmpC);
-    const ring = { c: new Vector3(), t: t.clone(), r: 0 };
+    const ring: Ring = { c: new Vector3(), t: t.clone(), r: 0, u: Math.min(1, Math.max(0, a / A)) };
     // a point on the cylinder: the ring record carries the centre, so the wire's own tube runs along the path of points; r is the wire's (set by the caller)
     ring.c.copy(c).addScaledVector(n1, Math.cos(th) * rad).addScaledVector(n2, Math.sin(th) * rad);
     return ring;
@@ -116,7 +116,7 @@ export function buildStent(spec: StentSpec): StentPaths {
   const graft: Ring[] = [];
   if (covered) {
     const n = Math.max(8, Math.round((graftEnd - SB) / (3 * u)));
-    for (let i = 0; i <= n; i++) { const a = SB + BOW + ((graftEnd - SB - BOW) * i) / n, rr = radius(a); graft.push({ c: spec.at(a, new Vector3()), t: spec.tan(a, new Vector3()).normalize(), r: rr }); }
+    for (let i = 0; i <= n; i++) { const a = SB + BOW + ((graftEnd - SB - BOW) * i) / n, rr = radius(a); graft.push({ c: spec.at(a, new Vector3()), t: spec.tan(a, new Vector3()).normalize(), r: rr, u: Math.min(1, Math.max(0, a / A)) }); }
   }
   // the gold band: a ring round the tube at the start of the graft, bowed toward the far end at its sides
   const band: Ring[] = [];
