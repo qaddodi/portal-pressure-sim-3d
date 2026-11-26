@@ -9,6 +9,7 @@ import { CEL_STYLE } from '../cel-style.ts';
 import { glslNum as F } from '../cel-glsl.ts';
 import { CIRC_INK_K, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
 import { GLOW_GATE_T, GLOW_LIFT } from '../glow.ts';
+import { LENS_PROFILE_GLSL } from '../lenses/profile-rows.ts';
 
 /** swellOf(idx, bD, kind): a vessel's live width against the one its tube was built at (the engine's diameter by the 2D figure's rule). Reads: useData, vdata, vdataSize. */
 export const SWELL_OF_GLSL = /* glsl */ `// a vessel's live width against the one its tube was built at (the engine's diameter by the 2D figure's rule), as the body of main() reads it for this vessel
@@ -24,6 +25,7 @@ float swellOf(float idx, float bD, float kind) {
 /** lensOfAt(lensIx, u, grad, lanes, mode, pal, across): the colour of one lens set at the place u along a vessel's ramp; .a says whether the lens colours it. Reads: lensUse, lensSmooth. The tail (the colour held to 55 % along, then eased into the end) is each texture's own: its ends' alpha is 2 (lenses/model.ts TAIL_ON). */
 export const LENS_OF_AT_GLSL = /* glsl */ `// the colour of one lens set at this pixel; .a says whether the lens colours this vessel (0: it keeps its tone)
 float lensAcrossFw = 0.0;   // fwidth of the lane position (across * 0.5 + 0.5): set by main BEFORE its first discard, because a derivative after a discard is garbage on a device that drops the lane
+${LENS_PROFILE_GLSL}
 vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float across) {
   if (mode < 0.5 || lensUse < 0.5) return vec4(0.0);
   ivec2 i0 = ivec2(int(lensIx), 0), i1 = ivec2(int(lensIx), 1);
@@ -31,6 +33,9 @@ vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode
   if (g0.a + g1.a < 0.5) return vec4(0.0);
   float t = g1.a > 1.5 ? smoothstep(0.55, 1.0, u) : u;
   if (mode < 1.5) {
+    // a stent's colour runs along it as its own profile (the card's graph: the fast section at the waist), not as a blend of its ends
+    vec4 pr = lensProfileAt(grad, int(lensIx), u);
+    if (pr.a > 0.5) return pr;
     if (lensSmooth > 0.5) {
       // the ramp's own colours along the vessel (model.ts: the pressure a third and two thirds of the way along), so a vessel that crosses a threshold passes through amber and not through a blend of its ends
       vec3 g2 = texelFetch(grad, ivec2(int(lensIx), 2), 0).rgb, g3 = texelFetch(grad, ivec2(int(lensIx), 3), 0).rgb;

@@ -9,11 +9,12 @@ import type { Rgba } from '../../charts/colour.ts';
 import type { Frame, Shape } from '../../charts/scene.ts';
 import { STENT_SPANS } from '../../../engine/hales/portal/topology.js';
 import { samplerFor } from '../../../scene/lenses/model.ts';
+import { stentColourAt } from '../../../scene/lenses/stent-lens.ts';
 import { waistSpan, endSpan, profileAt, lumenShown, waistShown } from '../../../engine/hales/portal/stent-geom.js';
 import { stentCutD, bareOf } from '../../../scene/procedures/copied/stent-mesh.js';
 import { TRACE_N, makeTrace } from '../../../engine/hales/portal/stent-trace.js';
 import {
-  N_PROFILE, gateIndex, int, localVelocity, openVelocity, scanK, stentNormal, stentOutline, ten, traceFor, traceIn, velPos, type StentState,
+  N_PROFILE, gateIndex, int, scanK, stentNormal, stentOutline, ten, traceFor, traceIn, type StentState,
 } from '../../charts/stent/model.ts';
 import {
   GATES, GUTTER, HEAD, figLayout, mmWord, dpWord, ppgWord, usualWord, waistWord, sampleAt, xOf, vTop, pTop,
@@ -84,7 +85,7 @@ export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame 
   const p = new Pic(c), id = st.id, ex = st.have ? 1 : 0, cm = o.lens === 'pressure' ? 1 : 0;
   const sh = st.sh, len = sh.len, s = st.s, site = st.site, d = st.d, k = L.k!, cy = L.cy!, x0 = L.x0!, x1 = L.x1!, span = x1 - x0, dPx = d * k, ivc = st.ivc;
   const rec = makeTrace(), tin = traceIn(st), t = traceFor(tin, rec);
-  const vel = samplerFor(c.look as never, 'velocity'), pres = samplerFor(c.look as never, 'pressure');
+  const lk = c.look as never, pres = samplerFor(lk, 'pressure');
   const presAt = (mm: number): Rgba => { const q = pres.at(clamp(mm, 0, 35)); return [q[0], q[1], q[2], 1]; };
   const label = st.have
     ? `${id}, drawn to scale: ${ten(d)} mm, ${ten(len)} cm. PPG ${ten(st.ppg)} mmHg, ${ten(st.dp)} mmHg across the stent, flow ${ten(st.flow)} L/min.${chart ? ` The chart under it shows ${o.lens === 'pressure' ? 'the pressure' : 'the peak velocity'} along it.` : ''}`
@@ -121,11 +122,11 @@ export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame 
 
   // the lumen, to scale; its colours along the picture's width (velocity: the scanner's against the stent's range; pressure: absolute)
   const edge = stentOutline(x0, span, cy, dPx, 0, s, sh, site), n = N_PROFILE;
-  const v0 = openVelocity(st.flow, d, id), norm = stentNormal(id, d);
+  // (the strip's colours are the stent's lens colours along it, scene/lenses/stent-lens.ts: the one function the 3D stent is coloured by, so the strip and the stent cannot disagree)
   const slice = (i0: number, i1: number) => {
     const u = (i0 + i1) / (2 * n);
-    const cv = vel.at(velPos(localVelocity(v0, profileAt(sh, s, site, u)), norm)), colV: Rgba = [cv[0], cv[1], cv[2], 1];
-    const colP = cm > 0.001 ? presAt(ivc + t.P[sampleAt(x0 + u * span, len, L)]!) : colV;
+    const cv = stentColourAt('velocity', lk, st, t, u), colV: Rgba = cv ? [cv[0], cv[1], cv[2], 1] : [0, 0, 0, 1];
+    const cp = cm > 0.001 ? stentColourAt('pressure', lk, st, t, u) : null, colP: Rgba = cp ? [cp[0], cp[1], cp[2], 1] : colV;
     return mul(mix(colV, colP, cm), ex);
   };
   for (let q = 0; q < SLICES; q++) {

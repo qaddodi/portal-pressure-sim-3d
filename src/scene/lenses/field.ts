@@ -9,6 +9,7 @@ import type { LookId } from '../palette.ts';
 import { easeInOutCubic } from '../../clock/tween.ts';
 import { ChevronInk } from './chevron-ink.ts';
 import { isRawLens } from './pressure-ramp.ts';
+import { writeStentProfiles } from './stent-lens.ts';
 
 export const LENS_MS = 420;
 export const LENS_RECOMPUTE_MS = 90;
@@ -30,6 +31,8 @@ export class LensField {
   private look: LookId = 'light';
   private ctx: LensContext = { healthy: null, ref: null };
   private frame: FrameLike | null = null;
+  /** The patient's params as shown (the stents' geometry, for their colour along them: stent-lens.ts). */
+  private params: unknown = null;
   private t0 = -1;
   private lastCompute = -1e9;
   private dirty = true;
@@ -70,6 +73,8 @@ export class LensField {
     return this.since ?? this.ctx.ref;
   }
   private get healthyRef(): ArrayLike<number> | null { return this.ctx.healthy?.P ? Float32Array.from(this.ctx.healthy.P) : null; }
+  /** The patient's params as shown now: the stents' shape. */
+  setParams(params: unknown): void { if (params !== this.params) { this.params = params; this.dirty = true; } }
   setLook(look: LookId): void { this.look = look; this.dirty = true; }
 
   /** Switch lens. The old one fades out as the new one fades in (420 ms); a switch before it has landed finishes it first. */
@@ -105,6 +110,7 @@ export class LensField {
       let ctx = this.ctx;
       if (this._lens === 'since') { ctx = this.sinceCtx; ctx.healthy = this.ctx.healthy; ctx.ref = this.sinceReference; }
       computeLens(this._lens, this.frame, this.look, ctx, this.to);
+      writeStentProfiles(this.to, this._lens, this.frame, this.look, ctx, this.params);   // (a stent's colour runs along it as the IR card's graph does, not as a blend of its ends)
     }
     else { this.to.lens = this._lens; this.to.mode = 0; this.to.grad.fill(0); this.to.lanes.fill(0); }
     const palette = this._lens === 'firstpass' ? firstPassColours() : originColours();

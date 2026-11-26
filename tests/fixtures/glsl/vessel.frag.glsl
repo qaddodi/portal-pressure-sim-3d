@@ -922,6 +922,14 @@ float vnoise(vec2 p) {
 
 // the colour of one lens set at this pixel; .a says whether the lens colours this vessel (0: it keeps its tone)
 float lensAcrossFw = 0.0;   // fwidth of the lane position (across * 0.5 + 0.5): set by main BEFORE its first discard, because a derivative after a discard is garbage on a device that drops the lane
+// a vessel's colour profile along it (a stent under the velocity or a pressure lens), mixed between the two nearest of its rows; .a 0: the vessel has none
+vec4 lensProfileAt(sampler2D grad, int e, float u) {
+  if (texelFetch(grad, ivec2(e, 5), 0).a < 0.5) return vec4(0.0);
+  float f = clamp(u, 0.0, 1.0) * float(24);
+  int i = min(int(floor(f)), 23);
+  vec3 a = texelFetch(grad, ivec2(e, 5 + i), 0).rgb, b = texelFetch(grad, ivec2(e, 5 + i + 1), 0).rgb;
+  return vec4(mix(a, b, f - float(i)), 1.0);
+}
 vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode, vec3 pal[5], float across) {
   if (mode < 0.5 || lensUse < 0.5) return vec4(0.0);
   ivec2 i0 = ivec2(int(lensIx), 0), i1 = ivec2(int(lensIx), 1);
@@ -929,6 +937,9 @@ vec4 lensOfAt(float lensIx, float u, sampler2D grad, sampler2D lanes, float mode
   if (g0.a + g1.a < 0.5) return vec4(0.0);
   float t = g1.a > 1.5 ? smoothstep(0.55, 1.0, u) : u;
   if (mode < 1.5) {
+    // a stent's colour runs along it as its own profile (the card's graph: the fast section at the waist), not as a blend of its ends
+    vec4 pr = lensProfileAt(grad, int(lensIx), u);
+    if (pr.a > 0.5) return pr;
     if (lensSmooth > 0.5) {
       // the ramp's own colours along the vessel (model.ts: the pressure a third and two thirds of the way along), so a vessel that crosses a threshold passes through amber and not through a blend of its ends
       vec3 g2 = texelFetch(grad, ivec2(int(lensIx), 2), 0).rgb, g3 = texelFetch(grad, ivec2(int(lensIx), 3), 0).rgb;
