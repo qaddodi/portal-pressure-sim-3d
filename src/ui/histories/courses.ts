@@ -252,7 +252,7 @@ export const COURSES: readonly Course[] = [
     quiet: ['albumin'], still: true, settle: 14,
     steps: [
       { day: 20, id: 'bleed', act: 'bleed', site: 'GV' },
-      { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: 'A vasoactive drug, with antibiotics, for the bleed from a gastric varix. A band cannot close a varix this large.' },
+      { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, stopsBleed: true, label: 'Terlipressin', detail: 'A vasoactive drug, with antibiotics, for the bleed from a gastric varix, which stops the bleed. A band cannot close a varix this large.' },
       { day: 23, id: 'brto', set: { drugs: { terlipressin: false }, occluded: { C5: true } }, label: 'BRTO', detail: 'Balloon-occluded retrograde transvenous obliteration of the gastrorenal shunt, three days after the bleed. The varix thromboses; the portal pressure and the ascites can rise afterwards.' },
       { day: 40, id: 'carvedilol', set: { drugs: { carvedilol: true } }, detail: 'Endoscopy after the BRTO finds new large esophageal varices: carvedilol, 12.5 mg a day.' },
       { day: 47, id: 'band', act: 'band', detail: 'The first band session on the new esophageal varices.' },
