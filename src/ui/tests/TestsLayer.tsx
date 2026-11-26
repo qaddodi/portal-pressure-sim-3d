@@ -25,7 +25,7 @@ import { PressureTab } from './trace/PressureTab.tsx';
 import { startFeed } from './feed.ts';
 import { notYet } from '../shell/words.ts';
 import { useShell } from '../shell/store.ts';
-import { probeSelected } from './from-orders.ts';
+import { probeSelected, handOverStent } from './from-orders.ts';
 import { useThumb } from '../shell/thumb.ts';
 import { need, needAll, LOADERS } from './dock/lazy.ts';
 import { usePaneSwap } from './dock/swap.ts';
@@ -130,7 +130,7 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   // the card buttons that open an instrument: Doppler, Endoscope, FibroScan (a liver or spleen card), and "Test TIPS in IR" (the stent's card)
   useEffect(() => {
     const show = (id: PaneId) => () => { useShell.getState().close(); useTests.getState().show(id); };
-    const offs = [registerFeature('doppler', () => { probeSelected(); show('doppler')(); }), registerFeature('endoscopy', show('endoscopy')), registerFeature('fibroscan', show('fibroscan')), registerFeature('ir', show('hvpg'))];
+    const offs = [registerFeature('doppler', () => { probeSelected(); show('doppler')(); }), registerFeature('endoscopy', show('endoscopy')), registerFeature('fibroscan', show('fibroscan')), registerFeature('ir', () => { handOverStent(); show('hvpg')(); })];
     return () => offs.forEach((f) => f());
   }, []);
   // a card that was pulled shut (dock/pull.ts) closed without a leave of its own: opening again takes the mark off, so the next close is the usual one

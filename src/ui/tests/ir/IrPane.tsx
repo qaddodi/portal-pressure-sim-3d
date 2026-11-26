@@ -10,6 +10,7 @@ import { Icon } from '../../shell/icons.tsx';
 import { useSelection } from '../../action/selection.ts';
 import { useParamsTick } from '../../action/params.ts';
 import { useTests } from '../store.ts';
+import { takeStent } from '../from-orders.ts';
 import type { PaneProps } from '../TestsLayer.tsx';
 import { Monitor } from './Monitor.tsx';
 import { HandOver } from './HandOver.tsx';
@@ -90,9 +91,10 @@ export function IrPane(p: PaneProps) {
   // a new patient starts with no measurement (the pane going away stops nothing: what plays goes on, the figure shows it, and the owner's claim says so: owner.ts)
   const presetId = useEngine((s) => s.presetId);
   useEffect(() => { resetAll(); }, [presetId]);
-  // "Test TIPS in IR" on a stent card: this pane on the TIPS view, on that stent (the card stays selected, so the selection says which)
+  // "Test TIPS in IR" on a stent card: this pane on the TIPS view, on that stent. The card closes with the tap, so the stent is the one the Tests card handed over (from-orders.ts), or, while the
+  // card is still up (this pane's own handler runs before it closes, and a tap on the IR tab leaves it up), the selected one.
   useEffect(() => {
-    const open = () => { const sel = useSelection.getState().sel; if (sel?.type === 'edge') openStent(sel.id); };
+    const open = () => { const sel = useSelection.getState().sel, id = takeStent() ?? (sel?.type === 'edge' ? sel.id : null); if (id) openStent(id); };
     open();
     const off = registerFeature('ir', () => { useShell.getState().close(); useTests.getState().show('hvpg'); open(); });
     // (the Tests card's own handler is put back when this pane is left)

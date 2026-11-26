@@ -89,12 +89,12 @@ test('the abdomen, however it is selected, opens Ascites and leaves nothing sele
 
 // ── the cards' buttons ──
 const fx: J = JSON.parse(readFileSync('tests/fixtures/actions-2d.json', 'utf8'));
-/** verb id → the feature it runs (the Tests card registers each: TestsLayer.tsx) and whether the card is put away after (2D `CTX.select(null)`). */
-const CARD_BUTTONS: Record<string, { feature: string; pane: PaneId; away: boolean }> = {
-  doppler: { feature: 'doppler', pane: 'doppler', away: true },
-  endoscope: { feature: 'endoscopy', pane: 'endoscopy', away: false },
-  fibroscan: { feature: 'fibroscan', pane: 'fibroscan', away: true },
-  ir: { feature: 'ir', pane: 'hvpg', away: false },
+/** verb id → the feature it runs (the Tests card registers each: TestsLayer.tsx). The card is put away by the one rule in runFeature (LEAVES_CARD: tests/feature-leaves-card.test.ts), not by the button. */
+const CARD_BUTTONS: Record<string, { feature: string; pane: PaneId }> = {
+  doppler: { feature: 'doppler', pane: 'doppler' },
+  endoscope: { feature: 'endoscopy', pane: 'endoscopy' },
+  fibroscan: { feature: 'fibroscan', pane: 'fibroscan' },
+  ir: { feature: 'ir', pane: 'hvpg' },
 };
 test('every card button that opens an instrument runs its feature, and the Tests card answers each with its pane', () => {
   const layer = readFileSync('src/ui/tests/TestsLayer.tsx', 'utf8');
@@ -107,16 +107,17 @@ test('every card button that opens an instrument runs its feature, and the Tests
       const want = CARD_BUTTONS[v.id]!, log: string[] = [];
       const act: Act = { update() {}, select: (s) => { log.push(`select:${s ? JSON.stringify(s) : 'null'}`); }, feature: (id) => { log.push(`feature:${id}`); }, action() {} };
       v.run(act);
-      assert.deepEqual(log, want.away ? [`feature:${want.feature}`, 'select:null'] : [`feature:${want.feature}`], `${JSON.stringify(c.sel)} ${v.id}`);
+      assert.deepEqual(log, [`feature:${want.feature}`], `${JSON.stringify(c.sel)} ${v.id}`);
       seen.add(v.id);
     }
   }
   assert.deepEqual([...seen].sort(), Object.keys(CARD_BUTTONS).sort(), 'each kind of button is on some card');
   // the Tests card's handlers: the feature opens its pane, and the Doppler's puts the probe on the card's vessel first
   assert.match(layer, /registerFeature\('doppler', \(\) => \{ probeSelected\(\); show\('doppler'\)\(\); \}\)/);
-  for (const b of Object.values(CARD_BUTTONS)) if (b.feature !== 'doppler') assert.ok(layer.includes(`registerFeature('${b.feature}', show('${b.pane}'))`), b.feature);
-  // "Test TIPS in IR": the IR pane reads the stent from the card, which stays selected
-  assert.match(readFileSync('src/ui/tests/ir/IrPane.tsx', 'utf8'), /if \(sel\?\.type === 'edge'\) openStent\(sel\.id\)/);
+  for (const b of Object.values(CARD_BUTTONS)) if (b.feature !== 'doppler' && b.feature !== 'ir') assert.ok(layer.includes(`registerFeature('${b.feature}', show('${b.pane}'))`), b.feature);
+  // "Test TIPS in IR": the card closes with the tap, so the Tests card hands the stent over first and the IR pane takes it
+  assert.match(layer, /registerFeature\('ir', \(\) => \{ handOverStent\(\); show\('hvpg'\)\(\); \}\)/);
+  assert.match(readFileSync('src/ui/tests/ir/IrPane.tsx', 'utf8'), /takeStent\(\) \?\? \(sel\?\.type === 'edge' \? sel\.id : null\)/);
 });
 
 test('a vessel card\'s Doppler button puts the probe on that vessel (2D CTX.probe(id)); a station stands for its vessel; no vessel, no move', () => {
