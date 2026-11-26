@@ -83,7 +83,8 @@ test('the panel keeps the rules: a scroll moves only the playhead (no restore, n
   assert.match(src, /clock\.on\('tween', apply/);
   assert.match(src, /style\.transform = `translateX\(/);
   const css = readFileSync('src/ui/history/history.css', 'utf8');
-  assert.match(css, /\.sh-sheet\[data-kind="history"\] \{ width: min\(460px/, 'Mac and iPad on its side: about 460 px at the right');
+  assert.match(css, /\.sh-sheet\[data-kind="history"\] \{ width: var\(--panel-history\)/, 'Mac and iPad on its side: History is the shell\'s --panel-history wide');
+  assert.match(readFileSync('src/ui/shell/shell.css', 'utf8'), /--panel-history: min\(460px,/, 'about 460 px at the right');
   assert.match(css, /\[data-device="phone-landscape"\] \.sh-sheet\[data-kind="history"\] \{\s*left:[^}]*width: clamp\(290px, 38vw, 360px\)/, 'held sideways: the one column at the left');
   assert.match(css, /\.hs-ch-h \{ position: sticky;[^}]*background: var\(--surface\)/, 'the chapter headings are solid where they stick (no blur to ghost through)');
 });

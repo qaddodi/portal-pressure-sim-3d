@@ -39,6 +39,9 @@ export interface Course {
    *  mean pressures differ from its settled ones): a course whose fluid must follow only the disease and the treatments (a patient who recompensates) sets this; the courses that rely on the fluid coming back do not. */
   still?: boolean;
   steps: Step[];
+  /** the story's chapters (docs/approved/timeline-story.md): the first from Day 0, each other from the day of the step it names (`at`, a step's id) or the start of a ramp (`{ ramp }`, its key).
+   *  Anchored to the course, never to a day the engine raised something on, so a rebake cannot slide a chapter. */
+  chapters: { at?: string | { ramp: string }; label: string }[];
   /** the story: {id} is the day of the step with that id */
   story: string;
   /** the course in a few words, for the row's tip */

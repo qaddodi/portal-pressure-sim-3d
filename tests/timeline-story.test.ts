@@ -167,3 +167,26 @@ test('a live patient: repeats in a run said once, "+2 more" kept whole, a long r
   tl.reset();
   assert.equal(tl.trimmed(), false, 'a new patient starts whole');
 });
+
+test('the 12 histories carry their approved chapters, each anchored to a step or a ramp of the course, and the story keeps every moment inside them', async () => {
+  const { COURSES } = await import('../src/ui/histories/courses.ts');
+  const { chaptersOf } = await import('../src/ui/histories/play.ts');
+  for (const c of COURSES) {
+    assert.ok(c.chapters.length >= 2 && !c.chapters[0]!.at, `${c.id}: a first chapter from Day 0, then at least one anchored`);
+    for (const ch of c.chapters.slice(1)) {
+      const at = ch.at!;
+      const ok = typeof at === 'string' ? c.steps.some((s) => s.id === at) : !!c.ramps?.some((r) => r.key === at.ramp);
+      assert.ok(ok, `${c.id}: "${ch.label}" names a step or a ramp of the course`);
+    }
+    const h = HISTORIES.find((x) => x.id === c.id)!;
+    assert.deepEqual(h.chapters, chaptersOf(c), `${c.id}: the baked chapters are the course's`);
+    const days = h.chapters!.map((x) => x.from);
+    assert.deepEqual(days, [...days].sort((a, b) => a - b), `${c.id}: in order`);
+    const { s } = await storyIn(c.id);
+    const ch = storyOf({ ...s, chapters: h.chapters! });
+    assert.deepEqual(ch.map((x) => x.label), c.chapters.map((x) => x.label));
+    checkShape(`${c.id} authored`, s, ch);
+  }
+  const bad = { ...COURSES[0]!, chapters: [{ label: 'A' }, { at: 'nope', label: 'B' }] };
+  assert.throws(() => chaptersOf(bad), /anchored to "nope"/, 'an anchor that names nothing stops the generator');
+});

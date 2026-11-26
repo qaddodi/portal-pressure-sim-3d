@@ -19,6 +19,7 @@ import type { Course } from './types.ts';
 export const COURSES: readonly Course[] = [
   {
     id: 'hist-bleed', name: 'Cirrhosis, first bleed', group: 'After a bleed', where: 'Varices and banding',
+    chapters: [{ label: 'Before treatment' }, { at: 'carvedilol', label: 'On carvedilol' }, { at: 'bleed', label: 'The bleed' }, { at: 'tips', label: 'After the TIPS' }],
     preset: 'cirr-comp', days: 120, init: { nsbbGain: 0.45 },
     ramps: [{ key: 'cirrhosis', from: 0, to: 55, a: 0.4, b: 0.86 }],
     quiet: ['cirrhosis', 'albumin'],
@@ -36,6 +37,7 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-ascites', name: 'Refractory ascites', group: 'Ascites', where: 'Fluid in the abdomen',
+    chapters: [{ label: 'On diuretics' }, { at: 'tap1', label: 'Taps, and the fluid returns' }, { at: 'tips', label: 'After the TIPS' }],
     preset: 'cirr-decomp', days: 150,
     quiet: ['albumin'],
     settle: 14,
@@ -51,6 +53,7 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-pvt', name: 'Acute portal vein thrombosis', group: 'Clots and outflow', where: 'Portal vein and hepatic veins',
+    chapters: [{ label: 'A fresh clot' }, { at: 'anticoag', label: 'On anticoagulation, the clot clears' }],
     preset: 'pvt-acute', days: 105,
     quiet: ['thr:'],
     steps: [
@@ -62,6 +65,7 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-bcs', name: 'Budd-Chiari syndrome', group: 'Clots and outflow', where: 'Portal vein and hepatic veins',
+    chapters: [{ label: 'Three hepatic veins blocked' }, { at: 'anticoag', label: 'On anticoagulation' }, { at: 'angioplasty', label: 'After the angioplasty' }],
     preset: 'budd-chiari', days: 150,
     quiet: ['thr:', 'albumin'],
     settle: 14,
@@ -75,6 +79,12 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-tips-narrowed', name: 'TIPS that has narrowed', group: 'After a TIPS', where: 'Follow-up',
+    chapters: [
+      { label: 'Ascites on diuretics' },
+      { at: 'tips', label: 'The TIPS holds the fluid' },
+      { at: { ramp: 'stenosis.TIPS' }, label: 'The stent narrows' },
+      { at: 'doppler', label: 'Doppler finds it' },
+    ],
     preset: 'cirr-decomp', days: 190,
     ramps: [{ key: 'stenosis.TIPS', from: 50, to: 185, a: 0, b: 0.5 }],
     quiet: ['sten:', 'albumin'],
@@ -90,6 +100,7 @@ export const COURSES: readonly Course[] = [
 
   {
     id: 'hist-bleed-tips', name: 'Bleed, TIPS in 24 hours', group: 'After a bleed', where: 'Varices and banding',
+    chapters: [{ label: 'Before the bleed' }, { at: 'bleed', label: 'The bleed' }, { at: 'tips', label: 'After the TIPS' }, { at: 'confusion', label: 'Confusion, treated' }],
     preset: 'cirr-decomp', days: 150, init: { albumin: 3.1 },
     quiet: ['albumin'], still: true, settle: 8,
     steps: [
@@ -106,6 +117,7 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-hcv', name: 'Hepatitis C cured, pressure persists', group: 'Cause removed', where: 'After the cause is treated',
+    chapters: [{ label: 'Before treatment' }, { at: 'carvedilol', label: 'On carvedilol' }, { at: 'daa', label: 'Antiviral treatment' }, { at: 'svr', label: 'Cured, the pressure persists' }],
     preset: 'csph', days: 600, init: { cirrhosis: 0.7, nsbbGain: 0.5 },
     ramps: [{ key: 'cirrhosis', from: 90, to: 480, a: 0.7, b: 0.62 }],
     quiet: ['cirrhosis', 'albumin'], still: true, settle: 14,
@@ -120,6 +132,7 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-alcohol', name: 'Alcohol cirrhosis, recompensated', group: 'Cause removed', where: 'After the cause is treated',
+    chapters: [{ label: 'Decompensated' }, { at: 'abstain', label: 'Abstinent, on carvedilol' }, { at: 'diurOff', label: 'Diuretics stopped' }, { at: 'recomp', label: 'Recompensated' }],
     preset: 'cirr-decomp', days: 720,
     ramps: [{ key: 'cirrhosis', from: 0, to: 420, a: 0.85, b: 0.6 }, { key: 'albumin', from: 0, to: 420, a: 2.8, b: 3.9 }],
     quiet: ['cirrhosis', 'albumin'], still: true, settle: 14,
@@ -135,6 +148,7 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-psvd', name: 'PSVD: a bleed with a normal HVPG', group: 'Without cirrhosis', where: 'Porto-sinusoidal vascular disorder',
+    chapters: [{ label: 'Large varices, normal HVPG' }, { at: 'bleed', label: 'The bleed' }, { at: 'carvedilol', label: 'Carvedilol and bands' }, { at: 'band3', label: 'After the last band' }],
     preset: 'psvd', days: 300,
     quiet: ['albumin'], still: true,
     steps: [
@@ -151,6 +165,7 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-brto', name: 'Gastric varix bleed, BRTO', group: 'After a bleed', where: 'Varices and banding',
+    chapters: [{ label: 'Before the bleed' }, { at: 'bleed', label: 'The gastric bleed' }, { at: 'brto', label: 'After BRTO' }, { at: 'carvedilol', label: 'New esophageal varices' }],
     preset: 'gastric-varix', days: 240,
     quiet: ['albumin'], still: true, settle: 14,
     steps: [
@@ -168,6 +183,7 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-pregnancy', name: 'Cirrhosis in pregnancy', group: 'Pregnancy', where: 'Varices in pregnancy',
+    chapters: [{ label: 'Before pregnancy' }, { at: 'preg', label: 'Pregnant' }, { at: 'prop', label: 'Second trimester: propranolol and bands' }, { at: 'delivery', label: 'After delivery' }],
     preset: 'csph', days: 330, init: { cirrhosis: 0.65 },
     ramps: [{ key: 'gestation', from: 30, to: 254, a: 6, b: 38 }],
     quiet: ['cirrhosis', 'gestation'], still: true,
@@ -184,6 +200,7 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-cardiac', name: 'Cardiac cirrhosis', group: 'Clots and outflow', where: 'Portal vein and hepatic veins',
+    chapters: [{ label: 'Congestion from the right heart' }, { at: 'diur', label: 'On diuretics' }, { at: 'hf', label: 'After the tricuspid repair' }],
     preset: 'rhf', days: 300, init: { cirrhosis: 0.2 },
     quiet: ['cirrhosis', 'albumin'], still: true, settle: 14,
     steps: [
