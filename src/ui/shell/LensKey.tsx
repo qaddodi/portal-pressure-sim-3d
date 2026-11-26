@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLens } from '../../scene/lenses/store.ts';
 import { legendFor } from '../../scene/lenses/legend.ts';
+import { shownLens } from '../../scene/lenses/in-view.ts';
+import { useShell } from './store.ts';
 import { useLookId } from '../../looks/use-look.ts';
 import { useCompare } from '../compare/store.ts';
 import { I } from './icons.tsx';
@@ -29,7 +31,9 @@ function useLeaving(key: string, node: ReactNode): ReactNode {
 /** The colour key; while Compare shows its Change view (D), the key's scale is the one the figure is judged against (the "then" patient, as the previous shell passed it). */
 export function LensKey() {
   const reference = useCompare((c) => (c.snap && c.view === 'D' ? c.snap.when : undefined)) ?? 'healthy';
-  const lens = useLens((s) => s.lens);
+  // (the key names the lens the view draws, lenses/in-view.ts shownLens: in a view without the figure's lens, the one it falls back to)
+  const view = useShell((s) => s.view);
+  const lens = shownLens(view, useLens((s) => s.lens));
   const look = useLookId();
   const g = legendFor(lens, look, reference);
   const first = g.bar?.nums[0]?.text ?? '', last = g.bar?.nums.at(-1)?.text ?? '';

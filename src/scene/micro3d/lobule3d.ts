@@ -25,7 +25,7 @@ import { AN_K, DISC_R, DUCT_R, LT_R, RS_N, lyTaper, congShare, inletRadius, sinR
 /** The space of Disse's band and the widest bile canaliculus (lobule radii), which shrink to nothing as their layers go off (2D: lobule-zoom-field.js, lobule-bile.js). */
 const BILE_BC_R = 0.0036;
 import { CASING } from '../vessels/cel-ink.ts';
-import { type InkContext, type Seg, inkAt, sinW } from '../lobule/ink.ts';
+import { type InkContext, type Seg, inkAcross, inkAt, inkSignature, laneShares, sinW } from '../lobule/ink.ts';
 import { lookColours } from '../lobule/lz-colours.ts';
 import { LOBULE_PALETTES } from '../lobule/tones.ts';
 import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
@@ -537,27 +537,50 @@ export class Lobule3D {
     this.inkKey = '';
   }
 
-  /** The lens's colours along the vessels (2D's inkOf: the portal venule's at the edge to the central vein's), rewritten when the lens, the look or a rounded pressure changes. */
+  /** The lens's colours along the vessels (2D's inkOf: the portal venule's at the edge to the central vein's) and, under Blood origin and First pass, across them (the streams side by
+   *  side, each vertex at its place across, the dust's `fcourse` w): lobule/ink.ts inkAcross, the one rule. Rewritten whenever a colour would change (inkSignature: the colours
+   *  themselves, never a hand-kept list of inputs). */
   private stepInk(): void {
     const ctx = this.flat.inkContext();
     if (!ctx) return;
-    const m = ctx.model, key = `${ctx.lens}|${ctx.look}|${m.P1.toFixed(1)}|${m.P2.toFixed(1)}|${m.P3.toFixed(1)}|${(m.oxy ?? []).map((x: number) => x.toFixed(2)).join(',')}|${ctx.fibSin.toFixed(2)}|${ctx.ref ? 'r' : ''}`;
+    const key = inkSignature(ctx);
     if (key === this.inkKey) return;
     this.inkKey = key;
-    const N = 64, lut = new Float32Array((N + 1) * 3), lut2 = new Float32Array((N + 1) * 3), tmp: [number, number, number] = [0, 0, 0];
+    const lanes = ctx.lens === 'origin' || ctx.lens === 'firstpass';
+    const N = 64, tmp: [number, number, number] = [0, 0, 0], tmp2: [number, number, number] = [0, 0, 0];
+    // per segment and place along: the colour (every lens) and the sources' shares (the stream lenses), read once, not per vertex
+    const luts = new Map<Seg, { col: Float32Array; sh: Float32Array }>();
+    const lutOf = (seg: Seg) => {
+      let l = luts.get(seg);
+      if (l) return l;
+      l = { col: new Float32Array((N + 1) * 3), sh: new Float32Array((N + 1) * 5) };
+      const f: number[] = [];
+      for (let i = 0; i <= N; i++) {
+        inkAt(ctx, seg, i / N, tmp); l.col[i * 3] = tmp[0]; l.col[i * 3 + 1] = tmp[1]; l.col[i * 3 + 2] = tmp[2];
+        if (lanes && seg !== 'art') { laneShares(ctx, seg, i / N, f); l.sh.set(f, i * 5); }
+      }
+      luts.set(seg, l);
+      return l;
+    };
+    const colourAt = (seg: Seg, w: number, across: number, out: [number, number, number]) => {
+      const l = lutOf(seg), j = Math.round(clamp(w, 0, 1) * N);
+      if (!lanes || seg === 'art') { out[0] = l.col[j * 3]!; out[1] = l.col[j * 3 + 1]!; out[2] = l.col[j * 3 + 2]!; return out; }
+      return inkAcross(ctx, seg, j / N, across, out, l.sh.subarray(j * 5, j * 5 + 5));
+    };
     for (const e of this.coloured) {
       const col = e.part.geometry.getAttribute('color') as BufferAttribute | undefined;
       if (!col) continue;
       const arr = col.array as Float32Array;
-      if (e.seg) for (let i = 0; i <= N; i++) { inkAt(ctx, e.seg, i / N, tmp); lut[i * 3] = tmp[0]; lut[i * 3 + 1] = tmp[1]; lut[i * 3 + 2] = tmp[2]; }
-      if (e.seg2) for (let i = 0; i <= N; i++) { inkAt(ctx, e.seg2, i / N, tmp); lut2[i * 3] = tmp[0]; lut2[i * 3 + 1] = tmp[1]; lut2[i * 3 + 2] = tmp[2]; }
+      // (each vertex's place across its vessel, -1 .. 1, the round ends 3: what the streams are laid by; a part without it takes the middle)
+      const fc = lanes ? (e.part.geometry.getAttribute('fcourse') as BufferAttribute | undefined)?.array as Float32Array | undefined : undefined;
       for (let v = 0; v < e.k.length; v++) {
-        const k = e.k[v]!;
+        const k = e.k[v]!, across = fc ? fc[v * 4 + 3]! : 0;
         if (e.seg && e.seg2 && e.w2 && e.m && e.m[v]! > 0) {
           // (a junction that joins two colour families: the one's colour at its place and the other's at its, blended by the skin's weights, a gradient through the junction)
-          const j = Math.round(clamp(e.w[v]!, 0, 1) * N) * 3, j2 = Math.round(clamp(e.w2[v]!, 0, 1) * N) * 3, t = e.m[v]!;
-          for (let q = 0; q < 3; q++) arr[v * 3 + q] = lerp(lut[j + q]!, lut2[j2 + q]!, t) * k;
-        } else if (e.seg) { const j = Math.round(clamp(e.w[v]!, 0, 1) * N) * 3; arr[v * 3] = lut[j]! * k; arr[v * 3 + 1] = lut[j + 1]! * k; arr[v * 3 + 2] = lut[j + 2]! * k; }
+          colourAt(e.seg, e.w[v]!, across, tmp); colourAt(e.seg2, e.w2[v]!, across, tmp2);
+          const t = e.m[v]!;
+          for (let q = 0; q < 3; q++) arr[v * 3 + q] = lerp(tmp[q]!, tmp2[q]!, t) * k;
+        } else if (e.seg) { colourAt(e.seg, e.w[v]!, across, tmp); arr[v * 3] = tmp[0] * k; arr[v * 3 + 1] = tmp[1] * k; arr[v * 3 + 2] = tmp[2] * k; }
         else { arr[v * 3] = k; arr[v * 3 + 1] = k; arr[v * 3 + 2] = k; }
       }
       col.needsUpdate = true;

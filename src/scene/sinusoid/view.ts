@@ -23,6 +23,11 @@ import { endsFor, framePoint, planePoint, xkFor } from './portrait.ts';
 import { createGeom, createTraffic } from './traffic.copied.js';
 import { createPalette } from './palette.copied.js';
 import { ALBUMIN_TOKENS } from './legend.ts';
+import { coloursCells, sinusoidCellSources, sinusoidLumen } from './lens.ts';
+import { shownLens } from '../lenses/in-view.ts';
+import { LENS_MS } from '../lenses/field.ts';
+import type { LensId } from '../lenses/model.ts';
+import type { Rgb } from '../lenses/oklab.ts';
 
 /** Micrometres across the stretch the shot frames (four hepatocytes of the 2D plate), and the plane's local units per micrometre. */
 export const SPAN_UM = 97.4;
@@ -80,7 +85,7 @@ export class SinusoidView {
   /** How much each end's name shows (0 to 1), which its arrow follows (2D: endShown; 1 outside a talk). */
   private endShown: [number, number] = [1, 1];
   private washLand = -1;
-  private readonly ink = { ctx: null as InkContext | null };
+  private readonly ink = { ctx: null as InkContext | null, lens: 'pressure' as LensId };
   // 2D's own placement and traffic, copied (traffic.copied.js, palette.copied.js)
   private readonly model = { hide: false, P2: 5, lyProt: 0.88 };
   private readonly geo: { xs: number; xk: number; pores: Pore[][] };
@@ -114,7 +119,8 @@ export class SinusoidView {
     this.traffic = createTraffic({ S: driven, geo: this.geo, VW: this.VW, model: this.model, rng, clamp, lerp, smooth, poreOpenness, ...this.g });
     this.pal = createPalette({
       S, model: this.model, cssv: (n: string, d?: string) => this.token(n, d), rgb: (c: unknown) => this.rgbOf(c),
-      pressureColor: (p: number) => samplerFor(this.look, 'pressure').at(p, [0, 0, 0]),
+      // (the copied palette asks for the lumen's colour as `pressureColor(P2)`: it is the lens's colour for this view, eased across a lens change (lumenColour); Pressure is P2's own, as in 2D)
+      pressureColor: (p: number) => this.lumenColour(p),
     });
 
     this.applyLook(this.look);
@@ -145,7 +151,8 @@ export class SinusoidView {
   applyLook(look: LookId): void { this.look = look; this.pal.bump(); this.dirty = true; }
   setPhone(_phone: boolean): void { /* (nothing here depends on the device) */ }
 
-  setVisible(v: boolean): void { this.visible = v; this.group.visible = v; this.dirty = true; if (!v) this.washOn = false; }
+  // (hidden, the lens's ease is dropped: the view comes back in the lens on now, never fading from the one it left in)
+  setVisible(v: boolean): void { this.visible = v; this.group.visible = v; this.dirty = true; if (!v) { this.washOn = false; this.lumen.lens = null; } }
   get isVisible(): boolean { return this.visible; }
 
   /** Targets from the model (sinusoidTargets of the lobule's model, the shown, steady numbers). They ease in. `live` is the blood's
@@ -154,7 +161,51 @@ export class SinusoidView {
   setTargets(t: SinusoidTargets, live?: number): void { Object.assign(this.goal, t); this.runGoal.v = live ?? t.v; this.dirty = true; }
   snapTargets(t: SinusoidTargets, live?: number): void { this.setTargets(t, live); Object.assign(this.cur, this.goal); this.run.v = this.runGoal.v; }
   /** The lens, look, model and reference the lumen's colour comes from (the 2D sinusoid is coloured by the pressure of its sinusoids, P2). */
-  setInk(ctx: InkContext): void { this.ink.ctx = ctx; this.model.P2 = ctx.model.P2; this.model.lyProt = ctx.model.lyProt; this.dirty = true; }
+  setInk(ctx: InkContext, lens: LensId = ctx.lens): void { this.ink.ctx = ctx; this.ink.lens = lens; this.model.P2 = ctx.model.P2; this.model.lyProt = ctx.model.lyProt; this.dirty = true; }
+  /** The lens this view draws now (the figure's, or its fallback: lenses/in-view.ts). */
+  get lensShown(): LensId { return shownLens('sinusoid', this.ink.lens); }
+
+  // ---- the lens: the lumen's colour and the red cells' (sinusoid/lens.ts), each eased over a lens change (LENS_MS, the vessels' own crossfade) --------------------------------
+
+  private readonly lumen = { now: [0, 0, 0] as Rgb, from: [0, 0, 0] as Rgb, goal: [0, 0, 0] as Rgb, at: -1, lens: null as LensId | null, t: 1 };
+  /** How much the red cells wear their sources' colours (0 their own red, 1 the sources'), eased; and the sources they wear. */
+  private cellK = 0;
+  private cellSrc: ReturnType<typeof sinusoidCellSources> = null;
+  /** The lumen's colour now; before the first lens step (or without a model) the 2D rule, the pressure's colour at P2. */
+  private lumenColour(p: number): Rgb {
+    if (!this.ink.ctx) return samplerFor(this.look, 'pressure').at(p, this.lumen.now);
+    // (before the first step after the view shows, the lens's own colour, no ease: the first frame drawn is already right)
+    return this.lumen.lens == null ? sinusoidLumen(this.ink.ctx, this.ink.lens, this.lumen.now) : this.lumen.now;
+  }
+  /** One step of the lens's ease: a new lens starts a crossfade from the colour showing; the goal follows the model live. True while it moves. */
+  private stepLens(now: number): boolean {
+    const c = this.ink.ctx, L = this.lumen;
+    if (!c) return false;
+    const shown = shownLens('sinusoid', this.ink.lens);
+    const first = L.lens == null;
+    if (shown !== L.lens) {
+      if (!first && !this.reduce) { L.from[0] = L.now[0]; L.from[1] = L.now[1]; L.from[2] = L.now[2]; L.at = now; L.t = 0; } else L.t = 1;
+      L.lens = shown;
+    }
+    sinusoidLumen(c, shown, L.goal);
+    if (L.t < 1) L.t = clamp((now - L.at) / LENS_MS, 0, 1);
+    const k = smooth(0, 1, L.t);
+    for (let i = 0; i < 3; i++) L.now[i] = lerp(L.from[i]!, L.goal[i]!, k);
+    const want = coloursCells(shown) ? 1 : 0;
+    if (want) this.cellSrc = sinusoidCellSources(c, shown);
+    const dt = this.lastStep < 0 ? 16 : Math.max(0, now - this.lastStep);
+    this.lastStep = now;
+    const was = this.cellK;
+    this.cellK = this.reduce || first ? want : want > this.cellK ? Math.min(want, this.cellK + dt / LENS_MS) : Math.max(want, this.cellK - dt / LENS_MS);
+    if (this.cellK === 0 && !want) this.cellSrc = null;
+    return L.t < 1 || this.cellK !== was;
+  }
+  private lastStep = -1;
+  /** The red cells' colouring now: their sources' colours and cumulative shares, and how much they show (0: their own red). Null when they keep their red. */
+  get cellColours(): { cols: readonly Rgb[]; cum: readonly number[]; k: number } | null {
+    const s = this.cellSrc;
+    return s && this.cellK > 0 ? { cols: s.cols, cum: s.cum, k: smooth(0, 1, this.cellK) } : null;
+  }
   /** The dive's share, 0 to 1 (see diveShare), while the camera flies between the lobule and this view; null at rest (the tissue whole, everywhere). */
   setDive(g: number | null): void { if (g !== this.dive) { this.dive = g; this.dirty = true; } }
   get diveShareNow(): number | null { return this.dive; }
@@ -204,13 +255,14 @@ export class SinusoidView {
 
   /** One step: eases the state, runs the albumin, writes every uniform. True while anything moves (the blood always does while the view is up, unless motion is reduced). */
   update(now: number): boolean {
-    if (!this.visible) { this.lastNow = -1; return false; }
+    if (!this.visible) { this.lastNow = -1; this.lastStep = -1; return false; }
     const dt = this.lastNow < 0 ? 16 : Math.min(100, now - this.lastNow);
     this.lastNow = now;
     let moving = this.dirty;
     this.dirty = false;
     if (easeToward(this.cur as unknown as Record<string, number>, this.goal as unknown as Record<string, number>, this.reduce ? 1e6 : dt)) moving = true;
     if (easeToward(this.run, this.runGoal, this.reduce ? 1e6 : dt)) moving = true;
+    if (this.stepLens(now)) moving = true;
     // the wedged column's wash (2D: only while a slide asks for it, and once the view has landed; it begins afresh each time it lands)
     const wantWash = this.washOn && this.dive == null;
     if (!wantWash) this.washLand = -1; else if (this.washLand < 0) this.washLand = Math.max(now, this.washAt);
