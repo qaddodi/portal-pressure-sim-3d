@@ -349,6 +349,10 @@ export const WEDGE_LOBULE_25NOV = [
   SET('hvpg', 'slides.wedge-sinusoid.callout', { at: 'sin', kind: 'wedge', label: 'WHVP {whvp}', reads: ['sin', 'cv'], lit: ['sin'] }),
 ];
 
+/** Capture 36b7deac (25 Nov 2026, Sites and causes, item 10): the three lobule slides that place the resistance used three different label sets (the pre-sinusoidal slide named only the callout, the next added the central vein,
+ *  the next the sinusoids). They name one set, the portal venule, the sinusoids and the central vein, each with its pressure (`reads`, figure-calls.ts), whatever words the line uses. */
+export const CAPTURE_36B7DEAC = ['presin', 'sin', 'postsin'].map((id) => SET('sites', `slides.${id}.callout.reads`, ['triad', 'sin', 'cv']));
+
 /** Capture 15c31759 (24 Nov 2026, Mohammad: "do all review findings"). */
 export const CAPTURE_15C31759 = [
   // Two lesions 5 ran the congestion 60 days, still easing (right atrium 26.7), and slide 9 holds the same two lesions at 90 (26.2): the same state read two numbers. Both now stand at the 90-day state.
@@ -476,6 +480,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_15C31759,
   ...CAPTURE_2A54261A,
   ...WEDGE_LOBULE_25NOV,
+  ...CAPTURE_36B7DEAC,
 ];
 
 function step(node, key) {

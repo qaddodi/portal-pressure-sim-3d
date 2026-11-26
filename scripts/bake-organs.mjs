@@ -3,23 +3,26 @@
 // gzipped, so the page reads the finished organs and does none of it. scripts/build.mjs runs it before the bundler; a failure only warns, and the page then builds them live from organs.bin as before.
 // `--check` builds nothing and says whether the file on disk is the one for the current inputs (its digest).
 // The organs are the approved placement's (re-inflated organs, gut tubes, the caudate egg; docs/approved/anatomy-placement.md), with the digest of every input that makes them (organs-digest.mjs).
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { gzipSync, gunzipSync } from 'node:zlib';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { organsDigest } from './organs-digest.mjs';
+import { BAKED_ORGANS_FILE, ORGAN_DATA, bakedOrgansCurrent, organsDigest } from './organs-digest.mjs';
 
 import { bakeSig, isCurrent, writeSig } from './bake-sig.mjs';
 
 const name = 'organs-baked.bin';
-const out = fileURLToPath(new URL(`../public/anatomy/${name}`, import.meta.url));
+const out = BAKED_ORGANS_FILE;
 const digest = organsDigest();
 // Plan 50: unchanged inputs (the signature in <out>.sig, on top of the digest the page checks) mean nothing to do.
-const sig = bakeSig(fileURLToPath(import.meta.url), ['public/anatomy/organs.bin', 'src/scene/organs/organs-manifest.json', 'src/scene/anatomy/placement.generated.ts']);
-if (!process.argv.includes('--check') && !process.argv.includes('--force') && isCurrent([out], sig)) { console.log(`organs: unchanged since the last bake (signature), skipped; digest ${digest}`); process.exit(0); }
+const sig = bakeSig(fileURLToPath(import.meta.url), ORGAN_DATA);
+const { encodeOrgans } = await import('../src/scene/organs/baked.ts');
+// (whether the file on disk carries this build's digest: what the page itself checks, meshes.ts, so a skip can never ship a file the page throws away)
+const current = () => bakedOrgansCurrent(digest);
+// (the signature alone is never trusted: the skip also asks the page's own question, a fraction of a second)
+if (!process.argv.includes('--check') && !process.argv.includes('--force') && isCurrent([out], sig) && (await current())) { console.log(`organs: unchanged since the last bake (signature and digest), skipped; digest ${digest}`); process.exit(0); }
 else {
-  const { encodeOrgans, decodeOrgans } = await import('../src/scene/organs/baked.ts');
   if (process.argv.includes('--check')) {
-    const ok = existsSync(out) && (() => { const b = gunzipSync(readFileSync(out)); return decodeOrgans(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength))?.digest === digest; })();
+    const ok = await current();
     console.log(ok ? `${name} is for ${digest}` : `${name} is missing or not for ${digest}`);
     process.exit(ok ? 0 : 1);
   } else {

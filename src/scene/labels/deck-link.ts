@@ -20,25 +20,18 @@ export function keyOfSlide(slide: Slide | null, lens: string | undefined, words:
   if (!slide || words === 'case' || words === 'visual' || words === 'title' || words === 'check') return null;
   const own = lens ?? DEFAULT_LENS;
   const buttons = !!slide.controls?.compare?.opts.some((o) => o.how === 'lens');
-  return KEY_LENSES.includes(own) && (own !== DEFAULT_LENS || buttons) ? own : null;
+  // (the default lens colours the figure too on a slide that draws the pressure profile beside it: capture 36b7deac, slide 10 of Sites and causes, pink to blue with no key)
+  const profile = (slide.tool as { kind?: string } | undefined)?.kind === 'profile';
+  return KEY_LENSES.includes(own) && (own !== DEFAULT_LENS || buttons || profile) ? own : null;
 }
 
-/** The lens the figure wears at a stop (scene-link.ts: a slide's own, the default when it names none, a visual over the figure keeps the one before it). */
-function lensOfStop(stops: Stop[], i: number): LensId {
-  if (i < 0) return DEFAULT_LENS;
-  const v = viewAt(stops, { stop: i, beat: 0 }, lastSlideShot(stops));
-  return v.slide?.visual ? lensOfStop(stops, i - 1) : v.scene?.lens ?? DEFAULT_LENS;
-}
-/** The key's lens at a stop, when it is NEEDED there (Mohammad, 22 Nov: "only use the lens legend when needed, not all the time"): a slide that changes the lens from the one before it, or has lens buttons of its own.
- *  A run of slides on one lens names it once, on the first. Null otherwise. */
+/** The key's lens at a stop: every slide whose figure a lens colours shows its key (Mohammad, 26 Nov, capture 36b7deac: "every slide that colours the figure"; this replaces the 22 Nov rule
+ *  that a run of slides on one lens named it once, on the first). Null where the figure wears no lens colour: the default lens on a slide with no lens buttons and no profile, a table, a chart, a case card. */
 export function keyAtStop(stops: Stop[], i: number, beat = 0): string | null {
   const s = stops[i];
   if (!s || s.kind !== 'slide') return null;
   const v = viewAt(stops, { stop: i, beat }, lastSlideShot(stops));
-  const lens = keyOfSlide(v.slide, v.scene?.lens, v.words);
-  if (!lens) return null;
-  const buttons = !!v.slide?.controls?.compare?.opts.some((o) => o.how === 'lens');
-  return buttons || lens === 'heat' || lensOfStop(stops, i - 1) !== lens ? lens : null;   // (the heat lens's glow is not self-explaining: every heat slide names it, 23 Nov, TIPS candidacy 10)
+  return keyOfSlide(v.slide, v.scene?.lens, v.words);
 }
 /** The lens whose key is the first row of the slide's own data card (the stream lenses: key.ts keyPlace). The card keeps its key as long as it stands, so ask with the stop the card came from (keep.ts `from`). */
 export function cardKeyAt(stops: Stop[], i: number, live: string | null = null): string | null {

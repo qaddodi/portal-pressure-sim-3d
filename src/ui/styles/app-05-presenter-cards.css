@@ -297,8 +297,11 @@
 .pzc-a > p { overflow: hidden; min-height: 0; margin: 0; padding: 0 0 0 calc(2.1em + .8em + .2em); color: var(--text-2); }
 .pz-check li.open .pzc-a { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition: opacity var(--d-surface) var(--ease), visibility 0s; }
 .pz-check li.open .pzc-a > p { padding-bottom: .7em; }
-.pz.stack .pzc-q { grid-template-columns: 1.8em minmax(0, 1fr); }
-.pz.stack .pzc-hint { display: none; }
+/* (A phone keeps the tap hint, shrunk to a chevron: "Show answer" does not fit beside a two-line question, but a row with no hint at all read as plain text, capture 36b7deac slide 14.
+   The answer's left edge is the question words' own, 1.8em + .8em + .2em on a phone, so the revealed answer is as wide as its question.) */
+.pz.stack .pzc-q { grid-template-columns: 1.8em minmax(0, 1fr) auto; }
+.pz.stack .pzc-hint { font-size: 0; line-height: 0; width: calc(1.9 * var(--s-cap)); height: calc(1.9 * var(--s-cap)); padding: 0; display: grid; place-items: center; align-self: center; }
+.pz.stack .pzc-hint::before { content: ''; width: .5em; height: .5em; margin-top: -.18em; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg); font-size: var(--s-cap); }
 .pz.stack .pzc-a > p { padding-left: calc(1.8em + .8em + .2em); }
 @media (prefers-reduced-motion: reduce) { .pzc-a, .pzc-a > p { transition-property: opacity; } }
 .pz.stack .pz-ab { gap: 6px; padding: 3px; justify-content: center; flex-wrap: wrap; }/* A title that would run past two lines in the side pane steps down a size. */
