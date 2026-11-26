@@ -14,7 +14,7 @@ import { U as SIN_UNIT } from '../sinusoid/view.ts';
 import { clock } from '../../clock/frame.ts';
 import type { CelScene } from '../scene.ts';
 import { scenePart } from './define.ts';
-import { SIN_SHOW_FROM, DIVE_IN } from './shared.ts';
+import { SIN_SHOW_FROM, DIVE_IN, FIGURE_FRONT_Z, FRONT_MARGIN } from './shared.ts';
 
 export const divePart = scenePart<CelScene>()({
   /** Outline these organs (organ ids: liver, spleen, heart, bowel, colon, duodenum, kidney-l...); [] clears. */
@@ -73,8 +73,16 @@ export const divePart = scenePart<CelScene>()({
     if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height, this.width); }
     return this.restD;
   },
-  /** Where the body is gone: twice the distance the lobule lands at in this room (never nearer than DIVE_IN), so the body is always gone on landing, whatever the screen. */
-  diveIn(): number { return Math.max(DIVE_IN, 2 * this.lobuleRest()); },
+  /** Where the body is gone: before the camera reaches the figure's front on its way to the lobule (so it never flies through anything drawn), and never nearer than twice the
+   *  distance the lobule lands at in this room or DIVE_IN, so the body is always gone on landing, whatever the screen. */
+  diveIn(): number { return Math.max(DIVE_IN, 2 * this.lobuleRest(), this.frontAt()); },
+  /** The camera's distance from the lobule's place when it reaches the figure's front plane (FIGURE_FRONT_Z), along the line it comes in on now, with FRONT_MARGIN. */
+  frontAt(): number {
+    const c = this.rig.camera.position, l = this.livePoint, d = c.distanceTo(l);
+    // (the line's slope toward the plate: 1 head on; a camera turned well round is held to a slope of 0.3, so the body still goes in good time)
+    const along = d > 0 ? Math.max(0.3, (c.z - l.z) / d) : 1;
+    return (FRONT_MARGIN * Math.max(0, FIGURE_FRONT_Z - l.z)) / along;
+  },
   /** How much of the body is drawn now (1 whole, 0 gone): for tests and tags. */
   get bodyShown(): number { return this.fadeNow; },
   /** The model's state into the small views (from the engine's newest frame, the healthy reference and the patient's parameters); `snap` shows it at once. */
