@@ -13,7 +13,7 @@ export interface Step {
   act?: 'bleed' | 'band' | 'paracentesis';
   /** The step that stops a bleed under way: hemostasis. A band stops an esophageal bleed by itself (the engine's band); a gastric varix has no band, so a step says it (the vasoactive drug's
    *  control, a BRTO). The generator stops when a bleed runs on past BLEED_END_DAYS with none. */
-  stopsBleed?: true;
+  stopsBleed?: true | string;   // (a string is the days list's words for it: "Bleeding controlled by EUS coils and glue")
   /** where a bleed comes from: the esophageal varices (the default) or a gastric varix */
   site?: 'VAR' | 'GV';
   /** History's words for the step, when the change's own labels would not say it (an angioplasty is a thrombus put away) */
@@ -21,6 +21,10 @@ export interface Step {
   detail?: string;
   /** a line the course adds that the model does not raise (a Doppler follow-up): shown as an event */
   note?: { title: string; detail: string; sev: 'ok' | 'caution' | 'danger' | 'info' };
+  /** an endoscopy (a band session is one too, without saying so). What only an endoscopy sees (large varices, red wale signs) is known on the days of the scopes, never on the model's own clock:
+   *  the engine raises it when the varix crosses its cut, the course holds it until the next scope and drops it if it no longer holds then.
+   *  The `note` is the scope's own line, told before its findings. */
+  scope?: boolean;
 }
 
 export interface Course {
@@ -51,8 +55,8 @@ export interface Course {
   still?: boolean;
   steps: Step[];
   /** the story's chapters (docs/approved/timeline-story.md): the first from Day 0, each other from the day of the step it names (`at`, a step's id) or the start of a ramp (`{ ramp }`, its key).
-   *  Anchored to the course, never to a day the engine raised something on, so a rebake cannot slide a chapter. */
-  chapters: { at?: string | { ramp: string }; label: string }[];
+   *  Anchored to the course, never to a day the engine raised something on, so a rebake cannot slide a chapter (`{ day }` is a day the course names itself: a trimester's first). */
+  chapters: { at?: string | { ramp: string } | { day: number }; label: string }[];
   /** the story: {id} is the day of the step with that id */
   story: string;
   /** the course in a few words, for the row's tip */

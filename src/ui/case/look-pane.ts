@@ -18,6 +18,7 @@ export async function applyLookPane(pane: LookPane | undefined): Promise<void> {
     if (pane.stent) useIr.getState().openStent(pane.stent);
     else useIr.getState().askMeasure();
   }
+  if (pane.watch) { const { watchProcedure } = await import('./watch.ts'); watchProcedure(pane.watch); }
 }
 
 /** The Tests cards that show nothing until their measurement is run (the HVPG's tracing waits for the catheter): a look that opens one runs it,
@@ -35,8 +36,8 @@ export const paneOf = (l: CaseLook): LookPane | undefined =>
 const isView = (t: string): t is ViewId => VIEWS.some((v) => v.id === t);
 /** Open what a Look closer row names: a view, or a Tests card by its tool's id, in the state the look names. */
 export function openLook(l: CaseLook): void {
-  if (isView(l.tool)) { goToView(l.tool); return; }
-  if (!(l.tool in PANES)) return;
-  useTests.getState().show(l.tool as PaneId);
+  if (isView(l.tool)) goToView(l.tool);
+  else if (l.tool in PANES) useTests.getState().show(l.tool as PaneId);
+  else return;
   void applyLookPane(paneOf(l));
 }

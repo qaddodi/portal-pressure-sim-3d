@@ -17,6 +17,10 @@
 import type { Course } from './types.ts';
 import type { CaseLook } from '../case/types.ts';
 
+/** Antibiotic prophylaxis is part of every variceal bleed's first hour (Baveno VIII: ceftriaxone, 1 g a day, for up to 7 days), whoever bleeds and wherever: each course's vasoactive step says it, and
+ *  tests/bleed-bundle.test.ts keeps that true of every course that has a bleed. */
+export const ANTIBIOTICS = 'Antibiotic prophylaxis from the start: ceftriaxone, 1 g a day, for up to 7 days.';
+
 /** "Look closer here" at a stop (ui/case): the Tests cards a course opens (tests/panes.ts PaneId; tests/case-shots.test.ts keeps every one real). */
 const L = {
   endoscopy: { tool: 'endoscopy', label: 'Endoscopy' },
@@ -42,8 +46,9 @@ export const COURSES: readonly Course[] = [
     quiet: ['cirrhosis', 'albumin'],
     steps: [
       { day: 19, id: 'carvedilol', set: { drugs: { carvedilol: true } }, detail: 'Started once the portal hypertension was clinically significant.' },
+      { day: 40, id: 'egd', scope: true, note: { title: 'Endoscopy', detail: 'Large varices with red wale signs, even on carvedilol.', sev: 'danger' } },
       { day: 70, id: 'bleed', act: 'bleed' },
-      { day: 70, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: 'A vasoactive drug for the bleed, for three days.' },
+      { day: 70, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: `A vasoactive drug for the bleed, for three days. ${ANTIBIOTICS}` },
       { day: 70, id: 'band', act: 'band', detail: 'Endoscopic band ligation at the first endoscopy.' },
       { day: 73, id: 'tips', set: { drugs: { terlipressin: false, carvedilol: false }, tips: { on: true, d: 8 } },
         detail: 'Pre-emptive, within 72 hours of the bleed: a patient at high risk of rebleeding. The beta-blocker is not needed with a TIPS.' },
@@ -54,8 +59,7 @@ export const COURSES: readonly Course[] = [
     // (the case: an HVPG and a stiffness for the gradient crossing 10, the scope for the varices and the bleed, the pressure along the circuit and the stent's Doppler at the TIPS)
     play: { stops: [
       { at: { day: 18 }, look: [L.hvpg, L.stiffness] },
-      { at: { day: 40 }, look: [L.endoscopy] },
-      { at: 'bleed', look: [L.endoscopy] },
+      { at: 'egd', look: [L.endoscopy] },
       { at: 'tips', look: [L.along, L.dopplerStent] },
     ] },
   },
@@ -92,6 +96,7 @@ export const COURSES: readonly Course[] = [
     quiet: ['thr:'],
     steps: [
       { day: 1, id: 'anticoag', set: { anticoag: true }, detail: 'Started at once, and kept up while the clot clears.' },
+      { day: 4, id: 'egd', scope: true, note: { title: 'Endoscopy for varices', detail: 'Looking for varices with the portal pressure up: small varices, with red wale signs.', sev: 'danger' } },
     ],
     story: 'A fresh clot in the main portal vein. Anticoagulation from Day {anticoag}; the clot slowly clears and the pressure comes down.',
     path: 'Anticoagulation, the clot clears',
@@ -100,7 +105,7 @@ export const COURSES: readonly Course[] = [
     play: { stops: [
       { at: { day: 0 }, cam: 'portal', look: [L.dopplerPv] },
       { at: 'anticoag', cam: 'portal', look: [L.dopplerPv] },
-      { at: { day: 4 }, look: [L.endoscopy] },
+      { at: 'egd', look: [L.endoscopy] },
       { at: { day: 105 }, cam: 'portal', look: [L.dopplerPv] },
     ] },
   },
@@ -165,7 +170,7 @@ export const COURSES: readonly Course[] = [
     quiet: ['albumin'], still: true, settle: 8,
     steps: [
       { day: 10, id: 'bleed', act: 'bleed' },
-      { day: 10, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: '2 mg every 4 hours for the first 48 hours, then 1 mg every 4 hours, for up to 5 days. Antibiotics (ceftriaxone, 1 g a day) and a restrictive transfusion (hemoglobin 7 to 8 g/dL) alongside.' },
+      { day: 10, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: `2 mg every 4 hours for the first 48 hours, then 1 mg every 4 hours, for up to 5 days. ${ANTIBIOTICS} A restrictive transfusion (hemoglobin 7 to 8 g/dL) alongside.` },
       { day: 10, id: 'band', act: 'band', detail: 'Endoscopy within 12 hours: a spurting varix, banded. Active bleeding at endoscopy in a Child-Pugh B patient is a reason for a pre-emptive TIPS.' },
       { day: 11, id: 'tips', set: { drugs: { terlipressin: false }, tips: { on: true, d: 8 } },
         detail: 'A covered 8 mm TIPS within 24 hours of the bleed (Baveno VIII: within 72 hours, the sooner the better) for a Child-Pugh B patient who was bleeding at endoscopy. The vasoactive drug stops; no beta-blocker is needed with a TIPS.' },
@@ -176,7 +181,6 @@ export const COURSES: readonly Course[] = [
     state: ['tips', 'ppg', 'ascites'],
     // (the confusion is the gut's blood going round the liver through the stent: the slides' own first-pass shot of the liver, as the encephalopathy deck takes it)
     play: { stops: [
-      { at: 'bleed', look: [L.endoscopy] },
       { at: 'tips', look: [L.along, L.dopplerStent] },
       { at: 'confusion', cam: 'liver', lens: 'firstpass' },
     ] },
@@ -235,7 +239,7 @@ export const COURSES: readonly Course[] = [
     quiet: ['albumin'], still: true,
     steps: [
       { day: 20, id: 'bleed', act: 'bleed' },
-      { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: 'A vasoactive drug for the bleed, for four days.' },
+      { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: `A vasoactive drug for the bleed, for four days. ${ANTIBIOTICS}` },
       { day: 20, id: 'band', act: 'band', detail: 'Banding at endoscopy: large varices, and no cirrhosis on the biopsy. The HVPG is normal because the block is before the sinusoids, and it says nothing of the bleeding risk (Baveno VIII).' },
       { day: 24, id: 'carvedilol', set: { drugs: { terlipressin: false, carvedilol: true } }, detail: 'Secondary prophylaxis: a beta-blocker with banding, 12.5 mg a day.' },
       { day: 48, id: 'band2', act: 'band', detail: 'Banding again, every 2 to 4 weeks, until the varices are gone.' },
@@ -260,19 +264,21 @@ export const COURSES: readonly Course[] = [
     quiet: ['albumin'], still: true, settle: 14,
     steps: [
       { day: 20, id: 'bleed', act: 'bleed', site: 'GV' },
-      { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, stopsBleed: true, label: 'Terlipressin', detail: 'A vasoactive drug, with antibiotics, for the bleed from a gastric varix, which stops the bleed. A band cannot close a varix this large.' },
+      { day: 20, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: `A vasoactive drug for the bleed from a gastric varix, for up to 5 days. ${ANTIBIOTICS}` },
+      { day: 20, id: 'glue', scope: true, set: { occluded: { C2: true } }, stopsBleed: 'Bleeding controlled by EUS coils and glue', label: 'EUS coils and glue',
+        detail: 'Endoscopy within 12 hours. A band cannot close a varix this large: EUS-guided coils hold cyanoacrylate glue in it, the varix is obliterated and the bleeding stops (Baveno VIII). The gastrorenal shunt stays open, so it is closed next.' },
       { day: 23, id: 'brto', set: { drugs: { terlipressin: false }, occluded: { C5: true } }, label: 'BRTO', detail: 'Balloon-occluded retrograde transvenous obliteration of the gastrorenal shunt, three days after the bleed. The varix thromboses; the portal pressure and the ascites can rise afterwards.' },
-      { day: 40, id: 'carvedilol', set: { drugs: { carvedilol: true } }, detail: 'Endoscopy after the BRTO finds new large esophageal varices: carvedilol, 12.5 mg a day.' },
+      { day: 40, id: 'carvedilol', scope: true, set: { drugs: { carvedilol: true } }, detail: 'Endoscopy after the BRTO finds new large esophageal varices: carvedilol, 12.5 mg a day.' },
       { day: 47, id: 'band', act: 'band', detail: 'The first band session on the new esophageal varices.' },
       { day: 75, id: 'band2', act: 'band', detail: 'A second session, a month on.' },
       { day: 103, id: 'band3', act: 'band', detail: 'The third session, to eradicate them.' },
     ],
-    story: 'A fundal varix bleeds on Day {bleed}. A vasoactive drug, then BRTO on Day {brto}. The shunt that fed it is closed, the portal pressure rises, and new esophageal varices need carvedilol from Day {carvedilol} and bands to Day {band3}.',
+    story: 'A fundal varix bleeds on Day {bleed}. A vasoactive drug and antibiotics, EUS-guided coils and glue the same day, then BRTO on Day {brto}. The shunt that fed it is closed, the portal pressure rises, and new esophageal varices need carvedilol from Day {carvedilol} and bands to Day {band3}.',
     path: 'Bleed, BRTO, then the esophageal varices',
     state: ['ppg', 'meds'],
-    // (the fundal varix and its shunt on the fundus, as the gastric varices deck frames BRTO; the esophageal varices after it at endoscopy)
+    // (the fundal varix and its shunt on the fundus, as the gastric varices deck frames BRTO; the esophageal varices after it at endoscopy. The bleed stops are the bleed's own: it bleeds at the
+    // fundus, where the esophageal scope has nothing to see, and the glue that stops it is watched on the figure: case/looks.ts GLUE_LOOK, the stops' default for a fundal bleed)
     play: { stops: [
-      { at: 'bleed', look: [L.endoscopy] },
       { at: 'brto', look: [L.along, L.endoscopy] },
       { at: { day: 29 }, look: [L.endoscopy] },
       { at: 'carvedilol', look: [L.endoscopy] },
@@ -280,25 +286,42 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-pregnancy', name: 'Cirrhosis in pregnancy', group: 'Pregnancy', where: 'Varices in pregnancy',
-    chapters: [{ label: 'Before pregnancy' }, { at: 'preg', label: 'Pregnant' }, { at: 'prop', label: 'Second trimester: propranolol and bands' }, { at: 'delivery', label: 'After delivery' }],
+    // (the weeks are the ramp's: week = 6 + (day - 30) / 7. The trimesters start at 14 and 28 weeks, Days 86 and 184.)
+    chapters: [
+      { label: 'Before pregnancy' }, { at: 'preg', label: 'First trimester' }, { at: { day: 86 }, label: 'Second trimester: scope, propranolol, bands' },
+      { at: { day: 184 }, label: 'Third trimester: pressure climbing' }, { at: 'delivery', label: 'After delivery' },
+    ],
     preset: 'csph', days: 330, init: { cirrhosis: 0.65 },
     ramps: [{ key: 'gestation', from: 30, to: 254, a: 6, b: 38 }],
     quiet: ['cirrhosis', 'gestation'], still: true,
+    // (nobody can scope before the second trimester: the varices' large size and red wale signs, which the model raises as the blood volume grows, are known at the screening endoscopy, 18 weeks)
     steps: [
-      { day: 30, id: 'preg', set: { gestation: 6 }, label: 'Pregnant, 6 weeks', detail: 'Compensated cirrhosis with small varices, a planned pregnancy.' },
-      { day: 114, id: 'prop', set: { drugs: { propranolol: true } }, detail: 'Endoscopy at 18 weeks: large varices with red signs. Propranolol, 20 mg twice a day, raised to a heart rate of 55 to 60. It is the usual beta-blocker in pregnancy.' },
+      { day: 30, id: 'preg', set: { gestation: 6 }, label: 'Pregnant', detail: 'Compensated cirrhosis, a planned pregnancy. The varices are not scoped in the first trimester.' },
+      {
+        day: 114, id: 'egd', scope: true,
+        note: { title: 'Screening endoscopy', detail: 'The first look at the varices, in the second trimester, with sedation and fetal monitoring: large varices with red wale signs.', sev: 'danger' },
+      },
+      { day: 114, id: 'prop', set: { drugs: { propranolol: true } }, detail: 'Propranolol, 20 mg twice a day, raised to a heart rate of 55 to 60. It is the usual beta-blocker in pregnancy.' },
       { day: 128, id: 'band', act: 'band', detail: 'Banding at 20 weeks, because the varices are large and high risk.' },
       { day: 156, id: 'band2', act: 'band', detail: 'A second session at 24 weeks. The varices stay small for the delivery.' },
+      {
+        day: 191, id: 'third',
+        note: {
+          title: 'Pressure climbing, no scope now', sev: 'danger',
+          detail: 'The blood volume peaks in the third trimester and the gradient is back over 12, so bleeding is more likely. '
+            + 'No scope until after the delivery: the propranolol stays at the full dose and no more bands are put in. '
+            + 'Plan a short second stage, and scope again about 6 weeks after the delivery.',
+        },
+      },
       { day: 254, id: 'delivery', set: { gestation: 0 }, label: 'Delivery', detail: 'Vaginal delivery at 38 weeks with a short second stage. The propranolol goes on after, as it is safe in breastfeeding.' },
     ],
-    story: 'Compensated cirrhosis; pregnant on Day {preg}. The blood volume and the portal flow rise and the varices grow, so propranolol from Day {prop} and bands on Day {band} and {band2}. Delivery on Day {delivery}.',
-    path: 'Pregnancy, propranolol, bands, delivery',
+    story: 'Compensated cirrhosis; pregnant on Day {preg}. The varices are first scoped in the second trimester, Day {egd}: propranolol that day and bands on Day {band} and {band2}. The pressure climbs again from Day {third}, with no scope until after the delivery on Day {delivery}.',
+    path: 'Pregnancy, scope, propranolol, bands, delivery',
     state: ['hvpg', 'meds'],
     // (pregnancy raises the blood volume and the flow into the gut and the spleen, and delivery lets it fall: both on the Circuit's splanchnic inflow, in the flow lens)
     play: { stops: [
       { at: 'preg', view: 'circuit', cam: 'splanchnic', lens: 'flow', look: [L.overTime] },
-      { at: { day: 58 }, look: [L.endoscopy] },
-      { at: 'prop', look: [L.endoscopy] },
+      { at: 'egd', look: [L.endoscopy] },
       { at: 'delivery', view: 'circuit', cam: 'splanchnic', lens: 'flow', look: [L.overTime] },
     ] },
   },

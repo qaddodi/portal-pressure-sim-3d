@@ -7,12 +7,12 @@ import type { Entry } from '../timeline/model.ts';
 import type { Series } from '../bigtime/record.ts';
 import { stopsOf } from './stops.ts';
 import { ascDays } from './rate.ts';
-import type { CaseStopBaked, Stop } from './types.ts';
+import type { CaseRamp, CaseStopBaked, Stop } from './types.ts';
 
 /** What the story needs of History (the page's timeline, or a test's). */
 export interface StoryTimeline { entries(): readonly Entry[]; isFuture(i: number): boolean; isLive(i: number): boolean; trimmed(): boolean }
 /** What a course says of itself (histories/meta.ts HistoryMeta, the part the case reads). */
-export interface CourseMeta { chapters?: readonly { from: number; label: string }[]; play?: { stops?: readonly CaseStopBaked[] } }
+export interface CourseMeta { chapters?: readonly { from: number; label: string }[]; play?: { stops?: readonly CaseStopBaked[]; ramps?: readonly CaseRamp[] } }
 
 type Days = readonly { day: number; v: Record<string, number>; start?: boolean }[];
 type Labels = (p: unknown) => Map<string, string>;
@@ -24,5 +24,5 @@ export function bakedStory(tl: StoryTimeline, days: Days, meta: CourseMeta | und
 /** A case's story and its stops, both from the baked course. */
 export function caseOf(tl: StoryTimeline, days: Days, meta: CourseMeta | undefined, labelsOf: Labels): { story: View; stops: Stop[]; asc: Series } {
   const story = bakedStory(tl, days, meta, labelsOf);
-  return { story, stops: stopsOf(story.chapters, tl.entries(), meta?.play?.stops ?? []), asc: ascDays(days) };
+  return { story, stops: stopsOf(story.chapters, tl.entries(), meta?.play?.stops ?? [], meta?.play?.ramps), asc: ascDays(days) };
 }

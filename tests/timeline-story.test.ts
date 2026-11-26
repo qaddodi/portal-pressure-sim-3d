@@ -120,9 +120,13 @@ test('the cirrhosis bleed reads as the course: a tap and a TIPS show what they d
   assert.equal(tips.nums.when, '8 days later');
   const ppg = tips.nums.rows.find((r) => r.k === 'ppg')!;
   assert.ok(ppg.a! > 12 && ppg.b < 12 && !ppg.up, 'the TIPS brings the PPG under 12');
-  const bleed = keys.find((m) => m.day === 70)!;
+  // (the bleed is two moments on its day: the bleeding, on the model as it bled, then what is done about it)
+  const [bleed, done] = keys.filter((m) => m.day === 70) as [typeof keys[number], typeof keys[number]];
   assert.equal(bleed.kind, 'Emergency'); assert.equal(bleed.head.title, 'Esophageal varix ruptured');
-  assert.deepEqual(bleed.then.map((t) => t.title), ['Terlipressin', 'Bleeding controlled by banding', 'Band (EVL)']);
+  assert.deepEqual(bleed.then.map((t) => t.title), [], 'the rupture stands alone');
+  assert.equal(done.head.title, 'Band (EVL)'); assert.equal(done.kind, 'Procedure');
+  assert.deepEqual(done.then.map((t) => t.title), ['Terlipressin', 'Bleeding controlled by banding']);
+  assert.equal(keys.filter((m) => m.day === 70).length, 2);
   const carv = keys.find((m) => m.head.title === 'Carvedilol')!;
   assert.equal(carv.nums.mode, 'day', 'a medicine\'s start is not credited with a week of the disease');
   const { s: a } = await storyIn('hist-ascites');
@@ -194,15 +198,15 @@ test('a live patient: repeats in a run said once, "+2 more" kept whole, a long r
   assert.equal(tl.trimmed(), false, 'a new patient starts whole');
 });
 
-test('the 12 histories carry their approved chapters, each anchored to a step or a ramp of the course, and the story keeps every moment inside them', async () => {
+test('the 12 histories carry their approved chapters, each anchored to a step, a ramp or a day of the course, and the story keeps every moment inside them', async () => {
   const { COURSES } = await import('../src/ui/histories/courses.ts');
   const { chaptersOf } = await import('../src/ui/histories/play.ts');
   for (const c of COURSES) {
     assert.ok(c.chapters.length >= 2 && !c.chapters[0]!.at, `${c.id}: a first chapter from Day 0, then at least one anchored`);
     for (const ch of c.chapters.slice(1)) {
       const at = ch.at!;
-      const ok = typeof at === 'string' ? c.steps.some((s) => s.id === at) : !!c.ramps?.some((r) => r.key === at.ramp);
-      assert.ok(ok, `${c.id}: "${ch.label}" names a step or a ramp of the course`);
+      const ok = typeof at === 'string' ? c.steps.some((s) => s.id === at) : 'day' in at ? at.day > 0 && at.day < c.days : !!c.ramps?.some((r) => r.key === at.ramp);
+      assert.ok(ok, `${c.id}: "${ch.label}" names a step, a ramp or a day of the course`);
     }
     const h = HISTORIES.find((x) => x.id === c.id)!;
     assert.deepEqual(h.chapters, chaptersOf(c), `${c.id}: the baked chapters are the course's`);

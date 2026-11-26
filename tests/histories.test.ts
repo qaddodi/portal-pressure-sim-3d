@@ -126,7 +126,7 @@ test('the little course: one portal vein pressure in about three days, and the s
     assert.ok(meta.marks.length >= 1 && meta.marks.every((m) => m.word && m.day >= 0 && m.day <= meta.days));
     assert.ok(Math.max(...meta.pv) <= meta.max);
   }
-  assert.deepEqual(played[0]!.meta.marks.map((m) => m.word), ['Carvedilol', 'Bled', 'Banded', 'TIPS']);
+  assert.deepEqual(played[0]!.meta.marks.map((m) => m.word), ['Carvedilol', 'Scope', 'Bled', 'Banded', 'TIPS']);
 });
 
 // ---- the seven added on 24 Nov: each is held to the medicine it tells ----

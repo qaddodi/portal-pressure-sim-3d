@@ -34,7 +34,7 @@ test('a look that names a site or a mode opens in it: the stent, the vessel, the
     }
     if (l.tool === 'hvpg') {
       if (/stent/i.test(l.label)) assert.ok(l.pane?.stent, `${w}: the stent's pressures open on the TIPS tab`);
-      else assert.equal(l.pane?.measure, true, `${w}: the HVPG opens measuring, not an empty tracing`);
+      else assert.ok(l.pane?.measure === true || !!l.pane?.watch, `${w}: the HVPG opens measuring, not an empty tracing (or a treatment to watch)`);
     }
     if (l.tool === 'scope') assert.ok(RANGES.some(([id]) => id === l.pane?.range), `${w}: Over time opens on a range`);
     if (l.pane?.stent) assert.equal(l.tool, 'hvpg', `${w}: a stent tab is the IR card's`);
