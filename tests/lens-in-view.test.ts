@@ -11,7 +11,7 @@ import { legendFor } from '../src/scene/lenses/legend.ts';
 import { LENS_SHARED, LENS_TOKENS } from '../src/scene/lenses/tokens.copied.ts';
 import { hexToRgb01, type Rgb } from '../src/scene/lenses/oklab.ts';
 import { type CellColours, cellSource, sinusoidCellSources, sinusoidLumen } from '../src/scene/sinusoid/lens.ts';
-import { inkAt, laneColours } from '../src/scene/lobule/ink.ts';
+import { clearing, inkAt, laneColours } from '../src/scene/lobule/ink.ts';
 import type { LobuleModel } from '../src/scene/lobule/model.ts';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
@@ -92,7 +92,8 @@ test('Blood origin and First pass colour the red cells by source, in the shares 
   assert.deepEqual(o.cols, laneColours('origin'));
   assert.ok(near(o.cum, [0.4, 0.5, 0.7, 1, 1]), 'origin: the sinusoid\'s shares, the systemic rest last');
   const p = sinusoidCellSources(c, 'firstpass')!;
-  assert.ok(near(p.cum, [0.4, 0.8, 0.8, 1, 1]), 'first pass: halfway through being cleared, raw 0.4 and clear 0.4');
+  assert.ok(near(p.cum, [0.8, 1, 1]), 'first pass: the gut blood one stream (0.8), the arterial (0.2) beside it');
+  assert.ok(near(p.cols[0]!, clearing(0.5), 1e-9), 'the gut blood half cleared halfway along');
   const keyDots = new Set(legendFor('origin', 'light').dots!.map((d) => d.colour));
   assert.equal(keyDots.size, 5, 'the key has a dot for each source');
   // the cells' shares, drawn: a thousand fixed draws land near the shares
