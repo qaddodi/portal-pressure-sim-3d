@@ -2,20 +2,23 @@
 
 A two-page PDF for colleagues: what Hales Engine is and what the Portal Pressure Simulator does. Page 1 has Stephen Hales's 1733 experiment as an engraving, with the history and what the engine is. Page 2 draws the engine as an electrical circuit.
 
-- **Served at** `/about/hales-engine.pdf`, with the source at `public/about/hales-engine.pdf`.
-- **Page size:** 8 × 12 in (2:3). This prints on Letter or A4 with a cream margin and fits a phone screen.
+- **Two sizes, one set of words:**
+  - `/about/hales-engine.pdf` (`public/about/`): 8 × 12 in (2:3), two pages. It prints on Letter or A4 with a cream margin.
+  - `/about/hales-engine-iphone.pdf`: 390 × 844 pt pages, the same size as the iPhone tester guide, so a phone shows each page at full width with no zoom. It is about four pages, with a portrait circuit and larger type.
 - **Offline:** it is never held offline. `scripts/pwa.mjs` leaves `about/` out of the service worker's list, as it does the guides.
 
 ## Files
 
 | File | What it is |
 |---|---|
-| `flyer.html` | **The words and the layout, both pages.** Edit the text here, and only here. |
-| `circuit.py` | Draws `circuit.svg`, the circuit on page 2. Its labels and positions are in the script. |
+| `flyer.html` | **The words**, and the 8 × 12 in layout. Edit the text here, and only here. A block with `class="desk-only"` (such as "Overleaf") stays out of the iPhone version. |
+| `phone.html` | The iPhone layout's styles only. `render.cjs` takes `flyer.html`'s blocks in order and starts a new page when the next block doesn't fit. A heading always stays with the block after it. |
+| `circuit.py` | Draws `circuit.svg` (landscape, for the 8 × 12 in pages) and `circuit-phone.svg` (portrait, for the iPhone: the same parts, top to bottom). |
 | `gemini-original.jpg` | The engraving exactly as Gemini made it (25 Nov 2026), from the prompt below. |
 | `comp.py` | Makes the page backgrounds from the original. It removes a stray squiggle, shrinks the scene into the top half and refills the page with the image's own paper. |
-| `page1-bg.jpg`, `page2-bg.jpg` | The backgrounds `comp.py` makes. |
-| `render.cjs` | Builds the PDF. It refuses to build if "2D" or "3D" appears anywhere, if text runs into a footer, or if two blocks overlap. |
+| `page1-bg.jpg`, `page2-bg.jpg` | The 8 × 12 in backgrounds `comp.py` makes. |
+| `scene.jpg`, `paper-tile.jpg` | The iPhone pictures `comp.py` makes: the scene alone, and the paper as a seamless low-contrast tile. |
+| `render.cjs` | Builds both PDFs. It refuses to build if "2D" or "3D" appears anywhere, if text runs into a footer, if two blocks overlap, if a block is taller than an iPhone page, or if the credits are left alone on the last page. |
 | `built-from.json` | The sha256 of each source the PDF was built from. `tests/hales-flyer.test.ts` fails when a source changed and the PDF wasn't rebuilt. |
 
 ## Rebuild after an edit
@@ -24,9 +27,11 @@ A two-page PDF for colleagues: what Hales Engine is and what the Portal Pressure
 cd art/hales-flyer
 python3 comp.py gemini-original.jpg page1-bg.jpg 0.72 0.115     # only after a new image
 python3 comp.py gemini-original.jpg page2-bg.jpg 0 0            # only after a new image
+python3 comp.py gemini-original.jpg scene.jpg scene             # only after a new image
+python3 comp.py gemini-original.jpg paper-tile.jpg tile         # only after a new image
 python3 circuit.py                                              # only after a circuit change (needs Pillow for comp.py only)
 cd ../..
-node art/hales-flyer/render.cjs [--png /tmp/pages]              # needs Playwright's Chromium; writes the PDF and built-from.json
+node art/hales-flyer/render.cjs [--png /tmp/pages]              # needs Playwright's Chromium; writes both PDFs and built-from.json
 node --test tests/hales-flyer.test.ts
 ```
 

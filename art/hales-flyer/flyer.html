@@ -4,10 +4,11 @@ html,body{margin:0;padding:0}
 body{font-family:'Liberation Serif','FreeSerif',serif;color:#3a2a1c}
 .page{width:8in;height:12in;position:relative;overflow:hidden;break-after:page;background:#F3EAD7 center/100% 100% no-repeat}
 .p1{background-image:url(page1-bg.jpg)} .p2{background-image:url(page2-bg.jpg)}
-.title{position:absolute;top:0.42in;left:0;right:0;text-align:center}
-.title h1{margin:0;font-size:30pt;letter-spacing:0.18em;font-weight:700;color:#3a2618}
+.title{position:absolute;top:0.42in;left:0;right:0}
+.title,.title *{text-align:center}
+.title h1{margin:0;font-size:30pt;letter-spacing:0.18em;padding-left:0.18em;font-weight:700;color:#3a2618}
 .title p{margin:2pt 0 0;font-style:italic;font-size:11.5pt;color:#5a4330}
-.p2 .title h1{font-size:22pt;letter-spacing:0.14em}
+.p2 .title h1{font-size:22pt;letter-spacing:0.14em;padding-left:0.14em}
 .cols{column-count:2;column-gap:0.3in}
 .body{position:absolute;left:0.95in;right:0.95in;font-size:9.6pt;line-height:1.28;text-align:justify;hyphens:auto}
 .p1 .body{top:7.25in;bottom:0.78in}
@@ -33,9 +34,9 @@ ul{margin:0 0 5pt;padding-left:1.1em} li{margin:0 0 2.5pt}
 <p>A physiology model of blood pressure and flow in plain JavaScript. It treats the circulation as a network of vessels, each with its own resistance and stretch. A Frank–Starling heart pumps, the arterial pulse follows the Windkessel, and breathing moves pressure in the chest and belly. Its first module is the portal circulation, from the gut through the liver to the heart, and it follows disease over weeks: varices, collateral veins, ascites, bleeding, and the response to drugs, TIPS and other shunts. Lung and brain modules are planned on the same core. Stored results guard every number against accidental change.</p>
 <h2>The Portal Pressure Simulator</h2>
 <p>Every pressure, flow, Doppler trace and complication in the Portal Pressure Simulator is computed by Hales Engine, running in the background while the screen draws. The app carries an exact, version-pinned copy of the engine, so a given release always gives the same answers.</p>
-<p><i>Overleaf: the engine drawn as a circuit, and what the simulator lets you do.</i></p>
+<p class="desk-only"><i>Overleaf: the engine drawn as a circuit, and what the simulator lets you do.</i></p>
 </div>
-<div class="foot">Hales Engine and the Portal Pressure Simulator: designed and built by Mohammad Almeqdadi, MD · History: S. Hales, <i>Statical Essays, vol. II: Haemastaticks</i> (London, 1733) · Illustration: AI-generated in the style of an 18th-century engraving<br><b data-credit></b></div>
+<div class="foot"><span class="credits-line">Hales Engine and the Portal Pressure Simulator: designed and built by Mohammad Almeqdadi, MD · History: S. Hales, <i>Statical Essays, vol. II: Haemastaticks</i> (London, 1733) · Illustration: AI-generated in the style of an 18th-century engraving</span><br><b data-credit></b></div>
 </section>
 
 <section class="page p2">

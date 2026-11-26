@@ -1,4 +1,5 @@
 import { reduced, reducedMs } from '../../ui/a11y/motion.ts';
+import { splashHeld } from '../../boot/ready.ts';
 import { PerspectiveCamera, Vector3 } from 'three';
 import { FIGURE_Z, PLATE_BOUNDS } from '../anatomy/placeholder.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
@@ -591,7 +592,9 @@ export class CameraRig {
     // (carrying speed: the first frame is one frame in, so the retarget frame is not a stand-still)
     this.at = carry > 0 || hv || (this.active && this.vel.on) ? 16 : 0;
     this.lastT = -1; this.eNow = 0; this.roomP = 0; this.lateRoom = null; this.lateScale = null;
-    this.dur = reducedMs(ms * (this.long ? this.long.stretch : 1), this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
+    // (behind the loading cover nobody sees a glide: the start's own moves (the Shell's first view and its rooms, 480 and 950 ms) land at once, so the figure is at rest and its labels in on the
+    //  first frames. Flying them kept the body 'leaving' a view and every label hidden until the camera landed: 750 ms between the first draw and the lift on Mac Safari, 26 Nov)
+    this.dur = splashHeld() ? 0 : reducedMs(ms * (this.long ? this.long.stretch : 1), this.reduceMotion || reduced());   // Reduce Motion: the glide keeps a short form, never a jump (a11y/motion.ts)
     this.orbitTo = keepHand ? (this.active ? this.orbitTo : this.orbit) : 0;
     this.orbitFrom = this.orbit;
     this.pitchTo = keepHand ? (this.active ? this.pitchTo : this.pitchOrbit) : 0;

@@ -29,6 +29,7 @@ import type { Rect, Viewport } from '../../ui/layout/device.ts';
 import type { CathState, ReadingKey } from '../../decks/schema.ts';
 import type { ProcCards } from './store.ts';
 import { HandWatch, isCut, type HandView } from './hand-watch.ts';
+import { splashHeld } from '../../boot/ready.ts';
 import { CathShow, calloutsFor, calloutNeeds, shapeOf, BLOCKED_SAYS, type CathFrame, type CathText, type CalloutKind } from './cath-show.ts';
 
 export interface LabelDeps {
@@ -93,6 +94,8 @@ export interface LabelDeps {
 export const FOLLOW_JUMP = 60;
 /** How long the picture must be still, after a hand on it, before the names are placed again. */
 export const FOLLOW_MS = 220;
+/** A step long enough to finish any fade or crossing at once: what the labels take while the loading cover is up (nothing behind it is seen easing). */
+export const COVERED_DT = 1e6;
 /** A dot that moves more than this in a frame (px) is still moving: the picture is at rest only when its dots have stopped. A projection of a still picture repeats to the last bit, so this is above float
  *  noise and below any motion: a glide that slows as a flick does (the speed falling by a factor each frame) spent hundreds of ms under the old 0.01 px a frame while it still turned, was taken for rest,
  *  and the free re-solve then moved names whose spots were legal mid-glide (the replay's "flick with momentum": the left gastric vein, the right sinusoids, the lower IVC). */
@@ -539,8 +542,11 @@ export class LabelController {
     // a hand on the picture, or the camera in flight: the labels ride their dots (drawn below from the dots' own 3D points), and are solved again once it is still
     if (following) { this.lastFollow = now; this.dirty = true; }
     if (following || drifting) this.lastDrift = now;
-    const hold = now - this.lastMove < FADE.settleMs;
-    const resting = now - this.lastFollow >= FOLLOW_MS;
+    // (behind the loading cover nobody sees a fade or a settle: the labels are solved and fully in at once, so the cover lifts on the first frames instead of waiting out easings
+    // meant for a visible picture; Mac warm start, 26 Nov: 1.1 s between the first draw and the lift)
+    const covered = splashHeld();
+    const hold = !covered && now - this.lastMove < FADE.settleMs;
+    const resting = covered || now - this.lastFollow >= FOLLOW_MS;
     // a catheter against a blocked vein says "Occluded" at its tip, then, once its pushes have failed, "No reading" (cath-show.ts BLOCKED_SAYS): counted from when the words are first up
     if (this.state.cath !== 'blocked' || this.state.proc) this.blockedAt = -1;
     else if (this.cGot >= 1 && !hold && this.blockedAt < 0) this.blockedAt = now;
@@ -586,8 +592,9 @@ export class LabelController {
     this.show.setText(this.cathText(), hold || !(cathNow || procNow));   // (frozen on the outgoing slide's numbers while the cards fade: the next patient's do not belong on them)
     if (!hold) this.cutCard = null;   // (still again: the cards ride the picture as it is now)
     this.show.ride(this.cutCard ? this.cutCard.tip : this.cTipPx, this.cutCard ? this.cutCard.ahead : this.cAheadPx);
+    const fadeDt = covered ? COVERED_DT : dt;
     this.refreshLooks(next);
-    const busy = anyMoving(this.fader.step(dt, this.wants, hold), this.show.step(dt, hold));   // (both step every frame: `||` froze the catheter cards while a label faded)
+    const busy = anyMoving(this.fader.step(fadeDt, this.wants, hold), this.show.step(fadeDt, hold));   // (both step every frame: `||` froze the catheter cards while a label faded)
 
     // 4. what to draw: each shown label at its spot, following its dot (a cut's dots: where they stood, see cutAnchors)
     if (!hold) this.cutAnchors = null;   // (the names are gone by the time hold ends, FADE.settleMs >= outMs: they come back riding their dots, whether or not the picture is still. Held until `resting` they stood at the old places while the camera still moved)

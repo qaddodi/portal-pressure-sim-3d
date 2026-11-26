@@ -56,8 +56,8 @@ export function bakeSig(entry, extras = [], skip = () => false) {
   return h.digest('hex');
 }
 /** What the skin bake's output cannot depend on: the figure's vessels and their joins are made by the vessels, the circuit and the engine; the lobule, the sinusoid, the decks and the UI never touch them.
- *  (The one file of those folders the skins read is the weld codec, for its digest.) */
-export const SKINS_SKIP = (r) => /^\/?src\/(scene\/(lobule|micro3d|sinusoid|materials)|ui|decks)\//.test(r) && !/weld-codec\.ts$/.test(r);
+ *  (The skins read none of those folders: their fingerprint is scene/fingerprint.ts.) */
+export const SKINS_SKIP = (r) => /^\/?src\/(scene\/(lobule|micro3d|sinusoid|materials)|ui|decks)\//.test(r);
 export const SKINS_EXTRAS = ['public/anatomy/vessels.json', 'public/anatomy/organs.bin'];
 /** True when every output exists and the sidecar of each holds this signature. */
 export function isCurrent(outs, sig) {
