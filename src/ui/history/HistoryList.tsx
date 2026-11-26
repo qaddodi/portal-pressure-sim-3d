@@ -19,10 +19,14 @@ import { dayReadings, type Chapter, type Item, type Moment, type Numbers } from 
 import { viewOf, momentKey, type View } from '../timeline/story-view.ts';
 import { stripScene, stripAxis, stripReading, STRIP_METRICS, type StripMetric } from '../timeline/strip.ts';
 import { STORY } from '../timeline/story-words.ts';
-import { chaptersOf } from '../histories/meta.ts';
+import { chaptersOf, isHistory } from '../histories/meta.ts';
 import { fmt } from '../charts/fmt.ts';
 import { isThumb } from '../shell/thumb.ts';
 import { useUi } from '../ui-store.ts';
+import { useCase } from '../case/store.ts';
+import { playCase, showInCase } from '../case/doors.ts';
+import { I } from '../shell/icons.tsx';
+import { Fade } from '../fade.tsx';
 
 /** the reading the strip shows, kept while the page is open */
 export const useStoryMetric = create<{ metric: StripMetric | null }>(() => ({ metric: null }));
@@ -70,7 +74,8 @@ function Acts({ m, here }: { m: Moment; here: boolean }) {
   if (go < 0 && !pin) return null;
   return (
     <div className="hs-acts">
-      {go >= 0 && <button type="button" className="hs-go" onClick={() => { if (isThumb()) useShell.getState().close(); timeline.goTo(go); }}>{STORY.show}</button>}
+      {/* (while a case plays, the figure goes to that moment's stop and the case waits there: case/doors.ts) */}
+      {go >= 0 && <button type="button" className="hs-go" onClick={() => { if (isThumb()) useShell.getState().close(); if (!showInCase(go, m.day)) timeline.goTo(go); }}>{STORY.show}</button>}
       {pin && <Compare e={pin} />}
     </div>
   );
@@ -175,6 +180,19 @@ function Strip({ v, metric, day, setMetric }: { v: View; metric: StripMetric; da
   );
 }
 
+/** "Play the case" for a model patient on the page (not while its case is already playing: the case bar holds it then; it eases out and gives its room back). On a phone the sheet
+ *  goes once the case starts, so the figure is seen. */
+function PlayCase() {
+  const preset = useEngine((s) => s.presetId), playing = useCase((s) => s.phase === 'stop' || s.phase === 'travel');
+  const id = preset && isHistory(preset) ? preset : null;
+  const play = () => { if (id) void playCase(id).then((ok) => { if (ok && isThumb()) useShell.getState().close(); }); };
+  return (
+    <Fade as="div" axis="y" className="hs-case" on={!!id && !playing}>
+      <span className="hs-case-row"><button type="button" className="btn sm primary" onClick={play}><I n="play" className="mi-ic" />{STORY.play}</button></span>
+    </Fade>
+  );
+}
+
 export function HistoryList() {
   const open = useShell((s) => s.sheet === 'history');
   const v = useView(open);
@@ -227,6 +245,7 @@ export function HistoryList() {
   let n = 0;
   return (
     <div ref={story} className="hs-story">
+      <PlayCase />
       {metric && <Strip v={v} metric={metric} day={day} setMetric={(id) => useStoryMetric.setState({ metric: id })} />}
       <div ref={list} className="hs-list" onClick={pick}>
         {v.chapters.map((c, k) => { const b = <ChapterBlock key={`${c.from}:${c.label}`} c={c} v={v} first={k === 0} n0={n} aheadAt={aheadAt} />; n += c.moments.length; return b; })}
