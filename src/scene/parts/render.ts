@@ -8,6 +8,7 @@ import { splitRegions, confine, type Region } from '../twin/region.ts';
 import { VESSEL_LAYER } from '../layers.ts';
 import { ORGAN_VEIL, vesselZoomK, seeZoomK, veilShare } from '../organ-veil/config.ts';
 import { ORGAN_VEIL_U, resetOrganVeil } from '../organ-veil/uniforms.ts';
+import { FOCUS_REVEAL_U, resetFocusReveal } from '../focus-reveal/uniforms.ts';
 import { diveBlur } from '../post-dof.ts';
 import { gate } from '../gate.ts';
 import type { CelScene } from '../scene.ts';
@@ -58,8 +59,15 @@ export const renderPart = scenePart<CelScene>()({
       const u = ORGAN_VEIL_U, [vk, sk] = this.veilNow(dof);
       const tw = into ? into.width : gl.getDrawingBufferSize(this.veilSize).x, th = into ? into.height : this.veilSize.y;
       u.ovlP.value.set(0, ORGAN_VEIL.gapFrom, ORGAN_VEIL.gapTo, 0); u.seeP.value.set(0, ORGAN_VEIL.seeMax, 1 / tw, 1 / th);   // (off while the map itself is drawn)
+      // THE FOCUS REVEAL (focus-reveal/config.ts): set before the map, so the map's liver fades where the figure's does and the vessels' veil eases off over the focus with it. It goes with the organs
+      // (their own fade) and, as the veil, never in the split orbit or the depth-of-field pass.
+      const fr = this.focusReveal;
+      fr.write(cam, tw, th, !this.split && !dof ? veilShare(this.fadeNow, this.lastFade) : 0);
+      this.disease.organs.setFocusReveal(FOCUS_REVEAL_U.frvP.value.x > 0 && fr.active ? fr.active.id : null);
       if (vk > 0 || sk > 0) {
+        fr.drawingInto(Math.max(2, Math.ceil(tw / 2)), Math.max(2, Math.ceil(th / 2)));   // (the map's size: organ-map.ts ensure)
         this.organMap.render(gl, cam, this.scene, tw, th, { veil: vk > 0, see: sk > 0 });
+        fr.drawingInto(tw, th);
         u.ovlP.value.x = vk * ORGAN_VEIL.vesselMax; u.seeP.value.x = sk;
         u.ovlC.value.set(cam.near, cam.far, 1 / tw, 1 / th);
       }
@@ -126,7 +134,7 @@ export const renderPart = scenePart<CelScene>()({
     this.blood.routes.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.procs.dispose(); this.probes.dispose();
-    this.organMap.dispose(); resetOrganVeil();
+    this.organMap.dispose(); resetOrganVeil(); resetFocusReveal();
     this.tubes.dispose(); this.resistors.dispose(); this.post.dispose(); this.glowFx.dispose(); this.organGlowFx.dispose();
   },
 });

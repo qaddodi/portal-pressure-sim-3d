@@ -15,6 +15,7 @@ function fakeScene() {
     pick(id) { calls.push('pick'); state.picked = id; },
     setResistors(keys) { calls.push('res'); state.res = keys; },
     setCaudatePin(on) { calls.push('caudate'); state.caudate = on; },
+    setSlideFocus() { calls.push('focus'); },
   };
   return { calls, state, to };
 }

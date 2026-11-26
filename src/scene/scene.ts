@@ -35,6 +35,7 @@ import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer } from './disease/index.ts';
 import { ProbeLayer } from './devices/probes/layer.ts';
 import { OrganMap } from './organ-veil/organ-map.ts';
+import { FocusReveal } from './focus-reveal/reveal.ts';
 import { ShuntGuide } from './shunt-guide.ts';
 import { Ease } from '../clock/ease.ts';
 import { stageOf } from './circuit/grow.ts';
@@ -181,6 +182,8 @@ export class CelScene {
   readonly post = new PostAA();
   /** The organ veil's map of the organs and the mask of the ones behind (organ-veil/): drawn before the figure's first pass while the veil or the show-through has any strength. */
   readonly organMap = new OrganMap();
+  /** The focus reveal (focus-reveal/config.ts): the liver's tip fades round the GE junction while the camera looks at it, a slide's frame or a hand's zoom alike. */
+  readonly focusReveal = new FocusReveal();
   readonly veilSize = new Vector2();
   /** The picked vessel's glow, made on the screen from its mask (glow-fx.ts). */
   readonly glowFx = new GlowFx();

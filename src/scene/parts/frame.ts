@@ -8,6 +8,7 @@ import { dustTuner } from '../blood/dust.ts';
 import { turnTargets } from '../blood/routes.ts';
 import { quietOf } from '../camera/quiet.ts';
 import { glowGate } from '../highlight.ts';
+import { lookOf } from '../focus-reveal/reveal.ts';
 import { VESSEL_LAYER } from '../layers.ts';
 import { clock } from '../../clock/frame.ts';
 import type { CelScene } from '../scene.ts';
@@ -15,6 +16,8 @@ import { scenePart } from './define.ts';
 import { smoothstep01, LOBULE_UNDER_FROM } from './shared.ts';
 
 export const framePart = scenePart<CelScene>()({
+  /** The foci the slide on show is about (focus-reveal/config.ts): the reveal eases in once they are in the room. */
+  setSlideFocus(ids: readonly string[]): void { this.focusReveal.setAbout(ids); this.moving = true; },
   /** The ids of the frame's systems in the order they run (a test pins this list; ?perf and the audit name a lagging system by one of these). */
   get systemIds(): readonly string[] { return (this.systems ??= this.makeSystems()).map((s) => s.id); },
   update(now: number): boolean {
@@ -35,14 +38,16 @@ export const framePart = scenePart<CelScene>()({
   get movingSystems(): readonly string[] { return this.moverIds; },
   makeSystems(): FrameSystem<FrameCtx>[] {
     return [
-      { id: 'camera', step: ({ now }) => {
+      { id: 'camera', step: ({ now, dt }) => {
         // (a dive that waited for the chase camera to ease out starts the frame it is out, in this step, so its first frame is drawn with it)
         if (this.heldDive) this.releaseDive();
         this.followWhole(now);
         const camMoving = this.rig.update(now);
         this.shared.restEye.value.copy(this.rig.restEye); this.shared.offRest.value = this.rig.offRest;
         this.circuitScale();   // (the map's lines widen as it is zoomed out, as 2D's circBoost)
-        return camMoving;
+        // (the focus reveal follows what the camera looks at, eased: a slide's frame and a hand's zoom alike, focus-reveal/config.ts)
+        const revealMoving = this.focusReveal.step(dt / 1000, (r) => lookOf(this.rig, r));
+        return anyMoving(camMoving, revealMoving);
       } },
       { id: 'circuit', step: ({ now, dt }) => {
         const quiet = quietOf(this.rig.orbitAngle);

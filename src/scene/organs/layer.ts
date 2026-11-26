@@ -2,6 +2,7 @@
 // as the 2D figure does it (stage-diaphragm.js updateOrgans): the liver's shape (cirrhosis) and dusk (congestion), a scale of the spleen with the model's size, a ghost of
 // a removed spleen, the grey of a lens other than Pressure, blood in the stomach. Meshes come from meshes.ts (the organs thread) in the shared frame; this file never
 // builds one. Everything moves on the clock: `update(now)` returns true while something eases, and nothing is touched when nothing moves.
+import { DoubleSide, EqualStencilFunc, MeshBasicMaterial, ZeroStencilOp } from 'three';
 import { AlwaysStencilFunc, BackSide, KeepStencilOp, NotEqualStencilFunc, ReplaceStencilOp, type BufferGeometry, BufferAttribute, Color, DataTexture, Float32BufferAttribute, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, type Raycaster, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
 import { PICK_OF } from './pick.ts';
 import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from './organ-shader.ts';
@@ -14,6 +15,9 @@ import { type Palette, type ToneKey } from '../palette.ts';
 import { ORGAN_BACK_LAYER, ORGAN_MAP_LAYER } from '../layers.ts';
 import { ORGAN_VEIL } from '../organ-veil/config.ts';
 import { ORGAN_VEIL_U } from '../organ-veil/uniforms.ts';
+import { FOCUS_REVEAL_U } from '../focus-reveal/uniforms.ts';
+import { FOCI, type FocusRule } from '../focus-reveal/config.ts';
+import { revealPassOf } from '../focus-reveal/glsl.ts';
 import { LIVER_PIVOT, SPLEEN_CENTER, LENS_GREY } from '../disease/copied/anatomy-b4.ts';
 import { liverShrink, liverSurface } from '../disease/copied/liver-morph.js';
 import { Eased, LiverFollow } from '../disease/follow.ts';
@@ -113,6 +117,8 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
     shadeK: { value: SMOOTH_SHADE.has(id) ? 1 : 0 }, nodTex: { value: NO_TEX }, nodAmt: { value: 0 }, sepDelta: { value: new Vector3() }, nodK: { value: new Vector2() },
     // the organ veil (organ-veil/config.ts): the mask of the organs behind and the strength, shared; this organ lets them show only if it is one of the organs in front of them
     tSeeMask: ORGAN_VEIL_U.tSeeMask, seeP: ORGAN_VEIL_U.seeP, seeOn: { value: ORGAN_VEIL.on && ORGAN_VEIL.inFront.includes(id) ? 1 : 0 },
+    // the focus reveal (focus-reveal/config.ts): the segment, the strength and the target, shared; frvOcc is 1 while this organ hides the focus being looked at (OrganLayer.setFocusReveal)
+    frvSeg: FOCUS_REVEAL_U.frvSeg, frvP: FOCUS_REVEAL_U.frvP, frvC: FOCUS_REVEAL_U.frvC, frvOcc: { value: 0 },
   });
   m.userData.hasRim = !!g.userData.rimProfile;
   // the organ veil's map and mask are drawn from these fills (organ-veil/organ-map.ts): the fill alone, never the line, so the map shows the tissue
@@ -168,6 +174,41 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
   return seat;
 }
 
+/** The stencil bit the focus reveal marks the occluder's silhouette with (bits: 1 vessel outline, 2 gut, 4 lobe, 8 the reveal). */
+export const REVEAL_STENCIL = 8;
+/** What a focus reveal draws (focus-reveal/config.ts): the occluder's silhouette into stencil bit 8 (no colour, no depth), then each hidden organ's fill and line once per pixel inside it,
+ *  BEFORE the occluder's
+ *  fill, so the occluder's wash (taken down round the focus by its own shader) lies over them, as the caudate lobe reads through the liver. Inside the silhouette the hidden organ was cut
+ *  away by the occluder's
+ *  depth, so nothing is drawn twice; outside it these passes draw nothing and the organ is drawn as ever. The fill clears the bit where it draws, so the line (a hull behind it) shows only
+ *  round its silhouette. */
+export interface RevealParts { meshes: Mesh[]; occluders: ShaderMaterial[] }
+export function buildFocusReveal(rule: FocusRule, byId: ReadonlyMap<string, CelObject>): RevealParts | null {
+  const occ = rule.occluders.map((id) => byId.get(id)).filter((o): o is CelObject => !!o);
+  const shows = rule.shows.map((id) => byId.get(id)).filter((o): o is CelObject => !!o);
+  if (!occ.length || !shows.length) return null;
+  const first = Math.min(...occ.map((o) => o.toonMesh.renderOrder));
+  const meshes: Mesh[] = [];
+  const quiet = (m: Mesh, order: number, name: string): Mesh => { m.renderOrder = order; m.name = name; m.visible = false; m.raycast = () => {}; meshes.push(m); return m; };
+  for (const o of occ) {
+    const cover = new MeshBasicMaterial({ name: 'reveal silhouette', colorWrite: false, depthWrite: false, depthTest: false, transparent: true, side: DoubleSide, fog: false });
+    cover.stencilWrite = true; cover.stencilRef = REVEAL_STENCIL; cover.stencilWriteMask = REVEAL_STENCIL; cover.stencilFuncMask = REVEAL_STENCIL;
+    cover.stencilFunc = AlwaysStencilFunc; cover.stencilFail = KeepStencilOp; cover.stencilZFail = ReplaceStencilOp; cover.stencilZPass = ReplaceStencilOp;
+    o.group.add(quiet(new Mesh(o.toonMesh.geometry, cover), first - 0.8, 'reveal-silhouette'));
+  }
+  const once = (m: ShaderMaterial): ShaderMaterial => {
+    m.stencilWrite = true; m.stencilRef = REVEAL_STENCIL; m.stencilFuncMask = REVEAL_STENCIL; m.stencilWriteMask = REVEAL_STENCIL;
+    m.stencilFunc = EqualStencilFunc; m.stencilFail = KeepStencilOp; m.stencilZFail = KeepStencilOp; m.stencilZPass = ZeroStencilOp;
+    return m;
+  };
+  const u = { frvSeg: FOCUS_REVEAL_U.frvSeg, frvP: FOCUS_REVEAL_U.frvP, frvC: FOCUS_REVEAL_U.frvC, frvOcc: { value: 0 } };
+  for (const o of shows) {
+    o.group.add(quiet(new Mesh(o.toonMesh.geometry, once(revealPassOf(o.toon, 'organ reveal fill', {}))), first - 0.6, 'reveal-fill'));
+    o.group.add(quiet(new Mesh(o.toonMesh.geometry, once(revealPassOf(o.ink, 'organ reveal line', u))), first - 0.4, 'reveal-line'));
+  }
+  return { meshes, occluders: occ.map((o) => o.toon) };
+}
+
 /** A 2D point an organ scales about, in the scene, where its organ is (placed-map.ts: the identity with the switch off). */
 const pivot = (c: readonly [number, number], id: string) => { const m = planeMap(id); return new Vector3(mapX(m, x3(c[0])), mapY(m, y3(c[1])), 0); };
 
@@ -217,6 +258,9 @@ export class OrganLayer {
 
   private readonly shared: CelShared;
   private built = false;
+  /** The focus reveals' passes, by rule (buildFocusReveal), and the rule on now. */
+  private readonly reveals = new Map<string, RevealParts>();
+  private revealOn: string | null = null;
   /** With `meshes` the organs are built at once (the tests); without, `build()` makes them from the organs file once `organsReady` has resolved (scene.ts). */
   constructor(shared: CelShared, meshes?: Record<string, () => BufferGeometry>) {
     this.shared = shared;
@@ -255,6 +299,8 @@ export class OrganLayer {
       }
     }
     this.oneGutBox();
+    // (after every organ's art: the reveal passes copy the finished programs)
+    for (const r of FOCI) { const p = buildFocusReveal(r, this.byId); if (p) this.reveals.set(r.id, p); }
     this.dirtyColours = true; this.instant = true; this.shrinkWas = NaN;
     this.applyLobe();
   }
@@ -269,6 +315,16 @@ export class OrganLayer {
     for (const o of parts) (o.toon.uniforms.box!.value as Vector4).set(x0, y0, x1 - x0, y0 - y1);
   }
 
+  /** The focus reveal on now (focus-reveal/config.ts), by rule id, or null: its passes are drawn and its occluders' fills read the fade; every other rule's are off and cost nothing. */
+  setFocusReveal(id: string | null): void {
+    if (id === this.revealOn) return;
+    this.revealOn = id;
+    // (all off first, then the one on: two rules may share an occluder)
+    for (const p of this.reveals.values()) { for (const m of p.meshes) m.visible = false; for (const t of p.occluders) t.uniforms.frvOcc!.value = 0; }
+    const p = id ? this.reveals.get(id) : undefined;
+    if (p) { for (const m of p.meshes) m.visible = true; for (const t of p.occluders) t.uniforms.frvOcc!.value = 1; }
+  }
+  get focusRevealOn(): string | null { return this.revealOn; }
   /** The canvas's pixel ratio (the drawing buffer's, which Settings > Figure detail caps: 1.5 on a 2x screen), so the outline's one-pixel feather and floor are one pixel of the buffer drawn, not of the screen. */
   setDpr(d: number): void { for (const o of this.objects) if (o.ink.uniforms.dpr) o.ink.uniforms.dpr.value = d; }
 
