@@ -44,7 +44,7 @@ test('the code wires it: one line per button, the row fits before it shows and o
   assert.doesNotMatch(ts, /const \{ zoom \} = tightFit\(/, 'the `fits` answer is never ignored');
   const css = readFileSync('src/ui/css3d-over-2d.css', 'utf8') + readFileSync('src/ui/deck-ui.css', 'utf8');
   assert.match(css, /\.pz-abb \{ white-space: nowrap; \}/);
-  assert.match(css, /\.pz-ab\[data-two\] \{ display: grid;/);
+  assert.match(css, /\.pz\.pz \.pz-ab\[data-two\] \{ display: grid;/);
   assert.match(css, /\.pz:not\(\.stack\):not\(\.low\) \.pz-text \.pz-abb \{ min-height: 0;/);
   const sc = readFileSync('src/ui/cards/SlideControls.tsx', 'utf8');
   assert.equal(sc.match(/fitChoiceRow\(/g)?.length, 1, 'one call site: the measure pass and the width observer share it');

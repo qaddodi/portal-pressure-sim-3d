@@ -52,7 +52,7 @@ test('the tight step is wired: fitChoiceRow sets data-tight and --ab-z, the CSS 
   assert.match(ts, /setAttribute\('data-tight'/);
   assert.match(ts, /setProperty\('--ab-z'/);
   const css = readFileSync('src/ui/deck-ui.css', 'utf8');
-  assert.match(css, /\.pz-ab\[data-tight\] \{ flex-wrap: nowrap;/);
+  assert.match(css, /\.pz\.pz \.pz-ab\[data-tight\] \{ flex-wrap: nowrap;/);
   assert.match(css, /zoom: var\(--ab-z, 1\)/);
 });
 
