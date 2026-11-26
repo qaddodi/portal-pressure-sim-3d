@@ -13,6 +13,7 @@ import { isYours, syncYours } from '../readings/yours.ts';
 import { switchBegins, switchLands, switchEnds } from './switching.ts';
 import { isHistory } from '../histories/meta.ts';
 import { openHistory, historyLetGo } from '../histories/open.ts';
+import { caseAsk } from '../case/guard.ts';
 
 let loadGen = 0;
 
@@ -20,6 +21,9 @@ let loadGen = 0;
 export async function loadPatient(id: string): Promise<boolean> {
   const yours = isYours(id);   // (a patient made from readings on this device: the engine is told the saved list first)
   if (!yours && !UI.presets.some((p) => p.id === id)) return false;
+  // (another patient ends a case: while one plays it asks first, case/guard.ts)
+  const q = caseAsk('patient', patientLabel(id));
+  if (q && !(await q)) return false;
   const gen = ++loadGen;
   historyLetGo();
   switchBegins();
@@ -44,6 +48,9 @@ export async function loadPatient(id: string): Promise<boolean> {
 
 /** Restart: the current patient from its first moment, every change and the clock cleared, Compare ended (2D restartPatient). */
 export async function restartPatient(): Promise<boolean> {
+  // (a restart ends a case: while one plays it asks first, case/guard.ts)
+  const q = caseAsk('restart');
+  if (q && !(await q)) return false;
   useCompare.getState().stop();
   const id = useEngine.getState().presetId || 'healthy';
   if (!(await (isHistory(id) ? openHistory(id) : loadPatient(id)))) return false;

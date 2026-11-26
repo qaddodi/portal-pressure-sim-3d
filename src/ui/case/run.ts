@@ -15,6 +15,7 @@ import { stopsOf } from './stops.ts';
 import { CAMERA_LEAD_MS, LAND_MS, RUSH_MS, daysAt, legMs, legRamp, skipPace, skipSpeed, type Pace } from './walk.ts';
 import { CASE_OFF, useCase } from './store.ts';
 import { showShot } from './shot.ts';
+import { asCase, setLeaving } from './guard.ts';
 import type { Stop } from './types.ts';
 
 /** a little past the days' own end before the landing, so the last day's frame is in (decks/hp/lapse.ts TAIL_MS) */
@@ -96,7 +97,7 @@ function land(i: number, eased: boolean): void {
 /** Start playing a model patient's case from its first stop (the patient as they came). False when it is not one, or it has fewer than two stops. */
 export async function startCase(id: string): Promise<boolean> {
   endCase();
-  if (!historyOf(id) || !(await openHistory(id))) return false;
+  if (!historyOf(id) || !(await asCase(() => openHistory(id)))) return false;
   const stops = caseStops(id);
   if (stops.length < 2) return false;
   useCase.setState({ ...CASE_OFF, phase: 'stop', id, stops, at: 0, day: stops[0]!.day });
@@ -161,3 +162,35 @@ export function endCase(): void {
   follow(false);
   if (useCase.getState().phase !== 'off') useCase.setState({ ...CASE_OFF });
 }
+
+/** Leave the case (a course-changing step at a stop or on the way, guard.ts): the walk stops where it is, and the patient is the learner's own from that day. The stop last reached
+ *  is kept for Back to the case. The step then runs as it always does (the timeline branches by itself, dropping the course's future). False when the case was not playing. */
+export function leaveCase(): boolean {
+  const s = useCase.getState();
+  if (s.phase !== 'stop' && s.phase !== 'travel') return false;
+  const day = s.phase === 'stop' ? (s.stops[s.at]?.day ?? s.day) : dayNow();
+  clearLeg();
+  replayOff?.();
+  record.replay(false);
+  useCase.setState({ phase: 'left', to: null, paused: false, day, leftDay: day });
+  return true;
+}
+
+/** Back to the case: the history again (the learner's own course is let go), at the stop the case kept, waiting there. False when the case was not left, or the history did not open. */
+export async function backToCase(): Promise<boolean> {
+  const s = useCase.getState();
+  if (s.phase !== 'left' || !s.id) return false;
+  const id = s.id, at = s.at;
+  if (!(await asCase(() => openHistory(id)))) return false;
+  // (another patient was opened while the history came in: the case is not taken back over it)
+  const now = useCase.getState();
+  if (now.phase !== 'left' || now.id !== id) return false;
+  const stops = caseStops(id);
+  if (!stops.length) { endCase(); return false; }
+  const i = Math.min(at, stops.length - 1);
+  useCase.setState({ phase: 'stop', stops, at: i, to: null, day: stops[i]!.day, paused: false, leftDay: null });
+  arrive(i, false);
+  return true;
+}
+
+setLeaving({ hold: pauseCase, resume: () => { resumeCase(); }, leave: () => { leaveCase(); }, end: endCase });
