@@ -10,7 +10,9 @@ import { OrganLayer } from '../src/scene/organs/layer.ts';
 import { rgbOf } from '../src/scene/organs/organ-look.ts';
 import { poolSurfaceY } from '../src/scene/organs/pool-level.ts';
 import { LUMEN_BOTTOM, STO_Y0 } from '../src/scene/disease/copied/stomach-lumen.js';
-import { bloodColour } from '../src/scene/disease/paint.ts';
+import { BLOOD_TOKEN, bloodColour } from '../src/scene/disease/paint.ts';
+import { SCOPE_TOKENS } from '../src/ui/tests/copied/scope-tokens.copied.js';
+import { parseColour } from '../src/ui/charts/colour.ts';
 import { bodyTargets } from '../src/scene/disease/targets.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { x3, y3 } from '../src/scene/frame2d.ts';
@@ -23,12 +25,12 @@ test('the pool is the jet\'s blood in every look: the wash plus the pool\'s delt
   for (const look of LOOK_IDS) {
     const s = new CelScene(), palette = paletteFor(look);
     const o = new OrganLayer(shared(s), { stomach: () => new BoxGeometry(0.5, 1.2, 0.1, 3, 30, 1).translate(x3(850), y3(400), 0) });
-    o.applyLook(palette); o.setBlood(bloodColour(look, palette));
+    o.applyLook(palette); o.setBlood(bloodColour());
     o.setBody({ ...t, bleed: { active: true, site: 'VAR', rate: 90, total: 900 } }, true);
     for (let i = 0; i < 160; i++) o.update(1000 + i * 33);
     const u = o.byId.get('stomach')!.toon.uniforms;
     const c = u.color!.value as { r: number; g: number; b: number }, d = u.poolDelta!.value as { x: number; y: number; z: number };
-    const want = bloodColour(look, palette);
+    const want = bloodColour();
     assert.ok(Math.abs(c.r + d.x - want[0]) < 0.01 && Math.abs(c.g + d.y - want[1]) < 0.01 && Math.abs(c.b + d.z - want[2]) < 0.01, `${look}: the pool is bloodColour`);
     o.dispose(); s.dispose?.();
   }
@@ -64,13 +66,35 @@ test('the antrum is filled to the pylorus: the funnel of the duodenum is lit by 
   setArtData(JSON.parse(readFileSync(new URL('../public/anatomy/organ-art.json', import.meta.url), 'utf8')));
   await organsReady;
   const layer = new OrganLayer(createShared(), { stomach: ORGAN_MESHES.stomach, duodenum: ORGAN_MESHES.duodenum }), palette = paletteFor('light');
-  layer.applyLook(palette); layer.setBlood(bloodColour('light', palette));
+  layer.applyLook(palette); layer.setBlood(bloodColour());
   const t = bodyTargets((await presetState('cirr-decomp')).frame, {}, null);
   layer.setBody({ ...t, bleed: { active: true, site: 'VAR', rate: 90, total: 900 } }, true);
   for (let i = 0; i < 160; i++) layer.update(1000 + i * 33);
   const st = layer.byId.get('stomach')!.toon.uniforms, du = layer.byId.get('duodenum')!.toon.uniforms;
   for (const k of ['poolA', 'poolLand', 'poolDelta', 'poolBlood', 'poolShadeC']) assert.equal(du[k], st[k], `${k}: one pool across the stomach and the antrum`);
   assert.ok((du.poolA!.value as { z: number }).z > 0.9, 'and it is on');
-  const want = bloodColour('light', palette), got = du.poolBlood!.value as { x: number; y: number; z: number };
+  const want = bloodColour(), got = du.poolBlood!.value as { x: number; y: number; z: number };
   assert.ok(Math.abs(got.x - want[0]) < 0.01 && Math.abs(got.y - want[1]) < 0.01 && Math.abs(got.z - want[2]) < 0.01, 'in the jet\'s blood');
+});
+
+test('one blood token: the scope\'s red is the stream\'s, the splash\'s and the stomach\'s, in every look', async () => {
+  const { readFileSync } = await import('node:fs');
+  // the scope view draws its blood from SCOPE_TOKENS[BLOOD_TOKEN] (ui/tests/endo/bleed.ts), which is tokens.css's --scope-blood-pool-top
+  const css = readFileSync(new URL('../src/ui/styles/tokens.css', import.meta.url), 'utf8');
+  const hit = new RegExp(`--${BLOOD_TOKEN}:\\s*([^;]+);`).exec(css);
+  assert.ok(hit, 'the token is in tokens.css');
+  const tok = parseColour(hit![1]!.trim()), scope = parseColour((SCOPE_TOKENS as Record<string, string>)[BLOOD_TOKEN]!), blood = bloodColour();
+  for (let i = 0; i < 3; i++) assert.ok(Math.abs(tok[i]! - scope[i]!) < 1e-9 && Math.abs(scope[i]! - blood[i]!) < 1e-9, 'tokens.css, the scope\'s copy and the 3D blood are one colour');
+  assert.ok(readFileSync(new URL('../src/ui/tests/endo/bleed.ts', import.meta.url), 'utf8').includes(`'${BLOOD_TOKEN}'`), 'the scope draws its pool with that token');
+  // the jet (stream, spray, splash and lens are one mesh) wears it in every look
+  for (const look of LOOK_IDS) {
+    const s = new CelScene(), palette = paletteFor(look);
+    const { BleedLayer } = await import('../src/scene/disease/bleed.ts');
+    const layer = new BleedLayer(shared(s));
+    layer.applyLook(look, palette);
+    layer.set({ active: true, site: 'VAR', rate: 90, total: 600 }, 0.05, true, 0.5);
+    const c = (layer as unknown as { obj: { toon: { uniforms: { color: { value: { r: number; g: number; b: number } } } } } }).obj.toon.uniforms.color.value;
+    assert.ok(Math.abs(c.r - blood[0]) < 0.01 && Math.abs(c.g - blood[1]) < 0.01 && Math.abs(c.b - blood[2]) < 0.01, `${look}: the jet is the scope's blood`);
+    layer.dispose(); s.dispose?.();
+  }
 });

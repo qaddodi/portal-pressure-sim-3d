@@ -66,7 +66,7 @@ test('wiring: App wraps only the Stage in the figure layer (the shell stays outs
   assert.match(app, /<AppBoundary layer="figure"><Stage \/><\/AppBoundary>/);
   const figure = app.indexOf('</AppBoundary>');
   assert.ok(app.indexOf('<Shell />') > figure, 'the Shell is outside the figure boundary');
-  assert.match(app, /<CardBoundary[^>]*>\s*<LabelLayer \/>[\s\S]*<ProteinLegend \/>\s*<\/CardBoundary>/, 'the overlay layers have their own quiet boundary');
+  assert.match(app, /<CardBoundary[^>]*>\s*<LabelLayer \/>[\s\S]*<SinusoidCaptions \/>\s*<\/CardBoundary>/, 'the overlay layers have their own quiet boundary');
   const main = readFileSync('src/main.tsx', 'utf8');
   const apps = main.match(/<App\s*\/>/g) ?? [];
   assert.equal(apps.length, 1);

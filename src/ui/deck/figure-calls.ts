@@ -17,7 +17,7 @@ import { NETWORK_BY_ID } from '../../scene/vessels/network.ts';
 import { valueText, parseToken, VALUE_PENDING } from '../../decks/hp/numbers.ts';
 import { portalSplit } from './from2d/table-marks.js';
 import { tearPoint, TEAR_EDGES, type BleedSite } from '../../scene/disease/tear.ts';
-import { STREAM_Z } from '../../scene/disease/bleed.ts';
+import { streamZ } from '../../scene/disease/lumen.ts';
 
 export type Fp = Record<string, number | null | undefined> & { at?: { P?: ArrayLike<number>; D?: ArrayLike<number> } };
 export interface Reads {
@@ -111,7 +111,7 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
     // (one tag per vessel: a caliper across the same vessel already says its name and size, "TIPS 8 mm"; a second "TIPS" beside it was the same words twice, two-inflows 9, audit f9a5d2e0)
     if (!m.organ && m.edges[0] && text === m.edges[0] && plan.calipers.some((c) => c.edge === m.edges[0])) return;
     const tear = !m.organ && r.bleed && m.edges.some((e) => TEAR_EDGES[r.bleed!].has(e));   // (the words stand where the blood leaves the vein, not on the vessel's middle, which is up the esophagus under the scope ring)
-    const anchor: Anchor | null = tear ? { at2d: tearPoint(r.bleed!), z: STREAM_Z } : m.organ ? organAnchor(m.organ === 'kidney' ? 'kidney-l' : m.organ) : m.edges[0] && NETWORK_BY_ID.has(m.edges[0]) ? { edge: m.edges[0] } : null;
+    const anchor: Anchor | null = tear ? { at2d: tearPoint(r.bleed!), z: streamZ(...tearPoint(r.bleed!)) } : m.organ ? organAnchor(m.organ === 'kidney' ? 'kidney-l' : m.organ) : m.edges[0] && NETWORK_BY_ID.has(m.edges[0]) ? { edge: m.edges[0] } : null;
     if (!anchor) { notDrawn.push(`mark ${m.edges[0] ?? m.organ} (hidden in 2D too)`); return; }
     cards.push({ id: `mark:${i}`, kind: 'mark', text, tone: m.kind === 'block' ? 'block' : m.kind === 'treat' ? 'treat' : 'note', anchor });
   });

@@ -24,3 +24,13 @@ Rule now: a switch on a view is never seen. The veil goes with the organs' own f
 ## 26 Nov 2026 (later): the camera never flies through anything drawn (Mohammad's screen recording: "there still seems to be a black flicker")
 The recording, frame by frame: four frames after the camera went through the liver's surface (itself a one-frame step from the liver's brown to the lobules' grey), one frame showed a straight-edged dark sheet over most of the screen, and the mirror of it on the way out. Root cause: the body was still about a third drawn when the camera reached the figure (it was gone only at a few lobule-fits from the lobule), so the camera flew through the liver's surface and then a vessel inside it, and each surface was cut by the camera's near plane for a frame.
 Rule now: the body is gone before the camera reaches the figure's front plane (`FIGURE_FRONT_Z`, 0.26: every organ's front face and every vessel lies behind it), with a margin of 1.15 (`diveIn` in parts/dive.ts, `frontAt`). The dissolve runs from 1.9 to about 0.45 scene units from the lobule (10 frames on a Mac), the field and its ground fill the screen by then, and the lobule grows out of them as before. Test: `tests/dive-nothing-switches.test.ts` (no frame has any of the body drawn with the camera inside the figure; the organs by the dive's line lie behind the plane).
+
+## 26 Nov 2026 (evening): a view the camera only passes through stays blurred
+
+Mohammad: "going from anatomy to sinusoid, the lobule view should NOT come into focus and stay blurred until we get to the sinusoid view; same coming out".
+The dive's whole-screen blur (`diveBlur`) and the neighbours' softness (`fieldSoft`) were functions of the camera's distance alone, so they let go at the lobule's
+framing on every move that crossed it, whether the move landed there or not; the sinusoid's focus pull only began further in, so the lobule was sharp for about 0.35 s.
+Now the move's two ends decide which views it only passes through (`camera/dive.ts passedThrough`, every pair of views: only the lobule, on Anatomy or Circuit <-> Sinusoid).
+Over those the scene's `passHold` keeps the blur at its peak and the field soft until the sinusoid's own band is stronger and takes over (render draws the stronger of the
+two), both ways. The hold is set at once from rest (where nothing shows it) and eases over `PASS_HOLD_MS` when a move is turned mid-flight. Pinned by
+`tests/dive-pass-through.test.ts`.

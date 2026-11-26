@@ -142,7 +142,11 @@ export class ProcedureLayer {
     if (edge !== this.tractEdge) { setDrawnDiameter(this.tractEdge, 0); this.tractEdge = edge; }   // (another procedure's tract: the old one lets go)
     this.tractDriven = true; this.tractMm = tractDiameter(T, t, this.stentMm);
     setDrawnDiameter(edge, this.tractMm);
+    this.refitCatheters();
   }
+  // The catheters read the veins' width through the same rule the vessel shader draws by (the larger of the engine's and the run's own tract),
+  // so as the run widens the tract the balloon in it refits to the widening tract.
+  private refitCatheters(): void { for (const c of this.caths.values()) c.setLive(this.liveD); }
   /** A tract no run drives lets go over TRACT_RELEASE_MS (a slide left, a run replayed or taken off): the larger of it and the engine's own diameter is what is drawn, so a stent that is in never shrinks. True while it eases. */
   private releaseTract(dt: number): boolean {
     if (this.tractDriven) { this.tractDriven = false; return false; }
@@ -150,6 +154,7 @@ export class ProcedureLayer {
     if (this.run || this.step) return false;
     this.tractMm = Math.max(0, this.tractMm - (this.stentMm * dt) / TRACT_RELEASE_MS);
     setDrawnDiameter(this.tractEdge, this.tractMm);
+    this.refitCatheters();
     return true;
   }
   private fadeNow = 1;

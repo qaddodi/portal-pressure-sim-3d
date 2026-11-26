@@ -9,8 +9,10 @@ import { TIER_Z, UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
 import { type Route, type RoutePart, catheterRadius, routeAt, routeOf } from './route.ts';
 import { type Course, radiusAtU } from '../vessels/tubes.ts';
 import { widthSwell } from '../vessels/live-width.ts';
+import { drawnWidthD } from '../../engine/tract-override.ts';
 import { indexOf } from '../../engine/vessel-data.ts';
 import { liveWidest, liveShapeVersion } from '../vessels/live-shape.ts';
+import { DEVICE_BEND_RADII, limitBend, type V3 } from '../devices/bend-path.ts';
 
 const lines = new Map<string, readonly (readonly [number, number, number])[]>();
 /** The centreline the vessel's tube is built on (shape.ts coursesOf at rest: depth eased to its nodes, ends fitted to their trunks with smooth joins); a fan of tributaries has none, so its own points. */
@@ -176,6 +178,9 @@ export const ROOM_SLOPE = 0.5;
 
 /** How far from a vessel's drawn centreline the shaft's axis may go while it rounds a corner, as a share of the drawn radius (the shaft is about 0.17 of it wide, so its wall stays inside 0.7). */
 export const LUMEN_COMFORT = 0.5;
+/** How far from a vessel's drawn centreline the axis may go where the bend limit rounds a corner the Gaussian left tight, as a share of the drawn radius
+ *  (the shaft is about 0.17 of it wide, so its wall stays inside 0.9). */
+export const CORNER_COMFORT = 0.72;
 /** The shaft's radius as a share of the radius the 2D app draws it at (stage-cath.js: 0.26 to 0.34 of the vein): thin and refined (owner, 20 Nov 2026: "thick chunky tube"). */
 export const CATHETER_SLIM = 0.62;
 
@@ -228,6 +233,18 @@ export function route3d(kind: string): Route3D | null {
   // the shaft's axis stays in the middle LUMEN_COMFORT of the drawn lumen of any vessel of the route (at a corner, of either): the nominal width the 2D route knows is wider than a branch's drawn first stretch
   const vessels = routeVessels(r);
   smoothBends(r, rcS, z, offX, offY, { share: (x, y, zz) => lumenShare(vessels, x, y, zz), cap: LUMEN_COMFORT });
+  // THE ONE RULE FOR EVERY DEVICE PATH (devices/bend-path.ts): the catheter has a minimum bend radius, and wherever the Gaussian above left a stretch tighter
+  // (a hairpin into a shunt, a corner into a narrow branch) the
+  // path is relaxed until it is not, each sample moving only to where the drawn lumen still holds the axis (CORNER_COMFORT of its radius from the centreline, so the shaft's wall stays inside).
+  {
+    const share0 = new Float64Array(n), at = (i: number): V3 => [x3(r.pts[i]![0]) + offX[i]!, y3(r.pts[i]![1]) + offY[i]!, z[i]!];
+    for (let i = 0; i < n; i++) { const p = at(i); share0[i] = lumenShare(vessels, p[0], p[1], p[2]); }
+    const P = limitBend(Array.from({ length: n }, (_, i) => at(i)), {
+      minR: rcS * DEVICE_BEND_RADII.catheter, anchor: Array.from({ length: n }, (_, i): V3 => [x3(r.pts[i]![0]) + offX0[i]!, y3(r.pts[i]![1]) + offY0[i]!, z0[i]!]),
+      allow: (i, p) => lumenShare(vessels, p[0], p[1], p[2]) <= Math.max(CORNER_COMFORT, share0[i]!) + 1e-9,
+    });
+    for (let i = 0; i < n; i++) { offX[i] = P[i]![0] - x3(r.pts[i]![0]); offY[i] = P[i]![1] - y3(r.pts[i]![1]); z[i] = P[i]![2]; }
+  }
   // FOLLOWING THE DRAWN VESSEL: a collateral that coils (the gastrorenal shunt) is drawn curved as it fills, and the route is laid on its straight rest course; each sample of such a vessel remembers where it lies along the rest course
   // (segment, share) and is carried by how far the drawn course has moved off the rest one there (follow()), so the shaft, the balloon and the sclerosant's column stay inside what is on the screen.
   const fol: ({ id: string; j: number; t: number } | null)[] = new Array(n).fill(null), rest = new Map<string, readonly (readonly [number, number, number])[]>();
@@ -322,7 +339,7 @@ export function route3d(kind: string): Route3D | null {
     swellAt, liveVersion: () => version, follow, followVersion: () => followVer,
     setLive(D) {
       const by = new Map<string, number>();
-      for (const id of vesselsHere) { const v = NETWORK_BY_ID.get(id)!; by.set(id, widthSwell(v.widthKind, v.baseD, D ? D[indexOf(v.lensId)] : undefined)); }
+      for (const id of vesselsHere) { const v = NETWORK_BY_ID.get(id)!; by.set(id, widthSwell(v.widthKind, v.baseD, drawnWidthD(id, D ? D[indexOf(v.lensId)] : undefined))); }
       const key = vesselsHere.map((id) => by.get(id)!.toFixed(3)).join('|');
       if (key === liveKey) return false;
       liveKey = key; version++;

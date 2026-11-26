@@ -319,6 +319,7 @@ uniform vec4 seamA[2];   // a surgical shunt's stitches, its start's then its en
 uniform vec4 seamB[2];   // (c4, how many dashes (0: three ticks), one dash's share of the seam, one dash and its gap's share)
 uniform vec4 stentWire;   // the stent's wire in the Circuit: rgb the Anatomy stent's own wire colour, a its strength (stent-look.ts, one source for both views)
 uniform vec4 stentGoldC;  // the band's colour and strength, the same way
+uniform float stentRev;   // how far the Circuit's stent has opened along its length, 0 to 1 (stent-deploy.ts: from its start, the portal end of a TIPS, to its end)
 uniform vec4 stentU;   // a stent in this vessel, drawn on the tube in the Circuit (where the 3D device is faded out): x its share shown (0 none), y and z where it starts and ends along the course (0..1), w where its graft starts
 // smooth joins, as in the vertex shader: the ends that carry on into another vessel (x < 0 where nothing); their last stretch draws no ink, so no flat cut is outlined where a branch meets its trunk
 uniform vec3 mate0;
@@ -471,7 +472,8 @@ void main() {
   vec3 sideD = cross(normalize(vT), normalize(vV));
   float sideDL = length(sideD);
   sideD = sideDL > 1e-4 ? sideD / sideDL : vec3(1.0, 0.0, 0.0);
-  float fwSt = fwidth(dot(nD, celLightView())), fwPx = fwidth(vUv.x * vArcLen * vU), fwAw = max(fwidth(dot(nD, sideD)), 0.03);
+  vec3 lightD = celTubeLight(vT);   // (the light this tube is shaded by: the world light, its part square to the axis never under CEL_STYLE.TUBE_LIGHT_MIN, cel-glsl.ts)
+  float fwSt = fwidth(dot(nD, lightD)), fwPx = fwidth(vUv.x * vArcLen * vU), fwAw = max(fwidth(dot(nD, sideD)), 0.03);
   lensAcrossFw = fwidth(dot(nD, sideD) * 0.5 + 0.5);
   // (the stent crowns, the suture dashes and the smoke below each want one more: the across angle's, the raw across's and the smoke's own, taken here for the same reason)
   float acrossD = dot(nD, sideD), fwAcr = fwidth(acrossD), fwTh = fwidth(asin(clamp(acrossD, -0.999, 0.999)));
@@ -603,7 +605,7 @@ void main() {
   }
 #endif
   if (fadeHere < 0.004) DROP(11);
-  float sT = dot(n, celLightView());   // n.L against the WORLD light (cel-glsl.ts), so the camera never changes a shade
+  float sT = dot(n, lightD);   // n.L against the WORLD light (cel-glsl.ts celTubeLight), so the camera never changes a shade and a tube along the light still has its stripe
   float rDevAx = vR / max(${wpcGlsl('vCen.z', 'projY', 'vU')}, 1e-6) * dpr;   // the same radius at the AXIS's depth: what the vertex stage built the ink band from (the surface's depth differs from it on a foreshortened tube near the camera, and the band would then start inside or outside the tube it was built for)
   // (plan 12: on a plain stretch the outer edge is the true circle of the lumen plus its line, half a pixel out as the skin's is, so the polygon's corners are gone and both sides of a seam stand on one curve)
   if (plainHere(wpc0)) {

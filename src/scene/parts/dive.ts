@@ -14,7 +14,10 @@ import { U as SIN_UNIT } from '../sinusoid/view.ts';
 import { clock } from '../../clock/frame.ts';
 import type { CelScene } from '../scene.ts';
 import { scenePart } from './define.ts';
-import { SIN_SHOW_FROM, DIVE_IN, FIGURE_FRONT_Z, FRONT_MARGIN } from './shared.ts';
+import { SIN_SHOW_FROM, DIVE_IN, DIVE_OUT, FIGURE_FRONT_Z, FRONT_MARGIN, _bA, _bB, _bE0, _bE1, _bEnds } from './shared.ts';
+import { diveBlur } from '../post-dof.ts';
+
+const FOCUS_NOW = { band: 0, whole: 0 };
 
 export const divePart = scenePart<CelScene>()({
   /** Outline these organs (organ ids: liver, spleen, heart, bowel, colon, duodenum, kidney-l...); [] clears. */
@@ -47,9 +50,21 @@ export const divePart = scenePart<CelScene>()({
     cutUniform(Infinity, p.x, p.y, cam.aspect, this.cutArr, this.diveIn());
     const was = ORGAN_CUT.value.z;
     ORGAN_CUT.value.set(this.cutArr[0], this.cutArr[1], this.cutArr[2], this.cutArr[3]);
-    this.lobule.field.setSoft(fieldSoft(d, this.lobuleRest()));
+    // (held soft over a lobule the move only passes through: its neighbours never resolve on the way to the sinusoid or back, scene passHold)
+    const soft = fieldSoft(d, this.lobuleRest());
+    this.lobule.field.setSoft(soft + this.passHold.value * (1 - soft));
     this.lobule.field.setWide(fieldWide(d, this.lobuleRest()));   // (from afar the field reaches every edge: the liver's inside is lobules throughout the dive)
     if (was !== this.cutArr[2] && (was > -1 || this.cutArr[2] > -1)) this.moving = true;
+  },
+  /** The dive's blur this frame: `band` the sinusoid's focus band (0 when it is not drawn; it fills the band's points, render.ts), `whole` the one blur over the whole screen,
+   *  a function of the camera's distance (post-dof.ts diveBlur: the Anatomy <-> Lobule move, held at its peak over a lobule the move only passes through). The band draws
+   *  the stronger of the two at its uniform level, so the hold hands over to the sinusoid's focus pull without a step. Reused object: read it at once. */
+  focusNow(): { band: number; whole: number } {
+    const o = FOCUS_NOW;
+    o.band = (this.figureView === 'sinusoid' || this.sinus.diveShareNow != null) && this.microReady ? this.micro!.sinus.focusBand(_bA, _bB, _bE0, _bE1, _bEnds) : 0;
+    const d = this.rig.camera.position.distanceTo(this.livePoint);
+    o.whole = this.figureView !== 'circuit' && this.inDive() ? diveBlur(d, this.lobuleRest(), this.diveIn(), DIVE_OUT, this.passHold.value) : 0;
+    return o;
   },
   stepPortrait(): void {
     const r = this.rig.targetRoom, st = this.rig.stageSize, p = isPortrait(st.w, st.h);   // (2D's rule on the stage: ensureGeo(W, H))
@@ -116,7 +131,8 @@ export const divePart = scenePart<CelScene>()({
       this.feedSinusInk();
     }
   },
-  feedSinusInk(): void { const c = this.lobule.inkContext(); if (c) this.sinus.setInk(c); },
+  /** The sinusoid reads the lobule's model under the FIGURE's lens (it applies its own fallback, lenses/in-view.ts), not the lobule's. */
+  feedSinusInk(): void { const c = this.lobule.inkContext(); if (c) this.sinus.setInk(c, this.lobule.askedLens); },
   setLobuleLayers(l: Partial<LobuleLayers>): void { this.lobule.setLayers(l); this.moving = true; },
   /** The wedge's wash (a slide that says `wash`): amber from the central vein along the sinusoids, counted from `landedAtMs` in both small views. Off clears it. */
   setWash(on: boolean, landedAtMs = clock.now()): void {

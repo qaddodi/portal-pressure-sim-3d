@@ -13,13 +13,17 @@ export const regionClass = (key: NameKey): string => (key === 'in' || key === 'o
 /** The names that are in sentence case (the readings' names): 2D's stylesheet rule, listed here only for the tests that hold the layer to it. */
 export const SENTENCE_KEYS: readonly NameKey[] = ['in', 'out', 'sin', 'fen', 'lymph'];
 
+/** The circle beside a key entry's word: the tokens it is painted from and its size (px). */
+export interface KeyMark { fill: string; edge: string; px: number }
 /** One node of a caption: a span or a bold figure, with its class and its children (text or nodes). */
-export interface RNode { tag: 'span' | 'b'; cls?: string; kids: (RNode | string)[] }
+export interface RNode { tag: 'span' | 'b' | 'i'; cls?: string; style?: Readonly<Record<string, string>>; kids: (RNode | string)[] }
 /** A caption's children as 2D's pageRun writes them: the name (its lines split by the stylesheet's `white-space: pre-line`), then one `.v` per reading, its figure in <b> and its unit after it,
  *  split at `~` (`"100%~open"`, `"1,320~mL/day · Protein 87%"`); a reading with no unit is the figure alone. `note` is the one line a tap adds (SV_NOTE), set in the unit's type. */
-export function regionTree(name: string, value: string, note: string | null = null): RNode[] {
+export function regionTree(name: string, value: string, note: string | null = null, mark: KeyMark | null = null): RNode[] {
   const lines = value ? value.split(' · ') : [];
-  const out: RNode[] = [{ tag: 'span', kids: [name] }];
+  // a name that stands for a key entry (legend.ts SINUSOID_CALLOUTS) wears the entry's circle beside its word, as the legend did: the learner matches the circle to the thing it names
+  const swatch: RNode[] = mark ? [{ tag: 'i', cls: 'sv-mark', style: { '--key-fill': `var(${mark.fill})`, '--key-edge': `var(${mark.edge})`, '--mark-px': `${mark.px}px` }, kids: [] }] : [];
+  const out: RNode[] = [{ tag: 'span', kids: [...swatch, name] }];
   for (const l of lines) {
     const [v, u] = l.split('~');
     out.push({ tag: 'span', cls: 'v', kids: [{ tag: 'b', kids: [v ?? ''] }, ...(u ? [` ${u}`] : [])] });

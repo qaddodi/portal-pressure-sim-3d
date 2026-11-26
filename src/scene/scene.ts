@@ -221,7 +221,10 @@ export class CelScene {
   readonly lumbarE = new Ease(0, 'lumbar-whole', () => this.applyCava());
   /** 0 until the micro views are built, then 1 (eased when that lands mid-dive): how far the body's dive dissolve may go (fadeBody). */
   readonly diveReady = new Ease(0, 'dive-ready');
-  readonly eases: readonly Ease[] = [this.shadow, this.cavaE, this.lumbarE, this.diveReady];
+  /** 1 while the move in flight only passes through the lobule (Anatomy or Circuit <-> Sinusoid: camera/dive.ts passedThrough), else 0: the dive's blur and the field's
+   *  softness are held over it, so the lobule never comes into focus on the way (parts/views.ts setView sets it, eased only when a move is turned mid-flight; post-dof.ts diveBlur). */
+  readonly passHold = new Ease(0, 'pass-hold');
+  readonly eases: readonly Ease[] = [this.shadow, this.cavaE, this.lumbarE, this.diveReady, this.passHold];
   readonly tipFades: { o: VesselObject; connect: readonly string[] }[] = [];
   look!: LookId;
   phone!: boolean;

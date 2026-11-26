@@ -4,18 +4,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { UI } from '../src/ui/strings.generated.ts';
 import { loadBuiltin } from '../src/decks/registry.ts';
-import { stopsOf } from '../src/ui/deck/presenter-machine.ts';
+import { stopsOf, viewAt, lastSlideShot } from '../src/ui/deck/presenter-machine.ts';
 import { keyOfSlide, keyAtStop, cardKeyAt, labelsAt } from '../src/scene/labels/deck-link.ts';
-import { KEY_LENSES, keyPlace } from '../src/scene/labels/key.ts';
+import { KEY_LENSES, keyPlace, keyModel, lensColours } from '../src/scene/labels/key.ts';
+import { LENS_IDS } from '../src/scene/lenses/model.ts';
+import { LOOK_IDS } from '../src/looks/looks.ts';
 import type { Slide } from '../src/decks/schema.ts';
 
 const slide = (compare?: boolean) => ({ id: 's', controls: compare ? { compare: { name: 'x', opts: [{ label: 'a', how: 'lens', lens: 'velocity' }, { label: 'b', how: 'state' }] } } : undefined }) as unknown as Slide;
 
 test('the key of a slide: its own lens unless it is pressure; pressure only with lens buttons; none on a panel or a case', () => {
   assert.equal(keyOfSlide(slide(), 'velocity', 'teach'), 'velocity');
-  assert.equal(keyOfSlide(slide(), 'pressure', 'teach'), null);
-  assert.equal(keyOfSlide(slide(), undefined, 'teach'), null);
+  // (the figure's rule, not the controls': Pressure colours the figure too, so a slide with no lens buttons and no profile still shows it: capture 2274649a, Encephalopathy 11 pink and purple with no key)
+  assert.equal(keyOfSlide(slide(), 'pressure', 'teach'), 'pressure');
+  assert.equal(keyOfSlide(slide(), undefined, 'teach'), 'pressure', 'a slide that names no lens wears the default one, and says so');
   assert.equal(keyOfSlide(slide(true), 'pressure', 'teach'), 'pressure');
+  assert.equal(keyOfSlide(slide(), 'pressure', 'visual'), null, 'a centred panel stands over the figure');
+  assert.equal(keyOfSlide(slide(), 'pressure', 'title'), null);
+  assert.equal(keyOfSlide(slide(), 'system', 'teach', 'lobule'), 'pressure', 'the key names the lens the view draws: the Lobule has no System, it shows Pressure');
+  assert.equal(keyOfSlide(slide(), 'system', 'teach', 'body'), 'system');
+  assert.equal(keyOfSlide(slide(), 'neutral', 'teach', 'body'), null, 'Anatomy keeps the vessels\' own tones: nothing to key');
   assert.equal(keyOfSlide(slide(), 'velocity', 'visual'), null);
   assert.equal(keyOfSlide(slide(), 'velocity', 'case'), null);
   assert.equal(keyOfSlide(slide(), 'velocity', 'check'), null);
@@ -67,7 +75,7 @@ test('the key stands over the cards (its own layer), under the chrome, and a key
 test('the key stands where it reads best and only where it is needed (Mohammad, 22 Nov): a stream lens in its data card, a ramp in the story card\'s foot, on every slide that colours the figure', async () => {
   assert.equal(keyPlace('origin'), 'card'); assert.equal(keyPlace('firstpass'), 'card');
   assert.equal(keyPlace('drop'), 'dock'); assert.equal(keyPlace('pressure'), 'dock'); assert.equal(keyPlace('velocity'), 'dock');
-  let cards = 0, runs = 0;
+  let cards = 0, runs = 0, withFigure = 0;
   for (const { id } of UI.decks) {
     const stops = stopsOf((await loadBuiltin(id))!);
     stops.forEach((st, i) => {
@@ -77,15 +85,17 @@ test('the key stands where it reads best and only where it is needed (Mohammad, 
       if (c) { cards++; assert.equal(c, k); assert.equal(keyPlace(c), 'card'); }
       if (l.key) assert.equal(keyPlace(l.key), 'dock');
       if (k) { runs++; const before = i > 0 ? keyAtStop(stops, i - 1) : null; assert.notEqual(before, undefined); }
-      // every slide whose figure a lens colours shows its key, run or not (Mohammad, 26 Nov, capture 36b7deac)
-      if (st.kind === 'slide' && beat === 0 || st.kind === 'slide' && !st.slide.vignette) {
-        const lens = st.slide.scene?.lens ?? 'pressure', buttons = !!st.slide.controls?.compare?.opts.some((o) => o.how === 'lens');
-        const profile = (st.slide.tool as { kind?: string } | undefined)?.kind === 'profile';
-        const colours = KEY_LENSES.includes(lens) && (lens !== 'pressure' || buttons || profile) && !st.slide.visual;
-        if (colours && !st.slide.table) assert.ok(k, `${id}/${i}: the figure wears ${lens}, so its key shows`);
+      // every slide with a figure behind its words shows its key, run or not, pressure included (Mohammad, 26 Nov, captures 36b7deac and 2274649a: "every slide that colours the figure"; the figure is always in some lens)
+      if (st.kind === 'slide' && (beat === 0 || !st.slide.vignette)) {
+        const v = viewAt(stops, { stop: i, beat }, lastSlideShot(stops));
+        if (v.words !== 'visual' && v.words !== 'case' && v.words !== 'title' && v.words !== 'check' && !st.slide.visual && !st.slide.table) {
+          withFigure++;
+          assert.ok(k, `${id}/${i}: the figure is drawn in ${v.scene?.lens ?? 'pressure'}, so its key shows`);
+        }
       }
     });
   }
+  assert.ok(withFigure > 100, `slides with a figure behind them (${withFigure})`);
   assert.ok(cards >= 3, `stream-lens keys in data cards (${cards})`);
   assert.ok(runs > 0);
 });
@@ -102,4 +112,14 @@ test('a slide that opens on a case card shows its lens key once the card has gon
     assert.equal(k, st.slide.scene?.lens);
   });
   assert.ok(seen >= 6, `case slides on a lens (${seen})`);
+});
+
+test('the general rule: every lens that colours the figure has a key, in every look (capture 2274649a: Since coloured Causes treated 3 with no key)', () => {
+  const coloured = LENS_IDS.filter((l) => lensColours(l));
+  assert.ok(coloured.length >= 11);
+  for (const l of coloured) {
+    assert.ok(KEY_LENSES.includes(l), `${l} colours the figure, so it has a key`);
+    for (const look of LOOK_IDS) { const m = keyModel(l, look); assert.ok(m && (m.scale || m.swatches), `${l} ${look}`); }
+  }
+  assert.ok(!lensColours('neutral'));
 });

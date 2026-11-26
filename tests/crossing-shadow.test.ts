@@ -143,7 +143,7 @@ test('both programs carry the rule: SHADOW widens the tube, lays it behind its o
   assert.match(VESSEL_FS, /fadeHere \*= max\(solidK, veilK\)/);
   assert.match(VESSEL_FS, /if \(dotted > 0\.5\) discard;/);
   // it comes after the glow's return and before the tube's own colour work
-  const iG = VESSEL_FS.indexOf('#ifdef GLOW'), iS = VESSEL_FS.indexOf('#ifdef SHADOW'), iT = VESSEL_FS.indexOf('float sT = dot(n, celLightView())');
+  const iG = VESSEL_FS.indexOf('#ifdef GLOW'), iS = VESSEL_FS.indexOf('#ifdef SHADOW'), iT = VESSEL_FS.indexOf('float sT = dot(n, lightD)');
   assert.ok(iG > 0 && iS > iG && iT > iS);
 });
 

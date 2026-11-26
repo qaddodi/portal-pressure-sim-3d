@@ -35,6 +35,8 @@ export interface JetParams {
   r0: number; brk: number;
   /** 0 an ooze, 1 a fast bleed (smooth(25, 70, rate)) */
   spurt: number;
+  /** how far it is thrown up before it falls (2D units); absent, jetLift's own (the fit, stream-fit.ts, sets a shallow one) */
+  lift?: number;
 }
 /** The eased state of the stream: how far it has grown out (0 nothing, 1 landed) and how far it has drained off from its tail (0 none, 1 gone). */
 export interface JetEase { grow: number; drain: number }
@@ -66,7 +68,7 @@ export function reachOf(e: JetEase): Reach {
 
 /** The stream's path: a parabola through the tear and the landing (thrown a little up first, so it arcs), s from 0 at the tear to 1 at the landing. Writes the 2D point and unit tangent. */
 export interface PathPoint { x: number; y: number; tx: number; ty: number }
-export function jetLift(p: JetParams): number { return Math.min(16, 0.2 * Math.abs(p.xl - p.x0) + 3) * (0.35 + 0.65 * p.spurt); }
+export function jetLift(p: JetParams): number { return p.lift ?? Math.min(16, 0.2 * Math.abs(p.xl - p.x0) + 3) * (0.35 + 0.65 * p.spurt); }
 export function jetDrop(p: JetParams): number { return Math.max(14, p.yl - p.y0); }
 export function pathAt(p: JetParams, s: number, out: PathPoint): PathPoint {
   const H = jetDrop(p), lift = jetLift(p), dx = p.xl - p.x0;
@@ -197,8 +199,13 @@ export function splashDrop(p: JetParams, j: number, time: number, gate: number):
   return SPL;
 }
 
-/** Writes the whole jet into `b` at `time` seconds, `z` the plane it is drawn in. Returns the thickness (0 nothing shown). Nothing is made. */
-export function fillJet(b: JetBuffers, p: JetParams, e: JetEase, time: number, z: number): number {
+/**
+ * Writes the whole jet into `b` at `time` seconds, `z` the plane it is drawn in, or, given `zAt`, the depth it is drawn at over each figure point
+ * (just in front of the organ's own wall there: lumen.ts streamZ, so the stream and its splash stay on the organ whatever the camera does).
+ * Returns the thickness (0 nothing shown). Nothing is made.
+ */
+export function fillJet(b: JetBuffers, p: JetParams, e: JetEase, time: number, z: number, zAt?: (x: number, y: number) => number): number {
+  const zOf = (x: number, y: number): number => (zAt ? zAt(x, y) : z);
   const { lo, hi, thick } = reachOf(e);
   const len = pathLength(p);
   vi = 0;
@@ -214,38 +221,38 @@ export function fillJet(b: JetBuffers, p: JetParams, e: JetEase, time: number, z
     const i0 = Math.max(0, i - 1), i1 = Math.min(TUBE_RINGS - 1, i + 1);
     const slope = (R_AT[i1]! - R_AT[i0]!) / Math.max(1e-6, L_AT[i1]! - L_AT[i0]! || 1e-6);   // (how fast the radius changes along the stream: it tilts the shading normal)
     const T3x = P.tx, T3y = -P.ty, Nx = -T3y, Ny = T3x;   // (scene axes: y up)
-    const X = x3(P.x), Y = y3(P.y), r = R_AT[i]! / 300, ik = inkAlong(s);
+    const X = x3(P.x), Y = y3(P.y), r = R_AT[i]! / 300, ik = inkAlong(s), zr = zOf(P.x, P.y);
     for (let j = 0; j <= JET_RAD; j++) {
       const th = (j / JET_RAD) * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th);
       const nx = Nx * c - T3x * slope, ny = Ny * c - T3y * slope, nz = sn, n = Math.hypot(nx, ny, nz) || 1;
-      put(b, X + Nx * c * r, Y + Ny * c * r, z + sn * r, nx / n, ny / n, nz / n, T3x, T3y, ik);
+      put(b, X + Nx * c * r, Y + Ny * c * r, zr + sn * r, nx / n, ny / n, nz / n, T3x, T3y, ik);
     }
   }
   {
     // the tail and the head (the two apexes)
     pathAt(p, lo, P); const r0 = R_AT[0]! / 300, rN = R_AT[TUBE_RINGS - 1]! / 300;
-    put(b, x3(P.x) - P.tx * r0 * 0.4, y3(P.y) + P.ty * r0 * 0.4, z, -P.tx, P.ty, 0, P.tx, -P.ty, inkAlong(lo));
+    put(b, x3(P.x) - P.tx * r0 * 0.4, y3(P.y) + P.ty * r0 * 0.4, zOf(P.x, P.y), -P.tx, P.ty, 0, P.tx, -P.ty, inkAlong(lo));
     pathAt(p, hi, P);
-    put(b, x3(P.x) + P.tx * rN * 0.4, y3(P.y) - P.ty * rN * 0.4, z, P.tx, -P.ty, 0, P.tx, -P.ty, inkAlong(hi));
+    put(b, x3(P.x) + P.tx * rN * 0.4, y3(P.y) - P.ty * rN * 0.4, zOf(P.x, P.y), P.tx, -P.ty, 0, P.tx, -P.ty, inkAlong(hi));
   }
   // ── the spray: drops shed from the lower half, strung out along the arc and drifting off it ──
   for (let j = 0; j < N_SPRAY; j++) {
     const d = sprayDrop(p, j, time, hi, thick);
     pathAt(p, clamp(d.s, 0, 1), P);
     const nx = -P.ty, ny = P.tx;   // (2D normal)
-    blob(b, z + d.offZ / 300, P.x + nx * d.off, P.y + ny * d.off, P.tx, P.ty, d.r * d.stretch, d.r, d.r, 0.85);
+    blob(b, zOf(P.x, P.y) + d.offZ / 300, P.x + nx * d.off, P.y + ny * d.off, P.tx, P.ty, d.r * d.stretch, d.r, d.r, 0.85);
   }
   // ── the splash: where the stream meets the surface, drops thrown up and falling back ──
   const landed = smooth(0.9, 1, hi) * (1 - smooth(0.6, 0.98, lo)) * thick;
   for (let j = 0; j < N_SPLASH; j++) {
     const d = splashDrop(p, j, time, landed), sp = Math.hypot(d.vx, d.vy) || 1;
-    blob(b, z + 0.004, p.xl + d.dx, p.yl + d.dy, d.vx / sp, d.vy / sp, d.r * 1.3, d.r, d.r, 0.8);
+    blob(b, zOf(p.xl, p.yl) + 0.004, p.xl + d.dx, p.yl + d.dy, d.vx / sp, d.vy / sp, d.r * 1.3, d.r, d.r, 0.8);
   }
   // ── the lens of blood on the surface, rocking a little as the stream lands in it ──
   const lensR = p.r0 * THICKEN * (0.5 + 0.3 * p.spurt);
-  blob(b, z - 0.004, p.xl, p.yl + lensR * 0.3, 1, 0, landed * lensR * (4.6 + 1.1 * Math.sin(time * 3.1)), landed * lensR * 0.62, landed * lensR * 0.9, 0.8);
+  blob(b, zOf(p.xl, p.yl) - 0.004, p.xl, p.yl, 1, 0, landed * lensR * (4.6 + 1.1 * Math.sin(time * 3.1)), landed * lensR * 0.45, landed * lensR * 0.9, 0.8);
   // ── the wet swell at the tear ──
   const swell = thick * p.r0 * THICKEN * (1.25 + 0.1 * Math.sin(time * 2.3));
-  blob(b, z - 0.004, p.x0, p.y0, 1, 0, swell, swell * 0.85, swell * 0.6, 0.9);
+  blob(b, zOf(p.x0, p.y0) - 0.004, p.x0, p.y0, 1, 0, swell, swell * 0.85, swell * 0.6, 0.9);
   return thick;
 }

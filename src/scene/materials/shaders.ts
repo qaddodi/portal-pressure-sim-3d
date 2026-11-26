@@ -142,7 +142,7 @@ void main() {
   vec3 side0 = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
   float across0 = dot(n, side0);
   float fwAcross0 = fwidth(across0);
-  float sT0 = dot(n, celLightView());
+  float sT0 = dot(n, celTubeLight(vT));
   float fwS0 = fwidth(sT0);
 #endif
   if (frontOut(vUv.x, reveal)) discard;

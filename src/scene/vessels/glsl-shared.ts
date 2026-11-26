@@ -242,6 +242,8 @@ export const PROCEDURE_MARKS_GLSL = /* glsl */ `  ${THREAD_GLSL}   // (a pale su
   // graft starts, the nested rings along the graft and the graft's faint sleeve, all sized by the lumen (a twelfth of its half width is the mocks' unit, stent-build.ts), eased in with the morph
   if (stentU.x > 0.001 && circT > 0.001 && vUv.x > stentU.y && vUv.x < stentU.z) {
     float kS = stentU.x * circT, Lw = vArcLen * vU, s = vUv.x * Lw, un = max(vR0, 0.3) / 12.0, s0 = stentU.y * Lw, sE = stentU.z * Lw, sB = s0 + stentU.w * vR0;
+    // (it opens as a front from the stent's start to its end, as the 3D stent does: stent-deploy.ts)
+    kS *= stentRev >= 0.9999 ? 1.0 : 1.0 - smoothstep(stentRev - 0.03, stentRev, (vUv.x - stentU.y) / max(stentU.z - stentU.y, 1e-4));
     float sp = s - vSkew;
     float th = asin(clamp(across, -1.0, 1.0)), px = max(pxArc, 1e-4), cov = 0.0, gold = 0.0;
     bool hasG = stentU.w > 0.0 && sB > s0 + 6.0 * un && sB < sE - 4.0 * un;

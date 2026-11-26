@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { LABEL_NAMES } from '../src/scene/labels/names.copied.ts';
 import { STATIONS, TERM_STATIONS, stationsOfTerms, stationOfVessel } from '../src/scene/labels/stations.ts';
-import { KEY_LENSES, keyModel } from '../src/scene/labels/key.ts';
+import { KEY_LENSES, KEY_LENSES_2D, keyModel } from '../src/scene/labels/key.ts';
 import { WALK, step, describe, neighbourInOrder } from '../src/scene/labels/walk.ts';
 import { MAPPED } from '../src/scene/vessels/network.ts';
 import { HVPG_DECK } from '../src/decks/hvpg.ts';
@@ -61,7 +61,8 @@ test('the catheter callout words are the 2D app\'s', () => {
 
 // ── the figure key ──
 test('every lens has a key in every look, with the 2D words, and the ends are named only where the 2D key names them', () => {
-  assert.equal(KEY_LENSES.length, 10);
+  assert.equal(KEY_LENSES_2D.length, 10, 'the 2D table names ten lenses');
+  assert.equal(KEY_LENSES.length, 12, 'and the figure adds Since and System, which colour it too');
   for (const look of LOOK_IDS) for (const lens of KEY_LENSES) {
     const k = keyModel(lens, look)!;
     assert.ok(k.name && k.aria.startsWith('Vessels colored by'), `${lens} ${look}`);
