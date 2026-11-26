@@ -18,7 +18,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "text": "PPG 8.7"
    }
   ],
-  "story": "On carvedilol from Day 19, the patient bled on Day 70. A vasoactive drug and a band the same day, then a pre-emptive TIPS on Day 73.",
+  "story": "On carvedilol from Day 20, the patient bled on Day 70. A vasoactive drug and a band the same day, then a pre-emptive TIPS on Day 73.",
   "path": "Carvedilol, a bleed, banding, TIPS",
   "pv": [
    11.9,
@@ -28,9 +28,9 @@ export const HISTORIES: readonly HistoryMeta[] = [
    13.9,
    14.5,
    15.2,
-   14.5,
+   14.7,
    15.2,
-   15.8,
+   15.9,
    16.6,
    17.4,
    18.1,
@@ -43,7 +43,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    22.7,
    22.5,
    22.4,
-   22.3,
+   22.2,
    22.1,
    17.1,
    20.6,
@@ -69,7 +69,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
   "max": 24,
   "marks": [
    {
-    "day": 19,
+    "day": 20,
     "word": "Carvedilol",
     "tone": "change"
    },
@@ -95,7 +95,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "label": "Before treatment"
    },
    {
-    "from": 19,
+    "from": 20,
     "label": "On carvedilol"
    },
    {
@@ -120,7 +120,6 @@ export const HISTORIES: readonly HistoryMeta[] = [
    "stops": [
     {
      "day": 19,
-     "step": "carvedilol",
      "look": [
       {
        "tool": "hvpg",

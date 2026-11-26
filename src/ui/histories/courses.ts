@@ -44,7 +44,7 @@ export const COURSES: readonly Course[] = [
     ramps: [{ key: 'cirrhosis', from: 0, to: 55, a: 0.4, b: 0.86 }],
     quiet: ['cirrhosis', 'albumin'],
     steps: [
-      { day: 19, id: 'carvedilol', set: { drugs: { carvedilol: true } }, detail: 'Started once the portal hypertension was clinically significant.' },
+      { day: 20, id: 'carvedilol', set: { drugs: { carvedilol: true } }, detail: 'Started once the portal hypertension was clinically significant.' },
       { day: 70, id: 'bleed', act: 'bleed' },
       { day: 70, id: 'vasoactive', set: { drugs: { terlipressin: true } }, label: 'Terlipressin', detail: `A vasoactive drug for the bleed, for three days. ${ANTIBIOTICS}` },
       { day: 70, id: 'band', act: 'band', detail: 'Endoscopic band ligation at the first endoscopy.' },
@@ -56,7 +56,7 @@ export const COURSES: readonly Course[] = [
     state: ['tips', 'ppg', 'meds'],
     // (the case: an HVPG and a stiffness for the gradient crossing 10, the scope for the varices and the bleed, the pressure along the circuit and the stent's Doppler at the TIPS)
     play: { stops: [
-      { at: 'carvedilol', look: [L.hvpg, L.stiffness] },
+      { at: { day: 19 }, look: [L.hvpg, L.stiffness] },
       { at: { day: 41 }, look: [L.endoscopy] },
       { at: 'tips', look: [L.along, L.dopplerStent] },
     ] },
