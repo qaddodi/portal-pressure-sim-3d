@@ -36,7 +36,8 @@ export const useCaseBarUp = (): boolean => useCase((s) => caseBarUp(s.phase));
 
 /** A card at the left, its right edge `x` px from the screen's left; or a sheet over the foot, its top `y` px from the screen's top. */
 export type CaseCut = { kind: 'left'; x: number } | { kind: 'foot'; y: number };
-export const useCaseRoom = create<{ cut: CaseCut | null }>(() => ({ cut: null }));
+/** `cardH`: the height of the card standing at the left of a Mac (0 with none, or when a sheet takes its place); the labels keep off it (scene/labels/chrome-claims.ts). */
+export const useCaseRoom = create<{ cut: CaseCut | null; cardH: number }>(() => ({ cut: null, cardH: 0 }));
 
 const AIR = 8;
 /** The room of the same size, centred in what the card leaves of it (the room itself with no card, or when the card leaves it nothing). */
