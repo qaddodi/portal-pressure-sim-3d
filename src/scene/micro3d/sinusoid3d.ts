@@ -240,7 +240,7 @@ export class Sinusoid3D {
     this.group.scale.setScalar(U);
     // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the host's own plane, where the names are pinned)
     const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), `sinusoid3d/${name}`);
-    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`);
+    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}, colours = false) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`, colours);
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
@@ -281,7 +281,7 @@ export class Sinusoid3D {
     this.albumin = many('albumin', unitSphere(12, 8), 2000, { ink: null, rim: S.LINE_SMALL, rimK: this.rimKAlb });   // (its own ramp: a bead well under a micrometre is all line long before a red cell is)
     // (RBC_SEG round. 40 was set against a dashed outline (22 segments, eyes 20 Nov) before the ink hull went DoubleSide and stopped culling by normal (6f7d101), which is what the dashes were;
     //  the cell is a few px across, so 16 segments read round and cost 40% of the triangles: 2560 to 1024 a cell, review 21 Nov #12)
-    this.rbc = many('red-cells', unitRbc(RBC_SEG, RBC_RINGS), RBC_CAP, { ink: null, rim: S.LINE });
+    this.rbc = many('red-cells', unitRbc(RBC_SEG, RBC_RINGS), RBC_CAP, { ink: null, rim: S.LINE }, true);
     // (order: the ground first, then the solid shapes; the see-through membrane and the arrows last)
     for (const p of [this.ground, this.disse, this.troughFar, this.trough, this.bead, this.beadLine, this.bores, this.cells, this.nuclei, this.nucleoli, this.bile, this.endoNi, this.kup, this.kupN, this.hsc, this.hscN, this.bm, this.arrows]) this.group.add(p.group);
     for (const p of [this.villi, this.fibres, this.albumin, this.rbc]) this.group.add(p.group);

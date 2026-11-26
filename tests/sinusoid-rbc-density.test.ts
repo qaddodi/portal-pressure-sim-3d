@@ -161,3 +161,11 @@ test('a cell keeps its source colour under Blood origin however many cells are d
   // the main lane is the first cells in both: the same cell is the same colour
   for (let i = 0; i < 100; i++) assert.deepEqual(thin[i]!.rgb.map((x) => +x.toFixed(3)), full[i]!.rgb.map((x) => +x.toFixed(3)), `cell ${i}`);
 });
+
+test('the red cells\' colour attribute exists from the constructor, so their program is the one the boot compiles (no late compile in the dive: tests/program-warm.test.ts)', () => {
+  const shared = createShared();
+  const flat = new SinusoidView(shared, { look: 'light' });
+  const s3 = new Sinusoid3D(flat, shared);
+  const rbc = (s3 as unknown as { rbc: { toon: InstancedMesh } }).rbc;
+  assert.ok(rbc.toon.instanceColor, 'before any cell is placed');
+});
