@@ -20,6 +20,7 @@ import { useTestsRoom } from '../../ui/tests/room.ts';
 import { labelView, placeBlockers } from './room.ts';
 import { cel, sceneApi, usePick } from '../api.ts';
 import { scopeClaims } from './scope-claims.ts';
+import { chromeClaims } from './chrome-claims.ts';
 import { probeClaims } from './probe-claims.ts';
 import { creditClaim } from './credit-claim.ts';
 import { rectToBox, type Box } from './geometry.ts';
@@ -139,7 +140,10 @@ export function LabelLayer() {
       cameraMoving: () => sceneApi.cameraMoving,
       free: () => rectToBox(ui.getState().boxes.free),
       view: () => labelView(ui.getState().vp, BAR, useTestsRoom.getState().place),
-      blockers: () => { return [...talkRects(ui.getState().boxes).map(rectToBox), ...placeBlockers(useTestsRoom.getState().place), ...figCards.boxes, ...scopeClaims.boxes, ...creditClaim.boxes]; },
+      blockers: () => [
+        ...talkRects(ui.getState().boxes).map(rectToBox), ...placeBlockers(useTestsRoom.getState().place), ...figCards.boxes,
+        ...scopeClaims.boxes, ...creditClaim.boxes, ...chromeClaims.boxes,
+      ],
       claims: () => probeClaims.boxes,
       measure,
       drawn: (v) => { const f = latest.frame; return f ? presenceOf(v as never, f as unknown as PresenceFrame, { collaterals: false }) === 'shown' : v.kind !== 'collateral' && v.kind !== 'shunt'; },
@@ -188,7 +192,8 @@ export function LabelLayer() {
     // what the slide stands on the figure besides the names (marks, sites, steps, calipers); the station names keep clear of its cards
     const figCards: FigureCards = new FigureCards(root, {
       project: deps.project, cameraMoving: deps.cameraMoving,
-      view: () => deps.view(), blockers: () => talkRects(ui.getState().boxes).map(rectToBox).concat(placeBlockers(useTestsRoom.getState().place), scopeClaims.boxes, probeClaims.boxes),
+      view: () => deps.view(),
+      blockers: () => talkRects(ui.getState().boxes).map(rectToBox).concat(placeBlockers(useTestsRoom.getState().place), scopeClaims.boxes, probeClaims.boxes, chromeClaims.boxes),
       vp: () => ui.getState().vp, measure: deps.measure, now: deps.now, spleenScale: () => cel.disease.organs.spleenScaleNow,
       circuit: () => (cel.view === 'circuit' && cel.circuit.t >= 1 ? { k: cel.mapScale(), project: (x, y, out) => cel.mapPoint(x, y, out) } : null),
       lobule: (name, out) => { if (cel.view !== 'lobule') return null; const a = cel.lobule.anchor(name, [0, 0, 0]); return out.set(a[0], a[1], a[2]); },
@@ -270,6 +275,8 @@ export function LabelLayer() {
     const applyType = () => { const { vp } = ui.getState(); putVars(typeVars(vp)); putVars(lookVars(lookRef.current, vp)); putVars(cathVars(vp)); putVars(cathLook(lookRef.current)); ctl.invalidateForms(); clock.invalidate('labels-type'); };
     applyType();
     const offTests = useTestsRoom.subscribe(() => { ctl.markDirty(); clock.invalidate('labels-tests'); });
+    // (the case's cards and bar, the view pill, the zoom pill and the dock: the names place again when any of them moves)
+    const offChrome = chromeClaims.subscribe(() => { ctl.markDirty(); clock.invalidate('labels-tests'); });
     const offUi = ui.subscribe((s, p) => { if (s.vp !== p.vp) applyType(); if (s.boxes !== p.boxes || s.vp !== p.vp) { ctl.markDirty(); clock.invalidate('labels-boxes'); } });
     applyTypeRef.current = applyType;
     const offLink = linkLabelsToDeck();
@@ -302,7 +309,7 @@ export function LabelLayer() {
       else if (!wantFrames && hold) { hold.release(); hold = null; }
     }, 0);
 
-    return () => { warm.cancel(); figCards.destroy(); offLines(); offFigure(); cath.destroy(); clampMarks.destroy(); waistBrackets.destroy(); probeLabels.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offTests(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
+    return () => { warm.cancel(); figCards.destroy(); offLines(); offFigure(); cath.destroy(); clampMarks.destroy(); waistBrackets.destroy(); probeLabels.destroy(); offHits(); offTags(); offLabels(); offPick(); offUi(); offTests(); offChrome(); offLink(); ro.disconnect(); keyMo.disconnect(); document.fonts?.removeEventListener?.('loadingdone', refonts); hold?.release(); root.querySelectorAll('.lb, .lb-lead, .lb-anchor').forEach((e) => e.remove()); };
   }, []);
 
   return (

@@ -21,6 +21,9 @@ const REPEAT_DAYS = 60;
 const SETTLING_DAYS = 3;
 /** The model's own minute after a rupture, stepped (the bleed's hemodynamics are time, not days). */
 const BLEED_SECONDS = 60;
+/** The most days a bleed may run on after its rupture before the course must have ended it (a band, or a step with stopsBleed). No act of the model's own ends one for good: a course that
+ *  never ended it left the stomach full of blood for the rest of the case. */
+export const BLEED_END_DAYS = 3;
 const TREATMENTS = (k: string): boolean => k.startsWith('drug:') || k === 'diuretics' || k === 'anticoag';
 
 const nest = (key: string, v: number): Record<string, unknown> => key.split('.').reduceRight<unknown>((acc, k) => ({ [k]: acc }), v) as Record<string, unknown>;
@@ -87,8 +90,11 @@ export function playCourse(c: Course): Baked {
   };
   const act = (s: Step) => {
     if (s.act === 'bleed') { e.rupture(s.site ?? 'VAR', 0.6); watch(BLEED_SECONDS * 10, 0.1, 5); const r = entries.find((x) => x.evId === 'VARIX_RUPTURE' && x.day === e.day); if (r && s.id) r.step = s.id; return; }
-    const a = s.act === 'band' ? { kind: 'band' } : { kind: 'paracentesis', mL: Math.floor(e.slow.ascites / 100) * 100, albumin: true };
-    if (a.kind === 'band') e.band(); else { e.paracentesis(a.mL as number, true); feed.markStep(); }   // (a tap is a step of the record, as on the page: send.ts STEPS)
+    // (a tap drains all the fluid there is, and its title says what the engine took off: one number, the one the card's "Ascites 3.8 → 0.0 L" reads before the tap)
+    let a: { kind: string; mL?: number; albumin?: boolean } = { kind: 'band' };
+    // (a tap is a step of the record, as on the page: send.ts STEPS)
+    if (s.act === 'band') e.band();
+    else { a = { kind: 'paracentesis', mL: e.paracentesis(e.slow.ascites, true), albumin: true }; feed.markStep(); }
     drain();
     entries.push({ kind: 'change', label: actionLabel(a), day: e.day, t: round(e.t, 2), action: true, ...(s.id ? { step: s.id } : {}), ...(s.detail ? { detail: s.detail } : {}) });
     baseline = labelsOf(e.params);   // (the albumin the tap gave is not a change anyone made)
@@ -99,6 +105,8 @@ export function playCourse(c: Course): Baked {
     for (const s of c.steps.filter((x) => x.day === d)) {
       if (s.act) act(s);
       if (s.set) { e.setParams(deepMerge(e.params, s.set)); e.settle(); change(s); }
+      // (hemostasis by the step's own word: the engine ends the bleed and says so in the days list, as a band's does)
+      if (s.stopsBleed) { e.stopBleed('clot'); drain(); }
       if (s.note) entries.push({ kind: 'event', label: s.note.title, day: e.day, t: round(e.t, 2), detail: s.note.detail, sev: s.note.sev, evId: 'COURSE_' + (s.id ?? 'NOTE'), ...(s.id ? { step: s.id } : {}) });
       note();   // (the same day again: a change is a step in the days list)
     }
@@ -107,6 +115,9 @@ export function playCourse(c: Course): Baked {
     if (d === 0 || entries.some((x) => x.day === e.day && isKeyEntry(x))) moments.set(e.day, e.snapshot());
     e.advanceDays(1, { noRupture: true, silent: true });
     watch(4, 0.1, 1, !!c.still);
+    if (e.bleed.active && e.day - e.bleed.day > BLEED_END_DAYS) {
+      throw new Error(`${c.id}: the bleed of Day ${e.bleed.day} is still going on Day ${e.day}: a band, or a step with stopsBleed, must end it`);
+    }
     note();
   }
 
@@ -138,7 +149,7 @@ export function metaOf(c: Course, b: Baked): HistoryMeta {
     if (word) marks.push({ day: e.day, word, tone: e.kind === 'change' ? 'change' : tone(e.sev) });
   }
   return {
-    id: c.id, name: c.name, group: c.group, where: c.where, preset: c.preset, months: Math.round(c.days / 30.4), state: stateOf(b.now, c.state), story: storyOf(c), path: c.path,
+    id: c.id, name: c.name, short: c.short, group: c.group, where: c.where, preset: c.preset, months: Math.round(c.days / 30.4), state: stateOf(b.now, c.state), story: storyOf(c), path: c.path,
     pv, days: c.days, max: Math.max(12, Math.ceil(Math.max(...pv) / 4) * 4), marks: marks.sort((a, z) => a.day - z.day), chapters: chaptersOf(c), ...playOf(c, b),
     counts: { events: b.entries.filter((x) => x.kind === 'event').length, medicines: medCount(b) },
   };
