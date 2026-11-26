@@ -9,18 +9,15 @@
 // A clinical term is not changed here: the long names are the ones the decks already used in full ("Portal vein thrombosis", "Sinusoidal obstruction syndrome", "Budd–Chiari syndrome",
 // "Right heart failure"); the short names are the ones the decks already used where room is short, made one per cause.
 
-/** The three places along the route, over the pressure profile and the same words the first slide's outline says ("Before the liver", "In the liver", "After the liver").
- *  `one`: the whole name, set on one line when all three fit; `word`: the one word that stands alone where they do not (never a bare Pre-, Intra- or Post-, which read as
- *  the stations' own sub-labels under the axis); `second`: what follows `word` on a second line; `clinical`: the term the kickers and the tables keep. */
+/** The three places along the route, over the pressure profile: PRE-HEPATIC, INTRAHEPATIC, POST-HEPATIC where they fit, PRE, INTRA, POST where they do not, PRE over HEPATIC on two lines
+ *  (the 2D chart's own words; Mohammad, 26 Nov, on "Before / In / After the liver": "PRE-HEPATIC is much better", "PRE is good too", "it's obvious": the bare words next to the axis'
+ *  Pre- / Intra- / Post- sub-labels are not confusing to him and stay). `one`: the whole name; `word`: the first word; `second`: the second line; `clinical`: the term the kickers keep. */
 export interface LiverZone { readonly id: 'before' | 'in' | 'after'; readonly one: string; readonly word: string; readonly second: string; readonly clinical: string }
 export const LIVER_ZONES: readonly [LiverZone, LiverZone, LiverZone] = [
-  { id: 'before', one: 'Before the liver', word: 'Before', second: 'the liver', clinical: 'Pre-hepatic' },
-  { id: 'in', one: 'In the liver', word: 'Liver', second: 'the liver', clinical: 'Intrahepatic' },
-  { id: 'after', one: 'After the liver', word: 'After', second: 'the liver', clinical: 'Post-hepatic' },
+  { id: 'before', one: 'Pre-hepatic', word: 'Pre', second: 'hepatic', clinical: 'Pre-hepatic' },
+  { id: 'in', one: 'Intrahepatic', word: 'Intra', second: 'hepatic', clinical: 'Intrahepatic' },
+  { id: 'after', one: 'Post-hepatic', word: 'Post', second: 'hepatic', clinical: 'Post-hepatic' },
 ];
-
-/** The words the chart's axis puts under the three liver stations. A zone's header may never be one of these (nor the other way round). */
-export const STATION_SUBLABELS: readonly string[] = ['Pre-', 'Intra-', 'Post-', 'Pre', 'Intra', 'Post'];
 
 /** A cause, by name: `long` where the room is, `short` where it is not (a chip, a point on the plane); `abbr` when `short` is an abbreviation, which a deck spells out where it first uses it.
  *  `site`: the level the cause lies at (the table's tab). `aliases`: every other spelling the 2D decks used for it, all folded into `long` and `short` when a deck is copied. */
