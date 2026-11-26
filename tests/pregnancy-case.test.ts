@@ -54,7 +54,10 @@ test('Pregnancy: no scope in the first trimester, the first scope in the second 
     const e = b.entries.find((x) => x.evId === id);
     assert.equal(e?.day, egd.day, `${id}: first known at the screening scope, not on the model's clock`);
   }
-  assert.ok(b.entries.some((e) => e.evId === 'BLEED_RISK' && weekOf(e.day) >= 28), 'the pressure climbs in the third trimester, and that is told');
+  // (from 27 weeks: the climb begins at the turn of the third trimester. Since the course's daily look runs the breath and the beat as every course's does
+  // (hales-engine 8608956, no `still`), the wall index's two-breath mean crosses a day earlier, at 27.9 weeks, against 28.1 held still.)
+  const risk = b.entries.find((e) => e.evId === 'BLEED_RISK' && weekOf(e.day) >= 27);
+  assert.ok(risk, 'the pressure climbs into the third trimester, and that is told');
 });
 
 test('Pregnancy: the screening scope and the third-trimester warning head their own stops, in the chapter of their trimester', async () => {

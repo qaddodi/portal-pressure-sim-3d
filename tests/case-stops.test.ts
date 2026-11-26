@@ -64,10 +64,10 @@ test('the first bleed stops where the mock does, each on the shot its moment cal
   const b = await LOAD['hist-bleed']!();
   const stops = stopsFor(b, opened(b, 'Cirrhosis, first bleed'));
   const shot = (day: number) => { const s = stops.find((x) => x.day === day)!.shot; return [s.view, s.cam, s.lens ?? ''].join(' '); };
-  assert.deepEqual(stops.map((s) => s.day), [0, 18, 19, 32, 40, 70, 70, 73, 120], 'the bleed is two stops on its day: the bleeding, then the band');
-  assert.equal(shot(18), 'lobule lobule:sinusoid ', 'portal hypertension clinically significant: the sinusoid, where the resistance is');
-  assert.equal(shot(19), 'circuit portal flow', 'a medicine: the portal flow on the Circuit');
-  assert.equal(shot(40), 'anatomic varices ', 'red wale signs: the varices');
+  assert.deepEqual(stops.map((s) => s.day), [0, 19, 20, 32, 42, 70, 70, 73, 120], 'the bleed is two stops on its day: the bleeding, then the band');
+  assert.equal(shot(19), 'lobule lobule:sinusoid ', 'portal hypertension clinically significant: the sinusoid, where the resistance is');
+  assert.equal(shot(20), 'circuit portal flow', 'a medicine: the portal flow on the Circuit');
+  assert.equal(shot(42), 'anatomic varices ', 'red wale signs: the varices');
   assert.equal(shot(70), 'anatomic bleed ', 'the bleed: the bleeding varix');
   assert.equal(stops[6]!.shot.cam, 'varices', 'the band, after the bleed: the varices');
   assert.equal(shot(73), 'circuit tips ', 'the TIPS: the Circuit at the stent');
@@ -82,16 +82,16 @@ test('a course changes a stop\'s shot, drops one, or adds a look closer; the sta
   const tl = opened(b, 'x');
   const stops = stopsFor(b, tl, [
     { day: 70, cam: 'varices', look: [{ tool: 'endoscope', label: 'Endoscopy' }, { tool: 'a', label: 'a' }, { tool: 'b', label: 'b' }, { tool: 'c', label: 'c' }], say: 'The varix bled.' },
-    { day: 32, drop: true }, { day: 0, drop: true }, { day: 19, lens: 'pressure' },
+    { day: 32, drop: true }, { day: 0, drop: true }, { day: 20, lens: 'pressure' },
   ]);
-  assert.deepEqual(stops.map((s) => s.day), [0, 18, 19, 40, 70, 70, 73, 120], 'Day 32 dropped; the start cannot be');
+  assert.deepEqual(stops.map((s) => s.day), [0, 19, 20, 42, 70, 70, 73, 120], 'Day 32 dropped; the start cannot be');
   // (a course's word on a day is on the day's last stop, what is done about the bleed; the bleeding itself keeps its own)
   assert.equal(stops[4]!.shot.cam, 'bleed');
   const bleed = stops[5]!;
   assert.deepEqual(bleed.shot, { view: 'anatomic', cam: 'varices' }, 'its own camera is its own shot');
   assert.equal(bleed.look.length, 3, 'three at most');
   assert.equal(bleed.say, 'The varix bled.');
-  assert.deepEqual(stops.find((s) => s.day === 19)!.shot, { view: 'circuit', cam: 'portal', lens: 'pressure' }, 'a lens alone keeps the default camera');
+  assert.deepEqual(stops.find((s) => s.day === 20)!.shot, { view: 'circuit', cam: 'portal', lens: 'pressure' }, 'a lens alone keeps the default camera');
 });
 
 test('a course stop anchored to nothing stops the generator; one on a day the story no longer headlines is let go', async () => {
@@ -152,7 +152,7 @@ test('the timeline lands on a stop eased (the case) or at once (History\'s Show 
   const stops = stopsFor(b, tl);
   tl.goTo(stops[0]!.entry, { quiet: true });
   tl.goTo(stops[1]!.entry, { quiet: true, ease: 600 });
-  assert.deepEqual(log, ['restore 0', 'restore 18 eased 600']);
+  assert.deepEqual(log, ['restore 0', 'restore 19 eased 600']);
   assert.ok(tl.isFuture(stops[2]!.entry), 'the stops ahead are the future');
   assert.ok(!tl.isFuture(stops[1]!.entry));
 });
@@ -163,11 +163,11 @@ test('on the way, what the model raises is the course\'s own: History keeps the 
   const stops = stopsFor(b, tl), n = tl.entries().length;
   tl.goTo(stops[0]!.entry, { quiet: true });
   tl.follow(true);
-  tl.addEvents([{ id: 'CSPH', title: 'Clinically significant portal hypertension', t: 1, day: 18, severity: 'danger' }]);
+  tl.addEvents([{ id: 'CSPH', title: 'Clinically significant portal hypertension', t: 1, day: 19, severity: 'danger' }]);
   assert.equal(tl.entries().length, n, 'the walk raised what the course already holds: nothing new, the course ahead kept');
   tl.goTo(stops[1]!.entry, { quiet: true, ease: 600 });
   tl.follow(false);
-  tl.addEvents([{ id: 'X', title: 'Something new', t: 2, day: 19, severity: 'danger' }]);
+  tl.addEvents([{ id: 'X', title: 'Something new', t: 2, day: 20, severity: 'danger' }]);
   assert.equal(tl.entries().length, stops[1]!.entry + 2, 'off the walk, a new day\'s news is the learner\'s own course');
 });
 

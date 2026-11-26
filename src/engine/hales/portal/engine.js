@@ -59,6 +59,18 @@ const stentConductance = (kind, d, q, visc, s, p, id) => 1 / stentParts(kind, d,
 const BLOOD_BASE = 5000, HCT_BASE = 0.42;
 // How long the volumes a hidden relaxation moved take to come across to the live model (s): the worker's tick.
 const CARRY_S = 0.033;
+// The beat's pause (s): a gap in the beat longer than this ends it. lvEject starts the next beat afresh, and the blood the lungs and the
+// ventricle held (lv.vp, lv.vv) goes back into the circulation first (lvRelease). Kept, it leaked: each restart begins mid-beat and ejects blood
+// the ventricle never filled, so the store went a few mL further below zero at every pause while the veins held that blood, and bloodVolume
+// (which counts the store) read nothing wrong. A history's daily live look paused the beat once a day: the right atrium of a portal vein
+// thrombosis climbed from 2.7 to 11 mmHg in two months, with the ascites it pushed out (Mohammad, 26 Nov 2026; test/beat-pause.mjs).
+const BEAT_GAP_S = 0.5;
+// Albumin given (an infusion, or with a large tap) raises the serum albumin, and the rise wears off as the albumin is catabolized: a half-life of about
+// 19 days (Peters, All About Albumin, 1996), so an e-folding of 27 days on the disease clock (slow.albGiven, the g/dL still on; giveAlbumin). It was
+// permanent: each 5 L tap's 0.3 g/dL stayed for good, so three taps raised a refractory patient's albumin from 2.2 to about 2.8 and every refill came
+// back smaller (4.2, 3.6, 2.4 L; Mohammad, 26 Nov 2026). A change to the albumin from outside (a slider, a course's setting) is the new level: nothing
+// given is left to wear off.
+const ALB_GIVEN = { tauDays: 27 };
 // How far (mmHg) below the outside pressure a vein's downstream end goes before its flow is wholly the collapsed vein's.
 const WF_BAND = 1;
 // A live change's numbers (a narrowing, a stent's width, a leak) ease in with this time constant (s) of model time, so a
@@ -907,7 +919,7 @@ export class Engine {
     this.controllers(dt);
     if (!this.quiet) this.fastProcesses(dt);
     if (this.pulsing()) this.trackPulsatility();
-    else if (this.lv) this.lv.gap += dt;
+    else if (this.lv) { this.lv.gap += dt; if (this.lv.gap > BEAT_GAP_S) this.lvRelease(); }
   }
 
   pulsing() { return (this.params.pulsatile || this.beat) && !this.quiet; }
@@ -939,13 +951,24 @@ export class Engine {
   lvEject(Qmean, hr) {
     let lv = this.lv;
     const ph = this.phase();
-    if (!lv || lv.gap > 0.5) {
+    if (!lv || lv.gap > BEAT_GAP_S) {
+      if (lv) this.lvRelease();
       const sv = Qmean * 60 / hr;
-      lv = this.lv = { vp: lv?.vp || 0, vv: lv?.vv || 0, y: Qmean, sv, fill: ph * sv, lastPh: ph, hi: -Infinity, lo: Infinity, sbp: NaN, dbp: NaN, beats: 0, gap: 0 };
+      lv = this.lv = { vp: 0, vv: 0, y: Qmean, sv, fill: ph * sv, lastPh: ph, hi: -Infinity, lo: Infinity, sbp: NaN, dbp: NaN, beats: 0, gap: 0 };
     }
     lv.gap = 0;
     lv.ej = lv.sv * hr / 60 * systoleShape(ph);
     return lv.ej;
+  }
+  /** The beat has paused (BEAT_GAP_S): the blood the lungs and the ventricle held goes back into the aorta, where the pump's flow goes while
+   *  the beat is off, so the vessels and the store together hold what they held before and the next beat starts with the store empty.
+   *  (relaxHidden's copy keeps the store it was restored with: its quiet relax is this model's beat running on, and the store's blood is still
+   *  this model's, so handing it to the copy's vessels would carry it here twice.) */
+  lvRelease() {
+    const lv = this.lv, v = lv.vp + lv.vv;
+    if (this._hiddenCopy || v === 0) return;
+    this.shiftVolume('AO', v);
+    lv.vp = 0; lv.vv = 0;
   }
   /** One step of the lungs and the ventricle: the pump's flow `qh` in, the lungs' outflow (a first-order store, ARTERY.lungTau) fills the
    *  ventricle, `ej` leaves it. At each new beat the filling becomes the next stroke volume, and the beat's peak (at the root, with Zc)
@@ -1202,7 +1225,7 @@ export class Engine {
   relaxHidden() {
     let h = this._hidden;
     if (!this._hiddenOn) {
-      h = this._hidden ??= new Engine({ params: this.params });
+      h = this._hidden ??= Object.assign(new Engine({ params: this.params }), { _hiddenCopy: true });
       h.restore(this.snapshot());
       // (Restoring starts the copy's averages over from this instant of the beat: it takes this model's own instead.)
       h.Pf = Float64Array.from(this.Pf || this.P); h.Qf = Float64Array.from(this.Qf || this.Q);
@@ -1397,6 +1420,11 @@ export class Engine {
       s.ascites = (lo + hi) / 2;
     } else s.ascites = a1;
     this.iap = iap0;
+    // Albumin given wears off (ALB_GIVEN); a level set from outside since keeps nothing to wear off.
+    if (s.albGiven > 0) {
+      if (s.albAt !== p.albumin) s.albGiven = 0;
+      else { const off = s.albGiven * (1 - Math.exp(-days / ALB_GIVEN.tauDays)); s.albGiven -= off; p.albumin -= off; s.albAt = p.albumin; }
+    }
     // Anticoagulation slowly lyses thrombus
     if (p.anticoag) {
       for (const k of Object.keys(p.thrombus)) {
@@ -1523,7 +1551,7 @@ export class Engine {
     }[kind];
     if (!spec) return;
     this.infusions.push({ kind, rate: spec.vol / spec.dur, remaining: spec.vol, hct: spec.hct });
-    if (kind === 'albumin') this.params.albumin = Math.min(4.5, this.params.albumin + 0.25);
+    if (kind === 'albumin') this.giveAlbumin(0.25);
   }
 
   hemorrhage(mL) {
@@ -1561,13 +1589,20 @@ export class Engine {
   paracentesis(mL, albumin) {
     const removed = Math.min(mL, this.slow.ascites);
     this.slow.ascites -= removed;
-    if (albumin) this.params.albumin = Math.min(4.5, this.params.albumin + 0.3 * removed / 5000);
+    if (albumin) this.giveAlbumin(0.3 * removed / 5000);
     else if (removed > 5000) {
       // Post-paracentesis circulatory dysfunction: effective hypovolemia
       this.hemorrhageSilent(0.12 * (removed - 5000));
       this.pushEvent({ id: 'PICD', severity: 'caution', title: 'Post-paracentesis circulatory dysfunction', anchor: 'PERITONEUM' });
     }
     return removed;
+  }
+  /** Albumin given raises the serum albumin by `g` g/dL (to 4.5 at most), the rise wearing off over the disease clock's days (ALB_GIVEN). */
+  giveAlbumin(g) {
+    const s = this.slow, p = this.params, was = p.albumin;
+    if (s.albAt !== was) s.albGiven = 0;   // (set from outside since: that level is the patient's own)
+    p.albumin = Math.min(4.5, was + g);
+    s.albGiven = (s.albGiven || 0) + (p.albumin - was); s.albAt = p.albumin;
   }
   hemorrhageSilent(mL) { const l = this.blood.lost; this.hemorrhage(mL); this.blood.lost = l; this.blood.held = (this.blood.held || 0) + mL; }
 
