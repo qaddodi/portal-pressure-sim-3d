@@ -88,6 +88,22 @@ export function inkAt(c: InkContext, seg: Seg, w: number, out: Rgb): Rgb {
 export const LANE_X = [-0.67, 0, 0.67] as const;
 const ORIGIN_COLS = originColours(), PASS_COLS = firstPassColours();
 
+/** The colours of the blood's sources under Blood origin or First pass, in the lanes' order (the systemic remainder last). */
+export const laneColours = (lens: 'origin' | 'firstpass'): readonly Rgb[] => (lens === 'origin' ? ORIGIN_COLS : PASS_COLS);
+/** The shares of the blood's five sources (written into `out`, the four of the lens and the systemic remainder) at `w` along a lobule vessel under Blood origin or First pass:
+ *  the one blend the lobule's lanes and the sinusoid's red cells (sinusoid/lens.ts) are both read from. */
+export function laneShares(c: InkContext, seg: Seg, w: number, out: number[]): number[] {
+  const lens = c.lens === 'firstpass' ? 'firstpass' : 'origin';
+  const Ls = c.model.lanes, NONE: Lane = [[0, 0, 0, 0], [0, 0, 0, 0]], L: LaneSet = (lens === 'origin' ? Ls?.origin : Ls?.pass) ?? { pre: NONE, sin: NONE, post: NONE };
+  // the blend at this place: the sinusoid's starts in the inlet's (w = 1, the portal end) and ends in the hepatic outflow's (w = 0); the inlets and the portal venule carry the inflow's
+  const lane = seg === 'cv' ? L.post : seg === 'sin' ? L.sin : L.pre;
+  const k = seg === 'sin' ? 1 - w : seg === 'in' ? w : 0;
+  let sum = 0;
+  for (let i = 0; i < 4; i++) { const v = clamp(lerp(lane[0][i] ?? 0, lane[1][i] ?? 0, k), 0, 1); out[i] = v; sum += v; }
+  out[4] = Math.max(0, 1 - sum); out.length = 5;
+  return out;
+}
+
 /** The three colours across a lobule vessel at `w` along it (written into `out`, 9 numbers). Under every lens but Blood origin and First pass the three are the one colour of `inkAt`; under those
  *  the blood's sources run as lanes side by side (the 2D app's streams of the vessel), each as wide as its share, the sources in the lens's order and the systemic remainder last. */
 export function inkLanes(c: InkContext, seg: Seg, w: number, out: number[]): number[] {
@@ -97,14 +113,8 @@ export function inkLanes(c: InkContext, seg: Seg, w: number, out: number[]): num
     for (let i = 0; i < 3; i++) { out[i * 3] = tmp[0]; out[i * 3 + 1] = tmp[1]; out[i * 3 + 2] = tmp[2]; }
     return out;
   }
-  const Ls = c.model.lanes, NONE: Lane = [[0, 0, 0, 0], [0, 0, 0, 0]], L: LaneSet = (lens === 'origin' ? Ls?.origin : Ls?.pass) ?? { pre: NONE, sin: NONE, post: NONE }, cols = lens === 'origin' ? ORIGIN_COLS : PASS_COLS;
-  // the blend at this place: the sinusoid's starts in the inlet's (w = 1, the portal end) and ends in the hepatic outflow's (w = 0); the inlets and the portal venule carry the inflow's
-  const lane = seg === 'cv' ? L.post : seg === 'sin' ? L.sin : L.pre;
-  const k = seg === 'sin' ? 1 - w : seg === 'in' ? w : 0;
-  const f: number[] = [];
-  let sum = 0;
-  for (let i = 0; i < 4; i++) { const v = clamp(lerp(lane[0][i] ?? 0, lane[1][i] ?? 0, k), 0, 1); f.push(v); sum += v; }
-  f.push(Math.max(0, 1 - sum)); sum = 0; for (const v of f) sum += v;
+  const cols = laneColours(lens), f = laneShares(c, seg, w, []);
+  let sum = 0; for (const v of f) sum += v;
   LANE_X.forEach((x, s) => {
     const t = (x + 1) / 2 * sum;
     let acc = 0, pick = 4;
