@@ -7,10 +7,11 @@ import { HISTORIES } from '../src/ui/histories/index.generated.ts';
 import { COURSES } from '../src/ui/histories/courses.ts';
 import { PROBES } from '../src/ui/tests/doppler/copied/doppler-tables.copied.js';
 import { RANGES } from '../src/ui/tests/trace/model.ts';
-import { applyLookPane, openLook } from '../src/ui/case/look-pane.ts';
+import { applyLookPane, openLook, paneOf, RUNS_ON_OPEN, LIVE_ON_OPEN } from '../src/ui/case/look-pane.ts';
 import { useTests } from '../src/ui/tests/store.ts';
 import { useTrace } from '../src/ui/tests/trace/store.ts';
 import { useIr } from '../src/ui/tests/ir/store.ts';
+import { BUILT_PANES } from '../src/ui/tests/panes.ts';
 import type { CaseLook } from '../src/ui/case/types.ts';
 
 const probes = PROBES as { id: string; kind: string }[];
@@ -67,4 +68,17 @@ test('opening a look sets the state it names through each pane\'s own store', as
   assert.equal(useIr.getState().view, 'measure', 'the measurement is on the Measure tab');
   assert.equal(useIr.getState().takeMeasure(), true, 'one ask is waiting for the pane');
   assert.equal(useIr.getState().takeMeasure(), false, 'and is taken once: a pane mounted again does not measure again');
+});
+
+test('any look that opens a test that needs a run runs it, whatever its data says; a stent\'s tab does not; every built card has decided', () => {
+  // (the rule is the card's, not each look's: a look with no `pane` at all still opens measuring)
+  assert.equal(paneOf({ tool: 'hvpg', label: 'HVPG' })?.measure, true);
+  assert.equal(paneOf({ tool: 'hvpg', label: 'HVPG, later', pane: {} })?.measure, true);
+  assert.equal(paneOf({ tool: 'hvpg', label: 'Pressures across the stent', pane: { stent: 'TIPS' } })?.measure, undefined, 'the stent\'s tab is the stent\'s test, not a catheter run');
+  assert.equal(paneOf({ tool: 'doppler', label: 'Doppler', pane: { probe: 'TIPS' } })?.measure, undefined, 'a live card is not asked to run');
+  assert.equal(paneOf({ tool: 'abdomen', label: 'Ascites' }), undefined, 'a treatment card changes nothing on opening');
+  for (const id of BUILT_PANES) {
+    const runs = RUNS_ON_OPEN.includes(id), live = LIVE_ON_OPEN.includes(id);
+    assert.ok(runs !== live, `${id}: runs itself on opening, or shows live (exactly one): case/look-pane.ts RUNS_ON_OPEN / LIVE_ON_OPEN`);
+  }
 });
