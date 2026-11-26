@@ -4,7 +4,7 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { organsDigest } from './organs-digest.mjs';
+import { bakedOrgansCurrent, organsDigest } from './organs-digest.mjs';
 import { testsNote } from './tests-status.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -35,7 +35,10 @@ if (skinCode !== 0) { console.warn('warning: the Anatomy skins were not baked; t
 if (organCode !== 0) { console.warn('warning: the organs were not baked; the page will make them at load'); failed.push('organ bake'); }
 // (every deck's chart data, Plan 33: the page fetches a talk's file when it opens and draws its first frame from it)
 if (chartCode !== 0) { console.warn('warning: the charts were not baked; the page will work their data out live'); failed.push('chart bake'); }
-const organsId = organCode === 0 ? organsDigest() : '';
+// (and the file the bake leaves is asked the page's own question before the page is told its digest: a file for another digest would be fetched, thrown away, and the organs made live on every start)
+const organsCurrent = organCode === 0 && (await bakedOrgansCurrent());
+if (organCode === 0 && !organsCurrent) { console.warn('warning: the baked organs are not for this build; the page will make them at load'); failed.push('organ bake stale'); }
+const organsId = organsCurrent ? organsDigest() : '';
 
 // The two fast checks (about 5 s, in this one deploy job: no new workflow): the typecheck and the project's lint. A preview still ships (fast previews), but the result is stamped on the
 // pill (VITE_CHECKS, src/ui/shell/build-pill.ts buildChecks) and in build-info.txt so a broken branch cannot go unseen; on main any failure fails the build.
