@@ -142,7 +142,7 @@
  "src/scene/circuit/view.ts": 2,
  "src/scene/circuit/width.ts": 2,
  "src/scene/context-loss.ts": 1,
- "src/scene/devices/balloons/tamponade-shape.ts": 6,
+ "src/scene/devices/balloons/tamponade-shape.ts": 2,
  "src/scene/devices/balloons/tamponade.ts": 7,
  "src/scene/devices/bands.ts": 2,
  "src/scene/devices/catheters/proc-catheter.ts": 34,
