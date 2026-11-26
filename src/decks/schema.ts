@@ -133,7 +133,10 @@ export interface Slide {
 }
 
 /** The words of a slide's first card (its case, or its question) and its kicker; null when the slide opens on its words. */
-export const caseOf = (s: Slide): { kicker: string; text: string } | null => (s.vignette ? { kicker: 'Case', text: s.vignette } : s.question ? { kicker: 'Question', text: s.question } : s.interact ? { kicker: 'Your turn', text: s.interact.prompt } : null);
+export const caseOf = (s: Slide): { kicker: string; text: string } | null => (
+  s.vignette ? { kicker: 'Case', text: s.vignette }
+    : s.question ? { kicker: 'Question', text: s.question }
+      : s.interact ? { kicker: 'Your turn', text: s.interact.prompt } : null);
 
 export interface Deck {
   id: string;

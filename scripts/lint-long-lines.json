@@ -649,7 +649,7 @@
  "src/ui/deck/scene-link.ts": 9,
  "src/ui/deck/useDeckInput.ts": 1,
  "src/ui/deck/useDeckWheel.ts": 1,
- "src/ui/deck/user-deck.ts": 3,
+ "src/ui/deck/user-deck.ts": 1,
  "src/ui/deck/words.ts": 1,
  "src/ui/histories/HistoryPv.tsx": 1,
  "src/ui/histories/courses.ts": 24,

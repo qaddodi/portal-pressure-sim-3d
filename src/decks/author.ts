@@ -75,12 +75,12 @@ export function authorSlide(raw0: Obj, i: number, deckId: string, deckTitle: str
   }
   // the figure's camera and colour lens are checked by planning the slide, which throws on a name neither app has
   for (let tries = 0; tries < 3; tries++) {
-    try { planSlide(deckId, out as unknown as CopiedSlide, i); break; } catch (e) {
+    try { planSlide(deckId, out as CopiedSlide, i); break; } catch (e) {
       const why = e instanceof Error ? e.message : 'it could not be placed';
       if ('cam' in out) drop('cam', why); else if ('lens' in out) drop('lens', why); else throw e;
     }
   }
-  return out as unknown as CopiedSlide;
+  return out as CopiedSlide;
 }
 
 /** The copied-deck shape of a deck object (the 2D deck format: title, summary, objectives, slides, checks …), checked slide by slide. */
@@ -90,7 +90,9 @@ export function authorDeck(id: string, title: string, d: Obj, summary = ''): Aut
   // (a deck never takes a built-in deck's id: the figure's numbers are kept by deck id)
   const own = isSource(id) || id === 'hvpg' ? `my-${id}` : id;
   const slides = (Array.isArray(d.slides) ? d.slides : []).filter(isObj).map((x, i) => authorSlide(x, i, own, title, used, notices));
-  const checks = (Array.isArray(d.checks) ? d.checks : []).filter((c): c is [string, string] => Array.isArray(c) && typeof c[0] === 'string' && typeof c[1] === 'string').map((c) => [c[0], c[1]] as [string, string]);
+  const checks = (Array.isArray(d.checks) ? d.checks : [])
+    .filter((c): c is [string, string] => Array.isArray(c) && typeof c[0] === 'string' && typeof c[1] === 'string')
+    .map((c) => [c[0], c[1]] as [string, string]);
   const sections = Array.isArray(d.sections) ? (d.sections as unknown[]).filter((x): x is [string, string[]] => Array.isArray(x) && typeof x[0] === 'string' && Array.isArray(x[1])) : undefined;
   // (a question's `back` names another slide, so it can only be checked once the deck's slides are all here)
   slides.forEach((s, i) => {

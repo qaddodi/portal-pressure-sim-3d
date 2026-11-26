@@ -20,7 +20,8 @@ export function InteractControls({ slide, deck }: { slide: Slide; deck: Deck }) 
   const commit = (a: number | null) => useInteract.getState().commit(key, a);
   const backAt = it.back ? deck.slides.findIndex((x) => x.id === it.back) : -1;
   const chosen = c.kind === 'choose' && answer != null ? c.options[answer] : null;
-  const say = c.kind === 'choose' ? (chosen ? `${right ? 'Right. ' : 'Not quite. '}${chosen.why}` : '') : c.kind === 'predict' && answer != null ? `You said ${num(answer, c.unit)}. Press Next to see what the model gives.` : '';
+  const say = c.kind === 'choose' ? (chosen ? `${right ? 'Right. ' : 'Not quite. '}${chosen.why}` : '')
+    : c.kind === 'predict' && answer != null ? `You said ${num(answer, c.unit)}. Press Next to see what the model gives.` : '';
   return (
     <div className="pz-int" role="group" aria-label="Your turn" data-kind={c.kind} data-done={done ? '' : undefined}>
       <div className="pz-int-stack">
