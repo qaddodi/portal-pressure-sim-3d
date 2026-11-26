@@ -10,6 +10,7 @@ import { viewOf } from '../src/ui/timeline/story-view.ts';
 import { stopsOf } from '../src/ui/case/stops.ts';
 import { caseViewOf } from '../src/ui/case/view.ts';
 import { caseAxis, placeNames, stopAtFrac, stripNeeds } from '../src/ui/case/strip.ts';
+import { fillTransform, headTransform, playedFrac } from '../src/ui/case/played.ts';
 import { caseLiftFor, caseRoom, CASE_BAR_H, CASE_BAR_ROWS, CASE_BAR_THUMB_H, CASE_STRIP_H } from '../src/ui/case/room.ts';
 import { M } from '../src/ui/shell/metrics.ts';
 import { barWords, chapterAt, continueWords, dragWords, inDays, kickerWords, passedNotes, shortName, shotWords, travelWords, lookSide } from '../src/ui/case/words.ts';
@@ -151,4 +152,28 @@ test('the case keeps the story it started with', () => {
   const src = readFileSync(new URL('../src/ui/case/view.ts', import.meta.url), 'utf8');
   assert.match(src, /const kept = new WeakMap<Stop, View>\(\)/);
   assert.match(src, /caseViewOf\(storyOf\(id, stops\[0\]\), stops\)/);
+});
+
+// B2 (capture 0bc14020, every stop on every device): the played rail ran from the screen or dock edge through the buttons and the "Day N" text. Root cause: the rail was a full-width bar
+// parked to the playhead's left (`right: 100%`), so its box always reached left of the rail's start and only a clip-path on its span kept it in; where that cut did not hold, it showed.
+// The rule: the played rail is grown from the span's own start, so no geometry of it can reach left of the rail, whatever clips or does not.
+test('the played rail never reaches left of the rail\'s start: it is the span\'s own box, grown by scaleX from its left edge, clamped to the strip', () => {
+  const css = readFileSync(new URL('../src/ui/case/case.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const fill = /\.cb-fill \{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.match(fill, /left:\s*0\b/, 'it starts at the span\'s start');
+  assert.match(fill, /width:\s*100%/, 'and is the span wide at most');
+  assert.match(fill, /transform-origin:\s*0 50%/, 'it grows from its left edge');
+  assert.doesNotMatch(fill, /right:\s*-?\d|left:\s*-/, 'no offset puts its box outside the span');
+  // the playhead layer carries only the head; the rail is not a child of the layer that moves
+  const tsx = readFileSync(new URL('../src/ui/case/CaseBar.tsx', import.meta.url), 'utf8');
+  assert.match(tsx, /<i ref=\{fill\} className="cb-fill" \/><div ref=\{head\} className="cb-ph"><i className="cb-head" \/><\/div>/, 'the rail stands beside the moving layer, not in it');
+  // the fraction: clamped to 0..1, so a drag past an end or a day off the axis never moves the rail out of its span
+  assert.equal(playedFrac(-0.4), 0); assert.equal(playedFrac(1.7), 1); assert.equal(playedFrac(Number.NaN), 0);
+  for (const f of [-1, 0, 0.25, 1, 3]) {
+    const k = Number(/scaleX\(([\d.]+)\)/.exec(fillTransform(f))?.[1]);
+    assert.ok(k >= 0 && k <= 1, `the rail's scale at ${f} is ${k}`);
+    const x = Number(/translateX\(([\d.]+)%\)/.exec(headTransform(f))?.[1]);
+    assert.ok(x >= 0 && x <= 100, `the playhead at ${f} is ${x} %`);
+    assert.equal(x / 100, k, 'the rail ends where the playhead stands');
+  }
 });
