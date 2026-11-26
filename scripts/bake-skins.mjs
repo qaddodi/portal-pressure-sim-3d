@@ -22,6 +22,7 @@ const { setSmoothJoins } = await import('../src/scene/vessels/join-mode.ts');
 const { SkinSet } = await import('../src/scene/vessels/skin/skin-set.ts');
 const { joinsPhase } = await import('../src/scene/vessels/skin/joins-mode.ts');
 const { encodeSkins, decodeSkins } = await import('../src/scene/vessels/skin/baked.ts');
+const { samePrint } = await import('../src/scene/fingerprint.ts');
 const { CircuitSkinSet } = await import('../src/scene/circuit/skins.ts');
 
 // the figure as the page first builds it: smooth joins on, every vessel at rest, the default joins mode's phase
@@ -44,7 +45,7 @@ const circuit = new CircuitSkinSet({
 });
 circuit.build();
 const bakedCircuit = circuit.bake();
-const current = (file, want) => existsSync(file) && (() => { const b = gunzipSync(readFileSync(file)); return decodeSkins(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength))?.digest === want; })();
+const current = (file, want) => existsSync(file) && (() => { const b = gunzipSync(readFileSync(file)); const d = decodeSkins(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength))?.digest; return !!d && samePrint(d, want); })();
 if (process.argv.includes('--check')) {
   const ok = current(out, baked.digest) && current(outCircuit, bakedCircuit.digest);
   console.log(ok ? 'baked skins: current' : 'baked skins: missing or for another figure');

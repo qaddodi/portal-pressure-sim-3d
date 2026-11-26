@@ -33,6 +33,7 @@ import { weldThrough } from './through.ts';
 import { armTube, strandCutU } from './braid-arm.ts';
 
 import { clock } from '../../../clock/frame.ts';
+import { samePrint } from '../../fingerprint.ts';
 /** What the skin's drawing object offers the set (skin-object.ts is the real one; a test hands in a plain recorder). */
 export interface SkinDraw {
   readonly object: Object3D;
@@ -649,7 +650,7 @@ export class SkinSet {
     const warn = this.deps.warn ?? ((m: string) => console.warn(m));
     // the skins baked at build time, when they were made for exactly these junctions and tubes (the digest): laid in as they are, nothing planned or meshed here
     this.digest = skinsDigest(js, tubes);
-    const baked = this.deps.baked?.() ?? null, usable = baked && baked.digest === this.digest ? baked : null;
+    const baked = this.deps.baked?.() ?? null, usable = baked && samePrint(baked.digest, this.digest) ? baked : null;
     const d0 = this.dropped.length;
     let made: Built[], lost: { node: string; message: string }[];
     if (usable) {
