@@ -99,24 +99,18 @@ const HAZE_RUN = BLUR_RUN;
 const END_BLUR = [95, 55] as const;
 /** The bile canaliculus's radius (µm): a round lumen about 1.6 µm across between two hepatocytes. */
 export const CANAL_R = 0.72;
-/** A red cell's radius (µm). Mohammad 26 Nov 2026: "don't make the RBCs any bigger than they are now; just make them much more", so the blood fills with more cells, never bigger ones:
+/** A red cell's radius (µm). Mohammad 26 Nov 2026: "don't make the RBCs any bigger than they are now", so the blood is thickened or thinned by how many cells there are, never by their size:
  *  this number is the size, and tests/sinusoid-rbc-density.test.ts pins it. */
 export const RBC_R = 1.05;
-/** The stretch the red cells run over (µm along the flow): the albumin's, which the blur hides the ends of (TRAFFIC_REACH). */
-export const RBC_SPAN = 2 * TRAFFIC_REACH + 16;
-/** How much of its picture a red cell covers (µm²): its disc turned a little off the view (the tilts run 0.2 to 0.9 rad). */
-export const RBC_SHADOW = Math.PI * RBC_R * RBC_R * 0.8;
-/** The red cells' count is the blood's: the share of the lumen's picture they cover equals the hematocrit (`HCT_HEALTHY` 0.42 for a healthy patient), so anemia thins the stream and a transfusion packs it.
- *  Cells are not drawn larger to fill the lumen (that is RBC_R's rule), so a healthy sinusoid carries `RBC_N` of them over its stretch,
- *  the blood nearly touching cell to cell with the lens colour and the protein showing between. */
-export const RBC_N = Math.round(HCT_HEALTHY * 2 * UM.lum * RBC_SPAN / RBC_SHADOW);
-/** The next sinusoids' share of that (they are out of focus beyond the plates, and each is a cost in triangles): each of the two carries this many at a healthy hematocrit. */
-export const RBC_FAR_SHARE = 0.5;
-export const RBC_FAR = Math.round(RBC_N * RBC_FAR_SHARE);
+/** The stretch the red cells run over (µm along the flow): the scene's built length, wrapping out of sight past the blurred ends. */
+export const RBC_SPAN = 2 * REACH + 16;
+/** The red cells in this sinusoid's lumen, and in each of the two next ones (beyond the plates), at a healthy hematocrit.
+ *  Mohammad 26 Nov 2026, after a tenfold stream (1d0d760d, about 480 and 240): "make the number of RBCs less just like before", so these are the old 50 and 20. */
+export const RBC_N = 50, RBC_FAR = 20;
 /** The most the stream is packed (against healthy: a hematocrit of 0.525): what a transfusion can reach, and what the instance buffers are sized for. */
 export const RBC_DENSITY_MAX = 1.25;
-/** Rings of a red cell's profile (its dimple is drawn from them); the cell is a few pixels across, so 8 read as smooth as 16 and the thousand cells of a healthy stream cost half the triangles. */
-export const RBC_RINGS = 8;
+/** Rings of a red cell's profile (its dimple is drawn from them). */
+export const RBC_RINGS = 16;
 /** The stream's density against healthy (1) from the hematocrit: the cells in each lane are `RBC_N * density` (a float: the one cell beyond the whole ones grows in as it is added, never pops). */
 export const rbcDensity = (hct: number): number => clamp(hct / HCT_HEALTHY, 0, RBC_DENSITY_MAX);
 /** The red cells drawn in this sinusoid's lumen and in each of the two next ones at a hematocrit (fractions count the cell growing in). */
@@ -842,7 +836,7 @@ export class Sinusoid3D {
   /** The red cells: biconcave discs carried in the stream at the albumin's own lane speeds (fastest in the middle), tumbling a little; a few ride in each of the next sinusoids too.
    *  How many is the blood's (rbcWanted: the patient's hematocrit against a healthy one); a cell that is being added or taken grows or shrinks over one cell's share, never pops. */
   private stepRbc(): void {
-    const f = this.flat, g = f.g, v0 = -TRAFFIC_REACH - 8, span = RBC_SPAN, flow = f.traffic.flowX;
+    const f = this.flat, g = f.g, v0 = -REACH - 8, span = RBC_SPAN, flow = f.traffic.flowX;
     const farH = UM.lum + UM.endo * 0.5, farLim = farH - RBC_R * 0.62;
     // Blood origin and First pass: each cell wears the colour of the source its fixed draw falls in (the blood has mixed by here), eased in from its own red
     const lens = f.cellColours, red = this.rbcRed, col = this.rbcCol, want = rbcWanted(f.cur.hct);

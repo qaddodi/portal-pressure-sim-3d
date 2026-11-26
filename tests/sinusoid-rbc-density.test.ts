@@ -8,10 +8,9 @@ import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { unitRbc } from '../src/scene/micro3d/cel3d.ts';
 import { HCT_HEALTHY, lobuleModel, sinusoidTargets, type SinusoidTargets } from '../src/scene/lobule/model.ts';
 import {
-  RBC_DENSITY_MAX, RBC_FAR, RBC_N, RBC_R, RBC_RINGS, RBC_SEG, RBC_SHADOW, RBC_SPAN, Sinusoid3D, rbcDensity, rbcWanted,
+  RBC_DENSITY_MAX, RBC_FAR, RBC_N, RBC_R, RBC_RINGS, RBC_SEG, Sinusoid3D, rbcDensity, rbcWanted,
 } from '../src/scene/micro3d/sinusoid3d.ts';
 import { createShared } from '../src/scene/materials/cel.ts';
-import { UM } from '../src/scene/sinusoid/layout.ts';
 import { SinusoidView } from '../src/scene/sinusoid/view.ts';
 import type { InkContext } from '../src/scene/lobule/ink.ts';
 import type { LensId } from '../src/scene/lenses/model.ts';
@@ -81,13 +80,11 @@ test('the count follows the hematocrit: proportional to it, none at none, capped
   assert.ok(rbcWanted(0.31).main < rbcWanted(0.42).main * 0.8, 'anemia visibly thins the stream');
 });
 
-test('the cells cover as much of the lumen\'s picture as the hematocrit says, and there are many more than before', () => {
-  const lane = 2 * UM.lum * RBC_SPAN;
-  const cover = RBC_N * RBC_SHADOW / lane;
-  assert.ok(Math.abs(cover - HCT_HEALTHY) < 0.01, `cover ${cover.toFixed(3)} against a hematocrit of ${HCT_HEALTHY}`);
-  assert.ok(RBC_N >= OLD_N * 8, `${RBC_N} cells against ${OLD_N}`);
-  assert.ok(RBC_FAR >= OLD_FAR * 8, `${RBC_FAR} cells in each next sinusoid against ${OLD_FAR}`);
-  assert.ok(cover < 0.6, 'with the lens colour and the protein showing between the cells');
+test('a healthy sinusoid carries the 50 red cells it always did, and 20 in each next one (owner, 26 Nov: "less, just like before")', () => {
+  assert.equal(RBC_N, OLD_N);
+  assert.equal(RBC_FAR, OLD_FAR);
+  assert.equal(rbcWanted(HCT_HEALTHY).main, OLD_N);
+  assert.equal(rbcWanted(HCT_HEALTHY).far, OLD_FAR);
 });
 
 test('the scene draws exactly the cells the hematocrit asks for', () => {
@@ -132,8 +129,8 @@ test('one instanced mesh draws every red cell, in a triangle budget a phone can 
   assert.equal((m.toon as InstancedMesh).isInstancedMesh, true);
   const tris = unitRbc(RBC_SEG, RBC_RINGS).getIndex()!.count / 3;
   assert.ok(m.capacity >= Math.ceil(RBC_N * RBC_DENSITY_MAX) + 2 * Math.ceil(RBC_FAR * RBC_DENSITY_MAX), 'the buffers hold the most packed stream');
-  assert.ok(m.toon.count * tris <= 520_000, `a healthy stream: ${m.toon.count} cells x ${tris} triangles`);
-  assert.ok(m.capacity * tris <= 650_000, `the most packed: ${m.capacity} cells x ${tris} triangles`);
+  assert.ok(m.toon.count * tris <= 150_000, `a healthy stream: ${m.toon.count} cells x ${tris} triangles`);
+  assert.ok(m.capacity * tris <= 200_000, `the most packed: ${m.capacity} cells x ${tris} triangles`);
   assert.ok(m.toon.count <= m.capacity);
 });
 
@@ -159,7 +156,7 @@ test('a cell keeps its source colour under Blood origin however many cells are d
   const thin = cells(mesh());
   assert.ok(thin.length < full.length);
   // the main lane is the first cells in both: the same cell is the same colour
-  for (let i = 0; i < 100; i++) assert.deepEqual(thin[i]!.rgb.map((x) => +x.toFixed(3)), full[i]!.rgb.map((x) => +x.toFixed(3)), `cell ${i}`);
+  for (let i = 0; i < 30; i++) assert.deepEqual(thin[i]!.rgb.map((x) => +x.toFixed(3)), full[i]!.rgb.map((x) => +x.toFixed(3)), `cell ${i}`);
 });
 
 test('the red cells\' colour attribute exists from the constructor, so their program is the one the boot compiles (no late compile in the dive: tests/program-warm.test.ts)', () => {
