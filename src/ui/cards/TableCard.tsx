@@ -8,7 +8,7 @@ import { useUi } from '../ui-store.ts';
 import { tableModel, type Cell } from '../talk/table-model.ts';
 import { resolveTable, useTables, fpOfSlide, pendingRows } from '../talk/table-rows.ts';
 import { CUT } from '../deck/from2d/table-marks.js';
-import { missWords, longestWord, twoLineWidest, colChars, gridOf, waveMaxH } from './table-words.ts';
+import { missWords, longestWord, twoLineWidest, colChars, gridOf, waveMaxH, pastEdge } from './table-words.ts';
 import { WaveCell } from './WaveCell.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
 import { chooseHeads, fitsStaggered, setHeads, groupRuns, showGroups, type HeadMode } from './table-heads.ts';
@@ -72,6 +72,8 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   // Judged by measuring, with the upright style off, whenever the table's width or its columns change (the heads are set once, so no frame ever shows a clipped head).
   const root = useRef<HTMLDivElement>(null), headRow = useRef<HTMLTableRowElement>(null);
   const [mode, setMode] = useState<HeadMode>('flat');
+  // (kept in state as well as written on the page at once, as the heads are: a render that changes the box's class would otherwise wipe it)
+  const [tight, setTight] = useState(false);
   const colKey = model.cols.map((c) => c.k).join();
   useLayoutEffect(() => {
     const box = root.current, tr = headRow.current;
@@ -84,13 +86,21 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
         return hd ? !fitsStaggered(hd.scrollWidth, t.clientWidth) : false;
       });
     };
+    // The columns' least widths together must fit the table: where a cell's right edge stands past the table's (name's longest word plus every value
+    // column's own width wider than the card), the name column gives way
+    // (`dk-fitw`, deck-ui.css: it takes what the value columns leave and breaks its longest word with a hyphen, the last resort), never the last value column out of the card.
+    const past = () => pastEdge(Array.from(box.querySelectorAll<HTMLElement>('tbody tr')));
     const fit = () => {
+      box.classList.remove('dk-fitw');
       const was: HeadMode = tr.classList.contains('th-up') ? 'turned' : tr.classList.contains('th-st') ? 'stagger' : 'flat';
       setHeads(tr, box, 'flat');
       const flatOver = Array.from(tr.querySelectorAll<HTMLElement>('th.num')).some((t) => headOver(t));
       let next: HeadMode = 'flat';
       if (flatOver) { setHeads(tr, box, 'stagger'); next = chooseHeads(true, staggerOver()); }
       setHeads(tr, box, next);   // (written on the page now: the card that holds this table measures in the effect that follows this one, and must see the heads as they will stand)
+      const over = past();
+      box.classList.toggle('dk-fitw', over);
+      setTight(over);
       if (next !== was) setMode(next);
     };
     fit();
@@ -114,7 +124,7 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   // (and each value column never narrower than what its cells print: "0.50" ran to the table's edge and "113/72 (86)" stood on three lines when every column was an equal share of what the name left, capture f23a4c59)
   const { grid, need } = useMemo(() => gridOf(model.cols.map((c) => c.k), model.cols.map((c, j) => colChars(model.rows.map((r) => r.cells[j])))), [model]);
   return (
-    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${mode !== 'flat' ? ' dk-up' : ''}${mode === 'stagger' ? ' dk-st' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-wn' as string]: longest, ['--dk-wn2' as string]: twoLines, ['--dk-grid' as string]: grid, ['--dk-cols' as string]: need }}>
+    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${mode !== 'flat' ? ' dk-up' : ''}${mode === 'stagger' ? ' dk-st' : ''}${tight ? ' dk-fitw' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-wn' as string]: longest, ['--dk-wn2' as string]: twoLines, ['--dk-grid' as string]: grid, ['--dk-cols' as string]: need }}>
       <table>
         <thead>
           {groups ? (

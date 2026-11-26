@@ -65,3 +65,9 @@ export function gridOf(cols: readonly string[], chars: readonly number[]): { gri
   const wave = value.some((n) => n == null) ? ` + ${WAVE_MIN}` : '';
   return { grid: `minmax(var(--dk-name-fit), 2fr) ${tracks.join(' ')}`, need: `calc(${+ch.toFixed(2)}ch + ${k * COL_PAD_PX}px${wave})` };
 }
+
+/** Whether a table runs past its card: some row's content is wider than the row (a cell pushed out past the table's right edge and cut by the card's: the
+ *  PPG column of Where the HVPG is reliable on a phone, review 3531bdfa A-D6).
+ *  The name's least width (`--dk-name-fit`) and each value column's least width are honest alone; nothing made them agree when together they were wider than the table, so the last column left it.
+ *  Each row is a grid, so a cell that does not fit its track widens the row's scrollable width past its box. A pixel is rounding. */
+export const pastEdge = (rows: ReadonlyArray<{ scrollWidth: number; clientWidth: number }>): boolean => rows.some((r) => r.scrollWidth > r.clientWidth + 1);

@@ -7,6 +7,7 @@ import type { ResolvedRow, Fp } from './table-model.ts';
 import { bakedById } from '../charts/baked/store.ts';
 import { slideFps, fpsNow } from './slide-states.ts';
 import { useStates } from '../../decks/hp/calc.ts';
+import { ownStepOf } from './table-own.ts';
 import { waveVessel, packTrace, WAVE_SECS, type Trace } from './table-wave.ts';
 
 const keyOf = (d: Deck, s: Slide) => `${d.id}:${s.id}`;
@@ -68,7 +69,7 @@ export function resolveTable(d: Deck, s: Slide): void {
     try {
       const all = await slideFps(d).catch((): Fp[] => []);
       const own = specs.map((sp, j) => ({ sp, j })).filter(({ sp }) => typeof sp !== 'string' && !sp.id && sp.preset);
-      const mine = own.length ? await engine().sequence(own.map(({ sp }) => { const o = sp as TableRowSpec; return { preset: o.preset, ...(o.params ? { params: o.params } : {}), ...(o.days != null ? { presetDays: o.days } : {}) }; }), undefined).catch(() => []) : [];
+      const mine = own.length ? await engine().sequence(own.map(({ sp }) => ownStepOf(sp as TableRowSpec)), undefined).catch(() => []) : [];
       const fps = specs.map((sp, j): Fp | null => {
         const id = typeof sp === 'string' ? sp : sp.id;
         if (id) { const at = d.slides.findIndex((x) => x.id === id); return at >= 0 ? all[at] ?? null : null; }
