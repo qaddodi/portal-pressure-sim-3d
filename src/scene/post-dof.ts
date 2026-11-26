@@ -61,12 +61,15 @@ export const DOF_DIVE_PEAK = 0.4;
 /** The blur strength (0 none .. DOF_DIVE_PEAK) with the camera `d` from the place dived to, `rest` the distance the lobule is framed at, `gone` where the body has dissolved away and `whole` where all of it is drawn:
  *  none at the body's rest and at the lobule's framing, rising smoothly as the body dissolves and peaking where it is gone, then letting go as the neighbours resolve on the way in to the framing. A function of the
  *  distance alone, so zooming out is the same picture run backward and nothing pops (Mohammad 20 Nov 2026: "I like the blur while zooming into a new view, can you add it as we land or leave the lobule?"). */
-export function diveBlur(d: number, rest: number, gone: number, whole: number): number {
+/** `hold` (0..1) is how far the letting go is held off, for a move that only passes through the lobule (Anatomy <-> Sinusoid, camera/dive.ts passedThrough): at 1 the blur
+ *  stays at its peak from where the body is gone all the way in, so the lobule never comes into focus, and the sinusoid's own focus pull takes it over (scene focusNow). */
+export function diveBlur(d: number, rest: number, gone: number, whole: number, hold = 0): number {
   const fit = rest * 1.15;
   if (!(d > 0) || !(rest > 0) || !(gone > fit) || !(whole > gone)) return 0;
   const up = smooth(0, 1, Math.log(whole / d) / Math.log(whole / gone));
   const down = 1 - smooth(0, 1, Math.log(gone / d) / Math.log(gone / fit));
-  return DOF_DIVE_PEAK * up * down;
+  const h = Math.min(1, Math.max(0, hold));
+  return DOF_DIVE_PEAK * up * (down + h * (1 - down));
 }
 /** The taps of the gather: each reads a pre-filtered mip level (no noise), so a dozen make a smooth disc. */
 export const DOF_TAPS = 12;
