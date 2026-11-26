@@ -145,7 +145,7 @@
  "src/scene/devices/balloons/tamponade-shape.ts": 6,
  "src/scene/devices/balloons/tamponade.ts": 7,
  "src/scene/devices/bands.ts": 2,
- "src/scene/devices/catheters/proc-catheter.ts": 35,
+ "src/scene/devices/catheters/proc-catheter.ts": 34,
  "src/scene/devices/contact-shadow.ts": 5,
  "src/scene/devices/device-object.ts": 25,
  "src/scene/devices/edges.ts": 2,
