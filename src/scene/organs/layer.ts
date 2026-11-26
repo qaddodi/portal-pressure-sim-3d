@@ -184,16 +184,21 @@ export const REVEAL_STENCIL = 8;
  *  round its silhouette. */
 export interface RevealParts { meshes: Mesh[]; occluders: ShaderMaterial[] }
 
-/** An organ's fill as a copy that never fades for a focus: the SAME program and the SAME uniform objects (so the organ's paint, the clock and the veil reach it too), but its own `frvOcc`, held at 0. */
+/** An organ's fill as a copy that never fades for a focus: the SAME program and the SAME uniform objects (so the organ's paint, the clock and the veil reach it too),
+ *  but its own `frvOcc`, held at 0. */
 export function solidTwinOf(m: ShaderMaterial, name: string): ShaderMaterial {
-  const t = new ShaderMaterial({ name, vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, uniforms: { ...m.uniforms, frvOcc: { value: 0 } }, side: m.side, transparent: m.transparent, depthWrite: m.depthWrite, depthTest: m.depthTest,
-    blending: m.blending, premultipliedAlpha: m.premultipliedAlpha, polygonOffset: m.polygonOffset, polygonOffsetFactor: m.polygonOffsetFactor, polygonOffsetUnits: m.polygonOffsetUnits });
+  const t = new ShaderMaterial({
+    name, vertexShader: m.vertexShader, fragmentShader: m.fragmentShader, uniforms: { ...m.uniforms, frvOcc: { value: 0 } },
+    side: m.side, transparent: m.transparent, depthWrite: m.depthWrite, depthTest: m.depthTest, blending: m.blending, premultipliedAlpha: m.premultipliedAlpha,
+    polygonOffset: m.polygonOffset, polygonOffsetFactor: m.polygonOffsetFactor, polygonOffsetUnits: m.polygonOffsetUnits,
+  });
   t.defines = { ...(m.defines ?? {}) };
   return t;
 }
-/** The stencil the occluder's two fills read while a reveal is on. Bit 8 is marked over the occluder's silhouette and CLEARED by the hidden organ's fill wherever that is drawn, so after the hidden organ's passes it stands exactly
- *  where there is NOTHING behind the occluder. The fading fill draws only where the bit is clear (something is behind: it shows through), the solid twin only where it is set (nothing behind: it stays whole, and
- *  clears the bit). So a fade can reveal the hidden organ, never the page. */
+/** The stencil the occluder's two fills read while a reveal is on. Bit 8 is marked over the occluder's silhouette and CLEARED by the hidden organ's fill wherever
+ *  that is drawn, so after the hidden organ's passes it stands exactly where there is NOTHING behind the occluder. The fading fill draws only where the bit is
+ *  clear (something is behind: it shows through), the solid twin only where it is set (nothing behind: it stays whole, and clears the bit). So a fade can
+ *  reveal the hidden organ, never the page. */
 export function setOccluderGate(faded: ShaderMaterial, on: boolean): void {
   faded.stencilWrite = on; faded.stencilRef = REVEAL_STENCIL; faded.stencilFuncMask = REVEAL_STENCIL; faded.stencilWriteMask = 0;
   faded.stencilFunc = NotEqualStencilFunc; faded.stencilFail = KeepStencilOp; faded.stencilZFail = KeepStencilOp; faded.stencilZPass = KeepStencilOp;
