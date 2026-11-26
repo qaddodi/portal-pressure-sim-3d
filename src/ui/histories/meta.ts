@@ -5,6 +5,8 @@ import type { HistoryMeta } from './types.ts';
 export const historyOf = (id: string | null | undefined): HistoryMeta | undefined => (id && id.startsWith('hist-') ? HISTORIES.find((h) => h.id === id) : undefined);
 export const isHistory = (id: string | null | undefined): boolean => !!historyOf(id);
 export const historyName = (id: string | null | undefined): string => historyOf(id)?.name ?? '';
+/** The name a phone's top pill shows for a model patient: its own short form, or the whole name when that already fits two lines (courses.ts `short`). */
+export const historyShort = (id: string | null | undefined): string => historyOf(id)?.short ?? historyName(id);
 /** The id a shared link can carry: a model patient's settings are shared on the preset it began from (the link has no history). */
 export const shareableId = (id: string): string => historyOf(id)?.preset ?? id;
 /** A model patient's chapters (authored in courses.ts, anchored to its steps, baked as days); any other patient's are derived from its History (timeline/story.ts). */
