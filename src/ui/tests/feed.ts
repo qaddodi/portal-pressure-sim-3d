@@ -232,7 +232,7 @@ export class SampleFeed {
   /** Today's readings into the Days list (2D ingest): a treatment or a procedure is a step, so the list cuts its trend there. */
   private noteDay(f: FeedFrame) {
     const m = f.metrics as Record<string, number>;
-    if (f.params) { const k = treatmentKey(f.params); if (k !== this.treatKey) { this.stepNext = this.treatKey != null; this.treatKey = k; } }
+    if (f.params) { const k = treatmentKey(f.params); if (k !== this.treatKey) { this.stepNext = this.stepNext || this.treatKey != null; this.treatKey = k; } }
     // (How many bands are on, not how much of the last is left: a band wears off by a fiftieth of a day, and each day's new fraction was a step in the list for the weeks after a banding.)
     const bands = bandsOn(f.bands);
     if (bands !== this.bandsNow) { this.stepNext = this.stepNext || this.bandsNow != null; this.bandsNow = bands; }
@@ -245,6 +245,9 @@ export class SampleFeed {
     this.stepNext = false;
     if (grew) { this.daysVer++; if (!this.days.length) this.calmKept.clear(); }
   }
+  /** An action that moves a reading at once (a tap, a fluid) is a step, as a treatment is: the day's point before it stays as it was, and the next frame's starts a point of its own, so
+   *  the calmed lane drops at the tap instead of smoothing it away (the Over time chart and the timeline's "right after" read the same record). */
+  markStep() { this.stepNext = true; }
   /** History is restoring the entry of this day: the record keeps its points up to it, not the later ones. */
   keepDaysTo(day: number) { this.keepTo = day; }
   /** Something new was done at the moment History went back to (timeline.ts truncateFuture): the days after it go, as the entries after it do. */
@@ -311,5 +314,5 @@ export function startFeed(): void {
 export const record = {
   get t() { return feed.t; }, get ch() { return feed.ch; }, get binT() { return feed.binT; }, get bin() { return feed.bin; }, get beats() { return feed.beat.times; },
   get days() { return feed.days; }, get daysVer() { return feed.daysVer; }, keepDaysTo: (day: number) => feed.keepDaysTo(day), calm: (key: string) => feed.calmOf(key),
-  get future() { return feed.future; }, dropFuture: () => feed.dropFuture(),
+  get future() { return feed.future; }, dropFuture: () => feed.dropFuture(), markStep: () => feed.markStep(),
 };
