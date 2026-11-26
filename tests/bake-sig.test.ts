@@ -66,9 +66,9 @@ test('a sidecar says current only for the same signature and only when the outpu
 test('bake-skins\' graph, pinned: the vessels, the skins, the circuit, the scene and the engine are inputs; the lobule, the sinusoid, the UI and the decks are not, bar the weld codec', () => {
   const rel = (graph('scripts/bake-skins.mjs', SKINS_SKIP) as string[]).map((f) => f.slice(process.cwd().length + 1));
   for (const must of ['scripts/bake-skins.mjs', 'src/scene/scene.ts', 'src/scene/vessels/skin/skin-set.ts', 'src/scene/vessels/skin/baked.ts', 'src/scene/vessels/skin/joins-mode.ts', 'src/scene/vessels/join-mode.ts',
-    'src/scene/vessels/network.ts', 'src/scene/vessels/tubes.ts', 'src/scene/circuit/skins.ts', 'src/scene/lobule/weld-codec.ts']) assert.ok(rel.includes(must), `${must} is an input of the skins`);
+    'src/scene/vessels/network.ts', 'src/scene/vessels/tubes.ts', 'src/scene/circuit/skins.ts', 'src/scene/fingerprint.ts']) assert.ok(rel.includes(must), `${must} is an input of the skins`);
   assert.ok(rel.some((f) => f.startsWith('src/engine/')), 'the engine data');
-  for (const f of rel) assert.ok(!/^src\/(scene\/(lobule|micro3d|sinusoid|materials)|ui|decks)\//.test(f) || f.endsWith('weld-codec.ts'), `${f} must not be an input of the skins`);
+  for (const f of rel) assert.ok(!/^src\/(scene\/(lobule|micro3d|sinusoid|materials)|ui|decks)\//.test(f), `${f} must not be an input of the skins`);
   assert.ok(!rel.some((f) => /shaders?\.ts$|glsl/.test(f)), 'no shader');
   assert.deepEqual(SKINS_EXTRAS, ['public/anatomy/vessels.json', 'public/anatomy/organs.bin']);
 });
