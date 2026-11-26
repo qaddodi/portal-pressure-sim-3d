@@ -65,6 +65,7 @@ export const lookPart = scenePart<CelScene>()({
   /** Call after the texture's data changed, so the next frame draws. */
   dataChanged(): void {
     const f = this.src.frame();
+    this.lens.setParams(this.src.shown());
     this.lens.onFrame(f, !!f?.jump && this.sawFrame, clock.now());   // (a new patient: the colours glide from the old patient's)
     this.blood.streams.onFrame(f);
     if (f) { this.syncPresence(f, !this.sawFrame); this.feedDisease(f, !this.sawFrame); }

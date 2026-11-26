@@ -9,6 +9,7 @@ import { ORIGIN_N, OXY_MIN, originFractions, oxygenSat } from './blood-model.ts'
 import type { LookId } from '../palette.ts';
 import { PRESSURE_RAMP } from './pressure-ramp.ts';
 import { VELOCITY_RAMP } from './velocity-ramp.ts';
+import { GRAD_ROWS, INK_ROWS, PROFILE_N, PROFILE_ROW0 } from './profile-rows.ts';
 
 /** The twelve lenses: the ten of the Layers menu, plus the two a deck asks for ('system', 'since'), and 'neutral' (Anatomy: no colouring). */
 export const LENS_IDS = ['pressure', 'delta', 'heat', 'drop', 'flow', 'velocity', 'direction', 'oxygen', 'origin', 'firstpass', 'system', 'since'] as const;
@@ -26,6 +27,8 @@ const nodeIx = new Map((NODES as { id: string }[]).map((n, i) => [n.id, i]));
 const EF = Int16Array.from(edges.map((e) => nodeIx.get(e.from) ?? -1));
 const ET = Int16Array.from(edges.map((e) => nodeIx.get(e.to) ?? -1));
 export const edgeIndex = new Map(edges.map((e, i) => [e.id, i]));
+/** The nodes an edge runs from and to (-1: none), by edge index. */
+export const edgeNodes = (k: number): [number, number] => [EF[k]!, ET[k]!];
 
 // scales (colormap.js, main.js)
 export const PRESSURE_MAX = 35;
@@ -60,8 +63,7 @@ export interface LensData {
 export const TAIL_LENSES = new Set<LensId>(['origin', 'firstpass', 'oxygen']);
 /** The alpha a texel carries for a vessel a TAIL lens colours: 1 = the lens colours it (end to end), 2 = it does, with the colour held until 55 % along and eased into the end (the shaders' `a > 1.5`). Each of the two crossfaded textures carries its own, so a switch to or from a tail lens never moves the outgoing lens's gradient. */
 export const TAIL_ON = 2;
-/** Rows of the colour texture: 0 and 1 the ends, 2 and 3 a third and two thirds along, 4 the vessel's chevron ink (lenses/chevron-ink.ts: r = 0 dark ink .. 1 cream, eased). */
-export const GRAD_ROWS = 5;
+export { GRAD_ROWS, INK_ROWS, PROFILE_N, PROFILE_ROW0 };
 export const newLensData = (): LensData => ({ lens: 'neutral', mode: 0, grad: new Float32Array(NE * 4 * GRAD_ROWS), lanes: new Float32Array(NE * 2 * 4) });
 
 const samplers = new Map<string, Sampler>();
@@ -76,6 +78,18 @@ export const samplerFor = (look: LookId, name: RampName): Sampler => {
 };
 
 const NEUTRAL: Rgb = hexToRgb01(LENS_SHARED.neutral);
+/** The lenses that colour a vessel by its pressure, at a place along it: the one rule for a vessel's ends and for a stent's profile (lenses/stent-lens.ts), so the two cannot differ. `p` is the pressure there (mmHg),
+ *  `ref` the pressure the Change and Congestion lenses count from at that place (null: no change shown). Writes into and returns `out`. */
+export type PressureFamily = 'pressure' | 'heat' | 'delta' | 'since';
+export const PRESSURE_FAMILY: ReadonlySet<string> = new Set<PressureFamily>(['pressure', 'heat', 'delta', 'since']);
+export function pressureLensColour(lens: PressureFamily, look: LookId, p: number, ref: number | null = null, out: Rgb = [0, 0, 0]): Rgb {
+  if (lens === 'pressure') return samplerFor(look, 'pressure').at(p, out);
+  const d = ref == null ? 0 : p - ref;
+  if (lens === 'heat') return samplerFor(look, 'heat').at(Math.max(0, d) / HEAT_MAX, out);
+  return delta3(hexToRgb01(LENS_SHARED.deltaLow), hexToRgb01(LENS_SHARED.deltaMid), hexToRgb01(LENS_SHARED.deltaHigh), d, DELTA_RANGE, out);
+}
+/** A value at one of a vessel's four sampled places from its values at the two ends: 0 upstream, 1 downstream, 2 a third and 3 two thirds along. */
+export const along = (a: number, b: number, end: number): number => (end === 0 ? a : end === 1 ? b : a + ((b - a) * (end - 1)) / 3);
 export const originColours = (): Rgb[] => LENS_SHARED.origin.map(hexToRgb01);
 /** The shader's five lane slots (blood.js FIRSTPASS): 0 raw, 1 cleared, 2 unused, 3 hepatic artery, 4 systemic. */
 export const firstPassColours = (): Rgb[] => [LENS_SHARED.firstPassRaw, LENS_SHARED.firstPassClear, LENS_SHARED.origin[2], LENS_SHARED.origin[3], LENS_SHARED.origin[4]].map(hexToRgb01);
@@ -99,11 +113,9 @@ export function computeLens(lens: LensId, f: FrameLike, look: LookId, ctx: LensC
   out.mode = lens === 'neutral' ? 0 : lens === 'origin' || lens === 'firstpass' ? 2 : 1;
   if (lens === 'neutral') return out;
   const P = f.Pf ?? f.P, Q = f.Qf ?? f.Q, tok = LENS_TOKENS[look];
-  const c: Rgb = [0, 0, 0];
-  const pr = () => samplerFor(look, 'pressure'), refP = ctx.ref;
-  const delta = (d: number) => delta3(hexToRgb01(LENS_SHARED.deltaLow), hexToRgb01(LENS_SHARED.deltaMid), hexToRgb01(LENS_SHARED.deltaHigh), d, DELTA_RANGE, c);
+  const refP = ctx.ref;
   const dropS = lens === 'drop' ? samplerFor(look, 'drop') : null, flowS = lens === 'flow' ? samplerFor(look, 'flow') : null;
-  const velS = lens === 'velocity' ? samplerFor(look, 'velocity') : null, heatS = lens === 'heat' ? samplerFor(look, 'heat') : null;
+  const velS = lens === 'velocity' ? samplerFor(look, 'velocity') : null;
   const oxy = lens === 'oxygen' ? oxygenSat(Q, P) : null, oxS = oxy ? samplerFor(look, 'oxygen') : null;
   const org = lens === 'origin' || lens === 'firstpass' ? originFractions(Q, P, lens === 'firstpass') : null;
   const palette = lens === 'origin' ? originColours() : firstPassColours();
@@ -115,7 +127,7 @@ export function computeLens(lens: LensId, f: FrameLike, look: LookId, ctx: LensC
     const e = edges[k]!, a = EF[k]!, b = ET[k]!, P1 = a >= 0 ? P[a]! : 0, P2 = b >= 0 ? P[b]! : 0;
     const refA = refP && a >= 0 ? refP[a]! : null, refB = refP && b >= 0 ? refP[b]! : null;
     switch (lens) {
-      case 'pressure': put(out, 0, k, pr().at(P1, [0, 0, 0])); put(out, 1, k, pr().at(P2, [0, 0, 0])); put(out, 2, k, pr().at(P1 + (P2 - P1) / 3, [0, 0, 0])); put(out, 3, k, pr().at(P1 + (P2 - P1) * 2 / 3, [0, 0, 0])); break;
+      case 'pressure': for (let end = 0; end < 4; end++) put(out, end as 0 | 1 | 2 | 3, k, pressureLensColour('pressure', look, along(P1, P2, end))); break;
       case 'drop': { const col = dropS!.at(Math.abs(P1 - P2) / DROP_MAX, [0, 0, 0]); put(out, 0, k, col); put(out, 1, k, col); break; }
       case 'direction': {
         const ref = healthy ? (healthy.Q[k] ?? 0) : 0;
@@ -134,15 +146,13 @@ export function computeLens(lens: LensId, f: FrameLike, look: LookId, ctx: LensC
         put(out, 2, k, oxS!.at(oxygenPos(o1 + (o2 - o1) / 3), [0, 0, 0])); put(out, 3, k, oxS!.at(oxygenPos(o1 + (o2 - o1) * 2 / 3), [0, 0, 0])); break;
       }
       case 'heat': {
-        const s = heatS!, d1 = refA == null ? 0 : P1 - refA, d2 = refB == null ? 0 : P2 - refB;
-        put(out, 0, k, s.at(Math.max(0, d1) / HEAT_MAX, [0, 0, 0])); put(out, 1, k, s.at(Math.max(0, d2) / HEAT_MAX, [0, 0, 0]));
-        put(out, 2, k, s.at(Math.max(0, d1 + (d2 - d1) / 3) / HEAT_MAX, [0, 0, 0])); put(out, 3, k, s.at(Math.max(0, d1 + (d2 - d1) * 2 / 3) / HEAT_MAX, [0, 0, 0])); break;
+        for (let end = 0; end < 4; end++) put(out, end as 0 | 1 | 2 | 3, k, pressureLensColour('heat', look, along(P1, P2, end), along(refA ?? P1, refB ?? P2, end)));
+        break;
       }
       case 'system': { const col = sysCol[systemOf(e)]; put(out, 0, k, col); put(out, 1, k, col); break; }
       case 'delta': case 'since': {
-        const d1 = refA == null ? 0 : P1 - refA, d2 = refB == null ? 0 : P2 - refB;
-        put(out, 0, k, delta(d1).slice() as Rgb); put(out, 1, k, delta(d2).slice() as Rgb);
-        put(out, 2, k, delta(d1 + (d2 - d1) / 3).slice() as Rgb); put(out, 3, k, delta(d1 + (d2 - d1) * 2 / 3).slice() as Rgb); break;
+        for (let end = 0; end < 4; end++) put(out, end as 0 | 1 | 2 | 3, k, pressureLensColour('delta', look, along(P1, P2, end), along(refA ?? P1, refB ?? P2, end)));
+        break;
       }
       case 'origin': case 'firstpass': {
         // lanes: cumulative shares of the four named sources; the rest is systemic (the fifth colour). The vessel's plain colour is the blend, for a reader without lanes.
