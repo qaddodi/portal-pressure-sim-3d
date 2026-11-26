@@ -12,6 +12,7 @@ import { RW_IDS, RW_LOADERS } from '../src/decks/rw/copied/index.ts';
 import { markCards } from '../src/scene/labels/proc-marks.ts';
 import { hookOf } from '../src/decks/ag/needs.ts';
 import { PROCEDURES } from '../src/scene/procedures/copied/procedure-names.js';
+import { loadSource } from '../src/decks/source.ts';
 
 // R4 (22 Nov 2026): the five Treat orders that had no slide procedure (EVL, balloon tamponade, DIPS, DSRS, paracentesis) play from the slides that show their result.
 const NAMES: Record<string, string> = { evl: 'band', tamponade: 'balloon', dips: 'dips', dsrs: 'dsrs', paracentesis: 'paracentesis' };
@@ -77,7 +78,7 @@ test('every slide that shows one of these results plays it, and nothing else ask
   const seen = new Map<string, string | undefined>();
   const add = (d: { id: string; slides: { id: string; procedure?: unknown }[] }) => { for (const s of d.slides) { const base = typeof s.procedure === 'string' ? s.procedure : (s.procedure as { kind?: string } | undefined)?.kind; if (INSTRUMENT_KINDS.includes(base ?? '')) seen.set(`${d.id}/${s.id}`, base); if (PROCEDURE_SLIDES[`${d.id}/${s.id}` as keyof typeof PROCEDURE_SLIDES]) assert.ok(base, `${d.id}/${s.id} has its procedure`); } };
   for (const id of AG_IDS) add((await loadAgDeck(id)) as never);
-  for (const id of RW_IDS) add((await RW_LOADERS[id]!()) as never);
+  for (const id of RW_IDS) add((await loadSource(id)) as never);
   for (const id of HP_IDS) add((await loadHpDeck(id)) as never);
   assert.deepEqual([...seen.keys()].sort(), Object.keys(PROCEDURE_SLIDES).sort());
   for (const [slide, kind] of Object.entries(PROCEDURE_SLIDES)) assert.equal(seen.get(slide), kind, slide);

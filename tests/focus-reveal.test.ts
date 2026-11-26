@@ -23,6 +23,7 @@ import { figurePlan } from '../src/ui/deck/figure-plan.ts';
 import { figureCalls } from '../src/ui/deck/figure-calls.ts';
 import { RW_LOADERS } from '../src/decks/rw/copied/index.ts';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 const GEJ = FOCI.find((r) => r.id === 'gej')!;
 
@@ -48,7 +49,7 @@ test('a slide about the varices reveals the junction whenever it is in the room,
 });
 
 test('every slide that labels the varices is about the junction (figure plan to the scene\'s call), and the reconciler hands it on once', async () => {
-  const deck = (await RW_LOADERS['variceal-bleed']!()) as CopiedDeck;
+  const deck = (await loadSource('variceal-bleed')) as CopiedDeck;
   let about = 0;
   for (const s of deck.slides) {
     // (the stations the figure labels: the slide's own and those its words name, figure-plan.ts)

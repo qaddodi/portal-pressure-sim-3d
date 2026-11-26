@@ -15,10 +15,11 @@ import { ORGAN_STYLE } from '../src/scene/organs/layer.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { TARGETS_FIG, SETS_FIG, SITE_NODE_2D } from '../src/scene/labels/figure2d.copied.ts';
 import { missingStations, missingTerms } from '../src/decks/hp/hooks.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 const decks: CopiedDeck[] = [];
 for (const id of AG_IDS) decks.push((await loadAgDeck(id)) as unknown as CopiedDeck);
-for (const id of RW_IDS) decks.push((await RW_LOADERS[id]!()) as unknown as CopiedDeck);
+for (const id of RW_IDS) decks.push((await loadSource(id)) as unknown as CopiedDeck);
 for (const id of HP_IDS) decks.push(await loadHpDeck(id));
 const slides: { id: string; s: CopiedSlide }[] = decks.flatMap((d) => d.slides.map((s) => ({ id: `${d.id}/${s.id}`, s })));
 

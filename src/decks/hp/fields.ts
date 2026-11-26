@@ -22,6 +22,8 @@ export const FIELD_HOME: Record<string, FieldHome> = {
   data: 'slide', tiles: 'slide', key: 'slide', delta: 'slide',
   compare: 'slide', whatIf: 'slide', response: 'slide', hvpgResp: 'slide', scales: 'slide',
   cols: 'slide', of: 'slide', vs: 'slide', asc: 'slide', rowHead: 'slide', foot: 'slide', note: 'slide', calm: 'slide', focusRow: 'slide',
+  // what the 3D overlay adds (decks/overlay.ts): carried on the slide like any other
+  also: 'slide', split: 'slide', scores: 'slide', interact: 'slide', frame: 'scene',
   // the model
   preset: 'model', presetDays: 'model', params: 'model', action: 'model', days: 'model', relax: 'model', sameAs: 'model', ramp: 'model',
   // the camera, view and lens

@@ -9,6 +9,7 @@ import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
 import { RW_IDS, RW_LOADERS } from '../src/decks/rw/copied/index.ts';
 import { AG_IDS, loadAgDeck } from '../src/decks/ag/index.ts';
 import type { CopiedDeck, CopiedSlide } from '../src/decks/hp/types.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 test('the first Next runs the days out and the second moves on', () => {
   assert.equal(lapseNext(), false, 'no lapse: Next is the move');
@@ -76,7 +77,7 @@ test('a push is planned from lapse.cam as 2D does', () => {
 test('every lapse.cam in the copied decks is a push on the anatomy', async () => {
   const decks: CopiedDeck[] = [];
   for (const id of HP_IDS) decks.push((await loadHpDeck(id)) as unknown as CopiedDeck);
-  for (const id of RW_IDS) decks.push((await RW_LOADERS[id]!()) as unknown as CopiedDeck);
+  for (const id of RW_IDS) decks.push((await loadSource(id)) as unknown as CopiedDeck);
   for (const id of AG_IDS) decks.push((await loadAgDeck(id)) as unknown as CopiedDeck);
   let n = 0;
   for (const d of decks) for (const s of d.slides) {

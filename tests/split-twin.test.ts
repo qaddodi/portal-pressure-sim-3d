@@ -42,7 +42,8 @@ test('a twin reads its own patient, leaves the page\'s dust and flow rate alone,
 
 import { halveRoom, cutShare } from '../src/scene/twin/region.ts';
 import { sweepYaws, leaveSplit, splitDebug, splitGoTo, splitSetRoom, splitMainRoom, useSplitUi } from '../src/scene/twin/split.ts';
-import { splitOf, splitDecks } from '../src/decks/split-slides.ts';
+import { splitOf } from '../src/decks/split-slides.ts';
+import { OVERLAY } from '../src/decks/overlay.ts';
 import { HVPG_DECK } from '../src/decks/hvpg.ts';
 
 test('the free room is halved with the healthy liver on the left and the cut falls in the middle of it', () => {
@@ -59,9 +60,9 @@ test('the turn goes toward the patient\'s left, then the other way, then home', 
 });
 
 test('no slide shows the split now (HVPG 7 and 11 were taken off, 24 Nov), and a slide that is added names a slide the deck has', () => {
-  assert.equal(splitOf('hvpg', 'presin'), null);
-  assert.equal(splitOf('hvpg', 'heart'), null);
-  assert.deepEqual(splitDecks(), []);
+  assert.equal(splitOf(HVPG_DECK.slides.find((s) => s.id === 'presin')), null);
+  assert.equal(splitOf(HVPG_DECK.slides.find((s) => s.id === 'heart')), null);
+  assert.deepEqual(Object.entries(OVERLAY).filter(([, o]) => o.split).map(([k]) => k), []);
 });
 
 test('with no twin up the page keeps its whole room and leaving is harmless', () => {

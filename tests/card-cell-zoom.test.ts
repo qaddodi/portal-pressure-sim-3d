@@ -7,6 +7,7 @@ import { centredBox, pzhOf } from '../src/ui/layout/plan.ts';
 import { layoutOf, isSideways } from '../src/ui/layout/rules2d.ts';
 import { RW_IDS, RW_LOADERS } from '../src/decks/rw/copied/index.ts';
 import type { CopiedDeck } from '../src/decks/rw/types.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 // Plan 43 part B (Mohammad, 23 Nov: "I should be able to tap any one to zoom to center view like on Mac", the six ladders): one panel of the grid zooms alone, over its neighbours.
 const src = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
@@ -81,7 +82,7 @@ const SCREENS = [
   { n: 'iPad mini', w: 1133, h: 744, safe: { top: 0, bottom: 0, left: 0, right: 0 } },
 ];
 const decks: CopiedDeck[] = [];
-for (const id of RW_IDS) decks.push((await RW_LOADERS[id]!()) as unknown as CopiedDeck);
+for (const id of RW_IDS) decks.push((await loadSource(id)) as unknown as CopiedDeck);
 test('every ladders slide: the tap is offered where zoomsOn says, and the panel grows at least 1.2 on every iPad and Mac size', () => {
   let ladders = 0;
   for (const d of decks) for (const sl of d.slides) {

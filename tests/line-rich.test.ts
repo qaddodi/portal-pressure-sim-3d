@@ -9,6 +9,7 @@ import { RW_IDS, RW_LOADERS } from '../src/decks/rw/copied/index.ts';
 import { parseLine, gluePieces } from '../src/ui/text/line.ts';
 import { nb } from '../src/ui/text/glue.ts';
 import { pinned2D } from './two-d-pin.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 const kinds = (ns: Node[]) => ns.filter((n) => n.t !== 'text').map((n) => `${n.t}:${n.s}`);
 
@@ -87,7 +88,7 @@ test('every plain line of A to G and R to W is typeset as 2D does', { skip: two.
     return [];
   });
   let lines = 0;
-  const decks: [string, () => Promise<unknown>][] = [...AG_IDS.map((id): [string, () => Promise<unknown>] => [id, () => loadAgDeck(id as never)]), ...RW_IDS.map((id): [string, () => Promise<unknown>] => [id, () => RW_LOADERS[id]!()])];
+  const decks: [string, () => Promise<unknown>][] = [...AG_IDS.map((id): [string, () => Promise<unknown>] => [id, () => loadAgDeck(id as never)]), ...RW_IDS.map((id): [string, () => Promise<unknown>] => [id, () => loadSource(id)])];
   for (const [id, load] of decks) {
     const deck = (await load()) as { slides: { line?: string; terms?: unknown; key?: string[]; bold?: string[]; pill?: false }[] };
     for (const [i, s] of deck.slides.entries()) {

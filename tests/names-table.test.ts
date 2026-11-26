@@ -5,14 +5,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CAUSES, LIVER_ZONES, ABBREVIATIONS, causeOfName } from '../src/decks/names.ts';
 import { ZONES as PROFILE_ZONES, ZONE_SECOND } from '../src/ui/charts/profile/layout.generated.js';
-import { RW_LOADERS } from '../src/decks/rw/copied/index.ts';
+import { RW_IDS } from '../src/decks/rw/copied/index.ts';
 import { AG_IDS, loadAgDeck } from '../src/decks/ag/index.ts';
 import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
 import { causeNames, defineFirst, namesEdits, zoneEdit, leaves, wordRe } from '../scripts/names-edits.mjs';
+import { loadSource } from '../src/decks/source.ts';
 
 type Deck = { id: string; slides: Record<string, unknown>[] };
 const decks: Deck[] = [];
-for (const f of Object.values(RW_LOADERS)) decks.push(structuredClone(await f()) as unknown as Deck);
+for (const id of RW_IDS) decks.push(structuredClone(await loadSource(id)) as unknown as Deck);
 for (const id of AG_IDS) decks.push(structuredClone(await loadAgDeck(id)) as unknown as Deck);
 for (const id of HP_IDS) decks.push(structuredClone(await loadHpDeck(id)) as unknown as Deck);
 

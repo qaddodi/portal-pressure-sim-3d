@@ -5,31 +5,14 @@ import type { CopiedDeck, CopiedSlide } from './types.ts';
 import { slideShots, type ShotSpec } from './shots.ts';
 import { needsOf, waitingOn, type Owner } from './needs.ts';
 import { stepsOf, stateOf, type ModelStep } from './steps.ts';
-import { amendAscites } from './ascites-amend.ts';
-import { amendAlbumin } from './albumin-amend.ts';
 
-export const AG_IDS = ['albumin', 'ascites', 'budd-chiari', 'carvedilol', 'cause-treated', 'choose-treatment', 'circuit', 'circulation', 'day', 'doppler', 'encephalopathy', 'endoscopy', 'gastric-varices', 'gradients'] as const;
-export type AgId = (typeof AG_IDS)[number];
-
-const LOADERS: Record<AgId, () => Promise<CopiedDeck>> = {
-  albumin: async () => amendAlbumin((await import('./albumin.copied.ts')).ALBUMIN),
-  ascites: async () => amendAscites((await import('./ascites.copied.ts')).ASCITES),
-  'budd-chiari': async () => (await import('./budd-chiari.copied.ts')).BUDD_CHIARI,
-  carvedilol: async () => (await import('./carvedilol.copied.ts')).CARVEDILOL,
-  'cause-treated': async () => (await import('./cause-treated.copied.ts')).CAUSE_TREATED,
-  'choose-treatment': async () => (await import('./choose-treatment.copied.ts')).CHOOSE_TREATMENT,
-  circuit: async () => (await import('./circuit.copied.ts')).CIRCUIT,
-  circulation: async () => (await import('./circulation.copied.ts')).CIRCULATION,
-  day: async () => (await import('./day.copied.ts')).DAY,
-  doppler: async () => (await import('./doppler.copied.ts')).DOPPLER,
-  encephalopathy: async () => (await import('./encephalopathy.copied.ts')).ENCEPHALOPATHY,
-  endoscopy: async () => (await import('./endoscopy.copied.ts')).ENDOSCOPY,
-  'gastric-varices': async () => (await import('./gastric-varices.copied.ts')).GASTRIC_VARICES,
-  gradients: async () => (await import('./gradients.copied.ts')).GRADIENTS,
-};
+import { AG_IDS, type AgId } from './raw.ts';
+import { loadSource } from '../source.ts';
+export { AG_IDS, type AgId };
 
 export const isAgDeck = (id: string): id is AgId => (AG_IDS as readonly string[]).includes(id);
-export const loadAgDeck = (id: AgId): Promise<CopiedDeck> => LOADERS[id]();
+/** A deck of A to G with the 3D overlay laid on (source.ts). */
+export const loadAgDeck = (id: AgId): Promise<CopiedDeck> => loadSource(id) as Promise<CopiedDeck>;
 
 /** A slide as the 3D app plays it: the 2D slide, and what the scene and the other batches take from it. */
 export interface Plate {

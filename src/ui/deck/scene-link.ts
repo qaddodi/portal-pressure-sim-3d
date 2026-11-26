@@ -82,7 +82,7 @@ export function linkScene(): () => void {
     if (wantLens !== lens) { lens = wantLens; sceneApi.setLens(lens); }
     const room = boxes.free;
     // the split orbit: a slide in decks/split-slides.ts shows a healthy liver beside its patient (the body view only; every other slide lets the twin go)
-    { const sp = v.scene?.view && v.scene.view !== 'body' ? null : splitOf(useUi.getState().deck?.id, v.slide?.id); splitWant(sp ? { left: sp.against, right: sp.label } : null); }
+    { const sp = v.scene?.view && v.scene.view !== 'body' ? null : splitOf(v.slide); splitWant(sp ? { left: sp.against, right: sp.label } : null); }
     if (room.w <= 0 || room.h <= 0) return;   // the cards have not been measured yet: no room to frame in
     // the room belongs to another slide (its cards are still being measured, stepped down or fitted): the slide's move waits for its own final room, so the camera goes there once, never to an early one and on to the final
     if (boxes.stop != null && boxes.stop !== pos.stop) { owed = owed || stepped; return; }

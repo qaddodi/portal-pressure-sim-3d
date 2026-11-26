@@ -20,6 +20,7 @@ import { hookOf, needsOf } from '../src/decks/ag/needs.ts';
 import { registerBuiltinHooks } from '../src/decks/rw/hooks-builtin.ts';
 import { hasHook } from '../src/decks/rw/hooks.ts';
 import { FEATURES } from '../src/decks/hp/hooks.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 type Rec = Record<string, unknown>;
 const rec = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -27,7 +28,7 @@ const rec = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.isA
 const DECKS: { id: string; slides: CopiedSlide[] }[] = [];
 for (const id of AG_IDS) DECKS.push({ id, slides: (await loadAgDeck(id)).slides as CopiedSlide[] });
 for (const id of HP_IDS) DECKS.push({ id, slides: (await loadHpDeck(id)).slides as CopiedSlide[] });
-for (const id of RW_IDS) DECKS.push({ id, slides: (await RW_LOADERS[id]!()).slides as CopiedSlide[] });
+for (const id of RW_IDS) DECKS.push({ id, slides: (await loadSource(id)).slides as CopiedSlide[] });
 const SLIDES = DECKS.flatMap((d) => d.slides.map((s) => ({ at: `${d.id}/${s.id}`, s })));
 const TOOLS = SLIDES.filter((x) => rec(x.s.tool)).map((x) => ({ at: x.at, s: x.s, tool: x.s.tool as Rec, kind: String((x.s.tool as Rec).kind) }));
 

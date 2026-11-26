@@ -17,10 +17,11 @@ import { bleedShapes } from '../src/scene/disease/copied/bleed-shapes.js';
 import { SITES } from '../src/scene/disease/copied/anatomy-b4.ts';
 import { RING, BADGE_R } from '../src/scene/disease/copied/scope-lens-rule.js';
 import { x3, y3, UNITS_PER_SCENE } from '../src/scene/frame2d.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 const decks: CopiedDeck[] = [];
 for (const id of AG_IDS) decks.push((await loadAgDeck(id)) as unknown as CopiedDeck);
-for (const id of RW_IDS) decks.push((await RW_LOADERS[id]!()) as unknown as CopiedDeck);
+for (const id of RW_IDS) decks.push((await loadSource(id)) as unknown as CopiedDeck);
 for (const id of HP_IDS) decks.push(await loadHpDeck(id));
 const slides: { id: string; s: CopiedSlide }[] = decks.flatMap((d) => d.slides.map((s) => ({ id: `${d.id}/${s.id}`, s })));
 

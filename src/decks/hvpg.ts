@@ -6,6 +6,7 @@ import { HVPG_COPIED } from './hvpg.copied.ts';
 import type { Deck, Slide, ShotName } from './schema.ts';
 import { DECK as HVPG_2D } from './hp/data/hvpg.copied.ts';
 import { toDeck } from './hp/deck.ts';
+import { withOverlay } from './overlay.ts';
 
 interface Plate { shot: ShotName; model?: { preset: string } }
 
@@ -30,7 +31,7 @@ export const HVPG_DECK: Deck = (() => {
     if (!plate) throw new Error(`hvpg.ts has no 3D fields for slide "${s.id}"`);
     return [s.id, { ...s, ...plate } as Slide];
   }));
-  const full = toDeck(HVPG_2D);
+  const full = toDeck(withOverlay(HVPG_2D));
   // (the slice's slides keep their plates; the fields the cards carry beyond the words come from the 2D deck's own slide: the level tab, the guidelines side by side, the causes, the beats)
   const CARD_FIELDS = ['site', 'rail', 'sides', 'pill', 'causes', 'causesHead', 'beats', 'tool'] as const;   // ('tool': the HVPG monitor the free, wedge and result slides ask for; the slice's plates left it out, so its card was the pressures alone)
   for (const [id, p] of plates) { const f = full.slides.find((x) => x.id === id); if (f) for (const k of CARD_FIELDS) if (k in f) (p as unknown as Record<string, unknown>)[k] = f[k]; }

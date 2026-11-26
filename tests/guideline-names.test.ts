@@ -5,6 +5,7 @@ import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
 import { RW_IDS, RW_LOADERS } from '../src/decks/rw/copied/index.ts';
 import { HVPG_COPIED } from '../src/decks/hvpg.copied.ts';
 import { SOURCE_PATCHES } from '../scripts/source-edits.mjs';
+import { loadSource } from '../src/decks/source.ts';
 
 // Project rule: Baveno VIII is the only guideline the talks name on screen. Where it is silent (doses, red wale signs, recanalization rates), the claim stays and its
 // source is named in the speaker notes only (scripts/source-edits.mjs, run by every deck generator). Every string of a talk is on screen (title, line, cite, ask, sides,
@@ -14,7 +15,7 @@ const OTHER = /\b(AASLD|EASL|WSACS|ESGE|ESPEN|ACG|AGA|ASGE|ISTH|ACCP|KDIGO|APASL
 const DECKS: { id: string; deck: unknown }[] = [{ id: 'hvpg', deck: HVPG_COPIED }];
 for (const id of AG_IDS) DECKS.push({ id, deck: await loadAgDeck(id) });
 for (const id of HP_IDS) DECKS.push({ id, deck: await loadHpDeck(id) });
-for (const id of RW_IDS) DECKS.push({ id, deck: await RW_LOADERS[id]!() });
+for (const id of RW_IDS) DECKS.push({ id, deck: await loadSource(id) });
 
 function walk(v: unknown, at: string, out: { at: string; text: string }[], notes: { at: string; text: string }[]): void {
   if (typeof v === 'string') { out.push({ at, text: v }); return; }

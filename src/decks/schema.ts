@@ -113,6 +113,12 @@ export interface Slide {
   site?: string;
   /** A second level the slide is also about (a level id, as `site`): a second tab joins the first in the card's corner. Set in 3D only (hp/deck.ts ALSO_SITE), never from the 2D deck. */
   also?: string;
+  /** The split orbit (decks/split-slides.ts): the words over the healthy liver and over this slide's patient. A 3D addition from the overlay (decks/overlay.ts), never from the 2D deck. */
+  split?: { label: string; against: string };
+  /** The liver-function card under the criteria (decks/overlay/scores.ts). */
+  scores?: import('./overlay/scores.ts').SlideScores;
+  /** A question the room answers before the model reveals (decks/interact.ts). */
+  interact?: Record<string, unknown>;
   /** The level rail under the line (2D `rail`): every level named ('all') or the slide's own level marked (true). */
   rail?: 'all' | true;
   /** Two guidelines side by side under the line (2D `sides`). `text` takes the line's own tokens. */

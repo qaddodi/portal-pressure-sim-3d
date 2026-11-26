@@ -1,6 +1,5 @@
 // The 3D app's amendments to the copied ascites deck (the copy stays the 2D deck character for character; these are applied when it loads, by slide id, and tests/ascites-deck-agree.test.ts
 // holds each one and fails if a re-copy moves the words it anchors on). Each makes a slide agree with itself: a card and its chart measure the same thing, a colour means what it says.
-import type { CopiedDeck } from './types.ts';
 import { lvpAlbuminText } from '../lvp-albumin.ts';
 
 type Loose = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -28,7 +27,7 @@ export const AMEND = {
 } as const;
 
 /** The deck with the amendments laid on a copy (the copied module is never changed). A slide or an anchor that is not there is left alone. */
-export function amendAscites(deck: CopiedDeck): CopiedDeck {
+export function amendAscites<D extends { slides: readonly unknown[] }>(deck: D): D {
   const d = clone(deck) as unknown as { slides: Loose[] };
   const by = (id: string) => d.slides.find((s) => s.id === id);
 
@@ -47,5 +46,5 @@ export function amendAscites(deck: CopiedDeck): CopiedDeck {
   }
   const n = AMEND.lvpNotes, ns = by(n.slide);
   if (ns && typeof ns.notes === 'string' && ns.notes.includes(n.from)) ns.notes = ns.notes.replace(n.from, n.to);
-  return d as unknown as CopiedDeck;
+  return d as unknown as D;
 }

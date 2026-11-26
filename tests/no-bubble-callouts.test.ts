@@ -15,9 +15,10 @@ import { LS } from '../src/scene/labels/type.ts';
 import { LOOK_IDS } from '../src/looks/looks.ts';
 import { figurePlan } from '../src/ui/deck/figure-plan.ts';
 import { figureCalls } from '../src/ui/deck/figure-calls.ts';
-import { RW_LOADERS } from '../src/decks/rw/copied/index.ts';
+import { RW_IDS } from '../src/decks/rw/copied/index.ts';
 import { AG_IDS, loadAgDeck } from '../src/decks/ag/index.ts';
 import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 // ── the fake page (what the DOM tests build into) ──
 class Style { [k: string]: unknown; setProperty(n: string, v: string) { this[n] = v; } removeProperty(n: string) { delete this[n]; return ''; } getPropertyValue(n: string) { return String(this[n] ?? ''); } }
@@ -34,7 +35,7 @@ const walk = (e: El, f: (e: El) => void): void => { f(e); for (const k of e.kids
 
 type Slide = Parameters<typeof figurePlan>[0];
 const decks = async (): Promise<{ id: string; slides?: readonly unknown[] }[]> => [
-  ...(await Promise.all(Object.values(RW_LOADERS).map((l) => l()))),
+  ...(await Promise.all(RW_IDS.map((id) => loadSource(id)))),
   ...(await Promise.all(AG_IDS.map((id) => loadAgDeck(id)))),
   ...(await Promise.all(HP_IDS.map((id) => loadHpDeck(id)))),
 ];

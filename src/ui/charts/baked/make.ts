@@ -2,9 +2,7 @@
 // Used by scripts/bake-charts.mjs at build time and by the tests. Pure of the page: no store, no worker, no timing.
 import { createCore } from '../../../engine/hales/host/worker-core.js';
 import { chainOf, sequencer, type StepResult } from '../../../decks/hp/numbers.ts';
-import { AG_IDS, loadAgDeck } from '../../../decks/ag/index.ts';
-import { HP_IDS, loadHpDeck } from '../../../decks/hp/index.ts';
-import { RW_IDS, RW_LOADERS } from '../../../decks/rw/copied/index.ts';
+import { SOURCE_IDS, loadSource } from '../../../decks/source.ts';
 import type { CopiedDeck, CopiedSlide } from '../../../decks/hp/types.ts';
 import { curveWork, courseWork, curveKey, type RunFn, type SlideState } from '../curve/data.ts';
 import { stepsOf as cohortStepsOf, hasCohort } from '../small/data.ts';
@@ -36,9 +34,9 @@ export function nodeEngine() {
   };
 }
 
-/** Every copied deck, by id (the three batches the app plays). */
+/** Every built-in deck as the app plays it (the copy with the 3D overlay on: source.ts), so a baked chart is made from the very slides the page loads (the file is matched by a signature of them). */
 export async function allCopiedDecks(): Promise<CopiedDeck[]> {
-  return [...(await Promise.all(AG_IDS.map((id) => loadAgDeck(id)))), ...(await Promise.all(HP_IDS.map((id) => loadHpDeck(id)))), ...(await Promise.all(RW_IDS.map((id) => RW_LOADERS[id]!())))] as CopiedDeck[];
+  return Promise.all(SOURCE_IDS.map((id) => loadSource(id)));
 }
 
 const light = (st: StepResult | undefined): BakedState | null => (st ? { fp: st.fp as BakedState['fp'], params: st.params, trail: st.trail, start: st.start, before: st.before } : null);

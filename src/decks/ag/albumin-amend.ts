@@ -7,7 +7,6 @@
 //
 // In the model tense ascites settles at about 5.9 L at a serum albumin of 2.4 g/dL, too little to take 6 L from. The case's albumin falls to 2.2 g/dL instead (owner's choice, 26 Nov):
 // the belly then holds about 6.6 L and the pressures barely move (HVPG 15.3, was 15.8). The vignette says the same number as the ramp.
-import type { CopiedDeck } from './types.ts';
 import { PER_L_TEXT, lvpAlbuminText } from '../lvp-albumin.ts';
 
 type Loose = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -33,9 +32,9 @@ export const AMEND = {
 } as const;
 
 /** The deck with the amendments laid on a copy (the copied module is never changed). A slide or an anchor that is not there is left alone. */
-export function amendAlbumin(deck: CopiedDeck): CopiedDeck {
+export function amendAlbumin<D extends { slides: readonly unknown[] }>(deck: D): D {
   // (a deep copy, as plain data: the copied module is never changed)
-  const d: CopiedDeck = JSON.parse(JSON.stringify(deck)), slides: Loose[] = d.slides as Loose[];
+  const d: D = JSON.parse(JSON.stringify(deck)), slides = d.slides as Loose[];
   const by = (id: string) => slides.find((s) => s.id === id);
 
   const r = AMEND.ramp, ramp = by(r.slide)?.ramp?.[r.key];

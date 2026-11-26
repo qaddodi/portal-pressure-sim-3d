@@ -12,9 +12,10 @@ import { LOBULE_CAMS, LOBULE_R, lobuleShot, lobuleToScene, type LobuleCam } from
 import { LOBULE_SCALE, lobuleWorld } from '../src/scene/lobule/frames.ts';
 import { figurePlan } from '../src/ui/deck/figure-plan.ts';
 import { figureCalls } from '../src/ui/deck/figure-calls.ts';
-import { RW_LOADERS } from '../src/decks/rw/copied/index.ts';
+import { RW_IDS } from '../src/decks/rw/copied/index.ts';
 import { AG_IDS, loadAgDeck } from '../src/decks/ag/index.ts';
 import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 const net = buildLobule(7);
 /** The congested central vein's widest drawn radius (view.ts cvRadiusNow at congU 1, no fibrosis). */
@@ -22,7 +23,7 @@ const CV_MAX = DISC_R.cv + 0.05;
 
 type Slide = Parameters<typeof figurePlan>[0];
 const slides = async () => {
-  const decks: { id: string; slides?: readonly unknown[] }[] = [...(await Promise.all(Object.values(RW_LOADERS).map((l) => l()))), ...(await Promise.all(AG_IDS.map((id) => loadAgDeck(id)))), ...(await Promise.all(HP_IDS.map((id) => loadHpDeck(id))))];
+  const decks: { id: string; slides?: readonly unknown[] }[] = [...(await Promise.all(RW_IDS.map((id) => loadSource(id)))), ...(await Promise.all(AG_IDS.map((id) => loadAgDeck(id)))), ...(await Promise.all(HP_IDS.map((id) => loadHpDeck(id))))];
   return decks.flatMap((d) => ((d.slides ?? []) as Slide[]).filter((s) => s.callout).map((s) => ({ deck: d.id, slide: s })));
 };
 

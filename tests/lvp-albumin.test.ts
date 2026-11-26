@@ -14,6 +14,7 @@ import { RW_IDS, RW_LOADERS } from '../src/decks/rw/copied/index.ts';
 import { chainOf } from '../src/decks/hp/numbers.ts';
 import { createCore } from '../src/engine/hales/host/worker-core.js';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 type S = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -69,7 +70,7 @@ test('Albumin 3\'s amendments anchor on the copied deck, and are made from the o
 const loaders: [string, () => Promise<CopiedDeck>][] = [
   ...AG_IDS.map((id): [string, () => Promise<CopiedDeck>] => [id, () => loadAgDeck(id) as Promise<CopiedDeck>]),
   ...HP_IDS.map((id): [string, () => Promise<CopiedDeck>] => [id, () => loadHpDeck(id)]),
-  ...RW_IDS.map((id): [string, () => Promise<CopiedDeck>] => [id, RW_LOADERS[id] as () => Promise<CopiedDeck>]),
+  ...RW_IDS.map((id): [string, () => Promise<CopiedDeck>] => [id, () => loadSource(id)]),
 ];
 const textOf = (s: S): string => [s.kicker, s.title, s.line, s.notes, ...(Array.isArray(s.ask) ? s.ask : [])].filter((x) => typeof x === 'string').join(' \n ');
 /** "N to M g" doses in words, but not the rule itself ("6 to 8 g") nor a per-kilogram or per-day dose. */

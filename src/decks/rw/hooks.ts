@@ -22,7 +22,9 @@ const PROCEDURE_OWNER = 'B5';
 const VISUAL_OWNER: Record<string, string> = { table: 'B12', ladders: 'B12', outline: 'B12', check: 'B12', plane: 'B10', scale: 'B12', quadrant: 'B10', walls: 'B12', allpatients: 'B12' };
 
 /** The fields that carry words (the cards typeset them) or are read by another field's feature; they need nothing of their own. */
-const WORDS = new Set(['id', 'kicker', 'title', 'line', 'notes', 'ask', 'caveat', 'cite', 'site', 'vignette', 'causes', 'causesHead', 'eq', 'terms', 'tick', 'when', 'milestone', 'pill', 'bold', 'chartFoot']);
+const WORDS = new Set(['id', 'kicker', 'title', 'line', 'notes', 'ask', 'caveat', 'cite', 'site', 'vignette', 'causes', 'causesHead', 'eq', 'terms', 'tick', 'when', 'milestone', 'pill', 'bold', 'chartFoot',
+  // the 3D overlay's additions (decks/overlay.ts): carried on the slide, read by the card or camera that owns each
+  'also', 'frame', 'scores', 'split', 'interact']);
 /** The fields that steer the model (numbers.ts runs them) or the camera (cams.ts frames them). */
 const MODEL = new Set(['preset', 'presetDays', 'params', 'action', 'days', 'relax', 'ramp', 'sameAs']);
 const CAMERA = new Set(['cam', 'kMax', 'zone']);

@@ -79,7 +79,7 @@ export function caudateOf(s: CopiedSlide): boolean {
 export function planSlide(deck: string, s: CopiedSlide, index: number): SlidePlan {
   // (a Circuit slide with a `zone` and no `cam` frames that zone's region: the 2D presenter's zoneCam)
   const labels = (s.labels ?? []).filter((id) => STATION_IDS.has(id));
-  const own = slideCam(deck, s.id, s.cam);   // (a slide whose region is far wider than its subject: cams.ts FRAME_FIXES)
+  const own = slideCam(s);   // (a slide whose region is far wider than its subject carries a `frame`: overlay/frames.ts)
   const cam = camPlan(s.cam == null && s.view === 'circuit' && !s.visual && typeof s.zone === 'string' ? s.zone : own.cam, s.view, labels, own.floor);
   const view: FigureView = cam.kind === 'circuit' ? 'circuit' : cam.kind === 'lobule' ? (cam.name === 'sinusoid' ? 'sinusoid' : 'lobule') : 'body';
   const fit = camPlan("fit");

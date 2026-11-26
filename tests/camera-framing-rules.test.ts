@@ -8,6 +8,7 @@ import { stopsOf, viewAt } from '../src/ui/deck/presenter-machine.ts';
 import { FOV, SHOTS, type Shot } from '../src/scene/camera/shots.ts';
 import { effectiveDistance, KEEP_PX } from '../src/scene/camera/room.ts';
 import { stationDot, WIDE_ROUTES } from '../src/decks/hp/cams.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 export const DEVICES = [
   { name: 'Mac', w: 1440, h: 900, room: { w: 1020, h: 900 } },
@@ -68,7 +69,7 @@ import { boxOfNames, PLACED_ORGAN_BOX } from '../src/scene/anatomy/source.ts';
 
 async function copiedSlide(deck: string, slide: string): Promise<{ cam?: unknown } | undefined> {
   const hp = HP_DECKS.some((d) => d.id === deck), ag = (AG_IDS as readonly string[]).includes(deck), rw = (RW_IDS as readonly string[]).includes(deck);
-  const c = hp ? await loadHpDeck(deck) : ag ? await loadAgDeck(deck as never) : rw ? await RW_LOADERS[deck as never]!() : null;
+  const c = hp ? await loadHpDeck(deck) : ag ? await loadAgDeck(deck as never) : rw ? await loadSource(deck as never) : null;
   return (c as unknown as { slides: { id: string; cam?: unknown }[] } | null)?.slides.find((s) => s.id === slide);
 }
 const shotOfSlide = (deck: string, slide: string): Shot => {

@@ -16,13 +16,14 @@ import { catheterAt, stopsOf } from '../src/ui/deck/presenter-machine.ts';
 import { toDeck } from '../src/decks/hp/deck.ts';
 import { hookOf } from '../src/decks/ag/needs.ts';
 import { CATH_END } from '../src/scene/procedures/copied/cath-arrival.js';
+import { loadSource } from '../src/decks/source.ts';
 
 interface Row { deck: string; slide: CopiedSlide; i: number }
 async function everySlide(): Promise<Row[]> {
   const rows: Row[] = [];
   const add = (d: CopiedDeck) => d.slides.forEach((slide, i) => rows.push({ deck: d.id, slide, i }));
   for (const id of AG_IDS) add((await loadAgDeck(id)) as never);
-  for (const id of RW_IDS) add((await RW_LOADERS[id]!()) as never);
+  for (const id of RW_IDS) add((await loadSource(id)) as never);
   for (const id of HP_IDS) add(await loadHpDeck(id));
   return rows;
 }

@@ -36,7 +36,9 @@ const graphReady = (): boolean => lapseGraphOf({ lapse: {}, tiles: ['pv', 'pvFlo
 export const ACTION_KINDS = ['infuse', 'hemorrhage', 'retain', 'band', 'paracentesis', 'valsalva', 'strain', 'rupture', 'stopBleed'] as const;
 
 /** Slide fields that are the slide's words or its identity: the copy carries them and no other batch has to read them. */
-const WORDS = new Set(['id', 'kicker', 'title', 'line', 'notes', 'ask']);
+const WORDS = new Set(['id', 'kicker', 'title', 'line', 'notes', 'ask',
+  // the 3D overlay's additions (decks/overlay.ts), carried on the slide and read by the card or camera that owns each; they need nothing from another batch
+  'also', 'frame', 'scores', 'split', 'interact']);
 /** The model's steps: the engine host runs them (steps.ts). */
 const MODEL = new Set(['preset', 'presetDays', 'params', 'days', 'ramp', 'relax', 'action']);
 /** The camera: shots.ts turns it into a ShotSpec. */

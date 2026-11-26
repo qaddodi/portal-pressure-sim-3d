@@ -13,6 +13,7 @@ import { markCards } from '../src/scene/labels/proc-marks.ts';
 import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
 import { AG_IDS, loadAgDeck } from '../src/decks/ag/index.ts';
 import { RW_IDS, RW_LOADERS } from '../src/decks/rw/copied/index.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 type Rec = { u: number; needle: number; wire: number; balloon: number; column: number; coil?: number; flash: number; [k: string]: unknown };
 type Sp = NonNullable<ReturnType<typeof specFor>> & { route?: string; scope?: string; graft?: boolean };
@@ -34,7 +35,7 @@ async function deckKinds(): Promise<string[]> {
   const kinds = new Set<string>();
   const add = (d: { slides: { procedure?: unknown }[] }): void => { for (const s of d.slides) { const p = procPlanOf(s); if (p) { kinds.add(p.kind); if (p.then) kinds.add(p.then); } } };
   for (const id of AG_IDS) add((await loadAgDeck(id)) as never);
-  for (const id of RW_IDS) add((await RW_LOADERS[id]!()) as never);
+  for (const id of RW_IDS) add((await loadSource(id)) as never);
   for (const id of HP_IDS) add((await loadHpDeck(id)) as never);
   return [...kinds].sort();
 }

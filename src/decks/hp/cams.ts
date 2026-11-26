@@ -9,6 +9,10 @@ import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../sce
 import { REGIONS_HP as REGIONS, CIRC_REGIONS_HP as CIRC_REGIONS, box2Of, centreOf, type Box3 } from '../../scene/anatomy/source.ts';
 import { camProblems as onProblems, box3Of, placedFitBox, wholeShot } from '../rw/cams.ts';   // (the by-name camera { on: [names], near }: one implementation, shared by every deck)
 import type { CopiedSlide } from './types.ts';
+import { ROUTE_TO_STATIONS } from '../overlay/frames.ts';
+
+// (the framing policy's data moved to src/decks/overlay/frames.ts; these names stay readable from here for the tests and the other cameras)
+export { FRAME_FIXES, CONTEXT_FLOOR, CLOSE_UPS, WIDE_ROUTES, ROUTE_TO_STATIONS } from '../overlay/frames.ts';
 
 export type Box = readonly [number, number, number, number];
 
@@ -95,7 +99,6 @@ export function camPlan(cam: CopiedSlide['cam'], view?: string | null, stations:
 
 /** FRAMING RULE S6 (Mohammad, 25 Nov, "do it" to more rules for every scenario): the `route` region (liver to right atrium, 0.87 x 1.10 half) is taller than the labels on it. A route slide is framed to the route's width and only the height its labelled stations
  *  need (plus STATION_AIR), so on a phone, where the cards leave a room barely 200 px tall, a vein still draws 8 px or more (F6) and the margin rule (F3) holds in the room the solver is given. Context above and below the stations may leave the room. */
-export const ROUTE_TO_STATIONS = 'route-stations';
 const ROUTE_X: readonly [number, number] = [380, 900];
 function routeBox(stations: readonly string[]): CopiedSlide['cam'] {
   const ys = stations.map((n) => stationDot(n)).filter((p): p is [number, number] => !!p).map((p) => p[1]);
@@ -103,51 +106,10 @@ function routeBox(stations: readonly string[]): CopiedSlide['cam'] {
   const y2d = (y: number) => 556 - 300 * y;
   return [ROUTE_X[0], Math.round(y2d(Math.max(...ys) + STATION_AIR)), ROUTE_X[1], Math.round(y2d(Math.min(...ys) - STATION_AIR))];
 }
-/** FRAMING RULE F1 (Mohammad, 25 Nov, docs/approved/framing-rules.md): a slide whose copied 2D camera is a whole region but whose subject is a small part of it is framed on that part. Each entry names the slide, the 2D camera it
- *  replaces (so a re-copy that moves the camera is noticed: tests/camera-framing-rules.test.ts), the frame that replaces it, and the context floor (half extent, scene units: no tighter than this, F5). The 2D deck is never edited. */
-export interface FrameFix { was: string; cam: CopiedSlide['cam']; floor: number }
-export const CONTEXT_FLOOR = 0.45;
-/** The hepatic veins and the caudate lobe, as a plate box: the Outflow talk's `hepatic` frame (410 to 800 by 40 to 340, half 0.65 x 0.50) moved 0.17 units down, so the caudate (placed y 0.60 to 0.98, no name a camera can point at) stands whole with 0.08 of air
- *  and the hepatic veins' mouths (to y 1.23) stay in. Same size as `hepatic`, so the two talks frame the veins alike (F10). */
-const HV_CAUDATE: [number, number, number, number] = [410, 100, 800, 400];
-const LPV_STENT: CopiedSlide['cam'] = { on: ['lpv', 'TIPS'] };
-export const FRAME_FIXES: Record<string, FrameFix> = {
-  // Budd-Chiari: the hepatic veins and the caudate lobe (the liver frame was the whole liver; 0.86 x 0.60 half against 0.45 floor, 1.3 times closer on a Mac)
-  'budd-chiari/dx': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
-  'budd-chiari/ladder': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
-  'budd-chiari/anticoag': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
-  'budd-chiari/agent': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
-  'budd-chiari/response': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
-  'budd-chiari/alf': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
-  'budd-chiari/hcc': { was: 'liver', cam: HV_CAUDATE, floor: CONTEXT_FLOOR },
-  // the left portal vein and the stent: the slides read flow in the intrahepatic portal branches and at the stent
-  'doppler/a5': { was: 'liver', cam: LPV_STENT, floor: 0.55 },
-  'tips-doppler/left': { was: 'liver', cam: LPV_STENT, floor: 0.55 },
-  'tips-doppler/warn': { was: 'liver', cam: LPV_STENT, floor: 0.55 },
-};
-/** FRAMING RULE F5: the declared close-ups, the only slides allowed a frame under the context floor (its longer half under CONTEXT_FLOOR) or a vein wider than a sixth of the room's short side. Mohammad, 25 Nov: "do it" to keeping all four, and to say if the baseline should pull back.
- *  A slide not listed that falls under either limit fails tests/camera-framing-rules.test.ts; a slide listed that no longer needs it fails the same test. (The nearest distance, NEAR 2.8, already stops the very smallest boxes at a vein 105 px wide on a Mac, 98 px on a phone.) */
-export const CLOSE_UPS: readonly string[] = ['tips-complete/baseline', 'tips-doppler/jet', 'varices/burst'];
-// Whole-figure overviews are for orientation (framing rule S12; Mohammad, 25 Nov): a slide that names parts of the body is framed on them.
-const VARICES_SPLEEN: [number, number, number, number] = [540, -20, 1120, 580];   // the `varices` and `spleen` regions together
-const FUNDUS_LIVER: [number, number, number, number] = [344, 166, 1110, 690];     // the `fundus` and `liver` regions together (the varices and the stent that treats them)
-Object.assign(FRAME_FIXES, {
-  'ncph/patient': { was: 'fit', cam: VARICES_SPLEEN, floor: 0 },
-  'ncph/relation': { was: 'fit', cam: VARICES_SPLEEN, floor: 0 },
-  'gastric-varices/tips': { was: 'fit', cam: FUNDUS_LIVER, floor: 0 },
-  'tipping/injury': { was: 'fit', cam: 'liver', floor: 0 },
-  'tipping/injury-card': { was: 'fit', cam: 'liver', floor: 0 },
-} satisfies Record<string, FrameFix>);
-const ROUTE_SLIDES = ['circulation/ladder', 'circulation/define', 'circulation/path-ladder', 'circulation/relation', 'doppler/a4', 'gradients/where', 'masld/under', 'masld/parts', 'prehepatic/gradients', 'same-gradient/ref', 'same-gradient/up', 'same-gradient/cost', 'sites/healthy', 'tips-candidacy/heart-stent', 'tips-complete/heart', 'two-lesions/together', 'two-lesions/measure'];
-for (const k of ROUTE_SLIDES) FRAME_FIXES[k] = { was: 'route', cam: ROUTE_TO_STATIONS, floor: CONTEXT_FLOOR };
-FRAME_FIXES['doppler/meal'] = { was: 'gut', cam: [360, 360, 1070, 900], floor: CONTEXT_FLOOR };
-/** FRAMING RULE S6 (a whole route): the views that name a route from the gut to the heart and cannot draw its veins 8 px wide in the room a phone's cards leave, because the named route is longer than that room (circulation/series: gut veins to the right atrium, 2.9 units, 5.8 px).
- *  Nothing named is cropped for it; the test fails if one no longer needs the exemption. (varices/umbilical's recap of two routes was the other; Mohammad dropped that view, 25 Nov: scripts/source-edits.mjs VARICES_REVIEW.) */
-export const WIDE_ROUTES: readonly string[] = ['circulation/series'];
-/** The camera a slide asks for and the floor it keeps: the fix's, when the slide has one and the copied camera is still the one it replaces. */
-export function slideCam(deck: string, slide: string, cam: CopiedSlide['cam']): { cam: CopiedSlide['cam']; floor: number } {
-  const f = FRAME_FIXES[`${deck}/${slide}`];
-  return f && cam === f.was ? { cam: f.cam, floor: f.floor } : { cam, floor: 0 };
+/** The camera a slide asks for and the floor it keeps: the slide's own `frame` (the 3D overlay, src/decks/overlay.ts), when it has one and the copied camera is still the one it replaces. */
+export function slideCam(s: Pick<CopiedSlide, 'cam' | 'frame'>): { cam: CopiedSlide['cam']; floor: number } {
+  const f = s.frame;
+  return f && s.cam === f.was ? { cam: f.cam, floor: f.floor } : { cam: s.cam, floor: 0 };
 }
 
 function camPlanOf(cam: CopiedSlide['cam'], view?: string | null): CamPlan {

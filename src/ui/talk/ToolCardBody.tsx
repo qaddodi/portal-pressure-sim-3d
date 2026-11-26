@@ -40,7 +40,6 @@ import { ghostOf } from './ghost.ts';
 import { claimSlide, holdSlideDevices } from './slide-claim.ts';
 import { StiffCard } from '../charts/stiff/StiffCard.tsx';
 import { ScoresCard } from '../charts/scores/ScoresCard.tsx';
-import { SCORES_ON } from '../charts/scores/slides.ts';
 import { VitalsCard } from '../charts/vitals/VitalsCard.tsx';
 import { engine } from '../../engine/index.ts';
 import { FlowTimeCard } from '../charts/flowtime/FlowTimeCard.tsx';
@@ -145,7 +144,7 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
   switch (kind) {
     case 'criteria': {
       // (the slides that give a case's liver function show its Child–Pugh and MELD under the criteria: charts/scores/slides.ts)
-      const sc = SCORES_ON[`${deck.id}/${slide.id}`];
+      const sc = slide.scores;
       return sc ? <><CriteriaCard tool={tool as never} fp={fp as never} /><ScoresCard facts={sc} albumin={(fp?.salb as number | null | undefined) ?? null} note={false} /></> : <CriteriaCard tool={tool as never} fp={fp as never} />;
     }
     case 'scores': return <ScoresCard facts={(tool.facts as never) ?? {}} albumin={(fp?.salb as number | null | undefined) ?? null} />;

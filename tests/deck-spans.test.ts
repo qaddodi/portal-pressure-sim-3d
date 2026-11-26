@@ -13,10 +13,11 @@ import { spanOf, spanStrokes, spanY, SPAN_Y, SPAN_TICK } from '../src/scene/labe
 import { CIRCUIT_NODES, NODE_CIRCUIT } from '../src/scene/circuit/data.copied.ts';
 import { tokensOf } from '../src/decks/hp/numbers.ts';
 import { hookOf, needsOf } from '../src/decks/ag/needs.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 const decks: CopiedDeck[] = [];
 for (const id of AG_IDS) decks.push((await loadAgDeck(id)) as unknown as CopiedDeck);
-for (const id of RW_IDS) decks.push((await RW_LOADERS[id]!()) as unknown as CopiedDeck);
+for (const id of RW_IDS) decks.push((await loadSource(id)) as unknown as CopiedDeck);
 for (const id of HP_IDS) decks.push(await loadHpDeck(id));
 type Sp = { from: string; to: string; label: string };
 const withSpan = decks.flatMap((d) => d.slides.filter((s) => (s as { span?: unknown }).span).map((s) => ({ id: `${d.id}/${s.id}`, s })));

@@ -4,16 +4,17 @@
 //  - the lobule slides that place a lesion name the same three stations (portal venule, sinusoids, central vein), whatever words the line uses, unless the slide's own `reads` says which.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { RW_LOADERS } from '../src/decks/rw/copied/index.ts';
+import { RW_IDS } from '../src/decks/rw/copied/index.ts';
 import { AG_IDS, loadAgDeck } from '../src/decks/ag/index.ts';
 import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
 import type { CopiedSlide } from '../src/decks/hp/types.ts';
 import { figurePlan } from '../src/ui/deck/figure-plan.ts';
 import { TARGETS_FIG } from '../src/scene/labels/figure2d.copied.ts';
 import { STATIONS } from '../src/scene/labels/stations.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 const decks: { id: string; slides: CopiedSlide[] }[] = (await Promise.all([
-  ...Object.values(RW_LOADERS).map((l) => l()), ...AG_IDS.map((id) => loadAgDeck(id)), ...HP_IDS.map((id) => loadHpDeck(id)),
+  ...RW_IDS.map((id) => loadSource(id)), ...AG_IDS.map((id) => loadAgDeck(id)), ...HP_IDS.map((id) => loadHpDeck(id)),
 ])) as never;
 const slides = decks.flatMap((d) => d.slides.map((s, i) => ({ s, at: `${d.id}#${i + 1}` })));
 const STATION_IDS = new Set(STATIONS.map((x) => x.id));

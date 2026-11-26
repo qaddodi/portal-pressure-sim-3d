@@ -24,6 +24,7 @@ import { profileFrameAtRest } from '../src/ui/charts/profile/frame.ts';
 import { profileInputs } from '../src/ui/charts/profile/data.ts';
 import type { CopiedSlide } from '../src/decks/hp/types.ts';
 import { ctxOf } from './charts-helpers.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 /** The engine's `sequence` on the host in node (what the page's second engine runs). */
 const nodeSeq: Seq = async (steps, base) => {
@@ -56,7 +57,7 @@ const atBedside = (host as unknown as { atBedside(e: unknown): void }).atBedside
 const DECKS = ['sites', 'treatment'] as const;
 for (const id of DECKS) {
   test(`${id}: every compare button of a slide with the Gut to heart ladder gives the charts the patient the figure and the card show`, async () => {
-    const d = (await RW_LOADERS[id]!()) as unknown as { slides: CopiedSlide[] };
+    const d = (await loadSource(id)) as unknown as { slides: CopiedSlide[] };
     const cache = new Map<string, Promise<Picked>>();
     let pressed = 0;
     for (let i = 0; i < d.slides.length; i++) {
@@ -96,7 +97,7 @@ for (const id of DECKS) {
 }
 
 test('the ladder of a normal heart is not the failing heart\'s (the 21 Nov bug), and the six causes are six ladders', async () => {
-  const d = (await RW_LOADERS.sites!()) as unknown as { slides: CopiedSlide[] };
+  const d = (await loadSource('sites')) as unknown as { slides: CopiedSlide[] };
   const i = d.slides.findIndex((s) => (s.compare as { preset?: string }[] | undefined)?.some((o) => o.preset === 'healthy'));
   assert.ok(i >= 0);
   const own = await ownState(d.slides, i), cache = new Map<string, Promise<Picked>>();
@@ -108,7 +109,7 @@ test('the ladder of a normal heart is not the failing heart\'s (the 21 Nov bug),
 // worked out as a parameter button's is (controls-run.ts dragWhatIf); its ends must give the charts the patient the figure shows, and a value that moves the model moves the readings.
 /** A talk's copied deck from whichever batch holds it (A to G, H to P, R to W). */
 const deckOf = async (id: string): Promise<{ slides: CopiedSlide[] }> =>
-  ((id in RW_LOADERS ? await RW_LOADERS[id]!() : isHpDeck(id) ? await loadHpDeck(id) : await loadAgDeck(id as AgId))) as unknown as { slides: CopiedSlide[] };
+  (((RW_IDS as readonly string[]).includes(id) ? await loadSource(id) : isHpDeck(id) ? await loadHpDeck(id) : await loadAgDeck(id as AgId))) as unknown as { slides: CopiedSlide[] };
 let slidersMoved = 0;
 for (const id of [...RW_IDS, ...HP_IDS, ...AG_IDS]) {
   test(`${id}: every what-if slider gives the slide's charts the patient the figure shows, at both ends`, async () => {

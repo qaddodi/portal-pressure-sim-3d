@@ -13,6 +13,7 @@ import { specFor } from '../src/ui/deck/procs-plan.ts';
 import { procPlanOf } from '../src/ui/deck/procs-plan.ts';
 import { eventGraphOf, EVENT_S } from '../src/ui/charts/evgraph/model.ts';
 import { evRunFor, leaveEvRun, resetEvRun, restoreEvRun, startEvRun, FEED_DT, type FrameSource } from '../src/ui/charts/evgraph/live.ts';
+import { loadSource } from '../src/decks/source.ts';
 
 test('only Back from the slide after lands a procedure slide done; any other way in lands before the procedure', () => {
   assert.equal(landsDone(5, 4), true);
@@ -31,7 +32,7 @@ test('only Back from the slide after lands a procedure slide done; any other way
 test('every slide of every deck that plays a procedure and changes the patient keeps a before state, so it can land before the procedure', async () => {
   const decks: CopiedDeck[] = [];
   for (const id of AG_IDS) decks.push((await loadAgDeck(id)) as never);
-  for (const id of RW_IDS) decks.push((await RW_LOADERS[id]!()) as never);
+  for (const id of RW_IDS) decks.push((await loadSource(id)) as never);
   for (const id of HP_IDS) decks.push(await loadHpDeck(id));
   let n = 0;
   for (const d of decks) d.slides.forEach((s, i) => {

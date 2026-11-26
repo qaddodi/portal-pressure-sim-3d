@@ -50,15 +50,26 @@ export interface CopiedSlide {
   visual?: string | null;
   compare?: Table[] | null;
   whatIf?: Table | null;
-  [k: string]: Json | undefined;
+  // what the 3D app adds to a slide (src/decks/overlay.ts merges these on at load; a copied 2D deck never has them, so a re-copy cannot touch them)
+  /** a second level tab beside `site` */
+  also?: string | null;
+  /** the 3D camera policy: the camera it replaces, the one it frames instead, and the context floor (overlay/frames.ts) */
+  frame?: import('../overlay/frames.ts').FrameFix | null;
+  /** the liver-function card's facts (ui/charts/scores/model.ts ScoreFacts and focus) */
+  scores?: import('../overlay/scores.ts').SlideScores | null;
+  /** the split orbit: the words over each liver (decks/split-slides.ts) */
+  split?: import('../split-slides.ts').SplitSlide | null;
+  /** a question the room answers before the model reveals (decks/interact.ts) */
+  interact?: Record<string, unknown> | null;
+  [k: string]: unknown;
 }
 
 export interface CopiedDeck {
   id: string;
   title: string;
-  short: string;
-  head: string;
-  topic: string;
+  short?: string;
+  head?: string;
+  topic?: string;
   level: string;
   minutes: number;
   summary: string;
@@ -66,5 +77,5 @@ export interface CopiedDeck {
   checks: [string, string][];
   sections?: [string, string[]][] | null;
   slides: CopiedSlide[];
-  [k: string]: Json | CopiedSlide[] | undefined;
+  [k: string]: unknown;
 }

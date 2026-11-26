@@ -1,20 +1,2 @@
-// The slides that show the liver-function card under their criteria (a slide's own `tool` stays what the 2D deck gave it; this table adds the card). The case facts are the slide's
-// vignette's where it gives them; INR, ascites and the like that a vignette leaves out are chosen here so the total is the one its words name (tests/scores-card.test.ts checks every
-// "Child–Pugh X n" and "MELD n" a slide says against the card). Albumin is the model's (fp.salb) except where a fact is given.
-import type { Focus, ScoreFacts } from './model.ts';
-
-export type SlideScores = ScoreFacts & { focus: Focus };
-
-const BLED_C11: SlideScores = { bili: 5.2, inr: 2.4, creatinine: 1.1, ascites: 'mild', he: 'none', focus: 'preemptive' };
-
-export const SCORES_ON: Readonly<Record<string, SlideScores>> = Object.freeze({
-  // Child–Pugh C 11, bilirubin 5.2, MELD 23, creatinine 1.1; the preset's albumin 2.8 (2 points), ascites held by the preset's diuretics
-  'tips-candidacy/pre': BLED_C11,
-  'tips-complete/pre': BLED_C11,
-  // Child–Pugh B 8 with mild ascites, no active bleeding at endoscopy
-  'choose-treatment/a1': { bili: 2.2, inr: 1.5, creatinine: 0.9, ascites: 'mild', he: 'none', focus: 'preemptive' },
-  // bilirubin 4.1, INR 1.8, creatinine 1.4: MELD 22; refractory ascites; the slide sets the albumin 2.5
-  'tips-candidacy/meld': { bili: 4.1, inr: 1.8, creatinine: 1.4, albumin: 2.5, ascites: 'moderate', he: 'none', focus: 'elective' },
-  // the liver back to Child–Pugh A5 or A6: no ascites off diuretics, no HE, the model's albumin
-  'recompensation/recomp': { bili: 0.9, inr: 1.1, creatinine: 0.9, ascites: 'none', he: 'none', focus: 'recompensation' },
-});
+// The slides that show the liver-function card live in the 3D overlay now (src/decks/overlay/scores.ts, merged onto each slide as its `scores` field). This keeps the old names readable.
+export { SCORES as SCORES_ON, type SlideScores } from '../../../decks/overlay/scores.ts';
