@@ -38,6 +38,7 @@ import { attachRuns, slicesFor } from './geometry.ts';
 import { CIRCUIT_D, CIRCUIT_TREES, CUSTOM_EDGES } from './data.copied.ts';
 import { MAP_CENTRE, MAP_K } from './map.ts';
 import { circuitWidthMap } from './width.ts';
+import { samePrint } from '../fingerprint.ts';
 
 /** How far (in radii of the widest arm) an arm's end may lie from J on the map: the body's own SKIN_REACH. Every end is ON its station except the two arterioles' (A_HR, A_HL end beside the bed's comb, 30 map units from its station: 7.5 radii of an 8 unit bed). The map does
  *  not draw them touching (the artery runs on beside the lanes), so they are not a junction there: SIN_R and SIN_L keep their lines, named in `circuitFallbacks` and pinned by tests/circuit-skins.test.ts. */
@@ -361,7 +362,7 @@ export class CircuitSkinSet {
     if (!js.length) return;
     const tubes = this.tubesOf(js), warn = this.deps.warn ?? ((m: string) => console.warn(m));
     this.digest = `circuit/${skinsDigest(js, tubes)}`;
-    const baked = this.deps.baked?.() ?? null, usable = baked && baked.digest === this.digest ? baked : null;
+    const baked = this.deps.baked?.() ?? null, usable = baked && samePrint(baked.digest, this.digest) ? baked : null;
     const made: Built[] = [], lost: { node: string; message: string }[] = [];
     this.dropped.length = 0; this.dropped.push(...circuitFarGrowers());
     this.source = usable ? 'baked' : 'live';

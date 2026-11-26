@@ -1,4 +1,5 @@
-// The Anatomy's junction skins are baked at build time (skin/baked.ts, scripts/bake-skins.mjs): the page plans and meshes nothing at load, the figure's first frame has its welds, and nothing is fetched late enough to pop
+// The Anatomy's junction skins are baked at build time (skin/baked.ts, scripts/bake-skins.mjs): the page plans and meshes nothing at load, the figure's first frame has its welds, and nothing
+// is fetched late enough to pop
 // (20 Nov: a first-frame stall is not acceptable). Run: node --test tests/skin-baked.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,6 +13,7 @@ import { REST } from '../src/scene/vessels/shape.ts';
 import { armTube } from '../src/scene/vessels/skin/braid-arm.ts';
 import { PACES } from '../src/scene/vessels/skin/mesh.ts';
 import { buildTubes } from '../src/scene/vessels/tubes.ts';
+import { samePrint } from '../src/scene/fingerprint.ts';
 import { ROUNDED_KEYS, decodeSkins, encodeSkins, roundMantissa, skinsDigest, type BakedSkins } from '../src/scene/vessels/skin/baked.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 import { sceneSource } from './helpers/scene-source.ts';
@@ -44,8 +46,10 @@ test('the baked file unpacks to the skins it was made from, and a build that is 
     const liveMs = performance.now() - t0, made = live.set.bake();
     assert.ok(made.skins.length >= 12, `${made.skins.length} skins baked`);
     assert.ok(made.digest.length > 10);
-    // (placed anatomy, round 18: the hepatic veins open at two ostia apart along the cava, the right one 3 cava radii below the common trunk (placed-network.ts HV_OSTIA), and no hull of the five seam rings covers them all, so the cava's skin is
-    //  meshed from the surface itself (skin-set.ts: the retry before a node keeps today's joins), the last rung, FROM_SURFACE. Round 17's one mouth closed on the first rung. Either way a later rebuild starts at the rung that closed it)
+    // (placed anatomy, round 18: the hepatic veins open at two ostia apart along the cava, the right one 3 cava radii below the common trunk (placed-network.ts HV_OSTIA), and no hull of the
+    // five seam rings covers them all, so the cava's skin is
+    //  meshed from the surface itself (skin-set.ts: the retry before a node keeps today's joins), the last rung, FROM_SURFACE. Round 17's one mouth closed on the first rung. Either way a later
+    // rebuild starts at the rung that closed it)
     const ivcs = made.skins.find((s) => s.plan.junction.node === 'IVCS')!;
     assert.equal(ivcs.pace, PACES.length - 1, 'the cava closes on the slowest rung, which a later rebuild of it starts at');
     assert.equal(ivcs.plan.junction.surface, true, 'the cava\'s skin is meshed from the surface');
@@ -96,30 +100,29 @@ test('the rounding is bounded: a rounded number is within 2^-15 of itself (relat
   assert.ok(!ROUNDED_KEYS.has('position') && !ROUNDED_KEYS.has('index'));
 });
 
-test('a baked file is the file for one figure: the digest moves with a junction or with one vertex of an arm tube, and not with noise below 1e-4', () => {
+test('a baked file is the file for one figure: a junction moved, or an arm tube made otherwise, is another figure; the last bits of another engine are not (scene/fingerprint.ts)', () => {
   const tube = (dx: number) => { const g = new BufferGeometry(); g.setAttribute('position', new Float32BufferAttribute([0, 0, 0, 1 + dx, 0, 0, 2, 0, 0], 3)); return { geometry: g, tubular: 2 }; };
   const j = (x: number) => ({ node: 'N', J: [x, 0, 0] as [number, number, number], arms: [] });
-  const d = (dx: number, x = 0) => skinsDigest([j(x)], new Map([['V', tube(dx)]]));
-  assert.equal(d(0), d(0));
-  assert.equal(d(0), d(1e-6), 'the last bits of sin and cos between node and a phone do not matter');
-  assert.notEqual(d(0), d(1e-3), 'a moved vertex');
-  assert.notEqual(d(0), d(0, 0.5), 'a moved junction');
+  const d = (dx: number, x = 0) => skinsDigest([j(x + 1)], new Map([['V', tube(dx)]]));
+  assert.ok(samePrint(d(0), d(0)));
+  assert.ok(samePrint(d(0), d(1e-9)), 'the last bits of sin and cos between node and a phone do not matter');
+  assert.ok(!samePrint(d(0), d(0.1)), 'a moved vertex');
+  assert.ok(!samePrint(d(0), d(0, 0.5)), 'a moved junction');
 });
 
-test('the digest hashes what the tubes are made FROM, so the trig last bits of another engine cannot cost a phone its baked file: noise on every vertex changes nothing, a moved course point does', () => {
+test('the digest walks what the tubes are made FROM: noise on every vertex changes nothing, a course moved where a person would see it does', () => {
   const ids = ['C7', 'C5', 'V_SPL', 'PV_TRUNK'];
   const make = (dy = 0, noise = 0) => new Map(ids.map((id) => {
     const def = NETWORK_BY_ID.get(id)!, at = armTube(def, REST);
-    const courses = at.courses.map((c, i) => (i === 0 && dy ? { ...c, pts: c.pts.map((p, k) => (k === 7 ? [p[0], p[1] + dy, p[2]] as [number, number, number] : p)) } : c));
+    const courses = at.courses.map((c, i) => (i === 0 && dy ? { ...c, pts: c.pts.map((p) => [p[0], p[1] + dy, p[2]] as [number, number, number]) } : c));
     const b = buildTubes(courses, at.tubular, def.radius), pos = b.geometry.getAttribute('position').array as Float32Array;
     if (noise) for (let i = 0; i < pos.length; i++) pos[i] += noise * (((i * 2654435761) >>> 0) / 4294967296 - 0.5);   // (every vertex off by up to noise/2: the last bits of another engine's sin and cos)
     return [id, { geometry: b.geometry, tubular: b.runs[0]!.tubular, input: courses }] as const;
   }));
   const j = [{ node: 'N', J: [0, 0, 0] as [number, number, number], arms: [] }];
   const d = (dy = 0, noise = 0) => skinsDigest(j, make(dy, noise));
-  assert.equal(d(), d(0, 1e-5), 'noise of 1e-5 on every vertex: the same file');
-  assert.equal(d(), d(0, 3e-4), 'even noise a rounding step wide on the vertices does not reach the digest');
-  assert.notEqual(d(), d(1e-3), 'a course point moved by 1e-3');
+  assert.ok(samePrint(d(), d(0, 3e-4)), 'noise on the vertices does not reach the digest');
+  assert.ok(!samePrint(d(), d(0.05)), 'a course moved by 0.05 of a unit (15 px of the 2D figure)');
 });
 
 test('the build bakes the skins before the bundler, the scene builds nothing before the file is in, and the boot waits for it with the fonts and the engine', () => {
