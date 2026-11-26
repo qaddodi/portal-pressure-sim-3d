@@ -41,6 +41,16 @@ function cells(m: { toon: InstancedMesh }) {
   return out;
 }
 
+/** One scene for the tests that only change the hematocrit (building one costs a second or two): it is snapped to `hct` and stepped, which is how the model reaches it. */
+let shared1: ReturnType<typeof scene> | null = null, clockMs = 2000;
+function at(hct: number) {
+  const sc = (shared1 ??= scene());
+  sc.flat.snapTargets(T({ hct }));
+  sc.flat.update(clockMs += 16); sc.flat.update(clockMs += 16);
+  sc.s3.update(true);
+  return sc;
+}
+
 async function patient(id: string) {
   const out: { type: string; [k: string]: unknown }[] = [];
   const core = createCore((m: { type: string }) => out.push(m));
@@ -82,11 +92,11 @@ test('the cells cover as much of the lumen\'s picture as the hematocrit says, an
 
 test('the scene draws exactly the cells the hematocrit asks for', () => {
   for (const hct of [0.42, 0.31, 0.2, 0.52]) {
-    const { mesh } = scene(hct);
+    const { mesh } = at(hct);
     const w = rbcWanted(hct), want = Math.ceil(w.main) + 2 * Math.ceil(w.far);
     assert.ok(Math.abs(mesh().toon.count - want) <= 3, `hct ${hct}: ${mesh().toon.count} drawn, ${want} asked`);
   }
-  const full = scene(0.42).mesh().toon.count, thin = scene(0.21).mesh().toon.count;
+  const full = at(0.42).mesh().toon.count, thin = at(0.21).mesh().toon.count;
   assert.ok(Math.abs(thin / full - 0.5) < 0.02, `half the hematocrit draws half the cells (${thin} of ${full})`);
 });
 
@@ -108,7 +118,7 @@ test('the red cell is no bigger than it was: RBC_R, every drawn cell at most tha
   let maxR = 0; for (let i = 0; i < p.count; i++) maxR = Math.max(maxR, Math.hypot(p.getX(i), p.getY(i)));
   assert.ok(Math.abs(maxR - 1) < 1e-6, 'the unit cell is one radius across, whatever its rings');
   for (const hct of [0.42, 0.2, 0.52]) {
-    const { mesh } = scene(hct), cs = cells(mesh());
+    const { mesh } = at(hct), cs = cells(mesh());
     assert.ok(cs.length > 0);
     assert.ok(cs.every((c) => c.r <= RBC_R + 1e-6), `hct ${hct}: nothing larger than ${RBC_R}`);
     assert.ok(Math.abs(Math.max(...cs.map((c) => c.r)) - RBC_R) < 1e-6, 'whole cells are exactly RBC_R');
@@ -117,7 +127,7 @@ test('the red cell is no bigger than it was: RBC_R, every drawn cell at most tha
 });
 
 test('one instanced mesh draws every red cell, in a triangle budget a phone can hold', () => {
-  const { mesh } = scene();
+  const { mesh } = at(0.42);
   const m = mesh();
   assert.equal((m.toon as InstancedMesh).isInstancedMesh, true);
   const tris = unitRbc(RBC_SEG, RBC_RINGS).getIndex()!.count / 3;
