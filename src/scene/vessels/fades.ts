@@ -141,10 +141,6 @@ export const RECEDE: Readonly<Record<string, number>> = { V_KID_L: 0.55, V_KID_L
 export const CAVA_LIKE: ReadonlySet<string> = new Set([...IVC_EDGES, 'C9']);
 const CAVA_RA_RAMP = 0.5;
 export const C9_JOIN_RAMP = 0.12;
-/** The hepatic veins open into the cava as solid veins, body and outline whole, to its wall (Mohammad, 20 Nov: the last stretch was "a pale, flat, see-through wedge": a vein faded to the cava's alpha over its last 40 units, and
- *  2D's own end alpha 0.5 on top of it, was a cut ribbon, not a round vein opening into the cava): no end ramp any more, so this is 0 for every vein. The vein takes the cava's colour near the wall and feathers out inside the lumen
- *  (shaders.ts cavA). */
-export const CAVA_END_LEN = 0;
 export function cavaEndSpan(_id: string): number { return 0; }
 /** A hepatic vein that opens into the cava (not a renal vein, which is receded to the cava's tone already) keeps its alpha to the wall: 2D's end alpha for it (0.5) is dropped. */
 export const keepsAlphaToCava = (id: string): boolean => opensIntoCava(id) && id !== 'LRV_IVC' && id !== 'RRV_IVC';

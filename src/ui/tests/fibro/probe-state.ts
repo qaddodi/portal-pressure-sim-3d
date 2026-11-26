@@ -15,7 +15,6 @@ export interface FibroProbe {
 export const useFibroProbe = create<FibroProbe>(() => ({ txt: null, organ: 'liver', kpa: null }));
 /** Whether the probe belongs on the figure now: the Tests card is up and on the FibroScan. */
 export function fibroProbeOn(): boolean { const t = useTests.getState(); return t.open && t.pane === 'fibroscan'; }
-export const fibroOrgan = (): OrganId => useTests.getState().fibro;
 /** The pane's writes: only a change is stored, so a still number costs nothing. */
 export function setFibroProbe(p: Partial<FibroProbe>): void {
   const s = useFibroProbe.getState();

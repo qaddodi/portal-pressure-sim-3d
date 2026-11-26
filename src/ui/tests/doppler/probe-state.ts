@@ -40,5 +40,3 @@ export function setDopplerProbe(id: string): void {
 export const dopplerProbeId = (): string => useDopplerProbe.getState().probe;
 /** True while the Doppler is the instrument on show in the Tests card (the scene's ultrasound probe stands on the vessel then). */
 export const dopplerOpen = (): boolean => { const t = useTests.getState(); return t.open && t.pane === 'doppler'; };
-/** The same as a hook: re-renders when the card opens, closes or changes instrument. */
-export const useDopplerOpen = (): boolean => useTests((s) => s.open && s.pane === 'doppler');

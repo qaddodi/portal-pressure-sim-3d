@@ -12,13 +12,6 @@ export const REDUCED_MOVE_MS = 300;
 const mq = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
 /** Whether Reduce Motion is on right now (the page's one read of the media query: tests/a11y-motion.test.ts keeps a second one out of new code). */
 export const reduced = (): boolean => !!mq?.matches;
-/** Call `fn` when the setting changes. Returns the remover. */
-export function onReducedChange(fn: (on: boolean) => void): () => void {
-  if (!mq) return () => undefined;
-  const h = () => fn(mq.matches);
-  mq.addEventListener('change', h);
-  return () => mq.removeEventListener('change', h);
-}
 
 /** `ms` as Reduce Motion has it for a move: the same, or at most REDUCED_MOVE_MS. (`on`: the answer to use, default reduced().) */
 export const reducedMs = (ms: number, on: boolean = reduced()): number => (on ? Math.min(ms, REDUCED_MOVE_MS) : ms);

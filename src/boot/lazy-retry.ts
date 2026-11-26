@@ -17,8 +17,6 @@ export const RETRY_DELAYS_MS: readonly number[] = [400, 1200];
 let stale = false;
 /** Vite found a preload failing (its `vite:preloadError`, main.tsx): files this page names are gone, so a newer build is out (or the network failed; the words check `navigator.onLine`). */
 export const markStale = (): void => { stale = true; };
-export const isStale = (): boolean => stale;
-export const resetStale = (): void => { stale = false; };
 const offlineNow = (): boolean => typeof navigator !== 'undefined' && navigator.onLine === false;
 
 export async function retryImport<T>(load: () => Promise<T>, o: { delays?: readonly number[]; wait?: (ms: number) => Promise<void> } = {}): Promise<T> {

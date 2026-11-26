@@ -12,8 +12,6 @@ export const TAU = Math.PI * 2;
 const K = columnConsts() as { c0: number[]; c1: number[] };
 /** the varix columns' own jitter of width (the shader's k1.z) */
 const wj = (c: number) => K.c1[c * 4 + 2]!;
-/** the knuckle depths a band stands at: the first, then each 1.4 times as deep (endo-gl.js: zb = 2.8 · 1.4^k) */
-export const KNUCKLE_Z = [0, 1, 2, 3].map((k) => 2.8 * Math.pow(1.4, k));
 
 /** What the field shows (endo-gl.js shade(): grow, vis, red 0..1, def[4] (0 engorged .. 1 strangulated), kn[16] (0 none .. 1 a cinched band with its knuckle)). */
 export interface FieldState { grow: number; vis: number; red: number; def: readonly number[]; kn: readonly number[] }
@@ -22,7 +20,6 @@ export const ampK = (grow: number) => 0.03 + 0.28 * grow;
 /** a column's width in radians at rest (before deflation) */
 export const w0full = (c: number, grow: number) => 0.055 + 0.27 * grow + wj(c);
 export const w0 = (c: number, grow: number, df: number) => w0full(c, grow) * (1 - 0.2 * df);
-export const ampOf = (grow: number, vis: number, df: number) => ampK(grow) * vis * vis * (1 - 0.72 * df);
 /** the beading of a large varix along its length (1 for a small one) */
 export const bead = (c: number, z: number, grow: number) => 1 + sstep(0.45, 0.6, grow) * 0.3 * Math.sin(2.3 * z + K.c0[c * 4 + 3]!);
 /** where column c runs at depth z (radians clockwise from the right, y down) */
@@ -31,12 +28,6 @@ export const centreAt = (c: number, z: number, st: FieldState) => columnAngle(c,
 export const rhoOf = (z: number) => 1 / (z * FIELD_T);
 export const zOf = (rho: number) => 1 / (Math.max(rho, 0.01) * FIELD_T);
 
-/** A knuckle's footprint on the screen: its centre (units of R from the middle, y down), its radius (units of R), and the depth it stands at. */
-export function knuckleAt(c: number, k: number, st: FieldState): { x: number; y: number; r: number; z: number } {
-  const z = KNUCKLE_Z[k]!, th = centreAt(c, KNUCKLE_Z[k]!, st), rho = rhoOf(z);
-  const wp = w0full(c, st.grow) * 0.8 * 1.5 + 0.06;
-  return { x: Math.cos(th) * rho, y: Math.sin(th) * rho, r: wp * rho, z };
-}
 
 // ── colour: the shader's own tokens and light ──
 const tok = (n: string): [number, number, number] => { const c = parseColour((SCOPE_TOKENS as Record<string, string>)[n]!); return [c[0] * 255, c[1] * 255, c[2] * 255]; };
@@ -70,16 +61,6 @@ export function lit(col: readonly number[], z: number, rho: number, o: { ao?: nu
   const f = (x: number, e: number) => Math.min(1, Math.pow(Math.min(1.2, Math.max(0, x * vg)), e));
   return [f(r, 0.82), f(g, 0.92), f(b, 0.9), 1];
 }
-/** The 'surface' colour a column shows over the mucosa: white-pink when small, blue when large (endo-gl.js: V, mixed in by the vein's weight) */
-export function varixColour(grow: number, crest = 0): [number, number, number] {
-  const V = mix3(INK.small, INK.varix, sstep(0.1, 0.5, grow));
-  const k = crest * sstep(0.2, 0.6, grow);
-  return [V[0] + INK.crest[0] * k, V[1] + INK.crest[1] * k, V[2] + INK.crest[2] * k];
-}
-/** The weight of a vein under the mucosa where the column's profile is p (0..1). */
-export const veinWeight = (p: number, vis: number, grow: number, df: number) => Math.min(1, vis * p * (0.45 + 0.7 * grow) * (1 - 0.55 * df)) * 0.74;
 /** The profile of a column across its width, at u widths from the crest (the shader's exp(-|u|^2.6)). */
 export const profile = (u: number) => Math.exp(-Math.pow(Math.abs(u), 2.6));
-/** The Z-line's depth at angle th: the squamocolumnar junction, irregular (endo-gl.js zl). */
-export const zLineAt = (th: number) => 5.2 + 0.9 * (nz(th / TAU * 11, 0.5, 11) - 0.5) + 0.35 * (nz(th / TAU * 31, 2.5, 31) - 0.5);
 export { nz, h2, sstep };

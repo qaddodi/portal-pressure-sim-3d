@@ -1178,29 +1178,6 @@ export function flowAux(b: MeshBuilder, before: number, pts: readonly (readonly 
   for (let v = before + ringVerts + capVerts; v < before + ringVerts + 2 * capVerts; v++) { b.aux.push(arc[m - 1]!); b.aux2.push(3); }
 }
 
-/** The Bile layer's courses, as the flat view builds them (lobule/view.ts channel()): the canaliculi midway between neighbouring sinusoids, and from each the first generation's canal of Hering to its tract's ductule. */
-export function bileCourses(net: LobuleNet): { pts: LP2[]; canal: boolean }[] {
-  const by = (k: Course['kind']) => net.courses.filter((c) => c.kind === k);
-  const out: { pts: LP2[]; canal: boolean }[] = [];
-  const mid = (a: Course, b: Course, i: number): LP2 => [(a.pts[i]![0] + b.pts[i]![0]) / 2, (a.pts[i]![1] + b.pts[i]![1]) / 2];
-  const channel = (cs: Course[], i0: number, i1: number, canals: boolean) => {
-    cs.forEach((a, k) => {
-      const b = cs[(k + 1) % cs.length]!;
-      if (a.tri === undefined) return;
-      const pts: LP2[] = [];
-      for (let i = i0; i <= i1; i++) pts.push(mid(a, b, i));
-      if (Math.hypot(pts[0]![0] - pts[pts.length - 1]![0], pts[0]![1] - pts[pts.length - 1]![1]) < 0.05) return;
-      out.push({ pts, canal: false });
-      if (canals) {
-        const tr = net.triads[a.tri]!, p0 = pts[0]!, bd = tr.bd, pc: LP2[] = [];
-        for (let j = 0; j <= 8; j++) { const u = j / 8; pc.push([bd[0] + (p0[0] - bd[0]) * u + tr.x * -0.012 * Math.sin(Math.PI * u), bd[1] + (p0[1] - bd[1]) * u + tr.y * -0.012 * Math.sin(Math.PI * u)]); }
-        out.push({ pts: pc, canal: true });
-      }
-    });
-  };
-  channel(by('s0'), 2, 22, true); channel(by('s1'), 2, 20, false); channel(by('s2'), 3, 22, false);
-  return out;
-}
 void BILE_ID;
 
 /** A 2D context that ignores its first `n` fill() calls (2D's painter fills the hexagon's ground and the gap before the cells: the 3D tiles and ground stand for those). */

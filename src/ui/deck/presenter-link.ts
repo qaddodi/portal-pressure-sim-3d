@@ -78,7 +78,4 @@ export function openPresenterView(): boolean {
   return opened;
 }
 
-/** Whether a notes window is (or may be) listening: the P key opens one only while a talk is on show. */
-export const presenterViewOn = (): boolean => !!link;
 
-export function closePresenterView(): void { off?.(); off = null; link?.end(); link?.close(); link = null; numbers = null; }

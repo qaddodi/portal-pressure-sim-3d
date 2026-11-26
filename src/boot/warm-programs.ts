@@ -9,7 +9,6 @@ import { clock } from '../clock/frame.ts';
 /** The names the programs go by: the ?gl list's (src/debug/gl-registry.ts), so one name is one program everywhere. */
 export const SPECTRUM_PROGRAM = 'doppler spectrum (chart)';
 export const ENDO_PROGRAM = 'endoscopic field';
-export const CHARTS_PROGRAM = 'charts';
 
 export interface Prog { name: string; vs: string; fs: string; /** attribute locations bound before linking, as the instrument's own build does */ bind: [string, number][] }
 

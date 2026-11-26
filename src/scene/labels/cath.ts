@@ -28,7 +28,6 @@ export type Pt = readonly [number, number];
 
 const ceil2 = (n: number) => Math.ceil(n * 100) / 100;
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
-export const isResult = (t: Tone) => t === 'ok' || t === 'caution' || t === 'danger';
 
 // ── the type and the tag ──
 

@@ -65,20 +65,6 @@ export function kupfferClear(want: number, nsd: number): number {
   }
   return best;
 }
-/** The Kupffer cell's place: just right of the first endothelial nucleus (seed `nsd`) past `centre` (µm along: the middle of the room), KUP_CLEAR from it, when `ok` takes it; else the nearest bare
- *  stretch of lining that `ok` takes (never on top of an endothelial cell); `ok` is the room's say (inside it, clear of the ends' names). Nothing taken: the first wish. */
-export function kupfferSpot(centre: number, nsd: number, ok: (x: number) => boolean): number {
-  let n = Math.floor(centre / 38) - 2;
-  while (nucAt(n, nsd) <= centre) n++;
-  const want = nucAt(n, nsd) + KUP_CLEAR;
-  if (ok(want)) return want;
-  let best = want, bd = Infinity;
-  for (let m = n - 4; m <= n + 3; m++) {
-    const a = nucAt(m, nsd) + KUP_CLEAR, b = nucAt(m + 1, nsd) - KUP_CLEAR;
-    for (let x = a; x <= b + 1e-9; x += 0.25) if (Math.abs(x - want) < bd && ok(x)) { best = x; bd = Math.abs(x - want); }
-  }
-  return best;
-}
 /** How far (µm) from a nucleus's centre its cell's swell hides the lining's fenestrae (2D: NUC_COVER). */
 export const NUC_COVER = 4.4;
 /** Whether the swell of an endothelial nucleus (seed nsd) covers the lining at x (2D: underNucleus). */

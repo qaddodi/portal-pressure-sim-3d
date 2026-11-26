@@ -14,9 +14,6 @@ export const REST_SHAPE = { lum: 1, pinch: 0, col: 0 } as const;
 /** The lumen's half width and the space of Disse's width at the rest state. */
 export const restHalfW = (x: number): number => UM.lum + 0.15 * Math.sin(x * 0.11 + 1.3);
 export const restDisseW = (x: number): number => UM.disse + 0.2 * Math.sin(x * 0.07);
-/** How far the state moves the lumen's half width and Disse's width from the rest's (the same as the shader's). */
-export const deltaH = (x: number, s: { lum: number; pinch: number }, xs: number): number => UM.lum * (s.lum * (1 - s.pinch * Math.exp(-(((x - xs) / 11) ** 2))) - 1);
-export const deltaD = (s: { col: number }): number => UM.disse * 0.25 * s.col;
 
 /** Where H is moved to for the samples the shell's polynomial of the fifth degree is fitted through (the app's lumen and pinch reach about -2 to +4.5 µm from the rest's); the other parts are linear in H. */
 export const SHAPE_NODES: readonly number[] = [-2, -0.7, 1.1, 3, 5];

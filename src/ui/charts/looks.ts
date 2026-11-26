@@ -23,8 +23,6 @@ setTokenSource((ctx: { theme: string }) => {
   }
   return m;
 });
-/** Forget what was resolved (a look's colours changed). */
-export const forgetLooks = () => { maps.clear(); clearLookMemo(); };
 
 /** Every look key a chart has asked for since the page loaded (the parity tests read which of the 2D tables a drawn chart really uses). */
 export const LOOKS_ASKED = new Set<string>();
