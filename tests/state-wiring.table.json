@@ -97,6 +97,11 @@
   ],
   "morph": [
    {
+    "file": "src/ui/timeline/index.ts",
+    "follows": "setParams with the moment's params at once (a case landing on its stop), then echoed by frame params",
+    "tick": "adoptFrame"
+   },
+   {
     "file": "src/decks/hp/lapse.ts",
     "follows": "echoed by frame params (about 4 a second while morphing)",
     "tick": "adoptFrame"
@@ -123,6 +128,11 @@
    }
   ],
   "lapse": [
+   {
+    "file": "src/ui/case/run.ts",
+    "follows": "echoed by frame params every tick (the case's walk between stops)",
+    "tick": "adoptFrame"
+   },
    {
     "file": "src/decks/hp/lapse.ts",
     "follows": "echoed by frame params every tick",

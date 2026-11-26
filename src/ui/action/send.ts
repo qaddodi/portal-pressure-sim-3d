@@ -7,6 +7,7 @@ import { useShell } from '../shell/store.ts';
 import { actionLabel, type Action } from './action-label.ts';
 import { talkOn } from '../../state/deck.ts';
 import { record } from '../tests/feed.ts';
+import { actionKind, caseAsk } from '../case/guard.ts';
 
 export { actionLabel };
 
@@ -33,6 +34,9 @@ export function actionAnswer(a: Action, f: Seen, quiet = false): { send: boolean
 export const STEPS = (a: Action): boolean => a.kind === 'paracentesis' || a.kind === 'infuse';
 
 export function sendAction(a: Action): void {
+  // (in a case, a step that changes the course asks first, and runs once the case is left: case/guard.ts)
+  const q = caseAsk(actionKind(a), actionLabel(a));
+  if (q) { void q.then((go) => { if (go) sendAction(a); }); return; }
   const sh = useShell.getState();
   const ans = actionAnswer(a, live.frame as Seen, talkOn());
   if (ans.say) sh.say(ans.say);

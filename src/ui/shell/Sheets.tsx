@@ -21,6 +21,7 @@ import { PageDialog } from './Pages.tsx';
 import { ActionCard } from '../action/ActionCard.tsx';
 import { useTalkOn } from '../../state/deck.ts';
 import { SheetClip } from './SheetClip.tsx';
+import { CaseGuardDialog, CaseOwnLine } from '../case/CaseGuard.tsx';
 
 function ResetDialog() {
   const open = useShell((s) => s.dialog === 'reset');
@@ -63,6 +64,8 @@ export function Sheets() {
       <ResetDialog />
       <PageDialog />
       <DeckDialogs />
+      <CaseOwnLine hidden={talk} />
+      <CaseGuardDialog />
     </>
   );
 }

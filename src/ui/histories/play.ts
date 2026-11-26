@@ -92,8 +92,9 @@ export function playCourse(c: Course): Baked {
       if (s.note) entries.push({ kind: 'event', label: s.note.title, day: e.day, t: round(e.t, 2), detail: s.note.detail, sev: s.note.sev, evId: 'COURSE_' + (s.id ?? 'NOTE'), ...(s.id ? { step: s.id } : {}) });
       note();   // (the same day again: a change is a step in the days list)
     }
-    // (A day the story headlines keeps the model as it was at the day's end, after all of its steps, so "Show on the figure" can go back to it: a bleed's day is after the band.)
-    if (entries.some((x) => x.day === e.day && isKeyEntry(x))) moments.set(e.day, e.snapshot());
+    // (A day the story headlines keeps the model as it was at the day's end, after all of its steps, so "Show on the figure" can go back to it: a bleed's day is after the band.
+    // Day 0 keeps it too: playing the case (ui/case) starts there, as the patient came.)
+    if (d === 0 || entries.some((x) => x.day === e.day && isKeyEntry(x))) moments.set(e.day, e.snapshot());
     e.advanceDays(1, { noRupture: true, silent: true });
     watch(4, 0.1, 1, !!c.still);
     note();
@@ -128,7 +129,7 @@ export function metaOf(c: Course, b: Baked): HistoryMeta {
   }
   return {
     id: c.id, name: c.name, group: c.group, where: c.where, preset: c.preset, months: Math.round(c.days / 30.4), state: stateOf(b.now, c.state), story: storyOf(c), path: c.path,
-    pv, days: c.days, max: Math.max(12, Math.ceil(Math.max(...pv) / 4) * 4), marks: marks.sort((a, z) => a.day - z.day), chapters: chaptersOf(c),
+    pv, days: c.days, max: Math.max(12, Math.ceil(Math.max(...pv) / 4) * 4), marks: marks.sort((a, z) => a.day - z.day), chapters: chaptersOf(c), ...playOf(c, b),
     counts: { events: b.entries.filter((x) => x.kind === 'event').length, medicines: medCount(b) },
   };
 }
@@ -141,6 +142,23 @@ export function chaptersOf(c: Course): { from: number; label: string }[] {
     if (day == null) throw new Error(`${c.id}: chapter "${ch.label}" is anchored to ${JSON.stringify(at)}, which the course does not have`);
     return { from: day, label: ch.label };
   });
+}
+/** What playing the case needs of the course (ui/case): its ramps (the disease between stops) and its own stops, each anchored to its day. A stop anchored to a step the course does not have,
+ *  or to a day the story does not headline (no model is kept there to stop on), is an error (the generator stops), never a stop at a guessed day. */
+export function playOf(c: Course, b: Baked): { play?: NonNullable<HistoryMeta['play']> } {
+  const keyDays = new Set([0, b.snap.day, ...b.entries.filter((e) => isKeyEntry(e)).map((e) => e.day)]);
+  const stops = (c.play?.stops ?? []).flatMap(({ at, ...rest }) => {
+    const day = typeof at === 'string' ? c.steps.find((s) => s.id === at)?.day : at.day;
+    if (day == null) throw new Error(`${c.id}: a case stop is anchored to ${JSON.stringify(at)}, which the course does not have`);
+    if (keyDays.has(day)) return [{ day, ...rest }];
+    // (a stop anchored to a day the engine raised something on: an engine re-sync can move that day. The stop is let go with a word, never put on a day with no kept model; a step's own
+    // day never moves, so a stop anchored to a step that does not headline is an error)
+    if (typeof at === 'string') throw new Error(`${c.id}: a case stop on Day ${day}, a day the story does not headline (add a step with a note there)`);
+    console.warn(`${c.id}: the case stop on Day ${day} is let go: the story no longer headlines that day (the engine's events moved; anchor it again in courses.ts)`);
+    return [];
+  });
+  const play = { ...(c.ramps?.length ? { ramps: c.ramps.map((r) => ({ ...r })) } : {}), ...(stops.length ? { stops } : {}) };
+  return Object.keys(play).length ? { play } : {};
 }
 const MARK_WORD: Record<string, string> = {
   carvedilol: 'Carvedilol', bleed: 'Bled', band: 'Banded', tips: 'TIPS', tap1: 'Tap', tap2: 'Tap', tap3: 'Tap', anticoag: 'Anticoagulation', angioplasty: 'Angioplasty', doppler: 'Doppler',

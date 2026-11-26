@@ -17,4 +17,6 @@ export const STORY = {
   before: (when: string) => `Before → ${when}`,
   thatDay: 'That day',
   metric: 'Reading on the strip',
+  /** a model patient's story played stop by stop (ui/case): the menu's card and the History panel */
+  play: 'Play the case',
 } as const;

@@ -1,0 +1,30 @@
+/* The case's guard (CaseGuard.tsx; docs/approved/play-the-case.md, screens mac-leave, phone-leave, phone-off).
+   The question is the shell's own dialog (.sh-dialog): a kicker over the title, the leave as quiet words in the danger ink, Stay the filled default. Long labels wrap to a second row of
+   buttons on a phone, Stay under Leave, never shrunk. */
+.cs-guard .cs-kicker { margin: 0 0 6px; font: 600 var(--t-cap) / 1.2 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
+.cs-guard p + p { margin-top: -8px; }
+.cs-guard .sh-btns { flex-wrap: wrap; }
+.cs-guard .sh-btn { flex: 0 1 auto; padding: 0 18px; line-height: 1.2; }
+.cs-guard .sh-btn.cs-leave { border-color: transparent; color: var(--danger-ink); transition: background-color var(--d-small) var(--ease); }
+@media (hover: hover) { .cs-guard .sh-btn.cs-leave:hover { background: color-mix(in srgb, var(--danger) 8%, transparent); } }
+
+/* The line over the play bar once the case is left: "Your own course from Day 70" and Back to the case. It stands where the note does (one gap over the dock and the view pill, above
+   a docked action card), and while it is up the note and the zoom pill ride above it by the same transform they ride above that card with, so it never covers them. */
+.sh-root { --case-own-h: 56px; }
+.sh-root:has(.cs-own[data-open="true"]) { --case-occ: calc(var(--case-own-h) + var(--sheet-gap, 8px)); }
+.sh-root:has(.cs-own[data-open="true"]) .zoom-pill { translate: 0 calc(-1 * (var(--sheet-h, 0px) + var(--card-occ, 0px) + var(--case-occ, 0px))); }
+.sh-root:has(.cs-own[data-open="true"]) .sh-toast { translate: 0 calc(-1 * (var(--card-occ, 0px) + var(--case-occ, 0px))); }
+.cs-own {
+  position: absolute; z-index: 3; left: 50%; bottom: calc(var(--safe-b, 0px) + var(--bot-occ, 0px) + var(--sheet-gap, 8px)); width: min(480px, calc(100vw - 24px)); height: var(--case-own-h);
+  box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 0 6px 0 16px; border: 1px solid var(--edge); border-radius: var(--r-sheet); background: var(--glass-tint);
+  box-shadow: var(--glass-shadow); color: var(--text-2); font: 400 var(--t-body) / 1.3 var(--ui); pointer-events: none;
+  transform: translate(-50%, 10px); translate: 0 calc(-1 * var(--card-occ, 0px)); opacity: 0; visibility: hidden;
+  transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), translate var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small);
+}
+.cs-own[data-open="true"] { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; pointer-events: auto; }
+.cs-own-w { flex: 1 1 auto; min-width: 0; text-wrap: balance; }
+.cs-own-w b { font-weight: 600; color: var(--text); }
+.cs-own-back { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border: 0; border-radius: var(--r-card); background: var(--surface-2);
+  color: var(--text); font: 600 var(--t-body) / 1 var(--ui); cursor: pointer; white-space: nowrap; transition: background-color var(--d-small) var(--ease); }
+.cs-own-back .sh-ic, .cs-own-back .ic { width: 18px; height: 18px; }
+@media (hover: hover) { .cs-own-back:hover { background: var(--surface-3); } }

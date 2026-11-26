@@ -1,7 +1,7 @@
 // The UI layer above the stage. Free play: the top bar, the view pills, the play bar and the zoom group (a laptop or an iPad on its side), or the top bar, the view row,
 // the play bar and the bottom bar (a phone or an upright iPad), with the 2D app's words and behaviour. A talk: its own cards, wallet and presenter pill (src/ui/DeckUi.tsx, its own chunk: ui/shell/deck-ui-load.ts).
 // The sheets, the toast and the diagnostics are the same in both.
-import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { fadeChrome } from './deck-fade.ts';
 import './shell.css';
 import './chrome-3d.css';
@@ -43,6 +43,9 @@ import { startTimeline } from '../timeline/index.ts';
 import { startHistory } from '../history/bind.ts';
 import { startActions } from '../action/boot.ts';
 import { useTalkOn } from '../../state/deck.ts';
+import { useCase } from '../case/store.ts';
+import { caseBarUp, caseLift, caseRoom, useCaseRoom } from '../case/room.ts';
+import { lazyRetry } from '../../boot/lazy-retry.ts';
 
 import { clock } from '../../clock/frame.ts';
 /** The screen's size and its safe areas, measured when either changes (never per frame). Free play needs it too: the talk's own UI measures only while it is mounted. */
@@ -69,12 +72,14 @@ function useFreeCamera() {
   const thumb = useThumb();
   const testsPlace = useTestsRoom((s) => s.place);   // (the Tests card takes room from the figure)
   const actionH = useActionRoom((s) => s.h);   // (an action card over the bottom of the figure takes its height from the room)
+  // (a case's bar makes the foot taller, its stop card takes room as the Tests card does: case/room.ts)
+  const caseUp = useCase((s) => caseBarUp(s.phase)), caseCut = useCaseRoom((s) => s.cut);
   const entered = useRef(false);
   // The figure pans, never zooms, under the Tests card (place.ts panRoom); `bias` is the extra shift that brings the probe now up (the Doppler's gate, the FibroScan's tip) into the free part
   const bias = useRef({ x: 0, y: 0 });
   const probe = useProbes((s) => `${s.doppler.on ? `${s.doppler.edge}|${s.doppler.seg}` : ''}/${s.fibro.on ? s.fibro.organ : ''}`);
   const roomNow = () => {
-    const base = viewRoom(useShell.getState().view, vp, layoutClass(thumb)), r = roomAbove(panRoom(base, testsPlace), actionH), b = bias.current;
+    const base = viewRoom(useShell.getState().view, vp, layoutClass(thumb)), r = roomAbove(panRoom(caseRoom(base, caseCut), testsPlace), actionH), b = bias.current;
     return { base, room: { x: r.x + b.x, y: r.y + b.y, w: r.w, h: r.h } };
   };
   const lastScreen = useRef('');
@@ -87,7 +92,7 @@ function useFreeCamera() {
     const screen = `${vp.w}x${vp.h}:${thumb}`, refit = screen !== lastScreen.current; lastScreen.current = screen;
     if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room, undefined, false, refit);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, vp, thumb, testsPlace, actionH]);
+  }, [mode, vp, thumb, testsPlace, actionH, caseUp, caseCut]);
   useEffect(() => {
     if (mode !== 'free' || vp.w <= 0 || !entered.current) return;
     // once the probe has landed (it waits for the camera and fades in), move the figure so the probe stands in the middle of what the card leaves
@@ -110,6 +115,7 @@ function useFreeCamera() {
 function usePublishedLayout(app: React.RefObject<HTMLDivElement | null>, thumb: boolean) {
   const vp = useUi((s) => s.vp);
   const cardH = useActionRoom((s) => s.h);   // (a docked action card's height above the view pill's slot, 0 with none: its own resize observer, ActionCard.tsx)
+  const caseUp = useCase((s) => caseBarUp(s.phase));   // (the case bar makes the foot taller: room.ts dockHeight reads it)
   useLayoutEffect(() => {
     const el = app.current;
     if (!el || vp.w <= 0) return;
@@ -125,8 +131,14 @@ function usePublishedLayout(app: React.RefObject<HTMLDivElement | null>, thumb: 
     if (lv['--bot-occ']) root.style.setProperty('--bot-occ', lv['--bot-occ']);
     // the room a docked action card takes above the dock (23 Nov, Mohammad: the note covered the card's rows): the note, the zoom pill and the figure's names stand above it (shell.css .sh-toast, css3d-over-2d.css), by a transform that glides, never by `bottom`
     root.style.setProperty('--card-occ', px(cardH));
-  }, [app, vp, thumb, cardH]);
+    // the case bar's lift over the play bar's row (case/room.ts): the sums above include it; the zoom pill and the view pill ride up by it with a transform that glides (case.css)
+    root.style.setProperty('--case-lift', px(caseLift(d)));
+  }, [app, vp, thumb, cardH, caseUp]);
 }
+
+/** A case's bar and cards (ui/case/CaseUi.tsx) are their own chunk: a normal load never plays a case, so it neither downloads nor runs them before the first picture (tests/boot-entry.test.ts).
+ *  They mount when the first case starts, every part faded in by its own `data-on` once its content is there, and stay mounted after. */
+const CaseUi = lazyRetry(() => import('../case/CaseUi.tsx').then((m) => ({ default: m.CaseUi })));
 
 /** The 2D chrome's measured numbers as `--m-*` on the shell root: the sheets' places (shell.css, history.css, why.css) read them, and without them every `calc(... var(--m-side-pad))` is invalid and the sheet falls to the corner. */
 const METRICS = metricVars() as CSSProperties;
@@ -156,18 +168,22 @@ export function Shell() {
   const sheetUp = useShell((s) => thumb && !!s.sheet && SHEETS_OVER_PILL.has(s.sheet));
   const chartUp = useShell((s) => s.sheet === 'timeline');   // (the timeline chart is up: the zoom pill fades out, the chart has its own zoom)
   const testsCls = useTestsAppClasses();   // (dock-open, instrument-focus, tests-grad, dock-side: what the Tests card tells .app)
+  const caseOn = useCase((s) => caseBarUp(s.phase)) && mode === 'free';   // (a case plays: its bar stands in the play bar's place, case.css)
+  const [caseSeen, setCaseSeen] = useState(false);
+  if (caseOn && !caseSeen) setCaseSeen(true);
   usePublishedLayout(appRef, thumb);
   return (
     <>
       {mode === 'deck' && <DeckUiSlot />}
       <div className="sh-root" data-device={device} data-bottom={thumb} data-mode={mode} style={METRICS}>
         <div ref={probe} aria-hidden="true" style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none', paddingTop: 'var(--safe-t)', paddingRight: 'var(--safe-r)', paddingBottom: 'var(--safe-b)', paddingLeft: 'var(--safe-l)' }} />
-        <div className={`app${thumb ? ' thumb' : ''}${view === 'sinusoid' ? ' sin-focus' : ''}${lensFixed}${sheetUp ? ' menu-sheet-open' : ''}${cardOver ? ' ac-over-pill' : ''}${chartUp ? ' bt-up' : ''}${testsCls}`} id="app" ref={appRef} inert={mode === 'deck'}>
+        <div className={`app${thumb ? ' thumb' : ''}${view === 'sinusoid' ? ' sin-focus' : ''}${lensFixed}${sheetUp ? ' menu-sheet-open' : ''}${cardOver ? ' ac-over-pill' : ''}${chartUp ? ' bt-up' : ''}${caseOn ? ' case-on' : ''}${testsCls}`} id="app" ref={appRef} inert={mode === 'deck'}>
           <TopBar />
           <main className={`stage-wrap${view === 'circuit' ? ' cmap' : ''}`} id="stageWrap" aria-label="Figure">
             <div className={`stage-view${view === 'lobule' || view === 'sinusoid' ? ' in-lobule' : ''}`} id="stageView"><ZoomGroup /></div>
             <Credit />
             <Dock thumb={thumb} />
+            {caseSeen && <Suspense fallback={null}><CaseUi thumb={thumb} /></Suspense>}
           </main>
           {/* the Tests dock is a child of .app, as in 2D: the lifted stylesheets reach it through `.app.dock-open` (shell/InApp.tsx) */}
           <TestsLayer away={mode === 'deck'} />

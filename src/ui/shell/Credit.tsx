@@ -12,6 +12,7 @@ import { CORNERS, freeSpots } from './credit-spots.copied.js';
 import { layoutOf, margin, isSideways } from '../layout/rules2d.ts';
 import { footCredit, footClear, clipTo, underDock, takesFootBand } from './credit-foot.ts';
 import { useShell } from './store.ts';
+import { useCase } from '../case/store.ts';
 import { avoidVessel, vesselRect, widestWall } from './credit-avoid.ts';
 import { cel } from '../../scene/api.ts';
 import { framePoint } from '../../scene/sinusoid/portrait.ts';
@@ -113,6 +114,8 @@ export function Credit() {
   const vp = useUi((s) => s.vp);
   const fps = useSettings((s) => s.showFps);
   const thumb = useThumb();
+  // (a case's bar comes up in the play bar's place and its cards over the figure: the line looks again, as it does for a new view)
+  const casePhase = useCase((s) => s.phase);
   const view = useShell((s) => s.view);
   const talk = useUi((s) => !!s.deck);
   const slideKey = useUi((s) => `${s.pos.stop}.${s.pos.beat}.${s.page}`);   // (a talk's slide, beat or page: its cards, and so what the credit keeps clear of, change)
@@ -187,6 +190,6 @@ export function Credit() {
     const mo = deck && typeof MutationObserver === 'function' ? new MutationObserver(changed) : null;
     mo?.observe(deck!, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'data-phase'] });
     return () => { creditClaim.set(null); clock.cancel(timer); clock.cancel(hop); clock.cancel(late); clock.cancel(settle); ro?.disconnect(); mo?.disconnect(); };
-  }, [view, talk, slideKey, vp.w, vp.h, vp.safe.bottom, vp.safe.left, vp.safe.top, vp.safe.right, fps, thumb]);
+  }, [view, talk, slideKey, vp.w, vp.h, vp.safe.bottom, vp.safe.left, vp.safe.top, vp.safe.right, fps, thumb, casePhase]);
   return <div className="stage-credit" ref={ref} aria-hidden="true">{CREDIT}</div>;
 }

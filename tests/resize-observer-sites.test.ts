@@ -17,6 +17,8 @@ const REVIEWED: Record<string, string> = {
   'src/ui/cards/SlideControls.tsx': 'fits only when the host\'s width changed, and the fit writes inside it',
   'src/ui/action/ActionCard.tsx': 'reads the card\'s height into the room store',
   'src/scene/labels/LabelLayer.tsx': 'reads the key\'s size into the controller',
+  'src/ui/case/CaseBar.tsx': 'reads the strip\'s width into a ref, for the drag',
+  'src/ui/case/StopCard.tsx': 'reads the stop sheet\'s height into the figure\'s room; the pulled-down part moves it by clip-path and transform, which do not change the box it observes',
 };
 
 function walk(d: string, out: string[] = []): string[] {
