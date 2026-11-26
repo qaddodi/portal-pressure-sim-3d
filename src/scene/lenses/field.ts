@@ -6,12 +6,12 @@ import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
 import { type FrameLike, type LensContext, type LensData, type LensId, DEFAULT_LENS, LENS_EDGE_COUNT, computeLens, firstPassColours, newLensData, originColours } from './model.ts';
 import { type LensShared, createLensShared } from '../vessels/vessel-object.ts';
 import type { LookId } from '../palette.ts';
-import { easeInOutCubic } from '../../clock/tween.ts';
+import { LensFade, lensMotionReduced } from './fade.ts';
 import { ChevronInk } from './chevron-ink.ts';
 import { isRawLens } from './pressure-ramp.ts';
 import { writeStentProfiles } from './stent-lens.ts';
 
-export const LENS_MS = 420;
+export { LENS_MS } from './fade.ts';
 export const LENS_RECOMPUTE_MS = 90;
 const NEEDS_FRAME = new Set<LensId>(['pressure', 'delta', 'heat', 'drop', 'flow', 'velocity', 'direction', 'oxygen', 'origin', 'firstpass', 'since']);
 export { TAIL_LENSES } from './model.ts';   // (moved to model.ts: the tail is written into each gradient texture with its colours)
@@ -33,10 +33,10 @@ export class LensField {
   private frame: FrameLike | null = null;
   /** The patient's params as shown (the stents' geometry, for their colour along them: stent-lens.ts). */
   private params: unknown = null;
-  private t0 = -1;
   private lastCompute = -1e9;
   private dirty = true;
-  private fade = 1;
+  /** The lens change's fade (lenses/fade.ts, the one rule every view steps). */
+  private readonly fade = new LensFade();
   /** The flow heads' tone per vessel: latched and eased (chevron-ink.ts), written into the arriving lens's colour texture. */
   private readonly ink = new ChevronInk();
   private lastStep = -1;
@@ -55,7 +55,7 @@ export class LensField {
   }
 
   get lens(): LensId { return this._lens; }
-  get fading(): boolean { return this.fade < 1; }
+  get fading(): boolean { return this.fade.moving; }
   /** The colours the arriving lens gives (a copy-free view, valid until the next recompute): for tests and labels. */
   get data(): LensData { return this.to; }
 
@@ -89,19 +89,19 @@ export class LensField {
     this._lens = lens;
     if (lens === 'since') void this.sinceReference;   // (takes the state the figure shows as the lens comes in, before any newer frame moves it)
     this.compute(now);
-    if (instant) { this.fade = 1; this.shared.lensMix.value = 1; } else { this.fade = 0; this.t0 = now; this.shared.lensMix.value = 0; }
+    this.fade.start(now, instant || lensMotionReduced()); this.shared.lensMix.value = this.fade.mix;
   }
 
   /** The engine has a newer frame. A `jump` frame (a new patient) is not blended in the model; what is drawn is: the colours showing become the leaving state and cross-fade to the new patient's. */
   onFrame(frame: FrameLike | null, jump = false, now = -1): void {
     this.frame = frame; this.dirty = true;
-    if (!jump || !frame || now < 0 || (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    if (!jump || !frame || now < 0 || lensMotionReduced()) return;
     this.from.lens = this.to.lens; this.from.mode = this.to.mode; this.from.grad.set(this.to.grad); this.from.lanes.set(this.to.lanes);
     this.shared.lensModeA.value = this.shared.lensModeB.value; this.shared.lensRawA.value = this.shared.lensRawB.value;
     for (let i = 0; i < 5; i++) this.shared.laneColA.value[i]!.copy(this.shared.laneColB.value[i]!);
     this.texFrom.grad.needsUpdate = this.texFrom.lanes.needsUpdate = true;
     this.compute(now);
-    this.fade = 0; this.t0 = now; this.shared.lensMix.value = 0;
+    this.fade.start(now, false); this.shared.lensMix.value = this.fade.mix;
   }
 
   private compute(now: number): void {
@@ -128,14 +128,12 @@ export class LensField {
     else if (this.dirty && !NEEDS_FRAME.has(this._lens)) this.compute(now);
     const dt = !inkWas || this.lastStep < 0 ? 0 : Math.min(250, Math.max(0, now - this.lastStep));
     this.lastStep = now;
-    this.ink.instant = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.ink.instant = lensMotionReduced();
     let inkMoving = false;
     if (this.ink.moving) { inkMoving = this.ink.step(dt); this.ink.write(this.to.grad); this.texTo.grad.needsUpdate = true; }
-    if (this.fade >= 1) return this.dirty || inkMoving;
-    const t = Math.min(1, (now - this.t0) / LENS_MS);
-    this.fade = t;
-    this.shared.lensMix.value = easeInOutCubic(t);
-    return t < 1 || this.dirty || inkMoving;
+    if (!this.fade.moving) return this.dirty || inkMoving;
+    this.shared.lensMix.value = this.fade.step(now);
+    return this.fade.moving || this.dirty || inkMoving;
   }
 
   /** Whether the arriving lens still has a recompute waiting (the scene draws once more when it lands). */

@@ -38,6 +38,16 @@ export function sinusoidCellSources(c: InkContext, lens: LensId): { cols: readon
   return { cols: laneColours(shown), cum };
 }
 
+/** The red cells' colouring across a lens change (sinusoid/view.ts cellColours): the sources before and after (null: their own red) and the share of the after (lenses/fade.ts). */
+export interface CellColours { from: { cols: readonly Rgb[]; cum: number[] } | null; to: { cols: readonly Rgb[]; cum: number[] } | null; mix: number }
+
+/** The colour (into `out`) of the red cell with the fixed draw `u`, own colour `red`, under `c`: its source's colour before and after, mixed by the fade. */
+export function cellColour(c: CellColours, u: number, red: ArrayLike<number>, out: Rgb): Rgb {
+  const a = c.from ? c.from.cols[cellSource(u, c.from.cum)]! : red, b = c.to ? c.to.cols[cellSource(u, c.to.cum)]! : red;
+  for (let i = 0; i < 3; i++) out[i] = a[i]! + (b[i]! - a[i]!) * c.mix;
+  return out;
+}
+
 /** Which source a red cell with the fixed draw `u` (0..1) comes from, against `cum`. */
 export function cellSource(u: number, cum: readonly number[]): number {
   for (let i = 0; i < cum.length; i++) if (u < cum[i]!) return i;

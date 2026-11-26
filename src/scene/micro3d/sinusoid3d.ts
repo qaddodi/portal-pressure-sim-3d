@@ -28,7 +28,7 @@ import { SHAPE_NODES, SHAPE_RAMP, restDisseW, restHalfW, shapeInverse, shapeUnif
 import {
   MeshBuilder, MicroMany, MicroPart, COPY_W, Pacer, meshWork, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
 } from './cel3d.ts';
-import { cellSource } from '../sinusoid/lens.ts';
+import { type CellColours, cellColour } from '../sinusoid/lens.ts';
 
 /** How far along the sinusoid (µm each way) the scene is built: past anything the camera can hold (the host's reach). */
 /** Segments round a red cell's lathe (sinusoid3d: 16, was 40). */
@@ -132,7 +132,7 @@ interface Flat {
   trafficSpeed: number;
   ends: readonly [number, number, number];
   /** The red cells' colouring under Blood origin or First pass (sinusoid/lens.ts), null under every other lens. */
-  readonly cellColours?: { cols: readonly RGB[]; cum: readonly number[]; k: number } | null;
+  readonly cellColours?: CellColours | null;
 }
 
 interface Pal {
@@ -814,7 +814,7 @@ export class Sinusoid3D {
     const lens = f.cellColours, red = this.rbcRed, col = this.rbcCol;
     let n = 0;
     for (const c of this.rbcs) {
-      if (lens) { const s = lens.cols[cellSource(hash(n * 0.618 + 0.37), lens.cum)]!; for (let i = 0; i < 3; i++) col[i] = lerp(red[i]!, s[i]!, lens.k); }
+      if (lens) cellColour(lens, hash(n * 0.618 + 0.37), red, col);
       else { col[0] = red[0]!; col[1] = red[1]!; col[2] = red[2]!; }
       const sp = 1.5 * (1 - c.y * c.y) + 0.08;
       const x = v0 - 8 + ((((c.u * span + flow * sp) % span) + span) % span);
