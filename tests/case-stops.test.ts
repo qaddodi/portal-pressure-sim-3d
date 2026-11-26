@@ -149,3 +149,18 @@ test('the timeline lands on a stop eased (the case) or at once (History\'s Show 
   assert.ok(tl.isFuture(stops[2]!.entry), 'the stops ahead are the future');
   assert.ok(!tl.isFuture(stops[1]!.entry));
 });
+
+test('on the way, what the model raises is the course\'s own: History keeps the course ahead, and takes news again once the stop has landed', async () => {
+  const b = await LOAD['hist-bleed']!();
+  const tl = opened(b, 'x');
+  const stops = stopsFor(b, tl), n = tl.entries().length;
+  tl.goTo(stops[0]!.entry, { quiet: true });
+  tl.follow(true);
+  tl.addEvents([{ id: 'CSPH', title: 'Clinically significant portal hypertension', t: 1, day: 18, severity: 'danger' }]);
+  assert.equal(tl.entries().length, n, 'the walk raised what the course already holds: nothing new, the course ahead kept');
+  tl.goTo(stops[1]!.entry, { quiet: true, ease: 600 });
+  tl.follow(false);
+  tl.addEvents([{ id: 'X', title: 'Something new', t: 2, day: 19, severity: 'danger' }]);
+  assert.equal(tl.entries().length, stops[1]!.entry + 2, 'off the walk, a new day\'s news is the learner\'s own course');
+});
+

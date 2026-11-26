@@ -43,11 +43,13 @@ function clearLeg(): void {
   leg = null;
   send({ type: 'lapse', days: 0 });
 }
-/** The record goes back to the learner's own days: after the landing's eased frames (the next frame that is neither the jump nor a blend), or after REPLAY_MAX_MS. */
+/** The page follows the course (the walk): the record lays in the course's own days and History takes nothing the model raises on the way as news (it is the course's, in History already). */
+function follow(on: boolean): void { record.replay(on); timeline.follow(on); }
+/** The page goes back to the learner's own days: after the landing's eased frames (the next frame that is neither the jump nor a blend), or after REPLAY_MAX_MS. */
 function endReplaySoon(): void {
   replayOff?.();
   let jumped = false, timer: TimerId | null = null;
-  const done = () => { off(); if (timer) clock.cancel(timer); replayOff = null; record.replay(false); };
+  const done = () => { off(); if (timer) clock.cancel(timer); replayOff = null; follow(false); };
   const off = onFrame((f) => { if (f.jump) jumped = true; else if (jumped && !f.morphing) done(); });
   timer = clock.after(done, REPLAY_MAX_MS, 'case-replay');
   replayOff = () => { off(); if (timer) clock.cancel(timer); replayOff = null; };
@@ -58,7 +60,7 @@ function arrive(i: number, eased: boolean): void {
   const s = useCase.getState(), stop = s.stops[i];
   if (!stop) return;
   if (eased) { timeline.goTo(stop.entry, { quiet: true, ease: LAND_MS }); endReplaySoon(); }
-  else { replayOff?.(); record.replay(false); timeline.goTo(stop.entry, { quiet: true }); showShot(stop.shot); }
+  else { replayOff?.(); follow(false); timeline.goTo(stop.entry, { quiet: true }); showShot(stop.shot); }
   useCase.setState({ phase: 'stop', at: i, to: null, day: stop.day, paused: false });
 }
 
@@ -69,7 +71,7 @@ function walk(i: number, fromDay: number, ms?: number): void {
   const days = Math.max(0, Math.round(stop.day - fromDay));
   if (!days || reduced()) { showShot(stop.shot); land(i, !reduced()); return; }
   const len = ms ?? legMs(days), now = clock.now();
-  record.replay(true);
+  follow(true);
   // (at least a day a second: the worker runs whole days only at that speed or more; a one-day leg is then done early, and the landing still waits for the leg's time)
   send({ type: 'lapse', days, speed: Math.max(1, days / (len / 1000)), ramp: legRamp(historyOf(s.id)?.play?.ramps, fromDay, stop.day) });
   const l: Leg = { to: i, from: fromDay, days, pace: { t0: now, d0: 0, rate: days / len, days }, endAt: now + len, camera: false, timers: [], ticker: null };
@@ -156,6 +158,6 @@ export function resumeCase(): boolean {
 export function endCase(): void {
   clearLeg();
   replayOff?.();
-  record.replay(false);
+  follow(false);
   if (useCase.getState().phase !== 'off') useCase.setState({ ...CASE_OFF });
 }

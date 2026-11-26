@@ -209,6 +209,7 @@ export class Timeline {
 
   /** The model's threshold events: each is an entry (the same event again within 30 s is not, unless critical). */
   addEvents(evs: readonly EventIn[]): void {
+    if (this.following_) return;
     for (const ev of evs) {
       // (Looking at a moment of the past, the model raises what that moment already was (a bleed still in shock, a clot still there) as its detectors start over from the restored
       // state. That is the moment's own state, not something new: it must not end the future. An event on another day is the patient moving on, and is recorded.)
@@ -221,6 +222,12 @@ export class Timeline {
       this.host.announce(`${ev.title}. ${ev.detail || ''}`);
     }
   }
+
+  /** Playing a case (ui/case/run.ts): the model walks the course History already holds, so what it raises on the way is the course's own (in History already), never news that ends
+   *  the course ahead. On from the walk's start until the stop has landed. */
+  private following_ = false;
+  follow(on: boolean): void { this.following_ = on; }
+  following(): boolean { return this.following_; }
 
   /** Jump the disease clock ahead (or until the next event): its own entry, a snapshot just after. */
   jump(days: number | 'event', long: string): void {
