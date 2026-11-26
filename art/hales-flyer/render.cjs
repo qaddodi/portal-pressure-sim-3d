@@ -113,6 +113,34 @@ async function pour(flyer) {
   const b = await chromium.launch();
   const svgs = ['circuit.svg', 'circuit-phone.svg'].map((f) => fs.readFileSync(path.join(here, f), 'utf8').replace(/<[^>]+>/g, ' '));
   const bad = svgs.some((t) => DIM.test(t)) ? ['a circuit mentions 2D/3D'] : [];
+  // every label of both circuits lies inside its drawing with room to spare, and no two labels touch (HVPG, cut by the iPhone page's edge, 26 Nov 2026)
+  for (const f of ['circuit.svg', 'circuit-phone.svg']) {
+    const p = await b.newPage();
+    const svg = fs.readFileSync(path.join(here, f), 'utf8');
+    const w = Number(/viewBox="0 0 ([\d.]+) /.exec(svg)[1]);
+    await p.setContent(`<body style="margin:0">${svg.replace('<svg ', `<svg width="${w}" `)}</body>`);
+    await p.evaluate(() => document.fonts.ready);
+    const errs = await p.evaluate(() => {
+      const r = [];
+      const root = document.querySelector('svg');
+      const vb = root.viewBox.baseVal, at = root.getBoundingClientRect();
+      const M = 3;
+      const boxes = [...root.querySelectorAll('text')].filter((t) => t.textContent.trim()).map((t) => [t.textContent, t.getBoundingClientRect()]);
+      for (const [s, bx] of boxes) {
+        const x0 = bx.left - at.left, y0 = bx.top - at.top, x1 = bx.right - at.left, y1 = bx.bottom - at.top;
+        if (x0 < M || y0 < M || x1 > vb.width - M || y1 > vb.height - M) r.push(`"${s}" reaches the drawing's edge`);
+      }
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i][1], c = boxes[j][1];
+          if (a.left < c.right - 1 && c.left < a.right - 1 && a.top < c.bottom - 1 && c.top < a.bottom - 1) r.push(`"${boxes[i][0]}" touches "${boxes[j][0]}"`);
+        }
+      }
+      return r;
+    });
+    bad.push(...errs.map((e) => `${f}: ${e}`));
+    await p.close();
+  }
   const pages = {};
   for (const [kind, size] of Object.entries(SIZES)) {
     const p = await b.newPage({ viewport: size.view, deviceScaleFactor: 2 });
