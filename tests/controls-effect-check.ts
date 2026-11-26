@@ -23,13 +23,11 @@ type Fp = Record<string, unknown> & { at?: { P?: ArrayLike<number>; Q?: ArrayLik
 
 /** Buttons and sliders whose whole effect is drawn on the figure, not printed: `deck/slide` → the parameter path the figure draws. */
 export const FIGURE_ONLY: Readonly<Record<string, { path: string; why: string }>> = {
-  'lobule/cirr': { path: 'fenestrae', why: 'the sinusoid view opens the lining\'s pores (scene/sinusoid/view.ts porosity); the pressure does not move' },
   'tips-doppler/narrow': { path: 'stenosisSite', why: 'the narrowing moves along the stent, so the Doppler\'s jet moves with it; the gradient is the same' },
   'tips-complete/jet': { path: 'stenosisSite', why: 'the narrowing moves along the stent, so the Doppler\'s jet moves with it; the gradient is the same' },
 };
 /** Controls known to show nothing yet: `deck/slide/label` → what they wait on. */
 export const PENDING: Readonly<Record<string, string>> = {
-  'gastric-varices/splenectomy/Partial embolization': 'the infarct takes weeks (engine SPLEEN_INFARCT, tau 14 days) and the slide lives no days: how long after embolization to show is a clinical choice asked of Mohammad',
 };
 
 /** The instruments that draw the model's flows and pressures beyond the numbers the slide prints. */

@@ -45,8 +45,14 @@ const rec = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'o
 
 function compareOf(s: CopiedSlide): SlideControls['compare'] {
   if (s.response === true) {
-    const own = NSBB_LEVELS.findIndex((l) => l.gain === ownGain(s));
-    return { name: 'Change how well the beta-blocker works on the live model', opts: NSBB_LEVELS.map((l, k) => ({ label: l.label, short: l.short, params: { nsbbGain: l.gain }, ...(k === own ? { own: true } : {}), how: 'params' as const })) };
+    // (a slide may carry its own three gains, solved for the falls the buttons stand for, and a line for a button: decks/overlay/controls.ts)
+    const gains = Array.isArray(s.responseGains) && s.responseGains.length === NSBB_LEVELS.length ? (s.responseGains as number[]) : NSBB_LEVELS.map((l) => l.gain);
+    const lines = Array.isArray(s.responseLines) ? (s.responseLines as (string | null)[]) : [];
+    const own = gains.findIndex((g) => g === ownGain(s));
+    const opts = NSBB_LEVELS.map((l, k) => ({
+      label: l.label, short: l.short, params: { nsbbGain: gains[k]! }, ...(k === own ? { own: true } : {}), ...(typeof lines[k] === 'string' ? { line: lines[k]! } : {}), how: 'params' as const,
+    }));
+    return { name: 'Change how well the beta-blocker works on the live model', opts };
   }
   const list = s.compare as unknown;
   if (!Array.isArray(list) || !list.length) return undefined;

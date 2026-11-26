@@ -12,6 +12,7 @@ import type { SplitSlide } from './split-slides.ts';
 import type { Interact } from './interact.ts';
 import { amendAscites } from './ag/ascites-amend.ts';
 import { amendAlbumin } from './ag/albumin-amend.ts';
+import { amendControls } from './overlay/controls.ts';
 
 /** The 3D fields a slide may carry beyond the 2D deck's own. */
 export interface SlideOverlay {
@@ -55,7 +56,9 @@ const AMEND: Readonly<Record<string, (c: CopiedDeck) => CopiedDeck>> = { ascites
 /** The deck with the 3D additions merged onto its slides (a copy; the loaded module is never changed). A key that names a slide the deck does not have is an error, so a re-copy that drops
  *  or renames a slide cannot leave an addition pointing at nothing. */
 export function withOverlay(c0: CopiedDeck): CopiedDeck {
-  const c = AMEND[c0.id] ? AMEND[c0.id]!(c0) : c0;
+  const c1 = AMEND[c0.id] ? AMEND[c0.id]!(c0) : c0;
+  // (the controls' changes, for every deck: decks/overlay/controls.ts)
+  const c = amendControls(c1);
   const mine = Object.entries(OVERLAY).filter(([k]) => k.startsWith(`${c.id}/`));
   if (!mine.length) return c;
   const ids = new Set(c.slides.map((s) => s.id));

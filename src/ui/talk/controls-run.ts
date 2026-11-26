@@ -65,11 +65,14 @@ async function pickCompareRun(deck: Deck, i: number, o: CompareOpt): Promise<voi
   const seq: Seq = (steps, base) => engine().sequence(steps, base);
   const j = o.slide ? deck.slides.findIndex((s) => s.id === o.slide) : i;
   const replay = replayAt(deck, i);
-  if (o.how === 'params' && replay) {
+  // (a row with a button that lives days: every button of it goes to its state the same way, the slide's own back to the slide's own)
+  const lives = !!slide.controls?.compare?.opts.some((x) => x.how === 'params' && x.days);
+  if (o.how === 'params' && (replay || lives)) {
     // a slide that lives days: the button's days are lived again off screen (the second engine), and the figure eases to where they end, as a patient button's does
-    const got = await variantStateOf(secondSeq, picked, { slideKey: key, replay }, o, stateOf(deck, i), undefined);
+    const got = await variantStateOf(secondSeq, picked, { slideKey: key, ...(replay ? { replay } : {}) }, o, stateOf(deck, i), undefined);
     if (n !== pickN) return;
-    morph(got?.snap);
+    // (the slide's own button: its own state; a button without days in such a row: its change settled on the slide's own, eased in on the live model as any parameter button's)
+    if (got?.snap || o.own) morph(got?.snap ?? stateOf(deck, i)?.snap); else sendParams(o.params ?? {}, { settle: false, ease: EASE_MS });
     useVariant.getState().set(key, speaks(slide.controls?.compare?.opts ?? []) ? words : null, got?.state ?? null);
     return;
   }

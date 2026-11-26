@@ -46,6 +46,11 @@ export function variantStateOf(
       return keep(`replay|${ctx.slideKey}|${JSON.stringify(o.params ?? {})}`, () => seq([{ ...step, params }], base).then((r) => ({ snap: r[0]?.snap, state: asState(r[0]) })));
     }
     if (o.own || !own?.base) return Promise.resolve(o.own ? { state: null } : null);
+    // a button whose treatment takes weeks to show (partial splenic embolization) lives its days at the change, and the figure eases to where they end
+    if (o.days) {
+      const step = { params: o.params ?? {}, days: o.days };
+      return keep(`days|${ctx.slideKey}|${JSON.stringify(step)}`, () => seq([step], own.base).then((r) => ({ snap: r[0]?.snap, state: asState(r[0]) })));
+    }
     return keep(`params|${ctx.slideKey}|${JSON.stringify(o.params ?? {})}`, () => seq([{ params: o.params ?? {} }], own.base).then((r) => ({ state: asState(r[0]) })));
   }
   const at = other ?? own;
