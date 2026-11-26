@@ -48,7 +48,7 @@ export function colChars(cells: ReadonlyArray<Printed | undefined>): number {
   return m;
 }
 /** The cell's own padding and a hair of room, in px, on top of the characters (a phone's cells stand .1em apart; a bp cell's are 2 px). */
-export const COL_PAD_PX = 6;
+export const COL_PAD_PX = 4;
 /** The Doppler column's least width. It had none (`minmax(0, ...)`) and asked the name for nothing, so on a phone the name took its whole width and the trace was left ~25 px:
  *  the column and "No flow" were cut at the panel's edge (Doppler 13, capture 49141fb9). Now the name gives way for it as it does for a value column.
  *  4.5rem holds "No flow" and a trace worth reading. */

@@ -40,7 +40,8 @@ export interface Cell {
   wave?: { vessel: string; max: number; trace: Trace | null; pending: boolean; title: string };
 }
 export interface RowModel { key: string; i: number; head: string; site: string; title: string; vs: string; cont: boolean; focus: boolean; ref: boolean; cells: Cell[]; notes: string[] }
-export interface ColModel { k: string; label: string; cut: string }
+/** `group`: the heading a column stands under when its heads are staggered (the pressure columns, the ascites pair), '' for none. */
+export interface ColModel { k: string; label: string; cut: string; group: string }
 export interface TableModel { cols: ColModel[]; ascCols: boolean; rel: boolean; rows: RowModel[]; legend: string; rowHead: string; noteHeads: string[] }
 
 const WORD: Record<string, string> = { 2: 'well above normal', 1: 'above normal', 0: 'normal', '-1': 'below normal', '-2': 'well below normal' };
@@ -70,6 +71,9 @@ export function valueText(k: string, f: Fp): string {
 /** After a TIPS the gradient that is read is the PPG; the HVPG the model still prints is its own output, so a table shows it no arrow. */
 export const AFTER_TIPS_SR = 'not read after a TIPS: the gradient read is the PPG';
 const AFTER_TIPS_LEGEND = 'HVPG not read after a TIPS (the PPG is)';
+
+/** The heading a column stands under: the pressures in mmHg together, the two ascitic readings together, any other column alone. */
+export const groupOf = (k: string): string => (PRESS.has(k) ? 'Pressures' : k === 'saag' || k === 'tp' ? 'Ascites' : '');
 
 export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: string) => Fp | null = () => null): TableModel {
   const cols = spec.cols ?? DEFAULT_COLS, ascCols = spec.asc ?? !spec.cols;
@@ -114,7 +118,8 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
       { k: 'tp', kind: 'dir', text: fmt(r.f.tp, 1), arrow: hiP ? 1 : -1, rate: rateP, eff: null, miss: '', sr: `protein ${hiP ? `${TP_HIGH} or more` : `under ${TP_HIGH}`}, ${fmt(r.f.tp, 1)} g/dL` },
     ];
   };
-  const colModels: ColModel[] = [...cols.map((k) => (k === 'wave' ? { k, label: WAVE_HEADING, cut: WAVE_CUT } : { k, label: COLNAMES[k] || k, cut: CUTS[k] ?? '' })), ...(ascCols ? [{ k: 'saag', label: 'SAAG', cut: CUTS.saag ?? '' }, { k: 'tp', label: 'Prot.', cut: CUTS.tp ?? '' }] : [])];
+  const colModels: ColModel[] = [...cols.map((k) => (k === 'wave' ? { k, label: WAVE_HEADING, cut: WAVE_CUT, group: '' } : { k, label: COLNAMES[k] || k, cut: CUTS[k] ?? '', group: groupOf(k) })),
+    ...(ascCols ? [{ k: 'saag', label: 'SAAG', cut: CUTS.saag ?? '', group: groupOf('saag') }, { k: 'tp', label: 'Prot.', cut: CUTS.tp ?? '', group: groupOf('tp') }] : [])];
   const headRows = rows.map((r) => ({ kicker: r.kicker, site: r.spec.site }));
   const rowModels = rows.map((r, n): RowModel => ({
     key: r.spec.key ?? r.spec.id ?? `r${n}`, i: r.i, head: headOf(headRows[n]), site: r.spec.site ?? 'none', title: r.title,

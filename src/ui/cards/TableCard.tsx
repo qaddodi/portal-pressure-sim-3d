@@ -11,7 +11,7 @@ import { CUT } from '../deck/from2d/table-marks.js';
 import { missWords, longestWord, twoLineWidest, colChars, gridOf, waveMaxH } from './table-words.ts';
 import { WaveCell } from './WaveCell.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
-import { turnHeads } from './table-heads.ts';
+import { chooseHeads, fitsStaggered, setHeads, groupRuns, showGroups, type HeadMode } from './table-heads.ts';
 
 /** 2D's purpose-drawn arrow (styles `.pz-arr`): one arrow, two, or the level dash for a cell within normal. */
 export const Arrow = ({ n }: { n: number }) => {
@@ -67,20 +67,31 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   const model = useMemo(() => tableModel(spec, rows, (id) => fpOfSlide(deck, id)), [rows, spec, deck]);
   const showCut = (k: string, label: string, cutText?: string) => () => setCut({ label, text: cutText || (CUT as Record<string, string>)[k] || '' });
   const nc = model.cols.length, waveH = waveMaxH(model.rows.length);
+  const runs = useMemo(() => groupRuns(model.cols.map((c) => c.group)), [model.cols]), groups = showGroups(runs);
   // 2D fitHeads (presenter.js): where the column heads are too wide for their columns (a phone, many columns) they stand upright (`tr.th-up`), and the name's column takes the room they give back.
   // Judged by measuring, with the upright style off, whenever the table's width or its columns change (the heads are set once, so no frame ever shows a clipped head).
   const root = useRef<HTMLDivElement>(null), headRow = useRef<HTMLTableRowElement>(null);
-  const [up, setUp] = useState(false);
+  const [mode, setMode] = useState<HeadMode>('flat');
   const colKey = model.cols.map((c) => c.k).join();
   useLayoutEffect(() => {
     const box = root.current, tr = headRow.current;
     if (!box || !tr) return;
+    // Staggered heads (table-heads.ts): every head has two columns of room, less a gap, and the first and last no more than the table's edge allows.
+    const staggerOver = () => {
+      const ths = Array.from(tr.querySelectorAll<HTMLElement>('th.num'));
+      return ths.some((t) => {
+        const hd = t.firstElementChild as HTMLElement | null;
+        return hd ? !fitsStaggered(hd.scrollWidth, t.clientWidth) : false;
+      });
+    };
     const fit = () => {
-      const was = tr.classList.contains('th-up');
-      tr.classList.remove('th-up'); box.classList.remove('dk-up');
-      const over = Array.from(tr.querySelectorAll<HTMLElement>('th.num')).some((t) => headOver(t));
-      turnHeads(tr, box, over);   // (written on the page now: the card that holds this table measures in the effect that follows this one, and must see the heads as they will stand)
-      if (over !== was) setUp(over);
+      const was: HeadMode = tr.classList.contains('th-up') ? 'turned' : tr.classList.contains('th-st') ? 'stagger' : 'flat';
+      setHeads(tr, box, 'flat');
+      const flatOver = Array.from(tr.querySelectorAll<HTMLElement>('th.num')).some((t) => headOver(t));
+      let next: HeadMode = 'flat';
+      if (flatOver) { setHeads(tr, box, 'stagger'); next = chooseHeads(true, staggerOver()); }
+      setHeads(tr, box, next);   // (written on the page now: the card that holds this table measures in the effect that follows this one, and must see the heads as they will stand)
+      if (next !== was) setMode(next);
     };
     fit();
     // The heads are judged by measuring words, and a word's width is its font's: a judgement made in the fallback font stands wrong when the real one arrives (a width the box did not change, so the observer is silent): the heads
@@ -103,10 +114,17 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   // (and each value column never narrower than what its cells print: "0.50" ran to the table's edge and "113/72 (86)" stood on three lines when every column was an equal share of what the name left, capture f23a4c59)
   const { grid, need } = useMemo(() => gridOf(model.cols.map((c) => c.k), model.cols.map((c, j) => colChars(model.rows.map((r) => r.cells[j])))), [model]);
   return (
-    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${up ? ' dk-up' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-wn' as string]: longest, ['--dk-wn2' as string]: twoLines, ['--dk-grid' as string]: grid, ['--dk-cols' as string]: need }}>
+    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${mode !== 'flat' ? ' dk-up' : ''}${mode === 'stagger' ? ' dk-st' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-wn' as string]: longest, ['--dk-wn2' as string]: twoLines, ['--dk-grid' as string]: grid, ['--dk-cols' as string]: need }}>
       <table>
         <thead>
-          <tr ref={headRow} className={up ? 'th-up' : undefined}>
+          {groups ? (
+            // (the group row: shown only where the heads are staggered, CSS `.dk-st`; each group a span of its columns, and a column of no group a blank of its own)
+            <tr className="th-grp" aria-hidden="true">
+              <th />
+              {runs.map((r, n) => <th key={n} className="num g" style={{ ['--gs' as string]: r.span }}>{r.label ? <span>{r.label}</span> : null}</th>)}
+            </tr>
+          ) : null}
+          <tr ref={headRow} className={mode === 'turned' ? 'th-up' : mode === 'stagger' ? 'th-st' : undefined}>
             <th>{model.rowHead}</th>
             {model.cols.map((c) => (
               <th key={c.k} className="num" title={c.cut || undefined} tabIndex={c.cut ? 0 : undefined}
