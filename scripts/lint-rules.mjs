@@ -116,6 +116,18 @@ export const RULES = {
     visit: (n) => n.type === 'JSXOpeningElement' && n.name.type === 'JSXIdentifier' && n.name.name === 'Canvas'
       && !n.attributes.some((a) => a.type === 'JSXAttribute' && a.name.name === 'frameloop' && a.value?.type === 'Literal' && a.value.value === 'never'),
   },
+  /** A slider keeps its element for the whole drag: a range input (or a component named Slider / Range / SliderCtl) is never keyed by a computed value (`key={c.id + d}`, a template). The key changes when
+   *  the value does, React remounts the input under the finger, and the browser drops the drag (TIPS Diameter, 26 Nov 2026: the user had to grab it again at every step). Key by a stable id or the list index only. */
+  'slider-key-by-value': {
+    applies: (p) => !vendored(p) && p.endsWith('.tsx'),
+    visit: (n) => {
+      if (n.type !== 'JSXOpeningElement' || n.name.type !== 'JSXIdentifier') return [];
+      const range = n.name.name === 'input' && n.attributes.some((a) => a.type === 'JSXAttribute' && a.name.name === 'type' && a.value?.value === 'range');
+      if (!range && !/(Slider|Range)/.test(n.name.name)) return [];
+      return n.attributes.filter((a) => a.type === 'JSXAttribute' && a.name.name === 'key' && a.value?.type === 'JSXExpressionContainer'
+        && ['BinaryExpression', 'TemplateLiteral', 'CallExpression', 'ConditionalExpression', 'LogicalExpression'].includes(unwrap(a.value.expression).type));
+    },
+  },
   /** One door to the anatomy (anatomy integration plan, phase 1, 24 Nov 2026): where organs and vessels are is read from src/scene/anatomy/source.ts only, so the new placement replaces the
    *  data in one place. No file outside src/scene/anatomy imports the copied 2D courses (vessels/paths.copied.ts) or the decks' region boxes (regions.generated.ts, regions.copied.ts). */
   'anatomy-through-source': {

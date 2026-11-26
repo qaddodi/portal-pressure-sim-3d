@@ -152,7 +152,9 @@ export function StentEditor({ id, lead = false }: StentEditorProps) {
     const pick = cells.find((c) => c.type === 'seg'), dia = cells.find((c) => c.id === 'diameter');
     return (
       <div className="sr-panel" role="group" data-leaving={gone || undefined} inert={gone} aria-label={`Edit ${r.name}`}>
-        <div className="sr-pb">{cells.filter((c) => c.type !== 'seg').map((c) => <SliderCtl key={c.id + d} v={c} d={d} p={p} />)}</div>
+        {/* Keyed by the control alone: a key that moved with the diameter remounted the Diameter slider on every step and the browser dropped the drag. */}
+        {/* The lumen sliders follow the diameter by their props. (lint: slider-key-by-value) */}
+        <div className="sr-pb">{cells.filter((c) => c.type !== 'seg').map((c) => <SliderCtl key={c.id} v={c} d={d} p={p} />)}</div>
         <div className="sr-foot">
           <div className="sr-fl">{pick ? <SegCtl v={pick} p={p} /> : dia ? <span className="sr-hint">{`${dia.min} to ${dia.max} mm`}</span> : null}</div>
           <button type="button" className="sr-done" aria-label={`Done with ${r.name}`} onClick={() => choose(r.id)}>Done</button>
