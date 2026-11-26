@@ -122,3 +122,19 @@ test('an event on another day than the moment\'s is the patient moving on: it is
   assert.equal(tl.entries().length, at + 2);
   assert.equal(tl.entries()[at + 1]!.label, 'Ascites forming');
 });
+
+test('a tap is a step of the day record, as a treatment is: the calmed lane drops at the tap instead of smoothing it away', async () => {
+  const { calmedDays } = await import('../src/engine/hales/portal/trail-calm.js');
+  const f = new SampleFeed();
+  const asc = (day: number, L: number, o: Partial<FeedFrame> = {}) => frame(day, { metrics: { ...metrics(12), ascites: { volume: L * 1000 } }, ...o });
+  f.adopt(asc(0, 4, { jump: true }), 0);
+  for (let d = 1; d <= 10; d++) f.adopt(asc(d, 4 + d * 0.1), 0);
+  f.markStep();
+  f.adopt(asc(10, 0.1), 0);
+  for (let d = 11; d <= 14; d++) f.adopt(asc(d, 0.1 + (d - 10) * 0.3), 0);
+  assert.equal(f.days.filter((d) => d.start).length, 1, 'one step, at the tap');
+  const c = calmedDays(f.days, 'asc'), at = c.x.lastIndexOf(10);
+  assert.ok(c.mid[at - 1]! > 4.5 && c.mid[at]! < 0.5, `the lane reads ${c.mid[at - 1]!.toFixed(1)} L before the tap and ${c.mid[at]!.toFixed(1)} L after it`);
+  const { STEPS } = await import('../src/ui/action/send.ts').catch(() => ({ STEPS: null }));
+  if (STEPS) { assert.ok(STEPS({ kind: 'paracentesis', mL: 4000 })); assert.equal(STEPS({ kind: 'band' }), false, 'a band is counted by the feed itself'); }
+});
