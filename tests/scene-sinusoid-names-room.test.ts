@@ -115,15 +115,12 @@ function layScreen(W: number, H: number, card: boolean) {
   return { names, free, room, k, C, xk, cell };
 }
 const SCREENS: [string, number, number][] = [['Mac 1440x900', 1440, 900], ['Mac 1280x800', 1280, 800], ['iPad landscape', 1024, 768], ['iPhone landscape', 844, 390]];
-for (const card of [false, true]) test(`the Kupffer cell stands on bare lining near the middle, the Sinusoid callout in a plate with its leader in the lumen, and nothing of the names over the cell (${card ? 'a card open' : 'free play'})`, () => {
+for (const card of [false, true]) test(`the Kupffer cell stands on bare lining near the middle, the Sinusoid name in the middle of the vessel, and nothing of the names over the cell (${card ? 'a card open' : 'free play'})`, () => {
   for (const [label, W, H] of SCREENS) {
     const L = layScreen(W, H, card), tag = `${label}${card ? ' + card' : ''}`;
     const sin = L.names.find((n) => n.key === 'sin')!, inn = L.names.find((n) => n.key === 'in')!, out = L.names.find((n) => n.key === 'out')!;
-    void inn; void out;
-    // the Sinusoid is a callout (Mohammad, 26 Nov): its name stands in a plate, off the lumen, and its leader ends inside the lumen's band
-    assert.ok(sin.leader, `${tag}: the Sinusoid has a leader`);
-    const hw = L.k * 5 * 1.03;
-    assert.ok(Math.abs(sin.leader!.y2 - L.C[1]) < hw, `${tag}: its leader ends in the lumen (${sin.leader!.y2.toFixed(0)} against the axis ${L.C[1].toFixed(0)})`);
+    const mid = (box(inn).x1 + box(out).x0) / 2;
+    assert.ok(Math.abs(sin.cx - mid) < 0.5 * sin.w + 40 || Math.abs(sin.cx - L.cell.x0) < 0.5 * sin.w + 40, `${tag}: Sinusoid name in the middle between the ends (${sin.cx.toFixed(0)} against ${mid.toFixed(0)})`);
     for (let n = -6; n <= 6; n++) assert.ok(Math.abs(L.xk - nucAt(n, SEED.nucDn)) >= KUP_CLEAR - 1e-9, `${tag}: the cell clear of every endothelial cell`);
     assert.ok(Math.abs(L.xk) <= 13.5, `${tag}: the cell stands near the middle (${L.xk.toFixed(1)} µm), leaving the room's right end to the central vein`);
     for (const n of L.names) {
