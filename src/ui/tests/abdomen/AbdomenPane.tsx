@@ -14,6 +14,7 @@ import { useProc } from '../../deck/procs-state.ts';
 import { useStates } from '../../../decks/hp/calc.ts';
 import { copiedOf } from '../../../decks/hp/deck.ts';
 import { balanceHold } from '../copied/balance-hold.copied.js';
+import { caseBalance } from '../../case/rate.ts';
 import { metricsOf, paramsNow } from '../frame.ts';
 import { abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminTip, albuminText, tapWords, tapPeak, tapRemoved, tapDrainL, TAP_RESERVE, IAP_MAX, type AbView } from './model.ts';
 
@@ -31,7 +32,8 @@ let held: number | null = null;
 function viewNow(): AbView | null {
   const b = hold.step(metricsOf(latest.frame)?.ascites?.ratePerDay, clock.now());
   if (b != null) held = b;
-  return abView(metricsOf(latest.frame), paramsNow(), hold.shown ?? held);
+  // (a playing case says its own day's balance, from the course: the live one swings, and what it had settled to depended on when the card was opened)
+  return abView(metricsOf(latest.frame), paramsNow(), hold.shown ?? held, caseBalance());
 }
 
 /** 2D's stepper (instruments.js stepper, and the litres to drain): − value +, the value between the buttons. `less` and `more` are the buttons' names. */
