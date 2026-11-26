@@ -9,6 +9,7 @@
 // Usage: node scripts/copy-b11-doppler.mjs --from <2D checkout> [--check]    (--check writes nothing and fails when a file would change)
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { patchVerdict } from './doppler-verdict-patch.mjs';
 /** The 2D app's stylesheets in the order its index.html links them (read from the 2D checkout these copy scripts run against). */
 const loadOrder = (indexHtml) => [...indexHtml.matchAll(/<link rel="stylesheet" href="styles\/([\w.-]+\.css)"/g)].map((m) => m[1]);
 
@@ -69,6 +70,8 @@ if (/store\./.test(body)) throw new Error('doppler.js reading still reads the st
   if ((body.match(cut) || []).length !== 2 || !body.includes(quiet)) throw new Error('doppler.js: the portal vein pattern words are not where the phasic departure expects them');
   body = body.replace(cut, "pi > 0.5 ? 'Pulsatile' : pi > PORTAL_PHASIC_PI ? 'Phasic' : 'Monophasic'").replace(quiet, "pattern === 'Monophasic' ? 'Hepatopetal and continuous: a stiff liver, as in cirrhosis, damps the phasicity a healthy portal vein shows.'");
 }
+// (Departure from 2D, 26 Nov 2026, B13: the verdict and the gauge's flag are one judgment, and the phasicity class is the window's, scripts/doppler-verdict-patch.mjs.)
+body = patchVerdict(body);
 put('doppler-reading.copied.js', HEAD('doppler.js, reading() to say()') + [
   `import { EDGES, dopplerK, stentReadsOf, stentGate } from '../../../../engine/hales/portal/topology.js';`,
   `import { gateKindsFromParams, reductionJet, kindOf } from '../../../../engine/hales/portal/stent-geom.js';`,

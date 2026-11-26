@@ -8,6 +8,7 @@
 import { onFrame, engine } from '../../engine/index.ts';
 import type { EngineFrame } from '../../engine/index.ts';
 import { createBeatClock } from './copied/ekg.copied.js';
+import { bandsPlaced } from '../action/bands-on.ts';
 import { createFreewheel } from './copied/freewheel.copied.js';
 import { recordDay, calmedDays } from '../../engine/hales/portal/trail-calm.js';
 import { treatmentKey } from '../../engine/hales/portal/change-events.js';
@@ -34,7 +35,7 @@ export type FeedFrame = Pick<EngineFrame, 'jump'> & {
   samples?: Packed | null; probe?: string; gen?: number; clock?: string; day?: number; metrics?: Record<string, unknown>; params?: unknown; bands?: unknown; morphing?: boolean; Pf?: ArrayLike<number>;
 };
 /** the bands on (the engine's count wears off a little each day): a whole number, or what a frame without one holds */
-export const bandsOn = (b: unknown): unknown => (typeof b === 'number' ? Math.max(0, Math.ceil(b - 1e-3)) : b);
+export const bandsOn = (b: unknown): unknown => (typeof b === 'number' ? bandsPlaced(b) : b);
 /** what the paper's clock reads of a frame */
 export type HeadFrame = { running?: boolean; clock?: string; morphing?: boolean; speed?: number } | null | undefined;
 
