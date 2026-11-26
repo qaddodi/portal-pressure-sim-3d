@@ -7,7 +7,9 @@ import { eventDetail } from '../timeline/event-words.ts';
 export function entriesOf(b: Baked, name: string): Omit<Entry, 'id'>[] {
   const es: Omit<Entry, 'id'>[] = b.entries.map((e) => ({
     kind: e.kind, label: e.kind === 'start' ? name : e.label, day: e.day, t: e.t,
-    ...(e.detail ? { detail: e.kind === 'event' ? eventDetail(e.evId, e.detail) ?? e.detail : e.detail } : {}), ...(e.sev ? { sev: e.sev } : {}), ...(e.evId ? { evId: e.evId } : {}), ...(e.keys ? { keys: e.keys } : {}), ...(e.action ? { action: true } : {}),
+    // (an event's line is said in a clinician's words: timeline/event-words.ts)
+    ...(e.detail ? { detail: e.kind === 'event' ? eventDetail(e.evId, e.detail) ?? e.detail : e.detail } : {}),
+    ...(e.sev ? { sev: e.sev } : {}), ...(e.evId ? { evId: e.evId } : {}), ...(e.keys ? { keys: e.keys } : {}), ...(e.action ? { action: true } : {}),
     ...(e.step ? { step: e.step } : {}),
     ...(e.params !== undefined ? { params: e.params } : {}),
     // (a moment the story headlines: the model at its day's end, to show on the figure; the past, so Undo walks past it)

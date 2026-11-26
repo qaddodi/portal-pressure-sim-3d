@@ -34,7 +34,11 @@ const KV: [keyof ReturnType<typeof values>, string][] = [['fhvp', 'FHVP'], ['whv
 function Measure({ h }: { h: number }) {
   useRun((s) => s.n);
   // the readings follow the model while idle: a re-render only when a printed tenth changes
-  useEngine((s) => { void s.frames; const m = withStopReads(latest.frame?.metrics); return `${Math.round(((m?.fhvp as number) ?? 0) * 10)}|${Math.round(((m?.whvp as number) ?? 0) * 10)}|${m?.pv ? 1 : 0}`; });
+  useEngine((s) => {
+    void s.frames;
+    const m = withStopReads(latest.frame?.metrics);
+    return `${Math.round(((m?.fhvp as number) ?? 0) * 10)}|${Math.round(((m?.whvp as number) ?? 0) * 10)}|${m?.pv ? 1 : 0}`;
+  });
   useParamsTick((s) => s.tick);
   const mode = useTalkOn() ? 'deck' : 'free', measured = useMeasured((s) => s.hvpgMeasured);
   const ph = phase(), running = hvpgRunning(), other = useBlocker('ir'), isBusy = busy() || !!other;
