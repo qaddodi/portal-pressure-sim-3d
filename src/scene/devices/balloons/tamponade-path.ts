@@ -17,6 +17,7 @@ import { UNITS_PER_SCENE, x3, y3 } from '../../frame2d.ts';
 import { BALLOON } from '../../procedures/copied/balloon-eso.js';
 import { GAS, tubePath } from '../../procedures/copied/balloon-gas.js';
 import { DEVICE_BEND_RADII, arcOf, filletPath, limitBend, pointAtArc, type V3 } from '../bend-path.ts';
+import { ringSides } from '../tube-rings.ts';
 import { scopeZ, wayShift } from '../probes/scope.ts';
 import { ORGAN_MESHES } from '../../organs/meshes.ts';
 import { type GeJunction, geJunction } from '../../organs/ge-junction.ts';
@@ -159,96 +160,134 @@ export function pastJunction(j: GeJunction, x: number, y: number, z: number): nu
 }
 
 // ── The gastric balloon ───────────────────────────────
-/** The balloon's length over its widest half width: under 2 is a flattened sphere (the 2D app's pear was 2.9, a long pear). */
-export const GAS_LENGTH_RATIO = 1.5;
-/** How square its two faces are (2 is an ellipse; above it the faces flatten, the upper one lying flat against the cardia). */
-export const GAS_FACE_POWER = 2.2;
+/**
+ * THE BALLOON IS FITTED TO THE STOMACH, NOT CLIPPED BY IT (owner, 26 Nov 2026, looking at the seated balloon: "wow this looks bad; it should still look like a balloon just squished against
+ * the GEJ from the stomach side"). Root cause of the cup: the balloon was a wide ball whose every ring was cut down to the room the wall left it (`min(want, room)`), but the stomach mesh is only
+ * about 16 to 20 figure units thick, front to back, at the cardia, and the tube hugs its left wall, so nearly every ring was cut to the same 8 to 10: a clipped ball is a cylinder with flat
+ * caps and a step at each cut, which the cel shading drew as ridges, a rigid tan cup. A real balloon squeezed by a wall does not lose a slice of itself: it keeps its smooth skin and
+ * deforms as a whole. So here the balloon's shape is never cut. It is one smooth oval body (`gasProfile`), and what the wall changes is its POSE as a whole, found once by a search
+ * (`solveSeat`): how much it is squashed in depth (`flat`: an oval ring, half as thick toward the viewer as across), how far its middle is pushed sideways into the lumen (`shift`, nothing at the
+ * two necks, which stay on the tube), how far the face sits below the opening to meet the cardia (`top`), and, only if nothing less fits, its size. The first pose (full size, least squashed,
+ * face nearest the opening, least pushed) whose every point is inside the lumen and on the stomach's side of the junction is the seat.
+ */
+/** The balloon's length over its widest half width: well under 2, a flattened ball (the 2D app's pear was 2.9, a long pear). */
+export const GAS_LENGTH_RATIO = 1.25;
+/** How square the face against the cardia is, and how round the end below it (2 is an ellipse; above it the face flattens and lies flat against the wall). */
+export const GAS_TOP_POWER = 2.6, GAS_BOTTOM_POWER = 2;
 /** The share of the 2D app's full size (GAS.bMax) the balloon is filled to when the stomach has room for it. */
 export const GAS_FILL = 0.8;
-/** How far the balloon's skin may press into the wall (scene units, a negative standoff): the soft wall gives one figure unit, so a ring held in by the wall touches it. */
-export const SKIN = -1 / U;
-/** What the mesh's distance field may be out by (scene units, under a figure unit): the rings are held this far inside the skin's limit, so a ring read at other points still lies within it. */
+/** How far the balloon's skin may press into the wall (scene units, a negative standoff): the cardia is soft and stretches round a balloon drawn up into it, so it gives 3.5 figure units. */
+export const SKIN = -3.5 / U;
+/** What the mesh's distance field may be out by (scene units, under a figure unit): a pose is held this far inside the skin's limit, so a point read elsewhere still lies within it. */
 const FIELD_ERROR = 0.6 / U;
-/** The ring's samples round it when the wall is read. */
-const AROUND = 32;
+/** The points round a ring, and the rings along the balloon, when a pose is tried against the wall. */
+const AROUND = 20, TRIAL_RINGS = 13;
 export interface GasRing {
   /** the length along the line */
   s: number;
-  /** the centre, in the scene */
+  /** the centre, in the scene (on the tube's line, pushed across by the pose's shift) */
   c: V3;
   /** the unit direction of the tube there */
   t: V3;
-  /** the radius, scene units */
+  /** the half width across the tube (the figure's side of it), scene units */
   r: number;
-  /** the shape's radius before the wall held it in */
+  /** the half width toward the viewer, scene units: `flat` of `r` (the oval the wall squeezes it to) */
+  rd: number;
+  /** the half width of the unsqueezed shape here */
   want: number;
 }
+/** How the wall has posed the balloon: `shift` how far its middle is pushed across the tube (scene units, signed along the ring's first side), `flat` its
+  * half width toward the viewer over its half width across. */
+export interface GasPose { shift: number; flat: number }
+const FREE: GasPose = { shift: 0, flat: 1 };
 
-/** The shape's half width at u (0 the upper face, 1 the lower) for a balloon of widest half width b (scene units): a flattened sphere, a sheath of the tube's width at each pole. */
+/** The shape's half width at u (0 the upper face, 1 the lower) for a balloon of widest half width b (scene units): a ball whose upper face is flat
+  * against the cardia (`GAS_TOP_POWER`) and whose lower end is round (`GAS_BOTTOM_POWER`), a sheath of the tube's width at each pole. Smooth: no step
+  * anywhere. */
 export function gasProfile(u: number, b: number): number {
-  const x = Math.abs(2 * u - 1), p = GAS_FACE_POWER, neck = GAS.neck / U;
+  const x = Math.abs(2 * u - 1), p = u < 0.5 ? GAS_TOP_POWER : GAS_BOTTOM_POWER, neck = GAS.neck / U;
   return neck + (b - neck) * Math.pow(Math.max(0, 1 - Math.pow(x, p)), 1 / p);
 }
 /** The balloon's length (scene units) for its widest half width b. */
 export const gasLength = (b: number): number => GAS_LENGTH_RATIO * b;
 
-const tmpC = new Vector3(), tmpT = new Vector3();
-/** The ring of radius r about the centre c, perpendicular to t: the samples of its circle (scene units). */
-function ringPoints(c: V3, t: V3, r: number, out: V3[]): V3[] {
-  const tx = t[0], ty = t[1], tz = t[2];
-  // a side direction that is not along t
-  let sx = 0, sy = 0, sz = 1;
-  if (Math.abs(tz) > 0.9) { sx = 1; sy = 0; sz = 0; }
-  let ax = ty * sz - tz * sy, ay = tz * sx - tx * sz, az = tx * sy - ty * sx;
-  const al = Math.hypot(ax, ay, az) || 1; ax /= al; ay /= al; az /= al;
-  const bx = ty * az - tz * ay, by = tz * ax - tx * az, bz = tx * ay - ty * ax;
+const sideA = new Vector3(), sideB = new Vector3(), tmpC = new Vector3(), tmpT = new Vector3();
+/** The pose's own part of the way (`q`, 0 let go, 1 seated): free of the wall deep in the stomach, fully posed when drawn up. */
+const poseAt = (p: GasPose, q: number): GasPose => ({ shift: p.shift * unit01(q), flat: 1 + (p.flat - 1) * unit01(q) });
+
+/** The rings of a balloon of widest half width b (scene units) with its upper face at length `top` along the line, n of them, closest together at the two faces, posed by `pose`. */
+function posedRings(line: TubeLine, top: number, b: number, n: number, pose: GasPose): GasRing[] {
+  const length = gasLength(b) * U, out: GasRing[] = [], total = line.cum[line.cum.length - 1]!, neck = GAS.neck / U, reach = Math.max(1e-9, b - neck);
+  for (let i = 0; i < n; i++) {
+    const u = 0.5 - 0.5 * Math.cos((Math.PI * i) / (n - 1)), s = Math.min(total, top + length * u);
+    lineScene(line, s, tmpC, tmpT);
+    const want = Math.max(TUBE_R / U, gasProfile(u, b));
+    // (the sheath at each pole stays on the tube; the middle is pushed across by as much of the shift as the ring is wider than the sheath)
+    ringSides(tmpT, sideA, sideB);
+    const g = Math.min(1, Math.max(0, (want - neck) / reach)) * pose.shift, nk = Math.min(neck, want), rd = Math.max(TUBE_R / U, nk + (want - nk) * pose.flat);
+    out.push({ s, c: [tmpC.x + sideA.x * g, tmpC.y + sideA.y * g, tmpC.z + sideA.z * g], t: [tmpT.x, tmpT.y, tmpT.z], r: want, rd, want });
+  }
+  return out;
+}
+/** The points round an oval ring (scene units). */
+function ovalPoints(g: GasRing, out: V3[]): V3[] {
+  ringSides(tmpT.set(g.t[0], g.t[1], g.t[2]), sideA, sideB);
   for (let k = 0; k < AROUND; k++) {
-    const th = (k / AROUND) * Math.PI * 2, ct = Math.cos(th) * r, st = Math.sin(th) * r;
-    out[k] = [c[0] + ax * ct + bx * st, c[1] + ay * ct + by * st, c[2] + az * ct + bz * st];
+    const th = (k / AROUND) * Math.PI * 2, ca = Math.cos(th) * g.r, cb = Math.sin(th) * g.rd;
+    out[k] = [g.c[0] + sideA.x * ca + sideB.x * cb, g.c[1] + sideA.y * ca + sideB.y * cb, g.c[2] + sideA.z * ca + sideB.z * cb];
   }
   return out;
 }
 const around: V3[] = new Array(AROUND);
-/** How far past the junction's plane a point of the balloon must be (scene units): none of it may be on the oesophagus's side, whatever the wall says (half a figure unit, for the rim
-  * of a tilted ring). */
+/** How far past the junction's plane a point of the balloon must be (scene units): none of it may be on the oesophagus's side, whatever the wall says
+  * (half a figure unit, for the rim of a tilted ring). */
 const PLANE = -0.5 / U;
-/** The widest radius at most `cap` that a ring centred at c (axis t) can have with every point of it at least SKIN inside the lumen and on the stomach side of the junction (the same
-  * all the way round). */
-function roomAt(j: GeJunction, c: V3, t: V3, cap: number): number {
-  const hold = SKIN + FIELD_ERROR;
-  if (j.clearance(c[0], c[1], c[2]) < hold || pastJunction(j, c[0], c[1], c[2]) < PLANE) return 0;
-  const fits = (r: number): boolean => { ringPoints(c, t, r, around); return around.every((p) => j.clearance(p[0], p[1], p[2]) >= hold && pastJunction(j, p[0], p[1], p[2]) >= PLANE); };
-  if (fits(cap)) return cap;
-  let lo = 0, hi = cap;
-  for (let i = 0; i < 14; i++) { const m = (lo + hi) / 2; if (fits(m)) lo = m; else hi = m; }
-  return lo;
-}
-
-/** The rings of a balloon of widest half width b (scene units) with its upper face at length `top` along the line, n of them, closest together at the two faces, before the wall holds them in. */
-function shapeRings(line: TubeLine, top: number, b: number, n: number): GasRing[] {
-  const length = gasLength(b) * U, out: GasRing[] = [], total = line.cum[line.cum.length - 1]!;
-  for (let i = 0; i < n; i++) {
-    const u = 0.5 - 0.5 * Math.cos((Math.PI * i) / (n - 1)), s = Math.min(total, top + length * u);
-    lineScene(line, s, tmpC, tmpT);
-    out.push({ s, c: [tmpC.x, tmpC.y, tmpC.z], t: [tmpT.x, tmpT.y, tmpT.z], r: gasProfile(u, b), want: gasProfile(u, b) });
+/** Whether every point of the balloon, of widest half width b with its face at length `top` and posed by `pose`, is in the lumen (at least SKIN inside
+  * the wall) and on the stomach's side of the junction. */
+function fits(j: GeJunction, line: TubeLine, top: number, b: number, pose: GasPose, give = SKIN): boolean {
+  const hold = give + FIELD_ERROR, rings = posedRings(line, top, b, TRIAL_RINGS, pose);
+  // (the widest rings first: they are the ones that fail)
+  const order = rings.map((_, i) => i).sort((p, q) => rings[q]!.r - rings[p]!.r);
+  for (const i of order) {
+    const r = rings[i]!;
+    if (j.clearance(r.c[0], r.c[1], r.c[2]) < hold || pastJunction(j, r.c[0], r.c[1], r.c[2]) < PLANE) return false;
+    for (const p of ovalPoints(r, around)) if (j.clearance(p[0], p[1], p[2]) < hold || pastJunction(j, p[0], p[1], p[2]) < PLANE) return false;
   }
-  return out;
+  return true;
 }
-interface Seat { /** the widest half width of the full balloon (scene units) */ b: number; /** its upper face's length along the line when it is drawn up */ top: number }
+/** What the search tries: the balloon's size (share of the full), how little it is squashed (depth over width), how far below the opening its face is
+  * (figure units) and how far its middle is pushed across (figure units, either side). Of the poses that fit, the seat is the cheapest by `poseCost`: a
+  * smaller balloon, a flatter one, one further from the opening or one pushed over each cost something, in about the order a viewer would mind them (a
+  * gap between the opening and the face most, the size next). */
+const TRY_SIZE = [1, 0.95, 0.9, 0.85, 0.8, 0.7, 0.6, 0.5], TRY_FLAT = [1, 0.85, 0.75, 0.65, 0.5];
+const TRY_DROP = [0, 2, 4, 6, 8, 10, 12, 14, 16], TRY_SHIFT = [0, 2, -2, 4, -4, 6, -6, 8, -8, 10, -10, 12, -12];
+const poseCost = (size: number, flat: number, drop: number, shift: number): number => 60 * (1 - size) + 12 * (1 - flat) + 1.4 * drop + 0.25 * Math.abs(shift);
+
+interface Seat {
+  /** the widest half width of the full balloon (scene units): the same at every traction */
+  b: number;
+  /** its upper face's length along the line when it is drawn up */
+  top: number;
+  /** how the wall poses it when it is drawn up */
+  pose: GasPose;
+}
 const seats = new WeakMap<TubeLine, Seat>();
-/**
- * The full balloon drawn up against the junction: the 2D app's size (GAS_FILL of it), its upper face at the opening's plane, as high as the tube can draw it and stay on the stomach's
- * side. Opened deep in the roomy
- * lumen it is the full round shape; drawn up, the wall round the cardia holds each ring in (`gasRings`), so the cone of its face is pressed into the junction and the body swells below it.
- */
+/** The seat for this line: the first pose of the search that fits (`solveSeat`), or the full balloon on the opening where the junction is not known yet (it is not kept). */
 export function gasSeat(line: TubeLine): Seat {
   const hit = seats.get(line);
   if (hit) return hit;
-  const seat = { b: (line.path.f.b * GAS_FILL) / U, top: line.opening };
-  if (line.junction) seats.set(line, seat);
-  return seat;
+  const b0 = (line.path.f.b * GAS_FILL) / U, j = line.junction;
+  if (!j) return { b: b0, top: line.opening, pose: FREE };
+  let seat: Seat | null = null, best = Infinity;
+  for (const size of TRY_SIZE) for (const flat of TRY_FLAT) for (const drop of TRY_DROP) for (const shift of TRY_SHIFT) {
+    const cost = poseCost(size, flat, drop, shift);
+    if (cost < best && fits(j, line, line.opening + drop, b0 * size, { shift: shift / U, flat })) { best = cost; seat = { b: b0 * size, top: line.opening + drop, pose: { shift: shift / U, flat } }; }
+  }
+  // (the stomach has no room at all: the smallest, flattest balloon on the opening, as before)
+  seats.set(line, seat ?? { b: b0 * TRY_SIZE[TRY_SIZE.length - 1]!, top: line.opening, pose: { shift: 0, flat: TRY_FLAT[TRY_FLAT.length - 1]! } });
+  return seats.get(line)!;
 }
-/** Where the balloon's upper face is along the line for the traction at q (0 let go: it sits GAS.slack down the tube; 1 drawn up, seated). */
+/** Where the balloon's upper face is along the line for the traction at q (0 let go: it sits the whole draw further down the tube; 1 drawn up, seated). */
 export function gasTop(line: TubeLine, q: number): number {
   return gasSeat(line).top + pullOf(line) * (1 - unit01(q));
 }
@@ -267,11 +306,10 @@ export function lineTip(line: TubeLine, adv: number, q: number): number {
 }
 
 /**
- * The gastric balloon at inflation `k` (0 collapsed on the tube … 1 full) and traction `q` (0 let go … 1 drawn up, seated over the opening) as `n` rings along the line. Each ring is
- * centred on the line and a circle about it,
- * its radius the shape's held in by the real wall all round it (so the same on every side).
+ * The gastric balloon at inflation `k` (0 collapsed on the tube … 1 full) and traction `q` (0 let go … 1 drawn up, seated against the cardia) as `n` oval rings along the line. Each is the
+ * unsqueezed shape's ring, posed (`gasSeat`): the shape is smooth and whole, only squashed, pushed over and seated.
  */
 export function gasRings(line: TubeLine, k: number, q: number, n: number): GasRing[] {
-  const seat = gasSeat(line), neck = GAS.neck / U, b = neck + (seat.b - neck) * k, j = line.junction;
-  return shapeRings(line, gasTop(line, q), b, n).map((r) => ({ ...r, r: Math.max(TUBE_R / U, j ? Math.min(r.want, roomAt(j, r.c, r.t, r.want)) : r.want) }));
+  const seat = gasSeat(line), neck = GAS.neck / U, b = neck + (seat.b - neck) * k;
+  return posedRings(line, gasTop(line, q), b, n, poseAt(seat.pose, q));
 }

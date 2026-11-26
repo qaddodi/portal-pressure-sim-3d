@@ -142,7 +142,7 @@ export class Tamponade {
       const sec = gasRings(line, k, q, GAS_N);
       for (let i = 0; i < GAS_N; i++) {
         const sc = sec[i]!, r = this.gasRings[i]!;
-        r.c.set(sc.c[0], sc.c[1], sc.c[2]); r.t.set(sc.t[0], sc.t[1], sc.t[2]); r.r = Math.max(tubeR, sc.r);
+        r.c.set(sc.c[0], sc.c[1], sc.c[2]); r.t.set(sc.t[0], sc.t[1], sc.t[2]); r.r = Math.max(tubeR, sc.r); r.rd = Math.max(tubeR, sc.rd);
       }
       writeRings(this.gas.toonMesh.geometry, this.gasRings, RADIAL);
       this.gas.setAlphas(GLASS_FILL * grow(k), inkOf(k) * grow(k));

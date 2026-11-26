@@ -7,7 +7,12 @@ import { BufferAttribute, BufferGeometry, Vector3 } from 'three';
  * `u`: where along the whole device this ring lies (0 to 1), for a ring that is one of many paths of ONE device (a stent's wires, its graft, its band).
  * uv.x then reads the same along-the-device place on every path, so a front can sweep them together (stent-deploy.ts). Absent: the path's own 0..1.
  */
-export interface Ring { c: Vector3; t: Vector3; r: number; u?: number }
+export interface Ring {
+  c: Vector3; t: Vector3; r: number; u?: number;
+  /** The half width in the other direction across the tube (toward the viewer, `ringSides`' second side) when the ring is an oval and not a circle:
+    * a balloon the wall squeezes flatter one way than the other. Absent: a circle of radius `r`, which is every other device's ring. */
+  rd?: number;
+}
 /** The sideways direction a ring is built on: across the tube as the figure sees it (the frame's up is toward the viewer), so a flat figure's tube always has its widest side in view. */
 const Z = new Vector3(0, 0, 1), X = new Vector3(1, 0, 0);
 
@@ -37,6 +42,12 @@ export function allocTube(n: number, radial: number): BufferGeometry {
 }
 
 const n1 = new Vector3(), n2 = new Vector3(), d = new Vector3(), tt = new Vector3();
+/** The two unit sides a ring about direction `t` is built on (the first across the tube as the figure sees it, the second toward the viewer): the one frame `writeRings` and a ring's users share. */
+export function ringSides(t: Vector3, a: Vector3, b: Vector3): void {
+  tt.copy(t).normalize();
+  a.crossVectors(tt, Z); if (a.lengthSq() < 1e-6) a.crossVectors(tt, X);
+  a.normalize(); b.crossVectors(tt, a).normalize();
+}
 /** Writes the rings into the geometry allocated for them. `u0` and `u1` set uv.x along the rings (a part of a longer route keeps the route's own fractions); `us` gives it ring by ring (rings that are not evenly spaced). */
 export function writeRings(g: BufferGeometry, rings: readonly Ring[], radialArg: number, u0 = 0, u1 = 1, us?: ArrayLike<number>): void {
   // (the sides a tube was allocated with are the tube's own, `userData.radial`: a caller that passes another number would fill part of each ring and leave the rest of its vertices at the origin, a hairline from the tube to the figure's
@@ -46,17 +57,23 @@ export function writeRings(g: BufferGeometry, rings: readonly Ring[], radialArg:
   const n = rings.length;
   for (let i = 0; i < n; i++) {
     const ring = rings[i]!;
-    tt.copy(ring.t).normalize();
-    n1.crossVectors(tt, Z); if (n1.lengthSq() < 1e-6) n1.crossVectors(tt, X);
-    n1.normalize(); n2.crossVectors(tt, n1).normalize();
+    ringSides(ring.t, n1, n2);
     // the radius's slope along the tube tilts the normal (a balloon's shoulders), so it shades as the swelling it is
     const a = rings[Math.max(0, i - 1)]!, b = rings[Math.min(n - 1, i + 1)]!;
     const ds = a.c.distanceTo(ring.c) + ring.c.distanceTo(b.c) || 1, slope = (b.r - a.r) / ds;
     for (let j = 0; j <= radial; j++) {
       const th = (j / radial) * Math.PI * 2, ct = Math.cos(th), st = Math.sin(th), k = i * (radial + 1) + j;
       d.set(n1.x * ct + n2.x * st, n1.y * ct + n2.y * st, n1.z * ct + n2.z * st);
-      pos.setXYZ(k, ring.c.x + d.x * ring.r, ring.c.y + d.y * ring.r, ring.c.z + d.z * ring.r);
-      nor.setXYZ(k, d.x - tt.x * slope, d.y - tt.y * slope, d.z - tt.z * slope);
+      if (ring.rd === undefined) {
+        pos.setXYZ(k, ring.c.x + d.x * ring.r, ring.c.y + d.y * ring.r, ring.c.z + d.z * ring.r);
+        nor.setXYZ(k, d.x - tt.x * slope, d.y - tt.y * slope, d.z - tt.z * slope);
+      } else {
+        // an oval ring: the half width across is r, the half width toward the viewer rd; the outward normal of an ellipse is its point over the squared half widths
+        const rd = Math.max(ring.rd, 1e-9), wa = ct * ring.r, wb = st * rd, ka = ct / Math.max(ring.r, 1e-9), kb = st / rd;
+        pos.setXYZ(k, ring.c.x + n1.x * wa + n2.x * wb, ring.c.y + n1.y * wa + n2.y * wb, ring.c.z + n1.z * wa + n2.z * wb);
+        const qx = n1.x * ka + n2.x * kb, qy = n1.y * ka + n2.y * kb, qz = n1.z * ka + n2.z * kb, ql = Math.hypot(qx, qy, qz) || 1;
+        nor.setXYZ(k, qx / ql - tt.x * slope, qy / ql - tt.y * slope, qz / ql - tt.z * slope);
+      }
       const l = Math.hypot(nor.getX(k), nor.getY(k), nor.getZ(k)) || 1;
       nor.setXYZ(k, nor.getX(k) / l, nor.getY(k) / l, nor.getZ(k) / l);
       tan.setXYZ(k, tt.x, tt.y, tt.z);
