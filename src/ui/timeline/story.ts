@@ -2,7 +2,7 @@
 // matters (a key moment), the days between folded into a quiet run, the whole cut into chapters (authored for a model patient, derived for any other), and on each key card
 // the readings before and after. Read by the histories' generator (isKeyEntry: it bakes the model at the end of each such day) and by the timeline panel. Pure: no engine, no page.
 import { valueAt, type Series } from '../bigtime/record.ts';
-import { before, SETTLE_DAYS } from '../bigtime/facts.ts';
+import { before, beforeAction, SETTLE_DAYS } from '../bigtime/facts.ts';
 import type { Entry } from './model.ts';
 
 /** The fields of an entry the rule reads (a baked EntryOut and a page's Entry both have them). */
@@ -125,7 +125,7 @@ function compare(series: StoryIn['series'], day: number, end: number, nextChange
   const after = acts ? day : Math.max(day, Math.min(end, day + SETTLE_DAYS, nextChange != null ? nextChange - 1 : Infinity));
   for (const [k, name, unit, min, dp, scale] of READ) {
     const s = series[k], f = (v: number) => +(v * scale).toFixed(dp);
-    const a = before(s, day), b = valueAt(s, after);
+    const a = acts ? beforeAction(s, day) : before(s, day), b = valueAt(s, after);
     if (a == null || b == null || Math.abs(b - a) < min) continue;
     rows.push({ k, name, unit, a: f(a), b: f(b), up: b > a });
   }

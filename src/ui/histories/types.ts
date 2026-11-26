@@ -9,7 +9,7 @@ export interface Step {
   id?: string;
   /** parameters merged into the patient's (the treatment panel's change) */
   set?: Record<string, unknown>;
-  /** an engine action: a bleed (the model's own rupture, run for a minute), a band, a large-volume paracentesis with albumin (all the fluid there is, to 0.1 L) */
+  /** an engine action: a bleed (the model's own rupture, run for a minute), a band, a large-volume paracentesis with albumin (all the fluid there is; the title says the litres the engine took off) */
   act?: 'bleed' | 'band' | 'paracentesis';
   /** where a bleed comes from: the esophageal varices (the default) or a gastric varix */
   site?: 'VAR' | 'GV';
