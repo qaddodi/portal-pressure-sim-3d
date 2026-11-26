@@ -51,5 +51,9 @@ export function seeZoomK(z: number, c: OrganVeilConfig = ORGAN_VEIL): number {
 }
 /** What the body's dive and the Circuit take off both: they are not on the anatomy figure. `away` is 0 on the figure, 1 gone. */
 export const figureShare = (away: number): number => clamp01(1 - away);
+/** The veil's share of its strength: the organs' own fade, `body` the dive's dissolve of the body and `leaving` the Circuit's taking of the organs (1 drawn, 0 gone). The veil goes
+ *  with the organs on the same curve, so no view change switches it: in the dive it eases out as the camera closes in and the body dissolves, and back on the way out (Mohammad
+ *  26 Nov: the dive's flicker). */
+export const veilShare = (body: number, leaving: number): number => figureShare(1 - Math.min(body, leaving));
 /** The share of a vessel the organ covers: the veil's maximum at depth `gap` behind the organ's front surface (the JS twin of glsl.ts veilAmount). */
 export function veilOf(gap: number, strength: number, c: OrganVeilConfig = ORGAN_VEIL): number { return strength * smooth(c.gapFrom, c.gapTo, gap); }
