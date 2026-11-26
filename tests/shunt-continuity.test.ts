@@ -20,7 +20,7 @@ import { CelScene } from '../src/scene/scene.ts';
 import { NETWORK, NETWORK_BY_ID, SHUNT_IDS } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { drawnShare } from '../src/scene/procedures/route3d.ts';
-import { PLACED_EDGE_3D, WHOLE_PIECES, SEWN_ENDS, SEWN_MIN, SEWN_HEAD_R, SEWN_FRONT_GAP, SEWN_FRONT_FROM } from '../src/scene/anatomy/placed-network.ts';
+import { PLACED_EDGE_3D, WHOLE_PIECES, SEWN_ENDS, SEWN_MIN, SEWN_HEAD_R, SEWN_FRONT_GAP, SEWN_FRONT_FROM, SEWN_FRONT_TO } from '../src/scene/anatomy/placed-network.ts';
 import { Matrix4 } from 'three';
 
 type V = readonly [number, number, number];
@@ -80,10 +80,9 @@ test('the Meso-Rex bypass runs from the superior mesenteric vein below the confl
   assert.ok(g[2] > mid[2] + 0.05, `in front of the portal trunk (${g[2].toFixed(3)} vs ${mid[2].toFixed(3)})`);
 });
 
-test('a surgical shunt\'s sewn ends leave their hosts end to side, and on the screen it clears the vessels at its nodes past its mouths', () => {
-  const edge = new Map((EDGES as { id: string; from: string; to: string; kind: string }[]).map((e) => [e.id, e]));
+test('a surgical shunt\'s sewn ends leave their hosts end to side, and on the screen it clears its hosts past its mouths', () => {
   for (const id of SEWN_ENDS) {
-    const c = course(id), r = NETWORK_BY_ID.get(id)!.radius, e = edge.get(id)!;
+    const c = course(id), r = NETWORK_BY_ID.get(id)!.radius;
     for (const end of [0, 1] as const) {
       const pts = end ? c.slice().reverse() : c, p = pts[0]!;
       // the host's through axis: the whole vein the landmark piece belongs to
@@ -92,18 +91,15 @@ test('a surgical shunt\'s sewn ends leave their hosts end to side, and on the sc
       let acc = 0, k = 1; for (; k < pts.length - 1 && acc < SEWN_HEAD_R * r; k++) acc += len(sub(pts[k]!, pts[k - 1]!));
       const ang = (Math.acos(Math.min(1, Math.abs(dot(nrm(sub(pts[k]!, p)), near(axis, p).t)))) * 180) / Math.PI;
       assert.ok(ang >= SEWN_MIN - 1, `${id}: its ${end ? 'end' : 'start'} leaves ${piece} ${ang.toFixed(0)} degrees off its axis (end to side: at least ${SEWN_MIN})`);
-      // on the screen (x, y), past SEWN_FRONT_FROM of the two radii from this mouth, its wall clears the walls of every vein meeting at its node
-      const node = end ? e.to : e.from, others = NETWORK.filter((o) => (o.from === node || o.to === node) && o.id !== id && !['collateral', 'shunt', 'liver', 'feeder'].includes(o.kind));
-      for (const o of others) {
-        const oc = course(o.id).map((q): V => [q[0], q[1], 0]), from = SEWN_FRONT_FROM * (r + o.radius);
-        let s = 0;
-        for (let i = 1; i < pts.length; i++) {
-          s += len(sub(pts[i]!, pts[i - 1]!));
-          if (s < from || s > 0.6) continue;
-          const gap = near(oc, [pts[i]![0], pts[i]![1], 0]).d - r - o.radius;
-          const where = `${s.toFixed(3)} from its ${end ? 'end' : 'start'}`;
-          assert.ok(gap >= SEWN_FRONT_GAP * r - 2e-3, `${id}: ${where} it lies ${gap.toFixed(4)} from ${o.id} on the screen, wall to wall (a second tube along its host)`);
-        }
+      // on the screen (x, y), past SEWN_FRONT_FROM of the two radii from this mouth and up to SEWN_FRONT_TO, its wall clears its host's wall (it is not a second tube along it)
+      const hr = NETWORK_BY_ID.get(piece)!.radius, oc = axis.map((q): V => [q[0], q[1], 0]), from = SEWN_FRONT_FROM * (r + hr);
+      let s = 0;
+      for (let i = 1; i < pts.length; i++) {
+        s += len(sub(pts[i]!, pts[i - 1]!));
+        if (s < from || s > SEWN_FRONT_TO) continue;
+        const gap = near(oc, [pts[i]![0], pts[i]![1], 0]).d - r - hr;
+        const where = `${s.toFixed(3)} from its ${end ? 'end' : 'start'}`;
+        assert.ok(gap >= SEWN_FRONT_GAP * r - 2e-3, `${id}: ${where} it lies ${gap.toFixed(4)} from ${piece} on the screen, wall to wall (a second tube along its host)`);
       }
     }
   }

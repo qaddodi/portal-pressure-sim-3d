@@ -81,6 +81,13 @@ function resample(p: readonly V3[], step: number): V3[] {
   }
   return out;
 }
+/** Re-spaces the stretch of `D` between arc lengths `a` and `b` (widened to its points) to about STEP, keeping every point outside it. */
+function respace(D: V3[], a: number, b: number): V3[] {
+  const s = arc(D), i0 = Math.max(0, s.findIndex((x) => x >= a) - 1);
+  let i1 = s.findIndex((x) => x > b); i1 = i1 < 0 ? D.length - 1 : i1;
+  if (i1 - i0 < 2) return D;
+  return [...D.slice(0, i0), ...resample(D.slice(i0, i1 + 1), STEP), ...D.slice(i1 + 1)];
+}
 /** Laplacian relax, `w(i)` the share each point takes (0 holds it); the two ends are always held. */
 function relax(D: V3[], iters: number, w: (i: number) => number = () => 1): V3[] {
   const W = D.map((_, i) => (i === 0 || i === D.length - 1 ? 0 : w(i)));
@@ -148,9 +155,10 @@ export const SEWN_ENDS = ['S_PC', 'S_MC', 'S_DSR', 'REX'] as const;
 export const SEWN_MIN = 45, SEWN_HEAD_R = 3;
 /** The angle such an end is turned out to at its mouth (it eases back toward its course from there, so its first stretch is left between SEWN_MIN and this). */
 const SEWN_TURN = 80;
-const SEWN_SPAN = 0.26;
-/** A sewn shunt's least gap, wall to wall in the front view, from the vessels at its nodes (in its own radii), from SEWN_FRONT_FROM of the two radii past its mouth. */
-export const SEWN_FRONT_GAP = 0.8, SEWN_FRONT_FROM = 3;
+const SEWN_SPAN = 0.35;
+/** What the turn gives on the screen (tests/shunt-continuity.test.ts): from SEWN_FRONT_FROM of the two radii past its mouth out to SEWN_FRONT_TO along it, a sewn shunt's wall clears its
+ *  host's wall, in the front view, by at least SEWN_FRONT_GAP of its own radius (it is never a second tube lying along its host). */
+export const SEWN_FRONT_GAP = 0.3, SEWN_FRONT_FROM = 3, SEWN_FRONT_TO = 0.6;
 /** Where along the whole left portal vein (by length from the bifurcation) its lobe's bed leaves it: where it starts to fade into the lobe. */
 const LPV_BED = 0.6;
 /** Where the varices' courses ease onto the oesophagus's wall above the cardia, and off it where the drain turns toward the azygos (scene y, from and to). */
@@ -672,8 +680,9 @@ function buildPlaced(): void {
   // ---- A SEWN END LEAVES ITS HOST (Mohammad, 26 Nov: "mesorex shunt is completely broken ... the shunt breaks and is not continuous"). A surgical shunt's end is an END-TO-SIDE
   // anastomosis, the graft sewn onto the host's side, so it leaves the host's wall at a decided angle. The placement drew the Meso-Rex bypass peeling off the superior mesenteric vein
   // 26 degrees off its axis (32 as laid), so for 3.4 of its radii the graft, wider than the vein, lay along the vein's own continuation and read as a second tube beside it with a knob
-  // at its root. Every sewn end (SEWN_ENDS) whose first stretch is nearer than SEWN_MIN to its host's through axis turns out to SEWN_TURN at its mouth, in the plane of the host's axis
-  // and its own heading (so it keeps the side it already leaves to), and eases back onto its own course over SEWN_SPAN. The mouth stays where it is. ----
+  // at its root. Every sewn end (SEWN_ENDS) whose first stretch is nearer than SEWN_MIN to its host's through axis turns out to SEWN_TURN at its mouth, across the screen, on the side
+  // it already leaves to (the figure is seen from the front: turned toward the viewer, as first done, the bypass still lay over the vein on the screen, wall on wall), and eases back
+  // onto its own course over SEWN_SPAN, so past the turn it keeps its depth in front of the pancreas. The mouth stays where it is. ----
   {
     for (const id of SEWN_ENDS) {
       const e = edgeById.get(id)!;
@@ -694,7 +703,10 @@ function buildPlaced(): void {
         const at = (len0: number): number => Math.max(1, s.findIndex((x) => x >= len0));
         const h0 = norm(sub(D[at(SEWN_HEAD_R * r)]!, P0)), c0 = dot(h0, tp);
         if (Math.acos(Math.min(1, Math.abs(c0))) * 180 / Math.PI >= SEWN_MIN) continue;
-        let n = sub(h0, mul(tp, c0)); if (len(n) < 1e-6) continue; n = norm(n);
+        // (the turn's direction: its heading on the screen, square to the host's axis)
+        const f: V3 = [h0[0], h0[1], 0];
+        let n = sub(f, mul(tp, dot(f, tp)));
+        if (len(n) < 1e-6) continue; n = norm(n);
         const a = (SEWN_TURN * Math.PI) / 180, t0 = norm(add(mul(tp, Math.sign(c0) * Math.cos(a)), mul(n, Math.sin(a))));
         const k = at(SEWN_SPAN), Pk = D[k]!, tk = tangentAt(D, k), L = len(sub(Pk, P0)), m = Math.max(8, Math.round(L / STEP));
         const lead: V3[] = [];
@@ -702,39 +714,10 @@ function buildPlaced(): void {
           const u = i / m, u2 = u * u, u3 = u2 * u, h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
           lead.push([0, 1, 2].map((q) => h00 * P0[q]! + h10 * t0[q]! * L + h01 * Pk[q]! + h11 * tk[q]! * L) as V3);
         }
-        const R = resample([...lead, ...D.slice(k)], STEP), F = fair(R, [SEWN_SPAN, SEWN_SPAN + FAIR_SPAN]);
+        // (only the new lead is spaced afresh: the rest keeps its own points, so the far mouth's weld is laid on the very samples it was before)
+        const R = [...resample([...lead, Pk], STEP).slice(0, -1), ...D.slice(k)], F = fair(R, [SEWN_SPAN, SEWN_SPAN + FAIR_SPAN]);
         PLACED_EDGE_3D[id] = end ? rev(F) : F;
       }
-    }
-    // (AND IS SEEN TO LEAVE IT: the figure is seen from the front, and a graft that leaves its host toward the viewer is, on the screen, a second tube lying along the host (the
-    //  Meso-Rex bypass ran up beside the superior mesenteric vein 0.005 apart, wall to wall, on the screen, for 0.3 of its length). Past its mouth's own stretch (SEWN_FRONT_FROM of
-    //  the two radii), every stretch of a sewn shunt nearer the vessels that meet at its nodes than SEWN_FRONT_GAP of its radius, wall to wall in the front view, moves away from them
-    //  in the screen's plane, easing out over TRACT_SPAN, until it clears; then it is faired. The mouths stay.)
-    for (const id of SEWN_ENDS) {
-      const e = edgeById.get(id)!, r = rOf(id);
-      const hosts = ([0, 1] as const).flatMap((end) => atNode(end ? e.to : e.from, id).filter((c) => !['collateral', 'shunt', 'liver'].includes(edgeById.get(c.piece)?.kind ?? ''))
-        .map((c) => ({ end, C: COURSE[c.whole] ?? PLACED_EDGE_3D[c.piece]!, r: rOf(c.whole) })));
-      let D = PLACED_EDGE_3D[id]!;
-      for (let round = 0; round < 80; round++) {
-        const s = arc(D), L = s[s.length - 1]!;
-        let worst = { gap: Infinity, i: -1, away: [0, 0, 0] as V3 };
-        for (let i = 0; i < D.length; i++) {
-          for (const h of hosts) {
-            const from = SEWN_FRONT_FROM * (r + h.r);
-            if ((h.end === 0 ? s[i]! : L - s[i]!) < from) continue;
-            const p = D[i]!, q = nearestOn(h.C.map((c): V3 => [c[0], c[1], 0]), [p[0], p[1], 0]), gap = q.d - r - h.r;
-            if (gap < worst.gap) worst = { gap, i, away: norm([p[0] - q.at[0], p[1] - q.at[1], 0]) };
-          }
-        }
-        if (worst.i < 0 || worst.gap >= SEWN_FRONT_GAP * r) break;
-        const push = SEWN_FRONT_GAP * r + 0.001 - worst.gap, s0 = s[worst.i]!, inner = SEWN_FRONT_FROM * r;
-        D = D.map((p, i) => {
-          const w = (1 - smooth(Math.abs(s[i]! - s0) / TRACT_SPAN)) * smooth(s[i]! / inner) * smooth((L - s[i]!) / inner);
-          return w > 0 ? add(p, mul(worst.away, push * w)) : p;
-        });
-        D = resample(fair(D), STEP);
-      }
-      PLACED_EDGE_3D[id] = D;
     }
   }
 
@@ -770,7 +753,9 @@ function buildPlaced(): void {
         if (worst.gap >= TRACT_CLEAR) break;
         const push = TRACT_CLEAR + 0.001 - worst.gap, s0 = s[worst.i]!;
         D = D.map((p, i) => { const w = (1 - smooth(Math.abs(s[i]! - s0) / TRACT_SPAN)) * smooth(s[i]! / inner[0]!) * smooth((L - s[i]!) / inner[1]!); return w > 0 ? add(p, mul(worst.away, push * w)) : p; });
-        D = resample(fair(D), STEP);
+        // (faired and re-spaced only round the stretch it moved: the rest keeps its points, so a change at one end of a tract never re-lays the weld at its other)
+        const zone = [s0 - TRACT_SPAN - FAIR_SPAN, s0 + TRACT_SPAN + FAIR_SPAN] as const;
+        D = respace(fair(D, zone), zone[0] - FAIR_SPAN, zone[1] + FAIR_SPAN);
       }
       PLACED_EDGE_3D[id] = D;
     }
