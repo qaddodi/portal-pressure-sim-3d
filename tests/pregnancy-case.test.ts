@@ -1,5 +1,5 @@
 // The pregnancy case (capture 0bc14020, owner, 26 Nov: "can only scope in second trimester", and the gestational week on every pregnancy stop). The general rules, pinned on every course:
-//  1. What only an endoscopy sees (large varices, red wale signs) is told on the day of a scope, never on the model's own clock (Course.scoped, histories/play.ts).
+//  1. What only an endoscopy sees (large varices, red wale signs) is told on the day of a scope, never on the model's own clock (histories/play.ts, for every course).
 //  2. A course with its own clock (the gestation ramp) says it on every stop it has reached (case/when.ts), and a course without one says nothing extra.
 //  3. A line the course wrote about a day heads that day's stop over the engine's own line of the same tone (timeline/story.ts rank).
 import { test } from 'node:test';
@@ -11,7 +11,7 @@ import { entriesOf } from '../src/ui/histories/entries.ts';
 import { Timeline, type TimelineHost, type Snap } from '../src/ui/timeline/model.ts';
 import { viewOf } from '../src/ui/timeline/story-view.ts';
 import { stopsOf } from '../src/ui/case/stops.ts';
-import { kickerWords, continueWords, chapterAt, travelWords } from '../src/ui/case/words.ts';
+import { kickerWords, continueWords, chapterAt, travelWords, SHORT_LINE_FITS } from '../src/ui/case/words.ts';
 import { whenWords } from '../src/ui/case/when.ts';
 import type { CaseRamp } from '../src/ui/case/types.ts';
 
@@ -29,16 +29,17 @@ async function caseOf(id: string) {
 }
 const weekOf = (d: number): number => 6 + (d - 30) / 7;
 
-test('a scoped course tells what only a scope sees on the day of a scope, never before', async () => {
-  const scoped = COURSES.filter((c) => c.scoped);
-  assert.ok(scoped.some((c) => c.id === 'hist-pregnancy'), 'the pregnancy is scoped');
-  for (const c of scoped) {
+test('every course tells what only a scope sees on the day of a scope, never before: the findings are on a scope step or a band, and a course that has none never shows them', async () => {
+  let found = 0;
+  for (const c of COURSES) {
     const b = await LOAD[c.id]!();
     const scopeDays = new Set(c.steps.filter((s) => s.scope || s.act === 'band').map((s) => s.day));
-    const seen = b.entries.filter((e) => (ENDOSCOPIC as readonly string[]).includes(e.evId ?? ''));
-    assert.ok(seen.length > 0, `${c.id}: the scope finds something`);
-    for (const e of seen) assert.ok(scopeDays.has(e.day), `${c.id}: "${e.label}" on Day ${e.day}, which is not a scope day (${[...scopeDays]})`);
+    for (const e of b.entries.filter((x) => (ENDOSCOPIC as readonly string[]).includes(x.evId ?? ''))) {
+      found++;
+      assert.ok(scopeDays.has(e.day), `${c.id}: "${e.label}" on Day ${e.day}, which is not a scope day (${[...scopeDays]})`);
+    }
   }
+  assert.ok(found >= 7, 'the findings are still told, at their scopes');
 });
 
 test('Pregnancy: no scope in the first trimester, the first scope in the second with its findings and the treatment, none in the third', async () => {
@@ -81,7 +82,9 @@ test('every stop of a pregnancy says its week, and a course with no such clock s
   assert.equal(stops[egd]!.when, '18 weeks');
   assert.equal(kickerWords(stops, egd, chapterAt(v.chapters, stops[egd]!.day)), `Stop ${egd + 1} of ${stops.length} · Day 114 · 18 weeks · Second trimester: scope, propranolol, bands`);
   assert.match(continueWords(stops, egd - 1)!, /^Continue to Day 114 · 18 weeks · Screening endoscopy$/);
-  assert.equal(continueWords(stops, egd - 1, true), 'Continue to Day 114', 'the short form on a phone is unchanged');
+  assert.equal(continueWords(stops, egd - 1, true), 'Continue to Day 114 · 18 weeks', 'the phone says the week when the line fits');
+  for (let i = 0; i < stops.length - 1; i++) assert.ok(continueWords(stops, i, true)!.length <= SHORT_LINE_FITS, `stop ${i + 1}: the phone's Continue fits its button`);
+  assert.equal(continueWords(stops, stops.length - 2, true), `Continue to Day ${stops[stops.length - 1]!.day}`, 'and drops the week when it would not fit ("10 weeks after delivery")');
   assert.match(travelWords(stops, egd, 100, v.chapters).head, /^Next stop: Day 114 · 18 weeks$/);
   assert.equal(stops[0]!.when, '', 'before the pregnancy there is no week');
 });

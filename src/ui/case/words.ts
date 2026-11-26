@@ -53,11 +53,16 @@ export function kickerWords(stops: readonly Stop[], at: number, chapter: string)
 
 /** A stop's name after Continue: today's is "today", the rest their title. */
 const nextName = (s: Stop): string => (s.type === 'today' ? 'today' : s.title);
+/** The most letters the phone's Continue button holds on one line at the card's width (390 pt, 15 pt text with the arrow). */
+export const SHORT_LINE_FITS = 32;
 /** Continue's words at stop `at`: "Continue to Day 73 · TIPS 8 mm" ("Continue to Day 73" where room is short), null at the last stop. */
 export function continueWords(stops: readonly Stop[], at: number, short = false): string | null {
   const n = stops[at + 1];
   if (!n) return null;
-  return short ? `Continue to ${day(n.day)}` : `Continue to ${dayOf(n)} · ${nextName(n)}`;
+  if (!short) return `Continue to ${dayOf(n)} · ${nextName(n)}`;
+  // (on a phone the course's own clock comes with the day only when the line still fits the button: "Continue to Day 114 · 18 weeks", not "... 10 weeks after delivery")
+  const withWhen = `Continue to ${dayOf(n)}`;
+  return withWhen.length <= SHORT_LINE_FITS ? withWhen : `Continue to ${day(n.day)}`;
 }
 
 /** The days left to the next stop, in words ("in 18 days", "in a day", "now"). */

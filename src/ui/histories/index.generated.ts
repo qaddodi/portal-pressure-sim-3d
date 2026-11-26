@@ -74,6 +74,11 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "tone": "change"
    },
    {
+    "day": 40,
+    "word": "Scope",
+    "tone": "danger"
+   },
+   {
     "day": 70,
     "word": "Bled",
     "tone": "danger"
@@ -171,7 +176,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 18,
+   "events": 19,
    "medicines": 2
   }
  },
@@ -399,6 +404,11 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "day": 1,
     "word": "Anticoagulation",
     "tone": "change"
+   },
+   {
+    "day": 4,
+    "word": "Scope",
+    "tone": "danger"
    }
   ],
   "chapters": [
@@ -1605,15 +1615,6 @@ export const HISTORIES: readonly HistoryMeta[] = [
      ]
     },
     {
-     "day": 29,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
      "day": 40,
      "look": [
       {
@@ -1625,7 +1626,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 9,
+   "events": 8,
    "medicines": 3
   }
  },

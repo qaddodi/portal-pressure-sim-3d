@@ -74,7 +74,7 @@ test('on the way: the next stop, by the chapter that starts there, and the days 
 
 test('the strip: a short name over each stop, the stop tones from the story, and the playhead let go of goes to the stop nearest its day', async () => {
   const { v, stops, cv } = await bleed();
-  assert.deepEqual(cv.shorts, ['Start', 'CSPH', 'Carvedilol', 'Bleed risk', 'Red wale', 'Bleed', 'TIPS', 'Today']);
+  assert.deepEqual(cv.shorts, ['Start', 'CSPH', 'Carvedilol', 'Bleed risk', 'Endoscopy', 'Bleed', 'TIPS', 'Today']);
   assert.equal(cv.tones[5], 'danger', 'the bleed is red');
   assert.equal(cv.tones[6], 'change', 'the TIPS is a change');
   assert.equal(cv.tones[0], 'info');
