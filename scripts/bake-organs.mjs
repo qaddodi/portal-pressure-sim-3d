@@ -15,7 +15,6 @@ const out = BAKED_ORGANS_FILE;
 const digest = organsDigest();
 // Plan 50: unchanged inputs (the signature in <out>.sig, on top of the digest the page checks) mean nothing to do.
 const sig = bakeSig(fileURLToPath(import.meta.url), ORGAN_DATA);
-const { encodeOrgans } = await import('../src/scene/organs/baked.ts');
 // (whether the file on disk carries this build's digest: what the page itself checks, meshes.ts, so a skip can never ship a file the page throws away)
 const current = () => bakedOrgansCurrent(digest);
 // (the signature alone is never trusted: the skip also asks the page's own question, a fraction of a second)
@@ -29,7 +28,7 @@ else {
     const { setOrganData, ORGAN_MESHES } = await import('../src/scene/organs/meshes.ts');
     const { caudateGeometry } = await import('../src/scene/organs/caudate.ts');
     const { prepareOrgans } = await import('../src/scene/organs/prepare.ts');
-    const { RAW_IDS } = await import('../src/scene/organs/baked.ts');
+    const { RAW_IDS, encodeOrgans } = await import('../src/scene/organs/baked.ts');
     const f = readFileSync(new URL('../public/anatomy/organs.bin', import.meta.url));
     setOrganData(f.buffer.slice(f.byteOffset, f.byteOffset + f.byteLength));
     const t = Date.now();

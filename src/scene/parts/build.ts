@@ -38,6 +38,7 @@ import { useUi } from '../../ui/ui-store.ts';
 import { organsReady } from '../organs/meshes.ts';
 import { artReady } from '../organs/organ-art.ts';
 import { clock } from '../../clock/frame.ts';
+import { noteSpan, span } from '../../boot/spans.ts';
 import { fadeRate } from '../../clock/ease.ts';
 import { COURSES } from '../circuit/course.ts';
 import { CircuitTubes } from '../circuit/tubes.ts';
@@ -69,14 +70,27 @@ export const buildPart = scenePart<CelScene>()({
   async finishSliced(next: () => Promise<void>): Promise<void> {
     const g = this.building;
     if (!g) return;
-    let r = g.next();
+    // (where the boot's build time goes, by phase, ?perf's startup spans: `build:<phase>` is the phase's own work, `build-wait:<phase>` a file it waited for, `build-gaps` the time between
+    // steps that belonged to other tasks; a slow start then names its phase instead of one unexplained gap before "scene built")
+    const busy: Record<string, number> = {}, waits: Record<string, number> = {};
+    const t0 = clock.now();
+    let gaps = 0, steps = 0;
+    const step = (waited?: boolean): IteratorResult<Promise<unknown> | void, void> => {
+      const at = clock.now(), what = this.buildWhat, out = waited === undefined ? g.next() : g.next(waited);
+      busy[what] = (busy[what] ?? 0) + clock.now() - at; steps++;
+      return out;
+    };
+    let r = step();
     while (!r.done) {
       let waited = false;
-      if (r.value) { await r.value; waited = true; }
-      await next();
+      if (r.value) { const at = clock.now(), what = this.buildWhat; await r.value; waits[what] = (waits[what] ?? 0) + clock.now() - at; waited = true; }
+      const at = clock.now(); await next(); gaps += clock.now() - at;
       if (this.building !== g) return;
-      r = g.next(waited);
+      r = step(waited);
     }
+    for (const [k, ms] of Object.entries(busy)) noteSpan(`build:${k}`, t0, ms);
+    for (const [k, ms] of Object.entries(waits)) noteSpan(`build-wait:${k}`, t0, ms);
+    noteSpan(`build-gaps (${steps} steps)`, t0, gaps);
     if (this.building === g) this.building = null;
   },
   *build(opts: SceneOptions): Generator<Promise<unknown> | void, void, boolean | undefined> {
@@ -89,12 +103,14 @@ export const buildPart = scenePart<CelScene>()({
     this.rig = new CameraRig('title', undefined, opts.reduceMotion);
 
     this.scene.add(this.body);
+    this.buildWhat = 'vessels';
 
     setSmoothJoins(true);   // (smooth vessel joins are always on, 21 Nov 2026: the Settings switch is gone; set before any tube is built)
     let vn = 0;
     for (const def of NETWORK) { this.addVessel(def); if (++vn % 6 === 0) yield; }   // (a step every few vessels: about 5 ms each on a laptop)
     yield;
     // (junction skins: before the mates, which skip the ends a skin has taken over. On the page they are baked at build time and still on their way: the figure is not drawn before they are in, the boot waits for the same promise)
+    this.buildWhat = 'skins';
     if (bakedPending()) {
       // (the boot's driver waits for the file here and builds the skins in steps of their own; one that cannot wait builds them when it lands, as before)
       if (yield bakedReady) yield* this.refreshSkinsSteps();
@@ -111,6 +127,7 @@ export const buildPart = scenePart<CelScene>()({
     });
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed): src/scene/disease/ (B4)
     yield;
+    this.buildWhat = 'disease';
     this.disease = new DiseaseLayer(this.shared, this.vessels);
     this.body.add(this.disease.group);
     this.disease.bleed.still = !!opts.reduceMotion;   // (the jet holds still under Reduce Motion)
@@ -119,20 +136,23 @@ export const buildPart = scenePart<CelScene>()({
     // The organs' vertex data is a static file (src/scene/organs/meshes.ts): the organ layer builds them when it is in, in the patient's state, and asks for a frame.
     // (the promise settles once the organs are built, or failed: the warm-up under the splash waits for it so the organs' programs are compiled with the rest, Stage.tsx)
     this.organsBuilt = Promise.all([organsReady, artReady, this.whenBuilt]).then(() => {
-      this.disease.organs.build(); stamp('scene'); addOrganHalos(this.protos, this.disease.organs.objects);
+      span('build:organs', () => this.disease.organs.build()); stamp('scene'); addOrganHalos(this.protos, this.disease.organs.objects);
       this.moving = true; clock.invalidate('organs');
     }, (e) => { console.error(e); });
     yield;
+    this.buildWhat = 'catheter';
     this.catheter = new Catheter(this.shared);
     this.body.add(this.catheter.group);
     this.catheter.group.traverse((c) => c.layers.set(VESSEL_LAYER));
     this.objects.push(...this.catheter.objects); this.leaving.push(...this.catheter.objects); for (const o of this.catheter.objects) this.leavingSet.add(o);
     yield;
+    this.buildWhat = 'circuit';
     this.tubes = new CircuitTubes(this.shared, this.lens.shared, this.blood.shared, this.circuit.shared);
     this.body.add(this.tubes.group);
     this.resistors = new ResistorLayer(this.shared.res);
     this.mapLayer.group.add(this.resistors.group);
     yield;
+    this.buildWhat = 'procedures and probes';
     this.procs = new ProcedureLayer(this.shared);
     this.body.add(this.procs.group);
     this.procs.group.traverse((c) => c.layers.set(VESSEL_LAYER));
@@ -161,6 +181,7 @@ export const buildPart = scenePart<CelScene>()({
     this.body.add(this.shuntGuide.mesh);
 
     yield;
+    this.buildWhat = 'highlight and flow';
     this.highlight = new Highlight(this.vessels, undefined, new Map(NETWORK.map((v) => [v.id, v.host])));
     // a custom shunt's tube is made when a learner opens it, after the figure is built: it is a vessel like any other, so it is pickable and lit (and let go with its tube)
     this.highlight.expect = (id) => this.tubes.isCustom(id);
@@ -170,6 +191,7 @@ export const buildPart = scenePart<CelScene>()({
     // the dust's settings (blood/dust.ts; the hidden ?dust panel writes them): a change wakes the figure for the frames its glide takes
     if (!this.twin) { dustTuner.onWake = () => { this.moving = true; clock.invalidate('dust'); }; dustTuner.setPhone(this.phone); }
     yield;
+    this.buildWhat = 'cells and tracks';
     this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
     this.presence.own(this.grownIds);
@@ -184,13 +206,16 @@ export const buildPart = scenePart<CelScene>()({
     this.lens.setContext({ healthy: null, ref: null });
     const vo = { look: this.look, phone: this.phone, flowMode: opts.flowMode ?? DEFAULT_FLOW_MODE, reduceMotion: opts.reduceMotion };
     yield;
+    this.buildWhat = 'lobule network';
     const lobuleNet = yield* buildLobuleSteps();   // (the Lobule's network, a bend pass a step)
     yield;
+    this.buildWhat = 'lobule and sinusoid views';
     this.lobule = new LobuleView(this.shared, vo, lobuleNet);
     yield;
     this.sinus = new SinusoidView(this.shared, vo);
     yield;
     // the lobule stands inside the liver, the sinusoid inside the lobule (lobule/frames.ts): two frames, each a place and a scale
+    this.buildWhat = 'frames and stand-ins';
     this.dive.position.set(...LIVER_POINT); this.dive.scale.setScalar(LOBULE_SCALE);
     this.sinFrame.position.set(...SIN_LOCAL); this.sinFrame.scale.setScalar(SIN_REL);
     this.sinFrame.add(this.sinus.group); this.dive.add(this.lobule.group, this.sinFrame); this.scene.add(this.dive, this.mapLayer.group);
