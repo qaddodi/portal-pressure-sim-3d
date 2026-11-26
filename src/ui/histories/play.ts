@@ -4,7 +4,7 @@
 import { Engine } from '../../engine/hales/portal/engine.js';
 import { computeMetrics } from '../../engine/hales/portal/metrics.js';
 import { detectEvents } from '../../engine/hales/portal/events.js';
-import { deepMerge, PRESETS } from '../../engine/hales/portal/scenario.js';
+import { deepMerge, PRESETS, sanitizeParams } from '../../engine/hales/portal/scenario.js';
 import { SampleFeed } from '../tests/feed.ts';
 import { activeInterventions } from '../action/changes.ts';
 import type { Params } from '../action/params.ts';
@@ -37,11 +37,21 @@ interface M { hvpg: number; ppg: number; pv?: number; ascites: { volume: number 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Eng = any;
 
+/** The patient a course starts with: its engine preset, or (when the course has its own `start`) that preset with the course's patch on it and, if it says so, its own years of disease. */
+export function startPreset(c: Course): { id: string; days?: number; apply: (p: Params) => Params } {
+  const base = (PRESETS as { id: string; days?: number; apply: (p: Params) => Params }[]).find((p) => p.id === c.preset);
+  if (!base) throw new Error(`${c.id}: no engine preset "${c.preset}"`);
+  if (!c.start) return base;
+  const patch = c.start.patch;
+  return { ...base, id: c.id, days: c.start.days ?? base.days, apply: (p) => sanitizeParams(deepMerge(base.apply(p), patch)) };
+}
+
 export function playCourse(c: Course): Baked {
   const e = new Engine() as Eng;
-  e.loadPreset(c.preset);
+  const pre = startPreset(c);
+  e.loadPreset(c.preset, { preset: pre });
   if (c.init) { e.setParams(deepMerge(e.params, c.init)); e.settle(); }
-  const settled = ((PRESETS as { id: string; days?: number }[]).find((p) => p.id === c.preset)?.days ?? 0) > 0;
+  const settled = (pre.days ?? 0) > 0;
   const feed = new SampleFeed(), entries: EntryOut[] = [];
   const lastEv = new Map<string, number>();
   const moments = new Map<number, Snap>();

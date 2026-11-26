@@ -63,6 +63,8 @@ export const COURSES: readonly Course[] = [
     id: 'hist-ascites', name: 'Refractory ascites', group: 'Ascites', where: 'Fluid in the abdomen',
     chapters: [{ label: 'On diuretics' }, { at: 'tap1', label: 'Taps, and the fluid returns' }, { at: 'tips', label: 'After the TIPS' }],
     preset: 'cirr-decomp', days: 150,
+    // (the fluid is the problem, the liver still works: severity 90%, albumin 2.7, two litres and more of fluid on full diuretics, and a liver a TIPS can still be put in)
+    start: { patch: { cirrhosis: 0.9, albumin: 2.7 } },
     quiet: ['albumin'],
     settle: 14,
     steps: [
@@ -132,6 +134,8 @@ export const COURSES: readonly Course[] = [
       { at: 'doppler', label: 'Doppler finds it' },
     ],
     preset: 'cirr-decomp', days: 190,
+    // (a good TIPS candidate: the fluid is controlled with effort and the liver is the best of the four, Child-Pugh B: severity 80%, albumin 3.0)
+    start: { patch: { cirrhosis: 0.8, albumin: 3.0 } },
     // (0.65, not 0.5, since hales-engine b95ecb5: the shunts of advanced cirrhosis stay open months after a TIPS, so a stent narrowed by half left the
     // gradient at 11.3; narrowed by about two thirds it is back over 12 at the end, as the course says.)
     ramps: [{ key: 'stenosis.TIPS', from: 50, to: 185, a: 0, b: 0.65 }],
@@ -155,7 +159,9 @@ export const COURSES: readonly Course[] = [
   {
     id: 'hist-bleed-tips', name: 'Bleed, TIPS in 24 hours', group: 'After a bleed', where: 'Varices and banding',
     chapters: [{ label: 'Before the bleed' }, { at: 'bleed', label: 'The bleed' }, { at: 'tips', label: 'After the TIPS' }, { at: 'confusion', label: 'Confusion, treated' }],
-    preset: 'cirr-decomp', days: 150, init: { albumin: 3.1 },
+    preset: 'cirr-decomp', days: 150,
+    // (the first decompensation is the bleed: Child-Pugh B, a year of disease, little fluid under diuretics: severity 75%, albumin 3.1)
+    start: { patch: { cirrhosis: 0.75, albumin: 3.1 }, days: 365 },
     quiet: ['albumin'], still: true, settle: 8,
     steps: [
       { day: 10, id: 'bleed', act: 'bleed' },
@@ -201,7 +207,9 @@ export const COURSES: readonly Course[] = [
     id: 'hist-alcohol', name: 'Alcohol cirrhosis, recompensated', short: 'Alcohol, recompensated', group: 'Cause removed', where: 'After the cause is treated',
     chapters: [{ label: 'Decompensated' }, { at: 'abstain', label: 'Abstinent, on carvedilol' }, { at: 'diurOff', label: 'Diuretics stopped' }, { at: 'recomp', label: 'Recompensated' }],
     preset: 'cirr-decomp', days: 720,
-    ramps: [{ key: 'cirrhosis', from: 0, to: 420, a: 0.85, b: 0.6 }, { key: 'albumin', from: 0, to: 420, a: 2.8, b: 3.9 }],
+    // (the sickest start of the four, after years of drinking: severity 95%, albumin 2.4; the ramps begin there and end where they ended)
+    start: { patch: { cirrhosis: 0.95, albumin: 2.4 } },
+    ramps: [{ key: 'cirrhosis', from: 0, to: 420, a: 0.95, b: 0.6 }, { key: 'albumin', from: 0, to: 420, a: 2.4, b: 3.9 }],
     quiet: ['cirrhosis', 'albumin'], still: true, settle: 14,
     steps: [
       { day: 1, id: 'abstain', note: { title: 'Abstinent from alcohol', detail: 'The cause is removed. The fibrosis can start to regress, and the liver to work better.', sev: 'ok' } },
