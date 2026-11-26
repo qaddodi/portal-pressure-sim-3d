@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CHEV_INK, CHEV_INK_ROW, CHEVRON_GLSL, chevCreamSoftJs, chevLatchJs, chevLum } from '../src/scene/blood/chevron-glsl.ts';
 import { ChevronInk, INK_ROW, drawnLuminance } from '../src/scene/lenses/chevron-ink.ts';
-import { GRAD_ROWS, LENS_EDGE_COUNT, newLensData, type LensData } from '../src/scene/lenses/model.ts';
+import { GRAD_ROWS, INK_ROWS, PROFILE_ROW0, LENS_EDGE_COUNT, newLensData, type LensData } from '../src/scene/lenses/model.ts';
 import { LensField } from '../src/scene/lenses/field.ts';
 import { celTubeBase } from '../src/scene/vessels/cel-ink.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
@@ -28,7 +28,7 @@ test('the table: 2D\'s step is the middle, the latch is a clear dead zone either
   assert.ok(CHEV_INK.HYST >= 0.03 && CHEV_INK.AT - CHEV_INK.HYST > 0.15 && CHEV_INK.AT + CHEV_INK.HYST < 0.4);
   assert.ok(CHEV_INK.BAND <= CHEV_INK.HYST / 2, 'the eased step is inside the dead zone');
   assert.ok(CHEV_INK.EASE_MS >= 120 && CHEV_INK.EASE_MS <= 320, 'a short ease');
-  assert.equal(CHEV_INK_ROW, 4); assert.equal(INK_ROW, 4); assert.equal(GRAD_ROWS, 5);
+  assert.equal(CHEV_INK_ROW, 4); assert.equal(INK_ROW, 4); assert.equal(INK_ROWS, 5); assert.equal(PROFILE_ROW0, INK_ROWS, 'the stent profile rows follow the ink row');
 });
 
 test('the latch is a Schmitt trigger: cream under AT - HYST, dark over AT + HYST, and what it was between them', () => {
