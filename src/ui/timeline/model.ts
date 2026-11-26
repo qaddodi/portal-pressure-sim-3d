@@ -4,6 +4,7 @@
 // Pure: the engine, the clock and the screen reach it through `TimelineHost`, so a test drives it in Node.
 import type { EngineFrame } from '../../engine/hales/host/protocol.d.ts';
 import { removedLabel } from './removed-label.ts';
+import { eventDetail } from './event-words.ts';
 
 export type EntryKind = 'start' | 'change' | 'jump' | 'event';
 
@@ -217,9 +218,10 @@ export class Timeline {
       const now = this.host.now();
       if (this.lastEv[ev.id] != null && now - this.lastEv[ev.id]! < EVENT_REPEAT_MS && ev.severity !== 'critical') continue;
       this.lastEv[ev.id] = now;
-      this.push({ kind: 'event', label: ev.title, detail: ev.detail, sev: ev.severity, t: ev.t, day: ev.day, evId: ev.id });
+      const detail = eventDetail(ev.id, ev.detail);
+      this.push({ kind: 'event', label: ev.title, detail, sev: ev.severity, t: ev.t, day: ev.day, evId: ev.id });
       this.sortEntries();
-      this.host.announce(`${ev.title}. ${ev.detail || ''}`);
+      this.host.announce(`${ev.title}. ${detail || ''}`);
     }
   }
 

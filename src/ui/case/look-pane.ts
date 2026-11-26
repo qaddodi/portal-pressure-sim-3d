@@ -21,11 +21,23 @@ export async function applyLookPane(pane: LookPane | undefined): Promise<void> {
   if (pane.watch) { const { watchProcedure } = await import('./watch.ts'); watchProcedure(pane.watch); }
 }
 
+/** The Tests cards that show nothing until their measurement is run (the HVPG's tracing waits for the catheter): a look that opens one runs it,
+ *  unless the look names another tab of the card (the stent's own). Decided by the card, not left to each look's data, so a look written later
+ *  without `pane` cannot open an empty tracing (Mohammad, 26 Nov, capture 0bc14020 item 15). */
+export const RUNS_ON_OPEN: readonly PaneId[] = ['hvpg'];
+/** The cards that show their reading the moment they open (a live trace, a probe on the patient, the scope, a table), so opening them is the whole test.
+ *  Every built card is in exactly one of the two lists (tests/case-look-pane.test.ts): a new instrument has to say which it is.
+ *  The treatments on these cards (banding, paracentesis, the Watch row) change the patient and stay behind their own buttons. */
+export const LIVE_ON_OPEN: readonly PaneId[] = ['profile', 'scope', 'doppler', 'endoscopy', 'abdomen', 'fibroscan', 'readouts', 'trials'];
+/** The state a look opens its card in: what it names, and the measurement where the card needs one run. */
+export const paneOf = (l: CaseLook): LookPane | undefined =>
+  RUNS_ON_OPEN.includes(l.tool as PaneId) && !l.pane?.stent ? { ...l.pane, measure: true } : l.pane;
+
 const isView = (t: string): t is ViewId => VIEWS.some((v) => v.id === t);
 /** Open what a Look closer row names: a view, or a Tests card by its tool's id, in the state the look names. */
 export function openLook(l: CaseLook): void {
   if (isView(l.tool)) goToView(l.tool);
   else if (l.tool in PANES) useTests.getState().show(l.tool as PaneId);
   else return;
-  void applyLookPane(l.pane);
+  void applyLookPane(paneOf(l));
 }

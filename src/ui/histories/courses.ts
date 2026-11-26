@@ -66,6 +66,8 @@ export const COURSES: readonly Course[] = [
     id: 'hist-ascites', name: 'Refractory ascites', group: 'Ascites', where: 'Fluid in the abdomen',
     chapters: [{ label: 'On diuretics' }, { at: 'tap1', label: 'Taps, and the fluid returns' }, { at: 'tips', label: 'After the TIPS' }],
     preset: 'cirr-decomp', days: 150,
+    // (the fluid is the problem, the liver still works: severity 90%, albumin 2.7, two litres and more of fluid on full diuretics, and a liver a TIPS can still be put in)
+    start: { patch: { cirrhosis: 0.9, albumin: 2.7 } },
     quiet: ['albumin'],
     settle: 14,
     steps: [
@@ -135,6 +137,8 @@ export const COURSES: readonly Course[] = [
       { at: 'doppler', label: 'Doppler finds it' },
     ],
     preset: 'cirr-decomp', days: 190,
+    // (a good TIPS candidate: the fluid is controlled with effort and the liver is the best of the four, Child-Pugh B: severity 80%, albumin 3.0)
+    start: { patch: { cirrhosis: 0.8, albumin: 3.0 } },
     // (0.65, not 0.5, since hales-engine b95ecb5: the shunts of advanced cirrhosis stay open months after a TIPS, so a stent narrowed by half left the
     // gradient at 11.3; narrowed by about two thirds it is back over 12 at the end, as the course says.)
     ramps: [{ key: 'stenosis.TIPS', from: 50, to: 185, a: 0, b: 0.65 }],
@@ -158,7 +162,9 @@ export const COURSES: readonly Course[] = [
   {
     id: 'hist-bleed-tips', name: 'Bleed, TIPS in 24 hours', group: 'After a bleed', where: 'Varices and banding',
     chapters: [{ label: 'Before the bleed' }, { at: 'bleed', label: 'The bleed' }, { at: 'tips', label: 'After the TIPS' }, { at: 'confusion', label: 'Confusion, treated' }],
-    preset: 'cirr-decomp', days: 150, init: { albumin: 3.1 },
+    preset: 'cirr-decomp', days: 150,
+    // (the first decompensation is the bleed: Child-Pugh B, a year of disease, little fluid under diuretics: severity 75%, albumin 3.1)
+    start: { patch: { cirrhosis: 0.75, albumin: 3.1 }, days: 365 },
     quiet: ['albumin'], still: true, settle: 8,
     steps: [
       { day: 10, id: 'bleed', act: 'bleed' },
@@ -203,7 +209,9 @@ export const COURSES: readonly Course[] = [
     id: 'hist-alcohol', name: 'Alcohol cirrhosis, recompensated', short: 'Alcohol, recompensated', group: 'Cause removed', where: 'After the cause is treated',
     chapters: [{ label: 'Decompensated' }, { at: 'abstain', label: 'Abstinent, on carvedilol' }, { at: 'diurOff', label: 'Diuretics stopped' }, { at: 'recomp', label: 'Recompensated' }],
     preset: 'cirr-decomp', days: 720,
-    ramps: [{ key: 'cirrhosis', from: 0, to: 420, a: 0.85, b: 0.6 }, { key: 'albumin', from: 0, to: 420, a: 2.8, b: 3.9 }],
+    // (the sickest start of the four, after years of drinking: severity 95%, albumin 2.4; the ramps begin there and end where they ended)
+    start: { patch: { cirrhosis: 0.95, albumin: 2.4 } },
+    ramps: [{ key: 'cirrhosis', from: 0, to: 420, a: 0.95, b: 0.6 }, { key: 'albumin', from: 0, to: 420, a: 2.4, b: 3.9 }],
     quiet: ['cirrhosis', 'albumin'], still: true, settle: 14,
     steps: [
       { day: 1, id: 'abstain', note: { title: 'Abstinent from alcohol', detail: 'The cause is removed. The fibrosis can start to regress, and the liver to work better.', sev: 'ok' } },
@@ -276,25 +284,43 @@ export const COURSES: readonly Course[] = [
   },
   {
     id: 'hist-pregnancy', name: 'Cirrhosis in pregnancy', group: 'Pregnancy', where: 'Varices in pregnancy',
-    chapters: [{ label: 'Before pregnancy' }, { at: 'preg', label: 'Pregnant' }, { at: 'prop', label: 'Second trimester: propranolol and bands' }, { at: 'delivery', label: 'After delivery' }],
+    // (the weeks are the ramp's: week = 6 + (day - 30) / 7. The trimesters start at 14 and 28 weeks, Days 86 and 184.)
+    chapters: [
+      { label: 'Before pregnancy' }, { at: 'preg', label: 'First trimester' }, { at: { day: 86 }, label: 'Second trimester: scope, propranolol, bands' },
+      { at: { day: 184 }, label: 'Third trimester: pressure climbing' }, { at: 'delivery', label: 'After delivery' },
+    ],
     preset: 'csph', days: 330, init: { cirrhosis: 0.65 },
     ramps: [{ key: 'gestation', from: 30, to: 254, a: 6, b: 38 }],
     quiet: ['cirrhosis', 'gestation'], still: true,
+    // (nobody can scope before the second trimester: the varices' large size and red wale signs, which the model raises as the blood volume grows, are known at the screening endoscopy, 18 weeks)
+    scoped: true,
     steps: [
-      { day: 30, id: 'preg', set: { gestation: 6 }, label: 'Pregnant, 6 weeks', detail: 'Compensated cirrhosis with small varices, a planned pregnancy.' },
-      { day: 114, id: 'prop', set: { drugs: { propranolol: true } }, detail: 'Endoscopy at 18 weeks: large varices with red signs. Propranolol, 20 mg twice a day, raised to a heart rate of 55 to 60. It is the usual beta-blocker in pregnancy.' },
+      { day: 30, id: 'preg', set: { gestation: 6 }, label: 'Pregnant', detail: 'Compensated cirrhosis, a planned pregnancy. The varices are not scoped in the first trimester.' },
+      {
+        day: 114, id: 'egd', scope: true,
+        note: { title: 'Screening endoscopy', detail: 'The first look at the varices, in the second trimester, with sedation and fetal monitoring: large varices with red wale signs.', sev: 'danger' },
+      },
+      { day: 114, id: 'prop', set: { drugs: { propranolol: true } }, detail: 'Propranolol, 20 mg twice a day, raised to a heart rate of 55 to 60. It is the usual beta-blocker in pregnancy.' },
       { day: 128, id: 'band', act: 'band', detail: 'Banding at 20 weeks, because the varices are large and high risk.' },
       { day: 156, id: 'band2', act: 'band', detail: 'A second session at 24 weeks. The varices stay small for the delivery.' },
+      {
+        day: 191, id: 'third',
+        note: {
+          title: 'Pressure climbing, no scope now', sev: 'danger',
+          detail: 'The blood volume peaks in the third trimester and the gradient is back over 12, so bleeding is more likely. '
+            + 'No scope until after the delivery: the propranolol stays at the full dose and no more bands are put in. '
+            + 'Plan a short second stage, and scope again about 6 weeks after the delivery.',
+        },
+      },
       { day: 254, id: 'delivery', set: { gestation: 0 }, label: 'Delivery', detail: 'Vaginal delivery at 38 weeks with a short second stage. The propranolol goes on after, as it is safe in breastfeeding.' },
     ],
-    story: 'Compensated cirrhosis; pregnant on Day {preg}. The blood volume and the portal flow rise and the varices grow, so propranolol from Day {prop} and bands on Day {band} and {band2}. Delivery on Day {delivery}.',
-    path: 'Pregnancy, propranolol, bands, delivery',
+    story: 'Compensated cirrhosis; pregnant on Day {preg}. The varices are first scoped in the second trimester, Day {egd}: propranolol that day and bands on Day {band} and {band2}. The pressure climbs again from Day {third}, with no scope until after the delivery on Day {delivery}.',
+    path: 'Pregnancy, scope, propranolol, bands, delivery',
     state: ['hvpg', 'meds'],
     // (pregnancy raises the blood volume and the flow into the gut and the spleen, and delivery lets it fall: both on the Circuit's splanchnic inflow, in the flow lens)
     play: { stops: [
       { at: 'preg', view: 'circuit', cam: 'splanchnic', lens: 'flow', look: [L.overTime] },
-      { at: { day: 58 }, look: [L.endoscopy] },
-      { at: 'prop', look: [L.endoscopy] },
+      { at: 'egd', look: [L.endoscopy] },
       { at: 'delivery', view: 'circuit', cam: 'splanchnic', lens: 'flow', look: [L.overTime] },
     ] },
   },

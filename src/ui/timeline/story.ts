@@ -85,9 +85,10 @@ export function humanize(label: string): { title: string; also: string[] } {
 
 const tone = (e: StoryEntry): Tone =>
   e.kind === 'change' ? 'change' : e.sev === 'critical' || e.sev === 'danger' ? 'danger' : e.sev === 'ok' ? 'ok' : e.sev === 'caution' ? 'caution' : 'info';
-/** which entry heads a day's card: an emergency, then a procedure, an action, a dangerous event, a medicine, a bleed controlled, a course note */
+/** which entry heads a day's card: an emergency, then a procedure, an action, a dangerous line the course wrote about the day (it says what the engine's own line means), a dangerous event,
+ *  a medicine, a bleed controlled, a course note */
 const rank = (e: StoryEntry): number =>
-  e.sev === 'critical' ? 90 : isProcedure(e) ? 85 : e.kind === 'change' && e.action ? 80 : e.sev === 'danger' ? 70 : e.kind === 'change' ? 60 : e.step ? 55 : e.sev === 'ok' ? 50
+  e.sev === 'critical' ? 90 : isProcedure(e) ? 85 : e.kind === 'change' && e.action ? 80 : e.sev === 'danger' ? (e.step ? 71 : 70) : e.kind === 'change' ? 60 : e.step ? 55 : e.sev === 'ok' ? 50
     : e.sev === 'caution' ? 30 : 10;
 const kindWord = (e: StoryEntry): string =>
   e.kind === 'change' ? (isMedicine(e) ? 'Medicine' : e.action || isProcedure(e) ? 'Procedure' : 'Change') : e.sev === 'critical' ? 'Emergency' : 'Event';
@@ -99,8 +100,25 @@ const itemOf = (e: StoryEntry): Item => {
 /** the readings a card compares, in the order a hepatologist reads them: id, name, unit, the least change worth saying (the model's own noise is less), decimals, scale */
 const READ: readonly [string, string, string, number, number, number][] = [
   ['ppg', 'PPG', 'mmHg', 0.6, 1, 1], ['hvpg', 'HVPG', 'mmHg', 0.6, 1, 1], ['asc', 'Ascites', 'L', 0.25, 1, 1], ['shunt', 'Shunt', '%', 0.08, 0, 100],
+  ['ra', 'RA', 'mmHg', 0.5, 1, 1],
 ];
+/** the readings a card can compare, by the measure's id (the view makes a series for each; the strip draws only some of them) */
+export const CARD_READINGS: readonly string[] = READ.map((r) => r[0]);
 const MAX_ROWS = 3;
+
+/** What a change acts on, by the key of the change (Treat's keys): the readings that step is made to move, said first when they moved. Any other reading that moved follows in the usual
+ *  order, and one that did not move stays out. A tricuspid repair acts on the right atrium, so its card leads with RA, not with the portal gradient it only touches. */
+const ACTS_ON: readonly (readonly [(k: string) => boolean, readonly string[]])[] = [
+  [(k) => k === 'tr' || k === 'contractility', ['ra']],
+  [(k) => k === 'tips' || k === 'dips' || k === 'portocaval' || k === 'dsrs' || k === 'mesocaval' || k === 'rex' || k === 'splenicRx' || k.startsWith('cs:'), ['ppg', 'shunt']],
+  [(k) => k.startsWith('occ:'), ['shunt', 'ppg']],
+];
+/** the readings the changes' keys act on, in order, without repeats */
+export function actsOn(keys: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const k of keys) for (const [test, ids] of ACTS_ON) if (test(k)) for (const id of ids) if (!out.includes(id)) out.push(id);
+  return out;
+}
 
 /** What a key day did to the readings.
  *  - An action (a band, a tap) acts at once: the reading before it and right after it, on its own day.
@@ -108,7 +126,7 @@ const MAX_ROWS = 3;
  *  - A medicine's start, or an event, shows the day's readings (a slow drug under a disease that keeps moving would read as the drug failing). */
 export function numbers(series: StoryIn['series'], es: readonly StoryEntry[], day: number, end: number, nextChange: number | null): Numbers {
   const changes = es.filter((e) => e.kind === 'change' && !isMedicine(e)), acts = changes.some((e) => e.action);
-  const moved = changes.length ? compare(series, day, end, nextChange, acts) : null;
+  const moved = changes.length ? compare(series, day, end, nextChange, acts, actsOn(changes.flatMap((e) => e.keys ?? []))) : null;
   // (a change that moved none of them (a band, a drug stopped) says where the readings stand that day instead of an empty line)
   return moved?.rows.length ? moved : dayReadings(series, day);
 }
@@ -116,12 +134,13 @@ export function dayReadings(series: StoryIn['series'], day: number): Numbers {
   const rows: Reading[] = [];
   for (const [k, name, unit, , dp, scale] of READ) {
     const v = valueAt(series[k], day);
-    if (v == null || k === 'shunt' || (k === 'asc' && v < 0.2)) continue;
+    // (the right atrium is compared for the steps that act on it, never said on a day's card: the day's card is the portal readings)
+    if (v == null || k === 'shunt' || k === 'ra' || (k === 'asc' && v < 0.2)) continue;
     rows.push({ k, name, unit, b: +(v * scale).toFixed(dp) });
   }
   return { mode: 'day', when: 'that day', rows: rows.slice(0, MAX_ROWS) };
 }
-function compare(series: StoryIn['series'], day: number, end: number, nextChange: number | null, acts: boolean): Numbers {
+function compare(series: StoryIn['series'], day: number, end: number, nextChange: number | null, acts: boolean, focus: readonly string[]): Numbers {
   const rows: Reading[] = [];
   const after = acts ? day : Math.max(day, Math.min(end, day + SETTLE_DAYS, nextChange != null ? nextChange - 1 : Infinity));
   for (const [k, name, unit, min, dp, scale] of READ) {
@@ -130,6 +149,9 @@ function compare(series: StoryIn['series'], day: number, end: number, nextChange
     if (a == null || b == null || Math.abs(b - a) < min) continue;
     rows.push({ k, name, unit, a: f(a), b: f(b), up: b > a });
   }
+  // (what the step acts on first; the sort is stable, so the rest keep the usual order)
+  const first = (k: string) => { const i = focus.indexOf(k); return i < 0 ? focus.length : i; };
+  rows.sort((x, y) => first(x.k) - first(y.k));
   const n = after - day;
   return { mode: 'change', when: n === 0 ? 'right after' : n === 1 ? '1 day later' : `${n} days later`, rows: rows.slice(0, MAX_ROWS) };
 }

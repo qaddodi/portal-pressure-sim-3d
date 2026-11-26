@@ -21,6 +21,8 @@ export interface Step {
   detail?: string;
   /** a line the course adds that the model does not raise (a Doppler follow-up): shown as an event */
   note?: { title: string; detail: string; sev: 'ok' | 'caution' | 'danger' | 'info' };
+  /** an endoscopy (a band session is one too, without saying so): a course with `scoped` shows the scope's findings (large varices, red wale signs) here, and the `note` is its own line */
+  scope?: boolean;
 }
 
 export interface Course {
@@ -31,8 +33,12 @@ export interface Course {
   short?: string;
   /** the menu's group and the words beside it */
   group: string; where: string;
-  /** the engine preset the patient starts from (day 0) */
+  /** the engine preset the patient starts from (day 0): the family the history belongs to, and the id a shared link carries */
   preset: string;
+  /** This history's own patient: a patch on the preset's settings, and the years of disease the model runs before day 0 (the preset's own when left out).
+   *  Every history says who comes in: two histories never start from the same patient (tests/histories-starts.test.ts), whatever family they share.
+   *  The disease clock runs on it, so the fluid and the readings are settled for this patient. */
+  start?: { patch: Record<string, unknown>; days?: number };
   days: number;
   /** parameters merged in before day 0 */
   init?: Record<string, unknown>;
@@ -45,10 +51,13 @@ export interface Course {
   /** the day's look at the model (to raise its events) is taken with the breath and the pulse held still, as a settled day is. The live steps carry them, and four of them a day move the fluid by litres over months (the model's
    *  mean pressures differ from its settled ones): a course whose fluid must follow only the disease and the treatments (a patient who recompensates) sets this; the courses that rely on the fluid coming back do not. */
   still?: boolean;
+  /** what only an endoscopy sees (large varices, red wale signs) is known on the days of the scopes, never on the model's own clock: the engine raises it when the varix crosses its cut,
+   *  the course holds it until the next step with `scope` (or a band), and drops it if it no longer holds then. A patient who cannot be scoped for weeks (a pregnancy) needs this. */
+  scoped?: boolean;
   steps: Step[];
   /** the story's chapters (docs/approved/timeline-story.md): the first from Day 0, each other from the day of the step it names (`at`, a step's id) or the start of a ramp (`{ ramp }`, its key).
-   *  Anchored to the course, never to a day the engine raised something on, so a rebake cannot slide a chapter. */
-  chapters: { at?: string | { ramp: string }; label: string }[];
+   *  Anchored to the course, never to a day the engine raised something on, so a rebake cannot slide a chapter (`{ day }` is a day the course names itself: a trimester's first). */
+  chapters: { at?: string | { ramp: string } | { day: number }; label: string }[];
   /** the story: {id} is the day of the step with that id */
   story: string;
   /** the course in a few words, for the row's tip */

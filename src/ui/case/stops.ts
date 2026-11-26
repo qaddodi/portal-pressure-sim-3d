@@ -4,7 +4,8 @@
 import type { Chapter, Moment } from '../timeline/story.ts';
 import { momentKey } from '../timeline/story-view.ts';
 import { BLEED_SAY, GLUE_LOOK, SCOPE_LOOK } from './looks.ts';
-import type { CaseLook, CaseStopBaked, Stop, StopShot } from './types.ts';
+import type { CaseLook, CaseRamp, CaseStopBaked, Stop, StopShot } from './types.ts';
+import { whenWords } from './when.ts';
 
 /** The fields of a History entry the stops read (the page's Entry and a baked one both have them). */
 export interface StopEntryIn { kind: string; label: string; day: number; snap?: unknown; evId?: string; keys?: readonly string[]; action?: boolean; step?: string }
@@ -53,7 +54,7 @@ function ownOf(own: readonly CaseStopBaked[], es: readonly StopEntryIn[], m: Mom
 
 /** The case's stops: the start, every key moment and today that kept the model, in order, with the course's own word on each applied (by its step or day). A bleed whose model was kept as it
  *  bled has two stops on its day: the bleeding itself, then what is done about it. */
-export function stopsOf(chapters: readonly Chapter[], es: readonly StopEntryIn[], own: readonly CaseStopBaked[] = []): Stop[] {
+export function stopsOf(chapters: readonly Chapter[], es: readonly StopEntryIn[], own: readonly CaseStopBaked[] = [], ramps?: readonly CaseRamp[]): Stop[] {
   const out: Stop[] = [], bleeding: boolean[] = [];
   /** the bleed the moment before ended at (its rupture), when it is the same day: this moment is what is done about it */
   let after: StopEntryIn | null = null;
@@ -80,7 +81,7 @@ export function stopsOf(chapters: readonly Chapter[], es: readonly StopEntryIn[]
       key: momentKey(m), type: m.type, day: m.day, entry, title,
       kind: m.type === 'start' ? START_KIND : m.type === 'today' ? TODAY_KIND : m.kind,
       shot, look: (mine?.look ?? bl?.look ?? []).slice(0, 3), open: mine?.open ?? bl?.open ?? null,
-      say: mine?.say ?? (atBleed ? BLEED_SAY[siteOf(rupture!)] : null),
+      say: mine?.say ?? (atBleed ? BLEED_SAY[siteOf(rupture!)] : null), when: whenWords(ramps, m.day),
     });
     bleeding.push(atBleed);
   });
