@@ -1,5 +1,5 @@
 import { BackSide, Mesh, ShaderMaterial } from 'three';
-import { organMask } from './organs/glow-mask.ts';
+import { organMask, organTakesGlow } from './organs/glow-mask.ts';
 import type { CelObject } from './materials/cel.ts';
 import { HI_NONE } from './materials/shaders.ts';
 import { gate } from './gate.ts';
@@ -284,6 +284,7 @@ export class OrganPins {
 
   /** The organ's glow: its mask (organs/glow-mask.ts), one weight over the organ as it is drawn, eased in with `amount`; the screen-space blur (glow-fx.ts) makes the fall-off. Made the first time the organ is lit. */
   private glowOf(id: string, o: CelObject, amount: number): void {
+    if (!organTakesGlow(id)) return;   // (the heart and its atrium: outline only, glow-mask.ts NO_GLOW_ORGANS)
     let m = this.masks.get(id);
     if (!m) {
       if (amount <= 0 || !o.group.parent) return;

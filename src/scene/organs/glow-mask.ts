@@ -11,6 +11,14 @@ import { FADE_UNIFORM_GLSL } from '../materials/shaders.ts';
 import { ORGAN_GLOW_LAYER } from '../glow.ts';
 import { gate } from '../gate.ts';
 
+// The organs that wear no glow (owner, 25 Nov: "remove the heart glow"): the heart and its right atrium (the atrium is part of the heart).
+// They keep their outline when tapped or pinned; only the halo is gone.
+// ROOT: every organ's glow is made in one place (highlight.ts `OrganPins.glowOf`, through `organMask`), so this is the one list:
+// a tap, a slide's pin and a deck link on the heart all reach it, on every deck and view.
+export const NO_GLOW_ORGANS: ReadonlySet<string> = new Set(['heart', 'heart-ra']);
+/** Whether an organ (by the organ layer's id) takes a glow when lit. */
+export const organTakesGlow = (id: string): boolean => !NO_GLOW_ORGANS.has(id);
+
 /** The dive's window as organ-shader.ts ORGAN_FS writes it (these two lines are the twin of its `q` and `win`; tests/organ-glow-mask.test.ts holds the two together). */
 export const ORGAN_WINDOW_Q = 'vec2 q = vClip.xy / vClip.w - cut.xy;';
 export const ORGAN_WINDOW_WIN = 'float win = smoothstep(cut.z, cut.z + 0.3, length(vec2(q.x * cut.w, q.y)));';
@@ -47,6 +55,7 @@ export const GL_PROGRAMS = [{ name: 'organ glow mask', vs: ORGAN_MASK_VS, fs: OR
 
 /** The organ's mask mesh: the organ's own geometry, the organ's own fade, window, tail and highlight colour (the same uniform objects, so nothing is copied and nothing can drift), on the organ glow's layer. Hidden until lit. */
 export function organMask(id: string, o: CelObject): Mesh {
+  if (!organTakesGlow(id)) throw new Error(`organMask: ${id} takes no glow (NO_GLOW_ORGANS)`);
   const mat = new ShaderMaterial({ name: 'organ glow mask', vertexShader: ORGAN_MASK_VS, fragmentShader: ORGAN_MASK_FS, ...ORGAN_MASK_FLAGS,
     uniforms: { fade: o.toon.uniforms.fade!, cut: o.toon.uniforms.cut!, reveal: o.ink.uniforms.reveal!, hiColor: o.ink.uniforms.hiColor!, amt: { value: 0 } } });
   const m = new Mesh(o.toonMesh.geometry, mat);

@@ -161,6 +161,7 @@ import { ORGAN_INK_VS } from '../src/scene/organs/organ-shader.ts';
 import { OrganPins, PIN_FADE_MS, PIN_PX, SELECT_PX } from '../src/scene/highlight.ts';
 import { MESHES_OF } from '../src/scene/organs/pick.ts';
 import { ORGAN_GLOW_LAYER } from '../src/scene/glow.ts';
+import { organTakesGlow } from '../src/scene/organs/glow-mask.ts';
 
 test('the organ outline widens by hiPx with hiOn and takes the highlight colour (it did neither before: the shader ignored both)', () => {
   assert.match(ORGAN_INK_VS, /uniform float hiOn;/);
@@ -180,10 +181,17 @@ test('a tapped organ glows (one mask mesh, eased, on the organ glow layer: the b
   pins.select(MESHES_OF.heart!);
   for (let i = 0; i < 30; i++) pins.step(16, byId);
   assert.equal(hi('heart'), 1); assert.equal(hi('heart-ra'), 1, 'the atrium is part of the heart');
-  assert.deepEqual(lit('heart'), [1], 'one mask mesh at full strength');
-  assert.deepEqual(lit('heart-ra'), [1], 'and the atrium\'s');
+  // the heart and its atrium keep their outline and wear no glow (owner, 25 Nov: "remove the heart glow"; glow-mask.ts NO_GLOW_ORGANS)
+  assert.equal(lit('heart').length, 0); assert.equal(lit('heart-ra').length, 0);
+  assert.equal(masks('heart').length, 0, 'no mask mesh is even made for the heart'); assert.equal(masks('heart-ra').length, 0);
+  assert.equal(pins.glowing, false, 'the heart alone lit: no glow pass');
+  pins.select(MESHES_OF.spleen!);
+  for (let i = 0; i < 30; i++) pins.step(16, byId);
+  assert.deepEqual(lit('spleen'), [1], 'a tapped organ that takes a glow: one mask mesh at full strength');
   assert.equal(pins.glowing, true);
-  assert.equal(masks('heart')[0]!.layers.mask, 1 << ORGAN_GLOW_LAYER, 'on the organ glow\'s own layer only: the figure\'s passes never draw it');
+  assert.equal(masks('spleen')[0]!.layers.mask, 1 << ORGAN_GLOW_LAYER, 'on the organ glow\'s own layer only: the figure\'s passes never draw it');
+  pins.select(MESHES_OF.heart!);
+  for (let i = 0; i < 30; i++) pins.step(16, byId);
   assert.equal(lit('liver').length, 0); assert.equal(hi('liver'), 0);
   for (const [id, o] of byId) assert.equal(o.group.children.filter((c) => c.name.startsWith(`highlight/glow/${id}/`)).length, 0, `${id}: no stacked hulls`);
   pins.set(['liver']);
@@ -191,7 +199,7 @@ test('a tapped organ glows (one mask mesh, eased, on the organ glow layer: the b
   assert.equal(hi('liver'), 1); assert.deepEqual(lit('liver'), [1]);
   pins.select([]); pins.set([]);
   for (let i = 0; i < 30; i++) pins.step(16, byId);
-  assert.equal(hi('heart'), 0); assert.equal(hi('liver'), 0); assert.equal(lit('heart').length, 0); assert.equal(lit('liver').length, 0);
+  assert.equal(hi('heart'), 0); assert.equal(hi('liver'), 0); assert.equal(lit('spleen').length, 0); assert.equal(lit('heart').length, 0); assert.equal(lit('liver').length, 0);
   assert.equal(pins.glowing, false, 'put away: the glow pass stops');
   // halfway through the fade the glow is part way
   pins.select(MESHES_OF.liver!); pins.step(PIN_FADE_MS / 2, byId);
@@ -240,7 +248,7 @@ test('selecting any one organ lights that organ only: no other organ and no vess
     for (let i = 0; i < 40; i++) pins.step(16, byId);
     for (const [id, o] of byId) assert.equal(o.ink.uniforms.hiOn!.value, MESHES_OF[pick]!.includes(id) ? 1 : 0, `${pick} selected: ${id}`);
     for (const o of s.vessels) assert.equal(o.ink.uniforms.hiOn!.value, 0, `${pick} selected: vessel ${o.edge?.id} is not lit`);
-    for (const [id, o] of byId) assert.equal(o.group.children.filter((c) => c.name.startsWith('highlight/glow/') && c.visible).length, MESHES_OF[pick]!.includes(id) ? 1 : 0, `${pick} selected: ${id}'s glow`);
+    for (const [id, o] of byId) assert.equal(o.group.children.filter((c) => c.name.startsWith('highlight/glow/') && c.visible).length, MESHES_OF[pick]!.includes(id) && organTakesGlow(id) ? 1 : 0, `${pick} selected: ${id}'s glow (the heart and its atrium take none)`);
     // the organs' lines are not shared uniform objects: one organ's cannot write another's
     const seen = new Set<object>();
     for (const o of byId.values()) { for (const k of ['hiOn', 'hiPx', 'hiColor']) { const u = o.ink.uniforms[k]!; assert.ok(!seen.has(u), `${k} is its own`); seen.add(u); } }

@@ -2,8 +2,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { MaxEquation } from 'three';
-import { ORGAN_MASK_FLAGS, ORGAN_MASK_FS, ORGAN_MASK_VS, ORGAN_WINDOW_Q, ORGAN_WINDOW_WIN } from '../src/scene/organs/glow-mask.ts';
+import { BufferGeometry, Group, MaxEquation, Mesh, ShaderMaterial, Vector3, Vector4 } from 'three';
+import { OrganPins } from '../src/scene/highlight.ts';
+import type { CelObject } from '../src/scene/materials/cel.ts';
+import { NO_GLOW_ORGANS, organMask, organTakesGlow, ORGAN_MASK_FLAGS, ORGAN_MASK_FS, ORGAN_MASK_VS, ORGAN_WINDOW_Q, ORGAN_WINDOW_WIN } from '../src/scene/organs/glow-mask.ts';
 import { ORGAN_FS } from '../src/scene/organs/organ-shader.ts';
 import { GLOW_LAYER, GLOW_SIGMA, ORGAN_GLOW_LAYER } from '../src/scene/glow.ts';
 import { GlowFx, LAY_FS } from '../src/scene/glow-fx.ts';
@@ -99,4 +101,36 @@ test('while the pick weight eases 0 to 1 the organ\'s interior takes no glow at 
   // the old lay for contrast: at amt 0.1 the interior took glow (the flash)
   const old = (g: number, m: number): number => Math.min(g * GLOW_GAIN, GLOW_A_MAX) * (1 - m * m * (3 - 2 * m));
   assert.ok(old(0.1, 0.1) > 0.05, 'the smoothstep lay let early glow over the interior');
+});
+
+// The heart wears no glow (owner, 25 Nov: "remove the heart glow").
+// The rule is general: an organ in NO_GLOW_ORGANS (the heart and its atrium) makes no mask however it is lit, on every deck and view.
+const fakeOrgan = () => {
+  const ink = new ShaderMaterial({ uniforms: { hiPx: { value: 0 }, hiOn: { value: 0 }, hiDir: { value: 0 }, hiOffset: { value: 0 }, reveal: { value: 1 }, hiColor: { value: new Vector3() } } });
+  const toon = new ShaderMaterial({ uniforms: { fade: { value: 1 }, cut: { value: new Vector4() } } });
+  const group = new Group(); new Group().add(group);
+  const toonMesh = new Mesh(new BufferGeometry(), toon); const inkMesh = new Mesh(toonMesh.geometry, ink);
+  group.add(toonMesh, inkMesh);
+  return { group, ink, toon, toonMesh } as unknown as CelObject;
+};
+
+test('the heart and its atrium take no glow; the liver still does', () => {
+  assert.deepEqual([...NO_GLOW_ORGANS].sort(), ['heart', 'heart-ra']);
+  assert.equal(organTakesGlow('heart'), false); assert.equal(organTakesGlow('heart-ra'), false);
+  for (const id of ['liver', 'spleen', 'stomach', 'kidney-l', 'bowel', 'colon', 'duodenum', 'caudate']) assert.equal(organTakesGlow(id), true, id);
+  assert.throws(() => organMask('heart', fakeOrgan()), /takes no glow/);
+});
+
+test('pinned or tapped, the heart makes no glow mask and nothing glows; its outline still comes on', () => {
+  const heart = fakeOrgan(), ra = fakeOrgan();
+  const pins = new OrganPins();
+  pins.set(['heart', 'heart-ra']); pins.select(['heart']);
+  for (let i = 0; i < 60; i++) pins.step(50, new Map([['heart', heart], ['heart-ra', ra]]));
+  assert.equal(pins.glowing, false); assert.equal(pins.glowAmount, 0);
+  assert.equal(heart.group.children.filter((c) => c.name.startsWith('highlight/glow/')).length, 0, 'no glow mesh on the heart');
+  assert.equal(ra.group.children.filter((c) => c.name.startsWith('highlight/glow/')).length, 0, 'none on the atrium');
+  assert.equal(heart.ink.uniforms.hiOn!.value, 1, 'the outline is untouched');
+  const liver = fakeOrgan(); const lp = new OrganPins(); lp.set(['liver']);
+  for (let i = 0; i < 60; i++) lp.step(50, new Map([['liver', liver]]));
+  assert.equal(lp.glowing, true, 'a lit liver still glows');
 });
