@@ -8,6 +8,16 @@ export type ViewId = 'circuit' | 'anatomic' | 'lobule' | 'sinusoid';
 /** The pills, left to right, with the 2D app's words. */
 export const VIEWS: readonly { id: ViewId; label: string }[] = UI.views.map((v) => ({ id: v.id as ViewId, label: v.label }));
 
+/** The search's title for a view ("Sinusoid view"): the one rule, so the search lists every view of VIEWS and a new view is found the day it is added. */
+export const viewCommandTitle = (v: ViewId): string => `${UI.views.find((x) => x.id === v)!.label} view`;
+/** Extra words that find a view in the search (the 2D inventory's own words where it lists the view; the sinusoid is not in 2D's list). */
+export const VIEW_WORDS: Record<ViewId, string> = {
+  circuit: 'schematic map',
+  anatomic: 'anatomy body',
+  lobule: 'microcirculation lobule zoom',
+  sinusoid: 'microcirculation sinusoid hepatocyte zoom lobule',
+};
+
 export type ViewTap = { type: 'refit' } | { type: 'go'; view: ViewId; from: ViewId };
 
 /** What a tap on pill `tapped` does while the view is `cur`. */

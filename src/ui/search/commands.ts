@@ -10,6 +10,7 @@ import { useSettings } from '../../state/settings.ts';
 import { LOOK_IDS, type LookId } from '../../looks/looks.ts';
 import { runFeature, type FeatureId } from '../shell/features.ts';
 import { goToView } from '../shell/view-actions.ts';
+import { VIEWS, VIEW_WORDS, viewCommandTitle } from '../shell/views.ts';
 import { jump, restart } from '../shell/transport.ts';
 import { loadPatient } from '../menu/patients.ts';
 import { PLAYABLE } from '../menu/library.ts';
@@ -46,9 +47,8 @@ export function work(group: string, title: string): ((n: number | null) => void)
   if (group === 'View') {
     const lens = UI.lenses.find((l) => title === `Colored by ${l.name.toLowerCase()}`);
     if (lens) return () => { sceneApi.setLens(lens.id as LensId); sh().say(lensToast(lens.name, lens.note)); };
-    if (title === 'Anatomy view') return () => { goToView('anatomic'); };
-    if (title === 'Circuit view') return () => { goToView('circuit'); };
-    if (title === 'Lobule view') return () => { goToView('lobule'); };
+    const view = VIEWS.find((v) => title === viewCommandTitle(v.id));
+    if (view) return () => { goToView(view.id); };   // (every view of the one list, the sinusoid too)
     if (title === 'Tests') return () => { runFeature('tests', title); };   // (2D ctx.instruments: the Tests card, up or down)
   }
   if (group === 'App') {
@@ -73,7 +73,13 @@ export function buildCommands(start: (deckId: string) => void): Extra[] {
     if ((c.group === 'Treat' || c.group === 'Change') && !commandOffered(c.group, c.title)) continue;   // (a take-down is offered only for what is in place)
     if (c.group === 'App' && c.title.startsWith('Appearance: ')) { const l = UI.looks.find((x) => c.title === `Appearance: ${x.name}`); add(c.group, c.title, work(c.group, c.title), `theme look color colour palette ${l && l.id !== 'light' && l.id !== 'soft' ? 'dark' : l?.id ?? ''} ${l?.id === 'navy' || l?.id === 'black' ? l.id : ''}`, null, ''); continue; }
     if (c.group === 'View' && c.title.startsWith('Colored by ')) { const l = UI.lenses.find((x) => c.title === `Colored by ${x.name.toLowerCase()}`); add(c.group, c.title, work(c.group, c.title), `color colour lens ${l?.note ?? ''}`, null, ''); continue; }
-    add(c.group, c.title, work(c.group, c.title), c.kw, c.num, c.hint, FEATURE_OF[c.title]);
+    const view = c.group === 'View' ? VIEWS.find((v) => c.title === viewCommandTitle(v.id)) : undefined;
+    add(c.group, c.title, work(c.group, c.title), view ? `${c.kw} ${VIEW_WORDS[view.id]}` : c.kw, c.num, c.hint, FEATURE_OF[c.title]);
+  }
+  // Every figure view is a command, whether or not the 2D inventory lists it (it stops at the lobule; the sinusoid is the 3D app's own pill).
+  for (const v of VIEWS) {
+    const title = viewCommandTitle(v.id);
+    if (!out.some((c) => c.group === 'View' && c.title === title)) add('View', title, work('View', title), VIEW_WORDS[v.id], null, '');
   }
   if (!out.some((c) => c.group === 'Go to' && c.title === 'Ascites')) add('Go to', 'Ascites', work('Go to', 'Ascites'), 'organ select', null, '');   // (2D lists it; the inventory's Go to rows stop at the spleen)
   for (const p of UI.presets) add('Patient', p.label, () => { void loadPatient(p.id); }, `scenario preset ${p.group}`, null, '');

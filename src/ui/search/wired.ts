@@ -5,11 +5,12 @@ import { UI } from '../strings.generated.ts';
 import { BUILT_PANES, type PaneId } from '../tests/panes.ts';
 import { isOrderCommand } from '../treat/palette-orders.ts';
 import { GO_TO } from './goto.ts';
+import { VIEWS, viewCommandTitle } from '../shell/views.ts';
 
 const DAYS = new Set(['+1 week', '+1 month', '+6 months', '+1 year', 'Until something happens', 'Restart this patient', 'Undo (back one change)', 'Compare from here']);
 const APP = new Set(['Home', 'Reset everything', 'Guide & shortcuts', 'Light / dark theme', 'Copy share link']);
 
-const VIEW = new Set(['Anatomy view', 'Circuit view', 'Lobule view', 'Tests']);
+const VIEW = new Set([...VIEWS.map((v) => viewCommandTitle(v.id)), 'Tests']);   // (every figure view, from the one list)
 
 /** The palette's Tests commands (2D palette.js): the Doppler's portal vein probe, and the endoscopy pane. */
 export const TESTS_PANE: Record<string, PaneId> = { 'Doppler of the portal vein': 'doppler', Endoscopy: 'endoscopy' };
