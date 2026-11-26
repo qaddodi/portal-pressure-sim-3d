@@ -289,7 +289,7 @@
  "src/scene/micro3d/lobule3d.ts": 64,
  "src/scene/micro3d/sinusoid-shape.ts": 7,
  "src/scene/micro3d/sinusoid-wall.ts": 2,
- "src/scene/micro3d/sinusoid3d.ts": 28,
+ "src/scene/micro3d/sinusoid3d.ts": 27,
  "src/scene/organ-veil/config.ts": 2,
  "src/scene/organ-veil/glsl.ts": 2,
  "src/scene/organ-veil/organ-map.ts": 5,
