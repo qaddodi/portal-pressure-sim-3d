@@ -15,6 +15,21 @@
 //   Cardiac cirrhosis: congestion from a failing right heart; diuretics, then the valve and the heart treated; the HVPG stays normal throughout.
 //   (A course's `still` look is on for those where the fluid must follow only the disease and the treatments: types.ts.)
 import type { Course } from './types.ts';
+import type { CaseLook } from '../case/types.ts';
+
+/** "Look closer here" at a stop (ui/case): the Tests cards a course opens (tests/panes.ts PaneId; tests/case-shots.test.ts keeps every one real). */
+const L = {
+  endoscopy: { tool: 'endoscopy', label: 'Endoscopy' },
+  hvpg: { tool: 'hvpg', label: 'HVPG' },
+  hvpgNormal: { tool: 'hvpg', label: 'HVPG, normal here' },
+  acrossStent: { tool: 'hvpg', label: 'Pressures across the stent' },
+  stiffness: { tool: 'fibroscan', label: 'Liver stiffness' },
+  ascites: { tool: 'abdomen', label: 'Ascites' },
+  doppler: { tool: 'doppler', label: 'Doppler' },
+  dopplerPv: { tool: 'doppler', label: 'Doppler of the portal vein' },
+  along: { tool: 'profile', label: 'Pressure along the circuit' },
+  overTime: { tool: 'scope', label: 'Pressure over time' },
+} satisfies Record<string, CaseLook>;
 
 export const COURSES: readonly Course[] = [
   {
@@ -34,6 +49,13 @@ export const COURSES: readonly Course[] = [
     story: 'On carvedilol from Day {carvedilol}, the patient bled on Day {bleed}. A vasoactive drug and a band the same day, then a pre-emptive TIPS on Day {tips}.',
     path: 'Carvedilol, a bleed, banding, TIPS',
     state: ['tips', 'ppg', 'meds'],
+    // (the case: an HVPG and a stiffness for the gradient crossing 10, the scope for the varices and the bleed, the pressure along the circuit and the stent's Doppler at the TIPS)
+    play: { stops: [
+      { at: { day: 18 }, look: [L.hvpg, L.stiffness] },
+      { at: { day: 40 }, look: [L.endoscopy] },
+      { at: 'bleed', look: [L.endoscopy] },
+      { at: 'tips', look: [L.along, L.doppler] },
+    ] },
   },
   {
     id: 'hist-ascites', name: 'Refractory ascites', group: 'Ascites', where: 'Fluid in the abdomen',
@@ -50,6 +72,14 @@ export const COURSES: readonly Course[] = [
     story: 'Diuretics from the start, and the fluid still came back: a large tap with albumin on Day {tap1}, {tap2} and {tap3}. A TIPS on Day {tips}.',
     path: 'Diuretics, paracentesis, TIPS',
     state: ['tips', 'ascites', 'meds'],
+    // (a tap stays on the whole body, as its default does: the Ascites card says how much fluid there is and how fast it comes back)
+    play: { stops: [
+      { at: { day: 0 }, look: [L.ascites] },
+      { at: 'tap1', look: [L.ascites] },
+      { at: 'tap2', look: [L.ascites] },
+      { at: 'tap3', look: [L.ascites] },
+      { at: 'tips', look: [L.ascites, L.along] },
+    ] },
   },
   {
     id: 'hist-pvt', name: 'Acute portal vein thrombosis', group: 'Clots and outflow', where: 'Portal vein and hepatic veins',
@@ -62,6 +92,13 @@ export const COURSES: readonly Course[] = [
     story: 'A fresh clot in the main portal vein. Anticoagulation from Day {anticoag}; the clot slowly clears and the pressure comes down.',
     path: 'Anticoagulation, the clot clears',
     state: ['clot', 'ppg', 'meds'],
+    // (the clot is in the main portal vein: the case looks at it from the start, through the anticoagulation, to today, when it has cleared)
+    play: { stops: [
+      { at: { day: 0 }, cam: 'portal', look: [L.dopplerPv] },
+      { at: 'anticoag', cam: 'portal', look: [L.dopplerPv] },
+      { at: { day: 4 }, look: [L.endoscopy] },
+      { at: { day: 105 }, cam: 'portal', look: [L.dopplerPv] },
+    ] },
   },
   {
     id: 'hist-bcs', name: 'Budd-Chiari syndrome', group: 'Clots and outflow', where: 'Portal vein and hepatic veins',
@@ -76,6 +113,13 @@ export const COURSES: readonly Course[] = [
     story: 'All three hepatic veins blocked. Anticoagulation from Day {anticoag}, then an angioplasty of the right hepatic vein on Day {angioplasty}.',
     path: 'Anticoagulation, angioplasty',
     state: ['ascites', 'ppg', 'meds'],
+    // (the block is in the hepatic veins: the case looks at them, not at the portal flow, from the start to today)
+    play: { stops: [
+      { at: { day: 0 }, cam: 'hepatic', look: [L.doppler, L.ascites] },
+      { at: 'anticoag', cam: 'hepatic', look: [L.doppler] },
+      { at: 'angioplasty', look: [L.doppler, L.ascites] },
+      { at: { day: 150 }, cam: 'hepatic', look: [L.doppler, L.ascites] },
+    ] },
   },
   {
     id: 'hist-tips-narrowed', name: 'TIPS that has narrowed', group: 'After a TIPS', where: 'Follow-up',
@@ -96,6 +140,13 @@ export const COURSES: readonly Course[] = [
     story: 'A TIPS on Day {tips} for fluid that diuretics did not control. Months later the stent narrows and the pressure and the fluid climb back; Doppler shows it on Day {doppler}.',
     path: 'TIPS, then the stent narrows',
     state: ['tips', 'ppg', 'ascites'],
+    // (the Doppler's day opens the Doppler and the pressures across the stent; today stands on the narrowed stent)
+    play: { stops: [
+      { at: 'tips', look: [L.ascites, L.along] },
+      { at: 'doppler', look: [L.doppler, L.acrossStent] },
+      { at: { day: 154 }, look: [L.ascites] },
+      { at: { day: 190 }, view: 'circuit', cam: 'tips', look: [L.doppler, L.acrossStent] },
+    ] },
   },
 
   {
@@ -114,6 +165,12 @@ export const COURSES: readonly Course[] = [
     story: 'A first variceal bleed, Child-Pugh B, still bleeding at endoscopy. A vasoactive drug and a band on Day {bleed}, a covered TIPS on Day {tips}. Confusion on Day {confusion} cleared with lactulose.',
     path: 'Bleed, band, TIPS the next day',
     state: ['tips', 'ppg', 'ascites'],
+    // (the confusion is the gut's blood going round the liver through the stent: the slides' own first-pass shot of the liver, as the encephalopathy deck takes it)
+    play: { stops: [
+      { at: 'bleed', look: [L.endoscopy] },
+      { at: 'tips', look: [L.along, L.doppler] },
+      { at: 'confusion', cam: 'liver', lens: 'firstpass' },
+    ] },
   },
   {
     id: 'hist-hcv', name: 'Hepatitis C cured, pressure persists', group: 'Cause removed', where: 'After the cause is treated',
@@ -129,6 +186,13 @@ export const COURSES: readonly Course[] = [
     story: 'Compensated hepatitis C cirrhosis with clinically significant portal hypertension, on carvedilol from Day {carvedilol}. Cured by Day {svr}. The gradient eases but stays over 10, so the carvedilol goes on.',
     path: 'Carvedilol, a cure, the pressure stays',
     state: ['hvpg', 'ppg', 'meds'],
+    // (the antiviral treats the liver; the cure is seen where the pressure persists, the sinusoid in its lobule; the HVPG and the stiffness say how far it eased)
+    play: { stops: [
+      { at: { day: 0 }, look: [L.hvpg, L.stiffness] },
+      { at: 'daa', cam: 'liver', look: [L.stiffness] },
+      { at: 'svr', view: 'lobule', cam: 'lobule:sinusoid', look: [L.hvpg, L.stiffness] },
+      { at: { day: 600 }, look: [L.hvpg, L.stiffness] },
+    ] },
   },
   {
     id: 'hist-alcohol', name: 'Alcohol cirrhosis, recompensated', group: 'Cause removed', where: 'After the cause is treated',
@@ -145,6 +209,13 @@ export const COURSES: readonly Course[] = [
     story: 'Decompensated alcohol cirrhosis with ascites. Abstinent from Day {abstain}, carvedilol from Day {carvedilol}. The fluid is gone by Day {diurOff} and diuretics stop; a year later, on Day {recomp}, the patient is recompensated.',
     path: 'Abstinence, carvedilol, diuretics stop',
     state: ['hvpg', 'ascites', 'meds'],
+    // (abstinence is the liver's own change; recompensation is the sinusoid's resistance falling as the fibrosis regresses)
+    play: { stops: [
+      { at: { day: 0 }, look: [L.ascites] },
+      { at: 'abstain', cam: 'liver', look: [L.stiffness] },
+      { at: 'diurOff', look: [L.ascites] },
+      { at: 'recomp', view: 'lobule', cam: 'lobule:sinusoid', look: [L.hvpg, L.stiffness] },
+    ] },
   },
   {
     id: 'hist-psvd', name: 'PSVD: a bleed with a normal HVPG', group: 'Without cirrhosis', where: 'Porto-sinusoidal vascular disorder',
@@ -162,6 +233,14 @@ export const COURSES: readonly Course[] = [
     story: 'Large varices bleed on Day {bleed} with an HVPG that is normal. A band and a vasoactive drug that day, carvedilol from Day {carvedilol}, and two more bands, to Day {band3}. The HVPG stays low, and the PPG, from the portal vein, stays high.',
     path: 'Bleed, band, carvedilol, more bands',
     state: ['hvpg', 'ppg', 'meds'],
+    // (the block is before the sinusoids, at the portal triad: the HVPG is normal there and says nothing of the risk, which is the case's point)
+    play: { stops: [
+      { at: { day: 0 }, view: 'lobule', cam: 'lobule:triad', look: [L.hvpg, L.endoscopy] },
+      { at: 'bleed', look: [L.endoscopy, L.hvpgNormal] },
+      { at: 'band2', look: [L.endoscopy] },
+      { at: 'band3', look: [L.endoscopy] },
+      { at: { day: 300 }, look: [L.hvpg, L.along] },
+    ] },
   },
   {
     id: 'hist-brto', name: 'Gastric varix bleed, BRTO', group: 'After a bleed', where: 'Varices and banding',
@@ -180,6 +259,14 @@ export const COURSES: readonly Course[] = [
     story: 'A fundal varix bleeds on Day {bleed}. A vasoactive drug, then BRTO on Day {brto}. The shunt that fed it is closed, the portal pressure rises, and new esophageal varices need carvedilol from Day {carvedilol} and bands to Day {band3}.',
     path: 'Bleed, BRTO, then the esophageal varices',
     state: ['ppg', 'meds'],
+    // (the fundal varix and its shunt on the fundus, as the gastric varices deck frames BRTO; the esophageal varices after it at endoscopy)
+    play: { stops: [
+      { at: 'bleed', look: [L.endoscopy] },
+      { at: 'brto', look: [L.along, L.endoscopy] },
+      { at: { day: 29 }, look: [L.endoscopy] },
+      { at: 'carvedilol', look: [L.endoscopy] },
+      { at: { day: 179 }, look: [L.endoscopy] },
+    ] },
   },
   {
     id: 'hist-pregnancy', name: 'Cirrhosis in pregnancy', group: 'Pregnancy', where: 'Varices in pregnancy',
@@ -197,6 +284,13 @@ export const COURSES: readonly Course[] = [
     story: 'Compensated cirrhosis; pregnant on Day {preg}. The blood volume and the portal flow rise and the varices grow, so propranolol from Day {prop} and bands on Day {band} and {band2}. Delivery on Day {delivery}.',
     path: 'Pregnancy, propranolol, bands, delivery',
     state: ['hvpg', 'meds'],
+    // (pregnancy raises the blood volume and the flow into the gut and the spleen, and delivery lets it fall: both on the Circuit's splanchnic inflow, in the flow lens)
+    play: { stops: [
+      { at: 'preg', view: 'circuit', cam: 'splanchnic', lens: 'flow', look: [L.overTime] },
+      { at: { day: 58 }, look: [L.endoscopy] },
+      { at: 'prop', look: [L.endoscopy] },
+      { at: 'delivery', view: 'circuit', cam: 'splanchnic', lens: 'flow', look: [L.overTime] },
+    ] },
   },
   {
     id: 'hist-cardiac', name: 'Cardiac cirrhosis', group: 'Clots and outflow', where: 'Portal vein and hepatic veins',
@@ -210,6 +304,13 @@ export const COURSES: readonly Course[] = [
     story: 'Years of right heart failure and tricuspid regurgitation have congested the liver. Diuretics from Day {diur}, a tricuspid repair on Day {hf}. The HVPG stays normal throughout: both wedged and free pressures are high.',
     path: 'Diuretics, then the valve is repaired',
     state: ['hvpg', 'ascites', 'meds'],
+    // (the congestion runs back from the right heart through the hepatic veins, the liver to the right atrium; the diuretics are for the fluid; the HVPG stays normal)
+    play: { stops: [
+      { at: { day: 0 }, cam: 'route', look: [L.hvpg, L.along] },
+      { at: 'diur', cam: 'fit', look: [L.ascites] },
+      { at: 'hf', look: [L.hvpg, L.along] },
+      { at: { day: 300 }, cam: 'route', look: [L.hvpg, L.ascites] },
+    ] },
   },
 ];
 
