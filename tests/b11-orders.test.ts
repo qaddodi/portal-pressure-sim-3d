@@ -162,7 +162,8 @@ const withVarices = { metrics: { varix: { present: true } }, bands: 0 }, none = 
 test('a band: none without varices, four at most, and each says its count; a fluid, a Valsalva and a paracentesis say what was done', () => {
   assert.deepEqual(actionAnswer({ kind: 'band' }, none), { send: false, say: 'No varices to band.' });
   assert.deepEqual(actionAnswer({ kind: 'band' }, withVarices), { send: true, say: 'Band (EVL) placed: 1 of 4.' });
-  assert.deepEqual(actionAnswer({ kind: 'band' }, { ...withVarices, bands: 2.2 }), { send: true, say: 'Band (EVL) placed: 3 of 4.' });
+  assert.deepEqual(actionAnswer({ kind: 'band' }, { ...withVarices, bands: 2.2 }), { send: true, say: 'Band (EVL) placed: 4 of 4.' });   // (2.2 is three bands on, the oldest mostly worn off: action/bands-on.ts)
+  assert.deepEqual(actionAnswer({ kind: 'band' }, { ...withVarices, bands: 2 }), { send: true, say: 'Band (EVL) placed: 3 of 4.' });
   assert.deepEqual(actionAnswer({ kind: 'band' }, { ...withVarices, bands: BANDS_MAX }), { send: false, say: '4 bands are already on the varices.' });
   assert.deepEqual(actionAnswer({ kind: 'band' }, withVarices, true), { send: true, say: null }, 'a talk\'s own band says nothing');
   assert.deepEqual(actionAnswer({ kind: 'band' }, null), { send: true, say: 'Band (EVL) placed: 1 of 4.' }, 'before a frame, the model decides');

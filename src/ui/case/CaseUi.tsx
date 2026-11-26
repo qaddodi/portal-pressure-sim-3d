@@ -9,6 +9,7 @@ import { useTests } from '../tests/store.ts';
 import { layoutClass, sheetFoot } from '../shell/room.ts';
 import { useCase } from './store.ts';
 import { caseBarUp, useCaseRoom, type CaseCut } from './room.ts';
+import { CASE_TRAVEL_H } from '../../scene/labels/chrome-claims.ts';
 import { useCaseView } from './view.ts';
 import { useSwap } from './swap.ts';
 import { CaseBar } from './CaseBar.tsx';
@@ -45,7 +46,10 @@ export function CaseUi({ thumb }: { thumb: boolean }) {
     const was = useCaseRoom.getState().cut;
     if (JSON.stringify(was) !== JSON.stringify(cut)) useCaseRoom.setState({ cut });
   }, [up, thumb, exploring, stopOn, sheetH, vp]);
-  useEffect(() => () => useCaseRoom.setState({ cut: null }), []);
+  // the card's own height at the left, for the labels' keep-out (the card on the way is taller than the column's top: chrome-claims.ts CASE_TRAVEL_H)
+  const cardH = up && !thumb ? Math.round(phase === 'travel' ? Math.max(sheetH, CASE_TRAVEL_H) : sheetH) : 0;
+  useEffect(() => { if (useCaseRoom.getState().cardH !== cardH) useCaseRoom.setState({ cardH }); }, [cardH]);
+  useEffect(() => () => useCaseRoom.setState({ cut: null, cardH: 0 }), []);
 
   return (
     <div className="case-layer" data-thumb={thumb || undefined} data-phone={phone || undefined}>

@@ -396,11 +396,14 @@ test('zoomed in on the map: no vessel is culled by its body sphere, corners are 
   assert.equal(roundCorners([[0, 0], [10, 1], [20, 3]]).length, 3, 'a gentle curve is left as it is');
   assert.ok(mapCourse('SMV_CONF')!.length > 4, 'a course with a corner is rounded');
   const caps = readFileSync(new URL('../src/scene/circuit/CircuitCaptions.tsx', import.meta.url), 'utf8');
-  assert.match(caps, /readUiWalls/);
+  // (the walls are read by the shell's one writer of the chrome's boxes, and the Circuit's captions keep off that list: labels/chrome-claims.ts)
+  assert.match(caps, /chromeClaims\.boxes/);
+  const writer = readFileSync(new URL('../src/ui/shell/chrome-claims-writer.ts', import.meta.url), 'utf8');
+  assert.match(writer, /readUiWalls/);
   assert.match(readFileSync(new URL('../src/scene/circuit/ui-walls.ts', import.meta.url), 'utf8'), /\.nb-views/, 'the view pill is a wall');
   // the figure key (the "Flow volume" legend) is a wall too, re-read when it comes or goes (a Mac: it stood on "Umbilicus")
   assert.match(readFileSync(new URL('../src/scene/circuit/ui-walls.ts', import.meta.url), 'utf8'), /\.lb-key-wrap/, 'the figure key is a wall');
-  assert.match(caps, /MutationObserver[\s\S]*lb-key-wrap/, 'a key that comes or goes is read again');
+  assert.match(writer, /MutationObserver[\s\S]*lb-key-wrap/, 'a key that comes or goes is read again');
 });
 
 test('the liver\'s beds and the hepatic arteries are drawn in the Circuit although the body leaves the beds out', async () => {

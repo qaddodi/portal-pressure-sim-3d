@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pillShort } from '../src/ui/shell/pill-name.ts';
+import { pillShort, fitTwoLines } from '../src/ui/shell/pill-name.ts';
 import { shortName, COMPACT, linesOf } from '../src/ui/shell/scenario-names.ts';
 import { HISTORIES } from '../src/ui/histories/index.generated.ts';
 import { COURSES } from '../src/ui/histories/courses.ts';
@@ -26,8 +26,17 @@ test('no model patient is shown under a name cut at its first comma, and no two 
 test('the menu rows keep the whole name, and the baked rows carry the course\'s short form', () => {
   for (const c of COURSES) { const h = HISTORIES.find((x) => x.id === c.id); assert.ok(h, c.id); assert.equal(h.name, c.name); assert.equal(h.short, c.short, c.id); }
 });
-test('a model patient renamed "Custom" by a disease put on it, a preset and a patient of your own keep the 2D rule', () => {
+test('a model patient renamed "Custom" by a disease put on it and the presets keep their rules', () => {
   assert.equal(pillShort('Custom', 'hist-bleed'), 'Custom');
   for (const p of UI.presets) { assert.equal(pillShort(p.label, p.id), shortName(p.label), p.id); assert.ok(linesOf(COMPACT[shortName(p.label)] ?? shortName(p.label)) <= 2, p.id); }
-  assert.equal(pillShort('Mr Smith, 54', 'yours-1'), 'Mr Smith');
+});
+test('a patient of your own is never cut at its first comma when its whole name fits two lines; a longer one keeps its head, else as many words as fit', () => {
+  assert.equal(pillShort('Mr Smith, 54', 'yours-1'), 'Mr Smith, 54');
+  assert.equal(pillShort('Mr Smith, 54, TIPS and a long follow-up', 'yours-1'), 'Mr Smith');
+  assert.equal(pillShort('Cirrhosis with a long name nobody planned for', 'yours-2'), 'Cirrhosis with a long name…');
+  assert.equal(pillShort('', 'yours-3'), 'Custom');
+  for (const n of ['A', 'Mr Smith, 54', 'Alcohol cirrhosis recompensated', 'Jones family, second cousin, Baveno VIII review patient', 'Extraordinarily-long-single-word-name here']) {
+    const s = fitTwoLines(n);
+    assert.ok(s.length > 0 && linesOf(s) <= 2, `${n}: "${s}"`);
+  }
 });
