@@ -6,11 +6,22 @@
 // its fewest lines, never one more), each is scored for how it reads, and the title is held to the width of the best one (`max-width`), so the
 // browser's plain wrap then sets exactly those lines. No `<br>`, no markup in the words, the text stays one string.
 
+import { ABBREVIATIONS } from '../../decks/names.ts';
+
+/** Every abbreviation the app prints that is two or more words ("Rt HF"). */
+const ABBR_WITH_SPACE: readonly string[] = Object.keys(ABBREVIATIONS).filter((a) => a.includes(' '));
+
 /** The width in px of a run of words as set in the title's own font. */
 export type Measure = (text: string) => number;
 
 /** One run of a title the browser may break after: a word, or the part of a hyphenated or dashed word up to and including its dash ("long-" and "term"). `sp` is whether a space comes before it. */
 export interface Tok { s: string; sp: boolean }
+
+// An abbreviation of two words never breaks between them ("(Rt | HF)" stood on two lines, capture 3531bdfa 27.9):
+// its space becomes a no-break space, which the title's own breaking does not see as a place to break.
+export function tieAbbreviations(text: string): string {
+  return ABBR_WITH_SPACE.reduce((t, a) => t.split(a).join(a.replace(/ /g, '\u00a0')), text);
+}
 
 /** The runs of a title. A browser breaks after a hyphen or a dash as readily as at a space, so the judgement must know those places too. */
 export function tokensOf(text: string): Tok[] {

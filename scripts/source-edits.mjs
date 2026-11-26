@@ -354,6 +354,16 @@ export const WEDGE_LOBULE_25NOV = [
  *  the next the sinusoids). They name one set, the portal venule, the sinusoids and the central vein, each with its pressure (`reads`, figure-calls.ts), whatever words the line uses. */
 export const CAPTURE_36B7DEAC = ['presin', 'sin', 'postsin'].map((id) => SET('sites', `slides.${id}.callout.reads`, ['triad', 'sin', 'cv']));
 
+/** Capture 3531bdfa, words that contradicted the model's own numbers on screen (external review, group G5). */
+export const CAPTURE_3531BDFA_WORDS = [
+  // Cause treated 10: the trail starts at LSM 32.9 kPa with platelets 70 (CSPH) and ends at 22.1 kPa and 94 (the indeterminate zone), so it does leave the CSPH region; the HVPG, 10.5, is what stays at 10 or more
+  P('cause-treated', 'slides.high2-plane.title', 'the trail stays inside the CSPH region', 'the trail ends in the indeterminate zone'),
+  P('cause-treated', 'slides.high2-plane.line', 'does not leave the CSPH region, so carvedilol is continued.', 'ends in the indeterminate zone, but her HVPG is still {hvpg}, which is 10 mmHg or more, so carvedilol is continued.'),
+  P('cause-treated', 'slides.high2-plane.ask.1', 'The HVPG falls after the cure but stays in the CSPH region, so CSPH persists.', 'The trail ends in the indeterminate zone, but the HVPG stays at 10 mmHg or more, so CSPH persists.'),
+  // Shunts 12: the gradient after the stent occludes is 16.3 mmHg and before the TIPS it was 17.0 (19.2 with tense ascites), so it is not "no lower than before TIPS"
+  P('shunts', 'slides.occl.line', 'no lower than before TIPS', 'close to the {ppg@own} it was before the TIPS'),
+];
+
 /** Capture 15c31759 (24 Nov 2026, Mohammad: "do all review findings"). */
 export const CAPTURE_15C31759 = [
   // Two lesions 5 ran the congestion 60 days, still easing (right atrium 26.7), and slide 9 holds the same two lesions at 90 (26.2): the same state read two numbers. Both now stand at the 90-day state.
@@ -482,6 +492,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_2A54261A,
   ...WEDGE_LOBULE_25NOV,
   ...CAPTURE_36B7DEAC,
+  ...CAPTURE_3531BDFA_WORDS,
 ];
 
 function step(node, key) {
