@@ -29,7 +29,7 @@ export function replayIntents(log: readonly LogEntry[]): Replay {
   const q = (name: string) => (...a: unknown[]) => { calls.push(`${name}(${a.map((x) => JSON.stringify(x)).join(', ')})`); };
   const to: ReconcileTarget = {
     setNamedVessels: q('setNamedVessels'), pinOrgans: q('pinOrgans'), setSinceRef: (P) => { calls.push(`setSinceRef(${P ? `${P.length} values` : 'null'})`); },
-    markVessels: q('markVessels'), pick: q('pick'), setResistors: q('setResistors'), setCaudatePin: q('setCaudatePin'),
+    markVessels: q('markVessels'), pick: q('pick'), setResistors: q('setResistors'), setCaudatePin: q('setCaudatePin'), setSlideFocus: q('setSlideFocus'),
   };
   const steps: ReplayStep[] = [];
   for (const e of log) {

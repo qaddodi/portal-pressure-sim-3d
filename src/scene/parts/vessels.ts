@@ -80,8 +80,6 @@ export const vesselsPart = scenePart<CelScene>()({
     this.shapes.onFrame(f as never, clock.now(), this.healthyQ, instant);
     this.syncTipJoins();
     this.syncMateK();
-    const rexOn = this.presence.stateOf('REX') === 'shown';
-    if (rexOn !== this.procs.isRexUnder) this.procs.setRexUnder(rexOn, (id) => this.vesselObject(id));
     this.flow.setDrawn((id) => this.presence.stateOf(id) === 'shown', (id) => this.presence.stateOf(id) === 'shown' && NETWORK.some((v) => v.id === id && v.kind === 'collateral'));
   },
   /** The vessels a slide talks about (they carry flow marks in option A), by edge ID. The picked vessel is always included. */

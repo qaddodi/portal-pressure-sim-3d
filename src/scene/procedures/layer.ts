@@ -27,8 +27,6 @@ import { CATH_END } from './copied/cath-arrival.js';
 import { type StepClock, makeStepClock, aim as aimClock, stepClock, landed } from './step-clock.ts';
 
 const procFrame = procFrameJs as (kind: string, t: number, stops?: Record<string, [number, number]> | null, into?: object | null, from?: number) => Rec;
-/** How far the bypass drops from the 'over' tier so it sits below the 'front' tier the splenic and coronary veins are on (frame2d.ts TIER_Z: over .54, front .46, net .38). */
-export const REX_LOWER = -0.12;
 /** How a procedure's devices leave when the slide is left (2D presenter-lapse.js cathOut): the balloon and the column to nothing in 400 ms, the whole device's opacity in 650 ms, in place. */
 export const LEAVE_BALLOON_MS = 400, LEAVE_MS = 650;
 const smooth = (k: number): number => { const x = Math.min(1, Math.max(0, k)); return x * x * (3 - 2 * x); };
@@ -372,16 +370,6 @@ export class ProcedureLayer {
     this.shown = null; this.held = null; this.dirty = true;
   }
 
-  private rexUnder = false;
-  /** While the Meso-Rex bypass is shown it runs UNDER the splenic and coronary veins and the portocaval shunt (anatomy.js REX_UNDER: they draw a tier above it), so the crossings read as crossings and not as joins:
-   *  the bypass is lowered below the portal tree's tier and those three stay where they are. */
-  setRexUnder(on: boolean, vessel: (id: string) => VesselObject | undefined): void {
-    this.rexUnder = on;
-    const rex = vessel('REX');
-    if (rex) rex.group.position.z = on ? REX_LOWER : 0;
-    this.dirty = true;
-  }
-  get isRexUnder(): boolean { return this.rexUnder; }
 
   /** The tip's scene position now, for tags and the camera (null with no catheter out). */
   /** The wedge's amber tint on the vessels (ProcCatheter.wedgeTint), or null. */

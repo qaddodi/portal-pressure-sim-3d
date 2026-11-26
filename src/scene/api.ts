@@ -268,5 +268,6 @@ export const stopReconciler = startReconciler({
   markVessels: (ids) => { cel.markVessels(ids); clock.invalidate('mark'); },
   setResistors: (keys) => sceneApi.setResistors(keys),
   setCaudatePin: (on, veins) => sceneApi.setCaudatePin(on, veins),
+  setSlideFocus: (ids) => { cel.setSlideFocus(ids); clock.invalidate('focus'); },
   pick: (id) => { cel.pick(id); clock.invalidate('pick'); },   // (usePick follows through highlight.onPicked)
 });

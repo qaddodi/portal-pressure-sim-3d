@@ -1,6 +1,7 @@
 // The calls a slide's figure plan makes on the scene: which vessels are named and when, which organs are outlined, which vessels stand out, the cards and the
 // calipers the label layer stands, the Circuit's resistors. Pure (no scene, no DOM): figure-link.ts applies the result, and node judges every slide's calls
 // (tests/deck-figure-link.test.ts: each one resolves to a vessel, an organ or a place the figure has).
+import { focusOfStations } from '../../scene/focus-reveal/config.ts';
 import type { FigurePlan } from './figure-plan.ts';
 import { toneCss } from './figure-plan.ts';
 import { ORGAN_STYLE } from '../../scene/organs/layer.ts';
@@ -42,6 +43,8 @@ export interface FigureCalls {
   caudate: boolean;
   /** with its short hepatic veins (plan.caudateVeins) */
   caudateVeins: boolean;
+  /** The foci the slide is about (focus-reveal/config.ts focusOfStations: the stations it labels). */
+  focus: string[];
   cards: FigCard[];
   calipers: FigCaliper[];
   /** The Circuit's brackets, each with its words filled from the slide's numbers. */
@@ -58,7 +61,7 @@ export interface FigureCalls {
 }
 
 export const EMPTY_CALLS: FigureCalls = {
-  named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, caudateVeins: false, cards: [], calipers: [], spans: [], reads: [], readsTone: null, lit: [], notDrawn: [],
+  named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, caudateVeins: false, focus: [], cards: [], calipers: [], spans: [], reads: [], readsTone: null, lit: [], notDrawn: [],
 };
 
 /** The words of a clot mark that follows the model (callout-math.js clotWords). */
@@ -168,7 +171,8 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   const reads = plan.callout?.reads ?? [];
   const lit = (plan.callout?.lit ?? []).filter((k) => reads.includes(k));
   const readsTone = reads.length && plan.callout?.kind === 'wedge' ? 'wedge' : null;
-  return { named, pins, normalSpleen: plan.normalOutline.includes('spleen'), marked, res: plan.res, caudate: plan.caudate, caudateVeins: plan.caudateVeins, cards, calipers, spans, reads, readsTone, lit, notDrawn };
+  return { named, pins, normalSpleen: plan.normalOutline.includes('spleen'), marked, res: plan.res, caudate: plan.caudate, caudateVeins: plan.caudateVeins, focus: focusOfStations(plan.labels), cards, calipers, spans,
+    reads, readsTone, lit, notDrawn };
 }
 
 export { toneCss };

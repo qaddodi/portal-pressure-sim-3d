@@ -124,6 +124,7 @@ const SITES: Record<string, { n: number; how: 'graph' | 'micro' | 'stand-in' | '
   'scene/devices/contact-shadow.ts': { n: 1, how: 'graph', why: 'the soft shadow of a device tube (the balloon\'s and the catheters\' are made with them)' },
   'scene/blood/cells/cells.ts': { n: 1, how: 'stand-in', why: 'STREAK_FLAGS' },
   'scene/lobule/field.ts': { n: 1, how: 'graph', why: 'the neighbouring lobules' },
+  'scene/focus-reveal/glsl.ts': { n: 1, how: 'graph', why: 'the focus reveal\'s see-through fill and line of the stomach (meshes in its group from boot, hidden until a focus is looked at; compile builds hidden ones)' },
 };
 
 test('every site that makes a shader material is accounted for: on the boot graph, a micro view, a stand-in, or a named gap', () => {

@@ -6,6 +6,7 @@ import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { RIM_SPECK } from './rim-profile.ts';
 import { DEPTH_DARK, POOL_BANDS } from './pool-level.ts';
 import { SEE_DECL } from '../organ-veil/glsl.ts';
+import { FOCUS_REVEAL_DECL } from '../focus-reveal/glsl.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
 
@@ -75,6 +76,7 @@ uniform float rimK;      // the rim light's opacity (0 on the liver and the stom
 uniform vec3 page;
 uniform float layer;
 ${SEE_DECL}
+${FOCUS_REVEAL_DECL}
 uniform float inkAmount;
 // the liver look (liver-texture.ts): R septum, G tone, B light; nodAmt 0 when the organ has none
 uniform sampler2D nodTex;
@@ -227,6 +229,8 @@ void main() {
     fill = mix(fill, cel, poolBody);
   }
   lay *= 1.0 - seeAmount(gl_FragCoord.xy);
+  // the focus reveal (focus-reveal/config.ts): an organ that hides what the camera is looking at (the liver's tip over the GE junction) lets it show, its fill taken down round it (its line stays)
+  lay *= 1.0 - frvOcc * frvP.w * frvAt(gl_FragCoord.xy);
   gl_FragColor = vec4(fill, lay * fade * win);
 }`;
 

@@ -10,7 +10,8 @@
 //   const part = microPart(geometry, m);                group.add(part.group)
 //   const many = microInstanced(geometry, m, count);    many.toon.setMatrixAt(i, m4); many.ink.setMatrixAt(i, m4) (or `many.setAt(i, m4, colour)`)
 import {
-  BufferAttribute, DoubleSide, BufferGeometry, Color, DataTexture, FrontSide, Group, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Texture, Vector2, Vector4,
+  BufferAttribute, DoubleSide, BufferGeometry, Color, DataTexture, FrontSide, Group,
+  InstancedBufferAttribute, InstancedMesh, LinearSRGBColorSpace, Matrix4, Mesh, ShaderMaterial, type Texture, Vector2, Vector4,
 } from 'three';
 import { CEL_STYLE } from '../cel-style.ts';
 import { CHEV, CHEVRON_GLSL, CHEV_LEVEL_MIN } from '../blood/chevron-glsl.ts';
@@ -669,9 +670,13 @@ export class MicroMany {
   readonly geometry: BufferGeometry;
   readonly mats: MicroMats;
   readonly capacity: number;
-  constructor(geometry: BufferGeometry, mats: MicroMats, capacity: number, name = 'micro-many') {
+  /** `colours`: the copies each wear a colour of their own (`setAt`'s rgb). three.js gives a mesh its colour attribute, and so its colour program, only at the first `setColorAt`,
+   *  which would be a late compile once the view is built (a stall in the dive: tests/program-warm.test.ts); here the attribute is there from the constructor,
+   *  so the program is the one the boot warms. */
+  constructor(geometry: BufferGeometry, mats: MicroMats, capacity: number, name = 'micro-many', colours = false) {
     this.geometry = geometry; this.mats = mats; this.capacity = capacity;
     this.toon = new InstancedMesh(geometry, mats.toon, capacity);
+    if (colours) this.toon.instanceColor = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
     this.ink = mats.ink ? new InstancedMesh(geometry, mats.ink, capacity) : null;
     this.toon.name = name; if (this.ink) this.ink.name = `${name}/ink`;
     for (const m of [this.toon, this.ink]) if (m) { m.frustumCulled = false; m.count = 0; this.group.add(m); }
@@ -950,10 +955,10 @@ export function unitRod(seg = 8): BufferGeometry {
 }
 
 /** A red cell: a biconcave disc of radius 1 lying in the xy plane (thickness about 0.32 at the rim, 0.14 in the dimple), as a lathe. */
-export function unitRbc(seg = 24): BufferGeometry {
+export function unitRbc(seg = 24, rings = 16): BufferGeometry {
   // the classic profile (Evans and Fung), half thickness against radius
   const prof: [number, number][] = [];
-  const K = 16;
+  const K = rings;
   for (let i = 0; i <= K; i++) {
     const r = Math.sin((i / K) * Math.PI / 2);   // (denser at the rim)
     const r2 = r * r, h = 0.5 * Math.sqrt(Math.max(0, 1 - r2)) * (0.14 + 1.0 * r2 - 0.56 * r2 * r2);
