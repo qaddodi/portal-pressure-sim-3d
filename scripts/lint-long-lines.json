@@ -194,7 +194,7 @@
  "src/scene/gesture/controller.ts": 8,
  "src/scene/gesture/view.ts": 1,
  "src/scene/glow-fx.ts": 14,
- "src/scene/glow.ts": 9,
+ "src/scene/glow.ts": 8,
  "src/scene/highlight.ts": 10,
  "src/scene/intent-replay.ts": 1,
  "src/scene/labels/LabelLayer.tsx": 17,
