@@ -12,6 +12,7 @@ import { rowsOf } from '../ladder/model.ts';
 import { patientKey, planeRows, type PatientSpec } from '../plane/data.ts';
 import { deckSig, engineKey, BAKE_VERSION } from './key.ts';
 import { WAVE_SECS, packTrace, waveVessel, type Trace } from '../../talk/table-wave.ts';
+import { ownStepOf } from '../../talk/table-own.ts';
 import type { BakedDeck, BakedState } from './store.ts';
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -82,7 +83,7 @@ export async function bakeDeck(deck: CopiedDeck, eng: ReturnType<typeof nodeEngi
     if ((s as Any).visual === 'table' && Array.isArray((s as Any).of)) {
       const specs = (s as Any).of as Any[];
       const own = specs.map((sp, j) => ({ sp, j })).filter(({ sp }) => typeof sp !== 'string' && !sp.id && sp.preset);
-      const mine = own.length ? await eng.sequence(own.map(({ sp }) => ({ preset: sp.preset, ...(sp.params ? { params: sp.params } : {}), ...(sp.days != null ? { presetDays: sp.days } : {}) }))) : [];
+      const mine = own.length ? await eng.sequence(own.map(({ sp }) => ownStepOf(sp))) : [];
       b.tables[s.id] = specs.map((_, j) => { const m = own.findIndex((o) => o.j === j); return m >= 0 ? (mine[m]?.fp ?? null) : null; });
       if (((s as Any).cols as string[] | undefined)?.includes('wave')) {
         // (the Doppler column: each row's state, its vessel's velocity over WAVE_SECS, worked out here once so the card draws it in its first frame)

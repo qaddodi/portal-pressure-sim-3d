@@ -64,7 +64,8 @@ test('a reading that cannot change size reserves its own width: no gap before th
   assert.match(line, /reserveOf\(text, p\.key, p\.decimals === 0, stillHere, \{/);
   assert.match(line, /const stillHere = still \|\| !!p\.at;/, 'a reading taken at another slide cannot change on this card: it holds still too');
   // (a compare row that moves the model moves the line's readings too, 26 Nov, shown-state.ts: it holds room for the widest reading any of its buttons gives, worked out ahead, and no more)
-  assert.match(card, /moves = !!ctl\?\.compare\?\.opts\.some\(movesModel\), still = !slide\.lapse && !ctl\?\.whatIf && !ctl\?\.strain && !moves/);
+  // (and a what-if slider counts only when it moves the model: one that sets an instrument's option moves no reading, so it leaves the readings still; a slider's stops are worked out ahead like a button's, review 3531bdfa F-D16)
+  assert.match(card, /moves = !!ctl\?\.compare\?\.opts\.some\(movesModel\), slides = movesReadings\(ctl\?\.whatIf\), still = !slide\.lapse && !slides && !ctl\?\.strain && !moves/);
   assert.match(card, /const fps = \[ownFp, \.\.\.warm\]/, 'the room is the widest of the slide\'s own reading and every button\'s');
   // the two slides the review saw it on carry compare buttons that only move the stenosis site: their readings hardly move, so the widest is their own width and no gap stands after it
   for (const id of ['jet', 'narrow']) assert.ok(parseWords(slide(id).line).some((p) => p.t === 'value'), id);

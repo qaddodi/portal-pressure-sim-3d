@@ -82,6 +82,14 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
   const first = rows[0]?.f ?? null;
   const vsRow = (r: ResolvedRow) => rows.find((x) => x.spec.key === r.spec.vs || (x.spec.id && x.spec.id === r.spec.vs));
   const refOfRow = (r: ResolvedRow): Fp | null => (r.spec.vs ? vsRow(r)?.f ?? fpOfId(r.spec.vs) : first);
+  // The row a row's arrows are against, named under it when the legend says "the row named under each" (a table where some row has its own `vs`): a row
+  // with none of its own is against the first row, and
+  // says so (Ascites 22: "Paracentesis with albumin", "Diuretics, 4 weeks" and "TIPS, 4 weeks" had arrows and no name under them, review 3531bdfa B-D3). A
+  // table that compares every row with the first names it once, in the legend.
+  const vsLabel = (r: ResolvedRow, n: number): string => {
+    const against = r.spec.vs ? vsRow(r) : perRow && !isRef(r, n) ? rows[0] : undefined;
+    return against ? `vs ${lcFirst(against.title)}` : '';
+  };
   const isRef = (r: ResolvedRow, n: number) => !!r.spec.ref || (rel && !r.spec.vs && n === 0);
   const blank = (r: ResolvedRow) => r.spec.blank ?? [];
   const afterTips = (r: ResolvedRow, k: string, n: number) => k === 'hvpg' && !isRef(r, n) && Number.isFinite(r.f?.tipsFlow);
@@ -123,7 +131,7 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
   const headRows = rows.map((r) => ({ kicker: r.kicker, site: r.spec.site }));
   const rowModels = rows.map((r, n): RowModel => ({
     key: r.spec.key ?? r.spec.id ?? `r${n}`, i: r.i, head: headOf(headRows[n]), site: r.spec.site ?? 'none', title: r.title,
-    vs: r.spec.vs ? `vs ${lcFirst(vsRow(r)?.title || '')}` : '',
+    vs: vsLabel(r, n),
     cont: n > 0 && sameHead(headRows[n - 1], headRows[n]),
     focus: !!spec.focusRow && (r.spec.key === spec.focusRow || r.spec.id === spec.focusRow),
     ref: isRef(r, n),

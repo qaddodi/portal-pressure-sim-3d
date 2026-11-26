@@ -65,3 +65,12 @@ export function printedEnds(key: string, fps: readonly Readonly<Record<string, n
   const by = [...have].sort((a, b) => (a[key] as number) - (b[key] as number));
   return [by[0]!, by[by.length - 1]!].map((f) => valueText(key, f, whole)).filter((t) => t !== VALUE_PENDING);
 }
+
+/** The texts a reading takes across a set of settled states (the slide's own and every compare button's, or a what-if slider's stops: controls-run.ts
+ *  warmControls), as the card prints them. A reading none of them moves comes back as its one
+ *  text, so its box is its own width and no gap stands after it; one they move holds the widest. `undefined` when the reading has no text in any of them. */
+export function seenAcross(key: string, fps: readonly Readonly<Record<string, number | null | undefined>>[], whole = false): readonly string[] | undefined {
+  if (key === 'map' || key === 'plt') return printedEnds(key, fps, whole);
+  const t = [...new Set(fps.map((f) => valueText(key, f, whole)))].filter((x) => x !== VALUE_PENDING);
+  return t.length ? t : undefined;
+}

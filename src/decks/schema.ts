@@ -43,6 +43,8 @@ export interface TableRowSpec {
   id?: string;
   /** a patient of its own (a row no slide shows): its preset and parameter changes */
   preset?: string; params?: unknown; days?: number;
+  /** days the patient lives at that state before it is read, so the slow organs (the spleen, the platelets) settle: the slide's own `relax` (a row that stands for a slide carries the slide's) */
+  relax?: number;
   title?: string; kicker?: string; site?: string; key?: string;
   /** the row's arrows compare with this slide id (or this row's key) instead of the first row */
   vs?: string;

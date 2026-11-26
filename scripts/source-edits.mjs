@@ -374,6 +374,13 @@ export const CAPTURE_15C31759 = [
   SET('two-lesions', 'slides.measure.labels', ['CONF', 'RHV', 'IVCS', 'RA']),
 ];
 
+/** Capture 3531bdfa (26 Nov 2026), external review D-D8: TIPS Doppler 10 said "lowers the PPG from {ppg}." with no "to": the sentence has both ends now. Stenosed (the slide's own button) states what the PPG is with the stenosis;
+ *  Dilated, which moves the shown PPG, says from the stenosed slide's reading to its own. */
+export const CAPTURE_3531BDFA = [
+  P('tips-doppler', 'slides.fix.line', 'lowers the PPG from {ppg}.', 'lowers the PPG. With the stenosis it is {ppg}.'),
+  SET('tips-doppler', 'slides.fix.compare.1.line', 'Doppler raises the suspicion. TIPS venography measures the gradient, and angioplasty or a new stent lowers the PPG from {ppg@narrow} to {ppg}.'),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -493,6 +500,7 @@ export const SOURCE_PATCHES = [
   ...WEDGE_LOBULE_25NOV,
   ...CAPTURE_36B7DEAC,
   ...CAPTURE_3531BDFA_WORDS,
+  ...CAPTURE_3531BDFA,
 ];
 
 function step(node, key) {

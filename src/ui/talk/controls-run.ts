@@ -7,7 +7,7 @@ import { sendParams } from '../../engine/params-send.ts';
 import { useStates, snapsOf } from '../../decks/hp/calc.ts';
 import { stepOf, type Step } from '../../decks/hp/numbers.ts';
 import { stopLapse } from '../../decks/hp/lapse.ts';
-import { patchOf, valueAt, speaks, variantWords, type CompareOpt, type Scale } from '../../decks/controls.ts';
+import { patchOf, valueAt, speaks, variantWords, movesReadings, sliderStops, type CompareOpt, type Scale } from '../../decks/controls.ts';
 import { useVariant, variantOf, type VariantState } from './variant-words.ts';
 import { create } from 'zustand';
 import { variantStateOf, sliderOpt, replayOf, type Picked, type Seq, type Replay } from './variant-state.ts';
@@ -108,20 +108,25 @@ export const useWarm = create<{ fps: Record<string, readonly VariantState['fp'][
 const warming = new Set<string>();
 /** The buttons of a compare row that move the model (not a lens, a Doppler gate or an instrument option). */
 export const movesModel = (o: CompareOpt): boolean => o.how !== 'lens' && !o.gate && !o.tool;
-/** Work out every model-moving button's state for slide i (once, when its own state is in). */
+/** Work out every model-moving button's state, and a what-if slider's ends and the points between, for slide i (once, when its own state is in). The
+ *  slider's are the states a drag settles at (`dragWhatIf`: the same
+ *  call, so the same cached answer), so a reading a slider cannot move keeps only its own width, and one it moves holds the widest it takes: no gap stands after either (roll-reserve.ts `seen`). */
 export function warmControls(deck: Deck, i: number): void {
   const slide = deck.slides[i], opts = slide?.controls?.compare?.opts.filter(movesModel) ?? [];
+  const w = slide?.controls?.whatIf, stops = movesReadings(w) ? sliderStops(w!) : [];
   const own = stateOf(deck, i);
-  if (!slide || !opts.length || !own?.base) return;
+  if (!slide || (!opts.length && !stops.length) || !own?.base) return;
   const key = `${deck.id}/${slide.id}`;
   if (warming.has(key) || useWarm.getState().fps[key]) return;
   warming.add(key);
   // (on the second engine, queued behind the deck's own states: the live figure's worker is never kept busy by a press nobody has made)
   const replay = replayAt(deck, i);
-  void Promise.all(opts.map((o) => {
+  const press = opts.map((o) => {
     const j = o.slide ? deck.slides.findIndex((s) => s.id === o.slide) : i;
     return variantStateOf(secondSeq, picked, { slideKey: key, ...(replay ? { replay } : {}) }, o, own, stateOf(deck, j)).then((g) => g?.state?.fp ?? null, () => null);
-  })).then((fps) => { useWarm.getState().put(key, fps.filter((f): f is VariantState['fp'] => !!f)); }).finally(() => warming.delete(key));
+  });
+  const drag = stops.map((x) => variantStateOf(secondSeq, picked, { slideKey: key }, sliderOpt(w!.paths, x), own, undefined).then((g) => g?.state?.fp ?? null, () => null));
+  void Promise.all([...press, ...drag]).then((fps) => { useWarm.getState().put(key, fps.filter((f): f is VariantState['fp'] => !!f)); }).finally(() => warming.delete(key));
 }
 
 /** The key a slide's instrument options are kept under. */

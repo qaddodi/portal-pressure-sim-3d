@@ -1,4 +1,4 @@
-import { raisesOnly, printedEnds } from './roll-reserve.ts';
+import { raisesOnly, printedEnds, seenAcross } from './roll-reserve.ts';
 import { Fragment, useMemo, type CSSProperties } from 'react';
 import type { EqPart, Slide } from '../../decks/schema.ts';
 import { Line } from './Line.tsx';
@@ -10,6 +10,7 @@ import { ProcRow } from './ProcRow.tsx';
 import type { Deck } from '../../decks/schema.ts';
 import { useVariant } from '../talk/variant-words.ts';
 import { useWarm, movesModel } from '../talk/controls-run.ts';
+import { movesReadings } from '../../decks/controls.ts';
 import { variantsOf, idOf } from './variants.ts';
 import { cardFields } from './card-fields.ts';
 import { richOf } from '../text/rich.ts';
@@ -45,24 +46,21 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
   const many = list.length > 1;
   // (roll-reserve.ts `still`: nothing on the slide can bring a very different reading, so a reading keeps only its own width and no gap stands after it)
   // (a compare button that moves the model moves the readings the line prints too (shown-state.ts), so its readings hold room for every button's: `seen` below)
-  const ctl = slide.controls, moves = !!ctl?.compare?.opts.some(movesModel), still = !slide.lapse && !ctl?.whatIf && !ctl?.strain && !moves;
+  // (a slider that sets an instrument's option moves no reading, so only a slider on the model counts: `slides`)
+  const ctl = slide.controls, moves = !!ctl?.compare?.opts.some(movesModel), slides = movesReadings(ctl?.whatIf), still = !slide.lapse && !slides && !ctl?.strain && !moves;
   const warm = useWarm((w) => (deck ? w.fps[`${deck.id}/${slide.id}`] : undefined));
   // (roll-reserve.ts: only a slider or a strain can take a reading far from where it stands, so only they hold a minus slot; a time-lapse's readings hold the width of the widest they take on its days, not a padded one)
-  const live = !!(ctl?.whatIf || ctl?.strain), raises = raisesOnly(ctl);
+  const live = slides || !!ctl?.strain, raises = raisesOnly(ctl);
   const liveStates = useStates((st) => (deck ? st.results[deck.id] : undefined));
   const seen = useMemo(() => {
     const idx = deck ? deck.slides.findIndex((x) => x.id === slide.id) : -1;
     const states = deck ? mergeStates(deck.id, liveStates) as readonly ({ fp?: Record<string, number | null | undefined>; start?: { fp?: Record<string, number | null | undefined> }; trail?: unknown } | undefined)[] | undefined : undefined;
-    // a compare row's readings: the slide's own and every button's (worked out ahead of the press, controls-run.ts warmControls); none until they are all in
-    if (deck && moves && !slide.lapse && !live && idx >= 0) {
+    // a compare row's readings, or a slider's: the slide's own and every button's or slider stop's (worked out ahead of the press, controls-run.ts warmControls); none until they are all in
+    if (deck && (moves || slides) && !slide.lapse && !ctl?.strain && idx >= 0) {
       const ownFp = states?.[idx]?.fp;
       if (!ownFp || !warm) return undefined;
       const fps = [ownFp, ...warm] as Record<string, number | null | undefined>[];
-      return (key: string, whole: boolean): readonly string[] | undefined => {
-        if (key === 'map' || key === 'plt') return printedEnds(key, fps, whole);
-        const t = [...new Set(fps.map((f) => valueText(key, f, whole)))].filter((x) => x !== VALUE_PENDING);
-        return t.length ? t : undefined;
-      };
+      return (key: string, whole: boolean): readonly string[] | undefined => seenAcross(key, fps, whole);
     }
     if (!deck || !slide.lapse || live || moves || idx < 0) return undefined;
     const here = states?.[idx];
@@ -79,7 +77,7 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
       const lo = Math.min(...vals), hi = Math.max(...vals);
       return [lo, hi].map((v) => valueText(key, { [key]: v }, whole)).filter((t) => t !== VALUE_PENDING);
     };
-  }, [deck, slide, live, moves, liveStates, warm]);
+  }, [deck, slide, live, moves, slides, ctl?.strain, liveStates, warm]);
   const titles = (Tag: 'h1' | 'h2', style?: CSSProperties) => many
     ? <div className="pz-vars">{list.map((w) => { const on = idOf(w) === here; return <Tag key={idOf(w)} className="pz-h" style={style} data-var={on ? 'on' : 'off'} {...(on ? null : { 'aria-hidden': true, inert: true })}>{tieAbbreviations(w.title)}</Tag>; })}</div>
     : <Tag className="pz-h" style={style}>{tieAbbreviations(shown.title)}</Tag>;

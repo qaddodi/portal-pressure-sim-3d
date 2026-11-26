@@ -219,6 +219,9 @@
 /* The name takes its least width, unless the value columns need that room for what they print (`--dk-cols`, TableCard: gridOf): then it gives way, never under its longest word. */
 /* A name asks for two lines of its longest (--dk-wn2, TableCard: twoLineWidest), more than the heads' own formula gives it, and yields to the value columns' need as before: three lines for one name made its row taller than the rest. */
 .pz-table.dk-pztable { --dk-name-fit: max(calc(var(--dk-wn, 0) * .62em + 20px), min(max(var(--dk-name), calc(var(--dk-wn2, 0) * .62em + 20px)), calc(100% - var(--dk-cols, 0px)))); }
+/* Last resort (TableCard `dk-fitw`, set only where measuring finds a cell past the table's edge): the name takes exactly what the value columns leave, and its longest word may break with a hyphen, so the last column never leaves the card. */
+.pz-table.dk-pztable.dk-fitw { --dk-name-fit: max(0px, calc(100% - var(--dk-cols, 0px))); }
+.pz-table.dk-pztable.dk-fitw .tn { overflow-wrap: anywhere; -webkit-hyphens: auto; hyphens: auto; }
 .pz-table.dk-pztable :is(table, thead, tbody) { display: block; }
 .pz-table.dk-pztable tr { display: grid; grid-template-columns: var(--dk-grid); align-items: center; }
 .pz-table.dk-pztable td[colspan="2"] { grid-column: span 2; }

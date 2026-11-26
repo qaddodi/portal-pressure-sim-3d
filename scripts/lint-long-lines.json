@@ -736,7 +736,7 @@
  "src/ui/talk/slide-claim.ts": 2,
  "src/ui/talk/slide-states.ts": 2,
  "src/ui/talk/table-model.ts": 7,
- "src/ui/talk/table-rows.ts": 6,
+ "src/ui/talk/table-rows.ts": 5,
  "src/ui/talk/table-wave-frame.ts": 1,
  "src/ui/talk/table-wave.ts": 5,
  "src/ui/talk/tool-card-load.ts": 1,
