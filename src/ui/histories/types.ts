@@ -46,9 +46,6 @@ export interface Course {
   quiet: string[];
   /** days at the start in which the model's detectors are still finding the state the patient came with (a patient who starts with ascites is not "forming" it): their lines are left out. Default 3. */
   settle?: number;
-  /** the day's look at the model (to raise its events) is taken with the breath and the pulse held still, as a settled day is. The live steps carry them, and four of them a day move the fluid by litres over months (the model's
-   *  mean pressures differ from its settled ones): a course whose fluid must follow only the disease and the treatments (a patient who recompensates) sets this; the courses that rely on the fluid coming back do not. */
-  still?: boolean;
   steps: Step[];
   /** the story's chapters (docs/approved/timeline-story.md): the first from Day 0, each other from the day of the step it names (`at`, a step's id) or the start of a ramp (`{ ramp }`, its key).
    *  Anchored to the course, never to a day the engine raised something on, so a rebake cannot slide a chapter. */

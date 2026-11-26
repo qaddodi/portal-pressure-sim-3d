@@ -114,7 +114,7 @@ export function playCourse(c: Course): Baked {
     // Day 0 keeps it too: playing the case (ui/case) starts there, as the patient came.)
     if (d === 0 || entries.some((x) => x.day === e.day && isKeyEntry(x))) moments.set(e.day, e.snapshot());
     e.advanceDays(1, { noRupture: true, silent: true });
-    watch(4, 0.1, 1, !!c.still);
+    watch(4, 0.1, 1);
     if (e.bleed.active && e.day - e.bleed.day > BLEED_END_DAYS) {
       throw new Error(`${c.id}: the bleed of Day ${e.bleed.day} is still going on Day ${e.day}: a band, or a step with stopsBleed, must end it`);
     }
