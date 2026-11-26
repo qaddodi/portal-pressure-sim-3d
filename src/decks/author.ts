@@ -9,6 +9,7 @@ import { CHART_TOOLS, INSTRUMENT_TOOLS } from './charts.ts';
 import { CATHS } from './schema.ts';
 import { OVERLAY_FIELDS } from './overlay.ts';
 import { isSource } from './source.ts';
+import { expandTemplate } from './templates.ts';
 import { PROCEDURE_PLAYS } from '../scene/procedures/plays.ts';
 import { PRESETS } from '../engine/hales/portal/scenario.js';
 import { cleanEq, unsafeIn } from '../ui/deck/from2d/import-safety.js';
@@ -35,8 +36,11 @@ const OVERLAY = new Set<string>(OVERLAY_FIELDS);
 export interface Authored { deck: CopiedDeck; notices: string[] }
 
 /** One slide, as the copied-deck shape: its words, and every other field the app uses that passes the checks. `at` names the slide in a notice. */
-export function authorSlide(raw: Obj, i: number, deckId: string, deckTitle: string, used: Set<string>, notices: string[]): CopiedSlide {
+export function authorSlide(raw0: Obj, i: number, deckId: string, deckTitle: string, used: Set<string>, notices: string[]): CopiedSlide {
+  // (a slide written as a template is laid out as ordinary fields first, and from here on is an ordinary slide: decks/templates.ts)
+  const { slide: raw, problems } = expandTemplate(raw0);
   const title = str(raw.title, 'Slide'), at = `Slide ${i + 1} (“${title}”)`;
+  for (const p of problems) notices.push(`${at}: ${p}.`);
   let id = str(raw.id) || `s${i + 1}`;
   while (used.has(id)) id += '-';
   used.add(id);
