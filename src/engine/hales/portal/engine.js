@@ -109,7 +109,22 @@ const PERIT = { bulk: 0.6, bulkL: 1 / 2000, kIap: 0.16, waterMax: 0.9, waterL: 1
 // sodium excretion rose and renin and aldosterone fell, and diuretic and paracentesis needs fell but did not end. `ASC_HOLD.tauDays` is the
 // time constant, in days of the disease clock, of the FALL of that held overflow (slow.ascHold, in mL/min, like `excess`); a rise is at once,
 // so the steady state, the pressures and every other number are as they were. A model choice tuned to those figures.
-export const ASC_HOLD = { tauDays: 45, meanS: 20, band: 0.02 };
+export const ASC_HOLD = { tauDays: 45, meanS: 20, band: 0.1, smoothDays: 3 };
+// (smoothDays: the overflow the disease clock reads is a snapshot of the settled pressures, and those depend a little on what the live steps did
+// before (the baroreflex and the venous reservoirs end each settle in a slightly different place), so day to day the overflow wanders by about 0.4 mL/min.
+// The held overflow ratcheted to the highest of those readings and kept it for 45 days, which after a tap refilled the belly past its old volume (4.4 L
+// before the tap, 6.7 L three days later). It now follows the overflow smoothed over `smoothDays` days, and `band` (mL/min) is the wander left over.)
+// The belly's refill is limited by the salt the body can retain, not by how fast lymph overflows (Mohammad's OK, 26 Nov 2026). Fluid cannot enter the
+// belly faster than the kidney lets salt and water in: a net sodium retention of (intake - urinary excretion) / plasma sodium. Intake 88 mmol/day is the
+// 2 g sodium diet (AASLD 2021 and the ICA criteria, under 90 mmol/day); urinary sodium of 20 mmol/day is the cut-off of the recurrent tense ascites patients
+// of Bruno 1992 (BMJ 304:1655), the diuretic-resistant patient, so about 0.49 L a day, a 5 L tap back in about ten days and the ICA's
+// "grade 2 or 3 ascites back within 4 weeks" holds; two to three large taps a month, the usual TIPS trigger, is the same 0.3 to 0.5 L a day. The
+// first litre or so comes back faster, from the plasma and the tissue around the belly (Shear 1970, NEJM 282:1391: after a tap the fluid re-formed
+// at up to 3.5 times its largest absorption rate of 930 mL/day; Carey 1983: it begins to re-form within hours): `fastRate` mL/min more, falling
+// to nothing over `fastL` mL of fluid. The urinary sodium and the size of the fast share are model choices; no source gives a mL/day figure.
+export const ASC_FILL = { naIn: 88, naOut: 20, naPlasma: 140, fastRate: 1.6, fastL: 1000 };
+/** The most the belly can fill (mL/min) with `V` mL of fluid in it: the sodium the body retains, and a fast share while it is nearly empty. */
+export const ascitesFillMax = (V) => ((ASC_FILL.naIn - ASC_FILL.naOut) / ASC_FILL.naPlasma) * 1000 / 1440 + ASC_FILL.fastRate * Math.max(0, 1 - V / ASC_FILL.fastL);
 // (band: mL/min the overflow must fall below the held one before any is held, so the shown means and the instant's beat, which differ by a hair from the settled ones, hold nothing at rest. meanS: seconds over which the live overflow is averaged before it is compared with the held one, so a beat's swing in it does not read as a hold.)
 // Protein in lymph and ascites (Kedem–Katchalsky sieving per bed, then a peritoneal mass balance).
 // From the literature: the sinusoidal reflection coefficient for albumin, low in a fenestrated liver (lymph
@@ -252,6 +267,7 @@ export class Engine {
       lymphCap: LYMPH.base,
       ascites: 0,
       ascHold: 0,   // (the lymph overflow the kidney's salt and water holding still sustains after the pressure fell, mL/min: ASC_HOLD)
+      ascExS: null,   // (the overflow smoothed over ASC_HOLD.smoothDays, mL/min; null until the first day step)
       ascAlb: null, ascGlob: null,   // ascitic albumin and globulin, g/dL (null: no fluid yet)
     };
     // ref: the patient's own blood volume (the reflexes measure a loss against it), inf0: infused when it was set,
@@ -392,7 +408,7 @@ export class Engine {
     this.settle();
     this.blood.ref = this.bloodVolume(); this.blood.inf0 = this.blood.infused;
     // (A preset is a patient at rest: the kidney holds back no more than the pressure makes now, so its ascites is as the preset left it, and only a change made from here is lagged: ASC_HOLD.)
-    this.slow.ascHold = 0; this._exM = null; this.slow.ascHold = this.starling().excess;
+    this.slow.ascHold = 0; this._exM = null; this.slow.ascHold = this.starling().excess; this.slow.ascExS = this.slow.ascHold;
     this.day = 0;
     this.t = 0;
     this.eventLog = [];
@@ -1341,15 +1357,24 @@ export class Engine {
     const capT = Math.min(LYMPH.max, LYMPH.base + LYMPH.adaptFrac * Math.max(0, st.made - LYMPH.base));
     s.lymphCap += (capT - s.lymphCap) * (1 - Math.exp(-LYMPH.adapt * days));   // (by the exact exponential, so a long step and many short ones agree)
     this.ascitesProtein(st, 1440 * days);
-    { const h = s.ascHold ?? 0; s.ascHold = st.excess >= h ? st.excess : st.excess + (h - st.excess) * Math.exp(-days / ASC_HOLD.tauDays); }   // (by the exact exponential: ASC_HOLD)
+    {
+      // (the overflow, smoothed over ASC_HOLD.smoothDays, then the held one: up at once with it, down with the kidney's time constant; both by the exact exponential)
+      const sm = s.ascExS == null ? st.excess : s.ascExS + (st.excess - s.ascExS) * (1 - Math.exp(-days / ASC_HOLD.smoothDays));
+      s.ascExS = sm;
+      const h = s.ascHold ?? 0;
+      s.ascHold = sm >= h ? sm : sm + (h - sm) * Math.exp(-days / ASC_HOLD.tauDays);
+    }
     // A day's step can carry the fluid past the volume where it balances (the net turns with the volume and the belly's
     // pressure: drained by diuretics, refilled when nearly empty), and the next step back past it, so the volume would
     // swing every day. A step that crosses the balance is taken implicitly instead (the volume whose own net, over the
     // day, leads back to where it started), which settles without swinging.
     const a0 = s.ascites, iap0 = this.iap ?? 5, ia0 = iapFromAscites(a0), dt = 1440 * days;
     const netAt = (a) => { s.ascites = a; this.iap = iap0 + iapFromAscites(a) - ia0; return this.starling().net; };
+    // (Also taken implicitly when the net changes by a tenth of the step's own change on the way, as in the fast first litre of a refill (ASC_FILL),
+    // where the net at the start would otherwise fill the belly for the whole day.)
     const a1 = clamp(a0 + st.net * dt, 0, 18000);
-    if (a1 !== a0 && netAt(a1) * st.net < 0) {
+    const n1 = a1 !== a0 ? netAt(a1) : st.net;
+    if (a1 !== a0 && (n1 * st.net < 0 || Math.abs(n1 - st.net) * dt > 0.1 * Math.abs(a1 - a0))) {
       let lo = Math.min(a0, a1), hi = Math.max(a0, a1);
       for (let k = 0; k < 14; k++) { const m = (lo + hi) / 2; if (m - a0 - netAt(m) * dt < 0) lo = m; else hi = m; }
       s.ascites = (lo + hi) / 2;
@@ -1427,7 +1452,7 @@ export class Engine {
     const reabs = bulk + water;
     // What the kidney still holds back: the overflow the pressure made a while ago, less what it makes now (ASC_HOLD).
     const extra = this._presetRun ? 0 : Math.max(0, (this.slow.ascHold ?? 0) - ASC_HOLD.band - (this._exM ?? excess)), held = extra;
-    const net = excess + extra - reabs;
+    const net = Math.min(excess + extra - reabs, ascitesFillMax(V));   // (a belly fills no faster than the salt the body keeps allows: ASC_FILL)
     // Protein: what crosses each bed (sieving by the wall's reflection coefficient, more complete the faster
     // the filtration), then the overflow's mix of liver and gut lymph.
     const alb = p.albumin, glob = 3 + 0.8 * s;          // plasma, g/dL (globulins rise in cirrhosis)
