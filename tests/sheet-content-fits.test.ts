@@ -10,7 +10,8 @@ import { sheetFoot, dockHeight, dockInset, layoutVars } from '../src/ui/shell/ro
 import { CASE_BAR_THUMB_H, caseBarUp } from '../src/ui/case/room.ts';
 import { useCase, CASE_OFF } from '../src/ui/case/store.ts';
 import { testsPlace, HEAD_H, FULL_CLEAR } from '../src/ui/tests/place.ts';
-import { AROUND, paneNeed, resolveNeed, stiffWordsH, fitPlace } from '../src/ui/tests/pane-need.ts';
+import { AROUND, CHART_MIN, NEEDS, paneNeed, resolveNeed, stiffWordsH, fitPlace } from '../src/ui/tests/pane-need.ts';
+import { PANES, PANE_ORDER, type PaneId } from '../src/ui/tests/panes.ts';
 import type { CasePhase } from '../src/ui/case/types.ts';
 
 const SCREENS = [
@@ -75,10 +76,40 @@ test('the note steps aside only where Half, grown as far as it may, still cannot
   assert.ok(s.place.rect.h > testsPlace(short.vp, short.d, { sheetSize: 0 }).rect.h, 'the 375x667 Half grew to hold the pane');
 });
 
-test('a pane that flexes all its content asks for nothing: its Half is the share of the screen, as before', () => {
-  for (const { vp, d } of SCREENS) for (const pane of ['profile', 'hvpg', 'doppler', 'endoscopy', 'abdomen', 'readouts', 'trials', 'scope'] as const) {
-    assert.equal(fitPlace(vp, d, { sheetSize: 0 }, pane, 'liver').place.rect.h, testsPlace(vp, d, { sheetSize: 0 }).rect.h, `${pane} at ${vp.w}x${vp.h}`);
+test('every Tests pane declares how it meets the sheet\'s height: a minimum, or that it scrolls', () => {
+  const ids = Object.keys(PANES).sort();
+  assert.deepEqual(Object.keys(NEEDS).sort(), ids, 'a pane with no entry in NEEDS (pane-need.ts) has no declared minimum');
+  assert.deepEqual([...PANE_ORDER].sort(), ids, 'and the order of the tabs names the same panes');
+  for (const id of ids as PaneId[]) {
+    const n = NEEDS[id];
+    if (n.kind === 'scrolls') { assert.ok(n.why.length > 10, `${id} says why it scrolls`); assert.equal(paneNeed(id, { w: 390, h: 844, organ: 'liver', note: true }), 0); continue; }
+    const least = paneNeed(id, { w: 390, h: 844, organ: 'liver', note: false });
+    assert.ok(least > AROUND.pad + CHART_MIN - 1, `${id}: a picture at its floor and its padding at the least (${least})`);
+    assert.ok(least + HEAD_H <= 450, `${id}: ${least + HEAD_H} px with its head is more than a 390x844 phone\'s Half can give`);
   }
+});
+
+// (the one place the least cannot be given: a 375x667 phone while a case plays, whose Full is 402 px with the bar up; Half may not stand within 24 px of it)
+const SHORT: Record<string, string[]> = { 'stop 375x667': ['scope', 'abdomen'], 'travel 375x667': ['scope', 'abdomen'] };
+
+test('every pane at the Half stop: grown to its minimum within the cap, and short only where the cap is lower, which is named', () => {
+  for (const phase of PHASES) {
+    inPhase(phase);
+    for (const { vp, d } of SCREENS) {
+      const short: string[] = [];
+      for (const pane of PANE_ORDER) {
+        const { place, noteAside } = fitPlace(vp, d, { sheetSize: 0 }, pane, 'liver');
+        const base = testsPlace(vp, d, { sheetSize: 0 }), cap = Math.max(base.stops![0], base.stops![1] - FULL_CLEAR);
+        const need = HEAD_H + paneNeed(pane, { w: vp.w, h: vp.h, organ: 'liver', note: !noteAside });
+        assert.equal(place.rect.h, Math.min(Math.max(base.stops![0], need), cap), `${pane} ${phase} ${vp.w}x${vp.h}: Half is the share, grown to the minimum, within the cap`);
+        assert.ok(place.rect.h <= place.stops![1] - FULL_CLEAR || place.rect.h === base.stops![0], `${pane}: Half stays under Full`);
+        if (place.rect.h < need) short.push(pane);
+      }
+      const known = (phase === 'off' || phase === 'left' ? [] : SHORT[`${phase === 'stop' ? 'stop' : 'travel'} ${vp.w}x${vp.h}`]) ?? [];
+      assert.deepEqual(short, known, `${phase} ${vp.w}x${vp.h}: the panes whose content would still clip`);
+    }
+  }
+  inPhase('off');
 });
 
 test('the map\'s least is the one number: 2D held it at 180, which no share-of-the-screen Half leaves once the three-line note is up', () => {
