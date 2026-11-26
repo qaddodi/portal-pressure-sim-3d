@@ -29,6 +29,7 @@ import { useMeasured } from '../hidden.ts';
 import { claim } from '../owner.ts';
 import { readFrame } from '../slide/reads.ts';
 import { caseAsk } from '../../case/guard.ts';
+import { withStopReads } from '../../case/stop-read.ts';
 
 export interface Readings { fhvp: number; whvp: number; hvpg: number }
 type Obj = Record<string, number>;
@@ -58,7 +59,7 @@ const irPhase = (): string | null =>
 const bump = () => { useRun.setState((s) => ({ n: s.n + 1 })); claim('ir', irPhase()); };
 
 const say = (t: string) => useShell.getState().say(t);
-const metrics = (): Obj | null => (latest.frame?.metrics ?? null) as Obj | null;
+const metrics = (): Obj | null => withStopReads((latest.frame?.metrics ?? null) as Obj | null);
 const params = () => patient.params as unknown;
 
 // ── the loop: one clock hold while anything plays, one tween callback ──

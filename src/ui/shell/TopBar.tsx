@@ -20,7 +20,8 @@ import { FigureMenu } from './FigureMenu.tsx';
 import { keyLabel } from './platform.ts';
 import { LensKey } from './LensKey.tsx';
 import { useBarFit } from './use-bar-fit.ts';
-import { shortName, COMPACT } from './scenario-names.ts';
+import { COMPACT } from './scenario-names.ts';
+import { pillShort } from './pill-name.ts';
 import { yoursName } from '../readings/yours.ts';
 import { historyName } from '../histories/meta.ts';
 import { startTopbarMotion } from './topbar-motion.ts';
@@ -130,7 +131,7 @@ export function TopBar() {
   const barRef = useBarFit([patient, patientId, view, mode]);
   // a button that comes or goes, a longer name, a new fit step: the bar glides to it (2D topbar-motion.js)
   useEffect(() => startTopbarMotion(), []);
-  const short = shortName(patient || 'Custom');
+  const short = pillShort(patient, patientId);
   return (
     <header ref={barRef} className="topbar float-ui stage-blocker" id="topbar" data-hidden={mode === 'deck' || undefined} aria-label="Top bar">
       <div className="float-pill tb-id">

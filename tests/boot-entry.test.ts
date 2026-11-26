@@ -13,36 +13,19 @@ import { CHART_KINDS } from '../src/ui/charts/kinds.ts';
 import { CHARTS } from '../src/ui/charts/registry.ts';
 import { bootBytes, kindOf, readBudget, report, within } from '../scripts/boot-bytes.mjs';
 import { BOOT_PRELOAD } from '../scripts/hash-data.mjs';
+import { staticGraph } from '../scripts/boot-graph.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-// (an import or re-export statement at the start of a line; comments are not stripped: a "/*" inside a path in a comment, like styles/*.css, would swallow the imports after it)
-const STATIC = /^[ \t]*(?:import|export)\s+(?!type\b)(?:[^'"()]*?\sfrom\s*)?['"]([^'"]+)['"]/gm;
-
-/** Every source file reached from `entry` by static imports, with the file that first imported it. */
-function staticGraph(entry: string): Map<string, string | null> {
-  const seen = new Map<string, string | null>();
-  const walk = (file: string, from: string | null) => {
-    if (seen.has(file)) return;
-    seen.set(file, from);
-    if (!/\.(tsx?|jsx?|mjs)$/.test(file)) return;
-    const src = readFileSync(file, 'utf8');
-    for (const m of src.matchAll(STATIC)) {
-      const spec = m[1]!;
-      if (!spec.startsWith('.')) continue;
-      const p = resolve(dirname(file), spec.split('?')[0]!);
-      if (existsSync(p) && statSync(p).isFile()) walk(p, file);
-    }
-  };
-  walk(resolve(root, entry), null);
-  return seen;
-}
-const graph = staticGraph('src/main.tsx');
-const BOOT_FILES_CEILING = 1010;   // (24 Nov 2026: 966 files, a little room. The code's weight is no longer a ceiling on its source bytes (7700 kB, the owner's rule until 25 Nov: it counted source with its comments and no geometry at all): the budget is the wire bytes before usable, geometry included, below)
+const graph = staticGraph('src/main.tsx', root) as Map<string, string | null>;
+// The ceiling (26 Nov 2026: 1022 files, over the old 1010, because the sheets (about 85 files that open on a tap) were in it; they are a chunk now, 943 files). It is a file count, not a size: the wire-byte
+// budget below is what a visit pays, but a file is also a module the browser parses and runs before the first picture, and it is the number a parallel change cannot grow without this failing. About 45 files of room.
+// When it fails, do not raise it: `node scripts/boot-graph.mjs` lists what could leave the boot and how many files each takes with it; load that part with a dynamic import (src/boot/lazy-part.ts).
+const BOOT_FILES_CEILING = 990;
 const files = [...graph.keys()].map((f) => relative(root, f).split('\\').join('/'));
 const chain = (f: string) => { const out: string[] = []; let c: string | null | undefined = resolve(root, f); while (c) { out.push(relative(root, c)); c = graph.get(c); } return out.join(' <- '); };
 
 test('the walk sees the app (it is not vacuous)', () => {
-  for (const f of ['src/App.tsx', 'src/scene/Stage.tsx', 'src/ui/shell/Shell.tsx', 'src/engine/boot.ts', 'src/pwa/register.ts', 'src/ui/shell/DeckUiSlot.tsx', 'src/ui/shell/talk.ts', 'src/ui/shell/Sheets.tsx']) assert.ok(files.includes(f), `${f} is in the boot entry`);
+  for (const f of ['src/App.tsx', 'src/scene/Stage.tsx', 'src/ui/shell/Shell.tsx', 'src/engine/boot.ts', 'src/pwa/register.ts', 'src/ui/shell/DeckUiSlot.tsx', 'src/ui/shell/talk.ts', 'src/ui/shell/SheetsSlot.tsx']) assert.ok(files.includes(f), `${f} is in the boot entry`);
 });
 
 test('the boot entry does not statically import the debug pages, the charts gallery, the parity page or the chart registry', () => {
@@ -120,9 +103,37 @@ test('the talk\'s own UI (DeckUi: the cards, the wallet, the presenter pill) is 
   loader.resetDeckUi();
 });
 
+test('the sheets (menu, Settings, Search, History, the timeline chart, Why, the Treat card, the dialogs) are a chunk of their own: not in the boot entry, read in behind the first picture or at once when asked for', async () => {
+  for (const f of ['src/ui/shell/Sheets.tsx', 'src/ui/menu/UMenu.tsx', 'src/ui/settings/SettingsSheet.tsx', 'src/ui/search/SearchSheet.tsx', 'src/ui/history/HistorySheet.tsx', 'src/ui/bigtime/TimelineSheet.tsx', 'src/ui/why/WhySheet.tsx', 'src/ui/treat/TreatCard.tsx', 'src/ui/case/CaseGuard.tsx', 'src/ui/deck/DeckDialogs.tsx']) {
+    assert.ok(!files.includes(f), `${f} is in the boot entry: ${chain(f)}`);
+  }
+  const load = readFileSync(resolve(root, 'src/ui/shell/sheets-load.ts'), 'utf8');
+  assert.match(load, /import\('\.\/Sheets\.tsx'\)/);
+  assert.doesNotMatch(load, /^import[^\n]*Sheets\.tsx/m);
+  assert.match(readFileSync(resolve(root, 'src/ui/shell/Shell.tsx'), 'utf8'), /<SheetsSlot \/>/);
+  // the slot reads them in when the cover is up and the page is quiet, and at once for a touch, a key, an open sheet or dialog, a selected structure, or the case's guard
+  const slot = readFileSync(resolve(root, 'src/ui/shell/SheetsSlot.tsx'), 'utf8');
+  for (const w of ['quietSlot(', 'lowData()', "'pointerdown'", "'keydown'", 'useShell.subscribe', 'useSelection.subscribe', 'useDialogs.subscribe', 'useGuard.subscribe']) assert.ok(slot.includes(w), `SheetsSlot: ${w}`);
+  // the loader: one read however often it is asked, never a rejection, and a failed read is tried again
+  const { lazyPart } = await import('../src/boot/lazy-part.ts');
+  const part = lazyPart<number>(() => Promise.reject(new Error('offline')));
+  let reads = 0;
+  assert.equal(await part.load(), false, 'a read that fails never rejects');
+  assert.deepEqual([part.ready(), part.get()], [false, null]);
+  assert.ok(part.failure() instanceof Error);
+  const ok = lazyPart<number>(() => { reads++; return Promise.resolve(7); });
+  const [a, b] = await Promise.all([ok.load(), ok.load()]);
+  assert.deepEqual([a, b, reads, ok.ready(), ok.get()], [true, true, 1, true, 7]);
+  assert.equal(await ok.load(), true);
+  assert.equal(reads, 1, 'in once, never read again');
+  ok.reset();
+  assert.deepEqual([ok.ready(), ok.get()], [false, null]);
+});
+
 test('the boot entry stays within its file budget (what a normal load parses and runs before the first picture)', () => {
-  // A change that makes this fail has pulled something in that the first picture does not draw: load it with a dynamic import (ui/shell/deck-ui-load.ts is the pattern).
-  assert.ok(files.length < BOOT_FILES_CEILING, `${files.length} files in the boot entry (ceiling ${BOOT_FILES_CEILING})`);
+  // A change that makes this fail has pulled something in that the first picture does not draw: load it with a dynamic import (ui/shell/sheets-load.ts + SheetsSlot.tsx is the pattern; boot/lazy-part.ts
+  // makes the loader). `node scripts/boot-graph.mjs` names the parts that would take the most files with them. Do not raise the ceiling.
+  assert.ok(files.length < BOOT_FILES_CEILING, `${files.length} files in the boot entry (ceiling ${BOOT_FILES_CEILING}): load a part the first picture does not draw with a dynamic import; \`node scripts/boot-graph.mjs\` lists the candidates`);
 });
 
 // ---- the wire-byte budget before usable (25 Nov, review D3 and W2; replaces the source-byte ceiling) -----------------------------------------------------------------------------

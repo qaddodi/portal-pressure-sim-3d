@@ -4,7 +4,7 @@
 import { Engine } from '../../engine/hales/portal/engine.js';
 import { computeMetrics } from '../../engine/hales/portal/metrics.js';
 import { detectEvents } from '../../engine/hales/portal/events.js';
-import { deepMerge, PRESETS } from '../../engine/hales/portal/scenario.js';
+import { deepMerge, PRESETS, sanitizeParams } from '../../engine/hales/portal/scenario.js';
 import { SampleFeed } from '../tests/feed.ts';
 import { activeInterventions } from '../action/changes.ts';
 import type { Params } from '../action/params.ts';
@@ -37,11 +37,21 @@ interface M { hvpg: number; ppg: number; pv?: number; ascites: { volume: number 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Eng = any;
 
+/** The patient a course starts with: its engine preset, or (when the course has its own `start`) that preset with the course's patch on it and, if it says so, its own years of disease. */
+export function startPreset(c: Course): { id: string; days?: number; apply: (p: Params) => Params } {
+  const base = (PRESETS as { id: string; days?: number; apply: (p: Params) => Params }[]).find((p) => p.id === c.preset);
+  if (!base) throw new Error(`${c.id}: no engine preset "${c.preset}"`);
+  if (!c.start) return base;
+  const patch = c.start.patch;
+  return { ...base, id: c.id, days: c.start.days ?? base.days, apply: (p) => sanitizeParams(deepMerge(base.apply(p), patch)) };
+}
+
 export function playCourse(c: Course): Baked {
   const e = new Engine() as Eng;
-  e.loadPreset(c.preset);
+  const pre = startPreset(c);
+  e.loadPreset(c.preset, { preset: pre });
   if (c.init) { e.setParams(deepMerge(e.params, c.init)); e.settle(); }
-  const settled = ((PRESETS as { id: string; days?: number }[]).find((p) => p.id === c.preset)?.days ?? 0) > 0;
+  const settled = (pre.days ?? 0) > 0;
   const feed = new SampleFeed(), entries: EntryOut[] = [];
   const lastEv = new Map<string, number>();
   const moments = new Map<number, Snap>();
@@ -80,8 +90,11 @@ export function playCourse(c: Course): Baked {
   };
   const act = (s: Step) => {
     if (s.act === 'bleed') { e.rupture(s.site ?? 'VAR', 0.6); watch(BLEED_SECONDS * 10, 0.1, 5); const r = entries.find((x) => x.evId === 'VARIX_RUPTURE' && x.day === e.day); if (r && s.id) r.step = s.id; return; }
-    const a = s.act === 'band' ? { kind: 'band' } : { kind: 'paracentesis', mL: Math.floor(e.slow.ascites / 100) * 100, albumin: true };
-    if (a.kind === 'band') e.band(); else { e.paracentesis(a.mL as number, true); feed.markStep(); }   // (a tap is a step of the record, as on the page: send.ts STEPS)
+    // (a tap drains all the fluid there is, and its title says what the engine took off: one number, the one the card's "Ascites 3.8 → 0.0 L" reads before the tap)
+    let a: { kind: string; mL?: number; albumin?: boolean } = { kind: 'band' };
+    // (a tap is a step of the record, as on the page: send.ts STEPS)
+    if (s.act === 'band') e.band();
+    else { a = { kind: 'paracentesis', mL: e.paracentesis(e.slow.ascites, true), albumin: true }; feed.markStep(); }
     drain();
     entries.push({ kind: 'change', label: actionLabel(a), day: e.day, t: round(e.t, 2), action: true, ...(s.id ? { step: s.id } : {}), ...(s.detail ? { detail: s.detail } : {}) });
     baseline = labelsOf(e.params);   // (the albumin the tap gave is not a change anyone made)
@@ -136,7 +149,7 @@ export function metaOf(c: Course, b: Baked): HistoryMeta {
     if (word) marks.push({ day: e.day, word, tone: e.kind === 'change' ? 'change' : tone(e.sev) });
   }
   return {
-    id: c.id, name: c.name, group: c.group, where: c.where, preset: c.preset, months: Math.round(c.days / 30.4), state: stateOf(b.now, c.state), story: storyOf(c), path: c.path,
+    id: c.id, name: c.name, short: c.short, group: c.group, where: c.where, preset: c.preset, months: Math.round(c.days / 30.4), state: stateOf(b.now, c.state), story: storyOf(c), path: c.path,
     pv, days: c.days, max: Math.max(12, Math.ceil(Math.max(...pv) / 4) * 4), marks: marks.sort((a, z) => a.day - z.day), chapters: chaptersOf(c), ...playOf(c, b),
     counts: { events: b.entries.filter((x) => x.kind === 'event').length, medicines: medCount(b) },
   };

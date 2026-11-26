@@ -7,6 +7,7 @@ import { BAR } from '../../../ui/layout/plan.ts';
 import type { Rect } from '../../../ui/layout/device.ts';
 import type { Box } from './screen.ts';
 import { probeKeyRoom } from '../../labels/probe-boxes.ts';
+import { chromeClaims } from '../../labels/chrome-claims.ts';
 
 /** How far the probe keeps off a card, px (2D dprCardsRead: 6). */
 export const CARD_PAD = 6;
@@ -22,6 +23,8 @@ export function probeCards(testsRect?: Rect | null): Box[] {
   // the figure's colour key, over the figure at the foot (labels/key-dock.ts): the probe stands clear of it as of a card
   const key = probeKeyRoom();
   if (key) out.push({ x0: key.x0 - CARD_PAD, y0: key.y0 - CARD_PAD, x1: key.x1 + CARD_PAD, y1: key.y1 + CARD_PAD });
+  // the app's own chrome: a playing case's cards and bar, the pills and the dock (labels/chrome-claims.ts; the Tests card is already in above, on its own pad)
+  for (const b of chromeClaims.boxes) out.push({ x0: b.x0 - CARD_PAD, y0: b.y0 - CARD_PAD, x1: b.x1 + CARD_PAD, y1: b.y1 + CARD_PAD });
   // the bars: the shell's top bar (the figure's room starts under it, as the labels' view does) and the safe area at the foot
   out.push({ x0: -1, y0: -1, x1: vp.w + 1, y1: vp.safe.top + BAR });
   if (vp.safe.bottom > 0) out.push({ x0: -1, y0: vp.h - vp.safe.bottom, x1: vp.w + 1, y1: vp.h + 1 });

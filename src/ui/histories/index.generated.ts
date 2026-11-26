@@ -123,7 +123,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -158,7 +161,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
       },
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the stent",
+       "pane": {
+        "probe": "TIPS"
+       }
       }
      ]
     }
@@ -190,46 +196,46 @@ export const HISTORIES: readonly HistoryMeta[] = [
   "story": "Diuretics from the start, and the fluid still came back: a large tap with albumin on Day 35, 65 and 95. A TIPS on Day 110.",
   "path": "Diuretics, paracentesis, TIPS",
   "pv": [
-   22.6,
    23.4,
-   23.7,
-   24.2,
-   24.7,
+   24.1,
+   24.1,
    24.6,
    24.6,
-   24.7,
-   24.9,
-   25.4,
-   25,
+   24.8,
+   24.8,
+   25.1,
    25.8,
+   25.7,
+   24.9,
+   25.3,
+   25.6,
+   25.6,
+   25.7,
    25.9,
-   25.9,
+   26.1,
+   25.2,
    25.9,
    26.4,
-   26.6,
-   24.9,
-   25.6,
-   26.1,
-   26.8,
-   26.9,
-   27.9,
-   27.4,
-   26.9,
    26.5,
    26.7,
+   26.9,
+   27.2,
+   27,
+   25.8,
    26.6,
-   27.3,
-   21.5,
+   27.1,
+   27.7,
    20.9,
-   21,
-   21,
-   19.9,
-   19.4,
-   19.8,
-   20.4,
-   19,
-   19.3,
-   19.5
+   20.6,
+   20.1,
+   20.1,
+   18.9,
+   18.5,
+   18.6,
+   18.6,
+   19.1,
+   17.9,
+   17.9
   ],
   "days": 150,
   "max": 28,
@@ -323,7 +329,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 6,
+   "events": 5,
    "medicines": 1
   }
  },
@@ -413,7 +419,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler of the portal vein"
+       "label": "Doppler of the portal vein",
+       "pane": {
+        "probe": "PV_TRUNK"
+       }
       }
      ]
     },
@@ -423,7 +432,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler of the portal vein"
+       "label": "Doppler of the portal vein",
+       "pane": {
+        "probe": "PV_TRUNK"
+       }
       }
      ]
     },
@@ -442,7 +454,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler of the portal vein"
+       "label": "Doppler of the portal vein",
+       "pane": {
+        "probe": "PV_TRUNK"
+       }
       }
      ]
     }
@@ -550,7 +565,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the right hepatic vein",
+       "pane": {
+        "probe": "RHV_IVC"
+       }
       },
       {
        "tool": "abdomen",
@@ -564,7 +582,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the right hepatic vein",
+       "pane": {
+        "probe": "RHV_IVC"
+       }
       }
      ]
     },
@@ -573,7 +594,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the right hepatic vein",
+       "pane": {
+        "probe": "RHV_IVC"
+       }
       },
       {
        "tool": "abdomen",
@@ -587,7 +611,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the right hepatic vein",
+       "pane": {
+        "probe": "RHV_IVC"
+       }
       },
       {
        "tool": "abdomen",
@@ -614,59 +641,59 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "text": "TIPS 8 mm"
    },
    {
-    "text": "PPG 12.6 · high",
+    "text": "PPG 14.3 · high",
     "tone": "danger"
    },
    {
-    "text": "ascites 8.0 L"
+    "text": "ascites 7.1 L"
    }
   ],
   "story": "A TIPS on Day 10 for fluid that diuretics did not control. Months later the stent narrows and the pressure and the fluid climb back; Doppler shows it on Day 140.",
   "path": "TIPS, then the stent narrows",
   "pv": [
-   22.6,
-   23.9,
-   23.7,
-   17.2,
-   16.6,
-   16.5,
+   21.8,
+   23.2,
+   22.9,
    15.9,
-   16.8,
-   16,
+   16.1,
+   15.9,
+   16.2,
+   15.7,
+   16.3,
+   15.7,
+   15.6,
+   16.2,
+   16.4,
+   16.3,
    16.2,
    16.3,
-   16,
+   16.4,
    16.3,
-   17.4,
-   17,
-   17,
+   16.8,
    17.1,
-   17.2,
-   17.4,
-   17.6,
-   18.1,
-   18.2,
-   18.7,
-   19.2,
+   17.5,
+   18,
+   18.5,
+   19.4,
+   19.7,
+   19.1,
    19.9,
-   21.1,
-   20.8,
-   21.1,
-   22.4,
-   23.6,
-   25.2,
+   20.9,
+   22.5,
+   22.3,
+   23.1,
    24.5,
-   25.5,
-   26.6,
-   27.5,
-   27.9,
-   29.8,
-   32,
-   30.5,
-   32.4
+   26.1,
+   25.2,
+   26.1,
+   27.2,
+   28.6,
+   28.6,
+   29.7,
+   29
   ],
   "days": 190,
-  "max": 36,
+  "max": 32,
   "marks": [
    {
     "day": 10,
@@ -726,11 +753,17 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the stent",
+       "pane": {
+        "probe": "TIPS"
+       }
       },
       {
        "tool": "hvpg",
-       "label": "Pressures across the stent"
+       "label": "Pressures across the stent",
+       "pane": {
+        "stent": "TIPS"
+       }
       }
      ]
     },
@@ -741,18 +774,24 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the stent",
+       "pane": {
+        "probe": "TIPS"
+       }
       },
       {
        "tool": "hvpg",
-       "label": "Pressures across the stent"
+       "label": "Pressures across the stent",
+       "pane": {
+        "stent": "TIPS"
+       }
       }
      ]
     }
    ]
   },
   "counts": {
-   "events": 6,
+   "events": 5,
    "medicines": 1
   }
  },
@@ -768,7 +807,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "text": "TIPS 8 mm"
    },
    {
-    "text": "PPG 8.1"
+    "text": "PPG 7.5"
    },
    {
     "text": "no ascites"
@@ -777,46 +816,46 @@ export const HISTORIES: readonly HistoryMeta[] = [
   "story": "A first variceal bleed, Child-Pugh B, still bleeding at endoscopy. A vasoactive drug and a band on Day 10, a covered TIPS on Day 11. Confusion on Day 45 cleared with lactulose.",
   "path": "Bleed, band, TIPS the next day",
   "pv": [
-   22.6,
-   22.5,
-   22.5,
-   17.3,
-   15.6,
-   15.2,
-   14.8,
-   14.5,
-   14.2,
-   14,
-   13.7,
+   20.9,
+   20.9,
+   20.9,
+   15.8,
+   13.9,
    13.5,
-   13.3,
-   13.1,
-   13,
+   13.2,
    12.9,
    12.7,
-   12.6,
-   12.5,
-   12.5,
    12.4,
-   12.3,
-   12.3,
    12.2,
-   12.2,
-   12.1,
-   12.1,
-   12.1,
-   12,
-   12,
-   12,
-   12,
    12,
    11.9,
-   11.9,
-   11.9,
-   11.9,
-   11.9,
-   11.9,
-   11.9
+   11.7,
+   11.6,
+   11.5,
+   11.4,
+   11.3,
+   11.2,
+   11.1,
+   11.1,
+   11,
+   11,
+   10.9,
+   10.9,
+   10.9,
+   10.8,
+   10.8,
+   10.8,
+   10.8,
+   10.8,
+   10.7,
+   10.7,
+   10.7,
+   10.7,
+   10.7,
+   10.7,
+   10.7,
+   10.7,
+   10.7
   ],
   "days": 150,
   "max": 24,
@@ -880,7 +919,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
       },
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the stent",
+       "pane": {
+        "probe": "TIPS"
+       }
       }
      ]
     },
@@ -892,13 +934,14 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 7,
+   "events": 5,
    "medicines": 2
   }
  },
  {
   "id": "hist-hcv",
   "name": "Hepatitis C cured, pressure persists",
+  "short": "HCV cured, PH persists",
   "group": "Cause removed",
   "where": "After the cause is treated",
   "preset": "csph",
@@ -1015,7 +1058,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -1040,7 +1086,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -1053,7 +1102,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -1071,6 +1123,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
  {
   "id": "hist-alcohol",
   "name": "Alcohol cirrhosis, recompensated",
+  "short": "Alcohol, recompensated",
   "group": "Cause removed",
   "where": "After the cause is treated",
   "preset": "cirr-decomp",
@@ -1089,38 +1142,38 @@ export const HISTORIES: readonly HistoryMeta[] = [
   "story": "Decompensated alcohol cirrhosis with ascites. Abstinent from Day 1, carvedilol from Day 10. The fluid is gone by Day 250 and diuretics stop; a year later, on Day 620, the patient is recompensated.",
   "path": "Abstinence, carvedilol, diuretics stop",
   "pv": [
-   22.6,
-   19.6,
-   18.9,
+   24.6,
+   21.5,
+   20.3,
+   19.7,
+   19.3,
+   19,
+   18.7,
    18.4,
-   18.1,
-   17.8,
-   17.6,
+   18.2,
+   17.9,
+   17.7,
    17.5,
    17.3,
-   17.2,
-   17,
-   16.9,
+   17.1,
    16.8,
    16.6,
-   16.5,
-   16.3,
-   16.1,
+   16.4,
+   16.2,
    16,
-   15.8,
-   15.6,
-   15.4,
+   15.7,
+   15.5,
    15.2,
-   15,
-   14.8,
+   14.9,
+   14.6,
+   14.5,
+   14.5,
+   14.6,
    14.6,
    14.7,
    14.7,
    14.7,
    14.7,
-   14.7,
-   14.8,
-   14.8,
    14.8,
    14.8,
    14.8,
@@ -1133,7 +1186,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    14.8
   ],
   "days": 720,
-  "max": 24,
+  "max": 28,
   "marks": [
    {
     "day": 1,
@@ -1180,14 +1233,14 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "key": "cirrhosis",
      "from": 0,
      "to": 420,
-     "a": 0.85,
+     "a": 0.95,
      "b": 0.6
     },
     {
      "key": "albumin",
      "from": 0,
      "to": 420,
-     "a": 2.8,
+     "a": 2.4,
      "b": 3.9
     }
    ],
@@ -1227,7 +1280,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -1245,6 +1301,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
  {
   "id": "hist-psvd",
   "name": "PSVD: a bleed with a normal HVPG",
+  "short": "PSVD bleed, normal HVPG",
   "group": "Without cirrhosis",
   "where": "Porto-sinusoidal vascular disorder",
   "preset": "psvd",
@@ -1351,7 +1408,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "endoscopy",
@@ -1368,7 +1428,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
       },
       {
        "tool": "hvpg",
-       "label": "HVPG, normal here"
+       "label": "HVPG, normal here",
+       "pane": {
+        "measure": true
+       }
       }
      ]
     },
@@ -1395,7 +1458,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "profile",
@@ -1687,7 +1753,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "scope",
-       "label": "Pressure over time"
+       "label": "Pressure over time",
+       "pane": {
+        "range": "days"
+       }
       }
      ]
     },
@@ -1717,7 +1786,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "scope",
-       "label": "Pressure over time"
+       "label": "Pressure over time",
+       "pane": {
+        "range": "days"
+       }
       }
      ]
     }
@@ -1820,7 +1892,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "profile",
@@ -1843,7 +1918,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "profile",
@@ -1857,7 +1935,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "abdomen",
