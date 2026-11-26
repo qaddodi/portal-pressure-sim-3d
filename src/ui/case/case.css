@@ -1,30 +1,152 @@
-/* The case's guard (CaseGuard.tsx; docs/approved/play-the-case.md, screens mac-leave, phone-leave, phone-off).
-   The question is the shell's own dialog (.sh-dialog): a kicker over the title, the leave as quiet words in the danger ink, Stay the filled default. Long labels wrap to a second row of
-   buttons on a phone, Stay under Leave, never shrunk. */
-.cs-guard .cs-kicker { margin: 0 0 6px; font: 600 var(--t-cap) / 1.2 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
-.cs-guard p + p { margin-top: -8px; }
-.cs-guard .sh-btns { flex-wrap: wrap; }
-.cs-guard .sh-btn { flex: 0 1 auto; padding: 0 18px; line-height: 1.2; }
-.cs-guard .sh-btn.cs-leave { border-color: transparent; color: var(--danger-ink); transition: background-color var(--d-small) var(--ease); }
-@media (hover: hover) { .cs-guard .sh-btn.cs-leave:hover { background: color-mix(in srgb, var(--danger) 8%, transparent); } }
+/* Playing a case (docs/approved/play-the-case.md; the mock's screens mac-stop, mac-travel, mac-explore, pad-stop, phone-stop, phone-travel). Tokens only; every part comes and goes by
+   opacity and transform (data-on), never by display, so nothing pops. The foot's sums include the bar's lift (case/room.ts, shell/room.ts dockHeight): what rests on the dock clears it. */
+.case-layer { display: contents; }
 
-/* The line over the play bar once the case is left: "Your own course from Day 70" and Back to the case. It stands where the note does (one gap over the dock and the view pill, above
-   a docked action card), and while it is up the note and the zoom pill ride above it by the same transform they ride above that card with, so it never covers them. */
-.sh-root { --case-own-h: 56px; }
-.sh-root:has(.cs-own[data-open="true"]) { --case-occ: calc(var(--case-own-h) + var(--sheet-gap, 8px)); }
-.sh-root:has(.cs-own[data-open="true"]) .zoom-pill { translate: 0 calc(-1 * (var(--sheet-h, 0px) + var(--card-occ, 0px) + var(--case-occ, 0px))); }
-.sh-root:has(.cs-own[data-open="true"]) .sh-toast { translate: 0 calc(-1 * (var(--card-occ, 0px) + var(--case-occ, 0px))); }
-.cs-own {
-  position: absolute; z-index: 3; left: 50%; bottom: calc(var(--safe-b, 0px) + var(--bot-occ, 0px) + var(--sheet-gap, 8px)); width: min(480px, calc(100vw - 24px)); height: var(--case-own-h);
-  box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 0 6px 0 16px; border: 1px solid var(--edge); border-radius: var(--r-sheet); background: var(--glass-tint);
-  box-shadow: var(--glass-shadow); color: var(--text-2); font: 400 var(--t-body) / 1.3 var(--ui); pointer-events: none;
-  transform: translate(-50%, 10px); translate: 0 calc(-1 * var(--card-occ, 0px)); opacity: 0; visibility: hidden;
-  transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), translate var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small);
+/* ── the play bar steps aside for the case bar ── */
+/* (a Mac, an iPad on its side: the play bar's row, its readouts and its face fade; the view pill stays and rides up over the taller bar by a transform that glides) */
+.sh-root[data-mode="free"] > .app:not(.thumb) .vdock { transition: box-shadow var(--d-surface) var(--ease-arrive), background-color var(--d-small) var(--ease-arrive); }
+.sh-root[data-mode="free"] > .app:not(.thumb) .vdock > :is(.vd-face, .stage-bar.bottom, .readouts) { transition: opacity var(--d-small) var(--ease-arrive), visibility 0s linear 0s; }
+.app.case-on:not(.thumb) .vdock { background: transparent; box-shadow: none; pointer-events: none; }
+.app.case-on:not(.thumb) .vdock > :is(.vd-face, .stage-bar.bottom, .readouts) { opacity: 0; visibility: hidden; transition: opacity var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
+.app.case-on .vdock > .nb-views { pointer-events: auto; }
+.app:not(.thumb) .vdock > .nb-views { transition: translate var(--d-small) var(--ease-arrive); }
+.app.case-on:not(.thumb) .vdock > .nb-views { translate: 0 calc(-1 * var(--case-lift, 0px)); }
+/* (a phone, an upright iPad: the dock's own face and its play row fade, the tab row keeps its own card under the case bar; the view pill makes way, as it does for a sheet) */
+.app.thumb.case-on .vdock:not(.mini)::before { opacity: 0; }
+.app.thumb.case-on .vdock:not(.mini) .thumb-bar::after { opacity: 1; }
+.app.thumb.case-on .vdock:not(.mini) > :is(.vd-face, .stage-bar.bottom, .readouts) { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--d-small) var(--ease) 0s, visibility 0s linear var(--d-small); }
+:root .app.thumb.case-on .vdock:not(.mini) > .nb-views { pointer-events: none; }
+:root .app.thumb.case-on .vdock:not(.mini) > .nb-views > * { opacity: 0; }
+/* (the zoom pill: its place is the foot's sum less the lift, and the lift is a transform, so it glides up with the bar instead of jumping: css3d-over-2d.css adds --case-lift to its translate) */
+.sh-root > .app .zoom-pill { bottom: calc(var(--bot-occ, 120px) - var(--case-lift, 0px) + 8px); }
+
+/* ── the bar ── */
+.case-bar {
+  position: absolute; z-index: var(--z-hud); left: calc(var(--safe-l, 0px) + var(--gap, 12px)); right: calc(var(--safe-r, 0px) + var(--gap, 12px)); bottom: calc(var(--safe-b, 0px) + var(--gap, 12px));
+  height: 92px; display: flex; align-items: center; gap: 18px; padding: 0 14px; box-sizing: border-box;
+  background: var(--surface); border: 1px solid var(--edge); border-radius: var(--r-sheet); box-shadow: var(--shadow-pill); color: var(--text);
+  opacity: 0; visibility: hidden; transform: translateY(10px); pointer-events: auto;
+  transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small);
 }
-.cs-own[data-open="true"] { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; pointer-events: auto; }
-.cs-own-w { flex: 1 1 auto; min-width: 0; text-wrap: balance; }
-.cs-own-w b { font-weight: 600; color: var(--text); }
-.cs-own-back { flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border: 0; border-radius: var(--r-card); background: var(--surface-2);
-  color: var(--text); font: 600 var(--t-body) / 1 var(--ui); cursor: pointer; white-space: nowrap; transition: background-color var(--d-small) var(--ease); }
-.cs-own-back .sh-ic, .cs-own-back .ic { width: 18px; height: 18px; }
-@media (hover: hover) { .cs-own-back:hover { background: var(--surface-3); } }
+.case-bar[data-on="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.cb-ctl { flex: none; display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: var(--r-card); border: 1px solid var(--edge); background: var(--surface); }
+.cb-ib { width: 40px; height: 40px; border: 0; border-radius: 8px; display: grid; place-items: center; background: transparent; color: var(--text); padding: 0; transition: background-color var(--d-small) var(--ease-arrive), opacity var(--d-small) var(--ease-arrive); }
+.cb-ib .sh-ic, .cb-ib .ic { width: 18px; height: 18px; }
+.cb-ib.cb-play { width: 50px; background: var(--text); color: var(--surface); }
+.cb-ib:disabled { opacity: 0.35; }
+@media (hover: hover) { .cb-ib:not(.cb-play):not(:disabled):hover { background: color-mix(in srgb, var(--text) 7%, transparent); } }
+.cb-when { flex: none; width: 118px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.cb-when b { font: 600 var(--t-val) / 1.1 var(--ui); letter-spacing: var(--ls-tight); color: var(--text); font-variant-numeric: tabular-nums; }
+.cb-when small { font: 500 var(--t-cap) / 1.3 var(--ui); color: var(--text-3); white-space: nowrap; }
+.cb-strip { position: relative; flex: 1; min-width: 0; align-self: center; }
+.cb-ph-span { position: absolute; left: 2px; right: 2px; bottom: 0; overflow: hidden; pointer-events: none; }
+.cb-ph { position: absolute; inset: 0; will-change: transform; }
+/* (what is still to come is faint: a veil from the playhead on, in the bar's own colour) */
+.cb-veil { position: absolute; top: 0; bottom: 0; left: 0; width: 100%; background: color-mix(in srgb, var(--surface) 62%, transparent); }
+.cb-head { position: absolute; left: -1px; top: 0; bottom: 0; width: 2px; border-radius: 1px; background: var(--text); opacity: 0.75; }
+.cb-drag { position: absolute; inset: 0; cursor: ew-resize; touch-action: none; border-radius: var(--r-card); outline-offset: 2px; }
+.cb-leave { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; border: 0; border-radius: var(--r-card); background: transparent; color: var(--text-2); font: 600 var(--t-lab) / 1 var(--ui); white-space: nowrap; }
+.cb-leave .sh-ic { width: 16px; height: 16px; }
+@media (hover: hover) { .cb-leave:hover { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); } }
+/* (a phone and an upright iPad: the bar is its own card over the tab row, one gap above it; an upright iPad keeps the dock's 70 % of the width) */
+.case-layer[data-thumb] .case-bar {
+  left: calc(var(--safe-l, 0px) + var(--m-phone-inset, 6px)); right: calc(var(--safe-r, 0px) + var(--m-phone-inset, 6px)); height: 96px; gap: 14px;
+  bottom: calc(var(--safe-b, 0px) + var(--m-phone-inset, 6px) + var(--m-phone-tabs-pad-top, 3px) + var(--m-phone-tab-h, 48px) + var(--m-phone-tabs-pad-bottom, 4px) + 6px);
+}
+/* (an upright iPad: the bar spans the screen as in the mock, pad-stop, so its strip has room; the stop's sheet keeps the cards' 70 %) */
+@media (min-width: 700px) and (max-width: 1100px) and (orientation: portrait) { .case-layer[data-thumb] .case-bar { left: calc(var(--safe-l, 0px) + 12px); right: calc(var(--safe-r, 0px) + 12px); } .case-layer[data-thumb] .cb-when { width: 96px; } }
+/* (the thumb dock stands over the sheets; the bar stands with it, and the dock's empty play row lets touches through to the bar) */
+.case-layer[data-thumb] .case-bar { z-index: calc(var(--z-panel) + 21); }
+.app.thumb.case-on .vdock:not(.mini) { pointer-events: none; }
+.app.thumb.case-on .vdock:not(.mini) > .thumb-bar { pointer-events: auto; }
+.case-bar[data-phone] { flex-direction: column; align-items: stretch; gap: 4px; padding: 7px 12px 10px; }
+.case-bar[data-phone] .cb-row { display: flex; align-items: center; gap: 10px; }
+.case-bar[data-phone] .cb-when { width: auto; }
+.case-bar[data-phone] .cb-leave { margin-left: auto; padding: 0 6px; }
+.case-bar[data-phone] .cb-strip { flex: none; align-self: stretch; }
+
+/* ── the cards ── */
+.cs-card {
+  position: absolute; z-index: var(--z-hud); left: calc(var(--safe-l, 0px) + var(--gap, 12px)); top: calc(var(--top-safe, 56px) + 8px); width: 400px; box-sizing: border-box;
+  max-height: calc(100% - var(--top-safe, 56px) - 8px - var(--bot-occ, 120px) - var(--gap, 12px)); overflow: hidden;
+  padding: 16px 18px 14px; background: var(--surface); border: 1px solid var(--edge); border-radius: var(--r-sheet); color: var(--text);
+  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 24px 56px -16px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2.2));
+  opacity: 0; visibility: hidden; transform: translateX(-14px); pointer-events: auto;
+  transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small);
+}
+/* (a card comes in only once the one before it is out: the travel card, the stop card and its folded title take turns, so two never stand on top of each other) */
+.cs-card[data-on="true"] { opacity: 1; visibility: visible; transform: none; transition-duration: var(--d-surface); transition-delay: var(--d-small); }
+.cs-card.cs-fold { padding: 13px 16px 12px; }
+.cs-card.cs-travel { width: 360px; padding: 13px 16px; }
+.cs-kick { display: block; font: 600 var(--t-cap) / 1.3 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
+.cs-title { margin: 3px 0 0; font: 600 var(--t-val) / 1.2 var(--display); letter-spacing: var(--ls-tight); color: var(--text); }
+.cs-card[data-tone="danger"] :is(.cs-kick, .cs-title) { color: var(--danger-ink); }
+.cs-card[data-tone="change"] .cs-kick { color: var(--accent); }
+.cs-card[data-tone="ok"] :is(.cs-kick, .cs-title) { color: var(--ok-ink); }
+.cs-sub { margin: 3px 0 0; font: 400 var(--t-body) / 1.4 var(--ui); color: var(--text-2); }
+.cs-sub b { font-weight: 600; color: var(--text); margin-right: 4px; }
+/* (the moment's own words, History's: the same lines and numbers, sized for the card) */
+.cs-words > p { margin: 6px 0 0; font: 400 var(--t-body) / 1.45 var(--ui); color: var(--text-2); }
+.cs-words .hs-then { margin-top: 8px; }
+.cs-words .hs-nums { margin-top: 10px; }
+.cs-look { margin-top: 12px; }
+.cs-lh { display: block; font: 600 var(--t-cap) / 1.2 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
+.cs-look ul { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.cs-look li + li { border-top: 1px solid var(--hairline); }
+.cs-look button { width: 100%; min-height: 38px; display: flex; align-items: center; gap: 10px; padding: 0; border: 0; background: none; color: var(--accent); font: 500 var(--t-body) / 1.3 var(--ui); text-align: left; }
+.cs-look .sh-ic { flex: none; width: 18px; height: 18px; }
+.cs-lt { flex: 1; min-width: 0; }
+.cs-lw { flex: none; font: 500 var(--t-cap) / 1.2 var(--ui); color: var(--text-3); }
+.cs-go { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 12px; }
+.cs-fold .cs-go { margin-top: 10px; }
+.cs-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 16px; border: 0; border-radius: var(--r-card); font: 600 var(--t-body) / 1.15 var(--ui); text-align: left; transition: background-color var(--d-small) var(--ease-arrive); }
+.cs-btn .sh-ic { flex: none; width: 16px; height: 16px; }
+.cs-btn.primary { background: var(--accent); color: var(--on-accent, #fff); }
+.cs-btn.plain { background: transparent; color: var(--accent); padding: 0 6px; }
+.cs-shot { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; min-height: 22px; font: 500 var(--t-cap) / 1.3 var(--ui); color: var(--text-3); }
+.cs-shot .sh-ic { flex: none; width: 15px; height: 15px; }
+.cs-link { margin-left: auto; padding: 4px 0; border: 0; background: none; color: var(--accent); font: 600 var(--t-cap) / 1.3 var(--ui); }
+@media (pointer: coarse) { .cs-look button, .cs-btn { min-height: 44px; } .cs-link { min-height: 36px; } }
+
+/* (on the way: the smaller events passing under the card, the newest at the foot, the one before it fainter, the one before that gone; each glides up a row as a new one comes) */
+.cs-passing { position: absolute; z-index: var(--z-hud); left: calc(var(--safe-l, 0px) + var(--gap, 12px)); top: calc(var(--top-safe, 56px) + 8px + 104px); width: 360px; height: 96px; pointer-events: none;
+  opacity: 0; transition: opacity var(--d-small) var(--ease-arrive); }
+.cs-passing[data-on="true"] { opacity: 1; transition-duration: var(--d-surface); }
+.cs-pass { position: absolute; left: 0; right: 0; top: 0; box-sizing: border-box; padding: 7px 12px; border-radius: var(--r-card); background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--edge);
+  font: 500 var(--t-lab) / 1.3 var(--ui); color: var(--text-2); box-shadow: 0 4px 14px -8px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 1.2));
+  transition: opacity var(--d-surface) var(--ease-arrive), transform var(--d-surface) var(--ease-arrive); animation: cs-pass-in var(--d-surface) var(--ease-arrive); }
+.cs-pass b { margin-right: 6px; font-weight: 600; color: var(--text); }
+.cs-pass[data-age="0"] { transform: translateY(52px); }
+.cs-pass[data-age="1"] { transform: translateY(0); opacity: 0.55; }
+.cs-pass[data-age="2"] { transform: translateY(-52px); opacity: 0; }
+@keyframes cs-pass-in { from { opacity: 0; } }
+
+/* ── a phone and an upright iPad: the stop is a sheet over the foot of the figure, resting one gap over the case bar ── */
+.cs-card.cs-sheet { left: calc(var(--safe-l, 0px) + 8px); right: calc(var(--safe-r, 0px) + 8px); width: auto; top: auto; bottom: var(--nb-occ, 180px);
+  max-height: calc(100% - var(--top-safe, 56px) - var(--nb-occ, 180px) - 12px); transform: translateY(16px); }
+.cs-card.cs-sheet[data-on="true"] { transform: none; }
+@media (min-width: 700px) and (max-width: 1100px) and (orientation: portrait) { .cs-card.cs-sheet { left: 15%; right: 15%; padding: 18px 24px 16px; } }
+.cs-card.cs-travel.cs-sheet { padding: 11px 14px; }
+.cs-title.cs-small { font-size: var(--t-name); }
+/* (the newest note on the way, on an iPhone: two lines kept for it, so a long one wraps and the card does not grow and shrink as the notes pass) */
+.cs-note1 { line-height: 1.35; min-height: 2.7em; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+/* (the iPhone's stop sheet: pulled down, the part under Continue is clipped off and the sheet stands that much lower, both on one ease, so its foot never moves) */
+.cs-card.cs-phone { padding: 6px 16px 12px; overflow: visible; clip-path: inset(0 0 var(--cs-hide, 0px) 0 round var(--r-sheet)); transform: translateY(calc(var(--cs-hide, 0px) + 16px));
+  transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), clip-path var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
+/* (it waits for the card before it to go, in its opacity only: a pull up or down moves it at once) */
+.cs-card.cs-phone[data-on="true"] { transform: translateY(var(--cs-hide, 0px)); transition-duration: var(--d-surface); transition-delay: var(--d-small), 0s, 0s, var(--d-small); }
+.cs-phone .cs-title { font-size: var(--t-val); }
+.cs-grab { display: block; width: 100%; height: 22px; margin: 0 0 2px; padding: 0; border: 0; background: none; touch-action: none; }
+.cs-grab i { display: block; width: 40px; height: 5px; margin: 0 auto; border-radius: 3px; background: color-mix(in srgb, var(--text) 18%, transparent); }
+.cs-pull { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; margin-top: 8px; padding: 0; border: 0; background: none; font: 500 var(--t-cap) / 1.3 var(--ui); color: var(--text-3); text-align: left; }
+.cs-pull .sh-ic { width: 15px; height: 15px; }
+.cs-phone .cs-go .cs-btn.primary { flex: 1; }
+.cs-more { opacity: 0; transition: opacity var(--d-small) var(--ease-arrive); }
+.cs-more[data-up] { opacity: 1; }
+.cs-more .cs-look { margin-top: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .case-bar, .cs-card, .cs-card.cs-sheet, .cs-card.cs-phone { transform: none; }
+  .cs-card.cs-phone, .cs-card.cs-phone[data-on="true"] { transform: translateY(var(--cs-hide, 0px)); }
+  .cs-pass { animation-duration: var(--d-small); }
+}

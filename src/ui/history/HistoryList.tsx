@@ -45,7 +45,8 @@ function useView(on: boolean): View {
 }
 
 const ROWS_TONE = (r: { k: string; up?: boolean; a?: number }): string => (r.a == null || r.k === 'shunt' ? '' : r.up ? 'up' : 'down');
-function Nums({ n }: { n: Numbers }) {
+/** The readings before and after a change, or on the day (the moment card's; the case's stop card shows the same). */
+export function Nums({ n }: { n: Numbers }) {
   if (!n.rows.length) return null;
   return (
     <div className="hs-nums">
@@ -86,6 +87,21 @@ function Compare({ e }: { e: Entry }) {
 
 const Then = ({ t }: { t: Item }) => <li data-tone={t.tone}><b>{t.title}</b>{t.detail ? ` · ${t.detail}` : ''}{t.also.length ? ` · ${t.also.join(' · ')}` : ''}</li>;
 
+/** What a moment says under its title: its detail (or a course's own line, `say`), what else that day, what followed, the smaller changes and the numbers.
+ *  History's card and the case's stop card both. */
+export function MomentWords({ m, v, say = null }: { m: Extract<Moment, { type: 'start' | 'key' | 'today' }>; v: View; say?: string | null }) {
+  const head = m.head, nums = m.type === 'key' ? m.nums : dayReadings(v.series, m.day);
+  return (
+    <>
+      {say ? <p>{say}</p> : head?.detail ? <p>{head.detail}</p> : null}
+      {head && head.also.length > 0 && <p className="hs-also">{head.also.join(' · ')}</p>}
+      {m.type === 'key' && m.then.length > 0 && <ol className="hs-then">{m.then.map((t) => <Then key={t.i} t={t} />)}</ol>}
+      {m.type === 'key' && m.minor > 0 && <p className="hs-minor">{STORY.smaller(m.minor)}</p>}
+      <Nums n={nums} />
+    </>
+  );
+}
+
 function MomentCard({ m, v, n, here }: { m: Moment; v: View; n: number; here: boolean }) {
   const common = { 'data-moment': momentKey(m), 'data-day': m.day, 'data-n': n, 'data-future': m.future || undefined, 'data-here': here || undefined };
   if (m.type === 'trimmed') return <div className="hs-mo hs-trim" {...common}><p>{STORY.trimmed}</p></div>;
@@ -104,21 +120,15 @@ function MomentCard({ m, v, n, here }: { m: Moment; v: View; n: number; here: bo
     );
   }
   const kind = m.type === 'start' ? STORY.start : m.type === 'today' ? STORY.today : m.kind;
-  const head = m.type === 'today' ? m.head : m.head;
   const title = m.type === 'start' ? HIST.patient(m.head.title) : m.type === 'today' ? (m.head?.title ?? STORY.now) : m.head.title;
   const tone = m.type === 'key' ? m.head.tone : 'info';
-  const nums = m.type === 'key' ? m.nums : dayReadings(v.series, m.day);
   return (
     <article className="hs-mo key" data-tone={tone} {...common}>
       <div className="hs-when">{STORY.day(m.day)}</div><i className="hs-node" />
       <div className="hs-body">
         <span className="hs-kick">{kind}</span>
         <h4>{title}</h4>
-        {head?.detail && <p>{head.detail}</p>}
-        {head && head.also.length > 0 && <p className="hs-also">{head.also.join(' · ')}</p>}
-        {m.type === 'key' && m.then.length > 0 && <ol className="hs-then">{m.then.map((t) => <Then key={t.i} t={t} />)}</ol>}
-        {m.type === 'key' && m.minor > 0 && <p className="hs-minor">{STORY.smaller(m.minor)}</p>}
-        <Nums n={nums} />
+        <MomentWords m={m} v={v} />
         <Acts m={m} here={here} />
       </div>
     </article>

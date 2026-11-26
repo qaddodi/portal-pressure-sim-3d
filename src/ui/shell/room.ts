@@ -4,6 +4,7 @@ import type { Rect, Viewport } from '../layout/device.ts';
 import type { DeviceClass } from '../layout/device.ts';
 import { M, botOcc, viewPillHeight } from './metrics.ts';
 import { isSideways } from '../layout/rules2d.ts';
+import { caseLift } from '../case/room.ts';
 
 /** The class whose room the figure has: the 2D app's thumb layout (a screen up to 1100 px wide, held upright) has the bottom bar; everything else keeps the laptop's bars (a phone held sideways too, compacted by the stylesheet). */
 export const layoutClass = (thumb: boolean): DeviceClass => (thumb ? 'phone-portrait' : 'desktop');
@@ -20,9 +21,10 @@ export function topBarH(vp: Viewport, d: DeviceClass): number {
   return (usesBottomBar(d) && !isSideways(vp.w, vp.h) ? M.topPadPhone : isSideways(vp.w, vp.h) ? M.topPadSideways : M.topPad) + pill;
 }
 
-/** The dock's own height: the timeline row (and on a phone the tab row under it). */
+/** The dock's own height: the timeline row (and on a phone the tab row under it), and while a case plays, what its bar takes over the timeline row (case/room.ts):
+ *  every sum of the foot below reads this one. */
 export function dockHeight(d: DeviceClass): number {
-  return usesBottomBar(d) ? M.phoneTimelineH + M.phoneTabsPadTop + M.phoneTabH + M.phoneTabsPadBottom : M.timelineH;
+  return (usesBottomBar(d) ? M.phoneTimelineH + M.phoneTabsPadTop + M.phoneTabH + M.phoneTabsPadBottom : M.timelineH) + caseLift(d);
 }
 /** The gap between the dock and the screen foot (above the bottom safe area). */
 export const dockInset = (d: DeviceClass): number => (usesBottomBar(d) ? M.phoneInset : M.dockBottom);

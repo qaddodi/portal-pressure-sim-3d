@@ -42,6 +42,7 @@ import { D_FLIP, D_SMALL, EASE_IN, EASE_MOVE } from '../motion.ts';
 import { reduced } from '../a11y/motion.ts';
 import { M } from '../shell/metrics.ts';
 import { topBarH } from '../shell/room.ts';
+import { useCaseBarUp } from '../case/room.ts';
 import { lazyRetry } from '../../boot/lazy-retry.ts';
 import { LazyBoundary } from '../shell/LazyBoundary.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
@@ -95,7 +96,9 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   const vp = useUi((s) => s.vp), device = useUi((s) => s.device);
   const thumb = useThumb();
   const focus = tstate === 'focus';
-  const place = useMemo(() => testsPlace(vp, device, { widthPx, heightRatio, sheetSize, focus }), [vp, device, widthPx, heightRatio, sheetSize, focus]);
+  // (a playing case's bar raises the foot a sheet rests on: case/room.ts)
+  const caseUp = useCaseBarUp();
+  const place = useMemo(() => testsPlace(vp, device, { widthPx, heightRatio, sheetSize, focus }), [vp, device, widthPx, heightRatio, sheetSize, focus, caseUp]);
   const narrow = place.rect.w < 470;
   const layout = layoutOf(vp.w, vp.h);
   const roles = cardScale({ vw: vp.w, vh: vp.h, layout, part: 'data' });

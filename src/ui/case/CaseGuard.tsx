@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useGuard, stayInCase, leaveForStep, type Ask } from './guard.ts';
 import { useCase } from './store.ts';
 import { Icon } from '../shell/icons.tsx';
-import './case.css';
+import './guard.css';
 
 /** "Draining fluid changes this patient's course." with Leave and Stay. Esc and the scrim are Stay. */
 export function CaseGuardDialog() {

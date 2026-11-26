@@ -171,7 +171,7 @@ export function leaveCase(): boolean {
   const day = s.phase === 'stop' ? (s.stops[s.at]?.day ?? s.day) : dayNow();
   clearLeg();
   replayOff?.();
-  record.replay(false);
+  follow(false);
   useCase.setState({ phase: 'left', to: null, paused: false, day, leftDay: day });
   return true;
 }
