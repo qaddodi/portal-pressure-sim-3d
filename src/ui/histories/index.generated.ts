@@ -123,7 +123,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -141,16 +144,8 @@ export const HISTORIES: readonly HistoryMeta[] = [
      ]
     },
     {
-     "day": 70,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
      "day": 73,
+     "step": "tips",
      "look": [
       {
        "tool": "profile",
@@ -158,7 +153,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
       },
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the stent",
+       "pane": {
+        "probe": "TIPS"
+       }
       }
      ]
     }
@@ -203,33 +201,33 @@ export const HISTORIES: readonly HistoryMeta[] = [
    25,
    25.8,
    25.9,
+   25.8,
    25.9,
-   25.9,
-   26.4,
+   26.3,
    26.6,
    24.9,
    25.6,
    26.1,
-   26.8,
    26.9,
-   27.9,
+   27,
+   28,
    27.4,
-   26.9,
+   27.2,
    26.5,
    26.7,
-   26.6,
-   27.3,
-   21.5,
+   26.9,
+   27.5,
+   21.3,
+   21.1,
+   20.7,
    20.9,
-   21,
-   21,
-   19.9,
+   19.5,
    19.4,
-   19.8,
-   20.4,
-   19,
-   19.3,
-   19.5
+   19.4,
+   19.9,
+   18.6,
+   18.9,
+   19
   ],
   "days": 150,
   "max": 28,
@@ -282,6 +280,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 35,
+     "step": "tap1",
      "look": [
       {
        "tool": "abdomen",
@@ -291,6 +290,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 65,
+     "step": "tap2",
      "look": [
       {
        "tool": "abdomen",
@@ -300,6 +300,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 95,
+     "step": "tap3",
      "look": [
       {
        "tool": "abdomen",
@@ -309,6 +310,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 110,
+     "step": "tips",
      "look": [
       {
        "tool": "abdomen",
@@ -413,17 +415,24 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler of the portal vein"
+       "label": "Doppler of the portal vein",
+       "pane": {
+        "probe": "PV_TRUNK"
+       }
       }
      ]
     },
     {
      "day": 1,
+     "step": "anticoag",
      "cam": "portal",
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler of the portal vein"
+       "label": "Doppler of the portal vein",
+       "pane": {
+        "probe": "PV_TRUNK"
+       }
       }
      ]
     },
@@ -442,7 +451,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler of the portal vein"
+       "label": "Doppler of the portal vein",
+       "pane": {
+        "probe": "PV_TRUNK"
+       }
       }
      ]
     }
@@ -550,7 +562,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the right hepatic vein",
+       "pane": {
+        "probe": "RHV_IVC"
+       }
       },
       {
        "tool": "abdomen",
@@ -560,20 +575,28 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 2,
+     "step": "anticoag",
      "cam": "hepatic",
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the right hepatic vein",
+       "pane": {
+        "probe": "RHV_IVC"
+       }
       }
      ]
     },
     {
      "day": 60,
+     "step": "angioplasty",
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the right hepatic vein",
+       "pane": {
+        "probe": "RHV_IVC"
+       }
       },
       {
        "tool": "abdomen",
@@ -587,7 +610,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the right hepatic vein",
+       "pane": {
+        "probe": "RHV_IVC"
+       }
       },
       {
        "tool": "abdomen",
@@ -710,6 +736,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    "stops": [
     {
      "day": 10,
+     "step": "tips",
      "look": [
       {
        "tool": "abdomen",
@@ -723,14 +750,21 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 140,
+     "step": "doppler",
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the stent",
+       "pane": {
+        "probe": "TIPS"
+       }
       },
       {
        "tool": "hvpg",
-       "label": "Pressures across the stent"
+       "label": "Pressures across the stent",
+       "pane": {
+        "stent": "TIPS"
+       }
       }
      ]
     },
@@ -741,11 +775,17 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the stent",
+       "pane": {
+        "probe": "TIPS"
+       }
       },
       {
        "tool": "hvpg",
-       "label": "Pressures across the stent"
+       "label": "Pressures across the stent",
+       "pane": {
+        "stent": "TIPS"
+       }
       }
      ]
     }
@@ -863,16 +903,8 @@ export const HISTORIES: readonly HistoryMeta[] = [
   "play": {
    "stops": [
     {
-     "day": 10,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
      "day": 11,
+     "step": "tips",
      "look": [
       {
        "tool": "profile",
@@ -880,12 +912,16 @@ export const HISTORIES: readonly HistoryMeta[] = [
       },
       {
        "tool": "doppler",
-       "label": "Doppler"
+       "label": "Doppler of the stent",
+       "pane": {
+        "probe": "TIPS"
+       }
       }
      ]
     },
     {
      "day": 45,
+     "step": "confusion",
      "cam": "liver",
      "lens": "firstpass"
     }
@@ -1016,7 +1052,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -1026,6 +1065,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 60,
+     "step": "daa",
      "cam": "liver",
      "look": [
       {
@@ -1036,12 +1076,16 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 228,
+     "step": "svr",
      "view": "lobule",
      "cam": "lobule:sinusoid",
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -1054,7 +1098,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -1205,6 +1252,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 1,
+     "step": "abstain",
      "cam": "liver",
      "look": [
       {
@@ -1215,6 +1263,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 250,
+     "step": "diurOff",
      "look": [
       {
        "tool": "abdomen",
@@ -1224,12 +1273,16 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 620,
+     "step": "recomp",
      "view": "lobule",
      "cam": "lobule:sinusoid",
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "fibroscan",
@@ -1354,7 +1407,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "endoscopy",
@@ -1364,6 +1420,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 20,
+     "step": "bleed",
      "look": [
       {
        "tool": "endoscopy",
@@ -1371,12 +1428,16 @@ export const HISTORIES: readonly HistoryMeta[] = [
       },
       {
        "tool": "hvpg",
-       "label": "HVPG, normal here"
+       "label": "HVPG, normal here",
+       "pane": {
+        "measure": true
+       }
       }
      ]
     },
     {
      "day": 48,
+     "step": "band2",
      "look": [
       {
        "tool": "endoscopy",
@@ -1386,6 +1447,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 76,
+     "step": "band3",
      "look": [
       {
        "tool": "endoscopy",
@@ -1398,7 +1460,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "profile",
@@ -1429,49 +1494,50 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "text": "on carvedilol and diuretics"
    }
   ],
-  "story": "A fundal varix bleeds on Day 20. A vasoactive drug, then BRTO on Day 23. The shunt that fed it is closed, the portal pressure rises, and new esophageal varices need carvedilol from Day 40 and bands to Day 103.",
+  "story": "A fundal varix bleeds on Day 20. A vasoactive drug and antibiotics, EUS-guided coils and glue the same day, then BRTO on Day 23. The shunt that fed it is closed, the portal pressure rises, and new esophageal varices need carvedilol from Day 40 and bands to Day 103.",
   "path": "Bleed, BRTO, then the esophageal varices",
   "pv": [
    23.3,
    23.3,
    23.3,
    23.3,
+   22.7,
+   25.1,
+   24.8,
+   24.3,
+   21.5,
    21.2,
-   25,
-   24.6,
-   24.2,
-   21.3,
-   21,
-   20.8,
-   20.6,
+   20.9,
+   20.7,
    20.5,
-   20.3,
+   20.4,
    20.4,
    20.3,
    20.2,
    20.2,
    20.1,
+   20.3,
    20.2,
+   20.1,
+   20.1,
+   20.1,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20.1,
+   20.1,
+   20.1,
    20.2,
-   20.1,
-   20.1,
-   20.1,
-   20,
-   20,
-   20,
-   20,
-   20,
-   19.9,
-   19.9,
-   19.9,
-   19.9,
-   19.9,
-   20,
-   20,
-   20,
-   20.1,
-   20.1,
-   20.1,
    20.2,
    20.2
   ],
@@ -1520,16 +1586,8 @@ export const HISTORIES: readonly HistoryMeta[] = [
   "play": {
    "stops": [
     {
-     "day": 20,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
      "day": 23,
+     "step": "brto",
      "look": [
       {
        "tool": "profile",
@@ -1552,6 +1610,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 40,
+     "step": "carvedilol",
      "look": [
       {
        "tool": "endoscopy",
@@ -1562,7 +1621,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 9,
+   "events": 8,
    "medicines": 3
   }
  },
@@ -1684,13 +1743,17 @@ export const HISTORIES: readonly HistoryMeta[] = [
    "stops": [
     {
      "day": 30,
+     "step": "preg",
      "view": "circuit",
      "cam": "splanchnic",
      "lens": "flow",
      "look": [
       {
        "tool": "scope",
-       "label": "Pressure over time"
+       "label": "Pressure over time",
+       "pane": {
+        "range": "days"
+       }
       }
      ]
     },
@@ -1705,6 +1768,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 114,
+     "step": "prop",
      "look": [
       {
        "tool": "endoscopy",
@@ -1714,13 +1778,17 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 254,
+     "step": "delivery",
      "view": "circuit",
      "cam": "splanchnic",
      "lens": "flow",
      "look": [
       {
        "tool": "scope",
-       "label": "Pressure over time"
+       "label": "Pressure over time",
+       "pane": {
+        "range": "days"
+       }
       }
      ]
     }
@@ -1823,7 +1891,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "profile",
@@ -1833,6 +1904,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 20,
+     "step": "diur",
      "cam": "fit",
      "look": [
       {
@@ -1843,10 +1915,14 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 120,
+     "step": "hf",
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "profile",
@@ -1860,7 +1936,10 @@ export const HISTORIES: readonly HistoryMeta[] = [
      "look": [
       {
        "tool": "hvpg",
-       "label": "HVPG"
+       "label": "HVPG",
+       "pane": {
+        "measure": true
+       }
       },
       {
        "tool": "abdomen",

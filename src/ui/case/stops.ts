@@ -55,6 +55,8 @@ function ownOf(own: readonly CaseStopBaked[], es: readonly StopEntryIn[], m: Mom
  *  bled has two stops on its day: the bleeding itself, then what is done about it. */
 export function stopsOf(chapters: readonly Chapter[], es: readonly StopEntryIn[], own: readonly CaseStopBaked[] = []): Stop[] {
   const out: Stop[] = [], bleeding: boolean[] = [];
+  /** the bleed the moment before ended at (its rupture), when it is the same day: this moment is what is done about it */
+  let after: StopEntryIn | null = null;
   const moments = chapters.flatMap((c) => c.moments).filter((m) => m.type === 'start' || m.type === 'key' || m.type === 'today');
   moments.forEach((m, k) => {
     const entry = entryOf(es, m.ids);
@@ -71,11 +73,13 @@ export function stopsOf(chapters: readonly Chapter[], es: readonly StopEntryIn[]
       : { ...base, ...(mine?.view ? { view: mine.view } : {}), ...(mine?.lens ? { lens: mine.lens } : {}) };
     if (mine?.labels?.length) shot.labels = [...mine.labels];
     const title = m.type === 'today' ? (m.head?.title ?? TODAY_KIND) : m.head.title;
-    const bl = rupture ? bleedLooks(siteOf(rupture), atBleed) : null;
+    const source = rupture ?? (after && after.day === m.day ? after : null);
+    const bl = source ? bleedLooks(siteOf(source), atBleed) : null;
+    after = atBleed ? rupture! : null;
     out.push({
       key: momentKey(m), type: m.type, day: m.day, entry, title,
       kind: m.type === 'start' ? START_KIND : m.type === 'today' ? TODAY_KIND : m.kind,
-      shot, look: (mine?.look ?? bl?.look ?? []).slice(0, 3), open: mine?.open ?? (mine?.look ? null : bl?.open ?? null),
+      shot, look: (mine?.look ?? bl?.look ?? []).slice(0, 3), open: mine?.open ?? bl?.open ?? null,
       say: mine?.say ?? (atBleed ? BLEED_SAY[siteOf(rupture!)] : null),
     });
     bleeding.push(atBleed);

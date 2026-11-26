@@ -4,6 +4,7 @@ import { airRatio } from '../copied/endo-size.copied.js';
 import { endoscopyLabel } from '../copied/instrument-aria.copied.js';
 import { ENDO_WORDS as W } from '../copied/endo-words.copied.js';
 import { metricsOf } from '../frame.ts';
+import { bandsPlaced } from '../../action/bands-on.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -20,7 +21,7 @@ const NO_OPT: EndoOpt = { air: 0, red: null, readings: false };
 export function readingsOf(f: Any, opt: EndoOpt = NO_OPT, pin: { d: number; ptm: number } | null = null) {
   const m = metricsOf(f), vx = m?.varix;
   if (!vx) return null;
-  const nb = Math.round(f.bands || 0), present = !!vx.present;
+  const nb = bandsPlaced(f.bands), present = !!vx.present;
   const grade: string = vx.grade.label;
   const rest = pin && Number.isFinite(pin.d) ? pin.d : vx.d;   // (a slide's own number when it has one: the size the tiles and the words show)
   const diam = `${fmt(rest * (airRatio(vx.air, opt.air) as number), 1)} mm`;

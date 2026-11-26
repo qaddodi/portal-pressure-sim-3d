@@ -6,16 +6,18 @@ import { useUi } from '../ui-store.ts';
 import { viewRoom } from '../shell/room.ts';
 import { cutRoom } from '../tests/room.ts';
 import type { StopShot } from './types.ts';
-import { shotScene } from './shot-plan.ts';
+import { stopScene } from './shot-plan.ts';
+import { useCaseRoom } from './room.ts';
 
 /** Take the shot: the view pill follows, the lens is the shot's, and the camera flies there on the slide's own time. A view the figure cannot draw yet stands on the whole body. */
 export function showShot(s: StopShot): void {
   const ready = useShell.getState().ready[s.view];
-  const sc = shotScene(ready ? s : { view: 'anatomic', cam: 'fit' });
   const view = ready ? s.view : 'anatomic';
   useShell.setState({ view });
   const { vp, device } = useUi.getState();
-  const room = cutRoom(viewRoom(view, vp, device));
+  const base = viewRoom(view, vp, device);
+  const sc = stopScene(ready ? s : { view: 'anatomic', cam: 'fit' }, base, useCaseRoom.getState().cut, device, vp.safe.left);
+  const room = cutRoom(base);
   sceneApi.setLens(sc.lens);
   if (sc.view === 'circuit') {
     const c = sc.circuit;

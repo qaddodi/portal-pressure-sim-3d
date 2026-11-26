@@ -2,11 +2,24 @@
 // fields (the view, the named camera, the lens, the labels), so the camera does there exactly what a slide's would. Plain data: no engine, no page.
 import type { ViewId } from '../shell/views.ts';
 
-/** "Look closer here": a Tests card or a view worth opening at this stop (up to three). `tool` is a Tests tool's id or a view's ('circuit', 'lobule', ...). */
-export interface CaseLook {
-  tool: string; label: string;
-  /** a procedure to watch play on the figure (scene/procedures' kind: 'eusglue'): the card opens and the animation plays, the patient untouched (the course has already done it) */
+/** The state a Look closer card opens in, where its label names one (look-pane.ts applies it through each pane's own store). A look that names a site or a mode must set it: the pane
+ *  otherwise opens as the last visit left it (the portal vein for a stent's Doppler, Measure for the stent's pressures, 10 s for a pregnancy's days, an empty HVPG tracing). */
+export interface LookPane {
+  /** IR (hvpg): the TIPS tab, on this stent */
+  stent?: 'TIPS' | 'DIPS';
+  /** IR (hvpg): the Measure tab with the HVPG measurement already running, so its tracing is not empty */
+  measure?: true;
+  /** Doppler: the vessel (an edge id of the Doppler's own list) the probe samples */
+  probe?: string;
+  /** Over time (scope): the range on screen */
+  range?: 'beats' | 'minutes' | 'days';
+  /** a treatment to watch play on the figure (scene/procedures' kind, 'eusglue'), the patient untouched: the course has already done it (case/watch.ts) */
   watch?: string;
+}
+
+/** "Look closer here": a Tests card or a view worth opening at this stop (up to three). `tool` is a Tests tool's id or a view's ('circuit', 'lobule', ...); `pane` the state the card opens in. */
+export interface CaseLook {
+  tool: string; label: string; pane?: LookPane;
 }
 
 /** Where the camera goes at a stop: a view, a slide's named camera in it ('bleed', 'tips', 'lobule:sinusoid' ... decks/hp/cams.ts), the lens, the stations it labels. */

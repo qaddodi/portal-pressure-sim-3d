@@ -87,8 +87,11 @@ export function playCourse(c: Course): Baked {
       if (r) r.snap = e.snapshot();
       return;
     }
-    const a = s.act === 'band' ? { kind: 'band' } : { kind: 'paracentesis', mL: Math.floor(e.slow.ascites / 100) * 100, albumin: true };
-    if (a.kind === 'band') e.band(); else { e.paracentesis(a.mL as number, true); feed.markStep(); }   // (a tap is a step of the record, as on the page: send.ts STEPS)
+    // (a tap drains all the fluid there is, and its title says what the engine took off: one number, the one the card's "Ascites 3.8 → 0.0 L" reads before the tap)
+    let a: { kind: string; mL?: number; albumin?: boolean } = { kind: 'band' };
+    // (a tap is a step of the record, as on the page: send.ts STEPS)
+    if (s.act === 'band') e.band();
+    else { a = { kind: 'paracentesis', mL: e.paracentesis(e.slow.ascites, true), albumin: true }; feed.markStep(); }
     drain();
     entries.push({ kind: 'change', label: actionLabel(a), day: e.day, t: round(e.t, 2), action: true, ...(s.id ? { step: s.id } : {}), ...(s.detail ? { detail: s.detail } : {}) });
     baseline = labelsOf(e.params);   // (the albumin the tap gave is not a change anyone made)

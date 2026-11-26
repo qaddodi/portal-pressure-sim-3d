@@ -6,8 +6,8 @@ import type { CaseLook } from './types.ts';
 
 /** The Endoscopy card: the esophageal varices and a bleed from them, as the scope sees them. */
 export const SCOPE_LOOK: CaseLook = { tool: 'endoscopy', label: 'Endoscopy' };
-/** The EUS-guided coils and cyanoacrylate glue, played on the figure (the IR card's Watch row, the slides' own animation). It changes nothing in the patient: the course has done it. */
-export const GLUE_LOOK: CaseLook = { tool: 'hvpg', label: 'Watch EUS coils and glue', watch: 'eusglue' };
+/** The EUS-guided coils and cyanoacrylate glue, played on the figure (the slides' own animation, on the anatomy: case/watch.ts). It changes nothing in the patient: the course has done it. */
+export const GLUE_LOOK: CaseLook = { tool: 'anatomic', label: 'Watch EUS coils and glue', pane: { watch: 'eusglue' } };
 
 /** What a bleed stop says of the bleeding, by where it is (no word of the engine's). */
 export const BLEED_SAY = {

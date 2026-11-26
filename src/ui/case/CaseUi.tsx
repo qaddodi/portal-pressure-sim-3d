@@ -8,14 +8,14 @@ import { useUi } from '../ui-store.ts';
 import { useTests } from '../tests/store.ts';
 import { layoutClass, sheetFoot } from '../shell/room.ts';
 import { useCase } from './store.ts';
-import { caseBarUp, useCaseRoom, type CaseCut } from './room.ts';
+import { caseBarUp, useCaseRoom, CASE_CARD_W, CASE_CARD_GAP, type CaseCut } from './room.ts';
+import { CASE_TRAVEL_H } from '../../scene/labels/chrome-claims.ts';
 import { useCaseView } from './view.ts';
 import { useSwap } from './swap.ts';
 import { CaseBar } from './CaseBar.tsx';
 import { PhoneStopSheet, StopCards, TravelCard, stopShown, useStopMoved } from './StopCard.tsx';
+import { openLook } from './look-pane.ts';
 
-/** The stop card's width on a Mac (the mock's column at the left: 400 px, the card on the way 360 px inside it). */
-export const CASE_CARD_W = 400, CASE_CARD_GAP = 12;
 /** The iPhone's layout: the bar in two rows and the stop sheet pulled up for the rest (below this width; an upright iPad keeps one row and the whole card). */
 export const PHONE_MAX_W = 700;
 
@@ -30,6 +30,9 @@ export function CaseUi({ thumb }: { thumb: boolean }) {
   const shownNow = useMemo(() => (cv ? stopShown(cv, stops, at) : null), [cv, stops, at]);
   const stop = useSwap(shownNow, `${id}:${at}`, phase === 'stop' && !!cv);
   const [moved, back] = useStopMoved(stop.shown, phase === 'stop');
+  // a stop whose point is a picture (the bleed, through the scope) opens it as it is reached; the card then folds to its title and Continue, as it does for any look
+  const opens = phase === 'stop' ? stops[at]?.open ?? null : null;
+  useEffect(() => { if (opens) openLook(opens); }, [opens, id, at]);
   // (on a phone or an upright iPad the Tests card is a sheet from the same foot: the stop's sheet makes way for it, and the bar says the case waits)
   const stopOn = stop.on && !(thumb && exploring);
   const [sheetH, setSheetH] = useState(0);
@@ -45,7 +48,10 @@ export function CaseUi({ thumb }: { thumb: boolean }) {
     const was = useCaseRoom.getState().cut;
     if (JSON.stringify(was) !== JSON.stringify(cut)) useCaseRoom.setState({ cut });
   }, [up, thumb, exploring, stopOn, sheetH, vp]);
-  useEffect(() => () => useCaseRoom.setState({ cut: null }), []);
+  // the card's own height at the left, for the labels' keep-out (the card on the way is taller than the column's top: chrome-claims.ts CASE_TRAVEL_H)
+  const cardH = up && !thumb ? Math.round(phase === 'travel' ? Math.max(sheetH, CASE_TRAVEL_H) : sheetH) : 0;
+  useEffect(() => { if (useCaseRoom.getState().cardH !== cardH) useCaseRoom.setState({ cardH }); }, [cardH]);
+  useEffect(() => () => useCaseRoom.setState({ cut: null, cardH: 0 }), []);
 
   return (
     <div className="case-layer" data-thumb={thumb || undefined} data-phone={phone || undefined}>

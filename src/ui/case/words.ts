@@ -61,15 +61,16 @@ export function continueWords(stops: readonly Stop[], at: number, short = false)
 /** The days left to the next stop, in words ("in 18 days", "in a day", "now"). */
 export const inDays = (n: number): string => (n <= 0 ? 'now' : n === 1 ? 'in a day' : `in ${n} days`);
 /** What the next stop is called on the way: the chapter that starts on its day ("The bleed"), else its own title. */
-export function stopName(s: Stop, chapters: readonly { from: number; label: string }[]): string {
-  const c = chapters.find((x) => Math.round(x.from) === Math.round(s.day) && x.label);
+export function stopName(s: Stop, chapters: readonly { from: number; label: string }[], first = true): string {
+  // (a chapter begins at the first stop of its day: the second of a day, what is done about a bleed, is named by its own title)
+  const c = first ? chapters.find((x) => Math.round(x.from) === Math.round(s.day) && x.label) : undefined;
   return c ? c.label : s.type === 'today' ? 'Today' : s.title;
 }
 /** The card on the way: "Next stop: Day 70", "The bleed, in 18 days"; on a phone one line, "Next stop: Day 70 · The bleed". */
 export function travelWords(stops: readonly Stop[], to: number, d: number, chapters: readonly { from: number; label: string }[]): { kicker: string; head: string; sub: string; line: string } {
   const s = stops[to];
   if (!s) return { kicker: CASE.onTheWay, head: '', sub: '', line: '' };
-  const name = stopName(s, chapters), chapter = chapterAt(chapters, d);
+  const name = stopName(s, chapters, !(to > 0 && stops[to - 1]!.day === s.day)), chapter = chapterAt(chapters, d);
   return {
     kicker: [CASE.onTheWay, chapter].filter(Boolean).join(' · '),
     head: `Next stop: ${day(s.day)}`,
@@ -107,6 +108,7 @@ const SHORT: readonly [RegExp, string][] = [
   [/red wale/i, 'Red wale'],
   [/paracentesis/i, 'Paracentesis'],
   [/band(ing)?\b.*\(EVL\)|^band/i, 'EVL'],
+  [/coils and glue|\bglue\b/i, 'Glue'],
 ];
 const PAUSE = /\s*[,:;(]\s*|\s+[-\u2013\u2014]\s+|\s+(?:and|after|with|from|shows|before|\+)\s+/i;
 const DANGLING = /^(?:a|an|the|of|to|in|on|at|for|and|or|with|after|before|from|by|than|is|are|\d[\d.,]*|mm|ml|l|cm|%|weeks?|days?)$/i;

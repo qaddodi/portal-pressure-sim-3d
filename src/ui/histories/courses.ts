@@ -24,15 +24,17 @@ export const ANTIBIOTICS = 'Antibiotic prophylaxis from the start: ceftriaxone, 
 /** "Look closer here" at a stop (ui/case): the Tests cards a course opens (tests/panes.ts PaneId; tests/case-shots.test.ts keeps every one real). */
 const L = {
   endoscopy: { tool: 'endoscopy', label: 'Endoscopy' },
-  hvpg: { tool: 'hvpg', label: 'HVPG' },
-  hvpgNormal: { tool: 'hvpg', label: 'HVPG, normal here' },
-  acrossStent: { tool: 'hvpg', label: 'Pressures across the stent' },
+  // (a look that names a site or a mode opens in it: `pane`, case/look-pane.ts; an HVPG card opens already measuring, not on an empty tracing)
+  hvpg: { tool: 'hvpg', label: 'HVPG', pane: { measure: true } },
+  hvpgNormal: { tool: 'hvpg', label: 'HVPG, normal here', pane: { measure: true } },
+  acrossStent: { tool: 'hvpg', label: 'Pressures across the stent', pane: { stent: 'TIPS' } },
   stiffness: { tool: 'fibroscan', label: 'Liver stiffness' },
   ascites: { tool: 'abdomen', label: 'Ascites' },
-  doppler: { tool: 'doppler', label: 'Doppler' },
-  dopplerPv: { tool: 'doppler', label: 'Doppler of the portal vein' },
+  dopplerStent: { tool: 'doppler', label: 'Doppler of the stent', pane: { probe: 'TIPS' } },
+  dopplerHv: { tool: 'doppler', label: 'Doppler of the right hepatic vein', pane: { probe: 'RHV_IVC' } },
+  dopplerPv: { tool: 'doppler', label: 'Doppler of the portal vein', pane: { probe: 'PV_TRUNK' } },
   along: { tool: 'profile', label: 'Pressure along the circuit' },
-  overTime: { tool: 'scope', label: 'Pressure over time' },
+  overTime: { tool: 'scope', label: 'Pressure over time', pane: { range: 'days' } },
 } satisfies Record<string, CaseLook>;
 
 export const COURSES: readonly Course[] = [
@@ -57,7 +59,7 @@ export const COURSES: readonly Course[] = [
     play: { stops: [
       { at: { day: 18 }, look: [L.hvpg, L.stiffness] },
       { at: { day: 40 }, look: [L.endoscopy] },
-      { at: 'tips', look: [L.along, L.doppler] },
+      { at: 'tips', look: [L.along, L.dopplerStent] },
     ] },
   },
   {
@@ -118,10 +120,10 @@ export const COURSES: readonly Course[] = [
     state: ['ascites', 'ppg', 'meds'],
     // (the block is in the hepatic veins: the case looks at them, not at the portal flow, from the start to today)
     play: { stops: [
-      { at: { day: 0 }, cam: 'hepatic', look: [L.doppler, L.ascites] },
-      { at: 'anticoag', cam: 'hepatic', look: [L.doppler] },
-      { at: 'angioplasty', look: [L.doppler, L.ascites] },
-      { at: { day: 150 }, cam: 'hepatic', look: [L.doppler, L.ascites] },
+      { at: { day: 0 }, cam: 'hepatic', look: [L.dopplerHv, L.ascites] },
+      { at: 'anticoag', cam: 'hepatic', look: [L.dopplerHv] },
+      { at: 'angioplasty', look: [L.dopplerHv, L.ascites] },
+      { at: { day: 150 }, cam: 'hepatic', look: [L.dopplerHv, L.ascites] },
     ] },
   },
   {
@@ -148,8 +150,8 @@ export const COURSES: readonly Course[] = [
     // (the Doppler's day opens the Doppler and the pressures across the stent; today stands on the narrowed stent)
     play: { stops: [
       { at: 'tips', look: [L.ascites, L.along] },
-      { at: 'doppler', look: [L.doppler, L.acrossStent] },
-      { at: { day: 190 }, view: 'circuit', cam: 'tips', look: [L.doppler, L.acrossStent] },
+      { at: 'doppler', look: [L.dopplerStent, L.acrossStent] },
+      { at: { day: 190 }, view: 'circuit', cam: 'tips', look: [L.dopplerStent, L.acrossStent] },
     ] },
   },
 
@@ -171,7 +173,7 @@ export const COURSES: readonly Course[] = [
     state: ['tips', 'ppg', 'ascites'],
     // (the confusion is the gut's blood going round the liver through the stent: the slides' own first-pass shot of the liver, as the encephalopathy deck takes it)
     play: { stops: [
-      { at: 'tips', look: [L.along, L.doppler] },
+      { at: 'tips', look: [L.along, L.dopplerStent] },
       { at: 'confusion', cam: 'liver', lens: 'firstpass' },
     ] },
   },
