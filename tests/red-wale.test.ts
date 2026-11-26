@@ -4,13 +4,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { COURSES } from '../src/ui/histories/courses.ts';
 import { playCourse } from '../src/ui/histories/play.ts';
-import { isRedWale, redWaleCleared, RED_WALE_ON, RED_WALE_OFF } from '../src/engine/hales/portal/wall-read.js';
+import { isRedWale, redWaleCleared, redWaleFlag, RED_WALE_ON, RED_WALE_OFF } from '../src/engine/hales/portal/wall-read.js';
 import { readingsOf } from '../src/ui/tests/endo/readings.ts';
 import { scopeRatio } from '../src/ui/tests/endo/motion.ts';
 import { Engine } from '../src/engine/hales/portal/engine.js';
 import { computeMetrics } from '../src/engine/hales/portal/metrics.js';
 import { detectEvents } from '../src/engine/hales/portal/events.js';
-import { baked } from '../src/ui/histories/baked/hist-pregnancy.generated.ts';
+import { readdirSync } from 'node:fs';
 import type { Baked } from '../src/ui/histories/types.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,20 +45,33 @@ test('on every day of every course the scope flag is the event\'s own state, whi
   }
 });
 
-test('a Red wale stop that lands live keeps the scope red while the event is on (the mean settles under 0.7 within seconds of landing; the stop is not contradicted)', () => {
-  const b = baked as Baked;
-  const ent = b.entries.find((x) => x.evId === 'RED_WALE' && x.snap)!;
-  const e = new Engine() as Any;
-  e.restore(ent.snap);
-  let settledUnderCut = false, wrong = 0;
-  for (let i = 0; i < 600; i++) {
-    e.step(0.1); detectEvents(e);
-    const v = (computeMetrics(e) as { varix: Vx }).varix, on = !!e.evState.RED_WALE?.active;
-    if (!isRedWale(v.ratioMean)) settledUnderCut = true;
-    if (v.redWale !== on) wrong++;
+test('the flag is the event\'s state once it runs: on between the cuts after it started, off between the cuts before it, the plain cut when the event has not looked', () => {
+  assert.equal(redWaleFlag({ active: true }, 0.66), true);
+  assert.equal(redWaleFlag({ active: false }, 0.66), false);
+  assert.equal(redWaleFlag({ active: false }, 0.9), false);
+  assert.equal(redWaleFlag(undefined, 0.71), true);
+  assert.equal(redWaleFlag(undefined, 0.66), false);
+});
+
+test('a Red wale stop that lands live keeps the scope flag on the event\'s state for every step (every Red wale day of every history, whichever line carries the day\'s snapshot)', async () => {
+  let landed = 0;
+  for (const f of readdirSync(new URL('../src/ui/histories/baked/', import.meta.url))) {
+    const { baked } = await import(`../src/ui/histories/baked/${f}`) as { baked: Baked };
+    for (const x of baked.entries.filter((y) => y.evId === 'RED_WALE')) {
+      // (a stop keeps the model at the END of its day: the snapshot is on the day's last line, whichever line that is, so the test reads the day's snapshot, never the red wale line's own)
+      const end = baked.entries.filter((y) => y.day === x.day && y.snap).at(-1);
+      if (!end) continue;
+      landed++;
+      const e = new Engine() as Any;
+      e.restore(end.snap);
+      for (let i = 0; i < 300; i++) {
+        e.step(0.1); detectEvents(e);
+        const v = (computeMetrics(e) as { varix: Vx }).varix;
+        assert.equal(v.redWale, !!e.evState.RED_WALE?.active, `${f} day ${x.day} step ${i}: the scope flag left the event's state`);
+      }
+    }
   }
-  assert.ok(settledUnderCut, 'the case this pins: the mean really does come down under the cut after landing');
-  assert.equal(wrong, 0, 'the scope flag followed the event on every step');
+  assert.ok(landed > 0, 'at least one Red wale day keeps the model');
 });
 
 test('every Red wale signs stop reads Stigmata red on the scope that day', () => {
