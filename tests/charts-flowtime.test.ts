@@ -156,7 +156,8 @@ test('a reference tick draws another state\'s value, in the line\'s units, clear
     assert.ok(word, `${look} ${w}: the words stand`);
     assert.match(word.s, /^EVL alone 7\.3 mm$/);
     assert.ok(word.y > G.T && word.y < G.B, `${look} ${w}: inside the plot`);
-    const tick = frame.shapes.find((x) => x.k === 'line' && (x as { pen: { dash?: number[] } }).pen.dash && Math.abs((x as { y1: number }).y1 - (word.y - 0.36 * c.type.sm)) < 1e-6);
+    // (the words stand on the tick's row, or on a row beside it where another word is in the way: tests/chart-ref-label.test.ts)
+    const tick = frame.shapes.find((x) => x.k === 'line' && (x as { pen: { dash?: number[] } }).pen.dash && Math.abs((x as { y1: number }).y1 - (word.y - 0.36 * c.type.sm)) <= 4.7 * c.type.sm);
     assert.ok(tick, `${look} ${w}: the dashed tick`);
     // clear of every head value (those stand at the plot's right, bold, 1.1 x type)
     for (const t of frame.shapes.filter((x): x is TextShape => x.k === 'text' && x !== word && x.weight === 700 && Math.abs(x.size - 1.1 * c.type.sm) < 1e-9)) {

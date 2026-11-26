@@ -12,7 +12,7 @@ test('the reserve is wider than a short reading (the root of "2.3 mmHg   ."): so
   assert.ok(reserveOf('2.3 mmHg', 'hvpg').length > '2.3 mmHg'.length, 'a reading under ten holds a minus slot and a second digit');
   assert.match(roll, /\{reserve \?\? [^}]*\}\{after\}<\/span>/, 'the sizer holds the reserve AND the stop, so the box does not change width');
   assert.match(roll, /dk-roll-in' : 'dk-roll-now'\}>\{latest\.cur\}\{after && <span className="dk-roll-stop">/, 'the shown number carries the stop right after it');
-  assert.match(line, /<Roll [^>]*after=\{stop\} \/><\/span><\/span>, '', i, open\)/, 'the line gives the stop to the Roll and sets none outside it');
+  assert.match(line, /<Roll [^>]*after=\{stop\} \/><\/span><\/span>, '', i, open, before\)/, 'the line gives the stop to the Roll and sets none outside it');
 });
 
 test('a term or a bracket keeps no pill padding beside its stop (the pills are gone: "central veins ," and "( 59.4 kPa")', () => {
