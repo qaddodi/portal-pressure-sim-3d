@@ -29,7 +29,8 @@ test('item 4: a time-lapse chart that names the slide before starts from its rea
   assert.equal(lead.flow.at(-1), 6.6, 'the end is the slide\'s own');
   assert.ok(lead.flow[0]! > lead.flow.at(-1)!);
   const src = readFileSync('src/ui/talk/ToolCardBody.tsx', 'utf8');
-  assert.match(src, /before=\{\(tool\.delta \?\? \(cs as Rec\)\.delta\) != null \? refOf\(/);
+  // (the start is the slide before's state for days of the same patient, the delta's otherwise: ui/talk/flow-start.ts, tests/one-number.test.ts)
+  assert.match(src, /before=\{\(tool\.delta \?\? \(cs as Rec\)\.delta\) != null \? flowStartOf\(tool\.clock === 'days' && !cs\.preset, /);
 });
 
 test('item 5: the cards of a slide count the build-time states as in, so a slide opened first by a link does not wait for the live chain', () => {

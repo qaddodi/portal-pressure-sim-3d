@@ -87,8 +87,8 @@ test('2. a station label prints the slide\'s own pressure while the live model r
     e.step(0.004);
     if (t < 30 || Math.round(t * 250) % 25) continue;
     const frame = { P: Float32Array.from(e.P), Pf: Float32Array.from(e.Pf), Q: Float32Array.from(e.Q), Qf: Float32Array.from(e.Qf), metrics: {} };
-    assert.ok(atRest(frame as never, fp), `the model rests on the slide's state (t=${t.toFixed(1)})`);
-    const view = settledFrame(frame as never, fp as never)!;
+    assert.ok(atRest(frame, fp), `the model rests on the slide's state (t=${t.toFixed(1)})`);
+    const view = settledFrame(frame, fp)!;
     for (const [node, key] of STATIONS) {
       const label = fmtPressure(stationP(view as never, node, view.Pf)), words = valueText(key, fp).replace(/ mmHg$/, '');
       // (the label prints the slide's number: the key's own reading, rounded once)
