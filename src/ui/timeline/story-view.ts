@@ -3,9 +3,10 @@
 import { calmedDays } from '../../engine/hales/portal/trail-calm.js';
 import type { Series } from '../bigtime/record.ts';
 import { drawable } from '../bigtime/data.ts';
+import { MEASURE_OF } from '../bigtime/measures.ts';
 import { marksOf, type EntryIn, type MedBar } from '../bigtime/marks.ts';
 import type { Entry } from './model.ts';
-import { storyEntries, storyOf, type Chapter, type ChapterStart, type Moment, type Tone } from './story.ts';
+import { storyEntries, storyOf, CARD_READINGS, type Chapter, type ChapterStart, type Moment, type Tone } from './story.ts';
 import { STRIP_METRICS, type StripMetric } from './strip.ts';
 
 export interface DayIn { day: number; v: Record<string, number>; start?: boolean }
@@ -39,14 +40,38 @@ export interface View {
 /** a moment's name in the list (stable while History does not change) */
 export const momentKey = (m: Moment): string => `${m.type}:${m.ids[0] ?? Math.round(m.day)}`;
 
+/** The day record with a new piece started at every step a course made. The record starts one only for a treatment or a procedure (the engine's treatmentKey: drugs, stents, shunts), so a step it
+ *  does not know (a tricuspid repair, an angioplasty) was smoothed across, and its "before → after" read a drop of 0.9 where the model dropped 3. A course's step is a step on its day (a
+ *  learner's slider is not: it is continuous, and the trend follows it). */
+function stepped(days: readonly DayIn[], changeDays: ReadonlySet<number>): readonly DayIn[] {
+  const has = new Set(days.filter((d) => d.start).map((d) => d.day)), seen = new Set<number>();
+  return days.map((d, k) => {
+    const first = !seen.has(d.day);
+    seen.add(d.day);
+    return k > 0 && first && changeDays.has(d.day) && !has.has(d.day) ? { ...d, start: true } : d;
+  });
+}
+
 export function viewOf(i: ViewIn): View {
-  const all = i.future.length ? [...i.days, ...i.future] : i.days;
+  const changeDays = new Set(i.tl.entries().filter((e) => e.kind === 'change' && e.step).map((e) => e.day));
+  const joined = i.future.length ? [...i.days, ...i.future] : i.days;
+  // (the record's own calmed lines hold only what it started pieces for: with a change it did not start one for, the series are made here)
+  const first = joined[0]?.day, started = new Set(joined.filter((d) => d.start).map((d) => d.day));
+  const own = !!i.calm && !i.future.length && [...changeDays].every((d) => d === first || started.has(d));
+  const all = stepped(joined, changeDays);
   const series: Record<string, Series> = {}, metrics: StripMetric[] = [];
   const shown = new Set(drawable(i.hidden).map((m) => m.id));
   for (const m of STRIP_METRICS) {
     if (!shown.has(m.id)) continue;
-    const c = i.future.length || !i.calm ? calmedDays(all as DayIn[], m.id) : i.calm(m.id);
+    const c = !own ? calmedDays(all as DayIn[], m.id) : i.calm!(m.id);
     if (c && c.x.length) { series[m.id] = { x: c.x, y: c.mid }; metrics.push(m.id); }
+  }
+  // the readings a card compares that the strip does not draw (the right atrium for a tricuspid repair): a series each, from the same record, not offered as a strip reading
+  for (const id of CARD_READINGS) {
+    const m = MEASURE_OF[id];
+    if (series[id] || !m || !shown.has(id)) continue;
+    const c = !own ? calmedDays(all as DayIn[], m.key) : i.calm!(m.key);
+    if (c && c.x.length) series[id] = { x: c.x, y: c.mid };
   }
   const es = i.tl.entries(), entries = storyEntries(i.tl, i.labelsOf);
   const lastDay = all.length ? all[all.length - 1]!.day : 0;

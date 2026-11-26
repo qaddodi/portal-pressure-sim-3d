@@ -2,11 +2,12 @@
 // snapshot so Undo can always come back to today. The last line of each day the story headlines carries the model at that day's end (Show on the figure). Pure.
 import type { Entry } from '../timeline/model.ts';
 import type { Baked } from './types.ts';
+import { eventDetail } from '../timeline/event-words.ts';
 
 export function entriesOf(b: Baked, name: string): Omit<Entry, 'id'>[] {
   const es: Omit<Entry, 'id'>[] = b.entries.map((e) => ({
     kind: e.kind, label: e.kind === 'start' ? name : e.label, day: e.day, t: e.t,
-    ...(e.detail ? { detail: e.detail } : {}), ...(e.sev ? { sev: e.sev } : {}), ...(e.evId ? { evId: e.evId } : {}), ...(e.keys ? { keys: e.keys } : {}), ...(e.action ? { action: true } : {}),
+    ...(e.detail ? { detail: e.kind === 'event' ? eventDetail(e.evId, e.detail) ?? e.detail : e.detail } : {}), ...(e.sev ? { sev: e.sev } : {}), ...(e.evId ? { evId: e.evId } : {}), ...(e.keys ? { keys: e.keys } : {}), ...(e.action ? { action: true } : {}),
     ...(e.step ? { step: e.step } : {}),
     ...(e.params !== undefined ? { params: e.params } : {}),
     // (a moment the story headlines: the model at its day's end, to show on the figure; the past, so Undo walks past it)

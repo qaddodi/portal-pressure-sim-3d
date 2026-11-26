@@ -9,6 +9,7 @@ import { historyOf } from '../histories/meta.ts';
 import { useCase } from './store.ts';
 import { shortName, type PassNote } from './words.ts';
 import type { Stop } from './types.ts';
+import { setStopSource, stopReadsOf, type StopReads } from './stop-read.ts';
 
 export interface CaseView {
   v: View;
@@ -48,3 +49,13 @@ export function useCaseView(): CaseView | null {
   const id = useCase((s) => s.id), stops = useCase((s) => s.stops);
   return useMemo(() => (!id || !stops[0] ? null : caseViewOf(storyOf(id, stops[0]), stops)), [id, stops]);
 }
+
+/** The readings the stop's card names, for every Tests card: the same numbers as its "that day" line (stop-read.ts). Only while the case waits at a stop whose story is kept; the same object for the same stop. */
+let stopKept: { v: View; day: number; reads: StopReads } | null = null;
+setStopSource(() => {
+  const s = useCase.getState(), first = s.stops[0], stop = s.stops[s.at], v = first ? kept.get(first) : undefined;
+  if (s.phase !== 'stop' || !stop || !v) return null;
+  if (stopKept && stopKept.v === v && stopKept.day === stop.day) return stopKept.reads;
+  stopKept = { v, day: stop.day, reads: stopReadsOf(v.series, stop.day) };
+  return stopKept.reads;
+});
