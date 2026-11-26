@@ -58,4 +58,3 @@ export function commandWork(env: Env, group: string, title: string): Work | null
 export function commandOffered(group: string, title: string): boolean { const c = NAMES.get(`${group}/${title}`); return !c || c.when(currentParams()); }  // (the take-downs read `P?.`, so no patient offers none of them)
 /** Whether a command of the Change or Treat group does its 2D work here (for the parity claims). */
 export const isOrderCommand = (group: string, title: string): boolean => NAMES.has(`${group}/${title}`);
-export const ORDER_WORDS = TREAT_WORDS;

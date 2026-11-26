@@ -33,9 +33,6 @@ export function turnScenePt(x: number, y: number, rr: number, out: [number, numb
   return out;
 }
 
-/** Half the map's extent in the scene (width, height), wide and upright: what the camera shot must keep in the room. */
-export const MAP_HALF_WIDE: readonly [number, number] = [(VB_CIRC[2] * MAP_K) / 2, (VB_CIRC[3] * MAP_K) / 2];
-export const MAP_HALF_UPRIGHT: readonly [number, number] = [MAP_HALF_WIDE[1], MAP_HALF_WIDE[0]];
 
 /** 2D's circBoost (stage-tubes.js): the map's lines are drawn up to 1.75 times wide when the map is small on screen, `sc` being the map's CSS pixels per map unit (10 / (15 * sc), between 1 and 1.75). */
 export const circBoostOf = (sc: number): number => (sc > 0 ? Math.min(1.75, Math.max(1, 10 / (15 * sc))) : 1.75);

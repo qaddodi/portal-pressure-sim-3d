@@ -74,8 +74,6 @@ class Pic {
   }
 }
 
-/** The figure's height for a card w px wide (the picture's own, written by its width). */
-export const figureHeight = (w: number, o: { labels?: boolean; chart?: boolean } = {}): number => (figLayout(Math.max(200, w), { labels: o.labels !== false, chart: !!o.chart }) as { h: number }).h;
 
 /** The figure as one frame for the stent `st` (charts/stent/model.ts stentState) in a box c.w wide. */
 export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame {

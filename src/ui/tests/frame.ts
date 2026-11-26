@@ -16,5 +16,3 @@ export function useFrame(): EngineFrame | null {
   useEngine((s) => s.frames);
   return latest.frame;
 }
-/** The patient's preset id (a change of patient is a jump: a pane clears what it kept). */
-export const usePresetId = (): string | null => useEngine((s) => s.presetId);

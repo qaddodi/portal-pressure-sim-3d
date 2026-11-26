@@ -11,8 +11,6 @@ export type FlowMarkMode = 'A' | 'B' | 'C' | 'D';
 export const DEFAULT_FLOW_MODE: FlowMarkMode = 'A';
 /** Marks on the vessels a slide does not name, in option B. */
 export const QUIET_AMOUNT = 0.35;
-/** How long option D's marks stay after a change, ms. */
-export const PULSE_MS = 4000;
 export const FLOW_FADE_MS = 180;
 
 /** Mark speed (marks per second, signed) for an engine flow in mL/s along the edge's own direction. The engine's flow ranges from about
@@ -35,39 +33,3 @@ export function targetAmount(mode: FlowMarkMode, named: boolean, pulse: number):
 
 interface Track { obj: CelObject; named: boolean; amount: number }
 
-export class FlowMarks {
-  mode: FlowMarkMode = DEFAULT_FLOW_MODE;
-  private tracks = new Map<string, Track>();
-  private pulseUntil = -Infinity;
-  private pulseStart = -Infinity;
-  private pulse = 0;
-
-  constructor(vessels: readonly CelObject[]) {
-    for (const o of vessels) if (o.edge) this.tracks.set(o.edge.id, { obj: o, named: false, amount: 0 });
-  }
-
-  setMode(mode: FlowMarkMode): void { this.mode = mode; }
-
-  /** The edge IDs the slide talks about, plus the picked vessel. */
-  setNamed(ids: Iterable<string>): void {
-    const set = new Set(ids);
-    for (const [id, t] of this.tracks) t.named = set.has(id);
-  }
-
-  /** Option D: a change happened (a preset, a slider, a treatment). */
-  trigger(nowMs: number): void { this.pulseStart = nowMs; this.pulseUntil = nowMs + PULSE_MS; }
-
-  /** Fades each vessel's marks toward its target. Returns true while marks are showing or fading, so the clock keeps drawing. */
-  step(nowMs: number, dtMs: number): boolean {
-    this.pulse = nowMs >= this.pulseUntil ? 0 : Math.min(1, (this.pulseUntil - nowMs) / 1000, (nowMs - this.pulseStart) / FLOW_FADE_MS);
-    const k = Math.min(1, dtMs / FLOW_FADE_MS);
-    let active = false;
-    for (const t of this.tracks.values()) {
-      const goal = targetAmount(this.mode, t.named, this.pulse);
-      t.amount = Math.abs(goal - t.amount) <= k ? goal : t.amount + Math.sign(goal - t.amount) * k;
-      t.obj.setFlow(t.amount, this.mode === 'C');
-      if (t.amount > 0.001) active = true;
-    }
-    return active;
-  }
-}

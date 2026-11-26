@@ -69,7 +69,6 @@ export function smoothRoute(pts: P2[], rad: number[], marks: number[]): { P: P2[
 
 /** The route kinds this module lays (the 2D app's catheter routes; the echoendoscope's are B11's). */
 export const ROUTE_KINDS = ['hvpg', 'tips', 'tipscoil', 'tipscoilin', 'brto', 'brtoC6', 'ivcread', 'ppgperc', 'bato', 'dips'] as const;
-export type RouteKind = (typeof ROUTE_KINDS)[number];
 
 const kept = new Map<string, Route>();
 /** The route of a catheter kind on the drawn courses, laid once per join mode. Null for a kind this module does not lay. */

@@ -26,8 +26,6 @@ const hooks = new Set<Hook>();
 
 /** The patient's settings now (the 2D `store.get().params`). Empty until the first patient is loaded. */
 export function currentParams(): Params { return (patient.params ?? null) as Params; }
-/** A copy no caller can change under the engine. */
-export const paramsCopy = (): Params => structuredClone(currentParams());
 
 let base: { id: string; params: Params } | null = null;
 /** A patient was loaded (a preset, a restart, a deep link): what it came with is a fact about the patient, not a change to undo, and the history starts again from there,

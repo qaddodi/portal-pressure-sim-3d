@@ -51,9 +51,3 @@ export const dockTop = (): number => M.dockBottom + M.timelineH;
 export const viewPillHeight = (): number => M.viewPad * 2 + M.viewBtnH;
 /** `--bot-occ`: the dock and the view pill above it (the 2D app measures it; here it is the same sum). */
 export const botOcc = (): number => dockTop() + M.viewGapAbove + viewPillHeight();
-/** The zoom pill's gap above the screen foot. */
-export const zoomBottom = (): number => botOcc() + M.zoomAboveDock;
-/** The zoom pill's height with its buttons (Rotate folds in only in the Circuit). */
-export const zoomHeight = (buttons: number): number => M.zoomPad * 2 + buttons * M.zoomBtn + (buttons - 1) * M.zoomGap;
-/** The dock's width on a laptop: min(screen − 24, 640). */
-export const dockWidth = (screenW: number): number => Math.min(screenW - 2 * M.dockBottom, M.dockMaxW);

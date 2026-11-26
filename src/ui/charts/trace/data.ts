@@ -15,9 +15,3 @@ export const traceProps = (tool: TraceTool | null | undefined) => ({ bands: tool
 export const chainFor = (slides: readonly TalkSlide[], stateOf: readonly number[], states: readonly (Partial<TalkState> | undefined)[], i: number, tool?: TraceTool | null): TalkPoint[] =>
   talkChain(slides, stateOf, states, i, tool?.since ?? null);
 
-/** The readings and params at each step of a deck, worked out off screen in a chain (the engine host's `sequence`: each step from the one before). Kept per call. */
-export async function talkStates(steps: readonly unknown[]): Promise<TalkState[]> {
-  const { engine } = await import('../../../engine/index.ts');
-  const r = await engine().sequence(steps as unknown[]);
-  return r.map((x) => ({ fp: (x?.fp ?? {}) as Fp, params: x?.params }));
-}

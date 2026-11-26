@@ -56,7 +56,6 @@ export interface Plan {
   bar: BarPlace;
 }
 
-export const STRIP_H = 48;
 const GAP = 16;       // room kept between a card and the figure's free rectangle
 /** The Back / Next pill (the 2D app's .pz-bar): 44 px tall; back, the count, next, the settings and Exit (an iPhone on its side: the count, the settings and Exit). */
 export const BAR_H = 44;
@@ -66,8 +65,6 @@ export const PILL_W = 272;
 /** An iPhone's pill (Mohammad, 20 Nov: smaller, in the card's lower right corner): 44 px tall (23 Nov: was 32), every button its own 44 px box (deck-ui.css), about this wide. */
 export const BAR_H_PHONE = 44, PILL_W_PHONE = 190, PILL_CORNER = 14;
 export const PILL_W_SIDE = PILL_W_PHONE;   // (iPhone on its side: the phone's own pill, Back, the count, Next, the settings and Exit; a swipe on the instrument tucks it, so the pill moves the talk)
-/** A stacked words card keeps this much of its own foot clear for the pill that stands inside it (2D: the card's bottom is 65 px under its text). */
-export const FOOT_ZONE = 62;
 /** An iPhone's credit stands in a row of its own at the foot of the words card (2D app-05 `.pz-cred`: "no bare spot at 12 px on most slides, 15 Oct"), so a card's words never run under it: the row is part of the card's foot,
  *  the pill and the key stand this much higher, and the card's foot padding (deck-ui.css) is this much deeper. A short phone (600 px tall or less) has no room for the row: there the credit floats (shell/Credit.tsx). */
 export const CRED_ROW = 20;
@@ -96,8 +93,6 @@ export const footEdge = (vp: Viewport, m: number): number => vp.h - Math.max(m, 
  *  stands under it (SIDE_GAP between) and bleeds off the screen's foot; a swipe up slides both up until the instrument is the one centred. A card is never taller than the room that leaves its neighbour's
  *  PEEK px showing at the edge it bleeds off (that edge is what tells the reader the other card is there). The figure has the rest of the screen to the right. */
 export const SIDE_GAP = 12, PEEK = 36, SIDE_PILL_GAP = 10;
-/** Room kept clear of the card's foot for the credit (a 12 px line standing 11 px up). */
-export const CRED_SIDE = 22;
 export function sideBox(vp: Viewport) {
   const w = sideColW(vp.w);
   const left = Math.max(vp.safe.left, 10), right = vp.w - Math.max(vp.safe.right, 10);

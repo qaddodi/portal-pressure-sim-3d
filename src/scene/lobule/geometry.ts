@@ -15,7 +15,6 @@ export type P2 = [number, number];
 /** What a course is. pv/ha/bd/lv/cv are seen end-on in the 2D picture and run along the lobule's axis in 3D. */
 export type TubeKind = 'pv' | 'ha' | 'bd' | 'lv' | 'in' | 's0' | 's1' | 's2' | 'an' | 'cv' | 'tw' | 'lt' | 'ly';
 export const AXIAL_KINDS: ReadonlySet<TubeKind> = new Set(['pv', 'ha', 'bd', 'lv', 'cv']);
-export const BLOOD_SINUS: ReadonlySet<TubeKind> = new Set(['s0', 's1', 's2', 'an']);
 
 export interface Course {
   id: number;
@@ -286,5 +285,3 @@ export function* buildLobuleSteps(seed = 7, opts: { bend?: boolean } = {}): Gene
   return { R: 1, rs0, rsN, rcv0, rt, courses, triads, corners: C, cells, stellate, septa, joins };
 }
 
-/** Courses of one or more kinds. */
-export const ofKind = (net: LobuleNet, ...kinds: TubeKind[]): Course[] => net.courses.filter((c) => kinds.includes(c.kind));

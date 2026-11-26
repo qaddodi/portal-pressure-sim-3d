@@ -4,14 +4,7 @@ import { fmt, shown, tile, NOT_SHOWN, type Fingerprint } from '../fmt.ts';
 
 export const CRITERIA_MAX = 4;
 
-export interface RowIn {
-  text: string; note?: string; lit?: boolean; met?: boolean; cut?: string; and?: string;
-  key?: string; op?: Op; value?: number;
-  /** what the live row's one criterion is called when it is only part of a rule ("protein criterion": the tick then says "protein criterion met ✓", not that the patient meets the rule) */
-  says?: string;
-}
 export type Op = '>=' | '>' | '<=' | '<';
-export type RowAs = string | RowIn | [string, string, Op, number];
 
 export interface Row {
   text: string;

@@ -43,7 +43,6 @@ export const CATH_EDGE_MIX = 0.62, CATH_EDGE_A = 0.55;
 export const catheterSoftHex = (t: DeviceTokens, mix = CATH_EDGE_MIX): string => mixHex(t.polyEdge, t.poly, mix);
 export const CATH_EDGE: EdgeFn = { colour: ({ t }) => catheterSoftHex(t), a: CATH_EDGE_A };
 export const BALLOON_EDGE: EdgeFn = { colour: ({ t }) => mixHex(t.polyEdge, t.nylon, 0.55), a: 1 };
-export const MARKER_EDGE: EdgeFn = { colour: ({ t }) => catheterSoftHex(t, 0.5), a: 0.6 };
 
 /** The Doppler head's inner line (--dop-head-ink: white on the light looks, black on the dark ones), 1.6 px on the body and 1.4 px on the face (app-06-plate.css .dpr-body, .dpr-face). */
 export const DOP_INK: EdgeFn = { colour: ({ t }) => t.dopHeadInk };

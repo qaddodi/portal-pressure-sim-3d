@@ -40,5 +40,3 @@ export function marksOf(entries: readonly EntryIn[], labelsOf: (params: unknown)
   return { lines, meds: [...bars.values()] };
 }
 
-/** the days a record covers, so a bar that opened before the first reading starts at the left edge */
-export const clampSpan = (s: Span, a: number, b: number): Span | null => { const to = s.to ?? b; return to < a || s.from > b ? null : { from: Math.max(a, s.from), to: s.to == null ? null : Math.min(b, s.to) }; };

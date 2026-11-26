@@ -164,5 +164,3 @@ function build(): Map<string, CircuitCourse> {
 /** Every drawn vessel's courses, by edge ID. */
 export const COURSES: ReadonlyMap<string, CircuitCourse> = build();
 
-/** The map's own limits in the scene: where the unturned map's plate lies. */
-export const MAP_PLATE = { w: VB_CIRC[2] * MAP_K, h: VB_CIRC[3] * MAP_K } as const;

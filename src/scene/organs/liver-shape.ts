@@ -12,8 +12,6 @@ import { clock } from '../../clock/frame.ts';
 export const NODULE_HEIGHT = 0.011;
 /** How far a nodule at the liver's rim stands out of its outline at full scarring, scene units (about 4 units of the 2D figure: a scalloped edge, never inward, so the vessels keep their margin). */
 export const RIM_HEIGHT = 0.014;
-/** The nodule bump (0..1) at a point of the 2D plane: 1 at the middle of a nodule, 0 on a wall (liver-texture.ts). */
-export const noduleBump = noduleBumpAt;
 /** The pale fibrous septum (0..1) at a point of the 2D plane; the shader draws it per pixel from the baked texture, this is the same number for the tests. */
 export const septumAt = (x: number, y: number): number => surfaceAt(x, y).sep;
 

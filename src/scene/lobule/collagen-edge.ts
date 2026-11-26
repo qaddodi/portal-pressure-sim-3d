@@ -6,10 +6,6 @@ import { GROW_H, TAU_LO, TAU_MAX, TAU_SPAN } from './growth.ts';
 
 /** The plate's side in pixels and its half side in lobule radii (plate.ts PLATE_PX and PLATE_BOX: tests/collagen-cords.test.ts holds them equal; not imported here so the arrival times stay free of three). */
 export const EDGE_PLATE_PX = 2048, EDGE_BOX = 1.22;
-/** The painter's passes (lobule-paint.generated.js PASS_K) are 2.1, 1.45 and 1 x a band's width ACROSS. The arrival times reach the middle pass: every pixel the painter's septum covered has its time. */
-export const K_OUT = 2.1, K_MID = 1.45, K_IN = 1;
-/** Plate px past a body that a texel is kept (the one pixel of anti-aliasing and a texel of linear filtering). */
-export const E_LO = -3;
 
 const clamp = (x: number, a: number, b: number): number => Math.min(b, Math.max(a, x));
 

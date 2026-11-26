@@ -80,8 +80,6 @@ export const varixDOfSize = (site: 'VAR' | 'GV', size: number): number => VARIX_
 /** How far the varices have grown (store.js varixGrowth): 0 at the 2.5 mm cut-off, 1 at about 5.5 mm; none when absent. */
 export const varixGrowth = (present: boolean, d: number | undefined): number => (present && Number.isFinite(d) ? clamp(((d as number) - 2.5) / 3, 0.2, 1) : 0);
 
-// ---- the coil of one collateral ----
-export const COIL_MAX = 5;
 export const isCoiling = (id: string, kind: string, spontaneous: boolean): boolean => kind === 'collateral' && !spontaneous && !STRAIGHT_COLL_2D.has(id);
 
 /** How far a collateral is open (0 to 1) before its coil begins to come on, and how far it is open when the coil has come on whole (the 2D rule's coil strength at that opening, 1.5 + 3.5 shown). */

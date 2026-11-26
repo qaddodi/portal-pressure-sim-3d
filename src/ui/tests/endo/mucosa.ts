@@ -28,8 +28,6 @@ export function mottlePatches(): readonly Patch[] {
   }
   return patches;
 }
-/** A patch's footprint: its radius in units of the lumen's radius (the cell's own size, a little over so neighbours blend), at the screen radius rho. */
-export const patchRadius = (rho: number) => rho * (TAU / AN) * 0.62;
 
 // ── the vessel net ──
 const n1At = (th: number, z: number) => { const u = th / TAU; return nz(u * 36 + 0.6 * nz(u * 9, z * 1.1, 9), z * 1.6, 36); };

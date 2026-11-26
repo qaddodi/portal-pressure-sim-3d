@@ -89,7 +89,6 @@ const TABLE: Feature[] = [
 ];
 
 export const FEATURES: ReadonlyMap<string, Feature> = new Map(TABLE.map((f) => [f.id, f]));
-export const BATCH_OF_FEATURE = (id: string) => FEATURES.get(id)?.batch ?? null;
 
 /** Stations the 3D labels know now; a slide that names another has a hook for it (batch B6 adds stations as decks come over). */
 const STATION_IDS = new Set(STATIONS.map((s) => s.id));
@@ -143,5 +142,3 @@ export function readiness(s: CopiedSlide): Readiness {
   return { present: true, wired: open.length === 0 && gaps === 0, needs, open };
 }
 
-/** The lens ids a slide may ask for (the 2D names; the scene has all but a few). */
-export const knownLens = (id: string) => (LENS_IDS as readonly string[]).includes(id);

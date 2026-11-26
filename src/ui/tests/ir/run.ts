@@ -142,8 +142,6 @@ export function resetHvpg(): void {
   syncPhase(); bump();
 }
 
-// ── a treatment played on the anatomy (the Watch row) ──
-export const procState = () => ({ kind: R.procKind, step: R.procStep });
 export function playProc(kind: string): void {
   if (clock.now() - R.playT < 600 || busy()) return;
   R.playT = clock.now();

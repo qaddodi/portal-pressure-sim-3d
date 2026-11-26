@@ -22,8 +22,6 @@ export const cellCap = (phone: boolean): number => (phone ? CELL_CAP.phone : CEL
 export const MIN_RADIUS = 2;
 /** The fewest cells a drawn vessel keeps in its row, so a small vein still shows moving blood. */
 export const MIN_PER_EDGE = 2;
-/** A cell's widest diameter in CSS px: the biggest veins take bigger cells no further. */
-export const MAX_CELL_CSS = 7;
 
 /** The figure's units to a scene unit: the vessels' lengths and radii are held in the 2D figure's units (a scene length times this). */
 export const UNITS = 300;
@@ -33,8 +31,6 @@ export const DESIGN_HEADROOM = 1.5;
 /** The flow below which a vessel counts as not flowing (flow.ts markSpeed: 0.05 mL/s). */
 export const NO_FLOW = 0.05;
 
-/** A cell's diameter in 2D units on a vessel of radius `r`: 0.9 of the radius, never over MAX_CELL_CSS (the shader's own rule, in device px). */
-export const cellDiameter = (r: number): number => Math.min(0.9 * r, MAX_CELL_CSS);
 
 /** The flow (mL/s) at which a vessel shows all its slots, from its resting flow in the topology. */
 export const designFlow = (restQ: number): number => DESIGN_HEADROOM * Math.max(Math.abs(restQ), 1);

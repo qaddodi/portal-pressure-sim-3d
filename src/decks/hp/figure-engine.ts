@@ -6,11 +6,6 @@ import { NODES, EDGES } from '../../engine/hales/portal/topology.js';
 
 const NODE_AT = new Map<string, number>((NODES as unknown as ([string] | { id: string })[]).map((n, i) => [Array.isArray(n) ? n[0] : (n as { id: string }).id, i]));
 
-/** The filtered pressure (mmHg) at a topology node in the newest frame, or null before a frame or for an unknown node. */
-export function nodePressure(node: string): number | null {
-  const f = latest.frame, i = NODE_AT.get(node);
-  return f && i !== undefined ? (f.Pf?.[i] ?? null) : null;
-}
 
 /** A vessel's index in the engine's edge order (the texel of the vessel data). */
 export { indexOf as edgeIndex };

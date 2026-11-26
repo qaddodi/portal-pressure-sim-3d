@@ -29,8 +29,6 @@ export const INSTRUMENTS: readonly InstrumentEntry[] = [
 ];
 
 export const instrumentOf = (kind: unknown): InstrumentEntry | undefined => INSTRUMENTS.find((x) => x.kind === kind);
-/** Whether the kind plays from a slide end to end (a readiness flag may flip only for these). */
-export const instrumentPlays = (kind: string): boolean => instrumentOf(kind)?.status === 'plays';
 /** The keys of a slide's tool no entry of its kind reads (empty when every option is handled). */
 export const unhandledOptions = (tool: Rec): string[] => {
   const e = instrumentOf(tool.kind);

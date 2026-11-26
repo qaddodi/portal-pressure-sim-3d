@@ -54,5 +54,4 @@ export function plate(deck: CopiedDeck): Plated {
   return { deck, steps: stepsOf(deck.slides), stateOf: stateOf(deck.slides), plates };
 }
 
-export async function loadPlated(id: AgId): Promise<Plated> { return plate(await loadAgDeck(id)); }
 export type { ShotSpec };

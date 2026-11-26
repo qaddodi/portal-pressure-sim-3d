@@ -35,7 +35,6 @@ function ellip(s: string, w: number, size: number, weight: number): string {
   return `${t}…`;
 }
 
-export interface FluidBuild { frame: Frame }
 
 /** The fluid balance card for a width: f the balance, forces the sinusoid wall's pressures (null: none yet). Pure. */
 export function fluidFrame(f: Fluid | null, forces: Forces | null, c: ChartCtx, o: FluidOpts = {}): Frame {

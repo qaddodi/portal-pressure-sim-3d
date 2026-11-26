@@ -23,7 +23,6 @@ export function frameBegin(info: InfoLike): void { info.autoReset = false; info.
 export function frameEnd(info: InfoLike): void { latest = readStats(info); }
 /** The last frame's numbers (null before the first frame). */
 export const renderStats = (): RenderStats | null => latest;
-export const resetRenderStats = (): void => { latest = null; };
 
 /** A frame whose gap is over this while its own work is under CPU_MS is waiting on the GPU or the compositor, not on the scripts. */
 export const WAIT_GAP_MS = 20, CPU_MS = 8;

@@ -588,15 +588,6 @@ export function dustStrip(yr: number, zr: number, yc: number, rm: number): [numb
 
 // ---- the JS twins (tests/b3-dust.test.ts reads them against the numbers) -------------------------------------------------------------------------------------------------------------------------------------
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
-/** The twin of dG. */
-export function dustG(x: number, W: number): number { const xx = Math.min(W, Math.max(0, x)), t = xx / W; return xx - W * (t ** 3 - 0.5 * t ** 4); }
-/** The twin of dEnd: the integral along a vessel of length L of the ramp 1 - smoothstep(d / W), d the distance to the nearer end. */
-export function dustEndIntegral(a: number, L: number, W: number): number {
-  const x = Math.min(L, Math.max(0, a));
-  return x <= 0.5 * L ? dustG(x, W) : 2 * dustG(0.5 * L, W) - dustG(L - x, W);
-}
-/** The ramp itself (the shader's w). */
-export function dustEndRamp(a: number, L: number, W: number): number { const d = Math.min(a, L - a), t = clamp01(d / W); return 1 - t * t * (3 - 2 * t); }
 
 /** The twin of the dust's place along a vessel (dustField's `ae`): the particle of lattice cell `jj` (a hash `h1` in it, ring offset `fk`), on a stream of lattice spacing `Pf` at distance `flowD`, ring pace `sp`,
  *  seen from a vessel whose arc is se = A0 + Bm s along the stream. A vessel the blood runs on into has A0 and Bm of the chain (blood/chain.ts), so its particle is the parent's, carried on. */

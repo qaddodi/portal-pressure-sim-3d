@@ -91,8 +91,6 @@ export function startInOrganShare(id: string, path: readonly P2[]): number {
   return whole > 0 ? 1 - len(path) / whole : 0;
 }
 
-/** The organ a vessel starts in, if it does. */
-export const startOrgan = (id: string): string | null => START_IN_ORGAN[id]?.organ ?? null;
 
 /** The hepatic artery is one tree (Mohammad, 20 Nov: "hepatic artery is not connected to its branches"): the proper hepatic artery runs beside the portal trunk to the hilum, where it splits at a real junction F
  *  (its own last point, the node the left and right arteries start at) into the left one, which runs on under the left portal vein, and the right one, which passes behind the portal bifurcation (a Y cannot reach both arms of another Y without it) to run on over the right portal vein. Each fades out into the liver alongside its portal branch.
