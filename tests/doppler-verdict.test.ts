@@ -10,6 +10,7 @@ import { PROBES } from '../src/ui/tests/doppler/copied/doppler-tables.copied.js'
 import { useDopplerProbe } from '../src/ui/tests/doppler/probe-state.ts';
 import { EDGES } from '../src/engine/hales/portal/topology.js';
 import { patchVerdict } from '../scripts/doppler-verdict-patch.mjs';
+import * as PHASIC from '../src/ui/tests/doppler/phasic-cut.js';
 
 const EN = (EDGES as unknown[]).length;
 /** A frame with no stent in (a TIPS or DIPS in lifts the main portal vein's range to "30 and up"). */
@@ -90,4 +91,21 @@ test('a fresh copy from 2D keeps the departures (the kept file is the patch appl
   assert.match(kept, /BEAT_PICK\.pi = windowPi\(/);
   assert.throws(() => patchVerdict(kept), /not where the verdict departure expects it/, 'the patch finds its places once, in 2D\'s text only');
   assert.match(readFileSync(new URL('../scripts/copy-b11-doppler.mjs', import.meta.url), 'utf8'), /patchVerdict\(body\)/);
+});
+
+test('the Pulsatility tile and the phasicity class are one number: the tile reads what the class is cut from, so near the cut they cannot disagree', () => {
+  const { PORTAL_PHASIC_PI } = PHASIC;
+  let sawBoth = new Set<string>();
+  for (const damped of [0, 1, 2, 3]) {
+    for (const mean of [14, 18, 26]) {
+      const r = read('PV_TRUNK', mean, (b) => (b % 4 < damped ? 1 : 3), 9 + damped * 0.3);
+      const tile = Number(r.tiles.find((t) => t.k === 'Pulsatility')!.v);
+      const cls = r.pattern;
+      // the tile is printed to two places: compare against the cut with that rounding
+      const expect = tile > 0.5 ? 'Pulsatile' : tile > PORTAL_PHASIC_PI + 0.005 ? 'Phasic' : tile < PORTAL_PHASIC_PI - 0.005 ? 'Monophasic' : cls;
+      assert.equal(cls, expect, `mean ${mean}, ${damped} damped beats in four: tile ${tile} beside "${cls}"`);
+      sawBoth.add(cls);
+    }
+  }
+  assert.ok(sawBoth.has('Phasic') && sawBoth.has('Monophasic'), 'both classes were exercised');
 });
