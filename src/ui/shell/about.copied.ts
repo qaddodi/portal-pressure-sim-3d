@@ -953,7 +953,7 @@ export const ABOUT: Page = {
      "class": "sub"
     },
     "k": [
-     "© 2026 Mohammad Almeqdadi. All rights reserved. Fonts: Inter, JetBrains Mono and Source Serif 4 under the SIL Open Font License, served from this site. Anatomy, pathology art and icons were drawn for this project."
+     "© 2026 Mohammad Almeqdadi, MD. All rights reserved. Fonts: Inter, JetBrains Mono and Source Serif 4 under the SIL Open Font License, served from this site. Anatomy, pathology art and icons were drawn for this project."
     ]
    },
    {

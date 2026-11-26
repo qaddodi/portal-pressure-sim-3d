@@ -4,10 +4,16 @@ import { glslFiles } from './scripts/gl-scan.mjs';
 import { withCsp } from './scripts/csp.mjs';
 import { fadeHidden } from './scripts/fade-hidden.mjs';
 import { appCssTags, appCssOrder } from './scripts/app-css.mjs';
+import { withCredit } from './scripts/credit.mjs';
 
 /** The built page's Content-Security-Policy (scripts/csp.mjs). Build only: the dev server's own inline scripts would be refused. */
 function csp(): Plugin {
   return { name: 'csp', apply: 'build', transformIndexHtml: { order: 'post', handler: (html) => withCsp(html) } };
+}
+
+/** The page's copyright line from its one source (scripts/credit.mjs): in the dev server and the build alike. */
+function credit(): Plugin {
+  return { name: 'credit', transformIndexHtml: { order: 'pre', handler: (html) => withCredit(html) } };
 }
 
 /** The page's entry (src/entry.ts) fetches the app (src/main.tsx) by a dynamic import, so the page's own tags do not name it. This adds them: a modulepreload for the app's chunk and every chunk it statically imports, and
@@ -55,7 +61,7 @@ export function vendorChunk(id: string): string | undefined {
 // `base: './'` so the built site works at any address: the repo's Pages URL, a preview folder, or a local server.
 export default defineConfig({
   base: './',
-  plugins: [react(), glModules(), appPreload(), csp()],
+  plugins: [react(), credit(), glModules(), appPreload(), csp()],
   // the 2D stylesheets' `:not([hidden])` also means "not faded off" here (scripts/fade-hidden.mjs; Plan 42)
   css: { postcss: { plugins: [fadeHidden()] } },
   worker: { format: 'es' },

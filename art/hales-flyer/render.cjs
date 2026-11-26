@@ -4,6 +4,7 @@
 // Needs Playwright's Chromium (require('playwright')). It refuses to write the PDF when a rule breaks:
 //   - the words "2D" and "3D" appear nowhere (page text, alt text, circuit labels): there is one engine and one app (owner, 26 Nov 2026);
 //   - no text runs into a page's footer and no two blocks overlap.
+// The copyright line is not typed in flyer.html: every <b data-credit> gets RIGHTS from scripts/credit.mjs (its one source, src/ui/shell/words.ts).
 // It also writes built-from.json, the sha256 of every source, so tests/hales-flyer.test.ts can tell a PDF that was not rebuilt after an edit.
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -21,7 +22,9 @@ const pngDir = pngAt > 0 ? process.argv[pngAt + 1] : null;
 (async () => {
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: 768, height: 1152 }, deviceScaleFactor: 2 });
+  const { RIGHTS } = await import(path.join(here, '../../scripts/credit.mjs'));
   await p.goto('file://' + html);
+  await p.evaluate((line) => document.querySelectorAll('[data-credit]').forEach((e) => { e.textContent = line; }), RIGHTS);
   await p.waitForTimeout(400);
   const bad = await p.evaluate((src) => {
     const re = new RegExp(src, 'i');
@@ -65,7 +68,7 @@ const pngDir = pngAt > 0 ? process.argv[pngAt + 1] : null;
   await p.pdf({ path: pdf, width: '8in', height: '12in', printBackground: true });
   await b.close();
   const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(path.join(here, f))).digest('hex');
-  const from = Object.fromEntries(SOURCES.map((f) => [f, sha(f)]));
+  const from = { ...Object.fromEntries(SOURCES.map((f) => [f, sha(f)])), credit: RIGHTS };
   fs.writeFileSync(path.join(here, 'built-from.json'), JSON.stringify(from, null, 2) + '\n');
   console.log('ok: public/about/hales-engine.pdf');
 })();
