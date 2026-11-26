@@ -653,7 +653,6 @@
  "src/ui/histories/play.ts": 2,
  "src/ui/histories/render.ts": 1,
  "src/ui/histories/types.ts": 3,
- "src/ui/history/HistoryList.tsx": 2,
  "src/ui/keys/useKeys.ts": 2,
  "src/ui/layout/device.ts": 5,
  "src/ui/layout/plan.ts": 21,

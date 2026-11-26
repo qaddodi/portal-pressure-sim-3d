@@ -13,5 +13,13 @@
 - **A tap or a fluid is a step of the day record** (`feed.markStep`, `send.ts STEPS`), as a treatment is: the calmed ascites lane drops at the tap instead of smoothing it away (found by the story; the Over time chart had the same smoothing).
 - **A move to a moment is a switch.** The figure's numbers roll to the moment's as they do when a patient is opened (`switchBegins`, `switchLands` on the restored state's first frame).
 
+## The panel (step 3, `history/HistoryList.tsx`, `timeline/strip.ts`, `timeline/story-view.ts`)
+- History's panel is the timeline (no second list): oldest first, chapter headings that stick (solid, the card's own surface, no blur), the strip above. Mac and iPad on its side: History's place at the right, about 460 px wide and as tall as the room; iPad and iPhone upright: the phone sheet from the foot; iPhone on its side: the one column at the left (38 %, 290 to 360 px), where the strip scrolls away with the list.
+- The strip is one reading (PPG, HVPG, ascites or shunt; a gradient not yet measured is not offered) along the paced axis of Over time, the chapters as faint bands, a line at each key moment, the medicine bars, and the days after the figure's moment veiled. It is a frame for the chart GPU, made again only when the story or the reading changes.
+- Scrolling moves only the playhead (a transform on the one clock) to the card under the chapter heading (an IntersectionObserver: no scroll handler, no layout read). The figure moves only on a card's "Show on the figure", which restores that day's end through the switch. On an upright iPad or iPhone the sheet closes so the figure shows; beside the figure it stays open.
+- The panel opens on the moment the figure is at, after the fonts are in, scrolled once with no glide. The moments ahead of it are dimmed under "Undone: Redo brings these back".
+- No round mark beside the words: the rail beside a key day takes the day's colour.
+- **A deliberate difference from the 2D app**: 2D's History lists every entry newest first in a small popover. The words (Go back here, Compare with now, the empty note) are 2D's; the order, the grouping and the strip are this design's (Mohammad, 26 Nov).
+
 ## Known difference
 - A restored reading can print 0.1 apart from the day record when it sat on a rounding edge: the engine's readings dead band (`holdShown`) starts over on a restore. The fix belongs in hales-engine (keep the dead band in the snapshot).
