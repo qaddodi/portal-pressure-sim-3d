@@ -105,6 +105,9 @@ test('tables: an arrow wears the colour its step has on every table (one arrow a
   assert.equal(saag(2).arrow, 1); assert.equal(saag(2).rate, 'mid', 'a SAAG over the cut-off is one arrow, amber');
   assert.equal(saag(1).arrow, -1); assert.equal(saag(1).rate, null, 'under it the arrow is quiet');
   assert.equal(saag(0).rate, null, 'a reference SAAG under the cut-off is quiet');
+  // (the ascitic protein is the same rule: tp 3.2 is over its cut-off, so one amber arrow, and under it quiet)
+  const prot = (n: number) => m.rows[n]!.cells.find((c) => c.k === 'tp')!;
+  assert.equal(prot(2).arrow, 1); assert.equal(prot(2).rate, 'mid', 'a protein over the cut-off is one arrow, amber, like the SAAG');
   const heavy = tableModel(spec, [mk(2.4, 0, true), ...rows.slice(1)]);
   assert.equal(heavy.rows[0]!.cells.find((c) => c.k === 'saag')!.rate, 'mid', 'a reference over the cut-off wears the same one-arrow colour');
 });
