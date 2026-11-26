@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { NODES } from '../src/engine/hales/portal/topology.js';
 import { paletteOf } from '../src/ui/charts/palette.ts';
 import { blend, compatible } from '../src/ui/charts/morph.ts';
-import { profileFrame, newLock, itemsOf, smoothPoly, pressureColour, PATHS } from '../src/ui/tests/profile/model.ts';
+import { profileFrame, formOf, newLock, itemsOf, smoothPoly, pressureColour, PATHS } from '../src/ui/tests/profile/model.ts';
 import { readings } from '../src/ui/tests/profile/readings.ts';
 import { hvpgSev } from '../src/engine/hales/portal/pressure-cuts.js';
 import type { TextShape } from '../src/ui/charts/scene.ts';
@@ -197,4 +197,42 @@ test('the screen reader hears where the HVPG comes from, and nothing when the br
   assert.match(s, /wedged hepatic venous pressure 6\.9 minus free hepatic venous pressure 4\.6/);
   assert.equal(bracketSummary({ metrics: { fhvp: 4.6 } }), '');
   assert.equal(bracketSummary({ metrics: { whvp: 6.9, fhvp: 4.6 }, hidden: new Set(['trueHVPG']) }), '');
+});
+
+test('the layout is decided by the room alone: the same box gives the same form for every pressure, compare, hidden readout and history (B7, iPhone Along the circuit)', () => {
+  const cases = [
+    input(),
+    input({ P: pressures({ INT: 31, CONF: 30, RPV: 29, SIN_R: 26, CV_R: 12 }), snap: pressures() }),
+    input({ P: healthy, metrics: { whvp: 5, fhvp: 3.5, hvpg: 1.5, pv: 7, ivc: 3, ppg: 4 } }),
+    input({ P: pressures({ CONF: 9, RPV: 9, SIN_R: 9, CV_R: 9, RHV: 9 }) }),
+    input({ metrics: { ...metrics, whvp: undefined } as unknown as Record<string, number | undefined> }),
+    input({ hidden: new Set(['trueHVPG']) }),
+  ];
+  const sizes: [number, number][] = [];
+  for (const w of [300, 358, 390, 520, 700]) for (let h = 90; h <= 330; h += 8) sizes.push([w, h]);
+  const seen = new Set<string>();
+  for (const [w, h] of sizes) {
+    // one chart kept across every case in turn (its history), and a fresh one for each case: all give one form
+    const kept = newLock();
+    for (const c of cases) {
+      const hid = (c as { hidden?: Set<string> }).hidden ?? null;
+      const want = formOf(PATHS[0]!, w, h, hid, pal);
+      assert.equal(profileFrame(c, { w, h, pal }, kept).form, want, `${w}x${h} kept`);
+      assert.equal(profileFrame(c, { w, h, pal }, newLock()).form, want, `${w}x${h} fresh`);
+      seen.add(want);
+    }
+  }
+  assert.deepEqual([...seen].sort(), ['band', 'plot', 'strip'], 'the sweep crosses all three forms');
+  // a chart that was drawn too short and then given its room is the form of that room, and back again
+  const lock = newLock();
+  const order = [[390, 112], [390, 300], [390, 112], [390, 300]] as const;
+  const forms = order.map(([w, h]) => profileFrame(input(), { w, h, pal }, lock).form);
+  assert.deepEqual(forms, [formOf(PATHS[0]!, 390, 112, null, pal), formOf(PATHS[0]!, 390, 300, null, pal), formOf(PATHS[0]!, 390, 112, null, pal), formOf(PATHS[0]!, 390, 300, null, pal)]);
+});
+
+test('a value label with no clear spot never changes the layout: the chart stays in its room\'s form and keeps both brackets', () => {
+  const crowded = input({ P: pressures({ CONF: 9, RPV: 9, SIN_R: 9, CV_R: 9, RHV: 9 }) });
+  const o = profileFrame(crowded, { w: 358, h: 250, pal }, newLock());
+  assert.equal(o.form, formOf(PATHS[0]!, 358, 250, null, pal));
+  if (o.form !== 'strip') assert.ok(words(o.frame).some((t) => t.s === 'PPG '), 'the PPG pill is drawn');
 });
