@@ -211,9 +211,11 @@ test('every sheet placed on the foot is placed again when the case bar comes and
 // (Mac capture, 26 Nov: after a leg was played, paused and played on, the strip ended at the stop and the card lost what followed. The view was made again from the record, which the leg
 //  had moved along. It is kept by the case's first stop, made once a case.)
 test('the case keeps the story it started with', () => {
+  // (the story is made once, from the baked course, when the case starts (case/story.ts) and kept in the case's state: the bar and cards only read it; tests/case-numbers.test.ts)
   const src = readFileSync(new URL('../src/ui/case/view.ts', import.meta.url), 'utf8');
-  assert.match(src, /const kept = new WeakMap<Stop, View>\(\)/);
-  assert.match(src, /caseViewOf\(storyOf\(id, stops\[0\]\), stops\)/);
+  assert.match(src, /useCase\(\(s\) => s\.story\)/);
+  assert.match(src, /caseViewOf\(story, stops\)/);
+  assert.match(readFileSync(new URL('../src/ui/case/run.ts', import.meta.url), 'utf8'), /stops, story, asc, at: 0/);
 });
 
 // B2 (capture 0bc14020, every stop on every device): the played rail ran from the screen or dock edge through the buttons and the "Day N" text. Root cause: the rail was a full-width bar
