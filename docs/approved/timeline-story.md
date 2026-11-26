@@ -1,0 +1,11 @@
+# Approved: the patient's timeline (History as the story of the course)
+
+**Reference:** `/mnt/project-files/mocks/patient-timeline/` (the mock `index.html`, the comparison sheets `renders/sheet-*.png`, the design note `README.md`, the build plan and pre-mortem `plan.md`). Mohammad picked **A** on 26 Nov: the History panel becomes the timeline, oldest first, chapter by chapter, with a strip of the course above it. The list may scroll inside its card on Mac and iPad. Times are day numbers only. The chapter names were approved as drafted in `plan.md`.
+
+## Rules (built so far)
+- **Going back keeps the course (step 1).** Going back to a moment ("Go back here", "Show on the figure") keeps the days after it in the day record as the future, as History keeps its later entries; Redo comes back to the whole course. They go when something new is done at that moment (a change, an action, a jump: `Timeline.truncateFuture` calls `branched`, the feed's `dropFuture`), or when the patient moves on to another day. What the restored model re-raises on the moment's own day (a bleed still in shock) is the moment's state, not news, and does not end the future (`Timeline.addEvents`).
+- **Every moment a history headlines can be shown (step 1).** The generator keeps the model at the end of each day the story headlines (`timeline/story.ts isKeyEntry`: a course step, a change, an event that is dangerous, critical or a bleed brought under control), on the last line of that day. For a bleed that is after the band. These moments are the past (`Entry.past`): they can be shown on the figure, but Undo and Redo walk only the changes made on this page, and the last line "Day N, today" is where Redo comes back to.
+- **A move to a moment is a switch.** The figure's numbers roll to the moment's as they do when a patient is opened (`switchBegins`, `switchLands` on the restored state's first frame).
+
+## Known difference
+- A restored reading can print 0.1 apart from the day record when it sat on a rounding edge: the engine's readings dead band (`holdShown`) starts over on a restore. The fix belongs in hales-engine (keep the dead band in the snapshot).

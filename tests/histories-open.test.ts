@@ -76,9 +76,10 @@ test('the timeline adopts a history: its entries in order, a today line that can
     const last = es[es.length - 1]!;
     assert.equal(last.kind, 'jump'); assert.equal(last.day, b.snap.day); assert.ok(last.snap, 'today carries the model\'s snapshot');
     assert.ok(tl.isLive(es.length - 1), 'the model is at today');
-    assert.equal(tl.canUndo(), false, 'the earlier lines are the past, not states to go back to');
+    assert.equal(tl.canUndo(), false, 'the earlier lines are the past, not changes for Undo to walk');
     assert.equal(tl.count(), es.length - 1);
-    assert.equal(es.filter((e) => e.snap).length, 1);
+    assert.equal(es.filter((e) => e.snap && !e.past).length, 1, 'today is the one moment Undo and Redo walk to');
+    assert.ok(es.some((e) => e.snap && e.past), 'the moments the story headlines can be shown on the figure');
   }
 });
 

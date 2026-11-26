@@ -22,6 +22,8 @@ export interface Entry {
   params?: unknown;
   /** the model could not save this moment: the row says so instead of being skipped by Undo unseen (2D review B4) */
   snapFailed?: boolean;
+  /** a moment of a history that came with the patient (baked): it can be shown again (goTo), but it is the past, not a change of this page's for Undo and Redo to walk */
+  past?: boolean;
 }
 
 export interface EventIn { id: string; title: string; detail?: string; severity?: string; t: number; day: number }
@@ -46,6 +48,8 @@ export interface TimelineHost {
   now(): number;
   later(fn: () => void, ms: number): unknown;
   cancel(handle: unknown): void;
+  /** the later entries were let go (something new was done after going back): the day record lets go of the days after it too */
+  branched?(): void;
 }
 
 /** 2D: timeline.js fmtClock. A day count once days have passed; minutes and seconds (or hours) before. */
@@ -95,7 +99,7 @@ export class Timeline {
   /** entries shown in the History count: every one but the start */
   count(): number { let n = 0; for (const e of this.entries_) if (e.kind !== 'start') n++; return n; }
 
-  private restorable = (i: number) => { const e = this.entries_[i]; return !!e && e.kind !== 'event' && !!e.snap; };
+  private restorable = (i: number) => { const e = this.entries_[i]; return !!e && e.kind !== 'event' && !!e.snap && !e.past; };
   private liveIndex(): number { for (let i = this.entries_.length - 1; i >= 0; i--) if (this.restorable(i)) return i; return -1; }
   private currentIndex(): number { return this.cursor_ >= 0 ? this.cursor_ : this.liveIndex(); }
   /** the entry the model is at now (the History row marked "Back to this moment"), or -1 */
@@ -142,6 +146,7 @@ export class Timeline {
     if (this.cursor_ < 0) return;
     this.entries_ = this.entries_.slice(0, this.cursor_ + 1);
     this.cursor_ = -1;
+    this.host.branched?.();
   }
 
   private push(e: Omit<Entry, 'id' | 't' | 'day'> & { t?: number; day?: number }): Entry {
@@ -199,6 +204,9 @@ export class Timeline {
   /** The model's threshold events: each is an entry (the same event again within 30 s is not, unless critical). */
   addEvents(evs: readonly EventIn[]): void {
     for (const ev of evs) {
+      // (Looking at a moment of the past, the model raises what that moment already was (a bleed still in shock, a clot still there) as its detectors start over from the restored
+      // state. That is the moment's own state, not something new: it must not end the future. An event on another day is the patient moving on, and is recorded.)
+      if (this.cursor_ >= 0 && ev.day === this.entries_[this.cursor_]?.day) continue;
       const now = this.host.now();
       if (this.lastEv[ev.id] != null && now - this.lastEv[ev.id]! < EVENT_REPEAT_MS && ev.severity !== 'critical') continue;
       this.lastEv[ev.id] = now;
