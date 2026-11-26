@@ -35,8 +35,9 @@ test('a lit shader never lights with a view-space normal: n.L is taken in world 
   assert.match(ORGAN_FS, /float lam = dot\(nws, LIGHT\);/);
   // the tubes (vessels, strands, the lobule's): n.L against the world light turned into view axes by the camera's own matrix (a view normal dotted with the view-space light IS the world n.L)
   assert.match(CEL_LIGHT_GLSL, /viewMatrix \* vec4\(CEL_LIGHT, 0\.0\)/);
-  assert.match(VESSEL_FS, /float sT = dot\(n, celLightView\(\)\);/);
-  assert.match(TOON_FS, /float sT0 = dot\(n, celLightView\(\)\);/);
+  assert.match(VESSEL_FS, /float sT = dot\(n, lightD\);/);
+  assert.match(VESSEL_FS, /vec3 lightD = celTubeLight\(vT\);/, 'the tube\'s light is the world light, its slice square to the axis held to a floor (cel-glsl.ts celTubeLight)');
+  assert.match(TOON_FS, /float sT0 = dot\(n, celTubeLight\(vT\)\);/);
   assert.match(TOON_FS, /\(viewMatrix \* vec4\(light, 0\.0\)\)/, 'the shared toon\'s light uniform is the world light turned by the camera');
   // no lit tube takes a SCREEN direction any more
   assert.doesNotMatch(CEL_TUBE_GLSL, /celTubeK|sideS/);

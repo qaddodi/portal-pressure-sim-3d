@@ -39,6 +39,13 @@ export const CEL_STYLE = {
    *  lit-side measure (a 3D tube's is n.L against LIGHT, in the world), opaque and matte: no highlight, no rim light, no specular, no fresnel, no translucent wall, no lumen showing through. The organs and the lobule's tissue keep CEL_BANDS. */
   VESSEL_BANDS: 2,
   VESSEL_STEP_AT: 0.25,
+  /** THE LEAST SLICE OF THE LIGHT A TUBE IS SHADED BY (Mohammad, 26 Nov: "the right portal vein branch has like a weird area of no shadow").
+   *  Across a tube every normal is square to its axis, so n.L is n . (the light's part square to the axis), and that part is sin(angle between the axis and the light) long.
+   *  A tube within about 15 degrees of the world light (the right portal vein's feeder runs up and toward the viewer: 0.97 to 1.0 of the light) has a slice under VESSEL_STEP_AT,
+   *  so n.L never reaches the step anywhere across it: the WHOLE tube is the shade tone, and its lit stripe closes to a blob where the junction's web turns toward the light.
+   *  The slice is therefore never shorter than this (the light's part along the axis is untouched): a tube is always a lit tone and a shade tone, as the cel style says
+   *  (cel-glsl.ts), the stripe on the side the light is on, turning with the axis. 0.6 is the slice of a tube 37 degrees off the light: every tube already past it is exactly as before. */
+  TUBE_LIGHT_MIN: 0.6,
   /** A tube's colour (every vessel, strand and the lobule's vessels): the lens colour is made SATURATED and DEEP before it is cut into its two tones, and the shade is a hue-preserving darker step, never a mix toward white.
    *  SAT: chroma x this about the colour's own grey; LCAP: no tube is lighter than this luminance, nor has a channel above VCAP (a pale end of a ramp is darkened, hue kept);
    *  LCAP_DARK / VCAP_DARK: the same caps on the dark looks (Dark, Navy, Black), where a vessel must stand BRIGHTER than the organs behind it and the ground (Mohammad, 20 Nov: "the anatomy view should be more contrast, it's very basically dark now");
