@@ -43,3 +43,18 @@ export function underDock(i: { vw: number; vh: number; dock: Box; h: number; w: 
   if (at.x < 0 || at.x + i.w > i.vw - 4) return null;
   return footClear(at, i.w, i.h, i.others.filter((q) => q.b > top + 1), 1) ? at : null;
 }
+
+/**
+ * Where the credit stands on a phone held upright when the band under the bottom bar cannot hold it (no home indicator:
+ * an iPhone SE, a phone seen with no safe area, the capture's 390 x 844): one fixed place, the figure's top-left corner
+ * just under whatever the top bar puts over it, never a hunt. The hunt judged the figure's names and cards as they stood
+ * now, so while a case played the line hopped from y 57 to y 330 between two stops and landed on "IVC 4.8" (capture
+ * 0bc14020, B11). The home reads only the screen's chrome (the safe area, the top bar's boxes), which does not move
+ * between stops, and the credit's box is claimed (scene/labels/credit-claim.ts), so the names place around it.
+ * `chips` are the top bar's boxes; one that stands over the line's width pushes it below it. Pure.
+ */
+export function topHome(i: { left: number; top: number; inset: number; gap: number; w: number; h: number; chips: readonly Box[] }): { x: number; y: number } {
+  const x = Math.round(i.left + i.inset);
+  const over = i.chips.filter((q) => q.l < x + i.w + i.gap && q.r > x - i.gap && q.b > i.top);
+  return { x, y: Math.round(Math.max(i.top + i.inset, ...over.map((q) => q.b + i.gap))) };
+}

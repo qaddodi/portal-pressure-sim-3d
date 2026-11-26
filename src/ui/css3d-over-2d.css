@@ -281,3 +281,12 @@ html:root :where(.pz-lapse, .tl-speed, .stage-clock, .fps-counter, .tr-pips, .pz
   background: color-mix(in srgb, var(--site) 16%, transparent); color: color-mix(in srgb, var(--site) 66%, var(--text)); box-shadow: inset 1px 0 0 color-mix(in srgb, var(--text) 14%, transparent);
 }
 .app.pz-hi .pz-tabalso { color: var(--text); }
+
+/* The FibroScan map on a phone's or an upright iPad's Tests sheet gives way to the stiffness bar's words: 2D's rule
+   (app-08-cards.css, the phone sheet) holds it at 180 px, so on a Half sheet (a share of the screen, not 2D's 520 px)
+   the bar's three-line note ran out of the card's foot and its last line was cut. The map is the card's one flexible
+   part (flex 1 1 0, any shape), so it takes what the words leave, never under --fibro-map-min (metrics.ts FIBRO_MAP_MIN,
+   published by room.ts layoutVars). Same media list as the 2D rule, same selector, loaded after it. */
+@media (max-width: 767px), (max-width: 1023px) and (max-height: 500px) and (orientation: landscape), (max-width: 1100px) and (orientation: portrait) {
+  .instrument-workspace.float-ui:not(.side) .fibroscan-box { min-height: var(--fibro-map-min, 120px) !important; }
+}
