@@ -32,6 +32,11 @@ const TURN_MARGIN = 1.15;
 const STEP = 2, ABOVE_OPENING = 6;
 /** How far above the opening (scene units) the tube is eased over to the point it passes through. */
 const ENTRY_LEAD = 0.2;
+/** How far the line runs on past the opening (figure units): the tube's draw and the balloon at its deepest are laid on it, with room to spare. */
+const LINE_BELOW = 150;
+/** Where the balloon is filled deep, measured down the line from the opening (figure units): the stretch whose room steers the tube's way on, and the least room it must have (figure
+  * units) within which a smaller turn is as good. */
+const BALLOON_ZONE = [50, 95] as const, ROOM_TOLERANCE = 1.5;
 
 interface Tube2D {
   pts: [number, number][]; arc: number[]; total: number; final: number; p0Arc: number;
@@ -69,6 +74,33 @@ export function tubeLine(path: Tube2D = tubePath() as Tube2D): TubeLine {
   return line;
 }
 
+/**
+ * The direction the tube goes on in once through the opening: of the turns from the oesophagus's direction (70 degrees at most) the one whose rounded line, as it will be laid on the
+ * tube's own bend radius, has the most
+ * room (on average) all round where the balloon is filled deep (BALLOON_ZONE, figure units from the opening); of those with room within a hair of the best, the smallest turn. The tube
+ * runs along the stomach's wall at the cardia,
+ * which is thin there, so the line is steered by how soon it reaches the roomy lumen, not by a straight ray.
+ */
+function wayOn(j: GeJunction, C: V3, R: number): V3 {
+  const N = j.normal, a: V3 = (() => { const t: V3 = Math.abs(N[0]) < 0.9 ? [0, -N[2], N[1]] : [N[2], 0, -N[0]]; const l = Math.hypot(...t); return [t[0] / l, t[1] / l, t[2] / l]; })();
+  const b: V3 = [N[1] * a[2] - N[2] * a[1], N[2] * a[0] - N[0] * a[2], N[0] * a[1] - N[1] * a[0]];
+  const tries: { d: V3; deg: number; room: number }[] = [];
+  for (let deg = 0; deg <= 70; deg += 5) {
+    const th = (deg * Math.PI) / 180, c = Math.cos(th), sn = Math.sin(th), T = deg ? R * Math.tan(th / 2) : 0;
+    for (let k = 0; k < (deg ? 24 : 1); k++) {
+      const ph = (k / 24) * Math.PI * 2, u = Math.cos(ph) * sn, w = Math.sin(ph) * sn;
+      const d: V3 = [c * N[0] + u * a[0] + w * b[0], c * N[1] + u * a[1] + w * b[1], c * N[2] + u * a[2] + w * b[2]];
+      const corner: V3 = [C[0] + N[0] * T, C[1] + N[1] * T, C[2] + N[2] * T], far = BALLOON_ZONE[1] / U + T;
+      const lay = filletPath([C, corner, [corner[0] + d[0] * far, corner[1] + d[1] * far, corner[2] + d[2] * far]], R, STEP / U), at = arcOf(lay);
+      let sum = 0, n = 0;
+      for (let i = 0; i < lay.length; i++) if (at[i]! * U >= BALLOON_ZONE[0] && at[i]! * U <= BALLOON_ZONE[1]) { sum += j.clearance(lay[i]![0], lay[i]![1], lay[i]![2]); n++; }
+      tries.push({ d, deg, room: n ? sum / n : -1 });
+    }
+  }
+  const best = Math.max(...tries.map((x) => x.room));
+  return tries.filter((x) => x.room >= best - ROOM_TOLERANCE / U).reduce((m, x) => (x.deg < m.deg ? x : m)).d;
+}
+
 function layLine(path: Tube2D, j: GeJunction): TubeLine {
   const C = j.entry, R = (TUBE_MIN_BEND * TURN_MARGIN) / U, base = j.centre;
   // the oesophagus above the opening: the 2D way's samples that are clear above it, in the scene, with the 2D arc lengths, eased over to the point of the opening the tube passes
@@ -82,23 +114,13 @@ function layLine(path: Tube2D, j: GeJunction): TubeLine {
   }
   const last = pts[pts.length - 1]!, opening = cum[cum.length - 1]! + Math.hypot(C[0] - last[0], C[1] - last[1], C[2] - last[2]) * U;
   // from the opening: straight on along the oesophagus's direction, then one arc into the lumen. The corner is placed so the arc begins AT the opening (its tangent length is the leg in).
-  const N = j.normal, D = j.into, cos = N[0] * D[0] + N[1] * D[1] + N[2] * D[2], turn = Math.acos(Math.min(1, Math.max(-1, cos)));
-  const T = turn > 1e-3 ? R * Math.tan(turn / 2) : 0, remain = Math.max(0.01, (path.total - opening) / U);
+  const N = j.normal, D = wayOn(j, C, R), cos = N[0] * D[0] + N[1] * D[1] + N[2] * D[2], turn = Math.acos(Math.min(1, Math.max(-1, cos)));
+  const T = turn > 1e-3 ? R * Math.tan(turn / 2) : 0, remain = LINE_BELOW / U;
   const corner: V3 = [C[0] + N[0] * T, C[1] + N[1] * T, C[2] + N[2] * T], end: V3 = [corner[0] + D[0] * remain, corner[1] + D[1] * remain, corner[2] + D[2] * remain];
   const lay = filletPath([C, corner, end], R, STEP / U);
-  // (its length: along the line from the opening, in figure units, cut at the tube's own length)
-  const tail = arcOf(lay);
-  const body: V3[] = [], at: number[] = [];
-  for (let i = 0; i < lay.length; i++) {
-    const s = opening + tail[i]! * U;
-    if (s > path.total + 1e-6) {
-      // (the sample past the tube's end: the point on the way to it where the tube ends)
-      const k = (path.total - opening - tail[i - 1]! * U) / ((tail[i]! - tail[i - 1]!) * U), a = lay[i - 1]!, b = lay[i]!;
-      body.push([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]); at.push(path.total);
-      break;
-    }
-    body.push(lay[i]!); at.push(s);
-  }
+  // (its length: along the line from the opening, in figure units)
+  const tail = arcOf(lay), body: V3[] = [], at: number[] = [];
+  for (let i = 0; i < lay.length; i++) { body.push(lay[i]!); at.push(opening + tail[i]! * U); }
   const all = [...pts, ...body], allCum = [...cum, ...at];
   // the one rule for every device path: the line is relaxed to the tube's bend radius wherever the laying left it tighter (the join of the 2D way to the fillet; none, normally)
   const smooth = limitBend(all, { minR: R / TURN_MARGIN, pinEnds: true });
@@ -115,6 +137,27 @@ export function lineScene(line: TubeLine, s: number, c: Vector3, t: Vector3): vo
 /** The whole line in the scene, one point a sample (what the bend test walks). */
 export function lineSceneSamples(line: TubeLine): V3[] { return line.pts.map((p) => [p[0], p[1], p[2]] as V3); }
 
+/**
+ * How far the tube is drawn back from where the gastric balloon is filled to where it is seated against the junction (figure units). The balloon is opened with the tube deep in the
+ * stomach, in the roomy lumen
+ * well below the junction, and only then is the tube withdrawn and the balloon tugged up against the cardia from the stomach side (owner, 26 Nov 2026).
+ */
+export const PULL = 60;
+/** How far the tube is drawn back, for this line: the full draw with the stomach's junction known, the 2D app's small slack before that. */
+export const pullOf = (line: TubeLine): number => (line.junction ? PULL : GAS.slack);
+/** The share of the gastric balloon's filling (the gas state, 0 to 1) taken up by opening the balloon deep in the stomach; the rest is the withdrawal. */
+export const INFLATE_SHARE = 0.5;
+const unit01 = (x: number): number => Math.min(1, Math.max(0, x));
+/** The balloon's fill `k` and the traction `q` (both raw, 0 to 1) at gas state `gas`: opened first, with no traction, and then withdrawn with the balloon full. */
+export function tamponadePhase(gas: number): { k: number; q: number } {
+  return { k: unit01(gas / INFLATE_SHARE), q: unit01((gas - INFLATE_SHARE) / (1 - INFLATE_SHARE)) };
+}
+/** The side of the junction a point is on: its distance past the opening's plane toward the stomach along the oesophagus's direction (scene units; negative is on the oesophagus's side,
+  * above the junction). */
+export function pastJunction(j: GeJunction, x: number, y: number, z: number): number {
+  return (x - j.centre[0]) * j.normal[0] + (y - j.centre[1]) * j.normal[1] + (z - j.centre[2]) * j.normal[2];
+}
+
 // ── The gastric balloon ───────────────────────────────
 /** The balloon's length over its widest half width: under 2 is a flattened sphere (the 2D app's pear was 2.9, a long pear). */
 export const GAS_LENGTH_RATIO = 1.5;
@@ -122,19 +165,12 @@ export const GAS_LENGTH_RATIO = 1.5;
 export const GAS_FACE_POWER = 2.2;
 /** The share of the 2D app's full size (GAS.bMax) the balloon is filled to when the stomach has room for it. */
 export const GAS_FILL = 0.8;
-/**
- * How far the balloon's skin may press into the wall (scene units, a negative standoff): the soft wall gives. The mesh's cardia lies at the stomach's edge, with the lesser curvature's
- * wall a few units from the tube
- * and the lumen only about as deep as it is there, so a round balloon on the tube is held in by the wall nearest it; 2 figure units of give (under a hundredth of the stomach's height)
- * lets it be wide enough, a quarter wider than
- * the opening, to be drawn up against the cardia and not slip back through it.
- */
-export const SKIN = -3 / U;
-/** Where the full balloon's face is seated, along the tube from the opening (figure units): from a little above it to this far below, the place where the most of it fits (the least of
-  * those within a twentieth of the most). */
-export const SEAT_ABOVE = 2, SEAT_BELOW = 4;
+/** How far the balloon's skin may press into the wall (scene units, a negative standoff): the soft wall gives one figure unit, so a ring held in by the wall touches it. */
+export const SKIN = -1 / U;
+/** What the mesh's distance field may be out by (scene units, under a figure unit): the rings are held this far inside the skin's limit, so a ring read at other points still lies within it. */
+const FIELD_ERROR = 0.6 / U;
 /** The ring's samples round it when the wall is read. */
-const AROUND = 16;
+const AROUND = 32;
 export interface GasRing {
   /** the length along the line */
   s: number;
@@ -173,10 +209,15 @@ function ringPoints(c: V3, t: V3, r: number, out: V3[]): V3[] {
   return out;
 }
 const around: V3[] = new Array(AROUND);
-/** The widest radius at most `cap` that a ring centred at c (axis t) can have with every point of it at least SKIN inside the lumen (the same all the way round). */
+/** How far past the junction's plane a point of the balloon must be (scene units): none of it may be on the oesophagus's side, whatever the wall says (half a figure unit, for the rim
+  * of a tilted ring). */
+const PLANE = -0.5 / U;
+/** The widest radius at most `cap` that a ring centred at c (axis t) can have with every point of it at least SKIN inside the lumen and on the stomach side of the junction (the same
+  * all the way round). */
 function roomAt(j: GeJunction, c: V3, t: V3, cap: number): number {
-  if (j.clearance(c[0], c[1], c[2]) < SKIN) return 0;
-  const fits = (r: number): boolean => { ringPoints(c, t, r, around); return around.every((p) => j.clearance(p[0], p[1], p[2]) >= SKIN - 1e-4); };
+  const hold = SKIN + FIELD_ERROR;
+  if (j.clearance(c[0], c[1], c[2]) < hold || pastJunction(j, c[0], c[1], c[2]) < PLANE) return 0;
+  const fits = (r: number): boolean => { ringPoints(c, t, r, around); return around.every((p) => j.clearance(p[0], p[1], p[2]) >= hold && pastJunction(j, p[0], p[1], p[2]) >= PLANE); };
   if (fits(cap)) return cap;
   let lo = 0, hi = cap;
   for (let i = 0; i < 14; i++) { const m = (lo + hi) / 2; if (fits(m)) lo = m; else hi = m; }
@@ -193,49 +234,36 @@ function shapeRings(line: TubeLine, top: number, b: number, n: number): GasRing[
   }
   return out;
 }
-/** Whether a balloon of half width b with its face at `top` lies inside the lumen all round, at every ring. */
-export function fitsAt(line: TubeLine, top: number, b: number, n = 24, skin = SKIN): boolean {
-  const j = line.junction;
-  if (!j) return true;
-  for (const r of shapeRings(line, top, b, n)) {
-    if (j.clearance(r.c[0], r.c[1], r.c[2]) < skin) return false;
-    ringPoints(r.c, r.t, r.r, around);
-    for (const p of around) if (j.clearance(p[0], p[1], p[2]) < skin - 1e-4) return false;
-  }
-  return true;
-}
-
 interface Seat { /** the widest half width of the full balloon (scene units) */ b: number; /** its upper face's length along the line when it is drawn up */ top: number }
 const seats = new WeakMap<TubeLine, Seat>();
 /**
- * The full balloon drawn up against the junction: the balloon of the full size, face over the opening, as high on the tube as it lies inside the lumen all round. Above that the
- * oesophagus and the roof round the
- * opening are in the way; there its rim is on the cardia, which is what drawn up against it is. The size is GAS_FILL of the 2D app's, made as wide as the stomach lets it be. Worked out once per line.
+ * The full balloon drawn up against the junction: the 2D app's size (GAS_FILL of it), its upper face at the opening's plane, as high as the tube can draw it and stay on the stomach's
+ * side. Opened deep in the roomy
+ * lumen it is the full round shape; drawn up, the wall round the cardia holds each ring in (`gasRings`), so the cone of its face is pressed into the junction and the body swells below it.
  */
 export function gasSeat(line: TubeLine): Seat {
   const hit = seats.get(line);
   if (hit) return hit;
-  const full = (line.path.f.b * GAS_FILL) / U;
-  let seat: Seat;
-  if (!line.junction) seat = { b: full, top: line.opening };
-  else {
-    // the widest balloon that lies inside the lumen at each place the face may be seated, found by halving; the highest place whose balloon is nearly the widest of all is the seat
-    const tops: number[] = [], widths: number[] = [];
-    for (let top = line.opening - SEAT_ABOVE; top <= line.opening + SEAT_BELOW + 1e-9; top += 0.5) {
-      let lo = (GAS.neck * 2) / U, hi = full;
-      if (fitsAt(line, top, hi)) lo = hi;
-      else for (let i = 0; i < 9; i++) { const m = (lo + hi) / 2; if (fitsAt(line, top, m)) lo = m; else hi = m; }
-      tops.push(top); widths.push(lo);
-    }
-    const most = Math.max(...widths), at = widths.findIndex((w) => w >= most * 0.95);
-    seat = { b: widths[at]!, top: tops[at]! };
-    seats.set(line, seat);
-  }
+  const seat = { b: (line.path.f.b * GAS_FILL) / U, top: line.opening };
+  if (line.junction) seats.set(line, seat);
   return seat;
 }
 /** Where the balloon's upper face is along the line for the traction at q (0 let go: it sits GAS.slack down the tube; 1 drawn up, seated). */
 export function gasTop(line: TubeLine, q: number): number {
-  return gasSeat(line).top + GAS.slack * (1 - Math.min(1, Math.max(0, q)));
+  return gasSeat(line).top + pullOf(line) * (1 - unit01(q));
+}
+
+/** The tube's length with its tip at rest, drawn up (balloon seated, then the tail of the tube past it), and with the tip as deep as it goes (the balloon filled deep in the stomach):
+  * lengths along the line, figure units. */
+export function tubeEnds(line: TubeLine): { final: number; total: number } {
+  if (!line.junction) return { final: line.path.final, total: line.path.total };
+  const seat = gasSeat(line), final = seat.top + gasLength(seat.b) * U + GAS.tail;
+  return { final, total: final + PULL };
+}
+/** Where the tube's tip is, as a length along the line, for how far it is in (adv, 0 to 1) and the traction (q, 0 to 1): in to its deepest, then withdrawn by the draw. */
+export function lineTip(line: TubeLine, adv: number, q: number): number {
+  const g = unit01(adv);
+  return g * tubeEnds(line).total - pullOf(line) * unit01(q) * g;
 }
 
 /**

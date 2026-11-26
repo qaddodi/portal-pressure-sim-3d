@@ -36,8 +36,9 @@ const CAP_ABOVE = 0.25, CAP_BELOW = 0.7;
 /** The tube's pass through the opening is looked for on the opening's disk, out to this share of its radius (so the tube stays clear of the wall), in steps of ENTRY_STEP, with the room
   * read at these depths below (scene units). */
 const ENTRY_SHARE = 0.6, ENTRY_STEP = 0.004, ENTRY_DEPTHS = [0.02, 0.04];
-/** The most the tube may turn from the oesophagus's direction to go on into the lumen (degrees). */
-const MAX_TURN = 70;
+/** The most the tube may turn from the oesophagus's direction to go on into the lumen (degrees); the distances down the way on (scene units) at which its room is read, and how near the
+  * best room (scene units) a smaller turn may be. */
+const MAX_TURN = 70, GO_ON_AT = [0.12, 0.18, 0.24], ROOM_TOLERANCE = 0.003;
 /** The stretch of oesophagus above the opening that gives its direction (scene units). */
 const DIRECTION_SPAN = 0.25;
 
@@ -180,20 +181,20 @@ export function geJunction(geo: BufferGeometry): GeJunction {
       if (room > entryRoom + 1e-9) { entryRoom = room; entry = p; }
     }
   }
-  // WHERE THE TUBE GOES ON: toward the middle of the stomach's lumen, the place with the most room (the deepest point below the opening, found on a coarse grid), as the 2D app's tube
-  // went into the body of the
-  // stomach; turned from the oesophagus's direction by 70 degrees at most.
-  let deep: V3 = [entry[0] + normal[0] * 0.2, entry[1] + normal[1] * 0.2, entry[2] + normal[2] * 0.2], most = -Infinity;
-  for (let x = centre[0] - 0.1; x <= centre[0] + 0.5; x += 0.04) for (let y = centre[1] - 0.6; y <= centre[1] - 0.1; y += 0.04) for (let z = centre[2] - 0.2; z <= centre[2] + 0.2; z += 0.04) {
-    const c = clearance(x, y, z);
-    if (c > most + 1e-9) { most = c; deep = [x, y, z]; }
+  // WHERE THE TUBE GOES ON: the direction with the most room in the lumen where a balloon is filled, straight on from the pass at distances down it (scene units), found over a cone
+  // about the oesophagus's direction
+  // out to MAX_TURN degrees: the smallest turn is kept among those with room within a hair of the best, so the tube goes no further round than it must.
+  const sideA = side1, sideB = side2, roomIn = (d: V3): number => Math.min(...GO_ON_AT.map((t) => clearance(entry[0] + d[0] * t, entry[1] + d[1] * t, entry[2] + d[2] * t)));
+  const tries: { d: V3; deg: number; room: number }[] = [];
+  for (let deg = 0; deg <= MAX_TURN; deg += 5) {
+    const th = (deg * Math.PI) / 180, c = Math.cos(th), sn = Math.sin(th);
+    for (let a = 0; a < (deg ? 24 : 1); a++) {
+      const ph = (a / 24) * Math.PI * 2, u = Math.cos(ph) * sn, w = Math.sin(ph) * sn;
+      const d: V3 = [c * normal[0] + u * sideA[0] + w * sideB[0], c * normal[1] + u * sideA[1] + w * sideB[1], c * normal[2] + u * sideA[2] + w * sideB[2]];
+      tries.push({ d, deg, room: roomIn(d) });
+    }
   }
-  let into = unit(sub(deep, entry));
-  const cos = dot(into, normal), limit = Math.cos((MAX_TURN * Math.PI) / 180);
-  if (cos < limit) {
-    // (too sharp a turn: the direction at the limit, in the same plane)
-    const k = Math.sqrt((1 - limit * limit) / Math.max(1e-9, 1 - cos * cos));
-    into = unit([limit * normal[0] + k * (into[0] - cos * normal[0]), limit * normal[1] + k * (into[1] - cos * normal[1]), limit * normal[2] + k * (into[2] - cos * normal[2])]);
-  }
+  const best = Math.max(...tries.map((x) => x.room));
+  const into = unit(tries.filter((x) => x.room >= best - ROOM_TOLERANCE).reduce((m, x) => (x.deg < m.deg ? x : m)).d);
   return { centre, radius, entry, normal, into, axis, clearance };
 }

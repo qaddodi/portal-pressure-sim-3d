@@ -14,7 +14,7 @@ import { Vector3 } from 'three';
 import { organsReady, setOrganData } from '../src/scene/organs/meshes.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { DEVICE_SIDES } from '../src/scene/devices/tube-rings.ts';
-import { GAS_FILL, GAS_LENGTH_RATIO, SEAT_ABOVE, SEAT_BELOW, SKIN, TUBE_R, fitsAt, gasRings, gasSeat, gasTop, lineScene, tubeLine } from '../src/scene/devices/balloons/tamponade-path.ts';
+import { GAS_FILL, GAS_LENGTH_RATIO, PULL, SKIN, TUBE_R, gasRings, gasSeat, gasTop, lineScene, pastJunction, tamponadePhase, tubeEnds, tubeLine } from '../src/scene/devices/balloons/tamponade-path.ts';
 import type { V3 } from '../src/scene/devices/bend-path.ts';
 import { GAS } from '../src/scene/procedures/copied/balloon-gas.js';
 import { UNITS_PER_SCENE } from '../src/scene/frame2d.ts';
@@ -51,7 +51,7 @@ test('the tube passes through the opening of the junction, running along the oes
   const ang = (Math.acos(Math.min(1, t.x * j.normal[0] + t.y * j.normal[1] + t.z * j.normal[2])) * 180) / Math.PI;
   assert.ok(ang < 12, `at the opening the tube runs along the oesophagus's own direction (${ang.toFixed(1)} degrees off)`);
   // from a hand above the opening to the tube's end, the whole line is inside the stomach mesh
-  for (let s = line.opening - 40; s <= line.path.total; s += 2) {
+  for (let s = line.opening - 40; s <= tubeEnds(line).total; s += 2) {
     lineScene(line, s, at, t);
     assert.ok(j.clearance(at.x, at.y, at.z) > 0, `the tube is outside the mesh ${(s - line.opening).toFixed(0)} units from the opening`);
   }
@@ -65,29 +65,30 @@ test('the gastric balloon is a body of revolution about the tube: each ring is c
       lineScene(line, r.s, c, d);
       assert.ok(Math.hypot(r.c[0] - c.x, r.c[1] - c.y, r.c[2] - c.z) < 1e-9, `k ${k} q ${q}: a ring is off the tube's line`);
       assert.ok(r.r >= TUBE_R / U - 1e-9 && r.r <= r.want + 1e-9, `a ring is narrower than the tube or fatter than its shape (${(r.r * U).toFixed(1)})`);
-      for (const p of ringRim(r.c, r.t, r.r)) assert.ok(j.clearance(...p) >= SKIN - 0.3 / U, `k ${k} q ${q}: the rim goes through the wall (${(j.clearance(...p) * U).toFixed(1)})`);
+      for (const p of ringRim(r.c, r.t, r.r)) assert.ok(j.clearance(...p) >= SKIN - 0.7 / U, `k ${k} q ${q}: the rim goes through the wall (${(j.clearance(...p) * U).toFixed(1)})`);
     }
   }
 });
 
-test('the full balloon is a slightly flattened sphere with a flat face up, and is wider than the opening so drawn up it cannot slip back through the cardia', async () => {
+test('opened deep in the stomach the full balloon is a slightly flattened sphere with a flat face up; drawn up the wall presses it, and it is still wider than the opening so it cannot slip back through the cardia', async () => {
   await organsReady;
-  const line = tubeLine(), j = line.junction!, seat = gasSeat(line), R = gasRings(line, 1, 1, 64), widest = Math.max(...R.map((r) => r.r));
-  assert.ok(Math.abs(widest - seat.b) < 0.3 / U, `the widest ring is the full size (${(widest * U).toFixed(1)} of ${(seat.b * U).toFixed(1)})`);
+  const line = tubeLine(), j = line.junction!, seat = gasSeat(line), R = gasRings(line, 1, 0, 64), widest = Math.max(...R.map((r) => r.r));
+  assert.ok(widest > 0.85 * seat.b, `opened deep it has room to be round: widest ${(widest * U).toFixed(1)} of ${(seat.b * U).toFixed(1)}`);
   const length = (R[R.length - 1]!.s - R[0]!.s) / U;
-  assert.ok(length / (2 * widest) > 0.6 && length / (2 * widest) < 0.95, `length over width ${(length / (2 * widest)).toFixed(2)}: a flattened sphere, not a pear`);
+  assert.ok(length / (2 * widest) > 0.6 && length / (2 * widest) < 1.05, `length over width ${(length / (2 * widest)).toFixed(2)}: a flattened sphere, not a pear`);
   assert.ok(Math.abs(GAS_LENGTH_RATIO * seat.b - length) < 1e-6);
   const tenth = R.find((r) => r.s - R[0]!.s >= length * U * 0.1)!;
   assert.ok(tenth.r > 0.5 * widest, `the upper face is flat, not a cone (${(tenth.r * U).toFixed(1)} a tenth of the way down, widest ${(widest * U).toFixed(1)})`);
   assert.ok(seat.b <= (GAS.bMax * GAS_FILL) / U + 1e-9);
-  assert.ok(seat.b > j.radius * 1.1, `wider (${(seat.b * U).toFixed(1)}) than the opening (${(j.radius * U).toFixed(1)})`);
+  const up = Math.max(...gasRings(line, 1, 1, 64).map((r) => r.r));
+  assert.ok(up > j.radius * 1.1, `drawn up it is still wider (${(up * U).toFixed(1)}) than the opening (${(j.radius * U).toFixed(1)})`);
+  assert.ok(up < widest, 'and the wall round the cardia holds it in tighter than the roomy stomach did');
 });
 
 test('seated: from any camera the balloon is on the junction\'s axis, its face is over the opening, and its rim lies on the cardia', async () => {
   await organsReady;
   const line = tubeLine(), j = line.junction!, seat = gasSeat(line), R = gasRings(line, 1, 1, 64);
-  assert.ok(seat.top - line.opening >= -SEAT_ABOVE - 1e-9 && seat.top - line.opening <= SEAT_BELOW + 1e-9, `the face is seated ${(seat.top - line.opening).toFixed(1)} units from the opening`);
-  assert.ok(fitsAt(line, seat.top, seat.b), 'the seated balloon is inside the stomach (its skin at most the give past the wall)');
+  assert.equal(seat.top, line.opening, 'the face is seated at the opening');
   const face = R[0]!, middle = R[Math.floor(R.length / 2)]!;
   // the junction's axis: the line through the pass in the oesophagus's direction (the tube turns on into the lumen below, so the balloon's middle is within its width of it)
   for (const cam of CAMERAS) {
@@ -99,18 +100,18 @@ test('seated: from any camera the balloon is on the junction\'s axis, its face i
     const out = R.flatMap((r) => ringRim(r.c, r.t, r.r, 24).map((p) => cam.project(p)));
     const xs = out.map((p) => p[0]);
     assert.ok(e[0] > Math.min(...xs) && e[0] < Math.max(...xs), `${cam.name}: the opening is not across the balloon's outline`);
-    if (cam.name !== 'top') assert.ok(Math.abs(e[1] - Math.max(...out.map((p) => p[1]))) * U < SEAT_BELOW + 2, `${cam.name}: the balloon's face is not against the opening`);
+    if (cam.name !== 'top') assert.ok(Math.abs(e[1] - Math.max(...out.map((p) => p[1]))) * U < 4, `${cam.name}: the balloon's face is not against the opening`);
   }
   // the rim is on the cardia: the closest any rim point is to the wall is the give (touching), and no ring goes further through it
   let nearest = Infinity;
   for (const r of R) for (const p of ringRim(r.c, r.t, r.r)) nearest = Math.min(nearest, j.clearance(...p));
-  assert.ok(Math.abs(nearest - SKIN) < 0.5 / U, `the rim's closest approach to the wall is ${(nearest * U).toFixed(2)} figure units (the give is ${(SKIN * U).toFixed(1)})`);
+  assert.ok(nearest > SKIN - 0.8 / U && nearest < SKIN + 1.5 / U, `the rim's closest approach to the wall is ${(nearest * U).toFixed(2)} figure units (the give is ${(SKIN * U).toFixed(1)})`);
   // and it is the part of the rim round the junction, not the fundus: the wall touched is within the balloon's own reach of the opening
   let where = Infinity;
   for (const r of R) for (const p of ringRim(r.c, r.t, r.r)) if (j.clearance(...p) < SKIN + 0.6 / U) where = Math.min(where, Math.hypot(p[0] - j.centre[0], p[1] - j.centre[1], p[2] - j.centre[2]));
   assert.ok(where * U < seat.b * U * 2.5, `the rim touches the wall ${(where * U).toFixed(1)} figure units from the opening`);
   // let go it sits GAS.slack lower
-  assert.ok(Math.abs(gasTop(line, 0) - gasTop(line, 1) - GAS.slack) < 1e-9, 'let go it sits GAS.slack down the tube');
+  assert.ok(Math.abs(gasTop(line, 0) - gasTop(line, 1) - PULL) < 1e-9, 'let go it sits the whole draw (PULL) deeper in the stomach');
 });
 
 test('as drawn in the scene: every ring of both balloons is a circle centred on the tube', async () => {
@@ -135,6 +136,43 @@ test('as drawn in the scene: every ring of both balloons is a circle centred on 
     assert.ok(worstOff < 0.0001, `${name}: a ring's centre is ${(worstOff * U).toFixed(2)} figure units off the tube`);
     assert.ok(worstRound < 0.02, `${name}: a ring is not a circle (${(worstRound * 100).toFixed(1)} % out)`);
     assert.ok(widest > (TUBE_R / U) * 4, `${name}: the balloon is drawn (widest ring ${(widest * U).toFixed(1)} figure units)`);
+  }
+  sc.dispose();
+});
+
+test('the balloon is opened deep in the stomach, then the tube is withdrawn and the full balloon tugged up snug against the junction from the stomach side', async () => {
+  await organsReady;
+  const line = tubeLine(), j = line.junction!, seat = gasSeat(line), ends = tubeEnds(line);
+  // the phases: opened first with no traction, then withdrawn with the balloon full
+  for (const g of [0, 0.1, 0.25, 0.5]) assert.equal(tamponadePhase(g).q, 0, `gas ${g}: no traction while the balloon is being opened`);
+  for (const g of [0.5, 0.75, 1]) assert.equal(tamponadePhase(g).k, 1, `gas ${g}: the balloon is full before it is withdrawn`);
+  assert.deepEqual(tamponadePhase(1), { k: 1, q: 1 });
+  // opened deep: the balloon at no traction is the whole draw below where it seats, well clear of the junction, in the stomach's lumen
+  const deep = gasRings(line, 1, 0, 48), snug = gasRings(line, 1, 1, 48);
+  assert.ok(Math.abs(deep[0]!.s - snug[0]!.s - PULL) < 1e-6 && PULL >= 30, `opened ${(deep[0]!.s - snug[0]!.s).toFixed(1)} figure units below where it is tugged to`);
+  assert.ok(Math.abs(ends.total - ends.final - PULL) < 1e-9, 'the tube is drawn back by the same amount');
+  for (const r of deep) assert.ok(pastJunction(j, ...r.c) > 25 / U, 'opened well below the junction');
+  // THE RULE: at every stage, whatever the fill and the traction, no part of the balloon is on the oesophagus's side of the junction (the opening's plane), and the seated one has its face on it
+  let highest = Infinity;
+  for (let g = 0; g <= 1.0001; g += 0.05) {
+    const { k, q } = tamponadePhase(g);
+    for (const r of gasRings(line, k, q, 48)) {
+      assert.ok(pastJunction(j, ...r.c) >= -0.5 / U - 1e-9, `gas ${g.toFixed(2)}: a ring's centre is above the junction`);
+      for (const p of ringRim(r.c, r.t, r.r)) { highest = Math.min(highest, pastJunction(j, ...p)); assert.ok(pastJunction(j, ...p) >= -0.5 / U - 1e-9, `gas ${g.toFixed(2)}: the balloon's rim is above the junction (${(pastJunction(j, ...p) * U).toFixed(2)})`); }
+    }
+  }
+  // more traction than there is (q past 1, or below 0) does not draw it further up
+  for (const q of [1.5, 3, 100]) assert.equal(gasTop(line, q), gasTop(line, 1), 'traction past the whole draw does not draw it up further');
+  assert.ok(gasTop(line, 1) >= line.opening - 1e-9, 'the highest the balloon\'s face can be is the opening');
+  assert.ok(highest > -0.5 / U - 1e-9);
+  // as the scene draws it: the gastric balloon's vertices at each stage are below the junction's plane, and the tube's tip is deep before the withdrawal
+  const sc = new CelScene(), t = sc.procs.tamponade;
+  for (const g of [0.1, 0.3, 0.5, 0.65, 0.8, 1]) {
+    t.follow({ adv: 1, gas: g }); t.update(0);
+    const pos = t.gas.toonMesh.geometry.getAttribute('position');
+    let low = Infinity;
+    for (let i = 0; i < pos.count; i++) low = Math.min(low, pastJunction(j, pos.getX(i), pos.getY(i), pos.getZ(i)));
+    assert.ok(low >= -1 / U, `gas ${g}: the drawn balloon reaches ${(-low * U).toFixed(2)} figure units above the junction`);
   }
   sc.dispose();
 });

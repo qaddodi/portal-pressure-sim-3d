@@ -14,8 +14,8 @@ import type { Palette } from '../../palette.ts';
 import { DeviceObject } from '../device-object.ts';
 import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, type Ring, writeRings } from '../tube-rings.ts';
 import { BALLOON, BALLOON_MS, balloonShape, esoAt } from '../../procedures/copied/balloon-eso.js';
-import { GAS, arcAtY, pathAt, pullArrow, sheathArcs, tubePath, tubeTip } from '../../procedures/copied/balloon-gas.js';
-import { gasRings, gasSeat, lineScene, scenePoint, tubeLine } from './tamponade-path.ts';
+import { arcAtY, pullArrow, tubePath } from '../../procedures/copied/balloon-gas.js';
+import { gasRings, gasSeat, lineScene, lineTip, scenePoint, tamponadePhase, tubeEnds, tubeLine } from './tamponade-path.ts';
 import { easeMove } from '../../procedures/copied/ease.js';
 
 const U = 300;
@@ -87,7 +87,7 @@ export class Tamponade {
   }
   get following(): boolean { return !!this.followed; }
   /** How far the balloon is drawn up against the cardia now (0 not at all, 1 seated): what the bleed's jet is stopped by. */
-  get seat(): number { return this.state.adv > 0.001 ? easeMove(clamp01((this.state.gas - 0.45) / 0.55)) * clamp01(this.state.adv * 4) : 0; }
+  get seat(): number { return this.state.adv > 0.001 ? easeMove(tamponadePhase(this.state.gas).q) * clamp01(this.state.adv * 4) : 0; }
   /** Put it at once in the state the patient has (a new patient, the first frame). */
   snap(): void { this.state.adv = this.wantGas ? 1 : 0; this.state.gas = this.wantGas ? 1 : 0; this.state.eso = this.wantEso ? 1 : 0; this.dirty = true; this.draw(); }
 
@@ -120,10 +120,11 @@ export class Tamponade {
     // (every part is asked to show or go and fades by itself: DeviceObject.show; the container stays drawn until the last of them is gone)
     this.tube.show(show);
     if (!show) { for (const o of [this.gas, this.eso, ...this.marks, this.pullLine, this.pullHead]) o.show(false); this.pull = 0; return; }
-    const k = easeMove(gas), ke = easeMove(eso);
-    const q = easeMove(clamp01((gas - 0.45) / 0.55));   // the traction runs in the second half of the gastric balloon's filling (stage-balloon.js `pull`)
+    // the balloon is opened first, with the tube deep in the stomach, and only then is the tube withdrawn and the full balloon tugged up against the junction from the stomach side
+    // (tamponade-path.ts `tamponadePhase`)
+    const phase = tamponadePhase(gas), k = easeMove(phase.k), ke = easeMove(eso), q = easeMove(phase.q);
     const path = tubePath(), line = tubeLine(path);
-    const tip = tubeTip(easeMove(adv), q, path);
+    const tip = lineTip(line, easeMove(adv), q);
     const tubeR = BALLOON.shaftR / U;
     // the tube: the path from the figure's top to the tip
     for (let i = 0; i < TUBE_N; i++) {
@@ -132,7 +133,7 @@ export class Tamponade {
     }
     writeRings(this.tube.toonMesh.geometry, this.tubeRings, DEVICE_SIDES);
     // fine marks counted back from the tip, none on the balloon's stretch (the tube's uv runs 0 at the figure's top to 1 at the tip, so they ride the tube as it goes in)
-    const bare = path.total - gasSeat(line).top;
+    const ends = tubeEnds(line), bare = ends.final - gasSeat(line).top;
     this.tube.setStripes(MARK_UNITS / tip, 1, MARK_HALF / tip, bare / tip, MARK_HEX, 1.7);
     // the gastric balloon: a body of revolution about the tube (tamponade-path.ts gasRings): every ring centred on the tube's line, round about it, the same radius both sides
     const showGas = gas > 0.001;
@@ -162,11 +163,13 @@ export class Tamponade {
       this.eso.setAlphas(GLASS_FILL * grow(ke), inkOf(ke) * grow(ke));
     }
     // the two marker bands, on the tube at the esophageal balloon's ends (3 units in from each end of its length): a short ring a unit long, a hair wider than the tube
-    const arcs = sheathArcs(tip, path), per = (arcs.eso[1] - arcs.eso[0]) / (BALLOON.bottom - BALLOON.top);
+    // (the esophageal balloon is where balloon-eso.js has it once the tube is drawn up: the tube's length there, shifted with the tip)
+    const shift = tip - ends.final, esoTop = arcAtY(BALLOON.top, path) + shift, esoBottom = arcAtY(BALLOON.bottom, path) + shift;
+    const per = (esoBottom - esoTop) / (BALLOON.bottom - BALLOON.top);
     const markR = (BALLOON.shaftR + 0.3) / U;
     [3, BALLOON.bottom - BALLOON.top - 3].forEach((o, k) => {
-      const sb = arcs.eso[0] + o * per, mark = this.marks[k]!, rings = this.markRings[k]!;
-      const on = sb >= 0 && sb <= path.total;
+      const sb = esoTop + o * per, mark = this.marks[k]!, rings = this.markRings[k]!;
+      const on = sb >= 0 && sb <= ends.total;
       mark.show(on);
       if (!on) return;
       for (let i = 0; i < MARK_N; i++) {
@@ -183,7 +186,7 @@ export class Tamponade {
       if (!this.pullBuilt) this.buildPull();
       this.pullLine.setAlpha(q * 0.55); this.pullHead.setAlpha(q * 0.55);   // (subtle: the balloon drawn up against the cardia shows the traction itself)
     }
-    void esoAt; void GAS;
+    void esoAt;
   }
 
   /** The arrow is fixed to the esophagus (balloon-gas.js `pullArrow`), so it is built once: a round shaft of the 2D stroke's width (1.5) and a cone for the head's triangle. */
