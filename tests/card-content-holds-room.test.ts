@@ -88,7 +88,7 @@ test('the Endo readings column and the beat card\'s status word stand from the f
 
 test('the tiles\' rows (word, delta) are computed from the slide\'s data in the first render, and their fit is judged before paint and again when the fonts arrive', () => {
   const t = read('src/ui/cards/TilesCard.tsx');
-  assert.match(t, /const results = useMemo\(\(\) => mergeStates\(deckId, liveResults_\)/, 'the baked states are in the first render');
+  assert.match(t, /const merged = useMemo\(\(\) => mergeStates\(deckId, liveResults_\)/, 'the baked states are in the first render');
   assert.match(t, /<span className="pzt-r">\{t\.word\}<\/span>\s*\n\s*<span className="pzt-d">\{t\.delta\}<\/span>/, 'both rows are always the tile\'s own words, no blank row reserved');
   assert.match(t, /fit\(\);\s*\n\s*\/\/[^\n]*\n\s*let alive = true;\s*\n\s*if \(typeof document !== 'undefined' && document\.fonts && document\.fonts\.status !== 'loaded'\) void document\.fonts\.ready\.then\(\(\) => \{ if \(alive\) fit\(\); \}\)/);
 });

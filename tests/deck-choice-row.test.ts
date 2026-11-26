@@ -63,6 +63,8 @@ test('a compare button that switches the patient hands its state to the charts o
   assert.match(run, /variantStateOf\(seq, picked/);
   assert.match(run, /useVariant\.getState\(\)\.set\(key, words, got\?\.state \?\? null\)/);
   const body = readFileSync('src/ui/talk/ToolCardBody.tsx', 'utf8');
-  assert.match(body, /useVariant\(\(v\) => \(v\.key === `\$\{deck\.id\}\/\$\{cs\.id\}` \? v\.state : null\)\)/);
-  assert.match(body, /fp: variant\.fp, params: variant\.params/);
+  // (through the one shown state every reader of the slide on show takes, 26 Nov: shown-state.ts withVariant)
+  assert.match(body, /const st = useShown\(deck\.id, results\)\?\.\[i\]/);
+  const shown = readFileSync('src/ui/talk/shown-state.ts', 'utf8');
+  assert.match(shown, /out\[at\.i\] = \{ \.\.\.r, fp: at\.state\.fp, params: at\.state\.params \?\? r\.params \}/);
 });

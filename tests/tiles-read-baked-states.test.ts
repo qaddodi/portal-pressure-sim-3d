@@ -7,5 +7,7 @@ import { readFileSync } from 'node:fs';
 test('the tiles read a slide\'s state through mergeStates, as the words and the instrument do', () => {
   const src = readFileSync(new URL('../src/ui/cards/TilesCard.tsx', import.meta.url), 'utf8');
   assert.match(src, /import \{ mergeStates \} from '..\/charts\/baked\/view\.ts'/);
-  assert.match(src, /const results = useMemo\(\(\) => mergeStates\(deckId, /);
+  assert.match(src, /const merged = useMemo\(\(\) => mergeStates\(deckId, /);
+  // (and a pressed control's state over the slide's own, as every reader of the slide on show: shown-state.ts, 26 Nov)
+  assert.match(src, /const results = useShown\(deckId, merged\)/);
 });
