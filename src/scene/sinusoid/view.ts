@@ -11,7 +11,7 @@ import { paletteOf } from '../../ui/charts/palette.ts';
 import { parseColour } from '../../ui/charts/colour.ts';
 import { samplerFor } from '../lenses/model.ts';
 import { type FlowMarkMode, DEFAULT_FLOW_MODE } from '../flow.ts';
-import { type SinusoidTargets, easeToward } from '../lobule/model.ts';
+import { HCT_HEALTHY, type SinusoidTargets, easeToward } from '../lobule/model.ts';
 import { PartSet, SINUSOID_PARTS, type SinusoidPartName } from '../lobule/parts.ts';
 import { SINUSOID_L } from '../lobule/shots.ts';
 import { washProgress } from '../lobule/wash.ts';
@@ -41,8 +41,8 @@ const REACH = 130;
 
 export interface SinusoidViewOptions { look?: LookId; phone?: boolean; flowMode?: FlowMarkMode; reduceMotion?: boolean }
 
-interface Cur { por: number; col: number; bm: number; mv: number; act: number; lum: number; pinch: number; v: number; filt: number; prot: number }
-const REST: Cur = { por: 1, col: 0, bm: 0, mv: 1, act: 0, lum: 1, pinch: 0, v: 1, filt: 1, prot: 1 };
+interface Cur { por: number; col: number; bm: number; mv: number; act: number; lum: number; pinch: number; v: number; filt: number; prot: number; hct: number }
+const REST: Cur = { por: 1, col: 0, bm: 0, mv: 1, act: 0, lum: 1, pinch: 0, v: 1, filt: 1, prot: 1, hct: HCT_HEALTHY };
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const smooth = (a: number, b: number, x: number) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -158,7 +158,7 @@ export class SinusoidView {
   /** Targets from the model (sinusoidTargets of the lobule's model, the shown, steady numbers). They ease in. `live` is the blood's
    *  speed at this beat (bloodSpeed of a bloodBeat): the traffic runs at it, so the blood pulses with the heart while nothing else
    *  shakes; without it the blood runs at the shown mean (a held moment, a patient with no beat). */
-  setTargets(t: SinusoidTargets, live?: number): void { Object.assign(this.goal, t); this.runGoal.v = live ?? t.v; this.dirty = true; }
+  setTargets(t: SinusoidTargets, live?: number): void { Object.assign(this.goal, t, { hct: t.hct ?? HCT_HEALTHY }); this.runGoal.v = live ?? t.v; this.dirty = true; }
   snapTargets(t: SinusoidTargets, live?: number): void { this.setTargets(t, live); Object.assign(this.cur, this.goal); this.run.v = this.runGoal.v; }
   /** The lens, look, model and reference the lumen's colour comes from (the 2D sinusoid is coloured by the pressure of its sinusoids, P2). */
   setInk(ctx: InkContext, lens: LensId = ctx.lens): void { this.ink.ctx = ctx; this.ink.lens = lens; this.model.P2 = ctx.model.P2; this.model.lyProt = ctx.model.lyProt; this.dirty = true; }
