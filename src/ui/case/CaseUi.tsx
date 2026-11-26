@@ -14,6 +14,7 @@ import { useCaseView } from './view.ts';
 import { useSwap } from './swap.ts';
 import { CaseBar } from './CaseBar.tsx';
 import { PhoneStopSheet, StopCards, TravelCard, stopShown, useStopMoved } from './StopCard.tsx';
+import { openLook } from './look-pane.ts';
 
 /** The iPhone's layout: the bar in two rows and the stop sheet pulled up for the rest (below this width; an upright iPad keeps one row and the whole card). */
 export const PHONE_MAX_W = 700;
@@ -29,6 +30,9 @@ export function CaseUi({ thumb }: { thumb: boolean }) {
   const shownNow = useMemo(() => (cv ? stopShown(cv, stops, at) : null), [cv, stops, at]);
   const stop = useSwap(shownNow, `${id}:${at}`, phase === 'stop' && !!cv);
   const [moved, back] = useStopMoved(stop.shown, phase === 'stop');
+  // a stop whose point is a picture (the bleed, through the scope) opens it as it is reached; the card then folds to its title and Continue, as it does for any look
+  const opens = phase === 'stop' ? stops[at]?.open ?? null : null;
+  useEffect(() => { if (opens) openLook(opens); }, [opens, id, at]);
   // (on a phone or an upright iPad the Tests card is a sheet from the same foot: the stop's sheet makes way for it, and the bar says the case waits)
   const stopOn = stop.on && !(thumb && exploring);
   const [sheetH, setSheetH] = useState(0);

@@ -33,21 +33,23 @@ async function bleed() {
 
 test('the bar says the day and where the case is: the stop at a stop, the next stop\'s day on the way, and that the case waits while a Tests card is open', async () => {
   const { stops } = await bleed();
-  assert.deepEqual(barWords({ phase: 'stop', stops, at: 5, to: null, day: 70 }), { day: 'Day 70', small: 'Stop 6 of 8' });
+  assert.deepEqual(barWords({ phase: 'stop', stops, at: 5, to: null, day: 70 }), { day: 'Day 70', small: 'Stop 6 of 9' });
   assert.deepEqual(barWords({ phase: 'travel', stops, at: 4, to: 5, day: 52 }), { day: 'Day 52', small: 'to Day 70' });
   assert.deepEqual(barWords({ phase: 'stop', stops, at: 5, to: null, day: 70 }, true), { day: 'Day 70', small: 'The case waits' });
-  assert.deepEqual(dragWords(61.4, stops, 5), { day: 'Day 61', small: 'Stop 6 of 8' });
+  assert.deepEqual(dragWords(61.4, stops, 5), { day: 'Day 61', small: 'Stop 6 of 9' });
 });
 
 test('the stop card: its kicker names the stop, its day and its chapter; Continue names the next stop; the line under it says what the figure shows', async () => {
   const { v, stops } = await bleed();
-  assert.equal(kickerWords(stops, 5, chapterAt(v.chapters, 70)), 'Stop 6 of 8 · Day 70 · The bleed');
-  assert.equal(continueWords(stops, 5), 'Continue to Day 73 · TIPS 8 mm');
-  assert.equal(continueWords(stops, 5, true), 'Continue to Day 73');
-  assert.equal(continueWords(stops, 6), 'Continue to Day 120 · today');
-  assert.equal(continueWords(stops, 7), null, 'the last stop has no Continue');
+  assert.equal(kickerWords(stops, 5, chapterAt(v.chapters, 70)), 'Stop 6 of 9 · Day 70 · The bleed');
+  // (the bleed is two stops on its day: the bleeding, then what is done about it)
+  assert.equal(continueWords(stops, 5), 'Continue to Day 70 · Band (EVL)');
+  assert.equal(continueWords(stops, 6), 'Continue to Day 73 · TIPS 8 mm');
+  assert.equal(continueWords(stops, 6, true), 'Continue to Day 73');
+  assert.equal(continueWords(stops, 7), 'Continue to Day 120 · today');
+  assert.equal(continueWords(stops, 8), null, 'the last stop has no Continue');
   assert.equal(shotWords(stops[5]!.shot), 'The figure: the bleeding varix, Anatomy');
-  assert.equal(shotWords(stops[6]!.shot), 'The figure: the stent, Circuit');
+  assert.equal(shotWords(stops[7]!.shot), 'The figure: the stent, Circuit');
   assert.equal(shotWords(stops[2]!.shot), 'The figure: the portal vein, its flow, Circuit');
   assert.equal(shotWords({ view: 'anatomic', cam: 'nowhere' }), 'The figure: Anatomy', 'a camera with no words says its view');
   assert.equal(lookSide('lobule'), 'Lobule');
@@ -62,6 +64,7 @@ test('on the way: the next stop, by the chapter that starts there, and the days 
   assert.equal(t.line, 'Next stop: Day 70 · The bleed');
   assert.equal(t.kicker, `On the way · ${chapterAt(v.chapters, 52)}`);
   assert.equal(travelWords(stops, 5, 69, v.chapters).sub, 'The bleed, in a day');
+  assert.equal(travelWords(stops, 6, 70, v.chapters).sub, 'Band (EVL), now', 'the second stop of a day is named by its own title, not by the chapter the first begins');
   assert.equal(inDays(0), 'now');
   // (the smaller events are the story's quiet lines)
   assert.ok(cv.notes.length > 0, 'the course has smaller events between its stops');
@@ -74,16 +77,17 @@ test('on the way: the next stop, by the chapter that starts there, and the days 
 
 test('the strip: a short name over each stop, the stop tones from the story, and the playhead let go of goes to the stop nearest its day', async () => {
   const { v, stops, cv } = await bleed();
-  assert.deepEqual(cv.shorts, ['Start', 'CSPH', 'Carvedilol', 'Bleed risk', 'Endoscopy', 'Bleed', 'TIPS', 'Today']);
+  assert.deepEqual(cv.shorts, ['Start', 'CSPH', 'Carvedilol', 'Bleed risk', 'Endoscopy', 'Bleed', 'EVL', 'TIPS', 'Today']);
   assert.equal(cv.tones[5], 'danger', 'the bleed is red');
-  assert.equal(cv.tones[6], 'change', 'the TIPS is a change');
+  assert.equal(cv.tones[6], 'change', 'the band is a change');
+  assert.equal(cv.tones[7], 'change', 'the TIPS is a change');
   assert.equal(cv.tones[0], 'info');
   assert.equal(shortName({ type: 'key', title: 'Ascites, grade 2 now' }), 'Ascites', 'a long title is cut where it pauses, never on its comma');
   const axis = caseAxis(v.marks.map((k) => k.day), v.full);
   for (const d of [0, 18, 40, 70, 73, 100, 120]) assert.ok(Math.abs(axis.dayAt(axis.frac(d)) - d) < 1e-6, `Day ${d}: the place and the day agree`);
   assert.equal(axis.dayAt(0), v.full[0]);
   assert.equal(axis.dayAt(1), v.full[1]);
-  for (let i = 0; i < stops.length; i++) assert.equal(stopAtFrac(stops, axis, axis.frac(stops[i]!.day)), i, `let go on stop ${i + 1}'s line: that stop`);
+  for (let i = 0; i < stops.length; i++) assert.equal(stopAtFrac(stops, axis, axis.frac(stops[i]!.day)), stops.findIndex((s) => s.day === stops[i]!.day), `let go on stop ${i + 1}'s line: that stop, or the first of its day`);
   assert.equal(stopAtFrac(stops, axis, axis.frac(66)), 5, 'let go at Day 66: the bleed (Day 70)');
   assert.equal(stopAtFrac(stops, axis, -1), 0, 'past the start: the start');
   assert.equal(stopAtFrac(stops, axis, 2), stops.length - 1, 'past today: today');

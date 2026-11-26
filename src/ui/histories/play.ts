@@ -109,7 +109,14 @@ export function playCourse(c: Course): Baked {
     entries.push({ kind: 'event', label: title, day: e.day, t: round(e.t, 2), detail, sev, evId: 'COURSE_' + (s.id ?? 'NOTE'), ...(s.id ? { step: s.id } : {}) });
   };
   const act = (s: Step) => {
-    if (s.act === 'bleed') { e.rupture(s.site ?? 'VAR', 0.6); watch(BLEED_SECONDS * 10, 0.1, 5); const r = entries.find((x) => x.evId === 'VARIX_RUPTURE' && x.day === e.day); if (r && s.id) r.step = s.id; return; }
+    if (s.act === 'bleed') {
+      e.rupture(s.site ?? 'VAR', 0.6); watch(BLEED_SECONDS * 10, 0.1, 5);
+      const r = entries.find((x) => x.evId === 'VARIX_RUPTURE' && x.day === e.day);
+      if (r && s.id) r.step = s.id;
+      // (the model as it bleeds, before anything is done: the case stops here, and the story ends the bleed's moment at it, timeline/story.ts endsBleed)
+      if (r) r.snap = e.snapshot();
+      return;
+    }
     // (a tap drains all the fluid there is, and its title says what the engine took off: one number, the one the card's "Ascites 3.8 → 0.0 L" reads before the tap)
     let a: { kind: string; mL?: number; albumin?: boolean } = { kind: 'band' };
     // (a tap is a step of the record, as on the page: send.ts STEPS)
@@ -129,7 +136,12 @@ export function playCourse(c: Course): Baked {
       if (s.act) act(s);
       if (s.set) { e.setParams(deepMerge(e.params, s.set)); e.settle(); change(s); }
       // (hemostasis by the step's own word: the engine ends the bleed and says so in the days list, as a band's does)
-      if (s.stopsBleed) { e.stopBleed('clot'); drain(); }
+      if (s.stopsBleed) {
+        e.stopBleed('clot'); drain();
+        // (the engine words a bleed that stops by itself "clot formed"; a step that stopped it says how)
+        const stopped = typeof s.stopsBleed === 'string' ? entries.findLast((x) => x.evId === 'BLEED_STOPPED' && x.day === e.day) : undefined;
+        if (stopped) stopped.label = s.stopsBleed as string;
+      }
       if (!s.scope) addNote(s);
       note();   // (the same day again: a change is a step in the days list)
     }
@@ -194,7 +206,7 @@ export function playOf(c: Course, b: Baked): { play?: NonNullable<HistoryMeta['p
   const stops = (c.play?.stops ?? []).flatMap(({ at, ...rest }) => {
     const day = typeof at === 'string' ? c.steps.find((s) => s.id === at)?.day : at.day;
     if (day == null) throw new Error(`${c.id}: a case stop is anchored to ${JSON.stringify(at)}, which the course does not have`);
-    if (keyDays.has(day)) return [{ day, ...rest }];
+    if (keyDays.has(day)) return [{ day, ...(typeof at === 'string' ? { step: at } : {}), ...rest }];
     // (a stop anchored to a day the engine raised something on: an engine re-sync can move that day. The stop is let go with a word, never put on a day with no kept model; a step's own
     // day never moves, so a stop anchored to a step that does not headline is an error)
     if (typeof at === 'string') throw new Error(`${c.id}: a case stop on Day ${day}, a day the story does not headline (add a step with a note there)`);

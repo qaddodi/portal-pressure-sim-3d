@@ -141,15 +141,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 40,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
-     "day": 70,
+     "step": "egd",
      "look": [
       {
        "tool": "endoscopy",
@@ -159,6 +151,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 73,
+     "step": "tips",
      "look": [
       {
        "tool": "profile",
@@ -293,6 +286,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 35,
+     "step": "tap1",
      "look": [
       {
        "tool": "abdomen",
@@ -302,6 +296,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 65,
+     "step": "tap2",
      "look": [
       {
        "tool": "abdomen",
@@ -311,6 +306,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 95,
+     "step": "tap3",
      "look": [
       {
        "tool": "abdomen",
@@ -320,6 +316,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 110,
+     "step": "tips",
      "look": [
       {
        "tool": "abdomen",
@@ -438,6 +435,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 1,
+     "step": "anticoag",
      "cam": "portal",
      "look": [
       {
@@ -451,6 +449,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 4,
+     "step": "egd",
      "look": [
       {
        "tool": "endoscopy",
@@ -588,6 +587,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 2,
+     "step": "anticoag",
      "cam": "hepatic",
      "look": [
       {
@@ -601,6 +601,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 60,
+     "step": "angioplasty",
      "look": [
       {
        "tool": "doppler",
@@ -747,6 +748,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    "stops": [
     {
      "day": 10,
+     "step": "tips",
      "look": [
       {
        "tool": "abdomen",
@@ -760,6 +762,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 140,
+     "step": "doppler",
      "look": [
       {
        "tool": "doppler",
@@ -912,16 +915,8 @@ export const HISTORIES: readonly HistoryMeta[] = [
   "play": {
    "stops": [
     {
-     "day": 10,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
      "day": 11,
+     "step": "tips",
      "look": [
       {
        "tool": "profile",
@@ -938,6 +933,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 45,
+     "step": "confusion",
      "cam": "liver",
      "lens": "firstpass"
     }
@@ -1081,6 +1077,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 60,
+     "step": "daa",
      "cam": "liver",
      "look": [
       {
@@ -1091,6 +1088,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 228,
+     "step": "svr",
      "view": "lobule",
      "cam": "lobule:sinusoid",
      "look": [
@@ -1266,6 +1264,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 1,
+     "step": "abstain",
      "cam": "liver",
      "look": [
       {
@@ -1276,6 +1275,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 250,
+     "step": "diurOff",
      "look": [
       {
        "tool": "abdomen",
@@ -1285,6 +1285,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 620,
+     "step": "recomp",
      "view": "lobule",
      "cam": "lobule:sinusoid",
      "look": [
@@ -1431,6 +1432,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 20,
+     "step": "bleed",
      "look": [
       {
        "tool": "endoscopy",
@@ -1447,6 +1449,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 48,
+     "step": "band2",
      "look": [
       {
        "tool": "endoscopy",
@@ -1456,6 +1459,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 76,
+     "step": "band3",
      "look": [
       {
        "tool": "endoscopy",
@@ -1502,49 +1506,50 @@ export const HISTORIES: readonly HistoryMeta[] = [
     "text": "on carvedilol and diuretics"
    }
   ],
-  "story": "A fundal varix bleeds on Day 20. A vasoactive drug, then BRTO on Day 23. The shunt that fed it is closed, the portal pressure rises, and new esophageal varices need carvedilol from Day 40 and bands to Day 103.",
+  "story": "A fundal varix bleeds on Day 20. A vasoactive drug and antibiotics, EUS-guided coils and glue the same day, then BRTO on Day 23. The shunt that fed it is closed, the portal pressure rises, and new esophageal varices need carvedilol from Day 40 and bands to Day 103.",
   "path": "Bleed, BRTO, then the esophageal varices",
   "pv": [
    23.3,
    23.3,
    23.3,
    23.3,
+   22.7,
+   25.1,
+   24.8,
+   24.3,
+   21.5,
    21.2,
-   25,
-   24.6,
-   24.2,
-   21.3,
-   21,
-   20.8,
-   20.6,
+   20.9,
+   20.7,
    20.5,
-   20.3,
+   20.4,
    20.4,
    20.3,
    20.2,
    20.2,
    20.1,
+   20.3,
    20.2,
+   20.1,
+   20.1,
+   20.1,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20,
+   20.1,
+   20.1,
+   20.1,
    20.2,
-   20.1,
-   20.1,
-   20.1,
-   20,
-   20,
-   20,
-   20,
-   20,
-   19.9,
-   19.9,
-   19.9,
-   19.9,
-   19.9,
-   20,
-   20,
-   20,
-   20.1,
-   20.1,
-   20.1,
    20.2,
    20.2
   ],
@@ -1593,16 +1598,8 @@ export const HISTORIES: readonly HistoryMeta[] = [
   "play": {
    "stops": [
     {
-     "day": 20,
-     "look": [
-      {
-       "tool": "endoscopy",
-       "label": "Endoscopy"
-      }
-     ]
-    },
-    {
      "day": 23,
+     "step": "brto",
      "look": [
       {
        "tool": "profile",
@@ -1616,6 +1613,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 40,
+     "step": "carvedilol",
      "look": [
       {
        "tool": "endoscopy",
@@ -1626,7 +1624,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 8,
+   "events": 7,
    "medicines": 3
   }
  },
@@ -1762,6 +1760,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    "stops": [
     {
      "day": 30,
+     "step": "preg",
      "view": "circuit",
      "cam": "splanchnic",
      "lens": "flow",
@@ -1777,6 +1776,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 114,
+     "step": "egd",
      "look": [
       {
        "tool": "endoscopy",
@@ -1786,6 +1786,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 254,
+     "step": "delivery",
      "view": "circuit",
      "cam": "splanchnic",
      "lens": "flow",
@@ -1911,6 +1912,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 20,
+     "step": "diur",
      "cam": "fit",
      "look": [
       {
@@ -1921,6 +1923,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
     },
     {
      "day": 120,
+     "step": "hf",
      "look": [
       {
        "tool": "hvpg",

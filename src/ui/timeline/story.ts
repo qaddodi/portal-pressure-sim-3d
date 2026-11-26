@@ -68,7 +68,8 @@ export function storyEntries(tl: { entries(): readonly Entry[]; isFuture(i: numb
 export const MIN_CHAPTER_DAYS = 3;
 
 const MEDICINE = (k: string): boolean => k.startsWith('drug:') || k === 'diuretics' || k === 'anticoag';
-const PROCEDURES = new Set(['tips', 'dips', 'portocaval', 'dsrs', 'mesocaval', 'rex', 'splenicRx', 'occ:C5']);
+// (occ:C5 is BRTO, occ:C2 the EUS-guided coils and glue: both close a gastric varix)
+const PROCEDURES = new Set(['tips', 'dips', 'portocaval', 'dsrs', 'mesocaval', 'rex', 'splenicRx', 'occ:C5', 'occ:C2']);
 const PROCEDURE = (k: string): boolean => PROCEDURES.has(k) || k.startsWith('cs:');
 const isMedicine = (e: StoryEntry): boolean => !!e.keys?.length && e.keys.every(MEDICINE);
 const isProcedure = (e: StoryEntry): boolean => e.kind === 'change' && !e.action && !!e.keys?.some(PROCEDURE);
@@ -193,6 +194,10 @@ export function chapterStarts(entries: readonly StoryEntry[], begin: number, end
   return one;
 }
 
+/** A bleed's own moment ends at its rupture, when the model was kept right after it (the histories' generator keeps it, play.ts): the bleeding is a card of its own, and what is done about it
+ *  (the drug, the band, the glue) the next, the same day. A learner's rupture has no kept model unless it was taken, and then it is the same: a model to stand on is a place to stop. */
+export const endsBleed = (e: StoryEntry): boolean => e.evId === 'VARIX_RUPTURE' && !!e.go;
+
 /** The story: chapters, each with its moments in order (the start, key days, quiet runs, today). Every entry is in exactly one moment (`ids`). */
 export function storyOf(s: StoryIn): Chapter[] {
   const es = s.entries, begin = es[0]?.day ?? 0, end = Math.max(s.end, ...es.map((e) => e.day));
@@ -207,12 +212,12 @@ export function storyOf(s: StoryIn): Chapter[] {
   if (startEntry) chapters[0]!.moments.push({ type: 'start', day: startEntry.day, ids: [startEntry.i], head: itemOf(startEntry), future: !!startEntry.future });
   if (s.trimmed) chapters[0]!.moments.push({ type: 'trimmed', day: begin, ids: [], future: false });
 
-  // the days, in order, each split where the model's moment is (the past and the future of one day are two cards)
+  // the days, in order, each split where the model's moment is (the past and the future of one day are two cards), and after a bleed that kept its own model (below)
   const groups: StoryEntry[][] = [];
   for (const e of es) {
     if (e === startEntry || e === todayEntry) continue;
     const g = groups[groups.length - 1], h = g?.[0];
-    if (g && h!.day === e.day && !!h!.future === !!e.future) g.push(e); else groups.push([e]);
+    if (g && h!.day === e.day && !!h!.future === !!e.future && !endsBleed(g[g.length - 1]!)) g.push(e); else groups.push([e]);
   }
   const changeDays = [...new Set(es.filter((e) => e.kind === 'change').map((e) => e.day))].sort((a, b) => a - b);
   let run: Extract<Moment, { type: 'quiet' }> | null = null, runIn: Chapter | null = null;

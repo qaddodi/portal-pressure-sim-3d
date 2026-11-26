@@ -83,7 +83,13 @@ test('every day a baked history headlines carries the model at its end, on its l
     const b = await LOAD[h.id]!();
     // (and Day 0: the patient as they came, where playing the case starts)
     const keyDays = new Set([0, ...b.entries.filter(isKeyEntry).map((e) => e.day).filter((d) => d < b.snap.day)]);
-    const snapped = b.entries.filter((e) => e.snap);
+    // (a bleed also keeps the model as it bleeds, on its rupture's line, before what is done about it: the case's bleeding stop; every other kept model is a day's end)
+    const bled = b.entries.filter((e) => e.snap && e.evId === 'VARIX_RUPTURE');
+    for (const e of bled) {
+      assert.equal(e.snap!.day, e.day, `${h.id} Day ${e.day}: the bleeding is kept that day`);
+      assert.ok((e.snap as unknown as { bleed: { active: boolean } }).bleed.active, `${h.id} Day ${e.day}: and it is bleeding`);
+    }
+    const snapped = b.entries.filter((e) => e.snap && !bled.includes(e));
     assert.deepEqual(snapped.map((e) => e.day), [...keyDays].sort((x, y) => x - y), `${h.id}: one moment for each key day, and Day 0`);
     for (const e of snapped) {
       const sameDay = b.entries.filter((x) => x.day === e.day);

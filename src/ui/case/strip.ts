@@ -16,6 +16,9 @@ import type { Stop } from './types.ts';
 /** The strip's sizes: the stop names' row over the rail (none on a phone), the rail, the chapters' row under it, the side pads (the played rail and the playhead stand over the same span). */
 /** the least clear air between two names over the rail, px (a gap of one space read "Start TIPS" as one phrase) */
 export const NAME_GAP = 12;
+/** Two stops on one day (a bleed, and what is done about it) stand this far apart along the rail, px: the later is nudged right, so both notches show. */
+export const SAME_DAY_PX = 8;
+export const dayShift = (stops: readonly { day: number }[], i: number): number => (i > 0 && stops[i - 1]!.day === stops[i]!.day ? SAME_DAY_PX : 0);
 export const CASE_STRIP = { NAMES: 18, RAIL: 4, NOTCH: 12, CHAPTERS: 17, PAD: 6, FS: 12, GAP: 3 } as const;
 /** where the rail's middle stands, px from the strip's top (CaseBar.tsx lays the played rail and the playhead there) */
 export const railY = (names: boolean): number => (names ? CASE_STRIP.NAMES : 0) + CASE_STRIP.NOTCH / 2 + 2;
@@ -68,7 +71,7 @@ export function placeNames(items: readonly { x: number; w: number; first?: boole
 export function stripNames(inp: Pick<CaseStripIn, 'keyDays' | 'full' | 'stops' | 'at'>, W: number): ({ x: number; w: number } | null)[] {
   const axis = stripAxis(inp.keyDays, inp.full), { PAD, FS } = CASE_STRIP;
   const items = inp.stops.map((st, i) => ({
-    x: PAD + axis.frac(st.day) * (W - 2 * PAD), w: measure(st.short, FS, 600), first: i === 0, keep: i === inp.at, low: i === 0 || i === inp.stops.length - 1,
+    x: PAD + axis.frac(st.day) * (W - 2 * PAD) + dayShift(inp.stops, i), w: measure(st.short, FS, 600), first: i === 0, keep: i === inp.at, low: i === 0 || i === inp.stops.length - 1,
   }));
   const xs = placeNames(items, W);
   return items.map((it, i) => (Number.isFinite(xs[i]!) ? { x: xs[i]!, w: it.w } : null));
@@ -96,7 +99,7 @@ export function caseStripScene(inp: CaseStripIn, c: ChartCtx): Frame {
   // a notch at each stop, in its moment's colour; the stop the case is at, taller
   const toneCol = (t: Tone) => (t === 'danger' ? c.pal.tok('danger') : t === 'ok' ? c.pal.tok('ok') : t === 'change' ? c.pal.tok('accent') : t === 'caution' ? c.pal.tok('caution') : t3);
   inp.stops.forEach((st, i) => {
-    const x = X(st.day), n = i === inp.at ? NOTCH + 4 : NOTCH;
+    const x = X(st.day) + dayShift(inp.stops, i), n = i === inp.at ? NOTCH + 4 : NOTCH;
     shapes.push({ k: 'rect', x: x - 1, y: ry - n / 2, w: 2, h: n, r: 1, fill: c.pal.alpha(toneCol(st.tone), i === inp.at ? 1 : 0.8), key: `s${i}` });
   });
   // the stops' names over the rail (not on a phone: too many for its width)

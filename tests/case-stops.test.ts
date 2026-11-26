@@ -39,15 +39,18 @@ test('every history plays from the patient as they came to today, stopping at ev
     assert.equal(stops[0]!.day, 0);
     assert.equal(stops[stops.length - 1]!.type, 'today', `${h.id}: and ends today`);
     assert.equal(stops[stops.length - 1]!.day, b.snap.day);
-    for (let i = 1; i < stops.length; i++) assert.ok(stops[i]!.day > stops[i - 1]!.day, `${h.id}: one stop a day, in order`);
+    // (one stop a day, in order; but a bleed's own stop, on the model as it bled, stands before what is done about it the same day)
+    const bleeding = (i: number) => es[stops[i]!.entry]!.evId === 'VARIX_RUPTURE';
+    for (let i = 1; i < stops.length; i++) assert.ok(stops[i]!.day > stops[i - 1]!.day || (stops[i]!.day === stops[i - 1]!.day && bleeding(i - 1)), `${h.id}: one stop a day, in order`);
     const dropped = new Set((h.play?.stops ?? []).filter((s) => s.drop).map((s) => s.day));
     const keyDays = [...new Set(b.entries.filter(isKeyEntry).map((e) => e.day))].filter((d) => d > 0 && d < b.snap.day && !dropped.has(d));
-    assert.deepEqual(stops.filter((s) => s.type === 'key').map((s) => s.day), keyDays.sort((x, y) => x - y), `${h.id}: every key moment is a stop`);
-    for (const s of stops) {
+    assert.deepEqual([...new Set(stops.filter((s) => s.type === 'key').map((s) => s.day))], keyDays.sort((x, y) => x - y), `${h.id}: every key moment is a stop`);
+    for (const [i, s] of stops.entries()) {
       const e = es[s.entry]!;
       assert.ok(e.snap, `${h.id} Day ${s.day}: the stop stands on a kept model`);
       assert.equal(e.snap!.day, s.day, `${h.id} Day ${s.day}: kept that day`);
-      assert.equal(es.filter((x) => x.day === s.day).pop(), e, `${h.id} Day ${s.day}: at the day's end, as Show on the figure has it`);
+      if (bleeding(i)) assert.equal(e.evId, 'VARIX_RUPTURE', `${h.id} Day ${s.day}: the bleeding, on the model as it bled`);
+      else assert.equal(es.filter((x) => x.day === s.day).pop(), e, `${h.id} Day ${s.day}: at the day's end, as Show on the figure has it`);
       assert.ok(s.title.length > 0 && s.kind.length > 0);
       // (the slides' own planner takes the shot, or throws on a camera or lens neither app has)
       const sc = shotScene(s.shot);
@@ -61,11 +64,12 @@ test('the first bleed stops where the mock does, each on the shot its moment cal
   const b = await LOAD['hist-bleed']!();
   const stops = stopsFor(b, opened(b, 'Cirrhosis, first bleed'));
   const shot = (day: number) => { const s = stops.find((x) => x.day === day)!.shot; return [s.view, s.cam, s.lens ?? ''].join(' '); };
-  assert.deepEqual(stops.map((s) => s.day), [0, 18, 19, 32, 40, 70, 73, 120]);
+  assert.deepEqual(stops.map((s) => s.day), [0, 18, 19, 32, 40, 70, 70, 73, 120], 'the bleed is two stops on its day: the bleeding, then the band');
   assert.equal(shot(18), 'lobule lobule:sinusoid ', 'portal hypertension clinically significant: the sinusoid, where the resistance is');
   assert.equal(shot(19), 'circuit portal flow', 'a medicine: the portal flow on the Circuit');
   assert.equal(shot(40), 'anatomic varices ', 'red wale signs: the varices');
   assert.equal(shot(70), 'anatomic bleed ', 'the bleed: the bleeding varix');
+  assert.equal(stops[6]!.shot.cam, 'varices', 'the band, after the bleed: the varices');
   assert.equal(shot(73), 'circuit tips ', 'the TIPS: the Circuit at the stent');
   assert.equal(shot(0), 'anatomic fit ');
   assert.equal(stops.find((s) => s.day === 70)!.kind, 'Emergency');
@@ -80,8 +84,10 @@ test('a course changes a stop\'s shot, drops one, or adds a look closer; the sta
     { day: 70, cam: 'varices', look: [{ tool: 'endoscope', label: 'Endoscopy' }, { tool: 'a', label: 'a' }, { tool: 'b', label: 'b' }, { tool: 'c', label: 'c' }], say: 'The varix bled.' },
     { day: 32, drop: true }, { day: 0, drop: true }, { day: 19, lens: 'pressure' },
   ]);
-  assert.deepEqual(stops.map((s) => s.day), [0, 18, 19, 40, 70, 73, 120], 'Day 32 dropped; the start cannot be');
-  const bleed = stops.find((s) => s.day === 70)!;
+  assert.deepEqual(stops.map((s) => s.day), [0, 18, 19, 40, 70, 70, 73, 120], 'Day 32 dropped; the start cannot be');
+  // (a course's word on a day is on the day's last stop, what is done about the bleed; the bleeding itself keeps its own)
+  assert.equal(stops[4]!.shot.cam, 'bleed');
+  const bleed = stops[5]!;
   assert.deepEqual(bleed.shot, { view: 'anatomic', cam: 'varices' }, 'its own camera is its own shot');
   assert.equal(bleed.look.length, 3, 'three at most');
   assert.equal(bleed.say, 'The varix bled.');
@@ -93,7 +99,7 @@ test('a course stop anchored to nothing stops the generator; one on a day the st
   assert.throws(() => playOf({ ...c, play: { stops: [{ at: 'nope' }] } }, b), /does not have/);
   // (a day the story does not headline: the engine's events can move with a re-sync, so the stop is let go with a word, never put on a day with no kept model)
   assert.equal(playOf({ ...c, play: { stops: [{ at: { day: 50 } }] } }, b).play?.stops, undefined);
-  assert.deepEqual(playOf({ ...c, play: { stops: [{ at: 'bleed', cam: 'varices' }] } }, b).play?.stops, [{ day: 70, cam: 'varices' }]);
+  assert.deepEqual(playOf({ ...c, play: { stops: [{ at: 'bleed', cam: 'varices' }] } }, b).play?.stops, [{ day: 70, step: 'bleed', cam: 'varices' }], 'a step\'s word names the step, so a day with two stops tells them apart');
   assert.deepEqual(HISTORIES.find((h) => h.id === 'hist-bleed')!.play?.ramps, c.ramps, 'the ramps are baked for the walk');
 });
 

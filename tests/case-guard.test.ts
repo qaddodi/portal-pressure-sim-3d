@@ -18,7 +18,7 @@ import { defaultParams } from '../src/engine/hales/portal/scenario.js';
 import type { Stop } from '../src/ui/case/types.ts';
 import type { CasePhase } from '../src/ui/case/types.ts';
 
-const stop = (day: number, entry: number): Stop => ({ key: `k${day}`, type: 'key', day, entry, title: `Day ${day}`, kind: 'Event', shot: { view: 'anatomic', cam: 'fit' }, look: [], say: null });
+const stop = (day: number, entry: number): Stop => ({ key: `k${day}`, type: 'key', day, entry, title: `Day ${day}`, kind: 'Event', shot: { view: 'anatomic', cam: 'fit' }, look: [], open: null, say: null });
 const STOPS = [stop(0, 0), stop(40, 3), stop(70, 6), stop(73, 7)];
 const CASE_ID = 'hist-bleed';
 /** a case at stop 2 (Day 70), or on its way from it to stop 3 (Day 72 so far) */

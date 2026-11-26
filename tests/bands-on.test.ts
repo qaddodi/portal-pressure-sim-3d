@@ -47,13 +47,15 @@ test('in every course, at every kept moment, the readout shows at least the band
   let sessions = 0;
   for (const h of HISTORIES) {
     const b = await LOAD[h.id]!();
-    const bandDays = new Set(b.entries.filter((x) => x.action && /^Band/.test(x.label)).map((x) => x.day));
-    for (const en of b.entries) {
+    // (a day with a session reads a band once the session has happened: the model kept as the day's bleed began, before its band, is on no band yet)
+    const bandAt = b.entries.map((x, i) => (x.action && /^Band/.test(x.label) ? i : -1)).filter((i) => i >= 0);
+    for (const [at, en] of b.entries.entries()) {
       if (!en.snap) continue;
+      const bandDay = bandAt.some((i) => b.entries[i]!.day === en.day && i <= at);
       const bands = (en.snap as unknown as { bands: number }).bands;
       const shown = readingsOf(frame(bands))!.bands;
       assert.ok(shown >= bands && shown - bands < 1, `${h.id} day ${en.day}: ${shown} shown for ${bands} on`);
-      if (bandDays.has(en.day)) { sessions++; assert.ok(shown >= 1, `${h.id} day ${en.day}: a band session reads Bands ${shown}`); }
+      if (bandDay) { sessions++; assert.ok(shown >= 1, `${h.id} day ${en.day}: a band session reads Bands ${shown}`); }
     }
   }
   assert.ok(sessions > 0, 'the courses have band sessions');
