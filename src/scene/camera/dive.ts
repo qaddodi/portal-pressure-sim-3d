@@ -10,9 +10,20 @@ import { FOV } from './shots.ts';
 /** How long each dive takes (ms): body to lobule 1.5 s (2D's LOBULE_MS_MAX), lobule to sinusoid 1.1 s, body straight to the sinusoid the two together (and back). A move that is none of those keeps `fallback`. */
 export const DIVE_BODY_MS = 1500, DIVE_SINUSOID_MS = 1800;   // (lobule <-> sinusoid 1.8 s, cubic: the crossfade gets about 0.6 s, a zoom, not a cut)
 export type DiveView = 'body' | 'circuit' | 'lobule' | 'sinusoid';
+/** How deep a view stands in the figure: the body and the Circuit outside (0), the lobule in the liver (1), the sinusoid in the lobule (2). */
+const inside = (v: DiveView): number => v === 'lobule' ? 1 : v === 'sinusoid' ? 2 : 0;
+const LEVELS: readonly DiveView[] = ['body', 'lobule', 'sinusoid'];
+/** The views a move from `from` to `to` only flies through, never lands on: the ones that stand strictly between its ends (the lobule on Anatomy or Circuit <-> Sinusoid; none on any other
+ *  pair). A view passed through never comes into focus: the dive's blur is held over it until the far view's own focus takes over (Mohammad 26 Nov 2026: "going from anatomy to sinusoid, the lobule
+ *  view should NOT come into focus and stay blurred until we get to the sinusoid view; same coming out"). */
+export function passedThrough(from: DiveView, to: DiveView): DiveView[] {
+  const a = inside(from), b = inside(to), lo = Math.min(a, b), hi = Math.max(a, b);
+  return LEVELS.filter((v) => inside(v) > lo && inside(v) < hi);
+}
+/** How long the hold on a passed-through view eases in or out when a move is turned mid-flight (a move from rest, or a landing, switches it where nothing shows it: see scene setView). */
+export const PASS_HOLD_MS = 350;
 export function diveMs(from: DiveView, to: DiveView, fallback?: number): number | undefined {
   if (from === to) return fallback;
-  const inside = (v: DiveView) => v === 'lobule' ? 1 : v === 'sinusoid' ? 2 : 0;
   const a = inside(from), b = inside(to);
   if (a === b) return fallback;   // body and Circuit (the map's own length is the caller's)
   if (Math.min(a, b) === 0) return Math.abs(a - b) === 2 ? DIVE_BODY_MS + DIVE_SINUSOID_MS : DIVE_BODY_MS;
