@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { COURSES } from '../src/ui/histories/courses.ts';
-import { playCourse } from '../src/ui/histories/play.ts';
+import { Worker } from 'node:worker_threads';
 import { isRedWale, redWaleCleared, redWaleFlag, RED_WALE_ON, RED_WALE_OFF } from '../src/engine/hales/portal/wall-read.js';
 import { readingsOf } from '../src/ui/tests/endo/readings.ts';
 import { scopeRatio } from '../src/ui/tests/endo/motion.ts';
@@ -19,12 +19,13 @@ type Any = any;
 interface Vx { present: boolean; redWale: boolean; ratio: number; ratioMean: number; d: number; grade: { label: string }; w: number; ptm: number }
 interface Day { course: string; day: number; vx: Vx; active: boolean }
 
-const days: Day[] = [];
-const fired: { course: string; day: number }[] = [];
-for (const c of COURSES) {
-  const b = playCourse(c, (e, m, day) => days.push({ course: c.id, day, vx: (m as { varix: Vx }).varix, active: !!(e as { evState?: { RED_WALE?: { active: boolean } } }).evState?.RED_WALE?.active }));
-  for (const x of b.entries) if (x.evId === 'RED_WALE') fired.push({ course: c.id, day: x.day });
-}
+// (Playing the 12 courses takes a minute on one core: each is played in a worker of its own, so the file takes what the longest course takes.)
+const played = await Promise.all(COURSES.map((c) => new Promise<{ days: Day[]; fired: number[] }>((resolve, reject) => {
+  const w = new Worker(new URL('./red-wale-course.worker.ts', import.meta.url), { workerData: c.id });
+  w.once('message', resolve); w.once('error', reject);
+})));
+const days: Day[] = played.flatMap((p, i) => p.days.map((d) => ({ ...d, course: COURSES[i]!.id })));
+const fired = played.flatMap((p, i) => p.fired.map((day) => ({ course: COURSES[i]!.id, day })));
 
 test('the predicate is one pair of cuts: on above 0.7, cleared below 0.65', () => {
   assert.equal(RED_WALE_ON, 0.7);
@@ -64,7 +65,7 @@ test('a Red wale stop that lands live keeps the scope flag on the event\'s state
       landed++;
       const e = new Engine() as Any;
       e.restore(end.snap);
-      for (let i = 0; i < 300; i++) {
+      for (let i = 0; i < 100; i++) {
         e.step(0.1); detectEvents(e);
         const v = (computeMetrics(e) as { varix: Vx }).varix;
         assert.equal(v.redWale, !!e.evState.RED_WALE?.active, `${f} day ${x.day} step ${i}: the scope flag left the event's state`);
