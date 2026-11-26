@@ -10,10 +10,11 @@ test('the capture waits long for a procedure graph and normally for everything e
   assert.equal(settleLimitMs('the camera is moving', 12000), 12000);
   assert.equal(settleLimitMs('', 14000), 14000);
 });
+// (the tucked shot waits through `stillAndState`, which is `stillPage` again while the slide's own state has not arrived: the same wait as every other shot)
 test('every shot, the tucked one too, waits through the same still wait', () => {
   const src = readFileSync('src/ui/debug/audit/capture-all.ts', 'utf8');
   assert.match(src, /const limitNow = \(\) => real\(settleLimitMs\(why, base\)\)/);
-  assert.match(src, /setDocked\(true\);[^\n]*\n\s*await stillPage\(real, false, !!ui\.skip\);\n\s*(?:const ok2 = )?await shoot\(views\[1\]!\)/);
+  assert.match(src, /setDocked\(true\);[^\n]*\n\s*await stillAndState\(false\);\n\s*(?:const ok2 = )?await shoot\(views\[1\]!\)/);
 });
 
 // Capture af1c51a0: Circulation 5 on an iPhone and an iPad was shot under "Preparing the lobule..." (the wait gave up at 12 s), so the figure was the body and the card named parts of a lobule not yet there.

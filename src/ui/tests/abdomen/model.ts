@@ -36,6 +36,23 @@ export const tapWords = (removedL: number): { removed: string; dose: string } =>
  *  its name first stands in the card): the pane is kept from the slide before (Tense ascites, a 120-day lapse whose belly the clock was still filling), and a peak that lived on from that slide was counted as litres taken off.
  *  `prev` is the peak so far, `litres` the belly now (NaN: no reading). Pure; tests/abdomen-tap-peak.test.ts. */
 export const tapPeak = (prev: number, litres: number, began: boolean): number => (Number.isFinite(litres) ? (began ? litres : Math.max(prev, litres)) : prev);
+/** The litres taken off by a slide's paracentesis: counted from EVERY engine frame, and from the moment the run begins (its first Next), not from the frames a React render
+ *  happened to see or the belly the slide landed on.
+ *  A render shows the newest frame only, and how many frames it skips is the device's and the clock's speed; the belly a slide lands on is still easing from the slide
+ *  before. So the same slide read "0.4 L removed" on an
+ *  iPhone, "0.8 L removed" on a Mac and nothing in a third run, the belly at 0.8 L in all three (capture 2274649a, Albumin 3 "Needle out"). `begin` is the run's start (the
+ *  litres then), `see` each frame, `reset` a new slide;
+ *  the count survives the slide being left and come back to (Back lands on the finished slide with its litres still counted). Pure; tests/abdomen-tap-peak.test.ts. */
+export function tapCounter(): { begin(litres: number): void; see(litres: number): void; reset(): void; readonly live: boolean; readonly peak: number } {
+  let peak = 0, live = false;
+  return {
+    begin(litres) { live = true; peak = tapPeak(peak, litres, true); },
+    see(litres) { if (live) peak = tapPeak(peak, litres, false); },
+    reset() { live = false; peak = 0; },
+    get live() { return live; },
+    get peak() { return peak; },
+  };
+}
 
 export const TAP_RESERVE: readonly { removed: string; dose: string }[] = [tapWords(0), tapWords(IAP_RESERVE_L)];
 export const albuminText = (L: number, on: boolean): string => (on ? `${Math.round(L * 8)} g` : L > 5 ? WORDS.advised : WORDS.optional);

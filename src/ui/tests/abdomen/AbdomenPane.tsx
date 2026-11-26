@@ -13,7 +13,8 @@ import { appEnv } from '../../treat/env.ts';
 import { useProc } from '../../deck/procs-state.ts';
 import { balanceHold } from '../copied/balance-hold.copied.js';
 import { metricsOf, paramsNow } from '../frame.ts';
-import { abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminTip, albuminText, tapWords, tapPeak, TAP_RESERVE, IAP_MAX, type AbView } from './model.ts';
+import { tapCount, watchTap, syncTap } from './tap-count.ts';
+import { abView, dialFrame, riseTxt, slideTxt, RATE_ARROW, WORDS, albuminTip, albuminText, tapWords, TAP_RESERVE, IAP_MAX, type AbView } from './model.ts';
 
 const hold = balanceHold();
 let held: number | null = null;
@@ -48,13 +49,12 @@ export function AbdomenPane({ square }: { square?: number }) {
   const pal = useLookId(), host = usePaneHost();
   // a slide's paracentesis (Ascites 13): the litres taken off so far (the most the belly held on this slide less what it holds now) and the albumin that goes with them
   const tapping = useProc((s) => s.name === WORDS.paracentesis);
-  const peak = useRef(0);
   const litres = v ? Number.parseFloat(v.num) : NaN;
-  const wasTapping = useRef(false);
-  peak.current = tapPeak(peak.current, litres, tapping && !wasTapping.current);   // (counted from the moment the procedure begins, not from the pane's first frame)
-  wasTapping.current = tapping;
+  // (counted from the moment the run begins, from every engine frame: a render sees only the newest frame, and the belly the slide landed on is still easing: capture 2274649a)
+  const running = useProc((s) => s.phase === 'play' || s.phase === 'done');
+  watchTap(); syncTap(tapping && running, litres);
   // (the two lines are in the figure from the first frame of the slide: before, they were added with the first litre and the instrument card grew by their height on screen, 24 Nov)
-  const removed = Number.isFinite(litres) ? Math.max(0, peak.current - litres) : 0;
+  const removed = Number.isFinite(litres) ? Math.max(0, tapCount.peak - litres) : 0;
   const tap = host.slide && tapping ? tapWords(removed) : null;
   const tapOn = !!tap && removed >= 0.05;   // (the two lines hold their room from the start of the slide, and come in as the first litre goes: nothing moves)
   // the dial is one drawing in a 76 × 128 box (2D iapDial), as wide as the 2D stylesheet makes its box (--ab-dw)

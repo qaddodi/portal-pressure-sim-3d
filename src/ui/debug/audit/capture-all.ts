@@ -18,11 +18,12 @@ import { beatCardWaiting } from '../../tests/slide/beat-agree.ts';
 import { menuWaiting } from '../../charts/menu/MenuCard.tsx';
 import { drawScreen } from '../../capture/capture.ts';
 import { cardBoxes } from './card-boxes.ts';
+import { READING_ROOTS, READING_SKIP, readingsOf, readingWatch } from './capture-still.ts';
 import { speedAnimations, sampleRealMs, skipAnimations, finishAnimations } from './speed.ts';
 import { evRunPending } from '../../charts/evgraph/live.ts';
 import { captureViews, CHOICE_SEL, CHOICE_ON_SEL, CHOICE_MAX, CHOICE_ROOTS, pressable, choiceName, collageLayout, settleLimitMs, countWords, slidesWord, sheetHeaderLines, slug, stampTime } from '../../capture/capture-model.ts';
 import { isSideways, layoutOf } from '../../layout/rules2d.ts';
-import { lastPicked, stopKey, pickWords } from './capture-pick.ts';
+import { lastPicked, stopKey, pickWords, deckFolder } from './capture-pick.ts';
 import { wantedStops, needsBackJump, stepToEnd } from './capture-jump.ts';
 import { growCaptureTotal } from './progress.ts';
 import { zipBlob, type ZipFile } from '../../capture/zip.ts';
@@ -56,7 +57,10 @@ function dopplerAcquiring(): boolean {
  *  counts every running animation, which kept this waiting five seconds on a slide that had been still for a moment. */
 /** What a wait that is about the slide's own state says (figure, pressure strip, treatment menu): the capture keeps waiting for these, and flags a picture taken without them. */
 const STATE_WAIT = /has not reached the slide|has not caught up with the slide|has not worked out its dots|press has not reached the slide/;
-const CONTENT = '.dk-card, .dk-plate, .lb-layer, .dk-bar, .vdock, .topbar, .stage-credit, .zoom-pill, .dk-strip';
+// (the instrument cards are in it: the Abdomen's belly slides up inside its ring on a CSS transition, which the list once left out)
+const CONTENT = `${READING_ROOTS}, .dk-bar, .topbar, .stage-credit, .zoom-pill`;
+/** What the cards, tiles and callouts print now, as one string (outermost roots only: a card inside a card is read once). */
+const readingsNow = (): string => readingsOf([...document.querySelectorAll<HTMLElement>(READING_ROOTS)].filter((e) => !e.parentElement?.closest(READING_ROOTS) && !e.closest(READING_SKIP)));
 function arriving(clockToo = true, stripsToo = true, frames = 99): string {
   try {
     // (a chip, a toggle or a slider answers after its click: the engine works the patient out, the charts then read it, the figure then eases to it. Until it has, the page is showing the
@@ -100,12 +104,17 @@ async function stillPage(real: (ms: number) => number, needWords = false, fast =
   let frames = 0;
   const off = clock.on('tween', () => { frames++; });   // (frames drawn since this wait began: a strip fills by frames, not by the clock)
   const t0 = clock.now(), base = needWords ? 14000 : 12000;
+  // (a reading on a card that is still changing holds the picture, for the first 6 s of the wait: a live instrument's numbers that never stop are a perpetual motion, said in
+  // the README, not waited on for ever)
+  const watch = readingWatch(real(250));
   let still = -1, why = '', words = '';
   // (a procedure's graph draws its head to the end on the page's own frames, which a slow screen makes few: the wait for it is the long one, so the picture and the tucked one after it show the run's end, never its middle.
   //  Gastric varices 7, capture 2b947e48: "Left renal vein 1.0" in one picture and "LRV 0.9" in the next, the run still going)
   const limitNow = () => real(settleLimitMs(why, base));
   while (clock.now() - t0 < limitNow()) {
     why = arriving(clock.now() - t0 < real(10000), clock.now() - t0 < real(9000), frames); words = tagWords();   // (the clock's motion list counts for 4 s of the 5: a hold that is still there after that is a perpetual one, and is said in the README)
+    const moved = watch.see(readingsNow(), clock.now());   // (every poll, so the baseline is always the last read)
+    if (!why && moved && clock.now() - t0 < real(6000)) why = moved;
     if (!why && needWords && !words.includes(BLOCKED_SAYS.first) && !words.includes(BLOCKED_SAYS.then)) why = 'the blocked catheter has no words yet';
     if (!why) { if (still < 0) still = clock.now(); else if (clock.now() - still >= real((words.includes(BLOCKED_SAYS.first) ? 25 : 60) * q)) { why = ''; break; } } else still = -1;
     await sleep(real(fast ? 8 : 15));
@@ -151,6 +160,9 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   const at = new Date(), notes: string[] = [], files: ZipFile[] = [], collages: { name: string; blob: Blob }[] = [], enc = new TextEncoder();
   const { failed } = ui.only && builtinDecks().some((d) => d.id === ui.only) ? { failed: [] as string[] } : await loadAllDecks();
   if (failed.length) notes.push(`these talks would not load, so they are not captured: ${failed.join(', ')}`);
+  // (a talk's folder number is its place among ALL the talks in the registered order, never its place among the ones this run takes or the order they loaded in: 35-shunts is
+  // 35-shunts on every device and every sample)
+  const everyId = builtinDecks().map((d) => d.id);
   const decks = builtinDecks().filter((d) => (!ui.only || d.id === ui.only) && (!ui.decks || ui.decks.has(d.id))), build = feedbackBuild(import.meta.env.VITE_RELEASE, import.meta.env.VITE_BUILD, import.meta.env.VITE_CHANNEL);
   // (the promotion set runs at the page's own speed: a clock run faster can leave a card short of its settled height)
   const speed = ui.promo ? 1 : ui.speed && ui.speed > 1 ? ui.speed : 60, real = (ms: number) => ms * speed, t0 = new Date().getTime();
@@ -167,7 +179,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   const slidesSeen = new Set<string>();   // (the slides that have a picture: the README counts these and the pictures apart, a slide on a phone on its side has two)
   let total = pick ? pick.size : decks.reduce((n, d) => n + d.slides.length + 2, 0), done = 0, shots = 0, stopped = false, decksDone = 0;
   try {
-    for (const [di, d] of decks.entries()) {
+    for (const d of decks) {
       if (ui.stop()) { stopped = true; break; }
       const last = pick ? lastPicked(pick, d.id) : Infinity;
       if (last < 0) continue;   // (no slide of this talk is picked)
@@ -180,7 +192,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
       const stops = useUi.getState().stops.length;
       if (!stops) { notes.push(`${d.title}: the talk did not open (no stops after 25 s)`); continue; }
       total = growCaptureTotal(total, stops, single);   // (the talk's stops are a floor: the steps within them add more as they are met)
-      const dir = `${pad2(di + 1)}-${d.id}`, thumbs: { n: string; title: string; img: HTMLCanvasElement }[] = [];
+      const dir = deckFolder(everyId, d.id), thumbs: { n: string; title: string; img: HTMLCanvasElement }[] = [];
       let shape = { w: innerWidth, h: innerHeight };
       // one picture of what stands now: the talk's own position says which (stop, then the step within it: the case card, each beat, each page, each procedure step and reading)
       const choicesDone = new Set<string>();   // (each group of choices is pressed once per stop and view, whichever step of the stop it first stands on)

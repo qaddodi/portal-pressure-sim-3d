@@ -20,6 +20,13 @@ export function randomPick(decks: readonly PickDeck[], n: number, seed: number):
   const take = new Set(all.slice(0, Math.max(0, Math.min(n, all.length))));
   return slideKeys(decks).filter((k) => take.has(k));
 }
+/** A talk's capture folder: its number among every talk in the registered (deck) order, then its id: `35-shunts`. The number never depends on which talks a run takes or the
+ *  order they finished loading in, so the same talk has
+ *  the same folder on every device and every run (capture 2274649a: Mac 35-shunts, iPhone 35-two-lesions). An id that is not in the list goes last. Pure; tests/capture-folders.test.ts. */
+export function deckFolder(order: readonly string[], id: string): string {
+  const i = order.indexOf(id);
+  return `${String((i < 0 ? order.length : i) + 1).padStart(2, '0')}-${id}`;
+}
 export const packPick = (keys: readonly string[]): string => keys.join(',');
 /** The keys an address names (`hvpg:3,outflow:5`), or null for "all": bad entries are dropped. */
 export function unpackPick(v: string | null): Set<string> | null {

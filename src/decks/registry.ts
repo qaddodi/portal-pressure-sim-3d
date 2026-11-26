@@ -8,12 +8,21 @@ import { registerHpDecks } from './hp/register.ts';
 import { registerAllDecks } from './all.ts';
 
 const decks = new Map<string, Deck>();
-export function registerDeck(d: Deck): void { decks.set(d.id, d); }
+/** The talks' order: the order they were REGISTERED (the table below), whatever order their data arrived in. A lazy talk joins `decks` when it finishes loading, and loads
+ *  race, so a Map's own order was
+ *  the order the network answered in: the same build listed Shunts before Two lesions on a Mac and after it on an iPhone (capture 2274649a, folders 35 and 36 swapped).
+ *  Anything numbered by "the talk's place"
+ *  (capture folders, the catalog, the audit) reads this order, so it is the same on every device and every run. */
+const order: string[] = [];
+const remember = (id: string): void => { if (!order.includes(id)) order.push(id); };
+export function registerDeck(d: Deck): void { remember(d.id); decks.set(d.id, d); }
 
 /** A talk whose data is loaded when it is opened (its own small chunk, so the menu never pays for decks nobody opens): the menu needs only its id and slide count. */
 export interface LazyDeck { id: string; slides: number; load(): Promise<Deck> }
 const lazy = new Map<string, LazyDeck>();
-export function registerLazyDeck(d: LazyDeck): void { lazy.set(d.id, d); }
+export function registerLazyDeck(d: LazyDeck): void { remember(d.id); lazy.set(d.id, d); }
+/** Every built-in talk's id in the one registered order, loaded or not. */
+export const deckOrder = (): string[] => [...order];
 export const lazyDecks = (): LazyDeck[] => [...lazy.values()];
 /** A built-in talk, loaded now if it is a lazy one (null for an id that is not built in). */
 export async function loadBuiltin(id: string): Promise<Deck | null> {
@@ -32,5 +41,6 @@ registerAllDecks(registerLazyDeck);   // (A to G and R to W: every talk of the 2
 
 /** A built-in talk by id (an old id the 2D app renamed opens its successor: `DECK_ALIAS` in ui/menu/library.ts). */
 export const builtinDeck = (id: string): Deck | null => decks.get(id) ?? null;
-export const builtinDecks = (): Deck[] => [...decks.values()];
+/** The loaded talks, in the registered order (`deckOrder`), never the order they finished loading in. */
+export const builtinDecks = (): Deck[] => order.flatMap((id) => { const d = decks.get(id); return d ? [d] : []; });
 export const isBuiltin = (id: string): boolean => decks.has(id) || lazy.has(id);
