@@ -150,6 +150,9 @@ export function playCourse(c: Course): Baked {
     if (d === 0 || entries.some((x) => x.day === e.day && isKeyEntry(x))) moments.set(e.day, e.snapshot());
     e.advanceDays(1, { noRupture: true, silent: true });
     watch(4, 0.1, 1);
+    // (The live look raises the day's events; the day's record and the model it keeps are the settled day, as a restore of it reads, not an instant of
+    // the breath: a pause of the beat moves no blood since hales-engine 8608956, so settling after it is free. A bleed under way is a process, left to run.)
+    if (!e.bleed.active) e.settleQuick();
     if (e.bleed.active && e.day - e.bleed.day > BLEED_END_DAYS) {
       throw new Error(`${c.id}: the bleed of Day ${e.bleed.day} is still going on Day ${e.day}: a band, or a step with stopsBleed, must end it`);
     }
