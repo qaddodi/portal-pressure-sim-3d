@@ -63,16 +63,18 @@ export interface AbView {
 /** The daily balance in words. An empty belly (nothing to tap) with a rising balance is "Refilling": a bare "▲2,100 mL/day" under "None, 0.0 L" would read as fluid that is there. */
 export const rateText = (b: number | null, tapped: boolean): string => (b == null ? '' : b === 0 ? 'Steady' : b > 0 && !tapped ? `Refilling ${fmtG(Math.abs(b), 0)}\u00a0mL/day` : `${fmtG(Math.abs(b), 0)} mL/day`);
 
-/** The pane's readings from a frame's metrics and the patient's settings (2D createAbdomen update). `rate` is the held balance (balance-hold.js), or null before one. */
-export function abView(m: M, params: M, held: number | null): AbView | null {
+/** The pane's readings from a frame's metrics and the patient's settings (2D createAbdomen update). `rate` is the held balance (balance-hold.js), or null before one.
+ *  `course`: the balance in mL a day a playing case says for its day (case/rate.ts, from the course's days); it stands in for the live rate in the line and the words under the litres, so the
+ *  card reads the same on every device and at every moment of a stop. */
+export function abView(m: M, params: M, held: number | null, course: number | null = null): AbView | null {
   const a = m?.ascites;
   if (!a) return null;
   const tapped = a.volume > FLUID_MIN_ML;
-  const r = a.ratePerDay, trend = Math.abs(r) < 20 ? 'steady' : r > 0 ? 'building up' : 'resolving';
+  const r = course ?? a.ratePerDay, trend = Math.abs(r) < (course != null ? 50 : 20) ? 'steady' : r > 0 ? 'building up' : 'resolving';
   const rk = Number.isFinite(r) ? Math.round(r) : r;
   const sev = iapSev(a.iap), p = params ?? {};
   const saag = r1(r1(p.albumin) - r1(a.albumin));
-  const b = held;
+  const b = course != null ? Math.round(course / 100) * 100 || 0 : held;
   const iapN = Math.max(0, Math.round(a.iap) || 0);
   return {
     num: fmt(a.volume / 1000, 1), grade: a.grade === 0 ? 'No free fluid' : 'Ascites', gradeTip: '',   /* (the volume alone: a clinical grade needs an examination or an ultrasound, which a gauge has not done; reviewer, 24 Nov 2026) */ sev: (SEV as string[])[a.grade] || 'danger',
