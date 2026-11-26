@@ -15,6 +15,7 @@ import { record } from '../tests/feed.ts';
 import { useTimeline } from './store.ts';
 import { isCustomCase } from '../action/case-name.ts';
 import { switchBegins, switchLands } from '../patients/switching.ts';
+import { guarded } from '../case/guard.ts';
 
 export { fmtClock, captureFrame } from './model.ts';
 export type { Entry, Pinned } from './model.ts';
@@ -89,8 +90,11 @@ timeline.onChange(publish);
 
 /** 2D: the labels of the jumps (timeline.js JUMPS). */
 export const JUMP_LONG: Record<number, string> = Object.fromEntries(UI.playbar.jumps.map((j) => [j.days, j.long]));
-/** A jump of the disease clock, recorded in History. `days` is a number of days or 'event' (until something happens). */
-export const jumpAhead = (days: number | 'event') => timeline.jump(days, days === 'event' ? '' : (JUMP_LONG[days] ?? `${days} days`));
+/** A jump of the disease clock, recorded in History. `days` is a number of days or 'event' (until something happens). In a case it asks first (case/guard.ts). */
+export const jumpAhead = (days: number | 'event'): void => {
+  const long = days === 'event' ? '' : (JUMP_LONG[days] ?? `${days} days`);
+  guarded('time', long ? `+${long}` : 'Until the next event', () => { timeline.jump(days, long); });
+};
 
 let started = false;
 /** Join the timeline to the engine's events and the shell's controls. Returns the remover. */
@@ -100,8 +104,9 @@ export function startTimeline(): () => void {
   // (every frame the engine posts, not the newest at a tick: a jump posts a frame for each day it runs, and an event on one of them must not be lost)
   const off = onFrame((f) => { if (f.events?.length) timeline.addEvents(f.events as EventIn[]); });
   const offs = [
-    registerFeature('undo', () => { timeline.undo(); }),
-    registerFeature('redo', () => { timeline.redo(); }),
+    // (the learner's Undo and Redo move the model off the case's course: in a case they ask first, case/guard.ts)
+    registerFeature('undo', () => { guarded('undo', '', () => { timeline.undo(); }); }),
+    registerFeature('redo', () => { guarded('redo', '', () => { timeline.redo(); }); }),
   ];
   return () => { started = false; off(); for (const o of offs) o(); };
 }

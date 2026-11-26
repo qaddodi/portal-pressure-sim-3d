@@ -5,6 +5,7 @@ import { deepMerge } from '../../engine/hales/portal/scenario.js';
 import { migratePieceKeys } from './piece-keys.ts';
 import { sendParams } from '../../engine/params-send.ts';
 import { patient, useParamsTick } from '../../engine/store.ts';
+import { caseAsk, paramsKind } from '../case/guard.ts';
 
 /** The model's parameter record (engine/hales/portal/scenario.js defaultParams), as a loose tree: the engine is JavaScript. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -47,6 +48,9 @@ export function updateParams(patchOrFn: Record<string, unknown> | ((p: Params) =
   let next: Params;
   if (typeof patchOrFn === 'function') { const copy = structuredClone(prev); next = (patchOrFn as (p: Params) => Params | void)(copy) ?? copy; } else next = deepMerge(prev, patchOrFn);
   if (!next) return false;
+  // (in a case, a change of the patient's settings asks first, and is made once the case is left, from the settings then: case/guard.ts)
+  const q = caseAsk(() => paramsKind(prev, next), label);
+  if (q) { void q.then((go) => { if (go) again(patchOrFn, opts); }); return false; }
   next = migratePieceKeys(next);
   if (history && !opts.base) { past.push({ params: prev, label }); if (past.length > MAX_HISTORY) past.shift(); future = []; }
   sendParams(next, { settle: opts.settle ?? false, replace: true });
@@ -54,6 +58,9 @@ export function updateParams(patchOrFn: Record<string, unknown> | ((p: Params) =
   for (const h of hooks) h({ label, history });
   return true;
 }
+
+/** the same change again, once a case has been left (either form: the overloads take one each) */
+const again = updateParams as (p: Record<string, unknown> | ((p: Params) => Params | void), o: UpdateOpts) => boolean;
 
 /** Called after every change (the shell's flow-mark pulse; the timeline's marks). Returns the remover. */
 export function onParamsChange(h: Hook): () => void { hooks.add(h); return () => { hooks.delete(h); }; }
@@ -66,6 +73,8 @@ export const canRedo = (): boolean => future.length > 0;
 function jump(params: Params): void { sendParams(migratePieceKeys(params), { replace: true }); bump(); }
 /** Back one change; returns its label (or true when it had none), false when there is nothing to undo. */
 export function undo(): string | true | false {
+  const q = caseAsk('undo');
+  if (q) { void q.then((go) => { if (go) undo(); }); return false; }
   const h = past.pop();
   if (!h) return false;
   future.push({ params: currentParams(), label: h.label });
@@ -73,6 +82,8 @@ export function undo(): string | true | false {
   return h.label || true;
 }
 export function redo(): string | true | false {
+  const q = caseAsk('redo');
+  if (q) { void q.then((go) => { if (go) redo(); }); return false; }
   const h = future.pop();
   if (!h) return false;
   past.push({ params: currentParams(), label: h.label });

@@ -16,7 +16,9 @@ export interface CaseState {
   day: number;
   /** on the way, and paused */
   paused: boolean;
+  /** left: the day the patient became the learner's own (the line over the play bar says it); null otherwise */
+  leftDay: number | null;
 }
 
-export const CASE_OFF: CaseState = { phase: 'off', id: null, stops: [], at: 0, to: null, day: 0, paused: false };
+export const CASE_OFF: CaseState = { phase: 'off', id: null, stops: [], at: 0, to: null, day: 0, paused: false, leftDay: null };
 export const useCase = create<CaseState>(() => ({ ...CASE_OFF }));

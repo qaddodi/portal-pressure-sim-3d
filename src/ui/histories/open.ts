@@ -15,6 +15,8 @@ import { switchBegins, switchLands, switchEnds } from '../patients/switching.ts'
 import { LOAD } from './index.generated.ts';
 import { historyOf } from './meta.ts';
 import { entriesOf } from './entries.ts';
+import { caseAsk } from '../case/guard.ts';
+import { useCase } from '../case/store.ts';
 
 /** how long the days may take to come in before the patient opens anyway */
 const DAYS_WAIT_MS = 1500;
@@ -24,6 +26,9 @@ let gen = 0;
 export async function openHistory(id: string): Promise<boolean> {
   const load = LOAD[id];
   if (!load || !historyOf(id)) return false;
+  // (in a case, another patient, or this one opened again as they are today, ends it: it asks first, case/guard.ts; the case's own opening passes)
+  const q = caseAsk(id === useCase.getState().id ? 'restart' : 'patient', id === useCase.getState().id ? '' : patientLabel(id));
+  if (q && !(await q)) return false;
   const mine = ++gen;
   switchBegins();
   let baked;
