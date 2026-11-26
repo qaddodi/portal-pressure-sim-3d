@@ -8,14 +8,12 @@ import { useUi } from '../ui-store.ts';
 import { useTests } from '../tests/store.ts';
 import { layoutClass, sheetFoot } from '../shell/room.ts';
 import { useCase } from './store.ts';
-import { caseBarUp, useCaseRoom, type CaseCut } from './room.ts';
+import { caseBarUp, useCaseRoom, CASE_CARD_W, CASE_CARD_GAP, type CaseCut } from './room.ts';
 import { useCaseView } from './view.ts';
 import { useSwap } from './swap.ts';
 import { CaseBar } from './CaseBar.tsx';
 import { PhoneStopSheet, StopCards, TravelCard, stopShown, useStopMoved } from './StopCard.tsx';
 
-/** The stop card's width on a Mac (the mock's column at the left: 400 px, the card on the way 360 px inside it). */
-export const CASE_CARD_W = 400, CASE_CARD_GAP = 12;
 /** The iPhone's layout: the bar in two rows and the stop sheet pulled up for the rest (below this width; an upright iPad keeps one row and the whole card). */
 export const PHONE_MAX_W = 700;
 
