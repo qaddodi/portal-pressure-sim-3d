@@ -85,7 +85,8 @@ export function parseWords(line: string): Piece[] {
     let k: RegExpExecArray | null;
     if ((k = STEP.exec(body))) out.push({ t: 'step', n: Number(k[1]) });
     else if (TILE[body]) out.push({ t: 'value', key: body, decimals: null });
-    else if ((k = WHOLE.exec(body)) && TILE[k[1]!]) out.push({ t: 'value', key: k[1]!, decimals: 0 });
+    // ({key:0} asks for a whole number only where the tile prints one: a pressure is one number at one decimal on a slide, in its words as on its chart, tests/one-number.test.ts)
+    else if ((k = WHOLE.exec(body)) && TILE[k[1]!]) out.push({ t: 'value', key: k[1]!, decimals: TILE[k[1]!]!.d === 0 ? 0 : null });
     else if ((k = AT.exec(body)) && TILE[k[1]!]) out.push({ t: 'value', key: k[1]!, decimals: null, at: k[2]! });
     else if (cutoffText(body)) out.push({ t: 'cutoff', text: cutoffText(body)! });
     else out.push({ t: 'literal', text: body });

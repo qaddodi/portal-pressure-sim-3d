@@ -22,6 +22,7 @@ import { landsDone, morphMsFor, opensBefore } from './slide-motion.ts';
 import { useVariant } from '../../ui/talk/variant-words.ts';
 import { withVariant, releaseVariantOff } from '../../ui/talk/shown-state.ts';
 import { warmControls } from '../../ui/talk/controls-run.ts';
+import { setShownFp } from '../../scene/labels/settled.ts';
 
 import { clock } from '../../clock/frame.ts';
 /** How long the figure takes to ease to the next slide's state when the patient stays (ms; slide-motion.ts: 2D's MORPH_ONE_MS). */
@@ -74,6 +75,8 @@ export function linkStates(deck: Deck): () => void {
     // (a press belongs to the slide it was made on; the words and the figure's callouts print the state the slide stands at now: its own, or the one a pressed control made, shown-state.ts)
     releaseVariantOff(stop.kind === 'slide' ? `${deck.id}/${ids[i]}` : null);
     const shown = withVariant(deck.id, mergeStates(deck.id, res));
+    // (the figure's station labels print this state's pressures and flows while the model rests on it: scene/labels/settled.ts)
+    setShownFp(stop.kind === 'slide' ? (shown?.[i]?.fp as Record<string, unknown> | undefined) : null);
     const r: Readings = readingsOf(shown?.[i]?.fp, live);
     for (const n of named) {
       const fp = shown?.[ids.indexOf(n.at)]?.fp;
@@ -125,5 +128,5 @@ export function linkStates(deck: Deck): () => void {
   const offStates = useStates.subscribe((s, p) => { if (s.results[deck.id] !== p.results[deck.id]) sync(); });
   const offVariant = useVariant.subscribe((s, p) => { if (s.state !== p.state || s.key !== p.key) sync(); });
   const offLanded = onLanded(tryRun);
-  return () => { setFigurePending(false); offUi(); offStates(); offVariant(); offLanded(); waiting = null; stopLapse(); };
+  return () => { setFigurePending(false); setShownFp(null); offUi(); offStates(); offVariant(); offLanded(); waiting = null; stopLapse(); };
 }

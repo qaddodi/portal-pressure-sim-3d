@@ -137,7 +137,8 @@ test('going back past the change, or replaying, resets the run and stops its fee
 test('the procedure link starts and resets the run at the change, and the card reads the same run', () => {
   const pl = readFileSync(new URL('../src/ui/deck/procs-link.ts', import.meta.url), 'utf8');
   assert.match(pl, /const change = \(on: boolean\): void => \{ evChange\(kind, on\);/);
-  assert.match(pl, /startEvRun\(key, spec, fp, currentParams\(\), engineFrames\)/);
+  // (the graph ends in the state after the procedure, worked out when it starts: ui/deck/proc-after.ts, tests/proc-after.test.ts; the slide's own only until that is in)
+  assert.match(pl, /startEvRun\(key, spec, \(after\.key === key \? after\.fp : null\) \?\? fp, currentParams\(\), engineFrames\)/);
   const card = readFileSync(new URL('../src/ui/talk/ToolCardBody.tsx', import.meta.url), 'utf8');
   assert.match(card, /<EvGraphCard spec=\{spec\} before=\{b\?\.before \?\? null\} end=\{b\?\.end \?\? null\} run=\{run\} \/>/);   // (also with no numbers yet: its box stands, tests/evgraph-box-reserved.test.ts)
 });

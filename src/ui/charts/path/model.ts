@@ -7,6 +7,7 @@ import { measure } from '../measure.ts';
 import { PATHS, mapWordsOf, knownOf, OUTCOMES, WORST, isLive, litOf, outcomeOf, readingFor, chipsOf, patientFor } from './path-data.generated.js';
 import { CARD_WIDE_MIN, cardCompact, isCardKind, layout as cardLayout, drawCard } from './path-cards.generated.js';
 import { shown as shownOf } from '../fmt.ts';
+import { bedsideMean } from '../../../engine/hales/portal/bedside-mean.js';
 
 export { PATHS, knownOf, litOf, outcomeOf, readingFor, chipsOf, patientFor, isLive, isCardKind, drawCard, WORST, OUTCOMES, CARD_WIDE_MIN };
 
@@ -287,7 +288,15 @@ export function pathLayout(ofIn: string, patientIn: any, W: number, o: PathOpts 
 }
 
 /** The patient a slide's tool names: the slide's own facts, over which the live model's readings go where it has them (fp: the tiles' keys). */
-export const patientOf = (of: string, patient: unknown, fp?: Readonly<Record<string, number | null | undefined>> | null) => patientFor({ of, patient }, fp ?? null, shownOf);
+/** The mean arterial pressure as the blood pressure prints it, "117/69 (85)": worked from the two numbers as printed (engine bedside-mean.js),
+ *  the one number the words, the vitals and the path's header say. */
+const printedMap = (fp: Readonly<Record<string, number | null | undefined>> | null | undefined, v: number): number => {
+  const s = fp?.sbp, d = fp?.dbp;
+  return typeof s === 'number' && typeof d === 'number' && Number.isFinite(s) && Number.isFinite(d) ? Math.round(bedsideMean(Math.round(s), Math.round(d))) : v;
+};
+// (the header's MAP was the model's own mean rounded, 79 where the words and the vitals said 80: capture 3531bdfa, Kidney 7; tests/one-number.test.ts)
+export const patientOf = (of: string, patient: unknown, fp?: Readonly<Record<string, number | null | undefined>> | null) =>
+  patientFor({ of, patient }, fp ?? null, (k: string, v: number) => (k === 'map' ? printedMap(fp, v) : shownOf(k, v)));
 
 /** What a screen reader hears of the card: the algorithm's name, the patient's numbers, the verdict and its why. */
 export function pathWords(of: string, patient: any): string {

@@ -18,7 +18,9 @@ import { latestMetrics, engineSend, engineFrames } from '../../decks/hp/figure-e
 import { landsDone } from '../../decks/hp/slide-motion.ts';
 import { eventGraphOf } from '../charts/evgraph/model.ts';
 import { leaveEvRun, resetEvRun, restoreEvRun, startEvRun } from '../charts/evgraph/live.ts';
-import { useStates } from '../../decks/hp/calc.ts';
+import { useStates, snapsOf } from '../../decks/hp/calc.ts';
+import { afterProcedureFp } from './proc-after.ts';
+import type { Step } from '../../decks/hp/numbers.ts';
 import { shownResult } from '../talk/shown-state.ts';
 import { useProbes } from '../../scene/devices/probes/state.ts';
 import { route3d } from '../../scene/procedures/route3d.ts';
@@ -146,7 +148,19 @@ export function linkProcs(): () => void {
     if (!s || !spec || !deck) return;
     const i = copiedOf(deck.id)?.slides.indexOf(s) ?? -1;
     const fp = i >= 0 ? (shownResult(deck.id, useStates.getState().results[deck.id], i)?.fp as Record<string, number | null | undefined> | undefined) ?? null : null;
-    startEvRun(key, spec, fp, currentParams(), engineFrames);
+    // (the graph's line ends where the procedure leaves the patient, worked out when the procedure starts: proc-after.ts; the slide's own state only while that is not in)
+    startEvRun(key, spec, (after.key === key ? after.fp : null) ?? fp, currentParams(), engineFrames);
+  }
+
+  /** The state the slide's procedure leaves the patient in, worked out ahead of its change (second engine). */
+  const after: { key: string; fp: Record<string, number | null | undefined> | null } = { key: '', fp: null };
+  function warmAfter(kind: string): void {
+    const { deck } = useUi.getState(), sp = specFor(kind), s = slideNow();
+    const i = deck && s ? copiedOf(deck.id)?.slides.indexOf(s) ?? -1 : -1, own = i >= 0 ? useStates.getState().results[deck!.id]?.[i] : undefined;
+    if (!sp || !key || after.key === key) return;
+    after.key = key; after.fp = null;
+    const k = key;
+    void afterProcedureFp(sp, own, (steps, base) => snapsOf(steps as Step[], base)).then((fp) => { if (after.key === k) after.fp = fp; }, () => undefined);
   }
 
   /** Start one kind of the slide's procedure standing before its first step, then send it to a stop. `base` is the card's index of the kind's first step. */
@@ -251,6 +265,7 @@ export function linkProcs(): () => void {
     if (view !== 'body') return false;
     stopPlay();
     const g = gen, sp = specFor(r.p.kind)!, params = r.params;
+    warmAfter(r.p.kind);
     const go = (): void => {
       if (g !== gen) return;
       starting = false;
@@ -357,7 +372,7 @@ export function linkProcs(): () => void {
     if (washKey) { sceneApi.setWash(false); washKey = ''; }
     if (ringKey) { sceneApi.setCatheterRing(null); ringKey = ''; }
     if (layersOn && !keepLayers) { clock.cancel(layerTimer); const f = useShell.getState().figure; sceneApi.setLobuleLayers({ lymph: f.lymph, zones: f.zones, bile: f.bile }); layersOn = false; }
-    plan = null; key = ''; auto = null;
+    plan = null; key = ''; auto = null; after.key = ''; after.fp = null;
   }
 
   const sync = (): void => {

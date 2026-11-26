@@ -137,7 +137,9 @@ export function variantWords(slide: { title: string; line: string; kicker: strin
   return out;
 }
 /** A row of compare buttons where some button speaks (2D `wordy`): only then does a parameter button bring words. */
-export const speaks = (opts: readonly CompareOpt[]): boolean => opts.some((o) => o.title || o.line);
+// (a button that names another slide (`slide`) brings that slide's words, so it speaks too: the card then holds them and its height is decided once;
+// capture 3531bdfa, Landmark trials 4, 7, 9, 13, 14, whose buttons put another slide's title in a card sized for its own; tests/variant-reserve.test.ts)
+export const speaks = (opts: readonly CompareOpt[]): boolean => opts.some((o) => o.title || o.line || o.slide);
 
 /** The nested change one value makes at each dotted path ("tips.d" → { tips: { d } }), merged: what the engine's `setParams` takes. */
 export function patchOf(paths: readonly string[], x: number): Record<string, unknown> {
