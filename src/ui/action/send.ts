@@ -5,6 +5,7 @@ import { live } from '../../engine/store.ts';
 import { timeline } from '../timeline/index.ts';
 import { useShell } from '../shell/store.ts';
 import { actionLabel, type Action } from './action-label.ts';
+import { bandsPlaced } from './bands-on.ts';
 import { talkOn } from '../../state/deck.ts';
 import { record } from '../tests/feed.ts';
 import { actionKind, caseAsk } from '../case/guard.ts';
@@ -20,7 +21,7 @@ type Seen = { metrics?: { varix?: { present?: boolean } } | null; bands?: number
 export function actionAnswer(a: Action, f: Seen, quiet = false): { send: boolean; say: string | null } {
   if (a.kind === 'band') {
     if (f?.metrics && !f.metrics.varix?.present) return { send: false, say: 'No varices to band.' };
-    const placed = Math.round(f?.bands || 0);
+    const placed = bandsPlaced(f?.bands);
     if (placed >= BANDS_MAX) return { send: false, say: quiet ? null : `${BANDS_MAX} bands are already on the varices.` };
     return { send: true, say: quiet ? null : `Band (EVL) placed: ${placed + 1} of ${BANDS_MAX}.` };
   }
