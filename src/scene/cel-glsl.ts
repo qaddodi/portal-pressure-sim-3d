@@ -15,6 +15,18 @@ export const CEL_LIGHT_UNIT: readonly [number, number, number] = (() => { const 
 export const CEL_LIGHT_GLSL = /* glsl */ `
 const vec3 CEL_LIGHT = vec3(${CEL_LIGHT_UNIT.map(F).join(', ')});
 vec3 celLightView() { return (viewMatrix * vec4(CEL_LIGHT, 0.0)).xyz; }
+// THE LIGHT A TUBE IS SHADED BY (CEL_STYLE.TUBE_LIGHT_MIN): the world light with its part square to the tube's axis never shorter than the floor,
+// so a tube running along the light still has a lit stripe and a shade side. The argument is the tube's axis in view space (either way along it);
+// a tube already past the floor gets the world light as it is. The JS twin: tubeLightFor below.
+vec3 celTubeLight(vec3 a) {
+  vec3 L = celLightView();
+  float al = length(a);
+  if (al < 1.0e-4) return L;
+  vec3 u = a / al;
+  float d = dot(L, u);
+  vec3 lp = L - d * u;
+  return d * u + lp * max(1.0, ${F(CEL_STYLE.TUBE_LIGHT_MIN)} / max(length(lp), 1.0e-3));
+}
 `;
 
 export const CEL_TUBE_GLSL = /* glsl */ `
@@ -61,3 +73,14 @@ vec3 celTubeToneArt(vec3 base, float s, float sw, float rDev, float art) {
 }
 vec3 celTubeTone(vec3 base, float s, float sw, float rDev) { return celTubeToneArt(base, s, sw, rDev, 0.0); }
 `;
+
+/** The JS twin of the shader's celTubeLight: the light `L` (any frame) with its part square to `axis` brought up to CEL_STYLE.TUBE_LIGHT_MIN when shorter, the part along the axis untouched. */
+export function tubeLightFor(axis: readonly [number, number, number], L: readonly [number, number, number] = CEL_LIGHT_UNIT): [number, number, number] {
+  const al = Math.hypot(axis[0], axis[1], axis[2]);
+  if (al < 1e-4) return [L[0], L[1], L[2]];
+  const u = [axis[0] / al, axis[1] / al, axis[2] / al] as const;
+  const d = L[0] * u[0] + L[1] * u[1] + L[2] * u[2];
+  const lp = [L[0] - d * u[0], L[1] - d * u[1], L[2] - d * u[2]] as const;
+  const k = Math.max(1, CEL_STYLE.TUBE_LIGHT_MIN / Math.max(Math.hypot(lp[0], lp[1], lp[2]), 1e-3));
+  return [d * u[0] + lp[0] * k, d * u[1] + lp[1] * k, d * u[2] + lp[2] * k];
+}

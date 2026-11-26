@@ -729,7 +729,6 @@
  "src/ui/shell/talk.ts": 5,
  "src/ui/shell/transport.ts": 2,
  "src/ui/shell/use-sheet-swipe.ts": 1,
- "src/ui/shell/views.ts": 1,
  "src/ui/shell/wait-cue.ts": 3,
  "src/ui/shell/words.ts": 5,
  "src/ui/talk/ReadingTool.tsx": 2,

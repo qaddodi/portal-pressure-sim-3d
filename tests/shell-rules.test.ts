@@ -10,7 +10,7 @@ import { UI } from '../src/ui/strings.generated.ts';
 import { search, command, EMPTY_QUOTA } from '../src/ui/search/match.ts';
 import { isWiredCommand } from '../src/ui/search/wired.ts';
 import { parseDeepLink, queryFromId } from '../src/ui/shell/deep-link.ts';
-import { tapView, pillHidden, toggleKey, zoomInDisabled } from '../src/ui/shell/views.ts';
+import { tapView, pillViews, VIEWS, toggleKey, zoomInDisabled } from '../src/ui/shell/views.ts';
 import { SECTIONS } from '../src/ui/settings/rows.ts';
 import { freeRoom, usesBottomBar, footHeight } from '../src/ui/shell/room.ts';
 import { fmtClock } from '../src/ui/shell/transport.ts';
@@ -58,13 +58,10 @@ test('deep links: script wins over preset, which wins over home; slides count fr
   assert.equal(queryFromId('cirr-decomp'), 'cirr');
 });
 
-test('view pills: a second tap refits; the pill shows a view and its neighbours; A turns anatomy and circuit', () => {
+test('view pills: a second tap refits; the pill shows every view from any view; A turns anatomy and circuit', () => {
   assert.deepEqual(tapView('anatomic', 'anatomic'), { type: 'refit' });
   assert.deepEqual(tapView('circuit', 'anatomic'), { type: 'go', view: 'circuit', from: 'anatomic' });
-  assert.equal(pillHidden('sinusoid', 'anatomic'), true);
-  assert.equal(pillHidden('sinusoid', 'lobule'), false);
-  assert.equal(pillHidden('sinusoid', 'sinusoid'), false);
-  assert.equal(pillHidden('circuit', 'lobule'), true);
+  assert.deepEqual(pillViews(), VIEWS.map((v) => v.id));
   assert.equal(toggleKey('circuit'), 'anatomic');
   assert.equal(toggleKey('lobule'), null);
   assert.equal(zoomInDisabled('sinusoid'), true);

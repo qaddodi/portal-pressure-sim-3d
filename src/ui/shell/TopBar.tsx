@@ -10,7 +10,7 @@ import { Anchored } from './Pop.tsx';
 import { I } from './icons.tsx';
 import { lensSwatch } from './lens-art.ts';
 import { useLook } from '../../scene/lenses/Legend.tsx';
-import { VIEWS, pillHidden, tapView, type ViewId } from './views.ts';
+import { VIEWS, pillViews, tapView, type ViewId } from './views.ts';
 import { playFold, snapOf, stopFold, type Snap } from './pill-fold.ts';
 import { runFeature, type FeatureId } from './features.ts';
 import { notYet } from './words.ts';
@@ -32,7 +32,7 @@ interface Tb { id: string; label: string | null; title: string | null; text: str
 export const tb = (id: string): Tb => UI.topbar.find((t) => t.id === id) as unknown as Tb;
 const labelOf = (id: string) => tb(id).label ?? tb(id).text ?? id;
 
-/** The view switch (Circuit, Anatomy, Lobule, Sinusoid): 2D's #viewSeg. A second tap on the active view refits it. It shows the view it is on and its neighbours on the path (views.ts), and the buttons ease in and out as the view changes (pill-fold.ts). */
+/** The view switch (Circuit, Anatomy, Lobule, Sinusoid): 2D's #viewSeg. A second tap on the active view refits it. It always shows every view (views.ts: pillViews), and the buttons ease in and out as the view changes (pill-fold.ts). */
 export function ViewPills() {
   const view = useShell((s) => s.view);
   const ready = useShell((s) => s.ready);
@@ -56,7 +56,7 @@ export function ViewPills() {
   return (
     <div className="seg" id="viewSeg" role="group" aria-label="View" data-view-pills ref={seg}>
       {VIEWS.map((v) => {
-        const hidden = pillHidden(v.id, view);
+        const hidden = !pillViews().includes(v.id);
         return (
           <button key={v.id} type="button" data-view={v.id} aria-pressed={view === v.id} {...fadeAttrs(!hidden)} data-pending={!ready[v.id] || undefined} title={UI.views.find((x) => x.id === v.id)?.label} onClick={() => tapPill(v.id, view)}>{v.label}</button>
         );

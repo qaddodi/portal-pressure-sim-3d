@@ -23,6 +23,10 @@ export const SKIN_RING_W_FROM = 0.97;
 
 /** The polynomial smooth-min's gradient and the arm distances, as GLSL. `kept(arm)` is the GLSL of 1.0 for an arm that is there and 0.0 for one that is not (a collapsed growing arm): it leaves the union as an arm of no width does (the shade must follow the outline's union, shaders.ts skinSdPx, or the pixels of its stub are shaded as a stub). Needs: armAxisP, armData, armCopy and swAt() declared above it; `absent(sw)` is the GLSL of SKIN_ARM_ABSENT's smoothstep (the outline's own rule). Returns the unit gradient of the union at the point `p`. */
 export const skinNormalGlsl = (arms: number, SKIN_AXIS_PTS: number, absent: (sw: string) => string, kept: (arm: string) => string = () => '1.0'): string => /* glsl */ `
+// the axis (view space, unit) of the arm segment the last skinArmSd3 call stood nearest to, and the light the pixel is shaded by
+// (the arms' celTubeLight blended with the union's own weights; skinNormalExact sets it)
+vec3 gArmAxis = vec3(0.0);
+vec3 gSkinLight = vec3(0.0);
 // one arm's signed distance to its live capsule (the radius at the closest point of its four-point axis, times the arm's live width) and the distance's gradient: sdf.ts sdArmGrad
 float skinArmSd3(vec3 p, int arm, float sw, out vec3 g, out float rad) {
   float best = 1.0e20, bt = 0.0;
@@ -39,6 +43,7 @@ float skinArmSd3(vec3 p, int arm, float sw, out vec3 g, out float rad) {
   float d = sqrt(best), inv = d > 1.0e-12 ? 1.0 / d : 0.0;
   g = (p - (a0 + bv * bt)) * inv;
   float bb = dot(bv, bv);
+  gArmAxis = bb > 0.0 ? normalize(mat3(modelViewMatrix) * bv) : vec3(0.0);
   if (bt > 0.0 && bt < 1.0 && bb > 0.0) g -= (r1 - r0) * sw / bb * bv;
   rad = mix(r0, r1, bt) * sw;
   return d - rad;
@@ -47,6 +52,7 @@ float skinArmSd3(vec3 p, int arm, float sw, out vec3 g, out float rad) {
 vec3 skinNormalExact(vec3 p, float k, vec3 fallback) {
   float acc = 0.0;
   vec3 g = vec3(0.0);
+  vec3 lt = celLightView();
   bool first = true;
   for (int i = 0; i < ${arms}; i++) {
     if (armData[i].x < 0.0) continue;
@@ -55,20 +61,27 @@ vec3 skinNormalExact(vec3 p, float k, vec3 fallback) {
     vec3 ug;
     float swi = swAt(i), rdi;
     float b = skinArmSd3(p, i, swi, ug, rdi) + 2.0 * k * (1.0 - ${absent('swi')} * ${kept('i')});
+    vec3 ux = gArmAxis;
     if (m > float(i) + 0.5) {
       int mi = int(m + 0.5);
       vec3 mg;
       float swm = swAt(mi), rdm;
       float o = skinArmSd3(p, mi, swm, mg, rdm) + 2.0 * k * (1.0 - ${absent('swm')} * ${kept('mi')});
+      bool mateWins = o < b;
+      vec3 mx = gArmAxis;
       if (o < b) { b = o; ug = mg; }
+      if (mateWins) ux = mx;
     }
-    if (first) { acc = b; g = ug; first = false; continue; }
+    vec3 ul = celTubeLight(ux);   // (this arm's own light: the world light, its part square to the arm's axis never under CEL_STYLE.TUBE_LIGHT_MIN)
+    if (first) { acc = b; g = ug; lt = ul; first = false; continue; }
     float a = acc, raw = 0.5 + 0.5 * (b - a) / max(k, 1.0e-6), h = clamp(raw, 0.0, 1.0);
     bool inside = raw > 0.0 && raw < 1.0;
     float dfdh = a - b - k + 2.0 * k * h, dha = inside ? -0.5 / max(k, 1.0e-6) : 0.0, dhb = inside ? 0.5 / max(k, 1.0e-6) : 0.0;
     g = (h + dfdh * dha) * g + (1.0 - h + dfdh * dhb) * ug;
+    lt = mix(ul, lt, h);   // (the light follows the union's own blend of the arms, so it turns from one arm's to the next's with no step)
     acc = b + (a - b) * h - k * h * (1.0 - h);
   }
+  gSkinLight = lt;
   float gl = length(g);
   return gl > 1.0e-4 ? g / gl : fallback;
 }`;

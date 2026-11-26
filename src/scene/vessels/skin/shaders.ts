@@ -466,7 +466,8 @@ void main() {
     vec3 gx = skinNormalExact(vPos, max(skinK * ${F(SKIN_SHADE_K)}, ${F(SKIN_SHADE_FLOOR_PX)} * ${wpcGlsl('vCenW', 'projY', '1.0')}), vec3(0.0));   // (skinShadeK: the shade's blend is never narrower than SKIN_SHADE_FLOOR_PX of the screen)
     if (dot(gx, gx) > 0.25) n = normalize(mix(n, normalize(mat3(modelViewMatrix) * gx), (1.0 - ${skinTubeKeepGlsl('vRest.y', 'wTop')})));
   }
-  float sT = dot(n, celLightView());   // n.L against the WORLD light, as the tube (a camera that moves changes no shade)
+  // n.L against the WORLD light, as the tube (a camera that moves changes no shade); its part square to the arms' axes is never under CEL_STYLE.TUBE_LIGHT_MIN, as the tube's
+  float sT = dot(n, gSkinLight);
   float swT = fwidth(sT);              // (a derivative: taken outside any branch)
   // (the lens lanes need the arms' across and its derivative too, so this block is the skin's always, whatever marks are left out)
   // EVERY derivative the flow marks and the lens lanes need is taken HERE, before the first discard: after a discard a quad's other pixels get no usable neighbour (a device like Apple's drops the discarded lane, and fwidth is then garbage), so at a crotch or a silhouette, where
