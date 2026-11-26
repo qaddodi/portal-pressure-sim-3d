@@ -8,8 +8,9 @@ const rows: Span[] = [];
 const MAX = 200;
 export const spans = (): readonly Span[] => rows;
 
-function note(name: string, at: number): number {
-  const ms = clock.now() - at;
+function note(name: string, at: number): number { return noteSpan(name, at, clock.now() - at); }
+/** A span whose time was summed by the caller (work spread over many tasks, such as one phase of the sliced scene build): `ms` of it, from `at`. */
+export function noteSpan(name: string, at: number, ms: number): number {
   if (rows.length < MAX) rows.push({ name, at: Math.round(at), ms: Math.round(ms * 10) / 10 });
   try { performance.measure(`pps:${name}`, { start: at, duration: ms }); } catch { /* an old engine without the options form */ }
   (globalThis as { ppsSpans?: Span[] }).ppsSpans = rows;
