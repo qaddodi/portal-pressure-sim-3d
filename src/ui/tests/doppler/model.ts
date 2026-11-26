@@ -432,7 +432,8 @@ export class DopplerModel {
       const hi = Math.max(Math.round((openEnd ? 2 * n0 : n1) * 1.7), Math.ceil(mean * 1.1)), lo = Math.min(0, Math.floor(mean * 1.1));
       const pos = (v: number) => Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100));
       const model = p.kind === 'tips' && normal !== p.normal;
-      const out = !it.expected && !(p.kind === 'tips' && model) && (mean < n0 || mean > n1);
+      // (the verdict's own judgment of the speed, copied interpret's `out`: the amber flag and the words are one answer)
+      const out = it.out as boolean;
       gauge = { p0: pos(n0), p1: pos(n1), pm: pos(mean), pz: pos(0), n0, n1, open: openEnd, out, model,
         title: model ? `Model band ${n0}–${n1} cm/s (provisional: scaled from the reported 8 to 10 mm range)` : openEnd ? `Usual ≥${n0} cm/s` : `Usual ${n0}–${n1} cm/s` };
       T('Speed').out = out;

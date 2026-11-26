@@ -5,25 +5,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { MomentWords } from '../history/HistoryList.tsx';
 import { Icon } from '../shell/icons.tsx';
-import { goToView } from '../shell/view-actions.ts';
 import { useShell } from '../shell/store.ts';
-import { VIEWS, type ViewId } from '../shell/views.ts';
-import { useTests } from '../tests/store.ts';
-import { PANES, type PaneId } from '../tests/panes.ts';
 import { useCase } from './store.ts';
 import { continueCase, endCase } from './run.ts';
 import { showShot } from './shot.ts';
+import { openLook } from './look-pane.ts';
 import { useFigureMoved } from './moved.ts';
 import { CASE, chapterAt, continueWords, kickerWords, lookSide, passedNotes, shotWords, travelWords, type PassNote } from './words.ts';
 import type { CaseView } from './view.ts';
 import type { CaseLook, Stop } from './types.ts';
 
-const isView = (t: string): t is ViewId => VIEWS.some((v) => v.id === t);
-/** Open what a Look closer row names: a view, or a Tests card by its tool's id. */
-export function openLook(l: CaseLook): void {
-  if (isView(l.tool)) { goToView(l.tool); return; }
-  if (l.tool in PANES) useTests.getState().show(l.tool as PaneId);
-}
 const LOOK_ICON: Record<string, string> = { circuit: 'circuit-map', lobule: 'lobule-hex', sinusoid: 'lobule-hex', anatomic: 'body-fig', endoscopy: 'scope-ring', scope: 'scope-ring' };
 
 /** The shot the figure takes at a stop, as shot.ts takes it: a view the figure cannot draw yet stands on the whole body. */

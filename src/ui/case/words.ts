@@ -94,24 +94,33 @@ export function shotWords(s: StopShot): string {
 /** A Look closer item's word at the right: a view's name, or "Tests" for a Tests card. */
 export const lookSide = (tool: string): string => VIEW_WORDS[tool] ?? CASE.tests;
 
-/** A stop's short name over its line on the strip: the start and today, a known moment by its standard short form, else its title's first words (at most 12 letters). */
+/** The longest a stop's name is, in letters (the strip leaves out a name that would touch the one beside it, strip.ts placeNames, so a longer name costs a neighbour). */
+export const SHORT_MAX = 18;
+/** A stop's short name over its line on the strip: the start and today; a known moment by its standard short form; else the title's head, cut where the title itself pauses (a comma,
+ *  colon, bracket, dash, "and", "after", "with" ...), else at a word that fits in SHORT_MAX letters. It never ends on punctuation, a bare number or unit, or a joining word. */
 const SHORT: readonly [RegExp, string][] = [
   [/clinically significant portal hypertension/i, 'CSPH'],
   [/varix ruptured|variceal bleed|bleed(ing)? (again|recurred)|rebleed/i, 'Bleed'],
   [/bleeding more likely/i, 'Bleed risk'],
+  [/intra-abdominal hypertension/i, 'IAH'],
   [/^TIPS\b/, 'TIPS'],
   [/red wale/i, 'Red wale'],
   [/paracentesis/i, 'Paracentesis'],
   [/band(ing)?\b.*\(EVL\)|^band/i, 'EVL'],
 ];
+const PAUSE = /\s*[,:;(]\s*|\s+[-\u2013\u2014]\s+|\s+(?:and|after|with|from|shows|before|\+)\s+/i;
+const DANGLING = /^(?:a|an|the|of|to|in|on|at|for|and|or|with|after|before|from|by|than|is|are|\d[\d.,]*|mm|ml|l|cm|%|weeks?|days?)$/i;
 export function shortName(s: Pick<Stop, 'type' | 'title'>): string {
   if (s.type === 'start') return 'Start';
   if (s.type === 'today') return 'Today';
   for (const [re, w] of SHORT) if (re.test(s.title)) return w;
-  const words = s.title.split(/\s+/);
-  let out = words[0] ?? s.title;
-  for (const w of words.slice(1)) { if ((out + ' ' + w).length > 12) break; out += ' ' + w; }
-  return out;
+  const out: string[] = [];
+  for (const w of (s.title.split(PAUSE)[0] ?? s.title).trim().split(/\s+/)) {
+    if (out.length && (out.join(' ') + ' ' + w).length > SHORT_MAX) break;
+    out.push(w);
+  }
+  while (out.length > 1 && DANGLING.test(out[out.length - 1]!)) out.pop();
+  return out.join(' ').replace(/[\s,:;.(\-\u2013\u2014]+$/, '') || s.title;
 }
 
 /** A smaller event passed on the way (the story's quiet lines): its day and its words. */
