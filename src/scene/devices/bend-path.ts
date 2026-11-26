@@ -171,3 +171,40 @@ export function tangentAtArc(pts: readonly V3[], cum: ArrayLike<number>, s: numb
   out[0] = d[0] / l; out[1] = d[1] / l; out[2] = d[2] / l;
   return out;
 }
+
+/**
+ * A sparse path of corners rounded exactly: each interior waypoint is replaced by a circular arc of radius `radius` tangent to both its legs (the arc's tangent length is radius *
+ * tan(turn / 2), cut down only where
+ * a leg is too short to hold it, which rounds that corner less: the caller checks `minBendRadius` when it matters). Sampled about every `step`. The same rule as `limitBend` for a path
+ * laid from a few waypoints rather
+ * than from many samples: a straight leg stays straight, a corner is one arc, and a path through the arc's tangent point passes it with the leg's own direction.
+ */
+export function filletPath(corners: readonly V3[], radius: number, step: number): V3[] {
+  const out: V3[] = [];
+  const push = (p: V3): void => { out.push([p[0], p[1], p[2]]); };
+  push(corners[0]!);
+  for (let i = 1; i < corners.length - 1; i++) {
+    const a = corners[i - 1]!, b = corners[i]!, c = corners[i + 1]!, u = sub(b, a), v = sub(c, b), lu = len(u), lv = len(v);
+    const turn = angle(u, v);
+    if (turn < 1e-6 || lu < 1e-12 || lv < 1e-12) { push(b); continue; }
+    const t = Math.min(radius * Math.tan(turn / 2), 0.5 * lu, 0.5 * lv), r = t / Math.tan(turn / 2);
+    const p0: V3 = [b[0] - (u[0] / lu) * t, b[1] - (u[1] / lu) * t, b[2] - (u[2] / lu) * t], p1: V3 = [b[0] + (v[0] / lv) * t, b[1] + (v[1] / lv) * t, b[2] + (v[2] / lv) * t];
+    // (the straight run in to the arc, sampled)
+    const prev = out[out.length - 1]!, runIn = len(sub(p0, prev)), nIn = Math.max(1, Math.ceil(runIn / step));
+    for (let k = 1; k <= nIn; k++) push([prev[0] + ((p0[0] - prev[0]) * k) / nIn, prev[1] + ((p0[1] - prev[1]) * k) / nIn, prev[2] + ((p0[2] - prev[2]) * k) / nIn]);
+    // the arc: from direction u to direction v about the axis u x v, a circle of radius r whose centre lies toward the corner's inside
+    const eu: V3 = [u[0] / lu, u[1] / lu, u[2] / lu], ev: V3 = [v[0] / lv, v[1] / lv, v[2] / lv];
+    const nn = Math.max(2, Math.ceil((r * turn) / step));
+    for (let k = 1; k < nn; k++) {
+      const ph = (turn * k) / nn;
+      // the position on the arc: p0 + r * (sin(ph) * eu + (1 - cos(ph)) * w), w the unit sideways step toward v's side
+      const wx = ev[0] - eu[0] * Math.cos(turn), wy = ev[1] - eu[1] * Math.cos(turn), wz = ev[2] - eu[2] * Math.cos(turn), wl = Math.hypot(wx, wy, wz) || 1;
+      const sn = Math.sin(ph), cs = 1 - Math.cos(ph);
+      push([p0[0] + r * (sn * eu[0] + cs * (wx / wl)), p0[1] + r * (sn * eu[1] + cs * (wy / wl)), p0[2] + r * (sn * eu[2] + cs * (wz / wl))]);
+    }
+    push(p1);
+  }
+  const last = corners[corners.length - 1]!, from = out[out.length - 1]!, run = len(sub(last, from)), n = Math.max(1, Math.ceil(run / step));
+  for (let k = 1; k <= n; k++) push([from[0] + ((last[0] - from[0]) * k) / n, from[1] + ((last[1] - from[1]) * k) / n, from[2] + ((last[2] - from[2]) * k) / n]);
+  return out;
+}
