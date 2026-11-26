@@ -1,5 +1,8 @@
 # Decks R to W (batch B13c)
 
+> **Authoring note (superseded in part).** How to write or change a slide is now in [`docs/deck-authoring.md`](deck-authoring.md): one overlay, one loader, one author path, templates and in-talk questions. This page stays as the record of how this batch of decks was copied and what its files do.
+
+
 Sixteen of the 2D app's decks, 207 slides, split by deck id with B13a (A to G) and B13b (H to P): `sites`, `stiffness`, `varices`, `treatment`, `shunts`, `tips-doppler`,
 `variceal-bleed`, `two-inflows`, `recompensation`, `where-resistance`, `ten-years`, `tipping`, `same-gradient`, `two-lesions`, `tips-candidacy`, `tips-complete`.
 

@@ -1,5 +1,8 @@
 # Decks H to P (batch B13b)
 
+> **Authoring note (superseded in part).** How to write or change a slide is now in [`docs/deck-authoring.md`](deck-authoring.md): one overlay, one loader, one author path, templates and in-talk questions. This page stays as the record of how this batch of decks was copied and what its files do.
+
+
 Twelve 2D decks whose ids run from H to P, 138 slides: hvpg, hyperdynamic, kidney, landmark-trials, lobule, masld, meso-rex, ncph, next-bleed, outflow,
 pregnancy, prehepatic. (Split by id with B13a A to G and B13c R to W; the id is the rule, not the title.)
 

@@ -1,5 +1,8 @@
 # Decks A to G (batch B13a)
 
+> **Authoring note (superseded in part).** How to write or change a slide is now in [`docs/deck-authoring.md`](deck-authoring.md): one overlay, one loader, one author path, templates and in-talk questions. This page stays as the record of how this batch of decks was copied and what its files do.
+
+
 The 14 decks whose ids run albumin to gradients (albumin, ascites, budd-chiari, carvedilol, cause-treated, choose-treatment, circuit, circulation, day,
 doppler, encephalopathy, endoscopy, gastric-varices, gradients): 167 slides. H to P and R to W are other batches.
 
