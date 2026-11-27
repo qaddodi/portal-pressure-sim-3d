@@ -149,8 +149,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const lad = ladOn ? Math.min(ladMap[pagesKey] ?? 0, Math.max(0, cands.length - 1)) : 0;
   const ladVars = ladOn ? stepVars(cands[lad]) : undefined;
   const fitK = ladOn ? fitMap[pagesKey] : undefined;
-  // A data card whose fit is spent and still stands taller than its room (a path's words are held at 12 px, so zooming it does not shorten it: Variceal bleed 14, stress capture c0d955e1: 360 px in 304) keeps
-  // its height and the words page instead; sticky for the slide, so the plan does not swing between the two.
+  // A data card whose fit is spent and still stands taller than its room keeps its height and the words page instead (a path's words are held at 12 px, so zooming it
+  // does not shorten it: Variceal bleed 14, stress capture c0d955e1, 360 px in 304). Sticky for the slide, so the plan does not swing between the two.
   const [holdMap, setHoldMap] = useState<Record<string, boolean>>({});
   const dataVars = fitK != null && fitK < 1 ? { ...ladVars, '--pz-fit': fitK } : ladVars;
   // (a phone on its side, a table card past its room after every step: its rows sit closer, one last step; the type never shrinks)
