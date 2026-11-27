@@ -33,6 +33,7 @@ import { usePaneSwap } from './dock/swap.ts';
 import { attachSwipe, swipeOn, type SwipeApi } from './dock/swipe.ts';
 import { attachDivider, removeGuide } from './dock/resize.ts';
 import { attachPull, easeBack } from './dock/pull.ts';
+import { glideFigures } from './dock/figure-glide.ts';
 import { publishSideWidth } from './dock/app-classes.ts';
 import { useTestsStatus } from './dock/status.ts';
 // @ts-ignore plain JS copied from the 2D app
@@ -248,7 +249,8 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
     return attachPull(card, pos, {
       enabled: () => { const g = live.current; return g.thumb && g.open && !g.focus && g.kind === 'sheet' && !!g.stops; },
       heights: () => { const g = live.current, st = g.stops ?? [g.h, g.h]; return { h0: g.h, half: st[0], full: st[1], peek: PEEK_H, size: g.sheetSize }; },
-      setSize: (n) => flushSync(() => useTests.getState().setSheetSize(n)),
+      // (the pictures in the card ease to the new size on the card's own settle: figure-glide.ts)
+      setSize: (n, curve) => glideFigures(cardRef.current, () => flushSync(() => useTests.getState().setSheetSize(n)), { curve }),
       close: () => flushSync(() => useTests.getState().close()),
     });
   }, []);
@@ -256,7 +258,7 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
     const g = live.current, pos = posRef.current;
     if (!g.thumb || !g.open || g.kind !== 'sheet' || !g.stops || !pos) return;
     const n: 0 | 1 = g.sheetSize === 1 || g.sheetSize === 2 ? 0 : 1, h0 = g.h;   // (Half to Full and back; from Peek the handle brings it up to Half)
-    flushSync(() => useTests.getState().setSheetSize(n));
+    glideFigures(cardRef.current, () => flushSync(() => useTests.getState().setSheetSize(n)));
     if (!reduced()) easeBack(pos, g.stops[n] - h0);
   };
   // the divider: the card's width on a sideways phone, its height on a sheet that is not over the thumb dock
@@ -268,7 +270,7 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
       card: () => { const r = cardRef.current?.getBoundingClientRect(); return r ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: 0, y: 0, w: 0, h: 0 }; },
       stage: () => { const app = document.getElementById('app'), v = app ? parseFloat(getComputedStyle(app).getPropertyValue('--vdock-h')) || 0 : 0; return { W: innerWidth, H: innerHeight, sheetMax: innerHeight - (vpRef.current.safe.top + topBarH(vpRef.current, deviceRef.current)) - v - 40 }; },
       widthPx: () => live.current.widthPx, heightRatio: () => live.current.heightRatio,
-      set: (o) => useTests.getState().setSize(o),
+      set: (o) => glideFigures(cardRef.current, () => flushSync(() => useTests.getState().setSize(o))),
     });
     return () => { off(); removeGuide(); };
   }, []);

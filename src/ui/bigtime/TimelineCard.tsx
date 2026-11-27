@@ -1,4 +1,5 @@
-// The timeline chart's card (docs/approved/timeline-chart.md): the chart and its strip on the left, "What to graph" or "What happened" beside it (a sheet raised from the foot on a phone).
+// The timeline chart's card (docs/approved/timeline-chart.md): the chart and its strip on the left, "What to graph" or "What happened" beside it 
+// (on a phone "What to graph" is a sheet raised from the foot; "What happened" opens History, the page Settings pushes in from the right).
 // The chart is one frame (frame.ts) drawn by the chart GPU; this file is the card around it and the pointer: hover or drag moves the crosshair, the wheel or a pinch zooms the days, the strip
 // under the chart moves the window.
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as RPointerEvent } from 'react';
@@ -136,6 +137,8 @@ export function TimelineCard() {
   const stripBuild = (c: ChartCtx) => stripFrame(inp(plot.h), c, leadOf(c.w)).frame;
   const deps = [data, ids.join(), lines, meds, w0, w1, shown, plot.h, open];
   const close = () => useShell.getState().close();
+  // On a phone "What happened" is History, the page Settings pushes from the right (not a second list of its own): one list of what happened, one way to it
+  const openHistory = () => useShell.getState().openSettingsPage('history');
   // A phone's raised panel (What to graph, What happened) is a bottom sheet of its own: a pull down from anywhere on it, from the top of its list, shuts it as every sheet does (shell/sheet-swipe.ts). The card around it is a sheet too and
   // closes the whole chart on a pull, so a touch that begins inside the panel does not reach it (root cause of "I can't swipe it down": the pull was the card's, or nobody's).
   const side = useRef<HTMLElement>(null);
@@ -186,7 +189,9 @@ export function TimelineCard() {
         {compact && (
           <footer className="bt-foot">
             <button type="button" onClick={() => set({ panel: 'graph', raised: true })}><i className="ic ic-trend" aria-hidden="true" />{BT.graph}<i className="ic ic-chev-down bt-go" aria-hidden="true" /></button>
-            <button type="button" data-quiet onClick={() => set({ panel: 'happened', raised: true })}><i className="ic ic-bullets" aria-hidden="true" />{BT.happened}<i className="ic ic-chev-down bt-go" aria-hidden="true" /></button>
+            <button type="button" data-quiet data-goes="right" onClick={openHistory}>
+              <i className="ic ic-bullets" aria-hidden="true" />{BT.happened}<i className="ic ic-chev-right bt-go" aria-hidden="true" />
+            </button>
           </footer>
         )}
       </div>

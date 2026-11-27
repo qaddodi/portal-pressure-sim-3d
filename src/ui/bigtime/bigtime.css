@@ -103,6 +103,8 @@
 .bt-foot button[data-quiet] { color: var(--text-2); }
 .bt-foot .ic { font-size: var(--t-val); }
 .bt-foot .bt-go { margin-left: auto; font-size: var(--t-body); color: var(--text-3); transform: rotate(180deg); }
+/* a button that goes to a page on the right points right, not up */
+.bt-foot button[data-goes="right"] .bt-go { transform: none; }
 .bt[data-compact] .bt-side { position: absolute; left: 0; right: 0; bottom: 0; height: min(78%, 640px); padding: 14px 16px 12px; border-radius: var(--r-sheet) var(--r-sheet) 0 0; border-top: 1px solid var(--edge); background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: 0 -12px 40px -12px rgb(var(--shadow-rgb, 0 0 0) / 0.28); opacity: 0; visibility: hidden; transform: translateY(24px); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .bt[data-compact][data-raised] .bt-side { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }

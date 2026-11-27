@@ -444,8 +444,8 @@ test('the phone\'s two openers are raised buttons (option A): icon, name, up che
   const { readFileSync } = await import('node:fs');
   const css = readFileSync(new URL('../src/ui/bigtime/bigtime.css', import.meta.url), 'utf8'), card = readFileSync(new URL('../src/ui/bigtime/TimelineCard.tsx', import.meta.url), 'utf8');
   assert.ok(/\.bt-foot \{ display: grid; grid-template-columns: 1fr 1fr/.test(css) && /\.bt-foot button \{[^}]*height: 46px[^}]*border: 1px solid var\(--edge\)[^}]*border-radius: var\(--r-card\)[^}]*background: var\(--surface-2\)/.test(css), 'two equal raised buttons');
-  assert.ok(/ic-trend/.test(card) && /ic-bullets/.test(card) && (card.match(/ic ic-chev-down bt-go/g) ?? []).length === 2, 'each has its icon and an up chevron');
-  assert.ok(/\.bt-foot \.bt-go \{[^}]*rotate\(180deg\)/.test(css), 'the chevron points up');
+  assert.ok(/ic-trend/.test(card) && /ic-bullets/.test(card) && (card.match(/ic ic-chev-down bt-go/g) ?? []).length === 1 && (card.match(/ic ic-chev-right bt-go/g) ?? []).length === 1, 'each has its icon: What to graph an up chevron (it raises a sheet), What happened a right one (it goes to a page)');
+  assert.ok(/\.bt-foot \.bt-go \{[^}]*rotate\(180deg\)/.test(css) && /\.bt-foot button\[data-goes="right"\] \.bt-go \{ transform: none; \}/.test(css), 'the chevron points up, and right on the button that goes right');
   assert.ok(readFileSync(new URL('../src/ui/styles/icons.css', import.meta.url), 'utf8').includes('.ic-chev-down {'), 'the atlas has the chevron');
   assert.ok(/\.ic-trend \{ --ix: 8; --iy: 7; \}/.test(css) && /\.ic-bullets \{ --ix: 9; --iy: 7; \}/.test(css), 'the two drawn icons sit in the free cells');
   const used = new Set([...readFileSync(new URL('../src/ui/styles/icons.css', import.meta.url), 'utf8').matchAll(/--ix: (\d+); --iy: (\d+)/g)].map((m) => `${m[1]},${m[2]}`));
@@ -478,6 +478,23 @@ test('every event of What happened carries a chevron that says it opens: down wh
 });
 
 import { readFileSync } from 'node:fs';
+test('root cause (a phone had a second, smaller list of what happened beside History): "What happened" opens History, Settings\' page from the right; Settings takes the asked page once its menu is up', async () => {
+  const { useShell } = await import('../src/ui/shell/store.ts');
+  const card = readFileSync(new URL('../src/ui/bigtime/TimelineCard.tsx', import.meta.url), 'utf8'), settings = readFileSync(new URL('../src/ui/settings/SettingsSheet.tsx', import.meta.url), 'utf8');
+  // the footer's button asks Settings for History; it no longer raises the chart's own list
+  assert.ok(/onClick=\{openHistory\}[^>]*>[^]*?\{BT\.happened\}/.test(card) && /openSettingsPage\('history'\)/.test(card), 'the phone button asks for History');
+  assert.ok(!/set\(\{ panel: 'happened', raised: true \}\)/.test(card), 'it does not raise the chart\'s own What happened sheet');
+  // the store: one call opens Settings and names the page; the page is the one a tapped row pushes
+  useShell.setState({ sheet: 'timeline', settingsPage: null });
+  useShell.getState().openSettingsPage('history');
+  assert.equal(useShell.getState().sheet, 'settings'); assert.equal(useShell.getState().settingsPage, 'history');
+  // Settings pushes it (setPageId) after the menu is up, then clears the ask; an ask while Settings is shut is dropped
+  assert.ok(/clock\.after\(\(\) => \{ setPageId\(asked\); useShell\.setState\(\{ settingsPage: null \}\); \}, ASK_PAGE_MS/.test(settings), 'pushed once the menu is up, then cleared');
+  assert.ok(/if \(!open\) \{ useShell\.setState\(\{ settingsPage: null \}\); return; \}/.test(settings), 'an ask while shut is dropped');
+  assert.ok(/l === 'History'\) push\('history'\)/.test(settings) && /pageId === 'history' \? \{ back: label, title: HIST\.title, body: <HistoryList \/>/.test(settings), 'the same page the History row pushes');
+  useShell.setState({ sheet: null, settingsPage: null });
+});
+
 test('each lane sits on its own darker rounded panel with no outline (owner, 24 Nov: "p2 but without outlines")', () => {
   const src = readFileSync(new URL('../src/ui/bigtime/frame.ts', import.meta.url), 'utf8');
   const at = src.indexOf('a darker rounded panel behind each lane');

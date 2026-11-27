@@ -427,7 +427,7 @@
  "src/ui/action/tap-select.ts": 1,
  "src/ui/bigtime/Chooser.tsx": 3,
  "src/ui/bigtime/Happened.tsx": 3,
- "src/ui/bigtime/TimelineCard.tsx": 7,
+ "src/ui/bigtime/TimelineCard.tsx": 6,
  "src/ui/bigtime/data.ts": 1,
  "src/ui/bigtime/day-keys.ts": 1,
  "src/ui/bigtime/facts.ts": 2,

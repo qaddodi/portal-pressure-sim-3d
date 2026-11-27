@@ -4,6 +4,7 @@
 // stylesheet gave, read by an observer (never in a frame), so a box the card sizes (a share of the card's height, a shape) is drawn at that size and nothing is laid out twice.
 import { createContext, useContext, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { observeThenFit } from '../layout/fit-later.ts';
+import { onResync } from '../layout/resync.ts';
 import './copied/cv-2d.copied.css';
 import { cvHeight } from './cv-size.ts';
 
@@ -18,8 +19,12 @@ export function useCv(fallback: number): { ref: RefObject<HTMLDivElement | null>
     const put = (w: number, h: number) => { w = Math.round(w); h = Math.round(h); setS((o) => (o.w === w && o.h === h ? o : { w, h })); };
     const r = el.getBoundingClientRect();
     put(r.width, r.height);
-    if (typeof ResizeObserver !== 'function') return;
-    return observeThenFit([el], () => { const b = el.getBoundingClientRect(); put(b.width, b.height); });   // (after the observer's delivery: what it sets changes the size of a box above it)
+    // (a figure that eases in a Tests card is scaled by its card: its rect is that many times its size, so it waits until it is home; tests/dock/figure-glide.ts)
+    const again = () => { if (el.closest('[data-figure-glide]')) return; const b = el.getBoundingClientRect(); put(b.width, b.height); };
+    const offSync = onResync(again);   // (a card that eases its pictures to a new size has every box measure now: layout/resync.ts)
+    if (typeof ResizeObserver !== 'function') return offSync;
+    const off = observeThenFit([el], again);
+    return () => { off(); offSync(); };   // (after the observer's delivery: what it sets changes the size of a box above it)
   }, []);
   return { ref, w: s.w, h: cvHeight(s.h, fallback), measured: s.h > 0 };
 }
