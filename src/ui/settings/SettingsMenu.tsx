@@ -2,6 +2,7 @@ import { useShell } from '../shell/store.ts';
 import { Icon } from '../shell/icons.tsx';
 import { SettingsSheet } from './SettingsSheet.tsx';
 import { UI } from '../strings.generated.ts';
+import { RecordStop } from '../capture/RecordIndicator.tsx';
 
 const gear = UI.topbar.find((t) => t.id === 'btnSettings')!;
 
@@ -10,6 +11,7 @@ export function SettingsMenu() {
   const open = useShell((s) => s.sheet === 'settings');
   return (
     <div className="dk-settings">
+      <RecordStop />
       <button type="button" className="ib" data-opens="settings" aria-haspopup="dialog" aria-expanded={open} aria-label={gear.label ?? undefined} title={gear.title ?? undefined} onClick={() => useShell.getState().toggle('settings')}><Icon n="gear" /></button>
       <SettingsSheet place="bar" />
     </div>

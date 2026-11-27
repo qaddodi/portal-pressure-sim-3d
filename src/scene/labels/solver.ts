@@ -79,6 +79,14 @@ export interface SolveInput {
   view: Box;
   /** Everything a label may never touch: cards, the presenter bar, the strip, the key. */
   blockers: readonly Box[];
+  /**
+   * Rooms a callout's ring has taken (labels/callout-claims.ts `rings`): a wall for every label's BOX, but not for the dots inside it. A ring is drawn round the very thing it
+   * names, so the dots of that thing (the portal tract's venule, arteriole, ductule) stand inside it by design: such a dot is no reason to hide its name (rule 6 reads
+   * `blockers` alone), and the leader that runs from it out of the ring is not a leader across a wall (only a leader from a dot outside the room crosses it). Names stand
+   * outside the ring and reach in. Before this a slide that rang the tract (27 Nov, presinusoidal, "Resistance") put the ring's square in `blockers`: the tract's names
+   * appeared, then the callout claimed its room and every one of them was hidden as having no dot.
+   */
+  encircled?: readonly Box[];
   /** The vessels' centrelines on the canvas, [x0, y0, x1, y1]: a label avoids standing on them (a cost, not a ban). */
   lines?: readonly Line[];
   /** Discs of vessels seen end-on (a portal venule's, a central vein's): a label never stands on one nor does a leader run across one, except the item that names it (`id`); 2D's lobule keeps the same (lobule-tract-labels.js fanCost). */
@@ -301,7 +309,9 @@ function withStanding(it: Anchored, fi: number, cands: Cand[], stay: number): Ca
 export function solve(input: SolveInput): Solved {
   const { view, lines = [], keep = [], leaderLineCost = 0, stay = 0 } = input;
   const grid = new LineGrid(lines);
+  const encircled = input.encircled ?? [];
   const blockersAir = input.blockers.map((b) => grow(b, AIR_BLOCKER));
+  const ringsAir = encircled.map((b) => grow(b, AIR_BLOCKER));
   // (the last resort for a label that must stand: it may touch a card's edge, never lie under it)
   const blockersRaw = input.blockers;
   const inner: Box = { x0: view.x0 + VIEW_INSET, y0: view.y0 + VIEW_INSET, x1: view.x1 - VIEW_INSET, y1: view.y1 - VIEW_INSET };
@@ -328,6 +338,9 @@ export function solve(input: SolveInput): Solved {
 
   const tryItem = (it: Anchored, relax: 0 | 1 | 2, offOrgans = false, strictLines = false, nearOnly = false, standOnly = false, maxLead = it.offVessels ? NAME_LEAD_MAX : Infinity) => {
     const blockers = relax >= 2 ? blockersRaw : blockersAir;
+    // (a ring's room: a wall for the box; for the leader a wall only where the dot is not inside that ring, with its air: a dot at its edge leaves it)
+    const rings = relax >= 2 ? encircled : ringsAir;
+    const ringsOver = rings.filter((r) => !(it.ax > r.x0 && it.ax < r.x1 && it.ay > r.y0 && it.ay < r.y1));
     let best: { cost: number; form: number; c: Cand; box: Box; leader: boolean; seg: Seg | null; hits: number } | null = null;
     const tally = input.why ? (input.why.get(it.id) ?? (input.why.set(it.id, {}), input.why.get(it.id)!)) : null;
     const no = (c: Cand, reason: string): void => { if (tally) { const k = (c.cost < NEAR_COST ? '' : c.cost < RING_COST ? 'wide:' : 'ring:') + reason; tally[k] = (tally[k] ?? 0) + 1; } };
@@ -349,6 +362,7 @@ export function solve(input: SolveInput): Solved {
           if (offOrgans && it.onOther?.(box)) continue;
           let bad = false;
           for (const b of blockers) if (hits(box, b)) { bad = true; break; }
+          if (!bad) for (const b of rings) if (hits(box, b)) { bad = true; break; }
           if (bad) { if (tally) no(c, 'card'); continue; }
           for (const p of placedBoxes) if (hits(box, p.air)) { bad = true; if (tally) no(c, 'label:' + p.id); break; }
           if (bad) continue;
@@ -381,6 +395,7 @@ export function solve(input: SolveInput): Solved {
               pen += leaderLineCost * Math.min(n, 4);
             }
             for (const b of blockers) if (crosses(seg[0], seg[1], seg[2], seg[3], b)) { bad = true; if (tally) no(c, 'leaderCard'); break; }
+            if (!bad) for (const b of ringsOver) if (crosses(seg[0], seg[1], seg[2], seg[3], b)) { bad = true; if (tally) no(c, 'leaderCard'); break; }
             if (bad) continue;
             for (const p of placedBoxes) if (crosses(seg[0], seg[1], seg[2], seg[3], p.near)) { bad = true; if (tally) no(c, 'leaderThrough:' + p.id); break; }
             if (bad) continue;

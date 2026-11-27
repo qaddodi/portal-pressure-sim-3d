@@ -146,7 +146,10 @@ test('no file outside motion.ts and global.css writes a cubic-bezier or a litera
 });
 
 test('Menu and Pages time their leaves on the scale, and Reduce Motion\'s card entry is the renamed token', () => {
-  for (const f of ['src/ui/shell/Menu.tsx', 'src/ui/shell/Pages.tsx']) assert.match(read(f), /from '\.\.\/motion\.ts'/, f);
+  for (const f of ['src/ui/surface/Menu.tsx', 'src/ui/surface/motion.ts']) assert.match(read(f), /from '\.\.\/motion\.ts'/, f);
+  // (About, References and Privacy leave by the dialog shell's one leave: surface/Dialog.tsx useDialogPresence, leaveMs('dialog'))
+  assert.match(read('src/ui/shell/Pages.tsx'), /useDialogPresence\(open\)/);
+  assert.match(read('src/ui/surface/Dialog.tsx'), /leaveMs\('dialog', surfaceModeNow\(\)\)/);
   const reduced = read('src/ui/a11y/reduced.css');
   assert.match(reduced, /--d-card-in:\s*var\(--d-small\)/);   // (it was --move, which the stylesheet no longer reads)
   assert.doesNotMatch(reduced, /--move\b/);

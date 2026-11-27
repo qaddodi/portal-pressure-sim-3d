@@ -9,7 +9,9 @@ test('the Treat card is mounted inside #app (InApp), as in 2D: the 2D stylesheet
   // what only .app defines in 2D's tokens: a card outside it would read nothing
   const chrome = read('src/ui/styles/app-01-chrome.css');
   const rule = chrome.slice(chrome.indexOf('\n.app {'), chrome.indexOf('}', chrome.indexOf('\n.app {')));
-  for (const v of ['--gap', '--card-head-pad', '--top-h', '--panel-w']) assert.ok(rule.includes(v), `.app defines ${v}`);
+  for (const v of ['--gap', '--top-h', '--panel-w']) assert.ok(rule.includes(v), `.app defines ${v}`);
+  // (the head's padding is every panel's, in #app or in the shell's root: one token on :root, surface/PanelHead.tsx)
+  assert.match(chrome, /\n:root \{ --card-head-pad: 12px 8px 8px 16px; \}/, ':root defines --card-head-pad');
 });
 
 test('the brand mark has its bitmap (2D index.html style): without it the top bar showed a solid square of --brand-bg', () => {

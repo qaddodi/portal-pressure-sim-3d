@@ -230,9 +230,8 @@
 
 /* ── Tests card on a phone (15 Oct, Mohammad) ─────────────────────
    The scope fills the card's width (its height the room left), the band button sits right under it, and the five
-   readings stand compact under the button, three and two. The X goes from every dock card: a pull down closes it. */
+   readings stand compact under the button, three and two. (The X stays on every card, as on every panel: owner, 27 Nov; a pull down closes it too.) */
 @media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
-  #app.thumb .card-close { display: none !important; }
   #app.thumb .dock-pane[data-pane="endoscopy"] > .instrument-view:not(.wall-view) { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(110px, 1fr) auto auto; gap: 10px; }
   #app.thumb .dock-pane[data-pane="endoscopy"] > .instrument-view:not(.wall-view) .endo-stage { grid-column: 1; grid-row: 1; }
   #app.thumb .dock-pane[data-pane="endoscopy"] > .instrument-view:not(.wall-view) .endo-stage > .chart-box.square { width: min(100cqw, max(100cqh - 24px, var(--stage-min))); }

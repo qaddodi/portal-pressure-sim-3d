@@ -5,9 +5,6 @@
    the dark looks their own #F0B43C. looks.ts holds the same value for the figure, the charts and tests/colour-tokens.test.ts. */
 :root { --caution: #8F6208; }
 
-/* the sheet over the dock rests one --sheet-gap above it (2D: a fixed 8 px) */
-html.thumb-ui .pal-back { bottom: max(0px, calc(var(--thumb-occ, 0px) - var(--sheet-gap, 8px))); }
-
 /* ── app-04-presenter.css ── */
 .pz-kick { display: flex; align-items: center; gap: .55em; font: var(--caps-w) var(--s-cap)/1.2 var(--font-ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: color-mix(in srgb, var(--site, var(--text-3)) 76%, var(--text));   /* (the level name is words: its ink is the level colour drawn toward the text colour so it reads 4.5:1 on every look; the audit measured Sinusoidal at 4.26) */ }
 .pz-site { align-self: flex-start; display: inline-flex; align-items: center; gap: .45em; margin-bottom: -.15em; padding: .2em .6em; border-radius: var(--r-pill); font: 600 max(12px, calc(var(--s-cap) * .75))/1.1 var(--font-ui); letter-spacing: var(--caps-ls); text-transform: uppercase; white-space: nowrap; color: color-mix(in srgb, var(--site) 66%, var(--text)); background: color-mix(in srgb, var(--site) 13%, transparent); }

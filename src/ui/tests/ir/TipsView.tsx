@@ -17,6 +17,7 @@ import { stentsNow, useIr, type IrLens, type IrSub, type StentId } from './store
 import { MEASURE_TABS } from '../../../scene/lenses/measure.ts';
 import { useMeasureLens } from '../../charts/useMeasureLens.ts';
 import { useState } from 'react';
+import { useOutsidePress } from '../../surface/outside.ts';
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 /** What the figure is drawn from, in the words it prints: a re-draw only when a printed tenth changes. */
@@ -54,6 +55,8 @@ export function TipsView({ h }: { h: number }) {
   const [open, setOpen] = useState(false);
   const more = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
   const close = (back = false) => { setOpen(false); if (back) more.current?.focus({ preventScroll: true }); };
+  // a press outside the menu and its button closes it, the menus' one rule (surface/outside.ts); Esc, a choice and a focus that leaves it close it too
+  useOutsidePress(open, [menu, more], () => setOpen(false));
   useEffect(() => { if (open) (menu.current?.querySelector(`[data-sub="${sub}"]`) as HTMLElement | null)?.focus({ preventScroll: true }); }, [open, sub]);
   // the menu and the lens are shut with the view they belong to
   useEffect(() => { if (sub !== 'inside') setOpen(false); }, [sub]);

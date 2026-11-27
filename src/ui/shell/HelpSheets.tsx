@@ -1,11 +1,12 @@
 // Help: the menu behind Settings › Help (and the "?" of a keyboard), and the Guide: the 2D app's single scrolling page (what it is, the keys, while presenting, reading the
-// figure, thresholds and the disclaimer), from the generated 2D words. About the model, References and Privacy are in the 2D app and not yet in the 3D app.
-import { useEffect, useRef } from 'react';
+// figure, thresholds and the disclaimer), from the generated 2D words, in the dialog shell like About the model (owner, 27 Nov: the Guide becomes a dialog).
 import { UI } from '../strings.generated.ts';
 import { useShell } from './store.ts';
-import { Frame } from './Frame.tsx';
-import { Icon, I } from './icons.tsx';
-import { MenuPop, MenuGroup, MenuItem } from './Menu.tsx';
+import { Dialog, DialogPage } from '../surface/Dialog.tsx';
+import type { CancelBy } from '../surface/dialog-fit.ts';
+import { I } from './icons.tsx';
+import { MenuGroup, MenuItem } from './Menu.tsx';
+import { Menu } from '../surface/Menu.tsx';
 import { runFeature, type FeatureId } from './features.ts';
 import { keyLabel } from './platform.ts';
 
@@ -39,29 +40,26 @@ export function HelpRows() {
 /** The Help menu: opened from the main menu's footer. */
 export function HelpMenu() {
   return (
-    <MenuPop kind="help" label="Help" title="Help" from="settings" align="end">
+    <Menu id="help" label="Help" title="Help" cls="app-menu" width="m" from="settings" align="end">
       <HelpRows />
-    </MenuPop>
+    </Menu>
   );
 }
 
 const GROUPS = [...new Set(UI.shortcuts.map((s) => s.group))];
 const ENTRY_NOTE = 'Keyboard';
 
+/** The Guide: a page dialog like About (surface/Dialog.tsx), opened at a section by `helpSection` (Keyboard shortcuts, While presenting). Its id in the shell store stays `guide`. */
 export function Guide() {
   const open = useShell((s) => s.sheet === 'guide');
   const section = useShell((s) => s.helpSection);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open || !section) return;
-    const el = ref.current?.querySelector<HTMLElement>(`[data-sec="${section}"]`);
-    el?.scrollIntoView({ block: 'start' });
-  }, [open, section]);
   const g = UI.guide;
   const keys = (group: string) => UI.shortcuts.filter((s) => s.group === group);
+  // (a press outside is recorded, so the tail of that press on the Guide's own opener does not open it again: store.ts closeByPress)
+  const cancel = (by: CancelBy) => { if (by === 'press') useShell.getState().closeByPress(); else useShell.getState().close(); };
   return (
-    <Frame kind="guide" label="Guide" place="top">
-      <div className="sh-guide" ref={ref}>
+    <Dialog id="guide" size="l" open={open} label="Guide" onCancel={cancel} className="modal">
+      <DialogPage open={open} title="Guide" section={open ? section : null} onClose={() => cancel('x')} bodyClass="sh-guide">
         <p className="sh-lede">{g.lede}</p>
         <div className="sh-entries">{g.entries.map((e) => <div key={e.title}><b>{e.title}</b><span>{e.text}</span></div>)}</div>
         <h3 className="sh-h3" data-sec="keys">{ENTRY_NOTE}</h3>
@@ -79,7 +77,7 @@ export function Guide() {
         <h3 className="sh-h3">Thresholds &amp; references</h3>
         <p>{g.thresholds}</p>
         <p className="sh-disclaimer">{g.disclaimer}</p>
-      </div>
-    </Frame>
+      </DialogPage>
+    </Dialog>
   );
 }

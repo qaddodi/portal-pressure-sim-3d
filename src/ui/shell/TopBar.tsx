@@ -7,7 +7,7 @@ import { useLens } from '../../scene/lenses/store.ts';
 import { sceneApi } from '../../scene/api.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
 import { lensNoteIn, lensPickable, lensesFor, shownLens } from '../../scene/lenses/in-view.ts';
-import { Anchored } from './Pop.tsx';
+import { Menu, menuDomId } from '../surface/Menu.tsx';
 import { I } from './icons.tsx';
 import { lensSwatch } from './lens-art.ts';
 import { useLook } from '../../scene/lenses/Legend.tsx';
@@ -29,6 +29,7 @@ import { useTalkOn } from '../../state/deck.ts';
 import { fadeAttrs } from '../fade.tsx';
 import { isCustomCase } from '../action/case-name.ts';
 import { currentParams, useParamsTick } from '../action/params.ts';
+import { RecordStop } from '../capture/RecordIndicator.tsx';
 
 interface Tb { id: string; label: string | null; title: string | null; text: string | null }
 export const tb = (id: string): Tb => UI.topbar.find((t) => t.id === id) as unknown as Tb;
@@ -71,22 +72,26 @@ function tapPill(id: ViewId, cur: ViewId) {
   if (t.type === 'refit') refitFigure(); else goToView(t.view);
 }
 
-/** The lens button: the colour key and a chevron (2D's #btnLayers). The lens menu opens from it. */
+/** The lens button: the colour key and a chevron (2D's #btnLayers). The lens menu (the one menu shell) opens from it; the button stays in the bar, where the 2D stylesheet addresses it. */
 export function LensButton() {
   const view = useShell((s) => s.view);
   // (the name and the key are the lens the view DRAWS: lenses/in-view.ts shownLens, never one it cannot show)
   const lens = shownLens(view, useLens((s) => s.lens));
   const pickable = lensPickable(view, LENS_IDS);
+  const open = useShell((s) => s.sheet === 'lens');
+  const toggle = () => { if (pickable) useShell.getState().toggle('lens'); };
   return (
-    <Anchored sheet="lens" label={labelOf('btnLayers')} cls="layers-pop" align="end" button={({ id, open, toggle, ref }) => (
-      <div ref={ref as React.Ref<HTMLDivElement>} className="lens-btn" id="btnLayers" role="button" tabIndex={0} data-opens="lens" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} title={tb('btnLayers').title ?? undefined}
-        onClick={() => { if (pickable) toggle(); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (pickable) toggle(); } }}>
+    <>
+      <div className="lens-btn" id="btnLayers" role="button" tabIndex={0} data-opens="lens" aria-haspopup="dialog" aria-expanded={open} aria-controls={menuDomId('lens')} title={tb('btnLayers').title ?? undefined}
+        onClick={toggle} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}>
         <span className="lens-name" id="colorModeLabel">{UI.lenses.find((l) => l.id === lens)?.name ?? ''}</span>
         <LensKey />
         <I n="chev-down" className="chev" />
-      </div>)}>
-      <LensMenu />
-    </Anchored>
+      </div>
+      <Menu id="lens" label={labelOf('btnLayers')} title={labelOf('btnLayers')} cls="layers-pop" width="m" align="end">
+        <LensMenu />
+      </Menu>
+    </>
   );
 }
 /** The lens menu: the lenses the view offers (lenses/in-view.ts lensesFor, the one table), each with what it colours in this view where that differs from the menu's own words. */
@@ -159,6 +164,7 @@ export function TopBar() {
         <Act id="tabInstruments" icon="gauge" feature="tests" className="measure-launch" />
         <Act id="btnHistory" icon="clock" feature="history" extra={<b className="tb-hc" aria-hidden="true" />} />
         <span className="tb-sep" aria-hidden="true" />
+        <RecordStop />
         <button type="button" className="ib" id="btnSettings" data-opens="settings" aria-haspopup="dialog" aria-expanded={sheet === 'settings'} aria-label={tb('btnSettings').label ?? undefined} title={tb('btnSettings').title ?? undefined} onClick={() => useShell.getState().toggle('settings')}><I n="gear" /></button>
         <button type="button" className="pal-btn" id="btnPalette" data-opens="search" aria-expanded={sheet === 'search'} aria-label={tb('btnPalette').label ?? undefined} title={tb('btnPalette').title ?? undefined} onClick={() => useShell.getState().toggle('search')}>
           <I n="search" /><span className="pal-l">Search</span><kbd>{keyLabel('Ctrl/⌘ K')}</kbd>

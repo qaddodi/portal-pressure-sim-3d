@@ -16,7 +16,7 @@ const readings = { whvp: fixture.whvp, fhvp: fixture.fhvp, hvpg: fixture.hvpg, i
 
 test('the deck is valid and every field the cards need is there', () => {
   assert.deepEqual(validateDeck(HVPG_DECK), []);
-  assert.deepEqual(HVPG_DECK.slides.map((x) => x.id), ['route', 'free', 'wedge', 'wedge-sinusoid', 'hvpg', 'presin', 'ppg', 'eus', 'eus-ladder', 'heart', 'bc', 'plane', 'summary'], 'all 13 slides of the 2D deck, in its order');
+  assert.deepEqual(HVPG_DECK.slides.map((x) => x.id), ['route', 'free', 'wedge', 'wedge-sinusoid', 'hvpg', 'presin', 'eus', 'eus-ladder', 'ppg', 'heart', 'bc', 'plane', 'summary'], 'all 13 slides of the 2D deck, in its order but for the PPG slide, which plays after the two EUS slides (27 Nov)');
 });
 
 test('the deck words are the 2D deck\'s, character for character (set PPS_2D_REPO to a 2D checkout to compare; the copy names the commit it came from)', async () => {

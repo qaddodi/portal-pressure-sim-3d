@@ -189,6 +189,24 @@ export function conflictMarkers(text) {
   return out;
 }
 
+/** Brackets in a stylesheet that do not close (or close without opening): a file cut off mid-rule (a merge or an edit that lost its tail) fails the production build with "Unclosed block" while every test, the typecheck and the lint still pass.
+ *  Comments and quoted strings are skipped. Returns [{ line, message }] (empty for a well-formed file); the build's own parser is postcss, this needs no dependency so it runs before `npm install`. */
+export function cssProblems(text) {
+  const out = [], stack = [], pair = { '}': '{', ')': '(', ']': '[' };
+  let line = 1, i = 0;
+  while (i < text.length) {
+    const c = text[i], two = text.slice(i, i + 2);
+    if (two === '/*') { const e = text.indexOf('*/', i + 2); if (e < 0) { out.push({ line, message: 'a comment that is never closed' }); return out; } line += text.slice(i, e).split('\n').length - 1; i = e + 2; continue; }
+    if (c === '"' || c === "'") { let j = i + 1; while (j < text.length && text[j] !== c && text[j] !== '\n') j += text[j] === '\\' ? 2 : 1; if (text[j] !== c) out.push({ line, message: 'a string that is never closed' }); i = j + 1; continue; }
+    if (c === '\n') line++;
+    else if (c === '{' || c === '(' || c === '[') stack.push({ c, line });
+    else if (pair[c]) { const top = stack.pop(); if (!top || top.c !== pair[c]) out.push({ line, message: `a stray '${c}'` }); }
+    i++;
+  }
+  for (const s of stack) out.push({ line: s.line, message: `a '${s.c}' that is never closed` });
+  return out;
+}
+
 /** Rule `long-line` (ratchet, scripts/lint-long-lines.json): no new source line over LONG_LINE characters. The review (F16) counted 1,169 lines over 300, mostly code with a long comment after it, which makes diffs and reviews hard to read.
  *  The existing long lines are not failed: each file's count today is its allowance, so a file may not gain a long line, and a file with none may not get one. A comment goes on its own line, above the code.
  *  The copied engine, the 2D copies (`.copied.`) and generated data (`.generated.`) are not hand-written here and are not counted. `files` is [{ path, text }]; returns { [path]: number of lines over the limit } for the files with any. */

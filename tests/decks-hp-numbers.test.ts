@@ -9,6 +9,7 @@ import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
 import { chainOf, sequencer, plainText, parseToken, tokensOf, valueText, stepOf, changes, type Fp } from '../src/decks/hp/numbers.ts';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
+import { inPlayOrder } from '../scripts/play-order.mjs';
 
 interface Gold { from: string; decks: Record<string, { id: string; fp: Record<string, number>; tokens: [string, string][] }[]> }
 const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/${f}`, import.meta.url), 'utf8')) as Gold;
@@ -16,6 +17,8 @@ const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/${f}`, i
 // scripts/gen-hp-numbers-3d.mjs: engine ac66c99b, ascites forms and clears gradually, and c92bf66b, a retained volume builds up over 20 days;
 // with the engine before them every deck replays to the 2D fixture). Those decks are recorded from this engine, so any further drift still fails.
 const gold: Gold = { from: read('decks-hp-numbers.json').from, decks: { ...read('decks-hp-numbers.json').decks, ...read('decks-hp-numbers-3d.json').decks } };
+// (the 2D rows are in the 2D slide order; a talk a review moved a slide of plays in its own order, so its rows are joined by slide id: scripts/play-order.mjs)
+for (const id of Object.keys(gold.decks)) gold.decks[id] = inPlayOrder(id, gold.decks[id]!);
 const FULL = process.env.DECKS_HP_FULL === '1';
 const WHOLE = 'pregnancy';
 const FIRST = 1;
