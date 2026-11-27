@@ -42,25 +42,14 @@ export function placedLiverPoint(): V3 {
 }
 export const LOBULE_SCALE = 1 / 1500;
 
-/** Where the sinusoid stands in the lobule's local units, and which way it faces: the place found by rule on the lobule's own sinusoids (lobule/station.ts
- *  placedSinusoidStation: zone 2, a sinusoid running along the view's
- *  axis with a neighbour either side, parallel and about two row spacings away), held here as numbers because the search costs a third of a second (tests/dive-
- *  scales-agree.test.ts holds them against the search on buildLobule(7)).
- *  The view's own frame runs along the flow, portal end left; the blood runs the other way here (course 78 leaves the right-hand portal corner: toward -x), so the
- *  view's frame is turned SIN_ANGLE about the plate's normal
- *  (3 degrees short of a half turn): the lobule's flow IS the view's flow at the station, and the camera rolls by the same angle (shots.ts sinusoidShot) so the
- *  portal end is on the left of the screen. One local sinusoid unit is
- *  SIN_REL lobule units, so the sinusoid's lumen (0.34) is as wide as the lobule's own sinusoid tube (0.036). */
-export const SIN_LOCAL: V3 = [1.744667, -0.212420, 0];
-export const SIN_ANGLE = -3.089712;
-// (owner, 20 Nov: the sinusoid view lines up with a real sinusoid of the lobule, mid zone 2. It was point 23 of course 90, a second-generation sinusoid on the left
-//  whose nearest neighbours lay 23 and 100 micrometres off and
-//  angled, so at the handoff everything but the one lumen changed in place (Mohammad, 27 Nov: "the lobule disappears and the sinusoid view appears"). Now it is
-//  point 5 of course 78 (hexFrac 0.62, neighbours 106 and 90 micrometres
-//  away, within 6 degrees), and the lobule grows the view's own rows round it, micro3d/lobule-fine.ts.)
+/** Where the sinusoid stands in the lobule's local units (the 2D 'lobule:sinusoid' station: half-way from the left portal corner to the centre, on the slab), and its scale
+ *  against the lobule's: one local sinusoid unit is SIN_REL lobule units, so the sinusoid's lumen (0.34) is as wide as the lobule's own sinusoid tube (0.036). */
+export const SIN_LOCAL: V3 = [-1.3213, 0.2455, 0];
+// (owner, 20 Nov: the sinusoid view lines up with a real sinusoid of the lobule, mid zone 2: this is point 23 of the lobule's own course 90 (a second-generation sinusoid, hexFrac 0.49,
+//  running along +x within 0.01 rad), so the dive from the lobule lands on a sinusoid that is drawn there. tests/scene-dive.test.ts holds it against buildLobule(7).)
 // (20 Nov, the dive's handoff read as a cut: the 3D sinusoid's lumen, 10 µm at U, came out 1.44 times the 3D lobule's tube it grows out of at 0.106. Now the lumen is as wide as that tube,
 //  tests/scene-dive-handoff.test.ts, so the sinusoid grows out of the very capillary the camera goes into.)
-export const SIN_REL = 0.06902;
+export const SIN_REL = 0.0735;
 export const SIN_SCALE = LOBULE_SCALE * SIN_REL;
 
 /** A point of the lobule's local units in the scene. */
@@ -70,16 +59,9 @@ export function lobuleWorld(p: V3, out: V3 = [0, 0, 0]): V3 {
 }
 /** The sinusoid's place in the scene (its local origin). */
 export const SIN_POINT: V3 = lobuleWorld(SIN_LOCAL);
-/** A point of the sinusoid's local units in the lobule's local units: turned by SIN_ANGLE about the plate's normal, scaled by SIN_REL, from the station. */
-export function sinusoidLocal(p: V3, out: V3 = [0, 0, 0]): V3 {
-  const c = Math.cos(SIN_ANGLE), s = Math.sin(SIN_ANGLE), x = p[0] * SIN_REL, y = p[1] * SIN_REL;
-  out[0] = SIN_LOCAL[0] + x * c - y * s; out[1] = SIN_LOCAL[1] + x * s + y * c; out[2] = SIN_LOCAL[2] + p[2] * SIN_REL;
-  return out;
-}
-/** A point of the sinusoid's local units in the scene (the view's frame is turned by SIN_ANGLE: see SIN_LOCAL). */
+/** A point of the sinusoid's local units in the scene. */
 export function sinusoidWorld(p: V3, out: V3 = [0, 0, 0]): V3 {
-  const c = Math.cos(SIN_ANGLE), s = Math.sin(SIN_ANGLE), x = p[0] * SIN_SCALE, y = p[1] * SIN_SCALE;
-  out[0] = SIN_POINT[0] + x * c - y * s; out[1] = SIN_POINT[1] + x * s + y * c; out[2] = SIN_POINT[2] + p[2] * SIN_SCALE;
+  out[0] = SIN_POINT[0] + p[0] * SIN_SCALE; out[1] = SIN_POINT[1] + p[1] * SIN_SCALE; out[2] = SIN_POINT[2] + p[2] * SIN_SCALE;
   return out;
 }
 

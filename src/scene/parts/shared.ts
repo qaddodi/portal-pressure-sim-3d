@@ -9,7 +9,6 @@ import { type LookId } from '../palette.ts';
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { type ModelSource } from '../model-source.ts';
 import { LOBULE_SCALE, lobuleWorld, sinusoidWorld } from '../lobule/frames.ts';
-import { STAND_ASIDE_FROM } from '../micro3d/sinusoid-arrival.ts';
 import { LOBULE_R, LOBULE_T, SINUSOID_L } from '../lobule/shots.ts';
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { VB_CIRC } from '../circuit/data.copied.ts';
@@ -40,11 +39,10 @@ export const STUB_Q: Record<string, number> = {
 // (DIVE_IN follows the lobule's scale: the body is gone only when the camera is a few lobule-fits away, where the lobule's field starts to fill the screen. A fixed 0.7 left
 //  the screen showing the bare page between the body going and the 1/1500 lobule growing: the near-white flash in the Anatomy -> Lobule dive.)
 /** The dive share (sinusoid/view.ts diveShare) below which nothing of the sinusoid is drawn on the way in from the lobule. */
-export const SIN_SHOW_FROM = 0.15;   // (the blur's start, sinusoid3d FOCUS[0]; every part arrives from 0.25, micro3d/sinusoid-arrival.ts)
+export const SIN_SHOW_FROM = 0.2;
    // (the focus pull's start, sinusoid3d FOCUS[0]: the scene is up, its parts not yet drawn, its blur band working)
 /** The dive share from which the 3D lobule stands aside under the sinusoid: once the sinusoid (sinusoid3d.ts, whole from 0.86) covers it. */
-// (27 Nov: from where the sinusoid's plates and lumen are whole, micro3d/sinusoid-arrival.ts STAND_ASIDE_FROM: one rule, so the lobule never leaves before the matching parts have landed)
-export const LOBULE_UNDER_FROM = STAND_ASIDE_FROM;
+export const LOBULE_UNDER_FROM = 0.7;
 
 export const DIVE_OUT = 1.9, DIVE_IN = 40 * LOBULE_SCALE;
 /** The figure's front (scene z): every organ's front face is at or behind it (organs/meshes.ts) and every vessel lies behind it too (frame2d.ts TIER_Z, the radius included). */

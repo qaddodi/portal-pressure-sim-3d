@@ -6,7 +6,6 @@ import { DoubleSide, EqualStencilFunc, MeshBasicMaterial, ZeroStencilOp } from '
 import { AlwaysStencilFunc, BackSide, KeepStencilOp, NotEqualStencilFunc, ReplaceStencilOp, type BufferGeometry, BufferAttribute, Color, DataTexture, Float32BufferAttribute, Group, LinearFilter, LinearMipmapLinearFilter, Mesh, type Raycaster, ShaderMaterial, Vector2, Vector3, Vector4 } from 'three';
 import { PICK_OF } from './pick.ts';
 import { ORGAN_FS, ORGAN_INK_VS, ORGAN_VS } from './organ-shader.ts';
-import { LIVER_LOBULES } from './liver-lobules.ts';
 import type { OrganTones2D } from '../../looks/organ-tones.copied.ts';
 import { ORGAN_MESHES, bakedOrgans } from './meshes.ts';
 import { prepareOrgans } from './prepare.ts';
@@ -108,8 +107,6 @@ function useOrganShader(o: CelObject, g: BufferGeometry, id: string, depth: { va
   const m = o.toon;
   m.vertexShader = ORGAN_VS; m.fragmentShader = ORGAN_FS;
   Object.assign(m.uniforms, {
-    // the liver's lobule mosaic (liver-lobules.ts): the liver reads the shared share, every other organ a 0 of its own (nothing runs)
-    lobMos: id === 'liver' ? LIVER_LOBULES.mos : { value: 0 }, lobTone: LIVER_LOBULES.tone, lobLine: LIVER_LOBULES.line,
     cut: ORGAN_CUT, depthAmt: depth, o1: { value: new Color() }, o2: { value: new Color() }, o3: { value: new Color() }, page: { value: new Color() }, layer: { value: 0.55 },
     ogLight: { value: new Vector4() }, ogDark: { value: new Vector4() }, volShade: { value: new Vector4() },
     volLight: { value: new Vector4() }, volGeo: { value: new Vector4() }, volShadeAt: { value: 0.8 }, shadeSteps: { value: new Vector3() }, rimK: { value: 0.58 },

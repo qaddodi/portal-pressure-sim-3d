@@ -23,7 +23,7 @@ import { addOrganHalos, programPrototypes } from '../materials/prototypes.ts';
 import { liveSource } from '../model-source.ts';
 import { buildLobuleSteps } from '../lobule/geometry.ts';
 import { LobuleView } from '../lobule/index.ts';
-import { LIVER_POINT, LOBULE_SCALE, SIN_ANGLE, SIN_LOCAL, SIN_REL } from '../lobule/frames.ts';
+import { LIVER_POINT, LOBULE_SCALE, SIN_LOCAL, SIN_REL } from '../lobule/frames.ts';
 import { SinusoidView } from '../sinusoid/index.ts';
 import { ProcedureLayer } from '../procedures/layer.ts';
 import { DiseaseLayer } from '../disease/index.ts';
@@ -211,7 +211,7 @@ export const buildPart = scenePart<CelScene>()({
     // the lobule stands inside the liver, the sinusoid inside the lobule (lobule/frames.ts): two frames, each a place and a scale
     this.buildWhat = 'frames and stand-ins';
     this.dive.position.set(...LIVER_POINT); this.dive.scale.setScalar(LOBULE_SCALE);
-    this.sinFrame.position.set(...SIN_LOCAL); this.sinFrame.rotation.z = SIN_ANGLE; this.sinFrame.scale.setScalar(SIN_REL);
+    this.sinFrame.position.set(...SIN_LOCAL); this.sinFrame.scale.setScalar(SIN_REL);
     this.sinFrame.add(this.sinus.group); this.dive.add(this.lobule.group, this.sinFrame); this.scene.add(this.dive, this.mapLayer.group);
     this.lobule.setVisible(false); this.sinus.setVisible(false);
     this.dive.visible = false;   // (the whole dive frame is off at the body's rest: nothing of the lobule or the sinusoid, or anything added to them later, can show on the liver)
