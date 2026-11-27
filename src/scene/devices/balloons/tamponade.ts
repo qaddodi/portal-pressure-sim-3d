@@ -11,6 +11,7 @@
 import { Group, Vector3 } from 'three';
 import type { CelShared } from '../../materials/cel.ts';
 import type { Palette } from '../../palette.ts';
+import { UNITS_PER_SCENE } from '../../frame2d.ts';
 import { DeviceObject } from '../device-object.ts';
 import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, type Ring, writeRings } from '../tube-rings.ts';
 import { BALLOON, BALLOON_MS, balloonShape, esoAt } from '../../procedures/copied/balloon-eso.js';
@@ -18,7 +19,7 @@ import { arcAtY, pullArrow, tubePath } from '../../procedures/copied/balloon-gas
 import { gasRings, gasSeat, lineScene, lineTip, scenePoint, tamponadePhase, tubeEnds, tubeLine } from './tamponade-path.ts';
 import { easeMove } from '../../procedures/copied/ease.js';
 
-const U = 300;
+const U = UNITS_PER_SCENE;
 const PULL_N = 5;
 const TUBE_N = 120, ESO_N = 64, GAS_N = 64, RADIAL = DEVICE_SIDES, MARK_N = 3, HEAD_N = 6;
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));

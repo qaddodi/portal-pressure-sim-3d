@@ -3,12 +3,12 @@
 import { Group, Vector3 } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
-import { TIER_Z, x3, y3 } from '../frame2d.ts';
+import { TIER_Z, x3, y3, UNITS_PER_SCENE } from '../frame2d.ts';
 import { DeviceObject } from './device-object.ts';
 import { DEVICE_SIDES, WIRE_SIDES, allocTube, makeRings, writeRings } from './tube-rings.ts';
 import { bulgeStep, polyOf } from '../disease/ascites-pool.ts';
 
-const U = 300;
+const U = UNITS_PER_SCENE;
 const SHAFT_N = 8, HUB_N = 5, LINE_N = 14, STREAM_N = 16, RIPPLE_N = 33;
 /** 2D units: the needle's radius, the hub's, the drain line's; the length of the shaft and of the hub; how far outside the wall the tip waits and how far inside the ascites it ends; the line's reach. */
 export const NEEDLE = { r: 1.1, hubR: 3.4, lineR: 1.5, shaft: 120, hub: 20, outside: 50, inside: 80, line: 90 } as const;
