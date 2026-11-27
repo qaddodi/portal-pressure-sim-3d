@@ -58,9 +58,11 @@ export const DOF_SLAB_LOBULE = 0.75 * LOBULE_T * LOBULE_SCALE, DOF_SLAB_SINUSOID
 export const DOF_BAND_FRAC = 0.02;
 /** The whole-screen blur of the Anatomy <-> Lobule move, at its peak: the same strength the Sinusoid's focus pull holds (sinusoid3d FOCUS_PEAK), so the two dives blur alike. */
 export const DOF_DIVE_PEAK = 0.4;
-/** The blur over a lobule the move only passes through (Anatomy <-> Sinusoid), at its peak: stronger than the landing dive's (Mohammad, 27 Nov: "I feel the blur of the lobule should be more pronounced as it's a bit distracting").
- *  A share of the picture's height like the rest (DOF_BAND_FRAC times this: 0.8 % of the height at 0.4, 1.4 % at 0.7: about 14 px to 25 px on an iPhone's 1688 px, one rule on every screen). The hold blends from one peak
- *  to the other (diveBlur's `hold`), and the sinusoid's own focus pull takes the picture on from it (it passes this peak on its way to sharp: SinusoidScene3D focusBlur). */
+/** The blur over a lobule the move only passes through (Anatomy <-> Sinusoid), at its peak: stronger than the landing dive's
+ *  (Mohammad, 27 Nov: "I feel the blur of the lobule should be more pronounced as it's a bit distracting").
+ *  A share of the picture's height like the rest (DOF_BAND_FRAC times this: 0.8 % of the height at 0.4, 1.4 % at 0.7,
+ *  about 14 px to 24 px on an iPhone's 1688 px): one rule on every screen. The hold blends from one peak to the other
+ *  (diveBlur's `hold`), and the sinusoid's own focus pull takes the picture on from it. */
 export const DOF_PASS_PEAK = 0.7;
 /** The blur strength (0 none .. DOF_DIVE_PEAK) with the camera `d` from the place dived to, `rest` the distance the lobule is framed at, `gone` where the body has dissolved away and `whole` where all of it is drawn:
  *  none at the body's rest and at the lobule's framing, rising smoothly as the body dissolves and peaking where it is gone, then letting go as the neighbours resolve on the way in to the framing. A function of the
