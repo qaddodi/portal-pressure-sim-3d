@@ -153,7 +153,7 @@ test('a callout on the lobule (the sinusoid pair\'s WHVP and pressure) comes in 
   let moving = false;
   const deps: CardDeps = {
     project: (_p, out) => { out.x = 300; out.y = 320; return out; }, cameraMoving: () => moving, view: () => ({ x0: 0, y0: 56, x1: 1280, y1: 800 }), blockers: () => [],
-    vp: () => ({ w: 1280, h: 800, safe: { top: 0, right: 0, bottom: 0, left: 0 } }) as never, measure: measure as never, now: () => now, spleenScale: () => 1,
+    vp: () => ({ w: 1280, h: 800, safe: { top: 0, right: 0, bottom: 0, left: 0 } }) as never, measure: measure as never, now: () => now, organEnds: () => false,
     lobule: (_n, out) => out.set(0, 0, 0), lobuleRing: (_n, out) => out.set(0.1, 0, 0), circuit: () => null,
   };
   const layer = new El('div');
