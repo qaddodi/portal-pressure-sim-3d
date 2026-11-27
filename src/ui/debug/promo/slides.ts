@@ -93,7 +93,7 @@ export const splitKeys = (keys: readonly string[]): { slides: string[]; extras: 
 
 /** The proposed pictures that are not slides of a talk: a case at a stop and the menu's first screens. They follow the twenty slides in the box. */
 export const PROMO_EXTRAS: readonly { key: string; why: string }[] = Object.freeze([
-  { key: 'history:hist-bleed-tips:chart', why: 'A bleed, then a TIPS within 24 hours, drawn as graphs: the pressures fall at the TIPS and the shunt fraction rises, with the events marked on the lanes.' },
+  { key: 'history:hist-bleed-tips:chart', why: 'A bleed, then a TIPS within 24 hours, as graphs: pressures fall at the TIPS, the shunt fraction rises, events marked.' },
   { key: 'history:hist-ascites:chart', why: 'Refractory ascites as graphs: the ascites volume climbing, each tap a drop, the medicines as bars under the pressures.' },
   { key: 'history:hist-hcv:chart', why: 'Hepatitis C cured: the pressure lanes over 600 days, the cause gone and the portal pressure persisting.' },
   { key: 'history:hist-tips-narrowed:chart', why: 'A TIPS that narrows: the gradient returns after a clean start, drawn over the whole course.' },
