@@ -112,7 +112,7 @@
  "src/scene/camera/chase.ts": 7,
  "src/scene/camera/dive.ts": 2,
  "src/scene/camera/quiet.ts": 2,
- "src/scene/camera/rig.ts": 59,
+ "src/scene/camera/rig.ts": 58,
  "src/scene/camera/shots.ts": 14,
  "src/scene/camera/slide-time.ts": 1,
  "src/scene/camera/tilt-input.ts": 1,

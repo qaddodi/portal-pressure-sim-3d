@@ -172,11 +172,13 @@ export function diveRoomShare(ra: number, rb: number, r: number): number {
   if (Math.abs(span) < 1e-12 || !(r > 0)) return 1;
   return Math.min(1, Math.max(0, Math.log(ra / r) / Math.log(ra / rb)));
 }
-/** The share of a dive from or to the body (the zoom's log share, which is the move's eased share) over which the place dived to is brought to the middle of the room and out from it: the camera TURNS to the place early,
- *  while the picture is still the body, and the rest of the dive is a straight push into the middle of the screen (Mohammad, 27 Nov, the Sites deck, anatomy to the lobule: "zooming to the portal vein area, then going
- *  towards the lobule and zooming in"). The place's screen offset used to be let go on the distance's linear share, which is almost all of it by the first tenth of a geometric zoom of a thousand times, so the
- *  maths had the aim at the place at once while the picture, which is the offset on screen, held it at its first off-centre spot (130 px up and left on a Mac) for the first fifth of the move and then slid it to the
- *  middle at a steady pace over the rest: the picture magnified the liver's neighbourhood where it stood, then panned across tissue grown a hundred times, the two legs. Out is the same run backward. */
+/** The share of a dive from or to the body (the zoom's log share, which is the move's eased share) over which the place dived to is brought to
+ *  the middle of the room and out from it: the camera TURNS to the place early, while the picture is still the body, and the rest of the dive is a
+ *  straight push into the middle of the screen (Mohammad, 27 Nov, the Sites deck, anatomy to the lobule: "zooming to the portal vein area, then
+ *  going towards the lobule and zooming in"). The place's screen offset used to be let go on the distance's linear share, which is almost all of it
+ *  by the first tenth of a geometric zoom of a thousand times, while the picture, which is that offset on screen, held the place at its first
+ *  off-centre spot (130 px up and left on a Mac) for the first fifth of the move and then slid it to the middle at a steady pace over the rest:
+ *  the liver's neighbourhood magnified where it stood, then a pan across tissue grown a hundred times, the two legs. Out is the same run backward. */
 export const AIM_SETTLE = 0.4;
 export function aimShare(kc: number): number { const t = Math.min(1, Math.max(0, kc / AIM_SETTLE)); return t * t * (3 - 2 * t); }
 function blendDive(a: Pose, b: Pose, k: number, arc = 1, z?: ZoomEnds): Pose {
