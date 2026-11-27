@@ -32,6 +32,15 @@ export interface PlanePoint { f: Fp; from?: Fp | null; name: string; short?: str
 export interface Stop { f: Fp; name: string }
 
 export const PLANES = PLANES0 as unknown as Record<string, PlaneDef>;
+// Every named plane's PPG line, and the flow-and-PPG plane's caption (owner, 27 Nov 2026, C3): a PPG of 12 mmHg is where bleeding risk rises,
+// not the CSPH line (CSPH is an HVPG of 10 mmHg or more), so the line says so and the caption under the plot says what CSPH is.
+// Made here, not in layout.generated.js (a re-copy from 2D would lose it); tests/plane-ppg-line.test.ts pins the words.
+export const PPG_LINE_NAME = 'PPG ≥12: bleeding risk';
+export const PPG_LINE_SHORT = 'PPG ≥12';
+export const CSPH_NOTE = 'CSPH is an HVPG of 10 mmHg or more.';
+const FLOW_PPG = PLANES['flow-ppg'];
+for (const pl of Object.values(PLANES)) { const y = pl.lineNames?.y; if (y) for (const k of Object.keys(y)) if (/^PPG ≥\d+$/.test(y[k]!)) y[k] = PPG_LINE_NAME; }
+if (FLOW_PPG && !FLOW_PPG.source?.includes(CSPH_NOTE)) FLOW_PPG.source = `${FLOW_PPG.source ?? ''} ${CSPH_NOTE}`.trim();
 export const planeOf = planeOf0 as (p: PlaneSpec | null | undefined) => PlaneDef | null;
 export const fitPlane = fitPlane0 as (pl: PlaneDef, points: readonly { f?: Fp | null; from?: Fp | null }[]) => PlaneDef;
 export const zoneOf = zoneOf0 as (pl: PlaneDef, f: Fp) => Zone | null;
@@ -133,7 +142,7 @@ export interface PlaneLayout {
 }
 
 /** One plot's whole layout: 2D planePlot's draw(), in the order it asks for things, with the DOM taken out. */
-export function planeLayout(inp: LayoutIn): PlaneLayout {
+function layoutOnce(inp: LayoutIn): PlaneLayout {
   const { W, H, fs, card = false } = inp, points = inp.points ?? [];
   const pl = card ? inp.plane : fitPlane(inp.plane, points);
   const rg = inp.ring ? shownReading(pl, inp.ring) : null;
@@ -193,6 +202,16 @@ export function planeLayout(inp: LayoutIn): PlaneLayout {
     pl, fr, axed, guide, W, H, fs, X, Y, fills, hatch, ax, boxes, words, cuts, lines, diag: dg ? { seg: dg.seg, label: dg.label } : null, iso: io, nums, at, names, pr,
     dot: now ? { x: now.x, y: now.y, r, g } : null, cardWords, trail,
   };
+}
+
+/** The plot's layout. The PPG line's long name ("PPG ≥12: bleeding risk", C3) is left out where no clear place holds it (the layout's own rule, a phone-width plot);
+ *  there the line keeps the short "PPG ≥12", which claims nothing about CSPH, so a line is never left unnamed for want of room. */
+export function planeLayout(inp: LayoutIn): PlaneLayout {
+  const L = layoutOnce(inp);
+  const y = inp.plane.lineNames?.y;
+  if (!y || !Object.values(y).includes(PPG_LINE_NAME) || L.lines.some((l) => l.text === PPG_LINE_NAME)) return L;
+  const short = Object.fromEntries(Object.entries(y).map(([k, v]) => [k, v === PPG_LINE_NAME ? PPG_LINE_SHORT : v]));
+  return layoutOnce({ ...inp, plane: { ...inp.plane, lineNames: { ...inp.plane.lineNames, y: short } } });
 }
 type PlaceStop = { x: number; y: number; anchor: 'start' | 'middle' | 'end'; box: Box } | null;
 

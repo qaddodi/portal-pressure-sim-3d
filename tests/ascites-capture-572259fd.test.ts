@@ -7,11 +7,10 @@ import { pipeline } from './capture-source.ts';
 
 const css3 = (f: string) => readFileSync(new URL(`../src/ui/${f}`, import.meta.url), 'utf8');
 
-test('the refilling balance joins its number and unit, so it breaks only after "Refilling"', () => {
-  assert.equal(rateText(3900, false), 'Refilling 3,900 mL/day');
-  assert.equal(rateText(3900, true), '3,900 mL/day');
-  assert.equal(rateText(0, false), 'Steady');
-  assert.match(css3('css3d-over-2d.css'), /\.ab-rate\[data-refill\]\s*\{[^}]*white-space:\s*normal/);
+test('the balance has no "Refilling" word and no special wrap rule: an empty belly prints no rate (C15)', () => {
+  assert.equal(rateText(3900, 0), '');
+  assert.equal(rateText(3900, 1), '3,900 mL/day');
+  assert.doesNotMatch(css3('css3d-over-2d.css'), /\.ab-rate\[data-refill\]/);
 });
 
 test('a stopped time-lapse counter is set in proportional digits', () => {

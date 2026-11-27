@@ -60,8 +60,12 @@ export interface AbView {
   fluid: boolean; fill: number; serum: number | null; diuretics: boolean;
 }
 
-/** The daily balance in words. An empty belly (nothing to tap) with a rising balance is "Refilling": a bare "▲2,100 mL/day" under "None, 0.0 L" would read as fluid that is there. */
-export const rateText = (b: number | null, tapped: boolean): string => (b == null ? '' : b === 0 ? 'Steady' : b > 0 && !tapped ? `Refilling ${fmtG(Math.abs(b), 0)}\u00a0mL/day` : `${fmtG(Math.abs(b), 0)} mL/day`);
+/** Under this much fluid the belly has just been tapped (or has none): the model's instant balance there is the first minutes of a refill
+ *  (2,700 mL/day an hour after a tap, about 350 mL/day over the 14 days that follow), a rate no patient has, so the card prints none
+ *  (owner, 27 Nov 2026, C15; tests/abdomen-refill-rate.test.ts). The 14-day average needs the engine: reports/ext-review-3531bdfa/FINDINGS.md C15. */
+export const REFILL_HIDE_L = 0.5;
+/** The daily balance in words; nothing while the pool is under REFILL_HIDE_L (`litres`), where the instant rate is a transient. */
+export const rateText = (b: number | null, litres: number): string => (b == null || !(litres >= REFILL_HIDE_L) ? '' : b === 0 ? 'Steady' : `${fmtG(Math.abs(b), 0)} mL/day`);
 
 /** The pane's readings from a frame's metrics and the patient's settings (2D createAbdomen update). `rate` is the held balance (balance-hold.js), or null before one.
  *  `course`: the balance in mL a day a playing case says for its day (case/rate.ts, from the course's days); it stands in for the live rate in the line and the words under the litres, so the
@@ -79,7 +83,7 @@ export function abView(m: M, params: M, held: number | null, course: number | nu
   return {
     num: fmt(a.volume / 1000, 1), grade: a.grade === 0 ? 'No free fluid' : 'Ascites', gradeTip: '',   /* (the volume alone: a clinical grade needs an examination or an ultrasound, which a gauge has not done; reviewer, 24 Nov 2026) */ sev: (SEV as string[])[a.grade] || 'danger',
     trend: `${r > 0 ? '+' : ''}${fmt(rk, 0)} mL a day · ${trend}`,
-    rate: rateText(b, tapped), rateDir: b == null || b === 0 ? 'steady' : b > 0 ? 'up' : 'down',
+    rate: rateText(b, a.volume / 1000), rateDir: b == null || b === 0 || !(a.volume / 1000 >= REFILL_HIDE_L) ? 'steady' : b > 0 ? 'up' : 'down',
     iap: a.iap, iapNum: `${fmt(iapN, 0)} mmHg`, iapWord: (IAP_SAY as string[])[a.iap >= 20 ? 2 : a.iap >= 12 ? 1 : 0]!, iapSev: sev, iapFill: Math.max(0, Math.min(1, a.iap / IAP_MAX)),
     tapped, saag: tapped ? fmt(saag, 1) : '—', protein: tapped ? fmt(a.totalProtein, 1) : '—', albumin: tapped ? fmt(a.albumin, 1) : '—',
     tipSaag: tapped ? `SAAG ${fmt(r1(p.albumin), 1)} − ${fmt(r1(a.albumin), 1)} = ${fmt(saag, 1)} g/dL. SAAG ≥${SAAG_PORTAL} g/dL indicates portal hypertension.` : null,

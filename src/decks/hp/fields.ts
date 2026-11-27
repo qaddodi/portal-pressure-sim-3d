@@ -20,7 +20,7 @@ export const FIELD_HOME: Record<string, FieldHome> = {
   // the data card and the controls on the teaching card
   visual: 'slide', tool: 'slide', lapse: 'slide', cath: 'slide', beats: 'slide',
   data: 'slide', tiles: 'slide', key: 'slide', delta: 'slide',
-  compare: 'slide', whatIf: 'slide', response: 'slide', hvpgResp: 'slide', scales: 'slide',
+  compare: 'slide', whatIf: 'slide', response: 'slide', hvpgResp: 'slide', hvpgRule: 'slide', scales: 'slide',
   // (the response buttons' own gains and lines, decks/overlay/controls.ts)
   responseGains: 'slide', responseLines: 'slide',
   cols: 'slide', of: 'slide', vs: 'slide', asc: 'slide', rowHead: 'slide', foot: 'slide', note: 'slide', calm: 'slide', focusRow: 'slide',
@@ -40,7 +40,7 @@ export const FIELD_HOME: Record<string, FieldHome> = {
 /** The Slide property each `slide` field is carried as; a field absent here is carried under its own name. */
 export const SLIDE_PROP: Record<string, string> = {
   tiles: 'tiles', key: 'tiles', delta: 'tiles', data: 'tiles',
-  compare: 'controls', whatIf: 'controls', response: 'controls', hvpgResp: 'tiles', scales: 'controls', responseGains: 'controls', responseLines: 'controls',
+  compare: 'controls', whatIf: 'controls', response: 'controls', hvpgResp: 'tiles', hvpgRule: 'tiles', scales: 'controls', responseGains: 'controls', responseLines: 'controls',
   cols: 'table', of: 'table', vs: 'table', asc: 'table', rowHead: 'table', foot: 'table', note: 'table', calm: 'table', focusRow: 'table',
   ask: 'ask',
 };

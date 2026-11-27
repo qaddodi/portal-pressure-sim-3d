@@ -5,14 +5,15 @@ import { Roll } from './Roll.tsx';
 import { reserveOf, altsOf } from './roll-reserve.ts';
 import { nb } from '../text/glue.ts';
 import { typesetter, toneVar, stationTone, type Node, type RichSlide } from '../text/rich.ts';
-import { rateShown, tipsGoal, tileShown } from '../deck/from2d/table-marks.js';
+import { tipsGoal, tileShown } from '../deck/from2d/table-marks.js';
+import { rateShown } from './ratings.ts';
 import { TOKEN_OF_RATE } from '../../engine/hales/portal/pressure-cuts.js';
 
 type Fp = Readonly<Record<string, number | null | undefined>>;
 /** A reading's pill colour, as 2D valTone: the rating its tile gives (green, amber, red), else the station it is read at. After a TIPS the PPG is read against its 12 mmHg reference line, as its tile reads it. */
 export function pillTone(k: string, fp: Fp | undefined, tips = false): { tone: string | null; rate: string | null } {
   const v = fp?.[k];
-  const rate = v == null ? null : tips && k === 'ppg' ? (tipsGoal(tileShown(k, v))[0] as string) : ((rateShown(k, fp) as string[])[0] ?? null);
+  const rate = v == null ? null : tips && k === 'ppg' ? (tipsGoal(tileShown(k, v))[0] as string) : (rateShown(k, fp)[0] ?? null);
   const token = rate ? (TOKEN_OF_RATE as Record<string, string | undefined>)[rate] : undefined;
   return { tone: token ?? stationTone(k), rate: rate && rate !== 'none' ? rate : null };
 }
@@ -26,7 +27,7 @@ export function Line({ text, read, slide, fp, pill, still = false, seen, minus, 
   pill = pill ? nb(pill) : pill;
   let done = false;
   // (the spleen's word wears its status colour while it is not normal, as 2D rateTone gives it)
-  const set = typesetter(slide ?? {}, () => { const r = fp ? (rateShown('spleen', fp) as string[])[0] : null; return r && r !== 'ok' ? (TOKEN_OF_RATE as Record<string, string | undefined>)[r] ?? null : null; });
+  const set = typesetter(slide ?? {}, () => { const r = fp ? rateShown('spleen', fp)[0] : null; return r && r !== 'ok' ? (TOKEN_OF_RATE as Record<string, string | undefined>)[r] ?? null : null; });
   const words = (t: string, k: string): ReactNode => nodes(set.set(t), k);
   const items = gluePieces(pieces);
   // (a pill's padding is its own room: beside a stop or inside a bracket the pill gives it up, so "2.2 g/dL." and "(59.4 kPa)" read as written, not "2.2 g/dL ." and "( 59.4 kPa )")

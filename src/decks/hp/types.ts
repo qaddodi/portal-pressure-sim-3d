@@ -47,6 +47,9 @@ export interface CopiedSlide {
   tiles?: string[] | null;
   key?: string[] | null;
   delta?: boolean | string | null;
+  /** which use of the drug the HVPG response tile judges: primary prophylaxis, the acute IV propranolol test (both a fall of ≥10%)
+   *  or secondary prophylaxis after a bleed (≥20%); decks/overlay/controls.ts RESPONSE_RULE */
+  hvpgRule?: 'primary' | 'acute' | 'secondary' | null;
   tool?: Table | null;
   visual?: string | null;
   compare?: Table[] | null;

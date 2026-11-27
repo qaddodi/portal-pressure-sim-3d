@@ -15,6 +15,9 @@ interface Row { id: string; phone: boolean; tips: boolean; toolOnly: boolean; ke
 const tiles2d = JSON.parse(readFileSync(new URL('./fixtures/tiles-2d.json', import.meta.url), 'utf8')) as { decks: Record<string, Row[]> };
 const nums = JSON.parse(readFileSync(new URL('./fixtures/decks-hp-numbers.json', import.meta.url), 'utf8')) as { decks: Record<string, { id: string; fp: Fp }[]> };
 
+/** The tiles whose rating is not the 2D table's (src/ui/cards/ratings.ts). */
+const OWN_RATING: ReadonlySet<string> = new Set(['pv', 'whvp', 'sin', 'plt', 'hvpgFall', 'hvpg', 'eus']);
+
 /** Equal, but for the positions on a bar (percent of its width): the fixture keeps the 2D numbers to six digits, so a position may differ in the fourth decimal. */
 function same(a: unknown, b: unknown, at: string): void {
   if (typeof a === 'number' && typeof b === 'number') { assert.ok(Math.abs(a - b) < 0.01, `${at}: ${a} is not ${b}`); return; }
@@ -39,7 +42,13 @@ function check(d: CopiedDeck, results: { fp: Fp }[], where: string) {
     assert.deepEqual(got.head, row.head, `${at}: which readings stand in the header`);
     assert.equal(got.toolOnly, row.toolOnly, `${at}: instrument card`);
     assert.equal(got.tiles.length, row.tiles.length, `${at}: tiles`);
-    got.tiles.forEach((t, n) => same(t, row.tiles[n], `${at}: tile ${t.k}`));
+    got.tiles.forEach((t, n) => {
+      // (the ratings the owner took off or changed, 27 Nov 2026 rulings C1 and C2, are not the 2D table's: tests/tile-ratings.test.ts pins what those tiles say; every other field is still the 2D tile's)
+      if (!OWN_RATING.has(t.k)) return same(t, row.tiles[n], `${at}: tile ${t.k}`);
+      const { rate: _r, word: _w, bar: _b, ...rest } = t as unknown as Record<string, unknown>;
+      const { rate: _r2, word: _w2, bar: _b2, ...rest2 } = row.tiles[n]!;
+      same(rest, rest2, `${at}: tile ${t.k} (its rating aside)`);
+    });
   }
 }
 
@@ -74,12 +83,12 @@ test('the HVPG slides: the 2D tiles by name (HVPG slides 4, 9 and 11), so a chan
   const g = nums.decks.hvpg!.map((x) => ({ fp: x.fp }));
   const slide = (id: string) => tilesAt(d.slides, g as never, d.slides.findIndex((s) => s.id === id), false)!;
   const sinus = slide('wedge-sinusoid');
-  assert.deepEqual(sinus.tiles.map((t) => [t.name, t.text, t.unit, t.rate, t.word, t.key]), [['WHVP', '16.3', 'mmHg', 'hi', 'Severe', true], ['Sinusoidal pressure', '16.7', 'mmHg', 'hi', 'Severe', false]]);
+  assert.deepEqual(sinus.tiles.map((t) => [t.name, t.text, t.unit, t.rate, t.word, t.key]), [['WHVP', '16.3', 'mmHg', 'plain', '', true], ['Sinusoidal pressure', '16.7', 'mmHg', 'plain', '', false]]);
   const eus = slide('eus');
   assert.equal(eus.toolOnly, true, 'the EUS slide is an instrument card: its readings are its header\'s');
-  assert.deepEqual(eus.tiles.map((t) => [t.head.name, t.head.text, t.head.unit, t.rate]), [['HVPG', '3.4', 'mmHg', 'ok'], ['EUS-PPG', '14.9', 'mmHg', 'hi']]);
+  assert.deepEqual(eus.tiles.map((t) => [t.head.name, t.head.text, t.head.unit, t.rate]), [['HVPG', '3.4', 'mmHg', 'ok'], ['EUS-PPG', '14.9', 'mmHg', 'plain']]);
   const heart = slide('heart');
-  assert.deepEqual(heart.tiles.map((t) => [t.k, t.text, t.rate, t.key]), [['whvp', '20.9', 'hi', false], ['fhvp', '20.4', 'hi', true], ['ra', '19.9', 'hi', true]]);
+  assert.deepEqual(heart.tiles.map((t) => [t.k, t.text, t.rate, t.key]), [['whvp', '20.9', 'plain', false], ['fhvp', '20.4', 'hi', true], ['ra', '19.9', 'hi', true]]);
   for (const id of ['route', 'free', 'wedge', 'hvpg', 'presin', 'ppg', 'eus-ladder', 'bc', 'plane', 'summary']) assert.equal(slide(id).tiles.length, 0, `${id} has no tiles in 2D`);
 });
 

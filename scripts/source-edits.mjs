@@ -381,6 +381,121 @@ export const CAPTURE_3531BDFA = [
   SET('tips-doppler', 'slides.fix.compare.1.line', 'Doppler raises the suspicion. TIPS venography measures the gradient, and angioplasty or a new stent lowers the PPG from {ppg@narrow} to {ppg}.'),
 ];
 
+
+/** Capture 3531bdfa (27 Nov 2026), the owner's clinical rulings C1 to C15 on the external review (answers in reports/ext-review-3531bdfa/answers.log). Where he gave the words they are used as he gave them; where
+ *  he ruled the point and not the sentence, the sentence is drafted from the slide's own meaning and listed in the report for his audit. C5 (stiffness cut-offs) is not here: it waits for his check against the
+ *  Baveno VIII text (c5-cutoffs-draft.md). The tile ratings of C1 and the response rule's cut (C2) are code (src/ui/cards/ratings.ts), not words. */
+export const CAPTURE_3531BDFA_CLINICAL = [
+  // ---- C2: the HVPG response is ≥10% in primary prophylaxis and ≥20% (or an HVPG ≤12 mmHg) after a bleed; every slide that judges one says which ----
+  P('next-bleed', 'slides.nsbb.line', 'The Baveno VIII response, ≥10% or to {<=12 mmHg}, is stated for primary prophylaxis.', 'After a bleed (secondary prophylaxis) a response is a fall of ≥20% or an HVPG {<=12 mmHg}; the fall of ≥10% is the primary-prophylaxis rule.'),
+  P('next-bleed', 'slides.nsbb.notes', 'A response is a fall in HVPG of ≥10% from baseline, or to ≤12 mmHg (Baveno VIII Table 3, which states it for primary prophylaxis; Baveno VIII gives no separate, stricter target after a bleed, so the same rule is applied).', 'After a bleed (secondary prophylaxis) a response is a fall in HVPG of ≥20% from baseline, or to ≤12 mmHg; the fall of ≥10% is the rule for primary prophylaxis (Baveno VIII Table 3).'),
+  SET('next-bleed', 'slides.nsbb.ask', ['What fall in HVPG marks a response to a beta-blocker after a bleed?', 'A fall of ≥20% from baseline, or to ≤12 mmHg. The fall of ≥10% is the rule for primary prophylaxis.']),
+  SET('next-bleed', 'checks.2', ['After a bleed, on carvedilol the HVPG falls from 18 to 17 mmHg. Is that a response?', 'No: a 6% fall is under 20%, and 17 mmHg is still above 12, so it fails both rules (≥20% or ≤12 mmHg after a bleed; ≥10% in primary prophylaxis).']),
+  SET('treatment', 'slides.relation.tool.zone.fall', 20),
+  P('treatment', 'slides.relation.line', 'carvedilol lowers the HVPG from {hvpg} to {hvpg@carv} and propranolol to {hvpg@prop}, both within the response zone.', 'carvedilol lowers the HVPG from {hvpg} to {hvpg@carv}, a response in this decompensated patient (a fall of ≥20% or an HVPG ≤12 mmHg), and propranolol only to {hvpg@prop}, short of it.'),
+  P('treatment', 'slides.relation.notes', 'a fall of 10% or more from baseline, or to 12 mmHg or less, which Baveno VIII carries from Baveno V and VI.', 'a fall of 20% or more from baseline, or to 12 mmHg or less, the rule after a bleed and in a decompensated patient (secondary prophylaxis); in primary prophylaxis a fall of 10% or more counts (Baveno VIII Table 3).'),
+  P('treatment', 'slides.relation.ask.1', 'a response needs a fall of ≥10% or a gradient ≤12 mmHg.', 'in a decompensated patient a response needs a fall of ≥20% or a gradient ≤12 mmHg.'),
+  P('treatment', 'checks.1.1', 'a fall <10% marks a non-responder.', 'after a bleed a response needs a fall of ≥20% (≥10% in primary prophylaxis), and this is about 3%.'),
+  APPEND('treatment', 'slides.prop.line', 'For this decompensated patient a response is a fall of ≥20% or an HVPG ≤12 mmHg.'),
+  APPEND('treatment', 'slides.carv.line', 'In this decompensated patient a fall of ≥20% or an HVPG ≤12 mmHg is the response.'),
+  // (the three slides below keep their line under 200 characters, the long-line ratchet: the wording is trimmed to make room for the rule)
+  P('treatment', 'slides.carv-sin.line', 'In cirrhosis most of the resistance lies in the sinusoids. The α1 blockade of carvedilol is thought to relax hepatic stellate cells,', 'Resistance is mostly sinusoidal. Carvedilol’s α1 blockade is thought to relax stellate cells,'),
+  APPEND('treatment', 'slides.carv-sin.line', 'After a bleed, ≥20% or ≤12 mmHg responds.'),
+  P('treatment', 'slides.prop.notes', 'The tile shows the percent fall from the untreated patient: ≥10% marks a response.', 'The tile shows the percent fall from the untreated patient: for this decompensated patient (secondary prophylaxis) ≥20%, or an HVPG ≤12 mmHg, marks a response; ≥10% is the rule for primary prophylaxis.'),
+  P('treatment', 'slides.target.notes', 'an HVPG fall of ≥10%, or to ≤12 mmHg, counts as a response (Baveno VIII Table 3).', 'an HVPG fall of ≥10% (primary prophylaxis) or ≥20% (secondary prophylaxis, after a bleed), or to ≤12 mmHg, counts as a response (Baveno VIII Table 3 states the ≥10% rule).'),
+  APPEND('carvedilol', 'slides.start.line', 'A fall of ≥10% counts as a response before any bleed.'),
+  P('varices', 'slides.predesci.line', 'An NSBB is now given for CSPH itself, to prevent ascites and other decompensation, not only for large varices.', 'An NSBB is given for CSPH itself, to prevent decompensation, not just for large varices.'),
+  APPEND('varices', 'slides.predesci.line', 'In primary prophylaxis ≥10% responds.'),
+  P('ten-years', 'slides.carv.line', 'in compensated cirrhosis with CSPH, to prevent decompensation', 'at CSPH to prevent decompensation'),
+  APPEND('ten-years', 'slides.carv.line', 'In primary prophylaxis a fall of ≥10% responds.'),
+  P('varices', 'checks.3.1', '(either meets the Baveno VIII response)', '(either meets the Baveno VIII response for primary prophylaxis)'),
+  P('hvpg', 'slides.hvpg.ask.1', 'more than the 10% from baseline that Baveno VIII calls a clinically relevant response on an NSBB.', 'more than the ≥10% from baseline that Baveno VIII counts as a response in primary prophylaxis, and the ≥20% used after a bleed.'),
+
+  // ---- C3: the plane's dashed line is a PPG of 12 mmHg (bleeding risk), not the CSPH line (the plane's words are in src/ui/charts/plane/model.ts) ----
+  APPEND('masld', 'slides.surgery.notes', 'The dashed line is a PPG of 12 mmHg, where the bleeding risk rises; CSPH is an HVPG of 10 mmHg or more, and the patients are named for their HVPG.'),
+
+  // ---- C4: liver stiffness stays low in PSVD and other presinusoidal disease, and tracks the HVPG in cirrhosis ----
+  P('ncph', 'slides.stiff.line', 'Liver stiffness (LSM) reflects fibrosis and congestion, not portal pressure, so it stays at {lsm}, <10 kPa.', 'In presinusoidal disease such as schistosomiasis or PSVD, liver stiffness (LSM) stays low despite portal hypertension: here {lsm}, <10 kPa. In cirrhosis it tracks the HVPG.'),
+  P('ncph', 'checks.2.1', 'Liver stiffness reflects fibrosis and congestion, not portal pressure.', 'In PSVD and other presinusoidal disease, LSM stays low despite portal hypertension; in cirrhosis it tracks the HVPG.'),
+  P('prehepatic', 'slides.liver.line', 'stiffness indicate prehepatic resistance.', 'stiffness indicate prehepatic or presinusoidal resistance.'),
+
+  // ---- C6: the preemptive TIPS criterion is an HVPG >20 mmHg (Baveno VIII 5.31); fundal varices have TIPS or BRTO for secondary prophylaxis ----
+  P('landmark-trials', 'slides.who-tips.tool.rows.2.0', 'at the bleed ≥20 mmHg', 'at the bleed >20 mmHg'),
+  SET('landmark-trials', 'slides.who-tips.tool.rows.2.2', '>'),
+  P('landmark-trials', 'slides.who-tips.line', 'needs {>=20 mmHg} at the bleed.', 'needs {>20 mmHg} at the bleed.'),
+  P('landmark-trials', 'slides.who-tips.notes', 'or an HVPG ≥20 mmHg at the time of the bleed.', 'or an HVPG >20 mmHg at the time of the bleed.'),
+  P('landmark-trials', 'slides.who-tips.ask.1', 'an HVPG ≥20 mmHg at the bleed.', 'an HVPG >20 mmHg at the bleed.'),
+  P('landmark-trials', 'checks.3.1', 'or an HVPG ≥20 mmHg at the bleed', 'or an HVPG >20 mmHg at the bleed'),
+  P('choose-treatment', 'slides.a1.tool.rows.2.cut', '≥20 mmHg', '>20 mmHg'),
+  P('choose-treatment', 'slides.a1.ask.1', 'an HVPG ≥20 mmHg.', 'an HVPG >20 mmHg.'),
+  P('choose-treatment', 'checks.0.1', '(or an HVPG ≥20 mmHg)', '(or an HVPG >20 mmHg)'),
+  P('variceal-bleed', 'slides.path.notes', 'or an HVPG of 20 mmHg or more,', 'or an HVPG of more than 20 mmHg,'),
+  P('variceal-bleed', 'slides.path.ask.1', 'an HVPG ≥20 mmHg,', 'an HVPG >20 mmHg,'),
+  P('variceal-bleed', 'slides.tips.notes', 'An HVPG ≥20 mmHg, where measured,', 'An HVPG >20 mmHg, where measured,'),
+  P('variceal-bleed', 'slides.tips.ask.1', 'or an HVPG ≥20 mmHg,', 'or an HVPG >20 mmHg,'),
+  P('tips-candidacy', 'slides.pre.tool.rows.2.cut', '≥20 mmHg', '>20 mmHg'),
+  P('tips-candidacy', 'slides.pre.notes', 'or an HVPG of 20 mmHg or more at the time of the bleed.', 'or an HVPG of more than 20 mmHg at the time of the bleed.'),
+  P('tips-complete', 'slides.pre.tool.rows.2.cut', '≥20 mmHg', '>20 mmHg'),
+  P('tips-complete', 'slides.pre.notes', 'or an HVPG of 20 mmHg or more at the time of the bleed,', 'or an HVPG of more than 20 mmHg at the time of the bleed,'),
+  P('next-bleed', 'slides.gastric.line', 'then a TIPS as soon as possible, even at Child–Pugh B 8.', 'then TIPS or BRTO for secondary prophylaxis.'),
+  P('next-bleed', 'slides.gastric.notes', 'The definitive phase is a TIPS, with or without embolization of the varix, as soon as possible, for Child–Pugh C <14 (so A and B too), age <75, creatinine <3 mg/dL and no heart failure. That is broader than the preemptive TIPS criteria for an esophageal bleed, which he did not meet at Child–Pugh B 8 without active bleeding. When a TIPS is contraindicated, transvenous obliteration, endoscopic or surgical options follow after a team discussion.', 'The definitive phase, secondary prophylaxis, is a TIPS or BRTO. The preemptive TIPS criteria belong to esophageal and GOV1 bleeding, which he did not meet at Child–Pugh B 8 without active bleeding. When neither is suitable, other endoscopic or surgical options follow after a team discussion.'),
+  SET('next-bleed', 'slides.gastric.ask', ['Why does a fundal bleed lead to TIPS or BRTO, when a controlled esophageal bleed in a Child–Pugh B 8 patient without active bleeding does not lead to a preemptive TIPS?', 'A fundal (GOV2 or IGV1) bleed is high risk, so secondary prophylaxis is a TIPS or BRTO. For an esophageal bleed the preemptive TIPS needs Child–Pugh C 10 to 13, or B 8 to 9 with active bleeding, or an HVPG >20 mmHg.']),
+
+  // ---- C7: hold the NSBB during the acute bleed and in hypotension ----
+  APPEND('gastric-varices', 'slides.bleed.line', 'Hold the NSBB during the acute bleed and in hypotension.'),
+  SET('gradients', 'checks.4.1', 'Yes. A PPG <12 mmHg after a TIPS is the target that protects against rebleeding, and a nonselective beta-blocker (NSBB) is then no longer required.'),
+
+  // ---- C8: EVL every 1 to 4 weeks until eradication, then endoscopy at 3 to 6 months and every 6 to 12 months ----
+  P('next-bleed', 'slides.bands.line', 'EVL every 2 to 4 weeks shrinks', 'EVL every 1 to 4 weeks until eradication shrinks'),
+  P('next-bleed', 'slides.bands.notes', 'repeated every 2 to 4 weeks (AASLD', 'repeated every 1 to 4 weeks (AASLD'),
+  P('next-bleed', 'slides.bands.ask.1', 'Every 2 to 4 weeks until', 'Every 1 to 4 weeks until'),
+  P('next-bleed', 'slides.slough.line', 'endoscopy 6 months after eradication, then every 12 months.', 'endoscopy 3 to 6 months after eradication, then every 6 to 12 months.'),
+  P('next-bleed', 'slides.slough.notes', '6 months after eradication and then every 12 months (AASLD 2024 statement 20).', '3 to 6 months after eradication and then every 6 to 12 months.'),
+  P('next-bleed', 'checks.0.1', 'Endoscopy 6 months after eradication, then every 12 months,', 'Endoscopy 3 to 6 months after eradication, then every 6 to 12 months,'),
+  P('next-bleed', 'slides.summary.notes', 'EVL every 2 to 4 weeks until', 'EVL every 1 to 4 weeks until'),
+  P('next-bleed', 'slides.summary.ask.1', 'repeated every 2 to 4 weeks until', 'repeated every 1 to 4 weeks until'),
+  P('choose-treatment', 'slides.a1.line', 'with banding every 2 to 4 weeks.', 'with banding every 1 to 4 weeks until eradication.'),
+  P('variceal-bleed', 'slides.path.notes', 'carvedilol plus EVL every 2 to 4 weeks.', 'carvedilol plus EVL every 1 to 4 weeks until eradication.'),
+  P('variceal-bleed', 'slides.path.ask.1', 'carvedilol plus EVL every 2–4 weeks.', 'carvedilol plus EVL every 1–4 weeks until eradication.'),
+  P('variceal-bleed', 'slides.tips.notes', 'EVL every 2 to 4 weeks until', 'EVL every 1 to 4 weeks until'),
+  P('variceal-bleed', 'slides.controlled.notes', 'EVL is repeated every 2 to 4 weeks until', 'EVL is repeated every 1 to 4 weeks until'),
+  P('ten-years', 'slides.bands.notes', 'repeated every 2 to 4 weeks until', 'repeated every 1 to 4 weeks until'),
+
+  // ---- C9: a DOAC may be used; it is not used in triple-positive antiphospholipid syndrome ----
+  P('budd-chiari', 'slides.agent.tool.rows.1', 'A **DOAC** may be the first-choice oral agent', 'A **DOAC** may be used'),
+  P('budd-chiari', 'slides.agent.tool.rows.2', 'Not a DOAC in **antiphospholipid syndrome** (double or triple positive)', 'Not a DOAC in **triple-positive antiphospholipid syndrome**'),
+  P('budd-chiari', 'slides.agent.title', 'A DOAC is often the oral agent of choice, with four exceptions', 'A DOAC may be used, with four exceptions'),
+  P('budd-chiari', 'slides.agent.line', 'A DOAC is the usual choice except in antiphospholipid syndrome,', 'A DOAC may be used except in triple-positive antiphospholipid syndrome,'),
+  P('budd-chiari', 'slides.agent.notes', 'A DOAC may be the first-choice oral agent unless there is double- or triple-positive antiphospholipid syndrome,', 'A DOAC may be used unless there is triple-positive antiphospholipid syndrome,'),
+
+  // ---- C10: wording only (the figure and the score's numbers wait for the owner: c10-score-check.md) ----
+  P('ncph', 'slides.path-psvdscore.title', 'A score of 5 makes the diagnosis', 'A score of 5 or more makes the diagnosis'),
+
+  // ---- C11: pregnancy (propranolol stays; the delivery advice is AASLD's, in the notes; the 6 to 12 weeks leaves the screen) ----
+  P('pregnancy', 'slides.delivery.notes', 'Baveno VIII 8.19 prefers vaginal delivery to cesarean when there is no obstetric contraindication, provided the platelet count is >20,000/µL, and 8.18 continues propranolol. Both statements are written for vascular liver disease, and this talk applies them to cirrhosis.', 'The delivery advice, vaginal delivery in preference to cesarean when there is no obstetric contraindication and the platelet count is >20,000/µL, is AASLD guidance on pregnancy and liver disease, not a Baveno VIII statement. Baveno VIII 8.18 continues propranolol; it is written for vascular liver disease, and this talk applies it to cirrhosis.'),
+  P('pregnancy', 'slides.after.line', ' In patients this takes 6 to 12 weeks.', ''),
+  P('pregnancy', 'slides.after.notes', 'in patients it takes 6 to 12 weeks.', 'in patients it takes about 6 to 12 weeks; no Baveno VIII statement gives that figure (8.20 is about breastfeeding).'),
+
+  // ---- C12: Doppler words (the pattern word of constrictive pericarditis is in src/ui/tests/doppler/model.ts) ----
+  P('doppler', 'slides.a3.line', 'about half of normal,', 'well below the healthy {pvVel@normal},'),
+  P('doppler', 'slides.a4.line', 'A pulsatility index {>=30%} is abnormal.', 'A pulsatility index, (Vmax − Vmin) / Vmax, of {>=0.30} is abnormal.'),
+  P('doppler', 'slides.a4.notes', 'is abnormal at ≥30% and severe at ≥50%.', 'is abnormal at ≥0.30 and severe at ≥0.50, the same number as the PI the Doppler calipers print.'),
+
+  // ---- C13: the albumin dose with terlipressin is not a Baveno VIII statement: the screen keeps Baveno VIII's wording, the dose stays in the notes ----
+  P('albumin', 'slides.ind.tool.rows.3', ', together with terlipressin: 1 g/kg, then 40 to 50 g a day', ', together with terlipressin'),
+  P('albumin', 'slides.ind.notes', '1 g/kg on day 1 then 40 to 50 g a day with terlipressin in HRS-AKI. Local protocols vary.', '1 g/kg on day 1 then 40 to 50 g a day with terlipressin in HRS-AKI (that last figure is not confirmed here; check it against the source before teaching it). Local protocols vary.'),
+  P('albumin', 'slides.terli.ask.1', ', at 1 g/kg on day 1 and then 40 to 50 g a day.', '.'),
+  SET('albumin', 'checks.5', ['Does Baveno VIII set an albumin dose to give with terlipressin in HRS-AKI?', 'No. Baveno VIII advises albumin with terlipressin (6.18) but gives no dose; the dose follows the local protocol.']),
+
+  // ---- C14: trial citations and the rifaximin advice leave the screen (the notes carry them) ----
+  P('encephalopathy', 'slides.tips.cite', '; Bureau, Ann Intern Med 2021', ''),
+  APPEND('encephalopathy', 'slides.tips.notes', 'The rifaximin trial is Bureau, Ann Intern Med 2021.'),
+  P('ascites', 'slides.tips.cite', '; Bureau, Gastroenterology 2017', ''),
+  P('treatment', 'slides.carv.cite', '; PREDESCI (Villanueva, Lancet 2019)', ''),
+  APPEND('treatment', 'slides.carv.notes', 'PREDESCI is Villanueva, Lancet 2019.'),
+  SET('next-bleed', 'checks.3.1', 'A covered TIPS: rebleeding despite carvedilol and EVL is the indication.'),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -501,6 +616,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_36B7DEAC,
   ...CAPTURE_3531BDFA_WORDS,
   ...CAPTURE_3531BDFA,
+  ...CAPTURE_3531BDFA_CLINICAL,
 ];
 
 function step(node, key) {

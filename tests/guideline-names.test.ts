@@ -57,13 +57,15 @@ test('the two stiffness slides that set AASLD against Baveno VIII are Baveno VII
   assert.deepEqual(c.sides!.map((s) => s.who), ['Baveno VIII', 'What decides it']);
 });
 
-test('preemptive TIPS HVPG threshold is >=20 mmHg, as Baveno VIII 5.31 and its Fig. 5 have it (the PDF prints the sign as ">−", its glyph for "≥")', () => {
+// Owner ruling C6 (27 Nov 2026): the pre-emptive TIPS criterion is written ">20 mmHg" on every slide that states it as the rule (a trial's own entry criterion, such as Monescillo's, is the trial's).
+test('preemptive TIPS HVPG threshold is written >20 mmHg in the teaching decks (C6)', () => {
   for (const { id, deck } of DECKS) {
+    if (id === 'landmark-trials') continue;
     const on: { at: string; text: string }[] = []; walk(deck, id, on, []);
-    for (const { at, text } of on) assert.doesNotMatch(text, /HVPG >\s?20 mmHg|HVPG of >20|HVPG 20 mmHg or more/, `${at}`);
+    for (const { at, text } of on) assert.doesNotMatch(text, /HVPG ≥\s?20 mmHg|HVPG of ≥20|HVPG 20 mmHg or more/, `${at}`);
   }
   const t = JSON.stringify(DECKS.find((d) => d.id === 'choose-treatment')!.deck);
-  assert.match(t, /an HVPG ≥20 mmHg/);
+  assert.match(t, /an HVPG >20 mmHg/);
 });
 
 test('every source patch names a talk that exists', () => {

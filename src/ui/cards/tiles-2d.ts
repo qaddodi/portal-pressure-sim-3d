@@ -2,7 +2,8 @@
 // presenter-question.js deltaOf / refOf), as pure functions so a test can hold every tile of every slide to the 2D numbers: which tiles the slide shows, each tile's name, number and unit, its
 // rating word and colour class, its scale bar (bands, cut-off ticks and numbers, where the number and its start sit) and the line that says where it started. The page only draws this.
 // Nothing here is typed per slide: the tiles, their ratings and their scales come from the 2D tables (src/ui/deck/from2d/table-marks.js, card-tiles.js), the numbers from the slide's own state.
-import { NO_ASC, SCALE, bandsOf, cutDp, rateOf, tileOf, tileShown, tipsGoal } from '../deck/from2d/table-marks.js';
+import { NO_ASC, cutDp, tileOf, tileShown, tipsGoal } from '../deck/from2d/table-marks.js';
+import { RESPONSE_CUT, bandsOf, rateOf, scaleOf, type ResponseRule } from './ratings.ts';
 import { headKeys, tileKeys, toolOnly } from '../deck/from2d/card-tiles.js';
 import { bpText } from '../tests/copied/vital-read.copied.js';
 import { fmt } from '../charts/fmt.ts';
@@ -41,8 +42,8 @@ export interface TileView {
   head: { name: string; text: string; unit: string };
 }
 
-const at = (k: string, v: number): number => {
-  const s = (SCALE as unknown as Record<string, [number, number, number[]]>)[k]!, x = tileOf(k)?.x ?? 1;
+const at = (k: string, v: number, f?: Fp | null): number => {
+  const s = scaleOf(k, f)!, x = tileOf(k)?.x ?? 1;
   return Math.min(100, Math.max(0, ((v * x - s[0]) / (s[1] - s[0])) * 100));
 };
 
@@ -66,12 +67,15 @@ export const deltaOf = (s: CopiedSlide, i: number, changes: (s: CopiedSlide) => 
 export function respFp(s: CopiedSlide, f: Fp | null, base: number | null | undefined): Fp | null {
   if (!s.hvpgResp || !f) return f;
   const b = base ?? 0;
-  return b > 0 && f.hvpg != null ? { ...f, hvpgFall: ((b - f.hvpg) / b) * 100, respFrom: b, respAt: tileShown('hvpg', f.hvpg) } : { ...f, hvpgFall: null, respFrom: null, respAt: null };
+  // (the fall that counts as a response is the slide's own use of the drug: ≥10% in primary prophylaxis, ≥20% after a bleed; ratings.ts RESPONSE_CUT)
+  const respCut = RESPONSE_CUT[(s.hvpgRule as ResponseRule | undefined) ?? 'primary'];
+  if (b > 0 && f.hvpg != null) return { ...f, hvpgFall: ((b - f.hvpg) / b) * 100, respFrom: b, respAt: tileShown('hvpg', f.hvpg), respCut };
+  return { ...f, hvpgFall: null, respFrom: null, respAt: null, respCut };
 }
 
 /** The rating of each band of a tile's bar (presenter-cards.js paintBands: a band takes the rating of its middle). */
 export function bandRates(k: string, f: Fp, tips = false): string[] {
-  const bands = bandsOf(k) as { m: number }[] | null;
+  const bands = bandsOf(k, f);
   if (!bands) return [];
   return bands.map((z) => (tips && k === 'ppg' ? tipsGoal(z.m) : rateOf(k, { ...f, respAt: null, asc: Math.max(f.asc ?? 0, NO_ASC), [k]: z.m }))[0] || 'info');
 }
@@ -79,7 +83,7 @@ export function bandRates(k: string, f: Fp, tips = false): string[] {
 /** One tile, as buildTiles and write make it. `f` is the slide's reading (the fingerprint, with the response fields when it has them), `ref` the earlier state it is counted from. */
 export function tileView(k: string, f: Fp, o: { ref?: Fp | null; key?: boolean; tips?: boolean } = {}): TileView {
   const T = tileOf(k) ?? { t: k, s: '', u: '' };
-  const S = (SCALE as unknown as Record<string, [number, number, number[]] | undefined>)[k];
+  const S = scaleOf(k, f);
   const tips = !!o.tips, ref = o.ref ?? null;
   const [cls, word] = ratedShown(k, f, tips);
   const none = cls == null && (k === 'saag' || k === 'tp');
@@ -95,13 +99,13 @@ export function tileView(k: string, f: Fp, o: { ref?: Fp | null; key?: boolean; 
     delta = Math.abs(rd(f[k]!) - rd(r0!)) < 0.5 * 10 ** -dg ? 'No change' : `from ${fmt(r0! * x, dg)}${T.u === '%' ? '%' : ''}`;
   }
   const rates = bandRates(k, f, tips);
-  const bands = (bandsOf(k) || []) as { a: number; b: number }[];
+  const bands = bandsOf(k, f) || [];
   const bar: BarView | null = S ? {
-    zones: bands.map((z, i) => ({ left: at(k, z.a / x), width: at(k, z.b / x) - at(k, z.a / x), rate: rates[i]! })),
-    ticks: S[2].map((c) => at(k, c / x)),
-    labels: S[2].map((c) => ({ left: at(k, c / x), text: fmt(c, cutDp(c)) })),
-    now: on ? at(k, f[k]!) : null,
-    was: ok ? at(k, r0!) : null,
+    zones: bands.map((z, i) => ({ left: at(k, z.a / x, f), width: at(k, z.b / x, f) - at(k, z.a / x, f), rate: rates[i]! })),
+    ticks: S[2].map((c) => at(k, c / x, f)),
+    labels: S[2].map((c) => ({ left: at(k, c / x, f), text: fmt(c, cutDp(c)) })),
+    now: on ? at(k, f[k]!, f) : null,
+    was: ok ? at(k, r0!, f) : null,
   } : null;
   return {
     k, name: T.t, short: T.n ?? null, unit: none ? '' : T.u, pct: T.u === '%', text, none, rate: cls || (none ? 'none' : 'plain'), word, key: !!o.key, bar, delta,

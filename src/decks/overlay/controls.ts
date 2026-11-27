@@ -34,6 +34,20 @@ export const RESPONSE: Readonly<Record<string, { gains: readonly [number, number
   },
 };
 
+/** Which use of the drug each HVPG response tile judges (owner, 27 Nov, C2): a fall of ≥10% in primary prophylaxis and in the acute IV propranolol test, ≥20% (or an HVPG ≤12 mmHg) after a bleed.
+ *  Every slide with a response tile (`hvpgResp`) is here, and its words name the use (tests/response-rule.test.ts).
+ *  The treatment talk's patient is decompensated, so its response is the secondary one. */
+export const RESPONSE_RULE: Readonly<Record<string, 'primary' | 'acute' | 'secondary'>> = {
+  'next-bleed/nsbb': 'secondary',
+  'landmark-trials/predesci-test': 'acute',
+  'carvedilol/start': 'primary',
+  'varices/predesci': 'primary',
+  'treatment/prop': 'secondary',
+  'treatment/carv': 'secondary',
+  'treatment/carv-sin': 'secondary',
+  'ten-years/carv': 'primary',
+};
+
 /** Compare buttons that need days to show what they do: `deck/slide/label` → the days and the label it then carries. */
 export const BUTTON_DAYS: Readonly<Record<string, { days: number; label: string }>> = {
   'gastric-varices/splenectomy/Partial embolization': { days: 28, label: 'Partial embolization, 4 weeks on' },
@@ -53,7 +67,7 @@ const NOTES: Readonly<Record<string, { from: string; to: string }>> = {
 /** The deck with the control changes laid on a copy (the loaded module is never changed). A slide or a button that is not there is left alone. */
 export function amendControls(deck: CopiedDeck): CopiedDeck {
   const mine = (k: string) => k.startsWith(`${deck.id}/`);
-  if (![...Object.keys(RESPONSE), ...Object.keys(BUTTON_DAYS), ...NO_COMPARE, ...Object.keys(NOTES)].some(mine)) return deck;
+  if (![...Object.keys(RESPONSE), ...Object.keys(RESPONSE_RULE), ...Object.keys(BUTTON_DAYS), ...NO_COMPARE, ...Object.keys(NOTES)].some(mine)) return deck;
   const d = JSON.parse(JSON.stringify(deck)) as CopiedDeck, slides = d.slides as Loose[];
   const by = (key: string): Loose | undefined => (mine(key) ? slides.find((s) => s.id === key.slice(deck.id.length + 1).split('/')[0]) : undefined);
   for (const [k, r] of Object.entries(RESPONSE)) {
@@ -63,6 +77,7 @@ export function amendControls(deck: CopiedDeck): CopiedDeck {
     s.responseGains = [...r.gains];
     s.responseLines = [...r.lines];
   }
+  for (const [k, rule] of Object.entries(RESPONSE_RULE)) { const s = by(k); if (s) s.hvpgRule = rule; }
   for (const [k, b] of Object.entries(BUTTON_DAYS)) {
     const s = by(k), label = k.split('/')[2];
     const o = Array.isArray(s?.compare) ? (s!.compare as Loose[]).find((x) => x.label === label) : undefined;
