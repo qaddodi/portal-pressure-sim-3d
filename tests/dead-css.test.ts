@@ -2,9 +2,7 @@
 // What is left is only named inside a `:not(...)` or `:is(...)`, where removing it would change what matches. A new dead class fails here: delete its rules, or write the name where the code uses it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-// @ts-expect-error (plain .mjs tool)
 import { deadClasses, BUILT_AT_RUNTIME } from '../scripts/dead-css.mjs';
-// @ts-expect-error (plain .mjs tool)
 import { prune, splitSelectors, namesOutsideNot } from '../scripts/prune-dead-css.mjs';
 
 /** The classes the sheets name only inside `:not(...)` or `:is(...)` lists: the ratchet. It may only go down. */
