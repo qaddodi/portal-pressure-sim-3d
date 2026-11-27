@@ -24,6 +24,8 @@ import { zipBlob, type ZipFile } from '../../capture/zip.ts';
 import { feedbackBuild, commitOf } from '../../../boot/release.ts';
 
 export interface AllUi { /** only these talks (ids); absent: every talk */ decks?: ReadonlySet<string> | null; /** only these slides (`deck:k`, k the stop: 1 the first slide); null or absent: every slide */ pick?: ReadonlySet<string> | null; status(s: string): void; progress(done: number, total: number): void; stop(): boolean; /** the page clock's speed for the run (default 8) */ speed?: number; /** land every slide on its settled state at once: no CSS or script animation plays (see skipAnimations) */ skip?: boolean;
+  /** the page's own speed, as the promotion set runs it (the stress capture: at 60x the page's waits end before a card's content is there) */
+  realTime?: boolean;
   /** no choice pictures (the stress capture takes one picture a view, never presses a teaching slide's choices) */ noChoices?: boolean;
   /** the promotion set (?promotion): one picture a slide at this pixel ratio, as a PNG, no choice pictures, no contact sheets */ promo?: { ratio: number };
   /** capture this one talk only (its id); default every talk */ only?: string;
@@ -57,7 +59,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
   const everyId = builtinDecks().map((d) => d.id);
   const decks = builtinDecks().filter((d) => (!ui.only || d.id === ui.only) && (!ui.decks || ui.decks.has(d.id))), build = feedbackBuild(import.meta.env.VITE_RELEASE, import.meta.env.VITE_BUILD, import.meta.env.VITE_CHANNEL);
   // (the promotion set runs at the page's own speed: a clock run faster can leave a card short of its settled height)
-  const speed = ui.promo ? 1 : ui.speed && ui.speed > 1 ? ui.speed : 60, real = (ms: number) => ms * speed, t0 = new Date().getTime();
+  const speed = ui.promo || ui.realTime ? 1 : ui.speed && ui.speed > 1 ? ui.speed : 60, real = (ms: number) => ms * speed, t0 = new Date().getTime();
   // (every glide, fade and wait of the page runs `speed` times faster: a camera flight lands in a few frames. The audit's own speed mode, audit/speed.ts)
   const putBack = startCaptureClock(speed, !!ui.skip);
   // the talk's files, handed up as it ends (the encoders have finished them first): a run that dies or is cut off keeps every talk that was done

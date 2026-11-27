@@ -44,6 +44,8 @@ export async function runStress(ui: StressUi): Promise<StressResult> {
   const slideBase = base;
   const slides = await captureAllDecks({
     pick, decks: null, release: true, noChoices: true,
+    // (the page's own speed: at 60x the app's waits (fonts, fits, the box lock) end before the work they wait for, and a card is photographed short of its height)
+    realTime: true,
     status: (s) => ui.status(`${label}: ${s}`), stop: ui.stop,
     progress: (n) => ui.progress(Math.min(slideBase + n, total), total),
     partial: (fs) => {

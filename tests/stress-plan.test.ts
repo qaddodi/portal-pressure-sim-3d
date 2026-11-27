@@ -72,8 +72,9 @@ test('the wiring the run stands on stays: one frame at a time, the capture\'s ow
   assert.doesNotMatch(o, /Promise\.all\(layouts/, 'never every frame at once');
   assert.match(o, /openSession/); assert.match(o, /deliverUi/); assert.match(o, /recoverUi/); assert.match(o, /pace\(/);
   const r = src('src/ui/debug/stress/run.ts');
-  assert.match(r, /captureAllDecks\(/); assert.match(r, /noChoices: true/); assert.match(r, /capturePromoExtras\(/);
+  assert.match(r, /captureAllDecks\(/); assert.match(r, /noChoices: true/); assert.match(r, /realTime: true/, 'the slides run at the page\'s own speed'); assert.match(r, /capturePromoExtras\(/);
   assert.match(src('src/ui/debug/audit/capture-all.ts'), /ui\.promo \|\| ui\.noChoices/);
+  assert.match(src('src/ui/debug/audit/capture-all.ts'), /ui\.promo \|\| ui\.realTime \? 1/);
   const m = src('src/ui/debug/stress/moves.ts');
   assert.match(m, /clock\.setScale\(MOVE_SLOW\)/); assert.match(m, /updatePlaybackRate/); assert.match(m, /clock\.setScale\(1\)/, 'the clock is always let go');
   assert.match(src('src/ui/debug/audit/capture-child.ts'), /flagValue\('stress'\)/);
