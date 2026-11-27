@@ -19,7 +19,7 @@ import type { SinusoidView } from '../sinusoid/view.ts';
 import { U } from '../sinusoid/view.ts';
 import { SIN_REL } from '../lobule/frames.ts';
 import { HCT_HEALTHY } from '../lobule/model.ts';
-import { CELL, SEED, SLOT, UM, canaliculusAt, cellOf, edgeAt, nucAt, poreAt, poreOpenness, underNucleus, type Pore } from '../sinusoid/layout.ts';
+import { CELL, PERIOD, SEED, SLOT, UM, canaliculusAt, cellOf, edgeAt, nucAt, poreAt, poreOpenness, underNucleus, type Pore } from '../sinusoid/layout.ts';
 import { TROUGH_K, WALL, buildBore, buildCut, buildNucleusSection, buildShellSteps, newWeights, phiAt, wallColumns, type Weights } from './sinusoid-wall.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { SHAPE_NODES, SHAPE_RAMP, restDisseW, restHalfW, shapeInverse, shapeUniform } from './sinusoid-shape.ts';
@@ -45,8 +45,8 @@ export const TRAFFIC_REACH = 150;
 /** How many more sinusoids (each with its plate) lie beyond the main plates, each way, as 2D repeats them outward: two, so panning to the edge never shows an empty page (Mohammad, 20 Nov 2026: "one more
  *  blood layer on top and bottom so that it doesn't look empty when i pan all the way up"). */
 export const BEYOND = 2;
-/** The repeat across (µm): a plate, Disse, lining, lumen, lining, Disse. */
-export const PERIOD = UM.hep + 2 * (UM.disse + UM.endo) + 2 * UM.lum;
+/** The repeat across (µm): a plate, Disse, lining, lumen, lining, Disse (sinusoid/layout.ts, the one place it is set). */
+export { PERIOD };
 /** How far across (µm each way, from the axis): the main plates and the BEYOND sinusoids and plates past each. */
 export const ACROSS = UM.lum + UM.endo + UM.disse + UM.hep + BEYOND * PERIOD + 12;
 /** Depths (µm, toward the viewer): the plates' tops, the lining's crest, Disse's floor, the ground under the clefts, the trough's depth as a share of the lumen's half width. */
@@ -55,7 +55,9 @@ export const Z = { cell: 0.55, cellBot: -1.3, bead: 0.5, disse: -1.0, ground: -1
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 // (26: the whole scene, its ground 12 µm down included, stands over the lobule's tubes (their tops about 11 µm up in these units) and tiles: at 8 the tube showed through the lumen and the
 //  lobule's branches through the ground while it grew, a hybrid picture, eyes 20 Nov. holdScale keeps it its landed size on screen however high it stands.)
-export const LIFT = 26;
+// (28 since 27 Nov: a lobule unit is 235 µm now, not 221 (SIN_REL, so the lumen is as wide as the tube at the new station),
+//  so the lobule's tubes stand 6 % higher in these µm: 26 sat 0.2 µm under the tallest.)
+export const LIFT = 28;
 /** How far (µm) the scene's lowest surface stands over the tallest lobule tube in view, at the least. */
 export const LIFT_MARGIN = 2;
 /** One µm of this scene in the lobule's local units (the scene's unit is U per µm and SIN_REL lobule units: lobule/frames.ts). */

@@ -22,6 +22,7 @@ import { type NameGeom, type NamePlacement, type NamesInput, layoutNames } from 
 import { endsFor, framePoint, planePoint, xkFor } from './portrait.ts';
 import { createGeom, createTraffic } from './traffic.copied.js';
 import { createPalette } from './palette.copied.js';
+import { stationTile } from '../lobule/tile-colours.ts';
 import { ALBUMIN_TOKENS } from './legend.ts';
 import { type CellColours, coloursCells, sinusoidCellSources, sinusoidLumen } from './lens.ts';
 import { shownLens } from '../lenses/in-view.ts';
@@ -316,7 +317,17 @@ export class SinusoidView {
   /** The albumin out now: x, y (µm, y down), radius, alpha, kind for each of `spriteCount`. */
   get albumin(): Float32Array { return this.traffic.pts; }
   /** The palette for a scheme (2D's sinusoid tokens for the look). */
-  colours(dark: boolean): Record<string, unknown> { return this.pal.palette(dark); }
+  colours(dark: boolean): Record<string, unknown> {
+    const P = this.pal.palette(dark) as { cCell: number[] };
+    // (the hepatocyte is the colour of the lobule's own tile at the station: one rule, lobule/tile-colours.ts, so the plates do not change colour at the handoff.
+    //  2D's palette had its own mix, ten levels off in every look)
+    const k = `${this.look}|${dark}`;
+    if (k !== this.cellKey) { this.cellKey = k; this.cellRgb = stationTile(this.look); }
+    P.cCell[0] = this.cellRgb[0]!; P.cCell[1] = this.cellRgb[1]!; P.cCell[2] = this.cellRgb[2]!;
+    return P;
+  }
+  private cellKey = '';
+  private cellRgb: readonly number[] = [0, 0, 0];
   /** How much each end's name shows now. */
   get endShownNow(): readonly [number, number] { return this.endShown; }
   /** How open the lining's fenestrae are now (0 to 1, eased): the Fenestrae name reads it as "16% open". */
