@@ -1,9 +1,6 @@
-// Record window's marks while it records: the stop button beside the Settings gear (a ring with a square in it, pulsing red; it may be in the video), and the red outline round the app
-// (drawn only when the browser keeps it out of the video: record.ts `restrict`, record-model.ts showRecordFrame). Both are off the page when nothing records.
-import { createPortal } from 'react-dom';
+// Record window's mark while it records: the stop button beside the Settings gear (a ring with a square in it, pulsing red; it may be in the video). Nothing is drawn when nothing records.
 import { RECORD } from '../shell/words.ts';
 import { useRecording, toggleRecording } from './record.ts';
-import { showRecordFrame } from './record-model.ts';
 import './record.css';
 
 /** The width one more 44 px button gives the presenter pill while Stop stands in it. */
@@ -28,9 +25,3 @@ export function RecordStop({ tab = false }: { tab?: boolean }) {
 
 /** True while the stop button is on screen (the presenter pill makes room for it). */
 export const useRecordingNow = (): boolean => useRecording((s) => s.phase === 'recording');
-
-/** The red outline round the app's edge. Sits on the page's body, outside #root, so Element Capture leaves it out of the video; never drawn where it could not be kept out. */
-export function RecordFrame() {
-  const show = useRecording((s) => showRecordFrame(s.phase, s.kept));
-  return createPortal(<div className="rec-frame" data-on={show ? '1' : undefined} aria-hidden="true" />, document.body);
-}

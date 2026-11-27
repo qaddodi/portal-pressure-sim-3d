@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { lintFiles, judge, RULES, conflictMarkers, longLines, judgeLongLines, LONG_LINE } from '../scripts/lint-rules.mjs';
+import { lintFiles, judge, RULES, conflictMarkers, cssProblems, longLines, judgeLongLines, LONG_LINE } from '../scripts/lint-rules.mjs';
 
 type Hit = { rule: string; path: string; line: number; text: string };
 const lint = (path: string, text: string): string[] => (lintFiles([{ path, text }]) as Hit[]).map((h) => h.rule);
@@ -87,4 +87,21 @@ test('long-line: the repo has no more long lines than scripts/lint-long-lines.js
   const allow = JSON.parse(readFileSync('scripts/lint-long-lines.json', 'utf8')) as Record<string, number>;
   const { over } = judgeLongLines(longLines(files), allow) as { over: Array<{ path: string; count: number; allowed: number }> };
   assert.deepEqual(over, [], `lines over ${LONG_LINE} characters: ${over.map((o) => `${o.path} ${o.count} > ${o.allowed}`).join(', ')}`);
+});
+
+test('css well-formedness: a stylesheet cut off mid-rule is caught, comments and strings with brackets are not', () => {
+  assert.deepEqual(cssProblems('.a { color: red; }\n@media (x) { .b { top: 0; } }\n'), []);
+  assert.deepEqual(cssProblems('/* { ( [ unbalanced in a comment */ .a::after { content: "}{(" ; }'), []);
+  // the tail of the file lost, as the record window's stylesheet was: the @media block never closes
+  assert.deepEqual(cssProblems('.a { top: 0; }\n@media (prefers-reduced-motion: reduce) { .a { animation: none; } '), [{ line: 2, message: "a '{' that is never closed" }]);
+  assert.equal(cssProblems('.a { top: 0; } }').length, 1);
+  assert.equal(cssProblems('/* open').length, 1);
+});
+
+test('every stylesheet in the repo is well-formed (the build stops at the first that is not)', () => {
+  const css: string[] = [];
+  const walk = (dir: string): void => { for (const e of readdirSync(dir, { withFileTypes: true })) { const p = `${dir}/${e.name}`; if (e.isDirectory()) walk(p); else if (e.name.endsWith('.css')) css.push(p); } };
+  walk('src');
+  assert.ok(css.length > 20, 'the walk found the stylesheets');
+  for (const f of css) assert.deepEqual(cssProblems(readFileSync(f, 'utf8')), [], f);
 });

@@ -1,4 +1,4 @@
-// Release review #11, #15, #18: transient notices stand clear of the side panel, ?perf is a capped strip, and the Treat sheet rests at its content's height.
+// Release review #11, #15, #18: transient notices stand on the dock's axis, ?perf is a capped strip, and the Treat sheet rests at its content's height.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -6,11 +6,19 @@ import { perfStrip } from '../src/ui/perf/report.ts';
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
-test('the toast is centred in the room left of the side panel and capped to it (a thumb layout has no panel)', () => {
-  const css = read('src/ui/shell/shell.css');
-  assert.match(css, /\.sh-toast \{[^}]*left: calc\(50% - var\(--panel-w, 360px\) \/ 2\)/);
-  assert.match(css, /\.sh-toast \{[^}]*width: min\(440px, calc\(100vw - var\(--panel-w, 360px\) - 24px\)\)/);
-  assert.match(css, /html\.thumb-ui \.sh-toast \{ left: 50%/);
+test('every note that stands over the dock is centred on the dock\'s own axis (left: 50%) on every device, capped to the page, never offset by the side panel', () => {
+  const css = read('src/ui/shell/shell.css'), dock = read('src/ui/styles/app-07-floating.css');
+  assert.match(dock, /\.vdock \{\s*position: absolute; z-index: var\(--z-hud\); left: 50%; transform: translateX\(-50%\)/, 'the dock and its view pill are centred on the page');
+  for (const sel of ['.sh-toast', '.sh-glnote']) {
+    const rule = new RegExp(`(?:^|\\n)${sel.replace('.', '\\.')} \\{[^}]*\\}`).exec(css)?.[0] ?? '';
+    assert.ok(rule, `${sel} has its base rule`);
+    assert.match(rule, /left: 50%/, `${sel} stands on the page centre line`);
+    assert.doesNotMatch(rule, /--panel-w|--fs-foot|--fig-/, `${sel} is not offset by a side panel or a figure room`);
+    assert.match(rule, /(?:width|max-width): (?:min\(\d+px, calc\(100vw - \d+px\)\)|max-content)|max-width: min\(calc\(100vw - \d+px\), \d+px\)/, `${sel} has a sensible max width of the page`);
+  }
+  // no later rule (a media query, a thumb-only override) moves the note off the axis again
+  assert.doesNotMatch(css, /\.sh-toast\s*\{[^}]*left: calc\(/, 'no .sh-toast rule shifts left');
+  assert.doesNotMatch(css, /\.sh-toast[^{]*\{[^}]*--panel-w/, 'no .sh-toast rule reads the side panel');
 });
 
 

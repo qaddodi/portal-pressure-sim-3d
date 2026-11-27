@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { canRecordWindow, actualMime, showRecordFrame, pickRecordMime, recordExt, recordFileName, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
+import { canRecordWindow, actualMime, pickRecordMime, recordExt, recordFileName, recordSize, recordBitrate, RECORD_FPS, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
 import { isCaptureKey } from '../src/ui/capture/capture-model.ts';
 import { createRecordRun, isRefusal, type RecordDeps, type RecordNote, type RecorderLike, type StreamLike } from '../src/ui/capture/record-run.ts';
 import { RECORD } from '../src/ui/shell/words.ts';
@@ -103,18 +103,17 @@ class FakeRecorder implements RecorderLike {
   start() { this.state = 'recording'; this.started++; }
   stop() { for (const d of this.data) this.ondataavailable?.({ data: d }); this.state = 'inactive'; this.onstop?.(undefined); }
 }
-function rig(opts: { restrict?: boolean; ask?: () => Promise<StreamLike>; mime?: string; data?: Blob[]; recorder?: () => RecorderLike } = {}) {
-  const stream = new FakeStream(), phases: RecordPhase[] = [], notes: RecordNote[] = [], saved: { size: number; ext: string }[] = [], kept: boolean[] = [];
+function rig(opts: { ask?: () => Promise<StreamLike>; mime?: string; data?: Blob[]; recorder?: () => RecorderLike } = {}) {
+  const stream = new FakeStream(), phases: RecordPhase[] = [], notes: RecordNote[] = [], saved: { size: number; ext: string }[] = [];
   const rec = new FakeRecorder(opts.mime ?? 'video/webm;codecs=vp9', opts.data ?? [new Blob(['aa']), new Blob(['bbb'])]);
   let asked = 0;
   const deps: RecordDeps = {
     ask: () => { asked++; return opts.ask ? opts.ask() : Promise.resolve(stream); },
     recorder: opts.recorder ?? (() => rec),
     save: (v, ext) => { saved.push({ size: v.size, ext }); },
-    restrict: () => Promise.resolve(opts.restrict ?? false),
-    tell: (n) => { notes.push(n); }, onPhase: (p) => { phases.push(p); }, onKept: (k) => { kept.push(k); },
+    tell: (n) => { notes.push(n); }, onPhase: (p) => { phases.push(p); }
   };
-  return { run: createRecordRun(deps), stream, rec, phases, notes, saved, kept, asked: () => asked };
+  return { run: createRecordRun(deps), stream, rec, phases, notes, saved, asked: () => asked };
 }
 const err = (name: string) => Object.assign(new Error(name), { name });
 
@@ -186,11 +185,48 @@ test('no video came out, or the recorder could not be made or started: idle, tol
   } finally { console.warn = warn; }
 });
 
-test('a recorder error mid-way ends it once and tells once', async () => {
-  const r = rig();
-  await r.run.press();
-  r.rec.onerror?.(undefined); r.rec.onerror?.(undefined);
-  assert.equal(r.run.phase(), 'idle'); assert.deepEqual(r.notes, ['recording', 'failed']); assert.deepEqual(r.saved, []); assert.equal(r.stream.track.stopped, true);
+test('a recorder error mid-way is not a failure while it holds a recording: it is stopped, the video saved, and nothing says "Couldn\'t record"', async () => {
+  const warn = console.warn; console.warn = () => undefined;
+  try {
+    const r = rig();
+    await r.run.press();
+    r.rec.onerror?.(undefined); r.rec.onerror?.(undefined);
+    assert.equal(r.run.phase(), 'idle'); assert.deepEqual(r.saved, [{ size: 5, ext: 'webm' }]); assert.deepEqual(r.notes, ['recording', 'saved']); assert.equal(r.stream.track.stopped, true);
+    // an error with nothing recorded is the one failure, told once
+    const none = rig({ data: [] });
+    await none.run.press(); none.rec.onerror?.(undefined); none.rec.onerror?.(undefined);
+    assert.equal(none.run.phase(), 'idle'); assert.deepEqual(none.notes, ['recording', 'failed']); assert.deepEqual(none.saved, []);
+  } finally { console.warn = warn; }
+});
+
+test('"Couldn\'t record" is told only when no file was handed over: nothing after a save (a late error, a second stop, a throw while stopping) can say it', async () => {
+  const warn = console.warn; console.warn = () => undefined;
+  try {
+    const r = rig();
+    await r.run.press(); await r.run.press();
+    assert.deepEqual(r.notes, ['recording', 'saved']);
+    r.rec.onerror?.(undefined); r.rec.onstop?.(undefined); r.stream.track.onended?.();
+    assert.deepEqual(r.notes, ['recording', 'saved'], 'nothing more is said'); assert.equal(r.saved.length, 1);
+    // the recorder runs its stop handler inside stop() and then throws: the video is already saved
+    const t = rig(); t.rec.stop = () => { t.rec.state = 'inactive'; for (const d of [new Blob(['xx'])]) t.rec.ondataavailable?.({ data: d }); t.rec.onstop?.(undefined); throw err('InvalidStateError'); };
+    await t.run.press(); await t.run.press();
+    assert.deepEqual(t.saved, [{ size: 2, ext: 'webm' }]); assert.deepEqual(t.notes, ['recording', 'saved'], 'saved, and not told it failed');
+  } finally { console.warn = warn; }
+});
+
+test('full size: the screen\'s own pixels at the device pixel ratio, and a bit rate that follows what the track delivers', () => {
+  assert.deepEqual(recordSize({ w: 1512, h: 982 }, 2), { w: 3024, h: 1964 });
+  assert.deepEqual(recordSize({ w: 1920, h: 1080 }, 1), { w: 1920, h: 1080 });
+  assert.deepEqual(recordSize({ w: 1440, h: 900 }, 0), { w: 1440, h: 900 }, 'a missing ratio is 1');
+  assert.equal(RECORD_FPS, 60);
+  assert.ok(recordBitrate(3024, 1964, 60) >= 60_000_000 && recordBitrate(3024, 1964, 60) <= 80_000_000, 'a retina screen at 60 fps gets about 70 Mbps');
+  assert.equal(recordBitrate(1440, 900, 60), Math.round(1440 * 900 * 60 * 0.2));
+  assert.equal(recordBitrate(320, 240, 30), 8_000_000, 'never starved');
+  assert.equal(recordBitrate(7680, 4320, 60), 80_000_000, 'never absurd');
+  assert.ok(recordBitrate(3024, 1964, 60) > recordBitrate(1512, 982, 60));
+  const rec = src('src/ui/capture/record.ts');
+  assert.match(rec, /width: \{ ideal: size\.w \}, height: \{ ideal: size\.h \}, frameRate: \{ ideal: RECORD_FPS \}/);
+  assert.match(rec, /videoBitsPerSecond/); assert.match(rec, /applyConstraints/);
 });
 
 test('the words: plain, no dot, Stop is a word in the toast', () => {
@@ -206,27 +242,14 @@ test('the file is named by the format the recorder really wrote (its mimeType, e
   assert.deepEqual(r.saved, [{ size: 3, ext: 'mp4' }]);
 });
 
-test('the red outline is drawn only while recording AND only when the browser keeps it out of the video; the stop button needs neither', async () => {
-  assert.equal(showRecordFrame('recording', true), true);
-  assert.equal(showRecordFrame('recording', false), false, 'Safari: it would be in the video, so it is not drawn');
-  for (const p of ['idle', 'asking', 'saving'] as const) assert.equal(showRecordFrame(p, true), false);
-  const kept = rig({ restrict: true }); await kept.run.press();
-  assert.deepEqual(kept.kept, [true]); await kept.run.press();
-  assert.deepEqual(kept.kept, [true, false], 'it goes away when the recording stops');
-  const plain = rig({ restrict: false }); await plain.run.press();
-  assert.deepEqual(plain.kept, [false]); assert.equal(plain.run.phase(), 'recording', 'recording works all the same');
-});
-
-test('no toast while recording (it would be in the video); the stop button stands beside Settings in the top bar, the thumb bar and the presenter pill, and the outline is outside #root', () => {
+test('no toast and no outline while recording; the stop button stands beside Settings in the top bar, the thumb bar and the presenter pill', () => {
   const rec = src('src/ui/capture/record.ts');
   assert.ok(!/RECORD\.on\b/.test(rec) && !/note === 'recording'/.test(rec));
   assert.match(src('src/ui/shell/TopBar.tsx'), /<RecordStop \/>\s*\n\s*<button type="button" className="ib" id="btnSettings"/);
   assert.match(src('src/ui/shell/ThumbBar.tsx'), /t\.id === 'settings' \? <RecordStop tab \/>/);
   assert.match(src('src/ui/settings/SettingsMenu.tsx'), /<RecordStop \/>/);
   assert.match(src('src/ui/deck/PresenterBar.tsx'), /RECORD_STOP_W/);
-  const ind = src('src/ui/capture/RecordIndicator.tsx');
-  assert.match(ind, /createPortal\([^\n]*document\.body\)/, 'the outline is on the body, outside the app, which is all Element Capture records');
-  assert.match(rec, /getElementById\('root'\)/); assert.match(rec, /RestrictionTarget/);
-  const css = src('src/ui/capture/record.css');
+  const ind = src('src/ui/capture/RecordIndicator.tsx'), css = src('src/ui/capture/record.css');
+  for (const t of [rec, ind, css, src('src/App.tsx')]) assert.ok(!/RecordFrame|rec-frame|RestrictionTarget|restrictTo|showRecordFrame/.test(t), 'no red outline round the app, in any browser (Mohammad, 27 Nov)');
   assert.match(css, /prefers-reduced-motion/); assert.match(css, /@keyframes rec-breathe \{ 0%, 100% \{ opacity: 1; \} 50% \{ opacity: \.4; \} \}/, 'the pulse is opacity only');
 });

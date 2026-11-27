@@ -23,6 +23,21 @@ export const recordExt = (mime: string): 'mp4' | 'webm' => (/^video\/mp4/i.test(
 /** The video's name: the same as a capture's (the view, the patient, the build, the time), with the format's extension. */
 export const recordFileName = (view: string, patient: string | null, commit: string, at: Date, mime: string): string => captureFileName(view, patient, commit, at, recordExt(mime));
 
+/** The frame rate asked for. */
+export const RECORD_FPS = 60;
+/** The size to ask the browser for: the screen's own pixels (its CSS size times the pixel ratio), the most it can show, so nothing is scaled down on the way.
+ *  Asked as `ideal`, so a browser that has less gives what it has. */
+export function recordSize(screen: { w: number; h: number }, ratio: number): { w: number; h: number } {
+  const r = ratio > 0 ? ratio : 1;
+  return { w: Math.max(2, Math.round(screen.w * r)), h: Math.max(2, Math.round(screen.h * r)) };
+}
+/** Bits per second for the recorder, from what the track really delivers: about 0.2 bit per pixel per frame (a screen of text and fine lines is mostly still,
+ *  so this is near lossless to the eye), kept between 8 and 80 Mbps. A 3024 x 1964 screen at 60 frames is about 71 Mbps; a 1440 x 900 one at 60 is 16 Mbps. */
+export function recordBitrate(w: number, h: number, fps: number): number {
+  const raw = Math.round(Math.max(0, w) * Math.max(0, h) * Math.max(1, fps) * 0.2);
+  return Math.min(80_000_000, Math.max(8_000_000, raw));
+}
+
 /** The shortcut: Alt (Option) + Shift + R, read by its place on the board (Option makes another character on a Mac). */
 export const isRecordKey = (e: { code?: string; key?: string; altKey?: boolean; shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean; repeat?: boolean }): boolean =>
   !!e.altKey && !!e.shiftKey && !e.ctrlKey && !e.metaKey && !e.repeat && (e.code === 'KeyR' || (e.key ?? '').toLowerCase() === 'r');
@@ -50,7 +65,3 @@ export function recordRow(phase: RecordPhase, words: { row: string; stopRow: str
 
 /** The mime type the video really has: the recorder's own, else the type its first piece carries, else what was asked for. The file's extension follows this, never what was hoped for. */
 export const actualMime = (recorderMime: string, pieceMime: string, asked: string): string => recorderMime || pieceMime || asked;
-
-/** Whether the red outline round the app is drawn: only while recording, and only when the browser could keep it out of the video (Element Capture on this tab).
- *  Where it could not, the outline would be recorded, so it is not drawn. */
-export const showRecordFrame = (phase: RecordPhase, kept: boolean): boolean => phase === 'recording' && kept;
