@@ -293,6 +293,10 @@ export class CelScene {
   /** The distance the camera sits at with the whole lobule framed in the room it has (kept per room size). */
   restKey = '';
   restD = 0.1;
+  /** The same for the sinusoid's landing: the distance the camera sits at from the sinusoid shot's aim with it framed in this room, and that aim (parts/dive.ts sinusoidRest). */
+  sinRestKey = '';
+  sinRestD = 0.001;
+  readonly sinAim = new Vector3();
   readonly divePt = new Vector3();
   readonly cutArr: [number, number, number, number] = [0, 0, -1, 1];
 
