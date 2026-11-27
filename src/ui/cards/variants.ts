@@ -9,8 +9,10 @@ export const idOf = (w: { title: string; line: string }) => `${w.title}\u0001${w
 export function variantsOf(slide: Slide, deck?: Deck): Words[] {
   const own: Words = { title: slide.title, line: slide.line, kicker: slide.kicker, ...(slide.site ? { site: slide.site } : {}) };
   const opts: CompareOpt[] = slide.controls?.compare?.opts ?? [];
-  if (!speaks(opts)) return [own];
-  const out = [own];
+  // (a procedure's words before its result, step-words.ts: the card holds them beside the slide's own, so it never changes size when the figure reaches the result)
+  const ahead: Words[] = slide.lineAhead ? [{ ...own, line: slide.lineAhead }] : [];
+  if (!speaks(opts)) return [own, ...ahead];
+  const out = [own, ...ahead];
   for (const o of opts) {
     if (o.how === 'lens' || o.gate || o.tool) continue;
     const at = o.slide ? deck?.slides.find((x) => x.id === o.slide) ?? null : null;

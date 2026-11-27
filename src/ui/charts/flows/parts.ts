@@ -12,7 +12,7 @@ export type PartDef = readonly [PartId, string, string];
 
 // Where the shunted blood goes: route id → [name, colour token, vessel ids]. On the bar largest first, ties in this order.
 export const ROUTES: readonly (readonly [string, string, string, readonly string[]])[] = [
-  ['var', 'Varices', 'tr-var', ['C1b']],
+  ['var', 'Gastroesophageal collaterals', 'tr-var', ['C1b']],
   ['grs', 'Gastrorenal', 's7', ['C5']],
   ['srs', 'Splenorenal', 's5', ['C6']],
   ['pum', 'Paraumbilical', 's4', ['C3']],

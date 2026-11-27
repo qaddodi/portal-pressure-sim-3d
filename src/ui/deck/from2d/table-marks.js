@@ -47,6 +47,9 @@ const T_mid_Slow = tup('mid', 'Slow');
 const T_mid_Moderate = tup('mid', 'Moderate');
 const T_ok_Small = tup('ok', 'Small');
 const T_hi_Low = tup('hi', 'Low');
+const T_mid_Falling = tup('mid', 'Falling');
+/** The mean arterial pressure under which a fall of MAP_FALL or more from the reading it counts from is a warning, not an improvement. */
+export const MAP_WATCH = 80, MAP_FALL = 5;
 const T_hi_CSPH = tup('hi', 'CSPH');
 const T_mid_Borderline = tup('mid', 'Likely cACLD');
 const T_mid_cACLD = tup('mid', 'Suggests cACLD');
@@ -92,7 +95,7 @@ export const RATE = {
   liver: (v) => (v <= FLOW_CUTS.liverSevere ? T_hi_Severe : v <= FLOW_CUTS.liverLow ? T_mid_Low : T_ok_Normal),
   shunt: (v) => (v >= FLOW_CUTS.shuntLarge ? T_hi_Large : v >= FLOW_CUTS.shuntModerate ? T_mid_Moderate : T_ok_Small),
   // (The blood pressure: low at a mean <65 or a systolic <90 mmHg, Baveno VIII 4.6's two limits for carvedilol.)
-  map: (v, f) => (v < KIDNEY_CUTS.mapBeta || f?.sbp < KIDNEY_CUTS.sbpBeta ? T_hi_Low : T_ok_Normal),
+  map: (v, f) => (v < KIDNEY_CUTS.mapBeta || f?.sbp < KIDNEY_CUTS.sbpBeta ? T_hi_Low : v < MAP_WATCH && f?.mapFrom - v >= MAP_FALL ? T_mid_Falling : T_ok_Normal),
   sbp: (v) => (v < KIDNEY_CUTS.sbpBeta ? T_hi_Low : T_ok_Normal),
   // (The stent's peak velocity: the Doppler card's own range for a stent, 90 to 190 cm/s for an 8 to 10 mm one and scaled for another diameter, the fingerprint's tipsD / dipsD:
   // stentCuts below; its other readings are numbers only.)

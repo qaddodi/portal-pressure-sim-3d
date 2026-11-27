@@ -72,6 +72,11 @@ export interface Slide {
   title: string;
   /** The teaching line. Markup: {hvpg} a live reading, {hvpg:0} whole, {>=10 mmHg} a cut-off, [label](term) a figure term, **bold**. */
   line: string;
+  /** A procedure slide whose line prints readings the procedure changes: the words until the figure shows the result,
+   *  in the future tense, printing no reading the state on show does not yet hold (ui/deck/step-words.ts). */
+  lineAhead?: string;
+  /** the step of the slide's procedure on which `line` takes over from `lineAhead` */
+  aheadUntil?: number;
   /** A case opens the slide on its own card first (a beat before the slide). */
   vignette?: string;
   /** A question slide (2D `question`): asked on a card of its own before the slide, which is its answer. Not on a slide that has a case, a patient of its own or a procedure. */

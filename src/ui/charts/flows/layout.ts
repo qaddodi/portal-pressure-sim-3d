@@ -68,9 +68,18 @@ export const routeRows = (hh: number, geo: RouteGeo) => Math.max(1, Math.floor((
 export interface Pill { id: string; cx: number; w: number; row: number; lx: number }
 /** Each name sits under its own part. Two that would touch: the second slides right (its part's centre stays under it) or drops to the next row, and a leader never crosses another name. */
 export function routePills(items: readonly { id: string; text: string; mid: number }[], w: number, geo: RouteGeo, measure: Measure, maxRows = Infinity): { pills: Pill[]; rows: number; ok: boolean } {
+  const byMid = placePills([...items].sort((p, q) => p.mid - q.mid), w, geo, measure, maxRows);
+  if (byMid.ok || items.length < 2) return byMid;
+  // A long name placed first can leave a short one to its right no row (its leader would run through the long name above).
+  // Placed narrowest first, the short names sit on the upper rows and the long one under them.
+  const wid = new Map(items.map((it) => [it.id, measure(it.text, geo.f, 600)]));
+  const byWidth = placePills([...items].sort((p, q) => wid.get(p.id)! - wid.get(q.id)! || p.mid - q.mid), w, geo, measure, maxRows);
+  return byWidth.ok ? byWidth : byMid;
+}
+function placePills(order: readonly { id: string; text: string; mid: number }[], w: number, geo: RouteGeo, measure: Measure, maxRows: number): { pills: Pill[]; rows: number; ok: boolean } {
   const pills: Pill[] = [], rowsL: [number, number][][] = [];
   let ok = true;
-  for (const it of [...items].sort((p, q) => p.mid - q.mid)) {
+  for (const it of order) {
     const tw = Math.min(w, measure(it.text, geo.f, 600)), want = Math.min(Math.max(it.mid - tw / 2, 0), Math.max(0, w - tw));
     let put: { row: number; L: number } | null = null;
     for (let row = 0; row < Math.max(maxRows, 1) && !put; row++) {
@@ -83,7 +92,7 @@ export function routePills(items: readonly { id: string; text: string; mid: numb
     (rowsL[put.row] ??= []).push([put.L, put.L + tw]);
     pills.push({ id: it.id, cx: put.L + tw / 2, w: tw, row: put.row, lx: it.mid });
   }
-  return { pills, rows: items.length ? Math.max(rowsL.length, 1) : 0, ok };
+  return { pills, rows: order.length ? Math.max(rowsL.length, 1) : 0, ok };
 }
 export interface RouteMark { x0: number; x1: number; text: string; L: number; R: number; hl: number }
 export function routeMarker(hParts: readonly Part[] | null, w: number, f: number, measure: Measure): RouteMark | null {

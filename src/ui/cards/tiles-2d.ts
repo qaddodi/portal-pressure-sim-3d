@@ -81,7 +81,8 @@ export function tileView(k: string, f: Fp, o: { ref?: Fp | null; key?: boolean; 
   const T = tileOf(k) ?? { t: k, s: '', u: '' };
   const S = (SCALE as unknown as Record<string, [number, number, number[]] | undefined>)[k];
   const tips = !!o.tips, ref = o.ref ?? null;
-  const [cls, word] = ratedShown(k, f, tips);
+  // (a blood pressure that has fallen from the state this tile counts from is rated on that fall too, table-marks.js MAP_WATCH)
+  const [cls, word] = ratedShown(k, k === 'map' && ref?.map != null ? { ...f, mapFrom: tileShown('map', ref.map) } : f, tips);
   const none = cls == null && (k === 'saag' || k === 'tp');
   const on = !none && f[k] != null;
   const x = T.x ?? 1, dg = T.d ?? 1;
@@ -130,15 +131,26 @@ export function slideTiles(s: CopiedSlide, f: Fp | null, o: { ref?: Fp | null; r
 export function tilesAt(slides: readonly CopiedSlide[], results: readonly ({ fp: Fp; params?: unknown } | undefined)[] | undefined, i: number, phone: boolean): SlideTiles | null {
   const s = slides[i];
   if (!s) return null;
+  const { stateOf, fpAt, ref } = refsOf(slides, results, i);
+  // (the slide's own reading is its own result's: one that changes nothing holds the same numbers as the slide it stands on, and a pressed control's state is laid on THIS slide's, shown-state.ts)
+  const here = results?.[i]?.fp ?? fpAt(i);
+  const base = s.hvpgResp ? ref(s.hvpgResp as string | boolean)?.hvpg : null;
+  const tips = !!(results?.[stateOf[i]!]?.params as { tips?: { on?: boolean } } | undefined)?.tips?.on;
+  return slideTiles(s, here, { ref: ref(deltaOf(s, i, changes as (x: CopiedSlide) => boolean)), respBase: base, phone, tips });
+}
+
+/** The state slide i counts from, the one its tiles say "from" under (its `delta`, else the slide before when it changes the patient: deltaOf); null for none. */
+export function deltaFpAt(slides: readonly CopiedSlide[], results: readonly ({ fp: Fp; params?: unknown } | undefined)[] | undefined, i: number): Fp | null {
+  const s = slides[i];
+  return s ? refsOf(slides, results, i).ref(deltaOf(s, i, changes as (x: CopiedSlide) => boolean)) : null;
+}
+
+function refsOf(slides: readonly CopiedSlide[], results: readonly ({ fp: Fp; params?: unknown } | undefined)[] | undefined, i: number) {
   let last = 0;
   const stateOf = slides.map((x, j) => (j === 0 || changes(x) ? (last = j) : last));
   const fpAt = (j: number): Fp | null => (j >= 0 ? results?.[stateOf[j]!]?.fp ?? null : null);
-  // (the slide's own reading is its own result's: one that changes nothing holds the same numbers as the slide it stands on, and a pressed control's state is laid on THIS slide's, shown-state.ts)
-  const here = results?.[i]?.fp ?? fpAt(i);
-  const refFor = (d: string | boolean | null): Fp | null => (d === true ? (i > 0 ? fpAt(i - 1) : null) : typeof d === 'string' ? fpAt(slides.findIndex((x) => x.id === d)) : null);
-  const base = s.hvpgResp ? refFor(s.hvpgResp as string | boolean)?.hvpg : null;
-  const tips = !!(results?.[stateOf[i]!]?.params as { tips?: { on?: boolean } } | undefined)?.tips?.on;
-  return slideTiles(s, here, { ref: refFor(deltaOf(s, i, changes as (x: CopiedSlide) => boolean)), respBase: base, phone, tips });
+  const ref = (d: string | boolean | null): Fp | null => (d === true ? (i > 0 ? fpAt(i - 1) : null) : typeof d === 'string' ? fpAt(slides.findIndex((x) => x.id === d)) : null);
+  return { stateOf, fpAt, ref };
 }
 
 /** The deck's states with slide `i`'s reading replaced by the live one (its parameters stay: the live figure's own settings are not the slide's). */
