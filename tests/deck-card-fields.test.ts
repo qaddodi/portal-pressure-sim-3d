@@ -43,6 +43,7 @@ const WHEN: Record<string, (c: CopiedSlide) => boolean> = {
   question: (c) => !c.vignette && !c.preset && !c.procedure,
   tiles: (c) => c.data === 'tiles' && !!c.tiles?.length, key: (c) => c.data === 'tiles' && !!c.tiles?.length, delta: (c) => c.data === 'tiles' && !!c.tiles?.length, data: (c) => c.data === 'tiles' && !!c.tiles?.length,
   hvpgResp: (c) => c.data === 'tiles' && !!c.tiles?.length,
+  hvpgRule: (c) => c.data === 'tiles' && !!c.tiles?.length,
   tool: (c) => !!(c.tool && typeof (c.tool as { kind?: unknown }).kind === 'string'),
   lapse: (c) => !!c.lapse && typeof c.days === 'number' && c.days > 0,
   cath: (c) => ['route', 'free', 'wedge', 'result'].includes(c.cath ?? ''),

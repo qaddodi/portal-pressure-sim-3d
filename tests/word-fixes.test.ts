@@ -12,7 +12,7 @@ test('every wording fix replaces text the copied decks still hold', () => {
 
 test('Collaterals and varices, check 4: the NSBB response is ≥10% or to ≤12 mmHg (Baveno VIII)', () => {
   const a = plainText(buildDeck(VARICES).checks[3]!.a, null);
-  assert.match(a, /≥10% and the HVPG is now ≤12 mmHg \(either meets the Baveno VIII response\)/);
+  assert.match(a, /≥10% and the HVPG is now ≤12 mmHg \(either meets the Baveno VIII response for primary prophylaxis\)/);
   assert.match(plainText(buildDeck(VARICES).checks[3]!.q, null), /falls from 11\.1 to 8\.5 mmHg/, 'the same patient as slide 6 (11.1 to 8.5), not 16 to 11');
   assert.ok(!a.includes('>10%'));
 });

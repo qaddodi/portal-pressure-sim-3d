@@ -6,7 +6,7 @@ import { reserveOf, altsOf } from './roll-reserve.ts';
 import { nb } from '../text/glue.ts';
 import { typesetter, toneVar, type Node, type RichSlide } from '../text/rich.ts';
 import { pillTone, type Fp } from '../text/pill-tone.ts';
-import { rateShown } from '../deck/from2d/table-marks.js';
+import { rateShown } from './ratings.ts';
 import { TOKEN_OF_RATE } from '../../engine/hales/portal/pressure-cuts.js';
 
 const style = (tone: string | null) => (tone ? { ['--tone' as string]: toneVar(tone) } : undefined);
@@ -19,7 +19,7 @@ export function Line({ text, read, slide, fp, pill, still = false, seen, minus, 
   pill = pill ? nb(pill) : pill;
   let done = false;
   // (the spleen's word wears its status colour while it is not normal, as 2D rateTone gives it)
-  const set = typesetter(slide ?? {}, () => { const r = fp ? (rateShown('spleen', fp) as string[])[0] : null; return r && r !== 'ok' ? (TOKEN_OF_RATE as Record<string, string | undefined>)[r] ?? null : null; });
+  const set = typesetter(slide ?? {}, () => { const r = fp ? rateShown('spleen', fp)[0] : null; return r && r !== 'ok' ? (TOKEN_OF_RATE as Record<string, string | undefined>)[r] ?? null : null; });
   const words = (t: string, k: string): ReactNode => nodes(set.set(t), k);
   const items = gluePieces(pieces);
   // (a pill's padding is its own room: beside a stop or inside a bracket the pill gives it up, so "2.2 g/dL." and "(59.4 kPa)" read as written, not "2.2 g/dL ." and "( 59.4 kPa )")

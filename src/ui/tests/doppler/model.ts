@@ -24,6 +24,7 @@ import { measure } from '../../charts/measure.ts';
 import { feed, type SampleFeed } from '../feed.ts';
 import { paramsNow } from '../frame.ts';
 import { useDopplerProbe } from './probe-state.ts';
+import { hepaticWords } from './constriction.ts';
 import { pinnedAt } from '../slide/pin.ts';
 import { dopplerVel } from '../../../scene/lenses/vel-normal.copied.js';
 import type { SpectrumDraw } from './spectrum-gl.ts';
@@ -385,7 +386,7 @@ export class DopplerModel {
     const open = Math.abs(rm);
     const mean = rm * gf;
     rd.SEEN.gated = mean; rd.SEEN.open = open;
-    const it = rd.interpret(r, gf, rd.SEEN);
+    const it = hepaticWords(rd.interpret(r, gf, rd.SEEN), p.kind, paramsNow());
     // (In a slide's strip the reading is signed as the trace is drawn, the scanner's way: a hepatic vein's forward flow runs away from the probe, so it reads "−18 · Toward the heart".)
     const drawn = this.slide ? mean * (rd.pol() as number) : mean;
     const dp = Math.abs(drawn) < 10 ? 1 : 0;

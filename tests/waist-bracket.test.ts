@@ -90,7 +90,7 @@ test('the bracket is not drawn in a way a browser can lose: no filter or tiny bo
   assert.match(curve, /width: 100%; height: 100%/);
   assert.doesNotMatch(curve, /filter|drop-shadow/, 'a drop-shadow on the svg root clipped the line away on Safari (Mohammad, 26 Nov: "no more bracket on the waist?")');
   assert.doesNotMatch(curve, /width: 1px|height: 1px/);
-  assert.match(css, /\.wb-halo \{[^}]*stroke: var\(--lb-halo\)/);
+  assert.match(css, /\.wb-halo \{[^}]*stroke: color-mix\(in srgb, var\(--lb-halo\)/);
 });
 test('the bracket is one quiet line a little heavier than a hairline: a soft halo, never a hard ring, one weight for the line and its ticks', () => {
   const css = readFileSync(new URL('../src/scene/labels/labels.css', import.meta.url), 'utf8');

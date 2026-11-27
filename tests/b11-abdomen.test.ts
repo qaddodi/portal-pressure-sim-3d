@@ -76,12 +76,12 @@ test('every label this pane writes is in the 2D source word for word (checked wh
   }
 });
 
-test('an emptied belly that is refilling says so: the balance is never a bare number under "None, 0.0 L"', () => {
-  assert.equal(rateText(2100, false), 'Refilling 2,100\u00a0mL/day');
-  assert.equal(rateText(2100, true), '2,100 mL/day');
-  assert.equal(rateText(-300, false), '300 mL/day');
-  assert.equal(rateText(0, false), 'Steady');
-  assert.equal(rateText(null, false), '');
+test('the balance is a plain "N mL/day" once there is fluid, and nothing while the pool is under 0.5 L (C15)', () => {
+  assert.equal(rateText(2100, 1.2), '2,100 mL/day');
+  assert.equal(rateText(-300, 1.2), '300 mL/day');
+  assert.equal(rateText(0, 1.2), 'Steady');
+  assert.equal(rateText(2100, 0.2), '');
+  assert.equal(rateText(null, 1.2), '');
 });
 
 // The dial's readout never overlaps itself (iPhone, 21 Nov: "19 mmHg is overlapping"): the unit stood at a fixed place while its size grows when the dial is drawn small, so it rode up into the digits.

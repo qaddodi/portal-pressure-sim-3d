@@ -1,7 +1,8 @@
 // A reading's colour in a slide's words (cards/Line.tsx), kept free of the page so a node test can hold it for every deck.
 import { stationTone } from './rich.ts';
 import { seriesToken } from './series-tone.ts';
-import { rateShown, tipsGoal, tileShown } from '../deck/from2d/table-marks.js';
+import { tipsGoal, tileShown } from '../deck/from2d/table-marks.js';
+import { rateShown } from '../cards/ratings.ts';
 import { TOKEN_OF_RATE } from '../../engine/hales/portal/pressure-cuts.js';
 
 export type Fp = Readonly<Record<string, number | null | undefined>>;
@@ -14,7 +15,7 @@ export function pillTone(k: string, fp: Fp | undefined, tips = false): { tone: s
   const series = seriesToken(k);
   if (series) return { tone: series, rate: null };
   const v = fp?.[k];
-  const rate = v == null ? null : tips && k === 'ppg' ? (tipsGoal(tileShown(k, v))[0] as string) : ((rateShown(k, fp) as string[])[0] ?? null);
+  const rate = v == null ? null : tips && k === 'ppg' ? (tipsGoal(tileShown(k, v))[0] as string) : (rateShown(k, fp)[0] ?? null);
   const token = rate ? (TOKEN_OF_RATE as Record<string, string | undefined>)[rate] : undefined;
   return { tone: token ?? stationTone(k), rate: rate && rate !== 'none' ? rate : null };
 }
