@@ -734,7 +734,7 @@
  "src/ui/talk/variant-state.ts": 4,
  "src/ui/tests/Cv.tsx": 1,
  "src/ui/tests/ReadoutsPane.tsx": 3,
- "src/ui/tests/TestsLayer.tsx": 15,
+ "src/ui/tests/TestsLayer.tsx": 10,
  "src/ui/tests/abdomen/AbdomenPane.tsx": 8,
  "src/ui/tests/abdomen/model.ts": 10,
  "src/ui/tests/cam-release.ts": 1,
