@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { passedThrough, type DiveView } from '../src/scene/camera/dive.ts';
-import { diveBlur, DOF_DIVE_PEAK } from '../src/scene/post-dof.ts';
+import { diveBlur, DOF_DIVE_PEAK, DOF_PASS_PEAK } from '../src/scene/post-dof.ts';
 import { DIVE_IN, DIVE_OUT } from '../src/scene/parts/shared.ts';
 import type { Vector3 } from 'three';
 
@@ -24,11 +24,12 @@ test('held, the blur stays at its peak from where the body is gone all the way i
   const rest = 0.009, gone = Math.max(DIVE_IN, 2 * rest);
   for (let i = 0; i <= 200; i++) {
     const d = 0.0005 * Math.pow(gone / 0.0005, i / 200);
-    assert.ok(Math.abs(diveBlur(d, rest, gone, DIVE_OUT, 1) - DOF_DIVE_PEAK) < 1e-12, `held at ${d}`);
+    assert.ok(Math.abs(diveBlur(d, rest, gone, DIVE_OUT, 1) - DOF_PASS_PEAK) < 1e-12, `held at ${d}`);
   }
   assert.equal(diveBlur(rest, rest, gone, DIVE_OUT, 0), 0, 'a move that lands on the lobule: sharp there');
   assert.equal(diveBlur(DIVE_OUT, rest, gone, DIVE_OUT, 1), 0, 'the body whole: sharp, held or not');
-  assert.ok(Math.abs(diveBlur(rest, rest, gone, DIVE_OUT, 0.5) - DOF_DIVE_PEAK / 2) < 1e-12, 'a hold easing in or out is a blend, never a step');
+  assert.ok(Math.abs(diveBlur(rest, rest, gone, DIVE_OUT, 0.5) - (DOF_DIVE_PEAK + 0.5 * (DOF_PASS_PEAK - DOF_DIVE_PEAK)) / 2) < 1e-12, 'a hold easing in or out is a blend, never a step');
+  assert.ok(DOF_PASS_PEAK > DOF_DIVE_PEAK * 1.5, 'over a lobule only passed through the blur is clearly stronger than the landing dive\'s (Mohammad, 27 Nov)');
 });
 
 type Scene = {
@@ -75,14 +76,14 @@ function assertHeld(name: string, frames: Frame[]): void {
   for (const [i, f] of frames.entries()) {
     if (f.open > 1e-3) continue;   // (the sinusoid's band is opening: the sinusoid coming into focus, the lobule standing aside under it)
     if (f.d > DIVE_IN) continue;   // (out where the body is drawn: the dive blur's own rise and fall)
-    assert.ok(f.k >= DOF_DIVE_PEAK - 1e-6, `${name}, frame ${i}: the blur fell to ${f.k.toFixed(3)} with the camera ${f.d.toFixed(4)} from the place dived to`);
+    assert.ok(f.k >= DOF_PASS_PEAK - 1e-6, `${name}, frame ${i}: the blur fell to ${f.k.toFixed(3)} with the camera ${f.d.toFixed(4)} from the place dived to`);
     if (f.lobule) assert.ok(f.soft > 0.999, `${name}, frame ${i}: the lobule's neighbours resolved (soft ${f.soft.toFixed(3)})`);
     held++;
   }
   assert.ok(held > 10, `${name}: the camera passed the lobule (${held} frames)`);
 }
 /** The biggest step a frame of the blur: the dive's own rise as the body dissolves takes about 7 frames to its peak (0.06 a frame at the steepest); a step is anything sharper than 5. */
-const MAX_STEP = DOF_DIVE_PEAK / 5;
+const MAX_STEP = DOF_PASS_PEAK / 5;
 function assertSmooth(name: string, frames: Frame[], start: number): void {
   let prev = start;
   for (const [i, f] of frames.entries()) { assert.ok(Math.abs(f.k - prev) <= MAX_STEP, `${name}, frame ${i}: the blur stepped ${prev.toFixed(3)} to ${f.k.toFixed(3)}`); prev = f.k; }

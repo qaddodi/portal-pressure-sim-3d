@@ -58,6 +58,10 @@ export const DOF_SLAB_LOBULE = 0.75 * LOBULE_T * LOBULE_SCALE, DOF_SLAB_SINUSOID
 export const DOF_BAND_FRAC = 0.02;
 /** The whole-screen blur of the Anatomy <-> Lobule move, at its peak: the same strength the Sinusoid's focus pull holds (sinusoid3d FOCUS_PEAK), so the two dives blur alike. */
 export const DOF_DIVE_PEAK = 0.4;
+/** The blur over a lobule the move only passes through (Anatomy <-> Sinusoid), at its peak: stronger than the landing dive's (Mohammad, 27 Nov: "I feel the blur of the lobule should be more pronounced as it's a bit distracting").
+ *  A share of the picture's height like the rest (DOF_BAND_FRAC times this: 0.8 % of the height at 0.4, 1.4 % at 0.7: about 14 px to 25 px on an iPhone's 1688 px, one rule on every screen). The hold blends from one peak
+ *  to the other (diveBlur's `hold`), and the sinusoid's own focus pull takes the picture on from it (it passes this peak on its way to sharp: SinusoidScene3D focusBlur). */
+export const DOF_PASS_PEAK = 0.7;
 /** The blur strength (0 none .. DOF_DIVE_PEAK) with the camera `d` from the place dived to, `rest` the distance the lobule is framed at, `gone` where the body has dissolved away and `whole` where all of it is drawn:
  *  none at the body's rest and at the lobule's framing, rising smoothly as the body dissolves and peaking where it is gone, then letting go as the neighbours resolve on the way in to the framing. A function of the
  *  distance alone, so zooming out is the same picture run backward and nothing pops (Mohammad 20 Nov 2026: "I like the blur while zooming into a new view, can you add it as we land or leave the lobule?"). */
@@ -69,7 +73,8 @@ export function diveBlur(d: number, rest: number, gone: number, whole: number, h
   const up = smooth(0, 1, Math.log(whole / d) / Math.log(whole / gone));
   const down = 1 - smooth(0, 1, Math.log(gone / d) / Math.log(gone / fit));
   const h = Math.min(1, Math.max(0, hold));
-  return DOF_DIVE_PEAK * up * (down + h * (1 - down));
+  // (the peak is the landing dive's, and the pass-through's as the hold takes over: the one blend, so a hold easing in or out is never a step)
+  return (DOF_DIVE_PEAK + h * (DOF_PASS_PEAK - DOF_DIVE_PEAK)) * up * (down + h * (1 - down));
 }
 /** The taps of the gather: each reads a pre-filtered mip level (no noise), so a dozen make a smooth disc. */
 export const DOF_TAPS = 12;
