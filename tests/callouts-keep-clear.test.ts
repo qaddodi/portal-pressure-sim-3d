@@ -50,7 +50,7 @@ test('the Circuit\'s captions keep off the callouts as they keep off cards and b
   assert.match(src, /const blockers = \(\): Box\[\] => \{ return \[[^\]]*calloutClaims\.boxes/);
   assert.match(src, /calloutClaims\.subscribe\(\(\) => \{ clock\.invalidate\('circuit-captions'\)/);
   const fc = readFileSync(new URL('../src/scene/labels/figure-cards.ts', import.meta.url), 'utf8');
-  assert.match(fc, /calloutClaims\.set\(this\.boxes\)/);
+  assert.match(fc, /calloutClaims\.set\(this\.boxes, cardRings\(ins\)\)/);
 });
 
 test('a pressure\'s name on the scope card wraps inside its column rather than lying over its neighbour (nowrap in three equal columns did)', () => {

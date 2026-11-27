@@ -26,7 +26,7 @@ import { SHAPE_NODES, SHAPE_RAMP, restDisseW, restHalfW, shapeInverse, shapeUnif
 import {
   MeshBuilder, MICRO_DPR, MicroMany, MicroPart, COPY_W, Pacer, meshWork, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
 } from './cel3d.ts';
-import { revealFront, revealReach, revealUniform } from './reveal.ts';
+import { revealFront, revealUniform } from './reveal.ts';
 import { type CellColours, cellColour } from '../sinusoid/lens.ts';
 
 /** How far along the sinusoid (µm each way) the scene is built: past anything the camera can hold (the host's reach). */
@@ -68,7 +68,9 @@ export const ALB_RIM_FULL_PX = 8;
 /** The dive's focus pull (Mohammad 20 Nov 2026: the disc and the band read as a window and "an old TV"): over FOCUS[0]-FOCUS[1] of the dive's share the whole picture goes soft, over
  *  FOCUS[1]-FOCUS[2] the sinusoid comes in over the lobule inside that blur (its screen-door fade, which the blur turns into a true dissolve), and over FOCUS[2]-1 it sharpens to its own
  *  focus band: one picture coming into focus, no edge or shape anywhere. Going out it runs back the same way. */
-export const FOCUS = [0.2, 0.45, 0.68] as const;
+// (27 Nov: 0.2, 0.45, 0.68 -> 0.08, 0.15, 0.78, with the share read off the camera's real distance (parts/dive.ts stepSinusDive): the sinusoid spreads from its middle for about
+//  0.65 s of the 1.8 s move, reveal.ts, then sharpens over about 0.6 s. Mohammad: "appears from middle out, during the blur, then unblurs slowly")
+export const FOCUS = [0.08, 0.15, 0.78] as const;
 /** The focus pull's blur at the dissolve's middle, against the rest's (Mohammad 20 Nov: the blur came in "kinda quickly too strongly"): only as soft as the dissolve needs, eased in with
  *  a smootherstep from FOCUS[0] so it has no start, peaking at the dissolve's middle, then held while the sinusoid's own band opens over FOCUS[2]-1 and its sides settle to the rest's. */
 export const FOCUS_PEAK = 0.4;
@@ -334,10 +336,9 @@ export class Sinusoid3D {
   /** `force`: the priming pass (Scene's idle slices): everything a first shown frame would build is built now, hidden. */
   /** The reveal from the middle out over the dissolve (reveal.ts): the drawn area grows from the sinusoid's middle on the screen to its farthest corner, a function of the dive's share. */
   private stepReveal(d: number | null): void {
-    const u = this.reveal.value, c = this.flat.revealCentre, dpr = MICRO_DPR.value, w = this.res.value.x * dpr, h = this.res.value.y * dpr;
-    // (gl_FragCoord's frame: device px, y up from the bottom)
-    const cx = c.x * dpr, cy = h - c.y * dpr;
-    u.set(cx, cy, revealReach(cx, cy, w, h), revealFront(d, FOCUS[1], FOCUS[2]));
+    const u = this.reveal.value, c = this.flat.revealCentre, dpr = MICRO_DPR.value, h = this.res.value.y * dpr;
+    // (gl_FragCoord's frame: device px, y up from the bottom; the front in the sinusoid's own µm, by its measured size on the screen)
+    u.set(c.x * dpr, h - c.y * dpr, Math.max(0, this.flat.pxPerUm) * dpr, revealFront(d, FOCUS[1], FOCUS[2]));
   }
   update(on: boolean, rate = 1, force = false, upTo = 9): boolean {
     const f = this.flat;

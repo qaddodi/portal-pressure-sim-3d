@@ -36,7 +36,7 @@ export function PresenterBar() {
         {<button type="button" className="ib" aria-label="Previous slide" title="Previous (←)" disabled={first} onClick={() => move('back')}><Chevron dir="l" /></button>}
         {(
           // 2D presenter-scales.js: the count is a button that opens the slide list (G); a slide with two beats (a case, then its slide) shows them as strokes under the number
-          <button type="button" className="pzb-n" aria-label={`Slide ${pos.stop + 1} of ${stops.length}. Open the slide list`} title="Slide list (G)" aria-expanded={jump} onClick={() => useUi.getState().setJump()}>
+          <button type="button" className="pzb-n" data-opens="slides" aria-label={`Slide ${pos.stop + 1} of ${stops.length}. Open the slide list`} title="Slide list (G)" aria-expanded={jump} onClick={() => useUi.getState().setJump()}>
             <span className="pzb-nt">{pos.stop + 1} / {stops.length}</span>
           </button>
         )}

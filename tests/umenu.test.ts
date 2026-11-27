@@ -40,18 +40,23 @@ test('every patient group has its words', () => {
 
 test('the main menu is on 2D\'s .umenu markup and the old sh-* menu is gone', () => {
   const menu = src('src/ui/menu/UMenu.tsx');
+  // its frame (.umenu, .sheet, .out), head row (.um-top with .um-x) and scrim are the menu shell's, on the same 2D classes (surface/menu-head.ts MENU_SKINS)
+  const shell = src('src/ui/surface/Menu.tsx') + src('src/ui/surface/menu-head.ts');
   const css = ['app-07-floating', 'app-02-controls', 'app-03-layouts'].map((f) => src(`src/ui/styles/${f}.css`)).join('\n');
-  for (const c of ['umenu', 'um-grab', 'um-top', 'um-search', 'um-q', 'um-x', 'um-tabs', 'um-tab', 'um-cols', 'um-col', 'um-g', 'um-gl', 'um-row', 'um-t', 'um-m', 'um-info', 'um-inline', 'um-foot', 'um-esc', 'um-empty', 'um-link', 'um-pv', 'um-scrim']) {
-    assert.ok(menu.includes(c) || c === 'um-scrim' && menu.includes('um-scrim'), `${c} in the menu markup`);
+  for (const c of ['umenu', 'um-top', 'um-search', 'um-q', 'um-x', 'um-tabs', 'um-tab', 'um-cols', 'um-col', 'um-g', 'um-gl', 'um-row', 'um-t', 'um-m', 'um-info', 'um-inline', 'um-foot', 'um-esc', 'um-empty', 'um-link', 'um-pv', 'um-scrim']) {
+    assert.ok(menu.includes(c) || shell.includes(c), `${c} in the menu markup`);
     assert.ok(new RegExp(`\\.${c}\\b`).test(css), `.${c} is in 2D's stylesheet`);
   }
+  assert.ok(/umenu: \{ base: 'umenu', sheet: 'sheet', leaving: 'out', head: 'um-top', title: '', x: 'um-x' \}/.test(shell));
+  // the second grab bar (.um-grab) is gone: it was hidden wherever the menu is a sheet (`html.thumb-ui .umenu.sheet .um-grab`), and the shell draws the one bar
+  assert.ok(!menu.includes('um-grab') && /html\.thumb-ui \.umenu\.sheet \.um-grab \{ display: none; \}/.test(css));
   for (const old of ['sh-row', 'sh-tabs', 'sh-lrow', 'sh-pv', 'sh-title', 'Frame']) assert.ok(!menu.includes(old), `${old} (the old menu's markup) is gone`);
-  assert.ok(/usePresence/.test(menu) && /inert=\{!open\}/.test(menu), 'the menu leaves by .out and takes no tap while it goes');
+  assert.ok(/<Menu id="menu" ctl=\{ctl\} skin="umenu"/.test(menu) && /inert=\{!open\}/.test(shell), 'the menu leaves by .out and takes no tap while it goes');
   assert.ok(/Sheets/.test(src('src/ui/shell/Sheets.tsx')) && src('src/ui/shell/Sheets.tsx').includes('<UMenu />'));
 });
 
 test('History and Help are pages pushed inside Settings, on 2D\'s .menu-page markup', () => {
-  const pop = src('src/ui/shell/Menu.tsx'), settings = src('src/ui/settings/SettingsSheet.tsx');
+  const pop = src('src/ui/surface/Menu.tsx'), settings = src('src/ui/settings/SettingsSheet.tsx');
   const css = src('src/ui/styles/app-02-controls.css');
   for (const c of ['menu-root', 'menu-page', 'menu-back', 'pushed']) { assert.ok(pop.includes(c), `${c} in the menu markup`); assert.ok(new RegExp(`\\.${c}\\b`).test(css), `.${c} is in 2D's stylesheet`); }
   assert.ok(/push\('history'\)/.test(settings) && /push\('help'\)/.test(settings), 'the History and Help rows push a page');

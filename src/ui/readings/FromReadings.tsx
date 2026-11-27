@@ -1,9 +1,10 @@
 // "From readings" (Work backward), the 2D app's own flow (copied/from-readings.copied.js: its markup, words, steps, ranges and search, unchanged) in the 3D app's menu.
-// The menu is the 2D `.menu.fr-pop` (styles/from-readings.css): a popover under the gear, a sheet from the foot on a phone. The flow builds its own DOM, as in 2D; this file
+// The menu is the one menu shell (surface/Menu.tsx) on the 2D `.menu.fr-pop` (styles/from-readings.css): a popover under the gear, a sheet from the foot on a phone; it keeps its own form width.
+// The flow builds its own DOM, as in 2D; this file
 // only gives it the open menu's body, its refinement worker and "Open as patient". Its module (the search and its 537-patient library) loads when Settings first opens,
 // so it is there by the time its row is tapped and the menu never opens empty.
 import { useLayoutEffect, useRef } from 'react';
-import { MenuPop } from '../shell/Menu.tsx';
+import { Menu } from '../surface/Menu.tsx';
 import { useShell } from '../shell/store.ts';
 import { loadPatient } from '../patients/index.ts';
 import { YOURS_NOTE } from '../../engine/hales/portal/yours.js';
@@ -49,8 +50,8 @@ function Body() {
 
 export function FromReadings() {
   return (
-    <MenuPop kind="readings" label={FR_WORDS.title} title={FR_WORDS.title} cls="fr-pop" align="end" from="settings">
+    <Menu id="readings" label={FR_WORDS.title} title={FR_WORDS.title} cls="fr-pop" align="end" from="settings">
       <Body />
-    </MenuPop>
+    </Menu>
   );
 }
