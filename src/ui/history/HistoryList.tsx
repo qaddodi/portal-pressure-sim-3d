@@ -24,6 +24,7 @@ import { STORY } from '../timeline/story-words.ts';
 import { chaptersOf, isHistory } from '../histories/meta.ts';
 import { fmt } from '../charts/fmt.ts';
 import { sheetMode } from '../surface/mode.ts';
+import { PANEL_TICK_MS } from '../surface/motion.ts';
 import { useUi } from '../ui-store.ts';
 import { useCase } from '../case/store.ts';
 import { playCase, showInCase } from '../case/doors.ts';
@@ -35,13 +36,12 @@ const leaveHistory = (): void => { const sh = useShell.getState(); sh.closePanel
 
 /** the reading the strip shows, kept while the page is open */
 export const useStoryMetric = create<{ metric: StripMetric | null }>(() => ({ metric: null }));
-const TICK_MS = 500;
 
 /** The story as the page has it now: History's entries and the day record (its future too). Made again when History or the days change, or today's point moved. */
 function useView(on: boolean): View {
   const rev = useTimeline((s) => s.rev), hidden = useHidden(), preset = useEngine((s) => s.presetId);
   const [tick, setTick] = useState(0);
-  useEffect(() => { if (!on) return; const id = clock.every(() => setTick((n) => n + 1), TICK_MS, 'history-story'); return () => clock.cancel(id); }, [on]);
+  useEffect(() => { if (!on) return; const id = clock.every(() => setTick((n) => n + 1), PANEL_TICK_MS, 'history-story'); return () => clock.cancel(id); }, [on]);
   void tick;
   const last = record.days[record.days.length - 1];
   const sig = `${rev}|${record.daysVer}|${record.future.length}|${preset}|${last ? `${last.day}:${Math.round((last.v.hvpg ?? 0) * 10)}:${Math.round((last.v.asc ?? 0) * 10)}` : ''}`;

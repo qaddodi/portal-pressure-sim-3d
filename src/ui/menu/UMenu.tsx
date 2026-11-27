@@ -10,7 +10,7 @@ import { builtinDeck, loadBuiltin } from '../../decks/registry.ts';
 import { useShell, type MenuTab } from '../shell/store.ts';
 import { usePresence } from '../surface/presence.ts';
 import { Menu, useMenu } from '../surface/Menu.tsx';
-import { leaveMs } from '../surface/motion.ts';
+import { leaveMs, PREVIEW_HIDE_MS, PREVIEW_NEXT_MS, PREVIEW_REST_MS } from '../surface/motion.ts';
 import { D_SMALL, LEAVE_SLACK_MS } from '../motion.ts';
 import { visibleBottom, type PlaceOpts } from '../shell/place.ts';
 import { Chart } from '../charts/Chart.tsx';
@@ -299,12 +299,12 @@ export function UMenu() {
     } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== ' ') q.focus();
   };
 
-  // the preview beside the panel: a mouse that rests on a row for 300 ms (120 ms when one is already up); it goes 220 ms after the mouse leaves both
+  // the preview beside the panel: a mouse that rests on a row for 300 ms (120 ms when one is already up); it goes 220 ms after the mouse leaves both (surface/motion.ts)
   const onHover = (k: string) => (el: HTMLElement | null) => {
     if (sheet || !matchMedia('(hover: hover) and (pointer: fine)').matches) return;
     clock.cancel(hoverT.current); clock.cancel(hideT.current);
-    if (!el) { hideT.current = clock.after(() => setHover(null), 220); return; }
-    hoverT.current = clock.after(() => setHover({ k, el }), hover ? 120 : 300);
+    if (!el) { hideT.current = clock.after(() => setHover(null), PREVIEW_HIDE_MS); return; }
+    hoverT.current = clock.after(() => setHover({ k, el }), hover ? PREVIEW_NEXT_MS : PREVIEW_REST_MS);
   };
   useEffect(() => () => { clock.cancel(hoverT.current); clock.cancel(hideT.current); }, []);
 
@@ -353,7 +353,7 @@ export function UMenu() {
     </label>
   );
   const beside = pv.shown && pvLast.current ? (
-    <Beside hover={pvLast.current} on={!!hovered} panel={ref.current} make={pvFor} onEnter={() => clock.cancel(hideT.current)} onLeave={() => { hideT.current = clock.after(() => setHover(null), 220); }} />
+    <Beside hover={pvLast.current} on={!!hovered} panel={ref.current} make={pvFor} onEnter={() => clock.cancel(hideT.current)} onLeave={() => { hideT.current = clock.after(() => setHover(null), PREVIEW_HIDE_MS); }} />
   ) : null;
   return (
     <Menu id="menu" ctl={ctl} skin="umenu" width="l" label="Menu" title="Menu" closeLabel="Close the menu" field={field} extraCls={words && here > 0 ? 'filtered' : undefined}

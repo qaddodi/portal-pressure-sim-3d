@@ -35,6 +35,7 @@ import { pushPage, type Push } from '../surface/page-push.ts';
 import { openSet, remember, startsOpen } from './keep.ts';
 import { reduced } from '../a11y/motion.ts';
 import { D_SMALL, EASE_ARRIVE } from '../motion.ts';
+import { DONE_MARK_MS } from '../surface/motion.ts';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
 import { Fade } from '../fade.tsx';
@@ -110,7 +111,7 @@ function Fluid({ id, label, sub }: { id: string; label: string; sub: string }) {
   useEffect(() => () => clock.cancel(t.current), []);
   return (
     <button type="button" className="order-btn fluid-btn" data-given={given ? '' : undefined} title={`${label}: ${sub}`}
-      onClick={() => { giveFluid(appEnv, id); setGiven(true); clock.cancel(t.current); t.current = clock.after(() => setGiven(false), 1400); }}>
+      onClick={() => { giveFluid(appEnv, id); setGiven(true); clock.cancel(t.current); t.current = clock.after(() => setGiven(false), DONE_MARK_MS); }}>
       <span className="ob-t">{label}<small>{sub}</small></span>
     </button>
   );

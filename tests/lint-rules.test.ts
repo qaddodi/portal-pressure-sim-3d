@@ -25,6 +25,15 @@ const CASES: Array<[rule: string, path: string, bad: string, good: string]> = [
   ['plate-map-literal', 'src/scene/x.ts', 'const y = 556 - u * 300; const g = `vec2(${a}, 556.0 - p.y)`;', 'const y = y2d(u); const g = `vec2(${a}, ${ORIGIN_2D.y.toFixed(1)})`; const t = 5560;'],
   ['hv-blocked-direct', 'src/ui/x.ts', "import { hvBlocked, NOT_MEASURABLE } from '../engine/hales/portal/pressure-cuts.js';", "import { NOT_MEASURABLE } from '../engine/hales/portal/pressure-cuts.js'; import { hvpgBlockedBy } from '../engine/hv-flag.ts';"],
   ['slider-key-by-value', 'src/ui/x.tsx', 'const A = () => cells.map((c) => <SliderCtl key={c.id + d} v={c} />); const B = <input type="range" key={`r${v}`} />;', 'const A = () => cells.map((c) => <SliderCtl key={c.id} v={c} />); const B = <input type="range" key={i} />; const C = <Row key={a + b} />;'],
+  ['surface-outside-shell', 'src/ui/x/Card.tsx',
+    'const A = () => <section role="dialog" aria-modal="true"><i className="sh-grabbar" /></section>; el.setAttribute(\'role\', \'alertdialog\'); const b = { role: \'menu\' };',
+    'const A = () => <Dialog id="reset" size="s" role="alertdialog" label="x"><GrabBar /></Dialog>; const own = t.closest(\'[role="dialog"], [aria-modal="true"]\'); const C = <div role="group" />;'],
+  ['one-sheet-rule', 'src/ui/x/Sheet.tsx',
+    "import { Menu } from '../surface/Menu.tsx';\nimport { usesBottomBar } from '../shell/room.ts';\nimport { useThumb } from '../shell/thumb.ts';",
+    "import { Menu } from '../surface/Menu.tsx';\nimport { useSurfaceMode } from '../surface/mode.ts';\nimport { figureRowsOwner } from '../shell/room.ts';"],
+  ['surface-motion-tokens', 'src/ui/treat/X.tsx',
+    'const OUT_MS = 320; clock.after(f, 1400); const p = usePresence(open, D_SMALL + 40); el.animate(k, { duration: 240 }); el.animate(k, 180);',
+    'const OUT_MS = leaveMs(\'panel\', mode); clock.after(f, DONE_MARK_MS); clock.after(f, 0); const p = usePresence(open, leaveMs(\'menu\', m)); el.animate(k, { duration: D_SMALL * 0.6 });'],
 ];
 
 for (const [rule, path, bad, good] of CASES) {
@@ -43,6 +52,17 @@ test('every rule has a case here, and the exempt places stay exempt', () => {
   assert.deepEqual(lint('src/scene/anatomy/source.ts', "export { EDGE_PATH_2D } from '../vessels/paths.copied.ts';"), [], 'the anatomy source owns the copied courses');
   assert.deepEqual(lint('src/ui/other.ts', 'clock.after(f, 1); clock.now()'), [], 'the card rule is for the card layer only');
   assert.deepEqual(lint('src/engine/host/worker.ts', 'setTimeout(f, 1); requestAnimationFrame(f)'), [], 'the copied engine is not this app');
+  // the shells own the surfaces' roles, the one mode rule and the motion tokens; the TIPS views menu is an inline menu; a file that renders no surface may read the bars' layout
+  assert.deepEqual(lint('src/ui/surface/Menu.tsx', 'const A = () => <div role="dialog" aria-modal={sheet}><i className="sh-grabbar" /></div>;'), [], 'the shells write the roles and the grab bar');
+  assert.deepEqual(lint('src/ui/tests/ir/TipsView.tsx', 'const A = () => <div className="ir-menu" role="menu" />;'), [], 'the TIPS views menu, inline in its pane');
+  assert.deepEqual(lint('src/ui/tests/ir/Other.tsx', 'const A = () => <div role="menu" />;'), ['surface-outside-shell'], 'but no other menu');
+  assert.deepEqual(lint('src/ui/shell/Credit.tsx', "import { useThumb } from './thumb.ts';"), [], 'a file that renders no surface may read the bars\' layout');
+  assert.deepEqual(lint('src/ui/surface/x.ts', "import { usesBottomBar } from '../shell/room.ts';"), ['one-sheet-rule'], 'nothing in the shells reads an old rule');
+  assert.deepEqual(lint('src/ui/surface/mode.ts', "import { THUMB_MQ } from '../shell/thumb.ts';"), [], 'the one rule may name what it replaced');
+  assert.deepEqual(lint('src/ui/x/Card.tsx', "import { usePanelShell } from '../surface/wire.ts';\nimport { isThumb } from '../shell/thumb.ts';"), ['one-sheet-rule'], 'usePanelShell renders a panel');
+  assert.deepEqual(lint('src/ui/surface/motion.ts', 'export const PREVIEW_HIDE_MS = 220;'), [], 'the surfaces\' named times live in surface/motion.ts');
+  assert.deepEqual(lint('src/ui/treat/card-glide.copied.ts', 'el.animate(f, 240);'), [], 'the 2D copies keep their times');
+  assert.deepEqual(lint('src/ui/cards/Other.tsx', 'clock.after(f, 1400);'), [], 'the motion rule is for the surfaces');
 });
 
 test('a file that does not parse fails the lint instead of being skipped', () => {

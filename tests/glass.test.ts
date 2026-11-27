@@ -68,7 +68,10 @@ test('no glass sits inside a fading wrapper: no shell draws a 2D wrapper that cr
   assert.ok(wrappers.length >= 2, 'the walk found the 2D wrappers');
   const src = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? src(p) : /\.tsx?$/.test(f) ? [p] : []; });
   const drawn = src('src').map((f) => readFileSync(f, 'utf8')).join('\n');
-  for (const w of new Set(wrappers)) assert.ok(!new RegExp(`className=[^>]*\\b${w}\\b|classList\\.add\\([^)]*\\b${w}\\b`).test(drawn) || bare.includes(`.${w}`), `${w} is drawn and fades a glass panel`);
+  for (const w of new Set(wrappers)) {
+    const draws = new RegExp(`className=[^>]*\\b${w}\\b|classList\\.add\\([^)]*\\b${w}\\b`).test(drawn);
+    assert.ok(!draws || bare.includes(`.${w}`), `${w} is drawn and fades a glass panel`);
+  }
 });
 
 // plan 21, the root of the dark step discs: `:is()` weighs its most specific argument (`.topbar #viewSeg` holds an id), so every glass in the list weighed (1,2,1) and no class-only override could win,
