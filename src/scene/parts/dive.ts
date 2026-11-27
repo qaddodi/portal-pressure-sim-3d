@@ -3,7 +3,7 @@
 import { cutUniform, fieldSoft } from '../camera/dive.ts';
 import { fieldWide } from '../lobule/field.ts';
 import { ORGAN_CUT } from '../organs/layer.ts';
-import { LIVER_LOBULES, mosaicShare } from '../organs/liver-lobules.ts';
+import { LIVER_LOBULES, mosaicShare, setLobuleTones } from '../organs/liver-lobules.ts';
 import { effectiveDistance } from '../camera/room.ts';
 import { type LobuleHit, bloodBeat, bloodSpeed, lobuleModel, sinusoidTargets, type BloodBeat, type LobuleLayers } from '../lobule/index.ts';
 import { LOBULE_SCALE, SIN_SCALE, sinusoidWorld } from '../lobule/frames.ts';
@@ -61,6 +61,7 @@ export const divePart = scenePart<CelScene>()({
     //  0 outside a dive, so nothing runs at rest)
     const px = this.height / (2 * Math.tan((cam.fov * Math.PI) / 360));
     LIVER_LOBULES.mos.value = d < Infinity ? mosaicShare(d, px, bodyFade(d, this.diveIn())) : 0;
+    if (LIVER_LOBULES.mos.value > 0) setLobuleTones(this.look, this.lobule.field.greyNow);
     const was = ORGAN_CUT.value.z;
     ORGAN_CUT.value.set(this.cutArr[0], this.cutArr[1], this.cutArr[2], this.cutArr[3]);
     // (held soft over a lobule the move only passes through: its neighbours never resolve on the way to the sinusoid or back, scene passHold)

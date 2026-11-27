@@ -32,6 +32,24 @@ export function fieldWide(d: number, rest: number): number {
   return t * t * (3 - 2 * t);
 }
 export const FIELD_Z = PLATE_Z - 0.1;
+/** The quiet copy's chain (tile-gl.js), one source for the field's shader and for fieldShownColour: toward the colour's luma by QUIET_LUMA,
+ *  the page's colour over it at QUIET_BG, then NEIGHBOUR_FLAT more; then the grey of a lens other than Pressure (surroundGrade), judged by the second luma weights. */
+export const QUIET_LUMA = 0.45, QUIET_BG = 0.42;
+export const QUIET_W: readonly [number, number, number] = [0.3, 0.59, 0.11], GREY_W: readonly [number, number, number] = [0.299, 0.587, 0.114];
+/** The colour the field SHOWS for a tile colour `col` (rgb 0-1) over the page's `bg` with the surround's `grey` ([saturation, opacity], surroundGrade):
+ *  the shader's chain, line for line (the liver's grade ends on it, organs/liver-lobules.ts). */
+export function fieldShownColour(col: readonly number[], bg: readonly number[], grey: readonly number[] = [1, 1]): [number, number, number] {
+  const mixc = (a: number, b: number, t: number): number => a + (b - a) * t;
+  const l = QUIET_W[0] * col[0]! + QUIET_W[1] * col[1]! + QUIET_W[2] * col[2]!;
+  const out: [number, number, number] = [0, 0, 0];
+  for (let i = 0; i < 3; i++) {
+    let c = mixc(col[i]!, l, QUIET_LUMA);
+    c = mixc(c, bg[i]!, QUIET_BG);
+    out[i] = mixc(c, bg[i]!, NEIGHBOUR_FLAT);
+  }
+  const g = GREY_W[0] * out[0] + GREY_W[1] * out[1] + GREY_W[2] * out[2];
+  return out.map((c, i) => mixc(bg[i]!, mixc(g, c, grey[0]!), grey[1]!)) as [number, number, number];
+}
 /** Plan 31 part C: the lobule's own six corners (lobule radii, the tile's lattice: a flat-topped hexagon) and the tract's full radius there (the cuff's outer edge at growth 1). The neighbour plates' rounded corners reach into these
  *  discs and showed through the tract's reveal as a stippled wedge with straight edges; inside them the field draws only its gap tone, so a home tract always lies on one ground. */
 export const HOME_CORNERS: readonly [number, number][] = Array.from({ length: 6 }, (_, i) => [Math.cos((i * Math.PI) / 3), Math.sin((i * Math.PI) / 3)] as [number, number]);
@@ -147,12 +165,12 @@ void main() {
   float dvN = (celLight(col) - lbN) / max(lbN, 0.08);
   col = celTissue(col, lbN, max(fwidth(dvN) * CEL_EDGE_HALF, 1e-3) + ${FIELD_EDGE_PER_MIP.toFixed(4)} * bias);
   // the quiet copy (tile-gl.js): toward its luma by 0.45, the page's colour over it at 0.42, then NEIGHBOUR_FLAT more
-  float l = dot(col, vec3(0.3, 0.59, 0.11));
-  col = mix(col, vec3(l), 0.45);
-  col = mix(col, bg, 0.42);
+  float l = dot(col, vec3(${QUIET_W.map((v) => v.toFixed(3)).join(', ')}));
+  col = mix(col, vec3(l), ${QUIET_LUMA.toFixed(4)});
+  col = mix(col, bg, ${QUIET_BG.toFixed(4)});
   col = mix(col, bg, ${NEIGHBOUR_FLAT.toFixed(4)});
   // grey as the anatomy's liver is in a lens other than Pressure (surroundGrade)
-  col = mix(bg, mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, grey.x), grey.y);
+  col = mix(bg, mix(vec3(dot(col, vec3(${GREY_W.map((v) => v.toFixed(3)).join(', ')}))), col, grey.x), grey.y);
   // the fade into the page: clear inside 1.1 rd, the ramp stretched so no screen corner is more than EDGE_FADE faded (fadeOuter)
   float r0 = rd * 1.1;
   float reach = 0.0;
@@ -219,6 +237,8 @@ export class NeighbourField {
   get softNow(): number { return this.mat.uniforms.soft!.value as number; }
   /** The tract collagen's eased growth now (the plate shader's uP.y): the cleared discs follow it. */
   setHome(p: number): void { this.mat.uniforms.homeR!.value = homeRadius(p); this.mat.uniforms.homeK!.value = homeK(p); }
+  /** The grey in force ([saturation, opacity]). */
+  get greyNow(): readonly [number, number] { const g = this.mat.uniforms.grey!.value as Vector2; return [g.x, g.y]; }
   setGrey(k: number): void {
     const g = surroundGrade(k) as [number, number];
     (this.mat.uniforms.grey!.value as Vector2).set(g[0], g[1]);
