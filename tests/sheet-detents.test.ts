@@ -84,6 +84,7 @@ test('one release rule for every sheet: Full steps to Half, Half to Peek, a pull
   assert.equal(r('half', closeDistance(520) + 10), 'peek', 'a pull down past the close distance rests at Peek');
   assert.equal(r('half', 520 - 72 + 1), 'close', 'a pull past Peek closes it');
   assert.equal(r('half', 60, 2), 'close', 'a flick closes it in one pull');
+  assert.equal(releaseTo({ from: 'half', dy: 200, speed: 0, avg: 1.2, h0: 520, peek: 72, closable: true }), 'peek', 'a brisk pull that has stopped as it lifts is no flick: it rests at Peek');
   assert.equal(r('half', 30, 2), 'half', 'a short quick one is no flick (under 40 px)');
   assert.equal(r('peek', -30), 'half', 'from Peek a pull up comes back to Half');
   assert.equal(r('peek', 30), 'close', 'and a pull down closes it');

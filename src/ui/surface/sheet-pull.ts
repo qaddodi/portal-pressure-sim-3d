@@ -51,7 +51,7 @@ const tail = (el: HTMLElement, px: number) => { if (px > 0) el.style.setProperty
 
 /** The sheet went away under the finger: its swiped mark comes off once it has shut and opened again (or, if it never shut, soon). */
 function awaitReopen(pos: HTMLElement): void {
-  const shut = () => pos.dataset.open === 'false' || pos.hasAttribute('inert') || pos.hidden;
+  const shut = () => pos.dataset.open === 'false' || !!pos.hidden || (typeof pos.hasAttribute === 'function' && pos.hasAttribute('inert'));
   let seenShut = shut();
   const clear = () => { mo?.disconnect(); clock.cancel(tm); delete pos.dataset.swiped; };
   const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => { const now = shut(); if (now) seenShut = true; else if (seenShut) clear(); });

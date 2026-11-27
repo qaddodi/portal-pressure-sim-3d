@@ -138,8 +138,9 @@ export function releaseTo(r: Release): Detent | 'close' {
     const flick = isFlick(dy, speed, r.avg, SHEET_FLICK_MIN, SHEET_FLICK_FAR) as boolean;
     if (from === 'full') return dy > STAY_FULL ? 'half' : 'full';
     if (from === 'peek') return flick || dy > closeDistance(r.h0) ? close : 'peek';
-    // (from Half: a flick or a pull past Peek closes it; a pull past the close distance rests at Peek)
-    if (flick || dy > r.h0 - r.peek) return close;
+    // (from Half: a flick or a pull past Peek closes it; a pull past the close distance rests at Peek. The flick here is the finger still going fast as it lifts, not a
+    //  brisk pull's average, or a deliberate pull to Peek would close the sheet)
+    if ((dy > SHEET_FLICK_FAR && speed > SHEET_FLICK_MIN) || dy > r.h0 - r.peek) return close;
     return dy > closeDistance(r.h0) ? 'peek' : 'half';
   }
   if (dy < 0) {
