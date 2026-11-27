@@ -7,15 +7,19 @@ import { Line } from './Line.tsx';
 import { pageOf } from './pages.ts';
 import { GLIDE_MS } from './rail.ts';
 import { ARRIVE_CSS } from '../../clock/tween.ts';
+import { tellCardResized, flipOffsets, ANSWER_IN_AT, ANSWER_OUT_BY } from './content-resized.ts';
 
-/** The closing quick check, as the 2D app's: numbered questions; a tap opens the answer under its question (the rows below ease down by transform, the answer fades in),
- *  a second tap shuts it. On a phone on its side one answer is open at a time, so the card never outgrows its short screen. */
+/** The closing quick check, as the 2D app's: numbered questions; a tap opens the answer under its question, a second tap shuts it. On a phone on its side one answer is open at a time, so the card never outgrows its short screen.
+ *  One change, one frame (content-resized.ts): the layout effect tells the card first, so the frame is at its new height and place before anything is read;
+ *  the rows under the question then ease from where they stood to where they stand, the frame glides (CardFrame reveal / sink), and the answer's words
+ *  wait for the frame's edge (opening) or are gone before it sinks (shutting): all on the one 420 ms glide (rail.ts GLIDE_MS). */
 export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: number; pages?: number }) {
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
+  // answers that have just shut: their words stay a moment, out of the layout (the rows below already ease up), fading, so nothing pops out
+  const [leaving, setLeaving] = useState<ReadonlySet<number>>(new Set());
   const list = useRef<HTMLOListElement>(null);
   const tops = useRef<number[] | null>(null);
   const opened = useRef<number | null>(null);
-  const height = useRef(0);
   const readings = useUi((s) => s.readings);
   const read = (k: string, at?: string) => readings[at ? `${k}@${at}` : k];
   const one = useUi((s) => s.vp.h <= 500 && s.vp.w > s.vp.h);
@@ -24,30 +28,46 @@ export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: nu
   const idx = deck.checks.map((_, i) => i);
   const shownIdx = pageOf(idx.map(String), pages, page).map(Number);
   const first = shownIdx[0] ?? 0, shown = shownIdx.map((i) => deck.checks[i]!);
+  const shut = (k: number) => leaving.has(k) && !open.has(k);
   const toggle = (k: number) => {
     const li = list.current?.children;
     tops.current = li ? Array.from(li, (e) => e.getBoundingClientRect().top) : null;
-    height.current = list.current?.getBoundingClientRect().height ?? 0;
     opened.current = open.has(k) ? null : k;
-    setOpen((cur) => { const n = new Set(one ? [] : cur); if (cur.has(k)) n.delete(k); else n.add(k); return n; });
+    const next = new Set(one ? [] : open);
+    if (open.has(k)) next.delete(k); else next.add(k);
+    // (what shut keeps its words for the fade; what opened again is no longer leaving)
+    const gone = [...open].filter((i) => !next.has(i));
+    setLeaving((cur) => { const n = new Set(cur); gone.forEach((i) => n.add(i)); next.forEach((i) => n.delete(i)); return n; });
+    setOpen(next);
   };
-  // the rows under the one that opened or shut ease from where they were to where they are (transform only)
   useLayoutEffect(() => {
-    const from = tops.current, li = list.current?.children, fresh = opened.current;
+    const from = tops.current, root = list.current, li = root?.children, fresh = opened.current;
     tops.current = null; opened.current = null;
-    if (!from || !li || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    // the answer that has just opened is in its place at once, but the card is still growing down to it (it is revealed by the same 420 ms glide (rail.ts GLIDE_MS) the rows ease down by): its words
-    // wait for the card's edge to reach them (clear for the first third of the glide), then come in, so the words are never outside the card
-    const a = fresh == null ? null : list.current?.querySelector<HTMLElement>(`#pzc-a${fresh}`);
-    if (a && typeof a.animate === 'function') a.animate([{ opacity: 0 }, { opacity: 0, offset: 0.35 }, { opacity: 1 }], { duration: GLIDE_MS, easing: ARRIVE_CSS });
-    // a card on the foot (a phone's) grows and shrinks at its TOP, a centred one (this one) at its top and its foot by half each: in this same frame, before it is drawn, the card takes its new height and every row stands g higher (g = what the list gained, times the share of it the card's top takes),
-    // so a row's way from where it was to where it will be is its measured way plus g (a row under the answer: no way at all; a row above it: g up)
-    const anchor = list.current?.closest('.dk-pos')?.getAttribute('data-anchor');
-    const g = (anchor === 'foot' ? 1 : anchor === 'mid' ? 0.5 : 0) * ((list.current?.getBoundingClientRect().height ?? 0) - height.current);
-    Array.from(li).forEach((e, i) => {
-      const dy = (from[i] ?? 0) - e.getBoundingClientRect().top + g;
-      if (Math.abs(dy) > 1 && typeof e.animate === 'function') e.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: GLIDE_MS, easing: ARRIVE_CSS });
+    if (!from || !root || !li) return;
+    // the card first: it measures and takes its new height and place here, before the frame is painted (so the answer is never outside it, and the rows' final places are already read true below)
+    tellCardResized(root);
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setLeaving(new Set()); return; }
+    // the answer that has just opened is in its place at once, but the card is still growing down to it: its words wait for the card's edge to reach them, then come in
+    const a = fresh == null ? null : root.querySelector<HTMLElement>(`#pzc-a${fresh}`);
+    if (a && typeof a.animate === 'function') {
+      a.getAnimations?.().forEach((x) => x.cancel());
+      a.animate([{ opacity: 0 }, { opacity: 0, offset: ANSWER_IN_AT }, { opacity: 1 }], { duration: GLIDE_MS, easing: ARRIVE_CSS });
+    }
+    // the answers that have shut fade out in the first part of the glide, while the rows below ease up over the room they leave
+    root.querySelectorAll<HTMLElement>('.pzc-a.leaving').forEach((g) => {
+      if (g.getAnimations?.().length) return;   // (one already going keeps its fade)
+      const f = g.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: GLIDE_MS * ANSWER_OUT_BY, easing: 'linear', fill: 'forwards' });
+      const k = Number(g.id.slice('pzc-a'.length));
+      if (f) f.onfinish = () => setLeaving((cur) => { if (!cur.has(k)) return cur; const n = new Set(cur); n.delete(k); return n; });
+      else setLeaving((cur) => { const n = new Set(cur); n.delete(k); return n; });
     });
+    // the rows ease from where they stood to where they stand (transform only)
+    const dys = flipOffsets(from, Array.from(li, (e) => e.getBoundingClientRect().top));
+    Array.from(li).forEach((e, i) => {
+      const dy = dys[i] ?? 0;
+      if (dy && typeof e.animate === 'function') e.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: GLIDE_MS, easing: ARRIVE_CSS });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   return (
@@ -57,13 +77,15 @@ export function CheckCard({ deck, page = 0, pages = 1 }: { deck: Deck; page?: nu
         <h1 className="pz-h">{CHECK_TITLE}</h1>
         <p className="pz-line">{CHECK_LINE}{pages > 1 ? <span className="dk-pageno"> · {page + 1} of {pages}</span> : null}</p>
       </div>
-      <ol className="pz-check" ref={list} start={first + 1}>
+      <ol className={leaving.size ? 'pz-check shedding' : 'pz-check'} ref={list} start={first + 1}>
         {shown.map(([q, a], j) => { const k = first + j; return (
-          <li key={k} className={open.has(k) ? 'open' : undefined}>
+          <li key={k} className={open.has(k) ? 'open' : shut(k) ? 'leaving' : undefined}>
             <button type="button" className="pzc-q" data-audit-select="" aria-expanded={open.has(k)} aria-controls={`pzc-a${k}`} onClick={() => toggle(k)}>
               <span><Line text={q} read={read} /></span><span className="pzc-hint" aria-hidden="true">{CHECK_HINT}</span>
             </button>
-            {open.has(k) && <div className="pzc-a" id={`pzc-a${k}`}><p><Line text={a} read={read} /></p></div>}
+            {(open.has(k) || leaving.has(k)) && (
+              <div className={shut(k) ? 'pzc-a leaving' : 'pzc-a'} id={`pzc-a${k}`} aria-hidden={shut(k) ? true : undefined}><p><Line text={a} read={read} /></p></div>
+            )}
           </li>
         ); })}
       </ol>
