@@ -34,10 +34,11 @@ function quality(): MediaTrackConstraints & { resizeMode?: 'none' | 'crop-and-sc
   const size = nativeSize();
   return { width: { ideal: size.w }, height: { ideal: size.h }, frameRate: { ideal: RECORD_FPS }, resizeMode: 'none' };
 }
-/** The ways to ask a track again for the full size, gentlest first: the same ideals, then a floor the browser must meet or refuse. */
+/** The ways to ask a track again for the full size, gentlest first: the same ideals, a floor the browser must meet or refuse, then the exact size (width and height together, so the shape is kept).
+ *  A browser that cannot give a size refuses it and the track stays as it was. */
 function upgrades(): MediaTrackConstraints[] {
   const size = nativeSize();
-  return [quality(), { width: { min: size.w }, height: { min: size.h } }];
+  return [quality(), { width: { min: size.w }, height: { min: size.h } }, { width: { exact: size.w }, height: { exact: size.h } }];
 }
 const share = (): ShareOptions => ({ video: { displaySurface: 'browser', ...quality() }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude' });
 
