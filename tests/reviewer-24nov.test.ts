@@ -213,7 +213,7 @@ test('Gastric varices 13: each treatment is compared with its own scenario, name
   assert.equal(by('tips').vs, 'classes'); assert.equal(by('brto').vs, 'classes'); assert.equal(by('eusglue').vs, 'svt'); assert.equal(s.of.at(-1).vs, 'svt');
   assert.match(by('classes').note, /acute hemostasis/); assert.match(by('tips').note, /Definitive/);
   const m = tableModel({ cols: ['gv', 'varix'], asc: false } as never, [{ spec: { ref: true }, f: { gv: 2, varix: 2 }, i: 0, title: 'Healthy', kicker: '' }] as never);
-  assert.deepEqual(m.cols.map((c) => c.label), ['Fundal varix', 'Esophageal varix']); assert.match(m.legend, /2 mm is the normal vein/);
+  assert.deepEqual(m.cols.map((c) => c.label), ['Fundal varix', 'Esophageal varix']); assert.match(m.legend, /varix diameter in mm \(normal vein: about 2 mm\)/);
 });
 test('Albumin 3 and Ascites 6, 7: the dose rule apart from the serum albumin; combined lymph and a balance that holds; both albumins of the SAAG', () => {
   assert.match(at(ALBUMIN, 'tap').line, /more than 5 L, albumin is recommended at \{6 to 8 g\} per liter removed\. His serum albumin \(\{salb\}\) is a separate reading/);
