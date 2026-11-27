@@ -172,6 +172,13 @@ export function diveRoomShare(ra: number, rb: number, r: number): number {
   if (Math.abs(span) < 1e-12 || !(r > 0)) return 1;
   return Math.min(1, Math.max(0, Math.log(ra / r) / Math.log(ra / rb)));
 }
+/** The share of a dive from or to the body (the zoom's log share, which is the move's eased share) over which the place dived to is brought to the middle of the room and out from it: the camera TURNS to the place early,
+ *  while the picture is still the body, and the rest of the dive is a straight push into the middle of the screen (Mohammad, 27 Nov, the Sites deck, anatomy to the lobule: "zooming to the portal vein area, then going
+ *  towards the lobule and zooming in"). The place's screen offset used to be let go on the distance's linear share, which is almost all of it by the first tenth of a geometric zoom of a thousand times, so the
+ *  maths had the aim at the place at once while the picture, which is the offset on screen, held it at its first off-centre spot (130 px up and left on a Mac) for the first fifth of the move and then slid it to the
+ *  middle at a steady pace over the rest: the picture magnified the liver's neighbourhood where it stood, then panned across tissue grown a hundred times, the two legs. Out is the same run backward. */
+export const AIM_SETTLE = 0.4;
+export function aimShare(kc: number): number { const t = Math.min(1, Math.max(0, kc / AIM_SETTLE)); return t * t * (3 - 2 * t); }
 function blendDive(a: Pose, b: Pose, k: number, arc = 1, z?: ZoomEnds): Pose {
   const swing = arc * arcSize(a.shot.r, b.shot.r) * arcBell(k);
   const r = geo(a.shot.r, b.shot.r, k);
@@ -187,10 +194,13 @@ function blendDive(a: Pose, b: Pose, k: number, arc = 1, z?: ZoomEnds): Pose {
   const inNow = a.shot.r >= b.shot.r, c = inNow ? b.shot : a.shot, far = inNow ? a.shot : b.shot;
   // (inside the liver, lobule <-> sinusoid, the offset is let go as ONE glide on the move's own eased share, not on the distance's share q: q keeps the place nearly where it stood for most of the zoom and then sends it across the
   //  screen in the last third, a lurch. The place's screen offset is the world offset over the camera's distance, so the world offset is the far end's, times the share left and r / far.r.)
-  const inside = Math.max(a.shot.r, b.shot.r) < BODY_R_MIN, kc = inNow ? k : 1 - k, sk = kc;   // (k is already the move's eased share, and the room's centre goes with it (diveRoomShare is k here), so the place's screen offset is linear in it: one straight line)
+  const inside = Math.max(a.shot.r, b.shot.r) < BODY_R_MIN, kc = inNow ? k : 1 - k;
+  // (k is already the move's eased share, and the room's centre goes with it (diveRoomShare is k here), so the place's screen offset is linear in it: one straight line.
+  //  From the body the place is let go on the AIM_SETTLE share of the move instead (aimShare), see there)
+  const sk = inside ? kc : aimShare(kc);
   // (the distance the camera is REALLY at is the room's fit of the shot's extents, not the shot's own r: the offset on screen is over that, so the ends' fitted distances (z) stand in for r)
   const dEnd = z && z.da > 0 && z.db > 0 ? (inNow ? z.da : z.db) : far.r, dNow = z && z.da > 0 && z.db > 0 ? geo(z.da, z.db, k) : r;
-  const w = inside ? ((1 - sk) * dNow) / dEnd : inNow ? 1 - q : q;
+  const w = ((1 - sk) * dNow) / dEnd;
   let dx = w * (far.target[0] - c.target[0]), dy = w * (far.target[1] - c.target[1]);
   if (rl !== 0) { const cs = Math.cos(rl), sn = Math.sin(rl); [dx, dy] = [dx * cs - dy * sn, dx * sn + dy * cs]; }
   return {
