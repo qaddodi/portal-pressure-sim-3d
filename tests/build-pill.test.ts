@@ -1,7 +1,8 @@
 // The build pill says the 2D app's words and reloads as the 2D pill does (2D: scripts/preview-badge.mjs, tests/preview-badge.test.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildLabel, buildChecks, cachePrefix, reloadUrl, BADGE_H } from '../src/ui/shell/build-pill.ts';
+import * as pillModule from '../src/ui/shell/build-pill.ts';
+import { buildLabel, pillColor, PILL_COLORS, updateText, buildNote, cachePrefix, reloadUrl, BADGE_H } from '../src/ui/shell/build-pill.ts';
 
 test('the label is the short commit the deploy stamped in', () => {
   assert.equal(buildLabel('claude/project-thread-ge1swr@56cb768a'), '56cb768a');
@@ -46,8 +47,14 @@ test('the pill reads the screen\'s address when it leaves, through the one link 
   assert.match(shared, /shareLinkNow\(\)/); assert.match(shared, /reloadUrl\(location\.href, Date\.now\(\), state\)/);
 });
 
-test('the pill carries what the build\'s own checks found, and nothing when they were clean', () => {
-  assert.equal(buildChecks('types: 3 errors, lint failed'), 'types: 3 errors, lint failed');
-  assert.equal(buildChecks(''), '');
-  assert.equal(buildChecks(undefined), '');
+test('the pill is orange with the commit, or green when a newer build is out, and says nothing else: no checks, no test results, no red', () => {
+  assert.equal(PILL_COLORS.current, '#c9430d'); assert.equal(PILL_COLORS.newer, '#0b7a3b');
+  assert.equal(pillColor(null), '#c9430d'); assert.equal(pillColor(''), '#0b7a3b'); assert.equal(pillColor('def67890'), '#0b7a3b');
+  assert.equal(updateText('d5e89a72', null), 'PREVIEW · d5e89a72');
+  assert.equal(updateText('', null), 'PREVIEW');
+  assert.equal(updateText('d5e89a72', 'abc12345'), 'NEW BUILD · TAP TO UPDATE · on d5e89a72');
+  assert.equal(buildNote('d5e89a72', null), 'Build d5e89a72');
+  assert.equal(updateText.length, 2, 'the words take the commit and the update state, nothing about checks');
+  assert.ok(!('buildChecks' in pillModule) && !('checksFailed' in pillModule), 'the module has no checks to show');
+  // (the one component, BuildPill.tsx, draws it on every device from these helpers: tests/update-watch.test.ts pins that)
 });

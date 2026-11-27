@@ -49,6 +49,14 @@ export function roll(r: { cur?: HTMLElement }, next: string, was: string): void 
 }
 
 
+/** A part of a label comes in from nothing to its own opacity, linear, over `ms`: the keyframe is the START (`offset: 0`), and the end is the part's own opacity as the page
+ *  has it every frame (the browser fills in the keyframe missing at 1 from the element itself). A lone keyframe with no offset is the END of an animation:
+ *  `animate([{ opacity: 0 }])` runs from the part's opacity DOWN to 0 and snaps back when it ends, so the words that were meant to come in dimmed out instead,
+ *  for as long as the crossing ran (the flicker of every callout that was given its words as it came in). One place, so no crossing is written the wrong way round. */
+export function comeIn(k: Element, ms: number): Animation {
+  return k.animate([{ opacity: 0, offset: 0 }], { duration: ms, easing: 'linear', fill: 'backwards' });
+}
+
 /** When the crossing running on a label ends (clock ms): one crossing at a time per label (restyle). */
 const crossing = new WeakMap<Element, number>();
 
@@ -59,7 +67,10 @@ export const RESTYLE_SHOWING = 0.05;
  *  A colour transition would repaint; this keeps everything on the compositor, opacity only, the way `roll` does for a number: before `apply` writes the change, the label is cloned as `.lb-was`
  *  (its old look, its old words) and put beside it; `apply` then writes the live one; the clone fades 1 to 0 and each part of the live label whose words changed fades 0 to 1, linear, over D_SMALL,
  *  so the two weights sum to 1 the whole way. A part whose words are the same (a colour change only) is not faded, so it never dips: the old colour fades off the new one.
- *  `alpha` is the label's opacity now: at or under RESTYLE_SHOWING (hidden, or a label still coming in) `apply` is simply run, and no clone is made.
+ *  `alpha` is how much of the label is ON THE SCREEN now: what its owner painted last, never the opacity it is about to write this frame. A label that is only now coming in
+ *  is not showing: its first frame already has an opacity of 0.1 or more, and judged by that a card handed its words for the first time (or other words than it last stood
+ *  with, while it was hidden) was crossed over from them, the old words and the new fighting through the whole of its arrival: it "flickered, then appeared"
+ *  (Mohammad, 27 Nov: the FHVP and WHVP cards, the sinusoid and WHVP callouts). At or under RESTYLE_SHOWING (hidden, or just coming in) `apply` is simply run, and no clone is made.
  *  An element with parts (a label, a card) fades its parts and leaves its own opacity to its owner (a card's glass must never sit under a fading ancestor); one with none (a leader, a ring) fades itself. */
 export function restyle(el: Element, apply: () => void, alpha: number): void {
   const parent = el.parentElement;
@@ -69,11 +80,12 @@ export function restyle(el: Element, apply: () => void, alpha: number): void {
   // A crossing already runs on this label (an earlier change, under D_SMALL ago): the new change is written into the live label and rides that crossing, which fades the one old copy out
   // and the live words in. A second copy started now would begin again at full opacity beside the first, once per change, and a reading that changes every few frames (the EUS-PPG's PV and HV
   // while the needle reads) pulsed instead of easing (Mohammad, 22 Nov: "the callout flickers as it's measuring"). A part whose words change now and is not already fading in does so for the time left.
+  // (`comeIn`: the part's own opacity is the way it ends, whatever that does meanwhile.)
   const run = crossing.get(el), at = clock.now();
   if (run && at < run) {
     apply();
     const left = run - at;
-    kids.forEach((k, i) => { if (k.textContent !== before[i] && !(k.getAnimations?.().length)) k.animate([{ opacity: 0 }], { duration: left, easing: 'linear', fill: 'backwards' }); });
+    kids.forEach((k, i) => { if (k.textContent !== before[i] && !(k.getAnimations?.().length)) comeIn(k, left); });
     return;
   }
   crossing.set(el, at + D_SMALL);
@@ -91,7 +103,7 @@ export function restyle(el: Element, apply: () => void, alpha: number): void {
     anims.push(part.animate([{ opacity: from }, { opacity: 0 }], opts));
   }
   // (a part of the live label whose words changed comes in as the old ones leave; it ends where its own opacity stands, however that moves meanwhile)
-  kids.forEach((k, i) => { if (k.textContent !== before[i]) anims.push(k.animate([{ opacity: 0 }], { duration: D_SMALL, easing: 'linear', fill: 'backwards' })); });
+  kids.forEach((k, i) => { if (k.textContent !== before[i]) anims.push(comeIn(k, D_SMALL)); });
   let done = false;
   const finish = () => { if (done) return; done = true; old.remove(); };
   anims[0]!.onfinish = finish; anims[0]!.oncancel = finish;

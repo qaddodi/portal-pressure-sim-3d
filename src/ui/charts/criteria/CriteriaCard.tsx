@@ -1,8 +1,9 @@
 import { Fragment, useMemo } from 'react';
 import { Chart } from '../Chart.tsx';
-import { criteriaCaseHead, criteriaHasCase, criteriaMet, criteriaReading, criteriaRows, cutParts, keyLine, verdictParts, type Row } from './rows.ts';
+import { criteriaCaseHead, criteriaGauge, criteriaHasCase, criteriaMet, criteriaReading, criteriaRows, cutParts, keyLine, verdictParts, type Row } from './rows.ts';
 import { ZONES, zonesFrame } from './zones.ts';
 import type { Fingerprint } from '../fmt.ts';
+import { fadeAttrs } from '../../fade.tsx';
 import '../charts.css';
 
 export interface CriteriaTool {
@@ -26,6 +27,24 @@ function End({ r, ticks, fp }: { r: Row; ticks: boolean; fp: Fingerprint | null 
   if (!r.note) return <span className="pzc-end" />;
   const sub = r.met === true ? <span className="pzc-m"><i className="y">meets it ✓</i></span> : r.met === false ? <span className="pzc-m"><i className="n">not met</i></span> : null;
   return <span className="pzc-end pzc-note"><span className="pzc-v">{r.note}</span>{sub}</span>;
+}
+
+/** A live row's gauge, on the tile bar's own marks (TilesCard Tile: .pzt-bar > .pzb-track, its band, its tick and its dot): the reading's scale, the side that does not meet the row
+ *  shaded, the row's cut-off as a line across the track, and the patient's dot, which eases along the track as a slider or a compare button moves the reading (.pzc-g in the stylesheet).
+ *  Hidden from a screen reader: the row's label already reads the number and whether it is met. */
+function Gauge({ r, fp }: { r: Row; fp: Fingerprint | null | undefined }) {
+  const g = criteriaGauge(r, fp);
+  if (!g) return null;
+  const state = g.met == null ? 'none' : g.met ? 'yes' : 'no';
+  return (
+    <span className="pzt-bar pzc-g" data-met={state} aria-hidden="true">
+      <span className="pzb-track">
+        <span className="pzb-zs"><i className="pzb-z" style={{ left: `${g.fail.left}%`, width: `${g.fail.width}%` }} /></span>
+        <i className="pzb-t" style={{ left: `${g.cut}%` }} />
+        <i className="pzb-now" {...fadeAttrs(g.now != null)} style={{ translate: `clamp(6px, ${g.now ?? g.cut}%, calc(100% - 6px)) 0` }} />
+      </span>
+    </span>
+  );
 }
 
 /** The criteria card: a guideline's rule list (up to four rows, live rows read from the model) or its zones graph, a lead, the rule's source and a verdict. */
@@ -54,6 +73,7 @@ export function CriteriaCard({ tool, fp }: { tool: CriteriaTool; fp?: Fingerprin
                 <Cut r={r} />
                 <span className="pzc-t">{r.bold ? bold(r.bold) : r.text}</span>
                 <End r={r} ticks={ticks} fp={fp} />
+                <Gauge r={r} fp={fp} />
               </li>
             );
           })}

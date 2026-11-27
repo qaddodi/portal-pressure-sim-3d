@@ -47,13 +47,18 @@ test('placement: a wide screen docks the card on the right at the 2D width; a ph
 });
 
 // ── the card is the 2D dock's markup (dock.js: head row with the tabs and the close, .instr-tabs.ws-tabs, .it-full / .it-short, roving tabindex, arrow keys) ──
-import { fitTabs } from '../src/ui/tests/tab-fit.ts';
+import { fitTabs } from '../src/ui/surface/tab-fit.ts';
 import { TAB_ICONS } from '../src/ui/tests/copied/dock-words.copied.js';
 
 test('the Tests card wears the 2D dock\'s classes, so the lifted sheets style it (no copy of them)', () => {
-  for (const c of ['instrument-workspace', 'float-ui', 'dock-head card-head tabbed', 'instr-tabs ws-tabs', 'instr-tab', 'it-t', 'it-full', 'it-short', 'card-close', 'dock-body', 'dock-pane', 'workspace-comparison']) assert.ok(layer.includes(c) || readFileSync(new URL('../src/ui/tests/CompareLine.tsx', import.meta.url), 'utf8').includes(c), `the card has .${c}`);
-  assert.ok(layer.includes('tabIndex={tab === id ? 0 : -1}'), 'roving tabindex: only the open tab is in the tab order');
-  assert.ok(/'ArrowLeft', 'ArrowRight', 'Home', 'End'/.test(layer), 'arrow keys, Home and End move between the tabs');
+  // (the head and the tab strip are the one panel head's, surface/PanelHead.tsx and Tabs.tsx, which emit the 2D dock's classes: .card-head, .tabbed, .instr-tabs, .card-close)
+  const head = readFileSync(new URL('../src/ui/surface/PanelHead.tsx', import.meta.url), 'utf8'), tabs = readFileSync(new URL('../src/ui/surface/Tabs.tsx', import.meta.url), 'utf8');
+  const all = [layer, head, tabs, readFileSync(new URL('../src/ui/tests/CompareLine.tsx', import.meta.url), 'utf8')].join('\n');
+  assert.match(layer, /<PanelHead className="dock-head"[^>]*yieldTitle/, 'the head is the one panel head; its title steps aside for the tabs');
+  assert.match(layer, /variant: 'icon', className: 'ws-tabs'/, 'the tabs are the one strip, icon variant');
+  for (const c of ['instrument-workspace', 'float-ui', 'card-head', "' tabbed'", 'instr-tabs', 'instr-tab', 'it-t', 'it-full', 'it-short', 'card-close', 'dock-body', 'dock-pane', 'workspace-comparison']) assert.ok(all.includes(c), `the card has .${c}`);
+  assert.ok(tabs.includes('tabIndex={t.id === value ? 0 : -1}'), 'roving tabindex: only the open tab is in the tab order');
+  assert.ok(/'ArrowLeft', 'ArrowRight', 'Home', 'End'/.test(tabs), 'arrow keys, Home and End move between the tabs');
   assert.ok(layer.includes("document.getElementById('tabInstruments')?.focus()"), 'closing returns focus to the Tests button');
   assert.deepEqual(Object.keys(TAB_ICONS as Record<string, string>), PANE_ORDER, 'every tab has its 2D icon');
 });

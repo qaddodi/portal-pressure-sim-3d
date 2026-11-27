@@ -2,7 +2,7 @@
 // The 2D inventory has no row for them, so, like the figure's pictures (b4-rows.ts), they keep rows of their own: the batch that carries the deck
 // claims them (b13c.ts) and the score reads the rows beside the inventory's. tests/decks-rw-copy.test.ts holds this list to the patches,
 // so a new one is named here or that test fails.
-import type { Row } from './score.ts';
+import type { Row } from './claim.ts';
 
 export const OWN_3D_SLIDES: readonly string[] = ['varices/gastric', 'varices/redwale', 'varices/primary', 'varices/secondary'];
 export const OWN_SLIDE_ROWS: readonly Row[] = OWN_3D_SLIDES.map((id) => (

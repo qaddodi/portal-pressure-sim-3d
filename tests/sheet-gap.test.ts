@@ -56,7 +56,8 @@ test('the Treat and panel sheets read --nb-occ (published) and the clip under th
   assert.match(read('src/ui/shell/Shell.tsx'), /vp\.safe\.bottom \+ sheetFoot\(d\)/);
   assert.match(read('src/ui/shell/Shell.tsx'), /setProperty\('--sheet-gap'/);
   assert.match(merged2d('app-07-floating.css'), /calc\(var\(--sheet-foot-screen, 8px\) - var\(--sheet-gap, 8px\)\)/);
-  assert.match(merged2d('app-03-layouts.css'), /calc\(var\(--thumb-occ, 0px\) - var\(--sheet-gap, 8px\)\)/);
+  // (Search, the Guide and the pages are dialog sheets since 27 Nov: they rest on the same line, --thumb-occ, or one gap over the keyboard: surface/dialog.css)
+  assert.match(read('src/ui/surface/dialog.css'), /max\(var\(--thumb-occ, 0px\), calc\(var\(--dlg-kb, 0px\) \+ var\(--sheet-gap, 8px\)\)\)/);
   assert.match(read('src/ui/treat/TreatCard.tsx'), /sheetPlace\(vp, sheetFoot\(layoutClass\(true\)\), h\)/);
 });
 

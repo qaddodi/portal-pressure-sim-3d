@@ -27,12 +27,11 @@ test('hiding it is saved and read back on reload; showing it again is saved too'
   assert.equal(useSettings.getState().showBuildPill, true, 'Reset everything brings the pill back');
 });
 
-test('the build note names the commit and the checks, and a newer build when one is out', () => {
-  assert.equal(buildNote('56cb768a', 'tests: 2 failing', null), 'Build 56cb768a · tests: 2 failing');
-  assert.equal(buildNote('56cb768a', '', null), 'Build 56cb768a');
-  assert.equal(buildNote('', '', null), 'Build local');
-  assert.equal(buildNote('56cb768a', '', 'abc12345'), 'Build 56cb768a · a newer build is out');
-  assert.equal(buildNote('56cb768a', '', ''), 'Build 56cb768a · a newer build is out', 'the worker said so without a commit');
+test('the build note names the commit (no checks), and a newer build when one is out', () => {
+  assert.equal(buildNote('56cb768a', null), 'Build 56cb768a');
+  assert.equal(buildNote('', null), 'Build local');
+  assert.equal(buildNote('56cb768a', 'abc12345'), 'Build 56cb768a · a newer build is out');
+  assert.equal(buildNote('56cb768a', ''), 'Build 56cb768a · a newer build is out', 'the worker said so without a commit');
 });
 
 test('the pill draws nothing while hidden, and Settings offers the switch on a preview build only', () => {

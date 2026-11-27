@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { glslFiles } from './scripts/gl-scan.mjs';
 import { withCsp } from './scripts/csp.mjs';
 import { fadeHidden } from './scripts/fade-hidden.mjs';
+import { dkInTwins } from './scripts/dk-in-twins.mjs';
 import { appCssTags, appCssOrder } from './scripts/app-css.mjs';
 import { withCredit } from './scripts/credit.mjs';
 
@@ -63,7 +64,8 @@ export default defineConfig({
   base: './',
   plugins: [react(), credit(), glModules(), appPreload(), csp()],
   // the 2D stylesheets' `:not([hidden])` also means "not faded off" here (scripts/fade-hidden.mjs; Plan 42)
-  css: { postcss: { plugins: [fadeHidden()] } },
+  // (dkInTwins: off until its captures are reviewed, PPS_DK_TWINS=1 turns it on: scripts/dk-in-twins.mjs)
+  css: { postcss: { plugins: process.env.PPS_DK_TWINS === '1' ? [fadeHidden(), dkInTwins()] : [fadeHidden()] } },
   worker: { format: 'es' },
   build: {
     target: 'es2022', sourcemap: false, chunkSizeWarningLimit: 700,

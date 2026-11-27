@@ -1,7 +1,7 @@
 // B4's rows: what the 2D figure shows of the organs and of the patient's disease. The 2D inventory (parity/inventory.json) lists controls, words, decks and cards, and has no row for
 // a picture on the figure, so B4 keeps its own list here, from what the 2D figure draws (anatomy.js ORGANS and the disease rules of stage-diaphragm.js, stage-tubes.js, stage-clamps.js,
 // stage-organs.js). The score reads these beside the inventory's rows; `?parity` lists them under "Organs and disease looks". "Match 2D" stays 0 until Mohammad checks a row on his device.
-import type { Row } from './score.ts';
+import type { Row } from './claim.ts';
 import { OWN_SLIDE_ROWS } from './own-slides.ts';
 
 export const ORGAN_LABELS: Record<string, string> = {

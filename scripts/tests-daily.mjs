@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// The one full test run a day (W6, 25 Nov review). The `tests` job in .github/workflows/pages.yml runs it (owner allowed Actions for this run only, 25 Nov) and keeps the file as a cache entry;
+// The one full test run a day (W6, 25 Nov review). The `tests` job in .github/workflows/pages.yml runs it (owner allowed Actions for this run only, 25 Nov); the count is in the job's log;
 // by hand, run it where the suite has room: a Mac, or one scheduled cloud thread.
 //
 //   node scripts/tests-daily.mjs            run every test file, write tests-status.json (commit, day, total, failing, minutes)
-//   node scripts/tests-daily.mjs --push     the same, then commit that one file and push it to the branch you are on (the next deploy stamps it on the pill)
+//   node scripts/tests-daily.mjs --push     the same, then commit that one file and push it to the branch you are on
 //
-// The result is a plain file at the repo root so the build needs no network and no service: scripts/build.mjs reads it. Typecheck and lint are not repeated here (the build runs both on every deploy).
+// The result is a plain file at the repo root (the build does not read it; the preview pill never shows it). Typecheck and lint are not repeated here (the build runs both on every deploy).
 import { execFileSync, spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { cpus } from 'node:os';

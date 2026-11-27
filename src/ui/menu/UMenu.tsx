@@ -1,18 +1,18 @@
-// The main menu on the 2D app's own markup and class names (menu.js build / sections / deckRow / patientRow): `.umenu` with `.um-grab`, `.um-top` (the search field and the close
-// button), `.um-tabs`, `.um-cols` holding the Present and Patients lists, `.um-empty` and `.um-foot`. Its stylesheet is 2D's (src/ui/styles). A popover under the menu
-// button from 768 px, a bottom sheet with a scrim on the stacked layout (STACK_MQ). It is in the page only while open and leaves by `.out`. A row opens a talk or a patient; the ⓘ
-// opens the preview under it (`.um-inline`), and a mouse that rests on a row shows the same preview beside the panel (`.um-pv`).
+// The main menu on the 2D app's own markup and class names (menu.js build / sections / deckRow / patientRow): `.umenu` with `.um-top` (the search field and the close button),
+// `.um-tabs`, `.um-cols` holding the Present, Patients and Histories lists, `.um-empty` and `.um-foot`. Its stylesheet is 2D's (src/ui/styles). Its frame, head, grab bar, close,
+// presence, scrim and placement are the one menu shell's (surface/Menu.tsx): a menu under the menu button that floats, a bottom sheet with a scrim where every surface is a sheet
+// (surface/mode.ts), in the page only while open and leaving by `.out`. This file is its content: the search, the tabs and their swipe, the lists, the keyboard and the previews.
+// A row opens a talk or a patient; the ⓘ opens the preview under it (`.um-inline`), and a mouse that rests on a row shows the same preview beside the panel (`.um-pv`).
 import { presetBlocked } from '../../engine/hv-flag.ts';
-import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { PRESETS } from '../../engine/hales/portal/scenario.js';
 import { builtinDeck, loadBuiltin } from '../../decks/registry.ts';
 import { useShell, type MenuTab } from '../shell/store.ts';
-import { useOutside } from '../shell/Pop.tsx';
-import { STACK_MQ, usePresence } from '../shell/Menu.tsx';
-import { sheetRoot } from '../shell/SheetClip.tsx';
-import { placeAt, visibleBottom } from '../shell/place.ts';
+import { usePresence } from '../surface/presence.ts';
+import { Menu, useMenu } from '../surface/Menu.tsx';
+import { leaveMs } from '../surface/motion.ts';
+import { D_SMALL, LEAVE_SLACK_MS } from '../motion.ts';
+import { visibleBottom, type PlaceOpts } from '../shell/place.ts';
 import { Chart } from '../charts/Chart.tsx';
 import { clamp } from '../tests/copied/num.copied.js';
 import { easeArrive, D_FLIP } from '../tests/copied/ease.copied.js';
@@ -47,8 +47,10 @@ import { Fade, fadeAttrs } from '../fade.tsx';
 const PRESET_SUMMARY: Record<string, string> = Object.fromEntries((PRESETS as { id: string; summary?: string }[]).map((p) => [p.id, p.summary ?? '']));
 const TABS = [...(UI.menus.mainMenu.tabs as readonly { id: MenuTab; label: string }[]), { id: 'histories', label: 'Histories' }] as readonly { id: MenuTab; label: string }[];   // (the 2D menu has two lists; the third is this app's)
 const TAB_ICON: Record<MenuTab, string> = { present: 'projector', patients: 'scenario', histories: 'clock' };
-const LEAVE_MS = 120;   // 2D --d-flip (a popover's exit); a sheet's is --d-small (menu.js close)
-const SHEET_LEAVE_MS = 240;
+/** menu.js place: under the menu button, 8 px clear, held 12 px in from the window's sides, kept on its side (cut to the room, never flipped over the button). */
+const MENU_AT: PlaceOpts = { margin: 12, flip: false };
+/** The preview beside the panel goes as its floating menu does (surface/motion.ts); the one under a row folds shut over 2D --d-small. */
+const PV_LEAVE_MS = leaveMs('menu', 'float'), INLINE_LEAVE_MS = D_SMALL + LEAVE_SLACK_MS;
 
 interface Row { key: string; find: string; more: string }
 
@@ -115,7 +117,7 @@ function PatientPv({ id, label, group }: { id: string; label: string; group: str
 
 /** The preview that folds open under a row (the ⓘ) and folds shut again. */
 function Inline({ open, children }: { open: boolean; children: ReactNode }) {
-  const { shown, leaving } = usePresence(open, 240);   // (2D --d-small: it slides shut as it slid open)
+  const { shown, leaving } = usePresence(open, INLINE_LEAVE_MS);   // (it slides shut as it slid open)
   if (!shown) return null;
   return <div className={`um-inline on${leaving ? ' out' : ''}`}><div>{children}</div></div>;
 }
@@ -136,10 +138,9 @@ function Item({ k, row, filtered, current, info, open, onInfo, onHover, onPress,
 }
 
 export function UMenu() {
-  const ref = useRef<HTMLDivElement>(null);
-  const open = useOutside('menu', ref);
-  const [sheet, setSheet] = useState(() => typeof matchMedia === 'function' && matchMedia(STACK_MQ).matches);
-  const { shown, leaving } = usePresence(open, sheet ? SHEET_LEAVE_MS : LEAVE_MS);
+  // the shell: open state, presence, the outside press, placement and the pull (sheet or float is surface/mode.ts's one answer)
+  const ctl = useMenu('menu', { at: MENU_AT });
+  const { ref, open, sheet, shown, close } = ctl;
   const tab = useShell((s) => s.menuTab);
   const still = useRef(false);   // the list was swiped into place: it does not play its entrance again
   const seed = useShell((s) => s.menuQuery);
@@ -151,21 +152,9 @@ export function UMenu() {
   const [openRow, setOpenRow] = useState<string | null>(null);
   const [hover, setHover] = useState<{ k: string; el: HTMLElement } | null>(null);
   const hoverT = useRef<TimerId | null>(null), hideT = useRef<TimerId | null>(null);
-  const root = sheetRoot();
-  const close = () => useShell.getState().close();
-  useSheetSwipe(ref, close, () => sheet, true);   // (2D menu.js: a phone's menu is a sheet that follows a pull down)
 
-  useEffect(() => { const mq = matchMedia(STACK_MQ), f = () => setSheet(mq.matches); f(); mq.addEventListener('change', f); return () => mq.removeEventListener('change', f); }, []);
   // a menu opened by a link carries its search (menuQuery); every other open starts empty
   useEffect(() => { if (open) { setQuery(seed); setOpenRow(null); setHover(null); useShell.setState({ menuQuery: '' }); } }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!shown || !el || sheet) return;
-    // (menu.js place: the one placer, placeAt: under the button, 8 px clear, held 12 px in from the window's sides; it settles in by opacity alone)
-    const put = () => { const a = document.querySelector<HTMLElement>('[data-opens="menu"]'); if (a) placeAt(el, a, { margin: 12, flip: false }); };
-    put(); addEventListener('resize', put);
-    return () => removeEventListener('resize', put);
-  }, [shown, sheet]);
   // a sideways drag pages between Present and Patients (menu.js swipeTabs); the tab change plays the list's entrance unless the swipe has already carried it in (menu.js setTab)
   useEffect(() => {
     const el = ref.current;
@@ -194,7 +183,7 @@ export function UMenu() {
     if (!open) return;
     const typed = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (!ref.current || ref.current.contains(t) || e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1 || e.key === ' ' || t?.closest?.('input, textarea, select, [contenteditable], .modal-back')) return;
+      if (!ref.current || ref.current.contains(t) || e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1 || e.key === ' ' || t?.closest?.('input, textarea, select, [contenteditable], .sf-layer')) return;
       ref.current.querySelector<HTMLInputElement>('.um-q')?.focus();
     };
     addEventListener('keydown', typed, true);
@@ -267,9 +256,9 @@ export function UMenu() {
 
   // the preview beside the panel stays in the page while it fades out (menu.js hidePreview), holding the row it showed last
   const pvOn = !!(hover && !sheet && open && hover.el.isConnected);
-  const pv = usePresence(pvOn, LEAVE_MS);
+  const pv = usePresence(pvOn, PV_LEAVE_MS);
   const pvLast = useRef<{ k: string; el: HTMLElement } | null>(null);
-  if (!shown || !root) return null;
+  if (!shown) return null;
   const startDeck = (id: string, at: number) => { close(); present(id, at); };
   const pvFor = (k: string): ReactNode => {
     const id = k.slice(2);
@@ -301,14 +290,20 @@ export function UMenu() {
   const hiddenGroup = (keys: string[], set: Set<string>) => words && !keys.some((k) => set.has(k));
   const mineHidden = words && (mine.length === 0 || !mine.some((s) => shownP.has('s:' + s.id)));
 
-  const menu = (
-    <div ref={ref} className={`umenu${sheet ? ' sheet' : ''}${leaving ? ' out' : ''}${words && here > 0 ? ' filtered' : ''}`} role="dialog" aria-modal={sheet || undefined} aria-label="Menu" data-tab={tab} inert={!open} onKeyDown={onKeyDown}>
-      <div className="um-grab" aria-hidden="true" />
-      <i className="sh-grabbar" aria-hidden="true" />
-      <div className="um-top">
-        <label className="um-search"><I n="search" /><input className="um-q" type="search" placeholder="Find a presentation, patient or history" aria-label="Find a presentation, patient or history" autoComplete="off" spellCheck={false} value={query} onChange={(e) => setQuery(e.target.value)} /><kbd className="um-kb">/</kbd></label>
-        <button type="button" className="ib um-x" aria-label="Close the menu" onClick={close}><I n="close" /></button>
-      </div>
+  const hovered = pvOn ? hover : null;
+  if (hovered) pvLast.current = hovered;
+  const field = (
+    <label className="um-search"><I n="search" />
+      <input className="um-q" type="search" placeholder="Find a presentation, patient or history" aria-label="Find a presentation, patient or history" autoComplete="off" spellCheck={false}
+        value={query} onChange={(e) => setQuery(e.target.value)} /><kbd className="um-kb">/</kbd>
+    </label>
+  );
+  const beside = pv.shown && pvLast.current ? (
+    <Beside hover={pvLast.current} on={!!hovered} panel={ref.current} make={pvFor} onEnter={() => clock.cancel(hideT.current)} onLeave={() => { hideT.current = clock.after(() => setHover(null), 220); }} />
+  ) : null;
+  return (
+    <Menu id="menu" ctl={ctl} skin="umenu" width="l" label="Menu" title="Menu" closeLabel="Close the menu" field={field} extraCls={words && here > 0 ? 'filtered' : undefined}
+      data={{ 'data-tab': tab }} onKeyDown={onKeyDown} beside={beside}>
       <div className="um-tabs" role="tablist" aria-label="Menu">
         {TABS.map((t) => (
           <button key={t.id} type="button" className="um-tab" role="tab" id={`umtab-${t.id}`} data-tab={t.id} aria-selected={tab === t.id} aria-controls={`umcol-${t.id}`} onClick={() => setTab(t.id, true)}><I n={TAB_ICON[t.id]} className="um-hi" /><span>{t.label}</span></button>
@@ -380,15 +375,8 @@ export function UMenu() {
         <button type="button" className="um-link" onClick={() => useShell.setState({ sheet: 'help' })}><I n="help" /><span>Help</span></button>
         <span className="um-esc">Esc closes</span>
       </footer>
-    </div>
+    </Menu>
   );
-  const hovered = pvOn ? hover : null;
-  if (hovered) pvLast.current = hovered;
-  return createPortal(<>
-    {sheet && <div className={`um-scrim${leaving ? ' out' : ''}`} onPointerDown={() => useShell.getState().closeByPress()} />}
-    {menu}
-    {pv.shown && pvLast.current && <Beside hover={pvLast.current} on={!!hovered} panel={ref.current} make={pvFor} onEnter={() => clock.cancel(hideT.current)} onLeave={() => { hideT.current = clock.after(() => setHover(null), 220); }} />}
-  </>, root);
 }
 
 interface Old { id: number; node: ReactNode }

@@ -14,6 +14,7 @@ import { CardBoundary } from './ui/cards/CardBoundary.tsx';
 import { useShell } from './ui/shell/store.ts';
 import { ErrorNote } from './ui/shell/ErrorNote.tsx';
 import { ContextNote } from './scene/ContextNote.tsx';
+import { RecordFrame } from './ui/capture/RecordIndicator.tsx';
 
 export function App() {
   const status = useEngine((s) => s.status);
@@ -31,6 +32,7 @@ export function App() {
       <ContextNote />
       <ErrorNote />
       <Shell />
+      <RecordFrame />
       {import.meta.env.VITE_CHANNEL === 'preview' && <BuildPill />}
       {status === 'crashed' && <EngineStopped />}
     </>

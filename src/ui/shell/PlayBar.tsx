@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useEngine } from '../../engine/index.ts';
 import { useShell } from './store.ts';
-import { Anchored } from './Pop.tsx';
+import { Menu, menuDomId } from '../surface/Menu.tsx';
 import { I } from './icons.tsx';
 import { runFeature } from './features.ts';
 import { jump, setSpeed, settle, togglePlay } from './transport.ts';
@@ -138,17 +138,19 @@ export function Timeline({ phone }: { phone: boolean }) {
   const { running, speed, lapse, time } = useShell((s) => s.transport);
   const hold = useRef<{ t: TimerId | undefined; held: boolean }>({ t: undefined, held: false });
   const comparing = useCompare((c) => !!c.snap), histCount = useTimeline((t) => t.count);
-  const charting = useShell((s) => s.sheet === 'timeline');
+  const sheet = useShell((s) => s.sheet);
+  const charting = sheet === 'timeline';
   const lap = pb.lapses.find((l) => l.days === lapse);
   const speedText = lapse ? (lap ? lap.short : `${lapse} d/s`) : `${speed}×`;
   return (
     <div className="timeline" id="timeline" role="group" aria-label="Timeline">
       <div className="tl-left">
         <div className="tl-split">
-          <Anchored sheet="speed" place="above" align="start" width={280} label={PLAY_TITLES.speed} button={({ id, open, toggle, ref }) => (
-            <button type="button" ref={ref} className={`tl-speed${lapse ? ' lapse' : ''}`} data-opens="speed" aria-haspopup="menu" aria-expanded={open} aria-controls={id} title={PLAY_TITLES.speed} aria-label={`${pb.controls[2]}, ${speedText}`} onClick={toggle}>{speedText}</button>)}>
+          <button type="button" className={`tl-speed${lapse ? ' lapse' : ''}`} data-opens="speed" aria-haspopup="menu" aria-expanded={sheet === 'speed'} aria-controls={menuDomId('speed')} title={PLAY_TITLES.speed}
+            aria-label={`${pb.controls[2]}, ${speedText}`} onClick={() => useShell.getState().toggle('speed')}>{speedText}</button>
+          <Menu id="speed" side="above" align="start" width="s" label={PLAY_TITLES.speed} title={pb.controls[2]}>
             <SpeedMenu />
-          </Anchored>
+          </Menu>
           <button type="button" className={`ib play${lapse && !running ? ' lapse' : ''}`} aria-label={running ? 'Pause' : 'Play'} title={PLAY_TITLES.playPause}
             onPointerDown={() => { hold.current.held = false; clock.cancel(hold.current.t); hold.current.t = clock.after(() => { hold.current.held = true; useShell.getState().open('speed'); }, HOLD_MS); }}
             onPointerUp={() => clock.cancel(hold.current.t)} onPointerLeave={() => clock.cancel(hold.current.t)} onPointerCancel={() => clock.cancel(hold.current.t)} onContextMenu={(e) => e.preventDefault()}
@@ -160,10 +162,11 @@ export function Timeline({ phone }: { phone: boolean }) {
       </div>
       <span className="tl-time" aria-live="off"><span className="tl-t-long">{time}</span><span className="tl-t-short" aria-hidden="true">{time}</span></span>
       <div className="tl-jumps">
-        <Anchored sheet="jump" place="above" align="end" width={300} label={pb.controls[4]} button={({ id, open, toggle, ref }) => (
-          <button type="button" ref={ref} className="ib tl-ff" data-opens="jump" aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={pb.controls[4]} title={PLAY_TITLES.ffwd} onClick={toggle}><I n="ffwd" /></button>)}>
+        <button type="button" className="ib tl-ff" data-opens="jump" aria-haspopup="menu" aria-expanded={sheet === 'jump'} aria-controls={menuDomId('jump')} aria-label={pb.controls[4]} title={PLAY_TITLES.ffwd}
+          onClick={() => useShell.getState().toggle('jump')}><I n="ffwd" /></button>
+        <Menu id="jump" side="above" align="end" width="s" label={pb.controls[4]} title={pb.controls[4]}>
           <JumpMenu compare={phone} />
-        </Anchored>
+        </Menu>
       </div>
       <button type="button" className="tl-hist" aria-haspopup="dialog" aria-label={pb.controls[3]} title={PLAY_TITLES.history} onClick={() => runFeature('history', pb.controls[3])}><I n="clock" className="mi-ic" /><span className="tl-hl">{pb.controls[3]}</span><span className="tl-hc">{histCount > 0 ? histCount : ''}</span></button>
       <button type="button" className="tl-pin tl-chart" aria-pressed={charting} aria-haspopup="dialog" aria-label={BT.open} title={BT.open} onClick={() => useShell.getState().toggle('timeline')}><I n="chart" className="mi-ic" /><span>Chart</span></button>

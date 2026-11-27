@@ -8,6 +8,7 @@
 import { PLACED_VESSELS, TODAY_COURSES, type P3 } from './placement.generated.ts';
 import { DRAWN_COURSES } from './drawn-courses.ts';
 import { PLACED_ORGAN_BOX } from './placed-organs.generated.ts';
+import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { EDGE_PATH_2D, NODE_POS_2D } from '../vessels/paths.copied.ts';
 import { ORGAN_BOX_2D } from '../../decks/rw/copied/plate.ts';
 import { REGIONS_2D } from '../../decks/ag/regions.generated.ts';
@@ -19,8 +20,8 @@ export type Box3 = readonly [number, number, number, number, number, number];
 export type Box2 = readonly [number, number, number, number];
 type V3 = readonly [number, number, number];
 
-const X3 = (x: number): number => (x - 700) / 300, Y3 = (y: number): number => -(y - 556) / 300;
-const X2 = (x: number): number => x * 300 + 700, Y2 = (y: number): number => -y * 300 + 556;
+// (the one map between the 2D figure and the scene: frame2d.ts)
+const X3 = x3, Y3 = y3, X2 = x2d, Y2 = y2d;
 
 /** Each engine edge that is a stretch of a whole placed vessel (the brief's table: the app's pieces of each vessel the mock draws whole). */
 export const WHOLE_OF: Readonly<Record<string, string>> = {
@@ -138,7 +139,7 @@ export const RECTUM_SEEN_Y = -1.63;
 /** The esophagus is framed up to where its top fade is all but gone (a tenth of its ink: organ-art.ts esoA runs from whole at 2D y 40 to nothing
  *  at y -40, so a tenth at y -32). Its baked box stops at the plate's top, where the fade is only half done, and the whole-figure Fit cut the faded
  *  top off under the top bar (Mohammad, 25 Nov, iPhone: "not including part of the esophagus on top. Give it more"). */
-export const ESO_SEEN_Y = (556 + 32) / 300;
+export const ESO_SEEN_Y = y3(-32);
 export function placedBoxOfName(n: string): Box3 | null {
   if (n === 'esophagus-seen') { const e = PLACED_ORGAN_BOX.esophagus; return e ? [e[0], e[1], e[2], e[3], Math.max(e[4], ESO_SEEN_Y), e[5]] : null; }
   if (n === 'colon-seen') { const c = PLACED_ORGAN_BOX.colon; return c ? [c[0], Math.max(c[1], RECTUM_SEEN_Y), c[2], c[3], c[4], c[5]] : null; }

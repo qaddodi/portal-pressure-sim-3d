@@ -2,7 +2,7 @@
   "raf-outside-clock": 0,
   "chained-step": 0,
   "raw-time": 20,
-  "layout-read": 185,
+  "layout-read": 182,
   "unsafe-cast": 323,
   "raw-idle": 0,
   "card-wait-page-time": 0,
@@ -13,5 +13,6 @@
   "canvas-own-loop": 0,
   "slider-key-by-value": 0,
   "anatomy-through-source": 0,
+  "plate-map-literal": 0,
   "hv-blocked-direct": 0
 }

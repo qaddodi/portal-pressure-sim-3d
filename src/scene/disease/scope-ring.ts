@@ -12,9 +12,32 @@ import { rawColor } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
 import { VESSEL_LAYER } from '../layers.ts';
 import { Eased } from './follow.ts';
+import { PLACED_PATH_2D, PLACED_Z } from '../anatomy/placed-network.ts';
+import { PLACED_VESSELS } from '../anatomy/placement.generated.ts';
 
-/** The ring's depth: the plane the bleed leaves the varix in (disease/bleed.ts STREAM_Z), in front of the organs; the ring draws over everything of the figure by its order, not by depth. */
-export const RING_Z = 0.36;
+/** The varix the ring rings (the esophageal varix's course, placed: the approved placement's coronary vein run up the esophagus). */
+const RINGED = 'C1a';
+/** The ring's depth at the figure's height `y` (2D units, down): the ringed varix's own near surface there (the vein's centreline depth plus its radius: where the bleed
+ *  leaves it, stream-fit.ts tearAt), so the ring and the vein it rings stay together from every camera angle. It was one plane 0.36 in front of the figure for every view
+ *  (the bleed's old fixed plane): the varix lies at about -0.03, and the 14 degree view turns a 0.4 gap in depth into a slide on the canvas of more than the ring's own
+ *  radius, so a turned figure showed the ring beside its vein (27 Nov, the 2D-plate audit). The ring draws over everything by its order, not by depth (`depthTest` off), so
+ *  its depth moves nothing else. Reads the placed course only (no organ raster), so building the ring costs nothing. */
+export function ringZ(y: number): number {
+  const c = PLACED_PATH_2D[RINGED], z = PLACED_Z[RINGED];
+  if (!c || !z) return 0;
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < c.length; i++) { const d = Math.abs(c[i]![1] - y); if (d < bd) { bd = d; best = i; } }
+  return (z[best] ?? 0) + (PLACED_VESSELS[RINGED]?.r ?? 0);
+}
+/** Where the ring stands at rest (2D units): at the scope rule's height (RING.y) ON the ringed varix as the placement draws it. The rule's own x (798) is the 2D plate's
+ *  esophagus, and the placed varix runs 15 units left of it, a whole ring radius (17), so the ring stood beside its vein even face on. */
+export const RING_REST: { readonly x: number; readonly y: number } = (() => {
+  const c = PLACED_PATH_2D[RINGED];
+  if (!c?.length) return { x: RING.x, y: RING.y };
+  let best = c[0]!, bd = Infinity;
+  for (const p of c) { const d = Math.abs(p[1] - RING.y); if (d < bd) { bd = d; best = p; } }
+  return { x: best[0], y: RING.y };
+})();
 /** How long the ring takes to come in and go (an eased fade, ms) and its dashes to close into the solid ring when its lens opens: tau of the ease, seconds. */
 export const SHOW_TAU = 0.14, OPEN_TAU = 0.1, CENTRE_TAU = 0.16;
 /** The quad's half side in 2D units: the ring and its halo. */
@@ -72,10 +95,10 @@ export class ScopeRing {
   private shown = new Eased(0, SHOW_TAU, 0.004);
   private solid = new Eased(0, OPEN_TAU, 0.004);
   /** The ring's centre in 2D units: the scope rule's (RING) at rest, the tear's while a varix bleeds (capture 52ef8e63: the ring stood up the esophagus and the "Bleeding varix" words at the tear, 26 units apart); it eases between them. */
-  private cx = new Eased(RING.x, CENTRE_TAU, 0.02);
-  private cy = new Eased(RING.y, CENTRE_TAU, 0.02);
-  private gx = RING.x;
-  private gy = RING.y;
+  private cx = new Eased(RING_REST.x, CENTRE_TAU, 0.02);
+  private cy = new Eased(RING_REST.y, CENTRE_TAU, 0.02);
+  private gx = RING_REST.x;
+  private gy = RING_REST.y;
   private want = false; private open = false;
   private fade = 1;
   private readonly c = new Vector3();
@@ -84,7 +107,7 @@ export class ScopeRing {
     this.mat = new ShaderMaterial({ name: 'scope ring',
       vertexShader: RING_VS, fragmentShader: RING_FS, transparent: true, depthTest: false, depthWrite: false, toneMapped: false,
       uniforms: {
-        uC: { value: new Vector3(x3(RING.x), y3(RING.y), RING_Z) }, uHalf: { value: HALF },
+        uC: { value: new Vector3(x3(RING_REST.x), y3(RING_REST.y), ringZ(RING_REST.y)) }, uHalf: { value: HALF },
         uR: { value: RING.r },
         uSolid: { value: 0 }, uAlpha: { value: 0 }, uInk: { value: new Color() }, uHalo: { value: new Color() },
       },
@@ -105,7 +128,7 @@ export class ScopeRing {
   /** The body's dissolve (the dive, the Circuit): 1 whole. */
   setFade(f: number): void { this.fade = f; this.sync(); }
   /** Where the ring stands (2D units; null: the scope rule's place). It glides there. */
-  setCentre(at: readonly [number, number] | null): void { this.gx = at ? at[0] : RING.x; this.gy = at ? at[1] : RING.y; }
+  setCentre(at: readonly [number, number] | null): void { this.gx = at ? at[0] : RING_REST.x; this.gy = at ? at[1] : RING_REST.y; }
   /** The ring's centre now, 2D units. */
   centre(): readonly [number, number] { return [this.cx.value, this.cy.value]; }
   /** Eases on the clock (dt in seconds); true while it moves. */
@@ -121,7 +144,7 @@ export class ScopeRing {
     this.mesh.visible = a > 0.003;
     this.mat.uniforms.uAlpha!.value = a;
     this.mat.uniforms.uSolid!.value = this.solid.value;
-    (this.mat.uniforms.uC!.value as Vector3).set(x3(this.cx.value), y3(this.cy.value), RING_Z);
+    (this.mat.uniforms.uC!.value as Vector3).set(x3(this.cx.value), y3(this.cy.value), ringZ(this.cy.value));
   }
   /** How much of the ring shows now, 0..1 (the tap is taken only while it shows). */
   get alpha(): number { return this.shown.value * this.fade; }
@@ -131,14 +154,14 @@ export class ScopeRing {
    *  room are the ring's alone. */
   screen(project: (p: Vector3, out: { x: number; y: number }) => { x: number; y: number }, toWorld: (p: Vector3) => Vector3, cameraRight: Vector3, out: ScopeRingScreen): ScopeRingScreen | null {
     const s = this.group.parent ? this.group.parent.matrixWorld.getMaxScaleOnAxis() : 1;
-    const wc = toWorld(this.c.set(x3(this.cx.value), y3(this.cy.value), RING_Z));
+    const wc = toWorld(this.c.set(x3(this.cx.value), y3(this.cy.value), ringZ(this.cy.value)));
     const a = project(wc, this.pa);
     // (the radius: where a point one radius along the camera's right lands, so the figure's turn and its zoom both count)
     const r = project(this.e.copy(wc).addScaledVector(cameraRight, (RING.r / U) * s), this.pr);
     out.x = a.x; out.y = a.y; out.bx = a.x; out.by = a.y;
     out.r = Math.hypot(r.x - a.x, r.y - a.y); out.br = 0;
-    const q0 = project(toWorld(this.c.set(x3(BLEED_BOX.l), y3(BLEED_BOX.t), RING_Z)), this.pa), x0 = q0.x, y0 = q0.y;
-    const q1 = project(toWorld(this.c.set(x3(BLEED_BOX.r), y3(BLEED_BOX.b), RING_Z)), this.pa);
+    const q0 = project(toWorld(this.c.set(x3(BLEED_BOX.l), y3(BLEED_BOX.t), ringZ(this.cy.value))), this.pa), x0 = q0.x, y0 = q0.y;
+    const q1 = project(toWorld(this.c.set(x3(BLEED_BOX.r), y3(BLEED_BOX.b), ringZ(this.cy.value))), this.pa);
     out.bleed.l = Math.min(x0, q1.x); out.bleed.r = Math.max(x0, q1.x); out.bleed.t = Math.min(y0, q1.y); out.bleed.b = Math.max(y0, q1.y);
     return Number.isFinite(out.x) && Number.isFinite(out.r) ? out : null;
   }

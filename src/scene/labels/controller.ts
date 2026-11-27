@@ -17,7 +17,7 @@ import { type Box, leaderGeom } from './geometry.ts';
 import { type Form, type Item, type Placement, type SolveInput, STAY, boxOf, solve } from './solver.ts';
 import { mixedUnits, bareItems, unitItems, unitCounts, keyUnit } from './unit-rule.ts';
 import { vesselLines } from './vessel-lines.ts';
-import { STATIONS, ORGAN_FRONT, figureCourses, type Station } from './stations.ts';
+import { STATIONS, figureCourses, type Station } from './stations.ts';
 import { silhouettes, onOtherOrgan, shareOnOther, spotOffsets, type Silhouettes, type To2Screen } from './organ-screen.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { fmtPressure } from '../../ui/text/line.ts';
@@ -717,7 +717,7 @@ export class LabelController {
     const named = this.state.named;
     // the organs' silhouettes on the screen now (only when an organ is named: the figure's names, Figure > Labels)
     let sil: Silhouettes | null = null;
-    const to: To2Screen = (x, y) => { const p = d.project(this.tmp2.set(x3(x), y3(y), ORGAN_FRONT), { x: 0, y: 0 }); return [p.x, p.y]; };
+    const to: To2Screen = (x, y, z) => { const p = d.project(this.tmp2.set(x3(x), y3(y), z), { x: 0, y: 0 }); return [p.x, p.y]; };
     for (const m of metas) {
       const a = this.anchors.get(m.id);
       if (!a) continue;

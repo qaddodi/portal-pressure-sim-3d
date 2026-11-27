@@ -13,6 +13,9 @@ import type { Interact } from './interact.ts';
 import { amendAscites } from './ag/ascites-amend.ts';
 import { amendAlbumin } from './ag/albumin-amend.ts';
 import { amendControls } from './overlay/controls.ts';
+import { amendLadder } from './overlay/ladder.ts';
+import { amendInstruments } from './overlay/instruments.ts';
+import { amendLobule } from './overlay/lobule.ts';
 
 /** The 3D fields a slide may carry beyond the 2D deck's own. */
 export interface SlideOverlay {
@@ -58,7 +61,9 @@ const AMEND: Readonly<Record<string, (c: CopiedDeck) => CopiedDeck>> = { ascites
 export function withOverlay(c0: CopiedDeck): CopiedDeck {
   const c1 = AMEND[c0.id] ? AMEND[c0.id]!(c0) : c0;
   // (the controls' changes, for every deck: decks/overlay/controls.ts)
-  const c = amendControls(c1);
+  // (and the pressure ladder in place of side-by-side station tiles: decks/overlay/ladder.ts; then a tiles-only card's instrument, by slide: decks/overlay/instruments.ts;
+  // then the lobule strip on the slides that cross the lobule: decks/overlay/lobule.ts)
+  const c = amendLobule(amendInstruments(amendLadder(amendControls(c1))));
   const mine = Object.entries(OVERLAY).filter(([k]) => k.startsWith(`${c.id}/`));
   if (!mine.length) return c;
   const ids = new Set(c.slides.map((s) => s.id));

@@ -6,10 +6,12 @@ import type { FigurePlan } from './figure-plan.ts';
 import { toneCss } from './figure-plan.ts';
 import { ORGAN_STYLE } from '../../scene/organs/layer.ts';
 import { CAUDATE_FRONT_Z } from '../../scene/organs/caudate.ts';
+import { organFrontZ } from '../../scene/organs/organ-front.ts';
+import { bellyZ } from '../../scene/disease/ascites.ts';
 import { planeMap, mapX, mapY } from '../../scene/organs/placed-map.ts';
 import { PLACED_CAUDATE } from '../../scene/anatomy/placement.generated.ts';
 import { x2d, x3, y2d, y3 } from '../../scene/frame2d.ts';
-import { SITE_DEF_2D, SPLEEN_AXIS_2D, ORGAN_ANCHOR_2D } from '../../scene/labels/figure2d.copied.ts';
+import { SITE_DEF_2D, ORGAN_ANCHOR_2D } from '../../scene/labels/figure2d.copied.ts';
 import { PAIR_AT } from '../../scene/labels/pair.ts';
 import type { FigCard, FigCaliper, FigSpan, Anchor } from '../../scene/labels/figure-cards.ts';
 import type { ResKey } from '../../scene/circuit/res-model.ts';
@@ -93,12 +95,16 @@ export function liveLabel(label: string, fp: Fp | null | undefined): string {
   });
 }
 
+const ON_ORGAN: Readonly<Record<string, string>> = { 'heart-grooves': 'heart', falciform: 'liver', appendix: 'colon' };
 /** An organ's anchor: 2D's point carried by the organ's own move in the approved placement (organs/placed-map.ts planeMap), at the organ's front; the caudate lobe's is its egg's front pole
- *  (PLACED_CAUDATE), so its mark sits on its dome. Root cause of a card beside its organ (kidney, spleen, atrium, caudate lobe off their placed meshes): the anchor was 2D's point read as if the organ had not moved. */
+ *  (PLACED_CAUDATE), so its mark sits on its dome. Root cause of a card beside its organ (kidney, spleen, atrium, caudate lobe off their placed meshes): the anchor was 2D's point read as if the organ had not moved
+ *  and stood at one plane for every organ (organs/organ-front.ts: each organ's front is its own). */
 export const organAnchor = (organ: string): Anchor => {
   if (organ === 'caudate') return { at2d: [x2d(PLACED_CAUDATE.c[0]), y2d(PLACED_CAUDATE.c[1])], z: CAUDATE_FRONT_Z };
   const [x, y] = ORGAN_ANCHOR_2D[organ]!.at, m = planeMap(organ);
-  return { at2d: [x2d(mapX(m, x3(x))), y2d(mapY(m, y3(y)))] };
+  // (the parts of the 2D plate the placement has no organ for stand on the organ they are part of; the belly's water on the belly's own plane)
+  const on = ON_ORGAN[organ], z = organ === 'ascites' ? bellyZ() : organFrontZ(on ?? organ);
+  return { at2d: [x2d(mapX(m, x3(x))), y2d(mapY(m, y3(y)))], z };
 };
 
 /** (the caudate lobe is in the organ layer but is shown by `caudate`, not outlined: 2D's lobe has its own line and no pin glow) */
@@ -164,7 +170,7 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   // calipers: the spleen's axis, a line across a vessel, with the reading
   const calipers: FigCaliper[] = [];
   for (const c of plan.calipers) {
-    if (c.organ === 'spleen') { calipers.push({ id: c.id, line: { ends: SPLEEN_AXIS_2D }, text: valueText('spleen', fp as never) }); continue; }
+    if (c.organ === 'spleen') { calipers.push({ id: c.id, line: { organ: 'spleen' }, text: valueText('spleen', fp as never) }); continue; }
     if (!c.edge || !NETWORK_BY_ID.has(c.edge)) { notDrawn.push(`caliper ${c.id}`); continue; }
     const stent = c.edge === 'TIPS' ? r.params?.tips : c.edge === 'DIPS' ? r.params?.dips : null;
     const ei = r.indexOf?.(c.edge) ?? -1, d = ei >= 0 ? fp?.at?.D?.[ei] : null;

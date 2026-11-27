@@ -14,21 +14,17 @@ import { activeInterventions } from './changes.ts';
 import { setInterventionLabels, timeline } from '../timeline/index.ts';
 import { MESHES_OF } from '../../scene/organs/pick.ts';
 import { useUi } from '../ui-store.ts';
-import { isPhone } from '../layout/device.ts';
-import { usesBottomBar } from '../shell/room.ts';
 import { startShunting } from './shunt.ts';
 import { goToView } from '../shell/view-actions.ts';
 import { logInput } from '../../scene/intent-log.ts';
-
-/** The shell sheets that take the column Treat stands in. */
-export const CARD_SHEETS: ReadonlySet<string> = new Set(['settings', 'menu', 'history', 'compare', 'help', 'guide', 'timeline']);
+import { startSlots } from '../surface/wire.ts';
 
 export function startActions(): () => void {
   const off: (() => void)[] = [];
   // Treat: its button, the T key, the thumb tab's second tap. Opening it puts the sheets away; a phone has room for one card, so opening Treat puts a structure's card away too.
   off.push(registerFeature('treat', () => {
     const t = useTreat.getState();
-    if (!t.open) { useShell.getState().close(); if (isPhone(useUi.getState().device)) useSelection.setState({ sel: null }); }
+    if (!t.open) useShell.getState().close();   // (a menu goes when Treat is chosen; the panels it puts away are the slot table's: surface/slots.ts)
     t.toggle();
   }));
   // the card buttons the other batches own: the lobule and sinusoid views a liver card opens
@@ -61,19 +57,12 @@ export function startActions(): () => void {
     selectStructure(cur?.type === 'lobule' && cur.part === p.part && cur.zone === p.zone ? null : p);
   }));
   off.push(markTap);
-  // a structure selected on a phone puts Treat away (2D onSelect)
-  off.push(useSelection.subscribe((s, prev) => { if (s.sel && s.sel !== prev.sel && isPhone(useUi.getState().device) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
-  // a phone has room for one sheet (2D openPanel, openTreat): the Tests card coming up puts Treat away (Treat's Paracentesis opens Ascites), and Treat coming up puts Tests away
-  // (every layout whose cards are sheets over the dock has that one slot, an upright iPad's too: both up drew one sheet over the other)
-  off.push(useTests.subscribe((s, prev) => { if (s.open && !prev.open && usesBottomBar(useUi.getState().device) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
-  off.push(useTreat.subscribe((s, prev) => { if (s.open && !prev.open && usesBottomBar(useUi.getState().device) && useTests.getState().open) useTests.getState().close(); }));
+  // which open panels a panel coming up puts away (Treat, Tests, the action card, History, Compare, Why, the timeline chart): one table for every panel (surface/slots.ts)
+  off.push(startSlots());
   // a wide screen has room for both in the right-hand column, Treat standing beside the Tests card (treat/beside.ts); an instrument in focus fills the screen, so Treat and
   // focus give way to each other
   off.push(useTests.subscribe((s, prev) => { if (s.open && s.state === 'focus' && prev.state !== 'focus' && useTreat.getState().open) useTreat.getState().setOpen(false); }));
   off.push(useTreat.subscribe((s, prev) => { if (s.open && !prev.open && useTests.getState().open && useTests.getState().state === 'focus') useTests.getState().setState('open'); }));
-  // the right-hand column holds one card: Settings, the main menu, History, Compare and Help coming up put Treat away, as Treat coming up puts them away (above); both open together drew Settings over
-  // Treat's rows (walk of 20 Nov, issue 7). The speed, lens and other popovers are not cards, and leave it be.
-  off.push(useShell.subscribe((s, prev) => { if (s.sheet && s.sheet !== prev.sheet && CARD_SHEETS.has(s.sheet) && useTreat.getState().open) useTreat.getState().setOpen(false); }));
   // the loaded patient's own settings: what it came with is a fact about it, not a change
   const keepBase = () => { const s = useEngine.getState(); if (s.status === 'ready' && s.presetId && patient.params && !presetBase()) presetStarted(s.presetId, patient.params); };
   keepBase();

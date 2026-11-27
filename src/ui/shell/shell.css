@@ -12,7 +12,7 @@
    beside the figure (a phone's sheet from the foot covers them instead, and the History column of a phone held sideways is at the left). A card's reach is how far
    its left edge stands from the window's right edge, from the same numbers that place the card; the pill glides to 8 px left of the farthest (`--fs-zoom-r`,
    app-07-floating.css: a transform, so it glides). Treat stands left of a Tests card on the right (treat/beside.ts), so its reach starts there. A sheet across
-   the screen (Search, the Guide, Treat on a phone) leaves no room beside it: the pill fades while it is up. Coordinator, 26 Nov: every floating card clears the
+   the screen (Treat on a phone) and every dialog (Search, the Guide, About) leave no room beside them: the pill fades while one is up. Coordinator, 26 Nov: every floating card clears the
    zoom buttons; tests/side-panels-clear.test.ts holds every card that stands at the right edge to a reach here. */
 .sh-root:not([data-bottom="true"]) .zoom-pill {
   --fs-zoom-r: max(0px, calc(max(var(--reach-sheet, 0px), var(--reach-tests, 0px), var(--reach-treat, 0px)) + 8px - var(--gap, 12px)));
@@ -27,7 +27,7 @@
 /* (the Tests card on the right: .app's dock-side, its width the --side-ws-w the card publishes, right of it the rail of a phone held sideways) */
 .sh-root:not([data-bottom="true"]) .app.dock-side:not(.instrument-focus) .zoom-pill { --reach-tests: calc(var(--gap, 12px) + var(--rail-w, 0px) + var(--side-ws-w, 500px)); }
 .sh-root:not([data-bottom="true"]):has(.treat-card[data-open="true"]) .zoom-pill { --reach-treat: calc(var(--reach-tests, 0px) + var(--gap, 12px) + var(--card-treat)); }
-.sh-root:has(.sh-sheet[data-open="true"]:is([data-kind="search"], [data-kind="guide"])) .zoom-pill { opacity: 0; pointer-events: none; }
+.sh-root:has(.sf-layer[data-open="true"]) .zoom-pill { opacity: 0; pointer-events: none; }
 /* (on a phone, held either way, and an upright iPad, Treat is a sheet across the foot, app-07-floating.css under this same query: no room beside it;
    the same selector as its reach above, and later, so it wins) */
 @media (max-width: 767px), (max-width: 1023px) and (max-height: 500px) and (orientation: landscape), (max-width: 1100px) and (orientation: portrait) {
@@ -53,7 +53,7 @@
 
 /* ── popovers (anchored to their button, always in the page) ── */
 .sh-anchor { position: relative; display: inline-flex; }
-.sh-pop { position: fixed; z-index: 30; min-width: 260px; max-width: min(360px, calc(100vw - 24px)); padding: 8px; border-radius: var(--r-sheet); border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
+.sh-pop { position: fixed; z-index: 30; overflow-y: auto; overscroll-behavior: contain; min-width: 260px; max-width: min(360px, calc(100vw - 24px)); padding: 8px; border-radius: var(--r-sheet); border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 16px 40px -12px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2));
   opacity: 0; visibility: hidden; transform: translateY(var(--sh-from, -6px)); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .sh-pop[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
@@ -83,8 +83,6 @@
 .sh-sheet[data-kind="menu"] { left: calc(var(--safe-l, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); width: 380px; max-height: var(--sh-max-h); }
 .sh-sheet[data-kind="settings"], .sh-sheet[data-kind="help"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); width: var(--panel-settings); max-height: var(--sh-max-h); }
 .sh-sheet[data-kind="help"] { width: var(--panel-help); }
-.sh-sheet[data-kind="search"], .sh-sheet[data-kind="guide"] { left: 50%; top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); width: min(620px, calc(100vw - 24px)); margin-left: calc(min(620px, 100vw - 24px) / -2); max-height: var(--sh-max-h); }
-.sh-sheet[data-kind="guide"] { width: min(720px, calc(100vw - 24px)); margin-left: calc(min(720px, 100vw - 24px) / -2); }
 .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet { left: calc(var(--safe-l, 0px) + 6px) !important; right: calc(var(--safe-r, 0px) + 6px) !important; margin-left: 0 !important; width: auto !important; top: auto !important; bottom: calc(var(--safe-b, 0px) + var(--m-phone-inset) + var(--m-phone-timeline-h) + var(--m-phone-tabs-pad-top) + var(--m-phone-tab-h) + var(--m-phone-tabs-pad-bottom) + var(--m-phone-inset)); border-radius: var(--r-sheet); max-height: 78%; transform: translateY(var(--sheet-rise, 24px)); }   /* (a phone's sheet is inset 6 px and rounded all round, like every sheet in 2D's thumb layout: app-10-thumb-dock.css) */
 .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-open="true"] { transform: none; }
 .sh-root[data-bottom="true"][data-mode="free"][data-device="phone-landscape"] .sh-sheet { max-height: 86%; }
@@ -140,16 +138,15 @@ html.thumb-ui .sh-toast { left: 50%; width: min(440px, calc(100vw - 24px)); }
 .sh-toast-time { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: color-mix(in srgb, var(--text) 24%, transparent); transform-origin: left center; pointer-events: none; }
 .sh-toast-act { flex: none; font: inherit; font-weight: 600; color: var(--accent); min-height: 34px; margin: -8px 0; padding: 0 2px 0 12px; border: 0; background: transparent; cursor: pointer; white-space: nowrap; }
 
-/* a Reset dialog */
-.sh-dialog { position: absolute; z-index: 5; left: 50%; top: 50%; width: min(420px, calc(100vw - 32px)); margin: -90px 0 0 calc(min(420px, 100vw - 32px) / -2); padding: 22px; border-radius: var(--r-sheet); border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
-  box-shadow: 0 24px 56px -16px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2.4)); opacity: 0; visibility: hidden; transform: translateY(10px); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
-.sh-dialog[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+/* a Reset dialog (where it stands and how it comes and goes are the dialog shell's: surface/dialog.css) */
+.sh-dialog { padding: 22px; border-radius: var(--r-sheet); border: 1px solid var(--edge); background: var(--surface);
+  box-shadow: 0 24px 56px -16px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2.4)); }
 .sh-dialog h2 { margin: 0 0 8px; font: 600 var(--t-val) / 1.2 var(--display); } .sh-dialog p { margin: 0 0 18px; color: var(--text-2); font: 400 var(--t-body) / 1.45 var(--ui); }
 .sh-btns { display: flex; justify-content: flex-end; gap: 10px; } .sh-btn { min-height: 44px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--edge); background: transparent; font: 600 var(--t-body) / 1 var(--ui); }
 .sh-btn[data-danger="true"] { background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
 
 /* the library's dialogs (a name, a link, the import box) */
-.sh-dialog--deck { margin-top: 0; translate: 0 -50%; max-height: calc(100svh - 32px); overflow: hidden; }
+.sh-dialog--deck { overflow: hidden; }
 .sh-field { display: grid; gap: 6px; margin: 0 0 18px; font: 600 var(--t-lab) / 1.2 var(--ui); color: var(--text-2); }
 .sh-field input, .sh-field-in, .sh-imp { width: 100%; box-sizing: border-box; min-height: 44px; padding: 10px 12px; border-radius: var(--r-card); border: 1px solid var(--edge); background: var(--bg); color: var(--text); font: 400 var(--t-body) / 1.35 var(--ui); }
 .sh-field-in { margin: 0 0 18px; }
@@ -203,8 +200,6 @@ html.thumb-ui .sh-toast { left: 50%; width: min(440px, calc(100vw - 24px)); }
 /* the sheets' extras */
 .sh-hit-row b { font-weight: 600; color: var(--accent); }
 .sh-row[role="radio"] { grid-template-columns: 24px 1fr auto; }
-.sh-scrim { position: absolute; inset: 0; z-index: 4; background: rgb(0 0 0 / 0.36); opacity: 0; visibility: hidden; transition: opacity var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); pointer-events: none; }
-.sh-scrim[data-open="true"] { opacity: 1; visibility: visible; transition-delay: 0s; pointer-events: auto; }
 .sh-guide { padding: 0 12px 8px; } .sh-guide p { margin: 8px 0; font: 400 var(--t-body) / 1.5 var(--ui); color: var(--text-2); } .sh-guide ul { margin: 6px 0; padding-left: 20px; color: var(--text-2); font: 400 var(--t-body) / 1.5 var(--ui); }
 .sh-guide li { margin: 6px 0; } .sh-guide .sh-disclaimer { color: var(--text-3); font-size: var(--t-lab); }
 .sh-entries { display: grid; gap: 8px; margin: 10px 0 4px; } .sh-entries div { padding: 10px 12px; border: 1px solid var(--edge); border-radius: var(--r-sheet); }

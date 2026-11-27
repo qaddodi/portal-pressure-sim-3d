@@ -1,11 +1,10 @@
 import { UI } from '../strings.generated.ts';
 import { useShell } from './store.ts';
 import { useBlood } from '../../scene/blood/options.ts';
-import { Anchored } from './Pop.tsx';
+import { Menu, menuDomId } from '../surface/Menu.tsx';
 import { Icon } from './icons.tsx';
 import { tb } from './TopBar.tsx';
 import { I } from './icons.tsx';
-import { Frame } from './Frame.tsx';
 import { refitFigure } from './view-actions.ts';
 import { runFeature } from './features.ts';
 import { figureRowsOwner } from './room.ts';
@@ -64,7 +63,7 @@ export function FigureRows({ kind }: { kind: 'blood' | 'layers' }) {
   );
 }
 
-/** The Blood menu and, in the lobule, the Layers menu: a popover under its button on a laptop. */
+/** The Blood menu and, in the lobule, the Layers menu: a menu under its button on a laptop (the one menu shell). The button stays a child of its bar, where the 2D stylesheet addresses it. */
 export function FigureMenu({ kind, hidden = false }: { kind: 'blood' | 'layers'; hidden?: boolean }) {
   const blood = kind === 'blood';
   const id = blood ? 'btnBlood' : 'btnLobuleLayers';
@@ -73,29 +72,34 @@ export function FigureMenu({ kind, hidden = false }: { kind: 'blood' | 'layers';
   // With the bottom bar (a phone, an upright iPad) the Layers tab opens the foot sheet (LayersSheet), which holds these same rows. This top-bar copy is hidden there (2D: `.app.thumb #btnBlood,
   // #btnLobuleLayers { display: none }`), and must not also open its own popover on `sheet === 'layers'`: both showed at once, two panels over each other (iPhone, 19 Nov 2026).
   const bottom = figureRowsOwner(useUi((s) => s.device)) === 'sheet';
+  const open = useShell((s) => s.sheet === kind);
   if (bottom) return <button type="button" className={`chip-btn${on ? '' : ' off'}`} id={id} hidden data-opens={kind} aria-haspopup="menu" aria-expanded="false" tabIndex={-1} title={t.title ?? undefined}><I n={blood ? 'drop' : 'layers'} /><span>{t.label ?? t.text}</span><I n="chev-down" className="chev" /></button>;
+  const name = t.title ?? t.label ?? id;
   return (
-    <Anchored sheet={kind} label={t.title ?? t.label ?? id} width={320} button={({ id: pid, open, toggle, ref }) => (
-      <button type="button" ref={ref} className={`chip-btn${on ? '' : ' off'}`} id={id} {...fadeAttrs(!hidden)} data-opens={kind} aria-haspopup="menu" aria-expanded={open} aria-controls={pid} title={t.title ?? undefined} onClick={toggle}>
+    <>
+      <button type="button" className={`chip-btn${on ? '' : ' off'}`} id={id} {...fadeAttrs(!hidden)} data-opens={kind} aria-haspopup="menu" aria-expanded={open} aria-controls={menuDomId(kind)}
+        title={t.title ?? undefined} onClick={() => useShell.getState().toggle(kind)}>
         <I n={blood ? 'drop' : 'layers'} /><span>{t.label ?? t.text}</span><I n="chev-down" className="chev" />
-      </button>)}>
-      <FigureRows kind={kind} />
-    </Anchored>
+      </button>
+      <Menu id={kind} label={name} title={t.label ?? t.text ?? name} width="m">
+        <FigureRows kind={kind} />
+      </Menu>
+    </>
   );
 }
 
-/** The thumb bar's Layers: a sheet from the foot with Fit to screen, Turn upright (circuit only), then the Blood rows (or the lobule's layers). 2D: openLayersMenu. */
+/** The thumb bar's Layers: a sheet from the foot (the one menu shell, its head titled Layers) with Fit to screen, Turn upright (circuit only), then the Blood rows (or the lobule's layers).
+ *  2D: openLayersMenu. */
 export function LayersSheet() {
   const view = useShell((s) => s.view);
   const lobule = view === 'lobule' || view === 'sinusoid';
   const [fit, turn] = UI.menus.layersPhone;
   return (
-    <Frame kind="layers" label="Layers" head={null}>
-      <div className="sh-title">Layers</div>
+    <Menu id="layers" label="Layers" title="Layers" width="m">
       <button type="button" className="sh-row" onClick={() => { useShell.getState().close(); refitFigure(); }}><Icon n="fit" /><span className="sh-t">{fit.label}</span></button>
       {view === 'circuit' && <button type="button" className="sh-row" onClick={() => { useShell.getState().close(); runFeature('rotate', turn.label); }}><Icon n="rotate" /><span className="sh-t">{turn.label}</span></button>}
       <div className="sh-sep" />
       <FigureRows kind={lobule ? 'layers' : 'blood'} />
-    </Frame>
+    </Menu>
   );
 }

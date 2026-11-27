@@ -10,13 +10,18 @@ test('Settings, Help and Search are on the 2D app\'s own markup, which its style
   const settings = src('src/ui/settings/SettingsSheet.tsx'), menu = src('src/ui/shell/Menu.tsx'), search = src('src/ui/search/SearchSheet.tsx'), help = src('src/ui/shell/HelpSheets.tsx');
   for (const c of ['menu-group', 'menu-title', 'menu-item', 'lens lens-opt', 'mt-sw', 'look-grid', 'look-tile', 'look-chip', 'look-half', 'look-card', 'fig-mp', 'ts-reset']) assert.ok((settings + menu).includes(c), `${c} in the Settings markup`);
   for (const c of ['menu-group', 'menu-title', 'menu-item', 'lens-opt', 'mt-sw', 'look-grid', 'look-tile', 'ts-reset']) assert.ok(new RegExp(`\\.${c.split(' ')[0]}\\b`).test(all2d), `.${c} is in 2D's stylesheet`);
-  for (const c of ['pal-back', 'pal-top', 'pal-input', 'pal-list', 'pal-item', 'pal-g', 'pal-t', 'pal-h', 'pal-foot', 'pal-empty']) { assert.ok(search.includes(c), `${c} in the palette markup`); assert.ok(new RegExp(`\\.${c}\\b`).test(all2d), `.${c} is in 2D's stylesheet`); }
-  assert.ok(help.includes('menu-credit') && help.includes('MenuPop'), 'Help is a 2D menu with the author\'s credit');
-  assert.ok(menu.includes('className={`menu ${cls}') && menu.includes('as-sheet') && menu.includes('sheet-head') && menu.includes('um-scrim'));
+  // (the palette's backdrop, 2D .pal-back, is the dialog shell's layer since 27 Nov: surface/Dialog.tsx; the box keeps 2D's .pal)
+  assert.match(search, /<Dialog id="search"[^>]*className="pal"/);
+  for (const c of ['pal-top', 'pal-input', 'pal-list', 'pal-item', 'pal-g', 'pal-t', 'pal-h', 'pal-foot', 'pal-empty']) { assert.ok(search.includes(c), `${c} in the palette markup`); assert.ok(new RegExp(`\\.${c}\\b`).test(all2d), `.${c} is in 2D's stylesheets`); }
+  assert.ok(help.includes('menu-credit') && help.includes('<Menu id="help"'), 'Help is a 2D menu (the one menu shell) with the author\'s credit');
+  // the shell keeps the 2D menu's own classes: `.menu` and the menu's class, `.as-sheet`, `.leaving`, `.sheet-head` > `.sheet-t`, the sheet's `.um-scrim`
+  const shell = src('src/ui/surface/Menu.tsx'), skins = src('src/ui/surface/menu-head.ts');
+  assert.ok(/menu: \{ base: 'menu', sheet: 'as-sheet from-dock', leaving: 'leaving', head: 'sheet-head', title: 'sheet-t'/.test(skins));
+  assert.ok(shell.includes('[s.base, cls, sheet && s.sheet, leaving && s.leaving') && shell.includes('um-scrim'));
   for (const old of ['sh-row', 'sh-find', 'sh-hit-row', 'sh-list', 'sh-fig']) assert.ok(!(settings + search + help).includes(old), `${old} (a 3D-only class) is gone from the Settings, Search and Help markup`);
 });
 test('the menu is in the page only while it is open, and always leaves by .leaving, never by popping out', () => {
-  const menu = src('src/ui/shell/Menu.tsx');
-  assert.ok(/usePresence/.test(menu) && /leaving/.test(menu));
+  const menu = src('src/ui/surface/Menu.tsx');
+  assert.ok(/usePresence\(open, leaveMs\('menu', mode\)\)/.test(menu) && /leaving && s\.leaving/.test(menu));
   assert.ok(/inert=\{!open\}/.test(menu), 'a menu leaving takes no tap and no focus');
 });

@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseTapSummary, testsNote } from '../scripts/tests-status.mjs';
 import { parseBuildInfo, namesCommit, verdict } from '../scripts/preview-live.mjs';
-import { checksFailed } from '../src/ui/shell/build-pill.ts';
 
 test('the TAP summary gives the totals; a cancelled test counts as failing; no summary is no result', () => {
   assert.deepEqual(parseTapSummary('ok 1 - a\n# tests 845\n# suites 3\n# pass 831\n# fail 14\n# cancelled 0\n# skipped 0\n'), { total: 845, failing: 14 });
@@ -10,7 +9,7 @@ test('the TAP summary gives the totals; a cancelled test counts as failing; no s
   assert.equal(parseTapSummary('ok 1 - a\nnot ok 2 - b\n'), null);
 });
 
-test('the pill says how many tests fail and at which commit the run was, adds the day once the run is old, and says nothing without a run', () => {
+test('the daily run\'s log line says how many tests fail and at which commit the run was, adds the day once the run is old, and says nothing without a run', () => {
   const now = Date.parse('2026-11-25T12:00:00Z');
   assert.equal(testsNote({ failing: 14, date: '2026-11-25T03:00:00Z' }, now), 'tests: 14 failing');
   assert.equal(testsNote({ failing: 0, date: '2026-11-25T03:00:00Z' }, now), 'tests: 0 failing');
@@ -19,15 +18,6 @@ test('the pill says how many tests fail and at which commit the run was, adds th
   assert.equal(testsNote({ failing: 3, date: '2026-11-22T03:00:00Z', commit: '0d79f780' }, now), 'tests: 3 failing (at 0d79f780 on 22 Nov)');
   assert.equal(testsNote({ failing: 3, date: '2026-11-25T03:00:00Z', commit: 'not a hash' }, now), 'tests: 3 failing');
   assert.equal(testsNote(null, now), ''); assert.equal(testsNote({ failing: 'x' }, now), '');
-});
-
-test('a clean suite leaves the pill orange; a failing test, type error or lint failure makes it red', () => {
-  assert.equal(checksFailed('tests: 0 failing'), false);
-  assert.equal(checksFailed(''), false); assert.equal(checksFailed(undefined), false);
-  assert.equal(checksFailed('tests: 14 failing'), true);
-  assert.equal(checksFailed('tests: 0 failing (at 0d79f780)'), false); assert.equal(checksFailed('tests: 2 failing (at 0d79f780)'), true);
-  assert.equal(checksFailed('types: 3 errors, tests: 0 failing'), true);
-  assert.equal(checksFailed('lint failed, tests: 0 failing'), true);
 });
 
 test('live is only ever said when build-info.txt names the commit', () => {

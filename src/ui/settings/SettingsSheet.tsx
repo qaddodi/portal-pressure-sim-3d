@@ -6,7 +6,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useSettings, FIGURE_DETAIL } from '../../state/settings.ts';
 import { DEPTH_ROWS, AUTO_DETAIL_ROW, LITE_ROW, BUILD_PILL_ROW } from './depth-rows.ts';
-import { buildLabel, buildChecks, buildNote } from '../shell/build-pill.ts';
+import { buildLabel, buildNote } from '../shell/build-pill.ts';
 import { useUpdate } from '../../pwa/update-state.ts';
 import { loadNewestBuild } from '../../boot/reload.ts';
 import { FigurePresets, useFigurePreset } from './FigurePresets.tsx';
@@ -14,13 +14,16 @@ import { MORE_NOW, MORE_PAGE_TITLE } from './preset-rows.ts';
 import type { LookChoice } from '../../looks/looks.ts';
 import { useShell } from '../shell/store.ts';
 import { useUi } from '../ui-store.ts';
-import { MenuPop, MenuGroup, MenuItem, MenuToggle, type MenuPage } from '../shell/Menu.tsx';
+import { MenuGroup, MenuItem, MenuToggle } from '../shell/Menu.tsx';
+import { Menu, type MenuPage } from '../surface/Menu.tsx';
 import { HelpRows } from '../shell/HelpSheets.tsx';
 import { HistoryList } from '../history/HistoryList.tsx';
 import { HIST } from '../history/words.ts';
 import { I } from '../shell/icons.tsx';
 import { usesBottomBar } from '../shell/room.ts';
-import { FULLSCREEN, CAPTURE } from '../shell/words.ts';
+import { FULLSCREEN, CAPTURE, RECORD } from '../shell/words.ts';
+import { useRecording, recordAvailable, toggleRecording } from '../capture/record.ts';
+import { recordRow } from '../capture/record-model.ts';
 import { feedbackEmail } from '../shell/feedback.ts';
 import { sendFeedback } from '../shell/send-feedback.ts';
 import { SECTIONS, settingsRow, type Row } from './rows.ts';
@@ -74,15 +77,15 @@ function LiteFigure() {
 }
 
 /**
- * Preview pill (3D only, preview builds only): the switch for the orange tab at the top edge, shown by default. The line under it names this build in plain words, so the commit and the
- * checks stay reachable with the pill hidden, and the row under it loads the newest build as the pill's tap does (boot/reload.ts).
+ * Preview pill (3D only, preview builds only): the switch for the orange tab at the top edge, shown by default. The line under it names this build in plain words, so the commit
+ * stays reachable with the pill hidden, and the row under it loads the newest build as the pill's tap does (boot/reload.ts).
  */
 function BuildPillRow() {
   const on = useSettings((s) => s.showBuildPill);
   const newer = useUpdate((u) => u.commit);
   const [busy, setBusy] = useState(false);
   const reload = () => { if (busy) return; setBusy(true); void loadNewestBuild(); };
-  const note = buildNote(buildLabel(import.meta.env.VITE_BUILD as string | undefined), buildChecks(import.meta.env.VITE_CHECKS as string | undefined), newer);
+  const note = buildNote(buildLabel(import.meta.env.VITE_BUILD as string | undefined), newer);
   return (<>
     <MenuToggle checked={on} icon={BUILD_PILL_ROW.icon} label={BUILD_PILL_ROW.label} sub={BUILD_PILL_ROW.hint} onChange={(v) => useSettings.getState().set('showBuildPill', v)} />
     <small className="fs-hint">{note}</small>
@@ -110,8 +113,24 @@ function CaptureRow() {
   const touch = typeof navigator !== 'undefined' && (navigator.maxTouchPoints || 0) > 1;
   return (<>
     <MenuItem icon="camera" label={CAPTURE.row} kb={touch ? null : '⌥⇧S'} title={CAPTURE.hint} onClick={() => { void import('../capture/capture.ts').then((m) => m.captureScreen({ settle: true })); }} />
+    <RecordRow touch={touch} />
     {talk ? <MenuItem icon="grid" label={CAPTURE.deckRow} title={CAPTURE.deckHint} onClick={() => { void import('../capture/capture-deck.ts').then((m) => m.captureThisDeck()); }} /> : null}
   </>);
+}
+
+// Record window: a video of this window. Shown only where the browser can share a window and write video (iPhone and older browsers: not at all).
+// While recording the row is Stop, in the colour of a warning; the press runs inside the tap (record.ts has no import() before the browser's question).
+function RecordRow({ touch }: { touch: boolean }) {
+  const phase = useRecording((s) => s.phase);
+  if (!recordAvailable()) return null;
+  const on = phase === 'recording';
+  const label = recordRow(phase, RECORD), kb = touch || phase !== 'idle' ? null : '⌥⇧R';
+  return (
+    <MenuItem
+      icon={on ? 'close' : 'projector'} label={label} kb={kb} title={on ? RECORD.stopHint : RECORD.hint}
+      className={on ? 'rec-on' : undefined} onClick={() => { void toggleRecording(); }}
+    />
+  );
 }
 
 /** How long after Settings opens a page it was asked for is pushed (the menu has its box by then, so the page slides in from the right rather than appearing with the menu). */
@@ -208,7 +227,7 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
   const hist: MenuPage = { back: backName ?? label, title: HIST.title, body: <HistoryList /> };
   const page: MenuPage | null = pageId === 'history' ? hist : pageId === 'help' ? { back: label, title: 'Help', body: <HelpRows /> } : pageId === 'advanced' ? { back: label, title: 'Advanced physiology', body: <Advanced /> } : pageId === 'figure' ? { back: label, title: MORE_PAGE_TITLE, body: <FigureMore /> } : null;
   return (<>
-    <MenuPop kind="settings" label={label} title={label} align="end" side={place === 'bar' ? 'above' : 'below'} page={page} onBack={back}>
+    <Menu id="settings" label={label} title={label} cls="app-menu" width="m" align="end" side={place === 'bar' ? 'above' : 'below'} page={page} onBack={back}>
       {SECTIONS.map((sec, i) => {
         const rows = sec.rows.filter((r) => !(r.phone && !phone) && !(r.talk === false && talk));
         if (!rows.length) return null;
@@ -227,7 +246,7 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
           </MenuGroup>
         </Fragment>);
       })}
-    </MenuPop>
+    </Menu>
     <FromReadings />
   </>);
 }

@@ -1,3 +1,9 @@
+// A focus ring belongs to the keyboard (owner, 27 Nov: "why randomly when I open menus I see the blue outline on input text or buttons?").
+// One app-wide modality, `html[data-kbd]`: present only while the last thing that reached the page was a navigating key; a press, a tap or a click takes it off.
+// ui/shell/focus-ring.css draws no ring while it is off, so a menu that opens from a tap or a click and moves focus into itself (a Search field, a close button) wears none, however
+// the browser's own :focus-visible guess falls. (A text field always matches :focus-visible in a browser, whatever put the caret there, and a key pressed before the tap leaves the
+// browser's own "keyboard" guess on for programmatic focus: both were the ring the owner saw.) With it on, one ring per control (focus-ring.css).
+//
 // Coming back to the app never draws a focus ring the keyboard did not ask for.
 // Root cause (24 Nov, Mac desktop): leaving the window (Cmd+Tab, another tab, another app) keeps `document.activeElement`, and Chrome and Safari give focus back to it
 // when the window is active again. That restored focus is not a pointer's, so `:focus-visible` matches it: the patient pill (#btnMenu), clicked with the mouse an hour
@@ -34,6 +40,14 @@ type Target = { addEventListener(t: string, f: (e: any) => void, o?: unknown): v
 export type ReturnDoc = Target & { activeElement: El | null; hidden?: boolean; documentElement: { toggleAttribute(n: string, force?: boolean): boolean } };
 
 const MODIFIERS = /^(Shift|Control|Alt|Meta|CapsLock|Fn|OS)$/;
+/** The only keys that count as keyboard navigation while typing in a text field: typing, deleting, the caret's moves and Enter are the field's own, not a walk over the controls. */
+const FIELD_NAV = /^(Tab|ArrowUp|ArrowDown|PageUp|PageDown)$/;
+/** Does this key press show rings? Any key but a modifier, except the keys a person types into a text field with. */
+export function keyIsNavigation(key: string | undefined, target: El | null | undefined): boolean {
+  const k = key ?? '';
+  if (MODIFIERS.test(k)) return false;
+  return isTextEntry(target) ? FIELD_NAV.test(k) : true;
+}
 
 /** Wire it once (main.tsx). The window is `win` (blur, focus, pagehide), the page `doc`. Returns the way to take it down. */
 export function installReturnFocus(doc: ReturnDoc = document, win: Target = window): () => void {
@@ -43,8 +57,8 @@ export function installReturnFocus(doc: ReturnDoc = document, win: Target = wind
     if (plan === 'blur') doc.activeElement?.blur?.();
     doc.documentElement.toggleAttribute('data-returned', plan === 'hide' || plan === 'blur');
   };
-  const input = (m: Modality) => () => { by = m; doc.documentElement.toggleAttribute('data-returned', false); };
-  const key = (e: { key?: string }) => { if (!MODIFIERS.test(e.key ?? '')) input('keyboard')(); };
+  const input = (m: Modality) => () => { by = m; doc.documentElement.toggleAttribute('data-returned', false); doc.documentElement.toggleAttribute('data-kbd', m === 'keyboard'); };
+  const key = (e: { key?: string; target?: El | null }) => { if (keyIsNavigation(e.key, e.target ?? doc.activeElement)) input('keyboard')(); };
   const away = () => settle();
   const back = () => { if (!doc.hidden) settle(); };
   // (the window's own blur and focus are listened for without capture: in the capture phase they would be every control's)

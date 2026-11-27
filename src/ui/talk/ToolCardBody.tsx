@@ -43,6 +43,7 @@ import { claimSlide, holdSlideDevices } from './slide-claim.ts';
 import { StiffCard } from '../charts/stiff/StiffCard.tsx';
 import { ScoresCard } from '../charts/scores/ScoresCard.tsx';
 import { VitalsCard } from '../charts/vitals/VitalsCard.tsx';
+import { LobuleCard } from '../charts/lobule/LobuleCard.tsx';
 import { engine } from '../../engine/index.ts';
 import { FlowTimeCard } from '../charts/flowtime/FlowTimeCard.tsx';
 import { refsOf } from '../charts/flowtime/model.ts';
@@ -83,6 +84,7 @@ const FRAMED = new Set(['fluid', 'stent']);
 type Rec = Record<string, unknown>;
 
 type Fp = Record<string, number | null | undefined>;
+const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 /** A trial's fit for the patient a slide stands on (its own state, or the state of the slide the tool names with `at`, and the case facts it gives). */
 function fitFor(tool: Rec, fp: Fp | null, params: unknown, fpOf: (id: string) => Fp | null, results: ReturnType<typeof useStates.getState>['results'][string] | undefined, slides: CopiedSlide[]) {
@@ -163,6 +165,8 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'saag': return <SaagCard rows={(((tool.of ?? cs.of) as unknown[] | undefined) ?? []).map((o) => { const x = (typeof o === 'string' ? { id: o } : o) as { id?: string; name?: string; title?: string; short?: string }; return { id: x.id, name: x.name ?? x.title ?? deck.slides.find((s) => s.id === x.id)?.title ?? x.id ?? '', short: x.short, f: x.id ? (fpOf(x.id) as never) : null }; })} extra={(tool.extra as never) ?? []} own={(tool.own as string | undefined) ?? null} room={room} />;
     case 'evgraph': return <EvGraph runKey={`${deck.id}/${slide.id}`} cs={cs} fp={fp} before={results?.[i]?.before as { fp: Fp } | undefined} opened={i > 0 ? ((results?.[i - 1]?.fp as Fp | undefined) ?? null) : null} />;
     case 'vitals': return <VitalsCard tool={tool} fp={fp as never} />;
+    // (across the lobule: the shown state's portal vein, mid-sinusoid and central vein, the stations the 3D lobule reads)
+    case 'lobule': return <LobuleCard p={{ pv: num(fp?.pv), sin: num(fp?.sin), cv: num(fp?.cv) }} rest={tool.view} />;
     case 'forest': return <ForestCard ids={(tool.ids as string[] | undefined) ?? []} />;
     case 'stiffness': return <StiffCard lsm={(fp?.lsm as number | null | undefined) ?? null} plt={(fp?.plt as number | null | undefined) ?? null} note />;
     case 'trace':

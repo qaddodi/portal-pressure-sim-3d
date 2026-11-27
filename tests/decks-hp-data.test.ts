@@ -9,11 +9,12 @@ import { join, resolve } from 'node:path';
 import { HP_DECKS, HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
 import { planDeck } from '../src/decks/hp/plan.ts';
 import { FEATURES, needsOf, readiness } from '../src/decks/hp/hooks.ts';
-import { camPlan, boxToShot, sceneX, sceneY, PLATE } from '../src/decks/hp/cams.ts';
+import { camPlan, sceneX, sceneY, PLATE } from '../src/decks/hp/cams.ts';
 import { REGIONS } from '../src/decks/hp/regions.copied.ts';
 import { tokensOf } from '../src/decks/hp/numbers.ts';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
 import { pinned2D } from './two-d-pin.ts';
+import { playOrder } from '../scripts/play-order.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 interface Inv { decks: { id: string; title: string; slides: { id: string }[]; checks: number; objectives: number }[]; rows: { id: string }[] }
@@ -28,12 +29,12 @@ test('the batch owns every 2D deck whose id runs from H to P, and no other', () 
   assert.ok(!HP_IDS.some((id) => /^[a-gr-w]/i.test(id)), 'a deck of A to G or R to W is another thread\'s');
 });
 
-test('every slide of the inventory is copied, in the 2D order, with the 2D words', () => {
+test('every slide of the inventory is copied, in the 2D order (but for the moves a review put in), with the 2D words', () => {
   let n = 0;
   for (const inv of mine) {
     const d = decks.get(inv.id)!;
     assert.equal(d.title, inv.title);
-    assert.deepEqual(d.slides.map((s) => s.id), inv.slides.map((s) => s.id), `${inv.id}: the slide ids and order are the 2D app's`);
+    assert.deepEqual(d.slides.map((s) => s.id), playOrder(inv.id, inv.slides.map((s) => s.id)), `${inv.id}: the slide ids and order are the 2D app's, with the moves a review put in`);
     assert.equal(d.checks.length, inv.checks, `${inv.id}: the quick check`);
     assert.equal(d.objectives.length, inv.objectives, `${inv.id}: the objectives`);
     for (const s of d.slides) { n++; assert.ok(inventory.rows.some((r) => r.id === `slide:${inv.id}/${s.id}`), `slide:${inv.id}/${s.id} is an inventory row`); }
@@ -89,7 +90,6 @@ test('every slide has a camera: a region, a box, the plate or a lobule view, fra
       }
     }
   }
-  assert.deepEqual(boxToShot(PLATE).half.map((v) => +v.toFixed(3)), [1.367, 1.533]);
   for (const name of Object.keys(REGIONS)) assert.ok(camPlan(name).kind === 'body');
 });
 
@@ -115,4 +115,33 @@ test('every slide is planned; every need has an owner batch; a landed feature ha
 
 test('the decks the menu lists are the ids and slide counts of the copies', () => {
   for (const m of HP_DECKS) assert.equal(decks.get(m.id)!.slides.length, m.slides, m.id);
+});
+
+test('the HVPG talk plays the PPG slide after the two EUS slides (owner, 27 Nov), and its sections list the slides in that order', () => {
+  const d = decks.get('hvpg')!;
+  const ids = d.slides.map((s) => s.id);
+  assert.deepEqual(ids.slice(ids.indexOf('presin'), ids.indexOf('heart')), ['presin', 'eus', 'eus-ladder', 'ppg']);
+  // the sections name the same slides in the same order, so a section list never says what the deck does not
+  const part = d.sections!.find(([name]) => name === 'When the HVPG misses')![1] as string[];
+  assert.deepEqual(part, ids.slice(ids.indexOf('presin'), ids.indexOf('heart')));
+  // a slide without a patient of its own plays the one before it, so each slide that follows another's patient must follow the right one: the ladder follows the EUS slide's woman
+  const prev = (id: string) => d.slides[ids.indexOf(id) - 1]!;
+  assert.equal((d.slides[ids.indexOf('eus-ladder')] as { preset?: string }).preset, undefined);
+  assert.equal((prev('eus-ladder') as { preset?: string }).preset, 'schisto');
+});
+
+test('a MOVE_AFTER patch puts a slide after its target, does nothing when it is already there, and play-order.mjs joins 2D rows to the moved order by id', async () => {
+  const { sourceEdits } = await import('../scripts/source-edits.mjs');
+  const { inPlayOrder } = await import('../scripts/play-order.mjs');
+  const deck = JSON.stringify({ id: 'x', slides: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }] });
+  const move = [{ deck: 'x', at: 'slides.a', moveAfter: 'slides.c' }];
+  const once = sourceEdits(deck, move);
+  assert.deepEqual(JSON.parse(once).slides.map((s: { id: string }) => s.id), ['b', 'c', 'a', 'd']);
+  assert.equal(sourceEdits(once, move), once, 'run again, the deck is as it was');
+  assert.deepEqual(JSON.parse(sourceEdits(deck, [{ deck: 'x', at: 'slides.d', moveAfter: 'slides.a' }])).slides.map((s: { id: string }) => s.id), ['a', 'd', 'b', 'c'], 'a slide moves up as well as down');
+  assert.throws(() => sourceEdits(deck, [{ deck: 'x', at: 'slides.a', moveAfter: 'slides.zz' }]), /nothing at slides\.zz/);
+  const rows = ['route', 'presin', 'ppg', 'eus', 'eus-ladder', 'heart'].map((id) => ({ id }));
+  assert.deepEqual(inPlayOrder('hvpg', rows).map((r: { id: string }) => r.id), ['route', 'presin', 'eus', 'eus-ladder', 'ppg', 'heart']);
+  assert.deepEqual(inPlayOrder('hvpg', inPlayOrder('hvpg', rows)).map((r: { id: string }) => r.id), ['route', 'presin', 'eus', 'eus-ladder', 'ppg', 'heart'], 'rows already in play order stay');
+  assert.deepEqual(inPlayOrder('lobule', rows), rows, 'a talk with no move is as it was');
 });

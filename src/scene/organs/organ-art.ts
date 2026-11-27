@@ -10,7 +10,7 @@ import { LOOK_IDS } from '../palette.ts';
 import { LUMA } from '../disease/copied/anatomy-b4.ts';
 import { type OrganInks, type OrganState, organColour, rgbOf } from './organ-look.ts';
 import { type Art, type ArtTokens, type Ctx2D, type Surface, paintArt } from './organ-art-paint.ts';
-import { UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
+import { ORIGIN_2D, UNITS_PER_SCENE, x2d, x3, y2d, y3 } from '../frame2d.ts';
 import { fetchBin } from '../../boot/fetch-bin.ts';
 import { reportFileLoss } from '../file-loss.ts';
 import { type PlaneMap, mapBox, planeMap, unmapX, unmapY } from './placed-map.ts';
@@ -54,7 +54,7 @@ const lookOf = (p: Palette): LookId => LOOK_IDS.find((id) => ORGAN_TONES_2D[id] 
 
 /** The per-vertex numbers of the esophagus on the stomach's pillow (the pillow is one shape with it, as 2D's SEAM_D is): `eso` how much of the esophagus's own tone shows
  *  (1 above y 226, none below y 262, as seamFG), `esoA` how much of the figure shows (1 below y 40, none above y -40, as esoFadeG). Linear in y, so the pillow's fine
- *  triangles carry them exactly. Positions are the scene's: y2d = 556 - 300 y. */
+ *  triangles carry them exactly. Positions are the scene's (frame2d.ts y2d). */
 const smooth01 = (t: number): number => { const c = Math.min(1, Math.max(0, t)); return c * c * (3 - 2 * c); };
 export function esoAttributes(g: BufferGeometry, eso: ArtData['eso'], m: PlaneMap = planeMap('stomach')): void {
   const pos = g.getAttribute('position');
@@ -63,7 +63,7 @@ export function esoAttributes(g: BufferGeometry, eso: ArtData['eso'], m: PlaneMa
   const [s0, s1] = eso.seam, [f0, f1] = eso.fade;
   const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
   for (let i = 0; i < n; i++) {
-    const x = unmapX(m, pos.getX(i)) * UNITS_PER_SCENE + 700, y = 556 - unmapY(m, pos.getY(i)) * UNITS_PER_SCENE;   // (the place on the 2D figure: the placed stomach is moved, placed-map.ts)
+    const x = x2d(unmapX(m, pos.getX(i))), y = y2d(unmapY(m, pos.getY(i)));   // (the place on the 2D figure: the placed stomach is moved, placed-map.ts)
     // (the oesophagus's right edge gives way over ESO_RIGHT_SOFT units from its outline, not as a cut at `right`: the placed stomach's surface runs on past it there, and a cut laid a step of its tone across the cardia)
     const side = 1 - smooth01((x - (right - ESO_RIGHT_MARGIN)) / ESO_RIGHT_SOFT);
     a[i] = side * clamp01((s1 - y) / (s1 - s0));
@@ -155,7 +155,9 @@ export function patchedShaders(vs: string, fs: string, inkVs: string, inkFs: str
     vd += 'attribute float eso;\nvarying float vEso;\nvarying float vEsoT;\n';
     // the esophagus's own gradient over its own box (2D: og-eso, x1 .15 y1 0 to x2 .85 y2 1)
     vb += `  vEso = eso;
-  vec2 xy2d = vec2((position.x - ${f(ESO_MAP.ox)}) / ${f(ESO_MAP.sx)} * ${UNITS_PER_SCENE.toFixed(1)} + 700.0, 556.0 - (position.y - ${f(ESO_MAP.oy)}) * ${UNITS_PER_SCENE.toFixed(1)});
+  vec2 xy2d = vec2(
+    (position.x - ${f(ESO_MAP.ox)}) / ${f(ESO_MAP.sx)} * ${UNITS_PER_SCENE.toFixed(1)} + ${ORIGIN_2D.x.toFixed(1)},
+    ${ORIGIN_2D.y.toFixed(1)} - (position.y - ${f(ESO_MAP.oy)}) * ${UNITS_PER_SCENE.toFixed(1)});
   vEsoT = clamp(dot(vec2((xy2d.x - ${f(ex)}) / ${f(ew)}, (xy2d.y - ${f(ey)}) / ${f(eh)}) - vec2(0.15, 0.0), vec2(0.7, 1.0)) / 1.49, 0.0, 1.0);
 `;
     fd += 'uniform vec3 eso1;\nuniform vec3 eso2;\nvarying float vEso;\nvarying float vEsoT;\n';
