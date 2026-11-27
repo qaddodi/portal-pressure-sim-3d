@@ -233,6 +233,18 @@
 .pzc-m > .y { color: var(--ok-ink); }
 .pzc-m > .n { color: var(--text-3); font-weight: 500; }
 .pzc-note .pzc-m > i, .pzc-row[data-met="yes"] .pzc-m > .y, .pzc-row[data-met="no"] .pzc-m > .n { opacity: 1; }
+/* A live row's gauge (R2, owner 27 Nov: "a criterion with a number draws its line on that reading's gauge"; CriteriaCard Gauge, rows.ts criteriaGauge): the tile bar's track
+   under the row's words, in the words' own column, so the cut-off and the reading at its right keep their columns and the row grows only where its words are shorter than
+   the reading and its "met" line beside them (both span the two lines). No numbers on the track: the row's words say the cut-off and its end column the reading. */
+.pzc-row:has(> .pzc-g) > :is(.pzc-c, .pzc-end) { grid-row: 1 / span 2; }
+.pzc-row:has(> .pzc-g) > .pzc-t { grid-row: 1; }
+.pzc-g { grid-column: 2; grid-row: 2; align-self: start; position: relative; display: block; height: 14px; margin-top: .35em; }
+/* (the cut-off is a line across the track in the words' ink, not the tile's 2 px gap: it is what the row is about) */
+.pzc-g .pzb-t { top: -3px; bottom: -3px; width: 2px; border-radius: 1px; background: var(--text-2); }
+.pzc-g[data-met="yes"] .pzb-now::before { background: var(--text); }
+/* (the dot eases to a new reading: a slider's drag or a compare button, the same --d-small as its fade; translate only, on the compositor) */
+html .pzc-g .pzb-now { transition: translate var(--d-small) var(--ease-move), opacity var(--d-small) var(--ease), visibility var(--d-small) linear, display var(--d-small) allow-discrete; }
+@media (prefers-reduced-motion: reduce) { html .pzc-g .pzb-now { transition-property: opacity, visibility, display; } }
 .pzc-verdict { margin: 0; padding-top: .6em; border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); font: 400 1em/1.35 var(--font-ui); color: var(--text-2); }
 .pzc-verdict > b { font-weight: 600; color: var(--text); }
 /* Plain rules, no cut-off column (his pick 26 Oct, "C with D's key words"): a mark at each row's left, a ring for a thing to check, a numeral
