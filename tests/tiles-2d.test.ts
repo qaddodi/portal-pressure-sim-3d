@@ -13,6 +13,7 @@ import type { CopiedDeck } from '../src/decks/hp/types.ts';
 import { hpNumbers } from './engine-departures.ts';
 import { HP_LOADERS } from '../src/decks/hp/raw.ts';
 import { showsLadder } from '../src/decks/overlay/ladder.ts';
+import { INSTRUMENT_CARDS } from '../src/decks/overlay/instruments.ts';
 
 interface Row { id: string; phone: boolean; tips: boolean; toolOnly: boolean; keys: string[]; head: string[]; tiles: Record<string, unknown>[] }
 const tiles2d = JSON.parse(readFileSync(new URL('./fixtures/tiles-2d.json', import.meta.url), 'utf8')) as { decks: Record<string, Row[]> };
@@ -45,12 +46,13 @@ const departed = (id: string, i: number): Record<string, number> | null => {
 };
 
 async function check(d: CopiedDeck, results: { fp: Fp }[], where: string, live = false) {
-  // (a slide whose tiles the pressure ladder took over, decks/overlay/ladder.ts, is no longer the 2D tile card: tests/ladder-for-tiles.test.ts pins what it is now)
+  // (a slide whose tiles the pressure ladder or a reused instrument took over, decks/overlay/ladder.ts and instruments.ts, is no longer the 2D tile card:
+  // tests/ladder-for-tiles.test.ts and tests/instrument-cards.test.ts pin what it is now)
   const raw = ((await HP_LOADERS[d.id]?.()) as CopiedDeck | undefined)?.slides ?? [];
   for (const row of tiles2d.decks[d.id] ?? []) {
     const i = d.slides.findIndex((s) => s.id === row.id);
     assert.ok(i >= 0, `${where}/${row.id}: not a slide of the copied deck`);
-    if (raw.some((s) => s.id === row.id && showsLadder(s))) continue;
+    if (raw.some((s) => s.id === row.id && showsLadder(s)) || INSTRUMENT_CARDS[`${d.id}/${row.id}`]) continue;
     const got0 = tilesAt(d.slides, results as never, i, row.phone)!;
     // (a tile the owner added on a slide, 27 Nov 2026 ruling W14, stands beside the 2D tiles; tests/numbers-shown.test.ts pins that the number a slide's words cite is shown)
     const added = ADDED_TILES[`${d.id}/${row.id}`] ?? [];

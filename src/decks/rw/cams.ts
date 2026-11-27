@@ -3,18 +3,20 @@
 // The 2D forms (src/ui/cam-frame.js): 'fit' or none; a region name (REGIONS); [x0,y0,x1,y1] a raw box; ['portal','spleen'] a union of regions;
 // { on: [names], near?: region } what the names point at (vessel ids, stations, organs, term targets, '@sets'); 'lobule', 'lobule:fit|triad|sinusoid|central'
 // and 'sinusoid' (the lobule and sinusoid views); on a Circuit slide a Circuit region. The anatomy's plate and the 3D scene share one frame
-// (X = (x2d − 700) / 300, Y = −(y2d − 556) / 300, depth 0.2 mid-body: docs/scene.md), so a 2D box becomes a 3D shot by arithmetic, never by hand:
+// (scene/frame2d.ts, depth 0.2 mid-body: docs/scene.md), so a 2D box becomes a 3D shot by arithmetic, never by hand:
 // the shot's target is the box's centre, its half extents the box's, and the room solver (camera/room.ts) fits it into whatever room the cards leave.
 // The slide's `kMax` (the most the 2D camera may zoom) is the 3D shot's nearest distance.
+import { ORIGIN_2D, UNITS_PER_SCENE, x3, y3 } from '../../scene/frame2d.ts';
 import { SHOTS, WHOLE_MARGIN, DECK_WHOLE_FILL, type Shot } from '../../scene/camera/shots.ts';
 import { NODE_POS_2D, EDGE_PATH_2D, HIDDEN_EDGES, placedRegionBox, placedBoxOfBox2, boxOfNames, growBox3, unionBox3, box2Of, centreOf, FIGURE_NAMES, VISIBLE_FIGURE_NAMES, type Box3 } from '../../scene/anatomy/source.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
 import { REGIONS_2D, SETS_2D, TARGETS_2D, ORGAN_BOX_2D, CIRC_REGIONS_2D, type Box2D } from './copied/plate.ts';
 
-/** The plate's centre and scale in the shared frame (origin CONF at (700, 556), 300 plate units to one scene unit). */
-export const PLATE = { cx: 700, cy: 556, unit: 300 } as const;
-export const toX = (x: number): number => (x - PLATE.cx) / PLATE.unit;
-export const toY = (y: number): number => (PLATE.cy - y) / PLATE.unit;
+/** The plate's centre and scale in the shared frame (frame2d.ts: origin CONF, plate units to one scene unit). */
+export const PLATE = { cx: ORIGIN_2D.x, cy: ORIGIN_2D.y, unit: UNITS_PER_SCENE } as const;
+export const toX = x3;
+// (+ 0: the plate's origin is 0, not -0: the old (cy - y) / unit)
+export const toY = (y: number): number => y3(y) + 0;
 
 /** The depth the camera looks at: the middle of the vessels (0.30 to 0.54 in front) and the organs (which straddle 0). */
 export const TARGET_Z = 0.2;
@@ -85,16 +87,6 @@ export function boxOf(cam: Cam2D): Box2D | null {
     return near ? growBox(near, box) : growBox(null, box, 40);
   }
   return null;
-}
-
-/** A plate box as a 3D shot. The half extents are the box's, never less than MIN_HALF; `kMax` (the slide's most zoom, 2D units of zoom over the fit) lifts the nearest distance. */
-export function shotOfBox(box: Box2D): Shot {
-  const hw = (box[2] - box[0]) / 2 / PLATE.unit, hh = (box[3] - box[1]) / 2 / PLATE.unit;
-  return {
-    yaw: POSE.yaw, pitch: POSE.pitch, r: MIN_R,
-    target: [toX((box[0] + box[2]) / 2), toY((box[1] + box[3]) / 2), TARGET_Z],
-    half: [Math.max(hw, MIN_HALF), Math.max(hh, MIN_HALF)],
-  };
 }
 
 // ---- the approved placement: a camera frames its subject's placed bounds, by name ----

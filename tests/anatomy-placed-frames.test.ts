@@ -13,7 +13,6 @@ const src = await import('../src/scene/anatomy/source.ts');
 const { SHOTS, SHOT_SUBJECTS, viewReach } = await import('../src/scene/camera/shots.ts');
 const hp = await import('../src/decks/hp/cams.ts');
 const rw = await import('../src/decks/rw/cams.ts');
-const ag = await import('../src/decks/ag/shots.ts');
 const { HP_IDS, loadHpDeck } = await import('../src/decks/hp/index.ts');
 const { AG_IDS, loadAgDeck } = await import('../src/decks/ag/index.ts');
 const { DECKS } = await import('../src/decks/rw/copied/all.ts');
@@ -90,9 +89,6 @@ test('every region frames its placed subject in all three deck families (inside 
     const p = rw.place(r);
     assert.equal(p.view, 'body');
     framesSubject(`rw ${r}`, (p as { shot: Shot }).shot, subject);
-    const a = ag.shotOfCam(r);
-    assert.equal(a.kind, 'body');
-    framesSubject(`ag ${r}`, (a as { shot: Shot }).shot, subject);
   }
 });
 
@@ -137,9 +133,9 @@ test('every slide camera of every talk frames its named subject where the placem
   }
   const agDecks = await Promise.all((AG_IDS as readonly string[]).map((id) => loadAgDeck(id as never)));
   for (const d of agDecks) for (const s of d.slides as Slide[]) for (const c of cams(s)) {
-    const spec = ag.shotOfCam(c);
+    const spec = hp.camPlan((c ?? undefined) as never);
     assert.equal(spec.kind, 'body');
-    framesSubject(`${d.id}/${s.id} ${JSON.stringify(c)}`, (spec as { shot: Shot }).shot, subjectOf(c));
+    framesSubject(`${d.id}/${s.id} ${JSON.stringify(c)}`, (spec as { shot: Shot }).shot, subjectOf(c ?? hp.DEFAULT_CAM));
     n++;
   }
   assert.ok(n > 470, `only ${n} slide cameras read`);

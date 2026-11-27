@@ -135,6 +135,13 @@ export const RULES = {
     visit: (n) => (n.type === 'ImportDeclaration' || n.type === 'ExportNamedDeclaration' || n.type === 'ExportAllDeclaration' || n.type === 'ImportExpression')
       && typeof n.source?.value === 'string' && /(^|\/)(paths\.copied|regions\.(generated|copied))(\.ts)?$/.test(n.source.value),
   },
+  /** One map between the 2D figure and the scene (27 Nov 2026, the 2D-plate audit): src/scene/frame2d.ts owns the origin (700, 556) and the scale (300). The origin's y, 556, is written nowhere else, in a number or in a
+   *  shader string: a second copy of the map is how a point of the 2D plate ends up laid on the 3D one by a map that has since moved (the spleen caliper, the organ marks). Import x3, y3, x2d, y2d, ORIGIN_2D. */
+  'plate-map-literal': {
+    applies: (p) => !vendored(p) && under(p, 'src') && p !== 'src/scene/frame2d.ts' && !/\.(copied|generated)\.|\/copied\//.test(p),
+    visit: (n) => (n.type === 'Literal' && (n.value === 556 || (typeof n.value === 'string' && /(^|[^\d.])556(\.0)?($|[^\d])/.test(n.value))))
+      || (n.type === 'TemplateElement' && /(^|[^\d.])556(\.0)?($|[^\d])/.test(n.value?.raw ?? '')),
+  },
   /** One place decides "this patient's HVPG is not measurable" (27 Nov 2026, review 3531bdfa W1): src/engine/hv-flag.ts (hvpgBlockedBy for params, hvpgNotMeasurable for a fingerprint). No file imports the engine's `hvBlocked`
    *  itself, or a surface decides for itself, and the next one (a tile, a table, a chart) prints a number the others call "Not measurable". (The 2D copies keep theirs: `.copied.` files and copied/ folders.) */
   'hv-blocked-direct': {

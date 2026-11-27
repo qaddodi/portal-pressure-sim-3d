@@ -6,7 +6,6 @@ import { CameraRig } from '../src/scene/camera/rig.ts';
 import { SHOTS, WHOLE_FILL, DECK_WHOLE_FILL, WHOLE_MARGIN, SHOT_MARGIN, viewReach, FOV } from '../src/scene/camera/shots.ts';
 import { effectiveDistance, FILL, fullRoom } from '../src/scene/camera/room.ts';
 import { camPlan } from '../src/decks/hp/cams.ts';
-import { shotOfCam } from '../src/decks/ag/shots.ts';
 import { boxOfNames, FIGURE_NAMES, VISIBLE_FIGURE_NAMES, placedBoxOfName, RECTUM_SEEN_Y } from '../src/scene/anatomy/source.ts';
 import { freeRoom, layoutClass } from '../src/ui/shell/room.ts';
 
@@ -19,9 +18,8 @@ const TAN = Math.tan((FOV * Math.PI) / 360);
 
 test('every whole-figure frame carries the whole figure\'s share of the room and margin, and the figure\'s ends stand within 7 % of the room\'s height of its edge, and the same at both ends', () => {
   const plan = camPlan('fit') as { shot: typeof SHOTS.play };
-  const ag = shotOfCam('fit') as { shot: typeof SHOTS.play };
   const box = boxOfNames(VISIBLE_FIGURE_NAMES, true).box!;
-  for (const [name, shot, fill] of [['play', SHOTS.play, WHOLE_FILL], ['hp fit', plan.shot, DECK_WHOLE_FILL], ['ag fit', ag.shot, DECK_WHOLE_FILL]] as const) {
+  for (const [name, shot, fill] of [['play', SHOTS.play, WHOLE_FILL], ['hp fit', plan.shot, DECK_WHOLE_FILL]] as const) {
     assert.equal(shot.fill, fill, `${name} fill`);
     const reach = viewReach(box, shot);
     assert.ok(shot.half[1] - reach[1] <= WHOLE_MARGIN + 1e-9, `${name}: ${(shot.half[1] - reach[1]).toFixed(3)} of margin, not more than ${WHOLE_MARGIN}`);

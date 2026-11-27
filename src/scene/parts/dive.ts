@@ -80,6 +80,7 @@ export const divePart = scenePart<CelScene>()({
     // (the plane keeps its own frame; the camera's roll turns it on screen)
     const o = this.rig.project(this.sinusPt.set(...sinusoidWorld([0, 0, 0])), this.scrO), a = this.rig.project(this.sinusPt.set(...sinusoidWorld(framePoint(10, 0, SIN_UNIT, 0))), this.scrA);
     const m = measureScreen(o, a, this.rig.roomCentre());
+    this.sinus.revealCentre.x = o.x; this.sinus.revealCentre.y = o.y;   // (where the sinusoid's reveal in the dive spreads from: its middle on the screen)
     this.sinus.setScreen(m.k > 0 ? m.k : restScale(short) * this.rig.handZoom, p ? r.h : r.w, p ? s.h : s.w, m.k > 0 ? m.centreUm : 0);
   },
   get isPortrait(): boolean { return this.portrait; },

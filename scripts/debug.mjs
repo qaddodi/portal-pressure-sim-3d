@@ -52,7 +52,7 @@ export function links({ base = PREVIEW, sweep = null, look = '', only = '' } = {
   ];
   if (sweep) out.push([`Sweep: ${sweep}`, addr('debug', `sweep=${enc(sweep)}`, opt('look', look))]);
   for (const d of ['iphone', 'iphone-landscape', 'ipad', 'ipad-portrait', 'mac']) out.push([`Device frame: ${d}`, addr('debug=frame', `device=${d}`)]);
-  out.push(['Motion recorder on any page', addr('watch')], ['Frame times (Copy puts the slowest frames on the clipboard)', addr('perf')], ['Progress against 2D', addr('parity')], ['Charts gallery', addr('charts')]);
+  out.push(['Motion recorder on any page', addr('watch')], ['Frame times (Copy puts the slowest frames on the clipboard)', addr('perf')], ['Charts gallery', addr('charts')]);
   return out.map(([label, url]) => ({ label, url }));
 }
 

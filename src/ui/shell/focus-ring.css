@@ -1,0 +1,19 @@
+/* The app's one focus-ring rule (owner, 27 Nov: "why randomly when I open menus I see the blue outline on input text or buttons?").
+   A ring belongs to the keyboard. ui/shell/return-focus.ts keeps `html[data-kbd]` on only while the last thing that reached the page was a navigating key (a tap, click or press takes it off).
+   The browser's own :focus-visible is not enough: a text field always matches it, whatever put the caret there (a menu opening and focusing its Search), and a key pressed before a tap
+   leaves its "keyboard" guess on for the focus a menu then moves into itself. So:
+   1. no keyboard, no ring: not an outline (any of the ~60 rules that draw one, in 2D's sheets or the app's own, in a menu, popover, card or the page), not the pseudo-element rings, not
+      a wrapper's. `!important` here is the one place that arbitrates, so no rule's specificity or load order can bring a ring back (this sheet is imported last, main.tsx).
+   2. one ring per control: where a wrapper draws the ring (the menu's Search box), the bare field inside it draws none; the wrapper's ring is the field's.
+   tests/focus-ring.test.ts holds both, and fails for a new wrapper ring that is not gated here. */
+html:not([data-kbd]) :focus,
+html:not([data-kbd]) :focus-visible,
+html:not([data-kbd]) :focus-visible::before,
+html:not([data-kbd]) :focus-visible::after { outline: none !important; }
+
+/* the rings that are not outlines: a wrapper's inset ring, a switch's ring (back to their resting paint) */
+html:not([data-kbd]) .um-search:focus-within { box-shadow: inset 0 0 0 1px var(--hairline); }
+html:not([data-kbd]) .switch input:focus-visible + span { box-shadow: inset 0 0 0 1px var(--hairline); }
+
+/* one ring per control: the menu's Search wears its wrapper's ring (app-07-floating.css .um-search:focus-within), never a second one on the bare field inside it */
+.um-search .um-q:focus-visible { outline: none; }

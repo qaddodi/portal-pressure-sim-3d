@@ -16,7 +16,7 @@ import {
 import { CEL_STYLE } from '../cel-style.ts';
 import { CHEV, CHEVRON_GLSL, CHEV_LEVEL_MIN } from '../blood/chevron-glsl.ts';
 import { LENS_SHARED } from '../lenses/tokens.copied.ts';
-import { FADE_GLSL } from '../materials/shaders.ts';
+import { REVEAL_FADE_GLSL, REVEAL_OFF } from './reveal.ts';
 import { CEL_LIGHT_UNIT } from '../cel-glsl.ts';
 import { SHAPE_VS_APPLY, SHAPE_VS_DECL, shapeUniform } from './sinusoid-shape.ts';
 
@@ -107,7 +107,7 @@ ${SHAPE_VS_APPLY}
 }`;
 
 export const MICRO_FS = /* glsl */ `
-${FADE_GLSL}
+${REVEAL_FADE_GLSL}
 uniform vec3 tint;
 uniform float opacity;
 varying vec3 vN;
@@ -384,7 +384,7 @@ ${SHAPE_VS_APPLY}
 }`;
 
 export const MICRO_INK_FS = /* glsl */ `
-${FADE_GLSL}
+${REVEAL_FADE_GLSL}
 uniform vec3 color;
 uniform float opacity;
 // a vessel's line is the Anatomy's (vessels/shaders.ts): the look's casing taken uOwn of the way to a deep tone (x ${F(CEL_STYLE.TUBE.INK_TONE)}) of the part's own colour (Mohammad 20 Nov: "lobule
@@ -428,6 +428,8 @@ export interface MicroOptions {
   rimUp?: boolean;
   /** The rim from the dome's own ellipse (aux, aux2 per vertex: ellipsoid(..., dome, uv)), exact whatever the triangles. */
   rimUV?: boolean;
+  /** The view's reveal from the middle out (reveal.ts; one shared uniform per view): none, the part draws its one fade. */
+  reveal?: { value: Vector4 };
   /** The scene's share of the line (one shared uniform, 0 to 1): far off, a red cell a few px across was all line, a dark dot (eyes 20 Nov, the lumen in the dive). */
   rimK?: { value: number };
   /** A per-vertex swelling (the geometry carries `swell`, see MICRO_VS), set with setSwell. */
@@ -461,7 +463,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
     vertexShader: MICRO_VS, fragmentShader: MICRO_FS, vertexColors: !!o.vertexColors,
     defines: { ...(o.flow ? { FLOW: '' } : {}), ...(o.gaps && !o.holes ? { GAPS: '' } : {}), ...(o.gaps && o.holes ? { HOLES: '' } : {}), ...(o.rimUV ? { RIM_UV: '' } : {}), ...(o.shape ? { SHAPE: '', ...(o.shape.second ? { SHAPE2: '' } : {}), ...(o.shape.anchored ? { SHAPE_AX: '' } : {}) } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.hug ? { HUG: '' } : {}) },
     uniforms: {
-      tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, uSwell: { value: new Vector2(0, 0) }, uHug: { value: new Vector2(0, 0) }, uShape: o.shape?.u ?? shapeUniform(), fade,
+      tint: { value: rawRGB(new Color(), o.tint ?? [1, 1, 1]) }, opacity: { value: 1 }, inflate: { value: 0 }, uSwell: { value: new Vector2(0, 0) }, uHug: { value: new Vector2(0, 0) }, uShape: o.shape?.u ?? shapeUniform(), fade, uReveal: o.reveal ?? REVEAL_OFF,
       uHole: { value: 0 }, uRim: { value: o.rim ?? 0 }, uRimUp: { value: o.rimUp ? 1 : 0 }, uRimK: o.rimK ?? { value: 1 }, uMicroDpr: MICRO_DPR, uRimCol: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, uWash: { value: new Vector4(0, 0, 0, 0) }, uWashCol: { value: new Color(1, 0.7, 0.2) }, uWashR: { value: 0 },
       uHaze: haze.uHaze, uHazeCol: haze.uHazeCol,
       uFlowT: { value: 0 }, uFlowPitch: { value: 0.12 }, uFlowK: { value: 0 }, uFlowHead: { value: 0 }, uFlowCol: { value: new Color(1, 1, 1) },
@@ -473,7 +475,7 @@ export function microMaterials(res: { value: Vector2 }, fade: { value: number },
   });
   const ink = o.ink === null ? null : new ShaderMaterial({ name: 'micro ink',
     vertexShader: MICRO_INK_VS, fragmentShader: MICRO_INK_FS, vertexColors: !!o.vertexColors, defines: { ...(o.shape ? { SHAPE: '', ...(o.shape.second ? { SHAPE2: '' } : {}), ...(o.shape.anchored ? { SHAPE_AX: '' } : {}) } : {}), ...(o.swell ? { SWELL: '' } : {}), ...(o.inkR ? { INKR: '' } : {}), ...(o.hug ? { HUG: '' } : {}) },
-    uniforms: { uSwell: toon.uniforms.uSwell!, uHug: toon.uniforms.uHug!, uShape: toon.uniforms.uShape!, color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
+    uniforms: { uSwell: toon.uniforms.uSwell!, uHug: toon.uniforms.uHug!, uShape: toon.uniforms.uShape!, color: { value: rawRGB(new Color(), o.ink ?? [0.1, 0.08, 0.1]) }, opacity: toon.uniforms.opacity!, tint: toon.uniforms.tint!, inflate: toon.uniforms.inflate!, uHole: toon.uniforms.uHole!, uOwn: { value: 0 }, px: { value: Math.max(MIN_LINE, o.px ?? CEL_STYLE.MICRO.LINE) }, res, fade, uReveal: toon.uniforms.uReveal!, uHaze: haze.uHaze, uHazeCol: haze.uHazeCol },
     side: DoubleSide, transparent: !!o.transparent, depthWrite: !o.transparent,
     // (the hull's faces toward the viewer sit INK_BACK behind the shape's own in the vertex shader, but that is a share of the eye's distance: where the depth buffer cannot tell the two apart, a flat top such as the
     //  central vein's pool, the line won and the fill drew black. The hardware's own offset is in the smallest step the buffer resolves, so it holds at any precision: the line is never nearer than its fill)
