@@ -144,6 +144,8 @@ body:has(.deck-ui .pz-jump[data-open="true"]) .lb-key-layer .lb-key { opacity: 0
 .lb-key-twin { flex-wrap: nowrap; max-width: none; min-height: 0; }
 .lb-key[data-grad] { flex-direction: column; flex-wrap: nowrap; }
 .lb-key b { font-weight: 600; color: var(--text); margin-right: .1em; }
+.lb-key b .lb-unit { font-weight: 400; color: var(--text-2); margin-left: .4em; }
+.lb-key b .lb-unit[data-alone] { margin-left: 0; }   /* (the unit the lens counts in, said once here: the figure's reading labels stand bare, unit-rule.ts) */
 .lb-key .lb-bar { width: var(--lb-key-bar-w, 4.4em); height: var(--lb-key-bar-h, .55em); border-radius: 999px; flex: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 16%, transparent); }
 .lb-key .lb-ends { display: inline-flex; align-items: center; gap: .4em; white-space: nowrap; }
 .lb-key .lb-items { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .55em; min-width: 0; }

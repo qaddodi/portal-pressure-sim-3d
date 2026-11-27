@@ -9,7 +9,10 @@
 // Not covered (needs the live engine frame or a browser): collaterals and shunts the slide draws, the catheter, the needle, the scope's shaft and the web or band marks (the scope's settled body is a solver blocker at run time, probe-claims.ts).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadDecks, slideFigure, SCREENS, type ScreenName } from './helpers-slide-labels.ts';
+import { loadDecks, slideFigure, lensUnit, SCREENS, type ScreenName } from './helpers-slide-labels.ts';
+import { keyStates, keyUnit, KEY_UNIT } from '../src/scene/labels/unit-rule.ts';
+import { legendFor } from '../src/scene/lenses/legend.ts';
+import { keyModel, KEY_LENSES } from '../src/scene/labels/key.ts';
 import { onLine } from '../src/scene/labels/solver.ts';
 import { hits, segsCross, crosses, nearestOn } from '../src/scene/labels/geometry.ts';
 
@@ -19,14 +22,14 @@ const isOrgan = (id: string) => id.startsWith('organ:');
 const ASKED_ON_VESSEL_MAX = 60;
 const ORGAN_ON_VESSEL_MAX = 575;
 
-interface Sweep { slides: number; labels: number; problems: string[]; askedOn: string[]; organOn: number; unasked: string[]; mixed: string[]; noLeader: string[] }
+interface Sweep { slides: number; labels: number; twice: string[]; nowhere: string[]; problems: string[]; askedOn: string[]; organOn: number; unasked: string[]; mixed: string[]; noLeader: string[] }
 
-function sweep(unit: string): Sweep {
-  const r: Sweep = { slides: 0, labels: 0, problems: [], askedOn: [], organOn: 0, unasked: [], mixed: [], noLeader: [] };
+function sweep(unit?: string): Sweep {
+  const r: Sweep = { slides: 0, labels: 0, twice: [], nowhere: [], problems: [], askedOn: [], organOn: 0, unasked: [], mixed: [], noLeader: [] };
   for (const [id, stops] of decks) {
     for (let i = 0; i < stops.length; i++) {
       for (const sc of Object.keys(SCREENS) as ScreenName[]) {
-        const f = slideFigure(id, stops, i, sc, { unit });
+        const f = slideFigure(id, stops, i, sc, unit ? { unit } : {});
         if (!f || f.panel) continue;
         f.settle(800);
         r.slides++;
@@ -49,10 +52,14 @@ function sweep(unit: string): Sweep {
             const g = Math.hypot(Math.max(b.x0 - d.anchor.x, 0, d.anchor.x - b.x1), Math.max(b.y0 - d.anchor.y, 0, d.anchor.y - b.y1));
             if (g > 24 && !d.dot) r.noLeader.push(`${at} ${d.id} ${Math.round(g)} px`);
           }
-          if (!isOrgan(d.id) && d.value) { if (d.unit) withUnit++; else bare++; }
+          if (!isOrgan(d.id) && d.value) {
+            if (d.unit) withUnit++; else bare++;
+            if (d.unit && keyStates(f.key, d.unit)) r.twice.push(`${at} ${d.id} says "${d.unit}" and the ${f.key} key says it too`);
+            if (!d.unit && !unit && !keyStates(f.key, lensUnit(f.key))) r.nowhere.push(`${at} ${d.id} is bare and the ${f.key ?? 'no'} key says no ${lensUnit(f.key)}`);
+          }
         }
         for (let a = 0; a < boxes.length; a++) for (let c = a + 1; c < boxes.length; c++) if (hits(boxes[a]!.b, boxes[c]!.b)) r.problems.push(`${at} ${boxes[a]!.d.id} overlaps ${boxes[c]!.d.id}`);
-        if (withUnit && bare) r.mixed.push(`${at}: ${withUnit} with ${unit}, ${bare} bare`);
+        if (withUnit && bare) r.mixed.push(`${at}: ${withUnit} with a unit, ${bare} bare`);
       }
     }
   }
@@ -79,6 +86,22 @@ test('organ names on a vessel line: the count of the approved placement may only
 test('units are consistent per figure: every reading label says its unit or none does (mmHg and L/min)', () => {
   assert.deepEqual(mm.mixed, []);
   assert.deepEqual(sweep('L/min').mixed, []);
+});
+
+test('the unit is said once (owner W19): by the lens key where it counts in the unit, by the labels where it does not, on every slide, never by both and never by neither', () => {
+  const own = sweep();
+  assert.ok(own.labels > 1500, `${own.labels} labels judged`);
+  assert.deepEqual(own.twice, []);
+  assert.deepEqual(own.nowhere, []);
+  assert.deepEqual(own.mixed, []);
+  // the key's unit is the legend's own (the table the label rule reads and the legend the top bar draws never disagree)
+  for (const [lens, unit] of Object.entries(KEY_UNIT)) {
+    const cap = legendFor(lens as never, 'light').caption?.[1];
+    assert.ok(cap && (lens === 'velocity' ? true : cap === unit), `${lens}: the legend's caption unit "${cap}" is the key's "${unit}"`);
+    assert.equal(keyModel(lens, 'light')!.unit, unit, `${lens}: the key names its unit`);
+  }
+  for (const lens of KEY_LENSES) if (!(lens in KEY_UNIT)) assert.equal(keyModel(lens, 'light')!.unit, null, `${lens}: a key that counts in no unit names none`);
+  assert.equal(keyUnit(null), null);
 });
 
 test('a label more than 24 px from the point it names has a leader, on every slide', () => {

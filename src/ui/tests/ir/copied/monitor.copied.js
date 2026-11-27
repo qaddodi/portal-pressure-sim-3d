@@ -200,8 +200,10 @@ function monOn({ ctx, w, h: hh }, S, st) {
   axTop = top; axBot = bot; axMax = ymax; axL = L; axR = R; axT0 = S.win[0]; axT1 = tEnd + (tEnd - S.win[0]) * reserve / Math.max(1, R - L - reserve);
   ctx.lineWidth = 1; ctx.font = FONT(500, FS); ctx.fillStyle = C.text; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   for (let p = 0; p <= ymax; p += 5) {
-    ctx.fillStyle = p ? C.grid : C.line; ctx.fillRect(L, Math.round(Y(p)), R - L, 1);   // (boxes, not stroked lines: see inkSeg)
-    if (p % 10 === 0 || ymax <= 20) { ctx.fillStyle = C.text; ctx.fillText(tick(p), L + 3, Math.round(Y(p)) - 4); }   // (inside the grid, just above its line)
+    // (A number stands centred on its line and the line begins after it, so 20 reads as 20: it stood above its line, between two. Owner W19, 27 Nov.)
+    const yy = Math.round(Y(p)), said = p % 10 === 0 || ymax <= 20, gx = said ? L + 3 + Math.ceil(ctx.measureText(tick(p)).width) + 4 : L;
+    ctx.fillStyle = p ? C.grid : C.line; ctx.fillRect(gx, yy, R - gx, 1);   // (boxes, not stroked lines: see inkSeg)
+    if (said) { ctx.fillStyle = C.text; ctx.textBaseline = 'middle'; ctx.fillText(tick(p), L + 3, yy + 0.5); ctx.textBaseline = 'alphabetic'; }
   }
   ctx.textBaseline = 'middle';
   if (ph === 'idle' || ph === 'enter') {

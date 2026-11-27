@@ -12,7 +12,7 @@ import { KEY_LENSES, keyPlace } from './key.ts';
 import { DEFAULT_LENS, type LensId } from '../lenses/model.ts';
 import { shownLens } from '../lenses/in-view.ts';
 
-export interface LabelsAt { named: Set<string>; shown: Set<string>; tones: Record<string, string>; cath: CathState | null; /** the lens whose colour key the slide shows on the figure (null: none) */ key: string | null; /** a centred panel stands over the figure: its names stand aside */ panel?: boolean }
+export interface LabelsAt { named: Set<string>; shown: Set<string>; tones: Record<string, string>; cath: CathState | null; /** the lens whose colour key the slide shows on the figure (null: none) */ key: string | null; /** a centred panel stands over the figure: its names stand aside */ panel?: boolean; /** the names the slide's own buttons carry, lower case (the key does not say them again, key.ts keyNameShown) */ controls?: readonly string[] }
 const NONE = (cath: CathState | null = null, key: string | null = null): LabelsAt => ({ named: new Set(), shown: new Set(), tones: {}, cath, key });
 
 /** The colour key a slide shows on the figure (Mohammad, 26 Nov: "every slide that colours the figure", captures 36b7deac and 2274649a).
@@ -64,18 +64,22 @@ export function labelsAt(stops: Stop[], pos: { stop: number; beat: number }, dec
   const v = viewAt(stops, pos, lastSlideShot(stops));
   if (!v.slide || v.words === 'case') return { ...NONE(), panel: v.words === 'title' };
   const k = keyAtStop(stops, pos.stop, pos.beat), key = k && keyPlace(k) === 'dock' ? k : null, panel = v.words === 'visual';   // (a stream lens's key stands in its data card instead: cardKeyAt)
-  const copied = copiedSlideOf(deckId, v.slide);
+  const copied = copiedSlideOf(deckId, v.slide), controls = controlNamesOf(v.slide);
   if (copied) {
     const p = figurePlan(copied);
-    return { named: new Set(Object.keys(p.tones)), shown: new Set(p.labels), tones: p.tones, cath: v.cath, key, panel };
+    return { named: new Set(Object.keys(p.tones)), shown: new Set(p.labels), tones: p.tones, cath: v.cath, key, panel, controls };
   }
-  return { ...NONE(v.cath, key), named: namedBy(v.slide), panel };
+  return { ...NONE(v.cath, key), named: namedBy(v.slide), panel, controls };
 }
+
+/** The names a slide's compare buttons carry, lower case (their short forms too). */
+export const controlNamesOf = (slide: Slide): string[] => (slide.controls?.compare?.opts ?? []).flatMap((o) => [o.label, o.short ?? '']).map((t) => t.trim().toLowerCase()).filter(Boolean);
 
 /** The stations a slide names: those its words point at, and the ones a ported slide asks to label outright. */
 export const namedBy = (slide: Slide): Set<string> => new Set([...stationsOfTerms(Object.values(slide.terms ?? {})), ...(slide.scene?.labels ?? [])]);
 
 const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...b].every((x) => a.has(x));
+const sameNames = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 const sameTones = (a: Readonly<Record<string, string>>, b: Readonly<Record<string, string>>) => { const k = Object.keys(b); return k.length === Object.keys(a).length && k.every((x) => a[x] === b[x]); };
 
 export function linkLabelsToDeck(): () => void {
@@ -87,8 +91,8 @@ export function linkLabelsToDeck(): () => void {
     const cur = useLabels.getState();
     const keyed = deck ? true : owns;   // (no talk: the key is left as it is unless a talk had set it)
     const sameKey = !keyed || cur.key === next.key;
-    const same = cur.presenting === !!deck && cur.cath === next.cath && sameSet(cur.named, next.named) && sameSet(cur.shown, next.shown) && sameTones(cur.tones, next.tones) && sameKey && cur.panel === !!next.panel;
-    if (!same) { const { key, ...rest } = next; cur.set({ ...(keyed ? { ...rest, key } : rest), panel: !!next.panel, presenting: !!deck }); }
+    const same = cur.presenting === !!deck && cur.cath === next.cath && sameSet(cur.named, next.named) && sameSet(cur.shown, next.shown) && sameTones(cur.tones, next.tones) && sameKey && cur.panel === !!next.panel && sameNames(cur.controls, next.controls ?? []);
+    if (!same) { const { key, ...rest } = next; cur.set({ ...(keyed ? { ...rest, key } : rest), controls: next.controls ?? [], panel: !!next.panel, presenting: !!deck }); }
     owns = !!deck;
   };
   sync();

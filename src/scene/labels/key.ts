@@ -7,6 +7,7 @@ import type { LookId } from '../../looks/looks.ts';
 import { rampStops as lensRampStops, deltaStops, legendFor, LG_MAX } from '../lenses/legend.ts';
 import type { LensId } from '../lenses/model.ts';
 import { figureHex } from '../vessels/cel-ink.ts';
+import { keyUnit } from './unit-rule.ts';
 
 export type Scheme = 'light' | 'soft' | 'dark';
 export const schemeOf = (look: LookId): Scheme => (look === 'light' ? 'light' : look === 'soft' ? 'soft' : 'dark');
@@ -18,6 +19,8 @@ export interface KeyModel {
   /** A colour scale (a CSS gradient) or named swatches. */
   scale: { gradient: string; lo: string; hi: string; /** the pressure drop key names its ends; the other scales are a bar alone */ ends: boolean } | null;
   swatches: { colour: string; label: string; short?: string }[] | null;
+  /** The unit the lens counts in, said beside its name once: the reading labels of that unit stand bare (unit-rule.ts); null for a lens that counts in none. */
+  unit: string | null;
   /** The key's words for a screen reader. */
   aria: string;
 }
@@ -41,23 +44,23 @@ export function keyModel(lens: string | null, look: LookId): KeyModel | null {
   if (lens === 'system') {
     const dots = legendFor('system', look).dots!;
     const aria = 'Vessels colored by system: portal, systemic, and the collaterals and shunts between them';
-    return { lens, name: 'System', scale: null, swatches: dots.map((d) => ({ colour: d.colour, label: d.name })), aria };
+    return { lens, name: 'System', scale: null, swatches: dots.map((d) => ({ colour: d.colour, label: d.name })), unit: null, aria };
   }
   const spec = (LABEL_NAMES.LENS_KEY as unknown as Record<string, { name: string; ramp?: string; lo?: string; hi?: string; swatches?: { cssVar: string; label: string; short?: string }[] }>)[lens];
   if (!spec) throw new Error(`no figure key for the lens "${lens}"`);
   const name = spec.name[0].toUpperCase() + spec.name.slice(1);
   if (spec.ramp) {
     return {
-      lens, name, swatches: null,
+      lens, name, swatches: null, unit: keyUnit(lens),
       scale: { gradient: gradientOf(spec.ramp, look), lo: spec.lo!, hi: spec.hi!, ends: ENDS.has(lens) },
-      aria: `Vessels colored by ${spec.name}, ${spec.lo} to ${spec.hi}`,
+      aria: `Vessels colored by ${spec.name}${keyUnit(lens) ? `, in ${keyUnit(lens)}` : ''}, ${spec.lo} to ${spec.hi}`,
     };
   }
   const t = colours(schemeOf(look));
   // Velocity's two ends are the ends of its ramp (what the vessels wear); every other swatch is a token colour put through the vessels' transform, as the legend's dots are.
   const vel = lens === 'velocity' ? lensRampStops(look, 'velocity', 1) : null;
   return {
-    lens, name, scale: null,
+    lens, name, scale: null, unit: keyUnit(lens),
     swatches: spec.swatches!.map((s, i) => {
       const token = t[s.cssVar.replace(/^--/, '')];
       if (!token) throw new Error(`no colour for ${s.cssVar} in the key of "${lens}"`);
@@ -78,3 +81,9 @@ export const lensColours = (lens: LensId): boolean => lens !== 'neutral';
  *  their key is the first row of that card and comes and goes with it; a ramp (pressure, drop, flow, heat) explains the figure's colouring, so it stands in the foot of the story card (key-dock.ts). docs/HUMANIZED-DESIGN.md has the rule. */
 export const CARD_KEY_LENSES: readonly string[] = ['origin', 'firstpass'];
 export const keyPlace = (lens: string): 'card' | 'dock' => (CARD_KEY_LENSES.includes(lens) ? 'card' : 'dock');
+
+/**
+ * One name per lens on a screen (review F-D11, owner W19: "Pressure | Pressure drop" over a key that said "Pressure drop" again). Where a button of the slide carries the lens's name, the key keeps its
+ * unit and its scale and leaves the name to the button; where none does, the key names the lens. Pure: the names are lower case.
+ */
+export const keyNameShown = (lensName: string, controls: readonly string[]): boolean => !controls.includes(lensName.trim().toLowerCase());

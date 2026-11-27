@@ -13,6 +13,12 @@ import { DISC_R, RS_N } from './widths.ts';
 /** Where each zone's name stands along the radius to the flat bottom edge, in shares of the apothem (2D ZONE_Q), and the radius's direction (down, in 2D's y-down plane). */
 export const ZONE_Q = [0.83, 0.51, 0.2] as const;
 export const APOTHEM = 0.866;
+/**
+ * On a portrait phone (390 and 393 px wide are the ones the review measured) the zones' names crowd the tract's own: the middle zone, whose name stands on the sinusoids between the two, ranks under every
+ * station there, so where the two compete it is Zone 2 that is left out and never a station (owner W19, 27 Nov; review A-D11). Zones 1 and 3 keep their rank above the stations, as 2D has them.
+ */
+export const PHONE_PORTRAIT_MAX_W = 430;
+export const zoneRank = (zone: number, vp: { w: number; h: number }): number => (zone === 2 && vp.w <= PHONE_PORTRAIT_MAX_W && vp.h > vp.w ? 40 : 95);
 export const ZONE_WORDS: readonly (readonly [string, string])[] = [['Zone 1', 'periportal'], ['Zone 2', 'midzonal'], ['Zone 3', 'centrilobular']];
 
 export type CapKey = 'triad' | 'sin' | 'cv' | 'ha' | 'bd' | 'lymph';
@@ -36,6 +42,8 @@ export interface CapCtx {
   hide?: boolean;
   /** a slide is on: a pressure carries its unit ("12.3 mmHg"), as every label on a slide does (2D B2, 16 Nov: "Varices 14.4" with no unit on a slide), where in free play the legend says it once */
   unit?: boolean;
+  /** a pressure carries its unit: a slide is on and the lens key does not already say it (labels/unit-rule.ts); defaults to `unit` */
+  pUnit?: boolean;
 }
 
 const WORDS: Record<CapKey, { name: string; short: string; pri: number; tone: string; target: string }> = {
@@ -142,7 +150,7 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
         const sample = ctx.hide ? '?' : OXY_SAMPLE, mkv = (n: string): Form => { const b = boxSize(stationRuns(n, true, false, sample), vp, measure); return form(n, b.w, b.h); };
         forms.unshift(mkv(full), mkv(t)); formsM.unshift({ name: full, value: true }, { name: t, value: true });
       }
-      items.push({ id, ax, ay, au: 0.5, forms, pri: 95, region: true });
+      items.push({ id, ax, ay, au: 0.5, forms, pri: zoneRank(i + 1, vp), region: true });
       meta.set(id, { id, kind: 'zone', forms: formsM, read: ctx.oxygen ? (`O${i + 1}` as 'O1' | 'O2' | 'O3') : null, label: `${t}, ${d}`, target: `lobule:zone${i + 1}` });
     });
   }
@@ -178,7 +186,7 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
     //  that is another one, whose sinusoid is off the screen: the name was left out, wedge slide on an iPhone, 25 Nov)
     const w = WORDS[k], at = stationAt(ctx.net, k === 'sin' && ctx.must?.has('sin') ? framedTriad(ctx.net.triads) : tri, k), [ax, ay] = ctx.proj(at[0], at[1]);
     const reads = READ[k] !== null, must = !!ctx.must?.has(k);
-    const mk = (name: string, v: boolean): Form => { const b = boxSize(stationRuns(name, v, false, ctx.hide ? '?' : k === 'lymph' ? (ctx.unit ? `0,000 ${LYMPH_UNIT}` : '0,000') : ctx.unit ? '00.0 mmHg' : '00.0'), vp, measure); return form(name, b.w, b.h); };
+    const mk = (name: string, v: boolean): Form => { const b = boxSize(stationRuns(name, v, false, ctx.hide ? '?' : k === 'lymph' ? (ctx.unit ? `0,000 ${LYMPH_UNIT}` : '0,000') : (ctx.pUnit ?? ctx.unit) ? '00.0 mmHg' : '00.0'), vp, measure); return form(name, b.w, b.h); };
     const formsM: { name: string; value: boolean }[] = [{ name: w.name, value: reads }];
     const forms: Form[] = [mk(w.name, reads)];
     if (w.short !== w.name) { forms.push(mk(w.short, reads)); formsM.push({ name: w.short, value: reads }); }
@@ -196,7 +204,7 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
 }
 
 /** The reading a station carries, as text (the model's own numbers, one place so a test reads what the layer writes). */
-export function readingText(read: CapMeta['read'], m: { P1: number; P2: number; P3: number; lymph: number; oxy?: ArrayLike<number> }, hide: boolean, unit = false): string {
+export function readingText(read: CapMeta['read'], m: { P1: number; P2: number; P3: number; lymph: number; oxy?: ArrayLike<number> }, hide: boolean, unit = false, pUnit = unit): string {
   if (!read) return '';
   if (hide) return '?';
   if (read === 'lymph') return unit ? `${lymphText(m.lymph)} ${LYMPH_UNIT}` : lymphText(m.lymph);   // (a slide's label carries its unit, as the pressures beside it do: "Lymph 3,580" had a number and no unit, capture 2a54261a)
@@ -208,15 +216,15 @@ export function readingText(read: CapMeta['read'], m: { P1: number; P2: number; 
   const v = m[read as 'P1' | 'P2' | 'P3'];
   if (!Number.isFinite(v)) return '—';
   const f = Math.abs(v).toFixed(1);
-  return (v < 0 && Number(f) !== 0 ? '−' : '') + f + (unit ? ' mmHg' : '');
+  return (v < 0 && Number(f) !== 0 ? '−' : '') + f + (pUnit ? ' mmHg' : '');
 }
 
 /** What a reading changes about where the words may stand: only how wide each prints (its characters), never its value. A pressure that moves by a tenth between two frames must not send the words
  *  through a fade out, a new solve and a fade in (Mohammad, 20 Nov: "the labels in the lobule view are flashing"): the signature the layout is judged by holds these lengths, and the text itself is
  *  written again in place (LobuleCaptions refreshReadings). */
-export function readingSig(m: { P1: number; P2: number; P3: number; lymph: number; oxy?: ArrayLike<number> } | null | undefined, unit = false): string {
+export function readingSig(m: { P1: number; P2: number; P3: number; lymph: number; oxy?: ArrayLike<number> } | null | undefined, unit = false, pUnit = unit): string {
   if (!m) return '-';
-  return (['P1', 'P2', 'P3', 'lymph', 'O1', 'O2', 'O3'] as const).map((k) => readingText(k, m, false, unit).length).join(',');
+  return (['P1', 'P2', 'P3', 'lymph', 'O1', 'O2', 'O3'] as const).map((k) => readingText(k, m, false, unit, pUnit).length).join(',');
 }
 
 /** The canvas the lobule's names may use: the screen inside its safe areas and under the top bar, down to the foot of the room the lobule is framed in plus 8 px (2D lobule-zoom.js liveFreeInto: the room
