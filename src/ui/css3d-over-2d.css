@@ -104,10 +104,8 @@ html.thumb-ui .sheet-layer { clip-path: inset(0 0 max(0px, calc(var(--sheet-foot
 /* ── the menu's rows and groups fade and give their room back (ui/fade.tsx) instead of [hidden] display swaps ── */
 /* a row is wrapped in .um-li-in (the li is the collapsing grid), which takes the li's own layout and the rules that named the li as the row's parent */
 .um-g li > .um-li-in { position: relative; display: flex; flex-wrap: wrap; align-items: center; scroll-margin: 28px 0 36px; }
-.um-g li.um-new > .um-li-in > .um-row { background: var(--accent-soft); }
 @media (pointer: coarse) {
   .um-g li > .um-li-in > .um-info { align-self: stretch; height: auto; min-height: 36px; border-radius: 0 var(--r-control) var(--r-control) 0; }
-  .um-g li.um-new > .um-li-in > .um-row + .um-info { background: var(--accent-soft); }
 }
 /* the empty note is always in the tree now; 2D's :not([hidden]) is always true, so the menu's columns take the room only while the note is on */
 html .umenu:has(.um-empty[data-fade="off"]) .um-cols { flex: 1 1 auto; }
@@ -142,9 +140,7 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 .deck-ui.deck-ui.deck-ui.deck-ui.deck-ui.deck-ui:not(.low) .pz-data .pz-tool[data-kind="beats"] .pt-box { height: calc(var(--pz-chart-px) * var(--pz-fit, 1)); min-height: 0; flex: 0 0 auto; aspect-ratio: auto; }
 /* (the plane in a data card: the table height too, held to the card's room as before; the 2D rules sized it by the card's width on a stacked screen and 30 pzh on a floating one) */
 .deck-ui.deck-ui.deck-ui.deck-ui:not(.low):not(.stack) .pze-plot.pze-incard:not(.pze-short) { height: min(calc(var(--pz-chart-px) * var(--pz-fit, 1)), max(120px, calc(var(--pz-room, 9999px) - 5.5em))); }
-.deck-ui.deck-ui.deck-ui.deck-ui:not(.low):not(.stack) .pze-plot.pze-incard.pze-ownwords:not(.pze-short) { height: calc(min(var(--pz-chart-px), max(120px, calc(var(--pz-room, 9999px) - 5.5em))) + 1.3em + 6px); }
 .deck-ui.deck-ui.deck-ui.deck-ui.stack:not(.low) .pze-plot.pze-incard:not(.pze-short) { height: min(calc(var(--pz-chart-px) * var(--pz-fit, 1)), max(150px, var(--pz-ph, 9999px))); aspect-ratio: auto; }
-.deck-ui.deck-ui.deck-ui.deck-ui.stack:not(.low) .pze-plot.pze-incard.pze-ownwords:not(.pze-short) { height: calc(min(var(--pz-chart-px) * var(--pz-fit, 1), max(150px, var(--pz-ph, 9999px))) + 1.3em + 6px); }
 
 /* A docked action card stands over the dock (--card-occ, Shell.tsx): the zoom pill rides above it by its own transform, as it does above a Tests sheet (--sheet-h); the note does the same in shell.css (23 Nov, Mohammad: the note covered the card's rows) */
 /* (and over a case's bar by its lift, case/case.css) */

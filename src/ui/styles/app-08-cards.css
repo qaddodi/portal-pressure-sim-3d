@@ -9,31 +9,10 @@
 @media (hover: hover) { .tl-hist:hover { border-color: var(--border-strong); background: var(--surface-2); } }
 .tl-hc:empty { display: none; }   /* an empty badge would still take a grid row and push the clock icon up */
 .tl-hc:not(:empty) { animation: scale-settle var(--d-small) var(--ease); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--surface-3); color: var(--text-2); display: inline-grid; place-items: center; font-variant-numeric: tabular-nums; }   /* (One 44 px width for every speed, 1x to "1 wk/s": it was 30 px, then as wide as its words, so Pause, Compare and the clock stepped 20 px sideways, 16 Nov 2026.) */
-/* Events: a colored flag standing on the rail, so they read apart from the learner's changes. */
-.tl-pop-empty { margin: 0; padding: 8px; font-size: var(--fs-14); line-height: 1.45; color: var(--text-3); }
-.tl-pop-row { transition: opacity var(--d-small) var(--ease); }
-.tl-pop-row.future { opacity: .5; }   /* (going back fades the later rows down, and a new step forward brings them up again, instead of changing at once) */
-.tl-history { max-height: min(320px, 45vh); }
-.menu.as-sheet .tl-history { max-height: none; }
+/* Events: a colored flag standing on the rail, so they read apart from the learner's changes. */   /* (going back fades the later rows down, and a new step forward brings them up again, instead of changing at once) */
 /* History reads as a vertical timeline: a rail joins the markers, each marker sits on the first line
    of its row, and the list scrolls inside soft top and bottom edges instead of being cut at the card's
    edge. On a phone the list scrolls inside the sheet (the sheet still pulls down from the list's top). */
-.tl-pop.tl-history { width: min(360px, calc(100vw - 24px)); padding: 10px 2px; overscroll-behavior: contain;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent);
-  mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent); }
-.menu.as-sheet .tl-pop.tl-history { max-height: calc(100dvh - var(--top-safe, 64px) - 12px - 24px); overflow: auto; }
-.tl-history .tl-pop-row { position: relative; padding: 7px 6px 8px; border-bottom: 0; border-radius: var(--r-control); }
-.tl-history .tl-pop-row::before { content: ''; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: var(--border-strong); }
-.tl-history .tl-pop-row:first-child::before { top: 19px; }
-.tl-history .tl-pop-row:last-child::before { bottom: auto; height: 19px; }
-.tl-history .tl-pop-row:only-child::before { display: none; }
-.tl-history .tl-pop-head { align-items: start; }
-.tl-history .tl-pop-head b { padding-top: 3px; }
-.tl-history .tl-pop-head .when { padding-top: 4px; }
-.tl-history .tl-dot { position: relative; z-index: 1; width: 10px; height: 10px; margin-top: 7px; transform: none; }
-.tl-history .tl-dot.change { transform: rotate(45deg) scale(.9); }
-.tl-history .tl-pop-d { padding-left: 16px; }
-@media (hover: hover) { .tl-history .tl-pop-row:hover { background: var(--surface-2); } }
 /* Readouts */
 .metric .k { font-weight: 600; color: var(--text-2); }
 .metric[data-sev="ok"] .status { color: var(--text-3); font-weight: 500; }
@@ -51,7 +30,6 @@
 .vdock .tl-time { font-size: var(--fs-14); color: var(--text); min-width: 0; }
 .timeline .tl-restart { display: none; }
 @media (max-width: 1599px) { .vdock .tl-pin span { display: none; } .vdock .tl-pin { padding: 0 8px; } }
-@media (min-width: 768px) and (orientation: landscape), (min-width: 1101px) { .tl-phone-only { display: none !important; } }
 @media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
   .vdock .tl-pin { display: none; }
   .readouts:not(.all) .metric .v { font-size: var(--fs-16); }
@@ -283,7 +261,6 @@ canvas.wgl.wgl, canvas.wgl.wgl + canvas.trace-gl { position: absolute; left: cal
    place, way in and way out are twins of the menu's own rules (made from this stylesheet at the first plate), its size the menu's. The menu's own
    background and shadow give way (.box-gl) once the plate is drawn. */
 .bp { display: block; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; pointer-events: none; min-width: 0; max-width: none; max-height: none; overflow: visible !important; }
-.box-gl { background: none !important; box-shadow: none !important; }
 
 .vdock .stage-bar.bottom { height: auto; min-height: 60px; }
 .vdock .timeline { height: auto; }
@@ -329,13 +306,13 @@ canvas.wgl.wgl, canvas.wgl.wgl + canvas.trace-gl { position: absolute; left: cal
   .instrument-workspace .dock-pane[data-pane="profile"] .instrument-view .chart-box { flex: 1 1 auto; height: auto; min-height: 240px; }
   /* Paired with Over time, each pane has half the card: the charts shrink to fit their half, so the tilted
      station names and the trace chips stay inside their pane instead of running under the next one. */
-  .instrument-workspace .dock-body.pair .dock-pane:is([data-pane="profile"], [data-pane="scope"]), .instrument-workspace .dock-pane.pane-pair:is([data-pane="profile"], [data-pane="scope"]) { overflow: hidden; }
-  .instrument-workspace .dock-body.pair .dock-pane[data-pane="profile"] .instrument-view .chart-box, .instrument-workspace .dock-pane.pane-pair[data-pane="profile"] .instrument-view .chart-box { flex: 1 1 0; min-height: 140px; }
-  .instrument-workspace .dock-body.pair .instrument-view.pt .pt-box, .instrument-workspace .dock-pane.pane-pair .instrument-view.pt .pt-box { min-height: 120px; }
+  .instrument-workspace .dock-body.pair .dock-pane:is([data-pane="profile"], [data-pane="scope"]) { overflow: hidden; }
+  .instrument-workspace .dock-body.pair .dock-pane[data-pane="profile"] .instrument-view .chart-box { flex: 1 1 0; min-height: 140px; }
+  .instrument-workspace .dock-body.pair .instrument-view.pt .pt-box { min-height: 120px; }
 }
 /* On a short desktop screen the paired Pressure pane drops its three-line caption, so the chart keeps its height. */
 @media (min-width: 1024px) and (pointer: fine) and (max-height: 999px) {
-  .instrument-workspace .dock-body.pair .dock-pane[data-pane="profile"] .chart-side .sub, .instrument-workspace .dock-pane.pane-pair[data-pane="profile"] .chart-side .sub { display: none; }
+  .instrument-workspace .dock-body.pair .dock-pane[data-pane="profile"] .chart-side .sub { display: none; }
 }
 
 /* Phone: while the figure is panned or zoomed (and three seconds after), the top bar's second row (view, colour legend) slides away
@@ -368,7 +345,7 @@ canvas.wgl.wgl, canvas.wgl.wgl + canvas.trace-gl { position: absolute; left: cal
 }
 
 /* The switch inside the Pressure tab: along the circuit, or the same pressures over time. */
-.dock-body.pair .pressure-switch:not(.ir-switch):not(.ir-lens):not(.ir-sweep), .dock-pane.pane-pair .pressure-switch:not(.ir-switch):not(.ir-lens):not(.ir-sweep) { display: none; }   /* (IR's Measure | TIPS switch is not a pair's: it stays) */
+.dock-body.pair .pressure-switch:not(.ir-switch):not(.ir-lens):not(.ir-sweep) { display: none; }   /* (IR's Measure | TIPS switch is not a pair's: it stays) */
 .pressure-switch { display: flex; gap: 2px; flex: none; align-self: flex-start; padding: 2px; border-radius: 9px; background: var(--surface-2); }
 .ps-btn { height: 26px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--text-2); cursor: pointer; font: 600 var(--fs-12) var(--font-ui); white-space: nowrap; transition: none; }
 @media (hover: hover) { .ps-btn:hover { color: var(--text); } }

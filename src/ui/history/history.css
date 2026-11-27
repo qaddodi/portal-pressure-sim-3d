@@ -88,5 +88,4 @@
 /* ── the empty History, and the count the bar shows ── */
 .hist-list { display: flex; flex-direction: column; padding: 0 6px; }
 .hist-empty { margin: 6px 14px 14px; font: 400 var(--t-body) / 1.45 var(--ui); color: var(--text-2); } .hist-empty b { color: var(--text); font-weight: 600; }
-.sh-count { font: 600 var(--t-cap) / 1 var(--ui); color: var(--text-3); font-variant-numeric: tabular-nums; }
 .hist-chart { margin: 2px 6px 4px; padding: 9px 6px 10px; border: 0; border-bottom: 1px solid var(--edge); background: none; font: 600 var(--t-body) / 1.25 var(--ui); color: var(--accent); text-align: left; }

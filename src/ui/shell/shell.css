@@ -48,11 +48,9 @@
 .sh-pill[data-icon-only] { width: var(--sh-h); padding: 0; justify-content: center; }
 .sh-pill kbd { font: 600 var(--t-cap) / 1 var(--ui); color: var(--text-3); border: 1px solid var(--edge); border-radius: var(--r-control); padding: 3px 5px; }
 .sh-pill[disabled] { opacity: 0.45; cursor: default; }
-.sh-pill .sh-chev { width: 14px; height: 14px; color: var(--text-3); }
 .sh-pill[data-off="true"] { color: var(--text-3); }
 
 /* ── popovers (anchored to their button, always in the page) ── */
-.sh-anchor { position: relative; display: inline-flex; }
 .sh-pop { position: fixed; z-index: 30; overflow-y: auto; overscroll-behavior: contain; min-width: 260px; max-width: min(360px, calc(100vw - 24px)); padding: 8px; border-radius: var(--r-sheet); border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 16px 40px -12px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2));
   opacity: 0; visibility: hidden; transform: translateY(var(--sh-from, -6px)); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
@@ -97,10 +95,9 @@
 .sh-tabs { display: flex; gap: 4px; padding: 4px 14px 8px; }
 .sh-tabs button { flex: 1; height: 44px; border-radius: var(--r-card); border: 1px solid var(--edge); background: transparent; display: inline-flex; gap: 8px; align-items: center; justify-content: center; font: 600 var(--t-body) / 1 var(--ui); color: var(--text-2); }
 .sh-tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--text); border-color: transparent; }
-.sh-note { margin: 4px 12px 8px; color: var(--text-2); font: 500 var(--t-lab) / 1.35 var(--ui); }
 .sh-fig { display: flex; align-items: center; gap: 4px; padding: 4px 6px 8px; }
 .sh-fig button { height: 44px; border-radius: var(--r-card); border: 1px solid var(--edge); background: transparent; font: 600 var(--t-body) / 1 var(--ui); }
-.sh-fig button:first-child, .sh-fig button:last-child { width: 44px; } .sh-fig .sh-fig-now { flex: 1; }
+.sh-fig button:first-child, .sh-fig button:last-child { width: 44px; }
 .sh-fig button[disabled] { opacity: 0.4; }
 
 /* the search sheet */
@@ -112,7 +109,6 @@
 .sh-hit-row[aria-selected="true"] { background: var(--accent-soft); }
 .sh-hit-row .sh-g { font: 600 var(--t-cap) / 1.3 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
 .sh-hit-row .sh-h { grid-column: 2; color: var(--text-2); font-size: var(--t-lab); }
-.sh-empty { padding: 14px 12px 18px; color: var(--text-2); font: 500 var(--t-body) / 1.4 var(--ui); } .sh-empty b { display: block; color: var(--text); margin-bottom: 4px; }
 .sh-foothints { display: flex; gap: 16px; padding: 8px 16px 12px; color: var(--text-3); font: 500 var(--t-cap) / 1 var(--ui); border-top: 1px solid var(--edge); } .sh-foothints kbd { font: 600 var(--t-cap) / 1 var(--ui); margin-right: 4px; }
 .sh-root[data-bottom="true"] .sh-foothints { display: none; }
 
@@ -161,27 +157,16 @@ html.thumb-ui .sh-toast { left: 50%; width: min(440px, calc(100vw - 24px)); }
 /* the Present menu: a talk's row, its ⓘ preview and its acts; your scripts */
 .sh-lrow { display: grid; grid-template-columns: 1fr 44px; align-items: center; }
 .sh-lrow > .sh-row { min-width: 0; }
-.sh-info { width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--text-3); display: grid; place-items: center; }
-.sh-info svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.sh-info[aria-expanded="true"] { color: var(--accent); }
 .sh-pv { grid-column: 1 / -1; margin: 0 10px 8px; padding: 12px 14px; border-radius: var(--r-sheet); background: color-mix(in srgb, var(--text) 5%, transparent); display: grid; gap: 8px; }
-.sh-pv-meta { font: 600 var(--t-cap) / 1.2 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
 .sh-pv h3 { margin: 0; font: 600 var(--t-val) / 1.25 var(--display); }
 .sh-pv p { margin: 0; font: 400 var(--t-body) / 1.4 var(--ui); color: var(--text-2); }
 .sh-pv ul { margin: 0; padding-left: 1.2em; font: 400 var(--t-body) / 1.4 var(--ui); color: var(--text-2); }
 .sh-gl { display: flex; align-items: center; justify-content: space-between; }
-.sh-gacts { display: flex; gap: 4px; }
-.sh-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--accent); font: 600 var(--t-body) / 1 var(--ui); }
-.sh-link svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-.sh-note { margin: 4px 10px 12px; color: var(--text-3); font: 400 var(--t-body) / 1.4 var(--ui); }
 
 /* ── the slide list (G) and the black screen (B . W) ── */
 .dk-jump { position: absolute; left: 50%; bottom: var(--sheet-foot, 0px); transform: translate(-50%, 0); width: min(560px, calc(100% - 24px)); max-height: min(70svh, calc(100% - 120px)); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--edge); border-radius: var(--r-sheet); box-shadow: 0 12px 40px rgb(0 0 0 / 0.22); overflow: hidden; pointer-events: auto; opacity: 0; visibility: hidden; transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .dk-jump[data-open="true"] { opacity: 1; visibility: visible; transition-delay: 0s; }
 .dk-jump:not([data-open="true"]) { transform: translate(-50%, 8px); }
-.dk-jump-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 8px 18px; font: 600 var(--t-body) var(--ui); color: var(--text); }
-.dk-jump-h button { width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); display: grid; place-items: center; }
-.dk-jump-h svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .dk-jump-list { overflow-y: auto; padding: 0 8px 10px; }
 .dk-jump-list h3 { margin: 10px 10px 4px; font: 600 var(--t-cap) var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
 .dk-jump-list ol { list-style: none; margin: 0; padding: 0; }
@@ -228,8 +213,6 @@ html.thumb-ui .sh-toast { left: 50%; width: min(440px, calc(100vw - 24px)); }
 /* (these two element resets weigh nothing, `:where` over the whole selector: `.sh-root button` weighed more than the 2D one-class rules, so it won every tie and stripped `.tb-act` of its padding 0 11px, border, background and its 600 14px font) */
 :where(.sh-root button:not(#app button)) { border: 0; background: transparent; padding: 0; }   /* (inside #app the buttons are 2D's: it resets none of these, its own rules set what they need and the rest is the browser's: .sheet-grab is padding 1px 6px, a 2px border, cursor default) */
 .sh-root :where(.sh-ic) { flex: none; }
-.sh-chev { width: 16px; height: 16px; color: var(--text-3); transition: rotate var(--d-small) var(--ease-arrive); }
-[aria-expanded="true"] > .sh-chev, [aria-expanded="true"] .sh-chev { rotate: 180deg; }
 /* The always-on chrome (top bar, view pill, dock, zoom group, credit, frame rate) is the 2D app's own markup and stylesheets (src/ui/styles); chrome-3d.css only lays them over the canvas. */
 .sh-pop { position: fixed; }
 
