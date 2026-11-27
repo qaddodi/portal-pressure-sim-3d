@@ -8,7 +8,8 @@ import { Chart, type ChartCtx } from '../charts/Chart.tsx';
 import { readBox } from '../layout-snap.ts';
 import { useShell } from '../shell/store.ts';
 import { originName, openHistoryFromChart, useOrigin } from '../shell/origin.ts';
-import { useThumb } from '../shell/thumb.ts';
+import { useSurfaceMode } from '../surface/mode.ts';
+import { GrabBar } from '../surface/parts.tsx';
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { useUi } from '../ui-store.ts';
 import { Chooser } from './Chooser.tsx';
@@ -29,7 +30,7 @@ export function TimelineCard() {
   const data = useBigData(true);
   const on = useBig((s) => s.on), hidden = useBig((s) => s.hidden), win = useBig((s) => s.win), cursor = useBig((s) => s.cursor), pin = useBig((s) => s.pin);
   const panel = useBig((s) => s.panel), raised = useBig((s) => s.raised), set = useBig.getState().set;
-  const vp = useUi((s) => s.vp), thumb = useThumb(), compact = thumb || vp.w < 760 || vp.h < 520;
+  const vp = useUi((s) => s.vp), thumb = useSurfaceMode() === 'sheet', compact = thumb || vp.w < 760 || vp.h < 520;
   const full = data.full;
   const [drag, setDrag] = useState(false), [fresh, setFresh] = useState(false), [open, setOpen] = useState<string | null>(null);
   const target = useMemo<[number, number]>(() => (win ? slid(win, full) : [full[0], full[1]]), [win, full]);
@@ -200,7 +201,7 @@ export function TimelineCard() {
         )}
       </div>
       <aside ref={side} className="bt-side" aria-label={panel === 'graph' ? BT.graph : BT.happened} inert={compact && !raised}>
-        {compact && <span className="sh-grabbar" aria-hidden="true" />}
+        {compact && <GrabBar />}
         {compact ? <header className="bt-tabs"><h2>{panel === 'graph' ? BT.graph : BT.happened}</h2><button type="button" className="bt-done" onClick={() => set({ raised: false })}>{BT.done}</button></header> : sideHead}
         <div className="bt-body">
           {panel === 'graph' ? <Chooser data={data} at={at} /> : <Happened data={data} onPick={pick} scroll={compact} />}

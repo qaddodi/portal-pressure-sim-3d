@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { SURFACES } from '../src/ui/surface/kinds.ts';
 import { keyboardFit, dialogFoot, dialogAlign, trapStep, DIALOG_EDGE, type DialogId, type DialogSize } from '../src/ui/surface/dialog-fit.ts';
 import { openDialog, dialogKey, dialogPress, dialogOpen, cancelTopDialog, openDialogIds } from '../src/ui/surface/dialog-stack.ts';
+import { lintFiles } from '../scripts/lint-rules.mjs';
 
 const read = (p: string) => readFileSync(p, 'utf8');
 const walk = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(f) ? [p] : []; });
@@ -38,24 +39,21 @@ test('every surface of kind dialog in SURFACES renders through <Dialog>, at its 
   for (const el of ['<ResetDialog />', '<DeckDialogs />', '<CaseGuardDialog />']) assert.ok(sheets.includes(el) && !clip.includes(el), `${el} outside the clip`);
 });
 
-test('only the shell is a modal: no file outside src/ui/surface/ sets aria-modal, draws a scrim or listens for Escape for a dialog', () => {
-  // (the menus that are a sheet on a phone say aria-modal for that sheet: the menu shell's, stage 4 of the same plan, moves them into src/ui/surface/)
-  const MENU_SHEETS = new Set(['src/ui/shell/Menu.tsx', 'src/ui/menu/UMenu.tsx']);
+test('only the shell is a modal: no file outside src/ui/surface/ sets aria-modal or a dialog role, draws a scrim or listens for Escape for a dialog', () => {
+  // (aria-modal and a dialog's role outside the shells are the lint rule surface-outside-shell's, scripts/lint-rules.mjs: a role handed to the shell, `<Dialog role="alertdialog">`, is
+  // the shell's to write; the rule is proved in tests/lint-rules.test.ts and the repo kept at 0 hits there)
+  const lint = (f: string) => (lintFiles([{ path: f, text: read(f) }]) as { rule: string; line: number }[]).filter((h) => h.rule === 'surface-outside-shell');
   const strays: string[] = [];
   for (const f of walk('src')) {
     if (f.startsWith('src/ui/surface/') || f.includes('/debug/')) continue;
     const c = code(f);
-    // (a JSX attribute or a setAttribute; a selector that only reads it, `[aria-modal="true"]`, is not one)
-    if (/\saria-modal=|setAttribute\(['"]aria-modal/.test(c) && !MENU_SHEETS.has(f)) strays.push(`${f}: aria-modal`);
-    if (MENU_SHEETS.has(f) && /aria-modal="true"/.test(c)) strays.push(`${f}: a menu is modal only as a phone sheet`);
     if (/className="sh-scrim"|className=\{?["'`]?(?:pal|modal)-back/.test(c)) strays.push(`${f}: a scrim or backdrop of its own`);
   }
   assert.deepEqual(strays, []);
   for (const file of new Set(Object.values(OWNER).map(([f]) => f))) {
     const c = code(file);
     assert.doesNotMatch(c, /'Escape'|"Escape"/, `${file}: Esc is the shell's (surface/dialog-stack.ts)`);
-    // (a question that must be answered asks the shell for an alertdialog: `<Dialog role="alertdialog">`)
-    assert.doesNotMatch(c.replace(/<Dialog [^>]*>/g, ''), /role="(?:alert)?dialog"/, `${file}: the role is the shell's`);
+    assert.deepEqual(lint(file), [], `${file}: the role and aria-modal are the shell's`);
     assert.doesNotMatch(c, /addEventListener\('keydown'/, `${file}: no key listener of its own`);
   }
   // useKeys' dialog step goes through the same shell

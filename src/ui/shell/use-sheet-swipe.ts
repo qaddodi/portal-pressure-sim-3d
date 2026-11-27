@@ -18,8 +18,4 @@ export function useSheetSwipe(ref: RefObject<HTMLElement | null>, onClose: () =>
   useEffect(() => () => { wired.current?.off(); wired.current = null; }, []);
 }
 
-/** The shell's frames are a bottom sheet on a phone: `.sh-root[data-bottom="true"][data-mode="free"]` (shell.css). */
-export const frameIsSheet = (el: HTMLElement | null): boolean => { const r = el?.closest<HTMLElement>('.sh-root'); return !!r && r.dataset.bottom === 'true' && r.dataset.mode === 'free'; };
-
-/** The phone's layout (the thumb dock): what makes a popover or a search sheet a sheet that can be pulled down. */
-export const onPhone = (): boolean => typeof document !== 'undefined' && document.documentElement.classList.contains('thumb-ui');
+// (whether a surface is a sheet now is surface/mode.ts's one answer, sheetMode(): the frame and popover rules that stood here, frameIsSheet and onPhone, are gone)

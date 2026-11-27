@@ -35,6 +35,7 @@ import { pushPage, type Push } from '../surface/page-push.ts';
 import { openSet, remember, startsOpen } from './keep.ts';
 import { reduced } from '../a11y/motion.ts';
 import { D_SMALL, EASE_ARRIVE } from '../motion.ts';
+import { DONE_MARK_MS } from '../surface/motion.ts';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
 import { Fade } from '../fade.tsx';
@@ -110,7 +111,7 @@ function Fluid({ id, label, sub }: { id: string; label: string; sub: string }) {
   useEffect(() => () => clock.cancel(t.current), []);
   return (
     <button type="button" className="order-btn fluid-btn" data-given={given ? '' : undefined} title={`${label}: ${sub}`}
-      onClick={() => { giveFluid(appEnv, id); setGiven(true); clock.cancel(t.current); t.current = clock.after(() => setGiven(false), 1400); }}>
+      onClick={() => { giveFluid(appEnv, id); setGiven(true); clock.cancel(t.current); t.current = clock.after(() => setGiven(false), DONE_MARK_MS); }}>
       <span className="ob-t">{label}<small>{sub}</small></span>
     </button>
   );
@@ -273,7 +274,7 @@ export function TreatCard() {
   const vars = { ...layoutVars(vp, layoutClass(thumb)), '--instr-occ': '0px', ...(thumb ? stopVars(stops) : shell.vars) } as React.CSSProperties;
   return (
     <section ref={ref} className="treat-card tr-card has-plate sf-panel" {...shell.attrs} id="treatCard" hidden={!open} data-open={open} data-bottom={thumb} data-device={device}
-      data-page={page || undefined} data-sheet={thumb ? sheet.at : undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
+      data-page={page || undefined} data-sheet={thumb ? sheet.at : undefined} style={vars} aria-label={L.treat} inert={!open}>
       <div className="sheet-plate" aria-hidden="true" />
       <SheetGrab label="Resize Treat" onGrab={sheet.grab} />
       <div className="tr-in">

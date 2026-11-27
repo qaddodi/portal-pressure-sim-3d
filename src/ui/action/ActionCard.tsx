@@ -234,7 +234,7 @@ export function ActionCard() {
   const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${sheetFoot(device)}px)`, ...stopVars(stops) } : (shell.vars as CSSProperties | null) ?? undefined;
   return (
     <section ref={ref} className="ac-card sf-panel" {...shell.attrs} data-open={open} data-bottom={bottom || undefined} data-device={device} data-sheet={bottom ? sheet.at : undefined}
-      style={style} role="dialog" aria-label="Actions" inert={!open}>
+      style={style} aria-label="Actions" inert={!open}>
       <i ref={plate} className="ac-plate" aria-hidden="true" />
       <div className="ac-grab" aria-hidden="true"><i /></div>
       <SheetGrab label="Resize the card" onGrab={sheet.grab} bar={false} />

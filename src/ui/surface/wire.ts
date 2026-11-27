@@ -2,7 +2,8 @@
 // (usePanelOrder, oldest first); when a panel comes up, the table says which open panels it puts away, and each is closed through its own store, exactly as its X would close it.
 // The order is what the right column places its panels by (useColumnStep: the first keeps the right edge, panel-place.ts columnSteps) and what Esc closes first (the newest,
 // keys/escape.ts); a panel opened again while it is open keeps its place in it.
-// History, Compare and Why each have their own open flag (shell/store.ts `panels`); the timeline chart still stands in the menus' one slot (useShell.sheet) until it is a panel.
+// History, Compare and Why each have their own open flag (shell/store.ts `panels`); the timeline chart, a panel of the shell since stage 6
+// (bigtime/TimelineSheet.tsx), keeps its open state in the menus' one slot (useShell.sheet), where History's "See as a chart" and its Back route through it (shell/origin.ts).
 // Where every surface is a sheet (a phone, an upright iPad) a menu coming up still takes the place of History, Compare and Why, as it did when they shared its slot.
 import { useShell, SHELL_PANEL_IDS, isShellPanel } from '../shell/store.ts';
 import { useTreat } from '../treat/store.ts';
@@ -14,7 +15,7 @@ import { putsAway, SLOT_PANELS, type ColumnFits, type SlotPanel } from './slots.
 import { create } from 'zustand';
 import { columnSteps, columnWidth, fitsTogether, panelBand, panelPlace, placedBox, PANEL_IN } from './panel-place.ts';
 import { testsPlace } from '../tests/place.ts';
-import type { PanelId } from './kinds.ts';
+import { PANEL_ROLE, SURFACES, type PanelId } from './kinds.ts';
 import { useEffect, useLayoutEffect, useState, type RefObject } from 'react';
 import { publishPanel } from './room.ts';
 import { leaveCss } from './motion.ts';
@@ -136,16 +137,18 @@ export function usePanelShell(id: PanelId, open: boolean, own: RefObject<HTMLEle
   const vp = useUi((s) => s.vp), device = useUi((s) => s.device);
   const step = useColumnStep(id);
   const z = usePanelOrder((s) => (s.order as readonly string[]).indexOf(id));
-  const place = float ? panelPlace(id, vp, device, { step }) : null;
+  // (the full-width chart covers the figure: its box is its own card's, bigtime.css, and there is no room beside it to pan the figure to, so it is neither placed nor published)
+  const column = SURFACES[id].column;
+  const place = float && column !== 'full' ? panelPlace(id, vp, device, { step }) : null, placed = !!place;
   // the box's own height, from an observer (never read in a frame): a fitted panel publishes as much of the room as it takes
   const [h, setH] = useState(0);
   useLayoutEffect(() => {
     const el = own.current;
-    if (!float || !open || !el || typeof ResizeObserver !== 'function') { setH(0); return; }
+    if (!placed || !open || !el || typeof ResizeObserver !== 'function') { setH(0); return; }
     const ro = new ResizeObserver((es) => { const b = es[0]?.borderBoxSize?.[0], v = Math.round(b ? b.blockSize : es[0]?.contentRect.height ?? 0); setH((o) => (o === v ? o : v)); });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [float, open]);
+  }, [placed, open]);
   // the one room channel: open in float mode, the box it stands in at rest (its step included); a sheet's room is its own (Treat's, the action card's)
   const rect = place && open && h > 0 ? placedBox(place, h) : null;
   const key = rect ? `${rect.x},${rect.y},${rect.w},${rect.h}` : '';
@@ -160,6 +163,10 @@ export function usePanelShell(id: PanelId, open: boolean, own: RefObject<HTMLEle
     '--pl-x': px(place.rect.x), '--pl-y': px(place.rect.y), '--pl-w': px(place.rect.w), '--pl-max-h': px(place.maxH), '--pl-step': px(place.step),
     '--pl-in-x': px(place.column === 'left' ? -PANEL_IN : place.column === 'right' ? PANEL_IN : 0), '--pl-z': String(Math.max(0, z)), '--pl-leave': `${leaveCss('panel', 'float')}ms`,
   } : null;
-  const attrs = { 'data-panel': id, 'data-surface': float ? 'float' : 'sheet', 'data-column': place?.column, 'data-tall': place?.tall || undefined, 'data-plate': plate || undefined };
+  // (the role is the shell's: a panel's box is a non-modal dialog on every device, lint surface-outside-shell)
+  const attrs = {
+    role: PANEL_ROLE, 'data-panel': id, 'data-surface': float ? 'float' : 'sheet', 'data-column': float ? column : undefined,
+    'data-tall': place?.tall || undefined, 'data-plate': plate || undefined,
+  };
   return { float, attrs, vars };
 }

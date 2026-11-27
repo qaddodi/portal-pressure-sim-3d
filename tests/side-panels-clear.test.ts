@@ -50,7 +50,8 @@ test('every surface that stands at the right edge is a panel that publishes its 
   // (History, Compare and Why no longer pin themselves: the panel shell places every panel by the one rule, and publishes its box)
   const panel = readFileSync('src/ui/surface/wire.ts', 'utf8'), pcss = readFileSync('src/ui/surface/panel.css', 'utf8');
   assert.match(panel, /publishPanel\(id, rect && place \? \{ rect, side: place\.column === 'left' \? 'left' : 'right' \} : null\)/);
-  assert.match(pcss, /\.sf-panel\[data-surface="float"\] \{[^}]*left: var\(--pl-x\) !important;[^}]*right: auto !important;/);
+  // (every panel but the full-width chart, which covers the figure and takes no room: surface/wire.ts usePanelShell)
+  assert.match(pcss, /\.sf-panel\[data-surface="float"\]:not\(\[data-column="full"\]\) \{[^}]*left: var\(--pl-x\) !important;[^}]*right: auto !important;/);
   for (const k of ['history', 'compare', 'why']) assert.ok(!rules.some((r) => r.sel.includes(`.sh-sheet[data-kind="${k}"]`) && /(^|;)\s*(right|width):/.test(r.body)), `${k} has no place of its own`);
   // the dead sheet boxes of the surfaces that stopped being Frames (the main menu, Settings, Help, Search) are gone, and with them their reach rules
   for (const [f, css] of all) assert.doesNotMatch(css, /\.sh-sheet\[data-kind="(menu|settings|help|search)"\]/, f);

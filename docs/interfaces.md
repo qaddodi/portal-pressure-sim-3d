@@ -7,7 +7,7 @@ Integration branch: `claude/project-thread-ge1swr` (publishes the site). Work on
 |---|---|---|
 | `AGENTS.md`, `CLAUDE.md`, `package.json`, `index.html`, `vite.config.ts`, `src/main.tsx`, `src/App.tsx`, `src/boot/`, `src/looks/`, `src/state/`, `src/clock/`, `src/engine/`, `src/ui/perf/`, `scripts/`, `.github/` | Foundation | |
 | `src/scene/` (Stage, materials, anatomy, camera, catheter, highlight, labels) | Scene | `src/scene/Stage.tsx` mounts the one R3F canvas; the figure is `src/scene/scene.ts` (`CelScene`: its state, with its methods in `src/scene/parts/`, one file per frame system), driven through `sceneApi` / `cel` in `src/scene/api.ts` |
-| `src/ui/cards/`, `src/ui/wallet/`, `src/ui/shell/`, `src/ui/settings/` | Cards | the chrome: `ui/shell/Shell.tsx` (bars, menus, sheets) and `ui/shell/global.css` |
+| `src/ui/cards/`, `src/ui/wallet/`, `src/ui/shell/`, `src/ui/settings/`, `src/ui/surface/` | Cards | the chrome: `ui/shell/Shell.tsx` (bars, menus, sheets) and `ui/shell/global.css`; the surface shells (below) |
 | `src/decks/`, `src/ui/deck/`, `scripts/copy-decks.mjs` | Deck | |
 
 ## The clock (`src/clock/`)
@@ -49,6 +49,34 @@ R3F: `<Canvas frameloop="never">` with `<ClockBridge/>` (`src/clock/r3f.tsx`) in
 - Looks (`src/looks/looks.ts`): `LOOKS[id]` has every UI token and 3D tone (plate, ink, liver…, portal, systemic, `shadeK`); `applyLook` writes CSS variables
   (`--bg --surface --glass --text --text-2 --text-3 --accent --accent-soft --ok --caution --danger --sys --edge --shadow-rgb --sa --organ-body --ink --organ-* --vein-*`, plus `--ui` and `--display` font families from global.css) and `data-look` on `<html>`.
   The scene reads the table directly (`hexToRgb` for uniforms) and re-reads on `useSettings` change.
+
+## Surfaces (`src/ui/surface/`)
+
+Every menu, sheet, card pane and dialog is a **surface** of one of three kinds, listed once in `surface/kinds.ts` (`SURFACES`, the registry: a new surface adds its row first).
+- **Menu** (choose, then back to the figure): main menu, Settings and its pages, Help, From readings, Blood, Layers, lens, speed, jump to, the slide list, and the TIPS views menu (inline in its Tests pane, sharing only the outside press).
+  Shell `<Menu>` (`surface/Menu.tsx`, or `useMenu` and `<Menu ctl>`): placed by its opener (`shell/place.ts`), a sheet on the dock where surfaces are sheets, mounted while shown
+  (`surface/presence.ts`). Closes on a press outside (`surface/outside.ts`), Esc, a choice, its opener, its X or a pull.
+- **Panel** (work beside the figure): Tests, Treat, History, Compare, Why, the action card, the case's stop card, and the timeline chart (the one full-width panel: its own centred card box, no room taken). Tests keeps its own place
+  rule (`tests/place.ts`, the right column's wide tier) with the shell's head, column step, room channel and pull; the stop card is the case's own, with the shared stops.
+  Shell `<Panel>` / `<ShellPanel>` (`surface/Panel.tsx`), or `usePanelShell` (`surface/wire.ts`) on a panel's own 2D markup (Treat, the action card). It places the panel in its column
+  (`surface/panel-place.ts`: right column 420 px, Tests its own 500 to 600 px; left column 340 px), publishes its box to the one room channel (`surface/room.ts`: the figure pans to what
+  is left), writes its role, and on a phone gives it Peek, Half and Full (`surface/use-sheet.ts`, `sheet-stops.ts`, `sheet-pull.ts`). Head: `<PanelHead>` and `<Tabs>`, the one X
+  (`surface/parts.tsx` `CloseX`), the one grab bar (`GrabBar`, `SheetGrab`). A panel **never** closes on a press outside.
+- **Dialog** (answer or read before going on): Reset, the deck dialogs, the case guard, About, Privacy, the Guide, Search. Shell `<Dialog size="s|l">` (`surface/Dialog.tsx`):
+  one scrim, the focus trap, Esc and a press off the box cancel (`surface/dialog-stack.ts`).
+
+Sheet or float is one answer, `surface/mode.ts` (`sheetMode()`, `surfaceModeNow()`, `useSurfaceMode()`): a sheet exactly when the thumb dock is up (a screen up to 1100 px wide,
+held upright); a phone held sideways floats. Leave times are `surface/motion.ts` (`leaveMs(kind, mode)`, and the surfaces' named own-pace times), over `ui/motion.ts` tokens.
+
+The slot rule (`surface/slots.ts`, wired by `surface/wire.ts` `startSlots`): on a wide screen the right column holds up to two panels side by side, in the order they opened
+(the first keeps the right edge, the newer stands to its left); opening a third puts away the one opened longest ago; two stand together only while at least 400 px of figure
+stays free (`panel-place.ts` `FIGURE_MIN`), otherwise the newest replaces the other; nothing overlaps. Where surfaces are sheets, one panel at a time, except that the action card
+may stay up with Tests. On a wide screen opening a menu or a dialog never puts a panel away; where surfaces are sheets a menu takes the place of History, Compare and Why
+(one sheet over the dock), and the timeline chart keeps its open state in the menus' slot (`useShell.sheet`), so a menu replaces it. One Esc closes a dialog, then a menu, then the newest panel (`kinds.ts` `ESC_ORDER`, `keys/escape.ts`).
+
+Lint rules (`scripts/lint-rules.mjs`, allowance 0) keep it so: `surface-outside-shell` (a dialog's or menu's role, `aria-modal` and `sh-grabbar` are written only in
+`src/ui/surface/`), `one-sheet-rule` (a file that renders a surface never imports `STACK_MQ`, `THUMB_MQ`, `isThumb`, `useThumb`, `usesBottomBar`, `onPhone` or `frameIsSheet`),
+`surface-motion-tokens` (no millisecond count in a surface file: durations come from `ui/motion.ts` or `surface/motion.ts`). `tests/surface-registry.test.ts` holds the registry.
 
 ## Boot order
 

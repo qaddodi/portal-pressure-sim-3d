@@ -7,6 +7,13 @@ const under = (p, ...dirs) => dirs.some((d) => p === d || p.startsWith(`${d}/`))
 // the copied engine and its worker host are not this app's code (and the host has no animation frames)
 const vendored = (p) => under(p, 'src/engine');
 
+/** The surfaces that live outside src/ui/surface/ in one file each (the rest are their own folders: treat, history, compare, why). */
+const SURFACE_FILES = new Set(['src/ui/tests/TestsLayer.tsx', 'src/ui/action/ActionCard.tsx', 'src/ui/menu/UMenu.tsx', 'src/ui/search/SearchSheet.tsx', 'src/ui/shell/Pages.tsx',
+  'src/ui/bigtime/TimelineSheet.tsx']);
+
+/** The shells' components (src/ui/surface/): a role passed to one is a prop the shell writes on its own box. */
+const SHELLS = new Set(['Dialog', 'DialogPage', 'Menu', 'Panel', 'ShellPanel']);
+
 const unwrap = (n) => { while (n && (n.type === 'ParenthesizedExpression' || n.type === 'TSNonNullExpression' || n.type === 'ChainExpression')) n = n.expression; return n; };
 /** a.b.c -> 'a.b.c' (this -> 'this'); '' for anything computed */
 const dotted = (n) => !n ? '' : n.type === 'Identifier' ? n.name : n.type === 'ThisExpression' ? 'this' : n.type === 'MemberExpression' && !n.computed ? `${dotted(n.object)}.${n.property.name}` : '';
@@ -149,6 +156,78 @@ export const RULES = {
     visit: (n) => n.type === 'ImportDeclaration' && /pressure-cuts(\.js)?$/.test(String(n.source?.value))
       && n.specifiers.some((s) => (s.type === 'ImportSpecifier' && (s.imported?.name ?? s.imported?.value) === 'hvBlocked')),
   },
+  /** One shell per kind of surface (menu unification, reports/menu-unification.md section 5): a dialog's or a menu's role, `aria-modal` and the sheet's grab bar (`sh-grabbar`) are written only
+   *  in src/ui/surface/ (Menu.tsx, Panel.tsx and usePanelShell, Dialog.tsx, parts.tsx GrabBar), so a new menu, panel or dialog cannot be hand-built again: it renders through its kind's shell.
+   *  A selector that only reads a role (`'[role="dialog"]'` in a closest()) is not one. The exceptions, each with its reason:
+   *    src/ui/tests/ir/TipsView.tsx  role="menu": the TIPS views menu is a small inline menu inside its Tests pane (SURFACES 'tips-views'), closed by the shared outside press;
+   *    src/ui/debug/                 the debug tools' own pages (the feedback packet sheet) are not the app's surfaces and never ship in a lesson. */
+  'surface-outside-shell': {
+    applies: (p) => under(p, 'src/ui') && !under(p, 'src/ui/surface') && !under(p, 'src/ui/debug') && !/\.copied\.|\/copied\//.test(p),
+    visit: (n, _text, p) => {
+      const roles = p === 'src/ui/tests/ir/TipsView.tsx' ? ['dialog', 'alertdialog'] : ['dialog', 'alertdialog', 'menu'];
+      const lit = (v) => {
+        v = unwrap(v?.type === 'JSXExpressionContainer' ? v.expression : v);
+        return v?.type === 'Literal' ? v.value : v?.type === 'TemplateLiteral' ? v.quasis.map((q) => q.value.raw).join(' ') : null;
+      };
+      if (n.type === 'JSXOpeningElement') {
+        // (a role handed to a shell, `<Dialog role="alertdialog">`, is the shell's to write)
+        const toShell = n.name.type === 'JSXIdentifier' && SHELLS.has(n.name.name);
+        return n.attributes.filter((a) => {
+          if (a.type !== 'JSXAttribute' || a.name.type !== 'JSXIdentifier') return false;
+          const name = a.name.name, v = lit(a.value);
+          if (name === 'role') return !toShell && roles.includes(v);
+          if (name === 'aria-modal') return true;
+          return name === 'className' && typeof v === 'string' && /(^|\s)sh-grabbar(\s|$)/.test(v);
+        });
+      }
+      // (a role written by hand outside JSX: an element's setAttribute, or an object of attributes to spread)
+      if (n.type === 'CallExpression' && callName(n) === 'setAttribute') {
+        const [k, v] = n.arguments.map(lit);
+        return k === 'aria-modal' || (k === 'role' && roles.includes(v));
+      }
+      return n.type === 'Property' && !n.computed && (n.key.name === 'role' || n.key.value === 'role') && roles.includes(lit(n.value));
+    },
+  },
+  /** One answer to "is this surface a sheet?" (menu unification stage 0, surface/mode.ts): a file that renders a surface (it imports the menu, panel or dialog shell, the panel head or
+   *  usePanelShell, or it is in src/ui/surface/) never imports the five old rules that disagreed on a phone held sideways (STACK_MQ, THUMB_MQ / isThumb / useThumb, usesBottomBar, onPhone,
+   *  frameIsSheet). It asks sheetMode(), surfaceModeNow() or useSurfaceMode(). A file that decides something else (the top bar's layout, the dock, the figure's room) and renders no surface
+   *  may still read the bars' layout (shell/room.ts, shell/thumb.ts). */
+  'one-sheet-rule': {
+    applies: (p) => under(p, 'src/ui') && p !== 'src/ui/surface/mode.ts',
+    visit: (n, _text, p) => {
+      if (n.type !== 'Program') return [];
+      const imps = n.body.filter((x) => x.type === 'ImportDeclaration');
+      const shell = (x) => /(^|\/)surface\/(Panel|Menu|Dialog|PanelHead)(\.tsx)?$/.test(x.source.value)
+        || (/(^|\/)surface\/wire(\.ts)?$/.test(x.source.value) && x.specifiers.some((q) => (q.imported?.name ?? q.imported?.value) === 'usePanelShell'));
+      if (!under(p, 'src/ui/surface') && !imps.some(shell)) return [];
+      const OLD = ['STACK_MQ', 'THUMB_MQ', 'isThumb', 'useThumb', 'usesBottomBar', 'onPhone', 'frameIsSheet'];
+      return imps.flatMap((x) => x.specifiers.filter((q) => q.type === 'ImportSpecifier' && OLD.includes(q.imported?.name ?? q.imported?.value)));
+    },
+  },
+  /** One motion set (menu unification, section 3.2): a surface's times come from ui/motion.ts (D_FLIP, D_SMALL, D_SURFACE, LEAVE_SLACK_MS) or surface/motion.ts (leaveMs, leaveCss and the
+   *  surfaces' named own-pace times), never a millisecond count written where it is used. In src/ui/surface/ and the surface files (Treat, the Tests layer, History, Compare, Why, the
+   *  action card, the main menu, Search, the pages, the timeline chart) no number of milliseconds is passed to clock.after, usePresence or an animate() duration, or given to a `*_MS`
+   *  const. A token scaled by a factor (`D_SMALL * 0.6`) is a token; a token with ms added (`D_SMALL + 40`) is not. 0 (the next turn) is no duration. The 2D copies keep theirs. */
+  'surface-motion-tokens': {
+    applies: (p) => !/\.copied\.|\/copied\//.test(p) && p !== 'src/ui/surface/motion.ts'
+      && (under(p, 'src/ui/surface', 'src/ui/treat', 'src/ui/history', 'src/ui/compare', 'src/ui/why') || SURFACE_FILES.has(p)),
+    visit: (n) => {
+      const ms = (e) => {
+        e = unwrap(e);
+        if (!e) return false;
+        if (e.type === 'Literal') return typeof e.value === 'number' && e.value !== 0;
+        if (e.type === 'BinaryExpression' && (e.operator === '+' || e.operator === '-')) return ms(e.left) || ms(e.right);
+        return e.type === 'ConditionalExpression' ? ms(e.consequent) || ms(e.alternate) : false;
+      };
+      if (n.type === 'VariableDeclarator') return n.id.type === 'Identifier' && /_MS$/.test(n.id.name) && ms(n.init);
+      if (n.type !== 'CallExpression') return false;
+      const name = callName(n), at = n.arguments[1];
+      if (dotted(unwrap(n.callee)) === 'clock.after' || name === 'usePresence') return ms(at);
+      if (name !== 'animate') return false;
+      const o = unwrap(at);
+      return ms(o) || (o?.type === 'ObjectExpression' && o.properties.some((q) => q.type === 'Property' && !q.computed && q.key.name === 'duration' && ms(q.value)));
+    },
+  },
 };
 
 /** Lint source texts: files is [{ path, text }] with repo-relative '/' paths. Returns every hit. */
@@ -162,7 +241,7 @@ export function lintFiles(files) {
     const lineOf = (pos) => { let l = 1; for (let i = text.indexOf('\n'); i !== -1 && i < pos; i = text.indexOf('\n', i + 1)) l++; return l; };
     const walk = (n) => {
       for (const [rule, r] of active) {
-        const h = r.visit(n, text);
+        const h = r.visit(n, text, path);
         if (!h || (Array.isArray(h) && !h.length)) continue;
         for (const t of Array.isArray(h) ? h : [n]) hits.push({ rule, path, line: lineOf(t.start), text: text.slice(t.start, t.end).split('\n')[0].slice(0, 100) });
       }

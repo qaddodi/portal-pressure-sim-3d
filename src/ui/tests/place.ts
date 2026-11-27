@@ -3,7 +3,8 @@
 // it has; a pane that does not fit the room the card has scrolls (owner, 20 Nov 2026, for a phone's Half). Pure numbers: the scene frames the figure in what is left.
 import type { DeviceClass, Rect, Viewport } from '../layout/device.ts';
 import { isPhone } from '../layout/device.ts';
-import { footHeight, usesBottomBar, topBarH, sheetFoot } from '../shell/room.ts';
+import { footHeight, topBarH, sheetFoot } from '../shell/room.ts';
+import { surfaceModeOf } from '../surface/mode.ts';
 import { M } from '../shell/metrics.ts';
 import { clamp } from './copied/num.copied.js';
 import { sheetDockVars } from './copied/dock-vars.copied.js';
@@ -74,7 +75,8 @@ export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {})
   const bottom = vp.safe.bottom + footHeight(device === 'phone-landscape' ? 'desktop' : device);
   const room = Math.max(0, vp.h - top - bottom);
   const contentH = o.contentH ?? 0, count = Math.max(1, o.count ?? 1);
-  const side = !usesBottomBar(device) || device === 'phone-landscape';
+  // (a side card exactly where every surface floats, a sheet where every surface is one: the one rule, surface/mode.ts)
+  const side = surfaceModeOf(vp.w, vp.h) === 'float';
   const bodyOf = (h: number) => o.bodyH ?? Math.max(0, h - HEAD_H);
   if (o.focus) {
     // the instrument in focus (app-07-floating.css .app.instrument-focus .instrument-workspace): the whole screen but the bars, a gap in from each side

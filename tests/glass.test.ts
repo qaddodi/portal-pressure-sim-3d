@@ -9,7 +9,7 @@ const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
 /** every surface that sits over the figure and must wear the glass (Mohammad, 19 Nov 2026: unified, menus, UI and cards) */
 const SURFACES = [
   '.topbar .tb-face', '.topbar .float-pill', '.zoom-pill', '.vdock > .vd-face', '.nb-views > .vp-face',
-  '.sh-sheet', '.sh-pop', '.sh-dialog', '.dk-jump', '.toast', '.sh-toast', '.modal', '.pal', '.why-pop',
+  '.sh-sheet', '.sh-dialog', '.dk-jump', '.toast', '.sh-toast', '.modal', '.pal', '.why-pop',
   '.tr-card', '.ac-card', '.t-card', '.cmp-banner', '.dk-card', '.dk-strip', '.pz-shade', '.pz-data', '.pz-case', '.pz-scales', '.pz-fk', '.lb-key',
   '.case-bar', '.cs-card', '.cs-pass', '.cs-own', '.sh-waitcue', '.pz-jump',
 ];
@@ -59,14 +59,19 @@ test('the phone dock is one glass: 2D\'s opaque layers (::before, tab row face a
 
 // "When the search menu appears, it appears without blur then the blur comes in" (owner, 20 Nov). Root cause: a backdrop-filter sees only what is painted inside the nearest ancestor with opacity < 1
 // (a backdrop root), and 2D fades the wrappers .pal-back and .modal-back (crossfade) with the glass panel inside, so the panel was unblurred for the whole fade. The panel fades itself.
-test('no glass sits inside a fading wrapper: the palette and dialog wrappers do not animate, the panels fade with their own blur', () => {
-  assert.match(bare, /html:not\(\[data-noglass\]\) :is\(\.pal-back, \.pal-back\.leaving, \.modal-back\.show, \.modal-back\.leaving\) \{ animation: none !important; \}/);
+test('no glass sits inside a fading wrapper: no shell draws a 2D wrapper that crossfades, the panels fade with their own blur', () => {
   const l = readFileSync('src/ui/styles/app-03-layouts.css', 'utf8'), c = readFileSync('src/ui/styles/app-02-controls.css', 'utf8');
-  assert.match(l, /\.pal \{[^}]*animation: scale-settle /); assert.match(l, /\.pal-back\.leaving \.pal \{ animation: scale-settle-out /);
-  assert.match(c, /\.modal \{[^}]*animation: scale-settle /); assert.match(c, /\.modal-back\.leaving \.modal \{ animation: scale-settle-out /);
-  // the same cause anywhere: every wrapper of a glass panel that 2D crossfades must be on that list (a new one fails here)
-  const wrappers = [...(l + c).matchAll(/^(\.[\w-]+-back)(?:\.\w+)? *\{[^}]*animation: crossfade/gm)].map((m) => m[1]!);
-  for (const w of new Set(wrappers)) assert.ok(bare.includes(w), `${w} fades a glass panel and is not neutralised in glass.css`);
+  assert.match(l, /\.pal \{[^}]*animation: scale-settle /); assert.match(c, /\.modal \{[^}]*animation: scale-settle /);
+  // the same cause anywhere: every wrapper of a glass panel that 2D crossfades (.pal-back, .modal-back) is drawn by no source; the dialog shell's layer stands in their place and
+  // eases only its colour (tests/dialog-shell.test.ts). A source that draws one again must neutralise its fade in glass.css first (a new one fails here).
+  const wrappers = [...(l + c).matchAll(/^\.([\w-]+-back)(?:\.\w+)? *\{[^}]*animation: crossfade/gm)].map((m) => m[1]!);
+  assert.ok(wrappers.length >= 2, 'the walk found the 2D wrappers');
+  const src = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? src(p) : /\.tsx?$/.test(f) ? [p] : []; });
+  const drawn = src('src').map((f) => readFileSync(f, 'utf8')).join('\n');
+  for (const w of new Set(wrappers)) {
+    const draws = new RegExp(`className=[^>]*\\b${w}\\b|classList\\.add\\([^)]*\\b${w}\\b`).test(drawn);
+    assert.ok(!draws || bare.includes(`.${w}`), `${w} is drawn and fades a glass panel`);
+  }
 });
 
 // plan 21, the root of the dark step discs: `:is()` weighs its most specific argument (`.topbar #viewSeg` holds an id), so every glass in the list weighed (1,2,1) and no class-only override could win,
