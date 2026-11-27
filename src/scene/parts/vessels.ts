@@ -5,7 +5,8 @@ import { feederLive, NETWORK, presenceOf, NETWORK_BY_ID } from '../vessels/netwo
 import { originsOf } from '../vessels/starts.ts';
 import { PresenceTracks } from '../vessels/presence-track.ts';
 import { caudateShownFor, CAUDATE_VEIN_ID, CAUDATE_WHEN } from '../vessels/caudate-veins.ts';
-import { DIVIDED, stumpOf, PV_START } from '../vessels/divide.ts';
+import { DIVIDED, stumpOf, fitStump, PV_START } from '../vessels/divide.ts';
+import { UNITS_PER_SCENE } from '../frame2d.ts';
 import { SEWN_IDS, seamsFor } from '../vessels/seams.ts';
 import { VesselObject } from '../vessels/vessel-object.ts';
 import { IVC_EDGES } from '../anatomy/source.ts';
@@ -47,7 +48,11 @@ export const vesselsPart = scenePart<CelScene>()({
     for (const [shunt, vein] of DIVIDED) {
       const o = this.byEdge.get(vein) as VesselObject | undefined;
       if (!o) continue;
-      const [cut, tie, k] = stumpOf(shunt, vein, this.presence.amountOf(shunt), vein === PV_START && side);
+      const [cut0, tie0, k] = stumpOf(shunt, vein, this.presence.amountOf(shunt), vein === PV_START && side);
+      // (the stump stays inside the tube's own stretch: the skin at the vein's far seam draws the rest, divide.ts fitStump)
+      const sc = o.toon.uniforms.skinCut!.value as { y: number }, len = o.toon.uniforms.len!.value as number;
+      let cut = cut0, tie = tie0;
+      if (k > 0 && sc.y <= 1) { const f = fitStump(cut0 / k, tie0, sc.y * len * UNITS_PER_SCENE); cut = f[0] * k; tie = f[1]; }
       if (o.setStump(cut, tie, k)) this.moving = true;
     }
     // the stitch rings at a surgical shunt's sewn ends: where the shunt is drawn at all (they ease with its drawing on, as the tube does)

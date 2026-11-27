@@ -114,6 +114,15 @@ test('the marks are the tube\'s own rule: one seamStitch in both programs, the t
   assert.match(SUTURE_FS, /float te = st\.y \* 0\.4;/, 'the same halo strength');
 });
 
+test('one thread profile: the seam stitch and the stump tie are drawn by the same core and edge, as capsules', () => {
+  assert.match(SEAM_STITCH_GLSL, /float threadCore\(float d\)/, 'the core is one global function');
+  assert.match(SEAM_STITCH_GLSL, /float threadEdge\(float d\)/, 'the edge is one global function');
+  assert.match(SEAM_STITCH_GLSL, /return vec2\(threadCore\(dd\) \* dsh, threadEdge\(dd\) \* dsh\)/, 'the stitch uses them');
+  assert.match(PROCEDURE_MARKS_GLSL, /tw = max\(tw, threadCore\(dd\)\);\s*te = max\(te, threadEdge\(dd\)\);/, 'the stump tie uses the same ones');
+  assert.match(SEAM_STITCH_GLSL, /dd = length\(vec2\(max\(abs\(along\) - halfLen, 0\.0\), dd\)\)/, 'a dash is a capsule, its ends round like the thread');
+  assert.ok(!/\bhalf\b/.test(SEAM_STITCH_GLSL.replace(/\/\/.*$/gm, '')), 'no reserved word `half` in GLSL');
+});
+
 test('the depth is the tube\'s rule, the pass is the arm\'s front copy, the alpha eases with the shunt and the Circuit', () => {
   assert.match(SUTURE_VS, /mix\(cc\.z \/ cc\.w, c\.z \/ c\.w, 0\.15\)/, 'the axis\' depth and 15 % of the surface\'s (TUBE_DEPTH_SHARE)');
   assert.match(SUTURE_FS, /1\.0 - smoothstep\(0\.0, 0\.05, own\)/, 'it goes with the Circuit\'s change as the skin does: by its seam\'s own share (skin-rank.test.ts)');

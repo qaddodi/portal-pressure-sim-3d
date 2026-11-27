@@ -112,6 +112,26 @@ test('the spontaneous splenorenal shunt leaves the splenic vein in the screen pl
   assert.ok(nearestOn(wholeCourse('lrv'), c6[c6.length - 1]!).d < 1.5 * PLACED_VESSELS.lrv!.r, 'the renal end sits on the renal vein');
 });
 
+test('the spontaneous splenorenal shunt takes off on a STRAIGHT stretch of the splenic vein: the vein turns under 10 degrees across the take-off\'s reach (the junction skin on a bend came out lumpy, Mohammad 27 Nov)', () => {
+  const c6 = PLACED_EDGE_3D.C6 as readonly V[], sv = wholeCourse('sv'), rsv = PLACED_VESSELS.sv!.r;
+  const s0 = nearestOn(sv, c6[0]!).s, reach = 6 * rsv;
+  // the point at arc length `s` along the splenic vein (clamped to its ends)
+  const at = (s: number): V => {
+    let acc = 0;
+    for (let i = 1; i < sv.length; i++) {
+      const l = dist(sv[i - 1]!, sv[i]!);
+      if (acc + l >= s || i === sv.length - 1) { const t = Math.min(1, Math.max(0, (s - acc) / (l || 1))); return [0, 1, 2].map((k) => sv[i - 1]![k]! + t * (sv[i]![k]! - sv[i - 1]![k]!)) as unknown as V; }
+      acc += l;
+    }
+    return sv[sv.length - 1]!;
+  };
+  const a = at(s0 - reach), b = at(s0), c = at(s0 + reach);
+  const u = [0, 1, 2].map((k) => b[k]! - a[k]!), w = [0, 1, 2].map((k) => c[k]! - b[k]!);
+  const cos = (u[0]! * w[0]! + u[1]! * w[1]! + u[2]! * w[2]!) / (Math.hypot(u[0]!, u[1]!, u[2]!) * Math.hypot(w[0]!, w[1]!, w[2]!));
+  const turn = (Math.acos(Math.min(1, cos)) * 180) / Math.PI;
+  assert.ok(turn < 10, `the splenic vein turns ${turn.toFixed(1)} degrees across C6's take-off (21 on the bend it stood on before)`);
+});
+
 // C6 and the gastrorenal shunt (C5), Mohammad 25 Nov via the review of 2a54261a: the shunt's course never crosses or touches the gastrorenal shunt.
 test('the spontaneous splenorenal shunt keeps wall to wall clear of the gastrorenal shunt, and the drawn course is the one the network lays', () => {
   const c6 = PLACED_EDGE_3D.C6 as readonly V[], c5 = PLACED_EDGE_3D.C5 as readonly V[], r6 = PLACED_VESSELS.C6!.r, r5 = PLACED_VESSELS.C5!.r;

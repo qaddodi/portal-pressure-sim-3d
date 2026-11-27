@@ -135,8 +135,11 @@ export const sceneApi = {
     if (from === 'circuit' && v !== 'circuit') setLayer('talk', { resistors: [], caudate: false, caudateVeins: false });
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together
     const to = v === 'sinusoid' && typeof shot !== 'string' ? sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)) : shot;
-    // a slide's move takes 2D's 800 to 1400 ms (planSlide: rig.slideMs); a catheter step's close-up (slide false) keeps the hand's glide
-    this.goTo(to, room, from !== v && (v === 'body' || from === 'circuit') ? cel.circuit.changeMs() || (slide ? cel.rig.slideMs(to) : undefined) : slide ? cel.rig.slideMs(to) : undefined);
+    // a slide's move takes 2D's 800 to 1400 ms (planSlide: rig.slideMs); a catheter step's close-up (slide false) keeps the hand's glide. A slide that changes view through the liver takes the
+    // dive's own time, as the view buttons do (diveMs): slideMs gave every dive 1.5 s, so a slide's Anatomy -> Sinusoid ran 14 doublings in it, faster than the button (owner, 27 Nov)
+    const dive = slide && from !== v ? diveMs(from, v) : undefined;
+    const glide = dive ?? (slide ? cel.rig.slideMs(to) : undefined);
+    this.goTo(to, room, from !== v && (v === 'body' || from === 'circuit') ? cel.circuit.changeMs() || glide : glide);
   },
   /** The Circuit's quarter turn: stand the map upright (flow bottom to top) or lay it wide; the camera follows on the same 480 ms. Remembered across visits. */
   setCircuitUpright(on: boolean, room: Room): void {
