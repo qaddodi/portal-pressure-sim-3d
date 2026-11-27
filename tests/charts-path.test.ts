@@ -32,7 +32,7 @@ test('the algorithms are the 2D app\'s: lit set, outcome, reading and chips of k
   const b = run('bleed', { src: 'ov', cp: 11, active: false, hvpg: 22, ctrl: true, fit: true });
   assert.deepEqual(b.lit, ['root', 'ctrl', 'ptips']);
   assert.equal(b.r!.why, 'Band ligation controlled the bleeding. Child–Pugh C11 is C 10–13, and the patient is a TIPS candidate.');
-  assert.deepEqual(b.chips, ['Esophageal or GOV1', 'Child–Pugh C11', 'HVPG 22', 'No active bleeding', 'Controlled']);
+  assert.deepEqual(b.chips, ['Esophageal or GOV1', 'Child–Pugh C11', 'HVPG 22', 'No active bleeding at the first endoscopy', 'Controlled']);
 });
 
 test('the model\'s readings replace the slide\'s own as the tiles print them (2D patientFor with the tile table)', () => {

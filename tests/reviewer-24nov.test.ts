@@ -123,7 +123,7 @@ test('Stiffness 14: a presinusoidal case prints no zone, and the reading says th
   const t = at(STIFFNESS, 'a5').tool, pl = toolPlane(t)!;
   assert.ok(pl.noWords); assert.match(planeReading(pl, { lsm: 8, plt: 90 } as never), /Criteria don't apply in this case$/); assert.ok(!/Indeterminate/.test(planeReading(pl, { lsm: 20, plt: 120 } as never)));
 });
-test('TIPS and shunts: the 12 mmHg is this patient\'s bleeding target', () => { assert.match(at(SHUNTS, 'tips').line, /target for preventing rebleeding in this patient/); });
+test('TIPS and shunts: the 12 mmHg is the variceal-bleed reference, and this ascites patient\'s stent is small (W6c, 27 Nov)', () => { assert.match(at(SHUNTS, 'tips').line, /under the 12 mmHg reference for a variceal bleed\. For her ascites the stent is small/); });
 test('A tree\'s root over the middle of an odd row of leaves draws no dot (PVT 3: the white marker sat over Partial)', () => {
   const leaf = { id: 'x' }; const tree = { id: 'root', kids: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] };
   assert.equal(overLeaf(tree, tree), true); assert.equal(overLeaf(tree, { id: 'a' }), false);

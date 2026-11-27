@@ -41,7 +41,7 @@ export default {
       default: return { head: 'Covered stent, then salvage TIPS', tone: 'bad', stmt: '5.35, 5.36', why: 'Band ligation did not control the bleeding.', next: 'A dedicated covered self-expanding metal stent is preferred over balloon tamponade as a bridge to TIPS or liver transplant. Evaluate for transplant.' };
     }
   },
-  chips: (p, tiled = NONE) => ['Esophageal or GOV1', `Child–Pugh ${cpClass(p.cp)}${p.cp}`, p.hvpg != null && !tiled.has('hvpg') && `HVPG ${p.hvpg}`, p.active ? 'Active bleeding' : 'No active bleeding', p.ctrl ? 'Controlled' : 'Not controlled', !p.fit && 'Not a TIPS candidate'].filter(Boolean),
+  chips: (p, tiled = NONE) => ['Esophageal or GOV1', `Child–Pugh ${cpClass(p.cp)}${p.cp}`, p.hvpg != null && !tiled.has('hvpg') && `HVPG ${p.hvpg}`, p.active ? 'Active bleeding at the first endoscopy' : 'No active bleeding at the first endoscopy', p.ctrl ? 'Controlled' : 'Not controlled', !p.fit && 'Not a TIPS candidate'].filter(Boolean),
   patientFor(t, fp, shown = (k, v) => v) {
     const base = { ...(t?.patient || {}) };
     const live = (k, v) => (fp && Number.isFinite(fp[k]) ? shown(k, fp[k]) : v);

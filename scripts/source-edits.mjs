@@ -12,6 +12,8 @@ const P = (deck, at, from, to) => ({ deck, at, from, to });
 const SET = (deck, at, set) => ({ deck, at, set });
 const DROP = (deck, at) => ({ deck, at, drop: true });
 const APPEND = (deck, at, append) => ({ deck, at, append });
+/** Removes the field when it is there and leaves it when it is not (a drop the copied decks can be patched with again and again). */
+const DROP_IF = (deck, at) => ({ deck, at, drop: true, soft: true });
 /** Put a whole new item into a list, right after the one `at` names (a slide of a talk: `slides.<id>`). */
 const AFTER = (deck, at, set) => ({ deck, at, set, after: true });
 
@@ -156,8 +158,8 @@ export const REVIEWER_24NOV_B = [
   // One patient 14: grade 2 overt HE needs more than slowing
   SET('ten-years', 'slides.he.line', 'He is disoriented to time, with sleep-wake inversion and psychomotor slowing: grade 2 overt HE. {shunt} of portal blood now bypasses the liver.'),
   // TIPS and shunts 10: the target belongs to this case
-  SET('shunts', 'slides.tips.title', 'TIPS lowers the PPG below the 12 mmHg bleeding target'),
-  SET('shunts', 'slides.tips.line', 'A covered 8 to 10 mm stent runs from a hepatic vein to the portal vein. The PPG falls to {ppg}, under the 12 mmHg target for preventing rebleeding in this patient.'),
+  SET('shunts', 'slides.tips.title', 'TIPS lowers the PPG below the 12 mmHg reference'),
+  SET('shunts', 'slides.tips.line', 'A covered 8 to 10 mm stent runs from a hepatic vein to the portal vein. The PPG falls to {ppg}, under the 12 mmHg reference for a variceal bleed. For her ascites the stent is small.'),
   // Stiffness 14: the cirrhosis zones do not apply to this presinusoidal patient, so the instrument classifies nothing
   SET('stiffness', 'slides.a5.tool', { kind: 'plane', plane: { base: 'csph', noWords: true, zoneNote: 'Criteria don\'t apply in this case' } }),
   // TIPS follow-up 12: individualized (Baveno VIII 6.15)
@@ -556,6 +558,38 @@ export const CAPTURE_3531BDFA_L3 = [
   P('ascites', 'objectives.2', 'Give albumin with large-volume paracentesis, and treat recurrent and refractory ascites', 'Give albumin with large-volume paracentesis; treat recurrent, refractory ascites'),
 ];
 
+/** Capture 3531bdfa (26 Nov 2026), the worker items Mohammad ruled on 27 Nov (W2, W3, W5, W6, W7, W11, W18; reports/ext-review-3531bdfa/answers.log). */
+export const CAPTURE_3531BDFA_W = [
+  // W2, Encephalopathy 11: the bar reads Liver 6% for a 6 mm and an 8 mm stent alike (the model's shunt fraction holds at about 94% for any TIPS from 6 to 12 mm), so the line no longer says the blood returns to the liver
+  SET('encephalopathy', 'slides.narrow.line', 'Reducing the stent diameter lets the PPG rise toward the level the TIPS was placed to treat, and the model’s HE index falls a little. The bar still shows almost all portal blood bypassing the liver.'),
+  // W5, Doppler 9: 16 against the healthy 27 cm/s is 59%, not half; the healthy value is the live reading of the slide that shows the healthy patient
+  P('doppler', 'slides.a3.line', 'about half of normal', 'well below the healthy {pvVel@normal}'),
+  // W6c, Shunts 10: the patient's TIPS is for recurrent ascites (Shunts 5); the 12 mmHg reference is the variceal one
+  APPEND('shunts', 'slides.tips.notes', 'The 12 mmHg reference is the variceal one. For recurrent ascites the stent is chosen small and widened only if the ascites persists (next slide).'),
+  // W7, TIPS Doppler 5 and 4: after a TIPS the hepatic vein strip is monophasic (no reversal, still pulsatile); the stent's velocity (135 to 150 cm/s) exceeds a 120 cm/s scale, so the peaks wrap
+  P('tips-doppler', 'slides.mpv.line', 'the hepatic vein is flat: it no longer reverses.', 'the hepatic vein is monophasic: it no longer reverses.'),
+  SET('tips-doppler', 'slides.alias.tool.scale', 120),
+  P('tips-doppler', 'slides.alias.line', 'The velocity scale reaches 150 cm/s each way', 'The velocity scale reaches 120 cm/s each way'),
+  // W18, Meso-Rex 10: the arrows compare against normal; the table-level `vs: 'child'` named no row the model compares with (only 'first' means anything there)
+  DROP_IF('meso-rex', 'slides.summary.vs'),
+  // W11, the procedure slides: the words before the figure shows the result are in the future tense and print no reading the procedure changes (ui/deck/step-words.ts, tests/step-words.test.ts)
+  SET('meso-rex', 'slides.bypass.lineAhead', 'A graft will join the superior mesenteric vein to the left portal vein, restoring hepatopetal portal flow and lowering the PPG.'),
+  SET('kidney', 'slides.tap.lineAhead', 'Large-volume paracentesis (LVP) will drain the ascites, so the IAP will fall and the APP will rise. Albumin is given with the LVP.'),
+  SET('albumin', 'slides.tap.lineAhead', 'LVP will drain 6 L. Above 5 L, albumin is recommended at {6 to 8 g} per liter removed: 36 to 48 g here. His serum albumin is a separate reading and does not set the dose.'),
+  SET('encephalopathy', 'slides.plug.lineAhead', 'Via the left renal vein, the shunt will be catheterized and occluded. Immediately afterward the portal pressure gradient (PPG) will rise and hepatic flow will improve.'),
+  SET('gastric-varices', 'slides.tips.lineAhead', 'EUS-guided coils with cyanoacrylate, or cyanoacrylate alone, control the bleeding. An early TIPS will prevent rebleeding: the PPG and the fundal varix will fall.'),
+  SET('gastric-varices', 'slides.brto.lineAhead', 'When a TIPS is not suitable and the varix drains through a suitable gastrorenal shunt, a balloon in the left renal vein will occlude the shunt. The fundal varix will shrink, but the PPG will rise. Esophageal varices can grow to {varix}; repeat endoscopy follows.'),
+  SET('gastric-varices', 'slides.bato.lineAhead', 'Obliterated from the portal side, the fundal varix will shrink, as after BRTO. The PPG will rise and esophageal varices can grow to {varix}.'),
+  SET('gastric-varices', 'slides.eusglue.lineAhead', 'Transgastric EUS will guide coils and cyanoacrylate into the bleeding fundal varix to obliterate it. The splenic vein remains thrombosed, so the splenic venous pressure stays high.'),
+  SET('shunts', 'slides.dsrs.lineAhead', 'The splenic vein will be joined to the left renal vein, with the coronary vein ligated. The varices will decompress at once; the PPG will barely move.'),
+  SET('variceal-bleed', 'slides.tips.lineAhead', 'Child–Pugh C 10 qualifies him for a covered TIPS, which will lower the PPG and reduce rebleeding and mortality.'),
+  SET('variceal-bleed', 'slides.bridge.lineAhead', 'The gastric balloon will be inflated first, against the cardia, to stop the bleeding, and the blood pressure will recover. A covered stent is the preferred bridge.'),
+  SET('ten-years', 'slides.bands.lineAhead', 'Carvedilol continues, and three banding sessions will reduce the varix.'),
+  SET('ten-years', 'slides.tips.lineAhead', 'A covered TIPS will lower the PPG. The cost is portal perfusion: sinusoidal flow will fall, and most of it will come from the hepatic artery.'),
+  SET('tips-complete', 'slides.dips.lineAhead', 'A TIPS needs a hepatic vein, and none can be used. A DIPS will run from the IVC through the liver to the portal vein, lowering the pressure.'),
+  SET('next-bleed', 'slides.bands.lineAhead', 'Repeated EVL will shrink the varices. The portal pressure behind them will not fall.'),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -680,6 +714,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_3531BDFA_LEVELS,
   ...CAPTURE_3531BDFA_CLINICAL,
   ...CAPTURE_3531BDFA_L3,
+  ...CAPTURE_3531BDFA_W,
 ];
 
 function step(node, key) {
@@ -705,6 +740,7 @@ export function sourceEdits(json, patches = SOURCE_PATCHES) {
     const last = step(node, keys[keys.length - 1]);
     // (a drop of something already gone is done: the apply script runs on decks it has patched before)
     if (p.drop && (last === -1 || node[last] === undefined)) continue;
+    if (p.soft && (last === -1 || node[last] === undefined)) continue;
     if (last === -1 || (node[last] === undefined && !('set' in p))) throw new Error(`source-edits: ${p.deck} has nothing at ${p.at} (the 2D deck moved; look at this patch again)`);
     if (p.after) { if (!Array.isArray(node)) throw new Error(`source-edits: ${p.deck} ${p.at} is not in a list`); node.splice(last + 1, 0, p.set); }
     else if ('set' in p) node[last] = p.set;
@@ -757,13 +793,21 @@ const UI_EDITS = [
   ["lsm: { t: 'Liver stiffness', n: 'Stiffness',", "lsm: { t: 'Liver stiffness', n: 'Liver stiffness',"],
   ["lsm: '↑ 10 to 25, ↑↑ ≥25 kPa'", "lsm: '↑ 10 to 25, ↑↑ ≥25 kPa (rules in CSPH; in MASLD only with BMI <30)'"],   // (an LSM of 10 to 15 kPa suggests cACLD, Baveno VIII 1.3; the reviewer, 24 Nov 2026)
 ];
+// Capture 3531bdfa, worker items of 27 Nov 2026 (W6a, W6b): edits of the 2D app's copied chart files, in a group of their own so a re-copy keeps them.
+const UI_EDITS_3531BDFA_W = [
+  // W6a: the bleed algorithm's "active bleeding" is a fact of the first endoscopy (the pTIPS criterion says "at endoscopy"), so its chip says so: on the rebleed slide (Variceal bleed 14) "No active bleeding" read as if she were not bleeding now
+  ["p.active ? 'Active bleeding' : 'No active bleeding'", "p.active ? 'Active bleeding at the first endoscopy' : 'No active bleeding at the first endoscopy'"],
+  // W6b: a blood pressure in the normal band that has fallen is no better: a mean under 80 mmHg, 5 or more below the reading it counts from (`mapFrom`, which a caller sets from the slide's `delta` state), rates 'Falling', amber
+  ["const T_hi_Low = tup('hi', 'Low');", "const T_hi_Low = tup('hi', 'Low');\nconst T_mid_Falling = tup('mid', 'Falling');\n/** The mean arterial pressure under which a fall of MAP_FALL or more from the reading it counts from is a warning, not an improvement. */\nexport const MAP_WATCH = 80, MAP_FALL = 5;"],
+  ["map: (v, f) => (v < KIDNEY_CUTS.mapBeta || f?.sbp < KIDNEY_CUTS.sbpBeta ? T_hi_Low : T_ok_Normal),", "map: (v, f) => (v < KIDNEY_CUTS.mapBeta || f?.sbp < KIDNEY_CUTS.sbpBeta ? T_hi_Low : v < MAP_WATCH && f?.mapFrom - v >= MAP_FALL ? T_mid_Falling : T_ok_Normal),"],
+];
 /** Charts the 3D app does not carry because they teach a guideline other than Baveno VIII (a path algorithm file of 2D's path-algos). */
 export const RETIRED_PATH_ALGOS = ['aasld'];
 
 /** A generated UI file's text with the Baveno-only edits put in (an edit the file does not hold is skipped). */
 export function uiTextEdits(text) {
   let out = text;
-  for (const [from, to] of UI_EDITS) {
+  for (const [from, to] of [...UI_EDITS, ...UI_EDITS_3531BDFA_W]) {
     if (to !== null) { out = out.split(from).join(to); continue; }
     out = out.split('\n').filter((l) => !l.startsWith(from)).join('\n');
   }

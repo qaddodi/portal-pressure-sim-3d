@@ -9,6 +9,7 @@ import { controlsOf } from '../controls.ts';
 import { playsLapse } from './lapse.ts';
 import { instrumentOf } from '../../ui/talk/slide-instrument.generated.js';
 import type { CopiedDeck, CopiedSlide } from './types.ts';
+import { aheadUntil } from '../../ui/deck/step-words.ts';
 
 const OPEN = /<(mi|mo|mn|msub|mfrac|mrow)\b([^>]*)>/y;
 
@@ -111,6 +112,7 @@ export function slideOf(deckId: string, s: CopiedSlide, i: number, prevCath: Cat
   return {
     id: s.id, kicker: s.kicker ?? '', title: s.title ?? '', line: s.line ?? '', notes: s.notes ?? '',
     ...(s.vignette ? { vignette: s.vignette } : {}),
+    ...(aheadUntil(s) !== null ? { lineAhead: str(s.lineAhead), aheadUntil: aheadUntil(s)! } : {}),
     ...(str(s.question) && !s.vignette && !s.preset && !s.procedure ? { question: str(s.question) } : {}),
     ...(str(s.caseQ) ? { caseQ: str(s.caseQ) } : {}),
     ...(str(s.caveat) ? { caveat: str(s.caveat) } : {}),

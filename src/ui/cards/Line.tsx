@@ -49,7 +49,7 @@ export function Line({ text, read, slide, fp, pill, still = false, seen, minus, 
         // (the HVPG of a blocked hepatic vein reads "Not measurable", in no status colour: its flag rides in the readings beside the number, ui/cuts.ts)
         const nm = p.key === 'hvpg' && hvpgNotMeasurable({ [HV_BLOCKED_KEY]: read(HV_BLOCKED_KEY, p.at) });
         const text = v == null ? '…' : valueText(p.key, { [p.key]: v, ...(nm ? { [HV_BLOCKED_KEY]: 1 } : null), sbp: read('sbp', p.at), dbp: read('dbp', p.at) }, p.decimals === 0);
-        const { tone, rate } = v == null || nm ? { tone: null, rate: null } : pillTone(p.key, p.at ? { ...fp, [p.key]: fp?.[`${p.key}@${p.at}`] } : fp);
+        const { tone, rate } = v == null || nm ? { tone: null, rate: null } : pillTone(p.key, p.at ? { ...fp, [p.key]: fp?.[`${p.key}@${p.at}`], mapFrom: undefined } : fp);
         // (its stop is set inside the reading's own box, right after the digits: the reserve is wider than a short value, and that spare width must fall after the stop, not before it)
         return stopped(<span className="pz-nw"><span className={`pz-val dk-num${tone ? ' tone' : ''}`} data-rate={rate ?? undefined} data-k={p.key} style={style(tone)}><Roll text={text} reserve={reserveOf(text, p.key, p.decimals === 0, stillHere, { seen: p.at ? undefined : seen?.(p.key, p.decimals === 0), minus, raises })} alts={altsOf(text, stillHere, { seen: p.at ? undefined : seen?.(p.key, p.decimals === 0) })} fit after={stop} /></span></span>, '', i, open, before);
       }

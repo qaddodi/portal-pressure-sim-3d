@@ -18,7 +18,7 @@ test('for every slide with a speaking compare row, every option that brings word
     const opts = s.controls?.compare?.opts ?? [];
     const list = variantsOf(s, deck);
     assert.equal(idOf(list[0]!), idOf(s), `${deck.id}/${s.id}: the slide's own words come first`);
-    if (!speaks(opts)) { assert.equal(list.length, 1, `${deck.id}/${s.id}: no speaking button, one set of words`); continue; }
+    if (!speaks(opts)) { assert.equal(list.length, 1 + (s.lineAhead ? 1 : 0), `${deck.id}/${s.id}: no speaking button, its own words (and a procedure's, before its result)`); continue; }
     rows++;
     for (const o of opts) {
       if (o.how === 'lens' || o.gate || o.tool) continue;

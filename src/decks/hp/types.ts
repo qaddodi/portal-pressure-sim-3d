@@ -10,6 +10,8 @@ export interface CopiedSlide {
   kicker?: string;
   title?: string;
   line?: string;
+  /** the line until the procedure's result is on the figure (schema.ts Slide.lineAhead) */
+  lineAhead?: string;
   notes?: string;
   ask?: [string, string];
   site?: string | null;
