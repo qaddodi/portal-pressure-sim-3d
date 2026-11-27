@@ -39,6 +39,7 @@ import { HistoryPv, openFromMenu } from '../histories/HistoryPv.tsx';
 import { stateLine } from '../histories/state-words.ts';
 import { lengthWords } from '../histories/state-words.ts';
 import '../histories/histories.css';
+import { restOpenList } from './open-scroll.ts';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
 import { Fade, fadeAttrs } from '../fade.tsx';
@@ -204,6 +205,8 @@ export function UMenu() {
     const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
     el.querySelector<HTMLElement>(sheet || !fine ? '.um-x' : '.um-q')?.focus({ preventScroll: true });
     el.querySelector(`.um-col[data-col="${tab}"] .um-row[aria-current="true"]`)?.scrollIntoView({ block: 'nearest' });
+    const list = el.querySelector<HTMLElement>(`.um-col[data-col="${tab}"]`);
+    if (list) restOpenList(sheet ? el.querySelector<HTMLElement>('.um-cols') ?? list : list, list);   // (and rests on a row's top, so none is cut under the tabs)
   }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const topics = useMemo(() => presentTopics(), []);
