@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useUi, atEnd } from '../ui-store.ts';
 import { cardZoom } from '../cards/card-zoom.ts';
-import { useShell } from '../shell/store.ts';
+import { useShell, anyShellPanel } from '../shell/store.ts';
 import { clickerKey, addDigit, DIGIT_MS, type ClickAct } from './clicker.ts';
 import { stopTalk } from '../shell/talk.ts';
 import { finishTalk } from '../cards/finish.ts';
@@ -33,7 +33,7 @@ export function useDeckInput() {
       const ui = useUi.getState(), sh = useShell.getState();
       if (!ui.deck || !ui.stops.length) return;
       if (e.defaultPrevented) return;
-      if (sh.dialog || sh.sheet) return;   // (a dialog or a sheet over the talk keeps its keys: Esc closes it rather than ending the talk)
+      if (sh.dialog || sh.sheet || anyShellPanel(sh)) return;   // (a dialog or a sheet over the talk keeps its keys: Esc closes it rather than ending the talk)
       if (useDialogOpen()) return;
       const t = e.target as HTMLElement | null;
       const ownsEnter = keyboardNav && !!t?.closest?.(OWNERS) && !!t.matches?.(':focus-visible');

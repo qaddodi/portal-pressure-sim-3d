@@ -1,7 +1,7 @@
 // B9's wiring, once at start: Treat answers its button and the T key, the scene's picks select a structure, and the loaded patient's own settings are kept as the base the
 // Changes list measures against. Returns the remover (a test or hot reload undoes it all).
 import { registerFeature } from '../shell/features.ts';
-import { useShell } from '../shell/store.ts';
+import { useShell, SHELL_PANEL_IDS } from '../shell/store.ts';
 import { useTreat } from '../treat/store.ts';
 import { useTests } from '../tests/store.ts';
 import { useEngine } from '../../engine/index.ts';
@@ -36,6 +36,7 @@ export function startActions(): () => void {
   off.push(onParamsChange(({ label, history }) => { if (history) timeline.noteChange(label); }));
   // the inputs that go with what the figure was asked (src/scene/intent-log.ts: the last 60 s ride in a bug report)
   off.push(useShell.subscribe((s, p) => { if (s.view !== p.view) logInput(`view ${s.view}`); if (s.sheet !== p.sheet) logInput(`sheet ${s.sheet ?? 'closed'}`); }));
+  off.push(useShell.subscribe((s, p) => { if (s.panels !== p.panels) logInput(`panels ${SHELL_PANEL_IDS.filter((k) => s.panels[k]).join(' ') || 'closed'}`); }));
   off.push(useUi.subscribe((s, p) => { if (s.pos.stop !== p.pos.stop) logInput(`stop ${s.pos.stop}`); }));
   off.push(usePick.subscribe((s, p) => { if (s.picked !== p.picked) logInput(`pick ${s.picked ?? 'none'}`); }));
   off.push(startShunting());   // Add shunt: the targets glow, a tap on one makes the shunt (shunt.ts)

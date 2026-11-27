@@ -43,11 +43,11 @@ function Card({ cls, letter, kicker, name, detail }: { cls: 'a' | 'b'; letter: s
 /** The Differences table (the panel that holds it is compare/DifferencesSheet.tsx, in the sheets' chunk: the banner here is in the boot entry). */
 export function Differences() {
   const snap = useCompare((s) => s.snap);
-  const open = useShell((s) => s.sheet === 'compare');
+  const open = useShell((s) => s.panels.compare);
   const tick = useClock(open && !!snap, 500);   // (the table follows the model while it is open: frames come ten times a second, the table is rebuilt only when a shown number changes)
   const [kept, setKept] = useState(snap);
   useEffect(() => { if (snap) setKept(snap); }, [snap]);
-  useEffect(() => { if (!snap && open) useShell.getState().close(); }, [snap, open]);
+  useEffect(() => { if (!snap && open) useShell.getState().closePanel('compare'); }, [snap, open]);
   useEngine((s) => s.status);
   const A = snap ?? kept;
   if (!A) return null;

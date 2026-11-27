@@ -77,11 +77,11 @@ export const Panel = forwardRef<HTMLElement, PanelProps>(function Panel({ id, op
 });
 
 /** The plain panel of the shell's own panels (History, Compare, Why): the grab bar, the one panel head and the body, in the shell sheet's markup (.sh-sheet), so a phone's
- *  sheet is drawn and pulled as before. Its open state is the menus' slot's until a later stage moves it into the panel registry. */
+ *  sheet is drawn and pulled as before. Each has its own open flag (shell/store.ts `panels`), so a menu opens over it and two stand together. */
 export function ShellPanel({ id, label, head, children }: { id: 'history' | 'compare' | 'why'; label: string; head?: string; children: ReactNode }) {
   const ref = useRef<HTMLElement>(null);
-  const open = useShell((s) => s.sheet === id);
-  const close = () => useShell.getState().close();
+  const open = useShell((s) => s.panels[id]);
+  const close = () => useShell.getState().closePanel(id);
   // (a phone's sheet follows a pull down and closes past a short one, as 2D's)
   useSheetSwipe(ref, close, sheetMode);
   return (

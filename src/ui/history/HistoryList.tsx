@@ -30,6 +30,9 @@ import { playCase, showInCase } from '../case/doors.ts';
 import { I } from '../shell/icons.tsx';
 import { Fade } from '../fade.tsx';
 
+/** History goes from where it is drawn: its panel, or the page Settings pushed (a phone). */
+const leaveHistory = (): void => { const sh = useShell.getState(); sh.closePanel('history'); if (sh.sheet === 'settings') sh.close(); };
+
 /** the reading the strip shows, kept while the page is open */
 export const useStoryMetric = create<{ metric: StripMetric | null }>(() => ({ metric: null }));
 const TICK_MS = 500;
@@ -78,13 +81,13 @@ function Acts({ m, here }: { m: Moment; here: boolean }) {
   return (
     <div className="hs-acts">
       {/* (while a case plays, the figure goes to that moment's stop and the case waits there: case/doors.ts) */}
-      {go >= 0 && <button type="button" className="hs-go" onClick={() => { if (isThumb()) useShell.getState().close(); if (!showInCase(go, m.day)) timeline.goTo(go); }}>{STORY.show}</button>}
+      {go >= 0 && <button type="button" className="hs-go" onClick={() => { if (isThumb()) leaveHistory(); if (!showInCase(go, m.day)) timeline.goTo(go); }}>{STORY.show}</button>}
       {pin && <Compare e={pin} />}
     </div>
   );
 }
 function Compare({ e }: { e: Entry }) {
-  return <button type="button" className="hs-go plain" onClick={() => { useShell.getState().close(); pinEntry(e); }}>{HIST.compare}</button>;
+  return <button type="button" className="hs-go plain" onClick={() => { leaveHistory(); pinEntry(e); }}>{HIST.compare}</button>;
 }
 
 const Then = ({ t }: { t: Item }) => <li data-tone={t.tone}><b>{t.title}</b>{t.detail ? ` · ${t.detail}` : ''}{t.also.length ? ` · ${t.also.join(' · ')}` : ''}</li>;
@@ -197,7 +200,7 @@ function Strip({ v, metric, day, setMetric }: { v: View; metric: StripMetric; da
 function PlayCase() {
   const preset = useEngine((s) => s.presetId), playing = useCase((s) => s.phase === 'stop' || s.phase === 'travel');
   const id = preset && isHistory(preset) ? preset : null;
-  const play = () => { if (id) void playCase(id).then((ok) => { if (ok && isThumb()) useShell.getState().close(); }); };
+  const play = () => { if (id) void playCase(id).then((ok) => { if (ok && isThumb()) leaveHistory(); }); };
   return (
     <Fade as="div" axis="y" className="hs-case" on={!!id && !playing}>
       <span className="hs-case-row"><button type="button" className="btn sm primary" onClick={play}><I n="play" className="mi-ic" />{STORY.play}</button></span>
@@ -206,7 +209,7 @@ function PlayCase() {
 }
 
 export function HistoryList() {
-  const open = useShell((s) => s.sheet === 'history');
+  const open = useShell((s) => s.panels.history);
   const v = useView(open);
   const entries = timeline.entries();
   const chosen = useStoryMetric((s) => s.metric);

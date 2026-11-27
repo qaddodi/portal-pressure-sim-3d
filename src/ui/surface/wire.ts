@@ -2,8 +2,9 @@
 // (usePanelOrder, oldest first); when a panel comes up, the table says which open panels it puts away, and each is closed through its own store, exactly as its X would close it.
 // The order is what the right column places its panels by (useColumnStep: the first keeps the right edge, panel-place.ts columnSteps) and what Esc closes first (the newest,
 // keys/escape.ts); a panel opened again while it is open keeps its place in it.
-// A later stage moves History, Compare, Why and the timeline chart out of useShell.sheet (the menus' one slot) into this registry; until then they are read from it here.
-import { useShell } from '../shell/store.ts';
+// History, Compare and Why each have their own open flag (shell/store.ts `panels`); the timeline chart still stands in the menus' one slot (useShell.sheet) until it is a panel.
+// Where every surface is a sheet (a phone, an upright iPad) a menu coming up still takes the place of History, Compare and Why, as it did when they shared its slot.
+import { useShell, SHELL_PANEL_IDS, isShellPanel } from '../shell/store.ts';
 import { useTreat } from '../treat/store.ts';
 import { useTests } from '../tests/store.ts';
 import { useSelection, selectStructure } from '../action/selection.ts';
@@ -19,9 +20,14 @@ import type { PanelId } from './kinds.ts';
 export const usePanelOrder = create<{ order: readonly SlotPanel[] }>(() => ({ order: [] }));
 export const panelOrder = (): readonly SlotPanel[] => usePanelOrder.getState().order;
 
-const SHELL_PANELS: ReadonlySet<string> = new Set(['history', 'compare', 'why', 'timeline']);
+/** The panels that stand in the menus' slot (useShell.sheet). */
+const SLOT_SHEET_PANELS: ReadonlySet<string> = new Set(['timeline']);
 
-const shellPanel = (id: SlotPanel) => ({
+const shellPanel = (id: 'history' | 'compare' | 'why') => ({
+  open: () => useShell.getState().panels[id],
+  close: () => useShell.getState().closePanel(id),
+});
+const slotPanel = (id: 'timeline') => ({
   open: () => useShell.getState().sheet === id,
   close: () => { if (useShell.getState().sheet === id) useShell.getState().close(); },
 });
@@ -31,13 +37,25 @@ export const PANEL_STATE: Record<SlotPanel, { open(): boolean; close(): void }> 
   tests: { open: () => useTests.getState().open, close: () => useTests.getState().close() },
   treat: { open: () => useTreat.getState().open, close: () => useTreat.getState().setOpen(false) },
   action: { open: () => !!useSelection.getState().sel, close: () => selectStructure(null) },
-  history: shellPanel('history'), compare: shellPanel('compare'), why: shellPanel('why'), timeline: shellPanel('timeline'),
+  history: shellPanel('history'), compare: shellPanel('compare'), why: shellPanel('why'), timeline: slotPanel('timeline'),
 };
 
-/** A panel coming up puts an open menu away (it was chosen from), never a panel standing in the menus' slot (History, Compare, Why, the chart): those are the slot table's. */
+/** A panel coming up puts an open menu away (it was chosen from), never the chart standing in the menus' slot: that is the slot table's. */
 export function closeMenu(): void {
   const sh = useShell.getState();
-  if (sh.sheet && !SHELL_PANELS.has(sh.sheet)) sh.close();
+  if (sh.sheet && !SLOT_SHEET_PANELS.has(sh.sheet)) sh.close();
+}
+
+/** Esc with no menu up: the newest of the shell's panels (History, Compare, Why, the chart) goes. */
+export function closeNewestShellPanel(): void {
+  const sh = useShell.getState();
+  const mine = (p: SlotPanel) => isShellPanel(p) || SLOT_SHEET_PANELS.has(p);
+  const newest = [...panelOrder()].reverse().find((p) => mine(p) && PANEL_STATE[p].open());
+  if (newest) { PANEL_STATE[newest].close(); return; }
+  // (the table is not wired: the slot first, then any panel)
+  if (sh.sheet) { sh.close(); return; }
+  const up = SHELL_PANEL_IDS.find((p) => sh.panels[p]);
+  if (up) sh.closePanel(up);
 }
 
 /** What is open now, of the slot panels (in the table's order; usePanelOrder has them in the order they came up). */
@@ -81,7 +99,13 @@ export function startSlots(): () => void {
     useTests.subscribe((s, prev) => { if (s.open !== prev.open) syncPanels(); }),
     useTreat.subscribe((s, prev) => { if (s.open !== prev.open) syncPanels(); }),
     useSelection.subscribe((s, prev) => { if (!!s.sel !== !!prev.sel) syncPanels(); }),
-    useShell.subscribe((s, prev) => { if (s.sheet !== prev.sheet && (SHELL_PANELS.has(s.sheet ?? '') || SHELL_PANELS.has(prev.sheet ?? ''))) syncPanels(); }),
+    useShell.subscribe((s, prev) => {
+      const menuUp = s.sheet !== prev.sheet && !!s.sheet && !SLOT_SHEET_PANELS.has(s.sheet);
+      // (sheet mode: a menu takes the place of History, Compare and Why, one sheet over the dock at a time, as when they shared its slot)
+      if (menuUp && surfaceModeNow() === 'sheet') for (const p of SHELL_PANEL_IDS) s.closePanel(p);
+      const slotMoved = s.sheet !== prev.sheet && (SLOT_SHEET_PANELS.has(s.sheet ?? '') || SLOT_SHEET_PANELS.has(prev.sheet ?? ''));
+      if (s.panels !== prev.panels || slotMoved) syncPanels();
+    }),
   ];
   return () => { for (const o of offs) o(); usePanelOrder.setState({ order: [] }); };
 }

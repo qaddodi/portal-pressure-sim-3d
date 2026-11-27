@@ -48,7 +48,7 @@ const chartKit: SettleKit = {
 /** Still, for History's panel: it is open with the case's days in. */
 const timelineKit: SettleKit = {
   cardUp: () => !!document.querySelector('.hs-when'),
-  extra: () => (useShell.getState().sheet === 'history' ? '' : "History's panel has not opened yet"),
+  extra: () => (useShell.getState().panels.history ? '' : "History's panel has not opened yet"),
 };
 
 export async function capturePromoExtras(ui: ExtraUi): Promise<ExtraResult> {

@@ -371,7 +371,7 @@ export function UMenu() {
         <Fade as="button" type="button" className="um-link um-other" on={!!empty.other} onClick={() => empty.otherTab && setTab(empty.otherTab, true)}>{empty.other}</Fade></Fade>
       <footer className="um-foot">
         <button type="button" className="um-link" onClick={() => { close(); shareView(patientId); }}><I n="share" /><span>Copy link to this view</span></button>
-        <button type="button" className="um-link" onClick={() => useShell.setState({ sheet: 'history' })}><I n="clock" /><span>History</span></button>
+        <button type="button" className="um-link" onClick={() => useShell.getState().open('history')}><I n="clock" /><span>History</span></button>
         <button type="button" className="um-link" onClick={() => useShell.setState({ sheet: 'help' })}><I n="help" /><span>Help</span></button>
         <span className="um-esc">Esc closes</span>
       </footer>

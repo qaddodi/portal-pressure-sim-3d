@@ -18,11 +18,16 @@ import { useLens } from '../../scene/lenses/store.ts';
 import { DEFAULT_LENS } from '../../scene/lenses/model.ts';
 
 import { clock } from '../../clock/frame.ts';
+/** The sheet or panel a share link names (Compare, Layers, Blood, the lens): the menu in the slot, else Compare's panel. */
+function sharedSheet(): { sheet?: string } {
+  const sh = useShell.getState(), up = sh.sheet ?? (sh.panels.compare ? 'compare' : null);
+  return up && SHARE_SHEETS.includes(up) ? { sheet: up } : {};
+}
 /** What the figure wears beyond its view (N4): the lens when it is not the default, the label level and the figure's switches. */
 function figureNow(): FigureExtras {
   const f = useShell.getState().figure, lens = useLens.getState().lens;
   const flags: Record<string, boolean> = { ...figureSwitches() };   // (each from its owner: useBlood for the Blood menu's, the shell for the lobule's layers)
-  return { ...(lens !== DEFAULT_LENS ? { lens } : {}), ...{ labels: f.labelLevel }, figure: flags, ...(SHARE_SHEETS.includes(String(useShell.getState().sheet)) ? { sheet: String(useShell.getState().sheet) } : {}) };
+  return { ...(lens !== DEFAULT_LENS ? { lens } : {}), ...{ labels: f.labelLevel }, figure: flags, ...sharedSheet() };
 }
 /** The scenario on the screen now. The camera rides only when the hand has moved it (a view frames itself). */
 export function shareNow(): ShareNow {
