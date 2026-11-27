@@ -121,7 +121,10 @@ export class StationExtras {
     if (lens === 'pressure') {
       let delta = '', up = false;
       const ref = env.refP ? env.refP[NI.get(id) ?? -1] : undefined;
-      if (P != null && ref != null && Number.isFinite(ref) && dHere && this.badge((env.cmp ? 'pc:' : 'p:') + id, Math.abs(P - ref), badgeOn(env.cmp), badgeOff(env.cmp))) { delta = signed(P - ref, sayUnit ? `${fmt1(P - ref)}${sayOf('mmHg') ? ' mmHg' : ''} ${versus(env)}` : fmt1(P - ref)); up = P > ref; }
+      if (P != null && ref != null && Number.isFinite(ref) && dHere && this.badge((env.cmp ? 'pc:' : 'p:') + id, Math.abs(P - ref), badgeOn(env.cmp), badgeOff(env.cmp))) {
+        delta = signed(P - ref, sayUnit ? `${fmt1(P - ref)}${sayOf('mmHg') ? ' mmHg' : ''} ${versus(env)}` : fmt1(P - ref));
+        up = P > ref;
+      }
       return { ...NO_EXTRAS, unit: sayOf('mmHg'), delta, up };
     }
     const Q = env.f.Qf ?? env.f.Q;

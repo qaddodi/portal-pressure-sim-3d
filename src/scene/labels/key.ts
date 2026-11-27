@@ -83,7 +83,8 @@ export const CARD_KEY_LENSES: readonly string[] = ['origin', 'firstpass'];
 export const keyPlace = (lens: string): 'card' | 'dock' => (CARD_KEY_LENSES.includes(lens) ? 'card' : 'dock');
 
 /**
- * One name per lens on a screen (review F-D11, owner W19: "Pressure | Pressure drop" over a key that said "Pressure drop" again). Where a button of the slide carries the lens's name, the key keeps its
- * unit and its scale and leaves the name to the button; where none does, the key names the lens. Pure: the names are lower case.
+ * One name per lens on a screen (review F-D11, owner W19: "Pressure | Pressure drop" over a key that said "Pressure drop" again).
+ * Where a button of the slide carries the lens's name, the key keeps its unit and its scale and leaves the name to the button;
+ * where none does, the key names the lens. Pure: the names are lower case.
  */
 export const keyNameShown = (lensName: string, controls: readonly string[]): boolean => !controls.includes(lensName.trim().toLowerCase());

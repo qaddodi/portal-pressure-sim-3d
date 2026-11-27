@@ -14,8 +14,9 @@ import { DISC_R, RS_N } from './widths.ts';
 export const ZONE_Q = [0.83, 0.51, 0.2] as const;
 export const APOTHEM = 0.866;
 /**
- * On a portrait phone (390 and 393 px wide are the ones the review measured) the zones' names crowd the tract's own: the middle zone, whose name stands on the sinusoids between the two, ranks under every
- * station there, so where the two compete it is Zone 2 that is left out and never a station (owner W19, 27 Nov; review A-D11). Zones 1 and 3 keep their rank above the stations, as 2D has them.
+ * On a portrait phone (390 and 393 px wide are the ones the review measured) the zones' names crowd the tract's own: the middle zone,
+ * whose name stands on the sinusoids between the two, ranks under every station there, so where the two compete it is Zone 2 that is left
+ * out and never a station (owner W19, 27 Nov; review A-D11). Zones 1 and 3 keep their rank above the stations, as 2D has them.
  */
 export const PHONE_PORTRAIT_MAX_W = 430;
 export const zoneRank = (zone: number, vp: { w: number; h: number }): number => (zone === 2 && vp.w <= PHONE_PORTRAIT_MAX_W && vp.h > vp.w ? 40 : 95);
@@ -185,8 +186,8 @@ export function buildLobuleCaptions(ctx: CapCtx): { items: Item[]; meta: Map<str
     //  the tract the tract names are about is the lowest one in view, and when the framed tract is at the screen's edge (a phone's zoomed shot)
     //  that is another one, whose sinusoid is off the screen: the name was left out, wedge slide on an iPhone, 25 Nov)
     const w = WORDS[k], at = stationAt(ctx.net, k === 'sin' && ctx.must?.has('sin') ? framedTriad(ctx.net.triads) : tri, k), [ax, ay] = ctx.proj(at[0], at[1]);
-    const reads = READ[k] !== null, must = !!ctx.must?.has(k);
-    const mk = (name: string, v: boolean): Form => { const b = boxSize(stationRuns(name, v, false, ctx.hide ? '?' : k === 'lymph' ? (ctx.unit ? `0,000 ${LYMPH_UNIT}` : '0,000') : (ctx.pUnit ?? ctx.unit) ? '00.0 mmHg' : '00.0'), vp, measure); return form(name, b.w, b.h); };
+    const reads = READ[k] !== null, must = !!ctx.must?.has(k), pressureSample = (ctx.pUnit ?? ctx.unit) ? '00.0 mmHg' : '00.0';
+    const mk = (name: string, v: boolean): Form => { const b = boxSize(stationRuns(name, v, false, ctx.hide ? '?' : k === 'lymph' ? (ctx.unit ? `0,000 ${LYMPH_UNIT}` : '0,000') : pressureSample), vp, measure); return form(name, b.w, b.h); };
     const formsM: { name: string; value: boolean }[] = [{ name: w.name, value: reads }];
     const forms: Form[] = [mk(w.name, reads)];
     if (w.short !== w.name) { forms.push(mk(w.short, reads)); formsM.push({ name: w.short, value: reads }); }

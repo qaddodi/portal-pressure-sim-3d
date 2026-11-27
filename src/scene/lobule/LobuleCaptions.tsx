@@ -105,7 +105,10 @@ export function LobuleCaptions() {
       const vw = view(), bl = blockers(), fig = useFigure.getState();
       const ROOM = 64;   // (a tract takes the names only with room round it for them: the venule at least this far inside the view)
       const inView = (x: number, y: number) => x > vw.x0 + ROOM && x < vw.x1 - ROOM && y > vw.y0 + ROOM && y < vw.y1 - ROOM && !bl.some((b) => x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1);
-      const built = buildLobuleCaptions({ proj, vp, measure, net: cel.lobule.net, layers: { zones: L.zones, lymph: L.lymph }, oxygen: cel.lobule.currentLens === 'oxygen', hide: !m, inView, unit: onSlide(), pUnit: pUnit(), must: new Set(useFigure.getState().reads) });
+      const built = buildLobuleCaptions({
+        proj, vp, measure, net: cel.lobule.net, layers: { zones: L.zones, lymph: L.lymph }, oxygen: cel.lobule.currentLens === 'oxygen', hide: !m, inView,
+        unit: onSlide(), pUnit: pUnit(), must: new Set(useFigure.getState().reads),
+      });
       const items = level === 'none' ? built.items.filter((it) => it.id.startsWith('z:')) : built.items;
       // (the pair of readings, labels/pair.ts: the Sinusoids name stands straight above its ring, over the vessel,
       //  as the slide's callout stands below its own ring on the same sinusoid; the rest of the names keep off it.
@@ -177,7 +180,8 @@ export function LobuleCaptions() {
       const { vp, boxes } = useUi.getState();
       const L = cel.lobule.currentLayers, m = readModel(cel.lobule.inkContext()?.model);
       return [vp.w, vp.h, L.zones, L.lymph, levelFor(useShell.getState().figure.labelLevel, useLabels.getState().presenting), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'), boxKey(view()), lookRef.current,
-        readingSig(m, onSlide(), pUnit()), onSlide(), pUnit(), figSig(), cel.lobule.currentLens === 'oxygen'].join('|');   // (the readings' widths, never their values: a value that moves a tenth is written in place, refreshReadings, and sends nothing through a fade)
+        readingSig(m, onSlide(), pUnit()), onSlide(), pUnit(), figSig(),
+        cel.lobule.currentLens === 'oxygen'].join('|');   // (the readings' widths, never their values: a value that moves a tenth is written in place, refreshReadings, and sends nothing through a fade)
     };
     const boxesOf = () => {
       const out: { ax: number; ay: number; dx: number; dy: number; w: number; h: number }[] = [];

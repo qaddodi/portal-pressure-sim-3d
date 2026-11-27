@@ -97,7 +97,8 @@ function fullFrame(pts: readonly TalkPoint[], runs: readonly Run[], gapName: str
     if (near) { const d = lk('talk.dot.ring', {}, tokName(col)); shapes.push({ k: 'circle', cx: x, cy: y, r: r + 2.5, pen: { color: d.stroke!, w: d.width! } }); }
     else { const d = lk('talk.dot', {}, tokName(col)); shapes.push({ k: 'circle', cx: x, cy: y, r, fill: d.fill, pen: { color: d.stroke!, w: d.width! } }); }
   }));
-  // The FHVP is a line only where there are two states or more: with one state its legend row at the right would name a mark that is not drawn, so the state gets a small neutral dot (the line's own ink).
+  // The FHVP is a line only where there are two states or more: with one state its legend row at the right would name a mark that is
+  // not drawn, so the state gets a small neutral dot (the line's own ink).
   if (n === 1) { const d = lk('talk.dot', {}, tokName('--text-3')); shapes.push({ k: 'circle', cx: fh[0]![0], cy: fh[0]![1], r: 3, fill: d.fill, pen: { color: d.stroke!, w: d.width! } }); }
   // each line's name at its right end, with its last value where there is room
   for (const e of ends) {
@@ -131,8 +132,9 @@ function fullFrame(pts: readonly TalkPoint[], runs: readonly Run[], gapName: str
   const keepOf = (vs: string[]) => keepClear(pts.map((_, i) => X(i)), vs.map((t) => textW(t, fs, 600)), R + 6);
   const keep1 = keepOf(gapV), rowAt = (key: string) => Lo.rowDefs.find((d) => d[0] === key)?.[1];
   const gapY = rowAt('gap'), hvY = rowAt('hv');
-  // The HVPG values are the chart's argument, so none the words cite is left out: the latest, then the cited, then the others each take a line of the row. Where they cannot all stand on one line and the
-  // PV − WHVP row has its line, that row gives way and the HVPG alternates over both lines (the box keeps its height).
+  // The HVPG values are the chart's argument, so none the words cite is left out: the latest, then the cited, then the others each take a line of
+  // the row. Where they cannot all stand on one line and the PV − WHVP row has its line, that row gives way and the HVPG alternates over both
+  // lines (the box keeps its height).
   const xs = pts.map((_, i) => X(i)), hw = hvV.map((t) => textW(t, fs, 600)), hot = pts.flatMap((p, i) => (p.id != null && cited?.includes(p.id) ? [i] : []));
   const one = rowPlaces(xs, hw, R + 6, 1, hot), twoLines = gapY != null && hvY != null && one.some((l) => l < 0);
   const hvLine = twoLines ? rowPlaces(xs, hw, R + 6, 2, hot) : one, showGap = !twoLines;

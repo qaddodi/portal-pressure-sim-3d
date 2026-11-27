@@ -65,8 +65,9 @@ export const EMPTY_CALLS: FigureCalls = {
 };
 
 /**
- * The portal blood's split card for a site (stage-sites-paint.js SPLIT_B), or null where there is nothing to say: no reading yet, or none of the blood bypasses the liver (owner W19, 27 Nov: "0% bypasses the
- * liver" stood on the portal vein of a healthy liver, naming a thing that is not there). Pure: tests/split-card.test.ts.
+ * The portal blood's split card for a site (stage-sites-paint.js SPLIT_B), or null where there is nothing to say: no reading yet, or none of
+ * the blood bypasses the liver (owner W19, 27 Nov: "0% bypasses the liver" stood on the portal vein of a healthy liver, naming a thing that is
+ * not there). Pure: tests/split-card.test.ts.
  */
 export function splitCardOf(key: string, d: { kicker: string; node?: string }, fp: Record<string, unknown> | null | undefined): FigCard | null {
   const sh = fp?.shunt;

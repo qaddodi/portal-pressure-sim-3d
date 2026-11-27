@@ -12,7 +12,15 @@ import { KEY_LENSES, keyPlace } from './key.ts';
 import { DEFAULT_LENS, type LensId } from '../lenses/model.ts';
 import { shownLens } from '../lenses/in-view.ts';
 
-export interface LabelsAt { named: Set<string>; shown: Set<string>; tones: Record<string, string>; cath: CathState | null; /** the lens whose colour key the slide shows on the figure (null: none) */ key: string | null; /** a centred panel stands over the figure: its names stand aside */ panel?: boolean; /** the names the slide's own buttons carry, lower case (the key does not say them again, key.ts keyNameShown) */ controls?: readonly string[] }
+export interface LabelsAt {
+  named: Set<string>; shown: Set<string>; tones: Record<string, string>; cath: CathState | null;
+  /** the lens whose colour key the slide shows on the figure (null: none) */
+  key: string | null;
+  /** a centred panel stands over the figure: its names stand aside */
+  panel?: boolean;
+  /** the names the slide's own buttons carry, lower case (the key does not say them again, key.ts keyNameShown) */
+  controls?: readonly string[];
+}
 const NONE = (cath: CathState | null = null, key: string | null = null): LabelsAt => ({ named: new Set(), shown: new Set(), tones: {}, cath, key });
 
 /** The colour key a slide shows on the figure (Mohammad, 26 Nov: "every slide that colours the figure", captures 36b7deac and 2274649a).
@@ -91,7 +99,8 @@ export function linkLabelsToDeck(): () => void {
     const cur = useLabels.getState();
     const keyed = deck ? true : owns;   // (no talk: the key is left as it is unless a talk had set it)
     const sameKey = !keyed || cur.key === next.key;
-    const same = cur.presenting === !!deck && cur.cath === next.cath && sameSet(cur.named, next.named) && sameSet(cur.shown, next.shown) && sameTones(cur.tones, next.tones) && sameKey && cur.panel === !!next.panel && sameNames(cur.controls, next.controls ?? []);
+    const same = cur.presenting === !!deck && cur.cath === next.cath && sameSet(cur.named, next.named) && sameSet(cur.shown, next.shown) && sameTones(cur.tones, next.tones) && sameKey
+      && cur.panel === !!next.panel && sameNames(cur.controls, next.controls ?? []);
     if (!same) { const { key, ...rest } = next; cur.set({ ...(keyed ? { ...rest, key } : rest), controls: next.controls ?? [], panel: !!next.panel, presenting: !!deck }); }
     owns = !!deck;
   };

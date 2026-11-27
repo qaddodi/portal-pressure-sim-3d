@@ -168,7 +168,8 @@ export function LabelLayer() {
         const cmp = useCompare.getState(), lens = cmp.snap && cmp.view === 'D' ? 'delta' : useLens.getState().lens;
         const ref = patient.reference;
         return readings.read(node, P, {
-          f: f as never, healthy: ref ? { Q: ref.Q } : null, refP: cel.lens.sinceReference, lens, key: useLabels.getState().key, cmp: !!cmp.snap, presenting: flags.presenting, selected: flags.selected, lit: flags.lit,
+          f: f as never, healthy: ref ? { Q: ref.Q } : null, refP: cel.lens.sinceReference, lens, key: useLabels.getState().key,
+          cmp: !!cmp.snap, presenting: flags.presenting, selected: flags.selected, lit: flags.lit,
           veinShown: (edge) => { const v = NETWORK_BY_ID.get(edge); return !!v && v.tone !== 'artery' && deps.drawn!(v as never); }, params: shownParams(),
         });
       },

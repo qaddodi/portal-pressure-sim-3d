@@ -43,8 +43,9 @@ export function bareItems(items: readonly Item[], full: ReadonlyMap<string, read
 }
 
 /**
- * The same items with every reading label keeping its unit: only the forms that carry it. Where the key says no unit, a figure whose labels could not all keep theirs is tried again like this (the unit
- * said on every label if nothing is lost for it), before the last resort of bare labels that no key explains.
+ * The same items with every reading label keeping its unit: only the forms that carry it. Where the key says no unit, a figure whose labels
+ * could not all keep theirs is tried again like this (the unit said on every label if nothing is lost for it), before the last resort of bare
+ * labels that no key explains.
  */
 export function unitItems(items: readonly Item[], full: ReadonlyMap<string, readonly Form[]>): Item[] {
   return items.map((it) => {
@@ -69,4 +70,5 @@ export const keyUnit = (key: string | null | undefined): string | null => (key ?
 /** True where the key says the unit a label would carry ("% O₂" is the key's "%"). */
 export const keyStates = (key: string | null | undefined, unit: string): boolean => { const k = keyUnit(key); return !!k && unit.startsWith(k); };
 /** The unit a reading label says: its own where the slide (or a tapped station) asks for one and the key does not already say it, else none. */
-export const labelUnit = (o: { selected: boolean; presenting: boolean; key: string | null | undefined; unit: string }): string => ((o.selected || o.presenting) && !keyStates(o.key, o.unit) ? o.unit : '');
+export const labelUnit = (o: { selected: boolean; presenting: boolean; key: string | null | undefined; unit: string }): string =>
+  ((o.selected || o.presenting) && !keyStates(o.key, o.unit) ? o.unit : '');

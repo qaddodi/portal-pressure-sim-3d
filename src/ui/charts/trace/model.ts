@@ -84,9 +84,10 @@ export function keepClear(xs: readonly number[], ws: readonly number[], W: numbe
   return kept;
 }
 /**
- * Where each reading of a row stands when it may use `lines` lines under the plot: 0 the row's own line, 1 the line beside it, -1 left out. The latest always stands on line 0; then the readings the words cite (`first`,
- * their indices), then the rest, right to left; each takes the line that alternates with the latest, else the other, and is left out only when both are crowded (each clear of every reading on its line by gap px, inside [0, W]).
- * With one line and nothing cited this is keepClear.
+ * Where each reading of a row stands when it may use `lines` lines under the plot: 0 the row's own line, 1 the line beside it, -1 left out.
+ * The latest always stands on line 0; then the readings the words cite (`first`, their indices), then the rest, right to left; each takes the
+ * line that alternates with the latest, else the other, and is left out only when both are crowded (each clear of every reading on its line
+ * by gap px, inside [0, W]). With one line and nothing cited this is keepClear.
  */
 export function rowPlaces(xs: readonly number[], ws: readonly number[], W: number, lines: 1 | 2, first: Iterable<number> = [], gap = 8): number[] {
   const last = xs.length - 1, at = xs.map(() => -1), placed: number[][] = [[], []];

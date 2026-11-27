@@ -42,7 +42,7 @@ test('every slide that shows the card gets the total, class and MELD its own wor
 
 test('the preemptive verdict on a slide agrees with what the slide says', () => {
   assert.match(scoresOf(SCORES_ON['tips-candidacy/pre']!, 2.8).verdict!.text, /^Meets/);
-  assert.match(scoresOf(SCORES_ON['choose-treatment/a1']!, 2.8).verdict!.text, /^Does not meet/);
+  assert.equal(SCORES_ON['choose-treatment/a1'], undefined, 'Choose treatment 2 (Child–Pugh B 8, not bleeding) draws its criteria alone: the tally under them was unreadably small (owner W19)');
   assert.match(scoresOf(SCORES_ON['recompensation/recomp']!, 4).verdict!.text, /consistent with Child–Pugh A5 or A6/);
   assert.equal(scoresOf(SCORES_ON['tips-candidacy/meld']!, 2.5).verdict, null);
 });
