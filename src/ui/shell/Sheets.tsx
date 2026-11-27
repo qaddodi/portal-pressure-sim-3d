@@ -62,7 +62,7 @@ export function Sheets() {
       </SheetClip>
       <ResetDialog />
       <DeckDialogs />
-      <CaseOwnLine hidden={talk} />
+      <CaseOwnLine away={talk} />
       <CaseGuardDialog />
     </>
   );

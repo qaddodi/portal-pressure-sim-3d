@@ -326,7 +326,7 @@ html[data-noglass] .deck-ui .dk-bar[data-leaving] { opacity: 0; transition: opac
 }
 .pz .pz-data.has-tool > .dk-in > .pz-dh:has(> .pz-hr:not([data-n="0"])) { flex-wrap: wrap; justify-content: space-between; align-items: baseline; text-align: left; gap: 2px 12px; }
 .pz .pz-data.has-tool > .dk-in > .pz-dh:has(> .pz-hr:not([data-n="0"])) > span:first-child { flex: 1 1 auto; text-wrap: balance; }
-.pz.pz .pz-data.pz-data[data-tool^="criteria:"] > .dk-in > .pz-dh > .pz-hr { font: var(--caps-w) calc(1em / 1.3)/1.25 var(--font-ui); }
+.pz.pz .pz-data.pz-data[data-tool^="criteria:"] > .dk-in > .pz-dh > .pz-hr { font: var(--caps-w) .7692em/1.25 var(--font-ui); }
 body[data-card-zoom] .pz-zbtn :is(svg, .ic):first-child { display: none; }
 body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 .deck-ui .pz-zbtn { pointer-events: auto; }

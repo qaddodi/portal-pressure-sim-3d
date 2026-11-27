@@ -40,7 +40,7 @@ test('the scene has exactly one R3F <Canvas>, and the charts\' drawer makes one 
   assert.equal((gl.match(/new Drawer\(/g) ?? []).length, 2, 'the shared drawer and the per-canvas fallback, nothing else');
 });
 
-const TWO_D_ONLY = new Set([join('src', 'scene', 'labels', 'measure.ts'), join('src', 'ui', 'capture', 'capture-dom.ts'), join('src', 'ui', 'capture', 'capture.ts'), join('src', 'ui', 'debug', 'audit', 'capture-all.ts'), join('src', 'ui', 'debug', 'promo', 'outer.ts')]);
+const TWO_D_ONLY = new Set([join('src', 'scene', 'labels', 'measure.ts'), join('src', 'ui', 'capture', 'capture-dom.ts'), join('src', 'ui', 'capture', 'capture.ts'), join('src', 'ui', 'debug', 'audit', 'capture-all.ts'), join('src', 'ui', 'debug', 'audit', 'capture-settle.ts'), join('src', 'ui', 'debug', 'audit', 'capture-shot.ts'), join('src', 'ui', 'debug', 'promo', 'outer.ts')]);
 
 test('a chart, a card or a deck never makes a chart canvas by hand: it goes through ChartPainter', () => {
   const bad: string[] = [];

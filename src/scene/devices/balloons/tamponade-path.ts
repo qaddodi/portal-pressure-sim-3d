@@ -20,7 +20,8 @@ import { DEVICE_BEND_RADII, arcOf, filletPath, limitBend, pointAtArc, type V3 } 
 import { ringSides } from '../tube-rings.ts';
 import { scopeZ, wayShift } from '../probes/scope.ts';
 import { ORGAN_MESHES } from '../../organs/meshes.ts';
-import { type GeJunction, geJunction } from '../../organs/ge-junction.ts';
+import { type GeJunction, geJunction, liftJunction } from '../../organs/ge-junction.ts';
+import { ORGAN_Z } from '../../organs/z.ts';
 
 const U = UNITS_PER_SCENE;
 
@@ -69,7 +70,7 @@ export function tubeLine(path: Tube2D = tubePath() as Tube2D): TubeLine {
   const hit = kept.get(path);
   if (hit) return hit;
   let junction: GeJunction | null = null;
-  try { junction = geJunction(ORGAN_MESHES.stomach!()); } catch { junction = null; }
+  try { junction = liftJunction(geJunction(ORGAN_MESHES.stomach!()), ORGAN_Z.stomach ?? 0); } catch { junction = null; }
   if (!junction) return { path, pts: path.pts.map(scene3), cum: path.arc.slice(), junction: null, opening: path.p0Arc };
   const line = layLine(path, junction);
   kept.set(path, line);
