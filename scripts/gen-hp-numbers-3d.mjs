@@ -13,6 +13,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
+import { inPlayOrder } from './play-order.mjs';
 import { chainOf, sequencer, plainText, parseToken, tokensOf, changes } from '../src/decks/hp/numbers.ts';
 
 const two = JSON.parse(readFileSync(new URL('../tests/fixtures/decks-hp-numbers.json', import.meta.url), 'utf8'));
@@ -33,7 +34,7 @@ async function replay(d) {
 
 const out = { note: 'Recorded from this app\'s engine where it has deliberately moved on from the 2D app (scripts/gen-hp-numbers-3d.mjs: engine ac66c99b and c92bf66b); every other deck is held to decks-hp-numbers.json.', decks: {} };
 for (const id of HP_IDS) {
-  const d = await loadHpDeck(id), g = two.decks[id], fps = await replay(d);
+  const d = await loadHpDeck(id), g = inPlayOrder(id, two.decks[id]), fps = await replay(d);
   const at = (sid) => { const j = d.slides.findIndex((s) => s.id === sid); return j >= 0 ? fps[j] : null; };
   // a deck departs from 2D when a reading moved, or when a {token} prints another text than the 2D card does (the words moved: {hvpg:0} prints the tile's one decimal, 26 Nov)
   const prints = (s, i) => tokensOf(`${s.line} ${s.vignette ?? ''}`).map(({ raw }) => plainText(raw, fps[i], at));
