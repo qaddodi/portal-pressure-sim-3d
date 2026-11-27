@@ -15,7 +15,7 @@ import { settle, setSpeed, step, togglePlay } from '../shell/transport.ts';
 import { stopTalk } from '../shell/talk.ts';
 import { useTreat } from '../treat/store.ts';
 import { useSelection, selectStructure } from '../action/selection.ts';
-import { triggerCardVerb, cardIsOpen, removeFromCard } from '../action/ActionCard.tsx';
+import { triggerCardVerb, cardIsOpen, removeFromCard } from '../action/card-keys.ts';
 import { openGuide } from '../shell/HelpSheets.tsx';
 import { SETTLED, lensToast, speedToast } from '../shell/words.ts';
 import { useTests } from '../tests/store.ts';

@@ -57,7 +57,8 @@ export function Frame({ kind, label, head, place = 'top', children }: { kind: Ex
     : <div className="sh-sheet-head"><h2>{head ?? label}</h2><button type="button" className="sh-x" aria-label="Close" onClick={close}><Icon n="close" /></button></div>;
   const style = (step ? { '--pl-step': `${step}px` } : undefined) as CSSProperties | undefined;
   return (
-    <section ref={ref} className="sh-sheet" data-kind={kind} data-place={place} data-open={open} data-sheet={sheet?.data} style={sheet ? { ...style, ...sheet.style } : style} role="dialog" aria-label={label} inert={!open}>
+    <section ref={ref} className="sh-sheet" data-kind={kind} data-place={place} data-open={open} data-sheet={sheet?.data}
+      style={sheet ? { ...style, ...sheet.style } : style} role="dialog" aria-label={label} inert={!open}>
       {sheet ? <SheetGrab label={`Resize ${label}`} onGrab={sheet.grab} /> : <i className="sh-grabbar" aria-hidden="true" />}
       {top}
       <div className={`sh-sheet-body${sheet ? ' sf-body' : ''}`}>{children}</div>

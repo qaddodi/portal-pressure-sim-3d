@@ -32,17 +32,10 @@ import { hvpgSev, ppgSev } from '../../engine/hales/portal/pressure-cuts.js';
 import { fmt } from '../charts/fmt.ts';
 import { useCaseBarUp } from '../case/room.ts';
 import { glideHeight } from '../surface/height-glide.ts';
+import { cardKeys } from './card-keys.ts';
 
-// ── the number keys: the card's first nine controls, in the order the card lists them (a slider takes the focus so the arrow keys move it) ──
-let keyed: (() => void)[] = [];
-let shownNow = false;
-/** Key n (1 to 9) on the open card: true when it did something. */
-export function triggerCardVerb(n: number): boolean { const a = shownNow ? keyed[n - 1] : undefined; if (!a) return false; a(); return true; }
-/** Delete or Backspace on the open card: its Remove button's own work (a shunt or a device comes down, the card eases out, Cmd Z brings it back). */
-let removeNow: (() => void) | null = null;
-export const removeFromCard = Object.assign((): boolean => { const r = shownNow ? removeNow : null; if (!r) return false; r(); return true; }, { available: (): boolean => shownNow && removeNow != null });
-/** Whether a card is up (the number keys mean something then). */
-export const cardIsOpen = (): boolean => shownNow;
+// ── the number keys: the card's first nine controls, in the order the card lists them (a slider takes the focus so the arrow keys move it), and its Remove: card-keys.ts ──
+export { triggerCardVerb, removeFromCard, cardIsOpen } from './card-keys.ts';
 
 function useSnap(card: Card): Snap | null {
   const [s, setS] = useState<Snap | null>(() => { const e = envNow(); return e ? snapOf(card, e) : null; });
@@ -154,8 +147,8 @@ function Face({ card, onKeys, onDetails }: { card: Card; onKeys: (list: (() => v
     onKeys(list.slice(0, 9));
     const ri = verbs.findIndex((v, i) => v.type === 'button' && v.id === 'remove' && snap.verbs[i]!.show);
     const rv = ri >= 0 ? verbs[ri]! : null;
-    removeNow = rv && rv.type === 'button' ? () => rv.run(appAct) : null;
-    return () => { removeNow = null; };
+    cardKeys.setRemove(rv && rv.type === 'button' ? () => rv.run(appAct) : null);
+    return () => { cardKeys.setRemove(null); };
   }, [snap, verbs, onKeys]);
   if (!snap) return null;
   const st = snap.status;
@@ -200,9 +193,9 @@ export function ActionCard() {
   useEffect(() => { if (card) setHeld(card); }, [card]);
   useEffect(() => { if (!fonts) void document.fonts.ready.then(() => setFonts(true)); }, [fonts]);
   const shown = card ?? held, open = !!card && fonts;
-  useEffect(() => { shownNow = open; if (!open) { keyed = []; removeNow = null; } return () => { shownNow = false; keyed = []; removeNow = null; }; }, [open]);
-  useEffect(() => { if (face === 'details') keyed = []; }, [face]);   // (the number keys run a card's controls; the Details face has none)
-  const onKeys = useMemo(() => (list: (() => void)[]) => { keyed = list; }, []);
+  useEffect(() => { cardKeys.setShown(open); return () => cardKeys.setShown(false); }, [open]);
+  useEffect(() => { if (face === 'details') cardKeys.setKeyed([]); }, [face]);   // (the number keys run a card's controls; the Details face has none)
+  const onKeys = useMemo(() => (list: (() => void)[]) => { cardKeys.setKeyed(list); }, []);
   const close = closeCard;
   // a phone's sheet: Peek, Half (as tall as its words, capped) and Full, the one pull (a pull past Peek closes it) and the one grab bar (surface/use-sheet.ts)
   // (read so the card is placed again when a playing case's bar raises the foot it rests on: case/room.ts)
