@@ -7,7 +7,7 @@
 //   - the HVPG response is a fall of ≥10% in primary prophylaxis and ≥20% (or an HVPG ≤12 mmHg) after a bleed: the slide says which (`hvpgRule`, decks/overlay/controls.ts).
 // Every place that reads a tile's rating (the tile, its bar, the colour of a number in the words) asks here, never the 2D table directly, so the rule is one rule.
 import { rateOf as rateOf2d, rateShown as rateShown2d, tileOf, tileShown, SCALE as SCALE2d } from '../deck/from2d/table-marks.js';
-import { lsmContext } from '../../engine/hales/portal/lsm-cuts.js';
+import { lsmContext } from '../cuts.ts';
 
 export type Rating = readonly [string | null, string];
 type Fp = Readonly<Record<string, number | null | undefined>>;

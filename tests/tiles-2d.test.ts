@@ -17,6 +17,8 @@ const tiles2d = JSON.parse(readFileSync(new URL('./fixtures/tiles-2d.json', impo
 const nums = JSON.parse(readFileSync(new URL('./fixtures/decks-hp-numbers.json', import.meta.url), 'utf8')) as { decks: Record<string, { id: string; fp: Fp }[]> };
 
 /** The tiles whose rating is not the 2D table's (src/ui/cards/ratings.ts). */
+/** Tiles the owner asked for beyond the 2D slide's (W14, 27 Nov 2026): deck/slide -> tile keys. */
+const ADDED_TILES: Record<string, string[]> = { 'outflow/web': ['ivc'] };
 const OWN_RATING: ReadonlySet<string> = new Set(['pv', 'whvp', 'sin', 'plt', 'hvpgFall', 'hvpg', 'eus']);
 
 /** Equal, but for the positions on a bar (percent of its width): the fixture keeps the 2D numbers to six digits, so a position may differ in the fourth decimal. */
@@ -44,7 +46,11 @@ function check(d: CopiedDeck, results: { fp: Fp }[], where: string, live = false
   for (const row of tiles2d.decks[d.id] ?? []) {
     const i = d.slides.findIndex((s) => s.id === row.id);
     assert.ok(i >= 0, `${where}/${row.id}: not a slide of the copied deck`);
-    const got = tilesAt(d.slides, results as never, i, row.phone)!;
+    const got0 = tilesAt(d.slides, results as never, i, row.phone)!;
+    // (a tile the owner added on a slide, 27 Nov 2026 ruling W14, stands beside the 2D tiles; tests/numbers-shown.test.ts pins that the number a slide's words cite is shown)
+    const added = ADDED_TILES[`${d.id}/${row.id}`] ?? [];
+    for (const k of added) assert.ok(got0.keys.includes(k), `${where}/${row.id}: the added tile ${k} is on the slide`);
+    const got = added.length ? { ...got0, keys: got0.keys.filter((k: string) => !added.includes(k)), head: got0.head.filter((k: string) => !added.includes(k)), tiles: got0.tiles.filter((t: { k: string }) => !added.includes(t.k)) } : got0;
     const at = `${where}/${row.id}${row.phone ? ' (phone)' : ''}`;
     assert.deepEqual(got.keys, row.keys, `${at}: which tiles`);
     assert.deepEqual(got.head, row.head, `${at}: which readings stand in the header`);
