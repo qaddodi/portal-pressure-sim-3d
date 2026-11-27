@@ -20,7 +20,7 @@ const STATION_OF: Readonly<Record<string, string>> = { ...Object.fromEntries(Obj
 /** The gradients the ladder draws as brackets. */
 const BRACKETS: readonly string[] = ['hvpg', 'ppg', 'eus'];
 /** The readings the ladder prints as numbers: every station's, and the brackets'. */
-const PRINTED: ReadonlySet<string> = new Set([...Object.values(AT_FP as Record<string, string>), ...BRACKETS]);
+export const PRINTED: ReadonlySet<string> = new Set([...Object.values(AT_FP as Record<string, string>), ...BRACKETS]);
 
 /** Is this tile a pressure (a station's reading or a bracket)? */
 export const isPressure = (k: string): boolean => k in STATION_OF || BRACKETS.includes(k);
