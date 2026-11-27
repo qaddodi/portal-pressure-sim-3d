@@ -38,3 +38,4 @@ const pinned = { note: 'Written by scripts/sync-engine.mjs. Do not edit the fold
   engine: { repo: remote(engineDir), commit: engineRef }, files: hashes };
 writeFileSync(join(out, 'PINNED.json'), `${JSON.stringify(pinned, null, 2)}\n`);
 console.log(`engine ${pinned.engine.repo}@${engineRef.slice(0, 8)}: ${Object.keys(files).length} files`);
+console.log('next: npm run gen:departures (re-records where this engine departs from the 2D numbers; tests/engine-departures.test.ts fails until it is run)');

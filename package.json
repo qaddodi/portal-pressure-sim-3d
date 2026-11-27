@@ -17,6 +17,7 @@
     "test:time": "node scripts/test-time.mjs",
     "hooks": "git config core.hooksPath .githooks",
     "sync:engine": "node scripts/sync-engine.mjs",
+    "gen:departures": "node scripts/gen-engine-departures.mjs",
     "gen:engine-fixture": "node scripts/gen-engine-fixture.mjs",
     "sync:inventory": "node scripts/sync-inventory.mjs",
     "debug": "node scripts/debug.mjs",

@@ -2,16 +2,15 @@
 // these tests hold the 3D engine copy to it (the smallest deck live every run, all sixteen with RW_FULL=1: about two minutes, for the Mac) and read every {token} of every line from it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { stepsOf, shownSlides, deckFingerprints, parseWords, valueTokens, valueText, changes, MODEL_FIELDS } from '../src/decks/rw/numbers.ts';
 import { runStepsNode } from '../src/decks/rw/numbers-node.ts';
 import { TILE } from '../src/ui/charts/tiles.generated.ts';
 import { RW_IDS, DECKS } from './decks-rw-helpers.ts';
+import { withDepartures } from './engine-departures.ts';
 
 type Rows = { decks: Record<string, Record<string, number>[]> };
-const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/${f}`, import.meta.url), 'utf8')) as Rows;
-// the 2D app's numbers, except for the decks where this app's engine has deliberately moved on (rw-numbers-3d.json, scripts/gen-rw-numbers-3d.mjs: two-lesions from its slide 4, varices with four slides of its own)
-const fixture: Rows = { decks: { ...read('rw-numbers.json').decks, ...read('rw-numbers-3d.json').decks } };
+// the 2D app's numbers, except for the rows where this app's engine has moved on (rw-numbers-3d.json, scripts/gen-rw-numbers-3d.mjs, npm run gen:departures; tests/engine-departures.ts)
+const fixture: Rows = { decks: withDepartures<Record<string, number>[]>('rw-numbers.json', 'rw-numbers-3d.json') };
 const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
 
 test('the chain is the 2D presenter\'s: the outline takes the first slide\'s model fields, which the first slide then keeps (unless it is a time-lapse or opens with a case)', () => {
