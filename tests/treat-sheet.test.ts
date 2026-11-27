@@ -7,7 +7,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { sheetHeight, SIZES, THUMB, TABLET } from '../src/ui/treat/sheet-height.copied.ts';
 import { glideFrames, cutFrames, rideFrames } from '../src/ui/treat/card-glide.copied.ts';
 import { readOpen, writeOpen, startsOpen, toggled, KEPT_KEY } from '../src/ui/treat/keep.ts';
-import { slideMs, PAGE_AWAY } from '../src/ui/treat/page-push.ts';
+import { slideMs, PAGE_AWAY } from '../src/ui/surface/page-push.ts';
 import { pinned2D } from './two-d-pin.ts';
 
 const mem = (init?: string) => { const m = new Map<string, string>(); if (init != null) m.set(KEPT_KEY, init); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) }; };

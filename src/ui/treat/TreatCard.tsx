@@ -2,7 +2,7 @@
 // the one panel head (surface/PanelHead.tsx: a title with "n running" and the X, .tc-head.card-head), three tabs (its Tabs, .instr-tabs.treat-tabs: Drugs, Fluids,
 // Procedures; the chosen one is the one gliding piece, seg-glide.copied.ts),
 // the orders (.treat-pane), and the Changes list (.section.chart-sec: closed until opened and then remembered, keep.ts). On a phone Changes is one row (.tcp-row) that slides its list in as a page of its own
-// (.tc-page, page-push.ts), the sheet standing Full while the page is up; on a laptop or an iPad on its side it is the section under the orders. A phone's or an upright iPad's card is a sheet over the dock
+// (.tc-page, surface/page-push.ts), the sheet standing Full while the page is up; on a laptop or an iPad on its side it is the section under the orders. A phone's or an upright iPad's card is a sheet over the dock
 // that opens at Half (as tall as its words, up to Full: sheetHeight, treat.css), and its height glides when a tab, the Changes section or the page changes it (glideCard: the card's plate is scaled, its
 // words ride, the parts below the change ride and the parts whose foot opens are cut by a clip). Always in the page and faded in and out, so nothing pops; its words are the 2D app's
 // (treat.generated.ts) and its numbers the engine's: an order only edits the patient's settings (orders.ts).
@@ -31,7 +31,7 @@ import { currentParams, presetBase, updateParams, useParamsTick, type Params } f
 import { selectStructure } from '../action/selection.ts';
 import { glideCard } from './glide.ts';
 import { startSegGlideOn } from './seg-glide.copied.ts';
-import { pushPage, type Pushed } from './page-push.ts';
+import { pushPage, type Push } from '../surface/page-push.ts';
 import { openSet, remember, startsOpen } from './keep.ts';
 import { reduced } from '../a11y/motion.ts';
 import { D_SMALL, EASE_ARRIVE } from '../motion.ts';
@@ -126,7 +126,7 @@ export function TreatCard() {
   const pageRef = useRef<HTMLDivElement>(null), secRef = useRef<HTMLDetailsElement>(null);
   const [gone, setGone] = useState<Record<string, boolean>>({ fluids: true, procs: true });   // (a pane whose fade is over takes no height: 2D tp-gone)
   const [mounted, setMounted] = useState(false), [top, setTop] = useState(0);
-  const push = useRef<Pushed | null>(null), glides = useRef<Animation[]>([]), closing = useRef(false);
+  const push = useRef<Push | null>(null), glides = useRef<Animation[]>([]), closing = useRef(false);
   const pending = useRef<{ h0: number; parts: () => GlideParts } | null>(null);
   const n = p ? treatCount(p) : 0;
   const foot = thumb;   // (a sheet over the dock stands on its foot: its plate scales about the foot and the words ride, card-glide.js)
@@ -178,11 +178,14 @@ export function TreatCard() {
     const el = pageRef.current, card = ref.current;
     if (!mounted || !el || !card) return;
     const away = [tabsRef.current, bodyRef.current].filter((e): e is HTMLDivElement => !!e);
-    push.current = pushPage(el, away, card.offsetWidth, {
-      plate: true,
+    const pushed = pushPage(el, away, card.offsetWidth, {
+      plate: true, prop: 'translate', tag: 'treat-page',
       onPop: () => { useTreat.getState().showChanges(false); rowRef.current?.focus({ preventScroll: true }); },
       onGone: () => { push.current = null; setMounted(false); },
     });
+    push.current = pushed;
+    // (the page left the card: nothing it started goes on writing)
+    return () => pushed.dispose();
   }, [mounted]);
   // a sideways swipe on the card pages between the tabs with the finger (owner, 23 Nov: swipe between the tabs of every menu on touch screens): the one tab swipe, surface/tab-swipe.ts, as
   // the Tests card and the main menu page. The open orders follow the finger and the next tab's peek in beside them (.tp-peer); the tab that lands takes the card as it stands, and the one that
