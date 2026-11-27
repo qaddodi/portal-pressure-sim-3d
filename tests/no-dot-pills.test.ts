@@ -151,3 +151,20 @@ test('G2: no class the app makes (any name) is a pill with a fill or a ring, exc
   const bad = [...seen].filter(([c]) => made(c) && !RETIRED.includes(c) && !(c in ALLOWED) && !(c in ALLOWED_ANY) && !(c in LISTED_DEBUG)).map(([c, w]) => `${c} (${w})`);
   assert.deepEqual(bad, [], 'a pill with a fill or a ring: strip it in humanized.css (words in their colour) or list it with its reason');
 });
+
+// Owner's ruling L9 (27 Nov 2026, review 3531bdfa E-D9): the scope ring on the varix is a ring and nothing else, no icon badge (a round white disc with a scope's end face, which read as a capsule on the varix before
+// banding, 06.5 and 33.2). It is drawn by the GPU, so the DOM scan above never saw it; this reads its shader and its screen box.
+test('the scope ring carries no badge: its shader draws the dashed ring alone, and its tap and keep-off room are the ring\'s', async () => {
+  const src = readFileSync('src/scene/disease/scope-ring.ts', 'utf8');
+  const fs = src.slice(src.indexOf('export const RING_FS'), src.indexOf('export class ScopeRing'));
+  assert.doesNotMatch(fs, /badge|uBadge|uSurface|bFill|bEdge|face/i, 'no disc and no scope face in the fragment shader');
+  assert.match(fs, /dashD/, 'the dashed ring is drawn');
+  const { ScopeRing } = await import('../src/scene/disease/scope-ring.ts');
+  const { Vector3, Group } = await import('three');
+  const r = new ScopeRing(), body = new Group();
+  body.add(r.group); body.updateMatrixWorld(true);
+  const out = { x: 0, y: 0, r: 0, bx: 0, by: 0, br: 0, bleed: { l: 0, t: 0, r: 0, b: 0 } };
+  const res = r.screen((p: InstanceType<typeof Vector3>, o: { x: number; y: number }) => { o.x = 500 + p.x * 400; o.y = 400 - p.y * 400; return o; }, (p) => body.localToWorld(p.clone()), new Vector3(1, 0, 0), out)!;
+  assert.equal(res.br, 0, 'no badge radius');
+  r.dispose();
+});

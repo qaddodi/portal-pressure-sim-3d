@@ -225,3 +225,25 @@ test('a phone\'s small map draws tight rows when the card has no room for the lo
     }
   }
 });
+
+// Owner's ruling L9 (27 Nov 2026, review 3531bdfa A-D16): the answers of a score card (04.10's points, the recompensation checklist) are plain words in a row, not outlined pills. Held over every score
+// algorithm, every answer of every row as the patient's, every look, width and the phone layout: no rect of the answer look is drawn, and the lit answer is told by its colour.
+test('a score card draws its answers as plain words: no box round an answer, whichever answer is lit, in every look and width', async () => {
+  const { patientsOf } = await import('../src/ui/charts/path/path-cards.generated.js');
+  const scores = ids.filter((id) => (PATHS[id as keyof typeof PATHS] as { algo?: { kind?: string } }).algo?.kind === 'score');
+  assert.ok(scores.length >= 2, `score cards (${scores.join(', ')}): the PSVD score and the recompensation checklist`);
+  eachLook((look) => {
+    for (const id of scores) {
+      const algo = (PATHS[id as keyof typeof PATHS] as { algo: object }).algo;
+      for (const w of [300, 360, 500]) for (const phone of [false, true]) {
+        for (const p of (patientsOf(algo) as object[]).slice(0, 12)) {
+          const f = pathFrame({ of: id, patient: p, opts: { phone } }, ctxOf(look, w, phone ? 'phone-portrait' : 'desktop'));
+          const boxes = f.shapes.filter((s) => s.k === 'rect' && s.r >= 6 && s.h > 12 && s.h < 40 && ((s.pen && s.pen.w > 0) || s.fill));
+          assert.equal(boxes.length, 0, `${id} ${look} ${w}${phone ? ' phone' : ''}: a rounded box is drawn round an answer`);
+        }
+      }
+    }
+  });
+  const gen = readFileSync('src/ui/charts/path/frame.ts', 'utf8');
+  assert.match(gen, /if \(o\.look === 'path\.opt'\) continue;/, 'the painter leaves the answer box out');
+});

@@ -165,7 +165,7 @@ test('the ring is one quad in world units drawn by the GPU: it faces the camera,
   r.dispose();
 });
 
-test('the ring on the screen: its radius is the 2D ring\'s in the figure\'s units, whatever the zoom; the badge is on its upper-right edge; the bleed patch is a rectangle', () => {
+test('the ring on the screen: its radius is the 2D ring\'s in the figure\'s units, whatever the zoom; it has no badge (L9); the bleed patch is a rectangle', () => {
   const r = new ScopeRing(), body = new Group();
   body.add(r.group); body.updateMatrixWorld(true);
   for (const sc of [100, 400, 1500]) {
@@ -175,10 +175,8 @@ test('the ring on the screen: its radius is the 2D ring\'s in the figure\'s unit
     assert.ok(res, 'on the screen');
     assert.ok(Math.abs(res.x - (500 + x3(RING.x) * sc)) < 1e-6 && Math.abs(res.y - (400 - y3(RING.y) * sc)) < 1e-6, 'centre');
     assert.ok(Math.abs(res.r - (RING.r / U) * sc) < 1e-6, `radius at ${sc}`);
-    assert.ok(Math.abs(res.br - (BADGE_R / U) * sc) < 1e-6, 'badge radius');
-    const b = badgeAt();
-    assert.ok(res.bx > res.x && res.by < res.y, 'badge at the upper right');
-    assert.ok(Math.abs(res.bx - (500 + x3(b.x) * sc)) < 1e-6);
+    assert.equal(res.br, 0, 'no badge: its radius is nothing');
+    assert.ok(res.bx === res.x && res.by === res.y, 'and it stands at the ring\'s centre, so a tap and the names\' keep-off room are the ring\'s alone');
     assert.ok(res.bleed.r > res.bleed.l && res.bleed.b > res.bleed.t);
     assert.ok(res.bleed.t > res.y, 'the bleed patch is below the ring');
   }
