@@ -48,7 +48,7 @@ test('every surface that stands at the right edge is a panel that publishes its 
   assert.deepEqual(strays, [], 'a surface pinned to the right edge that is no panel: make it one (it publishes its box), or say here why it never meets the pill');
   assert.deepEqual([...found].sort(), ['tests', 'treat']);
   // (History, Compare and Why no longer pin themselves: the panel shell places every panel by the one rule, and publishes its box)
-  const panel = readFileSync('src/ui/surface/Panel.tsx', 'utf8'), pcss = readFileSync('src/ui/surface/panel.css', 'utf8');
+  const panel = readFileSync('src/ui/surface/wire.ts', 'utf8'), pcss = readFileSync('src/ui/surface/panel.css', 'utf8');
   assert.match(panel, /publishPanel\(id, rect && place \? \{ rect, side: place\.column === 'left' \? 'left' : 'right' \} : null\)/);
   assert.match(pcss, /\.sf-panel\[data-surface="float"\] \{[^}]*left: var\(--pl-x\) !important;[^}]*right: auto !important;/);
   for (const k of ['history', 'compare', 'why']) assert.ok(!rules.some((r) => r.sel.includes(`.sh-sheet[data-kind="${k}"]`) && /(^|;)\s*(right|width):/.test(r.body)), `${k} has no place of its own`);

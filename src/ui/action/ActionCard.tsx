@@ -30,6 +30,7 @@ import { hvpgSev, ppgSev } from '../../engine/hales/portal/pressure-cuts.js';
 import { fmt } from '../charts/fmt.ts';
 import { useCaseBarUp } from '../case/room.ts';
 import { D_SURFACE, EASE_ARRIVE } from '../tests/copied/ease.copied.js';
+import { usePanelShell } from '../surface/wire.ts';
 
 // ── the number keys: the card's first nine controls, in the order the card lists them (a slider takes the focus so the arrow keys move it) ──
 let keyed: (() => void)[] = [];
@@ -243,9 +244,13 @@ export function ActionCard() {
   }, [open, bottom]);
   // (read so the card is placed again when a playing case's bar raises the foot it rests on: case/room.ts)
   useCaseBarUp();
-  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${sheetFoot(device)}px)`, maxHeight: cardMaxHeight(vp.h, vp.safe.top, topBarH(vp, device), vp.safe.bottom, sheetFoot(device)) } : undefined;
+  // (on a wide screen the panel shell places the card in the left column, at the left column's width and up to its 500 px, and gives its box to the one room channel)
+  const shell = usePanelShell('action', open, ref, true);
+  const style: CSSProperties | undefined = bottom
+    ? { bottom: `calc(var(--safe-b, 0px) + ${sheetFoot(device)}px)`, maxHeight: cardMaxHeight(vp.h, vp.safe.top, topBarH(vp, device), vp.safe.bottom, sheetFoot(device)) }
+    : (shell.vars as CSSProperties | null) ?? undefined;
   return (
-    <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} style={style} role="dialog" aria-label="Actions" inert={!open}>
+    <section ref={ref} className="ac-card sf-panel" {...shell.attrs} data-open={open} data-bottom={bottom || undefined} data-device={device} style={style} role="dialog" aria-label="Actions" inert={!open}>
       <i ref={plate} className="ac-plate" aria-hidden="true" />
       <div className="ac-grab" aria-hidden="true"><i /></div>
       {shown && (face === 'details' && card && sel ? <DetailsFace key={`d-${shown.key}`} sel={sel} onBack={() => setFace('card')} />

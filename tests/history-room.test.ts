@@ -63,7 +63,7 @@ test('the shell, the camera\'s cut and the names all read the one channel', () =
   assert.ok(/figureRoom\(base, boxesOf\(panels\), caseCut, actionH\)/.test(readFileSync('src/ui/shell/Shell.tsx', 'utf8')));
   assert.ok(/liveFigureRoom\(room\)/.test(readFileSync('src/ui/tests/room.ts', 'utf8')));
   assert.ok(/panels: otherPanels\(\)/.test(readFileSync('src/ui/shell/chrome-claims-writer.ts', 'utf8')));
-  assert.ok(/publishPanel\(id, rect && place \? \{ rect, side:/.test(readFileSync('src/ui/surface/Panel.tsx', 'utf8')), 'every panel of the shell publishes its box');
+  assert.ok(/publishPanel\(id, rect && place \? \{ rect, side:/.test(readFileSync('src/ui/surface/wire.ts', 'utf8')), 'every panel of the shell publishes its box');
   assert.ok(/<ShellPanel id="history"/.test(readFileSync('src/ui/history/HistorySheet.tsx', 'utf8')));
 });
 

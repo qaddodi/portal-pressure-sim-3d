@@ -16,7 +16,7 @@ const REVIEWED: Record<string, string> = {
   'src/ui/shell/use-bar-fit.ts': 'fits from a timer (`soon`)',
   'src/ui/cards/SlideControls.tsx': 'fits only when the host\'s width changed, and the fit writes inside it',
   'src/ui/action/ActionCard.tsx': 'reads the card\'s height into the room store',
-  'src/ui/surface/Panel.tsx': 'reads the panel\'s height into the room channel; the box it observes is placed by the shell\'s numbers, which the height never changes',
+  'src/ui/surface/wire.ts': 'reads the panel\'s height into the room channel; the box it observes is placed by the shell\'s numbers, which the height never changes',
   'src/scene/labels/LabelLayer.tsx': 'reads the key\'s size into the controller',
   'src/ui/case/CaseBar.tsx': 'reads the strip\'s width into a ref, for the drag',
   'src/ui/case/StopCard.tsx': 'reads the stop sheet\'s height into the figure\'s room; the pulled-down part moves it by clip-path and transform, which do not change the box it observes',

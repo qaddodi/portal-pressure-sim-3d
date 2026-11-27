@@ -12,9 +12,13 @@ import { useUi } from '../ui-store.ts';
 import { surfaceModeNow, useSurfaceMode } from './mode.ts';
 import { putsAway, SLOT_PANELS, type ColumnFits, type SlotPanel } from './slots.ts';
 import { create } from 'zustand';
-import { columnSteps, columnWidth, fitsTogether, panelBand } from './panel-place.ts';
+import { columnSteps, columnWidth, fitsTogether, panelBand, panelPlace, placedBox, PANEL_IN } from './panel-place.ts';
 import { testsPlace } from '../tests/place.ts';
 import type { PanelId } from './kinds.ts';
+import { useEffect, useLayoutEffect, useState, type RefObject } from 'react';
+import { publishPanel } from './room.ts';
+import { leaveCss } from './motion.ts';
+import './panel.css';
 
 /** The open panels in the order they came up, oldest first. */
 export const usePanelOrder = create<{ order: readonly SlotPanel[] }>(() => ({ order: [] }));
@@ -118,4 +122,44 @@ export function useColumnStep(id: PanelId): number {
   if (!float || !(order as readonly string[]).includes(id)) return 0;
   const testsW = testsPlace(vp, device, { widthPx }).rect.w;
   return columnSteps(order, (p) => columnWidth(p, vp, device, testsW), panelBand(vp, device).gap)[id] ?? 0;
+}
+
+// The panel shell's hook (surface/Panel.tsx has the header): what every panel shares on a wide screen, on any element. Panel.tsx is this hook on a plain section; Treat and the
+// action card call it on their own 2D markup. It lives with the column order it reads, so the action card in the boot entry brings no file of its own for it.
+/** What the shell puts on a panel's element: its marks (panel.css reads them) and, in float mode, the custom properties that place it. */
+export interface PanelShell { float: boolean; attrs: Record<string, string | boolean | undefined>; vars: Record<string, string> | null }
+
+/** The panel shell for an element the caller draws (Treat and the action card keep their 2D markup and their own sheet mode): the place, the height it publishes to the
+ *  one room channel, the stacking and the motion, in float mode. `Panel` is this hook on a plain section. */
+export function usePanelShell(id: PanelId, open: boolean, own: RefObject<HTMLElement | null>, plate?: boolean): PanelShell {
+  const float = useSurfaceMode() === 'float';
+  const vp = useUi((s) => s.vp), device = useUi((s) => s.device);
+  const step = useColumnStep(id);
+  const z = usePanelOrder((s) => (s.order as readonly string[]).indexOf(id));
+  const place = float ? panelPlace(id, vp, device, { step }) : null;
+  // the box's own height, from an observer (never read in a frame): a fitted panel publishes as much of the room as it takes
+  const [h, setH] = useState(0);
+  useLayoutEffect(() => {
+    const el = own.current;
+    if (!float || !open || !el || typeof ResizeObserver !== 'function') { setH(0); return; }
+    const ro = new ResizeObserver((es) => { const b = es[0]?.borderBoxSize?.[0], v = Math.round(b ? b.blockSize : es[0]?.contentRect.height ?? 0); setH((o) => (o === v ? o : v)); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [float, open]);
+  // the one room channel: open in float mode, the box it stands in at rest (its step included); a sheet's room is its own (Treat's, the action card's)
+  const rect = place && open && h > 0 ? placedBox(place, h) : null;
+  const key = rect ? `${rect.x},${rect.y},${rect.w},${rect.h}` : '';
+  useEffect(() => {
+    if (!float) return;
+    publishPanel(id, rect && place ? { rect, side: place.column === 'left' ? 'left' : 'right' } : null);
+    return () => publishPanel(id, null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [float, id, key]);
+  const px = (n: number) => `${Math.round(n)}px`;
+  const vars = place ? {
+    '--pl-x': px(place.rect.x), '--pl-y': px(place.rect.y), '--pl-w': px(place.rect.w), '--pl-max-h': px(place.maxH), '--pl-step': px(place.step),
+    '--pl-in-x': px(place.column === 'left' ? -PANEL_IN : place.column === 'right' ? PANEL_IN : 0), '--pl-z': String(Math.max(0, z)), '--pl-leave': `${leaveCss('panel', 'float')}ms`,
+  } : null;
+  const attrs = { 'data-panel': id, 'data-surface': float ? 'float' : 'sheet', 'data-column': place?.column, 'data-tall': place?.tall || undefined, 'data-plate': plate || undefined };
+  return { float, attrs, vars };
 }

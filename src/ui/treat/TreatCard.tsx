@@ -18,7 +18,7 @@ import { isPhone } from '../layout/device.ts';
 import { useTreat } from './store.ts';
 import { sheetPlace } from './sheet-place.ts';
 import { publishPanel } from '../surface/room.ts';
-import { usePanelShell } from '../surface/Panel.tsx';
+import { usePanelShell } from '../surface/wire.ts';
 import { TABS, drugChips, fluids, giveFluid, procedures, pressChip, ranOn, type TabId } from './orders.ts';
 import { appEnv } from './env.ts';
 import { TREAT_WORDS } from './treat.generated.ts';
