@@ -1,0 +1,12 @@
+/* The menu shell's own rules (surface/Menu.tsx). Everything else a menu looks like is its 2D stylesheet's (src/ui/styles: `.menu`, `.umenu`, `.pz-jump`), which the shell keeps reaching. */
+/* The width tiers (surface/menu-head.ts MENU_WIDTH_PX): popover rows; Settings, Help and Layers; the main menu and the slide list. A sheet is as wide as the dock, so only a floating menu takes one. */
+:root { --menu-s: 280px; --menu-m: 360px; --menu-l: 460px; }
+.sf-menu[data-mode="float"][data-w="s"] { width: min(var(--menu-s), calc(100vw - 16px)); }
+.sf-menu[data-mode="float"][data-w="m"] { width: min(var(--menu-m), calc(100vw - 16px)); }
+.sf-menu[data-mode="float"][data-w="l"] { width: min(var(--menu-l), calc(100vw - 24px)); }
+/* A floating menu scrolls inside the room the one placer cuts it to (shell/place.ts fitRoom), and its rows keep their height (Settings' `.app-menu` and From readings' `.fr-pop` say this themselves). */
+.menu.sf-menu[data-mode="float"]:not(.app-menu):not(.fr-pop) { overflow-y: auto; overscroll-behavior: contain; }
+.menu.sf-menu:not(.app-menu):not(.fr-pop) > * { flex-shrink: 0; }
+/* The slide list comes in as every menu does (2D slide-from-edge, a short rise), and leaves on the menus' one leave time (surface/motion.ts leaveCss: --d-flip floating, --d-small as a sheet). */
+.pz-jump.sf-menu:not(.pz-leave) { --edge-o: 0; --edge-x: 0px; --edge-y: 8px; animation: slide-from-edge var(--d-small) var(--ease-arrive); }
+.pz-jump.sf-menu[data-mode="float"].pz-leave { transition-duration: var(--d-flip); }
