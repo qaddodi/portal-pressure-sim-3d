@@ -48,6 +48,7 @@ const WORD: Record<string, string> = { 2: 'well above normal', 1: 'above normal'
 const WORDREL: Record<string, string> = { 2: 'much higher', 1: 'higher', 0: 'unchanged', '-1': 'lower', '-2': 'much lower' };
 const UNIT_WORDS: Record<string, string> = { press: 'pressures in mmHg', varix: 'esophageal varix diameter in mm (about 2 mm is the normal vein\'s own caliber, not a varix)', gv: 'fundal varix diameter in mm (about 2 mm is the normal vein\'s own caliber)', asc: 'ascites in liters', liver: 'hepatic blood flow in % of normal', shunt: 'shunted blood in %', plt: 'platelets × 10³/µL',
   lsm: 'liver stiffness in kPa', ssm: 'spleen stiffness in kPa', hr: 'heart rate in beats/min', pvFlow: 'portal flow in L/min', pvVel: 'portal vein velocity in cm/s', res: 'intrahepatic resistance in mmHg per L/min', spleen: 'spleen length in cm', co: 'cardiac output in L/min', bv: 'blood volume in L', he: 'HE risk is the model\'s own index, 0 to 1, not a probability' };
+const UNIT_BOTH_VARICES = 'fundal and esophageal varix diameter in mm (normal vein: about 2 mm)';
 export const unitOf = (k: string): string => (k === 'varix' || k === 'gv' ? ' mm' : k === 'asc' ? ' L' : k === 'liver' || k === 'shunt' ? '%' : k === 'hr' ? '/min' : k === 'res' ? ' mmHg per L/min' : PRESS.has(k) ? ' mmHg' : tileOf(k)?.u ? ` ${tileOf(k).u}` : '');
 
 /** A blood pressure as the vitals print it: 117/69 (85), the mean worked from the two numbers as printed. */
@@ -139,7 +140,10 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
     notes: notes.map((_, j) => [r.spec.note].flat()[j] || ''),
   }));
   // One legend, built from the table itself: what the arrows compare with, the reference row's units, the ring.
-  const units = [...new Set(cols.map((k: string) => (PRESS.has(k) ? 'press' : k)).filter((k: string) => UNIT_WORDS[k]))].map((k) => UNIT_WORDS[k as string]);
+  // A table of both varix columns names their one unit once, the normal caliber said once (the legend stands on every page of a paged table).
+  const bothVarix = cols.includes('gv') && cols.includes('varix');
+  const unitKeys = [...new Set(cols.map((k: string) => (PRESS.has(k) ? 'press' : k)).filter((k: string) => UNIT_WORDS[k]))];
+  const units = unitKeys.filter((k) => !(bothVarix && k === 'varix')).map((k) => (bothVarix && k === 'gv' ? UNIT_BOTH_VARICES : UNIT_WORDS[k as string]));
   if (ascCols) units.push('SAAG and protein in g/dL');
   const refTitle = first ? lcFirst(rows[0].title) : 'the baseline';
   const key = rel

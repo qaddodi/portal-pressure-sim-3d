@@ -381,6 +381,35 @@ export const CAPTURE_3531BDFA = [
   SET('tips-doppler', 'slides.fix.compare.1.line', 'Doppler raises the suspicion. TIPS venography measures the gradient, and angioplasty or a new stent lowers the PPG from {ppg@narrow} to {ppg}.'),
 ];
 
+/** Capture 3531bdfa, L3 (owner, 27 Nov 2026, "shorten each to one line", then approved the drafts as written, ext-review-3531bdfa/l3-objective-drafts.md): the "By the end you can" objectives of the eight title cards whose lines
+ *  ran to two or three on a phone. About 70 characters each; the clinical meaning is kept, only words are dropped. Pinned by tests/title-objectives.test.ts (the 12 px floor, the card widths the title tests use). */
+export const CAPTURE_3531BDFA_L3 = [
+  P('prehepatic', 'objectives.0', 'Recognize acute portal vein thrombosis on Doppler, and explain the normal HVPG and high PPG', 'Read acute PVT on Doppler; explain the normal HVPG and high PPG'),
+  P('prehepatic', 'objectives.1', 'Describe cavernous transformation and its varices with normal liver stiffness', 'Describe cavernous transformation: varices, normal liver stiffness'),
+  P('prehepatic', 'objectives.2', 'Start anticoagulation in cirrhosis without delaying it for variceal prophylaxis', 'Do not delay anticoagulation in cirrhosis for variceal prophylaxis'),
+  P('ncph', 'objectives.0', 'Recognize portal hypertension with preserved liver function and normal stiffness', 'Recognize portal hypertension: preserved function, normal stiffness'),
+  P('ncph', 'objectives.1', 'Explain why the HVPG is near normal in presinusoidal resistance', 'Explain the near-normal HVPG in presinusoidal resistance'),
+  P('ncph', 'objectives.2', 'Name the two main causes: schistosomiasis and porto-sinusoidal vascular disorder (PSVD)', 'Name two causes: schistosomiasis, porto-sinusoidal vascular disorder'),
+  P('pregnancy', 'objectives.0', 'Explain why pregnancy raises portal pressure in cirrhosis, and when bleeding risk peaks', 'Explain why pregnancy raises portal pressure; when bleeding risk peaks'),
+  P('pregnancy', 'objectives.1', 'Plan screening EGD and treatment in pregnancy: band ligation or a beta-blocker', 'Plan screening EGD and treatment: band ligation or a beta-blocker'),
+  P('pregnancy', 'objectives.2', 'Describe how delivery is managed in a patient with varices', 'Describe delivery management in a patient with varices'),
+  P('next-bleed', 'objectives.0', 'Explain why varices recur after EVL alone, and combine carvedilol with EVL after a first bleed', 'Explain why EVL alone fails; add carvedilol after a first bleed'),
+  P('next-bleed', 'objectives.1', 'Judge the response to a nonselective beta-blocker from the fall in HVPG', 'Judge the response to a nonselective beta-blocker by the HVPG fall'),
+  P('next-bleed', 'objectives.2', 'Name when a TIPS follows failed secondary prophylaxis', 'Name when a TIPS follows failed secondary prophylaxis'),
+  P('hyperdynamic', 'objectives.0', 'Describe the hyperdynamic circulation: higher cardiac output, faster heart, lower arterial pressure', 'Describe hyperdynamic circulation: high output and rate, low pressure'),
+  P('hyperdynamic', 'objectives.1', 'Explain how splanchnic vasodilation adds portal inflow and drives sodium and water retention', 'Explain how splanchnic vasodilation adds inflow and retains sodium, water'),
+  P('hyperdynamic', 'objectives.2', 'Explain what blood loss and overtransfusion do to the arterial and the portal pressure', 'Explain how blood loss and overtransfusion move arterial and portal pressure'),
+  P('meso-rex', 'objectives.0', 'Explain why a child with portal vein thrombosis has a normal HVPG and a high PPG', 'Explain why a child\'s HVPG is normal and the PPG high'),
+  P('meso-rex', 'objectives.1', 'State what a meso-Rex bypass requires, and how it differs from a DSRS or mesocaval shunt', 'State the meso-Rex bypass requirements; contrast DSRS and mesocaval shunt'),
+  P('meso-rex', 'objectives.2', 'Name the options when a meso-Rex bypass is not feasible', 'Name the options when meso-Rex is not feasible'),
+  P('landmark-trials', 'objectives.0', 'For each trial, name the decision it settled and the patient it applies to', 'For each trial, name the decision it settled and who it applies to'),
+  P('landmark-trials', 'objectives.1', 'Test a patient against a trial\'s entry rules, and say which rules the model cannot check', 'Test a patient against a trial\'s rules; say which the model cannot check'),
+  P('landmark-trials', 'objectives.2', 'Say when Baveno VIII accepts a fall in HVPG as a surrogate, and which statement each trial supports', 'Say when Baveno VIII accepts an HVPG fall as a surrogate; match trials to statements'),
+  P('ascites', 'objectives.0', 'Explain how sinusoidal pressure and hepatic lymph flow produce ascites', 'Explain how sinusoidal pressure and lymph flow produce ascites'),
+  P('ascites', 'objectives.1', 'Read the SAAG and ascitic protein to separate cirrhosis, heart failure and Budd–Chiari syndrome', 'Read SAAG and ascitic protein: cirrhosis, heart failure or Budd–Chiari'),
+  P('ascites', 'objectives.2', 'Give albumin with large-volume paracentesis, and treat recurrent and refractory ascites', 'Give albumin with large-volume paracentesis; treat recurrent, refractory ascites'),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -501,6 +530,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_36B7DEAC,
   ...CAPTURE_3531BDFA_WORDS,
   ...CAPTURE_3531BDFA,
+  ...CAPTURE_3531BDFA_L3,
 ];
 
 function step(node, key) {

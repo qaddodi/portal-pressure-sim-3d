@@ -151,7 +151,9 @@ test('every table on every screen: one that cannot fit at its 12 px floor is pag
     }
   }
   // The estimate is conservative. A table the rule cannot bring inside the screen even at one row a page is a look decision (the title, the line and the legend stand on every page, so a long legend leaves the rows too little room):
-  // the one the estimate finds is Gastric varices 12 on the shortest phone (its legend names three units in 428 characters, about 8 lines at 12 px; the chrome alone is ~535 of the 569 px). It is listed in the report; the list only goes down.
+  // the one the estimate finds is Gastric varices 12 on the shortest phone. Its legend named its units in 428 characters (10 lines at 12 px);
+  // a table with both varix columns now names their one unit once (table-model.ts): 331 characters, 8 lines. The estimate still stands 39 px over the 569 px,
+  // because the slide's own 8-line teaching line and 3-line title are the rest of the chrome. It is listed in the report; the list only goes down.
   assert.deepEqual(unfit, ['gastric-varices/summary iPhone SE'], 'tables that do not fit even one row a page (needs a look on device)');
   assert.ok((paged.get('iPhone 390') ?? 0) >= 3, `phone tables paged: ${paged.get('iPhone 390')}`);
   assert.ok((paged.get('iPhone SE') ?? 0) > (paged.get('iPhone 390') ?? 0), 'a shorter phone pages more');
@@ -184,4 +186,16 @@ test('the card code applies the rule: the layer asks for a page per row, the car
   // the pager is the words card's own: "n of N" in the name tab's band (.pz-pageno), no new look
   assert.match(vis, /<span className="pz-pageno" aria-label=\{`Page \$\{page \+ 1\} of \$\{pages\}`\}>\{page \+ 1\} of \{pages\}<\/span>/);
   assert.match(css, /\.pz-pageno \{ position: absolute; top: 0; left: var\(--pz-cp\)/);
+});
+
+test('a legend names each unit once: a table with both varix columns says "varix diameter in mm" once, with the normal caliber, and keeps every other unit (Gastric varices 12)', async () => {
+  const t = (await tables()).find((x) => x.deck === 'gastric-varices' && x.id === 'summary')!;
+  const legend = t.model.legend;
+  assert.equal(legend.match(/diameter in mm/g)?.length, 1, legend);
+  assert.match(legend, /fundal and esophageal varix diameter in mm \(normal vein: about 2 mm\)/);
+  for (const u of ['pressures in mmHg', 'hepatic blood flow in % of normal', "HE risk is the model's own index, 0 to 1, not a probability", 'platelets × 10³/µL']) assert.ok(legend.includes(u), `${u} is still defined`);
+  assert.ok(legend.length <= 340, `${legend.length} characters (it was 428)`);
+  // a table with one varix column keeps its own definition
+  const one = (await tables()).find((x) => x.deck === 'recompensation' && x.model.legend.includes('esophageal varix diameter'))!;
+  assert.match(one.model.legend, /esophageal varix diameter in mm \(about 2 mm is the normal vein's own caliber, not a varix\)/);
 });
