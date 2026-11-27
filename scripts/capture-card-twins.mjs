@@ -4,7 +4,7 @@
 // zoom, container type, display). `node scripts/capture-card-twins.mjs --diff <outdir>` lists what moved.
 //
 //   VITE_CHANNEL=preview npx vite --port 5173 --host 127.0.0.1                     (twins off)
-//   PPS_DK_TWINS=1 VITE_CHANNEL=preview npx vite --port 5174 --host 127.0.0.1       (twins on)
+//   (the twins are on by default since 27 Nov; to capture "off" again, take dkInTwins() out of vite.config.ts for that server)
 //   node scripts/capture-card-twins.mjs <outdir> [off|on] [iphone|ipad|mac]
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';

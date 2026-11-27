@@ -64,8 +64,8 @@ export default defineConfig({
   base: './',
   plugins: [react(), credit(), glModules(), appPreload(), csp()],
   // the 2D stylesheets' `:not([hidden])` also means "not faded off" here (scripts/fade-hidden.mjs; Plan 42)
-  // (dkInTwins: off until its captures are reviewed, PPS_DK_TWINS=1 turns it on: scripts/dk-in-twins.mjs)
-  css: { postcss: { plugins: process.env.PPS_DK_TWINS === '1' ? [fadeHidden(), dkInTwins()] : [fadeHidden()] } },
+  // (dkInTwins: the .dk-in twin of every 2D rule that names the card's direct child; on since Mohammad's review of the captures, 27 Nov: scripts/dk-in-twins.mjs)
+  css: { postcss: { plugins: [fadeHidden(), dkInTwins()] } },
   worker: { format: 'es' },
   build: {
     target: 'es2022', sourcemap: false, chunkSizeWarningLimit: 700,
