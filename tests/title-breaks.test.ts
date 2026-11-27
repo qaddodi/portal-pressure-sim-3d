@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { planTitle, wrapAt, scoreLines, breakCost, tokensOf, lineText, SLACK, type Measure } from '../src/ui/cards/title-breaks.ts';
+import { planTitle, wrapAt, scoreLines, breakCost, tokensOf, lineText, SLACK, WASTE, MAX_LOSS, type Measure } from '../src/ui/cards/title-breaks.ts';
 import { TITLE_SELECTOR } from '../src/ui/cards/title-balance.ts';
 import { UI } from '../src/ui/strings.generated.ts';
 import { loadBuiltin } from '../src/decks/registry.ts';
@@ -78,7 +78,7 @@ test('every title of every deck at every width: the fewest lines, never worse th
     for (const s of (deck as { slides: { title?: string }[] }).slides) if (s.title) titles.push(s.title);
   }
   assert.ok(titles.length > 300, `the corpus is every slide of every talk (${titles.length})`);
-  let planned = 0, better = 0, stranded = 0, strandedBefore = 0;
+  let planned = 0, fillPlan = 0, fillGreedy = 0, better = 0, stranded = 0, strandedBefore = 0;
   for (const size of [40, 48, 56]) for (const avail of [300, 360, 480, 597, 760]) {
     const m = shaped(size);
     for (const t of titles) {
@@ -93,14 +93,20 @@ test('every title of every deck at every width: the fewest lines, never worse th
       assert.equal(at.length, greedy.length, `${t} @${avail}: the held width does not add a line`);
       assert.deepEqual(textsOf(t, at), plan.lines, `${t} @${avail}: the held width sets the planned lines`);
       assert.ok(Math.max(...at.map((l) => l.w)) <= plan.width + 1e-6 && SLACK > 0);
-      assert.ok(plan.cost <= scoreLines(words, greedy) + 1e-9, `${t} @${avail}: never worse than the browser's wrap`);
-      if (plan.cost < scoreLines(words, greedy) - 1e-9) better++;
+      const widest = (ls: { w: number }[]) => Math.max(...ls.map((l) => l.w));
+      const greedyCost = scoreLines(words, greedy) + WASTE * (1 - widest(greedy) / avail);
+      assert.ok(plan.cost <= greedyCost + 1e-9, `${t} @${avail}: never worse than the browser's wrap`);
+      // Mohammad, 27 Nov, iPhone and Mac: a title fills the card's text width; the better breaks never cost more than MAX_LOSS of it
+      assert.ok(widest(at) >= widest(greedy) - MAX_LOSS * avail - 1e-6, `${t} @${avail}: keeps the card's width (${widest(at).toFixed(0)} of ${widest(greedy).toFixed(0)})`);
+      fillPlan += widest(at) / avail; fillGreedy += widest(greedy) / avail;
+      if (plan.cost < greedyCost - 1e-9) better++;
       for (const l of plan.lines.slice(0, -1)) if (/^(the|a|an|of|to|in|and|or|with|for)$/i.test(lastWord(l))) stranded++;
       for (const l of greedy.slice(0, -1)) if (/^(the|a|an|of|to|in|and|or|with|for)$/i.test(words[l.to - 1]!.s)) strandedBefore++;
     }
   }
   assert.ok(planned > 1000 && better > 100, `the rule changes real titles (${better} of ${planned})`);
-  assert.ok(stranded < strandedBefore * 0.75, `a line ends on a stranded word less often (${stranded} against ${strandedBefore})`);
+  assert.ok(fillPlan / planned >= fillGreedy / planned - 0.06, `titles fill the card's width: ${(fillPlan / planned).toFixed(3)} of the room against the browser's ${(fillGreedy / planned).toFixed(3)}`);
+  assert.ok(stranded < strandedBefore * 0.8, `a line ends on a stranded word less often (${stranded} against ${strandedBefore})`);
 });
 
 test('every title element a card draws is one the rule holds, and every full card pass applies it', () => {

@@ -62,13 +62,13 @@ const box = (el: Element | null): Box | null => {
 const SHOWN = '.cs-card[data-on="true"]';
 /** The case bar and the stop card standing now, as boxes: what a stop's screen is judged by (stopIssues). */
 const caseBoxes = (): { card: Box | null; bar: Box | null } => ({ card: box(document.querySelector(SHOWN)), bar: box(document.querySelector('.case-bar[data-on="true"]')) });
-const caseUp = (): boolean => useCase.getState().phase === 'stop' && !!document.querySelector('.case-bar[data-on="true"]');
+export const caseUp = (): boolean => useCase.getState().phase === 'stop' && !!document.querySelector('.case-bar[data-on="true"]');
 const titleShown = (): string => (document.querySelector(`${SHOWN} .cs-title`)?.textContent ?? '').trim();
 /** The day the model stands on, rounded (the frame's own). */
-const modelDay = (): number | null => (latest.frame ? Math.round(latest.frame.day) : null);
+export const modelDay = (): number | null => (latest.frame ? Math.round(latest.frame.day) : null);
 
 /** Still, for a stop: its card is up with this stop's words, the case is at it, and the bar is up. */
-const stopKit = (i: number, stop: Stop): SettleKit => ({
+export const stopKit = (i: number, stop: Stop): SettleKit => ({
   cardUp: () => !!document.querySelector(SHOWN) && !!document.querySelector('.case-bar[data-on="true"]'),
   extra: () => {
     const s = useCase.getState();

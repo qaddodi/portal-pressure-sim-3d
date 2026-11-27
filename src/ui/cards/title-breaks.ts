@@ -113,6 +113,13 @@ export interface TitlePlan {
   cost: number;
 }
 
+/** What an unused strip of the card's text width costs, against the break costs above: a whole empty card width is worth `WASTE` stranded words.
+ *  Mohammad, 27 Nov, iPhone (and Mac): the balanced breaks held titles to 60-70 % of the card's text width, "When the lymphatics / are overrun, lymph / weeps from the liver" with a wide
+ *  empty strip on the right. A title fills the card's text width as the lines under it do (19 Oct); the breaks are judged within that, not instead of it. */
+/** The most of the card's text width a title may give up, against the browser's own wrap, for better breaks (a fraction of the room). */
+export const MAX_LOSS = 0.2;
+export const WASTE = 2.5;
+
 /** The slack above a line's measured width that the held width carries, so a measure a hair off never wraps the widest line. */
 export const SLACK = 1.5;
 
@@ -121,7 +128,7 @@ export function planTitle(text: string, measure: Measure, avail: number): TitleP
   const toks = tokensOf(text);
   if (toks.length < 2 || !(avail > 0)) return null;
   const first = wrapAt(toks, measure, avail);
-  const n = first.length;
+  const n = first.length, firstW = Math.max(...first.map((l) => l.w));
   if (n < 2 || Math.max(...first.map((l) => l.w)) > avail + 0.01) return null;
   let best: TitlePlan | null = null;
   let lines = first, guard = 0;
@@ -129,8 +136,10 @@ export function planTitle(text: string, measure: Measure, avail: number): TitleP
     const need = Math.max(...lines.map((l) => l.w));
     // (the lines are those the browser sets at the held width itself: a hair of slack can take in a word the tighter width had not)
     const width = Math.min(avail, need + SLACK), held = wrapAt(toks, measure, width);
-    if (held.length === n) {
-      const cost = scoreLines(toks, held);
+    // (never more than `MAX_LOSS` of the card's width given up for better breaks: the widest line of the browser's own wrap sets the bar)
+    if (held.length === n && Math.max(...held.map((l) => l.w)) >= firstW - MAX_LOSS * avail) {
+      // (the lines' own cost, plus the strip of the card's width the widest line leaves empty)
+      const cost = scoreLines(toks, held) + WASTE * (1 - Math.max(...held.map((l) => l.w)) / avail);
       // (on a tie the wider hold wins: the first one tried, so a title keeps as much of the card's width as it can)
       if (!best || cost < best.cost - 1e-9) best = { width, lines: held.map((l) => lineText(toks, l.from, l.to)), cost };
     }
