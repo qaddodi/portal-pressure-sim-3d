@@ -1,0 +1,13 @@
+/* A panel's phone sheet (menu unification, stage 3: surface/sheet-pull.ts, sheet-stops.ts, use-sheet.ts). Each sheet wears `data-sheet` (peek, half or full) and its stops as
+   custom properties (--sf-peek, --sf-half, --sf-full); its own stylesheet sizes it by them (a sheet of words: max-height, so it is as tall as its words up to the stop).
+   This file is what every sheet shares: the one grab bar's button, and Peek, where only the head and the tabs stay and what is under them fades. */
+
+/* the one grab bar's button: a finger-sized target over the bar (.sh-grabbar draws it), shown where surfaces are sheets (html.thumb-ui is the same media query as surface/mode.ts) */
+.sf-grab { display: none; position: absolute; z-index: 4; top: 0; left: 50%; width: 72px; height: 20px; margin: 0 0 0 -36px; padding: 0; border: 0; background: none; cursor: grab; touch-action: none; }
+html.thumb-ui .sf-grab { display: block; }
+.sf-grab:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: -2px; border-radius: 8px; }
+
+/* Peek: what is under the head fades out and in with the sheet's settle, and is not reachable while hidden (the Tests card's own rule, tests.css data-peek) */
+.sf-body { transition: opacity var(--d-small) var(--ease-arrive); }
+[data-sheet="peek"] .sf-body { opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .sf-body { transition: none; } }
