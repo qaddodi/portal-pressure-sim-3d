@@ -408,6 +408,8 @@ export const CAPTURE_3531BDFA_L3 = [
   P('ascites', 'objectives.0', 'Explain how sinusoidal pressure and hepatic lymph flow produce ascites', 'Explain how sinusoidal pressure and lymph flow produce ascites'),
   P('ascites', 'objectives.1', 'Read the SAAG and ascitic protein to separate cirrhosis, heart failure and Budd–Chiari syndrome', 'Read SAAG and ascitic protein: cirrhosis, heart failure or Budd–Chiari'),
   P('ascites', 'objectives.2', 'Give albumin with large-volume paracentesis, and treat recurrent and refractory ascites', 'Give albumin with large-volume paracentesis; treat recurrent, refractory ascites'),
+  // Gastric varices 12 (optional, own commit): the line's last sentence says again what the card's title ("each against its own starting point") and the legend ("lower than the row named under each") already say; it is 2 of the line's 8 lines on the shortest phone
+  P('gastric-varices', 'slides.summary.line', ' Each row is compared with the first row of its own scenario.', ''),
 ];
 
 export const SOURCE_PATCHES = [
