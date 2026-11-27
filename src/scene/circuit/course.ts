@@ -5,7 +5,8 @@
 import { CatmullRomCurve3, Vector3 } from 'three';
 import { MAPPED, type NetVessel } from '../vessels/network.ts';
 import { vesselPoints } from '../anatomy/vessels.ts';
-import { CIRCUIT_D, VB_CIRC } from './data.copied.ts';
+import { VB_CIRC } from './data.copied.ts';
+import { CIRCUIT_COURSE_D } from './junction-cuts.ts';
 import { MAP_K, mapToScene, sceneToMap } from './map.ts';
 import { courseOf, cumulative, resample } from './paths.ts';
 import { chordShape, peelRank } from './peel.ts';
@@ -79,7 +80,7 @@ export function roundCorners(pts: readonly [number, number][], r = CORNER_R): [n
 
 /** The course's map polyline for an edge, in map units, its corners rounded. */
 export function mapCourse(id: string): [number, number][] | null {
-  const d = CIRCUIT_D[id];
+  const d = CIRCUIT_COURSE_D[id];
   // (as 2D draws it, to the last point: the hepatic arteries stop at the tips of the bed's lanes, 30 map units short of the bed's station, and never cross them. Mohammad, 21 Nov: "do it like 2D does it", which ends the 20 Nov run-on to the station)
   return d ? roundCorners(courseOf(d)) : null;
 }

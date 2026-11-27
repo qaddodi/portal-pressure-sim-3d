@@ -17,7 +17,8 @@ import { NETWORK_BY_ID, radiusOf, vesselPx, widthPx } from '../vessels/network.t
 import { CIRC_ARTERY, CIRC_BED, CIRC_BRANCH_MIN, CIRC_VEIN_MAX, CIRC_VEIN_MIN, MIN_PX } from './width.ts';
 import { VesselObject, type LensShared } from '../vessels/vessel-object.ts';
 import { attachCircuit } from './geometry.ts';
-import { CIRCUIT_D, CIRCUIT_TREES, CUSTOM_EDGES, CUSTOM_SHUNT_PATH, NODE_CIRCUIT, ROUTER_STATIONS, VB_CIRC } from './data.copied.ts';
+import { CIRCUIT_TREES, CUSTOM_EDGES, CUSTOM_SHUNT_PATH, NODE_CIRCUIT, ROUTER_STATIONS, VB_CIRC } from './data.copied.ts';
+import { CIRCUIT_COURSE_D } from './junction-cuts.ts';
 import { mapCurve } from './course.ts';
 import { MAP_K, mapToScene } from './map.ts';
 import { circuitWidthMap } from './width.ts';
@@ -59,7 +60,7 @@ const hostAt = (node: string, own: number): ShuntEnd => sunkEnd(trunkRadius(node
 /** The caudate lane: sunk at both ends, in CV_R and in IVCS. */
 export function caudEnds(): MapEnds | null {
   const caud = edgeById.get('CAUD');
-  if (!caud || !CIRCUIT_D.CAUD) return null;
+  if (!caud || !CIRCUIT_COURSE_D.CAUD) return null;
   const own = 0.5 * circuitWidthMap(0, caud.d ?? caud.dMax ?? 2, 1, 1) * MAP_K;
   return { ends: [hostAt('CV_R', own), hostAt('IVCS', own)], own };
 }
@@ -131,7 +132,7 @@ export class CircuitTubes {
     }
     // the caudate's own vein, drawn only while a slide is about the caudate lobe
     const caud = edgeById.get('CAUD');
-    const d = CIRCUIT_D.CAUD;
+    const d = CIRCUIT_COURSE_D.CAUD;
     if (caud && d && hasVessel('CAUD')) this.add('CAUD', 'caud', 'CAUD', courseOf(d), radiusOf(widthPx(caud, caud.d ?? caud.dMax ?? 2)), 'sys', caud.d ?? caud.dMax ?? 2, 0, undefined, undefined, undefined, undefined, buryOf(trunkRadius('CV_R'), trunkRadius('IVCS')), caudEnds() ?? undefined);
   }
 
@@ -214,7 +215,7 @@ export class CircuitTubes {
     // past a dozen at once there is no room left to route another clear of the rest (and the search would stall): those stay unrouted
     const room = Math.max(0, 12 - this.routed.size), fresh = want.filter((id) => !this.routed.has(id)).slice(0, room);
     if (!fresh.length) return [];
-    const lines: [number, number][][] = Object.values(CIRCUIT_D).map((d) => courseOf(d));
+    const lines: [number, number][][] = Object.values(CIRCUIT_COURSE_D).map((d) => courseOf(d));
     for (const list of Object.values(CIRCUIT_TREES)) for (const b of list) lines.push(courseOf(b.d));
     const router = createRouter({ lines, stations: ROUTER_STATIONS.map((p) => [p[0], p[1]]), bounds: [VB_CIRC[0], 100, VB_CIRC[0] + VB_CIRC[2], VB_CIRC[1] + VB_CIRC[3] + 10] });
     for (const r of this.routed.values()) router.addLine(r, true);
