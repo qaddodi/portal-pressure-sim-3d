@@ -5,11 +5,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LIVER_LOBULES, LIVER_LOBULES_PAINT, LIVER_LOBULES_VS, LIVER_LOBULES_DECL, mosaicShare, setLobuleTones, LOBULE_SPAN } from '../src/scene/organs/liver-lobules.ts';
 import { FIELD_TILE_H, FIELD_TILE_W, hexEdgeDistance, lobuleCentre } from '../src/scene/lobule/tiling.ts';
-import { LOBULE_FIELD_FS, HOME_CORNERS } from '../src/scene/lobule/field.ts';
+import { LOBULE_FIELD_FS, HOME_CORNERS, QUIET_LUMA, QUIET_BG, QUIET_W, fieldShownColour } from '../src/scene/lobule/field.ts';
 import { ORGAN_FS, ORGAN_VS } from '../src/scene/organs/organ-shader.ts';
-import { LOBULE_PALETTES } from '../src/scene/lobule/tones.ts';
+import { lookColours } from '../src/scene/lobule/lz-colours.ts';
+import { NEIGHBOUR_FLAT } from '../src/scene/lobule/from2d/lobule-look.generated.js';
 import { LOOKS, type LookId } from '../src/looks/looks.ts';
-import { rgbOf } from '../src/scene/organs/organ-look.ts';
 import { DIVE_IN, DIVE_OUT, bodyFade } from '../src/scene/parts/shared.ts';
 import { LOBULE_SCALE } from '../src/scene/lobule/frames.ts';
 
@@ -65,12 +65,22 @@ test('the mosaic\'s hexagon centres are the field\'s lobule centres (one shared 
   assert.ok(LOBULE_FIELD_FS.includes(`vLob.x / ${FIELD_TILE_W.toFixed(1)}`));
 });
 
-test('the colour grade ends at the field\'s tone, and the liver\'s shader carries the mosaic (and no other organ pays for it)', () => {
-  for (const look of Object.keys(LOOKS) as LookId[]) {
-    setLobuleTones(look);
-    const want = rgbOf((LOBULE_PALETTES[look].tones as Record<string, string>).field!), got = LIVER_LOBULES.tone.value;
-    assert.ok(Math.abs(got.x - want[0]) + Math.abs(got.y - want[1]) + Math.abs(got.z - want[2]) < 1e-9, look);
+test('at share 1 the liver is the colour the field shows, for every look and grey, within 1/255', () => {
+  const near = (a: readonly number[], b: readonly number[]): boolean => a.every((v, i) => Math.abs(v - b[i]!) <= 1 / 255);
+  for (const look of Object.keys(LOOKS) as LookId[]) for (const grey of [[1, 1], [0.6, 0.7], [0, 0.5]]) {
+    setLobuleTones(look, grey);
+    const L = lookColours(look), bg = L.text('--stage-bg') ? L.rgb01('--stage-bg') : L.rgb01('--bg');
+    const got = LIVER_LOBULES.tone.value, seam = LIVER_LOBULES.line.value;
+    assert.ok(near([got.x, got.y, got.z], fieldShownColour(L.rgb01('--og-liver-1'), bg, grey)), `${look} ${grey} plate`);
+    assert.ok(near([seam.x, seam.y, seam.z], fieldShownColour(L.rgb01('--og-liver-2'), bg, grey)), `${look} ${grey} seam`);
   }
+  // the TS chain and the shader's are one: the shader is built from the same constants (a test that reads the text pins the twin)
+  assert.ok(LOBULE_FIELD_FS.includes(`vec3(${QUIET_W.map((v) => v.toFixed(3)).join(', ')})`));
+  assert.ok(LOBULE_FIELD_FS.includes(`mix(col, vec3(l), ${QUIET_LUMA.toFixed(4)})`) && LOBULE_FIELD_FS.includes(`mix(col, bg, ${QUIET_BG.toFixed(4)})`));
+  assert.ok(LOBULE_FIELD_FS.includes(`mix(col, bg, ${NEIGHBOUR_FLAT.toFixed(4)})`));
+  // with no grey and no page the chain is the plain quiet copy: luma 0.45, page 0.42, flat 0.3
+  const c = fieldShownColour([1, 0, 0], [0, 0, 0]), l = 0.3;
+  assert.ok(Math.abs(c[0] - (1 + (l - 1) * QUIET_LUMA) * (1 - QUIET_BG) * (1 - NEIGHBOUR_FLAT)) < 1e-12);
   // (the shader's grade is mix(fill, lobTone, lobMos): at a share of 1 the base colour IS the tone; every part of it sits under the uniform's gate)
   assert.ok(LIVER_LOBULES_PAINT.includes('fill = mix(fill, lobTone, lobMos);'));
   assert.ok(/if \(lobMos > 0\.0\) \{[\s\S]*lobuleHex/.test(LIVER_LOBULES_PAINT));

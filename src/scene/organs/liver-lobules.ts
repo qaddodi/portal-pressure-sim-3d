@@ -8,9 +8,9 @@ import { Vector3 } from 'three';
 import { LIVER_POINT, LOBULE_SCALE } from '../lobule/frames.ts';
 import { LOBULE_HEX_GLSL } from '../lobule/tiling.ts';
 import { LOBULE_R } from '../lobule/sizes.ts';
-import { LOBULE_PALETTES } from '../lobule/tones.ts';
+import { fieldShownColour } from '../lobule/field.ts';
+import { lookColours, type RGB } from '../lobule/lz-colours.ts';
 import type { LookId } from '../../looks/looks.ts';
-import { rgbOf } from './organ-look.ts';
 
 /** The lobule's diameter (two radii, corner to corner) in scene units: the size the mosaic's fade is measured by. */
 export const LOBULE_SPAN = 2 * LOBULE_R * LOBULE_SCALE;
@@ -37,11 +37,18 @@ export function mosaicShare(d: number, pxPerUnit: number, body: number): number 
 /** The uniforms the liver's shader reads (shared by reference, written by the scene each frame and on a look change): `mos` the share (0 outside a dive: nothing runs),
  * `tone` the field's colour, `line` its seam's. */
 export const LIVER_LOBULES = { mos: { value: 0 }, tone: { value: new Vector3() }, line: { value: new Vector3() } };
-export function setLobuleTones(look: LookId): void {
-  const t = LOBULE_PALETTES[look].tones as Record<string, string>;
-  LIVER_LOBULES.tone.value.set(...rgbOf(t.field!));
-  // (the seam between two lobules is the tissue between the plates, a little deeper than the cells: the field's floor)
-  LIVER_LOBULES.line.value.set(...rgbOf(t.floor!));
+let toneKey = '';
+/** The liver's grade target and seam: what the field SHOWS (fieldShownColour) for its plate (--og-liver-1) and its gap (--og-liver-2),
+ *  over the look's page colour and the grey in force, so the liver ends on the very colour the field draws and the dissolve is no step.
+ *  Written on a look change and when the grey changes (the scene reads the field's grey each frame of a dive; a key keeps it to a change). */
+export function setLobuleTones(look: LookId, grey: readonly number[] = [1, 1]): void {
+  const key = `${look}|${grey[0]},${grey[1]}`;
+  if (key === toneKey) return;
+  toneKey = key;
+  const L = lookColours(look), bg: RGB = L.text('--stage-bg') ? L.rgb01('--stage-bg') : L.rgb01('--bg');
+  LIVER_LOBULES.tone.value.set(...fieldShownColour(L.rgb01('--og-liver-1'), bg, grey));
+  // (the seam is the field's gap, shown the same way: never darker than the field's own gaps)
+  LIVER_LOBULES.line.value.set(...fieldShownColour(L.rgb01('--og-liver-2'), bg, grey));
 }
 
 /** GLSL: the liver's position in the lobule frame (the field's vLob), from the vertex's world place; the vertex shader's. */
@@ -70,5 +77,5 @@ export const LIVER_LOBULES_PAINT = /* glsl */ `
     float aa = max(lobFw.x, lobFw.y);
     float seam = (1.0 - smoothstep(0.0, clamp(0.035 + 1.5 * aa, 0.0, 0.2), hx.z)) * (1.0 - smoothstep(${(2 / MOSAIC_PX[1]).toFixed(4)}, ${(2 / MOSAIC_PX[0]).toFixed(4)}, aa));
     fill = mix(fill, lobTone, lobMos);
-    fill = mix(fill, lobLine, seam * 0.5 * lobMos);
+    fill = mix(fill, lobLine, seam * lobMos);
   }`;
