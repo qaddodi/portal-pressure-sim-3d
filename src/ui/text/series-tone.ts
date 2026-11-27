@@ -16,7 +16,11 @@ export const STATION_READING: Readonly<Record<string, string>> = {
   CONF: 'pv', pv: 'pv', SIN_R: 'sin', sin: 'sin', whvp: 'whvp', RHV: 'fhvp', fhvp: 'fhvp', IVCS: 'ivc', ivc: 'ivc', RA: 'ra', ra: 'ra',
 };
 /** The colour a station's label (and the word that points at it) wears: the series colour of the reading it prints, else the 2D station tone. */
-export const labelTone = (target: string, tone: string): string => { const r = STATION_READING[target]; return (r && seriesToken(r)) || tone; };
+export const labelTone = (target: string, tone: string): string => {
+  const r = STATION_READING[target], series = r ? seriesToken(r) : null;
+  // (the 2D station tone is spelled 'pv' where the table says '--tr-pv': the same colour keeps the 2D spelling)
+  return series && series !== `--tr-${tone}` ? series : tone;
+};
 /** What a printed number (a tile's, a header's) carries to wear its series ink: `data-series` and `--vc` (nothing for a reading with no series colour, which keeps its rating's ink). */
 export const seriesAttrs = (k: string): { 'data-series'?: string; style?: Record<string, string> } => {
   const ink = seriesInk(k);

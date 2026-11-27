@@ -17,10 +17,10 @@ test('the card draws one table with one heading row, a row per patient, and no p
   assert.match(src, /className=\{`pz-table/, '2D\'s own table rules (src/ui/styles)');
 });
 
-test('a cell that compares draws its arrow only: its number is in the words a screen reader hears, never on the screen', () => {
-  const dir = src.slice(src.indexOf('default: return ('), src.indexOf('export function TableCard'));
-  assert.match(dir, /<Arrow n=\{c\.arrow\} \/>/);
-  assert.ok(!/>\s*\{c\.text\}\s*</.test(dir), 'the dir cell prints no number (its title, a hover word, may)');
+// (owner's ruling L6, 27 Nov 2026: the cell prints its value with a small arrow after it; the number is no longer only for a screen reader. tests/table-arrows-unchanged.test.ts holds the rule over every deck.)
+test('a cell that compares draws its value and then its arrow, and says its words to a screen reader', () => {
+  const dir = src.slice(src.indexOf('default: {'), src.indexOf('export function TableCard'));
+  assert.match(dir, /<span className="dk-cv">\{c\.k === 'map' \? bpBreaks\(c\.text\) : c\.text\}<\/span> : null\}<Arrow n=\{c\.arrow\} \/>/);
   assert.match(dir, /sr-only/);
 });
 
