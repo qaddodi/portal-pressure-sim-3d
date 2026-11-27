@@ -39,10 +39,11 @@ export const STUB_Q: Record<string, number> = {
 // (DIVE_IN follows the lobule's scale: the body is gone only when the camera is a few lobule-fits away, where the lobule's field starts to fill the screen. A fixed 0.7 left
 //  the screen showing the bare page between the body going and the 1/1500 lobule growing: the near-white flash in the Anatomy -> Lobule dive.)
 /** The dive share (sinusoid/view.ts diveShare) below which nothing of the sinusoid is drawn on the way in from the lobule. */
-export const SIN_SHOW_FROM = 0.2;
+export const SIN_SHOW_FROM = 0.08;
    // (the focus pull's start, sinusoid3d FOCUS[0]: the scene is up, its parts not yet drawn, its blur band working)
-/** The dive share from which the 3D lobule stands aside under the sinusoid: once the sinusoid (sinusoid3d.ts, whole from 0.86) covers it. */
-export const LOBULE_UNDER_FROM = 0.7;
+/** The dive share before which the 3D lobule never stands aside under the sinusoid: the sinusoid's spread from its middle ends there (sinusoid3d FOCUS[2]); the lobule goes as the
+ *  screen's farthest corner of the sinusoid becomes whole (micro3d/reveal.ts cornerWhole). */
+export const LOBULE_UNDER_FROM = 0.78;
 
 export const DIVE_OUT = 1.9, DIVE_IN = 40 * LOBULE_SCALE;
 /** The figure's front (scene z): every organ's front face is at or behind it (organs/meshes.ts) and every vessel lies behind it too (frame2d.ts TIER_Z, the radius included). */
