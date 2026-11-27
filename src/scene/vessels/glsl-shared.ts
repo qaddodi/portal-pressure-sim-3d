@@ -200,18 +200,24 @@ export const THREAD_GLSL = /* glsl */ `const vec3 THREAD = vec3(0.953, 0.918, 0.
  *  `sl` the distance in from the end (figure units), `aa` the place across the shunt (-1..1, the shader's `across`), `rr` the lumen's half width (figure units), `fwAcr` the screen derivative of `aa`. Returns the thread's coverage (x) and its halo's (y). A function of its own, so the tube's marks and the
  *  suture a welded end wears (vessels/suture.ts: the skin has cut the tube's own away) are the one rule. A function of no uniform: it declares none. */
 export const SEAM_STITCH_GLSL = /* glsl */ `// the running stitch at a sewn end: the thread's coverage (x) and its halo's (y) at the distance sl in from the end and the place aa across (one rule for the tube's marks and a welded end's suture)
+// the one thread profile, every stitch and every tie (figure units from the thread's axis): the pale core, and the dark edge around it
+float threadCore(float d) { return 1.0 - smoothstep(0.30, 0.52, d); }
+float threadEdge(float d) { return 1.0 - smoothstep(0.62, 1.05, d); }
 vec2 seamStitch(vec4 A, vec4 B, float sl, float aa, float rr, float fwAcr) {
   float s0 = A.x + aa * (A.y + aa * (A.z + aa * (A.w + aa * B.x)));
   float ds = (A.y + aa * (2.0 * A.z + aa * (3.0 * A.w + aa * 4.0 * B.x))) / rr;
-  float dd = abs(sl - s0) / sqrt(1.0 + ds * ds), dsh = 1.0;
+  float sq = sqrt(1.0 + ds * ds), dd = abs(sl - s0) / sq, dsh = 1.0;
   if (B.y > 0.5) {
-    float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w, ew = max(fwAcr / 1.94, 1e-4);
-    dsh = (1.0 - smoothstep(B.z - ew, B.z + ew, q)) * step(kd, B.y - 0.5) * smoothstep(0.97, 0.9, abs(aa));
+    // (a dash is a capsule: its distance is taken to the dash's own axis along the curve, so its ends are round like the thread, never cut square)
+    float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w;
+    float along = (q - 0.5 * B.z) * 1.94 * rr * sq, halfLen = max(0.5 * B.z * 1.94 * rr * sq - 0.45, 0.0);
+    dd = length(vec2(max(abs(along) - halfLen, 0.0), dd));
+    dsh = step(kd, B.y - 0.5) * smoothstep(0.97, 0.9, abs(aa));
   } else {
     dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
     dsh = smoothstep(1.0, 0.92, abs(aa));
   }
-  return vec2((1.0 - smoothstep(0.2, 0.36, dd)) * dsh, (1.0 - smoothstep(0.45, 0.8, dd)) * dsh);
+  return vec2(threadCore(dd) * dsh, threadEdge(dd) * dsh);
 }`;
 
 /** The stent in the Circuit, the surgical stitches, the stump's tie and the wedge's amber column, painted on the tube (a part of main, in its own locals: c, across, pxArc, fwPx, fwTh, fwAcr, inkT; with stentU, stentWire, stentGoldC, seamA, seamB, stump, wedge, wedgeD, wedgeCol, circT, len, vU, vR, vR0, vArcLen, vUv, and what the stent's heading needs). Spliced exactly where it stood in vessels/shaders.ts. */
@@ -269,9 +275,9 @@ export const PROCEDURE_MARKS_GLSL = /* glsl */ `  ${THREAD_GLSL}   // (a pale su
   if (stump.z > 0.001 && circT < 0.001) {
     float aF = vUv.x * len * vU, aa = clamp(across, -1.0, 1.0), rr = max(vR, 0.3), tw = 0.0, te = 0.0;
     for (int j = 0; j < 2; j++) {
-      float dd = abs(aF - (stump.y + (float(j) - 0.5) * 1.3 + 0.3 * aa));
-      tw = max(tw, 1.0 - smoothstep(0.2, 0.36, dd));
-      te = max(te, 1.0 - smoothstep(0.45, 0.8, dd));
+      float dd = abs(aF - (stump.y + (float(j) - 0.5) * 1.5 + 0.3 * aa));
+      tw = max(tw, threadCore(dd));
+      te = max(te, threadEdge(dd));
     }
     float kd = length(vec2(aF - stump.y, (aa + 0.4) * rr)) / 0.7;   // (the knot: a small bead on the near side)
     tw = max(tw, 1.0 - smoothstep(0.7, 1.0, kd));
