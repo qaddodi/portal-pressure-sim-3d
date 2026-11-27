@@ -101,7 +101,9 @@ function build(): ReadonlyMap<string, SmoothEnds> {
       if (IVC_EDGES.has(v.id)) continue;
       const trunks = others.filter((e) => !isCollateral(e.v) && e.v.kind !== 'shunt' && !IVC_EDGES.has(e.v.id) && get(e.v).mate[e.end]);
       if (trunks.length) i.hostR[end] = Math.max(...trunks.map((e) => e.v.radius));
-      if (!isPlain(v)) continue;
+      // (a collateral or a shunt is never a branch of a trunk: its end keeps its course and its own take-off, anatomy/placed-network.ts. The width rule below let the spontaneous splenorenal shunt,
+      //  once thinned to 0.65 of its width, count as a branch of the splenic vein and have its end moved onto the trunk's axis, 27 Nov)
+      if (!isPlain(v) || isCollateral(v) || v.kind === 'shunt') continue;
       // a trunk it can end on is one that carries on through the node (a run-on pair there): a vessel that only ends at the node is another branch, not a wall
       const hosts = others.filter((e) => !isCollateral(e.v) && e.v.kind !== 'shunt' && !IVC_EDGES.has(e.v.id) && e.v.radius >= 0.9 * v.radius && get(e.v).mate[e.end]).flatMap((e) => [e.v.id, get(e.v).mate[e.end]!]);
       if (hosts.length) i.attach[end] = [...new Set(hosts)];

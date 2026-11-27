@@ -373,3 +373,12 @@ test('one outline rule at every junction: a vein that opens into the cava, and a
     s.dispose();
   } finally { setSmoothJoins(false); }
 });
+
+test('no collateral or shunt is a branch of a trunk: its end keeps its course whatever its width (the thinned splenorenal shunt was moved onto the splenic vein\'s axis and pinched to a point, 27 Nov)', () => {
+  on(() => {
+    for (const v of MAPPED) {
+      if (v.kind !== 'shunt' && !/^C\d/.test(v.id)) continue;
+      assert.deepEqual(SMOOTH.get(v.id)!.attach, [null, null], `${v.id}: no attach`);
+    }
+  });
+});

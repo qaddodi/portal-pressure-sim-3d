@@ -116,7 +116,7 @@ test('the marks are the tube\'s own rule: one seamStitch in both programs, the t
 
 test('the depth is the tube\'s rule, the pass is the arm\'s front copy, the alpha eases with the shunt and the Circuit', () => {
   assert.match(SUTURE_VS, /mix\(cc\.z \/ cc\.w, c\.z \/ c\.w, 0\.15\)/, 'the axis\' depth and 15 % of the surface\'s (TUBE_DEPTH_SHARE)');
-  assert.match(SUTURE_FS, /1\.0 - smoothstep\(0\.0, 0\.35, circT\)/, 'it goes with the Circuit\'s change as the skin does');
+  assert.match(SUTURE_FS, /1\.0 - smoothstep\(0\.0, 0\.05, own\)/, 'it goes with the Circuit\'s change as the skin does: by its seam\'s own share (skin-rank.test.ts)');
   for (const id of SEWN_IDS) assert.ok(!BACK_EDGES.has(id), `${id} is drawn in front: the one copy`);
   for (const o of sut.all()) { assert.equal(o.mesh.layers.mask, 2, 'the vessels\' pass (layer 1)') }
 });

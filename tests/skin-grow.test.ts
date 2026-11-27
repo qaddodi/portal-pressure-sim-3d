@@ -37,8 +37,8 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 /** The growing arms of each node on THE PLACED ARRANGEMENT (anatomy/placed-network.ts WHERE EACH END OPENS), every single-tube collateral and shunt that lands on a node with a permanent run-on pair or junction, pinned so a vessel added to or taken from the network is seen here. The growing arms by the network's node names: the left portal vein is one vessel there with no fork, so the umbilical vein
  *  and the meso-Rex meet its end, LPV. */
 const GROWERS_PLACED: Record<string, readonly string[]> = {
-  SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], LPV: ['REX:1', 'C3:0'],
-  IVCI: ['S_PC:1', 'C9:0', 'S_MC:1'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
+  SMV: ['S_MC:0', 'REX:0'], SVD: ['S_DSR:0', 'C6:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], LPV: ['REX:1', 'C3:0'],
+  IVCI: ['S_PC:1', 'C9:0', 'S_MC:1'], IVC_D: ['DIPS:1'], LRV_S: ['S_DSR:1', 'C6:1'], LRV: ['C5:1'], EPI: ['C3:1'],
   SV: ['C2:0'], IMV: ['C4:0'], SMV_R: ['C7:0'],
 };
 /** Placed: the arms each node's own skin leaves out, named, each welded elsewhere for a reason a person can read: SV:C2 (the short gastric veins leave beside SVD and are an arm of its skin), IVCI:C9, IVCI:S_PC and IVCI:S_MC (their wall skins
@@ -49,7 +49,7 @@ const GROWERS = GROWERS_PLACED;
 const DROPPED = DROPPED_PLACED;
 /** Placed: the growing arms every skin is built with, welded static full-size arms (the wall skins on the cava, the iliac and the renal vein, wall.ts; the short gastric veins on SVD's skin, wall.ts nearLandings, beside both splenorenal shunts). */
 const WELDED_PLACED: Record<string, readonly string[]> = {
-  IMV: ['C4:0'], SVD: ['S_DSR:0', 'C2:0'], 'wall:V_SPL:C60': ['C6:0'], LRV_S: ['C6:1', 'S_DSR:1'], EPI: ['C3:1'], SVC: ['C1b:1'], SMV: ['S_MC:0', 'REX:0'], IVC_D: ['DIPS:1'], SMV_R: ['C7:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'],
+  IMV: ['C4:0'], SVD: ['S_DSR:0', 'C2:0'], 'wall:V_SPL:C60': ['C6:0'], LRV_S: ['S_DSR:1', 'C6:1'], EPI: ['C3:1'], SVC: ['C1b:1'], SMV: ['S_MC:0', 'REX:0'], IVC_D: ['DIPS:1'], SMV_R: ['C7:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'],
   'wall:IVC_IS_1:S_PC1,C90': ['S_PC:1', 'C9:0'], LRV: ['C5:1'], 'wall:ILI_IVC_1:S_MC1': ['S_MC:1'], 'wall:PVH_L_1:REX1,C30': ['REX:1', 'C3:0'],
 };
 // (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)

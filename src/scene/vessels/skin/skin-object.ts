@@ -9,6 +9,7 @@
 import { WEDGE_ABSENT } from '../wedge-glsl.ts';
 import { facetSag } from './facet-sag.ts';
 import { tubeShareOf } from './exact-normal.ts';
+import { skinRankOf } from './skin-rank.ts';
 import { BufferAttribute, BufferGeometry, Color, CustomBlending, DoubleSide, Group, MaxEquation, Mesh, OneFactor, ShaderMaterial, Vector2, Vector3, Vector4, type IUniform, type Object3D } from 'three';
 import { VESSEL_LAYER } from '../../layers.ts';
 import { ORGAN_VEIL_U } from '../../organ-veil/uniforms.ts';
@@ -111,6 +112,7 @@ export class SkinObject implements SkinDraw {
     g.setAttribute('weight2', new BufferAttribute(skin.weight2, 2));
     g.setAttribute('restR', new BufferAttribute(skin.restR, 1));
     g.setAttribute('sagK', new BufferAttribute(facetSag(skin.position, skin.index, skin.restR, skin.seamVerts.flatMap((a) => [...a])), 1));
+    g.setAttribute('skinRank', new BufferAttribute(skinRankOf(skin), 1));
     g.setAttribute('tubeShare', new BufferAttribute(tubeShareOf(skin.index, skin.seamVerts, skin.position.length / 3), 1));
     g.setIndex(new BufferAttribute(skin.index, 1));
     g.computeBoundingSphere();
