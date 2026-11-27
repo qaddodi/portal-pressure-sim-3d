@@ -23,6 +23,7 @@ import { CELL, SEED, SLOT, UM, canaliculusAt, cellOf, edgeAt, nucAt, poreAt, por
 import { TROUGH_K, WALL, buildBore, buildCut, buildNucleusSection, buildShellSteps, newWeights, phiAt, wallColumns, type Weights } from './sinusoid-wall.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { SHAPE_NODES, SHAPE_RAMP, restDisseW, restHalfW, shapeInverse, shapeUniform } from './sinusoid-shape.ts';
+import { ARRIVAL_ORDER, type ArrivalTier, HANDOFF, arrival, tierOf } from './sinusoid-arrival.ts';
 import {
   MeshBuilder, MicroMany, MicroPart, COPY_W, Pacer, meshWork, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
 } from './cel3d.ts';
@@ -67,15 +68,22 @@ export const ALB_RIM_FULL_PX = 8;
 /** The dive's focus pull (Mohammad 20 Nov 2026: the disc and the band read as a window and "an old TV"): over FOCUS[0]-FOCUS[1] of the dive's share the whole picture goes soft, over
  *  FOCUS[1]-FOCUS[2] the sinusoid comes in over the lobule inside that blur (its screen-door fade, which the blur turns into a true dissolve), and over FOCUS[2]-1 it sharpens to its own
  *  focus band: one picture coming into focus, no edge or shape anywhere. Going out it runs back the same way. */
-export const FOCUS = [0.2, 0.45, 0.68] as const;
+// (27 Nov, the owner's approval of the zoom plan: the handoff widened from 0.45-0.68 to 0.25-0.85, sinusoid-arrival.ts HANDOFF)
+export const FOCUS = [0.15, HANDOFF[0], HANDOFF[1]] as const;
 /** The focus pull's blur at the dissolve's middle, against the rest's (Mohammad 20 Nov: the blur came in "kinda quickly too strongly"): only as soft as the dissolve needs, eased in with
  *  a smootherstep from FOCUS[0] so it has no start, peaking at the dissolve's middle, then held while the sinusoid's own band opens over FOCUS[2]-1 and its sides settle to the rest's. */
-export const FOCUS_PEAK = 0.4;
+// (27 Nov: 0.4 -> 0.3, the owner's approval of the zoom plan: less blur, the crossing is local now and needs less to hide behind)
+export const FOCUS_PEAK = 0.3;
+/**
+ * Where the picture starts to sharpen to its own focus band (the albumin, last in, is still arriving under it:
+ * 27 Nov, the handoff is wider than the old sharpening could follow without a rush into the landing).
+ */
+export const SHARPEN_FROM = 0.65;
 const smoother = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * t * (t * (t * 6 - 15) + 10); };
 /** The blur's strength at dive share `d` (FOCUS_PEAK at the dissolve's middle, 1 landed, as at rest). */
 export function focusBlur(d: number): number {
   const mid = (FOCUS[1] + FOCUS[2]) / 2;
-  return d < mid ? FOCUS_PEAK * smoother(FOCUS[0], mid, d) : FOCUS_PEAK + (1 - FOCUS_PEAK) * smoother(FOCUS[2], 1, d);
+  return d < mid ? FOCUS_PEAK * smoother(FOCUS[0], mid, d) : FOCUS_PEAK + (1 - FOCUS_PEAK) * smoother(SHARPEN_FROM, 1, d);
 }
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), and the haze: how far out it takes to be whole (µm) and how deep it goes. */
 const PACE = 1.35, HAZE_K = 0.45;
@@ -168,7 +176,8 @@ const gapTexture = (data: Uint8Array): DataTexture => {
 export class Sinusoid3D {
   readonly group = new Group();
   private readonly flat: Flat;
-  private readonly fade = { value: 1 };
+  /** One dissolve per tier of parts (sinusoid-arrival.ts): the big parts arrive first, the fine ones last. */
+  private readonly fades: Record<ArrivalTier, { value: number }> = { plates: { value: 1 }, lining: { value: 1 }, fine: { value: 1 }, cells: { value: 1 }, albumin: { value: 1 } };
   private readonly res: CelShared['res'];
   private on = false;
   /** The haze over what lies past this sinusoid's own plates (one set of uniforms for every part). */
@@ -230,8 +239,8 @@ export class Sinusoid3D {
     // the scene is built in micrometres, the plane's y up: one group scales it to the host's units (it turns with the host's group in a portrait room)
     this.group.scale.setScalar(U);
     // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the host's own plane, where the names are pinned)
-    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), `sinusoid3d/${name}`);
-    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}, colours = false) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`, colours);
+    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fades[tierOf(name)], { haze: this.haze, rimK: this.rimK, ...o }), `sinusoid3d/${name}`);
+    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}, colours = false) => new MicroMany(geo, microMaterials(this.res, this.fades[tierOf(name)], { haze: this.haze, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`, colours);
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
@@ -338,8 +347,8 @@ export class Sinusoid3D {
     if (!shown) return changed;
     // the dive: the scene comes in over the lobule as the camera lands (the host's own share), whole at rest
     const d = f.dive;
-    // (the sinusoid comes in inside the blur, FOCUS: dithered, which the blur over it turns into a smooth dissolve; whole before the picture sharpens)
-    this.fade.value = d == null ? 1 : smooth(FOCUS[1], FOCUS[2], d);
+    // (each part comes in by its own size on screen, inside the blur, sinusoid-arrival.ts: dithered, which the blur turns into a smooth dissolve; every part whole before the picture sharpens)
+    for (const t of ARRIVAL_ORDER) this.fades[t].value = arrival(t, d);
     { const k = f.pxPerUm; this.rimK.value = k > 0 ? smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k) : d != null ? 0 : 1; this.rimKAlb.value = k > 0 ? smooth(ALB_RIM_FULL_PX / 3, ALB_RIM_FULL_PX, k) : d != null ? 0 : 1; }   // (a smooth ramp in the scene's size, never a switch; unmeasured in a dive (its first frame), none, so a line never shows whole for a frame and then thins)   // (a red cell 7 µm across keeps its whole line from about 17 px wide; smaller, the line goes before the cell is a dot)
     this.group.position.z = d == null ? 0 : this.liftUm() * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';
@@ -430,13 +439,13 @@ export class Sinusoid3D {
     // (the focus pull is one blur over the WHOLE screen, never a window opening: the band keeps its resting geometry through the dive and `open` (0 closed: the picture blurs the same everywhere, 1 the
     //  resting band) is only how far each pixel's blur has eased from that one level to its own, post-dof.ts bandOpen. The sharp strip used to open outward from the axis and the ends, which read as a
     //  box or a reveal to the right and left, Mohammad 20 Nov 2026: "just blur as you zoom in, then unblur the entire screen")
-    const open = d == null ? 1 : smooth(FOCUS[2], 1, d);
+    const open = d == null ? 1 : smooth(SHARPEN_FROM, 1, d);
     this.focusOpen = open;
     const y0 = rest;
     w(a, -20, 0); w(b, 20, 0); w(e0, 0, y0); w(e1, 0, y0 + BLUR_RUN);
     // the two ends melt away well before the scene stops (Mohammad 20 Nov: "don't let me see the end of the sinusoid like that ... blur the ends")
     if (ends) { w(ends.mid, 0, 0); w(ends.f0, REACH - END_BLUR[0], 0); w(ends.f1, Math.max(REACH - END_BLUR[1], REACH - END_BLUR[0] + 2), 0); }
-    return d == null ? this.fade.value : focusBlur(d);
+    return d == null ? 1 : focusBlur(d);
   }
 
   // ---- colours -------------------------------------------------------------------------------------------------------------------

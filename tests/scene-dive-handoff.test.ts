@@ -30,12 +30,12 @@ test('the focus pull is one blur over the whole screen that lets go everywhere a
 
 test('the dive is a focus pull: the picture goes soft, the sinusoid dissolves in inside the blur, then sharpens; the lobule stands aside only once it is whole (Mohammad 20 Nov: "like an old TV")', async () => {
   const { FOCUS } = await import('../src/scene/micro3d/sinusoid3d.ts');
-  assert.ok(SIN_SHOW_FROM <= FOCUS[0] && FOCUS[0] < FOCUS[1] && FOCUS[1] < FOCUS[2] && FOCUS[2] <= LOBULE_UNDER_FROM, 'blur, dissolve inside it, then the lobule goes');
+  assert.ok(SIN_SHOW_FROM <= FOCUS[0] && FOCUS[0] < FOCUS[1] && FOCUS[1] < FOCUS[2] && FOCUS[2] > LOBULE_UNDER_FROM, 'blur, the handoff band, and the lobule stands aside inside it once the plates are whole');
   const fs = await import('node:fs');
   const src = fs.readFileSync(new URL('../src/scene/micro3d/sinusoid3d.ts', import.meta.url), 'utf8');
-  assert.match(src, /this\.fade\.value = d == null \? 1 : smooth\(FOCUS\[1\], FOCUS\[2\], d\);/, 'dissolves in inside the blur');
-  assert.match(src, /const open = d == null \? 1 : smooth\(FOCUS\[2\], 1, d\);/, 'then sharpens to its own band');
-  assert.match(src, /return d == null \? this\.fade\.value : focusBlur\(d\);/, 'the blur comes in first');
+  assert.match(src, /this\.fades\[t\]\.value = arrival\(t, d\);/, 'every part dissolves in by its own size, inside the blur');
+  assert.match(src, /const open = d == null \? 1 : smooth\(SHARPEN_FROM, 1, d\);/, 'then sharpens to its own band');
+  assert.match(src, /return d == null \? 1 : focusBlur\(d\);/, 'the blur comes in first');
   const { focusBlur, FOCUS_PEAK } = await import('../src/scene/micro3d/sinusoid3d.ts');
   const mid = (FOCUS[1] + FOCUS[2]) / 2;
   assert.equal(focusBlur(FOCUS[0]), 0, 'no blur before the pull');

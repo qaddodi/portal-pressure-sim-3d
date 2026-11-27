@@ -30,6 +30,14 @@ export function diveMs(from: DiveView, to: DiveView, fallback?: number): number 
   return DIVE_SINUSOID_MS;
 }
 
+/**
+ * How long a change of view takes, the one rule for the view buttons and a deck slide alike (owner 27 Nov: "every zoom should feel like one continuous zoom"): the body and the map change places
+ * on the circuit's own clock, and a dive through the liver (body, lobule, sinusoid) takes the dive's time (camera/dive.ts diveMs). Undefined for a move that is neither: the caller's own.
+ */
+export function viewMoveMs(from: DiveView, to: DiveView, circuitMs: number): number | undefined {
+  return (to === 'body' || to === 'circuit' ? circuitMs : 0) || diveMs(from, to);
+}
+
 /** The widest the lens goes in the plunge (degrees): 14 -> 35 -> back to the long lens (atlas plan §6: the dolly zoom that makes a dive feel like going INTO something). */
 export const DIVE_FOV = 35;
 /** The part of a body-sized dive's time the lens is widening and narrowing: 0.3 s to 1.3 s of 1.6 s. */
