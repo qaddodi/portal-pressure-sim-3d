@@ -16,9 +16,10 @@ import { useThumb } from '../shell/thumb.ts';
 import { layoutClass, layoutVars, sheetFoot } from '../shell/room.ts';
 import { isPhone } from '../layout/device.ts';
 import { useTreat } from './store.ts';
-import { useTestsRoom } from '../tests/room.ts';
 import { sheetPlace } from './sheet-place.ts';
-import { treatStepLeft } from './beside.ts';
+import { publishPanel } from '../surface/room.ts';
+import { useColumnStep } from '../surface/wire.ts';
+import { panelPlace, placedBox } from '../surface/panel-place.ts';
 import { TABS, drugChips, fluids, giveFluid, procedures, pressChip, ranOn, type TabId } from './orders.ts';
 import { appEnv } from './env.ts';
 import { TREAT_WORDS } from './treat.generated.ts';
@@ -112,7 +113,7 @@ function Fluid({ id, label, sub }: { id: string; label: string; sub: string }) {
 export function TreatCard() {
   const open = useTreat((s) => s.open), tab = useTreat((s) => s.tab), page = useTreat((s) => s.changesPage);
   const device = useUi((s) => s.device), vp = useUi((s) => s.vp);
-  const thumb = useThumb(), phone = isPhone(device), testsPlace = useTestsRoom((s) => s.place);
+  const thumb = useThumb(), phone = isPhone(device);
   const { about, mine, p } = useChanges();
   const ref = useRef<HTMLElement>(null), tabsRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), paneRef = useRef<HTMLDivElement>(null), rowRef = useRef<HTMLButtonElement>(null);
   const pageRef = useRef<HTMLDivElement>(null), secRef = useRef<HTMLDetailsElement>(null);
@@ -146,17 +147,24 @@ export function TreatCard() {
     for (const c of Array.from(pane.children)) ro.observe(c);
     return () => ro.disconnect();
   }, [spare]);
-  // a phone or an upright iPad's sheet tells the camera where it stands (the Tests sheet's own channel, tests/room.ts), at the height its words need, so the figure is framed in what the sheet leaves and eases
-  // as the sheet changes height (release review #15). The Tests card is never up with it (Treat closes it), so the one slot is free.
+  // the card tells the one room channel where it stands (surface/room.ts), at the height its words need, so the figure is framed in what it leaves, the names keep off it and the
+  // zoom pill steps aside: a phone's or an upright iPad's sheet over the foot (release review #15), or the card in the right column of a wide screen (stepped beside every panel
+  // opened before it, surface/wire.ts useColumnStep). A phone held sideways still draws it as 2D's sheet across the foot, which takes no room (as before).
+  const step = useColumnStep('treat');
   useEffect(() => {
     const c = ref.current;
-    if (!open || !thumb || !c) return;
-    const put = () => { const h = c.offsetHeight; if (h > 0) useTestsRoom.setState({ place: sheetPlace(vp, sheetFoot(layoutClass(true)), h) }); };
+    if (!open || !c || (!thumb && device === 'phone-landscape')) return;
+    const put = () => {
+      const h = c.offsetHeight;
+      if (h <= 0) return;
+      if (thumb) publishPanel('treat', { rect: sheetPlace(vp, sheetFoot(layoutClass(true)), h).rect, side: 'foot' });
+      else publishPanel('treat', { rect: placedBox(panelPlace('treat', vp, device, { step }), h), side: 'right' });
+    };
     put();
-    if (typeof ResizeObserver === 'undefined') return () => useTestsRoom.setState({ place: null });
+    if (typeof ResizeObserver === 'undefined') return () => publishPanel('treat', null);
     const ro = new ResizeObserver(put); ro.observe(c);
-    return () => { ro.disconnect(); useTestsRoom.setState({ place: null }); };
-  }, [open, thumb, vp]);
+    return () => { ro.disconnect(); publishPanel('treat', null); };
+  }, [open, thumb, vp, device, step]);
   // the tab strip's one gliding piece (the 2D stylesheet draws it)
   useEffect(() => (ref.current ? startSegGlideOn(ref.current) : undefined), []);
   // Changes is remembered open across opens and visits (2D chart.js section(): `open`, pps.chartOpen3): the section the card makes finds it as it was left (a phone's page always shows it open)
@@ -237,8 +245,8 @@ export function TreatCard() {
       </div>
     );
   };
-  // (beside the Tests card when it stands in the right-hand column: 2D's own `translate` transition glides it)
-  const vars = { ...layoutVars(vp, layoutClass(thumb)), '--instr-occ': `${thumb ? 0 : treatStepLeft(vp, testsPlace)}px` } as React.CSSProperties;
+  // (in the right column, left of every panel opened before it: 2D's own `translate` transition glides it there and back, --instr-occ)
+  const vars = { ...layoutVars(vp, layoutClass(thumb)), '--instr-occ': `${thumb ? 0 : step}px` } as React.CSSProperties;
   return (
     <section ref={ref} className="treat-card tr-card has-plate" id="treatCard" hidden={!open} data-open={open} data-bottom={thumb} data-device={device} data-page={page || undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
       <div className="sheet-plate" aria-hidden="true" />

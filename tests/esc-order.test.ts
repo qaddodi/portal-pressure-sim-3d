@@ -17,3 +17,12 @@ test('one Esc closes one thing, in 2D\'s order (keyboard.js)', () => {
   assert.equal(at({ sinusoid: true, talk: true }), 'sinusoid');
   assert.equal(at({ talk: true }), 'talk');
 });
+
+test('two panels side by side: Esc closes the newest first, a menu still before either (surface/wire.ts usePanelOrder)', () => {
+  assert.equal(at({ testsOpen: true, treatOpen: true, newest: 'tests' }), 'tests', 'Tests opened after Treat goes first');
+  assert.equal(at({ testsOpen: true, treatOpen: true, newest: 'treat' }), 'treat');
+  assert.equal(at({ sheet: true, sheetPanel: true, treatOpen: true, newest: 'treat' }), 'treat', 'Treat opened after History goes before it');
+  assert.equal(at({ sheet: true, sheetPanel: true, treatOpen: true, newest: 'sheet' }), 'sheet');
+  assert.equal(at({ sheet: true, sheetPanel: false, treatOpen: true, newest: 'treat' }), 'sheet', 'a menu is closed before any panel');
+  assert.equal(at({ testsOpen: true, testsFocus: true, treatOpen: true, newest: 'treat' }), 'tests-focus', 'a focused instrument still goes back first');
+});
