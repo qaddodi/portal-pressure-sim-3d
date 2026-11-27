@@ -57,7 +57,8 @@ export async function runStress(ui: StressUi): Promise<StressResult> {
           const where = `${j.deckTitle} ${j.stop}`;
           entries.push({
             section: 'slides', layout: label, file: flat.replace(/\.json$/, '.jpg'), title: `${where}: ${j.title}${j.card ? ` (${j.card})` : ''}`,
-            state: `talk ${j.deck}, slide ${j.stop} of ${j.of - 2}, step ${j.step}, beat ${j.beat}, ${j.card ? `the card ${j.card}` : 'one view'}`,
+            // (the plan's key counts from the first slide, the screen's counter from the title card: both are said)
+            state: `key ${j.deck}:${j.stop - 1}, screen counter ${j.stop}, step ${j.step}, beat ${j.beat}, ${j.card ? `the card ${j.card}` : 'one view'}`,
             link: j.link, checks: cardChecks(j.cards), issues: [],
           });
         } catch { notes.push(`${f.name}: its state file could not be read`); }
@@ -147,6 +148,11 @@ export async function runStress(ui: StressUi): Promise<StressResult> {
       useShell.setState({ sheet: null });
       bump(1);
     }
+  }
+  if (stopped) {
+    const moves = entries.filter((e) => e.section === 'moves').length / MOVE_SHOTS, menus = entries.filter((e) => e.section === 'menus').length;
+    const wantMoves = L.moves ? STRESS_MOVES.length + 1 : 0, wantMenus = L.menus ? STRESS_MENUS.length + STRESS_SHEETS.length : 0;
+    notes.push(`stopped early: ${moves} of ${wantMoves} transitions and ${menus} of ${wantMenus} menus and sheets were taken`);
   }
   await clearScreen();
   const run: LayoutRun = { layout: L.id, label, entries, notes, secs: Math.round((new Date().getTime() - t0) / 100) / 10, ...(stopped ? { ended: 'stopped' } : {}) };
