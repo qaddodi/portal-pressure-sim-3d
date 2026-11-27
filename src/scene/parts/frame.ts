@@ -1,6 +1,8 @@
 // The frame: the list of systems the scene steps each frame, and what it reports as moving.
 // Part of CelScene (scene.ts): these methods are mixed into the class, so `this` is the scene. Moved from scene.ts as they were.
 import { anyMoving } from '../any-moving.ts';
+import { cornerReach, cornerWhole, revealFront } from '../micro3d/reveal.ts';
+import { FOCUS } from '../micro3d/sinusoid3d.ts';
 import { type FrameCtx, runSystems, type FrameSystem } from '../frame-systems.ts';
 import { SKIN_BUILD_TAG } from '../vessels/skin/skin-set.ts';
 import { flowTarget } from '../flow-rate.ts';
@@ -97,7 +99,11 @@ export const framePart = scenePart<CelScene>()({
         const lobMoving = this.lobule.update(now), sinMoving = this.sinus.update(now);
         // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
         // (the lobule stays whole under the sinusoid until the sinusoid is whole over it, then stands aside: both dissolving at once let the page show through, docs/decisions.md "Lobule to sinusoid handoff")
-        const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(LOBULE_UNDER_FROM, LOBULE_UNDER_FROM + 0.04, dv);
+        // (27 Nov: the sinusoid spreads from its middle, reveal.ts: the lobule goes as the screen's farthest corner of it becomes whole, and never before LOBULE_UNDER_FROM)
+        const dv = this.sinus.diveShareNow, c = this.sinus.revealCentre, k = this.sinus.pxPerUm;
+        const corner = k > 0 ? cornerReach(c.x, c.y, this.width, this.height) / k : Infinity;
+        const aside = dv == null ? 1 : smoothstep01(LOBULE_UNDER_FROM, LOBULE_UNDER_FROM + 0.04, dv) * cornerWhole(revealFront(dv, FOCUS[1], FOCUS[2]), corner);
+        const under = !this.sinus.isVisible ? 0 : aside;
         const lob3 = this.microReady && this.lobule3d.update(this.micro3d, under, now, this.flowRate.value, false, this.fadeNow);
         if (this.microReady) this.sinus3d.setLobuleTop(this.lobule3d.diveTopZ());
         const sin3 = this.microReady && this.sinus3d.update(this.micro3d, this.flowRate.value);
