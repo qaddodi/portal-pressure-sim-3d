@@ -50,7 +50,3 @@ export function recordRow(phase: RecordPhase, words: { row: string; stopRow: str
 
 /** The mime type the video really has: the recorder's own, else the type its first piece carries, else what was asked for. The file's extension follows this, never what was hoped for. */
 export const actualMime = (recorderMime: string, pieceMime: string, asked: string): string => recorderMime || pieceMime || asked;
-
-/** Whether the red outline round the app is drawn: only while recording, and only when the browser could keep it out of the video (Element Capture on this tab).
- *  Where it could not, the outline would be recorded, so it is not drawn. */
-export const showRecordFrame = (phase: RecordPhase, kept: boolean): boolean => phase === 'recording' && kept;

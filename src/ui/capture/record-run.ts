@@ -20,16 +20,12 @@ export interface RecordDeps {
   /** Asks the browser to share the window (the picker). Called straight from the press, with nothing awaited before it: Safari lets a page ask only inside the tap. Rejects
       when the person says no. */
   ask(): Promise<StreamLike>;
-  /** Keeps the app's own recording marks (the red outline) out of the video where the browser can (Chrome's Element Capture on this tab). True when it did. Never rejects. */
-  restrict(stream: StreamLike): Promise<boolean>;
   /** A recorder on the stream, in the format this browser writes best ('' lets it choose). */
   recorder(): RecorderLike;
   /** Hands the finished video over (a download), named for its format. */
   save(video: Blob, ext: 'mp4' | 'webm'): void;
   tell(note: RecordNote): void;
   onPhase(phase: RecordPhase): void;
-  /** Whether the marks that must stay out of the video can be drawn (they can when `restrict` worked). */
-  onKept(kept: boolean): void;
 }
 
 /** The browser's "no": the person closed or cancelled the picker (Chrome: NotAllowedError, Safari: NotAllowedError, an older Firefox: AbortError). Nothing broke, so nothing is said. */
@@ -41,7 +37,7 @@ export const RECORD_SLICE_MS = 1000;
 export function createRecordRun(deps: RecordDeps): { press(): Promise<void>; phase(): RecordPhase } {
   let phase: RecordPhase = 'idle';
   let stopNow: (() => void) | null = null;
-  const go = (e: RecordEvent) => { const next = recordStep(phase, e); if (next !== phase) { const was = phase; phase = next; if (was === 'recording') deps.onKept(false); deps.onPhase(next); } };
+  const go = (e: RecordEvent) => { const next = recordStep(phase, e); if (next !== phase) { phase = next; deps.onPhase(next); } };
   const fail = () => { go('failed'); deps.tell('failed'); };
 
   async function press(): Promise<void> {
@@ -51,7 +47,6 @@ export function createRecordRun(deps: RecordDeps): { press(): Promise<void>; pha
     let stream: StreamLike;
     try { stream = await deps.ask(); }
     catch (e) { if (isRefusal(e)) go('refused'); else { console.warn('[record] the window could not be shared', e); fail(); } return; }
-    const kept = await deps.restrict(stream);
     let rec: RecorderLike;
     const chunks: Blob[] = [];
     try { rec = deps.recorder(); } catch (e) { console.warn('[record] no recorder for this window', e); stream.getTracks().forEach((t) => t.stop()); fail(); return; }
@@ -75,7 +70,7 @@ export function createRecordRun(deps: RecordDeps): { press(): Promise<void>; pha
     stopNow = () => finish('press');
     stream.getVideoTracks()[0]?.addEventListener('ended', () => finish('ended'));
     try { rec.start(RECORD_SLICE_MS); } catch (e) { console.warn('[record] the recorder would not start', e); stream.getTracks().forEach((t) => t.stop()); fail(); return; }
-    go('granted'); deps.onKept(kept); deps.tell('recording');
+    go('granted'); deps.tell('recording');
   }
   return { press, phase: () => phase };
 }
