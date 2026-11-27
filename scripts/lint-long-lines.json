@@ -593,7 +593,7 @@
  "src/ui/debug/contrast.ts": 4,
  "src/ui/debug/core/api.ts": 1,
  "src/ui/debug/dust-panel.ts": 8,
- "src/ui/debug/flags.ts": 16,
+ "src/ui/debug/flags.ts": 3,
  "src/ui/debug/frame/frame.ts": 3,
  "src/ui/debug/inspect/pager.ts": 3,
  "src/ui/debug/inspect/panel.ts": 25,
