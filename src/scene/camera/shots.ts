@@ -71,7 +71,10 @@ export const SHOT_SUBJECTS: Readonly<Record<ShotName, readonly string[]>> = {
   wedge: [...piecesOf('RHV_IVC'), 'rhva', 'rhvb', 'IVC_IS'],
   hvpg: [...piecesOf('RHV_IVC'), 'rhva', 'rhvb', 'IVC_IS'],
   play: VISIBLE_FIGURE_NAMES,
-  pick: [...piecesOf('PV_TRUNK'), 'SV_CONF', 'SV_MID', ...piecesOf('V_SPL'), 'SMV_CONF', ...piecesOf('V_INT'), 'V_IMV', 'V_COL', 'LGV_CONF', ...piecesOf('PVH_R'), ...piecesOf('PVH_L'), 'rpva', 'rpvp'],
+  pick: [
+    ...piecesOf('PV_TRUNK'), 'SV_CONF', 'SV_MID', ...piecesOf('V_SPL'), 'SMV_CONF', ...piecesOf('V_INT'), 'V_IMV', 'V_COL', 'LGV_CONF',
+    ...piecesOf('PVH_R'), ...piecesOf('PVH_L'), 'rpva', 'rpvp',
+  ],
 };
 
 /** The camera's right and up in the scene for a turn and tilt (the rig's: positive yaw swings the camera to the viewer's right, the camera at target + r (sin yaw cos pitch, sin pitch, cos yaw cos pitch)). */

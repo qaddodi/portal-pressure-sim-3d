@@ -37,7 +37,8 @@ export const PLACED_BRANCHES: Readonly<Record<string, { whole: string; out: bool
 const PIECE_WHOLE = new Map<string, string>();
 for (const [w, ps] of Object.entries(WHOLE_PIECES)) for (const p of ps) PIECE_WHOLE.set(p, w);
 for (const id of OWN) PIECE_WHOLE.set(id, id);
-/** The engine's junction nodes (topology.js JUNCTIONS: where a collateral, a shunt or a tributary meets a host part-way along it): node -> its host edge, its share `at` along the host's drawn course, the whole vessel it is on. */
+/** The engine's junction nodes (topology.js JUNCTIONS: where a collateral, a shunt or a tributary meets a host part-way along it): node -> its host edge, its share `at` along the
+ *  host's drawn course, the whole vessel it is on. */
 export const JNODE = new Map<string, { node: string; host: string; at: number; whole: string }>();
 for (const c of JUNCTION_CHAINS as { host: string; nodes: string[]; at: number[] }[]) {
   const whole = Object.keys(WHOLE_HOSTS).find((w) => WHOLE_HOSTS[w]!.includes(c.host));
@@ -398,9 +399,12 @@ function buildPlaced(): void {
   //    unless an end drawn off its own node lies within SNAP_R of one of its ends: then the node moves to that end, and its skin takes it too (the short gastric veins leave the splenic vein near the hilum, beside SVD, though the
   //    engine joins them at SV: SVD is drawn at their take-off);
   //  - an end within PARALLEL_DEG of its node's own end runs beside it: it opens at its own node, an arm of that node's skin, and bows off it (SIBLINGS APART, below);
-  //  - two such nodes closer than NODE_GAP_R radii are moved apart along the vein, downstream, never past a main vessel's mouth (LRV_S and LRV were 4 radii apart: one skin for both had two permanent arms and failed).
-  /** THE ONE PENDING CASE (27 Nov): the node drawn at an end's take-off whatever else opens there, SVD at the short gastric veins' (they leave the splenic vein beside it, though the engine still joins them at SV, 11 radii
-   *  away: engine brief A moves that end to SVD, and tests/junction-ends.test.ts then turns the general rule on for C2 by itself and this line goes). Every other take-off is placed from the engine's JUNCTIONS table. */
+  //  - two such nodes closer than NODE_GAP_R radii are moved apart along the vein, downstream, never past a main vessel's mouth (LRV_S and LRV were 4 radii apart: one skin for both
+  //  had two permanent arms and failed).
+  /** THE ONE PENDING CASE (27 Nov): the node drawn at an end's take-off whatever else opens there, SVD at the short gastric veins' (they leave the splenic vein beside it, though the
+   *  engine still joins them at SV, 11 radii
+   *   away: engine brief A moves that end to SVD, and tests/junction-ends.test.ts then turns the general rule on for C2 by itself and this line goes). Every other take-off is placed
+    *  from the engine's JUNCTIONS table. */
   const NODE_AT_END: Readonly<Record<string, string>> = { SVD: 'C2|0' };
   const SNAP_R = 6, NODE_GAP_R = 10, PARALLEL_DEG = 30, PAIR_GAP_R = 5;
   /** SIBLINGS APART (below): how far off its sibling an end beside it leaves (degrees), the share of the course from that end the bow spans, and the bow's steps and most (shares of the course's length). */
@@ -441,7 +445,8 @@ function buildPlaced(): void {
   }
   /** A whole vessel's (or a collateral's) end point as it stands. */
   const endPt = (id: string, end: 0 | 1): V3 => { const c = COURSE[id]!; return end ? c[c.length - 1]! : c[0]!; };
-  /** The whole's real cuts as shares of its length, one per node between two of its hosts (the engine nodes the vessel is really cut at; the junction nodes inside a host come from the table). A node a main vessel joins is cut where
+  /** The whole's real cuts as shares of its length, one per node between two of its hosts (the engine nodes the vessel is really cut at; the junction nodes inside a host come from the
+   *  table). A node a main vessel joins is cut where
    *  the widest such vessel lands on the course (the mouth); a node only collaterals and shunts join, where they land (NODE_S); a node nothing drawn lands at, midway between the cuts either side. */
   function realCuts(w: string): number[] {
     const D = COURSE[w]!, L = lengthOf(D), hosts = WHOLE_HOSTS[w]!, pieces = WHOLE_PIECES[w]!, cuts: number[] = [], free: boolean[] = [];
@@ -461,8 +466,10 @@ function buildPlaced(): void {
       let at: number;
       if (w === HV_OSTIA.host && node === HV_OSTIA.node) at = nearestOn(D, mouth.get(`${w}|${node}`)!).s / L;   // (TWO OSTIA: the cava is cut at the common trunk's ostium, not at the widest vein's, the right one's, lower down)
       else if (ns !== undefined) at = ns / L;
-      // THE AZYGOS'S NODE IS WHERE THE VARICES LAND (27 Nov, Mohammad: "yes, with your recommendations"): the engine joins the varices (C1b) and the lumbar collateral (C9) at AZY, so AZY is drawn at the varices' landing on the arch,
-      // where the cut between C9 and the arch always was a hand-set four of the vessel's radii upstream of it (tests/azygos-origin.test.ts). The drawing moved to the engine, not the engine to the drawing: no number moves.
+      // THE AZYGOS'S NODE IS WHERE THE VARICES LAND (27 Nov, Mohammad: "yes, with your recommendations"): the engine joins the varices (C1b) and the lumbar collateral (C9) at AZY, so
+      //  AZY is drawn at the varices' landing on the arch,
+      // where the cut between C9 and the arch always was a hand-set four of the vessel's radii upstream of it (tests/azygos-origin.test.ts). The drawing moved to the engine, not the
+      //  engine to the drawing: no number moves.
       else if (js.length) at = js[0]!.hit.s / L;
       else at = (hi + 1) / hosts.length;
       cuts.push(at); free.push(ns === undefined && !js.length);
@@ -489,13 +496,15 @@ function buildPlaced(): void {
       let best: { w: string; d: number } | null = null;
       for (const c of cands) { const d = nearestOn(ownCourse(c.whole), p).d; if (!best || (isMain(c.whole) && !isMain(best.w)) || (isMain(c.whole) === isMain(best.w) && d < best.d)) best = { w: c.whole, d }; }
       if (!best || best.d > LAND_REACH + rOf(best.w)) continue;
-      // (first as drawn: the host's flow sense at the landing, a vessel that ENDS there merges along the host's flow, one that starts there leaves along it; the azygos and the epigastric pair land on another collateral's run the same way)
+      // (first as drawn: the host's flow sense at the landing, a vessel that ENDS there merges along the host's flow, one that starts there leaves along it; the azygos and the
+      //  epigastric pair land on another collateral's run the same way)
       branch(id, end, best.w, ownCourse(best.w));
       const q = end ? COURSE[id]![COURSE[id]!.length - 1]! : COURSE[id]![0]!;
       lands.push({ id, end, node, w: best.w, s: nearestOn(ownCourse(best.w), q).s, p });
     }
   }
-  // (the stent thread's rebuilt DIPS course, from the bifurcation, and the varices round the oesophagus keep the rule they were drawn with at a REAL node: the host's own end, else the wall where a fading end is, else the main
+  // (the stent thread's rebuilt DIPS course, from the bifurcation, and the varices round the oesophagus keep the rule they were drawn with at a REAL node: the host's own end, else the
+  //  wall where a fading end is, else the main
   //  vessel's mouth. An end at a JUNCTION node (the engine's table, JNODE) has no rule of its own: it opens where the table puts it, in the per-whole pass below.)
   const KEEP_RULE = new Set(['DIPS', 'C1a', 'C1b']);
   for (const l of lands) {
@@ -507,7 +516,8 @@ function buildPlaced(): void {
   }
   /** Where each junction node of the engine's table is drawn along its whole (arc length). */
   const JUNCTION_S = new Map<string, number>();
-  /** The length a host's drawn course has past its real end nodes: the draw-only through branch hung on the last (right portal vein) or the first (right hepatic vein) piece of its host, which the table's `at` counts. */
+  /** The length a host's drawn course has past its real end nodes: the draw-only through branch hung on the last (right portal vein) or the first (right hepatic vein) piece of its
+   *  host, which the table's `at` counts. */
   const branchExt = (w: string): { pre: number; post: number } => {
     let pre = 0, post = 0;
     for (const b of Object.values(PLACED_BRANCHES)) if (b.whole === w) { const l = lengthOf(COURSE[b.through]!); if (b.out) post = l; else pre = l; }
@@ -543,9 +553,12 @@ function buildPlaced(): void {
       if (!x.fixed && !stops[i - 1]!.fixed && x.s - stops[i - 1]!.s < gap) x.s = Math.min(stops[i - 1]!.s + gap, L - 2 * R, stops[i + 1]?.fixed ? stops[i + 1]!.s - gap : Infinity);
     }
     for (const x of stops) if (!x.fixed && x.node) NODE_S.set(`${w}|${x.node}`, x.s);
-    // THE JUNCTIONS (27 Nov: "the flow lens, pressure, flow direction and everything else must know where vessel junctions really are"): every take-off along a host is where the engine's table puts it, `at` of the way along the
-    // host's drawn course between its two real end nodes (this whole's real cuts, and the draw-only through branch past its end). Each end the table lists lands there exactly, whatever else lands beside it; the vessel is cut there.
-    // (A real node is still kept NODE_GAP_R radii downstream of the junction before it, as it always was: the renal vein's node LRV past the shunts' junction LRV_S. Its place and the junction's depend on one another, the junction being
+    // THE JUNCTIONS (27 Nov: "the flow lens, pressure, flow direction and everything else must know where vessel junctions really are"): every take-off along a host is where the
+    //  engine's table puts it, `at` of the way along the
+    // host's drawn course between its two real end nodes (this whole's real cuts, and the draw-only through branch past its end). Each end the table lists lands there exactly,
+    //  whatever else lands beside it; the vessel is cut there.
+    // (A real node is still kept NODE_GAP_R radii downstream of the junction before it, as it always was: the renal vein's node LRV past the shunts' junction LRV_S. Its place and the
+    //  junction's depend on one another, the junction being
     //  a share of the host, so it is solved by moving the node until it holds, which takes two rounds.)
     const ext = branchExt(w), places: { node: string; host: string; s: number; taps: [string, number][] }[] = [];
     const chains = hosts.map((host) => (JUNCTION_CHAINS as { host: string; nodes: string[]; at: number[]; taps: [string, number][][] }[]).find((c) => c.host === host));
@@ -583,12 +596,18 @@ function buildPlaced(): void {
       // (a main vessel that ends here (the coronary vein on the portal trunk) lands there too)
       for (const [sid, sign] of q.taps) { const mw = PIECE_WHOLE.get(sid); if (mw && mw !== w && isMain(mw)) branch(mw, sign > 0 ? 1 : 0, w, ownCourse(w), pointAtS(C, q.s)); }
     }
-    // (an end that leaves or arrives within PARALLEL_DEG of its node's own end runs beside it (the spontaneous and the distal splenorenal shunts, 5 degrees apart on the splenic vein, 14 on the renal vein): it opens at its own
-    //  node, beside the node's own end, an arm of the same skin (LRV_S builds with both shunts: tests/skin-crotch.test.ts; SVD with both and the short gastric veins, a skin takes three growing arms), and bows off it (SIBLINGS APART).
-    //  ROOT CAUSE (C6 at SV, 25 Nov): it used to open at the next node downstream when a main vessel joins there, "a skin with room for it" (a skin took two growing arms, and SVD had the distal shunt and the short gastric
-    //  veins), so the spontaneous shunt's splenic end went 0.241 (12.7 of the vein's radii) down the splenic vein from where the placement draws it, to the inferior mesenteric vein's mouth; at its own node it is 1.6 radii from it.
-    //  ROOT CAUSE (C6 on the cava, 25 Nov): it used to open on the host's wall past the next node instead, and a wall landing was kept WALL_GAP_R (22) of the host's radii from that node, so the spontaneous splenorenal shunt's
-    //  mouth went 0.54 from where the placement draws it, from the renal vein (0.500, -0.035) to (-0.012, -0.223) beside the cava, and its course swept across the gastrorenal shunt just above that one's mouth (tests/overlaps.test.ts).
+    // (an end that leaves or arrives within PARALLEL_DEG of its node's own end runs beside it (the spontaneous and the distal splenorenal shunts, 5 degrees apart on the splenic vein,
+    //  14 on the renal vein): it opens at its own
+    //  node, beside the node's own end, an arm of the same skin (LRV_S builds with both shunts: tests/skin-crotch.test.ts; SVD with both and the short gastric veins, a skin takes
+    //  three growing arms), and bows off it (SIBLINGS APART).
+    //  ROOT CAUSE (C6 at SV, 25 Nov): it used to open at the next node downstream when a main vessel joins there, "a skin with room for it" (a skin took two growing arms, and SVD had
+    //  the distal shunt and the short gastric
+    //  veins), so the spontaneous shunt's splenic end went 0.241 (12.7 of the vein's radii) down the splenic vein from where the placement draws it, to the inferior mesenteric vein's
+    //  mouth; at its own node it is 1.6 radii from it.
+    //  ROOT CAUSE (C6 on the cava, 25 Nov): it used to open on the host's wall past the next node instead, and a wall landing was kept WALL_GAP_R (22) of the host's radii from that
+    //  node, so the spontaneous splenorenal shunt's
+    //  mouth went 0.54 from where the placement draws it, from the renal vein (0.500, -0.035) to (-0.012, -0.223) beside the cava, and its course swept across the gastrorenal shunt
+    //  just above that one's mouth (tests/overlaps.test.ts).
     //  At its own node it opens 3.7 of the renal vein's radii from its drawn landing, within SNAP_R: tests/landing-frozen.test.ts)
     for (const x of stops) for (const o of x.others) {
       if (!x.land || angleDeg(endDir(o.id, o.end), endDir(x.land.id, x.land.end)) >= PARALLEL_DEG) continue;
@@ -648,7 +667,8 @@ function buildPlaced(): void {
   // ---- the caudate veins: three short tributaries into the cava (the pieces are cut below, so this lands on the whole cava) ----
   for (const k of ['cv1', 'cv2', 'cv3']) if (COURSE[k]) branch(k, 1, 'ivc');
 
-  // ---- cut each whole vessel into its engine pieces: at the real nodes between its hosts (realCuts, which the junction pass above has already used), and each host at its junction nodes (the table's `at`) ----
+  // ---- cut each whole vessel into its engine pieces: at the real nodes between its hosts (realCuts, which the junction pass above has already used), and each host at its junction
+  //  nodes (the table's `at`) ----
   for (const [w, pieces] of Object.entries(WHOLE_PIECES)) {
     const D = COURSE[w]!, s = arc(D), L = s[s.length - 1]!, hosts = WHOLE_HOSTS[w]!, real = REAL_S.get(w) ?? realCuts(w);
     const cuts: number[] = [];

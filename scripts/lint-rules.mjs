@@ -2,6 +2,7 @@
 // The parser is rolldown's (oxc: it ships with Vite, so nothing new to install, and parses TS/TSX in milliseconds); typescript 7 has no JS syntax-tree API.
 // A rule is { applies(path), visit(node) }; a hit is { rule, path, line, text }. scripts/lint-allow.json holds each rule's allowance (hits tolerated today); it may only go down.
 import { parseAst } from 'rolldown/parseAst';
+import { JUNCTION_PIECES } from '../src/engine/hales/portal/topology.js';
 
 const under = (p, ...dirs) => dirs.some((d) => p === d || p.startsWith(`${d}/`));
 // the copied engine and its worker host are not this app's code (and the host has no animation frames)
@@ -20,7 +21,20 @@ const dotted = (n) => !n ? '' : n.type === 'Identifier' ? n.name : n.type === 'T
 /** the called name: foo() -> 'foo', a.b.foo() -> 'foo' */
 const callName = (n) => { n = unwrap(n); if (n?.type !== 'CallExpression') return ''; const c = unwrap(n.callee); return c.type === 'Identifier' ? c.name : c.type === 'MemberExpression' && !c.computed ? c.property.name : ''; };
 
+/** The piece ids the engine's junction table makes (topology.js JUNCTION_PIECES): every id of a split host but the host's own (`IVC_IS_1`, `PVH_L_2`: which stretch of the vein it is
+ *  changes whenever a row is added to the table). */
+export const NON_HOST_PIECES = new Set(Object.entries(JUNCTION_PIECES).flatMap(([host, ids]) => ids.filter((id) => id !== host)));
+
 export const RULES = {
+  /** No piece id written by hand (27 Nov: "the flow lens, pressure, flow direction and everything else must know where vessel junctions really are"). The engine cuts a vein into
+   *  pieces wherever its junction table puts a take-off, so a
+   *   literal `PVH_L_1` or `IVC_IS_1` says "the second piece" or "the last piece" of a vein that has one more piece the day a row is added. Name the HOST (`PVH_L`) and ask
+    *  scene/anatomy/whole-pieces.ts for its pieces (piecesOf,
+   *  firstPieceOf, lastPieceOf, pieceEndingAt). The 2D app's copied tables (`.copied.`, `.generated.`) are data from before the cut and are left alone. */
+  'piece-id-literal': {
+    applies: (p) => !vendored(p) && !/\.(copied|generated)\./.test(p) && !/\/copied\//.test(p),
+    visit: (n) => n.type === 'Literal' && typeof n.value === 'string' && NON_HOST_PIECES.has(n.value.split('~')[0]),
+  },
   /** One clock: requestAnimationFrame / cancelAnimationFrame only in src/clock/frame.ts (draw through clock.hold / clock.invalidate / Tweened). */
   'raf-outside-clock': {
     applies: (p) => !vendored(p) && p !== 'src/clock/frame.ts',

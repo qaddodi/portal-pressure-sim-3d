@@ -12,7 +12,8 @@ export const MEANDER_KEPT = new Set(['IVC_IS', 'MHV_IVC', 'LHV_IVC']);
 // (the pieces of each cava host, read from the engine's junction table, never listed)
 const piecesOf = (host) => JUNCTION_PIECES[host] ?? [host];
 export const CAVA_PIECES = new Set([...piecesOf('ILI_IVC'), ...piecesOf('IVC_IS'), 'IVCS_RA', ...piecesOf('SVC_RA'), 'V_UP']);
-/** A vessel's radius in the 2D figure's units (stage.js vesselPx of its engine diameter, an artery half of it, a liver bed fixed; the cava and the superior cava at 0.72: network.ts widthPx), before the meander. */
+/** A vessel's radius in the 2D figure's units (stage.js vesselPx of its engine diameter, an artery half of it, a liver bed fixed; the cava and the superior cava at 0.72: network.ts
+ *  widthPx), before the meander. */
 export function calibreOf(e, TOPO) {
   const d = e.id.startsWith('IVC') || e.id.startsWith('ILI_IVC') ? TOPO.EDGES.find((x) => x.id === 'IVC_IS').d : e.d ?? e.dMax ?? (TOPO.dMinOf(e) || 3);
   const vein = 1.3 * Math.max(2.6, 2.0 * Math.pow(Math.max(0.1, d), 0.72));

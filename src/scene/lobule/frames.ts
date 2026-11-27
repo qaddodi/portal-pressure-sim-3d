@@ -21,7 +21,9 @@ export const LIVER_POINT: V3 = placedLiverPoint();
 /** The place found by name on the drawn courses (vessels/centreline.ts), never a number: in the open liver between the right portal vein (below), the right
  *  hepatic vein (above) and the IVC (toward the middle), at the depth between the two liver veins, the point of that box farthest from every drawn vessel (a lobule stands in parenchyma, not on a vein), toward the box's middle. */
 export function placedLiverPoint(): V3 {
-  const rpv = centrelineOf(lastPieceOf('PVH_R')) ?? centrelineOf('PVH_R'), rhv = centrelineOf(firstPieceOf('RHV_IVC')) ?? centrelineOf('RHV_IVC'), ivc = centrelineOf(firstPieceOf('IVC_IS')) ?? centrelineOf('IVC_IS');
+  const rpv = centrelineOf(lastPieceOf('PVH_R')) ?? centrelineOf('PVH_R');
+  const rhv = centrelineOf(firstPieceOf('RHV_IVC')) ?? centrelineOf('RHV_IVC');
+  const ivc = centrelineOf(firstPieceOf('IVC_IS')) ?? centrelineOf('IVC_IS');
   if (!rpv || !rhv || !ivc) return [x3(LIVER_2D.x), y3(LIVER_2D.y), LIVER_Z];
   const p = rpv.pointAt(1), h = rhv.pointAt(0), c = ivc.pointAt(ivc.nearestU([(p[0] + h[0]) / 2, (p[1] + h[1]) / 2, (p[2] + h[2]) / 2]));
   // (the box: from the farther of the two liver ends to the cava sideways, from the portal vein up to the hepatic vein; its depth the two veins' mean)

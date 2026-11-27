@@ -1,8 +1,13 @@
-// WHICH ENGINE PIECES MAKE UP EACH WHOLE VESSEL, read from the engine's junction table and never written by hand (27 Nov: "the flow lens, pressure, flow direction and everything else must know where vessel
-// junctions really are"). The engine cuts a vein into pieces in series wherever a collateral or a shunt joins it part-way along (topology.js JUNCTIONS, JUNCTION_PIECES), so the pieces a vessel has, their ids and
-// their order change when a row is added to that table. A list of piece ids written in the app (`IVC_IS_1`, `PVH_L_1`) went stale at the first new row, and a piece's suffix says nothing about where it lies
-// (the left portal vein's `PVH_L_1` was its last piece until the paraumbilical vein and the Meso-Rex bypass each cut it, and is its second of four now). So the app names a HOST (an engine edge between two real
-// nodes: `IVC_IS`, `PVH_L`) and asks this file for its pieces. Lint rule `piece-id-literal` (scripts/lint-rules.mjs) keeps a literal `_<n>` piece id out of the source; tests/junction-pieces.test.ts pins it.
+// WHICH ENGINE PIECES MAKE UP EACH WHOLE VESSEL, read from the engine's junction table and never written by hand (27 Nov: "the flow lens, pressure, flow direction and everything else
+//  must know where vessel
+// junctions really are"). The engine cuts a vein into pieces in series wherever a collateral or a shunt joins it part-way along (topology.js JUNCTIONS, JUNCTION_PIECES), so the pieces
+//  a vessel has, their ids and
+// their order change when a row is added to that table. A list of piece ids written in the app (`IVC_IS_1`, `PVH_L_1`) went stale at the first new row, and a piece's suffix says
+//  nothing about where it lies
+// (the left portal vein's `PVH_L_1` was its last piece until the paraumbilical vein and the Meso-Rex bypass each cut it, and is its second of four now). So the app names a HOST (an
+//  engine edge between two real
+// nodes: `IVC_IS`, `PVH_L`) and asks this file for its pieces. Lint rule `piece-id-literal` (scripts/lint-rules.mjs) keeps a literal `_<n>` piece id out of the source;
+//  tests/junction-pieces.test.ts pins it.
 // Pure data, no three.js.
 import { EDGES, JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
 
