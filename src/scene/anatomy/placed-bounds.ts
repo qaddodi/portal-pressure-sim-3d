@@ -2,10 +2,11 @@
 // names (organs and their parts, vessels by engine edge id or whole-vessel key, stations), never a box of numbers, so a slide frames its subject wherever the placement puts it. Read
 // through source.ts. Pure data and arithmetic, built once at load; nothing here runs per frame.
 //
-// The placement describes WHOLE vessels (placement.generated.ts PLACED_COURSES: ivc, pv, sv, ...); the app draws engine PIECES (ILI_IVC, IVC_IS_1, ...). A piece is the stretch of its
+// The placement describes WHOLE vessels (placement.generated.ts DRAWN_COURSES: ivc, pv, sv, ...); the app draws engine PIECES (ILI_IVC, IVC_IS_1, ...). A piece is the stretch of its
 // whole vessel between the points where today's piece ends lie on today's whole course (TODAY_COURSES, the mock's copy of today's app, within 0.013): the same share of the way along
 // the placed course. A collateral or shunt is its own key. Anything the placement does not describe (the sinusoid beds, a hidden artery) moves with the nearest placed vessels.
-import { PLACED_COURSES, PLACED_VESSELS, TODAY_COURSES, type P3 } from './placement.generated.ts';
+import { PLACED_VESSELS, TODAY_COURSES, type P3 } from './placement.generated.ts';
+import { DRAWN_COURSES } from './drawn-courses.ts';
 import { PLACED_ORGAN_BOX } from './placed-organs.generated.ts';
 import { EDGE_PATH_2D, NODE_POS_2D } from '../vessels/paths.copied.ts';
 import { ORGAN_BOX_2D } from '../../decks/rw/copied/plate.ts';
@@ -62,7 +63,7 @@ function morphSamples(): { t: V3; d: V3 }[] {
   if (samples) return samples;
   samples = [];
   for (const [k, T] of Object.entries(TODAY_COURSES)) {
-    const A = PLACED_COURSES[k];
+    const A = DRAWN_COURSES[k];
     if (!A || k.startsWith('cv')) continue;   // (the caudate's veins are shown only when called for: they carry nothing else)
     for (let i = 0; i <= 12; i++) { const u = i / 12, t = pointAt(T, u), a = pointAt(A, u); samples.push({ t, d: [a[0] - t[0], a[1] - t[1], a[2]] }); }
   }
@@ -82,11 +83,11 @@ const edgeCache = new Map<string, readonly V3[] | null>();
 export function placedEdge(id: string): readonly V3[] | null {
   if (edgeCache.has(id)) return edgeCache.get(id)!;
   let out: readonly V3[] | null = null;
-  const own = PLACED_COURSES[id], whole = WHOLE_OF[id], path = EDGE_PATH_2D[id];
+  const own = DRAWN_COURSES[id], whole = WHOLE_OF[id], path = EDGE_PATH_2D[id];
   if (own) out = own;
-  else if (whole && path?.length && TODAY_COURSES[whole] && PLACED_COURSES[whole]) {
+  else if (whole && path?.length && TODAY_COURSES[whole] && DRAWN_COURSES[whole]) {
     const T = TODAY_COURSES[whole]!, a = path[0]!, b = path[path.length - 1]!;
-    out = stretch(PLACED_COURSES[whole]!, shareOf(T, X3(a[0]), Y3(a[1])), shareOf(T, X3(b[0]), Y3(b[1])));
+    out = stretch(DRAWN_COURSES[whole]!, shareOf(T, X3(a[0]), Y3(a[1])), shareOf(T, X3(b[0]), Y3(b[1])));
   } else if (path?.length) out = path.filter((_, i) => i % 4 === 0 || i === path.length - 1).map(([x, y]) => placedMorph(x, y));
   edgeCache.set(id, out);
   return out;
@@ -98,7 +99,7 @@ function nodeEnds(): Map<string, V3[]> {
   if (ends) return ends;
   ends = new Map();
   for (const e of EDGES as readonly { id: string; from: string; to: string }[]) {
-    if (!WHOLE_OF[e.id] && !PLACED_COURSES[e.id]) continue;
+    if (!WHOLE_OF[e.id] && !DRAWN_COURSES[e.id]) continue;
     const c = placedEdge(e.id);
     if (!c?.length) continue;
     for (const [n, p] of [[e.from, c[0]!], [e.to, c[c.length - 1]!]] as const) { const l = ends.get(n) ?? []; l.push(p); ends.set(n, l); }
@@ -127,7 +128,7 @@ export const unionBox3 = (boxes: readonly (Box3 | null)[]): Box3 | null => {
 };
 /** A vessel's box, with its radius round its centreline. */
 const tubeBox = (pts: readonly V3[], r: number): Box3 | null => { const b = boxOfPts(pts); return b && [b[0] - r, b[1] - r, b[2] - r, b[3] + r, b[4] + r, b[5] + r]; };
-const radiusOf = (id: string): number => PLACED_VESSELS[PLACED_COURSES[id] ? id : WHOLE_OF[id] ?? '']?.r ?? 0.01;
+const radiusOf = (id: string): number => PLACED_VESSELS[DRAWN_COURSES[id] ? id : WHOLE_OF[id] ?? '']?.r ?? 0.01;
 
 /** The lowest y the colon is seen at: the rectum fades out (the tube's fading end, gut-tubes.ts), and the point where its alpha is 0.5 stands here, 0.08 above where the tube ends and 0.18 above the colon's baked box
  *  (PLACED_ORGAN_BOX.colon reaches y -1.808: the centreline's last point plus a round cap the faded end does not have). The name `colon-seen` is the colon's box down to here: the whole-figure frames take it, so the empty fade is not
@@ -143,7 +144,7 @@ export function placedBoxOfName(n: string): Box3 | null {
   if (n === 'colon-seen') { const c = PLACED_ORGAN_BOX.colon; return c ? [c[0], Math.max(c[1], RECTUM_SEEN_Y), c[2], c[3], c[4], c[5]] : null; }
   const organ = PLACED_ORGAN_BOX[n];
   if (organ) return organ;
-  const course = PLACED_COURSES[n] ?? (EDGE_PATH_2D[n] || WHOLE_OF[n] ? placedEdge(n) : null);
+  const course = DRAWN_COURSES[n] ?? (EDGE_PATH_2D[n] || WHOLE_OF[n] ? placedEdge(n) : null);
   if (course?.length) return tubeBox(course, radiusOf(n));
   if (NODE_POS_2D[n] || nodeEnds().has(n)) { const p = placedNode(n); return p ? [p[0], p[1], p[2], p[0], p[1], p[2]] : null; }
   return null;
@@ -215,7 +216,7 @@ const inBox = (b: readonly number[], x: number, y: number): boolean => x >= b[0]
 export function shownByBox2(b: Box2): { today: V3; placed: V3 }[] {
   const B = [X3(b[0]), Y3(b[3]), X3(b[2]), Y3(b[1])] as const, out: { today: V3; placed: V3 }[] = [];
   for (const n of FIGURE_NAMES) {
-    const T = TODAY_COURSES[n], A = PLACED_COURSES[n];
+    const T = TODAY_COURSES[n], A = DRAWN_COURSES[n];
     if (T && A) {
       for (let i = 0; i <= VESSEL_STEPS; i++) { const u = i / VESSEL_STEPS, t = pointAt(T, u); if (inBox(B, t[0], t[1])) out.push({ today: [t[0], t[1], 0], placed: pointAt(A, u) }); }
       continue;
@@ -280,7 +281,7 @@ export function placedBoxOfBox2(b: Box2, hidden?: ReadonlySet<string>): Box3 {
 /** What the whole figure shows at rest, placed: every organ and the gut, and every vessel drawn on a healthy figure (no collateral, shunt or stent; no caudate). */
 export const FIGURE_NAMES: readonly string[] = [
   'liver', 'stomach', 'esophagus', 'spleen', 'kidney-l', 'heart', 'heart-ra', 'duodenum', 'bowel', 'colon',
-  ...Object.keys(PLACED_COURSES).filter((k) => !PLACED_VESSELS[k]?.extra && !PLACED_VESSELS[k]?.aOnly),
+  ...Object.keys(DRAWN_COURSES).filter((k) => !PLACED_VESSELS[k]?.extra && !PLACED_VESSELS[k]?.aOnly),
 ];
 
 /** What the whole figure shows as its body, placed: the organs (the esophagus down to the colon), without the vessels. The whole-figure frames (free play, a talk's overview, the Fit button) are framed on this, centred on it: the thin vein ends that stand a little past it
