@@ -10,7 +10,7 @@ import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
 import { decodeSkins, encodeSkins } from '../src/scene/vessels/skin/baked.ts';
 import { ringOf } from '../src/scene/vessels/skin/skin-set.ts';
-import { SKIN_CIRC_IN, SKIN_CUT_C_NONE, SKIN_HIDDEN } from '../src/scene/vessels/skin/types.ts';
+import { SKIN_CIRC_IN, SKIN_CIRC_SPAN, SKIN_CUT_C_NONE, SKIN_HIDDEN } from '../src/scene/vessels/skin/types.ts';
 import { SKIN_FS, SKIN_VS } from '../src/scene/vessels/skin/shaders.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { rawPrograms } from '../src/debug/gl-registry.ts';
@@ -360,13 +360,13 @@ test('the shaders: the tube has a second cut that takes effect over the END of t
   assert.match(SKIN_FS, new RegExp(`smoothstep\\(${SKIN_CIRC_IN.toFixed(4).replace(/0+$/, '')}0*, 1\\.0, skinShare\\), skinCirc\\)`));
   assert.ok(!/#if(n?def)?\s+SKIN_CIRC\b/.test(SKIN_FS + SKIN_VS), 'the map\'s skins are the body\'s programs: skinCirc is a uniform, not a define (nothing new to compile)');
   assert.match(SKIN_FS, /uniform vec4 skinKW;/); assert.match(SKIN_FS, /#define skinCirc \(skinKW\.w < 0\.0 \? 1\.0 : 0\.0\)/, 'the map\'s skins are told apart by the sign of the units in skinKW.w');
-  assert.match(SKIN_FS, /mix\(1\.0 - smoothstep\(0\.0, [0-9.]+, circT\), smoothstep\(/);
+  assert.match(SKIN_FS, /mix\(1\.0 - smoothstep\(0\.0, [0-9.]+, ownShare\), smoothstep\(/);
   assert.match(SKIN_VS, /float circSwellOf\(vec4 a\)/);
   assert.match(SKIN_FS, /skinCirc \* circT \* [0-9.]+ \* smoothstep\(-inDepth, 0\.0, sdPx\)/, 'the Circuit\'s inner line');
   const names = rawPrograms('').map((p) => p.name);
   assert.ok(!names.some((n) => /Circuit/.test(n) && /skin/.test(n)), 'no program of its own: the body\'s skin programs are the map\'s');
   // the body's skin is gone before the map's comes in: the two never share a pixel
-  assert.ok(SKIN_CIRC_IN > 0.35, 'the body\'s skin is gone by 0.35 (SKIN_CIRC_SPAN)');
+  assert.ok(SKIN_CIRC_IN > SKIN_CIRC_SPAN, 'the body\'s skin is gone by its own share SKIN_CIRC_SPAN');
 });
 
 test('the scene builds them with the Anatomy\'s, writes the map\'s mates without the skinned ends, turns and shows them with the change, and the build bakes their file', () => {

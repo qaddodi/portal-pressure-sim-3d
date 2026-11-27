@@ -482,7 +482,8 @@ void main() {
   if (vFade < 0.004) DROP(4);
   // past the seam the skin draws this junction. On the Circuit's map the tubes morph into flat lines and the map draws its own joins, so the cut part comes back as the skin goes (SKIN_CIRC_SPAN of the change), by the same screen pattern as circStay's; at rest it is a plain discard
   if (skinCutOn() && skinPast()) {
-    float cutA = smoothstep(0.0, ${F(SKIN_CIRC_SPAN)}, circT);
+    // (the vertex's own share of the change, as the skin's: skin/shaders.ts circK; a part with no map course has no share and keeps the whole change's)
+    float cutA = smoothstep(0.0, ${F(SKIN_CIRC_SPAN)}, circStay < 0.999 ? circT : vCircShare);
     float cutH = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
     float weldW = skinWeldAt();
     // (a growing arm's cut end is drawn where the skin is not: the skin keeps the pixels whose pattern is under the weld, skin-object.ts setWeld, so each pixel is one or the other)

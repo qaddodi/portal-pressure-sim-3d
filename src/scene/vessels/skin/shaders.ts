@@ -43,7 +43,7 @@ import { CEL_STYLE } from '../../cel-style.ts';
 import { MAP_K, MAP_CENTRE, CIRC_C } from '../../circuit/map.ts';
 import { PEEL_DL, PEEL_SPAN } from '../../circuit/peel.ts';
 import { VB_CIRC } from '../../circuit/data.copied.ts';
-import { SKIN_CIRC_IN } from './types.ts';
+import { SKIN_CIRC_IN, SKIN_CIRC_SPAN } from './types.ts';
 import { skinNormalGlsl, skinTubeKeepGlsl, SKIN_SHADE_K, SKIN_SHADE_FLOOR_PX } from './exact-normal.ts';
 import { HEAD_WALL_GLSL, SKIN_WALL_GLSL } from './head-wall.ts';
 import { CAVA_RAMP_R } from '../fade-alpha.ts';
@@ -57,8 +57,6 @@ export const SKIN_ARMS = 6;
 export const SKIN_AXIS_PTS = 4;
 /** The figure's units in one scene unit on the body (the tube's vU at circShare 0, vessels/shaders.ts): the 2D figure's width and line rules are written in them. tests/skin-shaders.test.ts holds this to the vessel's own text. */
 export const SKIN_FIGURE_UNITS = 300;
-/** The Circuit crossfade (section 4.9): the skin is gone by this share of the morph, and the tubes' cut fades in over the same. */
-export const SKIN_CIRCUIT_FADE = 0.35;
 /** An arm whose live width share (its width times its growth) is under this is held out of the skin's outline, smoothly: a width of nothing is a line, not a vessel (the thorns on the SMV, Mohammad 20 Nov). */
 export const SKIN_ARM_ABSENT = 0.3;
 /** The depth hold-out's ramp (skinArmHeld), in shares of the blend width k of 3D gap between a pixel's rest surface and an arm's wall: an arm is not held out of the outline within SKIN_HOLD_FROM_K of it, wholly from SKIN_HOLD_TO_K. It was 0.25 to 1; the FILLET spans the whole of k, so
@@ -101,6 +99,7 @@ attribute vec4 weight;   // how much of this vertex belongs to each arm (arms 0 
 attribute vec2 weight2;  // arms 4 and 5
 attribute float restR;   // the blended rest radius here (scene units)
 attribute float sagK;    // the share of the radius this vertex stands out for its facets' chord sag (facet-sag.ts; a seam ring's is the tube's TUBE_SAG)
+attribute float skinRank;   // where in the flow this vertex lies (skin-rank.ts): its arms' ranks by weight, 0 gut to 1 heart, the rank the tubes peel by
 attribute float tubeShare;   // how much of the mesh's own normal the shade keeps here, 1 on a seam ring, 0 from SKIN_TUBE_ROWS rows in (exact-normal.ts tubeShareOf)
 uniform float inflate;
 uniform sampler2D vdata;
@@ -123,7 +122,7 @@ varying float vW;        // the surface's clip depth
 varying float vCenW;     // the axis's clip depth: the one the ink band is built from (the tube's vCen.z)
 varying vec4 vWeight;
 varying vec2 vWeight2;
-varying vec2 vRest;      // x: the rest radius; y: the tube share (placed; 0 today), packed so the varyings stay the spec's
+varying vec3 vRest;      // x: the rest radius; y: the tube share (placed; 0 today); z: the vertex's flow rank (skinRank), so the body skin leaves as its own tubes do. Packed so the varyings stay the spec's
 varying vec4 vSwell;
 varying vec2 vSwell2;    // the arms' live widths against their built ones, read once here so the fragment stage does not fetch them again
 varying vec3 vPos;       // the rest position now (after the growth morph): each arm's arc at this pixel (the flow marks), its lateral gate and the union's gradient are read from it
@@ -187,7 +186,7 @@ void main() {
   vCenW = cc.w;
   vWeight = wA;
   vWeight2 = wB;
-  vRest = vec2(rst, tubeShare);
+  vRest = vec3(rst, tubeShare, skinRank);
   vSwell = vec4(swT[0], swT[1], swT[2], swT[3]);
   vSwell2 = vec2(swT[4], swT[5]);
   // EACH ARM'S FADE AT THIS VERTEX (the junction's seam far out on a fading vein washed the whole skin and drew its neighbour's fork branch as a ghost, 21 Nov): the tube's own fade rule at this vertex's arc along the arm, the arc the flow marks use. An arm whose seam is whole keeps -1: its seam value, as before
@@ -225,6 +224,14 @@ uniform vec4 skinKW;     // (x, y, z: the blend width and the weld pair, below) 
 uniform vec3 inkColor;
 uniform vec3 inkColorCirc;
 uniform float circT;
+float skinRankShare(float r) {
+  if (circT <= 0.0) return 0.0;
+  if (circT >= 1.0) return 1.0;
+  float x = (circT - ${F(PEEL_DL)} * r) / ${F(1 - PEEL_DL)};
+  if (x <= 0.0) return 0.0;
+  if (x >= 1.0) return 1.0;
+  return x * x * (3.0 - 2.0 * x);
+}
 float skinPeelShare(vec3 p) {
   float mx = ${F(CIRC_C[0])} + (p.x - ${F(MAP_CENTRE.x)}) / ${F(MAP_K)};
   float r = clamp((mx - ${F(VB_CIRC[0] + 30)}) / ${F(PEEL_SPAN)}, 0.0, 1.0);
@@ -288,7 +295,7 @@ varying float vW;
 varying float vCenW;
 varying vec4 vWeight;
 varying vec2 vWeight2;
-varying vec2 vRest;
+varying vec3 vRest;
 varying vec4 vSwell;
 varying vec2 vSwell2;
 varying vec3 vPos;
@@ -518,7 +525,7 @@ void main() {
   // there (each arm's weight times its presence, over their sum), so an arm that is not drawn adds nothing, and where the one that is has faded the skin is gone with it.
   if (skinKW.y != 0.0) { float wh = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))); if (skinKW.y > 0.0 ? wh >= skinKW.z : wh < skinKW.z) discard; }
   // the arms' alphas, blended by weight: the junction fade rule already holds on the tubes, so their seam alphas agree and the skin runs through them. On the Circuit's map the tubes become flat lines and the map draws its own
-  // joins, so the skin fades out over the first SKIN_CIRCUIT_FADE of the morph (the arm tubes' cut fades back in over the same)
+  // joins, so the skin fades out over the first SKIN_CIRC_SPAN of its own rank's share of the morph (the arm tubes' cut fades back in over the same)
   // THE JUNCTION FADE RULE (Mohammad, 20 Nov: "a vessel merging into a faded vessel fades gradually on approach, so both share the same fade at the junction", and the torn edge where the hepatic veins' solid streaks met the faint cava): a vein that opens into the side
   // of a trunk (armCopy.w -2: the hepatic veins into the cava, fades.ts opensIntoCava; the trunk is the arms of the run through the node) comes to the trunk's opacity as the pixel nears the trunk's wall: 0 from CAVA_RAMP_R trunk radii out, whole at the wall, by the pixel's own distance to the trunk (the tube's own ramp, vessels/shaders.ts wA, which a
   // skinned vein keeps: cavaCut 2). Before, a vein stayed solid to its seam and the skin changed from its opacity to the cava's across the weights' contour, a polygon: the tear
@@ -533,7 +540,10 @@ void main() {
   float wRamp = hasTrunk ? 1.0 - smoothstep(0.0, ${F(CAVA_RAMP_R)} * max(radTrunk, 1.0e-5), sdTrunk) : 0.0;
   // the map's skin comes in as the map POINT under it lands (the flow peel on its rank, from its place on the map), as the tubes' cut goes (vessels/shaders.ts keepC): the whole change's clock brought the heart end's skins in while its tubes were still on the way (floating bars, 21 Nov)
   float skinShare = skinPeelShare(vPos);
-  float circK = mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRCUIT_FADE)}, circT), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, skinShare), skinCirc);
+  // the body's skin goes as ITS OWN tubes land (Mohammad, 27 Nov: going back to the anatomy "a segment in the splenic vein just appears in place"): the tubes peel by flow rank, so the gut's and the spleen's are home well before the change ends,
+  // and the skin, which waited for the whole change, stood in its final place while its tubes were still on the way. It is whole once its rank's own share of the change is back under SKIN_CIRC_SPAN, and gone as it leaves (the tubes' cut: vessels/shaders.ts)
+  float ownShare = skinRankShare(vRest.z);
+  float circK = mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRC_SPAN)}, ownShare), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, skinShare), skinCirc);
   float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(fadeOf(${i}), aTrunk, wRamp) : fadeOf(${i})) * ${COPY_OF(i)} * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4) * circK;
 #if SKIN_COPY == 2
   // THE COPIES SHARE ONE COVERAGE (a patch where the cava's lower edge meets the liver, Mohammad 21 Nov): at a junction of arms drawn over the organs (the front copy: the renal vein) and arms behind them (the veil copy: the cava) the weights split the pixel between the two copies, and
@@ -672,7 +682,7 @@ void main() {
       covK += cv; covRaw += cv;
       inkK += cv * ct.z * (1.0 - smoothstep(inkC - 0.5, inkC + 0.5, ct.y));
     }
-    covK = min(covK, 1.0) * (1.0 - smoothstep(0.5, 1.5, sdPx)) * (1.0 - smoothstep(0.0, 0.35, circT));
+    covK = min(covK, 1.0) * (1.0 - smoothstep(0.5, 1.5, sdPx)) * (1.0 - smoothstep(0.0, ${F(SKIN_CIRC_SPAN)}, ownShare));
     if (covK > 0.0) {
       float etC = max(0.5 * ${F(CEL_STYLE.EDGE_PX)} * swT, 1e-4);
       vec3 toneC = mix(mix(clotShade, clotBase, smoothstep(${F(CLOT_SHADE_AT)} - etC, ${F(CLOT_SHADE_AT)} + etC, sT)), clotLift, smoothstep(${F(CLOT_LIFT_AT)} - etC, ${F(CLOT_LIFT_AT)} + etC, sT));

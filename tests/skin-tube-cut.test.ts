@@ -36,7 +36,7 @@ test('the fragment stage cuts only where a cut is set, and only past it (a plain
   assert.match(shaderText(VESSEL_FS), /uniform vec2 skinCut;/);
   assert.match(shaderText(VESSEL_FS), /bool skinCutOn\(\) \{ return dotted < 0\.5 && \(skinStartCut\(\) >= 0\.0 \|\| skinCut\.y <= 1\.0\) \|\| skinHole\.y > skinHole\.x \|\| skinHole2\.y > skinHole2\.x; \}/);   // (a dotted thread is never cut: spec 10.2; and the side-wall holes: tests/skin-side-wall.test.ts)
   assert.match(shaderText(VESSEL_FS), /if \(skinCutOn\(\) && skinPast\(\)\) \{[^}]*cutA <= 0\.0[^}]*discard;/s);
-  assert.ok(shaderText(VESSEL_FS).includes(`smoothstep(0.0, ${SKIN_CIRC_SPAN}, circT)`));
+  assert.ok(shaderText(VESSEL_FS).includes(`smoothstep(0.0, ${SKIN_CIRC_SPAN}, circStay < 0.999 ? circT : vCircShare)`));
   assert.ok(shaderText(VESSEL_FS).includes(String(SKIN_CUT_EPS)), 'a hair of margin, so the seam ring itself is never discarded');
   assert.ok(!VESSEL_VS.includes('skinCut'), 'the vertex stage is untouched');
 });

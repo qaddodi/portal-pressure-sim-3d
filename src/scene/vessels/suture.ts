@@ -22,6 +22,8 @@ import { SEWN_IDS, seamsFor, seamAtA, type SeamCurve } from './seams.ts';
 import { TUBE_DEPTH_SHARE } from './shaders.ts';
 import { widthSwell } from './live-width.ts';
 import { SKIN_CIRC_SPAN } from './skin/types.ts';
+import { rankAt } from './skin/skin-rank.ts';
+import { PEEL_DL } from '../circuit/peel.ts';
 import { glslNum as F } from '../cel-glsl.ts';
 import type { ArmSeam, SeamRing, SkinSet } from './skin/skin-set.ts';
 import type { VesselObject } from './vessel-object.ts';
@@ -95,12 +97,16 @@ uniform vec4 sSeamA;    // the seam as the tube's own uniform has it (seams.ts: 
 uniform vec4 sSeamB;
 uniform float sAlpha;   // the tube's fade at the seam, the arm's presence, the weld's share, the front copy's
 uniform float circT;
+uniform float sRank;    // where in the flow the seam lies (skin-rank.ts rankAt): the thread goes as ITS tubes leave, not as the whole change does
 varying vec3 vMark;
 ${THREAD_GLSL}
 ${SEAM_STITCH_GLSL}
 void main() {
   float fwAcr = fwidth(vMark.x);   // (before any discard)
-  float k = sAlpha * (1.0 - smoothstep(0.0, ${F(SKIN_CIRC_SPAN)}, circT));
+  // the seam's own share of the change: the tubes peel by rank (circuit/peel.ts), so the whole change's clock left the thread standing in place after its tubes had gone
+  float px = (circT - ${F(PEEL_DL)} * sRank) / ${F(1 - PEEL_DL)};
+  float own = circT <= 0.0 ? 0.0 : circT >= 1.0 || px >= 1.0 ? 1.0 : px <= 0.0 ? 0.0 : px * px * (3.0 - 2.0 * px);
+  float k = sAlpha * (1.0 - smoothstep(0.0, ${F(SKIN_CIRC_SPAN)}, own));
   vec2 st = seamStitch(sSeamA, sSeamB, sSeamA.x + vMark.y, clamp(vMark.x, -1.0, 1.0), vMark.z, fwAcr);
   float te = st.y * 0.4;
   float al = st.x + (1.0 - st.x) * te;   // (the tube's marks as an overlay: mix(mix(body, EDGE, te * 0.4), THREAD, tw) is body (1 - al) + rgb al)
@@ -145,7 +151,7 @@ export class SutureObject {
     Object.assign(uniforms, {
       sCentre: { value: [0, 0, 0] }, sHead: { value: [0, 0, 1] }, sCourse: { value: end === 0 ? 1 : -1 }, sRest: { value: 0 },
       sData: { value: [(au.vindex!.value as number), (au.baseD!.value as number), (au.widthKind!.value as number), 0] },
-      sExt: { value: [0, 0] }, sSeamA: { value: [0, 0, 0, 0] }, sSeamB: { value: [0, 0, 0, 0] }, sAlpha: { value: 0 }, frontDepth: au.frontDepth!,
+      sExt: { value: [0, 0] }, sSeamA: { value: [0, 0, 0, 0] }, sSeamB: { value: [0, 0, 0, 0] }, sAlpha: { value: 0 }, sRank: { value: rankAt(vesselId, end) || 0 }, frontDepth: au.frontDepth!,
     });
     // (plain arrays hold the vectors: three takes an array of 3 or 4 numbers for a vec3 / vec4 uniform, and the tests read them as they are)
     this.material = setBlendState(markBlends(new ShaderMaterial({ name: 'suture', vertexShader: SUTURE_VS, fragmentShader: SUTURE_FS, precision: 'highp', transparent: true, depthWrite: false, depthTest: true, uniforms })), true);
