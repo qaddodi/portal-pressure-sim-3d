@@ -21,12 +21,13 @@ export const DEFAULT_SIZES = ['iphone', 'ipad', 'mac'];
 
 /** The command line as plain choices. Pure (tests/layout-check.test.ts). */
 export function parseArgs(argv) {
-  const o = { sizes: DEFAULT_SIZES, depth: 'quick', speed: 20, json: false, print: false };
+  const o = { sizes: DEFAULT_SIZES, depth: 'quick', speed: 20, json: false, print: false, capMs: 600000 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--sizes') o.sizes = String(argv[++i] ?? '').split(',').filter(Boolean);
     else if (a === '--depth') o.depth = argv[++i] === 'full' ? 'full' : 'quick';
     else if (a === '--speed') o.speed = Math.max(1, Math.min(20, Number(argv[++i]) || 20));
+    else if (a === '--cap') o.capMs = Math.max(10, Number(argv[++i]) || 600) * 1000;
     else if (a === '--json') o.json = true;
     else if (a === '--print') o.print = true;
   }
@@ -78,14 +79,20 @@ async function main() {
       page.on('request', (r) => open.add(r.url())); page.on('requestfinished', (r) => open.delete(r.url())); page.on('requestfailed', (r) => { open.delete(r.url()); lines.push(`request failed: ${r.url()}`); });
       say(`opening ${addressOf(base, o)}`);
       await page.goto(addressOf(base, o), { waitUntil: 'commit', timeout: 60000 }); say('page answered');
-      try { await page.waitForFunction(() => window.pps && window.pps.audit, null, { timeout: 90000 }); } catch (e) {
+      try { await page.waitForFunction(() => window.pps && window.pps.audit, null, { timeout: 90000, polling: 200 }); } catch (e) {
         // (the page never reached the self-test: say where it stands, so the cause is read from the output and not guessed)
         const where = await Promise.race([new Promise((r) => setTimeout(() => r('the page does not answer (its main thread is busy)'), 8000)), page.evaluate(() => ({ boot: document.documentElement.dataset.boot, cover: document.getElementById('boot')?.className, root: document.getElementById('root')?.childElementCount, errs: window.ppsBootErrors })).catch(() => null)]);
         console.error(`${id}: the page did not reach the self-test in 90 s after ${((Date.now() - s0) / 1000).toFixed(1)} s`, JSON.stringify(where));
         console.error(lines.slice(0, 15).join('\n')); console.error(`still loading: ${[...open].slice(0, 10).join(' | ')}`);
         await Promise.race([ctx.close(), new Promise((r) => setTimeout(r, 5000))]); failed = true; continue;
       }
-      const json = await page.evaluate(async (depth) => { await window.pps.audit.run(depth); return window.pps.audit.json(); }, o.depth);
+      // (the walk is capped, so a stuck page ends the run with its state printed and never waits for ever)
+      say(`${id}: self-test running`);
+      const json = await Promise.race([
+        page.evaluate(async (depth) => { await window.pps.audit.run(depth); return window.pps.audit.json(); }, o.depth),
+        new Promise((r) => setTimeout(() => r(null), o.capMs)),
+      ]);
+      if (!json) { console.error(`${id}: the self-test did not finish in ${o.capMs / 1000} s`); failed = true; await Promise.race([ctx.close(), new Promise((r) => setTimeout(r, 5000))]); continue; }
       const bundle = JSON.parse(json);
       const part = bundle.parts?.[0];
       const found = layoutFindings(part).map((f) => ({ size: id, ...f }));
