@@ -2,9 +2,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { canRecordWindow, actualMime, pickRecordMime, recordExt, recordFileName, recordSize, recordBitrate, RECORD_FPS, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
+import { canRecordWindow, actualMime, pickRecordMime, recordExt, recordFileName, recordSize, recordBitrate, RECORD_FPS, noteWords, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
 import { isCaptureKey } from '../src/ui/capture/capture-model.ts';
-import { createRecordRun, isRefusal, type RecordDeps, type RecordNote, type RecorderLike, type StreamLike } from '../src/ui/capture/record-run.ts';
+import { createRecordRun, raiseToFullSize, isRefusal, type RecordDeps, type RecordNote, type RecorderLike, type StreamLike } from '../src/ui/capture/record-run.ts';
 import { RECORD } from '../src/ui/shell/words.ts';
 
 const src = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
@@ -105,15 +105,18 @@ class FakeRecorder implements RecorderLike {
 }
 function rig(opts: { ask?: () => Promise<StreamLike>; mime?: string; data?: Blob[]; recorder?: () => RecorderLike } = {}) {
   const stream = new FakeStream(), phases: RecordPhase[] = [], notes: RecordNote[] = [], saved: { size: number; ext: string }[] = [];
+  const runRef: { run?: ReturnType<typeof createRecordRun> } = {};
   const rec = new FakeRecorder(opts.mime ?? 'video/webm;codecs=vp9', opts.data ?? [new Blob(['aa']), new Blob(['bbb'])]);
   let asked = 0;
+  const told: { note: RecordNote; phase: RecordPhase }[] = [];
   const deps: RecordDeps = {
     ask: () => { asked++; return opts.ask ? opts.ask() : Promise.resolve(stream); },
     recorder: opts.recorder ?? (() => rec),
     save: (v, ext) => { saved.push({ size: v.size, ext }); },
-    tell: (n) => { notes.push(n); }, onPhase: (p) => { phases.push(p); }
+    tell: (n) => { notes.push(n); told.push({ note: n, phase: runRef.run?.phase() ?? 'idle' }); }, onPhase: (p) => { phases.push(p); }
   };
-  return { run: createRecordRun(deps), stream, rec, phases, notes, saved, asked: () => asked };
+  const run = createRecordRun(deps); runRef.run = run;
+  return { run, told, stream, rec, phases, notes, saved, asked: () => asked };
 }
 const err = (name: string) => Object.assign(new Error(name), { name });
 
@@ -226,7 +229,7 @@ test('full size: the screen\'s own pixels at the device pixel ratio, and a bit r
   assert.ok(recordBitrate(3024, 1964, 60) > recordBitrate(1512, 982, 60));
   const rec = src('src/ui/capture/record.ts');
   assert.match(rec, /width: \{ ideal: size\.w \}, height: \{ ideal: size\.h \}, frameRate: \{ ideal: RECORD_FPS \}/);
-  assert.match(rec, /videoBitsPerSecond/); assert.match(rec, /applyConstraints/);
+  assert.match(rec, /videoBitsPerSecond/); assert.match(src('src/ui/capture/record-run.ts'), /applyConstraints/); assert.match(rec, /raiseToFullSize/);
 });
 
 test('the words: plain, no dot, Stop is a word in the toast', () => {
@@ -252,4 +255,52 @@ test('no toast and no outline while recording; the stop button stands beside Set
   const ind = src('src/ui/capture/RecordIndicator.tsx'), css = src('src/ui/capture/record.css');
   for (const t of [rec, ind, css, src('src/App.tsx')]) assert.ok(!/RecordFrame|rec-frame|RestrictionTarget|restrictTo|showRecordFrame/.test(t), 'no red outline round the app, in any browser (Mohammad, 27 Nov)');
   assert.match(css, /prefers-reduced-motion/); assert.match(css, /@keyframes rec-breathe \{ 0%, 100% \{ opacity: 1; \} 50% \{ opacity: \.4; \} \}/, 'the pulse is opacity only');
+});
+
+test('the failure line is the words of the failure note ONLY: "recording" says nothing (it once fell into the failure line and said "Couldn\'t record" over a working recording)', () => {
+  const words = { saved: 'S', failed: 'F' };
+  assert.equal(noteWords('recording', words), null);
+  assert.deepEqual(noteWords('saved', words), { text: 'S', tone: 'info' });
+  assert.deepEqual(noteWords('failed', words), { text: 'F', tone: 'bad' });
+  const rec = src('src/ui/capture/record.ts');
+  assert.match(rec, /noteWords\(note, RECORD\)/); assert.ok(!/else[^\n]*RECORD\.failed/.test(rec), 'no catch-all that says failed');
+});
+
+test('"Couldn\'t record" can be told only when nothing is recording and nothing was saved, in every way a recording can go wrong or right', async () => {
+  const warn = console.warn; console.warn = () => undefined;
+  try {
+    const all = [
+      rig(), rig({ ask: () => Promise.reject(err('NotAllowedError')) }), rig({ ask: () => Promise.reject(err('NotReadableError')) }), rig({ data: [] }),
+      rig({ recorder: () => { throw err('NotSupportedError'); } }), rig({ mime: 'video/mp4' }),
+    ];
+    for (const r of all) { await r.run.press(); r.rec.onerror?.(undefined); await r.run.press(); r.stream.track.onended?.(); await r.run.press(); }
+    for (const r of all) for (const t of r.told) {
+      if (t.note === 'failed') { assert.equal(t.phase, 'idle', 'told only once nothing is recording'); assert.equal(r.saved.length, 0, 'and only when no file was saved'); }
+      assert.notEqual(noteWords(t.note, { saved: 'S', failed: 'F' })?.text === 'F' && t.phase === 'recording', true);
+    }
+    // a good recording says nothing while it runs
+    const good = rig(); await good.run.press();
+    assert.equal(good.run.phase(), 'recording'); assert.equal(good.notes.filter((n) => noteWords(n, { saved: 'S', failed: 'F' })).length, 0, 'nothing is shown while recording');
+  } finally { console.warn = warn; }
+});
+
+test('a refused full-size upgrade (applyConstraints rejects, whatever the reason) changes nothing: no error, the recording starts and goes on', async () => {
+  for (const name of ['OverconstrainedError', 'NotAllowedError', 'InvalidStateError', 'TypeError']) {
+    let tried = 0;
+    const small = { width: 800, height: 600, frameRate: 30 };
+    const track = { getSettings: () => small, applyConstraints: () => { tried++; return Promise.reject(err(name)); } };
+    const gave = await raiseToFullSize(track, { width: { ideal: 3024 } }, { w: 3024, h: 1964 }, 60);
+    assert.equal(tried, 1, 'it asked'); assert.match(gave, /800 x 600 at 30 fps/, 'and reports what it really has');
+    // the stream the run records is the one it was given: a recording that starts with it says nothing but "recording"
+    const r = rig({ ask: async () => { await raiseToFullSize(track, {}, { w: 3024, h: 1964 }, 60); return r0.stream; } });
+    const r0 = r;
+    await r.run.press();
+    assert.equal(r.run.phase(), 'recording'); assert.deepEqual(r.notes, ['recording']); assert.equal(r.rec.started, 1);
+  }
+  // a track that is already full size is not asked; one whose settings throw still does not reject
+  let asked = 0;
+  await raiseToFullSize({ getSettings: () => ({ width: 3024, height: 1964, frameRate: 60 }), applyConstraints: () => { asked++; return Promise.resolve(); } }, {}, { w: 3024, h: 1964 }, 60);
+  assert.equal(asked, 0);
+  const broken = { getSettings: (): never => { throw err('InvalidStateError'); }, applyConstraints: () => Promise.resolve() };
+  assert.equal(await raiseToFullSize(broken, {}, { w: 1, h: 1 }, 60), 'an unknown size');
 });

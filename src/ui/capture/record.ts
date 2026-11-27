@@ -9,8 +9,8 @@ import { useEngine } from '../../engine/index.ts';
 import { saveBlob } from '../deck/download.ts';
 import { commitOf } from '../../boot/release.ts';
 import { RECORD } from '../shell/words.ts';
-import { canRecordWindow, pickRecordMime, recordFileName, recordSize, recordBitrate, RECORD_FPS, type RecordPhase } from './record-model.ts';
-import { createRecordRun, type RecorderLike, type StreamLike } from './record-run.ts';
+import { canRecordWindow, noteWords, pickRecordMime, recordFileName, recordSize, recordBitrate, RECORD_FPS, type RecordPhase } from './record-model.ts';
+import { createRecordRun, raiseToFullSize, type RecorderLike, type StreamLike } from './record-run.ts';
 
 /** What Record window is doing now (the Settings row and the stop button read it). */
 export const useRecording = create<{ phase: RecordPhase }>(() => ({ phase: 'idle' }));
@@ -38,14 +38,8 @@ let shared: MediaStream | null = null;
 async function fullSize(stream: MediaStream): Promise<void> {
   const track = stream.getVideoTracks()[0];
   if (!track) return;
-  const want = quality();
   const size = recordSize({ w: screen.width, h: screen.height }, devicePixelRatio || 1);
-  try {
-    const got = track.getSettings();
-    if ((got.width ?? 0) < size.w || (got.height ?? 0) < size.h || (got.frameRate ?? 0) < RECORD_FPS - 1) await track.applyConstraints(want);
-  } catch { /* the browser keeps what it gave */ }
-  const now = track.getSettings();
-  const gave = `${now.width ?? '?'} x ${now.height ?? '?'} at ${Math.round(now.frameRate ?? 0)} fps`;
+  const gave = await raiseToFullSize(track, quality(), size, RECORD_FPS);
   console.info(`[record] the browser gives ${gave} (asked for ${size.w} x ${size.h} at ${RECORD_FPS})`);
 }
 async function ask(): Promise<StreamLike> {
@@ -76,10 +70,9 @@ const run = createRecordRun({
     saveBlob(video, name, 20000);
   },
   tell: (note) => {
-    const sh = useShell.getState();
     // (no note while recording: the stop button beside Settings says it, and a note would be in the video)
-    if (note === 'saved') sh.say(RECORD.saved);
-    else sh.say(RECORD.failed, 'bad');
+    const w = noteWords(note, RECORD);
+    if (w) useShell.getState().say(w.text, w.tone);
   },
   onPhase: (phase) => useRecording.setState({ phase }),
 });

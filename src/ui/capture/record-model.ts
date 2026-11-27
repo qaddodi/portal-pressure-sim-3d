@@ -38,6 +38,15 @@ export function recordBitrate(w: number, h: number, fps: number): number {
   return Math.min(80_000_000, Math.max(8_000_000, raw));
 }
 
+/** What the person is told for each note: nothing while recording (the stop button says it, and a note would be in the video), the saved line, or the failure line. Every note is listed, so none falls into another's words. */
+export function noteWords(note: 'recording' | 'saved' | 'failed', words: { saved: string; failed: string }): { text: string; tone: 'info' | 'bad' } | null {
+  switch (note) {
+    case 'recording': return null;
+    case 'saved': return { text: words.saved, tone: 'info' };
+    case 'failed': return { text: words.failed, tone: 'bad' };
+  }
+}
+
 /** The shortcut: Alt (Option) + Shift + R, read by its place on the board (Option makes another character on a Mac). */
 export const isRecordKey = (e: { code?: string; key?: string; altKey?: boolean; shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean; repeat?: boolean }): boolean =>
   !!e.altKey && !!e.shiftKey && !e.ctrlKey && !e.metaKey && !e.repeat && (e.code === 'KeyR' || (e.key ?? '').toLowerCase() === 'r');
