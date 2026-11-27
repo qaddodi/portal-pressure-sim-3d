@@ -122,10 +122,9 @@ export function vitalsFrame(spec: VitalsSpec, w: number, pal: Palette): Frame {
     const x = L.cols[i]!, by = y0 + 12 + 6 + big, col = ink(c.id), p = printed(c), sm = small(big);
     const rw = widthOf(c.id === 'map' && p.mean ? '888/88' : c.d ? '88.8' : '888', big, 700), nw = widthOf(p.main, big, 700), mw = p.mean ? widthOf('(88)', sm, 700) + 4 : 0;
     shapes.push({ k: 'text', x, y: y0 + 12, s: c.k, size: 12, weight: 600, color: c.bad ? alarm : col === bright ? text : col, key: `k-${c.id}` });
-    // the number stands in a box of the widest it can be, flush to its right edge, so the unit and the alarm patch never move as a reading changes
-    if (c.bad) shapes.push({ k: 'rect', x: x - 5, y: by - big * 0.78 - 4, w: rw + mw + 10, h: big * 0.78 + 4 + BOX_BELOW, r: 5, fill: alarm, key: `box-${c.id}` });
-    shapes.push({ k: 'text', x: x + rw - nw, y: by, s: p.main, size: big, weight: 600, color: c.bad ? bg : col, key: `v-${c.id}` });
-    if (p.mean) shapes.push({ k: 'text', x: x + rw + 4, y: by, s: p.mean, size: sm, weight: 600, color: c.bad ? bg : col, key: `m-${c.id}` });
+    // the number stands in the room of the widest it can be, flush to its right edge, so the unit never moves as a reading changes; an alarm is red digits and a red unit on the dark screen, no filled box (owner, 27 Nov, L5)
+    shapes.push({ k: 'text', x: x + rw - nw, y: by, s: p.main, size: big, weight: 600, color: c.bad ? alarm : col, key: `v-${c.id}` });
+    if (p.mean) shapes.push({ k: 'text', x: x + rw + 4, y: by, s: p.mean, size: sm, weight: 600, color: c.bad ? alarm : col, key: `m-${c.id}` });
     shapes.push({ k: 'text', x: x + rw + mw + 5, y: by, s: c.u, size: 12, weight: 500, color: c.bad ? alarm : text, key: `u-${c.id}` });
   });
   const mi = hold ? cells.findIndex((c) => c.id === 'map') : -1;

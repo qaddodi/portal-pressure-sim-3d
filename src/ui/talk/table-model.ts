@@ -2,7 +2,7 @@
 // or one of its own), each cell its reading with an arrow against normal (or against the row it is compared with), the rating colour that goes with it, and the words a screen reader hears.
 // The cut-offs, the arrows and the colours are table-marks.js, copied verbatim from the 2D app (ui/deck/from2d/); nothing here is a second copy of them.
 import type { TableRowSpec, TableSpec } from '../../decks/schema.ts';
-import { COLS, CUT, PRESS, TILE, NO_ASC, dirAbs, dirRel, rateAbs, effOf, fpv, pressDp, headOf, sameHead, tileOf } from '../deck/from2d/table-marks.js';
+import { COLS, CUT, PRESS, TILE, NO_ASC, atShown, dirAbs, dirRel, rateAbs, effOf, fpv, pressDp, headOf, sameHead, tileOf } from '../deck/from2d/table-marks.js';
 import { SAAG_PORTAL, TP_HIGH, saagPortal, tpHigh } from '../../engine/hales/portal/ascites-cuts.js';
 import { NOT_MEASURABLE } from '../../engine/hales/portal/pressure-cuts.js';
 import { lcFirst } from '../../engine/hales/portal/lc-first.js';
@@ -17,6 +17,21 @@ const CUTS = CUT as Record<string, string>;
 const rateOf = (v: unknown): 'hi' | 'mid' | null => (v === 'hi' || v === 'mid' ? v : null);
 
 export type Fp = Record<string, number | null | undefined>;
+
+/**
+ * The share of its baseline a pressure must move before a table calls it changed (owner, 27 Nov, L6: 16.4 to 15.2 on 07.11 is a drift the words call unchanged, so it shows the level dash).
+ * table-marks.js (the 2D app's, copied) steps the gradients at 0.5 mmHg; that is too fine for a table that names a baseline, so the table asks this first. Only the gradients: the
+ * other columns keep the 2D steps.
+ */
+export const UNCHANGED_UNDER: Readonly<Record<string, number>> = { hvpg: 0.1, ppg: 0.1 };
+/** The arrow of a cell against another row: the 2D app's (dirRel), and the level dash where a gradient moved less than UNCHANGED_UNDER of the baseline it is read against. */
+export function dirAgainst(k: string, f: Fp, ref: Fp): number {
+  const d: number = dirRel(k, f, ref), under = UNCHANGED_UNDER[k];
+  if (d === 0 || under == null) return d;
+  const a = atShown(k, fpv(k, f)), b = atShown(k, fpv(k, ref));
+  if (a == null || b == null) return 0;
+  return Math.abs(a - b) < under * Math.max(Math.abs(b), 1e-6) ? 0 : d;
+}
 export const DEFAULT_COLS = ['pv', 'whvp', 'fhvp', 'ivc', 'ra', 'hvpg', 'ppg'];
 
 /** A row once its patient is known: `i` is the slide it stands on (its stop's number), -1 for a patient of its own; `f` the model's numbers there, null while they are being worked out. */
@@ -106,7 +121,7 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
     if (k === 'spleen' && !(fpv(k, r.f) > 0)) return { ...base, kind: 'removed', text: 'Removed', sr: 'removed' };
     const text = valueText(k, r.f);
     if (isRef(r, n)) return { ...base, kind: 'ref', text, rate: rel ? null : rateOf(rateAbs(k, dirAbs(k, r.f))), sr: text + unitOf(k) };
-    const ref = refOfRow(r), d: number = rel ? (ref ? dirRel(k, r.f, ref) : 0) : dirAbs(k, r.f), v = text + unitOf(k);
+    const ref = refOfRow(r), d: number = rel ? (ref ? dirAgainst(k, r.f, ref) : 0) : dirAbs(k, r.f), v = text + unitOf(k);
     const calm = (spec.calm ?? []).includes(k) || (r.spec.calm ?? []).includes(k);
     const miss = (r.spec.miss ?? []).includes(k) ? 'Misses' : (r.spec.missPart ?? []).includes(k) ? 'Misses part' : '';
     return { ...base, text, arrow: d, rate: rel ? null : rateOf(rateAbs(k, d)), eff: rel && !calm ? effOf(k, d) : null, miss,
@@ -142,8 +157,10 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
   const units = [...new Set(cols.map((k: string) => (PRESS.has(k) ? 'press' : k)).filter((k: string) => UNIT_WORDS[k]))].map((k) => UNIT_WORDS[k as string]);
   if (ascCols) units.push('SAAG and protein in g/dL');
   const refTitle = first ? lcFirst(rows[0].title) : 'the baseline';
+  // (the baseline is named in the legend, or under each row where rows compare with rows of their own; a pressure within UNCHANGED_UNDER of it is the dash, and the legend says so, L6)
+  const steady = cols.some((k: string) => k in UNCHANGED_UNDER) ? ` (a pressure within ${Math.round(UNCHANGED_UNDER.hvpg! * 100)}%)` : '';
   const key = rel
-    ? `↑ higher, ↓ lower than ${perRow ? 'the row named under each' : refTitle}; ↑↑ ↓↓ a relative change of ≥40%; • unchanged${cols.some((k) => k !== 'pvFlow') ? '. Green better, red worse' : ''}`
+    ? `↑ higher, ↓ lower than ${perRow ? 'the row named under each' : refTitle}; ↑↑ ↓↓ a relative change of ≥40%; • unchanged${steady}${cols.some((k) => k !== 'pvFlow') ? '. Green better, red worse' : ''}`
     : '↑ above normal, ↓ below; ↑↑ ↓↓ past the red cut-off; • within normal';   // (the level dash is a cell's reading too: a legend that did not name it left the "–" in a row undefined)
   const legend = [key, rows.some((r) => blank(r).length) ? `○ ${NOT_MEASURABLE.toLowerCase()}` : '', cols.includes('hvpg') && rows.some((r, n) => afterTips(r, 'hvpg', n)) ? `○ ${AFTER_TIPS_LEGEND}` : '', units.length && rows.some((r, n) => isRef(r, n)) ? `Units: ${units.join(', ')}` : '', spec.foot || '']
     .filter(Boolean).map((x) => x.replace(/\.$/, '')).join('. ') + '.';

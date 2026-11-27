@@ -36,6 +36,8 @@ export function missWords(cells: { k: string; miss: string }[], cols: { k: strin
  *  fixed least width and every value column an equal share of what was left (`minmax(0, 1fr)`: it may shrink to nothing), so a 4th numeric column, or a blood pressure, had less than its own ink.
  *  The least, in characters: the widest run of one cell's printed text that cannot break ("113/72 (86)" breaks at its space: 6), never under VALUE_CH (two arrows, or a two-digit number). */
 export const VALUE_CH = 2.5;
+/** The room, in characters, a value's small arrow takes beside it (a gap and the arrow at three quarters of the text's size; a double arrow is wider, so the least is its width). */
+export const ARROW_CH = 1.4;
 /** What a cell of the table prints, as far as its width goes (TableCard's Td: a number is a `ref` cell's text, "Removed" is a small word, an arrow cell has no text). */
 export interface Printed { kind: string; text: string }
 export function colChars(cells: ReadonlyArray<Printed | undefined>): number {
@@ -43,6 +45,8 @@ export function colChars(cells: ReadonlyArray<Printed | undefined>): number {
   for (const c of cells) {
     if (!c) continue;
     if (c.kind === 'ref') m = Math.max(m, ...c.text.split(/\s+/).map((w) => w.length));
+    // (a cell against a baseline prints its value with a small arrow after it, L6: the number, a space and the arrow's room, the arrow at .78 of the text, two of them wider)
+    else if (c.kind === 'dir' && c.text) m = Math.max(m, ...c.text.split(/\s+/).map((w) => w.length + ARROW_CH));
     else if (c.kind === 'removed') m = Math.max(m, c.text.length * 0.85);   // ('none' is drawn at .85em)
   }
   return m;
