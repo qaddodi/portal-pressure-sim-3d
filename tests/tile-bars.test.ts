@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TILE, dirAbs, rateAbs, atShown, RAW } from '../src/ui/deck/from2d/table-marks.js';
-import { rateOf, scaleOf, NO_NORMAL, MODEL_BANDED, FLOW_NORMAL } from '../src/ui/cards/ratings.ts';
+import { rateOf, scaleOf, NO_NORMAL, MODEL_BANDED, OVER_RAW, FLOW_NORMAL } from '../src/ui/cards/ratings.ts';
 import { cardOf, tileView } from '../src/ui/cards/tiles-2d.ts';
 import { loadSource } from '../src/decks/source.ts';
 import { AG_IDS } from '../src/decks/ag/index.ts';
@@ -60,6 +60,14 @@ test('WHVP, portal vein and sinusoidal pressure draw the model\'s bands and the 
   }
 });
 
+test('FHVP, IVC and RA: amber over 8, red over 16 mmHg on the tile, its bar and the table\'s arrow alike (one source, table-marks.js RAW)', () => {
+  for (const k of OVER_RAW) {
+    assert.deepEqual(scaleOf(k)![2], [...RAW[k as 'fhvp']], k);
+    assert.deepEqual(tileView(k, { [k]: 5 }).bar!.zones.map((b) => b.rate), ['ok', 'mid', 'hi'], k);
+    for (const [v, r] of [[8, 'ok'], [9, 'mid'], [16, 'mid'], [17, 'hi']] as const) assert.equal(rateOf(k, { [k]: v })[0], r, `${k} ${v}`);
+  }
+});
+
 test('the platelet bar\'s normal band starts at the one Baveno VIII line, and the number at or above it is green with no word', () => {
   const z = tileView('plt', { plt: 250 }).bar!.zones;
   assert.deepEqual(z.map((b) => b.rate), ['info', 'ok']);
@@ -76,9 +84,6 @@ test('the portal flow bar shows the fasting range (0.9 to 1.3 L/min) the summary
 // Where the tile and the summary table both print a reading the same, they colour it the same. (The table prints a pressure in whole mmHg and the tile in one decimal, so only readings both
 // print alike are compared.) The disagreements that remain are listed, each with its reason, so a new one fails here.
 const DISAGREE: Record<string, string> = {
-  fhvp: 'the tile has one line (red above 8), the table two (amber over 8, red over 16): the owner decides',
-  ra: 'the tile has one line (red above 8), the table two (amber over 8, red over 16): the owner decides',
-  ivc: 'the tile has one line (red above 8), the table two (amber over 8, red over 16): the owner decides',
   plt: 'ruling C1: the tile says only "<150" (never the table\'s Low or Severe)',
   pvFlow: 'a flow under 0.9 is amber on the tile and, when the trunk is in stasis, red in the table (dirAbs reads the velocity too)',
   clot: 'the tile is red past half the lumen; the table\'s arrows are by grade',

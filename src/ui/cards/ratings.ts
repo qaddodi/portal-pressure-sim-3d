@@ -9,7 +9,7 @@
 //     hypertension, not cirrhotic CSPH, so its tile keeps the plain number;
 //   - the HVPG response is a fall of ≥10% in primary prophylaxis and ≥20% (or an HVPG ≤12 mmHg) after a bleed: the slide says which (`hvpgRule`, decks/overlay/controls.ts).
 // Every place that reads a tile's rating (the tile, its bar, the colour of a number in the words) asks here, never the 2D table directly, so the rule is one rule.
-import { rateOf as rateOf2d, rateShown as rateShown2d, tileOf, tileShown, SCALE as SCALE2d } from '../deck/from2d/table-marks.js';
+import { rateOf as rateOf2d, rateShown as rateShown2d, tileOf, tileShown, RAW, SCALE as SCALE2d } from '../deck/from2d/table-marks.js';
 import { lsmContext } from '../cuts.ts';
 
 export type Rating = readonly [string | null, string];
@@ -18,6 +18,8 @@ type Scale = readonly [number, number, readonly number[]];
 
 /** Pressures no guideline grades: they keep the model's reference bands (the 2D table's, the summary arrows' too) and say it in plain words, never the table's "Severe". */
 export const MODEL_BANDED: ReadonlySet<string> = new Set(['pv', 'whvp', 'sin']);
+/** The right-sided pressures (owner, 27 Nov): amber over the first line, red over the second, the summary table's own (table-marks.js RAW), so the tile, its bar and the table's arrow cannot drift. */
+export const OVER_RAW: ReadonlySet<string> = new Set(['fhvp', 'ivc', 'ra']);
 const PLAIN_WORD: Readonly<Record<string, string>> = { ok: 'Normal', mid: 'High', hi: 'Very high' };
 /** Where a portal flow is judged, in L/min (the summary table's own: ↓ under 0.9, ↑ over 1.3, the fasting range between; table-marks.js dirAbs). */
 export const FLOW_NORMAL = [0.9, 1.3] as const;
@@ -51,6 +53,10 @@ export function rateOf(k: string, f: Fp | null | undefined): Rating {
     const r = rateOf2d(k, f) as Rating;
     return r[0] && PLAIN_WORD[r[0]] ? [r[0], PLAIN_WORD[r[0]]!] : r;
   }
+  if (OVER_RAW.has(k)) {
+    const [amber, red] = RAW[k as 'fhvp'];
+    return v == null ? NONE : v > red ? ['hi', PLAIN_WORD.hi!] : v > amber ? ['mid', PLAIN_WORD.mid!] : ['ok', PLAIN_WORD.ok!];
+  }
   if (k === 'plt') return v == null ? NONE : v < PLT_RULE_OUT ? PLT_BELOW : PLT_NORMAL;
   // (portal flow: the summary table's arrows give the bands: stasis or reversed red, under 0.9 amber, the fasting range green, over 1.3 neutral gray: the gut being fed, not a disease)
   if (k === 'pvFlow') {
@@ -69,7 +75,7 @@ export function rateOf(k: string, f: Fp | null | undefined): Rating {
 
 /** The rating of the number as its tile prints it (a tile's word judges the number it shows, 2D rateShown). */
 export const rateShown = (k: string, f: Fp | null | undefined): Rating => {
-  if (!MODEL_BANDED.has(k) && k !== 'plt' && k !== 'pvFlow' && k !== 'hvpgFall' && k !== 'hvpg' && k !== 'eus') return rateShown2d(k, f) as Rating;
+  if (!MODEL_BANDED.has(k) && !OVER_RAW.has(k) && k !== 'plt' && k !== 'pvFlow' && k !== 'hvpgFall' && k !== 'hvpg' && k !== 'eus') return rateShown2d(k, f) as Rating;
   return f && f[k] != null ? rateOf(k, { ...f, [k]: tileShown(k, f[k]) }) : rateOf(k, f);
 };
 
@@ -78,6 +84,7 @@ export function scaleOf(k: string, f?: Fp | null): Scale | undefined {
   const s: Scale | undefined = (SCALE2d as unknown as Record<string, Scale | undefined>)[k];
   if (!s) return s;
   if (k === 'pvFlow') return [s[0], s[1], [0, ...FLOW_NORMAL]];
+  if (OVER_RAW.has(k)) return [s[0], s[1], [...RAW[k as 'fhvp']]];
   if (k === 'plt') return [s[0], s[1], [PLT_RULE_OUT]];
   if (k === 'hvpgFall') return [s[0], s[1], [typeof f?.respCut === 'number' ? f.respCut : RESPONSE_CUT.primary]];
   return s;
