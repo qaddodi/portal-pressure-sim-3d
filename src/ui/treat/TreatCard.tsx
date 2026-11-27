@@ -6,13 +6,15 @@
 // that opens at Half (as tall as its words, up to Full: sheetHeight, treat.css), and its height glides when a tab, the Changes section or the page changes it (glideCard: the card's plate is scaled, its
 // words ride, the parts below the change ride and the parts whose foot opens are cut by a clip). Always in the page and faded in and out, so nothing pops; its words are the 2D app's
 // (treat.generated.ts) and its numbers the engine's: an order only edits the patient's settings (orders.ts).
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import './treat.css';
-import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { attachTabSwipe, neighbourTab } from '../shell/tab-swipe.ts';
 import { I } from '../shell/icons.tsx';
 import { useUi } from '../ui-store.ts';
-import { useThumb } from '../shell/thumb.ts';
+import { useSurfaceMode } from '../surface/mode.ts';
+import { usePanelSheet } from '../surface/use-sheet.ts';
+import { stopsFor, stopVars } from '../surface/sheet-stops.ts';
+import { SheetGrab } from '../surface/parts.tsx';
 import { layoutClass, layoutVars, sheetFoot } from '../shell/room.ts';
 import { isPhone } from '../layout/device.ts';
 import { useTreat } from './store.ts';
@@ -35,7 +37,9 @@ import { D_SMALL, EASE_ARRIVE } from '../motion.ts';
 import { clock, type TimerId } from '../../clock/frame.ts';
 import { Fade } from '../fade.tsx';
 import { PanelHead } from '../surface/PanelHead.tsx';
+import { useCaseBarUp } from '../case/room.ts';
 const L = TREAT_WORDS.lines.labels;
+const closeTreat = () => useTreat.getState().setOpen(false);
 
 type Active = ReturnType<typeof activeInterventions>[number];
 
@@ -112,7 +116,8 @@ function Fluid({ id, label, sub }: { id: string; label: string; sub: string }) {
 export function TreatCard() {
   const open = useTreat((s) => s.open), tab = useTreat((s) => s.tab), page = useTreat((s) => s.changesPage);
   const device = useUi((s) => s.device), vp = useUi((s) => s.vp);
-  const thumb = useThumb(), phone = isPhone(device), testsPlace = useTestsRoom((s) => s.place);
+  // (a sheet exactly when every surface is one: surface/mode.ts)
+  const thumb = useSurfaceMode() === 'sheet', phone = isPhone(device), testsPlace = useTestsRoom((s) => s.place);
   const { about, mine, p } = useChanges();
   const ref = useRef<HTMLElement>(null), tabsRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null), paneRef = useRef<HTMLDivElement>(null), rowRef = useRef<HTMLButtonElement>(null);
   const pageRef = useRef<HTMLDivElement>(null), secRef = useRef<HTMLDetailsElement>(null);
@@ -187,8 +192,14 @@ export function TreatCard() {
       step: (dir) => { const id = neighbourTab(TABS.map((t) => t[0]), live.current.tab, dir); if (id) live.current.go(id); },
     });
   }, [has]);
+  // a phone's or an upright iPad's sheet: Peek, Half (as tall as its words, capped) and Full, the one pull and the one grab bar (surface/use-sheet.ts); Full while the Changes page stands
+  const caseUp = useCaseBarUp();
+  const stops = useMemo(() => stopsFor(vp, device, { kind: 'words', h: Infinity }), [vp, device, caseUp]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const sheet = usePanelSheet({ ref, on: thumb && open, stops, close: closeTreat, tag: 'treat-sheet' });
+  const setSheet = sheet.set;
+  useEffect(() => { if (page && thumb) setSheet('full'); }, [page, thumb, setSheet]);
   if (!p) return null;
-  const close = () => useTreat.getState().setOpen(false);
+  const close = closeTreat;
   const setTab = (id: TabId) => {
     if (id === tab) return;
     // (A tab that changes the card's height glides it: the Changes row under the list rides from where it stood and the list's cut at its foot opens or closes with the plate.)
@@ -220,8 +231,6 @@ export function TreatCard() {
     const fold = () => { closing.current = false; const was = card.offsetHeight; d.open = false; remember('changes', false); a.cancel(); glides.current = glideCard(card, was, card.offsetHeight, { foot, prior: glides.current }); };
     void a.finished.then(fold, fold);
   };
-  // a phone's sheet follows a pull down from anywhere on it and closes past a short pull or a flick (2D swipeSheet; shell/sheet-swipe.ts)
-  useSheetSwipe(ref, close, () => thumb);
   const sections = (
     <details ref={keptSection} className="section chart-sec" data-id="changes">
       <summary onClick={onSummary}><span>{L.changes}</span><Fade className="count fd-count" on={mine.length > 0}>{mine.length || ''}</Fade><I n="chev-down" className="chev" /></summary>
@@ -238,16 +247,16 @@ export function TreatCard() {
     );
   };
   // (beside the Tests card when it stands in the right-hand column: 2D's own `translate` transition glides it)
-  const vars = { ...layoutVars(vp, layoutClass(thumb)), '--instr-occ': `${thumb ? 0 : treatStepLeft(vp, testsPlace)}px` } as React.CSSProperties;
+  const vars = { ...layoutVars(vp, layoutClass(thumb)), '--instr-occ': `${thumb ? 0 : treatStepLeft(vp, testsPlace)}px`, ...(thumb ? stopVars(stops) : null) } as React.CSSProperties;
   return (
-    <section ref={ref} className="treat-card tr-card has-plate" id="treatCard" hidden={!open} data-open={open} data-bottom={thumb} data-device={device} data-page={page || undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
+    <section ref={ref} className="treat-card tr-card has-plate" id="treatCard" hidden={!open} data-open={open} data-bottom={thumb} data-device={device} data-page={page || undefined} data-sheet={thumb ? sheet.at : undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
       <div className="sheet-plate" aria-hidden="true" />
-      <i className="sh-grabbar" aria-hidden="true" />
+      <SheetGrab label="Resize Treat" onGrab={sheet.grab} />
       <div className="tr-in">
         <PanelHead className="tc-head" title={L.treat} meta={{ text: n ? `${n} running` : '' }} closeLabel="Close Treat" onClose={close}
           tabs={{ variant: 'text', className: 'treat-tabs', label: 'Treatments', value: tab, onPick: (id) => setTab(id as TabId), inert: page, ref: tabsRef,
             items: TABS.map(([id, label]) => { const v = ranOn(id, p); return { id, label, count: id !== 'fluids' ? v : undefined, ariaLabel: v ? `${label}, ${v} running` : label }; }) }} />
-        <div ref={bodyRef} className="tc-body" inert={page}>
+        <div ref={bodyRef} className="tc-body sf-body" inert={page}>
           <div ref={paneRef} className="treat-pane">
             {paneOf('drugs', 'order-chips', drugChips().map((c) => <Chip key={c.id} id={c.id} label={c.label} note={c.note} on={c.get(p)} />))}
             {paneOf('fluids', 'order-grid three', fluids().map((f) => <Fluid key={f.id} {...f} />))}

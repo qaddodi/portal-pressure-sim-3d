@@ -2,7 +2,7 @@
    .chg, .tcp-row, .tc-page): the 2D stylesheets (src/ui/styles) style all of it. This file is only what the 3D page adds, in four places:
    1. the card stays in the page and fades in and out (nothing pops): its paper (the sheet plate, which wears the one glass, glass.css) and its words fade, never the card itself, so the glass blurs
       while it fades (an ancestor with an opacity under 1 is a backdrop root and would end the blur);
-   2. the 2D rules that sit under `.app.thumb` (the sheets are outside #app here): a phone or an upright iPad's sheet over the dock, Half to Full by its words, Full while the Changes page stands;
+   2. the 2D rules that sit under `.app.thumb` (the sheets are outside #app here): a phone or an upright iPad's sheet over the dock at Peek, Half or Full, Full while the Changes page stands;
    3. the page's slide and the card's glide move children by `translate` and `transform` (page-push.ts, card-glide.copied.ts);
    4. the bounds the 2D rules read from #app (--top-safe, --vdock-h…) arrive as inline custom properties (TreatCard.tsx). */
 
@@ -19,7 +19,7 @@ html .treat-card.tr-card.has-plate { clip-path: none !important; }
 .treat-card > .tr-in { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; }
 .treat-card > .tr-in > .tc-body { overscroll-behavior: contain; }
 
-/* a phone or an upright iPad: a sheet over the dock (2D app-10-thumb-dock.css `.app.thumb :is(.panel, .treat-card, …)`, and its upright-tablet rule), as tall as its words up to Full (sheetHeight) */
+/* a phone or an upright iPad: a sheet over the dock (2D app-10-thumb-dock.css `.app.thumb :is(.panel, .treat-card, …)`, and its upright-tablet rule), as tall as its words up to its stop (surface/sheet-stops.ts) */
 .treat-card.tr-card[data-bottom="true"] {
   --tr-full: calc(100% - var(--top-safe) - var(--nb-occ, var(--vdock-h)) - 22px);
   left: calc(var(--safe-l) + 6px); right: calc(var(--safe-r) + 6px); bottom: var(--nb-occ, calc(var(--vdock-h) + 14px));
@@ -27,10 +27,18 @@ html .treat-card.tr-card.has-plate { clip-path: none !important; }
 }
 .treat-card.tr-card[data-bottom="true"][data-open="true"] { transform: none; }
 .treat-card.tr-card[data-bottom="true"][data-device="tablet-portrait"] { left: 15%; right: 15%; --tr-full: min(62%, calc(100% - var(--top-safe) - var(--nb-occ, var(--vdock-h)) - 22px)); }
-/* Full while the Changes page stands (sheetHeight `page`) */
-.treat-card.tr-card[data-bottom="true"][data-page] { height: var(--tr-full); }
-/* the pull-down handle: seen only on focus (2D) and never takes a touch */
-.treat-card .sheet-grab { pointer-events: none; }
+/* Peek, Half and Full (surface/sheet-stops.ts, approved decision 4): as tall as its words up to Half's cap or Full's, or only its head at Peek; the stops arrive as --sf-* (TreatCard.tsx) */
+.treat-card.tr-card[data-bottom="true"][data-sheet] { max-height: var(--sf-half, var(--tr-full)); }
+.treat-card.tr-card[data-bottom="true"][data-sheet="full"] { max-height: var(--sf-full, var(--tr-full)); }
+.treat-card.tr-card[data-bottom="true"][data-sheet="peek"] { max-height: var(--sf-peek); }
+.treat-card.tr-card[data-bottom="true"][data-sheet="peek"] > .tr-in { overflow: hidden; }
+/* (at Peek the tabs under the head fade with the orders: sheet-swipe.css .sf-body) */
+.treat-card.tr-card[data-sheet="peek"] .tc-head:not(.tabbed) + .treat-tabs { opacity: 0; pointer-events: none; }
+.treat-card.tr-card .tc-head + .treat-tabs { transition: opacity var(--d-small) var(--ease-arrive); }
+/* Full while the Changes page stands */
+.treat-card.tr-card[data-bottom="true"][data-page] { height: var(--sf-full, var(--tr-full)); }
+/* the sheet's tail (surface/sheet-pull.ts): its paper reaches down past its foot while a pull lifts it, so no gap shows under it */
+.treat-card.tr-card.has-plate[data-bottom="true"] > .sheet-plate { bottom: calc(0px - var(--sheet-tail, 0px)); }
 /* a phone held sideways is not the thumb layout: 2D's floating card, which the base rule places */
 .treat-card.tr-card .tc-head { touch-action: none; }
 .treat-card.tr-card[data-bottom="true"] .tc-head { cursor: grab; }

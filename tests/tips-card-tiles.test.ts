@@ -105,5 +105,7 @@ test('a phone held sideways fits the vessel card under the top bar: the sheet\'s
   assert.ok(cardMaxHeight(200, 0, 48, 0, 125) >= 140, 'never a sliver');
   assert.match(plate, /@media \(max-height: 430px\) \{ \.tv \.tf-card \{ display: none; \} \}/);
   const card = readFileSync(new URL('../src/ui/action/ActionCard.tsx', import.meta.url), 'utf8');
-  assert.match(card, /maxHeight: cardMaxHeight\(vp\.h, vp\.safe\.top, topBarH\(vp, device\)/);
+  // (a sheet's tallest is its Full from the one stops function, which reads the same bars and foot: surface/sheet-stops.ts, tests/sheet-detents.test.ts)
+  assert.match(card, /stopsFor\(vp, device, PANEL_FITS\.action\)/);
+  assert.match(card, /\.\.\.stopVars\(stops\)/);
 });

@@ -1,24 +1,22 @@
 // The one pull of a panel's phone sheet (menu unification, stage 3: reports/menu-unification.md 3.2 "Sheet mode"; approved decision 4: Peek, Half and Full for every phone
 // panel). Generalised from the Tests card's own (2D dock-sheet.js sheetBehaviour): a vertical drag from the head, the grab bar or anywhere in the sheet that is not a field
-// moves the sheet with the finger; on release it settles at Peek, Half or Full, or closes (sheet-release.ts releaseTo: the rules every sheet over the thumb dock shares).
+// moves the sheet with the finger; on release it settles at Peek, Half or Full, or closes (sheet-stops.ts releaseTo: the rules every sheet over the thumb dock shares).
 // Tests, Treat, History, Compare, Why, the action card and the case's stop card all wire this one; their heights come from the one stops function (sheet-stops.ts).
 // While the finger moves only the sheet's `translate` is written (one number, by the clock: menu/motion.ts follow and glide); the sheet takes its new height once, on
 // release, with the offset that keeps its edge where the finger left it easing back to zero (one layout at the end, never one per frame).
 // A sheet pulled shut has already sunk out of sight by the time it closes, so its close plays nothing of its own: `data-swiped` is set on the box for that close (the
 // stylesheets give it no transition, sheet-swipe.css), and taken off once the sheet has shut and opened again, so the next close is the usual one.
 // The sheet's tail (--sheet-tail): extra sheet below its foot, so that a sheet lifted off its foot (a pull up, or a sheet that has just shrunk and eases down) never shows a
-// gap under it; each sheet's stylesheet draws it (tests.css, surface/sheet.css).
+// gap under it; each sheet's stylesheet draws it (tests.css, treat.css, action.css, shell.css).
 // @ts-ignore plain JS copied from the 2D app
 import { releaseSpeed, carryCurve, cssCurve, D_SMALL, EASE_ARRIVE } from '../tests/copied/ease.copied.js';
 import { follow, glide, type Glide } from '../menu/motion.ts';
 import { readStyle } from '../layout-snap.ts';
 import { clock } from '../../clock/frame.ts';
-import { releaseTo } from './sheet-release.ts';
-import type { Detent } from './sheet-stops.ts';
+import { releaseTo, type Detent } from './sheet-stops.ts';
 
 export type { Detent } from './sheet-stops.ts';
-export { sheetStops, stopsFor, stopVars, PEEK_H } from './sheet-stops.ts';
-export { releaseTo, grabStep } from './sheet-release.ts';
+export { sheetStops, stopsFor, stopVars, releaseTo, grabStep, PEEK_H } from './sheet-stops.ts';
 
 export interface PullApi {
   /** the sheet is a sheet now (surface/mode.ts) and open: read at the touch */
@@ -170,7 +168,7 @@ export function attachSheetPull(card: HTMLElement, pos: HTMLElement, api: PullAp
   };
 }
 
-/** The grab bar was tapped (sheet-release.ts grabStep): the sheet has taken its new height; its edge, `from` px from where it settles (the new height less the old), eases there. */
+/** The grab bar was tapped (sheet-stops.ts grabStep): the sheet has taken its new height; its edge, `from` px from where it settles (the new height less the old), eases there. */
 export function easeBack(pos: HTMLElement, from: number, tag = 'sheet-pull'): Glide {
   pos.style.translate = from ? `0px ${from}px` : '';
   tail(pos, -from + 1);

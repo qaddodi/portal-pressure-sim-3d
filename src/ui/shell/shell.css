@@ -85,6 +85,12 @@
 .sh-sheet[data-kind="help"] { width: var(--panel-help); }
 .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet { left: calc(var(--safe-l, 0px) + 6px) !important; right: calc(var(--safe-r, 0px) + 6px) !important; margin-left: 0 !important; width: auto !important; top: auto !important; bottom: calc(var(--safe-b, 0px) + var(--m-phone-inset) + var(--m-phone-timeline-h) + var(--m-phone-tabs-pad-top) + var(--m-phone-tab-h) + var(--m-phone-tabs-pad-bottom) + var(--m-phone-inset)); border-radius: var(--r-sheet); max-height: 78%; transform: translateY(var(--sheet-rise, 24px)); }   /* (a phone's sheet is inset 6 px and rounded all round, like every sheet in 2D's thumb layout: app-10-thumb-dock.css) */
 .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-open="true"] { transform: none; }
+/* a panel's phone sheet (History, Compare, Why) at Peek, Half or Full (surface/sheet-stops.ts, approved decision 4): as tall as its words up to the stop; the stops arrive as --sf-* (use-sheet.ts useFrameSheet) */
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-sheet] { max-height: var(--sf-half);
+  box-shadow: 0 var(--sheet-tail, 0px) 0 0 var(--surface), 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 24px 56px -16px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2.2)); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-sheet="full"] { max-height: var(--sf-full); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-sheet="peek"] { max-height: var(--sf-peek); }
+/* (the first shadow is the sheet's tail, surface/sheet-pull.ts: its paper reaches down past its foot while a pull lifts it, so no gap shows under it) */
 .sh-root[data-bottom="true"][data-mode="free"][data-device="phone-landscape"] .sh-sheet { max-height: 86%; }
 .sh-sheet-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px 18px; }
 .sh-sheet-head h2 { flex: 1; margin: 0; font: 600 var(--t-val) / 1.2 var(--display); }

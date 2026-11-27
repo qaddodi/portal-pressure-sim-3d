@@ -2,8 +2,10 @@
 // actions of what is selected on the figure, from the card catalogue (cards.ts). On a laptop or an iPad on its side it stands at the left under the top bar (M.sideCardW, 340 px); on a phone or an upright
 // iPad it is a sheet above the view switch. Always in the page, faded in and out; the numbers on it re-render only when what they print changes (snap.ts). Number keys 1 to 9 run its
 // first nine controls. Text never shrinks to fit and nothing scrolls inside it (but the Details face's own words, as 2D's .ad-scroll: its head stays and what is under it scrolls only where it is taller than the card's room).
-import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { useSurfaceMode } from '../surface/mode.ts';
+import { usePanelSheet } from '../surface/use-sheet.ts';
+import { PANEL_FITS, stopsFor, stopVars } from '../surface/sheet-stops.ts';
+import { SheetGrab } from '../surface/parts.tsx';
 import { SwitchNum } from '../patients/SwitchNum.tsx';
 import { useActionRoom } from './action-room.ts';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
@@ -11,8 +13,7 @@ import './action.css';
 import { OrderIcon } from './icons.tsx';
 import { Icon } from '../shell/icons.tsx';
 import { useUi } from '../ui-store.ts';
-import { usesBottomBar, sheetFoot, pillSpace, topBarH } from '../shell/room.ts';
-import { cardMaxHeight } from './action-room-math.ts';
+import { sheetFoot, pillSpace } from '../shell/room.ts';
 import { useSelection } from './selection.ts';
 import { cardFor, type Card, type Verb } from './cards.ts';
 import { sameSnap, snapOf, type Snap, type VerbSnap } from './snap.ts';
@@ -191,6 +192,7 @@ function glideHeight(card: HTMLElement, plate: HTMLElement, h0: number, h1: numb
   for (const a of anims) a.finished.then(done, done);
   return anims;
 }
+const closeCard = () => { void import('./selection.ts').then((m) => m.selectStructure(null)); };
 const reducedMotion = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export function ActionCard() {
@@ -214,9 +216,12 @@ export function ActionCard() {
   useEffect(() => { shownNow = open; if (!open) { keyed = []; removeNow = null; } return () => { shownNow = false; keyed = []; removeNow = null; }; }, [open]);
   useEffect(() => { if (face === 'details') keyed = []; }, [face]);   // (the number keys run a card's controls; the Details face has none)
   const onKeys = useMemo(() => (list: (() => void)[]) => { keyed = list; }, []);
-  const close = () => import('./selection.ts').then((m) => m.selectStructure(null));
-  // a phone's sheet follows a pull down from anywhere on it and closes past a short pull or a flick (2D swipeSheet; shell/sheet-swipe.ts)
-  useSheetSwipe(ref, () => { void close(); }, () => bottom);
+  const close = closeCard;
+  // a phone's sheet: Peek, Half (as tall as its words, capped) and Full, the one pull (a pull past Peek closes it) and the one grab bar (surface/use-sheet.ts)
+  // (read so the card is placed again when a playing case's bar raises the foot it rests on: case/room.ts)
+  const caseUp = useCaseBarUp();
+  const stops = useMemo(() => stopsFor(vp, device, PANEL_FITS.action), [vp, device, caseUp]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const sheet = usePanelSheet({ ref, on: bottom && open, stops, close: closeCard, tag: 'action-sheet' });
   // the card's height (from its own resize observer, no layout read) is the room it takes from the figure while it stands over it as a sheet
   useLayoutEffect(() => {
     const el = ref.current, set = useActionRoom.getState().set;
@@ -227,7 +232,8 @@ export function ActionCard() {
   }, [open, bottom]);
   // the card's height glides when its content changes height (an editor opening under a row, a line wrapping): the plate and the words ride by transform, never a jump
   const plate = useRef<HTMLElement>(null), lastH = useRef(0);
-  useLayoutEffect(() => { lastH.current = 0; }, [open, shown?.key, face, bottom]);
+  // (a stop the sheet is pulled to is no change of its content: the pull eases its edge, the plate does not glide)
+  useLayoutEffect(() => { lastH.current = 0; }, [open, shown?.key, face, bottom, sheet.at]);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || !open || typeof ResizeObserver !== 'function') return;
@@ -242,13 +248,12 @@ export function ActionCard() {
     ro.observe(el);
     return () => { ro.disconnect(); for (const a of run) a.cancel(); };
   }, [open, bottom]);
-  // (read so the card is placed again when a playing case's bar raises the foot it rests on: case/room.ts)
-  useCaseBarUp();
-  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${sheetFoot(device)}px)`, maxHeight: cardMaxHeight(vp.h, vp.safe.top, topBarH(vp, device), vp.safe.bottom, sheetFoot(device)) } : undefined;
+  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${sheetFoot(device)}px)`, ...stopVars(stops) } : undefined;
   return (
-    <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} style={style} role="dialog" aria-label="Actions" inert={!open}>
+    <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} data-sheet={bottom ? sheet.at : undefined} style={style} role="dialog" aria-label="Actions" inert={!open}>
       <i ref={plate} className="ac-plate" aria-hidden="true" />
       <div className="ac-grab" aria-hidden="true"><i /></div>
+      <SheetGrab label="Resize the card" onGrab={sheet.grab} bar={false} />
       {shown && (face === 'details' && card && sel ? <DetailsFace key={`d-${shown.key}`} sel={sel} onBack={() => setFace('card')} />
         : <Face key={shown.key} card={shown} onKeys={onKeys} onDetails={card && hasDetails ? () => setFace('details') : null} />)}
       <button type="button" className="ac-x" aria-label="Close" title="Close (Esc)" onClick={() => void close()}><Icon n="close" /></button>

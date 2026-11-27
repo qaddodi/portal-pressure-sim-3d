@@ -4,7 +4,10 @@
 .sh-sheet[data-kind="history"], .sh-sheet[data-kind="compare"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + 52px); width: 360px; max-height: var(--sh-max-h); }
 .sh-sheet[data-kind="history"] { width: var(--panel-history); height: var(--sh-max-h); }
 .sh-sheet[data-kind="compare"] { width: var(--panel-compare); }
-.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="history"] { height: 78%; }
+/* (a phone's or an upright iPad's sheet: its list scrolls by its nature, so it stands at each stop's height, not as tall as its words: surface/sheet-stops.ts PANEL_FITS.history) */
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="history"][data-sheet] { height: var(--sf-half); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="history"][data-sheet="full"] { height: var(--sf-full); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="history"][data-sheet="peek"] { height: var(--sf-peek); }
 .sh-root[data-device="phone-landscape"] .sh-sheet[data-kind="history"] {
   left: calc(var(--safe-l, 0px) + 6px) !important; right: auto !important; width: clamp(290px, 38vw, 360px) !important; margin-left: 0 !important;
   top: calc(var(--sh-pad-top) + 52px) !important; bottom: auto !important; height: var(--sh-max-h); max-height: none;

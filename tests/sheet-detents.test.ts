@@ -1,11 +1,10 @@
 // Every panel's phone sheet stops at Peek, Half and Full from ONE function (menu unification, stage 3: surface/sheet-stops.ts sheetStops; approved decision 4), with
 // Peek < Half <= Full <= the room; the Tests sheet's stops are the ones it had to the pixel (tests/fixtures/tests-sheet-stops.json, recorded from tests/place.ts before it
-// moved onto the one function); and one release rule (surface/sheet-release.ts) settles every sheet, with a pull past Peek closing it.
+// moved onto the one function); and one release rule (surface/sheet-stops.ts releaseTo) settles every sheet, with a pull past Peek closing it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { sheetStops, stopsFor, sheetRoom, baseHalf, fullOf, halfCap, PEEK_H, FULL_CLEAR, type SheetFit } from '../src/ui/surface/sheet-stops.ts';
-import { releaseTo, grabStep, closeDistance } from '../src/ui/surface/sheet-release.ts';
+import { sheetStops, stopsFor, sheetRoom, baseHalf, fullOf, halfCap, releaseTo, grabStep, closeDistance, PEEK_H, FULL_CLEAR, PANEL_FITS } from '../src/ui/surface/sheet-stops.ts';
 import { fitPlace, resolveNeed } from '../src/ui/tests/pane-need.ts';
 import { testsPlace, HEAD_H } from '../src/ui/tests/place.ts';
 import { deviceClass, type Viewport } from '../src/ui/layout/device.ts';
@@ -46,16 +45,8 @@ test('the Tests sheet stands where it stood, to the pixel, on every phone and up
   inCase(false);
 });
 
-// every phone panel and what it holds (the stops a stylesheet sizes it by are the caps: words of unmeasured height)
-const PANELS: Record<string, SheetFit> = {
-  tests: { kind: 'flex', least: 0 },
-  treat: { kind: 'words', h: Infinity },
-  history: { kind: 'list' },
-  compare: { kind: 'list' },
-  why: { kind: 'list' },
-  action: { kind: 'words', h: Infinity },
-  stop: { kind: 'words', h: Infinity },
-};
+// every phone panel and what it holds (surface/sheet-stops.ts PANEL_FITS: the stops a stylesheet sizes it by are the caps, words of unmeasured height)
+const PANELS = PANEL_FITS;
 
 test('every phone panel\'s Peek, Half and Full come from the one function: Peek < Half <= Full <= the room, Half under Full by FULL_CLEAR where the words reach it', () => {
   for (const bar of [false, true]) {
