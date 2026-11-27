@@ -1,8 +1,9 @@
 // A 2D slide's camera name, as a 3D shot. The 2D app frames a REGION of its anatomy plate (decks.js REGIONS: a box in plate units), a raw box, or the
 // whole plate ('fit'); the Lobule and Sinusoid views have their own names. The 3D figure is the same plate given depth in one shared frame
-// (X = (x2d − 700) / 300, Y = −(y2d − 556) / 300; docs/b3-vessels-blood-lenses.md), so the shot is the box's middle and half extents in that frame,
+// (scene/frame2d.ts; docs/b3-vessels-blood-lenses.md), so the shot is the box's middle and half extents in that frame,
 // seen face-on, and the scene's room solver pulls back until it fits the room the cards leave. Nothing here is a drawing.
 import { Vector3 } from 'three';
+import { UNITS_PER_SCENE, x3, y2d as yTo2d, y3 } from '../../scene/frame2d.ts';
 import type { Shot } from '../../scene/camera/shots.ts';
 import { STATIONS } from '../../scene/labels/stations.ts';
 import { lobuleShot, sinusoidShot, LOBULE_CAMS, type LobuleCam } from '../../scene/lobule/shots.ts';
@@ -21,10 +22,10 @@ export const PLATE: Box = [300, 0, 1120, 920];
 /** What a slide with no `cam` frames: the 2D presenter's default region (presenter-proc.js camBox). */
 export const DEFAULT_CAM = 'route';
 
-const SCALE = 300, X0 = 700, Y0 = 556;
-/** Plate units to the scene's X and Y. */
-export const sceneX = (x: number) => (x - X0) / SCALE;
-export const sceneY = (y: number) => -(y - Y0) / SCALE;
+/** Plate units to the scene's X and Y (the one map: scene/frame2d.ts). */
+const SCALE = UNITS_PER_SCENE;
+export const sceneX = x3;
+export const sceneY = y3;
 
 /** Face-on, the way the rest shots look (camera/shots.ts: yaw 0, pitch 0, the atlas and what the 2D app shows); the viewer can orbit from here. The catheter shots keep their small turns. */
 export const YAW = 0, PITCH = 0;
@@ -103,7 +104,7 @@ const ROUTE_X: readonly [number, number] = [380, 900];
 function routeBox(stations: readonly string[]): CopiedSlide['cam'] {
   const ys = stations.map((n) => stationDot(n)).filter((p): p is [number, number] => !!p).map((p) => p[1]);
   if (!ys.length) return 'route';
-  const y2d = (y: number) => 556 - 300 * y;
+  const y2d = yTo2d;
   return [ROUTE_X[0], Math.round(y2d(Math.max(...ys) + STATION_AIR)), ROUTE_X[1], Math.round(y2d(Math.min(...ys) - STATION_AIR))];
 }
 /** The camera a slide asks for and the floor it keeps: the slide's own `frame` (the 3D overlay, src/decks/overlay.ts), when it has one and the copied camera is still the one it replaces. */
