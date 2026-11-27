@@ -161,7 +161,7 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 
 /* ── Column heads (table-heads.ts, Mohammad 27 Nov 2026): ONE rule for every table at every width, never a head standing upright (no vertical text).
    flat (no class), wrap (`th-wr`: two lines), slant (`th-sl`: 45 degrees), stagger (`th-st`: two levels). The group names stand over their columns as a band in all of them. ── */
-.pz .pz-table.dk-pztable thead th.num { padding-inline: 2px; letter-spacing: .02em; }
+.pz .pz-table.dk-pztable thead th.num { padding-inline: 2px; letter-spacing: 0; }
 .pz .pz-table.dk-pztable thead th.num > .hd { display: block; white-space: nowrap; line-height: 1.15; }
 .pz .pz-table.dk-pztable thead tr { background: var(--surface-2); }   /* (the row's own fill: a slanted or staggered head's cell has none, so the row never shows a gap on a laptop or a tablet, where only the cells were filled) */
 .pz .pz-table.dk-pztable thead tr > th { align-self: end; }   /* (every head and the row's name stand on the table's foot line, whatever the row's height) */
@@ -170,11 +170,11 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 .pz .pz-table.dk-pztable thead tr.th-wr th.num > .hd { white-space: normal; overflow-wrap: normal; text-wrap: balance; hyphens: manual; -webkit-hyphens: manual; }
 /* slant: each head lies at 45 degrees on one line and ENDS over its column's middle, rising to the left over the name column's empty head (so the last column never pushes a head past the table's right edge, and no gutter is spent on it): `--dk-hh` is the row's height for the widest, `--dk-hl` the room the first head leans into at the left, both written by TableCard's fit. */
 .pz .pz-table.dk-pztable thead tr.th-sl th.num { position: relative; height: var(--dk-hh, 4rem); padding: 0; overflow: visible; background: transparent; }
-.pz .pz-table.dk-pztable thead tr.th-sl th.num > .hd { position: absolute; right: calc(50% + .354em); bottom: 4px; line-height: 1; transform-origin: 100% 100%; transform: rotate(45deg); color: var(--text-2); font-weight: 700; }
+.pz .pz-table.dk-pztable thead tr.th-sl th.num > .hd { position: absolute; right: calc(50% + .354em); bottom: 4px; line-height: 1; transform-origin: 100% 100%; transform: rotate(45deg); color: var(--text-2); font-weight: 600; }
 .pz .pz-table.dk-pztable thead tr.th-sl th:first-child { padding-bottom: 6px; }
 /* stagger (only where the columns are closer than a slant allows): every other head a line higher, a tick down to its column; each head has two columns of room. */
 .pz .pz-table.dk-pztable thead tr.th-st th.num { position: relative; height: 38px; padding: 0; overflow: visible; background: transparent; }   /* (no cell fill of its own: the next cell's would paint over the head that runs into it) */
-.pz .pz-table.dk-pztable thead tr.th-st th.num > .hd { position: absolute; left: 50%; width: max-content; bottom: 6px; transform: translateX(-50%); line-height: 1; color: var(--text-2); font-weight: 700; padding: 0 2px; background: var(--surface-2); }   /* (the head's own fill: a tick that runs down behind it stops at its letters) */
+.pz .pz-table.dk-pztable thead tr.th-st th.num > .hd { position: absolute; left: 50%; width: max-content; bottom: 6px; transform: translateX(-50%); line-height: 1; color: var(--text-2); font-weight: 600; padding: 0 2px; background: var(--surface-2); }   /* (the head's own fill: a tick that runs down behind it stops at its letters) */
 .pz .pz-table.dk-pztable thead tr.th-st th.num::after { content: ""; position: absolute; left: 50%; bottom: 0; width: 1px; height: 4px; background: var(--text-3); opacity: .6; }
 .pz .pz-table.dk-pztable thead tr.th-st th.num:nth-child(even) > .hd { bottom: 22px; }
 .pz .pz-table.dk-pztable thead tr.th-st th.num:nth-child(even)::after { height: 20px; }
@@ -184,7 +184,7 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 /* The group band: always over the heads (when some group names two or more columns): a line under the group's name, over the span of its columns. A name wider than its columns centres on them and runs over blank neighbours;
    the last group's name ends at the table's edge, never past it. */
 .pz-table.dk-pztable thead tr.th-grp { display: grid; grid-template-columns: var(--dk-gridx, var(--dk-grid)); align-items: end; }
-.pz-table.dk-pztable thead tr.th-grp th.num.g { grid-column: span var(--gs, 1); padding: .25em 0 .1em; font-size: 12px; letter-spacing: .02em; white-space: nowrap; }
+.pz-table.dk-pztable thead tr.th-grp th.num.g { grid-column: span var(--gs, 1); padding: .25em 0 .1em; font-size: 12px; letter-spacing: 0; white-space: nowrap; }
 .pz-table.dk-pztable thead tr.th-grp th.g > span { display: flex; justify-content: center; padding-bottom: .15em; border-bottom: 1.5px solid var(--text-3); color: var(--text-3); margin-inline: 2px; white-space: nowrap; }
 .pz-table.dk-pztable thead tr.th-grp th.g:last-child > span { justify-content: flex-end; }
 

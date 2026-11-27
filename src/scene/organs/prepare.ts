@@ -2,7 +2,7 @@
 // normals and the outline's steps from the rim. It is about 2 s of CPU on a laptop and the same on every start, so scripts/bake-organs.mjs runs it at BUILD time and ships the result (organs/baked.ts); the page runs it
 // only when that file is missing or not for this build. One function, so the live path and the bake can never differ.
 import { BufferAttribute, Float32BufferAttribute, type BufferGeometry } from 'three';
-import { GUT_GROUP, ORGAN_STYLE } from './layer.ts';
+import { GUT_GROUP, ORGAN_STYLE } from './organ-style.ts';
 import type { DepthPart } from './organ-depth.ts';
 import { refineRim, ringDistance, rimDistance, smoothSilhouette } from './contour.ts';
 import { COARSE_VERTS, subdivideOrgan } from './subdivide.ts';

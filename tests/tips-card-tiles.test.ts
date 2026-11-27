@@ -49,7 +49,7 @@ test('an open action card sheet takes its height off the figure\'s room, so the 
   assert.equal(takenBy(1000, room), 330, 'a tall card never takes more than 55 % of the room');
   const shell = readFileSync(new URL('../src/ui/shell/Shell.tsx', import.meta.url), 'utf8');
   // (a playing case's card takes its room first, case/room.ts caseRoom)
-  assert.match(shell, /roomAbove\(panRoom\(caseRoom\(base, caseCut\), testsPlace\), actionH\)/);
+  assert.match(shell, /roomAbove\(panRoom\(sheetRoom\(base, caseCut, panel\), testsPlace\), actionH\)/);
 });
 
 test('the bracket row eases the card figure\'s height and slides the picture with it, and the readings sit above it', () => {

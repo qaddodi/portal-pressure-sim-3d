@@ -44,13 +44,14 @@ export function CaseGuardDialog() {
 const back = (): void => { void import('./run.ts').then((m) => m.backToCase()); };
 
 /** "Your own course from Day 70 · Back to the case", over the play bar while the case is left. */
-export function CaseOwnLine({ hidden }: { hidden: boolean }) {
+/** `away`: a talk is on, so the line gives way (it eases out with the rest, data-open; it is not the DOM's `hidden`). */
+export function CaseOwnLine({ away }: { away: boolean }) {
   const left = useCase((s) => s.phase === 'left');
   const day = useCase((s) => s.leftDay);
   const kept = useRef<number | null>(null);
   // (the day stays while the line fades out)
   if (left && day != null) kept.current = day;
-  const open = left && !hidden;
+  const open = left && !away;
   return (
     <div className="cs-own" data-open={open} role="group" aria-label="Your own course" inert={!open}>
       <span className="cs-own-w"><b>Your own course</b> from Day {Math.round(kept.current ?? 0)}</span>
