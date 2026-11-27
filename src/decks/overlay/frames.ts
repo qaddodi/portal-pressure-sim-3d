@@ -40,6 +40,8 @@ Object.assign(FRAME_FIXES, {
   'gastric-varices/tips': { was: 'fit', cam: FUNDUS_LIVER, floor: 0 },
   'tipping/injury': { was: 'fit', cam: 'liver', floor: 0 },
   'tipping/injury-card': { was: 'fit', cam: 'liver', floor: 0 },
+  // Sites 2 names four stations (the confluence, the sinusoids, the hepatic vein, the atrium) and now carries the ladder: framed whole they stand in a 243 px band on a phone and their names cross
+  'sites/overview': { was: 'fit', cam: ROUTE_TO_STATIONS, floor: CONTEXT_FLOOR },
 } satisfies Record<string, FrameFix>);
 const ROUTE_SLIDES = ['circulation/ladder', 'circulation/define', 'circulation/path-ladder', 'circulation/relation', 'doppler/a4', 'gradients/where', 'masld/under', 'masld/parts', 'prehepatic/gradients', 'same-gradient/ref', 'same-gradient/up', 'same-gradient/cost', 'sites/healthy', 'tips-candidacy/heart-stent', 'tips-complete/heart', 'two-lesions/together', 'two-lesions/measure'];
 for (const k of ROUTE_SLIDES) FRAME_FIXES[k] = { was: 'route', cam: ROUTE_TO_STATIONS, floor: CONTEXT_FLOOR };
