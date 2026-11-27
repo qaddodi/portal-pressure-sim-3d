@@ -9,6 +9,9 @@
   position: absolute; left: 0; top: 0; z-index: var(--z-cards, 10); pointer-events: none; will-change: transform; font-family: var(--ui); color: var(--text); font-variant-numeric: tabular-nums lining-nums; }
 .t-pos[data-kind="sheet"] { --t-x: 0px; --t-y: var(--sheet-rise, 24px); --t-o: 0; }   /* (a phone's Tests sheet is the one phone-sheet motion: fade and a short rise, menu-motion.css) */
 .t-pos[data-kind="sheet"][data-thumb="true"] { --t-out: var(--d-small); }
+/* (a side card is a panel of the right column: the panel shell's one motion, in from the column's edge by --panel-in and out the same way over a panel's leave time, surface/panel.css) */
+.t-pos[data-kind="side"] { --t-x: var(--panel-in, 12px); --t-out: var(--d-small); }
+.t-pos[data-kind="side"][data-open="false"] .t-card { transition-timing-function: var(--ease-arrive); }
 #app .t-pos[data-kind="sheet"][data-thumb="true"] > .t-card.instrument-workspace.float-ui, .t-pos[data-kind="sheet"][data-thumb="true"] > .t-card { transition-timing-function: var(--sheet-ease, var(--ease-arrive)); }
 @media (prefers-reduced-motion: reduce) { .t-pos, .t-pos[data-kind="sheet"] { --t-x: 0px; --t-y: 0px; --t-o: 0; --t-out: var(--d-flip); } }
 .t-pos[data-live="true"]:not([data-kind="sheet"]) { transition: transform var(--d-card-in) var(--ease-arrive); }   /* (a sheet's height change is eased by the pull's own glide; both would double-animate it) */
