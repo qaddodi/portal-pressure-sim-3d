@@ -11,8 +11,9 @@ test('the Tests dock is a child of .app (Shell.tsx), the Treat card and the acti
   const appOpen = shell.indexOf('id="app"'), appClose = shell.indexOf('</div>', shell.indexOf('<Dock '));
   const at = shell.indexOf('<TestsLayer');
   assert.ok(appOpen > 0 && at > appOpen && at < appClose, 'TestsLayer sits inside the .app element');
-  assert.match(sheets, /<InApp><TreatCard \/><\/InApp>/);
-  assert.match(sheets, /<InApp><ActionCard \/><\/InApp>/);
+  // (one InApp holds every panel of the shell: the cards, History, Compare and Why)
+  const inAppBlock = sheets.match(/<InApp>((?:(?!<\/InApp>)[\s\S])*)<\/InApp>/)![1]!;
+  for (const c of ['TreatCard', 'ActionCard', 'HistorySheet', 'DifferencesSheet', 'WhySheet']) assert.ok(inAppBlock.includes(`<${c} />`), `${c} goes through InApp`);
   const inApp = read('src/ui/shell/InApp.tsx');
   assert.ok(inApp.includes("getElementById('app')") && inApp.includes('createPortal'));
 });

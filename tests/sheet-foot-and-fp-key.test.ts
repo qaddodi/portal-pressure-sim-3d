@@ -8,11 +8,13 @@ import { legendFor } from '../src/scene/lenses/legend.ts';
 test('top sheets end over the dock, from one variable', () => {
   const shell = readFileSync('src/ui/shell/shell.css', 'utf8');
   assert.match(shell, /--sh-max-h: calc\(100% - var\(--sh-pad-top\) - var\(--bot-occ, 84px\) - 20px\)/);
-  for (const f of ['src/ui/shell/shell.css', 'src/ui/history/history.css', 'src/ui/why/why.css']) {
+  for (const f of ['src/ui/shell/shell.css', 'src/ui/history/history.css', 'src/ui/why/why.css', 'src/ui/surface/panel.css']) {
     const css = readFileSync(f, 'utf8').replace(/--sh-max-h:[^;]*;/, '');
     assert.ok(!/- 92px/.test(css), `${f} has a sheet that ends at a fixed foot`);
-    assert.match(readFileSync(f, 'utf8'), /max-height: var\(--sh-max-h\)/);
   }
+  // (History, Compare and Why are panels of the panel shell since stage 2: their room ends at the figure's foot, the dock and the view pill over it, by one number)
+  assert.match(readFileSync('src/ui/surface/panel-place.ts', 'utf8'), /bottom = vp\.h - vp\.safe\.bottom - footHeight\(d\)/);
+  assert.match(readFileSync('src/ui/surface/panel.css', 'utf8'), /max-height: var\(--pl-max-h\) !important/);
 });
 test('the First pass key prints its dots only; the sentence is their hover title (2D LG_FP_DOTS)', () => {
   const g = legendFor('firstpass', 'light', 'healthy');

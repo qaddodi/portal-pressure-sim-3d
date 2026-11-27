@@ -19,13 +19,13 @@ const walk = (dir: string, out: string[] = []): string[] => {
 test('Treat, Tests, History, Compare and Why render the one panel head', () => {
   assert.match(read('src/ui/treat/TreatCard.tsx'), /<PanelHead\b/, 'Treat');
   assert.match(read('src/ui/tests/TestsLayer.tsx'), /<PanelHead\b/, 'Tests');
-  // (History, Compare and Why are Frames until stage 2: the Frame draws a panel kind's head as the panel head)
-  const frame = read('src/ui/shell/Frame.tsx');
-  assert.match(frame, /isPanel\(kind\)\s*\?\s*<PanelHead\b/, 'a Frame of a panel kind draws the panel head');
-  for (const [file, kind] of [['src/ui/history/HistorySheet.tsx', 'history'], ['src/ui/compare/CompareUi.tsx', 'compare'], ['src/ui/why/WhySheet.tsx', 'why']] as const) {
+  // (History, Compare and Why are panels of the panel shell since stage 2: its plain panel draws the one panel head)
+  const shell = read('src/ui/surface/Panel.tsx');
+  assert.match(shell, /export function ShellPanel[\s\S]*?<PanelHead title=\{head \?\? label\}/, 'the shell\'s plain panel draws the panel head');
+  for (const [file, kind] of [['src/ui/history/HistorySheet.tsx', 'history'], ['src/ui/compare/DifferencesSheet.tsx', 'compare'], ['src/ui/why/WhySheet.tsx', 'why']] as const) {
     const src = read(file);
-    assert.match(src, new RegExp(`<Frame kind="${kind}"`), `${kind} is a Frame`);
-    assert.doesNotMatch(src.match(new RegExp(`<Frame kind="${kind}"[^>]*>`))![0], /head=\{null\}/, `${kind} keeps its head`);
+    assert.match(src, new RegExp(`<ShellPanel id="${kind}"`), `${kind} is a panel of the shell`);
+    assert.doesNotMatch(src, /<Frame\b/, `${kind} left the Frame`);
     assert.equal(isPanel(kind), true, `${kind} is a panel`);
   }
 });
@@ -34,11 +34,11 @@ test('no panel builds its own close button: the head\'s X is the one CloseX', ()
   const head = read('src/ui/surface/PanelHead.tsx');
   assert.match(head, /<CloseX className=\{`card-close/, 'the head\'s X is CloseX, wearing the class the 2D card head places it by');
   assert.doesNotMatch(head, /hidden=|display/, 'the head never hides its X');
-  for (const f of ['src/ui/treat/TreatCard.tsx', 'src/ui/tests/TestsLayer.tsx', 'src/ui/shell/Frame.tsx']) {
+  for (const f of ['src/ui/treat/TreatCard.tsx', 'src/ui/tests/TestsLayer.tsx', 'src/ui/surface/Panel.tsx']) {
     const src = read(f);
     assert.doesNotMatch(src, /className="[^"]*\bcard-close\b/, `${f} draws no X of its own`);
   }
-  assert.doesNotMatch(read('src/ui/shell/Frame.tsx').match(/isPanel\(kind\)[\s\S]*?: <div/)![0], /sh-x/, 'a panel Frame has no .sh-x');
+  assert.doesNotMatch(read('src/ui/surface/Panel.tsx'), /sh-x/, 'a panel has no .sh-x');
 });
 
 /** Every rule in the stylesheets we serve (comments blanked), with the @media / @container text it sits in. */
