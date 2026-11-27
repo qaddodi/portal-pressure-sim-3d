@@ -39,6 +39,8 @@ interface ShellState {
   menuTab: MenuTab;
   menuQuery: string;
   helpSection: 'keys' | 'present' | null;
+  /** the page Settings is asked to push as it opens (History, from the chart's "What happened" on a phone); Settings takes it and clears it (settings/SettingsSheet.tsx) */
+  settingsPage: 'history' | null;
   toast: Toast | null;
   /** The note's clock, drawn as the rule under it (Toast.tsx): it shortens from `from` (share of the note's time left) to nothing over `ms`; paused while held; null for a sticky note. */
   toastRun: ToastRun | null;
@@ -50,6 +52,8 @@ interface ShellState {
   /** a card or other sheet outside the shell is open (Esc closes that first) */
   set(p: Partial<ShellState>): void;
   open(sheet: Exclude<Sheet, null>): void;
+  /** Open Settings with one of its pages already pushed: the page slides in from the right over the rows, as when its row is tapped. */
+  openSettingsPage(page: 'history'): void;
   close(): void;
   /** Close from a press that may be on the sheet's own opener (a scrim or backdrop press): the opener's click that follows does not reopen it. */
   closeByPress(): void;
@@ -99,13 +103,14 @@ const reopenedByTail = (sheet: Exclude<Sheet, null>): boolean => {
 export const useShell = create<ShellState>((set, get) => ({
   view: 'anatomic',
   ready: { circuit: true, anatomic: true, lobule: true, sinusoid: true },
-  sheet: null, dialog: null, aboutSection: null, menuTab: 'present', menuQuery: '', helpSection: null, toast: null, toastRun: null,
+  sheet: null, dialog: null, aboutSection: null, menuTab: 'present', menuQuery: '', helpSection: null, settingsPage: null, toast: null, toastRun: null,
   figure: loadFigure(),
   transport: { running: false, speed: 1, lapse: 0, time: '0:00', day: 0 },
   patientId: 'healthy',
   refit: 0,
   set: (p) => set(p),
   open: (sheet) => set({ sheet }),
+  openSettingsPage: (page) => set({ sheet: 'settings', settingsPage: page }),
   close: () => { if (get().sheet) set({ sheet: null }); },
   closeByPress: () => { const sheet = get().sheet; if (!sheet) return; pressClosed = { sheet, at: clock.now() }; set({ sheet: null }); },
   toggle: (sheet) => { if (get().sheet !== sheet && reopenedByTail(sheet)) return; set({ sheet: get().sheet === sheet ? null : sheet }); },
