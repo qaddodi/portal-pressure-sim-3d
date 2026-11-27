@@ -387,3 +387,20 @@ test('the polygon overlap is exact for squares and the five probe points of a tu
   const q = turnedQuad(100, 100, 80, 12, -45);
   for (const [x, y] of quadPoints(q)) assert.ok(convexOverlap(q, sq(x - 0.01, y - 0.01, 0.02)) > 0.0003, 'every probe stands inside the turned box');
 });
+
+test('words under a running fade are not "clipped" while they travel in (a rolled reading\'s period inside its own window), and are judged again once they stand still', () => {
+  const kinds = (o: Partial<ScanItem>) => judgeScan(scan({ items: [item({ what: '.', box: [20, 90, 26, 130], clip: [16, 100, 374, 600], ...o })] })).map((f) => f.kind);
+  assert.deepEqual(kinds({ opacity: 0.5, fading: true }), []);
+  assert.deepEqual(kinds({}), ['clipped'], 'the same words at rest, cut by the container, still fail');
+});
+
+import { pictureUnder } from '../src/ui/debug/audit/scan-judge.ts';
+test('contrast is not judged against the CSS background where a picture stands under the words (a Doppler\'s white read-outs over its black spectrum: 1.1:1 on the card behind it)', () => {
+  type N = { tagName: string; parent: N | null; contains(n: N): boolean };
+  const node = (tagName: string, parent: N | null = null): N => { const n: N = { tagName, parent, contains: (o) => { for (let p: N | null = o; p; p = p.parent) if (p === n) return true; return false; } }; return n; };
+  const card = node('DIV'), words = node('B', card), spectrum = node('CANVAS', node('DIV', card));
+  assert.equal(pictureUnder([spectrum, card], words), true, 'a canvas beside the words in the stack is under them');
+  assert.equal(pictureUnder([card], words), false, 'only their own card: the CSS background is what they stand on');
+  const around = node('SVG'), inside = node('DIV', around), text = node('SPAN', inside);
+  assert.equal(pictureUnder([around, inside], text), false, 'words inside an svg are part of it, not on it');
+});

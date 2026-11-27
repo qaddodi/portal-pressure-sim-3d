@@ -5,6 +5,9 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { builtinDecks, deckIsReady, deckReady, loadBuiltin } from '../src/decks/registry.ts';
 import { bakedById, chartsFile, forgetBaked } from '../src/ui/charts/baked/store.ts';
+import { ensureChartsBaked } from './baked-decks.ts';
+
+ensureChartsBaked();
 
 const eager = builtinDecks().map((d) => d.id);
 const hasFile = (id: string) => existsSync(new URL(`../public/${chartsFile(id)}`, import.meta.url));
