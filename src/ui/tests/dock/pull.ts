@@ -16,8 +16,8 @@ export interface PullApi {
   enabled(): boolean;
   /** the card's height now and at its two stops, and which it stands at */
   heights(): { h0: number; half: number; full: number; peek: number; size: 0 | 1 | 2 };
-  /** takes the new height in this task (the card is laid out once, at it) */
-  setSize(n: 0 | 1 | 2): void;
+  /** takes the new height in this task (the card is laid out once, at it); `curve` is the ease the card's edge settles on, which the pictures in it take too (figure-glide.ts) */
+  setSize(n: 0 | 1 | 2, curve?: (u: number) => number): void;
   /** closes the card in this task (the box already carries `data-swiped`, so it plays no leave of its own) */
   close(): void;
 }
@@ -112,10 +112,10 @@ export function attachPull(card: HTMLElement, pos: HTMLElement, api: PullApi): (
     const target = to === 1 ? s.full : to === 2 ? s.peek : s.half;
     const start = cur + (target - s.h0);
     tail(pos, -start + 1);   // (a card that shrinks lifts off the foot of the screen by -start: the tail keeps its surface down to the edge until it has eased in)
-    api.setSize(to);
+    const curve = cssCurve(carryCurve(speed, -start, D_SMALL) as string) as (u: number) => number, w = ty(pos);
+    api.setSize(to, curve);
     pos.style.translate = start ? `0px ${start}px` : '';
     off = start;
-    const curve = cssCurve(carryCurve(speed, -start, D_SMALL) as string) as (u: number) => number, w = ty(pos);
     run = glide({ ms: D_SMALL, curve, tag: 'tests-pull', apply: (k) => { off = start * (1 - k); w(off); }, done: () => { run = null; off = 0; pos.style.translate = ''; tail(pos, 0); } });
   };
   // (The click a drag's release makes is not a tap: swallowed if it comes within 350 ms.)

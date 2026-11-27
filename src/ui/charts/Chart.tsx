@@ -10,6 +10,7 @@ import { ChartPainter } from './painter.ts';
 import type { Frame } from './scene.ts';
 import { frameTable, tableKey, type DataTable } from './table.ts';
 import { observeThenFit } from '../layout/fit-later.ts';
+import { onResync } from '../layout/resync.ts';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
 /** What a chart's model gets: the box's width, the colours of the look, the type of the device. */
@@ -66,6 +67,7 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
     // the rect's width the chart came out the zoom's share of the card (left-aligned, half empty) and then was zoomed down again, its words with it. Divide the zoom out.
     const measure = () => { const z = fitOf(el); setW(ownWidth(el, z)); setFit(Math.round(z * 100) / 100); };   // (scaleOf: a card zoom is a transform: the rect is its multiple, the box's own width is not)
     measure();
+    const offSync = onResync(measure);   // (a card that eases its pictures to a new size has every chart measure now, in the same task: layout/resync.ts)
     const off = observeThenFit([el], measure);   // (a new width redraws the chart, which changes the height of the card around it: after the observer's delivery, never inside it)
     // The card's fit (`--pz-fit`, written on the card's style) changes the zoom the box lives under WITHOUT changing the box's own size (the card's width is fixed): the observer above never fires, and a chart
     // measured under a zoom of 0.88 stayed laid out 1.13 times too wide after the fit went (cut at the right edge, its height overblown, the card sized to it). Look again when the card's style changes.
@@ -73,7 +75,7 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
     let again: TimerId | null = null;
     const mo = card && typeof MutationObserver === 'function' ? new MutationObserver((recs) => { if (!again && sizeStyleMoved(recs, el)) again = clock.after(() => { again = null; measure(); }, 0); }) : null;
     mo?.observe(card!, { attributes: true, attributeFilter: ['style', 'class'], attributeOldValue: true, subtree: true });
-    return () => { mo?.disconnect(); clock.cancel(again); off(); p.dispose(); painter.current = null; if (painterOut) painterOut.current = null; first.current = true; };
+    return () => { mo?.disconnect(); clock.cancel(again); off(); offSync(); p.dispose(); painter.current = null; if (painterOut) painterOut.current = null; first.current = true; };
   }, [tag]);
 
   const lastKey = useRef('');
