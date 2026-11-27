@@ -28,6 +28,7 @@ import type { MonitorState } from './monitor.ts';
 import { useMeasured } from '../hidden.ts';
 import { claim } from '../owner.ts';
 import { readFrame } from '../slide/reads.ts';
+import { toneWords, toneNumber, segText, type EqSeg } from '../../../decks/eq-tone.ts';
 import { caseAsk } from '../../case/guard.ts';
 import { withStopReads } from '../../case/stop-read.ts';
 
@@ -229,14 +230,17 @@ export function startPpg(): void {
   beginPpg('irivc');
   wake(); bump();
 }
-/** The words under the pane while the PPG plays or holds its result ('' when it has nothing to say). */
-export function ppgCaption(): string {
+/** The words under the pane while the PPG plays or holds its result, in segments: the result's formula carries its terms' tones (PV and its number pink, IVC and its number cyan). Empty when it has nothing to say. */
+export function ppgCaptionSegs(): EqSeg[] {
   const p = R.ppg;
-  if (p.run) return p.kind && p.step >= 0 ? String((MEASURES as Record<string, { steps: string[][] }>)[p.kind]!.steps[p.step]![2]) : '';
-  if (!p.done || p.take === 'idle') return '';
+  if (p.run) return p.kind && p.step >= 0 ? [{ s: String((MEASURES as Record<string, { steps: string[][] }>)[p.kind]!.steps[p.step]![2]) }] : [];
+  if (!p.done || p.take === 'idle') return [];
   const rd = (READS as Record<string, Record<string, number>>).irpv!, ppg = rd.ppg!, word = (v: number) => (Number.isFinite(v) ? v.toFixed(1) : '—');
-  return Number.isFinite(ppg) ? `${ppgWord(ppg, true)}. PPG = PV − IVC = ${word(rd.pv!)} − ${word(rd.iv!)} = ${word(ppg)} mmHg.` : '';
+  if (!Number.isFinite(ppg)) return [];
+  return [{ s: `${ppgWord(ppg, true)}. PPG = ` }, ...toneWords('PV'), { s: ' − ' }, ...toneWords('IVC'), { s: ' = ' }, toneNumber(word(rd.pv!), 'pv'), { s: ' − ' }, toneNumber(word(rd.iv!), 'ivc'), { s: ` = ${word(ppg)} mmHg.` }];
 }
+/** The words under the pane while the PPG plays or holds its result ('' when it has nothing to say). */
+export const ppgCaption = (): string => segText(ppgCaptionSegs());
 /** What the PPG's monitor is handed now. */
 export function ppgMonitor(out: { st: MonitorState; v: Obj }): MonitorState {
   const S = ppgScript(), p = R.ppg;

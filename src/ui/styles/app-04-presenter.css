@@ -205,6 +205,7 @@
 .pz-eq math { font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", math; font-size: calc(var(--s-val) * var(--eq-k, 1)); math-style: normal; }
 .pz:not(.stack) .pz-eq math { font-size: calc(var(--s-body) * 1.15 * var(--eq-k, 1)); }   /* (a wide screen: a little above the line's size, as on a phone; STIX runs small) */
 .pz-eq .eq-wedge { color: var(--tr-wedge-ink); } .pz-eq .eq-hv { color: var(--tr-hv-ink); } .pz-eq .eq-pv { color: var(--tr-pv-ink); } .pz-eq .eq-ivc { color: var(--tr-ivc-ink); } .pz-eq .eq-var { color: var(--tr-var-ink); }   /* (words, so the trace's ink form: LOOK-1, the WHVP term was 2.81:1 on Light's card and 2.36 on Soft's) */
+.eq-line .eq-wedge { color: var(--tr-wedge-ink); } .eq-line .eq-hv { color: var(--tr-hv-ink); } .eq-line .eq-pv { color: var(--tr-pv-ink); } .eq-line .eq-ivc { color: var(--tr-ivc-ink); } .eq-line .eq-var { color: var(--tr-var-ink); }   /* (a printed formula's terms outside the teaching card's MathML: the Tests captions, the ladder's sum: the same inks) */
 .pz-nw { white-space: nowrap; }
 /* A figure's numbered marker ({#1} in a slide's line, presenter.js stepMark) as the figure draws it: a dark circle (--text) with the
    numeral in the stage's own colour, so it turns light on dark in the dark theme as the figure's does. It sizes from its own type,
