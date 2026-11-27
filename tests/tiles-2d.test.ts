@@ -22,7 +22,7 @@ const nums = JSON.parse(readFileSync(new URL('./fixtures/decks-hp-numbers.json',
 /** The tiles whose rating is not the 2D table's (src/ui/cards/ratings.ts). */
 /** Tiles the owner asked for beyond the 2D slide's (W14, 27 Nov 2026): deck/slide -> tile keys. */
 const ADDED_TILES: Record<string, string[]> = { 'outflow/web': ['ivc'] };
-const OWN_RATING: ReadonlySet<string> = new Set(['pv', 'whvp', 'sin', 'plt', 'hvpgFall', 'hvpg', 'eus']);
+const OWN_RATING: ReadonlySet<string> = new Set(['pv', 'whvp', 'sin', 'plt', 'pvFlow', 'hvpgFall', 'hvpg', 'eus']);
 
 /** Equal, but for the positions on a bar (percent of its width): the fixture keeps the 2D numbers to six digits, so a position may differ in the fourth decimal. */
 function same(a: unknown, b: unknown, at: string): void {
@@ -110,12 +110,12 @@ test('the HVPG slides: the 2D tiles by name (HVPG slides 4, 9 and 11), so a chan
   const g = nums.decks.hvpg!.map((x) => ({ fp: x.fp }));
   const slide = (id: string) => tilesAt(d.slides, g as never, d.slides.findIndex((s) => s.id === id), false)!;
   const sinus = slide('wedge-sinusoid');
-  assert.deepEqual(sinus.tiles.map((t) => [t.name, t.text, t.unit, t.rate, t.word, t.key]), [['WHVP', '16.3', 'mmHg', 'plain', '', true], ['Sinusoidal pressure', '16.7', 'mmHg', 'plain', '', false]]);
+  assert.deepEqual(sinus.tiles.map((t) => [t.name, t.text, t.unit, t.rate, t.word, t.key]), [['WHVP', '16.3', 'mmHg', 'hi', 'Very high', true], ['Sinusoidal pressure', '16.7', 'mmHg', 'hi', 'Very high', false]]);
   const eus = slide('eus');
   assert.equal(eus.toolOnly, true, 'the EUS slide is an instrument card: its readings are its header\'s');
   assert.deepEqual(eus.tiles.map((t) => [t.head.name, t.head.text, t.head.unit, t.rate]), [['HVPG', '3.4', 'mmHg', 'ok'], ['EUS-PPG', '14.9', 'mmHg', 'plain']]);
   const heart = slide('heart');
-  assert.deepEqual(heart.tiles.map((t) => [t.k, t.text, t.rate, t.key]), [['whvp', '20.9', 'plain', false], ['fhvp', '20.4', 'hi', true], ['ra', '19.9', 'hi', true]]);
+  assert.deepEqual(heart.tiles.map((t) => [t.k, t.text, t.rate, t.key]), [['whvp', '20.9', 'hi', false], ['fhvp', '20.4', 'hi', true], ['ra', '19.9', 'hi', true]]);
   for (const id of ['route', 'free', 'wedge', 'hvpg', 'presin', 'ppg', 'eus-ladder', 'bc', 'plane', 'summary']) assert.equal(slide(id).tiles.length, 0, `${id} has no tiles in 2D`);
 });
 
