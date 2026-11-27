@@ -41,7 +41,8 @@ export function pictureScale(stage: { w: number; h: number }, want: number, maxS
 const top = (s: string): string[] => { const out: string[] = []; let d = 0, at = 0; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === '(') d++; else if (c === ')') d--; else if (c === ',' && d === 0) { out.push(s.slice(at, i).trim()); at = i + 1; } } out.push(s.slice(at).trim()); return out; };
 const SIDES: Record<string, number> = { top: 0, right: 90, bottom: 180, left: 270 };
 const UNIT_DEG: Record<string, number> = { deg: 1, grad: 0.9, rad: 180 / Math.PI, turn: 360 };
-/** The line part of a gradient's first argument: an angle (deg, grad, rad, turn) and/or `to <side> [side]`, with an optional colour-space word run (`in oklab`, `in oklch longer hue`) before or after it, which a canvas cannot honour and so is dropped. Returns the angle, or null when the argument is a colour stop and not a line. The key's own bar is `linear-gradient(in oklab to right, ...)`: before this read it, that argument fell through to the 180deg default and the bar was drawn top to bottom. */
+/** The line part of a gradient's first argument: an angle (deg, grad, rad, turn) and/or `to <side> [side]`, with an optional colour-space run (`in oklab`) dropped, since a canvas cannot honour it.
+ *  Null when the argument is a colour stop. The key's bar is `linear-gradient(in oklab to right, ...)`: unread, it fell to the 180deg default and was drawn top to bottom. */
 export function gradientLine(arg: string): number | null {
   let t = arg.trim().toLowerCase();
   const space = /\bin\s+[a-z0-9-]+(\s+(shorter|longer|increasing|decreasing|specified)\s+hue)?/;
@@ -58,7 +59,8 @@ export function gradientLine(arg: string): number | null {
   return set.has(0) ? (set.has(90) ? 45 : 315) : (set.has(90) ? 135 : 225);
 }
 
-/** A computed `background-image` that is one `linear-gradient(...)`: its angle and stops; null for anything else. Stops without a position are spread evenly; pixel positions are not supported (null). */
+/** A computed `background-image` that is one `linear-gradient(...)`: its angle and stops; null for anything else.
+ *  Stops without a position are spread evenly; pixel positions are not supported (null). */
 export function parseGradient(css: string): Paint | null {
   const m = css.trim().match(/^linear-gradient\((.*)\)$/s);
   if (!m) return null;
