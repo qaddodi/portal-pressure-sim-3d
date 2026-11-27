@@ -5,7 +5,7 @@ export type ChartStatus = 'done' | 'todo';
 
 export const CHART_KINDS: Readonly<Record<string, ChartStatus>> = Object.freeze({
   criteria: 'done', ladder: 'done', flowtime: 'done', profile: 'done', path: 'done', curve: 'done', trial: 'done', flows: 'done', lumen: 'done', evgraph: 'done', forest: 'done',
-  plane: 'done', fluid: 'done', saag: 'done', shift: 'done', stiffness: 'done', stent: 'done', timeline: 'done', small: 'done', trace: 'done', vitals: 'done', menu: 'done', walls: 'done', scores: 'done',
+  plane: 'done', fluid: 'done', saag: 'done', shift: 'done', stiffness: 'done', stent: 'done', timeline: 'done', small: 'done', trace: 'done', vitals: 'done', menu: 'done', walls: 'done', scores: 'done', lobule: 'done',
 });
 
 /** True when this chart look is done (its model, its card, its tests and a gallery specimen are in). */
