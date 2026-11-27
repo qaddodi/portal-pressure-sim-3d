@@ -98,8 +98,8 @@ test('the swipe and the pushed page are driven by the one clock, in transform an
   const m = src('src/ui/menu/UMenu.tsx');
   assert.ok(/swipeTabs\(el/.test(m) && /enterCol\(/.test(m), 'the menu pages by a swipe and plays the tab entrance');
   assert.ok(/pvResize/.test(m) && /um-pv-old/.test(m) && /D_FLIP/.test(m), 'the preview cross-fades and eases its height as 2D does');
-  const menu = src('src/ui/shell/Menu.tsx');
-  assert.ok(/pushPage\(/.test(menu) && /placePopover\(/.test(menu) && /menuExitMs/.test(menu), 'pages swipe back; the popover is placed by 2D\'s rule; the leave takes 2D\'s time');
+  const menu = src('src/ui/surface/Menu.tsx');
+  assert.ok(/pushPage\(/.test(menu) && /placePopover\(/.test(menu) && /leaveMs\('menu', mode\)/.test(menu), 'pages swipe back; the popover is placed by 2D\'s rule; the leave takes the menus\' one time');
 });
 
 test('every phone sheet has ONE motion: fade and a short rise in --d-small on --ease-arrive, both ways (owner, 23 Nov: unify menus)', () => {
@@ -141,7 +141,9 @@ test('every phone sheet stands in one clip box that ends 12 px inside the dock t
   const sheets = src('src/ui/shell/Sheets.tsx');
   assert.ok(/<SheetClip id="sheets">[\s\S]*<UMenu \/>[\s\S]*<LayersSheet \/>[\s\S]*<SettingsSheet[\s\S]*<HistorySheet \/>[\s\S]*<SearchSheet \/>[\s\S]*<HelpMenu \/>[\s\S]*<\/SheetClip>/.test(sheets));
   assert.ok(/<SheetClip id="cards">/.test(src('src/ui/shell/InApp.tsx')) && /<SheetClip id="tests">/.test(src('src/ui/tests/TestsLayer.tsx')));
-  for (const f of ['src/ui/shell/Menu.tsx', 'src/ui/menu/UMenu.tsx']) assert.ok(/sheetRoot\(\)/.test(src(f)) && !/querySelector\('\.sh-root'\)/.test(src(f)), f);
+  const shell = src('src/ui/surface/Menu.tsx');
+  assert.ok(/sheetRoot\(\)/.test(shell) && !/querySelector\('\.sh-root'\)/.test(shell), 'the menu shell mounts its menus in the clip');
+  for (const f of ['src/ui/menu/UMenu.tsx', 'src/ui/settings/SettingsSheet.tsx', 'src/ui/shell/HelpSheets.tsx']) assert.ok(/<Menu id="/.test(src(f)) && !/createPortal|sheetRoot/.test(src(f)), `${f} is mounted by the shell`);
   // no sheet carries a clip of its own, and nothing but the box clips one
   for (const f of ['src/ui/shell/sheet-swipe.ts', 'src/ui/shell/shell.css', 'src/ui/tests/tests.css', 'src/ui/treat/treat.css', 'src/ui/action/action.css']) assert.ok(!/--sheet-pull/.test(src(f)), f);
   // the line: the dock top is occ - gap above the screen's foot; the clip is 12 px lower, whatever a sheet's height, tail or pull

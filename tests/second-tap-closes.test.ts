@@ -20,7 +20,11 @@ test('the tail of a closing tap never blocks another sheet', () => {
   s().close();
 });
 test('every scrim and backdrop that can lie over an opener closes by press', () => {
-  for (const f of ['src/ui/shell/Menu.tsx', 'src/ui/menu/UMenu.tsx']) assert.match(readFileSync(f, 'utf8'), /um-scrim[^\n]*onPointerDown=\{\(\) => useShell\.getState\(\)\.closeByPress\(\)\}/, f);
+  // every menu is the one shell (surface/Menu.tsx): its sheet's scrim closes by press, and a shell menu's press-close is closeByPress (a slide list's is its own close)
+  const shell = readFileSync('src/ui/surface/Menu.tsx', 'utf8');
+  assert.match(shell, /um-scrim[^\n]*onPointerDown=\{pressClose\}/);
+  assert.match(shell, /const pressClose = state \? state\.close : \(\) => useShell\.getState\(\)\.closeByPress\(\);/);
+  assert.match(readFileSync('src/ui/menu/UMenu.tsx', 'utf8'), /<Menu id="menu" ctl=\{ctl\}/, 'the main menu is drawn by the shell, scrim and all');
   assert.match(readFileSync('src/ui/search/SearchSheet.tsx', 'utf8'), /pal-back[^\n]*closeByPress\(\)/);
 });
 
@@ -30,7 +34,10 @@ test('the outside-press listener and the scrim both close by press, in either or
   s().closeByPress();   // useOutside's capture listener (first)
   s().closeByPress();   // the scrim's handler (second): a no-op that must not forget the first
   s().toggle('settings'); assert.equal(s().sheet, null);
-  assert.match(readFileSync('src/ui/shell/Pop.tsx', 'utf8'), /useShell\.getState\(\)\.closeByPress\(\);[^\n]*\n\s*\};\n\s*window\.addEventListener\('pointerdown', away, true\)/);
+  // the one outside-press rule listens on the window in the capture phase, and both the shell sheets' hook and the menu shell close through closeByPress with it
+  assert.match(readFileSync('src/ui/surface/outside.ts', 'utf8'), /l\.onPress\(\);\n\s*\};\n\s*window\.addEventListener\('pointerdown', away, true\)/);
+  assert.match(readFileSync('src/ui/shell/Pop.tsx', 'utf8'), /useOutsidePress\(open, \[ref\], \(\) => useShell\.getState\(\)\.closeByPress\(\), `\[data-opens="\$\{sheet\}"\]`\)/);
+  assert.match(readFileSync('src/ui/surface/Menu.tsx', 'utf8'), /useOutsidePress\(open, \[ref\], pressClose, `\[data-opens="\$\{id\}"\]`\)/);
 });
 
 // 23 Nov, iPad upright: swiping the patient menu down did not close it. Root cause: UMenu is in the page only while shown, so its element did not exist when useSheetSwipe ran once at mount, and the swipe was never wired.

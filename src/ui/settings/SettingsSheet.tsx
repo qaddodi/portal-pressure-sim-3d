@@ -14,7 +14,8 @@ import { MORE_NOW, MORE_PAGE_TITLE } from './preset-rows.ts';
 import type { LookChoice } from '../../looks/looks.ts';
 import { useShell } from '../shell/store.ts';
 import { useUi } from '../ui-store.ts';
-import { MenuPop, MenuGroup, MenuItem, MenuToggle, type MenuPage } from '../shell/Menu.tsx';
+import { MenuGroup, MenuItem, MenuToggle } from '../shell/Menu.tsx';
+import { Menu, type MenuPage } from '../surface/Menu.tsx';
 import { HelpRows } from '../shell/HelpSheets.tsx';
 import { HistoryList } from '../history/HistoryList.tsx';
 import { HIST } from '../history/words.ts';
@@ -208,7 +209,7 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
   const hist: MenuPage = { back: backName ?? label, title: HIST.title, body: <HistoryList /> };
   const page: MenuPage | null = pageId === 'history' ? hist : pageId === 'help' ? { back: label, title: 'Help', body: <HelpRows /> } : pageId === 'advanced' ? { back: label, title: 'Advanced physiology', body: <Advanced /> } : pageId === 'figure' ? { back: label, title: MORE_PAGE_TITLE, body: <FigureMore /> } : null;
   return (<>
-    <MenuPop kind="settings" label={label} title={label} align="end" side={place === 'bar' ? 'above' : 'below'} page={page} onBack={back}>
+    <Menu id="settings" label={label} title={label} cls="app-menu" width="m" align="end" side={place === 'bar' ? 'above' : 'below'} page={page} onBack={back}>
       {SECTIONS.map((sec, i) => {
         const rows = sec.rows.filter((r) => !(r.phone && !phone) && !(r.talk === false && talk));
         if (!rows.length) return null;
@@ -227,7 +228,7 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
           </MenuGroup>
         </Fragment>);
       })}
-    </MenuPop>
+    </Menu>
     <FromReadings />
   </>);
 }

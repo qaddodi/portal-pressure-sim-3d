@@ -5,7 +5,8 @@ import { UI } from '../strings.generated.ts';
 import { useShell } from './store.ts';
 import { Frame } from './Frame.tsx';
 import { Icon, I } from './icons.tsx';
-import { MenuPop, MenuGroup, MenuItem } from './Menu.tsx';
+import { MenuGroup, MenuItem } from './Menu.tsx';
+import { Menu } from '../surface/Menu.tsx';
 import { runFeature, type FeatureId } from './features.ts';
 import { keyLabel } from './platform.ts';
 
@@ -39,9 +40,9 @@ export function HelpRows() {
 /** The Help menu: opened from the main menu's footer. */
 export function HelpMenu() {
   return (
-    <MenuPop kind="help" label="Help" title="Help" from="settings" align="end">
+    <Menu id="help" label="Help" title="Help" cls="app-menu" width="m" from="settings" align="end">
       <HelpRows />
-    </MenuPop>
+    </Menu>
   );
 }
 

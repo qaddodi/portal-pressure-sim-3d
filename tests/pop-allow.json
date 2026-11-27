@@ -19,7 +19,6 @@
   "ui/charts/painter.ts": 1,
   "ui/charts/text-layer.ts": 3,
   "ui/compare/CompareUi.tsx": 1,
-  "ui/deck/JumpList.tsx": 1,
   "ui/deck/download.ts": 1,
   "ui/deck/handout.ts": 1,
   "ui/deck/laser.ts": 1,

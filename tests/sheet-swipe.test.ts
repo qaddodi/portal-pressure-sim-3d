@@ -20,7 +20,9 @@ test('a let-go closes the sheet past a short pull down or on a flick, and eases 
 
 test('every phone sheet takes the swipe: the shell frames, the menu, the Treat card and the action card', () => {
   assert.match(read('src/ui/shell/Frame.tsx'), /useSheetSwipe\(ref,/);
-  assert.match(read('src/ui/menu/UMenu.tsx'), /useSheetSwipe\(ref, close, \(\) => sheet/);
+  // every menu (the main menu, Settings, the popovers, the slide list) takes it through the one menu shell
+  assert.match(read('src/ui/surface/Menu.tsx'), /useSheetSwipe\(ref, close, \(\) => sheet, shown\)/);
+  assert.match(read('src/ui/menu/UMenu.tsx'), /useMenu\('menu'/);
   assert.match(read('src/ui/treat/TreatCard.tsx'), /useSheetSwipe\(ref, close, \(\) => thumb\)/);
   assert.match(read('src/ui/action/ActionCard.tsx'), /useSheetSwipe\(ref, .*\(\) => bottom\)/);
 });
@@ -59,19 +61,24 @@ test('the shell\'s own small controls reach 44 px for a thumb (a taller box or a
 });
 
 test('every phone sheet draws the 36 x 4 grab bar (the action card has its own, the same size), and the menu and the popover-sheets are wired to the swipe', () => {
-  for (const f of ['src/ui/shell/Frame.tsx', 'src/ui/menu/UMenu.tsx', 'src/ui/shell/Menu.tsx', 'src/ui/treat/TreatCard.tsx', 'src/ui/tests/TestsLayer.tsx']) assert.match(read(f), /className="sh-grabbar"/, f);
+  for (const f of ['src/ui/shell/Frame.tsx', 'src/ui/surface/parts.tsx', 'src/ui/treat/TreatCard.tsx', 'src/ui/tests/TestsLayer.tsx']) assert.match(read(f), /className="sh-grabbar"/, f);
+  // every menu draws the one GrabBar through its shell, and none draws a bar of its own (UMenu drew two: .um-grab and .sh-grabbar)
+  assert.match(read('src/ui/surface/Menu.tsx'), /\{h\.grab && <GrabBar \/>\}/);
+  for (const f of ['src/ui/menu/UMenu.tsx', 'src/ui/shell/Menu.tsx', 'src/ui/shell/FigureMenu.tsx', 'src/ui/deck/JumpList.tsx']) assert.ok(!/sh-grabbar|um-grab/.test(read(f)), f);
   assert.match(read('src/ui/action/action.css'), /\.ac-grab i \{ width: 36px; height: 4px;/);
   assert.match(read('src/ui/shell/sheet-swipe.css'), /\.sh-grabbar \{[^}]*width: 36px; height: 4px;[^}]*pointer-events: none;/);
-  assert.match(read('src/ui/shell/Menu.tsx'), /useSheetSwipe\(ref, /);
+  assert.match(read('src/ui/surface/Menu.tsx'), /useSheetSwipe\(ref, /);
 });
 
-test('every phone menu is pulled down to close: Search, and the popovers (speed, fast-forward, lens, Blood) with the pull written as `transform` since their `translate` is their place', async () => {
+test('every phone menu is pulled down to close: Search, and every menu of the one shell (main menu, Settings, Help, From readings, Layers, Blood, lens, speed, jump to, slide list)', async () => {
   const { readFileSync } = await import('node:fs');
-  const pop = readFileSync('src/ui/shell/Pop.tsx', 'utf8'), search = readFileSync('src/ui/search/SearchSheet.tsx', 'utf8'), swipe = readFileSync('src/ui/shell/sheet-swipe.ts', 'utf8');
-  assert.match(pop, /useSheetSwipe\(pop, \(\) => useShell\.getState\(\)\.close\(\), onPhone, !!popEl, 'transform'\)/);
+  const shell = readFileSync('src/ui/surface/Menu.tsx', 'utf8'), search = readFileSync('src/ui/search/SearchSheet.tsx', 'utf8'), swipe = readFileSync('src/ui/shell/sheet-swipe.ts', 'utf8');
+  // a menu that is a sheet is placed by its stylesheet, not by translate, so the pull writes translate; the shell takes a floating place off when the screen turns to sheets
+  assert.match(shell, /useSheetSwipe\(ref, close, \(\) => sheet, shown\)/);
+  assert.match(shell, /if \(sheet\) \{ el\.style\.translate = ''; el\.style\.maxHeight = ''; return; \}/);
   assert.match(search, /useSheetSwipe\(panel, \(\) => useShell\.getState\(\)\.close\(\), onPhone\)/);
   assert.match(swipe, /prop\?: 'translate' \| 'transform'/);
   // the sheets that already had it
-  for (const f of ['src/ui/shell/Frame.tsx', 'src/ui/shell/Menu.tsx', 'src/ui/menu/UMenu.tsx', 'src/ui/treat/TreatCard.tsx', 'src/ui/action/ActionCard.tsx']) assert.match(readFileSync(f, 'utf8'), /useSheetSwipe\(/, f);
+  for (const f of ['src/ui/shell/Frame.tsx', 'src/ui/surface/Menu.tsx', 'src/ui/treat/TreatCard.tsx', 'src/ui/action/ActionCard.tsx']) assert.match(readFileSync(f, 'utf8'), /useSheetSwipe\(/, f);
   assert.match(readFileSync('src/ui/tests/dock/pull.ts', 'utf8'), /export function attachPull/, 'the Tests sheet has its own three-stop pull, which closes from Peek');
 });

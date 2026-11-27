@@ -26,8 +26,11 @@ test('with the list open only G, Esc, Up and Down are the list\'s: Esc and G shu
 });
 
 test('the list and the black screen use the 2D app\'s classes, so its lifted stylesheet draws them (pz-jump, pzj-h, pzj-list, pz-black)', () => {
-  const src = readFileSync('src/ui/deck/JumpList.tsx', 'utf8');
-  for (const cls of ['pz-jump', 'pzj-h', 'pzj-list', 'pz-black']) assert.ok(src.includes(cls), cls);
+  const src = readFileSync('src/ui/deck/JumpList.tsx', 'utf8').replace(/^\/\/.*$/gm, '');
+  // the list's frame, head and leave are the menu shell's jump skin (surface/menu-head.ts), its rows the list's own
+  assert.match(src, /<Menu id="slides" ctl=\{ctl\} skin="jump"/);
+  assert.match(readFileSync('src/ui/surface/menu-head.ts', 'utf8'), /jump: \{ base: 'pz-jump stage-blocker', sheet: '', leaving: 'pz-leave', head: 'pzj-h'/);
+  for (const cls of ['pzj-list', 'pz-black']) assert.ok(src.includes(cls), cls);
   assert.ok(!/dk-jump|dk-black/.test(src), 'no second set of classes');
   const css = readFileSync('src/ui/styles/app-05-presenter-cards.css', 'utf8');
   for (const rule of ['.pz-jump {', '.pz-black {', '.pz-black.on {', '.pzj-list button']) assert.ok(css.includes(rule), rule);
