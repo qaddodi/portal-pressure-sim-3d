@@ -95,9 +95,6 @@
 .organ-heart { color: var(--organ-heart); }
 .org-line { fill: none; stroke: color-mix(in srgb, currentColor 80%, var(--shade-ink)); stroke-width: 1.2; stroke-opacity: .6; stroke-linejoin: round; }
 .ghost:not(.btn) { pointer-events: none; }   /* the figure's ghost layer; never the ghost buttons */
-.org-lobe-line.faint { stroke-opacity: .22; stroke-dasharray: 4 5; }
-.org-lobe-line { fill: none; stroke: var(--organ-liver); stroke-opacity: .45; stroke-width: 1; stroke-linecap: round; }
-.band-edge, .band-body { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 /* Congestion (organ picks, 20 Oct, "even dusk"): an even dusky tone over the liver and the pale islands round the portal tracts. */
 .lv-cong { fill: var(--lv-cong-base); fill-opacity: var(--lv-cong-base-a); }
 /* Cirrhosis (organ picks, 20 Oct): larger nodules (x 1.35), the pattern at half strength ("faintest"). */
@@ -141,8 +138,7 @@
 .balloon-marker { fill: var(--dev-platinum); }
 /* The traction: a thin arrow up the esophagus's side as the tube is drawn up, in the treatment colour the slides' marks use */
 .balloon-pull-line { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.balloon-pull-head { fill: var(--accent); stroke: var(--accent); stroke-width: 1; stroke-linejoin: round; }
-.ascites-line { fill: none; stroke: var(--ascites); stroke-opacity: calc(.3 * var(--fluid-fade, 1)); stroke-width: 4; stroke-linejoin: round; }   /* a soft meniscus band, not a hard rule */
+.balloon-pull-head { fill: var(--accent); stroke: var(--accent); stroke-width: 1; stroke-linejoin: round; }   /* a soft meniscus band, not a hard rule */
 /* (Round joins on the overlays' strokes: the figure's GPU painter draws round joins only, so a sharp one kept the group, and every
    group above it, on SVG (2 Nov 2026, "Move everything to GPU"). Their segments are single strokes or smooth curves: nothing shows.) */
 .stent-guide { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 6 4; stroke-linecap: round; stroke-linejoin: round; }
@@ -380,7 +376,6 @@ input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 0 transpar
 .menu-page > * { flex-shrink: 0; }
 .menu-page .menu-back { flex: none; width: auto; color: var(--accent); font-weight: 600; gap: 2px; padding: 8px 10px 8px 4px; }
 .menu-page .menu-back .ic { width: 18px; height: 18px; }
-.menu-page .tl-pop.tl-history { max-height: none; overflow: visible; }
 .menu.as-sheet .lens-d { white-space: normal; }
 /* (13 Nov 2026, menu recs P2) Every menu sheet has the same head as the cards: its title on the left, a 44 px close button on the right, no grabber. */
 .sheet-head { display: none; }

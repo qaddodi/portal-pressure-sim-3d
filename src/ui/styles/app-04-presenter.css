@@ -1,12 +1,7 @@
 /* Presenter (presenter.js): projector-first slides on the live model. Sizes follow the screen's height,
    so a 720-line and a 1080-line projector show the same slide. The words sit at the left, the data at the
    right; the figure frames itself in the space between (data-safe, --pz-l/--pz-r for the lobule). */
-.app.presenting .stage-bar,
-.app.presenting #zoomPill,
-.app.presenting .action-card,
-.app.presenting .stage-clock,
-.app.presenting .cmp-badge,
-.app.presenting .big-overlay { display: none; }
+.app.presenting .stage-bar, .app.presenting #zoomPill, .app.presenting .action-card, .app.presenting .stage-clock, .app.presenting .cmp-badge { display: none; }
 .app.presenting #stageView { z-index: 0; transition: opacity var(--d-surface) var(--ease); }   /* its own layer, so the slide's shade can lie over it and under the credit */
 /* The figure's dip as a case card comes up (presenter.js pz-out): every layer of the stage view but the canvas, whose share dips as an alpha in its
    present (stage-dive.js dipSync, the same .22, D_SURFACE and curve), so the glass drawn in the canvas keeps its strength. (The view's own opacity
@@ -15,8 +10,7 @@
 .app.presenting #stageView > #overlay { transition: opacity var(--d-surface) var(--ease); }
 @media (prefers-reduced-motion: reduce) { .app.presenting #stageView > #overlay { transition-property: opacity; } }
 .app.presenting #labels .leader.focus { stroke: var(--danger); }
-/* Marks by kind (a slide's marks: [{ kind }]): block is the danger red above, treat the accent, note plain ink (their vessels glow in stage.js). */   /* (a pill with no spot off the vessels: they stop 2 px short of it) */ .app.presenting #labels .leader.focus.k-treat { stroke: var(--accent); } .app.presenting #labels .lb.focus.k-note text { fill: var(--text); }
-.app.presenting #labels .leader.focus.k-note { stroke: var(--text-2); }
+/* Marks by kind (a slide's marks: [{ kind }]): block is the danger red above, treat the accent, note plain ink (their vessels glow in stage.js). */   /* (a pill with no spot off the vessels: they stop 2 px short of it) */
 /* A slide's term (a pill in the words): the station's label in the same colour, eased in. */
 #labels .lb .lb-name, #labels .lb .lb-val, #labels .lb .lb-delta { transition: none; }
 #labels .lb.term .lb-name, #labels .lb.term .lb-val, #labels .lb.term .lb-unit, #labels .lb.term .lb-delta { fill: var(--term); }
@@ -366,8 +360,6 @@
 /* EUS coils and glue lists its steps (presenter.js procEl, a short line on each): one row each, number, word, its line, all on the card from the
    start at its full size (his ask, 10 Nov 2026). The steps played stay in full ink (.done) and the one on show is lit (.on), colours only, so the
    list never reflows. On a phone's stacked card it is the one-line row again with the lines hidden, so that card does not grow. */
-.pz-proc-line { margin-inline-start: .15em; }
-.pz.stack .pz-proc-line { display: none; }
 .pz-abb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Projector-size catheter readings. */
 .app.presenting .cath-label { padding: calc(7px * min(var(--label-k, 1), 1.7)) calc(16px * min(var(--label-k, 1), 1.7)) calc(8px * min(var(--label-k, 1), 1.7)); border-radius: calc(14px * min(var(--label-k, 1), 1.7)); }
