@@ -116,7 +116,8 @@ test('the card code applies the rule to every kind: the panel fits to the box it
   // panel (title, table, chart panels): after landing, the observer's pass fits to min(screen room, landed box); the quick check, which opens by design, to the screen's
   assert.match(frame, /const landed = !full && gate\.current && box\.current\.key === lockKey && box\.current\.h > 0 && !GROWS_BY_DESIGN\.has\(entry\.id\) \? box\.current\.h : Infinity;/);
   assert.match(frame, /const room = Math\.min\(screenRoom, landed\);/);
-  assert.match(frame, /floor = floorOf\(/);
+  // (the fit's floor is the panel's own smallest lettering for a table, the teaching line's otherwise; a paged table does not zoom: tests/table-paging.test.ts)
+  assert.match(frame, /const floor = visual === 'table' && paged \? 1 : floorOf\(Number\.isFinite\(smallest\) \? smallest : /);
   // case: the ease is judged again once the fonts are in
   assert.match(cs, /document\.fonts\.ready\.then\(\(\) => setFonts\(true\)\)/);
   assert.match(cs, /\[slide\.id, text, vp\.w, vp\.h, fonts\]/);

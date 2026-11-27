@@ -127,7 +127,9 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const wide = alone ? centredBox(vp, alone, panelVisual({ id: view!.words, visual: view!.slide?.visual })).w : Math.round(widthOf(vp, pair, step));
   const hit = (key: string) => heights[`${key}@${wide}`];
   const h = (key: string) => hit(key)?.h ?? 0;
-  const capOf = (v: NonNullable<typeof view>) => maxPages(v.words, v.slide && v.words === 'case' ? caseOf(v.slide)?.text : v.slide?.line, v.words === 'check' ? deck.checks.length : 0);
+  // (what a card splits into: the quick check's questions, a summary table's rows; every other card its sentences)
+  const itemsOf = (v: NonNullable<typeof view>) => (v.words === 'check' ? deck.checks.length : v.words === 'visual' ? v.slide?.table?.of.length ?? 0 : 0);
+  const capOf = (v: NonNullable<typeof view>) => maxPages(v.words, v.slide && v.words === 'case' ? caseOf(v.slide)?.text : v.slide?.line, itemsOf(v));
   const pages = view ? Math.min(pagesMap[pagesKey] ?? 1, capOf(view)) : 1;
   // A card that pages is one height on every page (Mohammad, 25 Nov: a card never changes size on screen; Carvedilol 10, iPhone: page 2 of 2 was a line longer than page 1 and the card grew 30 px on the turn). Before a words card lands
   // the layer walks its pages once, out of sight (the card is not let in until it is done), takes each page's measured height, and every page is then the tallest: `pageMax` is what the plan is given. The walk is by
@@ -420,7 +422,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
           {sn.dslide?.ladder && !sn.dslide.tool ? <LadderCard ladder={sn.dslide.ladder} readings={own} /> : sn.dslide?.tiles ? <TilesCard deckId={sn.deck.id} slideId={sn.dslide.id} /> : null}
         </>
       );
-      case 'visual': return sn.slide ? <VisualCard deck={sn.deck} slide={sn.slide} read={readOwn} fp={own} /> : null;
+      case 'visual': return sn.slide ? <VisualCard deck={sn.deck} slide={sn.slide} read={readOwn} fp={own} page={sn.at} pages={sn.pages} /> : null;
       case 'check': return <CheckCard deck={sn.deck} page={sn.at} pages={sn.pages} />;
     }
   };
@@ -441,7 +443,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
     // a card showing for the first time on a phone measures first (it is at height 0 until then)
     return (
       <CardFrame key={e.key} entry={e} rect={{ ...rect, w: rect.w || wide }} onHeight={onHeight} onOutgrown={alone ? undefined : outgrown} onGone={stack.gone} label={labelOf(e.id)}
-        pointer={swipe} go={go} data={slot === 'data'} vars={fp.vars as never} remeasure={fp.sig} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} lift={plan.scrolled ? plan.scrollDy : undefined} zoomable={zoomsHere && e.phase === 'in'} onTap={plan.sideways && plan.scrollDy > 0 && e.phase === 'in' && (slot === 'data' ? !plan.scrolled : plan.scrolled) ? () => { if (!justDocked() && !justDragged()) goColumn(slot === 'data' ? 1 : 0, plan.scrollDy, setDocked); } : slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsOn(plan.layout, plan.sideways) && e.phase === 'in' && (zoomsHere || view.slide?.visual === 'ladders') ? zoomTap : undefined} visual={fp.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : wordsClasses(e.id, fp.visual, !!nameTabOf(deck))}>
+        pointer={swipe} go={go} data={slot === 'data'} vars={fp.vars as never} remeasure={fp.sig} paged={pages > 1} fresh={fresh} swap={slot === 'data' && swapping} tuck={slot === 'data' && plan.docked} lift={plan.scrolled ? plan.scrollDy : undefined} zoomable={zoomsHere && e.phase === 'in'} onTap={plan.sideways && plan.scrollDy > 0 && e.phase === 'in' && (slot === 'data' ? !plan.scrolled : plan.scrolled) ? () => { if (!justDocked() && !justDragged()) goColumn(slot === 'data' ? 1 : 0, plan.scrollDy, setDocked); } : slot === 'data' && plan.docked && e.phase === 'in' ? () => { if (!justDocked()) openDock(setDocked); } : e.id === 'case' && e.phase === 'in' ? () => { if (!justDragged()) move('next'); } : zoomsOn(plan.layout, plan.sideways) && e.phase === 'in' && (zoomsHere || view.slide?.visual === 'ladders') ? zoomTap : undefined} visual={fp.visual} overflow={plan.overflow.includes(e.id) && e.phase === 'in'} extra={slot === 'data' ? [dataClass(e), zoomableData && e.phase === 'in' ? 'pz-zoomable' : ''].filter(Boolean).join(' ') || undefined : wordsClasses(e.id, fp.visual, !!nameTabOf(deck))}>
         {slot === 'data' ? <DataCap.Provider value={alone || !(wordsHit && wordsHit.h > 0) ? 0 : plan.maxH.data}>{content(e)}</DataCap.Provider>
           // (a chart in a centred panel keeps inside what the panel leaves it, as one in a data card does: only past its floor does the panel's fit zoom take over)
           : alone === 'panel' && e.id === 'visual' ? <DataCap.Provider value={plan.maxH.words}>{content(e)}</DataCap.Provider> : content(e)}

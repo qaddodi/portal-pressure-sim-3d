@@ -16,6 +16,7 @@ import { beginSink, beginReveal, finishSink, finishReveal, settle, committed, sh
 import { boxOf, noteGrew, freezeOf, tellsLayer, BOX_START, type Frozen } from './box-lock.ts';
 import { releaseTitles, balanceTitles } from './title-balance.ts';
 import { floorOf } from './card-fit.ts';
+import { smallestPx } from './text-floor.ts';
 
 import { clock } from '../../clock/frame.ts';
 interface Props {
@@ -55,6 +56,8 @@ interface Props {
   vars?: CSSProperties;
   /** a new value measures the card again at once (a step that changes no height still has to be judged afresh) */
   remeasure?: string;
+  /** the card is on one of several pages (a summary table that paged by whole rows): its fit never zooms, the pages take the strain, so every page has the same size of lettering */
+  paged?: boolean;
 }
 
 /** 2D's markLong (presenter.js): a title that sets in more than 2.4 lines is a long one and takes the smaller step (`.pz-h.long`, --s-big), so a long title never fills the card.
@@ -79,7 +82,7 @@ type Anchor = 'foot' | 'mid' | 'top';
 const ORIGIN: Record<Anchor, string> = { foot: '50% 100%', mid: '50% 50%', top: '50% 0%' };
 
 /** One card: placed by transform, sized exactly to its content with a glide, invisible until its words are laid out, then it rises in. */
-export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false, zoomable = false, swap = false, tuck = false, lift, vars, remeasure }: Props) {
+export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children, label, pointer, overflow, extra, onTap, visual, go = true, data = false, fresh = false, zoomable = false, swap = false, tuck = false, lift, vars, remeasure, paged = false }: Props) {
   const vp = useUi((s) => s.vp);
   const r = Math.round(radius(vp.w, vp.h, layoutOf(vp.w, vp.h)));
   // the words card on an iPhone with rounded corners takes the screen's own corner (less its inset) at its bottom two corners
@@ -181,7 +184,10 @@ export function CardFrame({ entry, rect, onHeight, onGone, onOutgrown, children,
         const room = Math.min(screenRoom, landed);
         const cur = parseFloat(card.style.getPropertyValue('--pz-fit')) || 1;
         if (full) card.style.removeProperty('--pz-fit');
-        const probe = card.querySelector('.pz-line, .pz-outline li, p'), floor = floorOf(probe ? parseFloat(getComputedStyle(probe).getPropertyValue('font-size')) : 0);
+        const probe = card.querySelector('.pz-line, .pz-outline li, p');
+        // (a table's floor is its own smallest lettering, never the teaching line's: its 12 px heads and findings would otherwise be zoomed to nine; and a table that pages never zooms, text-floor.ts)
+        const smallest = visual === 'table' && card.querySelector('.pz-table') ? smallestPx(card) : NaN;
+        const floor = visual === 'table' && paged ? 1 : floorOf(Number.isFinite(smallest) ? smallest : probe ? parseFloat(getComputedStyle(probe).getPropertyValue('font-size')) : 0);
         let k = full ? 1 : cur, hgt = size();
         for (let n = 0; n < 8 && hgt > room && k > floor; n++) { k = Math.max(floor, k * Math.min(0.97, (room / hgt) ** 0.9)); card.style.setProperty('--pz-fit', k.toFixed(3)); hgt = size(); }
       }

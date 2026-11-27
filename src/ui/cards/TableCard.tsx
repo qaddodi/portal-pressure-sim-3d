@@ -12,6 +12,9 @@ import { missWords, longestWord, twoLineWidest, colChars, gridOf, waveMaxH, past
 import { WaveCell } from './WaveCell.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
 import { chooseHeads, fitsStaggered, setHeads, groupRuns, showGroups, type HeadMode } from './table-heads.ts';
+import { pageSpan } from './pages.ts';
+import { reduced, fadeMs, D_SURFACE } from '../a11y/motion.ts';
+import { ARRIVE_CSS } from '../../clock/tween.ts';
 
 /** 2D's purpose-drawn arrow (styles `.pz-arr`): one arrow, two, or the level dash for a cell within normal. */
 export const Arrow = ({ n }: { n: number }) => {
@@ -56,7 +59,9 @@ export function headOver(t: HTMLElement): boolean {
   return r.getBoundingClientRect().width > room + 0.5;
 }
 
-export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
+/** `page` of `pages`: a table too tall at the 12 px floor shows its rows by whole rows (L2, owner 27 Nov);
+ *  the columns, the heads and the legend are the whole table's on every page, so a page turn moves only the rows. */
+export function TableCard({ deck, slide, page = 0, pages = 1 }: { deck: Deck; slide: Slide; page?: number; pages?: number }) {
   const spec = slide.table!;
   const key = `${deck.id}:${slide.id}`;
   const stored = useTables((s) => s.rows[key]);
@@ -67,6 +72,20 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   const model = useMemo(() => tableModel(spec, rows, (id) => fpOfSlide(deck, id)), [rows, spec, deck]);
   const showCut = (k: string, label: string, cutText?: string) => () => setCut({ label, text: cutText || (CUT as Record<string, string>)[k] || '' });
   const nc = model.cols.length, waveH = waveMaxH(model.rows.length);
+  // The rows on show: the whole table, or one page of it by whole rows (pages.ts pageSpan).
+  // Everything that sizes the table (its columns, its longest name, its Doppler's height, its class `long`) is read from ALL its rows below,
+  // so no page has a different grid from another and a page turn never moves a column.
+  const span = pageSpan(model.rows.length, pages, Math.max(0, Math.min(page, pages - 1)));
+  const shown = pages > 1 ? model.rows.slice(span.from, span.to) : model.rows;
+  const body = useRef<HTMLTableSectionElement>(null), turned = useRef(span.from);
+  // A page turned while the card is on screen fades its rows in on the arrive curve (nothing pops); before the card lands (the layer walks its pages out of sight) nothing is drawn.
+  useLayoutEffect(() => {
+    const was = turned.current;
+    turned.current = span.from;
+    const el = body.current;
+    if (was === span.from || !el || typeof el.animate !== 'function' || el.closest('.dk-pos')?.getAttribute('data-live') !== 'true') return;
+    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: fadeMs(D_SURFACE, reduced()), easing: ARRIVE_CSS });
+  }, [span.from]);
   const runs = useMemo(() => groupRuns(model.cols.map((c) => c.group)), [model.cols]), groups = showGroups(runs);
   // 2D fitHeads (presenter.js): where the column heads are too wide for their columns (a phone, many columns) they stand upright (`tr.th-up`), and the name's column takes the room they give back.
   // Judged by measuring, with the upright style off, whenever the table's width or its columns change (the heads are set once, so no frame ever shows a clipped head).
@@ -114,7 +133,7 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
     fonts?.addEventListener?.('loadingdone', again);
     const off = observeThenFit([box], fit);   // (the pass writes `dk-up` on the box it observes: never inside the observer's own delivery)
     return () => { alive = false; fonts?.removeEventListener?.('loadingdone', again); off(); };
-  }, [colKey]);
+  }, [colKey, span.from, span.to]);
   // (a Doppler column is wider than a pressure's: the grid's columns follow what each holds)
   // (the name's column takes what the value columns leave: fewer columns, a wider name; the site stands over its rows as a heading row on a phone, so a name has its column to itself)
   // (and never narrower than the longest word a name holds, which cannot break: "Schistosomiasis" ran under the next column's arrows, capture 4fb2f869)
@@ -142,8 +161,9 @@ export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
             ))}
           </tr>
         </thead>
-        <tbody>
-          {model.rows.map((r, n) => {
+        <tbody ref={body}>
+          {shown.map((r, k) => {
+            const n = (pages > 1 ? span.from : 0) + k;
             const go = r.i >= 0 ? () => useUi.getState().go(r.i) : undefined;
             return (
               <Fragment key={`${r.key}:${n}`}>
