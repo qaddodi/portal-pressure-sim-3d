@@ -102,7 +102,7 @@
               true
             ],
             [
-              ": opens the Tests card with tabs for Pressure, IR, Doppler, Scope, Ascites, Fibro, Readouts and Trials, the measurements you can take on this patient.",
+              ": opens the Tests card with tabs for Pressure, IR, Doppler, Endoscopy, Ascites, FibroScan, Readouts and Trials, the measurements you can take on this patient.",
               false
             ]
           ],
