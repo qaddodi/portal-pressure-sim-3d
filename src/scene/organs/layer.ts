@@ -340,8 +340,8 @@ export class OrganLayer {
     // (all off first, then the one on: two rules may share an occluder)
     for (const p of this.reveals.values()) { for (const m of p.meshes) gate(m, 0); for (const t of p.occluders) { t.uniforms.frvOcc!.value = 0; setOccluderGate(t, false); } }
     const p = id ? this.reveals.get(id) : undefined;
-    // (the passes are drawn while the strength, which the scene eases, is above nothing: scene/gate.ts, not a boolean)
-    if (p) { for (const m of p.meshes) gate(m, FOCUS_REVEAL_U.frvP.value.x, 0); for (const t of p.occluders) { t.uniforms.frvOcc!.value = 1; setOccluderGate(t, true); } }
+    // (a rule is on: its passes are in the draw list, and what they lay is weighted by the strength the scene eases, frvP.x, so nothing pops; scene/gate.ts is the one place a draw flag is set)
+    if (p) { for (const m of p.meshes) gate(m, 1); for (const t of p.occluders) { t.uniforms.frvOcc!.value = 1; setOccluderGate(t, true); } }
   }
   get focusRevealOn(): string | null { return this.revealOn; }
   /** The canvas's pixel ratio (the drawing buffer's, which Settings > Figure detail caps: 1.5 on a 2x screen), so the outline's one-pixel feather and floor are one pixel of the buffer drawn, not of the screen. */
