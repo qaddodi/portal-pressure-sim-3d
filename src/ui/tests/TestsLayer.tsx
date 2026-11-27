@@ -18,6 +18,9 @@ import { TABS, PANE_ORDER, tabOf, shortName, tinyName, PANES, type PaneId } from
 import { testsPlace, sideVars, HEAD_H, PEEK_H } from './place.ts';
 import { fitPlace } from './pane-need.ts';
 import { useTestsRoom } from './room.ts';
+import { publishPanel } from '../surface/room.ts';
+import { closeMenu, useColumnStep } from '../surface/wire.ts';
+import { steppedPlace } from '../surface/panel-place.ts';
 import { TAB_ICONS } from './copied/dock-words.copied.js';
 import { CompareLine } from './CompareLine.tsx';
 import { ReadoutsPane } from './ReadoutsPane.tsx';
@@ -25,7 +28,6 @@ import { AbdomenPane } from './abdomen/AbdomenPane.tsx';
 import { PressureTab } from './trace/PressureTab.tsx';
 import { startFeed } from './feed.ts';
 import { notYet } from '../shell/words.ts';
-import { useShell } from '../shell/store.ts';
 import { probeSelected, handOverStent } from './from-orders.ts';
 import { useThumb } from '../shell/thumb.ts';
 import { need, needAll, LOADERS } from './dock/lazy.ts';
@@ -104,10 +106,14 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   // (the open pane's least content: Half grows to hold it, and the pane's optional note steps aside
   //  where even that cannot, pane-need.ts; judged against the sheet as the screen gives it, then placed again)
   const organ = useTests((s) => s.fibro);
-  const { place, noteAside, scrollMin } = useMemo(
+  const fitted = useMemo(
     () => fitPlace(vp, device, { widthPx, heightRatio, sheetSize, focus }, pane, organ),
     [vp, device, widthPx, heightRatio, sheetSize, focus, caseUp, pane, organ],
   );
+  // (in the right column the card stands left of every panel opened before it, one gap apart, and glides there by its own transform: surface/wire.ts useColumnStep)
+  const step = useColumnStep('tests');
+  const place = useMemo(() => steppedPlace(fitted.place, step), [fitted.place, step]);
+  const { noteAside, scrollMin } = fitted;
   const narrow = place.rect.w < 470;
   const layout = layoutOf(vp.w, vp.h);
   const roles = cardScale({ vw: vp.w, vh: vp.h, layout, part: 'data' });
@@ -141,7 +147,8 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   useEffect(() => registerFeature('tests', () => useTests.getState().toggle()), []);
   // the card buttons that open an instrument: Doppler, Endoscope, FibroScan (a liver or spleen card), and "Test TIPS in IR" (the stent's card)
   useEffect(() => {
-    const show = (id: PaneId) => () => { useShell.getState().close(); useTests.getState().show(id); };
+    // (a menu goes; a panel beside the card stays, the slot table's: surface/wire.ts)
+    const show = (id: PaneId) => () => { closeMenu(); useTests.getState().show(id); };
     const offs = [registerFeature('doppler', () => { probeSelected(); show('doppler')(); }), registerFeature('endoscopy', show('endoscopy')), registerFeature('fibroscan', show('fibroscan')), registerFeature('ir', () => { handOverStent(); show('hvpg')(); })];
     return () => offs.forEach((f) => f());
   }, []);
@@ -149,8 +156,11 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   useEffect(() => { if (open) posRef.current?.removeAttribute('data-swiped'); }, [open]);
   // the figure keeps the room the card leaves
   useEffect(() => {
-    useTestsRoom.setState({ place: open && !away ? place : null });
-    return () => useTestsRoom.setState({ place: null });
+    const up = open && !away;
+    useTestsRoom.setState({ place: up ? place : null });
+    // (its box in the one room channel: the figure's room, the names' walls and the zoom pill's reach read it, surface/room.ts)
+    publishPanel('tests', up ? { rect: place.rect, side: place.kind === 'side' ? 'right' : 'foot', fills: place.focus } : null);
+    return () => { useTestsRoom.setState({ place: null }); publishPanel('tests', null); };
   }, [open, away, place]);
   // a sideways phone's play bar ends at the card (2D putWidth: --side-ws-w on .app)
   useEffect(() => {

@@ -33,8 +33,8 @@ import { showView } from './view-actions.ts';
 import { useBlood } from '../../scene/blood/options.ts';
 import { useLabels } from '../../scene/labels/store.ts';
 import { useTestsRoom } from '../tests/room.ts';
-import { useActionRoom, roomAbove } from '../action/action-room.ts';
-import { panRoom, probeShift } from '../tests/place.ts';
+import { useActionRoom } from '../action/action-room.ts';
+import { probeShift } from '../tests/place.ts';
 import { useProbes } from '../../scene/devices/probes/state.ts';
 import { TestsLayer } from '../tests/TestsLayer.tsx';
 import { useTestsAppClasses } from '../tests/dock/app-classes.ts';
@@ -46,7 +46,7 @@ import { startActions } from '../action/boot.ts';
 import { useTalkOn } from '../../state/deck.ts';
 import { useCase } from '../case/store.ts';
 import { caseBarUp, caseLift, useCaseRoom } from '../case/room.ts';
-import { sheetRoom, useHistoryRoom } from '../history/room.ts';
+import { boxesOf, figureRoom, panelReach, usePanelRoom } from '../surface/room.ts';
 import { lazyRetry } from '../../boot/lazy-retry.ts';
 
 import { clock } from '../../clock/frame.ts';
@@ -72,17 +72,18 @@ function useFreeCamera() {
   const refit = useShell((s) => s.refit);
   const vp = useUi((s) => s.vp);
   const thumb = useThumb();
-  const testsPlace = useTestsRoom((s) => s.place);   // (the Tests card takes room from the figure)
+  const testsPlace = useTestsRoom((s) => s.place);   // (the Tests card's place: the probe's shift below reads it)
   const actionH = useActionRoom((s) => s.h);   // (an action card over the bottom of the figure takes its height from the room)
-  // (a case's bar makes the foot taller, its stop card takes room as the Tests card does: case/room.ts)
+  // (a case's bar makes the foot taller, its stop card takes room as a panel does: case/room.ts)
   const caseUp = useCase((s) => caseBarUp(s.phase)), caseCut = useCaseRoom((s) => s.cut);
-  const panel = useHistoryRoom((s) => s.rect);   // (History's panel beside the figure takes room too: history/room.ts)
+  // (every open panel's box, from the one room channel: the figure's room is the screen less all of them, surface/room.ts)
+  const panels = usePanelRoom((s) => s.boxes);
   const entered = useRef(false);
   // The figure pans, never zooms, under the Tests card (place.ts panRoom); `bias` is the extra shift that brings the probe now up (the Doppler's gate, the FibroScan's tip) into the free part
   const bias = useRef({ x: 0, y: 0 });
   const probe = useProbes((s) => `${s.doppler.on ? `${s.doppler.edge}|${s.doppler.seg}` : ''}/${s.fibro.on ? s.fibro.organ : ''}`);
   const roomNow = () => {
-    const base = viewRoom(useShell.getState().view, vp, layoutClass(thumb)), r = roomAbove(panRoom(sheetRoom(base, caseCut, panel), testsPlace), actionH), b = bias.current;
+    const base = viewRoom(useShell.getState().view, vp, layoutClass(thumb)), r = figureRoom(base, boxesOf(panels), caseCut, actionH), b = bias.current;
     return { base, room: { x: r.x + b.x, y: r.y + b.y, w: r.w, h: r.h } };
   };
   const lastScreen = useRef('');
@@ -95,7 +96,7 @@ function useFreeCamera() {
     const screen = `${vp.w}x${vp.h}:${thumb}`, refit = screen !== lastScreen.current; lastScreen.current = screen;
     if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room, undefined, false, refit);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, vp, thumb, testsPlace, actionH, caseUp, caseCut, panel]);
+  }, [mode, vp, thumb, testsPlace, actionH, caseUp, caseCut, panels]);
   useEffect(() => {
     if (mode !== 'free' || vp.w <= 0 || !entered.current) return;
     // once the probe has landed (it waits for the camera and fades in), move the figure so the probe stands in the middle of what the card leaves
@@ -119,6 +120,9 @@ function usePublishedLayout(app: React.RefObject<HTMLDivElement | null>, thumb: 
   const vp = useUi((s) => s.vp);
   const cardH = useActionRoom((s) => s.h);   // (a docked action card's height above the view pill's slot, 0 with none: its own resize observer, ActionCard.tsx)
   const caseUp = useCase((s) => caseBarUp(s.phase));   // (the case bar makes the foot taller: room.ts dockHeight reads it)
+  // (the farthest open right-hand panel's reach from the screen's right edge: the zoom pill steps aside by it, one rule for every panel, shell.css)
+  const reach = usePanelRoom((s) => panelReach(vp.w, boxesOf(s.boxes)));
+  useLayoutEffect(() => { app.current?.style.setProperty('--panel-reach', `${reach}px`); }, [app, reach]);
   useLayoutEffect(() => {
     const el = app.current;
     if (!el || vp.w <= 0) return;

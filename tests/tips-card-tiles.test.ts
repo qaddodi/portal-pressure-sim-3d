@@ -42,14 +42,15 @@ test('the reserved figure height is the card figure\'s own: 20 + hvH + 13 + 8 = 
   assert.match(readFileSync(new URL('../src/ui/action/stent/StentPanel.tsx', import.meta.url), 'utf8'), /chart: false, card: true/);
 });
 test('an open action card sheet takes its height off the figure\'s room, so the camera frames the stent above it', async () => {
-  const { roomAbove, takenBy } = await import('../src/ui/action/action-room-math.ts');
+  const { roomAbove, takenBy } = await import('../src/ui/action/action-room.ts');
   const room = { x: 0, y: 100, w: 390, h: 600 };
   assert.deepEqual(roomAbove(room, 0), room, 'no card, no change');
   assert.equal(roomAbove(room, 300).h, 600 - (300 + 12 - 8 + 6), 'the card\'s height, its gap over the dock (12) less the pill slot\'s 8 px, and a 6 px breath');
   assert.equal(takenBy(1000, room), 330, 'a tall card never takes more than 55 % of the room');
   const shell = readFileSync(new URL('../src/ui/shell/Shell.tsx', import.meta.url), 'utf8');
-  // (a playing case's card takes its room first, case/room.ts caseRoom)
-  assert.match(shell, /roomAbove\(panRoom\(caseRoom\(base, caseCut\), testsPlace\), actionH\)/);
+  // (the one room function: the case's cards and every panel first, then the docked card's share of the foot, surface/room.ts figureRoom)
+  assert.match(shell, /figureRoom\(base, boxesOf\(panels\), caseCut, actionH\)/);
+  assert.match(readFileSync(new URL('../src/ui/surface/room.ts', import.meta.url), 'utf8'), /return roomAbove\(\{ x: f\.x \+ f\.w \/ 2 - room\.w \/ 2, y: f\.y \+ f\.h \/ 2 - room\.h \/ 2, w: room\.w, h: room\.h \}, actionH\);/);
 });
 
 test('the bracket row eases the card figure\'s height and slides the picture with it, and the readings sit above it', () => {
@@ -98,7 +99,7 @@ test('an open action card stands over the view pill\'s slot and the pill fades o
 });
 
 test('a phone held sideways fits the vessel card under the top bar: the sheet\'s height is what the bars leave, and its figure steps aside', async () => {
-  const { cardMaxHeight } = await import('../src/ui/action/action-room-math.ts');
+  const { cardMaxHeight } = await import('../src/ui/action/action-room.ts');
   assert.equal(cardMaxHeight(390, 0, 48, 0, 125), 211, '844 x 390: 211 px between the top bar and the sheet\'s foot, 12 px over the dock');
   assert.equal(cardMaxHeight(375, 0, 48, 0, 125), 196);
   assert.equal(cardMaxHeight(844, 0, 50, 0, 125), 663);

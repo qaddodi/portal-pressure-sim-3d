@@ -10,8 +10,11 @@ import { useUi } from '../ui-store.ts';
 import { useTestsRoom } from '../tests/room.ts';
 import { useCase } from '../case/store.ts';
 import { caseBarUp, useCaseRoom } from '../case/room.ts';
-import { useHistoryRoom } from '../history/room.ts';
+import { usePanelRoom } from '../surface/room.ts';
 import { layoutClass } from './room.ts';
+
+/** The open panels' boxes but the Tests card's (which the names read by its place). */
+const otherPanels = () => Object.entries(usePanelRoom.getState().boxes).flatMap(([id, b]) => (id !== 'tests' && b ? [b.rect] : []));
 
 export function useChromeClaims(thumb: boolean): void {
   useEffect(() => {
@@ -22,7 +25,8 @@ export function useChromeClaims(thumb: boolean): void {
       chromeClaims.set([
         ...chromeBoxes({
           vp: useUi.getState().vp, d, caseUp: caseBarUp(useCase.getState().phase), cut: c.cut, cardH: c.cardH,
-          tests: useTestsRoom.getState().place, panel: useHistoryRoom.getState().rect,
+          // (every open panel is a wall: the Tests card by its place, the rest by the boxes they publish to the one room channel)
+          tests: useTestsRoom.getState().place, panels: otherPanels(),
         }),
         ...walls,
       ]);
@@ -39,7 +43,7 @@ export function useChromeClaims(thumb: boolean): void {
       useCase.subscribe((s, p) => { if (s.phase !== p.phase) both(); }),
       useCaseRoom.subscribe(both),
       useTestsRoom.subscribe(both),
-      useHistoryRoom.subscribe(both),
+      usePanelRoom.subscribe(both),
     ];
     return () => { clock.cancel(timer); removeEventListener('resize', later); keyMo.disconnect(); for (const o of offs) o(); chromeClaims.set([]); };
   }, [thumb]);
