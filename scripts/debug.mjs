@@ -82,7 +82,7 @@ async function showLimits() {
   return 0;
 }
 async function showFlags() {
-  const { knownFlags } = await import('../src/ui/debug/flags.ts');
+  const { knownFlags } = await import('../src/ui/debug/flag-meanings.ts');
   const list = knownFlags();
   if (has('--json')) { console.log(JSON.stringify(list, null, 1)); return 0; }
   console.log('flag'.padEnd(16), 'gate'.padEnd(8), 'group'.padEnd(10), 'meaning');

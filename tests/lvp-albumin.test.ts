@@ -99,9 +99,12 @@ test('every deck that drains the belly: a "large-volume" tap takes off more than
       assert.ok(drained > 0.5, `${where}: the model drained ${drained} L`);
       if (/large-volume|\bLVP\b/i.test(`${slide.kicker} ${slide.title}`)) assert.ok(drained > LVP_OVER_L, `${where} is called large-volume but the model takes off ${drained.toFixed(2)} L`);
       for (const g of dosesIn(t)) {
-        // (the words may round the litres they name: "a 6 L paracentesis" for the 5.9 L the model takes off; within 0.15 L)
-        const fits = [-0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15].some((e) => lvpAlbuminText(drained + e) === g);
-        assert.ok(fits, `${where}: "${g}" is not 6 to 8 g per liter of the ${drained.toFixed(2)} L the model takes off (${lvpAlbuminText(drained) ?? 'optional'})`);
+        // A dose is the rule for the litres the slide's words name ("about 6 L"; the words round, so those litres are within half a litre of what the model takes off), or for
+        // the litres the model takes off (within 0.15 L: the card prints one decimal). Never for an engine reading copied into the words: that goes stale when the engine settles elsewhere.
+        const named = [...t.matchAll(/(\d+(?:\.\d+)?) L\b/g)].map((m) => Number(m[1])).filter((L) => L > LVP_OVER_L);
+        const byWords = named.some((L) => lvpAlbuminText(L) === g && Math.abs(L - drained) <= 0.5);
+        const byModel = [-0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15].some((e) => lvpAlbuminText(drained + e) === g);
+        assert.ok(byWords || byModel, `${where}: "${g}" is not 6 to 8 g per liter of the litres the words name (${named.join(', ') || 'none'}) or of the ${drained.toFixed(2)} L the model takes off (${lvpAlbuminText(drained) ?? 'optional'})`);
       }
     }
   }

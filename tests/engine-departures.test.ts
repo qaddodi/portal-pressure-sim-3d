@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { departures, hpNumbers, type HpRow } from './engine-departures.ts';
+import { departures, hpNumbers, advancedNumbers, advancedRecord, advancedKey, type HpRow, type AdvancedFx } from './engine-departures.ts';
 
 const json = (u: string) => JSON.parse(readFileSync(new URL(u, import.meta.url), 'utf8'));
 const fx = (f: string) => json(`./fixtures/${f}`);
@@ -20,8 +20,8 @@ test('the departures were recorded at the engine the app now runs: a pin move re
 
 test('every departure record has its generator in the one command, and every generator writes a record the tests read', () => {
   const all = readFileSync(new URL('../scripts/gen-engine-departures.mjs', import.meta.url), 'utf8');
-  const family = readdirSync(new URL('./fixtures/', import.meta.url)).filter((f) => /^(rw-numbers|decks-hp-numbers|deck-numbers-ag)-3d\.json$/.test(f));
-  assert.deepEqual(family.sort(), ['deck-numbers-ag-3d.json', 'decks-hp-numbers-3d.json', 'rw-numbers-3d.json'], 'the 2D-parity families');
+  const family = readdirSync(new URL('./fixtures/', import.meta.url)).filter((f) => /^(rw-numbers|decks-hp-numbers|deck-numbers-ag|advanced-numbers)-3d\.json$/.test(f));
+  assert.deepEqual(family.sort(), ['advanced-numbers-3d.json', 'deck-numbers-ag-3d.json', 'decks-hp-numbers-3d.json', 'rw-numbers-3d.json'], 'the 2D-parity families');
   for (const f of family) {
     const gen = readdirSync(new URL('../scripts/', import.meta.url)).filter((s) => /^gen-.*-3d\.mjs$/.test(s) && readFileSync(new URL(`../scripts/${s}`, import.meta.url), 'utf8').includes(`tests/fixtures/${f}`));
     assert.equal(gen.length, 1, `${f} is written by exactly one generator`);
@@ -55,7 +55,25 @@ test('a record holds only what departs: every deck in it is a deck of the 2D fix
   }
 });
 
+test('the Advanced physiology table: a recorded row is a row of the 2D table that moved, by a small shift (a model change is not a recording job), and the loader reads it', () => {
+  const two = fx('advanced-2d.json') as AdvancedFx, rec = advancedRecord(), mine = advancedNumbers();
+  const keys = Object.keys(two.base);
+  const small = (a: Record<string, number>, b: Record<string, number>, where: string) => {
+    assert.ok(keys.some((k) => a[k] !== b[k]), `${where}: recorded but no reading moved: delete it, the 2D numbers are the truth`);
+    for (const k of keys) assert.ok(Math.abs(a[k]! - b[k]!) <= Math.max(0.1 * Math.abs(b[k]!), 0.05), `${where} ${k}: ${b[k]} became ${a[k]}, over a 10% shift: a model change to look at, not to record`);
+  };
+  if (rec.base) small(rec.base, two.base, 'base');
+  assert.deepEqual(mine.base, rec.base ?? two.base);
+  const ids = new Set(two.cases.map(advancedKey));
+  for (const k of Object.keys(rec.cases)) assert.ok(ids.has(k), `${k} is a case of the 2D table`);
+  for (const c of two.cases) {
+    const r = rec.cases[advancedKey(c)];
+    if (r) small(r, c.readings, advancedKey(c));
+    assert.deepEqual(mine.cases.find((m) => advancedKey(m) === advancedKey(c))!.readings, r ?? c.readings);
+  }
+});
+
 test('no departure record is hand-kept: each says where it comes from, and the pin file says when', () => {
-  for (const f of ['rw-numbers-3d.json', 'decks-hp-numbers-3d.json', 'deck-numbers-ag-3d.json']) assert.match(fx(f).note as string, /scripts\/gen-[a-z-]+-3d\.mjs/, f);
+  for (const f of ['rw-numbers-3d.json', 'decks-hp-numbers-3d.json', 'deck-numbers-ag-3d.json', 'advanced-numbers-3d.json']) assert.match(fx(f).note as string, /scripts\/gen-[a-z-]+-3d\.mjs/, f);
   assert.ok(existsSync(new URL('./fixtures/departures-pin.json', import.meta.url)));
 });

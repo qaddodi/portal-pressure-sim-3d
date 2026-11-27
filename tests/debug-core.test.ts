@@ -7,7 +7,8 @@ import { buildRun as buildRunJs, renderRun, parseReport, validateRun, compareRun
 import { finding as findingJs } from '../src/ui/debug/core/finding.copied.js';
 import { buildPacket, packetText, parsePacket } from '../src/ui/debug/core/packet.copied.js';
 import { shortReport, fitMailto } from '../src/ui/debug/core/short.copied.js';
-import { FLAGS, flagOn, flagValue, debugPage, knownFlags } from '../src/ui/debug/flags.ts';
+import { FLAGS, flagOn, flagValue, debugPage } from '../src/ui/debug/flags.ts';
+import { knownFlags } from '../src/ui/debug/flag-meanings.ts';
 import { isPreview } from '../src/ui/debug/gate.ts';
 import { LIMITS, WORDS_MIN_PX, TITLE_RATIO } from '../src/ui/debug/limits.ts';
 

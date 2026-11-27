@@ -18,3 +18,13 @@ export const departures = (threeD: string): Record<string, unknown> => read(thre
 /** The H-to-P decks' numbers the way tests/decks-hp-numbers.test.ts reads them: 2D's, with the departed decks' rows from this engine. */
 export type HpRow = { id: string; fp: Record<string, number>; tokens: [string, string][] };
 export const hpNumbers = (): Record<string, HpRow[]> => withDepartures('decks-hp-numbers.json', 'decks-hp-numbers-3d.json');
+
+/** The Advanced physiology table the way tests/advanced.test.ts reads it: the 2D app's rows (the slice patient's base and each control at each end), the departed rows from this engine. */
+export type AdvancedFx = { preset: string; base: Record<string, number>; cases: { id: string; value: number | boolean; readings: Record<string, number> }[]; formats: Record<string, [number, string][]> };
+export type AdvancedRecord = { base: Record<string, number> | null; cases: Record<string, Record<string, number>> };
+export const advancedKey = (c: { id: string; value: number | boolean }): string => `${c.id}=${c.value}`;
+export const advancedRecord = (): AdvancedRecord => JSON.parse(readFileSync(new URL('./fixtures/advanced-numbers-3d.json', import.meta.url), 'utf8')) as AdvancedRecord;
+export function advancedNumbers(): AdvancedFx {
+  const fx = JSON.parse(readFileSync(new URL('./fixtures/advanced-2d.json', import.meta.url), 'utf8')) as AdvancedFx, rec = advancedRecord();
+  return { ...fx, base: rec.base ?? fx.base, cases: fx.cases.map((c) => ({ ...c, readings: rec.cases[advancedKey(c)] ?? c.readings })) };
+}

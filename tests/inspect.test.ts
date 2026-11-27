@@ -13,7 +13,8 @@ import { fullRoom } from '../src/scene/camera/room.ts';
 import { ORBIT_LIMIT } from '../src/scene/camera/shots.ts';
 import { createGestures, type GestureEnv, type GestureHost } from '../src/scene/gesture/controller.ts';
 import { PRESETS, VIEWS, defaultState, stateText, wrapDeg } from '../src/ui/debug/inspect/state.ts';
-import { flagOn, inspectRequested, knownFlags } from '../src/ui/debug/flags.ts';
+import { flagOn, inspectRequested } from '../src/ui/debug/flags.ts';
+import { knownFlags } from '../src/ui/debug/flag-meanings.ts';
 import { rawPrograms } from '../src/debug/gl-registry.ts';
 import { SKIN_DIAGNOSTICS } from '../src/scene/vessels/skin/skin-object.ts';
 

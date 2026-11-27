@@ -25,7 +25,7 @@ export async function tables() {
   await import('../src/ui/debug/selfcheck/plugins.ts');
   const { ruleList } = await import('../src/ui/debug/core/rules.copied.js');
   const { LIMITS } = await import('../src/ui/debug/limits.ts');
-  const { knownFlags } = await import('../src/ui/debug/flags.ts');
+  const { knownFlags } = await import('../src/ui/debug/flag-meanings.ts');
   const rules = ruleList(), used = new Set();
   const out = [];
   const table = (title, list) => out.push(`**${title}** (${list.length})`, '', '| Rule | Looks at | Why | Owner file |', '|---|---|---|---|', ...list.map((r) => `| \`${r.id}\` | ${r.kind === 'series' ? 'the last seconds of motion' : 'the screen now'} | ${cell(r.why)} | \`${r.owner}\` |`), '');

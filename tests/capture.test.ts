@@ -221,7 +221,7 @@ test('Capture draws what the page draws: the glass blur, the pills\' pseudo-elem
 
 test('Capture all decks waits on arrivals only (not the audit\'s every-animation check) and takes both words of a blocked catheter', () => {
   const all = pipeline();
-  assert.ok(!/(?<![-\w])settle\b/.test(all.replace(/\/\/.*$/gm, '')), 'the audit settle counts every running animation: a perpetual one kept each picture waiting five seconds');
+  assert.ok(!/(?<![-\w/.])settle(?![-\w])/.test(all.replace(/\/\/.*$/gm, '')), 'the audit settle (the identifier, not a file named settle-*.ts) counts every running animation: a perpetual one kept each picture waiting five seconds');
   assert.match(all, /function arriving\(/); assert.match(all, /endTime\) > 2500/, 'a long or endless animation is not a slide settling');
   assert.match(all, /cel\.rig\.isMoving/); assert.match(all, /data-phase="out"/);
   assert.match(all, /BLOCKED_SAYS\.first/); assert.match(all, /BLOCKED_SAYS\.then/); assert.match(all, /blockedThen\(\)/, 'Occluded and then No reading are two pictures');

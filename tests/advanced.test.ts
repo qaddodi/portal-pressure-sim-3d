@@ -3,35 +3,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { defaultParams } from '../src/engine/hales/portal/scenario.js';
 import { ADV_ACTS, ADV_CONTROLS, ADV_SECTIONS, advChanged, advGet, advLabel, advSet, normalBand, type AdvSlider } from '../src/ui/settings/advanced.ts';
 import { actionLabel } from '../src/ui/action/send.ts';
 
-interface Case { id: string; value: number | boolean; readings: Record<string, number> }
-const fx = JSON.parse(readFileSync('tests/fixtures/advanced-2d.json', 'utf8')) as { preset: string; base: Record<string, number>; cases: Case[]; formats: Record<string, [number, string][]> };
-const KEYS = Object.keys(fx.base);
+import { runAdvanced } from './advanced-run.ts';
+import { advancedNumbers } from './engine-departures.ts';
 
-/** The generator's own sequence: one engine, the patient loaded once; each case is the patient's settings with one control moved, settled, read. */
-async function run(edits: ((p: unknown) => void)[]): Promise<Record<string, number>[]> {
-  const got: { type: string; reqId?: number; params?: unknown; result?: Record<string, number> }[] = [];
-  const core = createCore((m: never) => got.push(m));
-  await core.handle({ type: 'init' });
-  await core.handle({ type: 'run', running: false });
-  await core.handle({ type: 'preset', id: fx.preset, reqId: 1 });
-  const base = got.find((m) => m.type === 'presetLoaded')!.params;
-  const out: Record<string, number>[] = [];
-  for (const [i, edit] of edits.entries()) {
-    const params = structuredClone(base);
-    edit(params);
-    await core.handle({ type: 'setParams', params, settle: true });
-    await core.handle({ type: 'metrics', reqId: 10 + i });
-    const r = got.find((m) => m.type === 'metrics' && m.reqId === 10 + i)!.result!;
-    out.push(Object.fromEntries(KEYS.map((k) => [k, Math.round(r[k] * 1000) / 1000])));
-  }
-  core.dispose();
-  return out;
-}
+// 2D's readings, with the rows where this engine has moved on from them taken from the engine (tests/engine-departures.ts, `npm run gen:departures`)
+const fx = advancedNumbers();
+const KEYS = Object.keys(fx.base);
+const run = (edits: ((p: unknown) => void)[]) => runAdvanced(fx.preset, KEYS, edits);
 
 test('the panel is the 2D one: four sections in its order, its eleven controls, its three buttons', () => {
   assert.deepEqual(ADV_SECTIONS.map((s) => s.title), ['Inflow and vascular tone', 'Hepatic circulation', 'Anatomical variants', 'Simulation']);
@@ -70,7 +52,7 @@ test('a control reads the default patient as 2D does, and writes one leaf of the
   assert.match(normalBand(ADV_CONTROLS.splanchnicTone as AdvSlider)!.left, /^calc\(var\(--tw\) \/ 2 \+ \(100% - var\(--tw\)\) \* 0\.21/);
 });
 
-test('the engine\'s numbers after each control is moved equal the 2D app\'s', async () => {
+test('the engine\'s numbers after each control is moved equal the recorded ones (the 2D app\'s, except where this engine has moved on)', async () => {
   assert.equal(fx.cases.length, 22);
   const got = await run([() => {}, ...fx.cases.map((c) => (p: unknown) => advSet(ADV_CONTROLS[c.id], p, c.value))]);
   assert.deepEqual(got[0], fx.base);
