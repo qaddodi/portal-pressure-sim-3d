@@ -4,7 +4,7 @@
 import { Group, Vector3 } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import type { Palette } from '../palette.ts';
-import { TIER_Z, x3, y3 } from '../frame2d.ts';
+import { TIER_Z, x3, y3, UNITS_PER_SCENE } from '../frame2d.ts';
 import { DeviceObject } from './device-object.ts';
 import { inVesselPass } from '../layers.ts';
 import { WIRE_SIDES, allocTube, makeRings, writeRings } from './tube-rings.ts';
@@ -14,7 +14,7 @@ import { scopeZ, wayReady, wayShift } from './probes/scope.ts';
 import type { BufferGeometry } from 'three';
 
 export const BANDS_MAX = 4;   // the engine's cap (engine.band)
-const U = 300;
+const U = UNITS_PER_SCENE;
 const N = 14;
 
 export class Bands {
