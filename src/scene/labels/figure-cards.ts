@@ -15,16 +15,17 @@ import { makeTag, words, fade, place, size, show, painted, TagLead, type Tag } f
 import { boxLeader, leaderToEdge, leaderShort, LEAD_AIR } from './tag-lead.ts';
 import { restyle } from './roll.ts';
 import { LS, RING_STROKE, type Vp } from './type.ts';
-import { stationById, curveOf, nodeAt, ORGAN_FRONT } from './stations.ts';
+import { stationById, curveOf, nodeAt } from './stations.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { x3, y3, UNITS_PER_SCENE } from '../frame2d.ts';
 import { scopeClaims, clearParam } from './scope-claims.ts';
 import { RING, BADGE_R } from '../disease/copied/scope-lens-rule.js';
+import { RING_REST } from '../disease/scope-ring.ts';
 import { spanOf, spanStrokes } from './span-math.ts';
 import { TIP_FADE_2D } from '../vessels/fades.copied.ts';
 
 /** Where a card points: a vessel's middle, a station, a point of the 2D plate (organs, the spleen's ends), or a node of the 2D figure. */
-export type Anchor = { edge: string } | { edges: readonly string[] } | { station: string } | { at2d: readonly [number, number]; z?: number } | { node: string } | { lobule: string };
+export type Anchor = { edge: string } | { edges: readonly string[] } | { station: string } | { at2d: readonly [number, number]; /** the depth it stands at, scene units: a point of the 2D figure has none (organs/organ-front.ts: the organ's own; the tear's: stream-fit.ts) */ z: number } | { node: string } | { lobule: string };
 
 /** A bracket on the Circuit between two stations (a slide's `span`): its words, as printed, standing under its middle. */
 export interface FigSpan { id: string; from: string; to: string; text: string }
@@ -334,7 +335,7 @@ export interface CardDeps {
 
 /** The point along a varix column (0..1) that stands clear of the scope ring and its badge: the middle when it is clear already (the calipers' rule, one for every mark and ruler on the varices). */
 export function clearOfRing(curve: { getPointAt(u: number, out: Vector3): Vector3 }, scratch: Vector3): number {
-  return clearParam((u, o) => { curve.getPointAt(u, scratch); o.x = scratch.x; o.y = scratch.y; }, { x: x3(RING.x), y: y3(RING.y) }, (RING.r + BADGE_R + 4) / UNITS_PER_SCENE, 0.5);
+  return clearParam((u, o) => { curve.getPointAt(u, scratch); o.x = scratch.x; o.y = scratch.y; }, { x: x3(RING_REST.x), y: y3(RING_REST.y) }, (RING.r + BADGE_R + 4) / UNITS_PER_SCENE, 0.5);
 }
 
 /** Where along a vessel a step's number points (2D stage-label-solve.js: arcMid at 0.5, and for a vein that fades in from its start (TIP_FADE over half its length) the middle of its solid
@@ -351,7 +352,7 @@ export function anchorPoint(a: Anchor, out: Vector3, lobule?: CardDeps['lobule']
     return n ? out.set(sum.x / n, sum.y / n, sum.z / n) : null;
   }
   if ('station' in a) { const s = stationById(a.station); return s ? s.at(0.5, out) : null; }
-  if ('at2d' in a) return out.set(x3(a.at2d[0]), y3(a.at2d[1]), a.z ?? ORGAN_FRONT);
+  if ('at2d' in a) return out.set(x3(a.at2d[0]), y3(a.at2d[1]), a.z);
   // (a node: where the figure draws it now, the approved placement's node when it is on (stations.ts nodeAt). Read from the 2D figure, a slide's card pointed where today's figure had the node,
   //  off the drawn placed anatomy: Circulation deck, 24 Nov)
   try { const p = nodeAt(a.node); return out.set(p[0], p[1], p[2]); } catch { return null; }
