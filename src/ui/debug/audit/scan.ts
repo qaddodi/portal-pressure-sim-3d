@@ -3,7 +3,9 @@
 import { srOnlyStyle } from '../sr-only.ts';
 import { readMetric } from '../../layout-snap.ts';
 import type { Box } from './judge.ts';
-import { lineBoxes, turnedQuad, quadPoints, GLYPH_INSET } from './scan-judge.ts';
+import { contrast } from '../contrast.ts';
+import { CONTRAST_TEXT } from '../limits.ts';
+import { lineBoxes, turnedQuad, quadPoints, pictureUnder as pictureStands, GLYPH_INSET } from './scan-judge.ts';
 
 export interface ScanItem {
   kind: 'text' | 'svg' | 'canvas' | 'img' | 'control';
@@ -141,6 +143,14 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
   let capped = false, texts = 0, media = 0;
   const holders: { el: Element; item: ScanItem }[] = [];
 
+  /** Whether words in this colour on this background are under the text ratio (cheap: asked before the page is asked what is under them). */
+  const lowOn = (fg: string, bg: string): boolean => { try { return contrast(fg, bg) < CONTRAST_TEXT; } catch { return false; } };
+  /** Whether a canvas, picture, video or svg stands at the middle of these words besides the words' own element.
+   *  (Words with `pointer-events: none` over a spectrum are not in the stack: what is in it is what is under them.) */
+  const pictureUnder = (el: Element, r: DOMRect): boolean => {
+    return pictureStands(doc.elementsFromPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2), el);
+  };
+
   // ── text: every non-blank run of words ──
   const walker = doc.createTreeWalker(doc.body, 4 /* SHOW_TEXT */);
   const range = doc.createRange();
@@ -162,7 +172,11 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     let scale = 1;
     if (p instanceof SVGElement) { const m = (p as unknown as SVGGraphicsElement).getScreenCTM?.(); if (m && m.a > 0) scale = Math.hypot(m.a, m.b) || m.a; }
     else scale = scaleOf(p);
-    const fg = normColour(cs.color), bg = fg ? bgOf(p) : null;
+    const fg = normColour(cs.color);
+    let bg = fg ? bgOf(p) : null;
+    // (a solid background in the CSS is not what the words stand on where a picture is drawn under them:
+    // a Doppler's black spectrum under its white read-outs. Asked only for a low ratio, which is rare)
+    if (fg && bg && lowOn(fg, bg) && pictureUnder(p, rects[0]!)) bg = null;
     const px = r1(parseFloat(cs.fontSize) * scale), bold = parseInt(cs.fontWeight, 10) >= 700;
     // one item per line: a paragraph's one box is the union of its lines, and a number standing in the next line's gap is not over the words
     for (const r of rects) {

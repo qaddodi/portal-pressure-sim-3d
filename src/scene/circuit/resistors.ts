@@ -7,7 +7,7 @@ import { rawColor } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
 import { COURSES } from './course.ts';
 import { CIRC_C, MAP_K } from './map.ts';
-import { CIRCUIT_D, NODE_CIRCUIT, RES_LIVER, RES_SIZES } from './data.copied.ts';
+import { NODE_CIRCUIT, RES_LIVER, RES_SIZES } from './data.copied.ts';
 import { courseOf } from './paths.ts';
 import { laneCourseOf } from './segment-lane.ts';
 import { peelAt, peelRank } from './peel.ts';

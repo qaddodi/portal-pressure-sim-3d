@@ -74,17 +74,17 @@ test('the app draws nothing until its styles are on: main.tsx and every plain pa
   const roots = [...start.matchAll(/createRoot\(/g)].map((m) => m.index!);
   assert.equal(roots.length, 3, 'three places mount: no WebGL note, boot crash note, the app');
   assert.ok(start.indexOf('const styles = appStylesReady()') >= 0 && start.indexOf('const styles = appStylesReady()') < roots[0]!);
-  assert.match(start, /if \(!hasWebGL2\(\)\) \{ await styles; createRoot\(/, 'the no-WebGL note waits too');
+  assert.match(start, /if \(!noGpu && !hasWebGL2\(\)\) \{ await styles; createRoot\(/, 'the no-WebGL note waits too');
   const all = start.indexOf('await Promise.all([');
   assert.ok(all > 0 && all < roots[1]! && /await Promise\.all\(\[[^\]]*\bstyles\b[^\]]*\]\)/.test(start), 'the crash note and the app mount only after the styles are in the wait');
   const entry = read('src/entry.ts');
   const plain = entry.slice(entry.indexOf('async function plain()'), entry.indexOf('async function route()'));
   assert.match(plain, /const styles = appStylesReady\(\);/);
-  for (const mount of ['run();', 'plainPage();\n    bootFrame', 'plainPage();\n    bootOuter', 'plainPage();\n    bootLookBoard', 'plainPage();\n    bootPromotion']) {
+  for (const mount of ['run();', 'plainPage();\n    bootFrame', 'plainPage();\n    bootOuter', 'plainPage();\n    bootLookBoard', 'plainPage();\n    bootPromotion', 'plainPage();\n    bootStress']) {
     const at = plain.indexOf(mount); assert.ok(at > 0, mount);
     assert.ok(plain.lastIndexOf('await styles;', at) > plain.lastIndexOf('if (', at), `${mount} comes after "await styles" in its branch`);
   }
-  assert.equal([...plain.matchAll(/await styles;/g)].length, 5, 'one wait in each of the five plain pages');
+  assert.equal([...plain.matchAll(/await styles;/g)].length, 6, 'one wait in each of the six plain pages');
 });
 
 test('the cover needs none of the app\'s stylesheets: its style is inline, and the only blocking link is the small font sheet', () => {

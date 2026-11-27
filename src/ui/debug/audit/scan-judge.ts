@@ -86,6 +86,11 @@ export function quadPoints(q: Quad): [number, number][] {
   return [c, mid(c, m03, 0.6), mid(c, m12, 0.6), mid(c, m01, 0.5), mid(c, m32, 0.5)];
 }
 
+/** Whether a canvas, picture, video or svg is in the stack of elements at a point and is neither the words' own element nor around or inside it:
+ *  what the words stand on is then a picture, not the CSS background behind it. Pure. */
+export function pictureUnder<E extends { tagName: string; contains(n: E): boolean }>(stack: readonly E[], words: E): boolean {
+  return stack.some((e) => /^(canvas|img|video|svg)$/i.test(e.tagName) && !e.contains(words) && !words.contains(e));
+}
 const area = (b: Box) => Math.max(0, b[2] - b[0]) * Math.max(0, b[3] - b[1]);
 const inter = (a: Box, b: Box) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
 const px = (v: number) => `${Math.round(v)} px`;
@@ -104,7 +109,8 @@ export function judgeScan(s: RawScan): AuditFinding[] {
 
   for (const i of s.items) {
     // clipped by an ancestor: part of it is hidden and part is shown (wholly hidden is a collapsed thing, not a cut one); a scroller hides by design
-    if (i.clip && !i.scrolls && inter(i.box, i.clip) > 0) {
+    // (words under a running fade are on their way in, a rolled number's period inside its own window: judged where they land, as their contrast is)
+    if (i.clip && !i.scrolls && !i.fading && inter(i.box, i.clip) > 0) {
       const p = past(i.box, i.clip);
       if (p.length) add('clipped', 'fail', `${label(i)} is cut off by its container: ${p.map((x) => `${px(x.by)} at the ${x.side}`).join(', ')} hidden${i.by ? ` (in ${i.by})` : ''}`, i.what, n);
     }

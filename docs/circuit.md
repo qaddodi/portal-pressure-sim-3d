@@ -3,6 +3,12 @@
 Source of truth is the 2D app (`qaddodi/portal-pressure-simulator`, `claude/settings-topbar-icon-flvft1`). Its numbers are copied by script
 (`node scripts/copy-b7-data.mjs --from <2d repo> [--check]` writes `src/scene/circuit/data.copied.ts`); nothing in there is retyped.
 
+## Where the map cuts its veins (27 Nov, `junction-cuts.ts`)
+A vein that something joins part-way along is one vein on the map: its whole course (the copy's pieces of it, joined) is cut at each junction of the engine's table (`topology.js JUNCTIONS`, `JUNCTION_PIECES`), in the table's order, and every collateral, shunt and tributary end is carried to its junction.
+Everything that reads a lane's course reads `CIRCUIT_COURSE_D` (never the copy's `CIRCUIT_D`; `tests/circuit-junction-cuts.test.ts` fails on a source file that does). A cut stands where the 2D drawing put that junction (`JUNCTION_CIRCUIT`) while it has one,
+so nothing on the map moved when this arrived; a junction the 2D drawing never had (the table's rows since engine e6e2f19) stands at the table's `at`, and its joiner's last run slides (or ramps at 45 degrees, whichever runs over the other lanes least) to land there.
+The map's own shares differ from the table's (`MAP_JUNCTIONS` has both: `share`, `table`); adopting the table's on the map is deleting that junction from `JUNCTION_CIRCUIT`, one line each, and looking at the lane.
+
 ## How it works
 - **One mesh, two courses.** Every vessel tube is built once along its body course (`buildVessel(def, slicesFor(id))`) and carries four extra attributes
   (`geometry.ts`): `cC` and `tC` (the map course's centre and direction at the vertex's place along the vessel), `fr` (the vertex's offset in a frame fixed by
