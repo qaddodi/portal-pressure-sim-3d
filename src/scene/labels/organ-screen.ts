@@ -27,7 +27,8 @@ const famOf = (id: string) => id.split('-')[0];
 /** The organ each name belongs to (organ-names.js NAME_ORGAN), by the caption's word ('Right atrium'). */
 export const organOfName = (name: string): string => (NAME_ORGAN as Record<string, string>)[name] ?? '';
 
-/** A point of the 2D figure's world units, at the depth `z` (scene units), on the canvas. The depth is part of the question: the camera's turn moves a point sideways by its distance in depth from what it is judged against. */
+/** A point of the 2D figure's world units, at the depth `z` (scene units), on the canvas. The depth is part of the question: the camera's turn moves a point sideways by its
+ *  distance in depth from what it is judged against. */
 export type To2Screen = (x2d: number, y2d: number, z: number) => [number, number];
 
 /** The organs' silhouettes on the canvas now: rings of screen points, by organ id. */

@@ -25,7 +25,14 @@ import { spanOf, spanStrokes } from './span-math.ts';
 import { TIP_FADE_2D } from '../vessels/fades.copied.ts';
 
 /** Where a card points: a vessel's middle, a station, a point of the 2D plate (organs, the spleen's ends), or a node of the 2D figure. */
-export type Anchor = { edge: string } | { edges: readonly string[] } | { station: string } | { at2d: readonly [number, number]; /** the depth it stands at, scene units: a point of the 2D figure has none (organs/organ-front.ts: the organ's own; the tear's: stream-fit.ts) */ z: number } | { node: string } | { lobule: string };
+export type Anchor =
+  | { edge: string }
+  | { edges: readonly string[] }
+  | { station: string }
+  // (a point of the 2D figure has no depth of its own: `z` is where it stands, scene units: organs/organ-front.ts for an organ, stream-fit.ts for the tear)
+  | { at2d: readonly [number, number]; z: number }
+  | { node: string }
+  | { lobule: string };
 
 /** A bracket on the Circuit between two stations (a slide's `span`): its words, as printed, standing under its middle. */
 export interface FigSpan { id: string; from: string; to: string; text: string }

@@ -17,10 +17,11 @@ import { PLACED_VESSELS } from '../anatomy/placement.generated.ts';
 
 /** The varix the ring rings (the esophageal varix's course, placed: the approved placement's coronary vein run up the esophagus). */
 const RINGED = 'C1a';
-/** The ring's depth at the figure's height `y` (2D units, down): the ringed varix's own near surface there (the vein's centreline depth plus its radius: where the bleed leaves it, stream-fit.ts tearAt), so the
- *  ring and the vein it rings stay together from every camera angle. It was one plane 0.36 in front of the figure for every view (the bleed's old fixed plane): the varix lies at about -0.03, and the 14
- *  degree view turns a 0.4 gap in depth into a slide on the canvas of more than the ring's own radius, so a turned figure showed the ring beside its vein (27 Nov, the 2D-plate audit). The ring draws over
- *  everything by its order, not by depth (`depthTest` off), so its depth moves nothing else. Reads the placed course only (no organ raster), so building the ring costs nothing. */
+/** The ring's depth at the figure's height `y` (2D units, down): the ringed varix's own near surface there (the vein's centreline depth plus its radius: where the bleed
+ *  leaves it, stream-fit.ts tearAt), so the ring and the vein it rings stay together from every camera angle. It was one plane 0.36 in front of the figure for every view
+ *  (the bleed's old fixed plane): the varix lies at about -0.03, and the 14 degree view turns a 0.4 gap in depth into a slide on the canvas of more than the ring's own
+ *  radius, so a turned figure showed the ring beside its vein (27 Nov, the 2D-plate audit). The ring draws over everything by its order, not by depth (`depthTest` off), so
+ *  its depth moves nothing else. Reads the placed course only (no organ raster), so building the ring costs nothing. */
 export function ringZ(y: number): number {
   const c = PLACED_PATH_2D[RINGED], z = PLACED_Z[RINGED];
   if (!c || !z) return 0;
@@ -28,8 +29,8 @@ export function ringZ(y: number): number {
   for (let i = 0; i < c.length; i++) { const d = Math.abs(c[i]![1] - y); if (d < bd) { bd = d; best = i; } }
   return (z[best] ?? 0) + (PLACED_VESSELS[RINGED]?.r ?? 0);
 }
-/** Where the ring stands at rest (2D units): at the scope rule's height (RING.y) ON the ringed varix as the placement draws it. The rule's own x (798) is the 2D plate's esophagus, and the placed varix runs 15 units
- *  left of it, a whole ring radius (17), so the ring stood beside its vein even face on. */
+/** Where the ring stands at rest (2D units): at the scope rule's height (RING.y) ON the ringed varix as the placement draws it. The rule's own x (798) is the 2D plate's
+ *  esophagus, and the placed varix runs 15 units left of it, a whole ring radius (17), so the ring stood beside its vein even face on. */
 export const RING_REST: { readonly x: number; readonly y: number } = (() => {
   const c = PLACED_PATH_2D[RINGED];
   if (!c?.length) return { x: RING.x, y: RING.y };
