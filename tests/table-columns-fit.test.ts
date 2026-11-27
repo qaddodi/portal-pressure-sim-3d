@@ -30,11 +30,12 @@ test('the grid: the name\'s least is --dk-name-fit, a value column starts at its
 
 test('the card writes the grid from its printed cells, and the CSS lets the name give way for them (never under its longest word)', () => {
   const tsx = read('../src/ui/cards/TableCard.tsx'), css = read('../src/ui/deck-ui.css');
-  assert.match(tsx, /gridOf\(model\.cols\.map\(\(c\) => c\.k\), model\.cols\.map\(\(c, j\) => colChars\(model\.rows\.map\(\(r\) => r\.cells\[j\]\)\)\)\)/);
+  assert.match(tsx, /chars = useMemo\(\(\) => model\.cols\.map\(\(c, j\) => colChars\(model\.rows\.map\(\(r\) => r\.cells\[j\]\)\)\)/);
+  assert.match(tsx, /gridOf\(keys, chars\)/);
   assert.match(tsx, /\['--dk-cols' as string\]: need/);
   assert.doesNotMatch(tsx, /minmax\(0, 1fr\)/, 'no value column may shrink under its own text');
   // (the name asks for its least of the heads' formula or two lines of its longest name, and yields to the value columns' need, never under its longest word)
-  assert.match(css, /--dk-name-fit: max\(calc\(var\(--dk-wn, 0\) \* \.62em \+ 20px\), min\(max\(var\(--dk-name\), calc\(var\(--dk-wn2, 0\) \* \.62em \+ 20px\)\), calc\(100% - var\(--dk-cols, 0px\)\)\)\)/);
+  assert.match(css, /--dk-name-fit: max\(var\(--dk-hl, 0px\), calc\(var\(--dk-wn, 0\) \* \.62em \+ 20px\), min\(max\(var\(--dk-name\), calc\(var\(--dk-wn2, 0\) \* \.62em \+ 20px\)\), calc\(100% - var\(--dk-colsx, var\(--dk-cols, 0px\)\)\)\)\)/);
   assert.match(tsx, /\['--dk-wn2' as string\]: twoLines/);
 });
 
@@ -58,4 +59,14 @@ test('the table judges its heads again when the fonts arrive, before the card me
   assert.match(tsx, /fonts\.ready\.then\(again\)/);
   assert.match(tsx, /addEventListener\?\.\('loadingdone', again\)/);
   assert.match(tsx, /removeEventListener\?\.\('loadingdone', again\)/);
+});
+
+test('heads ask for room: a column is never narrower than its head (a word or a line), the name giving way, and --dk-cols follows', () => {
+  const plain = gridOf(['pv', 'whvp'], [VALUE_CH, VALUE_CH]);
+  const roomy = gridOf(['pv', 'whvp'], [VALUE_CH, VALUE_CH], [20.2, 47]);
+  assert.equal(roomy.grid, `minmax(var(--dk-name-fit), 2fr) minmax(max(calc(${VALUE_CH}ch + ${COL_PAD_PX}px), 21px), 1fr) minmax(max(calc(${VALUE_CH}ch + ${COL_PAD_PX}px), 47px), 1fr)`);
+  assert.equal(roomy.need, `calc(max(calc(${VALUE_CH}ch + ${COL_PAD_PX}px), 21px) + max(calc(${VALUE_CH}ch + ${COL_PAD_PX}px), 47px))`);
+  assert.notEqual(plain.grid, roomy.grid);
+  const css = read('../src/ui/deck-ui.css');
+  assert.match(css, /tr \{ display: grid; grid-template-columns: var\(--dk-gridx, var\(--dk-grid\)\)/, 'the fit pass\'s roomier grid wins where it wrote one');
 });

@@ -52,15 +52,15 @@ test('a phone\'s table: no group heading rows, the finding is a line under the n
   assert.match(css, /tbody tr th\[scope="row"\] \.pz-kick \{ display: none; \}/, 'the site is not in the patient\'s row on a phone');
 });
 
-// Night sweep on 8d3d25b (20 Nov): on an 8-column table the heads were clipped (WHV, FHV, HVP) and the first head said LEVEL. Heads that do not fit stand upright as in 2D (fitHeads, `tr.th-up`), the name's column
+// Night sweep on 8d3d25b (20 Nov): on an 8-column table the heads were clipped (WHV, FHV, HVP) and the first head said LEVEL. Heads that do not fit wrap, then slant (27 Nov: never upright, table-heads.ts), the name's column
 // takes the room they give back, and the row head is 2D's ("Level" unless the slide names its own).
-test('the table fits its heads: upright when they do not fit, the name column follows; the row head is 2D\'s', async () => {
+test('the table fits its heads: wrapped, then slanted when they do not fit, the name column follows; the row head is 2D\'s', async () => {
   const { readFileSync } = await import('node:fs');
   const tsx = readFileSync(new URL('../src/ui/cards/TableCard.tsx', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
   const model = readFileSync(new URL('../src/ui/talk/table-model.ts', import.meta.url), 'utf8');
   assert.match(tsx, /scrollWidth > t\.clientWidth \+ 1/, 'measured, not guessed');
-  assert.match(tsx, /className=\{mode === 'turned' \? 'th-up' : mode === 'stagger' \? 'th-st' : undefined\}/);
-  assert.match(css, /\.pz-table\.dk-pztable\.dk-up \{ --dk-name: max\(calc\(20\.5rem - var\(--nc\) \* 1\.75rem\)/);
+  assert.match(tsx, /className=\{mode === 'wrap' \? 'th-wr' : mode === 'slant' \? 'th-sl' : mode === 'stagger' \? 'th-st' : undefined\}/);
+  assert.match(css, /\.pz-table\.dk-pztable:is\(\.dk-slant, \.dk-st\) \{ --dk-name: max\(calc\(20\.5rem - var\(--nc\) \* 1\.75rem\)/);
   assert.match(model, /rowHead: spec\.rowHead \|\| 'Level'/, '2D words 1:1 (presenter.js summaryTable)');
 });

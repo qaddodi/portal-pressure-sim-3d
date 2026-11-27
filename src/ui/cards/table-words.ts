@@ -63,12 +63,18 @@ export const WAVE_MIN = '4.5rem';
 export const waveMaxH = (rows: number): number => (rows >= 6 ? 40 : 56);
 /** The grid's tracks for a table: the name (its least width is `--dk-name-fit`, deck-ui.css, which gives way when the value columns and the Doppler need the room), a value column from its printed width up, the Doppler a share of the rest from WAVE_MIN.
  *  `cols`: each column's key; `chars`: colChars of its cells (ignored for the Doppler). Returns the template and the least width all the other columns need together (`calc(...)`, for `--dk-cols`). */
-export function gridOf(cols: readonly string[], chars: readonly number[]): { grid: string; need: string } {
+export function gridOf(cols: readonly string[], chars: readonly number[], heads?: readonly number[]): { grid: string; need: string } {
   const value = cols.map((k, j) => (k === 'wave' ? null : chars[j]));
-  const tracks = value.map((n) => (n == null ? `minmax(${WAVE_MIN}, 3.4fr)` : `minmax(calc(${n}ch + ${COL_PAD_PX}px), 1fr)`));
+  // `heads`: the room each column's head asks for, in px (TableCard's fit: the head's own width, or its widest word when it wraps). A column is then never narrower than its
+  // head, the name giving way for it.
+  const least = (n: number, j: number): string => (heads?.[j] ? `max(calc(${n}ch + ${COL_PAD_PX}px), ${Math.ceil(heads[j]!)}px)` : `calc(${n}ch + ${COL_PAD_PX}px)`);
+  const tracks = value.map((n, j) => (n == null ? `minmax(${WAVE_MIN}, 3.4fr)` : `minmax(${least(n, j)}, 1fr)`));
   const ch = value.reduce<number>((a, n) => a + (n ?? 0), 0), k = value.filter((n) => n != null).length;
   const wave = value.some((n) => n == null) ? ` + ${WAVE_MIN}` : '';
-  return { grid: `minmax(var(--dk-name-fit), 2fr) ${tracks.join(' ')}`, need: `calc(${+ch.toFixed(2)}ch + ${k * COL_PAD_PX}px${wave})` };
+  const need = heads?.some(Boolean)
+    ? `calc(${value.flatMap((n, j) => (n == null ? [] : [least(n, j)])).join(' + ')}${wave})`
+    : `calc(${+ch.toFixed(2)}ch + ${k * COL_PAD_PX}px${wave})`;
+  return { grid: `minmax(var(--dk-name-fit), 2fr) ${tracks.join(' ')}`, need };
 }
 
 /** Whether a table runs past its card: some row's content is wider than the row (a cell pushed out past the table's right edge and cut by the card's: the

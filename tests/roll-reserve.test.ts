@@ -86,8 +86,6 @@ test('capture a47f69ea: a prose reading is proportional (fit) with or without kn
   assert.match(readFileSync('src/ui/cards/LadderCard.tsx', 'utf8'), /<Roll text=\{gap\.hvpg\} fit \/>/);
   const css = readFileSync('src/ui/deck-ui.css', 'utf8'), over = readFileSync('src/ui/css3d-over-2d.css', 'utf8');
   assert.match(css, /\.pzc-verdict \*[^)]*\) \{ font-variant-numeric: lining-nums proportional-nums !important/);
-  assert.match(over, /\.pz \.pz-table\.dk-pztable thead tr\.th-up th\.num \{ writing-mode: horizontal-tb; rotate: none/);
-  assert.match(over, /\.pz \.pz-table\.dk-pztable thead tr\.th-up th\.num > \.hd \{/);
 });
 
 test('the beta-blocker response slider holds no minus slot, so "12.9 mmHg," closes up (Treatment 4, capture 49141fb9)', () => {
