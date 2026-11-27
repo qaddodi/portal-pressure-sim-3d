@@ -13,13 +13,13 @@
 //   7. mount: the sheets clip (shell/SheetClip.tsx), outside every bar, so no bar's transform can be its containing block (20 Nov: the speed menu landed below the page); the slide list stays
 //      in the deck layer (`inline`), where the deck's stylesheet places it and its key rules reach it
 // Each menu keeps the 2D class names its lifted stylesheet draws it by (menu-head.ts MENU_SKINS). A page pushed over a menu's rows (Settings' History, Help, Advanced and Figure pages) is
-// shell/page-push.ts, the one pusher of the menus.
+// surface/page-push.ts, the one pusher of the menus and of Treat's Changes page.
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useShell } from '../shell/store.ts';
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { placeAt, placePopover, stageTop, type PlaceOpts } from '../shell/place.ts';
-import { pushPage, type Push } from '../shell/page-push.ts';
+import { pushPage, type Push } from './page-push.ts';
 import { sheetRoot } from '../shell/SheetClip.tsx';
 import { I } from '../shell/icons.tsx';
 import { D_SMALL, LEAVE_SLACK_MS } from '../motion.ts';

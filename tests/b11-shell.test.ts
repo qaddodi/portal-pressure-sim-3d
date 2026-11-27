@@ -9,8 +9,9 @@ import { deviceClass } from '../src/ui/layout/device.ts';
 import { useTests } from '../src/ui/tests/store.ts';
 import { appClasses, GRADIENT_PANES } from '../src/ui/tests/dock/app-classes.ts';
 import { statusWords, dopplerVessel } from '../src/ui/tests/dock/status.ts';
-import { attachSwipe, type SwipeApi } from '../src/ui/tests/dock/swipe.ts';
-import { attachPull } from '../src/ui/tests/dock/pull.ts';
+import { attachTabSwipe, type TabSwipeApi } from '../src/ui/surface/tab-swipe.ts';
+import { attachSheetPull } from '../src/ui/surface/sheet-pull.ts';
+import type { PaneId } from '../src/ui/tests/panes.ts';
 import { attachDivider, sheetHeightOf } from '../src/ui/tests/dock/resize.ts';
 import { need } from '../src/ui/tests/dock/lazy.ts';
 import { pickRules, sideRules } from '../scripts/copy-b11-shell.mjs';
@@ -113,12 +114,12 @@ test('the layer builds the card the 2D dock does: the divider, the grab handle, 
   assert.ok(tabs.includes('data-slot'), 'the tabs carry data-slot');
   for (const c of ['workspace-divider', 'role="separator"', 'sheet-grab', 'workspace-live', 'instr-hint', 'dock-pane', 'slot:', 'dop-on', 'picking']) assert.ok(layer.includes(c), `the card has ${c}`);
   for (const c of ['active staging', 'swipe-peer', "' landed'", 'pane-out']) assert.ok(layer.includes(c), `a pane can be ${c}`);
-  assert.ok(layer.includes('usePaneSwap(') && layer.includes('attachSwipe(') && layer.includes('attachPull(') && layer.includes('attachDivider(') && layer.includes('runSegGlide()') && layer.includes('handOver('), 'every piece is wired');
+  assert.ok(layer.includes('usePaneSwap(') && layer.includes('attachTabSwipe(') && layer.includes('attachSheetPull(') && layer.includes('attachDivider(') && layer.includes('runSegGlide()') && layer.includes('handOver('), 'every piece is wired');
   assert.ok(/onWarm: \(id\) => \{ need\(id as PaneId\); \}/.test(layer) && /onPointerEnter=\{warm\} onPointerDown=\{warm\} onFocus=\{warm\}/.test(tabs), 'a tab asks for its instrument as the pointer or a finger arrives, and on focus');
   const swap = read('src/ui/tests/dock/swap.ts');
   assert.ok(swap.includes('STAGE_MAX = 320') && swap.includes("clock.on('tags'") && swap.includes('n >= 2'), 'two frames, at most 320 ms, then the swap');
   assert.ok(swap.includes("tabOf(pane) === tabOf(cur)"), 'the Pressure tab\'s own switch swaps in place');
-  assert.ok(!/requestAnimationFrame/.test(swap + read('src/ui/tests/dock/swipe.ts') + read('src/ui/tests/dock/pull.ts') + read('src/ui/tests/dock/resize.ts')), 'no raw requestAnimationFrame: the clock');
+  assert.ok(!/requestAnimationFrame/.test(swap + read('src/ui/surface/tab-swipe.ts') + read('src/ui/surface/sheet-pull.ts') + read('src/ui/tests/dock/resize.ts')), 'no raw requestAnimationFrame: the clock');
   // the 2D sheets that style the states are the ones copied
   const css = ['app-07-floating', 'app-10-thumb-dock'].map((f) => read(`src/ui/styles/${f}.css`)).join('\n');
   for (const c of ['.dock-pane.pane-out:not(.active)', '.dock-pane.swipe-peer', '.staging', '.dock-guide', '.workspace-divider']) assert.ok(css.includes(c), `the lifted 2D CSS styles ${c}`);
@@ -145,12 +146,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 test('a sideways drag pages to the next tab and a short one springs back; nothing moves in a card with two instruments up', async () => {
   const body = el(), a = el(), b = el(), cur = { id: 'profile', peer: null as string | null, landed: null as string | null, begun: 0, finished: 0 };
   let enabled = true;
-  const api: SwipeApi = {
-    enabled: () => enabled, tabs: TABS, index: () => TABS.indexOf(cur.id as never), ready: () => true,
-    peer: (id) => { cur.peer = id; }, active: () => a as unknown as HTMLElement, paneOf: () => b as unknown as HTMLElement,
+  // (the one tab swipe, surface/tab-swipe.ts, as the Tests card wires it)
+  const api: TabSwipeApi<PaneId> = {
+    enabled: () => enabled, tabs: () => TABS, open: () => cur.id as PaneId, ready: () => true, width: () => 400, scrollers: false,
+    peer: (id) => { cur.peer = id; return id ? b as unknown as HTMLElement : null; }, active: () => a as unknown as HTMLElement,
     begin: () => { cur.begun++; }, finish: () => { cur.finished++; }, land: (id) => { cur.landed = id; },
   };
-  const off = attachSwipe(body as unknown as HTMLElement, () => 400, api);
+  const off = attachTabSwipe(body as unknown as HTMLElement, api);
   // (a slow drag: the finger rests before it lifts, so only how far it went counts)
   const drag = async (to: number) => { body.fire('touchstart', touch(body, 300, 100)); body.fire('touchmove', touch(body, 300 - 20, 102)); await sleep(100); body.fire('touchmove', touch(body, 300 - to, 104)); await sleep(100); body.fire('touchend', {}); };
   await drag(260);   // 260 of 400 px: past a third
@@ -168,12 +170,15 @@ test('a sideways drag pages to the next tab and a short one springs back; nothin
   off();
 });
 
-test('a vertical pull settles the sheet at Half or Full, or closes it; a pull that goes sideways is the swipe\'s', async () => {
+test('a vertical pull settles the sheet at Peek, Half or Full, or closes it past Peek; a pull that goes sideways is the swipe\'s', async () => {
   const card = el(), pos = el();
   const calls: string[] = [];
   let size: 0 | 1 | 2 = 0;
-  const off = attachPull(card as unknown as HTMLElement, pos as unknown as HTMLElement, {
-    enabled: () => true, heights: () => ({ h0: size === 1 ? 700 : size === 2 ? 72 : 520, half: 520, full: 700, peek: 72, size }), setSize: (n) => { size = n; calls.push(`size ${n}`); }, close: () => { calls.push('close'); },
+  // (the one pull of every phone panel, surface/sheet-pull.ts; the Tests store's sizes are 0 Half, 1 Full, 2 Peek)
+  const AT = ['half', 'full', 'peek'] as const, N = { half: 0, full: 1, peek: 2 } as const;
+  const off = attachSheetPull(card as unknown as HTMLElement, pos as unknown as HTMLElement, {
+    enabled: () => true, heights: () => ({ h0: size === 1 ? 700 : size === 2 ? 72 : 520, half: 520, full: 700, peek: 72, at: AT[size] }),
+    setSize: (d) => { size = N[d]; calls.push(`size ${N[d]}`); }, close: () => { calls.push('close'); },
   });
   // (slow pulls: the finger rests before it lifts, so only how far it went counts; a flick has its own case below)
   const ptr = (target: unknown, x: number, y: number) => ({ target, pointerId: 1, pointerType: 'touch', button: 0, buttons: 1, clientX: x, clientY: y });
@@ -191,7 +196,12 @@ test('a vertical pull settles the sheet at Half or Full, or closes it; a pull th
   await pull(15, 200); await sleep(450);
   assert.deepEqual(calls, [], 'a sideways move is left to the swipe');
   await pull(200); await sleep(450);
-  assert.deepEqual(calls, ['close'], 'a far pull down from Half closes the card in that one pull (2D; owner, 20 Nov: no stop at Peek)');
+  assert.deepEqual(calls, ['size 2'], 'a pull down from Half short of Peek rests at Peek (approved decision 4: Peek, Half and Full for every phone panel)');
+  await pull(-60); await sleep(450);
+  assert.deepEqual(calls, ['size 2', 'size 0'], 'a pull up from Peek brings it back to Half');
+  calls.length = 0;
+  await pull(460); await sleep(450);
+  assert.deepEqual(calls, ['close'], 'a pull down from Half past Peek closes the card in that one pull (owner, 20 Nov: close in one pull)');
   assert.equal((pos as unknown as { dataset: Record<string, string> }).dataset.swiped, '', 'and it is marked as pulled shut: it is already out of sight, so it plays no leave of its own');
   size = 0; calls.length = 0;
   await pull(30, 0, true); await sleep(450);

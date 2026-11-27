@@ -3,7 +3,7 @@
      - a side card slides in 16 px from the edge while it fades (slide-from-edge, 240 ms on --ease-arrive) and goes out the same way in 120 ms on --ease-in (slide-to-edge);
      - a sheet over the foot of a phone or an upright iPad rises from behind the dock (240 ms, --ease-arrive) and sinks back behind it (240 ms, --ease-in): it stays solid, only its place changes (2D sheet-rise / sheet-sink);
        a sheet that is not over the thumb dock leaves in 120 ms (slide-to-edge, --d-flip).
-   A sheet pulled shut has sunk out of sight already: `data-swiped` (dock/pull.ts) makes its close play nothing (2D sheet-hold), so it is never seen back in its place before it goes.
+   A sheet pulled shut has sunk out of sight already: `data-swiped` (surface/sheet-pull.ts) makes its close play nothing (2D sheet-hold), so it is never seen back in its place before it goes.
    Per-frame writes are transform and opacity only. Type sizes are custom properties the layer sets from the card type scale (data text is never under 12 px). */
 .t-pos { --t-x: 16px; --t-y: 0px; --t-o: 0; --t-out: var(--d-flip);
   position: absolute; left: 0; top: 0; z-index: var(--z-cards, 10); pointer-events: none; will-change: transform; font-family: var(--ui); color: var(--text); font-variant-numeric: tabular-nums lining-nums; }
@@ -38,9 +38,8 @@
 .t-note { margin: 12px 0; color: var(--text-2); font: 500 var(--t-sm, var(--t-lab)) / 1.4 var(--ui); }
 .t-pane { animation: t-pane var(--d-small) var(--ease-arrive) both; }
 @keyframes t-pane { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-/* The shell around the panes (src/ui/tests/dock/): the sheet's grab handle takes no touch over the thumb dock (2D app-10-thumb-dock.css `.app.thumb :is(.panel-grab, .sheet-grab)`: the pull works from anywhere
-   in the card, dock/pull.ts); the card is not inside .app here, so the sheet kind says it. The divider and the guide line are the 2D sheets' own (app-06-plate.css, app-07-floating.css). */
-.t-pos[data-kind="sheet"] .sheet-grab { pointer-events: none; }
+/* The shell around the panes (src/ui/tests/dock/): the sheet is pulled from anywhere in the card (surface/sheet-pull.ts), and its grab bar is the one grab bar button of every phone panel
+   (surface/parts.tsx SheetGrab, stage 3): a tap takes Half to Full and back, Peek up to Half. The divider and the guide line are the 2D sheets' own (app-06-plate.css, app-07-floating.css). */
 /* The grab bar is always drawn on a phone's sheet (owner, 20 Nov 2026; 2D keeps it hidden until focused): 36 x 4, centred on the card's top edge. */
 .t-pos[data-kind="sheet"] .sheet-grab { opacity: 1; width: 56px; height: 14px; }
 .t-pos[data-kind="sheet"] .sheet-grab::before { top: 5px; width: 36px; height: 4px; border-radius: 2px; background: var(--border-strong); }

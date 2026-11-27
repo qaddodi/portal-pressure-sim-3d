@@ -1,8 +1,9 @@
 // The stop's card and the card on the way (docs/approved/play-the-case.md, "The three states"). At a stop: the kicker, the title, what followed and the numbers before and after (History's
 // own moment words, history/HistoryList.tsx MomentWords), "Look closer here", Continue to the next stop, and a line on what the figure shows, with Back to this view once it is moved.
 // Exploring (a Tests card open at the stop): the card folds to its title and Continue. On the way: the next stop and the days to it, and the smaller events passing as quiet notes.
-// Mac: a card at the left. An upright iPad and an iPhone: a sheet over the foot of the figure; on the iPhone it shows the title, the numbers and Continue, pulled up for the rest.
-import { useEffect, useRef, useState } from 'react';
+// Mac: a card at the left. An upright iPad and an iPhone: a sheet over the foot of the figure; on the iPhone it shows the title, the numbers and Continue (Half), pulled up for the rest
+// (Full) and down to its title (Peek).
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MomentWords } from '../history/HistoryList.tsx';
 import { Icon } from '../shell/icons.tsx';
 import { useShell } from '../shell/store.ts';
@@ -14,6 +15,11 @@ import { useFigureMoved } from './moved.ts';
 import { CASE, chapterAt, continueWords, kickerWords, lookSide, passedNotes, shotWords, travelWords, type PassNote } from './words.ts';
 import type { CaseView } from './view.ts';
 import type { CaseLook, Stop } from './types.ts';
+import { useUi } from '../ui-store.ts';
+import { useCaseBarUp } from './room.ts';
+import { usePanelSheet } from '../surface/use-sheet.ts';
+import { stopsFor, type Detent } from '../surface/sheet-stops.ts';
+import { readPlace } from '../layout-snap.ts';
 
 const LOOK_ICON: Record<string, string> = { circuit: 'circuit-map', lobule: 'lobule-hex', sinusoid: 'lobule-hex', anatomic: 'body-fig', endoscopy: 'scope-ring', scope: 'scope-ring' };
 
@@ -117,39 +123,55 @@ export function StopCards({ cv, s, on, fold, moved, back, sheet, onHeight }: Car
   );
 }
 
-/** The iPhone's stop sheet: the title, the numbers and Continue; pulled up (a swipe up, or a tap on its foot line), Look closer here and the figure's line. The part pulled up is clipped
- *  and moved by a transform together, so the sheet's foot stands still while it grows: nothing is laid out again. */
+/** The iPhone's stop sheet: the title, the numbers and Continue at Half; pulled up (the one pull, the grab bar or a tap on its foot line) to Full, Look closer here and the figure's line;
+ *  pulled down to Peek, its kicker and title, to see the figure over it (surface/use-sheet.ts: Peek, Half and Full for every phone panel; a pull never closes it, the case does).
+ *  The sheet is laid out at its full height once: the part not shown is clipped and the sheet moved down by as much, by a transform together, so its foot stands still while it
+ *  grows (nothing is laid out again; the sheet eases its own height, and the pull eases only the finger's offset). */
 export function PhoneStopSheet({ cv, s, on, moved, back, onHeight }: { cv: CaseView; s: StopShown | null; on: boolean; moved: boolean; back(): void; onHeight(h: number): void }) {
-  const [up, setUp] = useState(false);
-  const more = useRef<HTMLDivElement>(null), card = useRef<HTMLElement>(null);
+  const more = useRef<HTMLDivElement>(null), card = useRef<HTMLElement>(null), title = useRef<HTMLHeadingElement>(null);
   const [moreH, setMoreH] = useState(0);
   const [cardH, setCardH] = useState(0);
-  useEffect(() => { setUp(false); }, [s?.at]);
+  const [headH, setHeadH] = useState(0);
+  const vp = useUi((x) => x.vp), device = useUi((x) => x.device), caseUp = useCaseBarUp();
   useEffect(() => {
     if (typeof ResizeObserver !== 'function') return;
     const size = (e: ResizeObserverEntry) => { const b = e.borderBoxSize?.[0]; return b ? b.blockSize : e.contentRect.height; };
-    const ro = new ResizeObserver((es) => { for (const e of es) { if (e.target === more.current) setMoreH(size(e)); else setCardH(size(e)); } });
+    // (Peek keeps the kicker and the title: where the title's foot stands, read in the observer, never in a frame)
+    const head = () => { const t = title.current; if (t) { const p = readPlace(t); setHeadH(Math.ceil(p.top + p.height + 10)); } };
+    const ro = new ResizeObserver((es) => { for (const e of es) { if (e.target === more.current) setMoreH(size(e)); else setCardH(size(e)); } head(); });
     if (more.current) ro.observe(more.current);
     if (card.current) ro.observe(card.current);
     return () => ro.disconnect();
   }, []);
-  useEffect(() => { onHeight(Math.max(0, cardH - moreH)); }, [cardH, moreH, onHeight]);
-  const hide = up ? 0 : moreH;
-  const startY = useRef<number | null>(null);
+  // (its three stops from the one function: Half as tall as the words above Look closer, Full the whole card, Peek its head)
+  const stops = useMemo(() => {
+    const whole = stopsFor(vp, device, { kind: 'words', h: cardH || Infinity });
+    const main = stopsFor(vp, device, { kind: 'words', h: Math.max(0, cardH - moreH) || Infinity });
+    return { full: whole.full, half: Math.min(main.half, whole.full), peek: Math.min(headH || main.peek, main.half - 1) };
+  }, [vp, device, caseUp, cardH, moreH, headH]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const shownH = (at: Detent) => (at === 'full' ? stops.full : at === 'peek' ? stops.peek : stops.half);
+  const live = useRef({ stops, at: 'half' as Detent });
+  const shown = () => { const g = live.current; return g.at === 'full' ? g.stops.full : g.at === 'peek' ? g.stops.peek : g.stops.half; };
+  const sheet = usePanelSheet({ ref: card, on, stops, ownEase: true, tag: 'stop-sheet', shown });
+  live.current = { stops, at: sheet.at };
+  const setAt = sheet.set;
+  useEffect(() => { setAt('half'); }, [s?.at, setAt]);
+  const up = sheet.at === 'full';
+  const hide = cardH ? Math.max(0, cardH - Math.min(cardH, shownH(sheet.at))) : 0;
+  useEffect(() => { onHeight(Math.max(0, cardH - hide)); }, [cardH, hide, onHeight]);
   const m = s ? cv.moments[s.at] : null;
   const n = s?.stop.look.length ?? 0;
   return (
-    <section ref={card} className="cs-card cs-sheet cs-phone stage-blocker" data-on={on} data-up={up || undefined} data-tone={s?.tone || undefined} aria-hidden={!on} inert={!on}
-      style={{ ['--cs-hide' as string]: `${Math.round(hide)}px` }}
-      onPointerDown={(e) => { startY.current = e.clientY; }}
-      onPointerUp={(e) => { const y0 = startY.current; startY.current = null; if (y0 == null) return; const dy = e.clientY - y0; if (dy < -24) setUp(true); else if (dy > 24) setUp(false); }}>
-      <button type="button" className="cs-grab" aria-label={up ? CASE.pullDown : CASE.pullUp(n)} aria-expanded={up} onClick={() => setUp(!up)}><i /></button>
+    <section ref={card} className="cs-card cs-sheet cs-phone stage-blocker" data-on={on} data-up={up || undefined} data-sheet={sheet.at} data-tone={s?.tone || undefined} aria-hidden={!on} inert={!on}
+      style={{ ['--cs-hide' as string]: `${Math.round(hide)}px` }}>
+      <button type="button" className="cs-grab" aria-label={up ? CASE.pullDown : CASE.pullUp(n)} aria-expanded={up} onClick={sheet.grab}><i /></button>
       {s && <>
         <span className="cs-kick">{s.kicker}</span>
-        <h2 className="cs-title">{s.stop.title}</h2>
+        <h2 ref={title} className="cs-title">{s.stop.title}</h2>
         <div className="cs-words">{m && m.type !== 'quiet' && m.type !== 'trimmed' ? <MomentWords m={m} v={cv.v} say={s.stop.say} /> : null}</div>
         <Go s={s} short />
-        {n > 0 ? <button type="button" className="cs-pull" onClick={() => setUp(!up)}><Icon n={up ? 'chev-down' : 'camera'} /><span>{up ? CASE.pullDown : CASE.pullUp(n)}</span></button>
+        {n > 0 ? <button type="button" className="cs-pull" onClick={() => setAt(up ? 'half' : 'full')}>
+          <Icon n={up ? 'chev-down' : 'camera'} /><span>{up ? CASE.pullDown : CASE.pullUp(n)}</span></button>
           : <ShotLine s={s} moved={moved} back={back} />}
       </>}
       <div ref={more} className="cs-more" data-up={up || undefined}>

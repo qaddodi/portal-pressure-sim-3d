@@ -10,6 +10,8 @@ import { readBox, readPlace } from '../layout-snap.ts';
 import { useSurfaceMode } from '../surface/mode.ts';
 import { publishPanel } from '../surface/room.ts';
 import { useColumnStep } from '../surface/wire.ts';
+import { useFrameSheet } from '../surface/use-sheet.ts';
+import { SheetGrab } from '../surface/parts.tsx';
 
 /** The panels on a Frame, which a press outside never closes. */
 const STAYS: ReadonlySet<string> = new Set(['history', 'compare', 'why']);
@@ -42,7 +44,9 @@ export function Frame({ kind, label, head, place = 'top', children }: { kind: Ex
   // (History, Compare and Why are panels: they stay open while the figure is tapped, owner 27 Nov, section 6 question 1; Esc, the X, the opener and the slot table close them)
   const open = useShell((s) => s.sheet === kind);
   useOutsidePress(open && !STAYS.has(kind), [ref], () => useShell.getState().closeByPress(), `[data-opens="${kind}"]`);
-  useSheetSwipe(ref, () => useShell.getState().close(), () => frameIsSheet(ref.current));   // (a phone's sheet follows a pull down and closes past a short one, as 2D's)
+  // (a panel's phone sheet stops at Peek, Half and Full by the one pull, surface/use-sheet.ts; the rest follow a pull down and close past a short one, as 2D's)
+  const sheet = useFrameSheet(kind, ref, open);
+  useSheetSwipe(ref, () => useShell.getState().close(), () => frameIsSheet(ref.current), !sheet);
   // (a right-hand panel stands left of every panel opened before it in the column: surface/wire.ts useColumnStep, a translate that glides, shell.css)
   const step = useColumnStep(kind as PanelId);
   usePublishFrame(kind, ref, open, step);
@@ -53,10 +57,10 @@ export function Frame({ kind, label, head, place = 'top', children }: { kind: Ex
     : <div className="sh-sheet-head"><h2>{head ?? label}</h2><button type="button" className="sh-x" aria-label="Close" onClick={close}><Icon n="close" /></button></div>;
   const style = (step ? { '--pl-step': `${step}px` } : undefined) as CSSProperties | undefined;
   return (
-    <section ref={ref} className="sh-sheet" data-kind={kind} data-place={place} data-open={open} role="dialog" aria-label={label} inert={!open} style={style}>
-      <i className="sh-grabbar" aria-hidden="true" />
+    <section ref={ref} className="sh-sheet" data-kind={kind} data-place={place} data-open={open} data-sheet={sheet?.data} style={sheet ? { ...style, ...sheet.style } : style} role="dialog" aria-label={label} inert={!open}>
+      {sheet ? <SheetGrab label={`Resize ${label}`} onGrab={sheet.grab} /> : <i className="sh-grabbar" aria-hidden="true" />}
       {top}
-      <div className="sh-sheet-body">{children}</div>
+      <div className={`sh-sheet-body${sheet ? ' sf-body' : ''}`}>{children}</div>
     </section>
   );
 }

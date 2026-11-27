@@ -14,7 +14,6 @@ import { actionLabel as sent } from '../src/ui/action/send.ts';
 import { marksOf, type EntryIn } from '../src/ui/bigtime/marks.ts';
 import { tipsFacts, isTips } from '../src/ui/bigtime/facts.ts';
 import { MENU_TABS, stepTab, emptyNoteOf, emptyNote, filterRows, fold } from '../src/ui/menu/umenu-logic.ts';
-import { TABS } from '../src/ui/menu/swipe-tabs.ts';
 
 const metrics = (hvpg: number) => ({ hvpg, pv: 18, whvp: 14, fhvp: 3, ra: 5, ivc: 4, sv: 17, ascites: { volume: 500 }, shuntFraction: 0.2, co: 6, ppg: 12 });
 const frame = (day: number, o: Partial<FeedFrame> = {}): FeedFrame => ({ jump: false, clock: 'disease', day, metrics: metrics(10 + day / 100), gen: 1, params: {}, bands: 0, ...o });
@@ -109,7 +108,8 @@ test('History names an action as the page does, from one table', () => {
 
 test('the third list: the tabs are Present, Patients and Histories in that order; the arrows and the swipe go round the three', () => {
   assert.deepEqual([...MENU_TABS], ['present', 'patients', 'histories']);
-  assert.deepEqual([...TABS], [...MENU_TABS]);
+  // (the one tab swipe pages the menu over the same list: UMenu.tsx menuTabSwipe)
+  assert.match(readFileSync(new URL('../src/ui/menu/UMenu.tsx', import.meta.url), 'utf8'), /tabs: \(\) => MENU_TABS/);
   assert.equal(stepTab('present', 1), 'patients'); assert.equal(stepTab('histories', 1), 'present'); assert.equal(stepTab('present', -1), 'histories');
   const src = readFileSync('src/ui/menu/UMenu.tsx', 'utf8');
   assert.match(src, /id: 'histories', label: 'Histories'/);

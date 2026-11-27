@@ -151,6 +151,9 @@
 .cs-more { opacity: 0; transition: opacity var(--d-small) var(--ease-arrive); }
 .cs-more[data-up] { opacity: 1; }
 .cs-more .cs-look { margin-top: 6px; }
+/* (Peek: only the kicker and the title stay; what is under them fades as the sheet settles: surface/use-sheet.ts) */
+.cs-phone > :not(.cs-grab, .cs-kick, .cs-title) { transition: opacity var(--d-small) var(--ease-arrive); }
+.cs-phone[data-sheet="peek"] > :not(.cs-grab, .cs-kick, .cs-title) { opacity: 0; pointer-events: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .case-bar, .cs-card, .cs-card.cs-sheet, .cs-card.cs-phone { transform: none; }
