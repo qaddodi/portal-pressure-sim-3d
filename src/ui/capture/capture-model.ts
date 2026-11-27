@@ -144,10 +144,10 @@ export const stampTime = (d: Date): string => `${d.getFullYear()}-${pad(d.getMon
 /** The small line in the picture's corner: the build and the time. */
 
 /** The file's name: what the picture shows, the build and the time, so a folder of captures reads. */
-export function captureFileName(view: string, patient: string | null, commit: string, at: Date): string {
+export function captureFileName(view: string, patient: string | null, commit: string, at: Date, ext = 'png'): string {
   const part = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   const when = `${at.getFullYear()}${pad(at.getMonth() + 1)}${pad(at.getDate())}-${pad(at.getHours())}${pad(at.getMinutes())}${pad(at.getSeconds())}`;
-  return ['portal-pressure-capture', part(view), patient ? part(patient) : '', part(commit), when].filter(Boolean).join('-') + '.png';
+  return ['portal-pressure-capture', part(view), patient ? part(patient) : '', part(commit), when].filter(Boolean).join('-') + `.${ext}`;
 }
 
 /** The most the state record may weigh inside the PNG (a runaway log never makes the file heavy). */

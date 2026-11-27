@@ -321,6 +321,7 @@ input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 0 transpar
 @media (hover: hover) { .menu-item { --hv-bg: var(--surface-2); } .menu-item:hover::before { opacity: 1 } }
 .menu-item:focus-visible, .lens-opt:focus-visible { outline-offset: -2px; }   /* (the ring sits inside its row, as the main menu's do, not over the rows beside it) */
 .menu-item[aria-checked="true"] { font-weight: 600; }
+.menu-item.rec-on { color: var(--danger-ink); font-weight: 600; }   /* (Record window while it records: the word Stop in the warning's ink, no dot) */
 /* (A menu's rows keep their own height where the menu is shorter than they are together, and the menu scrolls: they shrank to their 40 px
    touch floor, which for a row with a two-line note (Blur effect, Always show HVPG) left its words over the next row on a phone held sideways.) */
 .menu > :is(.menu-item, .lens-opt, .menu-title, .menu-group) { flex-shrink: 0; }
