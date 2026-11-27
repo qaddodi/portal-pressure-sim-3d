@@ -12,7 +12,7 @@ import { useVariant } from '../talk/variant-words.ts';
 import { useWarm, movesModel } from '../talk/controls-run.ts';
 import { movesReadings } from '../../decks/controls.ts';
 import { variantsOf, idOf } from './variants.ts';
-import { cardFields } from './card-fields.ts';
+import { cardFields, railName } from './card-fields.ts';
 import { richOf } from '../text/rich.ts';
 import { useStates } from '../../decks/hp/calc.ts';
 import { copiedOf } from '../../decks/hp/deck.ts';
@@ -138,7 +138,7 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
       {f.rail ? (
         <div className={f.rail.cls} role="img" aria-label={f.rail.label}>
           <div className="pz-rail-liver"><i /><span>Liver</span><i /></div>
-          <ol>{f.rail.levels.map((l) => <li key={l.id} data-site={l.id} className={l.on ? 'on' : undefined}><i>{l.on ? <span className="pz-rail-blk" aria-hidden="true" /> : null}</i><span className="n">{l.name}</span></li>)}</ol>
+          <ol>{f.rail.levels.map((l) => <li key={l.id} data-site={l.id} className={l.on ? 'on' : undefined}><i>{l.on ? <span className="pz-rail-blk" aria-hidden="true" /> : null}</i><span className="n">{railName(l.name)}</span></li>)}</ol>
         </div>
       ) : null}
       {f.causes ? <p className="pz-causes"><span className="pz-sub">{f.causes.head}</span>{f.causes.list}</p> : null}

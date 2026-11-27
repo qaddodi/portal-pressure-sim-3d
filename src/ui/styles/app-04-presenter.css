@@ -254,15 +254,15 @@
 /* (the block: the phone ladder's block wrapped round the blocked level's whole bar, a little taller than it, clear of the label) */
 .pz-rail li > i .pz-rail-blk { position: absolute; left: -.12em; top: 50%; width: calc(100% + .24em); height: 1.25em; translate: 0 -50%; overflow: visible; animation: fade-rise var(--d-surface) var(--ease) .35s both; }
 .pz-rail { container-type: inline-size; }
-/* (one line each, centred under its bar, all on one baseline; the size follows the column width so the longest name, Postsinusoidal, always fits) */
-.pz-rail .n { display: block; max-width: none; font-size: min(1em, calc((100cqw - 25px) / 6 / 7.9)); font-weight: 600; line-height: 1.15; white-space: nowrap; color: var(--text-3); }
+/* (the names read straight, centred under their bars, at 12 px at the least: never shrunk to fit (owner, 27 Nov, L11, review 3531bdfa D-D5). A name that does not fit its column breaks at its own hyphen, or at the soft one
+   in "Pre-sinusoidal" and "Post-sinusoidal" (card-fields.ts railName), so the longest piece, "sinusoidal", is all a column must hold: 59 px at 12 px, so every card at least 396 px wide reads straight. Narrower, under the query below, they tilt.) */
+.pz-rail .n { display: block; max-width: none; font-size: max(12px, min(1em, calc((100cqw - 25px) / 6 / 7.9))); font-weight: 600; line-height: 1.15; white-space: normal; hyphens: manual; overflow-wrap: normal; text-wrap: balance; color: var(--text-3); }
 .pz-rail.all .n, .pz-rail li.on .n { color: var(--text); font-weight: 600; }
-/* (too narrow for flat names: tilt them 60° up from under the bar's centre, at the roles' own caption size, 12 px: the slide's
-   own caption would not fit under six bars.) */
-@container (max-width: 470px) {
+/* (a card under 396 px cannot hold the longest piece of a straight name: tilt them 60° up from under the bar's centre, at the roles' own caption size, 12 px: the slide's own caption would not fit under six bars.) */
+@container (max-width: 395px) {
   .pz-rail ol { --s-cap: calc(var(--t-cap) * var(--ts, 1)); --s-lab: calc(var(--t-lab) * var(--ts, 1)); --s-body: calc(var(--t-body) * var(--ts, 1)); --s-val: calc(var(--t-val) * var(--ts, 1)); --s-big: calc(var(--t-big) * var(--ts, 1)); --s-title: calc(var(--t-title) * var(--ts, 1)); }
   .pz-rail li { position: relative; min-height: 7.8em; }
-  .pz-rail .n { position: absolute; top: 1.1em; right: 50%; font-size: var(--s-cap); transform-origin: 100% 0; rotate: -60deg; }
+  .pz-rail .n { position: absolute; top: 1.1em; right: 50%; font-size: var(--s-cap); white-space: nowrap; text-wrap: nowrap; transform-origin: 100% 0; rotate: -60deg; }
   /* (The first name, "Pre-hepatic", tilts down and to the left of its bar: the six columns start that far in from the card's edge, else its first letters
      run out of the card, Sites and causes 2, 16 Nov 2026. 3.3 caption sizes is half its width; the liver's bracket follows the columns. A rule inside a container query cannot style the container itself, so `--pl` sits on the rail's children: it had sat on
      .pz-rail, which the query never reaches, and the columns never moved in: Pre-hepatic ran 3 px out on a 1440 x 780 Mac, 19 Nov 2026.) */
