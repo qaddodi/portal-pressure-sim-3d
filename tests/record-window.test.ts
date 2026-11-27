@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { canRecordWindow, pickRecordMime, recordExt, recordFileName, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
+import { canRecordWindow, actualMime, showRecordFrame, pickRecordMime, recordExt, recordFileName, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
 import { isCaptureKey } from '../src/ui/capture/capture-model.ts';
 import { createRecordRun, isRefusal, type RecordDeps, type RecordNote, type RecorderLike, type StreamLike } from '../src/ui/capture/record-run.ts';
 import { RECORD } from '../src/ui/shell/words.ts';
@@ -38,16 +38,17 @@ test('Record window sits in Settings with Capture screen, and its press runs ins
   assert.match(rec, /preferCurrentTab: true/);
 });
 
-test('the format is the first one the browser says it writes: WebM, then MP4 (Safari); none known leaves it to the browser', () => {
+test('the format is the first one the browser says it writes: MP4 first, then WebM; none known leaves it to the browser', () => {
   const only = (...ok: string[]) => (m: string) => ok.includes(m);
   assert.equal(pickRecordMime(only('video/webm;codecs=vp9', 'video/webm')), 'video/webm;codecs=vp9');
   assert.equal(pickRecordMime(only('video/webm')), 'video/webm');
+  assert.equal(pickRecordMime(only('video/webm;codecs=vp9', 'video/webm', 'video/mp4;codecs=avc1', 'video/mp4')), 'video/mp4;codecs=avc1', 'a browser that writes both (Safari, Chrome 126+) gets MP4: it plays everywhere');
   assert.equal(pickRecordMime(only('video/mp4')), 'video/mp4');
   assert.equal(pickRecordMime(only('video/mp4;codecs=avc1', 'video/mp4')), 'video/mp4;codecs=avc1');
   assert.equal(pickRecordMime(only()), '');
   assert.equal(pickRecordMime(undefined), '');
   assert.equal(pickRecordMime(() => { throw new Error('no'); }), '', 'a browser that throws for a type does not write it');
-  assert.ok(RECORD_MIMES.indexOf('video/webm') < RECORD_MIMES.indexOf('video/mp4'));
+  assert.ok(RECORD_MIMES.indexOf('video/mp4') < RECORD_MIMES.indexOf('video/webm'));
   assert.equal(recordExt('video/mp4;codecs=avc1'), 'mp4'); assert.equal(recordExt('video/mp4'), 'mp4'); assert.equal(recordExt('video/webm;codecs=vp9'), 'webm'); assert.equal(recordExt(''), 'webm');
 });
 
@@ -102,17 +103,18 @@ class FakeRecorder implements RecorderLike {
   start() { this.state = 'recording'; this.started++; }
   stop() { for (const d of this.data) this.ondataavailable?.({ data: d }); this.state = 'inactive'; this.onstop?.(undefined); }
 }
-function rig(opts: { ask?: () => Promise<StreamLike>; mime?: string; data?: Blob[]; recorder?: () => RecorderLike } = {}) {
-  const stream = new FakeStream(), phases: RecordPhase[] = [], notes: RecordNote[] = [], saved: { size: number; ext: string }[] = [];
+function rig(opts: { restrict?: boolean; ask?: () => Promise<StreamLike>; mime?: string; data?: Blob[]; recorder?: () => RecorderLike } = {}) {
+  const stream = new FakeStream(), phases: RecordPhase[] = [], notes: RecordNote[] = [], saved: { size: number; ext: string }[] = [], kept: boolean[] = [];
   const rec = new FakeRecorder(opts.mime ?? 'video/webm;codecs=vp9', opts.data ?? [new Blob(['aa']), new Blob(['bbb'])]);
   let asked = 0;
   const deps: RecordDeps = {
     ask: () => { asked++; return opts.ask ? opts.ask() : Promise.resolve(stream); },
     recorder: opts.recorder ?? (() => rec),
     save: (v, ext) => { saved.push({ size: v.size, ext }); },
-    tell: (n) => { notes.push(n); }, onPhase: (p) => { phases.push(p); },
+    restrict: () => Promise.resolve(opts.restrict ?? false),
+    tell: (n) => { notes.push(n); }, onPhase: (p) => { phases.push(p); }, onKept: (k) => { kept.push(k); },
   };
-  return { run: createRecordRun(deps), stream, rec, phases, notes, saved, asked: () => asked };
+  return { run: createRecordRun(deps), stream, rec, phases, notes, saved, kept, asked: () => asked };
 }
 const err = (name: string) => Object.assign(new Error(name), { name });
 
@@ -192,6 +194,39 @@ test('a recorder error mid-way ends it once and tells once', async () => {
 });
 
 test('the words: plain, no dot, Stop is a word in the toast', () => {
-  assert.equal(RECORD.row, 'Record window'); assert.equal(RECORD.stopRow, 'Stop recording'); assert.equal(RECORD.stop, 'Stop');
+  assert.equal(RECORD.row, 'Record window'); assert.equal(RECORD.stopRow, 'Stop recording'); assert.equal(RECORD.stopButton, 'Stop recording');
   assert.ok(!/[●•]/.test(Object.values(RECORD).join(' ')));
+});
+
+test('the file is named by the format the recorder really wrote (its mimeType, else its first piece), never by the one hoped for', async () => {
+  assert.equal(actualMime('video/mp4', '', 'video/webm'), 'video/mp4'); assert.equal(actualMime('', 'video/mp4', 'video/webm'), 'video/mp4'); assert.equal(actualMime('', '', 'video/webm'), 'video/webm');
+  // a recorder that does not say, writing pieces that say mp4: the file is .mp4
+  const r = rig({ mime: '', data: [new Blob(['aa'], { type: 'video/mp4' }), new Blob(['b'], { type: 'video/mp4' })] });
+  await r.run.press(); await r.run.press();
+  assert.deepEqual(r.saved, [{ size: 3, ext: 'mp4' }]);
+});
+
+test('the red outline is drawn only while recording AND only when the browser keeps it out of the video; the stop button needs neither', async () => {
+  assert.equal(showRecordFrame('recording', true), true);
+  assert.equal(showRecordFrame('recording', false), false, 'Safari: it would be in the video, so it is not drawn');
+  for (const p of ['idle', 'asking', 'saving'] as const) assert.equal(showRecordFrame(p, true), false);
+  const kept = rig({ restrict: true }); await kept.run.press();
+  assert.deepEqual(kept.kept, [true]); await kept.run.press();
+  assert.deepEqual(kept.kept, [true, false], 'it goes away when the recording stops');
+  const plain = rig({ restrict: false }); await plain.run.press();
+  assert.deepEqual(plain.kept, [false]); assert.equal(plain.run.phase(), 'recording', 'recording works all the same');
+});
+
+test('no toast while recording (it would be in the video); the stop button stands beside Settings in the top bar, the thumb bar and the presenter pill, and the outline is outside #root', () => {
+  const rec = src('src/ui/capture/record.ts');
+  assert.ok(!/RECORD\.on\b/.test(rec) && !/note === 'recording'/.test(rec));
+  assert.match(src('src/ui/shell/TopBar.tsx'), /<RecordStop \/>\s*\n\s*<button type="button" className="ib" id="btnSettings"/);
+  assert.match(src('src/ui/shell/ThumbBar.tsx'), /t\.id === 'settings' \? <RecordStop tab \/>/);
+  assert.match(src('src/ui/settings/SettingsMenu.tsx'), /<RecordStop \/>/);
+  assert.match(src('src/ui/deck/PresenterBar.tsx'), /RECORD_STOP_W/);
+  const ind = src('src/ui/capture/RecordIndicator.tsx');
+  assert.match(ind, /createPortal\([^\n]*document\.body\)/, 'the outline is on the body, outside the app, which is all Element Capture records');
+  assert.match(rec, /getElementById\('root'\)/); assert.match(rec, /RestrictionTarget/);
+  const css = src('src/ui/capture/record.css');
+  assert.match(css, /prefers-reduced-motion/); assert.match(css, /@keyframes rec-breathe \{ 0%, 100% \{ opacity: 1; \} 50% \{ opacity: \.4; \} \}/, 'the pulse is opacity only');
 });

@@ -41,7 +41,7 @@ export const CAPTURE = {
 /** Settings > Record window (ui/capture/record.ts): a video of this window, saved when it is stopped. Shown only where the browser can share a window and write video. */
 export const RECORD = {
   row: 'Record window', hint: 'A video of this window, saved when you stop it', stopRow: 'Stop recording', stopHint: 'Stop and save the video', savingRow: 'Saving the video…',
-  stop: 'Stop', on: 'Recording this window. Stop it here, or in Settings.',
+  stopButton: 'Stop recording',
   saved: 'Recording saved.', failed: 'Couldn’t record the window. Try again in a moment.',
 } as const;
 export const BOOT_CRASH = { title: 'The simulator didn’t start', body: 'The model didn’t load, and reloading usually fixes it.', reload: 'Reload' } as const;
