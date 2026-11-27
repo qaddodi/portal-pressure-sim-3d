@@ -94,8 +94,6 @@ function pointAt(id: string): [number, number, number] {
   return best;
 }
 const POINTS: Record<string, [number, number, number]> = { RA: pointAt('RA'), SIN_R: pointAt('SIN_R'), VAR: pointAt('VAR'), GV: pointAt('GV') };
-/** The plane of an organ's front face (frame2d.ts: organs lie behind z = 0.26). */
-export const ORGAN_FRONT = 0.26;
 /** Every organ the 2D app names (ORGAN_LABELS): its id here, and the word the 2D plate writes. */
 const ORGAN_WORD: Record<string, string> = { liver: 'Liver', spleen: 'Spleen', stomach: 'Stomach', colon: 'Colon', kidney: 'Kidney', bowel: 'Small bowel', esophagus: 'Esophagus', heart: 'Right atrium' };
 /** Where an organ's name stands, 2D world units: a point inside the placed organ's front silhouette nearest the 2D plate's place (or beside the organ as the 2D name stands beside it),

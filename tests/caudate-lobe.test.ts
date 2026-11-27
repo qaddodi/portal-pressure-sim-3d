@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CAUDATE_FRONT_Z, caudateGeometry, caudateScale } from '../src/scene/organs/caudate.ts';
 import { x2d, x3, y2d, y3 } from '../src/scene/frame2d.ts';
+import { organFrontZ } from '../src/scene/organs/organ-front.ts';
 import { anchorPoint } from '../src/scene/labels/figure-cards.ts';
 import { AlwaysDepth, AlwaysStencilFunc, NotEqualStencilFunc, ReplaceStencilOp, Vector3 } from 'three';
 import { PALETTES } from '../src/scene/palette.ts';
@@ -124,5 +125,5 @@ test('a mark or step on the lobe sits on its dome, not at the organ plane in fro
   assert.ok(on.length > 0, 'the slide has a card on the lobe');
   for (const k of on) { assert.equal((k.anchor as { z?: number }).z, CAUDATE_FRONT_Z); assert.equal(anchorPoint(k.anchor, out)!.z, CAUDATE_FRONT_Z); }
   assert.ok(Math.abs(CAUDATE_FRONT_Z - (PLACED_CAUDATE.c[2] + PLACED_CAUDATE.ax[2])) < 0.003, 'placed path: the egg\'s front');   // (the egg's own front pole)
-  assert.equal(anchorPoint({ at2d: ORGAN_ANCHOR_2D.liver!.at }, out)!.z, 0.26, 'a liver mark keeps the organ plane');
+  assert.equal(anchorPoint(organAnchor('liver'), out)!.z, organFrontZ('liver'), 'a liver mark stands on the liver\'s own front');
 });

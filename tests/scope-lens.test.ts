@@ -11,7 +11,7 @@ import { wantOf } from '../src/ui/scope/scope-want.ts';
 import { stepGate, newGate, GONE_MS } from '../src/ui/scope/scope-gate.ts';
 import { captionOf } from '../src/ui/scope/scope-caption.ts';
 import { RING, BADGE_R, badgeAt, scopeLensFor, scopeGrows, placeLens, lensFits, lensCentre, coneLines, ringHit } from '../src/scene/disease/copied/scope-lens-rule.js';
-import { ScopeRing, RING_VS, RING_FS, RING_Z, type ScopeRingScreen } from '../src/scene/disease/scope-ring.ts';
+import { ScopeRing, RING_VS, RING_FS, RING_REST, type ScopeRingScreen } from '../src/scene/disease/scope-ring.ts';
 import { UNITS_PER_SCENE as U, x3, y3 } from '../src/scene/frame2d.ts';
 import type { Deck } from '../src/decks/schema.ts';
 
@@ -173,14 +173,13 @@ test('the ring on the screen: its radius is the 2D ring\'s in the figure\'s unit
     const project = (p: Vector3, o: { x: number; y: number }) => { o.x = 500 + p.x * sc; o.y = 400 - p.y * sc; return o; };
     const res = r.screen(project, (p) => body.localToWorld(p.clone()), new Vector3(1, 0, 0), out)!;
     assert.ok(res, 'on the screen');
-    assert.ok(Math.abs(res.x - (500 + x3(RING.x) * sc)) < 1e-6 && Math.abs(res.y - (400 - y3(RING.y) * sc)) < 1e-6, 'centre');
+    assert.ok(Math.abs(res.x - (500 + x3(RING_REST.x) * sc)) < 1e-6 && Math.abs(res.y - (400 - y3(RING_REST.y) * sc)) < 1e-6, 'centre');
     assert.ok(Math.abs(res.r - (RING.r / U) * sc) < 1e-6, `radius at ${sc}`);
     assert.equal(res.br, 0, 'no badge: its radius is nothing');
     assert.ok(res.bx === res.x && res.by === res.y, 'and it stands at the ring\'s centre, so a tap and the names\' keep-off room are the ring\'s alone');
     assert.ok(res.bleed.r > res.bleed.l && res.bleed.b > res.bleed.t);
     assert.ok(res.bleed.t > res.y, 'the bleed patch is below the ring');
   }
-  assert.equal(RING_Z, 0.36, 'the ring stands in the plane the bleed leaves the varix in');
   r.dispose();
 });
 
@@ -263,16 +262,16 @@ test('the ring stands on the tear while a varix bleeds and eases there and back'
   const { RING } = await import('../src/scene/disease/copied/scope-lens-rule.js');
   const r = new ScopeRing();
   r.set(true, false); r.step(1, true);
-  assert.deepEqual([...r.centre()], [RING.x, RING.y]);
+  assert.deepEqual([...r.centre()], [RING_REST.x, RING_REST.y]);
   const [tx, ty] = tearPoint('VAR');
   r.setCentre([tx, ty]);
   r.step(0.05);
   const [mx, my] = r.centre();
-  assert.ok(my > RING.y && my < ty, 'on its way, not there yet');
+  assert.ok(my > RING_REST.y && my < ty, 'on its way, not there yet');
   assert.ok(mx !== tx || my !== ty);
   for (let i = 0; i < 80; i++) r.step(0.05);
   assert.ok(Math.hypot(r.centre()[0] - tx, r.centre()[1] - ty) < 0.05, 'on the tear');
   r.setCentre(null);
   for (let i = 0; i < 80; i++) r.step(0.05);
-  assert.ok(Math.hypot(r.centre()[0] - RING.x, r.centre()[1] - RING.y) < 0.05, 'back at the scope rule\'s place');
+  assert.ok(Math.hypot(r.centre()[0] - RING_REST.x, r.centre()[1] - RING_REST.y) < 0.05, 'back at its rest place, on the varix');
 });
