@@ -244,7 +244,6 @@ Address flags, where each works (live site, or the preview and a local run only)
 | `?only` | preview and local run | Pages | The Phone check or the Sweep: just these journeys or specimens (comma list). |
 | `?steps` | preview and local run | Pages | The Phone check: steps=0 leaves out the per-step rows. |
 | `?fresh` | preview and local run | Pages | The Phone check: fresh=1 forgets a walk the browser was part way through. |
-| `?parity` | preview and local run | Pages | The build's progress page: how much of the 2D app the 3D app has, per batch and area (src/parity). |
 | `?charts` | preview and local run | Pages | The charts gallery (src/ui/charts/gallery). |
 | `?script` | everywhere | Open | Open this deck (with ?slide=N). |
 | `?slide` | everywhere | Open | Open this slide of ?script. |

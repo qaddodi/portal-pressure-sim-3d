@@ -25,7 +25,7 @@ test('every page that is not the app lifts the cover (plainPage) before it opens
     const at = entry.search(new RegExp(`plainPage\\(\\);\\s*${call.replace(/[()]/g, '\\$&')}`));
     assert.ok(at > 0 && at < app, `${call}: plainPage() first, before the app`);
   }
-  for (const page of ['ParityPage', 'presenter-window', 'debug/frame/frame', 'debug/audit/outer', 'debug/look-board']) assert.ok(entry.indexOf(page) > 0 && entry.indexOf(page) < app, `${page} is opened before the app is fetched`);
+  for (const page of ['presenter-window', 'debug/frame/frame', 'debug/audit/outer', 'debug/look-board']) assert.ok(entry.indexOf(page) > 0 && entry.indexOf(page) < app, `${page} is opened before the app is fetched`);
 });
 
 test('a part that cannot be fetched says so with Reload, never a page that waits for ever', () => {
@@ -33,7 +33,7 @@ test('a part that cannot be fetched says so with Reload, never a page that waits
 });
 
 test('main.tsx no longer decides any page that is not the app', () => {
-  for (const gone of ['bootOuter', 'bootFrame', 'bootLookBoard', 'presenter-window', 'ParityPage', 'plainPage']) assert.equal(main.includes(gone), false, `${gone} is the entry's now`);
+  for (const gone of ['bootOuter', 'bootFrame', 'bootLookBoard', 'presenter-window', 'plainPage']) assert.equal(main.includes(gone), false, `${gone} is the entry's now`);
 });
 
 test('the build names the app chunk and its CSS in the page, so they load beside the entry (and the offline install list reads them from the page)', () => {

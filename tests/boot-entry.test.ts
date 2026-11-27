@@ -1,5 +1,5 @@
 // What a normal load downloads before its first picture: everything src/main.tsx reaches through static imports (a dynamic `import()` is a part fetched when asked for).
-// The debug pages (?debug, ?watch, ?gl), the charts gallery (?charts), the parity page (?parity) and every chart family's code are not in it. Until 19 Nov 2026 the decks'
+// The debug pages (?debug, ?watch, ?gl), the charts gallery (?charts), and every chart family's code are not in it. Until 19 Nov 2026 the decks'
 // hook tables imported the chart registry to ask "is this chart done" (every family's gallery specimens), and the card layer imported every chart family's card through
 // the talk's ToolCard: about 900 kB of chart source in the boot entry. The charts are now one chunk a talk waits for (ui/talk/ToolCard.tsx, ui/shell/talk.ts).
 import { test } from 'node:test';
@@ -28,7 +28,7 @@ test('the walk sees the app (it is not vacuous)', () => {
   for (const f of ['src/App.tsx', 'src/scene/Stage.tsx', 'src/ui/shell/Shell.tsx', 'src/engine/boot.ts', 'src/pwa/register.ts', 'src/ui/shell/DeckUiSlot.tsx', 'src/ui/shell/talk.ts', 'src/ui/shell/SheetsSlot.tsx']) assert.ok(files.includes(f), `${f} is in the boot entry`);
 });
 
-test('the boot entry does not statically import the debug pages, the charts gallery, the parity page or the chart registry', () => {
+test('the boot entry does not statically import the debug pages, the charts gallery or the chart registry', () => {
   // the few lines of each that decide whether to fetch the rest stay in the entry
   const stubs = new Set(['src/ui/debug/mount.ts', 'src/ui/debug/flags.ts', 'src/ui/debug/gate.ts', 'src/ui/debug/caught.ts', 'src/ui/debug/frame/request.ts', 'src/ui/charts/gallery/mount.tsx',
     'src/debug/shader-guard.ts', 'src/debug/shader-fail.ts', 'src/debug/gl-ref.ts',

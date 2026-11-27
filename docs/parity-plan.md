@@ -1,3 +1,5 @@
+> **Retired (27 Nov 2026).** The `?parity` scoreboard, its score and its matches list are gone with the 2D app. `src/parity/b*.ts` keep exporting `claims` (derived from the tables the UI renders from) and the tests that import them hold each named control, word and card to the screen; `parity/inventory.json` still feeds `strings.generated.ts`.
+
 # Parity plan: the whole 2D app, 1:1, in 3D
 
 19 Nov 2026, 3 PM ET, version 1. Plan only. It is read against the 2D app's preview branch (`claude/settings-topbar-icon-flvft1`, tip b3058ef3, with
