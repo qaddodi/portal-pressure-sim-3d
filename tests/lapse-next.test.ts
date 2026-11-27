@@ -91,13 +91,13 @@ test('every lapse.cam in the copied decks is a push on the anatomy', async () =>
 
 test('the camera\'s slow push is one straight glide on 2D\'s curve for the days\' whole length, and Next brings it to rest (never a zigzag)', async () => {
   const { CameraRig } = await import('../src/scene/camera/rig.ts');
-  const { boxToShot, PLATE } = await import('../src/decks/hp/cams.ts');
-  const { REGIONS } = await import('../src/decks/hp/regions.copied.ts');
+  const { camPlan } = await import('../src/decks/hp/cams.ts');
+  const shotOf = (c: string) => (camPlan(c) as { shot: import('../src/scene/camera/shots.ts').Shot }).shot;
   const room = { x: 0, y: 0, w: 1000, h: 700 };
   const rig = new CameraRig('play', room); rig.resize(1000, 700);
-  const to = boxToShot(REGIONS.varices!);
-  rig.goTo(boxToShot(PLATE), room, 0); rig.update(0);
-  rig.goTo(boxToShot(REGIONS.liver!), room, 0, 1000); for (let t = 16; t <= 1100; t += 16) rig.update(t);   // landed on the slide's own framing
+  const to = shotOf('varices');
+  rig.goTo(shotOf('fit'), room, 0); rig.update(0);
+  rig.goTo(shotOf('liver'), room, 0, 1000); for (let t = 16; t <= 1100; t += 16) rig.update(t);   // landed on the slide's own framing
   const T0 = 2000, MS = 8000;
   rig.goTo(to, room, T0, MS, false, driftEase);
   let lastX = rig.pose.shot.target[0], lastY = rig.pose.shot.target[1], lastH = rig.pose.shot.half[0];

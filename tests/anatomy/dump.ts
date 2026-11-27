@@ -7,9 +7,6 @@ import { STATIONS, figureCourses } from '../../src/scene/labels/stations.ts';
 import { catheterRoute } from '../../src/scene/catheter-route.ts';
 import { ROUTE_KINDS, routeOf } from '../../src/scene/procedures/route.ts';
 import { SHOTS } from '../../src/scene/camera/shots.ts';
-import { boxToShot } from '../../src/decks/hp/cams.ts';
-import { REGIONS_HP, REGIONS_2D } from '../../src/scene/anatomy/source.ts';
-import { shotOfBox } from '../../src/decks/ag/shots.ts';
 import { LIVER_POINT, SIN_POINT } from '../../src/scene/lobule/frames.ts';
 import { LIVER_BRANCHES } from '../../src/scene/vessels/liver-branches.ts';
 
@@ -28,8 +25,6 @@ export function anatomyDump(): Record<string, unknown> {
   out['catheter:hvpg'] = r4(catheterRoute());
   for (const k of ROUTE_KINDS) { const r = routeOf(k); out[`route:${k}`] = r ? r4({ pts: r.pts, rad: (r as { rad?: number[] }).rad, parts: r.parts }) : null; }
   for (const [k, s] of Object.entries(SHOTS)) out[`shot:${k}`] = r4(s);
-  for (const [k, b] of Object.entries(REGIONS_HP)) out[`region-hp:${k}`] = r4(boxToShot(b));
-  for (const [k, b] of Object.entries(REGIONS_2D)) out[`region-ag:${k}`] = r4(shotOfBox(b));
   out['dive:liver'] = r4(LIVER_POINT); out['dive:sinusoid'] = r4(SIN_POINT);
   for (const b of LIVER_BRANCHES) out[`branches:${b.host}`] = r4(b);
   return out;

@@ -34,11 +34,6 @@ export const DEPTH = -0.2;
 /** The nearest a derived shot sits, scene units: a small region is shown big, never closer than this. */
 export const NEAR = 2.8;
 
-export function boxToShot(b: Box): Shot {
-  const cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2;
-  return { yaw: YAW, pitch: PITCH, r: NEAR, target: [sceneX(cx), sceneY(cy), DEPTH], half: [(b[2] - b[0]) / 2 / SCALE, (b[3] - b[1]) / 2 / SCALE] };
-}
-
 const isBox = (c: unknown): c is Box => Array.isArray(c) && c.length === 4 && c.every((n) => typeof n === 'number' && Number.isFinite(n));
 const isNames = (c: unknown): c is string[] => Array.isArray(c) && c.length > 0 && c.every((n) => typeof n === 'string');
 
@@ -48,7 +43,7 @@ export function unionBox(boxes: readonly Box[]): Box {
   return [x0, y0, x1, y1];
 }
 
-/** A placed box (anatomy/source.ts, the approved placement) as this deck's body shot: the same pose and nearest distance as `boxToShot`, the box's middle at its own depth. */
+/** A placed box (anatomy/source.ts, the approved placement) as this deck's body shot: the body pose (YAW, PITCH) and nearest distance NEAR, the box's middle at its own depth. */
 export function box3ToShot(b: Box3): Shot {
   const c = centreOf(b);
   return { yaw: YAW, pitch: PITCH, r: NEAR, target: [c[0], c[1], c[2]], half: [(b[3] - b[0]) / 2, (b[4] - b[1]) / 2] };
