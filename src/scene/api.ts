@@ -30,7 +30,7 @@ import { useLens } from './lenses/store.ts';
 import { useBlood } from './blood/options.ts';
 import type { BloodChoice } from './blood/options.ts';
 import type { Gestures } from './gesture/controller.ts';
-import { DIVE_BODY_MS, viewMoveMs } from './camera/dive.ts';
+import { DIVE_BODY_MS, diveMs } from './camera/dive.ts';
 import { createFrameQueue } from './gesture/frame-queue.ts';
 import { splitGoTo, splitMainRoom, splitSetRoom } from './twin/split.ts';
 
@@ -112,7 +112,7 @@ export const sceneApi = {
     cel.setView(v);
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together; body, lobule and sinusoid
     // are one dive through the liver (camera/rig.ts blends it geometrically) that takes the dive's time
-    const ms = viewMoveMs(from, v, cel.circuit.changeMs());
+    const ms = (v === 'body' || v === 'circuit' ? cel.circuit.changeMs() : 0) || diveMs(from, v);
     this.goTo(v === 'body' ? 'play' : v === 'circuit' ? circuitShot(cel.circuit.upright) : v === 'sinusoid' ? sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)) : lobuleShot(cam), room, ms);
     clock.invalidate('circuit');
   },
@@ -136,9 +136,7 @@ export const sceneApi = {
     // the body and the map change places on the camera's own length (the circuit's clock says how long is left of it), so they land together
     const to = v === 'sinusoid' && typeof shot !== 'string' ? sinusoidShot(stagePortrait(), shortSide(stagePortrait(), room)) : shot;
     // a slide's move takes 2D's 800 to 1400 ms (planSlide: rig.slideMs); a catheter step's close-up (slide false) keeps the hand's glide
-    // (a view change that is a dive takes the dive's time, the same from a slide as from the view button: viewMoveMs; rig.slideMs only knows distances, never which view it lands in)
-    const own = slide ? cel.rig.slideMs(to) : undefined;
-    this.goTo(to, room, from !== v ? (viewMoveMs(from, v, cel.circuit.changeMs()) ?? (v === 'body' || from === 'circuit' ? cel.circuit.changeMs() || own : own)) : own);
+    this.goTo(to, room, from !== v && (v === 'body' || from === 'circuit') ? cel.circuit.changeMs() || (slide ? cel.rig.slideMs(to) : undefined) : slide ? cel.rig.slideMs(to) : undefined);
   },
   /** The Circuit's quarter turn: stand the map upright (flow bottom to top) or lay it wide; the camera follows on the same 480 ms. Remembered across visits. */
   setCircuitUpright(on: boolean, room: Room): void {

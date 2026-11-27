@@ -31,8 +31,7 @@ test('the lobule stands inside the right lobe of the liver, and the sinusoid ins
   const lo = lobuleWorld([-LOBULE_R, -LOBULE_R, -LOBULE_T / 2]), hi = lobuleWorld([LOBULE_R, LOBULE_R, LOBULE_T / 2]);
   for (const c of sinusoidCorners()) for (let i = 0; i < 2; i++) assert.ok(c[i]! > lo[i]! && c[i]! < hi[i]!, `sinusoid corner axis ${i} inside the lobule`);
   assert.ok(SIN_SCALE < LOBULE_SCALE && LOBULE_SCALE < 0.05);
-  // (found by rule, lobule/station.ts: a zone 2 place, so well out from the centre toward a portal corner, on the right-hand one since 27 Nov)
-  assert.ok(Math.hypot(SIN_POINT[0] - LIVER_POINT[0], SIN_POINT[1] - LIVER_POINT[1]) > 0.3 * LOBULE_R * LOBULE_SCALE, 'the sinusoid station is out toward a portal corner');
+  assert.ok(SIN_POINT[0] < LIVER_POINT[0], 'the sinusoid station is toward the portal corner');
 });
 
 test('a dive goes by the same ratio every moment, keeps the place dived to in the middle of the picture, and lands exactly', () => {
@@ -105,7 +104,7 @@ test('the dive arc is zero at both ends, peaks mid-move, and Reduce Motion (arc 
 });
 
 import { buildLobule, hexFrac, zoneOf } from '../src/scene/lobule/geometry.ts';
-import { SIN_ANGLE, SIN_LOCAL } from '../src/scene/lobule/frames.ts';
+import { SIN_LOCAL } from '../src/scene/lobule/frames.ts';
 import { sceneSource } from './helpers/scene-source.ts';
 test('the sinusoid view stands on a real sinusoid of the lobule, in zone 2, running along the view', () => {
   const net = buildLobule(7);
@@ -119,8 +118,7 @@ test('the sinusoid view stands on a real sinusoid of the lobule, in zone 2, runn
     });
   }
   assert.ok(best < 0.01, `a sinusoid passes through the station (off by ${best})`);
-  // (the view's own axis is turned to the course: its flow is the blood's, whichever way along x the course runs; tests/dive-scales-agree.test.ts holds the rule)
-  assert.ok(Math.abs(Math.sin((ang - SIN_ANGLE) / 2)) < 0.05, 'it runs along the sinusoid view\'s own axis');
+  assert.ok(Math.abs(ang) < 0.1, 'it runs along the sinusoid view\'s own axis');
   assert.equal(zoneOf(hexFrac(SIN_LOCAL[0] / LOBULE_R, -SIN_LOCAL[1] / LOBULE_R)), 2);
 });
 

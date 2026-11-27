@@ -16,8 +16,6 @@ export interface PartData {
   ac?: number[];
   /** the junction skins' vertices, each arm's own share, place across and place along (SkinInk): a junction's streams are each arm's, blended where the arms meet */
   skins?: SkinInk[];
-  /** where each course's own vertices lie in the mesh (course key `${kind}${id}`: first vertex and one past the last), so one course can be found again (the dive's tube tone, lobule3d setTubeLift) */
-  ranges?: Map<string, [number, number]>;
 }
 /** One junction skin's vertices (from `v0`, `n` of them) as the stream lenses read them: per vertex and arm (4 slots), the arm's weight, the vertex's place across that arm, and the arm's
  *  colour place along; `other[i]` marks an arm of the other colour family (the part's second segment). */

@@ -11,7 +11,7 @@ import { PORTRAIT_ANGLE, PORTRAIT_ROLL, acrossUm, endsFor, framePoint, isPortrai
 import { CameraRig, blendPose } from '../src/scene/camera/rig.ts';
 import { lobuleShot } from '../src/scene/lobule/shots.ts';
 import { sinusoidBox, sinusoidShot, SINUSOID_L } from '../src/scene/lobule/shots.ts';
-import { SIN_ANGLE, SIN_SCALE, sinusoidWorld } from '../src/scene/lobule/frames.ts';
+import { SIN_SCALE, sinusoidWorld } from '../src/scene/lobule/frames.ts';
 import { FILL } from '../src/scene/camera/room.ts';
 import type { SinusoidTargets } from '../src/scene/lobule/model.ts';
 
@@ -77,17 +77,10 @@ function xAxisOnScreen(rig: CameraRig, at: [number, number, number]): number {
   const o = rig.project(new Vector3(...at)), p = rig.project(new Vector3(at[0] + 1e-4, at[1], at[2]));
   return Math.atan2(-(p.y - o.y), p.x - o.x);
 }
-/** The screen's angle of the sinusoid view's own flow axis (the plane's x, turned in the plate by SIN_ANGLE: frames.ts) at its station. */
-function flowAxisOnScreen(rig: CameraRig): number {
-  const w0 = sinusoidWorld([0, 0, 0]), w1 = sinusoidWorld([1e-4 / SIN_SCALE, 0, 0]), o = rig.project(new Vector3(...w0)), p = rig.project(new Vector3(...w1));
-  return Math.atan2(-(p.y - o.y), p.x - o.x);
-}
-const wrap = (a: number): number => ((a + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
 
-// (27 Nov: the view's frame is turned SIN_ANGLE in the plate, along the blood at its station on the lobule (frames.ts), so every sinusoid shot is rolled by that, and a portrait screen a quarter turn more)
-test('a portrait screen\'s sinusoid shot rolls the camera a quarter turn more than a wide one, which rolls only the frame\'s own turn', () => {
-  assert.equal(sinusoidShot(false).roll, SIN_ANGLE); assert.equal(sinusoidShot(false, 600).roll, SIN_ANGLE);
-  assert.equal(sinusoidShot(true).roll, SIN_ANGLE + PORTRAIT_ROLL); assert.equal(sinusoidShot(true, 390).roll, SIN_ANGLE + PORTRAIT_ROLL);
+test('a portrait screen\'s sinusoid shot rolls the camera a quarter turn; a wide one does not', () => {
+  assert.equal(sinusoidShot(false).roll, undefined); assert.equal(sinusoidShot(false, 600).roll, undefined);
+  assert.equal(sinusoidShot(true).roll, PORTRAIT_ROLL); assert.equal(sinusoidShot(true, 390).roll, PORTRAIT_ROLL);
   assert.equal(PORTRAIT_ROLL, -PORTRAIT_ANGLE);
   assert.equal(lobuleShot('lobule').roll, undefined, 'the lobule is seen square');
 });
@@ -96,38 +89,31 @@ test('the lobule and the sinusoid turn together: one camera roll through the who
   const room = { x: 0, y: 0, w: 390, h: 800 }, from = { shot: lobuleShot('lobule'), room }, to = { shot: sinusoidShot(true, 390), room };
   const rolls: number[] = [];
   for (let i = 0; i <= 10; i++) rolls.push(blendPose(from, to, i / 10, 0).shot.roll ?? 0);
-  const land = SIN_ANGLE + PORTRAIT_ROLL, way = Math.sign(land);
-  assert.equal(rolls[0], 0, 'starts square'); assert.equal(rolls[rolls.length - 1], land, 'lands on the shot\'s own roll, to the last digit');
-  for (let i = 1; i < rolls.length; i++) assert.ok(way * (rolls[i]! - rolls[i - 1]!) > 0, 'one move, never back and forth');
+  assert.equal(rolls[0], 0, 'starts square'); assert.equal(rolls[rolls.length - 1], PORTRAIT_ROLL, 'lands on the shot\'s own roll, to the last digit');
+  for (let i = 1; i < rolls.length; i++) assert.ok(rolls[i]! > rolls[i - 1]!, 'one move, never back and forth');
   // it is the whole dive's: already turning in the first tenth, not held back for a late flip
-  assert.ok(way * rolls[1]! > 0.05 * way * land);
+  assert.ok(rolls[1]! > 0.05 * PORTRAIT_ROLL);
   // coming out is the same camera run backward
   const back: number[] = [];
   for (let i = 0; i <= 10; i++) back.push(blendPose(to, from, i / 10, 0).shot.roll ?? 0);
   back.forEach((r, i) => assert.ok(Math.abs(r - rolls[rolls.length - 1 - i]!) < 1e-9, `out at ${i} is in at ${rolls.length - 1 - i}`));
-  // a wide screen: the frame's own turn only, one move the short way round, landing exactly on it
+  // a wide screen: no roll anywhere
   const wide = { shot: sinusoidShot(false, 600), room: { x: 0, y: 0, w: 1200, h: 800 } };
-  let last = 0;
-  for (const k of [0.3, 0.7, 1]) { const r = blendPose({ shot: lobuleShot('lobule'), room: wide.room }, wide, k, 0).shot.roll!; assert.ok(Math.sign(SIN_ANGLE) * (r - last) > 0); last = r; }
-  assert.equal(last, SIN_ANGLE);
+  for (const k of [0, 0.3, 0.7, 1]) assert.equal(blendPose({ shot: lobuleShot('lobule'), room: wide.room }, wide, k, 0).shot.roll, undefined);
 });
 
-test('through the rig: the view\'s flow axis turns from where the lobule has it to along the screen (down it on a tall one), once, the lobule with it', () => {
+test('through the rig: the lobule\'s x axis and the plane\'s are one line on the screen at every frame, and it turns from along the screen to down it, once', () => {
   const full = { x: 0, y: 0, w: 390, h: 800 };
   const rig = new CameraRig('play', full); rig.resize(390, 800);
   rig.goTo(lobuleShot('lobule'), full, 0, 0); rig.update(0);
   const target = sinusoidWorld([0, 0, 0]);
-  assert.ok(Math.abs(xAxisOnScreen(rig, target)) < 1e-6, 'the lobule is seen square');
-  const start = flowAxisOnScreen(rig);
-  assert.ok(Math.abs(wrap(start - SIN_ANGLE)) < 1e-6, 'and the blood at the station runs the way the lobule has it (the frame is turned to it)');
+  assert.ok(Math.abs(xAxisOnScreen(rig, target)) < 1e-6, 'the lobule is seen square: its capillary runs across the screen');
   rig.goTo(sinusoidShot(true, 390), full, 0, 1800, false, (k) => k * k * (3 - 2 * k)); 
   const seen: number[] = [];
-  for (let t = 16; t <= 1900; t += 16) { rig.update(t); seen.push(flowAxisOnScreen(rig)); }
+  for (let t = 16; t <= 1900; t += 16) { rig.update(t); seen.push(xAxisOnScreen(rig, target)); }
   const last = seen[seen.length - 1]!;
-  assert.ok(Math.abs(wrap(last - PORTRAIT_ANGLE)) < 1e-6, `lands with the flow running down the screen (${last})`);
-  // (one turn the short way: each step moves the same way as the whole, never back)
-  const way = Math.sign(wrap(last - start));
-  for (let i = 1; i < seen.length; i++) assert.ok(way * wrap(seen[i]! - seen[i - 1]!) >= -1e-9, 'a steady turn, never back');
+  assert.ok(Math.abs(last - PORTRAIT_ANGLE) < 1e-6, `lands with the flow running down the screen (${last})`);
+  for (let i = 1; i < seen.length; i++) assert.ok(seen[i]! <= seen[i - 1]! + 1e-9, 'a steady turn, never back');
   // the plane itself never turned: its x axis IS the world's, so what turns the lobule turns it
   assert.ok(rig.camera.up.y === 1 && rig.camera.up.x === 0, 'the roll is the camera\'s own turn about its view axis, not a change of its up');
 });
