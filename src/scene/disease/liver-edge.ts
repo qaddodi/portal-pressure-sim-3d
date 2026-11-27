@@ -6,7 +6,7 @@
 import { LIVER_OUTLINE, FLUID_COLS, FLUID_R } from './copied/liver-outline.js';
 import { contourNodules, liverShrink, morphOutline, outlineNormals, smooth01 } from './copied/liver-morph.js';
 import { ORGAN_MESHES } from '../organs/meshes.ts';
-import { x2d, y2d } from '../frame2d.ts';
+import { ORIGIN_2D, UNITS_PER_SCENE, x2d, y2d } from '../frame2d.ts';
 
 export { FLUID_COLS, FLUID_R };
 /** The liver's pivot (stage-diaphragm.js: its shrink is about this point) in 2D units. */
@@ -68,9 +68,9 @@ export function liverKeep(table: ArrayLike<number>, wx: number, wy: number, scal
   return 1 - cut * (1 - t * t * (3 - 2 * t));
 }
 
-/** The vertex program's half: the pool's 2D position (x, y down) from its vertex, written before the lift (scene units: 300 to a unit, the figure's centre at 700, 556). */
+/** The vertex program's half: the pool's 2D position (x, y down) from its vertex, written before the lift (frame2d.ts: the scene's units to the figure's). */
 export const LIVER_CUT_VS_DECL = 'varying vec2 vW2d;';
-export const LIVER_CUT_VS_MAIN = 'vW2d = vec2(position.x * 300.0 + 700.0, 556.0 - position.y * 300.0);';
+export const LIVER_CUT_VS_MAIN = `vW2d = vec2(position.x * ${UNITS_PER_SCENE.toFixed(1)} + ${ORIGIN_2D.x.toFixed(1)}, ${ORIGIN_2D.y.toFixed(1)} - position.y * ${UNITS_PER_SCENE.toFixed(1)});`;
 /** The fragment program's half: `liverKeep(vW2d, px)` is the share of the fluid kept at this fragment, the sum of `liverKeep` above (veins-gl.js fluidAt: lu is the point in the liver's frame, lx the column across the rectangle, lb its lower edge, linearly between two columns). */
 export const LIVER_CUT_FS = /* glsl */ `
 uniform highp sampler2D uLiverEdge;

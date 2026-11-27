@@ -4,7 +4,7 @@
 // buttons, a slider, a time-lapse, callouts, a lens, a catheter. Most of those belong to other batches (docs/parity-plan.md). This file does not build
 // them: it names each one a slide uses as a FEATURE with its owner batch, says whether it has landed, and gives every slide its list of needs. A slide is
 // PRESENT when its words, numbers and shot are here; it is WIRED when every feature it needs has landed. A later batch lands a feature by making
-// `landed` say so (a test holds each landing to a file that exists), and the score on the ?parity page moves by itself.
+// `landed` say so (a test holds each landing to a file that exists).
 //
 // Rule for this table: a feature is listed once, with ONE owner. A slide that needs a feature nobody owns fails the test, so none is forgotten.
 import { chartDone } from '../../ui/charts/kinds.ts';

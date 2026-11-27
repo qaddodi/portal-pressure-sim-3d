@@ -12,6 +12,7 @@ import './ui/css3d-over-2d.css';   // 3D's own changes to the copied 2D rules, s
 import './ui/shell/ease.css';   // every control eases its state changes (zero weight: a control's own transition wins)
 import './ui/humanized.css';   // the 2D pills, chips and badges taken off: plain words (docs/HUMANIZED-DESIGN.md; tests/no-dot-pills.test.ts)
 import './ui/glass.css';   // the one glass for every panel, menu, pill and card (tests/glass.test.ts)
+import './ui/shell/focus-ring.css';   // last: the one focus-ring rule, a ring only for the keyboard and one per control (tests/focus-ring.test.ts)
 import { applyLook, resolveLook } from './looks/looks.ts';
 import { lookGlide } from './looks/glide.ts';
 import { followDevice } from './looks/follow-device.ts';
