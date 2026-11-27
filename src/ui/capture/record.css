@@ -1,0 +1,9 @@
+/* Record window while it records. The stop button: a ring with a square in it, in the warning's ink, its opacity easing down and up (opacity only, never the layout). The outline: a steady red edge round the app, on the
+   page's body so the video leaves it out; it fades in and out with the recording. Nothing blinks harder than a slow breath, and a person who asked the system for less motion gets it still. */
+.rec-stop { color: var(--danger-ink); }
+.rec-stop .rec-mark { animation: rec-breathe 1.6s ease-in-out infinite; }
+.nb-tab.rec-stop .rec-mark { width: var(--ic-m); height: var(--ic-m); }
+@keyframes rec-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+.rec-frame { position: fixed; inset: 0; z-index: 2147483000; pointer-events: none; box-shadow: inset 0 0 0 3px var(--danger); opacity: 0; transition: opacity var(--d-flip, .2s) var(--ease, ease); }
+.rec-frame[data-on] { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .rec-stop .rec-mark { animation: none; } .rec-frame { transition: none; } }

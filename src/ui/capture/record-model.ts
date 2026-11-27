@@ -9,8 +9,8 @@ export interface RecordEnv { getDisplayMedia?: unknown; MediaRecorder?: unknown 
  *  An iPhone has neither, so the row is not shown there. */
 export const canRecordWindow = (env: RecordEnv): boolean => typeof env.getDisplayMedia === 'function' && typeof env.MediaRecorder === 'function';
 
-/** The video formats to try, best first: WebM (Chrome, Edge, Firefox) then MP4 (Safari). */
-export const RECORD_MIMES = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4;codecs=avc1', 'video/mp4'] as const;
+/** The video formats to try, best first: MP4 (plays everywhere, QuickTime and Messages included; Safari, and Chrome from 126) then WebM. A browser that writes both gets MP4. */
+export const RECORD_MIMES = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'] as const;
 /** The first format the browser says it can write. `isSupported` is MediaRecorder.isTypeSupported; a browser without it (or with none of ours) gets '' and writes its own default. */
 export function pickRecordMime(isSupported: ((mime: string) => boolean) | undefined): string {
   if (!isSupported) return '';
@@ -47,3 +47,10 @@ export function recordStep(phase: RecordPhase, event: RecordEvent): RecordPhase 
 export function recordRow(phase: RecordPhase, words: { row: string; stopRow: string; savingRow: string }): string {
   return phase === 'recording' ? words.stopRow : phase === 'saving' ? words.savingRow : words.row;
 }
+
+/** The mime type the video really has: the recorder's own, else the type its first piece carries, else what was asked for. The file's extension follows this, never what was hoped for. */
+export const actualMime = (recorderMime: string, pieceMime: string, asked: string): string => recorderMime || pieceMime || asked;
+
+/** Whether the red outline round the app is drawn: only while recording, and only when the browser could keep it out of the video (Element Capture on this tab).
+ *  Where it could not, the outline would be recorded, so it is not drawn. */
+export const showRecordFrame = (phase: RecordPhase, kept: boolean): boolean => phase === 'recording' && kept;
