@@ -4,13 +4,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { colChars, gridOf, VALUE_CH, COL_PAD_PX, WAVE_MIN, waveMaxH } from '../src/ui/cards/table-words.ts';
+import { colChars, gridOf, VALUE_CH, ARROW_CH, COL_PAD_PX, WAVE_MIN, waveMaxH } from '../src/ui/cards/table-words.ts';
 
 const read = (f: string) => readFileSync(new URL(f, import.meta.url), 'utf8');
 
 test('a column is as wide as the widest run of one cell\'s printed text that cannot break, and never under two arrows', () => {
   assert.equal(colChars([]), VALUE_CH);
-  assert.equal(colChars([{ kind: 'dir', text: '1.1' }, { kind: 'dir', text: '' }]), VALUE_CH, 'an arrow cell prints no number');
+  assert.equal(colChars([{ kind: 'dir', text: '1.1' }, { kind: 'dir', text: '' }]), 3 + ARROW_CH, 'a compared cell prints its value and a small arrow after it (L6)');
+  assert.equal(colChars([{ kind: 'dir', text: '' }]), VALUE_CH, 'an arrow cell with no value is the arrows\' room');
   assert.equal(colChars([{ kind: 'ref', text: '0.50' }, { kind: 'dir', text: '' }, undefined]), 4);
   assert.equal(colChars([{ kind: 'ref', text: '18' }]), VALUE_CH, 'two digits fit two arrows\' room');
   assert.equal(colChars([{ kind: 'ref', text: '113/72 (86)' }]), 6, 'a blood pressure breaks at its space: its widest line is "113/72"');

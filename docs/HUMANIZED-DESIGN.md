@@ -123,3 +123,15 @@ Note timing follows length (about 250 ms a word, 3.2-10 s) and a note stays whil
 - Kept on purpose: rounded bars of controls (`.zoom-pill`, `.float-pill`, `.pzb-pill`), the Treat card's ruled rows with a tick box, the step rail's dots (mock A),
   the Appearance swatches, a leader's dot only where it names an area (an organ, the sinusoids); on a vessel the line ends on its edge, the build marker, the scope card's data cells (`.endo-chip`).
 - `docs/look-and-feel.md` section 6 still describes figure tags as "small pills ... with a coloured dot": superseded by section 6 here.
+
+## Owner's rulings of 27 Nov 2026 (external review of capture 3531bdfa)
+
+Each is a rule for every deck and device, with the test that pins it. Where an approved sheet covers the look it is updated (`docs/approved/comparison-table.md`); the rest have no sheet, so they stand here.
+
+- **L5 Vitals alarms.** A reading past its limit is red digits and a red unit on the monitor's dark screen. No filled box behind it, in any monitor of any deck (`src/ui/charts/vitals/model.ts`; `tests/charts-vitals.test.ts`).
+- **L6 Arrow tables.** A gradient (HVPG, PPG) that moved under 10% of its baseline is "unchanged" (the level dash); each cell prints its value with a small arrow; the legend names the baseline (`docs/approved/comparison-table.md`; `tests/table-arrows-unchanged.test.ts`).
+- **L7 Compare buttons.** A button keeps THIS slide's title and changes only the numbers, the figure and the line's readings to its arm; never another slide's headline, in any deck (`src/decks/controls.ts` `variantWords`; `tests/compare-keeps-title.test.ts`).
+- **L8 Level tab.** The level tab stands only on a slide that teaches a level; every other slide shows the deck's own name tab (Meso-Rex and Ascites done; `scripts/source-edits.mjs` `CAPTURE_3531BDFA_LEVELS`; `tests/level-tab-teaches.test.ts`).
+- **L9 No pills, no badge.** The answers of a score card (04.10, the recompensation checklist) are plain words in a row; the scope ring on the varix is a ring with no icon badge (`src/ui/charts/path/frame.ts`, `src/scene/disease/scope-ring.ts`; `tests/charts-path.test.ts`, `tests/no-dot-pills.test.ts`).
+- **L11 Rail names.** The six level names under the rail read straight at 12 px, breaking at a hyphen ("Pre-" over "sinusoidal"); only a card under 396 px keeps the tilt (`tests/rail-names-straight.test.ts`).
+- **L13 One colour per number.** A reading wears its series colour (the charts' `READING_COLOUR`) in the words, on its tile and its header, in the chart and on the figure's label; its rating is told by the rating word, the bar and the arrow, never by the number's colour (`src/ui/text/series-tone.ts`; `tests/one-colour-per-number.test.ts`).

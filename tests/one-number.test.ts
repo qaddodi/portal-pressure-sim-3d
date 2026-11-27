@@ -158,7 +158,8 @@ test('5. a button that names another slide holds that slide\'s words; every pres
       for (const o of opts) {
         if (!o.slide) continue;
         const at = deck.slides.find((x) => x.id === o.slide)!;
-        assert.ok(list.some((w) => w.title === at.title && w.line === at.line), `${deck.id}/${s.id}: "${o.label}" holds ${o.slide}'s words`);
+        // (the slide keeps its own title, owner 27 Nov L7: only the named slide's line is held)
+        assert.ok(list.some((w) => w.title === s.title && w.line === at.line), `${deck.id}/${s.id}: "${o.label}" holds ${o.slide}'s line under this slide's title`);
         named++;
       }
     }

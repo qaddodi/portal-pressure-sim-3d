@@ -138,13 +138,16 @@ export function controlsOf(s: CopiedSlide): SlideControls | undefined {
   return Object.keys(c).length ? c : undefined;
 }
 
-/** The words a compare button puts on the card (2D presenter-question.js variantWords): its own title, line, kicker and level; from the slide a time-point button names; or the slide's own
- *  (the slide's own button, and a button that says nothing, keeps what the slide says). `at` is the slide a `slide:` button names. */
+/** The words a compare button puts on the card (2D presenter-question.js variantWords): its own line, kicker and level; from the slide a time-point button names; or the slide's own
+ *  (the slide's own button, and a button that says nothing, keeps what the slide says). `at` is the slide a `slide:` button names.
+ *  The TITLE is never a button's (owner, 27 Nov, L7, review 3531bdfa B-D4): a compare button changes the numbers, the figure and the line's readings to its arm, and the card keeps the slide's
+ *  own title, so a press never brings another slide's headline (Landmark trials 4, 7, 9, 13, 14 showed another slide's) and the title does not change under the viewer's finger.
+ *  This is the one place a button's words are made, so every compare button of every deck follows (variants.ts, controls-run.ts and the card all read it). */
 export interface VariantWords { title: string; line: string; kicker: string; site?: string }
 export function variantWords(slide: { title: string; line: string; kicker: string; site?: string }, o: CompareOpt, at?: { title: string; line: string; kicker: string; site?: string } | null): VariantWords {
   const src: Partial<VariantWords> = o.own ? slide : at ?? o;
   const pick = <K extends keyof VariantWords>(k: K): VariantWords[K] => (src[k] ?? slide[k]) as VariantWords[K];
-  const out: VariantWords = { title: pick('title'), line: pick('line'), kicker: pick('kicker') };
+  const out: VariantWords = { title: slide.title, line: pick('line'), kicker: pick('kicker') };
   const site = pick('site');
   if (site) out.site = site;
   return out;

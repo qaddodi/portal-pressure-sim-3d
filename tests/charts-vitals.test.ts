@@ -75,14 +75,49 @@ test('the numbers stand in a box of the widest they can be: a reading changing d
   assert.ok(a.num > b.num, 'a longer number grows to the left, its right edge fixed');
 });
 
-test('an alarm paints a patch behind the number in the alarm colour; the number takes the monitor\'s black', () => {
+test('an alarm is red digits and a red unit on the dark screen, with no filled box behind them (owner, 27 Nov, L5)', () => {
   const pal = paletteOf('light'), cells = cellsOf(['hr'], { ...FP, hr: 130 }, 0, false);
   const f = vitalsFrame({ ids: ['hr'], cells, strip: null }, 360, pal);
-  const box = f.shapes.find((s): s is RectShape => s.k === 'rect' && s.key === 'box-hr');
-  assert.ok(box);
-  assert.deepEqual(box!.fill, pal.tok('mon-alarm'));
-  const n = f.shapes.find((s): s is TextShape => s.k === 'text' && s.key === 'v-hr')!;
-  assert.deepEqual(n.color, pal.tok('mon-bg'));
+  assert.ok(!f.shapes.some((s) => s.k === 'rect' && /^box-/.test(s.key ?? '')), 'no alarm box');
+  const text = (key: string) => f.shapes.find((s): s is TextShape => s.k === 'text' && s.key === key)!;
+  assert.deepEqual(text('v-hr').color, pal.tok('mon-alarm'));
+  assert.deepEqual(text('u-hr').color, pal.tok('mon-alarm'));
+  assert.deepEqual(text('k-hr').color, pal.tok('mon-alarm'));
+});
+
+// (L5, owner 27 Nov: the general rule, over every monitor any deck puts up: each slide's own vitals and rail options, every vital past its cut-off at once, every look and width)
+test('no monitor in any deck paints a filled box behind a reading: an alarm is ink on the dark screen', async () => {
+  const { AG_IDS, loadAgDeck } = await import('../src/decks/ag/index.ts');
+  const { HP_IDS, loadHpDeck } = await import('../src/decks/hp/index.ts');
+  const { RW_IDS } = await import('../src/decks/rw/copied/index.ts');
+  const { loadSource } = await import('../src/decks/source.ts');
+  type Sl = { id: string; tool?: Record<string, unknown> };
+  const decks: { id: string; slides: Sl[] }[] = [];
+  for (const id of AG_IDS) decks.push({ id, slides: (await loadAgDeck(id)).slides as Sl[] });
+  for (const id of HP_IDS) decks.push({ id, slides: (await loadHpDeck(id)).slides as Sl[] });
+  for (const id of RW_IDS) decks.push({ id, slides: (await loadSource(id)).slides as Sl[] });
+  const monitors = decks.flatMap((d) => d.slides.filter((s) => s.tool?.kind === 'vitals').map((s) => ({ at: `${d.id}/${s.id}`, tool: s.tool! })));
+  assert.ok(monitors.length >= 3, `vitals slides (${monitors.length})`);
+  const bad = { ...FP, hr: 130, map: 55, sbp: 80, dbp: 40, co: 3, hb: 6 };
+  for (const m of monitors) {
+    const ids = vitalsShown(m.tool as { show?: unknown });
+    eachLook((look) => {
+      for (const w of [300, 360, 420, 640]) {
+        const cells = cellsOf(ids, bad, 0, false).map((c) => ({ ...c, bad: true }));
+        const f = vitalsFrame({ ids, cells, hold: m.tool.hold === true, rail: m.tool.rail === 'hb' ? 'hb' : null, toHb: 5, strip: BEAT }, w, paletteOf(look));
+        const texts = f.shapes.filter((s): s is TextShape => s.k === 'text' && /^(v|m|u)-/.test(s.key ?? ''));
+        assert.ok(texts.length >= ids.length * 2, `${m.at}: readings and units are drawn`);
+        const rects = f.shapes.filter((s): s is RectShape => s.k === 'rect' && s.key !== 'monitor');
+        for (const t of texts) {
+          assert.deepEqual(t.color, paletteOf(look).tok('mon-alarm'), `${m.at}: ${t.key} is in the alarm ink`);
+          for (const r of rects) {
+            const clear = r.x >= t.x + 60 || r.x + r.w <= t.x || r.y >= t.y + 6 || r.y + r.h <= t.y - t.size;
+            assert.ok(clear || r.h <= 2 || r.w <= 2, `${m.at} ${look} ${w}: the ${r.key} rect sits behind ${t.key}`);
+          }
+        }
+      }
+    });
+  }
 });
 
 test('the hold rail: a scale from 40 to 150 mmHg with Baveno VIII 4.6\'s two lines, the mean at 65 and the systolic at 90, and the pressure as a bar and a dot', () => {
@@ -130,7 +165,7 @@ test('registered and done: the gallery has its specimens and the plan\'s tool ki
 });
 
 // Albumin 10 (23 Nov multi-size review): a healthy pressure (MAP 90) was printed in the arterial-line red on the monitor while the sentence beside it set the same 127/72 (90) in green. Red is the alarm alone.
-test('a pressure inside its cut-off is not drawn in red; past it, the alarm box is', () => {
+test('a pressure inside its cut-off is not drawn in red; past it, the alarm ink is', () => {
   const pal = paletteOf('dark' as never), ok = pal.tok('mon-ok');
   const calm = vitalsFrame({ ids: ['hr', 'map', 'hb'], cells: cellsOf(['hr', 'map', 'hb'], { ...FP, map: 90, sbp: 127, dbp: 72 }), strip: null }, 360, pal);
   const v = calm.shapes.find((s) => s.k === 'text' && s.key === 'v-map') as TextShape;

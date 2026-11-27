@@ -217,12 +217,12 @@ test('compare buttons: each says what it does; a button that switches the patien
   const [tips, dips] = shunt.controls!.compare!.opts;
   assert.equal(tips!.how, 'state'); assert.equal(tips!.preset, 'budd-chiari'); assert.equal(tips!.days, 60); assert.deepEqual((tips!.params as { tips: { on: boolean } }).tips, { on: true });
   const w = variantWords(shunt, tips!);
-  assert.match(w.title, /TIPS cannot decompress/); assert.match(w.line, /\{pv\}/);
+  assert.equal(w.title, shunt.title, 'a button never brings a title (owner, 27 Nov, L7)'); assert.match(w.line, /\{pv\}/);
   assert.deepEqual(variantWords(shunt, dips!), { title: shunt.title, line: shunt.line, kicker: shunt.kicker, ...(shunt.site ? { site: shunt.site } : {}) }, 'the slide\'s own button puts the slide\'s words back');
   assert.ok(speaks(shunt.controls!.compare!.opts));
   // a time-point button brings the words of the slide it names
   const at = { title: 'Later', line: 'Eight weeks on.', kicker: 'k' };
-  assert.equal(variantWords(shunt, { label: 'x', slide: 'y', how: 'state' }, at).title, 'Later');
+  assert.equal(variantWords(shunt, { label: 'x', slide: 'y', how: 'state' }, at).title, shunt.title, 'the slide\'s own title, not the named slide\'s (L7)');
 });
 
 test('beats: a slide with several camera beats is one stop of several views, the words and data staying', () => {

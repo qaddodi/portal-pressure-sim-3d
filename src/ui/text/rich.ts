@@ -4,6 +4,7 @@
 // Pure: the card (cards/Line.tsx) turns the nodes into elements; tests/line-rich.test.ts judges them here. The tables are copied from 2D
 // (scripts/copy-line-words.mjs, scene/labels/figure2d.copied.ts), never retyped.
 import { TARGETS_FIG, VAL_TONE_2D } from '../../scene/labels/figure2d.copied.ts';
+import { labelTone } from './series-tone.ts';
 import { TERMS_2D, KEYWORDS_2D, AUTO_TERMS_2D, BY_RATE_2D, LENS_WORDS_2D, LENS_TONE_2D, DISEASES_2D } from './words2d.copied.ts';
 
 export type Node =
@@ -47,7 +48,7 @@ export function typesetter(s: RichSlide, spleenTone?: () => string | null) {
   const re = new RegExp(String.raw`\b(${DISEASE_SRC})\b` + (tw.length ? `|\\b(${tw.join('|')})\\b` : '|((?!))') + (keys.length ? `|\\b(${keys.join('|')})\\b` : '|((?!))') + `|\\b(${TERM_SRC})\\b|${LENS_RE}`, 'g');
   const seen = new Set<string>(), seenT = new Set<string>();
   let bold = 0;
-  const toneOf = (k: string): string => (TARGET[k]!.organ === 'spleen' ? spleenTone?.() ?? '--text-2' : TARGET[k]!.tone);
+  const toneOf = (k: string): string => (TARGET[k]!.organ === 'spleen' ? spleenTone?.() ?? '--text-2' : labelTone(k, TARGET[k]!.tone));
   return {
     /** A figure term the deck marked by hand ([label](id)): its pill, once styled in its station's colour. */
     term(label: string, k: string): Node { return TARGET[k] ? { t: 'term', s: label, term: k, tone: toneOf(k) } : { t: 'text', s: label }; },

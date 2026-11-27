@@ -57,6 +57,10 @@ export function pathFrame(spec: PathSpec, c: ChartCtx): Frame {
       const tone = o.tone || 'text';
       if (o.k === 't') word(o.face, o.x, o.y + oy, o.text, o.on, tone);
       else if (o.k === 'r') {
+        // (an answer to choose from is plain words in a row, no box round it: the owner's ruling L9, 27 Nov, review 3531bdfa A-D16.
+        // The 2D card boxed each answer in a rounded outline; the chosen one's colour, full weight and the points beside it say which is lit.
+        // The box's room stays in the layout, so the words do not move.)
+        if (o.look === 'path.opt') continue;
         const k = lk(o.look, o.on, tone);
         shapes.push({ k: 'rect', x: o.x, y: o.y + oy, w: o.w, h: o.h, r: o.rx, fill: fillOf(k), pen: pen(k) });
       } else if (o.k === 'd') {
