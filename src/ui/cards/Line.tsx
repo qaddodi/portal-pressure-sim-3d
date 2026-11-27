@@ -4,18 +4,11 @@ import { valueText } from '../text/tokens.ts';
 import { Roll } from './Roll.tsx';
 import { reserveOf, altsOf } from './roll-reserve.ts';
 import { nb } from '../text/glue.ts';
-import { typesetter, toneVar, stationTone, type Node, type RichSlide } from '../text/rich.ts';
-import { rateShown, tipsGoal, tileShown } from '../deck/from2d/table-marks.js';
+import { typesetter, toneVar, type Node, type RichSlide } from '../text/rich.ts';
+import { pillTone, type Fp } from '../text/pill-tone.ts';
+import { rateShown } from '../deck/from2d/table-marks.js';
 import { TOKEN_OF_RATE } from '../../engine/hales/portal/pressure-cuts.js';
 
-type Fp = Readonly<Record<string, number | null | undefined>>;
-/** A reading's pill colour, as 2D valTone: the rating its tile gives (green, amber, red), else the station it is read at. After a TIPS the PPG is read against its 12 mmHg reference line, as its tile reads it. */
-export function pillTone(k: string, fp: Fp | undefined, tips = false): { tone: string | null; rate: string | null } {
-  const v = fp?.[k];
-  const rate = v == null ? null : tips && k === 'ppg' ? (tipsGoal(tileShown(k, v))[0] as string) : ((rateShown(k, fp) as string[])[0] ?? null);
-  const token = rate ? (TOKEN_OF_RATE as Record<string, string | undefined>)[rate] : undefined;
-  return { tone: token ?? stationTone(k), rate: rate && rate !== 'none' ? rate : null };
-}
 const style = (tone: string | null) => (tone ? { ['--tone' as string]: toneVar(tone) } : undefined);
 
 /** A slide's line, typeset: live readings roll, cut-offs and bold words are bold, figure terms are tagged for the scene.

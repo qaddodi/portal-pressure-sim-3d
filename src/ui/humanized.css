@@ -115,3 +115,9 @@ html:root .sh-waitcue { background: var(--glass-tint) !important; box-shadow: va
 html:root .sh-glnote { box-shadow: var(--glass-shadow); }
 html:root .sh-glnote button, html:root .sh-glnote .sh-glnote-alt { background: none !important; border: 0 !important; border-radius: 0 !important; padding-inline: 8px; min-height: 44px; color: var(--accent-ink, var(--accent)); font-weight: 600; }
 html:root .sh-glnote .sh-glnote-alt { color: var(--text-2); font-weight: 500; }
+
+/* ── one colour per number (owner, 27 Nov 2026, L13): a number on the data card, in a tile or its header, wears its series colour (--vc, set from text/series-tone.ts), the one its chart, its words and the figure's label wear.
+   Its rating is told by the rating's word and the bar, not by the number's colour. A reading with no series colour (no data-series) keeps its rating's ink. ── */
+html:root .app .pz .pz-data .pz-tiles .pz-tile .pzt-v[data-series] { color: var(--vc); }
+html:root .app .pz-hi > b[data-series] { color: var(--vc); }
+html:root .app .pz .pz-data .pz-tiles .pz-tile[data-rate="none"] .pzt-v[data-series] { color: var(--text-3); }   /* (a tile with no reading yet stays quiet) */

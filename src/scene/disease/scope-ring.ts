@@ -1,7 +1,9 @@
 // The scope ring on the varices (2D scope-lens-rule.js ringShapes, stage-clamps.js: "drawn by the GPU, in world units, so it moves with every zoom, pan and view change as the bands on the
 // same esophagus do"). One camera-facing quad at the lower esophagus's varix columns, in the figure's own units, and one fragment shader that draws everything in 2D units: a dashed ring
-// (16 dashes with round ends, 0.55 of each turn) that fills into a solid one as its lens opens, each line with the labels' halo under it so it reads on any vessel in either theme. It has no icon badge
-// (the 2D ring wore a disc with a scope's end face on its upper-right edge; the owner's ruling L9, 27 Nov, review 3531bdfa E-D9: a ring and no badge, so nothing round and white stands on the varix). Its shown share and its opening ease on the clock (never a pop); a line is never
+// (16 dashes with round ends, 0.55 of each turn) that fills into a solid one as its lens opens, each line with the labels' halo under it so it reads on
+// any vessel in either theme. It has no icon badge
+// (the 2D ring wore a disc with a scope's end face on its upper-right edge; the owner's ruling L9, 27 Nov, review 3531bdfa E-D9: a ring and no badge, so
+// nothing round and white stands on the varix). Its shown share and its opening ease on the clock (never a pop); a line is never
 // thinner than a pixel and a half on the screen, so it stays a line at a far zoom. The page draws nothing of it.
 import { Color, Group, Mesh, PlaneGeometry, ShaderMaterial, Vector3 } from 'three';
 import { RING, BLEED_BOX } from './copied/scope-lens-rule.js';
@@ -124,7 +126,8 @@ export class ScopeRing {
   /** How much of the ring shows now, 0..1 (the tap is taken only while it shows). */
   get alpha(): number { return this.shown.value * this.fade; }
   /** The ring on the screen now, CSS px from the stage's corner: its centre and radius, the badge's centre and radius. `project` is the camera's, `toWorld` the figure's group's (the ring is its child:
-   *  it returns a new point), `cameraRight` the camera's right axis in the world. Null when it is not on the screen. There is no badge: its centre is the ring's and its radius 0, so a tap and the names' keep-off
+   *  it returns a new point), `cameraRight` the camera's right axis in the world. Null when it is not on the screen. There is no badge: its centre is the
+   *  ring's and its radius 0, so a tap and the names' keep-off
    *  room are the ring's alone. */
   screen(project: (p: Vector3, out: { x: number; y: number }) => { x: number; y: number }, toWorld: (p: Vector3) => Vector3, cameraRight: Vector3, out: ScopeRingScreen): ScopeRingScreen | null {
     const s = this.group.parent ? this.group.parent.matrixWorld.getMaxScaleOnAxis() : 1;

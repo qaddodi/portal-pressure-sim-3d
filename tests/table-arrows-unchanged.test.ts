@@ -85,7 +85,7 @@ test('every compared cell with a reading prints its value, and the grid\'s colum
   }
   assert.ok(cells > 100, `${cells} compared cells`);
   const tsx = readFileSync(new URL('../src/ui/cards/TableCard.tsx', import.meta.url), 'utf8');
-  assert.match(tsx, /<span className="dk-cv">[^<]*\{c\.k === 'map' \? bpBreaks\(c\.text\) : c\.text\}<\/span> : null\}<Arrow n=\{c\.arrow\} \/>/, 'the card draws the value, then the arrow');
+  assert.match(tsx, /<span className="dk-cv">\{c\.k === 'map' \? bpBreaks\(c\.text\) : c\.text\}<\/span> : null\}<Arrow n=\{c\.arrow\} \/>/, 'the card draws the value, then the arrow');
 });
 
 test('every table\'s legend names its baseline and, where a gradient is shown, the 10% rule', () => {

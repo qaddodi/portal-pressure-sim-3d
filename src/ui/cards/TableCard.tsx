@@ -1,5 +1,6 @@
 // The summary table (the 2D `visual: 'table'`), drawn as the 2D app draws it (presenter.js summaryTable, its own stylesheet in src/ui/styles: `.pz-table`): ONE heading row, a row per patient
-// (its site's heading over its name), and in each cell its value with a small arrow after it, against normal (or against the row it is compared with), in the colour that goes with it (owner, 27 Nov, L6: a value in every cell, the baseline named in the legend). On a phone each row is one line of a grid (styles: `.pz-table tr`). Every cell is computed by
+// (its site's heading over its name), and in each cell its value with a small arrow after it, against normal (or against the row it is compared with), in the colour that goes with it
+// (owner, 27 Nov, L6: a value in every cell, the baseline named in the legend). On a phone each row is one line of a grid (styles: `.pz-table tr`). Every cell is computed by
 // table-model.ts from the 2D app's own cut-offs. A row's finding (its `note`) is one quiet line under its name, never a row of its own (the approved one-line-per-case layout, docs/approved/comparison-table.md). A row that names a slide opens that slide. Text keeps its size and nothing scrolls inside the card.
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Deck, Slide } from '../../decks/schema.ts';
@@ -39,11 +40,14 @@ function Td({ c, waveH }: { c: Cell; waveH: number }) {
     case 'removed': return <td className="num none">Removed</td>;
     case 'none': return <td className="num none" colSpan={2}>{c.text}</td>;   // ("No ascites" across the SAAG and protein columns it stands for: a bare "None" read as the value of one of them)
     case 'ref': return <td className={c.k === 'map' ? 'num ref bp' : 'num ref'} data-rate={c.rate ?? undefined}>{c.k === 'map' ? bpBreaks(c.text) : c.text}<span className="sr-only">{c.sr}</span></td>;
-    default: return (
-      <td className={`num dir${c.text ? ' dk-val' : ''}${c.k === 'map' ? ' bp' : ''}${c.arrow === 0 ? ' zero' : ''}${c.miss ? ' miss' : ''}`} data-rate={c.rate ?? undefined} data-eff={c.eff ?? undefined} title={c.miss ? `${c.sr}` : `${c.text}`}>
-        {c.text ? <span className="dk-cv">{c.k === 'map' ? bpBreaks(c.text) : c.text}</span> : null}<Arrow n={c.arrow} /><span className="sr-only">{c.sr}</span>
-      </td>
-    );
+    default: {
+      const cls = ['num dir', c.text ? 'dk-val' : '', c.k === 'map' ? 'bp' : '', c.arrow === 0 ? 'zero' : '', c.miss ? 'miss' : ''].filter(Boolean).join(' ');
+      return (
+        <td className={cls} data-rate={c.rate ?? undefined} data-eff={c.eff ?? undefined} title={c.miss ? `${c.sr}` : `${c.text}`}>
+          {c.text ? <span className="dk-cv">{c.k === 'map' ? bpBreaks(c.text) : c.text}</span> : null}<Arrow n={c.arrow} /><span className="sr-only">{c.sr}</span>
+        </td>
+      );
+    }
   }
 }
 

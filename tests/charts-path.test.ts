@@ -238,7 +238,7 @@ test('a score card draws its answers as plain words: no box round an answer, whi
       for (const w of [300, 360, 500]) for (const phone of [false, true]) {
         for (const p of (patientsOf(algo) as object[]).slice(0, 12)) {
           const f = pathFrame({ of: id, patient: p, opts: { phone } }, ctxOf(look, w, phone ? 'phone-portrait' : 'desktop'));
-          const boxes = f.shapes.filter((s) => s.k === 'rect' && s.r >= 6 && s.h > 12 && s.h < 40 && ((s.pen && s.pen.w > 0) || s.fill));
+          const boxes = f.shapes.filter((s) => s.k === 'rect' && (s.r ?? 0) >= 6 && s.h > 12 && s.h < 40 && ((s.pen && s.pen.w > 0) || s.fill));
           assert.equal(boxes.length, 0, `${id} ${look} ${w}${phone ? ' phone' : ''}: a rounded box is drawn round an answer`);
         }
       }

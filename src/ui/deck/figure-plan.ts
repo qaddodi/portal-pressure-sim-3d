@@ -10,6 +10,7 @@ import { ENGINE_EDGE_IDS } from '../../decks/hp/figure-engine.ts';
 import { ORGAN_STYLE } from '../../scene/organs/layer.ts';
 import { RES_KEYS, type ResKey } from '../../scene/circuit/res-model.ts';
 import { spanOf } from '../../scene/labels/span-math.ts';
+import { labelTone } from '../text/series-tone.ts';
 import {
   TARGETS_FIG, EDGE_TONE_2D, SITE_NODE_2D, VAL_TONE_2D, SETS_FIG, ORGANS_FIG, ORGAN_ANCHOR_2D, ORGAN_MARKS_2D, VARIX_EDGE_2D, SITE_DEF_2D, type Target2D,
 } from '../../scene/labels/figure2d.copied.ts';
@@ -134,7 +135,7 @@ export function figurePlan(s: CopiedSlide): FigurePlan {
   const labels: string[] = [], tones: Record<string, string> = {}, glow = new Map<string, GlowItem>(), organs = new Map<string, string | null>(), res = new Map<ResKey, string>(), lit = new Set<string>(), sitesFromTerms = new Set<string>();
   for (const k of termsInLine(s, line)) {
     const t = TARGETS_FIG[k]!;
-    if (t.node) { labels.push(t.node); tones[t.node] = t.tone; }
+    if (t.node) { labels.push(t.node); tones[t.node] = labelTone(k, t.tone); }
     if (t.lit) lit.add(k);
     if (t.site) sitesFromTerms.add(t.site);
     for (const e of t.edges ?? []) glow.set(e, { id: e, tone: t.tone, at: 0, soft: false });
@@ -146,7 +147,7 @@ export function figurePlan(s: CopiedSlide): FigurePlan {
   const marksIn = list<unknown>((s.marks ?? s.mark) as unknown).filter((m): m is Record<string, any> => !!m && typeof m === 'object');
   // a mark that names the caudate lobe points at it, so the lobe is drawn whether or not the line says its name
   for (const m of marksIn) if (m.organ === 'caudate' && !organs.has('caudate') && !organs.has('caudate-lobe')) organs.set('caudate', TARGETS_FIG.caudate!.tone);
-  for (const k of list(s.tint as string[] | undefined)) { const t = TARGETS_FIG[k]; if (t?.node) tones[t.node] = t.tone; else bad('tint', k); }
+  for (const k of list(s.tint as string[] | undefined)) { const t = TARGETS_FIG[k]; if (t?.node) tones[t.node] = labelTone(k, t.tone); else bad('tint', k); }
 
   // glow: each entry (a list is one step) lights at i x glowSeq ms
   const seq = typeof s.glowSeq === 'number' ? s.glowSeq : 0;
@@ -191,10 +192,10 @@ export function figurePlan(s: CopiedSlide): FigurePlan {
   // points somewhere else (Mohammad, 22 Nov, slide "The PPG detects resistance the HVPG misses": the IVC bubble pointed at the spleen). Only a site that is no station (the portal blood's split) is a card.
   const siteStations = siteKeys.map((k) => SITE_NODE_2D[k]).filter((n): n is string => !!n && STATION_IDS.has(n));
   const labelSet = [...new Set([...(s.labels ?? []), ...labels, ...siteStations])];
-  for (const k of siteKeys) { const n = SITE_NODE_2D[k]; if (n && labelSet.includes(n)) tones[n] ??= TARGETS_FIG[k]?.tone ?? VAL_TONE_2D[k] ?? 'accent'; }
+  for (const k of siteKeys) { const n = SITE_NODE_2D[k]; if (n && labelSet.includes(n)) tones[n] ??= labelTone(k, TARGETS_FIG[k]?.tone ?? VAL_TONE_2D[k] ?? 'accent'); }
   // A KEY READING is never the dimmest label on the screen (capture 36b7deac, 25 Nov: Budd-Chiari's RHV 25.0, the number the slide is about, stood at the dim alpha beside the right atrium the
   // line named). While any station is lit the rest step back, so each station a key reading stands at is lit too, in its own colour. A slide that lights nothing dims nothing and needs none.
-  if (Object.keys(tones).length) for (const k of list(s.key as string[] | undefined)) { const t = TARGETS_FIG[k]; if (t?.node && !tones[t.node]) tones[t.node] = t.tone; }
+  if (Object.keys(tones).length) for (const k of list(s.key as string[] | undefined)) { const t = TARGETS_FIG[k]; if (t?.node && !tones[t.node]) tones[t.node] = labelTone(k, t.tone); }
   for (const id of s.labels ?? []) if (!STATION_IDS.has(id)) bad('label', id);
   for (const id of labels) if (!STATION_IDS.has(id)) bad('term station', id);
   // sites no station label carries

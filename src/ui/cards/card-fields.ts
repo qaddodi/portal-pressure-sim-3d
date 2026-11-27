@@ -35,7 +35,10 @@ export function tabOf(deck: Pick<Deck, 'slides'>, s: Pick<Slide, 'site' | 'also'
 // ── the level rail ──
 /** The six levels along the route, portal vein to heart (2D presenter-cards.js SITES). The middle three are inside the liver. */
 export const RAIL_LEVELS: readonly (readonly [string, string])[] = [['pre', 'Pre-hepatic'], ['presin', 'Presinusoidal'], ['sin', 'Sinusoidal'], ['postsin', 'Postsinusoidal'], ['post', 'Post-hepatic'], ['cardiac', 'Cardiac']];
-/** A level's name as the rail sets it: "Presinusoidal" and "Postsinusoidal" carry a soft hyphen after their prefix, so a column too narrow for the whole word breaks it "Pre-" over "sinusoidal" (the names read straight, owner 27 Nov, L11); "Pre-hepatic" and "Post-hepatic" break at their own hyphen. */
+/**
+ * A level's name as the rail sets it: "Presinusoidal" and "Postsinusoidal" carry a soft hyphen after their prefix, so a column too narrow for the whole word breaks it
+ * "Pre-" over "sinusoidal" (the names read straight, owner 27 Nov, L11); "Pre-hepatic" and "Post-hepatic" break at their own hyphen.
+ */
 export const railName = (name: string): string => name.replace(/^(Pre|Post)(?=sinusoidal$)/, '$1\u00AD');
 export interface RailModel { cls: string; label: string; levels: { id: string; name: string; on: boolean }[] }
 /** The rail: 'all' names every level, a level id marks that one as the block, anything else shows the levels unmarked (2D rail(mode); a slide's `rail: true` marks its own site). */

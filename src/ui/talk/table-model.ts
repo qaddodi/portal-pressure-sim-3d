@@ -160,7 +160,8 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
   // (the baseline is named in the legend, or under each row where rows compare with rows of their own; a pressure within UNCHANGED_UNDER of it is the dash, and the legend says so, L6)
   const steady = cols.some((k: string) => k in UNCHANGED_UNDER) ? ` (a pressure within ${Math.round(UNCHANGED_UNDER.hvpg! * 100)}%)` : '';
   const key = rel
-    ? `↑ higher, ↓ lower than ${perRow ? 'the row named under each' : refTitle}; ↑↑ ↓↓ a relative change of ≥40%; • unchanged${steady}${cols.some((k) => k !== 'pvFlow') ? '. Green better, red worse' : ''}`
+    ? `↑ higher, ↓ lower than ${perRow ? 'the row named under each' : refTitle}; ↑↑ ↓↓ a relative change of ≥40%; • unchanged${steady}`
+      + `${cols.some((k) => k !== 'pvFlow') ? '. Green better, red worse' : ''}`
     : '↑ above normal, ↓ below; ↑↑ ↓↓ past the red cut-off; • within normal';   // (the level dash is a cell's reading too: a legend that did not name it left the "–" in a row undefined)
   const legend = [key, rows.some((r) => blank(r).length) ? `○ ${NOT_MEASURABLE.toLowerCase()}` : '', cols.includes('hvpg') && rows.some((r, n) => afterTips(r, 'hvpg', n)) ? `○ ${AFTER_TIPS_LEGEND}` : '', units.length && rows.some((r, n) => isRef(r, n)) ? `Units: ${units.join(', ')}` : '', spec.foot || '']
     .filter(Boolean).map((x) => x.replace(/\.$/, '')).join('. ') + '.';
