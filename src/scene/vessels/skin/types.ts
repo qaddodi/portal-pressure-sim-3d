@@ -74,8 +74,11 @@ export const SKIN_CUT_NONE: readonly [number, number] = [-1, 2];
 /** The tube's `skinHole` uniform when it has no hole (spec 10.1): the range is empty, so `inSkinHole` is false for every u. */
 export const SKIN_HOLE_NONE: readonly [number, number] = [2, -1];
 
-/** How far a point's OWN share of the Circuit's change (peel.ts peelAt on its flow rank, not the whole change's circT) must have gone before the cut tube there is whole again and the body's skin gone (spec 4.9). The tubes peel by rank, so the gut's and the spleen's are well on their way while the
- *  whole change has barely begun: a skin that waited for circT stood at its final place with its tubes still flying ("a segment in the splenic vein just appears in place", Mohammad, 27 Nov). Small, so the skin and the tube trade places while the tube is a hair from home. */
+/** How far a point's OWN share of the Circuit's change (peel.ts peelAt on its flow rank, not the whole change's circT)
+ *  must have gone before the cut tube there is whole again and the body's skin gone (spec 4.9).
+ *  The tubes peel by rank, so the gut's and the spleen's are well on their way while the whole change has barely begun:
+ *  a skin that waited for circT stood at its final place
+ *  with its tubes still flying ("a segment in the splenic vein just appears in place", Mohammad, 27 Nov). Small, so the skin and the tube trade places while the tube is a hair from home. */
 export const SKIN_CIRC_SPAN = 0.05;
 
 /** The Circuit's skins (circuit/skins.ts) come in over the END of the change: the share of a point's own peel (peel.ts peelAt on its rank) at which the map's own skins start to show, and at which the arm tubes' second cut (`skinCutC`) starts to take its ends away. The body's skins are gone by SKIN_CIRC_SPAN (0.35) and the tubes whole between the two, so no junction is ever two skins at once.

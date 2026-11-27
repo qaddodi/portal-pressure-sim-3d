@@ -122,7 +122,8 @@ varying float vW;        // the surface's clip depth
 varying float vCenW;     // the axis's clip depth: the one the ink band is built from (the tube's vCen.z)
 varying vec4 vWeight;
 varying vec2 vWeight2;
-varying vec3 vRest;      // x: the rest radius; y: the tube share (placed; 0 today); z: the vertex's flow rank (skinRank), so the body skin leaves as its own tubes do. Packed so the varyings stay the spec's
+// x: the rest radius; y: the tube share (placed; 0 today); z: the vertex's flow rank (skinRank), so the body skin leaves as its own tubes do. Packed so the varyings stay the spec's
+varying vec3 vRest;
 varying vec4 vSwell;
 varying vec2 vSwell2;    // the arms' live widths against their built ones, read once here so the fragment stage does not fetch them again
 varying vec3 vPos;       // the rest position now (after the growth morph): each arm's arc at this pixel (the flow marks), its lateral gate and the union's gradient are read from it
@@ -540,8 +541,10 @@ void main() {
   float wRamp = hasTrunk ? 1.0 - smoothstep(0.0, ${F(CAVA_RAMP_R)} * max(radTrunk, 1.0e-5), sdTrunk) : 0.0;
   // the map's skin comes in as the map POINT under it lands (the flow peel on its rank, from its place on the map), as the tubes' cut goes (vessels/shaders.ts keepC): the whole change's clock brought the heart end's skins in while its tubes were still on the way (floating bars, 21 Nov)
   float skinShare = skinPeelShare(vPos);
-  // the body's skin goes as ITS OWN tubes land (Mohammad, 27 Nov: going back to the anatomy "a segment in the splenic vein just appears in place"): the tubes peel by flow rank, so the gut's and the spleen's are home well before the change ends,
-  // and the skin, which waited for the whole change, stood in its final place while its tubes were still on the way. It is whole once its rank's own share of the change is back under SKIN_CIRC_SPAN, and gone as it leaves (the tubes' cut: vessels/shaders.ts)
+  // the body's skin goes as ITS OWN tubes land (Mohammad, 27 Nov: going back to the anatomy "a segment in the splenic vein just appears in place"):
+  // the tubes peel by flow rank, so the gut's and the spleen's are home well before the change ends, and the skin, which waited for the whole change,
+  // stood in its final place while its tubes were still on the way. It is whole once its rank's own share of the change is back under SKIN_CIRC_SPAN,
+  // and gone as it leaves (the tubes' cut: vessels/shaders.ts)
   float ownShare = skinRankShare(vRest.z);
   float circK = mix(1.0 - smoothstep(0.0, ${F(SKIN_CIRC_SPAN)}, ownShare), smoothstep(${F(SKIN_CIRC_IN)}, 1.0, skinShare), skinCirc);
   float alpha = (${Array.from({ length: SKIN_ARMS }, (_, i) => `wAt(${i}) * (armCopy[${i}].w < -1.5 ? mix(fadeOf(${i}), aTrunk, wRamp) : fadeOf(${i})) * ${COPY_OF(i)} * armAF[${i}].w`).join(' + ')}) / max(pres, 1.0e-4) * circK;

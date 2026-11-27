@@ -1,6 +1,7 @@
 // Where in the flow each vertex of a junction's skin lies (the rank the Circuit's change peels by), so the body's skin can leave and return as ITS OWN tubes do.
 // The tubes peel by rank (circuit/peel.ts: the gut and the spleen first, the heart last). A skin has no course of its own: it is the union of its arms, so a vertex's rank is
-// its arms' ranks at their seams, by the vertex's weights. A vessel with no map course (a fork's branch, a strand) has no rank and takes the mean of the others': it does not travel, it fades by the whole change (vessels/shaders.ts circStay).
+// its arms' ranks at their seams, by the vertex's weights. A vessel with no map course (a fork's branch, a strand) has no rank and takes the mean of the others':
+// it does not travel, it fades by the whole change (vessels/shaders.ts circStay).
 import { COURSES } from '../../circuit/course.ts';
 import type { SkinMesh } from './types.ts';
 
