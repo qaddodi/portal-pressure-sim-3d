@@ -2,7 +2,7 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "a97104613cec1549e14fc577fa5438c0986bff56"
+    "commit": "e6e2f19b7ac97c8f4471c404fe6ad2a3401ae856"
   },
   "files": {
     "hales/core/ease-move.js": "8b1ec51ee324cb2f95242b568c623e2dcd801b3ec48c11712a82c92852ac6449",
@@ -40,7 +40,7 @@
     "hales/portal/stent-ease.js": "371c7231827ac20ebe9a94bd9ebe061ca3e4477e0740f70e6e33298911ac715e",
     "hales/portal/stent-geom.js": "8200e0eca62b4df01b32a7eb14a0f6f0c7cbbbb6402682bce5c1945f1cc5320b",
     "hales/portal/stent-trace.js": "4325e93743b3365c48661f8361efe4ef5eb972f89f67301cdc6b71d85ce05da4",
-    "hales/portal/topology.js": "4e4c07b291cbca209a023bded6909e717f424ee5a85ccc352a8024b183bcc26b",
+    "hales/portal/topology.js": "54d2ca44b713e1b2dc8a248b8f08c77683fac345c22687c8fd3999fd6826e6dc",
     "hales/portal/trail-calm.js": "2c6799c883feda1a58edfe545f2b89306e2de712da7ce23af1bfefa9334855b1",
     "hales/portal/transfusion-cuts.js": "b71581e1c1f1d0955b61af7f30fcab6604cb59753b11145396563d470d90d360",
     "hales/portal/wall-read.js": "3b97326623cd7378d94e1d142ad13901d3f767a85464eaf24e2da7108c597a40",

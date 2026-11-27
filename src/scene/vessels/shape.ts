@@ -75,6 +75,7 @@ const strandLive = (banded: boolean, open: number, i: number, bands: number, cor
 /** whether a vessel beads (varix-bead.js BEAD_SITE): its strands do, and the gastrorenal shunt itself does */
 export const beadsOn = (id: string): boolean => !!(BEAD_SITE as Record<string, string>)[id];
 import { type Buried, type Course, radiusAtU, sewnAt, tubularFor } from './tubes.ts';
+import { piecesOf } from '../anatomy/whole-pieces.ts';
 
 export interface ShapeState { wig: number; spr: number; /** how far the varix's pressure has thickened its strands, 0 to 1 (varixPressRamp, eased) */ prs: number; /** how far the collaterals are recruited, 0 to 1 (the cavernoma's channels grow with it) */ rec: number; /** the varix's beading, 0 to 0.35 (varix-bead.js) */ bead: number; /** the bands on the esophageal varices, eased (band-ease.js) */ bands: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number; /** the stretch at each end (share of the course, from its start and from its end) that stays as at rest, because a junction skin stands on it: coil.ts `pinCourse`; absent: none */ pin?: Pin }
 /** The fundal (gastric) varices' strands are drawn this much wider than the 2D figure's shares of the trunk (Mohammad, 25 Nov: the gastric varices "are small" next to the shunt, so the EUS needle and its coil missed them): the widest strand is then four fifths of the gastrorenal shunt that drains it. */
@@ -308,7 +309,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
     let { strands } = coiled;
     if (v.id === 'C8') {
       // the cavernoma: channels in the frame of the clotted trunk (its two pieces), grown with the recruitment, each whole and joined at both ends
-      const trunk = ['PV_TRUNK_1', 'PV_TRUNK'].map((id) => (NETWORK_BY_ID.get(id)!.plan as unknown as { base: [number, number][] }).base);
+      const trunk = piecesOf('PV_TRUNK').map((id) => (NETWORK_BY_ID.get(id)!.plan as unknown as { base: [number, number][] }).base);
       const ch = cavChannels(trunk, main);
       // (each channel is drawn in the frame of the trunk, so its ends lay across the trunk's width and their round caps stood out of its side as a knot: they ease onto the vessel's own course over the last
       // seventh at each end, where the channels meet the portal vein and the hepatic hilum, so all of them run into the trunk's centre there and the trunk covers the joins; Mohammad, 20 Nov: "a knotted, capped lump")

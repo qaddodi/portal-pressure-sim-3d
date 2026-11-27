@@ -13,6 +13,7 @@ import { EDGE_PATH_2D, NODE_POS_2D } from '../vessels/paths.copied.ts';
 import { ORGAN_BOX_2D } from '../../decks/rw/copied/plate.ts';
 import { REGIONS_2D } from '../../decks/ag/regions.generated.ts';
 import { EDGES } from '../../engine/hales/portal/topology.js';
+import { WHOLE_OF, piecesOf } from './whole-pieces.ts';
 
 /** A 3D box in scene units: [x0, y0, z0, x1, y1, z1]. */
 export type Box3 = readonly [number, number, number, number, number, number];
@@ -23,13 +24,8 @@ type V3 = readonly [number, number, number];
 // (the one map between the 2D figure and the scene: frame2d.ts)
 const X3 = x3, Y3 = y3, X2 = x2d, Y2 = y2d;
 
-/** Each engine edge that is a stretch of a whole placed vessel (the brief's table: the app's pieces of each vessel the mock draws whole). */
-export const WHOLE_OF: Readonly<Record<string, string>> = {
-  ILI_IVC: 'ivc', ILI_IVC_1: 'ivc', IVC_IS_1: 'ivc', IVC_IS: 'ivc', IVCS_RA: 'ivc', V_UP: 'svc', SVC_RA_1: 'svc', SVC_RA: 'svc', C9: 'azygos', AZY_SVC: 'azygos',
-  RHV_IVC_1: 'rhv', RHV_IVC: 'rhv', MHV_IVC: 'mhv', LHV_IVC: 'lhv', V_KID_L: 'lrv', V_KID_L_1: 'lrv', LRV_IVC: 'lrv', PV_TRUNK_1: 'pv', PV_TRUNK: 'pv',
-  PVH_R: 'rpv', PVH_R_1: 'rpv', PVH_R_2: 'rpv', PVH_L: 'lpv', PVH_L_1: 'lpv', V_SPL: 'sv', SV_MID: 'sv', SV_CONF: 'sv', V_INT: 'smv', V_INT_1: 'smv', SMV_CONF: 'smv',
-  V_COL: 'imv', V_IMV: 'imv', LGV_CONF: 'lgv', A_HEP: 'ha', A_HR: 'rha', A_HL: 'lha',
-};
+/** Each engine edge that is a stretch of a whole placed vessel (the app's pieces of each vessel the mock draws whole): read from the engine's junction table (whole-pieces.ts), not listed. */
+export { WHOLE_OF };
 
 const cum = (pts: readonly (readonly number[])[]): number[] => { const s = [0]; for (let i = 1; i < pts.length; i++) s.push(s[i - 1]! + Math.hypot(pts[i]![0]! - pts[i - 1]![0]!, pts[i]![1]! - pts[i - 1]![1]!, (pts[i]![2] ?? 0) - (pts[i - 1]![2] ?? 0))); return s; };
 /** The share of the way along `line` (0 at its start, 1 at its end) of the point of it nearest (x, y), in the front view. */
@@ -186,11 +182,11 @@ export const centreOf = (b: Box3): V3 => [(b[0] + b[3]) / 2, (b[1] + b[4]) / 2, 
 export const REGION_SUBJECTS: Readonly<Record<string, readonly string[]>> = {
   // the catheter's way: the SVC from the neck's root, the right atrium, the IVC through the liver to the hepatic veins, and the portal vein below (DEFAULT_CAM of the procedure decks;
   // the box starts at y 30, below the neck's V_UP, so V_UP is not its subject)
-  route: ['SVC_RA_1', 'SVC_RA', 'heart', 'heart-ra', 'IVCS_RA', 'IVC_IS', 'RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'MHV_IVC', 'LHV_IVC', 'liver', 'PV_TRUNK', 'PV_TRUNK_1'],
+  route: [...piecesOf('SVC_RA'), 'heart', 'heart-ra', 'IVCS_RA', 'IVC_IS', ...piecesOf('RHV_IVC'), 'rhva', 'rhvb', 'MHV_IVC', 'LHV_IVC', 'liver', ...piecesOf('PV_TRUNK')],
   liver: ['liver', 'RHV_IVC', 'MHV_IVC', 'LHV_IVC', 'PVH_R', 'PVH_L', 'PV_TRUNK'],
-  portal: ['PV_TRUNK', 'PV_TRUNK_1', 'SV_CONF', 'SV_MID', 'SMV_CONF', 'PVH_R', 'PVH_L', 'A_HEP'],
-  gut: ['duodenum', 'bowel', 'colon', 'V_INT', 'V_INT_1', 'SMV_CONF', 'V_COL', 'V_IMV'],
-  hepatic: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'MHV_IVC', 'LHV_IVC', 'IVCS_RA', 'IVC_IS', 'heart-ra'],
+  portal: [...piecesOf('PV_TRUNK'), 'SV_CONF', 'SV_MID', 'SMV_CONF', 'PVH_R', 'PVH_L', 'A_HEP'],
+  gut: ['duodenum', 'bowel', 'colon', ...piecesOf('V_INT'), 'SMV_CONF', 'V_COL', 'V_IMV'],
+  hepatic: [...piecesOf('RHV_IVC'), 'rhva', 'rhvb', 'MHV_IVC', 'LHV_IVC', 'IVCS_RA', 'IVC_IS', 'heart-ra'],
   dips: ['DIPS', 'IVC_IS', 'PVH_R', 'PVH_L', 'PV_TRUNK', 'MHV_IVC'],
   heart: ['heart', 'heart-ra', 'SVC_RA', 'IVCS_RA'],
   varices: ['esophagus', 'C1a', 'C1b', 'AZY_SVC', 'gej'],

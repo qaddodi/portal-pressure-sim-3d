@@ -3,12 +3,15 @@
  *  At the 2D figure's scale that is a ripple under a pixel. The 3D figure zooms to a vessel's own calibre, where a wave a fraction of the calibre deep, a few calibres long, is a wall that wobbles and steps, and every piece of one vein
  *  (IVC_IS_1, IVC_IS, IVCS_RA; SVC_RA_1, SVC_RA, V_UP) waves out of step with its neighbours. A wave deeper than the vessel is wide reads as a curve and stays; one shallower than MEANDER_MIN_R of its radius is a wobble, so the vessel keeps its smooth 2D course.
  *  The calibre is the figure's own rule (stage.js vesselPx of the engine diameter, the cava and the superior cava at 0.72: network.ts widthPx), halved. */
+import { JUNCTION_PIECES } from '../src/engine/hales/portal/topology.js';
 export const MEANDER_MIN_R = 1;
 /** The veins that keep their wave: the intrahepatic cava IVC_IS is the HOST of the hepatic veins' junction skin (a side arm at u = 0.77, IVCS), and with its stretch straight the skin planner cannot place the right hepatic vein's seam (its hull rule fails on every ring, 'ring 2 vertex 8
  *  is inside the hull'), so the confluence would fall back to the old joins. Its wave is behind the liver (the veil); the right atrium column above it is calm. Open: make the planner take a straight host (docs in the report of 21 Nov).
  *  MHV_IVC and LHV_IVC, the other two side arms of that skin, keep theirs too: with the host's neighbour IVCS_RA calm AND both calm, the skin's far wall bulges 0.065 R off the trunk (tests/skin-through.test.ts allows 0.04); either one alone keeps it inside. They end behind the liver and are not the vessels seen at the atrium. */
 export const MEANDER_KEPT = new Set(['IVC_IS', 'MHV_IVC', 'LHV_IVC']);
-export const CAVA_PIECES = new Set(['ILI_IVC', 'IVC_IS', 'IVCS_RA', 'IVC_IS_1', 'ILI_IVC_1', 'SVC_RA', 'SVC_RA_1', 'V_UP']);
+// (the pieces of each cava host, read from the engine's junction table, never listed)
+const piecesOf = (host) => JUNCTION_PIECES[host] ?? [host];
+export const CAVA_PIECES = new Set([...piecesOf('ILI_IVC'), ...piecesOf('IVC_IS'), 'IVCS_RA', ...piecesOf('SVC_RA'), 'V_UP']);
 /** A vessel's radius in the 2D figure's units (stage.js vesselPx of its engine diameter, an artery half of it, a liver bed fixed; the cava and the superior cava at 0.72: network.ts widthPx), before the meander. */
 export function calibreOf(e, TOPO) {
   const d = e.id.startsWith('IVC') || e.id.startsWith('ILI_IVC') ? TOPO.EDGES.find((x) => x.id === 'IVC_IS').d : e.d ?? e.dMax ?? (TOPO.dMinOf(e) || 3);

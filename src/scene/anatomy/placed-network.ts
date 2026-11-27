@@ -12,10 +12,11 @@
 // Pure data, no three.js, no reader of network.ts (network.ts reads this).
 import { PLACED_VESSELS, PLACED_JOINS, PLACED_ORGANS } from './placement.generated.ts';
 import { DRAWN_COURSES } from './drawn-courses.ts';
-import { EDGES, JUNCTIONS } from '../../engine/hales/portal/topology.js';
+import { EDGES, JUNCTION_CHAINS } from '../../engine/hales/portal/topology.js';
 import { ANAT_HIDDEN, EDGE_PATH_2D, HIDDEN_EDGES } from './source.ts';
 import { x2d, y2d } from '../frame2d.ts';
 import { aroundEso, onEso } from './eso-wall.ts';
+import { WHOLE_HOSTS, WHOLE_PIECES, firstPieceOf, lastPieceOf, pieceEndingAt, piecesOf } from './whole-pieces.ts';
 
 export type V3 = [number, number, number];
 type P2 = [number, number];
@@ -23,23 +24,26 @@ interface Edge { id: string; from: string; to: string; kind: string; shunt?: str
 const edges = EDGES as Edge[];
 const edgeById = new Map(edges.map((e) => [e.id, e]));
 
-/** Whole vessel (the placement's key) -> its engine pieces in flow order (the brief's mapping). */
-export const WHOLE_PIECES: Readonly<Record<string, readonly string[]>> = {
-  ivc: ['ILI_IVC', 'ILI_IVC_1', 'IVC_IS_1', 'IVC_IS', 'IVCS_RA'], svc: ['V_UP', 'SVC_RA_1', 'SVC_RA'], azygos: ['C9', 'AZY_SVC'], rhv: ['RHV_IVC_1', 'RHV_IVC'],
-  mhv: ['MHV_IVC'], lhv: ['LHV_IVC'], lrv: ['V_KID_L', 'V_KID_L_1', 'LRV_IVC'], pv: ['PV_TRUNK_1', 'PV_TRUNK'], rpv: ['PVH_R', 'PVH_R_1', 'PVH_R_2'], lpv: ['PVH_L', 'PVH_L_1'],
-  sv: ['V_SPL', 'SV_MID', 'SV_CONF'], smv: ['V_INT', 'V_INT_1', 'SMV_CONF'], imv: ['V_COL', 'V_IMV'], lgv: ['LGV_CONF'], ha: ['A_HEP'], rha: ['A_HR'], lha: ['A_HL'],
-};
+/** Whole vessel (the placement's key) -> its engine pieces in flow order: read from the engine's junction table, never listed here (whole-pieces.ts). */
+export { WHOLE_PIECES };
 /** The collaterals and shunts: their own ids are the placement's keys. */
 const OWN = ['C1a', 'C1b', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'EPI_SVC', 'EPI_ILI', 'TIPS', 'DIPS', 'S_PC', 'S_MC', 'S_DSR', 'REX'] as const;
 /** The draw-only branches on a host's end (no engine edge): the host's last (portal, `out`) or first (hepatic, `in`) piece, and which of the two runs on as the through branch (the straighter one; the HVPG wedges
  *  in the right hepatic vein's main trunk, short of the fork: Mohammad 24 Nov). */
 export const PLACED_BRANCHES: Readonly<Record<string, { whole: string; out: boolean; through: string; side: string }>> = {
-  PVH_R_2: { whole: 'rpv', out: true, through: 'rpvp', side: 'rpva' },
-  RHV_IVC_1: { whole: 'rhv', out: false, through: 'rhvb', side: 'rhva' },
+  [lastPieceOf('PVH_R')]: { whole: 'rpv', out: true, through: 'rpvp', side: 'rpva' },
+  [firstPieceOf('RHV_IVC')]: { whole: 'rhv', out: false, through: 'rhvb', side: 'rhva' },
 };
 const PIECE_WHOLE = new Map<string, string>();
 for (const [w, ps] of Object.entries(WHOLE_PIECES)) for (const p of ps) PIECE_WHOLE.set(p, w);
 for (const id of OWN) PIECE_WHOLE.set(id, id);
+/** The engine's junction nodes (topology.js JUNCTIONS: where a collateral, a shunt or a tributary meets a host part-way along it): node -> its host edge, its share `at` along the host's drawn course, the whole vessel it is on. */
+export const JNODE = new Map<string, { node: string; host: string; at: number; whole: string }>();
+for (const c of JUNCTION_CHAINS as { host: string; nodes: string[]; at: number[] }[]) {
+  const whole = Object.keys(WHOLE_HOSTS).find((w) => WHOLE_HOSTS[w]!.includes(c.host));
+  if (!whole) throw new Error(`junction host ${c.host} is on no placed whole vessel`);
+  c.nodes.forEach((node, i) => JNODE.set(node, { node, host: c.host, at: c.at[i]!, whole }));
+}
 /** The whole placed vessel an engine edge is a piece of (its own id for a collateral or a shunt), or undefined (a liver bed). */
 export const wholeOf = (id: string): string | undefined => PIECE_WHOLE.get(id);
 
@@ -337,7 +341,6 @@ function buildPlaced(): void {
   /** Where the side branch leaves a carried trunk (its split), and where the TIPS does. */
   const SPLIT_POINT: Record<string, V3> = { rpv: COURSE.rpv![COURSE.rpv!.length - 1]!, rhv: COURSE.rhv![0]! };
   const along = (D: readonly V3[], d: number): V3 => { const sD = arc(D); const i = Math.max(0, sD.findIndex((x) => x >= d)); return D[i]!; };
-  const TIPS_POINT: Record<string, V3> = { rpv: along(COURSE.rpv!, lengthOf(COURSE.rpv!) - SPLIT_PAST * rOf('rpv')), rhv: along(COURSE.rhv!, RHV_SPLIT * rOf('rhv')) };
   for (const jn of J.joins) {
     if (jn.runon || jn.end == null) continue;
     if (['rpvp', 'rhvb', 'rha'].includes(jn.v) || (jn.v === 'rpv' && jn.to === 'pv')) continue;   // (run-ons above)
@@ -396,12 +399,8 @@ function buildPlaced(): void {
   //    engine joins them at SV: SVD is drawn at their take-off);
   //  - an end within PARALLEL_DEG of its node's own end runs beside it: it opens at its own node, an arm of that node's skin, and bows off it (SIBLINGS APART, below);
   //  - two such nodes closer than NODE_GAP_R radii are moved apart along the vein, downstream, never past a main vessel's mouth (LRV_S and LRV were 4 radii apart: one skin for both had two permanent arms and failed).
-  /** The ends that keep their own take-off along the host instead of opening at the node they share with other shunts (Mohammad, 27 Nov: "every shunt open at a slightly different location on the
-   *  vessel"): neither pulled onto the node nor bowed off its other ends. The spontaneous splenorenal shunt's splenic end (C6) was a fifth vessel in SVD's junction and left it end-on; a wall skin on
-   *  the splenic vein takes it now (skin/wall.ts). No take-off carries more than two collaterals or shunts: tests/landing-frozen.test.ts. */
-  const OWN_TAKEOFF = new Set(['C6|0']);
-  /** The nodes drawn at an end's take-off whatever else opens there: SVD at the short gastric veins' (they leave the splenic vein beside it, though the engine joins them at SV; the spontaneous
-   *  splenorenal shunt's frozen mouth lay within reach of it until that shunt took its own take-off). */
+  /** THE ONE PENDING CASE (27 Nov): the node drawn at an end's take-off whatever else opens there, SVD at the short gastric veins' (they leave the splenic vein beside it, though the engine still joins them at SV, 11 radii
+   *  away: engine brief A moves that end to SVD, and tests/junction-ends.test.ts then turns the general rule on for C2 by itself and this line goes). Every other take-off is placed from the engine's JUNCTIONS table. */
   const NODE_AT_END: Readonly<Record<string, string>> = { SVD: 'C2|0' };
   const SNAP_R = 6, NODE_GAP_R = 10, PARALLEL_DEG = 30, PAIR_GAP_R = 5;
   /** SIBLINGS APART (below): how far off its sibling an end beside it leaves (degrees), the share of the course from that end the bow spans, and the bow's steps and most (shares of the course's length). */
@@ -440,6 +439,39 @@ function buildPlaced(): void {
     for (let i = 1; i < ctl.length - 1; i++) ctl[i]![2] = P0[2] + (E[2] - P0[2]) * (cum[i]! / tot);
     COURSE.DIPS = fair(relax(denseCurve(ctl), PLACED_JOINS.relax ?? 40));
   }
+  /** A whole vessel's (or a collateral's) end point as it stands. */
+  const endPt = (id: string, end: 0 | 1): V3 => { const c = COURSE[id]!; return end ? c[c.length - 1]! : c[0]!; };
+  /** The whole's real cuts as shares of its length, one per node between two of its hosts (the engine nodes the vessel is really cut at; the junction nodes inside a host come from the table). A node a main vessel joins is cut where
+   *  the widest such vessel lands on the course (the mouth); a node only collaterals and shunts join, where they land (NODE_S); a node nothing drawn lands at, midway between the cuts either side. */
+  function realCuts(w: string): number[] {
+    const D = COURSE[w]!, L = lengthOf(D), hosts = WHOLE_HOSTS[w]!, pieces = WHOLE_PIECES[w]!, cuts: number[] = [], free: boolean[] = [];
+    for (let hi = 0; hi < hosts.length - 1; hi++) {
+      const lastId = lastPieceOf(hosts[hi]!), nextId = firstPieceOf(hosts[hi + 1]!), node = edgeById.get(lastId)!.to;
+      // the joiners at the node: their ends (as they now stand) on this course; a main vessel first, the widest; else a collateral or a shunt, the widest
+      const js = atNode(node, w).filter((c) => !pieces.includes(c.piece)).map((c) => {
+        // (the joiner's end at this node: a collateral's own end; a main vessel's whole end, when its piece there is the whole's first or last)
+        const pw = c.whole, ps = WHOLE_PIECES[pw];
+        const atStart = ps ? ps[0] === c.piece && c.end === 0 : c.end === 0, atEndW = ps ? ps[ps.length - 1] === c.piece && c.end === 1 : c.end === 1;
+        const p = atStart ? endPt(pw, 0) : atEndW ? endPt(pw, 1) : null;
+        const k = edgeById.get(c.piece)!.kind;
+        return p ? { p, main: k !== 'collateral' && k !== 'shunt', r: rOf(pw), hit: nearestOn(D, p) } : null;
+      }).filter((x): x is NonNullable<typeof x> => !!x && x.hit.d < LAND_REACH + rOf(w));
+      js.sort((a, b) => (a.main !== b.main ? (a.main ? -1 : 1) : b.r - a.r));
+      const ns = NODE_S.get(`${w}|${node}`);
+      let at: number;
+      if (w === HV_OSTIA.host && node === HV_OSTIA.node) at = nearestOn(D, mouth.get(`${w}|${node}`)!).s / L;   // (TWO OSTIA: the cava is cut at the common trunk's ostium, not at the widest vein's, the right one's, lower down)
+      else if (ns !== undefined) at = ns / L;
+      // THE AZYGOS'S NODE IS WHERE THE VARICES LAND (27 Nov, Mohammad: "yes, with your recommendations"): the engine joins the varices (C1b) and the lumbar collateral (C9) at AZY, so AZY is drawn at the varices' landing on the arch,
+      // where the cut between C9 and the arch always was a hand-set four of the vessel's radii upstream of it (tests/azygos-origin.test.ts). The drawing moved to the engine, not the engine to the drawing: no number moves.
+      else if (js.length) at = js[0]!.hit.s / L;
+      else at = (hi + 1) / hosts.length;
+      cuts.push(at); free.push(ns === undefined && !js.length);
+      void nextId;
+    }
+    // (a node nothing drawn lands at: its cut is midway between the cuts either side, so both pieces are as long as they can be for their skins)
+    for (let i = 0; i < cuts.length; i++) if (free[i]) { let j = i; while (j < cuts.length && free[j]) j++; const lo = i ? cuts[i - 1]! : 0, hi = j < cuts.length ? cuts[j]! : 1; for (let m = i; m < j; m++) cuts[m] = lo + ((hi - lo) * (m - i + 1)) / (j - i + 1); i = j; }
+    return cuts;
+  }
   /** Where each node that only collaterals and shunts join is drawn on its whole (arc length): the cut between its pieces. */
   const NODE_S = new Map<string, number>();
   /** The pairs `a|b` of ends that open side by side at one node, arms of one skin (below): converging there is no crossing (THE TRACTS CROSS NOTHING). */
@@ -458,28 +490,44 @@ function buildPlaced(): void {
       for (const c of cands) { const d = nearestOn(ownCourse(c.whole), p).d; if (!best || (isMain(c.whole) && !isMain(best.w)) || (isMain(c.whole) === isMain(best.w) && d < best.d)) best = { w: c.whole, d }; }
       if (!best || best.d > LAND_REACH + rOf(best.w)) continue;
       // (first as drawn: the host's flow sense at the landing, a vessel that ENDS there merges along the host's flow, one that starts there leaves along it; the azygos and the epigastric pair land on another collateral's run the same way)
-      branch(id, end, best.w, ownCourse(best.w), id === 'TIPS' ? TIPS_POINT[best.w] : undefined);
+      branch(id, end, best.w, ownCourse(best.w));
       const q = end ? COURSE[id]![COURSE[id]!.length - 1]! : COURSE[id]![0]!;
       lands.push({ id, end, node, w: best.w, s: nearestOn(ownCourse(best.w), q).s, p });
     }
   }
-  // (the shunts thread's rebuilt courses (the DIPS from the bifurcation, the paraumbilical vein off the LPV's wall) and the varices round the oesophagus keep the rule they were drawn with: the host's own end, else the wall where a fading end is, else the main vessel's mouth)
-  const KEEP_RULE = new Set(['DIPS', 'C3', 'C1a', 'C1b']);
+  // (the stent thread's rebuilt DIPS course, from the bifurcation, and the varices round the oesophagus keep the rule they were drawn with at a REAL node: the host's own end, else the wall where a fading end is, else the main
+  //  vessel's mouth. An end at a JUNCTION node (the engine's table, JNODE) has no rule of its own: it opens where the table puts it, in the per-whole pass below.)
+  const KEEP_RULE = new Set(['DIPS', 'C1a', 'C1b']);
   for (const l of lands) {
-    if (l.id === 'TIPS') continue;
+    if (JNODE.has(l.node)) continue;
     if (KEEP_RULE.has(l.id)) { l.force = hostEndAt(l.w, l.node) ?? wallAt(l.w, l.node, l.p) ?? mouth.get(`${l.w}|${l.node}`); l.keep = true; continue; }
-    if (OWN_TAKEOFF.has(`${l.id}|${l.end}`)) continue;   // (opens where its course leaves the host: not pulled onto the node)
     const P = hostEndAt(l.w, l.node) ?? mouth.get(`${l.w}|${l.node}`);
     if (!P) continue;
     if (Math.abs(nearestOn(ownCourse(l.w), P).s - l.s) <= SNAP_R * rOf(l.w)) l.force = P; else l.off = true;
   }
+  /** Where each junction node of the engine's table is drawn along its whole (arc length). */
+  const JUNCTION_S = new Map<string, number>();
+  /** The length a host's drawn course has past its real end nodes: the draw-only through branch hung on the last (right portal vein) or the first (right hepatic vein) piece of its host, which the table's `at` counts. */
+  const branchExt = (w: string): { pre: number; post: number } => {
+    let pre = 0, post = 0;
+    for (const b of Object.values(PLACED_BRANCHES)) if (b.whole === w) { const l = lengthOf(COURSE[b.through]!); if (b.out) post = l; else pre = l; }
+    return { pre, post };
+  };
+  /** The whole's real cuts (arc length), one per node between its hosts: the host edges' own ends, where the drawing cuts the vessel. */
+  const REAL_S = new Map<string, number[]>();
+  /** The point of course `D` at arc length `s`. */
+  const pointAtS = (D: readonly V3[], s: number): V3 => {
+    const sD = arc(D); let j = 1; while (j < D.length - 1 && sD[j]! < s) j++;
+    const u = (s - sD[j - 1]!) / ((sD[j]! - sD[j - 1]!) || 1);
+    return add(D[j - 1]!, mul(sub(D[j]!, D[j - 1]!), Math.min(1, Math.max(0, u))));
+  };
   for (const [w, ps] of Object.entries(WHOLE_PIECES)) {
-    const C = ownCourse(w), L = lengthOf(C), R = rOf(w);
-    const stops: { s: number; fixed: boolean; node: string; land?: Land; others: Land[]; beside: Land[] }[] = [];
-    for (let pi = 0; pi < ps.length - 1; pi++) {
-      const n = edgeById.get(ps[pi]!)!.to;
+    const C = ownCourse(w), L = lengthOf(C), R = rOf(w), hosts = WHOLE_HOSTS[w]!;
+    const stops: { s: number; fixed: boolean; node: string; land?: Land; others: Land[]; beside: Land[]; jn?: true }[] = [];
+    for (let hi = 0; hi < hosts.length - 1; hi++) {
+      const lastE = edgeById.get(lastPieceOf(hosts[hi]!))!, n = lastE.to;
       // (the azygos's start: a collateral piece run on by a drawn one keeps its own rule, the cut below)
-      if ((edgeById.get(ps[pi]!)!.kind === 'collateral') !== (edgeById.get(ps[pi + 1]!)!.kind === 'collateral')) continue;
+      if ((lastE.kind === 'collateral') !== (edgeById.get(firstPieceOf(hosts[hi + 1]!))!.kind === 'collateral')) continue;
       const M = mouth.get(`${w}|${n}`);
       const at = lands.filter((l) => l.w === w && l.node === n && !l.force && !l.keep);
       if (M) { stops.push({ s: nearestOn(C, M).s, fixed: true, node: n, others: [], beside: [] }); continue; }
@@ -490,6 +538,51 @@ function buildPlaced(): void {
       stops.push({ s: near ? near.s : owner.s, fixed: false, node: n, land: owner, others: at.filter((l) => l !== owner), beside: [] });
     }
     stops.sort((x, y) => x.s - y.s);
+    for (let i = 1; i < stops.length; i++) {
+      const x = stops[i]!, gap = NODE_GAP_R * R;
+      if (!x.fixed && !stops[i - 1]!.fixed && x.s - stops[i - 1]!.s < gap) x.s = Math.min(stops[i - 1]!.s + gap, L - 2 * R, stops[i + 1]?.fixed ? stops[i + 1]!.s - gap : Infinity);
+    }
+    for (const x of stops) if (!x.fixed && x.node) NODE_S.set(`${w}|${x.node}`, x.s);
+    // THE JUNCTIONS (27 Nov: "the flow lens, pressure, flow direction and everything else must know where vessel junctions really are"): every take-off along a host is where the engine's table puts it, `at` of the way along the
+    // host's drawn course between its two real end nodes (this whole's real cuts, and the draw-only through branch past its end). Each end the table lists lands there exactly, whatever else lands beside it; the vessel is cut there.
+    // (A real node is still kept NODE_GAP_R radii downstream of the junction before it, as it always was: the renal vein's node LRV past the shunts' junction LRV_S. Its place and the junction's depend on one another, the junction being
+    //  a share of the host, so it is solved by moving the node until it holds, which takes two rounds.)
+    const ext = branchExt(w), places: { node: string; host: string; s: number; taps: [string, number][] }[] = [];
+    const chains = hosts.map((host) => (JUNCTION_CHAINS as { host: string; nodes: string[]; at: number[]; taps: [string, number][][] }[]).find((c) => c.host === host));
+    const place = (): void => {
+      places.length = 0;
+      const real = realCuts(w);
+      REAL_S.set(w, real);
+      hosts.forEach((host, hi) => {
+        const chain = chains[hi];
+        if (!chain) return;
+        const x0 = hi === 0 ? -ext.pre : real[hi - 1]! * L, x1 = hi === hosts.length - 1 ? L + ext.post : real[hi]! * L;
+        chain.nodes.forEach((node, i) => {
+          const s = x0 + chain.at[i]! * (x1 - x0);
+          if (s < 1e-6 || s > L - 1e-6) throw new Error(`junction ${node} (${host} at ${chain.at[i]}) falls on the draw-only branch past ${w}'s real course: it needs a cut there`);
+          places.push({ node, host, s, taps: chain.taps[i] ?? [] });
+        });
+      });
+    };
+    place();
+    for (let round = 0; round < 20; round++) {
+      let moved = false;
+      for (const x of stops) {
+        if (x.fixed) continue;
+        const before = places.filter((q) => q.s < x.s).reduce<number>((m, q) => Math.max(m, q.s), -Infinity);
+        if (Number.isFinite(before) && x.s - before < NODE_GAP_R * R - 1e-9) { x.s = Math.min(before + NODE_GAP_R * R, L - 2 * R); NODE_S.set(`${w}|${x.node}`, x.s); moved = true; }
+      }
+      if (!moved) break;
+      place();
+    }
+    for (const q of places) {
+      JUNCTION_S.set(q.node, q.s);
+      const here = lands.filter((l) => l.node === q.node);
+      const owner = here.find((l) => DIVIDERS.has(`${l.id}|${l.end}`)) ?? here.reduce<Land | undefined>((a, l) => (!a || rOf(l.id) > rOf(a.id) ? l : a), undefined);
+      if (owner) stops.push({ s: q.s, fixed: true, node: q.node, jn: true, land: owner, others: here.filter((l) => l !== owner), beside: [] });
+      // (a main vessel that ends here (the coronary vein on the portal trunk) lands there too)
+      for (const [sid, sign] of q.taps) { const mw = PIECE_WHOLE.get(sid); if (mw && mw !== w && isMain(mw)) branch(mw, sign > 0 ? 1 : 0, w, ownCourse(w), pointAtS(C, q.s)); }
+    }
     // (an end that leaves or arrives within PARALLEL_DEG of its node's own end runs beside it (the spontaneous and the distal splenorenal shunts, 5 degrees apart on the splenic vein, 14 on the renal vein): it opens at its own
     //  node, beside the node's own end, an arm of the same skin (LRV_S builds with both shunts: tests/skin-crotch.test.ts; SVD with both and the short gastric veins, a skin takes three growing arms), and bows off it (SIBLINGS APART).
     //  ROOT CAUSE (C6 at SV, 25 Nov): it used to open at the next node downstream when a main vessel joins there, "a skin with room for it" (a skin took two growing arms, and SVD had the distal shunt and the short gastric
@@ -498,15 +591,11 @@ function buildPlaced(): void {
     //  mouth went 0.54 from where the placement draws it, from the renal vein (0.500, -0.035) to (-0.012, -0.223) beside the cava, and its course swept across the gastrorenal shunt just above that one's mouth (tests/overlaps.test.ts).
     //  At its own node it opens 3.7 of the renal vein's radii from its drawn landing, within SNAP_R: tests/landing-frozen.test.ts)
     for (const x of stops) for (const o of x.others) {
-      if (!x.land || OWN_TAKEOFF.has(`${o.id}|${o.end}`) || angleDeg(endDir(o.id, o.end), endDir(x.land.id, x.land.end)) >= PARALLEL_DEG) continue;
+      if (!x.land || angleDeg(endDir(o.id, o.end), endDir(x.land.id, x.land.end)) >= PARALLEL_DEG) continue;
       x.beside.push(o); SIBLINGS.push({ o, owner: x.land }); BESIDE.add(`${o.id}|${x.land.id}`).add(`${x.land.id}|${o.id}`);
     }
-    for (let i = 1; i < stops.length; i++) {
-      const x = stops[i]!, gap = NODE_GAP_R * R;
-      if (!x.fixed && !stops[i - 1]!.fixed && x.s - stops[i - 1]!.s < gap) x.s = Math.min(stops[i - 1]!.s + gap, L - 2 * R, stops[i + 1]?.fixed ? stops[i + 1]!.s - gap : Infinity);
-    }
     for (const x of stops) {
-      if (!x.fixed && x.node) NODE_S.set(`${w}|${x.node}`, x.s);
+      if (x.jn) { for (const l of [x.land!, ...x.others]) l.force = pointAtS(C, x.s); continue; }
       if (x.land && Math.abs(x.s - x.land.s) > 1e-6) x.land.force = along(C, x.s);
       for (const o of x.beside) o.force = along(C, x.s);
     }
@@ -517,7 +606,7 @@ function buildPlaced(): void {
   // (Moving the bypass down instead takes it out of the vein's proximal half and onto the LPV node's skin. Spreading both, or 4.5 to 6.5 radii, either folds the ridge again (14 to 30 degrees) or crowds PVH, and the DIPS loses its weld.)
   for (const w of new Set(lands.map((l) => l.w))) {
     const C = ownCourse(w), L = lengthOf(C), R = rOf(w);
-    const onWall = lands.filter((l) => l.w === w && l.id !== 'TIPS' && !hostEndAt(w, l.node) && !mouth.has(`${w}|${l.node}`) && !NODE_S.has(`${w}|${l.node}`))
+    const onWall = lands.filter((l) => l.w === w && l.id !== 'TIPS' && !JNODE.has(l.node) && !hostEndAt(w, l.node) && !mouth.has(`${w}|${l.node}`) && !NODE_S.has(`${w}|${l.node}`))
       .map((l) => ({ l, s: nearestOn(C, l.force ?? (l.end ? COURSE[l.id]![COURSE[l.id]!.length - 1]! : COURSE[l.id]![0]!)).s }));
     for (let i = 0; i < onWall.length; i++) for (let j = i + 1; j < onWall.length; j++) {
       const a = onWall[i]!, b = onWall[j]!;
@@ -559,51 +648,14 @@ function buildPlaced(): void {
   // ---- the caudate veins: three short tributaries into the cava (the pieces are cut below, so this lands on the whole cava) ----
   for (const k of ['cv1', 'cv2', 'cv3']) if (COURSE[k]) branch(k, 1, 'ivc');
 
-  // ---- cut each whole vessel into its engine pieces at the attach points ----
-  /** Where each engine node sits (3D): a piece's end; for a branching host's far end, its split. */
-  const endPt = (id: string, end: 0 | 1): V3 => { const c = COURSE[id]!; return end ? c[c.length - 1]! : c[0]!; };
+  // ---- cut each whole vessel into its engine pieces: at the real nodes between its hosts (realCuts, which the junction pass above has already used), and each host at its junction nodes (the table's `at`) ----
   for (const [w, pieces] of Object.entries(WHOLE_PIECES)) {
-    const D = COURSE[w]!, s = arc(D), L = s[s.length - 1]!;
-    const cuts: number[] = [], free: boolean[] = [];
-    for (let i = 0; i < pieces.length - 1; i++) {
-      const node = edgeById.get(pieces[i]!)!.to;
-      // the joiners at the node: their ends (as they now stand) on this course; a main vessel first, the widest; else a collateral or a shunt, the widest
-      const js = atNode(node, w).filter((c) => !pieces.includes(c.piece)).map((c) => {
-        // (the joiner's end at this node: a collateral's own end; a main vessel's whole end, when its piece there is the whole's first or last)
-        const pw = c.whole, ps = WHOLE_PIECES[pw];
-        const atStart = ps ? ps[0] === c.piece && c.end === 0 : c.end === 0, atEndW = ps ? ps[ps.length - 1] === c.piece && c.end === 1 : c.end === 1;
-        const p = atStart ? endPt(pw, 0) : atEndW ? endPt(pw, 1) : null;
-        const k = edgeById.get(c.piece)!.kind;
-        return p ? { p, main: k !== 'collateral' && k !== 'shunt', r: rOf(pw), hit: nearestOn(D, p) } : null;
-      }).filter((x): x is NonNullable<typeof x> => !!x && x.hit.d < LAND_REACH + rOf(w));
-      js.sort((a, b) => (a.main !== b.main ? (a.main ? -1 : 1) : b.r - a.r));
-      let at: number;
-      const ns = NODE_S.get(`${w}|${node}`);
-      if (w === HV_OSTIA.host && node === HV_OSTIA.node) at = nearestOn(D, mouth.get(`${w}|${node}`)!).s / L;   // (TWO OSTIA: the cava is cut at the common trunk's ostium, not at the widest vein's, the right one's, lower down)
-      else if (ns !== undefined) at = ns / L;
-      else if (js.length) {
-        at = js[0]!.hit.s / L;
-        // (a collateral piece of a whole, drawn only when it is open (the lumbar vein, C9, the azygos's lower course): a branch that lands at its cut would meet its run-on at one point, and with it hidden would sit on the
-        //  arch's open start. The branch lands on the always-drawn piece's wall instead, two of its diameters past the cut (the 2D figure's own drawing: tests/azygos-origin.test.ts))
-        const kc = (id: string): boolean => edgeById.get(id)!.kind === 'collateral';
-        if (!js[0]!.main && kc(pieces[i]!) !== kc(pieces[i + 1]!)) at += ((kc(pieces[i]!) ? -1 : 1) * 4 * rOf(w)) / L;
-      } else { const row = (JUNCTIONS as readonly (readonly unknown[])[]).find((r) => r[0] === node); at = row ? Number(row[2]) : (i + 1) / pieces.length; }
-      cuts.push(at); free.push(ns === undefined && !js.length);
-    }
-    // (a node nothing drawn lands at (the arterioportal shunt's on the right portal trunk, hidden): its cut is midway between the cuts either side, so both pieces are as long as they can be for their skins)
-    for (let i = 0; i < cuts.length; i++) if (free[i]) { let j = i; while (j < cuts.length && free[j]) j++; const lo = i ? cuts[i - 1]! : 0, hi = j < cuts.length ? cuts[j]! : 1; for (let m = i; m < j; m++) cuts[m] = lo + ((hi - lo) * (m - i + 1)) / (j - i + 1); i = j; }
-    // (and upstream of every collateral or shunt the engine joins to a LATER piece and that lands on the course's wall (the paraumbilical vein and the Rex bypass at the umbilical portion, on the left portal vein's last piece),
-    //  by two of the course's diameters, so each lands on the piece the engine joins it to)
-    for (let i = 0; i < cuts.length; i++) {
-      if (!free[i]) continue;
-      const later = new Set(pieces.slice(i + 1).map((id) => edgeById.get(id)!.to));
-      for (const id of OWN) for (const end of [0, 1] as const) {
-        const e = edgeById.get(id)!, node = end ? e.to : e.from, c = COURSE[id]!;
-        if (!later.has(node) || RUN_ON_ENDS.has(`${id}|${end}`)) continue;
-        const h = nearestOn(D, end ? c[c.length - 1]! : c[0]!);
-        if (h.d < rOf(w) && h.s / L < 1 - 1e-6) cuts[i] = Math.min(cuts[i]!, h.s / L - (4 * rOf(w)) / L);
-      }
-    }
+    const D = COURSE[w]!, s = arc(D), L = s[s.length - 1]!, hosts = WHOLE_HOSTS[w]!, real = REAL_S.get(w) ?? realCuts(w);
+    const cuts: number[] = [];
+    hosts.forEach((host, hi) => {
+      for (const node of piecesOf(host).slice(0, -1).map((id) => edgeById.get(id)!.to)) cuts.push(JUNCTION_S.get(node)! / L);
+      if (hi < hosts.length - 1) cuts.push(real[hi]!);
+    });
     // (in flow order, each piece at least a hundredth of the course)
     for (let i = 0; i < cuts.length; i++) cuts[i] = Math.min(1 - 0.01 * (cuts.length - i), Math.max(cuts[i]!, (i ? cuts[i - 1]! : 0) + 0.01));
     const bounds = [0, ...cuts, 1];
@@ -625,7 +677,7 @@ function buildPlaced(): void {
     if (!PLACED_NODE_3D[e.from]) PLACED_NODE_3D[e.from] = c[0]!;
     if (!PLACED_NODE_3D[e.to]) PLACED_NODE_3D[e.to] = c[c.length - 1]!;
   }
-  { const c = PLACED_EDGE_3D.IVC_IS!; PLACED_NODE_3D[HV_OSTIA.node] = c[c.length - 1]!; }   // (the node is the cava's cut, whichever hepatic vein's edge came first)
+  { const c = PLACED_EDGE_3D[pieceEndingAt('IVC_IS', HV_OSTIA.node)]!; PLACED_NODE_3D[HV_OSTIA.node] = c[c.length - 1]!; }   // (the node is the cava's cut, whichever hepatic vein's edge came first)
 
   // ---- the draw-only branches: the through branch carried on in the host's piece, the side branch on its own ----
   for (const [host, b] of Object.entries(PLACED_BRANCHES)) {
@@ -668,9 +720,13 @@ function buildPlaced(): void {
       branch(art, 1, pre, D, a![a!.length - 1]!);
       PLACED_EDGE_3D[WHOLE_PIECES[art]![0]!] = resample(COURSE[art]!, STEP);
     };
-    lay('PRE_R', 'SIN_RR', 'POST_R_RHV', 'PVH_R_2', 'RHV_IVC_1', 'rha');
+    lay('PRE_R', 'SIN_RR', 'POST_R_RHV', lastPieceOf('PVH_R'), firstPieceOf('RHV_IVC'), 'rha');
     // (the left portal vein runs on past its lobe's outflow: its bed leaves it where it starts to fade, 0.6 of the whole vein from the bifurcation, wherever its pieces are cut)
-    { const a = lengthOf(PLACED_EDGE_3D.PVH_L!), b = lengthOf(PLACED_EDGE_3D.PVH_L_1!); lay('PRE_L', 'SIN_LL', 'POST_L_LHV', 'PVH_L_1', 'LHV_IVC', 'lha', Math.min(0.9, Math.max(0.05, (LPV_BED * (a + b) - a) / b)), 0.45); }
+    {
+      const lp = piecesOf('PVH_L'), lens = lp.map((id) => lengthOf(PLACED_EDGE_3D[id]!)), want = LPV_BED * lens.reduce((x, y) => x + y, 0);
+      let k = 0, before = 0; while (k < lp.length - 1 && before + lens[k]! < want) { before += lens[k]!; k++; }
+      lay('PRE_L', 'SIN_LL', 'POST_L_LHV', lp[k]!, 'LHV_IVC', 'lha', Math.min(0.9, Math.max(0.05, (want - before) / lens[k]!)), 0.45);
+    }
     // the right lobe's second outflow bed: from the central vein on to the middle hepatic vein, leaving along the bed it continues
     {
       const sinR = PLACED_EDGE_3D.SIN_RR!, A = sinR[sinR.length - 1]!, H = hepatic('MHV_IVC', 0.3);   // (the middle hepatic vein starts in front of the lobe's centre: its bed joins it where it has come back to the veins' depth)
@@ -778,8 +834,8 @@ buildPlaced();
 /** The cava's piece the caudate veins open into (vessels/caudate-veins.ts CAUDATE_HOST): the piece their ends lie on, wherever the cava is cut (the DIPS lands at the caudate's foot, below them). */
 export const PLACED_CAUDATE_HOST: string = (() => {
   const ends = PLACED_CAUDATE_VEINS.map((c) => c[c.length - 1]!);
-  if (!ends.length) return 'IVC_IS_1';
-  let best = 'IVC_IS_1', bd = Infinity;
+  if (!ends.length) return firstPieceOf('IVC_IS');
+  let best = firstPieceOf('IVC_IS'), bd = Infinity;
   for (const id of WHOLE_PIECES.ivc!) { const c = PLACED_EDGE_3D[id]; if (!c) continue; const d = Math.max(...ends.map((p) => nearestOn(c, p).d)); if (d < bd) { bd = d; best = id; } }
   return best;
 })();

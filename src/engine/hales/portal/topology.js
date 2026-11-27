@@ -219,16 +219,25 @@ export const EDGES = [
 // A host split more than once is split at every `at` it lists, its pieces in order from its `from` end: ids `host` (the lead) and `host_<n>` for the
 // others, and `part` on each names the host, so a clot, a stenosis or a label given to the vein reaches every piece.
 // tests/junctions.test.js holds the rule: no shunt or collateral ends part-way along a vein without a node there.
+// THE ONE SOURCE (27 Nov 2026, Mohammad: "the flow lens, pressure, flow direction and everything else must know where vessel junctions really are"): this table is the
+// only place a take-off is placed. The app's drawing cuts each host at `at` and lands each listed end there; moving a take-off is an edit here. The `at` values were
+// read off the placed 3D network on 27 Nov (the C6 take-off at 0.456 of the distal splenic vein, the paraumbilical vein and the Meso-Rex bypass along the left portal vein,
+// the portocaval and mesocaval shunts on the cava). test/junction-table.mjs holds the table's rules.
 // [node, host, at, label, [[shunt edge, 'from' | 'to'], ...]]
 export const JUNCTIONS = [
-  ['RPV_T', 'PVH_R', 0.42, 'Right portal vein (where the TIPS leaves it)', [['TIPS', 'from']]],
-  ['RHV_T', 'RHV_IVC', 0.64, 'Right hepatic vein (where the TIPS joins it)', [['TIPS', 'to']]],
-  ['LRV_S', 'V_KID_L', 0.36, 'Left intrarenal veins (where the splenorenal shunts join them)', [['C6', 'to'], ['S_DSR', 'to']]],
-  ['IVC_D', 'IVC_IS', 0.71, 'IVC (where the DIPS joins it)', [['DIPS', 'to']]],
-  ['SMV_R', 'V_INT', 0.31, 'Mesenteric veins (where the retroperitoneal veins leave them)', [['C7', 'from']]],
-  ['ILI_R', 'ILI_IVC', 0.59, 'Common iliac veins (where the retroperitoneal veins join them)', [['C7', 'to']]],
-  ['SVC_E', 'SVC_RA', 0.43, 'SVC (where the epigastric veins join it)', [['EPI_SVC', 'to']]],
-  ['PVT_L', 'PV_TRUNK', 0.43, 'Portal vein (where the coronary vein joins it)', [['LGV_CONF', 'to']]],
+  ['RPV_T', 'PVH_R', 0.407, 'Right portal vein (where the TIPS leaves it)', [['TIPS', 'from']]],
+  ['RHV_T', 'RHV_IVC', 0.529, 'Right hepatic vein (where the TIPS joins it)', [['TIPS', 'to']]],
+  ['LRV_S', 'V_KID_L', 0.42, 'Left intrarenal veins (where the splenorenal shunts join them)', [['C6', 'to'], ['S_DSR', 'to']]],
+  ['IVC_P', 'IVC_IS', 0.135, 'IVC (where the portocaval shunt joins it)', [['S_PC', 'to']]],
+  ['IVC_D', 'IVC_IS', 0.604, 'IVC (where the DIPS joins it)', [['DIPS', 'to']]],
+  ['ILI_R', 'ILI_IVC', 0.47, 'Common iliac veins (where the retroperitoneal veins join them)', [['C7', 'to']]],
+  ['IVC_M', 'ILI_IVC', 0.814, 'IVC (where the mesocaval shunt joins it)', [['S_MC', 'to']]],
+  ['SMV_R', 'V_INT', 0.318, 'Mesenteric veins (where the retroperitoneal veins leave them)', [['C7', 'from']]],
+  ['SV_S', 'V_SPL', 0.456, 'Splenic vein (where the spontaneous splenorenal shunt leaves it)', [['C6', 'from']]],
+  ['SVC_E', 'SVC_RA', 0.532, 'SVC (where the epigastric veins join it)', [['EPI_SVC', 'to']]],
+  ['PVT_L', 'PV_TRUNK', 0.384, 'Portal vein (where the coronary vein joins it)', [['LGV_CONF', 'to']]],
+  ['LPV_U', 'PVH_L', 0.28, 'Left portal vein (where the paraumbilical vein leaves it)', [['C3', 'from']]],
+  ['LPV_X', 'PVH_L', 0.426, 'Left portal vein (where the Meso-Rex bypass joins it)', [['REX', 'to']]],
   ['LPV_A', 'PVH_L', 0.64, 'Left portal vein (where the arterioportal shunt joins it)', [['AP_L', 'to']]],
   ['RPV_A', 'PVH_R', 0.2, 'Right portal vein (where the arterioportal shunt joins it)', [['AP_R', 'to']]],
 ];
@@ -299,7 +308,7 @@ export const SHUNT_SYSTEMIC = ['RHV', 'MHV', 'LHV', 'IVCI', 'IVCS', 'SVC', 'AZY'
 const NAMED_SHUNTS = new Set(['RPV>RHV', 'PVH>IVCI', 'RPV>IVCS', 'CONF>IVCI', 'SV>LRV', 'SVD>LRV', 'SMV>IVCI']);
 const nodeLabel = (id) => { const n = NODES.find((x) => (Array.isArray(x) ? x[0] : x.id) === id); return Array.isArray(n) ? n[1] : n?.label || id; };
 // A node's short name for a stent's course: its id (RPV, RHV), with the hilum portal vein as PV and both IVC levels as IVC.
-const NODE_SHORT = { PVH: 'PV', IVCI: 'IVC', IVCS: 'IVC', RPV_T: 'RPV', RHV_T: 'RHV', IVC_D: 'IVC', SVC_E: 'SVC', PVT_L: 'PV', LPV_A: 'LPV', RPV_A: 'RPV' };
+const NODE_SHORT = { PVH: 'PV', IVCI: 'IVC', IVCS: 'IVC', RPV_T: 'RPV', RHV_T: 'RHV', IVC_D: 'IVC', SVC_E: 'SVC', PVT_L: 'PV', LPV_A: 'LPV', RPV_A: 'RPV', LPV_U: 'LPV', LPV_X: 'LPV', SV_S: 'SVD', IVC_P: 'IVC', IVC_M: 'IVC' };
 // The stents drawn as the covered Viatorr device (partly covered, with its bare stretch at the portal end): the TIPS, the DIPS and every stent-tool shunt from the portal vein or a branch
 // of it (the hilum, the right or the left branch) into a hepatic vein (13 Nov 2026, Mohammad: "any portal vein branch -> hepatic vein branch should be the Viatorr looking stent").
 export const LIVER_STENT_FROM = ['PVH', 'RPV', 'LPV'], LIVER_STENT_TO = ['RHV', 'MHV', 'LHV'];
@@ -370,7 +379,7 @@ export const TARGETS = {
 /** The coronary vein a Warren shunt ties off, and its station: they read "—", not a pressure (7 Nov: nothing flows in it, and the stomach drains by the short gastric veins). */
 export const tiedOff = (p, id) => !!p?.dsrs && (id === 'LGV_CONF' || id === 'LGV');
 
-export const PORTAL_TERRITORY = new Set(['SMV', 'IMV', 'SV', 'SVD', 'LGV', 'CONF', 'PVH', 'RPV', 'LPV', 'VAR', 'GV', 'RPV_T', 'SMV_R', 'PVT_L', 'LPV_A', 'RPV_A']);
+export const PORTAL_TERRITORY = new Set(['SMV', 'IMV', 'SV', 'SVD', 'LGV', 'CONF', 'PVH', 'RPV', 'LPV', 'VAR', 'GV', 'RPV_T', 'SMV_R', 'PVT_L', 'LPV_A', 'RPV_A', 'LPV_U', 'LPV_X', 'SV_S']);
 // Edges that carry portal blood into systemic veins (for shunt fraction). Positive sign = toward systemic.
 export const PORTOSYSTEMIC_EDGES = ['C1b', 'C3', 'C4', 'C5', 'C6', 'C7', 'TIPS', 'DIPS', 'S_PC', 'S_DSR', 'S_MC'];
 export const SPLANCHNIC_ARTERIES = ['A_SMA', 'A_IMA', 'A_SPL', 'A_LGA'];

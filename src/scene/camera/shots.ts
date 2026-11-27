@@ -1,6 +1,7 @@
 import type { Vec3 } from '../anatomy/vessels.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { boxOfNames, centreOf, FIGURE_NAMES, VISIBLE_FIGURE_NAMES, unionBox3, type Box3 } from '../anatomy/source.ts';
+import { piecesOf } from '../anatomy/whole-pieces.ts';
 
 // Named shots for the HVPG slice. A shot says what to look at (target, direction, how close at least, how much of the body it needs
 // on screen); the room solver (room.ts) then fits it into whatever room the cards leave free on this device. Frontal view: the patient's
@@ -64,13 +65,13 @@ const TODAY_SHOTS: Readonly<Record<ShotName, Shot>> = {
  *  its subject: the target moves as the subject's middle moved, it looks at the subject's own depth, and the room grows where the subject would no longer fit in it. */
 export const SHOT_SUBJECTS: Readonly<Record<ShotName, readonly string[]>> = {
   title: FIGURE_NAMES,
-  route: ['V_UP', 'SVC_RA_1', 'SVC_RA', 'heart-ra', 'IVCS_RA', 'IVC_IS', 'RHV_IVC', 'RHV_IVC_1'],
-  free: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'MHV_IVC', 'LHV_IVC', 'IVCS_RA', 'IVC_IS', 'liver'],
+  route: ['V_UP', ...piecesOf('SVC_RA'), 'heart-ra', 'IVCS_RA', 'IVC_IS', ...piecesOf('RHV_IVC')],
+  free: [...piecesOf('RHV_IVC'), 'rhva', 'rhvb', 'MHV_IVC', 'LHV_IVC', 'IVCS_RA', 'IVC_IS', 'liver'],
   // (the wedge sits in the main right hepatic vein's trunk, short of its fork: Mohammad 24 Nov, docs/approved/anatomy-placement.md; the frame keeps the fork and its branches round it)
-  wedge: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'IVC_IS'],
-  hvpg: ['RHV_IVC', 'RHV_IVC_1', 'rhva', 'rhvb', 'IVC_IS'],
+  wedge: [...piecesOf('RHV_IVC'), 'rhva', 'rhvb', 'IVC_IS'],
+  hvpg: [...piecesOf('RHV_IVC'), 'rhva', 'rhvb', 'IVC_IS'],
   play: VISIBLE_FIGURE_NAMES,
-  pick: ['PV_TRUNK', 'PV_TRUNK_1', 'SV_CONF', 'SV_MID', 'V_SPL', 'SMV_CONF', 'V_INT', 'V_INT_1', 'V_IMV', 'V_COL', 'LGV_CONF', 'PVH_R', 'PVH_R_1', 'PVH_R_2', 'PVH_L', 'PVH_L_1', 'rpva', 'rpvp'],
+  pick: [...piecesOf('PV_TRUNK'), 'SV_CONF', 'SV_MID', ...piecesOf('V_SPL'), 'SMV_CONF', ...piecesOf('V_INT'), 'V_IMV', 'V_COL', 'LGV_CONF', ...piecesOf('PVH_R'), ...piecesOf('PVH_L'), 'rpva', 'rpvp'],
 };
 
 /** The camera's right and up in the scene for a turn and tilt (the rig's: positive yaw swings the camera to the viewer's right, the camera at target + r (sin yaw cos pitch, sin pitch, cos yaw cos pitch)). */

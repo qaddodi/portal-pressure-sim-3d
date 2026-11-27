@@ -11,12 +11,13 @@ import { createStreamChain, displaySpeed } from './blood.copied.js';
 import { NETWORK_BY_ID, isArteryEdge } from '../vessels/network.ts';
 import type { Streams } from './streams.ts';
 import { flowLenAt } from '../circuit/mates.ts';
+import { piecesOf } from '../anatomy/whole-pieces.ts';
 
 interface Item { key: number; k: number; up: string; down: string; upPt: readonly [number, number]; downPt: readonly [number, number]; s0: number; sj: number; q: number; m: number }
 interface Chained { par: number[]; root: number[]; A: number[]; B: number[]; w: number[]; ef: number[]; et: number[]; easing: boolean; step(items: Item[], kW: number, kB: number): Chained }
 
 /** The cava's two stretches below the hepatic veins are one vein cut where the DIPS joins it: they keep their own pattern (stage-blood.js NO_CHAIN). */
-export const NO_CHAIN: ReadonlySet<string> = new Set(['IVC_IS', 'IVC_IS_1', 'IVCS_RA']);
+export const NO_CHAIN: ReadonlySet<string> = new Set([...piecesOf('IVC_IS'), 'IVCS_RA']);
 /** The hepatic artery is the one artery whose blood runs on through a junction into both its branches (Mohammad, 20 Nov: "the chevrons don't continue to both branches"). */
 export const CHAIN_ARTERIES: ReadonlySet<string> = new Set(['A_HEP', 'A_HR', 'A_HL']);
 

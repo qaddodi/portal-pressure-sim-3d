@@ -5,6 +5,7 @@
 // run on into the liver, one forward and one back in depth, fading out (portal veins, the umbilical vein) or in (hepatic veins) the way the host does. They are decoration on the host's own
 // course (a tributary group, like the 2D figure's fans), derived from it: no new edges, flows or numbers.
 import { PLACED_BRANCHES, PLACED_PATH_2D, PLACED_SPLIT, to2D } from '../anatomy/placed-network.ts';
+import { firstPieceOf, lastPieceOf } from '../anatomy/whole-pieces.ts';
 
 type P2 = readonly [number, number];
 export interface BranchItem { /** the width at its start as a share of its vein's own at the join; for a vein that ends at a node (`atEnd`), the shape works it out from the vein's end width */ k: number; /** starts at the end of a vein that stays whole */ atEnd?: true; fan: boolean; when: string | null; src: string | null; out: boolean; pts: readonly P2[]; dz: readonly number[]; /** each point's depth (the approved placement: the branch's own course), in place of the host's tier */ zs?: readonly number[]; /** the width at each end as a share of its own: a branch narrows toward its tip */ taper: readonly [number, number]; /** the share of its length each end's narrowing covers: the whole of it at the tip, none at the join */ taperSpan: readonly [number, number]; /** which end (0 start, 1 end) is the join with the host: it has no cap */ join: 0 | 1 }
@@ -29,7 +30,8 @@ export const taperAt = (u: number): number => 1 + (TIP - 1) * smooth(u);
 export interface BranchItem { /** the width at its start as a share of its vein's own at the join; for a vein that ends at a node (`atEnd`), the shape works it out from the vein's end width */ k: number; /** starts at the end of a vein that stays whole */ atEnd?: true; fan: boolean; when: string | null; src: string | null; out: boolean; pts: readonly P2[]; dz: readonly number[]; taper: readonly [number, number]; /** the share of its length each end's narrowing covers: the whole of it at the tip, none at the join */ taperSpan: readonly [number, number]; /** which end (0 start, 1 end) is inside the vein it leaves: it has no cap */ join: 0 | 1 }
 export interface BranchSet { host: string; when: string | null; list: readonly BranchItem[]; /** the stretch (0 to 1) of the host's lens ramp the branch wears: the part it leaves, so there is no step in colour at the branch point */ span: readonly [number, number] }
 
-export const LIVER_BRANCH_HOSTS = { out: ['PVH_R_2', 'PVH_L_1'], in: ['RHV_IVC_1', 'LHV_IVC'], umb: [] as readonly string[] } as const;
+// (the pieces a branching host's end is in, read from the engine's junction table: the right and left portal veins' last pieces, the right hepatic vein's first)
+export const LIVER_BRANCH_HOSTS = { out: [lastPieceOf('PVH_R'), lastPieceOf('PVH_L')], in: [firstPieceOf('RHV_IVC'), 'LHV_IVC'], umb: [] as readonly string[] } as const;
 const isOut = (id: string): boolean => (LIVER_BRANCH_HOSTS.out as readonly string[]).includes(id);
 /** The end (0 or 1) at which vein `id` runs into the liver's tissue and ends there, narrowed and faded (a portal branch's end, a hepatic vein's start), whether or not it branches: that end is a tip, so the bed beyond it is
  *  no branch on its wall. Null for every other vessel. (The left portal vein stopped branching in round 16 but still ends in the left lobe this way: shape.ts LIVER_TAPER, fades.ts PLACED_LIVER_FADE.) */

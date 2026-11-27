@@ -9,6 +9,7 @@ import { x2d, x3, y2d, y3 } from '../frame2d.ts';
 import type { V3 } from './shots.ts';
 import { NETWORK } from '../vessels/network.ts';
 import { centrelineOf } from '../vessels/centreline.ts';
+import { firstPieceOf, lastPieceOf } from '../anatomy/whole-pieces.ts';
 
 /** The place in the 2D figure's world units (x right, y down; the confluence is at 700, 556) the dive goes to: the open liver between the right portal branch (below: (602,442) up-left to the right sinusoid fan at about (450,340)), the right hepatic vein (above, y about 245) and the IVC (right, x about 620), about 65 units clear of each (owner, 20 Nov: zoom in between the right portal vein and the IVC, not to the edge). The courses are src/scene/vessels/paths.copied.ts. */
 export const LIVER_2D = { x: 515, y: 330 } as const;
@@ -20,7 +21,7 @@ export const LIVER_POINT: V3 = placedLiverPoint();
 /** The place found by name on the drawn courses (vessels/centreline.ts), never a number: in the open liver between the right portal vein (below), the right
  *  hepatic vein (above) and the IVC (toward the middle), at the depth between the two liver veins, the point of that box farthest from every drawn vessel (a lobule stands in parenchyma, not on a vein), toward the box's middle. */
 export function placedLiverPoint(): V3 {
-  const rpv = centrelineOf('PVH_R_2') ?? centrelineOf('PVH_R'), rhv = centrelineOf('RHV_IVC_1') ?? centrelineOf('RHV_IVC'), ivc = centrelineOf('IVC_IS_1') ?? centrelineOf('IVC_IS');
+  const rpv = centrelineOf(lastPieceOf('PVH_R')) ?? centrelineOf('PVH_R'), rhv = centrelineOf(firstPieceOf('RHV_IVC')) ?? centrelineOf('RHV_IVC'), ivc = centrelineOf(firstPieceOf('IVC_IS')) ?? centrelineOf('IVC_IS');
   if (!rpv || !rhv || !ivc) return [x3(LIVER_2D.x), y3(LIVER_2D.y), LIVER_Z];
   const p = rpv.pointAt(1), h = rhv.pointAt(0), c = ivc.pointAt(ivc.nearestU([(p[0] + h[0]) / 2, (p[1] + h[1]) / 2, (p[2] + h[2]) / 2]));
   // (the box: from the farther of the two liver ends to the cava sideways, from the portal vein up to the hepatic vein; its depth the two veins' mean)
