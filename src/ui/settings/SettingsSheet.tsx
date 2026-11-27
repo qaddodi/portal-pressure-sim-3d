@@ -20,7 +20,9 @@ import { HistoryList } from '../history/HistoryList.tsx';
 import { HIST } from '../history/words.ts';
 import { I } from '../shell/icons.tsx';
 import { usesBottomBar } from '../shell/room.ts';
-import { FULLSCREEN, CAPTURE } from '../shell/words.ts';
+import { FULLSCREEN, CAPTURE, RECORD } from '../shell/words.ts';
+import { useRecording, recordAvailable, toggleRecording } from '../capture/record.ts';
+import { recordRow } from '../capture/record-model.ts';
 import { feedbackEmail } from '../shell/feedback.ts';
 import { sendFeedback } from '../shell/send-feedback.ts';
 import { SECTIONS, settingsRow, type Row } from './rows.ts';
@@ -110,8 +112,24 @@ function CaptureRow() {
   const touch = typeof navigator !== 'undefined' && (navigator.maxTouchPoints || 0) > 1;
   return (<>
     <MenuItem icon="camera" label={CAPTURE.row} kb={touch ? null : '⌥⇧S'} title={CAPTURE.hint} onClick={() => { void import('../capture/capture.ts').then((m) => m.captureScreen({ settle: true })); }} />
+    <RecordRow touch={touch} />
     {talk ? <MenuItem icon="grid" label={CAPTURE.deckRow} title={CAPTURE.deckHint} onClick={() => { void import('../capture/capture-deck.ts').then((m) => m.captureThisDeck()); }} /> : null}
   </>);
+}
+
+// Record window: a video of this window. Shown only where the browser can share a window and write video (iPhone and older browsers: not at all).
+// While recording the row is Stop, in the colour of a warning; the press runs inside the tap (record.ts has no import() before the browser's question).
+function RecordRow({ touch }: { touch: boolean }) {
+  const phase = useRecording((s) => s.phase);
+  if (!recordAvailable()) return null;
+  const on = phase === 'recording';
+  const label = recordRow(phase, RECORD), kb = touch || phase !== 'idle' ? null : '⌥⇧R';
+  return (
+    <MenuItem
+      icon={on ? 'close' : 'projector'} label={label} kb={kb} title={on ? RECORD.stopHint : RECORD.hint}
+      className={on ? 'rec-on' : undefined} onClick={() => { void toggleRecording(); }}
+    />
+  );
 }
 
 /** How long after Settings opens a page it was asked for is pushed (the menu has its box by then, so the page slides in from the right rather than appearing with the menu). */
