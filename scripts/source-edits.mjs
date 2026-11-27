@@ -370,6 +370,17 @@ export const CAPTURE_3531BDFA_WORDS = [
   P('cause-treated', 'slides.high2-plane.ask.1', 'The HVPG falls after the cure but stays in the CSPH region, so CSPH persists.', 'The trail ends in the indeterminate zone, but the HVPG stays at 10 mmHg or more, so CSPH persists.'),
   // Shunts 12: the gradient after the stent occludes is 16.3 mmHg and before the TIPS it was 17.0 (19.2 with tense ascites), so it is not "no lower than before TIPS"
   P('shunts', 'slides.occl.line', 'no lower than before TIPS', 'close to the {ppg@own} it was before the TIPS'),
+  // W1 (owner ruling, 27 Nov 2026, "Not measurable everywhere"): a patient whose hepatic veins are blocked (Budd-Chiari) has no HVPG to take, so no slide says it is "near zero" or "normal" (the tiles, tables and
+  // plane say "Not measurable"; engine/hv-flag.ts). Sites 10 (Budd-Chiari), Sites 12 (the plane, whose line named Budd-Chiari among the sites that "leave the HVPG normal") and HVPG 11.
+  P('sites', 'slides.post.title', 'a high PPG, the HVPG near zero', 'a high PPG, and no HVPG to measure'),
+  P('sites', 'slides.post.line', 'Both hepatic venous pressures are high upstream of the occlusion, so the HVPG is near zero; the [right atrium](ra) is {ra}.', 'No catheter enters the thrombosed hepatic veins, so the HVPG cannot be measured; the [right atrium](ra) is {ra}.'),
+  P('sites', 'slides.post.ask.0', 'Why is the HVPG near zero although the portal pressure is about 26 mmHg?', 'Why can the HVPG not be measured although the portal pressure is about 26 mmHg?'),
+  SET('sites', 'slides.post.ask.1', 'The catheter cannot enter the thrombosed hepatic veins, so there is no wedged or free pressure to subtract. The PPG, portal vein minus IVC pressure, still measures the portal hypertension.'),
+  P('sites', 'slides.post.notes', 'In practice the thrombosed veins often cannot be catheterized; when one can be entered, both readings lie upstream of the resistance. The model shows the pressures there.', 'In practice the thrombosed veins often cannot be catheterized, so the model gives Budd–Chiari no HVPG ("Not measurable"); it shows the other pressures.'),
+  P('sites', 'slides.relation.line', 'Portal vein thrombosis, schistosomiasis and Budd–Chiari raise the PPG and leave the HVPG normal. Cirrhosis', 'Portal vein thrombosis and schistosomiasis raise the PPG and leave the HVPG normal. In Budd–Chiari the HVPG cannot be measured, so it has no point on this plane. Cirrhosis'),
+  P('sites', 'slides.relation.ask.1', 'Prehepatic or presinusoidal (portal vein thrombosis, schistosomiasis), or Budd–Chiari.', 'Prehepatic or presinusoidal (portal vein thrombosis, schistosomiasis).'),
+  P('hvpg', 'slides.bc.line', 'If a wedge is achieved, both readings lie upstream of the resistance, so the HVPG is near zero.', 'No wedged or free reading can be taken, so the HVPG cannot be measured.'),
+  P('hvpg', 'slides.bc.notes', 'If a wedge is achieved, both the wedged and the free readings lie upstream of the resistance, so the HVPG is near zero and misleading.', 'Where a wedge is achieved in a stump, both the wedged and the free readings lie upstream of the resistance, so the HVPG would read near zero and mislead; the app calls it not measurable.'),
 ];
 
 /** Capture 15c31759 (24 Nov 2026, Mohammad: "do all review findings"). */

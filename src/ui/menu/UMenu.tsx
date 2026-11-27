@@ -2,6 +2,7 @@
 // button), `.um-tabs`, `.um-cols` holding the Present and Patients lists, `.um-empty` and `.um-foot`. Its stylesheet is 2D's (src/ui/styles). A popover under the menu
 // button from 768 px, a bottom sheet with a scrim on the stacked layout (STACK_MQ). It is in the page only while open and leaves by `.out`. A row opens a talk or a patient; the ⓘ
 // opens the preview under it (`.um-inline`), and a mouse that rests on a row shows the same preview beside the panel (`.um-pv`).
+import { presetBlocked } from '../../engine/hv-flag.ts';
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -105,7 +106,7 @@ function PatientPv({ id, label, group }: { id: string; label: string; group: str
       <h3>{label}</h3>
       {s ? <span className="hp-cap">Pressure, splanchnic bed to right atrium (0 to 30 mmHg)</span> : null}
       {s ? <div className="hp-prof" aria-hidden="true"><Chart tag="menu-profile" glide={false} deps={[s.P.join(',')]} label={`${label}: pressure from the splanchnic bed to the right atrium`} build={(c) => profileScene(s.P, c)} /></div> : null}
-      {s ? <span className="hp-facts">{chipsOf(s).map((c) => <span key={c.word} className={c.cls} title={c.title}>{c.word}{c.value ? <b>{c.value}</b> : null}</span>)}</span> : null}
+      {s ? <span className="hp-facts">{chipsOf(s, presetBlocked(id)).map((c) => <span key={c.word} className={c.cls} title={c.title}>{c.word}{c.value ? <b>{c.value}</b> : null}</span>)}</span> : null}
       <p>{PRESET_SUMMARY[id] ?? ''}</p>
     </div>
   );

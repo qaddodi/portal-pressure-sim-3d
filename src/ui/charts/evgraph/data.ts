@@ -3,6 +3,7 @@
 //  - each live reading, from the moment the procedure changes the patient, taken from the engine's frame as the tiles take theirs, toward the settled numbers at the end.
 // Pure apart from `feedFrame`'s reading of a frame; the presenter owns when the change happens (it calls run.start(), then feeds each frame it polls, every 100 ms).
 import { fingerprintOf } from '../../../engine/hales/portal/fingerprint.js';
+import { flagFp } from '../../../engine/hv-flag.ts';
 import type { EngineFrame } from '../../../engine/hales/host/protocol.d.ts';
 import { EVENT_S, EvRun, evSample, type EvSpec } from './model.ts';
 
@@ -10,7 +11,7 @@ export type Fp = Readonly<Record<string, number | null | undefined>>;
 
 /** The numbers the tiles print for a live engine frame (presenter-cards.js liveFp: the network as it stands in the same poll). */
 export const liveFp = (fr: Pick<EngineFrame, 'metrics' | 'P' | 'Pf' | 'Q' | 'Qf' | 'D'>, params: unknown = null): Fp =>
-  fingerprintOf(fr.metrics, { P: fr.Pf || fr.P, Q: fr.Qf || fr.Q, D: fr.D, params }) as unknown as Fp;
+  flagFp(fingerprintOf(fr.metrics, { P: fr.Pf || fr.P, Q: fr.Qf || fr.Q, D: fr.D, params }), params) as unknown as Fp;
 
 /** A slide's state for the graph: its fingerprint, and the state before the change it makes at once (when it has one). */
 export interface EvState { fp: Fp; before?: { fp: Fp } | null }

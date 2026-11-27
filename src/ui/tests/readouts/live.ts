@@ -13,7 +13,8 @@ import { fmt, clamp } from '../copied/num.copied.js';
 import { bandStepFor, BAND_RECHECK_MS, BAND_LONG_MS } from '../copied/band-settle.copied.js';
 import { COUNT_MS } from '../copied/motion.copied.js';
 import { FILL_SMALL, fillQ } from './copied/display-state.copied.js';
-import { hvBlocked, SEV_OF_RATE, NOT_MEASURABLE, NOT_SHOWN } from '../../../engine/hales/portal/pressure-cuts.js';
+import { SEV_OF_RATE, NOT_MEASURABLE, NOT_SHOWN } from '../../../engine/hales/portal/pressure-cuts.js';
+import { hvpgBlockedBy } from '../../../engine/hv-flag.ts';
 import { readoutValue, changeFrom, SYSTEMIC, type Band, type Row } from '../readouts-model.ts';
 import { odoPlan, ROLL_TAIL_MS, type Piece } from './odo.ts';
 import type { M } from '../frame.ts';
@@ -257,7 +258,7 @@ export class ReadoutsLive {
     const measured = v != null && !!hidden?.has(t.hideKey);
     let sev: Band, s: string;
     if (v == null) {
-      const nm = t.id === 'hvpg' && hvBlocked(ctx.params);
+      const nm = t.id === 'hvpg' && hvpgBlockedBy(ctx.params);
       x.nm = nm; x.noneGlyph = nm ? NOT_SHOWN : '?';
       this.count(x, null, t.d, eased, now);
       s = nm ? NOT_MEASURABLE : 'Not measured'; sev = 'none'; x.hist.length = 0;

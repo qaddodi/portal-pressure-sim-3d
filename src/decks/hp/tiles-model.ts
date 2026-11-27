@@ -3,6 +3,7 @@
 import { TILE } from '../../ui/charts/tiles.generated.ts';
 import { fmt } from '../../ui/charts/fmt.ts';
 import { valueText, type Fp } from './numbers.ts';
+import { hvpgNotMeasurable } from '../../engine/hv-flag.ts';
 import { DERIVED_TILE, withResponse, withRespKey, respNote } from './derived-tiles.ts';
 
 export interface TileSpec { deck: string; slide: string; keys: string[]; key: string[]; /** a slide id, the slide before (true), or none */ delta: string | boolean | null; /** the readings left once the slide's chart shows its own (2D card-tiles.js ownKeys), for a laptop or tablet and for a phone */ own?: { wide: string[]; phone: string[] }; /** the response tile's baseline (2D `hvpgResp`): a slide id, or true for the slide before */ resp?: string | true }
@@ -16,6 +17,8 @@ export interface TileRow { key: string; name: string; sub: string; text: string;
 export function deltaOf(key: string, now: Fp | null, before: Fp | null): { text: string; good: boolean | null } | null {
   const T = TILE[key] ?? DERIVED_TILE[key], a = now?.[key], b = before?.[key];
   if (!T || typeof a !== 'number' || typeof b !== 'number' || !Number.isFinite(a) || !Number.isFinite(b)) return null;
+  // (a change to or from an HVPG nobody can measure is no number: ui/cuts.ts)
+  if (key === 'hvpg' && (hvpgNotMeasurable(now) || hvpgNotMeasurable(before))) return null;
   const d = T.d ?? 1, x = T.x ?? 1;
   const diff = Number(((a - b) * x).toFixed(d));
   if (diff === 0) return null;

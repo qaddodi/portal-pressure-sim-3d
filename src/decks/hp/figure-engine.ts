@@ -2,6 +2,7 @@
 // (tests/ui-text-deck.test.ts); the readings come through here.
 import { latest, indexOf, patient, engine, onFrame } from '../../engine/index.ts';
 import { fingerprintOf } from '../../engine/hales/portal/fingerprint.js';
+import { flagFp } from '../../engine/hv-flag.ts';
 import { NODES, EDGES } from '../../engine/hales/portal/topology.js';
 
 const NODE_AT = new Map<string, number>((NODES as unknown as ([string] | { id: string })[]).map((n, i) => [Array.isArray(n) ? n[0] : (n as { id: string }).id, i]));
@@ -21,7 +22,7 @@ export const latestMetrics = (): unknown => latest.frame?.metrics ?? null;
 export function liveFp(): Record<string, number | null | undefined> | null {
   const f = latest.frame;
   if (!f?.metrics) return null;
-  return fingerprintOf(f.metrics, { P: f.Pf || f.P, Q: f.Qf || f.Q, D: f.D, params: patient.params }) as unknown as Record<string, number | null | undefined>;
+  return flagFp(fingerprintOf(f.metrics, { P: f.Pf || f.P, Q: f.Qf || f.Q, D: f.D, params: patient.params }), patient.params) as unknown as Record<string, number | null | undefined>;
 }
 
 /** Tells the engine something (the procedures that are engine actions: a morph to a slide's state or back). The talk's folder sends through here, as it reads through here. */

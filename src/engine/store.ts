@@ -3,6 +3,7 @@
 //  - `latest`: the newest engine frame, held outside React (the clock's engine phase reads it every frame; nothing re-renders for it).
 import { create } from 'zustand';
 import type { EngineFrame, Metrics } from './hales/host/protocol.d.ts';
+import { hvpgBlockedBy } from './hv-flag.ts';
 
 export type EngineStatus = 'booting' | 'ready' | 'crashed';
 
@@ -13,11 +14,13 @@ interface EngineState {
   hvpg: number | null; whvp: number | null; fhvp: number | null;
   /** portal vein, IVC (suprahepatic) and right atrium pressures, mmHg */
   pv: number | null; ivc: number | null; ra: number | null;
+  /** the shown patient's hepatic vein is blocked: the HVPG above cannot be measured (hv-flag.ts), and every card says so in its place */
+  hvBlocked: boolean;
   crash: string | null;
   frames: number;
 }
 
-export const useEngine = create<EngineState>(() => ({ status: 'booting', presetId: null, hvpg: null, whvp: null, fhvp: null, pv: null, ivc: null, ra: null, crash: null, frames: 0 }));
+export const useEngine = create<EngineState>(() => ({ status: 'booting', presetId: null, hvpg: null, whvp: null, fhvp: null, pv: null, ivc: null, ra: null, hvBlocked: false, crash: null, frames: 0 }));
 
 export const latest: { frame: EngineFrame | null; version: number } = { frame: null, version: 0 };
 
@@ -85,6 +88,9 @@ export function adoptFrame(f: EngineFrame) {
   if (s.hvpg !== m.hvpg || s.whvp !== m.whvp || s.fhvp !== m.fhvp || s.pv !== r.pv || s.ivc !== r.ivc || s.ra !== r.ra) {
     useEngine.setState({ hvpg: m.hvpg, whvp: m.whvp, fhvp: m.fhvp, pv: r.pv ?? null, ivc: r.ivc ?? null, ra: r.ra ?? null });
   }
+  // (the vein the HVPG is read in, blocked or open, as the shown parameters have it: the readouts, the dock and the cards say "Not measurable" where the number would be)
+  const blocked = hvpgBlockedBy(shownParams());
+  if (s.hvBlocked !== blocked) useEngine.setState({ hvBlocked: blocked });
   if (s.status === 'booting' && s.presetId) useEngine.setState({ status: 'ready' });
   useEngine.setState((st) => ({ frames: st.frames + 1 }));
 }

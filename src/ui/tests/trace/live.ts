@@ -1,6 +1,7 @@
 // The pure parts of the Over time pane that read the record and the clock: where the trace's right edge stands, the header's words and the lanes' gliding y ranges (2D pressure-time.js).
 import { fmt } from '../../charts/fmt.ts';
 import { feed, headOf } from '../feed.ts';
+import { NOT_MEASURABLE } from '../../../engine/hv-flag.ts';
 import { hvpgWordOf, sevTok, type Range } from './model.ts';
 
 const NOT_SHOWN = '—';
@@ -10,6 +11,8 @@ export { headOf };
 /** The header's readings as words: the HVPG, its band and its change over the range on screen (2D updateHero). */
 export function heroOf(hvpg: number, range: Range = 'beats', hidden: ReadonlySet<string> | null = null, measured: number | null = null) {
   // an HVPG the case leaves unmeasured: the number of the measurement if there is one, else the dash (2D updateHero)
+  // a blocked hepatic vein takes no catheter, so there is no measurement either: the word where the number would be (hidden.ts HV_BLOCKED)
+  if (hidden?.has('hvBlocked')) return { num: NOT_SHOWN, word: NOT_MEASURABLE, sev: 'none', delta: '', dir: '' };
   if (hidden?.has('trueHVPG')) return { num: measured != null ? fmt(measured, 1) : NOT_SHOWN, word: measured != null ? 'Measured' : 'Not measured', sev: measured != null ? sevTok(measured) : 'none', delta: '', dir: '' };
   const v = Math.max(0, hvpg);
   const num = Number.isFinite(hvpg) ? fmt(v, 1) : NOT_SHOWN;

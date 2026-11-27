@@ -3,6 +3,7 @@ import type { Readings } from '../ui-store.ts';
 import { ladderRows, gapOf } from './ladder-model.ts';
 import { Tile, useTileFit } from './TilesCard.tsx';
 import { tileView } from './tiles-2d.ts';
+import { HV_BLOCKED_KEY, hvpgNotMeasurable } from '../cuts.ts';
 import { useRef } from 'react';
 import { Roll } from './Roll.tsx';
 
@@ -19,7 +20,7 @@ export function LadderCard({ ladder, readings }: { ladder: NonNullable<Slide['la
     <>
       <div className="pz-dh"><span>Pressures</span><span className="pz-unit">mmHg</span></div>
       <div className="pz-tiles" ref={row} data-n={rows.length}>
-        {rows.map((r) => <Tile key={r.key} t={{ ...tileView(r.key, { [r.key]: r.value }), text: r.text }} />)}
+        {rows.map((r) => <Tile key={r.key} t={{ ...tileView(r.key, { [r.key]: r.value, ...(hvpgNotMeasurable(readings) ? { [HV_BLOCKED_KEY]: 1 } : null) }), text: r.text }} />)}
       </div>
       {gap && (
         <p className="pz-line">

@@ -13,6 +13,7 @@ import { deckOrder, loadBuiltin } from '../src/decks/registry.ts';
 import { copiedOf } from '../src/decks/hp/deck.ts';
 import { spansFor, spansOf, catheterBlocked, HEPATIC_VEIN_SPANS, planProfile, goalOf, profileOf, profileWords, SPANS, type Fp } from '../src/ui/charts/profile/model.ts';
 import { profileFrameAtRest } from '../src/ui/charts/profile/frame.ts';
+import { hvpgNotMeasurable } from '../src/ui/cuts.ts';
 import { csphFingerprint } from '../scripts/gen-engine-fixture.mjs';
 import { ctxOf } from './charts-helpers.ts';
 import { toolPlane, shownReading, zoneOf } from '../src/ui/charts/plane/model.ts';
@@ -69,7 +70,13 @@ test('a blocked catheter draws no HVPG or EUS-PPG bracket, on every slide that h
       }
       // the words and the flag are one fact: "cannot be measured" about the HVPG or the EUS-PPG belongs to a slide whose catheter is blocked
       const w = `${s.title} ${s.line}`;
-      if (/\b(HVPG|EUS-PPG)\b[^.]*\b(cannot be measured|not measurable)\b/i.test(w)) assert.ok(catheterBlocked(s), `${d.id}/${s.id}: the words say it cannot be measured, the slide's catheter is not blocked`);
+      // (or the slide's state is one: a patient whose hepatic vein is blocked by the model, which a treatment or a control can make or undo; ui/cuts.ts)
+      if (/\b(HVPG|EUS-PPG)\b[^.]*\b(cannot be measured|not measurable)\b/i.test(w)) {
+        // (a plane or a table that sets cases side by side speaks of the cases it holds: its `of` names earlier slides of the deck)
+        const i = d.slides.indexOf(s), st = await statesOf(d, i), of = ((s as { of?: { id: string }[] }).of ?? []).map((c) => d.slides.findIndex((x) => x.id === c.id));
+        const flagged = [i, ...of].some((n) => n >= 0 && hvpgNotMeasurable(st[n]));
+        assert.ok(catheterBlocked(s) || flagged, `${d.id}/${s.id}: the words say it cannot be measured, neither the slide's catheter nor its state (nor a case it holds) is blocked`);
+      }
     }
   }
   assert.ok(seen >= 1, 'at least the Gradients Budd-Chiari slide is a blocked profile');

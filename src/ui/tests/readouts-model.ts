@@ -4,7 +4,8 @@ import { TILES, GROUPS, hooks } from './copied/dock-tiles.copied.js';
 import { VITALS, vitalReading, bpText } from './copied/vital-read.copied.js';
 import { SCALE, RATE } from './copied/table-marks.copied.js';
 import { fmt, clamp } from './copied/num.copied.js';
-import { hvBlocked, SEV_OF_RATE, NOT_MEASURABLE, NOT_SHOWN } from '../../engine/hales/portal/pressure-cuts.js';
+import { SEV_OF_RATE, NOT_MEASURABLE, NOT_SHOWN } from '../../engine/hales/portal/pressure-cuts.js';
+import { hvpgBlockedBy } from '../../engine/hv-flag.ts';
 import type { M } from './frame.ts';
 import { useMeasured } from './hidden.ts';
 
@@ -73,7 +74,7 @@ export function vitalStatics(): Static[] {
 
 /** A tile's number for a frame: null when the HVPG cannot be measured (Budd–Chiari takes no catheter) or the tile hides its reading and none was measured. */
 export function readoutValue(t: { id: string; v(m: M): number; hideKey?: string; measured?: () => { hvpg: number } | null }, m: M, params: unknown, hidden: ReadonlySet<string> | null = null): number | null {
-  if (t.id === 'hvpg' && hvBlocked(params)) return null;
+  if (t.id === 'hvpg' && hvpgBlockedBy(params)) return null;
   if (!hidden?.has(t.hideKey ?? '')) return t.v(m);
   const meas = t.id === 'hvpg' ? t.measured?.() : null;
   return meas ? meas.hvpg : null;
@@ -96,7 +97,7 @@ export function tileRows(m: M, params: unknown, hidden: ReadonlySet<string> | nu
       const measured = v != null && !!hidden?.has(t.hideKey ?? '');
       const base = { u: t.u as string, ux: (t.ux as string) ?? '', id: t.id as string, name: t.k as string, short: (t.ks ?? t.k) as string, unit: (t.u as string) + ((t.ux as string) ?? ''), why: t.why as string | undefined, pane: t.pane as string | undefined, title: (t.titleOf ? t.titleOf(m) : t.title) as string, ticks: (t.ticks as number[]).map((x) => pos(lo, hi, x)), zero: pos(lo, hi, 0) };
       if (v == null) {
-        const nm = t.id === 'hvpg' && hvBlocked(params);
+        const nm = t.id === 'hvpg' && hvpgBlockedBy(params);
         const word = nm ? NOT_MEASURABLE : 'Not measured';
         return { ...base, value: nm ? NOT_SHOWN : '?', word, band: 'none' as Band, fill: 0, aria: `${t.title ?? t.k}: ${word.toLowerCase()}` };
       }

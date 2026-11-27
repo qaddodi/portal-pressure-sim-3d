@@ -2,6 +2,7 @@
 // either, swaps them. Pure rules here; the motion itself is two CSS transitions (transform and opacity, 280 ms), so no frame loop.
 
 import type { Slot } from '../layout/plan.ts';
+import { NOT_MEASURABLE } from '../cuts.ts';
 import { EASE_ARRIVE } from '../motion.ts';
 
 export const WALLET_EASE = EASE_ARRIVE;
@@ -36,6 +37,6 @@ export const resetForSlide = (s: WalletState): WalletState => (s.active === 'wor
 /** The words on the strip: what the card behind it holds, in a few words ("Pressures · HVPG 12.1 mmHg", "Slide · The wedged pressure…"). */
 export function stripLabel(behind: Slot, hvpg: string | null, slideTitle: string): { lead: string; rest: string } {
   return behind === 'data'
-    ? { lead: 'Pressures', rest: hvpg ? `HVPG ${hvpg}` : '' }
+    ? { lead: 'Pressures', rest: hvpg ? (hvpg === NOT_MEASURABLE ? `HVPG ${NOT_MEASURABLE.toLowerCase()}` : `HVPG ${hvpg}`) : '' }
     : { lead: 'Slide', rest: slideTitle };
 }

@@ -121,11 +121,13 @@ test('the copied files are what the 2D app has', { skip: !process.env.PPS_2D_REP
 import { hiddenOf, SHOW_HVPG } from '../src/ui/tests/hidden.ts';
 const clotted = { thrombus: { RHV_IVC: 0.9 } }, open = { thrombus: { RHV_IVC: 0 } };
 
-test('hiddenNow: the HVPG shows (2D showHvpg, 11 Nov 2026) except where the hepatic vein takes no catheter; a slide shows the figures as they are', () => {
+test('hiddenNow: the HVPG shows (2D showHvpg, 11 Nov 2026) except where the hepatic vein takes no catheter; a slide shows the figures as they are, except a blocked vein\'s: no catheter takes it there either', () => {
   assert.equal(SHOW_HVPG, true);
   assert.equal(hiddenOf({ params: open }), null);
   assert.ok(hiddenOf({ params: clotted })!.has('trueHVPG'), 'a clotted right hepatic vein: the HVPG stays unmeasured');
-  assert.equal(hiddenOf({ params: clotted, presenting: true }), null, 'a Presenter slide shows it as it is');
+  assert.equal(hiddenOf({ params: open, presenting: true }), null, 'a Presenter slide shows it as it is');
+  // (27 Nov 2026, "Not measurable everywhere": a slide on a blocked vein hides the true HVPG too, and the set says why, so a pane reads "Not measurable", tests/hvpg-not-measurable.test.ts)
+  assert.ok(hiddenOf({ params: clotted, presenting: true })!.has('trueHVPG') && hiddenOf({ params: clotted, presenting: true })!.has('hvBlocked'));
   assert.equal(hiddenOf({ params: clotted, measured: true })!.has('trueHVPG'), true, 'measured or not, a blocked vein has no HVPG');
   const base = new Set(['pv']);
   const both = hiddenOf({ params: clotted, base })!;

@@ -2,7 +2,7 @@
 // without its allocation tricks (a card is one component, drawn when a number changes, not a hand-managed cell). Pure: the frame, the patient's parameters and the healthy
 // reference go in, texts come out; tests/action-cards.test.ts holds every reading to the 2D app's own answers.
 import { EDGES, NODES, JUNCTION_HOST_ENDS, JUNCTION_PIECES, JUNCTIONS, partOf } from '../../engine/hales/portal/topology.js';
-import { hvBlocked } from '../../engine/hales/portal/pressure-cuts.js';
+import { hvpgBlockedBy } from '../../engine/hv-flag.ts';
 import { dopplerVel, flowReversed } from '../../scene/lenses/vel-normal.copied.js';
 import { oxygenSat, FLOW_FLOOR, LIVER_EXTRACTION } from '../../scene/lenses/blood-model.ts';
 import { lobuleModel, type LobuleModel } from '../../scene/lobule/model.ts';
@@ -89,7 +89,7 @@ export function spanOfEdge(e: Edge): SpanDef {
   } };
 }
 /** Across the liver: wedged to free hepatic venous pressure, the HVPG (not shown where the case has not measured it). */
-export const SPAN_HVPG: SpanDef = { el: ['WHVP', 'FHVP'], dn: 'HVPG', cut: 'hvpg', at: ({ f, p }) => { const m = f.metrics; return { a: m.whvp, b: m.fhvp, d: m.hvpg, ok: !(p && hvBlocked(p)) }; } };
+export const SPAN_HVPG: SpanDef = { el: ['WHVP', 'FHVP'], dn: 'HVPG', cut: 'hvpg', at: ({ f, p }) => { const m = f.metrics; return { a: m.whvp, b: m.fhvp, d: m.hvpg, ok: !hvpgBlockedBy(p) }; } };
 
 const oxy = new WeakMap<object, Float32Array>();
 /** The saturation at a vessel's two ends, as the blood passes through it (the 2D app's oxygenFor().edge): a liver sinusoid takes its extraction, an artery stays arterial. */

@@ -135,6 +135,13 @@ export const RULES = {
     visit: (n) => (n.type === 'ImportDeclaration' || n.type === 'ExportNamedDeclaration' || n.type === 'ExportAllDeclaration' || n.type === 'ImportExpression')
       && typeof n.source?.value === 'string' && /(^|\/)(paths\.copied|regions\.(generated|copied))(\.ts)?$/.test(n.source.value),
   },
+  /** One place decides "this patient's HVPG is not measurable" (27 Nov 2026, review 3531bdfa W1): src/engine/hv-flag.ts (hvpgBlockedBy for params, hvpgNotMeasurable for a fingerprint). No file imports the engine's `hvBlocked`
+   *  itself, or a surface decides for itself, and the next one (a tile, a table, a chart) prints a number the others call "Not measurable". (The 2D copies keep theirs: `.copied.` files and copied/ folders.) */
+  'hv-blocked-direct': {
+    applies: (p) => !vendored(p) && under(p, 'src') && !/\.copied\.|\/copied\//.test(p),
+    visit: (n) => n.type === 'ImportDeclaration' && /pressure-cuts(\.js)?$/.test(String(n.source?.value))
+      && n.specifiers.some((s) => (s.type === 'ImportSpecifier' && (s.imported?.name ?? s.imported?.value) === 'hvBlocked')),
+  },
 };
 
 /** Lint source texts: files is [{ path, text }] with repo-relative '/' paths. Returns every hit. */

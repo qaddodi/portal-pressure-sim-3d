@@ -23,6 +23,7 @@ import { useVariant } from '../../ui/talk/variant-words.ts';
 import { withVariant, releaseVariantOff } from '../../ui/talk/shown-state.ts';
 import { warmControls } from '../../ui/talk/controls-run.ts';
 import { setShownFp } from '../../scene/labels/settled.ts';
+import { HV_BLOCKED_KEY, hvpgNotMeasurable } from '../../engine/hv-flag.ts';
 
 import { clock } from '../../clock/frame.ts';
 /** How long the figure takes to ease to the next slide's state when the patient stays (ms; slide-motion.ts: 2D's MORPH_ONE_MS). */
@@ -81,6 +82,8 @@ export function linkStates(deck: Deck): () => void {
     for (const n of named) {
       const fp = shown?.[ids.indexOf(n.at)]?.fp;
       if (typeof fp?.[n.key] === 'number') r[`${n.key}@${n.at}`] = fp[n.key] as number;
+      // (a reading at another slide whose hepatic vein is blocked says so beside its number, ui/cuts.ts: the words print "Not measurable")
+      if (n.key === 'hvpg' && hvpgNotMeasurable(fp)) r[`${HV_BLOCKED_KEY}@${n.at}`] = 1;
       if (n.key === 'map') for (const k of ['sbp', 'dbp']) if (typeof fp?.[k] === 'number') r[`${k}@${n.at}`] = fp[k] as number;
     }
     useUi.getState().setReadings(r);

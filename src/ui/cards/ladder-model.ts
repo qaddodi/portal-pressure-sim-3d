@@ -2,7 +2,7 @@
 
 import type { ReadingKey } from '../../decks/schema.ts';
 import { fmtPressure, tenthGap } from '../text/line.ts';
-import { hvpgSev, hvpgWord, HVPG_CUTS, type Sev } from '../cuts.ts';
+import { hvpgSev, hvpgWord, HVPG_CUTS, NOT_MEASURABLE, hvpgNotMeasurable, type Sev } from '../cuts.ts';
 import type { Readings } from '../ui-store.ts';
 
 /** The pressure axis: every bar is a share of this (mmHg), the same on every slide so a bar never rescales between slides. */
@@ -16,6 +16,8 @@ export interface Row { key: ReadingKey; label: string; text: string; value: numb
 
 export function ladderRows(rows: ReadingKey[], r: Readings): Row[] {
   return rows.map((key) => {
+    // (the HVPG of a blocked hepatic vein is no number and no bar, and its tile says why in the rating's place: ui/cuts.ts)
+    if (key === 'hvpg' && hvpgNotMeasurable(r)) return { key, label: LABEL[key], text: fmtPressure(null, null, false), value: null, frac: 0, tone: TONE[key] };
     const v = r[key] ?? null;
     const known = v != null && Number.isFinite(v);
     return { key, label: LABEL[key], text: fmtPressure(v, null, false), value: known ? v : null, frac: known ? Math.max(0, Math.min(1, v / AXIS_MAX)) : 0, tone: TONE[key] };
@@ -30,6 +32,8 @@ export interface Gap {
 /** HVPG = WHVP − FHVP as the screen shows it: the difference of the two readings as displayed, one decimal. */
 export function gapOf(r: Readings): Gap {
   const w = r.whvp, f = r.fhvp;
+  // (a subtraction whose answer cannot be taken: the two pressures stand, the answer is the word)
+  if (hvpgNotMeasurable(r)) return { whvp: fmtPressure(w, null, false), fhvp: fmtPressure(f, null, false), hvpg: NOT_MEASURABLE, value: null, sev: null, word: '', pill: '' };
   const have = w != null && f != null && Number.isFinite(w) && Number.isFinite(f);
   const value = have ? tenthGap(w, f, r.hvpg ?? null) : null;
   const sev = value != null ? hvpgSev(value) : null;

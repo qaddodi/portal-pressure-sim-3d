@@ -11,3 +11,6 @@ export const hvpgWord = cuts.hvpgWord as (v: number, long?: boolean) => string;
 /** The colour token that carries a band as TEXT (a step toward the card's text colour so it clears 4.5:1). */
 export const INK_OF_SEV = cuts.INK_OF_SEV as Record<Sev, string>;
 export const TOKEN_OF_SEV = cuts.TOKEN_OF_SEV as Record<Sev, string>;
+
+// "Not measurable" (the one place that decides it): src/engine/hv-flag.ts, re-exported here with the other cut-off words.
+export { NOT_MEASURABLE, NOT_MEASURABLE_WHY, HV_BLOCKED_KEY, hvpgBlockedBy, hvpgNotMeasurable, flagFp, flagStep } from '../engine/hv-flag.ts';

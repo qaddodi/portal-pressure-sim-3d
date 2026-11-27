@@ -2,6 +2,7 @@
 //   hvpgFall  the percent fall of the HVPG from another slide's (the slide field `hvpgResp`: a slide id, or true for the slide before), as the beta-blocker response tile reads it
 //   res       the resistance inside the liver (mmHg per L/min): the engine's `rih`, read by the summary table's column and the circuit's captions (ui/deck/from2d/table-marks.js fpv)
 import type { Fp } from './numbers.ts';
+import { hvpgNotMeasurable } from '../../engine/hv-flag.ts';
 import type { TileInfo } from '../../ui/charts/tiles.generated.ts';
 
 /** The tile rows the card prints that no engine tile stands for. */
@@ -14,7 +15,8 @@ const shown = (v: number): number => Math.round(v * 10) / 10;
 export function withResponse(fp: Fp | null, base: Fp | null): Fp | null {
   if (!fp) return fp;
   const b = base?.hvpg, now = fp.hvpg;
-  return typeof b === 'number' && b > 0 && typeof now === 'number'
+  // (no fall is counted from, or to, an HVPG nobody can measure: a blocked hepatic vein, ui/cuts.ts)
+  return typeof b === 'number' && b > 0 && typeof now === 'number' && !hvpgNotMeasurable(fp) && !hvpgNotMeasurable(base)
     ? { ...fp, hvpgFall: ((b - now) / b) * 100, respFrom: b, respAt: shown(now) }
     : { ...fp, hvpgFall: null, respFrom: null, respAt: null };
 }

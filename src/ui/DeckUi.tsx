@@ -22,6 +22,7 @@ import { linkModel } from './talk/deck-model.ts';
 import { linkStates } from '../decks/hp/link.ts';
 import { JumpList, BlackScreen } from './deck/JumpList.tsx';
 import { noteResume } from './deck/resume.ts';
+import { HV_BLOCKED_KEY } from './cuts.ts';
 import { landOn } from './deck/deck-of.ts';
 import { observeThenFit } from './layout/fit-later.ts';
 
@@ -70,7 +71,9 @@ export function DeckUi() {
   // the engine's headline numbers, mirrored for the cards (a talk with states of its own prints those instead)
   useEffect(() => {
     if (ownStates) return;
-    const push = (s: ReturnType<typeof useEngine.getState>) => useUi.getState().setReadings({ whvp: s.whvp, fhvp: s.fhvp, hvpg: s.hvpg, ivc: s.ivc, ra: s.ra, pv: s.pv });
+    const push = (s: ReturnType<typeof useEngine.getState>) => {
+      useUi.getState().setReadings({ whvp: s.whvp, fhvp: s.fhvp, hvpg: s.hvpg, ivc: s.ivc, ra: s.ra, pv: s.pv, [HV_BLOCKED_KEY]: s.hvBlocked ? 1 : 0 });
+    };
     push(useEngine.getState());
     return useEngine.subscribe(push);
   }, [ownStates]);
