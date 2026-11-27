@@ -24,8 +24,9 @@ import { TROUGH_K, WALL, buildBore, buildCut, buildNucleusSection, buildShellSte
 import { CEL_STYLE } from '../cel-style.ts';
 import { SHAPE_NODES, SHAPE_RAMP, restDisseW, restHalfW, shapeInverse, shapeUniform } from './sinusoid-shape.ts';
 import {
-  MeshBuilder, MicroMany, MicroPart, COPY_W, Pacer, meshWork, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
+  MeshBuilder, MICRO_DPR, MicroMany, MicroPart, COPY_W, Pacer, meshWork, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
 } from './cel3d.ts';
+import { revealFront, revealReach, revealUniform } from './reveal.ts';
 import { type CellColours, cellColour } from '../sinusoid/lens.ts';
 
 /** How far along the sinusoid (µm each way) the scene is built: past anything the camera can hold (the host's reach). */
@@ -135,6 +136,8 @@ interface Flat {
   g: { halfW(x: number): number; disseW(x: number): number; wallIn(x: number): number; hepIn(x: number): number };
   endShown: [number, number];
   dive: number | null;
+  /** The sinusoid's middle on the screen (CSS px), measured by the scene each frame of a dive (parts/dive.ts stepPortrait). */
+  readonly revealCentre: { x: number; y: number };
   lifeTime: number;
   readonly pxPerUm: number;
   look: LookId;
@@ -169,6 +172,8 @@ export class Sinusoid3D {
   readonly group = new Group();
   private readonly flat: Flat;
   private readonly fade = { value: 1 };
+  /** The dive's reveal from the middle out (reveal.ts), shared by every part of the scene: off at rest. */
+  private readonly reveal = revealUniform();
   private readonly res: CelShared['res'];
   private on = false;
   /** The haze over what lies past this sinusoid's own plates (one set of uniforms for every part). */
@@ -230,8 +235,8 @@ export class Sinusoid3D {
     // the scene is built in micrometres, the plane's y up: one group scales it to the host's units (it turns with the host's group in a portrait room)
     this.group.scale.setScalar(U);
     // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the host's own plane, where the names are pinned)
-    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), `sinusoid3d/${name}`);
-    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}, colours = false) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`, colours);
+    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, reveal: this.reveal, ...o }), `sinusoid3d/${name}`);
+    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}, colours = false) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, reveal: this.reveal, ...o }), cap, `sinusoid3d/${name}`, colours);
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
@@ -327,6 +332,13 @@ export class Sinusoid3D {
   private readonly rimKAlb = { value: 1 };
 
   /** `force`: the priming pass (Scene's idle slices): everything a first shown frame would build is built now, hidden. */
+  /** The reveal from the middle out over the dissolve (reveal.ts): the drawn area grows from the sinusoid's middle on the screen to its farthest corner, a function of the dive's share. */
+  private stepReveal(d: number | null): void {
+    const u = this.reveal.value, c = this.flat.revealCentre, dpr = MICRO_DPR.value, w = this.res.value.x * dpr, h = this.res.value.y * dpr;
+    // (gl_FragCoord's frame: device px, y up from the bottom)
+    const cx = c.x * dpr, cy = h - c.y * dpr;
+    u.set(cx, cy, revealReach(cx, cy, w, h), revealFront(d, FOCUS[1], FOCUS[2]));
+  }
   update(on: boolean, rate = 1, force = false, upTo = 9): boolean {
     const f = this.flat;
     const changed = on !== this.on;
@@ -340,6 +352,7 @@ export class Sinusoid3D {
     const d = f.dive;
     // (the sinusoid comes in inside the blur, FOCUS: dithered, which the blur over it turns into a smooth dissolve; whole before the picture sharpens)
     this.fade.value = d == null ? 1 : smooth(FOCUS[1], FOCUS[2], d);
+    this.stepReveal(d);
     { const k = f.pxPerUm; this.rimK.value = k > 0 ? smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k) : d != null ? 0 : 1; this.rimKAlb.value = k > 0 ? smooth(ALB_RIM_FULL_PX / 3, ALB_RIM_FULL_PX, k) : d != null ? 0 : 1; }   // (a smooth ramp in the scene's size, never a switch; unmeasured in a dive (its first frame), none, so a line never shows whole for a frame and then thins)   // (a red cell 7 µm across keeps its whole line from about 17 px wide; smaller, the line goes before the cell is a dot)
     this.group.position.z = d == null ? 0 : this.liftUm() * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';

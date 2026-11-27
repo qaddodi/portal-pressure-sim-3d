@@ -77,7 +77,6 @@
   "ui/tests/tests.css | .t-card [hidden]"
  ],
  "state": [
-  "parity/parity.css | .pp-table tr.on",
   "ui/css3d-over-2d.css | .pz-prail-cap > span.on"
  ],
  "why": {

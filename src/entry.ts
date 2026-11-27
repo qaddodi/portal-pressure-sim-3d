@@ -33,14 +33,6 @@ async function plain(): Promise<boolean> {
   // ?safe=47,0,34,0 (the preview copy and a local run only): the safe edges of the phone or tablet a frame stands for (the promotion pictures); the app lays out round them as on the device.
   const safe = DEBUG && isPreview() ? flagValue('safe') : null;
   if (safe !== null) { const m = await import('./ui/debug/safe-edges.ts'); const e = m.parseSafe(safe); if (e) m.applySafe(e); }
-  // ?parity: the build's progress page needs neither fonts nor the engine; it is its own small chunk.
-  if (DEBUG && isPreview() && flagOn('parity')) {
-    const [{ createRoot }, { ParityPage }] = await Promise.all([import('react-dom/client'), import('./parity/ParityPage.tsx'), import('./ui/shell/global.css')]);
-    const { createElement, StrictMode } = await import('react');
-    await styles;
-    createRoot(document.getElementById('root')!).render(createElement(StrictMode, null, createElement(ParityPage)));
-    return true;
-  }
   // ?presenter-view=<session>: the notes window of a talk (text only, no engine, no GL).
   if (new URLSearchParams(location.search).has('presenter-view')) {
     const { run } = await import('./ui/deck/presenter-window.ts');

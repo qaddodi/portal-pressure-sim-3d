@@ -1,7 +1,7 @@
 # Shell gaps against the 2D app
 
 Audit of the shell-level features (19 Nov 2026), 2D app at b3058ef3 read against this branch. Status: **ok** (same as 2D in the code), **partial**, **missing**. "Done here" is what this push changed.
-Nothing here has been run on a device: "ok" means the code and its tests agree with the 2D source, not that the owner has checked it (`src/parity/matches.ts` stays empty until he does).
+Nothing here has been run on a device: "ok" means the code and its tests agree with the 2D source, not that the owner has checked it.
 The tests for this push are in `tests/shell-gaps.test.ts`.
 
 | Feature | 2D file | 3D status | Action |
