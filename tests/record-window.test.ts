@@ -2,9 +2,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { canRecordWindow, actualMime, showRecordFrame, pickRecordMime, recordExt, recordFileName, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
+import { canRecordWindow, actualMime, pickRecordMime, recordExt, recordFileName, recordSize, recordBitrate, RECORD_FPS, noteWords, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
 import { isCaptureKey } from '../src/ui/capture/capture-model.ts';
-import { createRecordRun, isRefusal, type RecordDeps, type RecordNote, type RecorderLike, type StreamLike } from '../src/ui/capture/record-run.ts';
+import { createRecordRun, raiseToFullSize, isRefusal, type RecordDeps, type RecordNote, type RecorderLike, type StreamLike } from '../src/ui/capture/record-run.ts';
 import { RECORD } from '../src/ui/shell/words.ts';
 
 const src = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
@@ -103,18 +103,20 @@ class FakeRecorder implements RecorderLike {
   start() { this.state = 'recording'; this.started++; }
   stop() { for (const d of this.data) this.ondataavailable?.({ data: d }); this.state = 'inactive'; this.onstop?.(undefined); }
 }
-function rig(opts: { restrict?: boolean; ask?: () => Promise<StreamLike>; mime?: string; data?: Blob[]; recorder?: () => RecorderLike } = {}) {
-  const stream = new FakeStream(), phases: RecordPhase[] = [], notes: RecordNote[] = [], saved: { size: number; ext: string }[] = [], kept: boolean[] = [];
+function rig(opts: { ask?: () => Promise<StreamLike>; mime?: string; data?: Blob[]; recorder?: () => RecorderLike } = {}) {
+  const stream = new FakeStream(), phases: RecordPhase[] = [], notes: RecordNote[] = [], saved: { size: number; ext: string }[] = [];
+  const runRef: { run?: ReturnType<typeof createRecordRun> } = {};
   const rec = new FakeRecorder(opts.mime ?? 'video/webm;codecs=vp9', opts.data ?? [new Blob(['aa']), new Blob(['bbb'])]);
   let asked = 0;
+  const told: { note: RecordNote; phase: RecordPhase }[] = [];
   const deps: RecordDeps = {
     ask: () => { asked++; return opts.ask ? opts.ask() : Promise.resolve(stream); },
     recorder: opts.recorder ?? (() => rec),
     save: (v, ext) => { saved.push({ size: v.size, ext }); },
-    restrict: () => Promise.resolve(opts.restrict ?? false),
-    tell: (n) => { notes.push(n); }, onPhase: (p) => { phases.push(p); }, onKept: (k) => { kept.push(k); },
+    tell: (n) => { notes.push(n); told.push({ note: n, phase: runRef.run?.phase() ?? 'idle' }); }, onPhase: (p) => { phases.push(p); }
   };
-  return { run: createRecordRun(deps), stream, rec, phases, notes, saved, kept, asked: () => asked };
+  const run = createRecordRun(deps); runRef.run = run;
+  return { run, told, stream, rec, phases, notes, saved, asked: () => asked };
 }
 const err = (name: string) => Object.assign(new Error(name), { name });
 
@@ -186,11 +188,50 @@ test('no video came out, or the recorder could not be made or started: idle, tol
   } finally { console.warn = warn; }
 });
 
-test('a recorder error mid-way ends it once and tells once', async () => {
-  const r = rig();
-  await r.run.press();
-  r.rec.onerror?.(undefined); r.rec.onerror?.(undefined);
-  assert.equal(r.run.phase(), 'idle'); assert.deepEqual(r.notes, ['recording', 'failed']); assert.deepEqual(r.saved, []); assert.equal(r.stream.track.stopped, true);
+test('a recorder error mid-way is not a failure while it holds a recording: it is stopped, the video saved, and nothing says "Couldn\'t record"', async () => {
+  const warn = console.warn; console.warn = () => undefined;
+  try {
+    const r = rig();
+    await r.run.press();
+    r.rec.onerror?.(undefined); r.rec.onerror?.(undefined);
+    assert.equal(r.run.phase(), 'idle'); assert.deepEqual(r.saved, [{ size: 5, ext: 'webm' }]); assert.deepEqual(r.notes, ['recording', 'saved']); assert.equal(r.stream.track.stopped, true);
+    // an error with nothing recorded is the one failure, told once
+    const none = rig({ data: [] });
+    await none.run.press(); none.rec.onerror?.(undefined); none.rec.onerror?.(undefined);
+    assert.equal(none.run.phase(), 'idle'); assert.deepEqual(none.notes, ['recording', 'failed']); assert.deepEqual(none.saved, []);
+  } finally { console.warn = warn; }
+});
+
+test('"Couldn\'t record" is told only when no file was handed over: nothing after a save (a late error, a second stop, a throw while stopping) can say it', async () => {
+  const warn = console.warn; console.warn = () => undefined;
+  try {
+    const r = rig();
+    await r.run.press(); await r.run.press();
+    assert.deepEqual(r.notes, ['recording', 'saved']);
+    r.rec.onerror?.(undefined); r.rec.onstop?.(undefined); r.stream.track.onended?.();
+    assert.deepEqual(r.notes, ['recording', 'saved'], 'nothing more is said'); assert.equal(r.saved.length, 1);
+    // the recorder runs its stop handler inside stop() and then throws: the video is already saved
+    const t = rig(); t.rec.stop = () => { t.rec.state = 'inactive'; for (const d of [new Blob(['xx'])]) t.rec.ondataavailable?.({ data: d }); t.rec.onstop?.(undefined); throw err('InvalidStateError'); };
+    await t.run.press(); await t.run.press();
+    assert.deepEqual(t.saved, [{ size: 2, ext: 'webm' }]); assert.deepEqual(t.notes, ['recording', 'saved'], 'saved, and not told it failed');
+  } finally { console.warn = warn; }
+});
+
+test('full size: the screen\'s own pixels at the device pixel ratio, and a bit rate that follows what the track delivers', () => {
+  assert.deepEqual(recordSize({ w: 1512, h: 982 }, 2), { w: 3024, h: 1964 });
+  assert.deepEqual(recordSize({ w: 1920, h: 1080 }, 1), { w: 1920, h: 1080 });
+  assert.deepEqual(recordSize({ w: 1440, h: 900 }, 0), { w: 1440, h: 900 }, 'a missing ratio is 1');
+  assert.equal(RECORD_FPS, 60);
+  assert.equal(recordBitrate(3024, 1964, 60), 100_000_000, 'a retina screen at 60 fps gets the most');
+  assert.equal(recordBitrate(1440, 900, 60), Math.round(1440 * 900 * 60 * 0.4));
+  assert.ok(recordBitrate(3024, 1964, 30) > 70_000_000, 'a retina screen at 30 fps (Safari) is about 71 Mbps');
+  assert.equal(recordBitrate(320, 240, 30), 20_000_000, 'never starved');
+  assert.equal(recordBitrate(7680, 4320, 60), 100_000_000, 'never absurd');
+  assert.ok(recordBitrate(3024, 1964, 30) > recordBitrate(1512, 982, 30));
+  const rec = src('src/ui/capture/record.ts');
+  assert.match(rec, /width: \{ ideal: size\.w \}, height: \{ ideal: size\.h \}, frameRate: \{ ideal: RECORD_FPS \}, resizeMode: 'none'/);
+  assert.match(rec, /outerWidth > 0 \? outerWidth : screen\.width/, 'the window\'s own pixels, not the whole screen\'s');
+  assert.match(rec, /videoBitsPerSecond/); assert.match(src('src/ui/capture/record-run.ts'), /applyConstraints/); assert.match(rec, /raiseToFullSize/);
 });
 
 test('the words: plain, no dot, Stop is a word in the toast', () => {
@@ -206,27 +247,70 @@ test('the file is named by the format the recorder really wrote (its mimeType, e
   assert.deepEqual(r.saved, [{ size: 3, ext: 'mp4' }]);
 });
 
-test('the red outline is drawn only while recording AND only when the browser keeps it out of the video; the stop button needs neither', async () => {
-  assert.equal(showRecordFrame('recording', true), true);
-  assert.equal(showRecordFrame('recording', false), false, 'Safari: it would be in the video, so it is not drawn');
-  for (const p of ['idle', 'asking', 'saving'] as const) assert.equal(showRecordFrame(p, true), false);
-  const kept = rig({ restrict: true }); await kept.run.press();
-  assert.deepEqual(kept.kept, [true]); await kept.run.press();
-  assert.deepEqual(kept.kept, [true, false], 'it goes away when the recording stops');
-  const plain = rig({ restrict: false }); await plain.run.press();
-  assert.deepEqual(plain.kept, [false]); assert.equal(plain.run.phase(), 'recording', 'recording works all the same');
-});
-
-test('no toast while recording (it would be in the video); the stop button stands beside Settings in the top bar, the thumb bar and the presenter pill, and the outline is outside #root', () => {
+test('no toast and no outline while recording; the stop button stands beside Settings in the top bar, the thumb bar and the presenter pill', () => {
   const rec = src('src/ui/capture/record.ts');
   assert.ok(!/RECORD\.on\b/.test(rec) && !/note === 'recording'/.test(rec));
   assert.match(src('src/ui/shell/TopBar.tsx'), /<RecordStop \/>\s*\n\s*<button type="button" className="ib" id="btnSettings"/);
   assert.match(src('src/ui/shell/ThumbBar.tsx'), /t\.id === 'settings' \? <RecordStop tab \/>/);
   assert.match(src('src/ui/settings/SettingsMenu.tsx'), /<RecordStop \/>/);
   assert.match(src('src/ui/deck/PresenterBar.tsx'), /RECORD_STOP_W/);
-  const ind = src('src/ui/capture/RecordIndicator.tsx');
-  assert.match(ind, /createPortal\([^\n]*document\.body\)/, 'the outline is on the body, outside the app, which is all Element Capture records');
-  assert.match(rec, /getElementById\('root'\)/); assert.match(rec, /RestrictionTarget/);
-  const css = src('src/ui/capture/record.css');
+  const ind = src('src/ui/capture/RecordIndicator.tsx'), css = src('src/ui/capture/record.css');
+  for (const t of [rec, ind, css, src('src/App.tsx')]) assert.ok(!/RecordFrame|rec-frame|RestrictionTarget|restrictTo|showRecordFrame/.test(t), 'no red outline round the app, in any browser (Mohammad, 27 Nov)');
   assert.match(css, /prefers-reduced-motion/); assert.match(css, /@keyframes rec-breathe \{ 0%, 100% \{ opacity: 1; \} 50% \{ opacity: \.4; \} \}/, 'the pulse is opacity only');
+});
+
+test('the failure line is the words of the failure note ONLY: "recording" says nothing (it once fell into the failure line and said "Couldn\'t record" over a working recording)', () => {
+  const words = { saved: 'S', failed: 'F' };
+  assert.equal(noteWords('recording', words), null);
+  assert.deepEqual(noteWords('saved', words), { text: 'S', tone: 'info' });
+  assert.deepEqual(noteWords('saved', words, '3024 x 1964'), { text: 'S 3024 x 1964', tone: 'info' }, 'the saved line carries what was recorded');
+  assert.deepEqual(noteWords('failed', words), { text: 'F', tone: 'bad' });
+  const rec = src('src/ui/capture/record.ts');
+  assert.match(rec, /noteWords\(note, RECORD,/); assert.ok(!/else[^\n]*RECORD\.failed/.test(rec), 'no catch-all that says failed');
+});
+
+test('"Couldn\'t record" can be told only when nothing is recording and nothing was saved, in every way a recording can go wrong or right', async () => {
+  const warn = console.warn; console.warn = () => undefined;
+  try {
+    const all = [
+      rig(), rig({ ask: () => Promise.reject(err('NotAllowedError')) }), rig({ ask: () => Promise.reject(err('NotReadableError')) }), rig({ data: [] }),
+      rig({ recorder: () => { throw err('NotSupportedError'); } }), rig({ mime: 'video/mp4' }),
+    ];
+    for (const r of all) { await r.run.press(); r.rec.onerror?.(undefined); await r.run.press(); r.stream.track.onended?.(); await r.run.press(); }
+    for (const r of all) for (const t of r.told) {
+      if (t.note === 'failed') { assert.equal(t.phase, 'idle', 'told only once nothing is recording'); assert.equal(r.saved.length, 0, 'and only when no file was saved'); }
+      assert.notEqual(noteWords(t.note, { saved: 'S', failed: 'F' })?.text === 'F' && t.phase === 'recording', true);
+    }
+    // a good recording says nothing while it runs
+    const good = rig(); await good.run.press();
+    assert.equal(good.run.phase(), 'recording'); assert.equal(good.notes.filter((n) => noteWords(n, { saved: 'S', failed: 'F' })).length, 0, 'nothing is shown while recording');
+  } finally { console.warn = warn; }
+});
+
+test('a refused full-size upgrade (applyConstraints rejects, whatever the reason) changes nothing: no error, the recording starts and goes on', async () => {
+  for (const name of ['OverconstrainedError', 'NotAllowedError', 'InvalidStateError', 'TypeError']) {
+    let tried = 0;
+    const small = { width: 800, height: 600, frameRate: 30 };
+    const track = { getSettings: () => small, applyConstraints: () => { tried++; return Promise.reject(err(name)); } };
+    const gave = await raiseToFullSize(track, [{ width: { ideal: 3024 } }, { width: { min: 3024 } }], { w: 3024, h: 1964 }, 60);
+    assert.equal(tried, 2, 'it asked each way in turn, and a refusal of the first did not stop the second'); assert.match(gave, /800 x 600 at 30 fps/, 'and reports what it really has');
+    // the stream the run records is the one it was given: a recording that starts with it says nothing but "recording"
+    const r = rig({ ask: async () => { await raiseToFullSize(track, [{}], { w: 3024, h: 1964 }, 60); return r0.stream; } });
+    const r0 = r;
+    await r.run.press();
+    assert.equal(r.run.phase(), 'recording'); assert.deepEqual(r.notes, ['recording']); assert.equal(r.rec.started, 1);
+  }
+  // a track that is already full size is not asked; one whose settings throw still does not reject
+  let asked = 0;
+  await raiseToFullSize({ getSettings: () => ({ width: 3024, height: 1964, frameRate: 60 }), applyConstraints: () => { asked++; return Promise.resolve(); } }, [{}], { w: 3024, h: 1964 }, 60);
+  assert.equal(asked, 0);
+  const broken = { getSettings: (): never => { throw err('InvalidStateError'); }, applyConstraints: () => Promise.resolve() };
+  assert.equal(await raiseToFullSize(broken, [{}], { w: 1, h: 1 }, 60), 'an unknown size');
+});
+
+test('a track that is short of the size is asked each way until it is full size, then left alone', async () => {
+  let w = 785; const asks: string[] = [];
+  const track = { getSettings: () => ({ width: w, height: 1205, frameRate: 60 }), applyConstraints: (c: MediaTrackConstraints) => { asks.push(JSON.stringify(c)); if ('min' in (c.width as object)) w = 1570; return Promise.resolve(); } };
+  const gave = await raiseToFullSize(track, [{ width: { ideal: 1570 } }, { width: { min: 1570 } }, { width: { min: 9999 } }], { w: 1570, h: 1205 }, 60);
+  assert.equal(asks.length, 2, 'the third is never asked once the size is reached'); assert.match(gave, /1570 x 1205/);
 });

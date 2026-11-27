@@ -56,7 +56,7 @@ export const DOF_MAX_FRAC = 0.005, DOF_SPAN = 0.35;
 export const DOF_SLAB_LOBULE = 0.75 * LOBULE_T * LOBULE_SCALE, DOF_SLAB_SINUSOID = 1.0 * SIN_SCALE;
 /** The focus band's biggest circle, as a share of the picture's height (2%: about 34 px on an iPhone's 1688 px). */
 export const DOF_BAND_FRAC = 0.02;
-/** The whole-screen blur of the Anatomy <-> Lobule move, at its peak: the same strength the Sinusoid's focus pull holds (sinusoid3d FOCUS_PEAK), so the two dives blur alike. */
+/** The whole-screen blur of the Anatomy <-> Lobule move, at its peak (the Sinusoid's focus pull holds more, sinusoid3d FOCUS_PEAK, owner 27 Nov). */
 export const DOF_DIVE_PEAK = 0.4;
 /** The blur over a lobule the move only passes through (Anatomy <-> Sinusoid), at its peak: stronger than the landing dive's
  *  (Mohammad, 27 Nov: "I feel the blur of the lobule should be more pronounced as it's a bit distracting").
