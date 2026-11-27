@@ -36,6 +36,7 @@ import { poleEnds, scaleAbout, placedPoint } from './organ-axis.ts';
 /** Smoothing passes of the shade normal (the outline's own is 8: this one keeps the pillow's turn, a lighter hand). */
 
 import { whenQuiet } from '../../clock/idle.ts';
+import { gate } from '../gate.ts';
 type Og = keyof OrganTones2D['tones'];
 /** The tone each 2D organ takes, its 2D painter's tones (--og-<og>-1/2/3; anatomy.js `tone`), the outline's width (2D: 1.1 px, the kidney 1.4) and alpha (.62, the kidney .95, the atrium .35),
  *  and which layer opacity it sits at (the gut at --gut-a, the kidney at its own, the rest at the organ layer's). */
@@ -215,7 +216,7 @@ export function buildFocusReveal(rule: FocusRule, byId: ReadonlyMap<string, CelO
   if (!occ.length || !shows.length) return null;
   const first = Math.min(...occ.map((o) => o.toonMesh.renderOrder));
   const meshes: Mesh[] = [];
-  const quiet = (m: Mesh, order: number, name: string): Mesh => { m.renderOrder = order; m.name = name; m.visible = false; m.raycast = () => {}; meshes.push(m); return m; };
+  const quiet = (m: Mesh, order: number, name: string): Mesh => { m.renderOrder = order; m.name = name; gate(m, 0); m.raycast = () => {}; meshes.push(m); return m; };
   for (const o of occ) {
     const cover = new MeshBasicMaterial({ name: 'reveal silhouette', colorWrite: false, depthWrite: false, depthTest: false, transparent: true, side: DoubleSide, fog: false });
     cover.stencilWrite = true; cover.stencilRef = REVEAL_STENCIL; cover.stencilWriteMask = REVEAL_STENCIL; cover.stencilFuncMask = REVEAL_STENCIL;
@@ -349,9 +350,10 @@ export class OrganLayer {
     if (id === this.revealOn) return;
     this.revealOn = id;
     // (all off first, then the one on: two rules may share an occluder)
-    for (const p of this.reveals.values()) { for (const m of p.meshes) m.visible = false; for (const t of p.occluders) { t.uniforms.frvOcc!.value = 0; setOccluderGate(t, false); } }
+    for (const p of this.reveals.values()) { for (const m of p.meshes) gate(m, 0); for (const t of p.occluders) { t.uniforms.frvOcc!.value = 0; setOccluderGate(t, false); } }
     const p = id ? this.reveals.get(id) : undefined;
-    if (p) { for (const m of p.meshes) m.visible = true; for (const t of p.occluders) { t.uniforms.frvOcc!.value = 1; setOccluderGate(t, true); } }
+    // (the passes are drawn while the strength, which the scene eases, is above nothing: scene/gate.ts, not a boolean)
+    if (p) { for (const m of p.meshes) gate(m, FOCUS_REVEAL_U.frvP.value.x, 0); for (const t of p.occluders) { t.uniforms.frvOcc!.value = 1; setOccluderGate(t, true); } }
   }
   get focusRevealOn(): string | null { return this.revealOn; }
   /** The canvas's pixel ratio (the drawing buffer's, which Settings > Figure detail caps: 1.5 on a 2x screen), so the outline's one-pixel feather and floor are one pixel of the buffer drawn, not of the screen. */
