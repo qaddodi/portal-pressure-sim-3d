@@ -12,6 +12,8 @@ import { bakedLadders, ladderData } from '../src/ui/charts/ladder/data.ts';
 import { patientFp, planeRows, pointsSync, patientKey } from '../src/ui/charts/plane/data.ts';
 import { healthyFp } from '../src/ui/charts/profile/data.ts';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
+import { ensureChartsBaked } from './baked-decks.ts';
+ensureChartsBaked();
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const decks = await allCopiedDecks();

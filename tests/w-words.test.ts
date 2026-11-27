@@ -26,6 +26,8 @@ import { tileView, deltaFpAt } from '../src/ui/cards/tiles-2d.ts';
 import { aheadUntil, wordsAhead, resultStepOf } from '../src/ui/deck/step-words.ts';
 import { specFor, procPlanOf } from '../src/ui/deck/procs-plan.ts';
 import type { CopiedDeck, CopiedSlide } from '../src/decks/hp/types.ts';
+import { ensureChartsBaked } from './baked-decks.ts';
+ensureChartsBaked();
 
 type Fp = Record<string, number | null | undefined>;
 interface State { fp: Fp; before?: { fp?: Fp } | null }

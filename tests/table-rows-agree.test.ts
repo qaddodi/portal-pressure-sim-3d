@@ -16,6 +16,8 @@ import { tableModel } from '../src/ui/talk/table-model.ts';
 import { NOT_STATE, STATE_KEYS, ownStepOf } from '../src/ui/talk/table-own.ts';
 import { pastEdge } from '../src/ui/cards/table-words.ts';
 import type { Slide } from '../src/decks/schema.ts';
+import { ensureChartsBaked } from './baked-decks.ts';
+ensureChartsBaked();
 
 const read = (f: string) => readFileSync(new URL(f, import.meta.url), 'utf8');
 const decks = await Promise.all(UI.decks.map(async ({ id }) => (await loadBuiltin(id))!));

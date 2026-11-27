@@ -28,6 +28,8 @@ import { hiddenOf, HV_BLOCKED } from '../src/ui/tests/hidden.ts';
 import { readings as profileReadings } from '../src/ui/tests/profile/readings.ts';
 import { stripLabel } from '../src/ui/wallet/wallet-machine.ts';
 import type { CopiedDeck, CopiedSlide } from '../src/decks/hp/types.ts';
+import { ensureChartsBaked } from './baked-decks.ts';
+ensureChartsBaked();
 
 type Fp = Record<string, number | null | undefined>;
 const BCS: Fp = flagFp({ hvpg: 0.3, whvp: 25.1, fhvp: 24.8, ppg: 21.7, pv: 25.7, ivc: 4 }, { thrombus: { RHV_IVC: 1, MHV_IVC: 1, LHV_IVC: 1 } });

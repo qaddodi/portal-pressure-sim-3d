@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { loadAgDeck } from '../src/decks/ag/index.ts';
 import { bakedById, trustBaked } from '../src/ui/charts/baked/store.ts';
 import { WAVE_SECS, waveScale } from '../src/ui/talk/table-wave.ts';
+import { ensureChartsBaked } from './baked-decks.ts';
+ensureChartsBaked();
 
 test('the Doppler deck\'s summary table is baked with a trace per row, WAVE_SECS long, each with its own scale', async () => {
   assert.ok(trustBaked(await loadAgDeck('doppler') as never), 'the deck has its baked file (npm test bakes it)');

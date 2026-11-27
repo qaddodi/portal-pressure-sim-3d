@@ -20,6 +20,8 @@ import { smallestOf, NOT_LETTERING_PX } from '../src/ui/cards/text-floor.ts';
 import { maxPages, pageOf, pageSpan } from '../src/ui/cards/pages.ts';
 import { colChars, COL_PAD_PX, waveMaxH } from '../src/ui/cards/table-words.ts';
 import { useUi } from '../src/ui/ui-store.ts';
+import { ensureChartsBaked } from './baked-decks.ts';
+ensureChartsBaked();
 
 const src = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const SCREENS = [

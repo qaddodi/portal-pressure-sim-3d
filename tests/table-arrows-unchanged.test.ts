@@ -12,6 +12,8 @@ import { tableModel, dirAgainst, UNCHANGED_UNDER } from '../src/ui/talk/table-mo
 import { colChars } from '../src/ui/cards/table-words.ts';
 import { STEP_REL, atShown, fpv } from '../src/ui/deck/from2d/table-marks.js';
 import type { Slide } from '../src/decks/schema.ts';
+import { ensureChartsBaked } from './baked-decks.ts';
+ensureChartsBaked();
 
 const decks = await Promise.all(UI.decks.map(async ({ id }) => (await loadBuiltin(id))!));
 const tables = decks.flatMap((d) => d.slides.filter((s: Slide) => s.table).map((s: Slide) => ({ d, s, name: `${d.id}/${s.id}` })));
