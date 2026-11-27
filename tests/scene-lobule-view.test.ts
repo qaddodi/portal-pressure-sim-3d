@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { AXIAL_KINDS, N, buildLobule, hexFrac, inletBow, zoneOf } from '../src/scene/lobule/geometry.ts';
 import { LOBULE_CAMS, LOBULE_ORIGIN, LOBULE_R, SINUSOID_ORIGIN, lobuleShot, sinusoidShot } from '../src/scene/lobule/shots.ts';
-import { LOBULE_SCALE, SIN_SCALE, lobuleWorld, sinusoidWorld } from '../src/scene/lobule/frames.ts';
+import { LOBULE_SCALE, SIN_LOCAL, SIN_SCALE, lobuleWorld, sinusoidWorld } from '../src/scene/lobule/frames.ts';
 import { WASH_DELAY_MS, WASH_MS, washAmount, washFront, washProgress, washSpan } from '../src/scene/lobule/wash.ts';
 import { LOBULE_PARTS, SINUSOID_PARTS } from '../src/scene/lobule/parts.ts';
 import { LOBULE_PALETTES, EXTRA_TONES } from '../src/scene/lobule/tones.ts';
@@ -81,7 +81,8 @@ test('every camera name the 2D decks use has a shot, aimed at the lobule (or the
   const triad = lobuleShot('lobule:triad'), sin = lobuleShot('lobule:sinusoid'), cv = lobuleShot('lobule:central');
   // the triad station is centred ON the left portal tract (25 Nov, framing rule S7: it was 12% of the way toward the centre) at 1.75 times 2D's zoom; the sinusoid station half way at twice the fit (shots are in world units: inside the liver)
   assert.ok(Math.abs(triad.target[0] - lobuleWorld([-1 * LOBULE_R, 0, 0])[0]) < 1e-12);
-  assert.ok(Math.abs(sin.target[0] - lobuleWorld([-0.5 * LOBULE_R, 0, 0])[0]) < 1e-12);
+  // (the sinusoid station frames where the sinusoid view stands, chosen by rule since 27 Nov (station.ts): 2D's half way from the left corner was the old station's place)
+  assert.ok(Math.abs(sin.target[0] - lobuleWorld([SIN_LOCAL[0], SIN_LOCAL[1], 0])[0]) < 1e-12);
   assert.deepEqual(cv.target, lobuleWorld([0, 0, 0]));
   // (the stations keep 2D's box, twice its zoom: 1.52 R of the fit before 24 Nov, unchanged when the whole-lobule fit tightened to its own bounds)
   for (const s of [sin, cv]) { assert.ok(Math.abs(s.half[0] * 2 - LOBULE_R * 1.52 * 0.92 * LOBULE_SCALE) < 1e-12); }

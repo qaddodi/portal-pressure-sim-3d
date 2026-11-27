@@ -10,6 +10,8 @@ import { NAME_ORGAN, OFF_NEAR } from './organ2d/organ-names.copied.js';
 import type { Box } from './geometry.ts';
 import { PLACED_ORGAN_RINGS } from '../anatomy/source.ts';
 import { placedNameSpots } from './organ2d/placed-spots.ts';
+import { hasOrganFront, organMidZ } from '../organs/organ-front.ts';
+import { PLACED_ORGAN_NAMES } from '../anatomy/source.ts';
 
 type Ring = [number, number][];
 const flat = new Map<string, Ring[]>();
@@ -25,7 +27,9 @@ const famOf = (id: string) => id.split('-')[0];
 /** The organ each name belongs to (organ-names.js NAME_ORGAN), by the caption's word ('Right atrium'). */
 export const organOfName = (name: string): string => (NAME_ORGAN as Record<string, string>)[name] ?? '';
 
-export type To2Screen = (x2d: number, y2d: number) => [number, number];
+/** A point of the 2D figure's world units, at the depth `z` (scene units), on the canvas. The depth is part of the question: the camera's turn moves a point sideways by its
+ *  distance in depth from what it is judged against. */
+export type To2Screen = (x2d: number, y2d: number, z: number) => [number, number];
 
 /** The organs' silhouettes on the canvas now: rings of screen points, by organ id. */
 export interface Silhouettes { rings: Map<string, Ring[]>; /** each ring's box and its edges filed by horizontal band (`bands`), so a caption's box is tested only against the rings it can touch and a point only against the edges that cross its line */ bounds: Map<string, Box[]>; edges: Map<string, Edges[]> }
@@ -35,7 +39,8 @@ interface Edges { y0: number; bands: number[][] }
 export function silhouettes(to: To2Screen): Silhouettes {
   const rings = new Map<string, Ring[]>(), bounds = new Map<string, Box[]>(), edges = new Map<string, Edges[]>();
   for (const id of OTHER) {
-    const rs = ringsOf(id).map((r) => r.map(([x, y]) => to(x, y)));
+    // (the organ's rim lies at the organ's own middle depth, not on one plane for every organ: organs/organ-front.ts)
+    const z = organMidZ(id), rs = ringsOf(id).map((r) => r.map(([x, y]) => to(x, y, z)));
     rings.set(id, rs);
     const bb: Box[] = [], ee: Edges[] = [];
     for (const r of rs) {
@@ -109,7 +114,8 @@ export function shareOnOther(name: string, sil: Silhouettes, b: Box): number {
 
 /** The other places a name may stand (centres of its box, canvas px offsets from its anchor's screen point), nearest the anchor first. */
 export function spotOffsets(name: string, anchor2d: readonly [number, number], to: To2Screen): [number, number][] {
-  const a = to(anchor2d[0], anchor2d[1]);
-  return (placedNameSpots(name) as [number, number][]).map(([x, y]) => { const p = to(x, y); return [p[0] - a[0], p[1] - a[1]] as [number, number]; });
+  // (the name stands on its organ's front face at the depth the placement measured: stations.ts organStation)
+  const z = PLACED_ORGAN_NAMES[name]?.[2] ?? (hasOrganFront(organOfName(name)) ? organMidZ(organOfName(name)) : 0), a = to(anchor2d[0], anchor2d[1], z);
+  return (placedNameSpots(name) as [number, number][]).map(([x, y]) => { const p = to(x, y, z); return [p[0] - a[0], p[1] - a[1]] as [number, number]; });
 }
 export { OFF_NEAR };

@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { Mesh, type Material, type Object3D } from 'three';
 import { createShared } from '../src/scene/materials/cel.ts';
 import { LobuleView } from '../src/scene/lobule/view.ts';
+import { SIN_LOCAL } from '../src/scene/lobule/frames.ts';
 import { Lobule3D, LZ, OVER_Z, DIVE_RHO } from '../src/scene/micro3d/lobule3d.ts';
 import { LIFT, LIFT_MARGIN, UM_LOBULE as UM, Z } from '../src/scene/micro3d/sinusoid3d.ts';
 import { sinRadius } from '../src/scene/lobule/widths.ts';
@@ -70,7 +71,8 @@ test('every blood tube in the dive\'s view stands under the sinusoid, healthy an
   assert.equal(lift(healthyTop), LIFT, 'healthy: the lift is the one the dive always had, nothing changes');
   assert.ok(lift(congTop) > LIFT, 'congested: the scene stands higher, over the widened tubes');
   at(0);
-  assert.ok(DIVE_RHO[0] < 0.45 && 0.45 < DIVE_RHO[1], 'the sinusoid\'s own station (rho 0.45) is inside the span');
+  const rho = Math.hypot(SIN_LOCAL[0], SIN_LOCAL[1]) / 3;
+  assert.ok(DIVE_RHO[0] < rho && rho < DIVE_RHO[1], `the sinusoid's own station (rho ${rho.toFixed(2)}) is inside the span`);
   assert.ok(sinRadius('s1', 0.45) > 0);
   assert.ok(OVER_Z > 0);
 });

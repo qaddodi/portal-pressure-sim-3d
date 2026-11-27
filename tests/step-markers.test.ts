@@ -89,7 +89,7 @@ test('step badges and their leaders share the same absolute origin', () => {
 test('a leader to a single vessel has no dot and ends on the near edge (half width + 1 px), never on the axis', () => {
   assert.equal(leadHasDot({ edge: 'IVCS' }), false);
   assert.equal(leadHasDot({ edges: ['SIN_L', 'SIN_R'] }), false, 'plan 21b: a group of vessels has no dots either; each line ends at its vessel\'s edge');
-  assert.equal(leadHasDot({ at2d: [10, 10] }), true, 'an organ keeps its dot');
+  assert.equal(leadHasDot({ at2d: [10, 10], z: 0 }), true, 'an organ keeps its dot');
   assert.equal(leadHasDot({ station: 'RA' }), true);
   // a line meeting a vertical vessel (half width 4 px) square on, from the left
   const seg = leaderToEdge([0, 100, 50, 100], 4, { x: 0, y: 1 })!;

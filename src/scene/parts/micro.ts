@@ -6,6 +6,7 @@ import { setWeldWanter } from '../lobule/weld-want.ts';
 import { type Object3D } from 'three';
 import { Sinusoid3D } from '../micro3d/sinusoid3d.ts';
 import { Lobule3D } from '../micro3d/lobule3d.ts';
+import { DiveBlood } from '../micro3d/dive-blood.ts';
 import type { CelScene } from '../scene.ts';
 import { scenePart } from './define.ts';
 import { SLICE_MS } from './shared.ts';
@@ -26,6 +27,8 @@ export const microPart = scenePart<CelScene>()({
     const sinus = this.makeSinus();
     const lobule = span('build:lobule3d', () => new Lobule3D(this.lobule, this.shared, true));   // (it mounts itself under the Lobule's root: lobule/one-fade.ts)
     this.micro = { sinus, lobule };
+    // (the dive's red cells: its material is the sinusoid's red cell program, compiled with the rest)
+    this.diveBlood = new DiveBlood(this.shared, sinus, this.sinus, lobule, this.lobule.net, [this.sinFrame, this.sinus.group, sinus.group]);
     // (the weld plan is read in when the quiet ladder gets to it or a dive asks, not at boot: a dive waits for it behind the cue, which says how far it has come, and the
     // preparation goes on when it is in)
     lobule.onWeldProgress = (k) => { if (lobule.weldsWait) this.holdCue?.progress?.(k); };

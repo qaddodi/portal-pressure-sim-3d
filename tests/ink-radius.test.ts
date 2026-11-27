@@ -15,7 +15,7 @@ import { MeshBuilder, INK_HALF, MICRO_INK_FS, MICRO_INK_VS, inkWidth } from '../
 import { LOBULE_R } from '../src/scene/lobule/sizes.ts';
 import { RS_N, twigR } from '../src/scene/lobule/widths.ts';
 
-const TUBES = ['sinusoids-0', 'sinusoids-1', 'sinusoids-2', 'sinusoids-links', 'inlets', 'arteriole-twigs', 'terminal-lymphatics', 'lymph-channels', 'canaliculi'];
+const TUBES = ['sinusoids-0', 'sinusoids-1', 'sinusoids-2', 'sinusoids-links', 'sinusoids-fine', 'inlets', 'arteriole-twigs', 'terminal-lymphatics', 'lymph-channels', 'canaliculi'];
 const attr = (g: { getAttribute(n: string): unknown }, n: string) => g.getAttribute(n) as BufferAttribute | undefined;
 
 function check(l3: Lobule3D, label: string): void {

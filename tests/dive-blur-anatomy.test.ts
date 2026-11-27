@@ -25,7 +25,7 @@ test('none at the lobule\'s framing and none with the whole body drawn, a smooth
     if (rising && v < last - 1e-12) { rising = false; turns++; } else if (!rising && v > last + 1e-12) { rising = true; turns++; }
     peak = Math.max(peak, v); last = v;
   }
-  assert.ok(peak > 0.399 && turns === 1, 'one hump');
+  assert.ok(peak > DOF_DIVE_PEAK - 0.001 && turns === 1, 'one hump');
 });
 
 test('it is a function of the distance alone: the way out is the way in run backward', () => {
