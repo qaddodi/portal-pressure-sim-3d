@@ -33,17 +33,20 @@ const share = (): ShareOptions => ({ video: { displaySurface: 'browser', ...qual
 
 /** The window being shared (the run holds it as a StreamLike; the recorder wants the real stream). */
 let shared: MediaStream | null = null;
-/** Asks the track again for the full size where it came in smaller (Chrome lets a display track be raised after the fact); what it really gives is written to the console, so a cap is seen, never guessed. */
+/** Asks the track again for the full size where it came in smaller (Chrome lets a display track be raised after the fact).
+ *  What it really gives is written to the console, so a cap is seen, never guessed. */
 async function fullSize(stream: MediaStream): Promise<void> {
   const track = stream.getVideoTracks()[0];
   if (!track) return;
   const want = quality();
+  const size = recordSize({ w: screen.width, h: screen.height }, devicePixelRatio || 1);
   try {
-    const got = track.getSettings(), size = recordSize({ w: screen.width, h: screen.height }, devicePixelRatio || 1);
+    const got = track.getSettings();
     if ((got.width ?? 0) < size.w || (got.height ?? 0) < size.h || (got.frameRate ?? 0) < RECORD_FPS - 1) await track.applyConstraints(want);
   } catch { /* the browser keeps what it gave */ }
   const now = track.getSettings();
-  console.info(`[record] the browser gives ${now.width ?? '?'} x ${now.height ?? '?'} at ${Math.round(now.frameRate ?? 0)} fps (asked for ${recordSize({ w: screen.width, h: screen.height }, devicePixelRatio || 1).w} x ${recordSize({ w: screen.width, h: screen.height }, devicePixelRatio || 1).h} at ${RECORD_FPS})`);
+  const gave = `${now.width ?? '?'} x ${now.height ?? '?'} at ${Math.round(now.frameRate ?? 0)} fps`;
+  console.info(`[record] the browser gives ${gave} (asked for ${size.w} x ${size.h} at ${RECORD_FPS})`);
 }
 async function ask(): Promise<StreamLike> {
   const md = navigator.mediaDevices;

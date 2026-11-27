@@ -25,13 +25,14 @@ export const recordFileName = (view: string, patient: string | null, commit: str
 
 /** The frame rate asked for. */
 export const RECORD_FPS = 60;
-/** The size to ask the browser for: the screen's own pixels (its CSS size times the pixel ratio), the most it can show, so nothing is scaled down on the way. `ideal`, so a browser that has less gives what it has. */
+/** The size to ask the browser for: the screen's own pixels (its CSS size times the pixel ratio), the most it can show, so nothing is scaled down on the way.
+ *  Asked as `ideal`, so a browser that has less gives what it has. */
 export function recordSize(screen: { w: number; h: number }, ratio: number): { w: number; h: number } {
   const r = ratio > 0 ? ratio : 1;
   return { w: Math.max(2, Math.round(screen.w * r)), h: Math.max(2, Math.round(screen.h * r)) };
 }
-/** Bits per second for the recorder, from what the track really delivers: about 0.2 bit per pixel per frame (a screen of text and fine lines is mostly still, so this is near lossless to the eye), kept between 8 and 80 Mbps.
- *  A 3024 x 1964 screen at 60 frames is about 71 Mbps; a 1440 x 900 one at 60 is 16 Mbps. */
+/** Bits per second for the recorder, from what the track really delivers: about 0.2 bit per pixel per frame (a screen of text and fine lines is mostly still,
+ *  so this is near lossless to the eye), kept between 8 and 80 Mbps. A 3024 x 1964 screen at 60 frames is about 71 Mbps; a 1440 x 900 one at 60 is 16 Mbps. */
 export function recordBitrate(w: number, h: number, fps: number): number {
   const raw = Math.round(Math.max(0, w) * Math.max(0, h) * Math.max(1, fps) * 0.2);
   return Math.min(80_000_000, Math.max(8_000_000, raw));
