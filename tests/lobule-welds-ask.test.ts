@@ -16,7 +16,9 @@ async function onAPage<T>(fn: (asked: () => number) => Promise<T> | T): Promise<
   const was = { window: g.window, fetch: g.fetch, DecompressionStream: g.DecompressionStream };
   let n = 0;
   g.window = {}; g.DecompressionStream = class {};
-  g.fetch = (url: unknown) => { if (String(url).includes('welds.bin')) n++; return Promise.reject(new Error('no network in a test')); };
+  // (the file is "not there": a 404 is answered at once and is not retried (src/boot/fetch-bin.ts). A fake that REJECTED made fetchBin ask once more 600 ms later, a second request that was not a
+  // second ask and, when it fired in the NEXT test, was counted there: tests/fetch-bin.test.ts pins that a 404 leaves no timer behind)
+  g.fetch = async (url: unknown) => { if (String(url).includes('welds.bin')) n++; return new Response('gone', { status: 404 }); };
   forgetWeldBytes();
   try { return await fn(() => n); } finally { for (const k of Object.keys(was)) { if (was[k as keyof typeof was] === undefined) delete g[k]; else g[k] = was[k as keyof typeof was]; } forgetWeldBytes(); }
 }
