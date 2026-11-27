@@ -30,8 +30,8 @@ test('the PostCSS plugin rewrites a rule\'s selector and leaves the declarations
 test('the build registers the plugin, so every copied 2D rule that says `:not([hidden])` is read the 3D way', () => {
   const cfg = readFileSync('vite.config.ts', 'utf8');
   assert.match(cfg, /import \{ fadeHidden \} from '\.\/scripts\/fade-hidden\.mjs'/);
-  // (the twins plugin joins it only when PPS_DK_TWINS=1: vite.config.ts)
-  assert.match(cfg, /css: \{ postcss: \{ plugins: [^\n]*\[fadeHidden\(\)(, dkInTwins\(\))?\] \} \}/);
+  // (the twins plugin runs after it: vite.config.ts)
+  assert.match(cfg, /css: \{ postcss: \{ plugins: \[fadeHidden\(\), dkInTwins\(\)\] \} \}/);
 });
 
 test('every stylesheet that says `:not([hidden])` is covered by the rewrite (none leaves the plugin\'s reach)', () => {
