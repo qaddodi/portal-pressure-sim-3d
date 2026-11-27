@@ -9,7 +9,7 @@
     "build": "node scripts/build.mjs",
     "preview": "vite preview --outDir dist",
     "pretest": "node scripts/ensure-baked.mjs",
-    "test": "node --test --test-concurrency=4 \"tests/**/*.test.ts\"",
+    "test": "node --test --test-force-exit --test-concurrency=4 \"tests/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "lint": "node scripts/lint.mjs",
     "check": "npm run typecheck && npm run lint && npm test",
