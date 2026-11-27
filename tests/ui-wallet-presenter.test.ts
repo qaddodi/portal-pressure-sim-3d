@@ -26,7 +26,7 @@ test('the wallet swaps and a new slide brings the words back without counting as
 const stops = stopsOf(HVPG_DECK);
 
 test('the talk plays title, the 13 slides of the 2D deck (a case first where a slide has one), quick check', () => {
-  assert.deepEqual(stops.map((s) => (s.kind === 'slide' ? s.slide.id : s.kind)), ['title', 'route', 'free', 'wedge', 'wedge-sinusoid', 'hvpg', 'presin', 'ppg', 'eus', 'eus-ladder', 'heart', 'bc', 'plane', 'summary', 'check']);
+  assert.deepEqual(stops.map((s) => (s.kind === 'slide' ? s.slide.id : s.kind)), ['title', 'route', 'free', 'wedge', 'wedge-sinusoid', 'hvpg', 'presin', 'eus', 'eus-ladder', 'ppg', 'heart', 'bc', 'plane', 'summary', 'check']);
   const walk = [first()]; for (let p = first(), n = next(stops, p); n.stop !== p.stop || n.beat !== p.beat; p = n, n = next(stops, p)) walk.push(n);
   const beats = stops.flatMap((s, i) => Array.from({ length: s.kind === 'slide' ? s.beats : 1 }, (_, b) => `${i}.${b}`));
   assert.deepEqual(walk.map((p) => `${p.stop}.${p.beat}`), beats);

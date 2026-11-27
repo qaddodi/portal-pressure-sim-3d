@@ -10,14 +10,16 @@ import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
 import { chainOf, sequencer, changes, type Fp } from '../src/decks/hp/numbers.ts';
 import { tilesAt, tileView, tileVal, ratedShown } from '../src/ui/cards/tiles-2d.ts';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
-import { hpNumbers } from './engine-departures.ts';
+import { hpNumbers, inPlayDecks } from './engine-departures.ts';
 import { HP_LOADERS } from '../src/decks/hp/raw.ts';
 import { showsLadder } from '../src/decks/overlay/ladder.ts';
 import { INSTRUMENT_CARDS } from '../src/decks/overlay/instruments.ts';
 
 interface Row { id: string; phone: boolean; tips: boolean; toolOnly: boolean; keys: string[]; head: string[]; tiles: Record<string, unknown>[] }
 const tiles2d = JSON.parse(readFileSync(new URL('./fixtures/tiles-2d.json', import.meta.url), 'utf8')) as { decks: Record<string, Row[]> };
+// (the 2D numbers are in the 2D slide order; a talk a review moved a slide of is joined to them by slide id, scripts/play-order.mjs)
 const nums = JSON.parse(readFileSync(new URL('./fixtures/decks-hp-numbers.json', import.meta.url), 'utf8')) as { decks: Record<string, { id: string; fp: Fp }[]> };
+nums.decks = inPlayDecks(nums.decks as never) as never;
 
 /** The tiles whose rating is not the 2D table's (src/ui/cards/ratings.ts). */
 /** Tiles the owner asked for beyond the 2D slide's (W14, 27 Nov 2026): deck/slide -> tile keys. */

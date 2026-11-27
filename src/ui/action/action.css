@@ -20,6 +20,14 @@
 .ac-card[data-bottom] { left: calc(var(--safe-l, 0px) + 12px); right: calc(var(--safe-r, 0px) + 12px); top: auto; width: auto; max-height: calc(100% - var(--sh-pad-top, 8px) - 52px - 120px); transform: translateY(16px); }
 .ac-card[data-bottom][data-open="true"] { transform: none; }
 .ac-card[data-bottom][data-device="tablet-portrait"] { left: 15%; right: 15%; }
+/* Peek, Half and Full (surface/sheet-stops.ts, approved decision 4): as tall as its words up to the stop; at Peek its name shows and what is under it fades at the sheet's foot.
+   The stops arrive as --sf-* (ActionCard.tsx). The sheet's tail (surface/sheet-pull.ts) is the card's own shadow, a copy of its box drawn under its foot while a pull lifts it:
+   an element's own shadow is not cut by its overflow, as its plate would be. */
+.ac-card[data-bottom][data-sheet] { max-height: var(--sf-half); box-shadow: 0 var(--sheet-tail, 0px) 0 0 var(--surface); }
+.ac-card[data-bottom][data-sheet="full"] { max-height: var(--sf-full); }
+.ac-card[data-bottom][data-sheet="peek"] { max-height: var(--sf-peek); }
+.ac-card[data-bottom][data-sheet="peek"] > :not(.ac-plate, .ac-grab, .ac-x, .sf-grab) {
+  pointer-events: none; -webkit-mask-image: linear-gradient(to bottom, #000 calc(var(--sf-peek) - 36px), transparent calc(var(--sf-peek) - 10px)); mask-image: linear-gradient(to bottom, #000 calc(var(--sf-peek) - 36px), transparent calc(var(--sf-peek) - 10px)); }
 .ac-card[data-bottom][data-device="phone-landscape"] { left: 50%; right: auto; width: min(480px, calc(100% - 24px)); margin-left: calc(min(480px, 100vw - 24px) / -2); }
 .ac-grab { display: none; justify-content: center; padding: 6px 0 0; touch-action: none; }
 .ac-grab i { width: 36px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 22%, transparent); }

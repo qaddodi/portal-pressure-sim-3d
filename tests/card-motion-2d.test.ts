@@ -49,8 +49,8 @@ test('the Tests card comes in and goes out as 2D\'s: a side card slides 16 px in
 test('a sheet pulled shut closes with nothing of its own to play (2D sheet-hold): marked, closed in the same task, and the mark taken off on the next open', () => {
   const css = read('src/ui/tests/tests.css');
   assert.match(css, /#app \.t-pos\[data-open="false"\]\[data-swiped\] > \.t-card\.instrument-workspace\.float-ui \{ transition: none; \}/, 'the card is hidden at once, out of sight already');
-  const pull = read('src/ui/tests/dock/pull.ts');
-  assert.match(pull, /pos\.dataset\.swiped = ''; api\.close\(\); pos\.style\.translate = '';/, 'marked before it closes, and the offset goes after');
+  const pull = read('src/ui/surface/sheet-pull.ts');
+  assert.match(pull, /pos\.dataset\.swiped = ''; api\.close\?\.\(\); pos\.style\.translate = '';/, 'marked before it closes, and the offset goes after');
   const layer = read('src/ui/tests/TestsLayer.tsx');
   assert.match(layer, /close: \(\) => flushSync\(\(\) => useTests\.getState\(\)\.close\(\)\)/, 'the close is committed in that task: the offset is never cleared under a card that is still open');
   assert.match(layer, /if \(open\) posRef\.current\?\.removeAttribute\('data-swiped'\)/);

@@ -1,11 +1,12 @@
-// The Tests sheet's pull on a phone (dock/pull.ts), as 2D's dock-sheet.js does it: it runs on POINTER events, so a finger, a pen and what a play-test dispatches (pointerdown, pointermoves,
+// The Tests sheet's pull on a phone (the one pull of every phone panel, surface/sheet-pull.ts, generalised from the Tests card's own), as 2D's dock-sheet.js does it: it runs on POINTER events, so a finger, a pen and what a play-test dispatches (pointerdown, pointermoves,
 // pointerup with pointerType "touch") all pull the card; and a touch's own first `touchmove` claims a pull down from the page (iOS took the touch for scrolling before 6 px, so the card never followed).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 // Reduce Motion on, so a let-go lands at once (no clock frames in Node).
 (globalThis as any).matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
-const { attachPull } = await import('../src/ui/tests/dock/pull.ts');
+const { attachSheetPull } = await import('../src/ui/surface/sheet-pull.ts');
+const AT = ['half', 'full', 'peek'] as const, N = { half: 0, full: 1, peek: 2 } as const;
 
 const rig = (scrollTop = 0, size: 0 | 1 | 2 = 0) => {
   const L: Record<string, ((e: any) => void)[]> = {};
@@ -14,18 +15,19 @@ const rig = (scrollTop = 0, size: 0 | 1 | 2 = 0) => {
   (globalThis as any).getComputedStyle = () => ({ overflowY: 'hidden auto' });
   const pos: any = { dataset: {} as Record<string, string>, style: { setProperty(k: string, v: string) { (this as any)[k] = v; }, removeProperty(k: string) { delete (this as any)[k]; } } };
   const calls: string[] = [];
-  attachPull(card, pos, { enabled: () => true, heights: () => ({ h0: 520, half: 520, full: 700, peek: 72, size }), setSize: (n) => calls.push(`size${n}`), close: () => calls.push('close') });
+  attachSheetPull(card, pos, { enabled: () => true, heights: () => ({ h0: 520, half: 520, full: 700, peek: 72, at: AT[size] }), setSize: (d) => { calls.push(`size${N[d]}`); }, close: () => calls.push('close') });
   const tab: any = { parentElement: card, closest: () => null };
   const ptr = (k: string, y: number, x = 100, extra: object = {}) => L[k]!.forEach((f) => f({ target: pane, pointerId: 7, pointerType: 'touch', button: 0, buttons: 1, clientX: x, clientY: y, ...extra }));
   const touch = (y: number, x = 100) => { let stopped = false; const e: any = { target: pane, touches: [{ clientX: x, clientY: y }], cancelable: true, preventDefault: () => { stopped = true; } }; L.touchmove!.forEach((f) => f(e)); return stopped; };
   return { ptr, touch, calls, pos, card, tab };
 };
 
-test('a touch-type pointer drag down 300 px (pointerdown, 10 moves, pointerup) closes a sheet at Half in that one pull (2D: no stop at Peek), marked as pulled shut so it plays no leave of its own', () => {
+test('a touch-type pointer drag down past Peek (pointerdown, 10 moves, pointerup) closes a sheet at Half in that one pull, marked as pulled shut so it plays no leave of its own', () => {
+  // (a slower pull short of Peek rests at Peek: tests/b11-shell.test.ts drives it in real time, tests/sheet-detents.test.ts holds the rule)
   const half = rig();
   half.ptr('pointerdown', 300);
-  for (let i = 1; i <= 10; i++) half.ptr('pointermove', 300 + i * 30);
-  half.ptr('pointerup', 600);
+  for (let i = 1; i <= 10; i++) half.ptr('pointermove', 300 + i * 46);
+  half.ptr('pointerup', 760);
   assert.deepEqual(half.calls, ['close']);
   assert.equal(half.pos.dataset.swiped, '', 'data-swiped is on the box when the card closes (tests.css: the close plays nothing, the card is already out of sight)');
   assert.equal(half.pos.style.translate, '', 'and the offset goes with it');
@@ -85,12 +87,13 @@ test('a drag that starts on a tab (a button) pulls the sheet, and the capture ha
   const r = rig();
   r.ptr('pointerdown', 120, 100, { target: r.tab });
   for (let i = 1; i <= 10; i++) {
-    r.ptr('pointermove', 120 + i * 30, 100, { target: r.tab });
+    r.ptr('pointermove', 120 + i * 46, 100, { target: r.tab });
     // (a touch is first captured by the tab; the card taking the capture at 6 px makes the tab lose it, and that event bubbles to the card)
     if (i === 1) r.ptr('lostpointercapture', 0, 0, { target: r.tab });
   }
-  r.ptr('pointerup', 420, 100, { target: r.tab });
-  assert.deepEqual(r.calls, ['close']);   // (a long pull from Half closes it: 2D)
+  r.ptr('pointerup', 580, 100, { target: r.tab });
+  // (a pull from Half past Peek closes it)
+  assert.deepEqual(r.calls, ['close']);
   // a tap on a tab moves nothing and leaves the click alone
   const tap = rig();
   tap.ptr('pointerdown', 120, 100, { target: tap.tab }); tap.ptr('pointermove', 122, 100, { target: tap.tab }); tap.ptr('pointerup', 122, 100, { target: tap.tab });

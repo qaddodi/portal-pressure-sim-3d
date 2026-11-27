@@ -33,7 +33,7 @@ async function runTests(files) {
   const queue = longestFirst(files, timings), lanes = Math.max(1, cpus().length), failed = [], slow = [];
   const one = (f) => new Promise((done) => {
     const t = Date.now(); let out = '';
-    const c = spawn(process.execPath, ['--test', `tests/${f}`], { cwd: root });
+    const c = spawn(process.execPath, ['--test', '--test-force-exit', `tests/${f}`], { cwd: root });
     c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { out += d; });
     c.once('close', (code) => {
       const s = (Date.now() - t) / 1000;

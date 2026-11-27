@@ -40,7 +40,9 @@ test('the dive is a focus pull: the picture goes soft, the sinusoid dissolves in
   const mid = (FOCUS[1] + FOCUS[2]) / 2;
   assert.equal(focusBlur(FOCUS[0]), 0, 'no blur before the pull');
   assert.ok(focusBlur(FOCUS[0] + 0.03) < 0.01, 'eases in with no start (Mohammad 20 Nov: "too quickly, too strongly")');
-  assert.ok(Math.abs(focusBlur(mid) - FOCUS_PEAK) < 1e-9 && FOCUS_PEAK <= 0.5, "peaks, gently, at the dissolve's middle");
+  assert.ok(Math.abs(focusBlur(mid) - FOCUS_PEAK) < 1e-9, "peaks at the dissolve's middle");
+  // (intense, Mohammad 27 Nov: "just intense blur"; never past the rest's, so it never falls back as it lands)
+  assert.ok(FOCUS_PEAK >= 0.9 && FOCUS_PEAK <= 1, `the pull's blur is the rest's strength over the whole screen: ${FOCUS_PEAK}`);
   assert.equal(focusBlur(1), 1, "landed: the rest's strength, no step into the view");
   let prev = 0, maxStep = 0;
   for (let i = 0; i <= 1000; i++) { const d = i / 1000, v = focusBlur(d); assert.ok(v >= prev - 1e-12, 'never falls back'); maxStep = Math.max(maxStep, v - prev); prev = v; }

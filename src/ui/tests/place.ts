@@ -6,8 +6,8 @@ import { isPhone } from '../layout/device.ts';
 import { footHeight, usesBottomBar, topBarH, sheetFoot } from '../shell/room.ts';
 import { M } from '../shell/metrics.ts';
 import { clamp } from './copied/num.copied.js';
-import { testsHalfPx, MIN_HALF } from './copied/stack-plan.copied.js';
 import { sheetDockVars } from './copied/dock-vars.copied.js';
+import { sheetStops as oneStops, sheetRoom, PEEK_H } from '../surface/sheet-stops.ts';
 
 export const SIDE_W = 500, SIDE_W_WIDE = 600;
 /** The side card's width on a screen W px wide (dock.js sideFixed): the fixed width, growing with a very large window. */
@@ -20,26 +20,14 @@ export const sidewaysWidth = (W: number, widthPx: number | null): number => clam
 export const SIDE_MAX_H = 760;
 /** A phone held sideways keeps its toolbar in a rail at the right edge (--rail-w, app-11-deck-visuals.css:617) and its cards 8 px (--gap) clear of it. */
 export const RAIL_W = 54, SIDEWAYS_GAP = 8;
-/** The sheet's two heights, Half and Full (dock-sheet.js stops): a phone's Half is one fixed 520 px (testsHalfPx), Full the room; a tablet held upright 45 % and 62 % of the screen. */
-export const TESTS_HALF_PX = 520;
-/** The sheet's third stop, Peek (owner, 20 Nov: swipe the instrument panel down out of the way to see more of the figure, and bring it back): the head row, tabs and grab handle only. */
-export const PEEK_H = 72;
-/** A phone's Half is 2D's (testsHalfPx: about 90 % of the room, 520 px at most) but never more than HALF_SHARE of the screen: tall enough for a pane's own content (owner, 20 Nov: cards not opening full, unlike 2D),
- *  low enough that it does not open high up. The figure is not zoomed out under it (panRoom) and is seen over it by pulling the card down to Peek. */
-export const HALF_SHARE = 0.52;
-/** Half stays at least this far under Full, so the two are still two stops. */
-export const FULL_CLEAR = 24;
-/** The tallest Half may be: under Full by FULL_CLEAR, never under the share Half already had. */
-export const halfCap = (half: number, R: number): number => Math.max(half, Math.round(R) - FULL_CLEAR);
-/** Half grown to hold `needH` (the head row and the open pane's least body, pane-need.ts), within the cap: no pane's content clips at Half. */
-export const halfFor = (half: number, R: number, needH: number): number => Math.min(Math.max(half, needH), halfCap(half, R));
+// The sheet's stops are every phone panel's (menu unification, stage 3: surface/sheet-stops.ts, the one function): Half a share of the screen (2D's 520 px at most, held under
+// HALF_SHARE of it; an upright tablet 45 %) grown to hold the open pane's least, never within FULL_CLEAR of Full; Full the room (a tablet 62 % of the screen); Peek the head row,
+// tabs and grab bar (owner, 20 Nov). They were this file's own until 27 Nov and are the same to the pixel (tests/sheet-detents.test.ts, tests/fixtures/tests-sheet-stops.json).
+export { HALF_PX as TESTS_HALF_PX, PEEK_H, HALF_SHARE, FULL_CLEAR, halfCap } from '../surface/sheet-stops.ts';
+/** Half and Full of the Tests sheet: the one function, for a pane that flexes to the sheet with `needH` (the head and the pane's least body, pane-need.ts) as its least. */
 export function sheetStops(device: DeviceClass, H: number, R: number, vesselCard = false, needH = 0): [number, number] {
-  if (device === 'tablet-portrait') {
-    const half = Math.round(Math.min(1, testsHalfPx(R, 0.45 * H, vesselCard) / R) * R);
-    return [halfFor(half, R, needH), Math.round(Math.min(1, (0.62 * H) / R) * R)];
-  }
-  const half = Math.min(Math.round(Math.min(0.9, testsHalfPx(R, TESTS_HALF_PX, vesselCard) / R) * R), Math.max(MIN_HALF, Math.round(HALF_SHARE * H)), Math.round(R));
-  return [halfFor(half, R, needH), Math.round(R)];
+  const s = oneStops({ H, R, tablet: device === 'tablet-portrait', fit: { kind: 'flex', least: needH }, vesselCard });
+  return [s.half, s.full];
 }
 /** The sizes a card on the right hands its panes (dock.js sizeObserver): the plots share the body's height, a square is the card's width less its padding. */
 export const sideVars = (w: number, bodyH: number, count: number): { plot: number; square: number } => ({ plot: clamp(bodyH / Math.max(1, count) - 90, 190, 380), square: clamp(w - 80, 220, 380) });
@@ -114,7 +102,8 @@ export function testsPlace(vp: Viewport, device: DeviceClass, o: PlaceOpts = {})
   // (an upright iPad, 700 to 1100 px wide: 2D app-10-thumb-dock.css:175 sets the dock and the sheet to `left: 15%; right: 15%`, the 70 % column the cards of a talk keep; the tab row fits that width, so it
   //  shows the short names, where a full-width sheet cut "Endoscopy" to "Endosc…", 20 Nov play-test)
   const tab = device === 'tablet-portrait', margin = 8, w = tab ? Math.round(vp.w * 0.7) : vp.w - vp.safe.left - vp.safe.right - 2 * margin, x = tab ? Math.round(vp.w * 0.15) : vp.safe.left + margin, foot = vp.safe.bottom + sheetFoot(device);
-  const R = Math.max(1, vp.h - vp.safe.top - barH - foot - 22);
+  // (the room every phone panel's sheet may fill: from under the top bar to its foot, less 22 px)
+  const R = sheetRoom(vp, device);
   const stops = sheetStops(device, vp.h, R, !!o.vesselCard, o.needH ?? 0);
   const maxH = stops[1];
   // (a sheet has its stops and nothing else: a remembered side-card ratio or a content height never sets it, so it never opens at some height in between, owner 20 Nov)

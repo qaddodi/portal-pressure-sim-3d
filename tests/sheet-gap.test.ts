@@ -43,7 +43,9 @@ test('the vessel card, the Tests sheet and the Treat sheet all rest at the same 
 test('the vessel card\'s code stands it on sheetFoot (never overlapping the bar), and its height cap and the room it takes read the same foot', () => {
   const card = read('src/ui/action/ActionCard.tsx');
   assert.match(card, /bottom: `calc\(var\(--safe-b, 0px\) \+ \$\{sheetFoot\(device\)\}px\)`/);
-  assert.match(card, /cardMaxHeight\(vp\.h, vp\.safe\.top, topBarH\(vp, device\), vp\.safe\.bottom, sheetFoot\(device\)\)/);
+  // (its tallest is its Full from the one stops function, which stands on the same foot: sheetRoom is the screen less the top bar and safe.bottom + sheetFoot)
+  assert.match(card, /stopsFor\(vp, device, PANEL_FITS\.action\)/);
+  assert.match(read('src/ui/surface/sheet-stops.ts'), /vp\.h - vp\.safe\.top - topBarH\(vp, device\) - \(vp\.safe\.bottom \+ sheetFoot\(device\)\) - ROOM_CLEAR/);
   assert.ok(!/footHeight\(device\) - 8/.test(card), 'no foot sunk 8 px behind the bar');
   const { vp, d } = SCREENS[0]!;
   assert.equal(cardMaxHeight(vp.h, vp.safe.top, 50, vp.safe.bottom, sheetFoot(d)) + vp.safe.top + 50 + 6 + vp.safe.bottom + sheetFoot(d), vp.h, 'the card\'s top is 6 px under the top bar at its tallest');

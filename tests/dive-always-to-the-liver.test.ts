@@ -4,7 +4,7 @@
 // now the liver's one anchor (LIVER_2D, between the right portal vein and the IVC, owner 20 Nov), never chosen from the camera; only the camera's FLIGHT starts from where it is (rig.startDiveHand).
 // This runs the real path (scene.setView, scene.goTo, the real rig and rooms) from many hand states and screen sizes, in and back out.
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { Vector3 } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
@@ -64,3 +64,7 @@ test('the place is the same whichever way it is entered: after a dive from a zoo
     assert.deepEqual([...LIVER_POINT], ANCHOR, 'out again: the place is where it was');
   }
 });
+
+// The scene's eases were left mid-flight in the test's own made-up time (T), so the clock kept asking for frames until real time reached T + their length: this file's process did not end
+// (a run of the whole suite waited on it for half an hour). Landed here, so nothing holds the clock when the file is done.
+after(() => { for (const e of (scene as unknown as { eases: { snap(v: number, quiet?: boolean): unknown; goal: number }[] } | null)?.eases ?? []) e.snap(e.goal, true); });

@@ -1,7 +1,10 @@
 /* History as the patient's timeline (docs/approved/timeline-story.md, option A). Tokens only; moves are opacity and transform only.
    Mac, iPad and iPhone on their side: the panel shell places History in the right column (surface/panel-place.ts: the standard 420 px, narrower on a phone held sideways, and as tall
    as the room, so the list scrolls inside it, approved for this card, 26 Nov). iPad and iPhone upright: the phone sheet from the foot (shell.css). */
-.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="history"] { height: 78%; }
+/* (a phone's or an upright iPad's sheet: its list scrolls by its nature, so it stands at each stop's height, not as tall as its words: surface/sheet-stops.ts PANEL_FITS.history) */
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="history"][data-sheet] { height: var(--sf-half); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="history"][data-sheet="full"] { height: var(--sf-full); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="history"][data-sheet="peek"] { height: var(--sf-peek); }
 /* (held sideways the panel is short: the strip scrolls away with the list instead of standing over it, and the chapter headings stick under the column's top) */
 .sh-root[data-device="phone-landscape"] .sh-sheet[data-kind="history"] .hs-story { overflow: hidden auto; overscroll-behavior: contain; }
 .sh-root[data-device="phone-landscape"] .sh-sheet[data-kind="history"] .hs-list { flex: none; overflow: visible; }
@@ -26,7 +29,7 @@
 .hs-ph { width: 100%; height: 100%; will-change: transform; }
 .hs-ph i { position: absolute; left: -1px; top: 0; bottom: 0; width: 2px; border-radius: 1px; background: var(--text); opacity: 0.7; }
 .hs-read { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin: 2px 12px 0; font: 500 var(--t-lab) / 1.3 var(--ui); color: var(--text-2); font-variant-numeric: tabular-nums; }
-.hs-read b { color: var(--text); font-weight: 700; }
+.hs-read b { color: var(--text); font-weight: 600; }
 .hs-read span { margin-left: auto; color: var(--text-3); font-variant-numeric: normal; }
 
 /* ── the list ── */
@@ -66,7 +69,7 @@
 .hs-nums { margin-top: 8px; padding: 7px 10px 8px; border-radius: var(--r-card); background: color-mix(in srgb, var(--text) 5%, transparent); display: flex; flex-direction: column; gap: 3px; }
 .hs-nums-w { font: 600 var(--t-cap) / 1.2 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
 .hs-nums-r { display: flex; flex-wrap: wrap; gap: 2px 14px; font: 500 var(--t-lab) / 1.35 var(--ui); color: var(--text-2); font-variant-numeric: tabular-nums; }
-.hs-nums-r b { color: var(--text); font-weight: 700; }
+.hs-nums-r b { color: var(--text); font-weight: 600; }
 .hs-nums-r .down b { color: var(--ok-ink); }
 .hs-nums-r .up b { color: var(--caution-ink); }
 .hs-a { color: var(--text-3); }

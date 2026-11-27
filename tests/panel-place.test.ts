@@ -17,7 +17,7 @@ const SCREENS = [[1180, 820], [1366, 1024], [1440, 900], [1920, 1080], [844, 390
 const IDS: readonly PanelId[] = ['tests', 'treat', 'history', 'compare', 'why', 'action', 'timeline'];
 
 test('every screen here is float mode (the shell places its panels)', () => {
-  for (const [w, h] of SCREENS) assert.equal(surfaceModeOf(deviceClass(w, h)), 'float', `${w}x${h}`);
+  for (const [w, h] of SCREENS) assert.equal(surfaceModeOf(w, h), 'float', `${w}x${h}`);
 });
 
 test('the column is the surface table\'s, and the widths: 420 standard, Tests\' wide tier, the left column\'s M.sideCardW', () => {

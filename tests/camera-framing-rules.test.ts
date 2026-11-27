@@ -33,8 +33,8 @@ export function marginPx(shot: Shot, p: readonly [number, number], dv: { w: numb
 const decks = await Promise.all((UI.decks as readonly { id: string }[]).map(async (d) => [d.id, (await loadBuiltin(d.id))!] as const));
 
 /** Every body view a talk shows (each slide and each of its beats) with the stations it labels. */
-export function bodyViews(deck: Parameters<typeof stopsOf>[0]): { at: string; shot: Shot; labels: string[] }[] {
-  const stops = stopsOf(deck), out: { at: string; shot: Shot; labels: string[] }[] = [];
+export function bodyViews(deck: Parameters<typeof stopsOf>[0]): { at: string; shot: Shot; labels: string[]; data: boolean }[] {
+  const stops = stopsOf(deck), out: { at: string; shot: Shot; labels: string[]; data: boolean }[] = [];
   stops.forEach((s, i) => {
     if (s.kind !== 'slide') return;
     for (let b = 0; b <= (s.slide.beats?.length ?? 0) + 1; b++) {
@@ -42,7 +42,7 @@ export function bodyViews(deck: Parameters<typeof stopsOf>[0]): { at: string; sh
       if (v.slide !== s.slide && !v.scene) continue;
       if (v.scene && v.scene.view !== 'body') continue;
       const shot = typeof v.shot === 'string' ? SHOTS[v.shot as keyof typeof SHOTS] : v.shot;
-      out.push({ at: `${deck.id}/${s.slide.id}${b ? '#' + b : ''}`, shot, labels: v.scene?.labels ?? [] });
+      out.push({ at: `${deck.id}/${s.slide.id}${b ? '#' + b : ''}`, shot, labels: v.scene?.labels ?? [], data: !!v.data });
     }
   });
   return out;
@@ -155,6 +155,15 @@ test('F6: any frame that is not the whole-figure overview draws a vein 8 px wide
     const isWhole = Math.abs(v.shot.half[0] - whole[0]) < 1e-9 && Math.abs(v.shot.half[1] - whole[1]) < 1e-9;
     if (isWhole) continue;
     for (const dv of DEVICES) { const px = VEIN_UNITS * scaleOn(v.shot, dv).pxu; if (px < (dv.name === 'iPhone' ? 8 : 10)) bad.push(`${v.at} ${dv.name} ${px.toFixed(1)} px`); }
+  }
+  assert.deepEqual(bad, []);
+});
+
+test('S12 with an instrument up: a slide that names three stations or more while a data card stands is framed on them, not on the whole figure (on a phone the cards leave a band of 243 px and the names cross)', () => {
+  const whole = (camPlan('fit') as { shot: Shot }).shot.half, bad: string[] = [];
+  for (const [, deck] of decks) for (const v of bodyViews(deck)) {
+    const named = v.labels.filter((id) => stationDot(id)).length;
+    if (v.data && named >= 3 && Math.abs(v.shot.half[0] - whole[0]) < 1e-9 && Math.abs(v.shot.half[1] - whole[1]) < 1e-9) bad.push(`${v.at} names ${named} stations`);
   }
   assert.deepEqual(bad, []);
 });

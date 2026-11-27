@@ -73,6 +73,12 @@
 .sh-sheet[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
 .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet { left: calc(var(--safe-l, 0px) + 6px) !important; right: calc(var(--safe-r, 0px) + 6px) !important; margin-left: 0 !important; width: auto !important; top: auto !important; bottom: calc(var(--safe-b, 0px) + var(--m-phone-inset) + var(--m-phone-timeline-h) + var(--m-phone-tabs-pad-top) + var(--m-phone-tab-h) + var(--m-phone-tabs-pad-bottom) + var(--m-phone-inset)); border-radius: var(--r-sheet); max-height: 78%; transform: translateY(var(--sheet-rise, 24px)); }   /* (a phone's sheet is inset 6 px and rounded all round, like every sheet in 2D's thumb layout: app-10-thumb-dock.css) */
 .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-open="true"] { transform: none; }
+/* a panel's phone sheet (History, Compare, Why) at Peek, Half or Full (surface/sheet-stops.ts, approved decision 4): as tall as its words up to the stop; the stops arrive as --sf-* (use-sheet.ts useFrameSheet) */
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-sheet] { max-height: var(--sf-half);
+  box-shadow: 0 var(--sheet-tail, 0px) 0 0 var(--surface), 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 24px 56px -16px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2.2)); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-sheet="full"] { max-height: var(--sf-full); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-sheet="peek"] { max-height: var(--sf-peek); }
+/* (the first shadow is the sheet's tail, surface/sheet-pull.ts: its paper reaches down past its foot while a pull lifts it, so no gap shows under it) */
 .sh-root[data-bottom="true"][data-mode="free"][data-device="phone-landscape"] .sh-sheet { max-height: 86%; }
 .sh-sheet-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px 18px; }
 .sh-sheet-head h2 { flex: 1; margin: 0; font: 600 var(--t-val) / 1.2 var(--display); }
@@ -110,20 +116,19 @@
 
 /* the note (owner, 22 Nov: rounded corners, words centred, the same glass as every panel; no dot): a glass box right above the dock and the view pill (--bot-occ), the words centred, the action as words
    in the accent, and a hairline along its foot is the note's clock (it shortens as the read time runs out; Toast.tsx). Swipe, a click or Esc lets it go. */
-.sh-toast { position: absolute; left: calc(50% - var(--panel-w, 360px) / 2); bottom: calc(var(--safe-b, 0px) + var(--bot-occ, 0px) + var(--sheet-gap)); transform: translate(-50%, 10px); width: min(440px, calc(100vw - var(--panel-w, 360px) - 24px));
+.sh-toast { position: absolute; left: 50%; bottom: calc(var(--safe-b, 0px) + var(--bot-occ, 0px) + var(--sheet-gap)); transform: translate(-50%, 10px); width: min(440px, calc(100vw - 24px));
   box-sizing: border-box; padding: 10px 16px; border: 1px solid var(--edge); border-radius: var(--r-sheet); box-shadow: var(--glass-shadow); overflow: hidden; background: var(--glass-tint); color: var(--text); font: 600 var(--t-body) / 1.3 var(--ui); text-align: center; text-wrap: pretty;
   touch-action: none; cursor: default; display: flex; align-items: center; justify-content: center; gap: 14px;
   translate: 0 calc(-1 * var(--card-occ, 0px));   /* (a docked action card is up over the dock: the note stands above it, gliding there as the card comes and goes; the card's height is --card-occ, Shell.tsx) */
   opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), translate var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); z-index: 6; }
-/* wide screens: the side panel (--panel-w) takes the right of the page, so the note is centred in the figure room left of it; a phone or an upright iPad has no side panel */
-html.thumb-ui .sh-toast { left: 50%; width: min(440px, calc(100vw - 24px)); }
+/* one axis (owner, 27 Nov: "why is this pop up NOT centered"): the note stands on the page's centre line, the same one the dock and the view pill over it are centred on (.vdock left: 50%), on every device. It was centred in the room left of the side panel (--panel-w), which put it a half-panel left of the view pill. */
 .sh-toast[data-on="true"] { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; pointer-events: auto; }   /* (a finger or pointer on the note holds it: store.ts holdToast) */
 .sh-toast > span { display: block; flex: 1 1 auto; min-width: 0; transition: opacity var(--d-flip) linear; }
 .sh-toast b { font-weight: 600; }
 .sh-toast-more { font-weight: 400; color: var(--text-2); }
 .sh-toast[data-swap] > span { opacity: 0; }   /* a second note's words: the old fade out, then the new fade in (Toast.tsx) */
 .sh-toast[data-tone="bad"] b { color: var(--danger); }   /* red only when it failed and you must act */
-.sh-toast-time { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: color-mix(in srgb, var(--text) 24%, transparent); transform-origin: left center; pointer-events: none; }
+.sh-toast-time { position: absolute; left: var(--r-sheet); right: var(--r-sheet); bottom: 0; height: 1px; background: color-mix(in srgb, var(--text) 24%, transparent); transform-origin: left center; pointer-events: none; }
 .sh-toast-act { flex: none; font: inherit; font-weight: 600; color: var(--accent); min-height: 34px; margin: -8px 0; padding: 0 2px 0 12px; border: 0; background: transparent; cursor: pointer; white-space: nowrap; }
 
 /* a Reset dialog (where it stands and how it comes and goes are the dialog shell's: surface/dialog.css) */

@@ -13,7 +13,8 @@ import { useShell } from '../shell/store.ts';
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { sheetMode } from './mode.ts';
 import { usePanelShell } from './wire.ts';
-import { GrabBar } from './parts.tsx';
+import { GrabBar, SheetGrab } from './parts.tsx';
+import { useFrameSheet } from './use-sheet.ts';
 import { PanelHead } from './PanelHead.tsx';
 import type { PanelId } from './kinds.ts';
 
@@ -49,13 +50,14 @@ export function ShellPanel({ id, label, head, children }: { id: 'history' | 'com
   const ref = useRef<HTMLElement>(null);
   const open = useShell((s) => s.panels[id]);
   const close = () => useShell.getState().closePanel(id);
-  // (a phone's sheet follows a pull down and closes past a short one, as 2D's)
-  useSheetSwipe(ref, close, sheetMode);
+  // (a phone's sheet stops at Peek, Half and Full by the one pull, surface/use-sheet.ts; the close-only pull down is for when it has no stops)
+  const sheet = useFrameSheet(id, ref, open);
+  useSheetSwipe(ref, close, sheetMode, !sheet);
   return (
-    <Panel ref={ref} id={id} open={open} className="sh-sheet" data-kind={id} data-place="top" role="dialog" aria-label={label}>
-      <GrabBar />
+    <Panel ref={ref} id={id} open={open} className="sh-sheet" data-kind={id} data-place="top" data-sheet={sheet?.data} style={sheet?.style} role="dialog" aria-label={label}>
+      {sheet ? <SheetGrab label={`Resize ${label}`} onGrab={sheet.grab} /> : <GrabBar />}
       <PanelHead title={head ?? label} closeLabel={`Close ${label}`} onClose={close} />
-      <div className="sh-sheet-body">{children}</div>
+      <div className={`sh-sheet-body${sheet ? ' sf-body' : ''}`}>{children}</div>
     </Panel>
   );
 }

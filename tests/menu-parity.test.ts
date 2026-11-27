@@ -91,12 +91,12 @@ test('paging between tabs: a third of the width or a quick flick goes on, a flic
 });
 
 test('the swipe and the pushed page are driven by the one clock, in transform and opacity only', () => {
-  for (const f of ['src/ui/menu/swipe-tabs.ts', 'src/ui/menu/motion.ts', 'src/ui/shell/page-push.ts']) {
+  for (const f of ['src/ui/surface/tab-swipe.ts', 'src/ui/menu/motion.ts', 'src/ui/surface/page-push.ts']) {
     const t = src(f).replace(/\/\/.*$/gm, '');
     assert.ok(!/requestAnimationFrame|setInterval/.test(t), `${f}: no raw frames`);
   }
   const m = src('src/ui/menu/UMenu.tsx');
-  assert.ok(/swipeTabs\(el/.test(m) && /enterCol\(/.test(m), 'the menu pages by a swipe and plays the tab entrance');
+  assert.ok(/menuTabSwipe\(el/.test(m) && /attachTabSwipe\(panel, api\)/.test(m) && /enterCol\(/.test(m), 'the menu pages by the one tab swipe and plays the tab entrance');
   assert.ok(/pvResize/.test(m) && /um-pv-old/.test(m) && /D_FLIP/.test(m), 'the preview cross-fades and eases its height as 2D does');
   const menu = src('src/ui/surface/Menu.tsx');
   assert.ok(/pushPage\(/.test(menu) && /placePopover\(/.test(menu) && /leaveMs\('menu', mode\)/.test(menu), 'pages swipe back; the popover is placed by 2D\'s rule; the leave takes the menus\' one time');

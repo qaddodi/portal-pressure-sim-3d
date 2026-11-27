@@ -17,7 +17,7 @@ const git = (...a) => execFileSync('git', a, { cwd: root, encoding: 'utf8' }).tr
 const started = Date.now();
 await new Promise((done) => spawn(process.execPath, [fileURLToPath(new URL('./ensure-baked.mjs', import.meta.url))], { cwd: root, stdio: 'inherit' }).once('close', done));
 let out = '';
-const run = spawn(process.execPath, ['--test', '--test-reporter=tap', `--test-concurrency=${Math.max(2, cpus().length)}`, 'tests/**/*.test.ts'], { cwd: root });
+const run = spawn(process.execPath, ['--test', '--test-force-exit', '--test-reporter=tap', `--test-concurrency=${Math.max(2, cpus().length)}`, 'tests/**/*.test.ts'], { cwd: root });
 run.stdout.on('data', (d) => { out += d; });
 run.stderr.on('data', (d) => process.stderr.write(d));
 await new Promise((done) => run.once('close', done));

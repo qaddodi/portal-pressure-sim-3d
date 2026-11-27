@@ -96,10 +96,13 @@ test('the card that holds the editor stands up to 560 px tall on a side card, so
 test('the action card\'s height glides when its content changes height: the paper is a plate scaled by a transform, the words ride on a sheet, the first frame is written inline, nothing animates a layout property', () => {
   const card = read('src/ui/action/ActionCard.tsx');
   assert.match(card, /<i ref=\{plate\} className="ac-plate" aria-hidden="true" \/>/);
-  assert.match(card, /scaleY\(\$\{k\.toFixed\(4\)\}\)/);
-  assert.match(card, /translateY\(\$\{d\.toFixed\(1\)\}px\)/);
-  assert.match(card, /el\.style\.transform = from;/, 'the frame that finds the new height never shows it');
-  assert.match(card, /new ResizeObserver\(\(es\) => \{[\s\S]*?glideHeight\(/);
+  // (the one height glide, surface/height-glide.ts, over the copied frames of 2D card-glide.js)
+  const glide = read('src/ui/surface/height-glide.ts'), frames = read('src/ui/treat/card-glide.copied.ts');
+  assert.match(frames, /scaleY\(\$\{k\.toFixed\(4\)\}\)/);
+  assert.match(frames, /translateY\(\$\{d\.toFixed\(1\)\}px\)/);
+  assert.match(glide, /c\.style\.transform = frames\[0\]!\.transform;/, 'the frame that finds the new height never shows it');
+  assert.match(card, /new ResizeObserver\(\(es\) => \{[\s\S]*?glideHeight\(el, h0, h1, \{ foot: bottom, plate: plate\.current, prior: run, inline: true, mark: true \}\)/);
+  assert.doesNotMatch(card, /function glideHeight/, 'no glide of its own');
   assert.match(card, /reducedMotion\(\)/);
   assert.doesNotMatch(card, /\.animate\(\[\{ ?(height|width|top|left)/);
   const plateRule = bodyOf(actionCss, '.ac-card > .ac-plate');

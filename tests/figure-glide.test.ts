@@ -51,14 +51,15 @@ test('every box a Tests pane draws its picture in is one the glide eases', () =>
 test('every way the Tests card changes size lays it out inside the figure glide', () => {
   const src = read('src/ui/tests/TestsLayer.tsx');
   // the sheet's pull, its grab handle and the divider (a sheet's height, a side card's width)
-  assert.match(src, /setSize: \(n, curve\) => glideFigures\(cardRef\.current, \(\) => flushSync\(\(\) => useTests\.getState\(\)\.setSheetSize\(n\)\), \{ curve \}\)/);
+  assert.match(src, /setSize: \(to, curve\) => \{ glideFigures\(cardRef\.current, \(\) => flushSync\(\(\) => useTests\.getState\(\)\.setSheetSize\(SIZE_OF\[to\]\)\), \{ curve \}\); \}/);
   assert.match(src, /glideFigures\(cardRef\.current, \(\) => flushSync\(\(\) => useTests\.getState\(\)\.setSheetSize\(n\)\)\);\s*\n\s*if \(!reduced\(\)\) easeBack/);
   assert.match(src, /set: \(o\) => glideFigures\(cardRef\.current, \(\) => flushSync\(\(\) => useTests\.getState\(\)\.setSize\(o\)\)\)/);
   const bare = src.split('\n').filter((l) => /useTests\.getState\(\)\.(setSheetSize|setSize)\(/.test(l) && !/glideFigures/.test(l));
   assert.deepEqual(bare, [], 'no resize of the card outside the glide');
   // the pull hands its settle curve to the pictures, so the edge and the picture ease together
-  const pull = read('src/ui/tests/dock/pull.ts');
-  assert.match(pull, /api\.setSize\(to, curve\)/);
+  const pull = read('src/ui/surface/sheet-pull.ts');
+  assert.match(pull, /api\.setSize\(to, curveOf\(/);
+  assert.match(src, /setSize: \(to, curve\) => \{ glideFigures\(cardRef\.current, [^\n]*\{ curve \}\); \}/);
 });
 
 test('the glide writes `translate` and `scale` only, on the one clock, and every chart measures itself at once for it', () => {

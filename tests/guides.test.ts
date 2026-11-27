@@ -74,7 +74,8 @@ test('the words name what the 3D app shows now (R8, 25 Nov): the vessel card row
     const w = words(f);
     for (const gone of [/Narrow and Clot/, /Add shunt/, /Inject dye/, /Auto detail/, /Pressure, HVPG/]) assert.ok(!gone.test(w), `${f} still says ${gone}`);
     says(w, /Stenosis and Thrombus/, f);
-    says(w, /Pressure, IR, Doppler, Scope, Ascites, Fibro, Readouts and Trials/, f);
+    // (the wide card names its tabs in full, the phone's short: 27 Nov, 1614611b "Tests tab names as the wide card shows them")
+    says(w, f.includes('iphone') ? /Pressure, IR, Doppler, Scope, Ascites, Fibro, Readouts and Trials/ : /Pressure, IR, Doppler, Endoscopy, Ascites, FibroScan, Readouts and Trials/, f);
     says(w, /Figure:? ?\(?Cool, Balanced or Rich/, f);
   }
 });

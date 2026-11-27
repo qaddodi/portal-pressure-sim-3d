@@ -5,7 +5,7 @@ import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { lintFiles, judge, RULES, conflictMarkers, longLines, judgeLongLines, LONG_LINE } from './lint-rules.mjs';
+import { lintFiles, judge, RULES, conflictMarkers, cssProblems, longLines, judgeLongLines, LONG_LINE } from './lint-rules.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const problems = [];
@@ -17,6 +17,9 @@ for (const f of ['AGENTS.md', 'CLAUDE.md', 'index.html']) if (!existsSync(join(r
 let tracked = [];
 try { tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 26 }).split('\0').filter((f) => /\.(m?[jt]sx?|json|css|html|md|ya?ml|glsl|vert|frag|txt)$/.test(f) && existsSync(join(root, f))); } catch { /* (no git: the check is skipped) */ }
 for (const f of tracked) { const at = conflictMarkers(readFileSync(join(root, f), 'utf8')); if (at.length) problems.push(`${f}: unresolved merge conflict markers at line ${at.slice(0, 5).join(', ')}`); }
+
+// Every tracked stylesheet must be well-formed: one cut off mid-rule fails the production build ("Unclosed block") although nothing else notices.
+for (const f of tracked) if (f.endsWith('.css')) for (const p of cssProblems(readFileSync(join(root, f), 'utf8'))) problems.push(`${f}:${p.line}: ${p.message} (the build's CSS parser would stop here)`);
 
 const walk = (dir) => readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) => {
   const p = `${dir}/${e.name}`;
