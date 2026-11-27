@@ -67,7 +67,6 @@ export const FLAG_MEANINGS: Readonly<Record<string, string>> = Object.freeze({
   only: "The Phone check or the Sweep: just these journeys or specimens (comma list).",
   steps: "The Phone check: steps=0 leaves out the per-step rows.",
   fresh: "The Phone check: fresh=1 forgets a walk the browser was part way through.",
-  parity: "The build's progress page: how much of the 2D app the 3D app has, per batch and area (src/parity).",
   charts: "The charts gallery (src/ui/charts/gallery).",
   script: "Open this deck (with ?slide=N).",
   slide: "Open this slide of ?script.",

@@ -63,4 +63,4 @@ The Anatomy's welds (`vessels/skin`, docs/junction-skin-spec.md) are on the map 
 - Nothing here has run on a real GPU (the new tangent GLSL, the ribbons and the caption layer are only checked in node): Mac play-test first.
 - Deck wiring: Circuit slides still go through `scene-link` as view 'body', so no slide yet calls `setResistors` or `setCaudatePin`.
 - The liver-module collapse is only the captions' (inner stations wait for a zoom); the branch tubes do not yet collapse to the 2D "module" drawing when zoomed out.
-- The caption layout uses the shared solver with simplified region rules; compare with the 2D map on `?parity`.
+- The caption layout uses the shared solver with simplified region rules.

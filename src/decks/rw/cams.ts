@@ -89,16 +89,6 @@ export function boxOf(cam: Cam2D): Box2D | null {
   return null;
 }
 
-/** A plate box as a 3D shot. The half extents are the box's, never less than MIN_HALF; `kMax` (the slide's most zoom, 2D units of zoom over the fit) lifts the nearest distance. */
-export function shotOfBox(box: Box2D): Shot {
-  const hw = (box[2] - box[0]) / 2 / PLATE.unit, hh = (box[3] - box[1]) / 2 / PLATE.unit;
-  return {
-    yaw: POSE.yaw, pitch: POSE.pitch, r: MIN_R,
-    target: [toX((box[0] + box[2]) / 2), toY((box[1] + box[3]) / 2), TARGET_Z],
-    half: [Math.max(hw, MIN_HALF), Math.max(hh, MIN_HALF)],
-  };
-}
-
 // ---- the approved placement: a camera frames its subject's placed bounds, by name ----
 
 /** The organs a term target or a name may point at, as the placement calls them (the 2D 'caudate-lobe' is the caudate). */

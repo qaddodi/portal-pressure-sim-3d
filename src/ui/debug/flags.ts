@@ -38,7 +38,6 @@ export const FLAGS: readonly Flag[] = Object.freeze([
   { id: 'only', group: 'Pages', gate: 'local' },
   { id: 'steps', group: 'Pages', gate: 'local' },
   { id: 'fresh', group: 'Pages', gate: 'local' },
-  { id: 'parity', group: 'Pages', gate: 'local' },
   { id: 'charts', group: 'Pages', gate: 'local' },
   { id: 'script', group: 'Open', gate: 'live' },
   { id: 'slide', group: 'Open', gate: 'live' },
