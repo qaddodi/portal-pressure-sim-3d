@@ -26,7 +26,6 @@
   "ui/deck/presenter-window.ts": 1,
   "ui/menu/UMenu.tsx": 3,
   "ui/scope/ScopeLens.tsx": 2,
-  "ui/search/SearchSheet.tsx": 1,
   "ui/shell/Diagnostics.tsx": 1,
   "ui/shell/ErrorNote.tsx": 1,
   "ui/shell/LensKey.tsx": 1,

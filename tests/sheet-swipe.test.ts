@@ -69,7 +69,9 @@ test('every phone menu is pulled down to close: Search, and the popovers (speed,
   const { readFileSync } = await import('node:fs');
   const pop = readFileSync('src/ui/shell/Pop.tsx', 'utf8'), search = readFileSync('src/ui/search/SearchSheet.tsx', 'utf8'), swipe = readFileSync('src/ui/shell/sheet-swipe.ts', 'utf8');
   assert.match(pop, /useSheetSwipe\(pop, \(\) => useShell\.getState\(\)\.close\(\), onPhone, !!popEl, 'transform'\)/);
-  assert.match(search, /useSheetSwipe\(panel, \(\) => useShell\.getState\(\)\.close\(\), onPhone\)/);
+  // (Search is a size-l dialog: the dialog shell wires the pull for every one that is a phone's sheet)
+  assert.match(search, /<Dialog id="search" size="l"/);
+  assert.match(readFileSync('src/ui/surface/Dialog.tsx', 'utf8'), /useSheetSwipe\(box, \(\) => cancel\.current\('pull'\), \(\) => size === 'l' && surfaceModeNow\(\) === 'sheet'\)/);
   assert.match(swipe, /prop\?: 'translate' \| 'transform'/);
   // the sheets that already had it
   for (const f of ['src/ui/shell/Frame.tsx', 'src/ui/shell/Menu.tsx', 'src/ui/menu/UMenu.tsx', 'src/ui/treat/TreatCard.tsx', 'src/ui/action/ActionCard.tsx']) assert.match(readFileSync(f, 'utf8'), /useSheetSwipe\(/, f);

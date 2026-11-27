@@ -21,7 +21,12 @@ test('the tail of a closing tap never blocks another sheet', () => {
 });
 test('every scrim and backdrop that can lie over an opener closes by press', () => {
   for (const f of ['src/ui/shell/Menu.tsx', 'src/ui/menu/UMenu.tsx']) assert.match(readFileSync(f, 'utf8'), /um-scrim[^\n]*onPointerDown=\{\(\) => useShell\.getState\(\)\.closeByPress\(\)\}/, f);
-  assert.match(readFileSync('src/ui/search/SearchSheet.tsx', 'utf8'), /pal-back[^\n]*closeByPress\(\)/);
+  // (a dialog's scrim is the dialog shell's: a press outside the top dialog cancels it from a capture listener, dialog-stack.ts dialogPress; Search and the Guide, which open from
+  // a tab or a button like the sheets, cancel a press by closeByPress)
+  assert.match(readFileSync('src/ui/surface/dialog-stack.ts', 'utf8'), /top\.cancel\('press'\)/);
+  for (const f of ['src/ui/search/SearchSheet.tsx', 'src/ui/shell/HelpSheets.tsx']) {
+    assert.match(readFileSync(f, 'utf8'), /const cancel = \(by: CancelBy\) => \{ if \(by === 'press'\) useShell\.getState\(\)\.closeByPress\(\);/, f);
+  }
 });
 
 // 23 Nov, iPad upright: the first fix did not hold because the outside-press listener (window, capture) runs BEFORE the scrim's own handler and closed the sheet with a plain close(), so nothing was recorded.
