@@ -13,6 +13,9 @@ export const cardKeys = {
 /** Key n (1 to 9) on the open card: true when it did something. */
 export function triggerCardVerb(n: number): boolean { const a = live.shown ? live.keyed[n - 1] : undefined; if (!a) return false; a(); return true; }
 /** Delete or Backspace on the open card: its Remove button's own work (a shunt or a device comes down, the card eases out, Cmd Z brings it back). */
-export const removeFromCard = Object.assign((): boolean => { const r = live.shown ? live.remove : null; if (!r) return false; r(); return true; }, { available: (): boolean => live.shown && live.remove != null });
+export const removeFromCard = Object.assign(
+  (): boolean => { const r = live.shown ? live.remove : null; if (!r) return false; r(); return true; },
+  { available: (): boolean => live.shown && live.remove != null },
+);
 /** Whether a card is up (the number keys mean something then). */
 export const cardIsOpen = (): boolean => live.shown;
