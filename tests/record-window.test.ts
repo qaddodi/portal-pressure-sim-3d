@@ -229,7 +229,8 @@ test('full size: the screen\'s own pixels at the device pixel ratio, and a bit r
   assert.equal(recordBitrate(7680, 4320, 60), 100_000_000, 'never absurd');
   assert.ok(recordBitrate(3024, 1964, 30) > recordBitrate(1512, 982, 30));
   const rec = src('src/ui/capture/record.ts');
-  assert.match(rec, /width: \{ ideal: size\.w \}, height: \{ ideal: size\.h \}, frameRate: \{ ideal: RECORD_FPS \}/);
+  assert.match(rec, /width: \{ ideal: size\.w \}, height: \{ ideal: size\.h \}, frameRate: \{ ideal: RECORD_FPS \}, resizeMode: 'none'/);
+  assert.match(rec, /outerWidth > 0 \? outerWidth : screen\.width/, 'the window\'s own pixels, not the whole screen\'s');
   assert.match(rec, /videoBitsPerSecond/); assert.match(src('src/ui/capture/record-run.ts'), /applyConstraints/); assert.match(rec, /raiseToFullSize/);
 });
 
@@ -291,18 +292,25 @@ test('a refused full-size upgrade (applyConstraints rejects, whatever the reason
     let tried = 0;
     const small = { width: 800, height: 600, frameRate: 30 };
     const track = { getSettings: () => small, applyConstraints: () => { tried++; return Promise.reject(err(name)); } };
-    const gave = await raiseToFullSize(track, { width: { ideal: 3024 } }, { w: 3024, h: 1964 }, 60);
-    assert.equal(tried, 1, 'it asked'); assert.match(gave, /800 x 600 at 30 fps/, 'and reports what it really has');
+    const gave = await raiseToFullSize(track, [{ width: { ideal: 3024 } }, { width: { min: 3024 } }], { w: 3024, h: 1964 }, 60);
+    assert.equal(tried, 2, 'it asked each way in turn, and a refusal of the first did not stop the second'); assert.match(gave, /800 x 600 at 30 fps/, 'and reports what it really has');
     // the stream the run records is the one it was given: a recording that starts with it says nothing but "recording"
-    const r = rig({ ask: async () => { await raiseToFullSize(track, {}, { w: 3024, h: 1964 }, 60); return r0.stream; } });
+    const r = rig({ ask: async () => { await raiseToFullSize(track, [{}], { w: 3024, h: 1964 }, 60); return r0.stream; } });
     const r0 = r;
     await r.run.press();
     assert.equal(r.run.phase(), 'recording'); assert.deepEqual(r.notes, ['recording']); assert.equal(r.rec.started, 1);
   }
   // a track that is already full size is not asked; one whose settings throw still does not reject
   let asked = 0;
-  await raiseToFullSize({ getSettings: () => ({ width: 3024, height: 1964, frameRate: 60 }), applyConstraints: () => { asked++; return Promise.resolve(); } }, {}, { w: 3024, h: 1964 }, 60);
+  await raiseToFullSize({ getSettings: () => ({ width: 3024, height: 1964, frameRate: 60 }), applyConstraints: () => { asked++; return Promise.resolve(); } }, [{}], { w: 3024, h: 1964 }, 60);
   assert.equal(asked, 0);
   const broken = { getSettings: (): never => { throw err('InvalidStateError'); }, applyConstraints: () => Promise.resolve() };
-  assert.equal(await raiseToFullSize(broken, {}, { w: 1, h: 1 }, 60), 'an unknown size');
+  assert.equal(await raiseToFullSize(broken, [{}], { w: 1, h: 1 }, 60), 'an unknown size');
+});
+
+test('a track that is short of the size is asked each way until it is full size, then left alone', async () => {
+  let w = 785; const asks: string[] = [];
+  const track = { getSettings: () => ({ width: w, height: 1205, frameRate: 60 }), applyConstraints: (c: MediaTrackConstraints) => { asks.push(JSON.stringify(c)); if ('min' in (c.width as object)) w = 1570; return Promise.resolve(); } };
+  const gave = await raiseToFullSize(track, [{ width: { ideal: 1570 } }, { width: { min: 1570 } }, { width: { min: 9999 } }], { w: 1570, h: 1205 }, 60);
+  assert.equal(asks.length, 2, 'the third is never asked once the size is reached'); assert.match(gave, /1570 x 1205/);
 });

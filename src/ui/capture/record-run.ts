@@ -40,11 +40,13 @@ export interface TrackLike { getSettings(): { width?: number; height?: number; f
  * Asks a track that came in smaller than the screen for the full size (Chrome lets a display track be raised after the fact). Best effort and never rejects: a browser that refuses
  * (OverconstrainedError, NotAllowedError, a track that has ended) keeps what it gave, and the recording goes on. Returns what the track really delivers, for the console.
  */
-export async function raiseToFullSize(track: TrackLike, want: MediaTrackConstraints, size: { w: number; h: number }, fps: number): Promise<string> {
-  try {
-    const got = track.getSettings();
-    if ((got.width ?? 0) < size.w || (got.height ?? 0) < size.h || (got.frameRate ?? 0) < fps - 1) await track.applyConstraints(want);
-  } catch { /* the browser keeps what it gave */ }
+export async function raiseToFullSize(track: TrackLike, wants: MediaTrackConstraints[], size: { w: number; h: number }, fps: number): Promise<string> {
+  const short = () => { try { const g = track.getSettings(); return (g.width ?? 0) < size.w || (g.height ?? 0) < size.h || (g.frameRate ?? 0) < fps - 1; } catch { return false; } };
+  // each way of asking in turn, while the track is still short of the size: a refusal of one leaves the track as it was, and the next is tried
+  for (const want of wants) {
+    if (!short()) break;
+    try { await track.applyConstraints(want); } catch { /* the browser keeps what it gave */ }
+  }
   try { const now = track.getSettings(); return `${now.width ?? '?'} x ${now.height ?? '?'} at ${Math.round(now.frameRate ?? 0)} fps`; } catch { return 'an unknown size'; }
 }
 
