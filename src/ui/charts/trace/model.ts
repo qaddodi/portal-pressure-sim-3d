@@ -83,6 +83,24 @@ export function keepClear(xs: readonly number[], ws: readonly number[], W: numbe
   }
   return kept;
 }
+/**
+ * Where each reading of a row stands when it may use `lines` lines under the plot: 0 the row's own line, 1 the line beside it, -1 left out. The latest always stands on line 0; then the readings the words cite (`first`,
+ * their indices), then the rest, right to left; each takes the line that alternates with the latest, else the other, and is left out only when both are crowded (each clear of every reading on its line by gap px, inside [0, W]).
+ * With one line and nothing cited this is keepClear.
+ */
+export function rowPlaces(xs: readonly number[], ws: readonly number[], W: number, lines: 1 | 2, first: Iterable<number> = [], gap = 8): number[] {
+  const last = xs.length - 1, at = xs.map(() => -1), placed: number[][] = [[], []];
+  const clear = (i: number, l: number) => xs[i]! - ws[i]! / 2 >= 0 && xs[i]! + ws[i]! / 2 <= W && placed[l]!.every((j) => Math.abs(xs[i]! - xs[j]!) >= (ws[i]! + ws[j]!) / 2 + gap);
+  const cited = new Set(first), order = [last, ...[...cited].filter((i) => i !== last && i >= 0 && i < last).sort((a, b) => b - a)];
+  for (let i = last - 1; i >= 0; i--) if (!cited.has(i)) order.push(i);
+  for (const i of order) {
+    const pref = (last - i) % 2, tries = lines === 1 ? [0] : [pref, 1 - pref];
+    const l = i === last ? 0 : tries.find((q) => clear(i, q));
+    if (l == null) continue;
+    at[i] = l; placed[l]!.push(i);
+  }
+  return at;
+}
 /** A step's ring on the steps header (its number inside): its radius, 10 px at 12. */
 export const stepR = (fs: number) => Math.round(0.8 * fs);
 /** The least height of the plot (three lines' names stacked at a line and a quarter each, with room above and below). */

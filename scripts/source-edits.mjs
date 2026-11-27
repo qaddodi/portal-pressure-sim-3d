@@ -354,6 +354,14 @@ export const WEDGE_LOBULE_25NOV = [
  *  the next the sinusoids). They name one set, the portal venule, the sinusoids and the central vein, each with its pressure (`reads`, figure-calls.ts), whatever words the line uses. */
 export const CAPTURE_36B7DEAC = ['presin', 'sin', 'postsin'].map((id) => SET('sites', `slides.${id}.callout.reads`, ['triad', 'sin', 'cv']));
 
+/**
+ * Capture 3531bdfa, F-D14 (owner W14, 27 Nov: "add a tile"): a number the words cite stands on an instrument or a tile of the same slide (tests/numbers-shown.test.ts). Fields only, no wording.
+ * Outflow 8 (the IVC web) cites the IVC pressure below the web; its tiles named the right atrium alone.
+ */
+export const CAPTURE_3531BDFA_TILES = [
+  SET('outflow', 'slides.web.tiles', ['ra', 'ivc']),
+];
+
 /** Capture 3531bdfa, words that contradicted the model's own numbers on screen (external review, group G5). */
 export const CAPTURE_3531BDFA_WORDS = [
   // Cause treated 10: the trail starts at LSM 32.9 kPa with platelets 70 (CSPH) and ends at 22.1 kPa and 94 (the indeterminate zone), so it does leave the CSPH region; the HVPG, 10.5, is what stays at 10 or more
@@ -499,6 +507,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_2A54261A,
   ...WEDGE_LOBULE_25NOV,
   ...CAPTURE_36B7DEAC,
+  ...CAPTURE_3531BDFA_TILES,
   ...CAPTURE_3531BDFA_WORDS,
   ...CAPTURE_3531BDFA,
 ];
