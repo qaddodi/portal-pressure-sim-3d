@@ -3,7 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { rateOf, rateShown, scaleOf, bandsOf, UNGRADED, PLT_RULE_OUT, RESPONSE_CUT } from '../src/ui/cards/ratings.ts';
+import { rateOf, rateShown, scaleOf, bandsOf, MODEL_BANDED, PLT_RULE_OUT, RESPONSE_CUT } from '../src/ui/cards/ratings.ts';
+import { tileShown } from '../src/ui/deck/from2d/table-marks.js';
 import { ratedShown, tileView, respFp } from '../src/ui/cards/tiles-2d.ts';
 import { loadSource } from '../src/decks/source.ts';
 import { AG_IDS } from '../src/decks/ag/index.ts';
@@ -12,24 +13,23 @@ import { RW_IDS } from '../src/decks/rw/copied/index.ts';
 
 const NONE = [null, ''];
 
-test('C1: the portal vein, wedged and sinusoidal pressures print the plain number and a plain bar, at every reading', () => {
-  for (const k of UNGRADED) for (const v of [0, 4, 9.5, 12, 16.3, 25, 40]) {
-    assert.deepEqual(rateOf(k, { [k]: v }), NONE, `${k} ${v}`);
-    assert.deepEqual(rateShown(k, { [k]: v }), NONE, `${k} ${v} as shown`);
+test('C1: the portal vein, wedged and sinusoidal pressures say "Normal", "High" and "Very high", never the 2D table\'s "Severe", and keep their bar (27 Nov, later)', () => {
+  for (const k of MODEL_BANDED) for (const v of [0, 4, 9.5, 12, 16.3, 25, 40]) {
+    const [cls, word] = rateOf(k, { [k]: v });
+    assert.ok(cls === 'ok' || cls === 'mid' || cls === 'hi', `${k} ${v}`);
+    assert.match(word, /^(Normal|High|Very high)$/, `${k} ${v}`);
+    assert.deepEqual(rateShown(k, { [k]: v }), rateOf(k, { [k]: tileShown(k, v) }), `${k} ${v} as shown`);
     const t = tileView(k, { [k]: v });
-    assert.equal(t.rate, 'plain', `${k} ${v}: no colour`);
-    assert.equal(t.word, '', `${k} ${v}: no word`);
-    assert.deepEqual(t.bar?.zones ?? [], [], `${k}: no bands`);
-    assert.deepEqual(t.bar?.labels ?? [], [], `${k}: no cut-off ticks`);
+    assert.equal(t.rate, cls, `${k} ${v}: the tile wears the rating's colour`);
+    assert.ok(t.bar!.zones.length >= 3, `${k}: the bar draws its bands`);
   }
-  assert.deepEqual(bandsOf('sin'), [], 'a plain track, not no bar');
-  assert.deepEqual(scaleOf('whvp')![2], []);
+  assert.equal(bandsOf('sin')!.length, 3);
 });
 
 test('C1: platelets say "<150" below the Baveno VIII rule-out line and nothing above it, never "Low" or "Severe"', () => {
   assert.equal(PLT_RULE_OUT, 150);
   for (const v of [82, 50, 20, 149]) assert.deepEqual(rateOf('plt', { plt: v }), ['info', '<150'], `${v}`);
-  for (const v of [150, 200, 300]) assert.deepEqual(rateOf('plt', { plt: v }), NONE, `${v}`);
+  for (const v of [150, 200, 300]) assert.deepEqual(rateOf('plt', { plt: v }), ['ok', ''], `${v}: green, no word`);
   assert.deepEqual(rateOf('plt', {}), NONE);
   assert.deepEqual(scaleOf('plt')![2], [150], 'the one line on the bar');
   const words = [20, 82, 110, 149, 150, 400].map((v) => ratedShown('plt', { plt: v })[1]).join(' ');
