@@ -227,7 +227,7 @@ export function cardClaims(ins: readonly CardIn[], outs: readonly CardOut[]): Bo
   const out: Box[] = outs.filter((o) => o.ok).map((o) => o.box);
   for (const i of ins) {
     if (!i.ring) continue;
-    if (!i.pair) { out.push({ x0: i.x - i.ring, y0: i.y - i.ring, x1: i.x + i.ring, y1: i.y + i.ring }); continue; }
+    if (!i.pair) continue;   // (a ring's own room is cardRings': a wall for names' boxes, never for the dots inside it)
     out.push(ringDisc(i.x, i.y));
     // (the pair's leader: a thin strip from the ring to the words' near edge)
     const w = outs.find((o) => o.id === i.id);
@@ -236,6 +236,14 @@ export function cardClaims(ins: readonly CardIn[], outs: readonly CardOut[]): Bo
     out.push({ x0: Math.min(i.x, x1) - 1, y0: Math.min(i.y, w.box.y0), x1: Math.max(i.x, x1) + 1, y1: Math.max(i.y, w.box.y0) });
   }
   return out;
+}
+
+/**
+ * The room each ring callout's ring takes (a square round it, the ring's radius and its air): the names stand outside it, and the dots of what it rings stand inside it
+ * (callout-claims.ts `rings`, solver `encircled`).
+ */
+export function cardRings(ins: readonly CardIn[]): Box[] {
+  return ins.filter((i) => i.ring && !i.pair).map((i) => ({ x0: i.x - i.ring!, y0: i.y - i.ring!, x1: i.x + i.ring!, y1: i.y + i.ring! }));
 }
 
 /** The air a callout's words keep from a vessel's centreline (px), tried widest first: the tube is drawn wider than its line and the words' halo
@@ -586,7 +594,7 @@ export class FigureCards {
       for (const [id, r] of this.cals) r.box = by.get('cal:' + id) ?? null;
       for (const [id, r] of this.spanRecs) r.box = by.get('span:' + id) ?? null;
       this.boxes = cardClaims(ins, outs);
-      calloutClaims.set(this.boxes);
+      calloutClaims.set(this.boxes, cardRings(ins));
     }
 
     // fades (linear, the label timings) and the paint
