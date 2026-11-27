@@ -12,6 +12,7 @@ import { figurePlan } from '../src/ui/deck/figure-plan.ts';
 import { TARGETS_FIG } from '../src/scene/labels/figure2d.copied.ts';
 import { STATIONS } from '../src/scene/labels/stations.ts';
 import { loadSource } from '../src/decks/source.ts';
+import { labelTone } from '../src/ui/text/series-tone.ts';
 
 const decks: { id: string; slides: CopiedSlide[] }[] = (await Promise.all([
   ...RW_IDS.map((id) => loadSource(id)), ...AG_IDS.map((id) => loadAgDeck(id)), ...HP_IDS.map((id) => loadHpDeck(id)),
@@ -31,7 +32,7 @@ test('every slide that lights stations lights each of its key readings that stan
       if (!node || !STATION_IDS.has(node)) continue;
       checked++;
       assert.ok(p.tones[node], `${at}: key reading "${k}" (${node}) stands unlit among lit stations`);
-      assert.equal(p.tones[node], own.tones[node] ?? TARGETS_FIG[k]!.tone, `${at}: ${node} takes its own colour`);
+      assert.equal(p.tones[node], own.tones[node] ?? labelTone(k, TARGETS_FIG[k]!.tone), `${at}: ${node} takes its own colour`);
     }
   }
   assert.ok(checked > 5, `walked ${checked} key readings`);
