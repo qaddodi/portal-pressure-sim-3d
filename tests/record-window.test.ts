@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { canRecordWindow, pickRecordMime, recordExt, recordFileName, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
+import { canRecordWindow, actualMime, pickRecordMime, recordExt, recordFileName, recordSize, recordBitrate, RECORD_FPS, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
 import { isCaptureKey } from '../src/ui/capture/capture-model.ts';
 import { createRecordRun, isRefusal, type RecordDeps, type RecordNote, type RecorderLike, type StreamLike } from '../src/ui/capture/record-run.ts';
 import { RECORD } from '../src/ui/shell/words.ts';
@@ -38,16 +38,17 @@ test('Record window sits in Settings with Capture screen, and its press runs ins
   assert.match(rec, /preferCurrentTab: true/);
 });
 
-test('the format is the first one the browser says it writes: WebM, then MP4 (Safari); none known leaves it to the browser', () => {
+test('the format is the first one the browser says it writes: MP4 first, then WebM; none known leaves it to the browser', () => {
   const only = (...ok: string[]) => (m: string) => ok.includes(m);
   assert.equal(pickRecordMime(only('video/webm;codecs=vp9', 'video/webm')), 'video/webm;codecs=vp9');
   assert.equal(pickRecordMime(only('video/webm')), 'video/webm');
+  assert.equal(pickRecordMime(only('video/webm;codecs=vp9', 'video/webm', 'video/mp4;codecs=avc1', 'video/mp4')), 'video/mp4;codecs=avc1', 'a browser that writes both (Safari, Chrome 126+) gets MP4: it plays everywhere');
   assert.equal(pickRecordMime(only('video/mp4')), 'video/mp4');
   assert.equal(pickRecordMime(only('video/mp4;codecs=avc1', 'video/mp4')), 'video/mp4;codecs=avc1');
   assert.equal(pickRecordMime(only()), '');
   assert.equal(pickRecordMime(undefined), '');
   assert.equal(pickRecordMime(() => { throw new Error('no'); }), '', 'a browser that throws for a type does not write it');
-  assert.ok(RECORD_MIMES.indexOf('video/webm') < RECORD_MIMES.indexOf('video/mp4'));
+  assert.ok(RECORD_MIMES.indexOf('video/mp4') < RECORD_MIMES.indexOf('video/webm'));
   assert.equal(recordExt('video/mp4;codecs=avc1'), 'mp4'); assert.equal(recordExt('video/mp4'), 'mp4'); assert.equal(recordExt('video/webm;codecs=vp9'), 'webm'); assert.equal(recordExt(''), 'webm');
 });
 
@@ -110,7 +111,7 @@ function rig(opts: { ask?: () => Promise<StreamLike>; mime?: string; data?: Blob
     ask: () => { asked++; return opts.ask ? opts.ask() : Promise.resolve(stream); },
     recorder: opts.recorder ?? (() => rec),
     save: (v, ext) => { saved.push({ size: v.size, ext }); },
-    tell: (n) => { notes.push(n); }, onPhase: (p) => { phases.push(p); },
+    tell: (n) => { notes.push(n); }, onPhase: (p) => { phases.push(p); }
   };
   return { run: createRecordRun(deps), stream, rec, phases, notes, saved, asked: () => asked };
 }
@@ -184,14 +185,71 @@ test('no video came out, or the recorder could not be made or started: idle, tol
   } finally { console.warn = warn; }
 });
 
-test('a recorder error mid-way ends it once and tells once', async () => {
-  const r = rig();
-  await r.run.press();
-  r.rec.onerror?.(undefined); r.rec.onerror?.(undefined);
-  assert.equal(r.run.phase(), 'idle'); assert.deepEqual(r.notes, ['recording', 'failed']); assert.deepEqual(r.saved, []); assert.equal(r.stream.track.stopped, true);
+test('a recorder error mid-way is not a failure while it holds a recording: it is stopped, the video saved, and nothing says "Couldn\'t record"', async () => {
+  const warn = console.warn; console.warn = () => undefined;
+  try {
+    const r = rig();
+    await r.run.press();
+    r.rec.onerror?.(undefined); r.rec.onerror?.(undefined);
+    assert.equal(r.run.phase(), 'idle'); assert.deepEqual(r.saved, [{ size: 5, ext: 'webm' }]); assert.deepEqual(r.notes, ['recording', 'saved']); assert.equal(r.stream.track.stopped, true);
+    // an error with nothing recorded is the one failure, told once
+    const none = rig({ data: [] });
+    await none.run.press(); none.rec.onerror?.(undefined); none.rec.onerror?.(undefined);
+    assert.equal(none.run.phase(), 'idle'); assert.deepEqual(none.notes, ['recording', 'failed']); assert.deepEqual(none.saved, []);
+  } finally { console.warn = warn; }
+});
+
+test('"Couldn\'t record" is told only when no file was handed over: nothing after a save (a late error, a second stop, a throw while stopping) can say it', async () => {
+  const warn = console.warn; console.warn = () => undefined;
+  try {
+    const r = rig();
+    await r.run.press(); await r.run.press();
+    assert.deepEqual(r.notes, ['recording', 'saved']);
+    r.rec.onerror?.(undefined); r.rec.onstop?.(undefined); r.stream.track.onended?.();
+    assert.deepEqual(r.notes, ['recording', 'saved'], 'nothing more is said'); assert.equal(r.saved.length, 1);
+    // the recorder runs its stop handler inside stop() and then throws: the video is already saved
+    const t = rig(); t.rec.stop = () => { t.rec.state = 'inactive'; for (const d of [new Blob(['xx'])]) t.rec.ondataavailable?.({ data: d }); t.rec.onstop?.(undefined); throw err('InvalidStateError'); };
+    await t.run.press(); await t.run.press();
+    assert.deepEqual(t.saved, [{ size: 2, ext: 'webm' }]); assert.deepEqual(t.notes, ['recording', 'saved'], 'saved, and not told it failed');
+  } finally { console.warn = warn; }
+});
+
+test('full size: the screen\'s own pixels at the device pixel ratio, and a bit rate that follows what the track delivers', () => {
+  assert.deepEqual(recordSize({ w: 1512, h: 982 }, 2), { w: 3024, h: 1964 });
+  assert.deepEqual(recordSize({ w: 1920, h: 1080 }, 1), { w: 1920, h: 1080 });
+  assert.deepEqual(recordSize({ w: 1440, h: 900 }, 0), { w: 1440, h: 900 }, 'a missing ratio is 1');
+  assert.equal(RECORD_FPS, 60);
+  assert.ok(recordBitrate(3024, 1964, 60) >= 60_000_000 && recordBitrate(3024, 1964, 60) <= 80_000_000, 'a retina screen at 60 fps gets about 70 Mbps');
+  assert.equal(recordBitrate(1440, 900, 60), Math.round(1440 * 900 * 60 * 0.2));
+  assert.equal(recordBitrate(320, 240, 30), 8_000_000, 'never starved');
+  assert.equal(recordBitrate(7680, 4320, 60), 80_000_000, 'never absurd');
+  assert.ok(recordBitrate(3024, 1964, 60) > recordBitrate(1512, 982, 60));
+  const rec = src('src/ui/capture/record.ts');
+  assert.match(rec, /width: \{ ideal: size\.w \}, height: \{ ideal: size\.h \}, frameRate: \{ ideal: RECORD_FPS \}/);
+  assert.match(rec, /videoBitsPerSecond/); assert.match(rec, /applyConstraints/);
 });
 
 test('the words: plain, no dot, Stop is a word in the toast', () => {
-  assert.equal(RECORD.row, 'Record window'); assert.equal(RECORD.stopRow, 'Stop recording'); assert.equal(RECORD.stop, 'Stop');
+  assert.equal(RECORD.row, 'Record window'); assert.equal(RECORD.stopRow, 'Stop recording'); assert.equal(RECORD.stopButton, 'Stop recording');
   assert.ok(!/[●•]/.test(Object.values(RECORD).join(' ')));
+});
+
+test('the file is named by the format the recorder really wrote (its mimeType, else its first piece), never by the one hoped for', async () => {
+  assert.equal(actualMime('video/mp4', '', 'video/webm'), 'video/mp4'); assert.equal(actualMime('', 'video/mp4', 'video/webm'), 'video/mp4'); assert.equal(actualMime('', '', 'video/webm'), 'video/webm');
+  // a recorder that does not say, writing pieces that say mp4: the file is .mp4
+  const r = rig({ mime: '', data: [new Blob(['aa'], { type: 'video/mp4' }), new Blob(['b'], { type: 'video/mp4' })] });
+  await r.run.press(); await r.run.press();
+  assert.deepEqual(r.saved, [{ size: 3, ext: 'mp4' }]);
+});
+
+test('no toast and no outline while recording; the stop button stands beside Settings in the top bar, the thumb bar and the presenter pill', () => {
+  const rec = src('src/ui/capture/record.ts');
+  assert.ok(!/RECORD\.on\b/.test(rec) && !/note === 'recording'/.test(rec));
+  assert.match(src('src/ui/shell/TopBar.tsx'), /<RecordStop \/>\s*\n\s*<button type="button" className="ib" id="btnSettings"/);
+  assert.match(src('src/ui/shell/ThumbBar.tsx'), /t\.id === 'settings' \? <RecordStop tab \/>/);
+  assert.match(src('src/ui/settings/SettingsMenu.tsx'), /<RecordStop \/>/);
+  assert.match(src('src/ui/deck/PresenterBar.tsx'), /RECORD_STOP_W/);
+  const ind = src('src/ui/capture/RecordIndicator.tsx'), css = src('src/ui/capture/record.css');
+  for (const t of [rec, ind, css, src('src/App.tsx')]) assert.ok(!/RecordFrame|rec-frame|RestrictionTarget|restrictTo|showRecordFrame/.test(t), 'no red outline round the app, in any browser (Mohammad, 27 Nov)');
+  assert.match(css, /prefers-reduced-motion/); assert.match(css, /@keyframes rec-breathe \{ 0%, 100% \{ opacity: 1; \} 50% \{ opacity: \.4; \} \}/, 'the pulse is opacity only');
 });

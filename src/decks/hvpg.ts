@@ -1,4 +1,6 @@
-// The HVPG deck as the 3D app plays it: all 13 slides of the 2D deck, in the 2D order. The four slides of the first slice (route, free, wedge, hvpg) keep their plates:
+// The HVPG deck as the 3D app plays it: all 13 slides of the 2D deck, in the 2D order but for the PPG slide,
+// which plays after the two EUS slides (a review's move, MOVE_AFTER in scripts/source-edits.mjs).
+// The four slides of the first slice (route, free, wedge, hvpg) keep their plates:
 // a named camera shot, the catheter and the ladder card (hvpg.copied.ts, written by scripts/copy-decks.mjs, plus the 3D fields below). Their words are the planned deck's.
 // The other nine are planned from the 2D deck's own fields by batch B13b (src/decks/hp), exactly as every other ported deck; their numbers, like the slice's, come from each slide's own state.
 

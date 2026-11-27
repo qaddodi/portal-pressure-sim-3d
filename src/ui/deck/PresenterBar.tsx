@@ -7,6 +7,7 @@ import { layoutOf, isSideways } from '../layout/rules2d.ts';
 import { Icon } from '../shell/icons.tsx';
 import { stopTalk } from '../shell/talk.ts';
 import { finishTalk } from '../cards/finish.ts';
+import { RECORD_STOP_W, useRecordingNow } from '../capture/RecordIndicator.tsx';
 
 // the 2D app's chev-left / chev-right (its `.ib` rules size and stroke them)
 const Chevron = ({ dir }: { dir: 'l' | 'r' }) => (
@@ -26,17 +27,19 @@ export function PresenterBar() {
   const sideways = isSideways(vp.w, vp.h);
   const stacked = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   const phone = layoutOf(vp.w, vp.h) === 'stack';
+  // (while a recording runs the Stop button stands beside the gear: a pill with a fixed width grows leftwards by one button, a phone's grows by itself)
+  const more = useRecordingNow() && !phone ? RECORD_STOP_W : 0;
   // the 2D app's own pill markup: `.pz-bar` with `.pzb-pill` on a wide screen, `.phone` stacked; `.ib` buttons, the count `.pzb-n` > `.pzb-nt`
   return (
     <>
       <div className={`dk-bar pz-bar ${stacked || sideways ? 'phone' : 'pzb-pill'}`} data-edge={place.edge} role="toolbar" aria-label="Presenter" style={phone
         // an iPhone's pill is anchored by its lower right corner (its width is its buttons', never a guessed one), inside the words card
         ? { right: vp.w - (place.rect.x + place.rect.w), top: place.rect.y, left: 'auto', bottom: 'auto', height: place.rect.h, width: 'auto' }
-        : { left: place.rect.x, top: place.rect.y, width: place.rect.w, height: place.rect.h, right: 'auto', bottom: 'auto' }}>
+        : { left: place.rect.x - more, top: place.rect.y, width: place.rect.w + more, height: place.rect.h, right: 'auto', bottom: 'auto' }}>
         {<button type="button" className="ib" aria-label="Previous slide" title="Previous (←)" disabled={first} onClick={() => move('back')}><Chevron dir="l" /></button>}
         {(
           // 2D presenter-scales.js: the count is a button that opens the slide list (G); a slide with two beats (a case, then its slide) shows them as strokes under the number
-          <button type="button" className="pzb-n" aria-label={`Slide ${pos.stop + 1} of ${stops.length}. Open the slide list`} title="Slide list (G)" aria-expanded={jump} onClick={() => useUi.getState().setJump()}>
+          <button type="button" className="pzb-n" data-opens="slides" aria-label={`Slide ${pos.stop + 1} of ${stops.length}. Open the slide list`} title="Slide list (G)" aria-expanded={jump} onClick={() => useUi.getState().setJump()}>
             <span className="pzb-nt">{pos.stop + 1} / {stops.length}</span>
           </button>
         )}

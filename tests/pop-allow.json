@@ -17,14 +17,12 @@
   "ui/charts/looks.ts": 1,
   "ui/charts/painter.ts": 1,
   "ui/charts/text-layer.ts": 3,
-  "ui/deck/JumpList.tsx": 1,
   "ui/deck/download.ts": 1,
   "ui/deck/handout.ts": 1,
   "ui/deck/laser.ts": 1,
   "ui/deck/presenter-window.ts": 1,
   "ui/menu/UMenu.tsx": 3,
   "ui/scope/ScopeLens.tsx": 2,
-  "ui/search/SearchSheet.tsx": 1,
   "ui/shell/TopBar.tsx": 1,
   "ui/shell/curtain.ts": 1,
   "ui/shell/figure-image-dom.ts": 1,
@@ -68,6 +66,7 @@
   "ui/shell/sheet-swipe.css | .sh-root:not([data-bottom=\"true\"]) .sh-sheet > .sh-grabbar",
   "ui/shell/shell.css | .sh-root [hidden]",
   "ui/shell/shell.css | .sh-root[data-bottom=\"true\"] .sh-foothints",
+  "ui/surface/panel-head.css | .card-head.tabbed[data-yield]:has(> .instr-tabs:not([hidden])) > :is(.card-title, .card-meta)",
   "ui/tests/tests.css | .t-card [hidden]"
  ],
  "state": [

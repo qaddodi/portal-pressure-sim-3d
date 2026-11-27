@@ -10,7 +10,8 @@
 //   5. the draw-only branches (rhva, rhvb, rpva, rpvp) hang on their host: the straighter one runs on from the trunk as its through branch (one tube to the tip, as liver-branches.ts draws a branching vein), the other is
 //      a side branch; the caudate veins (cv1-3) are joined into the cava the same way; the liver beds (no placed course) are today's beds carried onto the moved nodes.
 // Pure data, no three.js, no reader of network.ts (network.ts reads this).
-import { PLACED_COURSES, PLACED_VESSELS, PLACED_JOINS, PLACED_ORGANS } from './placement.generated.ts';
+import { PLACED_VESSELS, PLACED_JOINS, PLACED_ORGANS } from './placement.generated.ts';
+import { DRAWN_COURSES } from './drawn-courses.ts';
 import { EDGES, JUNCTIONS } from '../../engine/hales/portal/topology.js';
 import { ANAT_HIDDEN, EDGE_PATH_2D, HIDDEN_EDGES } from './source.ts';
 import { x2d, y2d } from '../frame2d.ts';
@@ -196,7 +197,7 @@ export const PLACED_NODE_2D: Record<string, readonly [number, number]> = {};
 function buildPlaced(): void {
   const COURSE: Record<string, V3[]> = {};
   const rOf = (k: string): number => PLACED_VESSELS[k]?.r ?? 0.01;
-  for (const [k, c] of Object.entries(PLACED_COURSES)) COURSE[k] = fair(relax(denseCurve(c), PLACED_JOINS.relax ?? 40));
+  for (const [k, c] of Object.entries(DRAWN_COURSES)) COURSE[k] = fair(relax(denseCurve(c), PLACED_JOINS.relax ?? 40));
 
   // ---- run-ons: one smooth curve through the node ----
   /** How far either side of a run-on the joined course is relaxed (scene units; at most this share of each course). */
@@ -395,6 +396,13 @@ function buildPlaced(): void {
   //    engine joins them at SV: SVD is drawn at their take-off);
   //  - an end within PARALLEL_DEG of its node's own end runs beside it: it opens at its own node, an arm of that node's skin, and bows off it (SIBLINGS APART, below);
   //  - two such nodes closer than NODE_GAP_R radii are moved apart along the vein, downstream, never past a main vessel's mouth (LRV_S and LRV were 4 radii apart: one skin for both had two permanent arms and failed).
+  /** The ends that keep their own take-off along the host instead of opening at the node they share with other shunts (Mohammad, 27 Nov: "every shunt open at a slightly different location on the
+   *  vessel"): neither pulled onto the node nor bowed off its other ends. The spontaneous splenorenal shunt's splenic end (C6) was a fifth vessel in SVD's junction and left it end-on; a wall skin on
+   *  the splenic vein takes it now (skin/wall.ts). No take-off carries more than two collaterals or shunts: tests/landing-frozen.test.ts. */
+  const OWN_TAKEOFF = new Set(['C6|0']);
+  /** The nodes drawn at an end's take-off whatever else opens there: SVD at the short gastric veins' (they leave the splenic vein beside it, though the engine joins them at SV; the spontaneous
+   *  splenorenal shunt's frozen mouth lay within reach of it until that shunt took its own take-off). */
+  const NODE_AT_END: Readonly<Record<string, string>> = { SVD: 'C2|0' };
   const SNAP_R = 6, NODE_GAP_R = 10, PARALLEL_DEG = 30, PAIR_GAP_R = 5;
   /** SIBLINGS APART (below): how far off its sibling an end beside it leaves (degrees), the share of the course from that end the bow spans, and the bow's steps and most (shares of the course's length). */
   const SIBLING_DEG = 60, BOW_SPAN = 0.7, BOW_STEP = 0.05, BOW_MAX = 4;
@@ -460,6 +468,7 @@ function buildPlaced(): void {
   for (const l of lands) {
     if (l.id === 'TIPS') continue;
     if (KEEP_RULE.has(l.id)) { l.force = hostEndAt(l.w, l.node) ?? wallAt(l.w, l.node, l.p) ?? mouth.get(`${l.w}|${l.node}`); l.keep = true; continue; }
+    if (OWN_TAKEOFF.has(`${l.id}|${l.end}`)) continue;   // (opens where its course leaves the host: not pulled onto the node)
     const P = hostEndAt(l.w, l.node) ?? mouth.get(`${l.w}|${l.node}`);
     if (!P) continue;
     if (Math.abs(nearestOn(ownCourse(l.w), P).s - l.s) <= SNAP_R * rOf(l.w)) l.force = P; else l.off = true;
@@ -477,7 +486,7 @@ function buildPlaced(): void {
       if (!at.length) continue;
       // (the node's own end: the shunt that divides the vein starting there (skin/divide.ts: the distal splenorenal shunt takes the splenic vein's start at SVD), else the widest)
       const owner = at.find((l) => DIVIDERS.has(`${l.id}|${l.end}`)) ?? at.reduce((x, y) => (rOf(y.id) > rOf(x.id) ? y : x));
-      const near = lands.find((l) => l.w === w && l.off && at.some((m) => Math.abs(l.s - m.s) <= SNAP_R * R));
+      const near = lands.find((l) => l.w === w && l.off && (NODE_AT_END[n] === `${l.id}|${l.end}` || at.some((m) => Math.abs(l.s - m.s) <= SNAP_R * R)));
       stops.push({ s: near ? near.s : owner.s, fixed: false, node: n, land: owner, others: at.filter((l) => l !== owner), beside: [] });
     }
     stops.sort((x, y) => x.s - y.s);
@@ -489,7 +498,7 @@ function buildPlaced(): void {
     //  mouth went 0.54 from where the placement draws it, from the renal vein (0.500, -0.035) to (-0.012, -0.223) beside the cava, and its course swept across the gastrorenal shunt just above that one's mouth (tests/overlaps.test.ts).
     //  At its own node it opens 3.7 of the renal vein's radii from its drawn landing, within SNAP_R: tests/landing-frozen.test.ts)
     for (const x of stops) for (const o of x.others) {
-      if (!x.land || angleDeg(endDir(o.id, o.end), endDir(x.land.id, x.land.end)) >= PARALLEL_DEG) continue;
+      if (!x.land || OWN_TAKEOFF.has(`${o.id}|${o.end}`) || angleDeg(endDir(o.id, o.end), endDir(x.land.id, x.land.end)) >= PARALLEL_DEG) continue;
       x.beside.push(o); SIBLINGS.push({ o, owner: x.land }); BESIDE.add(`${o.id}|${x.land.id}`).add(`${x.land.id}|${o.id}`);
     }
     for (let i = 1; i < stops.length; i++) {
@@ -725,7 +734,7 @@ function buildPlaced(): void {
   // wall). Where a tract comes within TRACT_CLEAR, wall to wall, of another drawn vessel away from its own two ends, the stretch round there moves straight away from it, easing to nothing over TRACT_SPAN along the tract and
   // inside its ends' lumens, until it clears; then it is faired. ----
   {
-    const radOf = (id: string): number => rOf(wholeOf(id) ?? (PLACED_COURSES[id] ? id : '')) || 0.005;
+    const radOf = (id: string): number => rOf(wholeOf(id) ?? (DRAWN_COURSES[id] ? id : '')) || 0.005;
     for (const id of TRACTS) {
       let D = PLACED_EDGE_3D[id]!;
       const r = rOf(id), e = edgeById.get(id)!;

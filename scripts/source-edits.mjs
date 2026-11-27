@@ -16,6 +16,8 @@ const APPEND = (deck, at, append) => ({ deck, at, append });
 const DROP_IF = (deck, at) => ({ deck, at, drop: true, soft: true });
 /** Put a whole new item into a list, right after the one `at` names (a slide of a talk: `slides.<id>`). */
 const AFTER = (deck, at, set) => ({ deck, at, set, after: true });
+/** Move an item of a list so it stands right after the item `target` names (a sibling in the same list: `slides.<id>` after `slides.<id>`). Already there: nothing to do, so a patch run twice leaves the deck as it is. */
+const MOVE_AFTER = (deck, at, target) => ({ deck, at, moveAfter: target });
 
 const AASLD_RULE = 'AASLD 2024 (guidance statement 7) uses a different rule of five from the same two numbers: CSPH is presumed at an LSM ≥25 kPa regardless of the platelet count, at 20 to 24.9 kPa with platelets <150,000/µL, or at 15 to 19.9 kPa with platelets <110,000/µL; it is excluded at an LSM <15 kPa with platelets ≥150,000/µL; all other combinations are indeterminate, and SSM or the HVPG can decide. So AASLD presumes CSPH where Baveno VIII stays indeterminate at 20 to 25 kPa with platelets <150,000/µL and at 15 to 20 kPa with platelets <110,000/µL, and at exactly 15 kPa Baveno VIII rules CSPH out where AASLD does not. AASLD advises caution with its rule in MASLD with obesity, an ALT >3 times the upper limit of normal, and primary sclerosing cholangitis with a dominant stricture, where it is less well calibrated.';
 
@@ -590,6 +592,15 @@ export const CAPTURE_3531BDFA_W = [
   SET('next-bleed', 'slides.bands.lineAhead', 'Repeated EVL will shrink the varices. The portal pressure behind them will not fall.'),
 ];
 
+/** The HVPG talk, 27 Nov 2026 (Mohammad: "slide 8 of the HVPG PPG deck is kinda misplaced, move it after what is now slide 10"; the numbers are the jump list's, the outline being stop 1): the PPG slide (stop 8) stands after the two EUS slides (stop 10).
+ *  Order only, so every slide keeps its own patient and words; the one sentence that leaned on the old order is the EUS slide's "Back in the woman", now straight after her. */
+export const HVPG_PPG_AFTER_EUS_27NOV = [
+  MOVE_AFTER('hvpg', 'slides.ppg', 'slides.eus-ladder'),
+  // (the talk's sections list the slides of each part in play order)
+  SET('hvpg', 'sections.1.1', ['presin', 'eus', 'eus-ladder', 'ppg']),
+  P('hvpg', 'slides.eus.line', 'Back in the woman with schistosomiasis, an EUS-guided', 'In the same woman with schistosomiasis, an EUS-guided'),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -715,6 +726,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_3531BDFA_CLINICAL,
   ...CAPTURE_3531BDFA_L3,
   ...CAPTURE_3531BDFA_W,
+  ...HVPG_PPG_AFTER_EUS_27NOV,
 ];
 
 function step(node, key) {
@@ -742,6 +754,13 @@ export function sourceEdits(json, patches = SOURCE_PATCHES) {
     if (p.drop && (last === -1 || node[last] === undefined)) continue;
     if (p.soft && (last === -1 || node[last] === undefined)) continue;
     if (last === -1 || (node[last] === undefined && !('set' in p))) throw new Error(`source-edits: ${p.deck} has nothing at ${p.at} (the 2D deck moved; look at this patch again)`);
+    if (p.moveAfter) {
+      // (a move is done when the item already stands right after its target; the target is a sibling, named like `at`: "slides.eus-ladder")
+      const tk = p.moveAfter.split('.').at(-1), ti = step(node, tk);
+      if (ti === -1 || node[ti] === undefined) throw new Error(`source-edits: ${p.deck} has nothing at ${p.moveAfter} to move ${p.at} after`);
+      if (ti !== last - 1 || last === -1) { const [item] = node.splice(last, 1); node.splice(step(node, tk) + 1, 0, item); }
+      continue;
+    }
     if (p.after) { if (!Array.isArray(node)) throw new Error(`source-edits: ${p.deck} ${p.at} is not in a list`); node.splice(last + 1, 0, p.set); }
     else if ('set' in p) node[last] = p.set;
     else if (p.drop) { if (Array.isArray(node)) node.splice(last, 1); else delete node[last]; }

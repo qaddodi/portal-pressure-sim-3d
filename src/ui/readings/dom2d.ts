@@ -1,6 +1,6 @@
 // The few 2D helpers the copied "From readings" files call (copied/*.copied.js, scripts/copy-from-readings.mjs), on the 3D app: util.js's element builder, icon, popover,
 // crossfades and announcer; ease.js's and motion.js's constants; prefs.js and caught.js. The flow's own markup, words and rules are the copies; this file is only what they
-// stand on. The "popover" here is the 3D menu (shell/Menu.tsx MenuPop, on the 2D `.menu.fr-pop` rules): FromReadings.tsx hands its body over with setPopoverHost.
+// stand on. The "popover" here is the 3D menu (the one menu shell, surface/Menu.tsx, on the 2D `.menu.fr-pop` rules): FromReadings.tsx hands its body over with setPopoverHost.
 // Nothing here asks for a frame: a swap is two opacity animations on the compositor (Web Animations).
 import { announce as say } from '../a11y/announce.ts';
 import { STORAGE_PREFIX } from '../../state/settings.ts';

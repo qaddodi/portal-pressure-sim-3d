@@ -3,6 +3,7 @@
 //   npm run gen:departures      (scripts/gen-engine-departures.mjs: one script per family, every deck, every slide)
 // A row is a departure when the engine differs from the 2D row by more than the family's tolerance; every other row stays the 2D app's. tests/engine-departures.test.ts holds all of it to its rules.
 import { readFileSync } from 'node:fs';
+import { inPlayOrder } from '../scripts/play-order.mjs';
 
 const read = (f: string) => JSON.parse(readFileSync(new URL(`./fixtures/${f}`, import.meta.url), 'utf8')) as { decks: Record<string, unknown> };
 
@@ -17,7 +18,10 @@ export const departures = (threeD: string): Record<string, unknown> => read(thre
 
 /** The H-to-P decks' numbers the way tests/decks-hp-numbers.test.ts reads them: 2D's, with the departed decks' rows from this engine. */
 export type HpRow = { id: string; fp: Record<string, number>; tokens: [string, string][] };
-export const hpNumbers = (): Record<string, HpRow[]> => withDepartures('decks-hp-numbers.json', 'decks-hp-numbers-3d.json');
+export const hpNumbers = (): Record<string, HpRow[]> => inPlayDecks(withDepartures<HpRow[]>('decks-hp-numbers.json', 'decks-hp-numbers-3d.json'));
+
+/** The 2D app's rows are in its slide order; a talk a review moved a slide of plays in its own order, and its rows are joined to it by slide id (scripts/play-order.mjs). */
+export const inPlayDecks = (decks: Record<string, HpRow[]>): Record<string, HpRow[]> => Object.fromEntries(Object.entries(decks).map(([id, rows]) => [id, inPlayOrder(id, rows)]));
 
 /** The Advanced physiology table the way tests/advanced.test.ts reads it: the 2D app's rows (the slice patient's base and each control at each end), the departed rows from this engine. */
 export type AdvancedFx = { preset: string; base: Record<string, number>; cases: { id: string; value: number | boolean; readings: Record<string, number> }[]; formats: Record<string, [number, string][]> };

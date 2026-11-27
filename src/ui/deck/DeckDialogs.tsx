@@ -1,9 +1,10 @@
-// The library's dialogs (a name, "Delete this script?", a link to copy by hand, the import box), one at a time, in the shell's own dialog frame. Esc and the scrim cancel.
+// The library's dialogs (a name, "Delete this script?", a link to copy by hand, the import box), one at a time, in the dialog shell (surface/Dialog.tsx). Esc and a press outside cancel.
 import { useEffect, useRef, useState } from 'react';
 import { useDialogs, closeDialog, type DeckDialog } from './dialogs.ts';
 import { addText } from '../talk/library.ts';
 import { W } from './words.ts';
 import { Icon } from '../shell/icons.tsx';
+import { Dialog } from '../surface/Dialog.tsx';
 
 function Body({ d }: { d: DeckDialog }) {
   const field = useRef<HTMLInputElement>(null);
@@ -45,19 +46,11 @@ export function DeckDialogs() {
   const d = useDialogs((s) => s.dialog);
   const last = useRef<DeckDialog | null>(null);
   if (d) last.current = d;   // (kept while it fades out, so it never blanks first)
-  useEffect(() => {
-    if (!d) return;
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); cancel(d); } };
-    window.addEventListener('keydown', key, true);
-    return () => window.removeEventListener('keydown', key, true);
-  }, [d]);
   const shown = d ?? last.current;
   return (
-    <>
-      <div className="sh-scrim" data-open={!!d} onPointerDown={() => d && cancel(d)} />
-      <div className="sh-dialog sh-dialog--deck" data-open={!!d} role="dialog" aria-modal="true" aria-label={shown ? ('title' in shown ? shown.title : W.copyDialogTitle) : undefined} inert={!d}>
-        {shown && <Body key={shown === d ? 'on' : 'off'} d={shown} />}
-      </div>
-    </>
+    <Dialog id="deck-dialog" size="s" open={!!d} label={shown ? ('title' in shown ? shown.title : W.copyDialogTitle) : W.copyDialogTitle} onCancel={() => { if (d) cancel(d); }}
+      className="sh-dialog sh-dialog--deck">
+      {shown && <Body key={shown === d ? 'on' : 'off'} d={shown} />}
+    </Dialog>
   );
 }

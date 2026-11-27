@@ -1,42 +1,34 @@
-// The case's guard on the page (docs/approved/play-the-case.md, screens mac-leave, phone-leave, phone-off): the question a course-changing step asks while a case plays, in the shell's own
-// dialog frame (Stay is the default), and, once the case is left, the line over the play bar that keeps the way back. Both stay in the page and fade; neither blanks before it goes.
-import { useEffect, useRef } from 'react';
+// The case's guard on the page (docs/approved/play-the-case.md, screens mac-leave, phone-leave, phone-off): the question a course-changing step asks while a case plays, in the dialog shell
+// (surface/Dialog.tsx; Stay is the default), and, once the case is left, the line over the play bar that keeps the way back. Both stay in the page and fade; neither blanks before it goes.
+import { useRef } from 'react';
 import { useGuard, stayInCase, leaveForStep, type Ask } from './guard.ts';
 import { useCase } from './store.ts';
 import { Icon } from '../shell/icons.tsx';
+import { Dialog } from '../surface/Dialog.tsx';
 import './guard.css';
 
-/** "Draining fluid changes this patient's course." with Leave and Stay. Esc and the scrim are Stay. */
+/** "Draining fluid changes this patient's course." with Leave and Stay. Esc and a press outside are Stay, and Stay has the focus. */
 export function CaseGuardDialog() {
   const ask = useGuard((s) => s.ask);
   const last = useRef<Ask | null>(null);
   // (kept while it fades out, so it never blanks first)
   if (ask) last.current = ask;
   const stay = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!ask) return;
-    stay.current?.focus({ preventScroll: true });
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); stayInCase(); } };
-    window.addEventListener('keydown', key, true);
-    return () => window.removeEventListener('keydown', key, true);
-  }, [ask]);
   const w = (ask ?? last.current)?.words;
   return (
-    <>
-      <div className="sh-scrim" data-open={!!ask} onPointerDown={() => { if (ask) stayInCase(); }} />
-      <div className="sh-dialog sh-dialog--deck cs-guard" data-open={!!ask} role="alertdialog" aria-modal="true" aria-label={w?.title} inert={!ask}>
-        {w && <>
-          <div className="cs-kicker">{w.kicker}</div>
-          <h2>{w.title}</h2>
-          <p>{w.body}</p>
-          {w.keep && <p>{w.keep}</p>}
-          <div className="sh-btns">
-            <button type="button" className="sh-btn cs-leave" onClick={leaveForStep}>{w.leave}</button>
-            <button type="button" ref={stay} className="sh-btn" data-primary="true" onClick={stayInCase}>{w.stay}</button>
-          </div>
-        </>}
-      </div>
-    </>
+    <Dialog id="case-guard" size="s" open={!!ask} role="alertdialog" label={w?.title ?? ''} onCancel={() => { if (ask) stayInCase(); }} initialFocus={stay}
+      className="sh-dialog sh-dialog--deck cs-guard">
+      {w && <>
+        <div className="cs-kicker">{w.kicker}</div>
+        <h2>{w.title}</h2>
+        <p>{w.body}</p>
+        {w.keep && <p>{w.keep}</p>}
+        <div className="sh-btns">
+          <button type="button" className="sh-btn cs-leave" onClick={leaveForStep}>{w.leave}</button>
+          <button type="button" ref={stay} className="sh-btn" data-primary="true" onClick={stayInCase}>{w.stay}</button>
+        </div>
+      </>}
+    </Dialog>
   );
 }
 

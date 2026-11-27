@@ -6,6 +6,8 @@ import { runFeature, type FeatureId } from './features.ts';
 import { goToView } from './view-actions.ts';
 import { useTests } from '../tests/store.ts';
 import { useTreat } from '../treat/store.ts';
+import { RecordStop } from '../capture/RecordIndicator.tsx';
+import { Fragment } from 'react';
 
 const ICON: Record<string, string> = { treat: 'pill', tests: 'gauge', search: 'search', layers: 'layers', settings: 'gear' };
 const FEATURE: Record<string, FeatureId> = { treat: 'treat', tests: 'tests' };
@@ -20,7 +22,9 @@ export function ThumbBar() {
       {UI.menus.thumbTabs.map((t) => {
         const sheetId = t.id === 'search' ? 'search' : t.id === 'settings' ? 'settings' : t.id === 'layers' ? 'layers' : null;
         return (
-          <button key={t.id} type="button" className="nb-tab" data-tab={t.id} data-opens={sheetId ?? undefined} aria-expanded={sheetId ? sheet === sheetId : undefined} aria-haspopup={sheetId ? 'dialog' : undefined} aria-pressed={t.id === 'tests' ? testsOpen : t.id === 'treat' ? treatOpen : undefined}
+          <Fragment key={t.id}>
+          {t.id === 'settings' ? <RecordStop tab /> : null}
+          <button type="button" className="nb-tab" data-tab={t.id} data-opens={sheetId ?? undefined} aria-expanded={sheetId ? sheet === sheetId : undefined} aria-haspopup={sheetId ? 'dialog' : undefined} aria-pressed={t.id === 'tests' ? testsOpen : t.id === 'treat' ? treatOpen : undefined}
             onClick={() => {
               // (Treat, Tests and Layers belong to the lobule and the anatomy: from the sinusoid view they first go back out to the lobule, and open there: 2D wireThumbBar outOfSin)
               if (view === 'sinusoid' && (t.id === 'treat' || t.id === 'tests' || t.id === 'layers')) goToView('lobule');
@@ -28,6 +32,7 @@ export function ThumbBar() {
             }}>
             <I n={ICON[t.id]} /><span className="nb-l">{t.label}</span>
           </button>
+          </Fragment>
         );
       })}
     </nav>
