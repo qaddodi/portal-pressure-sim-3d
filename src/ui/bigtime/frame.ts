@@ -203,7 +203,8 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
       items.push({ e, x: X(e.day), ls, w: Math.max(...ls.map((l) => measure(l, fs, wt))) });
     }
     const boxes: { n0: number; n1: number; a0: number; a1: number }[] = [];
-    // the band never takes more than 28% of the box: what does not fit in it folds into a "+N" tick (root cause of the squashed plot: a label with no free lift took any lift it needed, so the band ran to 44% of the box and the lanes were left 44 to 88 px)
+    // the band never takes more than 28% of the box: what does not fit in it folds into a "+N" tick.
+    // (root cause of the squashed plot: a label with no free lift took any lift it needed, so the band ran to 44% of the box and the lanes were left 44 to 88 px)
     const bandCap = Math.max(72, Math.round(H * 0.28));
     let band = 36;
     // a label goes in the first of a few lifts (two rows, in effect) where it overlaps no other; with `reach` unlimited it always goes in
@@ -260,7 +261,10 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   // the words an event line must pass behind, collected as they are set (the event lines are drawn after them)
   const blocks: { b: Block }[] = [];
   const fsH = fs * 0.85, fsD = fs * 0.3;
-  const blockText = (x: number, y: number, w: number, anchor: 'start' | 'end' | 'middle' = 'start'): void => { const xa = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2; blocks.push({ b: { x0: xa, x1: xa + w, y0: y - fsH, y1: y + fsD }, }); };
+  const blockText = (x: number, y: number, w: number, anchor: 'start' | 'end' | 'middle' = 'start'): void => {
+    const xa = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
+    blocks.push({ b: { x0: xa, x1: xa + w, y0: y - fsH, y1: y + fsD } });
+  };
   // zones, grids, cut-offs
   for (const g of geoLanes) {
     const Y = (v: number) => g.t + g.h - v / g.s.max * (g.h - TITLE_H);
@@ -350,15 +354,26 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   for (const p of placed) {
     const ink = toneInk(pal, p.e.tone), weight = p.e.tone === 'change' ? 600 : 500;
     if (!phone) { if (p.r >= 0) { say({ x: p.x, y: p.r * ROW_H + 12, s: p.e.label, color: ink, weight }); blockText(p.x, p.r * ROW_H + 12, p.w, 'start'); } }
-    else if (p.plus) { const y0 = top - 8 - (p.lift ?? 0); say({ x: p.xs ?? p.x, y: y0, s: `+${p.plus}`, color: t2, weight: 600, rot: -45, anchor: 'start' }); blocks.push({ b: { xs: p.xs ?? p.x, y0, w: measure(`+${p.plus}`, fs, 600), a: fsH, d: fsD } }); }
-    else if (p.r >= 0) (p.ls ?? []).forEach((l, i, a) => { const k = (a.length - 1 - i) * fs * 1.15 * Math.SQRT1_2, y0 = top - 8 - (p.lift ?? 0) - k; say({ x: (p.xs ?? p.x) - k, y: y0, s: l, color: ink, weight, rot: -45, anchor: 'start' }); blocks.push({ b: { xs: (p.xs ?? p.x) - k, y0, w: measure(l, fs, weight), a: fsH, d: fsD } }); });
+    else if (p.plus) {
+      const y0 = top - 8 - (p.lift ?? 0), pt = `+${p.plus}`;
+      say({ x: p.xs ?? p.x, y: y0, s: pt, color: t2, weight: 600, rot: -45, anchor: 'start' });
+      blocks.push({ b: { xs: p.xs ?? p.x, y0, w: measure(pt, fs, 600), a: fsH, d: fsD } });
+    }
+    else if (p.r >= 0) {
+      (p.ls ?? []).forEach((l, i, a) => {
+        const k = (a.length - 1 - i) * fs * 1.15 * Math.SQRT1_2, y0 = top - 8 - (p.lift ?? 0) - k, xs = (p.xs ?? p.x) - k;
+        say({ x: xs, y: y0, s: l, color: ink, weight, rot: -45, anchor: 'start' });
+        blocks.push({ b: { xs, y0, w: measure(l, fs, weight), a: fsH, d: fsD } });
+      });
+    }
   }
   // event lines (behind the traces), then the traces
   shapes.push({ k: 'clip', x: L, y: 0, w: plotW, h: bottom + 1 });
   for (const p of placed) {
     const ink = toneInk(pal, p.e.tone), line0 = p.plus ? top - 8 - (p.lift ?? 0) : p.r < 0 ? top - 6 : phone ? top - 8 - (p.lift ?? 0) - Math.max(0, p.x - (p.xs ?? p.x)) : p.r * ROW_H + 14;
     const x = X(p.e.day), pn = pen(pal.alpha(ink, p.e.tone === 'change' ? 0.85 : 0.55), p.e.tone === 'change' ? 1.6 : 1);
-    // the line passes behind every word but its own (its own word included: a label set against the box's edge lies across its own line): it is drawn in the pieces no word covers, so no word is ever struck through
+    // the line passes behind every word, its own included (a label set against the box's edge lies across its own line):
+    // it is drawn in the pieces no word covers, so no word is ever struck through
     const others = blocks.map((k) => k.b);
     for (const [ya, yb] of lineRuns(x, Math.max(2, line0), bottom, others)) shapes.push({ k: 'line', x1: x, y1: ya, x2: x, y2: yb, pen: pn });
   }
