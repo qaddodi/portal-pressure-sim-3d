@@ -89,7 +89,7 @@ export const framePart = scenePart<CelScene>()({
         if (skinPending) clock.invalidate(SKIN_BUILD_TAG);
         return anyMoving(this.skins?.sync() ?? false, skinPending, this.circuitSkins?.sync() ?? false, this.sutures?.sync(this.skins) ?? false);   // (only an arm whose own fade, highlight, lens position or colour changed reaches its skin)
       } },
-      { id: 'micro', step: ({ now }) => {
+      { id: 'micro', step: ({ now, dt }) => {
         this.stepSinusDive();
         this.stepCutaway();
         this.stepPortrait();
@@ -102,7 +102,8 @@ export const framePart = scenePart<CelScene>()({
         if (this.microReady) this.sinus3d.setLobuleTop(this.lobule3d.diveTopZ());
         const sin3 = this.microReady && this.sinus3d.update(this.micro3d, this.flowRate.value);
         if (this.microReady) this.micro!.sinus.holdScale(this.rig.camera.position);
-        return anyMoving(lob3, sin3, lobMoving, sinMoving);
+        const blood = this.stepDiveBlood(dt);
+        return anyMoving(lob3, sin3, lobMoving, sinMoving, blood);
       } },
       { id: 'procedures', step: ({ now }) => {
         const procMoving = this.procs.update(now);

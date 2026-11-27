@@ -129,6 +129,8 @@ interface Coloured {
   to?: Float32Array; from?: Float32Array;
   /** Each vertex's place across its vessel (-1 .. 1), and the junction skins' arms (the stream lenses lay their streams by them: lobule/ink.ts inkAcross). */
   ac?: Float32Array; skins?: SkinInk[];
+  /** Where each course's vertices lie in the part (course key, first vertex, one past the last): the dive's tube tone lifts one course. */
+  ranges?: Map<string, [number, number]>;
 }
 
 const quant = (s: PlateState): PlateState => { const q = (x: number) => Math.round(clamp(x, 0, 1) * 32) / 32; return { congU: q(s.congU), septU: q(s.septU), fibSin: q(s.fibSin), act: q(s.act), fibPre: q(s.fibPre), fibPost: q(s.fibPost) }; };
@@ -239,6 +241,8 @@ export class Lobule3D {
   private readonly cvScar: MicroPart;
   private cvScarBase = '';
   private readonly coloured: Coloured[] = [];
+  /** The dive's anticipation (setTubeLift): the course whose tone is lifted, by how much (0 to 1 of the way to white), and the part's vertex colours it is written in. */
+  private tubeLift = { key: '', amount: 0 };
   /** The welded junctions laid into the vessels now (lobule/welds.ts), and a plan that has come from the worker and waits for the Lobule to be out of sight. */
   private weldPlan: WeldPlan | null = null;
   private pendingWelds: WeldPlan | null = null;
@@ -560,9 +564,36 @@ export class Lobule3D {
       const arr = col.array as Float32Array, to = e.to, from = this.inkFade.moving && e.from?.length === arr.length ? e.from : null;
       if (from) for (let i = 0; i < arr.length; i++) arr[i] = from[i]! + (to[i]! - from[i]!) * k;
       else arr.set(to);
+      // (the lifted course keeps its lift through a lens change or a rewrite of the colours)
+      if (this.tubeLift.amount > 0) this.liftRange(e, arr, arr, this.tubeLift.key, this.tubeLift.amount);
       col.needsUpdate = true;
     }
     return this.inkFade.moving;
+  }
+  /** The tone of one sinusoid course lifted a little toward lighter, in its own lens colour (owner, 27 Nov: "one anchor the eye rides through the zoom"): as a dive toward the sinusoid starts, the
+   *  tube the camera is going into brightens by `amount` (0 to 1 of the way to white), easing back as the sinusoid lands. `key` is the course's `${kind}${id}`; 0 puts the lens's own colour back.
+   *  Written into the part's vertex colours (the same buffer the lens's colours go to), only for that course's vertices, and only when the amount changes. */
+  setTubeLift(key: string, amount: number): void {
+    const was = this.tubeLift, a = Math.min(1, Math.max(0, amount));
+    if (was.key === key && Math.abs(was.amount - a) < 1e-4) return;
+    const old = was.key;
+    this.tubeLift = { key, amount: a };
+    for (const e of this.coloured) {
+      if (!e.to || !e.ranges) continue;
+      const col = e.part.geometry.getAttribute('color') as BufferAttribute | undefined;
+      if (!col) continue;
+      // (a lens fade in flight rewrites the whole colour each step, lift included: nothing to do here then)
+      if (this.inkFade.moving) { col.needsUpdate = true; continue; }
+      if (old !== key && e.ranges.has(old)) this.liftRange(e, col.array as Float32Array, e.to, old, 0);
+      if (e.ranges.has(key)) this.liftRange(e, col.array as Float32Array, e.to, key, a);
+      col.needsUpdate = true;
+    }
+  }
+  /** The part's colours for one course's vertices: `from`'s colour taken `amount` of the way to white, into `arr`. */
+  private liftRange(e: Coloured, arr: Float32Array, from: Float32Array, key: string, amount: number): void {
+    const r = e.ranges?.get(key);
+    if (!r) return;
+    for (let i = r[0] * 3; i < r[1] * 3; i++) { const c = from[i]!; arr[i] = c + (1 - c) * amount; }
   }
   private inkLens: LensId | null = null;
   private readonly inkFade = new LensFade();
@@ -886,11 +917,12 @@ export class Lobule3D {
     this.coloured.length = 0;
     const by = (...k: Course['kind'][]) => net.courses.filter((c) => k.includes(c.kind));
     type Alt = { seg2: Seg; w2: number[]; m: number[] };
-    const coloured = function* (part: MicroPart, b: MeshBuilder, seg: Seg | null, w: number[], k: number[], alt?: Alt, ink?: { ac?: number[]; skins?: SkinInk[] }): Generator<void> {
+    type InkData = { ac?: number[]; skins?: SkinInk[]; ranges?: Map<string, [number, number]> };
+    const coloured = function* (part: MicroPart, b: MeshBuilder, seg: Seg | null, w: number[], k: number[], alt?: Alt, ink?: InkData): Generator<void> {
       yield* b.buildSteps(part.geometry, pace);
       done.push({
         part, seg, w: Float32Array.from(w), k: Float32Array.from(k), ...(alt ? { seg2: alt.seg2, w2: Float32Array.from(alt.w2), m: Float32Array.from(alt.m) } : {}),
-        ...(ink?.ac ? { ac: Float32Array.from(ink.ac) } : {}), ...(ink?.skins?.length ? { skins: ink.skins } : {}),
+        ...(ink?.ac ? { ac: Float32Array.from(ink.ac) } : {}), ...(ink?.skins?.length ? { skins: ink.skins } : {}), ...(ink?.ranges ? { ranges: ink.ranges } : {}),
       });
     };
     // the welded tubes (lobule/welds.ts): each course's kept stretches, then the skin of every junction whose host it is, written with the same per-vertex numbers the unwelded tubes have
@@ -899,7 +931,7 @@ export class Lobule3D {
       // (ac, skins: each vertex's place across and the junctions' arms, for the stream lenses)
       const d: PartData = {
         b: new MeshBuilder(), W: [], K: [], ir: [], ac: [], skins: [],
-        ...(withSwell ? { sw: [] as number[] } : {}), ...(alt ? { W2: [] as number[], M: [] as number[] } : {}),
+        ...(withSwell ? { sw: [] as number[] } : {}), ...(alt ? { W2: [] as number[], M: [] as number[] } : {}), ranges: new Map<string, [number, number]>(),
       };
       const keys = new Set(cs.map((c) => `${c.kind}${c.id}`));
       const opts = (out: WeldCourseOut): EmitOpts => ({
@@ -907,7 +939,12 @@ export class Lobule3D {
         // (no marks just outside the central vein, where the sinusoids pour into it)
         marksAt: (o, i) => !(withSwell && Math.hypot(o.pts[i]![0], o.pts[i]![1]) / R < DISC_R.cv * 1.6),
       });
-      for (const c of cs) { emitCourse(d, plan!.courses.get(`${c.kind}${c.id}`)!, opts(plan!.courses.get(`${c.kind}${c.id}`)!)); if (pace.due()) yield; }
+      for (const c of cs) {
+        const v0 = d.b.count;
+        emitCourse(d, plan!.courses.get(`${c.kind}${c.id}`)!, opts(plan!.courses.get(`${c.kind}${c.id}`)!));
+        d.ranges!.set(`${c.kind}${c.id}`, [v0, d.b.count]);
+        if (pace.due()) yield;
+      }
       for (const sk of plan!.skins) if (keys.has(sk.host)) { emitSkin(d, sk, plan!.courses, opts(plan!.courses.get(sk.host)!), (key) => family(kindOf.get(key)!)); if (pace.due()) yield; }
       return d;
     };
