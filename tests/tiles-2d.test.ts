@@ -22,7 +22,7 @@ const nums = JSON.parse(readFileSync(new URL('./fixtures/decks-hp-numbers.json',
 /** The tiles whose rating is not the 2D table's (src/ui/cards/ratings.ts). */
 /** Tiles the owner asked for beyond the 2D slide's (W14, 27 Nov 2026): deck/slide -> tile keys. */
 const ADDED_TILES: Record<string, string[]> = { 'outflow/web': ['ivc'] };
-const OWN_RATING: ReadonlySet<string> = new Set(['pv', 'whvp', 'sin', 'plt', 'pvFlow', 'hvpgFall', 'hvpg', 'eus']);
+const OWN_RATING: ReadonlySet<string> = new Set(['pv', 'whvp', 'sin', 'plt', 'pvFlow', 'fhvp', 'ra', 'ivc', 'hvpgFall', 'hvpg', 'eus']);
 
 /** Equal, but for the positions on a bar (percent of its width): the fixture keeps the 2D numbers to six digits, so a position may differ in the fourth decimal. */
 function same(a: unknown, b: unknown, at: string): void {
