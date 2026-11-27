@@ -199,7 +199,8 @@ export function geJunction(geo: BufferGeometry): GeJunction {
   return { centre, radius, entry, normal, into, axis, clearance };
 }
 
-/** The junction as drawn when the organ's mesh is moved along z by `dz` (organs/z.ts ORGAN_Z: 0 for every organ today, so this returns `j` itself): every point and the clearance field move with it. */
+/** The junction as drawn when the organ's mesh is moved along z by `dz` (organs/z.ts ORGAN_Z: 0 for every organ today, so this
+ *  returns `j` itself): every point and the clearance field move with it. */
 export function liftJunction(j: GeJunction, dz: number): GeJunction {
   if (!dz) return j;
   const up = (p: V3): V3 => [p[0], p[1], p[2] + dz];
