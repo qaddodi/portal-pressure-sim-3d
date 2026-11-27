@@ -7,6 +7,7 @@ import { settle } from './app.ts';
 import { speedOf } from './speed.ts';
 import { unpackPick } from './capture-pick.ts';
 import { parseCases, whatOf } from './capture-cases-plan.ts';
+import { splitKeys } from '../promo/slides.ts';
 import { promoRatio, preparePromo } from './promo-prep.ts';
 import { clock } from '../../../clock/frame.ts';
 
@@ -55,6 +56,7 @@ export function mountCaptureChild(): void {
         const what = whatOf({ cases: !!cases, slides: flagValue('slides'), pick: !!pick, decks: decks.length > 0 });
         const r = await m.runCapture({
           what, cases, looks: flagValue('looks') !== '0',
+          extras: ratio ? splitKeys((flagValue('extras') ?? '').split(',').map((x) => x.trim()).filter(Boolean)).extras : undefined,
           decks: decks.length ? new Set(decks) : null, pick, speed: speed > 1 ? speed : undefined, promo: ratio ? { ratio } : undefined,
           status: (s) => { text = s; }, stop: () => stop,
           progress: (n, total) => post({ capture: 'progress', text, n, total }),

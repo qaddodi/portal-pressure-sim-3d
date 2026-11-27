@@ -14,7 +14,7 @@ import { openSession, idbBackend, type Session } from '../audit/capture-store.ts
 import { recoverUi } from '../audit/capture-recover.ts';
 import { deliverUi } from '../audit/capture-deliver.ts';
 import { layoutFor, drawComposite, FRAME_KIND, FRAME_SAFE, type Brand } from './frames.ts';
-import { PROMO_SIZES, PROMO_RATIO, PROMO_SLIDES, parseSlides, slidesText, promoName } from './slides.ts';
+import { PROMO_SIZES, PROMO_RATIO, PROMO_SLIDES, PROMO_EXTRAS, parseSlides, slidesText, promoNameOf, baseOf, splitKeys } from './slides.ts';
 
 /** The app's name as it stands on the pictures. */
 export const BRAND_NAME = 'Portal Pressure Simulator';
@@ -23,9 +23,11 @@ const SILENT_MS = 300000;
 /** The address of the app inside a frame: the capture child's (`?audit=capture`) with the promotion flags; the promotion page's own flags are dropped, any other kept. */
 // (`safe`: the device's safe edges, top, right, bottom, left in CSS px, frames.ts FRAME_SAFE: the app in the frame lays out round the island and home bar as on the device; none when all are 0)
 export function promoSrc(pathname: string, search: string, o: { keys: string[]; ratio: number; safe?: readonly number[] }): string {
-  const rest = queryWithout(search, ['promotion', 'audit', 'sizes', 'pick', 'speed', 'promo', 'decks', 'only', 'depth', 'parallel', 'safe']);
+  const rest = queryWithout(search, ['promotion', 'audit', 'sizes', 'pick', 'extras', 'speed', 'promo', 'decks', 'only', 'depth', 'parallel', 'safe']);
   const safe = o.safe && o.safe.some((n) => n > 0) ? `&safe=${o.safe.join(',')}` : '';
-  return `${pathname}?audit=capture&promo=${o.ratio}${safe}&pick=${packPick(o.keys)}${rest ? `&${rest}` : ''}`;
+  // (the slides of the talks go in `pick`, a case at a stop and the menu's screens in `extras`; a run of extras alone has no `pick`, so the frame does not take every slide)
+  const { slides, extras } = splitKeys(o.keys);
+  return `${pathname}?audit=capture&promo=${o.ratio}${safe}${slides.length ? `&pick=${packPick(slides)}` : ''}${extras.length ? `&extras=${extras.join(',')}` : ''}${rest ? `&${rest}` : ''}`;
 }
 /** The sizes an address names (`sizes=mac,iphone`), or all three. */
 export function promoSizes(v: string | null): string[] {
@@ -63,10 +65,10 @@ export function bootPromotion(doc: Document = document, win: Window = window): v
   const st = doc.createElement('style'); st.textContent = CSS; doc.head.append(st); doc.title = 'Promotion pictures';
   const mk = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = doc.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
   const bar = mk('div', 'pr-bar'), room = mk('div', 'pr-room'), out = mk('div', 'pr-out'), side = mk('div', 'pr-side');
-  const status = mk('div', 'pr-status', 'Slides, one to a line as deck:number (the first slide of a talk is 1). Choose iPhone, iPad or Mac, then press Make pictures. Keep this tab in front.');
+  const status = mk('div', 'pr-status', 'One picture to a line: deck:number, history:<case>[:<stop>] or overview[:tab]. Choose a device, press Make pictures, keep this tab in front.');
   status.setAttribute('role', 'status');
-  const box = doc.createElement('textarea'); box.spellcheck = false; box.setAttribute('aria-label', 'Slides to capture');
-  const asked = parseSlides((flagValue('pick') ?? '').split(',').join('\n'));
+  const box = doc.createElement('textarea'); box.spellcheck = false; box.setAttribute('aria-label', 'Pictures to capture');
+  const asked = parseSlides([flagValue('pick') ?? '', flagValue('extras') ?? ''].join(',').split(',').join('\n'));
   box.value = asked.keys.length ? asked.keys.join('\n') : slidesText();
   // which device: one of the three, or all three at once (the address's `sizes=` starts it on that choice)
   const first = promoSizes(flagValue('sizes'));
@@ -109,15 +111,15 @@ export function bootPromotion(doc: Document = document, win: Window = window): v
   const framer = (id: string) => async (fs: ZipFile[]): Promise<void> => {
     const c = ctx!, byName = new Map(fs.map((f) => [f.name, f.data])), label = FRAME_DEVICES[id]!.label;
     for (const [i, key] of c.keys.entries()) {
-      const [deck, num] = key.split(':') as [string, string], png = byName.get(`${deck}-${num}.png`);
+      const base = baseOf(key), png = byName.get(`${base}.png`);
       if (!png) continue;
       c.tried.add(`${id}|${key}`);
       let title = '';
-      try { title = String((JSON.parse(new TextDecoder().decode(byName.get(`${deck}-${num}.json`))) as { title?: string }).title ?? ''); } catch { /* no state file: the name has no title */ }
+      try { title = String((JSON.parse(new TextDecoder().decode(byName.get(`${base}.json`))) as { title?: string }).title ?? ''); } catch { /* no state file: the name has no title */ }
       say(id, `${label}: framing ${key}`);
       const jpg = await compose(id, png, c.brand);
       if (!jpg) { c.notes.push(`${label}: ${key} could not be framed`); continue; }
-      const name = promoName(i + 1, deck, Number(num), title, id);
+      const name = promoNameOf(i + 1, key, title, id);
       await c.session.add([{ name: `${id}/${name}`, data: new Uint8Array(await jpg.arrayBuffer()) }]);
       const fig = mk('figure'), im = doc.createElement('img'), cap = mk('figcaption', '', `${id}/${name}`);
       im.src = URL.createObjectURL(jpg); im.alt = title; fig.append(im, cap); out.append(fig);
@@ -174,8 +176,8 @@ export function bootPromotion(doc: Document = document, win: Window = window): v
   async function run(): Promise<void> {
     if (running) return;
     const { keys, bad } = parseSlides(box.value), ids = chosen();
-    if (bad.length) { status.textContent = `These are not deck:number, so nothing was made: ${bad.join(', ')}`; return; }
-    if (!keys.length) { status.textContent = 'Type at least one slide, as deck:number.'; return; }
+    if (bad.length) { status.textContent = `These are not deck:number, history:<case>[:<stop>] or overview[:<tab>], so nothing was made: ${bad.join(', ')}`; return; }
+    if (!keys.length) { status.textContent = 'Type at least one picture, as deck:number, history:<case>[:<stop>] or overview.'; return; }
     running = true; stop = false; stopAt = -1; deliver.clear(); go.disabled = true; room.textContent = ''; out.textContent = ''; lines.clear();
     const at = new Date(), enc = new TextEncoder(), notes: string[] = [], build = commitOf(import.meta.env.VITE_BUILD) || 'local';
     const zipName = `portal-pressure-promotion-${build}-${at.getTime()}.zip`;
@@ -183,7 +185,7 @@ export function bootPromotion(doc: Document = document, win: Window = window): v
       const brand = await brandNow(doc);
       // (every picture is framed and written to the device's storage as its talk ends, and the page keeps only the names: the same store as the capture page, so a page the browser ends keeps the run)
       const session = await openSession(await idbBackend().catch(() => null), {
-        startedAt: at.toISOString(), build, words: `promotion pictures: ${keys.length} slides at ${ids.join(', ')}`, sizes: ids, zipName,
+        startedAt: at.toISOString(), build, words: `promotion pictures: ${keys.length} pictures at ${ids.join(', ')}`, sizes: ids, zipName,
       });
       const c: Ctx = { session, brand, keys, first: ids[0]!, made: [], tried: new Set(), notes };
       ctx = c;
@@ -202,7 +204,7 @@ export function bootPromotion(doc: Document = document, win: Window = window): v
         for (const key of keys) if (!c.tried.has(`${id}|${key}`)) notes.push(`${label}: ${key} was not captured`);
       }
       if (session.degraded) notes.push(`NOTE: the device's storage would not take the pictures (${session.degraded}); they were held in memory, and a crash would lose them`);
-      const why = new Map(PROMO_SLIDES.map((s) => [`${s.deck}:${s.slide}`, s.why]));
+      const why = new Map([...PROMO_SLIDES.map((s) => [`${s.deck}:${s.slide}`, s.why] as const), ...PROMO_EXTRAS.map((x) => [x.key, x.why] as const)]);
       const made = [...c.made].sort((a, b) => a.n - b.n);
       const list = made.flatMap((m) => [`${String(m.n).padStart(2, '0')}. ${m.key}  ${m.title}`, why.has(m.key) ? `    ${why.get(m.key)}` : ''].filter(Boolean));
       const readme = [

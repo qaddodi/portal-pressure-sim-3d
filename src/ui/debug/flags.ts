@@ -22,6 +22,7 @@ export const FLAGS: readonly Flag[] = Object.freeze([
   { id: 'promotion', group: 'Pages', gate: 'local', meaning: 'The promotion pictures on a Mac (src/ui/debug/promo, docs/debug.md): ?promotion&pick=lobule:4&sizes=mac,iphone.' },
   { id: 'safe', group: 'Pages', gate: 'local', meaning: "A framed phone's safe edges, px (safe=47,0,34,0)." },
   { id: 'promo', group: 'Pages', gate: 'local', meaning: "The promotion capture frame's pixel ratio (audit=capture&promo=3)." },
+  { id: 'extras', group: 'Pages', gate: 'local', meaning: 'The promotion frame\'s pictures that are not slides (extras=history:hist-bleed:3,overview:patients): a case at a stop, the menu.' },
   { id: 'sizes', group: 'Pages', gate: 'local', meaning: 'The self-test frames: which sizes (comma list of device ids: iphone, ipad-portrait, ipad, mac, mac-short, iphone-landscape).' },
   { id: 'parallel', group: 'Pages', gate: 'local', meaning: 'The self-test frames: parallel=1 runs every size at once (faster; frame rates and timings are then not valid).' },
   { id: 'depth', group: 'Pages', gate: 'local', meaning: 'The self-test: depth=quick walks the views, three slides of every talk and the collateral patients; depth=full (the default) walks everything.' },

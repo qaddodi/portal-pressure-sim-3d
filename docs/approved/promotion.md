@@ -17,3 +17,5 @@ What it is: `/preview/?promotion` (`src/ui/debug/promo`, how to use it in `docs/
 ## The set
 
 Twenty slides are proposed (`src/ui/debug/promo/slides.ts`, with a reason each), chosen for teaching value and for how the figure looks: the circulation, the lobule, the measurements, the pressure circuit, the bleeds, the shunts and the patient's story. The box on the page takes any other list as `deck:number`.
+
+Five more pictures are proposed beside them (`PROMO_EXTRAS`): three cases at a stop (`history:hist-bleed-tips`, `history:hist-ascites:4`, `history:hist-hcv`) and the menu (`overview`, `overview:histories`). They are framed exactly as a slide is; only what is on the screen differs. Proposed, waiting for Mohammad's yes (27 Nov 2026).
