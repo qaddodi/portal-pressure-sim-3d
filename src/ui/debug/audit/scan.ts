@@ -35,7 +35,7 @@ export interface RawScan {
 const r1 = (v: number) => Math.round(v * 10) / 10;
 const MAX_ITEMS = 2600, MAX_HIT = 900;
 /** A layer that covers the page on purpose (a sheet, a menu, the cover): what it hides is not a bug. */
-const MODAL = '[role="dialog"], [aria-modal="true"], .sh-pop, .pz-cover, #preview-badge';
+const MODAL = '[role="dialog"], [aria-modal="true"], .pz-cover, #preview-badge';
 
 /** A computed colour as 'rgba(r, g, b, a)' (0-255), or null for a form this cannot read (color-mix and friends come back as color(srgb r g b / a)). */
 export function normColour(c: string): string | null {

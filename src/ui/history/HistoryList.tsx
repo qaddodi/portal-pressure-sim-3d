@@ -23,7 +23,7 @@ import { stripScene, stripAxis, stripReading, STRIP_METRICS, type StripMetric } 
 import { STORY } from '../timeline/story-words.ts';
 import { chaptersOf, isHistory } from '../histories/meta.ts';
 import { fmt } from '../charts/fmt.ts';
-import { isThumb } from '../shell/thumb.ts';
+import { sheetMode } from '../surface/mode.ts';
 import { useUi } from '../ui-store.ts';
 import { useCase } from '../case/store.ts';
 import { playCase, showInCase } from '../case/doors.ts';
@@ -81,7 +81,7 @@ function Acts({ m, here }: { m: Moment; here: boolean }) {
   return (
     <div className="hs-acts">
       {/* (while a case plays, the figure goes to that moment's stop and the case waits there: case/doors.ts) */}
-      {go >= 0 && <button type="button" className="hs-go" onClick={() => { if (isThumb()) leaveHistory(); if (!showInCase(go, m.day)) timeline.goTo(go); }}>{STORY.show}</button>}
+      {go >= 0 && <button type="button" className="hs-go" onClick={() => { if (sheetMode()) leaveHistory(); if (!showInCase(go, m.day)) timeline.goTo(go); }}>{STORY.show}</button>}
       {pin && <Compare e={pin} />}
     </div>
   );
@@ -200,7 +200,7 @@ function Strip({ v, metric, day, setMetric }: { v: View; metric: StripMetric; da
 function PlayCase() {
   const preset = useEngine((s) => s.presetId), playing = useCase((s) => s.phase === 'stop' || s.phase === 'travel');
   const id = preset && isHistory(preset) ? preset : null;
-  const play = () => { if (id) void playCase(id).then((ok) => { if (ok && isThumb()) leaveHistory(); }); };
+  const play = () => { if (id) void playCase(id).then((ok) => { if (ok && sheetMode()) leaveHistory(); }); };
   return (
     <Fade as="div" axis="y" className="hs-case" on={!!id && !playing}>
       <span className="hs-case-row"><button type="button" className="btn sm primary" onClick={play}><I n="play" className="mi-ic" />{STORY.play}</button></span>

@@ -20,7 +20,7 @@ import { HelpRows } from '../shell/HelpSheets.tsx';
 import { HistoryList } from '../history/HistoryList.tsx';
 import { HIST } from '../history/words.ts';
 import { I } from '../shell/icons.tsx';
-import { usesBottomBar } from '../shell/room.ts';
+import { barRowsInSettings } from '../shell/room.ts';
 import { FULLSCREEN, CAPTURE, RECORD } from '../shell/words.ts';
 import { useRecording, recordAvailable, toggleRecording, warmRecording, recordRow } from '../capture/record-model.ts';
 import { feedbackEmail } from '../shell/feedback.ts';
@@ -207,7 +207,7 @@ function FigureMore() {
 
 export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
   const talk = useTalkOn();
-  const phone = usesBottomBar(useUi((s) => s.device));
+  const phone = barRowsInSettings(useUi((s) => s.device));
   const label = UI.topbar.find((t) => t.id === 'btnSettings')!.label!;
   // History and Help are pages inside this menu (2D menu recs P4): they slide in over the rows with a back row, and the menu stays open
   const [pageId, setPageId] = useState<PageId | null>(null);

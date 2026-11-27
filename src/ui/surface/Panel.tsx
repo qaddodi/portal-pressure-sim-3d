@@ -5,6 +5,7 @@
 //   - the box it publishes to the one room channel (room.ts), from its own measured height, so the figure pans aside, the names keep off it and the zoom pill steps aside;
 //   - the one open and close motion (panel.css: in from its column's edge by --panel-in and faded over the leave time of a panel, motion.ts leaveCss), always in the page;
 //   - the stacking: the newest panel above (the open order, wire.ts usePanelOrder), every menu and dialog above every panel;
+//   - the role (a non-modal dialog, kinds.ts PANEL_ROLE) and the full-width chart's place: its own card's box, no room taken (it covers the figure);
 //   - NO close on a press outside (owner, 27 Nov, section 6 question 1: you work on the figure while a panel is open); Esc, its X, its opener and the slot table close it.
 // The mount point is the caller's: every panel is put inside #app through the cards' SheetClip (shell/InApp.tsx), where the lifted 2D stylesheets reach it.
 // Sheet mode (a phone, an upright iPad) is the panel's own as before: the shell adds nothing there.
@@ -54,7 +55,7 @@ export function ShellPanel({ id, label, head, children }: { id: 'history' | 'com
   const sheet = useFrameSheet(id, ref, open);
   useSheetSwipe(ref, close, sheetMode, !sheet);
   return (
-    <Panel ref={ref} id={id} open={open} className="sh-sheet" data-kind={id} data-place="top" data-sheet={sheet?.data} style={sheet?.style} role="dialog" aria-label={label}>
+    <Panel ref={ref} id={id} open={open} className="sh-sheet" data-kind={id} data-place="top" data-sheet={sheet?.data} style={sheet?.style} aria-label={label}>
       {sheet ? <SheetGrab label={`Resize ${label}`} onGrab={sheet.grab} /> : <GrabBar />}
       <PanelHead title={head ?? label} closeLabel={`Close ${label}`} onClose={close} />
       <div className={`sh-sheet-body${sheet ? ' sf-body' : ''}`}>{children}</div>

@@ -35,5 +35,9 @@ export const isPanel = (id: string): id is PanelId => id in SURFACES && SURFACES
 /** Whether a press outside the surface closes it: a menu's and a dialog's do, a panel's never does (the figure under it is what you work on). */
 export const closesOnOutsidePress = (id: SurfaceId): boolean => kindOf(id) !== 'panel';
 
+/** The accessible role a panel's box wears: a dialog that is not modal (the figure stays live under it). The shells set it (surface/wire.ts usePanelShell); the Tests card,
+ *  which keeps its own place rule, spreads it from here, so no surface outside src/ui/surface/ writes a dialog role of its own (lint surface-outside-shell). */
+export const PANEL_ROLE = 'dialog';
+
 /** Whether the surface takes room from the figure (the camera frames the figure in what the panels leave). */
 export const takesRoom = (id: SurfaceId): boolean => kindOf(id) === 'panel';

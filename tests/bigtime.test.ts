@@ -436,7 +436,7 @@ test('root cause (a phone\'s What to graph / What happened could not scroll or b
   const card = readFileSync(new URL('../src/ui/bigtime/TimelineCard.tsx', import.meta.url), 'utf8'), hap = readFileSync(new URL('../src/ui/bigtime/Happened.tsx', import.meta.url), 'utf8');
   assert.ok(/useSheetSwipe\(side, \(\) => set\(\{ raised: false \}\), \(\) => compact && raised\)/.test(card), 'a pull down closes the panel');
   assert.ok(/addEventListener\('pointerdown', keep\)/.test(card) && /addEventListener\('touchstart', keep/.test(card), 'the card around it does not take the touch');
-  assert.ok(/sh-grabbar/.test(card) && /scroll=\{compact\}/.test(card), 'the grab bar, and the list scrolls on a phone');
+  assert.ok(/\{compact && <GrabBar \/>\}/.test(card) && /scroll=\{compact\}/.test(card), 'the grab bar, and the list scrolls on a phone');
   assert.ok(/const per = scroll \? Math\.max\(1, rows\.length\)/.test(hap), 'one page of every row when it scrolls');
 });
 

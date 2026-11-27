@@ -39,14 +39,6 @@
 .sh-pill[disabled] { opacity: 0.45; cursor: default; }
 .sh-pill[data-off="true"] { color: var(--text-3); }
 
-/* ── popovers (anchored to their button, always in the page) ── */
-.sh-pop { position: fixed; z-index: 30; overflow-y: auto; overscroll-behavior: contain; min-width: 260px; max-width: min(360px, calc(100vw - 24px)); padding: 8px; border-radius: var(--r-sheet); border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
-  box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 16px 40px -12px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2));
-  opacity: 0; visibility: hidden; transform: translateY(var(--sh-from, -6px)); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
-.sh-pop[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
-.sh-pop[data-place="below"] { top: calc(100% + var(--sh-gap)); }
-.sh-pop[data-place="above"] { bottom: calc(100% + var(--sh-gap)); --sh-from: 6px; }
-.sh-pop[data-align="start"] { left: 0; } .sh-pop[data-align="end"] { right: 0; } .sh-pop[data-align="center"] { left: 50%; margin-left: calc(var(--sh-w, 280px) / -2); }
 .sh-title { margin: 6px 10px 4px; font: 600 var(--t-cap) / 1 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
 .sh-row { width: 100%; display: grid; grid-template-columns: 24px 1fr auto; column-gap: 12px; align-items: center; min-height: 44px; padding: 8px 10px; border: 0; border-radius: var(--r-card); background: transparent; text-align: left; font: 500 var(--t-body) / 1.25 var(--ui); color: var(--text); }
 .sh-row:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
@@ -62,7 +54,7 @@
 .sh-seg-row button { flex: 1; min-height: 44px; border-radius: var(--r-card); border: 1px solid var(--edge); background: transparent; font: 600 var(--t-body) / 1 var(--ui); color: var(--text-2); }
 .sh-seg-row button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); border-color: transparent; }
 
-/* ── sheets: the main menu, Settings, Search, Help (a panel on a laptop, a sheet from the foot on a phone) ── */
+/* ── the shell's plain panels (History, Compare, Why: surface/Panel.tsx ShellPanel) and the timeline chart: a panel on a laptop, a sheet from the foot on a phone ── */
 .sh-sheet { position: absolute; z-index: 3; display: flex; flex-direction: column; overflow: hidden; pointer-events: auto; border: 1px solid var(--edge); background: var(--surface); border-radius: var(--r-sheet);
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 24px 56px -16px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2.2));
   opacity: 0; visibility: hidden; transform: translateY(12px); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small), translate var(--d-small) var(--ease-arrive);
@@ -78,12 +70,7 @@
 .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-sheet="peek"] { max-height: var(--sf-peek); }
 /* (the first shadow is the sheet's tail, surface/sheet-pull.ts: its paper reaches down past its foot while a pull lifts it, so no gap shows under it) */
 .sh-root[data-bottom="true"][data-mode="free"][data-device="phone-landscape"] .sh-sheet { max-height: 86%; }
-.sh-sheet-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px 18px; }
-.sh-sheet-head h2 { flex: 1; margin: 0; font: 600 var(--t-val) / 1.2 var(--display); }
 .sh-sheet-body { padding: 4px 8px 12px; overflow: hidden auto; overscroll-behavior: contain; }
-.sh-x { width: 36px; height: 36px; border-radius: 50%; border: 0; background: transparent; display: grid; place-items: center; color: var(--text-2); position: relative; }
-.sh-x::after { content: ''; position: absolute; inset: -4px; }   /* (the 44 px a thumb needs: the 2D app gives every close button this on a phone, its thumb-ui rule) */
-.sh-x:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
 .sh-tabs { display: flex; gap: 4px; padding: 4px 14px 8px; }
 .sh-tabs button { flex: 1; height: 44px; border-radius: var(--r-card); border: 1px solid var(--edge); background: transparent; display: inline-flex; gap: 8px; align-items: center; justify-content: center; font: 600 var(--t-body) / 1 var(--ui); color: var(--text-2); }
 .sh-tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--text); border-color: transparent; }
@@ -186,7 +173,6 @@
 
 /* the sheet of the presenter pill's gear stands above the pill (a panel above its button), outside .sh-root */
 .dk-settings { font-family: var(--ui); color: var(--text); }
-.dk-settings .sh-sheet[data-place="bar"] { position: absolute; right: 0; bottom: calc(var(--sh-h) + var(--sh-gap)); top: auto; left: auto; width: 360px; max-width: calc(100vw - 24px); max-height: min(560px, calc(100vh - 120px)); margin: 0; z-index: 5; }
 :where(.dk-settings) button { font: inherit; color: inherit; cursor: pointer; }
 
 /* diagnostics: bottom-left, never over the controls it measures */
@@ -202,7 +188,6 @@
 :where(.sh-root button:not(#app button)) { border: 0; background: transparent; padding: 0; }   /* (inside #app the buttons are 2D's: it resets none of these, its own rules set what they need and the rest is the browser's: .sheet-grab is padding 1px 6px, a 2px border, cursor default) */
 .sh-root :where(.sh-ic) { flex: none; }
 /* The always-on chrome (top bar, view pill, dock, zoom group, credit, frame rate) is the 2D app's own markup and stylesheets (src/ui/styles); chrome-3d.css only lays them over the canvas. */
-.sh-pop { position: fixed; }
 
 /* 2D hides the credit while a message stands at the foot (app-01-chrome.css: #toastsFoot > .toast): its frost is in the figure's canvas, so the credit read through the note. The same here, for the note this shell shows (phone play-test, 20 Nov: the credit under the hint). */
 html.thumb-ui:has(.sh-toast[data-on="true"]) .stage-credit { visibility: hidden; }

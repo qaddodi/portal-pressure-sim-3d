@@ -39,9 +39,8 @@ test('the outside-press listener and the scrim both close by press, in either or
   s().closeByPress();   // useOutside's capture listener (first)
   s().closeByPress();   // the scrim's handler (second): a no-op that must not forget the first
   s().toggle('settings'); assert.equal(s().sheet, null);
-  // the one outside-press rule listens on the window in the capture phase, and both the shell sheets' hook and the menu shell close through closeByPress with it
+  // the one outside-press rule listens on the window in the capture phase, and the menu shell closes through closeByPress with it (the shell sheets' own hook went with the Frame: they are panels)
   assert.match(readFileSync('src/ui/surface/outside.ts', 'utf8'), /l\.onPress\(\);\n\s*\};\n\s*window\.addEventListener\('pointerdown', away, true\)/);
-  assert.match(readFileSync('src/ui/shell/Pop.tsx', 'utf8'), /useOutsidePress\(open, \[ref\], \(\) => useShell\.getState\(\)\.closeByPress\(\), `\[data-opens="\$\{sheet\}"\]`\)/);
   assert.match(readFileSync('src/ui/surface/Menu.tsx', 'utf8'), /useOutsidePress\(open, \[ref\], pressClose, `\[data-opens="\$\{id\}"\]`\)/);
 });
 

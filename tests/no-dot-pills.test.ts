@@ -129,7 +129,7 @@ Object.assign(ALLOWED_ANY, {
   'lb-anchor': 'a leader\'s anchor mark on the figure', 'sv-mark': 'the Protein callout\'s circle beside its word on the figure: the key\'s swatch, in the particle\'s colour (owner-approved 26 Nov, "circle beside the word"), not a status pill', 'lz-co-ring': 'a ring drawn on the figure', 'lb-bar': 'the lens key\'s colour bar (no words in it)', 'pzc-rule': 'a thin rule line, no words',
   'info-i': 'the info button\'s "i"', 'sl-start': 'slider thumb', 'switch-vis': 'on/off switch knob', 'sh-sw': 'on/off switch knob', 'mt-sw': 'on/off switch knob', 'look-spin': 'a spinner',
   'ab-belly': 'figure art (the belly drawing)', 'pz-lens-disc': 'the scope lens on the figure', 'pz-lens-x': 'the scope lens\' close button (an icon)', 'pz-lens-hit': 'the scope lens\' hit area',
-  'sh-x': 'an icon close button (no words)', 'sh-btn': 'a dialog button: owner call pending, not in Plan 39', 'pz-nm': 'retired in humanized.css (ROUND_RETIRED)', 'ms-fill': 'retired in humanized.css (display: none)',
+  'sh-btn': 'a dialog button: owner call pending, not in Plan 39', 'pz-nm': 'retired in humanized.css (ROUND_RETIRED)', 'ms-fill': 'retired in humanized.css (display: none)',
   'instr-tab': 'retired in humanized.css (ROUND_RETIRED)', 'pzc-c': 'retired in humanized.css (ROUND_RETIRED)',
 });
 const LISTED_DEBUG: Record<string, string> = { 'perf-mount': 'debug only', 'charts-gallery': 'debug only', 'handout': 'debug only' };

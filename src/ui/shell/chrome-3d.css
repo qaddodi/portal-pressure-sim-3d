@@ -42,5 +42,5 @@
 }
 /* On an iPhone a talk's words card carries the credit in its own foot row (2D `.pz-cred`), so the floating one, which hunted for bare figure and could land on a card's words, is away for the whole talk (2D app-05: display none; here it fades, and stays away between two cards) */
 @media (min-height: 601px) { .deck-ui:is([data-layout="stack"], [data-layout="tab"]):has(.pz-cred) ~ .sh-root[data-mode="deck"] .stage-credit.placed { opacity: 0; }   /* (DeckUi is the .sh-root's previous sibling, Shell.tsx. Only while a card that carries the credit is up: a slide whose one card is a table has no words card and so no foot row, and the floating line, which keeps clear of cards, bars and labels, stands for it: capture 2a54261a, HVPG 14, Doppler 13 and Sites 11 had no © at all) */ }
-/* the 2D menus, the palette and the sheet scrim sit in the shell, whose root takes no taps */
-.sh-clip-in > .menu:not(.leaving), .sh-clip-in > .umenu:not(.out), .sh-clip-in > .um-pv, .sh-clip-in > .um-scrim:not(.out), .sh-clip-in > .pal-back:not([hidden]):not(.leaving) { pointer-events: auto; }
+/* the 2D menus and the sheet scrim sit in the shell, whose root takes no taps */
+.sh-clip-in > .menu:not(.leaving), .sh-clip-in > .umenu:not(.out), .sh-clip-in > .um-pv, .sh-clip-in > .um-scrim:not(.out) { pointer-events: auto; }

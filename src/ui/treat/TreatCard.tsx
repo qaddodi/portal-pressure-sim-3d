@@ -273,7 +273,7 @@ export function TreatCard() {
   const vars = { ...layoutVars(vp, layoutClass(thumb)), '--instr-occ': '0px', ...(thumb ? stopVars(stops) : shell.vars) } as React.CSSProperties;
   return (
     <section ref={ref} className="treat-card tr-card has-plate sf-panel" {...shell.attrs} id="treatCard" hidden={!open} data-open={open} data-bottom={thumb} data-device={device}
-      data-page={page || undefined} data-sheet={thumb ? sheet.at : undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
+      data-page={page || undefined} data-sheet={thumb ? sheet.at : undefined} style={vars} aria-label={L.treat} inert={!open}>
       <div className="sheet-plate" aria-hidden="true" />
       <SheetGrab label="Resize Treat" onGrab={sheet.grab} />
       <div className="tr-in">

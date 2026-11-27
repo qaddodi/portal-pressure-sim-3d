@@ -12,6 +12,8 @@ export const layoutClass = (thumb: boolean): DeviceClass => (thumb ? 'phone-port
 export const usesBottomBar = (d: DeviceClass): boolean => d === 'phone-portrait' || d === 'phone-landscape' || d === 'tablet-portrait';
 /** Who shows the Blood / Layers rows: the top bar's popover (a laptop, an iPad on its side) or the Layers sheet from the foot (the bottom bar). Never both: they answer the same `sheet === 'layers'`. */
 export const figureRowsOwner = (d: DeviceClass): 'topbar' | 'sheet' => (usesBottomBar(d) ? 'sheet' : 'topbar');
+/** Whether Settings lists History and Help as rows: with the bottom bar they have no button of their own in the top bar. The bars' layout, not a surface's mode (that is surface/mode.ts). */
+export const barRowsInSettings = (d: DeviceClass): boolean => usesBottomBar(d);
 
 /** The top bar's own height, from the safe area down (2D main.js: `tbH = topbar.offsetHeight`, published as `--top-safe`): its padding and its pill, so a laptop or an iPad on its side 10 + 46 = 56, a phone or an upright
  *  tablet 8 + 42 = 50, a phone held sideways 6 + 42 = 48. The figure's room and the Tests card's top are measured from it. It was a fixed 64 (2D's CSS fallback), 8 to 14 px too tall on every screen: the Tests card stood
