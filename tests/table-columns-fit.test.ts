@@ -4,13 +4,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { colChars, gridOf, VALUE_CH, ARROW_CH, COL_PAD_PX, WAVE_MIN, waveMaxH } from '../src/ui/cards/table-words.ts';
+import { colChars, gridOf, VALUE_CH, COL_PAD_PX, WAVE_MIN, waveMaxH } from '../src/ui/cards/table-words.ts';
 
 const read = (f: string) => readFileSync(new URL(f, import.meta.url), 'utf8');
 
 test('a column is as wide as the widest run of one cell\'s printed text that cannot break, and never under two arrows', () => {
   assert.equal(colChars([]), VALUE_CH);
-  assert.equal(colChars([{ kind: 'dir', text: '1.1' }, { kind: 'dir', text: '' }]), 3 + ARROW_CH, 'a compared cell prints its value and a small arrow after it (L6)');
+  assert.equal(colChars([{ kind: 'dir', text: '1.1' }, { kind: 'dir', text: '' }]), VALUE_CH, 'a compared cell prints its arrow only (owner, 27 Nov 2026): its number asks the column for nothing');
   assert.equal(colChars([{ kind: 'dir', text: '' }]), VALUE_CH, 'an arrow cell with no value is the arrows\' room');
   assert.equal(colChars([{ kind: 'ref', text: '0.50' }, { kind: 'dir', text: '' }, undefined]), 4);
   assert.equal(colChars([{ kind: 'ref', text: '18' }]), VALUE_CH, 'two digits fit two arrows\' room');
@@ -20,11 +20,11 @@ test('a column is as wide as the widest run of one cell\'s printed text that can
 
 test('the grid: the name\'s least is --dk-name-fit, a value column starts at its own width, the Doppler shares the rest, and --dk-cols is what the value columns need together', () => {
   const g = gridOf(['hvpg', 'pv', 'liver', 'he'], [4, VALUE_CH, VALUE_CH, 4]);
-  assert.equal(g.grid, `minmax(var(--dk-name-fit), 2fr) minmax(calc(4ch + ${COL_PAD_PX}px), 1fr) minmax(calc(2.5ch + ${COL_PAD_PX}px), 1fr) minmax(calc(2.5ch + ${COL_PAD_PX}px), 1fr) minmax(calc(4ch + ${COL_PAD_PX}px), 1fr)`);
-  assert.equal(g.need, `calc(13ch + ${4 * COL_PAD_PX}px)`);
+  assert.equal(g.grid, `minmax(var(--dk-name-fit), 2fr) minmax(calc(4ch + ${COL_PAD_PX}px), 1fr) minmax(calc(${VALUE_CH}ch + ${COL_PAD_PX}px), 1fr) minmax(calc(${VALUE_CH}ch + ${COL_PAD_PX}px), 1fr) minmax(calc(4ch + ${COL_PAD_PX}px), 1fr)`);
+  assert.equal(g.need, `calc(${+(8 + 2 * VALUE_CH).toFixed(2)}ch + ${4 * COL_PAD_PX}px)`);
   const w = gridOf(['pv', 'wave'], [VALUE_CH, 0]);
   assert.equal(w.grid.split(' ').slice(-2).join(' '), `minmax(${WAVE_MIN}, 3.4fr)`, 'the Doppler column has a floor of its own');
-  assert.equal(w.need, `calc(2.5ch + ${COL_PAD_PX}px + ${WAVE_MIN})`, 'and the name gives way for it, as for a value column (Doppler 13, iPhone: a 25 px trace, "No flow" cut)');
+  assert.equal(w.need, `calc(${VALUE_CH}ch + ${COL_PAD_PX}px + ${WAVE_MIN})`, 'and the name gives way for it, as for a value column (Doppler 13, iPhone: a 25 px trace, "No flow" cut)');
   assert.ok(waveMaxH(6) < waveMaxH(3), 'a table of six rows takes the shorter trace');
 });
 

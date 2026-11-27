@@ -497,11 +497,6 @@
 .pz-table td.dir.zero { color: var(--text-3); }
 /* A gradient that misses this patient's resistance (a row's miss / missPart, the Gradients talk's summary): the arrow quiet, an outlined tag beside it. */
 .pz-table td.dir.miss .pz-arr { opacity: .45; }
-/* A cell that prints its value (L6, owner 27 Nov): the number in the cell's ink and a small arrow after it; a level cell keeps its number readable, the dash quiet. */
-.pz-table td.dir.dk-val .dk-cv { white-space: nowrap; }
-.pz-table td.dir.dk-val.bp .dk-cv { white-space: normal; }
-.pz-table td.dir.dk-val .pz-arr { font-size: .78em; margin-left: .3em; }
-.pz-table td.dir.dk-val.zero { color: var(--text-2); }
 .pz-table .pz-miss { display: inline-block; margin-left: .4em; padding: .1em .45em; border-radius: 999px; box-shadow: inset 0 0 0 1.2px var(--text-3); color: var(--text-2); font-size: .78em; font-weight: 600; line-height: 1.3; white-space: nowrap; vertical-align: .1em; }
 .pz-table td.asc.dir { text-align: left; }
 .pz-arr { display: inline-block; line-height: 0; vertical-align: -.14em; }

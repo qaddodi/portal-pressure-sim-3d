@@ -26,10 +26,9 @@ test('the profile card is handed the room, and holds its height to it', () => {
   assert.match(pc, /deps=\{\[[^\]]*\broom\b/);
 });
 
-test('the summary table\'s blood pressure cell wears 2D\'s .bp (it wraps at its space), in the reference cell and the arrow cell (presenter-question.js summaryTable)', () => {
+test('the summary table\'s blood pressure cell wears 2D\'s .bp (it wraps at its space), in the reference cell, the one cell that prints a number (presenter-question.js summaryTable)', () => {
   const t = src('src/ui/cards/TableCard.tsx');
   assert.match(t, /c\.k === 'map' \? 'num ref bp' : 'num ref'/);
-  assert.match(t, /\['num dir', c\.text \? 'dk-val' : '', c\.k === 'map' \? 'bp' : ''/);
   assert.match(merged2d('app-04-presenter.css'), /td\.num\.bp \{ white-space: normal/);
 });
 

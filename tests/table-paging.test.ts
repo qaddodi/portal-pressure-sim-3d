@@ -155,8 +155,9 @@ test('every table on every screen: one that cannot fit at its 12 px floor is pag
   // The estimate is conservative. A table the rule cannot bring inside the screen even at one row a page is a look decision (the title, the line and the legend stand on every page, so a long legend leaves the rows too little room):
   // Gastric varices 12 on the shortest phone was the one the estimate found: its legend named its units in 428 characters (10 lines at 12 px). A table with both varix columns now names their one unit once
   // (table-model.ts, 331 characters), and the slide's line no longer repeats the title and the legend in a last sentence, so a page of it stands inside the 569 px.
-  // L6 then added "(a pressure within 10%)" to the arrow key (355 characters), so that one table on the shortest phone is again past the estimate: a known exception, needs a look on device. The list never gains.
-  assert.deepEqual(unfit, ['gastric-varices/summary iPhone SE'], 'tables that do not fit even one row a page (needs a look on device)');
+  // L6 then added "(a pressure within 10%)" to the arrow key (355 characters), so that one table on the shortest phone was again past the estimate (a known exception). The owner's arrows-only ruling (27 Nov) freed the
+  // value columns' width (arrows only), so the names stand on fewer lines and that table now fits too: the list is empty and never gains.
+  assert.deepEqual(unfit, [], 'tables that do not fit even one row a page (needs a look on device)');
   assert.ok((paged.get('iPhone 390') ?? 0) >= 3, `phone tables paged: ${paged.get('iPhone 390')}`);
   assert.ok((paged.get('iPhone SE') ?? 0) > (paged.get('iPhone 390') ?? 0), 'a shorter phone pages more');
 });

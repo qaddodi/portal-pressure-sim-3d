@@ -34,19 +34,20 @@ export function missWords(cells: { k: string; miss: string }[], cols: { k: strin
 
 /** A value column never narrower than its printed cells (capture f23a4c59, iPhone: Landmark trials 16 ran "0.50" to the table's edge and Precipitants 11 stood "113/72 (86)" on three lines). The grid gave the name column its
  *  fixed least width and every value column an equal share of what was left (`minmax(0, 1fr)`: it may shrink to nothing), so a 4th numeric column, or a blood pressure, had less than its own ink.
- *  The least, in characters: the widest run of one cell's printed text that cannot break ("113/72 (86)" breaks at its space: 6), never under VALUE_CH (two arrows, or a two-digit number). */
-export const VALUE_CH = 2.5;
-/** The room, in characters, a value's small arrow takes beside it (a gap and the arrow at three quarters of the text's size; a double arrow is wider, so the least is its width). */
-export const ARROW_CH = 1.4;
+ *  The least, in characters: the widest run of one cell's printed text that cannot break ("113/72 (86)" breaks at its space: 6), never under VALUE_CH.
+ *  VALUE_CH is a double arrow (1.25em of the cell's text) or a two-digit number: a cell that compares prints its arrow only, so that is all a value column holds besides the reference row's number. */
+export const VALUE_CH = 2.2;
+/** Which cells print their number (owner, 27 Nov 2026, reversing L6's "a value in every cell"): the reference row's only (a `ref` cell: Healthy, or the baseline row of a table that compares).
+ *  A cell that compares (`dir`) prints its arrow and nothing else; its number stays in its hover title and for a screen reader (`Cell.text`, `Cell.sr`).
+ *  One rule for the card's `Td`, and for the column widths below. */
+export const printsValue = (c: { kind: string }): boolean => c.kind === 'ref';
 /** What a cell of the table prints, as far as its width goes (TableCard's Td: a number is a `ref` cell's text, "Removed" is a small word, an arrow cell has no text). */
 export interface Printed { kind: string; text: string }
 export function colChars(cells: ReadonlyArray<Printed | undefined>): number {
   let m = VALUE_CH;
   for (const c of cells) {
     if (!c) continue;
-    if (c.kind === 'ref') m = Math.max(m, ...c.text.split(/\s+/).map((w) => w.length));
-    // (a cell against a baseline prints its value with a small arrow after it, L6: the number, a space and the arrow's room, the arrow at .78 of the text, two of them wider)
-    else if (c.kind === 'dir' && c.text) m = Math.max(m, ...c.text.split(/\s+/).map((w) => w.length + ARROW_CH));
+    if (printsValue(c)) m = Math.max(m, ...c.text.split(/\s+/).map((w) => w.length));
     else if (c.kind === 'removed') m = Math.max(m, c.text.length * 0.85);   // ('none' is drawn at .85em)
   }
   return m;

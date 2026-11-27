@@ -1,5 +1,6 @@
 // The summary table's cells, as the 2D app's summaryTable works them out (presenter-question.js), kept free of the page so a test can recompute every cell: each row is a patient (a slide's state
-// or one of its own), each cell its reading with an arrow against normal (or against the row it is compared with), the rating colour that goes with it, and the words a screen reader hears.
+// or one of its own), each cell an arrow against normal (or against the row it is compared with), the rating colour that goes with it, and the words a screen reader hears.
+// Only the reference row prints its reading (`printsValue`, table-words.ts); a cell's `text` is the hover and the screen reader's.
 // The cut-offs, the arrows and the colours are table-marks.js, copied verbatim from the 2D app (ui/deck/from2d/); nothing here is a second copy of them.
 import type { TableRowSpec, TableSpec } from '../../decks/schema.ts';
 import { COLS, CUT, PRESS, TILE, NO_ASC, atShown, dirAbs, dirRel, rateAbs, effOf, fpv, pressDp, headOf, sameHead, tileOf } from '../deck/from2d/table-marks.js';

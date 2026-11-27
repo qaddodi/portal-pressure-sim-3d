@@ -4,7 +4,7 @@ Approved look: **mock A, "one line per case"** (`/mnt/project-files/comparison-t
 Complaint it answers: the tables load slowly, the Doppler reads as flat lines, and the table has too much text.
 
 Traits (keep every one):
-- One case = one row: name (serif) with its finding as one small grey line under it; Flow and HVPG as arrows (a value in every cell with its small arrow after it since 27 Nov, see the last update; it was numbers on the reference row only); the Doppler trace at the right.
+- One case = one row: name (serif) with its finding as one small grey line under it; Flow and HVPG as arrows (numbers on the reference row only; see the 27 Nov update: a value in every cell came and went the same day); the Doppler trace at the right.
 - No "Doppler finding" sub-rows, no group heading rows (Reference, Portal inflow...), no chips or badges.
 - One short legend line under the table: arrows against normal, doubled past the red cut-off, then the units of the top row.
 - The trace shows 8 s (two breaths, about nine beats), each row on its own scale (its peak, never under 20 cm/s: a still vein stays a line). Real cm/s in the hover and for a screen reader. Toward the probe above the line, away below.
@@ -26,5 +26,8 @@ Update 27 Nov 2026 (owner's ruling L6 on the external review 3531bdfa, A-D15). T
 3. **The baseline is named.** The legend says what the arrows are against ("lower than after the bleed", or "the row named under each") and what level means ("• unchanged (a pressure within 10%)").
 Not changed: one case per row with its finding line, the Doppler column, no chips or badges.
 Tests: `tests/table-arrows-unchanged.test.ts` (every deck's tables), `tests/table-rows-agree.test.ts`.
+
+Update 27 Nov 2026 (owner, on the Sites and causes table, iPhone: "arrows without numbers on each row, except healthy is ok"). Item 2 above (a value in every cell) is **reversed**: a cell that compares is its arrow and nothing else; only the reference row (Healthy, or the baseline row of a table that compares) prints its numbers. A compared cell's number stays in its hover title and for a screen reader (`Cell.text`, `Cell.sr`). One rule, `printsValue` in `table-words.ts`: the card's `Td` draws by it and `colChars` sizes the columns by it, so an arrow-only column is an arrow's room (`VALUE_CH`, 2.2ch: a double arrow) and the name column takes what that gives back (a row name such as "Healthy" no longer hyphenates on a phone). The legend is unchanged: its arrow key and its baseline stand, and "Units:" is still the reference row's. Items 1 and 3 stand (the 10% level rule, the named baseline).
+Tests: `tests/table-arrows-unchanged.test.ts` (arrows only in every deck's tables), `tests/table-columns-fit.test.ts`.
 
 **Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).

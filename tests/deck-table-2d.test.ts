@@ -17,10 +17,11 @@ test('the card draws one table with one heading row, a row per patient, and no p
   assert.match(src, /className=\{`pz-table/, '2D\'s own table rules (src/ui/styles)');
 });
 
-// (owner's ruling L6, 27 Nov 2026: the cell prints its value with a small arrow after it; the number is no longer only for a screen reader. tests/table-arrows-unchanged.test.ts holds the rule over every deck.)
-test('a cell that compares draws its value and then its arrow, and says its words to a screen reader', () => {
+// (owner, 27 Nov 2026: arrows without numbers on each row, the reference row keeps its numbers; this reversed L6's value in every cell. tests/table-arrows-unchanged.test.ts holds the rule over every deck.)
+test('a cell that compares draws its arrow only, and says its words to a screen reader', () => {
   const dir = src.slice(src.indexOf('default: {'), src.indexOf('export function TableCard'));
-  assert.match(dir, /<span className="dk-cv">\{c\.k === 'map' \? bpBreaks\(c\.text\) : c\.text\}<\/span> : null\}<Arrow n=\{c\.arrow\} \/>/);
+  assert.match(dir, /<Arrow n=\{c\.arrow\} \/><span className="sr-only">\{c\.sr\}<\/span>/);
+  assert.doesNotMatch(dir, /dk-cv/, 'arrows only: no number beside the arrow (owner, 27 Nov 2026)');
   assert.match(dir, /sr-only/);
 });
 

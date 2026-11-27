@@ -1,6 +1,6 @@
 // Owner's ruling L6 (27 Nov 2026, review 3531bdfa A-D15), pinned as rules over EVERY deck's tables (the baked readings, node only):
 //   1. A gradient (HVPG, PPG) that moved less than 10% of its baseline reads "unchanged" (the level dash), so 16.4 to 15.2 (07.11) is not a "better"; a move of 10% or more keeps its arrow.
-//   2. Every compared cell prints its value with its small arrow (a value in each cell, not only on the reference row).
+//   2. (reversed by the owner, 27 Nov 2026) A compared cell is its arrow and nothing else; only the reference row (Healthy, or a baseline row) prints numbers. Its number stays in the hover and for a screen reader.
 //   3. The legend names the baseline the arrows are against, and the 10% rule it uses.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +9,7 @@ import { UI } from '../src/ui/strings.generated.ts';
 import { loadBuiltin } from '../src/decks/registry.ts';
 import { pendingRows } from '../src/ui/talk/table-rows.ts';
 import { tableModel, dirAgainst, UNCHANGED_UNDER } from '../src/ui/talk/table-model.ts';
-import { colChars } from '../src/ui/cards/table-words.ts';
+import { colChars, printsValue, VALUE_CH } from '../src/ui/cards/table-words.ts';
 import { STEP_REL, atShown, fpv } from '../src/ui/deck/from2d/table-marks.js';
 import type { Slide } from '../src/decks/schema.ts';
 import { ensureChartsBaked } from './baked-decks.ts';
@@ -70,24 +70,43 @@ test('07.11: the EVL row\'s 16.4 to 15.2 is level, not a green "better" against 
   assert.equal(evl.eff, null, 'no green "better" on a drift');
 });
 
-test('every compared cell with a reading prints its value, and the grid\'s column is wide enough for it with its arrow', () => {
-  let cells = 0;
+test('arrows only (owner, 27 Nov 2026): a compared cell prints no number in any table of any deck; the reference row keeps its numbers; the number stays in the hover and for a screen reader', () => {
+  let dirs = 0, refs = 0;
   for (const { d, s, name } of tables) {
     const m = tableModel(s.table!, pendingRows(d, s));
     m.rows.forEach((r) => r.cells.forEach((c) => {
-      if (c.kind !== 'dir') return;
-      assert.ok(c.text, `${name} "${r.title}" ${c.k}: a value in the cell`);
-      cells++;
+      if (c.kind === 'dir') {
+        assert.equal(printsValue(c), false, `${name} "${r.title}" ${c.k}: a cell that compares prints its arrow only`);
+        assert.ok(c.text && c.sr.includes(c.text), `${name} "${r.title}" ${c.k}: but its number is still its hover and its screen-reader words`);
+        dirs++;
+      } else if (c.kind === 'ref') { assert.equal(printsValue(c), true, `${name} "${r.title}" ${c.k}: the reference row keeps its number`); refs++; }
+      else assert.equal(printsValue(c), false);
     }));
+    // (so a column is as wide as its reference number needs, or an arrow's room: an arrow-only column never asks for a value's width)
     m.cols.forEach((col, j) => {
-      const own = colChars(m.rows.map((r) => r.cells[j]));
-      const widest = Math.max(0, ...m.rows.map((r) => (r.cells[j]?.kind === 'dir' ? Math.max(...r.cells[j]!.text.split(/\s+/).map((w) => w.length)) : 0)));
-      assert.ok(own >= widest + 1, `${name} ${col.k}: the column holds the value and its arrow`);
+      const cells = m.rows.map((r) => r.cells[j]);
+      const ref = Math.max(0, ...cells.map((c) => (c?.kind === 'ref' ? Math.max(...c.text.split(/\s+/).map((w) => w.length)) : 0)));
+      const small = cells.every((c) => !c || c.kind === 'dir' || c.kind === 'wave' || c.kind === 'pend' || c.kind === 'blank');
+      if (small) assert.equal(colChars(cells), VALUE_CH, `${name} ${col.k}: no reference number, so the column is the arrows' room`);
+      else if (ref) assert.ok(colChars(cells) >= ref, `${name} ${col.k}: the reference number fits`);
     });
   }
-  assert.ok(cells > 100, `${cells} compared cells`);
+  assert.ok(dirs > 100 && refs > 30, `${dirs} compared cells, ${refs} reference cells`);
   const tsx = readFileSync(new URL('../src/ui/cards/TableCard.tsx', import.meta.url), 'utf8');
-  assert.match(tsx, /<span className="dk-cv">\{c\.k === 'map' \? bpBreaks\(c\.text\) : c\.text\}<\/span> : null\}<Arrow n=\{c\.arrow\} \/>/, 'the card draws the value, then the arrow');
+  const dir = tsx.slice(tsx.indexOf('default: {'), tsx.indexOf('export function headOver'));
+  assert.match(dir, /<Arrow n=\{c\.arrow\} \/><span className="sr-only">/, 'the card draws the arrow');
+  assert.doesNotMatch(dir, /dk-cv|bpBreaks|\{c\.text\}</, 'and no number beside it (only the hover title says it)');
+});
+
+test('the legend still reads right with arrows only: the arrow key is as it was, and the units line (the reference row\'s numbers) stays only where a reference row prints numbers', () => {
+  for (const { d, s, name } of tables) {
+    const rows = pendingRows(d, s), m = tableModel(s.table!, rows);
+    if (!m.rows.some((r) => r.ref)) assert.doesNotMatch(m.legend, /Units:/, `${name}: no row prints a number, so there are no units to give`);
+    assert.doesNotMatch(m.legend, /value in|each cell prints/i, `${name}: the legend promises no number in a cell`);
+  }
+  const t = tables.find((x) => /^The HVPG rises only with sinusoidal/.test(x.s.title ?? ''));
+  assert.ok(t, 'the Sites and causes summary table (the one Mohammad captured)');
+  assert.match(tableModel(t.s.table!, pendingRows(t.d, t.s)).legend, /past the red cut-off; • within normal(\. ○ [^.]+)?\. Units: pressures in mmHg/);
 });
 
 test('every table\'s legend names its baseline and, where a gradient is shown, the 10% rule', () => {
