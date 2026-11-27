@@ -27,6 +27,7 @@ export const PLT_RULE_OUT = 150;
 export const RESPONSE_CUT = { primary: 10, acute: 10, secondary: 20 } as const;
 export type ResponseRule = keyof typeof RESPONSE_CUT;
 
+const STENT_WHY = 'a stent\'s readings change with the stent: neither better nor worse (table-marks.js NEUTRAL_CHANGE)';
 /**
  * The tiles whose bar has no normal band, and why: a bar draws the normal range for every reading that has one (the test `tile-bars.test.ts` holds every tile of every deck to it), so a
  * tile is listed here only where no normal exists. A reason is required; the test fails when a listed tile does grow a normal band, or an unlisted one has none.
@@ -34,7 +35,8 @@ export type ResponseRule = keyof typeof RESPONSE_CUT;
 export const NO_NORMAL: Readonly<Record<string, string>> = {
   tp: 'the protein of ascitic fluid is a risk marker (below 1.5 g/dL it no longer guards against infection), not a reading with a normal range',
   rpp: 'no guideline gives the abdominal perfusion pressure a cut-off (kidney-cuts.js)',
-  ...Object.fromEntries(['tips', 'dips'].flatMap((s) => ['Flow', 'Dp', 'Bench', 'Lumen', 'LocalPct'].map((x) => [s + x, 'a stent\'s readings change with the stent: neither better nor worse (table-marks.js NEUTRAL_CHANGE)']))),
+  // (the five readings of each stent, TIPS and DIPS)
+  ...Object.fromEntries(['tips', 'dips'].flatMap((s) => ['Flow', 'Dp', 'Bench', 'Lumen', 'LocalPct'].map((x) => [s + x, STENT_WHY]))),
 };
 
 const NONE: Rating = Object.freeze([null, '']) as Rating;

@@ -87,7 +87,7 @@ test('a tile and the summary table\'s arrow colour the same reading the same', (
   const bad: string[] = [];
   for (const k of KEYS) {
     if (DISAGREE[k] || NO_NORMAL[k] || k === 'rpp') continue;
-    const s = scaleOf(k)!, x = TILE[k].x ?? 1, dg = TILE[k].d ?? 1;
+    const s = scaleOf(k)!, T = (TILE as Record<string, { x?: number; d?: number }>)[k]!, x = T.x ?? 1, dg = T.d ?? 1;
     for (let i = 0; i <= 400; i++) {
       const shown = +(s[0] + ((s[1] - s[0]) * i) / 400).toFixed(dg), v = shown / x;
       if (atShown(k, v) !== v) continue;
