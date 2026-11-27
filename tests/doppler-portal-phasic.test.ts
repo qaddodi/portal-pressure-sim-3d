@@ -50,7 +50,7 @@ test('the deck pairs the hepatic vein under the portal vein before the TIPS and 
   assert.equal(slide('before').tool.pair, true);
   assert.equal(slide('mpv').tool.pair, true);
   assert.match(slide('before').line, /hepatic vein is triphasic/);
-  assert.match(slide('mpv').line, /hepatic vein is flat/);
+  assert.match(slide('mpv').line, /hepatic vein is monophasic/);
   assert.match(slide('before').notes, /a small reversal \(a\).*\(S\).*\(v\).*\(D\)/, 'the waves are named in the notes');
 });
 

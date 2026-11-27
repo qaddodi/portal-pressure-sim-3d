@@ -15,7 +15,7 @@ export type FieldHome = 'slide' | 'model' | 'scene' | 'chart' | 'figure';
 /** The Slide property a `slide` field is carried as (when it differs from the field's own name). */
 export const FIELD_HOME: Record<string, FieldHome> = {
   // words and identity
-  id: 'slide', kicker: 'slide', title: 'slide', line: 'slide', notes: 'slide', ask: 'slide', caveat: 'slide', cite: 'slide', vignette: 'slide', caseQ: 'slide', question: 'slide',
+  id: 'slide', kicker: 'slide', title: 'slide', line: 'slide', lineAhead: 'slide', notes: 'slide', ask: 'slide', caveat: 'slide', cite: 'slide', vignette: 'slide', caseQ: 'slide', question: 'slide',
   eq: 'slide', terms: 'slide', site: 'slide', rail: 'slide', sides: 'slide', pill: 'slide', causes: 'slide', causesHead: 'slide',
   // the data card and the controls on the teaching card
   visual: 'slide', tool: 'slide', lapse: 'slide', cath: 'slide', beats: 'slide',
