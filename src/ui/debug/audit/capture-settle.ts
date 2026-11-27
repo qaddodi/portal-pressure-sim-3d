@@ -11,6 +11,7 @@ import { beatCardWaiting } from '../../tests/slide/beat-agree.ts';
 import { menuWaiting } from '../../charts/menu/MenuCard.tsx';
 import { READING_ROOTS, READING_SKIP, readingsOf, readingWatch } from './capture-still.ts';
 import { evRunPending } from '../../charts/evgraph/live.ts';
+import { circuitChangeWaiting } from './settle-circuit.ts';
 import { speedAnimations, sampleRealMs, skipAnimations, finishAnimations } from './speed.ts';
 import { settleLimitMs, collageLayout, slidesWord, sheetHeaderLines } from '../../capture/capture-model.ts';
 
@@ -54,6 +55,8 @@ export function arriving(clockToo = true, stripsToo = true, frames = 99, kit: Se
     // slide before the press: capture 36b7deac, Sites and causes 10, five chips and one chart)
     if (pressWaiting()) return `a control's press has not reached the slide yet (${pressWhat()})`;
     if (cel.rig.isMoving) return 'the camera is moving';
+    const turning = circuitChangeWaiting(cel.circuit);
+    if (turning) return turning;
     if (clockToo && clock.moving > 0) return `moving: ${clock.movingTags().join(', ')}`;   // (a glide, a tween, a card sliding, the labels placing: the clock's own list of what is in motion; the steady instruments, a live trace, are not in it)
     if (clockToo && latest.frame?.morphing) return 'the model is morphing';   // (a procedure's change runs in the engine for seconds of its own time: a paracentesis slide's litres read 5.9 on every step until it ended, Ascites 13, build 572259fd)
     if (document.querySelector('.dk-card[data-phase="out"], .dk-plate[data-phase="out"]')) return 'a card is leaving';

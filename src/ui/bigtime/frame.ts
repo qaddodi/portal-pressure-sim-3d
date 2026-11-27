@@ -111,6 +111,38 @@ function specOf(id: LaneId, inp: BigIn): LaneSpec | null {
   return { id, ms, max, ticks: Array.from({ length: Math.floor(max / 3) + 1 }, (_, i) => i * 3), cuts: [] };
 }
 
+/**
+ * The ticks a lane can carry: from the foot up, a tick stays only when it is at least `gap` px above the last one kept, so the numbers of a short lane never stack
+ * (root cause of "20 15 10 5" printed over each other: the tick list was chosen by the value range alone, never by the lane's height).
+ */
+export function fitTicks(ticks: readonly number[], max: number, laneH: number, gap: number): number[] {
+  const out: number[] = [];
+  let last = -Infinity;
+  for (const t of [...ticks].sort((a, b) => a - b)) { const y = t / Math.max(1e-9, max) * laneH; if (y - last >= gap - 1e-6) { out.push(t); last = y; } }
+  return out;
+}
+
+/** a word's keep-out: a rectangle, or a run of text turned -45° (reading up and to the right) from its baseline start (`xs`, `y0`), `a` above the baseline and `d` below it */
+type Block = { x0: number; x1: number; y0: number; y1: number } | { xs: number; y0: number; w: number; a: number; d: number };
+/** the stretch of a vertical line at `x` that a block covers (with `pad` px around it), or null */
+function coverAt(b: Block, x: number, pad: number): [number, number] | null {
+  if ('x0' in b) return x >= b.x0 - pad && x <= b.x1 + pad ? [b.y0 - pad, b.y1 + pad] : null;
+  const R2 = Math.SQRT1_2, k = (x - b.xs) / R2, lo = Math.max(0, k - b.d - pad), hi = Math.min(b.w, k + b.a + pad);
+  if (hi < lo) return null;
+  // along the text (u) from lo to hi, the line meets it at y = y0 + R2 (k - 2u)
+  const y1 = b.y0 + R2 * (k - 2 * hi), y2 = b.y0 + R2 * (k - 2 * lo);
+  return [Math.min(y1, y2) - pad, Math.max(y1, y2) + pad];
+}
+/** the pieces of the vertical line x from y1 to y2 that no word covers: a line passes behind words, never through them */
+export function lineRuns(x: number, y1: number, y2: number, blocks: readonly Block[], pad = 2): [number, number][] {
+  const cuts = blocks.map((b) => coverAt(b, x, pad)).filter((c): c is [number, number] => !!c && c[1] > y1 && c[0] < y2).sort((a, b) => a[0] - b[0]);
+  const out: [number, number][] = [];
+  let at = y1;
+  for (const [a, b] of cuts) { if (a > at) out.push([at, a]); at = Math.max(at, b); }
+  if (at < y2) out.push([at, y2]);
+  return out.filter(([a, b]) => b - a > 1);
+}
+
 /** the words of a long label cut in two lines near the middle (an upright label on a phone) */
 export function wrap2(t: string, fs: number, limit = 96): string[] {
   if (measure(t, fs, 500) < limit) return [t];
@@ -132,7 +164,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   const pace = paceOf(inp.lines.map((e) => e.day), inp.full), p0 = pace.at(x0), pspan = Math.max(1e-6, pace.at(x1) - p0);
   const X = (d: number) => L + (pace.at(d) - p0) / pspan * plotW;
   const dayAt = (x: number) => pace.day(p0 + (x - L) / plotW * pspan);
-  const axH = pace.flat ? AXIS_H : AXIS_H + 15;
+  const axH0 = pace.flat ? AXIS_H : AXIS_H + 15;
   const text = pal.tok('text'), t2 = pal.tok('text-2'), t3 = pal.tok('text-3'), hair = pal.alpha(pal.tok('text'), 0.1), hair2 = pal.alpha(pal.tok('text'), 0.2);
   const halo = { color: pal.alpha(pal.tok('surface'), 0.92), w: 3.5 };
   const accent = pal.tok('accent');
@@ -171,11 +203,15 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
       items.push({ e, x: X(e.day), ls, w: Math.max(...ls.map((l) => measure(l, fs, wt))) });
     }
     const boxes: { n0: number; n1: number; a0: number; a1: number }[] = [];
+    // the band never takes more than 28% of the box: what does not fit in it folds into a "+N" tick.
+    // (root cause of the squashed plot: a label with no free lift took any lift it needed, so the band ran to 44% of the box and the lanes were left 44 to 88 px)
+    const bandCap = Math.max(72, Math.round(H * 0.28));
     let band = 36;
     // a label goes in the first of a few lifts (two rows, in effect) where it overlaps no other; with `reach` unlimited it always goes in
     const lay = (it: Item, reach: number): boolean => {
       const len = it.w * R2, xs = Math.min(it.x + 2, W - 6 - len), up = (it.ls.length - 1) * lh;
       for (let lift = 0; lift <= reach; lift += 3) {   // the label's last line starts at (xs, base - lift): n runs across the label, a along it
+        if (reach < 1e8 && lift > 0 && lift + len + up * R2 + fs > bandCap) break;
         const n1 = (xs - lift) * R2 + lh * 0.7, n0 = n1 - up - lh * 1.6, a0 = (xs + lift) * R2, a1 = a0 + it.w + 6;
         if (boxes.some((b) => n0 < b.n1 && n1 > b.n0 && a0 < b.a1 && a1 > b.a0)) continue;
         boxes.push({ n0, n1, a0, a1 });
@@ -187,13 +223,12 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
     const rows = lh * 1.42 * 2, groups: Item[][] = [];
     for (const it of items) { if (lay(it, rows)) continue; const g = groups[groups.length - 1]; if (g && g[g.length - 1] === items[items.indexOf(it) - 1]) g.push(it); else groups.push([it]); }
     for (const g of groups) {
-      if (g.length === 1) { lay(g[0]!, 1e9); continue; }   // one alone is not worth a tick: it takes whatever lift it needs
       const key = String(g[0]!.e.id);
       marks.push({ key, x: g[0]!.x, n: g.length });
       if (inp.open === key) { for (const it of g) lay(it, 1e9); continue; }
       const pw = measure(`+${g.length}`, fs, 600), px = Math.min(g[0]!.x + 2, W - 6 - pw * R2);
       let lift = 0;   // the tick takes the first lift where it overlaps no word
-      for (;; lift += 3) { const n1 = (px - lift) * R2 + lh * 0.7, n0 = n1 - lh * 1.6, a0 = (px + lift) * R2, a1 = a0 + pw + 4; if (!boxes.some((b) => n0 < b.n1 && n1 > b.n0 && a0 < b.a1 && a1 > b.a0)) { boxes.push({ n0, n1, a0, a1 }); break; } }
+      for (; lift < 1e4; lift += 3) { const n1 = (px - lift) * R2 + lh * 0.7, n0 = n1 - lh * 1.6, a0 = (px + lift) * R2, a1 = a0 + pw + 4; if (!boxes.some((b) => n0 < b.n1 && n1 > b.n0 && a0 < b.a1 && a1 > b.a0)) { boxes.push({ n0, n1, a0, a1 }); break; } }
       band = Math.max(band, lift + pw * R2 + fs);
       g.forEach((it, i) => placed.push({ e: it.e, x: it.x, r: -1, w: 0, ls: [], xs: px, lift, ...(i === 0 ? { plus: g.length } : {}) }));
     }
@@ -203,8 +238,15 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   const chosen = ORDER.map((id) => specOf(id, inp)).filter((s): s is LaneSpec => !!s);
   const medRows = meds.length, medsH = medRows ? medRows * MED_H + 6 : 0;
   // how many lanes the box holds: each 60 px or more, a title and a line at the very least (34 px, closer together); the lanes that would not fit are left out and said, never cut off at the foot
-  const avail = H - top - medsH - axH, roomy = 60 * chosen.length + GAP * (chosen.length - 1) <= avail, gap = roomy ? GAP : 10, floor = roomy ? 60 : 34;
-  const cap = Math.max(1, Math.floor((avail + gap) / (floor + gap))), specs = chosen.slice(0, cap), left = chosen.length - specs.length;
+  const fit = (ax: number) => {
+    const avail = H - top - medsH - ax, roomy = 60 * chosen.length + GAP * (chosen.length - 1) <= avail, gap = roomy ? GAP : 10, floor = roomy ? 60 : 34;
+    const cap = Math.max(1, Math.floor((avail + gap) / (floor + gap)));
+    return { avail, gap, floor, specs: chosen.slice(0, cap), left: chosen.length - Math.min(cap, chosen.length) };
+  };
+  // the note that some chosen lanes were left out has a line of its own under the axis words (it used to print over the last lane)
+  let axH = axH0, fitted = fit(axH);
+  if (fitted.left > 0) { axH = axH0 + 18; fitted = fit(axH); }
+  const { avail, gap, floor, specs, left } = fitted;
   const nL = Math.max(1, specs.length);
   const free = Math.max(floor * nL, avail - gap * (nL - 1)), wsum = specs.reduce((a, s) => a + WEIGHT[s.id], 0) || 1;
   let y = top + medsH;
@@ -216,6 +258,13 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
   // a darker rounded panel behind each lane, its own and without an outline (owner, 24 Nov: "p2 but without outlines"); the last one also holds the day axis
   const panel = pal.dark ? pal.alpha([0, 0, 0, 1], 0.38) : pal.alpha(pal.tok('text'), 0.045), padP = Math.min(4, gap / 2 - 1);
   geoLanes.forEach((g, i) => { const y0 = g.t - padP, y1 = i === geoLanes.length - 1 ? bottom + axH - 2 : g.t + g.h + padP; shapes.push({ k: 'rect', x: 0, y: y0, w: W, h: y1 - y0, r: 14, fill: panel }); });
+  // the words an event line must pass behind, collected as they are set (the event lines are drawn after them)
+  const blocks: { b: Block }[] = [];
+  const fsH = fs * 0.85, fsD = fs * 0.3;
+  const blockText = (x: number, y: number, w: number, anchor: 'start' | 'end' | 'middle' = 'start'): void => {
+    const xa = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
+    blocks.push({ b: { x0: xa, x1: xa + w, y0: y - fsH, y1: y + fsD } });
+  };
   // zones, grids, cut-offs
   for (const g of geoLanes) {
     const Y = (v: number) => g.t + g.h - v / g.s.max * (g.h - TITLE_H);
@@ -228,7 +277,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
         shapes.push({ k: 'rect', x: L, y: Y(v1), w: plotW, h: Y(v0) - Y(v1), fill: pal.alpha(col, a * 1.6) });
       }
     }
-    for (const t of g.s.ticks) {
+    for (const t of fitTicks(g.s.ticks, g.s.max, g.h - TITLE_H, fs * 1.35)) {
       shapes.push({ k: 'line', x1: L, y1: Y(t), x2: W - R, y2: Y(t), pen: pen(hair, 1) });
       if (!(t === 0 && g !== geoLanes[geoLanes.length - 1])) say({ x: L - 8, y: Y(t), s: String(t), color: t3, anchor: 'end', baseline: 'middle', halo: false });
     }
@@ -236,6 +285,7 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
       const ink = cut.ink === 'danger' ? inkOf(pal, 'danger') : cut.ink === 'text-2' ? t2 : t3;
       shapes.push({ k: 'line', x1: L, y1: Y(cut.v), x2: W - R, y2: Y(cut.v), pen: pen(pal.alpha(ink, 0.75), 1, { dash: [2, 4] }) });
       say({ x: W - R - 4, y: Y(cut.v) + (cut.below ? 15 : -5), s: cut.word, color: ink, anchor: 'end', size: fs });
+      blockText(W - R - 4, Y(cut.v) + (cut.below ? 15 : -5), measure(cut.word, fs, 400), 'end');
     }
   }
   // the x axis
@@ -259,7 +309,11 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
     for (let d = Math.ceil(a / step - 1e-9) * step; d <= b + 1e-6; d += step) {
       const x = X(d);
       shapes.push({ k: 'line', x1: x, y1: bottom, x2: x, y2: bottom + 5, pen: pen(hair2, 1) });
-      if (x - lastLab >= 36 && (cx == null || Math.abs(x - cx) > 30)) { say({ x, y: bottom + 19, s: String(Math.round(d)), color: t3, anchor: 'middle', halo: false }); lastLab = x; }
+      if (x - lastLab >= 36 && (cx == null || Math.abs(x - cx) > 30)) {
+        // a label at the plot's end keeps wholly inside the box (the phone's 600 was cut by the right edge)
+        const word = String(Math.round(d)), half = measure(word, fs, 400) / 2;
+        say({ x: Math.max(half + 1, Math.min(W - half - 1, x)), y: bottom + 19, s: word, color: t3, anchor: 'middle', halo: false }); lastLab = x;
+      }
     }
     if (!pace.flat && wpx >= 56) say({ x: (xa + xb) / 2, y: bottom + 34, s: scaleWord(pc.w), color: pc.w > 1.5 ? warm : t3, anchor: 'middle', halo: false, size: fs });
   }
@@ -277,15 +331,51 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
       if (X(s.from) >= L) shapes.push({ k: 'line', x1: X(s.from), y1: y0 + 10, x2: X(s.from), y2: y0 + 24, pen: pen(accent, 1.5) });
       if (s.to != null && X(s.to) <= W - R) shapes.push({ k: 'line', x1: X(s.to), y1: y0 + 10, x2: X(s.to), y2: y0 + 24, pen: pen(accent, 1.5) });
       const tx = Math.max(L + 2, X(s.from) + 5);
-      if (tx >= last) { say({ x: tx, y: y0 + 11, s: m.name, color: inkOf(pal, 'accent'), weight: 600 }); last = tx + measure(m.name, fs, 600) + 8; }
-      if (s.to != null && X(s.to) < W - R - 60 && X(s.to) + 6 > last) say({ x: X(s.to) + 6, y: y0 + 11, s: 'stopped', color: t3 });
+      if (tx >= last) { say({ x: tx, y: y0 + 11, s: m.name, color: inkOf(pal, 'accent'), weight: 600 }); blockText(tx, y0 + 11, measure(m.name, fs, 600)); last = tx + measure(m.name, fs, 600) + 8; }
+      if (s.to != null && X(s.to) < W - R - 60 && X(s.to) + 6 > last) { say({ x: X(s.to) + 6, y: y0 + 11, s: 'stopped', color: t3 }); blockText(X(s.to) + 6, y0 + 11, measure('stopped', fs, 400)); }
     }
   });
+  // lane titles: the name in plain weight and, with the crosshair on a day, that day's reading bold in the measure's ink (without one the title is the name alone: a reading at the left edge would be the newest day's, beside a line that starts somewhere else)
+  const at = inp.cursor ?? inp.full[1];   // (the words of a reading, only when the crosshair is down)
+  for (const g of geoLanes) {
+    let x = L + 8;
+    const hv = g.s.zone ? [{ name: HVPG.name, val: valueAt(inp.hvpg, at) == null ? null : valueAt(inp.hvpg, at)!.toFixed(1).replace('-', '−'), ink: inkOf(pal, HVPG.tok) }] : [];
+    const parts: { name: string; val: string | null; ink: Rgba }[] = [...hv, ...g.s.ms.map((m) => { const v = valueAt(inp.series[m.id], at); return { name: m.short, val: v == null ? null : m.words(v), ink: inkOf(pal, m.tok) }; })];
+    for (const p of parts) {
+      const nm = `${p.name} `;
+      say({ x, y: g.t + 14, s: nm, color: p.ink, weight: 500 }); blockText(x, g.t + 14, measure(nm.trimEnd(), fs, 500)); x += measure(nm, fs, 500);
+      if (p.val && inp.cursor != null) { say({ x, y: g.t + 14, s: p.val, color: p.ink, weight: 600 }); blockText(x, g.t + 14, measure(p.val, fs, 600)); x += measure(p.val, fs, 600); }
+      x += 18;
+    }
+  }
+  // the note for lanes left out: its own line under the axis words, centred under the plot
+  if (left > 0) say({ x: L + plotW / 2, y: bottom + axH0 + 11, s: `${left} more chosen: no room, turn one off`, color: t3, anchor: 'middle', halo: false });
+  // event words
+  for (const p of placed) {
+    const ink = toneInk(pal, p.e.tone), weight = p.e.tone === 'change' ? 600 : 500;
+    if (!phone) { if (p.r >= 0) { say({ x: p.x, y: p.r * ROW_H + 12, s: p.e.label, color: ink, weight }); blockText(p.x, p.r * ROW_H + 12, p.w, 'start'); } }
+    else if (p.plus) {
+      const y0 = top - 8 - (p.lift ?? 0), pt = `+${p.plus}`;
+      say({ x: p.xs ?? p.x, y: y0, s: pt, color: t2, weight: 600, rot: -45, anchor: 'start' });
+      blocks.push({ b: { xs: p.xs ?? p.x, y0, w: measure(pt, fs, 600), a: fsH, d: fsD } });
+    }
+    else if (p.r >= 0) {
+      (p.ls ?? []).forEach((l, i, a) => {
+        const k = (a.length - 1 - i) * fs * 1.15 * Math.SQRT1_2, y0 = top - 8 - (p.lift ?? 0) - k, xs = (p.xs ?? p.x) - k;
+        say({ x: xs, y: y0, s: l, color: ink, weight, rot: -45, anchor: 'start' });
+        blocks.push({ b: { xs, y0, w: measure(l, fs, weight), a: fsH, d: fsD } });
+      });
+    }
+  }
   // event lines (behind the traces), then the traces
   shapes.push({ k: 'clip', x: L, y: 0, w: plotW, h: bottom + 1 });
   for (const p of placed) {
     const ink = toneInk(pal, p.e.tone), line0 = p.plus ? top - 8 - (p.lift ?? 0) : p.r < 0 ? top - 6 : phone ? top - 8 - (p.lift ?? 0) - Math.max(0, p.x - (p.xs ?? p.x)) : p.r * ROW_H + 14;
-    shapes.push({ k: 'line', x1: X(p.e.day), y1: Math.max(2, line0), x2: X(p.e.day), y2: bottom, pen: pen(pal.alpha(ink, p.e.tone === 'change' ? 0.85 : 0.55), p.e.tone === 'change' ? 1.6 : 1) });
+    const x = X(p.e.day), pn = pen(pal.alpha(ink, p.e.tone === 'change' ? 0.85 : 0.55), p.e.tone === 'change' ? 1.6 : 1);
+    // the line passes behind every word, its own included (a label set against the box's edge lies across its own line):
+    // it is drawn in the pieces no word covers, so no word is ever struck through
+    const others = blocks.map((k) => k.b);
+    for (const [ya, yb] of lineRuns(x, Math.max(2, line0), bottom, others)) shapes.push({ k: 'line', x1: x, y1: ya, x2: x, y2: yb, pen: pn });
   }
   for (const g of geoLanes) {
     const Y = (v: number) => g.t + g.h - Math.min(v, g.s.max * 1.02) / g.s.max * (g.h - TITLE_H);
@@ -302,27 +392,6 @@ export function bigFrame(inp: BigIn, c: ChartCtx): { frame: Frame; geo: Geo } {
     }
   }
   shapes.push({ k: 'unclip' });
-  // lane titles: the name in plain weight and, with the crosshair on a day, that day's reading bold in the measure's ink (without one the title is the name alone: a reading at the left edge would be the newest day's, beside a line that starts somewhere else)
-  const at = inp.cursor ?? inp.full[1];   // (the words of a reading, only when the crosshair is down)
-  for (const g of geoLanes) {
-    let x = L + 8;
-    const hv = g.s.zone ? [{ name: HVPG.name, val: valueAt(inp.hvpg, at) == null ? null : valueAt(inp.hvpg, at)!.toFixed(1).replace('-', '−'), ink: inkOf(pal, HVPG.tok) }] : [];
-    const parts: { name: string; val: string | null; ink: Rgba }[] = [...hv, ...g.s.ms.map((m) => { const v = valueAt(inp.series[m.id], at); return { name: m.short, val: v == null ? null : m.words(v), ink: inkOf(pal, m.tok) }; })];
-    for (const p of parts) {
-      const nm = `${p.name} `;
-      say({ x, y: g.t + 14, s: nm, color: p.ink, weight: 500 }); x += measure(nm, fs, 500);
-      if (p.val && inp.cursor != null) { say({ x, y: g.t + 14, s: p.val, color: p.ink, weight: 600 }); x += measure(p.val, fs, 600); }
-      x += 18;
-    }
-  }
-  if (left > 0 && geoLanes.length) { const g = geoLanes[geoLanes.length - 1]!; say({ x: W - R - 4, y: g.t + 14, s: `${left} more chosen: no room, turn one off`, color: t3, anchor: 'end' }); }
-  // event words
-  for (const p of placed) {
-    const ink = toneInk(pal, p.e.tone), weight = p.e.tone === 'change' ? 600 : 500;
-    if (!phone) { if (p.r >= 0) say({ x: p.x, y: p.r * ROW_H + 12, s: p.e.label, color: ink, weight }); }
-    else if (p.plus) say({ x: p.xs ?? p.x, y: top - 8 - (p.lift ?? 0), s: `+${p.plus}`, color: t2, weight: 600, rot: -45, anchor: 'start' });
-    else if (p.r >= 0) (p.ls ?? []).forEach((l, i, a) => { const k = (a.length - 1 - i) * fs * 1.15 * Math.SQRT1_2; say({ x: (p.xs ?? p.x) - k, y: top - 8 - (p.lift ?? 0) - k, s: l, color: ink, weight, rot: -45, anchor: 'start' }); });
-  }
   // the crosshair
   if (cx != null && inp.cursor != null) {
     shapes.push({ k: 'line', x1: cx, y1: phone ? top - 6 : top - 4, x2: cx, y2: bottom, pen: pen(pal.alpha(text, 0.5), 1) });

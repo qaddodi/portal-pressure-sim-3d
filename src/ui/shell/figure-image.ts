@@ -39,15 +39,35 @@ export function pictureScale(stage: { w: number; h: number }, want: number, maxS
 }
 
 const top = (s: string): string[] => { const out: string[] = []; let d = 0, at = 0; for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === '(') d++; else if (c === ')') d--; else if (c === ',' && d === 0) { out.push(s.slice(at, i).trim()); at = i + 1; } } out.push(s.slice(at).trim()); return out; };
-const SIDES: Record<string, number> = { 'to top': 0, 'to right': 90, 'to bottom': 180, 'to left': 270 };
-/** A computed `background-image` that is one `linear-gradient(...)`: its angle and stops; null for anything else. Stops without a position are spread evenly; pixel positions are not supported (null). */
+const SIDES: Record<string, number> = { top: 0, right: 90, bottom: 180, left: 270 };
+const UNIT_DEG: Record<string, number> = { deg: 1, grad: 0.9, rad: 180 / Math.PI, turn: 360 };
+/** The line part of a gradient's first argument: an angle (deg, grad, rad, turn) and/or `to <side> [side]`, with an optional colour-space run (`in oklab`) dropped, since a canvas cannot honour it.
+ *  Null when the argument is a colour stop. The key's bar is `linear-gradient(in oklab to right, ...)`: unread, it fell to the 180deg default and was drawn top to bottom. */
+export function gradientLine(arg: string): number | null {
+  let t = arg.trim().toLowerCase();
+  const space = /\bin\s+[a-z0-9-]+(\s+(shorter|longer|increasing|decreasing|specified)\s+hue)?/;
+  const had = space.test(t);
+  t = t.replace(space, ' ').replace(/\s+/g, ' ').trim();
+  if (!t) return had ? 180 : null;
+  const ang = t.match(/^(-?[\d.]+(?:e-?\d+)?)(deg|grad|rad|turn)$/);
+  if (ang) return parseFloat(ang[1]!) * UNIT_DEG[ang[2]!]!;
+  const to = t.match(/^to (top|right|bottom|left)(?: (top|right|bottom|left))?$/);
+  if (!to) return null;
+  const a = SIDES[to[1]!]!, b = to[2] === undefined ? undefined : SIDES[to[2]!];
+  if (b === undefined) return a;
+  const set = new Set([a, b]);   // (a corner: 45 degrees off each side; the true corner angle follows the box, which a stop list does not know)
+  return set.has(0) ? (set.has(90) ? 45 : 315) : (set.has(90) ? 135 : 225);
+}
+
+/** A computed `background-image` that is one `linear-gradient(...)`: its angle and stops; null for anything else.
+ *  Stops without a position are spread evenly; pixel positions are not supported (null). */
 export function parseGradient(css: string): Paint | null {
   const m = css.trim().match(/^linear-gradient\((.*)\)$/s);
   if (!m) return null;
   const parts = top(m[1]!);
   let angle = 180;
-  const first = parts[0]!.toLowerCase();
-  if (/^-?[\d.]+deg$/.test(first)) { angle = parseFloat(first); parts.shift(); } else if (first in SIDES) { angle = SIDES[first]!; parts.shift(); }
+  const line = gradientLine(parts[0]!);
+  if (line !== null) { angle = line; parts.shift(); }
   const raw: [string, number | null][] = [];
   for (const p of parts) {
     const pos = p.match(/\s(-?[\d.]+)(%|px)$/);

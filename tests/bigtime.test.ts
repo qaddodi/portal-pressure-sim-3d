@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { marksOf, isMed, type EntryIn } from '../src/ui/bigtime/marks.ts';
 import { valueAt, tickStep, pointsIn, type Series } from '../src/ui/bigtime/record.ts';
 import { buildData, baseName } from '../src/ui/bigtime/data.ts';
-import { bigFrame, stripFrame, leadOf, TITLE_H, type BigIn } from '../src/ui/bigtime/frame.ts';
+import { bigFrame, stripFrame, leadOf, TITLE_H, fitTicks, lineRuns, type BigIn } from '../src/ui/bigtime/frame.ts';
+import { measure } from '../src/ui/charts/measure.ts';
 import { before, isTips, tipsFacts, readingsAt } from '../src/ui/bigtime/facts.ts';
 import { paceOf, scaleFor, scaleWord } from '../src/ui/bigtime/pace.ts';
 import { zoomed, slid, useBig } from '../src/ui/bigtime/store.ts';
@@ -335,7 +336,7 @@ test('a phone: events whose lines are closer than a text line merge into one "+N
   const mk = (open: string | null) => bigFrame({ ...inp(), lines: d2.lines, series: { pv: SER.pv! }, on: ['pv'], win: [0, 120], open }, ctxOf('light', 380));
   const closed = mk(null), plus = closed.frame.shapes.filter((s): s is TextShape => s.k === 'text' && /^\+\d+$/.test(s.s));
   assert.ok(plus.length >= 1 && plus.every((t) => t.rot === -45), 'a +N tick, turned 45°');
-  assert.ok(closed.geo.groups.length === plus.length && closed.geo.groups.every((g) => g.n >= 2));
+  assert.ok(closed.geo.groups.length === plus.length && closed.geo.groups.every((g) => g.n >= 1));
   assert.ok(closed.geo.top < 760 * 0.4, 'the label band is capped');
   const key = closed.geo.groups[0]!.key, opened = mk(key);
   assert.ok(!opened.frame.shapes.some((s) => s.k === 'text' && s.s === `+${closed.geo.groups[0]!.n}`) || opened.geo.groups.length >= 1);
@@ -379,7 +380,9 @@ test('stiffness: LSM and SSM are two measures of one kPa lane, off until chosen,
       assert.ok(words.some((t) => t.s === 'LSM 25') && words.some((t) => t.s === 'SSM 55'), `${look} ${w}: the cut-offs`);
       assert.ok(words.some((t) => t.s === 'LSM ' && t.weight === 500) && words.some((t) => t.s === '26.8 kPa' && t.weight === 600) && words.some((t) => t.s === '65.6 kPa'), `${look} ${w}: the lane's title reads both at the crosshair (day 84)`);
       const lane = geo.lanes.find((l) => l.id === 'stiff')!;
-      assert.ok(frame.shapes.filter((s): s is TextShape => s.k === 'text' && /^\d+$/.test(s.s) && s.x < 40 && s.anchor === 'end' && s.y >= lane.t && s.y <= lane.t + lane.h + 1).map((t) => t.s).join() === '25,50,75', `${look} ${w}: ticks`);
+      const ticks = frame.shapes.filter((s): s is TextShape => s.k === 'text' && /^\d+$/.test(s.s) && s.x < 40 && s.anchor === 'end' && s.y >= lane.t && s.y <= lane.t + lane.h + 1).map((t) => t.s).join();
+      // (a short lane keeps fewer numbers so none stack: fitTicks)
+      assert.ok(w >= 760 ? ticks === '25,50,75' : ['25,50,75', '50', '25,75', '25', '75'].includes(ticks), `${look} ${w}: ticks ${ticks}`);
     }
   });
   assert.ok(!bigFrame(inp(), ctxOf('light', 1200)).geo.lanes.some((l) => l.id === 'stiff'), 'off, no lane');
@@ -492,4 +495,74 @@ test('a section has its own tick (owner, 24 Nov, option X): all drawn, none, or 
   const chooser = readFileSync(new URL('../src/ui/bigtime/Chooser.tsx', import.meta.url), 'utf8'), card = readFileSync(new URL('../src/ui/bigtime/TimelineCard.tsx', import.meta.url), 'utf8'), css = readFileSync(new URL('../src/ui/bigtime/bigtime.css', import.meta.url), 'utf8');
   assert.ok(/aria-pressed=\{n === ms\.length \? true : n \? 'mixed' : false\}/.test(chooser) && /setMany\(ms\.map/.test(chooser), 'the section tick has the three states');
   assert.ok(/className="bt-seg"/.test(card) && /\.bt-seg button\[aria-pressed="true"\]/.test(css), 'one raised control');
+});
+
+// ── the full-chart defects seen in the promotion pictures (27 Nov): stacked tick numbers, words struck by lines, a squashed phone plot, the note over a lane, a clipped last tick ──
+const CROWD: EntryIn[] = [E(1, 'start', 0, 'Patient', { params: {} }), E(2, 'event', 20, 'Ascites forming', { sev: 'caution' }), E(3, 'event', 36, 'Liver hypoperfusion', { sev: 'caution' }),
+  E(4, 'change', 60, 'Paracentesis 4.2 L + albumin', { params: {}, action: true }), E(5, 'change', 64, 'Paracentesis 4.0 L + albumin', { params: {}, action: true }), E(6, 'change', 90, 'Paracentesis 3.8 L + albumin', { params: {}, action: true }),
+  E(7, 'change', 110, 'TIPS 8 mm', { keys: ['tips'], params: { tips: 'TIPS 8 mm' } }), E(8, 'event', 111, 'Intrahepatic portal branches reversed', { sev: 'caution' }), E(9, 'event', 120, 'Ascites forming', { sev: 'caution' }), E(10, 'event', 140, 'IVC pressure rising', { sev: 'caution' })];
+const FLAT = (n: number, v: number): Series => run(n, () => v);
+const CD = buildData({ calm: (k) => { const s: Record<string, Series> = { CONF: FLAT(151, 20), whvp: FLAT(151, 18), RHV: FLAT(151, 5), IVCS: FLAT(151, 4), asc: FLAT(151, 3), shunt: FLAT(151, 0.3), hvpg: FLAT(151, 12) }; return s[k] ? { x: s[k]!.x as number[], mid: s[k]!.y as number[] } : null; }, entries: CROWD, labelsOf: LABELS, hidden: null });
+const cin = (h: number, o: Partial<BigIn> = {}): BigIn => ({ series: CD.series, hvpg: CD.hvpg, on: ['pv', 'wedge', 'hv', 'ivc', 'hvpg', 'asc', 'shunt'], lines: CD.lines, meds: CD.meds, full: CD.full, win: CD.full, cursor: null, h, ...o });
+const CASES: [number, number][] = [[358, 540], [358, 440], [390, 600], [760, 560], [1100, 640], [1200, 760]];
+
+test('root cause (tick numbers stacked): a lane keeps only the ticks that are a text line apart, in every look, width and height', () => {
+  assert.deepEqual(fitTicks([0, 5, 10, 15, 20], 20, 50, 16), [0, 10, 20]);
+  assert.deepEqual(fitTicks([0, 20, 40, 60, 80, 100], 100, 50, 16), [0, 40, 80]);
+  assert.deepEqual(fitTicks([0, 10, 20, 30], 30, 200, 16), [0, 10, 20, 30]);
+  eachLook((look) => {
+    for (const [w, h] of CASES) {
+      const f = bigFrame(cin(h), ctxOf(look, w)).frame, L = leadOf(w).L;
+      const nums = f.shapes.filter((s): s is TextShape => s.k === 'text' && s.anchor === 'end' && s.x === L - 8).sort((a, b) => a.y - b.y);
+      for (let i = 1; i < nums.length; i++) { const d = nums[i]!.y - nums[i - 1]!.y; assert.ok(d >= 12, `${look} ${w}x${h}: "${nums[i - 1]!.s}" and "${nums[i]!.s}" are ${d.toFixed(1)} px apart`); }
+    }
+  });
+});
+
+test('root cause (words struck through by event lines): no vertical line passes through any word, in every look, width and height', () => {
+  const R2 = Math.SQRT1_2;
+  eachLook((look) => {
+    for (const [w, h] of CASES) for (const cursor of [null]) {   // (the crosshair is drawn through the lane titles by design)
+      const f = bigFrame(cin(h, { cursor }), ctxOf(look, w)).frame, fs = 12;
+      const lines = f.shapes.filter((s): s is Extract<typeof s, { k: 'line' }> => s.k === 'line' && s.x1 === s.x2 && s.y2 - s.y1 > 20);
+      for (const t of f.shapes.filter((s): s is TextShape => s.k === 'text')) {
+        const tw = measure(t.s.trimEnd(), t.size, t.weight ?? 400);
+        const pts: [number, number][] = [];
+        if (t.rot === -45) for (let u = 0; u <= tw; u += 2) pts.push([t.x + u * R2 + fs * 0.3 * R2, t.y - u * R2 + fs * 0.3 * R2]);
+        else { const xa = t.anchor === 'end' ? t.x - tw : t.anchor === 'middle' ? t.x - tw / 2 : t.x; for (let u = 0; u <= tw; u += 2) pts.push([xa + u, t.y - fs * 0.3]); }
+        for (const [px, py] of pts) for (const l of lines) if (Math.abs(l.x1 - px) < 1 && py > l.y1 + 0.5 && py < l.y2 - 0.5 && !(t.rot === -45 && Math.abs(l.x1 - t.x) < 8 && py > l.y1 - 6)) assert.fail(`${look} ${w}x${h}: a line at x=${l.x1.toFixed(0)} runs through "${t.s}"`);
+      }
+    }
+  });
+  const runs = lineRuns(50, 0, 100, [{ x0: 40, x1: 60, y0: 20, y1: 30 }, { x0: 0, x1: 20, y0: 60, y1: 70 }]);
+  assert.deepEqual(runs.map((r) => r.map(Math.round)), [[0, 18], [32, 100]]);
+});
+
+test('root cause (the phone plot squashed): the label band never takes more than 28% of the box, so no chosen lane is left out of an ordinary phone and none is thinner than its floor', () => {
+  eachLook((look) => {
+    for (const [w, h] of [[358, 540], [358, 440], [390, 600]] as [number, number][]) {
+      const { geo, frame } = bigFrame(cin(h), ctxOf(look, w));
+      assert.ok(geo.top <= h * 0.28 + 24 + 12 + 4, `${look} ${w}x${h}: the band is ${geo.top} px`);
+      assert.equal(geo.lanes.length, 4, `${look} ${w}x${h}: every chosen lane is drawn`);
+      assert.ok(geo.lanes.every((l) => l.h >= 34), `${look} ${w}x${h}: a lane is under 34 px`);
+      assert.ok(!frame.shapes.some((s) => s.k === 'text' && /no room/.test(s.s)), 'no note when all fit');
+    }
+  });
+});
+
+test('root cause (the note over the chart, the clipped last tick): "N more chosen" sits under the axis, and every axis number lies inside the box', () => {
+  const many = cin(300, { on: [...cin(300).on, 'sv', 'smv'] });
+  const f = bigFrame({ ...many, on: ['pv', 'wedge', 'hvpg', 'asc', 'shunt'] }, ctxOf('light', 358));
+  const note = f.frame.shapes.find((s): s is TextShape => s.k === 'text' && /no room/.test(s.s));
+  assert.ok(note && note.y > f.geo.bottom + 24, 'the note is below the axis numbers, not over a lane');
+  assert.ok(f.geo.h >= note!.y, 'the frame holds the note');
+  eachLook((look) => {
+    for (const [w, h] of CASES) {
+      const fr = bigFrame(cin(h, { win: [0, 600], full: [0, 600] }), ctxOf(look, w)).frame;
+      for (const t of fr.shapes.filter((s): s is TextShape => s.k === 'text' && s.anchor === 'middle')) {
+        const tw = measure(t.s, t.size, t.weight ?? 400);
+        assert.ok(t.x - tw / 2 >= 0 && t.x + tw / 2 <= w, `${look} ${w}: "${t.s}" leaves the box`);
+      }
+    }
+  });
 });

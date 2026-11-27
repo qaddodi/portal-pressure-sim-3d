@@ -86,3 +86,11 @@ Mohammad, 24 Nov: "when it expands it doesn't animate transition." Root cause: t
 
 
 **Anatomy cut-over (25 Nov 2026):** approved on the 2D figure's placement; its last default commit is f17b151a. Since the cut-over the app draws the approved placement (docs/approved/anatomy-placement.md).
+
+## Chart words and lanes fit (27 Nov 2026)
+Defects found in the promotion pictures (build 8aa43d3d), all in the app's chart frame (`src/ui/bigtime/frame.ts`), none in the capture tool. No look changed; only what is drawn where.
+- **Tick numbers stacked** ("20 15 10 5", "100 80 60 40 20 0"): the ticks were chosen from the value range alone. Now a lane keeps only ticks at least 1.35 text lines apart (`fitTicks`), from the foot up, every lane on every device.
+- **Event lines struck through words** (the Mac "IVC" title, "Paracentesis 3.8 L" and others, the top-left cluster): an event line ran the full height behind every other event's words. Now every line is drawn in pieces that no word covers (lane titles, cut-off words, medicine names, event words on Mac rows and on the phone's 45° labels, "+N" ticks), a line passing behind the word like a halo. The crosshair still runs through lane titles, as before.
+- **Phone plot squashed**: a label with no free lift took any lift it needed, so the label band reached 44% of the box and the lanes were left 44 to 88 px. Now the band is capped at 28% of the box; labels that do not fit fold into the "+N" tick (a lone one reads "+1"; tap opens it, as before).
+- **"N more chosen: no room, turn one off"** printed over the last lane; it now has its own line under the axis words.
+- **Last axis number clipped** ("600" at the phone's right edge): axis numbers are kept wholly inside the box.

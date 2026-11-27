@@ -8,6 +8,7 @@
 import { HISTORIES } from '../../histories/index.generated.ts';
 import { targetOf, baseOf, stopIndex } from '../promo/slides.ts';
 import { useShell, type MenuTab } from '../../shell/store.ts';
+import { openHistory } from '../../histories/open.ts';
 import { useCase } from '../../case/store.ts';
 import { talkOn } from '../../../state/deck.ts';
 import { leaveTalk } from '../../shell/talk.ts';
@@ -37,6 +38,18 @@ const menuKit = (tab: MenuTab): SettleKit => ({
   cardUp: () => !!document.querySelector('.menu-group, .menu-item'),
   extra: () => { const s = useShell.getState(); return s.sheet === 'menu' && s.menuTab === tab ? '' : 'the menu has not opened on its tab yet'; },
 });
+
+/** Still, for the chart: the sheet is open with its card in. */
+const chartKit: SettleKit = {
+  cardUp: () => !!document.querySelector('.bt'),
+  extra: () => (useShell.getState().sheet === 'timeline' ? '' : 'the chart has not opened yet'),
+};
+
+/** Still, for History's panel: it is open with the case's days in. */
+const timelineKit: SettleKit = {
+  cardUp: () => !!document.querySelector('.hs-when'),
+  extra: () => (useShell.getState().sheet === 'history' ? '' : "History's panel has not opened yet"),
+};
 
 export async function capturePromoExtras(ui: ExtraUi): Promise<ExtraResult> {
   const t0 = new Date().getTime(), files: ZipFile[] = [], notes: string[] = [], enc = new TextEncoder(), encoding: Promise<void>[] = [], flushed = new Set<string>();
@@ -100,6 +113,21 @@ export async function capturePromoExtras(ui: ExtraUi): Promise<ExtraResult> {
         await take(a.key, stop.title, stopKit(i, stop), { case: id, caseName: meta.name, stop: i + 1, of: stops.length, day: stop.day, modelDay: md });
       }
       run.endCase(); await sleep(real(120));
+      await flush();
+    }
+    // the full chart of a case: the patient as they are today (Open patient) with the timeline chart open, as "See as a chart" opens it
+    for (const { key, t } of targets) {
+      if (!t || (t.kind !== 'chart' && t.kind !== 'timeline')) continue;
+      if (ui.stop()) { stopped = true; break; }
+      const meta = metaOf(t.id);
+      if (!meta) { notes.push(`${key}: there is no model patient called ${t.id}`); continue; }
+      await clear();
+      ui.status(`${meta.name}: opening the patient and its ${t.kind}`);
+      if (!(await openHistory(t.id))) { notes.push(`${key}: the patient would not open`); continue; }
+      const chart = t.kind === 'chart';
+      useShell.getState().open(chart ? 'timeline' : 'history');
+      await until(() => !!document.querySelector(chart ? '.bt' : '.hs-when'), real(8000));
+      await take(key, `${meta.name}, ${chart ? 'as a chart' : 'the timeline'}`, chart ? chartKit : timelineKit, { case: t.id, caseName: meta.name, view: t.kind });
       await flush();
     }
     for (const { key, t } of targets) {
