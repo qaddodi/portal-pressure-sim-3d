@@ -29,6 +29,8 @@ export interface ChromeIn {
   cut: CaseCut | null;
   cardH: number;
   tests: TestsPlace | null;
+  /** History's panel while it stands beside the figure (history/room.ts): a wall the names keep off. */
+  panel?: Rect | null;
 }
 
 const boxOf = (r: Rect): Box => ({ x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h });
@@ -38,6 +40,7 @@ export function chromeBoxes(i: ChromeIn): Box[] {
   const { vp } = i, out: Box[] = [];
   const left = vp.safe.left, right = vp.w - vp.safe.right;
   if (i.tests && i.tests.rect.w > 0 && i.tests.rect.h > 0) out.push(boxOf(i.tests.rect));
+  if (i.panel && i.panel.w > 0 && i.panel.h > 0) out.push(boxOf(i.panel));
   if (i.cut?.kind === 'left' && i.cardH > 0) {
     const top = vp.safe.top + topBarH(vp, i.d);
     out.push({ x0: left, y0: top, x1: Math.max(left, i.cut.x), y1: top + CASE_CARD_TOP_GAP + i.cardH });

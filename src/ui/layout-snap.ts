@@ -13,3 +13,7 @@ export function readTextRects(node: Text, from: number, to: number): DOMRect[] {
 }
 /** A layout metric of an element in layout px (offsetHeight, clientWidth, …): the size before any transform, as the card's own fit zoom leaves it. */
 export const readMetric = (el: HTMLElement, k: 'offsetHeight' | 'offsetWidth' | 'clientHeight' | 'clientWidth'): number => el[k];
+/** An element's layout place and size (no transform in them), in CSS px, and the box it is placed in: offsetLeft/offsetTop are from `parent`'s padding edge. */
+export function readPlace(el: HTMLElement): { left: number; top: number; width: number; height: number; parent: Element | null } {
+  return { left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight, parent: el.offsetParent };
+}

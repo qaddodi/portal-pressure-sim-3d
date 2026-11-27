@@ -27,3 +27,7 @@
 
 ## Known difference
 - A restored reading can print 0.1 apart from the day record when it sat on a rounding edge: the engine's readings dead band (`holdShown`) starts over on a restore. The fix belongs in hales-engine (keep the dead band in the snapshot).
+
+## History beside the figure (27 Nov 2026, Mac promotion pictures of history:<case>:timeline; pushed, not yet seen)
+- The panel is a wall for the figure: beside it (Mac, iPad on its side at the right; iPhone on its side at the left) the figure is panned, never zoomed, to the middle of the room the panel leaves (`ui/history/room.ts`, read by the shell's camera and `tests/room.ts cutRoom`), and the names keep off the panel (`chrome-claims.ts`). The iPhone and the upright iPad sheet covers the figure and closes when it is shown: no room to share.
+- The list opens resting on a moment's top, not part-way through one: a moment near the end cannot scroll to the top, so the list stopped mid-moment under the chapter heading; it now rests on the next moment's top with room at its foot (`ui/history/open-scroll.ts`, the menu's `restOnRow`). Not done: a hand's scroll still stops where the hand leaves it.
