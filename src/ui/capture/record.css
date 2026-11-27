@@ -1,6 +1,6 @@
 /* Record window while it records. The stop button: a ring with a square in it, in the warning's ink, its opacity easing down and up (opacity only, never the layout); a person who asked the system for less motion gets it still. */
 .rec-stop { color: var(--danger-ink); }
-.rec-stop .rec-mark { animation: rec-breathe 1.6s ease-in-out infinite; }
+.rec-stop .rec-mark { animation: rec-breathe 1.6s ease-in-out infinite; }   /* (own pace: a slow breath, not a transition between two states) */
 .nb-tab.rec-stop .rec-mark { width: var(--ic-m); height: var(--ic-m); }
 @keyframes rec-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
 @media (prefers-reduced-motion: reduce) { .rec-stop .rec-mark { animation: none; } 

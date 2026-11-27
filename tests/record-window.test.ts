@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { canRecordWindow, actualMime, pickRecordMime, recordExt, recordFileName, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
+import { canRecordWindow, actualMime, pickRecordMime, recordExt, recordFileName, recordSize, recordBitrate, RECORD_FPS, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
 import { isCaptureKey } from '../src/ui/capture/capture-model.ts';
 import { createRecordRun, isRefusal, type RecordDeps, type RecordNote, type RecorderLike, type StreamLike } from '../src/ui/capture/record-run.ts';
 import { RECORD } from '../src/ui/shell/words.ts';
@@ -185,11 +185,48 @@ test('no video came out, or the recorder could not be made or started: idle, tol
   } finally { console.warn = warn; }
 });
 
-test('a recorder error mid-way ends it once and tells once', async () => {
-  const r = rig();
-  await r.run.press();
-  r.rec.onerror?.(undefined); r.rec.onerror?.(undefined);
-  assert.equal(r.run.phase(), 'idle'); assert.deepEqual(r.notes, ['recording', 'failed']); assert.deepEqual(r.saved, []); assert.equal(r.stream.track.stopped, true);
+test('a recorder error mid-way is not a failure while it holds a recording: it is stopped, the video saved, and nothing says "Couldn\'t record"', async () => {
+  const warn = console.warn; console.warn = () => undefined;
+  try {
+    const r = rig();
+    await r.run.press();
+    r.rec.onerror?.(undefined); r.rec.onerror?.(undefined);
+    assert.equal(r.run.phase(), 'idle'); assert.deepEqual(r.saved, [{ size: 5, ext: 'webm' }]); assert.deepEqual(r.notes, ['recording', 'saved']); assert.equal(r.stream.track.stopped, true);
+    // an error with nothing recorded is the one failure, told once
+    const none = rig({ data: [] });
+    await none.run.press(); none.rec.onerror?.(undefined); none.rec.onerror?.(undefined);
+    assert.equal(none.run.phase(), 'idle'); assert.deepEqual(none.notes, ['recording', 'failed']); assert.deepEqual(none.saved, []);
+  } finally { console.warn = warn; }
+});
+
+test('"Couldn\'t record" is told only when no file was handed over: nothing after a save (a late error, a second stop, a throw while stopping) can say it', async () => {
+  const warn = console.warn; console.warn = () => undefined;
+  try {
+    const r = rig();
+    await r.run.press(); await r.run.press();
+    assert.deepEqual(r.notes, ['recording', 'saved']);
+    r.rec.onerror?.(undefined); r.rec.onstop?.(undefined); r.stream.track.onended?.();
+    assert.deepEqual(r.notes, ['recording', 'saved'], 'nothing more is said'); assert.equal(r.saved.length, 1);
+    // the recorder runs its stop handler inside stop() and then throws: the video is already saved
+    const t = rig(); t.rec.stop = () => { t.rec.state = 'inactive'; for (const d of [new Blob(['xx'])]) t.rec.ondataavailable?.({ data: d }); t.rec.onstop?.(undefined); throw err('InvalidStateError'); };
+    await t.run.press(); await t.run.press();
+    assert.deepEqual(t.saved, [{ size: 2, ext: 'webm' }]); assert.deepEqual(t.notes, ['recording', 'saved'], 'saved, and not told it failed');
+  } finally { console.warn = warn; }
+});
+
+test('full size: the screen\'s own pixels at the device pixel ratio, and a bit rate that follows what the track delivers', () => {
+  assert.deepEqual(recordSize({ w: 1512, h: 982 }, 2), { w: 3024, h: 1964 });
+  assert.deepEqual(recordSize({ w: 1920, h: 1080 }, 1), { w: 1920, h: 1080 });
+  assert.deepEqual(recordSize({ w: 1440, h: 900 }, 0), { w: 1440, h: 900 }, 'a missing ratio is 1');
+  assert.equal(RECORD_FPS, 60);
+  assert.ok(recordBitrate(3024, 1964, 60) >= 60_000_000 && recordBitrate(3024, 1964, 60) <= 80_000_000, 'a retina screen at 60 fps gets about 70 Mbps');
+  assert.equal(recordBitrate(1440, 900, 60), Math.round(1440 * 900 * 60 * 0.2));
+  assert.equal(recordBitrate(320, 240, 30), 8_000_000, 'never starved');
+  assert.equal(recordBitrate(7680, 4320, 60), 80_000_000, 'never absurd');
+  assert.ok(recordBitrate(3024, 1964, 60) > recordBitrate(1512, 982, 60));
+  const rec = src('src/ui/capture/record.ts');
+  assert.match(rec, /width: \{ ideal: size\.w \}, height: \{ ideal: size\.h \}, frameRate: \{ ideal: RECORD_FPS \}/);
+  assert.match(rec, /videoBitsPerSecond/); assert.match(rec, /applyConstraints/);
 });
 
 test('the words: plain, no dot, Stop is a word in the toast', () => {

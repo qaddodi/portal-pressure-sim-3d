@@ -9,7 +9,7 @@ import { useEngine } from '../../engine/index.ts';
 import { saveBlob } from '../deck/download.ts';
 import { commitOf } from '../../boot/release.ts';
 import { RECORD } from '../shell/words.ts';
-import { canRecordWindow, pickRecordMime, recordFileName, type RecordPhase } from './record-model.ts';
+import { canRecordWindow, pickRecordMime, recordFileName, recordSize, recordBitrate, RECORD_FPS, type RecordPhase } from './record-model.ts';
 import { createRecordRun, type RecorderLike, type StreamLike } from './record-run.ts';
 
 /** What Record window is doing now (the Settings row and the stop button read it). */
@@ -24,18 +24,36 @@ export function recordAvailable(): boolean {
 
 /** The share options this page asks for. preferCurrentTab and the rest are Chrome's: a browser that does not know them ignores them. */
 type ShareOptions = DisplayMediaStreamOptions & { preferCurrentTab?: boolean; selfBrowserSurface?: 'include' | 'exclude'; surfaceSwitching?: 'include' | 'exclude' };
-const SHARE: ShareOptions = { video: { displaySurface: 'browser' }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude' };
+/** The picture asked for at full size: the screen's own pixels and 60 frames (`ideal`: a browser that has less gives what it has). */
+function quality(): MediaTrackConstraints {
+  const size = recordSize({ w: screen.width, h: screen.height }, devicePixelRatio || 1);
+  return { width: { ideal: size.w }, height: { ideal: size.h }, frameRate: { ideal: RECORD_FPS } };
+}
+const share = (): ShareOptions => ({ video: { displaySurface: 'browser', ...quality() }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude' });
 
 /** The window being shared (the run holds it as a StreamLike; the recorder wants the real stream). */
 let shared: MediaStream | null = null;
+/** Asks the track again for the full size where it came in smaller (Chrome lets a display track be raised after the fact); what it really gives is written to the console, so a cap is seen, never guessed. */
+async function fullSize(stream: MediaStream): Promise<void> {
+  const track = stream.getVideoTracks()[0];
+  if (!track) return;
+  const want = quality();
+  try {
+    const got = track.getSettings(), size = recordSize({ w: screen.width, h: screen.height }, devicePixelRatio || 1);
+    if ((got.width ?? 0) < size.w || (got.height ?? 0) < size.h || (got.frameRate ?? 0) < RECORD_FPS - 1) await track.applyConstraints(want);
+  } catch { /* the browser keeps what it gave */ }
+  const now = track.getSettings();
+  console.info(`[record] the browser gives ${now.width ?? '?'} x ${now.height ?? '?'} at ${Math.round(now.frameRate ?? 0)} fps (asked for ${recordSize({ w: screen.width, h: screen.height }, devicePixelRatio || 1).w} x ${recordSize({ w: screen.width, h: screen.height }, devicePixelRatio || 1).h} at ${RECORD_FPS})`);
+}
 async function ask(): Promise<StreamLike> {
   const md = navigator.mediaDevices;
-  try { shared = await md.getDisplayMedia(SHARE); }
+  try { shared = await md.getDisplayMedia(share()); }
   catch (e) {
     // a browser that refuses the hints (a TypeError) is asked again plainly; a person's "no" is not asked twice
     if ((e as { name?: string } | null)?.name !== 'TypeError') throw e;
     shared = await md.getDisplayMedia({ video: true, audio: false });
   }
+  await fullSize(shared);
   return shared;
 }
 
@@ -44,7 +62,10 @@ const run = createRecordRun({
   recorder: (): RecorderLike => {
     if (!shared) throw new Error('no window is being shared');
     const mime = pickRecordMime(typeof MediaRecorder.isTypeSupported === 'function' ? (m) => MediaRecorder.isTypeSupported(m) : undefined);
-    return new MediaRecorder(shared, mime ? { mimeType: mime } : undefined);
+    // the bit rate follows what the track really delivers, so a big screen is not starved
+    const got = shared.getVideoTracks()[0]?.getSettings() ?? {};
+    const videoBitsPerSecond = recordBitrate(got.width ?? screen.width, got.height ?? screen.height, got.frameRate ?? RECORD_FPS);
+    return new MediaRecorder(shared, mime ? { mimeType: mime, videoBitsPerSecond } : { videoBitsPerSecond });
   },
   save: (video, ext) => {
     const sh = useShell.getState(), at = new Date();

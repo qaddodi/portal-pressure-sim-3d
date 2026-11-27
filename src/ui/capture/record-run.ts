@@ -38,11 +38,14 @@ export function createRecordRun(deps: RecordDeps): { press(): Promise<void>; pha
   let phase: RecordPhase = 'idle';
   let stopNow: (() => void) | null = null;
   const go = (e: RecordEvent) => { const next = recordStep(phase, e); if (next !== phase) { phase = next; deps.onPhase(next); } };
-  const fail = () => { go('failed'); deps.tell('failed'); };
+  // (set once a file has been handed over: from then on nothing can be reported as failed, a good recording is never followed by "Couldn't record")
+  let delivered = false;
+  const fail = () => { if (delivered) return; go('failed'); deps.tell('failed'); };
 
   async function press(): Promise<void> {
     if (phase === 'recording') { stopNow?.(); return; }
     if (phase !== 'idle') return;
+    delivered = false;
     go('press');
     let stream: StreamLike;
     try { stream = await deps.ask(); }
@@ -51,22 +54,23 @@ export function createRecordRun(deps: RecordDeps): { press(): Promise<void>; pha
     const chunks: Blob[] = [];
     try { rec = deps.recorder(); } catch (e) { console.warn('[record] no recorder for this window', e); stream.getTracks().forEach((t) => t.stop()); fail(); return; }
     rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
-    rec.onerror = () => { stream.getTracks().forEach((t) => t.stop()); if (phase === 'recording' || phase === 'saving') fail(); };
+    // a recorder error is not the end of what it recorded: it is stopped like any stop and what it holds is saved; only an empty result is a failure
+    rec.onerror = (e) => { console.warn('[record] the recorder reported an error', e); finish('ended'); };
     rec.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
       if (phase !== 'saving') return;   // (it broke first: already told)
       const type = actualMime(rec.mimeType, chunks.find((c) => c.type)?.type ?? '', '');
       const video = new Blob(chunks, { type: type || 'video/webm' });
       if (video.size === 0) { fail(); return; }
-      try { deps.save(video, recordExt(type)); } catch (e) { console.warn('[record] the video could not be handed over', e); fail(); return; }
+      try { deps.save(video, recordExt(type)); delivered = true; } catch (e) { console.warn('[record] the video could not be handed over', e); fail(); return; }
       go('saved'); deps.tell('saved');
     };
     // the stop, from the row, the shortcut or the browser's bar: the same once, whichever comes first
-    const finish = (ev: 'press' | 'ended') => {
+    function finish(ev: 'press' | 'ended'): void {
       if (phase !== 'recording') return;
       go(ev);
       try { if (rec.state !== 'inactive') rec.stop(); else rec.onstop?.(undefined); } catch { fail(); }
-    };
+    }
     stopNow = () => finish('press');
     stream.getVideoTracks()[0]?.addEventListener('ended', () => finish('ended'));
     try { rec.start(RECORD_SLICE_MS); } catch (e) { console.warn('[record] the recorder would not start', e); stream.getTracks().forEach((t) => t.stop()); fail(); return; }
