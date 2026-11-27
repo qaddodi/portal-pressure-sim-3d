@@ -30,7 +30,7 @@ function card(value = '20.4') {
   const layer = new El(), root = new El(), k = new El(), n = new El(), u = new El();
   k.text = 'PV'; n.text = value; u.text = 'mmHg';
   root.appendChild(k); root.appendChild(n); root.appendChild(u); layer.appendChild(root); root.attrs.class = 'cl cl-pill';
-  const c = { root, k, n, u, text: `PV|${value}|mmHg`, tone: 'pv' } as unknown as Tag;
+  const c = { root, k, n, u, text: `PV|${value}|mmHg`, tone: 'pv', op: '1' } as unknown as Tag;   // (op: standing on the screen at full opacity: the card is showing)
   return { layer, root, n, c };
 }
 const copies = (layer: El) => layer.children.filter((e) => /lb-was/.test(e.attrs.class ?? '')).length;
@@ -38,7 +38,7 @@ const read = (v: string, tone = 'pv') => ({ kicker: 'PV', value: v, unit: 'mmHg'
 
 test('a number that ticks while the card shows is written where it stands: no copy, no animation', () => {
   const { layer, n, c } = card('20.4');
-  for (const v of ['20.5', '20.4', '20.6', '20.7', '20.5']) words(c, read(v), 1);
+  for (const v of ['20.5', '20.4', '20.6', '20.7', '20.5']) words(c, read(v));
   assert.equal(copies(layer), 0, 'a tick never starts a crossing');
   assert.equal(n.anims.length, 0);
   assert.equal(n.text, '20.5', 'the number on the card is the newest');
@@ -46,9 +46,9 @@ test('a number that ticks while the card shows is written where it stands: no co
 });
 
 test('a real change (a dash comes to a number, a jump, a new unit or tone) still crosses over', () => {
-  const a = card('—'); words(a.c, read('20.4'), 1); assert.equal(copies(a.layer), 1, 'a dash to a number');
-  const b = card('20.4'); words(b.c, read('27.9'), 1); assert.equal(copies(b.layer), 1, 'a jump of 0.5 or more');
-  const t = card('20.4'); words(t.c, read('20.4', 'danger'), 1); assert.equal(copies(t.layer), 1, 'a tone');
+  const a = card('—'); words(a.c, read('20.4')); assert.equal(copies(a.layer), 1, 'a dash to a number');
+  const b = card('20.4'); words(b.c, read('27.9')); assert.equal(copies(b.layer), 1, 'a jump of 0.5 or more');
+  const t = card('20.4'); words(t.c, read('20.4', 'danger')); assert.equal(copies(t.layer), 1, 'a tone');
 });
 
 test('a change that arrives while a crossing runs rides it: one copy, never a second one starting at full opacity', () => {

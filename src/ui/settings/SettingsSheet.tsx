@@ -6,7 +6,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { UI } from '../strings.generated.ts';
 import { useSettings, FIGURE_DETAIL } from '../../state/settings.ts';
 import { DEPTH_ROWS, AUTO_DETAIL_ROW, LITE_ROW, BUILD_PILL_ROW } from './depth-rows.ts';
-import { buildLabel, buildChecks, buildNote } from '../shell/build-pill.ts';
+import { buildLabel, buildNote } from '../shell/build-pill.ts';
 import { useUpdate } from '../../pwa/update-state.ts';
 import { loadNewestBuild } from '../../boot/reload.ts';
 import { FigurePresets, useFigurePreset } from './FigurePresets.tsx';
@@ -74,15 +74,15 @@ function LiteFigure() {
 }
 
 /**
- * Preview pill (3D only, preview builds only): the switch for the orange tab at the top edge, shown by default. The line under it names this build in plain words, so the commit and the
- * checks stay reachable with the pill hidden, and the row under it loads the newest build as the pill's tap does (boot/reload.ts).
+ * Preview pill (3D only, preview builds only): the switch for the orange tab at the top edge, shown by default. The line under it names this build in plain words, so the commit
+ * stays reachable with the pill hidden, and the row under it loads the newest build as the pill's tap does (boot/reload.ts).
  */
 function BuildPillRow() {
   const on = useSettings((s) => s.showBuildPill);
   const newer = useUpdate((u) => u.commit);
   const [busy, setBusy] = useState(false);
   const reload = () => { if (busy) return; setBusy(true); void loadNewestBuild(); };
-  const note = buildNote(buildLabel(import.meta.env.VITE_BUILD as string | undefined), buildChecks(import.meta.env.VITE_CHECKS as string | undefined), newer);
+  const note = buildNote(buildLabel(import.meta.env.VITE_BUILD as string | undefined), newer);
   return (<>
     <MenuToggle checked={on} icon={BUILD_PILL_ROW.icon} label={BUILD_PILL_ROW.label} sub={BUILD_PILL_ROW.hint} onChange={(v) => useSettings.getState().set('showBuildPill', v)} />
     <small className="fs-hint">{note}</small>

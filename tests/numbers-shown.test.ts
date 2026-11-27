@@ -8,9 +8,14 @@ import { readFileSync } from 'node:fs';
 import { tokensOf } from '../src/ui/text/tokens.ts';
 import { tileKeys, shownBy } from '../src/ui/deck/from2d/card-tiles.js';
 import { copiedDecks } from './helpers-deck-chain.ts';
+import { AT_FP } from '../src/ui/charts/profile/layout.generated.js';
 
 /** The readings an instrument prints as numbers of its own, by the instrument's kind (those the review's reading of the pictures confirms; every other kind is judged by its tiles alone). */
-const PRINTS: Record<string, readonly string[]> = { hvpg: ['hvpg', 'whvp', 'fhvp'], trace: ['pv', 'whvp', 'fhvp', 'hvpg'] };
+const PRINTS: Record<string, readonly string[]> = {
+  hvpg: ['hvpg', 'whvp', 'fhvp'], trace: ['pv', 'whvp', 'fhvp', 'hvpg'],
+  // (the pressure ladder prints every station's reading, the wedged one at the sinusoid, and its brackets: the HVPG, the PPG and the EUS-PPG; charts/profile/layout.generated.js AT_FP)
+  profile: [...Object.values(AT_FP as Record<string, string>), 'hvpg', 'ppg', 'eus'],
+};
 const shownOf = (s: Record<string, unknown>): Set<string> => new Set([
   ...(tileKeys(s, false) as string[]), ...(tileKeys(s, true) as string[]), ...((s.key as string[] | undefined) ?? []), ...(shownBy(s) as string[]),
   ...PRINTS[(s.tool as { kind?: string } | undefined)?.kind ?? ''] ?? [],

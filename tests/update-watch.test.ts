@@ -106,13 +106,12 @@ test('the safe-moment rule in one table', () => {
 });
 
 test('the pill always names the build this page RUNS, also when a newer one is out; the update state is its own words and colour', () => {
-  assert.equal(updateText('abc12345', '', null), 'PREVIEW · abc12345');
-  assert.equal(updateText('abc12345', 'types: 1 error', null), 'PREVIEW · abc12345 · types: 1 error');
-  for (const newer of ['', 'def67890']) assert.match(updateText('abc12345', '', newer), /NEW BUILD · TAP TO UPDATE · on abc12345/);
+  assert.equal(updateText('abc12345', null), 'PREVIEW · abc12345');
+  for (const newer of ['', 'def67890']) assert.match(updateText('abc12345', newer), /NEW BUILD · TAP TO UPDATE · on abc12345/);
   assert.equal(buildLabel('claude/x@abc12345'), 'abc12345');
   const pill = readFileSync('src/ui/shell/BuildPill.tsx', 'utf8');
-  assert.match(pill, /updateText\(label, checks, newer\)/); assert.match(pill, /VITE_BUILD/);
-  assert.match(pill, /newer !== null \? '#0b7a3b'/);
+  assert.match(pill, /updateText\(label, newer\)/); assert.match(pill, /VITE_BUILD/);
+  assert.match(pill, /pillColor\(newer\)/);
   assert.match(readFileSync('src/App.tsx', 'utf8'), /VITE_CHANNEL === 'preview' && <BuildPill \/>/);
 });
 

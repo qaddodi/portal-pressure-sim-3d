@@ -33,6 +33,7 @@ import { OrganArt } from './organ-art.ts';
 import { caudateAnchor3, caudateGeometry, caudateScale } from './caudate.ts';
 import { mapX, mapY, planeMap, unmapBox, unmapX, unmapY } from './placed-map.ts';
 import { ORGAN_PRE_FS, organPreVs } from './organ-shader.ts';
+import { poleEnds, scaleAbout, placedPoint } from './organ-axis.ts';
 /** Smoothing passes of the shade normal (the outline's own is 8: this one keeps the pillow's turn, a lighter hand). */
 
 import { whenQuiet } from '../../clock/idle.ts';
@@ -362,8 +363,17 @@ export class OrganLayer {
   /** Organ depth on or off (Settings > Figure depth): the baked crease and contact shade and the soft light. It eases in with the clock; `instant` takes it at once (the first call). */
   setDepth(on: boolean, instant = false): void { this.depthGoal = on ? 1 : 0; if (instant) this.fillInstant = true; }
 
-  /** How big the spleen is drawn now (1: normal): a caliper along its axis grows with it. */
-  get spleenScaleNow(): number { return this.spleenScale.value; }
+  private readonly poles = new Map<string, [Vector3, Vector3]>();
+  /** The two poles of an organ's long axis where the organ is drawn now (scene units), into `a` and `b`: false when the organ is not built. A length caliper stands on these (figure-cards.ts), so it
+   *  lands on the organ wherever the placement moved it, at whatever depth, and grows with it (the spleen's size). The poles are the mesh's own vertices (organ-axis.ts), found once. */
+  axisEnds(id: string, a: Vector3, b: Vector3): boolean {
+    const o = this.byId.get(id);
+    if (!o) return false;
+    let p = this.poles.get(id);
+    if (!p) this.poles.set(id, p = poleEnds(o.toonMesh.geometry));
+    placedPoint(o.group, p[0], a); placedPoint(o.group, p[1], b);
+    return true;
+  }
 
   applyLook(p: Palette): void { this.palette = p; this.art.applyLook(p); this.dirtyColours = true; }
   /** The blood's colour, the one the bleeding jet wears (disease/paint.ts bloodColour): the stomach's pool takes exactly it, so the stream and the pool are one blood. */
@@ -403,13 +413,13 @@ export class OrganLayer {
       if (this.liverShape?.apply(ls.cirrhosis)) { this.liverGeometry!.computeVertexNormals(); this.dirtyColours = true; }
       const s = liverShrink(ls.cirrhosis, ls.congestion);   // the figure's own, on the shown values
       const pv = pivot(LIVER_PIVOT, 'liver');
-      if (s !== this.shrinkWas) { this.shrinkWas = s; liver.group.scale.setScalar(s); liver.group.position.set(pv.x * (1 - s), pv.y * (1 - s), 0); this.dirtyColours = true; }   // (repainted only when the liver's own size changed: every organ's colours and the liver's vertex paint were redone in every frame)
+      if (s !== this.shrinkWas) { this.shrinkWas = s; scaleAbout(liver.group, pv, s); this.dirtyColours = true; }   // (repainted only when the liver's own size changed: every organ's colours and the liver's vertex paint were redone in every frame)
     }
     const sp = this.byId.get('spleen');
     if (sp) {
       moving = this.spleenScale.to(t.spleenScale, dt, inst) || moving;
       const s = this.spleenScale.value, pv = pivot(SPLEEN_CENTER, 'spleen');
-      sp.group.scale.setScalar(s); sp.group.position.set(pv.x * (1 - s), pv.y * (1 - s), 0);
+      scaleAbout(sp.group, pv, s);
       moving = this.ghost.to(t.splenicRx === 2 ? SPLENIC_GHOST : 1, dt, inst) || moving;
       moving = this.infarct.to(t.splenicRx === 1 ? 1 : 0, dt, inst) || moving;
     }

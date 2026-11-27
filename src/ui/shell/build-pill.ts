@@ -2,19 +2,19 @@
 
 /** The text after "PREVIEW · ": the commit of `VITE_BUILD` ("branch@commit"), or nothing in a local run. */
 export const buildLabel = (build: string | undefined): string => { const c = (build ?? '').split('@').pop() ?? ''; return c && c !== 'dev' && c !== 'local' ? c : ''; };
-/** What the build's own checks found (`VITE_CHECKS`, scripts/build.mjs: "types: 3 errors, lint failed"), or nothing when they were clean: the pill shows it so a broken branch is never a quiet one. */
-export const buildChecks = (raw: string | undefined): string => (raw ?? '').trim();
-/** Whether any of those checks is a failure: "tests: 0 failing" is a count, not a fault, so a clean suite leaves the pill orange. */
-export const checksFailed = (raw: string | undefined): boolean => buildChecks(raw).split(', ').some((c) => c !== '' && !/^tests: 0 failing/.test(c));
 export const BADGE_H = 16;
+/** The pill's two grounds, the only two it has: orange for the build this page runs, green when a newer one is out (tap to update).
+ *  Nothing about the build's checks or the test suite is ever shown on it (Mohammad, 27 Nov: beta testers see it). */
+export const PILL_COLORS = { current: '#c9430d', newer: '#0b7a3b' } as const;
+export const pillColor = (newer: string | null): string => (newer !== null ? PILL_COLORS.newer : PILL_COLORS.current);
 /** The pill's words: always the commit this page RUNS; when a newer build is out (`newer`: its commit, '' when not known; the pill is one line wide, so only the running commit is named) the pill says so first, so a stale tab is never mistaken for the newest. */
-export const updateText = (label: string, checks: string, newer: string | null): string =>
-  newer === null ? `PREVIEW${label ? ` · ${label}` : ''}${checks ? ` · ${checks}` : ''}`
+export const updateText = (label: string, newer: string | null): string =>
+  newer === null ? `PREVIEW${label ? ` · ${label}` : ''}`
     : `NEW BUILD · TAP TO UPDATE${label ? ` · on ${label}` : ''}`;   // (short: one line on a phone; the new commit is in the build note once reloaded)
 
-/** The build in plain words, for the line in Settings that stands in for the pill while it is hidden: "Build 56cb768a · tests: 0 failing", with a newer build named when one is out. */
-export const buildNote = (label: string, checks: string, newer: string | null): string =>
-  `Build ${label || 'local'}${checks ? ` · ${checks}` : ''}${newer !== null ? ' · a newer build is out' : ''}`;
+/** The build in plain words, for the line in Settings that stands in for the pill while it is hidden: "Build 56cb768a", with a newer build named when one is out. */
+export const buildNote = (label: string, newer: string | null): string =>
+  `Build ${label || 'local'}${newer !== null ? ' · a newer build is out' : ''}`;
 
 /** This copy's service worker scope and cache-name prefix (2D: `pps@<scope path>@`; the 3D app's caches use `pps3d@`). */
 export const cachePrefix = (href: string) => `pps3d@${new URL('./', href).pathname}@`;

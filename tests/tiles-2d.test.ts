@@ -11,6 +11,8 @@ import { chainOf, sequencer, changes, type Fp } from '../src/decks/hp/numbers.ts
 import { tilesAt, tileView, tileVal, ratedShown } from '../src/ui/cards/tiles-2d.ts';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
 import { hpNumbers } from './engine-departures.ts';
+import { HP_LOADERS } from '../src/decks/hp/raw.ts';
+import { showsLadder } from '../src/decks/overlay/ladder.ts';
 
 interface Row { id: string; phone: boolean; tips: boolean; toolOnly: boolean; keys: string[]; head: string[]; tiles: Record<string, unknown>[] }
 const tiles2d = JSON.parse(readFileSync(new URL('./fixtures/tiles-2d.json', import.meta.url), 'utf8')) as { decks: Record<string, Row[]> };
@@ -42,10 +44,13 @@ const departed = (id: string, i: number): Record<string, number> | null => {
   return rec && two && Object.entries(two).some(([k, v]) => Math.abs((rec[k] ?? NaN) - (v as number)) > 1e-9 + 2e-5 * Math.abs(v as number)) ? rec : null;
 };
 
-function check(d: CopiedDeck, results: { fp: Fp }[], where: string, live = false) {
+async function check(d: CopiedDeck, results: { fp: Fp }[], where: string, live = false) {
+  // (a slide whose tiles the pressure ladder took over, decks/overlay/ladder.ts, is no longer the 2D tile card: tests/ladder-for-tiles.test.ts pins what it is now)
+  const raw = ((await HP_LOADERS[d.id]?.()) as CopiedDeck | undefined)?.slides ?? [];
   for (const row of tiles2d.decks[d.id] ?? []) {
     const i = d.slides.findIndex((s) => s.id === row.id);
     assert.ok(i >= 0, `${where}/${row.id}: not a slide of the copied deck`);
+    if (raw.some((s) => s.id === row.id && showsLadder(s))) continue;
     const got0 = tilesAt(d.slides, results as never, i, row.phone)!;
     // (a tile the owner added on a slide, 27 Nov 2026 ruling W14, stands beside the 2D tiles; tests/numbers-shown.test.ts pins that the number a slide's words cite is shown)
     const added = ADDED_TILES[`${d.id}/${row.id}`] ?? [];
@@ -82,7 +87,7 @@ for (const id of HP_IDS) {
     const stateOf = d.slides.map((s, j) => (j === 0 || changes(s) ? (last = j) : last));
     const results = g.map((x) => ({ fp: x.fp, params: undefined as unknown }));
     for (const r of tiles2d.decks[id] ?? []) if (r.tips) results[stateOf[d.slides.findIndex((s) => s.id === r.id)]!]!.params = { tips: { on: true } };
-    check(d, results, id);
+    await check(d, results, id);
   });
 }
 
@@ -95,7 +100,7 @@ test('hvpg: the tiles on the numbers of this app\'s own engine replaying the tal
   await core.handle({ type: 'sequence', steps: chainOf(d.slides), reqId: 1 });
   core.dispose();
   const results = d.slides.map((_, i) => ({ fp: seq.results[i + 1]!.fp, params: seq.results[i + 1]!.params }));
-  check(d, results, 'hvpg (engine)', true);
+  await check(d, results, 'hvpg (engine)', true);
 });
 
 test('the HVPG slides: the 2D tiles by name (HVPG slides 4, 9 and 11), so a change to the model or a tile table shows here by slide', async () => {

@@ -11,7 +11,7 @@ import { calloutClaims } from './callout-claims.ts';
 import { lobuleLines, type CourseLine } from './lobule-lines.ts';
 import { PAIR_AIR, PAIR_AT, PAIR_RING_R, PAIR_SIN_AT, PAIR_STROKE, ringDisc } from './pair.ts';
 import { AIR_BLOCKER, LineGrid, onLine } from './solver.ts';
-import { makeTag, words, fade, place, size, show, TagLead, type Tag } from './tag-dom.ts';
+import { makeTag, words, fade, place, size, show, painted, TagLead, type Tag } from './tag-dom.ts';
 import { boxLeader, leaderToEdge, leaderShort, LEAD_AIR } from './tag-lead.ts';
 import { restyle } from './roll.ts';
 import { LS, RING_STROKE, type Vp } from './type.ts';
@@ -51,8 +51,8 @@ export interface FigCard {
 export const VARIX_CALIPERS: ReadonlySet<string> = new Set(['varix', 'C1a', 'C1b']);
 export interface FigCaliper {
   id: string;
-  /** A spleen's long axis (the 2D plate's two ends, scaled about its centre by the spleen's size), or a line across a vessel at its middle. */
-  line: { ends: readonly [readonly [number, number], readonly [number, number]] } | { across: string };
+  /** An organ's long axis, pole to pole on the drawn organ (the spleen's, which grows with its size: CardDeps.organEnds), or a line across a vessel at its middle. */
+  line: { organ: string } | { across: string };
   text: string;
 }
 
@@ -320,8 +320,8 @@ export interface CardDeps {
   vp(): Vp & { w: number; h: number };
   measure: Measure;
   now(): number;
-  /** The spleen's size now (1: normal); the caliper along its axis grows with it. */
-  spleenScale(): number;
+  /** The two poles of an organ's long axis where the organ is drawn now, scene units, into `a` and `b` (the spleen's already grown with its size); false when the organ is not in the figure. */
+  organEnds(id: string, a: Vector3, b: Vector3): boolean;
   /** A place of the lobule view (view.ts `calloutSpot`: 'tract', 'sinusoid:mid', 'sinusoid:zone3', 'central'), scene point; null when that view is not the figure now. */
   lobule(name: string, out: Vector3): Vector3 | null;
   /** The point on the ring a lobule callout draws round that place (one ring radius from it, along the plate): its pixels are measured from the camera. */
@@ -650,16 +650,18 @@ export class FigureCards {
       const tx = `${lead.at[i]} scaleX(${round(lead.len[i]! * kl)})`;
       if (tx !== lead.tx[i]) { lead.tx[i] = tx; l.style.transform = tx; }
     });
+    // (what stands on the screen is what was written last frame: a leader coming in with its words has no old colour to cross over from)
+    const was = Number(lead.root.style.opacity) || 0;
     lead.root.style.opacity = String(Math.round(a * 1000) / 1000);
     if (mark) {
       // the leader and its dot wear the words' colour (they cross over to a new one with the words)
       const tone = toneOf(c.tone);
-      if (lead.root.dataset.tone !== tone.attr) restyle(lead.root, () => { lead.root.dataset.tone = tone.attr; }, a);
+      if (lead.root.dataset.tone !== tone.attr) restyle(lead.root, () => { lead.root.dataset.tone = tone.attr; }, was);
       if (tone.css) lead.root.style.setProperty('--cl-tone', tone.css); else lead.root.style.removeProperty('--cl-tone');
     }
   }
 
-  /** A caliper's two ends on the canvas: the spleen's axis (2D `spleenCaliper`) or a line across a vessel, wall to wall at its middle. */
+  /** A caliper's two ends on the canvas: an organ's poles (the spleen's axis) or a line across a vessel, wall to wall at its middle. */
   /** Where along its vessel a card's point stands (0..1): a step's at the middle of the vessel's solid stretch; a mark on a varix column, while the slide has the scope ring (and no bleed to point at: figure-calls.ts),
    *  stands clear of the ring and its badge, as the varix ruler does, never inside it, where the ring's claim leaves the card no clear box and it fades away. */
   private atOf(c: FigCard): number {
@@ -670,10 +672,10 @@ export class FigureCards {
   }
   private caliperEnds(c: FigCaliper): [number, number, number, number] | null {
     const d = this.deps;
-    if ('ends' in c.line) {
-      const k = d.spleenScale(), cx = (c.line.ends[0][0] + c.line.ends[1][0]) / 2, cy = (c.line.ends[0][1] + c.line.ends[1][1]) / 2;
-      const pts = c.line.ends.map(([x, y]) => d.project(this.p.set(x3(cx + (x - cx) * k), y3(cy + (y - cy) * k), ORGAN_FRONT), { x: 0, y: 0 }));
-      return [pts[0]!.x, pts[0]!.y, pts[1]!.x, pts[1]!.y];
+    if ('organ' in c.line) {
+      if (!d.organEnds(c.line.organ, this.p, this.q)) return null;
+      const a = d.project(this.p, this.pt), b = d.project(this.q, this.pt2);
+      return [a.x, a.y, b.x, b.y];
     }
     const curve = curveOf(c.line.across), v = NETWORK_BY_ID.get(c.line.across);
     if (!curve || !v) return null;
@@ -718,7 +720,7 @@ export class FigureCards {
           r.card.root.dataset.tone = step ? 'free' : tone.attr;
           if (step) r.root.style.setProperty('--cl-tone', 'var(--text)');
           else if (tone.css) r.card.root.style.setProperty('--cl-tone', tone.css); else r.card.root.style.removeProperty('--cl-tone');
-        }, r.a);
+        }, painted(r.card));
       }
       size(r.card, sz.w, sz.h);
     }
@@ -739,8 +741,10 @@ export class FigureCards {
     if (!rg) { fadeRing(co, 0); return; }
     const rad = rg.x, tone = r.spec.tone === 'block' ? 'danger' : r.spec.tone === 'note' ? 'note' : r.spec.tone === 'wedge' ? 'wedge' : 'accent';
     // (the colour of the ring, its leader and its words changes while they show: they cross over to it)
-    if (co.root.dataset.tone !== tone) restyle(co.root, () => { co.root.dataset.tone = tone; }, r.a);
-    if (r.root.dataset.co !== tone) restyle(r.root, () => { r.root.dataset.co = tone; }, r.a);
+    // (what stands on the screen is what the ring last wrote: a ring coming in takes its colour without a crossing)
+    const was = Number(co.ring.style.opacity) || 0;
+    if (co.root.dataset.tone !== tone) restyle(co.root, () => { co.root.dataset.tone = tone; }, was);
+    if (r.root.dataset.co !== tone) restyle(r.root, () => { r.root.dataset.co = tone; }, was);
     // (the lower of a pair of readings draws the station dot's own ring and hairline: pair.ts)
     const pair = 'lobule' in r.spec.anchor && r.spec.anchor.lobule === PAIR_AT, sw = pair ? PAIR_STROKE : RING_STROKE;
     const key = `${rad}|${sw}`;
@@ -799,7 +803,7 @@ export class FigureCards {
     }
     r.root.style.opacity = String(Math.round(r.a * 1000) / 1000);
     show(r.card, true);
-    words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' }, r.a);   // (a changed caption crosses over: tag-dom.ts words)
+    words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' });   // (a changed caption crosses over: tag-dom.ts words)
     const { w, h } = this.textSize(r.spec.text, t);
     size(r.card, w, h);
     place(r.card, r.box.x0, r.box.y0);
@@ -827,7 +831,7 @@ export class FigureCards {
     });
     r.root.style.opacity = String(Math.round(r.a * 1000) / 1000);
     show(r.card, true);
-    words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' }, r.a);
+    words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' });
     const { w, h } = this.textSize(r.spec.text, t);
     size(r.card, w, h);
     place(r.card, r.box.x0, r.box.y0);

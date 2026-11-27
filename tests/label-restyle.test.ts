@@ -11,7 +11,7 @@ import { D_SMALL } from '../src/ui/motion.ts';
 import { LabelFader, lookKey, type Want } from '../src/scene/labels/fade.ts';
 import type { Placement } from '../src/scene/labels/solver.ts';
 
-type Keys = { opacity?: number }[];
+type Keys = { opacity?: number; offset?: number }[];
 type Opts = { duration: number; easing: string };
 class Anim {
   onfinish: (() => void) | null = null; oncancel: (() => void) | null = null; keys: Keys; opts: Opts;
@@ -58,7 +58,7 @@ test('a showing label crosses over: two copies for D_SMALL whose weights sum to 
   // the old copy's parts fade 1 to 0 and the live part whose words changed comes in 0 to 1 (its own opacity at the end), linear, over D_SMALL
   const out = old.children[0]!.anims[0]!, inn = name.anims[0]!;
   assert.deepEqual(out.keys, [{ opacity: 1 }, { opacity: 0 }]);
-  assert.deepEqual(inn.keys, [{ opacity: 0 }]);
+  assert.deepEqual(inn.keys, [{ opacity: 0, offset: 0 }], 'a lone keyframe is the START (offset 0), never the end: the words come in from 0 to their own opacity');
   for (const a of [out, inn]) { assert.equal(a.opts.duration, D_SMALL); assert.equal(a.opts.easing, 'linear', 'linear: the weights sum to 1 all the way'); }
   assert.equal(el.children[1]!.anims.length, 0, 'a part whose words did not change does not fade: it never dips');
   // when the old copy's animation ends, one is left

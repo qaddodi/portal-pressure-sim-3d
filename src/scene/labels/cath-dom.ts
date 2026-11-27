@@ -45,7 +45,7 @@ export function buildCath(parent: HTMLElement): CathDom {
   const paintPill = (c: Tag, l: TagLead, d: PillDraw | undefined) => {
     if (!d) { if (c.root.hasAttribute('data-on')) { show(c, false); fade(c, 0); } l.hide(); return; }
     show(c, true);
-    words(c, d.reading, d.alpha);   // (before the size: a crossing starts from the tag as it stood)
+    words(c, d.reading);   // (before the size: a crossing starts from the tag as it stood; a tag coming in takes its words with none)
     size(c, d.w, d.h);
     place(c, d.x, d.y + d.rise);
     fade(c, d.alpha);
@@ -68,29 +68,29 @@ export function buildCath(parent: HTMLElement): CathDom {
         sumKey = s.key;
         sum.style.width = `${px(g.w)}px`; sum.style.height = `${px(g.h)}px`;
         // (a stack laid out again while it shows, a number having gained a digit: the bracket and the leaders cross over to their new lines, the old fading off the new, and never step; the rows and the HVPG glide, cath-show.ts)
-        const a = s.lead * s.alpha;
+        // (what stands on the screen now is what the bracket and the leaders last wrote: the stack coming in has nothing to cross over from)
         restyle(brace, () => {
           brace.style.left = `${px(g.brace.x)}px`; brace.style.top = '0px';
           brace.setAttribute('width', String(g.brace.w)); brace.setAttribute('height', String(px(g.brace.h))); bpath.setAttribute('d', g.brace.d);
-        }, a);
+        }, Number(braceOp) || 0);
         restyle(sleads, () => {
           for (let j = 0; j < 2; j++) {
             lead[j].setAttribute('d', s.leaders.d[j]);
             dot[j].setAttribute('cx', String(px(s.leaders.dots[j][0]))); dot[j].setAttribute('cy', String(px(s.leaders.dots[j][1])));
           }
-        }, a);
+        }, Number(leadsOp) || 0);
       }
       // (a leader takes its row's colour: when that changes while they show, they cross over to it)
       if ([0, 1].some((j) => lead[j]!.getAttribute('data-tone') !== s.rows[j]!.tone)) {
-        restyle(sleads, () => { for (let j = 0; j < 2; j++) { lead[j]!.setAttribute('data-tone', s.rows[j]!.tone); dot[j]!.setAttribute('data-tone', s.rows[j]!.tone); } }, s.lead * s.alpha);
+        restyle(sleads, () => { for (let j = 0; j < 2; j++) { lead[j]!.setAttribute('data-tone', s.rows[j]!.tone); dot[j]!.setAttribute('data-tone', s.rows[j]!.tone); } }, Number(leadsOp) || 0);
       }
       for (let j = 0; j < 2; j++) {
         const c = rows[j], R = g.rows[j], r = s.row[j];
-        words(c, s.rows[j], r.alpha * s.alpha); size(c, R.w, R.h);
+        words(c, s.rows[j]); size(c, R.w, R.h);
         place(c, R.x + r.dx, R.y + r.dy + r.rise); fade(c, r.alpha * s.alpha);
       }
       const K = g.calc;
-      words(calc, s.calc, s.calcAlpha * s.alpha); size(calc, K.w, K.h);
+      words(calc, s.calc); size(calc, K.w, K.h);
       place(calc, K.x + s.calcShift.dx, K.y + s.calcRise + s.calcShift.dy); fade(calc, s.calcAlpha * s.alpha);
       const b = opacity(s.lead * s.alpha);
       if (b !== braceOp) { braceOp = b; brace.style.opacity = b; }
