@@ -38,6 +38,12 @@ export const CAPTURE = {
   deckProgress: (n: number, total: number) => `Capturing slide ${Math.min(n + 1, total)} of ${total}. Tap Stop to keep what’s done.`,
   deckDone: (n: number, stopped: boolean) => `${stopped ? 'Stopped. ' : ''}${n} slide${n === 1 ? '' : 's'} captured, with a contact sheet. Tap Save.`,
 } as const;
+/** Settings > Record window (ui/capture/record.ts): a video of this window, saved when it is stopped. Shown only where the browser can share a window and write video. */
+export const RECORD = {
+  row: 'Record window', hint: 'A video of this window, saved when you stop it', stopRow: 'Stop recording', stopHint: 'Stop and save the video', savingRow: 'Saving the video…',
+  stopButton: 'Stop recording',
+  saved: 'Recording saved.', failed: 'Couldn’t record the window. Try again in a moment.',
+} as const;
 export const BOOT_CRASH = { title: 'The simulator didn’t start', body: 'The model didn’t load, and reloading usually fixes it.', reload: 'Reload' } as const;
 /** The app-level safety net (AppBoundary.tsx): a render error outside a card never blanks the app. */
 export const APP_CRASH = {

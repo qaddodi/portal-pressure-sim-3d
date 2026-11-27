@@ -7,7 +7,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { sheetHeight, SIZES, THUMB, TABLET } from '../src/ui/treat/sheet-height.copied.ts';
 import { glideFrames, cutFrames, rideFrames } from '../src/ui/treat/card-glide.copied.ts';
 import { readOpen, writeOpen, startsOpen, toggled, KEPT_KEY } from '../src/ui/treat/keep.ts';
-import { slideMs, PAGE_AWAY } from '../src/ui/treat/page-push.ts';
+import { slideMs, PAGE_AWAY } from '../src/ui/surface/page-push.ts';
 import { pinned2D } from './two-d-pin.ts';
 
 const mem = (init?: string) => { const m = new Map<string, string>(); if (init != null) m.set(KEPT_KEY, init); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) }; };
@@ -63,15 +63,19 @@ test('the Changes page slides for as long as the distance asks, the rest of the 
 });
 
 test('the sheet is 2D\'s markup, class for class, glued to the 2D stylesheets and the one clock', () => {
-  const src = readFileSync('src/ui/treat/TreatCard.tsx', 'utf8');
+  // (the head and the tab strip are the one panel head's, surface/PanelHead.tsx and Tabs.tsx: their classes are the 2D card's still)
+  const card = readFileSync('src/ui/treat/TreatCard.tsx', 'utf8');
+  assert.match(card, /<PanelHead className="tc-head"/, 'Treat\'s head is the one panel head');
+  assert.match(card, /variant: 'text', className: 'treat-tabs'/, 'its tabs are the one strip, text variant');
+  const src = [card, readFileSync('src/ui/surface/PanelHead.tsx', 'utf8'), readFileSync('src/ui/surface/Tabs.tsx', 'utf8')].join('\n');
   const baseCss = readdirSync('src/ui/styles').filter((n) => n.endsWith('.css')).map((n) => readFileSync(`src/ui/styles/${n}`, 'utf8')).join('\n');
   assert.ok(baseCss.length > 1000, 'the 2D stylesheets are there');
   for (const c of ['treat-card', 'tr-card', 'has-plate', 'sheet-plate', 'tr-in', 'tc-head', 'card-head', 'card-title', 'card-meta', 'card-close', 'instr-tabs', 'treat-tabs', 'instr-tab', 'tt-l', 'tt-n',
     'tc-body', 'treat-pane', 'order-chips', 'order-chip', 'oc-t', 'oc-dot', 'order-grid', 'order-btn', 'fluid-btn', 'ob-t', 'ob-on', 'section', 'chart-sec', 'tc-page', 'tcp-head', 'tcp-back', 'tcp-title', 'tcp-body', 'tcp-row', 'tp-off', 'tp-gone']) {
-    assert.ok(src.includes(c), `TreatCard.tsx uses .${c}`);
+    assert.ok(src.includes(c), `Treat's card (or its panel head) uses .${c}`);
     if (!['has-plate', 'tr-in', 'oc-t', 'oc-dot', 'ob-t', 'ob-on', 'tt-l', 'tt-n', 'tp-off', 'tp-gone', 'fluid-btn'].includes(c)) assert.ok(baseCss.includes(`.${c}`) || readFileSync('src/ui/treat/treat.css', 'utf8').includes(`.${c}`), `.${c} is styled`);
   }
-  for (const t of ['glideCard', 'startSegGlideOn', 'pushPage', 'remember', 'sheetHeight']) assert.ok(src.includes(t), `TreatCard.tsx: ${t}`);
+  for (const t of ['glideHeight', 'startSegGlideOn', 'pushPage', 'remember', 'sheetHeight']) assert.ok(card.includes(t), `TreatCard.tsx: ${t}`);
   assert.ok(!/requestAnimationFrame/.test(src), 'one clock');
   assert.match(readFileSync('src/ui/glass.css', 'utf8'), /\.tr-card > \.sheet-plate/, 'the glass is on the plate');
 });

@@ -203,8 +203,6 @@ export class SinusoidView {
     return from || to ? { from, to, mix: this.fade.mix } : null;
   }
   /** The dive's share, 0 to 1 (see diveShare), while the camera flies between the lobule and this view; null at rest (the tissue whole, everywhere). */
-  /** The sinusoid's middle on the screen (CSS px) while it is up: where its reveal in the dive spreads from (micro3d/reveal.ts). The scene measures it each frame (parts/dive.ts stepPortrait). */
-  readonly revealCentre = { x: 0, y: 0 };
   setDive(g: number | null): void { if (g !== this.dive) { this.dive = g; this.dirty = true; } }
   get diveShareNow(): number | null { return this.dive; }
 

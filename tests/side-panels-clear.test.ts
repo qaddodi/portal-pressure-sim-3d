@@ -1,11 +1,13 @@
 // Floating controls stand clear of every card that opens beside the figure (owner's coordinator, 26 Nov: the zoom buttons sat over the History panel on a Mac; then, the root rule: every
-// floating panel or card clears them, Treat and the Tests card included). The root: each card that stands at the screen's right edge has a reach, how far its left edge stands from that edge,
-// from the same width variable the card itself is placed by, and the shell moves the zoom pill to 8 px left of the farthest open one (shell.css). A sheet across the middle leaves no room
-// beside it, so the pill fades under it. A new surface pinned to the right edge must join the reach rules, or be listed below with the reason it never meets the pill.
+// floating panel or card clears them, Treat and the Tests card included). The root since stage 2 of the menu unification: every panel publishes its box to the one room channel
+// (surface/room.ts), the shell writes the farthest right-hand panel's reach as --panel-reach, and one rule moves the zoom pill to 8 px left of it (shell.css). A sheet across the
+// middle leaves no room beside it, so the pill fades under it. A new surface pinned to the right edge must be a panel that publishes its box, or be listed below with the reason it
+// never meets the pill.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { panelReach } from '../src/ui/surface/room.ts';
 
 const cssFiles = (dir: string): string[] => readdirSync(dir).flatMap((f) => { const p = join(dir, f); return statSync(p).isDirectory() ? cssFiles(p) : p.endsWith('.css') ? [p] : []; });
 const all = cssFiles('src/ui').map((f) => [f, readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')] as const);
@@ -25,72 +27,66 @@ const NEVER_OVER: readonly [RegExp, string][] = [
   [/^\.panel$/, "2D's patient chart: no 3D component renders it"],
 ];
 
-/** the reach rule each kind of right-hand card needs, and the width variable both the card and its reach read */
-function surfaceOf(sel: string): { key: string; reach: RegExp; width: RegExp } | null {
+/** the right-hand panels pinned to the right edge, and the file that publishes each one's box to the one room channel (surface/room.ts) */
+function panelOf(sel: string): { key: string; publisher: string; publishes: RegExp } | null {
   const sheet = /^\.sh-sheet\[data-kind="([a-z]+)"\]$/.exec(sel);
-  if (sheet) {
-    const k = sheet[1]!;
-    return {
-      key: `sheet:${k}`,
-      reach: new RegExp(`:has\\(\\.sh-sheet\\[data-kind="${k}"\\]\\[data-open="true"\\]\\) \\.zoom-pill \\{\\s*--reach-sheet: calc\\(var\\(--sh-pad-x\\) \\+ var\\(--panel-${k}\\)\\);\\s*\\}`),
-      width: new RegExp(`\\.sh-sheet\\[data-kind="${k}"\\][^{]*\\{[^}]*width: var\\(--panel-${k}\\)`),
-    };
-  }
-  if (sel === '.treat-card') return { key: 'treat', reach: /:has\(\.treat-card\[data-open="true"\]\) \.zoom-pill \{ --reach-treat: calc\(var\(--reach-tests, 0px\) \+ var\(--gap, 12px\) \+ var\(--card-treat\)\); \}/, width: /\.treat-card \{[^}]*width: var\(--card-treat\)/ };
-  if (sel === '.instrument-workspace.side') {
-    return {
-      key: 'tests',
-      reach: /\.app\.dock-side:not\(\.instrument-focus\) \.zoom-pill \{ --reach-tests: calc\(var\(--gap, 12px\) \+ var\(--rail-w, 0px\) \+ var\(--side-ws-w, 500px\)\); \}/,
-      width: /\.instrument-workspace\.side \{[^}]*right: calc\(var\(--safe-r\) \+ var\(--gap\) \+ var\(--rail-w, 0px\)\)[^}]*width: var\(--instrument-w, 500px\)/,
-    };
-  }
+  if (sheet) return { key: `sheet:${sheet[1]}`, publisher: 'src/ui/shell/Frame.tsx', publishes: /publishPanel\(kind as PanelId, b \? \{ rect: b, side:/ };
+  if (sel === '.treat-card') return { key: 'treat', publisher: 'src/ui/treat/TreatCard.tsx', publishes: /publishPanel\('treat', \{ rect: placedBox\(panelPlace\('treat', vp, device, \{ step \}\), h\), side: 'right' \}\)/ };
+  if (sel === '.instrument-workspace.side') return { key: 'tests', publisher: 'src/ui/tests/TestsLayer.tsx', publishes: /publishPanel\('tests', up \? \{ rect: place\.rect, side: place\.kind === 'side' \? 'right' : 'foot'/ };
   return null;
 }
 
-test('every card that stands at the right edge has a reach the zoom pill steps aside by, from the width the card itself is placed by', () => {
+test('every surface that stands at the right edge is a panel that publishes its box to the one room channel, or says why it never meets the pill', () => {
   const found = new Set<string>(), strays: string[] = [];
   for (const r of rules) {
     if (!pinnedRight(r.body)) continue;
     for (const sel of r.sel.split(',').map((s) => s.trim())) {
-      const s = surfaceOf(sel);
-      if (s) {
-        found.add(s.key);
-        assert.match(shell, s.reach, `${s.key}: open, the zoom pill steps aside by its reach`);
-        assert.ok(all.some(([, css]) => s.width.test(css)), `${s.key}: the card is as wide as the reach says (one number, read by both)`);
-      } else if (!NEVER_OVER.some(([re]) => re.test(sel))) strays.push(`${r.f}: ${sel}`);
+      const s = panelOf(sel);
+      if (s) { found.add(s.key); assert.match(readFileSync(s.publisher, 'utf8'), s.publishes, `${s.key}: its box is in the room channel`); }
+      else if (!NEVER_OVER.some(([re]) => re.test(sel))) strays.push(`${r.f}: ${sel}`);
     }
   }
-  assert.deepEqual(strays, [], 'a surface pinned to the right edge with no reach: give it one in shell.css, or say here why it never meets the pill');
-  assert.deepEqual([...found].sort(), ['sheet:compare', 'sheet:help', 'sheet:history', 'sheet:settings', 'sheet:why', 'tests', 'treat']);
+  assert.deepEqual(strays, [], 'a surface pinned to the right edge that is no panel: make it one (it publishes its box), or say here why it never meets the pill');
+  assert.deepEqual([...found].sort(), ['sheet:compare', 'sheet:history', 'sheet:why', 'tests', 'treat']);
+  // the dead sheet boxes of the surfaces that stopped being Frames (the main menu, Settings, Help, Search) are gone, and with them their reach rules
+  for (const [f, css] of all) assert.doesNotMatch(css, /\.sh-sheet\[data-kind="(menu|settings|help|search)"\]/, f);
+  assert.doesNotMatch(shell, /--reach-(sheet|tests|treat)/, 'no reach of its own per panel: one rule reads the channel');
 });
 
-test('the pill goes 8 px left of the farthest open card, by a transform that glides, on every screen it stands on (a phone held sideways too)', () => {
-  assert.match(shell, /\.sh-root:not\(\[data-bottom="true"\]\) \.zoom-pill \{\s*--fs-zoom-r: max\(0px, calc\(max\(var\(--reach-sheet, 0px\), var\(--reach-tests, 0px\), var\(--reach-treat, 0px\)\) \+ 8px - var\(--gap, 12px\)\)\);/);
+test('the pill goes 8 px left of the farthest open right-hand panel, one rule for every panel, by a transform that glides, on every screen it stands on (a phone held sideways too)', () => {
+  assert.match(shell, /\.sh-root:not\(\[data-bottom="true"\]\) \.zoom-pill \{\s*--fs-zoom-r: max\(0px, calc\(var\(--panel-reach, 0px\) \+ 8px - var\(--gap, 12px\)\)\);/);
   assert.match(floating, /\.zoom-pill \{[^}]*right: calc\(var\(--safe-r\) \+ var\(--gap\)\);[^}]*transform: translateX\(calc\(-1 \* var\(--fs-zoom-r, 0px\)\)\)/, 'a transform: it glides aside, never jumps');
   const pill = rules.filter((r) => /(^|,\s*)\.zoom-pill$/.test(r.sel) || r.sel.endsWith(' .zoom-pill'));
   for (const r of pill) assert.doesNotMatch(r.body, /(^|;)\s*transform:\s*none/, `${r.f}: nothing takes the aside away (${r.sel})`);
-  // (Treat stands left of a Tests card on the right, so its reach starts at the Tests card's: treat/beside.ts gives Treat that same step)
-  assert.match(readFileSync('src/ui/treat/beside.ts', 'utf8'), /vp\.w - vp\.safe\.right - place\.rect\.x/);
-  // (the Tests card publishes the width it is placed at, which the reach reads)
+  // (the reach is the channel's: the farthest right-hand box, a Tests instrument in focus and the sheets over the foot moving nothing; written on .app by the shell)
+  const vw = 1440;
+  assert.equal(panelReach(vw, []), 0);
+  assert.equal(panelReach(vw, [{ rect: { x: 928, y: 60, w: 500, h: 700 }, side: 'right' }, { rect: { x: 496, y: 60, w: 420, h: 400 }, side: 'right' }]), vw - 496);
+  assert.equal(panelReach(vw, [{ rect: { x: 12, y: 60, w: 1416, h: 800 }, side: 'right', fills: true }, { rect: { x: 0, y: 600, w: vw, h: 300 }, side: 'foot' }, { rect: { x: 12, y: 60, w: 340, h: 300 }, side: 'left' }]), 0);
+  const sh = readFileSync('src/ui/shell/Shell.tsx', 'utf8');
+  assert.match(sh, /const reach = usePanelRoom\(\(s\) => panelReach\(vp\.w, boxesOf\(s\.boxes\)\)\);/);
+  assert.match(sh, /style\.setProperty\('--panel-reach', `\$\{reach\}px`\)/);
+  // (the Tests card publishes the width it is placed at, which the sideways play bar reads)
   const tests = readFileSync('src/ui/tests/TestsLayer.tsx', 'utf8');
   assert.match(tests, /publishSideWidth\(app, open && !away && side \? place\.rect\.w : null\)/);
   assert.match(tests, /'--instrument-w' as string\]: `\$\{place\.rect\.w\}px`/);
-  assert.match(shell, /:not\(\[data-device="phone-landscape"\]\):has\(\.sh-sheet\[data-kind="history"\]/, 'History held sideways is at the left: the pill stays');
 });
 
-test('a sheet across the screen leaves no room beside it (Search, the Guide, Treat on a phone): the pill fades while it is up', () => {
+test('a surface across the middle leaves no room beside it (every dialog: Search, the Guide, About; Treat on a phone): the pill fades while it is up', () => {
+  // (since 27 Nov the surfaces across the middle are the dialogs, all drawn by the dialog shell's one layer; no sheet of the shell's stands in the middle any more)
   const middle = new Set<string>();
   for (const r of rules) {
     if (!/(^|;)\s*left: 50%/.test(r.body)) continue;
     for (const s of r.sel.split(',').map((x) => x.trim())) { const m = /^\.sh-sheet\[data-kind="([a-z]+)"\]$/.exec(s); if (m) middle.add(m[1]!); }
   }
-  assert.deepEqual([...middle].sort(), ['guide', 'search']);
-  const fade = /\.sh-root:has\(\.sh-sheet\[data-open="true"\]:is\(([^)]*)\)\) \.zoom-pill \{ opacity: 0; pointer-events: none; \}/.exec(shell);
-  assert.ok(fade, 'the fade rule');
-  for (const k of middle) assert.match(fade[1]!, new RegExp(`\\[data-kind="${k}"\\]`), `${k}: the pill fades under it`);
+  assert.deepEqual([...middle], [], 'a surface across the middle is a dialog, not a sheet');
+  assert.match(shell, /\.sh-root:has\(\.sf-layer\[data-open="true"\]\) \.zoom-pill \{ opacity: 0; pointer-events: none; \}/, 'the fade rule: under every open dialog');
+  const dialog = readFileSync('src/ui/surface/Dialog.tsx', 'utf8');
+  assert.match(dialog, /className="sf-layer"[^>]*data-open=\{open\}/, 'the layer says it is open');
+  for (const f of ['src/ui/search/SearchSheet.tsx', 'src/ui/shell/HelpSheets.tsx']) assert.match(readFileSync(f, 'utf8'), /<Dialog id="(search|guide)"/, f);
   // (the screens where Treat is a sheet across the foot: the pill fades under it there, by the very query that makes it one)
   const sheetQ = /@media ([^{]+)\{[^@]*?\.panel, \.treat-card \{\s*top: auto !important; left: 0 !important; right: 0 !important;/.exec(readFileSync('src/ui/styles/app-07-floating.css', 'utf8'));
   assert.ok(sheetQ, 'the query that makes Treat a sheet');
   const q = sheetQ[1]!.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  assert.match(shell, new RegExp(`@media ${q} \\{\\s*\\.sh-root:not\\(\\[data-bottom="true"\\]\\):has\\(\\.treat-card\\[data-open="true"\\]\\) \\.zoom-pill \\{ --reach-treat: 0px; opacity: 0; pointer-events: none; \\}`));
+  assert.match(shell, new RegExp(`@media ${q} \\{\\s*\\.sh-root:not\\(\\[data-bottom="true"\\]\\):has\\(\\.treat-card\\[data-open="true"\\]\\) \\.zoom-pill \\{ opacity: 0; pointer-events: none; \\}`));
 });

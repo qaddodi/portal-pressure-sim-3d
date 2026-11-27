@@ -9,7 +9,7 @@ import { M } from '../src/ui/shell/metrics.ts';
 import { sheetFoot, layoutVars, dockHeight, dockInset } from '../src/ui/shell/room.ts';
 import { testsPlace } from '../src/ui/tests/place.ts';
 import { sheetPlace } from '../src/ui/treat/sheet-place.ts';
-import { cardMaxHeight, takenBy } from '../src/ui/action/action-room-math.ts';
+import { cardMaxHeight, takenBy } from '../src/ui/action/action-room.ts';
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const SCREENS = [
@@ -43,7 +43,9 @@ test('the vessel card, the Tests sheet and the Treat sheet all rest at the same 
 test('the vessel card\'s code stands it on sheetFoot (never overlapping the bar), and its height cap and the room it takes read the same foot', () => {
   const card = read('src/ui/action/ActionCard.tsx');
   assert.match(card, /bottom: `calc\(var\(--safe-b, 0px\) \+ \$\{sheetFoot\(device\)\}px\)`/);
-  assert.match(card, /cardMaxHeight\(vp\.h, vp\.safe\.top, topBarH\(vp, device\), vp\.safe\.bottom, sheetFoot\(device\)\)/);
+  // (its tallest is its Full from the one stops function, which stands on the same foot: sheetRoom is the screen less the top bar and safe.bottom + sheetFoot)
+  assert.match(card, /stopsFor\(vp, device, PANEL_FITS\.action\)/);
+  assert.match(read('src/ui/surface/sheet-stops.ts'), /vp\.h - vp\.safe\.top - topBarH\(vp, device\) - \(vp\.safe\.bottom \+ sheetFoot\(device\)\) - ROOM_CLEAR/);
   assert.ok(!/footHeight\(device\) - 8/.test(card), 'no foot sunk 8 px behind the bar');
   const { vp, d } = SCREENS[0]!;
   assert.equal(cardMaxHeight(vp.h, vp.safe.top, 50, vp.safe.bottom, sheetFoot(d)) + vp.safe.top + 50 + 6 + vp.safe.bottom + sheetFoot(d), vp.h, 'the card\'s top is 6 px under the top bar at its tallest');
@@ -56,7 +58,8 @@ test('the Treat and panel sheets read --nb-occ (published) and the clip under th
   assert.match(read('src/ui/shell/Shell.tsx'), /vp\.safe\.bottom \+ sheetFoot\(d\)/);
   assert.match(read('src/ui/shell/Shell.tsx'), /setProperty\('--sheet-gap'/);
   assert.match(merged2d('app-07-floating.css'), /calc\(var\(--sheet-foot-screen, 8px\) - var\(--sheet-gap, 8px\)\)/);
-  assert.match(merged2d('app-03-layouts.css'), /calc\(var\(--thumb-occ, 0px\) - var\(--sheet-gap, 8px\)\)/);
+  // (Search, the Guide and the pages are dialog sheets since 27 Nov: they rest on the same line, --thumb-occ, or one gap over the keyboard: surface/dialog.css)
+  assert.match(read('src/ui/surface/dialog.css'), /max\(var\(--thumb-occ, 0px\), calc\(var\(--dlg-kb, 0px\) \+ var\(--sheet-gap, 8px\)\)\)/);
   assert.match(read('src/ui/treat/TreatCard.tsx'), /sheetPlace\(vp, sheetFoot\(layoutClass\(true\)\), h\)/);
 });
 

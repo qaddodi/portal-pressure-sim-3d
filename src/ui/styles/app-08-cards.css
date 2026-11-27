@@ -286,10 +286,10 @@ canvas.wgl.wgl, canvas.wgl.wgl + canvas.trace-gl { position: absolute; left: cal
   /* The 1 / 2 slot number sits after the name, in the row, so it never covers a neighbour. */
   .instr-tab[data-slot="1"]::after, .instr-tab[data-slot="2"]::after { position: static; flex: none; margin-left: 1px; width: 16px; height: 16px; font: 600 12px/16px var(--font-ui); }
   .picking .instr-tab:not([aria-selected="true"]) { box-shadow: none; color: var(--accent-ink); }
-  .treat-tabs { margin: 2px 12px 10px; gap: 2px; padding: 3px; border-radius: 10px; background: var(--surface-2); }   /* (Treat's tabs wear the phone's one segmented pill on every screen, 16 Nov 2026: the chosen tab was only a little bolder here. The Tests row keeps its text tabs: review ST-14.) */
-  .treat-tabs .instr-tab, .treat-tabs .instr-tab[aria-selected="true"] { flex: 1 1 0; justify-content: center; height: 30px; margin-left: 0; padding: 0 8px; border-radius: 7px; font-weight: 600; color: var(--text-2); }
-  .treat-tabs .instr-tab[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgb(var(--night-rgb) / .12), 0 0 0 .5px var(--hairline); }
-  @media (forced-colors: none) { .treat-tabs.seg-glide::before { display: block; } .treat-tabs.seg-glide .instr-tab[aria-selected="true"] { background: none; box-shadow: none; } } @media (hover: hover) { .treat-tabs .instr-tab:hover { color: var(--text); } }
+  :is(.treat-tabs, .ws-tabs) { margin: 2px 12px 10px; gap: 2px; padding: 3px; border-radius: 10px; background: var(--surface-2); }   /* (Treat's tabs wear the phone's one segmented pill on every screen, 16 Nov 2026; Tests' row wears it too since 27 Nov: one tab look for every panel, text or icon, PanelHead's Tabs. Shown by the raised part and weight, never an underline: review ST-14.) */
+  :is(.treat-tabs, .ws-tabs) .instr-tab, :is(.treat-tabs, .ws-tabs) .instr-tab[aria-selected="true"] { flex: 1 1 0; justify-content: center; height: 30px; margin-left: 0; padding: 0 8px; border-radius: 7px; font-weight: 600; color: var(--text-2); }
+  :is(.treat-tabs, .ws-tabs) .instr-tab[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgb(var(--night-rgb) / .12), 0 0 0 .5px var(--hairline); }
+  @media (forced-colors: none) { .instr-tabs:is(.treat-tabs, .ws-tabs).seg-glide::before { display: block; } .instr-tabs:is(.treat-tabs, .ws-tabs).seg-glide .instr-tab[aria-selected="true"] { background: none; box-shadow: none; } } @media (hover: hover) { :is(.treat-tabs, .ws-tabs) .instr-tab:hover { color: var(--text); } }
   .instrument-workspace .dock-head { padding: var(--card-head-pad) !important; }
   .instrument-workspace .dock-pane { padding-left: 16px; padding-right: 16px; }
 }

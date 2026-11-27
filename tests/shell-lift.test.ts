@@ -114,7 +114,7 @@ test('a phone\'s Tests sheet rests one sheet gap above the dock (--thumb-occ), w
 
 test('an upright iPad\'s Tests sheet is the 70 % column in the middle, as 2D\'s (left: 15%; right: 15%), so the tab row shows the short names instead of a cut "Endosc…"', async () => {
   const { testsPlace } = await import('../src/ui/tests/place.ts');
-  const { fitTabs } = await import('../src/ui/tests/tab-fit.ts');
+  const { fitTabs } = await import('../src/ui/surface/tab-fit.ts');
   const vp = { w: 820, h: 1180, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
   const pl = testsPlace(vp, 'tablet-portrait');
   assert.equal(pl.rect.x, 123); assert.equal(pl.rect.w, 574, 'the dock\'s own width: 123 to 697 in 2D at 820 wide');

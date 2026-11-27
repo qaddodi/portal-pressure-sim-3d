@@ -56,8 +56,9 @@ html.fr :is(.lens-btn, .ps-btn, .tl-pop-ic, .pz-zbtn, .ask-field, .pz-abb, .pzc-
    over it as small pills and cards (the top bar, the vitals dock with the play bar and the key
    readouts, the patient chart, the Treat card, the instruments), and the figure's Fit frames the
    anatomy in the part they leave free (see safeInsets in stage.js). */
+:root { --card-head-pad: 12px 8px 8px 16px; }   /* (every panel's head, in #app or in the shell's root: surface/PanelHead.tsx) */
 .app {
-  --panel-w: 360px; --card-head-pad: 12px 8px 8px 16px; --top-h: 56px; --gap: 12px; --top-safe: 64px; --vdock-h: 120px;
+  --panel-w: 360px; --top-h: 56px; --gap: 12px; --top-safe: 64px; --vdock-h: 120px;
   /* Fixed to the viewport, like the start screen: iOS 26 keeps a fixed header sharp under the
      status bar but blurs ordinary page content that sits there. */
   position: fixed; inset: 0;

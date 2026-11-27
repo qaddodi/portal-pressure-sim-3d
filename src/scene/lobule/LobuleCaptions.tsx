@@ -76,6 +76,9 @@ export function LobuleCaptions() {
       return note ? [...out, note, ...calloutClaims.boxes, ...creditClaim.boxes, ...chromeClaims.boxes] : [...out, ...calloutClaims.boxes, ...creditClaim.boxes, ...chromeClaims.boxes];
     };
 
+    // (a ring callout's room: the names' boxes keep off it, the dots it rings stand inside it and keep their names. callout-claims.ts `rings`)
+    const rings = (): readonly Box[] => calloutClaims.rings;
+
     const make = (id: string, m: CapMeta): El => {
       const r = document.createElement('div');
       r.className = `lb cc cc-${m.kind}`;
@@ -121,7 +124,7 @@ export function LobuleCaptions() {
         ? { id: 'sin', form: 0, dx: above.box.x0 - sinIt.ax, dy: above.box.y0 - sinIt.ay, w: sinForm.w, h: sinForm.h, leader: true, au: sinIt.au } : null;
       const out = solve({
         items: pinned ? items.filter((it) => it.id !== 'sin') : items, view: vw, lines: built.lines, keep: built.keep,
-        blockers: above ? [...bl, above.claim] : bl,
+        blockers: above ? [...bl, above.claim] : bl, encircled: rings(),
       });
       if (pinned) out.placed.push(pinned);
       if (typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search)) console.info('[lobule-captions] solved:', JSON.stringify({ items: items.length, placed: out.placed.length, view: vw, room: cel.rig.targetRoom, fit: cel.rig.fitRoom, hand: cel.rig.handView, moving: cel.rig.isMoving, corners: [pa, pb, pc, pd], walls: bl.length }));
@@ -179,7 +182,7 @@ export function LobuleCaptions() {
     const layoutSig = (): string => {
       const { vp, boxes } = useUi.getState();
       const L = cel.lobule.currentLayers, m = readModel(cel.lobule.inkContext()?.model);
-      return [vp.w, vp.h, L.zones, L.lymph, levelFor(useShell.getState().figure.labelLevel, useLabels.getState().presenting), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'), boxKey(view()), lookRef.current,
+      return [vp.w, vp.h, L.zones, L.lymph, levelFor(useShell.getState().figure.labelLevel, useLabels.getState().presenting), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'), boxKey(view()), calloutClaims.rings.map(boxKey).join(';'), lookRef.current,
         readingSig(m, onSlide(), pUnit()), onSlide(), pUnit(), figSig(),
         cel.lobule.currentLens === 'oxygen'].join('|');   // (the readings' widths, never their values: a value that moves a tenth is written in place, refreshReadings, and sends nothing through a fade)
     };
@@ -199,11 +202,11 @@ export function LobuleCaptions() {
       // (Off: the corners stay where they were last read. They were set to 0, so a name still fading out as the view went away was carried by a collapsed quad to the screen's corner, 700 to 1300 px in one
       //  frame at half opacity: Presinusoidal stop 7, 21 Nov audit.)
       if (on) { const a = proj(0, 0), b = proj(1, 0), c = proj(1, 1), d = proj(0, 1); pa.x = a[0]; pa.y = a[1]; pb.x = b[0]; pb.y = b[1]; pc.x = c[0]; pc.y = c[1]; pd.x = d[0]; pd.y = d[1]; }
-      const g = gate.step({ now, dt, on, moving: cel.rig.isMoving, byHand: hand.step(cel.rig.handView, cel.rig.isMoving), a: pa, b: pb, c: pc, d: pd, layout: layoutSig, fits: (ride) => boxesFit(boxesOf(), ride, view(), blockers()) });
+      const g = gate.step({ now, dt, on, moving: cel.rig.isMoving, byHand: hand.step(cel.rig.handView, cel.rig.isMoving), a: pa, b: pb, c: pc, d: pd, layout: layoutSig, fits: (ride) => boxesFit(boxesOf(), ride, view(), [...blockers(), ...rings()]) });
       if (g.solve) { solveNow(); if (typeof location !== 'undefined' && /[?&]capwhy\b/.test(location.search)) console.info('[lobule-captions] re-placed:', gate.why, gate.whySig); } else if (alpha > 0) refreshReadings();
       alpha = g.alpha;
       if (alpha > 0 || wasShown) {
-        const walls = blockers(), room = view();
+        const walls = [...blockers(), ...rings()], room = view();
         let any = false;
         for (const [id, e] of els) {
           const p = placed.get(id), it = itemsNow.get(id);

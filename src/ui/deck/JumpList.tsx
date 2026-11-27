@@ -1,16 +1,20 @@
 // The slide list (G while presenting; the 2D toggleJump): every stop with its number, grouped by kicker, the one on show marked. A tap or Enter goes there. Up and Down move the focus.
-// The markup and classes are the 2D app's own (presenter.js toggleJump: nav.pz-jump > .pzj-h, .pzj-list), so its lifted stylesheet (styles/app-05-presenter-cards.css) draws it.
-import { useEffect, useRef, useState } from 'react';
+// It is a menu (surface/kinds.ts `slides`) on the one menu shell (surface/Menu.tsx): it floats above the pill's slide count that opens it (placed by shell/place.ts, cut to the room
+// between the top bar and the foot), rests at the foot as a sheet with a grab bar, its title and an X where every surface is a sheet, and closes on a press outside, its X, a choice,
+// the count again, a pull down, or Esc and G (the presenter's keys, deck/clicker.ts). Its open state stays the deck's (useUi.jump). It keeps the 2D app's markup and classes
+// (presenter.js toggleJump: .pz-jump > .pzj-h, .pzj-list), so its lifted stylesheet (styles/app-05-presenter-cards.css) draws it, and it stays in the deck layer (`inline`).
+import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useUi } from '../ui-store.ts';
 import { W } from './words.ts';
-import { Icon } from '../shell/icons.tsx';
 import { viewsOf, jumpGroups } from './presenter-link.ts';
+import { Menu, useMenu, type MenuState } from '../surface/Menu.tsx';
 
-import { clock } from '../../clock/frame.ts';
 export function JumpList() {
   const deck = useUi((s) => s.deck), open = useUi((s) => s.jump), at = useUi((s) => s.pos.stop);
-  const ref = useRef<HTMLElement>(null);
+  const state: MenuState = { open, close: () => useUi.getState().setJump(false) };
+  const ctl = useMenu('slides', { state, side: 'above', align: 'end' });
+  const ref = ctl.ref;
   useEffect(() => {
     if (!open) return;
     const cur = ref.current?.querySelector<HTMLElement>('[aria-current]');
@@ -21,32 +25,23 @@ export function JumpList() {
     };
     window.addEventListener('keydown', key, true);
     return () => window.removeEventListener('keydown', key, true);
-  }, [open]);
-  // 2D: the list fades out (pz-leave, 220 ms), then is hidden; a list opened again inside the fade comes straight back
-  const [shown, setShown] = useState(open);
-  useEffect(() => {
-    if (open) { setShown(true); return; }
-    const t = clock.after(() => setShown(false), 220);
-    return () => clock.cancel(t);
-  }, [open]);
+  }, [open, ref]);
   if (!deck) return null;
   const views = viewsOf(deck);
   const groups = jumpGroups(views);
-  const close = () => useUi.getState().setJump(false);
   return (
-    <nav ref={ref} className={`pz-jump stage-blocker${open ? '' : ' pz-leave'}`} data-open={open} hidden={!open && !shown} aria-label={W.jumpTitle} inert={!open}>
-      <div className="pzj-h"><span>{deck.title}</span><button type="button" className="ib" aria-label={W.jumpClose} onClick={close}><Icon n="close" /></button></div>
+    <Menu id="slides" ctl={ctl} skin="jump" mount="inline" width="l" headAlways label={W.jumpTitle} title={deck.title} closeLabel={W.jumpClose}>
       <div className="pzj-list">
         {groups.map((g, gi) => (
           <section key={gi}>
             {g.k ? <h3>{g.k}</h3> : null}
             <ol>{g.items.map((i) => (
-              <li key={i}><button type="button" aria-current={i === at ? 'true' : undefined} onClick={() => { close(); useUi.getState().go(i); }}><span className="n">{i + 1}</span><span className="t">{views[i].title}</span></button></li>
+              <li key={i}><button type="button" aria-current={i === at ? 'true' : undefined} onClick={() => { state.close(); useUi.getState().go(i); }}><span className="n">{i + 1}</span><span className="t">{views[i].title}</span></button></li>
             ))}</ol>
           </section>
         ))}
       </div>
-    </nav>
+    </Menu>
   );
 }
 

@@ -3,6 +3,9 @@
 // itself) to those pixels, so the map and the figure fade the same place.
 import { ShaderMaterial } from 'three';
 
+/** (the chunk is spliced into the organ programs and into the see-through passes of the same programs, which the organ layer puts on the scene graph: they are compiled there) */
+export const GL_ON_SCENE_GRAPH = 'the reveal chunk spliced into the organ wash and its see-through passes (organs/organ-shader.ts, organs/layer.ts)';
+
 export const FOCUS_REVEAL_DECL = /* glsl */ `
 uniform vec4 frvSeg;  // the focus's segment on the screen: its two ends, in the figure target's pixels
 uniform vec4 frvP;    // x the strength now (0: off), y the band's inner and z its outer radius (figure px), w the occluder's largest share taken

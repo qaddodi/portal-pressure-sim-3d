@@ -65,6 +65,14 @@ async function plain(): Promise<boolean> {
     bootPromotion();
     return true;
   }
+  // ?stress (the preview copy and a local run only, on any device): the stress capture's page. One button; it holds the app in one sized frame at a time. It starts no app itself.
+  if (DEBUG && isPreview() && flagOn('stress') && flagValue('audit') !== 'capture') {
+    const { bootStress } = await import('./ui/debug/stress/outer.ts');
+    await styles;
+    plainPage();
+    bootStress();
+    return true;
+  }
   // ?look (the preview copy and a local run only): the Mac look board, an outer page that photographs the figure in a frame (WP11). It starts no app itself.
   if (DEBUG && isPreview() && flagValue('look') === '' && !flagOn('capture') && !debugPage()) {
     const { bootLookBoard } = await import('./debug/look-board.ts');

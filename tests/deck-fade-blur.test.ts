@@ -50,8 +50,9 @@ test('the figure key\'s wrap and layer are not backdrop roots: the key fades its
   assert.match(deck, /body\[data-card-zoom\] \.lb-key-layer \.lb-key \{ opacity: 0; \}/);
 });
 test('no stylesheet of ours promotes or fades, as a whole, a class that holds a frosted face', () => {
-  const HOLDERS = ['lb-key-wrap', 'lb-key-layer', 'pal-back', 'modal-back', 'nb-views', 'topbar', 'vdock', 'dk-bar'];
-  const files = ['src/scene/labels/labels.css', 'src/ui/deck-ui.css', 'src/ui/shell/chrome-3d.css', 'src/ui/shell/shell.css', 'src/ui/glass.css'];
+  // (sf-layer: the dialog shell's scrim and room, round every dialog's glass box: it eases its colour, never its opacity, surface/dialog.css)
+  const HOLDERS = ['lb-key-wrap', 'lb-key-layer', 'pal-back', 'modal-back', 'sf-layer', 'nb-views', 'topbar', 'vdock', 'dk-bar'];
+  const files = ['src/scene/labels/labels.css', 'src/ui/deck-ui.css', 'src/ui/shell/chrome-3d.css', 'src/ui/shell/shell.css', 'src/ui/glass.css', 'src/ui/surface/dialog.css'];
   for (const f of files) {
     // (where there is no frost the pill is one solid piece and may fade whole: a browser with no backdrop blur; html[data-noglass] is exempted below)
     const t = readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/@supports not \(\([^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');

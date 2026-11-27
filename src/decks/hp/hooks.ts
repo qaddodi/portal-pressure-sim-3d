@@ -53,6 +53,7 @@ const TABLE: Feature[] = [
   chart('flowtime', 'Lines over days'), chart('trial', 'A trial card'), chart('flows', 'Where the portal blood goes'), chart('lumen', 'A vessel cross-section'),
   chart('forest', 'Forest plot of trials'), chart('profile', 'Pressure profile, gut to heart'), chart('path', 'Guideline path map'), chart('curve', 'One quantity against another'),
   chart('plane', 'Two-quantity plane with zones'), chart('shift', 'Change from healthy'), chart('trace', 'The course on one chart'), chart('evgraph', 'Event graph'),
+  chart('lobule', 'Across the lobule: the blood\'s path from portal triad to central vein, under the lens the figure wears'),
   instrument('doppler', 'The Doppler spectrum with its probe on the figure'),
   instrument('fibroscan', 'FibroScan reading with the probe on the figure'),
   instrument('hvpg', 'The HVPG monitor tracing'),

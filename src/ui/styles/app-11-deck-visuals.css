@@ -507,7 +507,7 @@ html.thumb-ui .pz-shade.pz-shade.pz-shade.pz-shade[data-gl], html.thumb-ui .pz .
 .pz-hi > small { font-size: max(.86em, 12px); font-weight: 500; color: var(--text-3); }
 .pz-hi > small[hidden] { display: none; }
 .pz.stack .pz-hr:is([data-n="3"], [data-n="4"]) .pz-hi > small { display: none; }
-.pz.pz .pz-data.pz-data[data-tool^="criteria:"] > .pz-dh > .pz-hr { font: var(--caps-w) calc(1em / 1.3)/1.25 var(--font-ui); }   /* (the criteria card's name is set larger, in the display face: its readings keep the other cards' size) */
+.pz.pz .pz-data.pz-data[data-tool^="criteria:"] > .pz-dh > .pz-hr { font: var(--caps-w) .7692em/1.25 var(--font-ui); }   /* (the criteria card's name is set larger, in the display face: its readings keep the other cards' size) */
 
 /* A preset's note (Mohammad, 13 Nov 2026, "Let's do D"): the card that names the patient just loaded and says what it is, at the foot of the figure above the dock and the
    view pill (--toast-foot, main.js), clear of the top bars. A dot, the name, two short lines; no ×: a tap or a swipe closes it. It is its own wrap (#toastsFoot), so

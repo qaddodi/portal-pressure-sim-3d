@@ -9,6 +9,7 @@ import { passedThrough, type DiveView } from '../src/scene/camera/dive.ts';
 import { diveBlur, DOF_DIVE_PEAK, DOF_PASS_PEAK } from '../src/scene/post-dof.ts';
 import { DIVE_IN, DIVE_OUT } from '../src/scene/parts/shared.ts';
 import type { Vector3 } from 'three';
+import { FOCUS_PEAK } from '../src/scene/micro3d/sinusoid3d.ts';
 
 const VIEWS: DiveView[] = ['body', 'circuit', 'lobule', 'sinusoid'];
 
@@ -38,12 +39,12 @@ type Scene = {
   focusNow(): { band: number; whole: number }; micro: { sinus: { focusOpen: number } }; dive: { visible: boolean }; lobule: { field: { softNow: number } };
   rig: { camera: { position: Vector3 } }; livePoint: Vector3; lobuleRest(): number;
 };
-interface Frame { k: number; open: number; lobule: boolean; soft: number; d: number }
+interface Frame { k: number; open: number; lobule: boolean; soft: number; d: number; hold: number }
 const FRAME = 1000 / 60;
 /** What the frame blurs over the whole screen: the band draws the stronger of the two at its uniform level (render.ts), and the uniform pass the dive's own blur when the band is off. */
 const read = (s: Scene): Frame => {
   const f = s.focusNow();
-  return { k: f.band > 0 ? Math.max(f.band, f.whole) : f.whole, open: f.band > 0 ? s.micro.sinus.focusOpen : 0, lobule: s.dive.visible, soft: s.lobule.field.softNow,
+  return { k: f.band > 0 ? Math.max(f.band, f.whole) : f.whole, open: f.band > 0 ? s.micro.sinus.focusOpen : 0, lobule: s.dive.visible, soft: s.lobule.field.softNow, hold: s.passHold.value,
     d: s.rig.camera.position.distanceTo(s.livePoint) };
 };
 
@@ -110,7 +111,11 @@ test('a move that lands on the lobule still brings it into focus, and the lobule
   assert.ok(inn!.at(-1)!.soft < 1e-3, 'its neighbours resolved');
   assert.equal(s.passHold.value, 0);
   assert.equal(back!.at(-1)!.k, 0, 'back on the lobule: sharp');
-  for (const f of [...deeper!, ...back!]) if (f.open === 0 && f.k > 0) assert.ok(f.k <= DOF_DIVE_PEAK + 1e-9, 'only the sinusoid\'s own focus pull, no held blur');
+  // (the sinusoid's own focus pull is the rest's strength at its peak, Mohammad 27 Nov: "just intense blur"; what must not come in is the pass-through's hold)
+  for (const f of [...deeper!, ...back!]) {
+    assert.equal(f.hold, 0, 'no held blur: the lobule is landed on, not passed');
+    if (f.open === 0 && f.k > 0) assert.ok(f.k <= FOCUS_PEAK + 1e-9, 'only the sinusoid\'s own focus pull');
+  }
 });
 
 test('a move turned mid-flight never steps its blur: Anatomy -> Sinusoid turned to the lobule, and Anatomy -> Lobule turned to the sinusoid', async () => {

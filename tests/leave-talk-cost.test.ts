@@ -13,6 +13,7 @@ test('the shell never mounts or unmounts the Tests dock on a mode change', () =>
 test('in a talk the dock is hidden and keeps no room for the figure', () => {
   assert.match(read('src/ui/tests/tests.css'), /\.t-pos\[data-away="true"\]\s*\{[^}]*visibility: hidden/);
   const layer = read('src/ui/tests/TestsLayer.tsx');
-  assert.match(layer, /place: open && !away \? place : null/);
+  assert.match(layer, /const up = open && !away;\s*useTestsRoom\.setState\(\{ place: up \? place : null \}\);/);
+  assert.match(layer, /publishPanel\('tests', up \?/, 'and no box in the room channel');
   assert.match(layer, /open && !away && side \? place\.rect\.w : null/);
 });

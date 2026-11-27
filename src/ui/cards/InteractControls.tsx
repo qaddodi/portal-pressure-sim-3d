@@ -26,17 +26,17 @@ export function InteractControls({ slide, deck }: { slide: Slide; deck: Deck }) 
     <div className="pz-int" role="group" aria-label="Your turn" data-kind={c.kind} data-done={done ? '' : undefined}>
       <div className="pz-int-stack">
         <div className="pz-int-ask" aria-hidden={done ? true : undefined} inert={done || undefined}>
-          {c.kind === 'think' ? <button type="button" className="pz-abb pz-int-go" onClick={() => commit(null)}>Show answer</button> : null}
+          {c.kind === 'think' ? <button type="button" className="pz-int-go pz-abb" onClick={() => commit(null)}>Show answer</button> : null}
           {c.kind === 'choose' ? (
             <div className="pz-ab pz-int-opts" role="group" aria-label="Choose one">
-              {c.options.map((o, k) => <button key={k} type="button" className="pz-abb" onClick={() => commit(k)}>{o.text}</button>)}
+              {c.options.map((o, k) => <button key={k} type="button" className="pz-abb" data-audit-select="" data-on={answer === k ? '' : undefined} onClick={() => commit(k)}>{o.text}</button>)}
             </div>
           ) : null}
           {c.kind === 'predict' ? (
             <div className="pz-int-guess">
               <input type="range" min={c.min} max={c.max} step={c.step ?? 1} value={guess} aria-label={`Your guess for ${c.reading}`} onChange={(e) => setGuess(+e.target.value)} />
               <output>{num(guess, c.unit)}</output>
-              <button type="button" className="pz-abb pz-int-go" onClick={() => commit(guess)}>Lock in</button>
+              <button type="button" className="pz-int-go pz-abb" onClick={() => commit(guess)}>Lock in</button>
             </div>
           ) : null}
         </div>
@@ -44,7 +44,7 @@ export function InteractControls({ slide, deck }: { slide: Slide; deck: Deck }) 
           {c.kind === 'choose' && chosen ? <p className="pz-int-p">{say}</p> : null}
           {c.kind === 'predict' && answer != null ? <p className="pz-int-p">{say}</p> : null}
           {it.reveal ? <p className="pz-int-p">{it.reveal}</p> : null}
-          {done && !right && backAt >= 0 ? <button type="button" className="pz-abb pz-int-back" onClick={() => go(backAt + 1)}>Back to “{deck.slides[backAt]!.title}”</button> : null}
+          {done && !right && backAt >= 0 ? <button type="button" className="pz-int-back pz-abb" onClick={() => go(backAt + 1)}>Back to “{deck.slides[backAt]!.title}”</button> : null}
         </div>
       </div>
     </div>

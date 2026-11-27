@@ -12,6 +12,10 @@ import { tableModel } from '../src/ui/talk/table-model.ts';
 import { VALUE_CH, COL_PAD_PX } from '../src/ui/cards/table-words.ts';
 import { slantPitch, slantHeight, groupRuns, showGroups } from '../src/ui/cards/table-heads.ts';
 import type { Slide } from '../src/decks/schema.ts';
+import { ensureChartsBaked } from './baked-decks.ts';
+
+// (pendingRows reads the decks' baked chart data: a run on its own in a fresh container bakes it first, tests/baked-decks.test.ts)
+ensureChartsBaked();
 
 const decks = await Promise.all(UI.decks.map(async ({ id }) => (await loadBuiltin(id))!));
 const tables = decks.flatMap((d) => d.slides.filter((s: Slide) => s.table).map((s: Slide) => ({ d, s, name: `${d.id}/${s.id}` })));

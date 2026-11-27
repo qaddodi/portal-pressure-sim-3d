@@ -40,10 +40,14 @@ Object.assign(FRAME_FIXES, {
   'gastric-varices/tips': { was: 'fit', cam: FUNDUS_LIVER, floor: 0 },
   'tipping/injury': { was: 'fit', cam: 'liver', floor: 0 },
   'tipping/injury-card': { was: 'fit', cam: 'liver', floor: 0 },
+  // Sites 2 names four stations (the confluence, the sinusoids, the hepatic vein, the atrium) and now carries the ladder: framed whole they stand in a 243 px band on a phone and their names cross
+  'sites/overview': { was: 'fit', cam: ROUTE_TO_STATIONS, floor: CONTEXT_FLOOR },
 } satisfies Record<string, FrameFix>);
 const ROUTE_SLIDES = ['circulation/ladder', 'circulation/define', 'circulation/path-ladder', 'circulation/relation', 'doppler/a4', 'gradients/where', 'masld/under', 'masld/parts', 'prehepatic/gradients', 'same-gradient/ref', 'same-gradient/up', 'same-gradient/cost', 'sites/healthy', 'tips-candidacy/heart-stent', 'tips-complete/heart', 'two-lesions/together', 'two-lesions/measure'];
 for (const k of ROUTE_SLIDES) FRAME_FIXES[k] = { was: 'route', cam: ROUTE_TO_STATIONS, floor: CONTEXT_FLOOR };
 FRAME_FIXES['doppler/meal'] = { was: 'gut', cam: [360, 360, 1070, 900], floor: CONTEXT_FLOOR };
 /** FRAMING RULE S6 (a whole route): the views that name a route from the gut to the heart and cannot draw its veins 8 px wide in the room a phone's cards leave, because the named route is longer than that room (circulation/series: gut veins to the right atrium, 2.9 units, 5.8 px).
+ *  The same holds for a slide whose words the owner ruled and that fill the card on a phone: treatment/prop (27 Nov, clinical ruling C2: the response rule for this decompensated patient is one more
+ *  sentence in its line, which leaves the iPhone's upright card-up room 202 px tall and the veins 7.3 px; tucked they are 14.7 px; even a 36-character wording keeps it under 8).
  *  Nothing named is cropped for it; the test fails if one no longer needs the exemption. (varices/umbilical's recap of two routes was the other; Mohammad dropped that view, 25 Nov: scripts/source-edits.mjs VARICES_REVIEW.) */
-export const WIDE_ROUTES: readonly string[] = ['circulation/series'];
+export const WIDE_ROUTES: readonly string[] = ['circulation/series', 'treatment/prop'];
