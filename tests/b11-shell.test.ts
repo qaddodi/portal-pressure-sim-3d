@@ -106,10 +106,15 @@ test('the head\'s status and the Doppler\'s vessel: nothing while it runs, Pause
 });
 
 test('the layer builds the card the 2D dock does: the divider, the grab handle, the title and status, the pick hint, the staged and leaving panes', () => {
-  for (const c of ['workspace-divider', 'role="separator"', 'sheet-grab', 'dock-title card-title', 'dt-l', 'workspace-live', 'instr-hint', 'dock-pane', 'data-slot', 'dop-on', 'picking']) assert.ok(layer.includes(c), `the card has ${c}`);
+  // (the title, its vessel line, the status and the tabs' slot markers are drawn by the one panel head, surface/PanelHead.tsx and Tabs.tsx)
+  const head = read('src/ui/surface/PanelHead.tsx'), tabs = read('src/ui/surface/Tabs.tsx');
+  assert.ok(layer.includes("titleClass={`dock-title") && head.includes('className={`card-title${titleClass'), 'the card has dock-title card-title');
+  for (const c of ['dt-l', 'card-meta']) assert.ok(head.includes(c), `the head draws ${c}`);
+  assert.ok(tabs.includes('data-slot'), 'the tabs carry data-slot');
+  for (const c of ['workspace-divider', 'role="separator"', 'sheet-grab', 'workspace-live', 'instr-hint', 'dock-pane', 'slot:', 'dop-on', 'picking']) assert.ok(layer.includes(c), `the card has ${c}`);
   for (const c of ['active staging', 'swipe-peer', "' landed'", 'pane-out']) assert.ok(layer.includes(c), `a pane can be ${c}`);
   assert.ok(layer.includes('usePaneSwap(') && layer.includes('attachSwipe(') && layer.includes('attachPull(') && layer.includes('attachDivider(') && layer.includes('runSegGlide()') && layer.includes('handOver('), 'every piece is wired');
-  assert.ok(/onPointerEnter=\{\(\) => \{ need\(id\)/.test(layer) && /onPointerDown=\{\(\) => \{ need\(id\)/.test(layer) && /onFocus=\{\(\) => \{ need\(id\)/.test(layer), 'a tab asks for its instrument as the pointer or a finger arrives, and on focus');
+  assert.ok(/onWarm: \(id\) => \{ need\(id as PaneId\); \}/.test(layer) && /onPointerEnter=\{warm\} onPointerDown=\{warm\} onFocus=\{warm\}/.test(tabs), 'a tab asks for its instrument as the pointer or a finger arrives, and on focus');
   const swap = read('src/ui/tests/dock/swap.ts');
   assert.ok(swap.includes('STAGE_MAX = 320') && swap.includes("clock.on('tags'") && swap.includes('n >= 2'), 'two frames, at most 320 ms, then the swap');
   assert.ok(swap.includes("tabOf(pane) === tabOf(cur)"), 'the Pressure tab\'s own switch swaps in place');
