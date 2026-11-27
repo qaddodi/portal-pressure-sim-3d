@@ -200,6 +200,6 @@ test('heads: columns group by what they are (pressures, ascites); the band shows
   assert.match(tsx, /chooseHeads\(true, true, cells\(\)\.every\(\(t\) => t\.clientWidth >= slantPitch\(px\)\)\)/);
   assert.match(css, /th\.num:last-child > \.hd \{ left: auto; right: 2px/, 'the last staggered head keeps to the table\'s edge');
   assert.match(css, /thead tr\.th-grp th\.num\.g \{[^}]*font-size: 12px/, 'the group names keep the 12 px floor');
-  assert.match(css, /th-sl th\.num > \.hd \{[^}]*font-weight: 700/, 'a slanted head has the body\'s ink and a full weight (a head read slowly is not a quiet label)');
+  assert.match(css, /th-sl th\.num > \.hd \{[^}]*font-weight: 600/, 'a slanted head has the heaviest weight the type vocabulary allows (600, tests/type-vocabulary.test.ts; a head read slowly is not a quiet label)');
   assert.match(readFileSync('src/ui/deck-ui.css', 'utf8'), /--dk-name-fit: max\(var\(--dk-hl, 0px\)/, 'the name column keeps the room the first slanted head leans into');
 });
