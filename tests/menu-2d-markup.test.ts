@@ -10,7 +10,9 @@ test('Settings, Help and Search are on the 2D app\'s own markup, which its style
   const settings = src('src/ui/settings/SettingsSheet.tsx'), menu = src('src/ui/shell/Menu.tsx'), search = src('src/ui/search/SearchSheet.tsx'), help = src('src/ui/shell/HelpSheets.tsx');
   for (const c of ['menu-group', 'menu-title', 'menu-item', 'lens lens-opt', 'mt-sw', 'look-grid', 'look-tile', 'look-chip', 'look-half', 'look-card', 'fig-mp', 'ts-reset']) assert.ok((settings + menu).includes(c), `${c} in the Settings markup`);
   for (const c of ['menu-group', 'menu-title', 'menu-item', 'lens-opt', 'mt-sw', 'look-grid', 'look-tile', 'ts-reset']) assert.ok(new RegExp(`\\.${c.split(' ')[0]}\\b`).test(all2d), `.${c} is in 2D's stylesheet`);
-  for (const c of ['pal-back', 'pal-top', 'pal-input', 'pal-list', 'pal-item', 'pal-g', 'pal-t', 'pal-h', 'pal-foot', 'pal-empty']) { assert.ok(search.includes(c), `${c} in the palette markup`); assert.ok(new RegExp(`\\.${c}\\b`).test(all2d), `.${c} is in 2D's stylesheet`); }
+  // (the palette's backdrop, 2D .pal-back, is the dialog shell's layer since 27 Nov: surface/Dialog.tsx; the box keeps 2D's .pal)
+  assert.match(search, /<Dialog id="search"[^>]*className="pal"/);
+  for (const c of ['pal-top', 'pal-input', 'pal-list', 'pal-item', 'pal-g', 'pal-t', 'pal-h', 'pal-foot', 'pal-empty']) { assert.ok(search.includes(c), `${c} in the palette markup`); assert.ok(new RegExp(`\\.${c}\\b`).test(all2d), `.${c} is in 2D's stylesheets`); }
   assert.ok(help.includes('menu-credit') && help.includes('<Menu id="help"'), 'Help is a 2D menu (the one menu shell) with the author\'s credit');
   // the shell keeps the 2D menu's own classes: `.menu` and the menu's class, `.as-sheet`, `.leaving`, `.sheet-head` > `.sheet-t`, the sheet's `.um-scrim`
   const shell = src('src/ui/surface/Menu.tsx'), skins = src('src/ui/surface/menu-head.ts');

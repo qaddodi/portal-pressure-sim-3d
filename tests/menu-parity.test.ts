@@ -121,7 +121,9 @@ test('every phone sheet has ONE motion: fade and a short rise in --d-small on --
 test('every phone sheet sits behind the dock and the timeline: one z-index, in menu-motion.css', () => {
   const css = src('src/ui/shell/menu-motion.css');
   assert.ok(css.includes('html.thumb-ui { --z-sheet-phone: calc(var(--z-panel, 10) + 10); }'));
-  for (const sel of ['.menu.as-sheet', '.menu.as-sheet.sw-in', '.umenu.sheet', '.pal-back']) assert.ok(css.includes(`html.thumb-ui .sh-clip-in > ${sel}`) , sel);
+  for (const sel of ['.menu.as-sheet', '.menu.as-sheet.sw-in', '.umenu.sheet']) assert.ok(css.includes(`html.thumb-ui .sh-clip-in > ${sel}`) , sel);
+  // (Search, the Guide and the page dialogs are the dialog shell's size-l layers in the sheets' clip, whose own z-index is --z-sheet-phone: they go under the dock with it; tests/dialog-shell.test.ts)
+  assert.ok(css.includes('html.thumb-ui .sh-clip[data-clip="sheets"] { z-index: var(--z-sheet-phone); }'));
   assert.ok(/\{ z-index: var\(--z-sheet-phone\); \}/.test(css) && /\.um-scrim \{ z-index: calc\(var\(--z-sheet-phone\) - 1\); \}/.test(css));
   // the dock is --z-panel + 20 (2D app-10-thumb-dock.css), so 10 + 10 stays under it; the Frame sheets and the cards are lower still
   assert.ok(/\.app\.thumb \.vdock:not\(\.mini\) \{ z-index: calc\(var\(--z-panel\) \+ 20\)/.test(src('src/ui/styles/app-10-thumb-dock.css')));

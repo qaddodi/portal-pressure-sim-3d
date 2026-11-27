@@ -183,7 +183,7 @@ export function UMenu() {
     if (!open) return;
     const typed = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (!ref.current || ref.current.contains(t) || e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1 || e.key === ' ' || t?.closest?.('input, textarea, select, [contenteditable], .modal-back')) return;
+      if (!ref.current || ref.current.contains(t) || e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1 || e.key === ' ' || t?.closest?.('input, textarea, select, [contenteditable], .sf-layer')) return;
       ref.current.querySelector<HTMLInputElement>('.um-q')?.focus();
     };
     addEventListener('keydown', typed, true);
