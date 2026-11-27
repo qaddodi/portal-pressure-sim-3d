@@ -1,0 +1,37 @@
+/* The dialog shell (surface/Dialog.tsx; reports/menu-unification.md 3.2). One layer per dialog: it is the scrim and the room the dialog stands in. The box inside wears its content's
+   own class (.sh-dialog, the 2D .modal and .pal), which draws its glass, radius and words; where it stands, how wide and tall it is and how it comes and goes are this file's.
+   The room's foot is surface/dialog-fit.ts dialogFoot, with the same custom properties (tests/dialog-shell.test.ts holds the two together):
+     float, and a size-s dialog anywhere: centred in the screen above the keyboard, --dlg-edge from every side (the safe area, or the keyboard, at the foot).
+     sheet mode, size l: a sheet from the foot, resting where every phone sheet rests (--thumb-occ, one gap over the dock) or one gap over the keyboard, whichever is higher,
+       and under the top bar (--thumb-top). It stands in the sheets' clip (shell/SheetClip.tsx), so it tucks behind the dock as it comes and goes.
+   A size-l dialog in float mode hangs from the line a full-height page is centred on, so a page and the Search palette share one top and a list that grows as you type never moves the field.
+   The layer never fades as a whole (its colour does): the box is glass, and a fading ancestor would leave it unblurred (glass.css). */
+.sf-layer {
+  --dlg-edge: 16px; --dlg-w: 420px; --dlg-max: 100%; --dlg-from: translateY(10px); --dlg-ease: var(--ease-arrive);
+  position: absolute; inset: 0; z-index: var(--z-dialog, 80); box-sizing: border-box; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); justify-items: center; align-items: center;
+  padding: calc(var(--dlg-edge) + var(--safe-t, 0px)) calc(var(--dlg-edge) + var(--safe-r, 0px)) calc(var(--dlg-edge) + max(var(--safe-b, 0px), var(--dlg-kb, 0px))) calc(var(--dlg-edge) + var(--safe-l, 0px));
+  background-color: transparent; pointer-events: none; transition: background-color var(--d-small) var(--ease-arrive);
+}
+.sf-layer[data-open="true"] { background-color: var(--scrim); pointer-events: auto; }
+.sf-layer[data-size="l"] {
+  --dlg-w: 720px; --dlg-max: min(88dvh, 900px); align-items: start;
+  padding-top: max(calc(var(--dlg-edge) + var(--safe-t, 0px)), calc((100dvh - var(--dlg-kb, 0px) - var(--dlg-max)) / 2));
+}
+.sf-layer[data-mode="sheet"][data-size="l"] {
+  --dlg-w: 100%; --dlg-max: 100%; --dlg-from: translateY(var(--sheet-rise, 24px)); --dlg-ease: var(--sheet-ease, var(--ease-arrive)); align-items: end;
+  padding: calc(var(--thumb-top, 0px) + 8px) calc(6px + var(--safe-r, 0px)) max(var(--thumb-occ, 0px), calc(var(--dlg-kb, 0px) + var(--sheet-gap, 8px))) calc(6px + var(--safe-l, 0px));
+}
+
+/* the box: its content's look, the shell's place and motion (the content's own entrance keyframes and veil give way: the scrim is the layer, and the fade is this transition) */
+.sf-layer > .sf-dialog {
+  position: relative; box-sizing: border-box; width: min(var(--dlg-w), 100%); max-height: min(100%, var(--dlg-max)); margin: 0; translate: none; outline: none;
+  --pal-veil: 0 0 0 0 transparent; --modal-veil: 0 0 0 0 transparent; --pal-vh: var(--dlg-vh, 100svh);
+  opacity: 0; visibility: hidden; transform: var(--dlg-from); animation: none;
+  transition: opacity var(--d-small) var(--dlg-ease), transform var(--d-small) var(--dlg-ease), visibility 0s linear var(--d-small);
+}
+.sf-layer[data-open="true"] > .sf-dialog { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+
+/* Search: the field and the key hints keep their height, the list takes what is left (above the keyboard too) and scrolls, as it always has */
+.sf-layer > .sf-dialog.pal { display: flex; flex-direction: column; }
+.sf-dialog.pal > :is(.pal-top, .pal-foot) { flex: none; }
+.sf-dialog.pal > .pal-list { flex: 0 1 auto; min-height: 0; }

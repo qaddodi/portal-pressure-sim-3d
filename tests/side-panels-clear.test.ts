@@ -78,16 +78,18 @@ test('the pill goes 8 px left of the farthest open card, by a transform that gli
   assert.match(shell, /:not\(\[data-device="phone-landscape"\]\):has\(\.sh-sheet\[data-kind="history"\]/, 'History held sideways is at the left: the pill stays');
 });
 
-test('a sheet across the screen leaves no room beside it (Search, the Guide, Treat on a phone): the pill fades while it is up', () => {
+test('a surface across the middle leaves no room beside it (every dialog: Search, the Guide, About; Treat on a phone): the pill fades while it is up', () => {
+  // (since 27 Nov the surfaces across the middle are the dialogs, all drawn by the dialog shell's one layer; no sheet of the shell's stands in the middle any more)
   const middle = new Set<string>();
   for (const r of rules) {
     if (!/(^|;)\s*left: 50%/.test(r.body)) continue;
     for (const s of r.sel.split(',').map((x) => x.trim())) { const m = /^\.sh-sheet\[data-kind="([a-z]+)"\]$/.exec(s); if (m) middle.add(m[1]!); }
   }
-  assert.deepEqual([...middle].sort(), ['guide', 'search']);
-  const fade = /\.sh-root:has\(\.sh-sheet\[data-open="true"\]:is\(([^)]*)\)\) \.zoom-pill \{ opacity: 0; pointer-events: none; \}/.exec(shell);
-  assert.ok(fade, 'the fade rule');
-  for (const k of middle) assert.match(fade[1]!, new RegExp(`\\[data-kind="${k}"\\]`), `${k}: the pill fades under it`);
+  assert.deepEqual([...middle], [], 'a surface across the middle is a dialog, not a sheet');
+  assert.match(shell, /\.sh-root:has\(\.sf-layer\[data-open="true"\]\) \.zoom-pill \{ opacity: 0; pointer-events: none; \}/, 'the fade rule: under every open dialog');
+  const dialog = readFileSync('src/ui/surface/Dialog.tsx', 'utf8');
+  assert.match(dialog, /className="sf-layer"[^>]*data-open=\{open\}/, 'the layer says it is open');
+  for (const f of ['src/ui/search/SearchSheet.tsx', 'src/ui/shell/HelpSheets.tsx']) assert.match(readFileSync(f, 'utf8'), /<Dialog id="(search|guide)"/, f);
   // (the screens where Treat is a sheet across the foot: the pill fades under it there, by the very query that makes it one)
   const sheetQ = /@media ([^{]+)\{[^@]*?\.panel, \.treat-card \{\s*top: auto !important; left: 0 !important; right: 0 !important;/.exec(readFileSync('src/ui/styles/app-07-floating.css', 'utf8'));
   assert.ok(sheetQ, 'the query that makes Treat a sheet');

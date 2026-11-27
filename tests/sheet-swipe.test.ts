@@ -76,7 +76,9 @@ test('every phone menu is pulled down to close: Search, and every menu of the on
   // a menu that is a sheet is placed by its stylesheet, not by translate, so the pull writes translate; the shell takes a floating place off when the screen turns to sheets
   assert.match(shell, /useSheetSwipe\(ref, close, \(\) => sheet, shown\)/);
   assert.match(shell, /if \(sheet\) \{ el\.style\.translate = ''; el\.style\.maxHeight = ''; return; \}/);
-  assert.match(search, /useSheetSwipe\(panel, \(\) => useShell\.getState\(\)\.close\(\), onPhone\)/);
+  // (Search is a size-l dialog: the dialog shell wires the pull for every one that is a phone's sheet)
+  assert.match(search, /<Dialog id="search" size="l"/);
+  assert.match(readFileSync('src/ui/surface/Dialog.tsx', 'utf8'), /useSheetSwipe\(box, \(\) => cancel\.current\('pull'\), \(\) => size === 'l' && surfaceModeNow\(\) === 'sheet'\)/);
   assert.match(swipe, /prop\?: 'translate' \| 'transform'/);
   // the sheets that already had it
   for (const f of ['src/ui/shell/Frame.tsx', 'src/ui/surface/Menu.tsx', 'src/ui/treat/TreatCard.tsx', 'src/ui/action/ActionCard.tsx']) assert.match(readFileSync(f, 'utf8'), /useSheetSwipe\(/, f);
