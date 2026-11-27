@@ -222,11 +222,12 @@ test('full size: the screen\'s own pixels at the device pixel ratio, and a bit r
   assert.deepEqual(recordSize({ w: 1920, h: 1080 }, 1), { w: 1920, h: 1080 });
   assert.deepEqual(recordSize({ w: 1440, h: 900 }, 0), { w: 1440, h: 900 }, 'a missing ratio is 1');
   assert.equal(RECORD_FPS, 60);
-  assert.ok(recordBitrate(3024, 1964, 60) >= 60_000_000 && recordBitrate(3024, 1964, 60) <= 80_000_000, 'a retina screen at 60 fps gets about 70 Mbps');
-  assert.equal(recordBitrate(1440, 900, 60), Math.round(1440 * 900 * 60 * 0.2));
-  assert.equal(recordBitrate(320, 240, 30), 8_000_000, 'never starved');
-  assert.equal(recordBitrate(7680, 4320, 60), 80_000_000, 'never absurd');
-  assert.ok(recordBitrate(3024, 1964, 60) > recordBitrate(1512, 982, 60));
+  assert.equal(recordBitrate(3024, 1964, 60), 100_000_000, 'a retina screen at 60 fps gets the most');
+  assert.equal(recordBitrate(1440, 900, 60), Math.round(1440 * 900 * 60 * 0.4));
+  assert.ok(recordBitrate(3024, 1964, 30) > 70_000_000, 'a retina screen at 30 fps (Safari) is about 71 Mbps');
+  assert.equal(recordBitrate(320, 240, 30), 20_000_000, 'never starved');
+  assert.equal(recordBitrate(7680, 4320, 60), 100_000_000, 'never absurd');
+  assert.ok(recordBitrate(3024, 1964, 30) > recordBitrate(1512, 982, 30));
   const rec = src('src/ui/capture/record.ts');
   assert.match(rec, /width: \{ ideal: size\.w \}, height: \{ ideal: size\.h \}, frameRate: \{ ideal: RECORD_FPS \}/);
   assert.match(rec, /videoBitsPerSecond/); assert.match(src('src/ui/capture/record-run.ts'), /applyConstraints/); assert.match(rec, /raiseToFullSize/);
@@ -261,9 +262,10 @@ test('the failure line is the words of the failure note ONLY: "recording" says n
   const words = { saved: 'S', failed: 'F' };
   assert.equal(noteWords('recording', words), null);
   assert.deepEqual(noteWords('saved', words), { text: 'S', tone: 'info' });
+  assert.deepEqual(noteWords('saved', words, '3024 x 1964'), { text: 'S 3024 x 1964', tone: 'info' }, 'the saved line carries what was recorded');
   assert.deepEqual(noteWords('failed', words), { text: 'F', tone: 'bad' });
   const rec = src('src/ui/capture/record.ts');
-  assert.match(rec, /noteWords\(note, RECORD\)/); assert.ok(!/else[^\n]*RECORD\.failed/.test(rec), 'no catch-all that says failed');
+  assert.match(rec, /noteWords\(note, RECORD,/); assert.ok(!/else[^\n]*RECORD\.failed/.test(rec), 'no catch-all that says failed');
 });
 
 test('"Couldn\'t record" can be told only when nothing is recording and nothing was saved, in every way a recording can go wrong or right', async () => {

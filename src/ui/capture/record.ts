@@ -33,6 +33,8 @@ const share = (): ShareOptions => ({ video: { displaySurface: 'browser', ...qual
 
 /** The window being shared (the run holds it as a StreamLike; the recorder wants the real stream). */
 let shared: MediaStream | null = null;
+/** What the last recording was made at (the size and rate the browser gave, the bit rate asked), told with the saved line so the quality can be read off it. */
+let saved = '';
 /** Asks the track again for the full size where it came in smaller (Chrome lets a display track be raised after the fact).
  *  What it really gives is written to the console, so a cap is seen, never guessed. */
 async function fullSize(stream: MediaStream): Promise<void> {
@@ -62,6 +64,8 @@ const run = createRecordRun({
     // the bit rate follows what the track really delivers, so a big screen is not starved
     const got = shared.getVideoTracks()[0]?.getSettings() ?? {};
     const videoBitsPerSecond = recordBitrate(got.width ?? screen.width, got.height ?? screen.height, got.frameRate ?? RECORD_FPS);
+    const fps = Math.round(got.frameRate ?? RECORD_FPS);
+    saved = `${got.width ?? '?'} × ${got.height ?? '?'}, ${fps} fps, ${Math.round(videoBitsPerSecond / 1_000_000)} Mbps.`;
     return new MediaRecorder(shared, mime ? { mimeType: mime, videoBitsPerSecond } : { videoBitsPerSecond });
   },
   save: (video, ext) => {
@@ -71,7 +75,7 @@ const run = createRecordRun({
   },
   tell: (note) => {
     // (no note while recording: the stop button beside Settings says it, and a note would be in the video)
-    const w = noteWords(note, RECORD);
+    const w = noteWords(note, RECORD, note === 'saved' ? saved : '');
     if (w) useShell.getState().say(w.text, w.tone);
   },
   onPhase: (phase) => useRecording.setState({ phase }),

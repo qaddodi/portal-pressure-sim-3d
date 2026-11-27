@@ -31,18 +31,19 @@ export function recordSize(screen: { w: number; h: number }, ratio: number): { w
   const r = ratio > 0 ? ratio : 1;
   return { w: Math.max(2, Math.round(screen.w * r)), h: Math.max(2, Math.round(screen.h * r)) };
 }
-/** Bits per second for the recorder, from what the track really delivers: about 0.2 bit per pixel per frame (a screen of text and fine lines is mostly still,
- *  so this is near lossless to the eye), kept between 8 and 80 Mbps. A 3024 x 1964 screen at 60 frames is about 71 Mbps; a 1440 x 900 one at 60 is 16 Mbps. */
+/** Bits per second for the recorder, from what the track really delivers: 0.4 bit per pixel per frame (fine lines and small type break up under a lower rate, as in
+ *  Safari's own default, which is far below this), kept between 20 and 100 Mbps. A 1440 x 900 screen at 60 frames is about 31 Mbps, at 30 about 16 (raised to 20). */
 export function recordBitrate(w: number, h: number, fps: number): number {
-  const raw = Math.round(Math.max(0, w) * Math.max(0, h) * Math.max(1, fps) * 0.2);
-  return Math.min(80_000_000, Math.max(8_000_000, raw));
+  const raw = Math.round(Math.max(0, w) * Math.max(0, h) * Math.max(1, fps) * 0.4);
+  return Math.min(100_000_000, Math.max(20_000_000, raw));
 }
 
-/** What the person is told for each note: nothing while recording (the stop button says it, and a note would be in the video), the saved line, or the failure line. Every note is listed, so none falls into another's words. */
-export function noteWords(note: 'recording' | 'saved' | 'failed', words: { saved: string; failed: string }): { text: string; tone: 'info' | 'bad' } | null {
+/** What the person is told for each note: nothing while recording (the stop button says it, and a note would be in the video), the saved line (with what was
+ *  recorded, `detail`, so the quality can be read off it), or the failure line. Every note is listed, so none falls into another's words. */
+export function noteWords(note: 'recording' | 'saved' | 'failed', words: { saved: string; failed: string }, detail = ''): { text: string; tone: 'info' | 'bad' } | null {
   switch (note) {
     case 'recording': return null;
-    case 'saved': return { text: words.saved, tone: 'info' };
+    case 'saved': return { text: detail ? `${words.saved} ${detail}` : words.saved, tone: 'info' };
     case 'failed': return { text: words.failed, tone: 'bad' };
   }
 }
