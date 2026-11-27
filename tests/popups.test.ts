@@ -60,7 +60,7 @@ test('P2: a second note crossfades its words in place (the old fade out, the new
 
 test('P2: the note is a rounded glass box (owner, 22 Nov): the one glass, --r-sheet corners, words centred, the clock line kept, no dot, swipe, click or Esc lets it go', () => {
   const tsx = src('src/ui/shell/Toast.tsx'), css = src('src/ui/shell/shell.css');
-  const rule = css.slice(css.indexOf('.sh-toast {'), css.indexOf('/* a Reset dialog */'));
+  const rule = css.slice(css.indexOf('.sh-toast {'), css.indexOf('/* a Reset dialog'));
   assert.doesNotMatch(rule, /border-radius: 50%|::before|text-shadow|border-top/, 'no dot, no halo, no ruled row');
   assert.match(rule, /\.sh-toast \{[^}]*border-radius: var\(--r-sheet\)/);
   assert.match(rule, /\.sh-toast \{[^}]*border: 1px solid var\(--edge\)/);
