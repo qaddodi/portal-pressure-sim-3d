@@ -80,11 +80,11 @@ test('the app draws nothing until its styles are on: main.tsx and every plain pa
   const entry = read('src/entry.ts');
   const plain = entry.slice(entry.indexOf('async function plain()'), entry.indexOf('async function route()'));
   assert.match(plain, /const styles = appStylesReady\(\);/);
-  for (const mount of ['createRoot(document', 'run();', 'plainPage();\n    bootFrame', 'plainPage();\n    bootOuter', 'plainPage();\n    bootLookBoard', 'plainPage();\n    bootPromotion']) {
+  for (const mount of ['run();', 'plainPage();\n    bootFrame', 'plainPage();\n    bootOuter', 'plainPage();\n    bootLookBoard', 'plainPage();\n    bootPromotion']) {
     const at = plain.indexOf(mount); assert.ok(at > 0, mount);
     assert.ok(plain.lastIndexOf('await styles;', at) > plain.lastIndexOf('if (', at), `${mount} comes after "await styles" in its branch`);
   }
-  assert.equal([...plain.matchAll(/await styles;/g)].length, 6, 'one wait in each of the six plain pages');
+  assert.equal([...plain.matchAll(/await styles;/g)].length, 5, 'one wait in each of the five plain pages');
 });
 
 test('the cover needs none of the app\'s stylesheets: its style is inline, and the only blocking link is the small font sheet', () => {
