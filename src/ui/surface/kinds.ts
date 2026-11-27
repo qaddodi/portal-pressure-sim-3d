@@ -39,5 +39,9 @@ export const closesOnOutsidePress = (id: SurfaceId): boolean => kindOf(id) !== '
  *  which keeps its own place rule, spreads it from here, so no surface outside src/ui/surface/ writes a dialog role of its own (lint surface-outside-shell). */
 export const PANEL_ROLE = 'dialog';
 
+/** What one Esc closes first, by kind: a dialog, then a menu, then a panel (the newest first). keys/escape.ts escStep keeps this order, and keys/useKeys.ts asks this table
+ *  whether what stands in the menus' slot is a panel (the timeline chart) or a menu (tests/surface-registry.test.ts). */
+export const ESC_ORDER: readonly SurfaceKind[] = ['dialog', 'menu', 'panel'];
+
 /** Whether the surface takes room from the figure (the camera frames the figure in what the panels leave). */
 export const takesRoom = (id: SurfaceId): boolean => kindOf(id) === 'panel';

@@ -53,7 +53,8 @@ test('no menu builds its own frame any more: the old shells are gone, and no men
   for (const f of MENU_FILES) {
     const s = code(f);
     assert.ok(!/createPortal\(/.test(s) || f === 'src/ui/deck/JumpList.tsx' && /createPortal\(<div className=\{`pz-black/.test(s), `${f} mounts through the shell`);
-    assert.ok(!/sh-grabbar|um-grab|um-scrim|sheetRoot\(|useSheetSwipe\(|useOutside\(|place(Popover|At)\(/.test(s), `${f} leaves the grab bar, scrim, mount, pull, outside press and placement to the shell`);
+    // (the one grab bar, sh-grabbar, outside src/ui/surface/ is the lint rule surface-outside-shell's)
+    assert.ok(!/um-grab|um-scrim|sheetRoot\(|useSheetSwipe\(|useOutsidePress\(|place(Popover|At)\(/.test(s), `${f} leaves the grab bar, scrim, mount, pull, outside press and placement to the shell`);
     assert.ok(!/className="ib[^"]*"[^>]*aria-label="Close/.test(s), `${f} draws no X of its own (CloseX, in the shell's head)`);
   }
 });
@@ -73,10 +74,11 @@ test('a sheet always has one grab bar, its title (or the field in its place) and
   assert.equal((shell.match(/<GrabBar \/>/g) ?? []).length, 1);
   assert.match(shell, /import \{ CloseX, GrabBar \} from '\.\/parts\.tsx';/);
   for (const s of Object.values(MENU_SKINS)) assert.ok(s.head && s.base && s.leaving, 'every skin names its head row, its frame and its leave');
-  // a sheet's mode is the one rule's (surface/mode.ts), never a media query or a device class of the menu's own
+  // a sheet's mode is the one rule's (surface/mode.ts), never a media query or a device class of the menu's own: the old rules are the lint rule one-sheet-rule's (no file that
+  // renders a surface imports them); a menu file does not even ask the mode, the shell does
   assert.match(shell, /const mode = useSurfaceMode\(\);/);
-  for (const f of ['src/ui/surface/Menu.tsx', 'src/ui/menu/UMenu.tsx', 'src/ui/deck/JumpList.tsx', 'src/ui/shell/PlayBar.tsx', 'src/ui/shell/TopBar.tsx']) {
-    assert.ok(!/STACK_MQ|THUMB_MQ|useThumb\(|onPhone\(|frameIsSheet\(|useSurfaceMode\(\) === 'sheet'/.test(code(f)) || f === 'src/ui/surface/Menu.tsx', `${f} asks surface/mode.ts through the shell`);
+  for (const f of ['src/ui/menu/UMenu.tsx', 'src/ui/deck/JumpList.tsx', 'src/ui/shell/PlayBar.tsx', 'src/ui/shell/TopBar.tsx']) {
+    assert.ok(!/useSurfaceMode\(\) === 'sheet'/.test(code(f)), `${f} asks surface/mode.ts through the shell`);
   }
 });
 
