@@ -24,7 +24,8 @@ export function eqToneOfClass(cls: string): EqTone | undefined {
   return undefined;
 }
 
-/** The tone a term's NAME asks for: its subscript when it has one (P with "left portal vein" below), else its text (WHVP). Resistances take their tracts' (liver the sinusoids', collaterals the varices'). */
+/** The tone a term's NAME asks for: its subscript when it has one (P with "left portal vein" below), else its text (WHVP).
+ *  Resistances take their tracts' (liver the sinusoids', collaterals the varices'). */
 export function eqToneOfName(text: string, sub?: string): EqTone | undefined {
   const name = (sub ?? text).toLowerCase();
   if (text === 'R' && sub) return /^liver$/i.test(sub) ? 'wedge' : /^collaterals?$/i.test(sub) ? 'var' : undefined;
@@ -40,7 +41,8 @@ export const eqToneOf = (text: string, sub: string | undefined, cls: string): Eq
 
 /** A stretch of a printed formula: its words, and the tone of the station they name (none for a sign, a gradient or a plain word). */
 export interface EqSeg { s: string; tone?: EqTone }
-/** A caption's plain stretch with the station names in it (LPV, LHV, PV, IVC, WHVP, FHVP, HV) cut out in their tones: a printed formula's terms wear their callouts' colours, as the teaching card's do. */
+/** A caption's plain stretch with the station names in it (LPV, LHV, PV, IVC, WHVP, FHVP, HV) cut out in their tones:
+ *  a printed formula's terms wear their callouts' colours, as the teaching card's do. */
 export function toneWords(text: string): EqSeg[] {
   return text.split(/\b([LRM]?PV|[LRM]?HV|IVC|WHVP|FHVP)\b/).map((s, i): EqSeg => {
     const tone = i % 2 ? eqToneOfName(s) : undefined;

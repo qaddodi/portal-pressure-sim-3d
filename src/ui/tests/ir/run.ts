@@ -230,14 +230,18 @@ export function startPpg(): void {
   beginPpg('irivc');
   wake(); bump();
 }
-/** The words under the pane while the PPG plays or holds its result, in segments: the result's formula carries its terms' tones (PV and its number pink, IVC and its number cyan). Empty when it has nothing to say. */
+/** The words under the pane while the PPG plays or holds its result, in segments: the result's formula carries its terms' tones
+ *  (PV and its number pink, IVC and its number cyan). Empty when it has nothing to say. */
 export function ppgCaptionSegs(): EqSeg[] {
   const p = R.ppg;
   if (p.run) return p.kind && p.step >= 0 ? [{ s: String((MEASURES as Record<string, { steps: string[][] }>)[p.kind]!.steps[p.step]![2]) }] : [];
   if (!p.done || p.take === 'idle') return [];
   const rd = (READS as Record<string, Record<string, number>>).irpv!, ppg = rd.ppg!, word = (v: number) => (Number.isFinite(v) ? v.toFixed(1) : '—');
   if (!Number.isFinite(ppg)) return [];
-  return [{ s: `${ppgWord(ppg, true)}. PPG = ` }, ...toneWords('PV'), { s: ' − ' }, ...toneWords('IVC'), { s: ' = ' }, toneNumber(word(rd.pv!), 'pv'), { s: ' − ' }, toneNumber(word(rd.iv!), 'ivc'), { s: ` = ${word(ppg)} mmHg.` }];
+  return [
+    { s: `${ppgWord(ppg, true)}. PPG = ` }, ...toneWords('PV'), { s: ' − ' }, ...toneWords('IVC'), { s: ' = ' },
+    toneNumber(word(rd.pv!), 'pv'), { s: ' − ' }, toneNumber(word(rd.iv!), 'ivc'), { s: ` = ${word(ppg)} mmHg.` },
+  ];
 }
 /** The words under the pane while the PPG plays or holds its result ('' when it has nothing to say). */
 export const ppgCaption = (): string => segText(ppgCaptionSegs());

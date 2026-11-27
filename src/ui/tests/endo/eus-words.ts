@@ -16,7 +16,10 @@ export const monitorHeight = (panelW: number): number => Math.max(96, Math.round
 export function captionSegs(phase: 'idle' | 'run' | 'hold', step: number, rd: Reads): EqSeg[] {
   if (phase === 'run' && step >= 0) return [{ s: EUS.steps[step]![2] }];
   if (phase === 'hold' && Number.isFinite(rd.ppg)) {
-    return [{ s: hvpgWord(rd.ppg, true) }, ...toneWords(W.eusDone[0]), toneNumber(word(rd.pv), 'pv'), { s: W.eusDone[1] }, toneNumber(word(rd.hv), 'free'), { s: `${W.eusDone[2]}${word(rd.ppg)}${W.eusDone[3]}` }];
+    return [
+      { s: hvpgWord(rd.ppg, true) }, ...toneWords(W.eusDone[0]), toneNumber(word(rd.pv), 'pv'), { s: W.eusDone[1] },
+      toneNumber(word(rd.hv), 'free'), { s: `${W.eusDone[2]}${word(rd.ppg)}${W.eusDone[3]}` },
+    ];
   }
   return [{ s: W.eusIdle }];
 }
