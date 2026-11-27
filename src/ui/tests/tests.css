@@ -3,7 +3,7 @@
      - a side card slides in 16 px from the edge while it fades (slide-from-edge, 240 ms on --ease-arrive) and goes out the same way in 120 ms on --ease-in (slide-to-edge);
      - a sheet over the foot of a phone or an upright iPad rises from behind the dock (240 ms, --ease-arrive) and sinks back behind it (240 ms, --ease-in): it stays solid, only its place changes (2D sheet-rise / sheet-sink);
        a sheet that is not over the thumb dock leaves in 120 ms (slide-to-edge, --d-flip).
-   A sheet pulled shut has sunk out of sight already: `data-swiped` (dock/pull.ts) makes its close play nothing (2D sheet-hold), so it is never seen back in its place before it goes.
+   A sheet pulled shut has sunk out of sight already: `data-swiped` (surface/sheet-pull.ts) makes its close play nothing (2D sheet-hold), so it is never seen back in its place before it goes.
    Per-frame writes are transform and opacity only. Type sizes are custom properties the layer sets from the card type scale (data text is never under 12 px). */
 .t-pos { --t-x: 16px; --t-y: 0px; --t-o: 0; --t-out: var(--d-flip);
   position: absolute; left: 0; top: 0; z-index: var(--z-cards, 10); pointer-events: none; will-change: transform; font-family: var(--ui); color: var(--text); font-variant-numeric: tabular-nums lining-nums; }
