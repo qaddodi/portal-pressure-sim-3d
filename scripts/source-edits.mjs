@@ -381,6 +381,19 @@ export const CAPTURE_3531BDFA = [
   SET('tips-doppler', 'slides.fix.compare.1.line', 'Doppler raises the suspicion. TIPS venography measures the gradient, and angioplasty or a new stent lowers the PPG from {ppg@narrow} to {ppg}.'),
 ];
 
+/**
+ * Capture 3531bdfa, owner's ruling L8 (27 Nov 2026, review B-D12 and F-D8): the level tab (PRE-HEPATIC, SINUSOIDAL, CARDIAC, POST-HEPATIC) stands only on a slide that TEACHES a level, where the
+ * block sits and what it does to the pressures; every other slide (a treatment, a procedure, an algorithm, a test, a summary) shows the deck's own name tab. A slide's `site` is what makes its tab
+ * (card-fields.ts siteTag), so the slides below lose it; tests/level-tab-teaches.test.ts pins which slides of these two decks keep one, and that no other tab is claimed.
+ *  Meso-Rex: the child, the cavernoma and the two pre-hepatic patterns (HVPG and stiffness) teach the level; the bypass, its flows, its months and the alternative shunt are surgery.
+ *  Ascites: the sinusoidal story (1 to 5) and the two other sources (right heart failure, Budd-Chiari) teach a level; the SAAG test, the tense belly, paracentesis, diuretics, the refractory path, the
+ *  complications, frailty, the carvedilol hold, TIPS and the relation after LVP are management (the "SINUSOIDAL" tab over the frailty slide was the capture's example).
+ */
+export const CAPTURE_3531BDFA_LEVELS = [
+  ...['recess', 'bypass', 'flows', 'months', 'alternative'].map((id) => DROP('meso-rex', `slides.${id}.site`)),
+  ...['saag', 'tense', 'lvp', 'back', 'diuretics', 'refractory', 'path-asc', 'complications', 'frailty', 'path-hold', 'tips', 'relation'].map((id) => DROP('ascites', `slides.${id}.site`)),
+];
+
 export const SOURCE_PATCHES = [
   P('landmark-trials', 'slides.earlytips.line', 'to {ppg}, {<12 mmHg}, the reference after a TIPS', 'to {ppg}, under the {12 mmHg} reference after a TIPS'),
   P('tips-complete', 'slides.dysfunction.line', 'climbs back past {>=12 mmHg}, the variceal reference, and', 'climbs back past the {12 mmHg} variceal reference, and'),
@@ -501,6 +514,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_36B7DEAC,
   ...CAPTURE_3531BDFA_WORDS,
   ...CAPTURE_3531BDFA,
+  ...CAPTURE_3531BDFA_LEVELS,
 ];
 
 function step(node, key) {
