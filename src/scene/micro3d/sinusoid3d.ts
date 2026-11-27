@@ -114,6 +114,36 @@ export const rbcDensity = (hct: number): number => clamp(hct / HCT_HEALTHY, 0, R
 const RBC_CAP_MAIN = Math.ceil(RBC_N * RBC_DENSITY_MAX), RBC_CAP_FAR = Math.ceil(RBC_FAR * RBC_DENSITY_MAX), RBC_CAP = RBC_CAP_MAIN + 2 * RBC_CAP_FAR;
 export const rbcWanted = (hct: number): { main: number; far: number } => { const d = rbcDensity(hct); return { main: RBC_N * d, far: RBC_FAR * d }; };
 
+/** One red cell of the stream: its fixed draw along (u), across (y, -0.75 to 0.75 of the lumen's half width), in depth (z), its tilt, its spin and phase, and the lane it
+   rides (0 this sinusoid, -1 and 1 the next ones). */
+export interface RbcCell { u: number; y: number; z: number; tilt: number; spin: number; ph: number; lane: -1 | 0 | 1 }
+/** Where a red cell is, and how big, in the sinusoid's own micrometres (x along the flow, yd across and DOWN as 2D has it, z toward the viewer): `flow` is the traffic's run
+   (µm), `have` the share of the cell present (a cell being added or taken is smaller, never larger). */
+export interface RbcSpot { x: number; yd: number; z: number; r: number; fold: number; rot: number }
+/** The stream's one rule for a red cell's place (the lane's fastest in the middle, the lumen's width where it is, the squeeze at the stellate cell's pinch): the sinusoid
+   draws its cells with it, and so does the dive's blood in the lobule (dive-blood.ts), so the two are the same cells by construction. */
+export function rbcSpot(c: RbcCell, flow: number, g: { halfW(x: number): number; hepIn(x: number): number }, have: number, out: RbcSpot): RbcSpot {
+  const span = RBC_SPAN, v0 = -REACH - 8, farH = UM.lum + UM.endo * 0.5, farLim = farH - RBC_R * 0.62;
+  const sp = 1.5 * (1 - c.y * c.y) + 0.08;
+  const x = v0 + ((((c.u * span + flow * sp) % span) + span) % span);
+  let yd: number, z: number, fold = 1;
+  if (c.lane === 0) {
+    const h = g.halfW(x), lim = Math.max(0, h - RBC_R * 0.62);
+    yd = clamp(c.y * h, -lim, lim);
+    const t = Math.abs(yd) / Math.max(h, 1e-3);
+    z = -h * Z.trough * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.42, 0.62, c.z);
+    // a squeeze where the lumen is narrow (the stellate cell's pinch): the disc folds a little
+    fold = clamp(h / (RBC_R + 1.2), 0.62, 1);
+  } else {
+    const mid = g.hepIn(x) + UM.hep + UM.disse + UM.endo + UM.lum, o = clamp(c.y * farH, -farLim, farLim), t = Math.abs(o) / farH;
+    yd = c.lane * (mid + o);
+    z = -farH * 0.7 * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.4, 0.6, c.z) + 0.1;
+  }
+  // (a whole cell is RBC_R; only the one being added or taken is smaller, never larger)
+  out.x = x; out.yd = yd; out.z = z; out.fold = fold; out.r = RBC_R * smooth(0, 1, have); out.rot = c.ph + c.spin * flow * 0.02;
+  return out;
+}
+
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const smooth = (a: number, b: number, x: number) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -220,7 +250,7 @@ export class Sinusoid3D {
   private readonly albumin: MicroMany;
   private readonly rbc: MicroMany;
   /** The red cells of the three lanes (this sinusoid's, then the next one's each way), each lane in the order they are added as the hematocrit rises; `rbcStart` is where each lane begins. */
-  private readonly rbcs: { u: number; y: number; z: number; tilt: number; spin: number; ph: number; lane: -1 | 0 | 1 }[] = [];
+  private readonly rbcs: RbcCell[] = [];
   private readonly rbcStart: [number, number, number, number] = [0, 0, 0, 0];
 
   constructor(flat: SinusoidView, shared: CelShared) {
@@ -831,10 +861,8 @@ export class Sinusoid3D {
   /** The red cells: biconcave discs carried in the stream at the albumin's own lane speeds (fastest in the middle), tumbling a little; a few ride in each of the next sinusoids too.
    *  How many is the blood's (rbcWanted: the patient's hematocrit against a healthy one); a cell that is being added or taken grows or shrinks over one cell's share, never pops. */
   private stepRbc(): void {
-    const f = this.flat, g = f.g, v0 = -REACH - 8, span = RBC_SPAN, flow = f.traffic.flowX;
-    const farH = UM.lum + UM.endo * 0.5, farLim = farH - RBC_R * 0.62;
-    // Blood origin and First pass: each cell wears the colour of the source its fixed draw falls in (the blood has mixed by here), eased in from its own red
-    const lens = f.cellColours, red = this.rbcRed, col = this.rbcCol, want = rbcWanted(f.cur.hct);
+    const f = this.flat, flow = f.traffic.flowX, spot = this.rbcSpotNow;
+    const want = rbcWanted(f.cur.hct);
     let n = 0;
     for (let l = 0; l < 3; l++) {
       const start = this.rbcStart[l]!, total = this.rbcStart[l + 1]! - start, wanted = l === 0 ? want.main : want.far;
@@ -842,32 +870,29 @@ export class Sinusoid3D {
         const have = clamp(wanted - k, 0, 1);
         if (have <= 0) break;
         const c = this.rbcs[start + k]!;
-        // (the colour is the cell's own, fixed by its place in the list, whoever else is drawn: a cell never changes source as the stream thins)
-        if (lens) cellColour(lens, hash((start + k) * 0.618 + 0.37), red, col);
-        else { col[0] = red[0]!; col[1] = red[1]!; col[2] = red[2]!; }
-        const sp = 1.5 * (1 - c.y * c.y) + 0.08;
-        const x = v0 + ((((c.u * span + flow * sp) % span) + span) % span);
-        let yd: number, z: number, fold = 1;
-        if (c.lane === 0) {
-          const h = g.halfW(x), lim = Math.max(0, h - RBC_R * 0.62);
-          yd = clamp(c.y * h, -lim, lim);
-          const t = Math.abs(yd) / Math.max(h, 1e-3);
-          z = -h * Z.trough * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.42, 0.62, c.z);
-          // a squeeze where the lumen is narrow (the stellate cell's pinch): the disc folds a little
-          fold = clamp(h / (RBC_R + 1.2), 0.62, 1);
-        } else {
-          const mid = g.hepIn(x) + UM.hep + UM.disse + UM.endo + UM.lum, o = clamp(c.y * farH, -farLim, farLim), t = Math.abs(o) / farH;
-          yd = c.lane * (mid + o);
-          z = -farH * 0.7 * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.4, 0.6, c.z) + 0.1;
-        }
-        // (a whole cell is RBC_R; only the one being added or taken is smaller, never larger)
-        const r = RBC_R * smooth(0, 1, have);
-        placeAt(this.m4, x, Y(yd), z, r, r * fold, r, c.ph + c.spin * flow * 0.02, c.tilt);
-        this.rbc.setAt(n++, this.m4, col);
+        // (the place and the size are rbcSpot's, one rule: the dive's red cells in the lobule, scene/micro3d/dive-blood.ts, take the same cells from it)
+        rbcSpot(c, flow, f.g, have, spot);
+        placeAt(this.m4, spot.x, Y(spot.yd), spot.z, spot.r, spot.r * spot.fold, spot.r, spot.rot, c.tilt);
+        this.rbc.setAt(n++, this.m4, this.rbcColourAt(start + k, this.rbcCol));
       }
     }
     this.rbc.commit(n);
   }
+  private readonly rbcSpotNow: RbcSpot = { x: 0, yd: 0, z: 0, r: 0, fold: 1, rot: 0 };
+  /** The colour of red cell `i` of the list now (Blood origin and First pass colour each by the source its fixed draw falls in, eased in from its own red; else the red). One
+     rule for this scene and the dive's cells. */
+  rbcColourAt(i: number, out: [number, number, number]): [number, number, number] {
+    const lens = this.flat.cellColours, red = this.rbcRed;
+    // (the colour is the cell's own, fixed by its place in the list, whoever else is drawn: a cell never changes source as the stream thins)
+    if (lens) cellColour(lens, hash(i * 0.618 + 0.37), red, out);
+    else { out[0] = red[0]!; out[1] = red[1]!; out[2] = red[2]!; }
+    return out;
+  }
+  /** The red cells' list (read only: the dive's cells in the lobule follow it) and where each lane begins. */
+  get rbcList(): readonly RbcCell[] { return this.rbcs; }
+  get rbcLaneStart(): readonly number[] { return this.rbcStart; }
+  /** The red cells' own mesh (the dive's cells copy its look: its tint and line colour). */
+  get rbcMesh(): MicroMany { return this.rbc; }
 
   /** The wedged column's wash in the lumen, and the haze. */
   private stepWashAndHaze(P: Pal): void {

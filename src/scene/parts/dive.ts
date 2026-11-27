@@ -40,6 +40,14 @@ export const divePart = scenePart<CelScene>()({
     const sv = share == null || share >= SIN_SHOW_FROM;
     if (this.sinFrame.visible !== sv) { this.sinFrame.visible = sv; this.moving = true; }
   },
+  /** The dive's red cells along the lobule's target sinusoid and the target tube's tone (micro3d/dive-blood.ts): drawn only while the camera is really flying with the sinusoid
+     at one end. After the sinusoid's own step (its cells, its lift). */
+  stepDiveBlood(dtMs: number): boolean {
+    const b = this.diveBlood;
+    if (!b || !this.microReady) return false;
+    if (!b.group.parent) this.dive.add(b.group);
+    return b.update({ camera: this.rig.camera, stageH: this.height, dtMs, share: this.sinus.isVisible ? this.sinus.diveShareNow : null });
+  },
   /** The dive's cutaway window in the organs' wash and the field's focus: both are functions of the camera's distance to the place dived to, so the way in and the way out are one picture run both ways,
    *  however the move is reversed, held or resized by a card (camera/dive.ts). Nothing changes at rest: every body shot is outside the window. */
   stepCutaway(): void {
