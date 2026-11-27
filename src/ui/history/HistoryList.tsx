@@ -7,6 +7,7 @@ import { useShell } from '../shell/store.ts';
 import { timeline, getInterventionLabels, type Entry } from '../timeline/index.ts';
 import { useTimeline } from '../timeline/store.ts';
 import { pinEntry } from '../compare/bind.ts';
+import { restOpenHistory } from './open-scroll.ts';
 import { HIST } from './words.ts';
 import { BT } from '../bigtime/words.ts';
 import { Chart } from '../charts/Chart.tsx';
@@ -220,10 +221,18 @@ export function HistoryList() {
     user.current = false;
     setDay(v.hereDay);
     let live = true;
-    const go = () => { if (!live) return; const el = list.current?.querySelector<HTMLElement>(`[data-moment="${CSS.escape(v.here)}"]`); el?.scrollIntoView({ block: 'start', inline: 'nearest' }); };
+    const go = () => {
+      if (!live) return;
+      const el = list.current?.querySelector<HTMLElement>(`[data-moment="${CSS.escape(v.here)}"]`);
+      if (list.current) list.current.style.paddingBottom = '';   // (the room an earlier opening gave the list's foot)
+      el?.scrollIntoView({ block: 'start', inline: 'nearest' });
+      // (a moment near the end cannot reach the top: the list rests on a moment's top, not part-way through one: history/open-scroll.ts)
+      const scroller = sideways ? story.current : list.current;
+      if (el && scroller && list.current) restOpenHistory(scroller, list.current, el);
+    };
     if (typeof document !== 'undefined' && document.fonts && document.fonts.status !== 'loaded') void document.fonts.ready.then(go); else go();
     return () => { live = false; };
-  }, [open, v.here, v.hereDay]);
+  }, [open, v.here, v.hereDay, sideways]);
   // Scrolling moves the playhead to the topmost moment under the chapter heading (no restore, no layout read: the browser says what crosses the line).
   useEffect(() => {
     const root = sideways ? story.current : list.current;

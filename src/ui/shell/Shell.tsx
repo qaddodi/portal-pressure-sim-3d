@@ -45,7 +45,8 @@ import { startHistory } from '../history/bind.ts';
 import { startActions } from '../action/boot.ts';
 import { useTalkOn } from '../../state/deck.ts';
 import { useCase } from '../case/store.ts';
-import { caseBarUp, caseLift, caseRoom, useCaseRoom } from '../case/room.ts';
+import { caseBarUp, caseLift, useCaseRoom } from '../case/room.ts';
+import { sheetRoom, useHistoryRoom } from '../history/room.ts';
 import { lazyRetry } from '../../boot/lazy-retry.ts';
 
 import { clock } from '../../clock/frame.ts';
@@ -75,12 +76,13 @@ function useFreeCamera() {
   const actionH = useActionRoom((s) => s.h);   // (an action card over the bottom of the figure takes its height from the room)
   // (a case's bar makes the foot taller, its stop card takes room as the Tests card does: case/room.ts)
   const caseUp = useCase((s) => caseBarUp(s.phase)), caseCut = useCaseRoom((s) => s.cut);
+  const panel = useHistoryRoom((s) => s.rect);   // (History's panel beside the figure takes room too: history/room.ts)
   const entered = useRef(false);
   // The figure pans, never zooms, under the Tests card (place.ts panRoom); `bias` is the extra shift that brings the probe now up (the Doppler's gate, the FibroScan's tip) into the free part
   const bias = useRef({ x: 0, y: 0 });
   const probe = useProbes((s) => `${s.doppler.on ? `${s.doppler.edge}|${s.doppler.seg}` : ''}/${s.fibro.on ? s.fibro.organ : ''}`);
   const roomNow = () => {
-    const base = viewRoom(useShell.getState().view, vp, layoutClass(thumb)), r = roomAbove(panRoom(caseRoom(base, caseCut), testsPlace), actionH), b = bias.current;
+    const base = viewRoom(useShell.getState().view, vp, layoutClass(thumb)), r = roomAbove(panRoom(sheetRoom(base, caseCut, panel), testsPlace), actionH), b = bias.current;
     return { base, room: { x: r.x + b.x, y: r.y + b.y, w: r.w, h: r.h } };
   };
   const lastScreen = useRef('');
@@ -93,7 +95,7 @@ function useFreeCamera() {
     const screen = `${vp.w}x${vp.h}:${thumb}`, refit = screen !== lastScreen.current; lastScreen.current = screen;
     if (!entered.current) { entered.current = true; showView(useShell.getState().view); } else sceneApi.setRoom(room, undefined, false, refit);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, vp, thumb, testsPlace, actionH, caseUp, caseCut]);
+  }, [mode, vp, thumb, testsPlace, actionH, caseUp, caseCut, panel]);
   useEffect(() => {
     if (mode !== 'free' || vp.w <= 0 || !entered.current) return;
     // once the probe has landed (it waits for the camera and fades in), move the figure so the probe stands in the middle of what the card leaves

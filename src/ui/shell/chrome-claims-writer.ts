@@ -10,6 +10,7 @@ import { useUi } from '../ui-store.ts';
 import { useTestsRoom } from '../tests/room.ts';
 import { useCase } from '../case/store.ts';
 import { caseBarUp, useCaseRoom } from '../case/room.ts';
+import { useHistoryRoom } from '../history/room.ts';
 import { layoutClass } from './room.ts';
 
 export function useChromeClaims(thumb: boolean): void {
@@ -19,7 +20,10 @@ export function useChromeClaims(thumb: boolean): void {
     const put = () => {
       const c = useCaseRoom.getState();
       chromeClaims.set([
-        ...chromeBoxes({ vp: useUi.getState().vp, d, caseUp: caseBarUp(useCase.getState().phase), cut: c.cut, cardH: c.cardH, tests: useTestsRoom.getState().place }),
+        ...chromeBoxes({
+          vp: useUi.getState().vp, d, caseUp: caseBarUp(useCase.getState().phase), cut: c.cut, cardH: c.cardH,
+          tests: useTestsRoom.getState().place, panel: useHistoryRoom.getState().rect,
+        }),
         ...walls,
       ]);
     };
@@ -35,6 +39,7 @@ export function useChromeClaims(thumb: boolean): void {
       useCase.subscribe((s, p) => { if (s.phase !== p.phase) both(); }),
       useCaseRoom.subscribe(both),
       useTestsRoom.subscribe(both),
+      useHistoryRoom.subscribe(both),
     ];
     return () => { clock.cancel(timer); removeEventListener('resize', later); keyMo.disconnect(); for (const o of offs) o(); chromeClaims.set([]); };
   }, [thumb]);
