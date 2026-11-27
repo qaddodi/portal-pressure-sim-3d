@@ -27,11 +27,18 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?:
 export function makeTag(parent: Element, cls: string): Tag {
   const root = el('div', `${cls} tg`, parent);
   const k = el('small', 'cl-k', root), n = el('b', 'cl-n', root), u = el('span', 'cl-u', root);
-  return { root, k, n, u, tone: '', text: '', op: '', tx: '', size: '' };
+  // (born at 0, as a hidden tag is: its words are written while it is invisible, and the first thing it is ever shown with is not a change of words)
+  k.style.opacity = n.style.opacity = u.style.opacity = '0';
+  return { root, k, n, u, tone: '', text: '', op: '0', tx: '', size: '' };
 }
 
-/** The words of a tag (written when they change). A tag that is showing (`alpha`) crosses over to its new words and tone, never steps (roll.ts `restyle`). */
-export function words(c: Tag, r: TagWords, alpha = 0): void {
+/** How much of a tag is on the screen now: what `fade` wrote last (a tag is born at 0, and `fade(c, 0)` is what hides it). The one thing a change of words is judged by:
+ *  a tag that is only now coming in is not showing, whatever opacity it is about to be given (roll.ts `restyle`). */
+export const painted = (c: Pick<Tag, 'op'>): number => Number(c.op) || 0;
+
+/** The words of a tag (written when they change). A tag that is showing crosses over to its new words and tone, never steps; one that is coming in (or hidden) simply takes them
+ *  (roll.ts `restyle`, `painted`). */
+export function words(c: Tag, r: TagWords): void {
   const t = `${r.kicker}|${r.value}|${r.unit}`;
   if (c.text === t && c.tone === r.tone) return;
   // A reading that ticks (the manometer's number while the needle reads, a beat-filtered pressure breathing round a rounding boundary) is written where it stands, as 2D's refreshValues does and
@@ -44,7 +51,7 @@ export function words(c: Tag, r: TagWords, alpha = 0): void {
   restyle(c.root, () => {
     if (c.text !== t) { c.text = t; c.k.textContent = r.kicker; c.n.textContent = r.value; c.u.textContent = r.unit; }   // (an empty number or unit takes no room: labels.css `:empty`)
     if (c.tone !== r.tone) { c.tone = r.tone; c.root.dataset.tone = r.tone; }
-  }, alpha);
+  }, painted(c));
 }
 
 /** Opacity on the tag's children (never the root). */
