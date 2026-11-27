@@ -3,6 +3,7 @@
 import { cutUniform, fieldSoft } from '../camera/dive.ts';
 import { fieldWide } from '../lobule/field.ts';
 import { ORGAN_CUT } from '../organs/layer.ts';
+import { LIVER_LOBULES, mosaicShare } from '../organs/liver-lobules.ts';
 import { effectiveDistance } from '../camera/room.ts';
 import { type LobuleHit, bloodBeat, bloodSpeed, lobuleModel, sinusoidTargets, type BloodBeat, type LobuleLayers } from '../lobule/index.ts';
 import { LOBULE_SCALE, SIN_SCALE, sinusoidWorld } from '../lobule/frames.ts';
@@ -14,7 +15,7 @@ import { U as SIN_UNIT } from '../sinusoid/view.ts';
 import { clock } from '../../clock/frame.ts';
 import type { CelScene } from '../scene.ts';
 import { scenePart } from './define.ts';
-import { SIN_SHOW_FROM, DIVE_IN, DIVE_OUT, FIGURE_FRONT_Z, FRONT_MARGIN, _bA, _bB, _bE0, _bE1, _bEnds } from './shared.ts';
+import { SIN_SHOW_FROM, DIVE_IN, DIVE_OUT, bodyFade, FIGURE_FRONT_Z, FRONT_MARGIN, _bA, _bB, _bE0, _bE1, _bEnds } from './shared.ts';
 import { diveBlur } from '../post-dof.ts';
 
 const FOCUS_NOW = { band: 0, whole: 0 };
@@ -56,6 +57,10 @@ export const divePart = scenePart<CelScene>()({
     // (owner, 20 Nov: no cut-out. The circular window drew a dark-ringed disc in the liver with nothing in it; the body now dissolves evenly over the lobules' field, which
     //  fills the screen from the moment the camera is inside. The window stays shut: cutUniform at an infinite distance.)
     cutUniform(Infinity, p.x, p.y, cam.aspect, this.cutArr, this.diveIn());
+    // (the liver carries its lobules: the mosaic's share is a function of the camera's distance, the screen's px per unit and the body's share there;
+    //  0 outside a dive, so nothing runs at rest)
+    const px = this.height / (2 * Math.tan((cam.fov * Math.PI) / 360));
+    LIVER_LOBULES.mos.value = d < Infinity ? mosaicShare(d, px, bodyFade(d, this.diveIn())) : 0;
     const was = ORGAN_CUT.value.z;
     ORGAN_CUT.value.set(this.cutArr[0], this.cutArr[1], this.cutArr[2], this.cutArr[3]);
     // (held soft over a lobule the move only passes through: its neighbours never resolve on the way to the sinusoid or back, scene passHold)

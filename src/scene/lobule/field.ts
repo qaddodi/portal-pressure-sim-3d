@@ -11,6 +11,7 @@ import { makeDrawTile } from './from2d/field-tile.generated.js';
 import { useTokens } from './from2d/lobule-paint.generated.js';
 import { EDGE_FADE, FADE_MID, FADE_SPAN, NEIGHBOUR_FLAT, blurWrapped, neighbourBlur, surroundGrade } from './from2d/lobule-look.generated.js';
 import { LOBULE_R } from './shots.ts';
+import { FIELD_TILE_H, FIELD_TILE_W } from './tiling.ts';
 import { PLATE_Z, blankTexture } from './plate.ts';
 import { GROW_H, TAU_LO } from './growth.ts';
 import { PX_PER_R, TRACT_REACH_PX, tractRadiusPx, tractSoftPx } from './collagen-edge.ts';
@@ -133,7 +134,7 @@ void main() {
   // depth of field (lobule-look.js fieldDof at rest): sharp to 2.4 rd, 1.6 mip levels softer by 10 rd (or 0.6 of the diagonal)
   float diag = 2.0 * length(sc), r0d = rd * 2.4, r1d = max(r0d + 1e-3, min(rd * 10.0, diag * 0.6));
   float bias = mix(1.6 * smoothstep(r0d, r1d, d), 0.0, wide) + 4.0 * soft * (1.0 - 0.6 * wide);   // (from afar the mips alone keep the far tiles calm: the hexes read as a pattern, then blur, then resolve as the camera lands)
-  vec2 uv = vec2(vLob.x / 6.0, vLob.y / 3.4641016151377544);
+  vec2 uv = vec2(vLob.x / ${FIELD_TILE_W.toFixed(1)}, vLob.y / ${FIELD_TILE_H.toFixed(16)});
   vec3 col = texture2D(tile, uv, bias).rgb;
   vec3 colB = texture2D(tile, uv, bias + 3.0).rgb;
   // (a home tract lies on one ground: inside its full disc the neighbours' plates give way to the gap tone, eased back in over the next quarter of its radius, so no stippled wedge shows through the tract's reveal)
