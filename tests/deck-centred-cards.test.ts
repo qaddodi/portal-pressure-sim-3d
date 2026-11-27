@@ -89,7 +89,7 @@ test('behind a case card the camera keeps the slide\'s own framing (one shot, no
   assert.doesNotMatch(layer, /' on dip'/);
   assert.match(readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8'), /\.pz-veil\.soft \{ opacity: 0\.5/);
   const frame = readFileSync(new URL('../src/ui/cards/CardFrame.tsx', import.meta.url), 'utf8');
-  assert.match(frame, /--pz-fit/); assert.match(frame, /floor = floorOf\(/);
+  assert.match(frame, /--pz-fit/); assert.match(frame, /const floor = .*floorOf\(/);
   // (the 12 px floor is the one rule in card-fit.ts, tests/card-fit-rule.test.ts)
   assert.match(readFileSync(new URL('../src/ui/cards/card-fit.ts', import.meta.url), 'utf8'), /FLOOR_PX \/ bodyPx/);
 });
