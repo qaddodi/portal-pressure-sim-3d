@@ -24,6 +24,7 @@ import { zipBlob, type ZipFile } from '../../capture/zip.ts';
 import { feedbackBuild, commitOf } from '../../../boot/release.ts';
 
 export interface AllUi { /** only these talks (ids); absent: every talk */ decks?: ReadonlySet<string> | null; /** only these slides (`deck:k`, k the stop: 1 the first slide); null or absent: every slide */ pick?: ReadonlySet<string> | null; status(s: string): void; progress(done: number, total: number): void; stop(): boolean; /** the page clock's speed for the run (default 8) */ speed?: number; /** land every slide on its settled state at once: no CSS or script animation plays (see skipAnimations) */ skip?: boolean;
+  /** no choice pictures (the stress capture takes one picture a view, never presses a teaching slide's choices) */ noChoices?: boolean;
   /** the promotion set (?promotion): one picture a slide at this pixel ratio, as a PNG, no choice pictures, no contact sheets */ promo?: { ratio: number };
   /** capture this one talk only (its id); default every talk */ only?: string;
   /** called with each talk's finished files (its pictures, states and contact sheet) as soon as the talk ends, so a page that holds the run can keep them if the run never ends */
@@ -159,7 +160,7 @@ export async function captureAllDecks(ui: AllUi): Promise<AllResult> {
         };
         // a teaching slide with several choices (tabs, toggles, options): each is pressed and the result taken, named for the button; the first picture's choice is put back before the next state
         const choiceShots = async (view: string): Promise<void> => {
-          if (ui.promo) return;   // (the promotion set is one picture a slide)
+          if (ui.promo || ui.noChoices) return;   // (the promotion set and the stress capture are one picture a view)
           // (the choices to press are fixed from the slide as it arrived: every one that is not standing, by name. Looking again after each press for "the first not pressed yet" found the choice the press had just put down,
           //  so on a group of three the last was never shot and the first was shot twice: Gastric varices 11, capture f23a4c59, "Removed")
           const nameOf = (e: HTMLElement, j: number): string => choiceName(e.textContent, e.getAttribute('aria-label'), j);

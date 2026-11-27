@@ -83,6 +83,17 @@ On a Mac, `/preview/?promotion` makes the pictures for promotion: it takes the s
 
 The outlines are drawn in `src/ui/debug/promo/frames.ts` from rounded shapes (no maker's artwork, logo or model name); the look is in `docs/approved/promotion.md`. The address has no email and no picture can show one: the feedback address is a build variable that the capture frame never draws.
 
+### The stress capture, `?stress`
+
+On any device, `/preview/?stress` (add `&go=1` to start at once, `&layouts=iphone,mac` for fewer layouts) takes about 160 pictures in one small zip, with a written report. It is built on the capture and the promotion pass, not beside them (`src/ui/debug/stress`).
+
+1. **Start stress capture**. The page holds the app in one sized frame at a time (an iPhone, an iPad upright, a Mac) and shows only a bar: the percentage and the time left. Keep the tab in front.
+2. In each layout it takes: sixteen key slides (an iPhone and an iPad take the instrument card up and tucked), and on the iPhone and the Mac three pictures inside each of ten transitions plus the menu opening (the press is played with the page's clock and every CSS animation slowed, so a picture does not move it: about 60 ms after the press, about 300 ms, then the settled end), and the menu's three tabs, one case's chart, timeline and fourth stop, and the Settings, Help and Search sheets.
+3. **Save zip**: `<layout>/slides|moves|menus/` with the pictures, and at the top `REPORT.md` (the build, the counts, the issues worst first, what the checks cannot see), `slides.md`, `animations.md` and `menus.md` (every picture with its state, a link that reopens it, each check's pass or fail and any issue) and `manifest.json` (all of it, for a tool).
+4. The checks it makes itself: no card's content reaches past its foot (the capture's card record), and no card changes size after it lands (every card is measured on every frame of a transition). Notes the capture makes (a picture that was not still, one that did not load) are listed as issues.
+
+Cannot do: the real iOS toolbar and notch (the frame's safe edges stand in), frame rate and jank, touch feel, and whether a number is right (the pictures are for that). The files are written to the device's own storage as they are made, so a page the browser ends keeps the run (Recover last capture). The slides, moves and menus it takes are in `stress/plan.ts`; `tests/stress-plan.test.ts` and `tests/stress-report.test.ts`.
+
 ## 5. The rules, in plain words
 
 Each rule reads the screen as the app itself describes it. The tables are generated from the code: `npm run debug -- doc` after adding a rule, a limit or a flag, and a test fails until it is done.
@@ -225,6 +236,9 @@ Address flags, where each works (live site, or the preview and a local run only)
 | `?sweep` | preview and local run | Pages | The debug page: run the Sweep over these specimens (a list, or affected). |
 | `?audit` | preview and local run | Pages | The self-test (src/ui/debug/audit): walks every view, sheet, patient and every slide of every talk by itself, measures layout spill and covered text, load times, fade lengths (snaps), frames a second, hitches and console errors, and ends in one report with Copy. Bare ?audit on a Mac runs the app in iPhone, iPad and Mac frames one after the other; ?audit=here runs this screen only (do this on the iPhone and iPad). No AI, nothing sent anywhere. |
 | `?promotion` | preview and local run | Pages | The promotion pictures on a Mac (src/ui/debug/promo, docs/debug.md): ?promotion&pick=lobule:4&sizes=mac,iphone. |
+| `?stress` | preview and local run | Pages | The stress capture on any device (src/ui/debug/stress, docs/debug.md): ?stress opens a page with one Start button; it takes key slides, frames inside the main transitions, the menus and sheets in an iPhone, an iPad and a Mac layout, one frame at a time, and ends in one small zip with REPORT.md and notes. As audit=capture&stress=<layout> it is the frame. |
+| `?go` | preview and local run | Pages | Starts the page's run at once (?stress&go=1). |
+| `?layouts` | preview and local run | Pages | The stress capture's layouts: layouts=iphone,mac (a comma list of iphone, ipad-portrait, mac); default all. |
 | `?safe` | preview and local run | Pages | A framed phone's safe edges, px (safe=47,0,34,0). |
 | `?promo` | preview and local run | Pages | The promotion capture frame's pixel ratio (audit=capture&promo=3). |
 | `?extras` | preview and local run | Pages | The promotion frame's pictures that are not slides (extras=history:hist-bleed:3,overview:patients): a case at a stop, the menu. |
