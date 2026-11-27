@@ -2,7 +2,7 @@
 // the journeys of the Phone check and the Full check. Debug only; every call is a tap or a step of a walk, never a frame.
 import { UI } from '../../strings.generated.ts';
 import { builtinDecks, lazyDecks, loadBuiltin } from '../../../decks/registry.ts';
-import { useShell, type Sheet } from '../../shell/store.ts';
+import { useShell, type Place } from '../../shell/store.ts';
 import { goToView } from '../../shell/view-actions.ts';
 import { startTalk, leaveTalk } from '../../shell/talk.ts';
 import { loadPatient } from '../../menu/patients.ts';
@@ -19,7 +19,7 @@ import { appSnapshot } from '../screen/app.ts';
 import { caughtCount } from '../caught.ts';
 import { talkOn } from '../../../state/deck.ts';
 
-const SHEETS: Sheet[] = ['settings', 'search', 'help', 'menu', 'history', 'guide', 'blood', 'layers', 'lens', 'speed', 'jump'];
+const SHEETS: Place[] = ['settings', 'search', 'help', 'menu', 'history', 'guide', 'blood', 'layers', 'lens', 'speed', 'jump'];
 
 /** Every built-in talk, loaded. Only the HVPG talk is in the registry at boot; the rest are lazy (their data is read when they open), so `builtinDecks()` lists just the one until these are in:
  *  the catalog, the Phone check, the Sweep and the audit all asked it and walked a single talk. Call (and wait for) this before reading the decks. A talk that will not load is returned in `failed`. */
@@ -36,15 +36,15 @@ export const liveCatalog = (): Entry[] => buildCatalog({
   patients: UI.presets.map((p) => ({ id: p.id, label: p.label, group: p.group })),
 });
 
-const leave = () => { if (talkOn()) leaveTalk(); useShell.setState({ sheet: null, dialog: null }); };
+const leave = () => { if (talkOn()) leaveTalk(); useShell.getState().closeAll(); useShell.setState({ dialog: null }); };
 export const sleep = (ms: number) => new Promise<void>((ok) => clock.after(ok, ms));
 
 /** Opens a specimen the way the app opens it: a view pill, a sheet, a talk at a stop, a patient. */
 export async function openEntry(e: Entry): Promise<void> {
   const [kind, a, b] = e.id.split(':');
   if (kind === 'view') { leave(); if (!goToView(a as 'anatomic' | 'lobule' | 'sinusoid')) throw new Error(`the ${a} view is not drawn yet`); return; }
-  if (kind === 'sheet') { leave(); useShell.getState().open(a as Exclude<Sheet, null>); return; }
-  if (kind === 'slide') { useShell.setState({ sheet: null }); if (!startTalk(a!, Number(b))) throw new Error(`no talk called ${a}`); return; }
+  if (kind === 'sheet') { leave(); useShell.getState().open(a as Place); return; }
+  if (kind === 'slide') { useShell.getState().closeAll(); if (!startTalk(a!, Number(b))) throw new Error(`no talk called ${a}`); return; }
   if (kind === 'patient') { leave(); await loadPatient(a!); return; }
   throw new Error(`do not know how to open ${e.id}`);
 }

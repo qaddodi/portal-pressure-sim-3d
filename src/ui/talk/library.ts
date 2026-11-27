@@ -111,7 +111,7 @@ export function readScriptLink(): string | boolean {
 /** Opens a talk by id at a slide; says so when there is none. */
 export function present(id: string, at = 0): boolean {
   if (!knownTalk(id)) { say(W.notFound, 'bad'); return false; }
-  useShell.getState().close();
+  useShell.getState().closeAll();
   return startTalk(id, at);
 }
 /** Print notes: the tab opens inside the tap (so it is not blocked) and the talk is read into it, when it is one read on opening. */

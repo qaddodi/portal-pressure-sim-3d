@@ -37,19 +37,8 @@ import { poleEnds, scaleAbout, placedPoint } from './organ-axis.ts';
 
 import { whenQuiet } from '../../clock/idle.ts';
 import { gate } from '../gate.ts';
-type Og = keyof OrganTones2D['tones'];
-/** The tone each 2D organ takes, its 2D painter's tones (--og-<og>-1/2/3; anatomy.js `tone`), the outline's width (2D: 1.1 px, the kidney 1.4) and alpha (.62, the kidney .95, the atrium .35),
- *  and which layer opacity it sits at (the gut at --gut-a, the kidney at its own, the rest at the organ layer's). */
-export const ORGAN_STYLE: Record<string, { tone: ToneKey; og: Og; px: number; inkA: number; layer: 'organ' | 'gut' | 'kidney'; /** the soft AO seat 2D draws under a plain organ (.org-ao); not the atrium (part of the heart) and not the gut, which has its own */ ao?: true; /** the right atrium's own fainter shade and rim */ atrium?: true; /** no rim light in the see-through fill (the liver and the stomach, and the duodenum painted with the stomach's tones: too shiny) */ noRim?: true }> = {
-  heart: { tone: 'heart', og: 'heart', px: 1.1, inkA: 0.62, layer: 'organ', ao: true }, 'heart-ra': { tone: 'heart', og: 'ra', px: 1.1, inkA: 0.35, layer: 'organ', atrium: true },
-  liver: { tone: 'liver', og: 'liver', px: 1.1, inkA: 0.62, layer: 'organ', ao: true, noRim: true }, spleen: { tone: 'spleen', og: 'spleen', px: 1.1, inkA: 0.62, layer: 'organ', ao: true },
-  /** the caudate lobe (caudate.ts): the mock's egg on the liver's back, in the liver's tones WITH the rim light, so it reads through the liver (round 15); shown only on a slide about it */
-  caudate: { tone: 'liver', og: 'liver', px: 1.1, inkA: 0.62, layer: 'organ' },
-  stomach: { tone: 'stomach', og: 'stomach', px: 1.1, inkA: 0.62, layer: 'organ', ao: true, noRim: true },
-  /** the duodenum: the gut's tube from the stomach's cut, in the gut's tones and layer, wearing the stomach's look by the cut (organ-art.ts `tos`) */
-  duodenum: { tone: 'gut', og: 'gut', px: 1.1, inkA: 0.62, layer: 'gut' },
-  'kidney-l': { tone: 'kidney', og: 'kidney', px: 1.4, inkA: 0.95, layer: 'kidney', ao: true }, bowel: { tone: 'gut', og: 'gut', px: 1.1, inkA: 0.62, layer: 'gut' }, colon: { tone: 'gut', og: 'gut', px: 1.1, inkA: 0.62, layer: 'gut' },
-};
+import { ORGAN_STYLE, GUT_GROUP } from './organ-style.ts';
+export { ORGAN_STYLE, GUT_GROUP };
 
 /** The layer opacity an organ sits at in a look. */
 export function organLayerAlpha(p: Palette, id: string): number {
@@ -80,7 +69,6 @@ export const ORGAN_CUT: { value: Vector4 } = { value: new Vector4(0, 0, -1, 1) }
  *  painted over by the other organ's fill. The stencil is cleared with the depth each pass (scene.ts), and bit 2 is the gut's own (the vessels' outline stencil is bit 1). */
 /** The gut's tubes: painted in one box (OrganLayer oneGutBox). */
 export const GUT_TUBES = ['duodenum', 'bowel', 'colon'] as const;
-export const GUT_GROUP: ReadonlySet<string> = new Set(['stomach', 'duodenum', 'bowel', 'colon']);
 /** The gut's draw order in the organ layer: fills first (the colon, which covers, then the bowel), then the outlines (the bowel's, then the colon's over it).
  *  The approved placement's gut is ONE surface (the mock's round 12: the stomach, the duodenum's funnel, the small bowel and the colon): a depth pass of every part first (`pre`: each pixel keeps only the nearest wall), then the
  *  fills (the tubes first: where the funnel overlaps the stomach it is the one drawn), each pixel once (stencil bit 2), the stomach's AO seat, and then all the outlines, so a line is never painted over by another part's fill and
@@ -352,8 +340,8 @@ export class OrganLayer {
     // (all off first, then the one on: two rules may share an occluder)
     for (const p of this.reveals.values()) { for (const m of p.meshes) gate(m, 0); for (const t of p.occluders) { t.uniforms.frvOcc!.value = 0; setOccluderGate(t, false); } }
     const p = id ? this.reveals.get(id) : undefined;
-    // (the passes are drawn while the strength, which the scene eases, is above nothing: scene/gate.ts, not a boolean)
-    if (p) { for (const m of p.meshes) gate(m, FOCUS_REVEAL_U.frvP.value.x, 0); for (const t of p.occluders) { t.uniforms.frvOcc!.value = 1; setOccluderGate(t, true); } }
+    // (a rule is on: its passes are in the draw list, and what they lay is weighted by the strength the scene eases, frvP.x, so nothing pops; scene/gate.ts is the one place a draw flag is set)
+    if (p) { for (const m of p.meshes) gate(m, 1); for (const t of p.occluders) { t.uniforms.frvOcc!.value = 1; setOccluderGate(t, true); } }
   }
   get focusRevealOn(): string | null { return this.revealOn; }
   /** The canvas's pixel ratio (the drawing buffer's, which Settings > Figure detail caps: 1.5 on a 2x screen), so the outline's one-pixel feather and floor are one pixel of the buffer drawn, not of the screen. */

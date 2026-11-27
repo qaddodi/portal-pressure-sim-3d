@@ -2,7 +2,7 @@
 // and the page is quiet (the ladder's slot), or at once on the first touch, key or open sheet (a person never waits on a closed door). Save-Data pages read it on that first use only.
 import { createElement, useEffect, useState } from 'react';
 import { sheetsPart, loadSheets } from './sheets-load.ts';
-import { useShell } from './store.ts';
+import { useShell, anyShellPanel } from './store.ts';
 import { useSelection } from '../action/selection.ts';
 import { useDialogs } from '../deck/dialogs.ts';
 import { useGuard } from '../case/guard.ts';
@@ -10,7 +10,10 @@ import { lowData } from '../../boot/data-saver.ts';
 import { quietSlot } from '../../boot/warm.ts';
 
 /** Whether anything the sheets draw is asked for: a sheet or a dialog named in the shell's state (a deep link, a key), a structure selected (its action card), a deck dialog, the case's guard. */
-const asked = (): boolean => { const s = useShell.getState(); return !!s.sheet || !!s.dialog || !!useSelection.getState().sel || !!useDialogs.getState().dialog || !!useGuard.getState().ask; };
+const asked = (): boolean => {
+  const s = useShell.getState();
+  return !!s.sheet || anyShellPanel(s) || !!s.dialog || !!useSelection.getState().sel || !!useDialogs.getState().dialog || !!useGuard.getState().ask;
+};
 
 export function SheetsSlot() {
   const [Ready, set] = useState(sheetsPart.get);

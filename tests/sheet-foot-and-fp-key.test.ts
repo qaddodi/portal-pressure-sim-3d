@@ -11,8 +11,9 @@ test('top sheets end over the dock, from one variable', () => {
   for (const f of ['src/ui/shell/shell.css', 'src/ui/history/history.css', 'src/ui/why/why.css']) {
     const css = readFileSync(f, 'utf8').replace(/--sh-max-h:[^;]*;/, '');
     assert.ok(!/- 92px/.test(css), `${f} has a sheet that ends at a fixed foot`);
-    assert.match(readFileSync(f, 'utf8'), /max-height: var\(--sh-max-h\)/);
   }
+  // (History, Compare and Why are panels since 27 Nov: the panel shell places every float panel inside one band that ends over the foot, room.ts footHeight; surface/panel-place.ts)
+  assert.match(readFileSync('src/ui/surface/panel-place.ts', 'utf8'), /bottom = vp\.h - vp\.safe\.bottom - footHeight\(d\)/);
 });
 test('the First pass key prints its dots only; the sentence is their hover title (2D LG_FP_DOTS)', () => {
   const g = legendFor('firstpass', 'light', 'healthy');

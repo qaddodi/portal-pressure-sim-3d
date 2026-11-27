@@ -1,6 +1,5 @@
 [data-site="post"] { --site: color-mix(in srgb, var(--tour-portal) 20%, var(--tour-sys)); }
 [data-site="cardiac"] { --site: var(--tour-sys); }
-.stage-view.in-lobule .big-overlay { display: none; }
 
 /* ── 2.1 visual language: quiet anatomy, vivid vessels ──────────────────────────
    Organs are calm, flat silhouettes: a light tint of their own hue and a hairline, lit only by a
@@ -47,13 +46,10 @@
 /* The caudate lobe and its veins (stage.js caud): only on a slide about them, eased in and out; never in the circuit. */
 .caud { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--d-surface) var(--ease), transform 1.6s var(--ease) /*own pace*/, visibility 0s var(--d-surface); }   /* (hidden once faded: not drawn when off) */
 .caud.on { opacity: 1; visibility: visible; transition-delay: 0s; }   /* (faded out and hidden, .7 s after .on comes off: stage.js caud.show) */   /* (hidden once faded, so the veins' mask is not built there) */   /* (the lobe drawn as the organs are, stage.js caud: tissue gradient, volume, lit edge, one thin outline) */
-.caud-line { fill: none; stroke: color-mix(in srgb, var(--og-liver-3) 80%, var(--shade-ink)); stroke-width: 1.2; stroke-opacity: .6; stroke-linejoin: round; }
 .org-detail .od-fine { stroke: var(--o3); stroke-width: .9; stroke-opacity: .55; }
 /* The embolized spleen's infarcted lower part fades toward the stage as the removed spleen does; a hairline marks where the live tissue ends. */
 .org-detail .pse-dead { fill: var(--stage-bg); fill-opacity: .8; stroke: none; }
 /* Tubes */
-.band-ao { fill: none; stroke: var(--og-ao); stroke-linecap: round; stroke-linejoin: round; }
-.band-under { fill: none; stroke: var(--o2); stroke-opacity: .75; stroke-linecap: round; stroke-linejoin: round; }
 /* The gut as picked in the organ mock-ups (20 Oct; stage.js draws organ-art.js, made by scripts/organ-art.mjs): the folded
    colon (.oc-*), the small bowel's pile of loops (.ob-*) and the duodenum (.du-*), in the organ's own tones. One see-through
    group holds all three (--gut-a), so the colon covers the loops under it instead of showing them through. The organs' own
@@ -61,7 +57,6 @@
 #organs > .organ.organ-gut { opacity: var(--gut-a); }   /* (.organ.: over the organs' .55 below) */
 /* The stomach's outline traced over the cirrhotic liver (stage.js): a line in the stomach's own tone, never a fill (unstyled,
    it filled black and read as a dark patch on the liver: Mohammad, 20 Oct). */
-.org-ghost-line { fill: none; stroke: var(--og-stomach-3); stroke-width: 1.5; stroke-linejoin: round; }
 .oc-ao { fill: var(--og-ao); stroke: var(--og-ao); stroke-width: 8; stroke-linejoin: round; stroke-linecap: round; }
 .oc-o1 { fill: var(--o1); }
 .oc-wall, .oc-pouch { fill: var(--o2); fill-opacity: .49; stroke: var(--o3); stroke-width: .84; stroke-opacity: .42; stroke-linejoin: round; stroke-linecap: round; }
@@ -96,7 +91,6 @@
 /* Disease and tissue textures sit in the surface, not on it. */
 /* Matte tissue: soft form, no gloss. */
 .organ .org-line { stroke-width: 1; stroke-opacity: .7; }
-.band-body, .band-edge, .band-ao, .band-under { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .organ-heart-ra .org-line { stroke-opacity: .35; }
 /* The atrium is part of the heart: no dark halo or inner shade of its own on the ventricles it overlaps. */
 .organ-heart-ra .org-ao { display: none; }
@@ -117,18 +111,7 @@
 .organ-heart-ra .org-line { stroke-opacity: .35; }
 .organ-kidney-l .org-line { stroke-width: 1.4; stroke-opacity: .95; }
 /* Every live number uses tabular figures, so digits hold still as the model runs. */
-.metric,
-.vital,
-.kv dd,
-.tl-time,
-.stage-clock,
-.big-overlay,
-.cmp-table,
-.cut-table,
-.hp-chip,
-.ctl-val,
-#labels text,
-.tl-pop .when { font-variant-numeric: tabular-nums; }
+.metric, .vital, .kv dd, .tl-time, .stage-clock, .cmp-table, .cut-table, .hp-chip, .ctl-val, #labels text { font-variant-numeric: tabular-nums; }
 
 /* ── Live instrument workspace ─────────────────────
    Instruments share the figure column, independent of the patient panel. No floating windows
@@ -367,8 +350,7 @@
 .ac-panel:has(> .tv) { position: relative; z-index: 4; }
 .ac-panel:has(> .tv) + .ac-as { transition: opacity var(--d-small) var(--ease); flex-wrap: wrap; gap: 0 12px; align-content: center; min-height: 48px; border-top: 1px solid var(--hairline); }
 :is(.ac-body, .ac-ghost) > .ac-panel:has(> .tv) + .ac-as { margin-top: 6px; animation: crossfade var(--d-small) var(--ease); }   /* (right under the tiles; back in by a fade when a tray closes) */
-.tv .ir-keys { margin-bottom: 2px; }
-.ac-panel:has(> .tv .se-panel:not([data-open=""])) + .ac-as { position: absolute; top: var(--as-top, 0px); left: var(--as-left, 0px); width: var(--as-w, 100%); box-sizing: border-box; margin: 0; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--d-small) var(--ease), visibility 0s linear var(--d-small); animation: none; }   /* (the open tray's room: the actions leave the flow at once and fade where they stood, under the tray as it unrolls, never popping off, 17 Nov 2026; stent-editor.js holdActions writes where; back in by the fade above when the tray has gone) */   /* (its height is the figure's own, written when its width changes: tips-figure.js fit) */
+.tv .ir-keys { margin-bottom: 2px; }   /* (the open tray's room: the actions leave the flow at once and fade where they stood, under the tray as it unrolls, never popping off, 17 Nov 2026; stent-editor.js holdActions writes where; back in by the fade above when the tray has gone) */   /* (its height is the figure's own, written when its width changes: tips-figure.js fit) */
 /* The stent editor (stent-editor.js; option A, the tab tray, 17 Nov 2026: /mnt/project-files/stent-tile-mocks/stent-tiles-three-ways.html). Three tiles side by
    side, 64 px: the name and a chevron, the value, one small line. The open tile fills in (its own fill, faded, square at the foot) and the tray unrolls from
    under it (stent-editor.js roll: transforms only); a patch the tile's width squares the tray's corner under it and glides to the next tile. */

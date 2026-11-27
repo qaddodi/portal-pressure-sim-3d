@@ -24,9 +24,8 @@ import { TROUGH_K, WALL, buildBore, buildCut, buildNucleusSection, buildShellSte
 import { CEL_STYLE } from '../cel-style.ts';
 import { SHAPE_NODES, SHAPE_RAMP, restDisseW, restHalfW, shapeInverse, shapeUniform } from './sinusoid-shape.ts';
 import {
-  MeshBuilder, MICRO_DPR, MicroMany, MicroPart, COPY_W, Pacer, meshWork, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
+  MeshBuilder, MicroMany, MicroPart, COPY_W, Pacer, meshWork, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
 } from './cel3d.ts';
-import { revealFront, revealUniform } from './reveal.ts';
 import { type CellColours, cellColour } from '../sinusoid/lens.ts';
 
 /** How far along the sinusoid (µm each way) the scene is built: past anything the camera can hold (the host's reach). */
@@ -68,12 +67,11 @@ export const ALB_RIM_FULL_PX = 8;
 /** The dive's focus pull (Mohammad 20 Nov 2026: the disc and the band read as a window and "an old TV"): over FOCUS[0]-FOCUS[1] of the dive's share the whole picture goes soft, over
  *  FOCUS[1]-FOCUS[2] the sinusoid comes in over the lobule inside that blur (its screen-door fade, which the blur turns into a true dissolve), and over FOCUS[2]-1 it sharpens to its own
  *  focus band: one picture coming into focus, no edge or shape anywhere. Going out it runs back the same way. */
-// (27 Nov: 0.2, 0.45, 0.68 -> 0.08, 0.15, 0.78, with the share read off the camera's real distance (parts/dive.ts stepSinusDive): the sinusoid spreads from its middle for about
-//  0.65 s of the 1.8 s move, reveal.ts, then sharpens over about 0.6 s. Mohammad: "appears from middle out, during the blur, then unblurs slowly")
-export const FOCUS = [0.08, 0.15, 0.78] as const;
-/** The focus pull's blur at the dissolve's middle, against the rest's (Mohammad 20 Nov: the blur came in "kinda quickly too strongly"): only as soft as the dissolve needs, eased in with
- *  a smootherstep from FOCUS[0] so it has no start, peaking at the dissolve's middle, then held while the sinusoid's own band opens over FOCUS[2]-1 and its sides settle to the rest's. */
-export const FOCUS_PEAK = 0.4;
+export const FOCUS = [0.2, 0.45, 0.68] as const;
+/** The focus pull's blur at the dissolve's middle, against the rest's: the rest's own strength over the whole screen (Mohammad 27 Nov: "get it back to what it was and just intense blur";
+ *  0.4 before, 20 Nov: it came in "kinda quickly too strongly", which the smootherstep from FOCUS[0] answers: it has no start). Never past the rest's, so it never falls back as it lands;
+ *  held while the sinusoid's own band opens over FOCUS[2]-1 and its sides settle to the rest's. */
+export const FOCUS_PEAK = 1;
 const smoother = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * t * (t * (t * 6 - 15) + 10); };
 /** The blur's strength at dive share `d` (FOCUS_PEAK at the dissolve's middle, 1 landed, as at rest). */
 export function focusBlur(d: number): number {
@@ -138,8 +136,6 @@ interface Flat {
   g: { halfW(x: number): number; disseW(x: number): number; wallIn(x: number): number; hepIn(x: number): number };
   endShown: [number, number];
   dive: number | null;
-  /** The sinusoid's middle on the screen (CSS px), measured by the scene each frame of a dive (parts/dive.ts stepPortrait). */
-  readonly revealCentre: { x: number; y: number };
   lifeTime: number;
   readonly pxPerUm: number;
   look: LookId;
@@ -174,8 +170,6 @@ export class Sinusoid3D {
   readonly group = new Group();
   private readonly flat: Flat;
   private readonly fade = { value: 1 };
-  /** The dive's reveal from the middle out (reveal.ts), shared by every part of the scene: off at rest. */
-  private readonly reveal = revealUniform();
   private readonly res: CelShared['res'];
   private on = false;
   /** The haze over what lies past this sinusoid's own plates (one set of uniforms for every part). */
@@ -237,8 +231,8 @@ export class Sinusoid3D {
     // the scene is built in micrometres, the plane's y up: one group scales it to the host's units (it turns with the host's group in a portrait room)
     this.group.scale.setScalar(U);
     // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the host's own plane, where the names are pinned)
-    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, reveal: this.reveal, ...o }), `sinusoid3d/${name}`);
-    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}, colours = false) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, reveal: this.reveal, ...o }), cap, `sinusoid3d/${name}`, colours);
+    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), `sinusoid3d/${name}`);
+    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}, colours = false) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`, colours);
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
@@ -334,12 +328,6 @@ export class Sinusoid3D {
   private readonly rimKAlb = { value: 1 };
 
   /** `force`: the priming pass (Scene's idle slices): everything a first shown frame would build is built now, hidden. */
-  /** The reveal from the middle out over the dissolve (reveal.ts): the drawn area grows from the sinusoid's middle on the screen to its farthest corner, a function of the dive's share. */
-  private stepReveal(d: number | null): void {
-    const u = this.reveal.value, c = this.flat.revealCentre, dpr = MICRO_DPR.value, h = this.res.value.y * dpr;
-    // (gl_FragCoord's frame: device px, y up from the bottom; the front in the sinusoid's own µm, by its measured size on the screen)
-    u.set(c.x * dpr, h - c.y * dpr, Math.max(0, this.flat.pxPerUm) * dpr, revealFront(d, FOCUS[1], FOCUS[2]));
-  }
   update(on: boolean, rate = 1, force = false, upTo = 9): boolean {
     const f = this.flat;
     const changed = on !== this.on;
@@ -353,7 +341,6 @@ export class Sinusoid3D {
     const d = f.dive;
     // (the sinusoid comes in inside the blur, FOCUS: dithered, which the blur over it turns into a smooth dissolve; whole before the picture sharpens)
     this.fade.value = d == null ? 1 : smooth(FOCUS[1], FOCUS[2], d);
-    this.stepReveal(d);
     { const k = f.pxPerUm; this.rimK.value = k > 0 ? smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k) : d != null ? 0 : 1; this.rimKAlb.value = k > 0 ? smooth(ALB_RIM_FULL_PX / 3, ALB_RIM_FULL_PX, k) : d != null ? 0 : 1; }   // (a smooth ramp in the scene's size, never a switch; unmeasured in a dive (its first frame), none, so a line never shows whole for a frame and then thins)   // (a red cell 7 µm across keeps its whole line from about 17 px wide; smaller, the line goes before the cell is a dot)
     this.group.position.z = d == null ? 0 : this.liftUm() * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';

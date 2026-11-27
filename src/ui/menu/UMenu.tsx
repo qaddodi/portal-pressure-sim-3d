@@ -18,7 +18,8 @@ import { clamp } from '../tests/copied/num.copied.js';
 import { easeArrive, D_FLIP } from '../tests/copied/ease.copied.js';
 import { reduced } from '../a11y/motion.ts';
 import { glide, type Glide } from './motion.ts';
-import { swipeTabs, enterCol } from './swipe-tabs.ts';
+import { attachTabSwipe, type TabSwipeApi } from '../surface/tab-swipe.ts';
+import { readMetric } from '../layout-snap.ts';
 import { profileScene, PROF_H } from './profile-frame.ts';
 // @ts-ignore plain JS copied from the 2D app
 import { SNAPSHOTS } from './snapshots.copied.js';
@@ -34,7 +35,7 @@ import { UI } from '../strings.generated.ts';
 import { presentTopics, patientGroups, LEVELS, slideCount, type DeckMeta } from './library.ts';
 import { loadPatient } from './patients.ts';
 import { openFromReadings } from '../readings/FromReadings.tsx';
-import { GROUP_WHERE, fold, filterRows, emptyNoteOf, stepRow, stepTab, wordsOf, chipsOf, type Snap } from './umenu-logic.ts';
+import { GROUP_WHERE, MENU_TABS, fold, filterRows, emptyNoteOf, stepRow, stepTab, wordsOf, chipsOf, type Snap } from './umenu-logic.ts';
 import { HISTORIES } from '../histories/index.generated.ts';
 import { HistoryPv, openFromMenu } from '../histories/HistoryPv.tsx';
 import { stateLine } from '../histories/state-words.ts';
@@ -137,6 +138,58 @@ function Item({ k, row, filtered, current, info, open, onInfo, onHover, onPress,
   );
 }
 
+/** The tab change's entrance (menu.js setTab): the list's own fade-rise, played again by swapping the class between two names for the same animation. None for a list that was swiped into place. */
+export function enterCol(col: HTMLElement | null, still: boolean): void {
+  if (!col) return;
+  if (still) { col.classList.remove('um-in', 'um-in2'); return; }
+  if (reduced()) return;
+  const was = col.classList.contains('um-in');
+  col.classList.remove('um-in', 'um-in2'); col.classList.add(was ? 'um-in2' : 'um-in');
+}
+
+/**
+ * The menu's lists on the one tab swipe (2D menu.js swipeTabs): the list beside the open one is put over the room in view at the touch, while it is hidden, so as the drag reaches for it only
+ * its class changes (.um-peer); the list that lands and the one that leaves change places in one task (the tab, the peer class and the scroll together). Returns the remover.
+ */
+function menuTabSwipe(panel: HTMLElement, setTab: (t: MenuTab) => void): () => void {
+  const cols = panel.querySelector<HTMLElement>('.um-cols');
+  if (!cols) return () => undefined;
+  const colOf = (k: MenuTab) => cols.querySelector<HTMLElement>(`.um-col[data-col="${k}"]`);
+  const unpeer = (e: HTMLElement | null) => { if (e) { e.style.transform = ''; e.classList.remove('um-peer'); } };
+  const clear = (e: HTMLElement | null) => { unpeer(e); if (e) { e.style.top = ''; e.style.height = ''; } };
+  let peers: HTMLElement[] = [], w = 0;
+  const tab = () => useShell.getState().menuTab;
+  const api: TabSwipeApi<MenuTab> = {
+    tag: 'menu-swipe',
+    enabled: () => true,
+    tabs: () => MENU_TABS,
+    open: tab,
+    width: () => w,
+    // (Everything the drag needs from the page is read at the touch, never as the finger moves: the lists' width and the room in view, where the other list shows from.)
+    touch: () => {
+      w = readMetric(cols, 'clientWidth');
+      const top = cols.scrollTop, h = readMetric(cols, 'clientHeight');
+      peers = MENU_TABS.filter((k) => k !== tab()).map(colOf).filter((c): c is HTMLElement => !!c && !c.classList.contains('um-peer'));
+      for (const c of peers) { c.style.top = `${top}px`; c.style.height = `${h}px`; }
+    },
+    untouch: () => { for (const c of peers) if (!c.classList.contains('um-peer')) { c.style.top = ''; c.style.height = ''; } },
+    active: () => colOf(tab()),
+    // (The other list shows from its own top, over the part of the list in view: it lands there. Its place was set at the touch.)
+    peer: (id, was) => { unpeer(was); const nb = id ? colOf(id) : null; nb?.classList.add('um-peer'); return nb; },
+    land: (id, cur, nb) => {
+      cur.style.transform = ''; nb.style.transform = ''; clear(nb); clear(cur);
+      // (React writes the same value a moment later; this is the one task that swaps them)
+      panel.dataset.tab = id;
+      setTab(id);
+      cols.scrollTop = 0;
+      for (const c of peers) clear(c);
+    },
+    // (the list that was not reached too: its place was set at the touch, and a list left with a height holds the next one to it)
+    back: (cur, nb) => { clear(cur); clear(nb); for (const c of peers) clear(c); },
+  };
+  return attachTabSwipe(panel, api);
+}
+
 export function UMenu() {
   // the shell: open state, presence, the outside press, placement and the pull (sheet or float is surface/mode.ts's one answer)
   const ctl = useMenu('menu', { at: MENU_AT });
@@ -155,11 +208,12 @@ export function UMenu() {
 
   // a menu opened by a link carries its search (menuQuery); every other open starts empty
   useEffect(() => { if (open) { setQuery(seed); setOpenRow(null); setHover(null); useShell.setState({ menuQuery: '' }); } }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps
-  // a sideways drag pages between Present and Patients (menu.js swipeTabs); the tab change plays the list's entrance unless the swipe has already carried it in (menu.js setTab)
+  // a sideways drag pages between Present, Patients and Histories (the one tab swipe, surface/tab-swipe.ts: the open list follows the finger, the next peeks in); the tab change plays
+  // the list's entrance unless the swipe has already carried it in (menu.js setTab)
   useEffect(() => {
     const el = ref.current;
     if (!shown || !el) return;
-    return swipeTabs(el, { tab: () => useShell.getState().menuTab, setTab: (t, s) => { still.current = s; useShell.setState({ menuTab: t }); setHover(null); } });
+    return menuTabSwipe(el, (t) => { still.current = true; useShell.setState({ menuTab: t }); setHover(null); });
   }, [shown]);
   const firstTab = useRef(true);
   useLayoutEffect(() => {
@@ -371,7 +425,7 @@ export function UMenu() {
         <Fade as="button" type="button" className="um-link um-other" on={!!empty.other} onClick={() => empty.otherTab && setTab(empty.otherTab, true)}>{empty.other}</Fade></Fade>
       <footer className="um-foot">
         <button type="button" className="um-link" onClick={() => { close(); shareView(patientId); }}><I n="share" /><span>Copy link to this view</span></button>
-        <button type="button" className="um-link" onClick={() => useShell.setState({ sheet: 'history' })}><I n="clock" /><span>History</span></button>
+        <button type="button" className="um-link" onClick={() => useShell.getState().open('history')}><I n="clock" /><span>History</span></button>
         <button type="button" className="um-link" onClick={() => useShell.setState({ sheet: 'help' })}><I n="help" /><span>Help</span></button>
         <span className="um-esc">Esc closes</span>
       </footer>

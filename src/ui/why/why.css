@@ -1,5 +1,4 @@
 /* Why? (2D app-02-controls.css .why-pop, .waterfall, .wf-*), in the 3D shell's tokens. */
-.sh-sheet[data-kind="why"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + 52px); width: var(--panel-why); max-height: var(--sh-max-h); }
 .why-body { padding: 4px 12px 14px; }
 .why-sub { margin: 0 0 10px; font: 400 var(--t-body) / 1.5 var(--ui); color: var(--text-2); }
 .why-skel { display: block; height: 12px; margin: 8px 0; border-radius: var(--r-control); background: color-mix(in srgb, var(--text) 8%, transparent); }

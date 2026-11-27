@@ -18,6 +18,9 @@ import { TABS, PANE_ORDER, tabOf, shortName, tinyName, PANES, type PaneId } from
 import { testsPlace, sideVars, HEAD_H, PEEK_H } from './place.ts';
 import { fitPlace } from './pane-need.ts';
 import { useTestsRoom } from './room.ts';
+import { publishPanel } from '../surface/room.ts';
+import { closeMenu, useColumnStep } from '../surface/wire.ts';
+import { steppedPlace } from '../surface/panel-place.ts';
 import { TAB_ICONS } from './copied/dock-words.copied.js';
 import { CompareLine } from './CompareLine.tsx';
 import { ReadoutsPane } from './ReadoutsPane.tsx';
@@ -25,14 +28,16 @@ import { AbdomenPane } from './abdomen/AbdomenPane.tsx';
 import { PressureTab } from './trace/PressureTab.tsx';
 import { startFeed } from './feed.ts';
 import { notYet } from '../shell/words.ts';
-import { useShell } from '../shell/store.ts';
 import { probeSelected, handOverStent } from './from-orders.ts';
 import { useThumb } from '../shell/thumb.ts';
 import { need, needAll, LOADERS } from './dock/lazy.ts';
 import { usePaneSwap } from './dock/swap.ts';
-import { attachSwipe, swipeOn, type SwipeApi } from './dock/swipe.ts';
+import { attachTabSwipe, type TabSwipeApi } from '../surface/tab-swipe.ts';
+import { swipeOn } from './store.ts';
 import { attachDivider, removeGuide } from './dock/resize.ts';
-import { attachPull, easeBack } from './dock/pull.ts';
+import { attachSheetPull, easeBack } from '../surface/sheet-pull.ts';
+import { grabStep, type Detent } from '../surface/sheet-stops.ts';
+import { SheetGrab } from '../surface/parts.tsx';
 import { glideFigures } from './dock/figure-glide.ts';
 import { publishSideWidth } from './dock/app-classes.ts';
 import { useTestsStatus } from './dock/status.ts';
@@ -57,6 +62,10 @@ const DopplerPane = lazyRetry(() => LOADERS.doppler().then((m) => ({ default: m.
 const EndoPane = lazyRetry(() => LOADERS.endoscopy().then((m) => ({ default: m.EndoPane })));
 const FibroPane = lazyRetry(() => LOADERS.fibroscan().then((m) => ({ default: m.FibroPane })));
 const TrialsPane = lazyRetry(() => LOADERS.trials().then((m) => ({ default: m.TrialsPane })));
+
+/** The store's sheet sizes (0 Half, 1 Full, 2 Peek) and the one detent model's names. */
+const DETENT_OF: readonly Detent[] = ['half', 'full', 'peek'];
+const SIZE_OF: Record<Detent, 0 | 1 | 2> = { half: 0, full: 1, peek: 2 };
 
 /** The panes built so far; a tab whose pane is not here yet says so in a line (never a dead tab). */
 // (noteAside: the sheet cannot hold the pane's optional note under its chart, so leave it out, pane-need.ts)
@@ -104,10 +113,14 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   // (the open pane's least content: Half grows to hold it, and the pane's optional note steps aside
   //  where even that cannot, pane-need.ts; judged against the sheet as the screen gives it, then placed again)
   const organ = useTests((s) => s.fibro);
-  const { place, noteAside, scrollMin } = useMemo(
+  const fitted = useMemo(
     () => fitPlace(vp, device, { widthPx, heightRatio, sheetSize, focus }, pane, organ),
     [vp, device, widthPx, heightRatio, sheetSize, focus, caseUp, pane, organ],
   );
+  // (in the right column the card stands left of every panel opened before it, one gap apart, and glides there by its own transform: surface/wire.ts useColumnStep)
+  const step = useColumnStep('tests');
+  const place = useMemo(() => steppedPlace(fitted.place, step), [fitted.place, step]);
+  const { noteAside, scrollMin } = fitted;
   const narrow = place.rect.w < 470;
   const layout = layoutOf(vp.w, vp.h);
   const roles = cardScale({ vw: vp.w, vh: vp.h, layout, part: 'data' });
@@ -141,16 +154,20 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   useEffect(() => registerFeature('tests', () => useTests.getState().toggle()), []);
   // the card buttons that open an instrument: Doppler, Endoscope, FibroScan (a liver or spleen card), and "Test TIPS in IR" (the stent's card)
   useEffect(() => {
-    const show = (id: PaneId) => () => { useShell.getState().close(); useTests.getState().show(id); };
+    // (a menu goes; a panel beside the card stays, the slot table's: surface/wire.ts)
+    const show = (id: PaneId) => () => { closeMenu(); useTests.getState().show(id); };
     const offs = [registerFeature('doppler', () => { probeSelected(); show('doppler')(); }), registerFeature('endoscopy', show('endoscopy')), registerFeature('fibroscan', show('fibroscan')), registerFeature('ir', () => { handOverStent(); show('hvpg')(); })];
     return () => offs.forEach((f) => f());
   }, []);
-  // a card that was pulled shut (dock/pull.ts) closed without a leave of its own: opening again takes the mark off, so the next close is the usual one
+  // a card that was pulled shut (surface/sheet-pull.ts) closed without a leave of its own: opening again takes the mark off, so the next close is the usual one
   useEffect(() => { if (open) posRef.current?.removeAttribute('data-swiped'); }, [open]);
   // the figure keeps the room the card leaves
   useEffect(() => {
-    useTestsRoom.setState({ place: open && !away ? place : null });
-    return () => useTestsRoom.setState({ place: null });
+    const up = open && !away;
+    useTestsRoom.setState({ place: up ? place : null });
+    // (its box in the one room channel: the figure's room, the names' walls and the zoom pill's reach read it, surface/room.ts)
+    publishPanel('tests', up ? { rect: place.rect, side: place.kind === 'side' ? 'right' : 'foot', fills: place.focus } : null);
+    return () => { useTestsRoom.setState({ place: null }); publishPanel('tests', null); };
   }, [open, away, place]);
   // a sideways phone's play bar ends at the card (2D putWidth: --side-ws-w on .app)
   useEffect(() => {
@@ -183,7 +200,7 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   // Esc inside the card: ends a pick, takes a focused instrument back to open, else closes it (2D workspace keydown)
   const onCardKey = (e: KeyboardEvent<HTMLElement>) => { if (e.key !== 'Escape') return; useTests.getState().back(); e.stopPropagation(); };
 
-  // ── a tab changes: the pane is built first, hidden, and swaps in while the old one fades out (dock/swap.ts); a swipe pages with the finger (dock/swipe.ts) ──
+  // ── a tab changes: the pane is built first, hidden, and swaps in while the old one fades out (dock/swap.ts); a swipe pages with the finger (the one tab swipe, surface/tab-swipe.ts) ──
   const vpRef = useRef(vp);
   vpRef.current = vp;
   const deviceRef = useRef(device);
@@ -200,38 +217,43 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   useEffect(() => {
     const body = bodyRef.current;
     if (!body) return;
-    const api: SwipeApi = {
+    // (nothing in the card scrolls sideways, so a sideways drag from a table or a row of chips is always the swipe: scrollers false; the body's width is its observer's)
+    const api: TabSwipeApi<PaneId> = {
+      tag: 'tests-swipe', scrollers: false,
       enabled: () => swipeOn(live.current),
-      tabs: TABS,
-      index: () => TABS.indexOf(tabOf(live.current.pane)),
+      tabs: () => TABS,
+      open: () => tabOf(live.current.pane),
       ready: (id) => !need(id),
-      peer: (id) => flushSync(() => setPeer(id)),
+      width: () => bodyW.current,
+      // (the neighbour is built beside the open pane in this same task, so the finger finds it)
+      peer: (id) => { flushSync(() => setPeer(id)); return id ? body.querySelector<HTMLElement>(`.dock-pane[data-pane="${id}"]`) : null; },
       active: () => body.querySelector<HTMLElement>('.dock-pane.active:not(.staging)'),
-      paneOf: (id) => body.querySelector<HTMLElement>(`.dock-pane[data-pane="${id}"]`),
       begin: () => { live.current.swiping = true; swapRef.current.cancelStage(); },
       finish: () => { live.current.swiping = false; },
       land: (id) => flushSync(() => { swapRef.current.swipedTo(id); useTests.getState().show(id); }),
     };
-    return attachSwipe(body, () => bodyW.current, api);
+    return attachTabSwipe(body, api);
   }, []);
-  // the sheet's pull (Half, Full, closed) and its grab handle
+  // the sheet's pull (Peek, Half, Full, closed: the one pull of every phone panel, surface/sheet-pull.ts) and its grab bar; the store keeps the stop as 0 Half, 1 Full, 2 Peek
   useEffect(() => {
     const card = cardRef.current, pos = posRef.current;
     if (!card || !pos) return;
-    return attachPull(card, pos, {
+    return attachSheetPull(card, pos, {
+      tag: 'tests-pull',
       enabled: () => { const g = live.current; return g.thumb && g.open && !g.focus && g.kind === 'sheet' && !!g.stops; },
-      heights: () => { const g = live.current, st = g.stops ?? [g.h, g.h]; return { h0: g.h, half: st[0], full: st[1], peek: PEEK_H, size: g.sheetSize }; },
+      heights: () => { const g = live.current, st = g.stops ?? [g.h, g.h]; return { h0: g.h, half: st[0], full: st[1], peek: PEEK_H, at: DETENT_OF[g.sheetSize] }; },
       // (the pictures in the card ease to the new size on the card's own settle: figure-glide.ts)
-      setSize: (n, curve) => glideFigures(cardRef.current, () => flushSync(() => useTests.getState().setSheetSize(n)), { curve }),
+      setSize: (to, curve) => { glideFigures(cardRef.current, () => flushSync(() => useTests.getState().setSheetSize(SIZE_OF[to])), { curve }); },
       close: () => flushSync(() => useTests.getState().close()),
     });
   }, []);
   const onGrab = () => {
     const g = live.current, pos = posRef.current;
     if (!g.thumb || !g.open || g.kind !== 'sheet' || !g.stops || !pos) return;
-    const n: 0 | 1 = g.sheetSize === 1 || g.sheetSize === 2 ? 0 : 1, h0 = g.h;   // (Half to Full and back; from Peek the handle brings it up to Half)
+    // (Half to Full and back; from Peek the grab bar brings it up to Half: surface/sheet-stops.ts grabStep)
+    const n = SIZE_OF[grabStep(DETENT_OF[g.sheetSize])] as 0 | 1, h0 = g.h;
     glideFigures(cardRef.current, () => flushSync(() => useTests.getState().setSheetSize(n)));
-    if (!reduced()) easeBack(pos, g.stops[n] - h0);
+    if (!reduced()) easeBack(pos, g.stops[n] - h0, 'tests-pull');
   };
   // the divider: the card's width on a sideways phone, its height on a sheet that is not over the thumb dock
   useEffect(() => {
@@ -283,8 +305,7 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   return (
     <SheetClip id="tests"><div ref={posRef} className="t-pos" data-open={open} data-cold={open && swap.cold ? "true" : undefined} data-live={open} data-narrow={narrow} data-kind={place.kind} data-thumb={thumb} data-device={device} data-away={away || undefined} style={style}>
       <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}${place.kind === 'sheet' && sheetSize === 0 ? ' sheet-half' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state={tstate} data-peek={peeking || undefined} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
-        <button type="button" className="sheet-grab" aria-label="Resize the Tests card" onClick={onGrab} />
-        <i className="sh-grabbar" aria-hidden="true" />
+        <SheetGrab className="sheet-grab" label="Resize the Tests card" onGrab={onGrab} />
         <div ref={dividerRef} className="workspace-divider" role="separator" tabIndex={0} aria-label="Instruments size" aria-orientation={side ? 'vertical' : 'horizontal'} aria-valuenow={dividerNow} hidden={tstate !== 'open' || (side && device !== 'phone-landscape')}><span /></div>
         <PanelHead className="dock-head" titleClass={`dock-title${status.vessel ? ' dop-on' : ''}`} title="Tests" sub={status.vessel} yieldTitle
           meta={{ text: status.text, className: 'workspace-live', state: status.state, live: 'off' }}

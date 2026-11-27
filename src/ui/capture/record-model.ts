@@ -1,6 +1,7 @@
 // Settings > Record window: the pure parts (no page, no browser), so node can test them.
 // Where the row shows (feature detection, never the user agent), which video format this browser can write, the file's name, the shortcut,
 // and the one state machine that says what Record window is doing (idle, asking the browser, recording, saving the file).
+import { create } from 'zustand';
 import { captureFileName } from './capture-model.ts';
 
 /** What the row needs from the browser: the screen-share call and the recorder. Both are looked for, neither is sniffed from the user agent. */
@@ -31,11 +32,21 @@ export function recordSize(screen: { w: number; h: number }, ratio: number): { w
   const r = ratio > 0 ? ratio : 1;
   return { w: Math.max(2, Math.round(screen.w * r)), h: Math.max(2, Math.round(screen.h * r)) };
 }
-/** Bits per second for the recorder, from what the track really delivers: about 0.2 bit per pixel per frame (a screen of text and fine lines is mostly still,
- *  so this is near lossless to the eye), kept between 8 and 80 Mbps. A 3024 x 1964 screen at 60 frames is about 71 Mbps; a 1440 x 900 one at 60 is 16 Mbps. */
+/** Bits per second for the recorder, from what the track really delivers: 0.4 bit per pixel per frame (fine lines and small type break up under a lower rate, as in
+ *  Safari's own default, which is far below this), kept between 20 and 100 Mbps. A 1440 x 900 screen at 60 frames is about 31 Mbps, at 30 about 16 (raised to 20). */
 export function recordBitrate(w: number, h: number, fps: number): number {
-  const raw = Math.round(Math.max(0, w) * Math.max(0, h) * Math.max(1, fps) * 0.2);
-  return Math.min(80_000_000, Math.max(8_000_000, raw));
+  const raw = Math.round(Math.max(0, w) * Math.max(0, h) * Math.max(1, fps) * 0.4);
+  return Math.min(100_000_000, Math.max(20_000_000, raw));
+}
+
+/** What the person is told for each note: nothing while recording (the stop button says it, and a note would be in the video), the saved line (with what was
+ *  recorded, `detail`, so the quality can be read off it), or the failure line. Every note is listed, so none falls into another's words. */
+export function noteWords(note: 'recording' | 'saved' | 'failed', words: { saved: string; failed: string }, detail = ''): { text: string; tone: 'info' | 'bad' } | null {
+  switch (note) {
+    case 'recording': return null;
+    case 'saved': return { text: detail ? `${words.saved} ${detail}` : words.saved, tone: 'info' };
+    case 'failed': return { text: words.failed, tone: 'bad' };
+  }
 }
 
 /** The shortcut: Alt (Option) + Shift + R, read by its place on the board (Option makes another character on a Mac). */
@@ -65,3 +76,30 @@ export function recordRow(phase: RecordPhase, words: { row: string; stopRow: str
 
 /** The mime type the video really has: the recorder's own, else the type its first piece carries, else what was asked for. The file's extension follows this, never what was hoped for. */
 export const actualMime = (recorderMime: string, pieceMime: string, asked: string): string => recorderMime || pieceMime || asked;
+
+// ---- the part the first screen needs: what it is doing, whether it can, and the way in to the rest ---------------------------------------------------------
+// Everything that talks to the browser (record.ts, record-run.ts) is fetched after the first picture, not with it (tests/boot-entry.test.ts counts the files).
+/** What Record window is doing now (the Settings row and the stop button read it). */
+export const useRecording = create<{ phase: RecordPhase }>(() => ({ phase: 'idle' }));
+
+/** Can this browser record the window: it can share a screen and write video. Looked for in the page, not read from the user agent, so an iPhone (neither) and an old browser
+ *  do not see the row. */
+export function recordAvailable(): boolean {
+  if (typeof navigator === 'undefined' || typeof MediaRecorder === 'undefined') return false;
+  return canRecordWindow({ getDisplayMedia: navigator.mediaDevices?.getDisplayMedia?.bind(navigator.mediaDevices), MediaRecorder });
+}
+
+type Engine = typeof import('./record.ts');
+let engine: Engine | null = null;
+/** Fetches the recording code (once). Called when Settings opens and shortly after the first picture, so it is in by the time anyone presses Record. */
+export function warmRecording(): Promise<void> {
+  if (engine || !recordAvailable()) return Promise.resolve();
+  return import('./record.ts').then((m) => { engine = m; }, () => undefined);
+}
+/** The row, the shortcut or the stop button: start recording, or stop and save. Once the code is in, the press goes straight through inside the tap (Safari lets a page ask to share a screen
+ *  only inside the tap itself); the first press before that waits for the code, which is what `warmRecording` is there to make rare. */
+export function toggleRecording(): Promise<void> {
+  if (!recordAvailable()) return Promise.resolve();
+  if (engine) return engine.toggleRecordingNow();
+  return warmRecording().then(() => engine?.toggleRecordingNow());
+}

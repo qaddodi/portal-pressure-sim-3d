@@ -499,7 +499,7 @@ test('root cause (Back from History opened by "What happened" went to Settings\'
   const { useShell } = await import('../src/ui/shell/store.ts');
   const { openHistoryFromChart, openChartFromHistory, originName } = await import('../src/ui/shell/origin.ts');
   const st = () => useShell.getState();
-  const reset = () => useShell.setState({ sheet: null, settingsPage: null, cameFrom: null });
+  const reset = () => useShell.setState({ sheet: null, panels: { history: false, compare: false, why: false }, settingsPage: null, cameFrom: null });
   // chart -> History (a phone) -> Back: the chart, and nothing is left remembered
   reset(); st().open('timeline');
   openHistoryFromChart();
@@ -512,7 +512,9 @@ test('root cause (Back from History opened by "What happened" went to Settings\'
   reset(); st().open('history');
   openChartFromHistory();
   assert.equal(st().sheet, 'timeline'); assert.deepEqual(st().cameFrom, { to: 'timeline', from: { sheet: 'history' } });
-  st().returnBack(); assert.equal(st().sheet, 'history'); st().returnBack(); assert.equal(st().sheet, null);
+  // (History is a panel with its own flag, not the menus' slot: its Back names it)
+  st().returnBack(); assert.equal(st().sheet, null); assert.equal(st().panels.history, true);
+  st().returnBack('history'); assert.equal(st().panels.history, false);
   // Settings' History page -> its chart button -> Back: Settings, asked for its History page again
   reset(); st().open('settings');
   openChartFromHistory();

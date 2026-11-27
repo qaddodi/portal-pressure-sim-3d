@@ -1,0 +1,22 @@
+/* The panel shell on a wide screen (Panel.tsx, panel-place.ts). Every panel in float mode stands where the one rule puts it: the custom properties the shell writes on it
+   (--pl-x, --pl-y, --pl-w, --pl-max-h, the column step --pl-step, the stacking --pl-z). The rules are `!important` and doubled in weight on purpose: a panel's own stylesheet
+   and the lifted 2D sheets each placed it their own way (History 460 px under its own top, Treat 400 px and 2D's sheet across the foot of a phone held sideways, the action
+   card 340 under another top), and none of those may win over the shell in float mode. Sheet mode (data-surface="sheet") is untouched: the panel's own rules draw it.
+   The motion is one for every panel: it comes in from its column's edge (--panel-in) and goes back the same way over a panel's leave time (--pl-leave, motion.ts leaveCss),
+   on --ease-arrive; it steps beside the panels opened before it by a translate that glides. A plain panel fades as a whole; a panel with a plate (Treat, the action card)
+   fades its plate and words by its own rules, so its glass keeps blurring while it fades. Moves are transform, translate and opacity only. */
+:root { --panel-in: 12px; }
+:root:root .sf-panel[data-surface="float"] {
+  position: absolute; left: var(--pl-x) !important; top: var(--pl-y) !important; right: auto !important; bottom: auto !important; margin: 0 !important;
+  width: var(--pl-w) !important; max-width: none !important; height: auto !important; max-height: var(--pl-max-h) !important;
+  z-index: calc(var(--z-panel, 10) + var(--pl-z, 0)) !important;
+  translate: calc(-1 * var(--pl-step, 0px)) 0 !important;
+  visibility: hidden; pointer-events: none; transform: translateX(var(--pl-in-x, 0px)); animation: none;
+  transition: transform var(--pl-leave) var(--ease-arrive), translate var(--pl-leave) var(--ease-arrive), opacity var(--pl-leave) var(--ease-arrive), visibility 0s linear var(--pl-leave);
+}
+:root:root .sf-panel[data-surface="float"][data-tall] { height: var(--pl-max-h) !important; }
+:root:root .sf-panel[data-surface="float"]:not([data-plate]) { opacity: 0; }
+:root:root .sf-panel[data-surface="float"][data-open="true"] { visibility: visible; pointer-events: auto; transform: none; opacity: 1; transition-delay: 0s; }
+@media (prefers-reduced-motion: reduce) {
+  :root:root .sf-panel[data-surface="float"] { transform: none; transition-duration: 1ms; }   /* own pace: Reduce Motion's near-instant swap */
+}

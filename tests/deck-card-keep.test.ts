@@ -14,8 +14,9 @@ test('the card the 2D app keeps is one card here: the same key on both slides', 
   const key = (id: string) => keys[at(id)]?.key;
   assert.equal(key('series'), key('ladder'), 'series to ladder: the same profile instrument stays');
   assert.notEqual(key('inflow'), key('series'), 'the flows card is another instrument');
-  assert.equal(key('lobule'), key('ladder'), 'a slide with no instrument of its own keeps the card on screen (Mohammad, 20 Nov: 4 to 5)');
-  assert.equal(keys[at('lobule')]?.from, at('ladder'), 'and the card shows the slide whose instrument it is');
+  // (Mohammad 20 Nov: a slide with no instrument of its own keeps the card on screen, once Circulation 5 after 4; since a9d9a7a1 that slide has its own "Across the lobule" card, so the keep left is 3 to 4)
+  assert.equal(keys[at('ladder')]?.from, at('ladder'), 'the card shows the slide whose instrument it is (the ladder\'s, shared with the series slide before it)');
+  assert.notEqual(key('lobule'), key('ladder'), 'the lobule slide brings its own card now');
   assert.notEqual(key('wall'), key('lobule'), 'a slide with an instrument of its own brings its own card');
   assert.equal(keys[at('flowres')]?.key, 'table:flowres', 'a summary panel brings its own card');
   const slides = stops.flatMap((s) => (s.kind === 'slide' ? [s.slide] : []));

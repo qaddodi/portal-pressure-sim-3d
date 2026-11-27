@@ -11,7 +11,7 @@ const names = process.argv.includes('--all') ? readdirSync(`${root}tests`).filte
 if (!names.length) { console.error('usage: npm run test:time tests/x.test.ts [more files]   (or --all)'); process.exit(2); }
 const timings = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
 for (const n of names) {
-  const t = Date.now(), r = spawnSync(process.execPath, ['--test', `tests/${n}`], { cwd: root, stdio: 'ignore' });
+  const t = Date.now(), r = spawnSync(process.execPath, ['--test', '--test-force-exit', `tests/${n}`], { cwd: root, stdio: 'ignore' });
   const s = Math.round((Date.now() - t) / 100) / 10;
   console.log(`${r.status === 0 ? 'ok  ' : 'FAIL'} ${n} ${s} s`);
   if (r.status === 0) timings[n] = s;

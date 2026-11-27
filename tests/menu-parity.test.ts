@@ -91,12 +91,12 @@ test('paging between tabs: a third of the width or a quick flick goes on, a flic
 });
 
 test('the swipe and the pushed page are driven by the one clock, in transform and opacity only', () => {
-  for (const f of ['src/ui/menu/swipe-tabs.ts', 'src/ui/menu/motion.ts', 'src/ui/shell/page-push.ts']) {
+  for (const f of ['src/ui/surface/tab-swipe.ts', 'src/ui/menu/motion.ts', 'src/ui/surface/page-push.ts']) {
     const t = src(f).replace(/\/\/.*$/gm, '');
     assert.ok(!/requestAnimationFrame|setInterval/.test(t), `${f}: no raw frames`);
   }
   const m = src('src/ui/menu/UMenu.tsx');
-  assert.ok(/swipeTabs\(el/.test(m) && /enterCol\(/.test(m), 'the menu pages by a swipe and plays the tab entrance');
+  assert.ok(/menuTabSwipe\(el/.test(m) && /attachTabSwipe\(panel, api\)/.test(m) && /enterCol\(/.test(m), 'the menu pages by the one tab swipe and plays the tab entrance');
   assert.ok(/pvResize/.test(m) && /um-pv-old/.test(m) && /D_FLIP/.test(m), 'the preview cross-fades and eases its height as 2D does');
   const menu = src('src/ui/surface/Menu.tsx');
   assert.ok(/pushPage\(/.test(menu) && /placePopover\(/.test(menu) && /leaveMs\('menu', mode\)/.test(menu), 'pages swipe back; the popover is placed by 2D\'s rule; the leave takes the menus\' one time');
@@ -141,7 +141,9 @@ test('every phone sheet stands in one clip box that ends 12 px inside the dock t
   assert.ok(!/clip-path/.test(src('src/ui/shell/SheetClip.tsx').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')));
   // every sheet kind is mounted in one, and the menus that mount only while open are put there
   const sheets = src('src/ui/shell/Sheets.tsx');
-  assert.ok(/<SheetClip id="sheets">[\s\S]*<UMenu \/>[\s\S]*<LayersSheet \/>[\s\S]*<SettingsSheet[\s\S]*<HistorySheet \/>[\s\S]*<SearchSheet \/>[\s\S]*<HelpMenu \/>[\s\S]*<\/SheetClip>/.test(sheets));
+  assert.ok(/<SheetClip id="sheets">[\s\S]*<UMenu \/>[\s\S]*<LayersSheet \/>[\s\S]*<SettingsSheet[\s\S]*<SearchSheet \/>[\s\S]*<HelpMenu \/>[\s\S]*<\/SheetClip>/.test(sheets));
+  // (History, Compare and Why are panels since stage 2: they stand in the cards' clip, through InApp)
+  assert.ok(/<InApp>(?:(?!<\/InApp>)[\s\S])*<HistorySheet \/>/.test(sheets));
   assert.ok(/<SheetClip id="cards">/.test(src('src/ui/shell/InApp.tsx')) && /<SheetClip id="tests">/.test(src('src/ui/tests/TestsLayer.tsx')));
   const shell = src('src/ui/surface/Menu.tsx');
   assert.ok(/sheetRoot\(\)/.test(shell) && !/querySelector\('\.sh-root'\)/.test(shell), 'the menu shell mounts its menus in the clip');

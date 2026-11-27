@@ -12,7 +12,8 @@ import { parseCss, splitSel, stylesheets } from './css-parse.ts';
 const allow = JSON.parse(readFileSync(new URL('./pop-allow.json', import.meta.url), 'utf8')) as { code: Record<string, number>; display: string[]; state: string[] };
 const walk = (d: string, out: string[] = []): string[] => { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) { if (e.name !== 'engine' && e.name !== 'decks') walk(p, out); } else if (/\.(tsx?|js)$/.test(e.name) && !e.name.includes('.copied.')) out.push(p); } return out; };
 
-const SWAP = /\bhidden=\{|\.hidden\s*=[^=]|\.style\.display\s*=[^=]|\.style\.visibility\s*=[^=]|\.remove\(\)|\.removeChild\(/g;
+// (`hidden={…}` the attribute or a component's prop: not `aria-hidden={…}`, which only tells a screen reader, and not `data-hidden={…}`, a state a rule eases)
+const SWAP = /(?<![\w-])hidden=\{|\.hidden\s*=[^=]|\.style\.display\s*=[^=]|\.style\.visibility\s*=[^=]|\.remove\(\)|\.removeChild\(/g;
 test('(a) hidden, style.display, style.visibility and .remove() only in fade.tsx or the listed files, and the counts only go down', () => {
   const counts: Record<string, number> = {};
   for (const f of walk('src')) {

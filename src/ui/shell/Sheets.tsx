@@ -11,7 +11,7 @@ import { figureRowsOwner } from './room.ts';
 import { useUi } from '../ui-store.ts';
 import { HistorySheet } from '../history/HistorySheet.tsx';
 import { TimelineSheet } from '../bigtime/TimelineSheet.tsx';
-import { DifferencesSheet } from '../compare/CompareUi.tsx';
+import { DifferencesSheet } from '../compare/DifferencesSheet.tsx';
 import { WhySheet } from '../why/WhySheet.tsx';
 import { RESET } from './words.ts';
 import { resetEverything } from './reset.ts';
@@ -45,16 +45,19 @@ export function Sheets() {
   const device = useUi((s) => s.device);
   return (
     <>
-      {!talk && <InApp><ActionCard /></InApp>}
-      {!talk && <InApp><TreatCard /></InApp>}
+      {/* every panel stands inside #app, where the lifted 2D sheets reach it (InApp.tsx): the panel shell places it (surface/Panel.tsx), menus and dialogs stand over it */}
+      <InApp>
+        {!talk && <ActionCard />}
+        {!talk && <TreatCard />}
+        <HistorySheet />
+        <DifferencesSheet />
+        <WhySheet />
+      </InApp>
       <SheetClip id="sheets">
         <UMenu />
         {figureRowsOwner(device) === 'sheet' && !talk && <LayersSheet />}
         {!talk && <SettingsSheet place="top" />}
-        <HistorySheet />
         <TimelineSheet />
-        <DifferencesSheet />
-        <WhySheet />
         <SearchSheet />
         <HelpMenu />
         <Guide />
@@ -62,7 +65,7 @@ export function Sheets() {
       </SheetClip>
       <ResetDialog />
       <DeckDialogs />
-      <CaseOwnLine hidden={talk} />
+      <CaseOwnLine away={talk} />
       <CaseGuardDialog />
     </>
   );

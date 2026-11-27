@@ -6,32 +6,21 @@
   --sh-pad-top: calc(var(--safe-t, 0px) + var(--m-top-pad)); --sh-pad-x: var(--m-side-pad);
   /* a top sheet ends over the dock and the view pill (2D's --bot-occ, published on the page), never under them: Compare and the Guide ran down to y 760 on a laptop, under the dock and the zoom pill */
   --sh-max-h: calc(100% - var(--sh-pad-top) - var(--bot-occ, 84px) - 20px);
-  /* the side panels' widths, in one place: each panel's own rule takes its width from here, and the floating controls (the zoom pill) step aside by it while it is open (below) */
-  --panel-settings: 360px; --panel-help: 360px; --panel-compare: 400px; --panel-why: min(440px, calc(100vw - 24px)); --panel-history: min(460px, calc(100vw - 2 * var(--sh-pad-x))); }
-/* Every card that opens at the right beside the figure moves the floating controls there (the zoom pill) aside while it is open, on every screen where it stands
-   beside the figure (a phone's sheet from the foot covers them instead, and the History column of a phone held sideways is at the left). A card's reach is how far
-   its left edge stands from the window's right edge, from the same numbers that place the card; the pill glides to 8 px left of the farthest (`--fs-zoom-r`,
-   app-07-floating.css: a transform, so it glides). Treat stands left of a Tests card on the right (treat/beside.ts), so its reach starts there. A sheet across
-   the screen (Treat on a phone) and every dialog (Search, the Guide, About) leave no room beside them: the pill fades while one is up. Coordinator, 26 Nov: every floating card clears the
-   zoom buttons; tests/side-panels-clear.test.ts holds every card that stands at the right edge to a reach here. */
+  /* the right column's one standard width (surface/panel-place.ts stdWidth: 420 px, 38 % of a narrow screen, never under 290; owner, 27 Nov, section 6 question 3): Treat, History,
+     Compare and Why read it; Tests keeps its own wider rule (tests/place.ts) */
+  --panel-std: clamp(290px, 38vw, 420px); }
+/* Every panel that stands at the right beside the figure moves the floating controls there (the zoom pill) aside while it is open. One rule for every panel: each open panel
+   publishes its box to the one room channel (surface/room.ts), and the shell writes the farthest right-hand panel's reach from the screen's right edge as --panel-reach on .app
+   (Shell.tsx, surface/room.ts panelReach); the pill glides to 8 px left of it (`--fs-zoom-r`, app-07-floating.css: a transform, so it glides). A phone's sheet from the foot
+   covers the pill instead and publishes no right-hand box; every dialog (Search, the Guide, About) leaves no room beside it, so the pill fades while one is up.
+   tests/side-panels-clear.test.ts holds every surface pinned to the right edge to this rule. */
 .sh-root:not([data-bottom="true"]) .zoom-pill {
-  --fs-zoom-r: max(0px, calc(max(var(--reach-sheet, 0px), var(--reach-tests, 0px), var(--reach-treat, 0px)) + 8px - var(--gap, 12px)));
+  --fs-zoom-r: max(0px, calc(var(--panel-reach, 0px) + 8px - var(--gap, 12px)));
 }
-.sh-root:not([data-bottom="true"]):has(.sh-sheet[data-kind="settings"][data-open="true"]) .zoom-pill { --reach-sheet: calc(var(--sh-pad-x) + var(--panel-settings)); }
-.sh-root:not([data-bottom="true"]):has(.sh-sheet[data-kind="help"][data-open="true"]) .zoom-pill { --reach-sheet: calc(var(--sh-pad-x) + var(--panel-help)); }
-.sh-root:not([data-bottom="true"]):has(.sh-sheet[data-kind="compare"][data-open="true"]) .zoom-pill { --reach-sheet: calc(var(--sh-pad-x) + var(--panel-compare)); }
-.sh-root:not([data-bottom="true"]):has(.sh-sheet[data-kind="why"][data-open="true"]) .zoom-pill { --reach-sheet: calc(var(--sh-pad-x) + var(--panel-why)); }
-.sh-root:not([data-bottom="true"]):not([data-device="phone-landscape"]):has(.sh-sheet[data-kind="history"][data-open="true"]) .zoom-pill {
-  --reach-sheet: calc(var(--sh-pad-x) + var(--panel-history));
-}
-/* (the Tests card on the right: .app's dock-side, its width the --side-ws-w the card publishes, right of it the rail of a phone held sideways) */
-.sh-root:not([data-bottom="true"]) .app.dock-side:not(.instrument-focus) .zoom-pill { --reach-tests: calc(var(--gap, 12px) + var(--rail-w, 0px) + var(--side-ws-w, 500px)); }
-.sh-root:not([data-bottom="true"]):has(.treat-card[data-open="true"]) .zoom-pill { --reach-treat: calc(var(--reach-tests, 0px) + var(--gap, 12px) + var(--card-treat)); }
 .sh-root:has(.sf-layer[data-open="true"]) .zoom-pill { opacity: 0; pointer-events: none; }
-/* (on a phone, held either way, and an upright iPad, Treat is a sheet across the foot, app-07-floating.css under this same query: no room beside it;
-   the same selector as its reach above, and later, so it wins) */
+/* (a phone held sideways still draws Treat as 2D's sheet across the foot, app-07-floating.css under this same query: no room beside it, the pill fades while it is up) */
 @media (max-width: 767px), (max-width: 1023px) and (max-height: 500px) and (orientation: landscape), (max-width: 1100px) and (orientation: portrait) {
-  .sh-root:not([data-bottom="true"]):has(.treat-card[data-open="true"]) .zoom-pill { --reach-treat: 0px; opacity: 0; pointer-events: none; }
+  .sh-root:not([data-bottom="true"]):has(.treat-card[data-open="true"]) .zoom-pill { opacity: 0; pointer-events: none; }
 }
 .sh-root [hidden] { display: none !important; }
 :where(.sh-root button) { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -48,11 +37,9 @@
 .sh-pill[data-icon-only] { width: var(--sh-h); padding: 0; justify-content: center; }
 .sh-pill kbd { font: 600 var(--t-cap) / 1 var(--ui); color: var(--text-3); border: 1px solid var(--edge); border-radius: var(--r-control); padding: 3px 5px; }
 .sh-pill[disabled] { opacity: 0.45; cursor: default; }
-.sh-pill .sh-chev { width: 14px; height: 14px; color: var(--text-3); }
 .sh-pill[data-off="true"] { color: var(--text-3); }
 
 /* ── popovers (anchored to their button, always in the page) ── */
-.sh-anchor { position: relative; display: inline-flex; }
 .sh-pop { position: fixed; z-index: 30; overflow-y: auto; overscroll-behavior: contain; min-width: 260px; max-width: min(360px, calc(100vw - 24px)); padding: 8px; border-radius: var(--r-sheet); border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 16px 40px -12px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2));
   opacity: 0; visibility: hidden; transform: translateY(var(--sh-from, -6px)); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
@@ -78,13 +65,18 @@
 /* ── sheets: the main menu, Settings, Search, Help (a panel on a laptop, a sheet from the foot on a phone) ── */
 .sh-sheet { position: absolute; z-index: 3; display: flex; flex-direction: column; overflow: hidden; pointer-events: auto; border: 1px solid var(--edge); background: var(--surface); border-radius: var(--r-sheet);
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 24px 56px -16px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2.2));
-  opacity: 0; visibility: hidden; transform: translateY(12px); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
+  opacity: 0; visibility: hidden; transform: translateY(12px); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small), translate var(--d-small) var(--ease-arrive);
+  /* (a right-hand panel stands left of every panel opened before it in the column, --pl-step from surface/panel-place.ts columnSteps, and glides there and back) */
+  translate: calc(-1 * var(--pl-step, 0px)) 0; }
 .sh-sheet[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
-.sh-sheet[data-kind="menu"] { left: calc(var(--safe-l, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); width: 380px; max-height: var(--sh-max-h); }
-.sh-sheet[data-kind="settings"], .sh-sheet[data-kind="help"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + var(--m-pill-h) + 6px); width: var(--panel-settings); max-height: var(--sh-max-h); }
-.sh-sheet[data-kind="help"] { width: var(--panel-help); }
 .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet { left: calc(var(--safe-l, 0px) + 6px) !important; right: calc(var(--safe-r, 0px) + 6px) !important; margin-left: 0 !important; width: auto !important; top: auto !important; bottom: calc(var(--safe-b, 0px) + var(--m-phone-inset) + var(--m-phone-timeline-h) + var(--m-phone-tabs-pad-top) + var(--m-phone-tab-h) + var(--m-phone-tabs-pad-bottom) + var(--m-phone-inset)); border-radius: var(--r-sheet); max-height: 78%; transform: translateY(var(--sheet-rise, 24px)); }   /* (a phone's sheet is inset 6 px and rounded all round, like every sheet in 2D's thumb layout: app-10-thumb-dock.css) */
 .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-open="true"] { transform: none; }
+/* a panel's phone sheet (History, Compare, Why) at Peek, Half or Full (surface/sheet-stops.ts, approved decision 4): as tall as its words up to the stop; the stops arrive as --sf-* (use-sheet.ts useFrameSheet) */
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-sheet] { max-height: var(--sf-half);
+  box-shadow: 0 var(--sheet-tail, 0px) 0 0 var(--surface), 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 24px 56px -16px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2.2)); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-sheet="full"] { max-height: var(--sf-full); }
+.sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-sheet="peek"] { max-height: var(--sf-peek); }
+/* (the first shadow is the sheet's tail, surface/sheet-pull.ts: its paper reaches down past its foot while a pull lifts it, so no gap shows under it) */
 .sh-root[data-bottom="true"][data-mode="free"][data-device="phone-landscape"] .sh-sheet { max-height: 86%; }
 .sh-sheet-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px 18px; }
 .sh-sheet-head h2 { flex: 1; margin: 0; font: 600 var(--t-val) / 1.2 var(--display); }
@@ -95,10 +87,9 @@
 .sh-tabs { display: flex; gap: 4px; padding: 4px 14px 8px; }
 .sh-tabs button { flex: 1; height: 44px; border-radius: var(--r-card); border: 1px solid var(--edge); background: transparent; display: inline-flex; gap: 8px; align-items: center; justify-content: center; font: 600 var(--t-body) / 1 var(--ui); color: var(--text-2); }
 .sh-tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--text); border-color: transparent; }
-.sh-note { margin: 4px 12px 8px; color: var(--text-2); font: 500 var(--t-lab) / 1.35 var(--ui); }
 .sh-fig { display: flex; align-items: center; gap: 4px; padding: 4px 6px 8px; }
 .sh-fig button { height: 44px; border-radius: var(--r-card); border: 1px solid var(--edge); background: transparent; font: 600 var(--t-body) / 1 var(--ui); }
-.sh-fig button:first-child, .sh-fig button:last-child { width: 44px; } .sh-fig .sh-fig-now { flex: 1; }
+.sh-fig button:first-child, .sh-fig button:last-child { width: 44px; }
 .sh-fig button[disabled] { opacity: 0.4; }
 
 /* the search sheet */
@@ -110,7 +101,6 @@
 .sh-hit-row[aria-selected="true"] { background: var(--accent-soft); }
 .sh-hit-row .sh-g { font: 600 var(--t-cap) / 1.3 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
 .sh-hit-row .sh-h { grid-column: 2; color: var(--text-2); font-size: var(--t-lab); }
-.sh-empty { padding: 14px 12px 18px; color: var(--text-2); font: 500 var(--t-body) / 1.4 var(--ui); } .sh-empty b { display: block; color: var(--text); margin-bottom: 4px; }
 .sh-foothints { display: flex; gap: 16px; padding: 8px 16px 12px; color: var(--text-3); font: 500 var(--t-cap) / 1 var(--ui); border-top: 1px solid var(--edge); } .sh-foothints kbd { font: 600 var(--t-cap) / 1 var(--ui); margin-right: 4px; }
 .sh-root[data-bottom="true"] .sh-foothints { display: none; }
 
@@ -157,27 +147,16 @@
 /* the Present menu: a talk's row, its ⓘ preview and its acts; your scripts */
 .sh-lrow { display: grid; grid-template-columns: 1fr 44px; align-items: center; }
 .sh-lrow > .sh-row { min-width: 0; }
-.sh-info { width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--text-3); display: grid; place-items: center; }
-.sh-info svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.sh-info[aria-expanded="true"] { color: var(--accent); }
 .sh-pv { grid-column: 1 / -1; margin: 0 10px 8px; padding: 12px 14px; border-radius: var(--r-sheet); background: color-mix(in srgb, var(--text) 5%, transparent); display: grid; gap: 8px; }
-.sh-pv-meta { font: 600 var(--t-cap) / 1.2 var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
 .sh-pv h3 { margin: 0; font: 600 var(--t-val) / 1.25 var(--display); }
 .sh-pv p { margin: 0; font: 400 var(--t-body) / 1.4 var(--ui); color: var(--text-2); }
 .sh-pv ul { margin: 0; padding-left: 1.2em; font: 400 var(--t-body) / 1.4 var(--ui); color: var(--text-2); }
 .sh-gl { display: flex; align-items: center; justify-content: space-between; }
-.sh-gacts { display: flex; gap: 4px; }
-.sh-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--accent); font: 600 var(--t-body) / 1 var(--ui); }
-.sh-link svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-.sh-note { margin: 4px 10px 12px; color: var(--text-3); font: 400 var(--t-body) / 1.4 var(--ui); }
 
 /* ── the slide list (G) and the black screen (B . W) ── */
 .dk-jump { position: absolute; left: 50%; bottom: var(--sheet-foot, 0px); transform: translate(-50%, 0); width: min(560px, calc(100% - 24px)); max-height: min(70svh, calc(100% - 120px)); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--edge); border-radius: var(--r-sheet); box-shadow: 0 12px 40px rgb(0 0 0 / 0.22); overflow: hidden; pointer-events: auto; opacity: 0; visibility: hidden; transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .dk-jump[data-open="true"] { opacity: 1; visibility: visible; transition-delay: 0s; }
 .dk-jump:not([data-open="true"]) { transform: translate(-50%, 8px); }
-.dk-jump-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px 8px 18px; font: 600 var(--t-body) var(--ui); color: var(--text); }
-.dk-jump-h button { width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); display: grid; place-items: center; }
-.dk-jump-h svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .dk-jump-list { overflow-y: auto; padding: 0 8px 10px; }
 .dk-jump-list h3 { margin: 10px 10px 4px; font: 600 var(--t-cap) var(--ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
 .dk-jump-list ol { list-style: none; margin: 0; padding: 0; }
@@ -222,8 +201,6 @@
 /* (these two element resets weigh nothing, `:where` over the whole selector: `.sh-root button` weighed more than the 2D one-class rules, so it won every tie and stripped `.tb-act` of its padding 0 11px, border, background and its 600 14px font) */
 :where(.sh-root button:not(#app button)) { border: 0; background: transparent; padding: 0; }   /* (inside #app the buttons are 2D's: it resets none of these, its own rules set what they need and the rest is the browser's: .sheet-grab is padding 1px 6px, a 2px border, cursor default) */
 .sh-root :where(.sh-ic) { flex: none; }
-.sh-chev { width: 16px; height: 16px; color: var(--text-3); transition: rotate var(--d-small) var(--ease-arrive); }
-[aria-expanded="true"] > .sh-chev, [aria-expanded="true"] .sh-chev { rotate: 180deg; }
 /* The always-on chrome (top bar, view pill, dock, zoom group, credit, frame rate) is the 2D app's own markup and stylesheets (src/ui/styles); chrome-3d.css only lays them over the canvas. */
 .sh-pop { position: fixed; }
 

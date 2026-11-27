@@ -9,7 +9,7 @@ const src = readFileSync(new URL('../src/ui/cards/SlideControls.tsx', import.met
 
 test('ScalePill\'s root is pz-ab and never carries pz-scales; no component in src/ renders pz-scales', () => {
   const body = /export function ScalePill\([\s\S]*?\n}\n/.exec(src)?.[0] ?? '';
-  const cls = /<div className="([^"]*)"/.exec(body)?.[1].split(/\s+/) ?? [];
+  const cls = /<div\b[^>]*?\bclassName="([^"]*)"/.exec(body)?.[1].split(/\s+/) ?? [];
   assert.ok(cls.includes('pz-ab') && !cls.includes('pz-scales'), `ScalePill root class: ${cls.join(' ')}`);
   const walk = (d: URL): URL[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? (e.name === 'engine' ? [] : walk(new URL(e.name + '/', d))) : /\.tsx?$/.test(e.name) ? [new URL(e.name, d)] : []);
   const users = walk(new URL('../src/', import.meta.url)).filter((f) => /pz-scales/.test(readFileSync(f, 'utf8').replace(/\/\/.*|\/\*[\s\S]*?\*\//g, ''))).map((f) => f.pathname);

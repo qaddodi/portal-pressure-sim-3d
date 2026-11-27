@@ -1,4 +1,4 @@
-import { Frame } from '../shell/Frame.tsx';
+import { ShellPanel } from '../surface/Panel.tsx';
 import { useWhy } from './store.ts';
 import { waterfall, WHY } from './model.ts';
 import './why.css';
@@ -9,7 +9,7 @@ export function WhySheet() {
   const ready = state === 'ready' && result;
   const rows = ready ? waterfall(result) : [];
   return (
-    <Frame kind="why" label={WHY.title} head={ready ? result.label : WHY.title}>
+    <ShellPanel id="why" label={WHY.title} head={ready ? result.label : WHY.title}>
       <div className="why-body" data-state={state}>
         {state === 'loading' && <><p className="why-sub">{WHY.calculating}</p><i className="why-skel" style={{ width: '90%' }} /><i className="why-skel" style={{ width: '70%' }} /><i className="why-skel" style={{ width: '80%' }} /></>}
         {state === 'failed' && <p className="why-sub">{WHY.failed}</p>}
@@ -33,6 +33,6 @@ export function WhySheet() {
           </>
         )}
       </div>
-    </Frame>
+    </ShellPanel>
   );
 }

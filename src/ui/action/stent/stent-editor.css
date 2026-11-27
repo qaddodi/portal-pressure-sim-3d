@@ -29,7 +29,6 @@
 .sr-panel .sr-done { flex: none; min-height: 44px; min-width: 44px; padding: 0 0 0 14px; border: 0; background: none; color: var(--accent-ink); cursor: pointer; font: 600 var(--fs-14) var(--font-ui); text-align: right; transition: opacity var(--d-flip) var(--ease); }
 .sr-panel .sr-done:active { opacity: .6; }
 .sr-panel .sr-ctl { display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; min-width: 0; min-height: 44px; }
-.sr-panel .sr-ctl.sr-dim { opacity: .45; }
 .sr-panel .sr-cap { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0 6px;   /* (6 px under the words: the thumb at the end of its track no longer covers 'No waist' or 'Open', play-test 17 Nov 2026) */ font: 500 var(--fs-12)/16px var(--font-ui); color: var(--text-3); }
 .sr-panel .sr-cap b { font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
 .sr-panel .sr-ctl input[type="range"] { width: 100%; min-width: 0; height: 32px; margin: 0; }   /* (the app's 32 px thumb fits inside it, clear of the caption above) */

@@ -36,6 +36,7 @@ test('the Tests card comes in and goes out as 2D\'s: a side card slides 16 px in
   assert.match(css, /\.t-pos \{ --t-x: 16px; --t-y: 0px; --t-o: 0; --t-out: var\(--d-flip\);/, 'a side card: 16 px, faded, out in --d-flip (slide-from-edge / slide-to-edge)');
   assert.match(css, /\.t-pos\[data-kind="sheet"\] \{ --t-x: 0px; --t-y: var\(--sheet-rise, 24px\); --t-o: 0; \}/, 'a sheet: the one phone-sheet motion, a short rise while it fades (23 Nov: unify menus)');
   assert.match(css, /\[data-kind="sheet"\]\[data-thumb="true"\] \{ --t-out: var\(--d-small\); \}/, 'over the thumb dock it sinks in 240 ms');
+  assert.match(css, /\.t-pos\[data-kind="side"\] \{ --t-x: var\(--panel-in, 12px\); --t-out: var\(--d-small\); \}/, 'a side card in float mode: the panel shell\'s one motion (surface/panel.css)');
   assert.match(css, /transform: translate\(var\(--t-x\), var\(--t-y\)\);/);
   assert.match(css, /transition: opacity var\(--t-out\) var\(--ease-in\), transform var\(--t-out\) var\(--ease-in\), visibility 0s linear var\(--t-out\);/, 'out: --ease-in, then hidden');
   assert.match(css, /transform: none; transition: opacity var\(--d-small\) var\(--ease-arrive\), transform var\(--d-small\) var\(--ease-arrive\), visibility 0s;/, 'in: 240 ms on --ease-arrive');
@@ -48,8 +49,8 @@ test('the Tests card comes in and goes out as 2D\'s: a side card slides 16 px in
 test('a sheet pulled shut closes with nothing of its own to play (2D sheet-hold): marked, closed in the same task, and the mark taken off on the next open', () => {
   const css = read('src/ui/tests/tests.css');
   assert.match(css, /#app \.t-pos\[data-open="false"\]\[data-swiped\] > \.t-card\.instrument-workspace\.float-ui \{ transition: none; \}/, 'the card is hidden at once, out of sight already');
-  const pull = read('src/ui/tests/dock/pull.ts');
-  assert.match(pull, /pos\.dataset\.swiped = ''; api\.close\(\); pos\.style\.translate = '';/, 'marked before it closes, and the offset goes after');
+  const pull = read('src/ui/surface/sheet-pull.ts');
+  assert.match(pull, /pos\.dataset\.swiped = ''; api\.close\?\.\(\); pos\.style\.translate = '';/, 'marked before it closes, and the offset goes after');
   const layer = read('src/ui/tests/TestsLayer.tsx');
   assert.match(layer, /close: \(\) => flushSync\(\(\) => useTests\.getState\(\)\.close\(\)\)/, 'the close is committed in that task: the offset is never cleared under a card that is still open');
   assert.match(layer, /if \(open\) posRef\.current\?\.removeAttribute\('data-swiped'\)/);

@@ -23,7 +23,7 @@ export type CardId = 'title' | 'case' | 'teach' | 'ladder' | 'table' | 'check' |
 /** `words` is the left or top card (title, case, teaching line, quick check); `data` is the card of numbers. */
 export type Slot = 'words' | 'data';
 
-export interface Need { id: CardId; slot: Slot; /** a `visual` card's 2D visual (table, plane, walls…): its width is that kind's */ visual?: string; /** natural height at this plan's width for it (px); 0 until measured */ h: number; /** a data card whose instrument was held to its room: the height it would stand at with every picture at the height it wants (Plan 43); absent: its own h */ want?: number }
+export interface Need { id: CardId; slot: Slot; /** a `visual` card's 2D visual (table, plane, walls…): its width is that kind's */ visual?: string; /** natural height at this plan's width for it (px); 0 until measured */ h: number; /** a data card whose instrument was held to its room: the height it would stand at with every picture at the height it wants (Plan 43); absent: its own h */ want?: number; /** a data card whose content cannot go smaller (its fit is spent and it still stands taller than its room): it keeps its measured height and the words page instead (Mohammad's rule: nothing clipped; Variceal bleed 14, stress capture c0d955e1) */ hold?: boolean }
 export interface Placed { id: CardId; slot: Slot; rect: Rect }
 export interface Strip { id: CardId; slot: Slot; rect: Rect }
 export interface Plan {
@@ -249,6 +249,8 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     if (words && data) {
       const dataFloor = Math.round(0.4 * col);
       maxH.data = Math.round(Math.min(dmax, Math.max(col - wh, dataFloor)));
+      // (a card that cannot go smaller keeps its content's height, whatever the 42% cap says, as long as the words keep their 40% of the column and page)
+      if (data.hold) maxH.data = Math.max(maxH.data, Math.round(Math.min(dh, col - dataFloor)));
       maxH.words = Math.round(col - Math.min(dh, maxH.data));
     } else {
       maxH.words = Math.round(plan.cap);
@@ -292,13 +294,15 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     const capTop = rise > 0 ? y0 : top0;
     maxH.words = Math.round(foot - capTop - (data ? gap + dh : 0));
     maxH.data = Math.round(foot - capTop - (words ? gap + wh : 0));
+    // (a data card that cannot go smaller keeps its content's height while the words keep 40% of the room, and page)
+    if (data?.hold && words) maxH.data = Math.max(maxH.data, Math.round(Math.min(dh, 0.6 * (foot - capTop - gap))));
     // the instrument was held short by this room: what the card would stand at with it at its wanted height is more than the card may be (Plan 43)
     short = !!data && (data.want ?? 0) > maxH.data + 0.5;
     // The pair is never drawn past the screen (the stacked branch's rule, for a wide screen): a card taller than the room it has stands at that room, and
     // the plan says so in `overflow` (which reads the measured
     // height, not the drawn one), so the layer pages it, steps it or fits it. The instrument keeps what the words leave (never under 40% of the room), the words take the rest.
     const both = !!words && !!data, pairGap0 = both ? gap : 0, avail = foot - capTop - pairGap0;
-    const dh2 = both && wh + dh > avail ? Math.round(Math.min(dh, Math.max(avail - wh, 0.4 * avail))) : both ? dh : Math.min(dh, avail);
+    const dh2 = both && wh + dh > avail ? Math.round(Math.min(dh, Math.max(avail - wh, (data?.hold ? 0.6 : 0.4) * avail))) : both ? dh : Math.min(dh, avail);
     const wh2 = both ? (wh + dh2 > avail ? Math.round(Math.max(avail - dh2, 0)) : wh) : Math.min(wh, avail);
     const total2 = wh2 + dh2 + pairGap0;
     const y1 = total2 < total ? Math.max(capTop, Math.min(pairTop(vp.h, total2, top0, foot), foot - total2)) : y0;

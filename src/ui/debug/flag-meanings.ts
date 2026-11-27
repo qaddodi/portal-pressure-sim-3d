@@ -30,6 +30,11 @@ export const FLAG_MEANINGS: Readonly<Record<string, string>> = Object.freeze({
     + "load times, fade lengths (snaps), frames a second, hitches and console errors, and ends in one report with Copy. Bare ?audit on a Mac runs the app in "
     + "iPhone, iPad and Mac frames one after the other; ?audit=here runs this screen only (do this on the iPhone and iPad). No AI, nothing sent anywhere.",
   promotion: "The promotion pictures on a Mac (src/ui/debug/promo, docs/debug.md): ?promotion&pick=lobule:4&sizes=mac,iphone.",
+  stress:
+    "The stress capture on any device (src/ui/debug/stress, docs/debug.md): ?stress opens a page with one Start button; it takes key slides, frames inside the main transitions, "
+    + "the menus and sheets in an iPhone, an iPad and a Mac layout, one frame at a time, and ends in one small zip with REPORT.md and notes. As audit=capture&stress=<layout> it is the frame.",
+  go: "Starts the page's run at once (?stress&go=1).",
+  layouts: "The stress capture's layouts: layouts=iphone,mac (a comma list of iphone, ipad-portrait, mac); default all.",
   safe: "A framed phone's safe edges, px (safe=47,0,34,0).",
   promo: "The promotion capture frame's pixel ratio (audit=capture&promo=3).",
   extras: "The promotion frame's pictures that are not slides (extras=history:hist-bleed:3,overview:patients): a case at a stop, the menu.",

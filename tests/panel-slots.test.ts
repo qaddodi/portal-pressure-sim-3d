@@ -43,13 +43,48 @@ test('sheet mode: one panel at a time, but the action card and Tests share the f
   assert.deepEqual(putsAway('action', ['tests'], 'sheet'), [], 'a tap on a structure with Tests up chooses what Tests reads');
 });
 
-test('float mode: Tests stands beside one other right-hand panel; the left column is never put away by the right', () => {
-  assert.deepEqual(putsAway('treat', ['tests'], 'float'), [], 'Treat steps beside Tests (treat/beside.ts)');
-  assert.deepEqual(putsAway('tests', ['treat'], 'float'), []);
-  assert.deepEqual(putsAway('history', ['treat', 'tests'], 'float'), ['treat'], 'History takes the place beside Tests');
-  assert.deepEqual(putsAway('treat', ['history', 'tests', 'action'], 'float'), ['history']);
-  assert.deepEqual(putsAway('timeline', ['why', 'tests'], 'float'), ['why'], 'the full-width chart counts as the other panel');
-  assert.deepEqual(putsAway('action', ['treat', 'tests', 'history'], 'float'), [], 'the action card is the left column');
+test('float mode: the right column holds any two side by side when they fit, the oldest goes first; the chart fills it alone; the left column is never put away', () => {
+  const fit = () => true, tight = () => false;
+  assert.deepEqual(putsAway('treat', ['tests'], 'float', fit), [], 'Treat beside Tests');
+  assert.deepEqual(putsAway('tests', ['treat'], 'float', fit), [], 'Tests beside Treat');
+  assert.deepEqual(putsAway('history', ['treat'], 'float', fit), [], 'History beside Treat (the owner\'s Mac report: History put Treat away)');
+  assert.deepEqual(putsAway('treat', ['history'], 'float', fit), []);
+  assert.deepEqual(putsAway('history', ['treat', 'tests'], 'float', fit), ['treat'], 'a third puts away the one opened longest ago');
+  assert.deepEqual(putsAway('history', ['tests', 'treat'], 'float', fit), ['tests'], 'whichever that is, Tests too');
+  assert.deepEqual(putsAway('treat', ['history', 'tests', 'action'], 'float', fit), ['history'], 'the action card is not in the column');
+  assert.deepEqual(putsAway('history', ['treat'], 'float', tight), ['treat'], 'two that do not fit: the newest replaces the other');
+  assert.deepEqual(putsAway('timeline', ['why', 'tests'], 'float', fit), ['why', 'tests'], 'the full-width chart fills the column alone');
+  assert.deepEqual(putsAway('why', ['timeline'], 'float', fit), ['timeline'], 'and goes for any right-hand panel');
+  assert.deepEqual(putsAway('action', ['treat', 'tests', 'history'], 'float', fit), [], 'the action card is the left column: it puts none away');
+  for (const p of ['tests', 'treat', 'history', 'compare', 'why', 'timeline'] as const) assert.ok(!putsAway(p, ['action'], 'float', fit).includes('action'), `${p} leaves the action card`);
+});
+
+test('the order is kept by the wire: what came up joins at the end, a panel opened again keeps its place, what closed leaves; Esc closes the newest first', () => {
+  const wire = readFileSync('src/ui/surface/wire.ts', 'utf8');
+  assert.match(wire, /order = \[\.\.\.order\.filter\(\(q\) => !away\.includes\(q\)\), p\]/);
+  assert.match(wire, /if \(!open\.has\(p\) \|\| order\.includes\(p\)\) continue;/, 'a panel already in the order keeps its place');
+  assert.match(wire, /putsAway\(p, order, surfaceModeNow\(\), fitsNow\(order\.includes\('action'\)\)\)/, 'the fit is the screen\'s (panel-place.ts fitsTogether)');
+  assert.match(readFileSync('src/ui/keys/useKeys.ts', 'utf8'), /\.\.\.escPanels\(sh\)/);
+});
+
+test('History, Compare and Why have their own open flags: a menu opens over them, two stand together, and only a phone\'s menu still takes their place', async () => {
+  const { useShell } = await import('../src/ui/shell/store.ts');
+  const st = () => useShell.getState();
+  useShell.setState({ sheet: null, panels: { history: false, compare: false, why: false }, cameFrom: null });
+  st().open('history');
+  assert.equal(st().panels.history, true); assert.equal(st().sheet, null, 'the menus\' slot is left alone');
+  st().open('settings');
+  assert.equal(st().panels.history, true, 'Settings opens over History (the owner\'s Mac: opening Settings closed it)');
+  st().open('compare');
+  assert.deepEqual(st().panels, { history: true, compare: true, why: false }, 'History and Compare stand together (the slot table decides what fits)');
+  assert.equal(st().sheet, null, 'the menu the panel was chosen from goes');
+  st().toggle('compare'); assert.equal(st().panels.compare, false);
+  st().close(); assert.equal(st().panels.history, true, 'close() is the menus\' slot only');
+  st().closePanel('history'); assert.equal(st().panels.history, false);
+  const wire = readFileSync('src/ui/surface/wire.ts', 'utf8');
+  assert.match(wire, /history: shellPanel\('history'\), compare: shellPanel\('compare'\), why: shellPanel\('why'\)/);
+  assert.match(wire, /open: \(\) => useShell\.getState\(\)\.panels\[id\]/, 'the wire reads each panel\'s own flag');
+  assert.match(wire, /if \(menuUp && surfaceModeNow\(\) === 'sheet'\) for \(const p of SHELL_PANEL_IDS\) s\.closePanel\(p\);/, 'sheet mode as before: one sheet over the dock');
 });
 
 test('the slot rules live in the table, not in hand-written subscriptions; menus no longer put Treat away', () => {

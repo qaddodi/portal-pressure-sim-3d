@@ -46,6 +46,21 @@ export function mountCaptureChild(): void {
   clock.after(() => {
     void settle().then(async () => {
       try {
+        // ?audit=capture&stress=<layout>: the stress capture's run in this frame (stress/run.ts), not the slide pass
+        const lay = flagValue('stress');
+        if (lay) {
+          const plan = await importAgain(() => import('../stress/plan.ts'));
+          const layout = plan.layoutOf(lay);
+          if (!layout) { post({ capture: 'failed', why: `stress=${lay} is not a layout (iphone, ipad-portrait, mac)` }); return; }
+          const sr = await importAgain(() => import('../stress/run.ts'));
+          const res = await sr.runStress({
+            layout, status: (s) => { text = s; }, stop: () => stop,
+            progress: (n, total) => post({ capture: 'progress', text, n, total }),
+            partial: (fs) => { for (const f of fs) sent.add(f.name); post({ capture: 'part', files: fs.map((f) => ({ name: f.name, data: f.data })) }); },
+          });
+          post({ capture: 'done', files: res.files.map((f) => ({ name: f.name, data: f.data })), notes: res.run.notes, shots: res.shots, secs: res.run.secs, stopped: res.stopped, speed: 1 });
+          return;
+        }
         const m = await importAgain(() => import('./capture-run.ts'));
         const cm = await importAgain(() => import('./capture-cases.ts'));
         const speed = speedOf(flagValue('speed')), pick = unpackPick(flagValue('pick')), decks = (flagValue('decks') ?? '').split(',').filter((x) => /^[\w-]+$/.test(x));

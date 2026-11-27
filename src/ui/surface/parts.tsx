@@ -13,3 +13,15 @@ export function CloseX({ label = 'Close', title = 'Close (Esc)', onClose, classN
 export function GrabBar() {
   return <i className="sh-grabbar" aria-hidden="true" />;
 }
+
+/** The one grab bar of a panel's sheet with its button (stage 3, Tests' onGrab for every sheet): a tap takes Half to Full and back, and Peek up to Half (sheet-stops.ts grabStep).
+ *  `className` keeps the class a lifted 2D stylesheet places it by (Tests' `sheet-grab`). */
+// (`bar`: draw the bar; the action card draws its own in its flow)
+export function SheetGrab({ label, onGrab, className, bar = true }: { label: string; onGrab(): void; className?: string; bar?: boolean }) {
+  return (
+    <>
+      <button type="button" className={`sf-grab${className ? ` ${className}` : ''}`} aria-label={label} onClick={onGrab} />
+      {bar && <GrabBar />}
+    </>
+  );
+}

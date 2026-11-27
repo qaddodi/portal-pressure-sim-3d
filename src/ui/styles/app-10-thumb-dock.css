@@ -175,8 +175,7 @@
   .app.thumb:not(.dock-open) .action-card.docked { left: 15% !important; right: 15%; }
   .app.thumb.dock-open:not(.instrument-focus) .action-card.docked { left: 15% !important; right: 15%; }   /* (over the Tests card: the same 70 %, not the whole width) */
   html.thumb-ui .umenu.sheet { left: 15% !important; right: 15%; height: min(62dvh, var(--menu-h, 62dvh)); }   /* (the library menu: the tablet's 70 % and its 62 % Full, as the other menus) */
-  html.thumb-ui .menu.as-sheet { left: 15% !important; right: 15%; max-height: min(62dvh, calc(100dvh - var(--thumb-bot, var(--thumb-occ, 0px)) - max(72px, var(--thumb-top, 0px) + 8px))); }
-  html.thumb-ui .menu.as-sheet .tl-pop.tl-history { max-height: calc(62dvh - 24px); }   /* (History's list scrolls under its head, as on the phone) */
+  html.thumb-ui .menu.as-sheet { left: 15% !important; right: 15%; max-height: min(62dvh, calc(100dvh - var(--thumb-bot, var(--thumb-occ, 0px)) - max(72px, var(--thumb-top, 0px) + 8px))); }   /* (History's list scrolls under its head, as on the phone) */
   html:not(.thumb-ui) .menu.as-sheet { left: 15% !important; right: 15%; max-height: 62dvh; }   /* (a talk has no thumb dock, and Settings there is the same 70 % and 62 % as every other sheet on the iPad) */
   .why-pop.as-sheet { left: 15%; right: 15%; max-height: min(62dvh, calc(100dvh - var(--thumb-bot, var(--thumb-occ, 0px)) - max(72px, var(--thumb-top, 0px) + 8px))); }   /* (Why?: the same 70 % and 62 % as the other sheets) */
 }

@@ -20,7 +20,7 @@ export async function captureThisDeck(): Promise<void> {
   let stopped = false, last = 0;
   const stopAct = { label: CAPTURE.stop, run: () => { stopped = true; } };
   try {
-    useShell.getState().close();
+    useShell.getState().closeAll();
     await new Promise<void>((ok) => clock.after(ok, FEEDBACK_SHEET_MS));
     const back = useUi.getState().pos.stop;
     say(CAPTURE.deckStart, stopAct);

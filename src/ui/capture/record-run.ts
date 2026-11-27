@@ -34,6 +34,22 @@ export const isRefusal = (e: unknown): boolean => { const n = (e as { name?: str
 /** How often the recorder hands over what it has (so a page that dies mid-way has lost a second, not the whole take). */
 export const RECORD_SLICE_MS = 1000;
 
+/** The bits of a video track the full-size step uses. */
+export interface TrackLike { getSettings(): { width?: number; height?: number; frameRate?: number }; applyConstraints(c: MediaTrackConstraints): Promise<void> }
+/**
+ * Asks a track that came in smaller than the screen for the full size (Chrome lets a display track be raised after the fact). Best effort and never rejects: a browser that refuses
+ * (OverconstrainedError, NotAllowedError, a track that has ended) keeps what it gave, and the recording goes on. Returns what the track really delivers, for the console.
+ */
+export async function raiseToFullSize(track: TrackLike, wants: MediaTrackConstraints[], size: { w: number; h: number }, fps: number): Promise<string> {
+  const short = () => { try { const g = track.getSettings(); return (g.width ?? 0) < size.w || (g.height ?? 0) < size.h || (g.frameRate ?? 0) < fps - 1; } catch { return false; } };
+  // each way of asking in turn, while the track is still short of the size: a refusal of one leaves the track as it was, and the next is tried
+  for (const want of wants) {
+    if (!short()) break;
+    try { await track.applyConstraints(want); } catch { /* the browser keeps what it gave */ }
+  }
+  try { const now = track.getSettings(); return `${now.width ?? '?'} x ${now.height ?? '?'} at ${Math.round(now.frameRate ?? 0)} fps`; } catch { return 'an unknown size'; }
+}
+
 export function createRecordRun(deps: RecordDeps): { press(): Promise<void>; phase(): RecordPhase } {
   let phase: RecordPhase = 'idle';
   let stopNow: (() => void) | null = null;

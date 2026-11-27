@@ -1,7 +1,7 @@
 // B9's wiring, once at start: Treat answers its button and the T key, the scene's picks select a structure, and the loaded patient's own settings are kept as the base the
 // Changes list measures against. Returns the remover (a test or hot reload undoes it all).
 import { registerFeature } from '../shell/features.ts';
-import { useShell } from '../shell/store.ts';
+import { useShell, SHELL_PANEL_IDS } from '../shell/store.ts';
 import { useTreat } from '../treat/store.ts';
 import { useTests } from '../tests/store.ts';
 import { useEngine } from '../../engine/index.ts';
@@ -17,14 +17,14 @@ import { useUi } from '../ui-store.ts';
 import { startShunting } from './shunt.ts';
 import { goToView } from '../shell/view-actions.ts';
 import { logInput } from '../../scene/intent-log.ts';
-import { startSlots } from '../surface/wire.ts';
+import { closeMenu, startSlots } from '../surface/wire.ts';
 
 export function startActions(): () => void {
   const off: (() => void)[] = [];
   // Treat: its button, the T key, the thumb tab's second tap. Opening it puts the sheets away; a phone has room for one card, so opening Treat puts a structure's card away too.
   off.push(registerFeature('treat', () => {
     const t = useTreat.getState();
-    if (!t.open) useShell.getState().close();   // (a menu goes when Treat is chosen; the panels it puts away are the slot table's: surface/slots.ts)
+    if (!t.open) closeMenu();   // (a menu goes when Treat is chosen; the panels it puts away are the slot table's: surface/slots.ts)
     t.toggle();
   }));
   // the card buttons the other batches own: the lobule and sinusoid views a liver card opens
@@ -36,6 +36,7 @@ export function startActions(): () => void {
   off.push(onParamsChange(({ label, history }) => { if (history) timeline.noteChange(label); }));
   // the inputs that go with what the figure was asked (src/scene/intent-log.ts: the last 60 s ride in a bug report)
   off.push(useShell.subscribe((s, p) => { if (s.view !== p.view) logInput(`view ${s.view}`); if (s.sheet !== p.sheet) logInput(`sheet ${s.sheet ?? 'closed'}`); }));
+  off.push(useShell.subscribe((s, p) => { if (s.panels !== p.panels) logInput(`panels ${SHELL_PANEL_IDS.filter((k) => s.panels[k]).join(' ') || 'closed'}`); }));
   off.push(useUi.subscribe((s, p) => { if (s.pos.stop !== p.pos.stop) logInput(`stop ${s.pos.stop}`); }));
   off.push(usePick.subscribe((s, p) => { if (s.picked !== p.picked) logInput(`pick ${s.picked ?? 'none'}`); }));
   off.push(startShunting());   // Add shunt: the targets glow, a tap on one makes the shunt (shunt.ts)
@@ -59,7 +60,7 @@ export function startActions(): () => void {
   off.push(markTap);
   // which open panels a panel coming up puts away (Treat, Tests, the action card, History, Compare, Why, the timeline chart): one table for every panel (surface/slots.ts)
   off.push(startSlots());
-  // a wide screen has room for both in the right-hand column, Treat standing beside the Tests card (treat/beside.ts); an instrument in focus fills the screen, so Treat and
+  // a wide screen has room for two in the right-hand column (surface/slots.ts, panel-place.ts columnSteps); an instrument in focus fills the screen, so Treat and
   // focus give way to each other
   off.push(useTests.subscribe((s, prev) => { if (s.open && s.state === 'focus' && prev.state !== 'focus' && useTreat.getState().open) useTreat.getState().setOpen(false); }));
   off.push(useTreat.subscribe((s, prev) => { if (s.open && !prev.open && useTests.getState().open && useTests.getState().state === 'focus') useTests.getState().setState('open'); }));

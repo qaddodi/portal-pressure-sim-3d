@@ -92,7 +92,6 @@
 /* ── title card ── */
 .dk-obj { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text); }
 .dk-obj li { text-wrap: pretty; }   /* (no dot bullets: the lines stand on their own spacing, docs/HUMANIZED-DESIGN.md section 0) */
-.dk-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
 
 /* ── pills ── */
 
@@ -101,10 +100,8 @@
 
 /* ── quick check ── */
 .dk-q { margin-top: 12px; }
-.dk-q-count { margin: 0 0 6px; }
 .dk-q-text { font-weight: 600; }
 .dk-a { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--edge); animation: dk-fade var(--d-card-in) var(--ease-arrive) both; }
-.dk-q-nav { display: flex; gap: 10px; margin-top: 14px; }
 
 /* ── the wallet's strip (iPhone) ── */
 .dk-strip { box-sizing: border-box; display: block; width: 100%; height: 48px; padding: 0; margin: 0; color: var(--text); text-align: left; cursor: pointer; pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent; font: inherit; }
@@ -168,39 +165,8 @@
 .dk-tabgap { display: block; height: calc(var(--pz-tabh) * 0.5); }
 
 /* ── the opening card: the 2D "Outline and objectives" (a numbered run of sections, the objectives ticked on a tinted card) ── */
-.dk-dtitle { font-size: var(--fs-deck); line-height: var(--lh-deck); margin: 0; }
-.dk-dtitle::after { content: ""; display: block; width: 3rem; height: 2px; margin: 0.42em 0 0; border-radius: 1px; background: var(--accent); opacity: 0.55; }
-.dk-outline-title { font-size: var(--fs-title-trim); line-height: var(--lh-title); font-weight: 600; }
-.dk-outline { display: grid; gap: 18px; margin-top: 14px; align-items: start; }
-.dk-outline section { min-width: 0; }
-.dk-sub { display: flex; align-items: center; gap: 0.8em; margin: 0 0 0.7em; font: 600 var(--fs-kicker) / 1 var(--ui, system-ui); letter-spacing: var(--caps-ls); text-transform: uppercase; color: var(--text-3); }
-.dk-sub::after { content: ""; flex: 1; height: 1px; background: var(--edge); }
-.dk-outline :is(ol, ul) { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; font-size: var(--fs-body); line-height: 1.35; color: var(--text); }
-.dk-outline ol { counter-reset: dko; }
-.dk-outline ol li { counter-increment: dko; display: grid; grid-template-columns: 2.1em minmax(0, 1fr); align-items: baseline; padding: 0.5em 0; border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); text-wrap: pretty; }
-.dk-outline ol li:first-child { border-top: 0; padding-top: 0.1em; }
-.dk-outline ol li::before { content: counter(dko, decimal-leading-zero); font: 600 0.74em / 1 var(--ui, system-ui); font-variant-numeric: tabular-nums; letter-spacing: var(--caps-ls); color: var(--accent); }
-.dk-obj-card { padding: 16px 18px; border-radius: var(--r-sheet); background: color-mix(in srgb, var(--accent) 6%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent); }
-.dk-obj-card .dk-sub::after { background: color-mix(in srgb, var(--accent) 18%, transparent); }
-.dk-outline ul { gap: 0.75em; }
-.dk-outline ul li { position: relative; padding-left: 1.7em; text-wrap: pretty; }
-.dk-outline ul li::before { content: ""; position: absolute; left: 0.3em; top: 0.28em; width: 0.32em; height: 0.6em; border: solid var(--accent); border-width: 0 0.14em 0.14em 0; transform: rotate(45deg); }
-.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-obj-card { padding: 12px 14px; border-radius: var(--r-sheet); }
 
 /* ── the quick check (2D `.pz-check`): numbered questions, a tap opens the answer under its question ── */
-.dk-check { margin: 0; padding: 0; list-style: none; counter-reset: dkc; display: flex; flex-direction: column; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text); }
-.dk-check li { counter-increment: dkc; border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); }
-.dk-check li:first-child { border-top: 0; }
-.dk-chk-q { appearance: none; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; width: 100%; cursor: pointer; display: grid; grid-template-columns: 2.1em minmax(0, 1fr) auto; align-items: baseline; gap: 0 0.8em; padding: 0.6em 0.2em; border-radius: var(--r-card); -webkit-tap-highlight-color: transparent; }
-.dk-chk-q::before { content: counter(dkc, decimal-leading-zero); font: 600 0.74em / 1 var(--ui, system-ui); font-variant-numeric: tabular-nums; letter-spacing: var(--caps-ls); color: var(--accent); }
-.dk-chk-q:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.dk-chk-t { text-wrap: pretty; }
-.dk-chk-hint { font: 600 var(--fs-kicker) / 1 var(--ui, system-ui); color: var(--accent); white-space: nowrap; padding: 0.45em 0.8em; border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, transparent); transition: opacity var(--d-small) linear; }
-.dk-check li[data-open] .dk-chk-hint { opacity: 0; }
-.dk-chk-a { animation: dk-fade var(--d-card-in) var(--ease-arrive) both; }
-.dk-chk-a > p { margin: 0; padding: 0 0 0.7em calc(2.1em + 0.8em + 0.2em); color: var(--text-2); text-wrap: pretty; }
-.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-chk-q { grid-template-columns: 1.8em minmax(0, 1fr); }
-.deck-ui:is([data-layout="stack"], [data-layout="tab"]) .dk-chk-hint { display: none; }
 
 /* ── the summary table (visual: table) ── */
 .sr-only { display: block; position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
@@ -326,7 +292,7 @@ html[data-noglass] .deck-ui .dk-bar[data-leaving] { opacity: 0; transition: opac
 }
 .pz .pz-data.has-tool > .dk-in > .pz-dh:has(> .pz-hr:not([data-n="0"])) { flex-wrap: wrap; justify-content: space-between; align-items: baseline; text-align: left; gap: 2px 12px; }
 .pz .pz-data.has-tool > .dk-in > .pz-dh:has(> .pz-hr:not([data-n="0"])) > span:first-child { flex: 1 1 auto; text-wrap: balance; }
-.pz.pz .pz-data.pz-data[data-tool^="criteria:"] > .dk-in > .pz-dh > .pz-hr { font: var(--caps-w) calc(1em / 1.3)/1.25 var(--font-ui); }
+.pz.pz .pz-data.pz-data[data-tool^="criteria:"] > .dk-in > .pz-dh > .pz-hr { font: var(--caps-w) .7692em/1.25 var(--font-ui); }
 body[data-card-zoom] .pz-zbtn :is(svg, .ic):first-child { display: none; }
 body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 .deck-ui .pz-zbtn { pointer-events: auto; }
@@ -340,7 +306,6 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 .pz.pz .pz-ab[data-tight] > .pz-abb { flex: 0 0 auto; min-width: auto; padding-inline: .45em; zoom: var(--ab-z, 1); }
 /* Not even the tight row fits (fitChoiceRow, Plan 43): two balanced rows (ceil(n / 2) over floor(n / 2), the columns --ab-cols), every button still one line, the card never cut. */
 .pz.pz .pz-ab[data-two] { display: grid; grid-template-columns: repeat(var(--ab-cols, 3), max-content); justify-content: center; gap: 6px; }
-.pz.pz .pz-ab[data-two] > .pz-ab-cap { grid-column: 1 / -1; }
 /* Three choices in two rows would leave one alone on row 2: it takes the whole row, so nothing stands alone and off to one side (fitChoiceRow sets data-lone; loneOnLastRow). */
 .pz.pz .pz-ab[data-two][data-lone] > .pz-abb:last-of-type { grid-column: 1 / -1; justify-self: stretch; }
 

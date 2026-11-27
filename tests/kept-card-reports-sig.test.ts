@@ -34,12 +34,12 @@ test('CardFrame passes the kept card\'s slide-change pass to it', () => {
   assert.match(cf, /sameStepPass = sameStep; report\(true, !sameStep\); sameStepPass = false;/, 'the slide-change pass is the one that sets sameStepPass');
 });
 
-test('every slide that follows a kept instrument card, in every deck, gets the report (Circulation 5, the lobule slide, is one)', async () => {
+test('every slide that follows a kept instrument card, in every deck, gets the report (Circulation 4, the ladder, is one)', async () => {
   const { stopsOf } = await import('../src/ui/deck/presenter-machine.ts');
   const { dataKeys } = await import('../src/ui/cards/keep.ts');
   const { loadBuiltin } = await import('../src/decks/registry.ts');
   const { UI } = await import('../src/ui/strings.generated.ts');
-  let kept = 0, lobuleKept = false;
+  let kept = 0, seriesKept = false;
   for (const d of UI.decks as readonly { id: string }[]) {
     const deck = (await loadBuiltin(d.id))!, stops = stopsOf(deck), at = dataKeys(deck, stops);
     stops.forEach((st, i) => {
@@ -47,9 +47,9 @@ test('every slide that follows a kept instrument card, in every deck, gets the r
       if (st.kind !== 'slide' || !a || !b || a.key !== b.key) return;   // (the same card key as the stop before: the card is kept, not replaced)
       kept++;
       assert.equal(tellsLayer(false, true, 300), true, `${d.id} ${st.slide.id}`);
-      if (d.id === 'circulation' && st.slide.id === 'lobule') lobuleKept = true;
+      if (d.id === 'circulation' && st.slide.id === 'ladder') seriesKept = true;
     });
   }
   assert.ok(kept > 5, `kept instrument cards are common (${kept})`);
-  assert.ok(lobuleKept, 'Circulation 5 (the lobule) carries the pressure card from the slide before it, the case this pins');
+  assert.ok(seriesKept, 'Circulation 4 (the ladder) carries the pressure card from the slide before it, the case this pins (Circulation 5, the lobule, was the first and brings its own card since a9d9a7a1)');
 });

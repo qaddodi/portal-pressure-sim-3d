@@ -2,9 +2,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { canRecordWindow, actualMime, pickRecordMime, recordExt, recordFileName, recordSize, recordBitrate, RECORD_FPS, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
+import { canRecordWindow, actualMime, pickRecordMime, recordExt, recordFileName, recordSize, recordBitrate, RECORD_FPS, noteWords, isRecordKey, recordStep, recordRow, RECORD_MIMES, type RecordPhase, type RecordEvent } from '../src/ui/capture/record-model.ts';
 import { isCaptureKey } from '../src/ui/capture/capture-model.ts';
-import { createRecordRun, isRefusal, type RecordDeps, type RecordNote, type RecorderLike, type StreamLike } from '../src/ui/capture/record-run.ts';
+import { createRecordRun, raiseToFullSize, isRefusal, type RecordDeps, type RecordNote, type RecorderLike, type StreamLike } from '../src/ui/capture/record-run.ts';
 import { RECORD } from '../src/ui/shell/words.ts';
 
 const src = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
@@ -21,21 +21,25 @@ test('the row shows only where the browser can share a window AND write video (l
 });
 
 test('the row and the shortcut are gated by the one check, and nothing in Record window reads the user agent', () => {
-  const sheet = src('src/ui/settings/SettingsSheet.tsx'), keys = src('src/ui/keys/useKeys.ts'), rec = src('src/ui/capture/record.ts');
+  const sheet = src('src/ui/settings/SettingsSheet.tsx'), keys = src('src/ui/keys/useKeys.ts'), model = src('src/ui/capture/record-model.ts');
   assert.match(sheet, /if \(!recordAvailable\(\)\) return null;/);
   assert.match(keys, /isRecordKey\(e\) && recordAvailable\(\)/);
-  assert.match(rec, /canRecordWindow\(\{ getDisplayMedia: navigator\.mediaDevices\?\.getDisplayMedia/);
-  assert.match(rec, /if \(!recordAvailable\(\)\) return Promise\.resolve\(\);/, 'the toggle itself does nothing where it cannot work');
+  assert.match(model, /canRecordWindow\(\{ getDisplayMedia: navigator\.mediaDevices\?\.getDisplayMedia/);
+  assert.match(model, /if \(!recordAvailable\(\)\) return Promise\.resolve\(\);/, 'the toggle itself does nothing where it cannot work');
   for (const f of ['record.ts', 'record-model.ts', 'record-run.ts']) assert.ok(!/userAgent|platform\b|iPhone|iPad|Safari\)/.test(src(`src/ui/capture/${f}`).replace(/\/\/.*|\/\*\*[\s\S]*?\*\//g, '')), `${f} sniffs nothing`);
 });
 
-test('Record window sits in Settings with Capture screen, and its press runs inside the tap (no import() before the browser is asked)', () => {
-  const sheet = src('src/ui/settings/SettingsSheet.tsx'), rec = src('src/ui/capture/record.ts');
+test('Record window sits in Settings with Capture screen; the code that talks to the browser is a chunk fetched after the first picture, yet a press goes straight through inside the tap', () => {
+  const sheet = src('src/ui/settings/SettingsSheet.tsx'), model = src('src/ui/capture/record-model.ts'), keys = src('src/ui/keys/useKeys.ts');
   assert.match(sheet, /<RecordRow touch=\{touch\} \/>/);
   assert.ok(sheet.indexOf('<RecordRow') > sheet.indexOf('label={CAPTURE.row}') && sheet.indexOf('<RecordRow') < sheet.indexOf('label={CAPTURE.deckRow}'), 'between Capture screen and Capture this deck');
-  assert.match(sheet, /from '\.\.\/capture\/record\.ts'/, 'imported statically');
-  assert.ok(!/import\('\.\.\/capture\/record/.test(sheet + src('src/ui/keys/useKeys.ts')), 'a dynamic import in the tap spends the tap (Safari)');
-  assert.match(rec, /preferCurrentTab: true/);
+  // the boot entry imports only the light part (tests/boot-entry.test.ts holds its file count)
+  for (const f of ['src/ui/settings/SettingsSheet.tsx', 'src/ui/keys/useKeys.ts', 'src/ui/capture/RecordIndicator.tsx', 'src/ui/shell/TopBar.tsx']) assert.ok(!/from '[^']*capture\/record(-run)?\.ts'/.test(src(f)), `${f} does not import the browser code statically`);
+  assert.match(model, /import\('\.\/record\.ts'\)/);
+  assert.match(model, /if \(engine\) return engine\.toggleRecordingNow\(\);/, 'once the code is in, the press is a plain call inside the tap: Safari lets a page ask to share a screen only there');
+  assert.match(sheet, /void warmRecording\(\)/, 'fetched as Settings opens'); assert.match(keys, /warmRecording\(\)/, 'and shortly after the first picture, for the shortcut');
+  assert.ok(!/import\('\.\.\/capture\/record/.test(sheet + keys), 'no import() in the tap itself');
+  assert.match(src('src/ui/capture/record.ts'), /preferCurrentTab: true/);
 });
 
 test('the format is the first one the browser says it writes: MP4 first, then WebM; none known leaves it to the browser', () => {
@@ -105,15 +109,18 @@ class FakeRecorder implements RecorderLike {
 }
 function rig(opts: { ask?: () => Promise<StreamLike>; mime?: string; data?: Blob[]; recorder?: () => RecorderLike } = {}) {
   const stream = new FakeStream(), phases: RecordPhase[] = [], notes: RecordNote[] = [], saved: { size: number; ext: string }[] = [];
+  const runRef: { run?: ReturnType<typeof createRecordRun> } = {};
   const rec = new FakeRecorder(opts.mime ?? 'video/webm;codecs=vp9', opts.data ?? [new Blob(['aa']), new Blob(['bbb'])]);
   let asked = 0;
+  const told: { note: RecordNote; phase: RecordPhase }[] = [];
   const deps: RecordDeps = {
     ask: () => { asked++; return opts.ask ? opts.ask() : Promise.resolve(stream); },
     recorder: opts.recorder ?? (() => rec),
     save: (v, ext) => { saved.push({ size: v.size, ext }); },
-    tell: (n) => { notes.push(n); }, onPhase: (p) => { phases.push(p); }
+    tell: (n) => { notes.push(n); told.push({ note: n, phase: runRef.run?.phase() ?? 'idle' }); }, onPhase: (p) => { phases.push(p); }
   };
-  return { run: createRecordRun(deps), stream, rec, phases, notes, saved, asked: () => asked };
+  const run = createRecordRun(deps); runRef.run = run;
+  return { run, told, stream, rec, phases, notes, saved, asked: () => asked };
 }
 const err = (name: string) => Object.assign(new Error(name), { name });
 
@@ -219,14 +226,16 @@ test('full size: the screen\'s own pixels at the device pixel ratio, and a bit r
   assert.deepEqual(recordSize({ w: 1920, h: 1080 }, 1), { w: 1920, h: 1080 });
   assert.deepEqual(recordSize({ w: 1440, h: 900 }, 0), { w: 1440, h: 900 }, 'a missing ratio is 1');
   assert.equal(RECORD_FPS, 60);
-  assert.ok(recordBitrate(3024, 1964, 60) >= 60_000_000 && recordBitrate(3024, 1964, 60) <= 80_000_000, 'a retina screen at 60 fps gets about 70 Mbps');
-  assert.equal(recordBitrate(1440, 900, 60), Math.round(1440 * 900 * 60 * 0.2));
-  assert.equal(recordBitrate(320, 240, 30), 8_000_000, 'never starved');
-  assert.equal(recordBitrate(7680, 4320, 60), 80_000_000, 'never absurd');
-  assert.ok(recordBitrate(3024, 1964, 60) > recordBitrate(1512, 982, 60));
+  assert.equal(recordBitrate(3024, 1964, 60), 100_000_000, 'a retina screen at 60 fps gets the most');
+  assert.equal(recordBitrate(1440, 900, 60), Math.round(1440 * 900 * 60 * 0.4));
+  assert.ok(recordBitrate(3024, 1964, 30) > 70_000_000, 'a retina screen at 30 fps (Safari) is about 71 Mbps');
+  assert.equal(recordBitrate(320, 240, 30), 20_000_000, 'never starved');
+  assert.equal(recordBitrate(7680, 4320, 60), 100_000_000, 'never absurd');
+  assert.ok(recordBitrate(3024, 1964, 30) > recordBitrate(1512, 982, 30));
   const rec = src('src/ui/capture/record.ts');
-  assert.match(rec, /width: \{ ideal: size\.w \}, height: \{ ideal: size\.h \}, frameRate: \{ ideal: RECORD_FPS \}/);
-  assert.match(rec, /videoBitsPerSecond/); assert.match(rec, /applyConstraints/);
+  assert.match(rec, /width: \{ ideal: size\.w \}, height: \{ ideal: size\.h \}, frameRate: \{ ideal: RECORD_FPS \}, resizeMode: 'none'/);
+  assert.match(rec, /outerWidth > 0 \? outerWidth : screen\.width/, 'the window\'s own pixels, not the whole screen\'s');
+  assert.match(rec, /videoBitsPerSecond/); assert.match(src('src/ui/capture/record-run.ts'), /applyConstraints/); assert.match(rec, /raiseToFullSize/);
 });
 
 test('the words: plain, no dot, Stop is a word in the toast', () => {
@@ -252,4 +261,60 @@ test('no toast and no outline while recording; the stop button stands beside Set
   const ind = src('src/ui/capture/RecordIndicator.tsx'), css = src('src/ui/capture/record.css');
   for (const t of [rec, ind, css, src('src/App.tsx')]) assert.ok(!/RecordFrame|rec-frame|RestrictionTarget|restrictTo|showRecordFrame/.test(t), 'no red outline round the app, in any browser (Mohammad, 27 Nov)');
   assert.match(css, /prefers-reduced-motion/); assert.match(css, /@keyframes rec-breathe \{ 0%, 100% \{ opacity: 1; \} 50% \{ opacity: \.4; \} \}/, 'the pulse is opacity only');
+});
+
+test('the failure line is the words of the failure note ONLY: "recording" says nothing (it once fell into the failure line and said "Couldn\'t record" over a working recording)', () => {
+  const words = { saved: 'S', failed: 'F' };
+  assert.equal(noteWords('recording', words), null);
+  assert.deepEqual(noteWords('saved', words), { text: 'S', tone: 'info' });
+  assert.deepEqual(noteWords('saved', words, '3024 x 1964'), { text: 'S 3024 x 1964', tone: 'info' }, 'the saved line carries what was recorded');
+  assert.deepEqual(noteWords('failed', words), { text: 'F', tone: 'bad' });
+  const rec = src('src/ui/capture/record.ts');
+  assert.match(rec, /noteWords\(note, RECORD,/); assert.ok(!/else[^\n]*RECORD\.failed/.test(rec), 'no catch-all that says failed');
+});
+
+test('"Couldn\'t record" can be told only when nothing is recording and nothing was saved, in every way a recording can go wrong or right', async () => {
+  const warn = console.warn; console.warn = () => undefined;
+  try {
+    const all = [
+      rig(), rig({ ask: () => Promise.reject(err('NotAllowedError')) }), rig({ ask: () => Promise.reject(err('NotReadableError')) }), rig({ data: [] }),
+      rig({ recorder: () => { throw err('NotSupportedError'); } }), rig({ mime: 'video/mp4' }),
+    ];
+    for (const r of all) { await r.run.press(); r.rec.onerror?.(undefined); await r.run.press(); r.stream.track.onended?.(); await r.run.press(); }
+    for (const r of all) for (const t of r.told) {
+      if (t.note === 'failed') { assert.equal(t.phase, 'idle', 'told only once nothing is recording'); assert.equal(r.saved.length, 0, 'and only when no file was saved'); }
+      assert.notEqual(noteWords(t.note, { saved: 'S', failed: 'F' })?.text === 'F' && t.phase === 'recording', true);
+    }
+    // a good recording says nothing while it runs
+    const good = rig(); await good.run.press();
+    assert.equal(good.run.phase(), 'recording'); assert.equal(good.notes.filter((n) => noteWords(n, { saved: 'S', failed: 'F' })).length, 0, 'nothing is shown while recording');
+  } finally { console.warn = warn; }
+});
+
+test('a refused full-size upgrade (applyConstraints rejects, whatever the reason) changes nothing: no error, the recording starts and goes on', async () => {
+  for (const name of ['OverconstrainedError', 'NotAllowedError', 'InvalidStateError', 'TypeError']) {
+    let tried = 0;
+    const small = { width: 800, height: 600, frameRate: 30 };
+    const track = { getSettings: () => small, applyConstraints: () => { tried++; return Promise.reject(err(name)); } };
+    const gave = await raiseToFullSize(track, [{ width: { ideal: 3024 } }, { width: { min: 3024 } }], { w: 3024, h: 1964 }, 60);
+    assert.equal(tried, 2, 'it asked each way in turn, and a refusal of the first did not stop the second'); assert.match(gave, /800 x 600 at 30 fps/, 'and reports what it really has');
+    // the stream the run records is the one it was given: a recording that starts with it says nothing but "recording"
+    const r = rig({ ask: async () => { await raiseToFullSize(track, [{}], { w: 3024, h: 1964 }, 60); return r0.stream; } });
+    const r0 = r;
+    await r.run.press();
+    assert.equal(r.run.phase(), 'recording'); assert.deepEqual(r.notes, ['recording']); assert.equal(r.rec.started, 1);
+  }
+  // a track that is already full size is not asked; one whose settings throw still does not reject
+  let asked = 0;
+  await raiseToFullSize({ getSettings: () => ({ width: 3024, height: 1964, frameRate: 60 }), applyConstraints: () => { asked++; return Promise.resolve(); } }, [{}], { w: 3024, h: 1964 }, 60);
+  assert.equal(asked, 0);
+  const broken = { getSettings: (): never => { throw err('InvalidStateError'); }, applyConstraints: () => Promise.resolve() };
+  assert.equal(await raiseToFullSize(broken, [{}], { w: 1, h: 1 }, 60), 'an unknown size');
+});
+
+test('a track that is short of the size is asked each way until it is full size, then left alone', async () => {
+  let w = 785; const asks: string[] = [];
+  const track = { getSettings: () => ({ width: w, height: 1205, frameRate: 60 }), applyConstraints: (c: MediaTrackConstraints) => { asks.push(JSON.stringify(c)); if ('min' in (c.width as object)) w = 1570; return Promise.resolve(); } };
+  const gave = await raiseToFullSize(track, [{ width: { ideal: 1570 } }, { width: { min: 1570 } }, { width: { min: 9999 } }], { w: 1570, h: 1205 }, 60);
+  assert.equal(asks.length, 2, 'the third is never asked once the size is reached'); assert.match(gave, /1570 x 1205/);
 });

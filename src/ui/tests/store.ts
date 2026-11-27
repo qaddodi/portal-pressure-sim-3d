@@ -85,3 +85,8 @@ export const useTests = create<TestsStore>((set, get) => {
     setSheetSize: (n) => set({ sheetSize: n }),
   };
 });
+
+/** Whether the Tests card pages by a swipe: on any touch screen (a phone's sheet, an iPad upright or on its side, a side card), with one instrument up.
+ *  Touch events only come from a touch screen, so a mouse is never a swipe
+ *  (owner, 23 Nov: "also swipe test cards on iPad, even landscape"; it was only the phone's sheet). */
+export const swipeOn = (g: { open: boolean; focus: boolean; second: unknown }): boolean => g.open && !g.focus && !g.second;

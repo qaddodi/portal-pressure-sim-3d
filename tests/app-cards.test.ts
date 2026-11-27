@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
 test('the Treat card is mounted inside #app (InApp), as in 2D: the 2D stylesheet defines its variables (--gap, --card-head-pad, --top-h, --panel-w) and its .app rules there', () => {
-  assert.match(read('src/ui/shell/Sheets.tsx'), /<InApp><TreatCard \/><\/InApp>/, 'TreatCard goes through InApp');
+  assert.match(read('src/ui/shell/Sheets.tsx'), /<InApp>(?:(?!<\/InApp>)[\s\S])*<TreatCard \/>[\s\S]*?<\/InApp>/, 'TreatCard goes through InApp');
   // what only .app defines in 2D's tokens: a card outside it would read nothing
   const chrome = read('src/ui/styles/app-01-chrome.css');
   const rule = chrome.slice(chrome.indexOf('\n.app {'), chrome.indexOf('}', chrome.indexOf('\n.app {')));
