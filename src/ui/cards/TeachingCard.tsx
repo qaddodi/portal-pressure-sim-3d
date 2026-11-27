@@ -1,6 +1,7 @@
 import { raisesOnly, printedEnds, seenAcross } from './roll-reserve.ts';
 import { Fragment, useMemo, useRef, type CSSProperties } from 'react';
 import type { EqPart, Slide } from '../../decks/schema.ts';
+import { eqClassOf } from '../../decks/eq-tone.ts';
 import { Line } from './Line.tsx';
 import { sentences, pageOf } from './pages.ts';
 import { tieAbbreviations } from './title-breaks.ts';
@@ -28,7 +29,7 @@ import { valueText, VALUE_PENDING } from '../text/tokens.ts';
 
 /** The room each side of a sign in an equation. */
 const SIGN_GAP = '0.25em';
-const eqClass = (p: EqPart) => (p.tone === 'wedge' ? 'eq-wedge' : p.tone === 'free' ? 'eq-hv' : undefined);
+const eqClass = (p: EqPart) => eqClassOf(p.tone);
 /** A slide's equation parts as MathML (2D `.pz-eq > math`): names, numbers, signs, subscripts and fractions, in 2D's own tags. */
 function EqParts({ parts }: { parts: readonly EqPart[] }) {
   // (a sign's room is two explicit spaces of one width round an operator with none of its own: the browsers' operator dictionaries and `lspace`/`rspace` differ (on iOS "WHVP − FHVP" printed tight on the left of the minus and wide on the right), a space element does not)

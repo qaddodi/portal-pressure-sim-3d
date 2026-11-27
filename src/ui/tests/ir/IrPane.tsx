@@ -6,6 +6,7 @@ import './ir.css';
 import { latest, shownParams, useEngine } from '../../../engine/index.ts';
 import { registerFeature } from '../../shell/features.ts';
 import { useShell } from '../../shell/store.ts';
+import { Toned } from '../../text/Toned.tsx';
 import { Icon } from '../../shell/icons.tsx';
 import { useSelection } from '../../action/selection.ts';
 import { useParamsTick } from '../../action/params.ts';
@@ -15,7 +16,7 @@ import type { PaneProps } from '../TestsLayer.tsx';
 import { Monitor } from './Monitor.tsx';
 import { HandOver } from './HandOver.tsx';
 import { hvpgSource, ppgSource } from './sources.ts';
-import { R, useRun, phase, values, busy, startHvpg, playProc, startPpg, closePpg, resetAll, watchButtons, procSay, ppgCaption, ppgShown, hvpgRunning } from './run.ts';
+import { R, useRun, phase, values, busy, startHvpg, playProc, startPpg, closePpg, resetAll, watchButtons, procSay, ppgCaptionSegs, ppgShown, hvpgRunning } from './run.ts';
 import { sideOf } from './side.ts';
 import { measureLabel, hvBlocked, STEPS } from './hvpg.ts';
 import { useIr, stentsNow } from './store.ts';
@@ -44,7 +45,7 @@ function Measure({ h }: { h: number }) {
   const ph = phase(), running = hvpgRunning(), other = useBlocker('ir'), isBusy = busy() || !!other;
   const side = sideOf({ ph, t: R.t, started: R.t0 != null, blocked: R.blocked, blockedNow: hvBlocked(shownParams()), v: values(), hasFrame: !!latest.frame });
   const ppg = ppgShown(), watch = watchButtons();
-  const caption = procSay() || ppgCaption() || side.caption;
+  const caption = procSay() || '', ppgSegs = caption ? [] : ppgCaptionSegs();
   return (
     <>
       <div className="hvpg-bar">
@@ -67,7 +68,7 @@ function Measure({ h }: { h: number }) {
           </ol>
         )}
         <OwnerNote me="ir" />
-        <p className="ctl-sub hvpg-caption" aria-live="polite">{caption}</p>
+        <p className="ctl-sub hvpg-caption eq-line" aria-live="polite">{ppgSegs.length ? <Toned segs={ppgSegs} /> : caption || side.caption}</p>
         <div className="hvpg-procs" role="group" aria-label="Play a procedure on the anatomy">
           <span className="hvpg-procs-k">Watch</span>
           {watch.map((b) => (

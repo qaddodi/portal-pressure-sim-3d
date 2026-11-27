@@ -3,6 +3,7 @@
 // Nothing here is typed per slide; a slide that asks for something the 3D figure cannot do yet keeps its words and its shot and is listed by hooks.ts.
 import { ownKeys } from '../../ui/deck/from2d/card-tiles.js';
 import { TERM_STATIONS } from '../../scene/labels/stations.ts';
+import { eqToneOf, eqToneOfClass } from '../eq-tone.ts';
 import { CATHS, type CathState, type Deck, type EqPart, type Slide, type SlideScene, type SlideTiles, type TableSpec } from '../schema.ts';
 import { planSlide } from './plan.ts';
 import { controlsOf } from '../controls.ts';
@@ -39,19 +40,24 @@ export function eqParts(html: string): EqPart[] {
     const inner = html.slice(i + open.length, end);
     i = end + tag.length + 3;
     const cls = /class="([^"]*)"/.exec(attrs)?.[1] ?? '';
-    const tone = /\beq-wedge\b/.test(cls) ? 'wedge' as const : /\beq-hv\b/.test(cls) ? 'free' as const : undefined;
+    // (the authored class is only the fallback: a term that names a station wears that station's colour, eq-tone.ts)
+    const authored = eqToneOfClass(cls);
     if (tag === 'mrow') { out.push(...eqParts(inner)); continue; }
     if (tag === 'mfrac') {
       const halves = [...inner.matchAll(/<mrow>/g)].length === 2 ? inner.split(/<\/mrow>\s*<mrow>/).map((h) => h.replace(/^\s*<mrow>|<\/mrow>\s*$/g, '')) : [];
       if (halves.length !== 2) throw new Error(`equation fraction "${open}${inner}" is not two <mrow>`);
       const num = eqParts(halves[0]!), den = eqParts(halves[1]!);
       const flat = (ps: EqPart[]) => ps.map((p) => (p.sub ? `${p.text} ${p.sub}` : p.text)).join(' ');
-      out.push({ tag: 'mfrac', text: `${flat(num)} / ${flat(den)}`, num, den, ...(tone ? { tone } : {}) });
+      out.push({ tag: 'mfrac', text: `${flat(num)} / ${flat(den)}`, num, den, ...(authored ? { tone: authored } : {}) });
     } else if (tag === 'msub') {
       const base = /<mi>(.*?)<\/mi>/.exec(inner)?.[1], sub = /<mtext>(.*?)<\/mtext>/.exec(inner)?.[1];
       if (!base || !sub) throw new Error(`equation part "${open}${inner}" is not <mi> and <mtext>`);
+      const tone = eqToneOf(base, sub, cls);
       out.push({ tag: 'mi', text: base, sub, ...(tone ? { tone } : {}) });
-    } else out.push({ tag: tag as 'mi' | 'mo' | 'mn', text: inner, ...(tone ? { tone } : {}) });
+    } else {
+      const tone = tag === 'mi' ? eqToneOf(inner, undefined, cls) : eqToneOfClass(cls);
+      out.push({ tag: tag as 'mi' | 'mo' | 'mn', text: inner, ...(tone ? { tone } : {}) });
+    }
   }
   if (!out.length) throw new Error(`equation "${html}" has no parts`);
   return out;

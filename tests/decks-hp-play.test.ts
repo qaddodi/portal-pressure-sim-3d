@@ -35,7 +35,7 @@ test('the HVPG deck has all 13 slides; the slice\'s four keep their plates and t
 
 test('equations come over as parts, with their subscripts, tones and legend', () => {
   assert.deepEqual(eqParts('<mi>HVPG</mi><mo>=</mo><mi class="eq-wedge">WHVP</mi><mo>−</mo><mi class="eq-hv">FHVP</mi>').map((p) => `${p.text}${p.tone ? ':' + p.tone : ''}`), ['HVPG', '=', 'WHVP:wedge', '−', 'FHVP:free']);
-  assert.deepEqual(eqParts('<mi>PPG</mi><mo>=</mo><msub class="eq-pv"><mi>P</mi><mtext>portal vein</mtext></msub>')[2], { tag: 'mi', text: 'P', sub: 'portal vein' });
+  assert.deepEqual(eqParts('<mi>PPG</mi><mo>=</mo><msub class="eq-pv"><mi>P</mi><mtext>portal vein</mtext></msub>')[2], { tag: 'mi', text: 'P', sub: 'portal vein', tone: 'pv' });
   const withLegend = played.flatMap((d) => d.slides).filter((s) => s.eqLegend);
   assert.ok(withLegend.length > 0 && withLegend.every((s) => s.eq));
 });

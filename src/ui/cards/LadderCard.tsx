@@ -23,8 +23,8 @@ export function LadderCard({ ladder, readings }: { ladder: NonNullable<Slide['la
         {rows.map((r) => <Tile key={r.key} t={{ ...tileView(r.key, { [r.key]: r.value, ...(hvpgNotMeasurable(readings) ? { [HV_BLOCKED_KEY]: 1 } : null) }), text: r.text }} />)}
       </div>
       {gap && (
-        <p className="pz-line">
-          HVPG = {gap.whvp} − {gap.fhvp} = <span className="pz-val"><Roll text={gap.hvpg} fit /></span>
+        <p className="pz-line eq-line">
+          HVPG = <span className="eq-wedge">{gap.whvp}</span> − <span className="eq-hv">{gap.fhvp}</span> = <span className="pz-val"><Roll text={gap.hvpg} fit /></span>
           {gap.sev && <span className="pz-val tone dk-sev" data-rate={RATE[gap.sev]} style={{ ['--tone' as string]: 'var(--text)' }}> {gap.pill}</span>}
         </p>
       )}

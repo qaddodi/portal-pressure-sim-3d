@@ -4,6 +4,7 @@
 // The monitor takes the scope's place while the needle plays, holds the result a few seconds, then fades away and the scope fades back (monitor-takeover.js); a tap on the held result takes it away sooner.
 // It changes nothing in the model: a measurement. The run is eus-run.ts, the monitor's source eus-source.ts.
 import { useEffect } from 'react';
+import { Toned } from '../../text/Toned.tsx';
 import { OrderIcon } from '../../action/icons.tsx';
 import { hvpgSev } from '../../../engine/hales/portal/pressure-cuts.js';
 import { ENDO_WORDS as W } from '../copied/endo-words.copied.js';
@@ -11,7 +12,7 @@ import { OwnerNote, useBlocker } from '../OwnerNote.tsx';
 import { Monitor } from '../ir/Monitor.tsx';
 import { useScope } from './scope-state.ts';
 import { E, tk, reads, playEus, resetEus, useEus } from './eus-run.ts';
-import { EUS, TECHNIQUE, word, monitorHeight, captionOf, type Reads } from './eus-words.ts';
+import { EUS, TECHNIQUE, word, monitorHeight, captionSegs, type Reads } from './eus-words.ts';
 import { eusSource, eusWords, M } from './eus-source.ts';
 
 const touch = (e: React.PointerEvent, go: () => void, disabled: boolean) => { if (e.pointerType !== 'mouse' && !disabled) go(); };
@@ -54,7 +55,7 @@ export function EusPpg({ width }: { width: number }) {
         <ol className="hvpg-steps">
           {EUS.steps.map(([id, title, , short], i) => <li key={id} data-step={id} title={title} data-state={phase === 'run' ? (i < step ? 'done' : i === step ? 'now' : undefined) : phase === 'hold' ? 'done' : undefined}><span>{short}</span></li>)}
         </ol>
-        <p className="ctl-sub hvpg-caption" aria-live="polite">{captionOf(phase, step, rd)}</p>
+        <p className="ctl-sub hvpg-caption eq-line" aria-live="polite"><Toned segs={captionSegs(phase, step, rd)} /></p>
       </div>
     </div>
   );

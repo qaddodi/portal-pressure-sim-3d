@@ -14,7 +14,7 @@ export const READING_KEYS = ['whvp', 'fhvp', 'hvpg', 'ivc', 'ra', 'pv', 'ppg'] a
 export type ReadingKey = (typeof READING_KEYS)[number];
 
 /** One piece of an equation under a title: <mi> names a quantity, <mo> an operator. `tone` colours a quantity as the ladder does. */
-export interface EqPart { tag: 'mi' | 'mo' | 'mn' | 'mfrac'; text: string; tone?: 'wedge' | 'free'; /** a subscript (P with portal vein below it) */ sub?: string; /** a fraction's two halves (`text` is their plain reading) */ num?: EqPart[]; den?: EqPart[] }
+export interface EqPart { tag: 'mi' | 'mo' | 'mn' | 'mfrac'; text: string; tone?: EqTone; /** a subscript (P with portal vein below it) */ sub?: string; /** a fraction's two halves (`text` is their plain reading) */ num?: EqPart[]; den?: EqPart[] }
 
 /** What the scene is asked to show for a slide that is not one of the slice's named shots (batch B13: derived from the 2D deck's own camera, lens and labels). */
 export interface SlideScene {
@@ -169,6 +169,7 @@ export interface Deck {
 
 import { parseToken } from '../ui/text/tokens.ts';
 import type { SlideControls } from './controls.ts';
+import type { EqTone } from './eq-tone.ts';
 
 const TOKEN = /\{([^}]*)\}/g;
 const CUT_RE = /^(>=|<=|>|<)\s*\d+(\.\d+)?(\s+[A-Za-zµ%/]+)?$/;
