@@ -54,5 +54,17 @@ const RESULT_FADE_MS = ${RESULT_FADE_MS};   // (the result tag's own fade: the h
   ctx.font = FONT(700, FS + 2); ctx.fillStyle = ST.col === 'text' ? C.bright : col; ctx.fillText(ST.label, x, y + 15 * HK);
   if (ST.num) { ctx.font = FONT(700, big); ctx.fillStyle = ST.col === 'text' ? C.bright : col; ctx.textAlign = 'right'; ctx.fillText(ST.num, x + W, y + 14 + big); ctx.textAlign = 'left'; }
   ctx.globalAlpha = 1;`);
+  // owner W19, 27 Nov: the axis numbers stand centred on their lines, the line beginning after the number (a number above its line read as the one between two)
+  s = swap('monitor.js', s,
+    `  for (let p = 0; p <= ymax; p += 5) {
+    ctx.fillStyle = p ? C.grid : C.line; ctx.fillRect(L, Math.round(Y(p)), R - L, 1);   // (boxes, not stroked lines: see inkSeg)
+    if (p % 10 === 0 || ymax <= 20) { ctx.fillStyle = C.text; ctx.fillText(tick(p), L + 3, Math.round(Y(p)) - 4); }   // (inside the grid, just above its line)
+  }`,
+    `  for (let p = 0; p <= ymax; p += 5) {
+    // (A number stands centred on its line and the line begins after it, so 20 reads as 20: it stood above its line, between two. Owner W19, 27 Nov.)
+    const yy = Math.round(Y(p)), said = p % 10 === 0 || ymax <= 20, gx = said ? L + 3 + Math.ceil(ctx.measureText(tick(p)).width) + 4 : L;
+    ctx.fillStyle = p ? C.grid : C.line; ctx.fillRect(gx, yy, R - gx, 1);   // (boxes, not stroked lines: see inkSeg)
+    if (said) { ctx.fillStyle = C.text; ctx.textBaseline = 'middle'; ctx.fillText(tick(p), L + 3, yy + 0.5); ctx.textBaseline = 'alphabetic'; }
+  }`);
   return s;
 }

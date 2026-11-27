@@ -11,8 +11,8 @@ export const SCORES: Readonly<Record<string, SlideScores>> = Object.freeze({
   // Child–Pugh C 11, bilirubin 5.2, MELD 23, creatinine 1.1; the preset's albumin 2.8 (2 points), ascites held by the preset's diuretics
   'tips-candidacy/pre': BLED_C11,
   'tips-complete/pre': BLED_C11,
-  // Child–Pugh B 8 with mild ascites, no active bleeding at endoscopy
-  'choose-treatment/a1': { bili: 2.2, inr: 1.5, creatinine: 0.9, ascites: 'mild', he: 'none', focus: 'preemptive' },
+  // (Choose treatment 2 has no card: its case already says Child–Pugh B 8, and the criteria card is read at full size
+  //  without the tally under it, which stood at 6 to 8 px; owner W19, 27 Nov, review C-D11)
   // bilirubin 4.1, INR 1.8, creatinine 1.4: MELD 22; refractory ascites; the slide sets the albumin 2.5
   'tips-candidacy/meld': { bili: 4.1, inr: 1.8, creatinine: 1.4, albumin: 2.5, ascites: 'moderate', he: 'none', focus: 'elective' },
   // the liver back to Child–Pugh A5 or A6: no ascites off diuretics, no HE, the model's albumin

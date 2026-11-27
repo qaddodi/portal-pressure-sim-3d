@@ -7,6 +7,7 @@
 import { EDGES, NODES, dopplerK, tiedOff } from '../../engine/hales/portal/topology.js';
 import { STATION_VESSEL, judgeFlow, dopplerVel } from '../lenses/vel-normal.copied.js';
 import { oxygenSat, type OxygenResult } from '../lenses/blood-model.ts';
+import { labelUnit } from './unit-rule.ts';
 
 type Edge = { id: string; from: string; to: string; kind: string };
 const edges = EDGES as Edge[];
@@ -32,6 +33,8 @@ export interface ReadEnv {
   refP: ArrayLike<number> | null;
   /** The lens the figure wears ('delta' too: the Change lens, or Compare's Change view). */
   lens: string;
+  /** The lens whose colour key the slide shows on the figure (names the unit its labels then leave bare, unit-rule.ts); absent: none. */
+  key?: string | null;
   /** Comparing with a pinned moment (2D compareSnap). */
   cmp: boolean;
   /** A talk is on (2D presenting). */
@@ -111,20 +114,24 @@ export class StationExtras {
     if (id === 'HA') return NO_EXTRAS;   // (the hepatic artery's label is its name only)
     if (tiedOff(env.params as never, id)) return { ...NO_EXTRAS, number: '—' };
     const lens = readingLensOf(env.lens);
-    // the unit is said once, in the lens legend; a label carries it only on a slide or when selected (a pressure's too: the legend may be out of sight or another lens's on a slide)
+    // the unit is said once: by the lens key where the slide shows one that counts in it (the label stands bare), else by the label, on a slide or when selected (unit-rule.ts labelUnit)
+    const sayOf = (unit: string) => labelUnit({ selected: env.selected, presenting: env.presenting, key: env.key, unit });
     const sayUnit = env.selected || env.presenting;
     const dHere = StationExtras.deltaHere(env);
     if (lens === 'pressure') {
       let delta = '', up = false;
       const ref = env.refP ? env.refP[NI.get(id) ?? -1] : undefined;
-      if (P != null && ref != null && Number.isFinite(ref) && dHere && this.badge((env.cmp ? 'pc:' : 'p:') + id, Math.abs(P - ref), badgeOn(env.cmp), badgeOff(env.cmp))) { delta = signed(P - ref, sayUnit ? `${fmt1(P - ref)} mmHg ${versus(env)}` : fmt1(P - ref)); up = P > ref; }
-      return { ...NO_EXTRAS, unit: sayUnit ? 'mmHg' : '', delta, up };
+      if (P != null && ref != null && Number.isFinite(ref) && dHere && this.badge((env.cmp ? 'pc:' : 'p:') + id, Math.abs(P - ref), badgeOn(env.cmp), badgeOff(env.cmp))) {
+        delta = signed(P - ref, sayUnit ? `${fmt1(P - ref)}${sayOf('mmHg') ? ' mmHg' : ''} ${versus(env)}` : fmt1(P - ref));
+        up = P > ref;
+      }
+      return { ...NO_EXTRAS, unit: sayOf('mmHg'), delta, up };
     }
     const Q = env.f.Qf ?? env.f.Q;
     if (lens === 'oxygen') {
       if (!this.oxy || this.oxy.Q !== Q) this.oxy = { Q, res: oxygenSat(Q, env.f.Pf ?? env.f.P) };
       const sat = this.oxy.res.node[NI.get(id) ?? -1] ?? NaN;
-      return { ...NO_EXTRAS, lens: 'oxygen', number: Number.isFinite(sat) ? String(Math.round(sat * 100)) : '—', unit: sayUnit ? '% O₂' : '' };
+      return { ...NO_EXTRAS, lens: 'oxygen', number: Number.isFinite(sat) ? String(Math.round(sat * 100)) : '—', unit: sayOf('% O₂') };
     }
     if (lens === 'flow') {
       const v = throughput(Q, id);
@@ -133,7 +140,7 @@ export class StationExtras {
         const r = throughput(env.healthy.Q, id);
         if (r > 0.02 && dHere && this.badge('q:' + id, Math.abs(v - r) / r, 0.3, 0.25)) { delta = signed(v - r, `${Math.round((Math.abs(v - r) / r) * 100)}%${sayUnit ? ` ${versus(env)}` : ''}`); up = v > r; }
       }
-      return { ...NO_EXTRAS, lens: 'flow', number: fmtFlow(v), unit: sayUnit ? 'L/min' : '', delta, up };
+      return { ...NO_EXTRAS, lens: 'flow', number: fmtFlow(v), unit: sayOf('L/min'), delta, up };
     }
     // velocity: the fastest the Doppler would read in a vessel at the station (a station named for a vessel reads that vessel)
     let best = 0, bestK = -1, tubes = 0, bed = false;
@@ -150,7 +157,7 @@ export class StationExtras {
     if (ok !== undefined && env.veinShown(own!)) { bestK = ok; best = Math.abs(dopplerVel(env.f, ok) as number); }
     if (!tubes) return { ...NO_EXTRAS, lens: 'velocity', note: bed ? 'microcirculation' : 'collaterals closed' };
     const jf = judgeFlow(best, null, null);
-    return { ...NO_EXTRAS, lens: 'velocity', number: String(Math.round(best)), unit: sayUnit ? 'cm/s' : '', alert: jf.none ? 'no flow' : jf.stasis ? 'stasis' : '' };
+    return { ...NO_EXTRAS, lens: 'velocity', number: String(Math.round(best)), unit: sayOf('cm/s'), alert: jf.none ? 'no flow' : jf.stasis ? 'stasis' : '' };
   }
 }
 

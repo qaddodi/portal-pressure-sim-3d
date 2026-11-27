@@ -5,7 +5,7 @@ import { look, type Look } from '../looks.ts';
 import { fitHeight, type Frame, type Shape, type TextShape } from '../scene.ts';
 import { bandKeys, bandRuns } from '../plot/rx-bands.generated.js';
 import { hvpgRate } from '../../../engine/hales/portal/pressure-cuts.js';
-import { LINES, WEDGE_C, daysOf, f1, keepClear, layoutMiles, layoutTalk, milesHeight, spanWords, talkHeight, textW, tokName, type Layout, type Run, type TalkPoint } from './model.ts';
+import { LINES, WEDGE_C, daysOf, f1, keepClear, layoutMiles, layoutTalk, milesHeight, rowPlaces, spanWords, talkHeight, textW, tokName, type Layout, type Run, type TalkPoint } from './model.ts';
 
 const rate = hvpgRate as (v: number) => 'ok' | 'mid' | 'hi';
 const fillOf = (l: Look): Rgba | undefined => { const o = l.fillOpacity ?? l.opacity; return l.fill && o !== undefined ? [l.fill[0], l.fill[1], l.fill[2], l.fill[3] * o] : l.fill; };
@@ -18,6 +18,8 @@ export interface TraceSpec {
   gap?: string | null;
   /** 'milestones': the HVPG alone with a level name over each milestone (tool.style) */
   style?: 'milestones' | null;
+  /** the slides (their ids, as the chart's states carry them) whose HVPG the words cite: the readings row keeps these before the others */
+  cited?: readonly string[] | null;
   /** the box's height: the card's (default: the height the chart wants) */
   height?: number;
 }
@@ -29,7 +31,7 @@ export function traceFrame(spec: TraceSpec, c: ChartCtx): Frame {
   const pts = spec.pts.filter((p) => p.fp), f = c.type.sm, W = Math.max(160, c.w), gapName = gapNameOf(spec.gap), runs = runsOf(pts, spec.bands);
   const miles = spec.style === 'milestones';
   const HT = Math.round(spec.height ?? fitHeight(miles ? milesHeight(pts, W, f, runs) : talkHeight(pts, W, f, runs, gapName), c));
-  return miles ? milesFrame(pts, runs, W, HT, f, c) : fullFrame(pts, runs, gapName, W, HT, f, c);
+  return miles ? milesFrame(pts, runs, W, HT, f, c) : fullFrame(pts, runs, gapName, W, HT, f, c, spec.cited ?? null);
 }
 
 function kit(c: ChartCtx) {
@@ -55,7 +57,7 @@ function barShapes(bars: Layout['bars'], y: number, fs: number, k: ReturnType<ty
   }
 }
 
-function fullFrame(pts: readonly TalkPoint[], runs: readonly Run[], gapName: string, W: number, HT: number, fs: number, c: ChartCtx): Frame {
+function fullFrame(pts: readonly TalkPoint[], runs: readonly Run[], gapName: string, W: number, HT: number, fs: number, c: ChartCtx, cited: readonly string[] | null = null): Frame {
   const Lo = layoutTalk({ pts, W, HT, fs, runs, gapName });
   const { n, last, narrow, g, X, Y, L, R, pMax, unitW, gStep, pTop, T, B, ty, rowName, bars, blocks, mp, rowsUsed, rowTop, lineH, ends, sx, tx, mode } = Lo;
   const k = kit(c), { shapes, lk, say, rule } = k;
@@ -95,6 +97,9 @@ function fullFrame(pts: readonly TalkPoint[], runs: readonly Run[], gapName: str
     if (near) { const d = lk('talk.dot.ring', {}, tokName(col)); shapes.push({ k: 'circle', cx: x, cy: y, r: r + 2.5, pen: { color: d.stroke!, w: d.width! } }); }
     else { const d = lk('talk.dot', {}, tokName(col)); shapes.push({ k: 'circle', cx: x, cy: y, r, fill: d.fill, pen: { color: d.stroke!, w: d.width! } }); }
   }));
+  // The FHVP is a line only where there are two states or more: with one state its legend row at the right would name a mark that is
+  // not drawn, so the state gets a small neutral dot (the line's own ink).
+  if (n === 1) { const d = lk('talk.dot', {}, tokName('--text-3')); shapes.push({ k: 'circle', cx: fh[0]![0], cy: fh[0]![1], r: 3, fill: d.fill, pen: { color: d.stroke!, w: d.width! } }); }
   // each line's name at its right end, with its last value where there is room
   for (const e of ends) {
     shapes.push({ k: 'rect', x: sx, y: e.y - 1.5, w: 8, h: 3, r: 1.5, fill: lk('talk.swatch', {}, tokName(e.c)).fill });
@@ -125,16 +130,22 @@ function fullFrame(pts: readonly TalkPoint[], runs: readonly Run[], gapName: str
   // The readings rows under the plot (those the box has room for), each value under its state (where it stands clear), named in the right column.
   const gapV = pts.map((p) => f1((p.fp.pv || 0) - (p.fp.whvp || 0))), hvV = pts.map((p) => f1(p.fp.hvpg || 0));
   const keepOf = (vs: string[]) => keepClear(pts.map((_, i) => X(i)), vs.map((t) => textW(t, fs, 600)), R + 6);
-  const keep1 = keepOf(gapV), keep2 = keepOf(hvV), rowAt = (key: string) => Lo.rowDefs.find((d) => d[0] === key)?.[1];
+  const keep1 = keepOf(gapV), rowAt = (key: string) => Lo.rowDefs.find((d) => d[0] === key)?.[1];
   const gapY = rowAt('gap'), hvY = rowAt('hv');
+  // The HVPG values are the chart's argument, so none the words cite is left out: the latest, then the cited, then the others each take a line of
+  // the row. Where they cannot all stand on one line and the PV − WHVP row has its line, that row gives way and the HVPG alternates over both
+  // lines (the box keeps its height).
+  const xs = pts.map((_, i) => X(i)), hw = hvV.map((t) => textW(t, fs, 600)), hot = pts.flatMap((p, i) => (p.id != null && cited?.includes(p.id) ? [i] : []));
+  const one = rowPlaces(xs, hw, R + 6, 1, hot), twoLines = gapY != null && hvY != null && one.some((l) => l < 0);
+  const hvLine = twoLines ? rowPlaces(xs, hw, R + 6, 2, hot) : one, showGap = !twoLines;
   if (Lo.rowDefs.length) rule(L, Lo.r1 - fs - 3, W - 8, Lo.r1 - fs - 3, grid);
   pts.forEach((p, i) => {
     const now = i === last;
-    if (gapY != null && keep1.has(i)) say(X(i), gapY, gapV[i]!, lk('talk.read', { now }), { anchor: 'middle' });
-    if (hvY != null && keep2.has(i)) say(X(i), hvY, hvV[i]!, lk('talk.read', { rate: rate(p.fp.hvpg as number), now }), { anchor: 'middle' });
+    if (showGap && gapY != null && keep1.has(i)) say(X(i), gapY, gapV[i]!, lk('talk.read', { now }), { anchor: 'middle' });
+    if (hvY != null && hvLine[i]! >= 0) say(X(i), hvLine[i] === 0 || gapY == null ? hvY : gapY, hvV[i]!, lk('talk.read', { rate: rate(p.fp.hvpg as number), now }), { anchor: 'middle' });
   });
   const sw = (y: number, tone: string) => shapes.push({ k: 'rect', x: sx, y: y - 0.7 * fs, w: 8, h: 8, r: 2, fill: fillOf(lk('talk.swatch.gap', {}, tone)) });
-  if (gapY != null) { sw(gapY, 'tr-pv'); say(tx, gapY, rowName, lk('talk.read.name')); }
+  if (gapY != null && showGap) { sw(gapY, 'tr-pv'); say(tx, gapY, rowName, lk('talk.read.name')); }
   if (hvY != null) { sw(hvY, tokName(WEDGE_C)); say(tx, hvY, 'HVPG', lk('talk.read.name')); }
   // The stage names, then the treatments.
   if (mode === 'names') {

@@ -64,6 +64,19 @@ export const EMPTY_CALLS: FigureCalls = {
   named: [], pins: [], normalSpleen: false, marked: [], res: [], caudate: false, caudateVeins: false, focus: [], cards: [], calipers: [], spans: [], reads: [], readsTone: null, lit: [], notDrawn: [],
 };
 
+/**
+ * The portal blood's split card for a site (stage-sites-paint.js SPLIT_B), or null where there is nothing to say: no reading yet, or none of
+ * the blood bypasses the liver (owner W19, 27 Nov: "0% bypasses the liver" stood on the portal vein of a healthy liver, naming a thing that is
+ * not there). Pure: tests/split-card.test.ts.
+ */
+export function splitCardOf(key: string, d: { kicker: string; node?: string }, fp: Record<string, unknown> | null | undefined): FigCard | null {
+  const sh = fp?.shunt;
+  if (typeof sh !== 'number' || !Number.isFinite(sh)) return null;
+  const p = portalSplit(sh);
+  if (p.shunt <= 0) return null;
+  return { id: `site:${key}`, kind: 'split', text: d.kicker, tone: 'pv', anchor: { node: d.node! }, below: true, split: { liver: p.liver, shunt: p.shunt, rate: p.rate } };
+}
+
 /** The words of a clot mark that follows the model (callout-math.js clotWords). */
 export function clotWords(v: number | undefined): string | null {
   const n = Math.round(Math.min(1, Math.max(0, +(v ?? 0) || 0)) * 100);
@@ -130,10 +143,8 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
     const d = SITE_DEF_2D[k];
     if (!d || d.res || !d.node) continue;
     if (d.split) {
-      const sh = fp?.shunt;
-      if (typeof sh !== 'number' || !Number.isFinite(sh)) continue;
-      const p = portalSplit(sh);
-      cards.push({ id: `site:${k}`, kind: 'split', text: d.kicker, tone: 'pv', anchor: { node: d.node }, below: true, split: { liver: p.liver, shunt: p.shunt, rate: p.rate } });
+      const c = splitCardOf(k, d, fp);
+      if (c) cards.push(c);
       continue;
     }
     // (no other site is built: a site on a station is that station's own label, and figure-plan.ts fails a site that is neither: a reading is never a card on the figure)

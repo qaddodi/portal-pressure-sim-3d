@@ -9,13 +9,13 @@ import '../charts.css';
  * shades (tool.bands: 'carvedilol', 'tips' …). gap: the name of the band between PV and WHVP (tool.gap, e.g. 'clot'). style: 'milestones' draws the HVPG alone (tool.style).
  * height: the box's height; leave it out for the height the chart wants. A new chain glides in from the old one.
  */
-export function TraceCard({ chain, bands = null, gap = null, style = null, height }: { chain: readonly TalkPoint[] } & Omit<TraceSpec, 'pts'>) {
+export function TraceCard({ chain, bands = null, gap = null, style = null, cited = null, height }: { chain: readonly TalkPoint[] } & Omit<TraceSpec, 'pts'>) {
   const pts = chain.filter((p) => p.fp);
   if (!pts.length) return null;
   const label = style === 'milestones' ? 'HVPG over the talk so far' : 'Pressures over the talk so far';
   return (
     <div className="pz-talk">
-      <Chart tag="chart:trace" deps={[chain, bands?.join(), gap, style, height]} label={label} build={(c) => traceFrame({ pts, bands, gap, style, height }, c)} />
+      <Chart tag="chart:trace" deps={[chain, bands?.join(), gap, style, cited?.join(), height]} label={label} build={(c) => traceFrame({ pts, bands, gap, style, cited, height }, c)} />
     </div>
   );
 }

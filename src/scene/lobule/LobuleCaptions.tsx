@@ -20,6 +20,7 @@ import { type Placement, solve } from '../labels/solver.ts';
 import { restyle, writeTone } from '../labels/roll.ts';
 import { toneCss } from '../../ui/deck/figure-plan.ts';
 import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
+import { keyStates } from '../labels/unit-rule.ts';
 import { type CapMeta, buildLobuleCaptions, lobuleLabelView, readingSig, readingText } from './captions.ts';
 import { footBlocker, useFootNote } from '../../ui/shell/foot-note.ts';
 import { creditClaim } from '../labels/credit-claim.ts';
@@ -94,6 +95,8 @@ export function LobuleCaptions() {
 
     /** a slide is on: its readings carry their unit */
     const onSlide = () => useLabels.getState().presenting;
+    /** a pressure carries its unit on a slide unless the slide's lens key already says it (labels/unit-rule.ts) */
+    const pUnit = () => onSlide() && !keyStates(useLabels.getState().key, 'mmHg');
     const solveNow = () => {
       const { vp } = useUi.getState();
       const level = levelFor(useShell.getState().figure.labelLevel, useLabels.getState().presenting);
@@ -102,7 +105,10 @@ export function LobuleCaptions() {
       const vw = view(), bl = blockers(), fig = useFigure.getState();
       const ROOM = 64;   // (a tract takes the names only with room round it for them: the venule at least this far inside the view)
       const inView = (x: number, y: number) => x > vw.x0 + ROOM && x < vw.x1 - ROOM && y > vw.y0 + ROOM && y < vw.y1 - ROOM && !bl.some((b) => x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1);
-      const built = buildLobuleCaptions({ proj, vp, measure, net: cel.lobule.net, layers: { zones: L.zones, lymph: L.lymph }, oxygen: cel.lobule.currentLens === 'oxygen', hide: !m, inView, unit: onSlide(), must: new Set(useFigure.getState().reads) });
+      const built = buildLobuleCaptions({
+        proj, vp, measure, net: cel.lobule.net, layers: { zones: L.zones, lymph: L.lymph }, oxygen: cel.lobule.currentLens === 'oxygen', hide: !m, inView,
+        unit: onSlide(), pUnit: pUnit(), must: new Set(useFigure.getState().reads),
+      });
       const items = level === 'none' ? built.items.filter((it) => it.id.startsWith('z:')) : built.items;
       // (the pair of readings, labels/pair.ts: the Sinusoids name stands straight above its ring, over the vessel,
       //  as the slide's callout stands below its own ring on the same sinusoid; the rest of the names keep off it.
@@ -148,7 +154,7 @@ export function LobuleCaptions() {
         }
         e.root.setAttribute('aria-label', mt.label);
         if (e.val) {
-          const v = !f.value ? '' : m ? readingText(mt.read, m, false, onSlide()) : '?';
+          const v = !f.value ? '' : m ? readingText(mt.read, m, false, onSlide(), pUnit()) : '?';
           if (e.valText !== v) { e.valText = v; e.val.textContent = v; }
         }
       }
@@ -162,7 +168,7 @@ export function LobuleCaptions() {
         const mt = metas.get(id), e = els.get(id);
         if (!mt || !e?.val) continue;
         const f = mt.forms[Math.min(p.form, mt.forms.length - 1)]!;
-        const v = !f.value ? '' : m ? readingText(mt.read, m, false, onSlide()) : '?';
+        const v = !f.value ? '' : m ? readingText(mt.read, m, false, onSlide(), pUnit()) : '?';
         if (e.valText !== v) { e.valText = v; e.val.textContent = v; }
       }
     };
@@ -174,7 +180,8 @@ export function LobuleCaptions() {
       const { vp, boxes } = useUi.getState();
       const L = cel.lobule.currentLayers, m = readModel(cel.lobule.inkContext()?.model);
       return [vp.w, vp.h, L.zones, L.lymph, levelFor(useShell.getState().figure.labelLevel, useLabels.getState().presenting), boxKey(rectToBox(boxes.free)), blockers().map(boxKey).join(';'), boxKey(view()), lookRef.current,
-        readingSig(m, onSlide()), onSlide(), figSig(), cel.lobule.currentLens === 'oxygen'].join('|');   // (the readings' widths, never their values: a value that moves a tenth is written in place, refreshReadings, and sends nothing through a fade)
+        readingSig(m, onSlide(), pUnit()), onSlide(), pUnit(), figSig(),
+        cel.lobule.currentLens === 'oxygen'].join('|');   // (the readings' widths, never their values: a value that moves a tenth is written in place, refreshReadings, and sends nothing through a fade)
     };
     const boxesOf = () => {
       const out: { ax: number; ay: number; dx: number; dy: number; w: number; h: number }[] = [];
