@@ -9,6 +9,7 @@ import { CameraRig } from '../src/scene/camera/rig.ts';
 import { SHOTS, type Shot } from '../src/scene/camera/shots.ts';
 import { lobuleShot, sinusoidShot } from '../src/scene/lobule/shots.ts';
 import { sinusoidWorld } from '../src/scene/lobule/frames.ts';
+import { DIVE_THROUGH_MS } from '../src/scene/camera/dive.ts';
 
 const DEVICES = [
   { name: 'Mac', w: 1440, h: 900, room: { x: 420, y: 0, w: 1020, h: 900 }, portrait: false },
@@ -51,7 +52,7 @@ for (const d of DEVICES) {
     });
   }
   test(`${d.name}: body -> sinusoid: the sinusoid reaches the middle without an arc`, () => {
-    const s = straightness(path(d, 'play' as never, sin, 3300, place).slice(4));   // (its first frames, off the figure's far edge, are out of range of the picture)
+    const s = straightness(path(d, 'play' as never, sin, DIVE_THROUGH_MS, place).slice(4));   // (its first frames, off the figure's far edge, are out of range of the picture)
     assert.ok(s.back < 1 || s.dev <= Math.max(3, s.len * 0.03), `strays ${s.dev.toFixed(1)} px of ${s.len.toFixed(1)}, back ${s.back.toFixed(1)}`);
   });
 }
