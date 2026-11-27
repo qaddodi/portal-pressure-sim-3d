@@ -5,7 +5,7 @@ export type EscStep = 'dialog' | 'sheet' | 'tests-focus' | 'treat' | 'tests' | '
 
 export interface EscState {
   dialog: boolean; sheet: boolean; testsOpen: boolean; testsFocus: boolean; treatOpen: boolean; sinusoid: boolean; selection: boolean; talk: boolean;
-  /** what stands in the menus' slot is a panel (History, Compare, Why, the timeline chart), not a menu */
+  /** what is up of `sheet` (the menus' slot, or History, Compare and Why with their own flags) is a panel, not a menu */
   sheetPanel?: boolean;
   /** the newest open panel of the right column (surface/wire.ts usePanelOrder): with two up, Esc closes the newest first ('sheet' is a panel in the menus' slot) */
   newest?: 'sheet' | 'treat' | 'tests' | null;

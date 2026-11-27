@@ -53,8 +53,8 @@ test('the per-arm uniforms are the spec\'s section 3 names, with its sizes', () 
 
 test('the vertex attributes are the spec\'s (cen, weight, restR, sagK) on top of three\'s position and normal, and no growth second shape any more (spec 10.2: 6 with position and normal, inside the 16 every WebGL2 device has)', () => {
   const a = declarations(SKIN_VS).filter((d) => d.storage === 'attribute').map((d) => `${d.type} ${d.name}`).sort();
-  // placed only: one more, the tube share by rows from the seam (exact-normal.ts tubeShareOf), which ends the placed skins' dark crotch shade
-  assert.deepEqual(a, ['float restR', 'float sagK', 'vec2 weight2', 'vec3 cen', 'vec4 weight', 'float tubeShare'].sort());
+  // (the flow rank, skin-rank.ts: the body's skin leaves as its own tubes do) and, placed only, one more, the tube share by rows from the seam (exact-normal.ts tubeShareOf), which ends the placed skins' dark crotch shade
+  assert.deepEqual(a, ['float restR', 'float sagK', 'vec2 weight2', 'vec3 cen', 'vec4 weight', 'float tubeShare', 'float skinRank'].sort());
     assert.ok(a.length + 2 <= 16, `${a.length} attributes + position + normal`);
 });
 
@@ -64,7 +64,8 @@ test('the skin draws the tubes\' flow marks, once per arm, with the tubes\' own 
 
 test('the skin is back-face culled in the fragment stage like the tube, and fades out on the Circuit', () => {
   assert.match(SKIN_FS, /if \(!gl_FrontFacing\) discard;/);
-  assert.match(SKIN_FS, /smoothstep\(0\.0, 0\.35, circT\)/);
+  // (by the vertex's own share of the change, not the whole change's: tests/skin-rank.test.ts)
+  assert.match(SKIN_FS, /smoothstep\(0\.0, 0\.05, ownShare\)/);
 });
 
 test('the skin\'s program is registered for the compile check and the ?gl page', () => {

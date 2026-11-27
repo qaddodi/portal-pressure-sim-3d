@@ -56,6 +56,11 @@ export const FLAG_MEANINGS: Readonly<Record<string, string>> = Object.freeze({
     + "slides=1 adds the slides.",
   slides: "The capture with cases: slides=1 takes the slides of the talks as well (before the cases), in the same zip.",
   looks: "The capture of cases: looks=0 leaves out the Look closer here pictures of each stop.",
+  layout:
+    "Layout only, no GPU (src/boot/layout-only.ts, scripts/layout-check.mjs): the page boots without WebGL, builds the scene's camera and labels "
+    + "but draws no figure, so a browser with no graphics card "
+    + "runs the app in a few seconds. Cards, labels, menus and the copyright line are real DOM and are judged by the self-test as usual; colours of the figure, shapes and shaders are NOT checked. "
+    + "Use with ?audit=here (npm run layout-check does).",
   noglass:
     "The self-test: noglass=1 turns the frosted-glass blur off for the run (html[data-noglass]), so a second run shows what the glass costs the talk-open "
     + "frame rate.",

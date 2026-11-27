@@ -14,5 +14,8 @@
   "slider-key-by-value": 0,
   "anatomy-through-source": 0,
   "plate-map-literal": 0,
-  "hv-blocked-direct": 0
+  "hv-blocked-direct": 0,
+  "surface-outside-shell": 0,
+  "one-sheet-rule": 0,
+  "surface-motion-tokens": 0
 }

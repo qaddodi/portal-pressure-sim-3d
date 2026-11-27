@@ -3,7 +3,7 @@
 // goes through the same shell, so there is one way a dialog is cancelled.
 import { useEffect } from 'react';
 import { UI } from '../strings.generated.ts';
-import { useShell, LENS_IDS } from '../shell/store.ts';
+import { useShell, LENS_IDS, anyShellPanel } from '../shell/store.ts';
 import { useLens } from '../../scene/lenses/store.ts';
 import { lensesFor } from '../../scene/lenses/in-view.ts';
 import { sceneApi } from '../../scene/api.ts';
@@ -20,7 +20,7 @@ import { openGuide } from '../shell/HelpSheets.tsx';
 import { SETTLED, lensToast, speedToast } from '../shell/words.ts';
 import { useTests } from '../tests/store.ts';
 import { escStep } from './escape.ts';
-import { panelOrder } from '../surface/wire.ts';
+import { panelOrder, closeNewestShellPanel } from '../surface/wire.ts';
 import { isPanel } from '../surface/kinds.ts';
 import { dialogOpen, cancelTopDialog } from '../surface/dialog-stack.ts';
 import { talkOn } from '../../state/deck.ts';
@@ -39,10 +39,11 @@ export function targetOf(el: EventTarget | null): Target {
   return 'page';
 }
 
-/** Which panel is newest of the right column, for Esc (surface/wire.ts usePanelOrder), and whether the menus' slot holds a panel. */
-function escPanels(sheet: string | null): { sheetPanel: boolean; newest: 'sheet' | 'treat' | 'tests' | null } {
+/** For Esc: whether a menu or a panel of the shell is up (`sheet`: the menus' slot, History, Compare, Why), whether that is a panel rather than a menu, and which panel is
+ *  newest of the right column (surface/wire.ts usePanelOrder). */
+function escPanels(sh: ReturnType<typeof useShell.getState>): { sheet: boolean; sheetPanel: boolean; newest: 'sheet' | 'treat' | 'tests' | null } {
   const right = panelOrder().filter((p) => p !== 'action'), last = right[right.length - 1] ?? null;
-  return { sheetPanel: !!sheet && isPanel(sheet), newest: last === 'treat' || last === 'tests' ? last : last ? 'sheet' : null };
+  return { sheet: !!sh.sheet || anyShellPanel(sh), sheetPanel: !sh.sheet || isPanel(sh.sheet), newest: last === 'treat' || last === 'tests' ? last : last ? 'sheet' : null };
 }
 
 export function carryOut(a: KeyAction): void {
@@ -52,10 +53,11 @@ export function carryOut(a: KeyAction): void {
     case 'search-open': sh.open('search'); break;
     case 'close': {
       const tests = useTests.getState();
-      const step = escStep({ dialog: dialogOpen() || !!sh.dialog, sheet: !!sh.sheet, testsOpen: tests.open, testsFocus: tests.open && tests.state === 'focus', treatOpen: useTreat.getState().open,
-        sinusoid: sh.view === 'sinusoid', selection: !!useSelection.getState().sel, talk: talkOn(), ...escPanels(sh.sheet) });
+      const step = escStep({ dialog: dialogOpen() || !!sh.dialog, testsOpen: tests.open, testsFocus: tests.open && tests.state === 'focus', treatOpen: useTreat.getState().open,
+        sinusoid: sh.view === 'sinusoid', selection: !!useSelection.getState().sel, talk: talkOn(), ...escPanels(sh) });
       if (step === 'dialog') { if (!cancelTopDialog('esc')) useShell.setState({ dialog: null }); }
-      else if (step === 'sheet') sh.close();
+      // (a menu first; with none, the newest of the shell's panels)
+      else if (step === 'sheet') { if (sh.sheet && !isPanel(sh.sheet)) sh.close(); else closeNewestShellPanel(); }
       else if (step === 'tests-focus' || step === 'tests') tests.back();   // (the Tests card; its Why? is the shared sheet above, closed first)
       else if (step === 'treat') useTreat.getState().setOpen(false);
       else if (step === 'selection') selectStructure(null);

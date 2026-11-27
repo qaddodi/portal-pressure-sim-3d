@@ -55,7 +55,7 @@ test('every floating menu is placed by the one placer, and it scrolls inside the
   const shell = src('src/ui/surface/Menu.tsx').replace(/\/\/.*$/gm, '');
   assert.ok(/placePopover\(el, a, \{ align, place: side \}\)/.test(shell) && /placeAt\(el, a, at\)/.test(shell), 'the shell places a floating menu through place.ts');
   assert.ok(/visualViewport/.test(shell), 'and again when the keyboard moves the room');
-  for (const f of ['src/ui/menu/UMenu.tsx', 'src/ui/shell/Pop.tsx', 'src/ui/deck/JumpList.tsx']) assert.ok(!/place(Popover|At)\(/.test(src(f)), `${f} leaves its placement to the shell`);
+  for (const f of ['src/ui/menu/UMenu.tsx', 'src/ui/deck/JumpList.tsx']) assert.ok(!/place(Popover|At)\(/.test(src(f)), `${f} leaves its placement to the shell`);
   const menuCss = src('src/ui/surface/menu.css');
   assert.ok(/\.menu\.sf-menu\[data-mode="float"\]:not\(\.app-menu\):not\(\.fr-pop\) \{ overflow-y: auto;/.test(menuCss), 'a menu without its own scroll scrolls inside its cut');
   assert.ok(/\.app-menu \{ max-height[^}]*overflow-y: auto/.test(src('src/ui/styles/app-07-floating.css')), 'a menu scrolls inside its cut');

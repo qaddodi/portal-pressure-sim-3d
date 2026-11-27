@@ -67,3 +67,17 @@ export function stumpOf(shunt: string, vein: string, amount: number, keepWhole: 
   const k = amount * amount * (3 - 2 * amount);   // (the 2D easeInOut)
   return [k * d.cut, d.tie, k];
 }
+
+/** A stump that lies inside the tube's own stretch (27 Nov: "the proximal end of the splenic vein that is tied off ... not just disappear like this").
+ *  The cut and the tie come from the 2D figure's clearance, but the junction skin takes over the vein at its far seam
+ *  (`seam`, units from the vein's start: skinCut.y times its length; Infinity when no skin does), and the tube is not drawn past it.
+ *  On the placed arrangement the SV_MID stump's cut lay PAST that seam (cut 45.3, seam 43.1 of 63): the round end and the tie were
+ *  both under the skin's cut, and the skin's open seam ring stood where the end should be, a flat disc with no tie.
+ *  So the whole stump (the tie's pinch, `PINCH_W` each side of it, lies past the round end) is brought back to end one unit before the seam:
+ *  the cut moves toward the vein's start by what it overran and the tie with it, and a stump that already fits is left as it is. */
+export function fitStump(cut: number, tie: number, seam: number): [number, number] {
+  const end = tie + PINCH_W;
+  if (!(seam < end + 1)) return [cut, tie];
+  const back = end + 1 - seam;
+  return [Math.max(0, cut - back), tie - back];
+}

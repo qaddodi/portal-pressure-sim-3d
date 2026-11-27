@@ -10,7 +10,7 @@ import './tap-cells.css';
 import { restoreFocus } from './talk-focus.ts';
 import { DeckUiSlot } from './DeckUiSlot.tsx';
 import { useUi } from '../ui-store.ts';
-import { useShell, LENS_IDS } from './store.ts';
+import { useShell, LENS_IDS, anyShellPanel } from './store.ts';
 import { lensPickable } from '../../scene/lenses/in-view.ts';
 import { TopBar } from './TopBar.tsx';
 import { Dock } from './Dock.tsx';
@@ -172,7 +172,7 @@ export function Shell() {
   const cardOver = useActionRoom((s) => s.over);   // (an action card is up over the dock's view pill slot: the pill fades out under it)
   // (a view with one lens to show locks its lens button: the lens table's rule, lenses/in-view.ts)
   const lensFixed = lensPickable(useShell((s) => s.view), LENS_IDS) ? '' : ' lens-fixed';
-  const sheetUp = useShell((s) => thumb && !!s.sheet && SHEETS_OVER_PILL.has(s.sheet));
+  const sheetUp = useShell((s) => thumb && ((!!s.sheet && SHEETS_OVER_PILL.has(s.sheet)) || anyShellPanel(s)));
   const chartUp = useShell((s) => s.sheet === 'timeline');   // (the timeline chart is up: the zoom pill fades out, the chart has its own zoom)
   const testsCls = useTestsAppClasses();   // (dock-open, instrument-focus, tests-grad, dock-side: what the Tests card tells .app)
   const caseOn = useCase((s) => caseBarUp(s.phase)) && mode === 'free';   // (a case plays: its bar stands in the play bar's place, case.css)

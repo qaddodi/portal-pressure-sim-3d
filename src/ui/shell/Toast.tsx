@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { clock } from '../../clock/frame.ts';
-import { useShell } from './store.ts';
+import { useShell, anyShellPanel } from './store.ts';
 import { setFootNote } from './foot-note.ts';
 import { useActionRoom } from '../action/action-room.ts';
 import { D_SMALL, EASE_ARRIVE } from '../motion.ts';
@@ -53,7 +53,7 @@ export function Toast() {
   // Esc lets the note go (only when no sheet or dialog is open, which Esc closes first)
   useEffect(() => {
     if (!t) return;
-    const key = (e: KeyboardEvent) => { const s = useShell.getState(); if (e.key === 'Escape' && !s.sheet && !s.dialog) s.dismissToast(); };
+    const key = (e: KeyboardEvent) => { const s = useShell.getState(); if (e.key === 'Escape' && !s.sheet && !anyShellPanel(s) && !s.dialog) s.dismissToast(); };
     addEventListener('keydown', key);
     return () => removeEventListener('keydown', key);
   }, [!!t]);   // eslint-disable-line react-hooks/exhaustive-deps

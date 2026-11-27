@@ -2,8 +2,10 @@
 // (usePanelOrder, oldest first); when a panel comes up, the table says which open panels it puts away, and each is closed through its own store, exactly as its X would close it.
 // The order is what the right column places its panels by (useColumnStep: the first keeps the right edge, panel-place.ts columnSteps) and what Esc closes first (the newest,
 // keys/escape.ts); a panel opened again while it is open keeps its place in it.
-// A later stage moves History, Compare, Why and the timeline chart out of useShell.sheet (the menus' one slot) into this registry; until then they are read from it here.
-import { useShell } from '../shell/store.ts';
+// History, Compare and Why each have their own open flag (shell/store.ts `panels`); the timeline chart, a panel of the shell since stage 6
+// (bigtime/TimelineSheet.tsx), keeps its open state in the menus' one slot (useShell.sheet), where History's "See as a chart" and its Back route through it (shell/origin.ts).
+// Where every surface is a sheet (a phone, an upright iPad) a menu coming up still takes the place of History, Compare and Why, as it did when they shared its slot.
+import { useShell, SHELL_PANEL_IDS, isShellPanel } from '../shell/store.ts';
 import { useTreat } from '../treat/store.ts';
 import { useTests } from '../tests/store.ts';
 import { useSelection, selectStructure } from '../action/selection.ts';
@@ -11,17 +13,26 @@ import { useUi } from '../ui-store.ts';
 import { surfaceModeNow, useSurfaceMode } from './mode.ts';
 import { putsAway, SLOT_PANELS, type ColumnFits, type SlotPanel } from './slots.ts';
 import { create } from 'zustand';
-import { columnSteps, columnWidth, fitsTogether, panelBand } from './panel-place.ts';
+import { columnSteps, columnWidth, fitsTogether, panelBand, panelPlace, placedBox, PANEL_IN } from './panel-place.ts';
 import { testsPlace } from '../tests/place.ts';
-import type { PanelId } from './kinds.ts';
+import { PANEL_ROLE, SURFACES, type PanelId } from './kinds.ts';
+import { useEffect, useLayoutEffect, useState, type RefObject } from 'react';
+import { publishPanel } from './room.ts';
+import { leaveCss } from './motion.ts';
+import './panel.css';
 
 /** The open panels in the order they came up, oldest first. */
 export const usePanelOrder = create<{ order: readonly SlotPanel[] }>(() => ({ order: [] }));
 export const panelOrder = (): readonly SlotPanel[] => usePanelOrder.getState().order;
 
-const SHELL_PANELS: ReadonlySet<string> = new Set(['history', 'compare', 'why', 'timeline']);
+/** The panels that stand in the menus' slot (useShell.sheet). */
+const SLOT_SHEET_PANELS: ReadonlySet<string> = new Set(['timeline']);
 
-const shellPanel = (id: SlotPanel) => ({
+const shellPanel = (id: 'history' | 'compare' | 'why') => ({
+  open: () => useShell.getState().panels[id],
+  close: () => useShell.getState().closePanel(id),
+});
+const slotPanel = (id: 'timeline') => ({
   open: () => useShell.getState().sheet === id,
   close: () => { if (useShell.getState().sheet === id) useShell.getState().close(); },
 });
@@ -31,13 +42,25 @@ export const PANEL_STATE: Record<SlotPanel, { open(): boolean; close(): void }> 
   tests: { open: () => useTests.getState().open, close: () => useTests.getState().close() },
   treat: { open: () => useTreat.getState().open, close: () => useTreat.getState().setOpen(false) },
   action: { open: () => !!useSelection.getState().sel, close: () => selectStructure(null) },
-  history: shellPanel('history'), compare: shellPanel('compare'), why: shellPanel('why'), timeline: shellPanel('timeline'),
+  history: shellPanel('history'), compare: shellPanel('compare'), why: shellPanel('why'), timeline: slotPanel('timeline'),
 };
 
-/** A panel coming up puts an open menu away (it was chosen from), never a panel standing in the menus' slot (History, Compare, Why, the chart): those are the slot table's. */
+/** A panel coming up puts an open menu away (it was chosen from), never the chart standing in the menus' slot: that is the slot table's. */
 export function closeMenu(): void {
   const sh = useShell.getState();
-  if (sh.sheet && !SHELL_PANELS.has(sh.sheet)) sh.close();
+  if (sh.sheet && !SLOT_SHEET_PANELS.has(sh.sheet)) sh.close();
+}
+
+/** Esc with no menu up: the newest of the shell's panels (History, Compare, Why, the chart) goes. */
+export function closeNewestShellPanel(): void {
+  const sh = useShell.getState();
+  const mine = (p: SlotPanel) => isShellPanel(p) || SLOT_SHEET_PANELS.has(p);
+  const newest = [...panelOrder()].reverse().find((p) => mine(p) && PANEL_STATE[p].open());
+  if (newest) { PANEL_STATE[newest].close(); return; }
+  // (the table is not wired: the slot first, then any panel)
+  if (sh.sheet) { sh.close(); return; }
+  const up = SHELL_PANEL_IDS.find((p) => sh.panels[p]);
+  if (up) sh.closePanel(up);
 }
 
 /** What is open now, of the slot panels (in the table's order; usePanelOrder has them in the order they came up). */
@@ -81,7 +104,13 @@ export function startSlots(): () => void {
     useTests.subscribe((s, prev) => { if (s.open !== prev.open) syncPanels(); }),
     useTreat.subscribe((s, prev) => { if (s.open !== prev.open) syncPanels(); }),
     useSelection.subscribe((s, prev) => { if (!!s.sel !== !!prev.sel) syncPanels(); }),
-    useShell.subscribe((s, prev) => { if (s.sheet !== prev.sheet && (SHELL_PANELS.has(s.sheet ?? '') || SHELL_PANELS.has(prev.sheet ?? ''))) syncPanels(); }),
+    useShell.subscribe((s, prev) => {
+      const menuUp = s.sheet !== prev.sheet && !!s.sheet && !SLOT_SHEET_PANELS.has(s.sheet);
+      // (sheet mode: a menu takes the place of History, Compare and Why, one sheet over the dock at a time, as when they shared its slot)
+      if (menuUp && surfaceModeNow() === 'sheet') for (const p of SHELL_PANEL_IDS) s.closePanel(p);
+      const slotMoved = s.sheet !== prev.sheet && (SLOT_SHEET_PANELS.has(s.sheet ?? '') || SLOT_SHEET_PANELS.has(prev.sheet ?? ''));
+      if (s.panels !== prev.panels || slotMoved) syncPanels();
+    }),
   ];
   return () => { for (const o of offs) o(); usePanelOrder.setState({ order: [] }); };
 }
@@ -94,4 +123,50 @@ export function useColumnStep(id: PanelId): number {
   if (!float || !(order as readonly string[]).includes(id)) return 0;
   const testsW = testsPlace(vp, device, { widthPx }).rect.w;
   return columnSteps(order, (p) => columnWidth(p, vp, device, testsW), panelBand(vp, device).gap)[id] ?? 0;
+}
+
+// The panel shell's hook (surface/Panel.tsx has the header): what every panel shares on a wide screen, on any element. Panel.tsx is this hook on a plain section; Treat and the
+// action card call it on their own 2D markup. It lives with the column order it reads, so the action card in the boot entry brings no file of its own for it.
+/** What the shell puts on a panel's element: its marks (panel.css reads them) and, in float mode, the custom properties that place it. */
+export interface PanelShell { float: boolean; attrs: Record<string, string | boolean | undefined>; vars: Record<string, string> | null }
+
+/** The panel shell for an element the caller draws (Treat and the action card keep their 2D markup and their own sheet mode): the place, the height it publishes to the
+ *  one room channel, the stacking and the motion, in float mode. `Panel` is this hook on a plain section. */
+export function usePanelShell(id: PanelId, open: boolean, own: RefObject<HTMLElement | null>, plate?: boolean): PanelShell {
+  const float = useSurfaceMode() === 'float';
+  const vp = useUi((s) => s.vp), device = useUi((s) => s.device);
+  const step = useColumnStep(id);
+  const z = usePanelOrder((s) => (s.order as readonly string[]).indexOf(id));
+  // (the full-width chart covers the figure: its box is its own card's, bigtime.css, and there is no room beside it to pan the figure to, so it is neither placed nor published)
+  const column = SURFACES[id].column;
+  const place = float && column !== 'full' ? panelPlace(id, vp, device, { step }) : null, placed = !!place;
+  // the box's own height, from an observer (never read in a frame): a fitted panel publishes as much of the room as it takes
+  const [h, setH] = useState(0);
+  useLayoutEffect(() => {
+    const el = own.current;
+    if (!placed || !open || !el || typeof ResizeObserver !== 'function') { setH(0); return; }
+    const ro = new ResizeObserver((es) => { const b = es[0]?.borderBoxSize?.[0], v = Math.round(b ? b.blockSize : es[0]?.contentRect.height ?? 0); setH((o) => (o === v ? o : v)); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [placed, open]);
+  // the one room channel: open in float mode, the box it stands in at rest (its step included); a sheet's room is its own (Treat's, the action card's)
+  const rect = place && open && h > 0 ? placedBox(place, h) : null;
+  const key = rect ? `${rect.x},${rect.y},${rect.w},${rect.h}` : '';
+  useEffect(() => {
+    if (!float) return;
+    publishPanel(id, rect && place ? { rect, side: place.column === 'left' ? 'left' : 'right' } : null);
+    return () => publishPanel(id, null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [float, id, key]);
+  const px = (n: number) => `${Math.round(n)}px`;
+  const vars = place ? {
+    '--pl-x': px(place.rect.x), '--pl-y': px(place.rect.y), '--pl-w': px(place.rect.w), '--pl-max-h': px(place.maxH), '--pl-step': px(place.step),
+    '--pl-in-x': px(place.column === 'left' ? -PANEL_IN : place.column === 'right' ? PANEL_IN : 0), '--pl-z': String(Math.max(0, z)), '--pl-leave': `${leaveCss('panel', 'float')}ms`,
+  } : null;
+  // (the role is the shell's: a panel's box is a non-modal dialog on every device, lint surface-outside-shell)
+  const attrs = {
+    role: PANEL_ROLE, 'data-panel': id, 'data-surface': float ? 'float' : 'sheet', 'data-column': float ? column : undefined,
+    'data-tall': place?.tall || undefined, 'data-plate': plate || undefined,
+  };
+  return { float, attrs, vars };
 }

@@ -29,9 +29,8 @@ const NEVER_OVER: readonly [RegExp, string][] = [
 
 /** the right-hand panels pinned to the right edge, and the file that publishes each one's box to the one room channel (surface/room.ts) */
 function panelOf(sel: string): { key: string; publisher: string; publishes: RegExp } | null {
-  const sheet = /^\.sh-sheet\[data-kind="([a-z]+)"\]$/.exec(sel);
-  if (sheet) return { key: `sheet:${sheet[1]}`, publisher: 'src/ui/shell/Frame.tsx', publishes: /publishPanel\(kind as PanelId, b \? \{ rect: b, side:/ };
-  if (sel === '.treat-card') return { key: 'treat', publisher: 'src/ui/treat/TreatCard.tsx', publishes: /publishPanel\('treat', \{ rect: placedBox\(panelPlace\('treat', vp, device, \{ step \}\), h\), side: 'right' \}\)/ };
+  // (Treat is a panel of the shell: usePanelShell publishes its box in float mode, Panel.tsx)
+  if (sel === '.treat-card') return { key: 'treat', publisher: 'src/ui/treat/TreatCard.tsx', publishes: /usePanelShell\('treat', open, ref, true\)/ };
   if (sel === '.instrument-workspace.side') return { key: 'tests', publisher: 'src/ui/tests/TestsLayer.tsx', publishes: /publishPanel\('tests', up \? \{ rect: place\.rect, side: place\.kind === 'side' \? 'right' : 'foot'/ };
   return null;
 }
@@ -47,7 +46,13 @@ test('every surface that stands at the right edge is a panel that publishes its 
     }
   }
   assert.deepEqual(strays, [], 'a surface pinned to the right edge that is no panel: make it one (it publishes its box), or say here why it never meets the pill');
-  assert.deepEqual([...found].sort(), ['sheet:compare', 'sheet:history', 'sheet:why', 'tests', 'treat']);
+  assert.deepEqual([...found].sort(), ['tests', 'treat']);
+  // (History, Compare and Why no longer pin themselves: the panel shell places every panel by the one rule, and publishes its box)
+  const panel = readFileSync('src/ui/surface/wire.ts', 'utf8'), pcss = readFileSync('src/ui/surface/panel.css', 'utf8');
+  assert.match(panel, /publishPanel\(id, rect && place \? \{ rect, side: place\.column === 'left' \? 'left' : 'right' \} : null\)/);
+  // (every panel but the full-width chart, which covers the figure and takes no room: surface/wire.ts usePanelShell)
+  assert.match(pcss, /\.sf-panel\[data-surface="float"\]:not\(\[data-column="full"\]\) \{[^}]*left: var\(--pl-x\) !important;[^}]*right: auto !important;/);
+  for (const k of ['history', 'compare', 'why']) assert.ok(!rules.some((r) => r.sel.includes(`.sh-sheet[data-kind="${k}"]`) && /(^|;)\s*(right|width):/.test(r.body)), `${k} has no place of its own`);
   // the dead sheet boxes of the surfaces that stopped being Frames (the main menu, Settings, Help, Search) are gone, and with them their reach rules
   for (const [f, css] of all) assert.doesNotMatch(css, /\.sh-sheet\[data-kind="(menu|settings|help|search)"\]/, f);
   assert.doesNotMatch(shell, /--reach-(sheet|tests|treat)/, 'no reach of its own per panel: one rule reads the channel');

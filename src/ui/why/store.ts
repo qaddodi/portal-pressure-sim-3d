@@ -10,7 +10,7 @@ export const useWhy = create<WhyState>(() => ({ metric: null, state: 'loading', 
 /** Open Why? for a metric (a readout's "Why?" link, 2D chart's onWhy). The same metric again closes it. The answer comes from the worker's `explain`. */
 export async function openWhy(metric: string): Promise<void> {
   const sh = useShell.getState();
-  if (sh.sheet === 'why' && useWhy.getState().metric === metric) { sh.close(); return; }
+  if (sh.panels.why && useWhy.getState().metric === metric) { sh.closePanel('why'); return; }
   useWhy.setState({ metric, state: 'loading', result: null });
   sh.open('why');
   try {

@@ -33,6 +33,7 @@ import { fmt } from '../charts/fmt.ts';
 import { useCaseBarUp } from '../case/room.ts';
 import { glideHeight } from '../surface/height-glide.ts';
 import { cardKeys } from './card-keys.ts';
+import { usePanelShell } from '../surface/wire.ts';
 
 // ── the number keys: the card's first nine controls, in the order the card lists them (a slider takes the focus so the arrow keys move it), and its Remove: card-keys.ts ──
 export { triggerCardVerb, removeFromCard, cardIsOpen } from './card-keys.ts';
@@ -228,9 +229,12 @@ export function ActionCard() {
     ro.observe(el);
     return () => { ro.disconnect(); for (const a of run) a.cancel(); };
   }, [open, bottom]);
-  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${sheetFoot(device)}px)`, ...stopVars(stops) } : undefined;
+  // (on a wide screen the panel shell places the card in the left column, at the left column's width and up to its 500 px, and gives its box to the one room channel)
+  const shell = usePanelShell('action', open, ref, true);
+  const style: CSSProperties | undefined = bottom ? { bottom: `calc(var(--safe-b, 0px) + ${sheetFoot(device)}px)`, ...stopVars(stops) } : (shell.vars as CSSProperties | null) ?? undefined;
   return (
-    <section ref={ref} className="ac-card" data-open={open} data-bottom={bottom || undefined} data-device={device} data-sheet={bottom ? sheet.at : undefined} style={style} role="dialog" aria-label="Actions" inert={!open}>
+    <section ref={ref} className="ac-card sf-panel" {...shell.attrs} data-open={open} data-bottom={bottom || undefined} data-device={device} data-sheet={bottom ? sheet.at : undefined}
+      style={style} aria-label="Actions" inert={!open}>
       <i ref={plate} className="ac-plate" aria-hidden="true" />
       <div className="ac-grab" aria-hidden="true"><i /></div>
       <SheetGrab label="Resize the card" onGrab={sheet.grab} bar={false} />

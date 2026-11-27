@@ -11,6 +11,7 @@
 // @ts-ignore plain JS copied from the 2D app
 import { releaseSpeed, carryCurve, cssCurve, D_SMALL, EASE_ARRIVE } from '../tests/copied/ease.copied.js';
 import { follow, glide, type Glide } from '../menu/motion.ts';
+import { PULL_AWAY_FALLBACK_MS, PULL_CLICK_SWALLOW_MS } from './motion.ts';
 import { readStyle } from '../layout-snap.ts';
 import { clock } from '../../clock/frame.ts';
 import { releaseTo, type Detent } from './sheet-stops.ts';
@@ -44,7 +45,7 @@ const scroller = (t: Element, card: HTMLElement): HTMLElement | null => {
   }
   return null;
 };
-const MOVE = 6, RUBBER = 60, CLICK_SWALLOW_MS = 350, AWAY_FALLBACK_MS = 700;
+const MOVE = 6, RUBBER = 60;
 const ty = (el: HTMLElement) => (v: number) => { el.style.translate = v ? `0px ${v}px` : ''; };
 const TAIL = '--sheet-tail';
 const tail = (el: HTMLElement, px: number) => { if (px > 0) el.style.setProperty(TAIL, `${Math.ceil(px)}px`); else el.style.removeProperty(TAIL); };
@@ -57,7 +58,7 @@ function awaitReopen(pos: HTMLElement): void {
   const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => { const now = shut(); if (now) seenShut = true; else if (seenShut) clear(); });
   mo?.observe(pos, { attributes: true, attributeFilter: ['data-open', 'inert', 'hidden'] });
   // (a close that did not happen: the sheet comes back as it is)
-  const tm = clock.after(() => { if (!shut()) clear(); }, AWAY_FALLBACK_MS);
+  const tm = clock.after(() => { if (!shut()) clear(); }, PULL_AWAY_FALLBACK_MS);
 }
 
 /** Wires the pull to the sheet (`card`, what the finger is on) and the box that moves (`pos`, the same element for most sheets). Returns the remover. */
@@ -120,7 +121,7 @@ export function attachSheetPull(card: HTMLElement, pos: HTMLElement, api: PullAp
     if (!s || (e && e.pointerId !== s.id)) return;
     st = null;
     if (!s.moved) return;
-    swallow = clock.now() + CLICK_SWALLOW_MS;
+    swallow = clock.now() + PULL_CLICK_SWALLOW_MS;
     s.m?.flush(); s.m?.stop();
     // (px per ms down, as the finger lifted)
     const speed: number = releaseSpeed(s.trail, clock.now());

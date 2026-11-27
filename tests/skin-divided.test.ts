@@ -14,7 +14,7 @@ import { leavingOf, partOf, partSpecs } from '../src/scene/vessels/skin/plain.ts
 import { THROUGH_DEG } from '../src/scene/vessels/skin/through.ts';
 import { foldedTriangles } from '../src/scene/vessels/skin/mesh.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
-import { DIVIDED, divideOf, stumpOf } from '../src/scene/vessels/divide.ts';
+import { DIVIDED, divideOf, fitStump, stumpOf } from '../src/scene/vessels/divide.ts';
 import { PINCH_W } from '../src/scene/vessels/glsl-shared.ts';
 import { UNITS_PER_SCENE } from '../src/scene/frame2d.ts';
 import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
@@ -169,4 +169,25 @@ test('partOf / partSpecs: the leave part takes the leaving arms out and nothing 
   assert.equal(partOf(plan, [2], true)!.junction.node, 'N~with2~leave');
   const flat = { junction: { node: 'M', arms: [arm('A', false), arm('B', false), arm('G', true)] }, cuts: [] } as never as Parameters<typeof partOf>[0];
   assert.deepEqual(partSpecs(flat), []);
+});
+
+test('the stump lies inside the tube\'s own stretch: its round end and its tie end before the far skin\'s seam, so the skin\'s open ring is never the end (27 Nov: the tied-off splenic vein ended in a flat disc)', () => {
+  // the rule: a stump that overran the seam is brought back so the tie's pinch ends a unit before it; one that fits is left alone
+  assert.deepEqual(fitStump(10, 20, 100), [10, 20], 'a stump that fits is not moved');
+  const [c, t] = fitStump(45.3, 57.5, 43.1);
+  assert.ok(Math.abs(t + PINCH_W - (43.1 - 1)) < 1e-9, `the pinch ends a unit before the seam (tie ${t.toFixed(2)})`);
+  assert.ok(Math.abs(45.3 - c - (57.5 - t)) < 1e-9, 'the cut and the tie move together');
+  // the figure: the divided vein's far seam, where the skin takes the vein over, is past the fitted stump (the cap is one radius past the cut, the tie past the cap and the pinch)
+  const b = built(() => false);
+  try {
+    for (const [shunt, vein] of DIVIDED) {
+      const v = NETWORK_BY_ID.get(vein)!, R = v.radius * UNITS_PER_SCENE, d = divideOf(shunt, vein)!;
+      let seam = Infinity;
+      for (const j of findSkinJunctions()) for (const a of j.arms) if (a.vesselId === vein && a.end === 1) { const m = b.set.skinOf(j.node); const k = m?.cuts.find((q) => q.vesselId === vein && q.end === 1); if (k) seam = k.u; }
+      const len = (b.scene.vesselObject(vein) as VesselObject).toon.uniforms.len!.value as number * UNITS_PER_SCENE;
+      const [cut, tie] = Number.isFinite(seam) ? fitStump(d.cut, d.tie, seam * len) : [d.cut, d.tie];
+      if (Number.isFinite(seam)) assert.ok(tie + PINCH_W <= seam * len + 1e-6, `${vein}: the tie's pinch ends at ${(tie + PINCH_W).toFixed(1)}, the skin's seam is at ${(seam * len).toFixed(1)}`);
+      assert.ok(tie - cut >= R + PINCH_W - 1e-9, `${vein}: the tie stays past the round end`);
+    }
+  } finally { done(b); }
 });

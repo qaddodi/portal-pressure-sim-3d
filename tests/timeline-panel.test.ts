@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { stdWidth, TALL } from '../src/ui/surface/panel-place.ts';
 import { stripScene, stripAxis, STRIP_METRICS } from '../src/ui/timeline/strip.ts';
 import { viewOf, momentKey } from '../src/ui/timeline/story-view.ts';
 import { Timeline, type TimelineHost } from '../src/ui/timeline/model.ts';
@@ -83,9 +84,10 @@ test('the panel keeps the rules: a scroll moves only the playhead (no restore, n
   assert.match(src, /clock\.on\('tween', apply/);
   assert.match(src, /style\.transform = `translateX\(/);
   const css = readFileSync('src/ui/history/history.css', 'utf8');
-  assert.match(css, /\.sh-sheet\[data-kind="history"\] \{ width: var\(--panel-std\)/, 'Mac and iPad on its side: History is the right column\'s standard width');
+  assert.equal(stdWidth(1440), 420, 'Mac and iPad on its side: History is the right column\'s standard width, placed by the panel shell');
+  assert.ok(TALL.has('history'), 'and as tall as the room');
   assert.match(readFileSync('src/ui/shell/shell.css', 'utf8'), /--panel-std: clamp\(290px, 38vw, 420px\)/, '420 px at the right (owner, 27 Nov, section 6 question 3)');
-  assert.match(css, /\[data-device="phone-landscape"\] \.sh-sheet\[data-kind="history"\] \{\s*left:[^}]*width: clamp\(290px, 38vw, 360px\)/, 'held sideways: the one column at the left');
+  assert.equal(stdWidth(844), 321, 'held sideways: the right column, 38 % of the screen');
   assert.match(css, /\.hs-ch-h \{ position: sticky;[^}]*background: var\(--surface\)/, 'the chapter headings are solid where they stick (no blur to ghost through)');
 });
 

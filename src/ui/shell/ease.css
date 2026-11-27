@@ -1,8 +1,8 @@
 /* Nothing changes state in one frame (owner, 20 Nov: "when changing ANYTHING there should be a transition"): every shell and card control eases its fill, ink, edge and
    movement when it is pressed, selected, switched or hovered. Zero weight (:where), so a control's own transition (a sheet's slide, a switch's thumb) always wins. */
-:where(.sh-row, .sh-seg-row button, .sh-tabs button, .sh-hit-row, .sh-x, .sh-sw, .ac-seg button, .ac-switch, .ac-switch i, .ac-x, .ac-back, .ac-btn, .look-tile, .look-tile *, .lens, .um-row, .menu button, .umenu button, .ac-name-btn .ac-chev, .hist-ic, .sh-info) {
+:where(.sh-row, .sh-seg-row button, .sh-tabs button, .sh-hit-row, .sh-sw, .ac-seg button, .ac-switch, .ac-switch i, .ac-x, .ac-back, .ac-btn, .look-tile, .look-tile *, .lens, .um-row, .menu button, .umenu button, .ac-name-btn .ac-chev, .hist-ic, .sh-info) {
   transition: background-color var(--d-small) var(--ease-arrive), color var(--d-small) var(--ease-arrive),
     border-color var(--d-small) var(--ease-arrive), box-shadow var(--d-small) var(--ease-arrive),
     opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive);
 }
-@media (prefers-reduced-motion: reduce) { :where(.sh-row, .sh-seg-row button, .sh-tabs button, .sh-hit-row, .sh-x, .sh-sw, .ac-seg button, .ac-switch, .ac-switch i, .ac-x, .ac-back, .ac-btn, .look-tile, .look-tile *, .lens, .um-row, .menu button, .umenu button, .ac-name-btn .ac-chev, .hist-ic, .sh-info) { transition: none; } }
+@media (prefers-reduced-motion: reduce) { :where(.sh-row, .sh-seg-row button, .sh-tabs button, .sh-hit-row, .sh-sw, .ac-seg button, .ac-switch, .ac-switch i, .ac-x, .ac-back, .ac-btn, .look-tile, .look-tile *, .lens, .um-row, .menu button, .umenu button, .ac-name-btn .ac-chev, .hist-ic, .sh-info) { transition: none; } }

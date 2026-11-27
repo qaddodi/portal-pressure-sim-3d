@@ -80,6 +80,9 @@ export function widthPx(e: Edge, dmm: number): number {
   const whole = (PART_OF as Record<string, string | undefined>)[e.id] ?? e.id;
   let w = vesselPx(IVC_EDGES.has(e.id) ? IVC_ONE_D() : dmm) * (IVC_EDGES.has(e.id) || whole === 'SVC_RA' || whole === 'V_UP' ? 0.72 : 1);
   if (e.id === 'C8') w *= 0.6;
+  // (the spontaneous splenorenal shunt is a collateral, not a second splenic vein: at its 12 mm it was 1.3 times the splenic vein's radius
+  //  and the widest vessel at the splenic junction. Mohammad, 27 Nov: "the shunt itself is really thick, make it thinner")
+  if (e.id === 'C6') w *= 0.65;
   if (e.id === 'C3') w *= 0.6;   // the paraumbilical vein is a branch of the left portal vein, not as wide as it: it leaves it as a filleted Y (the fork rule), not a blunt stack of equal tubes (Mohammad, 20 Nov)
   if (whole === 'LGV_CONF') w *= 0.85;
   return w;

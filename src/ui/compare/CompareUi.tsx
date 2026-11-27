@@ -1,7 +1,6 @@
 // Compare on screen (2D main.js renderBanner, compare.js section): the switch under the top bar (Then, Now, Change and the Differences button), the "Showing <then>" badge, and the
 // Differences table. They are always in the page and fade (opacity), never pop. The table is rebuilt only when a shown number changes.
 import { useEffect, useState } from 'react';
-import { Frame } from '../shell/Frame.tsx';
 import { Icon } from '../shell/icons.tsx';
 import { useShell } from '../shell/store.ts';
 import { useEngine, latest, patient } from '../../engine/index.ts';
@@ -41,13 +40,14 @@ function Card({ cls, letter, kicker, name, detail }: { cls: 'a' | 'b'; letter: s
 }
 
 /** The pinned moment against the live model: both states named, every difference tabulated. The pinned one is kept while the sheet fades out. */
-function Differences() {
+/** The Differences table (the panel that holds it is compare/DifferencesSheet.tsx, in the sheets' chunk: the banner here is in the boot entry). */
+export function Differences() {
   const snap = useCompare((s) => s.snap);
-  const open = useShell((s) => s.sheet === 'compare');
+  const open = useShell((s) => s.panels.compare);
   const tick = useClock(open && !!snap, 500);   // (the table follows the model while it is open: frames come ten times a second, the table is rebuilt only when a shown number changes)
   const [kept, setKept] = useState(snap);
   useEffect(() => { if (snap) setKept(snap); }, [snap]);
-  useEffect(() => { if (!snap && open) useShell.getState().close(); }, [snap, open]);
+  useEffect(() => { if (!snap && open) useShell.getState().closePanel('compare'); }, [snap, open]);
   useEngine((s) => s.status);
   const A = snap ?? kept;
   if (!A) return null;
@@ -82,8 +82,4 @@ function Differences() {
       <p className="cmp-hint">{CMP.hint}</p>
     </>
   );
-}
-
-export function DifferencesSheet() {
-  return <Frame kind="compare" label={CMP.tableBtn} head={CMP.tableBtn}><div className="cmp-section"><Differences /></div></Frame>;
 }

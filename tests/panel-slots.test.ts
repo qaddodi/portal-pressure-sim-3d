@@ -64,7 +64,27 @@ test('the order is kept by the wire: what came up joins at the end, a panel open
   assert.match(wire, /order = \[\.\.\.order\.filter\(\(q\) => !away\.includes\(q\)\), p\]/);
   assert.match(wire, /if \(!open\.has\(p\) \|\| order\.includes\(p\)\) continue;/, 'a panel already in the order keeps its place');
   assert.match(wire, /putsAway\(p, order, surfaceModeNow\(\), fitsNow\(order\.includes\('action'\)\)\)/, 'the fit is the screen\'s (panel-place.ts fitsTogether)');
-  assert.match(readFileSync('src/ui/keys/useKeys.ts', 'utf8'), /\.\.\.escPanels\(sh\.sheet\)/);
+  assert.match(readFileSync('src/ui/keys/useKeys.ts', 'utf8'), /\.\.\.escPanels\(sh\)/);
+});
+
+test('History, Compare and Why have their own open flags: a menu opens over them, two stand together, and only a phone\'s menu still takes their place', async () => {
+  const { useShell } = await import('../src/ui/shell/store.ts');
+  const st = () => useShell.getState();
+  useShell.setState({ sheet: null, panels: { history: false, compare: false, why: false }, cameFrom: null });
+  st().open('history');
+  assert.equal(st().panels.history, true); assert.equal(st().sheet, null, 'the menus\' slot is left alone');
+  st().open('settings');
+  assert.equal(st().panels.history, true, 'Settings opens over History (the owner\'s Mac: opening Settings closed it)');
+  st().open('compare');
+  assert.deepEqual(st().panels, { history: true, compare: true, why: false }, 'History and Compare stand together (the slot table decides what fits)');
+  assert.equal(st().sheet, null, 'the menu the panel was chosen from goes');
+  st().toggle('compare'); assert.equal(st().panels.compare, false);
+  st().close(); assert.equal(st().panels.history, true, 'close() is the menus\' slot only');
+  st().closePanel('history'); assert.equal(st().panels.history, false);
+  const wire = readFileSync('src/ui/surface/wire.ts', 'utf8');
+  assert.match(wire, /history: shellPanel\('history'\), compare: shellPanel\('compare'\), why: shellPanel\('why'\)/);
+  assert.match(wire, /open: \(\) => useShell\.getState\(\)\.panels\[id\]/, 'the wire reads each panel\'s own flag');
+  assert.match(wire, /if \(menuUp && surfaceModeNow\(\) === 'sheet'\) for \(const p of SHELL_PANEL_IDS\) s\.closePanel\(p\);/, 'sheet mode as before: one sheet over the dock');
 });
 
 test('the slot rules live in the table, not in hand-written subscriptions; menus no longer put Treat away', () => {

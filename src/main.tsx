@@ -23,6 +23,7 @@ import { useEngine } from './engine/index.ts';
 import { App } from './App.tsx';
 import { mountPerf } from './ui/perf/mount.ts';
 import { hasWebGL2, softwareRenderer } from './boot/webgl.ts';
+import { layoutOnly } from './boot/layout-only.ts';
 import { NoWebGL } from './ui/shell/NoWebGL.tsx';
 import { BootCrash } from './ui/shell/BootCrash.tsx';
 import { AppBoundary } from './ui/shell/AppBoundary.tsx';
@@ -77,10 +78,11 @@ window.addEventListener('vite:preloadError', () => {
 async function start() {
   // The stylesheets are loaded beside the cover's first paint, not in front of it (boot/styles.ts): nothing is put in #root until they are all on, so no part of the app is ever drawn unstyled.
   const styles = appStylesReady();
-  if (!hasWebGL2()) { await styles; createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
+  const noGpu = layoutOnly();   // ?layout: no figure is drawn, so no WebGL is needed (boot/layout-only.ts)
+  if (!noGpu && !hasWebGL2()) { await styles; createRoot(document.getElementById('root')!).render(<StrictMode><NoWebGL /></StrictMode>); return; }
   // A software renderer (no GPU behind WebGL) takes the lite figure before anything is drawn; a person who has already chosen, either way, is never
   // overruled (state/lite.ts). Slow first frames decide later, in Stage.
-  if (useSettings.getState().liteBy === null && softwareRenderer()) useSettings.getState().setLite(true, 'device');
+  if (!noGpu && useSettings.getState().liteBy === null && softwareRenderer()) useSettings.getState().setLite(true, 'device');
   // The scene is built a step per task while the worker computes the first patient and the fonts and the baked files arrive: no one task is the whole scene, so the cover's bar and the browser's input run between the steps.
   const sceneBuilt = buildSceneSliced(nextTask).then(wireScene);
   // (each wait is a startup span, `wait:<name>` until it settled: ?perf then says which of them held "engine ready" back)

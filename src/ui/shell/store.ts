@@ -7,9 +7,17 @@ import type { ViewId } from './views.ts';
 import type { LensId } from '../../scene/lenses/model.ts';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
-export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'history' | 'compare' | 'why' | 'guide' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | 'readings' | 'timeline' | null;
-/** Where a sheet was opened from, so its Back returns there: a sheet, and for Settings the page that was pushed (History). */
-export interface Origin { sheet: Exclude<Sheet, null>; page?: 'history' }
+/** What stands in the menus' one slot: a menu (or the timeline chart, until it is a panel). Opening one closes the one before it. */
+export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'guide' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | 'readings' | 'timeline' | null;
+/** The panels of the shell that stood in the menus' slot until stage 2 of the menu unification: each has its own flag (`panels`), so a menu opens over them
+ *  and History and Compare stand together; the slot table (surface/wire.ts) says which panels a panel coming up puts away. */
+export const SHELL_PANEL_IDS = ['history', 'compare', 'why'] as const;
+export type ShellPanelId = (typeof SHELL_PANEL_IDS)[number];
+export const isShellPanel = (p: string | null | undefined): p is ShellPanelId => p === 'history' || p === 'compare' || p === 'why';
+/** What can be opened by name: a sheet of the menus' slot or a panel of the shell. */
+export type Place = Exclude<Sheet, null> | ShellPanelId;
+/** Where a sheet or a panel was opened from, so its Back returns there: a sheet or a panel, and for Settings the page that was pushed (History). */
+export interface Origin { sheet: Place; page?: 'history' }
 export type MenuTab = 'present' | 'patients' | 'histories';
 /** The ten lenses of the 2D menu, in its order (the scene's own list also holds the two a slide uses). */
 export const LENS_IDS: readonly LensId[] = UI.lenses.map((l) => l.id as LensId);
@@ -34,6 +42,8 @@ interface ShellState {
   /** the views the scene can draw (Anatomy now; the Circuit and the lobule batches turn theirs on with `markViewReady`) */
   ready: Record<ViewId, boolean>;
   sheet: Sheet;
+  /** which panels of the shell are open (History, Compare, Why), each on its own */
+  panels: Record<ShellPanelId, boolean>;
   /** a small dialog over everything (Reset everything?) */
   dialog: 'reset' | 'about' | 'privacy' | null;
   /** the About page's section to scroll to (References) */
@@ -44,7 +54,7 @@ interface ShellState {
   /** the page Settings is asked to push as it opens (History, from the chart's "What happened" on a phone); Settings takes it and clears it (settings/SettingsSheet.tsx) */
   settingsPage: 'history' | null;
   /** the sheet `to` was opened from `from` (goFrom); cleared as soon as another sheet is up or none is (below), so a later plain opening of `to` has no origin */
-  cameFrom: { to: Exclude<Sheet, null>; from: Origin } | null;
+  cameFrom: { to: Place; from: Origin } | null;
   toast: Toast | null;
   /** The note's clock, drawn as the rule under it (Toast.tsx): it shortens from `from` (share of the note's time left) to nothing over `ms`; paused while held; null for a sticky note. */
   toastRun: ToastRun | null;
@@ -55,16 +65,22 @@ interface ShellState {
   refit: number;
   /** a card or other sheet outside the shell is open (Esc closes that first) */
   set(p: Partial<ShellState>): void;
-  open(sheet: Exclude<Sheet, null>): void;
-  /** Go to `to` from `from` (what is up now): `to` remembers where it came from.
+  /** Opens a sheet (in place of the one in the menus' slot) or a panel (beside the panels up; the menu or chart it was chosen from goes). */
+  open(sheet: Place): void;
+  /** Go to `to` from `from` (what is up now, which it takes the place of): `to` remembers where it came from.
    *  For Settings, `page` is the page pushed as it opens (History: it slides in from the right over the rows, as a tapped row's page does). */
-  goFrom(from: Origin, to: Exclude<Sheet, null>, page?: 'history'): void;
-  /** Back: return to where the sheet up now was opened from, or close it when it was opened on its own. One rule for the chart, History and Settings' pages, on every device. */
-  returnBack(): void;
+  goFrom(from: Origin, to: Place, page?: 'history'): void;
+  /** Back from `here` (the sheet in the slot when left out): return to where it was opened from, or close it when it was opened on its own. One rule for the chart, History and
+   *  Settings' pages, on every device. */
+  returnBack(here?: Place): void;
+  /** Closes the sheet in the menus' slot (never a panel: `closePanel`). */
   close(): void;
+  closePanel(id: ShellPanelId): void;
+  /** Closes the sheet and every panel of the shell (a talk starting, a capture of the bare figure). */
+  closeAll(): void;
   /** Close from a press that may be on the sheet's own opener (a scrim or backdrop press): the opener's click that follows does not reopen it. */
   closeByPress(): void;
-  toggle(sheet: Exclude<Sheet, null>): void;
+  toggle(sheet: Place): void;
   /** One line at the foot; with an `action` it stays ACTION_MS and carries a button (Send feedback's "Copy full report"). */
   say(text: string, tone?: 'info' | 'bad', action?: ToastAction, sticky?: boolean): void;
   /** A finger or the pointer is on the note (true) or has left it (false): it stays while held, then fades TOAST_LINGER_MS after. A sticky note is never timed. */
@@ -100,33 +116,54 @@ export const ACTION_MS = 9000;
  *  finds the scrim gone and toggles the sheet straight back open (owner, 23 Nov, iPhone: tapping Settings again did not close it). `closeByPress` records the sheet it closed; `toggle` of that same sheet is
  *  then ignored until the next press starts (or PRESS_CLOSE_MS passes), so the tail of the closing tap never reopens what it closed. One rule for every opener of every sheet. */
 export const PRESS_CLOSE_MS = 1500;
-let pressClosed: { sheet: Exclude<Sheet, null>; at: number } | null = null;
+let pressClosed: { sheet: Place; at: number } | null = null;
 if (typeof window !== 'undefined') window.addEventListener('pointerdown', () => { pressClosed = null; }, true);   // (capture: a new press clears it before any handler of that press sets it again)
-const reopenedByTail = (sheet: Exclude<Sheet, null>): boolean => {
+const reopenedByTail = (sheet: Place): boolean => {
   const p = pressClosed; pressClosed = null;
   return !!p && p.sheet === sheet && clock.now() - p.at < PRESS_CLOSE_MS;
 };
 
+const NO_PANELS: Record<ShellPanelId, boolean> = { history: false, compare: false, why: false };
+type Up = Pick<ShellState, 'sheet' | 'panels'>;
+/** Whether `p` is up: a panel by its flag, a sheet by the slot. */
+export const isUp = (s: Up, p: Place): boolean => (isShellPanel(p) ? s.panels[p] : s.sheet === p);
+/** Any panel of the shell is up. */
+export const anyShellPanel = (s: Pick<ShellState, 'panels'>): boolean => s.panels.history || s.panels.compare || s.panels.why;
+/** The state that shows `p`: a panel joins the panels up and the sheet it was chosen from goes; a sheet takes the slot. */
+const showing = (s: Up, p: Place): Partial<ShellState> => (isShellPanel(p) ? { panels: { ...s.panels, [p]: true }, sheet: null } : { sheet: p });
+/** The state that puts `p` away (nothing changes when it is not up). */
+const hiding = (s: Up, p: Place): Partial<ShellState> => (!isUp(s, p) ? {} : isShellPanel(p) ? { panels: { ...s.panels, [p]: false } } : { sheet: null });
+
 export const useShell = create<ShellState>((set, get) => ({
   view: 'anatomic',
   ready: { circuit: true, anatomic: true, lobule: true, sinusoid: true },
-  sheet: null, dialog: null, aboutSection: null, menuTab: 'present', menuQuery: '', helpSection: null, settingsPage: null, cameFrom: null, toast: null, toastRun: null,
+  sheet: null, panels: NO_PANELS, dialog: null, aboutSection: null, menuTab: 'present', menuQuery: '', helpSection: null, settingsPage: null, cameFrom: null, toast: null, toastRun: null,
   figure: loadFigure(),
   transport: { running: false, speed: 1, lapse: 0, time: '0:00', day: 0 },
   patientId: 'healthy',
   refit: 0,
   set: (p) => set(p),
-  open: (sheet) => set({ sheet }),
-  goFrom: (from, to, page) => set({ sheet: to, settingsPage: to === 'settings' ? (page ?? null) : null, cameFrom: { to, from } }),
-  returnBack: () => {
-    const { sheet, cameFrom } = get();
-    if (!sheet) return;
-    if (cameFrom && cameFrom.to === sheet) set({ sheet: cameFrom.from.sheet, settingsPage: cameFrom.from.page ?? null, cameFrom: null });
-    else set({ sheet: null });
+  open: (sheet) => set(showing(get(), sheet)),
+  goFrom: (from, to, page) => {
+    const s = get(), left = { ...s, ...hiding(s, from.sheet) };
+    set({ ...hiding(s, from.sheet), ...showing(left, to), settingsPage: to === 'settings' ? (page ?? null) : null, cameFrom: { to, from } });
+  },
+  returnBack: (here) => {
+    const s = get(), at = here ?? s.sheet;
+    if (!at || !isUp(s, at)) return;
+    const left = { ...s, ...hiding(s, at) };
+    if (s.cameFrom && s.cameFrom.to === at) set({ ...hiding(s, at), ...showing(left, s.cameFrom.from.sheet), settingsPage: s.cameFrom.from.page ?? null, cameFrom: null });
+    else set(hiding(s, at));
   },
   close: () => { if (get().sheet) set({ sheet: null }); },
+  closePanel: (id) => { const s = get(); if (s.panels[id]) set(hiding(s, id)); },
+  closeAll: () => { const s = get(); if (s.sheet || anyShellPanel(s)) set({ sheet: null, panels: NO_PANELS }); },
   closeByPress: () => { const sheet = get().sheet; if (!sheet) return; pressClosed = { sheet, at: clock.now() }; set({ sheet: null }); },
-  toggle: (sheet) => { if (get().sheet !== sheet && reopenedByTail(sheet)) return; set({ sheet: get().sheet === sheet ? null : sheet }); },
+  toggle: (sheet) => {
+    const s = get();
+    if (!isUp(s, sheet) && reopenedByTail(sheet)) return;
+    set(isUp(s, sheet) ? hiding(s, sheet) : showing(s, sheet));
+  },
   say: (text, tone = 'info', action, sticky = false) => {
     clock.cancel(toastTimer);
     // (a sticky note, the first-run hint, stays until its owner closes it, as 2D's toast with `sticky`)
@@ -160,5 +197,5 @@ export const useShell = create<ShellState>((set, get) => ({
   markViewReady: (v) => set({ ready: { ...get().ready, [v]: true } }),
 }));
 
-// An origin belongs to the sheet it was made for: when another sheet is up, or none, it is gone.
-useShell.subscribe((s) => { const c = s.cameFrom; if (c && s.sheet !== c.to) useShell.setState({ cameFrom: null }); });
+// An origin belongs to the sheet or panel it was made for: when that is no longer up, it is gone (a menu opened over a panel leaves the panel's origin as it was).
+useShell.subscribe((s) => { const c = s.cameFrom; if (c && !isUp(s, c.to)) useShell.setState({ cameFrom: null }); });

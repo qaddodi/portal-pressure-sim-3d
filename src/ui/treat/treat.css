@@ -41,7 +41,9 @@ html .treat-card.tr-card.has-plate { clip-path: none !important; }
 .treat-card.tr-card[data-bottom="true"][data-page] { height: var(--sf-full, var(--tr-full)); }
 /* the sheet's tail (surface/sheet-pull.ts): its paper reaches down past its foot while a pull lifts it, so no gap shows under it */
 .treat-card.tr-card.has-plate[data-bottom="true"] > .sheet-plate { bottom: calc(0px - var(--sheet-tail, 0px)); }
-/* a phone held sideways is not the thumb layout: 2D's floating card, which the base rule places */
+/* a phone held sideways is not the thumb layout: a panel of the shell in the right column, as on a wide screen (surface/panel.css places it); 2D's sheet across the foot
+   gives way, its top-only corners and its notch padding with it */
+:root .treat-card.tr-card.sf-panel[data-surface="float"] { border-radius: var(--r-sheet); padding: 0; }
 .treat-card.tr-card .tc-head { touch-action: none; }
 .treat-card.tr-card[data-bottom="true"] .tc-head { cursor: grab; }
 

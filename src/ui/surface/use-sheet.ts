@@ -10,7 +10,7 @@ import { grabStep, PANEL_FITS, stopsFor, stopVars, type Detent, type SheetPanel,
 import { useSurfaceMode } from './mode.ts';
 import { useUi } from '../ui-store.ts';
 import { useCaseBarUp } from '../case/room.ts';
-import { useShell } from '../shell/store.ts';
+import { useShell, isShellPanel } from '../shell/store.ts';
 import { readMetric } from '../layout-snap.ts';
 import { reduced } from '../a11y/motion.ts';
 // (what a pulled sheet, its grab bar and its Peek look like; kept out of node tests, which import sheet-pull.ts alone)
@@ -83,9 +83,10 @@ export function useFrameSheet(kind: string, ref: RefObject<HTMLElement | null>, 
   const vp = useUi((s) => s.vp), device = useUi((s) => s.device), sheet = useSurfaceMode() === 'sheet';
   const caseUp = useCaseBarUp();
   const stops = useMemo(() => stopsFor(vp, device, PANEL_FITS[panel ?? 'history']), [vp, device, panel, caseUp]);  // eslint-disable-line react-hooks/exhaustive-deps
-  const ctl = usePanelSheet({ ref, on: !!panel && sheet && open, stops, close: closeShell, tag: `${kind}-sheet` });
+  const ctl = usePanelSheet({ ref, on: !!panel && sheet && open, stops, close: closeShell(kind), tag: `${kind}-sheet` });
   if (!panel) return null;
   // (`data`: the stop as the stylesheet reads it, only while it is a sheet)
   return sheet ? { ...ctl, style: stopVars(stops) as CSSProperties, data: ctl.at } : ctl;
 }
-const closeShell = () => useShell.getState().close();
+// (History, Compare and Why have their own open flags, shell/store.ts `panels`; anything else stands in the menus' slot)
+const closeShell = (kind: string) => () => { const sh = useShell.getState(); if (isShellPanel(kind)) sh.closePanel(kind); else sh.close(); };

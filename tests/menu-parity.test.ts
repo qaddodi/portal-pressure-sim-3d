@@ -141,7 +141,9 @@ test('every phone sheet stands in one clip box that ends 12 px inside the dock t
   assert.ok(!/clip-path/.test(src('src/ui/shell/SheetClip.tsx').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')));
   // every sheet kind is mounted in one, and the menus that mount only while open are put there
   const sheets = src('src/ui/shell/Sheets.tsx');
-  assert.ok(/<SheetClip id="sheets">[\s\S]*<UMenu \/>[\s\S]*<LayersSheet \/>[\s\S]*<SettingsSheet[\s\S]*<HistorySheet \/>[\s\S]*<SearchSheet \/>[\s\S]*<HelpMenu \/>[\s\S]*<\/SheetClip>/.test(sheets));
+  assert.ok(/<SheetClip id="sheets">[\s\S]*<UMenu \/>[\s\S]*<LayersSheet \/>[\s\S]*<SettingsSheet[\s\S]*<SearchSheet \/>[\s\S]*<HelpMenu \/>[\s\S]*<\/SheetClip>/.test(sheets));
+  // (History, Compare and Why are panels since stage 2: they stand in the cards' clip, through InApp)
+  assert.ok(/<InApp>(?:(?!<\/InApp>)[\s\S])*<HistorySheet \/>/.test(sheets));
   assert.ok(/<SheetClip id="cards">/.test(src('src/ui/shell/InApp.tsx')) && /<SheetClip id="tests">/.test(src('src/ui/tests/TestsLayer.tsx')));
   const shell = src('src/ui/surface/Menu.tsx');
   assert.ok(/sheetRoot\(\)/.test(shell) && !/querySelector\('\.sh-root'\)/.test(shell), 'the menu shell mounts its menus in the clip');

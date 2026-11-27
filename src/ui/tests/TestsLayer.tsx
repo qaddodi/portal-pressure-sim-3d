@@ -29,7 +29,7 @@ import { PressureTab } from './trace/PressureTab.tsx';
 import { startFeed } from './feed.ts';
 import { notYet } from '../shell/words.ts';
 import { probeSelected, handOverStent } from './from-orders.ts';
-import { useThumb } from '../shell/thumb.ts';
+import { useSurfaceMode } from '../surface/mode.ts';
 import { need, needAll, LOADERS } from './dock/lazy.ts';
 import { usePaneSwap } from './dock/swap.ts';
 import { attachTabSwipe, type TabSwipeApi } from '../surface/tab-swipe.ts';
@@ -38,6 +38,7 @@ import { attachDivider, removeGuide } from './dock/resize.ts';
 import { attachSheetPull, easeBack } from '../surface/sheet-pull.ts';
 import { grabStep, type Detent } from '../surface/sheet-stops.ts';
 import { SheetGrab } from '../surface/parts.tsx';
+import { PANEL_ROLE } from '../surface/kinds.ts';
 import { glideFigures } from './dock/figure-glide.ts';
 import { publishSideWidth } from './dock/app-classes.ts';
 import { useTestsStatus } from './dock/status.ts';
@@ -106,7 +107,8 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   const widthPx = useTests((s) => s.widthPx), heightRatio = useTests((s) => s.heightRatio), sheetSize = useTests((s) => s.sheetSize);
   const show = useTests((s) => s.show), close = useTests((s) => s.close);
   const vp = useUi((s) => s.vp), device = useUi((s) => s.device);
-  const thumb = useThumb();
+  // (a sheet exactly when every surface is one: surface/mode.ts)
+  const thumb = useSurfaceMode() === 'sheet';
   const focus = tstate === 'focus';
   // (a playing case's bar raises the foot a sheet rests on: case/room.ts)
   const caseUp = useCaseBarUp();
@@ -304,7 +306,7 @@ export function TestsLayer({ away = false }: { away?: boolean }) {
   const dividerNow = side ? Math.round((place.rect.w / Math.max(1, vp.w)) * 100) : Math.round(((heightRatio ?? place.rect.h / Math.max(1, vp.h))) * 100);
   return (
     <SheetClip id="tests"><div ref={posRef} className="t-pos" data-open={open} data-cold={open && swap.cold ? "true" : undefined} data-live={open} data-narrow={narrow} data-kind={place.kind} data-thumb={thumb} data-device={device} data-away={away || undefined} style={style}>
-      <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}${place.kind === 'sheet' && sheetSize === 0 ? ' sheet-half' : ''}`} id="dock" role="dialog" aria-label="Tests" data-state={tstate} data-peek={peeking || undefined} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
+      <section ref={cardRef} className={`t-card dock instrument-workspace float-ui stage-blocker${side ? ' side' : ''}${picking ? ' picking' : ''}${place.kind === 'sheet' && sheetSize === 0 ? ' sheet-half' : ''}`} id="dock" role={PANEL_ROLE} aria-label="Tests" data-state={tstate} data-peek={peeking || undefined} data-safe={side ? 'right' : 'bottom'} inert={!open} style={card} onKeyDown={onCardKey}>
         <SheetGrab className="sheet-grab" label="Resize the Tests card" onGrab={onGrab} />
         <div ref={dividerRef} className="workspace-divider" role="separator" tabIndex={0} aria-label="Instruments size" aria-orientation={side ? 'vertical' : 'horizontal'} aria-valuenow={dividerNow} hidden={tstate !== 'open' || (side && device !== 'phone-landscape')}><span /></div>
         <PanelHead className="dock-head" titleClass={`dock-title${status.vessel ? ' dop-on' : ''}`} title="Tests" sub={status.vessel} yieldTitle
