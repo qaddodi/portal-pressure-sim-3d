@@ -12,6 +12,7 @@ import { clock } from '../../clock/frame.ts';
 import type { CelScene } from '../scene.ts';
 import { scenePart } from './define.ts';
 import { smoothstep01, LOBULE_UNDER_FROM } from './shared.ts';
+import { SIN_POINT } from '../lobule/frames.ts';
 
 export const framePart = scenePart<CelScene>()({
   /** The foci the slide on show is about (focus-reveal/config.ts): the reveal eases in once they are in the room. */
@@ -98,11 +99,14 @@ export const framePart = scenePart<CelScene>()({
         // (the 3D lobule dissolves as the camera goes down onto the sinusoid, and stands aside once landed: its solid tiles and tubes rise above the sinusoid's plane and would cross it in the foreground)
         // (the lobule stays whole under the sinusoid until the sinusoid is whole over it, then stands aside: both dissolving at once let the page show through, docs/decisions.md "Lobule to sinusoid handoff")
         const dv = this.sinus.diveShareNow, under = !this.sinus.isVisible ? 0 : dv == null ? 1 : smoothstep01(LOBULE_UNDER_FROM, LOBULE_UNDER_FROM + 0.04, dv);
+        // (the sinusoid view's own rows in the lobule show by their size on screen: a pure function of the camera's distance from the station, lobule-fine.ts fineShare)
+        const cp = this.rig.camera.position, cd = Math.hypot(cp.x - SIN_POINT[0], cp.y - SIN_POINT[1], cp.z - SIN_POINT[2]);
+        const fineMoved = !!this.microReady && this.lobule3d.setFineView(cd, this.height, this.rig.camera.fov);
         const lob3 = this.microReady && this.lobule3d.update(this.micro3d, under, now, this.flowRate.value, false, this.fadeNow);
         if (this.microReady) this.sinus3d.setLobuleTop(this.lobule3d.diveTopZ());
         const sin3 = this.microReady && this.sinus3d.update(this.micro3d, this.flowRate.value);
         if (this.microReady) this.micro!.sinus.holdScale(this.rig.camera.position);
-        return anyMoving(lob3, sin3, lobMoving, sinMoving);
+        return anyMoving(lob3, sin3, lobMoving, sinMoving, fineMoved);
       } },
       { id: 'procedures', step: ({ now }) => {
         const procMoving = this.procs.update(now);

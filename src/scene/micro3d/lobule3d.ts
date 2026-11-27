@@ -29,7 +29,6 @@ import type { LensId } from '../lenses/model.ts';
 import { type InkContext, type Seg, inkAcross, inkAt, inkSignature, laneShares, sinW } from '../lobule/ink.ts';
 import { lookColours } from '../lobule/lz-colours.ts';
 import { LOBULE_PALETTES } from '../lobule/tones.ts';
-import { cordToneInto } from '../lobule/from2d/lobule-look.generated.js';
 import { useTokens } from '../lobule/from2d/lobule-paint.generated.js';
 import { PlateClient, type PlateExtra } from '../lobule/plate-client.ts';
 import { ATLAS_W, collagenInput, paintCollagenWorld } from '../lobule/collagen-paint.ts';
@@ -57,6 +56,12 @@ import type { WeldCourseOut, WeldPlan } from '../lobule/welds.ts';
 import { type EmitOpts, type PartData, type SkinInk, emitCourse, emitSkin } from './lobule-welded.ts';
 
 import { clock } from '../../clock/frame.ts';
+import { cellOutline } from './sinusoid3d.ts';
+import { FINE_REACH, fineBands, fineCellRange, fineCourses, fineShare, viewToLobule, UM_LOCAL, cellOf, h1 } from './lobule-fine.ts';
+import { hexFrac } from '../lobule/geometry.ts';
+import { SIN_LOCAL } from '../lobule/frames.ts';
+import { CELL, PERIOD, UM } from '../sinusoid/layout.ts';
+import { groundOf, tileColours } from '../lobule/tile-colours.ts';
 const R = LOBULE_R;
 /** Heights (local units, toward the viewer; R = 3): the hexagon's ground, the tiles' tops and bottoms, the tubes' centre line, Disse's sleeve, the mouths' lips and depth, the marks' plate.
  *  The plate stands over the tallest nucleus crown (0.0436 at septU 1) and 0.017 (3.8 µm) under the sinusoid scene's lowest surface (0.0634): it is depth-TESTED, so the sinusoid, standing over the lobule at the dive's landing, hides it (23 Nov, the dive's flash). */
@@ -73,6 +78,9 @@ const BILE_ID = 2_000_000;
 /** The vessels that run over the plates (the sinusoids, their cross-links, the arteriole's twigs) lie with their axis at the tiles' tops: lower, a thin one was buried under every tile it
  *  crossed and showed only in the gaps, as short pieces floating between the cords (Mohammad, 20 Nov: "disconnected vessels in the middle"). */
 export const OVER_Z = LZ.cellTop + 0.002;
+/** How far the fine rows' cover stands over the lobule's own tiles' tops (local units, 0.4 µm): the tiles under a plate of the view give way to it, and its own
+ *  tiles stand a quarter more over it; the tubes (OVER_Z, radius 0.02) stand over both. */
+const FINE_LIFT = 0.0018;
 /** How deep a lymph channel lies where it passes under a blood vessel (below the vessel's own underside, above the ground). */
 /** Beside a sinusoid the tube lies low enough that its top never stands above the sinusoid's own surface where the two overlap (it stands 0.55 of its radius off the wall: its inner 45 % is under the vessel). */
 export const LYMPH_Z = OVER_Z - 0.0075;
@@ -80,8 +88,10 @@ export const LYMPH_UNDER_Z = LZ.disse - 0.01;
 /** The scene's fade is taken as whole from here up (FADE_GLSL's screen pattern drops pixels below 0.999). */
 /** Where the bile is drawn: before every blood vessel and the lymph (all -1), writing no depth. */
 export const BILE_ORDER = -1.8;
-/** The distances from the centre (lobule radii) the dive's view of the lobule spans round the sinusoid's station (rho 0.45): diveTopZ. */
-export const DIVE_RHO: readonly [number, number] = [0.3, 0.6];
+/** The distances from the centre (lobule radii) the dive's view of the lobule spans round the sinusoid's station (rho 0.59, and 0.15 beyond it for the view's stretch along
+ *  the flow and its rows across, back to 0.3 where the tubes are widest): diveTopZ. */
+const STATION_RHO = Math.hypot(SIN_LOCAL[0], SIN_LOCAL[1]) / LOBULE_R;
+export const DIVE_RHO: readonly [number, number] = [0.3, STATION_RHO + 0.15];
 export const FADE_SNAP = 0.98;
 /** How far from each end of a vessel (in its own radii) no flow mark is drawn: where it runs into another vessel. */
 export const END_HUSH_R = 3;
@@ -238,6 +248,17 @@ export class Lobule3D {
   /** SOS: the scar inside the central vein (2D's plug, lobule-zoom.js: from the wall in, the open lumen narrowing to 1 - CV_FILL of it), faded, one clean ring, nothing across the open lumen. */
   private readonly cvScar: MicroPart;
   private cvScarBase = '';
+  /** The sinusoid view's own rows round its station (lobule-fine.ts): the tubes the lobule lacks, the plates between them (a tile and a nucleus each) and the cover
+   *  that makes the tiles under them give way. They have a
+   *  dissolve of their own, `fineFade`: the lobule's fade times how much of them their size on screen shows (fineShare), so they are not there at the lobule's own framing. */
+  private readonly fineTubes: MicroPart;
+  private readonly fineCells: MicroPart;
+  private readonly fineNuclei: MicroPart;
+  private readonly fineCover: MicroPart;
+  private readonly fineFade = { value: 0 };
+  /** How much of the fine rows the camera's distance shows now (0 to 1), set by `setFineView`. */
+  private fineK = 0;
+  private fineLook = '';
   private readonly coloured: Coloured[] = [];
   /** The welded junctions laid into the vessels now (lobule/welds.ts), and a plan that has come from the worker and waits for the Lobule to be out of sight. */
   private weldPlan: WeldPlan | null = null;
@@ -284,6 +305,14 @@ export class Lobule3D {
     // (the vessels' line is the Anatomy's weight, VESSEL_LINE CSS px, so a lobule vessel reads outlined as a vessel of the body does: Mohammad 20 Nov 2026, "the lobule sinusoid vessels need black
     //  outlines like the vessels in anatomy"; at 1.25 px it broke into dots against the tiles)
     this.sin = { s0: mk('sinusoids-0', { inkR: true, px: VESSEL_LINE, flow: true, swell: true }), s1: mk('sinusoids-1', { inkR: true, px: VESSEL_LINE, flow: true, swell: true }), s2: mk('sinusoids-2', { inkR: true, px: VESSEL_LINE, flow: true, swell: true }), an: mk('sinusoids-links', { inkR: true, px: VESSEL_LINE * 0.8, flow: true, swell: true }) };
+    // (the fine rows: the same materials as the lobule's own, with a fade of their own)
+    const mkFine = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => {
+      return new MicroPart(new MeshBuilder().build(), microMaterials(res, this.fineFade, { vertexColors: true, ...o }), `lobule3d/${name}`);
+    };
+    this.fineTubes = mkFine('sinusoids-fine', { inkR: true, px: VESSEL_LINE, flow: true, swell: true });
+    this.fineCells = mkFine('hepatocytes-fine', { ink: null, rim: S.LINE });
+    this.fineNuclei = mkFine('nuclei-fine', { ink: null });
+    this.fineCover = mkFine('ground-fine', { ink: null });
     this.inlets = mk('inlets', { inkR: true, px: VESSEL_LINE, flow: true });
     this.twigs = mk('arteriole-twigs', { inkR: true, px: S.LINE_SMALL * 0.8, flow: true });
     this.lt = mk('terminal-lymphatics', { inkR: true, px: S.LINE_SMALL * 0.8, flow: true });
@@ -321,7 +350,11 @@ export class Lobule3D {
     this.texFront = this.tex;
     // draw order: the ground and the tiles, then the marks over them, then every vessel (depth-tested against the tiles)
     this.ground.renderOrder = -6; this.cells.renderOrder = -5; this.nuclei.renderOrder = -5;
-    const vessels = [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv];
+    this.fineCover.renderOrder = -5; this.fineCells.renderOrder = -4.9; this.fineNuclei.renderOrder = -4.9;
+    const vessels = [
+      this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.fineTubes, this.inlets, this.twigs, this.lt, this.duct, this.bile,
+      this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv,
+    ];
     // (the flat view's field of neighbour lobules is see-through and so draws after every solid part; the marks, drawn among the solids, were painted over by it outside the hexagon, which
     // cut the periportal scar off at the edge: Mohammad 20 Nov "it's clipped like at the hexagon". The marks and the vessels draw in the see-through list after the field instead, the vessels
     // still writing and testing depth, opaque as before)
@@ -335,7 +368,7 @@ export class Lobule3D {
     this.bile.inkMesh!.renderOrder = BILE_ORDER - 0.05; this.bile.toonMesh.renderOrder = BILE_ORDER;
     for (const m of [this.bile.inkMesh!, this.bile.toonMesh]) (m.material as ShaderMaterial).depthWrite = false;
     this.cvScar.renderOrder = 0;
-    for (const p of [this.ground, this.cells, this.nuclei, ...vessels, this.cvScar]) this.group.add(p.group);
+    for (const p of [this.ground, this.cells, this.nuclei, this.fineCover, this.fineCells, this.fineNuclei, ...vessels, this.cvScar]) this.group.add(p.group);
     this.group.add(this.marks);
     // (the vessels' meshes are the constructor's heavy part: Scene's idle slices build them in a slice of their own, prepareVessels, hidden; update() builds them at once if nobody has)
     if (!lazy) this.buildVessels();
@@ -422,6 +455,8 @@ export class Lobule3D {
     // (the ONE dissolve, written here and nowhere else: every tile, tube, mark and the marks plate drop the same pixels of one screen pattern at `fs`, the neighbours' ground fades at `1 - under`, and
     //  nothing else is scaled by either; the root group hands both to everything under it, lobule/one-fade.ts)
     f.group.setFade(fs, (1 - under > FADE_SNAP ? 1 : 1 - under) * groundStays(body));
+    // (the fine rows' own dissolve: the lobule's, times how much of them the camera's distance shows; whole when both are, so they stand aside with the lobule under the landed sinusoid)
+    { const fk = fs * this.fineK; this.fineFade.value = fk > FADE_SNAP ? 1 : fk; }
     const shown = force || (on && f.isVisible && under < 1);
     this.group.visible = shown && !force;
     // (the whole lobule, its neighbouring field too: the sinusoid's own ground lies below the lobule's plane, so the field would show through the clefts between its cells)
@@ -437,12 +472,16 @@ export class Lobule3D {
     else if (ck !== this.cellKey) { this.cellKey = ck; this.cellGen = this.cellSteps(look, goal.congU, goal.septU); }
     const cellsBusy = this.stepCells(unseen);
     if (look !== this.lookKey) { this.lookKey = look; this.applyLook(look); }
-    const inkBusy = this.stepInk(now);
+    const fineBusy = this.stepFineTiles(), inkBusy = this.stepInk(now);
     const marksBusy = this.stepMarks(unseen);
     // widths and layers as the state has them now: each sinusoid swells and shrinks with congestion and capillarization (inflate, the absolute change of its radius), the lymph and the bile
     // shrink away with their layers and only then hide
     const inf = (p: MicroPart, v: number) => { p.mats.toon.uniforms.inflate!.value = v; };
-    { const sw = f.sinSwell; for (const k of ['s0', 's1', 's2', 'an'] as const) this.sin[k].setSwell(sw.whole, sw.share); }   // (per vertex: its own radius and its place's share, cel3d SWELL)
+    {
+      const sw = f.sinSwell;
+      for (const k of ['s0', 's1', 's2', 'an'] as const) this.sin[k].setSwell(sw.whole, sw.share);
+      this.fineTubes.setSwell(sw.whole, sw.share);
+    }   // (per vertex: its own radius and its place's share, cel3d SWELL)
     const lyF = f.lyFade, biF = f.bileFade;
     inf(this.lt, -LT_R * R * (1 - lyF)); this.duct.setSwell(-(1 - lyF), 0); this.duct.setHug(f.sinSwell.whole, f.sinSwell.share); inf(this.bile, -BILE_BC_R * R * (1 - biF));
     const lymphOn = lyF > 0.002, bileOn = biF > 0.002;
@@ -454,11 +493,12 @@ export class Lobule3D {
     //  like they have shadows inside the central vein"; congestion swells them over the pool's top, which is what showed. The vessels' own rule, a child's line masked inside its parent.)
     const hole = f.cvRadiusNow * R * CV_HOLE_K;
     for (const k of ['s0', 's1', 's2', 'an'] as const) this.sin[k].setHole(hole);
+    this.fineTubes.setHole(hole);
     this.stepCvScar(kcv);
     this.buildGround(kcv, lymphOn);
     const washing = this.stepWash(now);
     const flowing = this.stepFlow(now, rate, lymphOn, bileOn);
-    return flowing || washing || changed || cellsBusy || marksBusy || inkBusy;
+    return flowing || washing || changed || cellsBusy || marksBusy || inkBusy || fineBusy;
   }
 
   // ---- the flow marks (quiet chevrons inside each vessel; they stop at the central vein's mouth and with the simulation) ------------------------
@@ -478,7 +518,7 @@ export class Lobule3D {
     this.washShown = Math.abs(goal - was) < 1e-3 ? goal : was + (goal - was) * (1 - Math.exp(-dt / WASH_EASE_MS));
     if (this.washShown === 0 && was === 0) return false;
     const rgb = hexToRgb01((LOBULE_PALETTES[this.flat.look].tones as Record<string, string>).amber!) as RGB, a = this.washShown;
-    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.mouthCv]) p.setRadialWash(a, this.washFrontNow, R, rgb);
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.fineTubes, this.sin.an, this.mouthCv]) p.setRadialWash(a, this.washFrontNow, R, rgb);
     return this.washShown !== goal;
   }
 
@@ -499,7 +539,7 @@ export class Lobule3D {
     //  a weaker one (the lymph's 0.4) earlier still, so the lymph went first and the blood's vessels after it, and the lobule's vessels flashed: Mohammad 20 Nov 2026)
     const W: RGB = [1, 1, 1], soft = (k: number) => k, dpr = this.dpr;
     // every fluid is seen to move at the fit (Mohammad, 20 Nov 2026): the blood's dark heads (few and small on these thin tubes, the shader's screen rules), the lymph's and the bile's in their own tones
-    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2]) p.setFlow(this.flowT.blood, 0.16, W, soft(1), 0, 0.0082 * R, true, dpr);
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.fineTubes]) p.setFlow(this.flowT.blood, 0.16, W, soft(1), 0, 0.0082 * R, true, dpr);
     this.sin.an.setFlow(this.flowT.blood, 0.12, W, soft(1), 0, 0.0043 * R, true, dpr);
     this.inlets.setFlow(this.flowT.blood, 0.3, W, soft(1), 0, 0.012 * R, true, dpr);
     this.twigs.setFlow(this.flowT.blood * 1.6, 0.1, [1, 0.88, 0.86], soft(1), 0, 0.006 * R, true, dpr);
@@ -519,15 +559,18 @@ export class Lobule3D {
     const ink = tissueInk(look);
     // the hepatocytes keep the tissue's casing; every vessel (sinusoids, inlets, twigs, lymphatics, canaliculi, the tract's mouths, the central vein) the Anatomy's dark line of its own colour
     this.cells.setInk(ink);
+    this.fineWant = look;   // (the fine rows' plates take the look's colours, laid in slices: stepFineTiles)
     const cas = CASING[look].rgb.map((v) => v / 255);
-    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.twigs, this.lt, this.duct, this.bile, this.mouthCv, this.mouthLv, this.mouthPv, this.inlets, this.mouthHa, this.mouthBd]) p.setVesselInk(cas);
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.fineTubes, this.twigs, this.lt, this.duct, this.bile, this.mouthCv, this.mouthLv, this.mouthPv, this.inlets, this.mouthHa, this.mouthBd]) {
+      p.setVesselInk(cas);
+    }
     // the parts of one tone (the lens does not colour them, as in 2D)
     const tone = (k: string) => hexToRgb01((P as Record<string, string>)[k]!);
     // (the arterioles' tone is their vertices' now, segment 'art' of the lens's ink: the artery's own under every lens, the hepatic artery's blood under the stream lenses)
     this.mouthBd.setTint(tone('bile')); this.bile.setTint(tone('bile'));
     this.lt.setTint(tone('lymph')); this.duct.setTint(tone('lymph')); this.mouthLv.setTint(tone('lymph'));
     // the lens-coloured parts carry their colour in the vertices (stepInk), so their tint is white; this is the one place any vessel tint is written (a geometry build never writes a material uniform)
-    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.mouthPv, this.mouthCv, this.twigs, this.mouthHa]) p.setTint([1, 1, 1]);
+    for (const p of [this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.fineTubes, this.inlets, this.mouthPv, this.mouthCv, this.twigs, this.mouthHa]) p.setTint([1, 1, 1]);
     this.inkKey = '';
   }
 
@@ -684,18 +727,14 @@ export class Lobule3D {
   /** The tiles for a state, a slice of cells at a time (each `yield` is a place a frame's share may end); the finished builders are left in `cellNext`. A dead cell's nucleus is built collapsed, so every state has the same
    *  vertices and the two builds can be eased between. */
   private *cellSteps(look: LookId, cu: number, sj: number): Generator<void> {
-    const L = lookColours(look), dark = L.dark, net = this.flat.net;
-    const gap = L.rgb01('--og-liver-2'), bg = L.text('--stage-bg') ? L.rgb01('--stage-bg') : L.rgb01('--bg'), ground = groundOf(bg, gap, dark);
-    const base = cellBase(look), nucInk = L.rgb01('--lz-nodule-ink'), nucA = L.alpha('--lz-nodule-ink');
-    const cb = new MeshBuilder(), nb = new MeshBuilder(), TONE: number[] = [0, 0, 0], CT: number[] = [0, 0, 0];
+    const tc = tileColours(look), dark = tc.dark, net = this.flat.net, ground = tc.ground, nucInk = tc.nucInk, nucA = tc.nucA;
+    const cb = new MeshBuilder(), nb = new MeshBuilder();
     let n = 0;
     for (const k of net.cells) {
       if (++n % 24 === 0) yield;
       // (how dead, 0 to 1, a smooth function of the place, dead-cells.ts: a ghost's fill, alpha, size, height and nucleus all ease by it, so zone 3 fades out from the vein and no tile is a coin toss beside its neighbour)
       const dk = cu > 0.08 && k.q < 0.45 ? deadAmount(cu, k.q, Math.atan2(k.y, k.x)) : 0;
-      const t = 0.88 + 0.12 * k.tone;
-      for (let i = 0; i < 3; i++) CT[i] = base[i]! * t + (1 - t) * (dark ? 0.15 : 1) * 0.3;
-      const live = cordToneInto(TONE, CT, k.q, dark) as number[], ghost = dark ? [0.42, 0.33, 0.3] : [0.93, 0.86, 0.72];
+      const live = tc.fill(k.q, k.tone), ghost = dark ? [0.42, 0.33, 0.3] : [0.93, 0.86, 0.72];
       const fill: RGB = dk > 0 ? [live[0]! + (ghost[0]! - live[0]!) * dk, live[1]! + (ghost[1]! - live[1]!) * dk, live[2]! + (ghost[2]! - live[2]!) * dk] : [live[0]!, live[1]!, live[2]!];
       const alpha = (dark ? 0.8 : 0.92) + (0.6 - (dark ? 0.8 : 0.92)) * dk;
       const col = mix3(ground, fill, alpha);
@@ -714,6 +753,57 @@ export class Lobule3D {
     }
     this.cellNext = { cb, nb };
   }
+
+  /** The tiles of the sinusoid view's rows (lobule-fine.ts) for a look: every plate the view draws between its rows, as a raised tile in the lobule's own tone for
+   *  its place (the same rule as the lobule's cells, tileColours) with a
+   *  domed nucleus, and under them a cover in the gap colour a hair over the lobule's own tiles, so the tiles beneath give way (the plates are the view's, and a
+   *  lobule cell half under one would show its edge beside the new tile's).
+   *  The outlines are the view's own (sinusoid3d cellOutline) turned into the lobule's frame, so each tile is where the view draws its cell. Rebuilt for a look (the
+   *  colours are the look's); never per frame. */
+  private *fineTileSteps(look: LookId): Generator<void> {
+    const tc = tileColours(look), cb = new MeshBuilder(), nb = new MeshBuilder(), gb = new MeshBuilder(), [j0, j1] = fineCellRange();
+    const coverZ = LZ.cellTop + FINE_LIFT, topZ = coverZ + FINE_LIFT * 0.25, botZ = coverZ - 0.002, tmp: [number, number, number] = [0, 0, 0];
+    const to = (x: number, y: number): P2 => { viewToLobule(x, y, tmp); return [tmp[0], tmp[1]]; };
+    for (const band of fineBands()) {
+      // the cover: from this band's inner row to its outer (the lumens' edges are drawn over it by the tubes)
+      const y0 = band.side * -band.r * PERIOD, y1 = band.side * -(band.r + 1) * PERIOD;
+      const q = [to(-FINE_REACH, y0), to(FINE_REACH, y0), to(FINE_REACH, y1), to(-FINE_REACH, y1)].map((p) => gb.v(p[0], p[1], coverZ, 0, 0, 1, tc.ground));
+      gb.quad(q[0]!, q[1]!, q[2]!, q[3]!);
+      for (let j = j0; j <= j1; j++) {
+        const outline = cellOutline(j, band.seed, band.side, band.face, true).map((p) => to(p[0], p[1]));
+        const cx = outline.reduce((a, p) => a + p[0], 0) / outline.length, cy = outline.reduce((a, p) => a + p[1], 0) / outline.length;
+        const col = tc.tile(hexFrac(cx / R, -cy / R), h1(j, band.seed + 7));
+        pillow(cb, outline, topZ, botZ, CELL * UM_LOCAL * 0.28, col, 3);
+        const c = cellOf(j, band.seed), xn = c.x0 + (c.x1 - c.x0) * c.nu, v = c.nv * UM.hep, nr = c.nr * UM_LOCAL, nc = tc.nucleus(col);
+        const put = (x: number) => { const p = to(x, -band.side * (band.face(x) + v)); ellipsoid(nb, p[0], p[1], topZ - nr * 0.55, nr, nr, nr * 0.8, 0, nc, 12, 6); };
+        if (c.bi) { const dx = (c.x1 - c.x0) * 0.17; put(xn - dx); put(xn + dx); } else put(xn);
+        yield;
+      }
+    }
+    cb.build(this.fineCells.geometry); nb.build(this.fineNuclei.geometry); gb.build(this.fineCover.geometry);
+    this.fineCells.setTint([1, 1, 1]); this.fineNuclei.setTint([1, 1, 1]); this.fineCover.setTint([1, 1, 1]);
+    this.fineCells.setInk(tissueInk(look));
+    this.fineLook = look;
+  }
+  /** One frame of the fine tiles' build for the look wanted: a few ms of it (a cell a yield), the way the lobule's own tiles are laid (stepCells). True while more is to do. */
+  private stepFineTiles(): boolean {
+    if (this.fineWant === this.fineLook) return false;
+    this.fineGen ??= this.fineTileSteps(this.fineWant as LookId);
+    const t0 = clock.now();
+    while (clock.now() - t0 < 3) if (this.fineGen.next().done) { this.fineGen = null; return this.fineWant !== this.fineLook; }
+    return true;
+  }
+  private fineWant: LookId | '' = '';
+  private fineGen: Generator<void> | null = null;
+  /** The camera's distance from the sinusoid's station (scene units) in a picture `heightPx` tall at a lens of `fovDeg`: how much of the fine rows it shows (fineShare). True when that changed. */
+  setFineView(distance: number, heightPx: number, fovDeg: number): boolean {
+    const k = fineShare(distance, heightPx, fovDeg);
+    if (k === this.fineK) return false;
+    this.fineK = k;
+    return true;
+  }
+  /** How much of the fine rows shows now (0 to 1). */
+  get fineShown(): number { return this.fineK; }
 
   /** The hexagon's ground (2D: the lobule filled in the gap colour at 1.015), with a hole under every mouth so the openings go down into the slab. */
   private groundKey = '';
@@ -977,6 +1067,24 @@ export class Lobule3D {
       this.sin[kind].geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2));
       if (pace.due()) yield;
     }
+    // the sinusoid view's own rows the lobule lacks round its station (lobule-fine.ts), built as plain tubes of the second generation: the lobule's own width, colour along the flow and flow marks
+    {
+      const fc = fineCourses(net, OVER_Z);
+      if (fc.length) {
+        const t = yield* tubes(fc, sinR, sinWAt, OVER_Z);
+        yield* coloured(this.fineTubes, t.b, 'sin', t.W, t.K, undefined, t);
+        this.fineTubes.geometry.setAttribute('inkR', new Float32BufferAttribute(t.IR, 1));
+        const sw: number[] = [];
+        for (const c of fc) {
+          const n = c.pts.length, at = (i: number) => { const r = sinR(c, i) * R; sw.push(r, r * congShare(c.rho[i]!)); };
+          for (let i = 0; i < n; i++) for (let k = 0; k < TUBE_SEG; k++) at(i);
+          const cap = t.caps.get(c)!;
+          for (let v = 0; v < cap; v++) at(0);
+          for (let v = 0; v < cap; v++) at(n - 1);
+        }
+        this.fineTubes.geometry.setAttribute('swell', new Float32BufferAttribute(sw, 2));
+      }
+    }
     if (plan) { const d = yield* welded(by('in'), TUBE_SEG, false, sinW, (k) => k === 'in'); yield* coloured(this.inlets, d.b, 'in', d.W, d.K, { seg2: 'sin', w2: d.W2!, m: d.M! }, d); this.inlets.geometry.setAttribute('inkR', new Float32BufferAttribute(d.ir!, 1)); }
     else { const t = yield* tubes(by('in'), (c, i) => inletRadius(i, c.pts.length, Math.hypot(c.pts[i]![0] - c.pts[0]![0], c.pts[i]![1] - c.pts[0]![1])), (c, i) => i / (c.pts.length - 1)); yield* coloured(this.inlets, t.b, 'in', t.W, t.K, undefined, t); this.inlets.geometry.setAttribute('inkR', new Float32BufferAttribute(t.IR, 1)); }
     if (pace.due()) yield;
@@ -1110,7 +1218,7 @@ export class Lobule3D {
     return n;
   }
   /** The parts (tests). */
-  get partsForTest(): MicroPart[] { return [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar]; }
+  get partsForTest(): MicroPart[] { return [this.ground, this.cells, this.nuclei, this.sin.s0, this.sin.s1, this.sin.s2, this.sin.an, this.inlets, this.twigs, this.lt, this.duct, this.bile, this.mouthPv, this.mouthHa, this.mouthBd, this.mouthLv, this.mouthCv, this.cvScar, this.fineCover, this.fineCells, this.fineNuclei, this.fineTubes]; }
   /** The height (local units) of the tallest blood-vessel tube standing within the dive's view of the lobule (the sinusoid's own station, rho 0.3 to 0.6): its axis at OVER_Z and its radius as drawn now, congestion's
    *  widening included. The sinusoid scene stands over this (sinusoid3d.ts lift), so no lobule tube ever pokes through its ground while the two cross (23 Nov, the dive's flash). */
   diveTopZ(): number {
@@ -1121,8 +1229,14 @@ export class Lobule3D {
     }
     return OVER_Z + r * R;
   }
+  private buildFineForTest(): void { if (this.fineWant !== this.fineLook) { const g = this.fineTileSteps(this.fineWant as LookId); while (!g.next().done); } }
   /** Builds the tiles for a look and state without the flat view's frame (tests). */
-  buildForTest(look: LookId, congU = 0, septU = 0): void { if (!this.vesselsBuilt) this.buildVessels(); this.buildCells(look, congU, septU); this.applyLook(look); this.buildGround(1, true); }
+  buildForTest(look: LookId, congU = 0, septU = 0): void {
+    if (!this.vesselsBuilt) this.buildVessels();
+    this.buildCells(look, congU, septU);
+    this.applyLook(look); this.buildGround(1, true);
+    this.buildFineForTest();
+  }
 
   dispose(): void {
     this.disposed = true;
@@ -1142,16 +1256,7 @@ export function floorOf(bg: RGB, gap: RGB, dark: boolean, ink: RGB): [number, nu
 /** The share of the casing's ink in the floor: nearly all, a trace of the gap's hue. */
 export const FLOOR_INK = 0.85;
 
-/** 2D's hexagon fill under the cells: the page and the gap colour mixed (MIXC), then the gap laid over at half. */
-function groundOf(bg: RGB, gap: RGB, dark: boolean): [number, number, number] {
-  const mixc = mix3(bg, gap, 0.55);
-  return mix3(mixc, gap, dark ? 0.55 : 0.5);
-}
-/** 2D's cell base: the liver's first tone (Dark: 0.28 of the way from the gap to it). */
-function cellBase(look: LookId): [number, number, number] {
-  const L = lookColours(look), cell = L.rgb01('--og-liver-1'), gap = L.rgb01('--og-liver-2');
-  return L.dark ? mix3(gap, cell, 0.28) : [cell[0], cell[1], cell[2]];
-}
+
 
 /** A rounded rectangle (2D's roundRect), lw along the cell's own axis by ww across, turned by a (2D's angle, y down), at (cx, cy) lobule radii: the outline in local units, y up. */
 export function roundRect(cx: number, cy: number, lw: number, ww: number, rad: number, a: number, perCorner = 5): P2[] {
