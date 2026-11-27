@@ -31,7 +31,7 @@ test('the pass reuses the capture\'s own parts and opens things the way the app 
   assert.match(x, /from '\.\/capture-settle\.ts'/); assert.match(x, /from '\.\/capture-shot\.ts'/); assert.match(x, /from '\.\/capture-cases\.ts'/);
   assert.match(x, /run\.startCase\(id\)/); assert.match(x, /run\.goStop\(i\)/);
   assert.match(x, /setState\(\{ menuTab: t\.tab/); assert.match(x, /open\('menu'\)/);
-  assert.match(x, /png: true/);
+  assert.match(x, /png: true/); assert.match(x, /openHistory\(t\.id\)/); assert.match(x, /open\('timeline'\)/);
   const base = src('src/ui/debug/audit/capture-run.ts');
   assert.match(base, /ui\.promo && ui\.extras\?\.length/);
   assert.match(base, /ui\.pick && ui\.pick\.size/, 'with no slide picked a run of extras takes no slide');
