@@ -9,7 +9,7 @@ import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
 import { DataCap } from '../talk/tool-room.ts';
 import { usePaneIn, paneOf } from '../talk/pane-load.ts';
 import { pairSteps, stepVars, dataFitOf, type PairBase } from './pair-ladder.ts';
-import { planLayout, widthOf, centredKind, centredBox, panelVisual, type CardId, type Need, type Plan } from '../layout/plan.ts';
+import { planLayout, figureAspect, widthOf, centredKind, centredBox, panelVisual, type CardId, type Need, type Plan } from '../layout/plan.ts';
 import { phoneView } from './phone-panel.ts';
 import { layoutOf, isSideways } from '../layout/rules2d.ts';
 import type { Rect } from '../layout/device.ts';
@@ -166,12 +166,13 @@ export function CardLayer({ deck }: { deck: Deck }) {
   // (a words card replaced by a fresh one at its final size stands at the height of the one it replaces until the fresh one has measured: the pair does not rearrange meanwhile)
   const wordsH = h(wordsKey) || h(wordsBase);
   const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: wordsH > 0 ? Math.max(wordsH, pageMax) : 0 }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey), want: hit(dataKey)?.want ?? 0 }] : [])] : [];
-  const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked), [vp, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}:${n.want ?? ''}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const aspect = figureAspect(view?.scene?.view, vp);
+  const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked, aspect), [vp, aspect, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}:${n.want ?? ''}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The dock glide sets off: the figure's room for where the card is going is told at once, with the glide's length, so the camera reframes with the card, not after it lands (2D presenter-zoom.js dockTo:
   // layout() then reframe(ms)). `plan` above is for the settled state only, and publishes when the card has come to rest.
   const planFor = useRef<(docked: boolean) => Plan>(() => plan);
-  planFor.current = (d) => planLayout(vp, needs, wallet.active, step, d);
+  planFor.current = (d) => planLayout(vp, needs, wallet.active, step, d, aspect);
   useEffect(() => { dock.onGlide = (to, ms) => { const p = planFor.current(to === 1); useUi.getState().hintRoom(p.free, ms); }; return () => { dock.onGlide = null; }; }, []);
 
   const wordsShown = plan.cards.find((c) => c.slot === 'words');

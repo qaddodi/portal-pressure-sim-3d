@@ -112,7 +112,9 @@ export function paintItems(g: CanvasRenderingContext2D, items: Item[]): void {
       g.font = i.font;
       if (i.spacing) (g as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${i.spacing}px`;
       if (i.rot) { const cx = i.x + i.w / 2; g.translate(cx, i.y); g.rotate(i.rot); g.translate(-cx, -i.y); }
-      if (i.haloW > 0 && i.halo) { g.strokeStyle = i.halo; g.lineWidth = i.haloW * 2; g.strokeText(i.text, i.x, i.y); }
+      // (a CSS or SVG text stroke of width W is centred on the letter edge and laid under the fill, so W/2 shows outside the letters.
+      // A canvas stroke is centred the same way, so it takes W as it stands: 2W drew a halo twice as thick as the live app's)
+      if (i.haloW > 0 && i.halo) { g.strokeStyle = i.halo; g.lineWidth = i.haloW; g.strokeText(i.text, i.x, i.y); }
       g.fillStyle = i.fill; g.fillText(i.text, i.x, i.y);
     }
     g.restore();
