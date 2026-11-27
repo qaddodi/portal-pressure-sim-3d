@@ -1,6 +1,7 @@
 // The criteria card's rule list as data (ported from the 2D app's tool-criteria.js): a row as written is read into one shape, a live row is judged
 // against the model's reading as its tile prints it, a cut-off and a verdict are split into the parts the card sets in different type.
 import { fmt, shown, tile, NOT_SHOWN, type Fingerprint } from '../fmt.ts';
+import { scaleOf } from '../../cards/ratings.ts';
 
 export const CRITERIA_MAX = 4;
 
@@ -46,6 +47,31 @@ export function criteriaReading(row: Row, fp: Fingerprint | null | undefined): s
   if (v == null || !Number.isFinite(v)) return NOT_SHOWN;
   const T = tile(row.key!);
   return `${fmt(v * (T?.x ?? 1), T?.d ?? 1)}${T?.u ? ` ${T.u}` : ''}`;
+}
+
+/** A live row's gauge (R2, owner 27 Nov: "a criterion with a number draws its line on that reading's gauge"): the reading's own scale (its tile's, `scaleOf`), the row's cut-off as a
+ *  line on it, the side that does not meet the row shaded, and the patient's dot where the reading stands. Places are 0 to 100 along the track. */
+export interface Gauge {
+  /** where the cut-off's line stands */
+  cut: number;
+  /** the side of the line that does not meet the row */
+  fail: { left: number; width: number };
+  /** where the patient's dot stands; null with no reading (the dot fades out, the track and line stay) */
+  now: number | null;
+  met: boolean | null;
+}
+
+/** The gauge of a row that names a reading and a numeric cut-off; null for any other row, and for a reading with no scale. */
+export function criteriaGauge(row: Row, fp: Fingerprint | null | undefined): Gauge | null {
+  if (!row.key || row.op == null || row.value == null) return null;
+  const s = scaleOf(row.key, fp);
+  if (!s || !(s[1] > s[0])) return null;
+  // (the scale and the row's cut-off are in the units the tile prints; the model's reading is turned into them, as the tile's own bar does)
+  const at = (shownV: number) => Math.min(100, Math.max(0, ((shownV - s[0]) / (s[1] - s[0])) * 100));
+  const cut = at(row.value), up = row.op === '>=' || row.op === '>';
+  const v = fp?.[row.key];
+  const now = v == null || !Number.isFinite(v) ? null : at(v * (tile(row.key)?.x ?? 1));
+  return { cut, fail: up ? { left: 0, width: cut } : { left: cut, width: 100 - cut }, now, met: criteriaMet(row, fp) };
 }
 
 /** A cut-off in its parts: a comparison sign and a unit in the sans (the serif has no ≥ or ≤), the number in the serif. */
