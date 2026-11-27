@@ -88,10 +88,17 @@ async function main() {
       }
       // (the walk is capped, so a stuck page ends the run with its state printed and never waits for ever)
       say(`${id}: self-test running`);
+      // (progress: the panel's own status line every 10 s while the walk runs, so a slow or stuck step is named in the output)
+      let lastStatus = '';
+      const ticker = setInterval(() => {
+        Promise.race([page.evaluate(() => `${document.querySelector('#au-root [role=status]')?.textContent ?? ''} | ${document.querySelector('#au-root progress')?.value ?? ''}%`), new Promise((r) => setTimeout(() => r('(page busy)'), 4000))])
+          .then((t) => { if (t !== lastStatus) { lastStatus = t; say(`${id}: ${String(t).slice(0, 160)}`); } }).catch(() => undefined);
+      }, 10000);
       const json = await Promise.race([
         page.evaluate(async (depth) => { await window.pps.audit.run(depth); return window.pps.audit.json(); }, o.depth),
         new Promise((r) => setTimeout(() => r(null), o.capMs)),
       ]);
+      clearInterval(ticker);
       if (!json) { console.error(`${id}: the self-test did not finish in ${o.capMs / 1000} s`); failed = true; await Promise.race([ctx.close(), new Promise((r) => setTimeout(r, 5000))]); continue; }
       const bundle = JSON.parse(json);
       const part = bundle.parts?.[0];
