@@ -8,10 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { AG_IDS, loadAgDeck, isAgDeck } from '../src/decks/ag/index.ts';
 import type { CopiedDeck, CopiedSlide } from '../src/decks/ag/types.ts';
-import { shotOfCam, shotOfBox, regionBox, namedBoxes, growBox, FIT_BOX, slideShots, sceneShot } from '../src/decks/ag/shots.ts';
-import { REGIONS_2D, CIRC_REGIONS_2D } from '../src/decks/ag/regions.generated.ts';
+import { camPlan } from '../src/decks/hp/cams.ts';
+import { CIRC_REGIONS_2D } from '../src/decks/ag/regions.generated.ts';
 import { chainOf, changes, tokensOf, valueText } from '../src/decks/hp/numbers.ts';
-import { x3, y3 } from '../src/scene/frame2d.ts';
 import { box2Of, placedRegionBox } from '../src/scene/anatomy/source.ts';
 import { placedFitBox } from '../src/decks/rw/cams.ts';
 import { createCore } from '../src/engine/hales/host/worker-core.js';
@@ -63,53 +62,34 @@ test('Baveno VIII only: no deck word names Baveno VII', () => {
 });
 
 // ---- the camera ----
-test('the regions are the 2D app\'s and a box becomes a shot by the one map (frame2d.ts)', () => {
-  assert.deepEqual(REGIONS_2D.liver, [344, 166, 862, 522]);
-  const s = shotOfBox([344, 166, 862, 522]);
-  assert.deepEqual(s.target, [x3(603), y3(344), 0]);
-  assert.ok(Math.abs(s.half[0] - (862 - 344) / 600) < 1e-9 && Math.abs(s.half[1] - (522 - 166) / 600) < 1e-9);
-  assert.deepEqual(regionBox(['splenic', 'portal']), [520, 230, 1110, 710]);
-  assert.equal(shotOfCam(undefined).kind, 'body');
-  // (restated for the placed anatomy, the only one now: 'fit' frames the whole placed figure, placedFitBox, not the old 2D plate's FIT_BOX)
-  assert.deepEqual((shotOfCam('fit') as { box: unknown }).box, box2Of(placedFitBox()));
-  assert.throws(() => shotOfCam('nowhere'), /names no region/);
-});
-
+// (The cameras are the live planner's, hp/cams.ts camPlan: the 2D box-to-shot copy that used to sit here framed the old plate and was reached only by tests, so it is gone.)
 test('a by-name camera frames the vessels and stations it names, grown a little, inside its near region\'s union', () => {
-  const sp = shotOfCam({ on: ['V_INT', 'V_SPL', 'V_IMV', 'SIN_RR', 'SIN_LL', 'RA'], near: 'route' });
+  const sp = camPlan({ on: ['V_INT', 'V_SPL', 'V_IMV', 'SIN_RR', 'SIN_LL', 'RA'], near: 'route' });
   assert.equal(sp.kind, 'body');
-  const { boxes, unknown } = namedBoxes(['V_INT', 'RA', 'nothing']);
-  assert.equal(boxes.length, 2);
-  assert.deepEqual(unknown, ['nothing']);
-  // (restated for the placed anatomy, the only one now: the near region is the placed one, placedRegionBox, which the camera's placed box holds; the old 2D plate's box is no longer what it frames)
+  // (the near region is the placed one, placedRegionBox, which the camera's placed box holds)
   const route = box2Of(placedRegionBox('route')!);
   const box = (sp as { box: readonly number[] }).box;
   assert.ok(box[0]! <= route[0] + 1e-9 && box[1]! <= route[1] + 1e-9 && box[2]! >= route[2] - 1e-9 && box[3]! >= route[3] - 1e-9, 'the box holds its near region');
-  assert.deepEqual(growBox(null, null), null);
+  assert.equal(camPlan(undefined).kind, 'body');
+  assert.deepEqual((camPlan('fit') as { box: unknown }).box, box2Of(placedFitBox()));
+  assert.throws(() => camPlan('nowhere' as never), /nowhere|region/);
 });
 
-test('Circuit slides carry a circuit camera, lobule slides a lobule camera, the rest the anatomy', () => {
+test('Circuit slides carry a circuit camera, lobule slides a lobule camera, the rest the anatomy, and every one has a Shot but the Circuit', () => {
   for (const { deck, slide } of slides) {
-    const { main } = slideShots(slide);
+    const main = camPlan(slide.cam, slide.view ?? undefined);
     const where = `${deck.id}/${slide.id}`;
-    if (slide.view === 'circuit') { assert.equal(main.kind, 'circuit', where); assert.ok(main.box.every(Number.isFinite), where); }
+    if (slide.view === 'circuit') { assert.equal(main.kind, 'circuit', where); assert.ok(main.box.every(Number.isFinite), where); continue; }
     else if (typeof slide.cam === 'string' && /^(lobule|sinusoid)/.test(slide.cam)) assert.equal(main.kind, 'lobule', where);
     else assert.equal(main.kind, 'body', where);
     if (main.kind === 'body') {
       assert.ok(main.shot.half[0] > 0 && main.shot.half[1] > 0, where);
       assert.ok(Math.abs(main.shot.target[0]) < 3.5 && Math.abs(main.shot.target[1]) < 4, `${where}: the target is on the plate`);
     }
+    const shot = main.shot;
+    assert.ok(Number.isFinite(shot.yaw) && Number.isFinite(shot.r) && shot.half[0] > 0, where);
   }
   assert.ok(Object.keys(CIRC_REGIONS_2D).length >= 9);
-});
-
-test('a spec becomes the scene\'s Shot: the anatomy\'s, the lobule\'s own, none yet for the Circuit', () => {
-  for (const { slide } of slides) {
-    const { main } = slideShots(slide);
-    const shot = sceneShot(main);
-    if (main.kind === 'circuit') assert.equal(shot, null);
-    else { assert.ok(shot, slide.id); assert.ok(Number.isFinite(shot.yaw) && Number.isFinite(shot.r) && shot.half[0] > 0); }
-  }
 });
 
 // ---- the model's steps and the numbers ----

@@ -31,6 +31,7 @@ import { vitalsEntry } from './vitals/entry.ts';
 import { wallsEntry } from './walls/entry.ts';
 import { menuEntry } from './menu/entry.ts';
 import { scoresEntry } from './scores/entry.ts';
+import { lobuleEntry } from './lobule/entry.ts';
 
 /** A smooth made-up time-lapse for a gallery specimen: [day, a, b] rows rising (or falling) along an ease. Specimens show a look, not a patient. */
 const specimenTrail = (days: number, a: [number, number], b: [number, number]) => Array.from({ length: 61 }, (_, i) => { const t = i / 60, e = t * t * (3 - 2 * t); return [days * t, a[0] + (a[1] - a[0]) * e, b[0] + (b[1] - b[0]) * e]; });
@@ -103,6 +104,7 @@ export const CHARTS: ChartKind[] = [
   wallsEntry,
   menuEntry,
   scoresEntry,
+  lobuleEntry,
 ];
 
 export const chartScore = () => ({ done: CHARTS.filter((c) => c.status === 'done').length, of: CHARTS.length });

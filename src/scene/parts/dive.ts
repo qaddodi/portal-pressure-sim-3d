@@ -6,7 +6,7 @@ import { ORGAN_CUT } from '../organs/layer.ts';
 import { effectiveDistance } from '../camera/room.ts';
 import { type LobuleHit, bloodBeat, bloodSpeed, lobuleModel, sinusoidTargets, type BloodBeat, type LobuleLayers } from '../lobule/index.ts';
 import { LOBULE_SCALE, SIN_SCALE, sinusoidWorld } from '../lobule/frames.ts';
-import { lobuleShot } from '../lobule/shots.ts';
+import { lobuleShot, sinusoidShot } from '../lobule/shots.ts';
 import { shortSide } from '../sinusoid/portrait.ts';
 import { diveShare, isPortrait, restScale } from '../sinusoid/index.ts';
 import { framePoint, measureScreen } from '../sinusoid/portrait.ts';
@@ -33,7 +33,10 @@ export const divePart = scenePart<CelScene>()({
   stepSinusDive(): void {
     // (only while the camera is really flying: a dive share kept past the landing would hold the tissue dim, its detail, names and arrows away)
     const flying = this.hideLeftBehind && this.sinus.isVisible && this.rig.isMoving;
-    const share = flying ? diveShare(this.rig.pose.shot.r, 2.5 * LOBULE_SCALE, 3 * SIN_SCALE) : null;
+    // (the share is the camera's REAL distance, from where it frames the lobule in this room to where it frames the sinusoid, geometric as the zoom is. It was read off the pose's
+    //  `r` against the stations' 2.5 lobule-fits, but the whole-lobule shot the dive starts from sits at 6 (24 Nov): the share stayed 0 for the first 40 % of the move and then ran
+    //  0 to 1 in the rest, so the sinusoid's dissolve took about 0.1 s and read as a snap, Mohammad 27 Nov)
+    const share = flying ? diveShare(this.rig.camera.position.distanceTo(this.sinAim), this.lobuleRest(), this.sinusoidRest()) : null;
     this.sinus.setDive(share);
     // (the same rule as the lobule in the liver: nothing of the sinusoid is drawn until the dive is close to landing. Before, its frame was up for the whole flight and a line of it
     //  showed over the zoomed-out lobule. Every part of it fades in from SIN_SHOW_FROM or later (the 3D parts grow out from the lumen from 0.3, sinusoid3d REVEAL_FROM), so hiding it below that never pops.)
@@ -88,6 +91,15 @@ export const divePart = scenePart<CelScene>()({
     const r = this.rig.fitRoom, key = `${r.w}x${r.h}x${this.height}x${this.width}`;
     if (key !== this.restKey) { this.restKey = key; this.restD = effectiveDistance(lobuleShot('lobule'), r, this.height, this.width); }
     return this.restD;
+  },
+  /** The camera's distance from the sinusoid shot's aim with the sinusoid framed in this room (and that aim, `sinAim`): the dive share's near end, as lobuleRest is its far one. */
+  sinusoidRest(): number {
+    const r = this.rig.fitRoom, p = isPortrait(this.rig.stageSize.w, this.rig.stageSize.h), key = `${r.w}x${r.h}x${this.height}x${this.width}x${p}`;
+    if (key !== this.sinRestKey) {
+      const shot = sinusoidShot(p, shortSide(p, r));
+      this.sinRestKey = key; this.sinRestD = effectiveDistance(shot, r, this.height, this.width); this.sinAim.set(shot.target[0], shot.target[1], shot.target[2]);
+    }
+    return this.sinRestD;
   },
   /** Where the body is gone: before the camera reaches the figure's front on its way to the lobule (so it never flies through anything drawn), and never nearer than twice the
    *  distance the lobule lands at in this room or DIVE_IN, so the body is always gone on landing, whatever the screen. */

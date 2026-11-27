@@ -174,7 +174,7 @@ body[data-card-zoom="up"] .pz-data .pz-tool[data-kind="doppler"] .dop-box { will
 .pz .pz-table.dk-pztable thead tr.th-sl th:first-child { padding-bottom: 6px; }
 /* stagger (only where the columns are closer than a slant allows): every other head a line higher, a tick down to its column; each head has two columns of room. */
 .pz .pz-table.dk-pztable thead tr.th-st th.num { position: relative; height: 38px; padding: 0; overflow: visible; background: transparent; }   /* (no cell fill of its own: the next cell's would paint over the head that runs into it) */
-.pz .pz-table.dk-pztable thead tr.th-st th.num > .hd { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); line-height: 1; color: var(--text-2); font-weight: 700; padding: 0 2px; background: var(--surface-2); }   /* (the head's own fill: a tick that runs down behind it stops at its letters) */
+.pz .pz-table.dk-pztable thead tr.th-st th.num > .hd { position: absolute; left: 50%; width: max-content; bottom: 6px; transform: translateX(-50%); line-height: 1; color: var(--text-2); font-weight: 700; padding: 0 2px; background: var(--surface-2); }   /* (the head's own fill: a tick that runs down behind it stops at its letters) */
 .pz .pz-table.dk-pztable thead tr.th-st th.num::after { content: ""; position: absolute; left: 50%; bottom: 0; width: 1px; height: 4px; background: var(--text-3); opacity: .6; }
 .pz .pz-table.dk-pztable thead tr.th-st th.num:nth-child(even) > .hd { bottom: 22px; }
 .pz .pz-table.dk-pztable thead tr.th-st th.num:nth-child(even)::after { height: 20px; }

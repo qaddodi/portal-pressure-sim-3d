@@ -15,10 +15,14 @@ export function MenuGroup({ title, radios, children }: { title?: string | null; 
 }
 
 /** menuItem: an icon, the words, a key hint; a toggle with an icon shows its state as a trailing check (role switch). */
-export function MenuItem({ icon, label, kb, checked, onClick, title }: { icon?: string; label: string; kb?: string | null; checked?: boolean; onClick?: () => void; title?: string }) {
+interface MenuItemProps { icon?: string; label: string; kb?: string | null; checked?: boolean; onClick?: () => void; title?: string; className?: string }
+export function MenuItem({ icon, label, kb, checked, onClick, title, className }: MenuItemProps) {
   const toggle = checked != null && !!icon;
   return (
-    <button type="button" className="menu-item" role={toggle ? 'switch' : checked != null ? 'radio' : undefined} aria-checked={checked != null ? !!checked : undefined} title={title} onClick={onClick}>
+    <button
+      type="button" className={className ? `menu-item ${className}` : 'menu-item'} role={toggle ? 'switch' : checked != null ? 'radio' : undefined}
+      aria-checked={checked != null ? !!checked : undefined} title={title} onClick={onClick}
+    >
       {toggle ? <I n={icon!} className="mi-ic" /> : checked != null ? <I n="check" className="mi-check" /> : icon ? <I n={icon} className="mi-ic" /> : null}
       <span>{label}</span>{kb ? <span className="kb">{kb}</span> : null}{toggle ? <I n="check" className="mi-check mi-trail" /> : null}
     </button>

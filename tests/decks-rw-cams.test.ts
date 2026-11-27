@@ -1,7 +1,7 @@
 // B13c: a 2D slide's camera becomes a 3D shot by arithmetic on the shared frame, and every camera form the decks use places.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { place, boxOf, shotOfBox, shotOfBox3, box3Of, namesPlaced, camProblems, namesBox, toX, toY, TARGET_Z, MIN_HALF } from '../src/decks/rw/cams.ts';
+import { place, boxOf, shotOfBox3, box3Of, namesPlaced, camProblems, namesBox, toX, toY, TARGET_Z, MIN_HALF } from '../src/decks/rw/cams.ts';
 import { box2Of, boxOfNames } from '../src/scene/anatomy/source.ts';
 import { registerShots, shotName } from '../src/decks/rw/plan.ts';
 import { SHOTS } from '../src/scene/camera/shots.ts';
@@ -12,16 +12,6 @@ import { RW_IDS, built } from './decks-rw-helpers.ts';
 test('the shared frame: CONF (700, 556) is the origin, 300 plate units a scene unit, y up', () => {
   assert.equal(toX(700), 0); assert.equal(toY(556), 0);
   assert.equal(toX(1000), 1); assert.equal(toY(256), 1);
-});
-
-test('a region is framed as the 2D camera frames it: its centre is the target, its half extents the shot\'s', () => {
-  const b = REGIONS_2D.portal!;   // [520, 360, 930, 710]
-  const s = shotOfBox(b);
-  assert.ok(Math.abs(s.target[0] - toX((520 + 930) / 2)) < 1e-9);
-  assert.ok(Math.abs(s.target[1] - toY((360 + 710) / 2)) < 1e-9);
-  assert.equal(s.target[2], TARGET_Z);
-  assert.ok(Math.abs(s.half[0] - (410 / 2) / 300) < 1e-9 || s.half[0] === MIN_HALF);
-  assert.ok(s.half[0] >= MIN_HALF && s.half[1] >= MIN_HALF);
 });
 
 test('"fit" and no camera are the free-play shot; a box, a region and a list of regions are body shots', () => {

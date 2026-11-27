@@ -9,7 +9,7 @@ import { join, resolve } from 'node:path';
 import { HP_DECKS, HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
 import { planDeck } from '../src/decks/hp/plan.ts';
 import { FEATURES, needsOf, readiness } from '../src/decks/hp/hooks.ts';
-import { camPlan, boxToShot, sceneX, sceneY, PLATE } from '../src/decks/hp/cams.ts';
+import { camPlan, sceneX, sceneY, PLATE } from '../src/decks/hp/cams.ts';
 import { REGIONS } from '../src/decks/hp/regions.copied.ts';
 import { tokensOf } from '../src/decks/hp/numbers.ts';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
@@ -89,7 +89,6 @@ test('every slide has a camera: a region, a box, the plate or a lobule view, fra
       }
     }
   }
-  assert.deepEqual(boxToShot(PLATE).half.map((v) => +v.toFixed(3)), [1.367, 1.533]);
   for (const name of Object.keys(REGIONS)) assert.ok(camPlan(name).kind === 'body');
 });
 

@@ -10,7 +10,7 @@ import { pipeline } from './capture-source.ts';
 const DIRS = ['cards', 'talk', 'deck', 'tests', 'charts', 'treat', 'action', 'trials', 'wallet'].map((d) => join('src/ui', d));
 /** Buttons that act (close, go, open, play, step, expand a row) or are the pieces of a card that are not choices. First class name of each. */
 const ACTIONS = new Set(['(none)', 'pz-prail-go', 'pz-zbtn', 'sh-btn', 'ib', 'pzb-n', 'pzb-next', 'pzb-exit', 'btn', 'ab-dp-sb', 'ab-drain', 'metric', 'rp-fr-btn', 'chg-go', 'chg-x', 'order-btn', 'tcp-row', 'tcp-back',
-  'ac-btn', 'ac-name', 'ac-x', 'ac-back', 'sr-done', 'se-summary', 'tr-row', 'tr-fh', 'dk-strip', 'ir-more', 'dop-tint', 'sheet-grab', 'dk-card', 'pzc-q-none']);
+  'ac-btn', 'ac-name', 'ac-x', 'ac-back', 'sr-done', 'se-summary', 'tr-row', 'tr-fh', 'dk-strip', 'ir-more', 'dop-tint', 'sheet-grab', 'dk-card', 'pzc-q-none', 'pz-int-go', 'pz-int-back']);
 const walk = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : p.endsWith('.tsx') ? [p] : []; });
 /** The text of each <button …> opening tag: to the first `>` outside braces and quotes. */
 function buttons(src: string): string[] {
