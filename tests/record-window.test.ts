@@ -21,21 +21,25 @@ test('the row shows only where the browser can share a window AND write video (l
 });
 
 test('the row and the shortcut are gated by the one check, and nothing in Record window reads the user agent', () => {
-  const sheet = src('src/ui/settings/SettingsSheet.tsx'), keys = src('src/ui/keys/useKeys.ts'), rec = src('src/ui/capture/record.ts');
+  const sheet = src('src/ui/settings/SettingsSheet.tsx'), keys = src('src/ui/keys/useKeys.ts'), model = src('src/ui/capture/record-model.ts');
   assert.match(sheet, /if \(!recordAvailable\(\)\) return null;/);
   assert.match(keys, /isRecordKey\(e\) && recordAvailable\(\)/);
-  assert.match(rec, /canRecordWindow\(\{ getDisplayMedia: navigator\.mediaDevices\?\.getDisplayMedia/);
-  assert.match(rec, /if \(!recordAvailable\(\)\) return Promise\.resolve\(\);/, 'the toggle itself does nothing where it cannot work');
+  assert.match(model, /canRecordWindow\(\{ getDisplayMedia: navigator\.mediaDevices\?\.getDisplayMedia/);
+  assert.match(model, /if \(!recordAvailable\(\)\) return Promise\.resolve\(\);/, 'the toggle itself does nothing where it cannot work');
   for (const f of ['record.ts', 'record-model.ts', 'record-run.ts']) assert.ok(!/userAgent|platform\b|iPhone|iPad|Safari\)/.test(src(`src/ui/capture/${f}`).replace(/\/\/.*|\/\*\*[\s\S]*?\*\//g, '')), `${f} sniffs nothing`);
 });
 
-test('Record window sits in Settings with Capture screen, and its press runs inside the tap (no import() before the browser is asked)', () => {
-  const sheet = src('src/ui/settings/SettingsSheet.tsx'), rec = src('src/ui/capture/record.ts');
+test('Record window sits in Settings with Capture screen; the code that talks to the browser is a chunk fetched after the first picture, yet a press goes straight through inside the tap', () => {
+  const sheet = src('src/ui/settings/SettingsSheet.tsx'), model = src('src/ui/capture/record-model.ts'), keys = src('src/ui/keys/useKeys.ts');
   assert.match(sheet, /<RecordRow touch=\{touch\} \/>/);
   assert.ok(sheet.indexOf('<RecordRow') > sheet.indexOf('label={CAPTURE.row}') && sheet.indexOf('<RecordRow') < sheet.indexOf('label={CAPTURE.deckRow}'), 'between Capture screen and Capture this deck');
-  assert.match(sheet, /from '\.\.\/capture\/record\.ts'/, 'imported statically');
-  assert.ok(!/import\('\.\.\/capture\/record/.test(sheet + src('src/ui/keys/useKeys.ts')), 'a dynamic import in the tap spends the tap (Safari)');
-  assert.match(rec, /preferCurrentTab: true/);
+  // the boot entry imports only the light part (tests/boot-entry.test.ts holds its file count)
+  for (const f of ['src/ui/settings/SettingsSheet.tsx', 'src/ui/keys/useKeys.ts', 'src/ui/capture/RecordIndicator.tsx', 'src/ui/shell/TopBar.tsx']) assert.ok(!/from '[^']*capture\/record(-run)?\.ts'/.test(src(f)), `${f} does not import the browser code statically`);
+  assert.match(model, /import\('\.\/record\.ts'\)/);
+  assert.match(model, /if \(engine\) return engine\.toggleRecordingNow\(\);/, 'once the code is in, the press is a plain call inside the tap: Safari lets a page ask to share a screen only there');
+  assert.match(sheet, /void warmRecording\(\)/, 'fetched as Settings opens'); assert.match(keys, /warmRecording\(\)/, 'and shortly after the first picture, for the shortcut');
+  assert.ok(!/import\('\.\.\/capture\/record/.test(sheet + keys), 'no import() in the tap itself');
+  assert.match(src('src/ui/capture/record.ts'), /preferCurrentTab: true/);
 });
 
 test('the format is the first one the browser says it writes: MP4 first, then WebM; none known leaves it to the browser', () => {
