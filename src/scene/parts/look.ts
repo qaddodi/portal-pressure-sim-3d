@@ -8,7 +8,6 @@ import { TEXTURE_WIDTH } from '../../engine/vessel-data.ts';
 import { clock, AMBIENT_FPS_PHONE, AMBIENT_FPS } from '../../clock/frame.ts';
 import { mapRamp } from '../circuit/map-layer.ts';
 import { MAP_LOOKS } from '../circuit/data.copied.ts';
-import { setLobuleTones } from '../organs/liver-lobules.ts';
 import type { CelScene } from '../scene.ts';
 import { scenePart } from './define.ts';
 
@@ -25,7 +24,7 @@ export const lookPart = scenePart<CelScene>()({
     this.procs.applyPalette(p); this.probes.applyPalette(p);
     this.tubes.applyPalette(p); this.resistors.setLook(look);
     this.disease.applyLook(look, p); this.disease.setPhone(this.phone);
-    this.lens.setLook(look); setLobuleTones(look);
+    this.lens.setLook(look);
     this.lobule.applyLook(look); this.sinus.applyLook(look); this.feedSinusInk();
     this.moving = true;
   },

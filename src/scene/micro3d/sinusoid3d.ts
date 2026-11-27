@@ -19,11 +19,10 @@ import type { SinusoidView } from '../sinusoid/view.ts';
 import { U } from '../sinusoid/view.ts';
 import { SIN_REL } from '../lobule/frames.ts';
 import { HCT_HEALTHY } from '../lobule/model.ts';
-import { CELL, PERIOD, SEED, SLOT, UM, canaliculusAt, cellOf, edgeAt, nucAt, poreAt, poreOpenness, underNucleus, type Pore } from '../sinusoid/layout.ts';
+import { CELL, SEED, SLOT, UM, canaliculusAt, cellOf, edgeAt, nucAt, poreAt, poreOpenness, underNucleus, type Pore } from '../sinusoid/layout.ts';
 import { TROUGH_K, WALL, buildBore, buildCut, buildNucleusSection, buildShellSteps, newWeights, phiAt, wallColumns, type Weights } from './sinusoid-wall.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { SHAPE_NODES, SHAPE_RAMP, restDisseW, restHalfW, shapeInverse, shapeUniform } from './sinusoid-shape.ts';
-import { ARRIVAL_ORDER, type ArrivalTier, HANDOFF, arrival, tierOf } from './sinusoid-arrival.ts';
 import {
   MeshBuilder, MicroMany, MicroPart, COPY_W, Pacer, meshWork, type P2, type RGB, chaikin, ellipsoid, hazeUniforms, microMaterials, rawRGB, outlineNormals, pillow, placeAt, tube, unitRbc, unitRod, unitSphere,
 } from './cel3d.ts';
@@ -45,8 +44,8 @@ export const TRAFFIC_REACH = 150;
 /** How many more sinusoids (each with its plate) lie beyond the main plates, each way, as 2D repeats them outward: two, so panning to the edge never shows an empty page (Mohammad, 20 Nov 2026: "one more
  *  blood layer on top and bottom so that it doesn't look empty when i pan all the way up"). */
 export const BEYOND = 2;
-/** The repeat across (µm): a plate, Disse, lining, lumen, lining, Disse (sinusoid/layout.ts, the one place it is set). */
-export { PERIOD };
+/** The repeat across (µm): a plate, Disse, lining, lumen, lining, Disse. */
+export const PERIOD = UM.hep + 2 * (UM.disse + UM.endo) + 2 * UM.lum;
 /** How far across (µm each way, from the axis): the main plates and the BEYOND sinusoids and plates past each. */
 export const ACROSS = UM.lum + UM.endo + UM.disse + UM.hep + BEYOND * PERIOD + 12;
 /** Depths (µm, toward the viewer): the plates' tops, the lining's crest, Disse's floor, the ground under the clefts, the trough's depth as a share of the lumen's half width. */
@@ -55,9 +54,7 @@ export const Z = { cell: 0.55, cellBot: -1.3, bead: 0.5, disse: -1.0, ground: -1
 /** How far (µm) the scene stands toward the viewer from the lobule's plate. */
 // (26: the whole scene, its ground 12 µm down included, stands over the lobule's tubes (their tops about 11 µm up in these units) and tiles: at 8 the tube showed through the lumen and the
 //  lobule's branches through the ground while it grew, a hybrid picture, eyes 20 Nov. holdScale keeps it its landed size on screen however high it stands.)
-// (28 since 27 Nov: a lobule unit is 235 µm now, not 221 (SIN_REL, so the lumen is as wide as the tube at the new station),
-//  so the lobule's tubes stand 6 % higher in these µm: 26 sat 0.2 µm under the tallest.)
-export const LIFT = 28;
+export const LIFT = 26;
 /** How far (µm) the scene's lowest surface stands over the tallest lobule tube in view, at the least. */
 export const LIFT_MARGIN = 2;
 /** One µm of this scene in the lobule's local units (the scene's unit is U per µm and SIN_REL lobule units: lobule/frames.ts). */
@@ -70,22 +67,15 @@ export const ALB_RIM_FULL_PX = 8;
 /** The dive's focus pull (Mohammad 20 Nov 2026: the disc and the band read as a window and "an old TV"): over FOCUS[0]-FOCUS[1] of the dive's share the whole picture goes soft, over
  *  FOCUS[1]-FOCUS[2] the sinusoid comes in over the lobule inside that blur (its screen-door fade, which the blur turns into a true dissolve), and over FOCUS[2]-1 it sharpens to its own
  *  focus band: one picture coming into focus, no edge or shape anywhere. Going out it runs back the same way. */
-// (27 Nov, the owner's approval of the zoom plan: the handoff widened from 0.45-0.68 to 0.25-0.85, sinusoid-arrival.ts HANDOFF)
-export const FOCUS = [0.15, HANDOFF[0], HANDOFF[1]] as const;
+export const FOCUS = [0.2, 0.45, 0.68] as const;
 /** The focus pull's blur at the dissolve's middle, against the rest's (Mohammad 20 Nov: the blur came in "kinda quickly too strongly"): only as soft as the dissolve needs, eased in with
  *  a smootherstep from FOCUS[0] so it has no start, peaking at the dissolve's middle, then held while the sinusoid's own band opens over FOCUS[2]-1 and its sides settle to the rest's. */
-// (27 Nov: 0.4 -> 0.3, the owner's approval of the zoom plan: less blur, the crossing is local now and needs less to hide behind)
-export const FOCUS_PEAK = 0.3;
-/**
- * Where the picture starts to sharpen to its own focus band (the albumin, last in, is still arriving under it:
- * 27 Nov, the handoff is wider than the old sharpening could follow without a rush into the landing).
- */
-export const SHARPEN_FROM = 0.65;
+export const FOCUS_PEAK = 0.4;
 const smoother = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * t * (t * (t * 6 - 15) + 10); };
 /** The blur's strength at dive share `d` (FOCUS_PEAK at the dissolve's middle, 1 landed, as at rest). */
 export function focusBlur(d: number): number {
   const mid = (FOCUS[1] + FOCUS[2]) / 2;
-  return d < mid ? FOCUS_PEAK * smoother(FOCUS[0], mid, d) : FOCUS_PEAK + (1 - FOCUS_PEAK) * smoother(SHARPEN_FROM, 1, d);
+  return d < mid ? FOCUS_PEAK * smoother(FOCUS[0], mid, d) : FOCUS_PEAK + (1 - FOCUS_PEAK) * smoother(FOCUS[2], 1, d);
 }
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), and the haze: how far out it takes to be whole (µm) and how deep it goes. */
 const PACE = 1.35, HAZE_K = 0.45;
@@ -123,36 +113,6 @@ export const rbcDensity = (hct: number): number => clamp(hct / HCT_HEALTHY, 0, R
 /** The red cells drawn in this sinusoid's lumen and in each of the two next ones at a hematocrit (fractions count the cell growing in). */
 const RBC_CAP_MAIN = Math.ceil(RBC_N * RBC_DENSITY_MAX), RBC_CAP_FAR = Math.ceil(RBC_FAR * RBC_DENSITY_MAX), RBC_CAP = RBC_CAP_MAIN + 2 * RBC_CAP_FAR;
 export const rbcWanted = (hct: number): { main: number; far: number } => { const d = rbcDensity(hct); return { main: RBC_N * d, far: RBC_FAR * d }; };
-
-/** One red cell of the stream: its fixed draw along (u), across (y, -0.75 to 0.75 of the lumen's half width), in depth (z), its tilt, its spin and phase, and the lane it
-   rides (0 this sinusoid, -1 and 1 the next ones). */
-export interface RbcCell { u: number; y: number; z: number; tilt: number; spin: number; ph: number; lane: -1 | 0 | 1 }
-/** Where a red cell is, and how big, in the sinusoid's own micrometres (x along the flow, yd across and DOWN as 2D has it, z toward the viewer): `flow` is the traffic's run
-   (µm), `have` the share of the cell present (a cell being added or taken is smaller, never larger). */
-export interface RbcSpot { x: number; yd: number; z: number; r: number; fold: number; rot: number }
-/** The stream's one rule for a red cell's place (the lane's fastest in the middle, the lumen's width where it is, the squeeze at the stellate cell's pinch): the sinusoid
-   draws its cells with it, and so does the dive's blood in the lobule (dive-blood.ts), so the two are the same cells by construction. */
-export function rbcSpot(c: RbcCell, flow: number, g: { halfW(x: number): number; hepIn(x: number): number }, have: number, out: RbcSpot): RbcSpot {
-  const span = RBC_SPAN, v0 = -REACH - 8, farH = UM.lum + UM.endo * 0.5, farLim = farH - RBC_R * 0.62;
-  const sp = 1.5 * (1 - c.y * c.y) + 0.08;
-  const x = v0 + ((((c.u * span + flow * sp) % span) + span) % span);
-  let yd: number, z: number, fold = 1;
-  if (c.lane === 0) {
-    const h = g.halfW(x), lim = Math.max(0, h - RBC_R * 0.62);
-    yd = clamp(c.y * h, -lim, lim);
-    const t = Math.abs(yd) / Math.max(h, 1e-3);
-    z = -h * Z.trough * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.42, 0.62, c.z);
-    // a squeeze where the lumen is narrow (the stellate cell's pinch): the disc folds a little
-    fold = clamp(h / (RBC_R + 1.2), 0.62, 1);
-  } else {
-    const mid = g.hepIn(x) + UM.hep + UM.disse + UM.endo + UM.lum, o = clamp(c.y * farH, -farLim, farLim), t = Math.abs(o) / farH;
-    yd = c.lane * (mid + o);
-    z = -farH * 0.7 * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.4, 0.6, c.z) + 0.1;
-  }
-  // (a whole cell is RBC_R; only the one being added or taken is smaller, never larger)
-  out.x = x; out.yd = yd; out.z = z; out.fold = fold; out.r = RBC_R * smooth(0, 1, have); out.rot = c.ph + c.spin * flow * 0.02;
-  return out;
-}
 
 const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -208,8 +168,7 @@ const gapTexture = (data: Uint8Array): DataTexture => {
 export class Sinusoid3D {
   readonly group = new Group();
   private readonly flat: Flat;
-  /** One dissolve per tier of parts (sinusoid-arrival.ts): the big parts arrive first, the fine ones last. */
-  private readonly fades: Record<ArrivalTier, { value: number }> = { plates: { value: 1 }, lining: { value: 1 }, fine: { value: 1 }, cells: { value: 1 }, albumin: { value: 1 } };
+  private readonly fade = { value: 1 };
   private readonly res: CelShared['res'];
   private on = false;
   /** The haze over what lies past this sinusoid's own plates (one set of uniforms for every part). */
@@ -261,7 +220,7 @@ export class Sinusoid3D {
   private readonly albumin: MicroMany;
   private readonly rbc: MicroMany;
   /** The red cells of the three lanes (this sinusoid's, then the next one's each way), each lane in the order they are added as the hematocrit rises; `rbcStart` is where each lane begins. */
-  private readonly rbcs: RbcCell[] = [];
+  private readonly rbcs: { u: number; y: number; z: number; tilt: number; spin: number; ph: number; lane: -1 | 0 | 1 }[] = [];
   private readonly rbcStart: [number, number, number, number] = [0, 0, 0, 0];
 
   constructor(flat: SinusoidView, shared: CelShared) {
@@ -271,8 +230,8 @@ export class Sinusoid3D {
     // the scene is built in micrometres, the plane's y up: one group scales it to the host's units (it turns with the host's group in a portrait room)
     this.group.scale.setScalar(U);
     // (while the camera dives in it stands a little proud of the lobule's plate it sits in, so it is drawn over the lobule, never through it; at rest it lies in the host's own plane, where the names are pinned)
-    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fades[tierOf(name)], { haze: this.haze, rimK: this.rimK, ...o }), `sinusoid3d/${name}`);
-    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}, colours = false) => new MicroMany(geo, microMaterials(this.res, this.fades[tierOf(name)], { haze: this.haze, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`, colours);
+    const mk = (name: string, o: Parameters<typeof microMaterials>[2] = {}) => new MicroPart(new MeshBuilder().build(), microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), `sinusoid3d/${name}`);
+    const many = (name: string, geo: ReturnType<typeof unitSphere>, cap: number, o: Parameters<typeof microMaterials>[2] = {}, colours = false) => new MicroMany(geo, microMaterials(this.res, this.fade, { haze: this.haze, rimK: this.rimK, ...o }), cap, `sinusoid3d/${name}`, colours);
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
@@ -379,8 +338,8 @@ export class Sinusoid3D {
     if (!shown) return changed;
     // the dive: the scene comes in over the lobule as the camera lands (the host's own share), whole at rest
     const d = f.dive;
-    // (each part comes in by its own size on screen, inside the blur, sinusoid-arrival.ts: dithered, which the blur turns into a smooth dissolve; every part whole before the picture sharpens)
-    for (const t of ARRIVAL_ORDER) this.fades[t].value = arrival(t, d);
+    // (the sinusoid comes in inside the blur, FOCUS: dithered, which the blur over it turns into a smooth dissolve; whole before the picture sharpens)
+    this.fade.value = d == null ? 1 : smooth(FOCUS[1], FOCUS[2], d);
     { const k = f.pxPerUm; this.rimK.value = k > 0 ? smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k) : d != null ? 0 : 1; this.rimKAlb.value = k > 0 ? smooth(ALB_RIM_FULL_PX / 3, ALB_RIM_FULL_PX, k) : d != null ? 0 : 1; }   // (a smooth ramp in the scene's size, never a switch; unmeasured in a dive (its first frame), none, so a line never shows whole for a frame and then thins)   // (a red cell 7 µm across keeps its whole line from about 17 px wide; smaller, the line goes before the cell is a dot)
     this.group.position.z = d == null ? 0 : this.liftUm() * U * (1 - smooth(0.9, 1, d));   // (down only once the lobule has stood aside, scene.ts LOBULE_UNDER_FROM + 0.04)
     const dark = LOOKS[f.look].scheme === 'dark';
@@ -471,13 +430,13 @@ export class Sinusoid3D {
     // (the focus pull is one blur over the WHOLE screen, never a window opening: the band keeps its resting geometry through the dive and `open` (0 closed: the picture blurs the same everywhere, 1 the
     //  resting band) is only how far each pixel's blur has eased from that one level to its own, post-dof.ts bandOpen. The sharp strip used to open outward from the axis and the ends, which read as a
     //  box or a reveal to the right and left, Mohammad 20 Nov 2026: "just blur as you zoom in, then unblur the entire screen")
-    const open = d == null ? 1 : smooth(SHARPEN_FROM, 1, d);
+    const open = d == null ? 1 : smooth(FOCUS[2], 1, d);
     this.focusOpen = open;
     const y0 = rest;
     w(a, -20, 0); w(b, 20, 0); w(e0, 0, y0); w(e1, 0, y0 + BLUR_RUN);
     // the two ends melt away well before the scene stops (Mohammad 20 Nov: "don't let me see the end of the sinusoid like that ... blur the ends")
     if (ends) { w(ends.mid, 0, 0); w(ends.f0, REACH - END_BLUR[0], 0); w(ends.f1, Math.max(REACH - END_BLUR[1], REACH - END_BLUR[0] + 2), 0); }
-    return d == null ? 1 : focusBlur(d);
+    return d == null ? this.fade.value : focusBlur(d);
   }
 
   // ---- colours -------------------------------------------------------------------------------------------------------------------
@@ -872,8 +831,10 @@ export class Sinusoid3D {
   /** The red cells: biconcave discs carried in the stream at the albumin's own lane speeds (fastest in the middle), tumbling a little; a few ride in each of the next sinusoids too.
    *  How many is the blood's (rbcWanted: the patient's hematocrit against a healthy one); a cell that is being added or taken grows or shrinks over one cell's share, never pops. */
   private stepRbc(): void {
-    const f = this.flat, flow = f.traffic.flowX, spot = this.rbcSpotNow;
-    const want = rbcWanted(f.cur.hct);
+    const f = this.flat, g = f.g, v0 = -REACH - 8, span = RBC_SPAN, flow = f.traffic.flowX;
+    const farH = UM.lum + UM.endo * 0.5, farLim = farH - RBC_R * 0.62;
+    // Blood origin and First pass: each cell wears the colour of the source its fixed draw falls in (the blood has mixed by here), eased in from its own red
+    const lens = f.cellColours, red = this.rbcRed, col = this.rbcCol, want = rbcWanted(f.cur.hct);
     let n = 0;
     for (let l = 0; l < 3; l++) {
       const start = this.rbcStart[l]!, total = this.rbcStart[l + 1]! - start, wanted = l === 0 ? want.main : want.far;
@@ -881,29 +842,32 @@ export class Sinusoid3D {
         const have = clamp(wanted - k, 0, 1);
         if (have <= 0) break;
         const c = this.rbcs[start + k]!;
-        // (the place and the size are rbcSpot's, one rule: the dive's red cells in the lobule, scene/micro3d/dive-blood.ts, take the same cells from it)
-        rbcSpot(c, flow, f.g, have, spot);
-        placeAt(this.m4, spot.x, Y(spot.yd), spot.z, spot.r, spot.r * spot.fold, spot.r, spot.rot, c.tilt);
-        this.rbc.setAt(n++, this.m4, this.rbcColourAt(start + k, this.rbcCol));
+        // (the colour is the cell's own, fixed by its place in the list, whoever else is drawn: a cell never changes source as the stream thins)
+        if (lens) cellColour(lens, hash((start + k) * 0.618 + 0.37), red, col);
+        else { col[0] = red[0]!; col[1] = red[1]!; col[2] = red[2]!; }
+        const sp = 1.5 * (1 - c.y * c.y) + 0.08;
+        const x = v0 + ((((c.u * span + flow * sp) % span) + span) % span);
+        let yd: number, z: number, fold = 1;
+        if (c.lane === 0) {
+          const h = g.halfW(x), lim = Math.max(0, h - RBC_R * 0.62);
+          yd = clamp(c.y * h, -lim, lim);
+          const t = Math.abs(yd) / Math.max(h, 1e-3);
+          z = -h * Z.trough * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.42, 0.62, c.z);
+          // a squeeze where the lumen is narrow (the stellate cell's pinch): the disc folds a little
+          fold = clamp(h / (RBC_R + 1.2), 0.62, 1);
+        } else {
+          const mid = g.hepIn(x) + UM.hep + UM.disse + UM.endo + UM.lum, o = clamp(c.y * farH, -farLim, farLim), t = Math.abs(o) / farH;
+          yd = c.lane * (mid + o);
+          z = -farH * 0.7 * Math.sqrt(Math.max(0, 1 - t * t)) * lerp(0.4, 0.6, c.z) + 0.1;
+        }
+        // (a whole cell is RBC_R; only the one being added or taken is smaller, never larger)
+        const r = RBC_R * smooth(0, 1, have);
+        placeAt(this.m4, x, Y(yd), z, r, r * fold, r, c.ph + c.spin * flow * 0.02, c.tilt);
+        this.rbc.setAt(n++, this.m4, col);
       }
     }
     this.rbc.commit(n);
   }
-  private readonly rbcSpotNow: RbcSpot = { x: 0, yd: 0, z: 0, r: 0, fold: 1, rot: 0 };
-  /** The colour of red cell `i` of the list now (Blood origin and First pass colour each by the source its fixed draw falls in, eased in from its own red; else the red). One
-     rule for this scene and the dive's cells. */
-  rbcColourAt(i: number, out: [number, number, number]): [number, number, number] {
-    const lens = this.flat.cellColours, red = this.rbcRed;
-    // (the colour is the cell's own, fixed by its place in the list, whoever else is drawn: a cell never changes source as the stream thins)
-    if (lens) cellColour(lens, hash(i * 0.618 + 0.37), red, out);
-    else { out[0] = red[0]!; out[1] = red[1]!; out[2] = red[2]!; }
-    return out;
-  }
-  /** The red cells' list (read only: the dive's cells in the lobule follow it) and where each lane begins. */
-  get rbcList(): readonly RbcCell[] { return this.rbcs; }
-  get rbcLaneStart(): readonly number[] { return this.rbcStart; }
-  /** The red cells' own mesh (the dive's cells copy its look: its tint and line colour). */
-  get rbcMesh(): MicroMany { return this.rbc; }
 
   /** The wedged column's wash in the lumen, and the haze. */
   private stepWashAndHaze(P: Pal): void {
