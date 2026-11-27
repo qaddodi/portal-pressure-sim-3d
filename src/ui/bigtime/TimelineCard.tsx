@@ -7,6 +7,7 @@ import { clock, type TimerId } from '../../clock/frame.ts';
 import { Chart, type ChartCtx } from '../charts/Chart.tsx';
 import { readBox } from '../layout-snap.ts';
 import { useShell } from '../shell/store.ts';
+import { originName, openHistoryFromChart, useOrigin } from '../shell/origin.ts';
 import { useThumb } from '../shell/thumb.ts';
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
 import { useUi } from '../ui-store.ts';
@@ -136,9 +137,12 @@ export function TimelineCard() {
   const build = (c: ChartCtx) => { const r = bigFrame(inp(plot.h), c); geo.current = r.geo; return r.frame; };
   const stripBuild = (c: ChartCtx) => stripFrame(inp(plot.h), c, leadOf(c.w)).frame;
   const deps = [data, ids.join(), lines, meds, w0, w1, shown, plot.h, open];
-  const close = () => useShell.getState().close();
+  // Done is Back when the chart was opened from History (shell/origin.ts): it returns there, as History's Back returns here; opened on its own it just closes
+  const from = originName(useOrigin('timeline'));
+  const close = () => useShell.getState().returnBack();
+  const doneWord = from ? BT.backTo(from) : BT.done;
   // On a phone "What happened" is History, the page Settings pushes from the right (not a second list of its own): one list of what happened, one way to it
-  const openHistory = () => useShell.getState().openSettingsPage('history');
+  const openHistory = openHistoryFromChart;
   // A phone's raised panel (What to graph, What happened) is a bottom sheet of its own: a pull down from anywhere on it, from the top of its list, shuts it as every sheet does (shell/sheet-swipe.ts). The card around it is a sheet too and
   // closes the whole chart on a pull, so a touch that begins inside the panel does not reach it (root cause of "I can't swipe it down": the pull was the card's, or nobody's).
   const side = useRef<HTMLElement>(null);
@@ -156,7 +160,7 @@ export function TimelineCard() {
         <button type="button" aria-pressed={panel === 'graph'} onClick={() => set({ panel: 'graph' })}>{BT.graph}</button>
         <button type="button" aria-pressed={panel === 'happened'} onClick={() => set({ panel: 'happened' })}>{BT.happened}</button>
       </div>
-      <button type="button" className="bt-done" onClick={close}>{BT.done}</button>
+      <button type="button" className="bt-done" onClick={close}>{doneWord}</button>
     </header>
   );
   const at = shown ?? full[1];
@@ -166,7 +170,7 @@ export function TimelineCard() {
         <header className="bt-head">
           <h2>{BT.title}</h2>
           {compact ? (
-            <p className="bt-acts">{isZoomed && <button type="button" onClick={reset}>{BT.reset}</button>}<button type="button" className="bt-done" onClick={close}>{BT.done}</button></p>
+            <p className="bt-acts">{isZoomed && <button type="button" onClick={reset}>{BT.reset}</button>}<button type="button" className="bt-done" onClick={close}>{doneWord}</button></p>
           ) : (
             <p className="bt-range"><span>{BT.range(w0, w1)}</span><button type="button" data-idle={!isZoomed || undefined} disabled={!isZoomed} onClick={reset}>{BT.reset}</button></p>
           )}

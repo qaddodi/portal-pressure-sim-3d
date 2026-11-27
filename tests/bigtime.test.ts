@@ -480,19 +480,60 @@ test('every event of What happened carries a chevron that says it opens: down wh
 import { readFileSync } from 'node:fs';
 test('root cause (a phone had a second, smaller list of what happened beside History): "What happened" opens History, Settings\' page from the right; Settings takes the asked page once its menu is up', async () => {
   const { useShell } = await import('../src/ui/shell/store.ts');
+  const { openHistoryFromChart } = await import('../src/ui/shell/origin.ts');
   const card = readFileSync(new URL('../src/ui/bigtime/TimelineCard.tsx', import.meta.url), 'utf8'), settings = readFileSync(new URL('../src/ui/settings/SettingsSheet.tsx', import.meta.url), 'utf8');
   // the footer's button asks Settings for History; it no longer raises the chart's own list
-  assert.ok(/onClick=\{openHistory\}[^>]*>[^]*?\{BT\.happened\}/.test(card) && /openSettingsPage\('history'\)/.test(card), 'the phone button asks for History');
+  assert.ok(/onClick=\{openHistory\}[^>]*>[^]*?\{BT\.happened\}/.test(card) && /openHistory = openHistoryFromChart/.test(card), 'the phone button asks for History');
   assert.ok(!/set\(\{ panel: 'happened', raised: true \}\)/.test(card), 'it does not raise the chart\'s own What happened sheet');
-  // the store: one call opens Settings and names the page; the page is the one a tapped row pushes
-  useShell.setState({ sheet: 'timeline', settingsPage: null });
-  useShell.getState().openSettingsPage('history');
+  useShell.setState({ sheet: 'timeline', settingsPage: null, cameFrom: null });
+  openHistoryFromChart();
   assert.equal(useShell.getState().sheet, 'settings'); assert.equal(useShell.getState().settingsPage, 'history');
   // Settings pushes it (setPageId) after the menu is up, then clears the ask; an ask while Settings is shut is dropped
   assert.ok(/clock\.after\(\(\) => \{ setPageId\(asked\); useShell\.setState\(\{ settingsPage: null \}\); \}, ASK_PAGE_MS/.test(settings), 'pushed once the menu is up, then cleared');
   assert.ok(/if \(!open\) \{ useShell\.setState\(\{ settingsPage: null \}\); return; \}/.test(settings), 'an ask while shut is dropped');
-  assert.ok(/l === 'History'\) push\('history'\)/.test(settings) && /pageId === 'history' \? \{ back: label, title: HIST\.title, body: <HistoryList \/>/.test(settings), 'the same page the History row pushes');
-  useShell.setState({ sheet: null, settingsPage: null });
+  assert.ok(/l === 'History'\) push\('history'\)/.test(settings) && /const hist: MenuPage = \{ back: backName \?\? label, title: HIST\.title, body: <HistoryList \/> \}/.test(settings) && /pageId === 'history' \? hist/.test(settings), 'the same page the History row pushes');
+  useShell.setState({ sheet: null, settingsPage: null, cameFrom: null });
+});
+
+test('root cause (Back from History opened by "What happened" went to Settings\' rows, not the chart): every sheet remembers where it was opened from and Back returns there, on every device', async () => {
+  const { useShell } = await import('../src/ui/shell/store.ts');
+  const { openHistoryFromChart, openChartFromHistory, originName } = await import('../src/ui/shell/origin.ts');
+  const st = () => useShell.getState();
+  const reset = () => useShell.setState({ sheet: null, settingsPage: null, cameFrom: null });
+  // chart -> History (a phone) -> Back: the chart, and nothing is left remembered
+  reset(); st().open('timeline');
+  openHistoryFromChart();
+  assert.deepEqual(st().cameFrom, { to: 'settings', from: { sheet: 'timeline' } });
+  st().returnBack();
+  assert.equal(st().sheet, 'timeline'); assert.equal(st().settingsPage, null); assert.equal(st().cameFrom, null);
+  // chart opened on its own: Back (Done) closes it
+  st().returnBack(); assert.equal(st().sheet, null);
+  // History as a panel (laptop, iPad) -> its "See as a chart" -> Back: the panel again; Back again closes it
+  reset(); st().open('history');
+  openChartFromHistory();
+  assert.equal(st().sheet, 'timeline'); assert.deepEqual(st().cameFrom, { to: 'timeline', from: { sheet: 'history' } });
+  st().returnBack(); assert.equal(st().sheet, 'history'); st().returnBack(); assert.equal(st().sheet, null);
+  // Settings' History page -> its chart button -> Back: Settings, asked for its History page again
+  reset(); st().open('settings');
+  openChartFromHistory();
+  assert.equal(st().sheet, 'timeline');
+  st().returnBack();
+  assert.equal(st().sheet, 'settings'); assert.equal(st().settingsPage, 'history');
+  // chart -> History -> its chart button goes back to the chart it came from, not a second chart on top
+  reset(); st().open('timeline'); openHistoryFromChart();
+  openChartFromHistory();
+  assert.equal(st().sheet, 'timeline'); assert.equal(st().cameFrom, null);
+  // an origin dies with its sheet: closed, or swapped for another, and a later plain opening has none
+  reset(); st().open('history'); openChartFromHistory(); st().close();
+  assert.equal(st().cameFrom, null); st().open('timeline'); assert.equal(st().cameFrom, null); st().returnBack(); assert.equal(st().sheet, null);
+  reset(); st().open('history'); openChartFromHistory(); st().open('guide'); assert.equal(st().cameFrom, null);
+  reset();
+  assert.equal(originName({ sheet: 'timeline' }), 'Over time'); assert.equal(originName({ sheet: 'history' }), 'History'); assert.equal(originName({ sheet: 'settings', page: 'history' }), 'History'); assert.equal(originName(null), null);
+  // the places that say it: the chart's Done reads "Back to <where>" and returns; Settings' page Back reads the origin and returns; History's chart buttons use the one door
+  const card = readFileSync(new URL('../src/ui/bigtime/TimelineCard.tsx', import.meta.url), 'utf8'), settings = readFileSync(new URL('../src/ui/settings/SettingsSheet.tsx', import.meta.url), 'utf8'), list = readFileSync(new URL('../src/ui/history/HistoryList.tsx', import.meta.url), 'utf8');
+  assert.ok(/const close = \(\) => useShell\.getState\(\)\.returnBack\(\)/.test(card) && /BT\.backTo\(from\)/.test(card) && (card.match(/onClick=\{close\}>\{doneWord\}/g) ?? []).length === 2, 'both Done buttons of the chart are the one Back');
+  assert.ok(/useOrigin\('settings'\)/.test(settings) && /onBack=\{back\}/.test(settings), 'Settings\' page Back returns to the origin');
+  assert.ok((list.match(/onClick=\{openChartFromHistory\}/g) ?? []).length === 2 && !/open\('timeline'\)/.test(list), 'History opens the chart by the one door');
 });
 
 test('each lane sits on its own darker rounded panel with no outline (owner, 24 Nov: "p2 but without outlines")', () => {

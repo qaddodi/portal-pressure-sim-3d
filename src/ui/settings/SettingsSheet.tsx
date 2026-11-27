@@ -28,6 +28,7 @@ import { Advanced } from './Advanced.tsx';
 import { FromReadings, FR_WORDS, openFromReadings, warmFromReadings } from '../readings/FromReadings.tsx';
 import { useTalkOn } from '../../state/deck.ts';
 import { clock } from '../../clock/frame.ts';
+import { originName, useOrigin } from '../shell/origin.ts';
 
 const ICON: Record<string, string> = { 'Send feedback': 'mail', History: 'clock', Help: 'help', 'Enter full screen': 'fullscreen', 'Blur effect': 'layers', 'Sharp while moving': 'layers', 'Keyboard shortcuts': 'grid', 'Advanced physiology': 'sliders', 'Show frame rate': 'gauge', 'Show frame breakdown': 'gauge', 'Reset everything…': 'reset' };
 const SWITCH: Record<string, 'blur' | 'sharpMoving' | 'keys' | 'showFps' | 'showBreakdown'> = { 'Blur effect': 'blur', 'Sharp while moving': 'sharpMoving', 'Keyboard shortcuts': 'keys', 'Show frame rate': 'showFps', 'Show frame breakdown': 'showBreakdown' };
@@ -201,9 +202,13 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
     return () => clock.cancel(id);
   }, [asked, open]);
   useEffect(() => { if (!open) setPageId(null); else void warmFromReadings().catch(() => undefined); }, [open]);   // (From readings is loaded by the time its row is tapped)
-  const page: MenuPage | null = pageId === 'history' ? { back: label, title: HIST.title, body: <HistoryList /> } : pageId === 'help' ? { back: label, title: 'Help', body: <HelpRows /> } : pageId === 'advanced' ? { back: label, title: 'Advanced physiology', body: <Advanced /> } : pageId === 'figure' ? { back: label, title: MORE_PAGE_TITLE, body: <FigureMore /> } : null;
+  // Back from a page returns to where Settings was opened from when it was opened from somewhere (the chart's "What happened" on a phone), else to the rows
+  const origin = useOrigin('settings'), backName = originName(origin);
+  const back = () => { setPageId(null); if (origin && pageId === 'history') useShell.getState().returnBack(); };
+  const hist: MenuPage = { back: backName ?? label, title: HIST.title, body: <HistoryList /> };
+  const page: MenuPage | null = pageId === 'history' ? hist : pageId === 'help' ? { back: label, title: 'Help', body: <HelpRows /> } : pageId === 'advanced' ? { back: label, title: 'Advanced physiology', body: <Advanced /> } : pageId === 'figure' ? { back: label, title: MORE_PAGE_TITLE, body: <FigureMore /> } : null;
   return (<>
-    <MenuPop kind="settings" label={label} title={label} align="end" side={place === 'bar' ? 'above' : 'below'} page={page} onBack={() => setPageId(null)}>
+    <MenuPop kind="settings" label={label} title={label} align="end" side={place === 'bar' ? 'above' : 'below'} page={page} onBack={back}>
       {SECTIONS.map((sec, i) => {
         const rows = sec.rows.filter((r) => !(r.phone && !phone) && !(r.talk === false && talk));
         if (!rows.length) return null;

@@ -4,6 +4,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { useShell } from '../shell/store.ts';
+import { openChartFromHistory } from '../shell/origin.ts';
 import { timeline, getInterventionLabels, type Entry } from '../timeline/index.ts';
 import { useTimeline } from '../timeline/store.ts';
 import { pinEntry } from '../compare/bind.ts';
@@ -179,7 +180,7 @@ function Strip({ v, metric, day, setMetric }: { v: View; metric: StripMetric; da
         <span className="hs-seg" role="group" aria-label={STORY.metric}>
           {v.metrics.map((id) => <button key={id} type="button" aria-pressed={id === metric} onClick={() => setMetric(id)}>{STRIP_METRICS.find((x) => x.id === id)!.name}</button>)}
         </span>
-        <button type="button" className="hs-chart" onClick={() => useShell.getState().open('timeline')}>{BT.open}</button>
+        <button type="button" className="hs-chart" onClick={openChartFromHistory}>{BT.open}</button>
       </div>
       <div className="hs-plot">
         <Chart tag="history-strip" deps={[v, metric]} label={`${m.name} along the course`}
@@ -252,7 +253,7 @@ export function HistoryList() {
     return () => { io.disconnect(); root.removeEventListener('pointerdown', mine); root.removeEventListener('wheel', mine); root.removeEventListener('keydown', mine); };
   }, [open, v, sideways]);
   if (entries.length <= 1) {
-    const chart = <button type="button" className="hist-chart" onClick={() => useShell.getState().open('timeline')}>{BT.open}</button>;
+    const chart = <button type="button" className="hist-chart" onClick={openChartFromHistory}>{BT.open}</button>;
     return <><div className="hist-list">{chart}</div><p className="hist-empty"><b>{HIST.nothing}</b>{HIST.nothingHint}</p></>;
   }
   // (a tap on a card moves the playhead to its day; the figure moves only on its button)

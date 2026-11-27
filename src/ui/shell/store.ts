@@ -8,6 +8,8 @@ import type { LensId } from '../../scene/lenses/model.ts';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
 export type Sheet = 'menu' | 'settings' | 'search' | 'help' | 'history' | 'compare' | 'why' | 'guide' | 'blood' | 'layers' | 'lens' | 'speed' | 'jump' | 'readings' | 'timeline' | null;
+/** Where a sheet was opened from, so its Back returns there: a sheet, and for Settings the page that was pushed (History). */
+export interface Origin { sheet: Exclude<Sheet, null>; page?: 'history' }
 export type MenuTab = 'present' | 'patients' | 'histories';
 /** The ten lenses of the 2D menu, in its order (the scene's own list also holds the two a slide uses). */
 export const LENS_IDS: readonly LensId[] = UI.lenses.map((l) => l.id as LensId);
@@ -41,6 +43,8 @@ interface ShellState {
   helpSection: 'keys' | 'present' | null;
   /** the page Settings is asked to push as it opens (History, from the chart's "What happened" on a phone); Settings takes it and clears it (settings/SettingsSheet.tsx) */
   settingsPage: 'history' | null;
+  /** the sheet `to` was opened from `from` (goFrom); cleared as soon as another sheet is up or none is (below), so a later plain opening of `to` has no origin */
+  cameFrom: { to: Exclude<Sheet, null>; from: Origin } | null;
   toast: Toast | null;
   /** The note's clock, drawn as the rule under it (Toast.tsx): it shortens from `from` (share of the note's time left) to nothing over `ms`; paused while held; null for a sticky note. */
   toastRun: ToastRun | null;
@@ -52,8 +56,11 @@ interface ShellState {
   /** a card or other sheet outside the shell is open (Esc closes that first) */
   set(p: Partial<ShellState>): void;
   open(sheet: Exclude<Sheet, null>): void;
-  /** Open Settings with one of its pages already pushed: the page slides in from the right over the rows, as when its row is tapped. */
-  openSettingsPage(page: 'history'): void;
+  /** Go to `to` from `from` (what is up now): `to` remembers where it came from.
+   *  For Settings, `page` is the page pushed as it opens (History: it slides in from the right over the rows, as a tapped row's page does). */
+  goFrom(from: Origin, to: Exclude<Sheet, null>, page?: 'history'): void;
+  /** Back: return to where the sheet up now was opened from, or close it when it was opened on its own. One rule for the chart, History and Settings' pages, on every device. */
+  returnBack(): void;
   close(): void;
   /** Close from a press that may be on the sheet's own opener (a scrim or backdrop press): the opener's click that follows does not reopen it. */
   closeByPress(): void;
@@ -103,14 +110,20 @@ const reopenedByTail = (sheet: Exclude<Sheet, null>): boolean => {
 export const useShell = create<ShellState>((set, get) => ({
   view: 'anatomic',
   ready: { circuit: true, anatomic: true, lobule: true, sinusoid: true },
-  sheet: null, dialog: null, aboutSection: null, menuTab: 'present', menuQuery: '', helpSection: null, settingsPage: null, toast: null, toastRun: null,
+  sheet: null, dialog: null, aboutSection: null, menuTab: 'present', menuQuery: '', helpSection: null, settingsPage: null, cameFrom: null, toast: null, toastRun: null,
   figure: loadFigure(),
   transport: { running: false, speed: 1, lapse: 0, time: '0:00', day: 0 },
   patientId: 'healthy',
   refit: 0,
   set: (p) => set(p),
   open: (sheet) => set({ sheet }),
-  openSettingsPage: (page) => set({ sheet: 'settings', settingsPage: page }),
+  goFrom: (from, to, page) => set({ sheet: to, settingsPage: to === 'settings' ? (page ?? null) : null, cameFrom: { to, from } }),
+  returnBack: () => {
+    const { sheet, cameFrom } = get();
+    if (!sheet) return;
+    if (cameFrom && cameFrom.to === sheet) set({ sheet: cameFrom.from.sheet, settingsPage: cameFrom.from.page ?? null, cameFrom: null });
+    else set({ sheet: null });
+  },
   close: () => { if (get().sheet) set({ sheet: null }); },
   closeByPress: () => { const sheet = get().sheet; if (!sheet) return; pressClosed = { sheet, at: clock.now() }; set({ sheet: null }); },
   toggle: (sheet) => { if (get().sheet !== sheet && reopenedByTail(sheet)) return; set({ sheet: get().sheet === sheet ? null : sheet }); },
@@ -146,3 +159,6 @@ export const useShell = create<ShellState>((set, get) => ({
   setFigure: (p) => { const f = { ...get().figure, ...p }; set({ figure: f }); saveFigure(f); },
   markViewReady: (v) => set({ ready: { ...get().ready, [v]: true } }),
 }));
+
+// An origin belongs to the sheet it was made for: when another sheet is up, or none, it is gone.
+useShell.subscribe((s) => { const c = s.cameFrom; if (c && s.sheet !== c.to) useShell.setState({ cameFrom: null }); });

@@ -5,6 +5,7 @@ export const BT = {
   graph: 'What to graph',
   happened: 'What happened',
   done: 'Done',
+  backTo: (name: string) => `Back to ${name}`,
   reset: 'Reset zoom',
   range: (a: number, b: number) => `Days ${Math.round(a)} to ${Math.round(b)}`,
   day: (d: number) => `Day ${Math.round(d)}`,
