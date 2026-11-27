@@ -10,6 +10,7 @@ import { HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
 import { chainOf, sequencer, changes, type Fp } from '../src/decks/hp/numbers.ts';
 import { tilesAt, tileView, tileVal, ratedShown } from '../src/ui/cards/tiles-2d.ts';
 import type { CopiedDeck } from '../src/decks/hp/types.ts';
+import { hpNumbers } from './engine-departures.ts';
 
 interface Row { id: string; phone: boolean; tips: boolean; toolOnly: boolean; keys: string[]; head: string[]; tiles: Record<string, unknown>[] }
 const tiles2d = JSON.parse(readFileSync(new URL('./fixtures/tiles-2d.json', import.meta.url), 'utf8')) as { decks: Record<string, Row[]> };
@@ -29,7 +30,14 @@ function same(a: unknown, b: unknown, at: string): void {
   assert.deepEqual(a, typeof b === 'string' ? (SAY[b] ?? b.replace(/( 12 mmHg) reference$/, '$1')) : b, at);
 }
 
-function check(d: CopiedDeck, results: { fp: Fp }[], where: string) {
+// A slide whose numbers this app's engine has moved on from the 2D app's (tests/engine-departures.ts: the recorded departures, npm run gen:departures) keeps the 2D tiles' shape (which tiles, which readings
+// in the header, instrument card or not, each tile's name and unit), and its values are the tile code's own on the recorded numbers of that slide. Every other slide is the 2D tile to the digit.
+const departed = (id: string, i: number): Record<string, number> | null => {
+  const rec = hpNumbers()[id]?.[i]?.fp, two = nums.decks[id]?.[i]?.fp;
+  return rec && two && Object.entries(two).some(([k, v]) => Math.abs((rec[k] ?? NaN) - (v as number)) > 1e-9 + 2e-5 * Math.abs(v as number)) ? rec : null;
+};
+
+function check(d: CopiedDeck, results: { fp: Fp }[], where: string, live = false) {
   for (const row of tiles2d.decks[d.id] ?? []) {
     const i = d.slides.findIndex((s) => s.id === row.id);
     assert.ok(i >= 0, `${where}/${row.id}: not a slide of the copied deck`);
@@ -39,7 +47,13 @@ function check(d: CopiedDeck, results: { fp: Fp }[], where: string) {
     assert.deepEqual(got.head, row.head, `${at}: which readings stand in the header`);
     assert.equal(got.toolOnly, row.toolOnly, `${at}: instrument card`);
     assert.equal(got.tiles.length, row.tiles.length, `${at}: tiles`);
-    got.tiles.forEach((t, n) => same(t, row.tiles[n], `${at}: tile ${t.k}`));
+    // (only the engine's own replay can differ from 2D: the 2D-numbers run above feeds the tile code the 2D numbers themselves)
+    const rec = live ? departed(d.id, i) : null;
+    if (rec) {
+      const want = tilesAt(d.slides, [...results.slice(0, i), { fp: rec, params: (results[i] as { params?: unknown }).params }] as never, i, row.phone)!;
+      assert.deepEqual(got.tiles.map((t) => [t.k, t.name, t.unit]), row.tiles.map((t) => [t.k, t.name, t.unit]), `${at}: which tiles, named as in 2D`);
+      got.tiles.forEach((t, n) => same(t, want.tiles[n], `${at}: tile ${t.k} (engine departure)`));
+    } else got.tiles.forEach((t, n) => same(t, row.tiles[n], `${at}: tile ${t.k}`));
   }
 }
 
@@ -66,7 +80,7 @@ test('hvpg: the tiles on the numbers of this app\'s own engine replaying the tal
   await core.handle({ type: 'sequence', steps: chainOf(d.slides), reqId: 1 });
   core.dispose();
   const results = d.slides.map((_, i) => ({ fp: seq.results[i + 1]!.fp, params: seq.results[i + 1]!.params }));
-  check(d, results, 'hvpg (engine)');
+  check(d, results, 'hvpg (engine)', true);
 });
 
 test('the HVPG slides: the 2D tiles by name (HVPG slides 4, 9 and 11), so a change to the model or a tile table shows here by slide', async () => {

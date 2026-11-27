@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // Writes tests/fixtures/decks-hp-numbers-3d.json: the H-to-P decks' numbers where THIS app's engine has deliberately moved on from the 2D app's (so the 2D
 // fixture, tests/fixtures/decks-hp-numbers.json from scripts/port-decks-hp.mjs, can no longer be the truth for them), recorded from this engine, so any
-// further drift still fails tests/decks-hp-numbers.test.ts. The two engine changes since the 2D fixture was taken, both owner-directed and the same two
+// further drift still fails tests/decks-hp-numbers.test.ts. The first two engine changes since the 2D fixture was taken (there have been more since: hales-engine ba0e3c4, 6ed0928, b95ecb5), both owner-directed and the same two
 // scripts/gen-rw-numbers-3d.mjs records for the R-to-W decks:
 //   ac66c99b (3e28931e): the kidney keeps holding salt and water for weeks after the pressure falls, so ascites forms and clears gradually (ASC_HOLD)
 //   c92bf66b (f49dc143): a retained volume builds up over the first 20 days of a time-lapse instead of as one bolus on day 0
 // With the engine of bdd6e6be (before both) every deck replays to the 2D fixture; only the decks that differ from it are written here, whole. A slide's
 // {tokens} are recorded as this app prints them from these numbers and this deck's words (some lines were reworded here since the copy, for example the
 // {iap} readings of scripts/instrument-edits.mjs); the script prints every token whose text differs from the 2D card's, so a reviewer sees each one.
+// ONE RULE for every deck: a deck is written here when a reading differs from the 2D fixture or a {token} prints another text than the 2D card (npm run gen:departures runs this with the other families).
 // Run: node scripts/gen-hp-numbers-3d.mjs   (about a minute). Re-run only when the engine pin moves.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createCore } from '../src/engine/hales/host/worker-core.js';
@@ -33,9 +34,11 @@ async function replay(d) {
 const out = { note: 'Recorded from this app\'s engine where it has deliberately moved on from the 2D app (scripts/gen-hp-numbers-3d.mjs: engine ac66c99b and c92bf66b); every other deck is held to decks-hp-numbers.json.', decks: {} };
 for (const id of HP_IDS) {
   const d = await loadHpDeck(id), g = two.decks[id], fps = await replay(d);
-  const drift = d.slides.some((s, i) => Object.entries(g[i].fp).some(([k, v]) => !(typeof fps[i][k] === 'number' && close(fps[i][k], v))));
-  if (!drift) continue;
   const at = (sid) => { const j = d.slides.findIndex((s) => s.id === sid); return j >= 0 ? fps[j] : null; };
+  // a deck departs from 2D when a reading moved, or when a {token} prints another text than the 2D card does (the words moved: {hvpg:0} prints the tile's one decimal, 26 Nov)
+  const prints = (s, i) => tokensOf(`${s.line} ${s.vignette ?? ''}`).map(({ raw }) => plainText(raw, fps[i], at));
+  const drift = d.slides.some((s, i) => Object.entries(g[i].fp).some(([k, v]) => !(typeof fps[i][k] === 'number' && close(fps[i][k], v))) || prints(s, i).some((x, j) => x !== g[i].tokens[j]?.[1]));
+  if (!drift) continue;
   out.decks[id] = d.slides.map((s, i) => ({
     id: s.id,
     fp: Object.fromEntries(Object.keys(g[i].fp).map((k) => [k, scalars(fps[i])[k]])),

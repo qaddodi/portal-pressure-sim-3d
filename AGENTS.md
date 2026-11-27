@@ -18,7 +18,7 @@ card, with one narrow exception (owner, 26 Nov): a Tests pane whose declared min
 - **Per-frame DOM writes are `transform` and `opacity` only**, written by a clock system, never through React state.
 - **The engine copy is never edited.** `src/engine/hales/` (core, portal and the host with its typed protocol) comes from `npm run sync:engine` (pinned commits in
   `src/engine/PINNED.json`). Fix the engine in `qaddodi/hales-engine`, then re-sync.
-- **Numbers equal the 2D app's** for the same preset (`tests/engine-numbers.test.ts`).
+- **Numbers equal the 2D app's** for the same preset (`tests/engine-numbers.test.ts`), except where the engine has deliberately moved on: those departures are recorded from the engine by one command, `npm run gen:departures` (every deck, every slide; `tests/engine-departures.ts`), never by hand. **A pin move (`npm run sync:engine`) re-records them in the same commit**; `tests/engine-departures.test.ts` fails until it does.
 - **Root cause, everywhere, every time (rule #1, owner, 20 Nov).** Every bug the owner reports or you find is fixed at its root cause in the shared place, not at the symptom; then check every view, vessel and card for the same cause, fix those too, and add a test that pins it. Name the root cause in the report.
 
 ## How to work (owner's standing rules)

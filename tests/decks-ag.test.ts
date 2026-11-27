@@ -17,6 +17,7 @@ import { placedFitBox } from '../src/decks/rw/cams.ts';
 import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { pinned2D } from './two-d-pin.ts';
 import { assertNear } from './close.ts';
+import { AG_FIRST_STEP_DECKS, departures } from './engine-departures.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = (p: string) => JSON.parse(readFileSync(join(root, p), 'utf8'));
@@ -149,13 +150,15 @@ test('every {number} in a slide\'s words is a reading the engine gives, printed 
 });
 
 test('replaying the first model step of five decks in the engine gives the fixture\'s numbers (within float tolerance)', async () => {
-  for (const id of ['circulation', 'circuit', 'day', 'endoscopy', 'gradients'] as const) {
+  // (the 2D app's numbers, except where this engine has moved on: deck-numbers-ag-3d.json, scripts/gen-ag-numbers-3d.mjs, npm run gen:departures)
+  const moved = departures('deck-numbers-ag-3d.json') as Record<string, { fp: Record<string, number> }>;
+  for (const id of AG_FIRST_STEP_DECKS) {
     const d = decks.find((x) => x.id === id)!;
     const fps: Record<string, number>[] = [];
     const core = createCore((m: { type: string; i: number; fp: Record<string, number> }) => { if (m.type === 'seqStep') fps[m.i] = m.fp; });
     core.handle({ type: 'run', running: false });
     await core.handle({ type: 'sequence', steps: chainOf(d.slides).slice(0, 1), reqId: 1 });
     core.dispose();
-    for (const [k, v] of Object.entries(nums.decks[id]!.slides[0]!.fp)) assertNear(fps[0]![k], v, `${id}.${k}`);
+    for (const [k, v] of Object.entries(moved[id]?.fp ?? nums.decks[id]!.slides[0]!.fp)) assertNear(fps[0]![k], v, `${id}.${k}`);
   }
 });
