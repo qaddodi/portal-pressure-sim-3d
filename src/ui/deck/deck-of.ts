@@ -4,7 +4,7 @@
 //   loadDeck(id)    the talk itself, read now if it has not been (asked by whatever opens, prints or lists it).
 // `deckOf` answers only for a talk already read. Asking it whether a talk exists was the bug that sent a cold ?script=<id> link to "not here yet" for every talk but the first.
 import type { Deck } from '../../decks/schema.ts';
-import { builtinDeck, isBuiltin, loadBuiltin } from '../../decks/registry.ts';
+import { builtinDeck, isBuiltin, loadBuiltin, deckIsReady, deckReady } from '../../decks/registry.ts';
 import { readMine } from './script-library.ts';
 import { userDeck } from './user-deck.ts';
 
@@ -25,7 +25,9 @@ export const talkId = (id: string): string => (isAlias(id) ? DECK_ALIAS[id]! : i
 export const knownTalk = (id: string): boolean => typeof id === 'string' && !!id && (isBuiltin(talkId(id)) || readMine().some((x) => x.id === id));
 /** The talk, read now if it is one that is read when opened; null when there is none. Rejects when its file could not be fetched. */
 export async function loadDeck(id: string): Promise<Deck | null> {
-  return deckOf(id) ?? (isBuiltin(talkId(id)) ? ((await loadBuiltin(talkId(id))), deckOf(id)) : null);
+  const have = deckOf(id);
+  if (have) { await deckReady(talkId(id)); return have; }
+  return isBuiltin(talkId(id)) ? ((await loadBuiltin(talkId(id))), deckOf(id)) : null;
 }
 /** The stop a talk of `stops` stops opens on when asked for `at` (the 2D slide number minus one; 0 is the outline): an old id opens its successor at the start (the number it was
  *  linked with means nothing there), a number past the end the last stop, anything else that is no number the start (2D presenter-start.js `want0`). */
@@ -44,7 +46,7 @@ export function openById(id: string, at: number, fx: OpenFx): boolean {
   if (!knownTalk(id)) return false;
   const mine = ++asked, want = isAlias(id) ? 0 : at;
   const have = deckOf(id);
-  if (have) { fx.open(have, want); return true; }
+  if (have && deckIsReady(talkId(id))) { fx.open(have, want); return true; }
   loadDeck(id).then((d) => { if (mine !== asked) return; if (d) fx.open(d, want); else fx.fail(); }, () => { if (mine === asked) fx.fail(); });
   return true;
 }
