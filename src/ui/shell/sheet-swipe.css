@@ -13,8 +13,9 @@ html.thumb-ui .sh-grabbar, .sh-root[data-bottom="true"][data-mode="free"] .sh-sh
    This file is what every sheet shares: the one grab bar's button, and Peek, where only the head and the tabs stay and what is under them fades. */
 
 /* the one grab bar's button: a finger-sized target over the bar (.sh-grabbar draws it), shown where surfaces are sheets (html.thumb-ui is the same media query as surface/mode.ts) */
-.sf-grab { display: none; position: absolute; z-index: 4; top: 0; left: 50%; width: 72px; height: 20px; margin: 0 0 0 -36px; padding: 0; border: 0; background: none; cursor: grab; touch-action: none; }
-html.thumb-ui .sf-grab { display: block; }
+.sf-grab:not(.sheet-grab) { display: none; position: absolute; z-index: 4; top: 0; left: 50%; width: 72px; height: 20px; margin: 0 0 0 -36px; padding: 0; border: 0; background: none; cursor: grab; touch-action: none; }
+html.thumb-ui .sf-grab:not(.sheet-grab) { display: block; }
+/* (Tests' keeps the 2D button it had, .sheet-grab, placed by the lifted 2D rules and tests.css) */
 .sf-grab:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: -2px; border-radius: 8px; }
 
 /* Peek: what is under the head fades out and in with the sheet's settle, and is not reachable while hidden (the Tests card's own rule, tests.css data-peek) */

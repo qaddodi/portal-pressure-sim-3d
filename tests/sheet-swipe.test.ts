@@ -90,5 +90,6 @@ test('every phone menu is pulled down to close: Search, and every menu of the on
   assert.match(swipe, /prop\?: 'translate' \| 'transform'/);
   // the sheets that already had it
   for (const f of ['src/ui/shell/Frame.tsx', 'src/ui/surface/Menu.tsx']) assert.match(readFileSync(f, 'utf8'), /useSheetSwipe\(/, f);
-  assert.match(readFileSync('src/ui/tests/dock/pull.ts', 'utf8'), /export function attachPull/, 'the Tests sheet has its own three-stop pull, which closes from Peek');
+  assert.match(readFileSync('src/ui/surface/sheet-pull.ts', 'utf8'), /export function attachSheetPull/, 'every panel sheet, Tests included, has the one three-stop pull, which closes past Peek');
+  assert.match(readFileSync('src/ui/tests/TestsLayer.tsx', 'utf8'), /attachSheetPull\(card, pos, \{/);
 });
