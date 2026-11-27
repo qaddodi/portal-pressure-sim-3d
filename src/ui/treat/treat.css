@@ -43,6 +43,11 @@ html .treat-card.tr-card.has-plate { clip-path: none !important; }
 .treat-card.tr-card .tc-head { touch-action: none; }
 .treat-card.tr-card[data-bottom="true"] .tc-head { cursor: grab; }
 
+/* the one tab swipe (surface/tab-swipe.ts): the next tab's orders peek in beside the open ones as the finger moves (.tp-peer: shown where they stand, moved by the swipe's transform alone),
+   and the tab that left by a swipe is already off the card, so it goes at once rather than fading where it stood (.tp-cut). The pane's own clip-path keeps the peer inside the card. */
+.treat-pane > .tp-peer.tp-peer { visibility: visible; opacity: 1; translate: none; max-height: none; overflow: visible; transition: none; }
+.treat-pane > .tp-cut { transition: none; }
+
 @media (prefers-reduced-motion: reduce) {
   .treat-card.tr-card, .treat-card.tr-card > .tr-in, .treat-card.tr-card > .sheet-plate { transition-duration: 1ms !important; }   /* own pace: Reduce Motion's near-instant swap */
 }

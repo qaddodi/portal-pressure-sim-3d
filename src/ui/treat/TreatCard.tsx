@@ -8,7 +8,9 @@
 // (treat.generated.ts) and its numbers the engine's: an order only edits the patient's settings (orders.ts).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import './treat.css';
-import { attachTabSwipe, neighbourTab } from '../shell/tab-swipe.ts';
+import { flushSync } from 'react-dom';
+import { attachTabSwipe } from '../surface/tab-swipe.ts';
+import { readMetric } from '../layout-snap.ts';
 import { I } from '../shell/icons.tsx';
 import { useUi } from '../ui-store.ts';
 import { useSurfaceMode } from '../surface/mode.ts';
@@ -40,6 +42,7 @@ import { PanelHead } from '../surface/PanelHead.tsx';
 import { useCaseBarUp } from '../case/room.ts';
 const L = TREAT_WORDS.lines.labels;
 const closeTreat = () => useTreat.getState().setOpen(false);
+const TAB_IDS: readonly TabId[] = TABS.map((t) => t[0]);
 
 type Active = ReturnType<typeof activeInterventions>[number];
 
@@ -181,15 +184,26 @@ export function TreatCard() {
       onGone: () => { push.current = null; setMounted(false); },
     });
   }, [mounted]);
-  // a sideways swipe on the card goes to the next or the previous tab, as a tap on it does (owner, 23 Nov: swipe between the tabs of every menu on touch screens); read live, so the closure never goes stale
-  const live = useRef({ open, page, tab, go: (_id: TabId) => undefined as void });
+  // a sideways swipe on the card pages between the tabs with the finger (owner, 23 Nov: swipe between the tabs of every menu on touch screens): the one tab swipe, surface/tab-swipe.ts, as
+  // the Tests card and the main menu page. The open orders follow the finger and the next tab's peek in beside them (.tp-peer); the tab that lands takes the card as it stands, and the one that
+  // left goes at once, already off the card (.tp-cut, never its fade). Read live, so the closure never goes stale.
+  const live = useRef({ open, page, tab, go: (_id: TabId, _swiped?: boolean) => undefined as void });
+  const [cut, setCut] = useState<TabId | null>(null);
   const has = !!p;
   useEffect(() => {
-    const el = ref.current;
-    if (!has || !el) return;
-    return attachTabSwipe(el, {
+    const el = ref.current, pane = paneRef.current;
+    if (!has || !el || !pane) return;
+    const of = (id: TabId) => pane.querySelector<HTMLElement>(`:scope > [data-tp="${id}"]`);
+    return attachTabSwipe<TabId>(el, {
+      tag: 'treat-swipe',
       enabled: () => live.current.open && !live.current.page,
-      step: (dir) => { const id = neighbourTab(TABS.map((t) => t[0]), live.current.tab, dir); if (id) live.current.go(id); },
+      tabs: () => TAB_IDS,
+      open: () => live.current.tab,
+      width: () => readMetric(pane, 'clientWidth'),
+      active: () => of(live.current.tab),
+      // (the one it replaces, or the one put back, is hidden at once where it stands: it never fades over the open orders)
+      peer: (id, was) => { was?.classList.add('tp-cut'); was?.classList.remove('tp-peer'); const nb = id ? of(id) : null; nb?.classList.add('tp-peer'); return nb; },
+      land: (id, cur) => { flushSync(() => live.current.go(id, true)); cur.style.transform = ''; },
     });
   }, [has]);
   // a phone's or an upright iPad's sheet: Peek, Half (as tall as its words, capped) and Full, the one pull and the one grab bar (surface/use-sheet.ts); Full while the Changes page stands
@@ -200,8 +214,9 @@ export function TreatCard() {
   useEffect(() => { if (page && thumb) setSheet('full'); }, [page, thumb, setSheet]);
   if (!p) return null;
   const close = closeTreat;
-  const setTab = (id: TabId) => {
+  const setTab = (id: TabId, swiped = false) => {
     if (id === tab) return;
+    setCut(swiped ? tab : null);
     // (A tab that changes the card's height glides it: the Changes row under the list rides from where it stood and the list's cut at its foot opens or closes with the plate.)
     ask(() => { const pane = paneRef.current; return { ride: [pane?.nextElementSibling ?? null], cut: [pane, bodyRef.current], free: [bodyRef.current] }; });
     setGone((g) => (g[id] ? { ...g, [id]: false } : g));
@@ -240,7 +255,7 @@ export function TreatCard() {
   const paneOf = (id: TabId, cls: string, node: React.ReactNode) => {
     const off = id !== tab;
     return (
-      <div key={id} className={`${cls}${off ? ' tp-off' : ''}${off && gone[id] ? ' tp-gone' : ''}`} inert={off} aria-hidden={off}
+      <div key={id} data-tp={id} className={`${cls}${off ? ' tp-off' : ''}${off && gone[id] ? ' tp-gone' : ''}${off && cut === id ? ' tp-cut' : ''}`} inert={off} aria-hidden={off}
         onTransitionEnd={(e) => { if (e.target === e.currentTarget && e.propertyName === 'visibility') setGone((g) => (g[id] === off ? g : { ...g, [id]: off })); }}>
         {node}
       </div>
