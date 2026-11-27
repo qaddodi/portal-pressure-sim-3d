@@ -46,7 +46,8 @@ test('every line parses, a cut-off reads with its symbol, and values fill in as 
   const hv = HVPG_DECK.slides.find((s) => s.id === 'hvpg')!;
   assert.equal(plainLine(parseLine(hv.line), (k) => readings[k as keyof typeof readings]),
     `In this case the HVPG is ${one(fixture.hvpg)}\u00a0mmHg, which is ≥10\u00a0mmHg: clinically significant portal hypertension.`);
-  assert.equal(plainLine(parseLine('The HVPG is {hvpg:0}.'), () => 11.6), 'The HVPG is 12.0 mmHg.'.replace('12.0', '12'));
+  // ({key:0} is whole only where the tile prints whole: a pressure prints one decimal in its words as on its chart, tests/one-number.test.ts)
+  assert.equal(plainLine(parseLine('The HVPG is {hvpg:0}.'), () => 11.6), 'The HVPG is 11.6\u00a0mmHg.');
   assert.equal(plainLine(parseLine('The HVPG is {hvpg}.'), () => null), 'The HVPG is ….', 'a value still to come is an ellipsis in words, never a dash');
   assert.throws(() => parseLine('a {nonsense} b'));
 });
