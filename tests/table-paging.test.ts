@@ -178,7 +178,7 @@ test('the card code applies the rule: the layer asks for a page per row, the car
   // the card: its rows are a page of the model's rows; its columns, heads and legend are the whole table's, so a page turn moves only the rows
   assert.match(table, /const span = pageSpan\(model\.rows\.length, pages, /);
   assert.match(table, /const shown = pages > 1 \? model\.rows\.slice\(span\.from, span\.to\) : model\.rows;/);
-  assert.match(table, /gridOf\(model\.cols\.map\(\(c\) => c\.k\), model\.cols\.map\(\(c, j\) => colChars\(model\.rows\.map\(\(r\) => r\.cells\[j\]\)\)\)\)/, 'the grid is read from every row');
+  assert.match(table, /chars = useMemo\(\(\) => model\.cols\.map\(\(c, j\) => colChars\(model\.rows\.map\(\(r\) => r\.cells\[j\]\)\)\)/, 'the grid is read from every row');
   assert.match(table, /const longest = useMemo\(\(\) => longestWord\(model\.rows\.map/);
   assert.match(table, /waveMaxH\(model\.rows\.length\)/);
   assert.match(table, /\{shown\.map\(\(r, k\) => \{/);

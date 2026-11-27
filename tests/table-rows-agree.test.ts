@@ -90,7 +90,7 @@ test('A-D6: a row wider than its box is found (a cell pushed past the table\'s e
   assert.match(tsx, /pastEdge\(Array\.from\(box\.querySelectorAll<HTMLElement>\('tbody tr'\)\)\)/, 'every row of the body is measured');
   assert.match(tsx, /box\.classList\.toggle\('dk-fitw', over\);\s*setTight\(over\);/, 'written on the page when judged, and kept in state so a render does not wipe it');
   assert.match(tsx, /\$\{tight \? ' dk-fitw' : ''\}/);
-  assert.match(css, /\.pz-table\.dk-pztable\.dk-fitw \{ --dk-name-fit: max\(0px, calc\(100% - var\(--dk-cols, 0px\)\)\); \}/, 'the name takes what the value columns leave');
+  assert.match(css, /\.pz-table\.dk-pztable\.dk-fitw \{ --dk-name-fit: max\(var\(--dk-hl, 0px\), calc\(100% - var\(--dk-colsx, var\(--dk-cols, 0px\)\)\)\); \}/, 'the name takes what the value columns leave');
   assert.match(css, /\.dk-fitw \.tn \{ overflow-wrap: anywhere;/, 'its longest word may break: the last resort');
 });
 
