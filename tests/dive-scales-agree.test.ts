@@ -135,3 +135,10 @@ test('the sinusoid view\'s hepatocyte is the colour of the lobule\'s tile at the
     for (let i = 0; i < 3; i++) assert.ok(Math.abs(tc.tile(q, 0.5)[i]! - want[i]!) < 1e-9);
   }
 });
+
+test("the slide's 'lobule:sinusoid' camera frames the place the sinusoid view stands (one station for the slide and the dive)", async () => {
+  const { lobuleShot } = await import('../src/scene/lobule/shots.ts');
+  const { SIN_POINT } = await import('../src/scene/lobule/frames.ts');
+  const t = lobuleShot('lobule:sinusoid').target;
+  assert.ok(Math.hypot(t[0] - SIN_POINT[0], t[1] - SIN_POINT[1]) < 1e-12);
+});

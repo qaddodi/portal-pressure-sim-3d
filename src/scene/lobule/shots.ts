@@ -10,7 +10,7 @@
 import type { Shot } from '../camera/shots.ts';
 /** A point in the scene: x, y, z. */
 export type V3 = [number, number, number];
-import { LOBULE_SCALE, SIN_ANGLE, SIN_SCALE, lobuleWorld, sinusoidWorld } from './frames.ts';
+import { LOBULE_SCALE, SIN_ANGLE, SIN_LOCAL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './frames.ts';
 import { FILL } from '../camera/room.ts';
 import { LOBULE_R } from './sizes.ts';
 import { PORTRAIT_ROLL, shownUm } from '../sinusoid/portrait.ts';
@@ -61,10 +61,12 @@ export function lobuleShot(cam: LobuleCam): Shot {
   // the corner at angle π (x = -1) is the portal tract the 2D framing starts from; the station lies wf of the way from it to the centre.
   // The whole lobule and the central vein look at the centre.
   const along = part === 'fit' || part === 'central' ? 0 : -1 + st.wf;
+  // (the sinusoid station frames the place the sinusoid view stands, wherever the rule put it (frames.ts SIN_LOCAL, station.ts): the slide's 'lobule:sinusoid' and the dive land on one spot)
+  const target = part === 'sinusoid' ? lobuleWorld([SIN_LOCAL[0], SIN_LOCAL[1], oz]) : lobuleWorld([ox + along * LOBULE_R, oy, oz]);
   return {
     yaw: YAW, pitch: PITCH,
     r: (part === 'fit' ? 6 : 2.5) * LOBULE_SCALE,
-    target: lobuleWorld([ox + along * LOBULE_R, oy, oz]),
+    target,
     half: part === 'fit' ? [FIT_BOUNDS[0] * LOBULE_SCALE, FIT_BOUNDS[1] * LOBULE_SCALE] : [(FIT_HALF[0] / st.zoom) * LOBULE_SCALE, (FIT_HALF[1] / st.zoom) * LOBULE_SCALE],
     // (a phone's whole-lobule box is 2D's 1.05 R, but the corners' dots and the tract glow reach 1.12 R: the box is never narrower than the lobule's own bounds, so none is cut at the screen's edge; capture af1c51a0, Mohammad 25 Nov)
     halfNarrow: [((part === 'fit' ? Math.max(FIT_HALF_NARROW[0], FIT_BOUNDS[0]) : FIT_HALF_NARROW[0]) / st.zoom) * LOBULE_SCALE, (FIT_HALF_NARROW[1] / st.zoom) * LOBULE_SCALE],
