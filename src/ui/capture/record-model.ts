@@ -1,6 +1,7 @@
 // Settings > Record window: the pure parts (no page, no browser), so node can test them.
 // Where the row shows (feature detection, never the user agent), which video format this browser can write, the file's name, the shortcut,
 // and the one state machine that says what Record window is doing (idle, asking the browser, recording, saving the file).
+import { create } from 'zustand';
 import { captureFileName } from './capture-model.ts';
 
 /** What the row needs from the browser: the screen-share call and the recorder. Both are looked for, neither is sniffed from the user agent. */
@@ -75,3 +76,30 @@ export function recordRow(phase: RecordPhase, words: { row: string; stopRow: str
 
 /** The mime type the video really has: the recorder's own, else the type its first piece carries, else what was asked for. The file's extension follows this, never what was hoped for. */
 export const actualMime = (recorderMime: string, pieceMime: string, asked: string): string => recorderMime || pieceMime || asked;
+
+// ---- the part the first screen needs: what it is doing, whether it can, and the way in to the rest ---------------------------------------------------------
+// Everything that talks to the browser (record.ts, record-run.ts) is fetched after the first picture, not with it (tests/boot-entry.test.ts counts the files).
+/** What Record window is doing now (the Settings row and the stop button read it). */
+export const useRecording = create<{ phase: RecordPhase }>(() => ({ phase: 'idle' }));
+
+/** Can this browser record the window: it can share a screen and write video. Looked for in the page, not read from the user agent, so an iPhone (neither) and an old browser
+ *  do not see the row. */
+export function recordAvailable(): boolean {
+  if (typeof navigator === 'undefined' || typeof MediaRecorder === 'undefined') return false;
+  return canRecordWindow({ getDisplayMedia: navigator.mediaDevices?.getDisplayMedia?.bind(navigator.mediaDevices), MediaRecorder });
+}
+
+type Engine = typeof import('./record.ts');
+let engine: Engine | null = null;
+/** Fetches the recording code (once). Called when Settings opens and shortly after the first picture, so it is in by the time anyone presses Record. */
+export function warmRecording(): Promise<void> {
+  if (engine || !recordAvailable()) return Promise.resolve();
+  return import('./record.ts').then((m) => { engine = m; }, () => undefined);
+}
+/** The row, the shortcut or the stop button: start recording, or stop and save. Once the code is in, the press goes straight through inside the tap (Safari lets a page ask to share a screen
+ *  only inside the tap itself); the first press before that waits for the code, which is what `warmRecording` is there to make rare. */
+export function toggleRecording(): Promise<void> {
+  if (!recordAvailable()) return Promise.resolve();
+  if (engine) return engine.toggleRecordingNow();
+  return warmRecording().then(() => engine?.toggleRecordingNow());
+}

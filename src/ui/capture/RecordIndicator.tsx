@@ -1,6 +1,6 @@
 // Record window's mark while it records: the stop button beside the Settings gear (a ring with a square in it, pulsing red; it may be in the video). Nothing is drawn when nothing records.
 import { RECORD } from '../shell/words.ts';
-import { useRecording, toggleRecording } from './record.ts';
+import { useRecording, toggleRecording } from './record-model.ts';
 import './record.css';
 
 /** The width one more 44 px button gives the presenter pill while Stop stands in it. */

@@ -25,8 +25,8 @@ import { isPanel } from '../surface/kinds.ts';
 import { dialogOpen, cancelTopDialog } from '../surface/dialog-stack.ts';
 import { talkOn } from '../../state/deck.ts';
 import { isCaptureKey } from '../capture/capture-model.ts';
-import { isRecordKey } from '../capture/record-model.ts';
-import { recordAvailable, toggleRecording } from '../capture/record.ts';
+import { isRecordKey, recordAvailable, toggleRecording, warmRecording } from '../capture/record-model.ts';
+import { clock } from '../../clock/frame.ts';
 
 export function targetOf(el: EventTarget | null): Target {
   const t = el as HTMLElement | null;
@@ -100,6 +100,8 @@ export function carryOut(a: KeyAction): void {
 
 export function useKeys() {
   useEffect(() => {
+    // (the recording code comes in a moment after the first picture, so Option Shift R goes straight through inside the key press)
+    const warm = clock.after(() => { void warmRecording(); }, 3000, 'record-warm');
     const down = (e: KeyboardEvent) => {
       if (isCaptureKey(e)) { e.preventDefault(); void import('../capture/capture.ts').then((m) => m.captureScreen()); return; }   // (Option Shift S: the screen as it is, the open sheet and all)
       if (isRecordKey(e) && recordAvailable()) { e.preventDefault(); void toggleRecording(); return; }   // (Option Shift R: start recording the window, or stop and save; only where the browser can)
@@ -111,6 +113,6 @@ export function useKeys() {
       carryOut(a);
     };
     window.addEventListener('keydown', down);
-    return () => { window.removeEventListener('keydown', down); };
+    return () => { clock.cancel(warm); window.removeEventListener('keydown', down); };
   }, []);
 }

@@ -22,8 +22,7 @@ import { HIST } from '../history/words.ts';
 import { I } from '../shell/icons.tsx';
 import { usesBottomBar } from '../shell/room.ts';
 import { FULLSCREEN, CAPTURE, RECORD } from '../shell/words.ts';
-import { useRecording, recordAvailable, toggleRecording } from '../capture/record.ts';
-import { recordRow } from '../capture/record-model.ts';
+import { useRecording, recordAvailable, toggleRecording, warmRecording, recordRow } from '../capture/record-model.ts';
 import { feedbackEmail } from '../shell/feedback.ts';
 import { sendFeedback } from '../shell/send-feedback.ts';
 import { SECTIONS, settingsRow, type Row } from './rows.ts';
@@ -122,6 +121,8 @@ function CaptureRow() {
 // While recording the row is Stop, in the colour of a warning; the press runs inside the tap (record.ts has no import() before the browser's question).
 function RecordRow({ touch }: { touch: boolean }) {
   const phase = useRecording((s) => s.phase);
+  // (the recording code is fetched as Settings opens, so the press is not waiting on it)
+  useEffect(() => { void warmRecording(); }, []);
   if (!recordAvailable()) return null;
   const on = phase === 'recording';
   const label = recordRow(phase, RECORD), kb = touch || phase !== 'idle' ? null : '⌥⇧R';
