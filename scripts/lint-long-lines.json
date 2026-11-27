@@ -462,7 +462,7 @@
  "src/ui/cards/rail.ts": 1,
  "src/ui/cards/roll-reserve.ts": 8,
  "src/ui/cards/swipe-own.ts": 2,
- "src/ui/cards/table-heads.ts": 3,
+ "src/ui/cards/table-heads.ts": 1,
  "src/ui/cards/table-words.ts": 3,
  "src/ui/cards/tiles-2d.ts": 1,
  "src/ui/cards/useCardDrag.ts": 5,

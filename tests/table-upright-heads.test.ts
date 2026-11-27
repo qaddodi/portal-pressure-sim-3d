@@ -7,11 +7,15 @@ import { readFileSync } from 'node:fs';
 const css = readFileSync('src/ui/css3d-over-2d.css', 'utf8');
 const tsx = readFileSync('src/ui/cards/TableCard.tsx', 'utf8');
 
-test('upright table heads turn by transform, not writing-mode', () => {
-  assert.match(css, /th-up th\.num \{[^}]*writing-mode: horizontal-tb/);
-  assert.match(css, /th\.num > \.hd \{[^}]*transform: rotate\(-90deg\)/);
+test('no table head ever stands upright: no vertical writing mode and no quarter turn on a head, anywhere in the styles', () => {
+  const sheets = ['src/ui/css3d-over-2d.css', 'src/ui/deck-ui.css', 'src/ui/styles/app-04-presenter.css'];
+  for (const f of sheets) {
+    const t = readFileSync(f, 'utf8');
+    for (const [, rule] of t.matchAll(/([^{}]*thead[^{}]*)\{([^}]*)\}/g)) assert.ok(!/writing-mode:\s*vertical|rotate:\s*180deg|rotate\(\s*-?90deg/.test(rule!), `${f}: a head rule turns text upright: ${rule}`);
+    assert.doesNotMatch(t, /th-up/, `${f} has no upright class`);
+  }
+  assert.match(css, /th-sl th\.num > \.hd \{[^}]*transform: rotate\(45deg\)/, 'the slant is 45 degrees');
   assert.match(tsx, /<span className="hd">\{c\.label\}<\/span>/);
-  assert.match(tsx, /'--hl' as string/);
 });
 
 test('"No ascites" cell stays inside its columns', () => {

@@ -183,7 +183,7 @@ test('the audit reads a card only once its slide has landed (words 3 to 19 px pa
   assert.equal(slidingX('matrix(1, 0, 0, 1, -12, 3)'), true); assert.equal(slidingX('translateX(0.2px)'), false); assert.equal(slidingX('translateX(9px)'), true);
 });
 
-test('a table head that spills into its cell\'s own padding counts as too wide, so the heads stand upright before the table edge cuts it (Liver flow, 2 px, iPhone Quick run)', () => {
+test('a table head that spills into its cell\'s own padding counts as too wide, so the heads wrap or slant before the table edge cuts it (Liver flow, 2 px, iPhone Quick run)', () => {
   const t = src('src/ui/cards/TableCard.tsx');
   assert.match(t, /export function headOver/); assert.match(t, /\.some\(\(t\) => headOver\(t\)\)/);
   assert.match(t, /width > room \+ 0\.5/);

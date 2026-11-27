@@ -5,22 +5,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { turnHeads, type ClassHost } from '../src/ui/cards/table-heads.ts';
+import { setHeads, headModeOf, type ClassHost } from '../src/ui/cards/table-heads.ts';
 
 const host = (...c: string[]): ClassHost & { set: Set<string> } => { const set = new Set(c); return { set, classList: { add: (x) => void set.add(x), remove: (x) => void set.delete(x), contains: (x) => set.has(x) } }; };
 
-test('turning the heads up writes th-up on the row and dk-up on the table at once, and says it changed', () => {
+test('standing the heads slanted writes th-sl on the row and dk-slant on the table at once, and says it changed', () => {
   const row = host(), box = host('pz-table');
-  assert.equal(turnHeads(row, box, true), true);
-  assert.ok(row.set.has('th-up') && box.set.has('dk-up'));
-  assert.equal(turnHeads(row, box, true), false, 'a second judgement that agrees changes nothing');
+  assert.equal(setHeads(row, box, 'slant'), true);
+  assert.ok(row.set.has('th-sl') && box.set.has('dk-slant'));
+  assert.equal(headModeOf(row), 'slant');
+  assert.equal(setHeads(row, box, 'slant'), false, 'a second judgement that agrees changes nothing');
 });
 
-test('turning them back lays them down on the page at once', () => {
-  const row = host('th-up'), box = host('pz-table', 'dk-up');
-  assert.equal(turnHeads(row, box, false), true);
-  assert.ok(!row.set.has('th-up') && !box.set.has('dk-up') && box.set.has('pz-table'), 'only the two classes go');
-  assert.equal(turnHeads(row, box, false), false);
+test('standing them flat again takes every other way off the page at once', () => {
+  const row = host('th-sl'), box = host('pz-table', 'dk-slant');
+  assert.equal(setHeads(row, box, 'flat'), true);
+  assert.ok(!row.set.has('th-sl') && !box.set.has('dk-slant') && box.set.has('pz-table'), 'only the way\'s own classes go');
+  assert.equal(setHeads(row, box, 'flat'), false);
 });
 
 test('the table\'s fit pass writes its judgement through turnHeads, not only through state, and the card measures after it', () => {

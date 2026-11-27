@@ -12,7 +12,8 @@ import { CUT } from '../deck/from2d/table-marks.js';
 import { missWords, longestWord, twoLineWidest, colChars, gridOf, waveMaxH, pastEdge } from './table-words.ts';
 import { WaveCell } from './WaveCell.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
-import { chooseHeads, fitsStaggered, setHeads, groupRuns, showGroups, type HeadMode } from './table-heads.ts';
+import { readBox, readStyle, readMetric, readTextRects } from '../layout-snap.ts';
+import { chooseHeads, wrapFits, roomFits, HEAD_AIR_PX, slantPitch, slantHeight, slantReach, slantLeftover, setHeads, headModeOf, groupRuns, showGroups, type HeadMode } from './table-heads.ts';
 import { pageSpan } from './pages.ts';
 import { reduced, fadeMs, D_SURFACE } from '../a11y/motion.ts';
 import { ARRIVE_CSS } from '../../clock/tween.ts';
@@ -92,8 +93,14 @@ export function TableCard({ deck, slide, page = 0, pages = 1 }: { deck: Deck; sl
     el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: fadeMs(D_SURFACE, reduced()), easing: ARRIVE_CSS });
   }, [span.from]);
   const runs = useMemo(() => groupRuns(model.cols.map((c) => c.group)), [model.cols]), groups = showGroups(runs);
-  // 2D fitHeads (presenter.js): where the column heads are too wide for their columns (a phone, many columns) they stand upright (`tr.th-up`), and the name's column takes the room they give back.
-  // Judged by measuring, with the upright style off, whenever the table's width or its columns change (the heads are set once, so no frame ever shows a clipped head).
+  // (and each value column never narrower than what its cells print: "0.50" ran to the table's edge and "113/72 (86)" stood on three lines when every column was an equal share of what the name left, capture f23a4c59)
+  const keys = useMemo(() => model.cols.map((c) => c.k), [model.cols]), chars = useMemo(() => model.cols.map((c, j) => colChars(model.rows.map((r) => r.cells[j]))), [model]);
+  const { grid, need } = useMemo(() => gridOf(keys, chars), [keys, chars]);
+  const gridIn = useRef({ keys, chars });
+  gridIn.current = { keys, chars };   // (the fit pass below reads the columns as they are now, not as they were when it was set up)
+  // How the column heads stand (table-heads.ts, ONE rule for every table: flat, else two lines, else 45 degrees, else staggered; never upright), and the name's column takes
+  // the room the narrow heads give back.
+  // Judged by measuring, with each way tried in turn, whenever the table's width or its columns change (the way is written on the page at once, so no frame ever shows a clipped head).
   const root = useRef<HTMLDivElement>(null), headRow = useRef<HTMLTableRowElement>(null);
   const [mode, setMode] = useState<HeadMode>('flat');
   // (kept in state as well as written on the page at once, as the heads are: a render that changes the box's class would otherwise wipe it)
@@ -102,26 +109,87 @@ export function TableCard({ deck, slide, page = 0, pages = 1 }: { deck: Deck; sl
   useLayoutEffect(() => {
     const box = root.current, tr = headRow.current;
     if (!box || !tr) return;
-    // Staggered heads (table-heads.ts): every head has two columns of room, less a gap, and the first and last no more than the table's edge allows.
-    const staggerOver = () => {
-      const ths = Array.from(tr.querySelectorAll<HTMLElement>('th.num'));
-      return ths.some((t) => {
-        const hd = t.firstElementChild as HTMLElement | null;
-        return hd ? !fitsStaggered(hd.scrollWidth, t.clientWidth) : false;
-      });
+    const cells = () => Array.from(tr.querySelectorAll<HTMLElement>('th.num'));
+    const hdOf = (t: HTMLElement) => t.firstElementChild as HTMLElement | null;
+    const lineOf = (e: Element, was: number) => parseFloat(readStyle(e).lineHeight) || was;
+    // Wrapped heads: a word inside its cell, on two lines at most.
+    const wrapOver = () => cells().some((t) => {
+      const hd = hdOf(t);
+      return !wrapFits(headOver(t), hd ? readBox(hd).height : 0, lineOf(t, 14));
+    });
+    const headPx = () => parseFloat(readStyle(tr.querySelector('th.num') ?? tr).fontSize) || 12;
+    // Slanted heads: the row is as tall as the widest head along 45 degrees; the heads lean left over the name column's empty head, and where the first one would pass the
+    // table's left edge the name column keeps the room (`--dk-hl`).
+    const slant = () => {
+      const px = headPx(), hds = cells().map(hdOf);
+      const widest = Math.max(0, ...hds.map((h) => (h ? readMetric(h, 'offsetWidth') : 0)));
+      box.style.setProperty('--dk-hh', `${slantHeight(widest, px)}px`);
+      let hl = 0;
+      for (let pass = 0; pass < 3; pass++) {
+        const edge = readBox(tr);
+        const reaches = cells().map((t, j) => {
+          const r = readBox(t), h = hds[j];
+          return slantReach(r.left - edge.left, r.width, h ? readMetric(h, 'offsetWidth') : 0, px);
+        });
+        const more = slantLeftover(reaches);
+        if (more <= 1) break;
+        hl += more - 1;
+        box.style.setProperty('--dk-hl', `${hl}px`);
+      }
     };
     // The columns' least widths together must fit the table: where a cell's right edge stands past the table's (name's longest word plus every value
     // column's own width wider than the card), the name column gives way
     // (`dk-fitw`, deck-ui.css: it takes what the value columns leave and breaks its longest word with a hyphen, the last resort), never the last value column out of the card.
     const past = () => pastEdge(Array.from(box.querySelectorAll<HTMLElement>('tbody tr')));
+    const widthOf = (hd: HTMLElement, from: number, to: number) => {
+      const n = hd.firstChild;
+      return n instanceof Text ? Math.max(0, ...readTextRects(n, from, to).map((r) => r.width)) : 0;
+    };
+    /** What each head asks for as a column's room: its whole width on one line, or its widest word (measured with the heads flat). */
+    const asks = () => cells().map((t) => {
+      const hd = hdOf(t);
+      if (!hd) return { line: 0, word: 0 };
+      const text = hd.textContent ?? '';
+      let word = 0, at = 0;
+      for (const w of text.split(' ')) { word = Math.max(word, widthOf(hd, at, at + w.length)); at += w.length + 1; }
+      return { line: widthOf(hd, 0, text.length), word };
+    });
+    /** The most lines any name stands on now. */
+    const nameLines = () => Math.max(1, ...Array.from(box.querySelectorAll<HTMLElement>('tbody th .tn'))
+      .map((n) => Math.round(readBox(n).height / lineOf(n, 16))));
+    /** Gives the heads room (each column as wide as `w` asks, the name giving way), or takes it back (null). */
+    const room = (w: number[] | null) => {
+      if (!w) { box.style.removeProperty('--dk-gridx'); box.style.removeProperty('--dk-colsx'); return; }
+      const g = gridOf(gridIn.current.keys, gridIn.current.chars, w.map((x) => (x ? x + HEAD_AIR_PX : 0)));
+      box.style.setProperty('--dk-gridx', g.grid); box.style.setProperty('--dk-colsx', g.need);
+    };
     const fit = () => {
       box.classList.remove('dk-fitw');
-      const was: HeadMode = tr.classList.contains('th-up') ? 'turned' : tr.classList.contains('th-st') ? 'stagger' : 'flat';
+      box.style.removeProperty('--dk-hl'); box.style.removeProperty('--dk-hh'); room(null);
+      const was = headModeOf(tr);
       setHeads(tr, box, 'flat');
-      const flatOver = Array.from(tr.querySelectorAll<HTMLElement>('th.num')).some((t) => headOver(t));
       let next: HeadMode = 'flat';
-      if (flatOver) { setHeads(tr, box, 'stagger'); next = chooseHeads(true, staggerOver()); }
+      if (cells().some((t) => headOver(t))) {
+        const want = asks(), before = nameLines();
+        // 1. flat with room: the columns as wide as their heads, if no name takes another line and nothing runs past the card
+        room(want.map((a) => a.line));
+        if (!cells().some((t) => headOver(t)) && roomFits(nameLines(), before, past())) next = 'flat';
+        else {
+          // 2. two lines: the heads' words break (plain columns, then with room for the widest word)
+          room(null); setHeads(tr, box, 'wrap');
+          let done = !wrapOver();
+          if (!done) { room(want.map((a) => a.word)); done = !wrapOver() && roomFits(nameLines(), before, past()); if (!done) room(null); }
+          if (done) next = 'wrap';
+          else {
+            // 3. 45 degrees (or staggered where the columns are closer than a slant allows)
+            const px = headPx();
+            next = chooseHeads(true, true, cells().every((t) => t.clientWidth >= slantPitch(px)));
+          }
+        }
+        if (next === 'flat') setHeads(tr, box, 'flat');
+      }
       setHeads(tr, box, next);   // (written on the page now: the card that holds this table measures in the effect that follows this one, and must see the heads as they will stand)
+      if (next === 'slant') slant();
       const over = past();
       box.classList.toggle('dk-fitw', over);
       setTight(over);
@@ -136,7 +204,7 @@ export function TableCard({ deck, slide, page = 0, pages = 1 }: { deck: Deck; sl
     const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
     if (fonts && fonts.status !== 'loaded') void fonts.ready.then(again);
     fonts?.addEventListener?.('loadingdone', again);
-    const off = observeThenFit([box], fit);   // (the pass writes `dk-up` on the box it observes: never inside the observer's own delivery)
+    const off = observeThenFit([box], fit);   // (the pass writes classes on the box it observes: never inside the observer's own delivery)
     return () => { alive = false; fonts?.removeEventListener?.('loadingdone', again); off(); };
   }, [colKey, span.from, span.to]);
   // (a Doppler column is wider than a pressure's: the grid's columns follow what each holds)
@@ -146,23 +214,27 @@ export function TableCard({ deck, slide, page = 0, pages = 1 }: { deck: Deck; sl
   // (and, where the value columns leave the room, two lines of the longest name rather than three: --dk-wn2, deck-ui.css)
   const twoLines = useMemo(() => twoLineWidest(model.rows.map((r) => r.title)), [model.rows]);
   // (and each value column never narrower than what its cells print: "0.50" ran to the table's edge and "113/72 (86)" stood on three lines when every column was an equal share of what the name left, capture f23a4c59)
-  const { grid, need } = useMemo(() => gridOf(model.cols.map((c) => c.k), model.cols.map((c, j) => colChars(model.rows.map((r) => r.cells[j])))), [model]);
   return (
-    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${mode !== 'flat' ? ' dk-up' : ''}${mode === 'stagger' ? ' dk-st' : ''}${tight ? ' dk-fitw' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-wn' as string]: longest, ['--dk-wn2' as string]: twoLines, ['--dk-grid' as string]: grid, ['--dk-cols' as string]: need }}>
+    <div ref={root} className={`pz-table dk-pztable${model.rows.length >= 7 ? ' long' : ''}${mode === 'slant' ? ' dk-slant' : ''}${mode === 'stagger' ? ' dk-st' : ''}${tight ? ' dk-fitw' : ''}`} role="group" aria-label={spec.rowHead || 'Summary table'} style={{ ['--nc' as string]: nc, ['--dk-wn' as string]: longest, ['--dk-wn2' as string]: twoLines, ['--dk-grid' as string]: grid, ['--dk-cols' as string]: need }}>
       <table>
         <thead>
           {groups ? (
-            // (the group row: shown only where the heads are staggered, CSS `.dk-st`; each group a span of its columns, and a column of no group a blank of its own)
+            // (the group band: over the heads in EVERY way they stand, so what each column is ("Pressures", "Ascites") is always on the page; each group a span of its columns, and a
+            // column of no group a blank of its own)
             <tr className="th-grp" aria-hidden="true">
               <th />
               {runs.map((r, n) => <th key={n} className="num g" style={{ ['--gs' as string]: r.span }}>{r.label ? <span>{r.label}</span> : null}</th>)}
             </tr>
           ) : null}
-          <tr ref={headRow} className={mode === 'turned' ? 'th-up' : mode === 'stagger' ? 'th-st' : undefined}>
+          <tr ref={headRow} className={mode === 'wrap' ? 'th-wr' : mode === 'slant' ? 'th-sl' : mode === 'stagger' ? 'th-st' : undefined}>
             <th>{model.rowHead}</th>
             {model.cols.map((c) => (
               <th key={c.k} className="num" title={c.cut || undefined} tabIndex={c.cut ? 0 : undefined}
-                style={{ ['--hl' as string]: c.label.length }} onClick={c.cut ? showCut(c.k, c.label, c.cut) : undefined} onKeyDown={c.cut ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); showCut(c.k, c.label, c.cut)(); } } : undefined}><span className="hd">{c.label}</span></th>
+                onClick={c.cut ? showCut(c.k, c.label, c.cut) : undefined}
+                onKeyDown={c.cut ? (e) => {
+                  if (e.key !== 'Enter' && e.key !== ' ') return;
+                  e.preventDefault(); e.stopPropagation(); showCut(c.k, c.label, c.cut)();
+                } : undefined}><span className="hd">{c.label}</span></th>
             ))}
           </tr>
         </thead>
