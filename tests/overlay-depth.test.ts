@@ -82,3 +82,15 @@ test('at rest the scope ring is centred on the placed varix, not on the 2D plate
   assert.ok(Math.abs(RING_REST.x - at[0]) < 1e-9 && RING_REST.y === RING.y, 'on the vein at the rule\'s height');
   assert.ok(Math.abs(RING.x - at[0]) > RING.r * 0.7, 'the 2D point was about a ring radius off it');
 });
+
+test('the figure\'s extent (the camera\'s pan limits, the label layer\'s figure height) is the placed figure\'s, not the 2D plate\'s rectangle', async () => {
+  const { PLATE_BOUNDS } = await import('../src/scene/anatomy/placeholder.ts');
+  const { boxOfNames, VISIBLE_FIGURE_NAMES } = await import('../src/scene/anatomy/source.ts');
+  const b = boxOfNames(VISIBLE_FIGURE_NAMES).box!;
+  assert.deepEqual([PLATE_BOUNDS.x0, PLATE_BOUNDS.y0, PLATE_BOUNDS.x1, PLATE_BOUNDS.y1], [b[0], b[1], b[3], b[4]]);
+  // every drawn organ is inside it (the 2D plate's rectangle cut off the foot and the esophagus's top)
+  for (const [id, o] of Object.entries(PLACED_ORGAN_BOX)) {
+    if (id === 'rectum' || id === 'gej' || id === 'caudate' || id === 'colon') continue;
+    assert.ok(o[0] >= PLATE_BOUNDS.x0 - 1e-6 && o[3] <= PLATE_BOUNDS.x1 + 1e-6 && o[1] >= PLATE_BOUNDS.y0 - 1e-6 && o[4] <= PLATE_BOUNDS.y1 + 1e-6, `${id} is inside the figure's extent`);
+  }
+});
