@@ -170,7 +170,7 @@ function DepthSwitch({ row }: { row: (typeof DEPTH_ROWS)[number] }) {
   return <MenuToggle checked={on} icon={row.icon} label={row.label} sub={row.hint} onChange={(v) => useSettings.getState().set(row.key, v)} />;
 }
 
-/** The page behind Figure's "More" row (review R6): the ten switches the presets set, each on its own, as the sheet showed them before the presets. Changing one reads as Custom on the main page. */
+/** The page behind Figure's "More" row (review R6): the nine switches the presets set, each on its own, as the sheet showed them before the presets. Changing one reads as Custom on the main page. */
 function FigureMore() {
   const at = useFigurePreset();
   return (<>

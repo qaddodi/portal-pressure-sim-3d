@@ -85,7 +85,7 @@ export function taperWidth(own: number, mate: number, s: number, e: number): num
   return mate + (own - mate) * (t * t * (3 - 2 * t));
 }
 
-/** The length a vessel's flow marks run over in the view `t` (0 the body, 1 the map), in the units its shader draws them in: the body's figure units at 0, map units at 1 (the shader's `len * vU`). The chain's and the dust's
+/** The length a vessel's flow marks run over in the view `t` (0 the body, 1 the map), in the units its shader draws them in: the body's figure units at 0, map units at 1 (the shader's `len * vU`). The chain's
  *  arcs are made from these lengths, so a head that crosses from one vessel into the next lands at the place the next one's lattice has it (a head drawn in the body's length on the map's arc was cut at the seam). */
 export function flowLenAt(id: string, bodyLen: number, t: number): number {
   if (!(t > 0)) return bodyLen;

@@ -20,7 +20,7 @@ export function keyChevron(id0: string, open: (id: string) => boolean = () => fa
   return (KEY_CHEV_LANES[id] ?? []).some(open);
 }
 
-/** `quiet`: a procedure is on the figure (the HVPG, TIPS, BRTO, EUS, a shunt's surgery…): no chevrons and no streaks while it runs (Mohammad, 20 Nov), easing out as it starts and back as it ends. */
+/** `quiet`: a procedure is on the figure (the HVPG, TIPS, BRTO, EUS, a shunt's surgery…): no chevrons while it runs (Mohammad, 20 Nov), easing out as it starts and back as it ends. */
 export interface BloodOptions { chevrons: boolean; keyChevrons: boolean; presenting: boolean; quiet?: boolean }
 
 /** Whether a vessel carries heads (1) or not (0), before fading: the 2D app has one style of flow head and the Blood menu's two choices (Chevrons, Key

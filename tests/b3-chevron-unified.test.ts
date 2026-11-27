@@ -19,8 +19,7 @@ test('the Anatomy\'s vessels and the 3D lobule and sinusoid include the one chev
   assert.doesNotMatch(read('../src/scene/vessels/shaders.ts'), /float chevD\(|vec2 chevHead\(/, 'the Anatomy\'s own copy is gone');
   assert.equal(VESSEL_FS.split('float chevD(').length - 1, 1);
   assert.equal(MICRO_FS.split('float chevD(').length - 1, 1);
-  // the cel3d marks are the shared head on a lattice, not a stripe
-  assert.match(MICRO_FS, /return chevLattice\(vP\.x - uFlow, vAux, 6\.0, gXF, dir\);/);
+  // the cel3d marks are the shared head, not a stripe
   assert.match(MICRO_FS, /return chevHead\(x, abs\(vAcross\) \* R, hw, pxA, 0\.0\) \* k;/);
   assert.doesNotMatch(MICRO_FS, /float chev = smoothstep\(0\.0, wa, f\)/, 'no stripe chevron left');
 });

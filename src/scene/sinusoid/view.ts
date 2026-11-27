@@ -238,7 +238,7 @@ export class SinusoidView {
     return s ? endsFor(s.k, s.along, this.portrait, UM.lum * this.cur.lum, s.centre) : [END_DEFAULT[0], END_DEFAULT[1], Math.min(END_DEFAULT[2], UM.lum * this.cur.lum * 0.95)];
   }
 
-  // (The marks of the 2D sinusoid are the lumen's own streaks, set by the blood's speed; the Blood menu's chevron options act on the vessels and the lobule.)
+  // (The Blood menu's chevron options act on the vessels and the lobule.)
   setLit(_parts: Iterable<SinusoidPartName>): void { /* nothing here wears flow marks */ }
   setFlowMode(_mode: FlowMarkMode): void { /* as above */ }
   setBlood(_b: { chevrons: boolean; keyChevrons: boolean }): void { /* as above */ }
@@ -308,7 +308,7 @@ export class SinusoidView {
 
   /** The eased state now (what the 3D sinusoid draws). */
   get state(): Readonly<Cur> { return this.cur; }
-  /** How far the blood has run (µm, the traffic's clock: the streaks ride it). */
+  /** How far the blood has run (µm, the traffic's clock). */
   get flowRun(): number { return this.traffic.flowX; }
   /** The cells' own slow life (seconds, run at the traffic's pace: it eases to a stop with pause and stands still with reduced motion): the Kupffer cell's arms and the microvilli sway on it. */
   get lifeTime(): number { return this.lifeT; }

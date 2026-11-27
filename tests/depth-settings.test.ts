@@ -4,16 +4,15 @@ import { DEFAULTS, DEPTH_DEFAULTS, DEPTH_KEYS, FIGURE_SETTINGS_VERSION as V, par
 import { DEPTH_ROWS } from '../src/ui/settings/depth-rows.ts';
 import { sceneSource } from './helpers/scene-source.ts';
 
-test('the Figure depth switches: on by default, except Free tilt (the blood streaks are on: a play-test with the switch off saw none)', () => {
-  assert.deepEqual([...DEPTH_KEYS], ['organDepth', 'tilt', 'dof', 'particles', 'fluidSurface', 'deviceShadow']);
-  assert.deepEqual(DEPTH_DEFAULTS, { organDepth: true, tilt: true, dof: true, particles: true, fluidSurface: true, deviceShadow: true });
+test('the Figure depth switches: on by default, except Free tilt ', () => {
+  assert.deepEqual([...DEPTH_KEYS], ['organDepth', 'tilt', 'dof', 'fluidSurface', 'deviceShadow']);
+  assert.deepEqual(DEPTH_DEFAULTS, { organDepth: true, tilt: true, dof: true, fluidSurface: true, deviceShadow: true });
   for (const k of DEPTH_KEYS) assert.equal(DEFAULTS[k], DEPTH_DEFAULTS[k]);
 });
 
 test('a stored value that is not a switch is the default; a stored switch is kept', () => {
   assert.equal(parseSettings(`{"figureV":${V},"tilt":"no"}`).tilt, true);
   assert.equal(parseSettings(`{"figureV":${V},"tilt":false}`).tilt, false);
-  assert.equal(parseSettings(`{"figureV":${V},"particles":true}`).particles, true);
 });
 
 test('every switch has a row in Settings, in order, with words', () => {
@@ -54,15 +53,8 @@ test('smooth vessel joins are always on: no switch, no row, a saved "off" is dro
   assert.ok(!(await import('node:fs')).readFileSync(new URL('../src/state/settings.ts', import.meta.url), 'utf8').includes('smoothJoins: s.smoothJoins'), 'and it is not written back on the next save');
 });
 
-test('Blood streaks start off on a phone and on elsewhere (Mohammad, 24 Nov: too heavy on the iPhone); a phone that chose keeps its choice; a phone\'s older save takes the new default once; Mac and iPad keep what they saved', async () => {
-  const { PARTICLES_VERSION: PV } = await import('../src/state/settings.ts');
-  assert.equal(parseSettings(null, true).particles, false, 'a new phone: off');
-  assert.equal(parseSettings(null, false).particles, true, 'a new Mac or iPad: on');
-  assert.equal(parseSettings(`{"figureV":${V},"particles":true}`, true).particles, false, 'a phone save from before: the new default, once');
-  assert.equal(parseSettings(`{"figureV":${V},"particlesV":${PV},"particles":true}`, true).particles, true, 'a phone that turned them back on keeps them on');
-  assert.equal(parseSettings(`{"figureV":${V},"particlesV":${PV},"particles":false}`, true).particles, false);
-  assert.equal(parseSettings(`{"figureV":${V},"particles":true}`, false).particles, true, 'Mac and iPad keep their save');
-  assert.equal(parseSettings(`{"figureV":${V},"particles":false}`, false).particles, false);
-  const { readFileSync } = await import('node:fs');
-  assert.match(readFileSync(new URL('../src/state/settings.ts', import.meta.url), 'utf8'), /particlesV: PARTICLES_VERSION/, 'every save carries the version');
+test('a save from before Blood streaks were removed still loads, and the old keys are dropped', () => {
+  const old = parseSettings(`{"figureV":${V},"particles":true,"particlesV":2,"tilt":false}`);
+  assert.equal(old.tilt, false, 'the other switches are kept');
+  assert.ok(!('particles' in old) && !('particlesV' in old), 'the removed keys are not carried');
 });

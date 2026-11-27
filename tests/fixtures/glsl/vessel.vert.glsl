@@ -62,7 +62,6 @@ varying vec3 vCen;   // the tube's centreline point at this fragment, in clip sp
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
-varying vec3 vZf;   // the figure's normal (model z) in the view's frame: the dust's section frame (blood/dust-glsl.ts dustFrame)
 varying vec2 vUv;
 varying vec2 vLensR;
 varying float vHi;
@@ -331,7 +330,6 @@ void main() {
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * aNor);
   vT = normalize(normalMatrix * aTan);
-  vZf = normalize(normalMatrix * vec3(0.0, 0.0, 1.0));
   vV = normalize(-mv.xyz);
   vUv = uv;
   vLensR = lensR;

@@ -212,7 +212,7 @@ test('the resistors\' readings must stand, and "vs healthy liver" rides once, on
 });
 
 // ── the trees, the caudate lane, custom shunts ──
-const tubes = () => new CircuitTubes(createShared(), createLensShared(), { streamTex: { value: null as never }, chainTex: { value: null as never }, routeTex: { value: null as never }, projY: { value: 1 }, dpr: { value: 1 }, streakAmt: { value: 0 }, dustP: { value: new Float32Array(52) } }, createCircuitShared(8));
+const tubes = () => new CircuitTubes(createShared(), createLensShared(), { streamTex: { value: null as never }, chainTex: { value: null as never }, projY: { value: 1 }, dpr: { value: 1 } }, createCircuitShared(8));
 test('every branch of the liver\'s four trees is a tube on the map, fixed to its parent\'s lane, thinner than it', () => {
   const t = tubes();
   const trees = t.ids.filter((e) => e.kind === 'tree');

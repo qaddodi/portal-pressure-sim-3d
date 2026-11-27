@@ -1,13 +1,11 @@
 // The blood's streams, the 2D app's own (blood.js advanceStream, copied by scripts/copy-b3-data.mjs): one stream a vessel, its speed the time-averaged
 // mean velocity (the engine's flow filter, then MEAN_TAU), the display speed 9.5 * sqrt(v) 2D units a second above 0.25 cm/s, a reversal held for a breath
 // and then settled, stood still and eased off the other way. The chevrons ride the stream's distance D. D, the display speed and the eased reversed flag go
-// to the GPU in one 208 x 1 texture (RGBA float); nothing else is per frame.
+// to the GPU in one 208 x 1 texture (RGBA float, the alpha unused); nothing else is per frame.
 import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
 import { EDGES } from '../../engine/hales/portal/topology.js';
 import { STASIS_MIN_D, advanceStreamAt, createReversalHold } from './blood.copied.js';
 import { flowReversed, meanVel } from '../lenses/vel-normal.copied.js';
-import { streakDCap } from './streak-glsl.ts';
-import { PERIOD } from './blood.copied.js';
 
 interface Stream { vSlow?: number; vFast?: number; D: number; vd: number; hold?: number; settle?: number; sgn?: number; seed?: number; rev?: number }
 interface Frame { Q: ArrayLike<number>; Qf?: ArrayLike<number>; D: ArrayLike<number> }
@@ -22,8 +20,6 @@ export class Streams {
   readonly texture: DataTexture;
   private readonly data = new Float32Array(NE * 4);
   private readonly streams: Stream[] = edges.map((_, k) => ({ D: 0, vd: 0, seed: k + 1 }));
-  /** The streaks' own distance: D's increments, each held to streakDCap() display units a second (no pattern advances more than a quarter of its period a frame), so nothing wagon-wheels; the same as D below the cap. Texel w. */
-  private readonly ds = new Float64Array(NE);
   private readonly velQf = new Float64Array(NE);
   private readonly velQ = new Float64Array(NE);
   private readonly scratch = { Q: new Float64Array(NE), D: new Float64Array(NE) };
@@ -47,13 +43,10 @@ export class Streams {
   stream(k: number): Stream { return this.streams[k]!; }
   /** Edge k's flow's size (the chain's weight for which inflow is the parent). */
   flowOf(k: number): number { return Math.abs(this.frame ? (this.frame.Qf ?? this.frame.Q)[k] ?? 0 : 0); }
-  /** Edge k's diameter now (the engine's, mm), for the swirl's strength (routes.ts): 0 before a frame. */
-  diamOf(k: number): number { return this.frame ? Number(this.frame.D[k] ?? 0) : 0; }
-  /** Whether any stream moved at the last step (the chain's easing runs slower while the blood is still). */
-  moving = false;
-
   /** The shown direction and speed of edge k: 1 forward, -1 against the edge's own direction. */
   speedOf(k: number): number { return this.streams[k]!.vd; }
+  /** Whether any stream moved at the last step (the chain's easing runs slower while the blood is still). */
+  moving = false;
 
   /** Advances every stream to `nowMs`. Returns true while any stream moves (the scene keeps asking for frames). */
   step(nowMs: number, rate = 1): boolean {
@@ -78,9 +71,7 @@ export class Streams {
       const sm = advanceStreamAt(this.streams[k], this.velQf, this.velQ, k, o) as Stream;
       sm.rev = sm.rev == null ? rt : sm.rev + (rt - sm.rev) * ease;
       const i = k * 4;
-      const cap = streakDCap(), step = Math.max(-cap, Math.min(cap, sm.vd * rate)) * dt;
-      this.ds[k] = (((this.ds[k]! + step) % PERIOD) + PERIOD) % PERIOD;
-      this.data[i] = sm.D; this.data[i + 1] = sm.vd; this.data[i + 2] = sm.rev; this.data[i + 3] = this.ds[k]!;
+      this.data[i] = sm.D; this.data[i + 1] = sm.vd; this.data[i + 2] = sm.rev; 
       if ((sm.vd !== 0 && rate > 0.0005) || Math.abs(sm.rev - rt) > 0.002) moving = true;
     }
     this.texture.needsUpdate = true;

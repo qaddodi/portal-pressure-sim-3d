@@ -15,7 +15,6 @@ import { VesselObject } from './vessels/vessel-object.ts';
 import { LensField } from './lenses/field.ts';
 import { BloodMarks } from './blood/marks.ts';
 import { BloodField } from './blood/field.ts';
-import { BloodCells } from './blood/cells/cells.ts';
 import { CameraRig } from './camera/rig.ts';
 import { type Room } from './camera/room.ts';
 import { type ShotName, type Shot, SHOTS } from './camera/shots.ts';
@@ -23,7 +22,6 @@ import { Catheter } from './catheter.ts';
 import { Highlight, OrganPins } from './highlight.ts';
 import { type CelShared, createShared, CelObject } from './materials/cel.ts';
 import { type LookId } from './palette.ts';
-import { EDGES } from '../engine/hales/portal/topology.js';
 import { type ModelSource } from './model-source.ts';
 import { type Region } from './twin/region.ts';
 import { LobuleView } from './lobule/index.ts';
@@ -121,15 +119,13 @@ export class CelScene {
   /** The organs a slide outlines (and the normal spleen's line). */
   readonly pins = new OrganPins();
   flow!: BloodMarks;
-  /** Blood-cell particles (Settings > Figure depth): built the first time they are switched on, one draw call. */
-  cells!: BloodCells;
   /** The colour lens (src/scene/lenses/): what colour every vein wears, crossfaded on the clock. */
   readonly lens = new LensField();
   /** The blood's streams (the chevrons' distance, speed and reversed flag, from the 2D app's own stream model). */
   readonly blood = new BloodField();
   /** The flow's one eased rate (flow-rate.ts): every visible phase that rides the blood's distance advances by it. */
   flowRate!: FlowRate;
-  /** A second figure (the split orbit's healthy liver, scene/twin): it reads its own patient and leaves the page's shared dust and flow rate to the page's scene. */
+  /** A second figure (the split orbit's healthy liver, scene/twin): it reads its own patient and leaves the page's flow rate to the page's scene. */
   twin!: boolean;
   /** The lobule and sinusoid views (B8), built once, hidden until the view is chosen (setView). */
   /** The organs and the disease states on the figure (B4). */
@@ -197,8 +193,6 @@ export class CelScene {
   healthyQ: ArrayLike<number> | undefined;
   collateralsOn = false;
   procQuietWas = false;
-  /** the swirl's turns each vessel should carry (blood/routes.ts turnTargets), kept so a frame makes no array */
-  readonly turnsScratch = new Float32Array((EDGES as unknown[]).length);
   wedgeSet = new Set<string>();
   bloodOpts = { chevrons: true, keyChevrons: false };
   readonly byEdge = new Map<string, CelObject>();

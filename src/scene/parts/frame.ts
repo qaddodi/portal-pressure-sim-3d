@@ -4,8 +4,6 @@ import { anyMoving } from '../any-moving.ts';
 import { type FrameCtx, runSystems, type FrameSystem } from '../frame-systems.ts';
 import { SKIN_BUILD_TAG } from '../vessels/skin/skin-set.ts';
 import { flowTarget } from '../flow-rate.ts';
-import { dustTuner } from '../blood/dust.ts';
-import { turnTargets } from '../blood/routes.ts';
 import { quietOf } from '../camera/quiet.ts';
 import { glowGate } from '../highlight.ts';
 import { lookOf } from '../focus-reveal/reveal.ts';
@@ -26,7 +24,7 @@ export const framePart = scenePart<CelScene>()({
     this.shared.time.value = (now / 1000) % 1000;
     for (const e of this.eases) e.step(now);   // (the clock steps them in its tween phase; this is the same step at the same time, which changes nothing, and lets a hand-turned update(now) drive them)
     this.ambientIds.clear();
-    const ctx: FrameCtx = { now, dt, streams: false, procQuiet: false, ambient: this.ambientIds };
+    const ctx: FrameCtx = { now, dt, ambient: this.ambientIds };
     let needs = runSystems(this.systems ??= this.makeSystems(), ctx, this.systemMs, () => clock.now(), this.moverIds);
     // (the scene's own flag, set by every setter that changes something: an ordinary change, never ambient; it is named in ?perf as "change")
     if (this.moving) { needs = true; this.moverIds.push('change'); }
@@ -65,24 +63,17 @@ export const framePart = scenePart<CelScene>()({
         const { now, dt } = c;
         this.blood.shared.projY.value = this.rig.camera.projectionMatrix.elements[5]!;
         this.flowRate.step(dt / 1000, flowTarget(this.src.liveFrame()?.running));   // (Pause and Play ease the visible flow, 0.5 s each way; the model's own numbers pause at once)
-        // ONE GATE for the flow marks during procedures: while any procedure is on the figure (a catheter's run or its held step, the scope) the chevrons and the streaks ease out, and back when it ends
-        c.procQuiet = this.procs.busy || !!this.probes.scope.driven;
-        if (c.procQuiet !== this.procQuietWas) { this.procQuietWas = c.procQuiet; this.flow.setOptions({ quiet: c.procQuiet }); }
+        // ONE GATE for the flow marks during procedures: while any procedure is on the figure (a catheter's run or its held step, the scope) the chevrons ease out, and back when it ends
+        const procQuiet = this.procs.busy || !!this.probes.scope.driven;
+        if (procQuiet !== this.procQuietWas) { this.procQuietWas = procQuiet; this.flow.setOptions({ quiet: procQuiet }); }
         const streamsMoving = this.blood.streams.step(now, this.flowRate.value);
-        c.streams = streamsMoving;
         const chainMoving = this.blood.chain.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), this.circuit.t);
-        const routesMoving = this.blood.routes.step(now, this.blood.streams, (id) => this.flow.carriesHeads(id), turnTargets(this.blood.streams, dustTuner.uniform.value, this.turnsScratch), this.circuit.t);
         const flowMoving = this.flow.step(dt);
-        // (the marks going round at a steady rate are ambient; a Pause or Play easing the rate, the chevrons or the swirl easing, are changes the eye follows: full rate)
-        if (streamsMoving && !flowMoving && !chainMoving && !routesMoving && !this.flowRate.easing) c.ambient.add('flow');
-        return anyMoving(flowMoving, streamsMoving, chainMoving, routesMoving);
+        // (the marks going round at a steady rate are ambient; a Pause or Play easing the rate, the chevrons easing, are changes the eye follows: full rate)
+        if (streamsMoving && !flowMoving && !chainMoving && !this.flowRate.easing) c.ambient.add('flow');
+        return anyMoving(flowMoving, streamsMoving, chainMoving);
       } },
-      { id: 'lens+dust', step: ({ now, dt }) => anyMoving(this.lens.step(now), this.twin ? false : dustTuner.step(dt)) },
-      { id: 'cells', step: (c) => {
-        const moving = this.cells.step(c.dt, { view: this.figureView, circuit: this.circuit.t, body: this.fadeNow, flowMoving: c.streams, quiet: c.procQuiet });
-        if (moving && !this.cells.easing) c.ambient.add('cells');   // (riding the marks: ambient while only they move)
-        return moving;
-      } },
+      { id: 'lens', step: ({ now }) => this.lens.step(now) },
       { id: 'presence', step: ({ dt }) => {
         const presMoving = anyMoving(this.presence.step(dt), this.feeders.step(dt, () => this.pushFades()));
         this.syncStumps();

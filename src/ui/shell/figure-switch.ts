@@ -1,4 +1,4 @@
-// The one writer of a figure switch (audit W2). A switch has one owner: the Blood menu's six live in the scene's `useBlood` (chevrons, key chevrons, key streaks, pressure values,
+// The one writer of a figure switch (audit W2). A switch has one owner: the Blood menu's five live in the scene's `useBlood` (chevrons, key chevrons, pressure values,
 // potential collaterals, organ names; organ names also in the labels' `useLabels`), the lobule's three layers (zones, lymph, bile) in the shell's `figure`. The menus (FigureMenu)
 // and a link or bug packet (share-apply) both write through here, so a link changes the figure exactly as the tap does, and `figureNow` (share-wire) reads the owners back.
 import { useBlood, type BloodChoice } from '../../scene/blood/options.ts';
@@ -7,7 +7,7 @@ import { sceneApi } from '../../scene/api.ts';
 import { talkOn } from '../../state/deck.ts';
 import { useShell } from './store.ts';
 
-export const BLOOD_SWITCHES = ['chevrons', 'keyChevrons', 'keyStreaks', 'chips', 'collaterals', 'labels'] as const satisfies readonly (keyof BloodChoice)[];
+export const BLOOD_SWITCHES = ['chevrons', 'keyChevrons', 'chips', 'collaterals', 'labels'] as const satisfies readonly (keyof BloodChoice)[];
 export const LAYER_SWITCHES = ['zones', 'lymph', 'bile'] as const;
 export type BloodSwitch = (typeof BLOOD_SWITCHES)[number];
 export type LayerSwitch = (typeof LAYER_SWITCHES)[number];
@@ -34,5 +34,5 @@ export function setFigureSwitch(key: string, on: boolean): boolean {
 /** Every switch as it stands now, read from its owner. */
 export function figureSwitches(): Record<FigureSwitch, boolean> {
   const b = useBlood.getState(), f = useShell.getState().figure;
-  return { chevrons: b.chevrons, keyChevrons: b.keyChevrons, keyStreaks: b.keyStreaks, chips: b.chips, collaterals: b.collaterals, labels: b.labels, zones: f.zones, lymph: f.lymph, bile: f.bile };
+  return { chevrons: b.chevrons, keyChevrons: b.keyChevrons, chips: b.chips, collaterals: b.collaterals, labels: b.labels, zones: f.zones, lymph: f.lymph, bile: f.bile };
 }

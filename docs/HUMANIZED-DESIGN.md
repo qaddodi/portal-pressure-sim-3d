@@ -85,7 +85,7 @@ Note timing follows length (about 250 ms a word, 3.2-10 s) and a note stays whil
 - **Cel shaded:** ink outlines and clean shapes with smooth shading, flat light from the upper left. Never visible tone steps, rings or terraces. Organs keep their original look (3-tone organ bands were
   tried and hated). The cirrhotic liver default is cel15: nodular outline, faint soft face, no drawn cells. Lobule fibrosis has no black ink.
 - **Flow marks are chevrons**, never bands or stripes: 130 px pitch, calm and laminar in healthy vessels, turbulence only past a real
-  narrowing. Bile and lymph carry streaks in their own colours.
+  narrowing.
 - **Vessels:** connected, smooth tapers, proper junctions, no gaps, stubs, necks or flat ends. A vessel merging into a faded one fades
   on approach so both share the fade at the junction; open ends just fade, no cap.
 - **Highlight is a glow**, in the item's own colour, fading toward both ends. No thicker outline, no recolour.

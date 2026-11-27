@@ -14,7 +14,7 @@ import { createLensShared } from '../src/scene/vessels/vessel-object.ts';
 import { createCircuitShared } from '../src/scene/circuit/uniforms.ts';
 import { TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
 
-const tubes = () => new CircuitTubes(createShared(), createLensShared(), { streamTex: { value: null as never }, chainTex: { value: null as never }, routeTex: { value: null as never }, projY: { value: 1 }, dpr: { value: 1 }, streakAmt: { value: 0 }, dustP: { value: new Float32Array(52) } }, createCircuitShared(8));
+const tubes = () => new CircuitTubes(createShared(), createLensShared(), { streamTex: { value: null as never }, chainTex: { value: null as never }, projY: { value: 1 }, dpr: { value: 1 } }, createCircuitShared(8));
 const geometryOf = (o: unknown): BufferGeometry => (o as { toonMesh: { geometry: BufferGeometry } }).toonMesh.geometry;
 
 /** The rings of a built tube: each ring's centre and mean radius, from its vertices (the tube's rings come first, TUBE_RADIAL + 1 vertices each, the first and last the same point). */

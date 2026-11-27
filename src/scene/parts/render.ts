@@ -2,7 +2,6 @@
 // Part of CelScene (scene.ts): these methods are mixed into the class, so `this` is the scene. Moved from scene.ts as they were.
 import { lapTimer } from '../any-moving.ts';
 import { WebGLRenderer, type WebGLRenderTarget } from 'three';
-import { dustTuner } from '../blood/dust.ts';
 import { MICRO_DPR } from '../micro3d/cel3d.ts';
 import { splitRegions, confine, type Region } from '../twin/region.ts';
 import { VESSEL_LAYER } from '../layers.ts';
@@ -25,7 +24,6 @@ export const renderPart = scenePart<CelScene>()({
     const dpr = gl.getPixelRatio?.() ?? 1;
     this.shared.dpr.value = dpr;
     this.blood.shared.dpr.value = dpr;   // (the vessels' line is set in CSS px and converted with it)
-    if (!this.twin) dustTuner.setView(this.phone, this.width * this.height * dpr * dpr);   // (the dust's samples a pixel follow the device and the canvas: blood/dust-spec.ts dustBudget)
     this.microDpr = dpr; this.micro?.lobule.setDpr(dpr);
     this.disease.organs.setDpr(dpr);
     MICRO_DPR.value = dpr;   // (the micro parts' lines drawn in the fill are CSS px wide on every screen)
@@ -127,11 +125,9 @@ export const renderPart = scenePart<CelScene>()({
     this.circuitSkins?.dispose();
     this.micro?.sinus.dispose(); this.micro?.lobule.dispose();
     this.lens.dispose();
-    this.cells.dispose();
     this.disease.dispose();
     this.blood.streams.texture.dispose();
     this.blood.chain.texture.dispose();
-    this.blood.routes.texture.dispose();
     for (const o of this.objects) o.dispose();
     this.procs.dispose(); this.probes.dispose();
     this.organMap.dispose(); resetOrganVeil(); resetFocusReveal();

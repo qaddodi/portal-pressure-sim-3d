@@ -13,5 +13,5 @@ export function promoRatio(v: string | null): number | null {
 
 /** Rich for this page, no corner credit. Called once, before the first talk opens. */
 export function preparePromo(): void {
-  useSettings.setState(presetValues('rich', false));
+  useSettings.setState(presetValues('rich'));
 }

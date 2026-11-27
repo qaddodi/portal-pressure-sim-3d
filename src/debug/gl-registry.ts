@@ -23,7 +23,6 @@ import { LOBULE_PLATE_FS, LOBULE_PLATE_VS } from '../scene/lobule/plate.ts';
 import { LOBULE_FIELD_FS, LOBULE_FIELD_VS } from '../scene/lobule/field.ts';
 import { AA_FS, AA_VS } from '../scene/post-aa.ts';
 import { DOF_COPY_FS, DOF_GATHER_FS, DOF_MIX_FS, DOF_VS } from '../scene/post-dof.ts';
-import { CELLS_FS, CELLS_VS } from '../scene/blood/cells/shader.ts';
 import { highpSamplers } from '../ui/tests/highp-samplers.js';
 import { createShared } from '../scene/materials/cel.ts';
 import { BufferGeometry } from 'three';
@@ -32,8 +31,6 @@ import { BufferGeometry } from 'three';
 export const GL_FILES: Record<string, string> = {
   'scene/materials/shaders.ts': 'cel toon and ink (every organ, lobule and sinusoid part, the devices): found on the scene graph',
   'scene/blood/chevron-glsl.ts': 'the one chevron (the Anatomy\'s flow head), spliced into the vessel and the 3D lobule and sinusoid programs: part of those',
-  'scene/blood/streak-glsl.ts': 'the one streak (lanes, comets), spliced into the blood streaks, the 3D lobule and the 3D sinusoid programs: part of those',
-  'scene/blood/dust-glsl.ts': 'the dust (the Dust Lab\'s particles, drawn by the vessel\'s own fragment shader), spliced into the vessel program: part of that',
   'scene/cel-glsl.ts': 'the cel style\'s shared tube GLSL (two tones, the world light), spliced into the vessel, toon and lobule programs: part of those',
   'scene/vessels/shaders.ts': 'the vessel, with its veil (VEIL define): found on the scene graph',
   'scene/vessels/skin/shaders.ts': 'the junction skin (one merged mesh where 3 or 4 vessels meet; behind ?joins=mesh): registered by name until the scene wears it, then also found on the scene graph',
@@ -50,7 +47,6 @@ export const GL_FILES: Record<string, string> = {
   'scene/lobule/one-fade.ts': 'the one-line GLSL patch that scales a stock material\'s alpha by the lobule\'s fade (the tap halo\'s MeshBasicMaterial): the halo\'s program is found on the scene graph',
   'scene/micro3d/cel3d.ts': 'the true-3D lobule and sinusoid (Settings > Figure depth): the cel toon and its ink hull, plain and instanced: found on the scene graph',
   'scene/organs/organ-art.ts': 'the organ wash wrapped for the organs\' art and the esophagus\'s fade (made when the art file is in): registered by name',
-  'scene/blood/cells/shader.ts': 'the blood-cell particles (Settings > Figure depth; built when first switched on): registered by name, and found on the scene graph once they are in it',
   'scene/post-aa.ts': 'the anti-aliasing pass over the whole figure (FXAA on a full-screen quad, outside the scene graph): registered by name',
   'scene/post-dof.ts': 'the depth of field of the dive (desktop only: a half-size gather and a full-size blend on a full-screen quad, outside the scene graph): registered by name',
   'ui/charts/gl.ts': 'the charts\' shared drawer: registered by name',
@@ -66,7 +62,7 @@ export const GL_FILES: Record<string, string> = {
 export function namedSources(): Map<string, string> {
   return new Map<string, string>([
     [VESSEL_VS, 'vessel'], [VESSEL_FS, 'vessel'], [SKIN_VS, 'skin'], [SKIN_FS, 'skin'], [TOON_VS, 'toon'], [TOON_FS, 'toon'], [INK_VS, 'ink'], [INK_FS, 'ink'],
-    [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [JET_INK_VS, 'bleed jet ink'], [JET_INK_FS, 'bleed jet ink'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [LOBULE_PLATE_VS, 'lobule plate'], [LOBULE_PLATE_FS, 'lobule plate'], [LOBULE_FIELD_VS, 'lobule field'], [LOBULE_FIELD_FS, 'lobule field'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'], [DOF_GATHER_FS, 'post dof'], [DOF_MIX_FS, 'post dof mix'], [DOF_COPY_FS, 'post dof copy'], [CELLS_VS, 'blood cells'], [CELLS_FS, 'blood cells'], [MICRO_VS, 'micro3d toon'], [MICRO_FS, 'micro3d toon'], [MICRO_INK_VS, 'micro3d ink'], [MICRO_INK_FS, 'micro3d ink'],
+    [ORGAN_VS, 'organ wash'], [ORGAN_FS, 'organ wash'], [JET_INK_VS, 'bleed jet ink'], [JET_INK_FS, 'bleed jet ink'], [RES_VS, 'circuit resistors'], [RES_FS, 'circuit resistors'], [PLATE_VS, 'circuit plate'], [PLATE_FS, 'circuit plate'], [LOBULE_PLATE_VS, 'lobule plate'], [LOBULE_PLATE_FS, 'lobule plate'], [LOBULE_FIELD_VS, 'lobule field'], [LOBULE_FIELD_FS, 'lobule field'], [DOT_VS, 'circuit dots'], [DOT_FS, 'circuit dots'], [DOF_GATHER_FS, 'post dof'], [DOF_MIX_FS, 'post dof mix'], [DOF_COPY_FS, 'post dof copy'], [MICRO_VS, 'micro3d toon'], [MICRO_FS, 'micro3d toon'], [MICRO_INK_VS, 'micro3d ink'], [MICRO_INK_FS, 'micro3d ink'],
   ]);
 }
 
@@ -104,7 +100,6 @@ export function rawPrograms(fibroText: string): Program[] {
     lateMaterialProgram('lobule plate', LOBULE_PLATE_VS, LOBULE_PLATE_FS),   // (the plate is mounted only with the lobule view: Plan 28, an undeclared mapCB reached a phone because no node run ever held this program)
     lateMaterialProgram('organ wash', ORGAN_VS, ORGAN_FS),
     ...organArtPrograms(),
-    lateMaterialProgram('blood cells', CELLS_VS, CELLS_FS),
     lateMaterialProgram('post aa', AA_VS, AA_FS),
     lateMaterialProgram('post dof', DOF_VS, DOF_GATHER_FS),
     lateMaterialProgram('post dof copy', DOF_VS, DOF_COPY_FS),

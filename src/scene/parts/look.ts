@@ -3,7 +3,6 @@
 import { Color, type DataTexture } from 'three';
 import { groundFor } from '../ground.ts';
 import type { LensId } from '../lenses/model.ts';
-import { dustTuner } from '../blood/dust.ts';
 import { type LookId, type Palette, PALETTES } from '../palette.ts';
 import { TEXTURE_WIDTH } from '../../engine/vessel-data.ts';
 import { clock, AMBIENT_FPS_PHONE, AMBIENT_FPS } from '../../clock/frame.ts';
@@ -46,7 +45,6 @@ export const lookPart = scenePart<CelScene>()({
     for (const o of this.objects) o.setPhone(phone);
     this.procs.setPhone(phone); this.probes.setPhone(phone); this.tubes.setPhone(phone);
     this.disease.setPhone(phone);
-    if (!this.twin) dustTuner.setPhone(phone);
     this.sinus.setPhone(phone);
     this.moving = true;
   },

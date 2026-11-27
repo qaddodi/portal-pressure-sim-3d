@@ -98,7 +98,6 @@ async function start() {
   if (DEBUG && isPreview() && flagOn('capture')) void import('./debug/look-app.ts').then((m) => m.mountLookCapture(location.search));
   mountA11y();   // the live region, the figure's description, slide announcements, Reduce Motion fades (batch B14)
   mountPerf();
-  if (DEBUG && flagOn('dust')) void import('./ui/debug/dust-panel.ts').then((m) => m.mountDust());   // ?dust: the hidden tuning panel for the blood's dust
   if (DEBUG && inspectRequested()) void import('./ui/debug/inspect/panel.ts').then((m) => m.mountInspect());   // ?inspect, ?joins=debug: the inspector's panel (turn the figure, switch shaders, passes and layers live)
   if (flagOn('gl')) void import('./debug/gl-check.tsx').then((m) => m.mountGl());   // ?gl: every shader program, compiled on this device (WP10)
   if (DEBUG) {

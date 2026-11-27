@@ -14,7 +14,7 @@ Mohammad, 24 Nov 02:31 UTC: "let's do the one from front side by side".
 - First slides were HVPG 7 and 11; both taken off (see below). Candidates are listed to him; none built until he picks.
 
 ## Build plan (decided 24 Nov: twin scene, only on split slides)
-The scene (`CelScene`) is one object per page and reads the engine through module globals (`latest`, `live`, `patient`, `shownParams` in `src/engine/store.ts`; about 15 sites in `scene.ts`), plus `dustTuner` and `flowRate` singletons. So:
+The scene (`CelScene`) is one object per page and reads the engine through module globals (`latest`, `live`, `patient`, `shownParams` in `src/engine/store.ts`; about 15 sites in `scene.ts`), plus the `flowRate` singleton. So:
 1. `CelScene` takes a frame source (defaults to the globals); the twin gets a healthy frame from `enginePool.sequence`, its own `VesselData` texture and its own `CameraRig`.
 2. Built at reduced detail, sharing geometry and textures with the main scene, only when a split slide is next or showing; built in idle slices, never inside a frame; disposed as the slide is left. A test pins the dispose (no geometry, texture or listener left).
 3. Render: two scissored viewports of the one canvas, left twin, right main, one orbit angle for both (about -49, 0, +49 degrees, eased); labels above each; cards unchanged.

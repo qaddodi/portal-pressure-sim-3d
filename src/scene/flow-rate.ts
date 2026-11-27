@@ -1,6 +1,6 @@
 // THE FLOW'S ONE EASED RATE (Mohammad, 20 Nov: "when i stop the motion, it should EASE stop and EASE begin on pause and play"). Pause and Play do not freeze or start the blood's visible flow at once: this rate eases
 // from 1 (playing) to 0 (paused) and back over FLOW_EASE_S with a smoothstep (monotone, no jump at either end, exactly the target when it lands, an interrupted ease restarts from where it is). Every visible
-// phase that rides the blood's own distance (the streams' D: the chevrons, the streaks, the Circuit's heads) advances by `dt * rate`, so all views agree. The simulation's own numbers and clock keep pausing
+// phase that rides the blood's own distance (the streams' D: the chevrons, the Circuit's heads) advances by `dt * rate`, so all views agree. The simulation's own numbers and clock keep pausing
 // at once; only the picture eases.
 //
 // Frames: `active` is true while the rate is above 0.001 or still easing, false once it has settled at 0, so a paused figure asks the clock (clock.hold in the Stage's frame loop) for nothing: the scene's update

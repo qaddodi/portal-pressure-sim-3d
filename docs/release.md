@@ -11,7 +11,7 @@ How a build gets its version, what the live site ships, and the checklist for a 
 It is never in the repository (`tests/release.test.ts` greps `src`, `scripts`, `public`, `index.html` and `.github` for a mail address). The workflow passes the repository secret `FEEDBACK_EMAIL` to both builds as `VITE_FEEDBACK_EMAIL`: GitHub repo Settings > Secrets and variables > Actions > Secrets > New repository secret `FEEDBACK_EMAIL` (a secret, not a variable, so the run's log masks it). Unset, the Send feedback row and the Privacy paragraph about it are absent. The address is necessarily in the shipped JavaScript (a mailto link); the rule is only that it is not in the repo.
 
 ## What each copy ships
-- `/preview/` (integration branch, `VITE_CHANNEL=preview`): everything, with the orange build pill and every debug tool (`?audit`, `?inspect`, `?joins`, `?dust`, `?look`, `?charts`, `?trials`, `?parity`, `?debug`, `?watch`).
+- `/preview/` (integration branch, `VITE_CHANNEL=preview`): everything, with the orange build pill and every debug tool (`?audit`, `?inspect`, `?joins`, `?look`, `?charts`, `?trials`, `?parity`, `?debug`, `?watch`).
 - `/` (main, `VITE_CHANNEL=live`): no build pill, and no debug tool: `src/main.tsx` `DEBUG` is false at build time, so those chunks are not built, not downloaded, not held offline. Only `?perf`, `?gl` and the links that open a talk, slide, patient or the menu work. `tests/live-no-debug.test.ts`.
 - Both: a Content-Security-Policy meta (`scripts/csp.mjs`, written into `index.html` by the build) that allows only this origin and the page's own boot script by hash, and `referrer: strict-origin-when-cross-origin`. Privacy is Help > Privacy (the 2D app's page, copied).
 

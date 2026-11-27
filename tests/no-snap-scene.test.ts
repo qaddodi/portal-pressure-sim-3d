@@ -25,5 +25,5 @@ test('no uniform is shared by both sides of a lens crossfade: the tail is each t
   const model = readFileSync('src/scene/lenses/model.ts', 'utf8');
   assert.match(model, /export const TAIL_ON = 2/);
   assert.match(model, /TAIL_LENSES\.has\(lens\)\) \{ if \(G\[g0 \+ 3\]! > 0\) G\[g0 \+ 3\] = TAIL_ON/);
-  for (const f of ['src/scene/vessels/glsl-shared.ts', 'src/scene/blood/cells/shader.ts']) assert.match(readFileSync(f, 'utf8'), /float t = g1\.a > 1\.5 \? smoothstep\(0\.55, 1\.0, u\) : u;/, f);
+  for (const f of ['src/scene/vessels/glsl-shared.ts']) assert.match(readFileSync(f, 'utf8'), /float t = g1\.a > 1\.5 \? smoothstep\(0\.55, 1\.0, u\) : u;/, f);
 });

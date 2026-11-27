@@ -48,9 +48,8 @@ export const VIEWS: readonly { id: string; label: string; yaw: number; pitch: nu
 export interface Preset { id: string; label: string; hint: string; make(s: InspectState): InspectState }
 const both = (s: InspectState, patch: Partial<PartView>): InspectState => ({ ...s, tube: { ...s.tube, ...patch }, skin: { ...s.skin, ...patch } });
 export const PRESETS: readonly Preset[] = [
-  { id: 'marks-off', label: 'No flow marks', hint: 'Dust and chevrons off on tubes and skins (the skins compiled without them): a speck that goes was a mark.', make: (s) => ({ ...both(s, { dust: false, heads: false }), leave: 'marks' }) },
-  { id: 'dust-off', label: 'No dust', hint: 'Only the dust off (tubes and skins), the chevrons stay.', make: (s) => both(s, { dust: false }) },
-  { id: 'heads-off', label: 'No chevrons', hint: 'Only the chevrons off (tubes and skins), the dust stays.', make: (s) => both(s, { heads: false }) },
+  { id: 'marks-off', label: 'No flow marks', hint: 'Chevrons off on tubes and skins (the skins compiled without them): a speck that goes was a mark.', make: (s) => ({ ...both(s, { heads: false }), leave: 'marks' }) },
+  { id: 'heads-off', label: 'No chevrons', hint: 'The chevrons off on tubes and skins, with no recompile (the skins keep their marks code).', make: (s) => both(s, { heads: false }) },
   { id: 'ink-off', label: 'No ink', hint: 'The outline off on tubes and skins (the skins compiled without it): a speck that goes was ink.', make: (s) => ({ ...both(s, { ink: false }), leave: 'ink' }) },
   { id: 'flat', label: 'Flat colour', hint: 'No cel bands: the body colour alone. A speck that stays is not the shading.', make: (s) => both(s, { shade: 1 }) },
   { id: 'normals', label: 'Normals', hint: 'The surface normal as colour: a NaN or a flipped normal shows as a black or a hard-edged patch.', make: (s) => both(s, { shade: 2 }) },
@@ -63,7 +62,7 @@ export const PRESETS: readonly Preset[] = [
 
 /** What Copy puts on the clipboard: one line each, so a paste in a thread says exactly what was on (and the other thread can set the same). */
 export function stateText(s: InspectState, build = ''): string {
-  const part = (p: PartView) => `shade=${p.shade} dust=${+p.dust} heads=${+p.heads} ink=${+p.ink} tint=${+p.tint} why=${+p.why} colour=${p.colour}@${p.amount}`;
+  const part = (p: PartView) => `shade=${p.shade} heads=${+p.heads} ink=${+p.ink} tint=${+p.tint} why=${+p.why} colour=${p.colour}@${p.amount}`;
   return [
     `inspector${build ? ` · ${build}` : ''}`,
     `joins=${s.joins} drop=${+s.drop} leave=${s.leave || 'none'} aa=${+s.aa}`,

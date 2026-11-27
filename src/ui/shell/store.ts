@@ -15,7 +15,7 @@ export type MenuTab = 'present' | 'patients' | 'histories';
 export const LENS_IDS: readonly LensId[] = UI.lenses.map((l) => l.id as LensId);
 export type LabelLevel = 'key' | 'all' | 'none';
 
-/** The figure's own choices the shell owns. The Blood menu's switches (chevrons, key chevrons, key streaks, pressure values, collaterals, organ names) live in `useBlood`
+/** The figure's own choices the shell owns. The Blood menu's switches (chevrons, key chevrons, pressure values, collaterals, organ names) live in `useBlood`
  *  (scene/blood/options.ts); write any switch through `setFigureSwitch` (figure-switch.ts), never here. */
 export interface Figure {
   labelLevel: LabelLevel;

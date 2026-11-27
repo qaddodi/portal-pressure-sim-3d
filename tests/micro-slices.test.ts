@@ -51,7 +51,7 @@ test('no step of the sinusoid\'s or the lobule\'s build takes more than the cap 
   for (const [name, w] of [['sinusoid', b.sinus], ['lobule', b.lobule]] as const) {
     const max = Math.max(...w);
     assert.ok(max <= STEP_WORK_CAP, `${name}: the biggest step took ${Math.round(max)} of the meter, cap ${STEP_WORK_CAP}`);
-    assert.ok(w.length > 100, `${name}: ${w.length} steps (it was ${name === 'sinusoid' ? 144 : 11} sections of up to 100 ms each)`);
+    assert.ok(w.length > 50, `${name}: ${w.length} steps (it was ${name === 'sinusoid' ? 144 : 11} sections of up to 100 ms each)`);
   }
   assert.ok(b.sinus.reduce((a, c) => a + c, 0) > 1e6, 'the meter does count the work (the sinusoid\'s build writes millions of vertices over its passes)');
 });

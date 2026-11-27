@@ -59,7 +59,7 @@ test('the vertex attributes are the spec\'s (cen, weight, restR, sagK) on top of
 });
 
 test('the skin draws the tubes\' flow marks, once per arm, with the tubes\' own code (tests/skin-marks.test.ts holds the rest)', () => {
-  for (const word of ['chevOne', 'dustSkin(FD0, FD1, w1, ', 'dustTube(FD0, ', 'streamTex', 'chainTex', 'streakAmt', 'armArc']) assert.ok(SKIN_FS.includes(word), `${word} is in the skin`);
+  for (const word of ['chevOne', 'flowHeads(', 'streamTex', 'chainTex', 'armArc']) assert.ok(SKIN_FS.includes(word), `${word} is in the skin`);
 });
 
 test('the skin is back-face culled in the fragment stage like the tube, and fades out on the Circuit', () => {
@@ -69,19 +69,6 @@ test('the skin is back-face culled in the fragment stage like the tube, and fade
 
 test('the skin\'s program is registered for the compile check and the ?gl page', () => {
   assert.ok(rawPrograms(FIBRO).some((p) => p.name === 'skin'), 'rawPrograms lists the skin');
-});
-
-// The seam down a fork's skin (Mohammad, 20 Nov: "i still see a seam at the blood vessels junction", PV into RPV and LPV): the dust is drawn in the two heaviest arms' frames, and on the line where the
-// second and third arms weigh the same the pair changes. The second's share is taken less the third's weight, so it is 0 on both sides of that line and the change is continuous.
-test('the skin dust\'s second-arm share is 0 where the second and third arms tie (no seam between a fork\'s branches)', () => {
-  assert.match(SKIN_FS, /else wD2 = max\(wD2, wI\);/);
-  assert.match(SKIN_FS, /float w1 = max\(wD1 - wD2, 0\.0\) \/ max\(wD0 \+ wD1 - 2\.0 \* wD2, 1e-4\);/);
-  const share = (w: number[]) => { const s = [...w].sort((a, b) => b - a); return Math.max(s[1]! - (s[2] ?? 0), 0) / Math.max(s[0]! + s[1]! - 2 * (s[2] ?? 0), 1e-4); };
-  for (const e of [1e-3, 1e-5]) {
-    const a = share([0.5, 0.25 + e, 0.25 - e]), b = share([0.5, 0.25 - e, 0.25 + e]);
-    assert.ok(a < 0.01 && b < 0.01, `continuous across the tie: ${a}, ${b}`);
-  }
-  assert.ok(Math.abs(share([0.5, 0.5, 0]) - 0.5) < 1e-9, 'a plain two-arm seam keeps its even blend');
 });
 
 test('?joins=debug paints each pixel the skin would drop, in the colour of its reason (red back face, cyan presence dither, yellow no alpha, magenta past the ink band), and the plain program is the same without it', async () => {
@@ -102,11 +89,6 @@ test('the skin\'s flow marks can read no NaN: normal and eye vector length-check
   assert.match(fs, /vec3 n = nLen > 1e-5 \? vN \/ nLen : vec3\(0\.0, 0\.0, 1\.0\);/);
   assert.match(fs, /acA\[i\] = clamp\(dot\(n, /);
   assert.match(fs, /headAcc = clamp\(headAcc, 0\.0, 1\.0\);/);
-  assert.match(fs, /dustAcc = clamp\(vec4\(dust\.rgb \* dOn, dust\.a \* dOn\), 0\.0, 1\.0\);/);
-  for (const f of ['vec4 dustTubeA(DFrame F', 'vec4 dustTubeB(DFrame F', 'vec3 dFind(float edge', 'vec4 dustSkinA(DFrame F0', 'vec4 dustSkinB(DFrame F0']) {
-    const body = SKIN_FS.slice(SKIN_FS.indexOf(f), SKIN_FS.indexOf(f) + 260);
-    assert.match(body, /dEdgeOk\(/, `${f} checks its route edge`);
-  }
 });
 
 // THE SPECKS ALONG THE WALLS (Mohammad, 20 Nov: black on the black background, brown on the liver, in rows at every junction): holes, not marks. The outline's band trimmed a pixel or two of the seam's silhouette, which
@@ -117,48 +99,9 @@ test('the outline band is padded on a seam so it never trims the silhouette of t
   assert.match(SKIN_FS, /float wMax = 0\.0;\n\s+for \(int i = 0; i < 6; i\+\+\) wMax = max\(wMax, rawW\(i\) \* keepOf\(i\)\);/);
 });
 
-test('?joins=nodust and ?joins=noheads split the marks for the A/B that finds a speck\'s layer (diagnostics: each leaves out one half of the skin\'s marks)', async () => {
+test('?joins=noheads and ?joins=nomarks are diagnostics that leave out the chevrons or all the marks', async () => {
   const { skinLeaveOut } = await import('../src/scene/vessels/skin/joins-mode.ts');
-  assert.equal(skinLeaveOut('?joins=nodust'), 'dust');
   assert.equal(skinLeaveOut('?joins=noheads'), 'heads');
   assert.equal(skinLeaveOut('?joins=nomarks'), 'marks');
   assert.match(SKIN_FS, /#ifndef SKIN_NOHEADS[^#]*vec4 hI = flowHeads\([^]*?headAcc \+= hI;\s*\}\s*\n#endif/);
-  assert.match(SKIN_FS, /#ifndef SKIN_NODUST\s+(?:\/\/[^\n]*\s+)?if \(dOn > 0\.002 && alpha > 0\.05\) \{/);
-});
-
-// THE DUST SPECKS (Mohammad, 20 Nov: black and lime specks at every crotch and seam band; gone with ?joins=nodust, not with noheads). The two-frame blend (dustSkin) drew a particle at the average of its places in two frames
-// that disagree on a pixel that belongs to neither: a dot where no lane passes. The default is each arm's own dustTube, crossfaded by the weights; ?joins=dustblend is the old one, for the A/B.
-test('the skin\'s dust is each arm\'s own dustTube crossfaded by the weights; the two-frame blend is only behind ?joins=dustblend', async () => {
-  const { skinLeaveOut } = await import('../src/scene/vessels/skin/joins-mode.ts');
-  assert.equal(skinLeaveOut('?joins=dustblend'), 'dustblend');
-  assert.match(SKIN_FS, /#else\s+\/\/[^\n]*\n\s*float a0 = \(1\.0 - w1\) \* inD0, a1 = w1 \* inD1, aN = a0 \+ a1;/);
-  assert.match(SKIN_FS, /dustTube\(FD0, litD, inkColor, revD0\) \* \(onD0 \* a0\)/);
-  assert.match(SKIN_FS, /dustTube\(FD1, litD, inkColor, revD1\) \* \(onD1 \* a1\)/);
-  assert.match(SKIN_FS, /dust \/= aN;/);
-  // a frame counts only inside its own arm's cylinder (the heads' lateral gate): its across and arc mean nothing beside it
-  assert.match(SKIN_FS, /float inI = 1\.0 - smoothstep\([^;]*SKIN_U \/ max\(rOwn \* swAt\(i\), 1e-4\)\);/);
-  assert.match(SKIN_FS, /#ifdef SKIN_DUSTBLEND\s+vec4 dust = w1 > 0\.004 \? dustSkin\(/);
-});
-
-// The dust never writes the vessel's alpha (code check for the opaque blue blocks in the faded zone, Mohammad 20 Nov): a particle is part of the colour, which the vessel's own fade then blends by its alpha, and the ring that would paint ink
-// into a particle is off by default (`ring` 0). The final alpha is the fade's alone, in the skin and in the tube.
-test('the dust is colour only: the final alpha carries no dust term, and the ink ring of a particle is off by default', async () => {
-  const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
-  const { dustDefaults } = await import('../src/scene/blood/dust-spec.ts');
-  assert.match(SKIN_FS, /gl_FragColor = vec4\(c, alpha\);\s*\}$/);
-  assert.match(VESSEL_FS, /gl_FragColor = vec4\(c, fadeHere \* cavA\);\s*\}$/);
-  assert.equal(dustDefaults().ring, 0);
-  for (const [name, src] of [['skin', SKIN_FS], ['tube', VESSEL_FS]] as const) {
-    assert.ok(!/alpha\s*(\*|=)[^;]*dust/i.test(src.replace(/\/\/.*$/gm, '')), `${name}: alpha is never scaled by the dust`);
-  }
-});
-
-// The dust follows the pixel's final alpha (dHold) in the tube and the skin, and a NaN/inf from the lattice is no dust (dSafe), in both dust functions.
-test('the dust is held back by the pixel\'s final alpha and guarded against NaN', async () => {
-  const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
-  const { DUST_GLSL } = await import('../src/scene/blood/dust-glsl.ts');
-  assert.match(VESSEL_FS, /dHold\(fadeHere \* cavA\)/);
-  assert.match(SKIN_FS, /dustAcc \*= dHold\(alpha\);/);
-  assert.match(DUST_GLSL, /float dHold\(float a\) \{ return smoothstep\(0\.05, 0\.6, a\); \}/);
-  assert.equal((DUST_GLSL.match(/clamp\(dSafe\(acc\), 0\.0, 1\.0\)/g) ?? []).length, 4);
 });

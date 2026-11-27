@@ -212,10 +212,9 @@ test('the bed that continues a vein which branches wears no fork collar (root ca
   for (const id of ['PRE_L', 'PRE_R', 'POST_R_RHV', 'POST_L_LHV']) { const v = B.get(id); if (v) assert.ok(!v.flare?.[0] && !v.flare?.[1], `${id} has no collar`); }
 });
 
-test('flow marks hold back inside the vessel a tube leaves: the shader multiplies the chevrons and the streaks by the buried share', async () => {
+test('flow marks hold back inside the vessel a tube leaves: the shader multiplies the chevrons by the buried share', async () => {
   const { VESSEL_FS } = await import('../src/scene/vessels/shaders.ts');
   assert.match(shaderText(VESSEL_FS), /float markK\(float d0, float d1\)/);
-  assert.match(shaderText(VESSEL_FS), /flowDust\([^;]*\) \* markK\(/, 'the dust');
   assert.match(shaderText(VESSEL_FS), /flowHeads\([^;]*markK\(/, 'the heads (the buried share rides in as endK)');
 });
 

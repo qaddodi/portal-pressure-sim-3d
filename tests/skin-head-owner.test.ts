@@ -35,8 +35,9 @@ test('a skin draws every head whole by the owner of its centre, inside the arm\'
   assert.match(main, /skinOwner\(i, seamP \+ tJA\[i\] \* \(\(chevCentreArc - armArc\[i\]\.x\) \/ \(armArc\[i\]\.y \* SKIN_U\)\), kPx\)/);
   assert.match(main, /1\.0 - smoothstep\([0-9.]+, [0-9.]+, latK\)/);
   assert.ok(!/headAcc \+= wI \*/.test(main), 'no head is scaled by its pixel\'s weight any more (that is what sliced it)');
-  // the head's own gate runs before the weight test that skips an absent arm, so an arm that owns a head's centre still draws it
-  assert.ok(main.indexOf('flowHeads(') < main.indexOf('if (wI < 0.004 || vR <= 0.0) continue;'));
+  // an arm is not skipped for a small weight before its heads: an arm that owns a head's centre still draws it
+  const heads = main.slice(0, main.indexOf('THE CLOT'));
+  assert.ok(heads.includes('flowHeads(') && !heads.includes('if (wI < 0.004'));
 });
 
 test('the owner is a sharpened softmax of the arms\' distances in px, each over the sum (the weights add to 1)', () => {

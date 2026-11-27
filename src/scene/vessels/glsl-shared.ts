@@ -4,7 +4,6 @@
 // A chunk is a piece of GLSL spliced exactly where it stood, so the assembled VESSEL_VS and VESSEL_FS are byte for byte what they were before the move (tests/glsl-shared.test.ts holds them to a snapshot).
 // A chunk names the uniforms it reads; the program that includes it declares them. The JS functions return an EXPRESSION (a string) for a rule that is one line at its call sites, in the caller's own variable names.
 import { CHEV, CHEV_INK_ROW, CHEV_LEVEL_MIN } from '../blood/chevron-glsl.ts';
-import { STREAK } from '../blood/streak-glsl.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { glslNum as F } from '../cel-glsl.ts';
 import { CIRC_INK_K, TAPER_FROM, TAPER_TO } from './cel-ink.ts';
@@ -127,33 +126,12 @@ float chevOrange(vec3 c) {
 }`;
 
 /**
- * THE FLOW MARKS of one vessel at one pixel, written once: the tube (vessels/shaders.ts) calls them with its own arc and the skin (skin/shaders.ts) calls them once per ARM with that arm's arc, so a streak or a head is the same code on both
- * (Mohammad, 20 Nov: "the streaks still break between vessels"; the dust, chevrons and the stream chain's routes are drawn by these two functions and nowhere else).
- *   flowDust(across, fr, s, Lw, rOwn, vR, rCss, lensI, dataI, baseDv, lit, vUn)   (fr: the section frame, blood/dust-glsl.ts dustFrame; flowFrame gives a skin arm's frame and gate)   the dust, premultiplied (rgb, a), already scaled by the streak amount, the flow gate and the lumen's width gate. s the arc along the vessel (figure units), Lw its length,
- *                                                                        rOwn its rest radius, vR the lumen's radius now, rCss the same in CSS px, lensI its lens index (stream and chain texels), dataI and baseDv its data texel and built diameter, lit its lit tone, vUn the figure's units in a scene unit here (the chain hands a root's radius in scene units).
+ * THE FLOW MARKS of one vessel at one pixel, written once: the tube (vessels/shaders.ts) calls it with its own arc and the skin (skin/shaders.ts) calls it once per ARM with that arm's arc, so a head is the same code on both
+ * (the chevrons and the stream chain's routes are drawn by this function and nowhere else).
  *   flowHeads(across, acrossW, s, Lw, vR, wpc, pxArc, lensI, flowAmt, endK, la, lb, col, base)   the heads, premultiplied (rgb, coverage); endK the tube's end fade (1 where nothing buries the end), la/lb the lens colours of the two sets at this pixel, col the vessel's own colour, base the colour it is drawn in.
- * Reads: streakAmt, streamTex, chainTex, useData, vdata, vdataSize, markDark, markLight, markRev, lensMix, lensModeA/B, lensRawA/B, lensGradA/B, inkColor, and dustTube, dustSkin, DFrame, chevOne, chevOrange, chevInk, chevCreamOf, CHEV_RIM.
+ * Reads: streamTex, chainTex, markDark, markLight, markRev, lensMix, lensModeA/B, lensRawA/B, lensGradA/B, and chevOne, chevOrange, chevInk, chevCreamOf, CHEV_RIM.
  */
-export const FLOW_MARKS_GLSL = /* glsl */ `// the dust's frame for one vessel at this pixel (blood/dust-glsl.ts DFrame): fr the section frame (dustFrame), and the gate it shows by (the streak amount, the flow, the lumen's width), returned; rev its stream's eased reversed flag
-float flowFrame(float across, vec4 fr, float s, float Lw, float rOwn, float vR, float rCss, float lensI, float dataI, float baseDv, float vUn, out DFrame F, out float rev) {
-  vec4 smS = texelFetch(streamTex, ivec2(int(lensI), 0), 0);   // the blood's own distance and speed on this vessel: reversed runs back, none stands
-  float nar = 1.0;
-  if (useData > 0.5) { ivec2 tcn = ivec2(int(mod(dataI, vdataSize.x)), int(floor(dataI / vdataSize.x))); nar = texelFetch(vdata, tcn, 0).b / max(baseDv, 0.1); }
-  F = DFrame(across, fr.xy, fr.zw, s, Lw, rOwn, vR, rCss, nar, smS.y, lensI, vUn);
-  rev = smS.z;
-  if (streakAmt <= 0.001 || vR <= 0.0 || abs(across) >= 0.97) return 0.0;
-  // (none only where the flow is none: the particles ride the root's own distance, streams.ts texel w, through the route table, blood/routes.ts)
-  return streakAmt * smoothstep(${F(CHEV.MIN_R_PX)}, ${F(CHEV.MIN_R_PX + 0.6)}, rCss) * smoothstep(0.0, ${F(STREAK.FLOW_ON)}, abs(smS.y));
-}
-// the dust of one vessel at this pixel (the tube's), premultiplied and gated: its roots' particles in its own section frame (dustTube). The skin blends its two heaviest arms' frames instead (dustSkin), from the same flowFrame.
-vec4 flowDust(float across, vec4 fr, float s, float Lw, float rOwn, float vR, float rCss, float lensI, float dataI, float baseDv, vec3 lit, float vUn) {
-  DFrame F; float rev;
-  float dOn = flowFrame(across, fr, s, Lw, rOwn, vR, rCss, lensI, dataI, baseDv, vUn, F, rev);
-  if (dOn <= 0.002) return vec4(0.0);
-  vec4 dust = dustTube(F, lit, inkColor, rev);
-  return vec4(dust.rgb * dOn, dOn * dust.a);
-}
-vec4 flowHeads(float across, float acrossW, float s, float Lw, float vR, float wpc, float pxArc, float lensI, float flowAmt, float endK, vec4 la, vec4 lb, vec3 col, vec3 base) {
+export const FLOW_MARKS_GLSL = /* glsl */ `vec4 flowHeads(float across, float acrossW, float s, float Lw, float vR, float wpc, float pxArc, float lensI, float flowAmt, float endK, vec4 la, vec4 lb, vec3 col, vec3 base) {
   if (flowAmt <= 0.001 || vR <= 0.0) return vec4(0.0);
   vec4 stm = texelFetch(streamTex, ivec2(int(lensI), 0), 0);
   float Dm = stm.x, vd = stm.y, rv = stm.z;

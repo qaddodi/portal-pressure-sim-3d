@@ -4,7 +4,7 @@ Approved: Mohammad, 25 Nov ("Do: 3,9,11,12,13": item 3, proposal P2 in the indep
 
 What the person sees (keep every trait):
 - The same app and the same numbers, with a calmer figure. The vessels stay live (the flow still moves). The organs are not shaded (Organ depth off; the cached one-layer organ paint joins when the rest-state work lands it).
-- No glass blur (the solid look), no depth of field, no gentle tilt, no blood streaks, no living fluid, no device shadows.
+- No glass blur (the solid look), no depth of field, no gentle tilt, no living fluid, no device shadows.
 - Drawn at 1x whatever Figure detail says, and about 20 frames a second (one frame in 50 ms at the most, `clock.setFrameFloor`; 15 to 20 reads as calm motion on a slow machine).
 - Settings > Display, first row, a switch: **Lite figure**. Its quiet line says **Chosen for this device** while the device chose it; when the person turned it on, "A calmer figure for slower devices: it draws less and moves at about 20 frames a second". The switch is how the full figure is tried.
 - Turning it off gives the person's own switches back exactly as they were (they are kept underneath); a switch the person turns on while lite stands is theirs and stays on.

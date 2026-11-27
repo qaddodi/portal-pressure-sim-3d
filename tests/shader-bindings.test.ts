@@ -20,7 +20,7 @@ const byName = (n: string) => programs.find((p) => p.name === n || p.name.starts
 test('the loader holds the whole app: 77+ programs, the organs, the micro views, the skin\'s variants, the late classes', () => {
   assert.ok(programs.length >= 77, `${programs.length} programs`);
   const names = programs.map((p) => p.name);
-  for (const want of ['micro3d toon', 'micro3d ink', 'organ wash', 'lobule plate', 'bleed jet ink', 'post aa', 'glow blur', 'skin (copy 2, VDBG, SKIN_DUSTBLEND)', 'skin (copy 1, SKIN_NOHEADS)']) assert.ok(names.some((n) => n === want || n.startsWith(want + ' ')), `${want} is among the programs`);
+  for (const want of ['micro3d toon', 'micro3d ink', 'organ wash', 'lobule plate', 'bleed jet ink', 'post aa', 'glow blur', 'skin (copy 2, VDBG, SKIN_NOMARKS)', 'skin (copy 1, SKIN_NOHEADS)']) assert.ok(names.some((n) => n === want || n.startsWith(want + ' ')), `${want} is among the programs`);
   assert.ok(programs.some((p) => p.material?.name === 'lobule marks'), 'the lobule\'s marks');
   assert.ok(programs.some((p) => p.flags?.vcol), 'a vertex-colour program is read (the lobule parts)');
   assert.ok(programs.some((p) => p.flags?.inst && !p.flags.instcol) && programs.some((p) => p.flags?.instcol), 'an InstancedMesh is read with and without instance colours');
@@ -66,7 +66,7 @@ test('(c) every live uniform is in its material with the right kind and length; 
 
 test('(d) every varying the fragment shader reads is written by the vertex shader with the same type', () => assert.deepEqual(programs.flatMap(varyingProblems), []));
 test('(e) no derivative and no implicit-LOD texture call after a discard', () => assert.deepEqual(programs.flatMap(afterDiscardProblems), []));
-test('(f) the budget: at or under the floor, the vessel pinned at 16 attributes and 15 varyings, headroom printed', () => {
+test('(f) the budget: at or under the floor, the vessel pinned at 16 attributes and 14 varyings, headroom printed', () => {
   assert.deepEqual(programs.flatMap(budgetProblems), []);
   const vessel = programs.filter((p) => /^vessel\b/.test(p.name));
   assert.ok(vessel.length >= 4, `${vessel.length} vessel programs`);
@@ -126,9 +126,9 @@ test('liveness: a 17th vessel attribute, a 16th varying and a vessel that frees 
   assert.deepEqual(budgetProblems(v), [], 'the real vessel is at its pin');
   const more = { ...v, vertexGlsl: v.vertexGlsl + '\nattribute float extra17;\n' };
   assert.ok(budgetProblems(more).some((s) => /17 attributes/.test(s)));
-  const moreV = { ...v, vertexGlsl: v.vertexGlsl + '\nvarying float extraV;\n' };
+  const moreV = { ...v, vertexGlsl: v.vertexGlsl + '\nvarying float extraV;\nvarying float extraW;\n' };   // (the vessel stands at 14: two more reach the 16th)
   assert.ok(budgetProblems(moreV).some((s) => /16 varyings/.test(s)));
-  assert.equal(VESSEL_PIN.attributes, 16); assert.equal(VESSEL_PIN.varyings, 15);
+  assert.equal(VESSEL_PIN.attributes, 16); assert.equal(VESSEL_PIN.varyings, 14);
 });
 test('liveness: a uniform of the wrong kind or length, and a varying of the wrong type, are named', () => {
   const m = material('uniform vec3 a; uniform float b[3]; void main() { gl_Position = vec4(a * b[0], 1.0); }', 'void main() { gl_FragColor = vec4(1.0); }');

@@ -7,7 +7,6 @@ import { ORGAN_VEIL, seeZoomK, veilOf, vesselZoomK } from '../src/scene/organ-ve
 import { SEE_DECL, VEIL_DECL } from '../src/scene/organ-veil/glsl.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
-import { CELLS_FS } from '../src/scene/blood/cells/shader.ts';
 import { ORGAN_FS } from '../src/scene/organs/organ-shader.ts';
 import { ORGAN_VEIL_U } from '../src/scene/organ-veil/uniforms.ts';
 import { SHOTS, VEIL_WHOLE } from '../src/scene/camera/shots.ts';
@@ -52,14 +51,13 @@ test('the shots the HVPG and the wedge are framed on are past the veil (crisp); 
   for (const n of ['hvpg', 'wedge', 'free', 'route'] as const) assert.equal(vesselZoomK(z(n)), 0, `${n} at ${z(n).toFixed(2)}x is crisp`);
 });
 
-test('every program that draws a vessel\'s body takes the veil through the one chunk, the same way; the cells follow the vessel; no program of the figure blends the veil', () => {
-  for (const [name, fs] of [['VESSEL_FS', VESSEL_FS], ['SKIN_FS', SKIN_FS], ['CELLS_FS', CELLS_FS]] as const) {
+test('every program that draws a vessel\'s body takes the veil through the one chunk, the same way; no program of the figure blends the veil', () => {
+  for (const [name, fs] of [['VESSEL_FS', VESSEL_FS], ['SKIN_FS', SKIN_FS]] as const) {
     assert.ok(fs.includes(VEIL_DECL), `${name} holds the chunk`);
     assert.equal((fs.match(/ovlAmount\(gl_FragCoord\.z, gl_FragCoord\.xy\)/g) ?? []).length, 1, `${name} asks for the veil once, from the pixel and its own depth`);
   }
-  assert.match(VESSEL_FS, /c = ovlMix\(c, ovlAmount\(gl_FragCoord\.z, gl_FragCoord\.xy\) \* \(1\.0 - circT\) \* \(1\.0 - clamp\(vHi, 0\.0, 1\.0\)\), gl_FragCoord\.xy\);\n  c = dDbgPaint/, 'the tube: before the NaN guard, which stays the last word');
-  assert.match(SKIN_FS, /\(1\.0 - clamp\(circT, 0\.0, 1\.0\)\) \* \(1\.0 - clamp\(hi, 0\.0, 1\.0\)\), gl_FragCoord\.xy\);\n  c = dDbgPaint/, 'the skin: the same rule, same place');
-  assert.match(CELLS_FS, /a \* vA \* \(1\.0 - ovlAmount\(/, 'a cell goes with its vessel');
+  assert.match(VESSEL_FS, /c = ovlMix\(c, ovlAmount\(gl_FragCoord\.z, gl_FragCoord\.xy\) \* \(1\.0 - circT\) \* \(1\.0 - clamp\(vHi, 0\.0, 1\.0\)\), gl_FragCoord\.xy\);\n  gl_FragColor = vec4\(c, fadeHere \* cavA\);/, 'the tube: the veil is the last colour step before the output');
+  assert.match(SKIN_FS, /\(1\.0 - clamp\(circT, 0\.0, 1\.0\)\) \* \(1\.0 - clamp\(hi, 0\.0, 1\.0\)\), gl_FragCoord\.xy\);\n  gl_FragColor = vec4\(c, alpha\);/, 'the skin: the same rule, same place');
   assert.ok(ORGAN_FS.includes(SEE_DECL) && /lay \*= 1\.0 - seeAmount\(gl_FragCoord\.xy\);/.test(ORGAN_FS), 'the organ fill takes its own opacity down by the mask');
   // the chunk reads the pixel and the depth only: no uniform that differs per vessel, so a tube and its skin cannot differ
   for (const u of [...VEIL_DECL.matchAll(/uniform \w+ (\w+)/g)].map((m) => m[1]!)) assert.ok(u in ORGAN_VEIL_U, `${u} is one shared uniform`);

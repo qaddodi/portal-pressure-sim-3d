@@ -16,8 +16,6 @@ import { FADE_GLSL } from '../materials/shaders.ts';
 import { VEIL_DECL } from '../organ-veil/glsl.ts';
 import { WEDGE_GLSL } from './wedge-glsl.ts';
 import { CHEV, CHEVRON_GLSL } from '../blood/chevron-glsl.ts';
-import { STREAK } from '../blood/streak-glsl.ts';
-import { DUST_GLSL } from '../blood/dust-glsl.ts';
 import { QUIET_BACK } from '../camera/quiet.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import { CEL_LIGHT_GLSL, CEL_TUBE_GLSL, glslNum as F } from '../cel-glsl.ts';
@@ -102,7 +100,6 @@ varying vec3 vCen;   // the tube's centreline point at this fragment, in clip sp
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
-varying vec3 vZf;   // the figure's normal (model z) in the view's frame: the dust's section frame (blood/dust-glsl.ts dustFrame)
 varying vec2 vUv;
 varying vec2 vLensR;
 varying float vHi;
@@ -241,7 +238,6 @@ ${HIGHLIGHT_ALONG_GLSL}
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vN = normalize(normalMatrix * aNor);
   vT = normalize(normalMatrix * aTan);
-  vZf = normalize(normalMatrix * vec3(0.0, 0.0, 1.0));
   vV = normalize(-mv.xyz);
   vUv = uv;
   vLensR = lensR;
@@ -340,7 +336,6 @@ uniform float nbrMap;   // 1 on a map-only tube: the union's rule holds on the m
 uniform float nbrOn;   // 1 on the two tubes of a fork: the outline is the union's (neighbour.ts), so the buried end does not hold the ink back
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
-uniform float streakAmt;   // how much of the streak layer shows (the Blood streaks setting, the view, the Circuit): 0 none
 uniform float projY;
 uniform vec2 res;
 uniform float dpr;
@@ -371,7 +366,7 @@ float buryK(float d0, float d1) {   // d0, d1: the figure units from the start a
   float k1 = bury.y > 0.0 ? smoothstep(0.5 * bury.y * vU, bury.y * vU, d1) : 1.0;
   return k0 * k1;
 }
-// no flow marks (chevrons, streaks) inside the vessel a tube leaves or opens into: where the tube lies in its parent's lumen its marks would be drawn over the parent's own (a torn chevron at every fork). They begin a little beyond where the ink does.
+// no flow marks (chevrons) inside the vessel a tube leaves or opens into: where the tube lies in its parent's lumen its marks would be drawn over the parent's own (a torn chevron at every fork). They begin a little beyond where the ink does.
 float markK(float d0, float d1) {
   float k0 = bury.x > 0.0 ? smoothstep(2.0 * bury.x * vU, 3.6 * bury.x * vU, d0) : 1.0;
   float k1 = bury.y > 0.0 ? smoothstep(2.0 * bury.y * vU, 3.6 * bury.y * vU, d1) : 1.0;
@@ -386,7 +381,6 @@ varying float vHi;
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vT;
-varying vec3 vZf;   // the figure's normal (model z) in the view's frame: the dust's section frame (blood/dust-glsl.ts dustFrame)
 varying vec2 vUv;
 varying vec2 vLensR;
 
@@ -429,7 +423,6 @@ float meanVelocity(float q, float dmm) {
 }
 // ---- the 2D app's flow heads (chevron-glsl.js, blood-heads.js) ----
 ${CHEVRON_GLSL}
-${DUST_GLSL}
 // (chevKeep, the lattice's keep, is in the one chevron chunk above: blood/chevron-glsl.ts)
 ${CHEV_ONE_GLSL}
 
@@ -465,7 +458,6 @@ ${CLOT_CONST_GLSL}
 ${CLOT_FN_GLSL}
 
 void main() {
-  float streakCover = 0.0;   // (how much a streak covers this pixel: a chevron's pixel is never tinted by one)
   // THE DERIVATIVES, before any discard: a quad whose other pixels have been discarded (the cut, the dissolve, a cap, a back face) gives a garbage fwidth on a device that drops the lane (Apple's), and the flow heads, the shade band and the
   // marks of the pixels that stay came out as blocky, wrongly coloured specks along the seam rings (Mohammad, 20 Nov). So every one the body needs is taken here, in uniform control flow, and used below.
   vec3 nD = normalize(vN);
@@ -483,7 +475,6 @@ void main() {
     nzD = vnoise(vec2(vUv.x * len * 5.0 + driftD * 6.0, acrossD * 3.0 + driftD)) * 0.65 + vnoise(vec2(vUv.x * len * 11.0 - driftD * 4.0, acrossD * 6.0)) * 0.35;
     fwNz = fwidth(nzD);
   }
-  vec3 cBody = vec3(0.0);    // (the tube's tone before the streaks)
   if (frontOut(vUv.x, reveal)) DROP(1);
   if (fadedOut()) DROP(2);
   // a part with no map course (a fan, a strand) fades out over the first half of the Circuit's change in the same screen pattern as the dive's dissolve (circuit/shader.ts)
@@ -621,24 +612,9 @@ void main() {
 #ifdef VDBG
   c = dbgBody(c, base, n);   // (the inspector's shade mode: debug-view.ts)
 #endif
-  // THE DUST (blood/dust-glsl.ts, the Dust Lab's particles, Mohammad 20 Nov) is part of the tube: painted here, in its own fragment shader, so it is inside the lumen (dustTube draws nothing past 0.96 of the half width,
-  // never touching the ink) and follows the tube's own alpha and fade zones by construction: there is no second mesh to stray past a tube's end, a taper or a fade. Under the chevrons, which come after.
+  // the blind end of a divided vein's stump (between its round end and its tie, and a head's length past the tie) holds no flow: no chevron, and so none half cut off by the cap or standing past the tie (Mohammad, 22 Nov); it eases in with the cut
   float sD = vUv.x * len * vU;
-  // the blind end of a divided vein's stump (between its round end and its tie, and a head's length past the tie) holds no flow: no dust, no chevron, and so none half cut off by the cap or standing past the tie (Mohammad, 22 Nov); it eases in with the cut
   float stumpMk = (stump.x > 0.0 && circT < 0.001) ? mix(1.0, smoothstep(stump.y + 2.5, stump.y + 2.5 + 1.6 * vR, sD), stump.z) : 1.0;
-  // REAL FLOW (blood/routes.ts): the particles of the roots this vessel's lanes carry, in its own section, at their place on their root's stream. No fade at a skin's seam (the skin draws the same particles on); where tubes
-  // still overlap at a joint with no skin they fade as the chevrons do (markK), the vessel it opens into drawing the same particles.
-  // (a pixel that ends up under 0.05 of alpha shows no dust at all, dHold below is 0 there: the scan is not run for it, the same picture for a fraction of the cost)
-  vec4 fd = vec4(0.0);
-  if (fadeHere * cavA > 0.05) fd = flowDust(across, dustFrame(vT, vZf, normalize(vV), side), sD, len * vU, max(radius * vU, 1e-3), vR, vR / max(${wpcGlsl('vW', 'projY', 'vU')}, 1e-6), lensIndex, vindex, baseD, celTubeBase(base), vU) * markK(skinCut.x >= 0.0 ? 1e6 : sD, skinCut.y <= 1.0 ? 1e6 : (1.0 - vUv.x) * len * vU) * stumpMk;
-  fd = dSafe(clamp(dSafe(fd), 0.0, 1.0) * dHold(fadeHere * cavA));   // (dSafe, on the bits: a NaN is no dust, dust-glsl.ts) (the dust follows this pixel's final alpha: dust-glsl.ts dHold; premultiplied marks are never past 0 .. 1: an alpha over 1 would invert the lumen under them, a blue one to yellow-green and a dark mark to black)
-#ifdef VDBG
-  if (dbgDust < 0.5) fd = vec4(0.0);
-#endif
-  dustCover = fd;
-  cBody = c;
-  streakCover = fd.a;
-  c = c * (1.0 - fd.a) + fd.rgb;
 
   float vel = 0.0;
   float dmm = 8.0;
@@ -673,10 +649,9 @@ void main() {
   if (dbgHeads < 0.5) hd = vec4(0.0);
 #endif
   if (hd.a > 0.0) {
-    if (streakCover > 0.0) c = mix(c, cBody, hd.a);   // the streaks lie UNDER the chevrons: a head's pixel is never tinted by one
     c = c * (1.0 - hd.a) + hd.rgb;
   }
-  // THE CLOT (plan 26) is painted here, in the vein's own fragment: over the dust and the heads, inside the lumen (clipped at its edge, before the ink band below), lit by this pixel's own n.L, so it has the vein's depth, fades, cuts and
+  // THE CLOT (plan 26) is painted here, in the vein's own fragment: over the heads, inside the lumen (clipped at its edge, before the ink band below), lit by this pixel's own n.L, so it has the vein's depth, fades, cuts and
   // weights and looks the same from every angle. Its line is on its free edge and its caps only. A uniform branch: a vein with no clot runs none of this and is the same pixel as before.
   if (clotA.z != 0.0 && dotted < 0.5) {
     if (covC > 0.0) {
@@ -717,8 +692,5 @@ ${PROCEDURE_MARKS_GLSL}
   // THE ORGAN VEIL (organ-veil/config.ts): where an organ lies in front of this pixel the vessel is taken toward the organ's own colour there (its shading and nodules), by how deep behind the organ's surface it is; the same function of the pixel
   // in the tube, its junction skin and the cells, so nothing steps at a junction. A picked vessel (vHi) and the Circuit's map (circT) are left whole. The vessel stays one opaque draw.
   c = ovlMix(c, ovlAmount(gl_FragCoord.z, gl_FragCoord.xy) * (1.0 - circT) * (1.0 - clamp(vHi, 0.0, 1.0)), gl_FragCoord.xy);
-  c = dDbgPaint(c, fadeHere * cavA);   // (?dust, Paint the trouble: off unless asked)
-  c = dFinite(c, dFinite(cBody, vec3(0.5)));   // (a NaN colour is the tone before the dust, never a black block)
-  if (dBad(vec4(fadeHere * cavA))) { fadeHere = 1.0; cavA = 1.0; }   // (nor an alpha that is not a number: a NaN blended onto the figure is written as black)
   gl_FragColor = vec4(c, fadeHere * cavA);
 }`;

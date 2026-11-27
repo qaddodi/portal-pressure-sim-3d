@@ -1,12 +1,10 @@
-// At the DEFAULT FIT the flow marks are seen (Mohammad, 20 Nov, Dark, normal view: "no chevrons and I can barely see streaks"). The root cause: the heads came in only on a tube from 5.8 CSS px of radius (12 px across) and the
-// streaks' lanes were cut by the radius in 2D units (7 lanes of 1 px in a 8 px vessel); at the default fit the real network is 6 to 10 px across. This measures the on-screen size of the heads and streaks over the REAL network
-// (its radii and courses) at the default fit of the Anatomy (the 'play' shot, kept whole in the room: iPhone 390 wide, a Mac window), and pins minimums.
+// At the DEFAULT FIT the flow marks are seen (Mohammad, 20 Nov, Dark, normal view: "no chevrons"). The root cause: the heads came in only on a tube from 5.8 CSS px of radius (12 px across); at the default fit the real network is 6 to 10 px across.
+// This measures the on-screen size of the heads over the REAL network (its radii and courses) at the default fit of the Anatomy (the 'play' shot, kept whole in the room: iPhone 390 wide, a Mac window), and pins minimums.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MAPPED, courseOf } from '../src/scene/vessels/network.ts';
 import { SHOTS } from '../src/scene/camera/shots.ts';
-import { CHEV, CHEVRON_GLSL, chevHalfWidthPx } from '../src/scene/blood/chevron-glsl.ts';
-import { STREAK, lanesForPx, streakCorePx, streakToneJs } from '../src/scene/blood/streak-glsl.ts';
+import { CHEV, CHEVRON_GLSL, chevAlphaJs, chevHalfWidthPx, chevSizeJs } from '../src/scene/blood/chevron-glsl.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { LENS_SHARED } from '../src/scene/lenses/tokens.copied.ts';
 import { LOOK_IDS } from '../src/looks/looks.ts';
@@ -89,37 +87,11 @@ test('the head is 3:1 or more against the tube on the lit side and 2.5:1 or more
   }
 });
 
-test('at the default fit the streaks are sleek and seen: a core of about 1 px, 24 to 60 px long, 1 lane on a thin vessel, a few to a long vessel, none on a hairline', () => {
-  for (const [name, w, h] of ROOMS) {
-    const k = fit(w, h);
-    let seen = 0;
-    for (const v of MAPPED) {
-      const R = v.radius * k, lanes = lanesForPx(R);
-      if (R < STREAK.MIN_R_PX) { assert.equal(lanes, 0, `${v.id}: none under 3.5 px across`); continue; }
-      assert.ok(lanes === 1 || lanes === 3 || lanes === 5, `${v.id} lanes ${lanes}`);
-      if (R < STREAK.LANE_R_PX[0]) assert.equal(lanes, 1, `${name} ${v.id}: ${lanes} lanes on a ${(2 * R).toFixed(1)} px vessel`);
-      assert.ok(streakCorePx(R, lanes, true) >= 0.8 && streakCorePx(R, lanes, false) <= (R < STREAK.WIDE_R_PX[0] ? 1.1 : STREAK.CORE_MAX_PX), `${name} ${v.id}: core ${streakCorePx(R, lanes, true).toFixed(2)} px`);
-      const meanLen = STREAK.FIELD_LEN_R * R;   // (px: the field's 5 units to a radius)
-      if (R >= 2 && R <= 5) assert.ok(meanLen >= 24 && meanLen <= 60, `${name} ${v.id}: a streak ${meanLen.toFixed(0)} px long`);
-      const L = len(courseOf(v.id)) * k, period = ((STREAK.FIELD_PERIOD[0] + STREAK.FIELD_PERIOD[1] * 0.5) / STREAK.FIELD_AT_R) * R;
-      if (L >= 100) { assert.ok((lanes * L) / period * (1 - STREAK.FIELD_GAP) >= 0.4, `${name} ${v.id}: ${((lanes * L) / period).toFixed(1)} streaks over ${L.toFixed(0)} px`); seen++; }
-    }
-    assert.ok(seen >= 2, `${name}: ${seen} long vessels checked`);
+test('the chevron lattice\'s second octave is never translucent: a head leaves by shrinking and is fully inked until the last of its keep', () => {
+  for (let k = 0; k <= 1.0001; k += 0.01) {
+    const a = chevAlphaJs(Math.min(1, k)), sz = chevSizeJs(Math.min(1, k));
+    assert.ok(a === 0 || a === 1 || k < CHEV.ALPHA_KEEP + 1e-9, `keep ${k.toFixed(2)}: alpha ${a.toFixed(2)} is a ghost`);
+    assert.ok(sz >= CHEV.SIZE_MIN - 1e-9 && sz <= 1 + 1e-9);
   }
-});
-
-test('on a tube 8 px across there are visibly several streaks along 200 px, with a 1 px core, and the tint is 1.2:1 to 1.65:1 against the lit body at the middle of its range, in Light and Dark', () => {
-  const R = 4, lanes = lanesForPx(R), period = ((STREAK.FIELD_PERIOD[0] + STREAK.FIELD_PERIOD[1] * 0.5) / STREAK.FIELD_AT_R) * R;
-  assert.equal(lanes, 3);
-  assert.ok((lanes * 200) / period * (1 - STREAK.FIELD_GAP) >= 4, `${((lanes * 200) / period).toFixed(1)} streaks over 200 px`);
-  assert.ok(streakCorePx(R, lanes, true) >= 0.8 && STREAK.CORE_PX === 1);
-  for (const id of ['light', 'dark'] as const) {
-    const p = PALETTES[id];
-    for (const v of ['portal', 'sys'] as const) {
-      const lit = celTubeBase(h2(p.tones[v]), id === 'dark');
-      const mid = contrast(hex(streakToneJs(lit, [1, 1, 1], 0.5, 0.5)), hex(lit)), top = contrast(hex(streakToneJs(lit, [1, 1, 1], 1, 0.5)), hex(lit));
-      // (20 Nov: the eyes measured the streaks on screen at +8 to +12 percent over the body on the trunk and none on the branches, "only just noticeable"; the target is 15 to 20 percent, so the model's step is a third stronger)
-      assert.ok(mid >= 1.2 && mid <= 1.65 && top >= 1.25 && top <= 1.9, `${id} ${v}: ${mid.toFixed(2)} to ${top.toFixed(2)}:1`);
-    }
-  }
+  assert.equal(chevAlphaJs(0), 0); assert.equal(chevAlphaJs(1), 1); assert.equal(chevSizeJs(1), 1); assert.equal(chevSizeJs(0), CHEV.SIZE_MIN);
 });

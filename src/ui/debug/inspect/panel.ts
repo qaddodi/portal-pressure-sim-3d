@@ -2,7 +2,7 @@
 // (main.tsx), is plain DOM written when a control is touched (nothing per frame), and is part of no card. What it changes, live, with no reload:
 //   Camera    the free orbit (the drag turns the figure ALL the way round, tilts up to 88 degrees, nothing springs home), sliders for the angles, named views, Reset
 //   Joins     the junction method (old / mesh / mesh2), and the three build-time diagnostics of the skins: paint dropped pixels, no flow marks, no ink (the skins compile again: a second or so)
-//   Tubes and Skins   each part's own shade mode (as drawn, flat, normals, lens colour), dust, chevrons and ink on or off, a tint per vessel, a colour laid over it
+//   Tubes and Skins   each part's own shade mode (as drawn, flat, normals, lens colour), chevrons and ink on or off, a tint per vessel, a colour laid over it
 //   Layers    every part of the figure drawn or not, and drawn as wireframe
 //   Hunt      one-press settings for isolating a speck in the flow-mark pass, and Copy (what was on, as text for a thread)
 // Normal mode never loads this file: the shaders carry their hooks only behind the VDBG define (scene/vessels/debug-view.ts).
@@ -124,7 +124,7 @@ export function mountInspect(): void {
   const jn = section('Joins and diagnostics');
   select(jn, 'Junction method', [['old', 'Old: overlapping tubes'], ['mesh', 'Mesh: SMV-SV confluence'], ['mesh2', 'Mesh 2: every junction']], () => state.joins, (v) => commit({ joins: v as JoinsMode }));
   check(jn, 'Paint dropped skin pixels', () => state.drop, (v) => commit({ drop: v }));
-  select(jn, 'Skin without', [['', 'Nothing'], ['marks', 'Flow marks (no dust, no chevrons)'], ['dust', 'Dust only'], ['heads', 'Chevrons only'], ['ink', 'Outline ink'], ['dustblend', 'Old dust blend (A/B)']], () => state.leave, (v) => commit({ leave: v as Leave }));
+  select(jn, 'Skin without', [['', 'Nothing'], ['marks', 'Flow marks (no chevrons)'], ['heads', 'Chevrons only'], ['ink', 'Outline ink']], () => state.leave, (v) => commit({ leave: v as Leave }));
   jn.append(el('div', { className: 'hint', textContent: 'Red back face, cyan presence dither, yellow no alpha, magenta past the ink band. Changing a diagnostic compiles the skins again (a second or so). The lobule reads the method once, when it opens.' }));
 
   // ---- Tubes and Skins ----
@@ -132,7 +132,6 @@ export function mountInspect(): void {
     const s = section(title);
     const get = (): PartView => state[key], put = (patch: Partial<PartView>) => commit({ [key]: { ...state[key], ...patch } } as Partial<InspectState>);
     select(s, 'Shade', SHADE_NAMES.map((n, i) => [String(i), n] as const), () => String(get().shade), (v) => put({ shade: Number(v) as ShadeMode }));
-    check(s, 'Dust', () => get().dust, (v) => put({ dust: v }));
     check(s, 'Chevrons', () => get().heads, (v) => put({ heads: v }));
     check(s, 'Outline ink', () => get().ink, (v) => put({ ink: v }));
     if (key === 'tube') check(s, 'Paint dropped pixels (colour = why)', () => get().why, (v) => put({ why: v }));

@@ -42,7 +42,7 @@ test('Anatomy playing with nobody touching it: every frame asked for is ambient 
   const r = run(s, 15);
   assert.ok(r.asked > 0, 'the marks go round');
   assert.equal(r.ambient, r.asked, `not ambient: ${r.named.join(', ')}`);
-  assert.ok(r.named.every((id) => ['flow', 'cells', 'disease'].includes(id)), r.named.join(', '));
+  assert.ok(r.named.every((id) => ['flow', 'disease'].includes(id)), r.named.join(', '));
   s.dispose();
 });
 

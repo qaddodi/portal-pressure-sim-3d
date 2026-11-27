@@ -15,8 +15,6 @@ import { FlowRate, flowRate } from '../flow-rate.ts';
 import { useSettings } from '../../state/settings.ts';
 import { VesselObject } from '../vessels/vessel-object.ts';
 import { BloodMarks } from '../blood/marks.ts';
-import { BloodCells } from '../blood/cells/cells.ts';
-import { dustTuner } from '../blood/dust.ts';
 import { CameraRig } from '../camera/rig.ts';
 import { Catheter } from '../catheter.ts';
 import { FLOW_FADE_MS, DEFAULT_FLOW_MODE } from '../flow.ts';
@@ -122,7 +120,6 @@ export const buildPart = scenePart<CelScene>()({
     this.shadow.snap(useSettings.getState().deviceShadow ? 1 : 0); this.shared.shadow.value = this.shadow.value;
     this.unJoins = useSettings.subscribe((st, prev) => {
       if (st.deviceShadow !== prev.deviceShadow) this.shadow.to(st.deviceShadow ? 1 : 0, fadeRate(FLOW_FADE_MS));
-      if (st.particles !== prev.particles) clock.invalidate('streaks');   // (the cells read it per frame: a still figure wakes to ease the streaks, W8)
       if (st.fluidSurface !== prev.fluidSurface) { this.disease.ascites.setLiving(st.fluidSurface); this.moving = true; clock.invalidate('living-fluid'); }
     });
     // the organs and every state of the patient's disease on the figure (clots, plexuses, ascites, bleed): src/scene/disease/ (B4)
@@ -188,11 +185,8 @@ export const buildPart = scenePart<CelScene>()({
     this.tubes.watch.add = (o) => { this.highlight.register(o); this.moving = true; };
     this.tubes.watch.drop = (o) => this.highlight.unregister(o);
     this.flow = new BloodMarks(this.vessels);
-    // the dust's settings (blood/dust.ts; the hidden ?dust panel writes them): a change wakes the figure for the frames its glide takes
-    if (!this.twin) { dustTuner.onWake = () => { this.moving = true; clock.invalidate('dust'); }; dustTuner.setPhone(this.phone); }
     yield;
-    this.buildWhat = 'cells and tracks';
-    this.cells = new BloodCells({ vessels: NETWORK, object: (id) => this.vesselObject(id), shared: this.shared, lens: this.lens.shared, blood: this.blood.shared, parent: this.body, layer: VESSEL_LAYER, phone: () => this.phone });
+    this.buildWhat = 'tracks';
     this.presence = new PresenceTracks(this.vessels as VesselObject[]);
     this.presence.own(this.grownIds);
     // the tributary groups are graded by the model's `live` (feeder-live.ts), not drawn on along their flow: their presence keeps only its state

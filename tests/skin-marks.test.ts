@@ -1,4 +1,4 @@
-// The skin carries the tubes' flow marks (chevrons, streaks, dust) through a junction (Mohammad, 20 Nov: "the streaks still break between vessels", "the particles should cross at the junction, not disappear").
+// The skin carries the tubes' flow marks (chevrons) through a junction (Mohammad, 20 Nov: "the streaks still break between vessels", "the particles should cross at the junction, not disappear").
 // Each arm's marks are drawn on that arm's ARC carried on past its seam (skin/shaders.ts THE FLOW MARKS): on the seam ring the arc is the tube's own (`vUv.x * len * vU`), so the pattern is the tube's, and it grows toward the node
 // the way the tube's does (end 1) or shrinks (end 0). Run: node --test tests/skin-marks.test.ts
 import { test } from 'node:test';
@@ -10,7 +10,6 @@ import { SkinSet, armArcOf } from '../src/scene/vessels/skin/skin-set.ts';
 import { SKIN_FIGURE_UNITS, SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { FLOW_MARKS_GLSL, CHEV_ONE_GLSL } from '../src/scene/vessels/glsl-shared.ts';
-import { DUST_GLSL } from '../src/scene/blood/dust-glsl.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
@@ -66,7 +65,7 @@ test('on every seam ring the skin\'s arc for the arm is the tube\'s own (u x len
   } finally { scene.dispose(); setSmoothJoins(was); }
 });
 
-test('the arc grows toward the node on an arm that is its vessel\'s end 1 and shrinks on one that is its start, so a streak runs on in the direction it was going', () => {
+test('the arc grows toward the node on an arm that is its vessel\'s end 1 and shrinks on one that is its start, so a chevron runs on in the direction it was going', () => {
   const { scene, made, was } = built();
   try {
     let n = 0;
@@ -87,22 +86,16 @@ test('the arc grows toward the node on an arm that is its vessel\'s end 1 and sh
   } finally { scene.dispose(); setSmoothJoins(was); }
 });
 
-test('the tube and the skin call ONE flow-marks code (glsl-shared.ts flowDust / flowHeads): neither program holds a copy of the dust or chevron placing, there is no fade before the seam, and the skin blends its arms by weight', () => {
+test('the tube and the skin call ONE flow-marks code (glsl-shared.ts flowHeads): neither program holds a copy of the chevron placing, there is no fade before the seam, and the skin blends its arms by weight', () => {
   for (const [name, src] of [['VESSEL_FS', VESSEL_FS], ['SKIN_FS', SKIN_FS]] as const) {
     assert.ok(src.includes(FLOW_MARKS_GLSL), `${name} holds the shared flow marks`);
-    const rest = src.replace(FLOW_MARKS_GLSL, '').replace(CHEV_ONE_GLSL, '').replace(DUST_GLSL, '');   // (their definitions are not calls)
-    assert.doesNotMatch(rest, /dustField\(|chevOne\(/, `${name} calls the marks only through flowDust / flowFrame / flowHeads`);
-    assert.match(rest, /flowDust\(|flowFrame\(/); assert.match(rest, /flowHeads\(/);
+    const rest = src.replace(FLOW_MARKS_GLSL, '').replace(CHEV_ONE_GLSL, '');   // (their definitions are not calls)
+    assert.doesNotMatch(rest, /chevOne\(/, `${name} calls the marks only through flowHeads`);
+    assert.match(rest, /flowHeads\(/);
   }
-  // the skin's dust: each particle drawn ONCE at the blend of its places in the two heaviest arms' frames (blood/dust-glsl.ts dustSkin), never two weighted ghosts
-  assert.match(SKIN_FS, /float onI = flowFrame\(acrossI, dustFrame\(/);
-  assert.match(SKIN_FS, /dustSkin\(FD0, FD1, w1, litD, inkColor, /);
-  assert.doesNotMatch(SKIN_FS, /dustAcc \+= wI/);
   assert.match(SKIN_FS, /vec4 hI = flowHeads\(/);   // (each arm's heads, kept whole by the arm that owns their centre: tests/skin-head-owner.test.ts)
   assert.doesNotMatch(SKIN_FS + VESSEL_FS, /skinMarkK|skinSeamDist|MARK_FADE/);
-  assert.match(FLOW_MARKS_GLSL, /vec4 dust = dustTube\(F, lit, inkColor, rev\);/);
   assert.match(FLOW_MARKS_GLSL, /chevOne\(s, Lw, c4\.y \+ c4\.z \* s, c4\.z, rootD,/);
-  assert.match(FLOW_MARKS_GLSL, /F = DFrame\(across, fr\.xy, fr\.zw, s, Lw, rOwn, vR, rCss, nar, smS\.y, lensI, vUn\);/, 'the root\'s radius (route table, scene units) is scaled by the program\'s own figure units (the Circuit\'s map is not 300)');
 });
 
 test('no NaN can leave the skin\'s flow marks: a heading is normalised only after its length is checked (a NaN pixel is a speck of any colour, Mohammad 20 Nov: green and dark blue specks on the welds)', () => {

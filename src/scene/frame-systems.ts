@@ -9,12 +9,8 @@ export interface FrameCtx {
   now: number;
   /** ms since the last scene update (at most 100) */
   dt: number;
-  /** the blood streams moved this frame (the cells ride on them) */
-  streams: boolean;
-  /** a procedure is on the figure: the flow marks ease out */
-  procQuiet: boolean;
   /**
-   * the ids of systems whose "still moving" this frame is AMBIENT only (the flow marks and the cells riding them going round, nothing eased):
+   * the ids of systems whose "still moving" this frame is AMBIENT only (the flow marks going round, nothing eased):
    * a frame asked only by those runs at the ambient rate (clock/frame.ts)
    */
   ambient: Set<string>;

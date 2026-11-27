@@ -96,9 +96,8 @@ test('the flow marks run over the lengths the vessels are drawn at: the body\'s 
   const mid = flowLenAt('PVH_L', 123, 0.5);
   assert.ok(Math.abs(mid - (123 + mapLen('PVH_L')) / 2) < 1e-9);
   assert.equal(flowLenAt('NO_SUCH_VESSEL', 55, 1), 55, 'a vessel with no map course keeps its own length');
-  const chain = readFileSync(new URL('../src/scene/blood/chain.ts', import.meta.url), 'utf8'), routes = readFileSync(new URL('../src/scene/blood/routes.ts', import.meta.url), 'utf8');
+  const chain = readFileSync(new URL('../src/scene/blood/chain.ts', import.meta.url), 'utf8');
   assert.match(chain, /flowLenAt\(inf\.id, inf\.len, view\)/);
-  assert.match(routes, /flowLenAt\(inf\.id, inf\.len, view\)/);
   const sc = sceneSource();
   assert.match(sc, /this\.flow\.carriesHeads\(id\), this\.circuit\.t\)/);
 });

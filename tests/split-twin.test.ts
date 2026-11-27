@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { splitRegions, confine } from '../src/scene/twin/region.ts';
 import { Twin, healthyFrame, liveTwins } from '../src/scene/twin/twin.ts';
-import { dustTuner } from '../src/scene/blood/dust.ts';
 import { flowRate } from '../src/scene/flow-rate.ts';
 
 test('the canvas is cut into two whole-pixel regions with no gap and no overlap', () => {
@@ -20,14 +19,12 @@ test('confine sets and lifts a target scissor', () => {
   confine(t, null); assert.equal(t.scissorTest, false);
 });
 
-test('a twin reads its own patient, leaves the page\'s dust and flow rate alone, and is let go on dispose', () => {
+test('a twin reads its own patient, leaves the page\'s flow rate alone, and is let go on dispose', () => {
   const z = new Array(400).fill(0);
   const frame = healthyFrame({ P: z, Q: z, D: z.map(() => 1) });
-  const wake = dustTuner.onWake;
   const before = liveTwins();
   const twin = new Twin(frame, null, { look: 'light', phone: false });
   assert.equal(liveTwins(), before + 1);
-  assert.equal(dustTuner.onWake, wake, 'the twin did not take over the page\'s dust wake');
   assert.notEqual(twin.scene.flowRate, flowRate);
   assert.equal(twin.scene.src, twin.source);
   assert.equal(twin.scene.src.frame(), frame);

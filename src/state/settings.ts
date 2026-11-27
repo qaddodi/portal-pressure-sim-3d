@@ -30,7 +30,6 @@ export interface Settings {
   organDepth: boolean;
   tilt: boolean;
   dof: boolean;
-  particles: boolean;
   /** Hide vessels behind organs: off (default) shows the IVC and the lumbar vein faint through the liver; on, the organs hide them where they are in front (normal occlusion), and naming one still reveals it. */
   /** Living fluid: the ascites pool's soft wall edges, climbing meniscus, slosh, pale rim and deeper amber (ascites.ts). Off: the pool as 2D draws it (hard wall edges, flat tint); the surface ripple is 2D's and stays. */
   fluidSurface: boolean;
@@ -57,45 +56,40 @@ const KEY = 'pps3d.settings.v1';
 /** The Figure depth switches and Organ fill are saved with this version. Every Settings change saves ALL the settings, so a phone that changed its look while See-through was still the default
  *  stored 'seethrough' as if it had been chosen (20 Nov 2026: "still glass" on an iPhone while the Mac was cel). A saved figure choice older than this is dropped and the defaults apply; raise it
  *  when a default changes. */
-export const FIGURE_SETTINGS_VERSION = 4;   // (4: the blood streaks default on; a save made before this carries the old default, so the figure switches are taken afresh once)
+export const FIGURE_SETTINGS_VERSION = 4;   // (4: the figure switches' defaults moved once; a save made before this carries the old defaults, so the figure switches are taken afresh once)
 /** Everything this app stores on the device starts with this, so Reset everything can clear it and nothing else. */
 export const STORAGE_PREFIX = 'pps3d.';
-/** The "Figure depth" switches (owner, 19 Nov 2026: "Yes do all properly"): a deliberate exception to match-2D, each behind its own switch. All on by default except Free tilt (the 3D lobule and sinusoid are no longer a switch: everything is 3D, Mohammad 20 Nov 2026); the blood streaks went on by default on 20 Nov (play-test: "no laminar streak lanes are visible": the switch was off, so only the chevrons showed). */
-export const DEPTH_KEYS = ['organDepth', 'tilt', 'dof', 'particles', 'fluidSurface', 'deviceShadow'] as const;
+/** The "Figure depth" switches (owner, 19 Nov 2026: "Yes do all properly"): a deliberate exception to match-2D, each behind its own switch. All on by default except Free tilt (the 3D lobule and sinusoid are no longer a switch: everything is 3D, Mohammad 20 Nov 2026);. */
+export const DEPTH_KEYS = ['organDepth', 'tilt', 'dof', 'fluidSurface', 'deviceShadow'] as const;
 export type DepthKey = (typeof DEPTH_KEYS)[number];
-export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { organDepth: true, tilt: true, dof: true, particles: true, fluidSurface: true, deviceShadow: true };
-/** Blood streaks start OFF on a phone (Mohammad, 24 Nov: "streaks off by default on iPhone, it's too heavy"); a phone that chose for itself afterwards keeps its choice. A save made before this carries the old default, so a phone takes the new one once
- *  (`particlesV`); Mac and iPad keep what they saved. */
-export const PARTICLES_VERSION = 2;
-/** A phone: its short side under 500 CSS px, held either way (the stage's own rule). Not a phone where there is no window (the node tests). */
-export const onPhone = (): boolean => typeof innerWidth === 'number' && typeof innerHeight === 'number' && Math.min(innerWidth, innerHeight) < 500;
+export const DEPTH_DEFAULTS: Record<DepthKey, boolean> = { organDepth: true, tilt: true, dof: true, fluidSurface: true, deviceShadow: true };
 export const DEFAULTS: Settings = { look: 'system', lookChosen: false, blur: true, figureDetail: FIGURE_DETAIL_DEFAULT, sharpMoving: true, autoDetail: true, keys: true, showFps: false, showBreakdown: false, showBuildPill: true, ...DEPTH_DEFAULTS, lite: false, liteBy: null };
 
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
-export function parseSettings(raw: string | null, phone: boolean = onPhone()): Settings {
+export function parseSettings(raw: string | null): Settings {
   try {
     const o = raw ? JSON.parse(raw) : {};
     const fig = o.figureV === FIGURE_SETTINGS_VERSION ? o : {};
-    const streaks = phone && o.particlesV !== PARTICLES_VERSION ? undefined : fig.particles;   // (a phone's streaks default off until it has chosen)   // (an older save never chose the figure switches: the defaults)
+    // (an older save never chose the figure switches: the defaults; a key the app no longer has, like the retired blood streaks' `particles`, is never read, and the next save leaves it out)
     return {
       look: o.lookChosen === true && (o.look === 'system' || LOOK_IDS.includes(o.look)) ? o.look : DEFAULTS.look,
       lookChosen: o.lookChosen === true && (o.look === 'system' || LOOK_IDS.includes(o.look)),
       blur: bool(o.blur, DEFAULTS.blur),
       figureDetail: Number.isInteger(o.figureDetail) && o.figureDetail >= 0 && o.figureDetail < FIGURE_DETAIL.length ? o.figureDetail : DEFAULTS.figureDetail,
       sharpMoving: bool(o.sharpMoving, DEFAULTS.sharpMoving), autoDetail: bool(o.autoDetail, DEFAULTS.autoDetail), keys: bool(o.keys, true), showFps: bool(o.showFps, false), showBreakdown: bool(o.showBreakdown, false), showBuildPill: bool(o.showBuildPill, DEFAULTS.showBuildPill),
-      organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), particles: bool(streaks, phone ? false : DEPTH_DEFAULTS.particles), fluidSurface: bool(fig.fluidSurface, DEPTH_DEFAULTS.fluidSurface), deviceShadow: bool(fig.deviceShadow, DEPTH_DEFAULTS.deviceShadow),
+      organDepth: bool(fig.organDepth, DEPTH_DEFAULTS.organDepth), tilt: bool(fig.tilt, DEPTH_DEFAULTS.tilt), dof: bool(fig.dof, DEPTH_DEFAULTS.dof), fluidSurface: bool(fig.fluidSurface, DEPTH_DEFAULTS.fluidSurface), deviceShadow: bool(fig.deviceShadow, DEPTH_DEFAULTS.deviceShadow),
       lite: bool(o.lite, false), liteBy: liteBy(o.liteBy),
     };
   } catch { return { ...DEFAULTS }; }
 }
 const read = (): Settings => { try { return parseSettings(localStorage.getItem(KEY)); } catch { return parseSettings(null); } };
-const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, autoDetail: s.autoDetail, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, showBuildPill: s.showBuildPill, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, particles: s.particles, fluidSurface: s.fluidSurface, deviceShadow: s.deviceShadow, lite: s.lite, liteBy: s.liteBy });
+const pick = (s: Settings): Settings => ({ look: s.look, lookChosen: s.lookChosen, blur: s.blur, figureDetail: s.figureDetail, sharpMoving: s.sharpMoving, autoDetail: s.autoDetail, keys: s.keys, showFps: s.showFps, showBreakdown: s.showBreakdown, showBuildPill: s.showBuildPill, organDepth: s.organDepth, tilt: s.tilt, dof: s.dof, fluidSurface: s.fluidSurface, deviceShadow: s.deviceShadow, lite: s.lite, liteBy: s.liteBy });
 /** The person's own values of the switches lite quiets (LITE_KEYS), whatever the figure reads while lite stands. Saved in place of the quiet ones, so a reload in lite still holds them. */
 const ownOf = (s: Settings): LiteOwn => Object.fromEntries(LITE_KEYS.map((k) => [k, s[k]])) as LiteOwn;
 const isLiteKey = (k: string): k is (typeof LITE_KEYS)[number] => (LITE_KEYS as readonly string[]).includes(k);
 const initial = read();
 let own: LiteOwn = ownOf(initial);
-const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify({ ...pick(s), ...own, figureV: FIGURE_SETTINGS_VERSION, particlesV: PARTICLES_VERSION })); } catch { /* private window: the choice lasts for this visit */ } };
+const save = (s: Settings) => { try { localStorage.setItem(KEY, JSON.stringify({ ...pick(s), ...own, figureV: FIGURE_SETTINGS_VERSION })); } catch { /* private window: the choice lasts for this visit */ } };
 
 /** The settings with the person's own values of the quiet switches (what a preset reads back, so Settings still shows the person's own choice while lite stands). */
 export const ownSettings = (s: Settings): Settings => ({ ...s, ...own });

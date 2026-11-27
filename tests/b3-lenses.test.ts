@@ -144,7 +144,7 @@ test('the vessel shader parses as GLSL and reads the lens, the flow marks and th
 });
 
 test('the Blood menu\'s defaults are the 2D app\'s: chevrons on, key-only off, potential collaterals off', () => {
-  assert.deepEqual({ ...BLOOD_DEFAULT }, { chevrons: true, keyChevrons: false, keyStreaks: false, chips: true, collaterals: false, labels: true });   // (keyStreaks: the 3D build's own, off as Key chevrons only is)
+  assert.deepEqual({ ...BLOOD_DEFAULT }, { chevrons: true, keyChevrons: false, chips: true, collaterals: false, labels: true });
   assert.equal(BLOOD_MENU.reduce((n, s) => n + s.rows.length, 0), 5);
 });
 

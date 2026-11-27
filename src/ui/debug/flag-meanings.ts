@@ -5,10 +5,9 @@ import { FLAGS } from './flags.ts';
 
 export const FLAG_MEANINGS: Readonly<Record<string, string>> = Object.freeze({
   perf: "The clock's frame panel: median, p95 and worst frame work, the frames over 20 ms with the phase and who asked for them; Copy (src/ui/perf).",
-  dust: "Tunes the blood's dust (dust-panel.ts).",
   joins:
     "Vessel junctions as one merged mesh (docs/junction-skin-spec.md): on by default; ?joins=old is the old overlapping tubes, mesh only the SMV-SV "
-    + "confluence, mesh2 every junction; debug, nomarks, noink, nodust, noheads, dustblend: weld diagnostics (every one of them is a switch in the ?inspect "
+    + "confluence, mesh2 every junction; debug, nomarks, noink, noheads: weld diagnostics (every one of them is a switch in the ?inspect "
     + "panel, and debug opens it).",
   inspect:
     "The inspector (src/ui/debug/inspect; ?joins=debug opens it too): an on-screen panel that turns the figure all the way round and changes the joins "

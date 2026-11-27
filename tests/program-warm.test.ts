@@ -59,7 +59,7 @@ test('the stand-ins are on the scene graph (hidden), each one wears its material
   assert.ok(protos, 'the scene holds the stand-ins');
   assert.equal(protos.visible, false);
   const names = protos.children.map((c) => c.name);
-  for (const n of ['prototype/circuit resistors', 'prototype/blood streaks', 'prototype/bleed jet ink']) assert.ok(names.includes(n), n);
+  for (const n of ['prototype/circuit resistors', 'prototype/bleed jet ink']) assert.ok(names.includes(n), n);
   assert.ok(!names.some((n) => /clot/.test(n)), 'no clot mesh, so no clot program to warm');
   assert.ok(names.some((n) => n.startsWith('prototype/organ halo')), 'the spleen\'s ring');
   assert.ok(names.includes('prototype/organ glow mask'), 'an organ\'s glow mask');
@@ -93,7 +93,6 @@ test('highlighting every organ (its glow mask, the spleen\'s normal-range ring) 
 test('every material the real code makes from the stand-ins\' recipes spreads the same flag constant the stand-in wears', () => {
   const read = (f: string) => readFileSync(f, 'utf8');
   assert.match(read('src/scene/circuit/resistors.ts'), /vertexShader: VS, fragmentShader: FS, \.\.\.RESISTOR_FLAGS/);
-  assert.match(read('src/scene/blood/cells/cells.ts'), /fragmentShader: CELLS_FS, \.\.\.STREAK_FLAGS/);
   assert.match(read('src/scene/disease/bleed.ts'), /fragmentShader: JET_INK_FS, \.\.\.JET_INK_FLAGS/);
   const hl = read('src/scene/highlight.ts');
   assert.equal((hl.match(/\.\.\.HALO_FLAGS/g) ?? []).length, 1, 'the spleen\'s ring');
@@ -109,7 +108,7 @@ const SITES: Record<string, { n: number; how: 'graph' | 'micro' | 'stand-in' | '
   'scene/organs/glow-mask.ts': { n: 1, how: 'stand-in', why: 'ORGAN_MASK_FLAGS: an organ\'s glow mask' },
   'scene/glow-fx.ts': { n: 2, how: 'pass', why: 'the glow\'s full-screen blur and lay (a pass, not a scene object): compiled under the splash with passMaterials (materials/warm.ts)' },
   'scene/materials/cel.ts': { n: 2, how: 'graph', why: 'the toon and the ink of every object' },
-  'scene/materials/prototypes.ts': { n: 5, how: 'stand-in', why: 'the stand-ins themselves' },
+  'scene/materials/prototypes.ts': { n: 4, how: 'stand-in', why: 'the stand-ins themselves' },
   'scene/organs/layer.ts': { n: 2, how: 'graph', why: 'the organ seat, and the gut\'s depth pass (a mesh in each gut part\'s group, so on the boot graph with its organ)' },
   'scene/post-aa.ts': { n: 1, how: 'pass', why: 'the anti-aliasing quad: compiled under the splash with passMaterials, into the canvas\'s colour space' },
   'scene/post-dof.ts': { n: 3, how: 'pass', why: 'the depth-of-field quads (the focus band uses them on every device): compiled under the splash with passMaterials' },
@@ -122,7 +121,6 @@ const SITES: Record<string, { n: number; how: 'graph' | 'micro' | 'stand-in' | '
   'scene/micro3d/lobule3d.ts': { n: 2, how: 'micro', why: 'the marks plate and the central vein\'s scar (Plan 24), both made in the lobule\'s constructor with the group, so both compile under the splash with the views (the first test names both programs)' },
   'scene/micro3d/cel3d.ts': { n: 2, how: 'micro', why: 'microMaterials: every part of both views' },
   'scene/devices/contact-shadow.ts': { n: 1, how: 'graph', why: 'the soft shadow of a device tube (the balloon\'s and the catheters\' are made with them)' },
-  'scene/blood/cells/cells.ts': { n: 1, how: 'stand-in', why: 'STREAK_FLAGS' },
   'scene/lobule/field.ts': { n: 1, how: 'graph', why: 'the neighbouring lobules' },
   'scene/focus-reveal/glsl.ts': { n: 1, how: 'graph', why: 'the focus reveal\'s see-through fill and line of the stomach (meshes in its group from boot, hidden until a focus is looked at; compile builds hidden ones)' },
 };

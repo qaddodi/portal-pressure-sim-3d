@@ -17,7 +17,7 @@ interface Chained { par: number[]; root: number[]; A: number[]; B: number[]; w: 
 
 /** The cava's two stretches below the hepatic veins are one vein cut where the DIPS joins it: they keep their own pattern (stage-blood.js NO_CHAIN). */
 export const NO_CHAIN: ReadonlySet<string> = new Set(['IVC_IS', 'IVC_IS_1', 'IVCS_RA']);
-/** The hepatic artery is the one artery whose blood runs on through a junction into both its branches (Mohammad, 20 Nov: "the streaks don't continue to both branches"). */
+/** The hepatic artery is the one artery whose blood runs on through a junction into both its branches (Mohammad, 20 Nov: "the chevrons don't continue to both branches"). */
 export const CHAIN_ARTERIES: ReadonlySet<string> = new Set(['A_HEP', 'A_HR', 'A_HL']);
 
 interface EdgeInfo { id: string; from: string; to: string; path: readonly (readonly [number, number])[]; len: number }
@@ -33,9 +33,6 @@ export const INFO: readonly (EdgeInfo | null)[] = edges.map((e) => {
   for (let i = 1; i < path.length; i++) len += Math.hypot(path[i]![0] - path[i - 1]![0], path[i]![1] - path[i - 1]![1]);
   return len > 0 ? { id: e.id, from: e.from, to: e.to, path, len } : null;
 });
-
-/** Each edge's tube radius (the vessel shader's `radius`): the dust's lattice is the ROOT's, so a chained vessel is handed it (row 1, w; 0 where it has no link). */
-const RADIUS: readonly number[] = edges.map((e) => NETWORK_BY_ID.get(e.id)?.radius ?? 0);
 
 const sstep = (a: number, b: number, x: number): number => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** A head carried on through a join is cut by the tube's end and drawn again, turned, on the next tube: past this turn between the two courses it shows as a black wedge at the fork,
@@ -118,7 +115,7 @@ export class StreamChain {
       for (let i = 0; i < n; i++) {
         const k = items[i]!.key, w = c.w[i]!, ef = exF[i]!, et = exT[i]!;
         const o = k * 4, o2 = NE * 4 + k * 4;
-        if (w > 0) { d[o] = c.root[i]! + 1; d[o + 1] = c.A[i]!; d[o + 2] = c.B[i]!; d[o + 3] = w; d[o2 + 2] = c.par[i]! + 1; d[o2 + 3] = RADIUS[c.root[i]!] ?? 0; }
+        if (w > 0) { d[o] = c.root[i]! + 1; d[o + 1] = c.A[i]!; d[o + 2] = c.B[i]!; d[o + 3] = w; d[o2 + 2] = c.par[i]! + 1; }
         d[o2] = ef; d[o2 + 1] = et;
       }
       this.texture.needsUpdate = true;

@@ -1,5 +1,5 @@
 // THE SKIN'S SHADING NORMAL, EXACT PER PIXEL (Mohammad, 20 Nov: "ragged torn edge" where the hepatic veins meet the cava, a dark polygon with straight sides in the cel shade, the pale pinch at the PV fork). The cel shade is a HARD
-// threshold of n.L and the lens lanes and the dust read the normal's across: all of them are contours of the normal. The skin handed the fragment stage its vertices' normals, INTERPOLATED over a triangle. A triangle spans
+// threshold of n.L and the lens lanes and the chevrons read the normal's across: all of them are contours of the normal. The skin handed the fragment stage its vertices' normals, INTERPOLATED over a triangle. A triangle spans
 // the fillet where two arms meet, where the true normal turns 30 to 60 degrees in a few pixels, so the interpolated one is wrong by up to 56 degrees (p99 18 to 35 on every skin; tests/skin-exact-normal.test.ts measures it)
 // and every contour of it is a polygon with corners at the triangles. ROOT CAUSE: a function with a crease in it (the smooth union's gradient) was sampled at the vertices and lerped. So the pixel takes the gradient of the
 // smooth union itself, the very function the vertices' normals were sampled from (sdf.ts sdUnionGrad: the chain rule through the pairwise smooth-min), from the arms' four axis points and radii it already holds: on a seam ring

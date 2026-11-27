@@ -71,8 +71,8 @@ test('every junction skin\'s inkR lies within the radii of its arms (and is neve
   const req = weldRequest(new LobuleView(createShared()).net), plan = planWelds(req.courses, { avoid: req.avoid, splay: false });
   let n = 0, worstLo = Infinity, worstHi = 0; const LO = 0.99, HI = 1.01;
   for (const sk of plan.skins) {
-    const d: PartData = { b: new MeshBuilder(), W: [], K: [], fc: [], ir: [] }, host = plan.courses.get(sk.host)!;
-    emitSkin(d, sk, plan.courses, { R: LOBULE_R, seg: 10, endHush: 0, dustCol: () => 0 }, () => true);
+    const d: PartData = { b: new MeshBuilder(), W: [], K: [], ir: [] }, host = plan.courses.get(sk.host)!;
+    emitSkin(d, sk, plan.courses, { R: LOBULE_R, seg: 10, endHush: 0 }, () => true);
     const rs = sk.arms.map((a) => plan.courses.get(a.key)!.rad[a.at]! ), lo = Math.min(...rs, ...sk.arms.map((a) => a.rSeam)), hi = Math.max(...rs, ...sk.arms.map((a) => a.rSeam)), cnt = sk.mesh.position.length / 3;
     assert.equal(d.ir!.length, cnt);
     for (const r of d.ir!) { assert.ok(r > 0 && r >= lo * LO - 1e-9 && r <= hi * HI + 1e-9, `${sk.host}: ${r} outside ${lo}..${hi}`); n++; worstLo = Math.min(worstLo, r / lo); worstHi = Math.max(worstHi, r / hi); }
@@ -81,8 +81,8 @@ test('every junction skin\'s inkR lies within the radii of its arms (and is neve
   assert.ok(n > 1000, `vertices ${n}`);
   assert.ok(worstLo >= LO && worstHi <= HI);
   // and a course's own pieces carry their sample's radius
-  const d: PartData = { b: new MeshBuilder(), W: [], K: [], fc: [], ir: [] }, out = [...plan.courses.values()][0]!;
-  emitCourse(d, out, { R: LOBULE_R, seg: 10, endHush: 0, dustCol: () => 0 });
+  const d: PartData = { b: new MeshBuilder(), W: [], K: [], ir: [] }, out = [...plan.courses.values()][0]!;
+  emitCourse(d, out, { R: LOBULE_R, seg: 10, endHush: 0 });
   assert.equal(d.ir!.length, d.W.length);
   assert.ok(d.ir!.every((r) => out.rad.some((x) => x === r)));
 });

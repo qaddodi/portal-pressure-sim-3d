@@ -10,7 +10,7 @@ import { createShared } from '../src/scene/materials/cel.ts';
 import { createLensShared } from '../src/scene/vessels/vessel-object.ts';
 import { createCircuitShared } from '../src/scene/circuit/uniforms.ts';
 
-const tubes = () => new CircuitTubes(createShared(), createLensShared(), { streamTex: { value: null as never }, chainTex: { value: null as never }, routeTex: { value: null as never }, projY: { value: 1 }, dpr: { value: 1 }, streakAmt: { value: 0 }, dustP: { value: new Float32Array(52) } }, createCircuitShared(8));
+const tubes = () => new CircuitTubes(createShared(), createLensShared(), { streamTex: { value: null as never }, chainTex: { value: null as never }, projY: { value: 1 }, dpr: { value: 1 } }, createCircuitShared(8));
 const buryOf = (o: { toon: { uniforms: Record<string, { value: unknown }> } }): [number, number] => { const v = o.toon.uniforms.bury!.value as Vector2; return [v.x, v.y]; };
 
 test('a liver branch has no arc-length bury: the union rule (circuit/tree-hosts.ts, shaders.ts nbrMap) holds its ink back inside the tube it leaves or reaches, by geometry, at every end and every zoom', () => {

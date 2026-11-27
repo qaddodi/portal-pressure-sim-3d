@@ -83,8 +83,8 @@ export function varyingProblems(p: Program): string[] {
 
 export { afterDiscardProblems };
 
-/** (f) the budget: at or under the floor every phone meets. The vessel program is at the ceiling (16 attributes, 15 varyings, Plan 41 item 5): any change is a named decision, so its numbers are pinned as equal. */
-export const VESSEL_PIN = { attributes: 16, varyings: 15 } as const;
+/** (f) the budget: at or under the floor every phone meets. The vessel program was at the ceiling (16 attributes, 15 varyings, Plan 41 item 5); removing the blood streaks (27 Nov, owner) freed one varying (vZf, the streaks' course), so the pin is 16 and 14. Any change is a named decision, so its numbers are pinned as equal. */
+export const VESSEL_PIN = { attributes: 16, varyings: 14 } as const;
 export const isVesselProgram = (p: Program) => /^vessel\b/.test(p.name);   // (the tube: toon, veil, glow, shadow, and the inspector's VDBG)
 export function budgetProblems(p: Program): string[] {
   const b = budget(p), out: string[] = [];

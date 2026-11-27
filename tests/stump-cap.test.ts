@@ -35,9 +35,8 @@ test('the tie and the running stitch are a pale suture with a dark edge, never o
   assert.match(PROCEDURE_MARKS_GLSL, /c = mix\(c, THREAD, tw\);/, 'the sewn end wears it');
 });
 
-test('no dust and no chevron stands in the blind end of a stump, up to a head past the tie, and it eases in with the cut', () => {
+test('no chevron stands in the blind end of a stump, up to a head past the tie, and it eases in with the cut', () => {
   assert.match(VESSEL_FS, /stumpMk = \(stump\.x > 0\.0 && circT < 0\.001\) \? mix\(1\.0, smoothstep\(stump\.y \+ 2\.5/);
-  assert.match(VESSEL_FS, /\* stumpMk;\n  fd = dSafe\(clamp/, 'the dust');   // (the dust's alpha is made whole first since b3afc9a4: dSafe)
   assert.match(VESSEL_FS, /flowHeads\([^;]*markK\([^;]*\) \* stumpMk(?: \* \w+)*, lensHead/, 'the heads');   // (markK's ends are lifted where a skin takes over since 8c46c7bd; the stump's mask still multiplies it, and since 17d68fda so does the end-on fade, `endOn`, after it)
 });
 

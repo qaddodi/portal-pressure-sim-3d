@@ -1,4 +1,4 @@
-// The blood's flow marks and cells: their options and mode.
+// The blood's flow marks: their options and mode.
 // Part of CelScene (scene.ts): these methods are mixed into the class, so `this` is the scene. Moved from scene.ts as they were.
 import { type BloodOptions } from '../blood/marks.ts';
 import { type FlowMarkMode } from '../flow.ts';
@@ -7,8 +7,7 @@ import { scenePart } from './define.ts';
 
 export const flowPart = scenePart<CelScene>()({
   /** The Blood menu: chevrons on or off, key routes only, and potential collaterals (dotted routes). */
-  setBlood(o: Partial<BloodOptions> & { collaterals?: boolean; keyStreaks?: boolean }): void {
-    if (o.keyStreaks !== undefined) this.blood.routes.setKeyOnly(o.keyStreaks);
+  setBlood(o: Partial<BloodOptions> & { collaterals?: boolean }): void {
     if (o.collaterals !== undefined && o.collaterals !== this.collateralsOn) {
       this.collateralsOn = o.collaterals;
       { const f = this.src.frame(); if (f) this.syncPresence(f, false); }

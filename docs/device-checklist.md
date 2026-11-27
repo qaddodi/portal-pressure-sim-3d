@@ -9,6 +9,6 @@ Open `/preview/build-info.txt` first and note the commit; use that build for eve
 5. **Background.** Start a talk, send the app to the background for 5 minutes, come back. Expect the same slide and a drawn figure. (Mid-session context loss is not handled yet: if the figure is black or frozen, say so; that is the finding.)
 6. **Version.** Settings > Help > About shows "Version 1.0.0-beta.1 · build <commit>". If the feedback address is set (`FEEDBACK_EMAIL`): Settings > Send feedback opens a draft whose `Build:` line carries the version.
 7. **Old links.** Open a talk link from a lecture slide or an earlier share link you saved. Expect the same talk and slide.
-8. **Debug tools on /preview/.** `?audit`, `?inspect`, `?joins=debug` and `?dust` still open. (Not on the live site: when `/` becomes the app, `?inspect` must do nothing there.)
+8. **Debug tools on /preview/.** `?audit`, `?inspect` and `?joins=debug` still open. (Not on the live site: when `/` becomes the app, `?inspect` must do nothing there.)
 9. **Look.** Glance at Settings, one talk and the Tests card on `/preview/` (the stylesheet lost about 95 kB of rules for classes the app never makes: nothing should look different).
 10. **VoiceOver.** Open a talk, step 3 slides, open one instrument. Say what is not announced.

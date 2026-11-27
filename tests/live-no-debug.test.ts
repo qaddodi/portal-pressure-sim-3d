@@ -13,7 +13,7 @@ test('main.tsx decides once, at build time, whether this build has debug tools',
 
 test('every debug tool main.tsx opens is behind DEBUG', () => {
   const lines = main.split('\n');
-  const tools = ['./parity/ParityPage', './ui/debug/frame/frame', './ui/debug/audit/outer', './debug/look-board', './debug/look-app', './ui/debug/dust-panel', './ui/debug/inspect/panel'];
+  const tools = ['./parity/ParityPage', './ui/debug/frame/frame', './ui/debug/audit/outer', './debug/look-board', './debug/look-app', './ui/debug/inspect/panel'];
   for (const t of tools) {
     const at = lines.map((l, i) => [l, i] as const).filter(([l]) => l.includes(`import('${t}`));
     assert.ok(at.length, `main.tsx no longer opens ${t}: update this test`);
@@ -33,9 +33,9 @@ test('only ?perf, ?gl and the links that open a talk, a slide, a patient or the 
 });
 
 test('on the live address the debug flags read as absent, on the preview address they read', () => {
-  const liveLoc = { search: '?inspect&dust&joins=debug&charts&parity', pathname: '/portal-pressure-sim-3d/', hostname: 'qaddodi.github.io' };
+  const liveLoc = { search: '?inspect&joins=debug&charts&parity', pathname: '/portal-pressure-sim-3d/', hostname: 'qaddodi.github.io' };
   const prevLoc = { ...liveLoc, pathname: '/portal-pressure-sim-3d/preview/' };
-  for (const id of ['inspect', 'dust', 'charts', 'parity']) { assert.equal(flagOn(id, liveLoc), false, `?${id} on live`); assert.equal(flagOn(id, prevLoc), true, `?${id} on preview`); }
+  for (const id of ['inspect', 'charts', 'parity']) { assert.equal(flagOn(id, liveLoc), false, `?${id} on live`); assert.equal(flagOn(id, prevLoc), true, `?${id} on preview`); }
   assert.equal(flagValue('joins', liveLoc), null);
   assert.equal(flagValue('joins', prevLoc), 'debug');
   assert.equal(inspectRequested(liveLoc), false);

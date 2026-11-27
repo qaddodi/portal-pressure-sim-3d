@@ -1,5 +1,5 @@
 // Figure presets in Settings (review R6): Cool, Balanced and Rich as one raised three-part control (the same `.seg` as the old Figure detail steps), the line under it saying what the
-// chosen one does, and a "More" row that opens the page of individual switches. The preset is read back from the ten switches (state/figure-presets.ts), so it follows any change made under More.
+// chosen one does, and a "More" row that opens the page of individual switches. The preset is read back from the nine switches (state/figure-presets.ts), so it follows any change made under More.
 import { useSettings, ownSettings } from '../../state/settings.ts';
 import { PRESET_IDS, presetOf, presetValues, type PresetId } from '../../state/figure-presets.ts';
 import { Fade } from '../fade.tsx';

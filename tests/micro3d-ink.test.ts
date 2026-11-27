@@ -129,21 +129,14 @@ test('a congested lobule\'s sinusoids widen by place, not by generation: one wid
 });
 
 // Derivatives before any discard (Mohammad 20 Nov, the specks: a quad with a discarded or branched neighbour hands back garbage derivatives on Apple GPUs). The micro programs (the Lobule's and the Sinusoid's tubes,
-// their dust, streaks and heads) take every dFdx/dFdy/fwidth at the top of main(), before its first discard; no function takes one.
+// their heads) take every dFdx/dFdy/fwidth at the top of main(), before its first discard; no function takes one.
 test('the micro shader takes every derivative at the top of main, before the first discard', async () => {
   const { MICRO_FS } = await import('../src/scene/micro3d/cel3d.ts');
   const code = MICRO_FS.replace(/\/\/[^\n]*/g, '');
   const main = code.indexOf('void main()'), firstDiscard = code.indexOf('discard', main);
   assert.ok(main > 0 && firstDiscard > main);
   const at = [...code.matchAll(/\b(dFdx|dFdy|fwidth)\s*\(/g)].map((m) => m.index!);
-  // (streakField's own fwidth is its fallback, used only when the caller hands none: the micro program always hands gStreakFw)
-  const field = code.indexOf('float streakField('), fieldEnd = code.indexOf('\n}', field);
-  for (const i of at) {
-    if (i > field && i < fieldEnd) continue;
-    assert.ok(i > main && i < firstDiscard, `a derivative outside main's top: …${code.slice(i - 60, i + 30).replace(/\n/g, ' ')}…`);
-  }
-  assert.match(code, /gStreakFw = max\(fwidth\(vAcross\), 1e-6\)/);
-  assert.match(code, /gStreakFw = max\(fwidth\(vAux\), 1e-6\)/);
+  for (const i of at) assert.ok(i > main && i < firstDiscard, `a derivative outside main's top: …${code.slice(i - 60, i + 30).replace(/\n/g, ' ')}…`);
 });
 
 test('an ink hull is never nearer than its fill at any depth precision: the hardware offset on every ink material (the central vein pool drew black where the buffer could not tell the line from its flat top)', async () => {

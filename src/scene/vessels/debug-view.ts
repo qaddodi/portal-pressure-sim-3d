@@ -1,7 +1,7 @@
 // The inspector's view of the vessels (the on-screen panel of `?inspect`, or `?joins=debug`: src/ui/debug/inspect). Two parts of the figure are told apart, the TUBES (every vessel's own draw, vessels/shaders.ts) and the junction SKINS
 // (the welded meshes, vessels/skin/shaders.ts), and each has its own set of uniforms here, shared BY REFERENCE by every material of that part: the panel writes a number once and the next frame shows it, with no rebuild.
 //   shade  0 as drawn, 1 flat (the body colour, no cel bands), 2 the surface normal as colour, 3 the lens colour alone
-//   dust, heads, ink  the flow marks (the dust, the chevrons) and the outline, on or off (a part left out is CLEARED, never multiplied by 0: a NaN times nothing is still NaN, and a NaN is the speck being hunted)
+//   heads, ink  the flow marks (the chevrons) and the outline, on or off (a part left out is CLEARED, never multiplied by 0: a NaN times nothing is still NaN, and a NaN is the speck being hunted)
 //   tint  a colour per vessel (a hash of its row in the vessel data), so one tube can be told from the next; skins a shifted hue
 //   colour + amount  a colour laid over the whole part (the end of the fragment shader)
 // NORMAL MODE COSTS NOTHING: the shaders carry the hooks only inside `#ifdef VDBG`, and the define (and the uniforms) are put on the materials only when the address asks for the inspector (`inspectOn`, read once at load), so
@@ -21,17 +21,17 @@ export type PartId = 'tube' | 'skin';
 /** One part's view: what the panel shows and sets. */
 export interface PartView {
   shade: ShadeMode;
-  dust: boolean; heads: boolean; ink: boolean;
+  heads: boolean; ink: boolean;
   tint: boolean;
   /** paint the pixel a tube drops, in the colour of the reason (tubes only: shaders.ts DROP) */
   why: boolean;
   /** the colour laid over the part, '#rrggbb', and how much of it (0 none, 1 solid) */
   colour: string; amount: number;
 }
-export const partDefault = (): PartView => ({ shade: 0, dust: true, heads: true, ink: true, tint: false, why: false, colour: '#ff00ff', amount: 0 });
+export const partDefault = (): PartView => ({ shade: 0, heads: true, ink: true, tint: false, why: false, colour: '#ff00ff', amount: 0 });
 
 const uniformsOf = (): Record<string, IUniform> => ({
-  dbgShade: { value: 0 }, dbgDust: { value: 1 }, dbgHeads: { value: 1 }, dbgInk: { value: 1 }, dbgTint: { value: 0 }, dbgWhy: { value: 0 }, dbgCol: { value: new Vector4(1, 0, 1, 0) },
+  dbgShade: { value: 0 }, dbgHeads: { value: 1 }, dbgInk: { value: 1 }, dbgTint: { value: 0 }, dbgWhy: { value: 0 }, dbgCol: { value: new Vector4(1, 0, 1, 0) },
 });
 const U: Record<PartId, Record<string, IUniform>> = { tube: uniformsOf(), skin: uniformsOf() };
 const STATE: Record<PartId, PartView> = { tube: partDefault(), skin: partDefault() };
@@ -53,7 +53,7 @@ export function setPart(part: PartId, patch: Partial<PartView>): (keyof PartView
     if (v === undefined || s[k] === v) continue;
     (s as unknown as Record<string, unknown>)[k] = v; changed.push(k);
   }
-  u.dbgShade!.value = s.shade; u.dbgDust!.value = s.dust ? 1 : 0; u.dbgHeads!.value = s.heads ? 1 : 0; u.dbgInk!.value = s.ink ? 1 : 0; u.dbgTint!.value = s.tint ? 1 : 0; u.dbgWhy!.value = s.why ? 1 : 0;
+  u.dbgShade!.value = s.shade; u.dbgHeads!.value = s.heads ? 1 : 0; u.dbgInk!.value = s.ink ? 1 : 0; u.dbgTint!.value = s.tint ? 1 : 0; u.dbgWhy!.value = s.why ? 1 : 0;
   _c.set(s.colour);
   (u.dbgCol!.value as Vector4).set(_c.r, _c.g, _c.b, Math.min(1, Math.max(0, s.amount)));
   return changed;
@@ -65,7 +65,6 @@ export const GL_ON_SCENE_GRAPH = 'the inspector hooks spliced into the vessel an
 export const VDBG_GLSL = /* glsl */ `
 #ifdef VDBG
 uniform float dbgShade;
-uniform float dbgDust;
 uniform float dbgHeads;
 uniform float dbgInk;
 uniform float dbgTint;

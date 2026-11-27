@@ -9,7 +9,6 @@ export interface Flag { id: string; group: 'Measure' | 'Pages' | 'Open'; gate: G
 
 export const FLAGS: readonly Flag[] = Object.freeze([
   { id: 'perf', group: 'Measure', gate: 'live' },
-  { id: 'dust', group: 'Measure', gate: 'local' },
   { id: 'joins', group: 'Measure', gate: 'local' },
   { id: 'inspect', group: 'Measure', gate: 'local' },
   { id: 'gl', group: 'Measure', gate: 'live' },

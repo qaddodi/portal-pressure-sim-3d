@@ -106,8 +106,8 @@ test('G4: the shell Figure has no write-only key, and none of its keys is a twin
   const shell = readFileSync('src/ui/shell/store.ts', 'utf8'), blood = readFileSync('src/scene/blood/options.ts', 'utf8');
   const figure = keysOf(shell, 'export interface Figure'), bloodKeys = keysOf(blood, 'export interface BloodChoice');
   assert.deepEqual(figure.sort(), ['bile', 'labelLevel', 'lymph', 'zones']);
-  assert.ok(bloodKeys.includes('chevrons') && bloodKeys.includes('keyStreaks'));
-  assert.deepEqual(figure.filter((k) => bloodKeys.includes(k)), [], 'a key lives in one store: the Blood menu owns its six, the shell the lobule layers and the label level');
+  assert.ok(bloodKeys.includes('chevrons') && !bloodKeys.includes('keyStreaks'));
+  assert.deepEqual(figure.filter((k) => bloodKeys.includes(k)), [], 'a key lives in one store: the Blood menu owns its five, the shell the lobule layers and the label level');
   const others = sources().filter((f) => f !== 'src/ui/shell/store.ts').map((f) => readFileSync(f, 'utf8'));
   for (const k of figure) assert.ok(others.some((s) => new RegExp(`figure\\.${k}\\b|figure\\)\\.${k}\\b|\\b${k}: f\\.${k}|f\\.${k}\\b`).test(s) || (['zones', 'lymph', 'bile'].includes(k) && s.includes('LAYER_SWITCHES'))), `Figure.${k} has no reader outside its own store`);
 });

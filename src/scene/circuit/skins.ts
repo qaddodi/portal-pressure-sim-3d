@@ -430,7 +430,7 @@ export class CircuitSkinSet {
         // A dotted thread (a closed potential collateral) counts 0: its tube is not cut, and the trunk is the plain trunk. The arm's presence dithers the skin as any arm's does
         if (a.grow) weld = Math.min(weld, weldOf((u.dotted!.value as number) > 0.5 ? 0 : pr));
         if (a.last[6] !== pr) { a.last[6] = pr; both((d, k) => d.setPres(k, pr)); any = true; }
-        // the flow marks ride on the arm's arc in the map's own units (the vessel shader's `len * vU` with vU = 1 / MAP_K, and the radius the tube hands the dust: its body radius in those units)
+        // the flow marks ride on the arm's arc in the map's own units (the vessel shader's `len * vU` with vU = 1 / MAP_K, and the radius the tube hands the heads: its body radius in those units)
         const rd = u.radius!.value as number, fl = u.flowAmount!.value as number;
         if (a.last[7] !== rd || a.last[8] !== fl) {
           a.last[7] = rd; a.last[8] = fl;

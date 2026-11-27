@@ -8,11 +8,10 @@ import { MeshBuilder, tube } from './cel3d.ts';
 import type { WeldCourseOut, WeldSkin } from '../lobule/welds.ts';
 
 /** The parallel arrays a part keeps beside its mesh (every vertex pushes one number to each, in the order the mesh's vertices are written). */
-/** `fc`: the dust's place on each vertex (cel3d `fcourse`: the course's column of the dust's route table, its arc, its length, the true place across; 3 where none is drawn), for the blood's parts. */
 export interface PartData {
   b: MeshBuilder; W: number[]; K: number[]; sw?: number[];
   /** each vertex's own tube radius (local units): the ink's width never outgrows it (cel3d `inkR`) */
-  ir?: number[]; W2?: number[]; M?: number[]; fc?: number[];
+  ir?: number[]; W2?: number[]; M?: number[];
   /** each vertex's place across its vessel, -1 .. 1 (the stream lenses' lanes: lobule/ink.ts inkAcross), on every vertex, the round ends too */
   ac?: number[];
   /** the junction skins' vertices, each arm's own share, place across and place along (SkinInk): a junction's streams are each arm's, blended where the arms meet */
@@ -34,8 +33,6 @@ export interface EmitOpts {
   endHush: number;
   /** Where the alternate colour place (a leaving sinusoid on an inlet) comes from for a vertex at a plan position (lobule radii), and which arms' keys are of the host's own colour family. */
   altW?: (rho: number) => number;
-  /** The dust's route-table column of a course (by its key): only for parts that keep `fc`. */
-  dustCol?: (key: string) => number;
 }
 
 const hyp = Math.hypot;
@@ -75,8 +72,6 @@ export function emitCourse(d: PartData, out: WeldCourseOut, o: EmitOpts): void {
       b.aux.push(phase + out.arc[i]!);
       const g = before + v, [tx, ty] = tangent(i), acr = -ty * b.n[g * 3]! + tx * b.n[g * 3 + 1]!;
       b.aux2.push(!ring || hushed(i) ? 3 : acr);
-      // (the dust is never hushed at a joint: its particles run on through it, lobule-routes.ts)
-      if (d.fc) d.fc.push(o.dustCol!(out.key), out.arc[i]!, out.arc[last]!, ring ? acr : 3);
       d.ac?.push(acr);
     }
   }
@@ -120,15 +115,7 @@ export function emitSkin(d: PartData, skin: WeldSkin, byKey: ReadonlyMap<string,
       }
     }
     b.aux.push(aux); b.aux2.push(aux2);
-    // the dust over the skin: the host's own particles where the host owns the vertex (its arc and across projected on its path, as the marks), none elsewhere. One column on every vertex of the skin, so no
-    // triangle interpolates between two courses' columns (that would read a third course's lanes)
     if (d.ac) { const pr = projectArc(host, x, y); d.ac.push(-pr.ty * m.normal[3 * v]! + pr.tx * m.normal[3 * v + 1]!); }
-    if (d.fc) {
-      let hw = 0;
-      skin.arms.forEach((a, i) => { if (a.key === skin.host) hw += wt[i]!; });
-      const pr = projectArc(host, x, y), across = -pr.ty * m.normal[3 * v]! + pr.tx * m.normal[3 * v + 1]!;
-      d.fc.push(o.dustCol!(skin.host), pr.arc, host.arc[host.arc.length - 1]!, hw > 0.5 ? across : 3);
-    }
   }
   for (let i = 0; i < m.index.length; i++) b.idx.push(m.index[i]! + base);
   if (ink) d.skins!.push(ink);

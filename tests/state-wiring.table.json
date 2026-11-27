@@ -61,10 +61,6 @@
    "reach": "dive",
    "file": "src/scene/post-aa.ts"
   },
-  "particles": {
-   "reach": "per-frame+invalidate",
-   "file": "src/scene/parts/build.ts"
-  },
   "fluidSurface": {
    "reach": "per-frame+invalidate",
    "file": "src/scene/parts/build.ts"

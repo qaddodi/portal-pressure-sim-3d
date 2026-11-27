@@ -12,9 +12,6 @@
 // Everything reads the host's own state (its eased targets, palette, traffic, places), so the two can never disagree: this file draws, the host keeps the model, the names and
 // the clock. Every place is 2D's (layout.ts and the copied widths); every colour is 2D's palette for the look. Nothing here is per-pixel painting: the shapes are meshes, cel shaded
 // (cel3d.ts), and only the albumin, the red cells and the fenestrae's gap table are rewritten while the view is up.
-import { staticRouteTexture } from '../blood/routes.ts';
-import { dustTuner } from '../blood/dust.ts';
-import { useSettings } from '../../state/settings.ts';
 import { DataTexture, Float32BufferAttribute, Group, Matrix4, NearestFilter, RGBAFormat, UnsignedByteType, Vector3, Vector4, type ShaderMaterial } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import { LOOKS, type LookId } from '../../looks/looks.ts';
@@ -80,8 +77,8 @@ export function focusBlur(d: number): number {
   const mid = (FOCUS[1] + FOCUS[2]) / 2;
   return d < mid ? FOCUS_PEAK * smoother(FOCUS[0], mid, d) : FOCUS_PEAK + (1 - FOCUS_PEAK) * smoother(FOCUS[2], 1, d);
 }
-/** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), the lymph streaks' pace against the lymph's own run, and the haze: how far out it takes to be whole (µm) and how deep it goes. */
-const PACE = 1.35, LYMPH_PACE = 2.5, HAZE_K = 0.45;
+/** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), and the haze: how far out it takes to be whole (µm) and how deep it goes. */
+const PACE = 1.35, HAZE_K = 0.45;
 /** The focus band's run (µm) to a whole blur: from the middle of the first hepatocyte row out to the middle of the next sinusoid's lumen, rising fast at first (post-dof.ts bandCoc eases out), so
  *  the next sinusoid is already well out of focus (Mohammad, 20 Nov 2026: "the blur should really start earlier and be more intense quickly"). The haze follows the same run, lighter, so the
  *  neighbours' disease still shows. */
@@ -238,10 +235,8 @@ export class Sinusoid3D {
     const S = CEL_STYLE.MICRO;
     this.ground = mk('ground', { ink: null });
     // (open sheets carry no hull ink: their edges are inked by the lining's own lines)
-    // (the Anatomy's dust in place of the lanes, in the blood's and the lymph's own colours: Mohammad 20 Nov, the same streaks everywhere. Each stream one lane table, its lattice's pitch its half width in µm)
-    const dustOf = (half: number) => ({ routeTex: { value: staticRouteTexture(1, new Map(), () => half) }, dustP: dustTuner.uniform });
-    this.trough = mk('lumen', { ink: null, streaks: true, dust: dustOf(UM.lum), shape: { u: this.shapeU } });
-    this.troughFar = mk('lumen-beyond', { ink: null, streaks: true, dust: dustOf(UM.lum), shape: { u: this.shapeU } });
+    this.trough = mk('lumen', { ink: null, shape: { u: this.shapeU } });
+    this.troughFar = mk('lumen-beyond', { ink: null, shape: { u: this.shapeU } });
     // (the fenestrae are real gaps through the lining, the bead and its edges alike: one texel a 1 µm slot, each side; stepPores writes how open each is)
     const gaps = { tex: this.gapTex, x: new Vector4(GAP_X0, GAP_SLOTS, 0.5, 0) };
     // (the lining's two edges are its own line, drawn in its fill against the plate's up: its rounded bead turns square to the plate at the lumen's rim and at Disse's side. They were thin ribbons
@@ -252,7 +247,7 @@ export class Sinusoid3D {
     this.bead = mk('endothelium', { ink: null, gaps, holes: { s: WALL.s2, dx: WALL.dx2 }, rim: S.LINE_SMALL, vertexColors: true, shape: { u: this.shapeU, second: true } });
     this.beadLine = mk('endothelium-cut', { ink: null, gaps, rim: S.LINE_SMALL, rimUp: true, rimUV: true, vertexColors: true, shape: { u: this.shapeU } });
     this.bores = mk('endothelium-bores', { ink: null, vertexColors: true });
-    this.disse = mk('disse', { ink: null, streaks: true, dust: dustOf(UM.disse * 0.5 + 0.5), shape: { u: this.shapeU } });
+    this.disse = mk('disse', { ink: null, shape: { u: this.shapeU } });
     this.cells = mk('hepatocytes', { px: S.LINE, shape: { u: this.shapeU, anchored: true } });
     // (the small solid shapes, the nuclei, the canaliculi, the lining's cells, the Kupffer and stellate cells, albumin and the red cells, draw their line inside their own fill (cel3d.ts uRim):
     //  whole and smooth on every screen, never fighting the surface behind; their hull lines broke into dashes and specks, eyes 20 Nov)
@@ -337,7 +332,7 @@ export class Sinusoid3D {
     const changed = on !== this.on;
     this.on = on;
     const shown = force || (on && f.isVisible);
-    // (paused, the blood stands still: the red cells, the albumin and the streaks stop with the simulation, Mohammad 20 Nov 2026; `rate` is the scene's one eased pause/play rate, so they ease to a stop and back up)
+    // (paused, the blood stands still: the red cells and the albumin stop with the simulation, Mohammad 20 Nov 2026; `rate` is the scene's one eased pause/play rate, so they ease to a stop and back up)
     f.trafficSpeed = Math.min(1, Math.max(0, rate)) * (on ? PACE : 1);
     this.group.visible = shown && !force;
     if (!shown) return changed;
@@ -371,7 +366,7 @@ export class Sinusoid3D {
     this.stepLife();
     this.stepAlbumin();
     this.stepRbc();
-    this.stepStreaks(P);
+    this.stepWashAndHaze(P);
     this.stepArrows(P);
     this.bm.setOpacity(clamp(S.bm, 0, 1) * (dark ? 0.6 : 0.8));
     return true;
@@ -874,20 +869,11 @@ export class Sinusoid3D {
     this.rbc.commit(n);
   }
 
-  /** The streaks: the blood's in every lumen (lighter, at the lanes' speeds, the middle fastest) and the lymph's in Disse (darker, slow, back toward the portal tract), fixed to the tissue. */
-  private stepStreaks(P: Pal): void {
-    const f = this.flat, flow = f.traffic.flowX, lym = f.traffic.lymX;
-    const blood = mix3(P.cLumen, [1, 1, 1], 0.42), lymph = mix3(P.cLymph, [1, 1, 1], 0.2);
-    // (the blood's streaks follow Settings > Blood streaks, as every view's do; the lymph's in Disse always run)
-    const bs = useSettings.getState().particles ? 1 : 0;
+  /** The wedged column's wash in the lumen, and the haze. */
+  private stepWashAndHaze(P: Pal): void {
+    const f = this.flat;
     // the wedged column's wash (a slide that asks for it, once landed): amber from the central vein's end toward the portal venule's, the blood in it still (2D's wedgeA, now drawn here)
     { const wk = f.washProgress, E = f.ends, W = (P as unknown as { cWedge?: RGB }).cWedge ?? [0.95, 0.66, 0.2]; this.trough.setWash(wk > 0 ? 1 : 0, E[0], E[1], wk, W); }
-    this.trough.setStreaks(flow, Math.max(1, f.g.halfW(0)), blood, bs, 1);
-    this.troughFar.setStreaks(flow, UM.lum + UM.endo * 0.5, blood, 0.5 * bs, 1);
-    // (the lymph's own run is slow beside the blood's: its streaks go LYMPH_PACE times as fast, so they are seen to move, Mohammad 20 Nov "faster in lymph")
-    // (quiet streaks one shade off Disse's own colour, never chevrons: the bold arrowheads that filled the band were wrong, Mohammad 20 Nov "WTF ARE THOSE CHEVRONS"; the shared
-    // streak look of the Anatomy replaces these when it lands)
-    this.disse.setStreaks(lym * LYMPH_PACE, UM.disse * 0.5 + 0.5, lymph, 0.7, 1);
     // the haze: from the middle of the first hepatocyte row toward the page, growing steadily, whole HAZE_RUN µm further out (Mohammad 20 Nov: "start from the middle of the hepatocyte, then increase as we move further out")
     const y0 = f.g.hepIn(0) + UM.hep * 0.5;
     this.haze.uHaze.value.set(y0, y0 + HAZE_RUN, HAZE_K, 0);

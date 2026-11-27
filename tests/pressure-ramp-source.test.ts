@@ -18,7 +18,6 @@ import { lookVars } from '../src/looks/looks.ts';
 import { LENS_TOKENS } from '../src/scene/lenses/tokens.copied.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
-import { CELLS_VS } from '../src/scene/blood/cells/shader.ts';
 import { CEL_TUBE_GLSL } from '../src/scene/cel-glsl.ts';
 import { LensField } from '../src/scene/lenses/field.ts';
 
@@ -88,7 +87,7 @@ test('as-drawn path: celTubeBase and figureHex are the identity for the pressure
 test('every program that mixes a lens colour into the vessel\'s base also sets tubeRawK from the sets\' lensRaw, crossfaded by lensMix (a lens switch eases from the transform to the raw colour: nothing pops)', () => {
   assert.match(CEL_TUBE_GLSL, /float tubeRawK = 0\.0;/);
   assert.match(CEL_TUBE_GLSL, /, b, tubeRawK\);/, 'celTubeBase ends on the as-drawn mix');
-  for (const [name, fs] of [['vessel', VESSEL_FS], ['skin', SKIN_FS], ['cells', CELLS_VS]] as const) {
+  for (const [name, fs] of [['vessel', VESSEL_FS], ['skin', SKIN_FS]] as const) {
     assert.match(fs, /uniform float lensRawA;/, `${name} declares lensRawA`);
     assert.match(fs, /uniform float lensRawB;/, `${name} declares lensRawB`);
     assert.match(fs, /(tubeRawK|rawAcc) \+?= [^;]*lensRawA[^;]*lensRawB[^;]*lensMix/, `${name} takes both sets' flags, crossfaded`);

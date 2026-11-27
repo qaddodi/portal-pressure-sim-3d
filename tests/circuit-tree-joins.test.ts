@@ -228,7 +228,7 @@ test('every branch lies against the tubes the map shows: the one it leaves (but 
 });
 
 test('the nbr attribute of a branch: unsigned distances against the two tubes, one row per vertex, and the geometry carries it with the widths the shader reads', () => {
-  const t = new CircuitTubes(createShared(), createLensShared(), { streamTex: { value: null as never }, chainTex: { value: null as never }, routeTex: { value: null as never }, projY: { value: 1 }, dpr: { value: 1 }, streakAmt: { value: 0 }, dustP: { value: new Float32Array(52) } }, createCircuitShared(8));
+  const t = new CircuitTubes(createShared(), createLensShared(), { streamTex: { value: null as never }, chainTex: { value: null as never }, projY: { value: 1 }, dpr: { value: 1 } }, createCircuitShared(8));
   const objs = t.objects, ids = t.ids;
   for (let n = 0; n < ids.length; n++) {
     const e = ids[n]!, o = objs[n]!, u = o.toon.uniforms as Record<string, { value: unknown }>;

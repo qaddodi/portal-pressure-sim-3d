@@ -125,9 +125,7 @@ test('the card\'s strip is drawn with the same colours: every slice of its lumen
   }
 });
 
-test('the vessel, the junction skin and the blood read the profile through one shader function', () => {
+test('the vessel and the junction skin read the profile through one shader function', () => {
   assert.match(LENS_OF_AT_GLSL, /vec4 lensProfileAt\(sampler2D grad, int e, float u\)/, 'the shared lens function defines it');
   assert.match(LENS_OF_AT_GLSL, /lensProfileAt\(grad, int\(lensIx\), u\)/, 'the tube and the skin read it through lensOfAt');
-  const cells = readFileSync('src/scene/blood/cells/shader.ts', 'utf8');
-  assert.match(cells, /\$\{LENS_PROFILE_GLSL\}/); assert.match(cells, /lensProfileAt\(grad, e, u\)/);
 });

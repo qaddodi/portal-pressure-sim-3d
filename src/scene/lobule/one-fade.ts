@@ -1,7 +1,7 @@
 // The Lobule's ONE fade, made structural (Mohammad 20 Nov 2026: the lobule "flashes" going to and from the sinusoid, the lymph first, then the vessels, then the yellow plate before the vessels).
 // Root cause each time was the same: a part of the Lobule had a fade of its own (a second scale on the marks, a visibility switch on the neighbours' plate) instead of the lobule's.
 // So the rule is now kept in one place and not by memory: every object under the Lobule root (LobuleRoot) takes its fade from the LobuleFade here, whoever built it and whenever it was added.
-//   - `detail` (kind 'detail', the default): the lobule's own tiles, tubes, marks, streaks and the marks plate. They dissolve by dropping pixels of ONE screen pattern (FADE_GLSL's fadedOut) at this value.
+//   - `detail` (kind 'detail', the default): the lobule's own tiles, tubes, marks and the marks plate. They dissolve by dropping pixels of ONE screen pattern (FADE_GLSL's fadedOut) at this value.
 //   - `ground` (kind 'ground'): the neighbours' plate, one alpha-blended draw. It follows the same dive (1 - under) but not the field's own breadth, which is how the field itself widens.
 //   - a material that is neither a shader with a `fade` uniform nor patched here cannot be told from outside: `unfaded(root)` lists it, and tests/lobule-one-fade.test.ts fails on any.
 // The ONLY writer of either value is `LobuleFade.set`; nothing else scales a lobule layer's alpha or toggles its visibility to hide it during the dive.

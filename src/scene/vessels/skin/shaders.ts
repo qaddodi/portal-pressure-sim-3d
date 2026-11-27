@@ -5,7 +5,7 @@
 // The rules are the tube's own, spliced from vessels/glsl-shared.ts (swellOf, lensOfAt, the ink's colour and width, the pixel rule) and from the cel chunks, so on a seam ring, where one arm's weight is 1, the skin is the
 // tube: same position (VERTEX), same colour, same line. The skin differs from the tube in exactly four ways:
 //   1. It has no single centreline, so its ink is the OUTLINE OF THE SMOOTH UNION of its arms' live capsules in screen pixels (the 2D figure's own rule, fork-joins.copied.js), not a distance to one axis.
-//   2. Its flow marks (chevrons, streaks, dust) are the tubes' own, drawn once per arm on that arm's arc and blended by the arm weights (Mohammad, 20 Nov: they cross a junction, they do not break at the seam): see THE FLOW MARKS below.
+//   2. Its flow marks (the chevrons) are the tubes' own, drawn once per arm on that arm's arc and blended by the arm weights (Mohammad, 20 Nov: they cross a junction, they do not break at the seam): see THE FLOW MARKS below.
 //   3. It has no Circuit MORPH: the body's skin fades out with `circT` (section 4.9). The Circuit has skins of its own (circuit/skins.ts, the program built with SKIN_CIRC): the same mesh builder on the map's courses, the map's widths (circSwellOf: 2D's
 //      widthAt, the zoom's boost and the least width on the screen), the map's bolder line and its inner line, and in at the END of the change (SKIN_CIRC_IN). The map's turn is the object's matrix.
 //   4. It does no run-on mate easing: the weights do the blending.
@@ -21,7 +21,7 @@
 //   armAxisP[24] vec4   per arm four points of its axis (the node J, the start of the straight line through the seam, the seam, the far point), rest positions, model space; w the rest radius at the point
 //   armArc[4]    vec4 + (the arm's flow marks) the arc, figure units, at its seam (u x len x SKIN_FIGURE_UNITS), +1 if the arc grows toward the node (the arm is its vessel's end 1) else -1, the vessel's length (figure units), its rest radius (figure units)
 //   armFlow[4]   float + the arm tube's `flowAmount`
-//   streamTex, chainTex, streakAmt, dustP, time, markDark, markLight, markRev: the tubes' (shared by reference)
+//   streamTex, chainTex, time, markDark, markLight, markRev: the tubes' (shared by reference)
 //   skinKW       vec3   x the smooth-min blend width, scene units (`skinK` below); y, z a skin of a growing arm's pair (skin-set.ts): y +1 draws only the pixels whose screen pattern is under z (the welded skin coming in), -1 only the pixels at or over it (the plain trunk going out), 0 draws all
 //   lensUse + : 1 (the per-arm flag above is multiplied in), inkColor, inkColorCirc, tubeDark, fade, hiPx, inflate, res, dpr, projY, circT, vdata, vdataSize, useData, the two lens sets (lensGradA/B, lensLaneA/B,
 //   lensModeA/B, laneColA/B, lensMix, lensSmooth) are the tubes' (shared by reference).
@@ -37,7 +37,6 @@ import { FADE_GLSL } from '../../materials/shaders.ts';
 import { TUBE_DEPTH_SHARE } from '../shaders.ts';
 import { HEAD_FORE_MIN, HEAD_FORE_FROM, HEAD_FORE_TO, LENS_OF_AT_GLSL, CHEV_ONE_GLSL, CHEV_CREAM_GLSL, FLOW_MARKS_GLSL, SWELL_OF_GLSL, inkColourGlsl, inkPxGlsl, wpcGlsl, glowWeightGlsl, glowToneGlsl } from '../glsl-shared.ts';
 import { CHEVRON_GLSL } from '../../blood/chevron-glsl.ts';
-import { DUST_GLSL } from '../../blood/dust-glsl.ts';
 import { glslNum as F } from '../../cel-glsl.ts';
 import { CIRC_INK_K, CIRC_INNER } from '../cel-ink.ts';
 import { CEL_STYLE } from '../../cel-style.ts';
@@ -46,7 +45,7 @@ import { PEEL_DL, PEEL_SPAN } from '../../circuit/peel.ts';
 import { VB_CIRC } from '../../circuit/data.copied.ts';
 import { SKIN_CIRC_IN } from './types.ts';
 import { skinNormalGlsl, skinTubeKeepGlsl, SKIN_SHADE_K, SKIN_SHADE_FLOOR_PX } from './exact-normal.ts';
-import { SKIN_WALL_GLSL } from './dust-wall.ts';
+import { HEAD_WALL_GLSL, SKIN_WALL_GLSL } from './head-wall.ts';
 import { CAVA_RAMP_R } from '../fade-alpha.ts';
 import { WEDGE_GLSL } from '../wedge-glsl.ts';
 import { VEIL_DECL } from '../../organ-veil/glsl.ts';
@@ -279,7 +278,6 @@ uniform vec2 vdataSize;
 uniform float useData;
 uniform sampler2D streamTex;
 uniform sampler2D chainTex;
-uniform float streakAmt;
 uniform float time;
 uniform vec3 markDark;
 uniform vec3 markLight;
@@ -308,11 +306,11 @@ float fadeOf(int i) { float v = i < 4 ? vFadeA[i] : vFadeB[i - 4]; return v >= 0
 float swAt(int i) { return i < 4 ? vSwell[i] : vSwell2[i - 4]; }
 ${LENS_OF_AT_GLSL}
 ${CHEVRON_GLSL}
-${DUST_GLSL}
 ${CHEV_ONE_GLSL}
 ${CHEV_CREAM_GLSL}
 ${FLOW_MARKS_GLSL}
 ${SKIN_WALL_GLSL}
+${HEAD_WALL_GLSL}
 // (the arms' exact 3D distances come first: the outline's depth hold-out below reads them)
 ${skinNormalGlsl(SKIN_ARMS, SKIN_AXIS_PTS, (sw) => `smoothstep(0.0, ${F(SKIN_ARM_ABSENT)}, ${sw})`, (arm) => `keepOf(${arm})`)}
 // the polynomial smooth-min of the 2D figure's own join (fork-joins.copied.js; spec 4.3): a blend k wide, and never lower than the smaller of the two
@@ -458,7 +456,7 @@ void main() {
   float nLen = length(vN);
   vec3 n = nLen > 1e-5 ? vN / nLen : vec3(0.0, 0.0, 1.0);
   // THE NORMAL IS THE SMOOTH UNION'S OWN GRADIENT AT THIS PIXEL (exact-normal.ts), not the vertices' normals lerped over a triangle: across a fillet those are wrong by up to 56 degrees and every contour of them (the cel shade's
-  // hard threshold, the lens lanes, the streaks' across) is a polygon, and in a crease the mesh's eased vertex normals depend on how the triangles lie (Mohammad, 20 Nov: the torn edge at the hepatic veins' mouths). The vertices' normal stays only as the fallback where the union has no gradient
+  // hard threshold, the lens lanes, the chevrons' across) is a polygon, and in a crease the mesh's eased vertex normals depend on how the triangles lie (Mohammad, 20 Nov: the torn edge at the hepatic veins' mouths). The vertices' normal stays only as the fallback where the union has no gradient
   // (a seam ring keeps the tube's own normal: where an arm's weight is 1 the pixel takes the lerped vertex normal, SKIN_RING_W_FROM)
   {
     float wTop = 0.0;
@@ -474,10 +472,10 @@ void main() {
   // pixels beside each other are dropped (back faces, the ink band, the presence dither), the marks of the pixels that stay came out as clusters of blocky, wrongly coloured specks (Mohammad, 20 Nov: green and navy specks at every junction, gone with ?joins=nomarks)
   float vLen = length(vV);
   vec3 viewDir = vLen > 1e-6 ? vV / vLen : vec3(0.0, 0.0, 1.0);
-  float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], pxA[${SKIN_ARMS}], awA[${SKIN_ARMS}], fwLn[${SKIN_ARMS}], latA[${SKIN_ARMS}], awLat[${SKIN_ARMS}], sHa[${SKIN_ARMS}], pxH[${SKIN_ARMS}], endA[${SKIN_ARMS}];
+  float sIa[${SKIN_ARMS}], acA[${SKIN_ARMS}], fwLn[${SKIN_ARMS}], latA[${SKIN_ARMS}], awLat[${SKIN_ARMS}], sHa[${SKIN_ARMS}], pxH[${SKIN_ARMS}], endA[${SKIN_ARMS}];
   vec3 sideA[${SKIN_ARMS}], headA[${SKIN_ARMS}], tJA[${SKIN_ARMS}];
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
-    sIa[i] = 0.0; latA[i] = 0.0; awLat[i] = 0.03; sHa[i] = 0.0; pxH[i] = 0.0; endA[i] = 0.0; acA[i] = 0.0; pxA[i] = 0.0; awA[i] = 0.03; fwLn[i] = 0.0; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0); tJA[i] = vec3(1.0, 0.0, 0.0);
+    sIa[i] = 0.0; latA[i] = 0.0; awLat[i] = 0.03; sHa[i] = 0.0; pxH[i] = 0.0; endA[i] = 0.0; acA[i] = 0.0; fwLn[i] = 0.0; sideA[i] = vec3(1.0, 0.0, 0.0); headA[i] = vec3(0.0); tJA[i] = vec3(1.0, 0.0, 0.0);
     if (armData[i].x < 0.0) continue;
     vec3 toJ = armAxisP[i * ${SKIN_AXIS_PTS} + 1].xyz - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;   // (toward the node along the straight line through the seam)
     float tl = length(toJ);
@@ -490,7 +488,6 @@ void main() {
     float sideL = length(sideX);
     sideA[i] = sideL > 1e-4 ? sideX / sideL : vec3(1.0, 0.0, 0.0);
     acA[i] = clamp(dot(n, sideA[i]), -1.0, 1.0);
-    pxA[i] = fwidth(sIa[i]);
     // THE HEAD'S SECOND AXIS, SQUARE TO ITS FIRST (Mohammad, 24 Nov: chevrons at the hepatic veins' join twist, stretch to slivers, flip and pop). The arc above runs along the STRAIGHT seam line (tJ); the place across used to be measured from the
     // nearest of the arm's three BENT segments (skinArmLat), so the two axes were not square wherever the chain bends: the head sheared to a sliver, turned each time the nearest segment changed and jumped across at the switch. Now the place across is the
     // pixel's offset from that SAME straight axis, along the view-square side direction, over the arm's live radius: one orthogonal frame, equal to the tube's own across on the seam ring, continuous everywhere.
@@ -504,7 +501,6 @@ void main() {
     sHa[i] = armArc[i].x + armArc[i].y * dot(relH.xy, tvS.xy) / (fS * fS) * SKIN_U;
     pxH[i] = fwidth(sHa[i]);
     endA[i] = smoothstep(${F(HEAD_FORE_FROM)}, ${F(HEAD_FORE_TO)}, hxyS);
-    awA[i] = max(fwidth(acA[i]), 0.03);
     fwLn[i] = fwidth(acA[i] * 0.5 + 0.5);   // (the lane lens's edge softness, as the tube's lensAcrossFw)
   }
 #ifdef SKIN_DEBUG
@@ -610,23 +606,15 @@ void main() {
 #ifdef VDBG
   c = dbgBody(c, base, n);   // (the inspector's shade mode: debug-view.ts)
 #endif
-  // THE FLOW MARKS (Mohammad, 20 Nov: "the streaks still break between vessels", "the particles should cross at the junction, not disappear"). The tube draws its dust and chevrons from its own arc and the stream chain's A and B
+  // THE FLOW MARKS (Mohammad, 20 Nov: "the marks still break between vessels"). The tube draws its chevrons from its own arc and the stream chain's A and B
   // (vessels/shaders.ts); the skin draws the SAME, once per arm, on that arm's arc carried on past its seam along the arm's axis (armArc: the arc at the seam, which way it grows, the length), across taken from the arm's own heading, and blends
-  // the arms by their weights: on a seam ring one weight is 1 and this is the tube's pixel, so a streak or a head runs out of one tube, through the skin and into the next (a chained arm carries its parent's particles at the stream's place).
+  // the arms by their weights: on a seam ring one weight is 1 and this is the tube's pixel, so a head runs out of one tube, through the skin and into the next.
 #ifndef SKIN_NOMARKS
-  vec3 cBody = c;
-  vec4 dustAcc = vec4(0.0), headAcc = vec4(0.0);
+  vec4 headAcc = vec4(0.0);
   float wpcM = ${wpcGlsl('vW', 'projY', 'SKIN_U')};
   float rCssM = vR / max(wpcM, 1e-6);
-  vec3 litD = celTubeBase(base);
-  DFrame FD0, FD1;
-  float wD0 = 0.0, wD1 = 0.0, wD2 = 0.0, onD0 = 0.0, onD1 = 0.0, revD0 = 0.0, revD1 = 0.0, inD0 = 0.0, inD1 = 0.0;   // (inD: how far inside the arm's own cylinder the pixel is: 1 inside, 0 outside)
   for (int i = 0; i < ${SKIN_ARMS}; i++) {
     if (armData[i].x < 0.0) continue;
-    // the arm's own frame, taken at the top of main (sIa, acA, pxA, awA, sideA, headA): its arc here, and the across the tube would have (its heading, in the view's frame, grows with its arc)
-    float sI = sIa[i], acrossI = acA[i], pxI = pxA[i], acrossW = awA[i];
-    vec3 sideDir = sideA[i];
-    float wI = wAt(i);
     float lensI = armData[i].w, Lw = armArc[i].z, rOwn = max(armArc[i].w, 1e-3);
 #ifndef SKIN_NOHEADS
     // THE HEADS: this arm's own, each drawn whole by the arm that owns its centre (skinOwner), within the arm's own cylinder (a head of this arm's frame is never drawn on another arm's wall, which the pixel's weight used to see to)
@@ -658,69 +646,14 @@ void main() {
       headAcc += hI;
     }
 #endif
-    if (wI < 0.004 || vR <= 0.0) continue;
-    // the dust (blood/dust-glsl.ts dustSkin): this arm's frame, kept for the two heaviest arms; the particles are drawn once below, each at the blend of its places in the two (never two ghosts)
-    DFrame FI; float revI;
-    float onI = flowFrame(acrossI, dustFrame(headA[i], mat3(modelViewMatrix) * vec3(0.0, 0.0, 1.0), viewDir, sideDir), sI, Lw, rOwn, vR, rCssM, lensI, armData[i].x, armData[i].y, SKIN_U, FI, revI);
-    // AN ARM'S FRAME IS TRUE ONLY WITHIN ITS OWN CYLINDER (the heads' rule above): beside it, in the fillet or on the other arm's wall, its across and arc are those of a line that does not pass here, and its particles are specks of the wrong lane
-    vec3 relD = vPos - armAxisP[i * ${SKIN_AXIS_PTS} + 2].xyz;
-    float inI = 1.0 - smoothstep(${F(SKIN_HEAD_LAT_FROM)}, ${F(SKIN_HEAD_LAT_TO)}, length(relD - tJA[i] * dot(relD, tJA[i])) * SKIN_U / max(rOwn * swAt(i), 1e-4));
-    if (wI > wD0) { wD2 = wD1; FD1 = FD0; wD1 = wD0; onD1 = onD0; revD1 = revD0; inD1 = inD0; FD0 = FI; wD0 = wI; onD0 = onI; revD0 = revI; inD0 = inI; }
-    else if (wI > wD1) { wD2 = wD1; FD1 = FI; wD1 = wI; onD1 = onI; revD1 = revI; inD1 = inI; }
-    else wD2 = max(wD2, wI);
-  }
-  if (wD0 > 0.0) {
-    // the two heaviest arms' share (renormalised): on a seam ring one weight is 1 and this is the tube's own pixel (dustTube)
-    // (less the third heaviest's weight: where the second and third arms weigh the same, the pair the dust is drawn in changes, and the second's share is 0 on both sides of that line, so the change is
-    // continuous. Without it a fork's skin showed a seam down the line between its two branches, Mohammad 20 Nov: "i still see a seam at the blood vessels junction")
-    float w1 = max(wD1 - wD2, 0.0) / max(wD0 + wD1 - 2.0 * wD2, 1e-4);
-    float dOn = mix(onD0, onD1, w1);
-#ifndef SKIN_NODUST
-    // (a pixel under 0.05 of alpha shows no dust, dHold below is 0 there: the scan is not run for it)
-    if (dOn > 0.002 && alpha > 0.05) {
-      // THE DUST IS EACH ARM'S OWN, CROSSFADED (Mohammad, 20 Nov: black and lime specks at every crotch and seam band, gone with ?joins=nodust, not with noheads). dustSkin drew each particle ONCE at the BLEND of its places in the two
-      // frames; a frame's own pixel (its across, its arc) means nothing where the pixel is on the other arm's side, and the average of two frames that disagree puts a particle where neither has one: a dot of ink and a hue-shifted
-      // tone at a place no lane passes. dustTube is the tube's own, exact in its frame and drawing nothing past the lumen it knows; the two frames' dust is mixed by the weights instead (?joins=dustblend: the old blend, to compare)
-#ifdef SKIN_DUSTBLEND
-      vec4 dust = w1 > 0.004 ? dustSkin(FD0, FD1, w1, litD, inkColor, mix(revD0, revD1, w1)) : dustTube(FD0, litD, inkColor, revD0);
-#else
-      // each frame's dust by its own gate (on) and by how far inside its own cylinder the pixel is (in), renormalised by those shares: a frame that does not hold here gives way to the one that does, never half a ghost
-      float a0 = (1.0 - w1) * inD0, a1 = w1 * inD1, aN = a0 + a1;
-      vec4 dust = vec4(0.0);
-      if (aN > 1e-4) {
-        if (a0 > 0.004 && onD0 > 0.002) dust += dustTube(FD0, litD, inkColor, revD0) * (onD0 * a0);
-        if (a1 > 0.004 && onD1 > 0.002) dust += dustTube(FD1, litD, inkColor, revD1) * (onD1 * a1);
-        dust /= aN;
-        // THE SHARE THAT HOLDS (Mohammad, 21 Nov: the join is a brighter patch, gone with ?joins=nodust). The renormalising above lets whichever frame holds a little draw at FULL strength, so in the fillet and the web between the arms,
-        // where neither cylinder holds (inD near 0 in both), the dust a frame still sees there was drawn whole, a pale slab over the wall the tubes beside it do not have (a tube draws nothing past its own lumen). The dust fades with the
-        // best frame's hold (twin and test: tests/skin-dust-hold.test.ts), so it is whole wherever an arm holds and gone where none does.
-        dust *= max(a0 > 0.004 ? inD0 : 0.0, a1 > 0.004 ? inD1 : 0.0);
-      }
-#endif
-#ifdef SKIN_DUSTBLEND
-      dustAcc = clamp(vec4(dust.rgb * dOn, dust.a * dOn), 0.0, 1.0);
-#else
-      dustAcc = clamp(dust, 0.0, 1.0);
-#endif
-    }
-#endif
   }
 #ifdef VDBG
-  if (dbgDust < 0.5) dustAcc = vec4(0.0);
   if (dbgHeads < 0.5) headAcc = vec4(0.0);
 #endif
   headAcc = clamp(headAcc, 0.0, 1.0);   // (the arms' weights can sum past 1 while an arm grows: premultiplied marks never past 0 .. 1, or the lumen under them is inverted)
-  dustAcc = clamp(dSafe(dustAcc), 0.0, 1.0);   // (a NaN from any arm's share, weight or wall is no dust, tested on the bits: dust-glsl.ts dSafe)
-  dustAcc *= dHold(alpha);   // (the dust follows this pixel's final alpha: blood/dust-glsl.ts dHold)
-  // THE WALL RULE BY THE PIXEL'S OWN DISTANCE TO THE OUTLINE (skin/dust-wall.ts): the arms' gates in dustTube read the normal's across, true only inside an arm's cylinder, so in a fillet they stood open on the line itself (dashes at the seams and the crotch)
-  dustAcc *= dWall(skinWall(rCssAx * dpr, sdPx, inkDev));
-  dustAcc = dSafe(dustAcc);   // (and a NaN of the wall's own distance is no dust either)
   // (the HEADS keep the same wall: a head is gated by its arm's own cylinder, which at the fork's inner corner reaches past the union's lumen, so a chevron there was drawn up to and over the crotch's ink and clipped against it, white on
   // the light look: Mohammad, 21 Nov. A head lies within 0.6 of its axis, so the wall (from 0.90 of the way to the ink) never touches one inside its own tube)
-  headAcc *= dWall(skinWall(rCssAx * dpr, sdPx, inkDev));
-  dustCover = dustAcc;
-  c = c * (1.0 - dustAcc.a) + dustAcc.rgb;
-  c = mix(c, cBody, headAcc.a);   // (the streaks lie UNDER the heads: a head's pixel is never tinted by one)
+  headAcc *= headWall(skinWall(rCssAx * dpr, sdPx, inkDev));
   c = c * (1.0 - headAcc.a) + headAcc.rgb;
 #endif
   // THE CLOT (plan 26): each arm that carries one paints it in its own frame (its share along the vein, its lateral), by the arm's weight, so it crosses the joint with no seam; the one function of the tube (clot-field.ts), lit by this
@@ -775,12 +708,5 @@ void main() {
   }
   // THE ORGAN VEIL, the tube's own rule (vessels/shaders.ts): one function of the pixel, so the skin and its arms agree at the seam
   c = ovlMix(c, ovlAmount(gl_FragCoord.z, gl_FragCoord.xy) * (1.0 - clamp(circT, 0.0, 1.0)) * (1.0 - clamp(hi, 0.0, 1.0)), gl_FragCoord.xy);
-  c = dDbgPaint(c, alpha);   // (?dust, Paint the trouble: off unless asked)
-#ifndef SKIN_NOMARKS
-  c = dFinite(c, dFinite(cBody, vec3(0.5)));   // (a NaN colour is the tone before the dust, never a black block)
-#else
-  c = dFinite(c, vec3(0.5));
-#endif
-  if (dBad(vec4(alpha))) alpha = 1.0;   // (nor an alpha that is not a number: a NaN blended onto the figure is written as black)
   gl_FragColor = vec4(c, alpha);
 }`;

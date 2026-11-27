@@ -10,7 +10,7 @@
 // Render on demand: the loop runs only while something needs it. A system asks for frames with
 //   const hold = clock.hold('camera-shot');  …  hold.release();       (as long as it moves)
 //   clock.invalidate('engine-frame');                                    (exactly one more frame)
-//   clock.invalidate('flow-marks', { ambient: true });                    (one more frame of AMBIENT motion: marks, cells and dust going round, nothing the eye is waiting on)
+//   clock.invalidate('flow-marks', { ambient: true });                    (one more frame of AMBIENT motion: marks going round, nothing the eye is waiting on)
 // Ambient frames: when the only askers are ambient invalidations (no hold, no ordinary invalidation), the loop runs at ambientFps (30; 24 on a phone) instead of the display's rate, so a figure that
 // only shows flow marks costs half of the GPU work at 60 Hz and a quarter at 120 Hz. A gesture, a camera move, any eased change (a hold, or an ordinary invalidation) runs at the display's rate.
 // and when nothing asks, no frame is drawn and no timer runs ("0 frames drawn when nothing moves").

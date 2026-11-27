@@ -29,7 +29,7 @@ import { CLOT_TONES } from '../../disease/clot-uniforms.ts';
 /** The uniforms the skin shares with its arm tubes, by reference (taken from the first arm: every vessel's copy has the same value, and each one follows the same writers: the look, the lens, the engine, the Circuit). */
 export const SHARED_WITH_TUBES = [
   'inflate', 'vdata', 'vdataSize', 'useData', 'res', 'hiPx', 'tubeDark', 'fade', 'inkColor', 'inkColorCirc', 'circT', 'dpr', 'projY',
-  'streamTex', 'chainTex', 'routeTex', 'streakAmt', 'dustP', 'time', 'markDark', 'markLight', 'markRev',
+  'streamTex', 'chainTex', 'time', 'markDark', 'markLight', 'markRev',
   'lensGradA', 'lensLaneA', 'lensModeA', 'lensRawA', 'lensGradB', 'lensLaneB', 'lensModeB', 'lensRawB', 'laneColA', 'laneColB', 'lensMix', 'lensSmooth',
   'circBoost', 'circPerPx',   // (the Circuit's width rule: the map's skins read them, circuit/skins.ts; the body's skin declares neither)
 ] as const;
@@ -59,15 +59,13 @@ function skinDefines(c: number): Record<string, number> {
   if (skinDebugOn()) d.SKIN_DEBUG = 1;
   if (out === 'marks') d.SKIN_NOMARKS = 1;
   if (out === 'ink') d.SKIN_NOINK = 1;
-  if (out === 'dust') d.SKIN_NODUST = 1;
   if (out === 'heads') d.SKIN_NOHEADS = 1;
-  if (out === 'dustblend') d.SKIN_DUSTBLEND = 1;
   return d;
 }
 
 /** The defines the page's `?joins=` diagnostics set on a skin program (skinDefines): the inspector switches exactly these. */
-export const SKIN_DIAGNOSTICS = ['SKIN_DEBUG', 'SKIN_NOMARKS', 'SKIN_NOINK', 'SKIN_NODUST', 'SKIN_NOHEADS', 'SKIN_DUSTBLEND'] as const;
-/** The inspector's switch for the build-time diagnostics (`?joins=debug`, `nomarks`, `noink`, `nodust`, `noheads`, `dustblend`): every skin program under `root` has its defines set from the page's live answer and is compiled again (a second or so on a phone). A skin built later takes them from `skinDefines` itself. Returns how many programs changed. */
+export const SKIN_DIAGNOSTICS = ['SKIN_DEBUG', 'SKIN_NOMARKS', 'SKIN_NOINK', 'SKIN_NOHEADS'] as const;
+/** The inspector's switch for the build-time diagnostics (`?joins=debug`, `nomarks`, `noink`, `noheads`): every skin program under `root` has its defines set from the page's live answer and is compiled again (a second or so on a phone). A skin built later takes them from `skinDefines` itself. Returns how many programs changed. */
 export function reapplySkinDefines(root: Object3D): number {
   let n = 0;
   root.traverse((o) => {

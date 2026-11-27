@@ -26,16 +26,14 @@ test('the inspector hooks of both fragment shaders stand only inside #ifdef VDBG
     const plain = withoutVdbg(fs);
     assert.doesNotMatch(plain, /\bdbg[A-Z]\w*/, `${name}: a dbg name outside the define`);
     for (const hook of ['dbgBody(', 'dbgEnd(', 'dbgInk < 0.5']) assert.ok(fs.includes(hook), `${name}: ${hook}`);
-    assert.ok(fs.includes('dbgDust < 0.5') && fs.includes('dbgHeads < 0.5'), `${name}: marks`);
+    assert.ok(fs.includes('dbgHeads < 0.5'), `${name}: marks`);
   }
   assert.match(VDBG_GLSL, /^\n#ifdef VDBG[\s\S]*#endif\n$/);
 });
 
 test('a part left out is CLEARED, never multiplied by nothing (a NaN times 0 is still NaN: the speck being hunted)', () => {
-  assert.match(VESSEL_FS, /if \(dbgDust < 0\.5\) fd = vec4\(0\.0\);/);
   assert.match(VESSEL_FS, /if \(dbgHeads < 0\.5\) hd = vec4\(0\.0\);/);
   assert.match(VESSEL_FS, /if \(dbgInk < 0\.5\) inkT = 0\.0;/);
-  assert.match(SKIN_FS, /if \(dbgDust < 0\.5\) dustAcc = vec4\(0\.0\);/);
   assert.match(SKIN_FS, /if \(dbgHeads < 0\.5\) headAcc = vec4\(0\.0\);/);
   assert.match(SKIN_FS, /if \(dbgInk < 0\.5\) inkT = 0\.0;/);
 });
@@ -51,12 +49,12 @@ test('this page asks for no inspector: no define, no uniforms on any material; t
 
 test('a part\'s view writes its uniforms (tubes and skins apart), and back to as drawn', () => {
   const t = partUniformValues('tube'), s = partUniformValues('skin');
-  setPart('tube', { shade: 2, dust: false, ink: false, tint: true, colour: '#00ff00', amount: 0.5 });
-  assert.equal(t.dbgShade!.value, 2); assert.equal(t.dbgDust!.value, 0); assert.equal(t.dbgHeads!.value, 1); assert.equal(t.dbgInk!.value, 0); assert.equal(t.dbgTint!.value, 1);
+  setPart('tube', { shade: 2, ink: false, tint: true, colour: '#00ff00', amount: 0.5 });
+  assert.equal(t.dbgShade!.value, 2); assert.equal(t.dbgHeads!.value, 1); assert.equal(t.dbgInk!.value, 0); assert.equal(t.dbgTint!.value, 1);
   assert.deepEqual((t.dbgCol!.value as { toArray(): number[] }).toArray().map((x) => Math.round(x * 100) / 100), [0, 1, 0, 0.5]);
   assert.equal(s.dbgShade!.value, 0, 'the skins are not the tubes');
   setPart('tube', partDefault());
-  assert.equal(t.dbgShade!.value, 0); assert.equal(t.dbgDust!.value, 1); assert.equal(t.dbgInk!.value, 1); assert.equal(t.dbgTint!.value, 0);
+  assert.equal(t.dbgShade!.value, 0); assert.equal(t.dbgInk!.value, 1); assert.equal(t.dbgTint!.value, 0);
   assert.equal((t.dbgCol!.value as { w: number }).w, 0);
 });
 
@@ -159,11 +157,11 @@ test('the named views and the presets: each says what it takes away, and a prese
   const base = defaultState();
   for (const p of PRESETS) { assert.ok(p.hint.length > 20, p.id); assert.notDeepEqual(p.make(base), base, `${p.id} changes something`); }
   const by = (id: string) => PRESETS.find((p) => p.id === id)!.make(base);
-  const marks = by('marks-off'); assert.deepEqual([marks.tube.dust, marks.tube.heads, marks.skin.dust, marks.skin.heads, marks.leave, marks.tube.ink], [false, false, false, false, 'marks', true]);
-  const ink = by('ink-off'); assert.deepEqual([ink.tube.ink, ink.skin.ink, ink.leave, ink.tube.dust], [false, false, 'ink', true]);
+  const marks = by('marks-off'); assert.deepEqual([marks.tube.heads, marks.skin.heads, marks.leave, marks.tube.ink], [false, false, 'marks', true]);
+  const ink = by('ink-off'); assert.deepEqual([ink.tube.ink, ink.skin.ink, ink.leave, ink.tube.heads], [false, false, 'ink', true]);
   assert.equal(by('old').joins, 'old'); assert.equal(by('drops').drop, true); assert.equal(by('normals').skin.shade, 2); assert.equal(by('who').skin.amount > 0, true);
   const t = stateText(marks, 'build x');
-  assert.match(t, /^inspector · build x\njoins=mesh2 drop=0 leave=marks aa=1\ntubes shade=0 dust=0 heads=0 ink=1/);
+  assert.match(t, /^inspector · build x\njoins=mesh2 drop=0 leave=marks aa=1\ntubes shade=0 heads=0 ink=1/);
 });
 
 test('every program the panel can reach is registered for the compile check (the vessel and the skin with the hooks, and the three skin diagnostics)', () => {
@@ -183,14 +181,14 @@ test('a program\'s budget and uniform check read its source as the driver\'s pre
   assert.ok(!declarations(plain.fragmentGlsl).some((d) => d.name === 'dbgShade'), 'no inspector uniforms in the plain program');
   assert.ok(declarations(hooked.fragmentGlsl).some((d) => d.name === 'dbgShade'), 'the inspector\'s are in its own');
   const bp = budget(plain), bh = budget(hooked);
-  assert.equal(bh.fragmentUniformVectors - bp.fragmentUniformVectors, 7);   // (shade, dust, heads, ink, tint, the dropped-pixel switch, the colour laid over it)
+  assert.equal(bh.fragmentUniformVectors - bp.fragmentUniformVectors, 6);   // (shade, heads, ink, tint, the dropped-pixel switch, the colour laid over it)
   for (const k of Object.keys(ES3_FLOOR) as Array<keyof typeof ES3_FLOOR>) assert.ok(bh[k] <= ES3_FLOOR[k], `${k}: ${bh[k]} of ${ES3_FLOOR[k]}`);
 });
 
-test('every diagnostic the skin\'s program can carry is one the inspector switches (marks, ink, dust, chevrons, the old dust blend, dropped pixels), and each takes its own define and no other', () => {
+test('every diagnostic the skin\'s program can carry is one the inspector switches (marks, ink, chevrons, dropped pixels), and each takes its own define and no other', () => {
   const root = new Group(), m = new ShaderMaterial({ name: 'skin', defines: { SKIN_COPY: 0, SKIN_GROW: 0 } });
   root.add(new Mesh(new BufferGeometry(), m));
-  const want: Record<string, string> = { marks: 'SKIN_NOMARKS', ink: 'SKIN_NOINK', dust: 'SKIN_NODUST', heads: 'SKIN_NOHEADS', dustblend: 'SKIN_DUSTBLEND' };
+  const want: Record<string, string> = { marks: 'SKIN_NOMARKS', ink: 'SKIN_NOINK', heads: 'SKIN_NOHEADS' };
   for (const [leave, define] of Object.entries(want)) {
     setJoinsOverride({ leave: leave as 'marks' }); reapplySkinDefines(root);
     assert.deepEqual(Object.keys(m.defines!).filter((k) => k.startsWith('SKIN_') && k !== 'SKIN_COPY' && k !== 'SKIN_GROW'), [define], leave);
