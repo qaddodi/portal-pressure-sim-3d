@@ -107,7 +107,7 @@ function walk(dir: string, out: string[] = []): string[] {
 test('every capture page is on the one store and hands its run to the one delivery: no in-memory keeper, no zip of the whole', () => {
   const pages = walk('src/ui/debug').filter((f) => /\bopenSession\(/.test(readFileSync(f, 'utf8')) && !/capture-store\.ts$/.test(f));
   const names = pages.map((f) => f.replace(/^.*src\/ui\/debug\//, '')).sort();
-  assert.deepEqual(names, ['audit/capture-outer.ts', 'audit/page.ts', 'promo/outer.ts'], 'the capture page, the self-test panel and the promotion page');
+  assert.deepEqual(names, ['audit/capture-outer.ts', 'audit/page.ts', 'promo/outer.ts', 'stress/outer.ts'], 'the capture page, the self-test panel, the promotion page and the stress page');
   for (const f of pages) {
     const s = readFileSync(f, 'utf8');
     assert.match(s, /idbBackend\(\)/, `${f}: the browser's storage`);

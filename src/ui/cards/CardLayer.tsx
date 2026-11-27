@@ -149,6 +149,9 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const lad = ladOn ? Math.min(ladMap[pagesKey] ?? 0, Math.max(0, cands.length - 1)) : 0;
   const ladVars = ladOn ? stepVars(cands[lad]) : undefined;
   const fitK = ladOn ? fitMap[pagesKey] : undefined;
+  // A data card whose fit is spent and still stands taller than its room keeps its height and the words page instead (a path's words are held at 12 px, so zooming it
+  // does not shorten it: Variceal bleed 14, stress capture c0d955e1, 360 px in 304). Sticky for the slide, so the plan does not swing between the two.
+  const [holdMap, setHoldMap] = useState<Record<string, boolean>>({});
   const dataVars = fitK != null && fitK < 1 ? { ...ladVars, '--pz-fit': fitK } : ladVars;
   // (a phone on its side, a table card past its room after every step: its rows sit closer, one last step; the type never shrinks)
   const [tightMap, setTightMap] = useState<Record<string, boolean>>({});
@@ -166,9 +169,9 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const dataKey = rekeys[baseKey] ? `${baseKey}~${rekeys[baseKey]}` : baseKey;
   // (a words card replaced by a fresh one at its final size stands at the height of the one it replaces until the fresh one has measured: the pair does not rearrange meanwhile)
   const wordsH = h(wordsKey) || h(wordsBase);
-  const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: wordsH > 0 ? Math.max(wordsH, pageMax) : 0 }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey), want: hit(dataKey)?.want ?? 0 }] : [])] : [];
+  const needs: Need[] = view ? [{ id: view.words, slot: 'words', visual: view.slide?.visual, h: wordsH > 0 ? Math.max(wordsH, pageMax) : 0 }, ...(view.data ? [{ id: view.data, slot: 'data' as const, h: h(dataKey), want: hit(dataKey)?.want ?? 0, hold: !!holdMap[pagesKey] }] : [])] : [];
   const aspect = figureAspect(view?.scene?.view, vp);
-  const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked, aspect), [vp, aspect, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}:${n.want ?? ''}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const plan: Plan = useMemo(() => planLayout(vp, needs, wallet.active, step, docked, aspect), [vp, aspect, wallet.active, step, docked, needs.map((n) => `${n.id}:${n.slot}:${n.h}:${n.want ?? ''}:${n.hold ? 'h' : ''}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The dock glide sets off: the figure's room for where the card is going is told at once, with the glide's length, so the camera reframes with the card, not after it lands (2D presenter-zoom.js dockTo:
   // layout() then reframe(ms)). `plan` above is for the settled state only, and publishes when the card has come to rest.
@@ -225,6 +228,9 @@ export function CardLayer({ deck }: { deck: Deck }) {
     if (tooTall && pages < cap) setPagesMap((m) => ({ ...m, [pagesKey]: pages + 1 }));
     else if (tightens) setTightMap((m) => ({ ...m, [pagesKey]: true }));
   }, [tightens, tooTall, wfitBusy, ladBusy, fitBusy, lad, cands.length, pages, pagesKey, view, deck.checks.length]);
+  // (the fit has been made, the card was measured at it, and it still stands taller than its room: it cannot go smaller)
+  const spent = ladOn && fitK !== undefined && !holdMap[pagesKey] && dataHit?.sig === sig && dataHit.f !== false && dataHit.open === 0 && dataHit.h > plan.maxH.data + 0.5;
+  useLayoutEffect(() => { if (spent) setHoldMap((m) => ({ ...m, [pagesKey]: true })); }, [spent, pagesKey]);
   useLayoutEffect(() => { setPageCount(pages); }, [pages, setPageCount, wordsKey]);
 
   // a leaving card stays where it was while it goes

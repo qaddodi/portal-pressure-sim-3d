@@ -215,7 +215,7 @@ test('Capture draws what the page draws: the glass blur, the pills\' pseudo-elem
   assert.match(jump, /store\(\)\.go\(k\)/, 'a picked slide is gone to directly');
   assert.match(jump, /if \(!ui\.promo\)[\s\S]*stepToEnd\(walker, k\)/, 'the audit stands on the slide\'s end state; the promotion set on the slide as it opens');
   assert.ok(!/\.go\(k\)/.test(all.replace(jump, '')), 'no jumps by number in the full walk, which presses Next through every slide');
-  assert.match(all, /const speed = ui\.promo \? 1 : /, 'the promotion set runs at the clock\'s own speed');
+  assert.match(all, /const speed = ui\.promo || ui\.realTime \? 1 : /, 'the promotion set and the stress capture run at the clock\'s own speed');
   assert.match(all, /: 60,/, 'no animation is seen: the clock runs 60 times faster');
 });
 
