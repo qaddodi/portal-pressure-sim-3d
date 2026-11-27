@@ -12,8 +12,8 @@ import { RECORD } from '../shell/words.ts';
 import { canRecordWindow, pickRecordMime, recordFileName, type RecordPhase } from './record-model.ts';
 import { createRecordRun, type RecorderLike, type StreamLike } from './record-run.ts';
 
-/** What Record window is doing now (the Settings row reads it). */
-export const useRecording = create<{ phase: RecordPhase }>(() => ({ phase: 'idle' }));
+/** What Record window is doing now (the Settings row and the stop button read it), and whether the red outline may be drawn (`kept`: it will stay out of the video). */
+export const useRecording = create<{ phase: RecordPhase; kept: boolean }>(() => ({ phase: 'idle', kept: false }));
 
 /** Can this browser record the window: it can share a screen and write video. Looked for in the page, not read from the user agent, so an iPhone (neither) and an old browser
     do not see the row. */
@@ -39,8 +39,22 @@ async function ask(): Promise<StreamLike> {
   return shared;
 }
 
+/**
+ * Element Capture (Chrome, Edge): the video holds only the app (#root) as it is drawn, so anything outside it (the red outline, put on the page's body) is not in the
+ * frames. It works only when the person chose this tab; any other answer (another tab or window, a browser without it) is false, and the outline is then not drawn.
+ */
+async function restrict(stream: StreamLike): Promise<boolean> {
+  try {
+    const api: { fromElement?: (el: Element) => Promise<unknown> } | undefined = Reflect.get(window, 'RestrictionTarget');
+    const app = document.getElementById('root'), track = stream.getVideoTracks()[0];
+    if (!api || typeof api.fromElement !== 'function' || !app || !track || !('restrictTo' in track) || typeof track.restrictTo !== 'function') return false;
+    await Reflect.apply(track.restrictTo, track, [await api.fromElement(app)]);
+    return true;
+  } catch { return false; }
+}
+
 const run = createRecordRun({
-  ask,
+  ask, restrict,
   recorder: (): RecorderLike => {
     if (!shared) throw new Error('no window is being shared');
     const mime = pickRecordMime(typeof MediaRecorder.isTypeSupported === 'function' ? (m) => MediaRecorder.isTypeSupported(m) : undefined);
@@ -53,11 +67,12 @@ const run = createRecordRun({
   },
   tell: (note) => {
     const sh = useShell.getState();
-    if (note === 'recording') sh.say(RECORD.on, 'info', { label: RECORD.stop, run: () => { void run.press(); } });
-    else if (note === 'saved') sh.say(RECORD.saved);
+    // (no note while recording: the stop button beside Settings says it, and a note would be in the video)
+    if (note === 'saved') sh.say(RECORD.saved);
     else sh.say(RECORD.failed, 'bad');
   },
   onPhase: (phase) => useRecording.setState({ phase }),
+  onKept: (kept) => useRecording.setState({ kept }),
 });
 
 /** The row or the shortcut: start recording (the Settings sheet lets go first, so it is not the first thing in the video), or stop and save. Call it from the tap or the key,

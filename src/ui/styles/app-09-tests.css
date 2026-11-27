@@ -804,11 +804,7 @@
    The title and its quiet status come back only in the folded peek state, where the tabs are hidden. On the
    tightest card (a phone's sheet) only the open tab shows its name beside its icon; the others are icons that
    share the rest of the row, and the name eases open on the tab you pick. */
-.instrument-workspace .dock-head.tabbed.card-head { flex-direction: row !important; flex-wrap: nowrap !important; align-items: center; justify-content: flex-start; gap: 4px; min-height: 0; height: auto !important; padding: 6px 6px 6px 10px !important; }
-.instrument-workspace .dock-head.tabbed:has(> .instr-tabs:not([hidden])) > :is(.dock-title, .workspace-live) { display: none; }
-.instrument-workspace .dock-head.tabbed > .dock-title { flex: 1 1 auto; }
-.instrument-workspace .dock-head.tabbed > .instr-tabs { flex: 1 1 auto; min-width: 0; margin: 0; }
-.instrument-workspace .dock-head.tabbed .card-close.card-close { position: relative; transform: none; flex: none; width: 36px; height: 36px; margin-left: auto; }
+/* (The row itself, the title stepping aside and the X at its end are the one panel head's: src/ui/surface/panel-head.css .card-head.tabbed.) */
 .instrument-workspace .dock-head .ws-tabs.tight .instr-tab, .instrument-workspace .dock-head .ws-tabs.tight .instr-tab[aria-selected="true"] { flex: 1 1 auto; flex-direction: row; gap: 0; height: 34px; min-width: 0; padding: 0 8px; }
 .instrument-workspace .dock-head .ws-tabs.tight .it-t { max-width: 0; margin-left: 0; opacity: 0; overflow: hidden; transition: opacity var(--d-flip) var(--ease); }   /* (the name takes its room at once and fades; the tabs slide by translate: dock.js) */
 .instrument-workspace .dock-head .ws-tabs.tight .instr-tab[aria-selected="true"] .it-t { max-width: 120px; margin-left: 5px; opacity: 1; }
@@ -822,7 +818,4 @@
 }
 .instrument-workspace .dock-head .ws-tabs.tight.bare .instr-tab[aria-selected="true"] .it-t { max-width: 0; margin-left: 0; opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .instrument-workspace .dock-head .ws-tabs.tight .it-t { transition-property: opacity; } }
-@media (min-width: 1024px) and (pointer: fine) {
-  .instrument-workspace .dock-head.tabbed.card-head { padding: var(--card-head-pad) !important; }
-}
 
