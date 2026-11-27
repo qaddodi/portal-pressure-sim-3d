@@ -29,7 +29,8 @@ const NEVER_OVER: readonly [RegExp, string][] = [
 
 /** the right-hand panels pinned to the right edge, and the file that publishes each one's box to the one room channel (surface/room.ts) */
 function panelOf(sel: string): { key: string; publisher: string; publishes: RegExp } | null {
-  if (sel === '.treat-card') return { key: 'treat', publisher: 'src/ui/treat/TreatCard.tsx', publishes: /publishPanel\('treat', \{ rect: placedBox\(panelPlace\('treat', vp, device, \{ step \}\), h\), side: 'right' \}\)/ };
+  // (Treat is a panel of the shell: usePanelShell publishes its box in float mode, Panel.tsx)
+  if (sel === '.treat-card') return { key: 'treat', publisher: 'src/ui/treat/TreatCard.tsx', publishes: /usePanelShell\('treat', open, ref, true\)/ };
   if (sel === '.instrument-workspace.side') return { key: 'tests', publisher: 'src/ui/tests/TestsLayer.tsx', publishes: /publishPanel\('tests', up \? \{ rect: place\.rect, side: place\.kind === 'side' \? 'right' : 'foot'/ };
   return null;
 }

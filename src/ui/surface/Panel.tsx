@@ -8,7 +8,7 @@
 //   - NO close on a press outside (owner, 27 Nov, section 6 question 1: you work on the figure while a panel is open); Esc, its X, its opener and the slot table close it.
 // The mount point is the caller's: every panel is put inside #app through the cards' SheetClip (shell/InApp.tsx), where the lifted 2D stylesheets reach it.
 // Sheet mode (a phone, an upright iPad) is the panel's own as before: the shell adds nothing there.
-import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode, type RefObject } from 'react';
 import { useUi } from '../ui-store.ts';
 import { useShell } from '../shell/store.ts';
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
@@ -33,18 +33,17 @@ export interface PanelProps extends Omit<HTMLAttributes<HTMLElement>, 'id'> {
   children: ReactNode;
 }
 
-/** A panel's box: placed, measured, published and moved by the shell in float mode; the caller's own in sheet mode. */
-export const Panel = forwardRef<HTMLElement, PanelProps>(function Panel({ id, open, plate, domId, className, style, children, ...rest }, fwd) {
+/** What the shell puts on a panel's element: its marks (panel.css reads them) and, in float mode, the custom properties that place it. */
+export interface PanelShell { float: boolean; attrs: Record<string, string | boolean | undefined>; vars: Record<string, string> | null }
+
+/** The panel shell for an element the caller draws (Treat and the action card keep their 2D markup and their own sheet mode): the place, the height it publishes to the
+ *  one room channel, the stacking and the motion, in float mode. `Panel` is this hook on a plain section. */
+export function usePanelShell(id: PanelId, open: boolean, own: RefObject<HTMLElement | null>, plate?: boolean): PanelShell {
   const float = useSurfaceMode() === 'float';
   const vp = useUi((s) => s.vp), device = useUi((s) => s.device);
   const step = useColumnStep(id);
   const z = usePanelOrder((s) => (s.order as readonly string[]).indexOf(id));
   const place = float ? panelPlace(id, vp, device, { step }) : null;
-  const own = useRef<HTMLElement | null>(null);
-  const setRef = useCallback((el: HTMLElement | null) => {
-    own.current = el;
-    if (typeof fwd === 'function') fwd(el); else if (fwd) fwd.current = el;
-  }, [fwd]);
   // the box's own height, from an observer (never read in a frame): a fitted panel publishes as much of the room as it takes
   const [h, setH] = useState(0);
   useLayoutEffect(() => {
@@ -68,9 +67,20 @@ export const Panel = forwardRef<HTMLElement, PanelProps>(function Panel({ id, op
     '--pl-x': px(place.rect.x), '--pl-y': px(place.rect.y), '--pl-w': px(place.rect.w), '--pl-max-h': px(place.maxH), '--pl-step': px(place.step),
     '--pl-in-x': px(place.column === 'left' ? -PANEL_IN : place.column === 'right' ? PANEL_IN : 0), '--pl-z': String(Math.max(0, z)), '--pl-leave': `${leaveCss('panel', 'float')}ms`,
   } : null;
+  const attrs = { 'data-panel': id, 'data-surface': float ? 'float' : 'sheet', 'data-column': place?.column, 'data-tall': place?.tall || undefined, 'data-plate': plate || undefined };
+  return { float, attrs, vars };
+}
+
+/** A panel's box: placed, measured, published and moved by the shell in float mode; the caller's own in sheet mode. */
+export const Panel = forwardRef<HTMLElement, PanelProps>(function Panel({ id, open, plate, domId, className, style, children, ...rest }, fwd) {
+  const own = useRef<HTMLElement | null>(null);
+  const setRef = useCallback((el: HTMLElement | null) => {
+    own.current = el;
+    if (typeof fwd === 'function') fwd(el); else if (fwd) fwd.current = el;
+  }, [fwd]);
+  const { attrs, vars } = usePanelShell(id, open, own, plate);
   return (
-    <section ref={setRef} id={domId} {...rest} className={`sf-panel${className ? ` ${className}` : ''}`} data-panel={id} data-surface={float ? 'float' : 'sheet'}
-      data-column={place?.column} data-tall={place?.tall || undefined} data-plate={plate || undefined} data-open={open} inert={!open} style={{ ...style, ...vars } as CSSProperties}>
+    <section ref={setRef} id={domId} {...rest} className={`sf-panel${className ? ` ${className}` : ''}`} {...attrs} data-open={open} inert={!open} style={{ ...style, ...vars } as CSSProperties}>
       {children}
     </section>
   );

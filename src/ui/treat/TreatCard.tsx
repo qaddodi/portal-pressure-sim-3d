@@ -18,8 +18,7 @@ import { isPhone } from '../layout/device.ts';
 import { useTreat } from './store.ts';
 import { sheetPlace } from './sheet-place.ts';
 import { publishPanel } from '../surface/room.ts';
-import { useColumnStep } from '../surface/wire.ts';
-import { panelPlace, placedBox } from '../surface/panel-place.ts';
+import { usePanelShell } from '../surface/Panel.tsx';
 import { TABS, drugChips, fluids, giveFluid, procedures, pressChip, ranOn, type TabId } from './orders.ts';
 import { appEnv } from './env.ts';
 import { TREAT_WORDS } from './treat.generated.ts';
@@ -147,24 +146,22 @@ export function TreatCard() {
     for (const c of Array.from(pane.children)) ro.observe(c);
     return () => ro.disconnect();
   }, [spare]);
-  // the card tells the one room channel where it stands (surface/room.ts), at the height its words need, so the figure is framed in what it leaves, the names keep off it and the
-  // zoom pill steps aside: a phone's or an upright iPad's sheet over the foot (release review #15), or the card in the right column of a wide screen (stepped beside every panel
-  // opened before it, surface/wire.ts useColumnStep). A phone held sideways still draws it as 2D's sheet across the foot, which takes no room (as before).
-  const step = useColumnStep('treat');
+  // On a wide screen (float mode, a phone held sideways too) the panel shell places the card in the right column, beside every panel opened before it, publishes its box to the
+  // one room channel and moves it (surface/Panel.tsx usePanelShell). A phone's or an upright iPad's sheet over the foot tells the channel itself, at the height its words need
+  // (release review #15), so the figure is framed in what it leaves, the names keep off it and the zoom pill steps aside.
+  const shell = usePanelShell('treat', open, ref, true);
   useEffect(() => {
     const c = ref.current;
-    if (!open || !c || (!thumb && device === 'phone-landscape')) return;
+    if (!open || !c || !thumb) return;
     const put = () => {
       const h = c.offsetHeight;
-      if (h <= 0) return;
-      if (thumb) publishPanel('treat', { rect: sheetPlace(vp, sheetFoot(layoutClass(true)), h).rect, side: 'foot' });
-      else publishPanel('treat', { rect: placedBox(panelPlace('treat', vp, device, { step }), h), side: 'right' });
+      if (h > 0) publishPanel('treat', { rect: sheetPlace(vp, sheetFoot(layoutClass(true)), h).rect, side: 'foot' });
     };
     put();
     if (typeof ResizeObserver === 'undefined') return () => publishPanel('treat', null);
     const ro = new ResizeObserver(put); ro.observe(c);
     return () => { ro.disconnect(); publishPanel('treat', null); };
-  }, [open, thumb, vp, device, step]);
+  }, [open, thumb, vp]);
   // the tab strip's one gliding piece (the 2D stylesheet draws it)
   useEffect(() => (ref.current ? startSegGlideOn(ref.current) : undefined), []);
   // Changes is remembered open across opens and visits (2D chart.js section(): `open`, pps.chartOpen3): the section the card makes finds it as it was left (a phone's page always shows it open)
@@ -245,10 +242,10 @@ export function TreatCard() {
       </div>
     );
   };
-  // (in the right column, left of every panel opened before it: 2D's own `translate` transition glides it there and back, --instr-occ)
-  const vars = { ...layoutVars(vp, layoutClass(thumb)), '--instr-occ': `${thumb ? 0 : step}px` } as React.CSSProperties;
+  // (in float mode the shell's step left of the panels opened before it is the card's `translate`, panel.css; 2D's --instr-occ rides at 0)
+  const vars = { ...layoutVars(vp, layoutClass(thumb)), '--instr-occ': '0px', ...shell.vars } as React.CSSProperties;
   return (
-    <section ref={ref} className="treat-card tr-card has-plate" id="treatCard" hidden={!open} data-open={open} data-bottom={thumb} data-device={device} data-page={page || undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
+    <section ref={ref} className="treat-card tr-card has-plate sf-panel" {...shell.attrs} id="treatCard" hidden={!open} data-open={open} data-bottom={thumb} data-device={device} data-page={page || undefined} style={vars} role="dialog" aria-label={L.treat} inert={!open}>
       <div className="sheet-plate" aria-hidden="true" />
       <i className="sh-grabbar" aria-hidden="true" />
       <div className="tr-in">

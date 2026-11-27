@@ -51,10 +51,12 @@ test('the step respects the right safe area (an iPad with an inset)', () => {
   assert.equal(tests.rect.x - right, GAP);
 });
 
-test('the step moves Treat by the 2D translate that already glides, never a jump; Tests glides by its own transform', () => {
-  const css = readFileSync('src/ui/styles/app-07-floating.css', 'utf8').split('\n').find((l) => l.startsWith('.treat-card { right:')) ?? '';
-  assert.ok(css.includes('var(--instr-occ, 0px)') && css.includes('translate var(--d-small)'), 'the lifted rule reads --instr-occ and transitions translate');
-  assert.match(readFileSync('src/ui/treat/TreatCard.tsx', 'utf8'), /'--instr-occ': `\$\{thumb \? 0 : step\}px`/, 'TreatCard publishes the column step as it');
+test('the step moves Treat by the panel shell\'s translate, which glides, never a jump; Tests glides by its own transform', () => {
+  const card = readFileSync('src/ui/treat/TreatCard.tsx', 'utf8'), pcss = readFileSync('src/ui/surface/panel.css', 'utf8');
+  assert.match(card, /const shell = usePanelShell\('treat', open, ref, true\);/, 'Treat is a panel of the shell');
+  assert.match(card, /'--instr-occ': '0px', \.\.\.shell\.vars/, 'the shell\'s place and step, and 2D\'s own step at 0');
+  assert.match(pcss, /translate: calc\(-1 \* var\(--pl-step, 0px\)\) 0 !important;/);
+  assert.match(pcss, /transition: transform var\(--pl-leave\) var\(--ease-arrive\), translate var\(--pl-leave\)/, 'the step glides');
   assert.match(readFileSync('src/ui/tests/TestsLayer.tsx', 'utf8'), /steppedPlace\(fitted\.place, step\)/);
   assert.match(readFileSync('src/ui/tests/tests.css', 'utf8'), /\.t-pos\[data-live="true"\]:not\(\[data-kind="sheet"\]\) \{ transition: transform/);
 });
