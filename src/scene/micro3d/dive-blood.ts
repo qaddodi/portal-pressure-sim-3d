@@ -13,6 +13,7 @@
 //   - only while the camera is really flying with the sinusoid at one end: at rest in the lobule and on Anatomy <-> Lobule nothing is drawn (the owner removed general blood
 // streaks in d15be7a1; this is not that).
 // Instanced (one MicroMany, a few dozen cells), no allocation per frame, nothing drawn (and nothing written) when not diving.
+import { arrival } from './sinusoid-arrival.ts';
 import { type Color, Group, Matrix4, type Object3D, type PerspectiveCamera } from 'three';
 import type { CelShared } from '../materials/cel.ts';
 import { CEL_STYLE } from '../cel-style.ts';
@@ -29,9 +30,6 @@ const smooth = (a: number, b: number, x: number) => { const t = clamp((x - a) / 
 
 /** A red cell's width on screen (CSS px) over which the dive's cells come in: nothing below the first, whole at the second (about 2 px, owner: "as a cell reaches about 2 px wide"). */
 export const BLOOD_APPEAR_PX: readonly [number, number] = [1.5, 2.5];
-/** The width (CSS px) over which the sinusoid's own red cells take over from the dive's: its cells are whole from the second, the dive's are gone by it. Below the sinusoid's
-   own fade-in the dive's carry the eye. */
-export const BLOOD_HANDOVER_PX: readonly [number, number] = [3, 5];
 /** Micrometres along the sinusoid from its middle: out to the first a cell is exactly where the sinusoid draws it, from the second it follows the course's curve whole (a smooth blend between). */
 export const SPAN_STRAIGHT_UM = 60, SPAN_CURVED_UM = 110;
 /** How much lighter (0 to 1 of the way to white) the target tube's tone gets at most: about a tenth (owner's brief: 8 to 12 %). */
@@ -46,12 +44,11 @@ export const pxPerUmAt = (distance: number, projY: number, stageH: number): numb
 /** How much of the blood is seen at all, dive's cells and the sinusoid's together, by the cell's width on screen: a smooth ramp, 0 below about 2 px. It only grows with the
    size (so, only with nearness). */
 export const bloodVisible = (pxPerUm: number): number => smooth(BLOOD_APPEAR_PX[0], BLOOD_APPEAR_PX[1], bloodWidthPx(pxPerUm));
-/** THE SINUSOID'S RED CELLS' OWN FADE (0 to 1) by the camera's px per µm: how much of them the sinusoid draws. The sinusoid's red cells take this for their fade (their
-   dither's level), so the hand-over is keyed on the
- *  size on screen, the same quantity the dive's cells are keyed on. */
-export const sinusoidRbcFade = (pxPerUm: number): number => smooth(BLOOD_HANDOVER_PX[0], BLOOD_HANDOVER_PX[1], bloodWidthPx(pxPerUm));
-/** How much of the blood the dive's cells draw (0 to 1): what is seen, less what the sinusoid's own have taken over. */
-export const diveBloodShown = (pxPerUm: number): number => bloodVisible(pxPerUm) * (1 - sinusoidRbcFade(pxPerUm));
+/** THE SINUSOID'S RED CELLS' OWN FADE (0 to 1) at dive share `share`: how much of them the sinusoid draws. It IS the sinusoid's red-cell tier (sinusoid-arrival.ts
+ *  arrival('cells')), one function for both sides, so the dive's cells hand over exactly as the sinusoid's come in. Null (at rest): whole. */
+export const sinusoidRbcFade = (share: number | null): number => arrival('cells', share);
+/** How much of the blood the dive's cells draw (0 to 1): what is seen by its size on screen, less what the sinusoid's own have taken over by the dive's share. */
+export const diveBloodShown = (pxPerUm: number, share: number | null): number => bloodVisible(pxPerUm) * (1 - sinusoidRbcFade(share));
 /** The target tube's tone lift (0 to TUBE_LIFT_MAX of the way to white) at dive share `share` (sinusoid/view.ts diveShare: 0 leaving the lobule, 1 landed): up over the
    dive's first fifth, eased out as the sinusoid's own
  *  dissolve completes (FOCUS), nothing after it. A function of the camera's distance, so the way in and the way out are one picture run both ways. */
@@ -197,7 +194,7 @@ export class DiveBlood {
     const cam = f.camera, e = cam.position, s = this.stationW;
     const k = pxPerUmAt(Math.hypot(e.x - s[0], e.y - s[1], e.z - s[2]), cam.projectionMatrix.elements[5]!, f.stageH);
     st.widthPx = bloodWidthPx(k);
-    st.shown = diveBloodShown(k) * this.gate;
+    st.shown = diveBloodShown(k, share) * this.gate;
     this.rimK.value = smooth(RIM_FULL_PX / 3, RIM_FULL_PX, k);
     this.fade.value = st.shown;
     if (st.shown <= 1e-3) { this.many.commit(0); this.group.visible = false; st.cells = 0; return this.gate !== goal; }

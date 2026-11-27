@@ -8,7 +8,7 @@ import { diveMs, viewMoveMs, type DiveView } from '../src/scene/camera/dive.ts';
 import { ARRIVAL, ARRIVAL_ORDER, HANDOFF, STAND_ASIDE_FROM, TIER_OF, arrival, plateArrival, standAside, tierOf } from '../src/scene/micro3d/sinusoid-arrival.ts';
 import { FOCUS, focusBlur } from '../src/scene/micro3d/sinusoid3d.ts';
 import { LOBULE_UNDER_FROM } from '../src/scene/parts/shared.ts';
-import { DOF_PASS_PEAK } from '../src/scene/post-dof.ts';
+import { DOF_DIVE_PEAK, DOF_PASS_PEAK } from '../src/scene/post-dof.ts';
 
 const VIEWS: DiveView[] = ['body', 'circuit', 'lobule', 'sinusoid'];
 
@@ -62,6 +62,8 @@ test('the lobule never stands aside ahead of the sinusoid\'s plates: no share wh
 });
 
 test('the blur is lighter and the handoff is smooth through it', () => {
-  assert.equal(DOF_PASS_PEAK, 0.55);
-  assert.ok(Math.abs(focusBlur((FOCUS[1] + FOCUS[2]) / 2) - 0.3) < 1e-9);
+  // (lighter than before the zoom plan, 27 Nov: the pass-through's 0.7 and the focus pull's 0.4; the plain dive's peak is kept, and the pass-through stays clearly over it)
+  assert.ok(DOF_PASS_PEAK < 0.7 && DOF_PASS_PEAK > DOF_DIVE_PEAK * 1.5);
+  const mid = focusBlur((FOCUS[1] + FOCUS[2]) / 2);
+  assert.ok(mid < 0.4 && mid <= DOF_DIVE_PEAK + 1e-12);
 });

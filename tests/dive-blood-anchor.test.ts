@@ -13,8 +13,9 @@ import { SIN_LOCAL, SIN_POINT, SIN_SCALE } from '../src/scene/lobule/frames.ts';
 import { lobuleShot } from '../src/scene/lobule/shots.ts';
 import type { SinusoidTargets } from '../src/scene/lobule/model.ts';
 import {
-  BLOOD_HANDOVER_PX, DiveBlood, SPAN_STRAIGHT_UM, TUBE_LIFT_MAX, bloodVisible, bloodWidthPx, diveBloodShown, diveTarget, pxPerUmAt, sinusoidRbcFade, tubeLift,
+  DiveBlood, SPAN_STRAIGHT_UM, TUBE_LIFT_MAX, bloodVisible, bloodWidthPx, diveBloodShown, diveTarget, pxPerUmAt, sinusoidRbcFade, tubeLift,
 } from '../src/scene/micro3d/dive-blood.ts';
+import { ARRIVAL, HANDOFF } from '../src/scene/micro3d/sinusoid-arrival.ts';
 
 const T = (): SinusoidTargets => ({ por: 1, col: 0, bm: 0, mv: 1, act: 0, lum: 1, pinch: 0, v: 1, filt: 1, prot: 1 });
 const H = 800;
@@ -97,27 +98,29 @@ test('at the landing the dive\'s cells are the sinusoid\'s own: the same places 
   }
   assert.ok(checked > 5, `cells compared (${checked})`);
   // and at the landing size the dive's are gone: the sinusoid's own are whole
-  const kLand = BLOOD_HANDOVER_PX[1] / (2 * RBC_R) + 1;
-  assert.equal(sinusoidRbcFade(kLand), 1);
-  step(kLand, 0.95);
+  assert.equal(sinusoidRbcFade(ARRIVAL.cells[1]), 1);
+  step(6, ARRIVAL.cells[1]);
   assert.equal(blood.stats.cells, 0);
 });
 
 test('the blood only shows more the nearer the camera is, and the hand-over is complete before the landing', () => {
   let was = -1, hand = -1;
-  for (let k = 0.05; k < 12; k *= 1.05) {
-    const v = bloodVisible(k), h = sinusoidRbcFade(k);
+  // (the dive's share and the size on screen grow together as the camera nears: one geometric zoom)
+  for (let i = 0; i <= 200; i++) {
+    const share = i / 200, k = 0.05 * Math.pow(240, share);
+    const v = bloodVisible(k), h = sinusoidRbcFade(share);
     assert.ok(v >= was - 1e-12, 'visibility never falls as the camera nears');
     assert.ok(h >= hand - 1e-12);
     // the dive's own share is what is seen less what the sinusoid's took over, never more than either
-    assert.ok(diveBloodShown(k) <= v + 1e-12 && diveBloodShown(k) <= 1 - h + 1e-12);
+    assert.ok(diveBloodShown(k, share) <= v + 1e-12 && diveBloodShown(k, share) <= 1 - h + 1e-12);
     was = v; hand = h;
   }
   assert.equal(bloodVisible(0.2), 0);
   // about 2 px wide is where it is half there
   assert.ok(Math.abs(bloodVisible(2 / (2 * RBC_R)) - 0.5) < 0.01);
-  // the landing's least scale (restScale: 3 px per um) is past the hand-over
-  assert.equal(sinusoidRbcFade(3), 1);
+  // the sinusoid's red cells are whole inside the handoff band, before the landing, and whole at rest
+  assert.equal(sinusoidRbcFade(HANDOFF[1]), 1);
+  assert.equal(sinusoidRbcFade(null), 1);
 });
 
 test('the target tube\'s tone lifts about a tenth as the dive starts, and is 0 at rest and at the landing', () => {
