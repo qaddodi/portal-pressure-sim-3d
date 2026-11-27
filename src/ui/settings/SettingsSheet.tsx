@@ -27,6 +27,7 @@ import { SECTIONS, settingsRow, type Row } from './rows.ts';
 import { Advanced } from './Advanced.tsx';
 import { FromReadings, FR_WORDS, openFromReadings, warmFromReadings } from '../readings/FromReadings.tsx';
 import { useTalkOn } from '../../state/deck.ts';
+import { clock } from '../../clock/frame.ts';
 
 const ICON: Record<string, string> = { 'Send feedback': 'mail', History: 'clock', Help: 'help', 'Enter full screen': 'fullscreen', 'Blur effect': 'layers', 'Sharp while moving': 'layers', 'Keyboard shortcuts': 'grid', 'Advanced physiology': 'sliders', 'Show frame rate': 'gauge', 'Show frame breakdown': 'gauge', 'Reset everything…': 'reset' };
 const SWITCH: Record<string, 'blur' | 'sharpMoving' | 'keys' | 'showFps' | 'showBreakdown'> = { 'Blur effect': 'blur', 'Sharp while moving': 'sharpMoving', 'Keyboard shortcuts': 'keys', 'Show frame rate': 'showFps', 'Show frame breakdown': 'showBreakdown' };
@@ -112,6 +113,8 @@ function CaptureRow() {
   </>);
 }
 
+/** How long after Settings opens a page it was asked for is pushed (the menu has its box by then, so the page slides in from the right rather than appearing with the menu). */
+export const ASK_PAGE_MS = 60;
 type PageId = 'history' | 'help' | 'advanced' | 'figure';
 function Item({ row, push }: { row: Row; push(p: PageId): void }) {
   const close = () => useShell.getState().close();
@@ -188,6 +191,15 @@ export function SettingsSheet({ place = 'top' }: { place?: 'top' | 'bar' }) {
   // History and Help are pages inside this menu (2D menu recs P4): they slide in over the rows with a back row, and the menu stays open
   const [pageId, setPageId] = useState<PageId | null>(null);
   const open = useShell((s) => s.sheet === 'settings');
+  // A page another place asked for (the chart's "What happened" on a phone asks for History): pushed once the menu is up,
+  // so it slides in from the right over the rows exactly as a tapped row's page does
+  const asked = useShell((s) => s.settingsPage);
+  useEffect(() => {
+    if (!asked) return;
+    if (!open) { useShell.setState({ settingsPage: null }); return; }
+    const id = clock.after(() => { setPageId(asked); useShell.setState({ settingsPage: null }); }, ASK_PAGE_MS, 'settings-page');
+    return () => clock.cancel(id);
+  }, [asked, open]);
   useEffect(() => { if (!open) setPageId(null); else void warmFromReadings().catch(() => undefined); }, [open]);   // (From readings is loaded by the time its row is tapped)
   const page: MenuPage | null = pageId === 'history' ? { back: label, title: HIST.title, body: <HistoryList /> } : pageId === 'help' ? { back: label, title: 'Help', body: <HelpRows /> } : pageId === 'advanced' ? { back: label, title: 'Advanced physiology', body: <Advanced /> } : pageId === 'figure' ? { back: label, title: MORE_PAGE_TITLE, body: <FigureMore /> } : null;
   return (<>
