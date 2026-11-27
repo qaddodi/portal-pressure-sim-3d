@@ -551,7 +551,12 @@ export class CameraRig {
       if (tt > 1e-12) carry = Math.min(CARRY_MAX, Math.max(0, ((this.vel.lh / (2 * Math.LN2)) * T0 + (this.vel.x / w) * T1 + (this.vel.y / w) * T2) / tt * newDur));
     }
     let hv: { x: number; y: number; lh: number } | null = null;
-    if (this.active && this.vel.on && now - this.vel.t < 80 && newDur > 0 && !(this.reduceMotion || reduced())) {
+    // A DIVE, the one in flight or the new one, never takes the carried curve: its path is its own (blendDive: the aim tied to the zoom), and the Hermite over the aim and the zoom took it over.
+    // Turned back mid-plunge (the Lobule tapped, then Anatomy before it landed), the speed in ran out first: the camera went on zooming in and slid off toward where it was heading for a third
+    // of the way out, then swung back (Mohammad, 27 Nov: "does NOT take the same path out, but instead it like pans to the portal vein area"). It now turns where it stands and goes back along
+    // its line; a carry that heads the same way is still the eased share's own slope (easeCarry), along the path.
+    const diveNow = isDive(this.cur, { shot: s, room }) || (this.active && isDive(this.from, this.to));
+    if (!diveNow && this.active && this.vel.on && now - this.vel.t < 80 && newDur > 0 && !(this.reduceMotion || reduced())) {
       const a = this.cur.shot, dx = s.target[0] - a.target[0], dy = s.target[1] - a.target[1], dl = zoomLog;
       let vx = this.vel.x * newDur, vy = this.vel.y * newDur, vl = this.vel.lh * newDur;
       const w = a.half[0] + s.half[0], mv = Math.hypot(vx / w, vy / w, vl / (2 * Math.LN2)), md = Math.hypot(dx / w, dy / w, dl / (2 * Math.LN2));
