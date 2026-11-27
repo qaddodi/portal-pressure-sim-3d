@@ -23,6 +23,12 @@ test('only layout findings are kept: timing kinds are left out', () => {
   assert.deepEqual(layoutFindings(undefined), []);
 });
 
+test('a finding about the figure\'s own canvas is not a layout finding: the layout stage draws none, so it would warn on every step', () => {
+  const rows = [{ group: 'Talks', label: 'x', flags: [{ kind: 'a11y-figure-named', sev: 'warn', what: 'The figure has no accessible name', where: 'the stage canvas' }, { kind: 'text-overlap', sev: 'fail', what: 'a over b', where: '' }] }];
+  assert.deepEqual(layoutFindings({ rows }).map((x: { kind: string }) => x.kind), ['text-overlap']);
+  assert.ok(NOT_LAYOUT.has('a11y-figure-named'));
+});
+
 test('the address asks for the layout mode and the self-test', () => {
   assert.match(addressOf('http://x', { speed: 20, depth: 'quick' }), /\?layout&audit=here&speed=20&depth=quick$/);
 });

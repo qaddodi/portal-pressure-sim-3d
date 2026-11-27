@@ -1,8 +1,9 @@
 // ?audit, the generic sweep: every visible text, picture, chart and button on the page, read as plain numbers (scan-judge.ts judges them: clipped, overlapping, covered, small, low contrast,
 // zero size, broken). Not per case: it asks the whole document, so a thing nobody thought of is read the same as one somebody did. Debug only; one read per step, never a frame.
 import { srOnlyStyle } from '../sr-only.ts';
+import { readMetric } from '../../layout-snap.ts';
 import type { Box } from './judge.ts';
-import { lineBoxes } from './scan-judge.ts';
+import { lineBoxes, turnedQuad, quadPoints, GLYPH_INSET } from './scan-judge.ts';
 
 export interface ScanItem {
   kind: 'text' | 'svg' | 'canvas' | 'img' | 'control';
@@ -22,7 +23,12 @@ export interface ScanItem {
   /** text only: the element it is in (tag, id, two classes), so a bare number in a finding can be found */
   by?: string;
   /** text only */ px?: number; bold?: boolean; fg?: string; bg?: string | null;
+  /** text turned off the horizontal (a slanted column head): the four corners where its letters really stand, and its turn in degrees.
+   *  Its `box` is then the bounding box of the turn, which two slanted neighbours share without touching (the 45 degree heads of a phone's table). */
+  quad?: Quad; turn?: number;
 }
+/** A turned box's four corners (px, page coordinates). */
+export type Quad = [number, number][];
 export interface RawScan {
   vw: number; vh: number; items: ScanItem[];
   zero: { what: string; why: string }[];
@@ -118,15 +124,18 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
 
   /** How much the page draws this element's lettering bigger or smaller than its CSS size: the transforms and zoom of it and its ancestors multiplied (memoised). Not a width ratio: offsetWidth is rounded and that read 12 px lettering as 11.6. */
   const scales = new Map<Element, number>();
+  /** How far the page turns this element's words off the horizontal: the turns of it and its ancestors added, in degrees (read in the same walk as the scale, memoised). */
+  const turns = new Map<Element, number>();
   const scaleOf = (el: Element | null): number => {
     if (!el || el === doc.documentElement) return 1;
     const hit = scales.get(el); if (hit !== undefined) return hit;
     const cs = win.getComputedStyle(el);
-    let k = 1;
-    if (cs.transform && cs.transform !== 'none') { try { const m = new DOMMatrixReadOnly(cs.transform); k = Math.hypot(m.a, m.b) || 1; } catch { k = 1; } }
+    let k = 1, d = 0;
+    if (cs.transform && cs.transform !== 'none') { try { const m = new DOMMatrixReadOnly(cs.transform); k = Math.hypot(m.a, m.b) || 1; d = (Math.atan2(m.b, m.a) * 180) / Math.PI; } catch { k = 1; } }
     const z = parseFloat((cs as unknown as { zoom?: string }).zoom ?? '1'); if (z > 0 && Number.isFinite(z)) k *= z;
-    const out = k * scaleOf(el.parentElement); scales.set(el, out); return out;
+    const out = k * scaleOf(el.parentElement); scales.set(el, out); turns.set(el, d + (turns.get(el.parentElement as Element) ?? 0)); return out;
   };
+  const turnOf = (el: Element): number => { scaleOf(el); return turns.get(el) ?? 0; };
 
   const items: ScanItem[] = [], zero: RawScan['zero'] = [], broken: RawScan['broken'] = [];
   let capped = false, texts = 0, media = 0;
@@ -159,7 +168,15 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     for (const r of rects) {
       if (items.length >= MAX_ITEMS) { capped = true; break; }
       const b = lineBoxes([r])[0]; if (!b) continue;
-      const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, fading: (v.opacity < 0.999 && fadingUp(p)) || undefined, modal: !!p.closest(MODAL) || undefined, fitted: !!p.closest('[style*="--pz-fit"]') || undefined, by: nameOf(p), px, bold, fg: fg ?? undefined, bg };
+      // words turned off the horizontal (a slanted column head): their letters stand in the turned box, not in its bounding box
+      const deg = turnOf(p), fold = ((((deg + 90) % 180) + 180) % 180) - 90;
+      const off = Math.abs(fold) > 1 && Math.abs(Math.abs(fold) - 90) > 1;
+      let quad: ScanItem['quad'];
+      if (off && p instanceof HTMLElement) {
+        const k = scaleOf(p), w = readMetric(p, 'offsetWidth') * k, h = readMetric(p, 'offsetHeight') * k * (1 - 2 * GLYPH_INSET);
+        if (w > 0 && h > 0) quad = turnedQuad((r.left + r.right) / 2, (r.top + r.bottom) / 2, w, h, fold);
+      }
+      const item: ScanItem = { kind: 'text', what: s.slice(0, 48), box: b, ...(quad ? { quad, turn: Math.round(fold) } : null), clip: v.clip, scrolls: v.scrolls, opacity: v.opacity, fading: (v.opacity < 0.999 && fadingUp(p)) || undefined, modal: !!p.closest(MODAL) || undefined, fitted: !!p.closest('[style*="--pz-fit"]') || undefined, by: nameOf(p), px, bold, fg: fg ?? undefined, bg };
       items.push(item); holders.push({ el: p, item });
     }
     texts++;
@@ -205,7 +222,7 @@ export function scanPage(doc: Document = document, win: Window = window): RawSca
     l = Math.max(l, 0); t = Math.max(t, 0); r = Math.min(r, vw - 1); b = Math.min(b, vh - 1);
     if ((r - l) * (b - t) < 24 || r - l < 3 || b - t < 3) continue;
     hit++;
-    const pts: [number, number][] = [[(l + r) / 2, (t + b) / 2], [l + (r - l) * 0.2, t + (b - t) * 0.5], [l + (r - l) * 0.8, t + (b - t) * 0.5], [(l + r) / 2, t + (b - t) * 0.25], [(l + r) / 2, t + (b - t) * 0.75]];
+    const pts: [number, number][] = item.quad ? quadPoints(item.quad) : [[(l + r) / 2, (t + b) / 2], [l + (r - l) * 0.2, t + (b - t) * 0.5], [l + (r - l) * 0.8, t + (b - t) * 0.5], [(l + r) / 2, t + (b - t) * 0.25], [(l + r) / 2, t + (b - t) * 0.75]];
     let n = 0, by = '';
     for (const [x, y] of pts) {
       const top = doc.elementFromPoint(x, y);

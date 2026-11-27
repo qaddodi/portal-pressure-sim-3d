@@ -15,8 +15,9 @@ import { FRAME_LIMITED_KINDS } from '../src/ui/debug/audit/speed.ts';
 import { DEVICES } from '../src/ui/debug/devices.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-/** Findings that read frames, the GPU or the speed of a fade: not valid with no figure drawn and a sped-up clock. */
-export const NOT_LAYOUT = new Set([...FRAME_LIMITED_KINDS, 'stall', 'low-fps', 'gpu-bound', 'gpu-memory-climb', 'slow-load', 'anim-too-fast', 'fade-slow', 'fade-instant', 'fade-under-stall', 'tab-hidden']);
+/** Findings that read frames, the GPU, the figure's own canvas or the speed of a fade: not valid with no figure drawn and a sped-up clock.
+ *  (`a11y-figure-named` reads the stage canvas's aria-label; the layout stage has no canvas, so the rule found a chart's canvas instead and warned on 164 steps of one iPhone walk, 27 Nov.) */
+export const NOT_LAYOUT = new Set([...FRAME_LIMITED_KINDS, 'a11y-figure-named', 'stall', 'low-fps', 'gpu-bound', 'gpu-memory-climb', 'slow-load', 'anim-too-fast', 'fade-slow', 'fade-instant', 'fade-under-stall', 'tab-hidden']);
 export const DEFAULT_SIZES = ['iphone', 'ipad', 'mac'];
 
 /** The command line as plain choices. Pure (tests/layout-check.test.ts). */
