@@ -85,6 +85,7 @@ test('a case at a stop and the menu are named like a slide: history:<case>[:<sto
   assert.deepEqual(targetOf('history:hist-bleed:3'), { kind: 'history', id: 'hist-bleed', stop: 3 });
   assert.deepEqual(targetOf('history:hist-bleed'), { kind: 'history', id: 'hist-bleed', stop: null });
   assert.deepEqual(targetOf('history:hist-bleed:chart'), { kind: 'chart', id: 'hist-bleed' });
+  assert.deepEqual(targetOf('history:hist-bleed:timeline'), { kind: 'timeline', id: 'hist-bleed' });
   assert.equal(targetOf('history:hist-bleed:charts'), null);
   assert.deepEqual(targetOf('overview'), { kind: 'overview', tab: 'present' });
   assert.deepEqual(targetOf('overview:talks'), { kind: 'overview', tab: 'present' });
@@ -100,7 +101,7 @@ test('a case at a stop and the menu are named like a slide: history:<case>[:<sto
 });
 
 test('each key has its own file base and picture name, none shared between two keys', () => {
-  const keys = ['lobule:4', 'history:hist-bleed:3', 'history:hist-bleed', 'history:hist-bleed:2', 'history:hist-bleed:chart', 'overview', 'overview:patients', 'overview:histories'];
+  const keys = ['lobule:4', 'history:hist-bleed:3', 'history:hist-bleed', 'history:hist-bleed:2', 'history:hist-bleed:chart', 'history:hist-bleed:timeline', 'overview', 'overview:patients', 'overview:histories'];
   assert.equal(new Set(keys.map(baseOf)).size, keys.length);
   assert.equal(baseOf('lobule:4'), 'lobule-4');
   assert.equal(baseOf('history:hist-bleed'), 'history-hist-bleed-last');
@@ -118,7 +119,7 @@ test('the proposed extras: each a real case and stop, or a real menu tab, with a
     const t = targetOf(x.key);
     assert.ok(t && t.kind !== 'slide', x.key);
     assert.ok(x.why.length > 20, `${x.key} has no reason`);
-    if (t.kind === 'chart') assert.ok(HISTORIES.find((c) => c.id === t.id), `case ${t.id}`);
+    if (t.kind === 'chart' || t.kind === 'timeline') assert.ok(HISTORIES.find((c) => c.id === t.id), `case ${t.id}`);
     if (t.kind === 'history') {
       const h = HISTORIES.find((c) => c.id === t.id);
       assert.ok(h, `case ${t.id}`);

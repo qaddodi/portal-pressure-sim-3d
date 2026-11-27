@@ -45,6 +45,12 @@ const chartKit: SettleKit = {
   extra: () => (useShell.getState().sheet === 'timeline' ? '' : 'the chart has not opened yet'),
 };
 
+/** Still, for History's panel: it is open with the case's days in. */
+const timelineKit: SettleKit = {
+  cardUp: () => !!document.querySelector('.hs-when'),
+  extra: () => (useShell.getState().sheet === 'history' ? '' : "History's panel has not opened yet"),
+};
+
 export async function capturePromoExtras(ui: ExtraUi): Promise<ExtraResult> {
   const t0 = new Date().getTime(), files: ZipFile[] = [], notes: string[] = [], enc = new TextEncoder(), encoding: Promise<void>[] = [], flushed = new Set<string>();
   const real = (ms: number) => ms, putBack = startCaptureClock(1, false);
@@ -111,16 +117,17 @@ export async function capturePromoExtras(ui: ExtraUi): Promise<ExtraResult> {
     }
     // the full chart of a case: the patient as they are today (Open patient) with the timeline chart open, as "See as a chart" opens it
     for (const { key, t } of targets) {
-      if (!t || t.kind !== 'chart') continue;
+      if (!t || (t.kind !== 'chart' && t.kind !== 'timeline')) continue;
       if (ui.stop()) { stopped = true; break; }
       const meta = metaOf(t.id);
       if (!meta) { notes.push(`${key}: there is no model patient called ${t.id}`); continue; }
       await clear();
-      ui.status(`${meta.name}: opening the patient and the chart`);
+      ui.status(`${meta.name}: opening the patient and its ${t.kind}`);
       if (!(await openHistory(t.id))) { notes.push(`${key}: the patient would not open`); continue; }
-      useShell.getState().open('timeline');
-      await until(() => !!document.querySelector('.bt'), real(8000));
-      await take(key, `${meta.name}, as a chart`, chartKit, { case: t.id, caseName: meta.name, view: 'chart' });
+      const chart = t.kind === 'chart';
+      useShell.getState().open(chart ? 'timeline' : 'history');
+      await until(() => !!document.querySelector(chart ? '.bt' : '.hs-when'), real(8000));
+      await take(key, `${meta.name}, ${chart ? 'as a chart' : 'the timeline'}`, chart ? chartKit : timelineKit, { case: t.id, caseName: meta.name, view: t.kind });
       await flush();
     }
     for (const { key, t } of targets) {

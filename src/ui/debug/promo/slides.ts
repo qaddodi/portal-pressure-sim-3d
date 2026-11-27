@@ -38,12 +38,15 @@ export const PROMO_SLIDES: readonly PromoSlide[] = Object.freeze([
  *    (its strip is the patient's chronological timeline). With no stop it is the case's last stop, the patient as they are today, the whole course played in the strip.
  *  - `history:<case>:chart`: the same patient as they are today with the full-screen timeline chart open (History's "See as a chart"): the readings over the whole course in stacked lanes,
  *    the medicines' bars and the events, with what to graph beside it.
+ *  - `history:<case>:timeline`: the patient as they are today with History's panel open at the side (a Mac, an iPad on its side) and the figure still shown: the case's chronological
+ *    timeline, its days and what happened on each.
  *  - `overview[:<tab>]`: the app's menu open on the first screen a person meets, the talks (`overview`, or `overview:talks`),
  *    the model patients (`overview:patients`) or the histories (`overview:histories`). */
 export type Target =
   | { kind: 'slide'; deck: string; slide: number }
   | { kind: 'history'; id: string; stop: number | null }
   | { kind: 'chart'; id: string }
+  | { kind: 'timeline'; id: string }
   | { kind: 'overview'; tab: 'present' | 'patients' | 'histories' };
 
 const OVERVIEW_TABS: Readonly<Record<string, 'present' | 'patients' | 'histories'>> = Object.freeze({ talks: 'present', patients: 'patients', histories: 'histories' });
@@ -52,8 +55,8 @@ const OVERVIEW_TABS: Readonly<Record<string, 'present' | 'patients' | 'histories
 export function targetOf(key: string): Target | null {
   let m = /^([\w-]+):(\d+)$/.exec(key);
   if (m) { const n = Number(m[2]); return n >= 1 && m[1] !== 'history' && m[1] !== 'overview' ? { kind: 'slide', deck: m[1]!, slide: n } : null; }
-  m = /^history:([\w-]+):chart$/.exec(key);
-  if (m) return { kind: 'chart', id: m[1]! };
+  m = /^history:([\w-]+):(chart|timeline)$/.exec(key);
+  if (m) return { kind: m[2] as 'chart' | 'timeline', id: m[1]! };
   m = /^history:([\w-]+)(?::(\d+))?$/.exec(key);
   if (m) { const n = m[2] === undefined ? null : Number(m[2]); return n === 0 ? null : { kind: 'history', id: m[1]!, stop: n }; }
   m = /^overview(?::(\w+))?$/.exec(key);
@@ -69,7 +72,7 @@ export function baseOf(key: string): string {
   const t = targetOf(key);
   if (!t) return key.replace(/[^\w-]+/g, '-');
   if (t.kind === 'slide') return `${t.deck}-${t.slide}`;
-  if (t.kind === 'chart') return `history-${t.id}-chart`;
+  if (t.kind === 'chart' || t.kind === 'timeline') return `history-${t.id}-${t.kind}`;
   if (t.kind === 'history') return `history-${t.id}-${t.stop ?? 'last'}`;
   return t.tab === 'present' ? 'overview' : `overview-${t.tab}`;
 }
@@ -97,6 +100,9 @@ export const PROMO_EXTRAS: readonly { key: string; why: string }[] = Object.free
   { key: 'history:hist-ascites:chart', why: 'Refractory ascites as graphs: the ascites volume climbing, each tap a drop, the medicines as bars under the pressures.' },
   { key: 'history:hist-hcv:chart', why: 'Hepatitis C cured: the pressure lanes over 600 days, the cause gone and the portal pressure persisting.' },
   { key: 'history:hist-tips-narrowed:chart', why: 'A TIPS that narrows: the gradient returns after a clean start, drawn over the whole course.' },
+  { key: 'history:hist-bleed-tips:timeline', why: "A bleed, then a TIPS within 24 hours: History's panel lists the days, with the figure beside it." },
+  { key: 'history:hist-ascites:timeline', why: 'Refractory ascites: each tap and each change in order down the panel, the belly on the figure.' },
+  { key: 'history:hist-hcv:timeline', why: 'Hepatitis C cured: the cure and what the pressure did after it, in order, with the figure beside.' },
   { key: 'history:hist-bleed-tips', why: "A bleed, then a TIPS within 24 hours: the case's last stop with the whole course played in the bar's strip, the patient as they are today." },
   { key: 'history:hist-ascites:4', why: 'Refractory ascites, fourth stop: the stop card, the case bar with its chapters and the belly on the figure.' },
   { key: 'history:hist-hcv', why: 'Hepatitis C cured and the pressure persisting: the one case where the cause is gone and the portal pressure is not.' },
@@ -113,7 +119,7 @@ export function promoNameOf(n: number, key: string, title: string, device: strin
   const t = targetOf(key);
   if (!t || t.kind === 'slide') { const [deck, num] = key.split(':'); return promoName(n, deck ?? key, Number(num), title, device); }
   const tt = slug(title).slice(0, 48).replace(/-+$/, '');
-  return `${String(n).padStart(2, '0')}-${baseOf(key)}${(t.kind === 'history' || t.kind === 'chart') && tt ? `-${tt}` : ''}-${device}.jpg`;
+  return `${String(n).padStart(2, '0')}-${baseOf(key)}${t.kind !== 'overview' && tt ? `-${tt}` : ''}-${device}.jpg`;
 }
 
 /** A file's name: its place in the set, the slide, the device ("03-lobule-4-cirrhosis-narrows-the-sinusoid-iphone.jpg"). */
