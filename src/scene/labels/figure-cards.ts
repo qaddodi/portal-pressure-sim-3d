@@ -11,7 +11,7 @@ import { calloutClaims } from './callout-claims.ts';
 import { lobuleLines, type CourseLine } from './lobule-lines.ts';
 import { PAIR_AIR, PAIR_AT, PAIR_RING_R, PAIR_SIN_AT, PAIR_STROKE, ringDisc } from './pair.ts';
 import { AIR_BLOCKER, LineGrid, onLine } from './solver.ts';
-import { makeTag, words, fade, place, size, show, TagLead, type Tag } from './tag-dom.ts';
+import { makeTag, words, fade, place, size, show, painted, TagLead, type Tag } from './tag-dom.ts';
 import { boxLeader, leaderToEdge, leaderShort, LEAD_AIR } from './tag-lead.ts';
 import { restyle } from './roll.ts';
 import { LS, RING_STROKE, type Vp } from './type.ts';
@@ -650,11 +650,13 @@ export class FigureCards {
       const tx = `${lead.at[i]} scaleX(${round(lead.len[i]! * kl)})`;
       if (tx !== lead.tx[i]) { lead.tx[i] = tx; l.style.transform = tx; }
     });
+    // (what stands on the screen is what was written last frame: a leader coming in with its words has no old colour to cross over from)
+    const was = Number(lead.root.style.opacity) || 0;
     lead.root.style.opacity = String(Math.round(a * 1000) / 1000);
     if (mark) {
       // the leader and its dot wear the words' colour (they cross over to a new one with the words)
       const tone = toneOf(c.tone);
-      if (lead.root.dataset.tone !== tone.attr) restyle(lead.root, () => { lead.root.dataset.tone = tone.attr; }, a);
+      if (lead.root.dataset.tone !== tone.attr) restyle(lead.root, () => { lead.root.dataset.tone = tone.attr; }, was);
       if (tone.css) lead.root.style.setProperty('--cl-tone', tone.css); else lead.root.style.removeProperty('--cl-tone');
     }
   }
@@ -718,7 +720,7 @@ export class FigureCards {
           r.card.root.dataset.tone = step ? 'free' : tone.attr;
           if (step) r.root.style.setProperty('--cl-tone', 'var(--text)');
           else if (tone.css) r.card.root.style.setProperty('--cl-tone', tone.css); else r.card.root.style.removeProperty('--cl-tone');
-        }, r.a);
+        }, painted(r.card));
       }
       size(r.card, sz.w, sz.h);
     }
@@ -739,8 +741,10 @@ export class FigureCards {
     if (!rg) { fadeRing(co, 0); return; }
     const rad = rg.x, tone = r.spec.tone === 'block' ? 'danger' : r.spec.tone === 'note' ? 'note' : r.spec.tone === 'wedge' ? 'wedge' : 'accent';
     // (the colour of the ring, its leader and its words changes while they show: they cross over to it)
-    if (co.root.dataset.tone !== tone) restyle(co.root, () => { co.root.dataset.tone = tone; }, r.a);
-    if (r.root.dataset.co !== tone) restyle(r.root, () => { r.root.dataset.co = tone; }, r.a);
+    // (what stands on the screen is what the ring last wrote: a ring coming in takes its colour without a crossing)
+    const was = Number(co.ring.style.opacity) || 0;
+    if (co.root.dataset.tone !== tone) restyle(co.root, () => { co.root.dataset.tone = tone; }, was);
+    if (r.root.dataset.co !== tone) restyle(r.root, () => { r.root.dataset.co = tone; }, was);
     // (the lower of a pair of readings draws the station dot's own ring and hairline: pair.ts)
     const pair = 'lobule' in r.spec.anchor && r.spec.anchor.lobule === PAIR_AT, sw = pair ? PAIR_STROKE : RING_STROKE;
     const key = `${rad}|${sw}`;
@@ -799,7 +803,7 @@ export class FigureCards {
     }
     r.root.style.opacity = String(Math.round(r.a * 1000) / 1000);
     show(r.card, true);
-    words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' }, r.a);   // (a changed caption crosses over: tag-dom.ts words)
+    words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' });   // (a changed caption crosses over: tag-dom.ts words)
     const { w, h } = this.textSize(r.spec.text, t);
     size(r.card, w, h);
     place(r.card, r.box.x0, r.box.y0);
@@ -827,7 +831,7 @@ export class FigureCards {
     });
     r.root.style.opacity = String(Math.round(r.a * 1000) / 1000);
     show(r.card, true);
-    words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' }, r.a);
+    words(r.card, { kicker: r.spec.text, value: '', unit: '', tone: 'note' });
     const { w, h } = this.textSize(r.spec.text, t);
     size(r.card, w, h);
     place(r.card, r.box.x0, r.box.y0);
