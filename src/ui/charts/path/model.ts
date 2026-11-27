@@ -157,18 +157,19 @@ export function mapPlace(tree: Node, W: number, k = 1, oy = 0, wordsOf: (id: str
 export interface Item { text: string; face: string; x: number; y: number }
 export interface ParaRun { text: string; face: string }
 /** Paragraphs of runs laid out in a column: → { items (y the baseline), h }. gap: px after a paragraph (a number, or a function of its index). */
-export function flow(paras: ParaRun[][], width: number, { align = 'left', gap = 0 }: { align?: 'left' | 'center'; gap?: number | ((pi: number) => number) } = {}) {
+export interface FlowOpts { align?: 'left' | 'center'; gap?: number | ((pi: number) => number); roles?: Record<string, Role> }
+export function flow(paras: ParaRun[][], width: number, { align = 'left', gap = 0, roles = ROLE }: FlowOpts = {}) {
   const items: Item[] = [], gapOf = typeof gap === 'function' ? gap : () => gap;
   let y = 0, last = 0;
   paras.forEach((runs, pi) => {
     if (!runs.length) return;
-    const { lines } = layoutParagraph(runs.map((r) => ({ text: r.text, weight: ROLE[r.face]!.weight, size: ROLE[r.face]!.size })), width * 0.97);
+    const { lines } = layoutParagraph(runs.map((r) => ({ text: r.text, weight: roles[r.face]!.weight, size: roles[r.face]!.size })), width * 0.97);
     for (const ln of lines) {
-      const parts = ln.runs.map((p) => { const face = runs[p.run]!.face, R = ROLE[face]!; return { text: p.text, face, w: textWidth(p.text, { weight: R.weight, size: R.size }) }; });
-      const total = parts.reduce((s, p) => s + p.w, 0), lh = Math.max(...parts.map((p) => ROLE[p.face]!.lh));
+      const parts = ln.runs.map((p) => { const face = runs[p.run]!.face, R = roles[face]!; return { text: p.text, face, w: textWidth(p.text, { weight: R.weight, size: R.size }) }; });
+      const total = parts.reduce((s, p) => s + p.w, 0), lh = Math.max(...parts.map((p) => roles[p.face]!.lh));
       let x = align === 'center' ? Math.max(0, (width - total) / 2) : 0;
       for (const p of parts) {
-        const R = ROLE[p.face]!;
+        const R = roles[p.face]!;
         items.push({ text: p.text, face: p.face, x, y: y + (lh - R.size * 1.21) / 2 + R.size * 0.97 });
         x += p.w;
       }
@@ -206,10 +207,47 @@ export const headOnlyOn = (of: string, phone: boolean): boolean => phone && of =
 /** What path-cards.generated.js lays a score card, grid or ladder out with. Kept one object: the card layouts memoise their lines against it. */
 export const CARD_HELPERS = { flow, ROLE, textWidth, readParas, TOKEN, svg: null as unknown };
 
-export function mapBodyOf(of: string, spec: Spec, patient: any, Wv: number, W = Wv, oy = 0, tight = false, headOnly = false) {
+// ── the fit (L12, owner 27 Nov: "fit-zoom the whole path into the card"; the 12 px floor still holds) ──
+// A path that stands taller than the room its card has first stands its rows closer (`tight`), then draws the small map; past that,
+// the type of the roles above 12 px (the verdict's headline is 21, its why 14, a condition's verdict 13) steps down toward 12 px, never under,
+// and the gaps stand at their least. A step of the fit is a factor k of 1 or less applied to the size of each role, floored at FLOOR_PX;
+// the line height follows the size. The last step takes every role to the floor. Words already at 12 px (most of the card) never move.
+// What still stands past its room at the last step cannot be fitted without going under 12 px: it is reported, not shrunk.
+export const FLOOR_PX = 12;
+/** The factors the fit tries, the gentlest first; the last takes every role to 12 px (the headline, at 21 px, is the largest, 12 / 21). */
+export const FIT_STEPS = [0.85, 0.7, 0.57] as const;
+const rolesMemo = new Map<number, Record<string, Role>>();
+/** The type of every role at a fit of `k` (1: the 2D table as it is): a size above the floor is scaled by k and never goes under it,
+ *  a line height follows its size and stays two px over it at the least. */
+export function rolesAt(k: number): Record<string, Role> {
+  if (k >= 1) return ROLE;
+  let r = rolesMemo.get(k);
+  if (!r) {
+    r = {};
+    for (const [face, o] of Object.entries(ROLE)) {
+      const size = o.size > FLOOR_PX ? Math.max(FLOOR_PX, Math.round(o.size * k)) : o.size;
+      r[face] = size === o.size ? o : { weight: o.weight, size, lh: Math.max(size + 2, Math.round((o.lh * size) / o.size)) };
+    }
+    rolesMemo.set(k, r);
+  }
+  return r;
+}
+const helpersMemo = new Map<number, typeof CARD_HELPERS>();
+/** What path-cards.generated.js lays a card out with at a fit of `k`: one object for each k, as the card layouts memoise their lines against it. */
+export function helpersAt(k: number): typeof CARD_HELPERS {
+  if (k >= 1) return CARD_HELPERS;
+  let h = helpersMemo.get(k);
+  if (!h) {
+    const roles = rolesAt(k);
+    helpersMemo.set(k, h = { ...CARD_HELPERS, ROLE: roles, flow: (paras: ParaRun[][], width: number, o: FlowOpts = {}) => flow(paras, width, { ...o, roles }) });
+  }
+  return h;
+}
+
+export function mapBodyOf(of: string, spec: Spec, patient: any, Wv: number, W = Wv, oy = 0, tight = false, headOnly = false, roles: Record<string, Role> = ROLE) {
   const k = mapType(W) / 12, worst = (WORST as any)[of], map = mapPlace(spec.tree, Wv, k, oy, (id) => mapWordsOf(of, id), tight);
   const own = isLive(of) ? null : outcomeOf(of, litOf(of, patient));
-  const rd = (key: string, p: any) => flow(readParas(readingFor(of, key, p), headOnly), Wv, { gap: 4 }).h;
+  const rd = (key: string, p: any) => flow(readParas(readingFor(of, key, p), headOnly), Wv, { gap: 4, roles }).h;
   const readH = own ? rd(own, patient) : Math.max(...(OUTCOMES as any)[of].flatMap((key: string) => [patient, worst].map((p) => rd(key, p))));
   return { k, map, readH, H: map.H + GAP + 12 + readH };
 }
@@ -225,6 +263,8 @@ export interface PathOpts {
 }
 export interface PathLayout {
   of: string; spec: Spec; W: number; compact: boolean; card: boolean; tight: boolean; H: number;
+  /** the fit this layout was made at (1: none) and the type it uses (rolesAt) */
+  fit: number; roles: Record<string, Role>;
   y: { chips: number; pic: number; rule1: number; read: number; rule2: number; foot: number };
   tiled: ReadonlySet<string>; chipsH: number;
   cardL?: { kind: string; W: number; compact: boolean; H: number };
@@ -234,23 +274,24 @@ export interface PathLayout {
 }
 
 /** Everything that does not change with the patient (tool-path.js layout): the columns, the nodes' words and their heights, the rooms reserved, the total height. */
-export function pathLayout(ofIn: string, patientIn: any, W: number, o: PathOpts = {}, tight = false, small = false): PathLayout {
+export function pathLayout(ofIn: string, patientIn: any, W: number, o: PathOpts = {}, tight = false, small = false, fit = 1): PathLayout {
   const of = knownOf(ofIn), spec = (PATHS as any)[of] as Spec, card = isCardKind(spec.kind), phone = !!o.phone, tiled = o.tiled ?? new Set<string>();
-  const G = tight ? 6 : GAP, R1 = tight ? 8 : 12, R2 = tight ? 4 : 7;
+  // (a fit also stands the gaps at their least: 4 px rows, 6 and 3 round the rules)
+  const roles = rolesAt(fit), G = fit < 1 ? 4 : tight ? 6 : GAP, R1 = fit < 1 ? 6 : tight ? 8 : 12, R2 = fit < 1 ? 3 : tight ? 4 : 7;
   const compact = small || (card ? cardCompact(W, phone) : mapFor(spec.tree, W, phone));
   const worst = (WORST as any)[of], base = patientIn || worst;
-  const L = { of, spec, W, compact, card, tight, y: {} as PathLayout['y'], tiled } as PathLayout;
+  const L = { of, spec, W, compact, card, tight, fit, roles, y: {} as PathLayout['y'], tiled } as PathLayout;
   let y = 0;
-  const chipsH = (p: any) => (chipsOf(of, p, tiled).length ? flow([[{ text: chipsOf(of, p, tiled).join(' · '), face: 'chips' }]], W).h : 0);
+  const chipsH = (p: any) => (chipsOf(of, p, tiled).length ? flow([[{ text: chipsOf(of, p, tiled).join(' · '), face: 'chips' }]], W, { roles }).h : 0);
   L.chipsH = card ? chipsH(base) : isLive(of) ? Math.max(chipsH(base), chipsH(worst)) : chipsH(base);
   L.y.chips = y; if (L.chipsH) y += L.chipsH + G;
   L.y.pic = y;
   L.y.rule1 = L.y.read = 0;
   if (card) {
-    L.cardL = cardLayout(spec.algo, W, compact, base, CARD_HELPERS, true);
+    L.cardL = cardLayout(spec.algo, W, compact, base, helpersAt(fit), true);
     y += L.cardL!.H + G;
   } else if (compact) {
-    const B = mapBodyOf(of, spec, base, W, W, y, tight, headOnlyOn(of, phone));
+    const B = mapBodyOf(of, spec, base, W, W, y, tight, headOnlyOn(of, phone), roles);
     L.k = B.k; L.map = B.map;
     y += L.map.H + G;
     L.y.rule1 = y; y += R1;
@@ -261,9 +302,9 @@ export function pathLayout(ofIn: string, patientIn: any, W: number, o: PathOpts 
     const boxes = treeBoxes(spec.tree, W), heights = new Map<string, number>(), fl = new Map<string, ReturnType<typeof flow>>();
     const byId = new Map(flat(spec.tree).map(({ n }) => [n.id, n]));
     // (results stand level: each row's conditions take the room of the tallest, the rest of the node's words under it)
-    const lead = treeLeadExtra(spec.tree, boxes, (id) => nodeParas(byId.get(id)!, id === spec.tree.id), (paras, w) => flow([paras[0]!], w, { align: 'center' }).h);
+    const lead = treeLeadExtra(spec.tree, boxes, (id) => nodeParas(byId.get(id)!, id === spec.tree.id), (paras, w) => flow([paras[0]!], w, { align: 'center', roles }).h);
     for (const [id, b] of boxes) {
-      const paras = nodeParas(byId.get(id)!, id === spec.tree.id), f = flow(paras, b.w, { align: 'center', gap: nodeGap(paras, lead.get(id) || 0) });
+      const paras = nodeParas(byId.get(id)!, id === spec.tree.id), f = flow(paras, b.w, { align: 'center', gap: nodeGap(paras, lead.get(id) || 0), roles });
       fl.set(id, f); heights.set(id, f.h);
     }
     L.tree = { ...treePlace(spec.tree, boxes, heights, y), boxes, flows: fl };
@@ -271,18 +312,32 @@ export function pathLayout(ofIn: string, patientIn: any, W: number, o: PathOpts 
   }
   L.y.rule2 = y; y += R2;
   L.y.foot = y;
-  L.foot = flow([[{ text: spec.foot, face: 'foot' }]], W);
+  L.foot = flow([[{ text: spec.foot, face: 'foot' }]], W, { roles });
   L.pillW = Math.ceil(textWidth(spec.kick, { weight: ROLE.kick!.weight, size: ROLE.kick!.size })) + 2 * PILL_PAD;
-  L.footH = Math.max(L.foot.h, PILL_H);
+  // (the foot's row held the 22 px of the capsule that is gone, docs/HUMANIZED-DESIGN.md section 0: a fit stands it at its words, 16 px)
+  L.footH = Math.max(L.foot.h, fit < 1 ? ROLE.kick!.lh : PILL_H);
   y += L.footH;
   L.H = Math.ceil(y);
   // (the data card's real room asks for it, as 2D's tool-path.js layout does: the rows stand closer first, at full size; a card that has a real room never draws its words under 12 px,
   // so what still stands past it gives way to the small map, whose own rows are tight too. A phone's small map is the last form but it draws tight rows too when the card has no room for the loose ones:
   // it kept them before and stood 367 px against a room of about 250 (Treating the cause 7, capture 6ec6d323: the instrument stood over half the screen and left the figure a sliver).)
-  if (o.room && o.room > 0 && L.H > o.room) {
+  if (o.room && o.room > 0 && L.H > o.room && fit >= 1) {
     if (!tight) return pathLayout(ofIn, patientIn, W, o, true, small);
     // (2D takes the small map whatever its height; here it is taken only where it is shorter, so the room never makes the picture stand further past it than the chart did)
-    if (!compact) { const m = pathLayout(ofIn, patientIn, W, o, true, true); if (m.H < L.H) return m; }
+    let best = L;
+    // (made with no room of its own: the fit below is this function's last step, taken once, never inside the small map's)
+    if (!compact) { const m = pathLayout(ofIn, patientIn, W, { ...o, room: undefined }, true, true); if (m.H < best.H) best = m; }
+    // The last resort (L12): the whole path fitted. The type above 12 px steps down toward 12 and the gaps stand at their least:
+    // the gentlest step that brings the path inside its room, the chart as it stands before the small map, else the last step (every role at 12 px).
+    // Never under 12 px: what is still past its room after this is a look decision, not a smaller word.
+    for (const k of FIT_STEPS) {
+      if (best.H <= o.room) break;
+      const f = pathLayout(ofIn, patientIn, W, o, true, small, k), g = compact || small ? null : pathLayout(ofIn, patientIn, W, o, true, true, k);
+      const fits = [f, g].find((c) => c && c.H <= o.room!);
+      if (fits) { best = fits; break; }
+      for (const c of [f, g]) if (c && c.H < best.H) best = c;
+    }
+    return best;
   }
   return L;
 }

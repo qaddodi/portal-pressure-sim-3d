@@ -6,7 +6,7 @@ import type { Rgba } from '../colour.ts';
 import { look, type Look } from '../looks.ts';
 import { scaleFrame, type Frame, type Shape } from '../scene.ts';
 import {
-  CARD_HELPERS, PILL_H, PILL_PAD, ROLE, TOKEN, chipsOf, drawCard, edgesOf, flat, flow, litOf, outcomeOf, pathLayout, pathWords, readParas, headOnlyOn, readingFor, type PathLayout, type PathOpts,
+  helpersAt, PILL_H, PILL_PAD, ROLE, TOKEN, chipsOf, drawCard, edgesOf, flat, flow, litOf, outcomeOf, pathLayout, pathWords, readParas, headOnlyOn, readingFor, type PathLayout, type PathOpts,
 } from './model.ts';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -41,7 +41,7 @@ export function pathFrame(spec: PathSpec, c: ChartCtx): Frame {
   const shapes: Shape[] = [];
   const word = (face: string, x: number, y: number, s: string, on: boolean, tone: string, o: { size?: number; anchor?: 'start' | 'middle' } = {}) => {
     const k = lk(`path.${face}`, on, tone);
-    shapes.push({ k: 'text', x, y, s, size: o.size ?? ROLE[face]!.size, weight: k.weight, color: k.fill ?? [0, 0, 0, 1], ...(o.anchor ? { anchor: o.anchor } : {}), ...(k.opacity !== undefined && k.opacity < 1 ? { alpha: k.opacity } : {}), ...(k.halo ? { halo: k.halo } : {}) });
+    shapes.push({ k: 'text', x, y, s, size: o.size ?? L.roles[face]!.size, weight: k.weight, color: k.fill ?? [0, 0, 0, 1], ...(o.anchor ? { anchor: o.anchor } : {}), ...(k.opacity !== undefined && k.opacity < 1 ? { alpha: k.opacity } : {}), ...(k.halo ? { halo: k.halo } : {}) });
   };
   const pen = (k: Look) => (k.stroke ? { color: mul(k.stroke, k.opacity)!, w: k.width ?? 1, ...(k.dash ? { dash: k.dash } : {}), ...(k.cap ? { cap: k.cap } : {}), ...(k.join ? { join: k.join } : {}) } : undefined);
   const fillOf = (k: Look) => { const f = mul(k.fill, k.opacity); return f && f[3] > 0 ? f : undefined; };
@@ -50,10 +50,10 @@ export function pathFrame(spec: PathSpec, c: ChartCtx): Frame {
   const Lit = litOf(of, patient), out = outcomeOf(of, Lit), oy = L.y.pic;
 
   // the head: the patient's numbers that no tile in the card's header row shows
-  if (L.chipsH) place(flow([[{ text: chipsOf(of, patient, L.tiled).join(' · '), face: 'chips' }]], W).items, 0, L.y.chips, false, 'text');
+  if (L.chipsH) place(flow([[{ text: chipsOf(of, patient, L.tiled).join(' · '), face: 'chips' }]], W, { roles: L.roles }).items, 0, L.y.chips, false, 'text');
 
   if (L.card) {
-    for (const o of drawCard(L.spec.algo, W, L.compact, patient, CARD_HELPERS).ops as any[]) {
+    for (const o of drawCard(L.spec.algo, W, L.compact, patient, helpersAt(L.fit)).ops as any[]) {
       const tone = o.tone || 'text';
       if (o.k === 't') word(o.face, o.x, o.y + oy, o.text, o.on, tone);
       else if (o.k === 'r') {
@@ -85,7 +85,7 @@ export function pathFrame(spec: PathSpec, c: ChartCtx): Frame {
       }
       rule(L.y.rule1);
       const r = out ? readingFor(of, out, patient) : null;
-      if (r) for (const i of flow(readParas(r, headOnlyOn(of, !!spec.opts?.phone)), W, { gap: 4 }).items) word(i.face, i.x, L.y.read + i.y, i.text, true, TOKEN[r.tone]!);
+      if (r) for (const i of flow(readParas(r, headOnlyOn(of, !!spec.opts?.phone)), W, { gap: 4, roles: L.roles }).items) word(i.face, i.x, L.y.read + i.y, i.text, true, TOKEN[r.tone]!);
     } else {
       for (const { n } of flat(L.spec.tree)) {
         const b = L.tree!.boxes.get(n.id)!, on = Lit.has(n.id) || n.id === L.spec.tree.id;
