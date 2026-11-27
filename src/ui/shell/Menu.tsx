@@ -1,8 +1,9 @@
 // The 2D app's menu, on its own markup and class names (util.js popover, menuItem, menuSection and main.js menuToggle): `.menu.app-menu` holding `.menu-group` > `.menu-title` and
-// `.menu-item` / `.lens.lens-opt` rows. A popover under (or over) the button that opened it, or a bottom sheet with a head and a scrim on the stacked layout (STACK_MQ).
+// `.menu-item` / `.lens.lens-opt` rows. A popover under (or over) the button that opened it, or a bottom sheet with a head and a scrim where every surface is a sheet (surface/mode.ts).
 // It is in the page only while open: it comes in on the 2D stylesheet's own entrance (slide-from-edge / scale-settle), and leaves by `.leaving`, then goes. Its stylesheet is the 2D app's
 // (src/ui/styles); nothing here styles it. The frost is the one glass (glass.css).
 import { useSheetSwipe } from './use-sheet-swipe.ts';
+import { useSurfaceMode } from '../surface/mode.ts';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useShell, type Sheet } from './store.ts';
@@ -14,8 +15,6 @@ import { sheetRoot } from './SheetClip.tsx';
 
 import { D_FLIP, D_SMALL, LEAVE_SLACK_MS } from '../motion.ts';
 import { clock } from '../../clock/frame.ts';
-/** 2D util.js STACK_MQ: the one breakpoint at which a menu is a bottom sheet (a phone, or a tablet held upright). */
-export const STACK_MQ = '(max-width: 767px), (max-width: 1100px) and (orientation: portrait)';
 export const MENU_LEAVE_MS = D_FLIP + LEAVE_SLACK_MS;   // 2D --d-flip, and a frame or two before the menu is unmounted
 
 /** Mounted while shown; `leaving` for the length of the exit. */
@@ -82,14 +81,9 @@ export function MenuPop({ kind, label, title, cls = 'app-menu', align = 'end', s
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const open = useOutside(kind, ref);
-  const [sheet, setSheet] = useState(() => typeof matchMedia === 'function' && matchMedia(STACK_MQ).matches);
+  const sheet = useSurfaceMode() === 'sheet';   // (one answer for every surface: surface/mode.ts)
   const thumb = typeof document !== 'undefined' && document.documentElement.classList.contains('thumb-ui');
   const { shown, leaving } = usePresence(open, menuExitMs(sheet, sheet || !!anchorFor(from)?.closest('.vdock'), thumb));
-  useEffect(() => {
-    const mq = matchMedia(STACK_MQ), f = () => setSheet(mq.matches);
-    f(); mq.addEventListener('change', f);
-    return () => mq.removeEventListener('change', f);
-  }, []);
   const root = sheetRoot();
   // the pushed page: kept while it slides back out, and given the menu's box as it was when the page was pushed (read once, in that tap)
   const kept = useRef<MenuPage | null>(null);

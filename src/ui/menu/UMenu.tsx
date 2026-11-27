@@ -1,6 +1,6 @@
 // The main menu on the 2D app's own markup and class names (menu.js build / sections / deckRow / patientRow): `.umenu` with `.um-grab`, `.um-top` (the search field and the close
 // button), `.um-tabs`, `.um-cols` holding the Present and Patients lists, `.um-empty` and `.um-foot`. Its stylesheet is 2D's (src/ui/styles). A popover under the menu
-// button from 768 px, a bottom sheet with a scrim on the stacked layout (STACK_MQ). It is in the page only while open and leaves by `.out`. A row opens a talk or a patient; the ⓘ
+// button from 768 px, a bottom sheet with a scrim where every surface is a sheet (surface/mode.ts). It is in the page only while open and leaves by `.out`. A row opens a talk or a patient; the ⓘ
 // opens the preview under it (`.um-inline`), and a mouse that rests on a row shows the same preview beside the panel (`.um-pv`).
 import { presetBlocked } from '../../engine/hv-flag.ts';
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
@@ -10,7 +10,8 @@ import { PRESETS } from '../../engine/hales/portal/scenario.js';
 import { builtinDeck, loadBuiltin } from '../../decks/registry.ts';
 import { useShell, type MenuTab } from '../shell/store.ts';
 import { useOutside } from '../shell/Pop.tsx';
-import { STACK_MQ, usePresence } from '../shell/Menu.tsx';
+import { usePresence } from '../shell/Menu.tsx';
+import { useSurfaceMode } from '../surface/mode.ts';
 import { sheetRoot } from '../shell/SheetClip.tsx';
 import { placeAt, visibleBottom } from '../shell/place.ts';
 import { Chart } from '../charts/Chart.tsx';
@@ -138,7 +139,7 @@ function Item({ k, row, filtered, current, info, open, onInfo, onHover, onPress,
 export function UMenu() {
   const ref = useRef<HTMLDivElement>(null);
   const open = useOutside('menu', ref);
-  const [sheet, setSheet] = useState(() => typeof matchMedia === 'function' && matchMedia(STACK_MQ).matches);
+  const sheet = useSurfaceMode() === 'sheet';   // (one answer for every surface: surface/mode.ts)
   const { shown, leaving } = usePresence(open, sheet ? SHEET_LEAVE_MS : LEAVE_MS);
   const tab = useShell((s) => s.menuTab);
   const still = useRef(false);   // the list was swiped into place: it does not play its entrance again
@@ -155,7 +156,6 @@ export function UMenu() {
   const close = () => useShell.getState().close();
   useSheetSwipe(ref, close, () => sheet, true);   // (2D menu.js: a phone's menu is a sheet that follows a pull down)
 
-  useEffect(() => { const mq = matchMedia(STACK_MQ), f = () => setSheet(mq.matches); f(); mq.addEventListener('change', f); return () => mq.removeEventListener('change', f); }, []);
   // a menu opened by a link carries its search (menuQuery); every other open starts empty
   useEffect(() => { if (open) { setQuery(seed); setOpenRow(null); setHover(null); useShell.setState({ menuQuery: '' }); } }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {

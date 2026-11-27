@@ -3,6 +3,7 @@
 // iPad it is a sheet above the view switch. Always in the page, faded in and out; the numbers on it re-render only when what they print changes (snap.ts). Number keys 1 to 9 run its
 // first nine controls. Text never shrinks to fit and nothing scrolls inside it (but the Details face's own words, as 2D's .ad-scroll: its head stays and what is under it scrolls only where it is taller than the card's room).
 import { useSheetSwipe } from '../shell/use-sheet-swipe.ts';
+import { useSurfaceMode } from '../surface/mode.ts';
 import { SwitchNum } from '../patients/SwitchNum.tsx';
 import { useActionRoom } from './action-room.ts';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type CSSProperties } from 'react';
@@ -196,7 +197,7 @@ export function ActionCard() {
   const sel = useSelection((s) => s.sel);
   const device = useUi((s) => s.device);
   const vp = useUi((s) => s.vp);
-  const bottom = usesBottomBar(device);
+  const bottom = useSurfaceMode() === 'sheet';   // (a sheet exactly when every surface is one: surface/mode.ts)
   const cardAll = useMemo(() => cardFor(sel), [sel]);
   // (a card with the stent editor waits for the editor's chunk, so it lands at its final size: stent/stent-load.ts)
   const stentIn = useStentPanelReady(!!cardAll?.verbs.some((v) => v.type === 'panel'));
