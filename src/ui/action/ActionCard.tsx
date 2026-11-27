@@ -31,7 +31,7 @@ import { useLookId } from '../../looks/use-look.ts';
 import { hvpgSev, ppgSev } from '../../engine/hales/portal/pressure-cuts.js';
 import { fmt } from '../charts/fmt.ts';
 import { useCaseBarUp } from '../case/room.ts';
-import { D_SURFACE, EASE_ARRIVE } from '../tests/copied/ease.copied.js';
+import { glideHeight } from '../surface/height-glide.ts';
 
 // ── the number keys: the card's first nine controls, in the order the card lists them (a slider takes the focus so the arrow keys move it) ──
 let keyed: (() => void)[] = [];
@@ -179,19 +179,6 @@ function Face({ card, onKeys, onDetails }: { card: Card; onKeys: (list: (() => v
   );
 }
 
-/** The card's height glide (2D card-glide.js, the same idea): the card is laid out at its new height at once; what is seen moves by transforms only (FLIP). Its plate is scaled from the old height to the new about
- *  the edge that stays (the top on a side card, the foot on a phone's sheet, which stands on its foot), and on a sheet the words ride from where they stood, since its top moved. The first frame is written inline
- *  as well, so the frame that finds the new height never shows it. A card that is coming, going or turning to another structure never glides (that is the old card out and the new one in). */
-function glideHeight(card: HTMLElement, plate: HTMLElement, h0: number, h1: number, foot: boolean): Animation[] {
-  const k = h0 / h1, d = h1 - h0, o = { duration: D_SURFACE, easing: EASE_ARRIVE };
-  const parts: { el: HTMLElement; from: string }[] = [{ el: plate, from: `scaleY(${k.toFixed(4)})` }];
-  if (foot) for (const c of Array.from(card.children) as HTMLElement[]) if (c !== plate) parts.push({ el: c, from: `translateY(${d.toFixed(1)}px)` });
-  card.dataset.glide = '';
-  const anims = parts.map(({ el, from }) => { el.style.transform = from; return el.animate([{ transform: from }, { transform: 'none' }], o); });
-  const done = () => { if (!anims.every((a) => a.playState === 'finished' || a.playState === 'idle')) return; for (const { el } of parts) el.style.removeProperty('transform'); delete card.dataset.glide; };
-  for (const a of anims) a.finished.then(done, done);
-  return anims;
-}
 const closeCard = () => { void import('./selection.ts').then((m) => m.selectStructure(null)); };
 const reducedMotion = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -242,8 +229,8 @@ export function ActionCard() {
       const b = es[0]?.borderBoxSize?.[0], h1 = b ? b.blockSize : es[0]?.contentRect.height ?? 0, h0 = lastH.current;
       lastH.current = h1;
       if (!(h0 > 0) || !(h1 > 0) || Math.abs(h1 - h0) < 1 || !plate.current || reducedMotion() || typeof el.animate !== 'function') return;
-      for (const a of run) a.cancel();
-      run = glideHeight(el, plate.current, h0, h1, bottom);
+      // (the one height glide, surface/height-glide.ts: the plate scales, the words ride on a sheet, the first frame is inline and data-glide marks it while it runs)
+      run = glideHeight(el, h0, h1, { foot: bottom, plate: plate.current, prior: run, inline: true, mark: true });
     });
     ro.observe(el);
     return () => { ro.disconnect(); for (const a of run) a.cancel(); };

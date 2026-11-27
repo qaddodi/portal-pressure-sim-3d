@@ -3,7 +3,7 @@
 // Procedures; the chosen one is the one gliding piece, seg-glide.copied.ts),
 // the orders (.treat-pane), and the Changes list (.section.chart-sec: closed until opened and then remembered, keep.ts). On a phone Changes is one row (.tcp-row) that slides its list in as a page of its own
 // (.tc-page, surface/page-push.ts), the sheet standing Full while the page is up; on a laptop or an iPad on its side it is the section under the orders. A phone's or an upright iPad's card is a sheet over the dock
-// that opens at Half (as tall as its words, up to Full: sheetHeight, treat.css), and its height glides when a tab, the Changes section or the page changes it (glideCard: the card's plate is scaled, its
+// that opens at Half (as tall as its words, up to Full: sheetHeight, treat.css), and its height glides when a tab, the Changes section or the page changes it (surface/height-glide.ts: the card's plate is scaled, its
 // words ride, the parts below the change ride and the parts whose foot opens are cut by a clip). Always in the page and faded in and out, so nothing pops; its words are the 2D app's
 // (treat.generated.ts) and its numbers the engine's: an order only edits the patient's settings (orders.ts).
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -29,7 +29,7 @@ import { TREAT_WORDS } from './treat.generated.ts';
 import { activeInterventions, factTarget, treatCount } from '../action/changes.ts';
 import { currentParams, presetBase, updateParams, useParamsTick, type Params } from '../action/params.ts';
 import { selectStructure } from '../action/selection.ts';
-import { glideCard } from './glide.ts';
+import { glideHeight } from '../surface/height-glide.ts';
 import { startSegGlideOn } from './seg-glide.copied.ts';
 import { pushPage, type Push } from '../surface/page-push.ts';
 import { openSet, remember, startsOpen } from './keep.ts';
@@ -145,7 +145,7 @@ export function TreatCard() {
     spare();
     const g = pending.current; pending.current = null;
     const c = ref.current;
-    if (g && c) glides.current = glideCard(c, g.h0, c.offsetHeight, { foot, prior: glides.current, ...g.parts() });
+    if (g && c) glides.current = glideHeight(c, g.h0, c.offsetHeight, { foot, prior: glides.current, ...g.parts() });
   });
   // the panes change height with their words (a chip's note, a wrapped tile): the pane follows the tab shown
   useEffect(() => {
@@ -241,12 +241,12 @@ export function TreatCard() {
     const h0 = card.offsetHeight, tc = bodyRef.current;
     if (!d.open) {
       d.open = true; remember('changes', true);
-      glides.current = glideCard(card, h0, card.offsetHeight, { foot, prior: glides.current, cut: [d, tc], free: [tc] });
+      glides.current = glideHeight(card, h0, card.offsetHeight, { foot, prior: glides.current, cut: [d, tc], free: [tc] });
       return;
     }
     closing.current = true;
     const a = (d.lastElementChild as HTMLElement).animate([{ opacity: 1 }, { opacity: 0 }], { duration: D_SMALL * 0.6, easing: EASE_ARRIVE, fill: 'forwards' });
-    const fold = () => { closing.current = false; const was = card.offsetHeight; d.open = false; remember('changes', false); a.cancel(); glides.current = glideCard(card, was, card.offsetHeight, { foot, prior: glides.current }); };
+    const fold = () => { closing.current = false; const was = card.offsetHeight; d.open = false; remember('changes', false); a.cancel(); glides.current = glideHeight(card, was, card.offsetHeight, { foot, prior: glides.current }); };
     void a.finished.then(fold, fold);
   };
   const sections = (

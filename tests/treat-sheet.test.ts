@@ -75,7 +75,7 @@ test('the sheet is 2D\'s markup, class for class, glued to the 2D stylesheets an
     assert.ok(src.includes(c), `Treat's card (or its panel head) uses .${c}`);
     if (!['has-plate', 'tr-in', 'oc-t', 'oc-dot', 'ob-t', 'ob-on', 'tt-l', 'tt-n', 'tp-off', 'tp-gone', 'fluid-btn'].includes(c)) assert.ok(baseCss.includes(`.${c}`) || readFileSync('src/ui/treat/treat.css', 'utf8').includes(`.${c}`), `.${c} is styled`);
   }
-  for (const t of ['glideCard', 'startSegGlideOn', 'pushPage', 'remember', 'sheetHeight']) assert.ok(card.includes(t), `TreatCard.tsx: ${t}`);
+  for (const t of ['glideHeight', 'startSegGlideOn', 'pushPage', 'remember', 'sheetHeight']) assert.ok(card.includes(t), `TreatCard.tsx: ${t}`);
   assert.ok(!/requestAnimationFrame/.test(src), 'one clock');
   assert.match(readFileSync('src/ui/glass.css', 'utf8'), /\.tr-card > \.sheet-plate/, 'the glass is on the plate');
 });
