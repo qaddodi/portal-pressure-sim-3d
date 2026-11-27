@@ -51,8 +51,8 @@ export interface FigCard {
 export const VARIX_CALIPERS: ReadonlySet<string> = new Set(['varix', 'C1a', 'C1b']);
 export interface FigCaliper {
   id: string;
-  /** A spleen's long axis (the 2D plate's two ends, scaled about its centre by the spleen's size), or a line across a vessel at its middle. */
-  line: { ends: readonly [readonly [number, number], readonly [number, number]] } | { across: string };
+  /** An organ's long axis, pole to pole on the drawn organ (the spleen's, which grows with its size: CardDeps.organEnds), or a line across a vessel at its middle. */
+  line: { organ: string } | { across: string };
   text: string;
 }
 
@@ -320,8 +320,8 @@ export interface CardDeps {
   vp(): Vp & { w: number; h: number };
   measure: Measure;
   now(): number;
-  /** The spleen's size now (1: normal); the caliper along its axis grows with it. */
-  spleenScale(): number;
+  /** The two poles of an organ's long axis where the organ is drawn now, scene units, into `a` and `b` (the spleen's already grown with its size); false when the organ is not in the figure. */
+  organEnds(id: string, a: Vector3, b: Vector3): boolean;
   /** A place of the lobule view (view.ts `calloutSpot`: 'tract', 'sinusoid:mid', 'sinusoid:zone3', 'central'), scene point; null when that view is not the figure now. */
   lobule(name: string, out: Vector3): Vector3 | null;
   /** The point on the ring a lobule callout draws round that place (one ring radius from it, along the plate): its pixels are measured from the camera. */
@@ -661,7 +661,7 @@ export class FigureCards {
     }
   }
 
-  /** A caliper's two ends on the canvas: the spleen's axis (2D `spleenCaliper`) or a line across a vessel, wall to wall at its middle. */
+  /** A caliper's two ends on the canvas: an organ's poles (the spleen's axis) or a line across a vessel, wall to wall at its middle. */
   /** Where along its vessel a card's point stands (0..1): a step's at the middle of the vessel's solid stretch; a mark on a varix column, while the slide has the scope ring (and no bleed to point at: figure-calls.ts),
    *  stands clear of the ring and its badge, as the varix ruler does, never inside it, where the ring's claim leaves the card no clear box and it fades away. */
   private atOf(c: FigCard): number {
@@ -672,10 +672,10 @@ export class FigureCards {
   }
   private caliperEnds(c: FigCaliper): [number, number, number, number] | null {
     const d = this.deps;
-    if ('ends' in c.line) {
-      const k = d.spleenScale(), cx = (c.line.ends[0][0] + c.line.ends[1][0]) / 2, cy = (c.line.ends[0][1] + c.line.ends[1][1]) / 2;
-      const pts = c.line.ends.map(([x, y]) => d.project(this.p.set(x3(cx + (x - cx) * k), y3(cy + (y - cy) * k), ORGAN_FRONT), { x: 0, y: 0 }));
-      return [pts[0]!.x, pts[0]!.y, pts[1]!.x, pts[1]!.y];
+    if ('organ' in c.line) {
+      if (!d.organEnds(c.line.organ, this.p, this.q)) return null;
+      const a = d.project(this.p, this.pt), b = d.project(this.q, this.pt2);
+      return [a.x, a.y, b.x, b.y];
     }
     const curve = curveOf(c.line.across), v = NETWORK_BY_ID.get(c.line.across);
     if (!curve || !v) return null;

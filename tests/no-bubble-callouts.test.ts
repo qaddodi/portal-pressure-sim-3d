@@ -98,7 +98,7 @@ test('no rule that targets a label, a tag, a callout, a reading or a tooltip dra
 // ── 3. the DOM: build every reading of every slide and of the catheter, and look at what was made ──
 const deps = (view = { x0: 0, y0: 56, x1: 1280, y1: 800 }): CardDeps => ({
   project: (_p, out) => { out.x = 640; out.y = 400; return out; }, cameraMoving: () => false, view: () => view, blockers: () => [],
-  vp: () => ({ w: 1280, h: 800, safe: { top: 0, right: 0, bottom: 0, left: 0 } }) as never, measure: (s: string, size: number) => s.length * size * 0.56, now: () => t, spleenScale: () => 1,
+  vp: () => ({ w: 1280, h: 800, safe: { top: 0, right: 0, bottom: 0, left: 0 } }) as never, measure: (s: string, size: number) => s.length * size * 0.56, now: () => t, organEnds: (_id, a, b) => { a.set(0.4, 0.4, 0); b.set(0.6, 0.4, 0); return true; },
   lobule: () => null, lobuleRing: () => null, circuit: () => null,
 });
 let t = 0;
@@ -171,7 +171,7 @@ test('a caliper\'s reading stands in line with it, 6 px past its far tick, with 
 
 test('a caliper whose in-line places are taken stands where there is room, with a thin leader that stops 1 px short of the nearer tick and no dot', () => {
   const parent = new El('div'), fc = new FigureCards(parent as unknown as HTMLElement, { ...deps(), blockers: () => [{ x0: 560, y0: 330, x1: 720, y1: 470 }] });
-  fc.set([], [{ id: 'varix', line: { ends: [[0.4, 0.4], [0.6, 0.4]] }, text: '7.3 mm' }], 0, []);
+  fc.set([], [{ id: 'varix', line: { organ: 'spleen' }, text: '7.3 mm' }], 0, []);
   for (let i = 0; i < 160; i++) { t += 16; fc.tick(); }
   judgeTree(parent, 'caliper');
   const lead = parent.kids.find((k) => k.classes.includes('cl-lead-one'));
