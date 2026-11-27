@@ -15,7 +15,8 @@ import { REGIONS_2D, SETS_2D, TARGETS_2D, ORGAN_BOX_2D, CIRC_REGIONS_2D, type Bo
 /** The plate's centre and scale in the shared frame (frame2d.ts: origin CONF, plate units to one scene unit). */
 export const PLATE = { cx: ORIGIN_2D.x, cy: ORIGIN_2D.y, unit: UNITS_PER_SCENE } as const;
 export const toX = x3;
-export const toY = y3;
+// (+ 0: the plate's origin is 0, not -0: the old (cy - y) / unit)
+export const toY = (y: number): number => y3(y) + 0;
 
 /** The depth the camera looks at: the middle of the vessels (0.30 to 0.54 in front) and the organs (which straddle 0). */
 export const TARGET_Z = 0.2;
