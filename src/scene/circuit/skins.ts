@@ -35,7 +35,8 @@ import type { VesselObject } from '../vessels/vessel-object.ts';
 import { COURSES } from './course.ts';
 import { decode } from './frame.ts';
 import { attachRuns, slicesFor } from './geometry.ts';
-import { CIRCUIT_D, CIRCUIT_TREES, CUSTOM_EDGES } from './data.copied.ts';
+import { CIRCUIT_TREES, CUSTOM_EDGES } from './data.copied.ts';
+import { CIRCUIT_COURSE_D } from './junction-cuts.ts';
 import { MAP_CENTRE, MAP_K } from './map.ts';
 import { circuitWidthMap } from './width.ts';
 import { samePrint } from '../fingerprint.ts';
@@ -114,7 +115,7 @@ export function circuitOldJoins(): { trees: string[]; caudate: string[]; custom:
       custom: 'routed on the map when a learner opens one (circuit/tubes.ts routeOpen), after the baked skins are laid in, so not welded: both ends are SUNK and FLARED from numbers made at the route (circuit/map-ends.ts), no live skin build',
     },
     trees: Object.entries(CIRCUIT_TREES).flatMap(([lane, list]) => list.map((_, i) => `${lane}#${i}`)),
-    caudate: CIRCUIT_D.CAUD ? ['CAUD'] : [],
+    caudate: CIRCUIT_COURSE_D.CAUD ? ['CAUD'] : [],
     custom: CUSTOM_EDGES.map((c) => c[0]),
   };
 }

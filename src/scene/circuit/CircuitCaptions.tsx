@@ -26,7 +26,7 @@ import { restyle } from '../labels/roll.ts';
 import { LS, baselineAt, fontPx, lookVars, typeVars } from '../labels/type.ts';
 import { COURSES } from './course.ts';
 import { type CapMeta, ZONE_PX, buildCaptions } from './captions.ts';
-import { CIRCUIT_D, CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, LIVER_EDGES } from './data.copied.ts';
+import { CIRCUIT_LABELS, CIRCUIT_NODES, CIRCUIT_TREES, LIVER_EDGES } from './data.copied.ts';
 import { courseOf } from './paths.ts';
 import { laneCourseOf, laneKeyOf } from './segment-lane.ts';
 import { halfWidthOfVessel, halfWidthPx } from './cap-width.ts';

@@ -3,7 +3,8 @@
 //   - treeHost: the tube a branch's START lies in (its host); treeEndHost: the tube its END lies in (a sinusoid branch rejoining the one it forked from, or the lane), or null for a free tip / a tip that runs on.
 //   - treeNbr: for every vertex of a branch, where it stands against that host, in the body's own encoding (vessels/neighbour.ts): the outline of the two tubes together is the outline of their UNION.
 import { courseOf, type Pt } from './paths.ts';
-import { CIRCUIT_D, CIRCUIT_TREES } from './data.copied.ts';
+import { CIRCUIT_TREES } from './data.copied.ts';
+import { CIRCUIT_COURSE_D } from './junction-cuts.ts';
 import { MAP_K, mapToScene } from './map.ts';
 import { NETWORK_BY_ID, vesselPx } from '../vessels/network.ts';
 import { CIRC_ARTERY, CIRC_BED, CIRC_BRANCH_MIN, CIRC_VEIN_MAX, CIRC_VEIN_MIN, MIN_PX, circuitWidthMap } from './width.ts';
@@ -31,7 +32,7 @@ export interface TreeHost { host: string; r: number; dist: number; runOn: boolea
 function candidates(): { id: string; pts: [number, number][]; r: number }[] {
   const out: { id: string; pts: [number, number][]; r: number }[] = [];
   for (const [l, ls] of Object.entries(CIRCUIT_TREES)) {
-    const v = NETWORK_BY_ID.get(l), d = CIRCUIT_D[l];
+    const v = NETWORK_BY_ID.get(l), d = CIRCUIT_COURSE_D[l];
     if (v && d) out.push({ id: l, pts: courseOf(d), r: mapRadius(v) });
     ls.forEach((b, j) => out.push({ id: `${l}#${j}`, pts: courseOf(b.d), r: treeOwn(l, j) }));
   }
@@ -116,7 +117,7 @@ export interface NbrAxis { id: string; P: [number, number][]; r: number; w: read
 function axisOf(id: string, d: string, r: number): NbrAxis {
   return { id, P: courseOf(d).map(([x, y]) => { const p = mapToScene(x, y); return [p[0], p[1]] as [number, number]; }), r, w: hostCircW(id) };
 }
-const courseD = (id: string): string | null => { const [l, k] = id.split('#'); return k == null ? CIRCUIT_D[l!] ?? null : CIRCUIT_TREES[l!]?.[Number(k)]?.d ?? null; };
+const courseD = (id: string): string | null => { const [l, k] = id.split('#'); return k == null ? CIRCUIT_COURSE_D[l!] ?? null : CIRCUIT_TREES[l!]?.[Number(k)]?.d ?? null; };
 /** The tubes branch `lane#i`'s outline is the union with, as axes in the scene's plane, in the order they claim a slot: the tube it leaves (not one it carries on from: a run-on's ring is joined by the mates, never held back), the tube it reaches, and the
  *  branches that leave or reach the same place (siblings: two branches that fork from one narrow tube overlap each other outside it, at the crotch). */
 const axesMemo = new Map<string, NbrAxis[]>();
