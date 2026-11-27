@@ -190,7 +190,7 @@ export function widthOf(vp: Viewport, _pair = false, _step = 0): number {
 export const pairTop = (H: number, total: number, top0: number, foot: number): number => top0 + Math.max(0, Math.min((H - total) / 2 - top0, foot - top0 - total));
 
 /** Where the cards go. `active` is the wallet's showing card (iPhone: the other becomes the strip). `step` is the wallet's step on its side. */
-export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', step = 0, dock = false): Plan {
+export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', step = 0, dock = false, aspect = FIGURE_ASPECT): Plan {
   const device = deviceClass(vp.w, vp.h);
   const layout = layoutOf(vp.w, vp.h);
   const sideways = isSideways(vp.w, vp.h);
@@ -213,7 +213,9 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
     placed.push({ id: words!.id, slot: 'words', rect: { x, y: alone === 'case' || sideways ? Math.round((vp.h - h) / 2) : y, w: c.w, h } });
     bounds = { x: safe.left, y: safe.top, w: vp.w - safe.left - safe.right, h: vp.h - safe.top - safe.bottom };
     if (sideways) { const b = sideBox(vp); bar = { edge: 'foot', rect: { x: Math.round(sidePillCentre(vp) - PILL_W_SIDE / 2), y: b.foot - BAR_H_PHONE, w: PILL_W_SIDE, h: BAR_H_PHONE } }; }
-    return { device, layout, sideways, cards: placed, strip: null, shut: false, docked: false, tucked: null, scrolled: false, scrollDy: 0, free: sideways ? largestFreeRect(bounds, placed.map((q) => q.rect), GAP) : bounds, overflow: words!.h > c.maxH + 0.5 ? [words!.id] : [], maxH, short: false, bar };
+    return { device, layout, sideways, cards: placed, strip: null, shut: false, docked: false, tucked: null, scrolled: false, scrollDy: 0,
+      free: sideways ? largestFreeRect(bounds, placed.map((q) => q.rect), GAP, aspect) : bounds,
+      overflow: words!.h > c.maxH + 0.5 ? [words!.id] : [], maxH, short: false, bar };
   } else if (sideways) {
     // One card column at the left (docs/approved/landscape-phone.md, Mohammad 23 Nov: "yes, good. let's do it"): the words centred top to bottom, the instrument under it and bleeding off the foot; the reader's swipe
     // up slides both up until the instrument is centred and the words bleed off the top (`scrolled`, `scrollDy`), a swipe down brings them back. Neither card is taller than leaves the other PEEK px showing.
@@ -310,11 +312,28 @@ export function planLayout(vp: Viewport, needs: Need[], active: Slot = 'words', 
   // (a card's own height, not the room it stands in: a pair's two cards stand the room's whole height whatever their words need)
   const need = (p: Placed) => needs.find((n) => n.slot === p.slot)?.h ?? p.rect.h;
   const overflow = placed.filter((p) => need(p) > maxH[p.slot] + 0.5).map((p) => p.id);
-  return { device, layout, sideways, cards: placed, strip, shut: false, docked, tucked, scrolled, scrollDy, free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP), overflow, maxH, short, bar };
+  return { device, layout, sideways, cards: placed, strip, shut: false, docked, tucked, scrolled, scrollDy,
+    free: largestFreeRect(bounds, blockers, layout === 'stack' || layout === 'tab' ? 4 : GAP, aspect),
+    overflow, maxH, short, bar };
 }
 
 /** The width over height of the figure's box (the whole body plate is taller than wide): a free rectangle is judged by the tallest figure it holds. */
 export const FIGURE_ASPECT = 0.62;
+/** The lobule's own bounds, width over height (the corners and the tract glow reach 1.12 R either side and 0.98 R up and down;
+ *  scene/lobule/shots.ts FIT_BOUNDS, pinned by tests/lobule-fills-free-room.test.ts). */
+export const LOBULE_ASPECT = 1.12 / 0.98;
+/** The sinusoid's stretch, width over height, lying across a landscape stage (shots.ts sinusoidShot: 3.4 along by 1.9 across);
+ *  a portrait stage turns it a quarter, so it is the inverse. */
+export const SINUSOID_ASPECT = 3.4 / 1.9;
+/** The aspect of the figure a view frames, for the free room's choice.
+ *  Root cause of the lobule filling half its room (Mohammad, 27 Nov, "fit the lobule to the free space"): every view was given the room that holds the tallest
+ *  BODY figure (0.62), so beside the cards a narrow tall column won over the wider room above the dock, and the lobule
+ *  (wider than tall) was fitted to its width alone, about half its height. */
+export function figureAspect(view: string | undefined, vp: Pick<Viewport, 'w' | 'h'>): number {
+  if (view === 'lobule') return LOBULE_ASPECT;
+  if (view === 'sinusoid') return vp.w < vp.h * 0.95 ? 1 / SINUSOID_ASPECT : SINUSOID_ASPECT;
+  return FIGURE_ASPECT;
+}
 
 /** The free rectangle inside `bounds` that touches no blocker (each grown by `gap`) and holds the tallest figure of `aspect` (width over height); a wide
  *  sliver under a card holds less than the column between two cards. Few blockers, so every grid rectangle is tried. */
