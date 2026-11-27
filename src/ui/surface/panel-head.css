@@ -1,0 +1,22 @@
+/* The one panel head (PanelHead.tsx): what is the shell's own. The title's font, the X's box and the head's padding are the lifted 2D card head's
+   (styles/app-08-cards.css .card-head, .card-title, .card-meta, .card-close), which now reaches every panel, Treat, Tests, History, Compare and Why alike. */
+
+/* (The head's padding, --card-head-pad, is one token on :root, so it reaches a panel wherever it is mounted: inside #app or in the shell's own root.) */
+
+/* One slim head row where the tabs sit in the head (tab-fit.ts tabRow says when they fit): the title, the tabs taking the rest, the X at the row's end.
+   First written for Tests (2D app-09-tests.css "one slim head row"), now any panel's. A panel whose title steps aside for its tabs (data-yield, Tests)
+   shows its title and its quiet status only where the tabs are hidden. */
+.card-head.card-head.tabbed { flex-direction: row !important; flex-wrap: nowrap !important; align-items: center; justify-content: flex-start; gap: 4px; min-height: 0; height: auto !important; padding: 6px 6px 6px 10px !important; }
+.card-head.tabbed[data-yield]:has(> .instr-tabs:not([hidden])) > :is(.card-title, .card-meta) { display: none; }
+.card-head.tabbed > .card-title { flex: 1 1 auto; }
+.card-head.tabbed > .instr-tabs { flex: 1 1 auto; min-width: 0; margin: 0; }
+.card-head.tabbed .card-close.card-close { position: relative; transform: none; flex: none; width: 36px; height: 36px; margin-left: auto; }
+@media (min-width: 1024px) and (pointer: fine) {
+  .card-head.card-head.tabbed { padding: var(--card-head-pad) !important; }
+}
+
+/* A title is never cut: a long one (Why's "Superior mesenteric vein flow") takes a second line. */
+.card-head > .card-title > span:first-child { white-space: normal; min-width: 0; }
+
+/* The X shows on every device (owner, 27 Nov): a phone's is a 44 px target, by the box a centred head gives it (app-08-cards.css) or by the invisible
+   44 px hit area every small control takes on a phone (app-10-thumb-dock.css html.thumb-ui .card-close::after), so the title never moves for it. */

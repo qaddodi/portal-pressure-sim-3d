@@ -29,6 +29,7 @@ import { useTalkOn } from '../../state/deck.ts';
 import { fadeAttrs } from '../fade.tsx';
 import { isCustomCase } from '../action/case-name.ts';
 import { currentParams, useParamsTick } from '../action/params.ts';
+import { RecordStop } from '../capture/RecordIndicator.tsx';
 
 interface Tb { id: string; label: string | null; title: string | null; text: string | null }
 export const tb = (id: string): Tb => UI.topbar.find((t) => t.id === id) as unknown as Tb;
@@ -163,6 +164,7 @@ export function TopBar() {
         <Act id="tabInstruments" icon="gauge" feature="tests" className="measure-launch" />
         <Act id="btnHistory" icon="clock" feature="history" extra={<b className="tb-hc" aria-hidden="true" />} />
         <span className="tb-sep" aria-hidden="true" />
+        <RecordStop />
         <button type="button" className="ib" id="btnSettings" data-opens="settings" aria-haspopup="dialog" aria-expanded={sheet === 'settings'} aria-label={tb('btnSettings').label ?? undefined} title={tb('btnSettings').title ?? undefined} onClick={() => useShell.getState().toggle('settings')}><I n="gear" /></button>
         <button type="button" className="pal-btn" id="btnPalette" data-opens="search" aria-expanded={sheet === 'search'} aria-label={tb('btnPalette').label ?? undefined} title={tb('btnPalette').title ?? undefined} onClick={() => useShell.getState().toggle('search')}>
           <I n="search" /><span className="pal-l">Search</span><kbd>{keyLabel('Ctrl/⌘ K')}</kbd>

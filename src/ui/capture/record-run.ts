@@ -2,7 +2,7 @@
 // ask to share the window, record what is shared, and hand the video over when the person stops it (the row, the shortcut, or the
 // browser's own "Stop sharing"). The phases are record-model.ts's recordStep; this is only what happens on each step.
 // No app imports: record.ts wires the real ones.
-import { recordStep, recordExt, type RecordEvent, type RecordPhase } from './record-model.ts';
+import { recordStep, recordExt, actualMime, type RecordEvent, type RecordPhase } from './record-model.ts';
 
 /** The bits of a MediaStream this needs. */
 export interface StreamLike { getTracks(): { stop(): void }[]; getVideoTracks(): { addEventListener(type: 'ended', fn: () => void): void }[] }
@@ -55,9 +55,10 @@ export function createRecordRun(deps: RecordDeps): { press(): Promise<void>; pha
     rec.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
       if (phase !== 'saving') return;   // (it broke first: already told)
-      const video = new Blob(chunks, { type: rec.mimeType || 'video/webm' });
+      const type = actualMime(rec.mimeType, chunks.find((c) => c.type)?.type ?? '', '');
+      const video = new Blob(chunks, { type: type || 'video/webm' });
       if (video.size === 0) { fail(); return; }
-      try { deps.save(video, recordExt(rec.mimeType)); } catch (e) { console.warn('[record] the video could not be handed over', e); fail(); return; }
+      try { deps.save(video, recordExt(type)); } catch (e) { console.warn('[record] the video could not be handed over', e); fail(); return; }
       go('saved'); deps.tell('saved');
     };
     // the stop, from the row, the shortcut or the browser's bar: the same once, whichever comes first

@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { departures, hpNumbers, advancedNumbers, advancedRecord, advancedKey, type HpRow, type AdvancedFx } from './engine-departures.ts';
+import { departures, hpNumbers, inPlayDecks, advancedNumbers, advancedRecord, advancedKey, type HpRow, type AdvancedFx } from './engine-departures.ts';
 
 const json = (u: string) => JSON.parse(readFileSync(new URL(u, import.meta.url), 'utf8'));
 const fx = (f: string) => json(`./fixtures/${f}`);
@@ -31,11 +31,11 @@ test('every departure record has its generator in the one command, and every gen
 });
 
 test('a record holds only what departs: every deck in it is a deck of the 2D fixture, shaped like it, and moves at least one reading', () => {
-  const hp2 = fx('decks-hp-numbers.json').decks as Record<string, HpRow[]>;
+  const hp2 = inPlayDecks(fx('decks-hp-numbers.json').decks as Record<string, HpRow[]>);
   const hp = hpNumbers();
   for (const [id, rows] of Object.entries(departures('decks-hp-numbers-3d.json') as Record<string, HpRow[]>)) {
     assert.ok(hp2[id], `${id} is a 2D deck`);
-    assert.deepEqual(rows.map((r) => r.id), hp2[id]!.map((r) => r.id), `${id}: the slides are the 2D deck's`);
+    assert.deepEqual(rows.map((r) => r.id), hp2[id]!.map((r) => r.id), `${id}: the slides are the 2D deck's (in the order the talk plays them)`);
     // (a deck also departs when a {token} prints another text than 2D's: the words moved, as {hvpg:0} printing the tile's one decimal)
     const moved = rows.some((r, i) => Object.entries(hp2[id]![i]!.fp).some(([k, v]) => rel(r.fp[k] ?? NaN, v) > 2e-5) || r.tokens.some((tk, j) => tk[1] !== hp2[id]![i]!.tokens[j]?.[1]));
     assert.ok(moved, `${id}: recorded but no reading or printed token moved: delete it, the 2D numbers are the truth`);

@@ -1,5 +1,6 @@
 // The Treat card, as the 2D app's (main.js openTreat, chart.js treatBody and treatChanges, treat-page.js, card-glide.js): the same markup, class for class, so the 2D stylesheets (src/ui/styles) style it:
-// a title with "n running" and a close button (.tc-head.card-head), three tabs (.instr-tabs.treat-tabs: Drugs, Fluids, Procedures; the chosen one is the one gliding piece, seg-glide.copied.ts),
+// the one panel head (surface/PanelHead.tsx: a title with "n running" and the X, .tc-head.card-head), three tabs (its Tabs, .instr-tabs.treat-tabs: Drugs, Fluids,
+// Procedures; the chosen one is the one gliding piece, seg-glide.copied.ts),
 // the orders (.treat-pane), and the Changes list (.section.chart-sec: closed until opened and then remembered, keep.ts). On a phone Changes is one row (.tcp-row) that slides its list in as a page of its own
 // (.tc-page, page-push.ts), the sheet standing Full while the page is up; on a laptop or an iPad on its side it is the section under the orders. A phone's or an upright iPad's card is a sheet over the dock
 // that opens at Half (as tall as its words, up to Full: sheetHeight, treat.css), and its height glides when a tab, the Changes section or the page changes it (glideCard: the card's plate is scaled, its
@@ -33,6 +34,7 @@ import { D_SMALL, EASE_ARRIVE } from '../motion.ts';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
 import { Fade } from '../fade.tsx';
+import { PanelHead } from '../surface/PanelHead.tsx';
 const L = TREAT_WORDS.lines.labels;
 
 type Active = ReturnType<typeof activeInterventions>[number];
@@ -242,20 +244,9 @@ export function TreatCard() {
       <div className="sheet-plate" aria-hidden="true" />
       <i className="sh-grabbar" aria-hidden="true" />
       <div className="tr-in">
-        <div className="tc-head card-head">
-          <h2 className="card-title"><span>{L.treat}</span></h2><span className="card-meta">{n ? `${n} running` : ''}</span>
-          <button type="button" className="ib card-close" aria-label="Close Treat" title="Close (Esc)" onClick={close}><I n="close" /></button>
-        </div>
-        <div ref={tabsRef} className="instr-tabs treat-tabs" role="tablist" aria-label="Treatments" inert={page}>
-          {TABS.map(([id, label]) => {
-            const v = ranOn(id, p);
-            return (
-              <button key={id} type="button" role="tab" className="instr-tab" data-tab={id} aria-selected={tab === id} aria-label={v ? `${label}, ${v} running` : label} onClick={() => setTab(id)}>
-                <span className="tt-l">{label}{id !== 'fluids' && <span className={`tt-n${v > 0 ? ' on' : ''}`} aria-hidden="true">{v || ''}</span>}</span>
-              </button>
-            );
-          })}
-        </div>
+        <PanelHead className="tc-head" title={L.treat} meta={{ text: n ? `${n} running` : '' }} closeLabel="Close Treat" onClose={close}
+          tabs={{ variant: 'text', className: 'treat-tabs', label: 'Treatments', value: tab, onPick: (id) => setTab(id as TabId), inert: page, ref: tabsRef,
+            items: TABS.map(([id, label]) => { const v = ranOn(id, p); return { id, label, count: id !== 'fluids' ? v : undefined, ariaLabel: v ? `${label}, ${v} running` : label }; }) }} />
         <div ref={bodyRef} className="tc-body" inert={page}>
           <div ref={paneRef} className="treat-pane">
             {paneOf('drugs', 'order-chips', drugChips().map((c) => <Chip key={c.id} id={c.id} label={c.label} note={c.note} on={c.get(p)} />))}

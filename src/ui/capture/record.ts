@@ -12,7 +12,7 @@ import { RECORD } from '../shell/words.ts';
 import { canRecordWindow, pickRecordMime, recordFileName, type RecordPhase } from './record-model.ts';
 import { createRecordRun, type RecorderLike, type StreamLike } from './record-run.ts';
 
-/** What Record window is doing now (the Settings row reads it). */
+/** What Record window is doing now (the Settings row and the stop button read it). */
 export const useRecording = create<{ phase: RecordPhase }>(() => ({ phase: 'idle' }));
 
 /** Can this browser record the window: it can share a screen and write video. Looked for in the page, not read from the user agent, so an iPhone (neither) and an old browser
@@ -53,8 +53,8 @@ const run = createRecordRun({
   },
   tell: (note) => {
     const sh = useShell.getState();
-    if (note === 'recording') sh.say(RECORD.on, 'info', { label: RECORD.stop, run: () => { void run.press(); } });
-    else if (note === 'saved') sh.say(RECORD.saved);
+    // (no note while recording: the stop button beside Settings says it, and a note would be in the video)
+    if (note === 'saved') sh.say(RECORD.saved);
     else sh.say(RECORD.failed, 'bad');
   },
   onPhase: (phase) => useRecording.setState({ phase }),
