@@ -9,7 +9,7 @@ import { M } from '../src/ui/shell/metrics.ts';
 import { sheetFoot, layoutVars, dockHeight, dockInset } from '../src/ui/shell/room.ts';
 import { testsPlace } from '../src/ui/tests/place.ts';
 import { sheetPlace } from '../src/ui/treat/sheet-place.ts';
-import { cardMaxHeight, takenBy } from '../src/ui/action/action-room-math.ts';
+import { cardMaxHeight, takenBy } from '../src/ui/action/action-room.ts';
 
 const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const SCREENS = [

@@ -1,9 +1,9 @@
 /* History as the patient's timeline (docs/approved/timeline-story.md, option A). Tokens only; moves are opacity and transform only.
-   Mac and iPad on its side: History's place at the right, widened to about 460 px and as tall as the room, so the list scrolls inside it (approved for this card, 26 Nov).
+   Mac and iPad on its side: History's place at the right, the right column's standard 420 px (--panel-std) and as tall as the room, so the list scrolls inside it (approved for this card, 26 Nov).
    iPad and iPhone upright: the phone sheet from the foot (shell.css). iPhone on its side: the one card column at the left (docs/approved/landscape-phone.md), the figure at the right. */
 .sh-sheet[data-kind="history"], .sh-sheet[data-kind="compare"] { right: calc(var(--safe-r, 0px) + var(--sh-pad-x)); top: calc(var(--sh-pad-top) + 52px); width: 360px; max-height: var(--sh-max-h); }
-.sh-sheet[data-kind="history"] { width: var(--panel-history); height: var(--sh-max-h); }
-.sh-sheet[data-kind="compare"] { width: var(--panel-compare); }
+.sh-sheet[data-kind="history"] { width: var(--panel-std); height: var(--sh-max-h); }
+.sh-sheet[data-kind="compare"] { width: var(--panel-std); }
 .sh-root[data-bottom="true"][data-mode="free"] .sh-sheet[data-kind="history"] { height: 78%; }
 .sh-root[data-device="phone-landscape"] .sh-sheet[data-kind="history"] {
   left: calc(var(--safe-l, 0px) + 6px) !important; right: auto !important; width: clamp(290px, 38vw, 360px) !important; margin-left: 0 !important;

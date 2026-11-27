@@ -15,6 +15,8 @@
 .treat-card.tr-card[data-open="true"] > .tr-in, .treat-card.tr-card[data-open="true"] > .sheet-plate { opacity: 1; }
 /* (2D's `.has-plate:not(.app.thumb *)` cuts the card's box with a clip-path; a clip-path is also a backdrop root, which would end the plate's blur) */
 html .treat-card.tr-card.has-plate { clip-path: none !important; }
+/* its width is the right column's standard (--panel-std, shell.css; surface/panel-place.ts stdWidth), where 2D's was its own 400 px */
+.sh-root #app { --card-treat: var(--panel-std, 420px); }
 /* the words of the card: one column, as 2D lays the card's children (head, tabs, body) in the card itself */
 .treat-card > .tr-in { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; min-width: 0; }
 .treat-card > .tr-in > .tc-body { overscroll-behavior: contain; }
