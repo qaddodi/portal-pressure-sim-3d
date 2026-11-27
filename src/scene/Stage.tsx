@@ -8,6 +8,7 @@ import './three-console.ts';   // (before the Canvas makes R3F's store: names th
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Raycaster, WebGLRenderTarget } from 'three';
 import { ClockBridge } from '../clock/r3f.tsx';
+import { layoutOnly } from '../boot/layout-only.ts';
 import { whenQuiet } from '../clock/idle.ts';
 import { clock, type TimerId } from '../clock/frame.ts';
 import { VesselData, latest } from '../engine/index.ts';
@@ -341,7 +342,46 @@ function SceneBridge() {
   return null;
 }
 
-export function Stage() {
+/**
+ * `?layout` (boot/layout-only.ts): the Stage's work that needs no renderer. The scene is sized, the look and the blood and lens choices are applied, the split twin is bound, and the
+ * splash is told the figure is "drawn" once the camera has its room, so the labels are placed and the cover lifts. Nothing is drawn: no canvas, no programs, no frames of the render phase.
+ */
+function LayoutBridge() {
+  useEffect(() => {
+    const fit = () => {
+      const w = innerWidth, h = innerHeight;
+      cel.resize(w, h); cel.setPhone(isPhone()); splitResize(w, h); splitPhone(isPhone());
+      clock.invalidate('resize');
+    };
+    fit();
+    addEventListener('resize', fit);
+    return () => removeEventListener('resize', fit);
+  }, []);
+  useEffect(() => { bindSplit({ scene: cel, stage: () => ({ w: cel.rig.stageSize.w, h: cel.rig.stageSize.h }), look: () => cel.currentLook, phone: isPhone }); return () => bindSplit(null); }, []);
+  useEffect(() => {
+    sceneApi.setBlood({});
+    sceneApi.setLens(useLens.getState().lens, true);
+    void sceneApi.loadHealthy();
+    return lookGlide.onLook((look) => { cel.applyLook(look); splitLook(look); clock.invalidate('look'); });
+  }, []);
+  useEffect(() => {
+    compileDone(); clock.invalidate('layout-bridge');
+    return clock.on('render', () => { if (cel.rig.placed) figureDrawn(); }, 0, { gated: true });
+  }, []);
+  return null;
+}
+
+// (the stage's stacking, a CSS variable the style type calls a number)
+const STAGE_Z = 'var(--z-stage)' as unknown as number;
+/** The stage with no renderer (`?layout`): the same root, the split labels, and the bridge above. */
+function LayoutStage() {
+  wireScene();
+  return <div className="stage-root" style={{ position: 'fixed', inset: 0, zIndex: STAGE_Z }}><LayoutBridge /><SplitLabels /></div>;
+}
+
+export function Stage() { return layoutOnly() ? <LayoutStage /> : <GlStage />; }
+
+function GlStage() {
   wireScene();   // (a page that did not wire it at start: a test, a tool; once)
   useEffect(() => { clock.invalidate('stage-mounted'); }, []);
   // the pixel ratio the figure rests at, and whether the context is multisampled (only on ?aa=msaa, at any ratio); the canvas is made again only when that answer changes
@@ -357,7 +397,7 @@ export function Stage() {
   // (with the anti-aliasing pass on, the figure is drawn into the pass's own target, which has its depth and stencil, and the canvas only receives the filtered picture:
   // no depth or stencil on the canvas then, about 12 MB less on a 3x phone; `?aa=msaa`, `?aa=off` and the inspector page draw (or may draw) straight to the canvas and keep both)
   return (
-    <div className="stage-root" style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-stage)' as unknown as number, touchAction: 'none' }}>
+    <div className="stage-root" style={{ position: 'fixed', inset: 0, zIndex: STAGE_Z, touchAction: 'none' }}>
       <Canvas key={`${msaa ? 'msaa' : 'no-msaa'}-${post ? 'post' : 'direct'}`} flat frameloop="never" dpr={rest} gl={{ antialias: msaa, alpha: false, depth: buffers.depth, stencil: buffers.stencil }}>
         <ClockBridge />
         <SceneBridge />
