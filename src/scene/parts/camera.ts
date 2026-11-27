@@ -29,10 +29,13 @@ export const cameraPart = scenePart<CelScene>()({
     this.rig.goTo(shot, room, now, ms, keepHand, ease ?? null); this.moving = true;
   },
   /** The figure grew or shrank under a whole-figure frame (the ascites came, went or changed): the camera glides to the new fit from where it is,
-   *  the viewer's zoom, pan and turn kept. Never a snap. */
+   *  the viewer's zoom, pan and turn kept. Never a snap.
+   *  Only from rest: a move in flight is the transition's ONE move, and the fit follows once it has landed. A case card's patient loads as the camera goes (Mohammad, 27 Nov, Sites, the lobule
+   *  out to the anatomy behind the next case card: "so glitchy and laggy, it pans somewhere else"), so the water came in the middle of the dive out and this glide, a second move from the middle
+   *  of the first, restarted it (a new 1.5 s from where it was, a new path to a new landing): the lobule to anatomy zoom stopped following its own path in every deck and on every screen. */
   followWhole(now: number): void {
     const was = this.wholeOn;
-    if (!was || this.heldDive || this.figureView !== 'body') return;
+    if (!was || this.heldDive || this.figureView !== 'body' || this.rig.isMoving) return;
     const want = wholeShot(this.disease.fluidGoalMl);
     if (want === was) return;
     this.goTo('play', this.rig.targetRoom, now, this.rig.reachMs(want), undefined, true);
