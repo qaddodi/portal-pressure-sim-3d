@@ -21,7 +21,7 @@ test('a step number that faded out with the picture and came back is lit again: 
   let t = 0, moving = false;
   const deps: CardDeps = {
     project: (_p, out) => { out.x = 200; out.y = 300; return out; }, cameraMoving: () => moving, view: () => ({ x0: 0, y0: 56, x1: 390, y1: 800 }), blockers: () => [],
-    vp: () => ({ w: 390, h: 844, safe: { top: 0, right: 0, bottom: 0, left: 0 } }) as never, measure: (s: string, size: number) => s.length * size * 0.56, now: () => t, spleenScale: () => 1,
+    vp: () => ({ w: 390, h: 844, safe: { top: 0, right: 0, bottom: 0, left: 0 } }) as never, measure: (s: string, size: number) => s.length * size * 0.56, now: () => t, organEnds: () => false,
     lobule: () => null, lobuleRing: () => null, circuit: () => null,
   };
   const parent = new El('div');

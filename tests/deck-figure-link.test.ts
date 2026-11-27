@@ -165,7 +165,7 @@ test('no slide of any deck stands a site bubble on a station', () => {
 test('the calipers: the spleen along its axis, a varix across its vessel, a stent by its set diameter', () => {
   const c = figureCalls(figurePlan({ id: 'k', line: '', calipers: ['spleen', 'varix', 'TIPS'] } as unknown as CopiedSlide), reads);
   assert.deepEqual(c.calipers.map((k) => k.id), ['spleen', 'varix', 'TIPS']);
-  assert.ok('ends' in c.calipers[0]!.line);
+  assert.deepEqual(c.calipers[0]!.line, { organ: 'spleen' });   // (the organ's own poles, never two hand-read points of the 2D plate: tests/caliper-on-poles.test.ts)
   assert.deepEqual(c.calipers[1]!.line, { across: 'C1a' });
   assert.equal(c.calipers[2]!.text, '8 mm');
 });

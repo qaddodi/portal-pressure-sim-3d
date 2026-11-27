@@ -9,7 +9,7 @@ import { CAUDATE_FRONT_Z } from '../../scene/organs/caudate.ts';
 import { planeMap, mapX, mapY } from '../../scene/organs/placed-map.ts';
 import { PLACED_CAUDATE } from '../../scene/anatomy/placement.generated.ts';
 import { x2d, x3, y2d, y3 } from '../../scene/frame2d.ts';
-import { SITE_DEF_2D, SPLEEN_AXIS_2D, ORGAN_ANCHOR_2D } from '../../scene/labels/figure2d.copied.ts';
+import { SITE_DEF_2D, ORGAN_ANCHOR_2D } from '../../scene/labels/figure2d.copied.ts';
 import { PAIR_AT } from '../../scene/labels/pair.ts';
 import type { FigCard, FigCaliper, FigSpan, Anchor } from '../../scene/labels/figure-cards.ts';
 import type { ResKey } from '../../scene/circuit/res-model.ts';
@@ -164,7 +164,7 @@ export function figureCalls(plan: FigurePlan, r: Reads = {}): FigureCalls {
   // calipers: the spleen's axis, a line across a vessel, with the reading
   const calipers: FigCaliper[] = [];
   for (const c of plan.calipers) {
-    if (c.organ === 'spleen') { calipers.push({ id: c.id, line: { ends: SPLEEN_AXIS_2D }, text: valueText('spleen', fp as never) }); continue; }
+    if (c.organ === 'spleen') { calipers.push({ id: c.id, line: { organ: 'spleen' }, text: valueText('spleen', fp as never) }); continue; }
     if (!c.edge || !NETWORK_BY_ID.has(c.edge)) { notDrawn.push(`caliper ${c.id}`); continue; }
     const stent = c.edge === 'TIPS' ? r.params?.tips : c.edge === 'DIPS' ? r.params?.dips : null;
     const ei = r.indexOf?.(c.edge) ?? -1, d = ei >= 0 ? fp?.at?.D?.[ei] : null;
