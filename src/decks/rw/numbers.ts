@@ -4,6 +4,7 @@
 import { fmt, NOT_SHOWN } from '../../ui/charts/fmt.ts';
 import { TILE } from '../../ui/charts/tiles.generated.ts';
 import { bedsideMean } from '../../engine/hales/portal/bedside-mean.js';
+import { valueText as tokensValueText, type Fp as TokenFp } from '../../ui/text/tokens.ts';
 import type { CopiedDeck, CopiedSlide } from './types.ts';
 
 /** One step of the host's `sequence` chain (src/engine/hales/host/worker-core.js): preset → params → settle → actions → days. */
@@ -109,13 +110,8 @@ export function bpText(sbp: number | null | undefined, dbp: number | null | unde
 
 /** The text a reading prints as in running text (the 2D app's valueText): to its tile's decimals (whole: a whole number), with its unit; "…" while unknown. */
 export const VALUE_PENDING = '…';
-export function valueText(key: string, fp: Fingerprint | null | undefined, whole = false): string {
-  const T = TILE[key], v = fp?.[key];
-  if (!T || v == null || !Number.isFinite(v)) return VALUE_PENDING;
-  if (key === 'plt') return plateletText(v);
-  if (key === 'map') return `${bpText(fp?.sbp, fp?.dbp, v)} ${T.u}`;
-  return `${fmt(v * (T.x ?? 1), whole ? 0 : T.d ?? 1)}${T.u === '%' ? '%' : T.u ? ` ${T.u}` : ''}`;
-}
+// (one function for it: ui/text/tokens.ts, which also says "Not measurable" for a patient whose hepatic vein is blocked)
+export const valueText = (key: string, fp: Fingerprint | null | undefined, whole = false): string => tokensValueText(key, fp as TokenFp | null | undefined, whole);
 
 /** The words of a text with its values filled in (what a screen reader hears, and what a test compares): `at` finds the fingerprint of another slide by id. */
 export function plainText(pieces: readonly Piece[], fp: Fingerprint | null | undefined, at: (id: string) => Fingerprint | null | undefined = () => null): string {

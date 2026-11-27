@@ -22,6 +22,7 @@ const CASES: Array<[rule: string, path: string, bad: string, good: string]> = [
   ['discarded-unsubscribe', 'src/ui/x.ts', "function mount() { useThing.subscribe(run); }", "function mount() { const off = useThing.subscribe(run); return off; } function page() { useThing.subscribe(run); // (lives for the page)\n }"],
   ['canvas-own-loop', 'src/ui/x.tsx', 'export const A = () => <Canvas camera={c}><Scene /></Canvas>;', 'export const A = () => <Canvas frameloop="never"><Scene /></Canvas>;'],
   ['anatomy-through-source', 'src/scene/x.ts', "import { EDGE_PATH_2D } from './vessels/paths.copied.ts'; import { REGIONS } from '../decks/hp/regions.copied.ts';", "import { EDGE_PATH_2D } from './anatomy/source.ts'; // paths.copied.ts is the source's\nconst s = 'paths.copied.ts';"],
+  ['hv-blocked-direct', 'src/ui/x.ts', "import { hvBlocked, NOT_MEASURABLE } from '../engine/hales/portal/pressure-cuts.js';", "import { NOT_MEASURABLE } from '../engine/hales/portal/pressure-cuts.js'; import { hvpgBlockedBy } from '../engine/hv-flag.ts';"],
   ['slider-key-by-value', 'src/ui/x.tsx', 'const A = () => cells.map((c) => <SliderCtl key={c.id + d} v={c} />); const B = <input type="range" key={`r${v}`} />;', 'const A = () => cells.map((c) => <SliderCtl key={c.id} v={c} />); const B = <input type="range" key={i} />; const C = <Row key={a + b} />;'],
 ];
 

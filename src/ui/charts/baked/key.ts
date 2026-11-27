@@ -11,7 +11,8 @@ export function fnv(s: string): string {
 }
 
 /** What the numbers depend on besides the decks: the pinned engine (its commit and the hash of every file) and the format of the file. */
-export const BAKE_VERSION = 3;   // (2: a summary table's Doppler traces, `waves`; 3: a summary table's own rows take the slide's `relax`)
+// (2: a summary table's Doppler traces, `waves`; 3: a summary table's own rows take the slide's `relax`; 4: a state whose hepatic vein is blocked carries `hvBlocked`, engine/hv-flag.ts)
+export const BAKE_VERSION = 4;
 export const engineKey = (): string => fnv(JSON.stringify([BAKE_VERSION, pinned.engine, pinned.files, WAVE_SECS]));
 
 const sigs = new WeakMap<object, string>();

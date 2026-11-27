@@ -47,6 +47,7 @@ import { isSwapSwipe } from '../wallet/wallet-machine.ts';
 import { useDeckWheel } from '../deck/useDeckWheel.ts';
 import { swipeMove, apply, samePos, type Move } from '../deck/presenter-machine.ts';
 import { gapOf } from './ladder-model.ts';
+import { hvpgNotMeasurable } from '../cuts.ts';
 import { maxPages, clampPage, nextToMeasure, tallestPage } from './pages.ts';
 import { rekeyed } from './box-lock.ts';
 import { cardKey, wordsCardKey } from './card-key.ts';
@@ -465,7 +466,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
       {stripStack.entries.map((e) => {
         const rect = (e.phase === 'in' ? plan.strip?.rect : undefined) ?? last.current[e.key] ?? ZERO;
         const behind = plan.strip ? plan.strip.slot : e.key.endsWith('data') ? 'data' : 'words';
-        return <Strip key={e.key} entry={e} rect={rect} behind={behind} hvpg={gap.value != null ? gap.hvpg : null} slideTitle={view.slide?.title ?? deck.title} dock={plan.docked} onSwap={() => (plan.docked ? setDocked(false) : swapWallet())} onGone={stripStack.gone} />;
+        return <Strip key={e.key} entry={e} rect={rect} behind={behind} hvpg={gap.value != null || hvpgNotMeasurable(readings) ? gap.hvpg : null} slideTitle={view.slide?.title ?? deck.title} dock={plan.docked} onSwap={() => (plan.docked ? setDocked(false) : swapWallet())} onGone={stripStack.gone} />;
       })}
     </>
   );

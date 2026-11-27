@@ -3,6 +3,7 @@
 // scripts/copy-chart-profile.mjs into layout.generated.js; this file types it and adds the drawing's own numbers (the smooth line, the cuts the readings
 // make in it, the gridlines, the brace, the hatching), each lifted from the 2D tool's model builder (buildModel / paintNow).
 import { measure } from '../measure.ts';
+import { NOT_MEASURABLE, hvpgNotMeasurable } from '../../../engine/hv-flag.ts';
 import { gapText, stationText } from '../readings.ts';
 import * as L from './layout.generated.js';
 import { hvpgSentence } from './wedge.ts';
@@ -26,7 +27,7 @@ export const {
   RATE_OF: Record<string, (v: number) => Rate>; PATH: { liver: [string, string]; nodes: string[]; names: Record<string, string> };
 };
 
-export type Rate = 'ok' | 'mid' | 'hi';
+export type Rate = 'ok' | 'mid' | 'hi' | 'none';
 /** A bracket: [key, name, from-station, to-station]. */
 export type Span = readonly [string, string, string, string];
 /** A fingerprint as the engine reports it (src/engine/hales/portal/fingerprint.js): the tiles' numbers and `at.P`, the node pressures. */
@@ -94,7 +95,10 @@ export function pillReadings(fp: Fp | null | undefined): { k: string; name: stri
   const p = profileOf(fp);
   if (!p) return [];
   const of = (k: string) => (k === 'ppg' ? p.ppg : k === 'eus' ? p.eus : p.hvpg);
-  return (hasStent(fp) ? spansStented(SPANS) : SPANS).filter(([k]) => Number.isFinite(of(k))).map(([k, name]) => ({ k, name, v: gapText(of(k)), rate: RATE_OF[k]!(of(k)) }));
+  // (a patient whose hepatic vein is blocked has an HVPG pill that says so, in no band: ui/cuts.ts)
+  const nm = (k: string) => k === 'hvpg' && hvpgNotMeasurable(fp);
+  const shown = (hasStent(fp) ? spansStented(SPANS) : SPANS).filter(([k]) => nm(k) || Number.isFinite(of(k)));
+  return shown.map(([k, name]) => (nm(k) ? { k, name, v: NOT_MEASURABLE, rate: 'none' as Rate } : { k, name, v: gapText(of(k)), rate: RATE_OF[k]!(of(k)) }));
 }
 export const whole0 = (v: number) => { const r = Math.round(v); return r > V_MAX ? V_MAX : r > 0 ? r : 0; };
 export const toneOf = (r: Rate) => (r === 'hi' ? 2 : r === 'mid' ? 1 : 0);
@@ -297,7 +301,9 @@ export const HEPATIC_VEIN_SPANS: readonly string[] = ['hvpg', 'eus'];
  *  (`blocked`: Budd-Chiari, the slide's `cath: 'blocked'`, whose words say these cannot be measured; capture 3531bdfa 26.10 printed "HVPG 0.3" under them). */
 export function spansFor(want: readonly string[] | null | undefined, fp: Fp | null | undefined, blocked = false): Span[] {
   const list = spansOf(want);
-  const open = blocked ? list.filter(([k]) => !HEPATIC_VEIN_SPANS.includes(k)) : list;
+  // (blocked: the slide says so (`cath`), or the state does: its fingerprint, a patient whose hepatic vein is blocked (ui/cuts.ts),
+  //  whatever the slide's own flag, which a control, a preset or a treatment cannot move)
+  const open = blocked || hvpgNotMeasurable(fp) ? list.filter(([k]) => !HEPATIC_VEIN_SPANS.includes(k)) : list;
   return hasStent(fp) ? spansStented(open) : open;
 }
 

@@ -1,5 +1,5 @@
 // The three figures under the Along-the-circuit chart (2D charts.js readStrip): HVPG, PPG and the portal vein, each with its word only when it is not normal.
-import { hvpgSev, ppgSev, HVPG_WORDS, PPG_WORDS, NOT_SHOWN } from '../../../engine/hales/portal/pressure-cuts.js';
+import { hvpgSev, ppgSev, HVPG_WORDS, PPG_WORDS, NOT_SHOWN, NOT_MEASURABLE } from '../../../engine/hales/portal/pressure-cuts.js';
 
 type M = Record<string, number | undefined>;
 
@@ -15,7 +15,9 @@ export function readings(m: M | null, hidden: ReadonlySet<string> | null): { id:
   return READ.map((x) => {
     const v = m?.[x.id], on = Number.isFinite(v) && !hidden?.has(x.hide);
     const rate = on && x.sev ? x.sev(v!) : '';
-    return { id: x.id, name: x.name, text: on ? v!.toFixed(1) : NOT_SHOWN, word: rate && rate !== 'ok' ? x.words![rate]![0]! : '', sev: rate };
+    // (a hepatic vein that is blocked has no gradient to take: the word, where the number would be; the hidden set says so, tests/hidden.ts HV_BLOCKED)
+    const nm = x.id === 'hvpg' && !!hidden?.has('hvBlocked');
+    return { id: x.id, name: x.name, text: nm ? NOT_MEASURABLE : on ? v!.toFixed(1) : NOT_SHOWN, word: rate && rate !== 'ok' ? x.words![rate]![0]! : '', sev: rate };
   });
 }
 

@@ -7,6 +7,7 @@ import { nb } from '../text/glue.ts';
 import { typesetter, toneVar, stationTone, type Node, type RichSlide } from '../text/rich.ts';
 import { rateShown, tipsGoal, tileShown } from '../deck/from2d/table-marks.js';
 import { TOKEN_OF_RATE } from '../../engine/hales/portal/pressure-cuts.js';
+import { HV_BLOCKED_KEY, hvpgNotMeasurable } from '../cuts.ts';
 
 type Fp = Readonly<Record<string, number | null | undefined>>;
 /** A reading's pill colour, as 2D valTone: the rating its tile gives (green, amber, red), else the station it is read at. After a TIPS the PPG is read against its 12 mmHg reference line, as its tile reads it. */
@@ -52,8 +53,10 @@ export function Line({ text, read, slide, fp, pill, still = false, seen, minus, 
         //  minus slot and a padded digit, which stood as a gap after it, "17.1 mmHg      without a stent to 9.0 mmHg" on Circuit 8, audit af1c51a0)
         const stillHere = still || !!p.at;
         const v = read(p.key, p.at);
-        const text = v == null ? '…' : valueText(p.key, { [p.key]: v, sbp: read('sbp', p.at), dbp: read('dbp', p.at) }, p.decimals === 0);
-        const { tone, rate } = v == null ? { tone: null, rate: null } : pillTone(p.key, p.at ? { ...fp, [p.key]: fp?.[`${p.key}@${p.at}`] } : fp);
+        // (the HVPG of a blocked hepatic vein reads "Not measurable", in no status colour: its flag rides in the readings beside the number, ui/cuts.ts)
+        const nm = p.key === 'hvpg' && hvpgNotMeasurable({ [HV_BLOCKED_KEY]: read(HV_BLOCKED_KEY, p.at) });
+        const text = v == null ? '…' : valueText(p.key, { [p.key]: v, ...(nm ? { [HV_BLOCKED_KEY]: 1 } : null), sbp: read('sbp', p.at), dbp: read('dbp', p.at) }, p.decimals === 0);
+        const { tone, rate } = v == null || nm ? { tone: null, rate: null } : pillTone(p.key, p.at ? { ...fp, [p.key]: fp?.[`${p.key}@${p.at}`] } : fp);
         // (its stop is set inside the reading's own box, right after the digits: the reserve is wider than a short value, and that spare width must fall after the stop, not before it)
         return stopped(<span className="pz-nw"><span className={`pz-val dk-num${tone ? ' tone' : ''}`} data-rate={rate ?? undefined} data-k={p.key} style={style(tone)}><Roll text={text} reserve={reserveOf(text, p.key, p.decimals === 0, stillHere, { seen: p.at ? undefined : seen?.(p.key, p.decimals === 0), minus, raises })} alts={altsOf(text, stillHere, { seen: p.at ? undefined : seen?.(p.key, p.decimals === 0) })} fit after={stop} /></span></span>, '', i, open, before);
       }

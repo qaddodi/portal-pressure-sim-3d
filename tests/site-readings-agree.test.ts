@@ -7,12 +7,13 @@ import assert from 'node:assert/strict';
 import { chainOf } from '../src/decks/hp/numbers.ts';
 import { runStepsNode } from '../src/decks/rw/numbers-node.ts';
 import { SITES } from '../src/decks/rw/copied/sites.ts';
-import { SPANS, STATIONS, SPOKEN, goalOf, planProfile, profileOf, profileWords, pillReadings, type Fp } from '../src/ui/charts/profile/model.ts';
+import { SPANS, STATIONS, SPOKEN, spansFor, goalOf, planProfile, profileOf, profileWords, pillReadings, type Fp } from '../src/ui/charts/profile/model.ts';
 import { profileFrameAtRest } from '../src/ui/charts/profile/frame.ts';
 import { stripFrame } from '../src/ui/charts/ladder/frame.ts';
 import { stripLabel, rowsOf } from '../src/ui/charts/ladder/model.ts';
 import { valOf } from '../src/ui/charts/plane/model.ts';
 import { valueText } from '../src/ui/talk/table-model.ts';
+import { NOT_MEASURABLE, hvpgNotMeasurable } from '../src/ui/cuts.ts';
 import { gapText, stationText } from '../src/ui/charts/readings.ts';
 import type { TextShape } from '../src/ui/charts/scene.ts';
 import { ctxOf } from './charts-helpers.ts';
@@ -47,16 +48,19 @@ test('every surface prints a site as every other does: chart, phone strip, pills
   for (const { id, fp } of rows) {
     const want = expected(fp), p = profileOf(fp)!;
     // the profile chart at rest: the eight readings on their dots, both gradients in their brackets, and the words a screen reader hears
-    const plan = planProfile(c.w, 0, Math.max(12, c.type.sm), goalOf(p, profileOf(healthy), null), profileOf(healthy), null, SPANS);
+    // (a site whose hepatic vein is blocked has no HVPG to draw or print: its spans, its pill and its table cell say so; ui/cuts.ts)
+    const nm = hvpgNotMeasurable(fp), spans = spansFor(['hvpg', 'eus', 'ppg'], fp);
+    const plan = planProfile(c.w, 0, Math.max(12, c.type.sm), goalOf(p, profileOf(healthy), null), profileOf(healthy), null, spans);
     const chart = profileFrameAtRest(plan, c), cw = words(chart);
     for (const [i, t] of want.stations.entries()) assert.ok(cw.includes(t), `${id}: chart prints station ${STATIONS[i]} as ${t}, it prints ${cw.join(' ')}`);
-    assert.ok(cw.includes(want.hvpg) && cw.includes(want.ppg), `${id}: chart's gradients ${want.hvpg} and ${want.ppg} in ${cw.join(' ')}`);
-    assert.equal(chart.label, profileWords(plan.goal, SPANS));
+    if (nm) assert.ok(cw.includes(want.ppg) && !cw.includes(want.hvpg), `${id}: chart prints no HVPG, ${cw.join(' ')}`);
+    else assert.ok(cw.includes(want.hvpg) && cw.includes(want.ppg), `${id}: chart's gradients ${want.hvpg} and ${want.ppg} in ${cw.join(' ')}`);
+    assert.equal(chart.label, profileWords(plan.goal, spans));
     // the phone strip: the same eight readings, in station order
     const strip = stripFrame(fp, healthy, c)!, sw = words(strip);
     assert.deepEqual(sw, want.stations, `${id}: the strip prints the chart's readings`);
     // the pills of the strip's cell: the gradients, to a tenth
-    assert.deepEqual(pillReadings(fp).map((q) => [q.k, q.v]), [['hvpg', want.hvpg], ['ppg', want.ppg]], `${id}: pills`);
+    assert.deepEqual(pillReadings(fp).map((q) => [q.k, q.v]), [['hvpg', nm ? NOT_MEASURABLE : want.hvpg], ['ppg', want.ppg]], `${id}: pills`);
     // the plane's dot readout and the table's columns
     assert.equal(valOf('hvpg', fp.hvpg as number), want.hvpg, `${id}: plane HVPG`);
     assert.equal(valOf('ppg', fp.ppg as number), want.ppg, `${id}: plane PPG`);

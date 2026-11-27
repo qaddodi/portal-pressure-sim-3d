@@ -1,9 +1,10 @@
 // The readouts hidden right now (2D store.js hiddenNow): a set a view hides and, in Explore, the true HVPG (the wedged and free hepatic vein pressures with it) while it cannot be
 // shown. The 2D app first hid the HVPG until the catheter procedure had measured it; on 11 Nov 2026 the Always show HVPG setting was removed and the HVPG always shows
 // (store.js `showHvpg`, now fixed true), so what is left hidden in Explore is a Budd-Chiari patient's: the hepatic veins take no catheter (pressure-cuts.js hvBlocked), so the true HVPG
-// stays unmeasured whatever else is set. A Presenter slide shows the figures as they are. Every Tests pane reads this one set (the Pressure chart and its three figures, the Readouts, the
+// stays unmeasured whatever else is set, on a slide too (27 Nov: "Not measurable" on every surface; the set then also holds HV_BLOCKED, so a pane says
+// "Not measurable", not "Not measured"). A Presenter slide otherwise shows the figures as they are. Every Tests pane reads this one set (the Pressure chart and its three figures, the Readouts, the
 // Trials card, Over time), so they say "not measured" together.
-import { hvBlocked } from '../../engine/hales/portal/pressure-cuts.js';
+import { hvpgBlockedBy } from '../../engine/hv-flag.ts';
 import { create } from 'zustand';
 import { useShell } from '../shell/store.ts';
 import { useEngine, shownParams } from '../../engine/index.ts';
@@ -23,8 +24,10 @@ export const useMeasured = create<{ hvpgMeasured: boolean; lastHVPG: Measured | 
 useEngine.subscribe((s, p) => { if (s.presetId !== p.presetId) useMeasured.getState().clear(); });
 
 const blocked = { params: null as unknown, on: false };
-const blockedNow = (params: unknown): boolean => { if (blocked.params !== params) { blocked.params = params; blocked.on = !!params && hvBlocked(params); } return blocked.on; };
-const cache = { base: undefined as ReadonlySet<string> | null | undefined, set: null as ReadonlySet<string> | null };
+const blockedNow = (params: unknown): boolean => { if (blocked.params !== params) { blocked.params = params; blocked.on = hvpgBlockedBy(params); } return blocked.on; };
+const cache = { base: undefined as ReadonlySet<string> | null | undefined, nm: null as ReadonlySet<string> | null };
+/** The marker in the hidden set that says WHY the true HVPG is hidden: its hepatic vein is blocked, so it cannot be measured (the panes then read "Not measurable" where the number would be). */
+export const HV_BLOCKED = 'hvBlocked';
 
 export interface HiddenIn {
   /** the view's own hidden set (2D st.hiddenReadouts) */
@@ -39,10 +42,12 @@ export interface HiddenIn {
 
 /** 2D hiddenNow: the set of readouts hidden now, or null for none. */
 export function hiddenOf({ base = null, presenting = false, measured = false, params }: HiddenIn): ReadonlySet<string> | null {
-  if (presenting || base?.has('trueHVPG')) return base;
-  if ((measured || SHOW_HVPG) && !blockedNow(params)) return base;
-  if (cache.base !== base || !cache.set) { cache.base = base; cache.set = new Set([...(base ?? []), 'trueHVPG']); }
-  return cache.set;
+  const nm = blockedNow(params);
+  if (base?.has('trueHVPG') && !nm) return base;
+  if (!nm && (presenting || measured || SHOW_HVPG)) return base;
+  // (a blocked hepatic vein hides the true HVPG whatever else is set, a slide included, and says why)
+  if (cache.base !== base || !cache.nm) { cache.base = base; cache.nm = new Set([...(base ?? []), 'trueHVPG', HV_BLOCKED]); }
+  return cache.nm;
 }
 
 /** The set for the patient now on show (outside React). */

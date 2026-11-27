@@ -1,6 +1,7 @@
 // The plane chart's layout (2D: visual-plane.js). Every function that decides a place, a size or a word is the 2D file's own, copied by scripts/copy-chart-plane.mjs into
 // layout.generated.js; this file adds the types and the one thing the 2D file does inside its DOM code: planeLayout(), the order in which draw() asks for the numbers, the
 // points' names, the zones' words, the lines, the trail's names and the card's words (visual-plane.js planePlot().draw), as a pure function of the box and the data.
+import { NOT_MEASURABLE, hvpgNotMeasurable } from '../../../engine/hv-flag.ts';
 import {
   PLANES as PLANES0, planeOf as planeOf0, fitPlane as fitPlane0, zoneOf as zoneOf0, readKeys as readKeys0, shownReading as shownReading0, frame as frame0, bleed as bleed0, widen as widen0, scaler as scaler0,
   plotNumbers as plotNumbers0, cutNumbers as cutNumbers0, hasAxes as hasAxes0, axesFrame as axesFrame0, axesMarks as axesMarks0, cutSegs as cutSegs0, gapSegs as gapSegs0, diagOf as diagOf0, isoOf as isoOf0,
@@ -49,9 +50,17 @@ export interface ZoneWords { z: Zone; cls: string; x: number; y: number; anchor:
 /** The tile's printed number, 2D valOf. */
 export const valOf = (k: string, v: number | null | undefined) => (v == null || !Number.isFinite(v) ? '—' : fmt(v * (TILE[k]?.x ?? 1), TILE[k]?.d ?? 1));
 export const unitOf = (k: string) => TILE[k]?.u || '';
+/** A state as the plane plots it: the HVPG of a patient whose hepatic vein is blocked is no number, so a plane with the HVPG on an axis has no point to plot
+ *  for them (ui/cuts.ts, "Not measurable"); every other reading stands. */
+export const plotted = <T extends Fp | null | undefined>(f: T): T => (f && hvpgNotMeasurable(f) ? ({ ...f, hvpg: null } as T) : f);
 const word = (a: Axis) => (a.short || a.name || a.key).split(',')[0]!;
 /** The case's reading under the card's plot: its two values and the zone they fall in (2D planeReading). */
 export function planeReading(pl: PlaneDef, fp: Fp | null | undefined): string {
+  // (a case whose HVPG cannot be measured has no point on a plane that plots it: its other reading is still told, the HVPG says why it is not drawn)
+  if (fp && hvpgNotMeasurable(fp) && (pl.x.key === 'hvpg' || pl.y.key === 'hvpg')) {
+    const one = (a: Axis) => (a.key === 'hvpg' ? NOT_MEASURABLE : `${valOf(a.key, fp[a.key])}${unitOf(a.key) ? ` ${unitOf(a.key)}` : ''}`);
+    return `${word(pl.x)} ${one(pl.x)} · ${word(pl.y)} ${one(pl.y)}`;
+  }
   if (!fp || !Number.isFinite(fp[pl.x.key]) || !Number.isFinite(fp[pl.y.key])) return '';
   // (The zone of the numbers printed beside it, as the tiles print them: "25.0 kPa" never reads "Indeterminate".)
   const f = shownReading(pl, fp), z = zoneOf(pl, f), u = (k: string) => (unitOf(k) ? ` ${unitOf(k)}` : '');
@@ -63,10 +72,14 @@ export const toolPlane = (t: { plane?: PlaneSpec; x?: Axis | string; y?: Axis | 
 /** The words of a plane's heading: "Stiffness and platelets" (2D planeTitle). */
 export const planeTitle = (p: PlaneDef | null) => (p ? `${word(p.x)} and ${lcFirst(word(p.y))}` : 'Two readings');
 /** The chart in a sentence (2D aria-label). */
-export function planeWords(pl: PlaneDef, pts: readonly { f: Fp; name: string }[], ring: Fp | null | undefined): string {
+export function planeWords(pl: PlaneDef, pts0: readonly { f: Fp; name: string }[], ring0: Fp | null | undefined): string {
+  const pts = pts0.map((p) => ({ ...p, f: plotted(p.f) })), ring = plotted(ring0);
+  const left = pts0.filter((p) => hvpgNotMeasurable(p.f) && (pl.x.key === 'hvpg' || pl.y.key === 'hvpg')).map((p) => p.name);
   const rg = ring ? shownReading(pl, ring) : null;
   return `${pl.y.name} against ${pl.x.name}` + (pts.length ? ': ' + pts.filter((p) => Number.isFinite(p.f?.[pl.x.key]) && Number.isFinite(p.f?.[pl.y.key])).map((p) => { const f = shownReading(pl, p.f); return `${p.name}, ${valOf(pl.x.key, f[pl.x.key])} and ${valOf(pl.y.key, f[pl.y.key])}, ${zoneOf(pl, f)?.t || ''}`; }).join('; ') : '')
-    + (rg && Number.isFinite(rg[pl.x.key]) && Number.isFinite(rg[pl.y.key]) ? `; this case ${valOf(pl.x.key, rg[pl.x.key])} ${unitOf(pl.x.key)} and ${valOf(pl.y.key, rg[pl.y.key])} ${unitOf(pl.y.key)}, ${zoneOf(pl, rg)?.t || ''}` : '');
+    + (rg && Number.isFinite(rg[pl.x.key]) && Number.isFinite(rg[pl.y.key])
+      ? `; this case ${valOf(pl.x.key, rg[pl.x.key])} ${unitOf(pl.x.key)} and ${valOf(pl.y.key, rg[pl.y.key])} ${unitOf(pl.y.key)}, ${zoneOf(pl, rg)?.t || ''}` : '')
+    + (left.length ? `; ${left.join(', ')}: HVPG ${NOT_MEASURABLE.toLowerCase()}, so not plotted` : '');
 }
 
 // ── The plot's height for a width (2D app-11-deck-visuals.css, the stacked layout: a phone, an iPad's portrait card) ──
@@ -134,9 +147,9 @@ export interface PlaneLayout {
 
 /** One plot's whole layout: 2D planePlot's draw(), in the order it asks for things, with the DOM taken out. */
 export function planeLayout(inp: LayoutIn): PlaneLayout {
-  const { W, H, fs, card = false } = inp, points = inp.points ?? [];
+  const { W, H, fs, card = false } = inp, points = (inp.points ?? []).map((p) => ({ ...p, f: plotted(p.f), from: plotted(p.from) }));
   const pl = card ? inp.plane : fitPlane(inp.plane, points);
-  const rg = inp.ring ? shownReading(pl, inp.ring) : null;
+  const rg = inp.ring ? shownReading(pl, plotted(inp.ring)) : null;
   // (A scatter, a plane with no zones, draws axes of its own on a panel: hasAxes.)
   const axed = !card && hasAxes(pl), fr = (axed ? axesFrame0(pl, W, H, fs) : frame0(W, H)) as Fr, { X, Y } = scaler0(pl, fr) as { X: (v: number) => number; Y: (v: number) => number };
   const guide = pl.look === 'guide' && typeof pl.rectsOf === 'function';
@@ -169,11 +182,11 @@ export function planeLayout(inp: LayoutIn): PlaneLayout {
   // The slide's case: a dot in proportion to the plot, a gap in the card's colour around it.
   const { r, g } = dotSize(fr), has = rg && Number.isFinite(rg[pl.x.key]) && Number.isFinite(rg[pl.y.key]);
   const now = has ? { x: +X(rg![pl.x.key]!).toFixed(1), y: +Y(rg![pl.y.key]!).toFixed(1) } : null;
-  const wasRg = inp.ringWas ? shownReading(pl, inp.ringWas) : null;
+  const wasRg = inp.ringWas ? shownReading(pl, plotted(inp.ringWas)) : null;
   const was = wasRg && Number.isFinite(wasRg[pl.x.key]) && Number.isFinite(wasRg[pl.y.key]) ? { x: X(wasRg[pl.x.key]!), y: Y(wasRg[pl.y.key]!) } : null;
   let cardWords: ZoneWords[] = [], trail: PlaneLayout['trail'] = { stops: [], names: [] };
   if (card) {
-    const stops = (inp.stops ?? []).filter((s) => s?.f && Number.isFinite(s.f[pl.x.key]) && Number.isFinite(s.f[pl.y.key]));
+    const stops = (inp.stops ?? []).map((s) => (s ? { ...s, f: plotted(s.f) } : s)).filter((s) => s?.f && Number.isFinite(s.f[pl.x.key]) && Number.isFinite(s.f[pl.y.key]));
     let tr: Box[] = [];
     if (stops.length) {
       // (The trail's rings and names first, the zones' words then keeping clear of them and of its line.)

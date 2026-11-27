@@ -8,6 +8,7 @@
 import { parseToken, type Fp } from '../../ui/text/tokens.ts';
 import { trailKeys } from '../../ui/charts/flowtime/model.ts';
 import { procKindOf } from '../../ui/charts/evgraph/model.ts';
+import { flagStep } from '../../engine/hv-flag.ts';
 import { specOf } from '../../scene/procedures/copied/proc-anim.js';
 import '../../scene/procedures/instrument-specs.ts';   // (registers EVL, tamponade, DIPS, DSRS and paracentesis in the procedure table)
 import type { CopiedSlide, Json } from './types.ts';
@@ -59,7 +60,8 @@ export function sequencer(reqId = 1) {
     message(m: { type: string; reqId?: number; i?: number; fp?: Fp; snap?: unknown; params?: unknown; base?: unknown; trail?: unknown; start?: unknown; before?: unknown; extra?: unknown; message?: string }) {
       if (m.reqId !== reqId && m.type !== 'crash') return;
       if (m.type === 'seqStep') {
-        const r: StepResult = { fp: m.fp ?? {}, snap: m.snap, params: m.params, base: m.base, trail: m.trail, start: m.start, before: m.before, extra: m.extra };
+        // (the patient's blocked hepatic vein goes into the fingerprint here, once, so every surface reads "HVPG not measurable" from the state itself: ui/cuts.ts hvpgNotMeasurable)
+        const r: StepResult = flagStep({ fp: m.fp ?? {}, snap: m.snap, params: m.params, base: m.base, trail: m.trail, start: m.start, before: m.before, extra: m.extra });
         results[m.i!] = r;
         for (const w of waiting.get(m.i!) ?? []) w(r);
         waiting.delete(m.i!);

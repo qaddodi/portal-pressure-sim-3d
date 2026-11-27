@@ -14,13 +14,14 @@ import { deckSig, engineKey, BAKE_VERSION } from './key.ts';
 import { WAVE_SECS, packTrace, waveVessel, type Trace } from '../../talk/table-wave.ts';
 import { ownStepOf } from '../../talk/table-own.ts';
 import type { BakedDeck, BakedState } from './store.ts';
+import { flagStep } from '../../../engine/hv-flag.ts';
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** The engine's 'sequence' on this thread (the client's, in node): each step's seqStep, from `base` when one is given. One core, kept for the whole bake. */
 export function nodeEngine() {
   let id = 1;
-  const core = createCore((m: Any) => { const w = waiting.get(m.reqId); if (w && m.type === 'seqStep') w[m.i] = m; });
+  const core = createCore((m: Any) => { const w = waiting.get(m.reqId); if (w && m.type === 'seqStep') w[m.i] = flagStep(m); });
   const waiting = new Map<number, Any[]>();
   core.handle({ type: 'run', running: false });
   return {

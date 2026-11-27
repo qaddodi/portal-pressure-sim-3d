@@ -5,9 +5,10 @@
 import { NO_ASC, SCALE, bandsOf, cutDp, rateOf, tileOf, tileShown, tipsGoal } from '../deck/from2d/table-marks.js';
 import { headKeys, tileKeys, toolOnly } from '../deck/from2d/card-tiles.js';
 import { bpText } from '../tests/copied/vital-read.copied.js';
-import { fmt } from '../charts/fmt.ts';
+import { fmt, NOT_SHOWN } from '../charts/fmt.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 import { changes } from '../../decks/hp/numbers.ts';
+import { NOT_MEASURABLE, hvpgNotMeasurable } from '../cuts.ts';
 
 export type Fp = Record<string, number | null | undefined>;
 
@@ -66,7 +67,9 @@ export const deltaOf = (s: CopiedSlide, i: number, changes: (s: CopiedSlide) => 
 export function respFp(s: CopiedSlide, f: Fp | null, base: number | null | undefined): Fp | null {
   if (!s.hvpgResp || !f) return f;
   const b = base ?? 0;
-  return b > 0 && f.hvpg != null ? { ...f, hvpgFall: ((b - f.hvpg) / b) * 100, respFrom: b, respAt: tileShown('hvpg', f.hvpg) } : { ...f, hvpgFall: null, respFrom: null, respAt: null };
+  // (no fall is counted from, or to, an HVPG nobody can measure)
+  const known = b > 0 && f.hvpg != null && !hvpgNotMeasurable(f);
+  return known ? { ...f, hvpgFall: ((b - f.hvpg!) / b) * 100, respFrom: b, respAt: tileShown('hvpg', f.hvpg) } : { ...f, hvpgFall: null, respFrom: null, respAt: null };
 }
 
 /** The rating of each band of a tile's bar (presenter-cards.js paintBands: a band takes the rating of its middle). */
@@ -83,11 +86,14 @@ export function tileView(k: string, f: Fp, o: { ref?: Fp | null; key?: boolean; 
   const tips = !!o.tips, ref = o.ref ?? null;
   const [cls, word] = ratedShown(k, f, tips);
   const none = cls == null && (k === 'saag' || k === 'tp');
-  const on = !none && f[k] != null;
+  // (the HVPG of a blocked hepatic vein is a word, in no band: no number, no needle on the bar, no rating, no change; ui/cuts.ts)
+  const nm = k === 'hvpg' && hvpgNotMeasurable(f);
+  const on = !none && !nm && f[k] != null;
   const x = T.x ?? 1, dg = T.d ?? 1;
   const r0 = k === 'hvpgFall' ? null : ref?.[k];
   const ok = on && r0 != null;
-  const text = none ? '—' : tileVal(k, f[k], f);
+  // (the number's place keeps its dash and the rating's place says why, as the Tests readouts do: no word the size of a number to fit in a tile)
+  const text = nm || none ? NOT_SHOWN : tileVal(k, f[k], f);
   let delta = '';
   if (k === 'hvpgFall') delta = f.respFrom == null ? '' : `from ${fmt(f.respFrom, 1)} mmHg`;
   else if (ok && f[k] != null) {
@@ -104,8 +110,9 @@ export function tileView(k: string, f: Fp, o: { ref?: Fp | null; key?: boolean; 
     was: ok ? at(k, r0!) : null,
   } : null;
   return {
-    k, name: T.t, short: T.n ?? null, unit: none ? '' : T.u, pct: T.u === '%', text, none, rate: cls || (none ? 'none' : 'plain'), word, key: !!o.key, bar, delta,
-    head: { name: T.n || T.t, text, unit: none ? '' : T.u },
+    k, name: T.t, short: T.n ?? null, unit: none || nm ? '' : T.u, pct: T.u === '%', text, none: none || nm, rate: nm ? 'none' : cls || (none ? 'none' : 'plain'),
+    word: nm ? NOT_MEASURABLE : word, key: !!o.key, bar, delta,
+    head: { name: T.n || T.t, text: nm ? NOT_MEASURABLE : text, unit: none || nm ? '' : T.u },
   };
 }
 

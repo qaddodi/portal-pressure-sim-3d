@@ -3,6 +3,7 @@
 // not yet known ("…") reserves a typical value and its unit. Pure; tests/roll-reserve.test.ts pins it.
 import { TILE } from '../charts/tiles.generated.ts';
 import { VALUE_PENDING, valueText } from '../text/tokens.ts';
+import { NOT_MEASURABLE } from '../cuts.ts';
 
 /** The readings that can come out below zero (a difference of two pressures): they hold a minus sign's room. */
 export const SIGNED: ReadonlySet<string> = new Set(['dipsDp', 'eus', 'hvpg', 'ppg', 'rpp']);
@@ -27,7 +28,8 @@ export const raisesOnly = (ctl?: { whatIf?: { paths: readonly string[] }; strain
  *  is for a reading that can change its size, and left after one that cannot it reads as a gap before the next word, "18.2 mmHg   to" and "1.1 L   of ascites" (TIPS Doppler review, 23 Nov 2026).
  *  A reading not yet in reserves its typical value, so its arrival does not re-wrap the line. */
 export function reserveOf(text: string, key?: string, whole = false, still = false, opts: ReserveOpts = {}): string {
-  if (still && text !== VALUE_PENDING) return text;
+  // (a reading that cannot be taken is a word, with no digits to pad and no minus to hold room for)
+  if (still && text !== VALUE_PENDING || text === NOT_MEASURABLE) return text;
   const unit = key ? (TILE as Record<string, { u?: string } | undefined>)[key]?.u ?? '' : '';
   const slot = opts.minus === false || opts.raises ? '' : key && SIGNED.has(key) ? MINUS : '';
   if (text === VALUE_PENDING) {

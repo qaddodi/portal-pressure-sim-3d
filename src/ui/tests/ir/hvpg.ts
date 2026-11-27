@@ -2,6 +2,7 @@
 import type { Frame } from '../../charts/scene.ts';
 import { FrameCtx } from './ctx-frame.ts';
 import * as C from './copied/hvpg-script.copied.js';
+import { hvpgBlockedBy } from '../../../engine/hv-flag.ts';
 
 type Sev = 'ok' | 'caution' | 'danger';
 export const HVPG_SCRIPT = C.HVPG_SCRIPT as unknown;
@@ -13,7 +14,7 @@ export const RESULT_CAP = C.RESULT_CAP as Record<Sev, string>;
 export const measureLabel = C.measureLabel as (running: boolean, hasResult: boolean) => string;
 export const sevOf = C.sevOf as (v: number) => Sev;
 export const sevOfRead = C.sevOfRead as (k: 'fhvp' | 'whvp', v: number) => Sev | '';
-export const hvBlocked = C.hvBlocked as (p: unknown) => boolean;
+export const hvBlocked = hvpgBlockedBy;
 export const NOT_SHOWN = C.NOT_SHOWN as string;
 export const NOT_MEASURABLE = C.NOT_MEASURABLE as string;
 export const drawTrace = C.drawTrace as unknown;

@@ -5,6 +5,7 @@ import { TILE } from '../charts/tiles.generated.ts';
 import { fmt, NOT_SHOWN } from '../charts/fmt.ts';
 import { bedsideMean } from '../../engine/hales/portal/bedside-mean.js';
 import { VALUE_PENDING } from '../../engine/hales/portal/pressure-cuts.js';
+import { NOT_MEASURABLE, hvpgNotMeasurable } from '../../engine/hv-flag.ts';
 
 export type Fp = Readonly<Record<string, number | boolean | null | undefined | number[]>>;
 export { VALUE_PENDING };
@@ -17,6 +18,8 @@ const bp = (sbp: number, dbp: number, map: number) => {
 };
 export function valueText(key: string, fp: Fp | null | undefined, whole = false): string {
   const T = TILE[key], v = fp?.[key];
+  // (the HVPG of a patient whose hepatic vein is blocked is no number: ui/cuts.ts, "Not measurable")
+  if (key === 'hvpg' && hvpgNotMeasurable(fp)) return NOT_MEASURABLE;
   if (!T || typeof v !== 'number' || !Number.isFinite(v)) return VALUE_PENDING;
   if (key === 'plt') return `${(Math.round(v) * 1000).toLocaleString('en-US')}/µL`;
   if (key === 'map') return `${bp(fp!.sbp as number, fp!.dbp as number, v)} ${T.u}`;

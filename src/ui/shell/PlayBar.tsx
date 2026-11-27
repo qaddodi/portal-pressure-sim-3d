@@ -20,6 +20,7 @@ import { lobuleOf } from '../action/read.ts';
 import { LOBULE_TILES, roomFor, type Scale } from './lobule-strip.ts';
 // @ts-ignore the pinned engine copy is plain JS
 import * as cuts from '../../engine/hales/portal/pressure-cuts.js';
+import { NOT_MEASURABLE } from '../../engine/hv-flag.ts';
 
 import { clock, type TimerId } from '../../clock/frame.ts';
 const pb = UI.playbar;
@@ -113,7 +114,7 @@ function LobuleReadouts() {
 /** The dock's readout strip: HVPG and PPG (2D dock.js PRIMARY); the lobule's two key flows in the Lobule and Sinusoid views (2D LOBULE_PRIMARY). */
 export function Readouts() {
   const view = useShell((s) => s.view), upright = useUi((s) => s.device) === 'phone-portrait';
-  const hvpg = useEngine((s) => s.hvpg), pv = useEngine((s) => s.pv), ivc = useEngine((s) => s.ivc);
+  const hvpg = useEngine((s) => s.hvpg), pv = useEngine((s) => s.pv), ivc = useEngine((s) => s.ivc), nm = useEngine((s) => s.hvBlocked);
   if (view === 'lobule' || view === 'sinusoid') return <LobuleReadouts />;
   const pos = (v: number) => posIn(MMHG, v);
   const ppg = pv != null && ivc != null ? pv - ivc : null;
@@ -123,7 +124,7 @@ export function Readouts() {
         <div className="ro-group" data-group="pressure" role="group" aria-label="Pressure">
           <span className="ro-cap" aria-hidden="true">Pressure</span>
           <div className="ro-tiles">
-            <Tile id="hvpg" k="HVPG" value={hvpg} from={0} sev={hvpg == null ? 'ok' : (cuts.hvpgSev(hvpg) as string)} word={hvpg == null ? '' : (cuts.hvpgWord(hvpg) as string)} ticks={[cuts.HVPG_CUTS.amber, cuts.HVPG_CUTS.red]} />
+            <Tile id="hvpg" k="HVPG" value={nm ? null : hvpg} from={0} sev={hvpg == null ? 'ok' : (cuts.hvpgSev(hvpg) as string)} word={nm ? NOT_MEASURABLE : hvpg == null ? '' : (cuts.hvpgWord(hvpg) as string)} ticks={[cuts.HVPG_CUTS.amber, cuts.HVPG_CUTS.red]} />
             {upright ? <ChartWord /> : <Tile id="ppg" k="PPG" value={ppg} from={ivc != null ? pos(ivc) * SCALE_MAX : 0} sev={ppg == null ? 'ok' : (cuts.ppgSev(ppg) as string)} word={ppg == null ? '' : (cuts.ppgWord(ppg) as string)} ticks={[cuts.PPG_CUTS.amber, cuts.PPG_CUTS.red]} />}
           </div>
         </div>

@@ -1,5 +1,6 @@
 // The main menu's search and its words, as the 2D menu.js has them (fold, matches, filter, GROUP_WHERE). Plain functions, so a node test reaches them.
 // @ts-ignore the pinned engine copy is plain JS
+import { NOT_MEASURABLE } from '../../engine/hv-flag.ts';
 import * as cuts from '../../engine/hales/portal/pressure-cuts.js';
 import { fmt } from '../tests/copied/num.copied.js';
 
@@ -46,8 +47,12 @@ const sev = (c: unknown, v: number): 'ok' | 'low' | 'high' => ({ ok: 'ok', cauti
 const one = (v: number) => fmt(v, 1) as string;   // (one decimal, as the tiles and the bar print the same gradients: "17.2", never "17")
 
 /** The chips under a patient's curve: HVPG, PPG (when the snapshot has one), PV, and Hepatofugal when the portal flow runs away from the liver. */
-export function chipsOf(s: Snap): Chip[] {
-  const out: Chip[] = [{ cls: 'hp-chip ' + sev((cuts as Cuts).HVPG_CUTS, shownOf(s.hvpg)), title: 'Hepatic venous pressure gradient', word: 'HVPG ', value: one(s.hvpg) }];
+export function chipsOf(s: Snap, hvBlocked = false): Chip[] {
+  // (a patient whose hepatic vein is blocked has no HVPG to take: the chip says so, in no band; engine/hv-flag.ts)
+  const title = 'Hepatic venous pressure gradient';
+  const hv: Chip = hvBlocked ? { cls: 'hp-chip', title, word: 'HVPG ', value: NOT_MEASURABLE.toLowerCase() }
+    : { cls: 'hp-chip ' + sev((cuts as Cuts).HVPG_CUTS, shownOf(s.hvpg)), title, word: 'HVPG ', value: one(s.hvpg) };
+  const out: Chip[] = [hv];
   const ppg = s.fp?.ppg;
   if (ppg != null) out.push({ cls: 'hp-chip ' + sev((cuts as Cuts).PPG_CUTS, shownOf(ppg)), title: 'Portal pressure gradient (portal vein − IVC)', word: 'PPG ', value: one(ppg) });
   out.push({ cls: 'hp-chip', title: 'Portal vein pressure', word: 'PV ', value: fmt(s.pv, 1) as string });

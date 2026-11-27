@@ -2,7 +2,8 @@
 // the rules that keep trials out, a row's two lines, and the pips. The 2D words are kept as they are; nothing here touches the page. A trial's numbers are its own, never the model's.
 import { TRIALS, BAVENO_VIII, type Trial } from '../charts/trial/trials.generated.ts';
 import { fitTrial, failedRows, openDefining, groupOf, countWords, whyNot, lcFirst, stillNeeded, FITS_HEAD, FITS_WORDS, NOT_IN_MODEL } from '../charts/trial/trial-fit.generated.js';
-import { hvBlocked, hvpgSev, ppgSev, PTIPS_HVPG } from '../../engine/hales/portal/pressure-cuts.js';
+import { hvpgSev, ppgSev, PTIPS_HVPG } from '../../engine/hales/portal/pressure-cuts.js';
+import { hvpgBlockedBy } from '../../engine/hv-flag.ts';
 import { fmt } from '../charts/fmt.ts';
 export { lcFirst };
 
@@ -23,7 +24,7 @@ export { FITS_WORDS, NOT_IN_MODEL };
 
 /** The patient's facts as the card states them: the HVPG (null when it is not known), and the varix and ascites words. `m` is the engine's metrics. */
 export function patientFacts(m: Record<string, any> | null | undefined, p: unknown): { hvpg: number | null; blocked: boolean; varix: string; ascites: string } {
-  const blocked = !!hvBlocked(p as never);
+  const blocked = hvpgBlockedBy(p);
   const hvpg = blocked ? null : Number.isFinite(m?.hvpg) ? (m!.hvpg as number) : null;
   const vx = m?.varix, g = vx?.grade?.label;
   const varix = !vx ? '' : !vx.present || g === 'None' ? 'No varices' : `${g} varices`;
