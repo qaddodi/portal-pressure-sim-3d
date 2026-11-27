@@ -53,7 +53,7 @@
 
 /* ── popovers (anchored to their button, always in the page) ── */
 .sh-anchor { position: relative; display: inline-flex; }
-.sh-pop { position: fixed; z-index: 30; min-width: 260px; max-width: min(360px, calc(100vw - 24px)); padding: 8px; border-radius: var(--r-sheet); border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
+.sh-pop { position: fixed; z-index: 30; overflow-y: auto; overscroll-behavior: contain; min-width: 260px; max-width: min(360px, calc(100vw - 24px)); padding: 8px; border-radius: var(--r-sheet); border: 1px solid var(--edge); background: var(--surface); pointer-events: auto;
   box-shadow: 0 1px 2px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 0.8)), 0 16px 40px -12px rgb(var(--shadow-rgb, 0 0 0) / calc(var(--sa, 0.2) * 2));
   opacity: 0; visibility: hidden; transform: translateY(var(--sh-from, -6px)); transition: opacity var(--d-small) var(--ease-arrive), transform var(--d-small) var(--ease-arrive), visibility 0s linear var(--d-small); }
 .sh-pop[data-open="true"] { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
