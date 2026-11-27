@@ -7,6 +7,7 @@ import { RIM_SPECK } from './rim-profile.ts';
 import { DEPTH_DARK, POOL_BANDS } from './pool-level.ts';
 import { SEE_DECL } from '../organ-veil/glsl.ts';
 import { FOCUS_REVEAL_DECL } from '../focus-reveal/glsl.ts';
+import { LIVER_LOBULES_DECL, LIVER_LOBULES_FW, LIVER_LOBULES_PAINT, LIVER_LOBULES_VS } from './liver-lobules.ts';
 
 const num = (n: number) => (Number.isInteger(n) ? `${n}.0` : String(n));
 
@@ -40,6 +41,7 @@ varying vec3 vNw;   // the normal in WORLD axes (the model matrix: the light is 
 varying vec3 vV;
 varying vec2 vBox;
 varying vec4 vClip;
+${LIVER_LOBULES_VS}
 void main() {
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   vec3 sn = normalize(mix(normal, shadeN, shadeK));
@@ -50,6 +52,8 @@ void main() {
   vRimS = rimD;
   vRimC = rimC - 0.5;
   vRest = restUV;
+  // (the liver's place in the lobule frame, for the mosaic; 0 and no work on every other organ and outside a dive)
+  lobuleVertex(modelMatrix * vec4(position, 1.0));
   // where this point sits in the organ's own 2D box: (0,0) top left, (1,1) bottom right, as the SVG gradient's objectBoundingBox
   vBox = vec2((position.x - box.x) / max(box.z, 1e-5), (box.y - position.y) / max(box.w, 1e-5));
 #ifdef VERTEX_INK
@@ -96,6 +100,7 @@ uniform vec3 poolShadeC;
 uniform float depthAmt;
 // the dive's cutaway window (atlas-look-plan 3.1): x, y the dive point on the screen (ndc), z the radius that is cleared (ndc half-heights; below 0 nothing is), w the aspect; the same for every organ
 uniform vec4 cut;
+${LIVER_LOBULES_DECL}
 varying vec4 vClip;
 #ifdef VERTEX_INK
 varying vec3 vInk;
@@ -129,6 +134,7 @@ void main() {
   float w = max(fwidth(turn), 1e-4);
   float fwLam = fwidth(dot(nws, LIGHT));
   float fwPool = fwidth(vBox.y) * poolA.y;
+${LIVER_LOBULES_FW}
   vec4 nt = texture2D(nodTex, vRest);   // (the nodules' texture is mipmapped: its implicit LOD is a derivative too, so it is read here, before the discard, never after it)
   // the window: the wash clears round the dive point, soft at its edge, so the lobule shows inside
   vec2 q = vClip.xy / vClip.w - cut.xy;
@@ -185,6 +191,7 @@ void main() {
   float r = distance(vBox, volGeo.xy) / volGeo.z;
   fill = mix(fill, volLight.rgb, volLight.a * (1.0 - clamp(r / volGeo.w, 0.0, 1.0)));
   fill = mix(fill, volShade.rgb, volShade.a * clamp((r - volShadeAt) / (1.0 - volShadeAt), 0.0, 1.0));
+${LIVER_LOBULES_PAINT}
   // the inner shade: three soft steps of the turn away from the eye (2D strokes 30/18/8 px)
   // (the turn is measured against the figure's own facing axis (+z in the world), not the camera's: tilting or orbiting must never change an organ's shading, Mohammad 20 Nov 2026
   //  "when i tilt, the organs and everything loses shading or becomes darker"; at the rest view the eye is on that axis, so the look there is exactly 2D's)

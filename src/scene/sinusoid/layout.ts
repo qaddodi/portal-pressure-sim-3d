@@ -5,7 +5,13 @@ export const SLOT = 1;       // fenestra slots (µm): ten to a stretch of lining
 export const CELL = 24;      // hepatocyte pitch along a plate (µm)
 export const PORE_W = 0.6;
 /** The layers across the sinusoid, in µm, from its axis out: the lumen's half width, the endothelium, the space of Disse, one hepatocyte plate. */
-export const UM = { lum: 5, endo: 0.8, disse: 3.4, hep: 20 } as const;
+export const UM = { lum: 5, endo: 0.8, disse: 3.4, hep: 22 } as const;
+/** The repeat across (µm) from one sinusoid's axis to the next: a plate, Disse, lining, lumen, lining, Disse. This is the ONE place the row spacing is set (everything else reads it: the 3D
+ *  sinusoid's rows, the lobule's fine rows, the station's search in lobule/station.ts). A hepatocyte plate is one cell thick, 20 to 25 µm (here 22, 2D's 20 grown by a tenth: 25 put the
+ *  canaliculus's name off the screen of the shortest landscape phone, 844 x 390), so with the lining and the lumen the spacing is 40.4 µm. The lobule's own sinusoids lie about two spacings
+ *  apart at the station (90 to 106 µm), so one row of the view lies between a sinusoid and each neighbour (Mohammad, 27 Nov: the zoom from the lobule to the sinusoid is one continuous
+ *  move, nothing but finer detail arrives). */
+export const PERIOD = UM.hep + 2 * (UM.disse + UM.endo) + 2 * UM.lum;
 /** The 2D app's seeds: the main sinusoid's linings (upper, lower), its plates (upper, lower). */
 export const SEED = { poreUp: 3, poreDn: 5, nucUp: 41, nucDn: 42, plateUp: 29, plateDn: 71 } as const;
 

@@ -28,6 +28,7 @@ import { LobuleView } from './lobule/index.ts';
 import { LIVER_POINT } from './lobule/frames.ts';
 import { SinusoidView } from './sinusoid/index.ts';
 import { Sinusoid3D } from './micro3d/sinusoid3d.ts';
+import type { DiveBlood } from './micro3d/dive-blood.ts';
 import { Lobule3D } from './micro3d/lobule3d.ts';
 import { ProcedureLayer } from './procedures/layer.ts';
 import { DiseaseLayer } from './disease/index.ts';
@@ -147,6 +148,8 @@ export class CelScene {
   onMicroPrimed: (() => void) | null = null;
   /** The sinusoid's constructor, a step of its own in the idle slices (the lobule's is the next one: L4, 21 Nov). */
   microSinus: Sinusoid3D | null = null;
+  /** The dive's red cells along the lobule's target sinusoid (micro3d/dive-blood.ts): built with the micro views, stepped after them. */
+  diveBlood: DiveBlood | null = null;
   /** The weld plan is wanted: by a dive straight away, by the quiet ladder when the page is usable (boot/warm.ts). Asks the Lobule once it is built (a later build asks as it is made). */
   weldsWanted = false;
   /** What the micro slot's step in hand is (the slot keeps the slowest step's name in its stat: the audit's boot digest says which step was long, clock/idle.ts QuietOpts.label). */

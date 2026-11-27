@@ -10,7 +10,7 @@
 import type { Shot } from '../camera/shots.ts';
 /** A point in the scene: x, y, z. */
 export type V3 = [number, number, number];
-import { LOBULE_SCALE, SIN_SCALE, lobuleWorld, sinusoidWorld } from './frames.ts';
+import { LOBULE_SCALE, SIN_ANGLE, SIN_LOCAL, SIN_SCALE, lobuleWorld, sinusoidWorld } from './frames.ts';
 import { FILL } from '../camera/room.ts';
 import { LOBULE_R } from './sizes.ts';
 import { PORTRAIT_ROLL, shownUm } from '../sinusoid/portrait.ts';
@@ -61,15 +61,22 @@ export function lobuleShot(cam: LobuleCam): Shot {
   // the corner at angle π (x = -1) is the portal tract the 2D framing starts from; the station lies wf of the way from it to the centre.
   // The whole lobule and the central vein look at the centre.
   const along = part === 'fit' || part === 'central' ? 0 : -1 + st.wf;
+  // (the sinusoid station frames the place the sinusoid view stands, wherever the rule put it (frames.ts SIN_LOCAL, station.ts): the slide's 'lobule:sinusoid' and the dive land on one spot)
+  const target = part === 'sinusoid' ? lobuleWorld([SIN_LOCAL[0], SIN_LOCAL[1], oz]) : lobuleWorld([ox + along * LOBULE_R, oy, oz]);
   return {
     yaw: YAW, pitch: PITCH,
     r: (part === 'fit' ? 6 : 2.5) * LOBULE_SCALE,
-    target: lobuleWorld([ox + along * LOBULE_R, oy, oz]),
+    target,
     half: part === 'fit' ? [FIT_BOUNDS[0] * LOBULE_SCALE, FIT_BOUNDS[1] * LOBULE_SCALE] : [(FIT_HALF[0] / st.zoom) * LOBULE_SCALE, (FIT_HALF[1] / st.zoom) * LOBULE_SCALE],
     // (a phone's whole-lobule box is 2D's 1.05 R, but the corners' dots and the tract glow reach 1.12 R: the box is never narrower than the lobule's own bounds, so none is cut at the screen's edge; capture af1c51a0, Mohammad 25 Nov)
     halfNarrow: [((part === 'fit' ? Math.max(FIT_HALF_NARROW[0], FIT_BOUNDS[0]) : FIT_HALF_NARROW[0]) / st.zoom) * LOBULE_SCALE, (FIT_HALF_NARROW[1] / st.zoom) * LOBULE_SCALE],
   };
 }
+
+/** The camera's roll that shows the sinusoid view upright: the view's frame is turned SIN_ANGLE in the plate (frames.ts), so the camera rolls that much to put the
+ *  flow along the screen (portal end left), and a quarter turn more
+ *  on a portrait screen (sinusoid/portrait.ts). The lobule's own shots are not rolled, so the dive turns the picture by this much, the lobule and the sinusoid together (rig.ts rollOf). */
+export const sinusoidRoll = (portrait: boolean): number => SIN_ANGLE + (portrait ? PORTRAIT_ROLL : 0);
 
 /** The sinusoid view's shot: the whole length of one cut sinusoid, portal end left (world units: inside the lobule). On a portrait screen (2D: W < H * 0.95) the sinusoid runs top to bottom (the view's
  *  camera rolls a quarter turn, `roll`, sinusoid/portrait.ts: the plane keeps its own frame, along the lobule's capillary, so the lobule and the sinusoid turn together), so the half extents (screen axes) swap. `shortPx`, the free room's short side in CSS px, gives 2D's own framing (sinusoid-view.js ensureGeo: lerp(40, 54, smooth(380, 720, short))
@@ -80,7 +87,7 @@ export function sinusoidShot(portrait = false, shortPx?: number): Shot {
   const short = shortPx != null && shortPx > 0 ? (shownUm(shortPx) / 2) * FILL * (SINUSOID_L / SPAN_UM) * SIN_SCALE : null;   // (the room keeps FILL of itself for the subject: 2D shows `across` over the whole short side)
   // (2D fits only the side it names, `short`: the screen's width on a tall stage, its height on a wide one; the other side shows whatever the screen's shape gives, so a short tall room never backs the camera out)
   const half: [number, number] = short != null ? (portrait ? [short, 0] : [0, short]) : portrait ? [across, along] : [along, across];
-  return { yaw: 0, pitch: 0, r: 3 * SIN_SCALE, target: sinusoidWorld([ox, oy, oz]), half, ...(portrait ? { roll: PORTRAIT_ROLL } : {}) };
+  return { yaw: 0, pitch: 0, r: 3 * SIN_SCALE, target: sinusoidWorld([ox, oy, oz]), half, roll: sinusoidRoll(portrait) };
 }
 
 /** The corners (scene units) of the box the hand's pan and zoom keep on screen while the sinusoid is the view: the stretch and a plate either side, in the plane's own frame (the camera's roll turns it
