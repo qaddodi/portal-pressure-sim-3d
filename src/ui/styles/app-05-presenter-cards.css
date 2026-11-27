@@ -282,7 +282,7 @@
 /* The quick check: numbered questions; a tap opens the answer under its question (it eases open, never jumps). */
 .pz-check { margin: 0; padding: 0; list-style: none; counter-reset: pzc; display: flex; flex-direction: column; min-height: 0; overflow: auto; font: 400 var(--s-body)/1.35 var(--font-display); color: var(--text); }
 .pz.stack .pz-check { font-size: var(--s-lab); }   /* (a phone: the controls' pill sits below the card now, so the list keeps no room for it: 48 px of it left an empty band under the last question, sweep 16 Oct) */
-.pz-check li { counter-increment: pzc; border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); }
+.pz-check li { position: relative; counter-increment: pzc; border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); }
 .pz-check li:first-child { border-top: 0; }
 .pzc-q { appearance: none; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; width: 100%; cursor: pointer; display: grid; grid-template-columns: 2.1em minmax(0, 1fr) auto; align-items: baseline; gap: 0 .8em; padding: .6em .2em; border-radius: 12px; transition: none; }
 .pzc-q::before { content: counter(pzc, decimal-leading-zero); font: 600 .74em/1 var(--font-num); font-variant-numeric: tabular-nums; letter-spacing: .04em; color: var(--accent); }
@@ -296,7 +296,11 @@
 .pzc-a { display: grid; grid-template-rows: 0fr; overflow: hidden; opacity: 0; visibility: hidden; transition: opacity var(--d-surface) var(--ease), visibility 0s linear var(--d-surface); }   /* (opens and shuts by transform: presenter.js check, fold-slide.js) */
 .pzc-a > p { overflow: hidden; min-height: 0; margin: 0; padding: 0 0 0 calc(2.1em + .8em + .2em); color: var(--text-2); }
 .pz-check li.open .pzc-a { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition: opacity var(--d-surface) var(--ease), visibility 0s; }
-.pz-check li.open .pzc-a > p { padding-bottom: .7em; }
+.pz-check li:is(.open, .leaving) .pzc-a > p { padding-bottom: .7em; }
+/* (An answer that has just shut is out of the layout at once, the rows below ease up over its room, and its words fade where they stood (CheckCard, content-resized.ts): it is never removed while it is still readable. Its fade is written by the card.) */
+/* (while an answer fades the list lets it show past its own foot: a last answer that has shut stands below the shorter list) */
+.pz-check.shedding { overflow: visible; }
+.pz-check li.leaving .pzc-a { position: absolute; inset-inline: 0; grid-template-rows: 1fr; opacity: 1; visibility: visible; pointer-events: none; transition: none; }
 /* (A phone keeps the tap hint, shrunk to a chevron: "Show answer" does not fit beside a two-line question, but a row with no hint at all read as plain text, capture 36b7deac slide 14.
    The answer's left edge is the question words' own, 1.8em + .8em + .2em on a phone, so the revealed answer is as wide as its question.) */
 .pz.stack .pzc-q { grid-template-columns: 1.8em minmax(0, 1fr) auto; }

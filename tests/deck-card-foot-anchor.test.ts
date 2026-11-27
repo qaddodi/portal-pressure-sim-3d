@@ -30,7 +30,7 @@ test('it is revealed from its foot up and sinks from the top down, the shadow pl
   assert.match(frame, /committed\(host, animH\)/);
 });
 
-test('the quick check\'s rows count the card\'s shift', () => {
-  assert.match(check, /getAttribute\('data-anchor'\)/);
-  assert.match(check, /\+ g;/);
+test('the quick check\'s rows read the card\'s shift, after the card has taken it (tests/check-answer-glide.test.ts)', () => {
+  assert.match(check, /tellCardResized\(root\)/);
+  assert.match(check, /flipOffsets\(from,/);
 });
