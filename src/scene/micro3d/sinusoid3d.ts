@@ -70,13 +70,13 @@ export const ALB_RIM_FULL_PX = 8;
 export const FOCUS = [0.2, 0.45, 0.68] as const;
 /** The focus pull's blur at the dissolve's middle, against the rest's: the rest's own strength over the whole screen (Mohammad 27 Nov: "get it back to what it was and just intense blur";
  *  0.4 before, 20 Nov: it came in "kinda quickly too strongly", which the smootherstep from FOCUS[0] answers: it has no start). Never past the rest's, so it never falls back as it lands;
- *  held while the sinusoid's own band opens over FOCUS[2]-1 and its sides settle to the rest's. */
+ *  held while the sinusoid's own band opens over FOCUS[2]-1 and its sides settle to the rest's. It rises over the whole of FOCUS[0]-FOCUS[2], not to the dissolve's middle: at the
+ *  rest's strength a rise packed into half that band came in within 80 ms on the 2.4 s Anatomy -> Sinusoid (tests/dive-pass-through.test.ts, a step a frame of at most a fifth of the held blur). */
 export const FOCUS_PEAK = 1;
 const smoother = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * t * (t * (t * 6 - 15) + 10); };
-/** The blur's strength at dive share `d` (FOCUS_PEAK at the dissolve's middle, 1 landed, as at rest). */
+/** The blur's strength at dive share `d` (FOCUS_PEAK at the dissolve's end, 1 landed, as at rest). */
 export function focusBlur(d: number): number {
-  const mid = (FOCUS[1] + FOCUS[2]) / 2;
-  return d < mid ? FOCUS_PEAK * smoother(FOCUS[0], mid, d) : FOCUS_PEAK + (1 - FOCUS_PEAK) * smoother(FOCUS[2], 1, d);
+  return d < FOCUS[2] ? FOCUS_PEAK * smoother(FOCUS[0], FOCUS[2], d) : FOCUS_PEAK + (1 - FOCUS_PEAK) * smoother(FOCUS[2], 1, d);
 }
 /** The traffic's pace in 3D against 2D's (Mohammad, 20 Nov 2026: "a little faster"), and the haze: how far out it takes to be whole (µm) and how deep it goes. */
 const PACE = 1.35, HAZE_K = 0.45;

@@ -77,6 +77,8 @@ function assertHeld(name: string, frames: Frame[]): void {
   for (const [i, f] of frames.entries()) {
     if (f.open > 1e-3) continue;   // (the sinusoid's band is opening: the sinusoid coming into focus, the lobule standing aside under it)
     if (f.d > DIVE_IN) continue;   // (out where the body is drawn: the dive blur's own rise and fall)
+    // (a move turned mid-flight: the hold eases in over PASS_HOLD_MS from where the turned move had let the blur go; a move from rest switches it where nothing shows it, so this skips nothing there)
+    if (f.hold < 1) continue;
     assert.ok(f.k >= DOF_PASS_PEAK - 1e-6, `${name}, frame ${i}: the blur fell to ${f.k.toFixed(3)} with the camera ${f.d.toFixed(4)} from the place dived to`);
     if (f.lobule) assert.ok(f.soft > 0.999, `${name}, frame ${i}: the lobule's neighbours resolved (soft ${f.soft.toFixed(3)})`);
     held++;
@@ -91,8 +93,8 @@ function assertSmooth(name: string, frames: Frame[], start: number): void {
 }
 
 test('Anatomy -> Sinusoid and back, on a Mac and a phone: the lobule is passed in one blur, and nothing steps', async () => {
-  const { DIVE_BODY_MS, DIVE_SINUSOID_MS } = await import('../src/scene/camera/dive.ts');
-  const ms = DIVE_BODY_MS + DIVE_SINUSOID_MS;
+  const { DIVE_BODY_MS, DIVE_SINUSOID_MS, DIVE_THROUGH_MS } = await import('../src/scene/camera/dive.ts');
+  const ms = DIVE_THROUGH_MS;
   for (const size of [[1440, 900], [390, 844]] as [number, number][]) {
     const { runs: [settle, inn, out] } = await fly(size, [['body', 0], ['sinusoid', ms], ['body', ms]]);
     const tag = `${size[0]}x${size[1]}`;
@@ -105,7 +107,7 @@ test('Anatomy -> Sinusoid and back, on a Mac and a phone: the lobule is passed i
 });
 
 test('a move that lands on the lobule still brings it into focus, and the lobule <-> sinusoid move is as it was', async () => {
-  const { DIVE_BODY_MS, DIVE_SINUSOID_MS } = await import('../src/scene/camera/dive.ts');
+  const { DIVE_BODY_MS, DIVE_SINUSOID_MS, DIVE_THROUGH_MS } = await import('../src/scene/camera/dive.ts');
   const { s, runs: [, inn, deeper, back] } = await fly([1440, 900], [['body', 0], ['lobule', DIVE_BODY_MS], ['sinusoid', DIVE_SINUSOID_MS], ['lobule', DIVE_SINUSOID_MS]]);
   assert.equal(inn!.at(-1)!.k, 0, 'landed on the lobule: sharp');
   assert.ok(inn!.at(-1)!.soft < 1e-3, 'its neighbours resolved');
@@ -119,8 +121,8 @@ test('a move that lands on the lobule still brings it into focus, and the lobule
 });
 
 test('a move turned mid-flight never steps its blur: Anatomy -> Sinusoid turned to the lobule, and Anatomy -> Lobule turned to the sinusoid', async () => {
-  const { DIVE_BODY_MS, DIVE_SINUSOID_MS } = await import('../src/scene/camera/dive.ts');
-  const ms = DIVE_BODY_MS + DIVE_SINUSOID_MS;
+  const { DIVE_BODY_MS, DIVE_SINUSOID_MS, DIVE_THROUGH_MS } = await import('../src/scene/camera/dive.ts');
+  const ms = DIVE_THROUGH_MS;
   {
     const { runs: [settle, a, b] } = await fly([1440, 900], [['body', 0], ['sinusoid', ms, 0.75 * ms], ['lobule', DIVE_SINUSOID_MS]]);
     assertSmooth('turned to the lobule', [...a!, ...b!], settle!.at(-1)!.k);

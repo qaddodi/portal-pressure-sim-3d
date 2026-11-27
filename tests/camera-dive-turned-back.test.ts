@@ -66,8 +66,8 @@ async function turned(W: number, H: number, a: View, b: View, ms: number, cut: n
 }
 
 test('a dive turned back goes back along its own line: never further in, the place never past where it stood (every dive, every device, several points)', async () => {
-  const { DIVE_BODY_MS, DIVE_SINUSOID_MS } = await import('../src/scene/camera/dive.ts');
-  const DIVES: [View, View, number][] = [['body', 'lobule', DIVE_BODY_MS], ['lobule', 'sinusoid', DIVE_SINUSOID_MS], ['body', 'sinusoid', DIVE_BODY_MS + DIVE_SINUSOID_MS]];
+  const { DIVE_BODY_MS, DIVE_SINUSOID_MS, DIVE_THROUGH_MS } = await import('../src/scene/camera/dive.ts');
+  const DIVES: [View, View, number][] = [['body', 'lobule', DIVE_BODY_MS], ['lobule', 'sinusoid', DIVE_SINUSOID_MS], ['body', 'sinusoid', DIVE_THROUGH_MS]];
   for (const [W, H] of SCREENS) for (const [a, b, ms] of DIVES) for (const cut of [0.2, 0.45, 0.7]) {
     const tag = `${W}x${H} ${a} -> ${b} turned at ${cut * 100} %`;
     const r = await turned(W, H, a, b, ms, cut);

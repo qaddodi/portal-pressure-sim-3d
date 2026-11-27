@@ -7,8 +7,12 @@
 //     so going in and coming out is the same picture run both ways, and reversing mid-move is the same picture run back.
 import { FOV } from './shots.ts';
 
-/** How long each dive takes (ms): body to lobule 1.5 s (2D's LOBULE_MS_MAX), lobule to sinusoid 1.1 s, body straight to the sinusoid the two together (and back). A move that is none of those keeps `fallback`. */
+/** How long each dive takes (ms): body to lobule 1.5 s (2D's LOBULE_MS_MAX), lobule to sinusoid 1.8 s, body straight to the sinusoid 2.4 s (and back). A move that is none of those keeps `fallback`. */
 export const DIVE_BODY_MS = 1500, DIVE_SINUSOID_MS = 1800;   // (lobule <-> sinusoid 1.8 s, cubic: the crossfade gets about 0.6 s, a zoom, not a cut)
+/** Body straight to the sinusoid (Mohammad, 27 Nov 2026: "diving from anatomy to lobule the camera is faster to zoom than from anatomy to sinusoid???"). It was the two dives added (3.3 s): one glide
+ *  of 14 doublings spread evenly over it, so it reached the lobule's depth at 2.0 s where Anatomy -> Lobule has landed at 1.5 s, at two thirds of its top speed.
+ *  At 2.4 s it is at the lobule's depth at about 1.45 s, with a top speed of 11 doublings a second against the short dive's 12.5 (tests/dive-speeds.test.ts). */
+export const DIVE_THROUGH_MS = 2400;
 export type DiveView = 'body' | 'circuit' | 'lobule' | 'sinusoid';
 /** How deep a view stands in the figure: the body and the Circuit outside (0), the lobule in the liver (1), the sinusoid in the lobule (2). */
 const inside = (v: DiveView): number => v === 'lobule' ? 1 : v === 'sinusoid' ? 2 : 0;
@@ -26,7 +30,7 @@ export function diveMs(from: DiveView, to: DiveView, fallback?: number): number 
   if (from === to) return fallback;
   const a = inside(from), b = inside(to);
   if (a === b) return fallback;   // body and Circuit (the map's own length is the caller's)
-  if (Math.min(a, b) === 0) return Math.abs(a - b) === 2 ? DIVE_BODY_MS + DIVE_SINUSOID_MS : DIVE_BODY_MS;
+  if (Math.min(a, b) === 0) return Math.abs(a - b) === 2 ? DIVE_THROUGH_MS : DIVE_BODY_MS;
   return DIVE_SINUSOID_MS;
 }
 

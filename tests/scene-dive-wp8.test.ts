@@ -6,6 +6,7 @@ import { CameraRig } from '../src/scene/camera/rig.ts';
 import { SHOTS, FOV } from '../src/scene/camera/shots.ts';
 import {
   CUT_FAR, CUT_NEAR, DIVE_BODY_MS, DIVE_FOV, DIVE_SINUSOID_MS, FIELD_SOFT_FAR, FIELD_SOFT_NEAR, PLUNGE_RATIO, cutOpen, cutUniform, diveMs, dollyDistance, fieldSoft, fovAt, fovBell, fovBump,
+  DIVE_THROUGH_MS,
 } from '../src/scene/camera/dive.ts';
 import { CelScene } from '../src/scene/scene.ts';
 import { ORGAN_CUT } from '../src/scene/organs/layer.ts';
@@ -22,7 +23,7 @@ test('how long each dive takes: the body to the lobule 1.6 s, the lobule to the 
   assert.equal(DIVE_BODY_MS, 1500); assert.equal(DIVE_SINUSOID_MS, 1800);
   assert.equal(diveMs('body', 'lobule'), 1500); assert.equal(diveMs('lobule', 'body'), 1500);
   assert.equal(diveMs('lobule', 'sinusoid'), 1800); assert.equal(diveMs('sinusoid', 'lobule'), 1800);
-  assert.equal(diveMs('body', 'sinusoid'), 3300); assert.equal(diveMs('sinusoid', 'body'), 3300);
+  assert.equal(diveMs('body', 'sinusoid'), DIVE_THROUGH_MS); assert.equal(diveMs('sinusoid', 'body'), DIVE_THROUGH_MS);
   assert.equal(diveMs('circuit', 'lobule'), 1500, 'the Circuit is the body to the camera');
   assert.equal(diveMs('lobule', 'lobule'), undefined); assert.equal(diveMs('body', 'circuit', 700), 700);
 });
