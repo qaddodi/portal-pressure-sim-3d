@@ -73,7 +73,7 @@ test('a push that cancels a running deploy cannot starve the caches: each is sav
   // (the plain cache action saves only when the whole job succeeds)
   for (const j of ['deploy', 'tests']) assert.ok(!stepsOf(j).some((s) => str(s.uses).startsWith('actions/cache@')), `${j} uses restore and save apart`);
   const restores = stepsOf('deploy').filter((s) => str(s.uses).startsWith('actions/cache/restore@'));
-  assert.deepEqual(restores.map((s) => withOf(s).path.toString().split('\n')[0]), ['preview/tests-status.json', 'preview/.tests-started', 'preview/node_modules', 'preview/public/baked'], 'the last test result, the day\'s marker, node_modules and the bakes');
+  assert.deepEqual(restores.map((s) => withOf(s).path.toString().split('\n')[0]), ['preview/.tests-started', 'preview/node_modules', 'preview/public/baked'], 'the day\'s marker, node_modules and the bakes (no test result: nothing stamps it on the site)');
   const saveModules = stepNamed('deploy', 'Save node_modules');
   assert.equal(saveModules.if, "steps.modules.outputs.cache-hit != 'true'");
   assert.ok(str(saveModules.uses).startsWith('actions/cache/save@'));
@@ -94,7 +94,7 @@ test('the deploy is tried up to three times, and only the last attempt can fail 
   assert.deepEqual(stepsOf('deploy').filter((s) => /^sleep \d+$/.test(str(s.run))).map((s) => str(s.run)), ['sleep 15', 'sleep 45'], 'a wait before each retry');
 });
 
-test('the daily test job: one run a UTC day, started by the first push, never cancelled by a deploy, its result a cache entry the next deploy stamps', () => {
+test('the daily test job: one run a UTC day, started by the first push, never cancelled by a deploy, its count in the job log, never on the site', () => {
   assert.equal(wf.concurrency, undefined, 'concurrency is per job, so a push cancels only the deploy');
   assert.deepEqual(job('deploy').concurrency, { group: 'pages', 'cancel-in-progress': 'true' });
   assert.deepEqual(job('tests').concurrency, { group: 'tests-daily', 'cancel-in-progress': 'false' });
@@ -105,18 +105,12 @@ test('the daily test job: one run a UTC day, started by the first push, never ca
   assert.equal(obj(job('deploy').outputs).tests_due, "${{ steps.started.outputs.cache-hit != 'true' }}");
   assert.equal(job('tests').needs, 'deploy');
   assert.equal(job('tests').if, "needs.deploy.outputs.tests_due == 'true'");
-  // the newest result comes back before the build
-  const last = withOf(stepNamed('deploy', 'Restore the last test result'));
-  assert.deepEqual([last.path, last.key, last['restore-keys']], ['preview/tests-status.json', 'tests-status-none', 'tests-status-']);
-  assert.ok(indexOfStep('deploy', 'Restore the last test result') < indexOfStep('deploy', 'Build the preview (integration branch) into site/preview'));
+  assert.ok(!stepsOf('deploy').some((s) => str(withOf(s).path).includes('tests-status')), 'the deploy lays no test result for the build');
   // the started marker is saved BEFORE the suite runs, so a run that dies is not retried all day; the result is saved after it
   const tests = stepsOf('tests');
   const suite = tests.findIndex((s) => str(s.run) === 'node scripts/tests-daily.mjs');
   const saves = tests.map((s, i) => [i, s] as const).filter(([, s]) => str(s.uses).startsWith('actions/cache/save@') && withOf(s).path === 'preview/.tests-started');
   assert.ok(suite > 0 && saves.length === 1 && saves[0][0] < suite, 'the marker is saved before the suite');
-  const keep = tests.findIndex((s) => str(s.uses).startsWith('actions/cache/save@') && withOf(s).path === 'preview/tests-status.json');
-  assert.ok(keep > suite, 'the result is kept after the suite');
-  assert.equal(withOf(tests[keep]).key, 'tests-status-${{ steps.day.outputs.d }}-${{ github.run_id }}');
   // every step after the marker's check stands down when the day was taken by a run queued ahead of this one
   for (const s of tests.slice(tests.findIndex((x) => x.id === 'started') + 1)) assert.ok(str(s.if).includes("steps.started.outputs.cache-hit != 'true'"), `stands down: ${str(s.name) || str(s.run) || str(s.uses)}`);
 });

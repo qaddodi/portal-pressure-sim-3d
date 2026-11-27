@@ -55,14 +55,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # The last full test run's result (the daily job below saves it as a cache entry; the newest comes back here) is laid at preview/tests-status.json for the build to stamp on the pill.
-      # No entry yet: the pill says nothing about tests. Whether today's run has started is a free lookup (no download), so a push that finds it started starts no test job at all.
-      - name: Restore the last test result
-        uses: actions/cache/restore@v4
-        with:
-          path: preview/tests-status.json
-          key: tests-status-none
-          restore-keys: tests-status-
+      # (Whether today's test run has started is a free lookup (no download), so a push that finds it started starts no test job at all.)
       - id: day
         run: echo "d=$(date -u +%F)" >> "$GITHUB_OUTPUT"
       - id: started
@@ -189,9 +182,9 @@ jobs:
         with:
           artifact_name: github-pages-${{ github.run_attempt }}
 
-  # One full run of the suite a day (W6: "tests: N failing" on the pill). Started by the first push of a UTC day (a skipped job costs no minutes); a started marker is saved first, so a run that dies
-  # is not retried until tomorrow. Its own concurrency group and never cancelled: a push that cancels the deploy above must not kill an hour-long run. The result is a cache entry that the
-  # next deploy lays at preview/tests-status.json (scripts/tests-daily.mjs writes it, scripts/build.mjs stamps it). It never fails a deploy.
+  # One full run of the suite a day (W6; its count is in this job's log, never on the pill). Started by the first push of a UTC day (a skipped job costs no minutes); a started marker is saved first, so a run that dies
+  # is not retried until tomorrow. Its own concurrency group and never cancelled: a push that cancels the deploy above must not kill an hour-long run. The result is the job's log line
+  # (scripts/tests-daily.mjs; nothing stamps it on the site). It never fails a deploy.
   tests:
     needs: deploy
     if: needs.deploy.outputs.tests_due == 'true'
@@ -256,9 +249,3 @@ jobs:
         if: steps.started.outputs.cache-hit != 'true'
         working-directory: preview
         run: node scripts/tests-daily.mjs
-      - name: Keep the result for the next deploy
-        if: steps.started.outputs.cache-hit != 'true' && hashFiles('preview/tests-status.json') != ''
-        uses: actions/cache/save@v4
-        with:
-          path: preview/tests-status.json
-          key: tests-status-${{ steps.day.outputs.d }}-${{ github.run_id }}

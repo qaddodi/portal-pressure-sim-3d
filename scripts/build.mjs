@@ -5,7 +5,6 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { bakedOrgansCurrent, organsDigest } from './organs-digest.mjs';
-import { testsNote } from './tests-status.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const sh = (...a) => { try { return execFileSync('git', a, { cwd: root, encoding: 'utf8' }).trim(); } catch { return ''; } };
@@ -41,17 +40,14 @@ if (organCode === 0 && !organsCurrent) { console.warn('warning: the baked organs
 const organsId = organsCurrent ? organsDigest() : '';
 
 // The two fast checks (about 5 s, in this one deploy job: no new workflow): the typecheck and the project's lint. A preview still ships (fast previews), but the result is stamped on the
-// pill (VITE_CHECKS, src/ui/shell/build-pill.ts buildChecks) and in build-info.txt so a broken branch cannot go unseen; on main any failure fails the build.
+// build log and in build-info.txt (scripts/preview-live.mjs reads it); never on the pill, which beta testers see. On main any failure fails the build.
 const typeErrors = tsc.status === 0 ? 0 : ((tsc.stdout ?? '').match(/error TS\d+/g) ?? []).length || 1;
 if (typeErrors) console.warn(`warning: ${typeErrors} type error(s)\n${(tsc.stdout ?? '').split('\n').slice(0, 20).join('\n')}`);
 if (lint.status !== 0) console.warn(`warning: lint failed\n${lint.stderr ?? ''}`);
 const checks = [typeErrors ? `types: ${typeErrors} error${typeErrors === 1 ? '' : 's'}` : '', lint.status !== 0 ? 'lint failed' : '', ...failed.map((f) => `${f} failed`)].filter(Boolean).join(', ');
-// The last full test run (scripts/tests-daily.mjs wrote tests-status.json; W6): "tests: N failing" rides on the pill and in build-info.txt, but never fails a build by itself (a stale or missing file says nothing).
-let testsLine = '';
-try { testsLine = testsNote(JSON.parse(readFileSync(`${root}tests-status.json`, 'utf8'))); } catch { /* (no run recorded yet) */ }
 if (onMain && checks) { console.error(`main does not ship with a failed check: ${checks}`); process.exit(1); }
 
-const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}`, VITE_RELEASE: release, VITE_CHECKS: [checks, testsLine].filter(Boolean).join(', '), VITE_ORGANS_DIGEST: organsId } });
+const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}`, VITE_RELEASE: release, VITE_ORGANS_DIGEST: organsId } });
 if (r.status !== 0) process.exit(r.status ?? 1);
 // The rules that style something this app never makes are taken out of the BUILT file (scripts/css-unused.mjs; src/ui/styles was pruned the same way when it was retired from the 2D copy, so this finds only what has gone dead since). PPS_NO_CSS_PRUNE=1 skips it.
 if (!process.env.PPS_NO_CSS_PRUNE) { const cp = spawnSync(process.execPath, [fileURLToPath(new URL('./css-unused.mjs', import.meta.url)), '--write'], { cwd: root, stdio: 'inherit' }); if (cp.status !== 0) { console.warn('warning: the stylesheet was not pruned; it ships whole'); failed.push('css prune'); if (onMain) { console.error('main does not ship with an unpruned stylesheet'); process.exit(1); } } }
@@ -61,7 +57,7 @@ if (hd.status !== 0) process.exit(hd.status ?? 1);
 // Every name a page, style sheet or script gives must be a file the build wrote (scripts/dist-refs.mjs): a dangling name is a 404 for every visitor, so it stops the build on a branch as well as on main.
 const dr = spawnSync(process.execPath, [fileURLToPath(new URL('./dist-refs.mjs', import.meta.url)), `${root}dist`], { cwd: root, stdio: 'inherit' });
 if (dr.status !== 0) process.exit(dr.status ?? 1);
-writeFileSync(`${root}dist/build-info.txt`, `version ${release}\nbranch ${branch}\ncommit ${commit}\nbuilt ${new Date().toISOString()}\nchecks ${[checks, ...(failed.includes('css prune') ? ['css prune failed'] : [])].filter(Boolean).join(', ') || 'ok'}\n${testsLine ? `${testsLine}\n` : ''}`);
+writeFileSync(`${root}dist/build-info.txt`, `version ${release}\nbranch ${branch}\ncommit ${commit}\nbuilt ${new Date().toISOString()}\nchecks ${[checks, ...(failed.includes('css prune') ? ['css prune failed'] : [])].filter(Boolean).join(', ') || 'ok'}\n`);
 const pw = spawnSync(process.execPath, [fileURLToPath(new URL('./pwa.mjs', import.meta.url)), `${root}dist`, `${commit}`], { cwd: root, stdio: 'inherit' });
 if (pw.status !== 0) process.exit(pw.status ?? 1);
 // What a first visit downloads before the app is usable (scripts/boot-bytes.mjs, the budget in scripts/boot-budget.json): printed, written to build-info.txt, and a build over the budget fails on main and says so on a branch.
