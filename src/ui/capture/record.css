@@ -3,4 +3,4 @@
 .rec-stop .rec-mark { animation: rec-breathe 1.6s ease-in-out infinite; }   /* (own pace: a slow breath, not a transition between two states) */
 .nb-tab.rec-stop .rec-mark { width: var(--ic-m); height: var(--ic-m); }
 @keyframes rec-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
-@media (prefers-reduced-motion: reduce) { .rec-stop .rec-mark { animation: none; } 
+@media (prefers-reduced-motion: reduce) { .rec-stop .rec-mark { animation: none; } }
