@@ -66,9 +66,7 @@ export function growersByNode(): Record<string, string[]> {
 
 /** The parts of the placed skins that do not build, each with why: the part's mesh folds (mesh.ts foldedTriangles) and the bake records it as failed, so the skin set draws the welded skin there (skin-set.ts `partFailed`). Named, never silent: the tests expect exactly these and
  *  fail when one builds again, so the line goes. SV_S+SVD:2.3L (28 Nov): the splenic vein's Warren part with both growers, the shunt and the spontaneous splenorenal shunt C6, folds at a triangle on the merged skin the table's take-off SV_S makes with SVD. Group C (skin quality) owns removing it. */
-export const PART_FOLDED: { skin: string; key: string; why: string }[] = [
-  { skin: 'SV_S+SVD', key: partKeyOf([{ vesselId: 'V_SPL' }, { vesselId: 'SV_MID', leaves: 'S_DSR' }, { vesselId: 'S_DSR', grow: true }, { vesselId: 'C6', grow: true }], ['S_DSR', 'C6'], true), why: 'the surface folds at a triangle (live build, 28 Nov)' },
-];
+export const PART_FOLDED: { skin: string; key: string; why: string }[] = [];
 
 /** The growing ends (`node:vessel`) the network lands on a node's skin that no built skin carries, sorted: each is named in the skin set's `dropped` (a skin that cannot carry an arm names it and leaves the tube's own flared end). `carried` is every `vessel:end` the skins carry as a growing arm. */
 export const droppedOf = (carried: ReadonlySet<string>): string[] => Object.entries(growersByNode()).flatMap(([node, g]) => g.filter((a) => !carried.has(a)).map((a) => `${node}:${a.split(':')[0]}`)).sort();
