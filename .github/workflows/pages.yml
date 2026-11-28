@@ -3,7 +3,6 @@
 #
 #   /          the live site, built from main (until main has the app, a redirect to /preview/)
 #   /preview/  the integration branch claude/project-thread-ge1swr, with the orange "PREVIEW · <commit>" pill
-#   /beta/     the testers' stable copy (owner, 28 Nov, P-03): the branch claude/beta, which moves ONLY when the owner says (`git push origin <commit>:claude/beta`); built like the preview. No such branch: no /beta/. (Named claude/* so the github-pages environment already allows it.)
 #
 # The feedback address is the repository SECRET FEEDBACK_EMAIL (Settings > Secrets and variables > Actions > Secrets), never a file in the repo, so the run's log masks it (a
 # variable printed in the log's env dump; moved to a secret 25 Nov). Unset, the Send feedback row is absent.
@@ -19,7 +18,7 @@ name: Pages
 
 on:
   push:
-    branches: [main, claude/project-thread-ge1swr, claude/beta]
+    branches: [main, claude/project-thread-ge1swr]
   workflow_dispatch:
 
 permissions:
@@ -55,15 +54,6 @@ jobs:
         with:
           ref: claude/project-thread-ge1swr
           path: preview
-      # the testers' copy: only when the owner has made the branch (a missing one is not an error)
-      - id: betabranch
-        run: |
-          if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}.git" claude/beta >/dev/null 2>&1; then echo "has=true" >> "$GITHUB_OUTPUT"; else echo "has=false" >> "$GITHUB_OUTPUT"; fi
-      - if: steps.betabranch.outputs.has == 'true'
-        uses: actions/checkout@v4
-        with:
-          ref: claude/beta
-          path: beta
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -134,17 +124,6 @@ jobs:
             preview/public/anatomy/organs-baked.bin
             preview/public/anatomy/organs-baked.bin.sig
           key: bakes-${{ github.sha }}
-      # The beta copy shares the preview's node_modules (the same lock file is expected; npm ci runs when they differ) and its baked files (each bake skips itself when unchanged).
-      - name: Build the beta copy (claude/beta) into site/beta
-        if: steps.betabranch.outputs.has == 'true'
-        working-directory: beta
-        env:
-          VITE_CHANNEL: preview
-          VITE_FEEDBACK_EMAIL: ${{ secrets.FEEDBACK_EMAIL }}
-        run: |
-          if ! cmp -s package-lock.json ../preview/package-lock.json; then npm ci; else ln -s ../preview/node_modules node_modules; fi
-          VITE_BUILD="beta@$(git rev-parse --short=8 HEAD)" npm run build
-          cp -r dist ../site/beta
       - name: Build the live site (main) into site/
         env:
           VITE_FEEDBACK_EMAIL: ${{ secrets.FEEDBACK_EMAIL }}

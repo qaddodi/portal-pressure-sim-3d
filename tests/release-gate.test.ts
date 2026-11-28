@@ -20,12 +20,11 @@ test('no record, a red record, an unreadable one or a stale one stops it, each w
   assert.match(gateProblem(ok, 'ffff0000', null), /shallow/);
 });
 
-test('the build on main runs the gate, the live checkout has its history, and /beta/ is built from claude/beta only when that branch exists', () => {
+test('the build on main runs the gate, the live checkout has its history, and there is no /beta/ (owner, 28 Nov: the preview is the beta)', () => {
   assert.match(readFileSync('scripts/build.mjs', 'utf8'), /if \(onMain\) \{ const why = checkRoot\(root\)/);
   const wf = readFileSync('.github/workflows/pages.yml', 'utf8');
   assert.match(wf, /fetch-depth: 0/);
-  assert.match(wf, /branches: \[main, claude\/project-thread-ge1swr, claude\/beta\]/);
-  assert.match(wf, /if: steps\.betabranch\.outputs\.has == 'true'\n\s+working-directory: beta/);
-  assert.match(wf, /cp -r dist \.\.\/site\/beta/);
+  assert.match(wf, /branches: \[main, claude\/project-thread-ge1swr\]/);
+  assert.doesNotMatch(wf, /beta/i);
   assert.equal(JSON.parse(readFileSync('package.json', 'utf8')).scripts['release:check'], 'node scripts/release-check.mjs');
 });
