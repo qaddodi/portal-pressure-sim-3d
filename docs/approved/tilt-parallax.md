@@ -12,7 +12,7 @@ Picks:
    **Direction, in one sentence (flipped on the owner's word, 28 Nov, "I personally think it's flipped"; the first build and the 1:1 build had the other direction):** tipping the screen's top edge away from you lowers the camera so you see more of the figure's underside, and tipping its right edge away moves the camera left so you see more of its left side; same in portrait and both landscapes (tests/tilt-parallax.test.ts, "worked example").
 
 Traits:
-- Direction: see "28 Nov, direction: Turn it round" at the foot of this sheet, which is the ruling. Right edge goes away and you see more of the figure's right side; top edge goes away and you see more of its top. Held for the four turns of the screen.
+- Direction: see "28 Nov, direction: Flip the tilt again" at the foot of this sheet, which is the ruling. Right edge goes away and you see more of the figure's left side; top edge goes away and you see more of its underside. Held for the four turns of the screen.
 - The device is read as a rotation from how it is held (a quaternion from alpha, beta and gamma), not as raw beta and gamma, so a phone held upright is as steady as one held flat.
 - The held pose is where the phone is now; see "28 Nov, the iPhone review" below for how it moves (it settles to square once the phone is still). It is taken again when the screen turns (tilt held square until 600 ms after the last resize or turn), the tab returns or the permission is first granted.
 - 1:1 with the device's turn past a 1 degree dead zone, capped at 7.5 degrees, cushioned over the last degree (below); One Euro filter on the reading; the figure eases in over 160 ms. Nothing snaps.
@@ -50,4 +50,11 @@ Asked "How about the tilt direction?", then shown both readings of a window on a
 
 Rejected on that card: "1. Keep the direction as it is" (right edge away shows the left side, top edge away the underside). It was the recommended option; his pick stands.
 
-Every sentence above this section that gives the other direction is history.
+That ruling stood from ce50a2c7 until the next section; it is history now.
+
+## 28 Nov, direction: "Flip the tilt again please"
+Mohammad, 28 Nov 12:34 PM, after ce50a2c7 was pushed with the direction turned round: **"Flip the tilt again please"**. The direction is the peek behind the glass again (the flip of 58094d3e): tipping the right edge away shows a little more of the figure's left side, and tipping the top edge away shows a little more of its underside. Same in portrait and both landscapes (`tests/tilt-parallax.test.ts`, "worked example" and "direction").
+
+Rejected: the viewfinder direction (right edge away shows the right side, top edge away the top). He has now tried it twice (the first build, and ce50a2c7) and turned it back both times.
+
+Kept from ce50a2c7: settle to square, the stop that never holds the figure, the cushion, the rolled phone, the 7.5 cap. This section is the ruling on the direction; every sentence above that gives the other one is history.

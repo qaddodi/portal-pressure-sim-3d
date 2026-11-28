@@ -124,13 +124,14 @@ export function screenTurn(rx: number, ry: number, angle = 0): { top: number; ri
 }
 
 /**
- * What a device turn means as a unit input (the place a pointer would stand to give the same lean). The phone is a viewfinder swung round the figure
- * (owner, 28 Nov, "2. Turn it round", after one flip the other way earlier that day): the right edge going away shows more of the figure's right side
- * (a pointer to the left, x down), the top edge going away shows more of its top (a pointer below, y up).
+ * What a device turn means as a unit input (the place a pointer would stand to give the same lean). The figure is behind the glass and the eye stays
+ * where it is (owner, 28 Nov, "Flip the tilt again please": his third ruling on the direction that day, back to the flip of 58094d3e): the right
+ * edge going away shows more of the figure's left side (a pointer to the right, x up), the top edge going away shows more of its underside (a
+ * pointer above, y down).
  *  A soft dead zone leaves a hand's tremor out (only the angle past it counts, so nothing jumps at its edge); the figure then turns 1:1 and is cushioned
  *  into the cap, which it reaches at DEVICE_RANGE. */
 export function deviceUnit(top: number, right: number): Unit {
-  const x = -cushion(right), y = -cushion(top);
+  const x = cushion(right), y = cushion(top);
   return { x: x === 0 ? 0 : x, y: y === 0 ? 0 : y };   // (no negative zero)
 }
 /** One axis of deviceUnit: nothing inside the dead zone, then the device's own angle, then the cushion (a parabola that meets the cap with no speed left). */
