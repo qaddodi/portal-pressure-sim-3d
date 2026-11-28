@@ -136,7 +136,7 @@ export function skinNormalTwin(arms: readonly TwinArm[], k: number, x: number, y
 
 /** How many rows of vertices from a seam ring (graph steps over the mesh's edges) the shade keeps the mesh's own normal for, easing from it to the union's gradient: the rows over which the mesh blends from the tube's normal to the gradient
  *  (mesh.ts NORMAL_BLEND_ROWS, tests/skin-weld-shade.test.ts holds them equal). */
-export const SKIN_TUBE_ROWS = 2;
+export const SKIN_TUBE_ROWS = 3;
 /** THE WELD'S SHADE (Mohammad, 24 Nov, iPhone: the portal fork read as a blob, darker patches coming in from both sides of the crotch). The shade took the tube's normal only where an arm's weight was within 3 % of 1, a sliver of the first triangle,
  *  and the union's gradient after it: but at the seam that gradient is not the tube's (the shade's union is blended 1.5 times wider than the surface's and still reaches the seam ring, and the arm's capsule is a cone where the tube flares: 9 to 21
  *  degrees at the placed PVH, RPV_T, SV, SMV), so the tone stepped in one triangle on every arm. ROOT CAUSE: the hand-over from the tube's normal to the gradient was a step at the seam, not a blend over the rows the mesh itself blends over. Each vertex's
