@@ -20,7 +20,7 @@ import { TUBE_RADIAL, buildTubes } from '../tubes.ts';
 import { attachNear, nearLandings, wallJunctions, wallLandings } from './wall.ts';
 import { MIN_ARMS, declaredRuns, dropFarGrowers, growerEndsByNode, isLiverBranch, findSkinJunctions, nodesBeyondReach, skinNodesForPhase, withoutGrowers } from './inventory.ts';
 import { armWalk, isThroughPair, planSkins, type ArmTube, type HullOk } from './cuts.ts';
-import { BULGE_AIM, BULGE_MAX, PACES, buildSkinSteady, hullCovers, onWall, searchBulge, worstBulge } from './mesh.ts';
+import { BULGE_AIM, BULGE_MAX, PACES, buildSkinSteady, hullCovers, onWall, searchBulge } from './mesh.ts';
 import { skinsDigest, type BakedSkin, type BakedSkins, type PlainBake } from './baked.ts';
 import { sdArm, skinKOf, type Capsule } from './sdf.ts';
 import { SKIN_CUT_NONE, armR, SKIN_GROWERS, SKIN_HIDDEN, SKIN_HOLE_NONE, SkinBuildError, type SkinCut, type SkinJunction, type SkinMesh, type Vec3 } from './types.ts';
@@ -528,16 +528,18 @@ export class SkinSet {
           m.seamVerts.forEach((ids, a) => ids.forEach((v, q) => { m.restR[v] = rest[pq.keep[a]!]![q]!; }));
           return m;
         };
+        // (a part is judged as the welded skin is: at rest and with its permanent arms swollen, mesh.ts searchBulge)
+        const partGrows = pq.keep.map((i) => !!j.arms[i]!.grow);
         let axesQ: ArmAxis[], meshQ: SkinMesh;
         if (baked) { axesQ = baked.axes; meshQ = baked.mesh; this.paces.set(node, baked.pace); }
         else {
           axesQ = axesFor(0); meshQ = make(axesQ);
-          let best = worstBulge(meshQ, axesQ);
+          let best = searchBulge(meshQ, axesQ, partGrows);
           for (let q = 1; q < NECK_FRACTIONS.length && best > BULGE_AIM; q++) {
             const ax = axesFor(NECK_FRACTIONS[q]!);
             let m: SkinMesh;
             try { m = make(ax); } catch (e) { if (e instanceof SkinBuildError) continue; throw e; }
-            const b = worstBulge(m, ax);
+            const b = searchBulge(m, ax, partGrows);
             if (b < best) { best = b; axesQ = ax; meshQ = m; }
           }
           // (none inside: the same ladder with the blend sized from the growers' necks, neckJunction; only such a part takes it, every other keeps the nominal blend its neighbours' normals were judged with)
@@ -545,7 +547,7 @@ export class SkinSet {
             const ax = axesFor(NECK_FRACTIONS[q]!);
             let m: SkinMesh;
             try { m = make(ax, true); } catch (e) { if (e instanceof SkinBuildError) continue; throw e; }
-            const b = worstBulge(m, ax);
+            const b = searchBulge(m, ax, partGrows);
             if (b < best) { best = b; axesQ = ax; meshQ = m; }
           }
           if (best > BULGE_MAX) this.bulgeOver.push({ node, bulge: best });
