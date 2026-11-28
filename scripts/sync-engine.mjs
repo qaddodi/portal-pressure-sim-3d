@@ -3,7 +3,7 @@
 // in src/engine/PINNED.json with a hash of every file. Nothing in the 3D app edits that folder by hand; tests/engine-pinned.test.ts fails when
 // a file and its hash disagree. (Until 22 Nov the host, worker-core.js, came from the 2D app's repo; it is the engine's own now: src/host/.)
 //
-//   node scripts/sync-engine.mjs [--engine <dir>] [--engine-ref <ref>]
+//   node scripts/sync-engine.mjs [--engine <dir>] [--engine-ref <ref>] [--allow-unmerged]
 //
 // Default: ../hales-engine at origin/main. A ref is read straight from git (git show), so the working tree can be dirty or on another branch.
 import { execFileSync } from 'node:child_process';
@@ -18,6 +18,13 @@ const engineDir = resolve(root, arg('engine', '../hales-engine'));
 const git = (dir, ...a) => execFileSync('git', ['-C', dir, ...a], { encoding: 'utf8', maxBuffer: 64 << 20 });
 const resolveRef = (dir, ref) => git(dir, 'rev-parse', '--verify', `${ref}^{commit}`).trim();
 const engineRef = resolveRef(engineDir, arg('engine-ref', 'origin/main'));
+// The guard (production review P-40, owner 28 Nov): the app is built from a commit that must be reachable from the engine's main, or a branch clean-up could orphan it. A pin that is not on origin/main is refused;
+// `--allow-unmerged` is for an engine fix in flight (merge it to the engine's main before the push is called done; tests/engine-pinned.test.ts does not check this).
+const onMain = (dir, ref) => { try { git(dir, 'merge-base', '--is-ancestor', ref, 'origin/main'); return true; } catch { return false; } };
+if (!onMain(engineDir, engineRef) && !process.argv.includes('--allow-unmerged')) {
+  console.error(`engine ${engineRef.slice(0, 8)} is not on origin/main of the engine: merge it there first (fast-forward origin/main to it), or pass --allow-unmerged for a fix still in flight.`);
+  process.exit(1);
+}
 const remote = (dir) => git(dir, 'remote', 'get-url', 'origin').trim().replace(/^.*github\.com[/:]/, '').replace(/\.git$/, '');
 
 const files = {};   // path (relative to src/engine) -> text
