@@ -98,13 +98,21 @@ export function handoutHTML(d: Deck, fps: Fp[] = [], base = ''): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Notes: ${esc(d.title)}</title><style>${CSS}</style></head><body><main>
 <header><div class="top"><div><p class="cap">Speaker notes</p><h1>${esc(d.title)}</h1><p class="meta">${esc(meta)}</p></div>
-<button type="button" onclick="print()">Print</button></div>
+<button type="button" id="print" hidden>Print</button></div>
 ${d.summary ? `<p class="sum">${esc(d.summary)}</p>` : ''}
 <div class="plan">${d.objectives.length ? `<section><p class="cap">${esc(OBJECTIVES_HEAD)}</p><ul>${d.objectives.map((o) => `<li>${esc(o)}</li>`).join('')}</ul></section>` : ''}${outline.length ? `<section><p class="cap">${esc(OUTLINE_HEAD)}</p><ol>${outline.map((k) => `<li>${esc(k)}</li>`).join('')}</ol></section>` : ''}</div>
 </header>
 ${d.slides.map((s, i) => slideBlock(d, base, s, i, fps[i] ?? null)).join('\n')}
 ${d.checks.length ? `<article><div class="txt"><p class="cap">${esc(CHECK_TITLE)}</p><ol class="checks">${d.checks.map(([q, a]) => `<li><p>${esc(q)}</p><p class="a"><b>Answer:</b> ${esc(a)}</p></li>`).join('')}</ol></div></article>` : ''}
 </main></body></html>`;
+}
+
+/** The page's CSP blocks inline handlers in the new tab, so the Print button is wired from here and shown only once it works (a saved file has no button). */
+function wirePrint(w: Window): void {
+  const b = w.document.getElementById('print');
+  if (!b) return;
+  b.addEventListener('click', () => w.print());
+  b.removeAttribute('hidden');
 }
 
 /** Opens the handout in a new tab (at once, inside the tap, so it is not blocked) and writes the notes into it when the talk and its numbers are ready; where a tab is refused, saves
@@ -117,6 +125,6 @@ export async function openHandout(deck: Deck | Promise<Deck | null>): Promise<vo
   if (!d) { try { w?.close(); } catch { /* already closed */ } throw new Error('no such talk'); }
   const fps = await slideFps(d).catch((): Fp[] => []);
   const html = handoutHTML(d, fps, new URL('brand/handout/', location.href).href);
-  if (w && !w.closed) { w.document.open(); w.document.write(html); w.document.close(); }
+  if (w && !w.closed) { w.document.open(); w.document.write(html); w.document.close(); wirePrint(w); }
   else download(`${slug(d.title)}-notes.html`, html, 'text/html');
 }

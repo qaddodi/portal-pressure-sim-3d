@@ -94,3 +94,10 @@ const pin = pinned2D('brand/handout/hvpg/route.webp');
 test('the pictures and their list are the 2D app\'s own at the pin', { skip: pin.skip }, () => {
   assert.deepEqual(copyAll(pin.repo, true), []);
 });
+
+test('the handout carries no inline event handler (the page CSP blocks them in the notes tab); Print is wired from the opener', async () => {
+  const d = (await all())[0]!;
+  const html = handoutHTML(d);
+  assert.doesNotMatch(html, /\son[a-z]+\s*=/i);
+  assert.match(html, /<button type="button" id="print" hidden>/);
+});
