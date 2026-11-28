@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { sourceEdits, REVIEWER_24NOV, REVIEWER_24NOV_B, REVIEWER_24NOV_C, REVIEWER_24NOV_D, REVIEWER_24NOV_E, CAPTURE_6EC6D323, CAPTURE_AF88A9C2, CAPTURE_52EF8E63, CAPTURE_15C31759, CAPTURE_2A54261A, WEDGE_LOBULE_25NOV, CAPTURE_36B7DEAC, CAPTURE_3531BDFA_WORDS, CAPTURE_3531BDFA, CAPTURE_3531BDFA_LEVELS, CAPTURE_3531BDFA_CLINICAL, CAPTURE_3531BDFA_L3, CAPTURE_3531BDFA_W, CAPTURE_3531BDFA_TILES, HVPG_PPG_AFTER_EUS_27NOV } from './source-edits.mjs';
-import { REVIEW_28NOV } from './review-28nov-edits.mjs';
+import { REVIEW_28NOV, C7_WORDS_28NOV } from './review-28nov-edits.mjs';
 import { NOTES_TOKENS_28NOV } from './notes-tokens-28nov-edits.mjs';
 import { NOTES_WORDING_28NOV, CLINICAL_28NOV, ALBUMIN_28NOV, CLINICAL_28NOV_B } from './notes-wording-28nov-edits.mjs';
 
@@ -19,7 +19,7 @@ for (const file of files) {
   const id = JSON.parse(m[2]).id;
   const needed = (p) => ('append' in p ? !m[2].includes(esc(p.append)) : !('from' in p) || m[2].includes(esc(p.from)) || !m[2].includes(esc(p.to)));
   // (--tokens-only: just the notes' tokens, so a later patch run never re-applies the older lists over words that were edited since)
-  const todo = (process.argv.includes('--tokens-only') ? NOTES_TOKENS_28NOV : [...REVIEWER_24NOV, ...REVIEWER_24NOV_B, ...REVIEWER_24NOV_C, ...REVIEWER_24NOV_D, ...REVIEWER_24NOV_E, ...CAPTURE_6EC6D323, ...CAPTURE_AF88A9C2, ...CAPTURE_52EF8E63, ...CAPTURE_15C31759, ...CAPTURE_2A54261A, ...WEDGE_LOBULE_25NOV, ...CAPTURE_36B7DEAC, ...CAPTURE_3531BDFA_WORDS, ...CAPTURE_3531BDFA, ...CAPTURE_3531BDFA_LEVELS, ...CAPTURE_3531BDFA_CLINICAL, ...CAPTURE_3531BDFA_TILES, ...CAPTURE_3531BDFA_L3, ...CAPTURE_3531BDFA_W, ...HVPG_PPG_AFTER_EUS_27NOV, ...REVIEW_28NOV, ...NOTES_WORDING_28NOV, ...CLINICAL_28NOV, ...ALBUMIN_28NOV, ...CLINICAL_28NOV_B, ...NOTES_TOKENS_28NOV]).filter((p) => p.deck === id && needed(p)).map((p) => ('from' in p ? { ...p, soft: true } : p));
+  const todo = (process.argv.includes('--tokens-only') ? NOTES_TOKENS_28NOV : [...REVIEWER_24NOV, ...REVIEWER_24NOV_B, ...REVIEWER_24NOV_C, ...REVIEWER_24NOV_D, ...REVIEWER_24NOV_E, ...CAPTURE_6EC6D323, ...CAPTURE_AF88A9C2, ...CAPTURE_52EF8E63, ...CAPTURE_15C31759, ...CAPTURE_2A54261A, ...WEDGE_LOBULE_25NOV, ...CAPTURE_36B7DEAC, ...CAPTURE_3531BDFA_WORDS, ...CAPTURE_3531BDFA, ...CAPTURE_3531BDFA_LEVELS, ...CAPTURE_3531BDFA_CLINICAL, ...CAPTURE_3531BDFA_TILES, ...CAPTURE_3531BDFA_L3, ...CAPTURE_3531BDFA_W, ...HVPG_PPG_AFTER_EUS_27NOV, ...REVIEW_28NOV, ...C7_WORDS_28NOV, ...NOTES_WORDING_28NOV, ...CLINICAL_28NOV, ...ALBUMIN_28NOV, ...CLINICAL_28NOV_B, ...NOTES_TOKENS_28NOV]).filter((p) => p.deck === id && needed(p)).map((p) => ('from' in p ? { ...p, soft: true } : p));
   if (!todo.length) continue;
   const json = sourceEdits(m[2], todo);
   if (json === m[2]) continue;

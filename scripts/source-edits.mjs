@@ -8,7 +8,7 @@
 //   { from, to }  replaces that text inside the field (the field must hold `from`, or the generator stops: the 2D text moved and the patch has to be looked at again)
 //   { set }       replaces the whole field          { drop: true } removes the field          { append } adds a sentence to the end of the field
 import { RIGHTS } from './credit.mjs';
-import { REVIEW_28NOV } from './review-28nov-edits.mjs';
+import { REVIEW_28NOV, C7_WORDS_28NOV } from './review-28nov-edits.mjs';
 import { NOTES_TOKENS_28NOV } from './notes-tokens-28nov-edits.mjs';
 import { NOTES_WORDING_28NOV, CLINICAL_28NOV, ALBUMIN_28NOV, CLINICAL_28NOV_B } from './notes-wording-28nov-edits.mjs';
 const P = (deck, at, from, to) => ({ deck, at, from, to });
@@ -733,6 +733,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_3531BDFA_W,
   ...HVPG_PPG_AFTER_EUS_27NOV,
   ...REVIEW_28NOV,
+  ...C7_WORDS_28NOV,
   ...NOTES_WORDING_28NOV,
   ...CLINICAL_28NOV,
   ...ALBUMIN_28NOV,

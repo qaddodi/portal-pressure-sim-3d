@@ -135,3 +135,13 @@ export const REVIEW_28NOV = [
   SET('tips-candidacy', 'slides.heart.action', { kind: 'retain', mL: 800 }),
   SET('tips-complete', 'slides.heart.action', { kind: 'retain', mL: 800 }),
 ];
+
+/** C7 (28 Nov): the decompensated patient's albumin is 2.3 g/dL and platelets 54,000/µL on the case cards that name them (the model's reading since 8be5d726). */
+export const C7_WORDS_28NOV = [
+  P('hyperdynamic', 'slides.full.vignette', 'serum albumin of 2.8 g/dL', 'serum albumin of 2.3 g/dL'),
+  P('kidney', 'slides.arteries.vignette', 'serum albumin of 2.8 g/dL', 'serum albumin of 2.3 g/dL'),
+  P('lobule', 'slides.cirr.vignette', 'Her albumin is 2.8 g/dL, and her platelets are 59,000/µL', 'Her albumin is 2.3 g/dL, and her platelets are 54,000/µL'),
+  P('shunts', 'slides.own.vignette', 'His platelets are 59,000/µL', 'His platelets are 54,000/µL'),
+  P('sites', 'slides.sin.vignette', 'His albumin is 2.8 g/dL, his platelets are 59,000/µL', 'His albumin is 2.3 g/dL, his platelets are 54,000/µL'),
+  P('two-inflows', 'slides.cirr.vignette', 'platelets of 59,000/µL', 'platelets of 54,000/µL'),
+];
