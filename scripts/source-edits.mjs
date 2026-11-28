@@ -188,7 +188,7 @@ export const HA_RI_REVIEW = [
 ];
 
 /** The third reviewer report (Hales Engine 3252079e, 440 x 736, 24 Nov 2026): words that say what the model's values show (reduces, not clears; the share of portal blood that bypasses the liver), a cardiac contribution not a proof, Doppler findings as this case's, and no volume grades. Applied by scripts/apply-reviewer-edits.mjs to the copies. */
-const BYPASS_NOTE = 'In the model the ascites falls to 0.6 L at two months; it is reduced, not gone. The 28% is the flow through the sinusoids, not the share of portal blood that bypasses the liver: that share is the shunt fraction, 92% here.';
+const BYPASS_NOTE = 'In the model the ascites falls to {asc} at two months; it is reduced, not gone. The {liver} is the flow through the sinusoids, not the share of portal blood that bypasses the liver: that share is the shunt fraction, {shunt} here.';
 export const REVIEWER_24NOV_C = [
   // TIPS follow-up 7 and TIPS candidacy: "reduces", and the bypass fraction beside the sinusoidal flow
   ...['tips-complete', 'tips-candidacy'].flatMap((d) => [
