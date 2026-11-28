@@ -305,3 +305,10 @@ test('the organs file the page reads only when the baked organs cannot be used i
   assert.ok(!isFallback('assets/organs-baked-Ab12Cd34.bin') && !isFallback('assets/skins-Ab12Cd34.bin'), 'the baked organs and the skins are not fallbacks');
   assert.ok(boot.concat(later).includes('assets/mark-Mm.png'));
 });
+
+test('the share card (og:image, 28 Nov, P-17) is served but never part of an install, and the page names it with a full address', async () => {
+  const { readFileSync, existsSync } = await import('node:fs');
+  assert.ok(existsSync('public/brand/og.png'));
+  assert.match(readFileSync('index.html', 'utf8'), /property="og:image" content="https:\/\/[^"]+\/brand\/og\.png"/);
+  assert.ok(!listFiles('public').includes('brand/og.png'));
+});

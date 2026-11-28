@@ -24,7 +24,7 @@ export function listFiles(dir) {
   const out = [];
   const walk = (d) => { for (const n of readdirSync(d)) { const p = join(d, n); if (statSync(p).isDirectory()) walk(p); else out.push(relative(dir, p).split('\\').join('/')); } };
   walk(dir);
-  return out.filter((f) => f !== 'sw.js' && f !== 'build-info.txt' && !f.startsWith('guides/') && !f.startsWith('about/') && !f.startsWith('brand/handout/')).sort();
+  return out.filter((f) => f !== 'sw.js' && f !== 'build-info.txt' && !f.startsWith('guides/') && !f.startsWith('about/') && !f.startsWith('brand/handout/') && f !== 'brand/og.png').sort();
 }
 
 /** The figure's data files, which the build names by content under assets/ (scripts/hash-data.mjs): a script that names one needs it, as it needed the fixed name before. */
