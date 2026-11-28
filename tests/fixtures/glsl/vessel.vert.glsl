@@ -29,6 +29,9 @@ uniform vec2 res;
 // x < 0 where nothing, which is every vessel with the switch off
 uniform vec3 mate0;
 uniform vec3 mate1;
+// where each end's easing toward its mate is whole: 0 and 1 at the tube's own ends,
+// the skin's cut (u) where a skin takes the tube's end and carries the same eased width on through the node
+uniform vec2 mateCut;
 uniform vec2 mateK;   // how far each mate counts (1: always, the tube beside it is there; a mate that is drawn on and off, the ascending lumbar vein into the azygos's start, counts as far as it is drawn)
 uniform float nbrMap;   // 1 on a map-only tube (circuit/tubes.ts: a liver branch): its nbr is the host it lies in on the MAP, so the union rule holds there too; 0 on every vessel of the figure (their map joins are skins)
 uniform vec4 nbrW0;   // a map-only tube's two tubes' width rules (the circW of the lane or branch each lies in): nbr.x is its distance from the first axis, nbr.y from the second (1000: none)
@@ -242,9 +245,10 @@ void main() {
   }
   // smooth joins: where this vessel carries on into another, both ease to the mean of their two live widths over the same stretch the tube's own taper takes (tubes.ts factorAt: the first and
   // last 30 %), so the ring they share has one radius and no step or seam shows when the engine widens one of them and not the other (smooth-joins.ts joinSwell)
-  if (mate0.x >= 0.0) { float k0 = (1.0 - smoothstep(0.0, 0.3, uv.x)) * (1.0 - stump.z) * mateK.x;   // (a divided vein's cut start carries on into nothing: it eases to its own width as the cut opens)
+  if (mate0.x >= 0.0) {
+    float k0 = (1.0 - smoothstep(mateCut.x, mateCut.x + 0.3, uv.x)) * (1.0 - stump.z) * mateK.x;   // (a divided vein's cut start carries on into nothing: it eases to its own width as the cut opens)
     if (k0 > 0.0) swell += k0 * (0.5 * (swell + swellOf(mate0.x, mate0.y, mate0.z)) - swell); }
-  if (mate1.x >= 0.0) { float k1 = smoothstep(0.7, 1.0, uv.x) * mateK.y; if (k1 > 0.0) swell += k1 * (0.5 * (swell + swellOf(mate1.x, mate1.y, mate1.z)) - swell); }
+  if (mate1.x >= 0.0) { float k1 = smoothstep(mateCut.y - 0.3, mateCut.y, uv.x) * mateK.y; if (k1 > 0.0) swell += k1 * (0.5 * (swell + swellOf(mate1.x, mate1.y, mate1.z)) - swell); }
   if (circShare > 0.0) swell = mix(swell, circSwell(), circShare);
   swell *= liveW;
   vCircShare = circShare;

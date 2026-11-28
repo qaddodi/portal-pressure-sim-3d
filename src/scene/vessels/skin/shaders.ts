@@ -117,6 +117,8 @@ uniform vec2 res;
 uniform float hiPx;
 uniform vec4 armData[${SKIN_ARMS}];
 uniform vec4 armAF[${SKIN_ARMS}];   // per arm (lensU, fade, hi, pres): one vec4 each, because a float array costs a whole vector a slot
+// the arm each arm runs THROUGH the node with (through.ts, -1: none), so a vein's two pieces ease to one width across the skin as their tubes do toward their mate (smooth-joins.ts)
+uniform float armThrough[${SKIN_ARMS}];
 uniform float armNarrow[${SKIN_ARMS}];   // each arm tube's stenosis waist at its seam (the narrow attribute there): 0 at rest and at a vessel's ends, a little more where a cut lies inside a short piece's waist
 uniform vec4 armFade[${SKIN_ARMS}];   // per arm (a0, 1 / (a1 - a0), a2, a3): the tube's own fade by its length share u (arm-twins.ts uFadeOf), so the skin's alpha at each vertex is the tube's at that place along the arm and not its value at the seam; a2 < 0: none (the seam's value stands)
 uniform vec4 armArc[${SKIN_ARMS}];   // (as the fragment stage's) the arc at the seam, which way it grows toward the node, the vessel's length, its rest radius
@@ -168,8 +170,15 @@ void main() {
   float swE[${SKIN_ARMS}];
   for (int i = 0; i < ${SKIN_ARMS}; i++) { swT[i] = 1.0; swE[i] = 1.0; }
   // (an arm's waist at its seam is part of its width there, as the tube's own narrowK is: the same share kept, 1 - narrow clamped as the tube clamps it)
+  float swRaw[${SKIN_ARMS}];
+  for (int i = 0; i < ${SKIN_ARMS}; i++) { swRaw[i] = 1.0; if (armData[i].x >= 0.0) swRaw[i] = skinCirc > 0.5 ? circSwellOf(armData[i]) : swellOf(armData[i].x, armData[i].y, armData[i].z); }
   for (int i = 0; i < ${SKIN_ARMS}; i++) if (armData[i].x >= 0.0) {
-    float sw = (skinCirc > 0.5 ? circSwellOf(armData[i]) : swellOf(armData[i].x, armData[i].y, armData[i].z)) * (1.0 - clamp(armNarrow[i], 0.0, 0.97));
+    float sw = swRaw[i];
+    // a through run's two halves are one vein: each takes the mean of the two live widths, as its tube does at the seam (vessels/shaders.ts mate easing), so the skin carries one width across the node
+    if (skinCirc < 0.5 && armThrough[i] >= 0.0) {
+      for (int j = 0; j < ${SKIN_ARMS}; j++) if (float(j) == armThrough[i] && armData[j].x >= 0.0) sw = 0.5 * (sw + swRaw[j]);
+    }
+    sw *= 1.0 - clamp(armNarrow[i], 0.0, 0.97);
     swT[i] = sw; swE[i] = sw;
   }
   float swell = 0.0, swellE = 0.0;

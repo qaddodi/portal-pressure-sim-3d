@@ -230,7 +230,7 @@ test('the live width easing: the two vessels\' swells meet at the join at the me
     assert.ok(Math.abs(joinSwell(a, b, 0.3, 0) - a) < 1e-12 && Math.abs(joinSwell(a, b, 0.7, 1) - a) < 1e-12);
   }
   // the shader's own easing is the same one (its first and last 30 % by smoothstep, from the neighbour's width by the mate uniforms)
-  assert.ok(VESSEL_VS.includes('smoothstep(0.0, 0.3, uv.x)') && VESSEL_VS.includes('smoothstep(0.7, 1.0, uv.x)'));
+  assert.ok(VESSEL_VS.includes('smoothstep(mateCut.x, mateCut.x + 0.3, uv.x)') && VESSEL_VS.includes('smoothstep(mateCut.y - 0.3, mateCut.y, uv.x)') && VESSEL_VS.includes('uniform vec2 mateCut;'));
   assert.ok(VESSEL_VS.includes('0.5 * (swell + swellOf(mate0.x, mate0.y, mate0.z))') && VESSEL_VS.includes('0.5 * (swell + swellOf(mate1.x, mate1.y, mate1.z))'));
   assert.ok(VESSEL_VS.includes('mate0.x >= 0.0'), 'nothing is read for a vessel with no mate');
 });

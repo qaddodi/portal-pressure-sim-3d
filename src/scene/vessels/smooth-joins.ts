@@ -120,8 +120,9 @@ export const SMOOTH: ReadonlyMap<string, SmoothEnds> = build();
 /** Both of a pair's widths at the join, the mean of the two as the geometry has it (`taper`), for the shader's live width: the same easing as tubes.ts `factorAt`, so a width the engine changes
  *  moves the join's ring by the same share on both sides. `own` and `mate` are the two vessels' live swells (the engine's diameter against the one the tube was built at), `u` the place along
  *  this vessel (0 to 1), `end` the end the mate is at. Mirrors the vertex shader's `joinSwell`. */
-export function joinSwell(own: number, mate: number, u: number, end: 0 | 1): number {
-  const t = end ? (u - 0.7) / 0.3 : 1 - u / 0.3;
+export function joinSwell(own: number, mate: number, u: number, end: 0 | 1, cut: number = end): number {
+  // (`cut`: where the easing is whole, the tube's own end by default, the skin's cut where a skin takes the end over)
+  const t = end ? (u - (cut - 0.3)) / 0.3 : 1 - (u - cut) / 0.3;
   const k = Math.min(1, Math.max(0, t)), w = k * k * (3 - 2 * k);
   return own + w * ((own + mate) / 2 - own);
 }

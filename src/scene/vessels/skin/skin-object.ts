@@ -24,7 +24,8 @@ import { armRuleOf } from './fade-rule.ts';
 import { skinDebugOn, skinLeaveOut } from './joins-mode.ts';
 import { markVesselStencil } from '../cel-ink.ts';
 import { vdbgDefines, vdbgUniforms } from '../debug-view.ts';
-import type { SkinMesh, Vec3 } from './types.ts';
+import type { SkinArm, SkinMesh, Vec3 } from './types.ts';
+import { SMOOTH } from '../smooth-joins.ts';
 import { CLOT_TONES } from '../../disease/clot-uniforms.ts';
 
 /** The uniforms the skin shares with its arm tubes, by reference (taken from the first arm: every vessel's copy has the same value, and each one follows the same writers: the look, the lens, the engine, the Circuit). */
@@ -97,6 +98,8 @@ export class SkinObject implements SkinDraw {
   private keepMask = (1 << SKIN_ARMS) - 1;
   private readonly armAF: Vector4[]; private readonly armCopy: Vector4[]; private readonly armFade: Vector4[];
   private readonly armClotA: Vector4[]; private readonly armClotP: Vector4[];
+  /** the arm each arm runs through the node with (-1: none) as the uniform has it, and the candidates (through.ts) it is chosen from */
+  private readonly thru: number[] = new Array(SKIN_ARMS).fill(-1); private throughOf: number[] = []; private joinArms: readonly SkinArm[] = [];
   private readonly armData: Vector4[]; private readonly armColor: Vector4[]; private readonly armArc: Vector4[];
   /** the weld pair's share (skin-set.ts): x the mode (+1 the welded skin, -1 the plain trunk, 0 neither), y how much of the welded skin is in */
   private readonly kw = new Vector4(0, 0, 1, SKIN_FIGURE_UNITS);   // (x the blend width skinK, y the mode, z the share, w the units in a scene unit, negative on the Circuit's own skins: skinKW in the shader stages)
@@ -116,6 +119,7 @@ export class SkinObject implements SkinDraw {
     g.setAttribute('tubeShare', new BufferAttribute(tubeShareOf(skin.index, skin.seamVerts, skin.position.length / 3), 1));
     g.setIndex(new BufferAttribute(skin.index, 1));
     g.computeBoundingSphere();
+    this.throughOf = axes.map((x) => x.mate ?? -1); this.joinArms = skin.junction.arms;
     const du = donor.toon.uniforms, shared: Record<string, IUniform> = {};
     for (const k of SHARED_WITH_TUBES) if (du[k]) shared[k] = du[k]!;
     this.armData = Array.from({ length: SKIN_ARMS }, (_, i) => {
@@ -136,7 +140,7 @@ export class SkinObject implements SkinDraw {
       ...shared,
       // the plain tone the device guard (debug/shader-guard.ts) draws this skin in if a driver refuses the program: the first arm's own colour
       color: du.color!,
-      armData: { value: this.armData }, armAF: { value: this.armAF }, armFade: { value: this.armFade }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4(0, 0, 0, (1 << SKIN_ARMS) - 1)] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
+      armData: { value: this.armData }, armAF: { value: this.armAF }, armFade: { value: this.armFade }, armNarrow: { value: new Array(SKIN_ARMS).fill(0) }, armThrough: { value: this.thru }, armArc: { value: this.armArc }, armFlow: { value: [new Vector4(), new Vector4(0, 0, 0, (1 << SKIN_ARMS) - 1)] }, armWedge: { value: [new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT), new Vector4(WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT, WEDGE_ABSENT)] }, wedgeColS: { value: new Color(1, 0.6, 0.1) }, wedgeS: { value: new Vector4(0, 0.02, -1, 0.02) }, armColor: { value: this.armColor },
       armCopy: { value: this.armCopy },
       skinGrowMask: { value: skin.junction.arms.reduce((m, a, i) => (a.grow ? m | (1 << i) : m), 0) },
       armClotA: { value: this.armClotA }, armClotP: { value: this.armClotP }, ...CLOT_TONES,
@@ -246,6 +250,14 @@ export class SkinObject implements SkinDraw {
   /** The glow shows while the front copy does and some arm has a pick weight (the shader weights its reach and alpha by it, so it is nothing where no arm is picked). */
   private showGlow(): void { this.glow.visible = this.armAF.some((a, k) => a.z > 0.001 && this.armData[k]!.x >= 0 && this.isThere(k)) && this.copies[0]!.visible; }
 
+  /** A vein's two halves the skin runs through its node share one live width (shaders.ts armThrough),
+   *  but only where each tube eases to that same mate (parts/skins.ts applyMates): `on` is the smooth-joins switch. */
+  setThrough(on: boolean): void {
+    for (let i = 0; i < SKIN_ARMS; i++) {
+      const m = this.throughOf[i] ?? -1, a = this.joinArms[i], b = m >= 0 ? this.joinArms[m] : undefined;
+      this.thru[i] = on && a && b && SMOOTH.get(a.vesselId)?.mate[a.end] === b.vesselId ? m : -1;
+    }
+  }
   setTransparent(on: boolean): void { for (const m of this.copies) { const mat = m.material as ShaderMaterial; setBlendState(mat, on); } }
 
   dispose(): void { this.mesh.geometry.dispose(); for (const m of this.copies) (m.material as ShaderMaterial).dispose(); (this.glow.material as ShaderMaterial).dispose(); }

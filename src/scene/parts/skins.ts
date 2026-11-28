@@ -102,12 +102,17 @@ export const skinsPart = scenePart<CelScene>()({
   /** The vessels each vessel's ends carry on into, for the shader's live-width easing (smooth joins are always on). */
   applyMates(): void {
     const on = smoothJoinsOn();
+    this.skins?.syncThrough(on);
     for (const def of NETWORK) {
       const o = this.byEdge.get(def.id) as VesselObject | undefined, sj = SMOOTH.get(def.id);
       if (!o) continue;
       const mate = (id: string | null | undefined) => { const m = on && id ? NETWORK_MATE.get(id) : undefined; return m ? { index: indexOf(m.lensId), baseD: m.baseD, widthKind: m.widthKind } : null; };
-      const sk = this.skins?.endsOf(def.id) ?? [false, false];   // (a skinned end's mate is off: the skin's weights blend the live widths, spec 4.6)
-      o.setMates(sk[0] ? null : mate(sj?.mate[0]), sk[1] ? null : mate(sj?.mate[1]));
+      const sk = this.skins?.endsOf(def.id) ?? [false, false];
+      // a skinned end's mate is off: the skin's weights blend the live widths, spec 4.6. EXCEPT where the skin runs the vein straight through the node into that same mate (through.ts): the skin
+      // then takes the mean of the two widths on both halves (skin/shaders.ts armThrough), so the tube eases to that mean as far as the skin's cut and the width is one across the node, no step
+      const run = (e: 0 | 1): boolean => sk[e] && !!sj?.mate[e] && this.skins?.throughOf(def.id, e) === sj.mate[e];
+      const cut = (e: 0 | 1): number => (run(e) ? this.skins?.seamU(def.id, e) ?? e : e);
+      o.setMates(sk[0] && !run(0) ? null : mate(sj?.mate[0]), sk[1] && !run(1) ? null : mate(sj?.mate[1]), [cut(0), cut(1)]);
       // (the map's own pairs and their taper, at EVERY end: a skinned end keeps it as far as its skin's cut (circuit/mates.ts skinnedEase), where the welded skin carries on;
       // a skin whose growing arm is closed is not drawn, and a run-on pair then met at the node at two widths, a hard step: Mohammad, 22 Nov, the SMV node)
       {
