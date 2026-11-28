@@ -300,10 +300,20 @@ export const SKIP_CHUNK = 33, SKIP_MAX_STEPS = 160;
 const SKIP_PHASES: Phase[] = ['engine', 'tween', 'camera'];
 export type Clock = ReturnType<typeof createClock>;
 
+// (page time as the browser gives it, unless a node harness drives it by hand: see driveClockTime)
+let handTime: (() => number) | null = null;
+const pageTime = (): number => (handTime ? handTime() : performance.now());
+/**
+ * For a node harness that turns `scene.update(now)` by hand on its own timeline (the scene audit): page time is read from `fn` instead of the wall clock, so an Ease that stamps `clock.now()` when it is
+ * asked to move and is stepped with the harness's `now` measure the same thing. Without it the first step of every ease measured the gap between the two timelines (capped at 100 ms of motion) and looked
+ * like a pop. `null` gives page time back to the browser. Never called by the app.
+ */
+export const driveClockTime = (fn: (() => number) | null): void => { handTime = fn; };
+
 const browserEnv: Env = typeof window !== 'undefined'
   // (the one raw requestAnimationFrame in the app)
-  ? { raf: (cb) => window.requestAnimationFrame(cb), cancel: (id) => window.cancelAnimationFrame(id), now: () => performance.now() }
-  : { raf: (cb) => setTimeout(() => cb(performance.now()), 16) as unknown as number, cancel: (id) => clearTimeout(id), now: () => performance.now() };
+  ? { raf: (cb) => window.requestAnimationFrame(cb), cancel: (id) => window.cancelAnimationFrame(id), now: pageTime }
+  : { raf: (cb) => setTimeout(() => cb(pageTime()), 16) as unknown as number, cancel: (id) => clearTimeout(id), now: pageTime };
 
 /** The app's clock. */
 export const clock: Clock = createClock(browserEnv);
