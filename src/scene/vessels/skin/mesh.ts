@@ -41,7 +41,8 @@ export const GRADIENT_H = 0.05;
 /** Edge flips: an edge flips when that raises the sine of the smaller of its two triangles' smallest angles by `FLIP_GAIN` times and keeps the two faces facing the same way. */
 export const FLIP_GAIN = 1.05;
 /**
- * Rows of vertices from a seam over which the normal blends from the tube's to the SDF gradient (spec 4.5.7). Three, not two (28 Nov): across a crease the turn from the tube's normal to the gradient is spread over more edges,
+ * Rows of vertices from a seam over which the normal blends from the tube's to the SDF gradient (spec 4.5.7).
+ * Three, not two (28 Nov): across a crease the turn from the tube's normal to the gradient is spread over more edges,
  * so the shade turns no more than 1 degree a step faster than the surface at the junction table's cluster skins (tests/skin-weld-shade.test.ts: SVC+SVC_E 1.07, PVH 1.05 with two).
  */
 export const NORMAL_BLEND_ROWS = 3;
