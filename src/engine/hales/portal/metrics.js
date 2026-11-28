@@ -90,7 +90,6 @@ export function computeMetrics(eng, out = null, opts = null) {
   hv.whvp = hold(eng, 'whvp', hv.whvp); hv.fhvp = hold(eng, 'fhvp', hv.fhvp); hv.hvpg = hv.whvp - hv.fhvp;
   let splIn = 0;
   for (let i = 0; i < SPLANCHNIC_ARTERIES.length; i++) splIn += qf(eng, SPLANCHNIC_ARTERIES[i]);
-  const apIn = Math.max(0, qf(eng, 'AP_R')) + Math.max(0, qf(eng, 'AP_L'));
   let shunted = 0;
   const r = out || {};   // alloc-rare: a reader that gives no record to write into gets one of its own; the tick always gives its kept record
   const collateralFlows = part(r, 'collateralFlows');
@@ -101,13 +100,15 @@ export function computeMetrics(eng, out = null, opts = null) {
     if (STENTS.has(id)) stentQ += Math.max(0, v); else shunted += Math.max(0, v);
     collateralFlows[id] = v;
   }
-  // A stent (TIPS or DIPS) also drains arterial blood that recirculates through the sinusoids and back out by the
-  // portal branches, so only the portal-trunk blood that no longer reaches the sinusoids counts as shunted portal blood.
-  shunted += clamp(Math.max(0, qf(eng, 'PV_TRUNK')) - portalIn - Math.max(0, qf(eng, 'C3')), 0, stentQ);
+  // A stent (TIPS or DIPS) counts in full: all the blood that goes through it leaves the liver's circuit, so a wider stent always reads higher
+  // (28 Nov 2026, his ruling). Part of it is arterial blood that recirculated through the sinusoids; it is blood that skipped the liver's work all the same.
+  shunted += stentQ;
   // Custom shunts the learner has made carry portal blood to systemic veins as well (one between two portal veins keeps its blood in the portal system).
   for (const e of EDGES) if (e.shunt === 'custom' && !e.portal && eng.params.customShunts?.[e.id]) shunted += Math.max(0, qf(eng, e.id));
   for (const e of EDGES) if (e.kind === 'collateral') collateralFlows[e.id] = qf(eng, e.id);
-  const shuntFraction = clamp(shunted / Math.max(1e-6, splIn + apIn), 0, 1);
+  // Shunted share = blood through every shunt (collaterals and stents, in full) over that plus the blood through the sinusoids: the share of the
+  // liver-bound blood that bypasses the liver. (It used to be taken over the splanchnic inflow, and a wider stent then read the same or lower.)
+  const shuntFraction = clamp(shunted / Math.max(1e-6, shunted + Math.max(0, qf(eng, 'SIN_RR')) + Math.max(0, qf(eng, 'SIN_LL'))), 0, 1);
 
   const hepFlow = qf(eng, 'SIN_RR') + qf(eng, 'SIN_LL');
   const arterialIn = qf(eng, 'A_HR') + qf(eng, 'A_HL');

@@ -473,7 +473,7 @@ export const HISTORIES: readonly HistoryMeta[] = [
    ]
   },
   "counts": {
-   "events": 6,
+   "events": 7,
    "medicines": 1
   }
  },

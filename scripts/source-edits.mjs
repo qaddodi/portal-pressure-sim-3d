@@ -567,7 +567,7 @@ export const CAPTURE_3531BDFA_L3 = [
 /** Capture 3531bdfa (26 Nov 2026), the worker items Mohammad ruled on 27 Nov (W2, W3, W5, W6, W7, W11, W18; reports/ext-review-3531bdfa/answers.log). */
 export const CAPTURE_3531BDFA_W = [
   // W2, Encephalopathy 11: the bar reads Liver 6% for a 6 mm and an 8 mm stent alike (the model's shunt fraction holds at about 94% for any TIPS from 6 to 12 mm), so the line no longer says the blood returns to the liver
-  SET('encephalopathy', 'slides.narrow.line', 'Reducing the stent diameter lets the PPG rise toward the level the TIPS was placed to treat, and the model’s HE index falls a little. The bar still shows almost all portal blood bypassing the liver.'),
+  SET('encephalopathy', 'slides.narrow.line', 'Reducing the stent diameter lets the PPG rise toward the level the TIPS was placed to treat, and the model’s HE index falls a little. The bar shows less of the blood bypassing the liver than on the 8 mm stent, but still most of it.'),
   // W5, Doppler 9: 16 against the healthy 27 cm/s is 59%, not half; the healthy value is the live reading of the slide that shows the healthy patient
   P('doppler', 'slides.a3.line', 'about half of normal', 'well below the healthy {pvVel@normal}'),
   // W6c, Shunts 10: the patient's TIPS is for recurrent ascites (Shunts 5); the 12 mmHg reference is the variceal one

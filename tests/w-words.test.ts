@@ -1,5 +1,5 @@
 // The worker items of the external review of capture 3531bdfa that Mohammad ruled on (27 Nov 2026: W2, W3, W5, W6, W7, W11, W18). Each rule is held across every deck, not the one slide that showed it:
-//   W2   a slide whose words say blood "returns to the liver" shows a bar whose liver share moved (the model holds the shunt fraction at about 94% for any TIPS from 6 to 12 mm)
+//   W2   a slide whose words say blood "returns to the liver" shows a bar whose liver share moved (shunted % counts all the TIPS blood since 28 Nov, so a wider stent reads higher)
 //   W3   the bar's collateral segment is named for what it is, and the longer name still lays out inside the card
 //   W5   a line that sets a reading against "the healthy" one prints the healthy patient's own reading (a token), never a typed number
 //   W6a  the bleed path's case header says its "active bleeding" is the first endoscopy's
@@ -57,7 +57,7 @@ function statesOf(id: string): Promise<State[]> {
 }
 const valueTokens = (text: string) => tokensOf(text).flatMap(({ raw, token }) => (token.kind === 'value' && !token.at ? [{ raw, key: token.key, whole: token.whole }] : []));
 
-test('W2: a slide whose words say blood returns to the liver shows a liver share that moved; a TIPS of 6 to 12 mm leaves almost the same share (so the narrower-stent slide says no such thing)', async () => {
+test('W2: a slide whose words say blood returns to the liver shows a liver share that moved; a narrower stent shunts less but still most (so the narrower-stent slide says so)', async () => {
   const claim = /\breturns? (portal|mesenteric) (venous )?blood to the liver|more (portal )?blood (reaches|returns to) the liver/i;
   let seen = 0;
   for (const d of decks) {
@@ -71,13 +71,12 @@ test('W2: a slide whose words say blood returns to the liver shows a liver share
     }
   }
   assert.equal(seen, 0, 'no slide with a bar claims the blood returns to the liver while its share is unchanged (the narrower-stent slide was the one)');
-  // the model's fact the slide's words must not contradict: a 6 mm stent (the narrower-stent slide) and an 8 mm one (the slide before it) leave the liver almost the same share of the portal blood.
-  // Not "the same whole percent": the shunt fraction is 94.06% at 8 mm and 93.49% at 6 mm since engine 4f4e49f refitted the TIPS tract term (0.18 to 0.156, 28 Nov), and the bar rounds 6.51 up to 7.
-  // A rounded whole number sits on a boundary here, so the test holds the unrounded fraction: within one point, and "almost all" (over 90%) as the slide's words say.
+  // the model's fact the slide's words must not contradict: shunted % counts all the blood through the stent (28 Nov, his ruling), so a 6 mm stent (the narrower-stent slide) reads lower than the 8 mm one before it,
+  // and still most of the blood ("still most of it" in the slide's words).
   const d = deckOf('encephalopathy'), st = await statesOf('encephalopathy'), at = (id: string) => st[d.slides.findIndex((x) => x.id === id)]!.fp;
   const wide = (at('tips').shunt as number) * 100, narrow = (at('narrow').shunt as number) * 100;
-  assert.ok(Math.abs(wide - narrow) <= 1, `the shunt fraction saturates between 6 and 8 mm (${narrow.toFixed(2)}% and ${wide.toFixed(2)}%)`);
-  assert.ok(narrow > 90, 'almost all portal blood still bypasses the liver on the narrower stent, as the slide says');
+  assert.ok(narrow < wide - 1, `a narrower stent shunts less (${narrow.toFixed(2)}% at 6 mm, ${wide.toFixed(2)}% at 8 mm)`);
+  assert.ok(narrow > 50, 'most of the blood still bypasses the liver on the narrower stent, as the slide says');
   assert.doesNotMatch(d.slides.find((s) => s.id === 'narrow')!.line ?? '', /returns portal blood to the liver/);
 });
 

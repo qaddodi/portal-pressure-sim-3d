@@ -462,7 +462,7 @@ export const ENCEPHALOPATHY: CopiedDeck = {
    "kicker": "After TIPS",
    "site": "sin",
    "title": "When HE persists, reduce the stent diameter",
-   "line": "Reducing the stent diameter lets the PPG rise toward the level the TIPS was placed to treat, and the model’s HE index falls a little. The bar still shows almost all portal blood bypassing the liver.",
+   "line": "Reducing the stent diameter lets the PPG rise toward the level the TIPS was placed to treat, and the model’s HE index falls a little. The bar shows less of the blood bypassing the liver than on the 8 mm stent, but still most of it.",
    "notes": "HE that persists after a TIPS despite lactulose and rifaximin can be treated by reducing the stent diameter, with a smaller stent placed coaxially inside it, or by occluding the stent. If a large spontaneous shunt is also found, embolizing it is another option. Baveno VIII 6.17 allows this as a weak recommendation (spontaneous shunt embolization, or reduction or occlusion of the TIPS). Either way, part of the portal hypertension that the TIPS was placed to treat returns.",
    "ask": [
     "What does reducing the stent diameter cost?",

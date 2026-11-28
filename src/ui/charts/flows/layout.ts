@@ -74,9 +74,15 @@ export function routePills(items: readonly { id: string; text: string; mid: numb
   // Placed narrowest first, the short names sit on the upper rows and the long one under them.
   const wid = new Map(items.map((it) => [it.id, measure(it.text, geo.f, 600)]));
   const byWidth = placePills([...items].sort((p, q) => wid.get(p.id)! - wid.get(q.id)! || p.mid - q.mid), w, geo, measure, maxRows);
-  return byWidth.ok ? byWidth : byMid;
+  if (byWidth.ok) return byWidth;
+  if (byMid.ok) return byMid;
+  // Last try: a long name leans left so that its own part's centre stays under it and the leader of a part to its right clears its right edge (the narrower names then take the row below it).
+  const leaned = placePills([...items].sort((p, q) => p.mid - q.mid), w, geo, measure, maxRows, true);
+  return leaned.ok ? leaned : byMid;
 }
-function placePills(order: readonly { id: string; text: string; mid: number }[], w: number, geo: RouteGeo, measure: Measure, maxRows: number): { pills: Pill[]; rows: number; ok: boolean } {
+function placePills(
+  order: readonly { id: string; text: string; mid: number }[], w: number, geo: RouteGeo, measure: Measure, maxRows: number, lean = false,
+): { pills: Pill[]; rows: number; ok: boolean } {
   const pills: Pill[] = [], rowsL: [number, number][][] = [];
   let ok = true;
   for (const it of order) {
@@ -86,7 +92,9 @@ function placePills(order: readonly { id: string; text: string; mid: number }[],
       const spans = (rowsL[row] ??= []), last = Math.max(-Infinity, ...spans.map((s) => s[1]));
       const clear = (L: number) => spans.every(([a, b]) => L + tw <= a - geo.gx + 1e-6 || L >= b + geo.gx - 1e-6)
         && rowsL.slice(0, row).every((above) => above.every(([a, b]) => it.mid < a - 2 || it.mid > b + 2));   // (its leader runs down past the rows above)
-      for (const L of [want, last + geo.gx]) if (!put && L >= -1e-6 && L + tw <= w + 1e-6 && L <= it.mid + 1e-6 && it.mid <= L + tw + 1e-6 && clear(L)) put = { row, L };
+      const lean0 = lean ? order.filter((o) => o.mid > it.mid).map((o) => o.mid - 3 - tw) : [];   // (its right edge stops short of the next part's leader)
+      const tries = [...lean0.map((l) => Math.min(want, l)), want, last + geo.gx];
+      for (const L of tries) if (!put && L >= -1e-6 && L + tw <= w + 1e-6 && L <= it.mid + 1e-6 && it.mid <= L + tw + 1e-6 && clear(L)) put = { row, L };
     }
     if (!put) { ok = false; put = { row: rowsL.length, L: want }; }
     (rowsL[put.row] ??= []).push([put.L, put.L + tw]);
