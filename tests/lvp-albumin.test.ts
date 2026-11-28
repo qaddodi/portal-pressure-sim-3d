@@ -111,10 +111,11 @@ test('every deck that drains the belly: a "large-volume" tap takes off more than
   assert.ok(taps >= 3, `${taps} paracentesis slides checked`);
 });
 
+// (more than the 6 L by more than the 50 mL the drain check below allows: 6313 mL before engine 4f4e49f's junction table, 6262 after; his pick, 28 Nov)
 test('Albumin 3 drains the planned 6 L from a belly that holds more, and its words print those litres and that dose', async () => {
   const deck = await loadAgDeck('albumin'), [tap] = await tapsOf(deck as CopiedDeck);
   assert.ok(tap && tap.slide.id === 'tap');
-  assert.ok(tap.before > LVP_ML + 300, `the belly holds ${Math.round(tap.before)} mL before the tap, more than the ${LVP_ML} mL it drains`);
+  assert.ok(tap.before > LVP_ML + 50, `the belly holds ${Math.round(tap.before)} mL before the tap, more than the ${LVP_ML} mL it drains`);
   const drained = tapDrainL(tap.before, tap.own);
   assert.ok(Math.abs(drained * 1000 - LVP_ML) < 50, `the model takes off ${Math.round(drained * 1000)} mL`);
   assert.equal(tapWords(drained).removed, '6.0 L removed');
