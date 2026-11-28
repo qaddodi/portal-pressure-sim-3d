@@ -33,7 +33,8 @@ test('the card holds one title for every button of a slide (a press changes numb
   }
   const lt = decks.find((d) => d.id === 'landmark-trials')!;
   for (const id of ['predesci-arms', 'transfusion-arms', 'earlytips', 'covered-arms', 'rifaximin']) {
-    const s = lt.slides.find((x) => x.id === id)!;
+    // (a slide cut into several carries its buttons on the last of them: decks/overlay.ts)
+    const s = [`${id}-2`, id].map((k) => lt.slides.find((x) => x.id === k)).find((x) => x?.controls?.compare)!;
     const named = (s.controls?.compare?.opts ?? []).filter((o) => o.slide);
     assert.ok(named.length >= 1, `${id} has a button that names another slide`);
     for (const o of named) assert.notEqual(variantWords(s, o, lt.slides.find((x) => x.id === o.slide)).title, lt.slides.find((x) => x.id === o.slide)!.title, `${id} "${o.label}" does not bring that slide's headline`);

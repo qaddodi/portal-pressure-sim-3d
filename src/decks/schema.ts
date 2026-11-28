@@ -64,6 +64,8 @@ export interface TableSpec {
   asc?: boolean; rowHead?: string; foot?: string; note?: string | string[]; calm?: string[]; focusRow?: string;
   /** the `wave` column's vessel for every row, and the scale of its traces in cm/s (50 by default) */
   wave?: string; waveMax?: number;
+  /** the rows this slide shows, [from, to) of `of`, when the table was shared out over several slides (decks/overlay.ts); the columns and numbers stay the whole table's */
+  window?: [number, number];
 }
 
 export interface Slide {

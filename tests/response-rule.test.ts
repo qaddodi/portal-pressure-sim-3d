@@ -12,15 +12,21 @@ import { RW_IDS } from '../src/decks/rw/copied/index.ts';
 type Slide = { id: string; line: string; hvpgResp?: unknown; hvpgRule?: keyof typeof RESPONSE_CUT; tool?: { zone?: { fall?: number } } };
 const slideOf = async (key: string): Promise<Slide> => {
   const [d, s] = key.split('/');
-  return ((await loadSource(d!)).slides as unknown as Slide[]).find((x) => x.id === s)!;
+  const slides = (await loadSource(d!)).slides as unknown as Slide[], at = slides.findIndex((x) => x.id === s);
+  // (a slide cut into several, decks/overlay.ts, says its words across them: its line is all of theirs)
+  let end = at + 1;
+  while (slides[end]?.id === `${s}-${end - at + 1}`) end++;
+  return { ...slides[at]!, line: slides.slice(at, end).map((x) => x.line).join(' ') };
 };
 
 test('every slide with a response tile is ruled, and its rule is the one in RESPONSE_RULE', async () => {
   const seen: string[] = [];
   for (const id of [...AG_IDS, ...HP_IDS, ...RW_IDS]) {
     for (const s of (await loadSource(id)).slides as unknown as Slide[]) if (s.hvpgResp) {
-      seen.push(`${id}/${s.id}`);
-      assert.equal(s.hvpgRule, RESPONSE_RULE[`${id}/${s.id}`], `${id}/${s.id}`);
+      // (the parts of a slide cut into several carry its tile and its rule: they are ruled by the first one's key)
+      const base = s.id.replace(/-\d+$/, ''), key = `${id}/${RESPONSE_RULE[`${id}/${s.id}`] ? s.id : base}`;
+      if (key.endsWith(`/${s.id}`)) seen.push(key);
+      assert.equal(s.hvpgRule, RESPONSE_RULE[key], `${id}/${s.id}`);
     }
   }
   assert.deepEqual(seen.sort(), Object.keys(RESPONSE_RULE).sort());

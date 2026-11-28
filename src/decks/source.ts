@@ -12,9 +12,10 @@ const RAW: Readonly<Record<string, () => Promise<unknown>>> = { ...AG_LOADERS, .
 export const SOURCE_IDS: readonly string[] = [...AG_IDS, ...Object.keys(HP_LOADERS), ...Object.keys(RW_LOADERS)];
 export const isSource = (id: string): boolean => id in RAW;
 
-/** A built-in deck as the 3D app holds it: the copy with the overlay on. Read it, never change it (a copy is made when anything is laid over it). */
-export async function loadSource(id: string): Promise<CopiedDeck> {
+/** A built-in deck as the 3D app holds it: the copy with the overlay on, and its slides cut where they do not fit (decks/overlay.ts).
+ *  `cut` false: the 2D deck's own slides, for a test against what 2D recorded. Read it, never change it (a copy is made when anything is laid over it). */
+export async function loadSource(id: string, cut = true): Promise<CopiedDeck> {
   const raw = RAW[id];
   if (!raw) throw new Error(`"${id}" is not a built-in deck`);
-  return withOverlay((await raw()) as CopiedDeck);
+  return withOverlay((await raw()) as CopiedDeck, cut);
 }

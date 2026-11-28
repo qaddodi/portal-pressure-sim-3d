@@ -6,6 +6,7 @@ import { finishTalk } from './finish.ts';
 import { dataKeys } from './keep.ts';
 import { gatedSlide, procOver } from './proc-gate.ts';
 import { useProc } from '../deck/procs-state.ts';
+import { keptByMove } from './swipe-keeps.ts';
 import { useDockSwipe, openDock, goColumn, justDocked } from './useDockSwipe.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
 import { DataCap } from '../talk/tool-room.ts';
@@ -53,7 +54,6 @@ import { hvpgNotMeasurable } from '../cuts.ts';
 import { maxPages, clampPage, nextToMeasure, tallestPage } from './pages.ts';
 import { rekeyed } from './box-lock.ts';
 import { cardKey, wordsCardKey } from './card-key.ts';
-import { keptByMove } from './swipe-keeps.ts';
 import { wordsFitOf } from './card-fit.ts';
 import { frameProps, wordsClasses, type FrameLive } from './frame-props.ts';
 
@@ -438,7 +438,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
           {sn.dslide?.ladder && !sn.dslide.tool ? <LadderCard ladder={sn.dslide.ladder} readings={own} /> : sn.dslide?.tiles ? <TilesCard deckId={sn.deck.id} slideId={sn.dslide.id} /> : null}
         </>
       );
-      case 'visual': return sn.slide ? <VisualCard deck={sn.deck} slide={sn.slide} read={readOwn} fp={own} page={sn.at} pages={sn.pages} /> : null;
+      case 'visual': return sn.slide ? <VisualCard deck={sn.deck} slide={sn.slide} read={readOwn} fp={own} /> : null;
       case 'check': return <CheckCard deck={sn.deck} page={sn.at} pages={sn.pages} />;
     }
   };

@@ -29,7 +29,7 @@ test('every slide of every deck needs only features somebody owns, and each one 
     assert.deepEqual(r.open.map((f) => f.id), [], `${id}/${s.id} waits on a feature`);
     assert.equal(r.wired, true, `${id}/${s.id}`);
   }
-  assert.equal(n, 516);
+  assert.equal(n, 516 + 32);   // (516 slides in the 2D decks, and 32 more since 28 Nov: the slides cut into several, decks/overlay.ts)
 });
 
 test('every field of every slide is one the app has a home for', () => {

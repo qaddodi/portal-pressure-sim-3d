@@ -98,7 +98,7 @@ test('A-D6: a row wider than its box is found (a cell pushed past the table\'s e
 const WITHOUT_FINDING: readonly string[] = [
   'albumin/summary', 'ascites/summary', 'budd-chiari/summary', 'carvedilol/summary', 'cause-treated/summary', 'circuit/summary', 'day/summary', 'encephalopathy/summary', 'hyperdynamic/summary', 'kidney/summary',
   'landmark-trials/summary', 'masld/summary', 'meso-rex/summary', 'ncph/summary', 'next-bleed/summary', 'outflow/summary', 'pregnancy/summary', 'recompensation/summary', 'shunts/summary', 'sites/summary',
-  'gastric-varices/summary', 'tips-candidacy/summary', 'ten-years/summary', 'tipping/summary', 'tips-complete/summary', 'two-inflows/summary', 'two-lesions/summary', 'variceal-bleed/summary', 'where-resistance/summary',
+  'gastric-varices/summary', 'gastric-varices/summary-2', 'gastric-varices/summary-3', 'tips-candidacy/summary', 'ten-years/summary', 'tipping/summary', 'tips-complete/summary', 'two-inflows/summary', 'two-lesions/summary', 'variceal-bleed/summary', 'where-resistance/summary',
 ];
 test('A-D15: every comparison table has a finding line under each case, except the listed ones (which may only shrink)', () => {
   const lacking = tables.filter(({ s }) => {

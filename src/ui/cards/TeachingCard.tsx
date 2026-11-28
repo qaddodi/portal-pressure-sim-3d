@@ -136,8 +136,7 @@ export function TeachingCard({ slide, deck, read, fp, page, pages, trim = false,
           {tab.also ? <span className="pz-tabalso" data-site={tab.also.site}>{tab.also.name}</span> : null}
         </span>
       ) : null}
-      {/* 2D's words card has no kicker row: the slide's name is its title (presenter-question.js). A card that splits into pages (a phone on its side, 3D only) says which page this is in the name tab's band (top left, no row of its own; owner 24 Nov, option 2). */}
-      {pages > 1 ? <><span className="pz-pageno" aria-label={`Page ${page + 1} of ${pages}`}>{page + 1} of {pages}</span>{deck && nameTabOf(deck) ? null : <span className="dk-tabgap" aria-hidden="true" />}</> : null}
+      {/* 2D's words card has no kicker row: the slide's name is its title (presenter-question.js). A card never pages (owner, 28 Nov): words that do not fit are cut into more slides, decks/overlay.ts (amendSplitPages). */}
       {titles('h2', kick)}
       {eq && slide.eq && (
         <div className="pz-eq" role="math" aria-label={slide.eq.map((p) => (p.sub ? `${p.text} ${p.sub}` : p.text)).join(' ')}>

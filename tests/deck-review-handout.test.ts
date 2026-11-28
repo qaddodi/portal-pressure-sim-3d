@@ -13,6 +13,7 @@ import { listFiles } from '../scripts/pwa.mjs';
 import { copyAll } from '../scripts/copy-handout.mjs';
 import { pinned2D } from './two-d-pin.ts';
 import type { Deck } from '../src/decks/schema.ts';
+import { SPLIT_PAGES, partId } from '../src/decks/overlay.ts';
 
 const IDS = [...new Set([...builtinDecks().map((d) => d.id), ...lazyDecks().map((d) => d.id)])];
 const all = async (): Promise<Deck[]> => Promise.all(IDS.map(async (id) => (await loadBuiltin(id))!));
@@ -26,6 +27,14 @@ const NO_PICTURE: Record<string, string[]> = {
   encephalopathy: ['embolize-flows'], stiffness: ['fibrosis-lobule'], shunts: ['gradient'], tipping: ['injury-card', 'antibiotic-card'],
   varices: ['gastric', 'redwale', 'primary', 'secondary'],   // the four slides added on 23 Nov (gastric varices, red wale, primary and secondary prophylaxis)
 };
+
+// A slide cut into several (decks/overlay.ts) keeps its picture on the first; the others print their words, like a slide 2D has no picture of.
+for (const [key, n] of Object.entries(SPLIT_PAGES)) {
+  const [deck, id] = [key.slice(0, key.indexOf('/')), key.slice(key.indexOf('/') + 1)];
+  if (NO_PICTURE[deck]?.[0] === '*') continue;
+  NO_PICTURE[deck] = [...(NO_PICTURE[deck] ?? []), ...Array.from({ length: n - 1 }, (_, i) => partId(id, i + 1))];
+}
+const CUT_EXTRA = Object.values(SPLIT_PAGES).reduce((a, n) => a + n - 1, 0);
 
 test('every slide that has a picture prints it, beside its words, for every talk; no picture is asked for that is not there', async () => {
   let printed = 0;
@@ -49,13 +58,13 @@ test('every slide that has a picture prints it, beside its words, for every talk
   assert.equal(printed, 410);
 });
 
-test('which slides print without a picture is known exactly (106 of 516: the ones 2D has no picture of), and no picture is left over', async () => {
+test('which slides print without a picture is known exactly (106 of 516, and the slides cut from others: the ones 2D has no picture of), and no picture is left over', async () => {
   const decks = await all();
   const bare: Record<string, string[]> = {};
   let n = 0, slides = 0;
-  for (const d of decks) { const w = withoutFigure(d); slides += d.slides.length; n += w.length; if (w.length) bare[d.id] = w.length === d.slides.length ? ['*'] : w; }
-  assert.deepEqual(bare, Object.fromEntries(Object.entries(NO_PICTURE).sort(([a], [b]) => Object.keys(bare).indexOf(a) - Object.keys(bare).indexOf(b))), 'a slide lost its picture (a renamed slide id?) or gained one: run scripts/copy-handout.mjs and bring this list up to date');
-  assert.equal(slides - n, 410); assert.equal(n, 106);
+  for (const d of decks) { const w = withoutFigure(d); slides += d.slides.length; n += w.length; if (w.length) bare[d.id] = w.length === d.slides.length ? ['*'] : w.slice().sort(); }
+  assert.deepEqual(bare, Object.fromEntries(Object.entries(NO_PICTURE).map(([k, v]) => [k, v.slice().sort()] as const).sort(([a], [b]) => Object.keys(bare).indexOf(a) - Object.keys(bare).indexOf(b))), 'a slide lost its picture (a renamed slide id?) or gained one: run scripts/copy-handout.mjs and bring this list up to date');
+  assert.equal(slides - n, 410); assert.equal(n, 106 + CUT_EXTRA);
   const byId = new Map(decks.map((d) => [d.id, new Set(d.slides.map((s) => s.id))]));
   for (const [deck, ids] of Object.entries(HANDOUT_FIGURES)) for (const id of ids) assert.ok(byId.get(deck)?.has(id), `${deck}/${id}.webp is no slide's`);
 });

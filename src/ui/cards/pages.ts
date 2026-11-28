@@ -20,15 +20,12 @@ export function pageOf<T>(list: readonly T[], n: number, page: number): T[] {
   return list.slice(from, to);
 }
 
-/** The most pages a card can have: a line splits per sentence, a case does not (its words ease down to fit, as in 2D), the title card in two (the talk, then its objectives),
- *  the quick check per question, a summary table (the `visual` panel, `items` = its rows) by whole rows, the rest do not split. A visual with no rows to split (a chart) has one page. */
-export function maxPages(id: string, line: string | undefined, items = 0): number {
+/** The most pages a card can have: the title card two (the talk, then its objectives) and the quick check one per question, the two cards that are not a slide's words. A slide's words never page
+ *  (Mohammad, 28 Nov): the line, a case and a summary table that do not fit are cut into more slides (decks/overlay.ts amendSplitPages),
+ *  so a slide's card is one size from its first frame to its last. */
+export function maxPages(id: string, _line: string | undefined, items = 0): number {
   if (id === 'title') return 2;
   if (id === 'check') return Math.max(1, items);   // the quick check pages by whole questions (2D HVPG has four; a phone on its side holds two)
-  // (a summary table too tall at the 12 px floor pages by whole rows, L2, owner 27 Nov; the layer asks for one more page only while the page on show does not fit)
-  if (id === 'visual') return Math.max(1, items);
-  if (id === 'case') return 1;   // 2D's case card never splits: its words ease down to fit (CaseCard)
-  if (id === 'teach') return line ? sentences(line).length : 1;
   return 1;
 }
 

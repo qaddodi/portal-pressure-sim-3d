@@ -9,12 +9,13 @@ import { loadSource } from './source.ts';
 import { toDeck } from './hp/deck.ts';
 import { loadBakedDeck, trustBaked } from '../ui/charts/baked/store.ts';
 import { UI } from '../ui/strings.generated.ts';
+import { splitExtra } from './overlay.ts';
 
 /** How many slides a talk has (the 2D menu's count, without the title and the quick check). */
 const slidesOf = (id: string): number => {
   const d = UI.decks.find((x) => x.id === id);
   if (!d) throw new Error(`the 2D menu has no talk "${id}"`);
-  return (d as unknown as { slides: number }).slides;
+  return (d as unknown as { slides: number }).slides + splitExtra(id);
 };
 
 type Register = (d: { id: string; slides: number; load(): Promise<Deck> }) => void;

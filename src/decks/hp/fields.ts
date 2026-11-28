@@ -23,7 +23,7 @@ export const FIELD_HOME: Record<string, FieldHome> = {
   compare: 'slide', whatIf: 'slide', response: 'slide', hvpgResp: 'slide', hvpgRule: 'slide', scales: 'slide',
   // (the response buttons' own gains and lines, decks/overlay/controls.ts)
   responseGains: 'slide', responseLines: 'slide',
-  cols: 'slide', of: 'slide', vs: 'slide', asc: 'slide', rowHead: 'slide', foot: 'slide', note: 'slide', calm: 'slide', focusRow: 'slide',
+  cols: 'slide', of: 'slide', vs: 'slide', asc: 'slide', rowHead: 'slide', foot: 'slide', note: 'slide', calm: 'slide', focusRow: 'slide', window: 'slide',
   // what the 3D overlay adds (decks/overlay.ts): carried on the slide like any other
   also: 'slide', split: 'slide', scores: 'slide', interact: 'slide', frame: 'scene',
   // the model
@@ -41,7 +41,7 @@ export const FIELD_HOME: Record<string, FieldHome> = {
 export const SLIDE_PROP: Record<string, string> = {
   tiles: 'tiles', key: 'tiles', delta: 'tiles', data: 'tiles',
   compare: 'controls', whatIf: 'controls', response: 'controls', hvpgResp: 'tiles', hvpgRule: 'tiles', scales: 'controls', responseGains: 'controls', responseLines: 'controls',
-  cols: 'table', of: 'table', vs: 'table', asc: 'table', rowHead: 'table', foot: 'table', note: 'table', calm: 'table', focusRow: 'table',
+  cols: 'table', of: 'table', vs: 'table', asc: 'table', rowHead: 'table', foot: 'table', note: 'table', calm: 'table', focusRow: 'table', window: 'table',
   ask: 'ask',
 };
 

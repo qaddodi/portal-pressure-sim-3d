@@ -14,9 +14,6 @@ import { WaveCell } from './WaveCell.tsx';
 import { observeThenFit } from '../layout/fit-later.ts';
 import { readBox, readStyle, readMetric, readTextRects } from '../layout-snap.ts';
 import { chooseHeads, wrapFits, roomFits, HEAD_AIR_PX, slantPitch, slantHeight, slantReach, slantLeftover, setHeads, headModeOf, groupRuns, showGroups, type HeadMode } from './table-heads.ts';
-import { pageSpan } from './pages.ts';
-import { reduced, fadeMs, D_SURFACE } from '../a11y/motion.ts';
-import { ARRIVE_CSS } from '../../clock/tween.ts';
 
 /** 2D's purpose-drawn arrow (styles `.pz-arr`): one arrow, two, or the level dash for a cell within normal. */
 export const Arrow = ({ n }: { n: number }) => {
@@ -65,9 +62,9 @@ export function headOver(t: HTMLElement): boolean {
   return r.getBoundingClientRect().width > room + 0.5;
 }
 
-/** `page` of `pages`: a table too tall at the 12 px floor shows its rows by whole rows (L2, owner 27 Nov);
- *  the columns, the heads and the legend are the whole table's on every page, so a page turn moves only the rows. */
-export function TableCard({ deck, slide, page = 0, pages = 1 }: { deck: Deck; slide: Slide; page?: number; pages?: number }) {
+/** The rows of a table, or the slide's share of them (`table.window`, decks/overlay.ts (amendSplitPages): a table too tall for its card is shared out over slides, never paged).
+ *  The columns, the heads and the legend are the whole table's on every slide. */
+export function TableCard({ deck, slide }: { deck: Deck; slide: Slide }) {
   const spec = slide.table!;
   const key = `${deck.id}:${slide.id}`;
   const stored = useTables((s) => s.rows[key]);
@@ -78,20 +75,12 @@ export function TableCard({ deck, slide, page = 0, pages = 1 }: { deck: Deck; sl
   const model = useMemo(() => tableModel(spec, rows, (id) => fpOfSlide(deck, id)), [rows, spec, deck]);
   const showCut = (k: string, label: string, cutText?: string) => () => setCut({ label, text: cutText || (CUT as Record<string, string>)[k] || '' });
   const nc = model.cols.length, waveH = waveMaxH(model.rows.length);
-  // The rows on show: the whole table, or one page of it by whole rows (pages.ts pageSpan).
-  // Everything that sizes the table (its columns, its longest name, its Doppler's height, its class `long`) is read from ALL its rows below,
-  // so no page has a different grid from another and a page turn never moves a column.
-  const span = pageSpan(model.rows.length, pages, Math.max(0, Math.min(page, pages - 1)));
-  const shown = pages > 1 ? model.rows.slice(span.from, span.to) : model.rows;
-  const body = useRef<HTMLTableSectionElement>(null), turned = useRef(span.from);
-  // A page turned while the card is on screen fades its rows in on the arrive curve (nothing pops); before the card lands (the layer walks its pages out of sight) nothing is drawn.
-  useLayoutEffect(() => {
-    const was = turned.current;
-    turned.current = span.from;
-    const el = body.current;
-    if (was === span.from || !el || typeof el.animate !== 'function' || el.closest('.dk-pos')?.getAttribute('data-live') !== 'true') return;
-    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: fadeMs(D_SURFACE, reduced()), easing: ARRIVE_CSS });
-  }, [span.from]);
+  // The rows on show: the whole table, or this slide's share of it. Everything that sizes the table (its columns, its longest name,
+  // its Doppler's height, its class `long`) is read from ALL its rows below,
+  // so no slide has a different grid from another and a change of slide never moves a column.
+  const win = spec.window, from = win ? win[0] : 0;
+  const shown = win ? model.rows.slice(win[0], win[1]) : model.rows;
+  const body = useRef<HTMLTableSectionElement>(null);
   const runs = useMemo(() => groupRuns(model.cols.map((c) => c.group)), [model.cols]), groups = showGroups(runs);
   // (and each value column never narrower than what its cells print: "0.50" ran to the table's edge and "113/72 (86)" stood on three lines when every column was an equal share of what the name left, capture f23a4c59)
   const keys = useMemo(() => model.cols.map((c) => c.k), [model.cols]), chars = useMemo(() => model.cols.map((c, j) => colChars(model.rows.map((r) => r.cells[j]))), [model]);
@@ -206,7 +195,7 @@ export function TableCard({ deck, slide, page = 0, pages = 1 }: { deck: Deck; sl
     fonts?.addEventListener?.('loadingdone', again);
     const off = observeThenFit([box], fit);   // (the pass writes classes on the box it observes: never inside the observer's own delivery)
     return () => { alive = false; fonts?.removeEventListener?.('loadingdone', again); off(); };
-  }, [colKey, span.from, span.to]);
+  }, [colKey, from, win?.[1]]);
   // (a Doppler column is wider than a pressure's: the grid's columns follow what each holds)
   // (the name's column takes what the value columns leave: fewer columns, a wider name; the site stands over its rows as a heading row on a phone, so a name has its column to itself)
   // (and never narrower than the longest word a name holds, which cannot break: "Schistosomiasis" ran under the next column's arrows, capture 4fb2f869)
@@ -240,7 +229,7 @@ export function TableCard({ deck, slide, page = 0, pages = 1 }: { deck: Deck; sl
         </thead>
         <tbody ref={body}>
           {shown.map((r, k) => {
-            const n = (pages > 1 ? span.from : 0) + k;
+            const n = from + k;
             const go = r.i >= 0 ? () => useUi.getState().go(r.i) : undefined;
             return (
               <Fragment key={`${r.key}:${n}`}>

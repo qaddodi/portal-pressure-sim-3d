@@ -35,7 +35,10 @@ test('every patch of the C1 to C15 group holds in the talk the app loads', async
     const at = `${p.deck} ${p.at}`;
     if (p.after) { assert.ok(fieldOf(d, `${p.at}`).key && (d.slides as { id: string }[]).some((s) => s.id === (p.set as { id: string }).id), at); n++; continue; }
     assert.ok(parent, `${at}: the field's parent is there`);
-    const v = (parent as Record<string, unknown>)[key];
+    let v = (parent as Record<string, unknown>)[key];
+    // (a slide cut into several, decks/overlay.ts, says its line across them: the words of the ruling are in the whole of it)
+    const sid = (parent as { id?: string }).id;
+    if (key === 'line' && typeof sid === 'string') v = (d.slides as { id: string; line?: string }[]).filter((s) => s.id === sid || new RegExp(`^${sid}-\\d+$`).test(s.id)).map((s) => s.line).join(' ');
     if (p.drop) assert.equal(v, undefined, at);
     else if (p.set !== undefined) assert.deepEqual(v, p.set, at);
     else if (p.append !== undefined) assert.ok(String(v).includes(p.append), at);

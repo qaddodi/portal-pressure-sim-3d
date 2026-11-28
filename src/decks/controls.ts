@@ -145,7 +145,8 @@ export function controlsOf(s: CopiedSlide): SlideControls | undefined {
  *  This is the one place a button's words are made, so every compare button of every deck follows (variants.ts, controls-run.ts and the card all read it). */
 export interface VariantWords { title: string; line: string; kicker: string; site?: string }
 export function variantWords(slide: { title: string; line: string; kicker: string; site?: string }, o: CompareOpt, at?: { title: string; line: string; kicker: string; site?: string } | null): VariantWords {
-  const src: Partial<VariantWords> = o.own ? slide : at ?? o;
+  // (a button that names a slide AND carries its own line keeps its own: the share of that slide's words a slide that was cut into several holds, decks/overlay.ts)
+  const src: Partial<VariantWords> = o.own ? slide : at ? { ...at, ...(typeof o.line === 'string' ? { line: o.line } : {}) } : o;
   const pick = <K extends keyof VariantWords>(k: K): VariantWords[K] => (src[k] ?? slide[k]) as VariantWords[K];
   const out: VariantWords = { title: slide.title, line: pick('line'), kicker: pick('kicker') };
   const site = pick('site');

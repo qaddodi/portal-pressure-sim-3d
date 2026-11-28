@@ -439,7 +439,7 @@
  "src/ui/cards/Roll.tsx": 2,
  "src/ui/cards/SlideControls.tsx": 4,
  "src/ui/cards/TableCard.tsx": 13,
- "src/ui/cards/TeachingCard.tsx": 11,
+ "src/ui/cards/TeachingCard.tsx": 10,
  "src/ui/cards/TilesCard.tsx": 6,
  "src/ui/cards/VisualCard.tsx": 1,
  "src/ui/cards/WaveCell.tsx": 1,

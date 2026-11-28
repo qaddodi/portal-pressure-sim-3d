@@ -2,6 +2,7 @@
 // num.js, vital-read.js) give for every slide of the decks H to P that has tiles or an instrument with readings in its header, on the 2D engine's state of that slide: which tiles, and per tile its
 // name, number, unit, rating class and word, scale bar and "from" line. The 3D tiles (src/ui/cards/tiles-2d.ts, which TilesCard draws) must equal it, on the 2D engine's numbers and, for
 // the HVPG talk, on the numbers of this app's own engine replaying the talk. No browser.
+import { loadSource } from '../src/decks/source.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -83,7 +84,8 @@ async function check(d: CopiedDeck, results: { fp: Fp }[], where: string, live =
 
 for (const id of HP_IDS) {
   test(`${id}: every tile of every slide is the 2D app's (name, number, unit, rating word and colour, scale bar, "from" line), on the 2D engine's numbers`, async () => {
-    const d = await loadHpDeck(id);
+    // (the 2D deck's own slides: the numbers fixture is 2D's, slide for slide; a slide cut into several, decks/overlay.ts, reads the same numbers on each part)
+    const d = await loadSource(id, false) as Awaited<ReturnType<typeof loadHpDeck>>;
     const g = nums.decks[id]!;
     assert.equal(g.length, d.slides.length);
     // (the 2D engine's parameters are not in the numbers fixture: a slide on a TIPS reads its PPG against the 12 mmHg line, which the fixture rows say)

@@ -47,7 +47,7 @@ const ROUTE_SLIDES = ['circulation/ladder', 'circulation/define', 'circulation/p
 for (const k of ROUTE_SLIDES) FRAME_FIXES[k] = { was: 'route', cam: ROUTE_TO_STATIONS, floor: CONTEXT_FLOOR };
 FRAME_FIXES['doppler/meal'] = { was: 'gut', cam: [360, 360, 1070, 900], floor: CONTEXT_FLOOR };
 /** FRAMING RULE S6 (a whole route): the views that name a route from the gut to the heart and cannot draw its veins 8 px wide in the room a phone's cards leave, because the named route is longer than that room (circulation/series: gut veins to the right atrium, 2.9 units, 5.8 px).
- *  The same holds for a slide whose words the owner ruled and that fill the card on a phone: treatment/prop (27 Nov, clinical ruling C2: the response rule for this decompensated patient is one more
- *  sentence in its line, which leaves the iPhone's upright card-up room 202 px tall and the veins 7.3 px; tucked they are 14.7 px; even a 36-character wording keeps it under 8).
+ *  (treatment/prop was the second until 28 Nov: its words, which the owner's ruling C2 made one sentence longer, filled the card on a phone
+ *  and left the veins 7.3 px; the slide is now cut into two slides, decks/overlay.ts, each with half the words, so the exemption is gone.)
  *  Nothing named is cropped for it; the test fails if one no longer needs the exemption. (varices/umbilical's recap of two routes was the other; Mohammad dropped that view, 25 Nov: scripts/source-edits.mjs VARICES_REVIEW.) */
-export const WIDE_ROUTES: readonly string[] = ['circulation/series', 'treatment/prop'];
+export const WIDE_ROUTES: readonly string[] = ['circulation/series'];

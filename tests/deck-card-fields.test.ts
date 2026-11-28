@@ -95,7 +95,7 @@ test('the level tab: every slide of a deck that teaches more than one level name
 
 test('the level tab: a slide about two levels carries a second tab (Prehepatic 13, carvedilol in cirrhosis with a prehepatic clot)', () => {
   const rows = [...everySlide()].filter(({ s }) => s.also);
-  assert.deepEqual(rows.map(({ id, s }) => `${id}/${s.id}`), ['prehepatic/carv']);
+  assert.deepEqual(rows.map(({ id, s }) => `${id}/${s.id}`), ['prehepatic/carv', 'prehepatic/carv-2']);   // (the slide is cut in two: decks/overlay.ts)
   const { deck, s } = rows[0]!;
   assert.equal(s.site, 'sin');
   assert.deepEqual(tabOf(deck, s), { site: 'sin', name: 'Sinusoidal', also: { site: 'pre', name: 'Pre-hepatic' } });
