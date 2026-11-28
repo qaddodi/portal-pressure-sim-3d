@@ -120,4 +120,6 @@ html:root .sh-glnote .sh-glnote-alt { color: var(--text-2); font-weight: 500; }
    Its rating is told by the rating's word and the bar, not by the number's colour. A reading with no series colour (no data-series) keeps its rating's ink. ── */
 html:root .app .pz .pz-data .pz-tiles .pz-tile .pzt-v[data-series] { color: var(--vc); }
 html:root .app .pz-hi > b[data-series] { color: var(--vc); }
+/* A header reading has no outline (28 Nov, Mohammad: black boxes behind "16.7" and "0.0" on the Fluid balance card, iPhone). The lifted 2D rule `.pz-hi > b` strokes it 3 px in --label-halo, which is a dark ink in a dark theme, under a Roll's overflow-hidden box: the dark stroke fills the box. The card is its own ground, so the reading needs no halo. */
+html:root .app .pz-hi > b, html:root .app .pz-hi > b * { -webkit-text-stroke: 0 !important; paint-order: normal !important; }
 html:root .app .pz .pz-data .pz-tiles .pz-tile[data-rate="none"] .pzt-v[data-series] { color: var(--text-3); }   /* (a tile with no reading yet stays quiet) */
