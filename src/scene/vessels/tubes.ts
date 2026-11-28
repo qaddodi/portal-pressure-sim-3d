@@ -52,7 +52,8 @@ export const alongFactor = (a: AlongTaper | undefined, u: number): number => {
   const s = a.p + u * (a.q - a.p), e = Math.min(1, Math.max(0, (s - a.from) / (1 - a.from)));
   return 1 + (a.tip - 1) * smooth(e);
 };
-/** The share of its width a course keeps at `u`: its own narrowing `base`, or the one written along its host, whichever narrows more (never both: the left portal vein's end already narrows into the liver, and the two compounded to a quarter of its width, steeper than the smooth bar). */
+/** The share of its width a course keeps at `u`: its own narrowing `base`, or the one written along its host, whichever narrows more
+ *  (never both: the left portal vein's end already narrows into the liver, and the two compounded to a quarter of its width, steeper than the smooth bar). */
 export const withAlong = (c: { along?: AlongTaper }, base: number, u: number): number => (c.along ? Math.min(base, alongFactor(c.along, u)) : base);
 
 export const factorSpan = (t: readonly [number, number], sp: readonly [number, number], u: number): number => {
