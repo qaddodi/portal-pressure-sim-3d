@@ -19,7 +19,7 @@ import { PHASE_2_NODES } from './skin/nodes.ts';
 import { endShare, shuntEnds } from './shunt-ends.ts';
 import { DIVIDED, DIVIDED_RING_K } from './divide.ts';
 import { fanEnd, fanOrder, leaveAsBundle } from './strand-fan.ts';
-import { blendLead, fairBends } from './bend.ts';
+import { blendLead, fairBends, smoothRun } from './bend.ts';
 const DIVIDED_IDS: ReadonlySet<string> = new Set(DIVIDED.map(([, v]) => v));
 
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
@@ -296,7 +296,7 @@ function fairMain(v: NetVessel, m: Vec3[], coils: boolean): Vec3[] {
   if (!coils) {
     const sig = sigOf(m), hit = fairCache.get(v.id);
     if (hit && hit.sig === sig) return hit.pts;
-    const pts = fairBends(blendLead(m, runOnTail(v), R), R);
+    const tail = runOnTail(v), pts = fairBends(blendLead(smoothRun(m, tail, R), tail, R), R);
     fairCache.set(v.id, { sig, pts });
     return pts;
   }

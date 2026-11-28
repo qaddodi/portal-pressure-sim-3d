@@ -137,3 +137,49 @@ export function blendLead(pts: readonly Vec3[], tail: readonly Vec3[], R: number
   }
   return best;
 }
+
+/** How far (in radii) a course that runs on from another vessel may be moved to be one smooth curve with it. */
+export const RUN_DEV_R = 2.5;
+/** The bend the run's smooth curve is asked for at least, in radii (the curve found is the roundest one within `RUN_DEV_R`). */
+export const RUN_AIM_R = 5;
+
+/**
+ * A course that runs on from another vessel's end (the splenic vein into the Warren shunt) as ONE smooth curve with it (27 Nov, Mohammad: "seamless"). A cubic from the course's first point
+ * (the partner's last, held), leaving along the partner's end direction, to its last point (held), arriving along its own end direction, with the handles that make it the roundest curve that stays
+ * within `RUN_DEV_R` radii of the course as it was; each point stays at its own share of the length (the count never changes). A course already as round as `RUN_AIM_R` over its whole run, or with no
+ * curve that gets there, is returned as it was (blendLead then does what it can at the joint).
+ */
+export function smoothRun(pts: readonly Vec3[], tail: readonly Vec3[], R: number): Vec3[] {
+  const n = pts.length;
+  if (n < 6 || tail.length < 2 || !(R > 0)) return pts as Vec3[];
+  const P0 = pts[0]!, P3 = pts[n - 1]!;
+  let back: Vec3 | null = null;
+  for (let i = tail.length - 1; i >= 0; i--) if (len(sub(P0, tail[i]!)) >= R) { back = tail[i]!; break; }
+  let fwd: Vec3 | null = null;
+  for (let i = n - 2; i >= 0; i--) if (len(sub(P3, pts[i]!)) >= R) { fwd = pts[i]!; break; }
+  if (!back || !fwd) return pts as Vec3[];
+  const T0 = unit(sub(P0, back)), T1 = unit(sub(P3, fwd));
+  const cum = [0]; for (let i = 1; i < n; i++) cum.push(cum[i - 1]! + len(sub(pts[i]!, pts[i - 1]!)));
+  const L = cum[n - 1]!;
+  if (!(L > 0)) return pts as Vec3[];
+  const at = (t: number, h0: number, h1: number): Vec3 => {
+    const P1 = [P0[0] + T0[0]! * h0, P0[1] + T0[1]! * h0, P0[2] + T0[2]! * h0], P2 = [P3[0] - T1[0]! * h1, P3[1] - T1[1]! * h1, P3[2] - T1[2]! * h1];
+    const a = (1 - t) ** 3, b = 3 * (1 - t) ** 2 * t, c = 3 * (1 - t) * t * t, d = t ** 3;
+    return [a * P0[0] + b * P1[0]! + c * P2[0]! + d * P3[0], a * P0[1] + b * P1[1]! + c * P2[1]! + d * P3[1], a * P0[2] + b * P1[2]! + c * P2[2]! + d * P3[2]];
+  };
+  const ctx = tail.filter((q) => len(sub(P0, q)) <= 5 * R && len(sub(P0, q)) >= 0.02 * R);
+  const SAMPLES = 120;
+  let bestPts: Vec3[] | null = null, bestRatio = worstRatio([...ctx, ...pts], R);
+  if (bestRatio >= RUN_AIM_R) return pts as Vec3[];
+  for (let a = 0.1; a <= 1.2; a += 0.05) for (let b = 0.1; b <= 1.2; b += 0.05) {
+    const samp: Vec3[] = []; for (let i = 0; i <= SAMPLES; i++) samp.push(at(i / SAMPLES, a * L, b * L));
+    // (how far the curve strays from the course as it was)
+    let dev = 0;
+    for (let i = 0; i < n && dev <= RUN_DEV_R * R; i++) { let m = Infinity; for (const s of samp) m = Math.min(m, len(sub(s, pts[i]!))); dev = Math.max(dev, m); }
+    if (dev > RUN_DEV_R * R) continue;
+    const cand = pts.map((_, i): Vec3 => (i === 0 || i === n - 1 ? pts[i]! : at(cum[i]! / L, a * L, b * L)));
+    const r = worstRatio([...ctx, ...cand], R);
+    if (r > bestRatio) { bestRatio = r; bestPts = cand; }
+  }
+  return bestPts ?? (pts as Vec3[]);
+}
