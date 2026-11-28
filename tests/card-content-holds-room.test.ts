@@ -59,7 +59,7 @@ test('a kept card whose new slide needs a taller box is replaced by a fresh card
   assert.match(layer, /const dataKey = rekeys\[baseKey\] \? `\$\{baseKey\}~\$\{rekeys\[baseKey\]\}` : baseKey/);
   // (the words' card too, but not a card that stands alone: a fresh card of the same words would be the same height)
   assert.match(layer, /onOutgrown=\{alone \? undefined : outgrown\}/);
-  assert.match(layer, /cardKey\(deck\.id, to\.key\) === baseKey/);
+  assert.match(layer, /keptByMove\(deck\.id, stops, pos, .*view\?\.data \? baseKey : null/);
 });
 
 test('a card is let in only once its measured height has stood still, so a late row or readout cannot grow it on screen', () => {
