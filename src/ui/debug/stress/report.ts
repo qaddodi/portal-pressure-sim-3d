@@ -1,7 +1,7 @@
-// ?stress: the written report of a run, built from what each layout's frame found (stress/run.ts). Pure: tests/stress-report.test.ts runs it in node.
-// Files: REPORT.md at the top (the build, counts, the issues first), one notes file a section (slides.md, animations.md, menus.md) listing every picture with its state, its checks and its issues,
-// and manifest.json (everything, for a tool).
-import { SECTIONS, type SectionId } from './plan.ts';
+// ?stress: what each layout's frame found (stress/run.ts): the checks of a card record and of a transition, and the pictures as the audit's shots (request/shots.ts), which the audit's one zip
+// format turns into its report, sections and findings (request/bundle.ts). Pure: tests/stress-report.test.ts runs it in node.
+import type { SectionId } from './plan.ts';
+import { checkOf, type LayoutEnd, type Shot } from '../request/shots.ts';
 
 export interface Check { name: string; ok: boolean; detail?: string }
 /** One picture. `file` is its path inside its layout's folder. */
@@ -9,6 +9,8 @@ export interface Entry {
   section: SectionId;
   layout: string;
   file: string;
+  /** the talk, for a slide (its section in the zip) */
+  deck?: string;
   title: string;
   /** the state in words: the talk and stop, the frame inside a move, the menu tab */
   state: string;
@@ -19,17 +21,6 @@ export interface Entry {
   issues: string[];
 }
 export interface LayoutRun { layout: string; label: string; entries: Entry[]; notes: string[]; secs: number; ended?: string }
-/** `request` and `random`: the audit request this run was made from (request/grammar.ts) and its seeded draw, printed so the same slides can be asked for again; both absent for the default plan. */
-export interface Meta { build: string; at: string; stopped: boolean; request?: string; random?: { n: number; seed: number; spread: boolean; picked: string[] } | null }
-/** The lines that say what was asked for: the request, the seed and how to ask for the same slides again. Empty for the default plan. */
-export function requestLines(meta: Meta): string[] {
-  if (!meta.request) return [];
-  const r = meta.random, again = r ? `random:${r.n}@${r.seed}${r.spread ? '/deck' : ''}` : '';
-  if (!r) return [`Request: ${meta.request}`];
-  const how = `${r.n} slides, seed ${r.seed}${r.spread ? ', spread over the talks' : ''}`;
-  return [`Request: ${meta.request}`, `Random: ${how}; ask for the same slides again with ${again}`, `Slides: ${r.picked.join(', ')}`];
-}
-
 /** A card's content may not reach past its box foot by more than this many px (the card-boxes record: `past`). */
 export const PAST_LIMIT = 2;
 /** A card that lands may not change size after it first stands (rule 12: "a card lands at its final size and never changes size on screen"), beyond this many px. */
@@ -62,62 +53,13 @@ export function driftCheck(sizes: ReadonlyMap<string, readonly { w: number; h: n
   return { name: 'cards keep their size after they land', ok: grew.length === 0, detail };
 }
 
-const mark = (e: Entry): string => (bad(e) ? 'FAIL' : 'pass');
-const entryMd = (e: Entry): string => [
-  `### ${e.layout}: ${e.title}  [${mark(e)}]`,
-  `- picture: \`${e.layout}/${e.file}\``,
-  `- state: ${e.state}`,
-  ...(e.link ? [`- reopen: ${e.link}`] : []),
-  ...e.checks.map((c) => `- ${c.ok ? 'pass' : 'FAIL'}: ${c.name}${c.detail ? ` (${c.detail})` : ''}`),
-  ...e.issues.map((i) => `- ISSUE: ${i}`),
-  '',
-].join('\n');
-
-/** One section's notes file. */
-export function sectionMd(id: SectionId, runs: readonly LayoutRun[]): string {
-  const s = SECTIONS.find((x) => x.id === id)!;
-  const es = runs.flatMap((r) => r.entries.filter((e) => e.section === id));
-  const f = es.filter(bad).length;
-  return [`# ${s.title}`, '', `${es.length} pictures, ${f} with a failed check or an issue.`, '', ...es.map(entryMd)].join('\n');
+/** The pictures of a run as the audit's shots (request/shots.ts): each one at `pictures/<layout>/<file>` in the zip, its checks sorted into the audit's checks. */
+export function shotsOf(runs: readonly LayoutRun[]): { shots: Shot[]; ends: LayoutEnd[] } {
+  const shots = runs.flatMap((r) => r.entries.map((e): Shot => ({
+    picture: `${PICTURES}/${r.layout}/${e.file}`, layout: r.label, kind: e.section, ...(e.deck ? { deck: e.deck } : {}), title: e.title, state: e.state, ...(e.link ? { link: e.link } : {}),
+    checks: e.checks.map((c) => ({ check: checkOf(c.name), name: c.name, ok: c.ok, ...(c.detail ? { detail: c.detail } : {}) })), issues: e.issues,
+  })));
+  return { shots, ends: runs.map((r) => ({ layout: r.label, notes: r.notes, ...(r.ended ? { ended: r.ended } : {}) })) };
 }
-
-/** REPORT.md: what ran, the counts, the issues first, then each layout's own notes. */
-export function reportMd(runs: readonly LayoutRun[], meta: Meta): string {
-  const all = runs.flatMap((r) => r.entries), f = all.filter(bad);
-  const out: string[] = [
-    '# Stress capture report', '',
-    `Build: ${meta.build}`, ...requestLines(meta), `Made: ${meta.at}`, `Layouts: ${runs.map((r) => r.label).join(', ')}`,
-    `Run time: ${Math.round(runs.reduce((n, r) => n + r.secs, 0))} s${meta.stopped ? ' (stopped early: what was finished is here)' : ''}`,
-    '',
-    '## Summary', '',
-    `- ${all.length} pictures: ${all.length - f.length} clean, ${f.length} with a failed check or an issue.`,
-    ...SECTIONS.map((s) => { const es = all.filter((e) => e.section === s.id); return `- ${s.title}: ${es.length} pictures, ${es.filter(bad).length} with a problem (notes: ${s.file}).`; }),
-    '', '## Issues (worst first)', '',
-  ];
-  const noted = runs.flatMap((r) => r.notes.filter(isProblem).map((n) => `${r.label}: ${n}`));
-  if (!f.length && !noted.length) out.push('None: every check passed.');
-  for (const n of noted) out.push(`- ${n}`);
-  // (a failed check outranks a note; within them, the order of the run)
-  for (const e of [...f].sort((a, b) => failed(b).length - failed(a).length)) {
-    out.push(`- ${e.layout} / ${e.title} (\`${e.layout}/${e.file}\`)`);
-    for (const c of failed(e)) out.push(`  - FAIL ${c.name}${c.detail ? `: ${c.detail}` : ''}`);
-    for (const i of e.issues) out.push(`  - ${i}`);
-  }
-  out.push('', '## The checks', '',
-    '- Cards fit their boxes: no card\'s drawn content reaches more than 2 px past its foot (from the capture\'s card record).',
-    '- Cards keep their size after they land: inside a transition every card is measured on every frame once it stands; none may change size (project rule 12).',
-    '- Notes the capture itself made (a picture that was not still, a picture that did not load) are issues.',
-    '- What this cannot see: text overlap and clipping by eye, whether a number is right, how smooth the motion plays. Read the pictures for those.');
-  for (const r of runs) {
-    out.push('', `## ${r.label}`, '', `${r.entries.length} pictures in ${Math.round(r.secs)} s${r.ended ? `; ended early: ${r.ended}` : ''}.`);
-    for (const n of r.notes) out.push(`- ${n}`);
-  }
-  out.push('');
-  return out.join('\n');
-}
-
-/** manifest.json: the whole run for a tool. */
-export function manifestJson(runs: readonly LayoutRun[], meta: Meta): string {
-  const layouts = runs.map((r) => ({ layout: r.layout, label: r.label, secs: r.secs, ended: r.ended ?? null, notes: r.notes, entries: r.entries }));
-  return JSON.stringify({ v: 1, runner: 'gpu', ...meta, layouts }, null, 1);
-}
+/** Where a run's pictures are in its zip, a folder a layout. */
+export const PICTURES = 'pictures';

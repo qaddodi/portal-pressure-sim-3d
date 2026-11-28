@@ -150,6 +150,13 @@ export function mountAudit(mode: 'here' | 'run'): void {
       const res = await m.runCapture({ release: true, partial: (fs) => opened.add(fs), what: take, cases: parseCases(flagValue('cases') ?? 'all', cm.everyCaseId()), looks: flagValue('looks') !== '0', decks: sel.decks ? new Set(sel.decks) : null, pick: sel.pick ? new Set(sel.pick) : null, about: sel.seed !== null || asked ? `Taken: ${sel.words}` : undefined, speed: skip ? SKIP_SPEED : speed > 1 ? speed : undefined, skip, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
       // (what the talks did not hand up as they ended: the README and the manifest; then the zip, made from storage one file at a time)
       await opened.add(res.files);
+      // (the audit's one format at the top of the zip: README-FIRST, REPORT, sections, findings.json, manifest.json; the folders of pictures stay as they are)
+      const unified = await (await import('./capture-unified.ts')).captureUnified({
+        search: searchNow(), names: opened.names(), read: (n) => opened.read(n), labelOf: () => `${innerWidth}x${innerHeight}`, ...(sel.pick ? { slides: sel.pick } : {}),
+        ends: [{ layout: `${innerWidth}x${innerHeight}`, notes: res.notes }], build, startedAt: at.toISOString(), seconds: (new Date().getTime() - at.getTime()) / 1000,
+        device: `${navigator.userAgent}; ${innerWidth}x${innerHeight}`, speed: skip ? SKIP_SPEED : speed > 1 ? speed : 1, sideBySide: false, stopped: res.stopped, cases: take !== 'slides',
+      });
+      if (unified) await opened.add(unified);
       await opened.finish(res.stopped ? 'stopped' : 'finished');
       cap = res;
       bar.value = 100;

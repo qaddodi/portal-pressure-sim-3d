@@ -60,7 +60,7 @@ export async function runStress(ui: StressUi): Promise<StressResult> {
           const j = JSON.parse(dec.decode(f.data)) as SlideJson;
           const where = `${j.deckTitle} ${j.stop}`;
           entries.push({
-            section: 'slides', layout: label, file: flat.replace(/\.json$/, '.jpg'), title: `${where}: ${j.title}${j.card ? ` (${j.card})` : ''}`,
+            section: 'slides', layout: label, deck: j.deck, file: flat.replace(/\.json$/, '.jpg'), title: `${where}: ${j.title}${j.card ? ` (${j.card})` : ''}`,
             // (the plan's key counts from the first slide, the screen's counter from the title card: both are said)
             state: `key ${j.deck}:${j.stop - 1}, screen counter ${j.stop}, step ${j.step}, beat ${j.beat}, ${j.card ? `the card ${j.card}` : 'one view'}`,
             link: j.link, checks: cardChecks(j.cards), issues: [],
