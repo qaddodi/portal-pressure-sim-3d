@@ -12,6 +12,7 @@ import { sdUnionGrad, skinKOf } from '../src/scene/vessels/skin/sdf.ts';
 import { SKIN_SHADE_K, SKIN_TUBE_ROWS, skinTubeKeep, tubeShareOf } from '../src/scene/vessels/skin/exact-normal.ts';
 import { NORMAL_BLEND_ROWS } from '../src/scene/vessels/skin/mesh.ts';
 import { CEL_LIGHT_UNIT as L } from '../src/scene/cel-glsl.ts';
+import { SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K } from '../src/scene/vessels/skin/shaders.ts';
 
 type V3 = [number, number, number];
 const nz = (v: ArrayLike<number>): V3 => { const l = Math.hypot(v[0]!, v[1]!, v[2]!) || 1; return [v[0]! / l, v[1]! / l, v[2]! / l]; };
@@ -96,7 +97,7 @@ test('no junction skin of the placed figure inks more of its own lumen than the 
       const arms = s.mesh.junction.arms, cs = { swell: arms.map(() => 1), keep: arms.map(() => true) };
       for (const yaw of [0, 0.3]) {
         const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw });
-        const st = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, cs), seamOnly = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, cs, { ramp: [1, 2] });
+        const st = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, cs), seamOnly = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, cs, { ramp: [SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K] });
         const share = st.inkOnly / Math.max(1, st.lumenRef);
         assert.ok(st.inkOnly <= seamOnly.inkOnly + 2, `${s.node} (turned ${yaw}): ${st.inkOnly} pixels drawn as line, ${seamOnly.inkOnly} with the seam's ramp everywhere`);
         if (st.inkOnly < seamOnly.inkOnly) fewer++;
