@@ -13,3 +13,28 @@ export function skinKey(keys: readonly string[], node: string): string | undefin
 export function skinKeysWithArm<T extends { node: string; mesh: SkinMesh }>(skins: readonly T[], vesselId: string, end?: 0 | 1): string[] {
   return skins.filter((s) => s.mesh.junction.arms.some((a) => a.vesselId === vesselId && (end === undefined || a.end === end))).map((s) => s.node);
 }
+
+// ---- the parts of a skin with growing arms (plain.ts partSpecs): named by the growers that are there, by arm index, and an `L` when the divided vein's start leaves ---------------------------------------------------------------
+interface ArmLike { vesselId: string; grow?: boolean; leaves?: string }
+
+/** The key of the part of a skin that holds the growers `ids` (vessel ids, in any order) and, with `leave`, is built without the divided vein's start: arm indices of the growers joined by dots, then `L`. */
+export function partKeyOf(arms: readonly ArmLike[], ids: readonly string[], leave = false): string {
+  const idx = arms.map((a, i) => (a.grow && ids.includes(a.vesselId) ? i : -1)).filter((i) => i >= 0);
+  return `${idx.join('.')}${leave ? 'L' : ''}`;
+}
+
+/** The vessel ids a part draws: every permanent arm, the growers in `ids`, and without the arm a grower there cuts (the divided vein's start) when `leave`. */
+export function partIdsOf(arms: readonly ArmLike[], ids: readonly string[], leave = false): string[] {
+  return arms.filter((a) => (a.grow ? ids.includes(a.vesselId) : !(leave && a.leaves && ids.includes(a.leaves)))).map((a) => a.vesselId);
+}
+
+/** Every part key a skin has, worked out from its arms by the rule alone (plain.ts partSpecs: the proper sets of growers, and each set holding the shunt of a divided vein once more with `L`), sorted. */
+export function expectedPartKeys(arms: readonly ArmLike[]): string[] {
+  const g = arms.map((a, i) => (a.grow ? i : -1)).filter((i) => i >= 0), out: string[] = [];
+  for (let m = 1; m < 1 << g.length; m++) {
+    const there = g.filter((_, k) => m & (1 << k)), key = there.join('.');
+    if (there.length < g.length) out.push(key);
+    if (arms.some((a) => a.leaves && there.some((i) => arms[i]!.vesselId === a.leaves))) out.push(`${key}L`);
+  }
+  return out.sort();
+}
