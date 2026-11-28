@@ -9,7 +9,7 @@
 // nodes: `IVC_IS`, `PVH_L`) and asks this file for its pieces. Lint rule `piece-id-literal` (scripts/lint-rules.mjs) keeps a literal `_<n>` piece id out of the source;
 //  tests/junction-pieces.test.ts pins it.
 // Pure data, no three.js.
-import { EDGES, JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
+import { EDGES, JUNCTION_CHAINS, JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
 
 interface Edge { id: string; from: string; to: string }
 const edges = EDGES as Edge[];
@@ -34,6 +34,11 @@ export function pieceStartingAt(host: string, node: string): string {
   if (!id) throw new Error(`${host} has no piece starting at ${node}`);
   return id;
 }
+/** The piece of `host` that the share `u` of its way (0 to 1, the table's own measure) falls in: where a vein's middle is, for a label that hangs on its middle. */
+export const pieceAtShare = (host: string, u: number): string => {
+  const chain = (JUNCTION_CHAINS as { host: string; at: number[] }[]).find((c) => c.host === host), ps = piecesOf(host);
+  return chain ? ps[chain.at.filter((a) => a <= u).length]! : ps[0]!;
+};
 /** The host edge a piece belongs to (its own id for a vein nothing joins part-way along, a collateral or a shunt). */
 export const hostOf = (piece: string): string => { for (const [h, ps] of Object.entries(PIECES)) if (ps.includes(piece)) return h; return piece; };
 

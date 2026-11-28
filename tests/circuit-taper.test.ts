@@ -10,6 +10,7 @@ import { CIRCUIT_MATES, CIRC_EASE, EASE_SHARE, easeOf, flowLenAt, mapLen, taperW
 import { circuitWidthMap } from '../src/scene/circuit/width.ts';
 import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { readFileSync } from 'node:fs';
+import { lastPieceOf } from '../src/scene/anatomy/whole-pieces.ts';
 import { sceneSource } from './helpers/scene-source.ts';
 
 const widthOf = (id: string, boost = 1): number => { const v = NETWORK_BY_ID.get(id)!; return circuitWidthMap(v.widthKind, v.baseD, boost, v.circFine ?? 1); };
@@ -50,11 +51,12 @@ test('pairs are mutual: if a vessel carries on into another at a node, that one 
 });
 
 test('the portal veins: the right node and the left node (a collateral and a shunt hang on it) both taper from the vein to its bed', () => {
-  const R = CIRCUIT_MATES.get('PVH_R_2')![1], L = CIRCUIT_MATES.get('PVH_L_1')![1];
+  // (the veins' last pieces, whatever the engine's junction table cuts them into)
+  const R = CIRCUIT_MATES.get(lastPieceOf('PVH_R'))![1], L = CIRCUIT_MATES.get(lastPieceOf('PVH_L'))![1];
   assert.equal(R?.id, 'PRE_R');
   assert.equal(L?.id, 'PRE_L', 'the left portal node had no pair: its calibre changed with a square shoulder');
-  assert.equal(CIRCUIT_MATES.get('PRE_L')![0]?.id, 'PVH_L_1');
-  for (const [v, bed] of [['PVH_R_2', 'PRE_R'], ['PVH_L_1', 'PRE_L']] as const) {
+  assert.equal(CIRCUIT_MATES.get('PRE_L')![0]?.id, lastPieceOf('PVH_L'));
+  for (const [v, bed] of [[lastPieceOf('PVH_R'), 'PRE_R'], [lastPieceOf('PVH_L'), 'PRE_L']] as const) {
     assert.ok(widthOf(v) > widthOf(bed), `${v} is wider than ${bed}`);
     const e = easeOf(v, bed);
     // within a node's dot (4.5 units) the width is still far from either end's own: the change is not hidden under the dot

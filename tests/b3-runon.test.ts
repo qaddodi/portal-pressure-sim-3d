@@ -10,13 +10,14 @@ const has = (a: string, b: string) => RUN_ONS.some((r) => (r.a === a && r.b === 
 
 import { PLACED_EDGE_3D } from '../src/scene/anatomy/placed-network.ts';
 import { centrelineOf } from '../src/scene/vessels/centreline.ts';
+import { WHOLE_PIECES, firstPieceOf, lastPieceOf } from '../src/scene/anatomy/whole-pieces.ts';
 
-test('the main trunks run on into each other: splenic to its confluence, portal trunk to the right branch, the hepatic veins into the cava', () => {
-  assert.ok(has('V_SPL', 'SV_MID'));
-  assert.ok(has('SV_MID', 'SV_CONF'));
-  assert.ok(has('PV_TRUNK', 'PVH_R'));
+test('the main trunks run on into each other: every stretch of a whole vein into the next (splenic to its confluence, the cava through each cut), portal trunk to the right branch', () => {
+  // (the engine's junction table cuts a vein wherever a shunt or a collateral joins it: the pieces of each whole vessel, in flow order, are the run-on chain)
+  for (const [whole, pieces] of Object.entries(WHOLE_PIECES)) pieces.slice(1).forEach((p, i) => assert.ok(has(pieces[i]!, p), `${whole}: ${pieces[i]} runs on into ${p}`));
+  assert.ok(has('PV_TRUNK', firstPieceOf('PVH_R')));
   // (RHV_IVC_1 is drawn only from its split, so the hidden bed behind it no longer runs on into it)
-  assert.ok(has('IVC_IS', 'IVCS_RA'));
+  assert.ok(has(lastPieceOf('IVC_IS'), 'IVCS_RA'));
 });
 
 test('no vessel runs on into two at one end, and a vessel never into itself', () => {
@@ -37,7 +38,7 @@ test('through a run-on the two courses meet with no kink (the cubic follows each
 });
 
 test('the scene course carries the smooth one: x and y by the one linear map', () => {
-  const r = RUN_ONS.find((q) => q.a === 'V_SPL' && q.b === 'SV_MID')!;
+  const r = RUN_ONS.find((q) => q.a === lastPieceOf('V_SPL') && q.b === 'SV_MID')!;
   // (placed: the course is the placed network's, point for point: the 2D course and its extension into the spleen are today's)
   const c = courseOf('V_SPL'), P = PLACED_EDGE_3D.V_SPL!; assert.equal(c.length, P.length); c.forEach((p, i) => assert.ok(Math.hypot(p[0] - P[i]![0], p[1] - P[i]![1]) < 1e-9, `point ${i}`)); assert.ok(r);
 });

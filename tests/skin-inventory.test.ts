@@ -1,9 +1,10 @@
 // Junction skins, WP1 (spec 4.1, 4.2, 4.4): the inventory of nodes that get a skin, their arms, their centre, and where each arm's tube is cut. Computed from the real network, never from a list of ids,
 // so a change to the network that adds, drops or re-kinds a junction fails here by name. Node only: no scene, no browser.
 import { test } from 'node:test';
+import { lastPieceOf, pieceStartingAt } from '../src/scene/anatomy/whole-pieces.ts';
 import assert from 'node:assert/strict';
 import { NETWORK, NETWORK_BY_ID, cutEnd } from '../src/scene/vessels/network.ts';
-import { BACK_EDGES, IVC_EDGES } from '../src/scene/vessels/paths.copied.ts';
+import { BACK_EDGES, IVC_EDGES } from '../src/scene/anatomy/source.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { buildTubes, TUBE_RADIAL } from '../src/scene/vessels/tubes.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
@@ -25,7 +26,7 @@ const TABLE0: Record<string, readonly string[]> = {
   HA: ['A_HEP:1', 'A_HR:0', 'A_HL:0'],
   CV_R: ['SIN_RR:1', 'POST_R_RHV:0', 'POST_R_MHV:0'],
   IVCS: ['IVC_IS:1', 'IVCS_RA:0', 'RHV_IVC:1', 'MHV_IVC:1', 'LHV_IVC:1'],
-  IVCI: ['IVC_IS_1:0', 'LRV_IVC:1', 'ILI_IVC_1:1'],
+  IVCI: [`${pieceStartingAt('IVC_IS', 'IVCI')}:0`, 'LRV_IVC:1', `${lastPieceOf('ILI_IVC')}:1`],
   SVC_E: ['EPI_SVC:1', 'SVC_RA_1:1', 'SVC_RA:0'],
   SVC: ['V_UP:1', 'AZY_SVC:1', 'SVC_RA_1:0'],
   // the liver veins' second branches (21 Nov: "everything"): a branch that leaves its host within SKIN_REACH of the host's end is one more arm of that node (RPV_T, LPV_A); one that leaves farther from both ends is a junction in the middle of its host, with no node: the host's two sides (side arms) and the branch
@@ -85,7 +86,7 @@ test('a node with an end behind the organs is in (its skin is drawn as three cop
 test('the junctions with an arm behind the organs are exactly the ones whose skin has more than a front copy (BACK_EDGES is the rule the scene draws the copies by)', () => {
   const behind = on(() => findSkinJunctions()).filter((j) => j.arms.some((a) => BACK_EDGES.has(a.vesselId))).map((j) => j.node).sort();
   assert.deepEqual(behind, ['IVCI', 'IVCS', 'SVC', 'SVC_E']);
-  assert.ok(IVC_EDGES.has('IVC_IS_1') && IVC_EDGES.has('ILI_IVC_1'), 'IVCI joins two pieces of the cava');
+  assert.ok(IVC_EDGES.has(pieceStartingAt('IVC_IS', 'IVCI')) && IVC_EDGES.has(lastPieceOf('ILI_IVC')), 'IVCI joins two pieces of the cava');
 });
 
 test('J is the end point of the widest arm\'s course; with smooth joins on every arm of a phase node ends within SKIN_REACH (6 radii) of it', () => {

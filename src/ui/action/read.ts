@@ -1,7 +1,8 @@
 // What a tap-anything card prints, worked out from a frame: the 2D app's actions.js readings (edgeValue, bedStats, the span bar, a pressure and its change from the reference)
 // without its allocation tricks (a card is one component, drawn when a number changes, not a hand-managed cell). Pure: the frame, the patient's parameters and the healthy
 // reference go in, texts come out; tests/action-cards.test.ts holds every reading to the 2D app's own answers.
-import { EDGES, NODES, JUNCTION_HOST_ENDS, JUNCTION_PIECES, JUNCTIONS, partOf } from '../../engine/hales/portal/topology.js';
+import { EDGES, NODES, JUNCTION_HOST_ENDS, JUNCTION_PIECES, partOf } from '../../engine/hales/portal/topology.js';
+import { pieceAtShare } from '../../scene/anatomy/whole-pieces.ts';
 import { hvpgBlockedBy } from '../../engine/hv-flag.ts';
 import { dopplerVel, flowReversed } from '../../scene/lenses/vel-normal.copied.js';
 import { oxygenSat, FLOW_FLOOR, LIVER_EXTRACTION } from '../../scene/lenses/blood-model.ts';
@@ -41,12 +42,7 @@ export const LABEL_VESSEL: Record<string, string> = {
   RHV: 'RHV_IVC', MHV: 'MHV_IVC', LHV: 'LHV_IVC', IVCS: 'IVCS_RA', IVCI: 'IVC_IS', SVC: 'SVC_RA', AZY: 'AZY_SVC', LRV: 'LRV_IVC', ILI: 'ILI_IVC', VAR: 'C1a', TIPS: 'TIPS', DIPS: 'DIPS',
 };
 // (A vein a shunt joins part-way is several pieces: its station's label hangs on the piece the vein's middle falls in.)
-for (const [n, v] of Object.entries(LABEL_VESSEL)) {
-  const ids = (JUNCTION_PIECES as Record<string, string[]>)[v];
-  if (!(ids && ids.length > 1)) continue;
-  const cuts = (JUNCTIONS as unknown as [string, string, number][]).filter((j) => j[1] === v).map((j) => j[2]).sort((a, b) => a - b);
-  LABEL_VESSEL[n] = ids[cuts.filter((c) => c <= 0.5).length]!;
-}
+for (const [n, v] of Object.entries(LABEL_VESSEL)) LABEL_VESSEL[n] = pieceAtShare(v, 0.5);
 export const STATION_OF: Record<string, string> = Object.fromEntries(Object.entries(LABEL_VESSEL).flatMap(([n, e]) => [[e, n], [partOf(e), n]]));
 export const SIN_EDGES = new Set(['SIN_RR', 'SIN_LL']);
 const BAR_KEY: Record<string, string> = { CONF: 'pv', SIN_R: 'whvp', RHV: 'fhvp', IVCS: 'ivc', RA: 'ra' };

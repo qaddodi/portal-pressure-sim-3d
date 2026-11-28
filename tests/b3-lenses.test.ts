@@ -177,11 +177,11 @@ test('heads fade at the highlight\'s speed, never switch', () => {
   assert.ok(fake.amount < 1 && fake.amount > 0);
 });
 
-test('newLensData has the 208 x GRAD_ROWS x RGBA gradient layout (ends, a third and two thirds along, the flow-head ink, then the stent colour profile) and the 208 x 2 lanes the shader reads', async () => {
+test('newLensData has the edge count x GRAD_ROWS x RGBA gradient layout (ends, a third and two thirds along, the flow-head ink, then the stent colour profile) and the edge count x 2 lanes the shader reads', async () => {
   const { GRAD_ROWS } = await import('../src/scene/lenses/model.ts');
   const d = newLensData();
-  assert.equal(d.grad.length, 208 * 4 * GRAD_ROWS); assert.equal(d.lanes.length, 208 * 2 * 4);
-  assert.equal(LENS_EDGE_COUNT, 208);
+  assert.equal(d.grad.length, EDGES.length * 4 * GRAD_ROWS); assert.equal(d.lanes.length, EDGES.length * 2 * 4);
+  assert.equal(LENS_EDGE_COUNT, EDGES.length);
 });
 
 // ---- the flow heads are the 2D app's ----
@@ -226,14 +226,14 @@ test('streams: a flowing vein\'s heads run at the 2D display speed, a still one 
   assert.ok(s.speedOf(pv) !== 0);
   assert.ok(Math.abs(s.speedOf(pv)) <= displaySpeed(1000), 'bounded by the display curve');
   const tex = s.texture.image.data as Float32Array;
-  assert.equal(tex.length, 208 * 4);
+  assert.equal(tex.length, EDGES.length * 4);
   assert.ok(tex[pv * 4]! >= 0 && tex[pv * 4]! < PERIOD, 'distance wraps inside the stream period');
   assert.ok(s.step(t + 100) || true);
   let reversed = 0;
-  for (let k = 0; k < 208; k++) if (tex[k * 4 + 2]! > 0.5) reversed++;
+  for (let k = 0; k < EDGES.length; k++) if (tex[k * 4 + 2]! > 0.5) reversed++;
   assert.ok(reversed > 0, 'a decompensated patient has reversed veins');
   // standing blood: a vessel with no flow keeps its heads in place
-  for (let k = 0; k < 208; k++) if (s.speedOf(k) === 0) assert.equal(tex[k * 4 + 1], 0);
+  for (let k = 0; k < EDGES.length; k++) if (s.speedOf(k) === 0) assert.equal(tex[k * 4 + 1], 0);
   s.texture.dispose();
 });
 

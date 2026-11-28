@@ -9,7 +9,7 @@ import { useSettings } from '../src/state/settings.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { FAINT_ONLY_LAYER, type VesselObject } from '../src/scene/vessels/vessel-object.ts';
 import { VESSEL_LAYER } from '../src/scene/layers.ts';
-import { BACK_EDGES } from '../src/scene/vessels/paths.copied.ts';
+import { BACK_EDGES } from '../src/scene/anatomy/source.ts';
 import { CAVA_LIKE } from '../src/scene/vessels/fades.ts';
 import { SkinObject, COPY_LAYER, COPY_ORDER, SKIN_COPIES } from '../src/scene/vessels/skin/skin-object.ts';
 import { SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';

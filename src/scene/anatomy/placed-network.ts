@@ -443,6 +443,8 @@ function buildPlaced(): void {
     for (let i = 1; i < ctl.length - 1; i++) ctl[i]![2] = P0[2] + (E[2] - P0[2]) * (cum[i]! / tot);
     COURSE.DIPS = fair(relax(denseCurve(ctl), PLACED_JOINS.relax ?? 40));
   }
+  /** How far, in the vessel's radii, a branch that lands at the cut between a collateral piece and a drawn one lands past it, on the drawn piece (the varices on the azygos arch). */
+  const AZY_LEAD_R = 4;
   /** A whole vessel's (or a collateral's) end point as it stands. */
   const endPt = (id: string, end: 0 | 1): V3 => { const c = COURSE[id]!; return end ? c[c.length - 1]! : c[0]!; };
   /** The whole's real cuts as shares of its length, one per node between two of its hosts (the engine nodes the vessel is really cut at; the junction nodes inside a host come from the
@@ -466,11 +468,16 @@ function buildPlaced(): void {
       let at: number;
       if (w === HV_OSTIA.host && node === HV_OSTIA.node) at = nearestOn(D, mouth.get(`${w}|${node}`)!).s / L;   // (TWO OSTIA: the cava is cut at the common trunk's ostium, not at the widest vein's, the right one's, lower down)
       else if (ns !== undefined) at = ns / L;
-      // THE AZYGOS'S NODE IS WHERE THE VARICES LAND (27 Nov, Mohammad: "yes, with your recommendations"): the engine joins the varices (C1b) and the lumbar collateral (C9) at AZY, so
-      //  AZY is drawn at the varices' landing on the arch,
-      // where the cut between C9 and the arch always was a hand-set four of the vessel's radii upstream of it (tests/azygos-origin.test.ts). The drawing moved to the engine, not the
-      //  engine to the drawing: no number moves.
-      else if (js.length) at = js[0]!.hit.s / L;
+      // (the node is where the first collateral or shunt lands. A collateral piece of a whole, drawn only when it is open (the lumbar vein, C9, the azygos's lower course), run on
+      //  by a drawn piece (the arch): a branch that lands at that cut would meet its run-on at one point, sit on the arch's open (faded) start when the lumbar vein is hidden, and
+      //  leave the arch 3 radii to the SVC, short of the 4 a skin needs on each side (the SVC's skin has no ring that clears its blend: tests/skin-inventory.test.ts). So the
+      //  branch lands on the drawn piece's wall AZY_LEAD_R of the vessel's radii past the cut, the 2D figure's own drawing (tests/azygos-origin.test.ts). The varices' end is that
+      //  far from its engine node, AZY: named in tests/junction-ends.test.ts, as the table cannot say where AZY is drawn.)
+      else if (js.length) {
+        at = js[0]!.hit.s / L;
+        const kc = (id: string): boolean => edgeById.get(id)!.kind === 'collateral';
+        if (!js[0]!.main && kc(lastId) !== kc(nextId)) at += ((kc(lastId) ? -1 : 1) * AZY_LEAD_R * rOf(w)) / L;
+      }
       else at = (hi + 1) / hosts.length;
       cuts.push(at); free.push(ns === undefined && !js.length);
       void nextId;

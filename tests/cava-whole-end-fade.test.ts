@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CelScene } from '../src/scene/scene.ts';
-import { IVC_EDGES } from '../src/scene/vessels/paths.copied.ts';
+import { IVC_EDGES } from '../src/scene/anatomy/source.ts';
 import { CAVA_RECEDE, cavaWholeAlpha, fadeOf } from '../src/scene/vessels/fades.ts';
 
 const run = (s: CelScene, from: number, to: number) => { for (let t = from; t <= to; t += 16) s.update(t); };

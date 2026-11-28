@@ -350,7 +350,7 @@
  "src/scene/vessels/debug-view.ts": 4,
  "src/scene/vessels/divide.ts": 3,
  "src/scene/vessels/fade-alpha.ts": 1,
- "src/scene/vessels/fades.ts": 32,
+ "src/scene/vessels/fades.ts": 31,
  "src/scene/vessels/feeder-fan.ts": 6,
  "src/scene/vessels/feeder-live.ts": 4,
  "src/scene/vessels/glsl-shared.ts": 34,

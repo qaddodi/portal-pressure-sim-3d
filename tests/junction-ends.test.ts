@@ -3,7 +3,7 @@
 // the row lists lands exactly there. Two things are pinned, for EVERY row and EVERY end, so a new row is held to them with no edit here:
 //   1. the junction node's drawn place is `at` of the way along its host's drawn course (the pieces chained, a draw-only branch past the end counted: the share the table is measured in);
 //   2. every collateral, shunt and tributary end that lands on a host lies within one host radius of its engine node's drawn place, along the host (the same node the flow lens, the blood and the readings turn at).
-// PENDING holds the one named case still waiting for the engine: C2 (the short/posterior gastric veins) is drawn at SVD, where the splenic vein divides, but the engine joins it at SV, 11 vein radii away
+// PENDING holds the named cases that are not at their node (one waits for the engine, one is drawn 4 radii on by rule): C2 (the short/posterior gastric veins) is drawn at SVD, where the splenic vein divides, but the engine joins it at SV, 11 vein radii away
 // (engine brief A moves its end to SVD). The test found a second, C9 (the ascending lumbar vein, drawn 4 cava radii above its engine node IVCI: no row in the table). Each is listed with its reason; it is judged like every other end, so the day the engine moves it the test turns it on by itself, and this list says so when it does.
 // Node only, about a second.
 import { test } from 'node:test';
@@ -20,6 +20,7 @@ const byId = new Map(edges.map((e) => [e.id, e]));
 /** The ends not yet where the engine puts them: `id|end` and why. */
 const PENDING: Readonly<Record<string, string>> = {
   'C2|0': 'the engine joins the short/posterior gastric veins at SV, 11 vein radii from SVD where they are drawn (engine brief A moves the end to SVD)',
+  'C1b|1': 'the esophageal varices land on the azygos arch 4 of its radii past AZY, where the lumbar vein runs into it: at AZY itself they would sit on the arch\'s open start when the lumbar vein is hidden, and leave the arch 3 radii to the SVC, too short for the SVC\'s skin (no ring clears its blend; placed-network.ts AZY_LEAD_R, tests/azygos-origin.test.ts)',
   'C9|0': 'found by this test: the ascending lumbar vein leaves the cava 0.1 (4 cava radii) above IVCI, the renal veins\' node, where it is drawn; the table has no row for it (an engine row on IVC_IS would place it)',
 };
 
