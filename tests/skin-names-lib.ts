@@ -1,5 +1,5 @@
 // How the skin tests name a skin. The built skins are keyed by their node, and a cluster of junctions down one vein is ONE skin whose key joins them (`IVCI+IVC_M+IVC_C+IVC_P`,
-// `LPV_U+LPV_X`, `SV_S+SVD`: cuts.ts mergedNode). The junction table (engine topology.js JUNCTIONS) decides which nodes exist and which cluster, so a test never types a skin's key: it asks for
+// `LPV_U+LPV_X`, `SV_S+SVD`: cuts.ts mergedNode). The junction table (engine topology.js JUNCTION_ROWS) decides which nodes exist and which cluster, so a test never types a skin's key: it asks for
 // the skin a node is part of, or the skin a vessel's growing end is an arm of, and the answer follows the table when a row moves.
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 

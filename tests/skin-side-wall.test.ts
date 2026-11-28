@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { Group, type Object3D } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
-import { JUNCTIONS } from '../src/engine/hales/portal/topology.js';
+import { JUNCTION_ROWS } from '../src/engine/hales/portal/topology.js';
 import { centrelineOf } from '../src/scene/vessels/centreline.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
@@ -190,6 +190,6 @@ test('the side-wall rule changes only a node the art spreads past SKIN_REACH: ev
     assert.deepEqual(sides.sort(), branches, 'only the hepatic vein fork that leaves its host mid-run (a liver branch: a virtual node on the host with two side arms)');
     assert.ok(branches.length > 0, 'the network has such a fork');
     // the table's nodes are real nodes, never a side landing on a host: no junction the engine's table names has a side arm
-    for (const row of JUNCTIONS as readonly (readonly unknown[])[]) { const node = row[0] as string; assert.ok(!sides.includes(node), `${node} is a node of the figure, no side arm`); }
+    for (const { node } of JUNCTION_ROWS) { assert.ok(!sides.includes(node), `${node} is a node of the figure, no side arm`); }
   });
 });

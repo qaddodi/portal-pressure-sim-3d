@@ -1,5 +1,5 @@
 // The Circuit's map cuts each vein at the engine's junction table and lands every collateral, shunt and tributary there (Brief C of docs/real-junctions, 27 Nov 2026).
-// The root cause it pins: where a vessel meets another was written twice, once in the engine's JUNCTIONS and once, piece by piece, in the copied 2D courses, so a new row had no map course.
+// The root cause it pins: where a vessel meets another was written twice, once in the engine's JUNCTION_ROWS and once, piece by piece, in the copied 2D courses, so a new row had no map course.
 // The general rule: the map is a pure function of the table (junction-cuts.ts cutMap), so (1) every host's whole map course is what the copy draws, only cut; (2) every row has its junction
 // on the host, every piece of every host has a course, in the table's order; (3) every joiner's end lies at its junction (within a host's width on the morph's own samples); (4) a junction the 2D
 // drawing placed keeps its place (nothing moves when the pin does); (5) a row added to the table, on a whole vein or on a divided one, still builds and its pieces have a course.
@@ -7,9 +7,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { JUNCTIONS, JUNCTION_PIECES } from '../src/engine/hales/portal/topology.js';
+import { JUNCTION_ROWS, JUNCTION_PIECES } from '../src/engine/hales/portal/topology.js';
 import { CIRCUIT_D, JUNCTION_CIRCUIT } from '../src/scene/circuit/data.copied.ts';
-import { CIRCUIT_COURSE_D, MAP_JUNCTIONS, SAME, cornersOf, cutMap, reEnd, rowOf } from '../src/scene/circuit/junction-cuts.ts';
+import { CIRCUIT_COURSE_D, MAP_JUNCTIONS, SAME, cornersOf, cutMap, reEnd } from '../src/scene/circuit/junction-cuts.ts';
 import { route } from '../src/scene/circuit/router.copied.js';
 import { COURSES } from '../src/scene/circuit/course.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
@@ -19,7 +19,7 @@ import { circuitWidthMap } from '../src/scene/circuit/width.ts';
 
 type P = readonly [number, number];
 const dist = (a: P, b: P): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
-const rows = (JUNCTIONS as readonly (readonly unknown[])[]).map(rowOf);
+const rows = JUNCTION_ROWS;
 const pieces = JUNCTION_PIECES as Record<string, string[]>;
 function offLine(p: P, line: readonly P[]): number {
   let best = Infinity;
@@ -82,7 +82,7 @@ test('every collateral, shunt and tributary end on the map lies at its junction,
     const j = MAP_JUNCTIONS.get(r.node)!;
     const host = NETWORK_BY_ID.get(pieces[r.host]![0]!)!;
     const width = circuitWidthMap(host.widthKind, host.baseD, 1, host.circFine ?? 1);
-    for (const [edge, end] of r.joiners) {
+    for (const [edge, end] of r.ends) {
       const own = courseOf(CIRCUIT_COURSE_D[edge]!), e = end === 'to' ? own[own.length - 1]! : own[0]!;
       assert.ok(dist(e, j.at) <= SAME, `${edge}:${end}: the lane's own end is ${dist(e, j.at).toFixed(2)} units from ${r.node}`);
       // (the morph's samples: where the tube's end stands on the map, in map units; a lane the figure does not draw as a vessel has none)
@@ -101,10 +101,10 @@ test('every collateral, shunt and tributary end on the map lies at its junction,
 
 test('a junction the 2D drawing placed does not move its lanes: only the ends the table moves are carried', () => {
   // (a lane with a joiner end at a junction the 2D drawing never had is carried at that end, so its course is not the copy's: the check is of the lanes whose every junction the drawing placed)
-  const carried = new Set(rows.filter((r) => !MAP_JUNCTIONS.get(r.node)!.own).flatMap((r) => r.joiners.map(([e]) => e)));
+  const carried = new Set(rows.filter((r) => !MAP_JUNCTIONS.get(r.node)!.own).flatMap((r) => r.ends.map(([e]) => e)));
   for (const r of rows) {
     const j = MAP_JUNCTIONS.get(r.node)!;
-    for (const [edge] of r.joiners) {
+    for (const [edge] of r.ends) {
       if (!j.own || !CIRCUIT_D[edge] || carried.has(edge)) continue;
       const was = courseOf(CIRCUIT_D[edge]!), now = courseOf(CIRCUIT_COURSE_D[edge]!);
       assert.ok(was.every((p) => offLine(p, now) < 0.01) && now.every((p) => offLine(p, was) < 0.01), `${edge}: unmoved at ${r.node}`);
@@ -115,7 +115,7 @@ test('a junction the 2D drawing placed does not move its lanes: only the ends th
 test('a row added to the table, on a whole vein or on a divided one, still builds and its pieces have a course', () => {
   // a whole vein gains its first junction
   const plain = cutMap({
-    rows: [...JUNCTIONS, ['X_NEW', 'IVCS_RA', 0.5, 'extra', [['C9', 'to']]]], pieces: { ...JUNCTION_PIECES, IVCS_RA: ['IVCS_RA', 'IVCS_RA_1'] }, d: CIRCUIT_D, own: JUNCTION_CIRCUIT,
+    rows: [...JUNCTION_ROWS, { node: 'X_NEW', host: 'IVCS_RA', at: 0.5, ends: [['C9', 'to']] }], pieces: { ...JUNCTION_PIECES, IVCS_RA: ['IVCS_RA', 'IVCS_RA_1'] }, d: CIRCUIT_D, own: JUNCTION_CIRCUIT,
   });
   const a = courseOf(plain.d.IVCS_RA!), b = courseOf(plain.d.IVCS_RA_1!), copy = courseOf(CIRCUIT_D.IVCS_RA!);
   assert.ok(a.length >= 2 && b.length >= 2 && dist(a[a.length - 1]!, b[0]!) < 1e-3, 'both pieces have a course and meet');
@@ -125,13 +125,13 @@ test('a row added to the table, on a whole vein or on a divided one, still build
   assert.ok(!j.own && dist(c9[c9.length - 1]!, j.at) <= SAME, 'the joiner ends at the new junction');
   // a divided vein gains another cut, before its others
   const ids = ['PVH_R', 'PVH_R_1', 'PVH_R_2', 'PVH_R_3'];
-  const more = cutMap({ rows: [...JUNCTIONS, ['X_TWO', 'PVH_R', 0.05, 'extra', [['C3', 'from']]]], pieces: { ...JUNCTION_PIECES, PVH_R: ids }, d: CIRCUIT_D, own: JUNCTION_CIRCUIT });
+  const more = cutMap({ rows: [...JUNCTION_ROWS, { node: 'X_TWO', host: 'PVH_R', at: 0.05, ends: [['C3', 'from']] }], pieces: { ...JUNCTION_PIECES, PVH_R: ids }, d: CIRCUIT_D, own: JUNCTION_CIRCUIT });
   for (const id of ids) assert.ok(more.d[id] && courseOf(more.d[id]!).length >= 2, `${id} has a course`);
   const c3 = courseOf(more.d.C3!);
   assert.ok(dist(c3[0]!, more.junctions.get('X_TWO')!.at) <= SAME, 'the new joiner starts at its junction');
   // a vein with no map course is refused loudly, and so is a table whose pieces do not match its rows
-  assert.throws(() => cutMap({ rows: [['X', 'NO_SUCH', 0.5, '', []]], pieces: { NO_SUCH: ['NO_SUCH', 'NO_SUCH_1'] }, d: {}, own: {} }), /no circuit course for NO_SUCH/);
-  assert.throws(() => cutMap({ rows: [['X', 'IVCS_RA', 0.5, '', []]], pieces: { IVCS_RA: ['IVCS_RA'] }, d: CIRCUIT_D, own: {} }), /rows but pieces/);
+  assert.throws(() => cutMap({ rows: [{ node: 'X', host: 'NO_SUCH', at: 0.5, ends: [] }], pieces: { NO_SUCH: ['NO_SUCH', 'NO_SUCH_1'] }, d: {}, own: {} }), /no circuit course for NO_SUCH/);
+  assert.throws(() => cutMap({ rows: [{ node: 'X', host: 'IVCS_RA', at: 0.5, ends: [] }], pieces: { IVCS_RA: ['IVCS_RA'] }, d: CIRCUIT_D, own: {} }), /rows but pieces/);
 });
 
 test('re-ending a lane keeps its other corners, lands on the point, and never runs a lane over another', () => {

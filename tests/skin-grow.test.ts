@@ -20,7 +20,7 @@ import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { SKIN_FS as SKIN_FS_TEXT } from '../src/scene/vessels/skin/shaders.ts';
 import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
-import { EDGES, JUNCTIONS } from '../src/engine/hales/portal/topology.js';
+import { EDGES, JUNCTION_ROWS } from '../src/engine/hales/portal/topology.js';
 import { FAR_PLACED, droppedOf, growersByNode, skinKey, skinKeysWithArm } from './skin-names-lib.ts';
 
 const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(true); try { return f(); } finally { setSmoothJoins(was); } };
@@ -52,7 +52,7 @@ test('the growing arms are the single-tube collaterals and shunts, pinned by nod
     const js = findSkinJunctions().filter((j) => j.arms.some((a) => a.grow)), by = Object.fromEntries(js.map((j) => [j.node, j.arms.filter((a) => a.grow).map(armKey)]));
     assert.deepEqual(by, GROWERS);
     // the drawing reads the engine's table: every joiner of every row ends on the row's node in the network (the node a skin is planned at), and the engine's own edge ends there too
-    for (const [node, , , , joiners] of JUNCTIONS as readonly (readonly [string, string, number, string, readonly (readonly [string, 'from' | 'to'])[]])[]) for (const [id, end] of joiners) {
+    for (const { node, ends } of JUNCTION_ROWS) for (const [id, end] of ends) {
       const v = NETWORK_BY_ID.get(id); if (v) assert.equal(end === 'from' ? v.from : v.to, node, `${id} ${end} is the table's node ${node}`);
       const e = (EDGES as readonly { id: string; from: string; to: string }[]).find((x) => x.id === id); if (e) assert.equal(end === 'from' ? e.from : e.to, node, `engine edge ${id} ${end}`);
     }

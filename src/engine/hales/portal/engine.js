@@ -236,14 +236,14 @@ export class Engine {
     this.edgeF = new Int32Array(this.E);
     this.edgeT = new Int32Array(this.E);
     EDGES.forEach((e, k) => {
-      const f = this.ni[e.from], t = this.ni[e.to];   // (a shunt drawn onto the middle of a vein is joined to the junction node it is drawn at: topology.js JUNCTIONS)
+      const f = this.ni[e.from], t = this.ni[e.to];   // (a shunt drawn onto the middle of a vein is joined to the junction node it is drawn at: topology.js JUNCTION_ROWS)
       this.edgeF[k] = f; this.edgeT[k] = t;
       if (e.Q) this.Rbase[k] = (NODES[f].P - NODES[t].P) / e.Q;
       else if (e.R) this.Rbase[k] = e.R;
       this.edgeExt[k] = EXT_OVERRIDE[partOf(e.id)] || NODES[f].ext;
       if ((e.Q || e.R) && !(this.Rbase[k] > 0)) throw new Error(`Non-positive baseline resistance on ${e.id}`);
     });
-    // A vein cut by junctions (topology.js JUNCTIONS): the calibrated resistance of the whole vein, which a clot or a narrowing of it adds on the piece marked `clot` (computeG).
+    // A vein cut by junctions (topology.js JUNCTION_ROWS): the calibrated resistance of the whole vein, which a clot or a narrowing of it adds on the piece marked `clot` (computeG).
     const hostSum = new Map();
     EDGES.forEach((e, k) => { if (e.part) hostSum.set(e.part, (hostSum.get(e.part) || 0) + this.Rbase[k]); });
     this.hostR = Float64Array.from(EDGES, (e, k) => (e.part ? hostSum.get(e.part) : this.Rbase[k]));

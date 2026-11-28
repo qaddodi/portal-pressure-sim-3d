@@ -181,7 +181,7 @@ export const NECK_FRACTIONS = [0, 0.25, 0.4, 0.5, 0.6, 0.35, 0.7] as const;
  *  part with the Rex shunt only shades a ridge thinner than a pixel, 56 degrees, tests/skin-exact-normal.test.ts); the welded skins keep the nominal blend, which their seams' cuts were laid on (built with the neck's, two of the wall skins no
  *  longer build and their growers lose the weld). */
 export const neckJunction = (j: SkinJunction, axes: readonly ArmAxis[]): SkinJunction => ({ ...j, arms: j.arms.map((a, i) => (a.grow && axes[i] ? { ...a, jointR: Math.min(armR(a), axes[i]!.radii[0]!) } : a)) });
-export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false, backR?: number, whole = 0): ArmAxis {
+export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false, backR?: number, whole = 0, rootAtJ = false): ArmAxis {
   const out = cut.end ? -1 : 1, last = tube.tubular;
   const end = startRing ?? (cut.end ? last : 0), a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
   const lo = Math.min(last, Math.max(0, cut.ring - out)), hi = Math.min(last, Math.max(0, cut.ring + out));   // (the ring nearer the node, the ring farther from it)
@@ -204,7 +204,10 @@ export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, sta
   // THE BRIDGE (spec 10.5): every capsule starts AT J. Where the art leaves a gap (the arm's end more than a tenth of a radius from J) J is put in front, with the end ring's radius, so the union bridges the gap with the arm's own width and the hull (the rings alone) is unchanged
   const bridged = J && Math.hypot(J[0] - a.c[0], J[1] - a.c[1], J[2] - a.c[2]) > BRIDGE_MIN_R * restR;   // (judged on the tube's own end ring: a tube that reaches J but bends on the way is not a gap)
   const jr = a.r + whole * Math.max(0, s.r - a.r);
-  return { pts: [bridged ? J! : p1, p1, s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [jr, jr, s.r, f.r] };
+  // A growing arm's capsule starts AT J whether or not the tube's end ring is there (`rootAtJ`): the line back from the seam is only trusted for `backR` radii (drawnAxes), then
+  // straight to J. Run back all the way, the line missed J by a radius and more wherever the tube bends between the node and the seam (the spontaneous splenorenal shunt, 1.1 of
+  // its radii off the splenic vein's axis: its root stood out of the wall as a step and a notch, Mohammad, 28 Nov)
+  return { pts: [bridged || (rootAtJ && J) ? J! : p1, p1, s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [jr, jr, s.r, f.r] };
 }
 
 /** An arm's arc numbers for the skin's flow marks (the tube's `vUv.x * len * vU` at the seam, 300 figure units to the scene unit on the body): the arc at the seam, which way it grows toward the node, the vessel's length and its rest radius, all in figure units. */
@@ -221,7 +224,7 @@ export function drawnAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, 
   const sided = j.arms.some((a) => !!a.side);
   return j.arms.map((a, i) => {
     const tb = tubes.get(a.vesselId)!, from = a.side ? armWalk(a, tb.tubular).from : undefined;
-    return axisOf(tb, a.restR, cuts[i]!, a.at ?? j.J, from, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined, a.grow ? whole : 0);
+    return axisOf(tb, a.restR, cuts[i]!, a.at ?? j.J, from, sided, a.grow || isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined, a.grow ? whole : 0, !!a.grow);
   });
 }
 
