@@ -1,5 +1,5 @@
 // Gentle tilt (depth upgrade 3, owner-approved exception to match-2D, 19 Nov 2026; parallax rebuild 28 Nov 2026, docs/approved/tilt-parallax.md): the figure turns a few degrees toward the pointer
-// on a laptop; on a phone or tablet it turns the OPPOSITE way to the device (parallax: it stays where it is in space behind the glass), so the depth
+// on a laptop; on a phone or tablet it counter-rotates against the device (parallax: it stays where it is in space behind the glass), so the depth
 // reads. It is an OFFSET ADDED to the rig's yaw and pitch when the camera is written (rig.apply) and is never stored in the
 // hand's or the orbit's state, so Fit, Home and refit still return to the exact rest view and what the fit computes is measured without it (rig.fitRect).
 // This file is pure (no DOM, no three): the target from an input, the easing, the clamp and the locks. The listeners are in tilt-input.ts.
@@ -88,12 +88,12 @@ export function screenTurn(rx: number, ry: number, angle = 0): { top: number; ri
 }
 
 /**
- * What a device turn means as a unit input (the place a pointer would stand to give the same lean: the figure turns the OPPOSITE way to the device): the
- * right edge going away is a pointer to the left (x down), the top edge coming toward the viewer is a pointer above (y down).
+ * What a device turn means as a unit input (the place a pointer would stand to give the same lean: the figure's turn is the
+ * device's, reversed (owner, 28 Nov: flipped once): the right edge going away is a pointer to the right, the top edge going away is a pointer above.
  *  A soft dead zone leaves a hand's tremor out (only the angle past it counts, so nothing jumps at its edge); DEVICE_RANGE past it is the full tilt. */
 export function deviceUnit(top: number, right: number): Unit {
   const f = (v: number) => (Math.abs(v) <= DEVICE_DEAD ? 0 : clamp(Math.sign(v) * (Math.abs(v) - DEVICE_DEAD) / (DEVICE_RANGE - DEVICE_DEAD), -1, 1));
-  const x = -f(right), y = -f(top);
+  const x = f(right), y = f(top);
   return { x: x === 0 ? 0 : x, y: y === 0 ? 0 : y };   // (no negative zero)
 }
 

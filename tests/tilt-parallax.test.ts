@@ -44,7 +44,7 @@ test('direction: the figure holds still against the turn of the device, on each 
       assert.ok(Math.abs(t.right - 10) < 0.05 && Math.abs(t.top) < 0.05, `held ${held} turn ${angle}: ${JSON.stringify(t)}`);
       let rig = rigAt(open); rig.tilt.set(deviceUnit(t.top, t.right), 'device'); settle(rig);
       let p = frontAndBack(rig);
-      assert.ok(p.front.x < rf.front.x - 0.5 && p.back.x > rf.back.x + 0.5, `right edge away, held ${held} turn ${angle}: the near side moves toward the near (left) edge, the far side away: ${p.front.x - rf.front.x} ${p.back.x - rf.back.x}`);
+      assert.ok(p.front.x > rf.front.x + 0.5 && p.back.x < rf.back.x - 0.5, `right edge away, held ${held} turn ${angle}: the near side moves toward the near (left) edge, the far side away: ${p.front.x - rf.front.x} ${p.back.x - rf.back.x}`);
       assert.ok(Math.abs(p.front.y - rf.front.y) < 0.01);
       // the top edge comes toward the viewer by 10 degrees: the screen's x axis, turned positive
       b = new DeviceBase(); b.readQuat(q0, 0);
@@ -52,22 +52,22 @@ test('direction: the figure holds still against the turn of the device, on each 
       assert.ok(Math.abs(t.top - 10) < 0.05 && Math.abs(t.right) < 0.05, `held ${held} turn ${angle}: ${JSON.stringify(t)}`);
       rig = rigAt(open); rig.tilt.set(deviceUnit(t.top, t.right), 'device'); settle(rig);
       p = frontAndBack(rig);
-      assert.ok(p.front.y < rf.front.y - 0.5 && p.back.y > rf.back.y + 0.5, `top toward the viewer, held ${held} turn ${angle}: the near side rises, the far side drops: ${p.front.y - rf.front.y} ${p.back.y - rf.back.y}`);
+      assert.ok(p.front.y > rf.front.y + 0.5 && p.back.y < rf.back.y - 0.5, `top toward the viewer, held ${held} turn ${angle}: the near side rises, the far side drops: ${p.front.y - rf.front.y} ${p.back.y - rf.back.y}`);
       assert.ok(Math.abs(p.front.x - rf.front.x) < 0.01);
       // the opposite turns give the opposite moves
       rig = rigAt(open); rig.tilt.set(deviceUnit(-t.top, -t.right), 'device'); settle(rig);
-      assert.ok(frontAndBack(rig).front.y > rf.front.y + 0.5);
+      assert.ok(frontAndBack(rig).front.y < rf.front.y - 0.5);
     }
   }
 });
 
 test('the figure turns by exactly the device\'s own turn past the dead zone, up to the cap and never more', () => {
   const rig = rigAt(open); rig.tilt.set(deviceUnit(-90, 90), 'device'); settle(rig);
-  assert.ok(Math.abs(rig.tilt.yaw - DEVICE_YAW_MAX) < 1e-9 && Math.abs(rig.tilt.pitch - DEVICE_PITCH_MAX) < 1e-9, `${rig.tilt.yaw} ${rig.tilt.pitch}`);
+  assert.ok(Math.abs(rig.tilt.yaw + DEVICE_YAW_MAX) < 1e-9 && Math.abs(rig.tilt.pitch + DEVICE_PITCH_MAX) < 1e-9, `${rig.tilt.yaw} ${rig.tilt.pitch}`);
   assert.deepEqual(deviceUnit(0, DEVICE_DEAD * 0.9), { x: 0, y: 0 });
-  assert.equal(deviceUnit(0, DEVICE_RANGE + DEVICE_DEAD).x, -1);
+  assert.equal(deviceUnit(0, DEVICE_RANGE + DEVICE_DEAD).x, 1);
   const soft = deviceUnit(0, DEVICE_DEAD + 0.01).x;   // (no jump at the edge of the dead zone)
-  assert.ok(soft < 0 && soft > -0.01);
+  assert.ok(soft > 0 && soft < 0.01);
 });
 
 test('the neutral pose: a held tilt is read at first and then fades away over the follow time; a phone resting at any angle is straight', () => {
@@ -240,11 +240,11 @@ test('worked example, portrait and both landscapes: tipping the screen\'s top ed
     const t = turnOf(b, mul(q0, axisQuat(ax.x[0], ax.x[1], 0, -10)), angle);
     assert.ok(t.top < -9.9, `screen turn ${angle}: top ${t.top}`);
     const rig = rigAt(open); rig.tilt.set(deviceUnit(t.top, t.right), 'device'); settle(rig);
-    assert.ok(rig.camera.position.y > rest.y + 0.01 && Math.abs(rig.camera.position.x - rest.x) < 1e-6, `screen turn ${angle}: the camera rises`);
+    assert.ok(rig.camera.position.y < rest.y - 0.01 && Math.abs(rig.camera.position.x - rest.x) < 1e-6, `screen turn ${angle}: the camera lowers`);
     // the right edge goes away by 10 degrees
     const b2 = new DeviceBase(); b2.readQuat(q0, 0);
     const r = turnOf(b2, mul(q0, axisQuat(ax.y[0], ax.y[1], 0, 10)), angle);
     const rig2 = rigAt(open); rig2.tilt.set(deviceUnit(r.top, r.right), 'device'); settle(rig2);
-    assert.ok(rig2.camera.position.x > rest.x + 0.01 && Math.abs(rig2.camera.position.y - rest.y) < 1e-6, `screen turn ${angle}: the camera moves right`);
+    assert.ok(rig2.camera.position.x < rest.x - 0.01 && Math.abs(rig2.camera.position.y - rest.y) < 1e-6, `screen turn ${angle}: the camera moves left`);
   }
 });
