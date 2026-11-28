@@ -64,7 +64,7 @@ test('every station dot stands on a vessel it names: inside the drawn tube (+2 p
       if (s.kind === 'organ') continue;
     for (const u of s.slides ? [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1] : [0.5]) {
       const p = s.at(u, new Vector3());
-      const near = NETWORK.filter((v) => (s.vessel ? v.id === s.vessel : v.from === s.node || v.to === s.node));
+      const near = NETWORK.filter((v) => (s.vessel ? v.id === s.vessel || !!s.pieces?.includes(v.id) : v.from === s.node || v.to === s.node));
       assert.ok(near.length, s.id);
       const best = Math.min(...near.map((v) => pxDistance(rig, p, drawn(v.id)) - pxRadius(rig, p, v.radius)));
       assert.ok(best <= 2, `${s.id} at u=${u}, ${w}x${h}, ${name}, orbit ${orbit}: the dot is ${best.toFixed(1)} px off the tube's edge`);

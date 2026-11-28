@@ -22,6 +22,8 @@ export interface Station {
   abbr: string | null;
   /** The topology edge whose middle carries the dot (a vessel station). */
   vessel: string | null;
+  /** Every piece of the course `at` walks, when the name stands for a stretch the engine's junction table cuts into pieces (the lower IVC's four): a pick on any of them is this station's. Absent: `vessel` alone. */
+  pieces?: readonly string[];
   /** 2D priority (higher wins when space is short). */
   pri: number;
   /** Shown from the start (the 2D CHIP_NODES) rather than only when the slide or the viewer names it (ANAT_EXTRA). */
@@ -244,6 +246,7 @@ const STRETCH: Readonly<Record<string, { host: string; to: string }>> = { IVCI: 
         const total = chain.reduce((a, q) => a + q.len, 0), at0 = AT_REST_U[s.id] ?? 0.5;
         let acc = 0;
         for (const q of chain) { if (at0 * total <= acc + q.len || q === chain[chain.length - 1]) { s.vessel = q.id; break; } acc += q.len; }
+        s.pieces = chain.map((q) => q.id);
         s.at = (u, out) => {
           let d = Math.min(1, Math.max(0, u)) * total;
           for (const q of chain) { if (d <= q.len || q === chain[chain.length - 1]) return q.c.getPointAt(Math.min(1, d / q.len), out); d -= q.len; }
@@ -268,7 +271,7 @@ export const UNSEEN_STATIONS: ReadonlySet<string> = unseen;
 export const stationById = (id: string): Station | undefined => STATIONS.find((s) => s.id === id);
 
 /** The station a drawn vessel's label belongs to (a vessel is picked by edge ID; its station is the one whose label hangs from it). */
-export const stationOfVessel = (edge: string): string | null => STATIONS.find((s) => s.vessel === edge)?.id ?? null;
+export const stationOfVessel = (edge: string): string | null => STATIONS.find((s) => s.vessel === edge || s.pieces?.includes(edge))?.id ?? null;
 
 /** Which stations a deck term points at (the deck's `terms` field names figure parts by these ids). The words are the 2D app's own (TARGETS, figure2d.copied.ts: each term's station, vessels, organ
  *  and colour); a term with no station of its own (an organ, the Circuit's resistors, a lobule part) answers with no station, and what it lights is the figure link's (ui/deck/figure-plan.ts). The first
