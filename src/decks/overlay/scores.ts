@@ -8,7 +8,7 @@ export type SlideScores = ScoreFacts & { focus: Focus };
 const BLED_C11: SlideScores = { bili: 5.2, inr: 2.4, creatinine: 1.1, ascites: 'mild', he: 'none', focus: 'preemptive' };
 
 export const SCORES: Readonly<Record<string, SlideScores>> = Object.freeze({
-  // Child–Pugh C 11, bilirubin 5.2, MELD 23, creatinine 1.1; the preset's albumin 2.8 (2 points), ascites held by the preset's diuretics
+  // Child–Pugh C 12, bilirubin 5.2, MELD 23, creatinine 1.1; the preset's albumin 2.25 (3 points; 2.8 and 2 points before 28 Nov, C7), ascites held by the preset's diuretics
   'tips-candidacy/pre': BLED_C11,
   'tips-complete/pre': BLED_C11,
   // (Choose treatment 2 has no card: its case already says Child–Pugh B 8, and the criteria card is read at full size

@@ -218,7 +218,7 @@ export const DECK: CopiedDeck = {
     "pv"
    ],
    "tick": "Decompensated",
-   "vignette": "A 49-year-old woman with MASH cirrhosis has ascites controlled on spironolactone and furosemide, large esophageal varices and a serum albumin of 2.8 g/dL. She could not tolerate a beta-blocker.",
+   "vignette": "A 49-year-old woman with MASH cirrhosis has ascites controlled on spironolactone and furosemide, large esophageal varices and a serum albumin of 2.3 g/dL. She could not tolerate a beta-blocker.",
    "kicker": "Hemorrhage",
    "site": "sin",
    "title": "Blood volume contributes to the portal pressure",

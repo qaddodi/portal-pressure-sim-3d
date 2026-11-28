@@ -48,7 +48,7 @@ export const DECK: CopiedDeck = {
      "co"
     ]
    },
-   "vignette": "A 58-year-old man with alcohol-associated cirrhosis has ascites controlled on spironolactone and furosemide, large esophageal varices and a serum albumin of 2.8 g/dL.",
+   "vignette": "A 58-year-old man with alcohol-associated cirrhosis has ascites controlled on spironolactone and furosemide, large esophageal varices and a serum albumin of 2.3 g/dL.",
    "kicker": "Abdominal perfusion pressure",
    "site": "sin",
    "title": "Arterial vasodilation keeps the MAP low in decompensated cirrhosis",

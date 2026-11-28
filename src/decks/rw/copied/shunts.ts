@@ -83,7 +83,7 @@ export const SHUNTS: CopiedDeck = {
    "kicker": "Spontaneous",
    "site": "sin",
    "title": "Spontaneous portosystemic collaterals lower the gradient only slightly",
-   "vignette": "A 56-year-old man with alcohol-associated cirrhosis has ascites controlled on spironolactone and furosemide, and large esophageal varices. His platelets are 59,000/µL.",
+   "vignette": "A 56-year-old man with alcohol-associated cirrhosis has ascites controlled on spironolactone and furosemide, and large esophageal varices. His platelets are 54,000/µL.",
    "eq": [
     "<mfrac><mrow><mn>1</mn></mrow><mrow><msub><mi>R</mi><mtext>total</mtext></msub></mrow></mfrac><mo>=</mo><mfrac><mrow><mn>1</mn></mrow><mrow><msub><mi>R</mi><mtext>liver</mtext></msub></mrow></mfrac><mo>+</mo><mfrac><mrow><mn>1</mn></mrow><mrow><msub><mi>R</mi><mtext>shunt</mtext></msub></mrow></mfrac>",
     "R resistance to portal flow · the liver and the shunt in parallel"

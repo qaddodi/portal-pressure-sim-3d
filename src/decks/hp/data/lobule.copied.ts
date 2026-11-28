@@ -196,7 +196,7 @@ export const DECK: CopiedDeck = {
    "kicker": "Sinusoidal",
    "site": "sin",
    "title": "Cirrhosis narrows the sinusoid",
-   "vignette": "A 61-year-old woman with MASH cirrhosis has ascites controlled on spironolactone and furosemide. Her albumin is 2.8 g/dL, and her platelets are 59,000/µL.",
+   "vignette": "A 61-year-old woman with MASH cirrhosis has ascites controlled on spironolactone and furosemide. Her albumin is 2.3 g/dL, and her platelets are 54,000/µL.",
    "line": "Collagen fills the space of Disse, the fenestrae close, and stellate cells contract around the sinusoid.",
    "notes": "Activated stellate cells lay down collagen in the space of Disse; the endothelium loses its fenestrae and gains a basement membrane (capillarization). Fibrosis and regenerative nodules distort and compress the sinusoids. This structural component accounts for about three quarters of the increased resistance. The rest is dynamic tone: reduced intrahepatic nitric oxide and stellate cell contraction, which is why carvedilol can lower it. With the sinusoidal wall capillarized, protein no longer crosses freely, so cirrhotic ascites is low in protein.",
    "ask": [
