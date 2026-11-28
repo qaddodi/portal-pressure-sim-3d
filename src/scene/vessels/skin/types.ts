@@ -47,6 +47,8 @@ export interface SkinCut {
   u: number;                 // uv.x of that ring = k / tubular
   /** the arm is a side-wall arm of its vessel (types.ts SkinArm.side): its dir. Two of one vessel are a HOLE, not two cuts. */
   side?: -1 | 1;
+  /** Set only when this seam stands inside rule 1's full clearance: the share kept (cuts.ts CLEAR_SLACK, 0.8 or 0.6). Absent: the full clearance held. The bake prints it (J6). */
+  slack?: number;
 }
 
 /** The built skin of one junction, ready for a BufferGeometry. */
@@ -95,12 +97,20 @@ export const SKIN_CUT_EPS = 2e-5;
 /** Raised when a junction's skin cannot be built (no seam ring satisfies the rules within the tries, spec 4.4; WP2's mesh builder throws it too). The scene falls back to today's method for that node and warns once; it never crashes the scene. */
 export class SkinBuildError extends Error {
   readonly node: string;
-  constructor(node: string, why: string) {
+  /** Why it failed, as a kind the planner and the retry ladders read (never the words of `message`, which are for people: J7, 28 Nov review). */
+  readonly reason: SkinFailReason | undefined;
+  /** The vessel the failure is about, when it is about one (`no-ring`: the arm that has no ring that clears the blend). */
+  readonly vesselId: string | undefined;
+  constructor(node: string, why: string, detail?: { reason?: SkinFailReason; vesselId?: string }) {
     super(`skin: junction ${node}: ${why}`);
     this.name = 'SkinBuildError';
     this.node = node;
+    this.reason = detail?.reason;
+    this.vesselId = detail?.vesselId;
   }
 }
+/** The kinds of SkinBuildError a caller acts on: no ring clears the blend (the junction merges with its neighbour on that vessel), a surface that folds, a hull that misses. */
+export type SkinFailReason = 'no-ring' | 'folds' | 'hull-misses';
 
 /** The tube's `skinCut` when a merged skin replaces the vessel whole (rule 1c: PV_TRUNK_1 between CONF and PVT_L): every u is below 2, so none of it is drawn. */
 export const SKIN_HIDDEN: readonly [number, number] = [2, -1];

@@ -226,6 +226,8 @@ export class CircuitSkinSet {
   /** Where the last build's meshes came from: the baked file (nothing meshed on the page) or the live planner (a stall of a second or more, the first Circuit change's cost on a device). */
   source: 'none' | 'baked' | 'live' = 'none';
   private readonly lostNodes: { node: string; message: string }[] = [];
+  /** the planner's bounded loops that ran out of rounds before the layout settled, named (cuts.ts `SkinPlans.unsettled`), since this set was made */
+  readonly unsettled: string[] = [];
   /** the nodes that fell back (their tubes keep running into one another, as before), named, once */
   readonly fellBack: string[] = [];
   /** the growing arms the map's skins could not take (`node:vessel`): they keep their plain lines, named so a new one fails tests/circuit-skins.test.ts until someone looks */
@@ -291,7 +293,8 @@ export class CircuitSkinSet {
     let todo: SkinJunction[] = [...js];
     const latest = new Map<string, SkinJunction>(js.map((j) => [j.node, j]));
     for (let round = 0; todo.length && round <= SKIN_GROWERS + 1; round++) {
-      const { plans, failures } = this.plan(todo, tubes);
+      const { plans, failures, unsettled } = this.plan(todo, tubes);
+      for (const u of unsettled) if (!this.unsettled.includes(u)) this.unsettled.push(u);
       const again = new Set<string>();
       const bad: { nodes: readonly string[]; message: string }[] = failures.map((f) => ({ nodes: f.node.split('+'), message: f.message }));
       for (const p of plans) {
@@ -411,7 +414,7 @@ export class CircuitSkinSet {
 
   /** What the last `build` made, as the file the build bakes. */
   bake(): BakedSkins {
-    return { digest: this.digest, skins: this.built.map((b) => b.bake), lost: [...this.lostNodes], dropped: [...this.dropped] };
+    return { digest: this.digest, skins: this.built.map((b) => b.bake), lost: [...this.lostNodes], dropped: [...this.dropped], unsettled: [...this.unsettled] };
   }
 
   /** Whether the skins are drawn at all: only over the end of the change (they have no alpha before it: nothing is drawn that is not seen). Written by the scene when the change moves. */

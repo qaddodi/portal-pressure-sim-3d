@@ -17,6 +17,7 @@ import { ANAT_HIDDEN, EDGE_PATH_2D, HIDDEN_EDGES } from './source.ts';
 import { x2d, y2d } from '../frame2d.ts';
 import { aroundEso, onEso } from './eso-wall.ts';
 import { WHOLE_HOSTS, WHOLE_PIECES, firstPieceOf, lastPieceOf, pieceEndingAt, piecesOf } from './whole-pieces.ts';
+import { settleRounds } from '../settle.ts';
 
 export type V3 = [number, number, number];
 type P2 = [number, number];
@@ -406,7 +407,7 @@ function buildPlaced(): void {
    *   away: engine brief A moves that end to SVD, and tests/junction-ends.test.ts then turns the general rule on for C2 by itself and this line goes). Every other take-off is placed
     *  from the engine's JUNCTION_ROWS table. */
   const NODE_AT_END: Readonly<Record<string, string>> = { SVD: 'C2|0' };
-  const SNAP_R = 6, NODE_GAP_R = 10, PARALLEL_DEG = 30, PAIR_GAP_R = 5;
+  const SNAP_R = 6, NODE_GAP_R = 10, PARALLEL_DEG = 30, PAIR_GAP_R = 5, NODE_SPACING_ROUNDS = 20, SPACING_EPS_R = 1e-4;
   /** SIBLINGS APART (below): how far off its sibling an end beside it leaves (degrees), the share of the course from that end the bow spans, and the bow's steps and most (shares of the course's length). */
   const SIBLING_DEG = 60, BOW_SPAN = 0.7, BOW_STEP = 0.05, BOW_MAX = 4;
   /** The shunts that divide the vein whose start is their node (skin/divide.ts DIVIDED): each opens at that node. */
@@ -585,15 +586,29 @@ function buildPlaced(): void {
       });
     };
     place();
-    for (let round = 0; round < 20; round++) {
+    // (each round moves the stops that sit too near the node before them, then places the nodes again. A node and the junction before it depend on one another
+    //  (the junction is a share of the host between the two nodes), so the rounds are a contraction: the renal vein's LRV moved 8.6, 1.4, 0.6, 0.2 ... of its radii
+    //  and was still 1e-7 of a radius off its limit when the 20 rounds ended, which the loop used to end without saying. It is settled when the last round moved a stop
+    //  by less than SPACING_EPS_R of a radius, which no eye or pixel can see; a spacing still moving by more than that after the rounds throws, naming the host)
+    let lastMove = 0;
+    settleRounds(NODE_SPACING_ROUNDS, () => {
       let moved = false;
+      lastMove = 0;
       for (const x of stops) {
         if (x.fixed) continue;
         const before = places.filter((q) => q.s < x.s).reduce<number>((m, q) => Math.max(m, q.s), -Infinity);
-        if (Number.isFinite(before) && x.s - before < NODE_GAP_R * R - 1e-9) { x.s = Math.min(before + NODE_GAP_R * R, L - 2 * R); NODE_S.set(`${w}|${x.node}`, x.s); moved = true; }
+        if (Number.isFinite(before) && x.s - before < NODE_GAP_R * R - 1e-9) {
+          const to = Math.min(before + NODE_GAP_R * R, L - 2 * R);
+          lastMove = Math.max(lastMove, Math.abs(to - x.s));
+          x.s = to; NODE_S.set(`${w}|${x.node}`, x.s); moved = true;
+        }
       }
-      if (!moved) break;
-      place();
+      if (moved) place();
+      return moved;
+    });
+    if (lastMove > SPACING_EPS_R * R) {
+      const still = (lastMove / R).toFixed(4);
+      throw new Error(`placed network: the node spacing on ${w} did not settle in ${NODE_SPACING_ROUNDS} rounds (the last one moved a stop ${still} radii)`);
     }
     for (const q of places) {
       JUNCTION_S.set(q.node, q.s);

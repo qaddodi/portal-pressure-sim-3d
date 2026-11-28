@@ -195,7 +195,7 @@ export function buildSkinSteady(j: SkinJunction, cuts: SkinCut[], seamRings: rea
   const top = fromSurface(j) ? PACES.length : PACES.length - 1;
   for (let i = Math.min(memo?.get(j.node) ?? 0, top - 1); i < top; i++) {
     try { const m = buildSkin(j, cuts, seamRings, seamNormals, axes, maxVerts, PACES[i]); memo?.set(j.node, i); return refined(j, cuts, seamRings, seamNormals, axes, maxVerts, PACES[i], m); }
-    catch (e) { last = e; if (!(e instanceof SkinBuildError) || !(e.message.includes('folds') || (top === PACES.length && e.message.includes('the hull misses')))) throw e; }   // (a junction meshed from the surface falls to that rung when its hull misses the rings too: a plain trunk whose seams were placed with no hull)
+    catch (e) { last = e; if (!(e instanceof SkinBuildError) || !(e.reason === 'folds' || (top === PACES.length && e.reason === 'hull-misses'))) throw e; }   // (a junction meshed from the surface falls to that rung when its hull misses the rings too: a plain trunk whose seams were placed with no hull)
   }
   throw last;
 }
@@ -233,7 +233,7 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   const A = j.arms.length, n = seamRings[0]!.length / 3, S = A * n;   // S: the ring vertices, ids 0..S-1 (arm * n + j), fixed for ever
   if (A < 2 || A > MAX_SKIN_ARMS || seamRings.length !== A || seamNormals.length !== A || cuts.length !== A) throw new SkinBuildError(j.node, 'needs 2 to 6 arms with a ring, a normal set and a cut each');
   const hull = pace?.sdf ? null : ringHull(seamRings);
-  if (hull && !hull.ok) throw new SkinBuildError(j.node, `the hull misses the seam rings: ${hull.why}`);
+  if (hull && !hull.ok) throw new SkinBuildError(j.node, `the hull misses the seam rings: ${hull.why}`, { reason: 'hull-misses' });
   const caps = axes ?? seamRings.map((r) => axisFromRing(r, j.J));
   const k = skinKOf(j.arms), h = GRADIENT_H * k, tau = (2 * Math.PI) / n;
   const ekey = (a: number, b: number) => (a < b ? a * 1e7 + b : b * 1e7 + a);
@@ -616,7 +616,7 @@ export function buildSkin(j: SkinJunction, cuts: SkinCut[], seamRings: readonly 
   }
   // a face turned against its own vertex normals is a fold: the hull was too far from the surface for the remesh to follow, so this junction falls back to today's method
   const folds = foldedTriangles(position, normal, index);
-  if (folds.length) throw new SkinBuildError(j.node, `the surface folds at triangle ${folds[0]} (${folds.length} in all)`);
+  if (folds.length) throw new SkinBuildError(j.node, `the surface folds at triangle ${folds[0]} (${folds.length} in all)`, { reason: 'folds' });
   const seamVerts: Uint32Array[] = [];
   for (let a = 0; a < A; a++) { const ids = new Uint32Array(n); for (let q = 0; q < n; q++) ids[q] = a * n + q; seamVerts.push(ids); }
   return { junction: j, cuts, position, normal, cen, weight, weight2, restR, index, seamVerts };

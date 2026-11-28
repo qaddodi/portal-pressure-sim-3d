@@ -262,6 +262,8 @@ export class SkinSet {
   private digest = '';
   private readonly lostNodes: { node: string; message: string }[] = [];
   private readonly madeDropped: string[] = [];
+  /** the planner's bounded loops that ran out of rounds (cuts.ts `SkinPlans.unsettled`), named, since this set was made: the bake lists them, tests/skin-bake-report.test.ts fails on any */
+  readonly unsettled: string[] = [];
   /** the nodes that fell back to today's method (named, once) */
   readonly fellBack: string[] = [];
   /** the growing arms a skin could not take (`node:vessel`): they keep today's fork method (spec 10.6), named so a new one fails tests/skin-grow.test.ts until someone looks */
@@ -406,7 +408,8 @@ export class SkinSet {
     const latest = new Map<string, SkinJunction>(js.map((j) => [j.node, j]));   // (the junction of each node as it was last planned: growing arms dropped included)
     const mergedOut = new Map<string, string>();   // (node:vessel -> why: the growing arms a merged skin could not carry)
     for (let round = 0; todo.length && round <= SKIN_GROWERS + 2; round++) {
-      const { plans, failures, dropped } = this.plan(todo, tubes);
+      const { plans, failures, dropped, unsettled } = this.plan(todo, tubes);
+      for (const u of unsettled) if (!this.unsettled.includes(u)) this.unsettled.push(u);
       for (const d of dropped) mergedOut.set(`${d.node}:${d.id}`, d.why);
       const again = new Map<string, string>();   // (node -> why: the junctions to try again with one growing arm fewer)
       const bad: { nodes: readonly string[]; message: string }[] = failures.map((f) => ({ nodes: f.node.split('+'), message: f.message }));
@@ -714,7 +717,8 @@ export class SkinSet {
 
   /** What the last `build` made, as the file the build bakes (scripts/bake-skins.mjs): every skin with the plan, axes and mesh it was made from, the nodes that fell back, the growing arms it dropped, and the digest of the junctions and tubes it was made for. */
   bake(): BakedSkins {
-    return { digest: this.digest, skins: this.built.filter((b): b is Built & { bake: BakedSkin } => !!b.bake).map((b) => b.bake), lost: [...this.lostNodes], dropped: [...this.madeDropped] };
+    const skins = this.built.filter((b): b is Built & { bake: BakedSkin } => !!b.bake).map((b) => b.bake);
+    return { digest: this.digest, skins, lost: [...this.lostNodes], dropped: [...this.madeDropped], unsettled: [...this.unsettled] };
   }
 
   /** A node that has no skin (it fell back): kept in the list, undrawn, so a change of one of its arms plans it again. */
