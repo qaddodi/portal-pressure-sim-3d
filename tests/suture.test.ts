@@ -110,16 +110,16 @@ test('the marks are the tube\'s own rule: one seamStitch in both programs, the t
   assert.match(PROCEDURE_MARKS_GLSL, /seamStitch\(A, B, sl, aa, rr, fwAcr\)/, 'the tube calls it');
   assert.match(SUTURE_FS, /seamStitch\(sSeamA, sSeamB, sSeamA\.x \+ vMark\.y/, 'the suture calls it');
   assert.ok(!/floor\(tn \/ B\.w\)/.test(PROCEDURE_MARKS_GLSL), 'no second copy of the dash rule in the tube\'s marks');
-  assert.match(PROCEDURE_MARKS_GLSL, /c = mix\(c, THREAD_EDGE, te \* 0\.4\);\s*c = mix\(c, THREAD, tw\);/, 'the tube lays the halo at 0.4 then the thread');
-  assert.match(SUTURE_FS, /float te = st\.y \* 0\.4;/, 'the same halo strength');
+  assert.match(PROCEDURE_MARKS_GLSL, /c = mix\(c, THREAD_EDGE, te \* 0\.85\);\s*c = mix\(c, THREAD, tw\);/, 'the tube lays the ink at 0.85 then the thread');
+  assert.match(SUTURE_FS, /float te = st\.y \* 0\.85;/, 'the same ink strength');
 });
 
-test('one thread profile: the seam stitch and the stump tie are drawn by the same core and edge, as capsules', () => {
-  assert.match(SEAM_STITCH_GLSL, /float threadCore\(float d\)/, 'the core is one global function');
-  assert.match(SEAM_STITCH_GLSL, /float threadEdge\(float d\)/, 'the edge is one global function');
-  assert.match(SEAM_STITCH_GLSL, /return vec2\(threadCore\(dd\) \* dsh, threadEdge\(dd\) \* dsh\)/, 'the stitch uses them');
-  assert.match(PROCEDURE_MARKS_GLSL, /tw = max\(tw, threadCore\(dd\)\);\s*te = max\(te, threadEdge\(dd\)\);/, 'the stump tie uses the same ones');
-  assert.match(SEAM_STITCH_GLSL, /dd = length\(vec2\(max\(abs\(along\) - halfLen, 0\.0\), dd\)\)/, 'a dash is a capsule, its ends round like the thread');
+test('the seam stitch is slanted bites with a crisp ink outline (Mohammad, 28 Nov: B); the stump tie keeps the shared thread profile', () => {
+  assert.match(SEAM_STITCH_GLSL, /return vec2\(cov \* dsh, ink \* dsh\)/, 'the stitch returns the bite coverage and its ink');
+  assert.match(SEAM_STITCH_GLSL, /d = normalize\(Nn \+ 0\.55 \* T\)/, 'each bite crosses the seam, leaned along it');
+  assert.match(SEAM_STITCH_GLSL, /ok = 1\.0 - smoothstep\(2\.2, 2\.8, abs\(ds\) \/ R\)/, 'where the seam runs along the vein the stitches ease out (S_DSR hook)');
+  assert.match(SEAM_STITCH_GLSL, /float threadCore\(float d\)/, 'the tie still has its core');
+  assert.match(PROCEDURE_MARKS_GLSL, /tw = max\(tw, threadCore\(dd\)\);\s*te = max\(te, threadEdge\(dd\)\);/, 'the stump tie uses the core and edge');
   assert.ok(!/\bhalf\b/.test(SEAM_STITCH_GLSL.replace(/\/\/.*$/gm, '')), 'no reserved word `half` in GLSL');
 });
 
