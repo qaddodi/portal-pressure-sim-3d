@@ -4,26 +4,35 @@
 // hand's or the orbit's state, so Fit, Home and refit still return to the exact rest view and what the fit computes is measured without it (rig.fitRect).
 // This file is pure (no DOM, no three): the target from an input, the easing, the clamp and the locks. The listeners are in tilt-input.ts.
 
-/** Largest turn each way, radians: 3.5° of yaw, 2.5° of pitch (owner: at most about 3 to 4 and 2 to 3). */
+/**
+ *The device's parallax is a window (owner, 28 Nov: "the glass of the iPhone is looking at a 3D structure ... locked in space tilt wise"): the figure
+ * counter-rotates by the device's own turn, 1:1 past a soft dead zone, up to this angle each way. 5 is the most the 40 px station margin allows on every
+ * slide with every vein still 8 px on an iPhone (6 pulls sites/healthy under 8 px; tests/camera-framing-rules.test.ts). The pointer's lean on a laptop
+ * keeps the limits below.
+ */
+export const DEVICE_CAP_DEG = 5;
+/** The pointer's largest turn each way, radians: 3.5° of yaw, 2.5° of pitch (owner: at most about 3 to 4 and 2 to 3). */
 export const TILT_YAW_MAX = (3.5 * Math.PI) / 180;
 export const TILT_PITCH_MAX = (2.5 * Math.PI) / 180;
+export const DEVICE_YAW_MAX = (DEVICE_CAP_DEG * Math.PI) / 180;
+export const DEVICE_PITCH_MAX = DEVICE_YAW_MAX;
 /** Time constant of the ease toward a target (ms), and of the faster ease to zero while locked (a gesture, a shot) or when the input has gone. */
 export const TILT_TAU_IN = 160;
 export const TILT_TAU_OUT = 140;
 /** Under this distance (radians, about 0.011°, under a pixel on the figure) the tilt has arrived and no more frames are asked for. */
 export const TILT_EPS = 2e-4;
 /** A phone's tilt: the range of device angle that makes a full tilt (degrees), the dead zone round the held position, and how fast the held position follows a steady hand (ms). */
-export const DEVICE_RANGE = 14;
-export const DEVICE_DEAD = 1.2;
-export const DEVICE_BASE_TAU = 6000;
+export const DEVICE_DEAD = 1.0;
+export const DEVICE_RANGE = DEVICE_CAP_DEG + DEVICE_DEAD;
+export const DEVICE_BASE_TAU = 30000;
 /** A change of the unit input smaller than this does not wake the clock (a phone in a hand never sits still); the input uses `wakeStep` for the stage it is on. */
 export const WAKE_STEP = 0.01;
 /**
  * The unit change that moves the figure's largest on-screen point by half a pixel on a stage of this size (the figure's edge stands about half the short
- * side off the aim, and a full tilt turns it by TILT_YAW_MAX).
+ * side off the aim, and a full tilt turns it by DEVICE_YAW_MAX).
  */
 export function wakeStep(w: number, h: number): number {
-  const reach = (Math.min(w, h) / 2) * Math.sin(TILT_YAW_MAX);
+  const reach = (Math.min(w, h) / 2) * Math.sin(DEVICE_YAW_MAX);
   return reach > 0 ? Math.min(0.06, Math.max(WAKE_STEP, 0.5 / reach)) : WAKE_STEP;
 }
 
@@ -130,10 +139,11 @@ export class OneEuro {
 }
 
 /** The tilt that a unit input asks for (radians): none when the switch is off, Reduce Motion is on, a lock holds, or there is no input. */
-export function tiltTarget(unit: Unit | null, on: boolean, reduce: boolean, locked: boolean): { yaw: number; pitch: number } {
+export function tiltTarget(unit: Unit | null, on: boolean, reduce: boolean, locked: boolean, source: 'pointer' | 'device' = 'pointer'): { yaw: number; pitch: number } {
   if (!on || reduce || locked || !unit) return { yaw: 0, pitch: 0 };
   // the figure's face turns toward the input (the same way a drag turns it: the camera swings the other way, so yaw goes down as x goes up); a pointer below turns its top toward the viewer
-  return { yaw: -clamp(unit.x, -1, 1) * TILT_YAW_MAX, pitch: clamp(unit.y, -1, 1) * TILT_PITCH_MAX };
+  const [ym, pm] = source === 'device' ? [DEVICE_YAW_MAX, DEVICE_PITCH_MAX] : [TILT_YAW_MAX, TILT_PITCH_MAX];
+  return { yaw: -clamp(unit.x, -1, 1) * ym, pitch: clamp(unit.y, -1, 1) * pm };
 }
 
 /** Whether a new input differs from the old enough to ask for a frame. */
@@ -169,7 +179,7 @@ export class Tilt {
     const dt = this.last < 0 ? 16 : clamp(now - this.last, 0, 100);
     this.last = now;
     if (reduce || !on) { this.yaw = 0; this.pitch = 0; this.last = -1; return false; }
-    const t = tiltTarget(this.unit, on, reduce, locked);
+    const t = tiltTarget(this.unit, on, reduce, locked, this.source);
     const tau = locked || !this.unit ? TILT_TAU_OUT : TILT_TAU_IN;
     const k = 1 - Math.exp(-dt / tau);
     this.yaw += (t.yaw - this.yaw) * k;

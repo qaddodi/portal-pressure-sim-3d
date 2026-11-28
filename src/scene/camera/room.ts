@@ -1,5 +1,5 @@
 import { FOV, NARROW_STAGE, type Shot } from './shots.ts';
-import { TILT_PITCH_MAX, TILT_YAW_MAX } from './tilt.ts';
+import { DEVICE_PITCH_MAX, DEVICE_YAW_MAX } from './tilt.ts';
 
 // Room first (look-and-feel.md section 8): the cards take their room, then the camera frames the subject in the free room left over,
 // by shifting the projection centre. The art is never squeezed and the camera never fights the cards.
@@ -52,11 +52,11 @@ export function keepDistance(shot: Pick<Shot, 'target' | 'keep'> & Partial<Pick<
     if (dx > 0) d = Math.max(d, (dx * perPx) / Math.max(room.w / 2 - KEEP_PX, 1));
     if (dy > 0) d = Math.max(d, (dy * perPx) / Math.max(room.h / 2 - KEEP_PX, 1));
   }
-  // the gentle tilt (tilt.ts; on slides too, 28 Nov) turns the camera about the aim by up to 3.5 degrees across and 2.5 up and down, which moves a station
+  // the gentle tilt (tilt.ts; on slides too, 28 Nov) turns the camera about the aim by up to 5 degrees across and 3.5 up and down, which moves a station
   // that stands off the aim's depth: the room keeps the air for the worst corner of the tilt
   // (the least distance, found by halving between this one and a quarter further, at which every kept point still stands KEEP_PX inside the room at every corner)
   if (d > 0) {
-    const ok = (dist: number, p: readonly number[]) => TILT_TURNS.every(([a, b]) => tiltedMargin(shot, p, room, perPx, dist, a * TILT_YAW_MAX, b * TILT_PITCH_MAX) >= KEEP_PX);
+    const ok = (dist: number, p: readonly number[]) => TILT_TURNS.every(([a, b]) => tiltedMargin(shot, p, room, perPx, dist, a * DEVICE_YAW_MAX, b * DEVICE_PITCH_MAX) >= KEEP_PX);
     let need = d;
     for (const p of shot.keep!) {
       if (ok(need, p)) continue;

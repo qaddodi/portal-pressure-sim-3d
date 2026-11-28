@@ -1,5 +1,5 @@
 // Tilt parallax (docs/approved/tilt-parallax.md, 28 Nov 2026): on a phone or tablet the figure turns the OPPOSITE way to the device, as if it stayed where it is behind the glass.
-// Node only: the camera rig, the quaternion reading and a fake window; the picks are 1a (every body view, slides too), 2a (iOS asks on the first tap), 3a (3.5 degrees by 2.5).
+// Node only: the camera rig, the quaternion reading and a fake window; the picks are 1a (every body view, slides too), 2a (iOS asks on the first tap), 3a (3a, since made stronger: 5 degrees by 3.5 for the device).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -7,7 +7,7 @@ import { Vector3 } from 'three';
 import { CameraRig } from '../src/scene/camera/rig.ts';
 import { fullRoom } from '../src/scene/camera/room.ts';
 import { installTilt, TURN_HOLD_MS } from '../src/scene/camera/tilt-input.ts';
-import { DEVICE_BASE_TAU, DEVICE_DEAD, DEVICE_RANGE, DeviceBase, TILT_PITCH_MAX, TILT_YAW_MAX, deviceQuat, deviceUnit, screenTurn, turnBetween, wakeStep } from '../src/scene/camera/tilt.ts';
+import { DEVICE_CAP_DEG, DEVICE_BASE_TAU, DEVICE_DEAD, DEVICE_RANGE, DeviceBase, DEVICE_PITCH_MAX, DEVICE_YAW_MAX, deviceQuat, deviceUnit, screenTurn, turnBetween, wakeStep } from '../src/scene/camera/tilt.ts';
 
 const deg = (r: number) => (r * 180) / Math.PI;
 type Q = readonly [number, number, number, number];
@@ -29,8 +29,8 @@ const frontAndBack = (rig: CameraRig) => {
   return { front: rig.project(new Vector3(t[0], t[1], t[2] + 0.3)), back: rig.project(new Vector3(t[0], t[1], t[2] - 0.3)) };
 };
 
-test('the limits are the owner\'s 3.5 degrees side to side and 2.5 up and down (pick 3a)', () => {
-  assert.ok(Math.abs(deg(TILT_YAW_MAX) - 3.5) < 1e-9 && Math.abs(deg(TILT_PITCH_MAX) - 2.5) < 1e-9);
+test('the device turns the figure 1:1 with its own turn (a window, owner 28 Nov) up to the cap, and the pointer keeps 3.5 and 2.5', () => {
+  assert.ok(Math.abs(deg(DEVICE_YAW_MAX) - DEVICE_CAP_DEG) < 1e-9 && Math.abs(deg(DEVICE_PITCH_MAX) - DEVICE_CAP_DEG) < 1e-9);
 });
 
 test('direction: the figure holds still against the turn of the device, on each of the four screen turns and for a phone held upright or flat', () => {
@@ -61,9 +61,9 @@ test('direction: the figure holds still against the turn of the device, on each 
   }
 });
 
-test('the figure turns by a quarter of a big turn at most: 3.5 degrees side to side and 2.5 up and down, never more', () => {
+test('the figure turns by exactly the device\'s own turn past the dead zone, up to the cap and never more', () => {
   const rig = rigAt(open); rig.tilt.set(deviceUnit(-90, 90), 'device'); settle(rig);
-  assert.ok(Math.abs(rig.tilt.yaw - TILT_YAW_MAX) < 1e-9 && Math.abs(rig.tilt.pitch - TILT_PITCH_MAX) < 1e-9, `${rig.tilt.yaw} ${rig.tilt.pitch}`);
+  assert.ok(Math.abs(rig.tilt.yaw - DEVICE_YAW_MAX) < 1e-9 && Math.abs(rig.tilt.pitch - DEVICE_PITCH_MAX) < 1e-9, `${rig.tilt.yaw} ${rig.tilt.pitch}`);
   assert.deepEqual(deviceUnit(0, DEVICE_DEAD * 0.9), { x: 0, y: 0 });
   assert.equal(deviceUnit(0, DEVICE_RANGE + DEVICE_DEAD).x, -1);
   const soft = deviceUnit(0, DEVICE_DEAD + 0.01).x;   // (no jump at the edge of the dead zone)
@@ -230,4 +230,21 @@ test('the wake step is half a pixel of the figure\'s largest move, and the Stage
   const stage = readFileSync('src/scene/Stage.tsx', 'utf8');
   const gate = stage.match(/rig\.tiltGate = \{[^\n]*\};/)![0];
   assert.ok(/locked: \(\) => [^,}]*/.test(gate) && !/locked: \(\) => [^,]*talkOn/.test(gate) && /pointerLocked: \(\) => talkOn\(\)/.test(gate), gate);
+});
+
+test('worked example, portrait and both landscapes: tipping the screen\'s top edge away raises the camera so he sees more of the figure\'s top, and tipping its right edge away moves the camera right so he sees more of its right side (a window)', () => {
+  for (const angle of [0, 90, 270]) {
+    const ax = screenAxes(angle), q0 = deviceQuat(15, 65, 2), rest = rigAt(open).camera.position.clone();
+    const b = new DeviceBase(); b.readQuat(q0, 0);
+    // the top edge goes away by 10 degrees: the screen's x axis turned the negative way
+    const t = turnOf(b, mul(q0, axisQuat(ax.x[0], ax.x[1], 0, -10)), angle);
+    assert.ok(t.top < -9.9, `screen turn ${angle}: top ${t.top}`);
+    const rig = rigAt(open); rig.tilt.set(deviceUnit(t.top, t.right), 'device'); settle(rig);
+    assert.ok(rig.camera.position.y > rest.y + 0.01 && Math.abs(rig.camera.position.x - rest.x) < 1e-6, `screen turn ${angle}: the camera rises`);
+    // the right edge goes away by 10 degrees
+    const b2 = new DeviceBase(); b2.readQuat(q0, 0);
+    const r = turnOf(b2, mul(q0, axisQuat(ax.y[0], ax.y[1], 0, 10)), angle);
+    const rig2 = rigAt(open); rig2.tilt.set(deviceUnit(r.top, r.right), 'device'); settle(rig2);
+    assert.ok(rig2.camera.position.x > rest.x + 0.01 && Math.abs(rig2.camera.position.y - rest.y) < 1e-6, `screen turn ${angle}: the camera moves right`);
+  }
 });
