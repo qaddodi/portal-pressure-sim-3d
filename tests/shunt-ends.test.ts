@@ -32,7 +32,7 @@ test('the share of its width a shunt narrows to is the host\'s caliber, 0.4 at t
   assert.equal(endShare({ ...e, hostR: 1 }, 0.02), 1);
 });
 
-test('the tube narrows toward the end inside its host, and flares in front of the wall', () => {
+test('the tube narrows toward the end inside its host, and its heel never stands wider than the host', () => {
   const v = byId.get('S_DSR')!, cs = coursesOf(v, REST), c = cs[0]!;
   assert.ok(c.sewn, 'the course carries its sewn ends');
   const plain = { ...c, sewn: undefined, taper: undefined }, sewn = { ...c, taper: undefined };
@@ -40,9 +40,8 @@ test('the tube narrows toward the end inside its host, and flares in front of th
   const p = rk(plain), s = rk(sewn), n = p.run.tubular, ring = p.run.radial + 1;
   const at = (g: ReturnType<typeof rk>, k: number) => g.a.getX(g.run.tubeStart + k * ring);
   assert.ok(at(s, n) < at(p, n), 'the end inside the renal vein is narrower than the plain tube');
-  let flared = 0;
-  for (let k = 0; k <= n; k++) if (at(s, k) > at(p, k) * 1.01) flared++;
-  assert.ok(flared > 0, 'its heel is wider in front of the wall');
+  // (28 Nov, Mohammad: a shunt draws 1x its vein or less, docs/approved/shunt-width.md: the renal end's heel flare is cut at the renal vein's width, and the shunt is wider than it, so the heel no longer stands past the plain tube)
+  for (let k = 0; k <= n; k++) assert.ok(at(s, k) <= Math.max(at(p, k), c.sewn![1]!.hostR / v.radius) + 1e-6, `ring ${k}: the heel is no wider than the plain tube or the renal vein`);
 });
 
 test('a path made at run time (a custom shunt of the Circuit) is sewn at each end that lands on one of its hosts', () => {

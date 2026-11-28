@@ -4,6 +4,8 @@
 // liver's beds fixed, the arteries half, the cava three quarters, with the few named exceptions), in the same units, so it is the same width on the plate.
 import { Vector3 } from 'three';
 import { drawnDiameter } from '../../engine/tract-override.ts';
+import { registerShuntCaps, type ShuntCap } from '../../engine/shunt-source.ts';
+import { widthSwell } from './live-width.ts';
 import { EDGES, JUNCTION_PIECES, PART_OF, PORTAL_TERRITORY, dMinOf } from '../../engine/hales/portal/topology.js';
 import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D as TODAY_PATH_2D, HIDDEN_EDGES, IVC_EDGES, NEEDS_C3 } from '../anatomy/source.ts';
 import { PLACED_EDGE_3D, PLACED_NODE_3D, PLACED_PATH_2D, PLACED_Z, WHOLE_PIECES, wholeOf } from '../anatomy/placed-network.ts';
@@ -321,6 +323,20 @@ export const MAPPED: readonly NetVessel[] = NETWORK.filter((v) => !v.feeder);
   }
 }
 export const NETWORK_BY_ID: ReadonlyMap<string, NetVessel> = new Map(NETWORK.map((v) => [v.id, v]));
+
+/** The vein each surgical shunt is made from, as drawn (Mohammad, 28 Nov: every shunt "should draw 1x or less" its origin vein). */
+export const SHUNT_ORIGIN: Readonly<Record<string, string>> = { S_PC: 'PV_TRUNK_1', S_MC: 'SMV_CONF', S_DSR: 'SV_MID', REX: 'SMV_CONF' };
+{
+  const caps = new Map<string, ShuntCap>();
+  for (const [id, from] of Object.entries(SHUNT_ORIGIN)) {
+    const v = NETWORK_BY_ID.get(id), o = NETWORK_BY_ID.get(from);
+    if (!v || !o) continue;
+    // (the shunt's swell that makes its drawn radius the origin vein's, then the diameter that swell is: the 2D width rule 1.3 * max(2.6, 2 d^0.72) inverted; never under the rule's floor)
+    const w0 = 1.3 * Math.max(2.6, 2 * Math.pow(v.baseD, 0.72));
+    caps.set(id, { source: o.lensId, capD: (dSrc) => { const w1 = w0 * (o.radius * widthSwell(o.widthKind, o.baseD, dSrc)) / v.radius; return Math.pow(Math.max(w1, 1.3 * 2.6) / 2.6, 1 / 0.72); } });
+  }
+  registerShuntCaps(caps);
+}
 /** Edge IDs the anatomy draws as vessels: what a parity row counts. */
 export const DRAWN_EDGE_IDS: readonly string[] = edges.filter(isDrawnEdge).map((e) => e.id);
 /** Drawn only once the paraumbilical collateral has opened (the 2D rule). */

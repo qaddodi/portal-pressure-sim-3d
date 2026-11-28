@@ -8,13 +8,13 @@
 // Node only. Run: node --test tests/shunt-size-join.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
+import { NETWORK_BY_ID, SHUNT_ORIGIN } from '../src/scene/vessels/network.ts';
 import { widthSwell } from '../src/scene/vessels/live-width.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { buildTubes } from '../src/scene/vessels/tubes.ts';
 import { shuntEnds } from '../src/scene/vessels/shunt-ends.ts';
 import { EDGES } from '../src/engine/hales/portal/topology.js';
-import { drawnShuntD, SHUNT_SOURCE } from '../src/engine/shunt-source.ts';
+import { drawnShuntD, cappedShuntIds } from '../src/engine/shunt-source.ts';
 import { EDGE_COUNT, EDGE_IDS, fillVesselData, indexOf } from '../src/engine/vessel-data.ts';
 
 /** The engine's rest diameters of the vein each shunt leaves and of the shunt, mm (topology.js), and the swell a shunt is drawn at (the texture's diameter against the one it was built at). */
@@ -28,20 +28,17 @@ function endPeaks(id: string): [number, number] {
   for (let k = 0; k <= n; k++) { const r = a.getX(run.tubeStart + k * ring) * v.radius * swellOf(id); if (k < n * 0.3) m[0] = Math.max(m[0], r); if (k > n * 0.7) m[1] = Math.max(m[1], r); }
   return m;
 }
-/** The measured ceilings (peak / host radius at an end, tube radius / source vein radius) of the shunts the complaint did not name: the ratio they had on 28 Nov, never more. */
-const END_CEIL: Record<string, readonly [number, number]> = { S_PC: [1, 1.04], S_MC: [1.25, 1.01], S_DSR: [1.1, 1.25], REX: [1.25, 1.01], TIPS: [1.01, 1.01], DIPS: [1, 1] };
-const SIZE_CEIL: Record<string, number> = { S_PC: 1, S_MC: 1.45, S_DSR: 1.1, REX: 1.24 };
-/** The vein each surgical shunt leaves (the widest vein at its from-node). */
-const SOURCE_VEIN: Record<string, string> = { S_PC: 'PV_TRUNK_1', S_MC: 'SMV_CONF', S_DSR: 'SV_MID', REX: 'SMV_CONF' };
+/** The ceilings on peak / host radius at each end of every shunt: 1 (the host's own width) at the far end of a stent's body is allowed to the 4 % the sewn cap leaves. */
+const END_CEIL: Record<string, readonly [number, number]> = { S_PC: [1.001, 1.04], S_MC: [1.001, 1.04], S_DSR: [1.001, 1.04], REX: [1.001, 1.04], TIPS: [1.01, 1.01], DIPS: [1, 1] };
 
-test('every surgical shunt is drawn no wider than ITS ceiling against the vein it leaves; the portocaval shunt no wider than the portal trunk', () => {
-  for (const id of Object.keys(SIZE_CEIL)) {
-    const v = NETWORK_BY_ID.get(id)!, src = NETWORK_BY_ID.get(SOURCE_VEIN[id]!)!;
-    const drawn = v.radius * swellOf(id);
-    assert.ok(drawn / src.radius <= SIZE_CEIL[id]! + 1e-9, `${id} is drawn ${(drawn / src.radius).toFixed(3)} times ${src.id}`);
+test('every surgical shunt is drawn at 1x its origin vein\'s width or less (Mohammad, 28 Nov), with the engine\'s own rest diameters', () => {
+  assert.deepEqual(Object.keys(SHUNT_ORIGIN).sort(), ['REX', 'S_DSR', 'S_MC', 'S_PC'], 'every surgical shunt has an origin vein');
+  assert.deepEqual(cappedShuntIds().sort(), ['REX', 'S_DSR', 'S_MC', 'S_PC']);
+  for (const [id, from] of Object.entries(SHUNT_ORIGIN)) {
+    const v = NETWORK_BY_ID.get(id)!, o = NETWORK_BY_ID.get(from)!;
+    const drawn = v.radius * swellOf(id), origin = o.radius * widthSwell(o.widthKind, o.baseD, dNow(o.lensId));
+    assert.ok(drawn <= origin * 1.001, `${id} is drawn ${(drawn / origin).toFixed(3)} times ${from}`);
   }
-  const pc = NETWORK_BY_ID.get('S_PC')!;
-  assert.ok(pc.radius * swellOf('S_PC') <= NETWORK_BY_ID.get('PV_TRUNK_1')!.radius * swellOf('PV_TRUNK_1') + 1e-6, 'S_PC against the portal trunk (it was drawn 1.12 times as wide)');
 });
 
 test('every shunt\'s sewn ends stand no wider than the host\'s width (to its ceiling), the portocaval heel no wider than the cava', () => {
@@ -59,17 +56,16 @@ test('every shunt\'s sewn ends stand no wider than the host\'s width (to its cei
 });
 
 test('the drawn width: a shunt reads the smaller of its own and its source vein\'s engine diameter, in the texture and for the clots', () => {
-  assert.deepEqual(Object.keys(SHUNT_SOURCE), ['S_PC']);
-  const dOf = (m: Record<string, number>) => (e: string) => m[e];
-  assert.equal(drawnShuntD('S_PC', 14, dOf({ PV_TRUNK: 12 })), 12);
-  assert.equal(drawnShuntD('S_PC', 14, dOf({ PV_TRUNK: 16 })), 14);
+    const dOf = (m: Record<string, number>) => (e: string) => m[e];
+  assert.equal(drawnShuntD('S_PC', 14, dOf({ PV_TRUNK_1: 12 })), 12);
+  assert.equal(drawnShuntD('S_PC', 14, dOf({ PV_TRUNK_1: 16 })), 14, 'a wider trunk leaves the shunt as it is');
   assert.equal(drawnShuntD('S_PC', 14, dOf({})), 14);
-  assert.equal(drawnShuntD('S_MC', 10, dOf({ PV_TRUNK: 3 })), 10, 'a shunt with no source row keeps its diameter');
+  assert.equal(drawnShuntD('TIPS', 8, dOf({ PV_TRUNK_1: 3 })), 8, 'a vessel with no rule keeps its diameter');
   const f = { Pf: new Float32Array(64), Qf: new Float32Array(EDGE_COUNT), D: new Float32Array(EDGE_COUNT) };
-  f.D[indexOf('S_PC')] = 14; f.D[indexOf('PV_TRUNK')] = 12; f.D[indexOf('S_MC')] = 10;
+  for (const e of EDGES as { id: string; d?: number }[]) f.D[indexOf(e.id)] = e.d ?? 0;
   const out = fillVesselData(f as never, new Float32Array(EDGE_COUNT * 4));
   assert.equal(out[indexOf('S_PC') * 4 + 2], 12, 'the texture draws S_PC at the trunk\'s width');
-  assert.equal(out[indexOf('S_MC') * 4 + 2], 10);
+  assert.equal(out[indexOf('S_MC') * 4 + 2], 6, 'the mesocaval shunt is drawn at the mesenteric vein\'s drawn calibre (6 mm\'s)');
   assert.equal(out[indexOf('PV_TRUNK') * 4 + 2], 12, 'the source itself is untouched');
   assert.ok(EDGE_IDS.includes('S_PC'));
 });
