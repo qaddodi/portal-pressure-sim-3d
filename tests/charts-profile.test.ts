@@ -20,8 +20,9 @@ const r1 = (v: number) => +v.toFixed(1);
 test('the stations and the profile the engine gives: the same eight pressures and gradients the 2D tool reads', async () => {
   assert.deepEqual(STATIONS, ['INT', 'CONF', 'RPV', 'SIN_R', 'CV_R', 'RHV', 'IVCS', 'RA']);
   const csph = profileOf(await fpOf('csph'))!;
-  assert.deepEqual(csph.v.map(r1), [20.8, 17.6, 17.3, 16.2, 6.3, 5.1, 4.6, 4]);
-  assert.deepEqual([r1(csph.hvpg), r1(csph.eus), r1(csph.ppg)], [11.1, 12.2, 13]);
+  // (INT 20.7 and IVCS 4.5 since the engine's junction table: 20.8 and 4.6 before; the csph fingerprint is re-recorded with the pin)
+  assert.deepEqual(csph.v.map(r1), [20.7, 17.6, 17.3, 16.2, 6.3, 5.1, 4.5, 4]);
+  assert.deepEqual([r1(csph.hvpg), r1(csph.eus), r1(csph.ppg)], [11.1, 12.2, 13.1]);
   // the sinusoid's reading is the wedged pressure (the tiles' own number), the central vein's the node's
   const fp = await fpOf('csph');
   assert.equal(csph.v[3], fp.whvp);

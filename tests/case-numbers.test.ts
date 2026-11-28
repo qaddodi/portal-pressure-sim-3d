@@ -72,7 +72,7 @@ test('the ascites balance at a stop is the course\'s day-scale trend: one number
   const { story, asc } = caseOf(tl, b.days, h, () => new Map());
   const last = story.full[1], r20 = dayRate(asc, 20, last)!;
   assert.ok(r20 < -100 && r20 > -1000, `diuretics at day 20 take the belly down at a day's pace (${Math.round(r20)} mL/day)`);
-  assert.equal(Math.round(r20), -336, 'the baked 6.138 L to 5.802 L');
+  assert.equal(Math.round(r20), -340, 'the baked 6.068 L to 5.728 L (6.138 to 5.802 before the engine placed the take-offs on the junction table)');
   assert.equal(dayRate(asc, 20, last), r20, 'the same each time');
   // (the last day has none after it: the day before)
   assert.equal(dayRate(asc, last, last), dayRate(asc, last - 1, last), 'the last day reads the day before it');
