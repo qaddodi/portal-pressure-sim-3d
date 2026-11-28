@@ -7,6 +7,7 @@ interface W { id: string; why: string; re: RegExp }
 export const WORDING: readonly W[] = [
   { id: 'wording-em-dash', why: 'No em-dash in learner text (owner); a lone dash standing for an empty table value is a placeholder, not text', re: /—/ },
   { id: 'wording-older-baveno', why: 'The guideline is Baveno VIII only, never VII (owner, 18 Nov 2026)', re: /Baveno\s*(VII\b(?!I)|7\b|V\b|VI\b)/ },
+  { id: 'wording-guideline-file', why: 'A remark about the authoring source files ("guideline file") is no teaching (production review 28 Nov, P-24)', re: /guideline files?\b/i },
   { id: 'wording-british', why: 'American spelling (US physicians)', re: /\b(oesophag\w*|haemorrhag\w*|anaemi\w*|oedema|colour\w*|programme)\b/i },
   { id: 'wording-no-number', why: 'A value that was never worked out never reaches the page (production)', re: /\b(NaN|undefined|Infinity)\b/ },
   { id: 'wording-open-token', why: 'A {token} the page did not fill never reaches the page (production)', re: /\{[a-z>=<:0-9 ]*\}/i },

@@ -97,3 +97,16 @@ test('the chart gallery and the flowcharts carry no AASLD chart: Baveno VIII is 
   assert.deepEqual(CATALOG.filter((e) => /aasld/i.test(JSON.stringify(e))).map((e) => e.id), []);
   assert.ok(!('aasld' in (ALGOS as Record<string, unknown>)), 'no aasld flowchart');
 });
+
+test('speaker notes never cite an older Baveno report, never speak of a "guideline file", and never repeat a sentence (production review 28 Nov, P-22, P-24, P-28)', () => {
+  const notes: { at: string; text: string }[] = [];
+  for (const { id, deck } of DECKS) walk(deck, id, [], notes);
+  const bad: string[] = [];
+  for (const { at, text } of notes) {
+    if (/Baveno (?:IV|V|VI|VII)\b/.test(text)) bad.push(`${at}: older Baveno`);
+    if (/guideline files?\b/i.test(text)) bad.push(`${at}: guideline file`);
+    const seen = new Set<string>();
+    for (const s of text.split(/(?<=[.!?])\s+/).map((x) => x.trim()).filter((x) => x.length > 40)) { if (seen.has(s)) bad.push(`${at}: repeats "${s.slice(0, 60)}"`); seen.add(s); }
+  }
+  assert.deepEqual(bad, []);
+});

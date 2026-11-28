@@ -9,6 +9,7 @@
 //   { set }       replaces the whole field          { drop: true } removes the field          { append } adds a sentence to the end of the field
 import { RIGHTS } from './credit.mjs';
 import { REVIEW_28NOV } from './review-28nov-edits.mjs';
+import { NOTES_WORDING_28NOV } from './notes-wording-28nov-edits.mjs';
 const P = (deck, at, from, to) => ({ deck, at, from, to });
 const SET = (deck, at, set) => ({ deck, at, set });
 const DROP = (deck, at) => ({ deck, at, drop: true });
@@ -731,6 +732,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_3531BDFA_W,
   ...HVPG_PPG_AFTER_EUS_27NOV,
   ...REVIEW_28NOV,
+  ...NOTES_WORDING_28NOV,
 ];
 
 function step(node, key) {
