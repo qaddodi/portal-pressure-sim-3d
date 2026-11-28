@@ -196,7 +196,8 @@ function crowdOn(pa: SkinPlan, pb: SkinPlan, tubes: ReadonlyMap<string, ArmTube>
 /** A wall's side cut `wc` may stand on the other skin's cut `oc` (the wall's seam only moves AWAY from its centre, never nearer): the two skins then abut on that ring. */
 const canAbut = (wc: SkinCut, oc: SkinCut): boolean => wc.side !== undefined && (wc.end === 1 ? oc.ring <= wc.ring : oc.ring >= wc.ring);
 
-/** The plans of `js` and, while a merged skin and another still crowd on a vessel (a third node on the same stretch: the cava's IVCI between IVC_M and IVC_P, 6.5 radii either side), the plans again with the merged skins as the junctions: one skin for the whole stretch.
+/** The plans of `js` and, while a merged skin and another still crowd on a vessel (a third node on the same stretch: the cava's IVCI between IVC_M and IVC_P,
+ *  6.5 radii either side), the plans again with the merged skins as the junctions: one skin for the whole stretch.
  *  A second pass that fails anywhere is dropped, the first stands. */
 export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>, hullFor: (j: SkinJunction) => HullOk, minBetween: number = MIN_RINGS_BETWEEN): SkinPlans {
   const joined = joinUncuttable(js, tubes, hullFor);
@@ -211,17 +212,24 @@ export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string
   return res;
 }
 /**
- * A junction no seam can be found for ON ITS OWN, because a vessel it shares with a neighbour is too short to hold its ring (IVC_C and IVC_P on the cava, 0.056 apart: 2 radii of tube between them), is one skin with that neighbour from the start: the two are joined
+ * A junction no seam can be found for ON ITS OWN, because a vessel it shares with a neighbour is too short to hold its ring (IVC_C and IVC_P on the cava,
+ * 0.056 apart: 2 radii of tube between them), is one skin with that neighbour from the start: the two are joined
  * on the shared vessel (hidden whole), and the joined junction is judged the same way, until every junction can be cut or has no neighbour to join. `carry` is the vessels each joined junction hides.
  */
-function joinUncuttable(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>, hullFor: (j: SkinJunction) => HullOk): { js: SkinJunction[]; carry: Map<string, string[]> } {
+function joinUncuttable(
+  js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>, hullFor: (j: SkinJunction) => HullOk,
+): { js: SkinJunction[]; carry: Map<string, string[]> } {
   let cur = [...js];
   const carry = new Map<string, string[]>();
   for (let guard = 0; guard < 8; guard++) {
     let joined = false;
     for (const j of cur) {
       let blamed: string | null = null;
-      try { chooseCuts(j, tubes, hullFor(j)); } catch (e) { if (!(e instanceof SkinBuildError)) throw e; const m = /^(\S+) has no ring/.exec(e.message.replace(/^.*?: junction \S+: /, '')); blamed = m ? m[1]! : null; }
+      try { chooseCuts(j, tubes, hullFor(j)); } catch (e) {
+        if (!(e instanceof SkinBuildError)) throw e;
+        const m = /^(\S+) has no ring/.exec(e.message.replace(/^.*?: junction \S+: /, ''));
+        blamed = m ? m[1]! : null;
+      }
       if (!blamed) continue;
       const mine = j.arms.find((a) => a.vesselId === blamed && !a.grow);
       const other = cur.find((q) => q !== j && q.arms.some((b) => b.vesselId === blamed && !b.grow && mine && b.end !== mine.end));
@@ -243,7 +251,9 @@ function joinUncuttable(js: readonly SkinJunction[], tubes: ReadonlyMap<string, 
   return { js: cur, carry };
 }
 /** One pass of planSkins; `carry` holds the vessels each junction (a merged skin from an earlier pass) already hides whole. */
-function planPass(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>, hullFor: (j: SkinJunction) => HullOk, minBetween: number, carry: ReadonlyMap<string, readonly string[]>): SkinPlans {
+function planPass(
+  js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTube>, hullFor: (j: SkinJunction) => HullOk, minBetween: number, carry: ReadonlyMap<string, readonly string[]>,
+): SkinPlans {
   const failures: SkinBuildError[] = [], dropped: SkinPlans['dropped'] = [];
   const attempt = (j: SkinJunction): SkinPlan | null => {
     try { return { junction: j, cuts: chooseCuts(j, tubes, hullFor(j)), hidden: [...(carry.get(j.node) ?? [])] }; }
@@ -317,13 +327,17 @@ function planPass(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTub
         // (a cluster of junctions down ONE vein (the left portal vein's umbilical and Meso-Rex landings, a piece apart) merges to the vein's two outer pieces,
         //  a run-on pair, with the growers that land on it: as findSkinJunctions says of a single node, two permanent arms are a skin when a growing arm lands on them,
         //  and with the growers closed it is the run-on, the vein's trunk)
-        if (permanent > MERGED_MAX_PERMANENT || permanent < (arms.length > permanent ? MIN_RUN_ON_ARMS : 3) || arms.length > MERGED_MAX_ARMS) { failures.push(new SkinBuildError(node, `${permanent} permanent arms and ${arms.length - permanent} growing ones after the merge (3 to ${MERGED_MAX_PERMANENT} permanent, or 2 with a growing arm on them; at most ${MERGED_MAX_ARMS} in all)`)); break; }
+        if (permanent > MERGED_MAX_PERMANENT || permanent < (arms.length > permanent ? MIN_RUN_ON_ARMS : 3) || arms.length > MERGED_MAX_ARMS) {
+          failures.push(new SkinBuildError(node, `${permanent} permanent arms and ${arms.length - permanent} growing ones after the merge (3 to ${MERGED_MAX_PERMANENT} permanent, or 2 with a growing arm on them; at most ${MERGED_MAX_ARMS} in all)`));
+          break;
+        }
         // (J is the mean of the nodes' centres, a skin already merged counting once for each node it is made of)
         const na = A.node.split('+').length, nb = B.node.split('+').length;
         const J: Vec3 = [(A.J[0] * na + B.J[0] * nb) / (na + nb), (A.J[1] * na + B.J[1] * nb) / (na + nb), (A.J[2] * na + B.J[2] * nb) / (na + nb)];
         // (a node retried meshed from the surface (skin-set.ts produce) keeps that in the merge: the hull of the rings is what failed for it)
         const mj: SkinJunction = { node, J, arms, ...(A.surface || B.surface ? { surface: true } : {}) };
-        try { out.push({ junction: mj, cuts: chooseCuts(mj, tubes, hullFor(mj)), hidden: [ca.vesselId, ...(carry.get(A.node) ?? []), ...(carry.get(B.node) ?? [])], merged: [...A.node.split('+'), ...B.node.split('+')] }); }
+        const hid = [ca.vesselId, ...(carry.get(A.node) ?? []), ...(carry.get(B.node) ?? [])];
+        try { out.push({ junction: mj, cuts: chooseCuts(mj, tubes, hullFor(mj)), hidden: hid, merged: [...A.node.split('+'), ...B.node.split('+')] }); }
         catch (e) { if (e instanceof SkinBuildError) failures.push(e); else throw e; }
       }
     }
