@@ -6,6 +6,7 @@
 import { Vector3 } from 'three';
 import { JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
 import { indexOf } from '../../engine/vessel-data.ts';
+import { drawnShuntD } from '../../engine/shunt-source.ts';
 import { NETWORK_BY_ID } from '../vessels/network.ts';
 import { centrelineOf } from '../vessels/centreline.ts';
 import { vesselAlphaAt } from '../vessels/fade-alpha.ts';
@@ -87,7 +88,7 @@ export function drawnHost(id: string): Host | null {
 /** Each piece's live swell (its drawn width over the width it was built at) for the engine's diameters `D` (per edge, mm); 1 each where `D` is not known. */
 export type Swells = number[] & { /** the swell of the cava piece a vein that opens into the cava meets (1 for any other vein) */ cava?: number };
 export function swellsOf(h: Host, D: ArrayLike<number> | null | undefined): Swells {
-  const out: Swells = h.pieces.map((p) => widthSwell(p.widthKind, p.baseD, D ? D[p.lens] : undefined));
+  const out: Swells = h.pieces.map((p) => widthSwell(p.widthKind, p.baseD, D ? drawnShuntD(p.id, D[p.lens], (e) => D[indexOf(e)]) : undefined));
   const last = h.pieces[h.pieces.length - 1], om = last ? ostiumHostOf(last.id) : null, cm = om ? NETWORK_BY_ID.get(om) : undefined;
   if (cm) out.cava = widthSwell(cm.widthKind, cm.baseD, D ? D[indexOf(cm.lensId)] : undefined);
   return out;

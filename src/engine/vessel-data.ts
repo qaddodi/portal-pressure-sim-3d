@@ -14,6 +14,7 @@ import type { EngineFrame } from './hales/host/protocol.d.ts';
 import { easeInOutCubic } from '../clock/tween.ts';
 
 import { clock } from '../clock/frame.ts';
+import { SHUNT_SOURCE, drawnShuntD } from './shunt-source.ts';
 import { drawnDiameterIds, drawnDiameterVersion, drawnWidthD, hasDrawnDiameters } from './tract-override.ts';
 interface Edge { id: string; from: string; to: string }
 const edges = EDGES as Edge[];
@@ -44,6 +45,8 @@ export function fillVesselData(f: Pick<EngineFrame, 'Pf' | 'Qf' | 'D'>, out: Flo
     out[i * 4 + 2] = f.D[i]!;
     out[i * 4 + 3] = b >= 0 ? f.Pf[b]! : 0;
   }
+  // a surgical shunt is drawn no wider than the vein it leaves (shunt-source.ts)
+  for (const id of Object.keys(SHUNT_SOURCE)) { const k = indexById.get(id); if (k !== undefined) out[k * 4 + 2] = drawnShuntD(id, out[k * 4 + 2], (e) => { const j = indexById.get(e); return j === undefined ? undefined : out[j * 4 + 2]; })!; }
   // a vessel a procedure is making is drawn from its own table until the model has it, then at the larger of the two (tract-override.ts)
   if (hasDrawnDiameters()) for (const [id] of drawnDiameterIds()) { const k = indexById.get(id); if (k !== undefined) out[k * 4 + 2] = drawnWidthD(id, out[k * 4 + 2])!; }
   return out;

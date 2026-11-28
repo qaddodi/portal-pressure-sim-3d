@@ -239,6 +239,9 @@ export function* buildTubesSteps(courses: readonly Course[], tubular: readonly n
     // the radius a round cap is built at: the tube's own at that end (the collar's, a buried end's held inside its trunk, a free end's tip); none at an end that carries on
     const capRadius = (end: number): number => {
       let r = open && !c.capless?.[end] ? c.radius * withAlong(c, factorAt(c.taper, end), end) * sewnAt(c.sewn?.[end], end, 0) + collar(end, 0) : HAIR;
+      // (a generated or portocaval end's flare is cut at the host's radius on the rings above, so the cap it closes with is cut there too: the cap stood 1.24 of the tube's width at the portocaval shunt's cava end, a lip round the ring)
+      const sw = c.sewn?.[end];
+      if (open && r > HAIR && sw?.capped && sw.flare && (flareScale(0, sw.hostR) as number) > 1) { const base = c.radius * withAlong(c, factorAt(c.taper, end), end); r = Math.min(r, Math.max(base * narrowAt(sw, 0), sw.hostR)) + collar(end, 0); }
       if (r > HAIR && c.hold?.r0 != null && (end ? c.hold.b : c.hold.a) > 0) r *= c.hold.r0 / c.radius;   // (a held end keeps its rest width: bands do not reach the seam)
       if (open && r > HAIR && c.clamp?.[end]) r = Math.min(r, c.clamp[end]!.max);
       if (open && r > HAIR && c.point?.[end]) r *= TIP_K;

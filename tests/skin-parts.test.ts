@@ -69,8 +69,8 @@ test('G1: the mesh drawn at a patient is the union of the arms that are there: e
         assert.ok(o.max <= (d.node === CAVA ? 3.2 : 2), `${preset} ${d.node} (${d.here}): max ${o.max.toFixed(2)} px off the live union`);
         // the same patient on the welded skin (what was drawn): the whole absent stub stands out of the union
         const was = offUnion(d.full.skin, d.full.swell, d.full.keep);
-        // (the test bites: every part's welded skin stands its absent stub out of the union 5 px or more past the part, and some by more than 10 px at p95; the Rex bypass's stub on the left portal vein's wall is a short one, 9.5 to 9.8 px)
-        assert.ok(was.p95 > o.p95 + 5, `${preset} ${d.node}: the welded skin was ${was.p95.toFixed(1)} px off at p95 against the part's ${o.p95.toFixed(2)} (the test bites)`);
+        // (the test bites: every part's welded skin stands its absent stub out of the union 4 px or more past the part (5 until the portocaval shunt was drawn at the portal trunk's width, 0.89 of what it was: its absent stub on the lower cava is that much slimmer, 4.5 px past the part in Budd-Chiari), and some by more than 10 px at p95; the Rex bypass's stub on the left portal vein's wall is a short one, 9.5 to 9.8 px)
+        assert.ok(was.p95 > o.p95 + 4, `${preset} ${d.node}: the welded skin was ${was.p95.toFixed(1)} px off at p95 against the part's ${o.p95.toFixed(2)} (the test bites)`);
         bite = Math.max(bite, was.p95);
       }
     }

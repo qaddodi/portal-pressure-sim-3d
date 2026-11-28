@@ -93,7 +93,8 @@ test('no bulge: a generated end\'s flare never takes a ring wider than its host 
       if (!x?.capped) return;
       const k = end ? run.tubular : 0;
       // (0.7, not a half: a thin branch is wrapped in the junction's collar, nodes' fillets in network.ts, and the closing narrows its radius PLUS the collar to 0.35. The thinned splenorenal shunt's ring is 0.65 of the splenic vein's radius: well inside its wall)
-      assert.ok(ra.getX(run.tubeStart + k * (run.radial + 1)) * v.radius <= 0.7 * x.hostR, `${v.id} end ${end}: the end ring is closed to under 0.7 of the host's radius, inside its wall`);
+      // (a SINK end, the portocaval shunt's cava end, is not narrowed: its flare is cut at the host's own radius instead, so its end ring and round cap fit inside the cava and never stand past it, tests/shunt-size-join.test.ts)
+      assert.ok(ra.getX(run.tubeStart + k * (run.radial + 1)) * v.radius <= (x.sink ? 1.001 : 0.7) * x.hostR, `${v.id} end ${end}: the end ring is closed to under ${x.sink ? 'the' : '0.7 of the'} host's radius, inside its wall`);
     });
   }
   assert.ok(n > 300);

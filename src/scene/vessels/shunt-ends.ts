@@ -118,7 +118,8 @@ export function shuntEnds(id: string): readonly [ShuntEnd | null, ShuntEnd | nul
     for (const h of row.hosts[i]) r = Math.max(r, NETWORK_BY_ID.get(h)?.radius ?? 0);
     if (!(r > 0)) return null;
     // (only the end inside a host is narrowed further and flared: SIDE_INSIDE, or SINK's own)
-    return { hostR: r, inside: row.inside[i], sink: !!row.sink && i === 1, flare: row.flare && i === 1 && (row.inside[i] || !!row.sink) };
+    // (a sink end's flare never takes the tube wider than the host it is sewn into: the portocaval heel stood 1.25 times the cava's width, a bulge at the join)
+    return { hostR: r, inside: row.inside[i], sink: !!row.sink && i === 1, flare: row.flare && i === 1 && (row.inside[i] || !!row.sink), ...(row.sink && i === 1 ? { capped: true as const } : {}) };
   };
   const a = end(0), b = end(1);
   return a || b ? [a, b] : null;
