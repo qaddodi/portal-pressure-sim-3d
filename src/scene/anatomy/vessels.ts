@@ -3,7 +3,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { ToneKey } from '../palette.ts';
-import { EDGES, JUNCTIONS, JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
+import { EDGES, JUNCTION_ROWS, JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
 
 // Placeholder vessels for the HVPG slice. Every drawn vessel is named by its hales-engine topology edge ID, so the engine-to-mesh map is
 // the name (slice-plan.md section 3). Centrelines run in the direction of flow (edge `from` to edge `to`), so uv.x on the tube is the
@@ -80,8 +80,8 @@ function hostPath(h: HostDef): Vector3[] {
 
 /** Where on its host vein a junction node sits (fraction of the course), from the engine's own table. */
 function junctionAt(node: string): { host: string; at: number } | null {
-  const j = (JUNCTIONS as unknown as [string, string, number][]).find((row) => row[0] === node);
-  return j ? { host: j[1], at: j[2] } : null;
+  const j = JUNCTION_ROWS.find((row) => row.node === node);
+  return j ? { host: j.host, at: j.at } : null;
 }
 
 const hostPaths = new Map<string, CatmullRomCurve3>();

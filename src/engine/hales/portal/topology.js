@@ -185,7 +185,7 @@ const BASE_EDGES = [
   { id: 'AP_L', from: 'HA', to: 'LPV', kind: 'shunt', shunt: 'ap', label: 'Arterioportal shunt (left)' },
 
   // Interventions (off unless enabled)
-  // (The TIPS leaves the right portal vein at RPV_T and drains into the right hepatic vein at RHV_T, near its junction with the cava (JUNCTIONS): the stretch of
+  // (The TIPS leaves the right portal vein at RPV_T and drains into the right hepatic vein at RHV_T, near its junction with the cava (JUNCTION_ROWS): the stretch of
   // hepatic vein from there to the cava is a real piece the TIPS's blood runs through together with the vein's own, so a clot at the hepatic vein's ostium
   // (the piece past RHV_T) cannot be drained round by the TIPS (Budd–Chiari, 17 Nov 2026), and the stent's tract term (stent-geom.js) holds the stent only.)
   { id: 'TIPS', from: 'RPV', to: 'RHV', kind: 'shunt', shunt: 'tips', len: 8, label: 'TIPS' },
@@ -204,11 +204,10 @@ const BASE_EDGES = [
 ];
 
 // ── Junctions: the table is junctions.js (JUNCTION_ROWS); the graph below is the base graph cut at its rows, built once ──────────────────────────────────────────
+export { JUNCTION_ROWS };
 const cut = cutGraph(BASE_NODES, BASE_EDGES, JUNCTION_ROWS);
 export const NODES = cut.nodes;
 export const EDGES = cut.edges;
-/** The table's rows as tuples [node, host, at, label, ends]: the shape the app's readers had before the rows were objects (they move to JUNCTION_ROWS; this view goes when none is left). */
-export const JUNCTIONS = JUNCTION_ROWS.map((r) => /** @type {const} */ ([r.node, r.host, r.at, r.label, r.ends]));
 /** The ids of the pieces a host is cut into, from its `from` end, for each host that is cut (a vein that is whole is not a key). */
 export const JUNCTION_PIECES = cut.pieces;
 /** For a piece: its host's id (a vein cut in pieces is one vein: a name given to it reaches every piece, and its clot or narrowing is read on it). */

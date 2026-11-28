@@ -1,5 +1,5 @@
 // Where the Circuit's map cuts each vein, and where each collateral, shunt and tributary joins it: read from the engine's junction table
-// (topology.js JUNCTIONS and JUNCTION_PIECES), not copied piece by piece from the retired 2D app (27 Nov, Brief C of docs/real-junctions:
+// (topology.js JUNCTION_ROWS and JUNCTION_PIECES), not copied piece by piece from the retired 2D app (27 Nov, Brief C of docs/real-junctions:
 // "where a vessel meets another is defined twice", and a new row in the table had no map course, so build() threw).
 //
 // The rule, from first principles. A vein that something joins part-way along is ONE vein on the map: its whole course (the copy's pieces of it
@@ -14,16 +14,13 @@
 // to the table and the map still builds.
 import { CIRCUIT_D, JUNCTION_CIRCUIT } from './data.copied.ts';
 import { courseOf, cumulative, type Pt } from './paths.ts';
-import { JUNCTIONS, JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
+import { JUNCTION_ROWS, JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
+import type { JunctionRow } from '../../engine/hales/portal/junctions.js';
 import { route as routeText } from './router.copied.js';
 
 type P = [number, number];
-/** One row of the engine's table: [node, host edge, at, label, [[joiner edge, 'from' | 'to'], ...]] (the engine copy is untyped JS, so a row is read, not cast). */
-export interface JunctionRow { node: string; host: string; at: number; joiners: readonly (readonly [string, string])[] }
-export const rowOf = (r: readonly unknown[]): JunctionRow => ({
-  node: String(r[0]), host: String(r[1]), at: Number(r[2]),
-  joiners: (r[4] as readonly (readonly unknown[])[]).map((j) => [String(j[0]), String(j[1])] as const),
-});
+/** What the cut reads of one of the engine's rows (junctions.d.ts JunctionRow): where the junction is and which shunt, collateral or tributary ends meet the host there. */
+export type CutRow = Pick<JunctionRow, 'node' | 'host' | 'at' | 'ends'>;
 
 /** Closer than this (map units) is the same point. */
 export const SAME = 0.5;
@@ -163,7 +160,7 @@ export function reEnd(pts: readonly P[], to: P, rad: number, others: readonly (r
 }
 
 export interface CutInput {
-  rows: readonly (readonly unknown[])[];
+  rows: readonly CutRow[];
   pieces: Readonly<Record<string, readonly string[]>>;
   d: Readonly<Record<string, string>>;
   own: Readonly<Record<string, readonly [number, number]>>;
@@ -174,10 +171,10 @@ export interface CutInput {
  */
 export function cutMap(input: CutInput): MapCuts {
   const { pieces, d, own } = input;
-  const rows = input.rows.map(rowOf);
+  const rows = input.rows;
   const out: Record<string, string> = { ...d };
   const junctions = new Map<string, MapJunction>();
-  const byHost = new Map<string, JunctionRow[]>();
+  const byHost = new Map<string, CutRow[]>();
   for (const r of rows) (byHost.get(r.host) ?? byHost.set(r.host, []).get(r.host)!).push(r);
   for (const [host, list] of byHost) {
     // (the table's order: by `at`, as the engine cuts the host, so piece i is the stretch between cut i-1 and cut i)
@@ -213,7 +210,7 @@ export function cutMap(input: CutInput): MapCuts {
   // every joiner's end lands at its junction
   for (const r of rows) {
     const j = junctions.get(r.node)!;
-    for (const [edge, end] of r.joiners) {
+    for (const [edge, end] of r.ends) {
       const text = out[edge];
       if (!text) continue;
       const { pts, r: rad } = cornersOf(text);
@@ -228,7 +225,7 @@ export function cutMap(input: CutInput): MapCuts {
 }
 
 /** The engine's table cut on the map, as the page uses it. */
-export const MAP_CUTS: MapCuts = cutMap({ rows: JUNCTIONS as readonly (readonly unknown[])[], pieces: JUNCTION_PIECES as Record<string, string[]>, d: CIRCUIT_D, own: JUNCTION_CIRCUIT });
+export const MAP_CUTS: MapCuts = cutMap({ rows: JUNCTION_ROWS, pieces: JUNCTION_PIECES as Record<string, string[]>, d: CIRCUIT_D, own: JUNCTION_CIRCUIT });
 
 /** Every edge's map course (SVG path text): the copy's, with the divided veins cut at the table's junctions and the joiners landed there. The one place the page reads a lane's course from. */
 export const CIRCUIT_COURSE_D: Readonly<Record<string, string>> = MAP_CUTS.d;
