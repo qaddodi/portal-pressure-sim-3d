@@ -3,32 +3,49 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { NETWORK } from '../src/scene/vessels/network.ts';
-import { coursesOf, REST } from '../src/scene/vessels/shape.ts';
-import { factorSpan } from '../src/scene/vessels/tubes.ts';
-import { fadeOf } from '../src/scene/vessels/fades.ts';
+import { coursesOf, LIVER_TAPER, REST } from '../src/scene/vessels/shape.ts';
+import { radiusAtU } from '../src/scene/vessels/tubes.ts';
+import { fadeOf, hostRanges, PLACED_LIVER_FADE_HOST } from '../src/scene/vessels/fades.ts';
 import { JUNCTION_CHAINS } from '../src/engine/hales/portal/topology.js';
-import { lastPieceOf } from '../src/scene/anatomy/whole-pieces.ts';
+import { lastPieceOf, piecesOf } from '../src/scene/anatomy/whole-pieces.ts';
 
-// (the fade as the vein's own share, measured on the whole vein: fades.ts PLACED_LIVER_FADE)
-const PLACED_LIVER_FADE_HOST = [0.447, 0.782] as const;
 // (the left portal vein's last piece, whatever the engine's junction table makes of it: the paraumbilical vein and the Meso-Rex bypass each cut it)
 const LPV_END = lastPieceOf('PVH_L');
 
+// (the vein's width at a share of the WHOLE vein, read off whichever piece holds it: a taper written along the host, so no junction row moves it)
+function widthAt(host: string, share: number): number {
+  const id = piecesOf(host).find((p) => share <= hostRanges(host)[p]![1] + 1e-9)!, [p, q] = hostRanges(host)[id]!;
+  const c = coursesOf(NETWORK.find((x) => x.id === id)!, REST)[0]!;
+  return radiusAtU(c, Math.min(1, Math.max(0, (share - p) / (q - p))), 1) / c.radius;
+}
+
 test('the left portal vein tapers and is gone by three quarters of its run into the lobe; its branches leave it whole', () => {
-  const v = NETWORK.find((x) => x.id === LPV_END)!, c = coursesOf(v, REST)[0]!;
-  const w = (u: number) => factorSpan(c.taper ?? [1, 1], c.taperSpan ?? [0.3, 0.3], u);
+  const [fadeFrom, fadeTo] = PLACED_LIVER_FADE_HOST.PVH_L!;
   const f = fadeOf(LPV_END, false)!;
-  assert.ok(f.mode === 1 && f.to <= 0.75 && f.a1 === 0, `fades out by ${f.to}`);
-  assert.ok(w(1) <= 0.45, `narrows to ${w(1).toFixed(2)} at its tip`);
-  for (let u = 0.05; u <= 1; u += 0.05) assert.ok(w(u) <= w(u - 0.05) + 1e-9, 'narrows progressively');
-  // (a taper is a smoothstep from the end of ONE piece, so it narrows over the last piece, the arterioportal node on (0.64 to 1 of the vein), not over 0.45 to 1 as it did when the vein was cut in two:
-  // by the end of its fade, 0.78 of the vein, it has begun to narrow and is gone from sight)
-  assert.ok(w(f.to) < 0.95, `at the end of its fade it is ${w(f.to).toFixed(2)} of its width`);
-  // (the umbilical vein's bypass and the meso-Rex shunt leave the host at the table's shares, before the fade starts there, and before the last piece, which is the only one that narrows)
+  assert.ok(f.mode === 1 && f.a1 === 0, `fades out`);
+  assert.ok(fadeTo <= 0.8, `the fade ends by ${fadeTo} of the vein`);
+  assert.ok(widthAt('PVH_L', 1) <= 0.45, `narrows to ${widthAt('PVH_L', 1).toFixed(2)} at its tip`);
+  for (let u = 0.02; u <= 1; u += 0.02) assert.ok(widthAt('PVH_L', u) <= widthAt('PVH_L', u - 0.02) + 1e-9, 'narrows progressively');
+  // (the approved look, 25 Nov: it has narrowed to under 0.7 of its width by the time it is gone, however many pieces the engine's table cuts it into)
+  assert.ok(widthAt('PVH_L', fadeTo) < 0.7, `at the end of its fade it is ${widthAt('PVH_L', fadeTo).toFixed(2)} of its width`);
+  // (it is whole before the taper begins, and the taper begins where the fade does)
+  assert.ok(Math.abs(LIVER_TAPER.PVH_L!.from - fadeFrom) < 1e-9, 'the taper starts where the fade starts');
+  assert.ok(widthAt('PVH_L', fadeFrom) > 0.98, 'whole where the taper begins');
+  // (the umbilical vein's bypass and the meso-Rex shunt leave the host at the table's shares, before the taper starts)
   const chain = (JUNCTION_CHAINS as { host: string; at: number[]; taps: [string, number][][] }[]).find((c) => c.host === 'PVH_L')!;
-  const lastFrom = chain.at[chain.at.length - 1]!, [fadeFrom] = PLACED_LIVER_FADE_HOST;
   for (const id of ['C3', 'REX']) {
     const at = chain.at[chain.taps.findIndex((t) => t.some(([e]) => e === id))]!;
-    assert.ok(at < fadeFrom && at < lastFrom, `${id} leaves at ${at.toFixed(2)} of the vein, before the fade starts (${fadeFrom}) and before the piece that narrows (${lastFrom.toFixed(2)})`);
+    assert.ok(at < fadeFrom, `${id} leaves at ${at.toFixed(2)} of the vein, before the taper and the fade start (${fadeFrom})`);
+    assert.ok(widthAt('PVH_L', at) > 0.98, `${id} leaves a whole vein`);
   }
+});
+
+test('the taper is the host\'s, not a piece\'s: pieces meet at one width, and a piece that starts inside the taper starts narrowed', () => {
+  const ids = piecesOf('PVH_L'), r = hostRanges('PVH_L');
+  assert.ok(ids.length >= 1);
+  for (let i = 1; i < ids.length; i++) {
+    const a = coursesOf(NETWORK.find((x) => x.id === ids[i - 1])!, REST)[0]!, b = coursesOf(NETWORK.find((x) => x.id === ids[i])!, REST)[0]!;
+    assert.ok(Math.abs(radiusAtU(a, 1, 1) - radiusAtU(b, 0, 1)) < 1e-6, `${ids[i - 1]} and ${ids[i]} meet at one width`);
+  }
+  for (const id of ids) { const [p, q] = r[id]!; assert.equal(coursesOf(NETWORK.find((x) => x.id === id)!, REST)[0]!.along !== undefined, q > LIVER_TAPER.PVH_L!.from, `${id} wears the taper only if it reaches it`); }
 });
