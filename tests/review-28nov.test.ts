@@ -130,7 +130,7 @@ test('every patch of the review landed in its deck (the apply script skips a pat
   const decks = new Map<string, { text: string; json: Record<string, unknown> }>();
   const step = (node: unknown, key: string): string | number => (Array.isArray(node) ? (/^\d+$/.test(key) ? +key : node.findIndex((x) => x && (x as { id?: string }).id === key)) : key);
   for (const p of REVIEW_28NOV) {
-    if (!decks.has(p.deck)) { const j = await loadSource(p.deck); decks.set(p.deck, { text: JSON.stringify(j), json: j as unknown as Record<string, unknown> }); }
+    if (!decks.has(p.deck)) { const j = await loadSource(p.deck, false); decks.set(p.deck, { text: JSON.stringify(j), json: j as unknown as Record<string, unknown> }); }
     const d = decks.get(p.deck)!;
     if (p.from !== undefined) { assert.ok(d.text.includes(esc(p.to!)), `${p.deck} ${p.at}: the new text is in the deck`); continue; }
     let node: unknown = d.json;
