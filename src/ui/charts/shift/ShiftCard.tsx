@@ -57,7 +57,9 @@ export function ShiftCard({ stages, vals, trails, at, lit, whatIf, live, waitDay
     return () => { off(); hold.release(); };
   }, [goal, on, li]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!vals[0]) return null;
+  // (the chart's box stands from the first frame, drawn or not: a state not worked out yet draws the empty box at its height, never nothing.
+  //  The card is measured and locked with what it holds when it lands: with no chart it was locked at its header and tiles alone,
+  //  and the chart row stood clipped at its foot when the readings came. Hyperdynamic 2 on return from 3, Mohammad 28 Nov. Same root as EvGraph's pending frame.)
   const key = JSON.stringify([stages, v2, tr2?.map((t) => t && [t.length, t[0], t.at(-1)]), at, lit, whatIf, live, waitDays, height, on]);
   return (
     <div className="pz-shift">

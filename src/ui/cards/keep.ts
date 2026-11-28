@@ -34,7 +34,8 @@ export function keepData(prev: F, next: F): boolean {
   const from = dataPlan(prev), to = dataPlan(next);
   if (!from || !to || from !== to || ownData(prev) || ownData(next)) return false;
   const swap = swaps(next);
-  if (next.lapse && (swap || !eases(next.tool))) return false;
+  // (a time-lapse slide whose instrument rides a change of patient keeps the card too: the chart draws the days into it; Mohammad 28 Nov, Hyperdynamic 2 to 3)
+  if (next.lapse && !eases(next.tool)) return false;
   if (prev.lapse && !eases(prev.tool)) return false;
   return !swap || eases(next.tool);
 }

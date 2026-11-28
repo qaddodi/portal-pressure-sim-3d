@@ -65,6 +65,27 @@ const fadeOf = (s: Shape, k: number): Shape => {
   }
 };
 
+// Which pieces of two frames that do not pair are the same piece in both (the same kind, place, size and colour): they stay as they are, whole, for the whole blend. Only the pieces that really differ
+// dissolve (the old ones out, the new ones in). Dissolving the two frames over each other dropped every unchanged label, line and legend
+// to 75 % at the middle of the blend and back: a held card's words blinked before its new data showed (Mohammad, 28 Nov, Hyperdynamic 3 to 7).
+// Worked out once per pair of frames, not per drawn frame.
+interface Same { keepB: Set<number>; goneA: Set<number> }
+const sames = new WeakMap<Frame, WeakMap<Frame, Same>>();
+function sameOf(a: Frame, b: Frame): Same {
+  let m = sames.get(a);
+  if (!m) sames.set(a, (m = new WeakMap()));
+  let r = m.get(b);
+  if (r) return r;
+  const pool = new Map<string, number[]>();
+  a.shapes.forEach((s, i) => { const k = JSON.stringify(s); const l = pool.get(k); if (l) l.push(i); else pool.set(k, [i]); });
+  const keepB = new Set<number>(), used = new Set<number>();
+  b.shapes.forEach((s, i) => { const l = pool.get(JSON.stringify(s)); const j = l?.shift(); if (j !== undefined) { keepB.add(i); used.add(j); } });
+  const goneA = new Set<number>();
+  a.shapes.forEach((_, i) => { if (!used.has(i)) goneA.add(i); });
+  m.set(b, (r = { keepB, goneA }));
+  return r;
+}
+
 /** The frame t of the way from a to b (t in 0..1, already eased). */
 export function blend(a: Frame, b: Frame, t: number): Frame {
   if (t <= 0) return a;
@@ -72,5 +93,8 @@ export function blend(a: Frame, b: Frame, t: number): Frame {
   const w = lerp(a.w, b.w, t), h = lerp(a.h, b.h, t);
   if (compatible(a, b)) return { w, h, label: b.label, shapes: a.shapes.map((s, i) => lerpShape(s, b.shapes[i]!, t)) };
   // clips cannot be dissolved piece by piece: each side keeps its own clip pairs, the old one under the new one
-  return { w, h, label: b.label, shapes: [...a.shapes.map((s) => fadeOf(s, 1 - t)), ...b.shapes.map((s) => fadeOf(s, t))] };
+  const clipped = a.shapes.some((s) => s.k === 'clip') || b.shapes.some((s) => s.k === 'clip');
+  if (clipped) return { w, h, label: b.label, shapes: [...a.shapes.map((s) => fadeOf(s, 1 - t)), ...b.shapes.map((s) => fadeOf(s, t))] };
+  const { keepB, goneA } = sameOf(a, b);
+  return { w, h, label: b.label, shapes: [...a.shapes.flatMap((s, i) => (goneA.has(i) ? [fadeOf(s, 1 - t)] : [])), ...b.shapes.map((s, i) => (keepB.has(i) ? s : fadeOf(s, t)))] };
 }
