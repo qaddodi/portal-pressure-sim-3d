@@ -6,6 +6,7 @@ import { loadBuiltin, deckOrder } from '../src/decks/registry.ts';
 import { copiedSlideOf } from '../src/scene/labels/deck-link.ts';
 import { keepData, dataPlan } from '../src/ui/cards/keep.ts';
 import { blend } from '../src/ui/charts/morph.ts';
+import { pendingFrame } from '../src/ui/charts/pending.ts';
 import { shiftFrame } from '../src/ui/charts/shift/frame.ts';
 import type { Frame, Shape } from '../src/ui/charts/scene.ts';
 import '../src/decks/all.ts';
@@ -61,4 +62,17 @@ test('the change-from-healthy card is in the card from its first frame: a chart 
     assert.equal(pending.h, Math.max(9 * 12, height ?? 220), 'the pending frame has the height the drawn one takes');
     assert.equal(pending.shapes.length, 0);
   }
+});
+
+test('every instrument card that waits for its readings keeps its chart box: it draws an empty one, never nothing', () => {
+  for (const [file, pending] of [['trace/TraceCard', '!pts.length'], ['profile/ProfileCard', '!inp'], ['flowtime/FlowTimeCard', '!ser'], ['flows/FlowsCard', '!parts'], ['shift/ShiftCard', '!vals[0]']] as const) {
+    const src = readFileSync(new URL(`../src/ui/charts/${file}.tsx`, import.meta.url), 'utf8');
+    const esc = pending.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.doesNotMatch(src, new RegExp(`if \\(${esc}\\) return null`), `${file}: a pending card renders nothing, so its card locks at the header alone`);
+  }
+});
+
+test('an empty box is as tall as the chart last drawn at that width, else as tall as the chart takes with no data', () => {
+  assert.equal(pendingFrame('t-x', 300, 150).h, 150);
+  assert.equal(pendingFrame('t-x', 300, 150).shapes.length, 0);
 });

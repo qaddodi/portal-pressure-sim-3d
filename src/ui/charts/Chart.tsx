@@ -8,6 +8,7 @@ import { fitOf, ownWidth, sizeStyleMoved } from './fit.ts';
 import { paletteOf, type Palette } from './palette.ts';
 import { ChartPainter } from './painter.ts';
 import type { Frame } from './scene.ts';
+import { rememberBox } from './pending.ts';
 import { frameTable, tableKey, type DataTable } from './table.ts';
 import { observeThenFit } from '../layout/fit-later.ts';
 import { onResync } from '../layout/resync.ts';
@@ -35,10 +36,12 @@ interface Props {
   painter?: { current: ChartPainter | null };
   /** false: a new frame for the same box is set at once (a card that eases its own numbers every frame, the profile) */
   glide?: boolean;
+  /** the name this chart's drawn height is remembered under, for the empty box a pending card draws (pendingFrame) */
+  memo?: string;
 }
 
 /** One chart: a box that takes its width from the card, a GPU canvas for the shapes and a text layer for the words. */
-export function Chart({ build, deps, label, tag = 'chart', className, painter: painterOut, glide = true }: Props) {
+export function Chart({ build, deps, label, tag = 'chart', className, painter: painterOut, glide = true, memo }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const painter = useRef<ChartPainter | null>(null);
   const [w, setW] = useState(0);
@@ -86,6 +89,7 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
     // a new width or look is set at once; the same chart with new numbers glides
     const key = `${w}|${look}|${device}|${type.sm}|${fit}`;
     p.show(frame, glide && !first.current && key === lastKey.current);
+    if (memo && frame.shapes.length) rememberBox(memo, w, frame.h);
     const t = frameTable(frame), k = tableKey(t);
     setTable((o) => (o && tableKey(o) === k && o.caption === t.caption ? o : t));
     first.current = false;

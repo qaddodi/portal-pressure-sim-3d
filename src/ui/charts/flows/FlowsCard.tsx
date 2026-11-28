@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Chart } from '../Chart.tsx';
+import { pendingFrame } from '../pending.ts';
 import { flowParts, sameShares, smallMove, HOLD_MS, type FlowsInput, type Part } from './parts.ts';
 import { flowsFrame } from './frame.ts';
 import type { Tiers } from './layout.ts';
@@ -28,12 +29,13 @@ export function FlowsCard({ of = 'portal', input, healthy }: { of?: 'portal' | '
   const parts = useHeld(live);
   const hParts = healthy ? flowParts(healthy, of) : null;
   const tiers = useRef<Tiers | null>(null);
-  if (!parts) return null;
-  const key = `${of}|${parts.map((p) => `${p.id}:${p.pct}`).join(',')}|${(hParts ?? []).map((p) => `${p.id}:${p.pct}`).join(',')}`;
+  const key = `${of}|${(parts ?? []).map((p) => `${p.id}:${p.pct}`).join(',')}|${(hParts ?? []).map((p) => `${p.id}:${p.pct}`).join(',')}`;
   return (
     <div className="pz-flows" data-of={of}>
-      <Chart tag="chart:flows" deps={[key]} label={of === 'inflow' ? 'Hepatic inflow' : 'Distribution of portal venous flow'}
-        build={(c) => { const o = flowsFrame({ of, parts, healthy: hParts, tiers: tiers.current }, c); tiers.current = o.tiers; return o.frame; }} />
+      <Chart tag="chart:flows" deps={[key]} memo={`flows|${of}`} label={of === 'inflow' ? 'Hepatic inflow' : 'Distribution of portal venous flow'}
+        build={(c) => {
+          if (!parts) return pendingFrame(`flows|${of}`, c.w, Math.round(8 * c.type.sm));
+          const o = flowsFrame({ of, parts, healthy: hParts, tiers: tiers.current }, c); tiers.current = o.tiers; return o.frame; }} />
     </div>
   );
 }

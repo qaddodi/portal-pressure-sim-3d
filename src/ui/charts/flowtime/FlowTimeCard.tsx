@@ -1,10 +1,12 @@
 import { useContext, useEffect, useMemo, useRef } from 'react';
 import { clock } from '../../../clock/frame.ts';
 import { Chart, type ChartCtx } from '../Chart.tsx';
+import { pendingFrame } from '../pending.ts';
 import type { ChartPainter } from '../painter.ts';
 import { headStep, HEAD_DT0 } from '../plot/follow.ts';
 import { MEAL_LINES, flowTimeSeries, type FlowRef, type FlowView, type Trail } from './model.ts';
 import { flowTimeFrame, flowTimeLabel, minuteOf } from './frame.ts';
+import { flowTimeFit } from './model.ts';
 import { ToolRoom } from '../../talk/tool-room.ts';
 import { useUi } from '../../ui-store.ts';
 import { layoutOf } from '../../layout/rules2d.ts';
@@ -42,10 +44,18 @@ export function FlowTimeCard({ trail, k = 1, lines = MEAL_LINES, clock: ck = 'me
     return () => { off(); hold.release(); };
   }, [goal, ser]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!ser) return null;
   return (
     <div className="pz-flowtime">
-      <Chart tag="chart:flowtime" painter={painter} deps={[ser, rx.join(), height, room, cap, JSON.stringify(refs)]} label={flowTimeLabel(ser, lines, ck)} build={(c) => { ctx.current = c; return flowTimeFrame(spec, shown.current, c).frame; }} />
+      <Chart
+        tag="chart:flowtime" painter={painter} memo={`flowtime|${ck}`} deps={[ser, rx.join(), height, room, cap, JSON.stringify(refs)]}
+        label={ser ? flowTimeLabel(ser, lines, ck) : 'Readings over time'}
+        build={(c) => {
+          ctx.current = c;
+          if (ser) return flowTimeFrame(spec, shown.current, c).frame;
+          const band = rx.length ? 1.4 + 0.32 * rx.length : 0;
+          return pendingFrame(`flowtime|${ck}`, c.w, height ?? flowTimeFit(Math.max(160, c.w), c.type.sm, lines, band, room, cap));
+        }}
+      />
     </div>
   );
 }

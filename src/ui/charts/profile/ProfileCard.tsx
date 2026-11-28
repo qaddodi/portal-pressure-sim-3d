@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { readMetric, readStyle } from '../../layout-snap.ts';
 import { clock } from '../../../clock/frame.ts';
 import { Chart, type ChartCtx } from '../Chart.tsx';
+import { pendingFrame } from '../pending.ts';
 import type { ChartPainter } from '../painter.ts';
 import type { Frame } from '../scene.ts';
 import { profileFrame, type CellOpts } from './frame.ts';
@@ -38,7 +39,6 @@ export interface ProfileCardProps {
 }
 
 const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-const empty: Frame = { w: 0, h: 0, shapes: [], label: '' };
 
 /** The pressure from gut to heart through the circuit's eight stations, the healthy line dashed beneath it, the liver's stations on a tint, the HVPG and PPG (and the EUS-PPG) as brackets. */
 export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Before', spans: want, hold = false, blocked = false, height, cell, room }: ProfileCardProps) {
@@ -78,9 +78,6 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
 
   const build = (c: ChartCtx): Frame => {
     ctx.current = c;
-    if (!inp) { plan.current = null; planKey.current = ''; return empty; }
-    const m = motion.current!, now = clock.now();
-    m.reduce = reduced();
     const f0 = Math.max(12, cell ? (cell.chCap ?? c.type.sm) * (cell.lad ?? 1) : c.type.sm);
     // (the box this layout gives the ladder, as 2D's CSS does; a cell of the six ladders has its own, and an explicit height wins)
     // (`base` is what the chart WANTS: the screen's table height (layout/card-size.ts; a phone on its side keeps 2D's own); `own` what its card's room gives it: held down to the room, never grown into what the words leave over)
@@ -88,6 +85,10 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
     const base0 = height ?? (cell ? undefined : tableH() ?? layoutHeight(c.w, f0, lay, side, pzhOf(vp))), base = base0 == null || height != null ? base0 : base0 + freed;
     const f = cell ? f0 : fitType(c.w, base, f0);   // (a wide card's chart sets its words larger, up to 18 px)
     const own = height ?? (cell ? undefined : heldToRoom(base, room, f));
+    // (readings not worked out yet: the empty box at the height the drawn chart takes, so the card is measured and locked at its full height, pendingFrame)
+    if (!inp) { plan.current = null; planKey.current = ''; return pendingFrame(`profile|${cellKey}`, c.w, own ?? base ?? 0, ''); }
+    const m = motion.current!, now = clock.now();
+    m.reduce = reduced();
     const key = [c.w, f, own ?? '', cellKey, spans.map(([k]) => k).join(), fromLabel, inp.goal.v.join(), inp.goal.hvpg, inp.goal.ppg, inp.goal.eus, inp.goal.top, inp.hl?.v.join() ?? '', inp.bf?.v.join() ?? ''].join('|');
     if (key !== planKey.current) {
       planKey.current = key;
@@ -110,10 +111,9 @@ export function ProfileCard({ fp, healthy = null, before = null, fromLabel = 'Be
   }, [hold]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => stop, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!inp) return null;
   return (
     <div className="pz-prof" ref={root}>
-      <Chart tag="chart:profile" glide={false} painter={painter} deps={[inp, spans, fromLabel, hold, height, room, cellKey, freed, vpNow.w, vpNow.h]} label={profileWords(inp.goal, spans)} build={build} />
+      <Chart tag="chart:profile" glide={false} painter={painter} deps={[inp, spans, fromLabel, hold, height, room, cellKey, freed, vpNow.w, vpNow.h]} memo={`profile|${cellKey}`} label={inp ? profileWords(inp.goal, spans) : 'Pressure profile'} build={build} />
     </div>
   );
 }

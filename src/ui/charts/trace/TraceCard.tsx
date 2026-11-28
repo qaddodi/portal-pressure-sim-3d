@@ -1,6 +1,7 @@
 import { Chart } from '../Chart.tsx';
+import { pendingFrame } from '../pending.ts';
 import { traceFrame, type TraceSpec } from './frame.ts';
-import type { TalkPoint } from './model.ts';
+import { talkHeight, milesHeight, type TalkPoint } from './model.ts';
 import '../charts.css';
 
 /**
@@ -11,11 +12,18 @@ import '../charts.css';
  */
 export function TraceCard({ chain, bands = null, gap = null, style = null, cited = null, height }: { chain: readonly TalkPoint[] } & Omit<TraceSpec, 'pts'>) {
   const pts = chain.filter((p) => p.fp);
-  if (!pts.length) return null;
   const label = style === 'milestones' ? 'HVPG over the talk so far' : 'Pressures over the talk so far';
+  const memo = `trace|${style ?? ''}`;
+  const empty = (c: { w: number; type: { sm: number } }) => {
+    const W = Math.max(160, c.w);
+    return pendingFrame(memo, c.w, height ?? (style === 'milestones' ? milesHeight([], W, c.type.sm) : talkHeight([], W, c.type.sm)), label);
+  };
   return (
     <div className="pz-talk">
-      <Chart tag="chart:trace" deps={[chain, bands?.join(), gap, style, cited?.join(), height]} label={label} build={(c) => traceFrame({ pts, bands, gap, style, cited, height }, c)} />
+      <Chart
+        tag="chart:trace" memo={memo} label={label} deps={[chain, bands?.join(), gap, style, cited?.join(), height]}
+        build={(c) => (pts.length ? traceFrame({ pts, bands, gap, style, cited, height }, c) : empty(c))}
+      />
     </div>
   );
 }
