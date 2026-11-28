@@ -166,7 +166,7 @@ export class VesselObject extends CelObject {
   private skinHidden = false;
   private revealed = true;
   /** The shadow takes the tube's reveal and cuts, so a tube that draws nothing (not yet revealed, or replaced whole by a merged skin) draws no shadow and costs no draw call. */
-  private syncShadow(): void { if (this.shadowMesh) this.shadowMesh.visible = this.revealed && !this.skinHidden; }
+  private syncShadow(): void { if (this.shadowMesh) { if (this.revealed && !this.skinHidden) this.shadowMesh.layers.set(0); else this.shadowMesh.layers.disableAll(); } }   // (off the camera's layer, not `visible`: the draw is skipped and nothing pops, it was drawing nothing)
   override setReveal(r: number): void { super.setReveal(r); this.revealed = r > 0; this.syncShadow(); }
   /** The fade of the shadow's band over each end that joins another vessel, in this vessel's radii (0: a free end): vessels/shadow.ts. */
   setShadowEnds(start: number, end: number): void { (this.toon.uniforms.shadowEnd!.value as Vector2).set(start, end); }

@@ -82,7 +82,7 @@ const fullFrame = (): EngineFrame => {
 test('the scene stays inside the draw-call budget (spec: under 100 for tubes and organs, the welded skins capped apart)', () => {
   const s = new CelScene();
   let meshes = 0, skins = 0, shadows = 0;
-  s.scene.traverseVisible((o) => { if ((o as { isMesh?: boolean }).isMesh) { if (o.name.startsWith('skin:')) skins++; else if (o.name === 'crossing/shadow') shadows++; else meshes++; } });   // (the lobule and sinusoid views are hidden until chosen and draw nothing)
+  s.scene.traverseVisible((o) => { if ((o as { isMesh?: boolean }).isMesh) { if (o.name.startsWith('skin:')) skins++; else if (o.name === 'crossing/shadow') { if (o.layers.isEnabled(0)) shadows++; } else meshes++; } });   // (the lobule and sinusoid views are hidden until chosen and draw nothing)
   assert.ok(meshes < 100, `${meshes} draw calls for tubes and organs`);
   assert.ok(skins <= 40, `${skins} draw calls for welded skins`);
   // (a shadow is one per DRAWN vessel: a tube a merged skin replaces whole, or one the patient does not have yet (reveal 0), draws none: vessel-object.ts. The bare scene shows every collateral and shunt at once, which no patient does, so the shadows are counted at the two fullest ones)
@@ -91,7 +91,7 @@ test('the scene stays inside the draw-call budget (spec: under 100 for tubes and
   for (const [name, state] of [['every collateral open', { collaterals: true, shunts: false }], ['every shunt shown', { collaterals: false, shunts: true }]] as const) {
     s.syncPresence(forgeFrame(fullFrame(), state), true);
     let n = 0;
-    s.scene.traverseVisible((o) => { if (o.name === 'crossing/shadow') n++; });
+    s.scene.traverseVisible((o) => { if (o.name === 'crossing/shadow' && o.layers.isEnabled(0)) n++; });
     assert.ok(n <= 60, `${n} draw calls for crossing shadows with ${name} (one per drawn vessel, S3)`);
   }
   s.setView('lobule'); s.setView('body');
