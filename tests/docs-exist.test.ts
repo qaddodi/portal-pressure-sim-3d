@@ -22,7 +22,7 @@ const pathExists = (s: string): boolean => {
   if (!s.includes('/') && !s.includes('*')) return names.has(s) || existsSync(s);
   const p = s.replace(/^\.\.?\//, '').replace(/\/$/, '');
   const stem = p.includes('*') ? p.slice(0, p.indexOf('*')).replace(/\/[^/]*$/, '') : p;
-  return [stem, join('src', stem), join('src', 'engine', stem), join('docs', stem)].some((c) => c !== '' && existsSync(c));
+  return [stem, join('src', stem), join('src', 'ui', stem), join('src', 'engine', stem), join('docs', stem)].some((c) => c !== '' && existsSync(c));
 };
 const isIdent = (s: string) => /^(use[A-Z]\w*|[a-z]+[A-Z]\w*|[A-Z][a-z]\w*[A-Z]\w*)(\(\))?$/.test(s) || /^[a-z]\w*\(\)$/.test(s);
 

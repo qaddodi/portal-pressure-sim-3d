@@ -28,3 +28,11 @@ test('the reading steps and the ghost reading are dimmed by colour: no opacity o
   assert.match(css3, /:root \.mon-steps li \{ opacity: 1; color: var\(--text-3\);/);
   assert.match(css3, /:root \.pz-ghost b \{ opacity: 1; color: var\(--text-2\); \}/);
 });
+
+test('a procedure rail that cannot play now is dimmed by colour too: its words keep full opacity, only the button and the track are thinned (27 Nov: the count read 2.27:1 and the step name 3.33:1 at 50% opacity)', () => {
+  const css3 = css('deck-ui.css');
+  assert.match(css3, /:root \.pz-prail-box\[data-why\] \{ opacity: 1; \}/);
+  assert.match(css3, /:root \.pz-prail-box\[data-why\] :is\(\.pz-prail-go, \.pz-prail-track\) \{ opacity: \.5; \}/);
+  assert.match(css3, /:root \.pz-prail-box\[data-why\] \.pz-prail-t b \{ color: var\(--text-3\); \}/);
+  assert.match(css3, /:root \.pz-prail-box\[data-why\] \.pz-prail-cap \{ color: var\(--text-3\); \}/);
+});

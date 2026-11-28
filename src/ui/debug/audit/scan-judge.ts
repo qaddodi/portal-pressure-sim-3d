@@ -2,7 +2,7 @@
 import { contrast } from '../contrast.ts';
 import { WORDS_MIN_PX, CONTRAST_TEXT } from '../limits.ts';
 import type { AuditFinding, Box } from './judge.ts';
-import type { RawScan, ScanItem } from './scan.ts';
+import type { RawScan, ScanItem, Quad } from './scan.ts';
 
 /** Every check the audit runs, by id: the report lists them so a gap is visible (and the ones it cannot do are named under GAPS). */
 export const CHECKS: { id: string; what: string }[] = [
@@ -47,6 +47,50 @@ export function lineBoxes(rects: readonly { left: number; top: number; right: nu
   return out;
 }
 
+/** The four corners of a `w` by `h` box centred on (cx, cy) and turned `deg` degrees: where a slanted word's letters really stand. Pure. */
+export function turnedQuad(cx: number, cy: number, w: number, h: number, deg: number): Quad {
+  const t = (deg * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t);
+  return ([[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]] as [number, number][]).map(([x, y]) => [cx + x * c - y * s, cy + x * s + y * c] as [number, number]);
+}
+const quadOfBox = (b: Box): Quad => [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]];
+const polyArea = (p: Quad): number => Math.abs(p.reduce((a, [x, y], i) => { const [x2, y2] = p[(i + 1) % p.length]!; return a + (x * y2 - x2 * y); }, 0)) / 2;
+/** The area two convex shapes share (Sutherland-Hodgman: `a` clipped by each edge of `b`). Pure. */
+export function convexOverlap(a: Quad, b: Quad): number {
+  const sign = polyArea(b) && b.reduce((acc, [x, y], i) => { const [x2, y2] = b[(i + 1) % b.length]!; return acc + (x * y2 - x2 * y); }, 0) < 0 ? -1 : 1;
+  let out = a;
+  for (let i = 0; i < b.length && out.length; i++) {
+    const [x1, y1] = b[i]!, [x2, y2] = b[(i + 1) % b.length]!;
+    const side = ([x, y]: [number, number]) => sign * ((x2 - x1) * (y - y1) - (y2 - y1) * (x - x1));
+    const next: Quad = [];
+    for (let j = 0; j < out.length; j++) {
+      const p = out[j]!, q = out[(j + 1) % out.length]!, sp = side(p), sq = side(q);
+      if (sp >= 0) next.push(p);
+      if ((sp >= 0) !== (sq >= 0)) { const k = sp / (sp - sq); next.push([p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k]); }
+    }
+    out = next;
+  }
+  return out.length >= 3 ? polyArea(out) : 0;
+}
+/** How much of the smaller of two words' boxes the other covers: the turned corners where a run is turned (a slanted head), else the plain box. Pure. */
+export function textOverlap(a: ScanItem, b: ScanItem): number {
+  if (!a.quad && !b.quad) return inter(a.box, b.box) / Math.min(area(a.box), area(b.box));
+  const qa = a.quad ?? quadOfBox(a.box), qb = b.quad ?? quadOfBox(b.box);
+  return convexOverlap(qa, qb) / Math.min(polyArea(qa), polyArea(qb));
+}
+/** Five points of a turned box for asking the page what stands on top of it: its middle and four along its own axes.
+ *  (A plain box's five points lie in its bounding box, which for a slanted word is mostly its neighbour's air.) Pure. */
+export function quadPoints(q: Quad): [number, number][] {
+  const mid = (p: [number, number], r: [number, number], k: number): [number, number] => [p[0] + (r[0] - p[0]) * k, p[1] + (r[1] - p[1]) * k];
+  const c: [number, number] = [(q[0]![0] + q[2]![0]) / 2, (q[0]![1] + q[2]![1]) / 2];
+  const m01 = mid(q[0]!, q[1]!, 0.5), m32 = mid(q[3]!, q[2]!, 0.5), m03 = mid(q[0]!, q[3]!, 0.5), m12 = mid(q[1]!, q[2]!, 0.5);
+  return [c, mid(c, m03, 0.6), mid(c, m12, 0.6), mid(c, m01, 0.5), mid(c, m32, 0.5)];
+}
+
+/** Whether a canvas, picture, video or svg is in the stack of elements at a point and is neither the words' own element nor around or inside it:
+ *  what the words stand on is then a picture, not the CSS background behind it. Pure. */
+export function pictureUnder<E extends { tagName: string; contains(n: E): boolean }>(stack: readonly E[], words: E): boolean {
+  return stack.some((e) => /^(canvas|img|video|svg)$/i.test(e.tagName) && !e.contains(words) && !words.contains(e));
+}
 const area = (b: Box) => Math.max(0, b[2] - b[0]) * Math.max(0, b[3] - b[1]);
 const inter = (a: Box, b: Box) => Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) * Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
 const px = (v: number) => `${Math.round(v)} px`;
@@ -65,7 +109,8 @@ export function judgeScan(s: RawScan): AuditFinding[] {
 
   for (const i of s.items) {
     // clipped by an ancestor: part of it is hidden and part is shown (wholly hidden is a collapsed thing, not a cut one); a scroller hides by design
-    if (i.clip && !i.scrolls && inter(i.box, i.clip) > 0) {
+    // (words under a running fade are on their way in, a rolled number's period inside its own window: judged where they land, as their contrast is)
+    if (i.clip && !i.scrolls && !i.fading && inter(i.box, i.clip) > 0) {
       const p = past(i.box, i.clip);
       if (p.length) add('clipped', 'fail', `${label(i)} is cut off by its container: ${p.map((x) => `${px(x.by)} at the ${x.side}`).join(', ')} hidden${i.by ? ` (in ${i.by})` : ''}`, i.what, n);
     }
@@ -94,7 +139,7 @@ export function judgeScan(s: RawScan): AuditFinding[] {
       if (b.box[0] >= a.box[2]) break;
       if (a.what === b.what) continue;
       if (!!a.modal !== !!b.modal) continue;   // (a sheet over the page is not words over words: what it hides is not read)
-      const o = inter(a.box, b.box) / Math.min(area(a.box), area(b.box));
+      const o = textOverlap(a, b);
       if (o > 0.2) add('text-overlap', 'fail', `${label(a)} and ${label(b)} overlap by ${Math.round(o * 100)}% of the smaller`, `${a.what} | ${b.what}`, n);
     }
   }

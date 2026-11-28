@@ -2,13 +2,13 @@
 // lane as a whole (its resistor's zigzag, its caption, the clear room around them) belongs to the whole run, centred on it, and not to the half the engine happened to name it by (C1b).
 import { SEGMENT_OF } from '../vessels/network.ts';
 import { COURSES } from './course.ts';
-import { CIRCUIT_D } from './data.copied.ts';
+import { CIRCUIT_COURSE_D } from './junction-cuts.ts';
 import { courseOf } from './paths.ts';
 
 type Pts = readonly (readonly [number, number])[];
 /** The lane an edge belongs to: the id its caption and resistor are keyed by, the last edge of its segment (C1b for C1a and C1b), else its own. */
 export const laneKeyOf = (id: string): string => { const s = SEGMENT_OF.get(id); return s ? s[s.length - 1]! : id; };
-const own = (id: string): Pts | null => COURSES.get(id)?.mapPts ?? (CIRCUIT_D[id] ? courseOf(CIRCUIT_D[id]!) : null);
+const own = (id: string): Pts | null => COURSES.get(id)?.mapPts ?? (CIRCUIT_COURSE_D[id] ? courseOf(CIRCUIT_COURSE_D[id]!) : null);
 /** The map course of the lane `id` belongs to, in flow order: its own, or all of its segment's edges end to end (the shared station once). */
 export function laneCourseOf(id: string): Pts | null {
   const seg = SEGMENT_OF.get(id);

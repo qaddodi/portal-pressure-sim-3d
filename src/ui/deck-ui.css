@@ -333,6 +333,13 @@ body[data-card-zoom] .pz-zbtn :is(svg, .ic):last-child { display: block; }
 :root .mon-steps li[data-state="done"] { color: var(--text-2); }
 :root .mon-steps li[data-state="now"] { color: var(--text); }
 :root .pz-ghost b { opacity: 1; color: var(--text-2); }
+/* The step rail of a procedure that cannot play now (data-why: the reason it waits, "Needs the catheter in") was thinned to 50% opacity as a whole: its count read 2.27:1 and its step name 3.33:1 (layout-check, Mac and iPhone, 27 Nov).
+   Its words are dimmed by COLOUR like every waiting word (--text-3, 4.8:1 or more in every look): the step's name steps down from --text to --text-3 and the caption to --text-3; the button and the track, which are not words, keep the half opacity. */
+:root .pz-prail-box[data-why] { opacity: 1; }
+:root .pz-prail-box[data-why] :is(.pz-prail-go, .pz-prail-track) { opacity: .5; }
+:root .pz-prail-box[data-why] .pz-prail-t b { color: var(--text-3); }
+:root .pz-prail-box[data-why] .pz-prail-cap { color: var(--text-3); }
+:root .pz-prail-t b, :root .pz-prail-cap { transition: color var(--d-small) var(--ease); }
 
 /* The scope view's tap and its cone (ScopeLens.tsx; the lens itself is the 2D stylesheet's .pz-lens). The tap is a transparent circle at least 44 px across, moved over the ring by a transform each frame. */
 .pz-lens-hit { position: absolute; left: 0; top: 0; width: 44px; height: 44px; margin: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; pointer-events: auto; cursor: pointer; transform-origin: 50% 50%; -webkit-tap-highlight-color: transparent; }

@@ -353,3 +353,54 @@ test('the © a words card carries in its foot row is a bar: the choices of Carve
   const under = layoutFindings({ vw: 390, vh: 844, cards: [card], bars: [{ id: 'card credit', box: [120, 800, 270, 817] }], labels: [] });
   assert.deepEqual(under.filter((x) => x.kind === 'covered').map((x) => x.where), ['card teach, Usual responder, card credit']);
 });
+
+// ── turned words: the 45 degree column heads of a phone's table (layout-check, iPhone, 27 Nov: 49 text-overlap and a covered-by on the second-last stop of 15 talks) ──
+import { turnedQuad, convexOverlap, textOverlap, quadPoints } from '../src/ui/debug/audit/scan-judge.ts';
+
+const boxOf = (q: [number, number][]): [number, number, number, number] => [Math.min(...q.map((p) => p[0])), Math.min(...q.map((p) => p[1])), Math.max(...q.map((p) => p[0])), Math.max(...q.map((p) => p[1]))];
+/** A slanted head as the scan reads it: 80 px long, a 12 px line (trimmed to the letters), turned -45 degrees, centred at x. */
+const slanted = (what: string, x: number): ScanItem => { const quad = turnedQuad(x, 300, 80, 12 * 0.76, -45); return item({ what, box: boxOf(quad), quad, turn: -45 }); };
+
+test('slanted heads one slant pitch apart (the line height over sin 45: 17 px at 12 px type) are NOT overlapping words, though their bounding boxes overlap by more than half', () => {
+  const heads = [slanted('Esophageal varix', 100), slanted('HVPG', 117), slanted('Ascites', 134), slanted('Platelets', 151)];
+  assert.ok(textOverlap({ ...heads[0]!, quad: undefined }, { ...heads[1]!, quad: undefined }) > 0.5, 'as plain boxes they share most of their area: the false positive');
+  assert.deepEqual(judgeScan(scan({ items: heads })).map((f) => f.kind), [], 'as turned boxes they do not touch');
+});
+
+test('slanted heads closer than the pitch still fail: the turned rule is a correction of the box, not a pass', () => {
+  const kinds = judgeScan(scan({ items: [slanted('HVPG', 100), slanted('Ascites', 106)] })).map((f) => f.kind);
+  assert.deepEqual(kinds, ['text-overlap']);
+});
+
+test('a slanted head over flat words is judged by where its letters are: across them fails, in the empty corner of its bounding box passes', () => {
+  const head = slanted('Ascites', 200);
+  const across = item({ what: 'Name', box: [160, 296, 240, 310] });
+  assert.ok(textOverlap(head, across) > 0.2);
+  const corner = item({ what: 'Corner', box: [head.box[0], head.box[1], head.box[0] + 8, head.box[1] + 8] });
+  assert.ok(textOverlap(head, corner) < 0.05, 'the top-left of a head rising to the left is empty');
+});
+
+test('the polygon overlap is exact for squares and the five probe points of a turned box lie inside it', () => {
+  const sq = (x: number, y: number, s: number): [number, number][] => [[x, y], [x + s, y], [x + s, y + s], [x, y + s]];
+  assert.equal(convexOverlap(sq(0, 0, 10), sq(5, 5, 10)), 25);
+  assert.equal(convexOverlap(sq(0, 0, 10), sq(20, 0, 10)), 0);
+  const q = turnedQuad(100, 100, 80, 12, -45);
+  for (const [x, y] of quadPoints(q)) assert.ok(convexOverlap(q, sq(x - 0.01, y - 0.01, 0.02)) > 0.0003, 'every probe stands inside the turned box');
+});
+
+test('words under a running fade are not "clipped" while they travel in (a rolled reading\'s period inside its own window), and are judged again once they stand still', () => {
+  const kinds = (o: Partial<ScanItem>) => judgeScan(scan({ items: [item({ what: '.', box: [20, 90, 26, 130], clip: [16, 100, 374, 600], ...o })] })).map((f) => f.kind);
+  assert.deepEqual(kinds({ opacity: 0.5, fading: true }), []);
+  assert.deepEqual(kinds({}), ['clipped'], 'the same words at rest, cut by the container, still fail');
+});
+
+import { pictureUnder } from '../src/ui/debug/audit/scan-judge.ts';
+test('contrast is not judged against the CSS background where a picture stands under the words (a Doppler\'s white read-outs over its black spectrum: 1.1:1 on the card behind it)', () => {
+  type N = { tagName: string; parent: N | null; contains(n: N): boolean };
+  const node = (tagName: string, parent: N | null = null): N => { const n: N = { tagName, parent, contains: (o) => { for (let p: N | null = o; p; p = p.parent) if (p === n) return true; return false; } }; return n; };
+  const card = node('DIV'), words = node('B', card), spectrum = node('CANVAS', node('DIV', card));
+  assert.equal(pictureUnder([spectrum, card], words), true, 'a canvas beside the words in the stack is under them');
+  assert.equal(pictureUnder([card], words), false, 'only their own card: the CSS background is what they stand on');
+  const around = node('SVG'), inside = node('DIV', around), text = node('SPAN', inside);
+  assert.equal(pictureUnder([around, inside], text), false, 'words inside an svg are part of it, not on it');
+});
