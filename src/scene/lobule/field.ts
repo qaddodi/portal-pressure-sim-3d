@@ -75,7 +75,7 @@ export function paintFieldTile(look: LookId, fs: FieldState, mk: (w: number, h: 
     },
   });
   const t: { R: number; tw?: number; th?: number } = { R };
-  drawTile(t, { cell: L.text('--og-liver-1'), gap: L.text('--og-liver-2'), cvc: L.text('--vein-systemic'), pvc: L.text('--vein-portal'), art: L.text('--artery'), duct: L.text('--bile-duct'), dark: L.dark, fs });
+  drawTile(t, { cell: L.text('--og-field-1') || L.text('--og-liver-1'), gap: L.text('--og-field-2') || L.text('--og-liver-2'), cvc: L.text('--vein-systemic'), pvc: L.text('--vein-portal'), art: L.text('--artery'), duct: L.text('--bile-duct'), dark: L.dark, fs });
   // 2D's quiet copy's blur (a Gaussian of neighbourBlur(R) tile pixels, wrapping round the repeat so it shows no seam)
   const c = cv as HTMLCanvasElement | null;
   const ctx = c?.getContext('2d', READ_BACK);   // (the same context: the attributes of the first getContext call stand)
@@ -192,7 +192,7 @@ export class NeighbourField {
     this.key = k;
     const L = lookColours(look), bg: RGB = L.text('--stage-bg') ? L.rgb01('--stage-bg') : L.rgb01('--bg');
     (this.mat.uniforms.bg!.value as Color).setRGB(bg[0], bg[1], bg[2]);
-    const gp = L.rgb01('--og-liver-2'); (this.mat.uniforms.gapCol!.value as Color).setRGB(gp[0], gp[1], gp[2]);
+    const gp = L.rgb01(L.text('--og-field-2') ? '--og-field-2' : '--og-liver-2'); (this.mat.uniforms.gapCol!.value as Color).setRGB(gp[0], gp[1], gp[2]);
     this.paints++;
     const { cv } = paintFieldTile(look, fs, this.mk);
     if (!cv) return true;

@@ -2,6 +2,7 @@
 // UI tokens become CSS custom properties on :root (applyLook); the 3D scene reads the same table through lookTones().
 export type LookId = 'light' | 'soft' | 'dark' | 'navy' | 'black';
 import { pressureViolet, pressureWine } from '../scene/lenses/pressure-ramp.ts';
+import { BLUSH_ORGANS, BLUSH_TOKENS } from './blush.ts';
 export type LookChoice = LookId | 'system';
 export const LOOK_IDS: readonly LookId[] = ['light', 'soft', 'dark', 'navy', 'black'];
 export const LOOK_LABELS: Record<LookChoice, string> = { light: 'Light', soft: 'Soft', dark: 'Dark', navy: 'Navy', black: 'Black', system: 'System' };
@@ -31,10 +32,10 @@ const darkSignals = { ok: '#34C38F', caution: '#F0B43C', danger: '#F2634D', onDa
 
 export const LOOKS: Record<LookId, Look> = {
   light: { scheme: 'light', bg: '#F1EBE0', card: '#FCF9F3', glass: 'rgba(252,249,243,.92)', text: '#1B1710', text2: '#463F34', text3: '#5A5347', accent: '#2E4BB8', accentSoft: 'rgba(46,75,184,.10)', edge: 'rgba(59,44,34,.12)', sa: 0.16, ok: '#157A58', caution: '#8F6208', danger: '#C23F2A', onAccent: '#FFFFFF', onDanger: '#FFFFFF',
-    plate: '#E8DFD0', ink: '#3B2C22', shadowRgb: '46 22 34', liver: '#905B49', spleen: '#7A5F78', kidney: '#895F7A', gut: '#AF826E', stomach: '#A67A6C', heart: '#9D575C', portal: '#B8326F', systemic: '#3F7FCB', shadeK: 0.62 },
+    plate: '#E8DFD0', ink: '#3B2C22', shadowRgb: '46 22 34', ...BLUSH_ORGANS.light, portal: '#B8326F', systemic: '#3F7FCB', shadeK: 0.62 },
   // Soft's two vessel tones are the proposed deeper ones, accepted by the owner on 19 Nov.
   soft: { scheme: 'light', bg: '#DDD0B9', card: '#F0E9DC', glass: 'rgba(240,233,220,.84)', text: '#1F1A12', text2: '#463E31', text3: '#514838', accent: '#3652B8', accentSoft: 'rgba(54,82,184,.11)', edge: 'rgba(51,37,26,.14)', sa: 0.18, ok: '#0F6B57', caution: '#845200', danger: '#AA3622', onAccent: '#FFFFFF', onDanger: '#FFFFFF',
-    plate: '#CEC6B7', ink: '#33251A', shadowRgb: '46 22 34', liver: '#774433', spleen: '#634962', kidney: '#724963', gut: '#956A57', stomach: '#8D6255', heart: '#834046', portal: '#A8306A', systemic: '#3A74B8', shadeK: 0.62 },
+    plate: '#CEC6B7', ink: '#33251A', shadowRgb: '46 22 34', ...BLUSH_ORGANS.soft, portal: '#A8306A', systemic: '#3A74B8', shadeK: 0.62 },
   dark: { scheme: 'dark', bg: '#1A1917', card: '#242321', glass: 'rgba(30,29,27,.95)', text: '#EEEBE5', text2: '#B7B1A8', text3: '#A69E95', ...darkSignals, onAccent: '#15140F', edge: 'rgba(255,255,255,.08)', sa: 0.5, plate: '#262421', ink: '#0E0B09', shadowRgb: '0 0 0', ...darkOrgans, shadeK: 0.5 },
   navy: { scheme: 'dark', bg: '#0E1422', card: '#161E30', glass: 'rgba(16,23,42,.95)', text: '#E9EDF6', text2: '#A9B2C7', text3: '#8F99B3', ...darkSignals, onAccent: '#0B1120', edge: 'rgba(255,255,255,.08)', sa: 0.5, plate: '#1A2238', ink: '#05080F', shadowRgb: '0 0 0', ...darkOrgans, shadeK: 0.5 },
   black: { scheme: 'dark', bg: '#000000', card: '#0D0D0E', glass: 'rgba(10,10,11,.95)', text: '#F4F4F5', text2: '#B6B6BC', text3: '#9C9CA4', ...darkSignals, onAccent: '#0A0A0B', edge: 'rgba(255,255,255,.09)', sa: 0.6, plate: '#0F0F11', ink: '#000000', shadowRgb: '0 0 0', ...darkOrgans, shadeK: 0.5 },
@@ -56,6 +57,8 @@ export function lookVars(id: LookId): Record<string, string> {
     '--organ-body': l.plate, '--ink': l.ink, '--shadow-rgb': l.shadowRgb,
     '--organ-liver': l.liver, '--organ-spleen': l.spleen, '--organ-gut': l.gut, '--organ-stomach': l.stomach, '--organ-heart': l.heart,
     '--vein-portal': l.portal, '--vein-systemic': l.systemic,
+    // the lobule's tissue as Blush has it (blush.ts), for the readers that take it from the document
+    ...(id === 'light' || id === 'soft' ? Object.fromEntries(Object.entries(BLUSH_TOKENS[id]).map(([k, v]) => ['--' + k, v])) : {}),
     // the pressure ramp's 12 and 20 mmHg stops as flat colours (CSS tints of the HVPG against PPG plane): the ramp's own (scene/lenses/pressure-ramp.ts), set inline so they beat the 2D stylesheet's copy
     '--ramp-violet': pressureViolet(id), '--ramp-wine': pressureWine(id),
   };

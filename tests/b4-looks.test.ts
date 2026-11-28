@@ -27,7 +27,7 @@ const shared = (s: CelScene) => (s as unknown as { shared: CelShared }).shared;
 
 test('the kidney has its own plum in every look (2D --organ-kidney), not the spleen\'s', () => {
   assert.equal(ORGAN_STYLE['kidney-l']!.tone, 'kidney');
-  assert.equal(LOOKS.light.kidney, '#895F7A'); assert.equal(LOOKS.soft.kidney, '#724963'); assert.equal(LOOKS.dark.kidney, '#A07E8E');
+  assert.equal(LOOKS.light.kidney, '#A27F99'); assert.equal(LOOKS.soft.kidney, '#94718A');   // (Blush, docs/approved/palette-blush.md) assert.equal(LOOKS.dark.kidney, '#A07E8E');
   for (const id of LOOK_IDS) assert.notEqual(PALETTES[id].tones.kidney, PALETTES[id].tones.spleen, id);
 });
 
