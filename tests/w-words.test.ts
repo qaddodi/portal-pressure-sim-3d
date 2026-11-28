@@ -57,7 +57,7 @@ function statesOf(id: string): Promise<State[]> {
 }
 const valueTokens = (text: string) => tokensOf(text).flatMap(({ raw, token }) => (token.kind === 'value' && !token.at ? [{ raw, key: token.key, whole: token.whole }] : []));
 
-test('W2: a slide whose words say blood returns to the liver shows a liver share that moved; a TIPS of 6 to 12 mm leaves the same 6% (so the narrower-stent slide says no such thing)', async () => {
+test('W2: a slide whose words say blood returns to the liver shows a liver share that moved; a TIPS of 6 to 12 mm leaves almost the same share (so the narrower-stent slide says no such thing)', async () => {
   const claim = /\breturns? (portal|mesenteric) (venous )?blood to the liver|more (portal )?blood (reaches|returns to) the liver/i;
   let seen = 0;
   for (const d of decks) {
@@ -71,10 +71,13 @@ test('W2: a slide whose words say blood returns to the liver shows a liver share
     }
   }
   assert.equal(seen, 0, 'no slide with a bar claims the blood returns to the liver while its share is unchanged (the narrower-stent slide was the one)');
-  // the model's fact the slide's words must not contradict: a 6 mm stent (the narrower-stent slide) and an 8 mm one (the slide before it) leave the liver the same share of the portal blood
+  // the model's fact the slide's words must not contradict: a 6 mm stent (the narrower-stent slide) and an 8 mm one (the slide before it) leave the liver almost the same share of the portal blood.
+  // Not "the same whole percent": the shunt fraction is 94.06% at 8 mm and 93.49% at 6 mm since engine 4f4e49f refitted the TIPS tract term (0.18 to 0.156, 28 Nov), and the bar rounds 6.51 up to 7.
+  // A rounded whole number sits on a boundary here, so the test holds the unrounded fraction: within one point, and "almost all" (over 90%) as the slide's words say.
   const d = deckOf('encephalopathy'), st = await statesOf('encephalopathy'), at = (id: string) => st[d.slides.findIndex((x) => x.id === id)]!.fp;
-  assert.equal(portalSplit(at('narrow').shunt as number).liver, portalSplit(at('tips').shunt as number).liver, 'the shunt fraction saturates between 6 and 8 mm');
-  assert.equal(portalSplit(at('narrow').shunt as number).liver, 6);
+  const wide = (at('tips').shunt as number) * 100, narrow = (at('narrow').shunt as number) * 100;
+  assert.ok(Math.abs(wide - narrow) <= 1, `the shunt fraction saturates between 6 and 8 mm (${narrow.toFixed(2)}% and ${wide.toFixed(2)}%)`);
+  assert.ok(narrow > 90, 'almost all portal blood still bypasses the liver on the narrower stent, as the slide says');
   assert.doesNotMatch(d.slides.find((s) => s.id === 'narrow')!.line ?? '', /returns portal blood to the liver/);
 });
 
