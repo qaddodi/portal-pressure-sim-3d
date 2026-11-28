@@ -38,3 +38,28 @@ export function expectedPartKeys(arms: readonly ArmLike[]): string[] {
   }
   return out.sort();
 }
+
+// ---- the growing arms of every node, from the network alone ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+import { NETWORK } from '../src/scene/vessels/network.ts';
+import { GROWER_KINDS, isGrower, permanentEndsByNode } from '../src/scene/vessels/skin/inventory.ts';
+import { braidRootEnds } from '../src/scene/vessels/skin/braid-arm.ts';
+import { MAX_ARMS } from '../src/scene/vessels/skin/inventory.ts';
+import { SKIN_GROWERS } from '../src/scene/vessels/skin/types.ts';
+
+/** The growing arms (`vessel:end`) each node's skin is planned with, worked out from the network's own vessels and nothing typed: every one-tube collateral and shunt (and a braid's bundle roots) ends on the node its `from` or `to` names, and those names
+ *  follow the engine's junction table (a take-off is a node of its own: IVC_P, IVC_M, SV_S, LPV_U...). A node is a junction for them when two to six permanent vessels end on it; the widest `SKIN_GROWERS` stay (and no more than the six arms a skin has). */
+export function growersByNode(): Record<string, string[]> {
+  const perm = permanentEndsByNode(NETWORK), at = new Map<string, { v: (typeof NETWORK)[number]; end: 0 | 1; i: number }[]>();
+  NETWORK.forEach((v, i) => {
+    if (v.feeder || v.id.includes('~F') || !GROWER_KINDS.has(v.kind)) return;
+    for (const end of isGrower(v) ? ([0, 1] as const) : braidRootEnds(v)) { const node = end ? v.to : v.from; at.set(node, [...(at.get(node) ?? []), { v, end, i }]); }
+  });
+  const out: Record<string, string[]> = {};
+  for (const [node, ends] of at) {
+    const n = perm.get(node)?.length ?? 0;
+    if (n < 2 || n > MAX_ARMS) continue;
+    const keep = ends.sort((a, b) => b.v.radius - a.v.radius || a.i - b.i).slice(0, Math.max(0, Math.min(SKIN_GROWERS, MAX_ARMS - n)));
+    if (keep.length) out[node] = keep.map((e) => `${e.v.id}:${e.end}`);
+  }
+  return out;
+}

@@ -20,6 +20,8 @@ import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { SKIN_FS as SKIN_FS_TEXT } from '../src/scene/vessels/skin/shaders.ts';
 import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
+import { EDGES, JUNCTIONS } from '../src/engine/hales/portal/topology.js';
+import { growersByNode, membersOf, skinKey, skinKeysWithArm } from './skin-names-lib.ts';
 
 const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(true); try { return f(); } finally { setSmoothJoins(was); } };
 
@@ -34,26 +36,17 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 // (21 Nov: PVH:DIPS and SVD:S_DSR drop on the integration branch as built here (the surface folds at a triangle; 3 seam loops for 4 arms) though their commits say welded: named, for the shunts threads to look at. wall:PVH_L_1:REX1 stays flared: REX meets the left portal vein at 36 degrees, its lower seam needs 6 radii of a host 10.7 long and LPV_A's skin has the first 2.5; a merged skin needs a seam-less capsule for the cut-away host, mesh.ts)
 // (the `wall:` entries are the landings on a host's wall that keep the fork method, wall.ts, tests/skin-wall.test.ts: each is named, none is silent)
 // (21 Nov: IVC_D's DIPS is a welded static full-size arm of its node: its end lies 2.29 radii from J, inside ATTACH_NEAR_R (2.6) that a node made a junction by its growing arm alone allows (inventory.ts dropFarGrowers), so it no longer lands on IVC_IS's wall (that virtual node had no ring that clears the blend on the short stub between IVCS and IVC_D). PVH's end of DIPS stays flared and named: no ring of the 4-radius stub PVH_R clears it.)
-/** The growing arms of each node on THE PLACED ARRANGEMENT (anatomy/placed-network.ts WHERE EACH END OPENS), every single-tube collateral and shunt that lands on a node with a permanent run-on pair or junction, pinned so a vessel added to or taken from the network is seen here. The growing arms by the network's node names: the left portal vein is one vessel there with no fork, so the umbilical vein
- *  and the meso-Rex meet its end, LPV. */
-const GROWERS_PLACED: Record<string, readonly string[]> = {
-  SMV: ['S_MC:0', 'REX:0'], SVD: ['S_DSR:0', 'C6:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], LPV_U: ['C3:0'], LPV_X: ['REX:1'],
-  IVCI: ['S_PC:1', 'C9:0', 'S_MC:1'], IVC_D: ['DIPS:1'], LRV_S: ['S_DSR:1', 'C6:1'], LRV: ['C5:1'], EPI: ['C3:1'],
-  SV: ['C2:0'], IMV: ['C4:0'], SMV_R: ['C7:0'],
-};
-/** Placed: the arms each node's own skin leaves out, named, each welded elsewhere for a reason a person can read: SV:C2 (the short gastric veins leave beside SVD and are an arm of its skin), IVCI:C9, IVCI:S_PC and IVCI:S_MC (their wall skins
- *  on the cava and the iliac vein, as today; S_MC, IVCI's third grower, was left out of it silently while a skin took two), LPV:C3 and LPV:REX (the LPV's end fades, so the umbilical vein and the Meso-Rex bypass open on its wall where the
- *  placement draws them: one wall skin). None keeps the tube's flared end: the TIPS is welded at both ends (RHV_SPLIT 10). (SVD:C6, 27 Nov: the spontaneous splenorenal shunt leaves the splenic vein at a take-off of its own upstream of SVD, a wall skin of V_SPL, 'wall:V_SPL:C60' below: placed-network.ts OWN_TAKEOFF, tests/landing-frozen.test.ts.) */
-const DROPPED_PLACED = ['IVCI:C9', 'IVCI:S_MC', 'IVCI:S_PC', 'SV:C2', 'SVD:C6'];
-const GROWERS = GROWERS_PLACED;
-const DROPPED = DROPPED_PLACED;
-/** Placed: the growing arms every skin is built with, welded static full-size arms (the wall skins on the cava, the iliac and the renal vein, wall.ts; the short gastric veins on SVD's skin, wall.ts nearLandings, beside both splenorenal shunts). */
-const WELDED_PLACED: Record<string, readonly string[]> = {
-  IMV: ['C4:0'], SVD: ['S_DSR:0', 'C2:0'], 'wall:V_SPL:C60': ['C6:0'], LRV_S: ['S_DSR:1', 'C6:1'], EPI: ['C3:1'], SVC: ['C1b:1'], SMV: ['S_MC:0', 'REX:0'], IVC_D: ['DIPS:1'], SMV_R: ['C7:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'],
-  'wall:IVC_IS_1:S_PC1,C90': ['S_PC:1', 'C9:0'], LRV: ['C5:1'], 'wall:ILI_IVC_1:S_MC1': ['S_MC:1'], 'LPV_U+LPV_X': ['REX:1', 'C3:0'],
-};
-// (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
-
+/** The growing arms of each node (`vessel:end`), derived from the network's own vessels (skin-names-lib.ts growersByNode): every single-tube collateral and shunt that lands on a node with a permanent run-on pair or junction, so a vessel added to or taken from the network, or a
+ *  junction row the engine's table moves, is seen here with no edit. The take-offs are nodes of their own now (the table: IVC_C, IVC_P, IVC_M, SV_S, LPV_U, LPV_X...), so the lower cava's three landings are three nodes' arms, not IVCI's. */
+const GROWERS = growersByNode();
+/** The arms a node's skin leaves out, each named (`node:vessel`), none silent: a skin that is made of several nodes carries the widest SKIN_GROWERS growers of them all, and the rest keep the tube's own flared end. Worked out from what the skins carry, below. */
+/** The growing arms drawn farther than GROW_REACH from their node's centre on the placed arrangement (`node:vessel`), each with why, none silent. SVD:C2, 28 Nov: the short-gastric braid's root is drawn 6.5 radii from SVD's centre where the junction table now joins it
+ *  (C2 joined SV until the real junctions, and was named SV:C2 then): the drawing lands the take-offs the table cuts on the host but not this braid's root, so the skin leaves it with the tube's own flared end. A drawing fix removes the line (and this test then fails until it does). */
+const FAR_PLACED: readonly string[] = ['SVD:C2'];
+/** The growing arms a skin carries that the network does not land on one of its nodes: a growing end within ATTACH_NEAR_R of a junction's centre is an arm of THAT junction whatever node the network names (wall.ts nearLandings). On the placed arrangement the varices' C1b
+ *  lands on the azygos arch two thirds along (azygos-origin: deliberate), 2.3 radii from the SVC junction's centre, so SVC's skin carries it. Named with the skin's node. */
+const NEAR_LANDINGS: Record<string, readonly string[]> = { SVC: ['C1b:1'] };
+const droppedOf = (carried: ReadonlySet<string>): string[] => Object.entries(GROWERS).flatMap(([node, g]) => g.filter((a) => !carried.has(a)).map((a) => `${node}:${a.split(':')[0]}`)).sort();
 /** Nodes with three or more arms that stay whose plain trunk (plain.ts) does not build: the welded skin then comes in over the tubes' own cut ends alone, all of them dithered (named, none silent). */
 const PLAIN_FAILED: string[] = [];   // (LPV_A's plain trunk builds now)
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;
@@ -62,6 +55,11 @@ test('the growing arms are the single-tube collaterals and shunts, pinned by nod
   on(() => {
     const js = findSkinJunctions().filter((j) => j.arms.some((a) => a.grow)), by = Object.fromEntries(js.map((j) => [j.node, j.arms.filter((a) => a.grow).map(armKey)]));
     assert.deepEqual(by, GROWERS);
+    // the drawing reads the engine's table: every joiner of every row ends on the row's node in the network (the node a skin is planned at), and the engine's own edge ends there too
+    for (const [node, , , , joiners] of JUNCTIONS as readonly (readonly [string, string, number, string, readonly (readonly [string, 'from' | 'to'])[]])[]) for (const [id, end] of joiners) {
+      const v = NETWORK_BY_ID.get(id); if (v) assert.equal(end === 'from' ? v.from : v.to, node, `${id} ${end} is the table's node ${node}`);
+      const e = (EDGES as readonly { id: string; from: string; to: string }[]).find((x) => x.id === id); if (e) assert.equal(end === 'from' ? e.from : e.to, node, `engine edge ${id} ${end}`);
+    }
     for (const j of findSkinJunctions()) {
       const g = j.arms.filter((a) => a.grow);
       assert.ok(g.length <= SKIN_GROWERS, `${j.node}: ${g.length} growing arms`);
@@ -86,11 +84,17 @@ test('the growing arms are the single-tube collaterals and shunts, pinned by nod
 
 test('a collateral that lands on the wall (more than GROW_REACH radii from the node) is not an arm of it, and the node keeps its permanent skin; a run-on pair with no collateral left is no junction', () => {
   on(() => {
-    const ivci = findSkinJunctions().find((j) => j.node === 'IVCI')!, d = dropFarGrowers(ivci);
-    assert.deepEqual(d.far.sort(), ['C9', 'S_MC', 'S_PC'], 'the shunt that ends 5.9 radii down the cava, the azygos collateral (8.9) and the mesocaval shunt on the iliac vein');
-    assert.deepEqual(d.junction.arms.map((a) => a.vesselId), ['IVC_IS_1', 'ILI_IVC_1', 'LRV_IVC']);
+    // (with the table every take-off is a node of its own and lands on it: none of the real junctions has a far grower, where the lower cava's IVCI used to have three, 5.9 to 8.9 radii down the cava)
+    const far = findSkinJunctions().flatMap((j) => dropFarGrowers(j).far.map((id) => `${j.node}:${id}`)).sort();
+    assert.deepEqual(far, [...FAR_PLACED].sort(), 'every growing arm ends at its node, but those named in FAR_PLACED (with why)');
+    // the rule itself, on a junction moved away from its growers: each of them is then far, and what stays is the permanent arms
+    const j = findSkinJunctions().find((x) => x.node === 'IVC_P')!, grown = j.arms.filter((a) => a.grow).map((a) => a.vesselId);
+    assert.ok(grown.length > 0, 'IVC_P has the portocaval shunt');
+    const moved = { ...j, J: [j.J[0] + 10 * j.arms[0]!.restR, j.J[1], j.J[2]] as typeof j.J }, d = dropFarGrowers(moved);
+    assert.deepEqual(d.far.sort(), grown.sort(), 'a junction 10 radii from its growers drops them all');
+    assert.deepEqual(d.junction.arms.map((a) => a.vesselId), j.arms.filter((a) => !a.grow).map((a) => a.vesselId));
     assert.equal(dropFarGrowers(d.junction).junction, d.junction, 'nothing more to drop');
-    assert.equal(withoutGrowers(findSkinJunctions().find((j) => j.node === 'SMV')!), null, 'SMV is a run-on pair with two shunts on it: without them it is no junction');
+    assert.equal(withoutGrowers(findSkinJunctions().find((x) => x.node === 'SMV')!), null, 'SMV is a run-on pair with two shunts on it: without them it is no junction');
     assert.ok(GROW_REACH < 6, 'a growing arm has to be nearer than a permanent one may be');
   });
 });
@@ -124,13 +128,27 @@ test('the real network builds the growing arms it can as STATIC full-size arms, 
   try {
     assert.deepEqual(b.warnings, [], 'no skin falls back');
     assert.deepEqual([...b.set.fellBack].sort(), [], 'no node keeps the old join');
+    const grown = new Map(b.draws.map((d) => [nodeOf(d), meshOf(b, d).junction.arms.filter((a) => a.grow).map(armKey)]));
+    const carried = new Set([...grown.values()].flat()), keys = [...grown.keys()];
+    // (what the skins carry is the network's growers less the named ones, derived: a growing arm is in a skin, or in `dropped` with its reason, never neither)
+    const DROPPED = droppedOf(carried);
     assert.deepEqual([...b.set.dropped].sort(), DROPPED);
     for (const d of DROPPED) assert.ok(b.set.why[d] === undefined || /^skin: junction /.test(b.set.why[d]!), `${d}: named with its SkinBuildError message`);
-    const grown = new Map(b.draws.map((d) => [nodeOf(d), meshOf(b, d).junction.arms.filter((a) => a.grow).map(armKey)]));
-    const got = Object.fromEntries([...grown].filter(([, g]) => g.length));
-    assert.deepEqual(got, WELDED_PLACED);
-    assert.deepEqual(grown.get('IVC_D'), ['DIPS:1'], 'IVC_D: DIPS is a static full-size growing arm of its node');
-    for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'IVC_D', 'SVC_E', 'SVC']) assert.ok(grown.has(n), `${n} still has its skin`);
+    // the rules that decide which are named: a growing end drawn too far from its node is left out (FAR_PLACED), and a skin made of several nodes carries the widest SKIN_GROWERS growers of them all, so any other dropped one is no wider than those it carries and the skin is full
+    for (const d of DROPPED.filter((x) => !FAR_PLACED.includes(x))) {
+      const [node, id] = d.split(':') as [string, string], key = skinKey(keys, node)!, mine = grown.get(key)!;
+      assert.ok(mine.length === SKIN_GROWERS, `${d}: dropped from a skin that is full (${key}: ${mine.join(', ')})`);
+      for (const a of mine) assert.ok(NETWORK_BY_ID.get(a.split(':')[0]!)!.radius >= NETWORK_BY_ID.get(id)!.radius - 1e-12, `${d}: no wider than ${a}`);
+    }
+    // every skin that carries growers carries exactly those the network lands on its nodes, less the dropped
+    const want: Record<string, string[]> = {};
+    for (const [node, g] of Object.entries(GROWERS)) { const k = skinKey(keys, node); if (k) for (const a of g) if (!DROPPED.includes(`${node}:${a.split(':')[0]}`)) (want[k] ??= []).push(a); }
+    for (const [node, g] of Object.entries(NEAR_LANDINGS)) { const k = skinKey(keys, node)!; (want[k] ??= []).push(...g); }
+    const got = Object.fromEntries([...grown].filter(([, g]) => g.length).map(([k, g]) => [k, [...g].sort()]));
+    assert.deepEqual(got, Object.fromEntries(Object.entries(want).map(([k, g]) => [k, [...g].sort()])));
+    assert.deepEqual(grown.get(skinKey(keys, 'IVC_D')!), ['DIPS:1'], 'IVC_D: DIPS is a static full-size growing arm of its node');
+    // (a node is found in the skin it is part of: the lower cava's IVCI is a member of one merged skin with the landings above it)
+    for (const n of ['CONF', 'PVT_L', 'SV', 'PVH', 'HA', 'CV_R', 'IVCI', 'IVC_D', 'SVC_E', 'SVC']) assert.ok(skinKey(keys, n), `${n} still has its skin`);
   } finally { done(b); }
 });
 
@@ -277,7 +295,7 @@ test('copies: a growing arm is a plain arm\'s front copy, and a skin with no arm
   } finally { done(b); }
 });
 
-test('no tube stretch is owned by two surfaces: a skin\'s cut and another skin\'s hole on one vessel never overlap, the S_PC/C9 wall skin and IVCI\'s skin abut on ONE seam ring of the cava', () => {
+test('no tube stretch is owned by two surfaces: a skin\'s cut and another skin\'s hole on one vessel never overlap, a vessel a skin hides whole has that skin alone, and the landings along the lower cava are one skin', () => {
   const b = built();
   try {
     const owned = new Map<string, { node: string; lo: number; hi: number }[]>();
@@ -292,9 +310,12 @@ test('no tube stretch is owned by two surfaces: a skin\'s cut and another skin\'
       const over = Math.min(cs[i]!.hi, cs[j]!.hi) - Math.max(cs[i]!.lo, cs[j]!.lo);
       assert.ok(over <= 1e-9, `${id}: ${cs[i]!.node} and ${cs[j]!.node} both cover ${over.toFixed(4)} of it`);
     }
-    const cava = owned.get('IVC_IS_1')!, ivci = cava.find((c) => c.node === 'IVCI')!, wall = cava.find((c) => c.node.startsWith('wall:IVC_IS_1:S_PC'))!;
-    assert.ok(ivci && wall, 'both skins stand on the cava');
-    assert.ok(Math.abs(ivci.hi - wall.lo) < 1e-9, 'one shared seam ring, no tube and no overlap between them');
+    // a skin that hides a vessel whole is its only owner: no other skin cuts it or holes it
+    for (const d of b.draws) for (const id of b.set.hiddenOf(nodeOf(d))) assert.ok((owned.get(id) ?? []).every((c) => c.node === nodeOf(d)), `${id}: hidden whole by ${nodeOf(d)}, no other skin cuts or holes it`);
+    // the lower cava's pieces (the table cuts the vein at its take-offs, one piece between each): the landings of the portocaval shunt and the lumbar veins are one skin with the left renal vein's and the mesocaval shunt's node, and the pieces they hide are theirs alone
+    const cluster = skinKey(b.draws.map(nodeOf), 'IVCI')!, near = ['IVC_C', 'IVC_P', 'IVC_M'].map((n) => skinKey(b.draws.map(nodeOf), n));
+    assert.deepEqual(near, [cluster, cluster, cluster], 'one skin for the landings along the lower cava');
+    assert.ok(b.set.hiddenOf(cluster).includes('IVC_IS_2'), 'the piece between the lumbar veins and the portocaval shunt is the skin\'s');
   } finally { done(b); }
 });
 
@@ -372,8 +393,12 @@ test('a collateral that ends off the joint of the trunks at its node (the epigas
 test('a growing arm that is not there never holds back the weld of the one beside it: S_PC closed (dotted) with C9 whole welds the lower cava\'s wall skin (Budd-Chiari: C9 ended in a flat cap with no join)', () => {
   const b = built();
   try {
-    const wall = 'wall:IVC_IS_1:S_PC1,C90';
+    // (the skin the lumbar vein and the portocaval shunt both land on: found by its arms, not by a typed name)
+    const wall = skinKeysWithArm([...b.set.nodes].map((n) => ({ node: n, mesh: b.set.skinOf(n)! })), 'C9')[0]!;
+    assert.ok(wall && skinKeysWithArm([...b.set.nodes].map((n) => ({ node: n, mesh: b.set.skinOf(n)! })), 'S_PC').includes(wall), 'C9 and S_PC are arms of one skin');
     const spc = b.scene.vesselObject('S_PC') as VesselObject, c9 = b.scene.vesselObject('C9') as VesselObject;
+    // (the merged skin carries other growing arms too, the mesocaval shunt among them: they are closed threads here, so only the two under test can hold the weld)
+    for (const a of b.set.skinOf(wall)!.junction.arms) if (a.grow && a.vesselId !== 'S_PC' && a.vesselId !== 'C9') { const o = b.scene.vesselObject(a.vesselId) as VesselObject; o.group.visible = true; o.setReveal(1); o.setDotted(true); }
     c9.group.visible = true; c9.setReveal(1); c9.setDotted(false);
     spc.group.visible = true; spc.setReveal(1); spc.setDotted(true); b.set.sync();
     assert.equal(b.set.weldOf(wall), 1, 'C9 whole, S_PC a closed thread: the skin is welded');
