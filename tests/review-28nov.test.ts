@@ -5,6 +5,8 @@ import { performance } from 'node:perf_hooks';
 (globalThis as Record<string, unknown>).location = { search: '', pathname: '/', hostname: 'localhost' };
 const { loadSource, SOURCE_IDS } = await import('../src/decks/source.ts');
 const { toDeck } = await import('../src/decks/hp/deck.ts');
+const { ensureChartsBaked } = await import('./baked-decks.ts');
+ensureChartsBaked();
 const { trustBaked, bakedById } = await import('../src/ui/charts/baked/store.ts');
 const { mergeStates } = await import('../src/ui/charts/baked/view.ts');
 const { lectureOf } = await import('../src/ui/debug/export/lecture.ts');

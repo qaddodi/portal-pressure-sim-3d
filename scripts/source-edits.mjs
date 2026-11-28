@@ -9,7 +9,7 @@
 //   { set }       replaces the whole field          { drop: true } removes the field          { append } adds a sentence to the end of the field
 import { RIGHTS } from './credit.mjs';
 import { REVIEW_28NOV } from './review-28nov-edits.mjs';
-import { NOTES_WORDING_28NOV } from './notes-wording-28nov-edits.mjs';
+import { NOTES_WORDING_28NOV, CLINICAL_28NOV, ALBUMIN_28NOV } from './notes-wording-28nov-edits.mjs';
 const P = (deck, at, from, to) => ({ deck, at, from, to });
 const SET = (deck, at, set) => ({ deck, at, set });
 const DROP = (deck, at) => ({ deck, at, drop: true });
@@ -117,7 +117,7 @@ export const REVIEWER_24NOV = [
   // Gastric varices 7: the route the title teaches, and the anatomy it needs
   SET('gastric-varices', 'slides.brto.terms', ['gv', 'lrv']),
   SET('gastric-varices', 'slides.brto.mark', { edges: ['C5'], label: 'Gastrorenal shunt', kind: 'note' }),
-  SET('gastric-varices', 'slides.brto.line', 'When a TIPS is not suitable and the varix drains through a suitable gastrorenal shunt, a balloon in the left renal vein occludes the shunt and the fundal varix shrinks to {gv}, but the PPG rises to {ppg}. Esophageal varices can grow to {varix}; repeat endoscopy follows.'),
+  SET('gastric-varices', 'slides.brto.line', 'When a TIPS is not suitable and the varix drains through a suitable gastrorenal shunt, a balloon in the left renal vein occludes the shunt and the fundal varix reads {gv} afterward, but the PPG rises to {ppg}. Esophageal varices can grow to {varix}; repeat endoscopy follows.'),
   // Recompensation 7 (the criteria card): each criterion has its own row; the interval belongs to the first four (Baveno VIII 7.4 a to d), liver function (e) is separate
   SET('recompensation', 'slides.recomp.tool', { kind: 'criteria', title: 'Recompensation', lead: 'All five; the first four each for >6 months.', rule: 'Baveno VIII 7.4',
     rows: ['**Cause** removed, controlled or suppressed', ['No **ascites** on imaging, off diuretics', 'asc', '<', 0.15], 'No clinical **HE**, off lactulose, rifaximin or LOLA', 'No recurrent variceal **bleeding**, if a bleed was a decompensating event (carvedilol allowed)', 'Liver function back to **Child–Pugh A5 or A6**'] }),
@@ -528,7 +528,7 @@ export const CAPTURE_3531BDFA_CLINICAL = [
 
   // ---- C14: trial citations and the rifaximin advice leave the screen (the notes carry them) ----
   P('encephalopathy', 'slides.tips.cite', '; Bureau, Ann Intern Med 2021', ''),
-  APPEND('encephalopathy', 'slides.tips.notes', 'The rifaximin trial is Bureau, Ann Intern Med 2021.'),
+  // (the closing sentence "The rifaximin trial is Bureau, Ann Intern Med 2021." repeated the citation in the same note; production review 28 Nov, P-28: no longer appended)
   P('ascites', 'slides.tips.cite', '; Bureau, Gastroenterology 2017', ''),
   P('treatment', 'slides.carv.cite', '; PREDESCI (Villanueva, Lancet 2019)', ''),
   APPEND('treatment', 'slides.carv.notes', 'PREDESCI is Villanueva, Lancet 2019.'),
@@ -733,6 +733,8 @@ export const SOURCE_PATCHES = [
   ...HVPG_PPG_AFTER_EUS_27NOV,
   ...REVIEW_28NOV,
   ...NOTES_WORDING_28NOV,
+  ...CLINICAL_28NOV,
+  ...ALBUMIN_28NOV,
 ];
 
 function step(node, key) {

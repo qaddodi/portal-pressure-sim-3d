@@ -64,6 +64,7 @@ test('Baveno VIII: each open trial prints its recommendations by number, and 5.3
   assert.equal(today531(null, true), 'This patient: HVPG not measured.');
   assert.equal(today531(12, false), 'The HVPG rule applies at a bleed. This patient: HVPG 12.0 mmHg.');
   assert.equal(today531(22, true), 'This patient is bleeding with HVPG 22.0 mmHg: meets the HVPG rule.');
+  assert.equal(today531(20, true), 'This patient is bleeding with HVPG 20.0 mmHg: under the HVPG rule.');
   assert.equal(today531(15, true), 'This patient is bleeding with HVPG 15.0 mmHg: under the HVPG rule.');
   const five31 = withBav.find((x) => x.bav.includes('5.31'));
   if (five31) assert.ok(bavenoLines(five31, { hvpg: 22 }, true).find((l) => l.k === '5.31')!.today!.includes('meets'));

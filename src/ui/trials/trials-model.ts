@@ -133,12 +133,12 @@ export const rxOn = (rx: Rx, p: unknown): boolean => {
 /** Whether a trial has a band ligation arm: its Model line says that ligation treats the varix, not the pressure (TC-T5). */
 export const hasEvlArm = (t: Trial | null | undefined): boolean => (t?.arms || []).some((a) => /band ligation|\bEVL\b/i.test(a.label));
 
-/** Baveno VIII 5.31 checked against the patient's HVPG (TC-A2): the HVPG ≥20 rule is the one the model can check. */
+/** Baveno VIII 5.31 checked against the patient's HVPG (TC-A2): the HVPG >20 rule is the one the model can check. */
 export function today531(hvpg: number | null | undefined, bleeding: boolean): string {
   if (!Number.isFinite(hvpg)) return 'This patient: HVPG not measured.';
   const v = `HVPG ${fmt(hvpg as number, 1)} mmHg`;
   if (!bleeding) return `The HVPG rule applies at a bleed. This patient: ${v}.`;
-  return (hvpg as number) >= PTIPS_HVPG ? `This patient is bleeding with ${v}: meets the HVPG rule.` : `This patient is bleeding with ${v}: under the HVPG rule.`;
+  return (hvpg as number) > PTIPS_HVPG ? `This patient is bleeding with ${v}: meets the HVPG rule.` : `This patient is bleeding with ${v}: under the HVPG rule.`;
 }
 /** "5.31. Preemptive covered TIPS …" as 2D prints it after the bold "Baveno VIII 5.31." (the number once). */
 export const bavenoText = (k: string): string => BAVENO_VIII[k] ?? '';

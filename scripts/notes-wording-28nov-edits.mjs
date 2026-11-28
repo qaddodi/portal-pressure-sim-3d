@@ -13,9 +13,31 @@ export const NOTES_WORDING_28NOV = [
   P('pregnancy', 'slides.delivery.notes', 'Neither guideline file gives the advice on forceps or vacuum', 'None of the guidance cited here gives the advice on forceps or vacuum'),
   P('outflow', 'slides.relation.notes', 'Neither guideline file gives a figure for how much congestion raises LSM.', 'Baveno VIII gives no figure for how much congestion raises LSM.'),
   // P-28: duplicated sentences
-  P('encephalopathy', 'slides.tips.notes', ' The rifaximin trial is Bureau, Ann Intern Med 2021.', ''),
   P('treatment', 'slides.carv-sin.line', 'A fall of ≥10% or an HVPG ≤12 mmHg responds. In primary prophylaxis, a fall', 'In primary prophylaxis, a fall'),
   // P-27: the fundal varix after obliteration reads "None", which mid-sentence read as a fault ("shrinks to None"); the sentence now says the varix reads it
-  P('gastric-varices', 'slides.brto.line', 'the fundal varix shrinks to {gv}, but the PPG', 'the fundal varix reads {gv} afterward, but the PPG'),
   P('gastric-varices', 'slides.bato.line', 'the fundal varix shrinks to {gv}, as after BRTO.', 'the fundal varix reads {gv} afterward, as after BRTO.'),
+];
+
+/** The owner's clinical rulings C1 to C4 of the production review (28 Nov 2026, card answers: all the recommended option A). */
+export const CLINICAL_28NOV = [
+  // C1: the preemptive-TIPS HVPG criterion is ">20 mmHg" wherever Baveno VIII 5.31 is quoted; Monescillo's trial entry keeps its own "≥20 mmHg" (the decks already say >20 elsewhere)
+  P('hvpg', 'slides.hvpg.notes', 'an HVPG ≥20 mmHg is one of the criteria for preemptive TIPS', 'an HVPG >20 mmHg is one of the criteria for preemptive TIPS'),
+  // C2: both post-cure rules stay; each says which question it answers
+  P('cause-treated', 'slides.year2.line', 'that rules CSPH out.', 'that rules CSPH out after cure.'),
+  P('cause-treated', 'slides.year2.notes', 'and counts it as resolved at an HVPG <10 mmHg', 'and, to decide whether carvedilol can stop, counts it as resolved at an HVPG <10 mmHg'),
+  P('cause-treated', 'slides.year2.notes', 'Repeat the LSM and platelet count if a new cause of liver injury appears.', 'If a new cause of liver injury appears, repeat the LSM and platelet count. The LSM <12 kPa with platelets >150,000/µL on this slide answers a different question: whether CSPH is ruled out after cure.'),
+  P('cause-treated', 'slides.path-stopcarv.notes', 'so the HVPG decides.', 'so the HVPG alone decides. These are the rules for stopping carvedilol; the LSM <12 kPa with platelets >150,000/µL rule answers a different question, whether CSPH is ruled out after cure.'),
+  P('cause-treated', 'slides.relation.notes', 'Baveno VIII counts CSPH as resolved at an HVPG', 'Baveno VIII counts CSPH as resolved, for the decision to stop carvedilol, at an HVPG'),
+  // C3: erythromycin before endoscopy
+  P('variceal-bleed', 'slides.oct.notes', 'Erythromycin 250 mg IV, 30 to 90 minutes before endoscopy', 'Erythromycin 250 mg IV, 30 to 120 minutes before endoscopy'),
+  // C4: the late-TIPS windows had no source
+  P('variceal-bleed', 'slides.tips.notes', ' A patient who misses the 72-hour window can still benefit from a TIPS placed later, up to about 1 week in Child–Pugh B and 2 weeks in Child–Pugh C.', ''),
+];
+
+/** P-23, the owner's pick (28 Nov 2026): the daily dose of albumin with terlipressin was never confirmed, so the notes stop giving it; the author's note goes with it. */
+export const ALBUMIN_28NOV = [
+  P('albumin', 'slides.ind.notes', 'and 1 g/kg on day 1 then 40 to 50 g a day with terlipressin in HRS-AKI (that last figure is not confirmed here; check it against the source before teaching it).', 'and 1 g/kg on day 1 then a daily dose with terlipressin in HRS-AKI.'),
+  P('albumin', 'slides.terli.notes', 'the dose of 1 g/kg on day 1 and then 40 to 50 g a day for the duration of therapy is AASLD 2021.', 'the dose of 1 g/kg on day 1 and then a daily dose for the duration of therapy is AASLD 2021.'),
+  P('albumin', 'slides.terli-alb.notes', '1 g/kg on day 1, then 40 to 50 g a day for the duration of therapy.', '1 g/kg on day 1, then a daily dose for the duration of therapy.'),
+  P('albumin', 'slides.summary.notes', '1 g/kg then 40 to 50 g a day with terlipressin in HRS-AKI.', '1 g/kg then a daily dose with terlipressin in HRS-AKI.'),
 ];

@@ -110,3 +110,10 @@ test('speaker notes never cite an older Baveno report, never speak of a "guideli
   }
   assert.deepEqual(bad, []);
 });
+
+test('no note carries an author instruction or an unconfirmed dose (production review 28 Nov, P-23)', () => {
+  const notes: { at: string; text: string }[] = [];
+  for (const { id, deck } of DECKS) walk(deck, id, [], notes);
+  const bad = notes.filter((n) => /check it against the source|not confirmed here|40 to 50 g a day/.test(n.text)).map((n) => n.at);
+  assert.deepEqual(bad, []);
+});
