@@ -868,7 +868,7 @@ export class SkinSet {
         if (b.plain && b.plain.draw !== outD) b.plain.draw.setWeld?.(-1, 1);   // (the plain trunk once the weld is whole)
         inD?.setWeld?.(1, weld); outD?.setWeld?.(-1, weld);
         // (an absent growing arm's own thread keeps its end; so does a divided vein's start while its shunt's skin is the one without it: the stump's round end is the tube's own)
-        for (const a of b.arms) if (a.weld) a.obj.setSkinWeld(a.end, a.grow && !a.here ? 0 : lvIn && a.leaves !== undefined && there.some((g) => b.arms[g]!.id === a.leaves) ? 0 : weld);
+        for (const a of b.arms) if (a.weld) a.obj.setSkinWeld(a.end, a.grow && !a.here ? 0 : lvIn && a.leaves !== undefined && there.some((g) => b.arms[g]!.id === a.leaves) ? 0 : b.plain && !a.grow ? 1 : weld);
         if (!b.plain) for (const h of b.holes) this.deps.vessel(h.id)?.setSkinWeld(2, weld);   // (a host's hole is dithered back with the weld when no plain trunk stands in for it)
       }
       if (any) changed = true;

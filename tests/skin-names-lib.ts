@@ -63,3 +63,21 @@ export function growersByNode(): Record<string, string[]> {
   }
   return out;
 }
+
+/** The parts of the placed skins that do not build, each with why: the part's mesh folds (mesh.ts foldedTriangles) and the bake records it as failed, so the skin set draws the welded skin there (skin-set.ts `partFailed`). Named, never silent: the tests expect exactly these and
+ *  fail when one builds again, so the line goes. SV_S+SVD:2.3L (28 Nov): the splenic vein's Warren part with both growers, the shunt and the spontaneous splenorenal shunt C6, folds at a triangle on the merged skin the table's take-off SV_S makes with SVD. Group C (skin quality) owns removing it. */
+export const PART_FOLDED: { skin: string; key: string; why: string }[] = [
+  { skin: 'SV_S+SVD', key: partKeyOf([{ vesselId: 'V_SPL' }, { vesselId: 'SV_MID', leaves: 'S_DSR' }, { vesselId: 'S_DSR', grow: true }, { vesselId: 'C6', grow: true }], ['S_DSR', 'C6'], true), why: 'the surface folds at a triangle (live build, 28 Nov)' },
+];
+
+/** The growing ends (`node:vessel`) the network lands on a node's skin that no built skin carries, sorted: each is named in the skin set's `dropped` (a skin that cannot carry an arm names it and leaves the tube's own flared end). `carried` is every `vessel:end` the skins carry as a growing arm. */
+export const droppedOf = (carried: ReadonlySet<string>): string[] => Object.entries(growersByNode()).flatMap(([node, g]) => g.filter((a) => !carried.has(a)).map((a) => `${node}:${a.split(':')[0]}`)).sort();
+
+/** Every growing arm (`vessel:end`) the skins of a set carry. */
+export function carriedBy(set: { nodes: readonly string[]; skinOf(node: string): { junction: { arms: readonly { vesselId: string; end: number; grow?: boolean }[] } } | undefined }): Set<string> {
+  return new Set(set.nodes.flatMap((n) => set.skinOf(n)!.junction.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`)));
+}
+
+/** The growing arms drawn farther than GROW_REACH from their node's centre on the placed arrangement (`node:vessel`), each with why, none silent. SVD:C2, 28 Nov: the short-gastric braid's root is drawn 6.5 radii from SVD's centre where the junction table now joins it
+ *  (C2 joined SV until the real junctions, and was named SV:C2 then): the drawing lands the take-offs the table cuts on the host but not this braid's root, so the skin leaves it with the tube's own flared end. A drawing fix removes the line (and this test then fails until it does). */
+export const FAR_PLACED: readonly string[] = ['SVD:C2'];

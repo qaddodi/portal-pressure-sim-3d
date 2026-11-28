@@ -21,7 +21,7 @@ import { SKIN_FS as SKIN_FS_TEXT } from '../src/scene/vessels/skin/shaders.ts';
 import type { VesselObject } from '../src/scene/vessels/vessel-object.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import { EDGES, JUNCTIONS } from '../src/engine/hales/portal/topology.js';
-import { growersByNode, membersOf, skinKey, skinKeysWithArm } from './skin-names-lib.ts';
+import { FAR_PLACED, droppedOf, growersByNode, skinKey, skinKeysWithArm } from './skin-names-lib.ts';
 
 const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(true); try { return f(); } finally { setSmoothJoins(was); } };
 
@@ -40,13 +40,9 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
  *  junction row the engine's table moves, is seen here with no edit. The take-offs are nodes of their own now (the table: IVC_C, IVC_P, IVC_M, SV_S, LPV_U, LPV_X...), so the lower cava's three landings are three nodes' arms, not IVCI's. */
 const GROWERS = growersByNode();
 /** The arms a node's skin leaves out, each named (`node:vessel`), none silent: a skin that is made of several nodes carries the widest SKIN_GROWERS growers of them all, and the rest keep the tube's own flared end. Worked out from what the skins carry, below. */
-/** The growing arms drawn farther than GROW_REACH from their node's centre on the placed arrangement (`node:vessel`), each with why, none silent. SVD:C2, 28 Nov: the short-gastric braid's root is drawn 6.5 radii from SVD's centre where the junction table now joins it
- *  (C2 joined SV until the real junctions, and was named SV:C2 then): the drawing lands the take-offs the table cuts on the host but not this braid's root, so the skin leaves it with the tube's own flared end. A drawing fix removes the line (and this test then fails until it does). */
-const FAR_PLACED: readonly string[] = ['SVD:C2'];
 /** The growing arms a skin carries that the network does not land on one of its nodes: a growing end within ATTACH_NEAR_R of a junction's centre is an arm of THAT junction whatever node the network names (wall.ts nearLandings). On the placed arrangement the varices' C1b
  *  lands on the azygos arch two thirds along (azygos-origin: deliberate), 2.3 radii from the SVC junction's centre, so SVC's skin carries it. Named with the skin's node. */
 const NEAR_LANDINGS: Record<string, readonly string[]> = { SVC: ['C1b:1'] };
-const droppedOf = (carried: ReadonlySet<string>): string[] => Object.entries(GROWERS).flatMap(([node, g]) => g.filter((a) => !carried.has(a)).map((a) => `${node}:${a.split(':')[0]}`)).sort();
 /** Nodes with three or more arms that stay whose plain trunk (plain.ts) does not build: the welded skin then comes in over the tubes' own cut ends alone, all of them dithered (named, none silent). */
 const PLAIN_FAILED: string[] = [];   // (LPV_A's plain trunk builds now)
 const armKey = (a: { vesselId: string; end: number }) => `${a.vesselId}:${a.end}`;

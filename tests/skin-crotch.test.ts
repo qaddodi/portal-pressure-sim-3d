@@ -7,6 +7,7 @@ import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
 import { REFINE_AT, worstNormalAngle } from '../src/scene/vessels/skin/mesh.ts';
+import { carriedBy, droppedOf } from './skin-names-lib.ts';
 
 test('LRV_S clears the 80 degree limit with margin, and the refinement leaves every other skin as it was', () => {
   setSmoothJoins(true);
@@ -21,10 +22,9 @@ test('LRV_S clears the 80 degree limit with margin, and the refinement leaves ev
   assert.ok(worst.get('LRV_S')! < 75, `LRV_S ${worst.get('LRV_S')}`);
   for (const [n, w] of worst) assert.ok(w < 80, `${n} ${w.toFixed(1)}`);
   assert.ok([...worst].filter(([n, w]) => w < REFINE_AT && n !== 'LRV_S').length > 15, 'most skins are under the refinement threshold and were built once');
-  // (placed anatomy: the TIPS arm of RHV_T builds (the 2D figure's crotch dropped it). What is named dropped is the growing ends that land past SKIN_REACH of their node (skin-set.ts farGone): no skin failed and lost an arm (why is empty). Those ends land
-  //  on a host's wall instead where a wall skin takes them (REX and C3 on PVH_L_1, S_PC and C9 on IVC_IS_1, S_MC on ILI_IVC_1), or are an arm of another node's skin (C2 at SVD). C6's splenic end is one again, since 27 Nov: it leaves the splenic
-  //  vein at a take-off of its own, upstream of SVD, and a wall skin on that vein takes it (placed-network.ts OWN_TAKEOFF))
+  // (placed anatomy: the TIPS arm of RHV_T builds (the 2D figure's crotch dropped it). What is named dropped is a growing end no skin carries (skin-set.ts: one drawn too far from its node, or past the widest SKIN_GROWERS of a merged skin): no skin failed and lost an arm (why is empty).
+  //  Which they are is worked out from the network's growers less what the skins carry (tests/skin-grow.test.ts names each with why), not typed: a take-off the table moves changes it here with no edit)
   assert.ok(!set.dropped.includes('RHV_T:TIPS'), 'the TIPS arm of RHV_T is kept');
   assert.deepEqual((set as unknown as { why: Record<string, string> }).why, {}, 'no arm was dropped by a failed build');
-  assert.deepEqual([...set.dropped].sort(), ['IVCI:C9', 'IVCI:S_MC', 'IVCI:S_PC', 'LPV:C3', 'LPV:REX', 'SV:C2', 'SVD:C6'], 'the same far ends as before');
+  assert.deepEqual([...set.dropped].sort(), droppedOf(carriedBy(set)), 'every growing end is carried by a skin or named dropped');
 });
