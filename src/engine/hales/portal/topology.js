@@ -84,7 +84,7 @@ export const NODES = [
 /** @typedef {{ id: string, from: string, to: string, kind: string, label?: string, Q?: number, tone?: string, d?: number, vd?: number, lobar?: string, R?: number, lobe?: string,
  *   zone?: string, G?: number, role?: string, w?: string, route?: [string, string], dMax?: number, Ropen?: number, dMinRatio?: number, code?: string, open?: number,
  *   variant?: boolean, spontaneous?: boolean, systemic?: boolean, shunt?: string, len?: number, portal?: boolean,
- *   mfrom?: string, mto?: string, efrom?: string, eto?: string, virtual?: boolean, part?: string, share?: number, junction?: string }} NetEdge (mfrom, mto: the ends the engine reads where a junction moves the drawn ones; efrom, eto: a shunt's hydraulic end where it is not even that one; virtual, part, share: a piece of a cut vein) */
+ *   bedP?: number, part?: string, share?: number, junction?: string }} NetEdge (bedP: a vein that lumps its organ's venous bed into the drawn vein, the pressure where it leaves the organ; part, share: a piece of a cut vein, its host's id and its share of the host's length) */
 /** @type {NetEdge[]} */
 export const EDGES = [
   // Arterial supply
@@ -108,10 +108,10 @@ export const EDGES = [
   { id: 'A_EPI', from: 'AO', to: 'EPI', Q: 0.8, kind: 'arteriole', tone: 'systemic', d: 2, label: 'Abdominal-wall arteries' },
 
   // Splanchnic venous drainage
-  { id: 'V_INT', from: 'INT', to: 'SMV', Q: 10.0, kind: 'vein', d: 6, vd: 9.5, label: 'Jejunal & ileal veins' },
+  { id: 'V_INT', from: 'INT', to: 'SMV', Q: 10.0, kind: 'vein', d: 6, vd: 9.5, bedP: 9.3, label: 'Jejunal & ileal veins' },
   { id: 'V_COL', from: 'COL', to: 'IMV', Q: 1.7, kind: 'vein', d: 4, label: 'Colic veins' },
   { id: 'V_IMV', from: 'IMV', to: 'SV', Q: 1.7, kind: 'vein', d: 5, label: 'Inferior mesenteric vein' },
-  { id: 'V_SPL', from: 'SPL', to: 'SVD', Q: 5.0, kind: 'vein', d: 8, label: 'Splenic vein (distal)' },
+  { id: 'V_SPL', from: 'SPL', to: 'SVD', Q: 5.0, kind: 'vein', d: 8, bedP: 9.1, label: 'Splenic vein (distal)' },
   { id: 'SV_MID', from: 'SVD', to: 'SV', Q: 5.0, kind: 'vein', d: 8, label: 'Splenic vein (mid)' },
   { id: 'V_STO', from: 'STO', to: 'LGV', Q: 1.6, kind: 'vein', d: 3, label: 'Gastric veins' },
   // The stomach's other drainage, the short gastric veins into the splenic vein: shut (engine.js) until a Warren shunt ties off the coronary vein and
@@ -153,7 +153,7 @@ export const EDGES = [
   { id: 'LHV_IVC', from: 'LHV', to: 'IVCS', Q: 7.0, kind: 'vein', d: 8, label: 'Left hepatic vein' },
   { id: 'IVC_IS', from: 'IVCI', to: 'IVCS', Q: 34.3, kind: 'vein', d: 20, label: 'IVC' },
   { id: 'IVCS_RA', from: 'IVCS', to: 'RA', Q: 59.3, kind: 'vein', d: 22, label: 'IVC' },
-  { id: 'V_KID_L', from: 'KID_L', to: 'LRV', Q: 8.3, kind: 'vein', d: 6, label: 'Left intrarenal veins' },
+  { id: 'V_KID_L', from: 'KID_L', to: 'LRV', Q: 8.3, kind: 'vein', d: 6, bedP: 6.3, label: 'Left intrarenal veins' },
   { id: 'V_KID_R', from: 'KID_R', to: 'RRV', Q: 8.3, kind: 'vein', d: 6, label: 'Right intrarenal veins' },
   { id: 'LRV_IVC', from: 'LRV', to: 'IVCI', Q: 8.3, kind: 'vein', d: 8, label: 'Left renal vein' },
   { id: 'RRV_IVC', from: 'RRV', to: 'IVCI', Q: 8.3, kind: 'vein', d: 8, label: 'Right renal vein' },
@@ -169,7 +169,7 @@ export const EDGES = [
   // route = [upstream, downstream] nodes whose gradient (above healthy) drives remodeling.
   { id: 'C1a', from: 'LGV', to: 'VAR', kind: 'collateral', route: ['LGV', 'AZY'], dMax: 6, Ropen: 0.0133, dMinRatio: 0.12, label: 'Coronary vein → esophageal varices', code: 'C1' },
   { id: 'C1b', from: 'VAR', to: 'AZY', kind: 'collateral', route: ['LGV', 'AZY'], dMax: 6, Ropen: 0.0265, dMinRatio: 0.12, label: 'Esophageal varices → azygos', code: 'C1' },
-  { id: 'C2', from: 'SV', to: 'GV', kind: 'collateral', route: ['SV', 'IVCI'], dMax: 6, Ropen: 0.3, label: 'Short / posterior gastric veins', code: 'C2' },
+  { id: 'C2', from: 'SVD', to: 'GV', kind: 'collateral', route: ['SV', 'IVCI'], dMax: 6, Ropen: 0.3, label: 'Short / posterior gastric veins', code: 'C2' },
   // Fundal varices (gastric fundus) drain through the gastrorenal shunt (C5), never through the coronary vein.
   { id: 'C3', from: 'LPV', to: 'EPI', kind: 'collateral', route: ['LPV', 'ILI'], dMax: 8, Ropen: 0.6, label: 'Paraumbilical vein', code: 'C3' },
   { id: 'C4', from: 'IMV', to: 'ILI', kind: 'collateral', route: ['IMV', 'ILI'], dMax: 5, Ropen: 1.0, label: 'Superior ↔ middle/inferior rectal veins', code: 'C4' },
@@ -184,11 +184,10 @@ export const EDGES = [
   { id: 'AP_L', from: 'HA', to: 'LPV', kind: 'shunt', shunt: 'ap', label: 'Arterioportal shunt (left)' },
 
   // Interventions (off unless enabled)
-  // (The TIPS drains into the right hepatic vein near its junction with the cava (RHV_T, JUNCTIONS). The engine joins it to the cava itself, `eto`, with
-  // that short outlet stretch inside its own tract term (stent-geom.js); the figure still draws it into the vein. Joined at the RHV node, its 1.8 L/min ran
-  // through the whole hepatic vein's resistance, raised the RHV above the right lobe's central veins and turned the right lobe's outflow back through the
-  // middle hepatic vein, 17 Nov 2026.)
-  { id: 'TIPS', from: 'RPV', to: 'RHV', eto: 'IVCS', kind: 'shunt', shunt: 'tips', len: 8, label: 'TIPS' },
+  // (The TIPS leaves the right portal vein at RPV_T and drains into the right hepatic vein at RHV_T, near its junction with the cava (JUNCTIONS): the stretch of
+  // hepatic vein from there to the cava is a real piece the TIPS's blood runs through together with the vein's own, so a clot at the hepatic vein's ostium
+  // (the piece past RHV_T) cannot be drained round by the TIPS (Budd–Chiari, 17 Nov 2026), and the stent's tract term (stent-geom.js) holds the stent only.)
+  { id: 'TIPS', from: 'RPV', to: 'RHV', kind: 'shunt', shunt: 'tips', len: 8, label: 'TIPS' },
   // DIPS: a direct intrahepatic portosystemic shunt, from the proximal right portal vein (at the portal
   // bifurcation, PVH, so it sits upstream of the PVH → RPV segment) → the intrahepatic IVC, through the
   // caudate lobe. It leaves the hepatic veins out altogether, so it is the option when they are blocked
@@ -210,26 +209,31 @@ export const EDGES = [
 // back at the vein's near end: the portal vein's last stretch and the hepatic vein's first stretch carried flow, direction, origin colour and dye
 // that the stent had already taken or had not yet delivered. The splenic vein had the same fix from the start (the node SVD, "where a
 // splenorenal shunt leaves it"); this table does it for every other vein that a shunt or collateral is drawn onto.)
-// Each row puts a node on its host vein at `at` (0 to 1 of the drawn course from the host's `from`), splits the host there into two vessels in series
-// and moves the shunt end that is drawn there onto the new node. What the figure, the blood and the readings see is the split graph: the node, the
-// two pieces, each piece's own flow, direction, origin and dye. What the engine solves is the lumped one it always did, so no number of the physiology
-// moves: the piece that keeps the host's id (the `lead`: the piece that carries the vein's whole flow, which is what its readings, Doppler and labels
-// mean) is the engine's own vessel; the other piece is `virtual`, and the engine writes its flow after each step from the blood the junction takes or
-// gives (junction below), and the junction's pressure between the vein's two. The shunt keeps its model ends (`mfrom`, `mto`), which the engine reads.
-// A host split more than once is split at every `at` it lists, its pieces in order from its `from` end: ids `host` (the lead) and `host_<n>` for the
-// others, and `part` on each names the host, so a clot, a stenosis or a label given to the vein reaches every piece.
+// Each row puts a node on its host vein at `at` (0 to 1 of the drawn course from the host's `from`), cuts the host there into vessels in series and joins the
+// shunt or collateral end that is drawn there to the new node, so the engine solves the cut graph itself (27 Nov 2026): the node is a real node with its own
+// pressure, each piece a real vessel with its own flow, drop, direction, origin and dye, and the shunt is driven by the pressure where it really leaves or joins
+// the vein. A junction's resting pressure is interpolated along the host from its start (`bedP`, where it leaves an organ's bed, or its `from` node's) to its `to` node's,
+// so each piece's calibrated resistance is its share of the host's and a healthy body reads exactly as the lumped one did.
+// A host cut more than once is cut at every `at` it lists, its pieces in order from its `from` end: ids `host` (the piece that keeps the host's id: the one the
+// vein's own readings, Doppler and labels mean, and the one a clot or a narrowing of the vein sits on, engine.js computeG) and `host_<n>` for the others, and
+// `part` on each names the host, so a name given to the vein reaches every piece.
 // tests/junctions.test.js holds the rule: no shunt or collateral ends part-way along a vein without a node there.
 // THE ONE SOURCE (27 Nov 2026, Mohammad: "the flow lens, pressure, flow direction and everything else must know where vessel junctions really are"): this table is the
 // only place a take-off is placed. The app's drawing cuts each host at `at` and lands each listed end there; moving a take-off is an edit here. The `at` values were
 // read off the placed 3D network on 27 Nov (the C6 take-off at 0.456 of the distal splenic vein, the paraumbilical vein and the Meso-Rex bypass along the left portal vein,
 // the portocaval and mesocaval shunts on the cava). test/junction-table.mjs holds the table's rules.
 // [node, host, at, label, [[shunt edge, 'from' | 'to'], ...]]
+// Where every edge was listed to start and end before the junctions below moved the take-offs onto their nodes (read by JOINED: which two veins a vessel really connects).
+const LISTED_ENDS = new Map(EDGES.map((e) => [e.id, [e.from, e.to]]));
+/** A junction node's compliance (mL/mmHg): a hair, so a node on a vein holds no blood worth the circulation's volume (the systemic numbers do not move). */
+const JUNCTION_C = 0.05;
 export const JUNCTIONS = [
   ['RPV_T', 'PVH_R', 0.407, 'Right portal vein (where the TIPS leaves it)', [['TIPS', 'from']]],
   ['RHV_T', 'RHV_IVC', 0.529, 'Right hepatic vein (where the TIPS joins it)', [['TIPS', 'to']]],
   ['LRV_S', 'V_KID_L', 0.42, 'Left intrarenal veins (where the splenorenal shunts join them)', [['C6', 'to'], ['S_DSR', 'to']]],
   ['IVC_P', 'IVC_IS', 0.135, 'IVC (where the portocaval shunt joins it)', [['S_PC', 'to']]],
   ['IVC_D', 'IVC_IS', 0.604, 'IVC (where the DIPS joins it)', [['DIPS', 'to']]],
+  ['IVC_C', 'IVC_IS', 0.079, 'IVC (where the ascending lumbar veins leave it)', [['C9', 'from']]],
   ['ILI_R', 'ILI_IVC', 0.47, 'Common iliac veins (where the retroperitoneal veins join them)', [['C7', 'to']]],
   ['IVC_M', 'ILI_IVC', 0.814, 'IVC (where the mesocaval shunt joins it)', [['S_MC', 'to']]],
   ['SMV_R', 'V_INT', 0.318, 'Mesenteric veins (where the retroperitoneal veins leave them)', [['C7', 'from']]],
@@ -241,10 +245,10 @@ export const JUNCTIONS = [
   ['LPV_A', 'PVH_L', 0.64, 'Left portal vein (where the arterioportal shunt joins it)', [['AP_L', 'to']]],
   ['RPV_A', 'PVH_R', 0.2, 'Right portal vein (where the arterioportal shunt joins it)', [['AP_R', 'to']]],
 ];
-// The piece that keeps the host's id is the one the engine's own vessel is: the lumped model joins every shunt at one end of the vein, and the vein's
-// flow there is the flow at that end. A shunt that joins the vein's `from` node (the TIPS into the hepatic vein's start, the DIPS into the cava's) is joined
-// before the engine's flow is read, so the real piece is the last; one that joins its `to` node (the portal vein the TIPS leaves from, the renal vein the
-// splenorenal shunts end in, the bowel's veins the retroperitoneal veins leave, the iliac veins they end in) is joined after it, so the real piece is the first.
+// The piece that keeps the host's id is the one the vein's flow means: the end of the vein its shunts are listed at (as the shunt's end stood before the
+// table moved it) is the end the vein's whole flow is read at. A shunt that joins the vein's `from` node (the TIPS into the hepatic vein's start, the DIPS into the cava's)
+// is joined before it, so the piece that keeps the id is the last (past the junctions, at the ostium); one that joins its `to` node (the portal vein the TIPS leaves
+// from, the renal vein the splenorenal shunts end in, the bowel's veins the retroperitoneal veins leave, the iliac veins they end in) is joined after it, so it is the first.
 /** The ids of the pieces a host is split into, from its `from` end, or [host] for a vein that is whole. */
 export const JUNCTION_PIECES = {};   // host id → [piece ids]
 /** For a piece: its host's id (a vein split in pieces is one vein: a clot, a stenosis, a name given to it reach every piece). */
@@ -252,8 +256,8 @@ export const PART_OF = {};
 /** For a split vein: [the node its whole course starts at, the node it ends at]. */
 export const JUNCTION_HOST_ENDS = {};
 /**
- * How the engine fills the virtual pieces of each host after a step: { host, ids (the pieces in order), lead (the index of the real one), end ('to' or
- * 'from': the end of the vein the model joins the shunts at), nodes (the junction nodes between consecutive pieces), at (their share of the vein's length), taps (per junction: [shunt id, +1 | -1], +1 into the junction) }.
+ * How each cut host is made: { host, ids (the pieces in order), lead (the index of the piece that keeps the host's id), end ('to' or 'from': the end of the vein
+ * its shunts are listed at), nodes (the junction nodes between consecutive pieces), at (their share of the vein's length), taps (per junction: [shunt id, +1 | -1], +1 into the junction) }.
  */
 export const JUNCTION_CHAINS = [];
 {
@@ -265,21 +269,17 @@ export const JUNCTION_CHAINS = [];
     const hi = EDGES.findIndex((e) => e.id === host);
     if (hi < 0) throw new Error(`Junction host ${host} is not an edge`);
     const h = EDGES[hi], n = list.length + 1;
-    // The end of the vein the lumped model joins every shunt at: the node each shunt of the junctions is joined to in the model.
-    const modelEnds = new Set(list.flatMap((j) => j[4].map(([sid, end]) => { const s = EDGES.find((e) => e.id === sid); return s ? (end === 'to' ? s.mto ?? s.to : s.mfrom ?? s.from) : null; })));
-    if (modelEnds.size !== 1 || ![h.from, h.to].includes([...modelEnds][0])) throw new Error(`Junctions on ${host}: the shunts must all join one end of it in the model (${[...modelEnds]})`);
-    const tapEnd = [...modelEnds][0] === h.to ? 'to' : 'from', lead = tapEnd === 'to' ? 0 : n - 1;
+    // The end of the vein its shunts are listed at, read before the table moves them onto the junctions: it names the piece that keeps the host's id.
+    const listed = new Set(list.flatMap((j) => j[4].map(([sid, end]) => { const s = EDGES.find((e) => e.id === sid); return s ? s[end] : null; })));
+    if (listed.size !== 1 || ![h.from, h.to].includes([...listed][0])) throw new Error(`Junctions on ${host}: the shunts must all be listed at one end of it (${[...listed]})`);
+    const tapEnd = [...listed][0] === h.to ? 'to' : 'from', lead = tapEnd === 'to' ? 0 : n - 1;
     const ids = Array.from({ length: n }, (_, i) => (i === lead ? host : `${host}_${i < lead ? i + 1 : i}`));
-    // (The piece the engine solves follows the end the engine joins the shunts at, `eto` / `efrom` where a shunt's hydraulic end is not its drawn model end (the
-    // TIPS: drawn into the right hepatic vein, joined to the cava past it). The ids, the drawing and the readings keep the model end's: the host's id is the
-    // piece that carries the vein's whole flow either way, filled after each step when it is not the one solved.)
-    const engEnds = new Set(list.flatMap((j) => j[4].map(([sid, end]) => { const s = EDGES.find((e) => e.id === sid); return s ? (end === 'to' ? s.eto ?? s.mto ?? s.to : s.efrom ?? s.mfrom ?? s.from) : null; })));
-    if (engEnds.size !== 1 || ![h.from, h.to].includes([...engEnds][0])) throw new Error(`Junctions on ${host}: the shunts must all join one end of it in the engine (${[...engEnds]})`);
-    const engEnd = [...engEnds][0] === h.to ? 'to' : 'from', real = engEnd === 'to' ? 0 : n - 1;
     const stops = [h.from, ...list.map((j) => j[0]), h.to], cuts = [0, ...list.map((j) => j[2]), 1];
     const a = pos(h.from), b = pos(h.to);
-    for (const j of list) NODES.push({ id: j[0], label: j[3], P: (tapEnd === 'to' ? b : a).P, C: 0.05, ext: a.ext, kind: a.kind, junction: host });
-    const pieces = ids.map((id, i) => ({ ...h, id, from: stops[i], to: stops[i + 1], part: host, share: cuts[i + 1] - cuts[i], mfrom: h.from, mto: h.to, virtual: i !== real }));
+    // A junction's resting pressure runs along the host from where it leaves its organ's bed (`bedP`) or its first node, down to its last: each piece keeps its share of the host's resistance.
+    const P0 = h.bedP ?? a.P, vk = a.kind === 'bed' ? b.kind : a.kind;
+    for (const j of list) NODES.push({ id: j[0], label: j[3], P: P0 - j[2] * (P0 - b.P), C: JUNCTION_C, ext: a.ext, kind: vk, junction: host });
+    const pieces = ids.map((id, i) => ({ ...h, id, from: stops[i], to: stops[i + 1], part: host, share: cuts[i + 1] - cuts[i] }));
     EDGES.splice(hi, 1, ...pieces);
     JUNCTION_PIECES[host] = ids;
     JUNCTION_HOST_ENDS[host] = [h.from, h.to];
@@ -289,12 +289,11 @@ export const JUNCTION_CHAINS = [];
       for (const [sid, end] of j[4]) {
         const s = EDGES.find((e) => e.id === sid);
         if (!s) throw new Error(`Junction ${j[0]}: no shunt ${sid}`);
-        s.mfrom ??= s.from; s.mto ??= s.to;
         s[end] = j[0]; s.junction = j[0];
         taps[i].push([sid, end === 'to' ? 1 : -1]);
       }
     });
-    JUNCTION_CHAINS.push({ host, ids, lead: real, end: engEnd, nodes: list.map((j) => j[0]), at: list.map((j) => j[2]), taps });
+    JUNCTION_CHAINS.push({ host, ids, lead, end: tapEnd, nodes: list.map((j) => j[0]), at: list.map((j) => j[2]), taps });
   }
 }
 /** The host vein of an edge: its own id, or the vein it is a piece of (a vein with a shunt joining it part-way along is split into pieces). */
@@ -308,7 +307,7 @@ export const SHUNT_SYSTEMIC = ['RHV', 'MHV', 'LHV', 'IVCI', 'IVCS', 'SVC', 'AZY'
 const NAMED_SHUNTS = new Set(['RPV>RHV', 'PVH>IVCI', 'RPV>IVCS', 'CONF>IVCI', 'SV>LRV', 'SVD>LRV', 'SMV>IVCI']);
 const nodeLabel = (id) => { const n = NODES.find((x) => (Array.isArray(x) ? x[0] : x.id) === id); return Array.isArray(n) ? n[1] : n?.label || id; };
 // A node's short name for a stent's course: its id (RPV, RHV), with the hilum portal vein as PV and both IVC levels as IVC.
-const NODE_SHORT = { PVH: 'PV', IVCI: 'IVC', IVCS: 'IVC', RPV_T: 'RPV', RHV_T: 'RHV', IVC_D: 'IVC', SVC_E: 'SVC', PVT_L: 'PV', LPV_A: 'LPV', RPV_A: 'RPV', LPV_U: 'LPV', LPV_X: 'LPV', SV_S: 'SVD', IVC_P: 'IVC', IVC_M: 'IVC' };
+const NODE_SHORT = { PVH: 'PV', IVCI: 'IVC', IVCS: 'IVC', RPV_T: 'RPV', RHV_T: 'RHV', IVC_D: 'IVC', IVC_C: 'IVC', SVC_E: 'SVC', PVT_L: 'PV', LPV_A: 'LPV', RPV_A: 'RPV', LPV_U: 'LPV', LPV_X: 'LPV', SV_S: 'SVD', IVC_P: 'IVC', IVC_M: 'IVC' };
 // The stents drawn as the covered Viatorr device (partly covered, with its bare stretch at the portal end): the TIPS, the DIPS and every stent-tool shunt from the portal vein or a branch
 // of it (the hilum, the right or the left branch) into a hepatic vein (13 Nov 2026, Mohammad: "any portal vein branch -> hepatic vein branch should be the Viatorr looking stent").
 export const LIVER_STENT_FROM = ['PVH', 'RPV', 'LPV'], LIVER_STENT_TO = ['RHV', 'MHV', 'LHV'];
@@ -332,7 +331,7 @@ for (const p of SHUNT_PORTAL) for (const q of SHUNT_SYSTEMIC) {
 // vein nearer the gut before one nearer the liver); the flow takes whichever way the pressure gives, so a link between equals can run either way.
 export const SHUNT_PORTAL_VEINS = SHUNT_PORTAL.filter((n) => n !== 'VAR' && n !== 'GV');   // (the varices are what a shunt relieves, not a vein to sew one to)
 const PORTAL_RANK = { SMV: 0, IMV: 0, SVD: 0, SV: 1, LGV: 1, CONF: 2, PVH: 3, RPV: 4, LPV: 4 };
-const JOINED = new Set(EDGES.filter((e) => e.kind !== 'wedge').flatMap((e) => { const a = e.mfrom ?? e.from, b = e.mto ?? e.to; return [`${a}>${b}`, `${b}>${a}`]; }));   // (a vein split by a junction joins its model ends)
+const JOINED = new Set(EDGES.filter((e) => e.kind !== 'wedge').flatMap((e) => { const [a, b] = LISTED_ENDS.get(e.part ?? e.id) ?? [e.from, e.to]; return [`${a}>${b}`, `${b}>${a}`]; }));   // (every vessel joins the two veins it was listed between, whatever junction it now lands on)
 const PORTAL_ORDER = [...SHUNT_PORTAL_VEINS].sort((a, b) => PORTAL_RANK[a] - PORTAL_RANK[b] || SHUNT_PORTAL.indexOf(a) - SHUNT_PORTAL.indexOf(b));
 for (let i = 0; i < PORTAL_ORDER.length; i++) for (let j = i + 1; j < PORTAL_ORDER.length; j++) {
   const p = PORTAL_ORDER[i], q = PORTAL_ORDER[j];

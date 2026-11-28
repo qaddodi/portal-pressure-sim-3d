@@ -58,9 +58,15 @@ test('a record holds only what departs: every deck in it is a deck of the 2D fix
 test('the Advanced physiology table: a recorded row is a row of the 2D table that moved, by a small shift (a model change is not a recording job), and the loader reads it', () => {
   const two = fx('advanced-2d.json') as AdvancedFx, rec = advancedRecord(), mine = advancedNumbers();
   const keys = Object.keys(two.base);
+  // The one named exception to the 10% bound (engine 4f4e49f, junction table): with the spontaneous splenorenal shunt open the portal flow is small (0.24 to 0.29 mL/s),
+  // so moving the shunt's take-off to where it is drawn moves pvFlow and pvVel by 0.05 mL/s, 20 to 30 percent of a small number.
+  const ALLOWED_SHIFT: Readonly<Record<string, number>> = { 'srShunt=true pvFlow': 0.3, 'srShunt=true pvVel': 0.3 };
   const small = (a: Record<string, number>, b: Record<string, number>, where: string) => {
     assert.ok(keys.some((k) => a[k] !== b[k]), `${where}: recorded but no reading moved: delete it, the 2D numbers are the truth`);
-    for (const k of keys) assert.ok(Math.abs(a[k]! - b[k]!) <= Math.max(0.1 * Math.abs(b[k]!), 0.05), `${where} ${k}: ${b[k]} became ${a[k]}, over a 10% shift: a model change to look at, not to record`);
+    for (const k of keys) {
+      const share = ALLOWED_SHIFT[`${where} ${k}`] ?? 0.1;
+      assert.ok(Math.abs(a[k]! - b[k]!) <= Math.max(share * Math.abs(b[k]!), 0.05), `${where} ${k}: ${b[k]} became ${a[k]}, over a ${share * 100}% shift: a model change to look at, not to record`);
+    }
   };
   if (rec.base) small(rec.base, two.base, 'base');
   assert.deepEqual(mine.base, rec.base ?? two.base);

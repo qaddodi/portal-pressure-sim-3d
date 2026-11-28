@@ -1,7 +1,7 @@
 // Lumped-parameter hemodynamic engine (blueprint §7).
 // Pure JS, no DOM: runs in a Web Worker, on the main thread, or in Node tests.
 
-import { NODES, EDGES, JUNCTIONS, JUNCTION_CHAINS, JUNCTION_HOST_ENDS, dopplerK, dMinOf, edgePresent, isOccluded, partOf, PORTOSYSTEMIC_EDGES, SPLANCHNIC_ARTERIES, stentReadsOf } from './topology.js';
+import { NODES, EDGES, dopplerK, dMinOf, edgePresent, isOccluded, partOf, PORTOSYSTEMIC_EDGES, SPLANCHNIC_ARTERIES, stentReadsOf } from './topology.js';
 import {
   clamp, tubeResistanceFactor, tubeArea, volumeOf, ptmOf, complianceAt, stenosisFactor,
   heartFlow, fillShape, systoleShape, raWave, iapFromAscites, makeRng, ARTERY, pulseOf,
@@ -20,7 +20,6 @@ const KD = { vein: 0.03, diode: 0.03, collateral: 0.08 };
 const EXT_OVERRIDE = { IVC_IS: 'abd', CAUD: 'none' };
 
 // The drugs that lower the portal pressure within seconds (holdVarices: they do not regrade a varix until it has remodelled).
-const JUNCTION_HAIR = 1e-6;   // (mmHg: how far a junction's pressure sits off the end of its vein it is joined at, so the order along the vein holds)
 const VASO_DRUGS = ['propranolol', 'carvedilol', 'terlipressin', 'octreotide'];
 const STRAIN_RISE = 1.5, STRAIN_FALL = 1.5, STRAIN_MAX = 30;   // (seconds: a strain builds, lets go and is held at most this long)
 export const VARIX = { Tcrit: 150, r0Healthy: 1.0, rMax: 6.0, w0: 1.0, open: 7.0, k: 0.35, kBlocked: 0.4, kGV: 0.4, openGV: 5.0, mature: 0.3, tauRegress: 60, tauCut: 90, tauFall: 45, tauReopen: 8 };
@@ -35,8 +34,6 @@ export const VARIX = { Tcrit: 150, r0Healthy: 1.0, rMax: 6.0, w0: 1.0, open: 7.0
 export const BALLOON_SEAL_S = 3;
 /** Rupture hazard per day as a function of T/Tcrit (§7.5). */
 const ruptureHazardPerDay = (x) => (x <= 1 ? 0 : 0.01 * Math.pow((x - 1) / 0.25, 3));
-/** A vein this occluded (a clot or a stenosis, 0 to 1) carries no flow on any of its pieces (fillJunctionFlows). */
-const OCCLUDED = 0.995;
 // regressExtra: days added to a remodelled collateral's shrink-back with advanced cirrhosis (RELAX.advLow to advHigh, as the spleen and the vasodilation),
 // so 120 days in a compensated liver and 840 in a decompensated one (Mohammad's OK, 26 Nov 2026). The shunts of advanced cirrhosis stay open long after
 // the pressure behind them falls (they persist after a TIPS and after a transplant), and a beta-blocker's fall in HVPG holds for months: carvedilol 19.3 %
@@ -239,30 +236,20 @@ export class Engine {
     this.edgeF = new Int32Array(this.E);
     this.edgeT = new Int32Array(this.E);
     EDGES.forEach((e, k) => {
-      // (A shunt drawn onto the middle of a vein is joined to the vein's own node here, whatever junction it is drawn at: topology.js JUNCTIONS.)
-      const f = this.ni[e.efrom ?? e.mfrom ?? e.from], t = this.ni[e.eto ?? e.mto ?? e.to];   // (efrom, eto: a shunt's hydraulic end where it is not its drawn one, topology.js TIPS)
+      const f = this.ni[e.from], t = this.ni[e.to];   // (a shunt drawn onto the middle of a vein is joined to the junction node it is drawn at: topology.js JUNCTIONS)
       this.edgeF[k] = f; this.edgeT[k] = t;
       if (e.Q) this.Rbase[k] = (NODES[f].P - NODES[t].P) / e.Q;
       else if (e.R) this.Rbase[k] = e.R;
       this.edgeExt[k] = EXT_OVERRIDE[partOf(e.id)] || NODES[f].ext;
       if ((e.Q || e.R) && !(this.Rbase[k] > 0)) throw new Error(`Non-positive baseline resistance on ${e.id}`);
     });
+    // A vein cut by junctions (topology.js JUNCTIONS): the calibrated resistance of the whole vein, which a clot or a narrowing of it adds on the piece that keeps its id (computeG).
+    const hostSum = new Map();
+    EDGES.forEach((e, k) => { if (e.part) hostSum.set(e.part, (hostSum.get(e.part) || 0) + this.Rbase[k]); });
+    this.hostR = Float64Array.from(EDGES, (e, k) => (e.part ? hostSum.get(e.part) : this.Rbase[k]));
     this.collaterals = EDGES.map((e, k) => (e.kind === 'collateral' ? k : -1)).filter((k) => k >= 0);
-    this.veins = EDGES.map((e, k) => ((e.kind === 'vein' || e.kind === 'diode') && !e.virtual ? k : -1)).filter((k) => k >= 0);
-    // The veins split where a shunt joins them part-way (topology.js JUNCTIONS): the pieces' edges and the junction nodes between them, filled after each step.
-    this.jx = JUNCTION_CHAINS.map((c) => ({ host: c.host, ks: c.ids.map((id) => this.ei[id]), lead: c.lead, end: c.end, nodes: c.nodes.map((id) => this.ni[id]), at: c.at, taps: c.taps.map((l) => l.map(([id, sg]) => [this.ei[id], sg])) }));
+    this.veins = EDGES.map((e, k) => (e.kind === 'vein' || e.kind === 'diode' ? k : -1)).filter((k) => k >= 0);
     this.diodes = EDGES.map((e, k) => (e.kind === 'diode' ? k : -1)).filter((k) => k >= 0);
-    // A shunt the engine joins past the end of a vein it is drawn into (eto / efrom: the TIPS, drawn into the right hepatic vein, joined to the cava) still
-    // drains through that stretch of the vein: [the vein's solved edge, the stretch's share of its length], per shunt edge. A clot or a stenosis of the vein
-    // then narrows the shunt's outlet too (shuntOutlet), so a TIPS cannot drain a hepatic vein that is occluded (Budd–Chiari: 17 Nov 2026, the TIPS had
-    // drained to the cava past three occluded hepatic veins and lowered the portal pressure more than the DIPS did).
-    this.through = EDGES.map((e) => {
-      const j = (e.eto || e.efrom) && JUNCTIONS.find((x) => x[0] === e.junction);
-      if (!j) return null;
-      const [a, b] = JUNCTION_HOST_ENDS[j[1]], end = e.eto ?? e.efrom, chain = JUNCTION_CHAINS.find((c) => c.host === j[1]);
-      const share = end === b ? 1 - j[2] : end === a ? j[2] : 0;
-      return share > 0 && chain ? [this.ei[chain.ids[chain.lead]], share] : null;
-    });
 
     this.params = params ? structuredClone(params) : defaultParams();
     this.reset(seed ?? this.params.seed);
@@ -608,7 +595,6 @@ export class Engine {
     this.wf.fill(0);
     for (let k = 0; k < this.E; k++) {
       const e = EDGES[k];
-      if (e.virtual) { this.G[k] = 0; continue; }   // (a piece of a vein split by a junction that the engine does not solve: its flow is written after the step, fillJunctions)
       const f = this.edgeF[k], t = this.edgeT[k];
       let R = this.Rbase[k];
       switch (e.kind) {
@@ -691,15 +677,16 @@ export class Engine {
           else if (e.shunt === 'rex' && p.rex) g = 1 / (0.128 * visc);
           else if (e.shunt === 'custom' && p.customShunts?.[e.id]) g = stentConductance('custom', p.customShunts[e.id], this.Q[k], visc, occ, p, e.id);
           if (g > 0 && !stent) g /= Math.min(1e9, stenosisFactor(occ));
-          if (g > 0 && this.through[k]) g = this.shuntOutlet(g, this.through[k], visc);
           this.G[k] = g;
           continue;
         }
       }
       R *= visc;
-      const sf = stenosisFactor(this.occlusion(e.id));
+      // A clot or a narrowing of a vein cut by junctions sits on the one piece that keeps the vein's id and adds the whole vein's resistance there: the other pieces stay open
+      // (the portal trunk's clot lies past the coronary vein's mouth, so the way out to the varices stays open; a hepatic vein's lies at its ostium, past the TIPS's outlet).
+      const sf = e.part && e.part !== e.id ? 1 : stenosisFactor(this.occlusion(e.id));
       if (sf === Infinity) { this.G[k] = 0; continue; }
-      R *= sf;
+      if (sf !== 1) R += (sf - 1) * R * (this.hostR[k] / this.Rbase[k]);
       // Surgical ligations implied by shunt procedures
       // (End-to-side only: a side-to-side portocaval shunt keeps the portal trunk, so the liver can drain back out through it.)
       if (p.portocaval && e.id === 'PV_TRUNK' && !p.portocavalSide) { this.G[k] = 0; continue; }
@@ -713,57 +700,11 @@ export class Engine {
     }
   }
 
-  /** A shunt's conductance with the stretch of vein it drains through (this.through) in series: unchanged while the vein is open (the open stretch is
-   *  in the shunt's own tract term, stent-geom.js), the stretch's extra resistance from a clot or a stenosis added, none when the vein is occluded. */
-  shuntOutlet(g, [kv, share], visc) {
-    const o = this.occlusion(EDGES[kv].id);
-    if (o <= 0) return g;
-    const sf = stenosisFactor(o);
-    return sf === Infinity ? 0 : 1 / (1 / g + share * this.Rbase[kv] * visc * (sf - 1));
-  }
-
   occlusion(id) {
-    const v = partOf(id);   // (a vein split in pieces by a shunt joining it part-way along: a clot or a stenosis on it is on every piece)
+    const v = partOf(id);   // (a vein cut in pieces by junctions: its clot and its narrowing are the vein's, read on the piece that keeps its id)
     const s1 = this.params.stenosis[v] || 0, s2 = this.params.thrombus[v] || 0;
     return 1 - (1 - s1) * (1 - s2);
   }
-
-  /**
-   * The flow of each virtual piece of a split vein (topology.js JUNCTIONS), from the one the engine solved and the blood the shunts take from the
-   * junctions or give to them: the flow past a junction is the flow before it plus what the shunts joined there bring (net into the junction), so
-   * blood is conserved at every junction exactly. Written into Q (which the filtered flows follow) and nothing else.
-   */
-  fillJunctionFlows() {
-    const Q = this.Q;
-    for (const c of this.jx) {
-      // A vein a clot (or a stenosis) has closed carries nothing on any of its pieces: the blood a shunt joins at the junction does not run on through the shut vein (its flow marks were drawn inside the clot).
-      if (this.occlusion(c.host) >= OCCLUDED) { for (const k of c.ks) Q[k] = 0; continue; }
-      const n = c.ks.length;
-      const net = (i) => { let s = 0; for (const [k, sg] of c.taps[i]) s += sg * Q[k]; return s; };
-      for (let i = c.lead; i < n - 1; i++) Q[c.ks[i + 1]] = Q[c.ks[i]] + net(i);
-      for (let i = c.lead - 1; i >= 0; i--) Q[c.ks[i]] = Q[c.ks[i + 1]] - net(i);
-    }
-  }
-  /** The pressure at each junction node: the model's pressure at the end of the vein its shunts are joined at, a hair off it on the side the stretch between
-   *  the two runs downhill (above it where blood runs from the junction to the end, below it where it runs from the end to the junction), so the stretch has no drop
-   *  of its own and blood runs downhill through it whichever way it runs: the order every blend and dye pass visits nodes in (blood.js byPressure). */
-  fillJunctionPressures(P = this.P, Q = this.Q) {
-    for (const c of this.jx) {
-      const toEnd = c.end === 'to', k = c.ks[c.lead], at = toEnd ? this.edgeT[k] : this.edgeF[k], n = c.nodes.length;
-      // Walk in from the model's end: each stretch's two ends differ by a hair on the side its flow runs from (a stretch's flow runs from its `from` end to its `to` end when positive).
-      if (toEnd) {
-        let p = P[at];
-        for (let i = n - 1; i >= 0; i--) { const q = Q[c.ks[i + 1]]; p += (q > 1e-9 ? 1 : q < -1e-9 ? -1 : 0) * JUNCTION_HAIR; P[c.nodes[i]] = p; }
-      } else {
-        let p = P[at];
-        for (let i = 0; i < n; i++) { const q = Q[c.ks[i]]; p -= (q > 1e-9 ? 1 : q < -1e-9 ? -1 : 0) * JUNCTION_HAIR; P[c.nodes[i]] = p; }
-      }
-    }
-  }
-  /** The same for the shown pressures (Pf) from the shown flows (Qf): a junction's shown pressure is set from the sign of the shown flow beside it, not
-   *  averaged from the instants' hairs (a stretch whose flow swings across zero with the beat averaged them to noise, so the order the lenses visit the
-   *  nodes in, by pressure, flipped from frame to frame against the shown flow's direction: the origin and first-pass colours flickered, 15 Nov 2026). */
-  fillShownJunctionPressures() { if (this.Pf && this.Qf) this.fillJunctionPressures(this.Pf, this.Qf); }
 
   // ───────────────────────── integration ─────────────────────────
   /** One implicit (backward-Euler, Picard-linearized) step of dt seconds. */
@@ -885,7 +826,6 @@ export class Engine {
       this.Q[k] = q;
       net[f] -= q; net[t] += q;
     }
-    this.fillJunctionFlows();
     const qh = a0 + dQh * Pn[RA];
     this.Qheart = qh;
     net[RA] -= qh;
@@ -900,7 +840,6 @@ export class Engine {
       const [Pk, Ps] = this.nodeK[i];
       P[i] = this.ext[i] + ptmOf(this.V[i], this.nodeC[i] * this.liverStiff(i), Pk, Ps);
     }
-    this.fillJunctionPressures();
 
     // Blood accounting
     // (In rbc's units, RED: whole blood leaves at the healthy-marrow hematocrit, and a unit's cells count over the marrow's share.)
@@ -1037,7 +976,6 @@ export class Engine {
       this.iapf = o[n - 2];
       this._pvVshown = o[n - 1];
     }
-    this.fillShownJunctionPressures();
     this._dmP.set(Pf); this._dmQ.set(Qf);
   }
 
@@ -1069,8 +1007,7 @@ export class Engine {
       for (let i = 0; i < this.N; i++) this.Pf[i] += (this.P[i] - this.Pf[i]) * ap;
       if (this.extf?.length !== this.N) this.extf = new Float64Array(this.N);
       this.extf.set(this.ext); this.iapf = this.iap;
-      this.fillShownJunctionPressures();
-    } else this.shownMean(dt);
+      } else this.shownMean(dt);
     this.varixRegrow(this.quiet ? Infinity : dt);
     // Portal flow and velocity averaged over a few breaths, so the readout's status does not
     // flicker as breathing swings the instantaneous velocity across a cut-off.
