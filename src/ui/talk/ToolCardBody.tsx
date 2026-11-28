@@ -70,6 +70,9 @@ import { setDopplerProbe, useDopplerProbe, type Gate } from '../tests/doppler/pr
 import { planOf, type InstrumentKind } from './instruments.ts';
 import { paneModule } from './pane-load.ts';
 import { useToolPatch, withPatch } from './tool-options.ts';
+import { useSliderAt } from './variant-words.ts';
+import { movesReadings, sliderStops, valueAt, type WhatIf } from '../../decks/controls.ts';
+import type { BankSpec } from '../tests/doppler/shape-bank.ts';
 import { HvpgTool } from './HvpgTool.tsx';
 import { ReadingTool } from './ReadingTool.tsx';
 import '../tests/tests.css';
@@ -186,7 +189,10 @@ function Mounted({ deck, slide, i }: { deck: Deck; slide: Slide; i: number }): R
     case 'doppler': case 'fibroscan': case 'abdomen': case 'hvpg': case 'scope': case 'wall': {
       const ghost = ghostOf(cs as never, i, copied.slides as never, fpOf as never, stateOf);
       return <>{ghost ? <p className="pz-ghost"><span>{ghost.label}</span><b>{ghost.value}</b></p> : null}
-        {kind === 'hvpg' ? <HvpgTool fp={fp as Rec | null} cath={cs.cath} catheter={!!tool.catheter} forward={forward} /> : <Instrument kind={kind as InstrumentKind} tool={tool} slideKey={`${deck.id}/${slide.id}`} fp={fp} cs={cs} />}</>;
+        {kind === 'hvpg' ? <HvpgTool fp={fp as Rec | null} cath={cs.cath} catheter={!!tool.catheter} forward={forward} /> : <Instrument
+          kind={kind as InstrumentKind} tool={tool} slideKey={`${deck.id}/${slide.id}`} fp={fp} cs={cs}
+          whatIf={slide.controls?.whatIf} own={results?.[i] as { base?: unknown; params?: unknown } | undefined}
+        />}</>;
     }
     case 'reading': return <ReadingTool procedure={cs.procedure} of={tool.of} fp={fp as Rec | null} />;
     default: return null;
@@ -203,12 +209,19 @@ function refOf(cs: CopiedSlide, i: number, slides: CopiedSlide[], fpOf: (id: str
   return typeof d === 'string' ? fpOf(d) : null;
 }
 
-function Instrument({ kind, tool, slideKey, fp, cs }: { kind: InstrumentKind; tool: Rec; slideKey: string; fp: Fp | null; cs: CopiedSlide }) {
+function Instrument({ kind, tool, slideKey, fp, cs, whatIf, own }: { kind: InstrumentKind; tool: Rec; slideKey: string; fp: Fp | null; cs: CopiedSlide; whatIf?: WhatIf; own?: { base?: unknown; params?: unknown } }) {
   const w = useUi((s) => s.vp.w);
   const patched = useToolPatch((s) => s.patch), patchKey = useToolPatch((s) => s.key);
   const opts = useMemo(() => withPatch(tool, slideKey, { key: patchKey, patch: patched }), [tool, slideKey, patchKey, patched]);
   const plan = useMemo(() => planOf(kind, tool), [kind, tool]);
   useEffect(() => { startFeed(); }, []);
+  // a what-if slider on a Doppler slide: the trace reshapes with it, from the engine's own beats at values of it (shape-bank.ts); it starts from the slide's own value each time the card comes up
+  useLayoutEffect(() => { useSliderAt.setState({ key: null }); }, [slideKey]);
+  const bank = useMemo<BankSpec | null>(() => {
+    const vessel = plan.doppler?.vessel;
+    if (kind !== 'doppler' || !whatIf || !movesReadings(whatIf) || !own?.base || !vessel) return null;
+    return { key: slideKey, vessel, base: own.base, paths: whatIf.paths, stops: sliderStops(whatIf), start: valueAt(own.params, whatIf.paths[0]!) ?? whatIf.min };
+  }, [kind, whatIf, own?.base, own?.params, plan, slideKey]);
   // the slide's own options are set whenever it is shown, and a button's patch is gone with it (2D: "set to the slide's options again whenever the slide is shown")
   // (a layout effect: the pane re-renders with the slide's own options before the first paint and before the card is measured again, never a frame of the store's defaults first: a wall slide as the scope, liver as spleen)
   useLayoutEffect(() => {
@@ -232,7 +245,7 @@ function Instrument({ kind, tool, slideKey, fp, cs }: { kind: InstrumentKind; to
   return (
     <div className="dock-pane-host" data-instrument={kind} ref={host}>
       <LazyBoundary height={p.plot}>
-        {kind === 'doppler' ? <DopplerPane {...p} options={opts} slide /> : kind === 'fibroscan' ? <FibroPane {...p} slide bar={tool.bar !== false} platelets={((cs.tiles as string[] | undefined) ?? []).includes('plt')} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={opts} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : null}
+        {kind === 'doppler' ? <DopplerPane {...p} options={opts} bank={bank} slide /> : kind === 'fibroscan' ? <FibroPane {...p} slide bar={tool.bar !== false} platelets={((cs.tiles as string[] | undefined) ?? []).includes('plt')} /> : kind === 'scope' || kind === 'wall' ? <EndoPane {...p} options={opts} /> : kind === 'abdomen' ? <AbdomenPane square={p.square} /> : null}
       </LazyBoundary>
     </div>
   );

@@ -17,6 +17,9 @@ import { useDopplerProbe } from '../src/ui/tests/doppler/probe-state.ts';
 import { setSlidePin } from '../src/ui/tests/slide/pin.ts';
 import { EDGES } from '../src/engine/hales/portal/topology.js';
 import { clock } from '../src/clock/frame.ts';
+import { bankFor, type BankAsk } from '../src/ui/tests/doppler/shape-bank.ts';
+import { useSliderAt } from '../src/ui/talk/variant-words.ts';
+import { sliderStops } from '../src/decks/controls.ts';
 
 const EN = (EDGES as unknown[]).length;
 const KEYS = ['t', 'ph', 'vel', 'pvVel', 'hvVel'] as const;
@@ -139,5 +142,63 @@ for (const sl of ['outflow/tr', 'outflow/constrict', 'outflow/web', 'prehepatic/
   for (let i = 0; i < back.t.length; i += per) { give(slice(back, i, i + per, 0)); for (let f = 0; f < 31; f++) { now += 16; m.ingest(frame(i === 0), feed); } }
   for (let f = 0; f < 700; f++) { now += 16; m.ingest(frame(), feed); }
   assert.ok(Math.abs(swing(m.buf, 3) - rawSev) <= Math.max(1.5, rawSev * 0.5), `and back at the high end it is that shape (${swing(m.buf, 3).toFixed(1)} against ${rawSev.toFixed(1)})`);
+  setSlidePin(null);
+});
+
+/** The bank's engine questions answered by the host on this thread. */
+const nodeAsk = (): BankAsk => ({
+  snapAt: async (base, paths, x) => {
+    const got: { snap?: unknown }[] = [];
+    const c = createCore((m: { type: string; i?: number }) => { if (m.type === 'seqStep') got[m.i!] = m as never; });
+    c.handle({ type: 'run', running: false });
+    await c.handle({ type: 'sequence', steps: [{ params: patchOf([...paths], x) }], base, reqId: 1 });
+    c.dispose();
+    return got[0]?.snap ?? null;
+  },
+  record: async (snap, vessel) => recordOf(snap, vessel),
+  dispose: () => {},
+});
+
+// The slider DRAGGED: the pin has not landed and the live record has not settled (the first moments of a drag), and the trace already reshapes with the slider's value, from the engine's own beats at the
+// values either side, with no step; and the value dragged back, the shape comes back.
+for (const sl of ['outflow/tr', 'outflow/constrict', 'outflow/web', 'prehepatic/clot', 'shunts/tips', 'tips-doppler/warn']) test(`what-if slider, ${sl}: while it is dragged the trace reshapes with its value at once`, async () => {
+  const me = (await sliders()).find((x) => `${x.deck}/${x.slide}` === sl)!;
+  const w = (await copiedDecks()).find((d) => d.id === me.deck)!.slides.find((x) => x.id === me.slide) as unknown as { whatIf: { min: number; max: number; step: number } };
+  const { own, at } = await states(me.deck, me.slide, me.param, [me.lo, me.hi]);
+  const [lo, hi] = at as [St, St];
+  const vessel = me.vessel, key = `${me.deck}/${me.slide}`;
+  const recLo = await recordOf(lo.snap, vessel), recHi = await recordOf(hi.snap, vessel);
+  const rawLo = swing(recLo.t.map((t, i) => [t, recLo.vel[i]!]), 8), rawHi = swing(recHi.t.map((t, i) => [t, recHi.vel[i]!]), 8);
+  const spec = { key, vessel, base: own.base, paths: [me.param], stops: sliderStops({ min: w.whatIf.min, max: w.whatIf.max, step: w.whatIf.step }), start: me.hi };
+  const bank = bankFor(spec, nodeAsk)!;
+  await bank.loading;
+  assert.ok(bank.beats.size >= 2, 'the bank has the ends');
+  useDopplerProbe.setState({ probe: vessel, gate: me.gate as never });
+  useSliderAt.setState({ key: null });
+  const feed = new SampleFeed(), m = new DopplerModel(); m.slide = true; m.setBank(spec);
+  let now = 1000; (clock as unknown as { now: () => number }).now = () => now;
+  setSlidePin(hi.fp as never);
+  feed.adopt({ jump: false, probe: vessel, samples: Object.fromEntries(KEYS.map((k) => [k, recHi[k]])) } as never);
+  m.ingest(frame(), feed);
+  for (let f = 0; f < 500; f++) { now += 16; m.ingest(frame(), feed); }
+  assert.ok(m.pinned && (m as unknown as { synth: unknown }).synth, 'the replay stands');
+  const before = swing(m.buf, 3);
+  // the drag: the slider goes from the high end to the low in 40 frames, then rests; nothing else changes (no new pin, the record the same)
+  let worst = 0, seen = m.buf[m.buf.length - 1]![0]!;
+  const lap = (n: number, f: (i: number) => void) => { for (let i = 0; i < n; i++) { f(i); now += 16; m.ingest(frame(), feed); for (let j = Math.max(1, m.buf.length - 40); j < m.buf.length; j++) { if (m.buf[j]![0]! <= seen) continue; worst = Math.max(worst, Math.abs(m.buf[j]![1]! - m.buf[j - 1]![1]!)); } seen = m.buf[m.buf.length - 1]![0]!; } };
+  lap(40, (i) => useSliderAt.setState({ key, x: me.hi + (me.lo - me.hi) * (i / 39) }));
+  lap(250, () => {});
+  const down = swing(m.buf, 3);
+  // (what the bank can carry is the beat's shape by phase; a change that is the breath's alone is the settled record's to bring, so the expectation is the mean beats' own difference at the two ends)
+  const range = (x: number) => { const b = bank.at(x)!; return Math.max(...b) - Math.min(...b); };
+  const meanNow = Math.max(1, Math.abs(m.buf.slice(-150).reduce((a, q) => a + q[1]!, 0) / 150));
+  const expected = (range(me.lo) - range(me.hi)) * (meanNow / Math.max(1, Math.abs(recHi.vel.reduce((a, x) => a + x, 0) / recHi.vel.length))) / meanNow;
+  if (Math.abs(expected) > 0.15) assert.ok((down - before) * Math.sign(expected) >= 0.4 * Math.abs(expected), `the swing followed the slider within seconds: ${before.toFixed(1)} at the high end, ${down.toFixed(1)} dragged to the low (the mean beats say ${expected.toFixed(2)} more; the engine's own swings ${rawHi.toFixed(1)}, ${rawLo.toFixed(1)})`);
+  lap(40, (i) => useSliderAt.setState({ key, x: me.lo + (me.hi - me.lo) * (i / 39) }));
+  lap(250, () => {});
+  const up = swing(m.buf, 3);
+  assert.ok(Math.abs(up - before) <= Math.max(1.2, 0.35 * Math.abs(rawHi - rawLo), 0.5 * Math.abs(down - before)), `and back at the high end the shape is back: ${before.toFixed(1)}, ${up.toFixed(1)}`);
+  const ownMax = Math.max(...[recHi, recLo].map((r) => r.vel.reduce((a, v, i) => (i ? Math.max(a, Math.abs(v - r.vel[i - 1]!)) : 0), 0)));
+  assert.ok(worst <= ownMax * 2 + 1 + 0.3 * Math.abs(rawHi - rawLo) * 5, `no step while dragging: steepest sample step ${worst.toFixed(1)} cm/s (the engine's own beat steps ${ownMax.toFixed(1)})`);
   setSlidePin(null);
 });

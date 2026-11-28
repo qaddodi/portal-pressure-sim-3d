@@ -8,7 +8,7 @@ import { useStates, snapsOf } from '../../decks/hp/calc.ts';
 import { stepOf, type Step } from '../../decks/hp/numbers.ts';
 import { stopLapse } from '../../decks/hp/lapse.ts';
 import { patchOf, valueAt, speaks, variantWords, movesReadings, sliderStops, type CompareOpt, type Scale } from '../../decks/controls.ts';
-import { useVariant, variantOf, type VariantState } from './variant-words.ts';
+import { useVariant, variantOf, useSliderAt, type VariantState } from './variant-words.ts';
 import { create } from 'zustand';
 import { variantStateOf, sliderOpt, replayOf, type Picked, type Seq, type Replay } from './variant-state.ts';
 import { clock, type TimerId } from '../../clock/frame.ts';
@@ -143,6 +143,7 @@ const dragRelease = (): void => { const d = dragDone; dragDone = null; d?.(); };
 export function dragWhatIf(deck: Deck, i: number, paths: readonly string[], x: number): void {
   sendParams(patchOf(paths, x), { settle: false, ease: SLIDER_EASE_MS });
   const key = slideKey(deck, i), n = ++dragN;
+  useSliderAt.setState({ key, x });   // (the instruments that reshape with the slider read it: the Doppler's trace)
   dragDone ??= pressBegin('the slider');   // (held from the first move until the last one's state has been worked out)
   if (dragTimer != null) clock.cancel(dragTimer);
   dragTimer = clock.after(() => {

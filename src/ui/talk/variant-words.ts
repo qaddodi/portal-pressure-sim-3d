@@ -12,3 +12,6 @@ export const useVariant = create<Variant>((set) => ({ key: null, words: null, st
 export const variantOf = (key: string): VariantWords | null => { const v = useVariant.getState(); return v.key === key ? v.words : null; };
 /** The state the pressed compare button put this slide's model in, or null while the slide's own is showing. */
 export const variantStateOf = (key: string): VariantState | null => { const v = useVariant.getState(); return v.key === key ? v.state : null; };
+/** Where a slide's what-if slider stands (the value being dragged to), for the instruments that reshape with it: the Doppler's trace
+ *  blends beat shapes by this value (ui/tests/doppler/shape-bank.ts). Reset when the card comes up. */
+export const useSliderAt = create<{ key: string | null; x: number }>(() => ({ key: null, x: 0 }));

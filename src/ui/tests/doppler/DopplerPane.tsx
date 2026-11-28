@@ -20,6 +20,7 @@ import { PROBES, EI, PAD_L, PAD_R, probeName } from './copied/doppler-tables.cop
 import { DOPPLER_MODES } from './copied/doppler-colours.copied.js';
 import { setDopplerProbe, useDopplerProbe, type Gate } from './probe-state.ts';
 import { spectrumUnder } from './spectrum-gl.ts';
+import type { BankSpec } from './shape-bank.ts';
 import { Cv, useCv, usePaneHost } from '../Cv.tsx';
 import { useSlidePin } from '../slide/pin.ts';
 import { observeThenFit } from '../../layout/fit-later.ts';
@@ -27,11 +28,12 @@ import { fadeAttrs } from '../../fade.tsx';
 
 const same = (a: Report | null, b: Report) => !!a && JSON.stringify(a) === JSON.stringify(b);
 
-export function DopplerPane(p: PaneProps & { /** a slide's own options (2D tool: mode, calipers, pair, scale, baseline, waves); the next slide returns to the defaults unless it names them */ options?: Record<string, unknown>; /** a slide's data card: the slide's own steady reading (slide/pin.ts), the stent's three places named but not picked (2D createDoppler pickGate: false) */ slide?: boolean }) {
+export function DopplerPane(p: PaneProps & { /** a slide's what-if slider, whose beats the trace reshapes with (shape-bank.ts) */ bank?: BankSpec | null; /** a slide's own options (2D tool: mode, calipers, pair, scale, baseline, waves); the next slide returns to the defaults unless it names them */ options?: Record<string, unknown>; /** a slide's data card: the slide's own steady reading (slide/pin.ts), the stent's three places named but not picked (2D createDoppler pickGate: false) */ slide?: boolean }) {
   const model = useRef<DopplerModel | null>(null);
   if (!model.current) { model.current = new DopplerModel(); model.current.gpu = typeof WebGL2RenderingContext !== 'undefined'; model.current.slide = !!p.slide; if (p.options) model.current.configure(p.options); }
   const m = model.current;
   m.slide = !!p.slide;
+  m.setBank(p.bank ?? null);
   const pinN = useSlidePin((s) => s.n);
   const painter = useRef<ChartPainter | null>(null);
   const [mode, setMode] = useState<DopMode>(m.mode);

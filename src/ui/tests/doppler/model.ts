@@ -24,6 +24,8 @@ import { measure } from '../../charts/measure.ts';
 import { feed, type SampleFeed } from '../feed.ts';
 import { paramsNow } from '../frame.ts';
 import { useDopplerProbe } from './probe-state.ts';
+import { bankFor, BINS, type BankSpec, type ShapeBank } from './shape-bank.ts';
+import { useSliderAt } from '../../talk/variant-words.ts';
 import { hepaticWords } from './constriction.ts';
 import { pinnedAt, useSlidePin } from '../slide/pin.ts';
 import { dopplerVel } from '../../../scene/lenses/vel-normal.copied.js';
@@ -39,7 +41,7 @@ const KEEP = 16, SETTLE_LAG = 0.16, COL = 2;
 const BEAT_TEMPLATE_S = 6.5, MIN_PINNED_TEMPLATE_S = 3, JOIN_S = 0.5;
 const MINUS = '−';
 /** The live record kept beside a slide's replay, from the moment the model stands on the slide's state: where a replay's next template is taken (`follow`). */
-interface Shadow { sig: number[]; pts: number[][]; marks: number[]; cur: number; from: number; ph: number; tried: number; built: boolean }
+interface Shadow { x: number; sig: number[]; pts: number[][]; marks: number[]; cur: number; from: number; ph: number; tried: number; built: boolean }
 /** How long after a slide's patient lands (the card coming up) and after a slider or a button changes it the live record is left to settle before a template is taken from it (s of the record). */
 const ENTRY_SETTLE_S = 1.5, CHANGE_SETTLE_S = 0.5, BUSY_SETTLE_S = 0.3;
 /** A slide's state as numbers (its flows, widths and pressures), so two states are told apart by value, not by the object that carries them. */
@@ -105,6 +107,16 @@ export class DopplerModel {
   /** the replay is a slide's own velocity, not a time lapse's */
   private pinDriven = false;
   private shadow: Shadow | null = null;
+  /** A slide's slider, worked out beat by beat (shape-bank.ts): the replay's real beats are those of slider value `bankX0`;
+   *  the shape at the slider's value (`bankXe`, eased) is added as the difference of the two mean beats. */
+  private bank: ShapeBank | null = null;
+  private bankX0 = NaN;
+  private bankXe = NaN;
+  private mixSt = { xe: NaN, x0: NaN, ver: -1 };
+  private mixBeat = new Float32Array(BINS);
+  private mixOn = false;
+  private mixTmp = new Float32Array(BINS);
+  private mixTmp2 = new Float32Array(BINS);
   private pinSeen = -1;
   /** the GPU draws the spectrum's pixels under the shapes (spectrum-gl.ts, 2D's own shaders); false: the spectrum is laid from shapes (no WebGL2, or the program failed) */
   gpu = false;
@@ -307,7 +319,7 @@ export class DopplerModel {
     let sh = this.shadow;
     if (!sh || (n !== this.pinSeen && !sameSig(sh.sig, sigOf(pinnedAt())))) {
       const cur = Number.isFinite(rec.last) ? rec.last : -Infinity;
-      sh = this.shadow = { sig: sigOf(pinnedAt()), pts: [], marks: [], cur, from: cur + (sh ? CHANGE_SETTLE_S : ENTRY_SETTLE_S), ph: NaN, tried: 0, built: false };
+      sh = this.shadow = { x: this.sliderX(), sig: sigOf(pinnedAt()), pts: [], marks: [], cur, from: cur + (sh ? CHANGE_SETTLE_S : ENTRY_SETTLE_S), ph: NaN, tried: 0, built: false };
     }
     this.pinSeen = n;
     if (sh.built) return;
@@ -339,6 +351,7 @@ export class DopplerModel {
     const next = this.makeTemplate(sh.pts, sh.marks);
     if (!next) return;
     sh.built = true; sh.pts = []; sh.marks = [];
+    if (this.bank && Number.isFinite(sh.x)) this.bankX0 = sh.x;   // (the real beats are now the slider's value at the time the state landed: the mix is the difference from it)
     this.retake(next);
   }
   /** The replay carries on from a new template at the same point of the beat, matched in value and slope (`enter`), the leftover step easing out. */
@@ -353,6 +366,50 @@ export class DopplerModel {
     let j = b.length - 1; while (j > 0 && e[0]! - b[j]![0]! < 0.1) j--;
     this.tpl = next;
     sy.x = this.enter(phase, e[1]!, b[j]![1]!);
+  }
+  /** The slide's what-if slider (null off one): the replay reshapes with the slider's value while it is dragged, from the engine's own beats at the values either side (shape-bank.ts). */
+  setBank(spec: BankSpec | null): void {
+    const b = bankFor(spec);
+    if (b === this.bank) return;
+    this.bank = b; this.bankX0 = b ? b.spec.start : NaN; this.bankXe = NaN; this.mixSt = { xe: NaN, x0: NaN, ver: -1 }; this.mixOn = false;
+  }
+  /** Where the slider stands: the value being dragged to, the slide's own while none is. */
+  private sliderX(): number {
+    const b = this.bank;
+    if (!b) return NaN;
+    const st = useSliderAt.getState();
+    return st.key === b.spec.key ? st.x : b.spec.start;
+  }
+  /** The mean beat's difference between the slider's value now and the one the replay's real beats were taken at (null while the bank has fewer than two values in, or no change to add). */
+  private mix(): Float32Array | null {
+    const b = this.bank;
+    if (!b) return null;
+    const m = this.mixSt;
+    if (m.xe !== this.bankXe || m.x0 !== this.bankX0 || m.ver !== b.version) {
+      this.mixSt = { xe: this.bankXe, x0: this.bankX0, ver: b.version };
+      const a = Number.isFinite(this.bankXe) ? b.at(this.bankXe, this.mixTmp) : null, z = Number.isFinite(this.bankX0) ? b.at(this.bankX0, this.mixTmp2) : null;
+      this.mixOn = !!a && !!z;
+      if (a && z) for (let i = 0; i < BINS; i++) this.mixBeat[i] = a[i]! - z[i]!;
+    }
+    return this.mixOn ? this.mixBeat : null;
+  }
+  /** The beat's phase (0 to 1) at the template's position x; NaN for a record with no beat marks. */
+  private phaseAt(x: number): number {
+    const mk = this.tpl!.mk;
+    if (mk.length < 2) return NaN;
+    let i = 0; while (i < mk.length - 2 && mk[i + 1]! <= x) i++;
+    return (((x - mk[i]!) / (mk[i + 1]! - mk[i]!)) % 1 + 1) % 1;
+  }
+  /** The template at position x, channel j, with the slider's shape added to the main trace (the mean beat's difference at this beat's phase). */
+  private shape(x: number, j = 1): number {
+    const raw = this.tplRaw(x, j);
+    if (j !== 1) return raw;
+    const m = this.mix();
+    if (!m) return raw;
+    const ph = this.phaseAt(x);
+    if (!Number.isFinite(ph)) return raw;
+    const f = ph * BINS - 0.5, i0 = Math.floor(f), u = f - i0;
+    return raw + m[(i0 + BINS) % BINS]! * (1 - u) + m[(i0 + 1 + BINS) % BINS]! * u;
   }
   /** The replay starts on a slide's own velocity: the record already drawn is that patient's too (its beats scaled so their mean is the pin), never the in-between patient's the live model was at. */
   private adoptPin(pin: number): void {
@@ -374,7 +431,7 @@ export class DopplerModel {
   /** The replay's output sample at its position x with the step left over from the last entry, as the card draws it (the template's swings scaled by amp, its mean the slide's now). */
   private replayAt(x: number, j: number): number {
     const sy = this.synth!, tp = this.tpl!, ease = 1 - smooth01(clamp(sy.age / JOIN_S, 0, 1));
-    const raw = this.tplRaw(x, j) + (j === 1 ? sy.o1 : sy.o2) * ease;
+    const raw = this.shape(x, j) + (j === 1 ? sy.o1 : sy.o2) * ease;
     if (j === 2) return tp.pm + (raw - tp.pm) * sy.amp;
     const v = tp.mean + (raw - tp.mean) * sy.amp;
     return Math.abs(tp.mean) > 2 ? v * sy.mean / tp.mean : v - tp.mean + sy.mean;
@@ -399,12 +456,12 @@ export class DopplerModel {
     let best = at[0]!.x, bs = Infinity;
     for (const { x, pen } of at) {
       if (x > L - 0.5 && at.length > 1) continue;
-      const v = this.tplRaw(x), sc = pen + (Number.isFinite(u0) ? Math.abs(v - u0) + (Number.isFinite(du) ? 0.5 * Math.abs((this.tplRaw(x + 0.1) - v) - du) : 0) : 0);
+      const v = this.shape(x), sc = pen + (Number.isFinite(u0) ? Math.abs(v - u0) + (Number.isFinite(du) ? 0.5 * Math.abs((this.shape(x + 0.1) - v) - du) : 0) : 0);
       if (sc < bs) { bs = sc; best = x; }
     }
-    sy.o1 = Number.isFinite(u0) ? u0 - this.tplRaw(best) : 0;
+    sy.o1 = Number.isFinite(u0) ? u0 - this.shape(best) : 0;
     const l2 = this.buf[this.buf.length - 1]![2]!;
-    sy.o2 = tp.hasPair && sy.amp > 0.05 && Number.isFinite(l2) ? tp.pm + (l2 - tp.pm) / sy.amp - this.tplRaw(best, 2) : 0;
+    sy.o2 = tp.hasPair && sy.amp > 0.05 && Number.isFinite(l2) ? tp.pm + (l2 - tp.pm) / sy.amp - this.shape(best, 2) : 0;
     sy.age = 0;
     return best;
   }
@@ -414,9 +471,12 @@ export class DopplerModel {
     const now = clock.now();
     const dt = Math.min(0.25, (now - sy.wall) / 1000);
     sy.wall = now;
+    const xt = this.sliderX();
     for (let k = 0, n = Math.ceil(dt / 0.02); k < n; k++) {
       const h = dt / n;
       sy.t += h;
+      // (the slider's value eases in: a drag's steps never step the shape)
+      if (Number.isFinite(xt)) this.bankXe = Number.isFinite(this.bankXe) ? this.bankXe + (xt - this.bankXe) * Math.min(1, h * 8) : xt;
       sy.mean += (sy.target - sy.mean) * Math.min(1, h * 3);
       // (The template was recorded with breathing; a lapse run without respiration eases its swings out.)
       sy.amp = clamp(sy.amp + (sy.still ? -1.5 : 1.5) * h, 0, 1);
