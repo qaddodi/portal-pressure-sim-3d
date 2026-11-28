@@ -52,6 +52,8 @@ export const circuitRadius = (v: Pick<NetVessel, 'widthKind' | 'baseD' | 'circFi
 
 /** How straight two vessels must meet (the cosine of the angle between their headings away from the node, negated) to be one run. */
 const RUN_ON_COS = 0.97;
+/** How far a hidden chain may bend: the left portal vein turns 18 degrees at its paraumbilical junction and 45 at the Meso-Rex one. Looser than the run-on, which tells two arms of a node apart; an arm alone at its node, or a hop through the chain, has nothing to tell apart. */
+const CHAIN_COS = 0.5;
 const endOf = (id: string, end: 0 | 1): Vec3 => { const p = COURSES.get(id)!.curveC.getPointAt(end); return [p.x, p.y, p.z]; };
 
 /** A liver fork's child (`<host>~F:b`) has no tube on the map: the map draws the branch trees (circuit/tubes.ts) instead, so it is not an arm of a map junction. */
@@ -125,18 +127,29 @@ export function circuitOldJoins(): { trees: string[]; caudate: string[]; custom:
  * Circuit's cava had a hole there, background between the lower cava and the hepatic-vein node (review 21 Nov, #13: IVC_IS, 85 map units, hidden by the IVCS+IVC_D skin; the mated run at the hepatic nodes never reaches J). The arm that
  * CONTINUES the hidden vessel in a straight line (the run-on at its node: IVC_IS_1 into IVC_IS) starts its capsule at the hidden vessel's far end instead, so the skin is that vessel's whole span at its own width.
  */
-export function bridgeStart(a: SkinArm, hidden: readonly string[], J: Vec3): Vec3 {
+export function bridgeStart(a: SkinArm, hidden: readonly string[], J: Vec3, arms: readonly SkinArm[] = []): Vec3 {
   const arm = NETWORK_BY_ID.get(a.vesselId);
-  for (const id of hidden) {
-    const h = NETWORK_BY_ID.get(id);
-    if (!arm || !h || h.id === a.vesselId) continue;
-    const node = a.end === 0 ? arm.from : arm.to, e = node === h.from ? 0 : node === h.to ? 1 : -1;
-    if (e < 0) continue;
-    const here = endOf(h.id, e as 0 | 1), far = endOf(h.id, (1 - e) as 0 | 1), mine = endOf(a.vesselId, a.end), away = endOf(a.vesselId, (1 - a.end) as 0 | 1);
-    const hx = far[0] - here[0], hy = far[1] - here[1], ax = away[0] - mine[0], ay = away[1] - mine[1], hl = Math.hypot(hx, hy), al = Math.hypot(ax, ay);
-    if (hl > 1e-9 && al > 1e-9 && (hx * ax + hy * ay) / (hl * al) < -RUN_ON_COS) return far;
+  if (!arm) return J;
+  const nodeOf = (x: SkinArm): string | undefined => { const v = NETWORK_BY_ID.get(x.vesselId); return v ? (x.end === 0 ? v.from : v.to) : undefined; };
+  const alone = !arms.some((o) => o !== a && !o.grow && nodeOf(o) === nodeOf(a));
+  // (a skin that merges three nodes hides a CHAIN of vessels, the left portal vein's two pieces between its three junctions: the run-on goes on through each hidden vessel that continues the last in a straight line)
+  let node = a.end === 0 ? arm.from : arm.to, mine = endOf(a.vesselId, a.end), away = endOf(a.vesselId, (1 - a.end) as 0 | 1), start: Vec3 | null = null;
+  const used = new Set<string>([a.vesselId]);
+  for (let guard = 0; guard <= hidden.length; guard++) {
+    let next: { far: Vec3; node: string; id: string } | null = null;
+    for (const id of hidden) {
+      const h = NETWORK_BY_ID.get(id);
+      if (!h || used.has(id)) continue;
+      const e = node === h.from ? 0 : node === h.to ? 1 : -1;
+      if (e < 0) continue;
+      const here = endOf(h.id, e as 0 | 1), far = endOf(h.id, (1 - e) as 0 | 1);
+      const hx = far[0] - here[0], hy = far[1] - here[1], ax = away[0] - mine[0], ay = away[1] - mine[1], hl = Math.hypot(hx, hy), al = Math.hypot(ax, ay);
+      if (hl > 1e-9 && al > 1e-9 && (hx * ax + hy * ay) / (hl * al) < -(guard || alone ? CHAIN_COS : RUN_ON_COS)) { next = { far, node: e === 0 ? h.to : h.from, id }; break; }
+    }
+    if (!next) break;
+    used.add(next.id); start = next.far; node = next.node; mine = next.far; away = endOf(next.id, node === NETWORK_BY_ID.get(next.id)!.to ? 0 : 1);
   }
-  return J;
+  return start ?? J;
 }
 
 /** How far each arm's end lies from J on the map, in radii of the widest arm. */
@@ -329,7 +342,7 @@ export class CircuitSkinSet {
     const j = plan.junction, objs = j.arms.map((a) => this.deps.vessel(a.vesselId));
     if (objs.some((o) => !o)) return null;
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
-    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, bridgeStart(a, plan.hidden, j.J), a.side ? armWalk(a, tb.tubular).from : undefined, false); }), j.arms.map((a) => !!a.grow), declaredRuns(j.arms));
+    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, bridgeStart(a, plan.hidden, j.J, j.arms), a.side ? armWalk(a, tb.tubular).from : undefined, false); }), j.arms.map((a) => !!a.grow), declaredRuns(j.arms));
     if (ready) this.paces.set(j.node, ready.pace);
     else if (j.surface) this.paces.set(j.node, PACES.length - 1);   // (meshed from the surface from the start: no hull to fold)
     // a junction with growing arms is built STILL (as the Anatomy's, skin-set.ts): they are whole arms of one static shape, the arms that stay get a static plain trunk of their own, and the tube's own sunk and flared end is what grows; the weld hands over at growth 0.9 to 1

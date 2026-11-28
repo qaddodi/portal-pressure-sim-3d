@@ -68,7 +68,7 @@ export const GEOM_RANGE = { len: [4, 10], waist: [0, 6], trans: [0, 2], red: [0,
 export const WAIST_MAX = 0.8;
 // The fixed series term (PRU) and whether the device has its own entrance and exit loss, by kind of stent.
 const KIND = {
-  tips: { tract: 0.156, entry: true, len: 8 },   // (0.12 until 17 Nov 2026, 0.18 from then until 27 Nov: the TIPS's outlet stretch of right hepatic vein stood inside this term while the engine joined it to the cava. The stretch is a real piece now (topology.js JUNCTIONS, RHV_T), so the term is refitted down to keep the tuned post-TIPS gradients: the post-TIPS patient (cirr-decomp-tips) reads PPG 10.0 and decompensated cirrhosis + TIPS 8 mm 9.3, as before; docs/tips-stent-model.md)
+  tips: { tract: 0.156, entry: true, len: 8 },   // (0.12 until 17 Nov 2026, 0.18 from then until 27 Nov: the TIPS's outlet stretch of right hepatic vein stood inside this term while the engine joined it to the cava. The stretch is a real piece now (topology.js JUNCTIONS, RHV_T), so the term is refitted down to keep the tuned post-TIPS gradients: the post-TIPS patient (cirr-decomp-tips) reads PPG 10.0 and decompensated cirrhosis + TIPS 8 mm 9.3, as before; the app's docs/tips-stent-model.md)
   dips: { tract: 0.07, entry: true, len: 8 },   // (its shorter caudate tract is in `tract`; its wall keeps the 8 cm it always had: plan, decision D3)
   custom: { tract: 0, entry: false, len: 10 },  // (a drawn stent: 0.05·(10/d)⁴ as it always was, the same 0.005 per cm over 10 cm)
 };

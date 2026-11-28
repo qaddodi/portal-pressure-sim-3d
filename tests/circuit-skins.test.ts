@@ -35,18 +35,25 @@ const TABLE: Record<string, readonly string[]> = {
   HA: ['A_HEP:1', 'A_HR:0', 'A_HL:0'],
   SMV: ['SMV_CONF:0', 'V_INT_1:1'],
   SV: ['SV_MID:1', 'SV_CONF:0', 'V_IMV:1'],
-  SVD: ['V_SPL:1', 'SV_MID:0'],
+  // (the engine's junction table cuts the splenic vein where the short gastric veins join, SV_S, and where it divides, SVD)
+  SV_S: ['V_SPL:1', 'V_SPL_1:0'],
+  SVD: ['V_SPL_1:1', 'SV_MID:0'],
   CONF: ['PV_TRUNK_1:0', 'SMV_CONF:1', 'SV_CONF:1'],
   PVT_L: ['PV_TRUNK_1:1', 'PV_TRUNK:0', 'LGV_CONF:1'],
   PVH: ['PV_TRUNK:1', 'PVH_R:0', 'PVH_L:0'],
   RPV_T: ['PVH_R_1:1', 'PVH_R_2:0'],
-  // (the placed network: the left portal vein ends at LPV, where the umbilical portion runs on (PRE_L) and REX and C3 land, so LPV is a junction on the map too; the 2D network ran PVH_L_1 on through a fork and REX and C3 landed off the node)
-  LPV: ['PVH_L_1:1', 'PRE_L:0'],
+  // (the left portal vein is cut where the paraumbilical vein (LPV_U, C3) and the Meso-Rex bypass (LPV_X, REX) join it: three junctions on the map, and LPV_X is where the umbilical portion runs on)
+  LPV_U: ['PVH_L:1', 'PVH_L_1:0'],
+  LPV_X: ['PVH_L_1:1', 'PVH_L_2:0'],
   CV_R: ['SIN_RR:1', 'POST_R_RHV:0', 'POST_R_MHV:0'],
   RHV_T: ['RHV_IVC_1:1', 'RHV_IVC:0'],
   IVCS: ['IVC_IS:1', 'IVCS_RA:0', 'RHV_IVC:1', 'MHV_IVC:1', 'LHV_IVC:1'],
-  IVCI: ['IVC_IS_1:0', 'ILI_IVC_1:1', 'LRV_IVC:1'],
-  IVC_D: ['IVC_IS_1:1', 'IVC_IS:0'],
+  // (the lower cava is cut four more times: the iliac cut IVC_M (S_MC), the renal veins IVCI, the lumbar vein IVC_C (C9) and the portacaval shunt IVC_P (S_PC))
+  IVC_M: ['ILI_IVC_1:1', 'ILI_IVC_2:0'],
+  IVCI: ['ILI_IVC_2:1', 'IVC_IS_1:0', 'LRV_IVC:1'],
+  IVC_C: ['IVC_IS_1:1', 'IVC_IS_2:0'],
+  IVC_P: ['IVC_IS_2:1', 'IVC_IS_3:0'],
+  IVC_D: ['IVC_IS_3:1', 'IVC_IS:0'],
   LRV_S: ['V_KID_L:1', 'V_KID_L_1:0'],
   LRV: ['LRV_IVC:0', 'V_KID_L_1:1'],
   EPI: ['EPI_ILI:0', 'EPI_SVC:0'],
@@ -54,17 +61,20 @@ const TABLE: Record<string, readonly string[]> = {
   SVC: ['V_UP:1', 'SVC_RA_1:0', 'AZY_SVC:1'],
 };
 const GROWS: Record<string, readonly string[]> = {
-  SMV: ['S_MC:0', 'REX:0'], SVD: ['C6:0', 'S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], LPV: ['REX:1', 'C3:0'], IVCI: ['S_PC:1', 'C9:0', 'S_MC:1'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
+  SMV: ['S_MC:0', 'REX:0'], SV_S: ['C6:0'], SVD: ['S_DSR:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], LPV_U: ['C3:0'], LPV_X: ['REX:1'],
+  IVC_M: ['S_MC:1'], IVC_C: ['C9:0'], IVC_P: ['S_PC:1'], IVC_D: ['DIPS:1'], LRV_S: ['C6:1', 'S_DSR:1'], LRV: ['C5:1'], EPI: ['C3:1'],
 };
 /** What the build leaves out of a skin: nothing now. The skins are STATIC full-size shapes (the growing arms whole, the tube's own sunk and flared end is what grows, the weld at growth 0.9 to 1), so REX (5 degrees from S_MC on SMV) and DIPS (at the merged cava node IVCS+IVC_D, six arms) are welded
  *  like the rest: the sheet started on the surface, one fold of the valley between two arms taken out by the loose collapse (mesh.ts). */
 const DROPPED: string[] = [];
-/** The nodes that get a skin: every junction, the cava's IVCS and its run-on IVC_D as ONE skin (merged: the six arms with DIPS, IVC_IS hidden). */
-const BUILT = [...Object.keys(TABLE).filter((n) => n !== 'IVC_D' && n !== 'IVCS'), 'IVCS+IVC_D'];
+/** The merged skins (a junction no ring can be cut on alone joins its neighbour on the shared vessel): the cava's IVCS and its run-on IVC_D (six arms with DIPS, IVC_IS hidden), the lower cava's four cuts, the left renal vein's two, the portal head's three, the splenic vein's two. */
+const MERGED = ['IVCS+IVC_D', 'IVC_M+IVCI+IVC_P+IVC_C', 'LRV_S+LRV', 'PVH+LPV_U+LPV_X', 'SV_S+SVD'];
+/** The nodes that get a skin: every junction not in a merge, and each merge as ONE skin. */
+const BUILT = [...Object.keys(TABLE).filter((n) => !MERGED.some((m) => m.split('+').includes(n))), ...MERGED];
 const armKeys = (j: { arms: readonly { vesselId: string; end: number; grow?: boolean }[] }): string[] => j.arms.filter((a) => !a.grow).map((a) => `${a.vesselId}:${a.end}`).sort();
 const growKeys = (j: { arms: readonly { vesselId: string; end: number; grow?: boolean }[] }): string[] => j.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`).sort();
 
-test('the map finds the body\'s junctions: nineteen nodes, their arms, growing arms and ends pinned; the two liver beds are named fallbacks, not hidden (the hepatic arteries stop at the lanes\' tips as 2D draws them)', () => {
+test('the map finds the body\'s junctions: twenty-four nodes, their arms, growing arms and ends pinned; the two liver beds are named fallbacks, not hidden (the hepatic arteries stop at the lanes\' tips as 2D draws them)', () => {
   const js = findCircuitJunctions();
   assert.deepEqual(js.map((j) => j.node).sort(), Object.keys(TABLE).sort());
   for (const j of js) { assert.deepEqual(armKeys(j), [...TABLE[j.node]!].sort(), j.node); assert.deepEqual(growKeys(j), [...(GROWS[j.node] ?? [])].sort(), `${j.node}: growing arms`); }
@@ -129,7 +139,7 @@ function setOf(scene: CelScene, baked?: CircuitSkinDeps['baked']): { set: Circui
   return { set, made, ends };
 }
 
-test('a build welds the eighteen skins with no fall back and no growing arm dropped: each skin starts on its arms\' own ring vertices, the tubes take their second cut, a clear puts them back', () => {
+test('a build welds the sixteen skins with no fall back and no growing arm dropped: each skin starts on its arms\' own ring vertices, the tubes take their second cut, a clear puts them back', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
   try {
@@ -140,8 +150,8 @@ test('a build welds the eighteen skins with no fall back and no growing arm drop
     assert.deepEqual([...set.dropped].sort(), DROPPED, 'the growing arms that keep their lines, named');
     assert.deepEqual([...MAP_DROPPED].sort(), DROPPED, 'circuit/map-sewn.ts names exactly the arms the build refuses');
     assert.deepEqual(set.why, {}, 'nothing was refused');
-    assert.equal(set.count, 18);
-    assert.ok(made.length >= 18, 'every skin was made once at least (a retry makes more)');
+    assert.equal(set.count, 16);
+    assert.ok(made.length >= 16, 'every skin was made once at least (a retry makes more)');
     assert.ok(ends[0]! >= 1, 'the scene is told the ends changed (it writes the map mates again)');
     for (const node of set.nodes) {
       const m = set.skinOf(node)!;
@@ -204,15 +214,18 @@ test('every skin of the map is STATIC (no growth morph), whole in the full shape
     }
     for (const m of plains) assert.equal(foldedTriangles(m.position, m.normal, m.index).length, 0, `${m.junction.node}: whole`);
     const growers = (n: string) => set.skinOf(n)!.junction.arms.filter((a) => a.grow).map((a) => a.vesselId).sort();
-    assert.deepEqual(growers('SVD'), ['C6', 'S_DSR']);
-    assert.deepEqual(growers('LRV_S'), ['C6', 'S_DSR']);
+    assert.deepEqual(growers('SV_S+SVD'), ['C6', 'S_DSR']);
+    assert.deepEqual(growers('LRV_S+LRV'), ['C5', 'C6', 'S_DSR']);
     assert.deepEqual(growers('SMV'), ['REX', 'S_MC']);
     assert.deepEqual(growers('IVCS+IVC_D'), ['DIPS']);
+    assert.deepEqual(growers('IVC_M+IVCI+IVC_P+IVC_C'), ['C9', 'S_MC', 'S_PC']);
+    assert.deepEqual(growers('PVH+LPV_U+LPV_X'), ['C3', 'DIPS', 'REX']);
     assert.equal(set.skinOf('IVCS+IVC_D')!.junction.arms.length, 6, 'the five permanent arms of the merged cava node and DIPS');
-    assert.deepEqual(set.nodes.filter((n) => set.skinOf(n)!.junction.surface).sort(), ['IVCS+IVC_D', 'LRV_S', 'SMV']);
+    assert.deepEqual(set.nodes.filter((n) => set.skinOf(n)!.junction.surface).sort(), ['IVCS+IVC_D', 'IVC_M+IVCI+IVC_P+IVC_C', 'PVH+LPV_U+LPV_X', 'SMV']);
     // the plain trunks: the arms that stay, where three or more stay (a run-on pair's tubes carry the weld alone)
-    assert.deepEqual(set.nodes.filter((n) => set.plainOf(n)).sort(), ['CONF', 'IVCI', 'IVCS+IVC_D', 'PVH']);
-    for (const n of ['CONF', 'IVCI', 'IVCS+IVC_D', 'PVH']) { const p = set.plainOf(n)!; assert.ok(p.junction.arms.every((a) => !a.grow) && p.junction.surface, `${n}: the plain trunk is meshed from the surface`); }
+    const PLAINS = ['CONF', 'IVCS+IVC_D', 'IVC_M+IVCI+IVC_P+IVC_C', 'LRV_S+LRV', 'PVH+LPV_U+LPV_X', 'SV_S+SVD'];
+    assert.deepEqual(set.nodes.filter((n) => set.plainOf(n)).sort(), PLAINS);
+    for (const n of PLAINS) { const p = set.plainOf(n)!; assert.ok(p.junction.arms.every((a) => !a.grow) && p.junction.surface, `${n}: the plain trunk is meshed from the surface`); }
   } finally { scene.dispose(); setSmoothJoins(was); }
 });
 
@@ -327,7 +340,7 @@ test('the baked file: a round trip, the digest of the map\'s own rings, and a bu
     const live = setOf(scene); live.set.build();
     const made = live.set.bake();
     assert.ok(made.digest.startsWith('circuit/'), 'a Circuit file is never taken for the Anatomy\'s');
-    assert.equal(made.skins.length, 18);
+    assert.equal(made.skins.length, 16);
     const bin = encodeSkins(made), back = decodeSkins(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength) as ArrayBuffer)!;
     assert.ok(back && back.digest === made.digest);
     assert.equal(live.set.source, 'live');

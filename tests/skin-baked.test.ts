@@ -14,7 +14,7 @@ import { armTube } from '../src/scene/vessels/skin/braid-arm.ts';
 import { PACES } from '../src/scene/vessels/skin/mesh.ts';
 import { buildTubes } from '../src/scene/vessels/tubes.ts';
 import { samePrint } from '../src/scene/fingerprint.ts';
-import { ROUNDED_KEYS, decodeSkins, encodeSkins, roundMantissa, skinsDigest, type BakedSkins } from '../src/scene/vessels/skin/baked.ts';
+import { ROUNDED_KEYS, ROUND_DROPS, decodeSkins, encodeSkins, roundInterior, roundMantissa, roundedKey, skinsDigest, type BakedSkins } from '../src/scene/vessels/skin/baked.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 import { sceneSource } from './helpers/scene-source.ts';
 
@@ -32,10 +32,13 @@ function setOf(scene: CelScene, baked?: () => BakedSkins | null): { set: SkinSet
 }
 
 /**
- * What the file holds of one mesh array (25 Nov): the position and the triangles exactly (the seams meet the tubes' own rings), the normals, centres, blend weights and radii with their 8 lowest mantissa bits rounded
- * (ROUND_DROP: a relative step of 3e-5, which tests/skin-rounded.test.ts bounds).
+ * What the file holds of one mesh array (28 Nov, J3): the triangles exactly, the seam rings' positions exactly (the seams meet the tubes' own rings) and the rest of the positions rounded by ROUND_DROP, the normals, centres, blend
+ * weights and radii by their own drop (ROUND_DROPS: 2^-11 to 2^-15 of themselves, which the rounding test below bounds).
  */
-const same = <T extends Float32Array | Uint32Array>(a: T, k: string): T => (a instanceof Float32Array && ROUNDED_KEYS.has(k) ? (roundMantissa(a) as T) : a);
+const same = (m: SkinMesh, k: 'position' | 'normal' | 'cen' | 'weight' | 'weight2' | 'restR' | 'index'): Float32Array | Uint32Array => {
+  const a = m[k];
+  return k === 'position' ? roundInterior(a as Float32Array, m.seamVerts) : a instanceof Float32Array ? roundedKey(a, k) : a;
+};
 
 test('the baked file unpacks to the skins it was made from, and a build that is given it lays those in and meshes nothing (live build once, then the baked one)', () => {
   const was = smoothJoinsOn(); setSmoothJoins(true);
@@ -63,13 +66,13 @@ test('the baked file unpacks to the skins it was made from, and a build that is 
       const a = made.skins[i]!;
       assert.deepEqual(b.plan, a.plan); assert.deepEqual(b.axes, a.axes); assert.equal(b.pace, a.pace);
       assert.equal(b.mesh.junction, b.plan.junction, 'the mesh and its plan share one junction, as they do when built live'); assert.equal(b.mesh.cuts, b.plan.cuts);
-      for (const k of ['position', 'normal', 'cen', 'weight', 'weight2', 'restR', 'index'] as const) assert.deepEqual(b.mesh[k], same(a.mesh[k], k), `${a.plan.junction.node} ${k}`);
+      for (const k of ['position', 'normal', 'cen', 'weight', 'weight2', 'restR', 'index'] as const) assert.deepEqual(b.mesh[k], same(a.mesh, k), `${a.plan.junction.node} ${k}`);
       assert.deepEqual(b.mesh.seamVerts, a.mesh.seamVerts);
       // the plain trunk of a skin with growing arms (plain.ts) ships baked too: its axes, mesh and pace, or the null that says it could not be built
       assert.equal(b.plain === undefined, a.plain === undefined, `${a.plan.junction.node}: the plain trunk is carried`);
       if (a.plain && b.plain) {
         assert.deepEqual(b.plain.axes, a.plain.axes); assert.equal(b.plain.pace, a.plain.pace);
-        for (const k of ['position', 'normal', 'cen', 'weight', 'weight2', 'restR', 'index'] as const) assert.deepEqual(b.plain.mesh[k], same(a.plain.mesh[k], k), `${a.plan.junction.node}~plain ${k}`);
+        for (const k of ['position', 'normal', 'cen', 'weight', 'weight2', 'restR', 'index'] as const) assert.deepEqual(b.plain.mesh[k], same(a.plain.mesh, k), `${a.plan.junction.node}~plain ${k}`);
         assert.equal(b.plain.mesh.junction.node, `${a.plan.junction.node}~plain`); assert.equal(b.plain.mesh.cuts.length, b.plain.mesh.junction.arms.length);
       } else assert.equal(b.plain, a.plain);
     });
@@ -91,13 +94,22 @@ test('the baked file unpacks to the skins it was made from, and a build that is 
   } finally { scene.dispose(); setSmoothJoins(was); }
 });
 
-test('the rounding is bounded: a rounded number is within 2^-15 of itself (relative), zeros and non-finite numbers stay, and positions are never rounded', () => {
-  const a = new Float32Array([0, -0, 1, -1, 0.123456789, -987.654321, 1e-30, 3.4e38, Infinity, NaN]), r = roundMantissa(a);
-  for (let i = 0; i < a.length; i++) {
-    if (!Number.isFinite(a[i]!) || a[i] === 0) assert.ok(Object.is(r[i], a[i]) || (Number.isNaN(r[i]) && Number.isNaN(a[i])), `index ${i} stays`);
-    else assert.ok(Math.abs(r[i]! - a[i]!) <= Math.abs(a[i]!) * 2 ** -15, `index ${i} moves by ${Math.abs(r[i]! - a[i]!)}`);
+test('the rounding is bounded: a number rounded by d bits is within 2^(d-23-1) of itself (relative), zeros and non-finite numbers stay, seam positions and triangles are never rounded', () => {
+  const a = new Float32Array([0, -0, 1, -1, 0.123456789, -987.654321, 1e-30, 3.4e38, Infinity, NaN]);
+  for (const drop of new Set([8, ...Object.values(ROUND_DROPS)])) {
+    const r = roundMantissa(a, drop);
+    for (let i = 0; i < a.length; i++) {
+      if (!Number.isFinite(a[i]!) || a[i] === 0) assert.ok(Object.is(r[i], a[i]) || (Number.isNaN(r[i]) && Number.isNaN(a[i])), `index ${i} stays`);
+      else assert.ok(Math.abs(r[i]! - a[i]!) <= Math.abs(a[i]!) * 2 ** (drop - 24), `drop ${drop}, index ${i} moves by ${Math.abs(r[i]! - a[i]!)}`);
+    }
   }
+  // (what a key steers sets how coarse it may be: no shade, share of a move or surface place is off by more than a thousandth of itself, and the surface-placing ones by a ten-thousandth)
+  for (const [k, d] of Object.entries(ROUND_DROPS)) assert.ok(d <= (k === 'normal' || k === 'weight' || k === 'weight2' ? 14 : 10), `${k}: ${d} bits is too coarse for what it steers`);
   assert.ok(!ROUNDED_KEYS.has('position') && !ROUNDED_KEYS.has('index'));
+  // the position: a seam ring's vertices keep every bit, any other vertex is within 2^-16 of itself
+  const pos = new Float32Array([0.123456789, 1.23456789, -2.3456789, 0.5551234, 0.4441234, 0.3331234]), r = roundInterior(pos, [new Uint32Array([0])]);
+  assert.deepEqual([...r.slice(0, 3)], [...pos.slice(0, 3)], 'the seam vertex is exact');
+  for (let i = 3; i < 6; i++) assert.ok(r[i] !== pos[i] && Math.abs(r[i]! - pos[i]!) <= Math.abs(pos[i]!) * 2 ** -16, `interior ${i}`);
 });
 
 test('a baked file is the file for one figure: a junction moved, or an arm tube made otherwise, is another figure; the last bits of another engine are not (scene/fingerprint.ts)', () => {
