@@ -1,0 +1,91 @@
+PROPRIETARY LICENCE. ALL RIGHTS RESERVED.
+
+Copyright (c) 2026 Mohammad Almeqdadi, MD. All rights reserved.
+
+This licence covers the 3D Portal Pressure Simulator and everything in this
+repository and on the sites served from it (together, "the Work"): the source
+code; the hales-engine simulation engine and its parameters, equations and
+golden outputs; the lecture decks, slide text, speaker notes, teaching
+sequences, quizzes and handouts; the anatomy, geometry, meshes, textures,
+shaders, illustrations, icons, font files made for the project, guides and
+PDFs; the look and feel, layout and visual design; and the name "Portal
+Pressure Simulator" and the "Hales" engine name. Third-party components are
+listed in THIRD-PARTY-NOTICES.md and stay under their own licences.
+
+1. NO LICENCE IS GRANTED EXCEPT AS STATED IN SECTION 2.
+   The Work is not open source. Seeing, downloading, forking or cloning the
+   source on GitHub or anywhere else gives you no right to use it. Every
+   right not granted here in writing is reserved by the copyright holder.
+
+2. WHAT YOU MAY DO WITHOUT ASKING.
+   (a) Open the hosted app in a web browser, and learn from it.
+   (b) Show the hosted app live to an audience in a lecture, as served and
+       unaltered, with its copyright line visible.
+   Nothing else. Everything else needs the copyright holder's prior written
+   permission, which he may refuse or give on conditions, and which is
+   personal to the person it names.
+
+3. WHAT YOU MAY NOT DO WITHOUT WRITTEN PERMISSION. You may not, in whole or in
+   part, in any language or form, and you may not let anyone else:
+   (a) copy, mirror, host, publish, redistribute, sell, rent, lend, sublicense
+       or make the Work available to any other person;
+   (b) modify, adapt, translate, port, or make derivative works of it,
+       including a rewrite, a "clean room" rewrite or a clone that follows
+       its structure, decks, teaching sequences, numbers, anatomy, layout or
+       look;
+   (c) replicate, reproduce or imitate it in another product, course, book,
+       slide deck, app, simulator or website;
+   (d) extract its text, data, parameters, meshes, textures, art or decks;
+       record or scrape it in bulk; or capture its screens, video or audio
+       for use elsewhere;
+   (e) use the Work, its outputs or its data to train, fine-tune, evaluate or
+       prompt any machine-learning or AI system, or feed it to any tool that
+       retains it;
+   (f) decompile, reverse engineer, unpack or probe its code or data except
+       where the law forbids this restriction;
+   (g) remove, hide, alter or obscure any copyright notice, credit, author
+       name, licence or notice in the Work or on its screens;
+   (h) use the author's name, the Work's name or its marks to endorse or
+       promote anything, or suggest the Work is yours or approved by him;
+   (i) use the Work for any commercial purpose, or to provide any service.
+
+4. CREDIT. Any use the copyright holder permits, in writing or by section 2,
+   must keep the credit "(c) 2026 Mohammad Almeqdadi, MD" and this notice
+   intact and visible, and must name him as the author and creator wherever
+   the Work, a part of it, or what it shows is presented. Permission never
+   transfers authorship.
+
+5. OWNERSHIP. The Work is and stays the property of the copyright holder.
+   Suggestions, bug reports and feedback sent to him may be used by him freely
+   and give you no rights in the Work. No contributor owns any part of it
+   unless a written agreement signed by the copyright holder says so.
+
+6. NOT MEDICAL ADVICE. The Work is for teaching. It is not a medical device,
+   gives no diagnosis or treatment advice, and must not be used to decide the
+   care of any patient. Clinical decisions need a qualified clinician and the
+   current guidelines.
+
+7. NO WARRANTY. The Work is provided "as is", without warranty of any kind,
+   express or implied, including merchantability, fitness for a purpose and
+   non-infringement. To the fullest extent the law allows, the copyright
+   holder is not liable for any claim, loss or damage arising from the Work or
+   its use.
+
+8. TERMINATION AND REMEDIES. Any breach ends every right in section 2
+   immediately. Use that breaches this licence infringes copyright, and the
+   copyright holder may seek injunctions, damages, profits, costs and every
+   other remedy the law gives, and may report it to the host, the app store
+   or the search engine concerned.
+
+9. GOVERNING LAW. This licence is governed by United States federal law and
+   the law of the state where the copyright holder lives, without regard to
+   conflict-of-law rules.
+
+10. PERMISSION AND CONTACT. To ask for permission, write to the copyright
+    holder through the contact on https://qaddodi.github.io/#tools. Only a
+    signed or emailed statement from him counts; no one else, and no contributor,
+    bot or tool, can grant permission for him.
+
+If any part of this licence is held unenforceable, the rest stays in force.
+This text is not legal advice. It is a plain proprietary notice and has not
+been reviewed by a lawyer.

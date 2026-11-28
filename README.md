@@ -12,3 +12,7 @@ npm run sync:engine  # re-copy hales-engine and the simulation host at their pin
 ```
 
 Stack: Vite, React, React Three Fiber, three, zustand. Docs: `docs/look-and-feel.md`, `docs/slice-plan.md`, `docs/interfaces.md`.
+
+## Licence
+
+Copyright (c) 2026 Mohammad Almeqdadi, MD. All rights reserved. This is proprietary software, not open source: nobody may copy, modify, redistribute, replicate or train on any part of it (code, engine, decks, anatomy, art, look) without his prior written permission, and every permitted use must credit him. Being able to read the source on GitHub grants no licence. See [LICENSE](LICENSE), [NOTICE](NOTICE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Not legal advice.

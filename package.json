@@ -28,6 +28,7 @@
     "look:serve": "node scripts/look-serve.mjs",
     "look:diff": "node scripts/look-diff.mjs"
   },
+  "author": "Mohammad Almeqdadi, MD",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=22.18"
