@@ -80,7 +80,8 @@ test('every skin is blended at the radius its arms really have at the junction, 
     if (branch) assert.ok(k <= SKIN_K * atJ * 1.12, `${name}: blend ${k.toExponential(2)} against 0.8 x ${atJ.toExponential(2)}, the narrowest arm's radius at the junction (a fillet that wide is a bulb)`);
     // (3) at rest, and at each HVPG patient's widths: no vertex stands farther out of the arms' union than half the local radius (the worst of all the skins at rest was 0.44 before)
     // (a growing arm is drawn full-size but its built tube is tapered into the host, so its capsule necks at J: the skin builds at the least neck widening whose mesh is inside BULGE_MAX (skin-set.ts NECK_FRACTIONS); the source's own measure is this test's)
-    if (j.arms.some((a) => a.side)) axes.forEach((_, i) => { if (j.arms[i]!.grow) grown++; });
+    // (the growing arms of every skin: the junction table has made the cava's and the splenic skins whole skins of growers, no side-wall skin carries them any more)
+    axes.forEach((_, i) => { if (j.arms[i]!.grow) grown++; });
     assert.ok(Math.abs(worstBulge(mesh, axes) - worstExcess(mesh, axes, j.arms.map(() => 1))) < 1e-9, `${name}: mesh.ts worstBulge is the test's worstExcess`);
     const rest = j.arms.map(() => 1);
     assert.ok(worstExcess(mesh, axes, rest) <= BULGE_MAX, `${name}: bulges ${worstExcess(mesh, axes, rest).toFixed(2)} radii at rest`);
@@ -92,8 +93,9 @@ test('every skin is blended at the radius its arms really have at the junction, 
       assert.ok(e <= 0.45, `${name}: bulges ${e.toFixed(2)} radii at ${id}'s widths`);
     }
   }
-  assert.ok(built.some((b) => b.mesh.junction.node === 'wall:IVC_IS_1:S_PC1,C90'), 'the cava wall skin with S_PC and C9 is built (its growers were dropped when the neck was closed all the way)');
+  // (the cava's cluster is one skin of its outer pieces and the growers, the table's nodes IVCI, IVC_M, IVC_C, IVC_P: whichever skin carries S_PC and C9 whole)
+  assert.ok(built.some((b) => ['S_PC', 'C9'].every((id) => b.mesh.junction.arms.some((a) => a.vesselId === id && a.grow))), 'the cava skin with S_PC and C9 is built (its growers were dropped when the neck was closed all the way)');
   assert.deepEqual(set.bulgeOver, [], 'no skin is left over the bulge limit by the neck-widening search (it kept its least bulging build and named itself)');
-  assert.ok(grown >= 2, `growing side-wall arms checked: ${grown}`);
+  assert.ok(grown >= 2, `growing arms checked: ${grown}`);
   assert.ok(tapered >= 2, `the right hepatic vein's branch skin has tapered joints (${tapered} arms found): the case this pins`);
 });

@@ -5,7 +5,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Group, type Object3D } from 'three';
 import { CelScene } from '../src/scene/scene.ts';
-import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
+import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
+import { JUNCTIONS } from '../src/engine/hales/portal/topology.js';
 import { centrelineOf } from '../src/scene/vessels/centreline.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { setSmoothJoins, smoothJoinsOn } from '../src/scene/vessels/join-mode.ts';
@@ -13,7 +14,7 @@ import { TUBE_RADIAL, buildTubes } from '../src/scene/vessels/tubes.ts';
 import { VESSEL_FS } from '../src/scene/vessels/shaders.ts';
 import { shaderText } from './shader-text.ts';
 import { armWalk, chooseCuts, type ArmTube } from '../src/scene/vessels/skin/cuts.ts';
-import { SIDE_TOL_R, SKIN_REACH, armReach, findSkinJunctions, nearestOnPolyline, pointAtShare } from '../src/scene/vessels/skin/inventory.ts';
+import { SIDE_TOL_R, SKIN_REACH, armReach, findSkinJunctions, isLiverBranch, joinsNode, nearestOnPolyline, pointAtShare } from '../src/scene/vessels/skin/inventory.ts';
 import { GENTLE, PACES, SLOW, buildSkin, buildSkinSteady, foldedTriangles, hullCovers, minAngleDeg } from '../src/scene/vessels/skin/mesh.ts';
 import { SkinSet, axisOf, holesOf } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
@@ -184,7 +185,11 @@ test('IVCS is welded: five arms, the cava cut below the hepatic veins and its en
 test('the side-wall rule changes only a node the art spreads past SKIN_REACH: every other junction is as it was (no side arm, J at the widest arm\'s end)', () => {
   withSmooth(() => {
     const sides = findSkinJunctions().filter((j) => j.arms.some((a) => a.side)).map((j) => j.node);
-    // (placed: LPV, where the left portal vein runs on past the node into the left lobe, replaces the 2D art's IVCS: see above)
-    assert.deepEqual(sides, ['LPV', 'RHV_IVC_1~F:b'], 'the left portal vein\'s umbilical node, and the hepatic vein fork that leaves its host mid-run (a liver branch: a virtual node on the host with two side arms)');
+    // (placed: the left portal vein's take-offs are nodes of their own since the junction table cuts the vein there, LPV_U and LPV_X, so the old side-wall node LPV is gone: the only side arms left are a liver branch's, a virtual node on its host, and which those are is read from the network, not typed)
+    const branches = NETWORK.filter((v) => isLiverBranch(v) && !joinsNode(v)).map((v) => v.id.replace(/~F:b$/, '') + '~F:b').sort();
+    assert.deepEqual(sides.sort(), branches, 'only the hepatic vein fork that leaves its host mid-run (a liver branch: a virtual node on the host with two side arms)');
+    assert.ok(branches.length > 0, 'the network has such a fork');
+    // the table's nodes are real nodes, never a side landing on a host: no junction the engine's table names has a side arm
+    for (const [node] of JUNCTIONS as readonly (readonly [string])[]) assert.ok(!sides.includes(node), `${node} is a node of the figure, no side arm`);
   });
 });

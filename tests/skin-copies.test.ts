@@ -14,6 +14,8 @@ import { CAVA_LIKE } from '../src/scene/vessels/fades.ts';
 import { SkinObject, COPY_LAYER, COPY_ORDER, SKIN_COPIES } from '../src/scene/vessels/skin/skin-object.ts';
 import { SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
 import { copyAlpha } from '../src/scene/vessels/skin/arm-twins.ts';
+import { findSkinJunctions } from '../src/scene/vessels/skin/inventory.ts';
+import { skinKey } from './skin-names-lib.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 import type { Mesh, ShaderMaterial } from 'three';
 
@@ -26,8 +28,9 @@ function withScene<T>(f: (s: CelScene, built: Built[]) => T): T {
   try { return f(s, (s as unknown as Inner).skins.built.filter((b) => b.draw)); } finally { s.dispose(); setSmoothJoins(was); }
 }
 // (placed anatomy: the SVC's two junctions are two skins, SVC_E and SVC, 6.2 radii apart (the 2D figure's 0.9 merged them, cuts.ts MIN_STUB_R), and IVCS, the hepatic veins' ostia on the cava, is one five-arm skin (round 18) whose cava arms are
-//  behind the organs too. The other skins with a back arm (the wall skins and IVC_D on the lower cava, SMV_R's C7) are pinned by the plain-junction test below)
-const BACK_NODES = ['IVCI', 'SVC_E', 'SVC', 'IVCS'];
+//  behind the organs too. The cluster down the lower cava (IVCI, IVC_M, IVC_C, IVC_P: the junction table's rows on that vein) is one skin, keyed by the nodes it is made of. WHICH junctions have an arm behind the organs is read from the
+//  junction list and BACK_EDGES, never typed: a row the table moves reaches this test with no edit. The other skins with a back arm are pinned by the plain-junction test below)
+const BACK_NODES: string[] = findSkinJunctions().filter((j) => j.arms.some((a) => BACK_EDGES.has(a.vesselId))).map((j) => j.node);
 const sync = (s: CelScene): boolean => (s as unknown as Inner).skins.sync();
 
 /** What the tube draws of each of its copies, read from the tube's OWN state (layer, uniforms, mesh) and not through `copyShares`: the front copy is the tube's mesh in the vessels' pass, the solid copy the same mesh with the organs (layer 0), the veil the second mesh. */
@@ -38,8 +41,9 @@ function tubeCopies(o: VesselObject): [number, number, number] {
   return [lay === 'front' ? solidK : 0, lay === 'solid' ? solidK : 0, veil && veil.mesh.visible ? veilK : 0];
 }
 
-test('the junctions with an arm behind the organs are skinned: IVCI, the two SVC junctions and the hepatic veins\' ostia (IVCS)', () => {
-  withScene((s) => { for (const n of BACK_NODES) assert.ok(s.skinNodes.includes(n), `${n} is skinned (${s.skinNodes.join(', ')})`); });
+test('the junctions with an arm behind the organs are skinned (each by a skin of its own or as a member of a merged one): the lower cava\'s IVCI, the two SVC junctions and the hepatic veins\' ostia (IVCS)', () => {
+  assert.ok(['IVCI', 'SVC_E', 'SVC', 'IVCS'].every((n) => BACK_NODES.includes(n)), `the nodes known to have a back arm are in the list (${BACK_NODES.join(', ')})`);
+  withScene((s) => { for (const n of BACK_NODES) assert.ok(skinKey(s.skinNodes, n), `${n} is skinned (${s.skinNodes.join(', ')})`); });
 });
 
 test('a skin is ONE geometry on three meshes, one source in three programs (SKIN_COPY 0, 1, 2), on the layers and in the order of the tubes\' own copies', () => {
@@ -76,8 +80,10 @@ test('a plain junction (no arm behind the organs) draws its front copy alone, as
 
 test('at every arm\'s seam each copy\'s alpha is the arm tube\'s own alpha of that copy (its front, solid and veil), for the Hide-vessels-behind-organs share k in {0, 0.5, 1} and the cava whole or not', () => {
   withScene((s, built) => {
-    const back = built.filter((b) => BACK_NODES.includes(b.node));
-    assert.ok(back.length === BACK_NODES.length, `${back.length} of ${BACK_NODES.length} back skins built`);
+    // (the skins that carry a back node: a merged skin counts once, however many of the nodes it is made of)
+    const back = built.filter((b) => BACK_NODES.some((n) => skinKey([b.node], n)));
+    const missing = BACK_NODES.filter((n) => !skinKey(back.map((b) => b.node), n));
+    assert.deepEqual(missing, [], `every back node is in a built skin (${back.length} back skins built)`);
     for (const k of [0, 0.5, 1]) for (const whole of [0, 1]) {
       for (const b of back) for (const a of b.arms) { if (a.obj.behindOrgans) { a.obj.setOcclusion(k); if (CAVA_LIKE.has(a.id)) a.obj.setWholeShare(whole); } }
       sync(s);

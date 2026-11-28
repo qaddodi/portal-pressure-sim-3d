@@ -19,13 +19,17 @@ import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
 import { sdUnion, skinKOf, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
+import { FAR_PLACED } from './skin-names-lib.ts';
 
-/** The braid roots that are welded: the end of the braid, the node whose skin it is an arm of. Pinned (a braid or a node added to the network is seen here). */
-// placed only: C2 leaves the splenic vein near the hilum where the approved placement draws it (the V_SPL|SV_MID cut, node SVD), not at its engine node SV, so SVD's skin welds it
-const WELDED: Record<string, readonly string[]> = { 'C2:0': ['SVD'], 'C4:0': ['IMV'], 'C7:0': ['SMV_R'] };
-/** A bundle root that is an arm of its node in the inventory but that the retry ladder drops: the strands leave IMV 25 degrees from the run-on V_COL, a growing arm along a permanent one, whose closed footprint folds (the mesher's limit as PVH's DIPS and the S_DSR pair: tests/skin-closed-footprint.test.ts). Named, not hidden. */
-// placed only: the SV skin, its engine node, lets C2 go for SVD's (above)
-const DROPPED_ROOT: Record<string, string> = { 'C2:0': 'SV' };
+/** The braid roots (`id:end`): the ends where the strands leave a node as one bundle, worked out from the braids themselves (braid-arm.ts braidRootEnds), and the node each lands on, which is the network's own `from`/`to` (they follow the engine's junction table). */
+const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
+const nodeOfEnd = (key: string): string => { const [id, end] = key.split(':') as [string, string], v = NETWORK_BY_ID.get(id)!; return end === '0' ? v.from : v.to; };
+const ROOTS = (): string[] => BRAIDS.flatMap((id) => braidRootEnds(NETWORK_BY_ID.get(id)!).map((e) => `${id}:${e}`));
+/** A bundle root that is an arm of its node in the inventory but that the skin leaves out, named with its node (skin-names-lib.ts FAR_PLACED: the short-gastric braid C2 is drawn 6.5 radii from SVD's centre, so SVD's skin does not weld it and the tube keeps its flared end). Derived from the roots and that
+ *  list, never typed: the ends the skin could not carry are exactly the roots whose node:vessel is named there. */
+const droppedRoots = (): Record<string, string> => Object.fromEntries(ROOTS().filter((k) => FAR_PLACED.includes(`${nodeOfEnd(k)}:${k.split(':')[0]}`)).map((k) => [k, nodeOfEnd(k)]));
+/** The braid roots that are welded: the end of the braid, the node whose skin it is an arm of (a node a merged skin is made of is found in that skin). Every root less the named dropped ones. */
+const weldedRoots = (): Record<string, readonly string[]> => { const d = droppedRoots(); return Object.fromEntries(ROOTS().filter((k) => !(k in d)).map((k) => [k, [nodeOfEnd(k)]])); };
 /** The braid ends that keep the fork method, each for a reason a person can read. */
 const FORK: Record<string, string> = {
   'C1a:0': 'LGV is the free start of the left gastric vein: one permanent arm, a run-on of two, no junction',
@@ -36,25 +40,23 @@ const FORK: Record<string, string> = {
   'C8:0': 'CONF: six channels that fan out of the node as separate tubes',
   'C8:1': 'PVH: six channels that fan out of the node as separate tubes',
 };
-const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 
 const on = <T>(f: () => T): T => { const was = smoothJoinsOn(); setSmoothJoins(true); try { return f(); } finally { setSmoothJoins(was); } };
 
 test('the braid roots are named: the ends where the strands leave a node as one bundle are arms of that node, the rest are the fork method\'s, each with its reason', () => {
   on(() => {
-    const roots = BRAIDS.flatMap((id) => braidRootEnds(NETWORK_BY_ID.get(id)!).map((e) => `${id}:${e}`));
+    const roots = ROOTS(), WELDED = weldedRoots(), DROPPED_ROOT = droppedRoots();
     const ends = BRAIDS.flatMap((id) => [0, 1].map((e) => `${id}:${e}`));
-    assert.deepEqual(ends.filter((e) => !(e in WELDED)).sort(), Object.keys(FORK).sort(), 'every braid end is welded or named');
+    assert.deepEqual(ends.filter((e) => !roots.includes(e)).sort(), Object.keys(FORK).sort(), 'every braid end is a bundle root or named');
     // (placed only: none. The placed varices wrap the oesophagus (coil.ts WRAP), so C1a's strands part as they leave LGV: its start is no bundle, and it keeps the fork method for the reason FORK gives)
-    assert.deepEqual(roots.filter((e) => !(e in WELDED)).sort(), [], 'the bundle roots that are not welded: C1a\'s node has a single permanent arm');
+    assert.deepEqual(roots.filter((e) => !(e in WELDED) && !(e in DROPPED_ROOT)).sort(), [], 'every bundle root is welded or named dropped');
     for (const e of Object.keys(WELDED)) assert.ok(roots.includes(e), `${e} is a bundle root`);
     for (const [key, node] of Object.entries(DROPPED_ROOT)) { const v = NETWORK_BY_ID.get(key.split(':')[0]!)!; assert.equal(node, key.endsWith(':0') ? v.from : v.to); assert.ok(findSkinJunctions().find((x) => x.node === node)!.arms.some((a) => a.vesselId === v.id && a.grow)); }
     const js = findSkinJunctions();
-    for (const [key, nodes] of Object.entries(WELDED)) {
+    for (const [key] of Object.entries(WELDED)) {
       const [id, end] = key.split(':') as [string, string], v = NETWORK_BY_ID.get(id)!;
       assert.ok(isBraid(v) && !isGrower(v), `${id} is a braid, not a one-tube grower`);
       const node = end === '0' ? v.from : v.to;
-      assert.deepEqual([node], key in DROPPED_ROOT ? [DROPPED_ROOT[key]!] : nodes, 'its engine node (placed C2: SV, welded by SVD)');
       const j = js.find((x) => x.node === node)!;
       assert.ok(j, `${node} has a skin`);
       assert.ok(j.arms.some((a) => a.vesselId === id && a.end === Number(end) && a.grow), `${key} is a growing arm of ${node}`);
@@ -87,6 +89,7 @@ test('every welded braid root is a growing arm of a built skin, none is dropped,
   const b = built();
   try {
     assert.deepEqual(b.warnings, []);
+    const WELDED = weldedRoots(), DROPPED_ROOT = droppedRoots();
     const dropped = [...b.set.dropped].filter((d) => BRAIDS.some((id) => d.endsWith(`:${id}`)));
     assert.deepEqual(dropped, Object.entries(DROPPED_ROOT).map(([k, n]) => `${n}:${k.split(':')[0]}`), 'only the named root is dropped by the retry ladder');
     let n = 0;
@@ -107,7 +110,7 @@ test('every welded braid root is a growing arm of a built skin, none is dropped,
 test('no strand starts outside the skin: each strand is cut at the seam\'s distance on the longest strand, and its first drawn ring lies inside the skin at full growth', () => {
   const b = built();
   try {
-    for (const [key, nodes] of Object.entries(WELDED)) {
+    for (const [key, nodes] of Object.entries(weldedRoots())) {
       const [id, end] = key.split(':') as [string, string], v = NETWORK_BY_ID.get(id)!, e = Number(end) as 0 | 1;
       const d = b.draws.find((x) => skinOf(x).includes(nodes[0]!))!, name = d.mesh.name.replace('skin:', '');
       const m = b.set.skinOf(name)!, ai = m.junction.arms.findIndex((a) => a.vesselId === id && a.end === e);
