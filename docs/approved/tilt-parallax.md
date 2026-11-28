@@ -25,3 +25,6 @@ Traits:
 Code: `src/scene/camera/tilt.ts`, `tilt-input.ts`, `rig.ts` (`stepTilt`), `room.ts` (`keepDistance`), `Stage.tsx` (the gate). Tests: `tests/tilt-parallax.test.ts`, `tests/scene-tilt.test.ts`, and the two "F3 at full tilt" sweeps in `tests/camera-framing-rules.test.ts`.
 
 Not rejected anything. Not yet seen on a device: say "pushed, not yet seen". The sign of each axis is fixed by meaning in node (the projection test), not by a device.
+
+## 28 Nov, ruling: the cap stays
+Asked whether to allow more than 5 degrees on every slide except `sites/healthy`, Mohammad: "No tilt past what we decide." The cap is 5 degrees each way on every slide, no per-slide exceptions.
