@@ -34,6 +34,9 @@ export function nodeTestPlan(scope: Scope, all: readonly string[], families: { h
     for (const id of ids) {
       const f = featureOf(id);
       if (!f) continue;
+      // (a feature that serves two asked-for checks gives its files to the first of its own list, so a red junction test is a `junctions` finding, not a `layout` one)
+      const first = f.checks.find((x) => scope.checks.includes(x));
+      if (first && first !== c) { any = true; continue; }
       for (const file of testsOfFeature(f, all)) { any = true; if (!picked.has(file)) picked.set(file, { file, feature: id, check: c }); }
     }
     if (!any) noTests.push(c);

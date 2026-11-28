@@ -162,7 +162,7 @@ function readmeMd(r: RunResult): string {
     '',
     '## Run it again',
     '',
-    `\`npm run audit -- "${s.line}"\` (node, about a minute for a feature, no browser, no approval).`,
+    `\`npm run audit -- "${s.line}"\` (node, no browser, no approval).`,
     `The same line is the request for the other runners.${s.random ? ` The random slice is fixed by its seed (${s.random.seed}).` : ''}`,
     '',
     `Schema ${SCHEMA}. Build \`${r.info.build.commit.slice(0, 8)}\`.`,
