@@ -35,9 +35,12 @@ test('a record holds only what departs: every deck in it is a deck of the 2D fix
   const hp = hpNumbers();
   for (const [id, rows] of Object.entries(departures('decks-hp-numbers-3d.json') as Record<string, HpRow[]>)) {
     assert.ok(hp2[id], `${id} is a 2D deck`);
-    assert.deepEqual(rows.map((r) => r.id), hp2[id]!.map((r) => r.id), `${id}: the slides are the 2D deck's (in the order the talk plays them)`);
+    // (a slide the talk cut into parts, SPLIT_PAGES, 28 Nov, has parts the 2D deck does not: `<id>-2`; they stand in the record after their first part and are not compared with 2D)
+    const twoIds = new Set(hp2[id]!.map((r) => r.id)), own = rows.filter((r) => twoIds.has(r.id));
+    assert.deepEqual(own.map((r) => r.id), hp2[id]!.map((r) => r.id), `${id}: the slides are the 2D deck's (in the order the talk plays them)`);
+    assert.ok(rows.every((r) => twoIds.has(r.id) || twoIds.has(r.id.replace(/-\d+$/, ''))), `${id}: a slide that is not the 2D deck's is a part of one that is`);
     // (a deck also departs when a {token} prints another text than 2D's: the words moved, as {hvpg:0} printing the tile's one decimal)
-    const moved = rows.some((r, i) => Object.entries(hp2[id]![i]!.fp).some(([k, v]) => rel(r.fp[k] ?? NaN, v) > 2e-5) || r.tokens.some((tk, j) => tk[1] !== hp2[id]![i]!.tokens[j]?.[1]));
+    const moved = own.some((r, i) => Object.entries(hp2[id]![i]!.fp).some(([k, v]) => rel(r.fp[k] ?? NaN, v) > 2e-5) || r.tokens.some((tk, j) => tk[1] !== hp2[id]![i]!.tokens[j]?.[1]));
     assert.ok(moved, `${id}: recorded but no reading or printed token moved: delete it, the 2D numbers are the truth`);
     assert.deepEqual(hp[id], rows, `${id}: the loader reads the record`);
   }

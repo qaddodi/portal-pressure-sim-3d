@@ -180,7 +180,8 @@ test('Alcohol, abstinent: the cause removed, the fluid goes, diuretics stop only
 test('PSVD: the HVPG is normal (under 5) on every day and the PPG is not; a bleed, a band and a vasoactive drug that day, a beta-blocker after, banding every 2 to 4 weeks', () => {
   const b = by('hist-psvd');
   assert.ok(every(b, (v) => v.hvpg < 5), 'normal HVPG throughout');
-  assert.ok(every(b, (v, d) => d < 25 || v.ppg > 12), 'the portal vein gradient stays high (but for the days on the vasoactive drug)');
+  // (over 10, the level of clinically significant portal hypertension: on carvedilol, whose blood-pressure effect was retuned on 28 Nov, C8, the PSVD patient's PPG falls to about 11)
+  assert.ok(every(b, (v, d) => d < 25 || v.ppg > 10), 'the portal vein gradient stays high (but for the days on the vasoactive drug)');
   const bleed = find(b, (e) => e.evId === 'VARIX_RUPTURE')!, vaso = find(b, (e) => e.step === 'vasoactive')!, carv = find(b, (e) => e.step === 'carvedilol')!;
   assert.equal(vaso.day, bleed.day);
   assert.ok(carv.day - vaso.day >= 2 && carv.day - vaso.day <= 5, 'the vasoactive drug runs 2 to 5 days');

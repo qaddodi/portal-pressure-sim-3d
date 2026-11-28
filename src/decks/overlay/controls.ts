@@ -25,7 +25,7 @@ export const RESPONSE: Readonly<Record<string, { gains: readonly [number, number
     ],
   },
   'carvedilol/start': {
-    gains: [0.3, 0.83, 1.43],
+    gains: [0.3, 0.82, 1.3],
     lines: [
       'As a non-responder, carvedilol lowers her HVPG only from {hvpg@rise} to {hvpg}, short of the ≥10% fall Baveno VIII counts as a response. It is started without an HVPG, so she stays on it.',
       null,

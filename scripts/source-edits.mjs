@@ -267,7 +267,7 @@ export const REVIEWER_24NOV_D = [
   SET('treatment', 'slides.summary.of.0.note', 'Large varices, ascites'),
   // Who should get a TIPS 13: one decision and its reason on every row
   SET('tips-candidacy', 'slides.summary.note', 'Decision and reason'),
-  SET('tips-candidacy', 'slides.summary.of.1.note', 'Preemptive TIPS: controlled bleed, Child–Pugh C 11'),
+  SET('tips-candidacy', 'slides.summary.of.1.note', 'Preemptive TIPS: controlled bleed, Child–Pugh C 12'),
   SET('tips-candidacy', 'slides.summary.of.2.note', 'Rescue TIPS: rebleed despite carvedilol and banding'),
   SET('tips-candidacy', 'slides.summary.of.3.note', 'Consider TIPS: recurrent ascites, MELD 11'),
   SET('tips-candidacy', 'slides.summary.of.4.note', 'Transplant evaluation first: MELD 22'),

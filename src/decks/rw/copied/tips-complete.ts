@@ -187,7 +187,7 @@ export const TIPS_COMPLETE: CopiedDeck = {
    "key": [
     "ppg"
    ],
-   "vignette": "A 54-year-old man with alcohol-associated cirrhosis bled from varices; banding controlled it. Child–Pugh C 11, bilirubin 5.2 mg/dL, MELD 23, creatinine 1.1 mg/dL, no heart failure.",
+   "vignette": "A 54-year-old man with alcohol-associated cirrhosis bled from varices; banding controlled it. Child–Pugh C 12, bilirubin 5.2 mg/dL, MELD 23, creatinine 1.1 mg/dL, no heart failure.",
    "caseQ": "Is he too sick for a TIPS?",
    "tool": {
     "kind": "criteria",
@@ -199,7 +199,7 @@ export const TIPS_COMPLETE: CopiedDeck = {
      {
       "text": "Child–Pugh C",
       "cut": "C 10–13",
-      "note": "C 11",
+      "note": "C 12",
       "met": true,
       "lit": true
      },

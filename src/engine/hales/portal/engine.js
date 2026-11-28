@@ -439,7 +439,9 @@ export class Engine {
       if (!on || !DRUGS[k]) continue;
       const d0 = DRUGS[k], g = (k === 'propranolol' || k === 'carvedilol') ? (this.params.nsbbGain ?? 1) : 1;
       // (nsbbGain: a stronger or weaker responder to a beta-blocker, the portal side of its effect scaled; 1 leaves it as it was)
-      const d = g === 1 ? d0 : { ...d0, spl: 1 + (d0.spl - 1) * g, sin: 1 - (1 - d0.sin) * g };
+      // (28 Nov 2026: carvedilol's systemic vasodilation, `sys`, scales with the responder too: a non-responder gains no blood pressure fall and no HVPG fall from it, which the
+      // retune to a 6 mmHg fall of the mean arterial pressure (C8) would otherwise have given them: their HVPG fell 14% instead of 5%.)
+      const d = g === 1 ? d0 : { ...d0, spl: 1 + (d0.spl - 1) * g, sin: 1 - (1 - d0.sin) * g, sys: k === 'carvedilol' ? 1 - (1 - d0.sys) * g : d0.sys };
       e.hr *= d.hr; e.contr *= d.contr; e.spl *= d.spl; e.sys *= d.sys; e.sin *= d.sin; e.baroHr = Math.min(e.baroHr, d.baroHr); e.baroSlow = Math.min(e.baroSlow, d.baroSlow ?? 1);
     }
     return e;

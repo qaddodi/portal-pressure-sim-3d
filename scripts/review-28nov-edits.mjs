@@ -7,6 +7,13 @@ const SET = (deck, at, set) => ({ deck, at, set });
 const MOVE_AFTER = (deck, at, target) => ({ deck, at, moveAfter: target });
 
 export const REVIEW_28NOV = [
+  // ---- the decompensated patient's albumin is 2.25 g/dL (C7: Grade 2 ascites, 28 Nov): its albumin scores 3 points, so he is Child–Pugh C 12, and the card says so ----
+  P('tips-candidacy', 'slides.pre.vignette', 'Child–Pugh C 11, bilirubin 5.2', 'Child–Pugh C 12, bilirubin 5.2'),
+  P('tips-candidacy', 'slides.pre.tool.rows.0.note', 'C 11', 'C 12'),
+  P('tips-complete', 'slides.pre.vignette', 'Child–Pugh C 11, bilirubin 5.2', 'Child–Pugh C 12, bilirubin 5.2'),
+  P('tips-complete', 'slides.pre.tool.rows.0.note', 'C 11', 'C 12'),
+  SET('tips-candidacy', 'slides.summary.of.1.title', 'Controlled bleed, Child–Pugh C 12'),
+  SET('tips-candidacy', 'slides.summary.of.1.note', 'Preemptive TIPS: controlled bleed, Child–Pugh C 12'),
   // ---- the clear defects of section 1b ----
   // ascites: the TIPS slide for refractory ascites follows the algorithm slide (his ruling, 28 Nov: move it)
   MOVE_AFTER('ascites', 'slides.tips', 'slides.path-asc'),
