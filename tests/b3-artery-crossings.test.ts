@@ -5,6 +5,10 @@ import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { x2d, y2d } from '../src/scene/frame2d.ts';
 import { PLACED_BRANCHES, PLACED_PATH_2D } from '../src/scene/anatomy/placed-network.ts';
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
+import { WHOLE_PIECES, lastPieceOf } from '../src/scene/anatomy/whole-pieces.ts';
+
+// (the left portal vein's last piece: the engine's junction table cuts it at each row, so no piece id is written here)
+const LPV_END = lastPieceOf('PVH_L');
 
 const P = (id: string): [number, number][] => NETWORK_BY_ID.get(id)!.pts.map((p) => [x2d(p[0]), y2d(p[1])]);
 const HEPATIC = new Set(['A_HEP', 'A_HR', 'A_HL']);
@@ -27,7 +31,7 @@ test('the hepatic artery crosses no vein (and an arterioportal shunt, which ends
 });
 
 test('the left and right hepatic arteries run beside their portal branches, a little below them, and fade out with them', () => {
-  for (const [a, host] of [['A_HR', 'PVH_R_1'], ['A_HL', 'PVH_L_1']] as const) {
+  for (const [a, host] of [['A_HR', 'PVH_R_1'], ['A_HL', LPV_END]] as const) {
     const art = P(a), v = P(host);
     if (a === 'A_HL') {
       // (restated for the placed anatomy, the only one now: the left hepatic artery overlaps the left portal vein on screen and stays behind it there (approved placement, round 18), so it runs beside it in depth)
@@ -57,7 +61,7 @@ test('the closed lumbar-azygos collateral is not a dotted pink thread through th
 
 test('the paraumbilical vein leaves the left portal branch as a branch off its wall: thinner than the trunk, with no collar (starts on the vein\'s axis, tests/b3-umbilical-join.test.ts)', async () => {
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
-  const c3 = B.get('C3')!, lpv = B.get('PVH_L_1')!;
+  const c3 = B.get('C3')!, lpv = B.get(LPV_END)!;
   assert.ok(c3.radius < 0.7 * lpv.radius, 'narrower than the left portal vein');
   assert.ok(!c3.flare?.[0], 'no collar at its start: it leaves the wall along the vein\'s axis, not the node where the vein is thin');
 });
@@ -66,7 +70,7 @@ test('the cava, the hepatic veins and the right atrium lie in one plane: no S in
   const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
   // (restated for the placed anatomy, the only one now: the approved placement carries each course's own depth, the cava rising forward from the pelvis to the atrium, so the cava is not one plane;
   // what holds is the "no S": up the cava, IVC to atrium to SVC, the depth only ever rises (no back-and-forth), and the veins into it are level)
-  const up = ['IVC_IS_1', 'IVC_IS', 'IVCS_RA'].flatMap((id) => coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts.map((p) => p[2]));
+  const up = WHOLE_PIECES.ivc!.flatMap((id) => coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts.map((p) => p[2]));
   // (a turn back of under 0.0005 scene units, a sixth of a figure unit, is no S anyone sees: the placed course's own relaxation leaves one of 0.0002 at the pelvis)
   let lo = up[0]!; for (let i = 1; i < up.length; i++) { assert.ok(up[i]! >= lo - 5e-4, `the cava's depth never turns back (${i}: ${up[i]} after ${lo})`); lo = Math.max(lo, up[i]!); }
   for (const id of ['SVC_RA', 'RHV_IVC']) { const z = coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.pts.map((p) => p[2]); assert.ok(Math.max(...z) - Math.min(...z) < 0.02, `${id} is level`); }
@@ -78,7 +82,8 @@ test('the sinusoid beds are not drawn: the portal branches fade out into the liv
   const f = { Q: new Array(200).fill(1), D: new Array(200).fill(5) } as never;
   for (const id of ['SIN_RR', 'SIN_LL', 'PRE_R', 'PRE_L', 'POST_R_RHV', 'POST_L_LHV']) assert.equal(presenceOf(N.find((v) => v.id === id)!, f, { collaterals: true }), 'hidden', id);
   // (a vein that branches is one tube to its tip: it fades out of / in from the liver over the same stretch of its course as its side branch, to nothing a little before the tip)
-  for (const id of ['PVH_R_2', 'PVH_L_1']) { const h = fadeOf(id, false)!; assert.equal(h.mode, 1); assert.deepEqual([h.a0, h.a1], [1, 0], `${id} fades out along its through branch`); assert.ok(h.from > 0.3 && h.to < 1 && h.to > h.from, `${id} fades over its liver stretch`); const x = fadeOf(`${id}~F:b`, false, id)!; assert.deepEqual([x.to, x.a0, x.a1], [0.92, 1, 0], `${id}'s side branch ends in the liver's tissue`); }
+  for (const id of ['PVH_R_2', LPV_END]) { const h = fadeOf(id, false)!; assert.equal(h.mode, 1); assert.deepEqual([h.a0, h.a1], [1, 0], `${id} fades out along its through branch`); assert.ok((h.from > 0.3 || id === LPV_END) && h.to < 1 && h.to > h.from, `${id} fades over its liver stretch`);   // (the left portal vein fades from 0.45 of the whole vein, before its last piece, which starts at 0.64: the line along the piece starts below 0)
+   const x = fadeOf(`${id}~F:b`, false, id)!; assert.deepEqual([x.to, x.a0, x.a1], [0.92, 1, 0], `${id}'s side branch ends in the liver's tissue`); }
   for (const id of ['RHV_IVC_1', 'LHV_IVC']) { const h = fadeOf(id, false)!; assert.equal(h.mode, 1); assert.deepEqual([h.a0, h.a1], [0, 1], `${id} fades in along its through branch`); assert.ok(h.from >= 0 && h.to < 1 && h.to > h.from); }
   { const x = fadeOf('RHV_IVC_1~F:b', false, 'RHV_IVC_1')!; assert.deepEqual([x.from, x.a0, x.a1], [0.08, 0, 1], 'the right hepatic vein\'s side branch begins in the liver\'s tissue'); }
   { const x = fadeOf('MHV_IVC', false)!; assert.equal(x.mode, 1); assert.deepEqual([x.from, x.a0, x.a1], [0, 0, 1], 'the middle hepatic vein, which does not branch, begins in the liver\'s tissue'); }

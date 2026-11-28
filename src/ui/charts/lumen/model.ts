@@ -4,6 +4,7 @@
 import { EDGES, STENT_SITES as SITE_U, edgeById, tightSite, JUNCTION_PIECES } from '../../../engine/hales/portal/topology.js';
 import { endSiteOf, geomOf, kindOf, profileAt } from '../../../engine/hales/portal/stent-geom.js';
 import { MOTION } from '../../../clock/tween.ts';
+import { piecesOf } from '../../../scene/anatomy/whole-pieces.ts';
 
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 export interface LumenParams { stenosis?: Record<string, number>; thrombus?: Record<string, number>; stentGeom?: Record<string, unknown>; stenosisSite?: Record<string, string> }
@@ -54,7 +55,7 @@ export function createFollow(): Follow {
 
 const STENTS = new Set(['TIPS', 'DIPS']);
 export const hasStent = (id: string, stented: readonly string[] | null | undefined) => STENTS.has(id) || (Array.isArray(stented) && stented.includes(id));
-const SYSTEMIC = new Set(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC', 'IVCS_RA', 'IVCI', 'IVCS']);
+const SYSTEMIC = new Set([...piecesOf('RHV_IVC'), 'MHV_IVC', 'LHV_IVC', 'IVCS_RA', 'IVCI', 'IVCS']);
 export type Kind = 'portal' | 'systemic' | 'artery';
 export const kindOfVessel = (id: string): Kind => (SYSTEMIC.has(id) ? 'systemic' : id.startsWith('A_') ? 'artery' : 'portal');
 

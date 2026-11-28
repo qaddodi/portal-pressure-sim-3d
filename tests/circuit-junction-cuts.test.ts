@@ -100,10 +100,12 @@ test('every collateral, shunt and tributary end on the map lies at its junction,
 });
 
 test('a junction the 2D drawing placed does not move its lanes: only the ends the table moves are carried', () => {
+  // (a lane with a joiner end at a junction the 2D drawing never had is carried at that end, so its course is not the copy's: the check is of the lanes whose every junction the drawing placed)
+  const carried = new Set(rows.filter((r) => !MAP_JUNCTIONS.get(r.node)!.own).flatMap((r) => r.joiners.map(([e]) => e)));
   for (const r of rows) {
     const j = MAP_JUNCTIONS.get(r.node)!;
     for (const [edge] of r.joiners) {
-      if (!j.own || !CIRCUIT_D[edge]) continue;
+      if (!j.own || !CIRCUIT_D[edge] || carried.has(edge)) continue;
       const was = courseOf(CIRCUIT_D[edge]!), now = courseOf(CIRCUIT_COURSE_D[edge]!);
       assert.ok(was.every((p) => offLine(p, now) < 0.01) && now.every((p) => offLine(p, was) < 0.01), `${edge}: unmoved at ${r.node}`);
     }

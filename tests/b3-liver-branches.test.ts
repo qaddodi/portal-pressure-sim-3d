@@ -8,6 +8,7 @@ import { organsReady, setOrganData, ORGAN_MESHES } from '../src/scene/organs/mes
 import { x2d, y2d } from '../src/scene/frame2d.ts';
 import { LIVER_BRANCHES, LIVER_BRANCH_HOSTS, SPLIT_AT } from '../src/scene/vessels/liver-branches.ts';
 import { EDGE_PATH_2D } from '../src/scene/vessels/paths.copied.ts';
+import { lastPieceOf, pieceStartingAt } from '../src/scene/anatomy/whole-pieces.ts';
 
 type P = readonly [number, number];
 
@@ -179,7 +180,7 @@ test('the two tubes of a fork know each other: every vertex carries its distance
   const { REST, coursesOf } = await import('../src/scene/vessels/shape.ts');
   // (placed anatomy: the left portal vein has no fork any more; it runs on into the left lobe as one vessel that narrows and fades early on purpose (shape.ts LIVER_TAPER, fades.ts PLACED_LIVER_FADE), so it has no side branch and no mate)
   assert.deepEqual([...SIDE_BRANCHES.keys()].sort(), ['PVH_R_2', 'RHV_IVC_1']);
-  assert.equal(forkMateOf('PVH_L_1'), null, 'the left portal vein forks with nothing');
+  assert.equal(forkMateOf(lastPieceOf('PVH_L')), null, 'the left portal vein forks with nothing');
   for (const [host, kids] of SIDE_BRANCHES) for (const k of kids) {
     assert.equal(forkMateOf(host), k); assert.equal(forkMateOf(k), host);
     const rad = (id: string): number => coursesOf(B.get(id)!, REST)[0]!.radius;
@@ -208,7 +209,7 @@ test('the bed that continues a vein which branches wears no fork collar (root ca
   const { NETWORK_BY_ID: B } = await import('../src/scene/vessels/network.ts');
   const { liverTipEnd } = await import('../src/scene/vessels/liver-branches.ts');
   // (keyed by the vein ending in the liver's tissue, not by its branching: the placed left portal vein does not branch but still ends at its tip in the left lobe)
-  assert.equal(liverTipEnd('PVH_L_1'), 1); assert.equal(liverTipEnd('LHV_IVC'), 0); assert.equal(liverTipEnd('PV_TRUNK'), null);
+  assert.equal(liverTipEnd(lastPieceOf('PVH_L')), 1); assert.equal(liverTipEnd('LHV_IVC'), 0); assert.equal(liverTipEnd('PV_TRUNK'), null);
   for (const id of ['PRE_L', 'PRE_R', 'POST_R_RHV', 'POST_L_LHV']) { const v = B.get(id); if (v) assert.ok(!v.flare?.[0] && !v.flare?.[1], `${id} has no collar`); }
 });
 
@@ -232,7 +233,7 @@ test('a hepatic vein opens into the cava with a clean edge: it is cut away exact
   assert.equal(cavaMateOf('RHV_IVC_1'), null);
   assert.equal(cavaMateOf('MHV_IVC'), null);
   assert.equal(cavaMateOf('LHV_IVC'), 'IVC_IS');
-  assert.equal(cavaMateOf('LRV_IVC'), 'IVC_IS_1', 'a renal vein meets the cava below the hepatic veins');
+  assert.equal(cavaMateOf('LRV_IVC'), pieceStartingAt('IVC_IS', 'IVCI'), 'a renal vein meets the cava below the hepatic veins');
   // the vein's last vertices lie inside its host's lumen (distance to its axis under its radius: the cava's, the trunk's for the middle one), its first ones outside
   for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) {
     const c = coursesOf(B.get(id)!, REST)[0]!, flat = new Float32Array(c.pts.length * 3);
@@ -254,7 +255,7 @@ test('a side branch starts as wide as it is where it leaves its vein (a half-wid
   const { JOIN_K } = await import('../src/scene/vessels/liver-branches.ts');
   assert.equal(JOIN_K, 1);
   // (placed anatomy: the left portal vein has no side branch (it tapers and fades into the left lobe as one vessel), so only the right portal and right hepatic veins' branches are checked)
-  assert.equal(B.get('PVH_L_1~F:b'), undefined, 'no branch on the left portal vein');
+  assert.equal(B.get(`${lastPieceOf('PVH_L')}~F:b`), undefined, 'no branch on the left portal vein');
   for (const id of ['PVH_R_2~F:b', 'RHV_IVC_1~F:b']) {
     const v = B.get(id)!, c = coursesOf(v, REST)[0]!, join = (v.plan as unknown as { list: { join: 0 | 1 }[] }).list[0]!.join;
     let L = 0; for (let i = 1; i < c.pts.length; i++) L += Math.hypot(c.pts[i]![0] - c.pts[i - 1]![0], c.pts[i]![1] - c.pts[i - 1]![1], c.pts[i]![2] - c.pts[i - 1]![2]);

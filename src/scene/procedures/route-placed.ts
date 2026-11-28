@@ -6,6 +6,7 @@
 import { JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
 import { NETWORK, NETWORK_BY_ID } from '../vessels/network.ts';
 import { PLACED_BRANCHES } from '../anatomy/placed-network.ts';
+import { firstPieceOf } from '../anatomy/whole-pieces.ts';
 import { centrelineOf } from '../vessels/centreline.ts';
 import { REST, coursesOf } from '../vessels/shape.ts';
 import { smoothJoinsOn } from '../vessels/join-mode.ts';
@@ -51,7 +52,7 @@ export function geo3(): Geo3 {
 
 /** The right hepatic vein's branches past its fork, those the network draws: the draw-only branches by name (placed-network.ts PLACED_BRANCHES, `rhva`/`rhvb`) or as the trunk's liver forks (`RHV_IVC_1~F:…`,
  *  which the wedge's column already fills from the trunk, proc-catheter.ts wedgeTint). */
-export const RHV_FORK_PIECE = 'RHV_IVC_1';
+export const RHV_FORK_PIECE = firstPieceOf('RHV_IVC');
 export function rhvBranchIds(): string[] {
   const b = PLACED_BRANCHES[RHV_FORK_PIECE], named = b ? [b.through, b.side].filter((id) => NETWORK_BY_ID.has(id)) : [];
   return [...named, ...NETWORK.filter((v) => v.id.startsWith(`${RHV_FORK_PIECE}~F`)).map((v) => v.id)];

@@ -6,14 +6,15 @@ import { REST, coursesOf } from './shape.ts';
 import { smoothJoinsOn } from './join-mode.ts';
 import { isPermanent, nearestOnPolyline } from './skin/inventory.ts';
 import type { Vec3 } from './skin/types.ts';
+import { piecesOf } from '../anatomy/whole-pieces.ts';
 
 /** One end of a shunt: the host's radius (scene units), whether the end lies inside the host's lumen (so it narrows there), whether it is a sink (2D SINK: narrowed but not further reduced) and flares. */
 export interface ShuntEnd { hostR: number; inside: boolean; sink: boolean; flare: boolean; /** the host's axis direction where the end lands (a unit vector), for a generated end: the strands of a braid fan along it (strand-fan.ts) */ dir?: Vec3; /** a generated end (not the Warren's or the portocaval's own row): its flare may not take the tube wider than its host (tubes.ts) */ capped?: true }
 interface Row { hosts: readonly [readonly string[], readonly string[]]; inside: readonly [boolean, boolean]; sink?: boolean; flare: boolean }
 /** The Warren shunt leaves the splenic vein's side (its start runs on from the divided splenic vein, so it is not inside) and ends inside the left renal vein; the portocaval shunt sinks into the cava. */
 const ROWS: Readonly<Record<string, Row>> = {
-  S_DSR: { hosts: [['V_SPL', 'SV_MID'], ['V_KID_L', 'V_KID_L_1']], inside: [false, true], flare: true },
-  S_PC: { hosts: [[], ['IVC_IS', 'IVC_IS_1', 'ILI_IVC', 'ILI_IVC_1']], inside: [false, true], sink: true, flare: true },
+  S_DSR: { hosts: [[...piecesOf('V_SPL'), 'SV_MID'], piecesOf('V_KID_L')], inside: [false, true], flare: true },
+  S_PC: { hosts: [[], [...piecesOf('IVC_IS'), ...piecesOf('ILI_IVC')]], inside: [false, true], sink: true, flare: true },
 };
 /** The veins a shunt's end is sewn into where the table names them (the Warren shunt's renal end: the left renal vein, not the collateral that shares its node), else none. */
 export const sewnHostIds = (id: string, end: 0 | 1): readonly string[] => ROWS[id]?.hosts[end] ?? [];

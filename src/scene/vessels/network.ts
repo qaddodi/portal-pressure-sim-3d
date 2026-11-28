@@ -7,6 +7,7 @@ import { drawnDiameter } from '../../engine/tract-override.ts';
 import { EDGES, JUNCTION_PIECES, PART_OF, PORTAL_TERRITORY, dMinOf } from '../../engine/hales/portal/topology.js';
 import { ANAT_HIDDEN, BACK_EDGES, EDGE_PATH_2D as TODAY_PATH_2D, HIDDEN_EDGES, IVC_EDGES, NEEDS_C3 } from '../anatomy/source.ts';
 import { PLACED_EDGE_3D, PLACED_NODE_3D, PLACED_PATH_2D, PLACED_Z, WHOLE_PIECES, wholeOf } from '../anatomy/placed-network.ts';
+import { firstPieceOf, piecesOf } from '../anatomy/whole-pieces.ts';
 import { FEEDERS_2D, STRANDS_2D, type Feeder2D } from './coil.copied.ts';
 import { isCoiling } from './coil.ts';
 import { type JoinEdge, type RunOn, findRunOns } from './joins.ts';
@@ -92,18 +93,20 @@ export const radiusOf = (wpx: number): number => len3(Math.max(0.35, wpx / 2));
 const widthKindOf = (e: Edge): 0 | 1 | 2 => (e.kind === 'liver' ? 2 : isArteryEdge(e) ? 1 : 0);
 
 // ---- tiers: stage.js (front / over lists, BACK_EDGES, arteries, collaterals) ----
-const FRONT_IDS = new Set(['PV_TRUNK', 'PV_TRUNK_1', 'PVH_R', 'PVH_R_1', 'PVH_R_2', 'PVH_L', 'PVH_L_1', 'SMV_CONF', 'SV_CONF']);
+const FRONT_IDS = new Set([...piecesOf('PV_TRUNK'), ...piecesOf('PVH_R'), ...piecesOf('PVH_L'), 'SMV_CONF', 'SV_CONF']);
 const OVER_IDS = new Set(['TIPS', 'DIPS', 'C6', 'S_DSR', 'S_PC', 'C8', 'S_MC', 'REX']);
 const hostOfPiece = new Map<string, string>();
 for (const [host, pieces] of Object.entries(JUNCTION_PIECES as Record<string, string[]>)) for (const p of pieces) hostOfPiece.set(p, host);
 
 /** The renal vein runs at the cava's depth, and the kidney is placed there too (Mohammad, 20 Nov: "the renal vein and the kidney should be at the same depth as the IVC"). Depth only:
  *  it is still drawn the way the 2D figure draws it (BACK_EDGES, in the scene, is what puts a vessel behind the organs). */
-export const RENAL_VEIN_IDS: ReadonlySet<string> = new Set(['V_KID_L', 'V_KID_L_1', 'LRV_IVC']);
+export const RENAL_VEIN_IDS: ReadonlySet<string> = new Set([...piecesOf('V_KID_L'), 'LRV_IVC']);
 /** The hepatic veins lie on the cava's plane too: they join it level, with no depth to ease, so a tilted view shows no twist where they meet (Mohammad, 20 Nov). */
-export const HEPATIC_VEIN_IDS: ReadonlySet<string> = new Set(['RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']);
-/** The azygos arch comes down to the superior cava on ONE gentle slope from its own plane to the cava's, over its whole length (shape.ts depthEnds `through`, as the cava into the right atrium; Mohammad, 21 Nov: "Azygos weld into SVC sucks"). It is a 'net' vein (0.02) meeting the cava at 'back' (-0.02),
- *  and the quarter-length ease to the node ran it down 0.047 in 0.045 of run: a tube diving at the camera at 45 degrees onto the cava's wall, shaded by its normals (a dark patch) and held out of the joint by the skin's depth rule (ragged ink in the lumen). Its tier stays: the azygos node, where
+export const HEPATIC_VEIN_IDS: ReadonlySet<string> = new Set([...piecesOf('RHV_IVC'), 'MHV_IVC', 'LHV_IVC']);
+/** The azygos arch comes down to the superior cava on ONE gentle slope from its own plane to the cava's, over its whole length (shape.ts depthEnds `through`, as the cava into the
+ *  right atrium; Mohammad, 21 Nov: "Azygos weld into SVC sucks"). It is a 'net' vein (0.02) meeting the cava at 'back' (-0.02),
+ *   and the quarter-length ease to the node ran it down 0.047 in 0.045 of run: a tube diving at the camera at 45 degrees onto the cava's wall, shaded by its normals (a dark patch) and
+  *  held out of the joint by the skin's depth rule (ragged ink in the lumen). Its tier stays: the azygos node, where
  *  the coronary and lumbar collaterals land, keeps its depth (moving it dropped their wall skins, tests/vessel-wobble.test.ts). */
 export const SVC_TRIBUTARY_IDS: ReadonlySet<string> = new Set(['AZY_SVC']);
 function tierOf(e: Edge): Tier {
@@ -220,7 +223,7 @@ function build(): NetVessel[] {
   }
   // The caudate lobe's three short hepatic veins, opening into the IVC (caudate-veins.ts): one tributary group on the cava's piece, shown while a slide is about the lobe (scene.ts setCaudate).
   {
-    const set = caudateVeinSet(NETWORK_HOST_W(edgeById.get('IVC_IS_1')!)), e = edgeById.get(set.host)!, hv = NETWORK_HOST_W(e), baseD = e.d ?? e.dMax ?? (dMinOf(e) || 3);
+    const set = caudateVeinSet(NETWORK_HOST_W(edgeById.get(firstPieceOf('IVC_IS'))!)), e = edgeById.get(set.host)!, hv = NETWORK_HOST_W(e), baseD = e.d ?? e.dMax ?? (dMinOf(e) || 3);
     out.push({
       id: CAUDATE_VEIN_ID, host: set.host, from: e.from, to: e.to, tone: toneOf(e), radius: radiusOf(Math.max(1.2, hv * set.list[0]!.k)), label: 'Caudate lobe veins',
       pts: feederCourse(set.list[0]!, TIER_Z[tierOf(e)]), kind: 'feeder', tier: tierOf(e), baseD, widthKind: widthKindOf(e), lensId: set.host,

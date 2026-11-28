@@ -3,6 +3,7 @@
 // along the way it already leaves it, to a point inside the organ, and it fades in over that carried-on stretch alone (solid at the hilum, where 2D's fade is still faint).
 // The 2D app's numbers are untouched: this only adds drawn length at one end. Points are in 2D units (the course's own).
 import { EDGE_PATH_2D } from '../anatomy/source.ts';
+import { piecesOf } from '../anatomy/whole-pieces.ts';
 type P2 = readonly [number, number];
 
 /** The extra start of a vessel: the 2D points before its first point, in order (the vein runs from the first of these on). */
@@ -98,8 +99,8 @@ export function startInOrganShare(id: string, path: readonly P2[]): number {
  *  The left and right hepatic arteries run beside their portal branches, a little below them (the portal triad), and cross no vein (Mohammad, 20 Nov: "I want to see the left and right
  *  hepatic artery in anatomy"; "an artery cannot cross the veins"). The left one starts beyond the cava, which the portal vein itself crosses; each fades out with the portal branch. */
 const ALONG_VEIN: Readonly<Record<string, { hosts: readonly string[]; minX?: number; maxX?: number; off: number; above?: boolean; fork?: number }>> = {
-  A_HR: { hosts: ['PVH_R', 'PVH_R_1', 'PVH_R_2'], off: 8, above: true },
-  A_HL: { hosts: ['PVH_L', 'PVH_L_1'], minX: 632, maxX: 676, off: 8, above: true, fork: 40 },   // (it ends short of the umbilical vein, which leaves the left portal vein's wall just beyond it, below)
+  A_HR: { hosts: piecesOf('PVH_R'), off: 8, above: true },
+  A_HL: { hosts: piecesOf('PVH_L'), minX: 632, maxX: 676, off: 8, above: true, fork: 40 },   // (it ends short of the umbilical vein, which leaves the left portal vein's wall just beyond it, below)
 };
 export const ALONG_VEIN_IDS: ReadonlySet<string> = new Set(Object.keys(ALONG_VEIN));
 /** The vein an artery runs beside to its end (the last of its hosts: the one that branches into the liver), whose fade the artery's out-fade is tied to (fades.ts companionEnd). */
@@ -109,7 +110,9 @@ function alongVeinBase(id: string, paths: Readonly<Record<string, readonly P2[]>
   const a = ALONG_VEIN[id];
   if (!a) return null;
   let host: P2[] = [];
-  for (const h of a.hosts) host = host.concat(host.length ? paths[h]!.slice(1) : paths[h]!);
+  // (the paths asked for are the 2D figure's own, cut where it cut its veins: the pieces the engine table has added since have none,
+  //  and the ones it has run end to end as the whole vein)
+  for (const h of a.hosts) if (paths[h]) host = host.concat(host.length ? paths[h]!.slice(1) : paths[h]!);
   if (a.minX != null) host = host.filter((p) => p[0] >= a.minX!);
   if (a.maxX != null) host = host.filter((p) => p[0] <= a.maxX!);
   const n = host.length, out: P2[] = [];
@@ -176,7 +179,7 @@ export const alongVeinStretch = (id: string, paths: Readonly<Record<string, read
  *  narrowed to a fraction of its width and splits into its fading tips, so a wider, separate tube hung off a thin tip. It now leaves the left portal vein `back` figure units before that end, where the vein is still wide:
  *  one swept curve that starts on the vein's own axis, sets off along the vein's heading and bends over onto its own course by `reach` units along it, with matching tangents at both ends (no corner, no notch). */
 const LEAVE_VEIN: Readonly<Record<string, { hosts: readonly string[]; back: number; reach: number; lean: number }>> = {
-  C3: { hosts: ['PVH_L', 'PVH_L_1'], back: 30, reach: 48, lean: 0.6 },   // (lean: how far the branch's first heading is turned off the vein's, toward where it is going: a branch leaves a wall at an angle, it does not double back on the vein)
+  C3: { hosts: piecesOf('PVH_L'), back: 30, reach: 48, lean: 0.6 },   // (lean: how far the branch's first heading is turned off the vein's, toward where it is going: a branch leaves a wall at an angle, it does not double back on the vein)
 };
 export const LEAVE_VEIN_IDS: ReadonlySet<string> = new Set(Object.keys(LEAVE_VEIN));
 const lenOf = (p: readonly P2[]): number => { let t = 0; for (let i = 1; i < p.length; i++) t += Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]); return t; };

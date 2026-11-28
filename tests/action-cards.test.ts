@@ -8,6 +8,7 @@ import { cardFor, normalizeSel, type Card, type Verb } from '../src/ui/action/ca
 import type { Env } from '../src/ui/action/read.ts';
 import { EI } from '../src/ui/action/read.ts';
 import type { Sel } from '../src/ui/action/selection.ts';
+import { frameByIds } from './frame-by-id.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type J = any;
@@ -18,6 +19,21 @@ for (const c of fx.cards) if (c.verbs) c.verbs = c.verbs.filter((v: J) => v.type
 const isPiece = (s: J) => s?.type === 'edge' && partOf(s.id) !== s.id;
 fx.cards = fx.cards.filter((c: J) => !isPiece(c.sel));
 for (const sets of Object.values<J>(fx.sets)) for (const k of Object.keys(sets)) if (k.startsWith('edge:') && partOf(k.slice(5)) !== k.slice(5)) delete sets[k];
+// 27 Nov (the engine's junction table): a vessel's card is about its WHOLE vein's ends. 2D read the ends of the piece that carries the vein's id, so the mesenteric veins (V_INT, whose first piece ends at the
+// junction SMV_R, on no list of portal nodes) said "Vein · systemic" on a portal vein, which the card now gets right. It is the one card that moves.
+for (const c of fx.cards) if (c.sel?.type === 'edge' && c.sel.id === 'V_INT' && c.kicker === 'Vein · systemic') c.kicker = 'Vein · portal system';
+// (and so it reads its flow direction as every portal vein does, and its pressures at the ends of the whole vein; the recorded readings are 2D's, which had it as the one portal vein with no status)
+for (const rec of Object.values<J>(fx.readings)) if (rec['edge:V_INT'] && !rec['edge:V_INT'].status) rec['edge:V_INT'].status = rec['edge:SMV_CONF'].status;
+// 27 Nov (the engine's junction table). A card is about the WHOLE vein and its number is the one its label shows (the station, read.ts STATION_OF): 2D showed the label's number on a vein it had not split, and the
+// mean of the vein's two ends on the four it had (the portal vein's right branch, the inferior vena cava below the heart, the right hepatic vein and its posterior arm), so those four now say what their own label says.
+// The collaterals C3 and C6 and REX, S_PC and S_MC (the Circuit's five re-landed ends) now end at the junction node the table names, not at the node it was drawn near, so what they read comes from there. Each is listed with its reason; every other reading is 2D's.
+const DEPARTED: Record<string, Record<string, string>> = {
+  'edge:IVC_IS': { pressure: 'reads its label' }, 'edge:PVH_R': { pressure: 'reads its label' },
+  'edge:RHV_IVC': { pressure: 'reads its label', drop: 'a vein whose card reads one place has no drop' }, 'edge:POST_R_RHV': { pressure: 'reads its label', drop: 'a vein whose card reads one place has no drop' },
+  // (each of these five ends at a junction node the table names, so every reading of it, its span included, comes from there)
+  'edge:C6': { '*': 'ends at its junction node' }, 'edge:C3': { '*': 'ends at its junction node' }, 'edge:REX': { '*': 'ends at its junction node' },
+  'edge:S_PC': { '*': 'ends at its junction node' }, 'edge:S_MC': { '*': 'ends at its junction node' },
+};
 const keyOf = (s: Sel) => `${s.type}:${(s as J).id ?? (s as J).part ?? (s as J).zone}`;
 const STATIC = ['type', 'id', 'key', 'label', 'short', 'icon', 'min', 'max', 'step', 'def', 'info', 'hist', 'options', 'ticks', 'tickNames', 'danger', 'quiet', 'small', 'unit'];
 const clone = <T,>(o: T): T => JSON.parse(JSON.stringify(o));
@@ -40,9 +56,10 @@ const near = (a: unknown, b: unknown, what: string) => {
 };
 
 function patient(id: string): Env & { P: J } {
-  const r = fx.patients[id], fr = r.frame;
+  // (the recorded frame is arrays in the engine's order before the junction table: laid out again by id, and what it cannot have comes from the engine's own frame, scripts/gen-actions-fresh.mjs)
+  const r = fx.patients[id], fr = frameByIds(r.frame, r.fresh);
   const f = { ...fr, P: Float32Array.from(fr.P), Pf: Float32Array.from(fr.Pf), Q: Float32Array.from(fr.Q), Qf: Float32Array.from(fr.Qf), D: Float32Array.from(fr.D) };
-  return { f, p: r.params, ref: r.healthy, P: r.params };
+  return { f, p: r.params, ref: frameByIds(r.healthy, { P: r.fresh.hP, Pf: r.fresh.hP, Q: r.fresh.hQ, Qf: r.fresh.hQ, D: r.fresh.D }), P: r.params };
 }
 
 test('the catalogue has the same cards as 2D, with the same words and verbs', () => {
@@ -85,11 +102,15 @@ for (const id of fx.presets as string[]) {
       const env = keyOf(c.sel).startsWith('lobule:') ? instant : shown;
       const card = cardFor(c.sel)!, w = `${id} ${keyOf(c.sel)}`, r = rec[keyOf(c.sel)];
       if (!r) continue;
-      if (r.value) for (const [lens, want] of Object.entries(r.value)) { sameReading(card.value({ ...env, lens }), want, `${w} value (${lens})`); }
+      if (r.value) for (const [lens, want] of Object.entries(r.value)) {
+        const got = card.value({ ...env, lens }), dep = DEPARTED[keyOf(c.sel)]?.[lens] ?? DEPARTED[keyOf(c.sel)]?.['*'];
+        if (dep) { assert.ok(got && /\d/.test(got.v), `${w} value (${lens}) reads a number (${dep})`); continue; }
+        sameReading(got, want, `${w} value (${lens})`);
+      }
       else assert.equal(card.noValue, true, `${w} has no value`);
       assert.deepEqual(card.status ? card.status(env) : null, r.status ? r.status : null, `${w} status`);
       // (2D's span never swaps its ends for a vessel that runs backward: the `else` of that line sits inside its comment, so it keeps the last card's. 3D does what the comment says.)
-      if (r.span && ((env.f.Qf ?? env.f.Q)[(card as Card).edge ? EI[card.edge!]! : 0]! >= -0.01 || !card.edge)) { const s = card.span!.at(env); near(s.a, r.span.a, `${w} span a`); near(s.b, r.span.b, `${w} span b`); near(s.d, r.span.d, `${w} span d`); assert.equal(s.ok, r.span.ok, `${w} span ok`); }
+      if (r.span && !DEPARTED[keyOf(c.sel)]?.['*'] && ((env.f.Qf ?? env.f.Q)[(card as Card).edge ? EI[card.edge!]! : 0]! >= -0.01 || !card.edge)) { const s = card.span!.at(env); near(s.a, r.span.a, `${w} span a`); near(s.b, r.span.b, `${w} span b`); near(s.d, r.span.d, `${w} span d`); assert.equal(s.ok, r.span.ok, `${w} span ok`); }
       r.verbs.filter((fv: J) => fv.type !== 'dye').forEach((fv: J, i: number) => {
         const v = card.verbs[i] as Verb & J, x = `${w} verb ${i} (${fv.type} ${fv.id ?? ''})`;
         if (v.type === 'read' || v.type === 'stat') assert.equal(v.value(env), fv.value, x);

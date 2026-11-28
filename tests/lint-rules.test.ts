@@ -28,6 +28,7 @@ const CASES: Array<[rule: string, path: string, bad: string, good: string]> = [
   ['surface-outside-shell', 'src/ui/x/Card.tsx',
     'const A = () => <section role="dialog" aria-modal="true"><i className="sh-grabbar" /></section>; el.setAttribute(\'role\', \'alertdialog\'); const b = { role: \'menu\' };',
     'const A = () => <Dialog id="reset" size="s" role="alertdialog" label="x"><GrabBar /></Dialog>; const own = t.closest(\'[role="dialog"], [aria-modal="true"]\'); const C = <div role="group" />;'],
+  ['piece-id-literal', 'src/scene/x.ts', "const ids = ['IVC_IS_1', 'PVH_L_2~F:b']; const last = edges.get('ILI_IVC_2');", "const ids = [...piecesOf('IVC_IS'), 'IVC_IS', 'C6']; // (IVC_IS_1 in a comment)\nconst last = lastPieceOf('PVH_L');"],
   ['one-sheet-rule', 'src/ui/x/Sheet.tsx',
     "import { Menu } from '../surface/Menu.tsx';\nimport { usesBottomBar } from '../shell/room.ts';\nimport { useThumb } from '../shell/thumb.ts';",
     "import { Menu } from '../surface/Menu.tsx';\nimport { useSurfaceMode } from '../surface/mode.ts';\nimport { figureRowsOwner } from '../shell/room.ts';"],

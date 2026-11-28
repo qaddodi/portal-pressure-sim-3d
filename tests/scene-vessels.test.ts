@@ -1,4 +1,5 @@
-import { BACK_EDGES } from '../src/scene/vessels/paths.copied.ts';
+// (the sets are read as the app reads them: through the anatomy source, which brings every piece of a vein the engine's junction table cuts)
+import { BACK_EDGES } from '../src/scene/anatomy/source.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

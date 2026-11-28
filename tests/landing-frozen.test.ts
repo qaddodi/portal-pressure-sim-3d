@@ -28,6 +28,7 @@ const FAR: Readonly<Record<string, string>> = {
   'C2|0': 'the short gastric veins leave the splenic vein against its flow as drawn: the arrival moves on along the flow (joinEnd, "no hairpin, no reversal")',
   'C4|0': 'the rectal varices leave the inferior mesenteric vein against its flow as drawn: the arrival moves on along the flow (joinEnd)',
   'S_DSR|0': 'SVD is drawn at the short gastric veins\' take-off (they leave beside it)',
+  'DIPS|0': 'the DIPS is rebuilt from the portal bifurcation (the engine\'s PVH), the course Mohammad drew (docs/approved/dips.md), not from where the frozen placement opened it on the trunk',
   'DIPS|1': 'the DIPS is rebuilt to the cava at the caudate lobe\'s foot',
 };
 
@@ -58,12 +59,15 @@ function rows(): Row[] {
       const node = end ? e.to : e.from, f = end ? frozen[frozen.length - 1]! : frozen[0]!, d = end ? drawn[drawn.length - 1]! : drawn[0]!;
       // (the host: the whole vessel with a piece at the end's node that the drawn end lies on)
       const hosts = [...new Set(edges.filter((x) => x.id !== id && (x.from === node || x.to === node)).map((x) => wholeOf(x.id)))].filter((w) => w !== id && PLACED_VESSELS[w]);
-      let host = '', best = Infinity;
-      for (const w of hosts) { const h = nearestOn(wholeCourse(w), d); if (h.d < best) { best = h.d; host = w; } }
-      if (!host) continue;
-      const C = wholeCourse(host), R = PLACED_VESSELS[host]!.r, hf = nearestOn(C, f), hd = nearestOn(C, d);
-      if (hd.d > 1.5 * R || hf.d > LAND_REACH + R) continue;   // (not a landing on the host: a run-on, or an end drawn away from its node)
-      out.push({ key: `${id}|${end}`, host, along: Math.abs(hd.s - hf.s), R, at: hd.s });
+      // (an end at the common end of several hosts (the portal bifurcation: the trunk and both branches) is on all of them to within a float: of those, the first that the frozen mouth is on too,
+      // not the one a rounding error puts first)
+      const near = hosts.map((w) => ({ w, d: nearestOn(wholeCourse(w), d).d })), least = Math.min(...near.map((x) => x.d));
+      for (const { w: host } of near.filter((x) => x.d <= least + 1e-6)) {
+        const C = wholeCourse(host), R = PLACED_VESSELS[host]!.r, hf = nearestOn(C, f), hd = nearestOn(C, d);
+        if (hd.d > 1.5 * R || hf.d > LAND_REACH + R) continue;   // (not a landing on the host: a run-on, or an end drawn away from its node)
+        out.push({ key: `${id}|${end}`, host, along: Math.abs(hd.s - hf.s), R, at: hd.s });
+        break;
+      }
     }
   }
   return out;

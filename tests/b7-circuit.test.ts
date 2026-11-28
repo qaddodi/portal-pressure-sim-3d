@@ -14,7 +14,8 @@ import { flatten, resample } from '../src/scene/circuit/paths.ts';
 import { morphInto, needsTrack, revOf, tangentsInto } from '../src/scene/circuit/morph.ts';
 import { CircuitView } from '../src/scene/circuit/view.ts';
 import { DOT_IDS, mapRamp } from '../src/scene/circuit/map-layer.ts';
-import { CIRCUIT_NODES, CIRCUIT_D, MAP_LOOKS, TURN_MS, VIEW_CHANGE_MS } from '../src/scene/circuit/data.copied.ts';
+import { CIRCUIT_NODES, MAP_LOOKS, TURN_MS, VIEW_CHANGE_MS } from '../src/scene/circuit/data.copied.ts';
+import { CIRCUIT_COURSE_D } from '../src/scene/circuit/junction-cuts.ts';
 import { CIRCUIT_VS_CALL, CIRCUIT_VS_HEAD } from '../src/scene/circuit/shader.ts';
 import { VESSEL_VS } from '../src/scene/vessels/shaders.ts';
 import { circuitBounds, circuitShot } from '../src/scene/circuit/shots.ts';
@@ -81,7 +82,8 @@ test('every drawn vessel has a body course and a map course on the same samples'
     assert.ok(c, `course of ${v.id}`);
     assert.equal(c!.A.length, N_TRACK); assert.equal(c!.C.length, N_TRACK); assert.equal(c!.rank.length, N_TRACK);
     assert.ok(c!.lenA > 0 && c!.lenC > 0, `${v.id} has a length in both views`);
-    assert.ok(CIRCUIT_D[v.id], `${v.id} has a map path`);
+    // (the map's courses, the copy's cut at the engine's junction table: a piece the table adds has one the copy has not)
+    assert.ok(CIRCUIT_COURSE_D[v.id], `${v.id} has a map path`);
     assert.ok(slicesFor(v.id) >= 16 && slicesFor(v.id) <= 360);
   }
 });

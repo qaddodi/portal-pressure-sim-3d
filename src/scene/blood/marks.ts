@@ -3,9 +3,10 @@
 import type { CelObject } from '../materials/cel.ts';
 import { FLOW_FADE_MS } from '../flow.ts';
 import { EDGES } from '../../engine/hales/portal/topology.js';
+import { piecesOf } from '../anatomy/whole-pieces.ts';
 
 /** The vessels that keep their chevrons under "Key chevrons only" (blood.js KEY_CHEV_IDS): the portal inflow, the hepatic veins, the liver's beds. */
-export const KEY_CHEV_IDS: ReadonlySet<string> = new Set(['V_INT', 'V_COL', 'V_IMV', 'V_SPL', 'SV_MID', 'V_STO', 'SMV_CONF', 'SV_CONF', 'LGV_CONF', 'PV_TRUNK_1', 'PV_TRUNK', 'PVH_R', 'PVH_R_1', 'PVH_R_2', 'PVH_L', 'PVH_L_1', 'V_INT_1', 'RHV_IVC', 'RHV_IVC_1', 'MHV_IVC', 'LHV_IVC']);
+export const KEY_CHEV_IDS: ReadonlySet<string> = new Set([...piecesOf('V_INT'), 'V_COL', 'V_IMV', ...piecesOf('V_SPL'), 'SV_MID', 'V_STO', 'SMV_CONF', 'SV_CONF', 'LGV_CONF', ...piecesOf('PV_TRUNK'), ...piecesOf('PVH_R'), ...piecesOf('PVH_L'), ...piecesOf('RHV_IVC'), 'MHV_IVC', 'LHV_IVC']);
 /** A vein that carries an open collateral's blood on keeps its chevrons while that collateral is open (the azygos beside the ascending lumbar collateral). */
 export const KEY_CHEV_LANES: Readonly<Record<string, readonly string[]>> = { AZY_SVC: ['C9'] };
 

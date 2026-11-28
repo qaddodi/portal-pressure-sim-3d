@@ -2,7 +2,8 @@
 // the same words, verbs, ranges and readings, held to the 2D app's own answers by tests/action-cards.test.ts (tests/fixtures/actions-2d.json, scripts/gen-actions.mjs).
 // A card is a fixed description: its readings are functions of an Env (a frame, the patient's parameters, the healthy reference) and its verbs are carried out through an Act
 // (the changes go through updateParams, so each lands in History as one entry). Nothing here draws; ActionCard.tsx does.
-import { EDGES, partOf, SHUNT_PORTAL, SHUNT_SYSTEMIC, dMinOf, edgePresent } from '../../engine/hales/portal/topology.js';
+import { EDGES, JUNCTION_HOST_ENDS, partOf, SHUNT_PORTAL, SHUNT_SYSTEMIC, dMinOf, edgePresent } from '../../engine/hales/portal/topology.js';
+
 import { edgeWhy } from '../../engine/hales/portal/explain-ids.js';
 import { PREGNANCY_INFO } from '../../engine/hales/portal/scenario.js';
 import { stentStill } from '../../engine/hales/portal/flow-cuts.js';
@@ -12,10 +13,16 @@ import { TREAT_WORDS } from '../treat/treat.generated.ts';
 import * as W from './actions.generated.ts';
 import type { FeatureId } from '../shell/features.ts';
 import type { Sel } from './selection.ts';
+
 import type { Params } from './params.ts';
 import { EI, NI, piecesOf, STATION_OF, SIN_EDGES, ST, SPAN_HVPG, spanOfEdge, edgeValue, bedStats, vesselReads, flowNum, pressureReading, cellOf, clamp, pct, mult, weeks, lobuleOf, portalBack,
   type Edge, type Env, type Reading, type Status, type SpanDef, type LobuleState } from './read.ts';
 import { lymphDay, lymphText, LYMPH_UNIT } from './lymph-day.ts';
+// The nodes a vessel's card is about: the ends of its whole vein, not of the piece the engine happens to give its id
+// (the engine cuts a vein where a shunt or a collateral joins it, so the first piece of the splenic vein
+// ends at a junction node that is on no list of portal or systemic nodes).
+const veinEnds = (e: { id: string; from: string; to: string }): readonly string[] => (JUNCTION_HOST_ENDS as Record<string, readonly string[]>)[e.id] ?? [e.from, e.to];
+const touches = (list: readonly string[], e: { id: string; from: string; to: string }): boolean => veinEnds(e).some((n) => list.includes(n));
 
 /** How a verb reaches the app: the parameter changes (one History entry each), a new selection, the features other batches own, the engine's own actions. */
 export interface Act {
@@ -124,7 +131,7 @@ function edgeCard(e: Edge): Card {
   // (Shown on a portal vessel or a systemic vein that can start a shunt.)
   const shunt: Verb = { type: 'button', id: 'shunt', label: 'Add shunt', short: 'Shunt', icon: 'stent', run: (a) => a.feature('shunt', 'Add shunt') };
   let kicker: string, span: SpanDef | null = spanOfEdge(e);
-  const portalSide = (SHUNT_PORTAL as string[]).includes(e.from) || (SHUNT_PORTAL as string[]).includes(e.to);
+  const portalSide = touches(SHUNT_PORTAL as string[], e);
   // (The TIPS and the DIPS read their own line under the stent's picture: no flow, velocity and diameter tiles above it.)
   if (!SIN_EDGES.has(id) && id !== 'TIPS' && id !== 'DIPS') {
     verbs.push(read('L/min', ({ f }) => vesselReads(k, f)[0]), read('cm/s', ({ f }) => vesselReads(k, f)[1]), read('mm', ({ f }) => vesselReads(k, f)[2]));
@@ -353,5 +360,5 @@ export function cardFor(selIn: Sel | null): Card | null {
 export function shuntable(id: string): boolean {
   const e = edges[EI[id]!];
   if (!e || !['vein', 'collateral'].includes(e.kind)) return false;
-  return [e.from, e.to].some((n) => (SHUNT_PORTAL as string[]).includes(n) || (SHUNT_SYSTEMIC as string[]).includes(n));
+  return touches(SHUNT_PORTAL as string[], e) || touches(SHUNT_SYSTEMIC as string[], e);
 }
