@@ -24,11 +24,11 @@ const shownOf = (s: Record<string, unknown>): Set<string> => new Set([
 test('every reading a slide\'s title or line cites from its own state is shown with it, but for the listed slides', async () => {
   const listed: string[] = JSON.parse(readFileSync(new URL('./numbers-shown-exceptions.json', import.meta.url), 'utf8'));
   const found: string[] = [];
-  (await copiedDecks()).forEach((d, k) => d.slides.forEach((slide, i) => {
+  (await copiedDecks()).forEach((d) => d.slides.forEach((slide) => {
     const s = slide as unknown as Record<string, unknown>, shown = shownOf(s);
     for (const { token } of tokensOf([s.title, s.line].filter((t) => typeof t === 'string').join(' '))) {
       if (token.kind !== 'value' || token.at) continue;
-      if (!shown.has(token.key)) found.push(`${k + 1}.${i + 2} ${d.id}/${s.id}: ${token.key}`);
+      if (!shown.has(token.key)) found.push(`${d.id}/${s.id}: ${token.key}`);
     }
   }));
   const uniq = [...new Set(found)];
