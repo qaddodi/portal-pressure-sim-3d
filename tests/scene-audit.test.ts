@@ -1,4 +1,5 @@
-// The node scene audit (scripts/scene-audit.mjs): it runs the real scene on real engine frames and reports in a fixed shape. Not a gate on the numbers (those are the audit's own report to read): it must run, name its steps, carry its budgets and probes, and see the stalls it was made to see.
+// The node scene audit (scripts/scene-audit.mjs): it runs the real scene on real engine frames and reports in a fixed shape. The first test pins the shape: it must run, name its steps, carry its budgets and probes, and see the stalls it was made to see.
+// The last one is the GATE (C2, 27 Nov review): the full audit must show no pop candidate, no stuck ease, no skin-rebuild storm and no frame over the 50 ms budget. Before it, the audit printed five failures and nobody read them.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
@@ -31,4 +32,28 @@ test('the scene warms the sewn ends\' seam curves in its constructor, so the fir
 test('the audit\'s probes read a tributary fan by its reveal alone (its group is switched off after its shader has faded it), so a view change is not reported as a pop', () => {
   const src = readFileSync(new URL('../scripts/scene-audit.mjs', import.meta.url), 'utf8');
   assert.match(src, /o\.group\.visible \|\| v\.id\.includes\('~F'\)/);
+});
+
+interface AuditRow { step: string; updateMaxMs: number; worstLaps: string; fail: string[]; pops: { k: string; at: number; from: number; to: number }[]; stuck: string[]; rebuilds: number }
+function audit(args: string[]): { budget: { updateMs: number }; rows: AuditRow[]; missing: string[] } {
+  const r = spawnSync(process.execPath, ['scripts/scene-audit.mjs', '--json', ...args], { cwd: new URL('..', import.meta.url).pathname, encoding: 'utf8', maxBuffer: 1 << 26 });
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+}
+
+test('GATE: the full node scene audit has no pop candidate, no stuck ease, no rebuild storm and no frame over the budget', { timeout: 420000 }, (t) => {
+  if (!existsSync(new URL('../public/anatomy/skins.bin', import.meta.url))) { t.skip('no baked skins: run node scripts/bake-skins.mjs'); return; }
+  const first = audit([]);
+  assert.deepEqual(first.missing, [], 'every probe still reads a number');
+  assert.ok(first.rows.length >= 16, `${first.rows.length} steps: the audit still walks presets, collaterals, bands, picks, views and play`);
+  // a pop, a stuck ease and a rebuild storm do not depend on how busy the machine is: one sighting fails. A slow frame does (pre-push runs four test files at once): it fails only if it is slow in every run, up to three
+  const slowOnly = (row: AuditRow): boolean => row.fail.length > 0 && row.fail.every((f) => f.startsWith('update '));
+  const hard = first.rows.filter((r) => r.fail.length && !slowOnly(r));
+  assert.deepEqual(hard.map((r) => `${r.step}: ${r.fail.join(' | ')}`), [], 'pop candidates, stuck eases and rebuild storms are never allowed');
+  let slow = first.rows.filter((r) => r.fail.length);
+  for (let run = 1; run < 3 && slow.length; run++) {
+    const again = audit([]).rows.filter((r) => r.fail.length && slowOnly(r)).map((r) => r.step);
+    slow = slow.filter((r) => again.includes(r.step));
+  }
+  assert.deepEqual(slow.map((r) => `${r.step}: ${r.fail.join(' | ')} [${r.worstLaps}]`), [], `a frame over the ${first.budget.updateMs} ms budget in every one of three runs (node CPU: a phone is 2 to 4 times slower)`);
 });

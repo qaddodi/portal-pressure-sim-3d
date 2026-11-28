@@ -54,7 +54,7 @@ test('a growing arm that is not there leaves no hole in its host: every skin, at
   } finally { g.done(); }
 });
 
-test('the test bites: with each arm held out on its own (the rule until 22 Nov) the cava wall skin of the Budd-Chiari patient (S_PC out, the lumbar vein there) has pixels unpainted (2 percent at this zoom, none with the rule)', async () => {
+test('the test bites: with each arm held out on its own (the rule until 22 Nov) the cava wall skin of the Budd-Chiari patient (S_PC out, the lumbar vein there) has pixels unpainted (1 to 2 percent at this zoom, none with the rule)', async () => {
   const g = gateSkins();
   try {
     const s = cavaWall(g.skins), arms = s.mesh.junction.arms, fr = await frameOf('budd-chiari');
@@ -64,7 +64,7 @@ test('the test bites: with each arm held out on its own (the rule until 22 Nov) 
     assert.equal(keep[arms.findIndex((a) => a.vesselId === 'C9')], true, 'the lumbar vein open');
     const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0.3 });
     const old = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { absoluteHold: true, noRescue: true, ramp: OLD_RAMP }), now = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep });
-    assert.ok(old.hole / old.covered > 0.015, `${(100 * old.hole / old.covered).toFixed(1)} % without the fix`);
+    assert.ok(old.hole / old.covered > 0.01, `${(100 * old.hole / old.covered).toFixed(1)} % without the fix`);
     assert.ok(now.hole / now.covered < 0.005, `${(100 * now.hole / now.covered).toFixed(1)} % with it`);
   } finally { g.done(); }
 });

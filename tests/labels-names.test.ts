@@ -35,6 +35,9 @@ test('every vessel station hangs from a vessel the scene draws, named by its eng
     assert.ok(hasVessel(s.vessel!), `${s.id}: ${s.vessel} is no engine edge`);
     assert.ok(MAPPED.some((v) => v.id === s.vessel), `${s.id}: ${s.vessel} is not drawn`);
     assert.equal(stationOfVessel(s.vessel!), s.id);
+    // (a name that stands for a stretch the junction table cuts into pieces is picked on every one of them, and the piece the dot rests on is one of them)
+    for (const piece of s.pieces ?? []) { assert.ok(MAPPED.some((v) => v.id === piece), `${s.id}: ${piece} is not drawn`); assert.equal(stationOfVessel(piece), s.id, `${s.id}: a pick on ${piece}`); }
+    if (s.pieces) assert.ok(s.pieces.includes(s.vessel!), `${s.id}: the resting piece is one of its pieces`);
   }
 });
 

@@ -26,6 +26,7 @@ const RUN_ON_ENDS = new Set(['C1a|0', 'C1a|1', 'C1b|0', 'C2|1', 'C5|0', 'EPI_ILI
 /** The ends that open further from their frozen mouth, each for its own ruling or rule (not the landing rules' spacing). */
 const FAR: Readonly<Record<string, string>> = {
   'C2|0': 'the short gastric veins leave the splenic vein against its flow as drawn: the arrival moves on along the flow (joinEnd, "no hairpin, no reversal")',
+  'S_DSR|0': 'the splenorenal shunt leaves the splenic vein at SVD, the node where the vein divides and where the short gastric veins join too (brief A): the node is drawn at the short gastric veins\' take-off (placed-network.ts NODE_AT_END), so the shunt\'s splenic mouth sits there, on the vein\'s own course, not where the frozen placement opened it',
   'C4|0': 'the rectal varices leave the inferior mesenteric vein against its flow as drawn: the arrival moves on along the flow (joinEnd)',
   'DIPS|0': 'the DIPS is rebuilt from the portal bifurcation (the engine\'s PVH), the course Mohammad drew (docs/approved/dips.md), not from where the frozen placement opened it on the trunk',
   'DIPS|1': 'the DIPS is rebuilt to the cava at the caudate lobe\'s foot',

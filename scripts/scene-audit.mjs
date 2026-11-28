@@ -4,6 +4,7 @@
 //   • pops: an eased value (a vessel's presence, the circuit's change, the cava's share) that moves more than POP in one 16 ms frame;
 //   • stuck eases: a goal that has not reached its target after the step (the short-circuit `||` bug class: a skipped step leaves the cava at 0 while its goal is 1);
 //   • the cost of the scene itself (construct ms, whether the baked skins were laid in).
+// Gate: tests/scene-audit.test.ts runs the full audit and fails on a pop candidate, a stuck ease, a rebuild storm or a frame over the 50 ms budget.
 // Run `node scripts/scene-audit.mjs [--presets healthy,csph,...] [--steps presets,collaterals,bands,pick,views,play] [--seconds 2.5] [--json] [--strict]`.
 // Needs the baked skins (`node scripts/bake-skins.mjs` once; `npm test` does it): without them the scene remeshes live, ~35 s. Exits 1 under --strict when any step fails.
 // Node CPU only: multiply update times by 2 to 4 for a phone; nothing here sees the GPU or the compositor (docs/code review 2.4).
@@ -11,6 +12,7 @@ import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { adoptFrame } from '../src/engine/store.ts';
 import { forgeFrame } from '../src/engine/force-all.ts';
 import { CelScene } from '../src/scene/scene.ts';
+import { clock, driveClockTime } from '../src/clock/frame.ts';
 import { bakedSkins } from '../src/scene/vessels/skin/baked.ts';
 import { NETWORK } from '../src/scene/vessels/network.ts';
 
@@ -50,7 +52,11 @@ probes.set('cavaWhole', () => scene.cavaE.value);   // (the cava's whole-ness is
 probes.set('fadeNow', () => scene.fadeNow);
 const missing = ['circuit.t', 'cavaWhole', 'fadeNow'].filter((k) => typeof probes.get(k)() !== 'number');
 
-let clockNow = 0;
+// The audit turns the scene by hand on its own timeline (16 ms a frame). Page time must be that timeline: an Ease stamps clock.now() when it is asked to move, so on the wall clock the first step of every ease
+// measured the gap between the two timelines (up to 100 ms of motion in one frame) and the cava's ease read as a pop on four steps (27 Nov review, C2). It starts where the wall clock stands, so nothing built before it runs backwards.
+// (inside update() it also advances by the CPU time spent, because the scene times its systems with clock.now(): the per-step table names the system that costs a frame)
+let clockNow = clock.now(), insideUpdateSince = null;
+driveClockTime(() => clockNow + (insideUpdateSince === null ? 0 : performance.now() - insideUpdateSince));
 const stats = () => ({ rebuilds: 0, worstMs: 0, lastNode: '', ...(scene.skins?.stats ?? {}) });
 /** Run `seconds` of frames from the scene's own clock; `each(t)` may feed a frame first. Returns the step's row. */
 function run(name, begin, { each = null, goals = null, instant = false } = {}) {
@@ -60,7 +66,7 @@ function run(name, begin, { each = null, goals = null, instant = false } = {}) {
   for (let t = 0; t <= SECONDS * 1000; t += DT) {
     each?.(t); clockNow += DT;
     const lap0 = { ...scene.systemMs };
-    const a = performance.now(); scene.update(clockNow); const ms = performance.now() - a;
+    const a = performance.now(); insideUpdateSince = a; scene.update(clockNow); insideUpdateSince = null; const ms = performance.now() - a;
     if (ms > worst) { worst = ms; worstAt = t; worstLaps = Object.entries(scene.systemMs).map(([k, v]) => [k, v - (lap0[k] ?? 0)]).filter(([, v]) => v > 0.5).sort((x, y) => y[1] - x[1]).slice(0, 4).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(', '); }
     if (ms > BUDGET.updateMs) over50++;
     for (const [k, f] of probes) { const v = f(), d = Math.abs(v - prev.get(k)); if (d > BUDGET.pop && !pops.has(k)) pops.set(k, { at: t, from: +prev.get(k).toFixed(3), to: +v.toFixed(3) }); prev.set(k, v); }
