@@ -5,13 +5,12 @@ import { copiedSlideOf } from '../../scene/labels/deck-link.ts';
 import { eventGraphOf } from '../charts/evgraph/model.ts';
 import type { ProcState } from '../deck/procs-state.ts';
 
-type F = { tool?: { kind?: string } | null; procedure?: unknown };
 
 /** Whether the slide's data card is the procedure's graph, which comes in only once the procedure is done. */
 export function gatedSlide(deck: Deck, slide: Slide | null | undefined): boolean {
   if (!slide) return false;
-  const f = { ...slide, ...(copiedSlideOf(deck.id, slide) ?? {}) } as unknown as F & Parameters<typeof eventGraphOf>[0];
-  return f.tool?.kind === 'evgraph' && !!f.procedure && !!eventGraphOf(f);
+  const copied = copiedSlideOf(deck.id, slide), tool = copied?.tool ?? slide.tool;
+  return (tool as { kind?: string } | null | undefined)?.kind === 'evgraph' && !!eventGraphOf({ ...slide, ...copied } as Parameters<typeof eventGraphOf>[0]);
 }
 
 /** The procedure of this slide is over (or cannot play on this patient, so there is nothing to wait for): the graph card may stand. */
