@@ -2,11 +2,11 @@
 // names, as in the 2D app: LABEL_VESSEL), what it is called (the 2D app's own words, names.copied.ts) and how important it is.
 // Words and priorities are copied; only the 3D anchors are written here. The vessels are the scene's (anatomy/vessels.ts), named by
 // topology edge, so a station whose vessel is not drawn yet simply has no label (a test lists them).
-import { WHOLE_OF, WHOLE_PIECES, hostOf, pieceAtShare, piecesOf } from '../anatomy/whole-pieces.ts';
+import { WHOLE_OF, WHOLE_PIECES, hostOf, pieceAtShare, pieceEndingAt, piecesOf } from '../anatomy/whole-pieces.ts';
 import { CatmullRomCurve3, Vector3 } from 'three';
 import { NETWORK_BY_ID, MAPPED, type NetVessel } from '../vessels/network.ts';
 import { REST, coursesOf } from '../vessels/shape.ts';
-import { placedNode, placedEdge, PLACED_ORGAN_NAMES } from '../anatomy/source.ts';
+import { EDGE_PATH_2D, placedNode, placedEdge, PLACED_ORGAN_NAMES } from '../anatomy/source.ts';
 import { x3, y3 } from '../frame2d.ts';
 import { LABEL_NAMES as N } from './names.copied.ts';
 import type { Dir } from './geometry.ts';
@@ -113,9 +113,10 @@ const DIRS: Record<string, readonly Dir[]> = {
 };
 
 function vesselStation(id: string): Station | null {
-  // (a name hangs on the piece 2D named, which is still a piece (`IVC_IS_1`, the lower cava; `PVH_R_2`); one 2D named by its host's id,
-  //  which the engine's junction table may cut since, hangs on the piece the vein's middle falls in)
-  const edge = lv[id] ? (hostOf(lv[id]!) === lv[id] ? pieceAtShare(lv[id]!, 0.5) : lv[id]) : undefined;
+  // (a name hangs on the piece 2D named. One 2D named by its host's id when 2D drew the vein whole (the splenic vein), which the engine's
+  //  junction table cuts since, hangs on the piece the vein's middle falls in; a vein 2D had already cut keeps its first piece)
+  const cutIn2D = (h: string): boolean => piecesOf(h).filter((q) => q in EDGE_PATH_2D).length > 1;
+  const edge = lv[id] ? (hostOf(lv[id]!) === lv[id] && !cutIn2D(lv[id]!) ? pieceAtShare(lv[id]!, 0.5) : lv[id]) : undefined;
   const c = edge ? curveOf(edge) : null;
   if (!edge || !c) return null;
   return {
@@ -202,10 +203,10 @@ const unseen = new Set<string>();
 const REST_STEPS = 100;
 /** Where a name's dot rests on its vessel when the seen-and-apart search below would put it elsewhere: the lower IVC's is low on its vein (0.4 along it, among the veins' seen stretch below the liver). The search chose its top, among the liver's veins and beside the right sinusoids' name,
  *  and the name found no place near it once the figure was framed closer (a 112 px leader on a phone; Mohammad 25 Nov, "Zoom fit ... more zoomed", tests/labels-small-figure.test.ts). The right sinusoids' is 0.3 along its vessel, further out and clear of the HA, CONF and RHV dots and the CONF name: with the figure centred and filling 0.94 of a 393 pt phone's room, every other point of it (0.45 and on) left the name no place (tests/labels-give-way.test.ts). */
-const AT_REST_U: Readonly<Record<string, number>> = { SIN_R: 0.25 };
-/** The same, for a vessel the engine's junction table cuts into pieces: a share of the whole vein's length, so the dot stays where it was drawn however many
- *  pieces the vein has. The lower IVC's is 0.24 along the cava (it was 0.4 of the cava's lower piece, when the cava had two). */
-const AT_REST_HOST: Readonly<Record<string, { host: string; share: number }>> = { IVCI: { host: 'IVC_IS', share: 0.2417 } };
+const AT_REST_U: Readonly<Record<string, number>> = { IVCI: 0.4, SIN_R: 0.25 };
+/** A name whose vessel 2D drew as ONE stretch that the engine's junction table cuts into pieces keeps that stretch, so the dot rests and slides over the same course however many pieces it has:
+ *  the lower IVC's is the cava from IVCI to IVC_D (one piece, `IVC_IS_1`, when 2D drew it; four now), at 0.4 along it (`AT_REST_U`). `to` is the junction node the stretch ends at. */
+const STRETCH: Readonly<Record<string, { host: string; to: string }>> = { IVCI: { host: 'IVC_IS', to: 'IVC_D' } };
 (function spreadAtRest() {
   const dots: Vector3[] = [], tmp = new Vector3();
   // (the names the figure shows from the start first: a name only the slide or the viewer asks for keeps clear of them, never the other way round)
@@ -235,20 +236,20 @@ const AT_REST_HOST: Readonly<Record<string, { host: string; share: number }>> = 
       }
       if (best < 0) { unseen.add(s.id); continue; }
       if (bestEdge !== s.vessel) { const c = curveOf(bestEdge)!; s.vessel = bestEdge; s.at = (u, out) => c.getPointAt(Math.min(1, Math.max(0, u)), out); }
-      let restU: number | undefined = AT_REST_U[s.id];
-      const onHost = AT_REST_HOST[s.id];
-      if (onHost) {
-        const ps = piecesOf(onHost.host).map((id) => ({ id, len: curveOf(id)!.getLength() })), total = ps.reduce((a, q) => a + q.len, 0);
-        let acc = 0; const t = onHost.share * total;
-        for (const q of ps) {
-          if (t <= acc + q.len || q === ps[ps.length - 1]) {
-            const c = curveOf(q.id)!; s.vessel = q.id; s.at = (u, out) => c.getPointAt(Math.min(1, Math.max(0, u)), out);
-            restU = Math.min(1, Math.max(0, (t - acc) / q.len)); break;
-          }
-          acc += q.len;
-        }
+      const stretch = STRETCH[s.id];
+      if (stretch) {
+        // (the pieces from the host's start to the stretch's end node, walked as one course)
+        const ps = piecesOf(stretch.host), last = ps.indexOf(pieceEndingAt(stretch.host, stretch.to)), chain = ps.slice(0, last + 1).map((id) => ({ id, c: curveOf(id)!, len: curveOf(id)!.getLength() }));
+        const total = chain.reduce((a, q) => a + q.len, 0), at0 = AT_REST_U[s.id] ?? 0.5;
+        let acc = 0;
+        for (const q of chain) { if (at0 * total <= acc + q.len || q === chain[chain.length - 1]) { s.vessel = q.id; break; } acc += q.len; }
+        s.at = (u, out) => {
+          let d = Math.min(1, Math.max(0, u)) * total;
+          for (const q of chain) { if (d <= q.len || q === chain[chain.length - 1]) return q.c.getPointAt(Math.min(1, d / q.len), out); d -= q.len; }
+          return out;
+        };
       }
-      s.u0 = restU ?? best;
+      s.u0 = AT_REST_U[s.id] ?? best;
       // (where else the solver may slide it: the seen stretches, sampled every hundredth of the course)
       const v = NETWORK_BY_ID.get(s.vessel!)!, ok: boolean[] = [];
       for (let i = 0; i <= REST_STEPS; i++) { s.at(i / REST_STEPS, tmp); ok.push(seenAt(v.host, v.radius, tmp.x, tmp.y, tmp.z) > 0); }
