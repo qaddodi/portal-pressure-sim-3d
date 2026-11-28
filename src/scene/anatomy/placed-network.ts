@@ -37,7 +37,7 @@ export const PLACED_BRANCHES: Readonly<Record<string, { whole: string; out: bool
 const PIECE_WHOLE = new Map<string, string>();
 for (const [w, ps] of Object.entries(WHOLE_PIECES)) for (const p of ps) PIECE_WHOLE.set(p, w);
 for (const id of OWN) PIECE_WHOLE.set(id, id);
-/** The engine's junction nodes (topology.js JUNCTIONS: where a collateral, a shunt or a tributary meets a host part-way along it): node -> its host edge, its share `at` along the
+/** The engine's junction nodes (topology.js JUNCTION_ROWS: where a collateral, a shunt or a tributary meets a host part-way along it): node -> its host edge, its share `at` along the
  *  host's drawn course, the whole vessel it is on. */
 export const JNODE = new Map<string, { node: string; host: string; at: number; whole: string }>();
 for (const c of JUNCTION_CHAINS as { host: string; nodes: string[]; at: number[] }[]) {
@@ -404,7 +404,7 @@ function buildPlaced(): void {
   /** THE ONE PENDING CASE (27 Nov): the node drawn at an end's take-off whatever else opens there, SVD at the short gastric veins' (they leave the splenic vein beside it, though the
    *  engine still joins them at SV, 11 radii
    *   away: engine brief A moves that end to SVD, and tests/junction-ends.test.ts then turns the general rule on for C2 by itself and this line goes). Every other take-off is placed
-    *  from the engine's JUNCTIONS table. */
+    *  from the engine's JUNCTION_ROWS table. */
   const NODE_AT_END: Readonly<Record<string, string>> = { SVD: 'C2|0' };
   const SNAP_R = 6, NODE_GAP_R = 10, PARALLEL_DEG = 30, PAIR_GAP_R = 5;
   /** SIBLINGS APART (below): how far off its sibling an end beside it leaves (degrees), the share of the course from that end the bow spans, and the bow's steps and most (shares of the course's length). */

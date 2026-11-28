@@ -1,5 +1,5 @@
 // THE GENERAL RULE OF THE JUNCTIONS (27 Nov 2026, Mohammad: "the flow lens, pressure, flow direction and everything else must know where vessel junctions really are").
-// Where a vessel meets another is defined once, by the engine's table (topology.js JUNCTIONS), and the body figure reads it: the host is cut where each row says (`at` of the way along its drawn course) and each end
+// Where a vessel meets another is defined once, by the engine's table (topology.js JUNCTION_ROWS), and the body figure reads it: the host is cut where each row says (`at` of the way along its drawn course) and each end
 // the row lists lands exactly there. Two things are pinned, for EVERY row and EVERY end, so a new row is held to them with no edit here:
 //   1. the junction node's drawn place is `at` of the way along its host's drawn course (the pieces chained, a draw-only branch past the end counted: the share the table is measured in);
 //   2. every collateral, shunt and tributary end that lands on a host lies within one host radius of its engine node's drawn place, along the host (the same node the flow lens, the blood and the readings turn at).

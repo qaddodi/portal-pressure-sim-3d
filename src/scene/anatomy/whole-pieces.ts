@@ -1,6 +1,6 @@
 // WHICH ENGINE PIECES MAKE UP EACH WHOLE VESSEL, read from the engine's junction table and never written by hand (27 Nov: "the flow lens, pressure, flow direction and everything else
 //  must know where vessel
-// junctions really are"). The engine cuts a vein into pieces in series wherever a collateral or a shunt joins it part-way along (topology.js JUNCTIONS, JUNCTION_PIECES), so the pieces
+// junctions really are"). The engine cuts a vein into pieces in series wherever a collateral or a shunt joins it part-way along (topology.js JUNCTION_ROWS, JUNCTION_PIECES), so the pieces
 //  a vessel has, their ids and
 // their order change when a row is added to that table. A list of piece ids written in the app (`IVC_IS_1`, `PVH_L_1`) went stale at the first new row, and a piece's suffix says
 //  nothing about where it lies

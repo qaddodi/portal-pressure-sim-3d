@@ -67,7 +67,7 @@ const clamp = (x: number, a: number, b: number): number => Math.min(b, Math.max(
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 const dist = (a: readonly number[], b: readonly number[]): number => Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, (a[2] ?? b[2] ?? 0) - (b[2] ?? a[2] ?? 0));
 
-/** A vein split in pieces (topology.js JUNCTIONS) as one course: its pieces end to end (proc-routes.js wholeOf, in 3D). */
+/** A vein split in pieces (topology.js JUNCTION_ROWS) as one course: its pieces end to end (proc-routes.js wholeOf, in 3D). */
 function wholeOf3(g: Geo3, id: string): { P: P3[]; ids: string[]; cuts: number[] } | null {
   const ids = (JUNCTION_PIECES as Record<string, string[]>)[id];
   if (!ids || ids.length < 2) return null;

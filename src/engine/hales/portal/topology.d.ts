@@ -49,8 +49,6 @@ export type NetEdge = {
 };
 export declare const NODES: NetNode[];
 export declare const EDGES: NetEdge[];
-/** The table's rows as tuples [node, host, at, label, ends]: the shape the app's readers had before the rows were objects (they move to JUNCTION_ROWS; this view goes when none is left). */
-export declare const JUNCTIONS: (readonly [node: string, host: string, at: number, label: string, ends: [string, 'from' | 'to'][]])[];
 /** The junction table: one row per node a shunt, collateral or tributary meets a host vein at (junctions.js). */
 export declare const JUNCTION_ROWS: readonly JunctionRow[];
 /** The ids of the pieces a host is cut into, from its `from` end, for each host that is cut (a vein that is whole is not a key). */

@@ -2,7 +2,7 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "889f6fe14af4ff022f42af506d8329dd5d23a742"
+    "commit": "e59b91a671b652fbc8c2d6b9d8ae6301d2832fec"
   },
   "files": {
     "hales/core/ease-move.js": "8b1ec51ee324cb2f95242b568c623e2dcd801b3ec48c11712a82c92852ac6449",
@@ -17,12 +17,12 @@
     "hales/portal/bedside-rest.js": "26bbf32f4fd82ddc370d496b7c8caefa36dec9f4b630d4745b1fad55c1875788",
     "hales/portal/change-events.js": "f25e06a42083474c447c1b1b52a7133db3f9d419a390160775ecde4c0833e646",
     "hales/portal/display-mean.js": "607b08cbc06b175bc45192e6f4cbe2e9eb32a05cfd47b8d653730f1690c20b3f",
-    "hales/portal/engine.js": "75fd6f2292fa7725151759f4ee1e780b7139e20cfa9b2e2af40fa59562187dde",
+    "hales/portal/engine.js": "11112de03e82757fe12201fefb56fac9e3f7ee4b8a18549e5b2b6ee16c170fb6",
     "hales/portal/events.js": "c3a1a5e5f331985422d9868c9c87418d9b2a5819f8f951bea94c894c8e484af8",
     "hales/portal/explain-ids.js": "326c21384fb0757403a9fb924d7aff0395e970dbb09a11d2aff3f5c5c09a70d4",
     "hales/portal/explain.js": "4bd3405d5ec6e7e30c40a8e68c707406b3afaaaa7332458df8d79903209228f1",
     "hales/portal/fingerprint.js": "caa55bdc585e6e2caae1d525a538ef2f1e5bb9d79a152584e64401a3411a0116",
-    "hales/portal/flow-cuts.js": "2a664f63054e736a9c0e709f6a93957849f0335190b118c44510eab4b91f4867",
+    "hales/portal/flow-cuts.js": "b2e363a0688b9cae7c4147f8b028f7cd7176997e096554bc2f78cbe2ee686c52",
     "hales/portal/inverse-families.js": "3ef753812ec7b5cd108839757d0c2adb3bf451d651e0869eaa2c4ee067a40d9f",
     "hales/portal/inverse-library.js": "57a5fca03ed93327e0737c0f2196ec1ed9c394e99e4b7ac85911821aabbc9fd8",
     "hales/portal/inverse-run.js": "a05c632321afd1792117fe5994ee86352f5ce1b4688873947bc2da107855e919",
@@ -40,10 +40,10 @@
     "hales/portal/scenario.js": "918e047bc91b6bd3d372040aa2d39dc83cd2e54a0c3f5c3ecf6c2171b1ac44ee",
     "hales/portal/ssm-cuts.js": "86a2a77662721a8b2c0c8150f97492716fa80a8ff69fba9d0f390c08646f52a2",
     "hales/portal/stent-ease.js": "371c7231827ac20ebe9a94bd9ebe061ca3e4477e0740f70e6e33298911ac715e",
-    "hales/portal/stent-geom.js": "b731c3b2dd73b107dfd9ab36003cdd2148dc9b8a0a86839a3600d0d6ac4b60ea",
+    "hales/portal/stent-geom.js": "d5a3a0bff600a986a06f02ee84bcde7c0947b5eb93591ba7866acdc40b820895",
     "hales/portal/stent-trace.js": "4325e93743b3365c48661f8361efe4ef5eb972f89f67301cdc6b71d85ce05da4",
-    "hales/portal/topology.d.ts": "9935b67c9d5c72b6faa83004719eb1e6647e156e8024fdfb8dbb510dc7ed6c13",
-    "hales/portal/topology.js": "3922c2b4d26684a2593aab121a17632d4920b21a06049352218d5fbe7e33f293",
+    "hales/portal/topology.d.ts": "a619aa4f3768125736538e159a29330669ca3ea1b95855d7d3a49ad569f09f16",
+    "hales/portal/topology.js": "0e174a51803d47f4431d364399f35aabe82a22afa8cf5be377bd75cb8272e023",
     "hales/portal/trail-calm.js": "2c6799c883feda1a58edfe545f2b89306e2de712da7ce23af1bfefa9334855b1",
     "hales/portal/transfusion-cuts.js": "b71581e1c1f1d0955b61af7f30fcab6604cb59753b11145396563d470d90d360",
     "hales/portal/wall-read.js": "3b97326623cd7378d94e1d142ad13901d3f767a85464eaf24e2da7108c597a40",
