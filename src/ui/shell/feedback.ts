@@ -4,9 +4,12 @@
 import { FEEDBACK } from './words.ts';
 import { fitMailto } from '../debug/core/short.copied.js';
 
-export interface FeedbackCtx { build: string; device: string; screen: string; view: string }
+export interface FeedbackCtx { build: string; device: string; screen: string; view: string; /** the last errors the page kept (boot/crash-net.ts faultsText), or empty */ errors?: string }
 /** The base of the draft: what it always had. */
-export const feedbackBase = (c: FeedbackCtx): string => [FEEDBACK.ask, '', '', '', FEEDBACK.keep, `Build: ${c.build}`, `Device: ${c.device}`, `Screen: ${c.screen}`, `View: ${c.view}`].join('\n');
+export const feedbackBase = (c: FeedbackCtx): string => [
+  FEEDBACK.ask, '', '', '', FEEDBACK.keep, `Build: ${c.build}`, `Device: ${c.device}`, `Screen: ${c.screen}`, `View: ${c.view}`,
+  ...(c.errors ? ['', 'Recent errors:', c.errors] : []),
+].join('\n');
 /** The mailto link. `short` is the short report (src/ui/debug/packet/feedback.ts), cut first when the whole link would be too long for a mail app (6,000 percent-encoded characters). */
 export function feedbackHref(email: string, c: FeedbackCtx, short = ''): string {
   const body = fitMailto(feedbackBase(c), short);

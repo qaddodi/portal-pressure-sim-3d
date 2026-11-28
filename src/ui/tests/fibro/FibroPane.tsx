@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clock } from '../../../clock/frame.ts';
 import { latest, useEngine } from '../../../engine/index.ts';
+import { fibroRows } from '../readings-rows.ts';
 import { Chart, type ChartCtx } from '../../charts/Chart.tsx';
 import type { ChartPainter } from '../../charts/painter.ts';
 import { onZoomK } from '../../cards/zoom-k.ts';
@@ -132,6 +133,7 @@ export function FibroPane({ plot, noteAside = false, slide = false, bar = true, 
   // 2D's own markup (fibroscan.js; dock.js puts the switch, the pane's own row, above the view): the switch, then the view with the map's box, the cut-offs' key (no row in it for either organ: the
   // cut-offs are the bar's) and the stiffness bar, each with the inline style the 2D file gives it. A slide's card has neither the switch nor the key (2D createFibroScan switcher: false).
   const rows = ((ORGAN as Record<string, { rows?: [string, string][] }>)[organ]?.rows ?? []);
+  const readingRows = fibroRows(organ === 'liver' ? 'Liver' : 'Spleen', none ? null : fix1(model), isSlide ? [] : rows);
   return (
     <>
       {!isSlide && (
@@ -142,7 +144,7 @@ export function FibroPane({ plot, noteAside = false, slide = false, bar = true, 
       <div className={host.view} data-pane="fibroscan">
         <div className="chart-box fibroscan-box" data-organ={organ} style={host.box(h0)}>
           <Cv at={cv.ref}>
-            <Chart tag={TAG} deps={[organ, h]} label={label} painter={painter}
+            <Chart tag={TAG} deps={[organ, h]} label={label} readings={readingRows} painter={painter}
               build={(c) => { ctxRef.current = c; painter.current?.setUnder(under); return paint(c, clock.now(), !!latest.frame?.running).frame; }} />
           </Cv>
         </div>

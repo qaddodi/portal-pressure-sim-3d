@@ -6,7 +6,28 @@ import { create } from 'zustand';
 import { caught } from '../ui/debug/caught.ts';
 import { setClockFaultSink, clock } from '../clock/frame.ts';
 
-export interface Fault { site: string; message: string; stack: string; at: number }
+export interface Fault {
+  site: string; message: string; stack: string; at: number;
+  /** the build, the view (its route only, never the link's script or numbers) and the wall-clock time: which build broke, where, and when */
+  build?: string; view?: string; when?: string;
+}
+/** The ring is also kept in sessionStorage (this tab only, gone when the tab closes), so a reload after a crash still has what led to it.
+ *  Nothing here leaves the device unless the person sends the draft. */
+export interface FaultStore { load(): Fault[]; save(f: readonly Fault[]): void }
+export const FAULT_KEY = 'pps3d.errors';
+export function sessionFaultStore(s: Pick<Storage, 'getItem' | 'setItem'> | null = typeof sessionStorage === 'undefined' ? null : sessionStorage): FaultStore {
+  return {
+    load() {
+      try {
+        const a: unknown = JSON.parse(s?.getItem(FAULT_KEY) ?? '[]');
+        return Array.isArray(a) ? a.filter((f): f is Fault => !!f && typeof f.message === 'string' && typeof f.site === 'string').slice(-KEEP) : [];
+      } catch { return []; }
+    },
+    save(f) { try { s?.setItem(FAULT_KEY, JSON.stringify(f)); } catch { /* storage blocked or full: the memory ring still stands */ } },
+  };
+}
+/** The view as the report names it: the hash's route, cut before any `=`, `?` or `&`, so a shared script's content never rides along. */
+export const viewOf = (hash: string): string => hash.split(/[?=&]/)[0]!.slice(0, 60) || '/';
 export const BROKEN_COUNT = 5, BROKEN_WINDOW_MS = 10_000, QUIET_MS = 60_000, KEEP = 20;
 
 /** Faults that are noise or already handled elsewhere: the browser's harmless resize notice, an aborted request, a cross-origin "Script error.", a browser extension's own error, a lazy part's ChunkError (its pane says so),
@@ -36,16 +57,17 @@ export interface Net {
   dismiss(): void;
   recent(): readonly Fault[];
 }
-export function createNet(o: { now(): number; online(): boolean; onBroken(): void; onQuiet?(): void }): Net {
-  const faults: Fault[] = [];
+export function createNet(o: { now(): number; online(): boolean; onBroken(): void; onQuiet?(): void; store?: FaultStore; /** build, view and wall-clock time for a fault */ ctx?(): Pick<Fault, 'build' | 'view' | 'when'> }): Net {
+  const faults: Fault[] = o.store?.load() ?? [];
   let stamps: number[] = [], broken = false, quietUntil = 0;
   return {
     report(site, e, opts) {
       const t = o.now();
       const raw = (e && typeof e === 'object' ? e : {}) as { name?: unknown; filename?: unknown };
-      const f = toFault(site, e, t);
+      const f = { ...toFault(site, e, t), ...(o.ctx?.() ?? {}) };
       if (ignorable(f.message, String(raw.name ?? ''), String(opts?.file ?? raw.filename ?? ''), o.online())) return;
       faults.push(f); if (faults.length > KEEP) faults.shift();
+      o.store?.save(faults);
       if (opts?.count === false || broken || t < quietUntil) return;
       stamps = stamps.filter((s) => t - s <= BROKEN_WINDOW_MS); stamps.push(t);
       if (stamps.length >= BROKEN_COUNT) { broken = true; o.onBroken(); }
@@ -57,13 +79,23 @@ export function createNet(o: { now(): number; online(): boolean; onBroken(): voi
 
 export const useCrashNet = create<{ broken: boolean }>(() => ({ broken: false }));
 const now = () => (typeof performance !== 'undefined' ? clock.now() : Date.now());
-const net = createNet({ now, online: () => typeof navigator === 'undefined' || navigator.onLine !== false, onBroken: () => useCrashNet.setState({ broken: true }), onQuiet: () => useCrashNet.setState({ broken: false }) });
+const here = (): Pick<Fault, 'build' | 'view' | 'when'> => ({
+  build: String(import.meta.env.VITE_BUILD ?? 'dev'), view: typeof location === 'undefined' ? '' : viewOf(location.hash), when: new Date().toISOString(),
+});
+const net = createNet({
+  now, online: () => typeof navigator === 'undefined' || navigator.onLine !== false,
+  onBroken: () => useCrashNet.setState({ broken: true }), onQuiet: () => useCrashNet.setState({ broken: false }), store: sessionFaultStore(), ctx: here,
+});
 export const dismissBroken = (): void => net.dismiss();
 /** Keep a fault for the reports without counting it (an error boundary caught it). */
 export const noteFault = (site: string, e: unknown): void => { caught(site, e); net.report(site, e, { count: false }); };
 export const recentFaults = (): readonly Fault[] => net.recent();
 /** The faults as lines for a report; newest last. */
-export const faultsText = (n = KEEP): string => net.recent().slice(-n).map((f) => `[${f.site} ${f.at} ms] ${f.message}${f.stack ? ` — ${f.stack}` : ''}`).join('\n');
+const faultLine = (f: Fault): string => {
+  const at = `${f.when ? `${f.when} ` : ''}${f.site} ${f.at} ms${f.build ? ` build ${f.build}` : ''}${f.view ? ` view ${f.view}` : ''}`;
+  return `[${at}] ${f.message}${f.stack ? ` — ${f.stack}` : ''}`;
+};
+export const faultsText = (n = KEEP): string => net.recent().slice(-n).map(faultLine).join('\n');
 
 /** What a bug report needs from a crash: the message, the build, the browser, and the faults the page kept. */
 export const crashDetails = (message: string, build: string, ua: string, faults = ''): string => `${message}\nBuild: ${build}\nBrowser: ${ua}${faults ? `\nRecent errors:\n${faults}` : ''}`;

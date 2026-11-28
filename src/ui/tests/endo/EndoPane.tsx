@@ -23,6 +23,7 @@ import { Cv, useCv, usePaneHost } from '../Cv.tsx';
 import { WallView } from './WallView.tsx';
 import { useScope } from './scope-state.ts';
 import { useSlidePin, pinnedVarix } from '../slide/pin.ts';
+import { endoRows } from '../readings-rows.ts';
 import { readingsOf, scopeOptions, type EndoOpt } from './readings.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,6 +37,7 @@ export function ScopeView({ square, opt, slide }: { square: number; opt: EndoOpt
   const r = useMemo(() => (json && json !== 'null' ? JSON.parse(json) as NonNullable<ReturnType<typeof readingsOf>> : null), [json]);
   // (the readings column stands from the first render, its numbers as dashes until the model has a varix to read: a column that came in with the first frame grew the card on screen, 24 Nov)
   const rd: NonNullable<ReturnType<typeof readingsOf>> = r ?? { present: false, grade: '—', sev: 'ok', diam: '—', wall: '—', red: W.red.none, redOn: false, bands: 0, pressures: ['—', '—', '—'], label: '' };
+  const readingRows = useMemo(() => (r ? endoRows(rd, opt.readings ? W.pressures.map((q) => q.name) : null) : []), [r, rd, opt.readings]);
   const optRef = useRef(opt); optRef.current = opt;
   const painter = useRef<ChartPainter | null>(null), ctx = useRef<ChartCtx | null>(null);
   const field = useRef(new FieldMotion()), over = useRef(new OverlayMotion());
@@ -91,7 +93,7 @@ export function ScopeView({ square, opt, slide }: { square: number; opt: EndoOpt
       <div className="endo-stage">
         <div className="chart-box square" style={host.slide ? { width: square, height: square } : undefined}>
           <Cv at={cv.ref}>
-            <Chart tag="endo-scope" painter={painter} deps={[square, look]} label={r?.label ?? W.viewAria} build={(c) => { ctx.current = c; return build(c); }} />
+            <Chart tag="endo-scope" painter={painter} deps={[square, look]} label={r?.label ?? W.viewAria} readings={readingRows} build={(c) => { ctx.current = c; return build(c); }} />
           </Cv>
         </div>
         <span className="endo-pos">{W.position}</span>

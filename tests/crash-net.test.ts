@@ -106,3 +106,34 @@ test('?gl Throw a fault: enough uncaught errors to trip the net, the last a reje
   assert.match(String((rej as Error)?.message), new RegExp(TEST_FAULT.replace('?', '\\?')));
   assert.match(readFileSync('src/debug/gl-check.tsx', 'utf8'), /isPreview\(\) && <button[\s\S]{0,400}Throw a fault/);
 });
+
+import { FAULT_KEY, sessionFaultStore, viewOf, faultsText } from '../src/boot/crash-net.ts';
+import { feedbackBase } from '../src/ui/shell/feedback.ts';
+function mem() { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v); }, m }; }
+
+test('the ring carries build, view and time, is kept in sessionStorage, and survives a reload', () => {
+  const s = mem(), store = sessionFaultStore(s);
+  const mk = () => createNet({ now: () => 5, online: () => true, onBroken: () => undefined, store, ctx: () => ({ build: 'b1', view: '#/talk', when: '2026-11-28T00:00:00.000Z' }) });
+  const a = mk(); a.report('window', new Error('boom'));
+  assert.equal(a.recent()[0]!.build, 'b1'); assert.equal(a.recent()[0]!.view, '#/talk');
+  assert.ok(s.m.has(FAULT_KEY));
+  assert.equal(mk().recent()[0]!.message, 'boom', 'a reload still has it');
+  for (let i = 0; i < KEEP + 5; i++) a.report('window', new Error(`e${i}`));
+  assert.equal(JSON.parse(s.m.get(FAULT_KEY)!).length, KEEP);
+});
+test('a blocked or broken sessionStorage never throws; a link’s script never rides in the view', () => {
+  assert.deepEqual(sessionFaultStore({ getItem: () => { throw new Error('no'); }, setItem: () => { throw new Error('no'); } }).load(), []);
+  sessionFaultStore({ getItem: () => 'not json', setItem: () => { throw new Error('full'); } }).save([]);
+  assert.deepEqual(sessionFaultStore({ getItem: () => '{"a":1}', setItem: () => undefined }).load(), []);
+  assert.equal(viewOf('#script=SECRETPAYLOAD'), '#script');
+  assert.equal(viewOf(''), '/');
+});
+test('the feedback draft lists recent errors only when there are some; the note offers Send report only with an address in the build', () => {
+  const c = { build: 'b', device: 'd', screen: 's', view: 'v' };
+  assert.ok(!feedbackBase(c).includes('Recent errors'));
+  assert.match(feedbackBase({ ...c, errors: '[x] boom' }), /Recent errors:\n\[x\] boom$/);
+  assert.equal(typeof faultsText, 'function');
+  const note = readFileSync('src/ui/shell/ErrorNote.tsx', 'utf8');
+  assert.match(note, /email \? <button[^]*?>\{ERROR_NOTE\.send\}/);
+  assert.match(readFileSync('src/ui/shell/send-feedback.ts', 'utf8'), /errors: faultsText\(DRAFT_ERRORS\)/);
+});

@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { latest, onFrame, useEngine } from '../../../engine/index.ts';
 import { NODES } from '../../../engine/hales/portal/topology.js';
+import { wallRows } from '../readings-rows.ts';
 import { Chart, useLookId, type ChartCtx } from '../../charts/Chart.tsx';
 import type { ChartPainter } from '../../charts/painter.ts';
 import type { Frame } from '../../charts/scene.ts';
@@ -51,7 +52,7 @@ export function WallView({ square, slide = false }: { square: number; slide?: bo
           <Cv at={cv.ref}>
             {/* (the picture is a square; 2D's box may be wider than tall, or 16 px taller than wide: the square stands in its middle) */}
             <div style={side ? { position: 'absolute', left: Math.round((cv.w - side) / 2), top: Math.round((cv.h - side) / 2), width: side, height: side } : undefined}>
-              <Chart tag="endo-wall" painter={painter} deps={[square, look]} label={W.aria} glide={false} build={(c) => { ctx.current = c; return frameNow(c, true) ?? { ...none, w: c.w, h: c.w }; }} />
+              <Chart tag="endo-wall" painter={painter} deps={[square, look]} label={W.aria} readings={wallRows(r)} glide={false} build={(c) => { ctx.current = c; return frameNow(c, true) ?? { ...none, w: c.w, h: c.w }; }} />
             </div>
           </Cv>
         </div>

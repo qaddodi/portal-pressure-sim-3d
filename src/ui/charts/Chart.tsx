@@ -37,10 +37,12 @@ interface Props {
   glide?: boolean;
   /** the name this chart's drawn height is remembered under, for the empty box a pending card draws (pendingFrame) */
   memo?: string;
+  /** the instrument's own readings (name, value) a Tests pane shows beside its picture: written after the picture's words in the same hidden table (tests/readings-rows.ts) */
+  readings?: readonly (readonly [string, string])[];
 }
 
 /** One chart: a box that takes its width from the card, a GPU canvas for the shapes and a text layer for the words. */
-export function Chart({ build, deps, label, tag = 'chart', className, painter: painterOut, glide = true, memo }: Props) {
+export function Chart({ build, deps, label, tag = 'chart', className, painter: painterOut, glide = true, memo, readings }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const painter = useRef<ChartPainter | null>(null);
   const [w, setW] = useState(0);
@@ -98,13 +100,14 @@ export function Chart({ build, deps, label, tag = 'chart', className, painter: p
   }, [w, fit, look, type, device, ...deps]);
 
   // The picture is one image with a sentence; its numbers are in a hidden table beside it (table.ts): the image role would hide them from a screen reader, so the table is its sibling, out of the way, never in the Tab order.
+  const rows = useMemo(() => [...(table?.rows ?? []), ...(readings ?? []).map((r) => [r[0], r[1]])], [table, readings]);
   return (
     <>
       <div ref={host} data-chart="" className={className} role="img" aria-label={label} style={{ position: 'relative', width: '100%' }} />
-      {table && table.rows.length > 0 ? (
+      {rows.length > 0 ? (
         <table className="sr-only" data-chart-data="">
-          <caption>{table.caption || label}</caption>
-          <tbody>{table.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
+          <caption>{table?.caption || label}</caption>
+          <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
         </table>
       ) : null}
     </>

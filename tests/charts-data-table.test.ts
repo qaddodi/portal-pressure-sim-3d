@@ -40,7 +40,33 @@ test('every chart kind, every look: the table holds every word the chart draws, 
 test('the Chart writes it as a table beside the image (an image role hides its children), out of sight and out of the Tab order', () => {
   const src = readFileSync('src/ui/charts/Chart.tsx', 'utf8');
   assert.match(src, /<table className="sr-only" data-chart-data="">/);
-  assert.match(src, /<caption>\{table\.caption \|\| label\}<\/caption>/);
+  assert.match(src, /<caption>\{table\?\.caption \|\| label\}<\/caption>/);
   assert.ok(src.indexOf('role="img"') < src.indexOf('<table'), 'a sibling after the picture, not inside it');
   assert.ok(!/<table[^>]*tabIndex/.test(src));
+});
+
+// The Tests panes (Doppler, Endoscopy, Wall mechanics, FibroScan) hand their instrument readings to the chart's table (tests/readings-rows.ts), so the numbers are data, not only a sentence.
+import { dopplerRows, endoRows, wallRows, fibroRows } from '../src/ui/tests/readings-rows.ts';
+import type { Report } from '../src/ui/tests/doppler/model.ts';
+
+test('Doppler readings: direction, speed, pattern, tiles and the usual speed are rows; a dash is not', () => {
+  const rep = { acquiring: false, text: '', dir: 'Toward the liver', sev: '', vel: '18.4', none: false, pattern: 'Steady', note: '', kind: 'portal', aria: '', gauge: null,
+    tiles: [{ k: 'Speed', label: 'Speed', v: '18.4', unit: 'cm/s', show: true }, { k: 'RI', label: 'RI', v: '0.62', unit: '', show: true }, { k: 'CI', label: 'CI', v: '—', unit: '', show: true }, { k: 'X', label: 'Hidden', v: '1', unit: '', show: false }] } as unknown as Report;
+  assert.deepEqual(dopplerRows(rep, '15 to 40'), [['Flow', 'Toward the liver'], ['Speed', '18.4 cm/s'], ['Pattern', 'Steady'], ['RI', '0.62'], ['Usual speed', '15 to 40 cm/s']]);
+  assert.deepEqual(dopplerRows(null), []);
+  assert.equal(dopplerRows({ ...rep, acquiring: true }).some((r) => r[0] === 'Speed'), false);
+});
+test('Endoscopy, wall and FibroScan readings carry the numbers the tiles print', () => {
+  const rd = { present: true, grade: 'Large', sev: 'danger', diam: '6.2 mm', wall: '0.4 mm', red: 'Red wale marks', redOn: true, bands: 2, pressures: ['20.0 mmHg', '5.0 mmHg', '15.0 mmHg'], label: '' };
+  assert.deepEqual(endoRows(rd, null).map((r) => r[0]), ['Bands placed', 'Grade', 'Diameter', 'Wall thickness', 'Red wale marks']);
+  assert.equal(endoRows(rd, ['In the varix', 'In the lumen', 'Across the wall']).length, 8);
+  assert.equal(endoRows(rd, null).find((r) => r[0] === 'Diameter')![1], '6.2 mm');
+  const w = wallRows({ ptm: '15', r: '3', w: '0.4', index: '112', share: 0.5, stress: '', pct: '50', state: 'caution', barState: 'caution', word: 'Strained', fill: '' });
+  assert.equal(w[0]![1], '50% of tear point, Strained'); assert.equal(w.length, 5);
+  assert.deepEqual(fibroRows('Liver', '12.4', [['≥ 10', 'advanced fibrosis']]), [['Stiffness', '12.4 kPa'], ['Liver cut-off ≥ 10', 'advanced fibrosis']]);
+  assert.deepEqual(fibroRows('Liver', '–', []), []);
+});
+test('each pane passes its readings to the chart, and the chart writes them after the picture’s words', () => {
+  for (const f of ['doppler/DopplerPane', 'endo/EndoPane', 'endo/WallView', 'fibro/FibroPane']) assert.match(readFileSync(`src/ui/tests/${f}.tsx`, 'utf8'), /readings=\{/, f);
+  assert.match(readFileSync('src/ui/charts/Chart.tsx', 'utf8'), /\.\.\.\(table\?\.rows \?\? \[\]\), \.\.\.\(readings \?\? \[\]\)/);
 });

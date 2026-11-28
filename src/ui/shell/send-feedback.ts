@@ -3,11 +3,14 @@
 // left, never for longer than FEEDBACK_READ_MS so the draft is not held up. The app sends nothing: the person sends the email, so the Privacy page stays true.
 import { feedbackHref, FEEDBACK_SHEET_MS, FEEDBACK_READ_MS } from './feedback.ts';
 import { useShell } from './store.ts';
+import { faultsText } from '../../boot/crash-net.ts';
 import { feedbackBuild } from '../../boot/release.ts';
 
 import { clock } from '../../clock/frame.ts';
+/** How many of the kept errors ride in the draft (the ring keeps 20; the full report has them all): enough to see the pattern within a mail app's link limit. */
+export const DRAFT_ERRORS = 5;
 export async function sendFeedback(email: string): Promise<void> {
-  const plain = { build: feedbackBuild(import.meta.env.VITE_RELEASE, import.meta.env.VITE_BUILD, import.meta.env.VITE_CHANNEL), device: navigator.userAgent, screen: `${innerWidth} × ${innerHeight} at ${devicePixelRatio}×`, view: location.href };
+  const plain = { build: feedbackBuild(import.meta.env.VITE_RELEASE, import.meta.env.VITE_BUILD, import.meta.env.VITE_CHANNEL), device: navigator.userAgent, screen: `${innerWidth} × ${innerHeight} at ${devicePixelRatio}×`, view: location.href, errors: faultsText(DRAFT_ERRORS) };
   let fb: { short: string; full: string; link: string; build: string } | null = null;
   try {
     await new Promise((ok) => clock.after(ok, FEEDBACK_SHEET_MS));

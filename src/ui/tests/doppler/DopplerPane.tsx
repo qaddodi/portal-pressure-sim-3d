@@ -2,13 +2,14 @@
 // with the reading a sonographer would report beside it: the direction, the velocity against the vessel's usual range, the waveform pattern, and tiles (Speed, Max, Trough, Pulsatility,
 // the portal vein's congestion index, a stent's three gates). The vessel menu, the display (Spectrum, Color, Variance), Invert and the sweep window are the 2D controls.
 // The words and judgements are the 2D app's (copied: copied/doppler-*.copied.js); the spectrum is drawn on the GPU by the shared chart drawer (model.ts says how).
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import './copied/doppler-2d.copied.css';
 import './doppler-card.css';
 import { I } from '../../shell/icons.tsx';
 import { EDGES } from '../../../engine/hales/portal/topology.js';
 import { clock } from '../../../clock/frame.ts';
 import { onFrame, latest } from '../../../engine/index.ts';
+import { dopplerRows } from '../readings-rows.ts';
 import { Chart, type ChartCtx } from '../../charts/Chart.tsx';
 import { measure } from '../../charts/measure.ts';
 import { onZoomK } from '../../cards/zoom-k.ts';
@@ -145,6 +146,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's what-if slider, whose
   const usualG = useRef<Gauge | null>(null);
   if (g) usualG.current = g;
   const usualWords = usualSpeed(usualG.current);
+  const readingRows = useMemo(() => dopplerRows(rep, p.slide ? '' : usualWords), [rep, p.slide, usualWords]);
   const sw = g ? Math.max(0.001, (g.p1 - g.p0) / 100) : 1;
   const kMid = trackW > 8 ? Math.max(0, (sw * trackW - 8) / (trackW - 8)) : sw;
   const gaugeEl = g && (
@@ -181,6 +183,7 @@ export function DopplerPane(p: PaneProps & { /** a slide's what-if slider, whose
       <div className="dop-main">
         <div className="chart-box dark dop-box" style={host.box(h0)}>
           <Cv at={cv.ref}><Chart tag="doppler" painter={painter} glide={false} deps={[mode, invert, sweepIndex, h, probe, gate, optKey, ovTop]} label={rep?.aria || 'Spectral Doppler'}
+            readings={readingRows}
             build={(c) => {
               ctxRef.current = c;
               m.dpr = painter.current?.ratio ?? 1;   // (the canvas's own pixel ratio, a card zoom's included (charts/gl.ts chartRatio): a spectral line is one of its pixels wide)
