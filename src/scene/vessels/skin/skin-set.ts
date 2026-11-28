@@ -618,13 +618,14 @@ export class SkinSet {
 
   /** Builds the skins of `phase` (spec 4.1) with the joins as they stand now (Smooth vessel joins on). Any skin built before is removed first. Planned together (cuts.ts planSkins: two skins on one vessel merge when they would crowd); a node that cannot be
    *  built keeps today's joins, is named in `fellBack` and warned once. */
-  build(phase: 1 | 2): void { for (const _ of this.buildSteps(phase)) { /* every step */ } }
+  build(phase: 1 | 2, only?: ReadonlySet<string>): void { for (const _ of this.buildSteps(phase, only)) { /* every step */ } }
   /** `build` in steps (one `yield` ends a step: an arm's tube, a baked skin laid in): the boot runs one per task so the skins are not one task of 150 ms on a laptop (scene.ts refreshSkinsSteps). */
-  *buildSteps(phase: 1 | 2): Generator<void, void, unknown> {
+  *buildSteps(phase: 1 | 2, only?: ReadonlySet<string>): Generator<void, void, unknown> {
     this.clear();
+    // (`only`: the nodes to build, for a test that perturbs one node's courses and must not pay for the other twenty; the page never passes it)
     const nodes = skinNodesForPhase(phase);
     // phase 2 also builds every node a collateral or a shunt lands on (spec 10.2); phase 1 (the confluence alone) has none of them
-    const all: SkinJunction[] = findSkinJunctions().filter((j) => nodes.has(j.node) || (phase === 2 && (j.arms.some((a) => a.grow || isLiverBranch(NETWORK_BY_ID.get(a.vesselId)!))))).map((j) => (phase === 1 ? withoutGrowers(j) : j)).filter((j): j is SkinJunction => !!j);
+    const all: SkinJunction[] = findSkinJunctions().filter((j) => !only || only.has(j.node)).filter((j) => nodes.has(j.node) || (phase === 2 && (j.arms.some((a) => a.grow || isLiverBranch(NETWORK_BY_ID.get(a.vesselId)!))))).map((j) => (phase === 1 ? withoutGrowers(j) : j)).filter((j): j is SkinJunction => !!j);
     // (a growing end at a node whose skin had no room for it (more than SKIN_GROWERS, or six arms in all: inventory.ts findSkinJunctions) is named too, never silently left out)
     if (phase === 2) { const at = growerEndsByNode(NETWORK, true); for (const j of all) for (const g of at.get(j.node) ?? []) if (!j.arms.some((a) => a.grow && a.vesselId === g.v.id && a.end === g.end)) this.dropped.push(`${j.node}:${g.v.id}`); }
     // a collateral or shunt whose end lies farther from J than SKIN_REACH is on a host's side, not at the node: it is left out of the skin (named in `dropped`), and never takes the node's skin with it
@@ -636,7 +637,7 @@ export class SkinSet {
     const onWalls = phase === 2 ? wallLandings(welded) : [], wallKeys = new Set(onWalls.map((l) => `${l.v.id}:${l.end}`));
     const lands = phase === 2 ? attachNear(near, [...onWalls, ...nearLandings(welded).filter((l) => !wallKeys.has(`${l.v.id}:${l.end}`))]) : { junctions: near, left: [] };
     const walls = wallJunctions(lands.left.filter((l) => wallKeys.has(`${l.v.id}:${l.end}`)));
-    near.length = 0; near.push(...lands.junctions, ...walls.junctions);
+    near.length = 0; near.push(...lands.junctions, ...walls.junctions.filter((j) => !only || only.has(j.node)));
     for (const l of walls.skipped) this.dropped.push(`wall:${l.host.id}:${l.v.id}`);
     for (const f of farGone) this.dropped.push(`${f.node}:${f.id}`);   // (named whether or not a wall skin takes the end up: the node's own skin goes without it)
     all.length = 0; all.push(...near);
