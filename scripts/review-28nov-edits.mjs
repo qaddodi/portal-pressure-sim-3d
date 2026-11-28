@@ -8,6 +8,8 @@ const MOVE_AFTER = (deck, at, target) => ({ deck, at, moveAfter: target });
 
 export const REVIEW_28NOV = [
   // ---- the clear defects of section 1b ----
+  // ascites: the TIPS slide for refractory ascites follows the algorithm slide (his ruling, 28 Nov: move it)
+  MOVE_AFTER('ascites', 'slides.tips', 'slides.path-asc'),
   // albumin: the two long-term trials come together (ANSWER, MACHT), then the short-term one (ATTIRE), as the outline says
   MOVE_AFTER('albumin', 'slides.macht', 'slides.answer'),
   // ascites: the TIPS slide for refractory ascites says "if" (his ascites is not refractory on slide 15)

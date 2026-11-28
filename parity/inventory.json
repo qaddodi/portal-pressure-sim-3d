@@ -8661,6 +8661,19 @@
      "teaching": true
     },
     {
+     "id": "tips",
+     "preset": null,
+     "view": null,
+     "cam": "liver",
+     "lens": null,
+     "data": "tiles",
+     "tool": "flowtime",
+     "cath": null,
+     "visual": null,
+     "procedure": null,
+     "teaching": true
+    },
+    {
      "id": "complications",
      "preset": null,
      "view": null,
@@ -8694,19 +8707,6 @@
      "lens": null,
      "data": null,
      "tool": "path",
-     "cath": null,
-     "visual": null,
-     "procedure": null,
-     "teaching": true
-    },
-    {
-     "id": "tips",
-     "preset": null,
-     "view": null,
-     "cam": "liver",
-     "lens": null,
-     "data": "tiles",
-     "tool": "flowtime",
      "cath": null,
      "visual": null,
      "procedure": null,
