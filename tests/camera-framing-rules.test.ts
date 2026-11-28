@@ -275,7 +275,7 @@ export function tiltedMarginPx(shot: Shot, p: readonly [number, number], dv: { w
 const TILT_CORNERS: readonly (readonly [number, number])[] = [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]];
 const worstTilted = (shot: Shot, p: readonly [number, number], dv: Parameters<typeof tiltedMarginPx>[2]) => Math.min(...TILT_CORNERS.map(([x, y]) => tiltedMarginPx(shot, p, dv, x * FRAMING_TILT_RAD, y * FRAMING_TILT_RAD)));
 
-test('F3 at full tilt: every labelled station stays 40 px or more inside the room at the four corners of the tilt (5 by 3.5 degrees) on a Mac, an iPad and an iPhone', () => {
+test('F3 at full tilt: every labelled station stays 40 px or more inside the room at the corners of the tilt (7.5 degrees both ways) on a Mac, an iPad and an iPhone', () => {
   let checked = 0;
   const bad: string[] = [];
   for (const [, deck] of decks) for (const v of bodyViews(deck)) for (const id of v.labels) {

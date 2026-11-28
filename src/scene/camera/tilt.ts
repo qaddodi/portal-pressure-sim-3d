@@ -5,17 +5,17 @@
 // This file is pure (no DOM, no three): the target from an input, the easing, the clamp and the locks. The listeners are in tilt-input.ts.
 
 /**
- *The device's parallax is a window (owner, 28 Nov: "the glass of the iPhone is looking at a 3D structure ... locked in space tilt wise"): the figure
- * counter-rotates by the device's own turn, 1:1 past a soft dead zone, up to this angle each way. 5 is the most the 40 px station margin allows on every
- * slide with every vein still 8 px on an iPhone (6 pulls sites/healthy under 8 px; tests/camera-framing-rules.test.ts). The pointer's lean on a laptop
+ * The device's parallax is a window (owner, 28 Nov: "the glass of the iPhone is looking at a 3D structure ... locked in space tilt wise"): the figure
+ * counter-rotates by the device's own turn, 1:1 past a soft dead zone, up to this angle each way. 7.5 is the owner's cap (28 Nov); the room solver
+ * frames every slide for it, keeping the 40 px station margin and the 8 px vein (tests/camera-framing-rules.test.ts). The pointer's lean on a laptop
  * keeps the limits below.
  */
-export const DEVICE_CAP_DEG = 20;
+export const DEVICE_CAP_DEG = 7.5;
 /**
- * TRIAL (owner, 28 Nov: "Make it 20 degrees both horizontal and vertical just to test it out"): the cap is 20 for a test while the room solver still frames for the decided 5, so past 5 a label can
- * come inside its 40 px margin. Setting DEVICE_CAP_DEG back to FRAMING_TILT_DEG ends the trial.
+ * What the room solver and the framing sweeps frame for (owner, 28 Nov: "Just cap it at 7.5 degree both ways"):
+ * the same as the cap, so every slide holds its 40 px station margin and its 8 px vein at full tilt.
  */
-export const FRAMING_TILT_DEG = 5;
+export const FRAMING_TILT_DEG = DEVICE_CAP_DEG;
 export const FRAMING_TILT_RAD = (FRAMING_TILT_DEG * Math.PI) / 180;
 /** The pointer's largest turn each way, radians: 3.5° of yaw, 2.5° of pitch (owner: at most about 3 to 4 and 2 to 3). */
 export const TILT_YAW_MAX = (3.5 * Math.PI) / 180;

@@ -249,8 +249,7 @@ test('worked example, portrait and both landscapes: tipping the screen\'s top ed
   }
 });
 
-test('TRIAL: the cap is 20 degrees for a test while the framing sweeps still hold the decided 5 (the 40 px margin is not promised past 5 until the trial ends)', () => {
-  assert.equal(DEVICE_CAP_DEG, 20);
-  assert.equal(FRAMING_TILT_DEG, 5);
-  assert.ok(DEVICE_CAP_DEG >= FRAMING_TILT_DEG);
+test('the cap is 7.5 degrees both ways (owner, 28 Nov: "Just cap it at 7.5 degree both ways") and the slides are framed for exactly that', () => {
+  assert.equal(DEVICE_CAP_DEG, 7.5);
+  assert.equal(FRAMING_TILT_DEG, DEVICE_CAP_DEG);
 });

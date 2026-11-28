@@ -40,6 +40,11 @@ function tiltedMargin(shot: Aimed, p: readonly number[], room: Pick<Room, 'w' | 
   const Z = qx * fx + qy * fy + qz * fz || 1e-9;
   return Math.min(room.w / 2 - Math.abs((perPx * (qx * rx + qz * rz)) / Z), room.h / 2 - Math.abs((perPx * (qx * ux + qy * uy + qz * uz)) / Z));
 }
+/**
+ * The sweeps' own tolerance on the 40 px (tests/camera-framing-rules.test.ts allows half a pixel): the tilted corners use 0.4 of it,
+ * so a tight slide keeps its 8 px vein (sites/healthy, upright iPhone, 7.5 degrees).
+ */
+const TILT_SLACK_PX = 0.4;
 const TILT_TURNS: readonly (readonly [number, number])[] = [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]];
 /** The nearest distance at which every point the shot must keep stands KEEP_PX inside the room (0 for a shot with none). A point is judged from the shot's aim, which the room's middle shows. */
 export function keepDistance(shot: Pick<Shot, 'target' | 'keep'> & Partial<Pick<Shot, 'yaw' | 'pitch'>>, room: Pick<Room, 'w' | 'h'>, viewportH: number): number {
@@ -56,7 +61,7 @@ export function keepDistance(shot: Pick<Shot, 'target' | 'keep'> & Partial<Pick<
   // that stands off the aim's depth: the room keeps the air for the worst corner of the tilt
   // (the least distance, found by halving between this one and a quarter further, at which every kept point still stands KEEP_PX inside the room at every corner)
   if (d > 0) {
-    const ok = (dist: number, p: readonly number[]) => TILT_TURNS.every(([a, b]) => tiltedMargin(shot, p, room, perPx, dist, a * FRAMING_TILT_RAD, b * FRAMING_TILT_RAD) >= KEEP_PX);
+    const ok = (dist: number, p: readonly number[]) => TILT_TURNS.every(([a, b]) => tiltedMargin(shot, p, room, perPx, dist, a * FRAMING_TILT_RAD, b * FRAMING_TILT_RAD) >= KEEP_PX - TILT_SLACK_PX);
     let need = d;
     for (const p of shot.keep!) {
       if (ok(need, p)) continue;
