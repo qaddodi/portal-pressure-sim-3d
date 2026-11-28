@@ -409,7 +409,10 @@ export class SkinSet {
             if (f.nodes.length > 1 && f.nodes.some((m) => m !== n && todo.find((x) => x.node === m)?.arms.some((a) => a.grow))) { again.set(n, f.message); next.push(j); continue; }
             lost.push({ node: f.nodes.join('+'), message: f.message }); continue;
           }
-          const drop = g[g.length - 1]!, arms = j.arms.filter((a) => a !== drop);
+          // (a skin made of several nodes that fails loses ONE growing arm of the whole, the narrowest, not one of every node: the cava's four nodes, each with its collateral, are one skin)
+          const narrowest = f.nodes.length > 1 ? f.nodes.flatMap((m) => todo.find((x) => x.node === m)?.arms.filter((a) => a.grow) ?? []).sort((x, y) => x.restR - y.restR)[0] : undefined;
+          if (narrowest && !g.includes(narrowest)) { again.set(n, f.message); next.push(j); continue; }
+          const drop = narrowest ?? g[g.length - 1]!, arms = j.arms.filter((a) => a !== drop);
           this.dropped.push(`${n}:${drop.vesselId}`); this.why[`${n}:${drop.vesselId}`] = f.message;
           again.set(n, f.message);
           if (arms.length >= MIN_ARMS) next.push({ ...j, arms });   // (a run-on pair with its collateral gone is no junction: it never had a skin, so it is not a fall back, only a dropped arm)

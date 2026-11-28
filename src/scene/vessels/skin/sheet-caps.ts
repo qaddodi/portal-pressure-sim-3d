@@ -6,8 +6,9 @@ import type { Vec3 } from './types.ts';
 export const STRAY_MAX_SPREAD = 0.6;
 
 /**
- * The loops no arm's seam owns. Two kinds, so a small shift of a course cannot leave one uncapped:
+ * The loops no arm's seam owns. Three kinds, so a small shift of a course cannot leave one uncapped:
  *  - a loop more than 2 of an arm's radii from every seam centre (as before);
+ *  - a loop under a quarter of the longest when there are more loops than seams (beside a thin arm's seam, as C9's on the cava with the portacaval shunt 2 radii from it: a seam is a ring of the arm, a hole is a few cells);
  *  - a SMALL loop (its vertices within `STRAY_MAX_SPREAD` of the narrowest arm's radius of their mean) that is not the loop nearest to any arm's seam centre. It may lie within 2 radii of a seam, because the cut half-cylinder beyond a seam
  *    plane reaches a pinched web of the field beside it when the arm bends (S_MC's drawn course moved 0.3 radii and an 8-vertex hole stood 1.6 radii from its seam: "4 seam loops for 3 arms", SMV lost S_MC and REX).
  * A real seam loop is about one radius wide and is always the nearest to its own arm's seam centre, so it is never taken for a hole.
@@ -26,7 +27,9 @@ export function strayLoops(loops: readonly number[][], pos: readonly number[], c
     means.forEach((m, i) => { const d = Math.hypot(m[0]! - c[0], m[1]! - c[1], m[2]! - c[2]) / rad[a]!; if (d < bd) { bd = d; best = i; } });
     if (best >= 0) owns.add(best);
   });
+  const longest = Math.max(0, ...loops.map((l) => l.length));
   return loops.filter((loop, i) => {
+    if (loops.length > cen.length && loop.length * 4 < longest) return true;
     const m = means[i]!;
     if (cen.every((c, a) => Math.hypot(m[0]! - c[0], m[1]! - c[1], m[2]! - c[2]) > 2 * rad[a]!)) return true;
     return !owns.has(i) && spread(loop, m) < STRAY_MAX_SPREAD * Rmin;
