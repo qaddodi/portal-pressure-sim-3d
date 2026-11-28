@@ -57,15 +57,18 @@ test('every table in every deck: a HVPG or PPG cell is level exactly when it mov
     });
   }
   assert.ok(seen >= 10, `${seen} gradient cells checked`);
-  assert.ok(level >= 1, `${level} level cells (07.11's 15.2 among them)`);
+  assert.ok(level >= 1, `${level} level cells (07.11's 15.3 among them)`);
 });
 
-test('07.11: the EVL row\'s 16.4 to 15.2 is level, not a green "better" against the words', () => {
+test('07.11: the EVL row\'s 16.4 to 15.3 is level, not a green "better" against the words', () => {
   const t = tables.find((x) => x.name === 'next-bleed/summary')!;
   const m = tableModel(t.s.table!, pendingRows(t.d, t.s));
   const hv = m.rows.map((r) => r.cells.find((c) => c.k === 'hvpg')!);
   assert.equal(hv[0]!.text, '16.4');
-  const evl = hv.find((c) => c.text === '15.2')!;
+  const at = m.rows.findIndex((r) => /^EVL, 10 months later/.test(r.title));   // (15.2 until engine 4f4e49f moved the junction table, 28 Nov; the row is found by its title, not its number)
+  assert.ok(at > 0, 'the EVL row is still in the table');
+  const evl = hv[at]!;
+  assert.equal(evl.text, '15.3');
   assert.equal(evl.arrow, 0);
   assert.equal(evl.eff, null, 'no green "better" on a drift');
 });

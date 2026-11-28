@@ -1,7 +1,7 @@
 # Approved: Blush, the lighter palette for Light and Soft (28 Nov 2026)
 
 Reference: `/mnt/project-files/palette-mocks-28nov/` (`01-light-overview.png`, `01-soft-overview.png`, `02-*-far-lobules.png`, per-option renders in `full/`, row L2 and S2, "Blush"; the renderer is in `source/`). Mohammad: "can you mock different colors for the light color pallet for light and soft; some of the elements seem too dark, especially when looking at the lobule view, and i can't even see the lobules in the distance that are blurred", then picked **"L2S2"** (Blush for both).
-Built in `src/looks/blush.ts` (the one place the values live); `looks.ts` takes the organ tones from it, the lobule's tissue tokens are laid over the generated 2D table by the same file, `lobule/field.ts` paints the neighbours from `--og-field-1` and `-2`. `tests/palette-blush.test.ts` pins it.
+Built in `src/looks/looks.ts` (the one place the values live: `BLUSH_ORGANS` and `BLUSH_TOKENS`, once a file of their own, folded in 28 Nov for the boot entry file ceiling); the lobule's tissue tokens are laid over the generated 2D table by the same file, `lobule/field.ts` paints the neighbours from `--og-field-1` and `-2`. `tests/palette-blush.test.ts` pins it.
 
 ## Traits (the mock's, in numbers)
 - OKLab recipe on today's tones: Light cell +.07, gap +.10, line +.10, organs +.10; Soft cell +.09, gap +.13, line +.13, organs +.13; chroma x.85, hue -5 degrees (a touch rosier). Grounds, cards, plate, ink and text unchanged.

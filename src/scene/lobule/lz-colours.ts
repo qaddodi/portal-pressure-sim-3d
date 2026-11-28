@@ -1,7 +1,7 @@
 // The 2D app's colour tokens, as the lobule's painter reads them (lobule-zoom.js tk, util.js cssRGB01), for one look: the per-look table the 2D
 // stylesheet is printed from (theme-tokens.js, copied) plus the lobule's colours that are the same in every look (lz-tokens.generated.js), var()
 // worked out here. Pure: no page and no styles read, so the painting is the same in node (the tests) as on a device, and a look change is one lookup.
-import '../../looks/blush.ts';   // (lays Blush's tissue tokens over the generated table before it is read)
+import '../../looks/looks.ts';   // (Blush's tissue tokens are laid over the generated table by looks.ts, before it is read)
 import { tokensOfLook } from '../../ui/charts/looks2d/theme-tokens.js';
 import { parseCssColor } from '../../ui/charts/looks2d/css-color.js';
 import { LZ_TOKENS } from './from2d/lz-tokens.generated.js';

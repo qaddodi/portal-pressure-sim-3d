@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 const { LOOKS, lookVars } = await import('../src/looks/looks.ts');
 const { lookColours, hexOf } = await import('../src/scene/lobule/lz-colours.ts');
-const { BLUSH_TOKENS, BLUSH_ORGANS } = await import('../src/looks/blush.ts');
+const { BLUSH_TOKENS, BLUSH_ORGANS } = await import('../src/looks/looks.ts');
 const { PRESSURE_RAMP } = await import('../src/scene/lenses/pressure-ramp.ts');
 
 test('the organs take Blush\'s tones, and the grounds, plate, ink and vessel colours are as before', () => {
