@@ -80,7 +80,7 @@ test('the key stands where it reads best and only where it is needed (Mohammad, 
     const stops = stopsOf((await loadBuiltin(id))!);
     stops.forEach((st, i) => {
       const beat = st.kind === 'slide' && (st.slide.vignette || st.slide.question) ? 1 : 0;
-      const l = labelsAt(stops, { stop: i, beat }, id), k = keyAtStop(stops, i, beat), c = cardKeyAt(stops, i);
+      const l = labelsAt(stops, { stop: i, beat }, id), k = keyAtStop(stops, i, beat), c = cardKeyAt(stops, i, null, true);
       assert.ok(!(l.key && c), `${id}/${i}: one key, not two`);
       if (c) { cards++; assert.equal(c, k); assert.equal(keyPlace(c), 'card'); }
       if (l.key) assert.equal(keyPlace(l.key), 'dock');

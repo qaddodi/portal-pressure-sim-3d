@@ -31,6 +31,8 @@ export interface LabelsState {
   cath: CathState | null;
   /** The lens whose key the slide shows (null: none). */
   key: string | null;
+  /** The lens a lens button put on the figure (null until pressed and after every move): the card's key row and the dock's key follow it (deck-link.ts keyHomes). */
+  pressed: string | null;
   /** The names the slide's own buttons carry (lower case): a key whose lens one of them names leaves its own name out, so the screen says it once (key.ts keyNameShown). */
   controls: readonly string[];
   /** A procedure that wants the figure's names out of its way while it works (2D proc-anim.js `quiet`: the EUS-PPG's and the IR pressures' needles). */
@@ -46,7 +48,7 @@ export interface LabelsState {
 }
 
 export const useLabels = create<LabelsState>((set) => ({
-  named: new Set(), shown: new Set(), tones: {}, cath: null, key: null, controls: [], organNames: false, quiet: false, panel: false, proc: null, presenting: false,
+  named: new Set(), shown: new Set(), tones: {}, cath: null, key: null, pressed: null, controls: [], organNames: false, quiet: false, panel: false, proc: null, presenting: false,
   set: (p) => set(p),
 }));
 

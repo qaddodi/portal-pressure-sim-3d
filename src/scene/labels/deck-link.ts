@@ -11,6 +11,7 @@ import { useLabels } from './store.ts';
 import { KEY_LENSES, keyPlace } from './key.ts';
 import { DEFAULT_LENS, type LensId } from '../lenses/model.ts';
 import { shownLens } from '../lenses/in-view.ts';
+import { dataKeys, type DataAt } from '../../ui/cards/keep.ts';
 
 export interface LabelsAt {
   named: Set<string>; shown: Set<string>; tones: Record<string, string>; cath: CathState | null;
@@ -45,18 +46,42 @@ export function keyAtStop(stops: Stop[], i: number, beat = 0): string | null {
   const v = viewAt(stops, { stop: i, beat }, lastSlideShot(stops));
   return keyOfSlide(v.slide, v.scene?.lens, v.words, v.scene?.view);
 }
-/** The lens whose key is the first row of the slide's own data card (the stream lenses: key.ts keyPlace). The card keeps its key as long as it stands, so ask with the stop the card came from (keep.ts `from`). */
-export function cardKeyAt(stops: Stop[], i: number, live: string | null = null): string | null {
-  const s = stops[i], k = s && s.kind === 'slide' ? keyAtStop(stops, i, s.slide.vignette || s.slide.question ? 1 : 0) : null;
-  const buttons = !!s && s.kind === 'slide' && !!s.slide.controls?.compare?.opts.some((o) => o.how === 'lens');
-  return cardKeyFollows(k, buttons, live);
+/** The slide's own key lens at a stop and beat, in whichever place it stands (a case card's slide asks at its second beat: the first has no figure behind it). */
+const ownKeyAt = (stops: Stop[], i: number): string | null => {
+  const s = stops[i];
+  return s && s.kind === 'slide' ? keyAtStop(stops, i, s.slide.vignette || s.slide.question ? 1 : 0) : null;
+};
+/** Whether a slide has lens buttons (a button that puts a lens on the figure). */
+const hasLensButtons = (stops: Stop[], i: number): boolean => { const s = stops[i]; return !!s && s.kind === 'slide' && !!s.slide.controls?.compare?.opts.some((o) => o.how === 'lens'); };
+
+export interface KeyIn {
+  /** the lens the slide itself draws (keyAtStop), null for none */
+  own: string | null;
+  /** the slide has lens buttons */
+  buttons: boolean;
+  /** the lens a lens button put on the figure, null until one is pressed (it is dropped with every move of the talk) */
+  pressed: string | null;
+  /** the data card (the ladder kind, which holds the key's row) stands at this stop */
+  cardStands: boolean;
 }
-/** The data card's key row (pure). A slide with lens buttons whose press has put another lens on the figure (the labels' key, set by pickCompare: one whose key stands on the figure's dock, never a card's): the row was the
- *  key of the slide's own lens and no longer says what the figure wears (Two inflows 3, Oxygen pressed: "Origin" over the oxygen colours, capture 84496815). It goes, and the dock carries the new lens's key.
- *  The key follows the slide on every move (linkLabelsToDeck), so `live` is the slide's own key until a button is pressed. */
-export function cardKeyFollows(k: string | null, buttons: boolean, live: string | null): string | null {
-  if (!k || keyPlace(k) !== 'card') return null;
-  return buttons && live && keyPlace(live) === 'dock' ? null : k;
+/** WHERE the one colour key of a lens stands, decided in one place (Mohammad, 28 Nov, Lobule 3, "two lens legends appear"): the lens the figure wears is the pressed one, else the slide's own.
+ *  A stream lens (Origin, First pass) is the first row of the data card when that card stands; every other lens, and a stream lens with no data card to hold it, is the dock's pill on the figure.
+ *  Exactly one of the two is ever set: a key is never drawn twice and never nowhere, in whatever order the buttons were pressed.
+ *  Root cause of the double: pickCompare wrote the pressed lens to the dock's key whatever its place, so Origin pressed again stood in the card (cardKeyFollows) AND in the dock. */
+export function keyHomes(i: KeyIn): { card: string | null; dock: string | null } {
+  const lens = i.buttons && i.pressed !== null ? (KEY_LENSES.includes(i.pressed) ? i.pressed : null) : i.own;
+  if (!lens) return { card: null, dock: null };
+  return keyPlace(lens) === 'card' && i.cardStands ? { card: lens, dock: null } : { card: null, dock: lens };
+}
+/** The lens whose key is the first row of the data card at a stop (null: none). `cardStands`: the data card at this stop is the ladder kind. */
+export function cardKeyAt(stops: Stop[], i: number, pressed: string | null = null, cardStands = true): string | null {
+  return keyHomes({ own: ownKeyAt(stops, i), buttons: hasLensButtons(stops, i), pressed, cardStands }).card;
+}
+/** A lens button was pressed: the lens goes to the one place its key stands (the labels' `pressed`, and the dock's key where the dock is its place). */
+export function pressLens(lens: string): void {
+  const { stops, pos, deck } = useUi.getState();
+  const data = deck ? dataKeys(deck, stops)[pos.stop] : null;
+  useLabels.getState().set({ pressed: lens, key: keyHomes({ own: null, buttons: true, pressed: lens, cardStands: data?.kind === 'ladder' }).dock });
 }
 
 /** The copied 2D slide a played slide came from (a talk ported from 2D keeps its words in `copiedOf`). */
@@ -65,13 +90,15 @@ export const copiedSlideOf = (deckId: string | undefined, slide: Slide): CopiedS
 /** What the labels show at a position: the stations the slide names, and the catheter state. The case card (a beat before the slide) names
  *  nothing and shows no reading: nothing has been measured yet. The quick check keeps the result on the figure. A slide ported from 2D names what its
  *  own fields name (figure-plan.ts: the stations its `labels` and the words of its line point at, in the colours of the 2D targets). */
-export function labelsAt(stops: Stop[], pos: { stop: number; beat: number }, deckId?: string): LabelsAt {
+export function labelsAt(stops: Stop[], pos: { stop: number; beat: number }, deckId?: string, data?: readonly (DataAt | null)[]): LabelsAt {
   if (!stops.length) return NONE();
   const s = stops[pos.stop];
   if (s.kind === 'check') return { ...NONE(lastCath(stops) ?? null), panel: true };
   const v = viewAt(stops, pos, lastSlideShot(stops));
   if (!v.slide || v.words === 'case') return { ...NONE(), panel: v.words === 'title' };
-  const k = keyAtStop(stops, pos.stop, pos.beat), key = k && keyPlace(k) === 'dock' ? k : null, panel = v.words === 'visual';   // (a stream lens's key stands in its data card instead: cardKeyAt)
+  const k = keyAtStop(stops, pos.stop, pos.beat), panel = v.words === 'visual';
+  // (a stream lens's key stands in its data card when one stands there, else here: keyHomes. `data` is the talk's data cards (keep.ts); without it the card is taken to stand)
+  const key = keyHomes({ own: k, buttons: false, pressed: null, cardStands: data ? data[pos.stop]?.kind === 'ladder' : true }).dock;
   const copied = copiedSlideOf(deckId, v.slide), controls = controlNamesOf(v.slide);
   if (copied) {
     const p = figurePlan(copied);
@@ -95,13 +122,14 @@ export function linkLabelsToDeck(): () => void {
   const sync = () => {
     const { stops, pos, deck } = useUi.getState();
     // no talk, no names asked for and no catheter: the slide a talk left on (its store is kept until the next talk opens) must not hold the figure's labels back
-    const next = deck ? labelsAt(stops, pos, deck.id) : NONE();
+    const next = deck ? labelsAt(stops, pos, deck.id, dataKeys(deck, stops)) : NONE();
     const cur = useLabels.getState();
     const keyed = deck ? true : owns;   // (no talk: the key is left as it is unless a talk had set it)
     const sameKey = !keyed || cur.key === next.key;
-    const same = cur.presenting === !!deck && cur.cath === next.cath && sameSet(cur.named, next.named) && sameSet(cur.shown, next.shown) && sameTones(cur.tones, next.tones) && sameKey
+    const same = (cur.pressed === null || !keyed) && cur.presenting === !!deck
+      && cur.cath === next.cath && sameSet(cur.named, next.named) && sameSet(cur.shown, next.shown) && sameTones(cur.tones, next.tones) && sameKey
       && cur.panel === !!next.panel && sameNames(cur.controls, next.controls ?? []);
-    if (!same) { const { key, ...rest } = next; cur.set({ ...(keyed ? { ...rest, key } : rest), controls: next.controls ?? [], panel: !!next.panel, presenting: !!deck }); }
+    if (!same) { const { key, ...rest } = next; cur.set({ ...(keyed ? { ...rest, key, pressed: null } : rest), controls: next.controls ?? [], panel: !!next.panel, presenting: !!deck }); }
     owns = !!deck;
   };
   sync();

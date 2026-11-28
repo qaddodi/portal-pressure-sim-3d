@@ -79,7 +79,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const vp = useUi((s) => s.vp);
   const wallet = useUi((s) => s.wallet);
   const readings = useUi((s) => s.readings);
-  const liveKey = useLabels((s) => s.key);   // (the lens a pressed lens button put on the figure: the data card's key row follows it, deck-link.ts cardKeyAt)
+  const pressedLens = useLabels((s) => s.pressed);   // (the lens a pressed lens button put on the figure: the data card's key row follows it, deck-link.ts keyHomes)
   const move = useUi((s) => s.move);
   const swapWallet = useUi((s) => s.swapWallet);
   const docked = useUi((s) => s.docked);
@@ -411,7 +411,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const stacked = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   // each card draws what it was given when it came in, so a card that is leaving keeps its own words while it goes
   const snaps = snapRef.current;
-  const now: Snap = { deck, dkey: cardKeyAt(stops, here?.from ?? pos.stop, liveKey), slide: view.slide, dslide: carried ?? view.slide, pages, at, trim, readings };
+  const now: Snap = { deck, dkey: cardKeyAt(stops, pos.stop, pressedLens, here?.kind === 'ladder'), slide: view.slide, dslide: carried ?? view.slide, pages, at, trim, readings };
   const content = (e: Entry) => {
     // (only the card the view is on takes the view's words: for the render before a slide change reaches the stack, the card still standing is the old slide's, and must keep its own)
     if (e.phase === 'in' && (e.key === wordsKey || e.key === dataKey)) snaps[e.key] = now;
