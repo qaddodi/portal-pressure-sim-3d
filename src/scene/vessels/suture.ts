@@ -49,7 +49,7 @@ export function seamReach(s: SeamCurve): { slant: number; reach: number; der: nu
     slant = Math.max(slant, Math.abs(seamAtA(s, a) - a0));
     der = Math.max(der, Math.abs(s.c[1] + a * (2 * s.c[2] + a * (3 * s.c[3] + a * 4 * s.c[4]))));
   }
-  return { slant, reach: s.n > 0 ? 1.0 : 4.6, der };
+  return { slant, reach: 0.4, der };
 }
 
 export const SUTURE_VS = /* glsl */ `
@@ -58,7 +58,7 @@ uniform vec3 sHead;     // the unit heading from the ring away from the node, in
 uniform float sCourse;  // +1 where the tube's course runs along the heading (the vessel's start), -1 where it runs against it (its end)
 uniform float sRest;    // the ring's mean rest radius (scene units)
 uniform vec4 sData;     // the arm's data texel (index, built diameter, width kind) and the waist its tube has at the ring
-uniform vec2 sExt;      // how far the ribbon reaches along the arm: figure units, and the share that grows with the curve's slope per the half width
+uniform vec3 sExt;      // how far the ribbon reaches along the arm: figure units, and the share that grows with the curve's slope per the half width
 uniform float frontDepth;
 uniform float useData;
 uniform sampler2D vdata;
@@ -71,7 +71,7 @@ void main() {
   float sw = swellOf(sData.x, sData.y, sData.z) * (1.0 - clamp(sData.w, 0.0, 0.97));
   float R = sRest * sw;
   float rr = max(R * ${F(SUTURE_UNITS)}, 0.3);
-  float sig = aq.y * (sExt.x + sExt.y / rr);
+  float sig = aq.y * (sExt.x + sExt.y / rr + sExt.z * rr);
   vec3 axisM = sCentre + sHead * (sig / ${F(SUTURE_UNITS)});
   vec3 camM = (inverse(modelMatrix) * vec4(cameraPosition, 1.0)).xyz;
   vec3 V = normalize(camM - axisM);
@@ -108,7 +108,7 @@ void main() {
   float own = circT <= 0.0 ? 0.0 : circT >= 1.0 || px >= 1.0 ? 1.0 : px <= 0.0 ? 0.0 : px * px * (3.0 - 2.0 * px);
   float k = sAlpha * (1.0 - smoothstep(0.0, ${F(SKIN_CIRC_SPAN)}, own));
   vec2 st = seamStitch(sSeamA, sSeamB, sSeamA.x + vMark.y, clamp(vMark.x, -1.0, 1.0), vMark.z, fwAcr);
-  float te = st.y * 0.4;
+  float te = st.y * 0.85;
   float al = st.x + (1.0 - st.x) * te;   // (the tube's marks as an overlay: mix(mix(body, EDGE, te * 0.4), THREAD, tw) is body (1 - al) + rgb al)
   if (al * k < 0.004) discard;
   gl_FragColor = vec4((THREAD * st.x + THREAD_EDGE * (1.0 - st.x) * te) / max(al, 1e-5), al * k);
@@ -151,7 +151,7 @@ export class SutureObject {
     Object.assign(uniforms, {
       sCentre: { value: [0, 0, 0] }, sHead: { value: [0, 0, 1] }, sCourse: { value: end === 0 ? 1 : -1 }, sRest: { value: 0 },
       sData: { value: [(au.vindex!.value as number), (au.baseD!.value as number), (au.widthKind!.value as number), 0] },
-      sExt: { value: [0, 0] }, sSeamA: { value: [0, 0, 0, 0] }, sSeamB: { value: [0, 0, 0, 0] }, sAlpha: { value: 0 }, sRank: { value: rankAt(vesselId, end) || 0 }, frontDepth: au.frontDepth!,
+      sExt: { value: [0, 0, 0] }, sSeamA: { value: [0, 0, 0, 0] }, sSeamB: { value: [0, 0, 0, 0] }, sAlpha: { value: 0 }, sRank: { value: rankAt(vesselId, end) || 0 }, frontDepth: au.frontDepth!,
     });
     // (plain arrays hold the vectors: three takes an array of 3 or 4 numbers for a vec3 / vec4 uniform, and the tests read them as they are)
     this.material = setBlendState(markBlends(new ShaderMaterial({ name: 'suture', vertexShader: SUTURE_VS, fragmentShader: SUTURE_FS, precision: 'highp', transparent: true, depthWrite: false, depthTest: true, uniforms })), true);
@@ -178,7 +178,7 @@ export class SutureObject {
       if (curve) {
         const r = seamReach(curve);
         u.sSeamA!.value = [curve.c[0], curve.c[1], curve.c[2], curve.c[3]]; u.sSeamB!.value = [curve.c[4], curve.n, curve.dash, curve.per];
-        u.sExt!.value = [r.slant + r.reach + 0.2, 0.8 * r.der];
+        u.sExt!.value = [r.slant + r.reach + 0.2, 0, 0.42 * 1.0];   // (a bite reaches 0.27 R along the arm, its thread and ink 0.13 R more)
       }
       changed = true;
     }

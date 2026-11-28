@@ -705,7 +705,8 @@ export function createCore(post) {
         // keys st.trail names, or (true) the portal pressure and flow.
         const tk = Array.isArray(st.trail) ? st.trail : ['pv', 'pvFlow'];
         const vals = (m, eng) => { const f = fingerprint(m, eng); return tk.map((k) => f[k]); };
-        const at = (d, m) => [d, ...vals(m, e)], trail = st.trail && st.days ? [at(0, computeMetrics(e))] : null;
+        // (a trail that does not read the stiffness leaves it out of its days' metrics: computeMetrics opts.noLsm, a settle of a twin model a day with a beta-blocker on)
+        const tm = tk.includes('lsm') ? null : { noLsm: true }, at = (d, m) => [d, ...vals(m, e)], trail = st.trail && st.days ? [at(0, computeMetrics(e, null, tm))] : null;
         // (The chart's two ends are what the slide's tiles read, i.e. the bedside readings; the days between are the quiet model's, moved by the gap to each end in proportion.)
         const gap0 = trail ? (() => { const c = new Engine(); c.restore(e.snapshot()); atBedside(c); const b = vals(computeMetrics(c), c); return b.map((v, j) => v - trail[0][j + 1]); })() : null;
         // start: a time-lapse with its own params plays from here (params set and settled, no day run yet), not from the slide before.
@@ -716,7 +717,7 @@ export function createCore(post) {
           if (rampVol.length && done < RETAIN_RAMP_DAYS) for (const mL of rampVol) e.addVolume(mL * Math.min(n, RETAIN_RAMP_DAYS - done) / RETAIN_RAMP_DAYS, 0.35, true);
           yield* e.advanceDaySteps(n, { noRupture: true, silent: true });
           done += n;
-          if (trail && done < st.days) trail.push(at(done, computeMetrics(e)));
+          if (trail && done < st.days) trail.push(at(done, computeMetrics(e, null, tm)));
         }
         if (st.preset || st.params || st.action || st.days) { e.settle(); e.finishInfusions(); }   // (a transfusion on the slide is done, not still dripping)
         // (What the page is handed is read from a copy run at the bedside; the chain goes on from the settled model, so a slide's state never depends on the warm-up of the one before.)
@@ -724,7 +725,7 @@ export function createCore(post) {
         if (moved || !w) { w = new Engine(); w.restore(e.snapshot()); atBedside(w); }   // (a slide that changes nothing is the one before)
         const m = computeMetrics(w);
         if (trail) {
-          const last = at(st.days, computeMetrics(e)), gap1 = vals(m, w).map((v, j) => v - last[j + 1]);
+          const last = at(st.days, computeMetrics(e, null, tm)), gap1 = vals(m, w).map((v, j) => v - last[j + 1]);
           trail.push(last);
           for (const row of trail) { const u = row[0] / st.days; for (let j = 0; j < tk.length; j++) row[j + 1] += gap0[j] * (1 - u) + gap1[j] * u; }
         }

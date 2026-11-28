@@ -204,20 +204,24 @@ export const SEAM_STITCH_GLSL = /* glsl */ `// the running stitch at a sewn end:
 float threadCore(float d) { return 1.0 - smoothstep(0.30, 0.52, d); }
 float threadEdge(float d) { return 1.0 - smoothstep(0.62, 1.05, d); }
 vec2 seamStitch(vec4 A, vec4 B, float sl, float aa, float rr, float fwAcr) {
-  float s0 = A.x + aa * (A.y + aa * (A.z + aa * (A.w + aa * B.x)));
-  float ds = (A.y + aa * (2.0 * A.z + aa * (3.0 * A.w + aa * 4.0 * B.x))) / rr;
-  float sq = sqrt(1.0 + ds * ds), dd = abs(sl - s0) / sq, dsh = 1.0;
-  if (B.y > 0.5) {
-    // (a dash is a capsule: its distance is taken to the dash's own axis along the curve, so its ends are round like the thread, never cut square)
-    float tn = clamp((aa + 0.97) / 1.94, 0.0, 1.0), kd = floor(tn / B.w), q = tn - kd * B.w;
-    float along = (q - 0.5 * B.z) * 1.94 * rr * sq, halfLen = max(0.5 * B.z * 1.94 * rr * sq - 0.45, 0.0);
-    dd = length(vec2(max(abs(along) - halfLen, 0.0), dd));
-    dsh = step(kd, B.y - 0.5) * smoothstep(0.97, 0.9, abs(aa));
-  } else {
-    dd = min(dd, min(abs(sl - s0 - 3.5), abs(sl - s0 + 3.5)));
-    dsh = smoothstep(1.0, 0.92, abs(aa));
+  // slanted bites (Mohammad's pick B, 28 Nov): six short stitches that cross the seam, each leaned along it,
+  // a flat thread with a crisp ink outline (cel shaded: hard edge, one pixel of smoothing). Sized by the lumen's half width.
+  float R = max(rr, 0.3), pw = clamp(fwAcr * R * 0.75, 0.02, 0.3), rc = 0.07 * R, re = 0.06 * R, hf = 0.27 * R, cov = 0.0, ink = 0.0;
+  vec2 p = vec2(sl, aa * R);
+  float k0 = floor((aa + 0.9) / 0.3);
+  for (int i = -1; i <= 1; i++) {
+    float ac = -0.75 + 0.3 * clamp(k0 + float(i), 0.0, 5.0);
+    float s0 = A.x + ac * (A.y + ac * (A.z + ac * (A.w + ac * B.x)));
+    float ds = A.y + ac * (2.0 * A.z + ac * (3.0 * A.w + ac * 4.0 * B.x));
+    vec2 T = normalize(vec2(ds, R)), Nn = vec2(T.y, -T.x), d = normalize(Nn + 0.55 * T), q = p - vec2(s0, ac * R);
+    float dist = length(q - d * clamp(dot(q, d), -hf, hf));
+    // (where the seam runs nearly along the vein, its stitches ease out: no stray streak)
+    float ok = 1.0 - smoothstep(2.2, 2.8, abs(ds) / R);
+    cov = max(cov, ok * (1.0 - smoothstep(rc - pw, rc + pw, dist)));
+    ink = max(ink, ok * (1.0 - smoothstep(rc + re - pw, rc + re + pw, dist)));
   }
-  return vec2(threadCore(dd) * dsh, threadEdge(dd) * dsh);
+  float dsh = 1.0 - smoothstep(0.93, 0.99, abs(aa));
+  return vec2(cov * dsh, ink * dsh);
 }`;
 
 /** The stent in the Circuit, the surgical stitches, the stump's tie and the wedge's amber column, painted on the tube (a part of main, in its own locals: c, across, pxArc, fwPx, fwTh, fwAcr, inkT; with stentU, stentWire, stentGoldC, seamA, seamB, stump, wedge, wedgeD, wedgeCol, circT, len, vU, vR, vR0, vArcLen, vUv, and what the stent's heading needs). Spliced exactly where it stood in vessels/shaders.ts. */
@@ -267,7 +271,7 @@ export const PROCEDURE_MARKS_GLSL = /* glsl */ `  ${THREAD_GLSL}   // (a pale su
       tw = max(tw, st.x);
       te = max(te, st.y);
     }
-    c = mix(c, THREAD_EDGE, te * 0.4);
+    c = mix(c, THREAD_EDGE, te * 0.85);
     c = mix(c, THREAD, tw);
   }
   // the tie on a divided vein's stump: a ligature of two fine turns a hair apart, leaning a little across the front of the vein (never a stripe round it), and the knot where the ends meet, in the one thread colour (THREAD, a pale suture, never orange)

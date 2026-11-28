@@ -240,6 +240,9 @@ export const REVIEWER_24NOV_E = [
   // Same gradient 4 and 6: the model's own resistance and its own index
   SET('same-gradient', 'slides.flow.line', 'In another patient with CSPH, the portal vein carries {pvFlow}, against {pvFlow@ref} in the first. The HVPG is {hvpg}: the same pressure drop across more flow means the model\'s sinusoidal resistance (gradient ÷ flow) is lower.'),
   SET('same-gradient', 'slides.cost.line', 'The varices are {varix} and the platelets {plt}, better than in the first man. The liver gets {liver} of its normal flow, and the model\'s HE index (0 to 1) is in its high range.'),
+  // Same gradient 1 and 4 (review of 28 Nov, the junction model moved the readings): the four patients are tuned to ONE HVPG, to one decimal (the notes say so). After the junction model the shunt patient read 12.4 and the first man 12.1 against 12.0 for the other two, and the shunt patient's PPG crossed 12. Retuned: first man cirrhosis 0.64 to 0.635, shunt patient splanchnic tone 1.05 to 1.33 (HVPG 12.0, PPG 11.9, as before).
+  SET('same-gradient', 'slides.ref.params', { cirrhosis: 0.635 }),
+  SET('same-gradient', 'slides.shunt.params', { cirrhosis: 1, splanchnicTone: 1.33 }),
   // Lowering portal pressure 7: terlipressin in HRS-AKI goes with albumin; in variceal bleeding it is given without albumin as part of that regimen
   SET('treatment', 'slides.terli.line', 'Terlipressin, a vasopressin analog, constricts the splanchnic arterioles, so portal inflow falls to {pvFlow}. In HRS-AKI it is given with albumin, and the abdominal perfusion pressure (APP) rises to {rpp}. In an acute variceal bleed it is given for the bleed itself, and albumin is not part of that regimen.'),
   // Collaterals and varices 9: a rescue TIPS and a preemptive TIPS are two different indications

@@ -20,6 +20,7 @@ import { Roll } from './Roll.tsx';
 import { I } from '../shell/icons.tsx';
 import { useCardZoomOn } from './card-zoom.ts';
 import { Fade, fadeAttrs } from '../fade.tsx';
+import { readMetric, readStyle } from '../treat/sheet-shim.ts';
 import { seriesAttrs } from '../text/series-tone.ts';
 
 /** A slide's tiles from its state: the slide's own (the last one before it that changed the patient, as 2D has it), the state its change counts from, and the page's phone-ness. */
@@ -55,14 +56,36 @@ export function TilesHead({ deckId, slideId, onZoom }: { deckId: string; slideId
   const zoomed = useCardZoomOn();
   const vp = useUi((s) => s.vp);
   const copied = copiedOf(deckId)?.slides.find((s) => s.id === slideId);
-  if (!copied) return null;
-  const lay = layoutOf(vp.w, vp.h), title = cardTitle(copied, lay === 'stack' || lay === 'tab' || isShortSide(vp.w, vp.h));
+  const row = useRef<HTMLDivElement>(null);
+  const lay = layoutOf(vp.w, vp.h), title = copied ? cardTitle(copied, lay === 'stack' || lay === 'tab' || isShortSide(vp.w, vp.h)) : '';
   const heads = t?.toolOnly ? t.tiles.filter((x) => t.head.includes(x.k)) : [];
+  // (The Doppler card has no title (28 Nov, Mohammad: "doesn't need a title, just maximize the monitor area"): the heading stays in the page for a screen reader but leaves the flow,
+  //  `.pz-dh.dt-off`, and the monitor is as much taller as the header row was deeper with it (`--dh-freed` on the card, written before the first paint: the card keeps its size).)
+  const noTitle = (copied?.tool as { kind?: string } | undefined)?.kind === 'doppler';
+  useLayoutEffect(() => {
+    const el = row.current, card = el?.closest<HTMLElement>('.pz-data');
+    if (!el || !card || !noTitle) return;
+    const write = () => {
+      // the row as it stood with its title, then as it stands without it (both read in one go, nothing painted between)
+      const gap = parseFloat(readStyle(el.parentElement ?? el).rowGap) || 0;
+      el.classList.remove('dt-off');
+      const withT = readMetric(el, 'offsetHeight') + gap;
+      el.classList.add('dt-off');
+      const without = heads.length ? readMetric(el, 'offsetHeight') + gap : 0;
+      const n = Math.max(0, Math.round(withT - without));
+      card.style.setProperty('--dh-freed', `${n}px`);
+    };
+    write();
+    let alive = true;
+    if (typeof document !== 'undefined' && document.fonts && document.fonts.status !== 'loaded') void document.fonts.ready.then(() => { if (alive) write(); });
+    return () => { alive = false; card.style.removeProperty('--dh-freed'); };
+  }, [noTitle, title, heads.length, vp.w, vp.h]);   // eslint-disable-line react-hooks/exhaustive-deps
+  if (!copied) return null;
   // (The Gut to Heart card has no title: the chart's own zone words say it (24 Nov, Mohammad: "GUT TO HEART title can drop"). The heading stays in the page for a screen reader but leaves the flow, and the chart
   //  takes the height it held: ProfileCard measures it, `.pz-dh.off`.)
   const off = (copied.tool as { kind?: string } | undefined)?.kind === 'profile' && !heads.length;
   return (
-    <div className={off ? 'pz-dh off' : 'pz-dh'}>
+    <div ref={row} className={off ? 'pz-dh off' : noTitle ? (heads.length ? 'pz-dh dt-off' : 'pz-dh off dt-off') : 'pz-dh'}>
       <span>{titleUnits(title).map((p, i) => (i % 2 ? <span key={i} className="pz-unit">{p}</span> : p))}</span>
       <span className="pz-hr" data-n={heads.length}>
         {heads.map((x) => (

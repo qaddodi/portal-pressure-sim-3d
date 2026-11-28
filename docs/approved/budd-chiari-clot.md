@@ -14,3 +14,9 @@ Before: the app at `8de0ca39` (the mural cast at full occlusion: a flat red slab
 
 ## Held by
 `tests/clot-shader.test.ts` (fill, continuity, GLSL), `tests/hv-clot-ends.test.ts` (ends before the join, trunk length, clearance at every scale), `tests/hv-ostia.test.ts`, `tests/anatomy-placed-devices.test.ts`.
+
+## Ruling, 28 Nov: the TIPS flow in Budd-Chiari
+Mohammad kept the small flow through a TIPS in Budd-Chiari (about 2.2 mL/s in the engine, under the engine test's 15% of open flow, `tests/engine-departures.test.ts` and the junction table's own test). It is not to be shut. A TIPS in Budd-Chiari that carries a small trickle is the model's answer, kept on purpose.
+
+## Ruling, 28 Nov: shunts slides 6 to 8 read PPG 11.2 mmHg
+Mohammad accepted the PPG of 11.2 mmHg (it was 9.8) on the shunts deck's slides 6 to 8 (the day after an 8 mm TIPS), under the 12 mmHg reference. No retune. This is the junction model's reading; do not tune it back.

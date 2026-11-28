@@ -80,7 +80,7 @@ const spareOf = (r) => spares.get(r) || (spares.set(r, { meas: {}, gOn: {}, gOff
 // (A reading through the dead band at its printed precision, engine holdShown; an engine without it, a stand-in in a test, reads as it is.)
 const hold = (eng, k, v, step) => (eng.holdShown ? eng.holdShown(k, v, step) : v);
 const part = (r, k) => r[k] || (r[k] = {});   // alloc-rare: a record inside the metrics, made when the metrics record is (once for the tick's, per call for a reader that gave none)
-export function computeMetrics(eng, out = null) {
+export function computeMetrics(eng, out = null, opts = null) {
   const P = eng.Pf || eng.P, ni = eng.ni, ei = eng.ei, p = eng.params;
   if (!eng.baseHepFlow) eng.baseHepFlow = eng.refQ ? eng.refQ[ei.SIN_RR] + eng.refQ[ei.SIN_LL] : 25;
 
@@ -178,7 +178,8 @@ export function computeMetrics(eng, out = null) {
   // advanced, and with congestion at about 2 kPa per mmHg of free hepatic vein pressure above normal
   // (heart failure and hepatic outflow block stiffen the liver too). It reads the gradient the liver would have without a
   // beta-blocker (Engine.hvNoBlocker): the drug lowers the HVPG, not the stiffness (AASLD 2024 p. 1189).
-  r.lsm = hold(eng, 'lsm', lsmOf(eng.hvNoBlocker ? eng.hvNoBlocker(hv) : hv, eng.params.cirrhosis));
+  // (opts.noLsm: a reader that never looks at the stiffness leaves it out: with a beta-blocker on, it costs a whole settle of a twin model, and a time-lapse's trail read it on every one of its days)
+  if (!opts?.noLsm) r.lsm = hold(eng, 'lsm', lsmOf(eng.hvNoBlocker ? eng.hvNoBlocker(hv) : hv, eng.params.cirrhosis));
   r.scar = eng.params.cirrhosis;   // (the liver's sinusoidal scar, 0 to 1: lsm-cuts.js lsmContext tells a vascular liver from a fibrotic one by it)
   // Spleen stiffness (the 100 Hz spleen probe, kPa), an estimate from the model (ssm-cuts.js): the red pulp's transmural pressure
   // (its pressure less the abdomen's) and the spleen's size. Unlike the liver's, it follows the pressure as it stands, beta-blocker

@@ -16,3 +16,11 @@ Rejected (same sheets, never rebuild): round 1 (A Quiet, B The reading first, C 
 
 Tests: `tests/doppler-card-q.test.ts` (the pane renders with the usual-speed row and no gauge on the Tests card, a slide keeps its gauge; our stylesheet decides every property it sets on a laptop, a phone and a tablet at the side; three fixed rows).
 Code: `src/ui/tests/doppler/doppler-card.css`, `DopplerPane.tsx` (`dop-usual`), `model.ts` (`usualSpeed`).
+
+## A slide's Doppler card has no title (28 Nov 2026)
+
+Mohammad, 28 Nov: "Doppler instrument card in slides doesn't need a title tbh just it maximize the monitor area". Slides only (the Tests card is above and unchanged).
+- The heading ("Doppler, main portal vein" and the dataTitle of a slide) is no longer drawn. It stays in the page for a screen reader and leaves the flow (`.pz-dh.dt-off`; a card with no readings in the row drops the row whole, `.off`, as the Gut to Heart card did).
+- A card whose header row holds readings (28 of the 41 Doppler slides) keeps the readings, now centred.
+- The monitor is as much taller as the row was deeper with its title (`--dh-freed`, written by `TilesHead` before the first paint, on every layout, a phone on its side too). The card's own size never changes.
+- Code: `src/ui/cards/TilesCard.tsx` (TilesHead), `src/ui/css3d-over-2d.css`. Test: `tests/doppler-no-title.test.ts`.
