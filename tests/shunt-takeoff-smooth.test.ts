@@ -6,7 +6,8 @@
 // Pinned for EVERY growing arm of EVERY skin the network makes (a new shunt or collateral is held to it with no edit here):
 //   1. the capsule's root is the node itself, the host's own axis point the junction table places;
 //   2. the capsule's root and its first bend stay within TAKEOFF_OFF_R of the tube's own course (the tube is drawn on its course, so the skin's capsule follows the tube out of the host);
-//   3. the straight line back from the seam, as the capsule had it, does NOT hold (the check sees the defect it was made for).
+//   3. the capsule's one bend (where its bridge from the node meets the line through the seam) turns no more than TAKEOFF_BEND_DEG: a corner there is a kink in the outline;
+//   4. the straight line back from the seam, as the capsule had it, does NOT hold (the check sees the defect it was made for).
 // A tube that does not reach its node at all (the varices' arch landing, C1b, PENDING in tests/junction-ends.test.ts: its course ends 3 radii from the node, bridged) is left out of 2, as it is bridged from the node by rule.
 // Node only. Run: node --test tests/shunt-takeoff-smooth.test.ts
 import { test } from 'node:test';
@@ -21,7 +22,8 @@ import { SkinObject } from '../src/scene/vessels/skin/skin-object.ts';
 
 type V = readonly number[];
 /** How far (in the arm's seam radii) the capsule's root and its first bend may stand from the tube's own course. The straight line back from the seam stood 1.1 to 1.9 off; the bridge stands 0.4 off at most (the tube's own arc against the chord). */
-export const TAKEOFF_OFF_R = 0.5;
+export const TAKEOFF_OFF_R = 0.5, TAKEOFF_BEND_DEG = 40;
+const sub = (a: V, b: V): number[] => [a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!];
 const dist = (a: V, b: V): number => Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!);
 /** The distance from `p` to a polyline. */
 function offCourse(c: readonly V[], p: V): number {
@@ -34,7 +36,7 @@ function offCourse(c: readonly V[], p: V): number {
   return best;
 }
 
-interface Take { node: string; id: string; end: 0 | 1; rootToNode: number; off: number; oldOff: number; reaches: boolean; seamR: number }
+interface Take { bend: number; node: string; id: string; end: 0 | 1; rootToNode: number; off: number; oldOff: number; reaches: boolean; seamR: number }
 
 let cached: Take[] | undefined;
 /** Every growing arm's take-off, built once for the file (the skins are the slow part). */
@@ -57,8 +59,11 @@ function takeOffs(): Take[] {
           const h = [ax.pts[3]![0]! - ax.pts[2]![0]!, ax.pts[3]![1]! - ax.pts[2]![1]!, ax.pts[3]![2]! - ax.pts[2]![2]!], hl = Math.hypot(h[0]!, h[1]!, h[2]!) || 1, back = dist(ax.pts[2]!, node);
           const old: V = [ax.pts[2]![0]! - (h[0]! / hl) * back, ax.pts[2]![1]! - (h[1]! / hl) * back, ax.pts[2]![2]! - (h[2]! / hl) * back];
           const end = arm.end ? course[course.length - 1]! : course[0]!;
+          const d1 = sub(ax.pts[1]!, ax.pts[0]!), d2 = sub(ax.pts[2]!, ax.pts[1]!);
+          const l1 = Math.hypot(d1[0]!, d1[1]!, d1[2]!), l2 = Math.hypot(d2[0]!, d2[1]!, d2[2]!);
+          const bend = l1 > 1e-9 && l2 > 1e-9 ? (Math.acos(Math.max(-1, Math.min(1, (d1[0]! * d2[0]! + d1[1]! * d2[1]! + d1[2]! * d2[2]!) / (l1 * l2)))) * 180) / Math.PI : 0;
           out.push({
-            node: mesh.junction.node, id: arm.vesselId, end: arm.end, rootToNode: dist(ax.pts[0]!, node), seamR,
+            bend, node: mesh.junction.node, id: arm.vesselId, end: arm.end, rootToNode: dist(ax.pts[0]!, node), seamR,
             off: Math.max(offCourse(course, ax.pts[0]!), offCourse(course, ax.pts[1]!)) / seamR, oldOff: offCourse(course, old) / seamR, reaches: dist(end, node) < 1.5 * seamR,
           });
         });
@@ -81,6 +86,9 @@ test('every growing arm of every skin starts at its node and leaves along its tu
   for (const t of all) {
     const name = `${t.id} at ${t.node} (end ${t.end})`;
     if (!(t.rootToNode < 1e-9)) bad.push(`${name}: its capsule's root is ${(t.rootToNode / t.seamR).toFixed(2)} radii off the node`);
+    else if (t.reaches && !(t.bend <= TAKEOFF_BEND_DEG)) {
+      bad.push(`${name}: its capsule bends ${t.bend.toFixed(0)} degrees between its bridge from the node and the line through its seam (at most ${TAKEOFF_BEND_DEG})`);
+    }
     else if (t.reaches && !(t.off <= TAKEOFF_OFF_R)) bad.push(`${name}: its capsule leaves ${t.off.toFixed(2)} radii off the tube's own course (at most ${TAKEOFF_OFF_R})`);
   }
   assert.deepEqual(bad, [], bad.join('\n'));
