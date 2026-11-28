@@ -21,6 +21,9 @@ export interface SkinArm {
   /** A SIDE-WALL arm (spec 10.1): the stretch of this vessel on one side of the point `u` along it (`dir` -1 the part below `u`, +1 the part above), where the junction lies on the vessel's side and not at a node. `end` is then 1 for dir -1 and 0 for dir +1
    *  (the rings run away from the junction the way an end's do), and the arm's walk starts at the ring nearest `u` instead of the tube's own end. Two side arms of one vessel (a virtual node mid-host) leave a HOLE in it (VesselObject.setSkinHole). */
   side?: { u: number; dir: -1 | 1 };
+  /** On the BRANCH arm of a mid-vein split (inventory.ts liverBranchJunctions): the acute angle in degrees between the branch's
+   *  heading at the split and the host's axis there. The fillet is widened by it (`forkFillet`). */
+  splitDeg?: number;
   /** A GROWING arm (spec 10.2): a collateral or a shunt, which comes and goes. Its seam is chosen at full radius and never moves; the skin is one static shape with the arm whole and the weld (plain.ts) hands the tube over to it at growth 0.9 to 1. */
   grow?: boolean;
   /** The DIVIDED vein's start (divide.ts DIVIDED: the splenic vein under a Warren shunt, the portal trunk under an end-to-side portocaval): the id of the shunt that divides it, a growing arm of this same junction. While that shunt is in AND the vein is divided
@@ -30,6 +33,18 @@ export interface SkinArm {
 
 /** The radius an arm really has at the junction (types.ts `jointR`), else its nominal one: what the blend width is a share of. */
 export const armR = (a: Pick<SkinArm, 'restR' | 'jointR'>): number => a.jointR ?? a.restR;
+
+/** THE FORK FILLET (Mohammad, 28 Nov: the right hepatic vein's split "not seamless smooth", a corner on the upper edge and a
+ *  notch where the lower branch leaves). A vein that splits in the middle of another leaves its two daughters at an angle,
+ *  and the plain blend (`SKIN_K` of the narrowest radius, 0.0105 here against tubes 0.013 to 0.019) rounds that corner over
+ *  less than a tube's width: the outline turned 20 degrees per 0.01 of arc. The blend of a mid-vein split grows with the
+ *  angle the branch leaves at: 1 + FORK_GAIN x sin(angle), so a wider split gets a wider fillet and a branch that runs on
+ *  along its host (angle 0) none. It stays a share of the narrowest radius at the joint, so it follows tube size. */
+export const FORK_GAIN = 1.2;
+export const forkFillet = (arms: readonly Pick<SkinArm, 'splitDeg'>[]): number => {
+  const d = arms.reduce((m, a) => Math.max(m, a.splitDeg ?? 0), 0);
+  return d > 0 ? 1 + FORK_GAIN * Math.sin((d * Math.PI) / 180) : 1;
+};
 
 /** One junction: a node where 3 or 4 permanent tubes meet. */
 export interface SkinJunction {

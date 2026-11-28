@@ -188,8 +188,19 @@ export const isLiverBranch = (v: NetVessel): boolean => !!v.feeder && v.feeder.w
 /** The end of a liver branch that lies on its host (the feeder's `join`). */
 const branchEndOf = (v: NetVessel): 0 | 1 => ((v.plan?.kind === 'feeder' ? v.plan.list[0]?.join : 0) ?? 0) as 0 | 1;
 
+/** The acute angle (degrees) between a branch's heading out of its join and the host's axis at `u`: the branch's course
+ *  four of its radii on from the join, against the host's tangent there (either way along it). */
+function splitAngleDeg(hp: readonly Vec3[], u: number, cp: readonly Vec3[], end: 0 | 1, r: number): number {
+  const a = pointAtShare(hp, Math.max(0, u - 0.02)), b = pointAtShare(hp, Math.min(1, u + 0.02)), c = end ? [...cp].reverse() : cp;
+  let q = c[c.length - 1]!, d = 0;
+  for (let i = 1; i < c.length; i++) { d += Math.hypot(c[i]![0] - c[i - 1]![0], c[i]![1] - c[i - 1]![1], c[i]![2] - c[i - 1]![2]); if (d >= 4 * r) { q = c[i]!; break; } }
+  const t = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], h = [q[0] - c[0]![0], q[1] - c[0]![1], q[2] - c[0]![2]];
+  const cos = Math.abs(t[0]! * h[0]! + t[1]! * h[1]! + t[2]! * h[2]!) / ((Math.hypot(t[0]!, t[1]!, t[2]!) * Math.hypot(h[0]!, h[1]!, h[2]!)) || 1);
+  return (Math.acos(Math.min(1, cos)) * 180) / Math.PI;
+}
+
 /** Where a liver branch meets its host: the host, the branch's end at the host, the point of the host's axis nearest to it, its share `u` of the host and its distance along the host from the host's end at the branch's node (in the host's radii). */
-function branchMeet(v: NetVessel, state: ShapeState): { host: NetVessel; end: 0 | 1; at: Vec3; u: number; fromNodeR: number } | null {
+function branchMeet(v: NetVessel, state: ShapeState): { host: NetVessel; end: 0 | 1; at: Vec3; u: number; fromNodeR: number; deg: number } | null {
   const host = NETWORK_BY_ID.get(v.feeder!.host), item = v.plan?.kind === 'feeder' ? v.plan.list[0] : undefined;
   if (!host || !item) return null;
   const hp = coursesOf(host, state)[0]!.pts as readonly Vec3[], cp = coursesOf(v, state)[0]!.pts as readonly Vec3[];
@@ -197,11 +208,12 @@ function branchMeet(v: NetVessel, state: ShapeState): { host: NetVessel; end: 0 
   if (near.u <= SIDE_EDGE || near.u >= 1 - SIDE_EDGE) return null;
   // (the host's end at the branch's node: the end whose node the branch names for its own join end)
   const node = end ? v.to : v.from, hostEnd = host.from === node ? 0 : host.to === node ? 1 : -1;
-  if (hostEnd < 0) return { host, end, at: near.at, u: near.u, fromNodeR: Infinity };
+  const deg = splitAngleDeg(hp, near.u, cp, end, v.radius);
+  if (hostEnd < 0) return { host, end, at: near.at, u: near.u, fromNodeR: Infinity, deg };
   let total = 0, upTo = 0;
   for (let i = 1; i < hp.length; i++) total += Math.hypot(hp[i]![0] - hp[i - 1]![0], hp[i]![1] - hp[i - 1]![1], hp[i]![2] - hp[i - 1]![2]);
   upTo = hostEnd ? (1 - near.u) * total : near.u * total;
-  return { host, end, at: near.at, u: near.u, fromNodeR: upTo / host.radius };
+  return { host, end, at: near.at, u: near.u, fromNodeR: upTo / host.radius, deg };
 }
 /** A liver branch that leaves its host within `SKIN_REACH` radii of the host's end at their node is one more arm of that node's skin (the right portal vein's second branch at RPV_T, the left's at LPV_A): its end lies inside the host's wall, bridged to J like any arm. */
 export const joinsNode = (v: NetVessel, state: ShapeState = REST): boolean => { const m = isLiverBranch(v) ? branchMeet(v, state) : null; return !!m && m.fromNodeR <= SKIN_REACH; };
@@ -217,7 +229,7 @@ export function liverBranchJunctions(network: readonly NetVessel[] = NETWORK, st
     const m = isLiverBranch(v) ? branchMeet(v, state) : null;
     if (!m || m.fromNodeR <= SKIN_REACH) continue;
     const arm = (o: NetVessel, e: 0 | 1, side?: SkinArm['side']): SkinArm => ({ vesselId: o.id, end: e, courseIndex: 0, dataIndex: indexOf(o.lensId), lensIndex: indexOf(o.lensId), baseD: o.baseD, widthKind: o.widthKind, restR: o.radius, ...(side ? { side } : {}) });
-    out.push({ node: v.id, J: m.at, arms: withJointR([arm(m.host, 1, { u: m.u, dir: -1 }), arm(m.host, 0, { u: m.u, dir: 1 }), arm(v, m.end)], state) });
+    out.push({ node: v.id, J: m.at, arms: withJointR([arm(m.host, 1, { u: m.u, dir: -1 }), arm(m.host, 0, { u: m.u, dir: 1 }), { ...arm(v, m.end), splitDeg: m.deg }], state) });
   }
   return out;
 }

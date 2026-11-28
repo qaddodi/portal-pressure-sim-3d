@@ -3,7 +3,7 @@
 import type { BufferGeometry } from 'three';
 import { TUBE_RADIAL } from '../tubes.ts';
 import { settleRounds } from '../../settle.ts';
-import { SKIN_GROWERS, armR, SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type Vec3 } from './types.ts';
+import { SKIN_GROWERS, armR, forkFillet, SkinBuildError, type SkinArm, type SkinCut, type SkinJunction, type Vec3 } from './types.ts';
 
 /** The tube vertices of one arm: its merged geometry (`buildTubes`, the vessel's own course first, so ring k's vertex j is position index `k * (RADIAL + 1) + j`) and the course's `tubular` segment count. */
 /** `input`: what the tube was built FROM (the courses' points, radii and tapers; the map's points), the digest of a baked file hashes it instead of the vertices: the vertices come out of sin, cos and a Frenet frame, and another engine's last bits could move one across the digest's rounding, so a phone would never find the file made for it. */
@@ -103,7 +103,7 @@ function sdCapsule(p: ArrayLike<number>, o: number, c: Capsule): number {
  * Throws a `SkinBuildError` for the node when an arm runs out of rings or the tries; the scene keeps today's method for that node.
  */
 export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, hullOk: HullOk, clear: { k: number; r: number } = { k: CLEAR_K, r: CLEAR_R }): SkinCut[] {
-  const n = j.arms.length, k = CUT_SKIN_K * Math.min(...j.arms.map(armR));
+  const n = j.arms.length, k = CUT_SKIN_K * Math.min(...j.arms.map(armR)) * forkFillet(j.arms);
   const rings: Ring[][] = j.arms.map((a) => {
     const t = tubes.get(a.vesselId);
     if (!t) throw new SkinBuildError(j.node, `no tube for ${a.vesselId}`);

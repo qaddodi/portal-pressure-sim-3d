@@ -9,7 +9,7 @@ import { setSmoothJoins } from '../src/scene/vessels/join-mode.ts';
 import { SkinSet } from '../src/scene/vessels/skin/skin-set.ts';
 import { SkinObject, type ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import { skinKOf, SKIN_K } from '../src/scene/vessels/skin/sdf.ts';
-import { armR, type SkinMesh } from '../src/scene/vessels/skin/types.ts';
+import { armR, forkFillet, type SkinMesh } from '../src/scene/vessels/skin/types.ts';
 import { widthSwell } from '../src/scene/vessels/live-width.ts';
 import { BULGE_MAX, worstBulge } from '../src/scene/vessels/skin/mesh.ts';
 import { createCore } from '../src/engine/hales/host/worker-core.js';
@@ -73,11 +73,11 @@ test('every skin is blended at the radius its arms really have at the junction, 
     const branch = j.arms.some((a) => a.vesselId.endsWith('~F:b')) && j.arms.some((a) => a.side);
     for (const a of j.arms) { if (branch) assert.ok(a.jointR != null && a.jointR > 0, `${name}: ${a.vesselId} has a jointR`); assert.ok(armR(a) <= a.restR * 1.0001, `${name}: ${a.vesselId} is wider at the junction than its nominal radius`); if (armR(a) < 0.9 * a.restR) tapered++; }
     const k = skinKOf(j.arms);
-    assert.ok(Math.abs(k - SKIN_K * Math.min(...j.arms.map(armR))) < 1e-12, `${name}: k is a share of the narrowest local radius`);
+    assert.ok(Math.abs(k - SKIN_K * Math.min(...j.arms.map(armR)) * forkFillet(j.arms)) < 1e-12, `${name}: k is a share of the narrowest local radius (widened by the split angle at a mid-vein split)`);
     // (2) the blend is no wider than the spec's 0.8 of the narrowest radius the built axes have AT J (the tube's own radius there, 5 % for the polygon and the bridge)
     let atJ = Infinity;
     axes.forEach((ax, i) => { if (!j.arms[i]!.grow) atJ = Math.min(atJ, toAxis(ax, j.J[0], j.J[1], j.J[2]).r); });
-    if (branch) assert.ok(k <= SKIN_K * atJ * 1.12, `${name}: blend ${k.toExponential(2)} against 0.8 x ${atJ.toExponential(2)}, the narrowest arm's radius at the junction (a fillet that wide is a bulb)`);
+    if (branch) assert.ok(k <= SKIN_K * atJ * 1.12 * forkFillet(j.arms), `${name}: blend ${k.toExponential(2)} against 0.8 x ${atJ.toExponential(2)}, the narrowest arm's radius at the junction (a fillet that wide is a bulb)`);
     // (3) at rest, and at each HVPG patient's widths: no vertex stands farther out of the arms' union than half the local radius (the worst of all the skins at rest was 0.44 before)
     // (a growing arm is drawn full-size but its built tube is tapered into the host, so its capsule necks at J: the skin builds at the least neck widening whose mesh is inside BULGE_MAX (skin-set.ts NECK_FRACTIONS); the source's own measure is this test's)
     // (the growing arms of every skin: the junction table has made the cava's and the splenic skins whole skins of growers, no side-wall skin carries them any more)

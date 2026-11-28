@@ -214,7 +214,11 @@ export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, sta
   const back = backR !== undefined ? Math.min(d0, backR * s.r) : d0;
   const p1: Vec3 = [s.c[0] - tx * back, s.c[1] - ty * back, s.c[2] - tz * back];
   // THE BRIDGE (spec 10.5): every capsule starts AT J. Where the art leaves a gap (the arm's end more than a tenth of a radius from J) J is put in front, with the end ring's radius, so the union bridges the gap with the arm's own width and the hull (the rings alone) is unchanged
-  const bridged = J && Math.hypot(J[0] - a.c[0], J[1] - a.c[1], J[2] - a.c[2]) > BRIDGE_MIN_R * restR;   // (judged on the tube's own end ring: a tube that reaches J but bends on the way is not a gap)
+  // (a liver branch's line is trusted only `backR` radii back, so its first point can stand away from J with the tube's end ring AT J:
+  //  J is put in front there too, or a wide fillet leaves the branch's capsule a gap to the host and the skin comes in two pieces)
+  const farStart = backR !== undefined && !!J && Math.hypot(J[0] - p1[0], J[1] - p1[1], J[2] - p1[2]) > BRIDGE_MIN_R * restR;
+  // (judged on the tube's own end ring: a tube that reaches J but bends on the way is not a gap)
+  const bridged = J && (Math.hypot(J[0] - a.c[0], J[1] - a.c[1], J[2] - a.c[2]) > BRIDGE_MIN_R * restR || farStart);
   const jr = a.r + whole * Math.max(0, s.r - a.r);
   // A growing arm's capsule starts AT J whether or not the tube's end ring is there (`growBack`), and its first bend lies on the TUBE'S OWN COURSE, `growBack` radii back from the seam
   // (between the tube's ring centres there), not on the line the seam's heading gives. Run back to the node, that line missed J by a radius and more wherever the tube bends between
