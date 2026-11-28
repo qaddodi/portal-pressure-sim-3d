@@ -6,7 +6,7 @@ import { loadBuiltin, deckOrder } from '../src/decks/registry.ts';
 import { copiedSlideOf } from '../src/scene/labels/deck-link.ts';
 import { keepData, dataPlan } from '../src/ui/cards/keep.ts';
 import { blend } from '../src/ui/charts/morph.ts';
-import { pendingFrame } from '../src/ui/charts/pending.ts';
+import { pendingFrame } from '../src/ui/charts/fit.ts';
 import { shiftFrame } from '../src/ui/charts/shift/frame.ts';
 import type { Frame, Shape } from '../src/ui/charts/scene.ts';
 import '../src/decks/all.ts';

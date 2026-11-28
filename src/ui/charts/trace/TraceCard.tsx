@@ -1,5 +1,5 @@
 import { Chart } from '../Chart.tsx';
-import { pendingFrame } from '../pending.ts';
+import { pendingFrame } from '../fit.ts';
 import { traceFrame, type TraceSpec } from './frame.ts';
 import { talkHeight, milesHeight, type TalkPoint } from './model.ts';
 import '../charts.css';

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { readMetric, readStyle } from '../../layout-snap.ts';
 import { clock } from '../../../clock/frame.ts';
 import { Chart, type ChartCtx } from '../Chart.tsx';
-import { pendingFrame } from '../pending.ts';
+import { pendingFrame } from '../fit.ts';
 import type { ChartPainter } from '../painter.ts';
 import type { Frame } from '../scene.ts';
 import { profileFrame, type CellOpts } from './frame.ts';

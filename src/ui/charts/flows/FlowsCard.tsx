@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Chart } from '../Chart.tsx';
-import { pendingFrame } from '../pending.ts';
+import { pendingFrame } from '../fit.ts';
 import { flowParts, sameShares, smallMove, HOLD_MS, type FlowsInput, type Part } from './parts.ts';
 import { flowsFrame } from './frame.ts';
 import type { Tiers } from './layout.ts';

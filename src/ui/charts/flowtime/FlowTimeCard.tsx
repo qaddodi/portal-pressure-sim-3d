@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo, useRef } from 'react';
 import { clock } from '../../../clock/frame.ts';
 import { Chart, type ChartCtx } from '../Chart.tsx';
-import { pendingFrame } from '../pending.ts';
+import { pendingFrame } from '../fit.ts';
 import type { ChartPainter } from '../painter.ts';
 import { headStep, HEAD_DT0 } from '../plot/follow.ts';
 import { MEAL_LINES, flowTimeSeries, type FlowRef, type FlowView, type Trail } from './model.ts';
