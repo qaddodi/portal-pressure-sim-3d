@@ -2,9 +2,11 @@
 // the triangles round it off and leaves a short loop by itself. The skin is closed except along its seams, so such a loop is closed here by a fan to its centre; the remesh pulls the centre onto the surface and evens the triangles out.
 import type { Vec3 } from './types.ts';
 
-/** The loops no arm's seam owns: more than 2 of an arm's radii from every seam centre. */
+/** The loops no arm's seam owns: more than 2 of an arm's radii from every seam centre, or (beside a thin arm's seam, as C9's on the cava with the portacaval shunt 2 radii from it) a loop under a quarter of the longest: a seam is a ring of the arm, a hole is a few cells. */
 export function strayLoops(loops: readonly number[][], pos: readonly number[], cen: readonly Vec3[], rad: readonly number[]): number[][] {
+  const longest = Math.max(0, ...loops.map((l) => l.length));
   return loops.filter((loop) => {
+    if (loops.length > cen.length && loop.length * 4 < longest) return true;
     const m = [0, 0, 0];
     for (const v of loop) for (let d = 0; d < 3; d++) m[d]! += pos[3 * v + d]! / loop.length;
     return cen.every((c, a) => Math.hypot(m[0]! - c[0], m[1]! - c[1], m[2]! - c[2]) > 2 * rad[a]!);
