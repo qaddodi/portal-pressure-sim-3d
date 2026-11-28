@@ -21,10 +21,20 @@ It is never in the repository (`tests/release.test.ts` greps `src`, `scripts`, `
 ## Old links
 `tests/fixtures/links-v1.json` froze every talk id and slide count and one share link per patient (21 Nov 2026). A rename needs an alias in `src/ui/deck/deck-of.ts` `DECK_ALIAS`; the test fails without it. Never edit the fixture to pass.
 
+## The release gate (28 Nov, P-01)
+`npm run release:check` (a Mac or one scheduled thread, never a push thread) runs the whole suite (`scripts/tests-daily.mjs`), refuses unless 0 are failing, and commits `tests-status.json` for that commit. The build on `main` (`scripts/build.mjs`, `scripts/release-gate.mjs`) refuses to ship when the file is missing, red, or names a commit that differs from HEAD by anything but the file itself. Commit the record with the merge. `tests/release-gate.test.ts`.
+
+## The testers' copy, /beta/ (28 Nov, P-03)
+`/beta/` is built from the branch `claude/beta`, which moves only when the owner says: `git push origin <commit>:claude/beta`. It is built like the preview (orange pill, debug tools). No such branch, no /beta/. `/preview/` stays the fast lane; point the tester guides at `/beta/` when it exists.
+
+## Supported browsers (28 Nov, P-05)
+Safari 16.4, Chrome and Edge 110, Firefox 115, or newer. `index.html` (`floorOk()`, in the boot-messages script) tests the features of that generation (no eval: the CSP) and an older browser is told so in one plain sentence on the cover.
+
 ## Release checklist
 1. The review's P0 items (error boundaries, lazy-load retry, context loss) pushed and seen by Mohammad.
 2. Stall work (`rebuild-3d/code-review-21nov.md` items 1 to 5) closed, or listed as known.
 3. Version bumped; `FEEDBACK_EMAIL` secret set; tester guides updated to the live address (they still say `/preview/` and the PREVIEW tab).
 4. Device pass on the exact commit: `docs/device-checklist.md`.
+4b. `npm run release:check` is green and its record is committed.
 5. Mohammad says merge: merge the integration branch into `main`; `/` becomes the app and `/preview/` equals it.
 6. Tag `v<version>`; the previous tag's commit is the rollback (revert the merge on `main`).

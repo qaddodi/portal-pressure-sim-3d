@@ -68,6 +68,9 @@ test('the page has the 2D page\'s head (description, share card, a theme colour 
   assert.match(html, /<noscript>/);
   assert.match(html, /ppsBootFail/);
   assert.match(html, /w\.ppsBootLift=lift/);
+  // the browser floor (owner, 28 Nov): Safari 16.4, Chrome and Edge 110, Firefox 115; an older browser is told so in one plain sentence
+  assert.match(html, /function floorOk\(\)/);
+  assert.match(html, /Safari 16\.4, Chrome or Edge 110, or Firefox 115/);
   assert.ok(html.indexOf('id="boot"') < html.indexOf('id="root"'));
   assert.ok(!/[\w.-]+@[\w-]+\.[a-z]{2,}/i.test(html), 'no email address in the page');
 });

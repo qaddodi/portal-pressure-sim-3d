@@ -29,7 +29,7 @@ test('the build stamps package.json\'s version, and the workflow passes the repo
   assert.match(b, /readFileSync\(`\$\{root\}package\.json`/);
   assert.match(JSON.parse(readFileSync('package.json', 'utf8')).version, /^\d+\.\d+\.\d+/);
   const wf = readFileSync('.github/workflows/pages.yml', 'utf8');
-  assert.equal((wf.match(/VITE_FEEDBACK_EMAIL: \$\{\{ secrets\.FEEDBACK_EMAIL \}\}/g) ?? []).length, 2, 'both builds (preview and live) get the address');
+  assert.equal((wf.match(/VITE_FEEDBACK_EMAIL: \$\{\{ secrets\.FEEDBACK_EMAIL \}\}/g) ?? []).length, 3, 'all three builds (preview, beta and live) get the address');
 });
 
 /** No email address in the shipped sources: the feedback address is only ever the build's secret. (@example and @b.test style placeholders in tests are fine: tests/ is not scanned.) */

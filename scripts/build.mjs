@@ -4,6 +4,7 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { checkRoot } from './release-gate.mjs';
 import { bakedOrgansCurrent, organsDigest } from './organs-digest.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -46,6 +47,9 @@ if (typeErrors) console.warn(`warning: ${typeErrors} type error(s)\n${(tsc.stdou
 if (lint.status !== 0) console.warn(`warning: lint failed\n${lint.stderr ?? ''}`);
 const checks = [typeErrors ? `types: ${typeErrors} error${typeErrors === 1 ? '' : 's'}` : '', lint.status !== 0 ? 'lint failed' : '', ...failed.map((f) => `${f} failed`)].filter(Boolean).join(', ');
 if (onMain && checks) { console.error(`main does not ship with a failed check: ${checks}`); process.exit(1); }
+
+// The release gate (P-01): main ships only a commit whose full-suite result is on record and green (scripts/release-gate.mjs; `npm run release:check` writes it).
+if (onMain) { const why = checkRoot(root); if (why) { console.error(`main does not ship without a green full-suite record: ${why}`); process.exit(1); } }
 
 const r = spawnSync(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url)), 'build'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_BUILD: `${branch}@${commit}`, VITE_RELEASE: release, VITE_ORGANS_DIGEST: organsId } });
 if (r.status !== 0) process.exit(r.status ?? 1);

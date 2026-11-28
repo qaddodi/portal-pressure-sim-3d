@@ -24,7 +24,7 @@ const lines = (y: Yaml | undefined): string[] => str(y).split('\n').filter(Boole
 
 test('Pages builds main to / and the integration branch to /preview/; the only test run is the one full run a day', () => {
   const checkouts = stepsOf('deploy').filter((s) => str(s.uses).startsWith('actions/checkout@'));
-  assert.deepEqual(checkouts.map((s) => [withOf(s).ref, withOf(s).path]), [['main', 'live'], ['claude/project-thread-ge1swr', 'preview']]);
+  assert.deepEqual(checkouts.map((s) => [withOf(s).ref, withOf(s).path]), [['main', 'live'], ['claude/project-thread-ge1swr', 'preview'], ['claude/beta', 'beta']]);
   const build = stepNamed('deploy', 'Build the preview (integration branch) into site/preview');
   assert.equal(obj(build.env).VITE_CHANNEL, 'preview');
   assert.ok(str(build.run).includes('cp -r dist ../site/preview'));
@@ -60,7 +60,7 @@ test('the deploy caches node_modules and the baked files, never waits on a fixed
   assert.equal(withOf(stepsOf('deploy')[0])['sparse-checkout'], 'package.json', 'main is a package.json until it has the app');
   const live = str(stepNamed('deploy', 'Build the live site (main) into site/').run);
   assert.ok(live.startsWith(`if grep -q '"build"' live/package.json`));
-  assert.equal(runs('deploy').filter((r) => r.includes('npm ci')).length, 2, 'one install for the preview and one for main');
+  assert.equal(runs('deploy').filter((r) => r.includes('npm ci')).length, 3, 'one install for the preview, one for main, and the beta copy installs only when its lock file differs from the preview\'s');
 });
 
 test('the build runs the four bakes at once and each bake skips itself on an unchanged signature', () => {
@@ -117,7 +117,7 @@ test('the daily test job: one run a UTC day, started by the first push, never ca
 
 test('the feedback address is only ever a secret, handed to the two builds and never echoed', () => {
   const withAddress = stepsOf('deploy').filter((s) => 'VITE_FEEDBACK_EMAIL' in obj(s.env ?? {}));
-  assert.equal(withAddress.length, 2, 'both builds (preview and live) get the address');
+  assert.equal(withAddress.length, 3, 'all three builds (preview, beta and live) get the address');
   for (const s of withAddress) assert.equal(obj(s.env).VITE_FEEDBACK_EMAIL, '${{ secrets.FEEDBACK_EMAIL }}');
   for (const j of ['deploy', 'tests']) assert.ok(!runs(j).some((r) => /echo[^\n]*FEEDBACK_EMAIL|printenv|\benv\b\s*$/m.test(r)), 'no step prints the address or the environment');
 });
