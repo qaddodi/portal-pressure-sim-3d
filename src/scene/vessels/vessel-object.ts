@@ -212,7 +212,10 @@ export class VesselObject extends CelObject {
     this.toon.uniforms.len!.value = len;
   }
 
-  /** What a blend between two key frames touches (kept for as long as the pair stands): per attribute the stretch of values where the two differ (a held end, the uv, the Circuit's widths are the same in both and are never written again), and the sphere round both shapes. */
+  /**
+   * What a blend between two key frames touches (kept for as long as the pair stands): per attribute the stretch of values where the two differ (a held
+   * end, the uv, the Circuit's widths are the same in both and are never written again), and the sphere round both shapes.
+   */
   private lerpFull = false;
   private lerpPlan: LerpPlan | null = null;
   /** A pair's plan worked out ahead (`lerpPlanSteps`), waiting for the pair's first blend. */
@@ -227,7 +230,8 @@ export class VesselObject extends CelObject {
   holdLerpPlan(plan: LerpPlan): void { this.madePlan = plan; }
 
   /**
-   * The plan for the pair `a`, `b`, worked out a step at a time (an attribute, a pass over the vertices) without touching the geometry: a scan of every vertex of a vessel with four strands was 20 ms on the first blend of a pair, one
+   * The plan for the pair `a`, `b`, worked out a step at a time (an attribute, a pass over the vertices) without touching the geometry: a scan of every
+   * vertex of a vessel with four strands was 20 ms on the first blend of a pair, one
    * frame's worth by itself (scene audit, 27 Nov review C2). shape-track.ts runs it inside the frame's budget; `reshapeLerp` runs it to the end itself when nobody did.
    */
   *lerpPlanSteps(a: ReshapeFrame, b: ReshapeFrame): Generator<void, LerpPlan, void> {

@@ -23,7 +23,10 @@ export interface ShapeFrame extends PresenceFrame { metrics?: { varix?: { d?: nu
 
 /** The two key frames of one coil bracket: `lo` and `hi` rung (the coil strength is rung * COIL_STEP), built for the shape's other parts `base`; a frame is built when it is first needed. */
 interface KeyFrames { base: string; lo: number; a: ReshapeFrame | null; b: ReshapeFrame | null; /** the key frame being built a strand at a time: `rung` is which (0 the lower, 1 the upper) */ job: Job<ReshapeFrame> | null; rung: 0 | 1; /** the pair's blend plan, being worked out (vessel-object.ts lerpPlanSteps) */ plan: Job<LerpPlan> | null }
-/** A build that stops between strands (`tubes.ts buildTubesSteps`) and is resumed by the next frame's budget; it carries the shape it was started for, so a shape that moved meanwhile does not change it. */
+/**
+ * A build that stops between strands (`tubes.ts buildTubesSteps`) and is resumed by the next frame's budget; it carries the shape it was started for, so
+ * a shape that moved meanwhile does not change it.
+ */
 interface Job<T> { steps: Generator<void, T, void> }
 interface Item { v: NetVessel; obj: VesselObject; coil: CoilState; state: ShapeState; tubular: number[]; shown: number; spread: number; /** the pressure's ramp, 0 to 1 (shape.ts varixPressRamp), the strands' thickening target */ press: number; live: number; strandsOn: boolean; bead: number; built: string; seam: string; /** the key frames the coil blends between (null: none built yet) */ kf: KeyFrames | null; /** a flat (not coiling) vessel's tubes, half built (null: none) and the shape key it was started for */ job: (Job<BuiltTubes> & { key: string }) | null; /** the tick of its last rebuild (the one waiting longest goes first) */ at: number }
 
@@ -35,7 +38,11 @@ export const COIL_STEP = 1.25;
 const COIL_RUNGS = 4;
 /** The bead is kept to steps of 1 / BEAD_STEPS (0.05 of a strand's radius: under a fifth of a pixel at the figure's widest): each step is one build of the shape, so the easing of the varix's size costs 7 builds a strand, not 35. */
 export const BEAD_STEPS = 20;
-/** The most CPU time (ms) one frame spends rebuilding tubes for shapes that move: the work is cut into strands (tubes.ts buildTubesSteps, 1 to 8 ms each) and a frame runs strands until this is spent, so a preset that opens a dozen collaterals at once spreads over frames and no frame is longer than one strand past the budget. At least one strand is always built. */
+/**
+ * The most CPU time (ms) one frame spends rebuilding tubes for shapes that move: the work is cut into strands (tubes.ts buildTubesSteps, 1 to 8 ms each)
+ * and a frame runs strands until this is spent, so a preset that opens a dozen collaterals at once spreads over frames and no frame is longer than one
+ * strand past the budget. At least one strand is always built.
+ */
 export const SHAPE_BUDGET_MS = 4;
 
 export class ShapeTracks {
@@ -123,7 +130,10 @@ export class ShapeTracks {
   }
 
   /** Rebuilds a vessel's tubes at its present shape when the shape changed since they were built. True when it did. */
-  /** How many shapes were built (a tube geometry made), how many were blended from key frames, and how many slices (one strand's worth of tube building) the builds were cut into: the tests read these, and ?perf can. */
+  /**
+   * How many shapes were built (a tube geometry made), how many were blended from key frames, and how many slices (one strand's worth of tube building)
+   * the builds were cut into: the tests read these, and ?perf can.
+   */
   readonly stats = { builds: 0, blends: 0, slices: 0 };
 
   /** A vessel's tubes at a shape, as the scene first built them, a strand at a time (see `buildTubesSteps`): the map's sunk and flared ends are laid on the rings' map radius (`rkc`) here too. The scene lays them when it builds a tube (scene.ts addVessel), and `reshape` copies `rkc` from what is built, so a
@@ -146,8 +156,10 @@ export class ShapeTracks {
   /** True once a step of tube work has run in the frame being stepped (reset by `step`): the frame's first step always runs, every later one only inside the budget. */
   private sliced = false;
   /**
-   * Runs a job's steps (a strand, the merge, a plan pass) until `deadline` (page time). The frame's first step always runs, so the work always moves on; after that a step runs only while the budget lasts. Its result when the job
-   * finished, else undefined (the next frame carries on). This is what keeps a frame short: the unit of work is a strand (3 to 8 ms), not a vessel's whole build (20 to 40 ms). A deadline of Infinity runs it to the end.
+   * Runs a job's steps (a strand, the merge, a plan pass) until `deadline` (page time). The frame's first step always runs, so the work always moves on;
+   * after that a step runs only while the budget lasts. Its result when the job
+   * finished, else undefined (the next frame carries on). This is what keeps a frame short: the unit of work is a strand (3 to 8 ms), not a vessel's whole
+   * build (20 to 40 ms). A deadline of Infinity runs it to the end.
    */
   private pump<T>(job: Job<T>, deadline: number): T | undefined {
     for (;;) {
@@ -158,7 +170,10 @@ export class ShapeTracks {
     }
   }
 
-  /** A coiling vessel is drawn by blending two key frames of its shape, built at the coil strengths on either side of the present one: the coil easing for a second moves 1 or 2 brackets, so it costs 1 to 4 builds, not one a frame (a build is 3 to 6 ms). False while a key frame is still being built. */
+  /**
+   * A coiling vessel is drawn by blending two key frames of its shape, built at the coil strengths on either side of the present one: the coil easing for
+   * a second moves 1 or 2 brackets, so it costs 1 to 4 builds, not one a frame (a build is 3 to 6 ms). False while a key frame is still being built.
+   */
   private blend(it: Item, whole: boolean, until: number): boolean {
     const w = it.state.wig, base = keyOf({ ...it.state, wig: 0 });
     const lo = Math.min(COIL_RUNGS - 1, Math.max(0, Math.floor(w / COIL_STEP + 1e-9))), t = Math.min(1, Math.max(0, (w - lo * COIL_STEP) / COIL_STEP));
@@ -197,7 +212,10 @@ export class ShapeTracks {
     return true;
   }
 
-  /** Rebuilds a vessel's tubes at its present shape when the shape changed since they were built, as far as `until` (page time) allows; true when it did any work (it is `stale` still while a build is half done). */
+  /**
+   * Rebuilds a vessel's tubes at its present shape when the shape changed since they were built, as far as `until` (page time) allows; true when it did
+   * any work (it is `stale` still while a build is half done).
+   */
   private rebuild(it: Item, whole = false, until = Infinity): boolean {
     const key = keyOf(it.state);
     if (key === it.built) return false;
@@ -235,7 +253,10 @@ export class ShapeTracks {
     }
   }
 
-  /** Eases the shapes one frame; true while any is still moving or waits for its tubes. The tubes are rebuilt within SHAPE_BUDGET_MS a frame (a strand at a time, so a frame is never longer than one strand), the longest-waiting first. */
+  /**
+   * Eases the shapes one frame; true while any is still moving or waits for its tubes. The tubes are rebuilt within SHAPE_BUDGET_MS a frame (a strand at a
+   * time, so a frame is never longer than one strand), the longest-waiting first.
+   */
   step(dtMs: number): boolean {
     let moving = false;
     const was = this.bandsShown;

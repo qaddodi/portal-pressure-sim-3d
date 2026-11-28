@@ -158,7 +158,8 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
 
 /**
  * The same build in steps: one course (a strand, with its caps) a step, then the merge. A vessel with four strands of 400 rings is 20 to 40 ms in one piece; the scene's frame budget (shape-track.ts
- * SHAPE_BUDGET_MS) can only keep a frame short when its unit of work is smaller than the frame, so it resumes this between frames (scene audit, 27 Nov review C2: one 52 ms `shapes` frame on healthy to CSPH).
+ * SHAPE_BUDGET_MS) can only keep a frame short when its unit of work is smaller than the frame, so it resumes this between frames (scene audit, 27 Nov
+ * review C2: one 52 ms `shapes` frame on healthy to CSPH).
  * Each `yield` is a place to stop; the result is exactly what `buildTubes` returns.
  */
 export function* buildTubesSteps(courses: readonly Course[], tubular: readonly number[], radius0: number): Generator<void, BuiltTubes, void> {
