@@ -19,8 +19,8 @@ interface Opts {
   onMove(m: Move): void;
   /** whether a sideways drag may move the cards now (a slide change is possible: the talk is not at an end, no zoom is up) */
   can(dx: number): boolean;
-  /** whether the data card is kept by the slide this drag goes to: it does not follow the finger */
-  keeps(dx: number): boolean;
+  /** which cards the place this drag goes to shows again (the data card the next slide keeps, the words card of a beat of the same slide): they do not follow the finger */
+  keeps(dx: number): { words: boolean; data: boolean };
   /** whether a sideways drag this way is only a step of this slide (a procedure's step, a reading the data card takes one Next at a time): the touch is taken and the step made on release, but NO card follows the finger */
   stays?(dx: number): boolean;
   /** whether this move sends the cards under the finger out (a slide change: they leave on the rail from where the finger let go) or leaves them where they are (a page turned, a beat of the same slide):
@@ -58,7 +58,7 @@ export function useCardDrag(o: Opts) {
       const dx = e.clientX - g.x, dy = e.clientY - g.y;
       if (!g.on) {
         if (axisOf(g.id, dx, dy) !== 'x' || !opts.current.can(dx)) return;
-        g.on = true; if (opts.current.stays?.(dx)) g.cards = []; else { const keep = opts.current.keeps(dx); g.cards = opts.current.cards().filter((c) => !(keep && c.data)); }
+        g.on = true; if (opts.current.stays?.(dx)) g.cards = []; else { const keep = opts.current.keeps(dx); g.cards = opts.current.cards().filter((c) => !(c.data ? keep.data : keep.words)); }
         try { g.el?.setPointerCapture?.(e.pointerId); } catch { /* (the touch is gone) */ }
       }
       g.pts.push([e.clientX, e.timeStamp]);

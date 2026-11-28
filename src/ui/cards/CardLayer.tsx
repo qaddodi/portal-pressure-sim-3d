@@ -51,6 +51,7 @@ import { hvpgNotMeasurable } from '../cuts.ts';
 import { maxPages, clampPage, nextToMeasure, tallestPage } from './pages.ts';
 import { rekeyed } from './box-lock.ts';
 import { cardKey, wordsCardKey } from './card-key.ts';
+import { keptByMove } from './swipe-keeps.ts';
 import { wordsFitOf } from './card-fit.ts';
 import { frameProps, wordsClasses, type FrameLive } from './frame-props.ts';
 
@@ -389,8 +390,8 @@ export function CardLayer({ deck }: { deck: Deck }) {
     },
     onMove: goTo,
     // a drag follows only where it will do something: a slide to go to (or a page to turn), not the first slide's Back
-    // the data card the next slide keeps (same key) stays put under a drag: only the cards that change follow the finger
-    keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return false; const to = dataAt[apply(stops, pos, dx < 0 ? 'next' : 'back').stop]; return !!view?.data && !!to && cardKey(deck.id, to.key) === baseKey; },
+    // a card the place this drag goes to shows again (the data card the next slide keeps; the words card of a beat of the same slide) stays put under the finger: only the cards that change follow it
+    keeps: (dx) => { if (dx < 0 && atEnd(useUi.getState())) return { words: false, data: false }; const k = keptByMove(deck.id, stops, pos, dx < 0 ? 'next' : 'back', dataAt, wordsBase, view?.data ? baseKey : null, sidewaysNow); return k; },
     // a slide whose procedure (or whose data card's readings) takes Next as a step: the swipe steps through the steps and no card follows the finger (Mohammad, 24 Nov)
     stays: stepsHere,
     // a slide change sends the cards out from where the finger let go; a page turned, or a beat of this slide, leaves them where they are (they ease back)
