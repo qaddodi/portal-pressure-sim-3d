@@ -265,10 +265,34 @@ export function armArcOf(end: 0 | 1, u: number, len: number, radius: number): { 
  */
 export function drawnAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, cuts: readonly SkinCut[], whole = 0): ArmAxis[] {
   const sided = j.arms.some((a) => !!a.side);
-  return j.arms.map((a, i) => {
+  const axes = j.arms.map((a, i) => {
     const tb = tubes.get(a.vesselId)!, from = a.side ? armWalk(a, tb.tubular).from : undefined;
     return axisOf(tb, a.restR, cuts[i]!, a.at ?? j.J, from, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined, a.grow ? whole : 0, a.grow ? GROW_BACK_R : undefined);
   });
+  return easeSplit(j, axes);
+}
+
+/**
+ * THE SPLIT'S FIRST STAGE (Mohammad, 28 Nov, the right hepatic vein's split; the fork fillet's other half, types.ts forkFillet).
+ * A branch's capsule starts AT J and runs straight to its bend, so where it leaves a host at 60 degrees the union has one
+ * corner at J that no fillet of a bulb-free width rounds (the outline still turned 14.8 degrees per 0.01 of arc with the
+ * fillet at its bulge limit). The capsule's first point moves onto the host's axis `SPLIT_EASE_R` of its own radii from J
+ * toward the host's upstream side (the obtuse side, where the corner was), still inside the host's tube: the branch then
+ * leaves the host along the host and bends to its own heading over the stretch to its bend, two turns of half the angle.
+ * The bend, the seam and everything the marks and the run's weights read are as they were; only the capsule's start moves.
+ */
+export const SPLIT_EASE_R = 0.75;
+function easeSplit(j: SkinJunction, axes: ArmAxis[]): ArmAxis[] {
+  const br = j.arms.findIndex((a) => a.splitDeg !== undefined), sides = j.arms.map((a, i) => (a.side ? i : -1)).filter((i) => i >= 0);
+  if (br < 0 || sides.length !== 2) return axes;
+  const lo = axes[sides.find((i) => j.arms[i]!.side!.dir === -1)!]!, hi = axes[sides.find((i) => j.arms[i]!.side!.dir === 1)!]!, b = axes[br]!;
+  let t: Vec3 = [hi.pts[3][0] - lo.pts[3][0], hi.pts[3][1] - lo.pts[3][1], hi.pts[3][2] - lo.pts[3][2]];
+  const tl = Math.hypot(t[0], t[1], t[2]) || 1, h = [b.pts[2][0] - j.J[0], b.pts[2][1] - j.J[1], b.pts[2][2] - j.J[2]];
+  const sgn = t[0] * h[0] + t[1] * h[1] + t[2] * h[2] < 0 ? 1 : -1, e = SPLIT_EASE_R * j.arms[br]!.restR;
+  t = [(sgn * t[0]) / tl, (sgn * t[1]) / tl, (sgn * t[2]) / tl];
+  const out = axes.slice();
+  out[br] = { ...b, pts: [[j.J[0] + t[0] * e, j.J[1] + t[1] * e, j.J[2] + t[2] * e], b.pts[1], b.pts[2], b.pts[3]] };
+  return out;
 }
 
 /** An axis as the mesh builder's capsule (sdf.ts): the same three points and radii. */

@@ -40,7 +40,7 @@ export const armR = (a: Pick<SkinArm, 'restR' | 'jointR'>): number => a.jointR ?
  *  less than a tube's width: the outline turned 20 degrees per 0.01 of arc. The blend of a mid-vein split grows with the
  *  angle the branch leaves at: 1 + FORK_GAIN x sin(angle), so a wider split gets a wider fillet and a branch that runs on
  *  along its host (angle 0) none. It stays a share of the narrowest radius at the joint, so it follows tube size. */
-export const FORK_GAIN = 1.2;
+export const FORK_GAIN = 1.4;
 export const forkFillet = (arms: readonly Pick<SkinArm, 'splitDeg'>[]): number => {
   const d = arms.reduce((m, a) => Math.max(m, a.splitDeg ?? 0), 0);
   return d > 0 ? 1 + FORK_GAIN * Math.sin((d * Math.PI) / 180) : 1;
