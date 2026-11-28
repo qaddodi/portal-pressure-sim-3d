@@ -26,9 +26,6 @@ async function frameOf(preset: string): Promise<{ D: ArrayLike<number>; Q: Array
 }
 // (the skins are named by what they hold, never by a typed key: the lower cava's skin is the one that has the portocaval shunt and the lumbar vein as arms (a cluster of the table's take-offs, `IVCI+IVC_M+IVC_C+IVC_P`), the azygos's the one with the varices' C1b,
 //  which has one grower since Plan 16D: the lumbar vein runs on into the arch's start, tests/azygos-origin.test.ts)
-/** The lower cava's merged skin (the table's take-offs IVC_C, IVC_P, IVC_M and IVCI in one) stands 1.24 px (p95) off the live union at the Budd-Chiari patient's part with the lumbar vein only, where every other part is under 0.5 px: a named allowance, measured 28 Nov, until the merged
- *  skin's parts are fitted (Group C, skin quality, owns lowering it; the welded skin there stands 10 px or more off, so the part is still the better skin and the test still bites). */
-const CAVA_P95 = 1.3;
 const keyWith = (g: { skins: readonly { node: string; mesh: { junction: { arms: readonly { vesselId: string }[] } } }[] }, id: string): string => skinKeysWithArm(g.skins as never, id)[0]!;
 
 test('partOf: the plain trunk is the part with no grower, the welded skin the part with every one, and a skin with two growers has one part for each', () => {
@@ -68,7 +65,7 @@ test('G1: the mesh drawn at a patient is the union of the arms that are there: e
         if (d.kind !== 'part') continue;
         parts++; seen.push(`${preset}:${d.node}`);
         const o = offUnion(d.skin!, d.swell, d.keep);
-        assert.ok(o.p95 <= (d.node === CAVA ? CAVA_P95 : 1), `${preset} ${d.node} (${d.here}): p95 ${o.p95.toFixed(2)} px off the live union`);
+        assert.ok(o.p95 <= 1, `${preset} ${d.node} (${d.here}): p95 ${o.p95.toFixed(2)} px off the live union`);
         assert.ok(o.max <= (d.node === CAVA ? 3.2 : 2), `${preset} ${d.node} (${d.here}): max ${o.max.toFixed(2)} px off the live union`);
         // the same patient on the welded skin (what was drawn): the whole absent stub stands out of the union
         const was = offUnion(d.full.skin, d.full.swell, d.full.keep);

@@ -3,6 +3,8 @@ import { BACK_EDGES } from '../src/scene/anatomy/source.ts';
 import { NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { forgeFrame } from '../src/engine/force-all.ts';
+import type { EngineFrame } from '../src/engine/hales/host/protocol.d.ts';
 import { EDGES, JUNCTION_PIECES } from '../src/engine/hales/portal/topology.js';
 import { HOSTS, VESSELS, buildVessel, vesselPoints } from '../src/scene/anatomy/vessels.ts';
 import { EDGE_IDS, hasVessel, indexOf } from '../src/engine/vessel-data.ts';
@@ -67,6 +69,13 @@ test('a vessel is one geometry with uv.x along the flow from 0 to 1 and a tangen
   assert.equal(g.attributes.tang!.count, g.attributes.position!.count);
 });
 
+const fullFrame = (): EngineFrame => {
+  const N = (EDGES as unknown[]).length;
+  return { type: 'frame', changed: true, gen: 1, jump: false, t: 1, day: 0, running: true, speed: 1, clock: 'hemo', pulsing: false, morphing: false, settling: false, phase: 0,
+    P: new Float32Array(60), Pf: new Float32Array(60), Q: new Float32Array(N).fill(1), Qf: new Float32Array(N).fill(1), ext: new Float32Array(N), D: new Float32Array(N).fill(5),
+    metrics: { hvpg: 5, whvp: 10, fhvp: 5 } as never, events: [], paramsRev: 0 } as EngineFrame;
+};
+
 // 55 vessels at one draw each (the outline is part of the tube: one mesh, one material) plus the organs: under 100, the slice plan's budget (docs/slice-plan.md, Memory).
 // The welded junction skins (one merged mesh per junction or wall, with a second mesh for its veil or solid copy: the owner's "one real merged 3D mesh per vessel network") came after that
 // budget and add about 33 draws on top. They are counted apart and capped on their own, so the original figure still guards the tubes and organs and a skin storm still fails.
@@ -76,9 +85,15 @@ test('the scene stays inside the draw-call budget (spec: under 100 for tubes and
   s.scene.traverseVisible((o) => { if ((o as { isMesh?: boolean }).isMesh) { if (o.name.startsWith('skin:')) skins++; else if (o.name === 'crossing/shadow') shadows++; else meshes++; } });   // (the lobule and sinusoid views are hidden until chosen and draw nothing)
   assert.ok(meshes < 100, `${meshes} draw calls for tubes and organs`);
   assert.ok(skins <= 40, `${skins} draw calls for welded skins`);
-  // (one per drawn vessel: the junction table cuts veins into pieces, each its own vessel, so the cap is the vessels drawn, not a number written here)
-  assert.ok(shadows <= EDGES.filter((e) => hasVessel(e.id)).length, `${shadows} draw calls for crossing shadows (one per drawn vessel, S3)`);
+  // (a shadow is one per DRAWN vessel: a tube a merged skin replaces whole, or one the patient does not have yet (reveal 0), draws none: vessel-object.ts. The bare scene shows every collateral and shunt at once, which no patient does, so the shadows are counted at the two fullest ones)
   assert.ok(meshes + skins + shadows < 210, `${meshes + skins + shadows} draw calls in all`);
+  s.growLiver(0);   // (the first frame's call: the liver's own lanes are drawn on by the Circuit's change and are not there in the body, so they draw no shadow either)
+  for (const [name, state] of [['every collateral open', { collaterals: true, shunts: false }], ['every shunt shown', { collaterals: false, shunts: true }]] as const) {
+    s.syncPresence(forgeFrame(fullFrame(), state), true);
+    let n = 0;
+    s.scene.traverseVisible((o) => { if (o.name === 'crossing/shadow') n++; });
+    assert.ok(n <= 60, `${n} draw calls for crossing shadows with ${name} (one per drawn vessel, S3)`);
+  }
   s.setView('lobule'); s.setView('body');
   s.dispose();
 });

@@ -2,7 +2,11 @@
 // the surface it lies on, so a junction is welded only where the mesh itself is the smooth union of the arms that are there at their live widths. The vertex stage's own move is replayed (a vertex goes out its normal by rest radius x (blended swell - 1), shaders.ts),
 // and the distance is the exact one of skin/exact-normal.ts skinArmSd3 (sd3), the union the smooth minimum of the kept arms' capsules at the skin's blend width, a through run's halves a plain minimum.
 import { sd3, type GateSkin } from './skin-gate-lib.ts';
-import { skinKOf } from '../src/scene/vessels/skin/sdf.ts';
+import { runShare, skinKOf, type Capsule } from '../src/scene/vessels/skin/sdf.ts';
+import { capsuleOf } from '../src/scene/vessels/skin/skin-set.ts';
+
+const caps = new WeakMap<GateSkin, Capsule[]>();
+const capsOf = (skin: GateSkin): Capsule[] => { let c = caps.get(skin); if (!c) caps.set(skin, (c = skin.axes.map(capsuleOf))); return c; };
 
 const smin = (a: number, b: number, k: number): number => { const h = Math.min(1, Math.max(0, 0.5 + 0.5 * (b - a) / Math.max(k, 1e-4))); return b + (a - b) * h - k * h * (1 - h); };
 
@@ -10,7 +14,16 @@ export interface OffUnion { vertices: number; p50: number; p95: number; max: num
 
 /** The live union of the kept arms at a point: the smooth minimum of their capsules at their live swells (an absent arm 1e9). */
 export function unionAt(skin: GateSkin, p: readonly number[], swell: readonly number[], keep: readonly boolean[]): number {
-  const { axes, mesh } = skin, k = skinKOf(mesh.junction.arms), d = axes.map((ax, i) => (keep[i] ? sd3(ax, p, swell[i]!) : 1e9));
+  const { axes, mesh } = skin, k = skinKOf(mesh.junction.arms), cs = capsOf(skin);
+  // A through run's two halves overlap along the stretch between their seams, and the vertex stage blends their swells by the point's share of it (sdf.ts weights/runShare: 1 at a half's own seam, 0 at the other's), so the width there
+  // runs from one half's to the other's. The union is judged at that blended width, not at the larger of the two halves' (which stepped the whole stretch to the wider one: 1.3 px off at the cava's part where the halves are 0.97 and 0.90).
+  const own = (i: number): number => {
+    const m = axes[i]!.mate ?? -1;
+    if (m < 0 || !keep[m] || !keep[i]) return swell[i]!;
+    const a = runShare(cs[i]!, p[0]!, p[1]!, p[2]!), b = runShare(cs[m]!, p[0]!, p[1]!, p[2]!), sh = a + b;
+    return sh > 1e-9 ? (a * swell[i]! + b * swell[m]!) / sh : swell[i]!;
+  };
+  const d = axes.map((ax, i) => (keep[i] ? sd3(ax, p, own(i)) : 1e9));
   let o = 0, first = true;
   for (let i = 0; i < axes.length; i++) {
     const m = axes[i]!.mate ?? -1;

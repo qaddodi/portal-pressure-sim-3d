@@ -17,7 +17,7 @@ import type { SeamCurve } from './seams.ts';
 import { CEL_STYLE } from '../cel-style.ts';
 import type { CircuitShared } from '../circuit/uniforms.ts';
 import { cavaWholeAlpha } from './fades.ts';
-import { SKIN_CUT_C_NONE, SKIN_CUT_NONE, SKIN_HOLE_NONE } from './skin/types.ts';
+import { SKIN_CUT_C_NONE, SKIN_CUT_NONE, SKIN_HIDDEN, SKIN_HOLE_NONE } from './skin/types.ts';
 import { GLOW_LAYER } from '../glow.ts';
 import { FAINT_ONLY_LAYER } from '../layers.ts';
 
@@ -163,6 +163,11 @@ export class VesselObject extends CelObject {
 
   /** The crossing shadow's draw (null where this vessel casts none). */
   shadowMesh: Mesh | null = null;
+  private skinHidden = false;
+  private revealed = true;
+  /** The shadow takes the tube's reveal and cuts, so a tube that draws nothing (not yet revealed, or replaced whole by a merged skin) draws no shadow and costs no draw call. */
+  private syncShadow(): void { if (this.shadowMesh) this.shadowMesh.visible = this.revealed && !this.skinHidden; }
+  override setReveal(r: number): void { super.setReveal(r); this.revealed = r > 0; this.syncShadow(); }
   /** The fade of the shadow's band over each end that joins another vessel, in this vessel's radii (0: a free end): vessels/shadow.ts. */
   setShadowEnds(start: number, end: number): void { (this.toon.uniforms.shadowEnd!.value as Vector2).set(start, end); }
   /** How far toward the viewer this vessel's line stands on the Circuit's plate (circuit/map-depth.ts). */
@@ -347,7 +352,11 @@ export class VesselObject extends CelObject {
   setSkinCut(u0: number, u1: number): boolean {
     const v = this.toon.uniforms.skinCut!.value as Vector2;
     if (v.x === u0 && v.y === u1) return false;
-    v.set(u0, u1); return true;
+    v.set(u0, u1);
+    // (a tube a merged skin replaces whole draws nothing, and its shadow takes the same cut: so it draws no shadow, and costs no draw call)
+    this.skinHidden = u0 === SKIN_HIDDEN[0] && u1 === SKIN_HIDDEN[1];
+    this.syncShadow();
+    return true;
   }
   /** Side-wall junctions (skin/types.ts SkinArm.side, spec 10.1): the stretch of the tube between u0 and u1 is not drawn; the skin draws it. Slot 0 or 1 (a vessel has at most two holes). SKIN_HOLE_NONE is no hole. Returns whether it changed. */
   setSkinHole(slot: 0 | 1, u0: number, u1: number): boolean {
