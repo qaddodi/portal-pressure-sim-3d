@@ -14,3 +14,6 @@ Before: the app at `8de0ca39` (the mural cast at full occlusion: a flat red slab
 
 ## Held by
 `tests/clot-shader.test.ts` (fill, continuity, GLSL), `tests/hv-clot-ends.test.ts` (ends before the join, trunk length, clearance at every scale), `tests/hv-ostia.test.ts`, `tests/anatomy-placed-devices.test.ts`.
+
+## Ruling, 28 Nov: the TIPS flow in Budd-Chiari
+Mohammad kept the small flow through a TIPS in Budd-Chiari (about 2.2 mL/s in the engine, under the engine test's 15% of open flow, `tests/engine-departures.test.ts` and the junction table's own test). It is not to be shut. A TIPS in Budd-Chiari that carries a small trickle is the model's answer, kept on purpose.
