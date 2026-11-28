@@ -7,7 +7,7 @@ import { Vector3 } from 'three';
 import { CameraRig } from '../src/scene/camera/rig.ts';
 import { fullRoom } from '../src/scene/camera/room.ts';
 import { installTilt, TURN_HOLD_MS } from '../src/scene/camera/tilt-input.ts';
-import { DEVICE_CAP_DEG, FRAMING_TILT_DEG, DEVICE_BASE_TAU, DEVICE_DEAD, DEVICE_RANGE, DeviceBase, DEVICE_PITCH_MAX, DEVICE_YAW_MAX, deviceQuat, deviceUnit, screenTurn, turnBetween, wakeStep } from '../src/scene/camera/tilt.ts';
+import { DEVICE_CAP_DEG, FRAMING_TILT_DEG, DEVICE_BASE_TAU, DEVICE_DEAD, DEVICE_KNEE, DEVICE_RANGE, DeviceBase, DEVICE_PITCH_MAX, DEVICE_YAW_MAX, deviceQuat, deviceUnit, screenTurn, turnBetween, wakeStep } from '../src/scene/camera/tilt.ts';
 
 const deg = (r: number) => (r * 180) / Math.PI;
 type Q = readonly [number, number, number, number];
@@ -38,44 +38,44 @@ test('direction: the figure holds still against the turn of the device, on each 
     for (const angle of [0, 90, 180, 270]) {
       const ax = screenAxes(angle), q0 = deviceQuat(...held);
       const rest = rigAt(open), rf = frontAndBack(rest);
-      // the right edge goes away from the viewer by 10 degrees: the screen's y axis, turned positive
+      // the right edge goes away from the viewer by 8 degrees: the screen's y axis, turned positive
       let b = new DeviceBase(); b.readQuat(q0, 0);
-      let t = turnOf(b, mul(q0, axisQuat(ax.y[0], ax.y[1], 0, 10)), angle);
-      assert.ok(Math.abs(t.right - 10) < 0.05 && Math.abs(t.top) < 0.05, `held ${held} turn ${angle}: ${JSON.stringify(t)}`);
+      let t = turnOf(b, mul(q0, axisQuat(ax.y[0], ax.y[1], 0, 8)), angle);
+      assert.ok(Math.abs(t.right - 8) < 0.05 && Math.abs(t.top) < 0.05, `held ${held} turn ${angle}: ${JSON.stringify(t)}`);
       let rig = rigAt(open); rig.tilt.set(deviceUnit(t.top, t.right), 'device'); settle(rig);
       let p = frontAndBack(rig);
-      assert.ok(p.front.x > rf.front.x + 0.5 && p.back.x < rf.back.x - 0.5, `right edge away, held ${held} turn ${angle}: the near side moves toward the near (left) edge, the far side away: ${p.front.x - rf.front.x} ${p.back.x - rf.back.x}`);
+      assert.ok(p.front.x < rf.front.x - 0.5 && p.back.x > rf.back.x + 0.5, `right edge away, held ${held} turn ${angle}: the near side moves toward the near (left) edge, the far side the other way: ${p.front.x - rf.front.x} ${p.back.x - rf.back.x}`);
       assert.ok(Math.abs(p.front.y - rf.front.y) < 0.01);
-      // the top edge comes toward the viewer by 10 degrees: the screen's x axis, turned positive
+      // the top edge comes toward the viewer by 8 degrees: the screen's x axis, turned positive
       b = new DeviceBase(); b.readQuat(q0, 0);
-      t = turnOf(b, mul(q0, axisQuat(ax.x[0], ax.x[1], 0, 10)), angle);
-      assert.ok(Math.abs(t.top - 10) < 0.05 && Math.abs(t.right) < 0.05, `held ${held} turn ${angle}: ${JSON.stringify(t)}`);
+      t = turnOf(b, mul(q0, axisQuat(ax.x[0], ax.x[1], 0, 8)), angle);
+      assert.ok(Math.abs(t.top - 8) < 0.05 && Math.abs(t.right) < 0.05, `held ${held} turn ${angle}: ${JSON.stringify(t)}`);
       rig = rigAt(open); rig.tilt.set(deviceUnit(t.top, t.right), 'device'); settle(rig);
       p = frontAndBack(rig);
-      assert.ok(p.front.y > rf.front.y + 0.5 && p.back.y < rf.back.y - 0.5, `top toward the viewer, held ${held} turn ${angle}: the near side rises, the far side drops: ${p.front.y - rf.front.y} ${p.back.y - rf.back.y}`);
+      assert.ok(p.front.y < rf.front.y - 0.5 && p.back.y > rf.back.y + 0.5, `top toward the viewer, held ${held} turn ${angle}: the near side rises, the far side drops: ${p.front.y - rf.front.y} ${p.back.y - rf.back.y}`);
       assert.ok(Math.abs(p.front.x - rf.front.x) < 0.01);
       // the opposite turns give the opposite moves
       rig = rigAt(open); rig.tilt.set(deviceUnit(-t.top, -t.right), 'device'); settle(rig);
-      assert.ok(frontAndBack(rig).front.y < rf.front.y - 0.5);
+      assert.ok(frontAndBack(rig).front.y > rf.front.y + 0.5);
     }
   }
 });
 
 test('the figure turns by exactly the device\'s own turn past the dead zone, up to the cap and never more', () => {
   const rig = rigAt(open); rig.tilt.set(deviceUnit(-90, 90), 'device'); settle(rig);
-  assert.ok(Math.abs(rig.tilt.yaw + DEVICE_YAW_MAX) < 1e-9 && Math.abs(rig.tilt.pitch + DEVICE_PITCH_MAX) < 1e-9, `${rig.tilt.yaw} ${rig.tilt.pitch}`);
+  assert.ok(Math.abs(rig.tilt.yaw - DEVICE_YAW_MAX) < 1e-9 && Math.abs(rig.tilt.pitch - DEVICE_PITCH_MAX) < 1e-9, `${rig.tilt.yaw} ${rig.tilt.pitch}`);
   assert.deepEqual(deviceUnit(0, DEVICE_DEAD * 0.9), { x: 0, y: 0 });
-  assert.equal(deviceUnit(0, DEVICE_RANGE + DEVICE_DEAD).x, 1);
+  assert.equal(deviceUnit(0, DEVICE_RANGE + DEVICE_DEAD).x, -1);
   const soft = deviceUnit(0, DEVICE_DEAD + 0.01).x;   // (no jump at the edge of the dead zone)
-  assert.ok(soft > 0 && soft < 0.01);
+  assert.ok(soft < 0 && soft > -0.01);
 });
 
-test('the neutral pose: a held tilt is read at first and then fades away over the follow time; a phone resting at any angle is straight', () => {
+test('the neutral pose: a held tilt is read at first and then fades away for good; a phone resting at any angle is straight', () => {
   const q0 = deviceQuat(40, 70, 2), b = new DeviceBase();
   assert.deepEqual(b.readQuat(q0, 0), { rx: 0, ry: 0 });
-  const tilted = mul(q0, axisQuat(1, 0, 0, 10));
-  assert.ok(Math.abs(b.readQuat(tilted, 16).rx - 10) < 0.05);
-  let last = 10;
+  const tilted = mul(q0, axisQuat(1, 0, 0, 8));
+  assert.ok(Math.abs(b.readQuat(tilted, 16).rx - 8) < 0.05);
+  let last = 8;
   for (let t = 1000; t <= 6 * DEVICE_BASE_TAU; t += 1000) { const r = b.readQuat(tilted, t).rx; assert.ok(r <= last + 1e-9); last = r; }
   assert.ok(last < 0.1, `settled ${last}`);
   b.reset();
@@ -166,7 +166,7 @@ test('iOS permission: a refusal because the call was outside a gesture is tried 
 /** One reading of the device held in `q0` and turned by `top` and `right` degrees about its own axes, at time `ms`, as the browser would send it (Euler angles). */
 function reading(win: Fake, alpha: number, beta: number, gamma: number, ms: number) { clock.now = ms; win.fire('deviceorientation', { alpha, beta, gamma, timeStamp: ms }); }
 
-test('frames: a hand\'s tremor (0.6 degrees, 60 Hz, 10 s) wakes the clock no more than the first reading; a 10 degree tilt and back wakes it for under a second, then stops', () => {
+test('frames: a hand\'s tremor (0.6 degrees, 60 Hz, 10 s) wakes the clock no more than the first reading; a 10 degree tilt, a hold and the way back wake it while the figure moves and settles, then it stops', () => {
   const rig = rigAt(open), { env, wakes } = envOf(rig);
   const { win } = fakeWindow();
   const off = installTilt(env, win as unknown as Window);
@@ -178,14 +178,14 @@ test('frames: a hand\'s tremor (0.6 degrees, 60 Hz, 10 s) wakes the clock no mor
   const n0 = wakes.length;
   // tilt by 10 degrees over half a second, hold, and come back over half a second
   let woken = 0, lastWake = 0;
-  for (let i = 0; i < 360; i++, ms += 1000 / 60) {
+  for (let i = 0; i < 720; i++, ms += 1000 / 60) {
     const k = i < 30 ? i / 30 : i < 150 ? 1 : i < 180 ? 1 - (i - 150) / 30 : 0;
     const before = wakes.length;
     reading(win, a, b + 10 * k + rnd(), g + rnd(), ms);
     if (wakes.length > before) { woken++; lastWake = i; }
   }
-  assert.ok(woken > 0 && woken < 60 && wakes.length > n0, `woken ${woken} readings of 360`);
-  assert.ok(lastWake < 330, `the last wake was at reading ${lastWake}`);
+  assert.ok(woken > 0 && woken < 400 && wakes.length > n0, `woken ${woken} readings of 720`);
+  assert.ok(lastWake < 480, `the last wake was at reading ${lastWake}`);
   off();
 });
 
@@ -232,24 +232,131 @@ test('the wake step is half a pixel of the figure\'s largest move, and the Stage
   assert.ok(/locked: \(\) => [^,}]*/.test(gate) && !/locked: \(\) => [^,]*talkOn/.test(gate) && /pointerLocked: \(\) => talkOn\(\)/.test(gate), gate);
 });
 
-test('worked example, portrait and both landscapes: tipping the screen\'s top edge away raises the camera so he sees more of the figure\'s top, and tipping its right edge away moves the camera right so he sees more of its right side (a window)', () => {
+test('worked example, portrait and both landscapes: tipping the screen\'s top edge away raises the camera so he sees more of the figure\'s top, and tipping its right edge away moves the camera right so he sees more of its right side (owner, 28 Nov: "Turn it round")', () => {
   for (const angle of [0, 90, 270]) {
     const ax = screenAxes(angle), q0 = deviceQuat(15, 65, 2), rest = rigAt(open).camera.position.clone();
     const b = new DeviceBase(); b.readQuat(q0, 0);
-    // the top edge goes away by 10 degrees: the screen's x axis turned the negative way
-    const t = turnOf(b, mul(q0, axisQuat(ax.x[0], ax.x[1], 0, -10)), angle);
-    assert.ok(t.top < -9.9, `screen turn ${angle}: top ${t.top}`);
+    // the top edge goes away by 8 degrees: the screen's x axis turned the negative way
+    const t = turnOf(b, mul(q0, axisQuat(ax.x[0], ax.x[1], 0, -8)), angle);
+    assert.ok(t.top < -7.9, `screen turn ${angle}: top ${t.top}`);
     const rig = rigAt(open); rig.tilt.set(deviceUnit(t.top, t.right), 'device'); settle(rig);
-    assert.ok(rig.camera.position.y < rest.y - 0.01 && Math.abs(rig.camera.position.x - rest.x) < 1e-6, `screen turn ${angle}: the camera lowers`);
-    // the right edge goes away by 10 degrees
+    assert.ok(rig.camera.position.y > rest.y + 0.01 && Math.abs(rig.camera.position.x - rest.x) < 1e-6, `screen turn ${angle}: the camera rises`);
+    // the right edge goes away by 8 degrees
     const b2 = new DeviceBase(); b2.readQuat(q0, 0);
-    const r = turnOf(b2, mul(q0, axisQuat(ax.y[0], ax.y[1], 0, 10)), angle);
+    const r = turnOf(b2, mul(q0, axisQuat(ax.y[0], ax.y[1], 0, 8)), angle);
     const rig2 = rigAt(open); rig2.tilt.set(deviceUnit(r.top, r.right), 'device'); settle(rig2);
-    assert.ok(rig2.camera.position.x < rest.x - 0.01 && Math.abs(rig2.camera.position.y - rest.y) < 1e-6, `screen turn ${angle}: the camera moves left`);
+    assert.ok(rig2.camera.position.x > rest.x + 0.01 && Math.abs(rig2.camera.position.y - rest.y) < 1e-6, `screen turn ${angle}: the camera moves right`);
   }
 });
 
 test('the cap is 7.5 degrees both ways (owner, 28 Nov: "Just cap it at 7.5 degree both ways") and the slides are framed for exactly that', () => {
   assert.equal(DEVICE_CAP_DEG, 7.5);
   assert.equal(FRAMING_TILT_DEG, DEVICE_CAP_DEG);
+});
+
+// ── 28 Nov, the iPhone review (owner's pick 2: "Also settle back to square"): the stop never holds the figure, the stop is cushioned, a rolled phone reads
+// the right axes, and the figure eases back to square once the phone is still. Each rule is checked on both axes and on the four turns of the screen.
+const FRAME = 1000 / 60;
+/** How far the figure answers a reading (degrees, signed as the device's own turn: top and right), as the listener computes it without its filter. */
+const figureOf = (b: DeviceBase, q: Q, ms: number, angle: number) => {
+  const d = b.readQuat(q, ms), s = screenTurn(d.rx, d.ry, angle), u = deviceUnit(s.top, s.right);
+  return { top: -u.y * DEVICE_CAP_DEG, right: -u.x * DEVICE_CAP_DEG };
+};
+/** The two tilt axes of the screen and the four turns, with the device held three ways. */
+const CASES = [0, 90, 180, 270].flatMap((angle) => (['top', 'right'] as const).flatMap((axis) =>
+  ([[30, 80, 5], [0, 45, -3], [200, 5, 10]] as [number, number, number][]).map((held) => ({ angle, axis, held }))));
+const about = (c: (typeof CASES)[number], degs: number): Q => {
+  const ax = screenAxes(c.angle), v = c.axis === 'top' ? ax.x : ax.y;
+  return axisQuat(v[0], v[1], 0, degs);
+};
+
+test('the cushion: 1:1 until one degree short of the cap, then a smooth slowing that meets the cap with no speed left; never a step', () => {
+  const f = (a: number) => -deviceUnit(0, a).x * DEVICE_CAP_DEG;
+  for (let a = DEVICE_DEAD; a <= DEVICE_DEAD + DEVICE_CAP_DEG - DEVICE_KNEE; a += 0.25) assert.ok(Math.abs(f(a) - (a - DEVICE_DEAD)) < 1e-9, `1:1 at ${a}`);
+  assert.equal(DEVICE_RANGE, DEVICE_CAP_DEG + DEVICE_DEAD + DEVICE_KNEE);
+  assert.ok(Math.abs(f(DEVICE_RANGE) - DEVICE_CAP_DEG) < 1e-9 && f(DEVICE_RANGE + 20) === DEVICE_CAP_DEG);
+  let last = f(0), lastSlope = 0;
+  for (let a = 0.01; a <= DEVICE_RANGE + 1; a += 0.01) {
+    const v = f(a), slope = (v - last) / 0.01;
+    assert.ok(slope >= -1e-9 && slope <= 1 + 1e-9, `slope ${slope} at ${a}`);
+    // the slope itself never jumps but at the dead zone's edge (the soft dead zone of the sheet)
+    if (a > DEVICE_DEAD + 0.02) assert.ok(Math.abs(slope - lastSlope) < 0.011, `the slope jumps at ${a}: ${lastSlope} to ${slope}`);
+    last = v; lastSlope = slope;
+  }
+  assert.ok(lastSlope < 1e-9, 'no speed left at the cap');
+  assert.equal(f(-5), -f(5));
+});
+
+test('the stop never holds the figure: after a change of grip of 30 degrees, turning back moves it from the first degree', () => {
+  for (const c of CASES) {
+    const q0 = deviceQuat(...c.held), b = new DeviceBase();
+    b.readQuat(q0, 0);
+    let ms = 0, fig = { top: 0, right: 0 };
+    for (let i = 1; i <= 60; i++) { ms += FRAME; fig = figureOf(b, mul(q0, about(c, i / 2)), ms, c.angle); }
+    assert.ok(Math.abs(fig[c.axis] - DEVICE_CAP_DEG) < 1e-6, `${JSON.stringify(c)}: at the cap, ${fig[c.axis]}`);
+    const back1 = figureOf(b, mul(q0, about(c, 29)), ms + 1, c.angle)[c.axis], back2 = figureOf(b, mul(q0, about(c, 28)), ms + 2, c.angle)[c.axis];
+    assert.ok(back1 < DEVICE_CAP_DEG - 0.2 && back2 < DEVICE_CAP_DEG - 0.9, `${JSON.stringify(c)}: one degree back ${back1}, two ${back2}`);
+  }
+});
+
+test('settle to square: a held tilt stays for a second, then eases back; within half a degree of square 4 s after the hand stops, and nothing jumps', () => {
+  for (const c of CASES) for (const size of [7, 30]) {
+    const q0 = deviceQuat(...c.held), b = new DeviceBase();
+    b.readQuat(q0, 0);
+    let ms = 0, fig = 0, last = 0, at1s = 0, at4s = NaN, biggest = 0;
+    const move = 400;
+    for (let i = 1; ms < move + 6000; i++) {
+      ms = i * FRAME;
+      fig = figureOf(b, mul(q0, about(c, size * Math.min(1, ms / move))), ms, c.angle)[c.axis];
+      if (ms > move) biggest = Math.max(biggest, Math.abs(fig - last));
+      last = fig;
+      if (ms <= move + 1000) at1s = fig;
+      if (Number.isNaN(at4s) && ms >= move + 4000) at4s = fig;
+    }
+    const start = Math.min(size - DEVICE_DEAD, DEVICE_CAP_DEG);
+    assert.ok(at1s > start * 0.9, `${JSON.stringify(c)} ${size}: held for a second, ${at1s} of ${start}`);
+    assert.ok(Math.abs(at4s) < 0.5, `${JSON.stringify(c)} ${size}: ${at4s} degrees 4 s after the hand stopped`);
+    assert.ok(fig === 0, `${JSON.stringify(c)} ${size}: square in the end, ${fig}`);
+    // the return eases: under 0.12 degrees in any one frame (7 degrees a second at its quickest, from the full range)
+    assert.ok(biggest < 0.12, `${JSON.stringify(c)} ${size}: the biggest step of the return was ${biggest} degrees`);
+  }
+});
+
+test('settle to square waits for a still hand: a rocking phone keeps its full swing, and a trembling or noisy hand still settles', () => {
+  for (const c of CASES) for (const hz of [0.2, 0.5, 1]) {
+    const q0 = deviceQuat(...c.held), b = new DeviceBase();
+    b.readQuat(q0, 0);
+    let lo = 0, hi = 0;
+    for (let i = 1; i * FRAME < 20000; i++) {
+      const ms = i * FRAME, f = figureOf(b, mul(q0, about(c, 5 * Math.sin((2 * Math.PI * hz * ms) / 1000))), ms, c.angle)[c.axis];
+      if (ms > 20000 - 1000 / hz) { lo = Math.min(lo, f); hi = Math.max(hi, f); }
+    }
+    assert.ok(hi > 3.8 && lo < -3.8, `${JSON.stringify(c)} at ${hz} Hz: the figure swings ${lo} to ${hi} (4 each way with no settle)`);
+  }
+  let seed = 11; const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32 - 0.5) * 1.2;
+  for (const c of CASES) {
+    const q0 = deviceQuat(...c.held), b = new DeviceBase();
+    b.readQuat(q0, 0);
+    let f = 0;
+    for (let i = 1; i * FRAME < 6000; i++) {
+      const ms = i * FRAME, wobble = 0.15 * Math.sin((2 * Math.PI * 9 * ms) / 1000) + 0.4 * Math.sin((2 * Math.PI * 0.3 * ms) / 1000) + rnd() * 0.5;
+      f = figureOf(b, mul(q0, about(c, 5 * Math.min(1, ms / 300) + wobble)), ms, c.angle)[c.axis];
+    }
+    assert.ok(Math.abs(f) < 0.5, `${JSON.stringify(c)}: a trembling hand settles, ${f}`);
+  }
+});
+
+test('a phone rolled about its screen (rotation lock, lying on the side) reads each tilt on its own axis, at any roll', () => {
+  for (const held of [[30, 80, 5], [0, 45, -3], [200, 5, 10]] as [number, number, number][]) for (const roll of [20, 45, 90, 135, 180, -90]) {
+    const q0 = deviceQuat(...held), rolled = mul(q0, axisQuat(0, 0, 1, roll)), b = new DeviceBase();
+    b.readQuat(q0, 0);
+    const still = b.readQuat(rolled, FRAME);
+    assert.ok(Math.abs(still.rx) < 1e-6 && Math.abs(still.ry) < 1e-6, `held ${held} roll ${roll}: a roll is no tilt`);
+    const d = b.readQuat(mul(rolled, axisQuat(1, 0, 0, 5)), 2 * FRAME);
+    assert.ok(Math.abs(d.rx - 5) < 0.01 && Math.abs(d.ry) < 0.01, `held ${held} roll ${roll}: ${JSON.stringify(d)}`);
+    const b2 = new DeviceBase();
+    b2.readQuat(q0, 0); b2.readQuat(rolled, FRAME);
+    const e = b2.readQuat(mul(rolled, axisQuat(0, 1, 0, -5)), 2 * FRAME);
+    assert.ok(Math.abs(e.ry + 5) < 0.01 && Math.abs(e.rx) < 0.01, `held ${held} roll ${roll}: ${JSON.stringify(e)}`);
+  }
 });
