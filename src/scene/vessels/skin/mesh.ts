@@ -171,6 +171,9 @@ export function worstBulge(m: BulgeMesh, axes: BulgeAxes, sw: readonly number[] 
  *  with the smaller worst angle is kept (a finer build that folds, loses a vertex to a collapse or is not better is thrown away). Only such a skin pays the extra builds; every other skin is exactly as it was. A global curvature-adaptive target was tried: it
  *  pushed LPV_A~plain from 72 to 80.5 degrees, dropped a skin and doubled the build time. */
 export const REFINE_AT = 75;
+/** A built skin whose neighbouring normals are still REFINE_AT apart or more after the refinement: a crease, which the shading draws as a dark line and tests/skin-builds.test.ts refuses at 80.
+ *  The neck-widening ladders (skin-set.ts) take a build that bulges less only if it is not creased: a necked blend that cost the bulge 0.5 for a 127 degree crease (SVD) is no better build. */
+export const creased = (m: { normal: ArrayLike<number>; index: ArrayLike<number> }): boolean => worstNormalAngle(m) >= REFINE_AT;
 export const REFINE_SCALES: readonly number[] = [0.8, 0.65];
 const DEFAULT_PACE: BuildPace = { rounds: REMESH_ROUNDS, shrinkRounds: SHRINK_ROUNDS, pull: SHRINK_PULL };
 function refined(j: SkinJunction, cuts: SkinCut[], seamRings: readonly Float32Array[], seamNormals: readonly Float32Array[], axes: readonly Capsule[] | undefined, maxVerts: number, pace: BuildPace | undefined, m: SkinMesh): SkinMesh {
