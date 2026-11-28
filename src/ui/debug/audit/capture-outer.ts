@@ -18,6 +18,7 @@ import { commitOf } from '../../../boot/release.ts';
 import type { CaptureMsg } from './capture-child.ts';
 import { readBox } from '../../layout-snap.ts';
 import { clock } from '../../../clock/frame.ts';
+import { captureUnified } from './capture-unified.ts';
 
 /** The address of the app in a capture frame: the same path with the capture flags (and none of the self-test's). */
 export function captureSrc(pathname: string, search: string, o: { speed: number; pick: string[] | null; decks: string[] | null; what?: CaptureWhat; cases?: string | null }): string {
@@ -130,10 +131,20 @@ export function addCaptureControls(k: OuterKit): void {
       }
       if (sess.degraded) notes.push(`NOTE: the device's storage would not take the pictures (${sess.degraded}); they were held in memory, and a crash would lose them`);
       const extra: ZipFile[] = [];
+      // (the audit's one format at the top: README-FIRST, REPORT, sections, findings.json, manifest.json; the folders of pictures stay as they are)
+      const labelOf = (n: string): string => FRAME_DEVICES[n.split('/')[0]!]?.label ?? n.split('/')[0]!;
+      const unified = await captureUnified({
+        search: searchNow(), names: sess.names(), read: (n) => sess.read(n), labelOf, sizes: ids, ...(sel.pick ? { slides: sel.pick } : {}),
+        ends: done.map(({ id, r }) => ({ layout: FRAME_DEVICES[id]!.label, notes: r.notes, ...(r.why ? { ended: r.why } : {}) })),
+        build: buildOf(), startedAt: at.toISOString(), seconds: (new Date().getTime() - at.getTime()) / 1000, device: `${navigator.userAgent}; ${ids.join(', ')}`,
+        speed, sideBySide: ids.length > 1, stopped: stop, cases: sel.what !== 'slides',
+      });
+      if (unified) extra.push(...unified); else notes.push('the request could not be read again at the end: no REPORT.md or findings.json');
       if (Object.keys(manifests).length) extra.push({ name: 'cases-manifest.json', data: enc.encode(manifestJson(joinManifests(manifests))) });
       const readme = [
         `Portal pressure simulator: captured on a computer at the sizes ${ids.join(', ')}`, `Taken: ${takenWords}`, `Build: ${buildOf()}`, `Made: ${at.toISOString()}`,
-        'One folder per size (each with its own README, pictures, state files and contact sheets).', ...notes,
+        'One folder per size (each with its own README, pictures, state files and contact sheets).',
+        'README-FIRST.md, REPORT.md, sections/, findings.json and manifest.json are the audit\'s own format: start there.', ...notes,
       ];
       extra.push({ name: 'README.txt', data: enc.encode(readme.join('\n')) });
       await sess.add(extra);

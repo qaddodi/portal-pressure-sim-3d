@@ -57,7 +57,15 @@ One flag, `req`, holds the whole line (`src/ui/debug/request/address.ts`; write 
 - The seed is a printed input: the stress page says it before the run, and REPORT.md, manifest.json and the README (`Taken:`) carry the request line, the seed and `random:n@seed` to ask for the same slides again. The capture's own Random 5, 10, 25 buttons now draw from a seed under 2^32 and print it the same way.
 - A request that cannot be read stops the page with the reason; it is never guessed.
 
-The stress and capture zips still keep their own layout (pictures by layout, REPORT.md, notes, manifest.json); they carry the request and the seed in it. Writing them in the one format (README-FIRST, sections, findings.json) is not done yet.
+## The picture runs write the same zip (follow-up to step b)
+
+`?stress`, the Mac capture and the capture in the audit page write the one format too (`request/shots.ts` turns pictures and their checks into items and findings, `request/gpu.ts` and `audit/capture-unified.ts` gather what the page knows; the text is `bundle.ts`'s):
+
+- **`?stress`**: `pictures/<layout>/slides|moves|menus/` with the pictures, then README-FIRST.md, REPORT.md, `sections/` (one a talk whose slides were taken, one for the frames inside transitions, one for the menus and sheets, one for frames that did not end and the capture's own notes), findings.json and manifest.json. The old `slides.md`, `animations.md` and `menus.md` are gone: their content is the sections, item by item, with the picture's path, its state, the link that reopens it and each check.
+- **The Mac capture and `?audit=here`** keep their folders (a size, then a talk) and add the same five top-level files, read from the card record in each slide's state file. A history case's state file is not judged.
+- A picture run's checks are `layout` (a card's content past its foot), `motion` (a card changes size after it lands; `?stress` only) and `pictures` (an issue the capture noted, a frame that did not end, a note that means a picture is not to be trusted). The runner is `gpu`; README-FIRST says what the run's speed does to how far to trust it, and that numbers, junctions, perf, a11y, types and lint are not judged by pictures.
+- A finding's id is the rule, the layout and the picture's title, and the failure with its numbers taken out, so the same overflow has the same id next run. The two views of one slide (card up, card tucked) are two things.
+- Not done: a page cannot read the last zip from a folder, so a picture run is not compared with the last one (the node runner's `--against` reads two zips of either runner, and the ids match across runs of the same request).
 
 ## Comparing with the last run (step c)
 

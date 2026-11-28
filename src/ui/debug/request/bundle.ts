@@ -26,6 +26,8 @@ export interface Item {
   checks: Partial<Record<CheckId, State>>;
   /** the ids of its findings */
   findings: string[];
+  /** lines printed under the section's table for this item (a picture's path, its state, how to reopen it, each check in words) */
+  detail?: string[];
 }
 export interface CheckRun { id: CheckId; ran: boolean; why?: string; seconds: number; summary: string }
 export interface RunInfo {
@@ -49,20 +51,24 @@ export interface RunResult {
   pictures: string[];
   /** against the last run of the same request, when there was one (compare.ts) */
   comparison?: Comparison;
+  /** a section's title when it is not one the names below make (`pictures:moves`) */
+  titles?: Record<string, string>;
+  /** how to ask for this run again, when it is not `npm run audit` (a page's address); one line each */
+  again?: string[];
 }
 export interface BundleFile { name: string; text: string }
 
 const slug = (s: string): string => s.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
 /** `sections/NN-<name>.md` for each section, in the order the items first name them, features first, then talks, cases, scene, code. */
-export function sectionNames(items: readonly Item[]): { section: string; file: string; title: string }[] {
-  const rank = (s: string) => ['feature', 'deck', 'case', 'scene', 'code'].indexOf(s.split(':')[0]!);
+export function sectionNames(items: readonly Item[], titles: Record<string, string> = {}): { section: string; file: string; title: string }[] {
+  const rank = (s: string) => ['feature', 'deck', 'case', 'pictures', 'scene', 'code'].indexOf(s.split(':')[0]!);
   const seen: string[] = [];
   for (const it of items) if (!seen.includes(it.section)) seen.push(it.section);
   const sorted = seen.map((s, i) => ({ s, i })).sort((a, b) => (rank(a.s) < 0 ? 9 : rank(a.s)) - (rank(b.s) < 0 ? 9 : rank(b.s)) || a.i - b.i).map((x) => x.s);
   return sorted.map((section, i) => {
     const [k, ...rest] = section.split(':'), id = rest.join(':');
     const kind = { feature: 'Feature', deck: 'Talk', case: 'Case' }[k as string] ?? k;
-    const title = id ? `${kind} ${id}` : section === 'code' ? 'Code checks (typecheck, lint)' : section === 'scene' ? 'The scene audit' : section;
+    const title = titles[section] ?? (id ? `${kind} ${id}` : section === 'code' ? 'Code checks (typecheck, lint)' : section === 'scene' ? 'The scene audit' : section);
     return { section, file: `sections/${String(i + 1).padStart(2, '0')}-${slug(section)}.md`, title };
   });
 }
@@ -97,7 +103,8 @@ function reportMd(r: RunResult): string {
   L.push(`# Audit report`, '');
   L.push(`- Request: \`${s.line}\``);
   L.push(`- Runner: ${RUNNER_WORDS[s.runner]}`);
-  L.push(`- Build: \`${info.build.commit.slice(0, 8)}\` on \`${info.build.branch}\`${info.build.dirty ? ' (with uncommitted changes)' : ''}; engine \`${info.build.engine.slice(0, 8)}\``);
+  const engine = info.build.engine ? `; engine \`${info.build.engine.slice(0, 8)}\`` : '', branch = info.build.branch ? ` on \`${info.build.branch}\`` : '';
+  L.push(`- Build: \`${info.build.commit.slice(0, 8)}\`${branch}${info.build.dirty ? ' (with uncommitted changes)' : ''}${engine}`);
   L.push(`- Run: ${info.startedAt}, ${Math.round(info.seconds)} s, ${info.device}`);
   if (s.random) {
     const again = `random:${s.random.n}@${s.random.seed}${s.random.spread ? '/deck' : ''}`;
@@ -120,7 +127,7 @@ function reportMd(r: RunResult): string {
     for (const f of r.findings) L.push(`| ${f.id} | ${st ? `${statusOf(r, f.id)} | ` : ''}${f.severity} | ${f.check} | ${cell(f.target)} | ${cell(f.message.slice(0, 220))} |`);
     L.push('', 'Each finding in full (owner file, where, how to see it again) is in `findings.json`, and under its section in `sections/`.', '');
   }
-  const names = sectionNames(r.items);
+  const names = sectionNames(r.items, r.titles);
   if (names.length) {
     L.push('## Sections', '');
     for (const n of names) {
@@ -140,6 +147,11 @@ function sectionMd(r: RunResult, section: string, title: string): string {
   L.push(`| Item | ${checks.join(' | ')} | Findings |`, `|---|${checks.map(() => '---|').join('')}---|`);
   for (const i of items) L.push(`| ${cell(i.label)} | ${checks.map((k) => MARK[i.checks[k] ?? 'n/a']).join(' | ')} | ${i.findings.join(', ') || '-'} |`);
   L.push('');
+  const detailed = items.filter((i) => i.detail && i.detail.length);
+  if (detailed.length) {
+    L.push('## Items in full', '');
+    for (const i of detailed) L.push(`### ${i.label}`, '', ...i.detail!.map((d) => `- ${d}`), '');
+  }
   const fs = items.flatMap((i) => i.findings).filter((id, k, a) => a.indexOf(id) === k).map((id) => byId.get(id)).filter((f): f is Finding => !!f);
   if (fs.length) {
     L.push('## Findings', '');
@@ -188,8 +200,8 @@ function readmeMd(r: RunResult): string {
     '',
     '## Run it again',
     '',
-    `\`npm run audit -- "${s.line}"\` (node, no browser, no approval).`,
-    `The same line is the request for the other runners.${s.random ? ` The random slice is fixed by its seed (${s.random.seed}).` : ''}`,
+    ...(r.again ?? [`\`npm run audit -- "${s.line}"\` (node, no browser, no approval).`, 'The same line is the request for the other runners.']),
+    ...(s.random ? [`The random slice is fixed by its seed (${s.random.seed}).`] : []),
     '',
     `Schema ${SCHEMA}. Build \`${r.info.build.commit.slice(0, 8)}\`.`,
   ];
@@ -198,7 +210,7 @@ function readmeMd(r: RunResult): string {
 
 /** Every file of the zip as text, in zip order. Pure. */
 export function bundleFiles(r: RunResult): BundleFile[] {
-  const names = sectionNames(r.items);
+  const names = sectionNames(r.items, r.titles);
   const out: BundleFile[] = [
     { name: 'README-FIRST.md', text: readmeMd(r) },
     { name: 'REPORT.md', text: reportMd(r) },

@@ -42,17 +42,22 @@ export const findingId = (rule: string, target: string, state = ''): string => `
 
 export type FindingInput = Omit<Finding, 'id' | 'state'> & { state?: string };
 
+/** The ids of findings, in the order given: two alike get `.2`, `.3` in that order. */
+export function idsOf(inputs: readonly FindingInput[]): string[] {
+  const seen = new Map<string, number>();
+  return inputs.map((f) => {
+    const base = findingId(f.rule, f.target, plainState(f.state ?? '')), n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    return n === 1 ? base : `${base}.${n}`;
+  });
+}
+
 /**
  * Findings with their ids. Two findings with the same rule, target and state (two lines of one file with the same error) get `.2`, `.3` in the order given;
  * a rerun in the same order gets the same ids. Worst first, then by id.
  */
 export function withIds(inputs: readonly FindingInput[]): Finding[] {
-  const seen = new Map<string, number>();
-  const out = inputs.map((f): Finding => {
-    const state = plainState(f.state ?? '');
-    const base = findingId(f.rule, f.target, state), n = (seen.get(base) ?? 0) + 1;
-    seen.set(base, n);
-    return { ...f, state, id: n === 1 ? base : `${base}.${n}` };
-  });
+  const ids = idsOf(inputs);
+  const out = inputs.map((f, i): Finding => ({ ...f, state: plainState(f.state ?? ''), id: ids[i]! }));
   return out.sort((a, b) => severityRank(a.severity) - severityRank(b.severity) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }

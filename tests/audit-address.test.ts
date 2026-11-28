@@ -7,7 +7,6 @@ import { appWorld } from '../src/ui/debug/request/world.ts';
 import { parseRequest } from '../src/ui/debug/request/grammar.ts';
 import { pickFromSearch } from '../src/ui/debug/audit/capture-request.ts';
 import { DEFAULT_PLAN, MAX_REQUEST_SLIDES, PICTURE_CAP, STRESS_LAYOUTS, STRESS_MOVES, STRESS_SLIDES, layoutPictures, layoutSteps, planFromSearch, stressPictures, stressSteps, type StressPlan } from '../src/ui/debug/stress/plan.ts';
-import { reportMd, manifestJson, requestLines, type LayoutRun } from '../src/ui/debug/stress/report.ts';
 import { FLAGS } from '../src/ui/debug/flags.ts';
 import { FLAG_MEANINGS } from '../src/ui/debug/flag-meanings.ts';
 
@@ -94,21 +93,6 @@ test('a seed is the same slides in the page and in the frame, because both read 
   assert.deepEqual(p!.slides, f!.slides);
   assert.equal(p!.random?.seed, 4471);
   assert.equal(p!.slides.length, 12);
-});
-
-test('the stress report and manifest print the request, the seed and how to ask for the same slides again', () => {
-  const meta = { build: 'abc', at: '2026-11-28', stopped: false, request: 'random:12@4471/deck', random: { n: 12, seed: 4471, spread: true, picked: ['a:1', 'b:2'] } };
-  const lines = requestLines(meta).join('\n');
-  assert.match(lines, /Request: random:12@4471\/deck/);
-  assert.match(lines, /seed 4471, spread over the talks; ask for the same slides again with random:12@4471\/deck/);
-  assert.match(lines, /Slides: a:1, b:2/);
-  assert.deepEqual(requestLines({ build: 'abc', at: 'x', stopped: false }), [], 'the default plan prints nothing new');
-  const run: LayoutRun = { layout: 'mac', label: 'Mac', entries: [], notes: [], secs: 1 };
-  assert.match(reportMd([run], meta), /Request: random:12@4471\/deck/);
-  const m = JSON.parse(manifestJson([run], meta));
-  assert.equal(m.request, 'random:12@4471/deck');
-  assert.equal(m.random.seed, 4471);
-  assert.equal(m.runner, 'gpu');
 });
 
 test('the capture takes its slides from the request: the same draw as the node runner, the seed in the README words', () => {
