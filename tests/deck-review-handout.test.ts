@@ -21,7 +21,7 @@ const all = async (): Promise<Deck[]> => Promise.all(IDS.map(async (id) => (awai
 const NO_PICTURE: Record<string, string[]> = {
   gradients: ['*'], 'same-gradient': ['*'], 'two-lesions': ['*'], 'tips-candidacy': ['*'], 'tips-complete': ['*'],
   hvpg: ['wedge-sinusoid', 'eus-ladder'], lobule: ['wedge-sinusoid'], prehepatic: ['anticoag-lumen', 'pvt-anticoag-lumen'], ncph: ['eus-ladder'], masld: ['regress-lobule'], kidney: ['confirm'],
-  'landmark-trials': ['predesci-test', 'groszmann', 'bleed', 'who-tips', 'earlytips', 'lvtips', 'monescillo', 'rifaximin', 'forest', 'summary'], albumin: ['answer', 'attire', 'macht', 'confirm'],
+  'landmark-trials': ['predesci-test', 'groszmann', 'bleed', 'who-tips', 'earlytips', 'lvtips', 'monescillo', 'rifaximin', 'forest', 'summary'], albumin: ['answer', 'macht', 'attire', 'confirm'],
   ascites: ['overrun', 'balance'], 'budd-chiari': ['stent-lumen'], carvedilol: ['rise-path'], 'cause-treated': ['year2-lobule', 'year2-plane', 'high2-plane'], 'choose-treatment': ['a2-fluid', 'a3-lumen', 'a4-lumen'],
   encephalopathy: ['embolize-flows'], stiffness: ['fibrosis-lobule'], shunts: ['gradient'], tipping: ['injury-card', 'antibiotic-card'],
   varices: ['gastric', 'redwale', 'primary', 'secondary'],   // the four slides added on 23 Nov (gastric varices, red wale, primary and secondary prophylaxis)

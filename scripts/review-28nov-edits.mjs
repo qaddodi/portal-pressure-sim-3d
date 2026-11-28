@@ -8,6 +8,8 @@ const MOVE_AFTER = (deck, at, target) => ({ deck, at, moveAfter: target });
 
 export const REVIEW_28NOV = [
   // ---- the clear defects of section 1b ----
+  // albumin: the two long-term trials come together (ANSWER, MACHT), then the short-term one (ATTIRE), as the outline says
+  MOVE_AFTER('albumin', 'slides.macht', 'slides.answer'),
   // ascites: the TIPS slide for refractory ascites says "if" (his ascites is not refractory on slide 15)
   SET('ascites', 'slides.tips.title', 'If his ascites becomes refractory, a TIPS can control it'),
   // day: "barely moves, from 17.7 to 17.7" read as a mistake
