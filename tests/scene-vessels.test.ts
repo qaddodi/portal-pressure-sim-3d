@@ -76,7 +76,8 @@ test('the scene stays inside the draw-call budget (spec: under 100 for tubes and
   s.scene.traverseVisible((o) => { if ((o as { isMesh?: boolean }).isMesh) { if (o.name.startsWith('skin:')) skins++; else if (o.name === 'crossing/shadow') shadows++; else meshes++; } });   // (the lobule and sinusoid views are hidden until chosen and draw nothing)
   assert.ok(meshes < 100, `${meshes} draw calls for tubes and organs`);
   assert.ok(skins <= 40, `${skins} draw calls for welded skins`);
-  assert.ok(shadows <= 60, `${shadows} draw calls for crossing shadows (one per drawn vessel, S3)`);
+  // (one per drawn vessel: the junction table cuts veins into pieces, each its own vessel, so the cap is the vessels drawn, not a number written here)
+  assert.ok(shadows <= EDGES.filter((e) => hasVessel(e.id)).length, `${shadows} draw calls for crossing shadows (one per drawn vessel, S3)`);
   assert.ok(meshes + skins + shadows < 210, `${meshes + skins + shadows} draw calls in all`);
   s.setView('lobule'); s.setView('body');
   s.dispose();
