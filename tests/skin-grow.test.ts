@@ -37,20 +37,20 @@ const BRAIDS = ['C1a', 'C2', 'C4', 'C7', 'C8'];
 /** The growing arms of each node on THE PLACED ARRANGEMENT (anatomy/placed-network.ts WHERE EACH END OPENS), every single-tube collateral and shunt that lands on a node with a permanent run-on pair or junction, pinned so a vessel added to or taken from the network is seen here. The growing arms by the network's node names: the left portal vein is one vessel there with no fork, so the umbilical vein
  *  and the meso-Rex meet its end, LPV. */
 const GROWERS_PLACED: Record<string, readonly string[]> = {
-  SMV: ['S_MC:0', 'REX:0'], SVD: ['S_DSR:0', 'C6:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], LPV: ['REX:1', 'C3:0'],
+  SMV: ['S_MC:0', 'REX:0'], SVD: ['S_DSR:0', 'C6:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'], LPV_U: ['C3:0'], LPV_X: ['REX:1'],
   IVCI: ['S_PC:1', 'C9:0', 'S_MC:1'], IVC_D: ['DIPS:1'], LRV_S: ['S_DSR:1', 'C6:1'], LRV: ['C5:1'], EPI: ['C3:1'],
   SV: ['C2:0'], IMV: ['C4:0'], SMV_R: ['C7:0'],
 };
 /** Placed: the arms each node's own skin leaves out, named, each welded elsewhere for a reason a person can read: SV:C2 (the short gastric veins leave beside SVD and are an arm of its skin), IVCI:C9, IVCI:S_PC and IVCI:S_MC (their wall skins
  *  on the cava and the iliac vein, as today; S_MC, IVCI's third grower, was left out of it silently while a skin took two), LPV:C3 and LPV:REX (the LPV's end fades, so the umbilical vein and the Meso-Rex bypass open on its wall where the
  *  placement draws them: one wall skin). None keeps the tube's flared end: the TIPS is welded at both ends (RHV_SPLIT 10). (SVD:C6, 27 Nov: the spontaneous splenorenal shunt leaves the splenic vein at a take-off of its own upstream of SVD, a wall skin of V_SPL, 'wall:V_SPL:C60' below: placed-network.ts OWN_TAKEOFF, tests/landing-frozen.test.ts.) */
-const DROPPED_PLACED = ['IVCI:C9', 'IVCI:S_MC', 'IVCI:S_PC', 'LPV:C3', 'LPV:REX', 'SV:C2', 'SVD:C6'];
+const DROPPED_PLACED = ['IVCI:C9', 'IVCI:S_MC', 'IVCI:S_PC', 'SV:C2', 'SVD:C6'];
 const GROWERS = GROWERS_PLACED;
 const DROPPED = DROPPED_PLACED;
 /** Placed: the growing arms every skin is built with, welded static full-size arms (the wall skins on the cava, the iliac and the renal vein, wall.ts; the short gastric veins on SVD's skin, wall.ts nearLandings, beside both splenorenal shunts). */
 const WELDED_PLACED: Record<string, readonly string[]> = {
   IMV: ['C4:0'], SVD: ['S_DSR:0', 'C2:0'], 'wall:V_SPL:C60': ['C6:0'], LRV_S: ['S_DSR:1', 'C6:1'], EPI: ['C3:1'], SVC: ['C1b:1'], SMV: ['S_MC:0', 'REX:0'], IVC_D: ['DIPS:1'], SMV_R: ['C7:0'], CONF: ['S_PC:0'], PVH: ['DIPS:0'], RPV_T: ['TIPS:0'], RHV_T: ['TIPS:1'],
-  'wall:IVC_IS_1:S_PC1,C90': ['S_PC:1', 'C9:0'], LRV: ['C5:1'], 'wall:ILI_IVC_1:S_MC1': ['S_MC:1'], 'wall:PVH_L_1:REX1,C30': ['REX:1', 'C3:0'],
+  'wall:IVC_IS_1:S_PC1,C90': ['S_PC:1', 'C9:0'], LRV: ['C5:1'], 'wall:ILI_IVC_1:S_MC1': ['S_MC:1'], 'LPV_U+LPV_X': ['REX:1', 'C3:0'],
 };
 // (the landings on a host's wall: wall.ts builds a virtual node for each (static full-size arms); those named `wall:` here fail (a host stub too short for a seam ring, or the node crowds a skin beside it) and keep the tube's own sunk and flared end, shunt-ends.ts; none is silent)
 
@@ -141,7 +141,12 @@ test('the welded skin is the arms\' union at full size and the plain trunk is th
     for (const d of b.draws) {
       const m = meshOf(b, d), node = nodeOf(d), grow = m.junction.arms.filter((a) => a.grow).length, stay = m.junction.arms.length - grow, plain = b.set.plainOf(node);
       if (!grow) { assert.equal(plain, undefined, `${node}: no growing arm, no plain trunk`); continue; }
-      if (stay < 3) { assert.equal(plain, undefined, `${node}: a run-on pair has no junction of its own: the tubes' cut ends carry the weld`); continue; }
+      if (stay < 3) {
+        // (a run-on pair has no junction of its own: the tubes' cut ends carry the weld; unless its skin hides a vessel whole (a cluster of junctions down one vein, LPV_U+LPV_X), where the pair's plain trunk is all there is of the vein: tests/skin-cluster-merge.test.ts)
+        if (b.set.hiddenOf(node).length) { assert.ok(plain, `${node}: hides ${b.set.hiddenOf(node).join(', ')}, so its two arms that stay need a plain trunk`); assert.equal(plain!.junction.arms.length, stay); }
+        else assert.equal(plain, undefined, `${node}: a run-on pair has no junction of its own: the tubes' cut ends carry the weld`);
+        continue;
+      }
       if (PLAIN_FAILED.includes(node)) { assert.equal(plain, undefined, `${node}: its plain trunk does not build, the welded skin comes in over the tubes' cut ends alone`); continue; }
       assert.ok(plain, `${node}: a plain trunk of the ${stay} arms that stay`); n++;
       assert.equal(plain!.junction.arms.length, stay);

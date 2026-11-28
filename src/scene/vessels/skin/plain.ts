@@ -6,6 +6,9 @@ import type { SkinCut, SkinJunction } from './types.ts';
 
 /** The fewest permanent arms that make a junction of their own (MIN_ARMS in inventory.ts): with two the tubes simply run on. */
 export const PLAIN_MIN_ARMS = 3;
+/** ...unless the skin hides a vessel whole (a merged cluster down one vein, cuts.ts planSkins): the vein's two outer pieces are then the plain trunk's two arms,
+ *  and it is the only thing that draws the vein between them while the growers are closed. */
+export const PLAIN_MIN_ARMS_HIDING = 2;
 
 export interface PlainPlan {
   /** the junction of the arms that stay, meshed from the surface (their seam rings are the welded skin's, so no hull covers them) */
@@ -21,12 +24,12 @@ export interface PlainPlan {
  * itself (null here). A skin with two growers (the azygos wall: C9 and C1b; the lower cava wall: S_PC and C9) has to be a SHAPE for each set of growers that are there: with one open the static welded skin carries the other's whole stub beside it, and no per-pixel rule can
  * move the surface a pixel lies on (Plan 16). Null when `there` is every grower, or fewer than PLAIN_MIN_ARMS arms remain (then the tubes' own cut ends carry the weld: skin-set.ts).
  */
-export function partOf(plan: Pick<SkinPlan, 'junction' | 'cuts'>, there: readonly number[], leave = false): PlainPlan | null {
+export function partOf(plan: Pick<SkinPlan, 'junction' | 'cuts'> & { hidden?: readonly string[] }, there: readonly number[], leave = false): PlainPlan | null {
   const j = plan.junction;
   const gone = leave ? leavingOf(j, there) : [];
   if (leave && !gone.length) return null;
   const keep = j.arms.map((_, i) => i).filter((i) => (!j.arms[i]!.grow || there.includes(i)) && !gone.includes(i));
-  if (!leave && (keep.length === j.arms.length || keep.length < PLAIN_MIN_ARMS)) return null;
+  if (!leave && (keep.length === j.arms.length || keep.length < (plan.hidden?.length ? PLAIN_MIN_ARMS_HIDING : PLAIN_MIN_ARMS))) return null;
   if (leave && keep.length < LEAVE_MIN_ARMS) return null;
   const tag = `${there.length ? `~with${there.join('.')}` : '~plain'}${leave ? '~leave' : ''}`;
   return { junction: { ...j, node: `${j.node}${tag}`, arms: keep.map((i) => j.arms[i]!), surface: true }, cuts: keep.map((i) => plan.cuts[i]!), keep };
@@ -40,7 +43,7 @@ export function leavingOf(j: Pick<SkinJunction, 'arms'>, there: readonly number[
 }
 
 /** The plain trunk of a plan, or null when the plan has no growing arm or fewer than PLAIN_MIN_ARMS arms stay (then the tubes' own cut ends carry the weld: skin-set.ts). */
-export const plainOf = (plan: Pick<SkinPlan, 'junction' | 'cuts'>): PlainPlan | null => partOf(plan, []);
+export const plainOf = (plan: Pick<SkinPlan, 'junction' | 'cuts'> & { hidden?: readonly string[] }): PlainPlan | null => partOf(plan, []);
 
 /** The sets of growers that stand between none and all, for a skin with more than one: one part each (the welded skin is the set of all, the plain trunk the empty one). Arm indices, in order. */
 export function partSets(plan: Pick<SkinPlan, 'junction'>): number[][] {

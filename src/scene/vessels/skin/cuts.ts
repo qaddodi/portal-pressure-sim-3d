@@ -161,6 +161,8 @@ export function stubLengthR(tube: ArmTube, lo: number, hi: number, r: number): n
 /** The most permanent arms a merged skin has (spec 4.4.1c: 3 or 4, 5 for the cava), and the most of all: its growing arms ride along (spec 10.2), the six arms of the foundation. */
 export const MERGED_MAX_PERMANENT = 5;   // (5 since the side-wall IVCS: its five arms and the run-on RHV_T beside it are one skin, spec 10.1)
 export const MERGED_MAX_ARMS = 6;
+/** The fewest permanent arms a skin has when growing arms land on it (a run-on pair and its collateral or shunt: inventory.ts findSkinJunctions): with them closed the skin is the run-on. */
+export const MIN_RUN_ON_ARMS = 2;
 /** The ids of a merged skin's two nodes joined, e.g. `CONF+PVT_L`. */
 export const mergedNode = (a: string, b: string): string => `${a}+${b}`;
 
@@ -312,7 +314,10 @@ function planPass(js: readonly SkinJunction[], tubes: ReadonlyMap<string, ArmTub
         const node = mergedNode(A.node, B.node);
         for (const g of growing.slice(SKIN_GROWERS)) dropped.push({ node: (A.arms.includes(g) ? A : B).node, id: g.vesselId, why: `${node}: more than ${SKIN_GROWERS} growing arms after the merge (the widest stay)` });
         const permanent = arms.filter((m) => !m.grow).length;
-        if (permanent > MERGED_MAX_PERMANENT || permanent < 3 || arms.length > MERGED_MAX_ARMS) { failures.push(new SkinBuildError(node, `${permanent} permanent arms and ${arms.length - permanent} growing ones after the merge (3 to ${MERGED_MAX_PERMANENT} permanent, at most ${MERGED_MAX_ARMS} in all)`)); break; }
+        // (a cluster of junctions down ONE vein (the left portal vein's umbilical and Meso-Rex landings, a piece apart) merges to the vein's two outer pieces,
+        //  a run-on pair, with the growers that land on it: as findSkinJunctions says of a single node, two permanent arms are a skin when a growing arm lands on them,
+        //  and with the growers closed it is the run-on, the vein's trunk)
+        if (permanent > MERGED_MAX_PERMANENT || permanent < (arms.length > permanent ? MIN_RUN_ON_ARMS : 3) || arms.length > MERGED_MAX_ARMS) { failures.push(new SkinBuildError(node, `${permanent} permanent arms and ${arms.length - permanent} growing ones after the merge (3 to ${MERGED_MAX_PERMANENT} permanent, or 2 with a growing arm on them; at most ${MERGED_MAX_ARMS} in all)`)); break; }
         // (J is the mean of the nodes' centres, a skin already merged counting once for each node it is made of)
         const na = A.node.split('+').length, nb = B.node.split('+').length;
         const J: Vec3 = [(A.J[0] * na + B.J[0] * nb) / (na + nb), (A.J[1] * na + B.J[1] * nb) / (na + nb), (A.J[2] * na + B.J[2] * nb) / (na + nb)];
