@@ -22,7 +22,8 @@ export interface Station {
   abbr: string | null;
   /** The topology edge whose middle carries the dot (a vessel station). */
   vessel: string | null;
-  /** Every piece of the course `at` walks, when the name stands for a stretch the engine's junction table cuts into pieces (the lower IVC's four): a pick on any of them is this station's. Absent: `vessel` alone. */
+  /** Every piece of the course `at` walks, when the name stands for a stretch the engine's junction table cuts into pieces (the lower IVC's four):
+   *  a pick on any of them is this station's. Absent: `vessel` alone. */
   pieces?: readonly string[];
   /** 2D priority (higher wins when space is short). */
   pri: number;

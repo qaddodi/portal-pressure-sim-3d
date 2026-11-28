@@ -14,7 +14,7 @@ const smooth01 = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 const wiggleAt = (amp: number, env: number, d: number, k: number, seed: number) => amp * env * Math.sin(d * k + seed);   // (wiggle-math.js: the second harmonic is parked at 0)
 
 /** stage-paths.js wiggle: a smooth serpentine along the course (a wave every 90 units or so), tapered to nothing at both ends. */
-export function wiggle(pts: readonly P2[], amp: number, seed: number, hold = 0): P2[] {
+export function wiggle(pts: readonly P2[], amp: number, seed: number, hold = 0, from = 0): P2[] {
   if (amp < 0.3) return pts as P2[];
   const cum = [0];
   for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
@@ -29,6 +29,10 @@ export function wiggle(pts: readonly P2[], amp: number, seed: number, hold = 0):
     // (the envelope eases in and out (smoothstep), so the coil starts with no bend of its own at a sixth of the way; the 2D rule's ramp, min(1, 6u, 6(1 - u)), is a corner in its curvature)
     let env = smooth01(u * 6) * smooth01((1 - u) * 6);
     if (hold) env *= smooth01((u - hold) / (1.4 * hold)) * smooth01((1 - u - hold) / (1.4 * hold));
+    // (a strand that leaves its trunk at `from` brings its wiggle in from there, over a quarter of the course at most: the wiggle was at full swing
+    //  at a sixth of the way, so a strand leaving at a fifth was blended from the trunk to a wave already at full height over an eighth,
+    //  a bend of 12 degrees a step on a course shorter than the figure's)
+    if (from > 0) env *= smooth01((u - from) / Math.min(0.25, (1 - from) / 2));
     const w = wiggleAt(amp, env, cum[i]!, k, seed);
     return [p[0] + nx * w, p[1] + ny * w];
   });
@@ -206,7 +210,7 @@ function coilCoursesFree(id: string, base: readonly P2[], coils: boolean, wig: n
       return { pts: u0 ? blendFrom(main, w.pts, u0) : w.pts, k, ph, dz: w.dz };
     }
     const fan = off * sp0, amp = 0.8 * wig + 3;
-    let sp = ua != null ? braid(base, fan, 0, [ua, ub!], ph) : soft ? wiggle(braid(main, fan, u0, null, 0, true), amp, ph, STRAND_HOLD_2D) : wiggle(braid(base, fan, u0), amp, ph);
+    let sp = ua != null ? braid(base, fan, 0, [ua, ub!], ph) : soft ? wiggle(braid(main, fan, u0, null, 0, true), amp, ph, STRAND_HOLD_2D) : wiggle(braid(base, fan, u0), amp, ph, 0, u0);
     if (u0) sp = blendFrom(main, sp, u0);
     return { pts: sp, k, ph };
   });
