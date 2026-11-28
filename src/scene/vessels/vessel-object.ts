@@ -88,6 +88,8 @@ export function withRk(g: BufferGeometry): BufferGeometry {
 export const RESHAPE_ATTRIBUTES = ['position', 'normal', 'uv', 'tang', 'rk', 'rkc', 'nbr'] as const;
 /** A key frame of a vessel's shape: its reshape attributes and the course's length. */
 export interface ReshapeFrame { arrays: Map<string, Float32Array>; length: number }
+/** What a blend between two key frames touches, worked out once for the pair (vessel-object.ts lerpPlanSteps). */
+export interface LerpPlan { a: ReshapeFrame; b: ReshapeFrame; spans: { name: string; lo: number; hi: number; dir: boolean }[]; sphere: { c: [number, number, number]; r: number } | null }
 
 export { FAINT_ONLY_LAYER };   // (numbered in layers.ts, with every other camera layer)
 /** The draw order of a vessel's veil copy (over the organs, after the vessels): what a clot in a vein behind the organs follows (disease/clots.ts). */
@@ -210,9 +212,56 @@ export class VesselObject extends CelObject {
     this.toon.uniforms.len!.value = len;
   }
 
-  /** What a blend between two key frames touches (kept for as long as the pair stands): per attribute the stretch of values where the two differ (a held end, the uv, the Circuit's widths are the same in both and are never written again). */
+  /**
+   * What a blend between two key frames touches (kept for as long as the pair stands): per attribute the stretch of values where the two differ (a held
+   * end, the uv, the Circuit's widths are the same in both and are never written again), and the sphere round both shapes.
+   */
   private lerpFull = false;
-  private lerpPlan: { a: ReshapeFrame; b: ReshapeFrame; spans: { name: string; lo: number; hi: number; dir: boolean }[] } | null = null;
+  private lerpPlan: LerpPlan | null = null;
+  /** A pair's plan worked out ahead (`lerpPlanSteps`), waiting for the pair's first blend. */
+  private madePlan: LerpPlan | null = null;
+
+  /** True when the plan for this pair is worked out (standing or waiting), so its first blend costs a copy and not a scan of every vertex. */
+  hasLerpPlan(a: ReshapeFrame, b: ReshapeFrame): boolean {
+    const same = (p: LerpPlan | null): boolean => p !== null && p.a === a && p.b === b;
+    return same(this.lerpPlan) || same(this.madePlan);
+  }
+  /** Keeps a plan that was worked out ahead for the pair's first blend. */
+  holdLerpPlan(plan: LerpPlan): void { this.madePlan = plan; }
+
+  /**
+   * The plan for the pair `a`, `b`, worked out a step at a time (an attribute, a pass over the vertices) without touching the geometry: a scan of every
+   * vertex of a vessel with four strands was 20 ms on the first blend of a pair, one
+   * frame's worth by itself (scene audit, 27 Nov review C2). shape-track.ts runs it inside the frame's budget; `reshapeLerp` runs it to the end itself when nobody did.
+   */
+  *lerpPlanSteps(a: ReshapeFrame, b: ReshapeFrame): Generator<void, LerpPlan, void> {
+    const geo = this.toonMesh.geometry;
+    const spans: LerpPlan['spans'] = [];
+    for (const name of RESHAPE_ATTRIBUTES) {
+      const A = a.arrays.get(name), B = b.arrays.get(name), dst = geo.getAttribute(name);
+      if (!A || !B || !dst) continue;
+      const out = dst.array as Float32Array;
+      if (A.length !== out.length || B.length !== out.length) throw new Error(`reshape: ${name} has ${A.length} values, the vessel was built with ${out.length}`);
+      const k = dst.itemSize;
+      let lo = -1, hi = -1;
+      for (let i = 0; i < A.length; i++) if (A[i] !== B[i]) { if (lo < 0) lo = i; hi = i; }
+      if (lo >= 0) spans.push({ name, lo: lo - (lo % k), hi: hi - (hi % k) + k, dir: k === 3 && (name === 'normal' || name === 'tang') });
+      yield;
+    }
+    // one sphere round the vertices of both shapes: culling and picking only need it to hold the shape wherever it is between them
+    let sphere: LerpPlan['sphere'] = null;
+    const P = a.arrays.get('position'), Q = b.arrays.get('position');
+    if (P && Q) {
+      let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+      for (const F of [P, Q]) for (let i = 0; i < F.length; i += 3) { const x = F[i]!, y = F[i + 1]!, z = F[i + 2]!; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z; }
+      yield;
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
+      let r2 = 0;
+      for (const F of [P, Q]) for (let i = 0; i < F.length; i += 3) r2 = Math.max(r2, (F[i]! - cx) ** 2 + (F[i + 1]! - cy) ** 2 + (F[i + 2]! - cz) ** 2);
+      sphere = { c: [cx, cy, cz], r: Math.sqrt(r2) };
+    }
+    return { a, b, spans, sphere };
+  }
 
   /** The shape `t` of the way from key frame `a` to key frame `b` (shape-track.ts: the same tubes built at two coil strengths), written into the geometry's own arrays: no geometry is built, nothing is allocated. Centres and radii are exactly linear in the coil, the rings only turn a hair
    *  between two keys (tests/shape-pin.test.ts pins the error), and a ring that is the same in both stays the same. Only the stretch of each attribute that differs between the two frames is written per blend, and the bounding sphere is worked out once for the pair
@@ -221,31 +270,20 @@ export class VesselObject extends CelObject {
     const geo = this.toonMesh.geometry;
     let plan = this.lerpPlan;
     if (!plan || plan.a !== a || plan.b !== b) {
-      const spans: { name: string; lo: number; hi: number; dir: boolean }[] = [];
+      let next = this.madePlan && this.madePlan.a === a && this.madePlan.b === b ? this.madePlan : null;
+      if (!next) { const steps = this.lerpPlanSteps(a, b); for (let r = steps.next(); !next; r = steps.next()) if (r.done) next = r.value; }
+      this.madePlan = null;
       for (const name of RESHAPE_ATTRIBUTES) {
-        const A = a.arrays.get(name), B = b.arrays.get(name), dst = geo.getAttribute(name);
-        if (!A || !B || !dst) continue;
-        const out = dst.array as Float32Array;
-        if (A.length !== out.length || B.length !== out.length) throw new Error(`reshape: ${name} has ${A.length} values, the vessel was built with ${out.length}`);
-        out.set(A, 0);   // (what is the same in both frames is now written for good; the stretch that differs is written by each blend)
+        const A = a.arrays.get(name), dst = geo.getAttribute(name);
+        if (!A || !dst) continue;
+        (dst.array as Float32Array).set(A, 0);   // (what is the same in both frames is now written for good; the stretch that differs is written by each blend)
         dst.needsUpdate = true;
-        const k = dst.itemSize;
-        let lo = -1, hi = -1;
-        for (let i = 0; i < A.length; i++) if (A[i] !== B[i]) { if (lo < 0) lo = i; hi = i; }
-        if (lo >= 0) spans.push({ name, lo: lo - (lo % k), hi: hi - (hi % k) + k, dir: k === 3 && (name === 'normal' || name === 'tang') });
       }
-      plan = this.lerpPlan = { a, b, spans };
+      plan = this.lerpPlan = next;
       this.lerpFull = true;   // (the whole-array write above goes up in full with this frame's first blend)
-      // one sphere round the vertices of both shapes: culling and picking only need it to hold the shape wherever it is between them
-      const P = a.arrays.get('position'), Q = b.arrays.get('position');
-      if (P && Q) {
-        let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
-        for (const F of [P, Q]) for (let i = 0; i < F.length; i += 3) { const x = F[i]!, y = F[i + 1]!, z = F[i + 2]!; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z; }
-        const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
-        let r2 = 0;
-        for (const F of [P, Q]) for (let i = 0; i < F.length; i += 3) r2 = Math.max(r2, (F[i]! - cx) ** 2 + (F[i + 1]! - cy) ** 2 + (F[i + 2]! - cz) ** 2);
+      if (next.sphere) {
         geo.boundingSphere ??= new Sphere();
-        geo.boundingSphere.center.set(cx, cy, cz); geo.boundingSphere.radius = Math.sqrt(r2);
+        geo.boundingSphere.center.set(...next.sphere.c); geo.boundingSphere.radius = next.sphere.r;
       }
     }
     for (const sp of plan.spans) {

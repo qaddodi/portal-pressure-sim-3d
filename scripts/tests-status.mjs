@@ -9,6 +9,67 @@ export function parseTapSummary(text) {
   return { total, failing: fail + (n('cancelled') ?? 0) };
 }
 
+/** How many named failures tests-status.json keeps (a run where everything fails would otherwise write a megabyte); the log line says how many more there were. */
+export const MAX_FAILURES = 200;
+
+/**
+ * Reads a node:test TAP stream a chunk at a time and keeps ONLY the failing tests, so a 40-minute run's output is never held in memory (C1, 27 Nov review: the old run kept all of it and printed a count).
+ * A failure is a `not ok` line (a skipped or TODO test is not one) with the `location:` and `failureType:` of the block under it.
+ * A parent that failed only because a child did ('subtestsFailed') is dropped and the child carries its name ("parent > child"); a file that crashed is named by its file.
+ * @param root  the repo's absolute path with a trailing slash, taken off a location so it reads `tests/x.test.ts:12`
+ */
+export function createTapReader(root = '') {
+  const entries = []; let tail = '', cur = null; const totals = {};
+  const close = () => { cur = null; };
+  const line = (raw) => {
+    const head = /^(\s*)(not ok|ok) \d+ - (.*)$/.exec(raw);
+    if (head) {
+      close();
+      if (head[2] === 'not ok' && !/ # (SKIP|TODO)\b/i.test(head[3])) { cur = { indent: head[1].length, name: head[3].trim(), file: '', line: 0, kind: '' }; entries.push(cur); }
+      return;
+    }
+    if (/^\s*# Subtest:/.test(raw)) { close(); return; }
+    const sum = /^# (tests|fail|cancelled) (\d+)\s*$/.exec(raw);
+    if (sum) { totals[sum[1]] = Number(sum[2]); return; }
+    if (!cur) return;
+    const loc = /^\s+location: '(.*)'\s*$/.exec(raw);
+    if (loc && !cur.file) {
+      const m = /^(?:file:\/\/)?(.*?)(?::(\d+):\d+)?$/.exec(loc[1]);
+      cur.file = m[1].startsWith(root) && root ? m[1].slice(root.length) : m[1]; cur.line = Number(m[2] ?? 0);
+      return;
+    }
+    const kind = /^\s+failureType: '(.*)'\s*$/.exec(raw);
+    if (kind && !cur.kind) cur.kind = kind[1];
+  };
+  return {
+    write(chunk) { const parts = (tail + chunk).split('\n'); tail = parts.pop(); for (const l of parts) line(l); },
+    end() {
+      if (tail) line(tail); tail = '';
+      // a parent line comes AFTER its children and at a smaller indent: it takes the children inside its indent as its own and, when it only failed because of them, steps aside
+      const kept = [];
+      for (const e of entries) {
+        const children = [];
+        while (kept.length && kept[kept.length - 1].indent > e.indent) children.unshift(kept.pop());
+        for (const c of children) { c.name = `${e.name} > ${c.name}`; c.indent = e.indent; kept.push(c); }
+        if (!(e.kind === 'subtestsFailed' || (children.length && !e.kind))) kept.push(e);
+      }
+      const failures = kept.map((e) => ({ file: e.file, line: e.line, name: e.name, kind: e.kind || 'failed' }));
+      const failing = 'tests' in totals && 'fail' in totals ? { total: totals.tests, failing: totals.fail + (totals.cancelled ?? 0) } : null;
+      return { summary: failing, failures };
+    },
+  };
+}
+
+/** The same over a whole text (tests use this; the daily run feeds the reader as the output arrives). */
+export function parseTapFailures(text, root = '') { const r = createTapReader(root); r.write(text); return r.end(); }
+
+/** One log line per failing test, `FAIL tests/x.test.ts:12  parent > child`, at most `limit`, with a closing line for the rest. */
+export function failureLines(failures, limit = MAX_FAILURES) {
+  const shown = failures.slice(0, limit).map((f) => `FAIL ${f.file || '(no file)'}${f.line ? `:${f.line}` : ''}  ${f.name}${f.kind && f.kind !== 'testCodeFailure' && f.kind !== 'failed' ? `  [${f.kind}]` : ''}`);
+  if (failures.length > limit) shown.push(`... and ${failures.length - limit} more`);
+  return shown;
+}
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /**
  * The log line for a status ({ failing, date, commit } as tests-status.json holds it): "tests: 14 failing (at 0d79f780)".

@@ -52,7 +52,8 @@ export const circuitRadius = (v: Pick<NetVessel, 'widthKind' | 'baseD' | 'circFi
 
 /** How straight two vessels must meet (the cosine of the angle between their headings away from the node, negated) to be one run. */
 const RUN_ON_COS = 0.97;
-/** How far a hidden chain may bend: the left portal vein turns 18 degrees at its paraumbilical junction and 45 at the Meso-Rex one. Looser than the run-on, which tells two arms of a node apart; an arm alone at its node, or a hop through the chain, has nothing to tell apart. */
+/** How far a hidden chain may bend: the left portal vein turns 18 degrees at its paraumbilical junction and 45 at the Meso-Rex one. Looser than the run-on, which tells two arms of a node
+ *  apart; an arm alone at its node, or a hop through the chain, has nothing to tell apart. */
 const CHAIN_COS = 0.5;
 const endOf = (id: string, end: 0 | 1): Vec3 => { const p = COURSES.get(id)!.curveC.getPointAt(end); return [p.x, p.y, p.z]; };
 
@@ -132,7 +133,8 @@ export function bridgeStart(a: SkinArm, hidden: readonly string[], J: Vec3, arms
   if (!arm) return J;
   const nodeOf = (x: SkinArm): string | undefined => { const v = NETWORK_BY_ID.get(x.vesselId); return v ? (x.end === 0 ? v.from : v.to) : undefined; };
   const alone = !arms.some((o) => o !== a && !o.grow && nodeOf(o) === nodeOf(a));
-  // (a skin that merges three nodes hides a CHAIN of vessels, the left portal vein's two pieces between its three junctions: the run-on goes on through each hidden vessel that continues the last in a straight line)
+  // (a skin that merges three nodes hides a CHAIN of vessels, the left portal vein's two pieces between its three junctions: the run-on goes on through each hidden vessel that continues the
+  // last in a straight line)
   let node = a.end === 0 ? arm.from : arm.to, mine = endOf(a.vesselId, a.end), away = endOf(a.vesselId, (1 - a.end) as 0 | 1), start: Vec3 | null = null;
   const used = new Set<string>([a.vesselId]);
   for (let guard = 0; guard <= hidden.length; guard++) {
@@ -342,7 +344,11 @@ export class CircuitSkinSet {
     const j = plan.junction, objs = j.arms.map((a) => this.deps.vessel(a.vesselId));
     if (objs.some((o) => !o)) return null;
     const { pos, nor, rest } = this.ringsFor(tubes, plan.cuts);
-    const axes = ready?.axes ?? weldThrough(j.arms.map((a, i) => { const tb = tubes.get(a.vesselId)!; return axisOf(tb, a.restR, plan.cuts[i]!, bridgeStart(a, plan.hidden, j.J, j.arms), a.side ? armWalk(a, tb.tubular).from : undefined, false); }), j.arms.map((a) => !!a.grow), declaredRuns(j.arms));
+    const armAxis = (a: (typeof j.arms)[number], i: number): ArmAxis => {
+      const tb = tubes.get(a.vesselId)!;
+      return axisOf(tb, a.restR, plan.cuts[i]!, bridgeStart(a, plan.hidden, j.J, j.arms), a.side ? armWalk(a, tb.tubular).from : undefined, false);
+    };
+    const axes = ready?.axes ?? weldThrough(j.arms.map(armAxis), j.arms.map((a) => !!a.grow), declaredRuns(j.arms));
     if (ready) this.paces.set(j.node, ready.pace);
     else if (j.surface) this.paces.set(j.node, PACES.length - 1);   // (meshed from the surface from the start: no hull to fold)
     // a junction with growing arms is built STILL (as the Anatomy's, skin-set.ts): they are whole arms of one static shape, the arms that stay get a static plain trunk of their own, and the tube's own sunk and flared end is what grows; the weld hands over at growth 0.9 to 1

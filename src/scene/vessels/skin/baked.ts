@@ -50,9 +50,10 @@ export function skinsDigest(js: readonly SkinJunction[], tubes: ReadonlyMap<stri
 }
 
 /**
- * The skin mesh's arrays whose low mantissa bits are written as zeros, and how many (28 Nov, review J3: the file was 3,307 kB against its 3,200 kB budget, 30% of it the parts of skins with several growing arms). What a number steers decides
- * how coarse it may be: a unit normal and a blend weight steer a shade and a share of a move, so 2^-11 and 2^-9 of themselves are far under what a pixel can show (the cel shade steps at its thresholds, a weight is the share of an
- * arm's move a vertex takes); the centre and the rest radius place the surface, so they keep 2^-13 and 2^-15. The position is not here (its seam rings must meet the tubes' own exactly): `roundInterior` rounds the rest of it.
+ * The skin mesh's arrays whose low mantissa bits are written as zeros, and how many (28 Nov, review J3: the file was 3,307 kB against its 3,200 kB budget, 30% of it the parts of skins
+ * with several growing arms). What a number steers decides how coarse it may be: a unit normal and a blend weight steer a shade and a share of a move, so 2^-11 and 2^-9 of themselves are
+ * far under what a pixel can show (the cel shade steps at its thresholds, a weight is the share of an arm's move a vertex takes); the centre and the rest radius place the surface, so they
+ * keep 2^-13 and 2^-15. The position is not here (its seam rings must meet the tubes' own exactly): `roundInterior` rounds the rest of it.
  */
 export const ROUND_DROPS: Readonly<Record<string, number>> = { normal: 12, cen: 10, weight: 14, weight2: 14, restR: 8 };
 export const ROUNDED_KEYS: ReadonlySet<string> = new Set(Object.keys(ROUND_DROPS));
@@ -86,7 +87,10 @@ export function encodeSkins(b: BakedSkins, gz?: (b: Uint8Array) => number): Uint
       const out: Record<string, unknown> = {};
       for (const k of Object.keys(v)) {
         const x = (v as Record<string, unknown>)[k];
-        out[k] = x instanceof Float32Array && ROUNDED_KEYS.has(k) ? w.add(roundedKey(x, k)) : k === 'position' && x instanceof Float32Array && Array.isArray((v as { seamVerts?: unknown }).seamVerts) ? w.add(roundInterior(x, (v as unknown as { seamVerts: Uint32Array[] }).seamVerts)) : pack(x);
+        const seams = (v as { seamVerts?: unknown }).seamVerts;
+        out[k] = x instanceof Float32Array && ROUNDED_KEYS.has(k) ? w.add(roundedKey(x, k))
+          : k === 'position' && x instanceof Float32Array && Array.isArray(seams) ? w.add(roundInterior(x, seams as Uint32Array[]))
+          : pack(x);
       }
       return out;
     }

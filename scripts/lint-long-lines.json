@@ -393,7 +393,7 @@
  "src/scene/vessels/strand-fan.ts": 12,
  "src/scene/vessels/suture.ts": 12,
  "src/scene/vessels/tubes.ts": 17,
- "src/scene/vessels/vessel-object.ts": 45,
+ "src/scene/vessels/vessel-object.ts": 44,
  "src/scene/vessels/wedge-glsl.ts": 1,
  "src/state/settings.ts": 11,
  "src/ui/DeckUi.tsx": 3,

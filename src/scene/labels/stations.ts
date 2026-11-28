@@ -239,7 +239,8 @@ const STRETCH: Readonly<Record<string, { host: string; to: string }>> = { IVCI: 
       const stretch = STRETCH[s.id];
       if (stretch) {
         // (the pieces from the host's start to the stretch's end node, walked as one course)
-        const ps = piecesOf(stretch.host), last = ps.indexOf(pieceEndingAt(stretch.host, stretch.to)), chain = ps.slice(0, last + 1).map((id) => ({ id, c: curveOf(id)!, len: curveOf(id)!.getLength() }));
+        const ps = piecesOf(stretch.host), last = ps.indexOf(pieceEndingAt(stretch.host, stretch.to));
+        const chain = ps.slice(0, last + 1).map((id) => ({ id, c: curveOf(id)!, len: curveOf(id)!.getLength() }));
         const total = chain.reduce((a, q) => a + q.len, 0), at0 = AT_REST_U[s.id] ?? 0.5;
         let acc = 0;
         for (const q of chain) { if (at0 * total <= acc + q.len || q === chain[chain.length - 1]) { s.vessel = q.id; break; } acc += q.len; }
