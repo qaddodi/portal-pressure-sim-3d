@@ -59,8 +59,17 @@ One flag, `req`, holds the whole line (`src/ui/debug/request/address.ts`; write 
 
 The stress and capture zips still keep their own layout (pictures by layout, REPORT.md, notes, manifest.json); they carry the request and the seed in it. Writing them in the one format (README-FIRST, sections, findings.json) is not done yet.
 
+## Comparing with the last run (step c)
+
+Every node run looks in its output folder for the newest earlier zip of the SAME request line and says what changed (`src/ui/debug/request/compare.ts`, `scripts/audit/earlier.mjs`):
+
+- **new**: in this run, not in the earlier one; **still there**: in both; **fixed**: in the earlier one, gone now, and its check ran again in this run.
+- A finding of a check that did not run this time, or of an earlier run of another request (`--against <zip>` names any zip on purpose), is **gone but not shown fixed**, never "fixed".
+- REPORT.md has a "Since the last run" section and a status column; findings.json carries `status` per finding and the whole `comparison`; manifest.json a count of each. `--no-compare` leaves it out.
+- It works because an id is the same fault's: rule + target + state, never a line number or a number in a message (`finding.ts`). Two findings with the same id in one run get `.2`, `.3` by the order they were found in.
+
 ## Build order
 
 1. **(a)** request reader, feature table, zip writer, node runner (this).
 2. **(b)** `?stress` and the capture read the request, with the seed as a printed input (this, second push).
-3. **(c)** stable ids carried between runs and the comparison with the last run (new, still there, fixed).
+3. **(c)** the comparison with the last run (new, still there, fixed), by the stable ids (this, third push).
