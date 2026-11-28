@@ -1,4 +1,5 @@
 // Batch B13b (decks H to P): the copied decks are the 2D app's, every slide is planned (a shot, a lens, its needs), and every need has an owner.
+import { loadSource } from '../src/decks/source.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
@@ -6,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
-import { HP_DECKS, HP_IDS, loadHpDeck } from '../src/decks/hp/index.ts';
+import { HP_DECKS, HP_IDS } from '../src/decks/hp/index.ts';
 import { planDeck } from '../src/decks/hp/plan.ts';
 import { FEATURES, needsOf, readiness } from '../src/decks/hp/hooks.ts';
 import { camPlan, sceneX, sceneY, PLATE } from '../src/decks/hp/cams.ts';
@@ -21,7 +22,7 @@ interface Inv { decks: { id: string; title: string; slides: { id: string }[]; ch
 const inventory = JSON.parse(readFileSync(join(root, 'parity/inventory.json'), 'utf8')) as Inv;
 const mine = inventory.decks.filter((d) => /^[h-p]/i.test(d.id));
 const decks = new Map<string, CopiedDeck>();
-for (const id of HP_IDS) decks.set(id, await loadHpDeck(id));
+for (const id of HP_IDS) decks.set(id, await loadSource(id, false) as CopiedDeck);
 
 test('the batch owns every 2D deck whose id runs from H to P, and no other', () => {
   assert.deepEqual([...HP_IDS].sort(), mine.map((d) => d.id).sort());

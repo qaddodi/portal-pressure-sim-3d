@@ -1,5 +1,6 @@
 // Batch B13a: decks A to G. The copy is the 2D app's (words, steps, camera names), every slide has a camera and a dependency list, no field of a 2D slide is
 // dropped, and every {number} in the words is the engine's, printed as the 2D app prints it.
+import { loadSource } from '../src/decks/source.ts';
 import { varixFloorWord } from '../src/ui/cuts.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,7 +8,7 @@ import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { AG_IDS, loadAgDeck, isAgDeck } from '../src/decks/ag/index.ts';
+import { AG_IDS, isAgDeck } from '../src/decks/ag/index.ts';
 import type { CopiedDeck, CopiedSlide } from '../src/decks/ag/types.ts';
 import { camPlan } from '../src/decks/hp/cams.ts';
 import { CIRC_REGIONS_2D } from '../src/decks/ag/regions.generated.ts';
@@ -27,7 +28,7 @@ interface Nums { decks: Record<string, { slides: { id: string; models: boolean; 
 const nums = read('tests/fixtures/deck-numbers-ag.json') as Nums;
 
 const decks: CopiedDeck[] = [];
-for (const id of AG_IDS) decks.push(await loadAgDeck(id));
+for (const id of AG_IDS) decks.push(await loadSource(id, false) as CopiedDeck);
 const slides = decks.flatMap((d) => d.slides.map((s) => ({ deck: d, slide: s })));
 
 test('the batch is the 14 decks whose ids run A to G, all of the 2D inventory\'s, with every slide of each', () => {
