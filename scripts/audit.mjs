@@ -12,6 +12,8 @@
 //   --dir                   also write the files unzipped, next to the zip
 //   --json                  print the run's summary as JSON on stdout
 //   --jobs <n>              test files at once (default 4)
+//   --against <zip>         compare with this earlier zip (any request: what is gone is then "not shown fixed", never "fixed"); default: the newest run of the same request in the output folder
+//   --no-compare            do not compare
 // Exit code 0 when the audit ran (findings are the output, not a failure); 2 for a request that cannot be read; 1 when the run itself broke.
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,11 +27,13 @@ import { readWorld, readBuild, ROOT } from './audit/world.mjs';
 import { allTestFiles, runTestFiles } from './audit/tests.mjs';
 import { typecheck, lint } from './audit/code.mjs';
 import { sceneAudit } from './audit/scene.mjs';
+import { earlierRuns, readEarlier } from './audit/earlier.mjs';
+import { compareRuns, pickEarlier } from '../src/ui/debug/request/compare.ts';
 
 const argv = process.argv.slice(2);
 const flag = (n) => argv.includes(n);
 const opt = (n, d) => { const i = argv.indexOf(n); return i >= 0 && argv[i + 1] ? argv[i + 1] : d; };
-const valued = new Set(['--out', '--jobs']);
+const valued = new Set(['--out', '--jobs', '--against']);
 const words = argv.filter((a, i) => !a.startsWith('--') && !valued.has(argv[i - 1]));
 const log = (...a) => process.stderr.write(`${a.join(' ')}\n`);
 
@@ -186,9 +190,17 @@ for (const k of checkRuns) {
   if (!m) merged.push({ ...k }); else { m.seconds += k.seconds; m.summary = [m.summary, k.summary].filter(Boolean).join('; '); m.ran = m.ran || k.ran; }
 }
 checkRuns.length = 0; checkRuns.push(...merged);
-const result = { info: { build, runner: 'node', startedAt, seconds: (Date.now() - t0) / 1000, device: `node ${process.version}, ${os.platform()} ${os.arch()}` }, scope, checks: checkRuns, items, findings, validity, notJudged, pictures: [] };
-const files = bundleFiles(result);
 const outDir = opt('--out', existsSync('/mnt/project-files') ? '/mnt/project-files/audits' : join(ROOT, 'audits'));
+// the last run of the same request, or the one named: what is new, what is still there, what is fixed (ids are the same fault's, finding.ts)
+let comparison;
+if (!flag('--no-compare')) {
+  const named = opt('--against', '');
+  const earlier = named ? readEarlier(named) : pickEarlier(earlierRuns(outDir), scope.line, startedAt);
+  if (named && !earlier) log(`audit: ${named} is not an audit zip of this format; not compared`);
+  if (earlier) comparison = compareRuns(earlier, findings, checkRuns.filter((k) => k.ran).map((k) => k.id), scope.line);
+}
+const result = { info: { build, runner: 'node', startedAt, seconds: (Date.now() - t0) / 1000, device: `node ${process.version}, ${os.platform()} ${os.arch()}` }, scope, checks: checkRuns, items, findings, validity, notJudged, pictures: [], comparison };
+const files = bundleFiles(result);
 const stamp = startedAt.replace(/[-:]/g, '').replace(/\.\d+Z$/, '').replace('T', '-');
 const name = `audit-${build.commit.slice(0, 8)}-${scope.line.replace(/\s+/g, '_').replace(/[^a-z0-9_@:+,=/.-]/gi, '').replace(/[:/=,+@]/g, '-').slice(0, 60)}-${stamp}`;
 if (!flag('--no-write')) {
@@ -197,10 +209,12 @@ if (!flag('--no-write')) {
   if (flag('--dir')) for (const f of files) { mkdirSync(join(outDir, name, f.name, '..'), { recursive: true }); writeFileSync(join(outDir, name, f.name), f.text); }
 }
 const counts = Object.fromEntries(['high', 'medium', 'low', 'info'].map((s) => [s, findings.filter((f) => f.severity === s).length]));
-if (flag('--json')) console.log(JSON.stringify({ zip: flag('--no-write') ? null : join(outDir, `${name}.zip`), request: scope.line, build: build.commit, findings: findings.length, counts, seconds: Math.round(result.info.seconds) }));
+if (flag('--json')) console.log(JSON.stringify({ zip: flag('--no-write') ? null : join(outDir, `${name}.zip`), request: scope.line, build: build.commit, findings: findings.length, counts, seconds: Math.round(result.info.seconds), comparison: comparison ? { new: comparison.new.length, still: comparison.still.length, fixed: comparison.fixed.length, unverified: comparison.unverified.length } : null }));
 else {
   console.log(`audit ${scope.line}: ${findings.length} finding${findings.length === 1 ? '' : 's'} (${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ')}) in ${Math.round(result.info.seconds)} s`);
-  for (const f of findings.slice(0, 15)) console.log(`  ${f.id}  ${f.severity.padEnd(6)} ${f.check.padEnd(9)} ${f.target}`);
+  if (comparison) console.log(`since ${comparison.against.zip.replace(/^.*\//, '')}: ${comparison.new.length} new, ${comparison.still.length} still there, ${comparison.fixed.length} fixed${comparison.unverified.length ? `, ${comparison.unverified.length} gone but not shown fixed` : ''}`);
+  else if (!flag('--no-compare')) console.log('no earlier run of this request to compare with');
+  for (const f of findings.slice(0, 15)) console.log(`  ${f.id}  ${f.severity.padEnd(6)} ${f.check.padEnd(9)} ${comparison ? `${comparison.new.includes(f.id) ? 'new  ' : 'still'} ` : ''}${f.target}`);
   if (findings.length > 15) console.log(`  ... ${findings.length - 15} more in the zip`);
   if (!flag('--no-write')) console.log(`zip: ${join(outDir, `${name}.zip`)}`);
 }

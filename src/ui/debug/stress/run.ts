@@ -10,12 +10,14 @@ import { baseOf } from '../promo/slides.ts';
 import { useShell } from '../../shell/store.ts';
 import { useUi } from '../../ui-store.ts';
 import type { ZipFile } from '../../capture/zip.ts';
-import { STRESS_SLIDES, STRESS_MOVES, STRESS_MENUS, STRESS_SHEETS, STRESS_RATIO, MENU_MOVE_ID, MOVE_SHOTS, layoutSteps, type StressLayout } from './plan.ts';
+import { DEFAULT_PLAN, STRESS_MENUS, STRESS_SHEETS, STRESS_RATIO, MENU_MOVE_ID, MOVE_SHOTS, layoutSteps, type StressLayout, type StressPlan } from './plan.ts';
 import { cardChecks, type Entry, type LayoutRun, type Check } from './report.ts';
 import { playMove, standAt, menuKit, sheetKit, clearScreen, type MoveShot } from './moves.ts';
 
 export interface StressUi {
   layout: StressLayout;
+  /** what to take (plan.ts); the default plan when absent */
+  plan?: StressPlan;
   status(s: string): void;
   progress(done: number, total: number): void;
   stop(): boolean;
@@ -33,14 +35,14 @@ interface SlideJson {
 }
 
 export async function runStress(ui: StressUi): Promise<StressResult> {
-  const t0 = new Date().getTime(), L = ui.layout, total = layoutSteps(L), entries: Entry[] = [], notes: string[] = [];
+  const t0 = new Date().getTime(), L = ui.layout, plan = ui.plan ?? DEFAULT_PLAN, total = layoutSteps(L, plan), entries: Entry[] = [], notes: string[] = [];
   let shots = 0, stopped = false, base = 0;
   const label = L.label;
   const bump = (n: number): void => { base += n; ui.progress(Math.min(base, total), total); };
 
   // --- slides: the capture's own pass over the picked slides, with no choice pictures (they are a deck-wide audit's, not a stress run's)
   ui.status(`${label}: key slides`);
-  const pick = new Set(STRESS_SLIDES.map((s) => s.key));
+  const pick = new Set(plan.slides);
   const slideBase = base;
   const slides = await captureAllDecks({
     pick, decks: null, release: true, noChoices: true,
@@ -58,7 +60,7 @@ export async function runStress(ui: StressUi): Promise<StressResult> {
           const j = JSON.parse(dec.decode(f.data)) as SlideJson;
           const where = `${j.deckTitle} ${j.stop}`;
           entries.push({
-            section: 'slides', layout: label, file: flat.replace(/\.json$/, '.jpg'), title: `${where}: ${j.title}${j.card ? ` (${j.card})` : ''}`,
+            section: 'slides', layout: label, deck: j.deck, file: flat.replace(/\.json$/, '.jpg'), title: `${where}: ${j.title}${j.card ? ` (${j.card})` : ''}`,
             // (the plan's key counts from the first slide, the screen's counter from the title card: both are said)
             state: `key ${j.deck}:${j.stop - 1}, screen counter ${j.stop}, step ${j.step}, beat ${j.beat}, ${j.card ? `the card ${j.card}` : 'one view'}`,
             link: j.link, checks: cardChecks(j.cards), issues: [],
@@ -70,7 +72,7 @@ export async function runStress(ui: StressUi): Promise<StressResult> {
     },
   });
   notes.push(...slides.notes);
-  bump(STRESS_SLIDES.length);
+  bump(plan.slides.length);
   if (slides.stopped || ui.stop()) stopped = true;
 
   // --- transitions: the slowed press, three pictures each
@@ -96,11 +98,11 @@ export async function runStress(ui: StressUi): Promise<StressResult> {
       ui.partial(files);
       bump(MOVE_SHOTS);
     };
-    for (const m of STRESS_MOVES) {
+    for (const m of plan.moves) {
       if (ui.stop()) { stopped = true; break; }
       await one(m.id, m.why, () => standAt(m.deck, m.from, ui.stop), () => { useUi.getState().move('next'); }, { cardUp: () => !!document.querySelector('.dk-card[data-phase="in"]') });
     }
-    if (!stopped && !ui.stop()) {
+    if (plan.menus && !stopped && !ui.stop()) {
       await one(MENU_MOVE_ID, 'the menu rises over the free figure', async () => { await clearScreen(); useShell.setState({ menuTab: 'present',
         menuQuery: '' }); return null; }, () => useShell.getState().open('menu'), menuKit);
       useShell.setState({ sheet: null });
@@ -109,7 +111,7 @@ export async function runStress(ui: StressUi): Promise<StressResult> {
   }
 
   // --- menus and pages, then the sheets
-  if (L.menus && !stopped) {
+  if (L.menus && plan.menus && !stopped) {
     const m0 = base;
     ui.status(`${label}: menus`);
     const x = await capturePromoExtras({
@@ -153,7 +155,7 @@ export async function runStress(ui: StressUi): Promise<StressResult> {
   }
   if (stopped) {
     const moves = entries.filter((e) => e.section === 'moves').length / MOVE_SHOTS, menus = entries.filter((e) => e.section === 'menus').length;
-    const wantMoves = L.moves ? STRESS_MOVES.length + 1 : 0, wantMenus = L.menus ? STRESS_MENUS.length + STRESS_SHEETS.length : 0;
+    const wantMoves = L.moves ? plan.moves.length + (plan.menus ? 1 : 0) : 0, wantMenus = L.menus && plan.menus ? STRESS_MENUS.length + STRESS_SHEETS.length : 0;
     notes.push(`stopped early: ${moves} of ${wantMoves} transitions and ${menus} of ${wantMenus} menus and sheets were taken`);
   }
   await clearScreen();

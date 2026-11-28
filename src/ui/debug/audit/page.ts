@@ -8,7 +8,9 @@ import { pace } from './progress.ts';
 import { loadAllDecks } from '../page/live.ts';
 import { builtinDecks } from '../../../decks/registry.ts';
 import { renderText, renderJson, type Bundle, type AuditData, type Coverage } from './report.ts';
-import { flagValue } from '../flags.ts';
+import { flagValue, searchNow } from '../flags.ts';
+import { pickFromSearch } from './capture-request.ts';
+import { appWorld } from '../request/world.ts';
 import { deviceOf } from '../devices.ts';
 import { buildInfo } from '../packet/sources.ts';
 import { attach } from '../pps.ts';
@@ -134,7 +136,10 @@ export function mountAudit(mode: 'here' | 'run'): void {
   capStop.onclick = () => { stop = true; capStop.disabled = true; status.textContent = 'Stopping after this slide…'; };
   const goCapture = async () => {
     if (running) return;
-    const sel = picker.read(), take = what.read();
+    // (an address that carries a request, `&req=random:10@4471`, picks the slides; the seed is printed in the README either way)
+    const asked = pickFromSearch(searchNow(), appWorld());
+    if (asked && !asked.ok) { status.textContent = `Request not understood: ${asked.error}`; return; }
+    const sel = asked ? asked.sel : picker.read(), take = what.read();
     if (sel.none && take !== 'cases') { status.textContent = 'Tick at least one talk first.'; return; }
     running = true; setRunning(true); stop = false; cap = null; saveRow.hidden = true; deliver.clear(); capStop.hidden = false; capStop.disabled = false; out.hidden = true; bar.value = 0; bar.hidden = false; pctLine.hidden = false; startedAt = clock.now(); status.textContent = take === 'cases' ? 'Playing every case… keep this tab in front.' : 'Capturing every slide… keep this tab in front.'; pctLine.textContent = 'counting the slides…';
     try {
@@ -142,9 +147,16 @@ export function mountAudit(mode: 'here' | 'run'): void {
       const at = new Date(), build = buildInfo().badge || buildInfo().commit || 'dev';
       const zipName = `portal-pressure-${take === 'cases' ? 'cases' : 'all-decks'}-${build.replace(/[^\w.-]+/g, '-')}-${at.toISOString().slice(0, 19).replace(/[-:T]/g, '')}.zip`;
       const opened = await st.openSession(await st.idbBackend().catch(() => null), { startedAt: at.toISOString(), build, words: take, sizes: [`${innerWidth}x${innerHeight}`], zipName });
-      const res = await m.runCapture({ release: true, partial: (fs) => opened.add(fs), what: take, cases: parseCases(flagValue('cases') ?? 'all', cm.everyCaseId()), looks: flagValue('looks') !== '0', decks: sel.decks ? new Set(sel.decks) : null, pick: sel.pick ? new Set(sel.pick) : null, speed: skip ? SKIP_SPEED : speed > 1 ? speed : undefined, skip, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
+      const res = await m.runCapture({ release: true, partial: (fs) => opened.add(fs), what: take, cases: parseCases(flagValue('cases') ?? 'all', cm.everyCaseId()), looks: flagValue('looks') !== '0', decks: sel.decks ? new Set(sel.decks) : null, pick: sel.pick ? new Set(sel.pick) : null, about: sel.seed !== null || asked ? `Taken: ${sel.words}` : undefined, speed: skip ? SKIP_SPEED : speed > 1 ? speed : undefined, skip, status: (s) => { status.textContent = s; }, stop: () => stop, progress: (n, total) => { const pc = pace(n, total, startedAt, clock.now()); bar.value = pc.pct; pctLine.textContent = pc.text; } });
       // (what the talks did not hand up as they ended: the README and the manifest; then the zip, made from storage one file at a time)
       await opened.add(res.files);
+      // (the audit's one format at the top of the zip: README-FIRST, REPORT, sections, findings.json, manifest.json; the folders of pictures stay as they are)
+      const unified = await (await import('./capture-unified.ts')).captureUnified({
+        search: searchNow(), names: opened.names(), read: (n) => opened.read(n), labelOf: () => `${innerWidth}x${innerHeight}`, ...(sel.pick ? { slides: sel.pick } : {}),
+        ends: [{ layout: `${innerWidth}x${innerHeight}`, notes: res.notes }], build, startedAt: at.toISOString(), seconds: (new Date().getTime() - at.getTime()) / 1000,
+        device: `${navigator.userAgent}; ${innerWidth}x${innerHeight}`, speed: skip ? SKIP_SPEED : speed > 1 ? speed : 1, sideBySide: false, stopped: res.stopped, cases: take !== 'slides',
+      });
+      if (unified) await opened.add(unified);
       await opened.finish(res.stopped ? 'stopped' : 'finished');
       cap = res;
       bar.value = 100;

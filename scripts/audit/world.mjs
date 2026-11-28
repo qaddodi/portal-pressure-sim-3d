@@ -7,19 +7,8 @@ import { fileURLToPath } from 'node:url';
 export const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 export async function readWorld() {
-  const { deckOrder, builtinDeck, lazyDecks } = await import('../../src/decks/registry.ts');
-  const { UI } = await import('../../src/ui/strings.generated.ts');
-  const { HISTORIES } = await import('../../src/ui/histories/index.generated.ts');
-  const { LOOK_IDS } = await import('../../src/looks/looks.ts');
-  const { DEVICES } = await import('../../src/ui/debug/devices.ts');
-  const lazy = new Map(lazyDecks().map((d) => [d.id, d.slides]));
-  return {
-    decks: deckOrder().map((id) => ({ id, slides: builtinDeck(id)?.slides.length ?? lazy.get(id) ?? 0 })),
-    cases: HISTORIES.map((h) => h.id),
-    lenses: UI.lenses.map((l) => l.id),
-    looks: [...LOOK_IDS],
-    sizes: DEVICES.map((d) => d.id),
-  };
+  const { appWorld } = await import('../../src/ui/debug/request/world.ts');
+  return appWorld();
 }
 
 const git = (...a) => { try { return execFileSync('git', a, { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { return ''; } };

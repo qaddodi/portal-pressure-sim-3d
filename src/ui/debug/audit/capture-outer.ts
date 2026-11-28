@@ -5,6 +5,8 @@ import { FRAME_DEVICES, fitScale } from '../frame/frame.ts';
 import { flagValue, queryWithout, searchNow } from '../flags.ts';
 import { builtinDecks, lazyDecks, loadBuiltin } from '../../../decks/registry.ts';
 import { pickerUi, packPick } from './capture-pick.ts';
+import { pickFromSearch } from './capture-request.ts';
+import { appWorld } from '../request/world.ts';
 import { whatUi } from './capture-what.ts';
 import { frameSink, stopOverdue, STOP_GRACE_MS } from './capture-keep.ts';
 import { openSession, idbBackend, type Session } from './capture-store.ts';
@@ -16,10 +18,11 @@ import { commitOf } from '../../../boot/release.ts';
 import type { CaptureMsg } from './capture-child.ts';
 import { readBox } from '../../layout-snap.ts';
 import { clock } from '../../../clock/frame.ts';
+import { captureUnified } from './capture-unified.ts';
 
 /** The address of the app in a capture frame: the same path with the capture flags (and none of the self-test's). */
 export function captureSrc(pathname: string, search: string, o: { speed: number; pick: string[] | null; decks: string[] | null; what?: CaptureWhat; cases?: string | null }): string {
-  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel', 'speed', 'noglass', 'sequence', 'pick', 'only', 'decks', 'cases', 'slides']);
+  const rest = queryWithout(search, ['audit', 'sizes', 'depth', 'parallel', 'speed', 'noglass', 'sequence', 'pick', 'only', 'decks', 'cases', 'slides', 'req']);
   const what = o.what ?? 'slides', cases = what === 'slides' ? '' : `&cases=${o.cases && /^[\w,-]+$/.test(o.cases) ? o.cases : 'all'}${what === 'both' ? '&slides=1' : ''}`;
   // (cases alone take no slide pick: a pick or a talk list in the address would add the slides)
   const slides = what === 'cases' ? '' : `${o.pick ? `&pick=${packPick(o.pick)}` : ''}${o.decks ? `&decks=${o.decks.join(',')}` : ''}`;
@@ -95,7 +98,10 @@ export function addCaptureControls(k: OuterKit): void {
 
   async function run(): Promise<void> {
     if (k.busy()) return;
-    const sel0 = picker.read(), ids = k.sizes(), sel = { ...sel0, what: what.read() };
+    // (an address that carries a request, `&req=random:10@4471`, picks the slides and, with `layout:`, the sizes: the seed is printed in the README)
+    const asked = pickFromSearch(searchNow(), appWorld());
+    if (asked && !asked.ok) { status.textContent = `Request not understood: ${asked.error}`; return; }
+    const sel0 = asked ? asked.sel : picker.read(), ids = asked?.sel.sizes?.filter((z) => Object.hasOwn(FRAME_DEVICES, z)) ?? k.sizes(), sel = { ...sel0, what: what.read() };
     if (!ids.length) { status.textContent = 'Tick at least one size in the bar.'; return; }
     if (sel.none && sel.what !== 'cases') { status.textContent = 'Tick at least one talk first.'; return; }
     k.setBusy(true); stop = false; stopAt = -1; deliver.clear(); go.disabled = true;
@@ -125,10 +131,20 @@ export function addCaptureControls(k: OuterKit): void {
       }
       if (sess.degraded) notes.push(`NOTE: the device's storage would not take the pictures (${sess.degraded}); they were held in memory, and a crash would lose them`);
       const extra: ZipFile[] = [];
+      // (the audit's one format at the top: README-FIRST, REPORT, sections, findings.json, manifest.json; the folders of pictures stay as they are)
+      const labelOf = (n: string): string => FRAME_DEVICES[n.split('/')[0]!]?.label ?? n.split('/')[0]!;
+      const unified = await captureUnified({
+        search: searchNow(), names: sess.names(), read: (n) => sess.read(n), labelOf, sizes: ids, ...(sel.pick ? { slides: sel.pick } : {}),
+        ends: done.map(({ id, r }) => ({ layout: FRAME_DEVICES[id]!.label, notes: r.notes, ...(r.why ? { ended: r.why } : {}) })),
+        build: buildOf(), startedAt: at.toISOString(), seconds: (new Date().getTime() - at.getTime()) / 1000, device: `${navigator.userAgent}; ${ids.join(', ')}`,
+        speed, sideBySide: ids.length > 1, stopped: stop, cases: sel.what !== 'slides',
+      });
+      if (unified) extra.push(...unified); else notes.push('the request could not be read again at the end: no REPORT.md or findings.json');
       if (Object.keys(manifests).length) extra.push({ name: 'cases-manifest.json', data: enc.encode(manifestJson(joinManifests(manifests))) });
       const readme = [
         `Portal pressure simulator: captured on a computer at the sizes ${ids.join(', ')}`, `Taken: ${takenWords}`, `Build: ${buildOf()}`, `Made: ${at.toISOString()}`,
-        'One folder per size (each with its own README, pictures, state files and contact sheets).', ...notes,
+        'One folder per size (each with its own README, pictures, state files and contact sheets).',
+        'README-FIRST.md, REPORT.md, sections/, findings.json and manifest.json are the audit\'s own format: start there.', ...notes,
       ];
       extra.push({ name: 'README.txt', data: enc.encode(readme.join('\n')) });
       await sess.add(extra);

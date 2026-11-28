@@ -31,6 +31,8 @@ export interface Scope {
   explicit: boolean;
   /** nothing narrowed: the whole app */
   all: boolean;
+  /** the request named slides, a talk, a feature or a random draw, so a tool that has its own default set of slides (the stress capture's key slides) uses these instead */
+  named: boolean;
   /** the talks touched, in the registered order */
   decks: string[];
   /** `deck:n` keys, in talk order */
@@ -39,6 +41,8 @@ export interface Scope {
   lenses: string[];
   looks: string[];
   sizes: string[];
+  /** the request had `layout:` parts, so `sizes` are the ones asked for (else they are the default three) */
+  sized: boolean;
   features: string[];
   random: { n: number; seed: number; spread: boolean; picked: string[] } | null;
 }
@@ -120,6 +124,7 @@ export function resolveRequest(req: Request, world: World): Resolved {
     }
     if (err) return { ok: false, error: err };
   }
+  const named = slides.size > 0;
   // nothing that names slides, cases or a feature: the whole talk list
   if (!slides.size && !cases.size && !features.size) for (const d of decks) addDeck(d.id);
   const order = slideKeys(pd), keep = new Set(slides);
@@ -132,12 +137,13 @@ export function resolveRequest(req: Request, world: World): Resolved {
   return {
     ok: true,
     scope: {
-      line: formatRequest(req), runner: req.runner, checks, skipped, explicit: !!req.checks, all,
+      line: formatRequest(req), runner: req.runner, checks, skipped, explicit: !!req.checks, all, named,
       decks: decks.map((d) => d.id).filter((id) => order.some((k) => k.startsWith(`${id}:`) && keep.has(k))),
       slides: order.filter((k) => keep.has(k)),
       cases: world.cases.filter((c) => cases.has(c)),
       lenses: world.lenses.filter((l) => lenses.has(l)),
       looks: world.looks.filter((l) => looks.has(l)),
+      sized: sizes.size > 0,
       sizes: world.sizes.filter((s) => sizes.has(s)).length ? world.sizes.filter((s) => sizes.has(s)) : [...DEFAULT_SIZES],
       features: FEATURES.map((f) => f.id).filter((id) => features.has(id)),
       random,
