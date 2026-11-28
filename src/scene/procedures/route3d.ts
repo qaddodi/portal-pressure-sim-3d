@@ -143,6 +143,9 @@ const tierZ = (id: string | null): number => {
 export const BEND_RADII = 6;
 /** How much of the room the lumen has beyond the shaft a sample may use to cut a corner: under 1, so the shaft never touches the wall. */
 export const SAFE = 0.92;
+/** The window (shaft radii) the bend limit measures over: about one ring's gap (the tube is drawn in rings about one shaft radius apart), so a turn between two rings is what is
+    bounded, not an average over a stretch several rings long. */
+export const BEND_WINDOW_RC = 1;
 /** Rounds the route's corners in place: moves each sample (offX, offY, z) toward the Gaussian-smoothed path, by no more than SAFE of its vessel's room beyond the shaft. Ends and stretches with no room stay put. */
 export function smoothBends(r: Route, rc: number, z: Float32Array, offX: Float32Array, offY: Float32Array, lumen?: { share: (x: number, y: number, z: number) => number; cap: number }): void {
   const n = r.pts.length, U = UNITS_PER_SCENE, sig0 = Math.max(rc * U * BEND_RADII, 1e-6);
@@ -240,7 +243,7 @@ export function route3d(kind: string): Route3D | null {
     const share0 = new Float64Array(n), at = (i: number): V3 => [x3(r.pts[i]![0]) + offX[i]!, y3(r.pts[i]![1]) + offY[i]!, z[i]!];
     for (let i = 0; i < n; i++) { const p = at(i); share0[i] = lumenShare(vessels, p[0], p[1], p[2]); }
     const P = limitBend(Array.from({ length: n }, (_, i) => at(i)), {
-      minR: rcS * DEVICE_BEND_RADII.catheter, anchor: Array.from({ length: n }, (_, i): V3 => [x3(r.pts[i]![0]) + offX0[i]!, y3(r.pts[i]![1]) + offY0[i]!, z0[i]!]),
+      minR: rcS * DEVICE_BEND_RADII.catheter, window: rcS * BEND_WINDOW_RC, anchor: Array.from({ length: n }, (_, i): V3 => [x3(r.pts[i]![0]) + offX0[i]!, y3(r.pts[i]![1]) + offY0[i]!, z0[i]!]),
       allow: (i, p) => lumenShare(vessels, p[0], p[1], p[2]) <= Math.max(CORNER_COMFORT, share0[i]!) + 1e-9,
     });
     for (let i = 0; i < n; i++) { offX[i] = P[i]![0] - x3(r.pts[i]![0]); offY[i] = P[i]![1] - y3(r.pts[i]![1]); z[i] = P[i]![2]; }
@@ -316,12 +319,41 @@ export function route3d(kind: string): Route3D | null {
   const vesselsHere = routeVessels(r);
   const swellAt = (d: number): number => { const [i, u] = bracket(d); return sw[i - 1]! + (sw[i]! - sw[i - 1]!) * u; };
   const drawnAt = (d: number): number => { const [i, u] = bracket(d); const a = drawnR[i - 1]!, b = drawnR[i]!; return Number.isFinite(a) && Number.isFinite(b) ? a + (b - a) * u : Math.min(a, b); };
+  // THE LIVE PATH (28 Nov 2026, owner: "the HVPG catheter kinks at the joint, should be smooth, no acute angles"): where a vein is drawn narrower than it was built (a cirrhotic
+  // liver's hepatic veins), the shaft's place
+  // off the vessel's centreline shrinks with it (SWELL_K). Pulling the rounded path toward the centreline by that share gave the centreline's own corner back (the cava into the
+  // hepatic vein turns 75 to 118 degrees
+  // between two rings), so the narrowed path is laid again through `limitBend` on the live lumen (setLive). `live` holds its samples (null while no vein is narrower than built).
+  let live: Float32Array | null = null;
+  const liveAt = (d: number, o: Vector3): Vector3 => {
+    const [i, u] = bracket(d), a = 3 * (i - 1), b = 3 * i, L = live!;
+    return o.set(L[a]! + (L[b]! - L[a]!) * u, L[a + 1]! + (L[b + 1]! - L[a + 1]!) * u, L[a + 2]! + (L[b + 2]! - L[a + 2]!) * u);
+  };
   const point = (d: number, o = new Vector3()): Vector3 => {
-    point0(d, o);
-    if (!anyNarrow) return o;
-    const k = Math.min(1, swellAt(d));
-    if (k >= 0.9999) return o;
-    return o.lerpVectors(centre(d, C), o, k);   // (its own scratch: `dir` passes B as the out, and a shared one would hand back the centre itself)
+    if (live) return followAt(d, liveAt(d, o));
+    return point0(d, o);
+  };
+  // The path with each sample drawn in toward its centreline by its vein's live share, then relaxed until no stretch bends tighter than the catheter's least radius (the shaft is
+  // as thin as the narrowest vein
+  // lets it be, so its least radius is that of the narrowest live share). A sample may move only where the live lumen (the drawn lumen scaled by the share) still holds the axis.
+  const narrowedPath = (): Float32Array => {
+    const kk = (i: number): number => Math.min(1, sw[i]!), base = (i: number): V3 => [x3(r.pts[i]![0]), y3(r.pts[i]![1]), 0];
+    const L: V3[] = [], C0: V3[] = [], share0 = new Float64Array(n);
+    let kMin = 1;
+    for (let i = 0; i < n; i++) {
+      const b = base(i), k = kk(i);
+      const c: V3 = [b[0] + offX0[i]!, b[1] + offY0[i]!, z0[i]!], p: V3 = [b[0] + offX[i]!, b[1] + offY[i]!, z[i]!];
+      C0.push(c); L.push([c[0] + (p[0] - c[0]) * k, c[1] + (p[1] - c[1]) * k, c[2] + (p[2] - c[2]) * k]);
+      if (r.cum[i]! <= r.free) kMin = Math.min(kMin, k);
+      share0[i] = lumenShare(vessels, L[i]![0], L[i]![1], L[i]![2]);
+    }
+    const P = limitBend(L, {
+      minR: rcS * DEVICE_BEND_RADII.catheter, window: rcS * BEND_WINDOW_RC, anchor: C0,
+      allow: (i, p) => lumenShare(vessels, p[0], p[1], p[2]) <= Math.max(CORNER_COMFORT, share0[i]!) + 1e-9,
+    });
+    const out = new Float32Array(3 * n);
+    for (let i = 0; i < n; i++) { out[3 * i] = P[i]![0]; out[3 * i + 1] = P[i]![1]; out[3 * i + 2] = P[i]![2]; }
+    return out;
   };
   const out: Route3D = {
     route: r, z, pos,
@@ -348,6 +380,7 @@ export function route3d(kind: string): Route3D | null {
       for (let pass = 0; pass < 3; pass++) { const q = new Float64Array(n); for (let i = 0; i < n; i++) { let t = 0, w = 0; for (let k = -SWELL_BLUR; k <= SWELL_BLUR; k++) { const j = Math.min(n - 1, Math.max(0, i + k)); t += a[j]!; w++; } q[i] = t / w; } a = q; }
       anyNarrow = false;
       for (let i = 0; i < n; i++) { sw[i] = Math.min(SWELL_CAP, a[i]!); if (sw[i]! < 0.9999) anyNarrow = true; }
+      live = anyNarrow ? narrowedPath() : null;
       return true;
     },
     rc: 0,
