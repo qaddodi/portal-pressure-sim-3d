@@ -4,6 +4,8 @@ import { useUi, atEnd, type Readings } from '../ui-store.ts';
 import { dock } from './dock.ts';
 import { finishTalk } from './finish.ts';
 import { dataKeys } from './keep.ts';
+import { gatedSlide, procOver } from './proc-gate.ts';
+import { useProc } from '../deck/procs-state.ts';
 import { useDockSwipe, openDock, goColumn, justDocked } from './useDockSwipe.ts';
 import { viewAt, lastSlideShot } from '../deck/presenter-machine.ts';
 import { DataCap } from '../talk/tool-room.ts';
@@ -91,11 +93,16 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const dataAt = useMemo(() => dataKeys(deck, stops), [deck, stops]);
   const sidewaysNow = isSideways(vp.w, vp.h);
   const here = dataAt[pos.stop] ?? null;
+  // a procedure slide's graph card waits for its procedure (proc-gate.ts): until it is done the slide has its words card alone and the figure has the rest of the screen
+  const atSlide = stops[pos.stop]?.kind === 'slide' ? (stops[pos.stop] as { slide: Slide }).slide : null;
+  const gated = !!here && here.from === pos.stop && gatedSlide(deck, atSlide);
+  const procOpen = useProc((p) => !gated || (!!atSlide && procOver(p, `${deck.id}/${atSlide.id}`)));
   const view = useMemo(() => {
     if (!stops.length) return null;
     const v = phoneView(viewAt(stops, pos, lastSlideShot(stops)), sidewaysNow, here?.kind);
-    return !v.data && here && v.words === 'teach' ? { ...v, data: here.kind } : v;
-  }, [stops, pos, here, sidewaysNow]);
+    const w = !v.data && here && v.words === 'teach' ? { ...v, data: here.kind } : v;
+    return gated && !procOpen && w.data ? { ...w, data: null } : w;
+  }, [stops, pos, here, sidewaysNow, gated, procOpen]);
   const carried = here && stops[here.from]?.kind === 'slide' ? (stops[here.from] as { slide: Slide }).slide : null;   // (the slide whose instrument the data card shows)
   // heights are tagged with the page they were measured on, so a card that has just been split is never judged by its whole height
   const [heights, setHeights] = useState<Record<string, { h: number; want: number; open: number; sig: string; f: boolean; t: number }>>({});
