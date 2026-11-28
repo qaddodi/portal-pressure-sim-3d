@@ -7,7 +7,7 @@ import { CEL_STYLE } from '../src/scene/cel-style.ts';
 import { inkTaper } from '../src/scene/vessels/cel-ink.ts';
 import { skinKOf } from '../src/scene/vessels/skin/sdf.ts';
 import { facetSag } from '../src/scene/vessels/skin/facet-sag.ts';
-import { SKIN_ARM_ABSENT, SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K, SKIN_HOLD_FREE_FROM_K, SKIN_HOLD_FREE_TO_K, SKIN_SEAM_PAD_PX } from '../src/scene/vessels/skin/shaders.ts';
+import { SKIN_ARM_ABSENT, SKIN_HOLD_FROM_K, SKIN_HOLD_GROW_TO_K, SKIN_HOLD_TO_K, SKIN_HOLD_FREE_FROM_K, SKIN_HOLD_FREE_TO_K, SKIN_SEAM_PAD_PX } from '../src/scene/vessels/skin/shaders.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
 import { sd3, type GateSkin } from './skin-gate-lib.ts';
 import { skinNormalTwin, skinShadeK, type TwinArm } from '../src/scene/vessels/skin/exact-normal.ts';
@@ -42,6 +42,8 @@ export interface LiveVariant {
   tierless?: boolean;
   /** the hold-out's ramp, in shares of the blend width k (shipped: SKIN_HOLD_FROM_K to SKIN_HOLD_TO_K): a pixel is held out of an arm from `ramp[0]` k of 3D gap, wholly from `ramp[1]` k */
   ramp?: readonly [number, number];
+  /** the seam's ramp everywhere (not eased to the free skin's away from the seams): SKIN_HOLD_FROM_K to the top-weighted arm's seam end, SKIN_HOLD_TO_K or, on a growing arm's ring, SKIN_HOLD_GROW_TO_K */
+  seamEverywhere?: boolean;
 }
 export interface LiveCase { swell: readonly number[]; keep: readonly boolean[]; /** each arm's tier z (frame2d.ts TIER_Z), for `tierless` */ tierZ?: readonly number[] }
 /** `covered` pixels the skin's front faces cover; `lumenRef` of them the live union (kept arms, no depth rule) says are lumen; `hole` of those no fragment is drawn at (every face over it is dropped: the tube is cut there, so it is background); `inkOnly` of those the nearest drawn fragment is line only (black where it should be vessel). */
@@ -120,7 +122,9 @@ export function rasterLive(skin: GateSkin, cam: PerspectiveCamera, w: number, h:
       const fragPOf = (arm: number): number[] => (variant.tierless && cs.tierZ ? [fragP[0]!, fragP[1]!, fragP[2]! + cs.tierZ[arm]! - tierPix] : fragP);
       // (the shader's ramp: the free skin's eased to the seam's by the kept arms' top raw weight, skinHoldSeam)
       const wSeam = smooth(0.75, 0.97, Math.max(...raw.map((r, i) => r * (cs.keep[i] ? 1 : 0))));
-      const ramp = variant.ramp ?? [SKIN_HOLD_FREE_FROM_K + (SKIN_HOLD_FROM_K - SKIN_HOLD_FREE_FROM_K) * wSeam, SKIN_HOLD_FREE_TO_K + (SKIN_HOLD_TO_K - SKIN_HOLD_FREE_TO_K) * wSeam];
+      // (the seam end of the ramp is the top-weighted arm's own: a growing arm's ring ends it at SKIN_HOLD_GROW_TO_K)
+      const top = raw.reduce((m, r, i) => (r * (cs.keep[i] ? 1 : 0) > raw[m]! * (cs.keep[m] ? 1 : 0) ? i : m), 0), seamTo = arms[top]?.grow ? SKIN_HOLD_GROW_TO_K : SKIN_HOLD_TO_K;
+      const ramp = variant.ramp ?? (variant.seamEverywhere ? [SKIN_HOLD_FROM_K, seamTo] : [SKIN_HOLD_FREE_FROM_K + (SKIN_HOLD_FROM_K - SKIN_HOLD_FREE_FROM_K) * wSeam, SKIN_HOLD_FREE_TO_K + (seamTo - SKIN_HOLD_FREE_TO_K) * wSeam]);
       const armHeld = (arm: number, holdLive: boolean): number => smooth(ramp[0] * kPx, ramp[1] * kPx, sd3(axes[arm]!, fragPOf(arm), holdLive ? cs.swell[arm]! : 1) / Math.max(wpc(fragW), 1e-9) * dpr);
       const armPx = (arm: number, depth: boolean, holdLive: boolean, sub = 0): number => {
         const P = apLive[arm]!, segs = ([[P[0], P[1]], [P[1], P[2]], [P[2], P[3]]] as number[][][]).map(([p, q]) => {

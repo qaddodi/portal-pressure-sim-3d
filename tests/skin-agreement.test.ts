@@ -10,7 +10,7 @@ import { SKIN_K } from '../src/scene/vessels/skin/sdf.ts';
 import { armWalk } from '../src/scene/vessels/skin/cuts.ts';
 import { axisOf } from '../src/scene/vessels/skin/skin-set.ts';
 import type { ArmAxis } from '../src/scene/vessels/skin/skin-object.ts';
-import { SKIN_HOLD_FROM_K, SKIN_HOLD_TO_K, SKIN_VS } from '../src/scene/vessels/skin/shaders.ts';
+import { SKIN_HOLD_FROM_K, SKIN_HOLD_GROW_TO_K, SKIN_HOLD_TO_K, SKIN_VS } from '../src/scene/vessels/skin/shaders.ts';
 import { NETWORK, NETWORK_BY_ID } from '../src/scene/vessels/network.ts';
 import { REST, coursesOf, tubularOf } from '../src/scene/vessels/shape.ts';
 import { TUBE_RADIAL, buildTubes } from '../src/scene/vessels/tubes.ts';
@@ -162,7 +162,7 @@ test('the skin\'s vertex stage takes each arm\'s waist into its live width, and 
 // ---- the seam's ink ----
 const RES = 1000, DPR = 1;
 /** The skin fragment stage's rule (skin/shaders.ts skinPx, skinArmPx, skinSmin, skinSdPx) in JS, on a perspective camera at the fit. */
-function inkTwin(cam: PerspectiveCamera, axes: readonly ArmAxis[], swell: number, kM: number) {
+function inkTwin(cam: PerspectiveCamera, axes: readonly ArmAxis[], swell: number, kM: number, holdTo: number = SKIN_HOLD_TO_K) {
   cam.updateMatrixWorld(); cam.updateProjectionMatrix();
   const wpc = (w: number): number => (w * 2) / (RES * cam.projectionMatrix.elements[5]!);
   /** x, y, the radius, and the view depth w, all in px as the shader's skinPx has them. */
@@ -185,7 +185,7 @@ function inkTwin(cam: PerspectiveCamera, axes: readonly ArmAxis[], swell: number
     const ndcZ = ((cam.far + cam.near) / (cam.far - cam.near) * fragW - 2 * cam.far * cam.near / (cam.far - cam.near)) / fragW;
     const P = new Vector3(((frag[0]! / (RES * DPR)) - 0.5) * 2, ((frag[1]! / (RES * DPR)) - 0.5) * 2, ndcZ).unproject(cam);
     const gap = sd3(ax, [P.x, P.y, P.z]) / Math.max(wpc(fragW), 1e-9) * DPR;
-    return best.d + smooth(SKIN_HOLD_FROM_K * kPx, SKIN_HOLD_TO_K * kPx, gap) * (2 * kPx + Math.max(-best.d, 0));   // (held out of reach: past the arm's own wall, shaders.ts skinSdPx)
+    return best.d + smooth(SKIN_HOLD_FROM_K * kPx, holdTo * kPx, gap) * (2 * kPx + Math.max(-best.d, 0));   // (held out of reach: past the arm's own wall, shaders.ts skinSdPx)
   };
   const smin = (a: number, b: number, k: number): number => { const h = Math.min(1, Math.max(0, 0.5 + 0.5 * (b - a) / Math.max(k, 1e-4))); return b + (a - b) * h - k * h * (1 - h); };
   const kPx = (centre: readonly number[]): number => { const q = new Vector4(centre[0]!, centre[1]!, centre[2]!, 1).applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix); return kM / ((q.w * 2) / (RES * cam.projectionMatrix.elements[5]!)) * DPR; };
@@ -209,7 +209,8 @@ test('the seam\'s ink: the skin\'s outline rule gives, on the seam ring, the tub
         // the three axis points the shader draws from: the tube's own ring centres, as the set builds them
         const sided = mesh.junction.arms.some((a) => !!a.side);
         const axes = mesh.junction.arms.map((a, i) => { const t = { geometry: tubeOf(a.vesselId).b.geometry, tubular: tubeOf(a.vesselId).run.tubular }; return axisOf(t, a.restR, mesh.cuts[i]!, mesh.junction.J, a.side ? armWalk(a, t.tubular).from : undefined, sided); });   // (as the set builds them: a side arm walks from its own ring, a skin with one has its seam headings from the ring planes)
-        const tw = inkTwin(cam, axes, 1, SKIN_K * Math.min(...mesh.junction.arms.map((a) => a.restR)));
+        // (the ramp's end on a seam ring is its own arm's: a growing arm's ring ends it earlier, shaders.ts SKIN_HOLD_GROW_TO_K)
+        const tw = inkTwin(cam, axes, 1, SKIN_K * Math.min(...mesh.junction.arms.map((a) => a.restR)), arm.grow ? SKIN_HOLD_GROW_TO_K : SKIN_HOLD_TO_K);
         const seam = axes[ai]!.pts[2], R = axes[ai]!.radii[2], s1 = tw.project(seam, R), c1 = tw.project(axes[ai]!.pts[3], R);
         // the arm's heading on the screen at its seam, and the offsets across it
         let hx = c1[0] - s1[0], hy = c1[1] - s1[1]; const hl = Math.hypot(hx, hy);
