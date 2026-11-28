@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Which slides page or scroll (owner 28 Nov: no card pages, no scrolling instrument card). Opens every talk in the no-GPU layout page at one screen size, goes to each stop, waits for the cards to land and
 // settle, and prints the stops whose words card has pages (`pageCount` > 1) or whose card holds something that scrolls.
-//   node scripts/paging-probe.mjs <iphone|ipad|mac|...> [deck,deck] [--out file.json]
+//   node scripts/paging-probe.mjs <iphone|ipad|mac|...> [deck,deck] [--out file.json] [--safe top,bottom]
+// A slide's words never page now (decks/overlay.ts cuts them into slides), so what it lists is a card that does not fit its box: content taller than the card (clipped), or a box that scrolls.
 import { createRequire } from 'node:module';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -12,6 +13,7 @@ import { UI } from '../src/ui/strings.generated.ts';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2), size = args[0] ?? 'iphone';
 const only = args[1] && !args[1].startsWith('--') ? args[1].split(',') : null;
+const safe = args.includes('--safe') ? args[args.indexOf('--safe') + 1].split(',').map(Number) : null;
 const out = args.includes('--out') ? args[args.indexOf('--out') + 1] : null;
 const d = DEVICES.find((x) => x.id === size);
 if (!d) throw new Error(`unknown size ${size}`);
@@ -31,6 +33,7 @@ for (const id of ids) {
   try {
     await p.goto(`${base}/?layout&script=${id}&slide=1`, { waitUntil: 'commit', timeout: 60000 });
     await p.waitForFunction(() => window.__ui && window.__ui.stops.length > 0 && document.querySelectorAll('.dk-card[data-phase="in"]').length > 0, null, { timeout: 120000, polling: 300 });
+    if (safe) await p.evaluate(async (sf) => { const m = await import('/src/ui/ui-store.ts'), s = m.useUi.getState(); s.setViewport({ ...s.vp, safe: { top: sf[0], bottom: sf[1], left: 0, right: 0 } }); }, safe);
     const n = await p.evaluate(async () => (await import('/src/ui/ui-store.ts')).useUi.getState().stops.length);
     let rows = 0;
     for (let k = 0; k < n; k++) {
@@ -55,10 +58,12 @@ for (const id of ids) {
           }
         }
         const name = document.querySelector('.pz-pageno')?.textContent ?? null;
-        return { stop: k, slide: st.stops[k]?.kind === 'slide' ? st.stops[k].slide.id : st.stops[k]?.kind, pages: st.pageCount, pageno: name, scrolls, landed: still >= 6 };
+        // a card whose content stands taller than the card (clipped)
+        const clipped = [...document.querySelectorAll('.dk-card[data-card][data-phase="in"]')].filter((c) => { const e = c.querySelector('.dk-in') ?? c; return e.scrollHeight > e.clientHeight + 2; }).map((c) => `${c.getAttribute('data-card')} ${Math.round((c.querySelector('.dk-in') ?? c).scrollHeight)}>${Math.round((c.querySelector('.dk-in') ?? c).clientHeight)}`);
+        return { stop: k, slide: st.stops[k]?.kind === 'slide' ? st.stops[k].slide.id : st.stops[k]?.kind, pages: st.pageCount, pageno: name, scrolls, clipped, landed: still >= 6 };
       }, k);
       rows++;
-      if (r.pages > 1 || r.scrolls.length || !r.landed) { found.push({ size, deck: id, ...r }); console.log(JSON.stringify({ size, deck: id, ...r })); }
+      if (r.pages > 1 || r.scrolls.length || r.clipped.length || !r.landed) { found.push({ size, deck: id, ...r }); console.log(JSON.stringify({ size, deck: id, ...r })); }
     }
     console.error(`${size} ${id}: ${n} stops`);
   } catch (e) { console.error(`${size} ${id}: failed ${String(e.message).slice(0, 200)}`); found.push({ size, deck: id, failed: true }); }
