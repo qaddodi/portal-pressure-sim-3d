@@ -40,7 +40,7 @@ A **finding id** (`F-xxxxxx`) is the first six hex digits of FNV-1a over rule, t
 
 | runner | what | how |
 |---|---|---|
-| **node** | no browser, no GPU, no approval, about a minute for a feature | `npm run audit -- "<request>"` (`scripts/audit.mjs`): the repo's node tests for the request's features (`scripts/audit/tests.mjs`, node's own test runner), the node scene audit (`scene-audit.mjs --json`: pops, stuck eases, slowest frame, rebuilds), the typecheck and the lint. Writes the zip to `/mnt/project-files/audits/` when that folder exists, else `./audits/` (ignored by git); `--out <dir>`, `--dir`, `--print`, `--json`, `--jobs <n>`. |
+| **node** | no browser, no GPU, no approval; the typecheck, lint and scene audit take about 15 s, the tests of a feature take as long as they take (`feature:ascites` 25 s in all, `feature:junctions` about 9 minutes on 4 cores in the cloud: the skin tests are slow) | `npm run audit -- "<request>"` (`scripts/audit.mjs`): the repo's node tests for the request's features (`scripts/audit/tests.mjs`, node's own test runner), the node scene audit (`scene-audit.mjs --json`: pops, stuck eases, slowest frame, rebuilds), the typecheck and the lint. Writes the zip to `/mnt/project-files/audits/` when that folder exists, else `./audits/` (ignored by git); `--out <dir>`, `--dir`, `--print`, `--json`, `--jobs <n>`. |
 | **layout** | today's `npm run layout-check` | one approved headless run each time. Not yet taught the request (step b). |
 | **gpu** | today's `?audit` and `?stress` on the person's own device | pictures and motion. Not yet taught the request (step b). |
 

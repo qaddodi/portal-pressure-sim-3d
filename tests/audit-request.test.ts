@@ -120,6 +120,7 @@ test('which test files run: a feature runs its own, a talk request runs the numb
   const own = testsOfFeature(featureOf('junctions')!, all);
   assert.ok(feat.files.every((f) => own.includes(f.file)), 'only the feature\'s files');
   assert.deepEqual(feat.env, {}, 'no numbers file, no full replay');
+  assert.ok(feat.files.every((f) => f.check === 'junctions'), 'a feature that serves two checks gives its files to the first of its own list');
   const deck = nodeTestPlan(scope('deck:variceal-bleed'), all, FAMILIES);
   assert.ok(deck.files.length && deck.files.every((f) => f.check === 'numbers'), 'a talk request runs the one node check that reads slides');
   assert.equal(deck.env.DECKS_HP_FULL, '1');
