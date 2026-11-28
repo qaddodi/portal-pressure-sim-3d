@@ -27,7 +27,6 @@ const RUN_ON_ENDS = new Set(['C1a|0', 'C1a|1', 'C1b|0', 'C2|1', 'C5|0', 'EPI_ILI
 const FAR: Readonly<Record<string, string>> = {
   'C2|0': 'the short gastric veins leave the splenic vein against its flow as drawn: the arrival moves on along the flow (joinEnd, "no hairpin, no reversal")',
   'C4|0': 'the rectal varices leave the inferior mesenteric vein against its flow as drawn: the arrival moves on along the flow (joinEnd)',
-  'S_DSR|0': 'SVD is drawn at the short gastric veins\' take-off (they leave beside it)',
   'DIPS|0': 'the DIPS is rebuilt from the portal bifurcation (the engine\'s PVH), the course Mohammad drew (docs/approved/dips.md), not from where the frozen placement opened it on the trunk',
   'DIPS|1': 'the DIPS is rebuilt to the cava at the caudate lobe\'s foot',
 };

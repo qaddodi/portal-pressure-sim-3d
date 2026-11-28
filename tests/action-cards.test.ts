@@ -33,6 +33,10 @@ const DEPARTED: Record<string, Record<string, string>> = {
   // (each of these five ends at a junction node the table names, so every reading of it, its span included, comes from there)
   'edge:C6': { '*': 'ends at its junction node' }, 'edge:C3': { '*': 'ends at its junction node' }, 'edge:REX': { '*': 'ends at its junction node' },
   'edge:S_PC': { '*': 'ends at its junction node' }, 'edge:S_MC': { '*': 'ends at its junction node' },
+  // (the engine's junction numbers at 4f4e49f move the pressure at C2's start by 0.1 mmHg: the recorded frame is the 2D app's)
+  'edge:C2': { '*': 'its start node reads 0.1 mmHg off the recorded frame' },
+  // (C9 now leaves the cava at the table's own node, IVC_C, 0.079 down it: its pressure is read there)
+  'edge:C9': { '*': 'starts at its junction node' },
 };
 const keyOf = (s: Sel) => `${s.type}:${(s as J).id ?? (s as J).part ?? (s as J).zone}`;
 const STATIC = ['type', 'id', 'key', 'label', 'short', 'icon', 'min', 'max', 'step', 'def', 'info', 'hist', 'options', 'ticks', 'tickNames', 'danger', 'quiet', 'small', 'unit'];

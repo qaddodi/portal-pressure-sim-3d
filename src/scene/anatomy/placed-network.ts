@@ -551,7 +551,7 @@ function buildPlaced(): void {
       if (!at.length) continue;
       // (the node's own end: the shunt that divides the vein starting there (skin/divide.ts: the distal splenorenal shunt takes the splenic vein's start at SVD), else the widest)
       const owner = at.find((l) => DIVIDERS.has(`${l.id}|${l.end}`)) ?? at.reduce((x, y) => (rOf(y.id) > rOf(x.id) ? y : x));
-      const near = lands.find((l) => l.w === w && l.off && (NODE_AT_END[n] === `${l.id}|${l.end}` || at.some((m) => Math.abs(l.s - m.s) <= SNAP_R * R)));
+      const near = lands.find((l) => l.w === w && (NODE_AT_END[n] === `${l.id}|${l.end}` || (l.off && at.some((m) => Math.abs(l.s - m.s) <= SNAP_R * R))));
       stops.push({ s: near ? near.s : owner.s, fixed: false, node: n, land: owner, others: at.filter((l) => l !== owner), beside: [] });
     }
     stops.sort((x, y) => x.s - y.s);

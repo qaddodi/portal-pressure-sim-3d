@@ -21,6 +21,7 @@ import { NETWORK, NETWORK_BY_ID, SHUNT_IDS } from '../src/scene/vessels/network.
 import { REST, coursesOf } from '../src/scene/vessels/shape.ts';
 import { drawnShare } from '../src/scene/procedures/route3d.ts';
 import { PLACED_EDGE_3D, WHOLE_PIECES, SEWN_ENDS, SEWN_MIN, SEWN_HEAD_R, SEWN_FRONT_GAP, SEWN_FRONT_FROM, SEWN_FRONT_TO } from '../src/scene/anatomy/placed-network.ts';
+import { piecesOf } from '../src/scene/anatomy/whole-pieces.ts';
 import { Matrix4 } from 'three';
 
 type V = readonly [number, number, number];
@@ -42,13 +43,14 @@ const course = (id: string): V[] => coursesOf(NETWORK_BY_ID.get(id)!, REST)[0]!.
 const whole = (w: string): V[] => WHOLE_PIECES[w]!.flatMap((id, i) => (i ? PLACED_EDGE_3D[id]!.slice(1) : PLACED_EDGE_3D[id]!)) as V[];
 
 /** Each shunt's two ends: the drawn veins its start and its end open into (the landmarks it is made between, in the engine's flow order: from, to). */
+const P = (...hosts: string[]): string[] => hosts.flatMap((h) => [...piecesOf(h)]);
 const LANDMARKS: Readonly<Record<string, readonly [readonly string[], readonly string[]]>> = {
-  TIPS: [['PVH_R', 'PVH_R_1', 'PVH_R_2'], ['RHV_IVC', 'RHV_IVC_1']],                         // right portal vein to right hepatic vein
-  DIPS: [['PV_TRUNK', 'PVH_R', 'PVH_L'], ['IVC_IS_1', 'IVC_IS']],                            // portal bifurcation to the retrohepatic cava
-  S_PC: [['PV_TRUNK_1', 'SMV_CONF', 'SV_CONF'], ['IVC_IS_1', 'IVC_IS', 'ILI_IVC_1']],          // portal vein at the confluence to the cava
-  S_MC: [['V_INT_1', 'SMV_CONF'], ['ILI_IVC_1', 'ILI_IVC', 'IVC_IS_1']],                      // superior mesenteric vein to the infrarenal cava
-  S_DSR: [['V_SPL', 'SV_MID'], ['V_KID_L', 'V_KID_L_1']],                                     // splenic vein to the left renal vein
-  REX: [['V_INT_1', 'SMV_CONF'], ['PVH_L_1']],                                                // superior mesenteric vein to the left portal vein (the Rex recess)
+  TIPS: [P('PVH_R'), P('RHV_IVC')],                                // right portal vein to right hepatic vein
+  DIPS: [P('PV_TRUNK', 'PVH_R', 'PVH_L'), P('IVC_IS')],            // portal bifurcation to the retrohepatic cava
+  S_PC: [P('PV_TRUNK', 'SMV_CONF', 'SV_CONF'), P('IVC_IS', 'ILI_IVC')],   // portal vein at the confluence to the cava
+  S_MC: [P('V_INT', 'SMV_CONF'), P('ILI_IVC', 'IVC_IS')],          // superior mesenteric vein to the infrarenal cava
+  S_DSR: [P('V_SPL', 'SV_MID'), P('V_KID_L')],                     // splenic vein to the left renal vein
+  REX: [P('V_INT', 'SMV_CONF'), P('PVH_L')],                       // superior mesenteric vein to the left portal vein (the Rex recess)
 };
 
 test('every drawn shunt is in the table, and the table names drawn veins', () => {
