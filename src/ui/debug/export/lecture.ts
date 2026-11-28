@@ -8,7 +8,7 @@ import type { CopiedDeck, CopiedSlide } from '../../../decks/hp/types.ts';
 import { planSlide } from '../../../decks/hp/plan.ts';
 import { camPlan } from '../../../decks/hp/cams.ts';
 import { parseLine } from '../../text/line.ts';
-import { valueText, type Fp } from '../../text/tokens.ts';
+import { valueText, plainText, type Fp } from '../../text/tokens.ts';
 import { valueText as tableValue } from '../../talk/table-model.ts';
 import { COLS } from '../../deck/from2d/table-marks.js';
 import { TILE } from '../../charts/tiles.generated.ts';
@@ -311,7 +311,7 @@ export function lectureOf(inp: LectureInput, clockMs: () => number): LectureOut 
     if (s.lapse) md.push(`- **Time-lapse:** ${lapseSpan}${s.lapse.from ? `, "${s.lapse.from}" to "${s.lapse.to}"` : ''}${s.lapse.plays ? ', plays on the figure' : ''}`);
     md.push('');
     if (inp.notes) {
-      md.push(`### Speaker notes`, '', s.notes, '');
+      md.push(`### Speaker notes`, '', plainText(s.notes, fp, slideFp), '');
       if (s.ask) md.push(`Question for the room: **${s.ask[0]}** Answer: ${s.ask[1]}`, '');
     }
   });

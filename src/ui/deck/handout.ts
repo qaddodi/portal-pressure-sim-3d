@@ -9,6 +9,7 @@ import { parseLine, fmtPressure, type Piece } from '../text/line.ts';
 import { outlineOf, OBJECTIVES_HEAD, OUTLINE_HEAD } from '../../decks/outline.ts';
 import { CHECK_TITLE } from '../../decks/check.ts';
 import { slideFps, type Fp } from '../talk/slide-states.ts';
+import { plainText } from '../text/tokens.ts';
 import { download } from './download.ts';
 import { HANDOUT_FIGURES } from './handout-figures.generated.ts';
 
@@ -72,7 +73,7 @@ export const withoutFigure = (d: Deck): string[] => d.slides.filter((s) => !figu
 // (2D handout.js: a picture drawn with its data card beside it is landscape and takes more of the row; one that will not load leaves no hole.)
 const fig = (src: string) => (src ? `<figure><img src="${esc(src)}" alt="" onload="if (this.naturalWidth > 1.2 * this.naturalHeight) this.closest('article').classList.add('land')" onerror="this.parentNode.remove()"></figure>` : '');
 
-function slideBlock(d: Deck, base: string, s: Slide, i: number, fp: Fp | null): string {
+function slideBlock(d: Deck, base: string, s: Slide, i: number, fp: Fp | null, fpAt: (id: string) => Fp | null): string {
   const eq = s.eq?.map((p) => p.text).join(' ');
   const [q, a] = s.ask ?? [];
   // (a slide whose data card carries it, a table or a chart, prints that card's picture across the page: 2D `visual` -> .wide)
@@ -84,7 +85,7 @@ function slideBlock(d: Deck, base: string, s: Slide, i: number, fp: Fp | null): 
   <h2>${esc(s.title || 'Slide')}</h2>
   ${s.line ? `<p class="line">${esc(lineText(s.line, fp))}</p>` : ''}
   ${eq ? `<p class="eq">${esc(eq)}</p>` : ''}
-  ${s.notes ? `<div class="notes"><p class="cap">Notes</p><p>${esc(s.notes)}</p></div>` : ''}
+  ${s.notes ? `<div class="notes"><p class="cap">Notes</p><p>${esc(plainText(s.notes, fp, fpAt))}</p></div>` : ''}
   ${q ? `<div class="ask"><p class="cap">Discussion question</p><p>${esc(q)}</p>${a ? `<p class="a"><b>Answer:</b> ${esc(a)}</p>` : ''}</div>` : ''}
   </div>
 </article>`;
@@ -95,6 +96,9 @@ function slideBlock(d: Deck, base: string, s: Slide, i: number, fp: Fp | null): 
 export function handoutHTML(d: Deck, fps: Fp[] = [], base = ''): string {
   const meta = [d.mine ? 'Your script' : d.level, `${d.slides.length} slides`, d.minutes ? `about ${d.minutes} min` : ''].filter(Boolean).join(' · ');
   const outline = outlineOf(d);
+  // (the notes read the model through the same braces as the slide's words: {hvpg}, {asc}, {pv@clot}; P-20)
+  const byId = new Map(d.slides.map((s, i) => [s.id, i]));
+  const fpAt = (id: string): Fp | null => { const j = byId.get(id); return j == null ? null : fps[j] ?? null; };
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Notes: ${esc(d.title)}</title><style>${CSS}</style></head><body><main>
 <header><div class="top"><div><p class="cap">Speaker notes</p><h1>${esc(d.title)}</h1><p class="meta">${esc(meta)}</p></div>
@@ -102,7 +106,7 @@ export function handoutHTML(d: Deck, fps: Fp[] = [], base = ''): string {
 ${d.summary ? `<p class="sum">${esc(d.summary)}</p>` : ''}
 <div class="plan">${d.objectives.length ? `<section><p class="cap">${esc(OBJECTIVES_HEAD)}</p><ul>${d.objectives.map((o) => `<li>${esc(o)}</li>`).join('')}</ul></section>` : ''}${outline.length ? `<section><p class="cap">${esc(OUTLINE_HEAD)}</p><ol>${outline.map((k) => `<li>${esc(k)}</li>`).join('')}</ol></section>` : ''}</div>
 </header>
-${d.slides.map((s, i) => slideBlock(d, base, s, i, fps[i] ?? null)).join('\n')}
+${d.slides.map((s, i) => slideBlock(d, base, s, i, fps[i] ?? null, fpAt)).join('\n')}
 ${d.checks.length ? `<article><div class="txt"><p class="cap">${esc(CHECK_TITLE)}</p><ol class="checks">${d.checks.map(([q, a]) => `<li><p>${esc(q)}</p><p class="a"><b>Answer:</b> ${esc(a)}</p></li>`).join('')}</ol></div></article>` : ''}
 </main></body></html>`;
 }

@@ -6,6 +6,7 @@ import { createPresenterLink as create2d } from './from2d/presenter-view.js';
 import { CHECK_TITLE, CHECK_LINE } from '../../decks/check.ts';
 import { OUTLINE_TITLE, outlineOf } from '../../decks/outline.ts';
 import { lineText } from './handout.ts';
+import { plainText } from '../text/tokens.ts';
 import { slideFps, type Fp } from '../talk/slide-states.ts';
 import { W } from './words.ts';
 import type { Deck } from '../../decks/schema.ts';
@@ -42,7 +43,10 @@ function publish(): void {
   if (!link) return;
   if (!deck || !stops.length) { link.end(); return; }
   const fps = numbers?.deck === deck.id ? numbers.fps : [];
-  const views = viewsOf(deck);
+  const byId = new Map(deck.slides.map((x, i) => [x.id, i]));
+  const fpAt = (id: string): Fp | null => { const j = byId.get(id); return j == null ? null : fps[j] ?? null; };
+  // (the notes read the model through the same braces as the slide's words, P-20; stop 0 is the outline, stop k the slide k, whose numbers are fps[k - 1])
+  const views = viewsOf(deck).map((v, k) => (k >= 1 && k <= deck.slides.length ? { ...v, notes: plainText(v.notes, fps[k - 1] ?? null, fpAt) } : v));
   const beats = stops[pos.stop]?.kind === 'slide' ? (stops[pos.stop] as { beats: number }).beats : 1;
   link.publish({ id: deck.id, title: deck.title }, views, pos.stop, pos.beat, beats, (i: number) => say(fps[i - 1] ?? null));
 }

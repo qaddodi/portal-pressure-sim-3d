@@ -201,6 +201,14 @@ export function validateDeck(deck: Deck): string[] {
       const tk = parseToken(body);
       if (tk.kind === 'literal' && !/[\d%]/.test(tk.text)) bad.push(`${at} line has the token {${body}}, which is no reading or cut-off`);
     }
+    // (the notes read the model through the same braces as the words, P-20: a token there is a reading or a typed number, and the braces balance)
+    for (const m of (s.notes ?? '').matchAll(TOKEN)) {
+      const body = m[1].trim();
+      if (CUT_RE.test(body)) continue;
+      const tk = parseToken(body);
+      if (tk.kind === 'literal' && !/[\d%]/.test(tk.text)) bad.push(`${at} notes have the token {${body}}, which is no reading or cut-off`);
+    }
+    if (/\{[^}]*$/.test(s.notes ?? '') || /^[^{]*\}/.test(s.notes ?? '')) bad.push(`${at} notes have an unbalanced brace`);
     if (/\{[^}]*$/.test(s.line ?? '') || /^[^{]*\}/.test(s.line ?? '')) bad.push(`${at} line has an unbalanced brace`);
     for (const r of s.ladder?.rows ?? []) if (!(READING_KEYS as readonly string[]).includes(r)) bad.push(`${at} ladder names the unknown reading "${r}"`);
     if (s.ladder?.result && !s.ladder.rows.includes('whvp')) bad.push(`${at} ladder has a result but no wedged row`);
