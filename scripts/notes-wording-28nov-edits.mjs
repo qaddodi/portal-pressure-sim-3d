@@ -41,3 +41,12 @@ export const ALBUMIN_28NOV = [
   P('albumin', 'slides.terli-alb.notes', '1 g/kg on day 1, then 40 to 50 g a day for the duration of therapy.', '1 g/kg on day 1, then a daily dose for the duration of therapy.'),
   P('albumin', 'slides.summary.notes', '1 g/kg then 40 to 50 g a day with terlipressin in HRS-AKI.', '1 g/kg then a daily dose with terlipressin in HRS-AKI.'),
 ];
+
+/** The owner's rulings C5 and C6 (28 Nov 2026, card answers: option A each). */
+export const CLINICAL_28NOV_B = [
+  // C5: one wording on primary SBP prophylaxis at an ascitic protein <1.5 g/dL: Baveno VIII 4.12 first, AASLD named in the notes only (the tipping notes already read so)
+  P('ascites', 'slides.saag.notes', 'higher risk of spontaneous bacterial peritonitis (SBP), so antibiotic prophylaxis is considered.', 'higher risk of spontaneous bacterial peritonitis (SBP). Baveno VIII 4.12 does not recommend long-term primary antibiotic prophylaxis to prevent further decompensation after the first decompensating event. Whether a low-protein ascites puts a patient at high risk of a first SBP is a different question: AASLD 2021 says prophylaxis may be considered in selected patients with low-protein ascites and advanced liver failure or impaired renal function.'),
+  P('tipping', 'slides.antibiotic-card.line', 'so primary SBP prophylaxis is considered if liver or kidney function is poor.', 'so primary SBP prophylaxis may be considered in selected patients with poor liver or kidney function.'),
+  // C6: 2.5 mm is no cut-off; small against large stays at 5 mm
+  P('varices', 'slides.relation.notes', 'The amber 2.5 and red 5 on the left scale are the small and large varix cut-offs, in mm.', 'On the left scale the amber 2.5 mm is where the model\'s varix rises above the vein\'s own caliber, and the red 5 mm is the cut-off between a small and a large varix.'),
+];

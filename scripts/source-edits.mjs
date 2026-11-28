@@ -9,7 +9,7 @@
 //   { set }       replaces the whole field          { drop: true } removes the field          { append } adds a sentence to the end of the field
 import { RIGHTS } from './credit.mjs';
 import { REVIEW_28NOV } from './review-28nov-edits.mjs';
-import { NOTES_WORDING_28NOV, CLINICAL_28NOV, ALBUMIN_28NOV } from './notes-wording-28nov-edits.mjs';
+import { NOTES_WORDING_28NOV, CLINICAL_28NOV, ALBUMIN_28NOV, CLINICAL_28NOV_B } from './notes-wording-28nov-edits.mjs';
 const P = (deck, at, from, to) => ({ deck, at, from, to });
 const SET = (deck, at, set) => ({ deck, at, set });
 const DROP = (deck, at) => ({ deck, at, drop: true });
@@ -735,6 +735,7 @@ export const SOURCE_PATCHES = [
   ...NOTES_WORDING_28NOV,
   ...CLINICAL_28NOV,
   ...ALBUMIN_28NOV,
+  ...CLINICAL_28NOV_B,
 ];
 
 function step(node, key) {
@@ -787,6 +788,8 @@ export function sourceEdits(json, patches = SOURCE_PATCHES) {
 // Same rule as the talks: Baveno VIII is the only guideline named on screen. The generators of those files call uiTextEdits() on the text they are about to write
 // (gen-ui-strings, copy-about, copy-presenter, copy-b11, copy-chart-catalog, copy-chart-path). About's reference list keeps its citations (a citation is not guidance).
 const UI_EDITS = [
+  // (C1, owner 28 Nov 2026: the preemptive-TIPS HVPG criterion is ">20 mmHg", as Baveno VIII 5.31 says it; the path chart's bleed rule agrees with the slides)
+  ['|| p.hvpg >= PTIPS_HVPG;', '|| p.hvpg > PTIPS_HVPG;'],
   // (the one copyright line, with the MD: scripts/credit.mjs; the 2D About prints it without; owner, 26 Nov 2026)
   ['© 2026 Mohammad Almeqdadi. All rights reserved.', RIGHTS],
   // (the dye was taken out of the 3D app, 24 Nov 2026, docs/approved/dye.md: its shortcut row and its sentence in the Blood help go)

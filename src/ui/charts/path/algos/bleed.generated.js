@@ -12,7 +12,7 @@ const tree = inheritTone({
       { id: 'nopt', t: 'Criteria not met', r: 'Carvedilol and banding', s: 'EVL every 2–4 weeks until eradication. Rebleeding: consider TIPS.', stmt: 'Fig. 3', tone: 'ok', sh: 'Banding' }] },
     { id: 'fail', t: 'Not controlled', r: 'Covered stent, then salvage TIPS', s: 'Covered esophageal stent, preferred over balloon tamponade, as a bridge to TIPS or transplant. Evaluate for transplant.', stmt: '5.35, 5.36', tone: 'bad', sh: 'Stent' }] }, 'n');
 
-const crit = (p) => (p.cp >= 10 && p.cp <= 13) || (p.cp >= 8 && p.cp <= 9 && !!p.active) || p.hvpg >= PTIPS_HVPG;
+const crit = (p) => (p.cp >= 10 && p.cp <= 13) || (p.cp >= 8 && p.cp <= 9 && !!p.active) || p.hvpg > PTIPS_HVPG;
 
 export default {
   id: 'bleed',
