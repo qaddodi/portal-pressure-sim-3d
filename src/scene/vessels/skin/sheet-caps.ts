@@ -9,7 +9,7 @@ export const STRAY_MAX_SPREAD = 0.6;
 /**
  * The loops no arm's seam owns. Three kinds, so a small shift of a course cannot leave one uncapped:
  *  - a loop more than 2 of an arm's radii from every seam centre (as before);
- *  - a loop under a quarter of the longest when there are more loops than seams (beside a thin arm's seam, as C9's on the cava
+ *  - a loop under a quarter of the longest that no arm's seam owns, when there are more loops than seams (beside a thin arm's seam, as C9's on the cava
  *    with the portacaval shunt 2 radii from it: a seam is a ring of the arm, a hole is a few cells);
  *  - a SMALL loop (its vertices within `STRAY_MAX_SPREAD` of the narrowest arm's radius of their mean) that is not the loop nearest
  *    to any arm's seam centre. It may lie within 2 radii of a seam, because the cut half-cylinder beyond a seam plane reaches a
@@ -37,7 +37,8 @@ export function strayLoops(loops: readonly number[][], pos: readonly number[], c
   });
   const longest = Math.max(0, ...loops.map((l) => l.length));
   const far = loops.filter((loop, i) => {
-    if (loops.length > cen.length && loop.length * 4 < longest) return true;
+    // (the guard: a thin arm's own seam is short beside the cava's, and is the loop nearest its centre, so it is never the extra one)
+    if (loops.length > cen.length && loop.length * 4 < longest && !owns.has(i)) return true;
     const m = means[i]!;
     if (cen.every((c, a) => Math.hypot(m[0]! - c[0], m[1]! - c[1], m[2]! - c[2]) > 2 * rad[a]!)) return true;
     return !owns.has(i) && spread(loop, m) < STRAY_MAX_SPREAD * Rmin;

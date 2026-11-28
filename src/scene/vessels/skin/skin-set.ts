@@ -251,6 +251,8 @@ export class SkinSet {
   /** the holes each skinned tube has now, by vessel id (at most two: `skinHole`, `skinHole2`) */
   private readonly holes = new Map<string, { node: string; lo: number; hi: number }[]>();
   private readonly warned = new Set<string>();
+  /** The nodes `buildOnly` builds (null: all). */
+  private only: ReadonlySet<string> | null = null;
   /** the rung of the pace ladder (mesh.ts PACES) each node's skin closed at: its next build starts there */
   private readonly paces = new Map<string, number>();
   /** what the last `build` was made from and gave (`bake()`) */
@@ -646,11 +648,14 @@ export class SkinSet {
 
   /** Builds the skins of `phase` (spec 4.1) with the joins as they stand now (Smooth vessel joins on). Any skin built before is removed first. Planned together (cuts.ts planSkins: two skins on one vessel merge when they would crowd); a node that cannot be
    *  built keeps today's joins, is named in `fellBack` and warned once. */
-  build(phase: 1 | 2, only?: ReadonlySet<string>): void { for (const _ of this.buildSteps(phase, only)) { /* every step */ } }
+  build(phase: 1 | 2): void { for (const _ of this.buildSteps(phase)) { /* every step */ } }
+  /** `build` for just these nodes' skins, for a test that perturbs one node's courses and must not pay for the other twenty. The page never calls it: `build` and `buildSteps` take the phase alone. */
+  buildOnly(phase: 1 | 2, only: ReadonlySet<string>): void { this.only = only; try { this.build(phase); } finally { this.only = null; } }
   /** `build` in steps (one `yield` ends a step: an arm's tube, a baked skin laid in): the boot runs one per task so the skins are not one task of 150 ms on a laptop (scene.ts refreshSkinsSteps). */
-  *buildSteps(phase: 1 | 2, only?: ReadonlySet<string>): Generator<void, void, unknown> {
+  *buildSteps(phase: 1 | 2): Generator<void, void, unknown> {
     this.clear();
-    // (`only`: the nodes to build, for a test that perturbs one node's courses and must not pay for the other twenty; the page never passes it)
+    // (`only`: set by `buildOnly` alone, for a test)
+    const only = this.only;
     const nodes = skinNodesForPhase(phase);
     // phase 2 also builds every node a collateral or a shunt lands on (spec 10.2); phase 1 (the confluence alone) has none of them
     const all: SkinJunction[] = findSkinJunctions().filter((j) => !only || only.has(j.node)).filter((j) => nodes.has(j.node) || (phase === 2 && (j.arms.some((a) => a.grow || isLiverBranch(NETWORK_BY_ID.get(a.vesselId)!))))).map((j) => (phase === 1 ? withoutGrowers(j) : j)).filter((j): j is SkinJunction => !!j);

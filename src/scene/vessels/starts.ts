@@ -113,6 +113,8 @@ function alongVeinBase(id: string, paths: Readonly<Record<string, readonly P2[]>
   // (the paths asked for are the 2D figure's own, cut where it cut its veins: the pieces the engine table has added since have none,
   //  and the ones it has run end to end as the whole vein)
   for (const h of a.hosts) if (paths[h]) host = host.concat(host.length ? paths[h]!.slice(1) : paths[h]!);
+  // (an artery that lands on no path at all would be drawn as nothing, in silence: name it)
+  if (!host.length) throw new Error(`along-vein ${id}: none of its hosts (${a.hosts.join(', ')}) has a 2D path to run beside`);
   if (a.minX != null) host = host.filter((p) => p[0] >= a.minX!);
   if (a.maxX != null) host = host.filter((p) => p[0] <= a.maxX!);
   const n = host.length, out: P2[] = [];

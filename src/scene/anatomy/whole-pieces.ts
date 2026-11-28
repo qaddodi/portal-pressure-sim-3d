@@ -7,7 +7,7 @@
 // (the left portal vein's `PVH_L_1` was its last piece until the paraumbilical vein and the Meso-Rex bypass each cut it, and is its second of four now). So the app names a HOST (an
 //  engine edge between two real
 // nodes: `IVC_IS`, `PVH_L`) and asks this file for its pieces. Lint rule `piece-id-literal` (scripts/lint-rules.mjs) keeps a literal `_<n>` piece id out of the source;
-//  tests/junction-pieces.test.ts pins it.
+//  tests/lint-rules.test.ts pins it, and tests/junction-ends.test.ts pins that every end of the table lands on the pieces this file names.
 // Pure data, no three.js.
 import { EDGES, JUNCTION_CHAINS, JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
 

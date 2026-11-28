@@ -8,7 +8,6 @@ import { JUNCTION_PIECES } from '../../engine/hales/portal/topology.js';
 export { NODE_POS_2D, EDGE_PATH_2D, HIDDEN_NODES } from '../vessels/paths.copied.ts';
 // The 2D sets name a vein by the piece ids the 2D engine cut it into (`IVC_IS_1`, `ILI_IVC_1`). The engine's junction table cuts a vein at every row (27 Nov),
 // so a set that has a vein has ALL its pieces, whatever their number: a host in the set brings every piece of it.
-// whatever their number: a host in the set brings every piece of it.
 const pieces = JUNCTION_PIECES as Record<string, readonly string[]>;
 const wholeVeins = (ids: ReadonlySet<string>): ReadonlySet<string> => new Set([...ids].flatMap((id) => (pieces[id] ? [...pieces[id]!] : [id])));
 export const HIDDEN_EDGES = wholeVeins(COPIED.HIDDEN_EDGES), ANAT_HIDDEN = wholeVeins(COPIED.ANAT_HIDDEN), CONTEXT_EDGES = wholeVeins(COPIED.CONTEXT_EDGES), NEEDS_C3 = wholeVeins(COPIED.NEEDS_C3);
