@@ -6,7 +6,7 @@ import { lineFromSearch, requestFlag, requestFromSearch, scopeFromSearch } from 
 import { appWorld } from '../src/ui/debug/request/world.ts';
 import { parseRequest } from '../src/ui/debug/request/grammar.ts';
 import { pickFromSearch } from '../src/ui/debug/audit/capture-request.ts';
-import { DEFAULT_PLAN, MAX_REQUEST_SLIDES, PICTURE_CAP, STRESS_LAYOUTS, STRESS_MOVES, STRESS_SLIDES, layoutPictures, layoutSteps, planFromSearch, stressPictures, stressSteps } from '../src/ui/debug/stress/plan.ts';
+import { DEFAULT_PLAN, MAX_REQUEST_SLIDES, PICTURE_CAP, STRESS_LAYOUTS, STRESS_MOVES, STRESS_SLIDES, layoutPictures, layoutSteps, planFromSearch, stressPictures, stressSteps, type StressPlan } from '../src/ui/debug/stress/plan.ts';
 import { reportMd, manifestJson, requestLines, type LayoutRun } from '../src/ui/debug/stress/report.ts';
 import { FLAGS } from '../src/ui/debug/flags.ts';
 import { FLAG_MEANINGS } from '../src/ui/debug/flag-meanings.ts';
@@ -90,9 +90,10 @@ test('a seed is the same slides in the page and in the frame, because both read 
   const a = `?stress&${requestFlag('random:12@4471/deck')}`;
   const page = planFromSearch(a, world), frame = planFromSearch(a, world);
   assert.ok(page && page.ok && frame && frame.ok);
-  assert.deepEqual((page as { plan: { slides: string[] } }).plan.slides, (frame as { plan: { slides: string[] } }).plan.slides);
-  assert.equal((page as { plan: { random: { seed: number } } }).plan.random.seed, 4471);
-  assert.equal((page as { plan: { slides: string[] } }).plan.slides.length, 12);
+  const [p, f] = [page, frame].map((x) => (x as { ok: true; plan: StressPlan }).plan);
+  assert.deepEqual(p!.slides, f!.slides);
+  assert.equal(p!.random?.seed, 4471);
+  assert.equal(p!.slides.length, 12);
 });
 
 test('the stress report and manifest print the request, the seed and how to ask for the same slides again', () => {
