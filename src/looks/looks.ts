@@ -33,7 +33,9 @@ export interface Look {
 // so they stay readable under the blur and the wash. Vessel identities, the pressure and flow ramps, the status colours and the grounds are untouched.
 //
 // The 2D token table (looks2d/theme-tokens.js) is generated and never edited, so the lobule's four tissue tokens are laid over it here, once, before any reader builds a look's tokens
-// (it is part of looks.ts, which lz-colours.ts imports for it: one file fewer in the boot entry, whose file ceiling the separate file hit). The page's CSS variables carry the same values (lookVars), for the readers that take them from the document (the sinusoid's palette).
+// (it is part of looks.ts, which lz-colours.ts imports for it:
+// one file fewer in the boot entry, whose file ceiling the separate file hit).
+// The page's CSS variables carry the same values (lookVars), for the readers that take them from the document (the sinusoid's palette).
 
 /** The tissue tokens per look: the hepatocyte (-1), the gap between plates (-2) and the plate's line (-3) in the lobule, and the neighbours' own cell and gap (field). */
 export const BLUSH_TOKENS: Readonly<Record<'light' | 'soft', Readonly<Record<string, string>>>> = {
