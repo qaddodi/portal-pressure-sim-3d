@@ -325,7 +325,7 @@ export const MAPPED: readonly NetVessel[] = NETWORK.filter((v) => !v.feeder);
 export const NETWORK_BY_ID: ReadonlyMap<string, NetVessel> = new Map(NETWORK.map((v) => [v.id, v]));
 
 /** The vein each surgical shunt is made from, as drawn (Mohammad, 28 Nov: every shunt "should draw 1x or less" its origin vein). */
-export const SHUNT_ORIGIN: Readonly<Record<string, string>> = { S_PC: 'PV_TRUNK_1', S_MC: 'SMV_CONF', S_DSR: 'SV_MID', REX: 'SMV_CONF' };
+export const SHUNT_ORIGIN: Readonly<Record<string, string>> = { S_PC: firstPieceOf('PV_TRUNK'), S_MC: 'SMV_CONF', S_DSR: 'SV_MID', REX: 'SMV_CONF' };
 {
   const caps = new Map<string, ShuntCap>();
   for (const [id, from] of Object.entries(SHUNT_ORIGIN)) {
