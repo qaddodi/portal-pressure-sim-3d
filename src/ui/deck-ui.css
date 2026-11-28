@@ -206,7 +206,9 @@
 /* A flat trace says so in words, in the empty half under its baseline: it was a line of its own, which made that row ~20 px taller than the rest (the last row of Doppler 13 cut on a laptop) and, in a narrow
    column, ran past the cell. The label stays inside the cell and on one line. */
 .pz-table td.wave { position: relative; min-width: 0; }
-.pz-table td.wave .dk-noflow { position: absolute; inset: auto 0 3px; white-space: nowrap; }
+.pz-table td.wave .dk-noflow { position: absolute; inset: auto 10px 3px; white-space: nowrap; }
+/* The trace and its label keep 10 px of air each side inside the cell (WAVE_AIR_PX, table-wave.ts): the cell's own padding was 2 px on a phone and the last column's trace ran to the table's edge and clipped there (Dual supply 11, 28 Nov). The trace's height is still read from the cell's width WITH that air, so no row changes height. */
+.deck-ui .pz-table.dk-pztable tbody td.num.wave { padding-inline: 10px; }   /* (a longer selector than 2D's `.pz:not(.stack) … td.num` that sets .45em) */
 
 /* ── settings ── */
 .dk-settings { position: relative; }

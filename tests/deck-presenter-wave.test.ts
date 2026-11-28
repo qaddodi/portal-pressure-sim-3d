@@ -96,3 +96,28 @@ test('a held trace is every second sample to 0.1 cm/s, and eight seconds of beat
   const w = { t: [0, 0.02, 0.04, 0.06, 0.08], v: [10.04, 11.26, 12.5, 13.74, 15.0] };
   assert.deepEqual(packTrace(w), { t: [0, 0.04, 0.08], v: [10, 12.5, 15] });
 });
+
+// A trace and its "No flow" label stay inside the cell (28 Nov: Dual supply 11 on an iPhone, the traces ran to the table's right edge and clipped there).
+import { readFileSync } from 'node:fs';
+import { WAVE_AIR_PX } from '../src/ui/talk/table-wave.ts';
+test('Doppler cells keep air each side of the trace and the label, in every table, and the trace height ignores that air', () => {
+  const css = readFileSync(new URL('../src/ui/deck-ui.css', import.meta.url), 'utf8');
+  const px = (re: RegExp) => Number(re.exec(css)?.[1]);
+  const pad = px(/td\.num\.wave \{ padding-inline: (\d+)px/);
+  assert.equal(pad, WAVE_AIR_PX, 'the cell pads its trace by WAVE_AIR_PX on both sides, beating the 2D `td.num` padding');
+  assert.equal(px(/\.dk-noflow \{ position: absolute; inset: auto (\d+)px/), WAVE_AIR_PX, 'the No flow label keeps to the same air');
+  const cell = readFileSync(new URL('../src/ui/cards/WaveCell.tsx', import.meta.url), 'utf8');
+  assert.match(cell, /\(c\.w \+ 2 \* WAVE_AIR_PX\) \* 0\.3/, 'the trace height reads the cell width plus its air: no row changes height');
+  // every row of every deck's wave table: the drawn trace lies inside the box it is given, at several cell widths (a phone to a wide card)
+  let rows = 0;
+  for (const d of [DOPPLER, PREHEPATIC, TWO_INFLOWS]) {
+    const s = tableSlides(d as never)[0]!; const t = tableOf(s as never)!;
+    for (const w of [56, 100, 160, 300]) {
+      const fr = waveFrame({ t: [0, 1, 2, 3], v: [0, 30, -30, 90] }, waveVessel(undefined, t), waveScale(null, t), w, 40, [1, 1, 1, 1] as never, [1, 1, 1, 1] as never, '');
+      assert.equal(fr.w, w);
+      for (const sh of fr.shapes) if (sh.k === 'path') for (let i = 0; i < sh.pts.length; i += 2) { assert.ok(sh.pts[i]! >= 0 && sh.pts[i]! <= w); assert.ok(sh.pts[i + 1]! >= 0 && sh.pts[i + 1]! <= 40); }
+    }
+    rows++;
+  }
+  assert.equal(rows, 3);
+});

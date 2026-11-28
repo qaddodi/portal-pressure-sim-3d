@@ -25,6 +25,8 @@ export const HEADING = 'Doppler';
 export const CUT = 'Eight seconds of each row\'s own trace, about two breaths: flow toward the probe above the line, away below it; each row on its own scale, so compare the shapes (hover for the cm/s)';
 /** The cell's own units: a trace is drawn in a box 120 x 36 and the baseline is its middle. */
 export const W = 120, H = 36, MID = H / 2, PAD = 3;
+/** The air each side of a trace inside its cell, px (deck-ui.css `td.wave` pads by the same; the "No flow" label keeps to it too), so a trace and its label never reach the table's edge. */
+export const WAVE_AIR_PX = 10;
 
 /** The vessel a row's trace is of: the row's own, the slide's, or the main portal vein. */
 export const waveVessel = (row: Pick<TableRowSpec, 'wave'> | null | undefined, table: Pick<TableSpec, 'wave'> | null | undefined): string =>
