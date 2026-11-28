@@ -495,6 +495,14 @@ export class SkinSet {
           const b = searchBulge(m, ax, j.arms.map((a) => !!a.grow));
           if (b < best) { best = b; axes = ax; mesh = m; }
         }
+        // (none inside: the same ladder with the blend sized from the growers' necks, neckJunction, as a part's is: a thin neck in a crotch of fat trunks reads as a bulb against the neck's own radius; SVD's welded skin, C2's neck 0.0086 of 0.0157)
+        for (let q = 0; q < NECK_FRACTIONS.length && best > BULGE_AIM; q++) {
+          const ax = axesAt(NECK_FRACTIONS[q]!);
+          let m: SkinMesh;
+          try { m = buildSkinSteady(neckJunction(j, ax), plan.cuts, pos, nor, ax.map(capsuleOf), undefined, this.paces); } catch (e) { if (e instanceof SkinBuildError) continue; throw e; }
+          const b = searchBulge(m, ax, j.arms.map((a) => !!a.grow));
+          if (b < best) { best = b; axes = ax; mesh = m; }
+        }
         if (best > BULGE_MAX) this.bulgeOver.push({ node: j.node, bulge: best });   // (no widening satisfies it: kept as built, and named here so a test fails on it)
       }
     }
