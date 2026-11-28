@@ -16,6 +16,26 @@ import { SKIN_ARM_ABSENT, SKIN_FS } from '../src/scene/vessels/skin/shaders.ts';
 const REF_SCENE_PER_PX = 0.006, CONT_MAX_DEG = 12;
 const deg = (a: readonly number[], b: readonly number[]): number => Math.acos(Math.max(-1, Math.min(1, a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!))) * 180 / Math.PI;
 
+/** An arm drawn under a pixel across is a tube, not a blend ridge: its own normal turns through half a turn inside one pixel, which no sampling at one sample per pixel can follow, and the shade's floor cannot make it round. So the continuity check below
+ *  leaves out the samples that stand within such an arm's surface plus the blend's width (`reach`), where the arm is one whose thinnest radius along its axis is under `under` (one CSS pixel at the far view, `REF_SCENE_PER_PX`): every skin, every arm, the same rule.
+ *  It is a scope, not an allowance: the bound stays CONT_MAX_DEG for every other sample, and the bare run still judges all of them. (Found 28 Nov: the Warren shunt's take-off at SVD, radius 0.0055 at its root, read 13.9 degrees once the splenic vein's lead
+ *  was re-laid there; the same rule also leaves out the other arms under a pixel, at HA, SIN, EPI, IMV and the PVH wall skin.) */
+export function nearThinArm(arms: readonly { pts: ArrayLike<number>; r: ArrayLike<number> }[], p: readonly number[], reach: number, under: number): boolean {
+  for (const a of arms) {
+    let best = Infinity, rad = Infinity, near = 0;
+    for (let s = 0; s < a.r.length; s++) rad = Math.min(rad, a.r[s]!);
+    if (!(rad < under)) continue;
+    for (let s = 0; s < a.r.length - 1; s++) {
+      const ax = a.pts[3 * s]!, ay = a.pts[3 * s + 1]!, az = a.pts[3 * s + 2]!, bx = a.pts[3 * s + 3]! - ax, by = a.pts[3 * s + 4]! - ay, bz = a.pts[3 * s + 5]! - az;
+      const qx = p[0]! - ax, qy = p[1]! - ay, qz = p[2]! - az, bb = bx * bx + by * by + bz * bz, t = bb > 0 ? Math.min(1, Math.max(0, (qx * bx + qy * by + qz * bz) / bb)) : 0;
+      const d = Math.hypot(qx - t * bx, qy - t * by, qz - t * bz);
+      if (d < best) { best = d; near = a.r[s]! + (a.r[s + 1]! - a.r[s]!) * t; }
+    }
+    if (best < near + reach) return true;
+  }
+  return false;
+}
+
 test('every skin: the pixel normal is the smooth union\'s own gradient (rest, a narrowed arm, an absent arm), and a seam ring keeps the tube\'s normal', () => {
   setSmoothJoins(true);
   const scene = new CelScene({ joins: 'old' });
@@ -76,7 +96,7 @@ test('every skin: the pixel normal is the smooth union\'s own gradient (rest, a 
       if (skinShadeK(k, REF_SCENE_PER_PX) > kS * 1.15) {
         thin++;
         const T = twin(one, []), seen = new Set<number>();
-        const worstOf = (kk: number): number => {
+        const worstOf = (kk: number, judgeThin: boolean): number => {
           let worst = 0;
           for (let t = 0; t < mesh.index.length; t += 3) for (let e = 0; e < 3; e++) {
             const a = mesh.index[t + e]!, b = mesh.index[t + (e + 1) % 3]!, key = Math.min(a, b) * nV + Math.max(a, b);
@@ -86,14 +106,16 @@ test('every skin: the pixel normal is the smooth union\'s own gradient (rest, a 
             const n = Math.max(2, Math.ceil(Math.hypot(B0[0]! - A0[0]!, B0[1]! - A0[1]!, B0[2]! - A0[2]!) / REF_SCENE_PER_PX)), ns: number[][] = [];
             for (let i = 0; i <= n; i++) ns.push(skinNormalTwin(T, kk, ...([0, 1, 2].map((d) => A0[d]! + (B0[d]! - A0[d]!) * i / n) as [number, number, number]), SKIN_ARM_ABSENT));
             for (let i = 1; i < n; i++) {
+              if (!judgeThin && nearThinArm(T, [0, 1, 2].map((d) => A0[d]! + (B0[d]! - A0[d]!) * i / n), kk, REF_SCENE_PER_PX)) continue;   // (an arm under a pixel across: see nearThinArm)
               const m = [0, 1, 2].map((d) => ns[i - 1]![d]! + ns[i + 1]![d]!), l = Math.hypot(m[0]!, m[1]!, m[2]!) || 1;
               worst = Math.max(worst, deg(ns[i]!, m.map((x) => x / l)));
             }
           }
           return worst;
         };
-        contFloor = Math.max(contFloor, worstOf(skinShadeK(k, REF_SCENE_PER_PX)));
-        contBare = Math.max(contBare, worstOf(kS));
+        contFloor = Math.max(contFloor, worstOf(skinShadeK(k, REF_SCENE_PER_PX), false));
+        // (the bare run judges every sample, arms narrower than the blend too: it only proves the check sees the line)
+        contBare = Math.max(contBare, worstOf(kS, true));
       }
       return new SkinObject(mesh, arms[0]!, axes, arms);
     },
@@ -141,4 +163,18 @@ test('the shader takes the normal from the union\'s gradient at the pixel, befor
   assert.match(skinNormalGlsl(6, 4, (sw) => `ABS(${sw})`, (arm) => `KEPT(${arm})`), /\(1\.0 - ABS\(swm\) \* KEPT\(mi\)\)/);
   assert.match(SKIN_FS, /skinNormalExact/);
   assert.match(SKIN_FS, /\(1\.0 - smoothstep\(0\.0, [0-9.]+, swi\) \* keepOf\(i\)\)/);
+});
+
+test('an arm under a pixel across is left out of the continuity check, and only that (nearThinArm)', () => {
+  const px = REF_SCENE_PER_PX, reach = 2 * px, tube = (r: number) => ({ pts: [0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 3], r: [r, r, r, r] });
+  // the tube runs along z; a point is judged by its distance from the axis against the radius at the nearest axis point
+  assert.equal(nearThinArm([tube(0.9 * px)], [0.9 * px + reach / 2, 0, 1.5], reach, px), true, 'inside the reach of an arm under a pixel');
+  assert.equal(nearThinArm([tube(0.9 * px)], [0.9 * px + 2 * reach, 0, 1.5], reach, px), false, 'past the reach');
+  assert.equal(nearThinArm([tube(1.1 * px)], [1.1 * px, 0, 1.5], reach, px), false, 'an arm of a pixel or more is always judged');
+  // an arm that is thin only at its root counts as thin along its length (the Warren shunt's take-off: 0.9 px at the root, 1.2 px a little way on)
+  const taper = { pts: [0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 3], r: [0.9 * px, 0.9 * px, 4 * px, 4 * px] };
+  assert.equal(nearThinArm([taper], [1.3 * px, 0, 1.2], reach, px), true, 'near the thin root');
+  assert.equal(nearThinArm([taper], [4.5 * px + 2 * reach, 0, 2.9], reach, px), false, 'far from the arm');
+  // any one thin arm among several is enough
+  assert.equal(nearThinArm([tube(2 * px), tube(0.9 * px)], [px, 0, 1.5], reach, px), true);
 });
