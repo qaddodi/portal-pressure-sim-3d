@@ -18,9 +18,12 @@ interface Arr { readonly length: number; readonly [i: number]: number }
 export type ShownFp = (Readonly<Record<string, unknown>> & { at?: { P?: Arr; Q?: Arr } }) | null | undefined;
 interface FrameLike { P: Arr; Pf?: Arr; Q: Arr; Qf?: Arr; metrics?: object }
 
-let shown: ShownFp = null;
-/** The fingerprint of the slide on show (the pressed control's, while one is pressed), or null off a slide (decks/hp/link.ts). */
-export function setShownFp(fp: ShownFp): void { shown = fp ?? null; }
+let shown: ShownFp = null, held = false;
+/** The fingerprint of the slide on show (the pressed control's, while one is pressed), or null off a slide (decks/hp/link.ts).
+ *  `hold`: a control of the slide is pressed (a what-if slider, a compare button), so the words print the pressed state's numbers and the labels must too, whether or not the live model has
+ *  finished easing to it. A slider's change is eased in WITHOUT settling (controls-run.ts dragWhatIf): the live model is a tenth or more off the settled state for seconds, and the label
+ *  then read the live digit: the card said RA 19.7, the figure's label 19.8 (Cardiac 6, the tricuspid regurgitation slider, 28 Nov). */
+export function setShownFp(fp: ShownFp, hold = false): void { shown = fp ?? null; held = !!fp && hold; }
 export const shownFp = (): ShownFp => shown;
 
 /** The metric keys a station's number is taken from (ui/action/read.ts BAR_KEY), as the fingerprint carries them. */
@@ -38,20 +41,20 @@ export function atRest(f: FrameLike, fp: ShownFp): boolean {
   return true;
 }
 
-let kept: { f: FrameLike; fp: ShownFp; view: FrameLike } | null = null;
+let kept: { f: FrameLike; fp: ShownFp; view: FrameLike; held: boolean } | null = null;
 /** The frame a label reads: the live one, or, while it is at rest on the slide's own state, that state's numbers (the same object back for the same frame and state: a label layer asks often). */
 export function settledFrame<F extends FrameLike>(f: F | null | undefined, fp: ShownFp = shown): F | null {
   if (!f) return null;
   if (!fp?.at?.P) return f;
-  if (kept && kept.f === f && kept.fp === fp) return kept.view as F;
+  if (kept && kept.f === f && kept.fp === fp && kept.held === held) return kept.view as F;
   let view: FrameLike = f;
-  if (atRest(f, fp)) {
+  if (held || atRest(f, fp)) {
     const m: Record<string, unknown> = { ...(f.metrics as Record<string, unknown> | undefined) };
     for (const k of KEYS) if (typeof fp[k] === 'number' && Number.isFinite(fp[k])) m[k] = fp[k];
     // (the right atrium's bar reading, `vitals.ra`, is the number the station prints before `ra`)
     if (typeof fp.ra === 'number' && m.vitals && typeof m.vitals === 'object') m.vitals = { ...(m.vitals as object), ra: fp.ra };
     view = { ...f, P: fp.at.P, Pf: fp.at.P, Q: fp.at.Q ?? f.Q, Qf: fp.at.Q ?? f.Qf, metrics: m };
   }
-  kept = { f, fp, view };
+  kept = { f, fp, view, held };
   return view as F;
 }

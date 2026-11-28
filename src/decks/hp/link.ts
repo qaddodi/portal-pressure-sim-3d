@@ -76,8 +76,8 @@ export function linkStates(deck: Deck): () => void {
     // (a press belongs to the slide it was made on; the words and the figure's callouts print the state the slide stands at now: its own, or the one a pressed control made, shown-state.ts)
     releaseVariantOff(stop.kind === 'slide' ? `${deck.id}/${ids[i]}` : null);
     const shown = withVariant(deck.id, mergeStates(deck.id, res));
-    // (the figure's station labels print this state's pressures and flows while the model rests on it: scene/labels/settled.ts)
-    setShownFp(stop.kind === 'slide' ? (shown?.[i]?.fp as Record<string, unknown> | undefined) : null);
+    // (the figure's station labels print this state's pressures and flows while the model rests on it, or a control of the slide is pressed: scene/labels/settled.ts)
+    setShownFp(stop.kind === 'slide' ? (shown?.[i]?.fp as Record<string, unknown> | undefined) : null, stop.kind === 'slide' && useVariant.getState().key === `${deck.id}/${ids[i]}`);
     const r: Readings = readingsOf(shown?.[i]?.fp, live);
     for (const n of named) {
       const fp = shown?.[ids.indexOf(n.at)]?.fp;

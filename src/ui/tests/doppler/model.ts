@@ -25,7 +25,7 @@ import { feed, type SampleFeed } from '../feed.ts';
 import { paramsNow } from '../frame.ts';
 import { useDopplerProbe } from './probe-state.ts';
 import { hepaticWords } from './constriction.ts';
-import { pinnedAt } from '../slide/pin.ts';
+import { pinnedAt, useSlidePin } from '../slide/pin.ts';
 import { dopplerVel } from '../../../scene/lenses/vel-normal.copied.js';
 import type { SpectrumDraw } from './spectrum-gl.ts';
 
@@ -38,6 +38,15 @@ const KEEP = 16, SETTLE_LAG = 0.16, COL = 2;
 /** The longest stretch of whole beats a replay loops (s), and how long a join's leftover step takes to ease out (s): a replay never steps, it re-enters its template where the beat and the breath match and eases what is left. */
 const BEAT_TEMPLATE_S = 6.5, MIN_PINNED_TEMPLATE_S = 3, JOIN_S = 0.5;
 const MINUS = '−';
+/** The live record kept beside a slide's replay, from the moment the model stands on the slide's state: where a replay's next template is taken (`follow`). */
+interface Shadow { sig: number[]; pts: number[][]; marks: number[]; cur: number; from: number; ph: number; tried: number; built: boolean }
+/** How long after a slide's patient lands (the card coming up) and after a slider or a button changes it the live record is left to settle before a template is taken from it (s of the record). */
+const ENTRY_SETTLE_S = 1.5, CHANGE_SETTLE_S = 0.5, BUSY_SETTLE_S = 0.3;
+/** A slide's state as numbers (its flows, widths and pressures), so two states are told apart by value, not by the object that carries them. */
+type PinAt = { Q?: ArrayLike<number>; D?: ArrayLike<number>; P?: ArrayLike<number> } | null;
+const sigOf = (at: PinAt): number[] => (at ? [...Array.from(at.Q ?? []), ...Array.from(at.D ?? []), ...Array.from(at.P ?? [])] : []);
+const sameSig = (a: number[], b: number[]): boolean => a.length === b.length && a.every((x, i) => Math.abs(x - b[i]!) <= 1e-3 * (1 + Math.abs(x)));
+interface Template { t0: number; L: number; pts: number[][]; mean: number; pm: number; hasPair: boolean; mk: number[]; live: number }
 
 /** The hepatic artery's usual resistive index (Doppler of a native or transplanted liver; 0.55 to 0.80). */
 export const HA_RI = [0.55, 0.8] as const;
@@ -86,7 +95,7 @@ export class DopplerModel {
   /** whether the Speed tile is shown: a vessel with a usual range has it (2D showStat(Speed, !!normal)); kept while a new vessel acquires */
   private speedOn = false;
   private tOff = 0;
-  private tpl: { t0: number; L: number; pts: number[][]; mean: number; pm: number; hasPair: boolean; mk: number[]; live: number } | null = null;
+  private tpl: Template | null = null;
   /** t: the replay's own clock; x: where it stands in the template (null until it enters); o1, o2, age: the step left over at the last entry (main and paired trace), easing out over JOIN_S */
   private synth: { t: number; wall: number; mean: number; target: number; amp: number; still: boolean; flat?: boolean; x: number | null; o1: number; o2: number; age: number } | null = null;
   /** The step between a replay's last sample and the bedside's first, easing out over JOIN_S (a time lapse ending): t0 is the first bedside sample's time. */
@@ -95,6 +104,8 @@ export class DopplerModel {
   private carry: number | null = null;
   /** the replay is a slide's own velocity, not a time lapse's */
   private pinDriven = false;
+  private shadow: Shadow | null = null;
+  private pinSeen = -1;
   /** the GPU draws the spectrum's pixels under the shapes (spectrum-gl.ts, 2D's own shaders); false: the spectrum is laid from shapes (no WebGL2, or the program failed) */
   gpu = false;
   /** the chart canvas's device pixel ratio (a spectral line is one device pixel wide, as in 2D) */
@@ -155,6 +166,7 @@ export class DopplerModel {
 
   private sync() { this.rd.sync({ buf: this.buf, beatN: this.beatN, probe: this.probe, frame: this.frame, gi: this.gi, heldTo: this.heldTo, invert: this.invert }); }
   private clearBuf() {
+    this.shadow = null;
     this.buf.length = 0; this.beatN = 0; this.lastPh = NaN; this.rd.facs.clear(); this.heldTo = null; this.wl = null; this.pairSc = null; this.calMk.hi.on = this.calMk.lo.on = false; this.scaleSt.scale = null; this.scaleSt.baseF = null; this.scaleSt.refit = false; this.tDisp = null; this.tOff = 0; this.synth = null; this.tpl = null; this.carry = null; this.join = null; this.joinWant = false;
   }
 
@@ -197,7 +209,7 @@ export class DopplerModel {
       if (f.running) this.runSynth();
     } else {
       // (the bedside clock is back: its samples follow on from where the replay ended, shifted by tOff)
-      if (this.synth) { this.carry = this.synth.t + 0.02; this.synth = null; if (this.pinDriven) { this.pinDriven = false; this.lastT = rec.t.length ? rec.t[rec.t.length - 1]! : this.lastT; } }   // (a slide's replay ran beside the page's record: only what is taken from now on is new)
+      if (this.synth) { this.shadow = null; this.carry = this.synth.t + 0.02; this.synth = null; if (this.pinDriven) { this.pinDriven = false; this.lastT = rec.t.length ? rec.t[rec.t.length - 1]! : this.lastT; } }   // (a slide's replay ran beside the page's record: only what is taken from now on is new)
       // (the record the page keeps, from the first sample after the last one taken: the record is trimmed from the front, so places are found by time)
       const T = rec.t;
       if (T.length && T[T.length - 1]! < this.lastT - 1e-9) {   // (the page's record began again)
@@ -231,6 +243,7 @@ export class DopplerModel {
     }
     // (a slide with its own velocity: from the live beats just taken the replay starts, and the whole record is that patient's from this frame on)
     if (Number.isFinite(pin) && !this.synth && this.buf.length) { this.synth = this.startSynth(); if (this.synth) this.adoptPin(pin); }
+    if (this.synth && this.pinDriven && Number.isFinite(pin) && f.clock !== 'disease') this.follow(f, rec);
     if (!this.buf.length) { this.sync(); return; }
     const tNow = this.buf[this.buf.length - 1]![0]!;
     if (f.settling) this.heldTo = tNow;
@@ -248,6 +261,14 @@ export class DopplerModel {
     const marks: number[] = [];
     for (let j = Math.max(0, this.beatN - 16); j < this.beatN; j++) { const b = this.rd.beatT[j % 16] as number; if (b >= t0Buf && b <= tEnd) marks.push(b); }
     marks.sort((a, b) => a - b);
+    const tpl = this.makeTemplate(buf, marks);
+    if (!tpl) return null;
+    this.tpl = tpl;
+    return { t: tEnd, wall: clock.now(), mean: tpl.mean, target: tpl.mean, amp: 1, still: false, x: null, o1: 0, o2: 0, age: 1 };
+  }
+  /** The template of a record's last whole beats (`marks`: the record's beat starts, in order), or null while too little of it is whole (a slide's patient waits for 3 s of whole beats). */
+  private makeTemplate(buf: number[][], marks: number[]): Template | null {
+    const tEnd = buf[buf.length - 1]![0]!, t0Buf = buf[0]![0]!;
     let from = tEnd - 3, to = tEnd, mk: number[] = [], live = 0;
     if (marks.length >= 2) {
       const last = marks[marks.length - 1]!;
@@ -275,8 +296,63 @@ export class DopplerModel {
     const mean = pts.reduce((a, q) => a + q[1]!, 0) / pts.length;
     // (and the paired vessel's record beside it, a slide's pair: replayed unscaled, its swings eased out with the main one's)
     const pm = pts.reduce((a, q) => a + (q[2] || 0), 0) / pts.length;
-    this.tpl = { t0: pts[0]![0]!, L, pts, mean, pm, hasPair: pts.every((q) => Number.isFinite(q[2])), mk: mk.length >= 2 && mk[mk.length - 1]! < L + 0.05 ? mk : [], live };
-    return { t: tEnd, wall: clock.now(), mean, target: mean, amp: 1, still: false, x: null, o1: 0, o2: 0, age: 1 };
+    return { t0: pts[0]![0]!, L, pts, mean, pm, hasPair: pts.every((q) => Number.isFinite(q[2])), mk: mk.length >= 2 && mk[mk.length - 1]! < L + 0.05 ? mk : [], live };
+  }
+  /** A slide's patient changes SHAPE, not only level (a what-if slider: tricuspid regurgitation turns the hepatic vein's S wave round while its mean hardly moves; a button; the model arriving).
+   *  The replay only rescales its template to the slide's mean, so its shape is that of the moment the replay began. So the live record, which the model keeps laying whatever the card
+   *  shows, is kept beside it (`shadow`); once the live model has settled on the slide's changed state (a changed state, the settle margin, no easing frame) and 3 s of whole beats are
+   *  in, the template is taken from it and the replay enters it at the same point of the beat, its step easing out over JOIN_S (`retake`): the trace follows the slider, never a pop. */
+  private follow(f: Any, rec: SampleFeed): void {
+    const n = useSlidePin.getState().n;
+    let sh = this.shadow;
+    if (!sh || (n !== this.pinSeen && !sameSig(sh.sig, sigOf(pinnedAt())))) {
+      const cur = Number.isFinite(rec.last) ? rec.last : -Infinity;
+      sh = this.shadow = { sig: sigOf(pinnedAt()), pts: [], marks: [], cur, from: cur + (sh ? CHANGE_SETTLE_S : ENTRY_SETTLE_S), ph: NaN, tried: 0, built: false };
+    }
+    this.pinSeen = n;
+    if (sh.built) return;
+    const T = rec.t;
+    if (T.length && T[T.length - 1]! < sh.cur - 1e-9) { sh.cur = -Infinity; sh.pts.length = 0; sh.marks.length = 0; sh.tried = 0; sh.ph = NaN; }   // (the page's record began again)
+    // (the model is still easing to the state, or its clock is parked: nothing taken yet is the state's)
+    if (f.settling || f.morphing || f.parkSecs > 0) {
+      sh.from = Math.max(sh.from, (Number.isFinite(rec.last) ? rec.last : sh.cur) + BUSY_SETTLE_S);
+      sh.pts.length = 0; sh.marks.length = 0; sh.tried = 0;
+    }
+    let lo = 0, hi = T.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (T[m]! <= sh.cur) lo = m + 1; else hi = m; }
+    const vel = rec.ch.vel, ph = rec.ch.ph, pair = rec.ch[pairOf(this.rd.meta().kind) === 'PV_TRUNK' ? 'pvVel' : 'hvVel'];
+    for (let i = lo; i < T.length; i++) {
+      const t = T[i]!, v = vel[i]!, p = ph[i];
+      sh.cur = t;
+      if (Number.isFinite(v) && t >= sh.from) {
+        if (p != null && Number.isFinite(p) && p < sh.ph - 0.5) sh.marks.push(t);
+        sh.pts.push([t, v, pair[i] ?? NaN]);
+      }
+      if (p != null && Number.isFinite(p)) sh.ph = p;
+    }
+    if (!sh.pts.length) return;
+    const tEnd = sh.pts[sh.pts.length - 1]![0]!;
+    let cut = 0; while (cut < sh.pts.length && sh.pts[cut]![0]! < tEnd - BEAT_TEMPLATE_S - 2) cut++;
+    if (cut > 100) { sh.pts.splice(0, cut); const t0 = sh.pts[0]![0]!; sh.marks = sh.marks.filter((b) => b >= t0); }
+    if (sh.marks.length < 3 || sh.marks.length === sh.tried) return;
+    sh.tried = sh.marks.length;
+    const next = this.makeTemplate(sh.pts, sh.marks);
+    if (!next) return;
+    sh.built = true; sh.pts = []; sh.marks = [];
+    this.retake(next);
+  }
+  /** The replay carries on from a new template at the same point of the beat, matched in value and slope (`enter`), the leftover step easing out. */
+  private retake(next: Template): void {
+    const sy = this.synth!, old = this.tpl!, b = this.buf, e = b[b.length - 1]!;
+    let phase = 0;
+    if (sy.x != null && old.mk.length >= 2) {
+      const mk = old.mk; let i = 0;
+      while (i < mk.length - 2 && mk[i + 1]! <= sy.x) i++;
+      phase = clamp((sy.x - mk[i]!) / (mk[i + 1]! - mk[i]!), 0, 0.999);
+    }
+    let j = b.length - 1; while (j > 0 && e[0]! - b[j]![0]! < 0.1) j--;
+    this.tpl = next;
+    sy.x = this.enter(phase, e[1]!, b[j]![1]!);
   }
   /** The replay starts on a slide's own velocity: the record already drawn is that patient's too (its beats scaled so their mean is the pin), never the in-between patient's the live model was at. */
   private adoptPin(pin: number): void {
