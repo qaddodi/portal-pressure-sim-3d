@@ -15,6 +15,7 @@ export function feedbackHref(email: string, c: FeedbackCtx, short = ''): string 
   const body = fitMailto(feedbackBase(c), short);
   return `mailto:${email}?subject=${encodeURIComponent(FEEDBACK.subject)}&body=${encodeURIComponent(body)}`;
 }
-export const feedbackEmail = (): string => String(import.meta.env?.VITE_FEEDBACK_EMAIL ?? '');
+// (feedbackEmail lives in words.ts: the crash note is in the boot entry and must not pull this file, the mail-fitting code and the draft builder in with it, tests/boot-entry.test.ts)
+export { feedbackEmail } from './words.ts';
 /** Wait for the Settings sheet to leave (its fade), then at most this long for the screen read, so the draft is never held up (2D: FEEDBACK_SHEET_MS, FEEDBACK_READ_MS). */
 export const FEEDBACK_SHEET_MS = 380, FEEDBACK_READ_MS = 2500;

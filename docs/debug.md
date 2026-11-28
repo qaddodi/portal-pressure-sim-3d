@@ -151,12 +151,13 @@ Each rule reads the screen as the app itself describes it. The tables are genera
 | `a11y-control-name` | the screen now | Every control has a name: an icon-only button carries an aria-label (WCAG 4.1.2) | `src/ui/shell/TopBar.tsx` |
 | `a11y-colour-cue` | the screen now | Colour is never the only cue: every value shown by colour also has a number, an arrow, a dash pattern or a word (WCAG 1.4.1; docs/accessibility.md) | `src/ui/debug/screen/raw.ts` |
 
-**Words follow US and Baveno VIII usage** (5)
+**Words follow US and Baveno VIII usage** (6)
 
 | Rule | Looks at | Why | Owner file |
 |---|---|---|---|
 | `wording-em-dash` | the screen now | No em-dash in learner text (owner); a lone dash standing for an empty table value is a placeholder, not text | `src/decks/` |
 | `wording-older-baveno` | the screen now | The guideline is Baveno VIII only, never VII (owner, 18 Nov 2026) | `src/decks/` |
+| `wording-guideline-file` | the screen now | A remark about the authoring source files ("guideline file") is no teaching (production review 28 Nov, P-24) | `src/decks/` |
 | `wording-british` | the screen now | American spelling (US physicians) | `src/decks/` |
 | `wording-no-number` | the screen now | A value that was never worked out never reaches the page (production) | `src/decks/` |
 | `wording-open-token` | the screen now | A {token} the page did not fill never reaches the page (production) | `src/decks/` |

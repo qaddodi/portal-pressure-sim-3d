@@ -77,3 +77,6 @@ export const FEEDBACK = { subject: 'Portal Pressure Simulator feedback', ask: 'W
 
 /** The corner credit of the 2D page (index.html, `.stage-credit`). */
 export const CREDIT = '© 2026 Mohammad Almeqdadi, MD';
+
+/** The feedback address, from the build (VITE_FEEDBACK_EMAIL), never from the source; empty when the build has none. Here, not in feedback.ts, so the crash note can ask without loading the draft builder. */
+export const feedbackEmail = (): string => String(import.meta.env?.VITE_FEEDBACK_EMAIL ?? '');
