@@ -204,6 +204,7 @@ const BASE_EDGES = [
 ];
 
 // ── Junctions: the table is junctions.js (JUNCTION_ROWS); the graph below is the base graph cut at its rows, built once ──────────────────────────────────────────
+export { JUNCTION_ROWS };
 const cut = cutGraph(BASE_NODES, BASE_EDGES, JUNCTION_ROWS);
 export const NODES = cut.nodes;
 export const EDGES = cut.edges;
