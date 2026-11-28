@@ -439,7 +439,7 @@ export const CAPTURE_3531BDFA_CLINICAL = [
   APPEND('treatment', 'slides.carv.line', 'In primary prophylaxis a fall of ≥10% or an HVPG ≤12 mmHg is the response.'),
   // (the three slides below keep their line under 200 characters, the long-line ratchet: the wording is trimmed to make room for the rule)
   P('treatment', 'slides.carv-sin.line', 'In cirrhosis most of the resistance lies in the sinusoids. The α1 blockade of carvedilol is thought to relax hepatic stellate cells,', 'Resistance is mostly sinusoidal. Carvedilol’s α1 blockade is thought to relax stellate cells,'),
-  APPEND('treatment', 'slides.carv-sin.line', 'In primary prophylaxis, a fall of ≥10% or an HVPG ≤12 mmHg responds.'),
+  // (the closing sentence "In primary prophylaxis, a fall of ≥10% or an HVPG ≤12 mmHg responds." is no longer appended: the review patch of 28 Nov already says it once; production review P-28)
   P('treatment', 'slides.prop.notes', 'The tile shows the percent fall from the untreated patient: ≥10% marks a response.', 'The tile shows the percent fall from the untreated patient: for this decompensated patient (secondary prophylaxis) ≥20%, or an HVPG ≤12 mmHg, marks a response; ≥10% is the rule for primary prophylaxis.'),
   P('treatment', 'slides.target.notes', 'an HVPG fall of ≥10%, or to ≤12 mmHg, counts as a response (Baveno VIII Table 3).', 'an HVPG fall of ≥10% (primary prophylaxis) or ≥20% (secondary prophylaxis, after a bleed), or to ≤12 mmHg, counts as a response (Baveno VIII Table 3 states the ≥10% rule).'),
   APPEND('carvedilol', 'slides.start.line', 'A fall of ≥10% counts as a response before any bleed.'),

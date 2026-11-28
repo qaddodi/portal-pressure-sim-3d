@@ -13,7 +13,6 @@ export const NOTES_WORDING_28NOV = [
   P('pregnancy', 'slides.delivery.notes', 'Neither guideline file gives the advice on forceps or vacuum', 'None of the guidance cited here gives the advice on forceps or vacuum'),
   P('outflow', 'slides.relation.notes', 'Neither guideline file gives a figure for how much congestion raises LSM.', 'Baveno VIII gives no figure for how much congestion raises LSM.'),
   // P-28: duplicated sentences
-  P('treatment', 'slides.carv-sin.line', 'A fall of ≥10% or an HVPG ≤12 mmHg responds. In primary prophylaxis, a fall', 'In primary prophylaxis, a fall'),
   // P-27: the fundal varix after obliteration reads "None", which mid-sentence read as a fault ("shrinks to None"); the sentence now says the varix reads it
   P('gastric-varices', 'slides.bato.line', 'the fundal varix shrinks to {gv}, as after BRTO.', 'the fundal varix reads {gv} afterward, as after BRTO.'),
 ];
@@ -23,7 +22,6 @@ export const CLINICAL_28NOV = [
   // C1: the preemptive-TIPS HVPG criterion is ">20 mmHg" wherever Baveno VIII 5.31 is quoted; Monescillo's trial entry keeps its own "≥20 mmHg" (the decks already say >20 elsewhere)
   P('hvpg', 'slides.hvpg.notes', 'an HVPG ≥20 mmHg is one of the criteria for preemptive TIPS', 'an HVPG >20 mmHg is one of the criteria for preemptive TIPS'),
   // C2: both post-cure rules stay; each says which question it answers
-  P('cause-treated', 'slides.year2.line', 'that rules CSPH out.', 'that rules CSPH out after cure.'),
   P('cause-treated', 'slides.year2.notes', 'and counts it as resolved at an HVPG <10 mmHg', 'and, to decide whether carvedilol can stop, counts it as resolved at an HVPG <10 mmHg'),
   P('cause-treated', 'slides.year2.notes', 'Repeat the LSM and platelet count if a new cause of liver injury appears.', 'If a new cause of liver injury appears, repeat the LSM and platelet count. The LSM <12 kPa with platelets >150,000/µL on this slide answers a different question: whether CSPH is ruled out after cure.'),
   P('cause-treated', 'slides.path-stopcarv.notes', 'so the HVPG decides.', 'so the HVPG alone decides. These are the rules for stopping carvedilol; the LSM <12 kPa with platelets >150,000/µL rule answers a different question, whether CSPH is ruled out after cure.'),
