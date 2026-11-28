@@ -1,4 +1,5 @@
 // The free ends of the vessels fade as the 2D figure draws them (tables copied from the 2D app): the veins that end in the organ they drain, the hepatic artery's ends, the veins that leave the plate.
+import { lastPieceOf, piecesOf } from '../src/scene/anatomy/whole-pieces.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fadeOf, companionEnd, CAVA_RECEDE, MAP_ART_FADE, cavaEndSpan } from '../src/scene/vessels/fades.ts';
@@ -74,7 +75,7 @@ test('the renal veins are drawn receded: a constant share of their opacity along
 });
 
 test('the cava is a background vessel: faint everywhere but where the superior cava arrives whole, the hepatic veins ease to its alpha at its wall, and all of it rises to whole when the cava is named', () => {
-  for (const id of ['IVC_IS', 'IVC_IS_1']) { const f = fadeOf(id, false)!; assert.ok(f && f.a0 === CAVA_RECEDE && f.a1 === CAVA_RECEDE, id); }
+  for (const id of piecesOf('IVC_IS')) { const f = fadeOf(id, false)!; assert.ok(f && f.a0 === CAVA_RECEDE && f.a1 === CAVA_RECEDE, id); }
   const ra = fadeOf('IVCS_RA', false)!;
   assert.deepEqual([ra.a0, ra.a1], [CAVA_RECEDE, 1], 'it climbs back to full at the right atrium');
   for (const id of ['RHV_IVC', 'MHV_IVC', 'LHV_IVC']) { assert.equal(cavaEndSpan(id), 0, `${id} has no end ramp: it is a solid vein to the cava's wall (Mohammad, 20 Nov: a pale, flat, see-through wedge)`); assert.equal(fadeOf(id, false)!.a1, 1, `${id} keeps its opacity to the wall`); }
@@ -92,7 +93,7 @@ test('the cava is a background vessel: faint everywhere but where the superior c
 });
 
 test('a lobar artery is gone where the portal branch it runs beside is gone: its fade ends at its companion\'s end, not at its bed (Mohammad, 20 Nov: "fade them earlier")', () => {
-  for (const [a, host] of [['A_HR', 'PVH_R_2'], ['A_HL', 'PVH_L_1']] as const) {
+  for (const [a, host] of [['A_HR', lastPieceOf('PVH_R')], ['A_HL', lastPieceOf('PVH_L')]] as const) {
     const f = fadeOf(a, true)!, hf = fadeOf(host, false)!, art = PLACED_PATH_2D[a]!,   /* (restated for the placed anatomy, the only one now: the artery's drawn course is the placed one, in treeOf's frame) */ th = treeOf(host)?.through ?? PLACED_PATH_2D[host]!;
     assert.equal(f.to, companionEnd(a));
     assert.ok(f.to < 0.95 && f.to > f.from + 0.05, `${a} ends its fade before its bed's node (${f.to}), over a real stretch (from ${f.from})`);
@@ -116,7 +117,7 @@ test('the Circuit lets the two lobar arteries\' ends fade to nothing before the 
     assert.deepEqual(f.mapFade, MAP_ART_FADE, id);
     assert.ok(MAP_ART_FADE[0] > 0 && MAP_ART_FADE[1] < 1 && MAP_ART_FADE[0] < MAP_ART_FADE[1], 'gone before the end of the course, a long ease');
   }
-  for (const id of ['A_HEP', 'RHV_IVC', 'C5', 'SIN_RR', 'PVH_R_2']) assert.equal(fadeOf(id, id === 'A_HEP')?.mapFade, undefined, `${id}: the map holds its fade off as before`);
+  for (const id of ['A_HEP', 'RHV_IVC', 'C5', 'SIN_RR', lastPieceOf('PVH_R')]) assert.equal(fadeOf(id, id === 'A_HEP')?.mapFade, undefined, `${id}: the map holds its fade off as before`);
   const vs = VESSEL_VS;
   assert.equal((vs.match(/mix\(fa, mapFa, circT\)/g) ?? []).length, 2, 'both fade paths ease to the map\'s fade, not to 1');
   assert.doesNotMatch(vs, /mix\(fa, 1\.0, circT\)/);

@@ -88,10 +88,12 @@ export const IVC_JOIN_ALPHA = CAVA_RECEDE;
 export const FORK_CLEAR = 0.5;
 const edgeById = new Map((EDGES as { id: string; from: string; to: string; kind: string }[]).map((e) => [e.id, e]));
 const lenOfPath = (p: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < p.length; i++) l += Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]); return l; };
+// (a node the 2D drawing has a place for, or a junction node of the engine's table, which the 2D drawing never had: the shunts and collaterals that land on the cava land on those now)
+const drawn2D = (n: string): boolean => !!NODE_POS_2D[n] || JNODE.has(n);
 /** The share of its length over which vessel `id` fades into the faint cava, or 0 for a vessel that does not end on it. */
 export function ivcJoinSpan(id: string): number {
   const e = edgeById.get(id), path = EDGE_PATH_2D[id];
-  if (!e || !path || IVC_EDGES.has(id) || SVC_STRETCH.has(id) || HEPATIC_VEINS.has(id) || !IVC_NODES.has(e.to) || !NODE_POS_2D[e.to] || !NODE_POS_2D[e.from]) return 0;
+  if (!e || !path || IVC_EDGES.has(id) || SVC_STRETCH.has(id) || HEPATIC_VEINS.has(id) || !IVC_NODES.has(e.to) || !drawn2D(e.to) || !drawn2D(e.from)) return 0;
   if (e.kind === 'shunt' && id !== 'S_PC' && id !== 'S_MC') return 0;   // (the stents' ends stand as strong as their middle: JOIN_F_NOFADE)
   const l = lenOfPath(path);
   return l > 0 ? Math.min(id === 'S_PC' || id === 'S_MC' ? 12 : IVC_JOIN_LEN, l) / l : 0;

@@ -47,7 +47,7 @@ for (const [n, v] of Object.entries(LABEL_VESSEL)) {
   const cuts = (JUNCTIONS as unknown as [string, string, number][]).filter((j) => j[1] === v).map((j) => j[2]).sort((a, b) => a - b);
   LABEL_VESSEL[n] = ids[cuts.filter((c) => c <= 0.5).length]!;
 }
-export const STATION_OF: Record<string, string> = Object.fromEntries(Object.entries(LABEL_VESSEL).map(([n, e]) => [e, n]));
+export const STATION_OF: Record<string, string> = Object.fromEntries(Object.entries(LABEL_VESSEL).flatMap(([n, e]) => [[e, n], [partOf(e), n]]));
 export const SIN_EDGES = new Set(['SIN_RR', 'SIN_LL']);
 const BAR_KEY: Record<string, string> = { CONF: 'pv', SIN_R: 'whvp', RHV: 'fhvp', IVCS: 'ivc', RA: 'ra' };
 const pf = (f: EngineFrame) => f.Pf || f.P;
@@ -80,8 +80,14 @@ export const flowNum = (x: number) => fmtFlow(Math.abs(x));
 export interface Span { a: number; b: number; d: number; ok: boolean }
 export interface SpanDef { el: readonly [string, string] | null; dn: string | null; cut: string | null; at(env: Env): Span }
 /** The pressure where the blood comes in and where it leaves a vessel, and the drop between (the card's bar). A vein a shunt's junction splits reads its whole course. */
+// The two nodes a vessel's card reads between: the ends of its WHOLE vein (the engine cuts a vein where a collateral or a shunt joins it,
+// and the piece that carries the vein's id ends at that junction).
+const endNodes = (e: Edge): [number, number] => {
+  const ends = (JUNCTION_HOST_ENDS as Record<string, [string, string]>)[partOf(e.id)];
+  return [NI[ends ? ends[0] : e.from]!, NI[ends ? ends[1] : e.to]!];
+};
 export function spanOfEdge(e: Edge): SpanDef {
-  const k = EI[e.id]!, ends = (JUNCTION_HOST_ENDS as Record<string, [string, string]>)[partOf(e.id)], i1 = NI[ends ? ends[0] : e.from]!, i2 = NI[ends ? ends[1] : e.to]!;
+  const k = EI[e.id]!, [i1, i2] = endNodes(e);
   return { el: null, dn: null, cut: null, at: ({ f }) => {
     const PF = pf(f), q = qf(f)[k]!;
     const a = q >= -0.01 ? PF[i1]! : PF[i2]!, b = q >= -0.01 ? PF[i2]! : PF[i1]!;
@@ -103,7 +109,7 @@ function edgeSat(e: Edge, k: number, f: EngineFrame): [number, number] {
 }
 function edgeReading(e: Edge, env: Env, lens: string, range: boolean): Reading {
   const { f, p, ref } = env, k = EI[e.id]!, PF = pf(f), st = STATION_OF[e.id];
-  const P1 = PF[NI[e.from]!]!, P2 = PF[NI[e.to]!]!, P = st ? stationP(f, st, PF) : (P1 + P2) / 2;
+  const [n1, n2] = endNodes(e), P1 = PF[n1]!, P2 = PF[n2]!, P = st ? stationP(f, st, PF) : (P1 + P2) / 2;
   const q = qf(f)[k]! * 0.06;
   if (lens === 'flow') {
     const r = ref?.Q?.[k];
@@ -128,7 +134,7 @@ function edgeReading(e: Edge, env: Env, lens: string, range: boolean): Reading {
     return { v: `${fmt(H1, 1)} → ${fmt(H2, 1)}`, u: 'mmHg' };
   }
   // The change from the reference reads as the figure's callouts do: signed, one decimal, in the reading's colour.
-  const r = ref ? (st ? ref.P[NI[st]!]! : (ref.P[NI[e.from]!]! + ref.P[NI[e.to]!]!) / 2) : null;
+  const r = ref ? (st ? ref.P[NI[st]!]! : (ref.P[n1]! + ref.P[n2]!) / 2) : null;
   return pressureReading(cellOf(`e:${e.id}`), P, r, 'mmHg');
 }
 /** A vessel's reading { v, u, d, up } under the lens. On the vessel card (range) a clotted or narrowed vessel reads in → out. */
