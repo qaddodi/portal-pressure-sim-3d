@@ -10,7 +10,7 @@ import { streamZ, lumenClearance } from '../src/scene/disease/lumen.ts';
 import { VARIX_COURSE, STREAM_MARGIN, TEAR_DEPTH_EASE, nearestOnCourse, inwardTo, streamDepth, tearAt, tearOf, fitStream, type BleedSite } from '../src/scene/disease/stream-fit.ts';
 import { tearPoint } from '../src/scene/disease/tear.ts';
 import { poolFill, PUDDLE_FILL, STOMACH_BLOOD_ML } from '../src/scene/disease/targets.ts';
-import { poolSurfaceY } from '../src/scene/organs/pool-level.ts';
+import { POOL_FULL, poolShare, poolSurfaceY } from '../src/scene/organs/pool-level.ts';
 import { LUMEN, LUMEN_AREA, STO_Y0, STO_DY, STO_N } from '../src/scene/disease/copied/stomach-lumen.js';
 
 const SITES: BleedSite[] = ['VAR', 'GV'];
@@ -95,9 +95,19 @@ test('the pool grows in step with the blood lost: a share of what the stomach ho
   for (let ml = 0; ml <= 1600; ml += 50) { const f = poolFill(ml); assert.ok(f >= last, 'only more blood, more pool'); last = f; }
 });
 
-test('the blood the pool shows is the blood that was lost: its share of the lumen\'s area is the share of what the stomach holds', () => {
+test('the pool shows the blood lost on a rise that tops out at half the lumen (the puddle unchanged)', () => {
   for (const ml of [300, 450, 600, 900, 1200]) {
     const drawn = shareUnder(poolSurfaceY(poolFill(ml)));
-    assert.ok(Math.abs(drawn - ml / STOMACH_BLOOD_ML) < 0.04, `${ml} mL: the pool covers ${(drawn * 100).toFixed(0)}% of the lumen, wants ${((ml / STOMACH_BLOOD_ML) * 100).toFixed(0)}%`);
+    assert.ok(Math.abs(drawn - poolShare(ml / STOMACH_BLOOD_ML)) < 0.04, `${ml} mL: the pool covers ${(drawn * 100).toFixed(0)}% of the lumen`);
   }
+});
+
+test('the cap: no bleed (any site, rate, blood lost) fills the stomach past half, and the level only eases', () => {
+  assert.equal(POOL_FULL, 0.5);
+  for (const ml of [0, 300, 750, 1500, 3000, 9000]) assert.ok(shareUnder(poolSurfaceY(poolFill(ml))) <= 0.5 + 0.02, `${ml} mL stays at or under half`);
+  assert.ok(shareUnder(poolSurfaceY(1)) <= 0.5 + 0.02 && shareUnder(poolSurfaceY(1)) >= 0.45, 'full stands at half');
+  assert.equal(poolShare(PUDDLE_FILL), PUDDLE_FILL, 'the puddle is where it was');
+  let last = Infinity;
+  for (let f = PUDDLE_FILL; f <= 1.0001; f += 0.02) { const y = poolSurfaceY(f); assert.ok(y <= last + 1e-9, 'no snap: the surface never drops back'); assert.ok(last === Infinity || last - y < 14, 'no jump between neighbouring fills'); last = y; }
+  for (const site of SITES) for (const rate of [10, 50, 150]) { const fit = fitStream(site, rate, poolSurfaceY(1)); assert.ok(fit.yl >= poolSurfaceY(1) - 1e-6, `${site}@${rate}: the jet lands on the half-way surface`); }
 });

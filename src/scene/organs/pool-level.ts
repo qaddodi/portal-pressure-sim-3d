@@ -4,6 +4,7 @@
 import { SITES } from '../disease/copied/anatomy-b4.ts';
 import { bleedShapesInto, makeBleedRows } from '../disease/copied/bleed-shapes.js';
 import { lumenSurface } from '../disease/copied/stomach-lumen.js';
+import { PUDDLE_FILL } from '../disease/targets.ts';
 import { fitStream } from '../disease/stream-fit.ts';
 import { UNITS_PER_SCENE, x3, y3 } from '../frame2d.ts';
 
@@ -20,10 +21,13 @@ export interface PoolUniforms {
   flow: number;
 }
 
-/** The share of the lumen the 3D pool fills at most: all of it. The 2D figure leaves a fifth (POOL_SHARE, gas and fundus) but the 3D stomach reads as not filling, so it fills (Mohammad, 25 Nov). */
-export const POOL_FULL = 1;
+/** The most of the lumen's area the 3D pool fills, for every bleed: half (Mohammad, 28 Nov; it stood at the brim).
+ *  The eased poolFill still runs 0..1, so the level rises smoothly to this ceiling. */
+export const POOL_FULL = 0.5;
 /** The surface of the pool (2D y, down the page) for how full it stands (0..1): the ONE level the pool's shader and the jet's landing both stand on. */
-export const poolSurfaceY = (fill: number): number => lumenSurface(POOL_FULL * fill);
+/** The share of the lumen's area under the pool for `fill`: the puddle as it was (a fill of PUDDLE_FILL is that share of the lumen), then a straight, smooth rise to POOL_FULL at a full fill. */
+export const poolShare = (fill: number): number => fill <= PUDDLE_FILL ? fill : PUDDLE_FILL + (fill - PUDDLE_FILL) * (POOL_FULL - PUDDLE_FILL) / (1 - PUDDLE_FILL);
+export const poolSurfaceY = (fill: number): number => lumenSurface(poolShare(Math.min(1, fill)));
 
 /** Where the pool's level and the jet's landing are in `box`, for `fill` (poolFill, eased) and the bleed that feeds it. */
 export function poolUniforms(box: PoolBox, fill: number, bleed: { site: 'VAR' | 'GV'; rate: number; total: number }): PoolUniforms {

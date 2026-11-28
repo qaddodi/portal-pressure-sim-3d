@@ -37,8 +37,8 @@ test('the pool is the jet\'s blood in every look: the wash plus the pool\'s delt
   assert.ok(rgbOf('#8E1A20')[0] > 0, 'the old fixed maroon is only the fallback of a layer used alone');
 });
 
-test('a full pool fills the whole lumen, and a fuller one stands higher, never lower', () => {
-  assert.ok(poolSurfaceY(1) <= STO_Y0 + 8, 'full is the top of the lumen (the old 80% left a fifth of the stomach empty)');
+test('a full pool fills half the lumen at most, and a fuller one stands higher, never lower', () => {
+  assert.ok(poolSurfaceY(1) > STO_Y0 + 8, 'full is no longer the top of the lumen');
   assert.ok(poolSurfaceY(0.12) > poolSurfaceY(0.5) && poolSurfaceY(0.5) > poolSurfaceY(1), 'the surface only rises with the fill');
   assert.ok(poolSurfaceY(0) >= LUMEN_BOTTOM, 'empty is at the bottom of the lumen');
 });
