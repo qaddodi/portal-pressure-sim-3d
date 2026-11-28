@@ -60,7 +60,7 @@ export const gastricUp = (p) => !!(p.balloonGas || p.balloonEso);
 export const DRUGS = {
   propranolol: { label: 'Propranolol', hr: 0.8, contr: 0.92, spl: 1.3, sys: 1.0, sin: 1.0, baroHr: 0.4,
     info: 'Nonselective beta-blocker. β1 lowers cardiac output; β2 blockade leaves α-constriction unopposed in splanchnic arterioles, so portal inflow falls.' },
-  carvedilol: { label: 'Carvedilol', hr: 0.82, contr: 0.92, spl: 1.25, sys: 0.9, sin: 0.8, baroHr: 0.4,
+  carvedilol: { label: 'Carvedilol', hr: 0.82, contr: 0.92, spl: 1.25, sys: 0.58, sin: 0.9, baroHr: 0.4,
     info: 'NSBB with α1 blockade: also lowers intrahepatic (sinusoidal) tone, so HVPG falls more than with propranolol, at the cost of lower MAP.' },
   // (The baroreflex gives back most of a systemic vasoconstrictor's rise, so `sys` is well above the rise it yields: 5 to 10 mmHg
   // in cirrhosis, a rise of at least 5 mmHg by day 3 marking a response (Nazar 2010, Hepatology 51:219). `spl` keeps the HVPG
@@ -127,7 +127,7 @@ export const PRESETS = [
   { id: 'masld-csph', facts: { decompensated: false }, group: 'Sinusoidal', label: 'MASLD cirrhosis, HVPG underestimates', apply: P({ cirrhosis: 0.6, fibrosis: { R: { pre: 4 }, L: { pre: 4 } } }), days: 365,
     summary: 'Obese MASLD cirrhosis with CSPH: part of the resistance is presinusoidal, so the HVPG underestimates the portal pressure gradient by a few mmHg. Small varices, no ascites.',
     note: 'Obese MASLD cirrhosis. HVPG underestimates the portal pressure gradient by a few mmHg. Small varices, no ascites.' },
-  { id: 'cirr-decomp', facts: { decompensated: true }, group: 'Sinusoidal', label: 'Decompensated cirrhosis', apply: P({ cirrhosis: 0.85, albumin: 2.8, diuretics: true }), days: 540,
+  { id: 'cirr-decomp', facts: { decompensated: true }, group: 'Sinusoidal', label: 'Decompensated cirrhosis', apply: P({ cirrhosis: 0.85, albumin: 2.25, diuretics: true }), days: 540,
     summary: 'HVPG ≥15 mmHg, large varices, ascites, splenomegaly, hyperdynamic circulation.',
     note: 'HVPG ≥15 mmHg. Large varices, ascites, splenomegaly and a hyperdynamic circulation.' },
   // The patient the TIPS slides and the Tests card start from: the sickest cirrhosis the model has (severity 100%) with the default stent (8 mm, uniform, covered) in

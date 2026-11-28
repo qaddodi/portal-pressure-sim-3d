@@ -34,7 +34,10 @@ async function replay(d) {
 
 const out = { note: 'Recorded from this app\'s engine where it has deliberately moved on from the 2D app (scripts/gen-hp-numbers-3d.mjs: engine ac66c99b and c92bf66b); every other deck is held to decks-hp-numbers.json.', decks: {} };
 for (const id of HP_IDS) {
-  const d = await loadHpDeck(id), g = inPlayOrder(id, two.decks[id]), fps = await replay(d);
+  const d = await loadHpDeck(id), fps = await replay(d);
+  // (the 2D rows are joined by slide id; a slide cut into parts by SPLIT_PAGES (`<id>-2`) has no 2D row of its own and takes its first part's readings, with no recorded words)
+  const rows = new Map((inPlayOrder(id, two.decks[id]) || []).map((r) => [r.id, r]));
+  const g = d.slides.map((sl) => rows.get(sl.id) || { ...rows.get(sl.id.replace(/-\d+$/, '')), id: sl.id, tokens: [] });
   const at = (sid) => { const j = d.slides.findIndex((s) => s.id === sid); return j >= 0 ? fps[j] : null; };
   // a deck departs from 2D when a reading moved, or when a {token} prints another text than the 2D card does (the words moved: {hvpg:0} prints the tile's one decimal, 26 Nov)
   const prints = (s, i) => tokensOf(`${s.line} ${s.vignette ?? ''}`).map(({ raw }) => plainText(raw, fps[i], at));
