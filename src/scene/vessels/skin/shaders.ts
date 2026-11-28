@@ -62,8 +62,11 @@ export const SKIN_ARM_ABSENT = 0.3;
 /** The depth hold-out's ramp (skinArmHeld), in shares of the blend width k of 3D gap between a pixel's rest surface and an arm's wall: an arm is not held out of the outline within SKIN_HOLD_FROM_K of it, wholly from SKIN_HOLD_TO_K. It was 0.25 to 1; the FILLET spans the whole of k, so
  *  a pixel a quarter k from an arm already lies in the smooth union of the mesh and was held out of the outline's: the stem's edge was inked inside the fillet, the two lines that ran on into the azygos (Plan 16C, 22 Nov, node numbers: 281 pixels of ink inside the union at the azygos landing, 0 from 1 to 2). */
 export const SKIN_HOLD_FROM_K = 1;
-/** (1.25, not 2: a seam ring stands 1.1 k to 4.2 k from the other arms (rule 4.4.1, at least k), and the fillet, which spans k, does not reach it. From 1.25 k an arm is wholly held out of the seam's outline;
- *  a ramp to 2 k left a ring at 1.2 k only 5 % held, so an arm that overlapped it on the screen only pulled the tube's own line in by 5.7 px: S_MC on the cava over the iliac vein, tests/skin-agreement.test.ts.) */
+/**
+ * (1.25, not 2: a seam ring stands 1.1 k to 4.2 k from the other arms (rule 4.4.1, at least k), and the fillet, which spans k, does not reach it.
+ *  From 1.25 k an arm is wholly held out of the seam's outline; a ramp to 2 k left a ring at 1.2 k only 5 % held,
+ *  so an arm that overlapped it on the screen pulled the tube's own line in by 5.7 px: S_MC on the cava over the iliac vein, tests/skin-agreement.test.ts.)
+ */
 export const SKIN_HOLD_TO_K = 1.25;
 /** AWAY FROM THE SEAMS, 3 k to 6 k. The ramp above was set on today's flat figure, where every arm of a junction lies within a k of one plane. The approved placement's arms meet with real depth: where a branch opens into its host,
  *  its rim stands in front of the host's wall, as far as 1.6 k (the middle hepatic vein at IVCS), while on the screen it lies inside the host's lumen. From 1 k that rim held the host out of the outline, and the branch's silhouette was inked
