@@ -1,7 +1,7 @@
 // ?audit=capture: the app inside one frame of the outer page (capture-outer.ts). It boots, settles, takes the pictures the address names (`&pick=`, `&only=`, `&speed=`),
 // reports its progress to the page
 // around it and hands up the files of its zip (name and bytes), so the outer page can join every size into one. Standing alone (no outer page) it says so and does nothing.
-import { flagValue } from '../flags.ts';
+import { flagValue, searchNow } from '../flags.ts';
 import { attach } from '../pps.ts';
 import { settle } from './app.ts';
 import { speedOf } from './speed.ts';
@@ -53,8 +53,11 @@ export function mountCaptureChild(): void {
           const layout = plan.layoutOf(lay);
           if (!layout) { post({ capture: 'failed', why: `stress=${lay} is not a layout (iphone, ipad-portrait, mac)` }); return; }
           const sr = await importAgain(() => import('../stress/run.ts'));
+          // (the same plan the page read from the same address: a request's slides, its seeded draw included)
+          const asked = plan.planFromSearch(searchNow(), (await importAgain(() => import('../request/world.ts'))).appWorld());
+          if (asked && !asked.ok) { post({ capture: 'failed', why: asked.error }); return; }
           const res = await sr.runStress({
-            layout, status: (s) => { text = s; }, stop: () => stop,
+            layout, plan: asked?.plan, status: (s) => { text = s; }, stop: () => stop,
             progress: (n, total) => post({ capture: 'progress', text, n, total }),
             partial: (fs) => { for (const f of fs) sent.add(f.name); post({ capture: 'part', files: fs.map((f) => ({ name: f.name, data: f.data })) }); },
           });

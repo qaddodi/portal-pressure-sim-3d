@@ -64,6 +64,7 @@ test('every deck, lens, source folder and test glob a feature names exists, and 
     for (const s of f.sources) assert.ok(existsSync(new URL(`../${s}`, import.meta.url)), `${f.id}: ${s} does not exist`);
     for (const g of f.tests) assert.ok(testsOfFeature({ ...f, tests: [g] }, all).length, `${f.id}: the glob ${g} matches no test file`);
     assert.ok(f.checks.length && testsOfFeature(f, all).length, `${f.id} has tests`);
+    assert.ok(f.slides.length <= 40, `${f.id}: the stress capture takes at most 40 slides`);
   }
   for (const [c, ids] of Object.entries(BASE_FEATURES)) for (const id of ids!) assert.ok(featureOf(id), `${c}: base feature ${id}`);
   assert.equal(new Set(FEATURES.map((f) => f.id)).size, FEATURES.length);
@@ -73,6 +74,7 @@ test('a feature means the same set of things every time: its slides, lenses and 
   const s = scope('feature:junctions');
   assert.deepEqual(s.features, ['junctions']);
   for (const d of ['shunts', 'tips-complete', 'tips-doppler', 'same-gradient', 'variceal-bleed', 'circuit']) assert.ok(s.decks.includes(d), d);
+  assert.ok(s.slides.includes('tips-complete:17') && s.slides.includes('shunts:8') && !s.slides.includes('shunts:3'), 'the slides that show it, from the review\'s list of slides whose numbers moved, not whole talks');
   assert.deepEqual(s.lenses, ['pressure', 'flow']);
   assert.equal(JSON.stringify(scope('feature:junctions')), JSON.stringify(s));
   assert.deepEqual(scope('feature:junctions+layout:iphone+layout:mac').sizes, ['mac', 'iphone'], 'the device table\'s order, whatever order they were typed in');

@@ -19,7 +19,16 @@ export interface Entry {
   issues: string[];
 }
 export interface LayoutRun { layout: string; label: string; entries: Entry[]; notes: string[]; secs: number; ended?: string }
-export interface Meta { build: string; at: string; stopped: boolean }
+/** `request` and `random`: the audit request this run was made from (request/grammar.ts) and its seeded draw, printed so the same slides can be asked for again; both absent for the default plan. */
+export interface Meta { build: string; at: string; stopped: boolean; request?: string; random?: { n: number; seed: number; spread: boolean; picked: string[] } | null }
+/** The lines that say what was asked for: the request, the seed and how to ask for the same slides again. Empty for the default plan. */
+export function requestLines(meta: Meta): string[] {
+  if (!meta.request) return [];
+  const r = meta.random, again = r ? `random:${r.n}@${r.seed}${r.spread ? '/deck' : ''}` : '';
+  if (!r) return [`Request: ${meta.request}`];
+  const how = `${r.n} slides, seed ${r.seed}${r.spread ? ', spread over the talks' : ''}`;
+  return [`Request: ${meta.request}`, `Random: ${how}; ask for the same slides again with ${again}`, `Slides: ${r.picked.join(', ')}`];
+}
 
 /** A card's content may not reach past its box foot by more than this many px (the card-boxes record: `past`). */
 export const PAST_LIMIT = 2;
@@ -77,7 +86,7 @@ export function reportMd(runs: readonly LayoutRun[], meta: Meta): string {
   const all = runs.flatMap((r) => r.entries), f = all.filter(bad);
   const out: string[] = [
     '# Stress capture report', '',
-    `Build: ${meta.build}`, `Made: ${meta.at}`, `Layouts: ${runs.map((r) => r.label).join(', ')}`,
+    `Build: ${meta.build}`, ...requestLines(meta), `Made: ${meta.at}`, `Layouts: ${runs.map((r) => r.label).join(', ')}`,
     `Run time: ${Math.round(runs.reduce((n, r) => n + r.secs, 0))} s${meta.stopped ? ' (stopped early: what was finished is here)' : ''}`,
     '',
     '## Summary', '',
@@ -109,5 +118,6 @@ export function reportMd(runs: readonly LayoutRun[], meta: Meta): string {
 
 /** manifest.json: the whole run for a tool. */
 export function manifestJson(runs: readonly LayoutRun[], meta: Meta): string {
-  return JSON.stringify({ v: 1, ...meta, layouts: runs.map((r) => ({ layout: r.layout, label: r.label, secs: r.secs, ended: r.ended ?? null, notes: r.notes, entries: r.entries })) }, null, 1);
+  const layouts = runs.map((r) => ({ layout: r.layout, label: r.label, secs: r.secs, ended: r.ended ?? null, notes: r.notes, entries: r.entries }));
+  return JSON.stringify({ v: 1, runner: 'gpu', ...meta, layouts }, null, 1);
 }

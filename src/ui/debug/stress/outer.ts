@@ -15,7 +15,8 @@ import { recoverUi } from '../audit/capture-recover.ts';
 import { deliverUi } from '../audit/capture-deliver.ts';
 import { pace } from '../audit/progress.ts';
 import { FRAME_SAFE } from '../promo/frames.ts';
-import { STRESS_LAYOUTS, SECTIONS, PICTURE_CAP, stressSteps, stressPictures, layoutSteps, stressFlag, type StressLayout } from './plan.ts';
+import { STRESS_LAYOUTS, SECTIONS, PICTURE_CAP, DEFAULT_PLAN, planFromSearch, stressSteps, stressPictures, layoutSteps, stressFlag, type StressLayout } from './plan.ts';
+import { appWorld } from '../request/world.ts';
 import { reportMd, sectionMd, manifestJson, type LayoutRun, type Entry } from './report.ts';
 
 const SILENT_MS = 300000;
@@ -45,15 +46,21 @@ const CSS = `html,body{margin:0;min-height:100%}body{font:500 15px/1.45 system-u
 export function bootStress(doc: Document = document, win: Window = window): void {
   const st = doc.createElement('style'); st.textContent = CSS; doc.head.append(st); doc.title = 'Stress capture';
   const mk = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = doc.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
-  const layouts = stressLayouts(flagValue('layouts')), total = stressSteps(layouts);
+  // (an address that carries a request, `&req=feature:junctions`, replaces the key slides: request/address.ts; a request that cannot be read stops here and says why, it is never guessed at)
+  const asked = planFromSearch(searchNow(), appWorld());
+  const plan = asked?.ok ? asked.plan : DEFAULT_PLAN;
+  const layouts = asked?.ok ? asked.layouts : stressLayouts(flagValue('layouts')), total = stressSteps(layouts, plan);
   const main = mk('div', 'st-main'), room = mk('div', 'st-room');
   const bar = mk('div', 'st-bar'), fill = mk('div', 'st-fill'); bar.append(fill); bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-valuemin',
     '0'); bar.setAttribute('aria-valuemax', '100'); bar.setAttribute('aria-valuenow', '0');
-  const status = mk('div', 'st-note', `About ${stressPictures(layouts)} pictures (at most ${PICTURE_CAP}) in ${layouts.map((l) => l.label).join(', ')},`
+  const seedWords = plan.random ? `, seed ${plan.random.seed} (ask for the same slides again with random:${plan.random.n}@${plan.random.seed}${plan.random.spread ? '/deck' : ''})` : '';
+  const said = !asked ? '' : !asked.ok ? `Request not understood: ${asked.error}. `
+    : `Request ${plan.request}${seedWords}: ${plan.slides.length} slides. ${asked.dropped.length ? `Not stress layouts, left out: ${asked.dropped.join(', ')}. ` : ''}`;
+  const status = mk('div', 'st-note', `${said}About ${stressPictures(layouts, plan)} pictures (at most ${PICTURE_CAP}) in ${layouts.map((l) => l.label).join(', ')},`
     + ' with a written report, in one zip. Keep this tab in front.');
   status.setAttribute('role', 'status');
   const go = mk('button', '', 'Start stress capture'), halt = mk('button', '', 'Stop');
-  go.type = 'button'; halt.type = 'button';
+  go.type = 'button'; halt.type = 'button'; go.disabled = !!asked && !asked.ok;
   const deliver = deliverUi(doc), recover = recoverUi(doc, (t) => { status.textContent = t; });
   void recover.refresh();
   const row = mk('div', 'st-row'); row.append(go, halt);
@@ -115,8 +122,10 @@ export function bootStress(doc: Document = document, win: Window = window): void
     };
     try {
       show(0);
-      session = await openSession(await idbBackend().catch(() => null), { startedAt: at.toISOString(), build, words: `stress capture: ${layouts.map((l) => l.label).join(', ')}`,
-        sizes: layouts.map((l) => l.id), zipName });
+      const askedWords = plan.request ? `, request ${plan.request}${plan.random ? ` (seed ${plan.random.seed})` : ''}` : '';
+      session = await openSession(await idbBackend().catch(() => null), {
+        startedAt: at.toISOString(), build, words: `stress capture: ${layouts.map((l) => l.label).join(', ')}${askedWords}`, sizes: layouts.map((l) => l.id), zipName,
+      });
       const runs: LayoutRun[] = [], why: string[] = [];
       let before = 0;
       for (const l of layouts) {
@@ -124,7 +133,7 @@ export function bootStress(doc: Document = document, win: Window = window): void
         let r = await one(l, 0, (n) => show(before + n));
         // a frame that could not fetch a part of the app (a deploy landed while it started) is started again, up to twice
         for (let again = 1; r.why && /module script|dynamically imported|Load failed|Failed to fetch/i.test(r.why) && again <= 2 && !stop; again++) r = await one(l, again, (n) => show(before + n));
-        before += layoutSteps(l);
+        before += layoutSteps(l, plan);
         show(before);
         room.textContent = '';
         if (r.why) why.push(`${l.label}: ${r.why}`);
@@ -143,7 +152,7 @@ export function bootStress(doc: Document = document, win: Window = window): void
         run.label = l.label;
         runs.push(run);
       }
-      const meta = { build, at: at.toISOString(), stopped: stop };
+      const meta = { build, at: at.toISOString(), stopped: stop, ...(plan.request ? { request: plan.request, random: plan.random } : {}) };
       const files: ZipFile[] = [
         { name: 'REPORT.md', data: enc.encode(reportMd(runs, meta) + (why.length ? `\n## Frames that did not end cleanly\n\n${why.map((w) => `- ${w}`).join('\n')}\n` : '')) },
         ...SECTIONS.map((s) => ({ name: s.file, data: enc.encode(sectionMd(s.id, runs)) })),

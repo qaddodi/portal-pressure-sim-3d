@@ -1,6 +1,9 @@
 // ?stress: the stress capture's plan. One small zip of the moments that matter: key slides, a few frames inside key transitions, the main menus, in a few layouts, with a written report.
 // It reuses the capture's own parts (audit/capture-all.ts for the slides, audit/capture-promo-extra.ts for the menus and the history pages, the capture frame and store) and adds
 // only what they lack: frames inside a transition (stress/run.ts) and the report (stress/report.ts). Pure here: tests/stress-plan.test.ts runs it in node.
+import { scopeFromSearch } from '../request/address.ts';
+import type { Scope, World } from '../request/resolve.ts';
+
 // Sizes (Mohammad, 27 Nov 2026): about 200 pictures a run, 300 at most, one zip that is easy to save from a phone.
 
 // The layouts: the capture frame's device ids (promo/slides.ts PROMO_SIZES). An upright iPhone and iPad take every instrument slide twice (the card
@@ -77,16 +80,62 @@ export const STRESS_SHEETS: readonly ('settings' | 'help' | 'search')[] = Object
 /** Never more pictures than this in one run. */
 export const PICTURE_CAP = 300;
 
+/**
+ * What a run takes. The default is the plan above (key slides, transitions, menus, sheets).
+ * An address that carries a request (`&req=feature:junctions`, request/address.ts) that names slides replaces it:
+ * the slides are the request's, the transitions are the ones of its talks, and the menus and sheets are left out (a request is about slides).
+ * The same plan is read from the same address by the page and by each frame, so they cannot disagree; a seeded draw (`random:12@4471`) is the same slides in both,
+ * and the line and the seed are printed in the page, the report and the manifest.
+ */
+export interface StressPlan {
+  /** the request line this plan came from, or null for the default plan */
+  request: string | null;
+  random: { n: number; seed: number; spread: boolean; picked: string[] } | null;
+  /** `deck:n` keys, in talk order */
+  slides: readonly string[];
+  moves: readonly StressMove[];
+  /** the menu transition, the menus and pages, and the sheets */
+  menus: boolean;
+}
+export const DEFAULT_PLAN: StressPlan = Object.freeze({ request: null, random: null, slides: Object.freeze(STRESS_SLIDES.map((s) => s.key)), moves: STRESS_MOVES, menus: true });
+/** The most slides a request may name here: five pictures a slide over the three layouts, inside PICTURE_CAP with the transitions of its talks. */
+export const MAX_REQUEST_SLIDES = 40;
+
+/** The plan a request makes. A request that names no slides (app, a look) leaves the default plan; one that names too many is refused, with what to do. */
+export function planOf(scope: Scope | null): { ok: true; plan: StressPlan } | { ok: false; error: string } {
+  if (!scope || !scope.named) return { ok: true, plan: scope ? { ...DEFAULT_PLAN, request: scope.line } : DEFAULT_PLAN };
+  if (scope.slides.length > MAX_REQUEST_SLIDES) {
+    const cap = `at most ${MAX_REQUEST_SLIDES} (about ${PICTURE_CAP} pictures)`;
+    return { ok: false, error: `${scope.line} names ${scope.slides.length} slides; the stress capture takes ${cap}. Use random:${MAX_REQUEST_SLIDES}@<seed>/deck, or name fewer.` };
+  }
+  return { ok: true, plan: { request: scope.line, random: scope.random, slides: scope.slides, moves: STRESS_MOVES.filter((m) => scope.decks.includes(m.deck)), menus: false } };
+}
+/** The layouts a request asks for among the stress layouts, and the sizes it asked for that stress does not take. With no `layout:` part the request's sizes are the three stress layouts. */
+export function layoutsOfScope(scope: Scope | null): { layouts: StressLayout[]; dropped: string[] } {
+  if (!scope) return { layouts: [...STRESS_LAYOUTS], dropped: [] };
+  return { layouts: STRESS_LAYOUTS.filter((l) => scope.sizes.includes(l.id)), dropped: scope.sizes.filter((z) => !STRESS_LAYOUTS.some((l) => l.id === z)) };
+}
+/** What an address asks of the stress capture: its plan and layouts, null when it carries no request. An error says what is wrong. */
+export function planFromSearch(search: string, world: World): { ok: true; plan: StressPlan; layouts: StressLayout[]; dropped: string[] } | { ok: false; error: string } | null {
+  const r = scopeFromSearch(search, world);
+  if (!r) return null;
+  if (!r.ok) return r;
+  const p = planOf(r.scope), l = layoutsOfScope(r.scope);
+  if (!p.ok) return p;
+  if (!l.layouts.length) return { ok: false, error: `${r.scope.line}: none of its sizes (${r.scope.sizes.join(', ')}) is a stress layout (${STRESS_LAYOUTS.map((x) => x.id).join(', ')})` };
+  return { ok: true, plan: p.plan, layouts: l.layouts, dropped: l.dropped };
+}
+
 /** The progress units of a layout: a slide is one, a picture of a move is one, a menu or sheet is one. The outer page adds them up for the bar's percentage and ETA. */
-export function layoutSteps(l: StressLayout): number {
-  return STRESS_SLIDES.length + (l.moves ? (STRESS_MOVES.length + 1) * MOVE_SHOTS : 0) + (l.menus ? STRESS_MENUS.length + STRESS_SHEETS.length : 0);
+export function layoutSteps(l: StressLayout, plan: StressPlan = DEFAULT_PLAN): number {
+  return plan.slides.length + (l.moves ? (plan.moves.length + (plan.menus ? 1 : 0)) * MOVE_SHOTS : 0) + (l.menus && plan.menus ? STRESS_MENUS.length + STRESS_SHEETS.length : 0);
 }
 /** About how many pictures a layout makes (a slide with no instrument card has one view, so this is a ceiling). */
-export function layoutPictures(l: StressLayout): number {
-  return STRESS_SLIDES.length * (l.twoViews ? 2 : 1) + (l.moves ? (STRESS_MOVES.length + 1) * MOVE_SHOTS : 0) + (l.menus ? STRESS_MENUS.length + STRESS_SHEETS.length : 0);
+export function layoutPictures(l: StressLayout, plan: StressPlan = DEFAULT_PLAN): number {
+  return plan.slides.length * (l.twoViews ? 2 : 1) + (l.moves ? (plan.moves.length + (plan.menus ? 1 : 0)) * MOVE_SHOTS : 0) + (l.menus && plan.menus ? STRESS_MENUS.length + STRESS_SHEETS.length : 0);
 }
-export const stressSteps = (ls: readonly StressLayout[] = STRESS_LAYOUTS): number => ls.reduce((n, l) => n + layoutSteps(l), 0);
-export const stressPictures = (ls: readonly StressLayout[] = STRESS_LAYOUTS): number => ls.reduce((n, l) => n + layoutPictures(l), 0);
+export const stressSteps = (ls: readonly StressLayout[] = STRESS_LAYOUTS, plan: StressPlan = DEFAULT_PLAN): number => ls.reduce((n, l) => n + layoutSteps(l, plan), 0);
+export const stressPictures = (ls: readonly StressLayout[] = STRESS_LAYOUTS, plan: StressPlan = DEFAULT_PLAN): number => ls.reduce((n, l) => n + layoutPictures(l, plan), 0);
 
 /** The sections of a run's notes, and the folder of each in a layout's folder. */
 export const SECTIONS = [

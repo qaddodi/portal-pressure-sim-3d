@@ -41,15 +41,26 @@ A **finding id** (`F-xxxxxx`) is the first six hex digits of FNV-1a over rule, t
 | runner | what | how |
 |---|---|---|
 | **node** | no browser, no GPU, no approval; the typecheck, lint and scene audit take about 15 s, the tests of a feature take as long as they take (`feature:ascites` 25 s in all, `feature:junctions` about 9 minutes on 4 cores in the cloud: the skin tests are slow) | `npm run audit -- "<request>"` (`scripts/audit.mjs`): the repo's node tests for the request's features (`scripts/audit/tests.mjs`, node's own test runner), the node scene audit (`scene-audit.mjs --json`: pops, stuck eases, slowest frame, rebuilds), the typecheck and the lint. Writes the zip to `/mnt/project-files/audits/` when that folder exists, else `./audits/` (ignored by git); `--out <dir>`, `--dir`, `--print`, `--json`, `--jobs <n>`. |
-| **layout** | today's `npm run layout-check` | one approved headless run each time. Not yet taught the request (step b). |
-| **gpu** | today's `?audit` and `?stress` on the person's own device | pictures and motion. Not yet taught the request (step b). |
+| **layout** | today's `npm run layout-check` | one approved headless run each time. Not yet taught the request. |
+| **gpu** | today's `?audit` and `?stress` on the person's own device | pictures and motion. `?stress` and the capture read the request from the address (below). |
 
 Which test files a request runs (`plan.ts`): a feature runs its own; a check no named feature serves runs its base feature only when the request names that check or is `app`, except `numbers` for a request of talks and slides, because the numbers replay is the one node check that reads slides (with `DECKS_HP_FULL` or `RW_FULL` for the families of the named talks). Never the whole suite. A test file is never narrowed by slide, so a finding names a test, not a slide.
 
 What the node runner cannot judge is written into every README-FIRST: pictures, the real page's card sizes (it runs the node layout tests, not the page), lenses and looks, cases, and whether a moved number crosses a clinical cut-off.
 
+## The request in an address (step b)
+
+One flag, `req`, holds the whole line (`src/ui/debug/request/address.ts`; write `+` as `%2B`, a raw `+` is read back as one):
+
+- `?stress&req=feature:junctions` takes that feature's slides instead of the key slides, the transitions of its talks, in the layouts of its `layout:` parts (the three stress layouts by default; a size stress does not take is said, not guessed), and leaves the menus and sheets out. At most 40 slides (`MAX_REQUEST_SLIDES`); more is refused with `random:40@<seed>/deck` as the way out. A request that names no slides (`app`) leaves the default plan. The page and each frame read the same address, so a seeded draw is the same slides in both.
+- `?audit=frames&capture=1&req=random:10@4471` (the Mac) and `?audit=here&req=...` take the request's slides, and its `layout:` sizes on the Mac.
+- The seed is a printed input: the stress page says it before the run, and REPORT.md, manifest.json and the README (`Taken:`) carry the request line, the seed and `random:n@seed` to ask for the same slides again. The capture's own Random 5, 10, 25 buttons now draw from a seed under 2^32 and print it the same way.
+- A request that cannot be read stops the page with the reason; it is never guessed.
+
+The stress and capture zips still keep their own layout (pictures by layout, REPORT.md, notes, manifest.json); they carry the request and the seed in it. Writing them in the one format (README-FIRST, sections, findings.json) is not done yet.
+
 ## Build order
 
 1. **(a)** request reader, feature table, zip writer, node runner (this).
-2. **(b)** teach `?stress` and the capture the request, with the seed as a printed input.
+2. **(b)** `?stress` and the capture read the request, with the seed as a printed input (this, second push).
 3. **(c)** stable ids carried between runs and the comparison with the last run (new, still there, fixed).

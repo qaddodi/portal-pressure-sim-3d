@@ -48,7 +48,7 @@ export function pickWords(keys: readonly string[]): string {
 }
 
 /** The form: how many slides (All, Ticked, Random 5, 10, 25 as one segmented row) and which talks (a "Talks 42 of 42 ›" row that opens the ticked list). `read()` gives `{ decks, pick, words, none }`: `decks` the talks' ids (null for every talk), `pick` the random sample's keys (null for every slide of those talks). All ignores the ticks; Ticked takes every slide of the ticked talks; Random draws from the ticked talks. */
-export function pickerUi(doc: Document, decks: () => readonly PickDeck[]): { el: HTMLElement; read(): { decks: string[] | null; pick: string[] | null; words: string; none: boolean }; refresh(): void } {
+export function pickerUi(doc: Document, decks: () => readonly PickDeck[]): { el: HTMLElement; read(): { decks: string[] | null; pick: string[] | null; words: string; none: boolean; seed: number | null }; refresh(): void } {
   const LINE = 'rgba(255,255,255,.18)';
   const el = doc.createElement('div'); el.style.cssText = 'flex:1 1 100%;margin:0 0 4px';
   const cap = doc.createElement('div'); cap.textContent = 'WHICH SLIDES'; cap.style.cssText = 'font-size:12px;font-weight:600;letter-spacing:.04em;opacity:.6;margin:6px 0';
@@ -92,10 +92,12 @@ export function pickerUi(doc: Document, decks: () => readonly PickDeck[]): { el:
     read() {
       const all = decks(), ticked = which === 'all' ? all : all.filter((d) => !off.has(d.id)), allTicked = ticked.length === all.length;
       const names = allTicked ? 'every talk' : ticked.map((d) => d.title).join(', ');
-      if (!ticked.length) return { decks: [], pick: null, words: '', none: true };
-      if (which === 'all' || which === 'ticked') return { decks: allTicked ? null : ticked.map((d) => d.id), pick: null, words: `every slide of ${names}`, none: false };
-      const keys = randomPick(ticked, Number(which), new Date().getTime());
-      return { decks: allTicked ? null : ticked.map((d) => d.id), pick: keys, words: `random ${keys.length} from ${names}: ${pickWords(keys)}`, none: false };
+      if (!ticked.length) return { decks: [], pick: null, words: '', none: true, seed: null };
+      if (which === 'all' || which === 'ticked') return { decks: allTicked ? null : ticked.map((d) => d.id), pick: null, words: `every slide of ${names}`, none: false, seed: null };
+      // (the seed is a printed input: the README says it and how to ask for the same slides again, `random:n@seed` in an audit request; a seed is a whole number under 2^32)
+      const seed = new Date().getTime() % 4294967295, keys = randomPick(ticked, Number(which), seed);
+      const again = allTicked ? `; the same slides again: random:${which}@${seed}` : '';
+      return { decks: allTicked ? null : ticked.map((d) => d.id), pick: keys, words: `random ${keys.length} (seed ${seed}${again}) from ${names}: ${pickWords(keys)}`, none: false, seed };
     },
   };
 }

@@ -33,6 +33,10 @@ export const FLAG_MEANINGS: Readonly<Record<string, string>> = Object.freeze({
   stress:
     "The stress capture on any device (src/ui/debug/stress, docs/debug.md): ?stress opens a page with one Start button; it takes key slides, frames inside the main transitions, "
     + "the menus and sheets in an iPhone, an iPad and a Mac layout, one frame at a time, and ends in one small zip with REPORT.md and notes. As audit=capture&stress=<layout> it is the frame.",
+  req:
+    "An audit request (src/ui/debug/request, docs/audit.md): ?stress&req=feature:junctions or ?audit=frames&capture=1&req=random:10@4471 takes the slides the request names "
+    + "(a talk, a slide, a feature's, or a seeded random draw) instead of the page's own set, in the sizes of its layout: parts; the line and the seed are printed in the README. "
+    + "Write + as %2B.",
   go: "Starts the page's run at once (?stress&go=1).",
   layouts: "The stress capture's layouts: layouts=iphone,mac (a comma list of iphone, ipad-portrait, mac); default all.",
   safe: "A framed phone's safe edges, px (safe=47,0,34,0).",
