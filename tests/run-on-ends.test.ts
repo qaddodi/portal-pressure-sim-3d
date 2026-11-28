@@ -79,6 +79,9 @@ test('every other sewn end is sewn as it was (the generated table, both join mod
   const kind = (t: Record<string, unknown>) => Object.fromEntries(Object.entries(t).map(([k, ends]) => [k, (ends as ({ inside: boolean; sink: boolean; flare: boolean; capped?: boolean } | null)[]).map((e) => e && { inside: e.inside, sink: e.sink, flare: e.flare, capped: !!e.capped })]));
   const want = kind(was);
   for (const m of ['smooth', '2d']) (want[`${m}:C9`] as unknown[])[1] = null;
+  // (The cap came after the table: every shunt end that lands inside a host or sinks into it is cut at the host's width (shunt-ends.ts `capped`, 28 Nov, 430a7f83), so the table's end 1 reads capped
+  //  exactly where it is inside or sunk, and end 0 stays as recorded.)
+  for (const ends of Object.values(want)) { const e1 = (ends as { inside: boolean; sink: boolean; capped: boolean }[])[1]; if (e1) e1.capped = e1.inside || e1.sink; }
   assert.deepEqual(kind(now), want);
   assert.equal(now['smooth:C1a'], undefined);
   assert.ok(now['smooth:C9'], 'the azygos start\'s collateral lands on the azygos\' side wall and stays sewn');
