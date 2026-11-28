@@ -2,15 +2,19 @@
 // the triangles round it off and leaves a short loop by itself. The skin is closed except along its seams, so such a loop is closed here by a fan to its centre; the remesh pulls the centre onto the surface and evens the triangles out.
 import type { Vec3 } from './types.ts';
 
-/** A hole of the sampled surface is small when its loop's vertices lie within this share of the narrowest arm's radius of their mean (a seam loop lies about one radius of its arm out: a stray web of the field, 0.2). */
+/** A hole of the sampled surface is small when its loop's vertices lie within this share of the narrowest arm's radius of their mean
+ *  (a seam loop lies about one radius of its arm out; a stray web of the field, 0.2). */
 export const STRAY_MAX_SPREAD = 0.6;
 
 /**
  * The loops no arm's seam owns. Three kinds, so a small shift of a course cannot leave one uncapped:
  *  - a loop more than 2 of an arm's radii from every seam centre (as before);
- *  - a loop under a quarter of the longest when there are more loops than seams (beside a thin arm's seam, as C9's on the cava with the portacaval shunt 2 radii from it: a seam is a ring of the arm, a hole is a few cells);
- *  - a SMALL loop (its vertices within `STRAY_MAX_SPREAD` of the narrowest arm's radius of their mean) that is not the loop nearest to any arm's seam centre. It may lie within 2 radii of a seam, because the cut half-cylinder beyond a seam
- *    plane reaches a pinched web of the field beside it when the arm bends (S_MC's drawn course moved 0.3 radii and an 8-vertex hole stood 1.6 radii from its seam: "4 seam loops for 3 arms", SMV lost S_MC and REX).
+ *  - a loop under a quarter of the longest when there are more loops than seams (beside a thin arm's seam, as C9's on the cava
+ *    with the portacaval shunt 2 radii from it: a seam is a ring of the arm, a hole is a few cells);
+ *  - a SMALL loop (its vertices within `STRAY_MAX_SPREAD` of the narrowest arm's radius of their mean) that is not the loop nearest
+ *    to any arm's seam centre. It may lie within 2 radii of a seam, because the cut half-cylinder beyond a seam plane reaches a
+ *    pinched web of the field beside it when the arm bends (S_MC's drawn course moved 0.3 radii and an 8-vertex hole stood
+ *    1.6 radii from its seam: "4 seam loops for 3 arms", SMV lost S_MC and REX).
  * A real seam loop is about one radius wide and is always the nearest to its own arm's seam centre, so it is never taken for a hole.
  */
 export function strayLoops(loops: readonly number[][], pos: readonly number[], cen: readonly Vec3[], rad: readonly number[]): number[][] {
@@ -20,7 +24,11 @@ export function strayLoops(loops: readonly number[][], pos: readonly number[], c
     return m;
   };
   const means = loops.map(mean), Rmin = Math.min(...rad);
-  const spread = (loop: readonly number[], m: readonly number[]): number => loop.reduce((s, v) => s + Math.hypot(pos[3 * v]! - m[0]!, pos[3 * v + 1]! - m[1]!, pos[3 * v + 2]! - m[2]!), 0) / loop.length;
+  const spread = (loop: readonly number[], m: readonly number[]): number => {
+    let t = 0;
+    for (const v of loop) t += Math.hypot(pos[3 * v]! - m[0]!, pos[3 * v + 1]! - m[1]!, pos[3 * v + 2]! - m[2]!);
+    return t / loop.length;
+  };
   const owns = new Set<number>();
   cen.forEach((c, a) => {
     let best = -1, bd = Infinity;

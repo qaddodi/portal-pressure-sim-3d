@@ -27,9 +27,14 @@ export const CLEAR_R = 0.5;
 export const SEAM_MAX_SHARE = 0.85;
 /** The share an arm's seam may reach when no ring of it clears within `SEAM_MAX_SHARE` (a short through vein with a branch beside it and a collateral landing on it: the left portal vein's end, 17 rings, REX's mouth at ring 10 and the branch's clearance to ring 12): the tube's last rings stay. Only a retry, so no skin that has a ring within 85 % moves. */
 export const SEAM_FALLBACK_SHARE = 0.97;
-/** The shares of rule 1's clearance a seam may be held to when no ring clears the whole of it, tried in this order after the full clearance has failed within both shares of the arm (a retry only: a skin that has a clearing ring never moves). A seam on a ring clearing the blend by
- *  less than the full margin leaves a ring of the blend's own tail at the seam, a step well under a pixel at 0.8 and thin at 0.6; a skin lost to the old join is a bulb or a gap. It is what keeps a course that moves by a third of a radius from costing a junction its skin
- *  (PVH's DIPS moved that far left PVH_R with no ring clear of the trunk, the left branch, the shunt and its own start in 17: tests/skin-course-shift.test.ts). */
+/**
+ * The shares of rule 1's clearance a seam may be held to when no ring clears the whole of it, tried in this order after the full
+ * clearance has failed within both shares of the arm (a retry only: a skin that has a clearing ring never moves). A seam on a ring that
+ * clears the blend by less than the full margin leaves a trace of the blend's tail at the seam, a step well under a pixel at 0.8 and
+ * thin at 0.6; a skin lost to the old join is a bulb or a gap. It keeps a course that moves by a third of a radius from costing a
+ * junction its skin (PVH's DIPS moved that far left PVH_R with no ring clear of the trunk, the left branch, the shunt and its own
+ * start in 17 rings: tests/skin-course-shift.test.ts).
+ */
 export const CLEAR_SLACK = [0.8, 0.6] as const;
 /** The tries the hull rule gets before the junction is given up (rule 3). */
 export const MAX_TRIES = 40;
