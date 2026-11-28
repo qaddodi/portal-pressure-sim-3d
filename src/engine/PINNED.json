@@ -2,7 +2,7 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "7322eaedc15dffec0b6709934120dac7f1906fd6"
+    "commit": "ec1201065e9c57f54e9030d681b0588a73539708"
   },
   "files": {
     "hales/core/ease-move.js": "8b1ec51ee324cb2f95242b568c623e2dcd801b3ec48c11712a82c92852ac6449",
@@ -22,7 +22,7 @@
     "hales/portal/explain-ids.js": "326c21384fb0757403a9fb924d7aff0395e970dbb09a11d2aff3f5c5c09a70d4",
     "hales/portal/explain.js": "4bd3405d5ec6e7e30c40a8e68c707406b3afaaaa7332458df8d79903209228f1",
     "hales/portal/fingerprint.js": "caa55bdc585e6e2caae1d525a538ef2f1e5bb9d79a152584e64401a3411a0116",
-    "hales/portal/flow-cuts.js": "b2e363a0688b9cae7c4147f8b028f7cd7176997e096554bc2f78cbe2ee686c52",
+    "hales/portal/flow-cuts.js": "01d4776ffa5a5ce6f1f9c9feb807df4c4b137fcedb18c6836fc0eb950ec95fc2",
     "hales/portal/inverse-families.js": "3ef753812ec7b5cd108839757d0c2adb3bf451d651e0869eaa2c4ee067a40d9f",
     "hales/portal/inverse-library.js": "57a5fca03ed93327e0737c0f2196ec1ed9c394e99e4b7ac85911821aabbc9fd8",
     "hales/portal/inverse-run.js": "a05c632321afd1792117fe5994ee86352f5ce1b4688873947bc2da107855e919",
@@ -34,7 +34,7 @@
     "hales/portal/lc-first.js": "9afb5c1db2a77b6747ec7e4ffb9612d40814222e8ad008a8c76f620a839a5e71",
     "hales/portal/lsm-cuts.js": "d3a39afa95f63aa66d151145e3e0fcbfdc4aabc9fa911b6cb441d8a307401865",
     "hales/portal/lymph.js": "e6bb115903b5ae7c8e28b58c4653fd0e2d1b97c106ffc5a56b47ce0cbc381e3c",
-    "hales/portal/metrics.js": "8e6754984fe48415fd4a458f5f9ac53dd1150c2b56b2a497c34ea265edec2a70",
+    "hales/portal/metrics.js": "bc67c88ee62cdee56ca604ae60c255849f941d71a21372e23d0a1bdf811cf523",
     "hales/portal/pressure-cuts.js": "7f96e7d40a3584ba0aa0dad13da019b22b00bcc9164a76d657501347d656e990",
     "hales/portal/risk-scores.js": "623e2f926b510e0f32d2cc80bd00ca16aac41a10314af4d4b58e6a9307c87bf3",
     "hales/portal/scenario.js": "918e047bc91b6bd3d372040aa2d39dc83cd2e54a0c3f5c3ecf6c2171b1ac44ee",
