@@ -74,10 +74,14 @@ const statusOf = (r: RunResult, id: string): string => (!r.comparison ? '' : r.c
 const cell = (s: string): string => s.replace(/\|/g, '\\|').replace(/\n+/g, ' ');
 const MARK: Record<State, string> = { pass: 'pass', fail: 'FAIL', 'not-run': 'not run', 'n/a': '-' };
 
+const comparisonCounts = (c: Comparison) => ({ new: c.new.length, still: c.still.length, fixed: c.fixed.length, unverified: c.unverified.length });
+
 /** The part of REPORT.md that says what changed since the last run of the same request. */
 function comparisonMd(c: Comparison): string[] {
   const a = c.against, L: string[] = ['## Since the last run', ''];
-  L.push(`Compared with \`${a.zip.replace(/^.*\//, '')}\` (build \`${a.build.slice(0, 8)}\`, ${a.startedAt}, ${a.findings} finding${a.findings === 1 ? '' : 's'}${c.sameRequest ? '' : `; ANOTHER request: ${a.request}`}).`, '');
+  const other = c.sameRequest ? '' : `; ANOTHER request: ${a.request}`;
+  const file = a.zip.replace(/^.*\//, ''), many = `${a.findings} finding${a.findings === 1 ? '' : 's'}`;
+  L.push(`Compared with \`${file}\` (build \`${a.build.slice(0, 8)}\`, ${a.startedAt}, ${many}${other}).`, '');
   L.push(`- **${c.new.length} new**${c.new.length ? `: ${c.new.join(', ')}` : ''}`, `- **${c.still.length} still there**`, `- **${c.fixed.length} fixed**${c.fixed.length ? ':' : ''}`);
   for (const f of c.fixed) L.push(`  - ${f.id} (${f.severity}, ${f.check}): ${cell(f.target)}`);
   if (c.unverified.length) {
@@ -216,7 +220,7 @@ export function bundleFiles(r: RunResult): BundleFile[] {
         items: r.items.map((i) => ({ section: i.section, id: i.id, label: i.label, checks: i.checks, findings: i.findings })),
         sections: names, pictures: r.pictures,
         counts: { findings: r.findings.length, ...count(r.findings) },
-        comparison: r.comparison ? { against: r.comparison.against, new: r.comparison.new.length, still: r.comparison.still.length, fixed: r.comparison.fixed.length, unverified: r.comparison.unverified.length } : null,
+        comparison: r.comparison ? { against: r.comparison.against, ...comparisonCounts(r.comparison) } : null,
       }, null, 1)}\n`,
     },
   ];

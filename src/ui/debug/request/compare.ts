@@ -1,4 +1,5 @@
-// What changed since the last run of the same request: which findings are new, which are still there and which are fixed. A finding is the same finding when its id is the same (finding.ts), so a fixing
+// What changed since the last run of the same request: which findings are new, which are still there and which are fixed.
+// A finding is the same finding when its id is the same (finding.ts), so a fixing
 // thread can say "F-3a91c2 is fixed" and the next run says it for them.
 // A finding counts as FIXED only when the same request was run again and its check ran this time: a finding of a check that did not run (or of a request that differs) is `unverified`, never fixed.
 // Pure: the earlier run is read from its findings.json and manifest.json (`earlierRun`), the node runner finds the zip.
