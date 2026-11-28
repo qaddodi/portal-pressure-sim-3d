@@ -23,6 +23,9 @@ export interface Course {
   clamp?: readonly [Buried | null, Buried | null];
   /** smooth joins: the share of the course each end's `taper` eases over (0.3 as the 2D tubes do; a vein narrowing into a thin bed funnels over the whole of it, so it never swells into a bulb) */
   taperSpan?: readonly [number, number];
+  /** a narrowing written along a WHOLE host (shape.ts LIVER_TAPER): this course is the stretch [p, q] of the host's length,
+   *  so its width at `u` is the host's own at share p + u (q - p), whichever piece the junction table makes of it */
+  along?: AlongTaper;
   /** a surgical shunt's sewn ends (shunt-ends.ts): the end inside its host narrows to nothing past the wall (2D sideEndScale) and the heel flares toward it (flareScale) */
   sewn?: readonly [ShuntEnd | null, ShuntEnd | null];
   /** smooth joins: nothing meets this end, so the tube tapers to a point over its last stretch (`pointLength`) instead of ending in a round cap */
@@ -41,6 +44,14 @@ const smooth = (u: number) => u * u * (3 - 2 * u);
 /** The share of alpha a fan's free tip has taken off at `u` along its course: 0 before `from`, a smooth ease to 1 (nothing) at the end. */
 export const tipK = (from: number | undefined, u: number): number => (from == null ? 0 : smooth(Math.min(1, Math.max(0, (u - from) / Math.max(1 - from, 1e-4)))));
 /** The same with each end's own span (the share of the course it eases over); with 0.3 and 0.3 it is `factorAt`. */
+/** A narrowing along a host, in shares of the host's drawn length: from `from` it eases (smoothstep) to `tip` of the width at the host's end; this course covers the host's stretch [p, q]. */
+export interface AlongTaper { p: number; q: number; from: number; tip: number }
+/** The share of its width a course keeps at `u` for a narrowing written along its host (1 for none). */
+export const alongFactor = (a: AlongTaper | undefined, u: number): number => {
+  if (!a) return 1;
+  const s = a.p + u * (a.q - a.p), e = Math.min(1, Math.max(0, (s - a.from) / (1 - a.from)));
+  return 1 + (a.tip - 1) * smooth(e);
+};
 export const factorSpan = (t: readonly [number, number], sp: readonly [number, number], u: number): number => {
   const fs = u < sp[0] ? t[0] + (1 - t[0]) * smooth(u / sp[0]) : 1, fe = u > 1 - sp[1] ? 1 + (t[1] - 1) * smooth((u - (1 - sp[1])) / sp[1]) : 1;
   return fs < 1 && fe < 1 ? Math.min(fs, fe) : fs * fe;   // (two narrowings that overlap, a funnel and a tapered end, take the narrower: the radius then rises from each end to the middle and never dips on the way)
@@ -53,7 +64,7 @@ const factorAt = (t: readonly [number, number] | undefined, u: number): number =
 
 /** A course's radius at `u` (0 to 1 along it) as its tube is built, without the collar and the bead: its own radius, its end tapers, a buried end held under its trunk and a free end's point. `len` is the course's length (scene units). */
 export function radiusAtU(c: Course, u: number, len: number): number {
-  let f = c.taper && c.taperSpan ? factorSpan(c.taper, c.taperSpan, u) : factorAt(c.taper, u);
+  let f = (c.taper && c.taperSpan ? factorSpan(c.taper, c.taperSpan, u) : factorAt(c.taper, u)) * alongFactor(c.along, u);
   let R = c.radius * f;
   const d0 = u * len, d1 = (1 - u) * len;
   if (c.clamp) R = Math.min(buriedRadius(R, d0, c.clamp[0]), buriedRadius(R, d1, c.clamp[1]));
@@ -169,7 +180,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     for (let k = 0; k <= seg; k++) {
       const u = k / seg, ua = curve.at(u);   // (ua: the share of the arc the ring sits at: its distances to the ends are ua * clen)
       const rr = open && c.hold?.r0 != null ? (c.hold.r0 + (c.radius - c.hold.r0) * holdWeight(c.hold, u)) / c.radius : 1;
-      let f = (open ? ((c.taper && c.taperSpan ? factorSpan(c.taper, c.taperSpan, u) : factorAt(c.taper, u)) + (collar(0, ua * clen) + collar(1, (1 - ua) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (1 + ((beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) - 1) * (c.hold ? holdWeight(c.hold, u) : 1)) : 1) : 1) * rr;
+      let f = (open ? ((c.taper && c.taperSpan ? factorSpan(c.taper, c.taperSpan, u) : factorAt(c.taper, u)) * alongFactor(c.along, u) + (collar(0, ua * clen) + collar(1, (1 - ua) * clen)) / c.radius) * (c.bead && c.bead.b > 0 ? (1 + ((beadRadius(1, c.bead.b, u, c.bead.len, c.bead.ph, c.bead.u0, c.bead.lambda) as number) - 1) * (c.hold ? holdWeight(c.hold, u) : 1)) : 1) : 1) * rr;
       curve.getPointAt(k / seg, P);
       if (open && c.sewn) {
         const f0 = f, a0 = sewnAt(c.sewn[0], 0, ua * clen), a1 = sewnAt(c.sewn[1], 1, (1 - ua) * clen);
@@ -208,7 +219,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     tube.setAttribute('tang', new Float32BufferAttribute(tang, 3));
     // the radius a round cap is built at: the tube's own at that end (the collar's, a buried end's held inside its trunk, a free end's tip); none at an end that carries on
     const capRadius = (end: number): number => {
-      let r = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) * sewnAt(c.sewn?.[end], end, 0) + collar(end, 0) : HAIR;
+      let r = open && !c.capless?.[end] ? c.radius * factorAt(c.taper, end) * alongFactor(c.along, end) * sewnAt(c.sewn?.[end], end, 0) + collar(end, 0) : HAIR;
       if (r > HAIR && c.hold?.r0 != null && (end ? c.hold.b : c.hold.a) > 0) r *= c.hold.r0 / c.radius;   // (a held end keeps its rest width: bands do not reach the seam)
       if (open && r > HAIR && c.clamp?.[end]) r = Math.min(r, c.clamp[end]!.max);
       if (open && r > HAIR && c.point?.[end]) r *= TIP_K;
