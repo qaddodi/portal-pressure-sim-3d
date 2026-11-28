@@ -51,9 +51,7 @@ test('G1: the mesh drawn at a patient is the union of the arms that are there: e
   const g = gateSkins();
   try {
     assert.deepEqual(g.set.partFailed.map((m) => m.split(': ')[0]).filter((k) => !PART_FOLDED.some((f) => `${f.skin}:${f.key}` === k)), [], 'every part built but those named in PART_FOLDED');
-    // (SVD's two parts bulge 0.473 radii against BULGE_MAX 0.45 on the merged splenic skin, 28 Nov: named with a ceiling, so a worse bulge or a new one fails; Group C, skin quality, owns bringing it under the limit and deleting the line)
-    const BULGE_NAMED: Record<string, number> = { 'SVD': 0.5 };
-    assert.deepEqual(g.set.bulgeOver.filter((o) => !(o.bulge <= (BULGE_NAMED[o.node.split(/[+~]/)[0]!] ?? 0))), [], 'no part bulges past BULGE_MAX but those named in BULGE_NAMED, under their ceiling');
+    assert.deepEqual(g.set.bulgeOver, [], 'no part bulges past BULGE_MAX');
     const CAVA = keyWith(g, 'S_PC'), AZY = keyWith(g, 'C1b');
     const growersOf = (k: string): string[] => g.skins.find((x) => x.node === k)!.mesh.junction.arms.filter((a) => a.grow).map((a) => a.vesselId);
     assert.equal(keyWith(g, 'C9'), CAVA, 'the lumbar vein and the portocaval shunt land on one skin');
