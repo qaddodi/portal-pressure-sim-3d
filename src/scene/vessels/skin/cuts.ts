@@ -256,7 +256,8 @@ export function planSkins(js: readonly SkinJunction[], tubes: ReadonlyMap<string
         const permanent = arms.filter((m) => !m.grow).length;
         if (permanent > MERGED_MAX_PERMANENT || permanent < 3 || arms.length > MERGED_MAX_ARMS) { failures.push(new SkinBuildError(node, `${permanent} permanent arms and ${arms.length - permanent} growing ones after the merge (3 to ${MERGED_MAX_PERMANENT} permanent, at most ${MERGED_MAX_ARMS} in all)`)); break; }
         const J: Vec3 = [(A.J[0] + B.J[0]) / 2, (A.J[1] + B.J[1]) / 2, (A.J[2] + B.J[2]) / 2];
-        const mj: SkinJunction = { node, J, arms };
+        // (a node retried meshed from the surface (skin-set.ts produce) keeps that in the merge: the hull of the rings is what failed for it)
+        const mj: SkinJunction = { node, J, arms, ...(A.surface || B.surface ? { surface: true } : {}) };
         try { out.push({ junction: mj, cuts: chooseCuts(mj, tubes, hullFor(mj)), hidden: [ca.vesselId], merged: [A.node, B.node] }); }
         catch (e) { if (e instanceof SkinBuildError) failures.push(e); else throw e; }
       }
