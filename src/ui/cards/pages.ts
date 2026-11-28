@@ -1,24 +1,8 @@
 // A card taller than its room splits into pages (it never shrinks its text and never scrolls). The split is by whole sentences, evenly, and a
 // card asks for one more page only when the page on show does not fit. Pure rules here; CardLayer measures.
 
-/** Sentences of a line's markup: a full stop, ? or ! then a capital, a { or a [ starts the next one. */
-export function sentences(line: string): string[] {
-  return line.split(/(?<=[.!?])\s+(?=[A-Z{\[])/).map((s) => s.trim()).filter(Boolean);
-}
-
-/** Where page `page` (0-based) of `n` pages starts and ends in a list of `len` whole items: shared out evenly, earlier pages taking the extra one. */
-export function pageSpan(len: number, n: number, page: number): { from: number; to: number } {
-  const pages = Math.max(1, Math.min(n, len));
-  const per = Math.floor(len / pages), extra = len % pages;
-  const from = page * per + Math.min(page, extra);
-  return { from, to: from + per + (page < extra ? 1 : 0) };
-}
-
-/** Page `page` (0-based) of `n` pages: the sentences (or a table's rows) shared out evenly, earlier pages taking the extra one. */
-export function pageOf<T>(list: readonly T[], n: number, page: number): T[] {
-  const { from, to } = pageSpan(list.length, n, page);
-  return list.slice(from, to);
-}
+// (sentences, pageSpan and pageOf live in decks/overlay.ts, where the cut of a slide into slides is made, so the boot entry gains no file for them: tests/boot-entry.test.ts)
+export { sentences, pageSpan, pageOf } from '../../decks/overlay.ts';
 
 /** The most pages a card can have: the title card two (the talk, then its objectives) and the quick check one per question, the two cards that are not a slide's words. A slide's words never page
  *  (Mohammad, 28 Nov): the line, a case and a summary table that do not fit are cut into more slides (decks/overlay.ts amendSplitPages),

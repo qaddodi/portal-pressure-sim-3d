@@ -16,7 +16,6 @@ import { amendControls } from './overlay/controls.ts';
 import { amendLadder } from './overlay/ladder.ts';
 import { amendInstruments } from './overlay/instruments.ts';
 import { amendLobule } from './overlay/lobule.ts';
-import { sentences, pageOf, pageSpan } from '../ui/cards/pages.ts';
 
 /** The 3D fields a slide may carry beyond the 2D deck's own. */
 export interface SlideOverlay {
@@ -155,4 +154,23 @@ export function amendSplitPages(c: CopiedDeck, table: Readonly<Record<string, nu
     }
   }
   return { ...c, slides };
+}
+
+/** Sentences of a line's markup: a full stop, ? or ! then a capital, a { or a [ starts the next one. */
+export function sentences(line: string): string[] {
+  return line.split(/(?<=[.!?])\s+(?=[A-Z{\[])/).map((s) => s.trim()).filter(Boolean);
+}
+
+/** Where page `page` (0-based) of `n` pages starts and ends in a list of `len` whole items: shared out evenly, earlier pages taking the extra one. */
+export function pageSpan(len: number, n: number, page: number): { from: number; to: number } {
+  const pages = Math.max(1, Math.min(n, len));
+  const per = Math.floor(len / pages), extra = len % pages;
+  const from = page * per + Math.min(page, extra);
+  return { from, to: from + per + (page < extra ? 1 : 0) };
+}
+
+/** Page `page` (0-based) of `n` pages: the sentences (or a table's rows) shared out evenly, earlier pages taking the extra one. */
+export function pageOf<T>(list: readonly T[], n: number, page: number): T[] {
+  const { from, to } = pageSpan(list.length, n, page);
+  return list.slice(from, to);
 }
