@@ -62,24 +62,27 @@ test('SVD with the shunt: the skin is {V_SPL, S_DSR} (or {V_SPL, S_DSR, C2}), th
     assert.ok(growers(svdArms).includes('S_DSR'), 'the Warren shunt is a growing arm of the SVD skin');
     // (a part the rule has but that did not build is NAMED in PART_FOLDED with its reason, never silent: the keys are the rule's, less the named ones, and a named one that builds again fails here so the name goes)
     const folded = PART_FOLDED.filter((f) => f.skin === svdKey).map((f) => f.key);
-    assert.deepEqual([...svd.keys()].sort(), expectedPartKeys(svdArms).filter((k) => !folded.includes(k)));
+    assert.deepEqual([...svd.keys()].sort(), expectedPartKeys(svdArms).filter((k) => !folded.includes(k)).sort());
     assert.deepEqual([...conf.keys()], ['3L']);
     const idsOf = (n: string, k: string): readonly string[] => b.set.armIdsOf(b.set.partsOf(n).get(k)!.draw);
     const others = growers(svdArms).filter((g) => g !== 'S_DSR');
-    const kShunt = partKeyOf(svdArms, ['S_DSR'], true), kAll = partKeyOf(svdArms, growers(svdArms), true);
+    // (when the divided vein's start is an arm of the skin (the skin of the shunt alone) it LEAVES while the shunt is in: parts `L`. When a merged skin takes the whole stretch (SV+SVD hides SV_MID, the vein's start, whole), there is no such arm and no `L` part: the skin is read from its own arms)
+    const L = svdArms.some((a) => a.leaves), vein = svdArms.find((a) => !a.grow && a.vesselId.startsWith('V_SPL'))!.vesselId;
+    if (!L) assert.ok(b.set.hiddenOf(svdKey).includes('SV_MID'), 'no leaving arm: the merged skin hides the divided vein\'s start whole');
+    const kShunt = partKeyOf(svdArms, ['S_DSR'], L), kAll = partKeyOf(svdArms, growers(svdArms), L);
     let svdStraight = false;
-    assert.deepEqual(idsOf(svdKey, kShunt), partIdsOf(svdArms, ['S_DSR'], true));
-    assert.deepEqual(idsOf(svdKey, kShunt), ['V_SPL', 'S_DSR']);
-    if (!folded.includes(kAll)) { assert.deepEqual(idsOf(svdKey, kAll), partIdsOf(svdArms, growers(svdArms), true)); assert.deepEqual(idsOf(svdKey, kAll), ['V_SPL', 'S_DSR', ...others]); }
+    assert.deepEqual(idsOf(svdKey, kShunt), partIdsOf(svdArms, ['S_DSR'], L));
+    assert.ok(idsOf(svdKey, kShunt).includes(vein) && idsOf(svdKey, kShunt).includes('S_DSR'), 'the splenic vein and the shunt');
+    if (svd.has(kAll)) { assert.deepEqual(idsOf(svdKey, kAll), partIdsOf(svdArms, growers(svdArms), true)); assert.ok(['S_DSR', ...others].every((id) => idsOf(svdKey, kAll).includes(id))); }
     assert.deepEqual(idsOf(confKey, '3L'), ['SV_CONF', 'SMV_CONF', 'S_PC']);   // (in the placed junction's arm order: PV_TRUNK_1, SV_CONF, SMV_CONF, S_PC)
-    for (const [n, k] of [[svdKey, kShunt], ...(folded.includes(kAll) ? [] : [[svdKey, kAll] as const]), [confKey, '3L']] as const) {
+    for (const [n, k] of [[svdKey, kShunt], ...(svd.has(kAll) ? [[svdKey, kAll] as const] : []), [confKey, '3L']] as const) {
       const p = b.set.partsOf(n).get(k)!, ax = b.axes.get(p.draw as SkinObject)!;
       assert.ok(!idsOf(n, k).some((id) => id === 'SV_MID' || id === 'PV_TRUNK_1'), `${n} ${k}: the divided vein is not an arm`);
       assert.equal(foldedTriangles(p.mesh.position, p.mesh.normal, p.mesh.index).length, 0, `${n} ${k}: no folded triangle`);
       // the shunt is half of the run it stands for, whatever the growing rule says of a branch
       // (placed anatomy: a shunt carries the run on when it leaves along the vein's line (within THROUGH_DEG of straight); the placed Warren shunt leaves the splenic vein 49 degrees off its line, toward the renal vein below, and the end-to-side
       //  portocaval the splenic vein 39 degrees off. A straight capsule from seam to seam would cut that corner, so those parts are a BEND of the two (each its own capsule, blended): unpaired, and no fold or bulge (above). The 2D shunts ran on the line)
-      const sh = idsOf(n, k).indexOf(n === svdKey ? 'S_DSR' : 'S_PC'), vi = idsOf(n, k).indexOf(n === svdKey ? 'V_SPL' : 'SV_CONF');
+      const sh = idsOf(n, k).indexOf(n === svdKey ? 'S_DSR' : 'S_PC'), vi = idsOf(n, k).indexOf(n === svdKey ? vein : 'SV_CONF');
       const od = (a: ArmAxis): number[] => { const d = [0, 1, 2].map((i) => a.pts[3][i]! - a.pts[2][i]!), l = Math.hypot(d[0]!, d[1]!, d[2]!); return d.map((x) => x / l); };
       const straight = od(ax[sh]!).reduce((t, x, i) => t + x * od(ax[vi]!)[i]!, 0) < -Math.cos((THROUGH_DEG * Math.PI) / 180);
       if (straight) assert.ok(ax[sh]!.mate !== undefined, `${n} ${k}: the shunt is through-paired`);
@@ -96,7 +99,7 @@ test('SVD with the shunt: the skin is {V_SPL, S_DSR} (or {V_SPL, S_DSR, C2}), th
     assert.ok(dot < -Math.cos((THROUGH_DEG * Math.PI) / 180), `a through run: outward dot ${dot.toFixed(3)} (within ${THROUGH_DEG} degrees of straight is under ${(-Math.cos((THROUGH_DEG * Math.PI) / 180)).toFixed(3)})`);
     const rv = v.radii[2]!, rs = s.radii[2]!;
     // (the seam radii are the two tubes' own at the cuts, read from the network and not typed: the vein's nominal radius, and the shunt's within a few percent of its own, a tube that tapers thins toward its end)
-    const Rv = NETWORK_BY_ID.get('V_SPL')!.radius, Rs = NETWORK_BY_ID.get('S_DSR')!.radius;
+    const Rv = NETWORK_BY_ID.get(vein)!.radius, Rs = NETWORK_BY_ID.get('S_DSR')!.radius;
     assert.ok(Math.abs(rv - Rv) < 0.01 * Rv && rs <= Rs * 1.01 && rs >= Rs * 0.9, `seam radii ${rv.toFixed(4)} -> ${rs.toFixed(4)} (tubes ${Rv.toFixed(4)}, ${Rs.toFixed(4)})`);
     assert.ok(rs / rv - 1 < 0.09, `an even ${(100 * (rs / rv - 1)).toFixed(1)} % taper`);
     // the run's radius along the straight capsule from V_SPL's seam to the shunt's: monotone from the vein's to the shunt's, never over either (v.radii[0] is the shunt's seam radius, the run's far end)
@@ -116,18 +119,19 @@ test('the skin that is DRAWN follows the vein: with the shunt in and the vein di
     const keyOf = (n: string): string => skinKey(b.set.nodes, n)!;
     const modeOf = (n: string, k?: string) => (k ? (b.set.partsOf(keyOf(n)).get(k)!.draw as SkinObject) : (b.set.liveDraws().find((d) => (d as SkinObject).mesh.name === `skin:${keyOf(n)}`) as SkinObject)).weldOf!();
     const svdArms = b.set.skinOf(keyOf('SVD'))!.junction.arms, growers = svdArms.filter((a) => a.grow).map((a) => a.vesselId), others = growers.filter((g) => g !== 'S_DSR');
-    const kShunt = partKeyOf(svdArms, ['S_DSR'], true), kAll = partKeyOf(svdArms, growers, true), kUndivided = partKeyOf(svdArms, ['S_DSR']);
+    const L = svdArms.some((a) => a.leaves), vein = svdArms.find((a) => !a.grow && a.vesselId.startsWith('V_SPL'))!.vesselId;
+    const kShunt = partKeyOf(svdArms, ['S_DSR'], L), kAll = partKeyOf(svdArms, growers, L), kUndivided = partKeyOf(svdArms, ['S_DSR']);
     // (at rest every collateral is drawn: only the shunt is in here; the collaterals of the skin and C2, which keeps the tube's own end, are out)
     for (const c of ['C2', ...others]) (b.scene.vesselObject(c) as VesselObject).group.visible = false;
     show(b, 'S_DSR'); b.set.sync();
     assert.deepEqual(modeOf('SVD', kShunt), [1, 1], 'Warren: the part without SV_MID is the skin in');
-    assert.equal((b.scene.vesselObject('SV_MID') as VesselObject).skinWeld(0), 0, 'the divided vein\'s own start is left to its stump (the cut end is not given to a skin)');
-    assert.equal((b.scene.vesselObject('V_SPL') as VesselObject).skinWeld(1), 1, 'the splenic vein\'s other half is welded');
+    if (L) assert.equal((b.scene.vesselObject('SV_MID') as VesselObject).skinWeld(0), 0, 'the divided vein\'s own start is left to its stump (the cut end is not given to a skin)');
+    assert.equal((b.scene.vesselObject(vein) as VesselObject).skinWeld(1), 1, 'the splenic vein\'s other half is welded');
     flags.S_DSR = false; b.set.sync();
     assert.deepEqual(modeOf('SVD', kUndivided), [1, 1], 'the vein not divided (the shunt\'s drawing under a hair): the skin that carries it');
-    assert.equal((b.scene.vesselObject('SV_MID') as VesselObject).skinWeld(0), 1);
+    if (L) assert.equal((b.scene.vesselObject('SV_MID') as VesselObject).skinWeld(0), 1);
     flags.S_DSR = true; for (const c of others) show(b, c); b.set.sync();
-    assert.deepEqual(modeOf('SVD', PART_FOLDED.some((f) => f.key === kAll) ? undefined : kAll), [1, 1], `with the skin's other growers too (${others.join(', ')}): the shunt, the vein's far half and them`);
+    assert.deepEqual(modeOf('SVD', b.set.partsOf(keyOf('SVD')).has(kAll) ? kAll : undefined), [1, 1], `with the skin's other growers too (${others.join(', ')}): the shunt, the vein's far half and them`);
     // the portocaval: end-to-side divides the trunk, side-to-side keeps it
     show(b, 'S_PC'); b.set.sync();
     assert.deepEqual(modeOf('CONF', '3L'), [1, 1], 'end-to-side: SMV_CONF, SV_CONF and S_PC');

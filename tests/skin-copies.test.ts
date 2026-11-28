@@ -107,7 +107,9 @@ test('at every arm\'s seam each copy\'s alpha is the arm tube\'s own alpha of th
 
 test('a skin has no visibility of its own: it shows a copy only where an arm that is there has a share of it, and a hidden arm or one not yet drawn gives it nothing', () => {
   withScene((s, built) => {
-    const b = built.find((x) => x.node === 'SVC_E')!;   // (the epigastric vein's junction on the SVC: its arm 2 is the epigastric vein, drawn in front. The azygos's junction SVC carries the growing C1b, so in Healthy its plain trunk is the drawn skin, not this one)
+    const b = built.find((x) => skinKey([x.node], 'SVC_E'))!;   // (the epigastric vein's junction on the SVC: its arm 2 is the epigastric vein, drawn in front. The azygos's junction SVC carries the growing C1b, so in Healthy its plain trunk is the drawn skin, not this one)
+    const epi = b.arms.findIndex((a) => a.id === 'EPI_SVC');   // (the epigastric vein's arm, found by its id: the skin is the merged SVC+SVC_E)
+    assert.ok(epi >= 0);
     sync(s);
     assert.ok(b.draw.copies.some((m) => m.visible));
     // every arm hidden by the scene (presence): no copy is drawn
@@ -115,17 +117,17 @@ test('a skin has no visibility of its own: it shows a copy only where an arm tha
     sync(s);
     assert.deepEqual(b.draw.copies.map((m) => m.visible), [false, false, false], 'a skin whose arms are all hidden is not there');
     // one arm back: its own copies only
-    b.arms[2]!.obj.group.visible = true;
+    b.arms[epi]!.obj.group.visible = true;
     sync(s);
-    const own = b.arms[2]!.obj.copyShares();
+    const own = b.arms[epi]!.obj.copyShares();
     assert.deepEqual(b.draw.copies.map((m) => m.visible), own.map((x) => x > 1e-3), 'only the copies the drawn arm has');
     // still drawing on: a tube whose reveal has not reached its seam gives its skin nothing at that arm
     for (const a of b.arms) a.obj.group.visible = true;
-    b.arms[2]!.obj.setReveal(0);
-    b.arms.forEach((a, i) => { if (i !== 2) a.obj.group.visible = false; });
+    b.arms[epi]!.obj.setReveal(0);
+    b.arms.forEach((a, i) => { if (i !== epi) a.obj.group.visible = false; });
     sync(s);
     assert.deepEqual(b.draw.copies.map((m) => m.visible), [false, false, false], 'reveal 0 and the others hidden: the seam is not drawn, so neither is the skin');
-    b.arms[2]!.obj.setReveal(1);
+    b.arms[epi]!.obj.setReveal(1);
     for (const a of b.arms) a.obj.group.visible = true;
     sync(s);
     assert.deepEqual(b.draw.copies.map((m) => m.visible), [true, true, true], 'all there again');
