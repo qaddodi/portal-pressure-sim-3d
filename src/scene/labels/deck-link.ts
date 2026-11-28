@@ -12,6 +12,7 @@ import { KEY_LENSES, keyPlace } from './key.ts';
 import { DEFAULT_LENS, type LensId } from '../lenses/model.ts';
 import { shownLens } from '../lenses/in-view.ts';
 import { dataKeys, type DataAt } from '../../ui/cards/keep.ts';
+import { gatedSlide } from '../../ui/cards/proc-gate.ts';
 
 export interface LabelsAt {
   named: Set<string>; shown: Set<string>; tones: Record<string, string>; cath: CathState | null;
@@ -98,7 +99,7 @@ export function labelsAt(stops: Stop[], pos: { stop: number; beat: number }, dec
   if (!v.slide || v.words === 'case') return { ...NONE(), panel: v.words === 'title' };
   const k = keyAtStop(stops, pos.stop, pos.beat), panel = v.words === 'visual';
   // (a stream lens's key stands in its data card when one stands there, else here: keyHomes. `data` is the talk's data cards (keep.ts); without it the card is taken to stand)
-  const key = keyHomes({ own: k, buttons: false, pressed: null, cardStands: data ? data[pos.stop]?.kind === 'ladder' : true }).dock;
+  const key = keyHomes({ own: k, buttons: false, pressed: null, cardStands: (data ? data[pos.stop]?.kind === 'ladder' : true) && !gatedSlide(v.slide, copiedSlideOf(deckId, v.slide)) }).dock;
   const copied = copiedSlideOf(deckId, v.slide), controls = controlNamesOf(v.slide);
   if (copied) {
     const p = figurePlan(copied);

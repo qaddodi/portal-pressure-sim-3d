@@ -24,7 +24,7 @@ import { TeachingCard } from './TeachingCard.tsx';
 import { LadderCard } from './LadderCard.tsx';
 import { TilesCard, TilesHead } from './TilesCard.tsx';
 import { CardKey } from './CardKey.tsx';
-import { cardKeyAt } from '../../scene/labels/deck-link.ts';
+import { cardKeyAt, copiedSlideOf } from '../../scene/labels/deck-link.ts';
 import { useLabels } from '../../scene/labels/store.ts';
 import { CheckCard } from './CheckCard.tsx';
 import { nameTabOf } from './NameTab.tsx';
@@ -95,7 +95,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const here = dataAt[pos.stop] ?? null;
   // a procedure slide's graph card waits for its procedure (proc-gate.ts): until it is done the slide has its words card alone and the figure has the rest of the screen
   const atSlide = stops[pos.stop]?.kind === 'slide' ? (stops[pos.stop] as { slide: Slide }).slide : null;
-  const gated = !!here && here.from === pos.stop && gatedSlide(deck, atSlide);
+  const gated = !!here && here.from === pos.stop && gatedSlide(atSlide, atSlide ? copiedSlideOf(deck.id, atSlide) : null);
   const procOpen = useProc((p) => !gated || (!!atSlide && procOver(p, `${deck.id}/${atSlide.id}`)));
   const view = useMemo(() => {
     if (!stops.length) return null;
@@ -419,7 +419,7 @@ export function CardLayer({ deck }: { deck: Deck }) {
   const stacked = layoutOf(vp.w, vp.h) === 'stack' || layoutOf(vp.w, vp.h) === 'tab';
   // each card draws what it was given when it came in, so a card that is leaving keeps its own words while it goes
   const snaps = snapRef.current;
-  const now: Snap = { deck, dkey: cardKeyAt(stops, pos.stop, pressedLens, here?.kind === 'ladder'), slide: view.slide, dslide: carried ?? view.slide, pages, at, trim, readings };
+  const now: Snap = { deck, dkey: cardKeyAt(stops, pos.stop, pressedLens, here?.kind === 'ladder' && !gated), slide: view.slide, dslide: carried ?? view.slide, pages, at, trim, readings };
   const content = (e: Entry) => {
     // (only the card the view is on takes the view's words: for the render before a slide change reaches the stack, the card still standing is the old slide's, and must keep its own)
     if (e.phase === 'in' && (e.key === wordsKey || e.key === dataKey)) snaps[e.key] = now;
