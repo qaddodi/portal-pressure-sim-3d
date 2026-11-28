@@ -11,7 +11,8 @@
 .pz-sitetab { position: absolute; top: 0; left: 0; z-index: 1; height: var(--pz-tabh); display: flex; align-items: center; padding: 0 calc(var(--pz-tabh) * .55) 0 calc(var(--pz-tabh) * .55 - .05em); border-radius: var(--pz-tab-ro, 0px) 0 calc(var(--pz-tabh) * .5) 0; background: color-mix(in srgb, var(--site) 16%, transparent); font: var(--caps-w) var(--pz-tabf)/1 var(--font-ui); letter-spacing: var(--caps-ls); text-transform: uppercase; white-space: nowrap; color: color-mix(in srgb, var(--site) 66%, var(--text)); pointer-events: none; user-select: none; }
 .pz-stop :is(.pz-val, .pz-term) { margin-inline-end: .08em; }   /* (descendant, not child: a value's pill sits inside its no-break span, so "2.2 g/dL." kept the full .14em gap and read "2.2 g/dL .") */
 .pz-stop .pz-step { margin-inline-end: .1em; }
-.pz-term:not(.pz-lens-t) { display: inline; padding: 0; margin: 0; border-radius: 0; background: none; box-shadow: none; font-weight: 600; color: color-mix(in srgb, var(--tone) 66%, var(--text)); }
+.pz-term:not(.pz-lens-t) { display: inline; padding: 0; margin: 0; border-radius: 0; background: none; box-shadow: none; font-weight: 600; color: color-mix(in srgb, var(--tone-ink, var(--tone)) 66%, var(--text)); }
+.app.pz-hi .pz-term:not(.pz-lens-t) { box-shadow: none; color: color-mix(in srgb, var(--tone-ink, var(--tone)) 65%, var(--text)); }
 /* A procedure's steps: ONE row (Mohammad, 22 Nov, mock A, every procedure; ui/cards/ProcRow.tsx, ui/cards/proc-rail.ts). A round accent play button, a track with one dot
    per step, the step on show by name. The fill (the step the animation is on) and the ring (the step Next or Back has navigated to, his two marks, 13 Nov) move by transform
    and glide; the dots change colour with an ease; the name fades in. Nothing reflows: the track's width is set by the step count, the words take what is left on one line. */

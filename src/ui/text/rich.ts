@@ -27,6 +27,9 @@ export const targetOf = (k: string) => TARGET[k] ?? null;
 
 /** A station's colour token as a CSS value (2D toneVar). */
 export const toneVar = (t: string): string => (t === 'accent' ? 'var(--accent)' : t.startsWith('--') ? `var(${t})` : `var(--tr-${t})`);
+/** A station's colour as WORDS: its `--tr-<station>-term` token where the look defines one, else the station's colour.
+ *  (A pale blood-origin colour, amber SMV, cannot be read as text at the usual share on a light page: tokens.css.) */
+export const toneInk = (t: string): string => (t === 'accent' || t.startsWith('--') ? toneVar(t) : `var(--tr-${t}-term, ${toneVar(t)})`);
 
 export const DISEASE_SRC = DISEASES_2D.map(ci).join('|');
 const TERM_SRC = TERMS_2D.join('|');

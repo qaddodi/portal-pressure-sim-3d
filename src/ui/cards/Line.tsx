@@ -4,13 +4,13 @@ import { valueText } from '../text/tokens.ts';
 import { Roll } from './Roll.tsx';
 import { reserveOf, altsOf } from './roll-reserve.ts';
 import { nb } from '../text/glue.ts';
-import { typesetter, toneVar, type Node, type RichSlide } from '../text/rich.ts';
+import { typesetter, toneVar, toneInk, type Node, type RichSlide } from '../text/rich.ts';
 import { pillTone, type Fp } from '../text/pill-tone.ts';
 import { rateShown } from './ratings.ts';
 import { TOKEN_OF_RATE } from '../../engine/hales/portal/pressure-cuts.js';
 import { HV_BLOCKED_KEY, hvpgNotMeasurable } from '../cuts.ts';
 
-const style = (tone: string | null) => (tone ? { ['--tone' as string]: toneVar(tone) } : undefined);
+const style = (tone: string | null) => (tone ? { ['--tone' as string]: toneVar(tone), ['--tone-ink' as string]: toneInk(tone) } : undefined);
 
 /** A slide's line, typeset: live readings roll, cut-offs and bold words are bold, figure terms are tagged for the scene.
  *  `pill`: the value a line without a braced one sets in a quiet pill (card-fields.ts autoPill). */
