@@ -2,7 +2,7 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "e59b91a671b652fbc8c2d6b9d8ae6301d2832fec"
+    "commit": "ccccf257aaf798ecde85fbb366ea3bd0060af348"
   },
   "files": {
     "hales/core/ease-move.js": "8b1ec51ee324cb2f95242b568c623e2dcd801b3ec48c11712a82c92852ac6449",
@@ -11,7 +11,7 @@
     "hales/core/physiology.js": "6b0ff3aa7550ade04f13177babfebee7ca81acc2da1406c84e556ba9b7a5286f",
     "hales/host/protocol.d.ts": "0dfa9568b6519f4cd4a1028d37018d200034fa926c61e43ee1eac352a1e0f30f",
     "hales/host/worker-core.d.ts": "e4be08c47a7708663807a3a3dae456856275c2fff3a314452089e5a762e35c8f",
-    "hales/host/worker-core.js": "94d5791d38a1509f7e28875f49463183ae42ec9548e6e5ad7e5af706e01ad64b",
+    "hales/host/worker-core.js": "2dbba0ae7b8dd8fe8c865fbb1a88d2bb48aae35c74f8f45915194aa84a341ae6",
     "hales/portal/ascites-cuts.js": "2c6d4c43ba48e1ccfdb98891bab2bbeff647b9e4cf8ff01996b82f458e0f9d4e",
     "hales/portal/bedside-mean.js": "cb58c2dca1688dc952e885df98d3b6347e44e401c4dbf31a3e804e90b6a3163e",
     "hales/portal/bedside-rest.js": "26bbf32f4fd82ddc370d496b7c8caefa36dec9f4b630d4745b1fad55c1875788",
@@ -34,7 +34,7 @@
     "hales/portal/lc-first.js": "9afb5c1db2a77b6747ec7e4ffb9612d40814222e8ad008a8c76f620a839a5e71",
     "hales/portal/lsm-cuts.js": "d3a39afa95f63aa66d151145e3e0fcbfdc4aabc9fa911b6cb441d8a307401865",
     "hales/portal/lymph.js": "e6bb115903b5ae7c8e28b58c4653fd0e2d1b97c106ffc5a56b47ce0cbc381e3c",
-    "hales/portal/metrics.js": "34fe616e6d31f9a638874bbaea0ac6896d17dbad89d0483af8c0fbef0ffe96a0",
+    "hales/portal/metrics.js": "8e6754984fe48415fd4a458f5f9ac53dd1150c2b56b2a497c34ea265edec2a70",
     "hales/portal/pressure-cuts.js": "7f96e7d40a3584ba0aa0dad13da019b22b00bcc9164a76d657501347d656e990",
     "hales/portal/risk-scores.js": "623e2f926b510e0f32d2cc80bd00ca16aac41a10314af4d4b58e6a9307c87bf3",
     "hales/portal/scenario.js": "918e047bc91b6bd3d372040aa2d39dc83cd2e54a0c3f5c3ecf6c2171b1ac44ee",
