@@ -136,6 +136,11 @@ export const hemoStep = (pulse, speed) => (pulse ? (speed >= 4 ? 0.008 : 0.004) 
 const HIST_DT = 0.004, HIST_MAX_S = 14, HIST_RUNIN_S = 1.5, HIST_SLICE_MS = 6;
 
 const PROBE_IDS = new Set(EDGES.map((e) => e.id));   // alloc-rare: made once at load
+export /** Throws if a reading in the metrics a frame carries (every number in it, and the varix size) is not a finite number. */
+function badReading(m) {
+  for (const k of Object.keys(m)) { const v = m[k]; if (typeof v === 'number' && !Number.isFinite(v)) throw new Error(`The model produced a reading that is not a number (${k}).`); }
+  if (m.varix && typeof m.varix.d === 'number' && !Number.isFinite(m.varix.d)) throw new Error('The model produced a reading that is not a number (varix).');
+}
 export function createCore(post) {
   let eng = restingEngine();   // (a healthy patient at the bedside's rest: its readings hold still from the first frame, bedside-rest.js)
   let running = true;
@@ -278,6 +283,7 @@ export function createCore(post) {
   function frame() {
     wstat.frames++; if (paramsDirty) wstat.params++;
     const m = detectEvents(eng);
+    badReading(m);   // (P-42: a reading that is not a number is never posted; it stops the clock as a bad pressure does)
     const D = new Float32Array(eng.E);   // alloc-rare: runs in the simulation worker (its own thread and heap), not on the page's render thread; a posted frame's buffers are transferred to the page, so each frame needs fresh ones
     for (let k = 0; k < eng.E; k++) D[k] = eng.diameterShown(eng.edges[k].id);   // (the widths the figure draws: from the shown pressures, so a vein does not breathe)
     const f = {   // alloc-rare: runs in the simulation worker (its own thread and heap), not on the page's render thread; the posted frame message itself

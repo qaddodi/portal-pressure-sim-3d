@@ -16,6 +16,8 @@ import { DisplayMean, holdAt, BREATH_S } from './display-mean.js';
 import { hvBlocked } from './pressure-cuts.js';
 
 const KNEE = { artery: [1e9, 1], bed: [14, 10], portal: [14, 10], vein: [14, 6], hepvein: [10, 3], heart: [10, 4], liver: [9, 2], wedge: [9, 5], varix: [30, 10] };
+/** The longest step the live (not quiet) clock takes in one piece, seconds. */
+export const MAX_LIVE_DT = 0.1;
 const KD = { vein: 0.03, diode: 0.03, collateral: 0.08 };
 const EXT_OVERRIDE = { IVC_IS: 'abd', CAUD: 'none' };
 
@@ -708,8 +710,19 @@ export class Engine {
   }
 
   // ───────────────────────── integration ─────────────────────────
-  /** One implicit (backward-Euler, Picard-linearized) step of dt seconds. */
+  /** One implicit (backward-Euler, Picard-linearized) step of dt seconds. A step the live clock would not take (above MAX_LIVE_DT, 0.1 s, the longest the preroll, the golden runs and the live clock use; the clock's own are 0.02, 0.008 and
+   *  0.004) is taken as equal sub-steps, as a long step with the beat on was found to give readings far out of range (HVPG 531 and -19 at dt 0.5 to 1.0, 28 Nov 2026 review P-42).
+   *  The quiet steps (settle, relax, the disease clock) are long on purpose and are not split; a dt that is not a number or is negative throws. */
   step(dt) {
+    if (!(dt >= 0) || !Number.isFinite(dt)) throw new RangeError(`Engine.step: dt must be a finite number of seconds, 0 or more (got ${dt}).`);
+    if (dt > MAX_LIVE_DT && !this.quiet && !this._sub) {
+      const n = Math.ceil(dt / MAX_LIVE_DT);
+      for (let i = 0; i < n; i++) this.stepOnce(dt / n);
+      return;
+    }
+    this.stepOnce(dt);
+  }
+  stepOnce(dt) {
     const N = this.N, A = this.A, b = this.b, P = this.P, p = this.params;
     this._drug = this.drugEffects();
     if (!this._sub) { this.easeStep(dt); this.carryVolume(dt); this.pregnancyVolume(dt); }

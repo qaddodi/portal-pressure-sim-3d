@@ -2,7 +2,7 @@
   "note": "Written by scripts/sync-engine.mjs. Do not edit the folders it lists.",
   "engine": {
     "repo": "qaddodi/hales-engine",
-    "commit": "ec1201065e9c57f54e9030d681b0588a73539708"
+    "commit": "9427bcfbcfd8b43f9d48c5fbaaf1163254c4af2f"
   },
   "files": {
     "hales/core/ease-move.js": "8b1ec51ee324cb2f95242b568c623e2dcd801b3ec48c11712a82c92852ac6449",
@@ -11,13 +11,13 @@
     "hales/core/physiology.js": "6b0ff3aa7550ade04f13177babfebee7ca81acc2da1406c84e556ba9b7a5286f",
     "hales/host/protocol.d.ts": "0dfa9568b6519f4cd4a1028d37018d200034fa926c61e43ee1eac352a1e0f30f",
     "hales/host/worker-core.d.ts": "e4be08c47a7708663807a3a3dae456856275c2fff3a314452089e5a762e35c8f",
-    "hales/host/worker-core.js": "2dbba0ae7b8dd8fe8c865fbb1a88d2bb48aae35c74f8f45915194aa84a341ae6",
+    "hales/host/worker-core.js": "2ae57afb42caecd01d05959894cab0b06485bcf78b0b317cc3efb1453f517a63",
     "hales/portal/ascites-cuts.js": "2c6d4c43ba48e1ccfdb98891bab2bbeff647b9e4cf8ff01996b82f458e0f9d4e",
     "hales/portal/bedside-mean.js": "cb58c2dca1688dc952e885df98d3b6347e44e401c4dbf31a3e804e90b6a3163e",
     "hales/portal/bedside-rest.js": "26bbf32f4fd82ddc370d496b7c8caefa36dec9f4b630d4745b1fad55c1875788",
     "hales/portal/change-events.js": "f25e06a42083474c447c1b1b52a7133db3f9d419a390160775ecde4c0833e646",
     "hales/portal/display-mean.js": "607b08cbc06b175bc45192e6f4cbe2e9eb32a05cfd47b8d653730f1690c20b3f",
-    "hales/portal/engine.js": "11112de03e82757fe12201fefb56fac9e3f7ee4b8a18549e5b2b6ee16c170fb6",
+    "hales/portal/engine.js": "5d761bd9db604955c43253ef148706892912b3aad584085ea2a14a1d335030d4",
     "hales/portal/events.js": "c3a1a5e5f331985422d9868c9c87418d9b2a5819f8f951bea94c894c8e484af8",
     "hales/portal/explain-ids.js": "326c21384fb0757403a9fb924d7aff0395e970dbb09a11d2aff3f5c5c09a70d4",
     "hales/portal/explain.js": "4bd3405d5ec6e7e30c40a8e68c707406b3afaaaa7332458df8d79903209228f1",
