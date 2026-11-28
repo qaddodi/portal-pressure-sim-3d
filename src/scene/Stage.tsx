@@ -331,7 +331,7 @@ function SceneBridge() {
     rig.freeGate = () => (cel.view === 'body' || cel.view === 'lobule') && !talkOn();
     rig.wideGate = () => cel.view === 'body';
     const offFree = () => {};
-    rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0 || talkOn() };
+    rig.tiltGate = { on: () => useSettings.getState().tilt, locked: () => !!gesturesRef.current?.active || cel.view !== 'body' || cel.circuit.t > 0, pointerLocked: () => talkOn() };
     const off = installTilt({
       rig, wake: (tag) => clock.invalidate(tag), on: () => useSettings.getState().tilt, reduced,
       onSwitch: (fn) => { let was = useSettings.getState().tilt; return useSettings.subscribe((s) => { if (s.tilt !== was) { was = s.tilt; fn(was); } }); },

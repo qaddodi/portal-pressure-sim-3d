@@ -104,7 +104,6 @@
  "src/scene/camera/rig.ts": 58,
  "src/scene/camera/shots.ts": 14,
  "src/scene/camera/slide-time.ts": 1,
- "src/scene/camera/tilt-input.ts": 1,
  "src/scene/catheter.ts": 2,
  "src/scene/cel-glsl.ts": 8,
  "src/scene/cel-style.ts": 24,

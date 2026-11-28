@@ -5,7 +5,7 @@ import type { DepthKey } from '../../state/settings.ts';
 export interface DepthRow { key: DepthKey; label: string; hint: string; icon: string }
 export const DEPTH_ROWS: readonly DepthRow[] = [
   { key: 'organDepth', label: 'Organ depth', hint: 'Soft light and shade on the organs', icon: 'liver' },
-  { key: 'tilt', label: 'Gentle tilt', hint: 'The figure leans a few degrees with the pointer or device', icon: 'layers' },
+  { key: 'tilt', label: 'Gentle tilt', hint: 'The figure leans a few degrees as you tilt the device', icon: 'layers' },
   { key: 'dof', label: 'Depth of field', hint: 'Softens the far side in the liver dive (laptop only)', icon: 'layers' },
   { key: 'fluidSurface', label: 'Living fluid', hint: 'Ascites with soft edges, a rippling surface and a pale rim (off: as 2D draws it)', icon: 'layers' },
   { key: 'deviceShadow', label: 'Device shadows', hint: 'A soft shadow under catheters and scopes, on the tissue beneath (off: as 2D draws them)', icon: 'layers' },

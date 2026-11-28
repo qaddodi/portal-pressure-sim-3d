@@ -257,3 +257,61 @@ test('S4: a clot on the portal trunk is framed with at least 1.5 trunk lengths o
   }
   assert.deepEqual([...seen].sort(), [...slides].sort());
 });
+
+// ---- F3 at full tilt (docs/approved/tilt-parallax.md, 28 Nov): the gentle tilt turns the camera 3.5 degrees side to side and 2.5 up and down about the slide's aim, on slides too ----
+import { TILT_PITCH_MAX, TILT_YAW_MAX } from '../src/scene/camera/tilt.ts';
+/** How far inside the room's edge a station stands (px) with the camera turned by (dyaw, dpitch) about the shot's aim: the exact pinhole projection, the station standing in the figure's plane. */
+export function tiltedMarginPx(shot: Shot, p: readonly [number, number], dv: { w: number; h: number; room: { w: number; h: number } }, dyaw: number, dpitch: number): number {
+  const d = effectiveDistance(shot, dv.room, dv.h, dv.w), f = dv.h / (2 * TAN);
+  const yaw = shot.yaw + dyaw, pitch = shot.pitch + dpitch, cp = Math.cos(pitch);
+  const eye = [shot.target[0] + Math.sin(yaw) * cp * d, shot.target[1] + Math.sin(pitch) * d, shot.target[2] + Math.cos(yaw) * cp * d];
+  const fw = [shot.target[0] - eye[0], shot.target[1] - eye[1], shot.target[2] - eye[2]].map((v) => v / d) as [number, number, number];
+  const rl = Math.hypot(fw[2], fw[0]), right = [-fw[2] / rl, 0, fw[0] / rl] as const;
+  const up = [right[1] * fw[2] - right[2] * fw[1], right[2] * fw[0] - right[0] * fw[2], right[0] * fw[1] - right[1] * fw[0]] as const;
+  const rel = [p[0] - eye[0], p[1] - eye[1], 0.03 - eye[2]] as const;
+  const X = rel[0] * right[0] + rel[1] * right[1] + rel[2] * right[2], Y = rel[0] * up[0] + rel[1] * up[1] + rel[2] * up[2], Z = rel[0] * fw[0] + rel[1] * fw[1] + rel[2] * fw[2];
+  return Math.min(dv.room.w / 2 - Math.abs((f * X) / Z), dv.room.h / 2 - Math.abs((f * Y) / Z));
+}
+const TILT_CORNERS: readonly (readonly [number, number])[] = [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]];
+const worstTilted = (shot: Shot, p: readonly [number, number], dv: Parameters<typeof tiltedMarginPx>[2]) => Math.min(...TILT_CORNERS.map(([x, y]) => tiltedMarginPx(shot, p, dv, x * TILT_YAW_MAX, y * TILT_PITCH_MAX)));
+
+test('F3 at full tilt: every labelled station stays 40 px or more inside the room at the four corners of the tilt (3.5 by 2.5 degrees) on a Mac, an iPad and an iPhone', () => {
+  let checked = 0;
+  const bad: string[] = [];
+  for (const [, deck] of decks) for (const v of bodyViews(deck)) for (const id of v.labels) {
+    const p = stationDot(id);
+    if (!p) continue;
+    for (const dv of DEVICES) { checked++; const m = worstTilted(v.shot, p, dv); if (m < MIN_STATION_PX - 0.5) bad.push(`${v.at} ${id} ${dv.name} ${m.toFixed(1)} px`); }
+  }
+  assert.ok(checked > 300, `the sweep covered the labels (${checked})`);
+  assert.deepEqual(bad, []);
+});
+
+test('F3 at full tilt in each slide\'s own card room: the same, upright and sideways, card up and tucked', () => {
+  let checked = 0;
+  const bad: string[] = [];
+  for (const [, deck] of decks) {
+    const stops = stopsOf(deck);
+    stops.forEach((st, i) => {
+      if (st.kind !== 'slide') return;
+      for (let b = 0; b <= (st.slide.beats?.length ?? 0) + 1; b++) {
+        const v = viewAt(stops, { stop: i, beat: b });
+        if (v.words !== 'teach' || !v.slide || (v.scene && v.scene.view !== 'body') || !v.scene?.labels.length) continue;
+        const shot = typeof v.shot === 'string' ? SHOTS[v.shot as keyof typeof SHOTS] : v.shot;
+        for (const vp of ROOM_SCREENS) for (const dock of [false, true]) {
+          if (dock && !v.data) continue;
+          const room = roomOfSlide(v.slide as unknown as Teach, !!v.data, vp, dock);
+          if (!room) continue;
+          for (const id of v.scene.labels) {
+            const p = stationDot(id); if (!p) continue;
+            checked++;
+            const m = worstTilted(shot, p, { w: vp.w, h: vp.h, room });
+            if (m < MIN_STATION_PX - 0.5) bad.push(`${deck.id}/${v.slide.id}${b ? '#' + b : ''} ${id} ${vp.name}${dock ? ' tucked' : ''} ${m.toFixed(1)} px`);
+          }
+        }
+      }
+    });
+  }
+  assert.ok(checked > 1000, `the sweep covered the labels (${checked})`);
+  assert.deepEqual(bad, []);
+});

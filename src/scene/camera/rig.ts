@@ -455,7 +455,7 @@ export class CameraRig {
   /** Gentle tilt (tilt.ts): a few degrees added to the shot's yaw and pitch when the camera is written, never kept in the hand's or the orbit's state. Square (zero) until Stage gives it a gate. */
   readonly tilt = new Tilt();
   /** What Stage says about the tilt: whether Settings > Figure depth has it on, and whether something other than a camera move holds it (a gesture, a view other than the body). */
-  tiltGate: { on(): boolean; locked(): boolean } | null = null;
+  tiltGate: { on(): boolean; locked(): boolean; /** Locks only the pointer's lean (a talk: the Mac's pointer never moves a slide; the device's turn does). */ pointerLocked?(): boolean } | null = null;
   /** True while the camera is written without the tilt (fitRect measures the shot's own framing). */
   private noTilt = false;
   /** The hand's zoom over the shot's own framing (1 as framed). */
@@ -898,10 +898,11 @@ export class CameraRig {
     return moving;
   }
 
-  /** One step of the gentle tilt: locked (easing to square) while a camera move runs or the gate says so; Reduce Motion or the switch off keeps it at zero with no easing. Returns true while it still eases. */
+  /** One step of the gentle tilt: locked (easing to square) while the gate says so, the pointer's lean is locked (a talk) or the catheter's chase camera is in the picture (no tilt while measuring); a slide's own camera move does NOT lock it
+   *  (parallax rides the glide, 28 Nov). Reduce Motion or the switch off keeps it at zero with no easing. Returns true while it still eases. */
   private stepTilt(now: number): boolean {
     const t = this.tilt, g = this.tiltGate, yaw = t.yaw, pitch = t.pitch;
-    const moving = g ? t.step(now, g.on(), this.reduceMotion || reduced(), this.active || g.locked()) : t.step(now, false, true, true);
+    const moving = g ? t.step(now, g.on(), this.reduceMotion || reduced(), g.locked() || this.chaseCur !== null || (t.source === 'pointer' && !!g.pointerLocked?.())) : t.step(now, false, true, true);
     if (t.yaw !== yaw || t.pitch !== pitch) this.dirty = true;
     return moving;
   }

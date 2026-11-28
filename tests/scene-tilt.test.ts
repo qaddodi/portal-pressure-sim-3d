@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { CameraRig } from '../src/scene/camera/rig.ts';
 import { fullRoom } from '../src/scene/camera/room.ts';
 import {
-  DEVICE_DEAD, DEVICE_RANGE, DeviceBase, TILT_EPS, TILT_PITCH_MAX, TILT_YAW_MAX, Tilt, deviceUnit, pointerUnit, tiltTarget, worthAFrame,
+  TILT_EPS, TILT_PITCH_MAX, TILT_YAW_MAX, Tilt, pointerUnit, tiltTarget, worthAFrame,
 } from '../src/scene/camera/tilt.ts';
 
 const deg = (r: number) => (r * 180) / Math.PI;
@@ -101,33 +101,6 @@ test('a small change of input does not wake the clock', () => {
   assert.equal(t.set({ x: 0.502, y: 0 }), false);
 });
 
-test('device orientation: a dead zone, a full tilt at the range, and the axes follow the screen turn', () => {
-  assert.deepEqual(deviceUnit(0, 0), { x: 0, y: 0 });
-  assert.deepEqual(deviceUnit(DEVICE_DEAD * 0.9, -DEVICE_DEAD * 0.9), { x: 0, y: 0 });
-  assert.deepEqual(deviceUnit(0, 90), { x: 1, y: 0 });
-  assert.equal(deviceUnit(DEVICE_RANGE, 0).y, 1);
-  // portrait: gamma is the screen's x, beta its y; a quarter turn swaps them with the right signs
-  assert.deepEqual(deviceUnit(0, DEVICE_RANGE, 0), { x: 1, y: 0 });
-  assert.deepEqual(deviceUnit(DEVICE_RANGE, 0, 90), { x: -1, y: 0 });
-  assert.deepEqual(deviceUnit(0, DEVICE_RANGE, 90), { x: 0, y: 1 });
-  assert.deepEqual(deviceUnit(0, DEVICE_RANGE, 180), { x: -1, y: 0 });
-  assert.deepEqual(deviceUnit(DEVICE_RANGE, 0, 270), { x: 1, y: 0 });
-  assert.deepEqual(deviceUnit(0, DEVICE_RANGE, 270), { x: 0, y: -1 });
-  assert.deepEqual(deviceUnit(0, DEVICE_RANGE, 450), deviceUnit(0, DEVICE_RANGE, 90));
-});
-
-test('the held position is where the phone first sits, then follows a steady hand slowly', () => {
-  const b = new DeviceBase();
-  assert.deepEqual(b.read(50, 5, 0), { db: 0, dg: 0 });
-  const d = b.read(60, 5, 16);
-  assert.ok(Math.abs(d.db - 10) < 0.1 && d.dg === 0);
-  let last = d.db;
-  for (let t = 1000; t < 20000; t += 1000) { const r = b.read(60, 5, t); assert.ok(r.db <= last + 1e-9); last = r.db; }
-  assert.ok(last < 0.2, `settled ${last}`);
-  b.reset();
-  assert.deepEqual(b.read(10, 10, 99999), { db: 0, dg: 0 });
-});
-
 // ---- in the rig -------------------------------------------------------------------------------------------------------------------------
 
 const rigWith = (gate: CameraRig['tiltGate'], reduceMotion = false) => {
@@ -197,20 +170,20 @@ test('a lock (a gesture, another view) brings it back to the exact rest camera, 
   assert.deepEqual(rig.camera.matrixWorld.toArray(), rest);
 });
 
-test('a camera move locks the tilt: it is square before the shot lands, and picks the pointer up again afterwards', () => {
+test('a slide\'s camera move does not lock the tilt: it rides the glide and stays on after landing (28 Nov, parallax on slides)', () => {
   const rest = rigWith(null);
   rest.goTo('wedge', fullRoom(800, 600), 1000); settle(rest, 1016);
   const rig = rigWith(open);
-  rig.tilt.set({ x: 1, y: 1 });
+  rig.tilt.set({ x: 1, y: 1 }, 'device');
   settle(rig);
-  assert.ok(rig.tilt.yaw !== 0);
+  const yaw0 = rig.tilt.yaw;
+  assert.ok(yaw0 !== 0);
   rig.goTo('wedge', fullRoom(800, 600), 1000);
   for (let now = 1016; now <= 1600; now += 16) rig.update(now);
-  assert.ok(Math.abs(rig.tilt.yaw) < TILT_YAW_MAX * 0.03 && rig.isMoving, 'still flying, and already square');
-  rig.tilt.set(null);   // (the pointer left)
+  assert.ok(rig.isMoving && Math.abs(rig.tilt.yaw - yaw0) < 1e-9, 'still flying, and the tilt has not moved');
   settle(rig, 1616);
-  assert.equal(rig.tilt.yaw, 0);
-  assert.deepEqual(rig.camera.matrixWorld.toArray(), rest.camera.matrixWorld.toArray());
+  assert.equal(rig.tilt.yaw, yaw0);
+  assert.notDeepEqual(rig.camera.matrixWorld.toArray(), rest.camera.matrixWorld.toArray());
 });
 
 test('tilt never uses requestAnimationFrame or React state, and the rig keeps it out of the orbit and the hand', () => {
