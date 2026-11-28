@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 // The local pre-push check (no GitHub workflow, no Actions minutes): the typecheck, the lint, and ONLY the tests about what you changed. Under 2 minutes (Plan 50).
 //   npm run pre-push            checks against origin/claude/project-thread-ge1swr (or main when that is not fetched)
+//   npm run pre-push -- --deep  also the tests that reach a change through many files, past the time budget (slow: not in the cloud)
 //   npm run pre-push -- --all   also the whole suite (slow: not in the cloud)
 //   npm run test:time <files>   times those test files alone and records the seconds in tests/timings.json (the order below follows it)
 //   npm run hooks               installs it as the repo's git pre-push hook (git config core.hooksPath .githooks)
-// A test is "about" a changed file when it IMPORTS it (scripts/pre-push-select.mjs); a changed test file always runs. The tests run on every core, the longest first, and each file's seconds are printed:
+// A test is "about" a changed file when it IMPORTS it, at any depth (scripts/import-graph.mjs, scripts/pre-push-select.mjs); a changed test file always runs. The tests run on every core, the longest first, and each file's seconds are printed:
 // a file over 30 s is named in a warning, because a test that slow is itself the bug (fix it: build once, share the scene, lay in the baked plan).
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { SLOW_WARN_SECONDS, longestFirst, selectTests } from './pre-push-select.mjs';
+import { DEEP_BUDGET_SECONDS, SLOW_WARN_SECONDS, longestFirst, selectWithDepth, withinBudget } from './pre-push-select.mjs';
+import { buildGraph } from './import-graph.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const git = (...a) => { try { return execFileSync('git', a, { cwd: root, encoding: 'utf8' }).trim(); } catch { return ''; } };
@@ -20,10 +22,18 @@ const base = ['origin/claude/project-thread-ge1swr', 'origin/main'].find((b) => 
 const changed = base ? [...new Set([...git('diff', '--name-only', `${git('merge-base', base, 'HEAD') || base}`, 'HEAD').split('\n'), ...git('diff', '--name-only').split('\n')])].filter(Boolean) : [];
 const tests = readdirSync(`${root}tests`).filter((f) => f.endsWith('.test.ts'));
 const all = process.argv.includes('--all');
-const mine = all ? tests : selectTests(changed, tests, (t) => readFileSync(`${root}tests/${t}`, 'utf8'));
+// the import graph over every tracked or new file: a test runs when anything it names, at any depth, changed (C1)
+const files = git('ls-files', '-co', '--exclude-standard').split('\n').filter(Boolean);
+const graph = all ? null : buildGraph(files, (f) => { try { return readFileSync(`${root}${f}`, 'utf8'); } catch { return ''; } });
 const timings = existsSync(`${root}tests/timings.json`) ? JSON.parse(readFileSync(`${root}tests/timings.json`, 'utf8')) : {};
+const depths = all ? new Map(tests.map((t) => [t, 0])) : selectWithDepth(changed, tests, (t) => readFileSync(`${root}tests/${t}`, 'utf8'), graph);
+// the near tests always run; the deeper ones nearest first while they fit the time budget (`--deep` lifts it); what is left over is named below, never dropped quietly
+const plan = process.argv.includes('--deep') || all ? { run: [...depths.keys()], left: [] } : withinBudget(depths, timings, cpus().length, DEEP_BUDGET_SECONDS);
+const mine = plan.run;
 
-console.log(`pre-push: ${changed.length} changed file(s) against ${base ?? '(no base fetched)'}; ${all ? 'the whole suite' : `${mine.length} test file(s) about them`}`);
+const reach = [...depths.values()].filter((d) => d > 1).length;
+console.log(`pre-push: ${changed.length} changed file(s) against ${base ?? '(no base fetched)'}; ${all ? 'the whole suite' : `${mine.length} test file(s) about them (${reach} reach a changed file through other files)`}`);
+if (plan.left.length) console.log(`pre-push: NOT RUN here, ${plan.left.length} test file(s) that reach the change deeper than the ${DEEP_BUDGET_SECONDS} s budget allows (the daily full run names any that fail); \`npm run pre-push -- --deep\` runs them: ${plan.left.slice(0, 8).join(', ')}${plan.left.length > 8 ? ', ...' : ''}`);
 const t0 = Date.now();
 // the typecheck and the lint start with the tests: they are a few seconds and use one core each
 const checks = Promise.all([step('typecheck', ['node_modules/typescript/lib/tsc.js', '--noEmit']), step('lint', ['scripts/lint.mjs'])]);

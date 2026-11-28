@@ -148,11 +148,26 @@ export interface TubeRun { curve: CatmullRomCurve3; tubular: number; radial: num
 /** The width a course of no radius is built at: finite, and never drawn (rk 0). */
 const HAIR = 1e-6;
 
-export function buildTubes(courses: readonly Course[], tubular: readonly number[], radius0: number): { geometry: BufferGeometry; length: number; runs: TubeRun[] } {
+export interface BuiltTubes { geometry: BufferGeometry; length: number; runs: TubeRun[] }
+
+/** The tubes built to the end, in one go. */
+export function buildTubes(courses: readonly Course[], tubular: readonly number[], radius0: number): BuiltTubes {
+  const steps = buildTubesSteps(courses, tubular, radius0);
+  for (let r = steps.next(); ; r = steps.next()) if (r.done) return r.value;
+}
+
+/**
+ * The same build in steps: one course (a strand, with its caps) a step, then the merge. A vessel with four strands of 400 rings is 20 to 40 ms in one piece; the scene's frame budget (shape-track.ts
+ * SHAPE_BUDGET_MS) can only keep a frame short when its unit of work is smaller than the frame, so it resumes this between frames (scene audit, 27 Nov
+ * review C2: one 52 ms `shapes` frame on healthy to CSPH).
+ * Each `yield` is a place to stop; the result is exactly what `buildTubes` returns.
+ */
+export function* buildTubesSteps(courses: readonly Course[], tubular: readonly number[], radius0: number): Generator<void, BuiltTubes, void> {
   const parts: BufferGeometry[] = [];
   const runs: TubeRun[] = [];
   let length = 0, at = 0;
-  courses.forEach((c, i) => {
+  for (let i = 0; i < courses.length; i++) {
+    const c = courses[i]!;
     const curve = new HeldCurve(c.pts.map((p) => new Vector3(p[0], p[1], p[2])));
     if (i === 0) length = curve.getLength();
     if (c.hold) curve.at = heldArc(c.hold, curve.getLength());
@@ -234,6 +249,7 @@ export function buildTubes(courses: readonly Course[], tubular: readonly number[
     runs.push({ curve, tubular: seg, radial: RADIAL, tubeStart: at, tubeCount, capStart: at + tubeCount, capCount });
     at += tubeCount + 2 * capCount;
     parts.push(...group);
-  });
+    yield;
+  }
   return { geometry: parts.length > 1 ? mergeGeometries(parts, false)! : parts[0]!, length, runs };
 }
