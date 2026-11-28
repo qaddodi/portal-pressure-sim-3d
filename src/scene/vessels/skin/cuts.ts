@@ -27,6 +27,10 @@ export const CLEAR_R = 0.5;
 export const SEAM_MAX_SHARE = 0.85;
 /** The share an arm's seam may reach when no ring of it clears within `SEAM_MAX_SHARE` (a short through vein with a branch beside it and a collateral landing on it: the left portal vein's end, 17 rings, REX's mouth at ring 10 and the branch's clearance to ring 12): the tube's last rings stay. Only a retry, so no skin that has a ring within 85 % moves. */
 export const SEAM_FALLBACK_SHARE = 0.97;
+/** The shares of rule 1's clearance a seam may be held to when no ring clears the whole of it, tried in this order after the full clearance has failed within both shares of the arm (a retry only: a skin that has a clearing ring never moves). A seam on a ring clearing the blend by
+ *  less than the full margin leaves a ring of the blend's own tail at the seam, a step well under a pixel at 0.8 and thin at 0.6; a skin lost to the old join is a bulb or a gap. It is what keeps a course that moves by a third of a radius from costing a junction its skin
+ *  (PVH's DIPS moved that far left PVH_R with no ring clear of the trunk, the left branch, the shunt and its own start in 17: tests/skin-course-shift.test.ts). */
+export const CLEAR_SLACK = [0.8, 0.6] as const;
 /** The tries the hull rule gets before the junction is given up (rule 3). */
 export const MAX_TRIES = 40;
 const RADIAL = TUBE_RADIAL;
@@ -103,11 +107,11 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
   // the arc length from J to each ring's centre (the arm's own length is the last): rule 1b
   const arc = rings.map((rs, i) => { let d = 0, prev: Vec3 = j.arms[i]!.at ?? j.J; return rs.map((g) => { d += dist3(prev, g.centre); prev = g.centre; return d; }); });
   /** why ring `s` (counted from J) of arm `i` is not eligible under rules 1, 1b and 2 (null: eligible), and for rule 1 which arm's capsule it is too near */
-  const why = (i: number, s: number, share: number = SEAM_MAX_SHARE): string | null => {
+  const why = (i: number, s: number, share: number = SEAM_MAX_SHARE, slack = 1): string | null => {
     const a = j.arms[i]!, g = rings[i]![s]!;
     if (arc[i]![s]! > share * arc[i]![arc[i]!.length - 1]!) return 'too far (1b)';
     if (dist3(g.centre, a.at ?? j.J) < SEAM_MIN_R * a.restR) return 'too near J (2)';
-    const need = clear.k * k + clear.r * a.restR;
+    const need = (clear.k * k + clear.r * a.restR) * slack;
     for (let o = 0; o < n; o++) {
       if (o === i || isThroughPair(a, j.arms[o]!)) continue;
       for (let v = 0; v < RADIAL; v++) if (sdCapsule(g.verts, v * 3, caps[o]!) < need) return `${j.arms[o]!.vesselId}${j.arms[o]!.side ? ' (side)' : ''}`;
@@ -115,7 +119,7 @@ export function chooseCuts(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>,
     return null;
   };
   const next = (i: number, from: number): number => {
-    for (const share of [SEAM_MAX_SHARE, SEAM_FALLBACK_SHARE]) for (let s = from; s < rings[i]!.length; s++) if (why(i, s, share) === null) return s;
+    for (const slack of [1, ...CLEAR_SLACK]) for (const share of [SEAM_MAX_SHARE, SEAM_FALLBACK_SHARE]) for (let s = from; s < rings[i]!.length; s++) if (why(i, s, share, slack) === null) return s;
     const tally = new Map<string, number>();
     for (let s = from; s < rings[i]!.length; s++) { const w = why(i, s)!; tally.set(w, (tally.get(w) ?? 0) + 1); }
     throw new SkinBuildError(j.node, `${j.arms[i]!.vesselId} has no ring that clears the blend within 85 % of its length (rings refused: ${[...tally].map(([w, c]) => `${w} ${c}`).join(', ')})`);

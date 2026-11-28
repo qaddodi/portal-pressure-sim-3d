@@ -18,6 +18,8 @@ const SHIFT_R = 0.3;
 const DIRECTIONS: readonly (readonly [number, number])[] = [[1, 0], [0, 1], [-1, 0], [0, -1]];
 const DEPTH: readonly number[] = [1, -1];
 /** The nodes under test: every node of the inventory with a growing arm, less the ones whose skins other threads are still mending (their own tests name them). */
+/** The node walked in every direction (the one this rule was found on: SMV's S_MC and REX). */
+const FULL = 'SMV';
 const SKIP = new Set(['IVCI', 'IVC_P', 'IVC_M', 'LPV_U', 'LPV_X']);
 
 type Plan = { kind: 'coil'; base: readonly (readonly [number, number])[]; z?: readonly number[] } & Record<string, unknown>;
@@ -58,10 +60,12 @@ test('a small shift of a growing arm\'s course costs no junction skin an arm it 
   const failures: string[] = [];
   for (const j of nodes) {
     const rest = build(j.node);
-    for (const g of j.arms.filter((a) => a.grow)) {
-      const tries: [string, readonly [number, number], number][] = [...DIRECTIONS.map((d, k): [string, readonly [number, number], number] => [`plane ${k * 90} deg`, d, 0]), ...DEPTH.map((s): [string, readonly [number, number], number] => [`depth ${s > 0 ? '+' : '-'}`, [0, 0], s])];
-      // (a vessel without a plan to shift, a braid's strands: the same rule on its root's course)
+    for (const [gi, g] of j.arms.filter((a) => a.grow).entries()) {
+      // (a vessel without a plan to shift: nothing to move)
       if (!NETWORK_BY_ID.get(g.vesselId)?.plan) continue;
+      // every direction for the named node; elsewhere an opposite pair in the plane, turning with the arm (the whole walk would be four minutes)
+      const planeTries = (j.node === FULL ? DIRECTIONS.map((_, k) => k) : [gi % 4, (gi + 2) % 4]).map((k): [string, readonly [number, number], number] => [`plane ${k * 90} deg`, DIRECTIONS[k]!, 0]);
+      const tries = [...planeTries, ...(j.node === FULL ? DEPTH.map((s): [string, readonly [number, number], number] => [`depth ${s > 0 ? '+' : '-'}`, [0, 0], s]) : [])];
       for (const [name, dir, dz] of tries) {
         const got = shifted(g.vesselId, dir, dz, () => build(j.node));
         const lost = got.dropped.filter((d) => !rest.dropped.includes(d)), gone = rest.nodes.filter((n) => !got.nodes.includes(n));
