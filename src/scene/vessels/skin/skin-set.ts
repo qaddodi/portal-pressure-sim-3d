@@ -164,11 +164,18 @@ function ringPlaneNormal(g: BufferGeometry, ring: number): Vec3 | null {
 export const AXIS_REACH_R = 6;
 /** How far back from its seam (in the seam ring's radii) the heading line of a liver fork's branch arm is trusted (axisOf `backR`). */
 export const BACK_SIDE_R = 1.5;
-/** How far back from its seam (in the seam ring's radii of arc along the tube's own rings) a growing arm's capsule takes its first bend (axisOf `rootAtJ`):
+/** How far back from its seam (in the seam ring's radii of arc along the tube's own rings) a growing arm's capsule takes its first bend (axisOf `growBack`):
  *  the capsule runs from J to there, then straight through the seam.
  *  1.1 to 1.6 all keep every take-off within 0.2 radii of the tube's course and every skin's drawn normal within 10 degrees of its neighbours' (tests/skin-exact-normal.test.ts);
  *  less makes the cone from the neck too steep, more leaves the course. */
 export const GROW_BACK_R = 1.25;
+/** The most (in the seam ring's radii) the first bend may stand off the tube's own course to keep to the seam's heading line (where the marks and the run's weights are
+ *  read); a tube that leaves that line by more (an S-bend: the Meso-Rex bypass
+ *  at the mesenteric vein, the renal collateral C5) has its bend on the course. */
+export const GROW_LINE_R = 0.5;
+/** A growing arm whose tube's end ring lies within this many radii of J reaches its node (the capsule starts at J, bends on the course); farther (the varices' arch
+ *  landing, C1b, 3 radii: tests/junction-ends.test.ts PENDING) it is bridged from J as it was. */
+export const GROW_REACH_R = 1.5;
 const isLiverBranchId = (id: string): boolean => { const v = NETWORK_BY_ID.get(id); return !!v && isLiverBranch(v); };
 /** An arm whose end ring lies more than this many of its radii from J gets J put in front of its capsule (spec 10.5). */
 export const BRIDGE_MIN_R = 0.1;
@@ -186,7 +193,7 @@ export const NECK_FRACTIONS = [0, 0.25, 0.4, 0.5, 0.6, 0.35, 0.7] as const;
  *  part with the Rex shunt only shades a ridge thinner than a pixel, 56 degrees, tests/skin-exact-normal.test.ts); the welded skins keep the nominal blend, which their seams' cuts were laid on (built with the neck's, two of the wall skins no
  *  longer build and their growers lose the weld). */
 export const neckJunction = (j: SkinJunction, axes: readonly ArmAxis[]): SkinJunction => ({ ...j, arms: j.arms.map((a, i) => (a.grow && axes[i] ? { ...a, jointR: Math.min(armR(a), axes[i]!.radii[0]!) } : a)) });
-export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false, backR?: number, whole = 0, rootAtJ = false): ArmAxis {
+export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, startRing?: number, planeHeading = false, backR?: number, whole = 0, growBack?: number): ArmAxis {
   const out = cut.end ? -1 : 1, last = tube.tubular;
   const end = startRing ?? (cut.end ? last : 0), a = ringCentre(tube.geometry, end), s = ringCentre(tube.geometry, cut.ring);
   const lo = Math.min(last, Math.max(0, cut.ring - out)), hi = Math.min(last, Math.max(0, cut.ring + out));   // (the ring nearer the node, the ring farther from it)
@@ -209,14 +216,16 @@ export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, sta
   // THE BRIDGE (spec 10.5): every capsule starts AT J. Where the art leaves a gap (the arm's end more than a tenth of a radius from J) J is put in front, with the end ring's radius, so the union bridges the gap with the arm's own width and the hull (the rings alone) is unchanged
   const bridged = J && Math.hypot(J[0] - a.c[0], J[1] - a.c[1], J[2] - a.c[2]) > BRIDGE_MIN_R * restR;   // (judged on the tube's own end ring: a tube that reaches J but bends on the way is not a gap)
   const jr = a.r + whole * Math.max(0, s.r - a.r);
-  // A growing arm's capsule starts AT J whether or not the tube's end ring is there (`rootAtJ`), and its first bend lies on the TUBE'S OWN COURSE, `backR` radii back from the seam
+  // A growing arm's capsule starts AT J whether or not the tube's end ring is there (`growBack`), and its first bend lies on the TUBE'S OWN COURSE, `growBack` radii back from the seam
   // (between the tube's ring centres there), not on the line the seam's heading gives. Run back to the node, that line missed J by a radius and more wherever the tube bends between
   // the node and the seam (the spontaneous splenorenal shunt left the splenic vein's wall 1.1 of its radii off the vein's axis: a step and a notch in the outline at the weld,
   // Mohammad, 28 Nov), and a bend taken on that line with a chord to J left a corner. On the course the capsule follows the tube out of the host.
   let b1: Vec3 = p1, r1 = jr;
-  if (rootAtJ && J && backR !== undefined) {
-    // (walked along the tube's own ring centres from the seam toward the node, to `backR` radii of arc: the point and the ring radius there, between the two rings it falls between)
-    const lowRing = Math.min(end, cut.ring), highRing = Math.max(end, cut.ring), want = backR * s.r;
+  // (an arm whose tube stops more than GROW_REACH_R radii short of J is bridged from J as before: its line from the seam, and the run's weights, are as they were)
+  const reaches = growBack !== undefined && !!J && Math.hypot(J[0] - a.c[0], J[1] - a.c[1], J[2] - a.c[2]) <= GROW_REACH_R * restR;
+  if (reaches) {
+    // (walked along the tube's own ring centres from the seam toward the node, to `growBack` radii of arc: the point and the ring radius there, between the two rings it falls between)
+    const lowRing = Math.min(end, cut.ring), highRing = Math.max(end, cut.ring), want = growBack! * s.r;
     let k = cut.ring, acc = 0, prev = s.c, rPrev = s.r;
     b1 = s.c; r1 = s.r;
     while (k - out >= lowRing && k - out <= highRing) {
@@ -230,9 +239,14 @@ export function axisOf(tube: ArmTube, restR: number, cut: SkinCut, J?: Vec3, sta
       }
       acc += step; prev = ring.c; rPrev = ring.r; b1 = ring.c; r1 = ring.r;
     }
+    // (the bend stays ON the seam's heading line, at the distance the course point is: the marks' arc and the run's weights are read along the segment from it to the
+    // seam, so it is the seam's own heading;
+    //  only the radius there is the tube's own, so the neck widens to the tube's width over the bridge from the node and not in a steep cone at the seam)
+    const back1 = Math.hypot(b1[0] - s.c[0], b1[1] - s.c[1], b1[2] - s.c[2]), line: Vec3 = [s.c[0] - tx * back1, s.c[1] - ty * back1, s.c[2] - tz * back1];
+    if (Math.hypot(line[0] - b1[0], line[1] - b1[1], line[2] - b1[2]) <= GROW_LINE_R * s.r) b1 = line;
     r1 += whole * Math.max(0, s.r - r1);
   }
-  return { pts: [bridged || (rootAtJ && J) ? J! : p1, b1, s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [jr, r1, s.r, f.r] };
+  return { pts: [bridged || reaches ? J! : p1, b1, s.c, [s.c[0] + tx * d2, s.c[1] + ty * d2, s.c[2] + tz * d2]], radii: [jr, r1, s.r, f.r] };
 }
 
 /** An arm's arc numbers for the skin's flow marks (the tube's `vUv.x * len * vU` at the seam, 300 figure units to the scene unit on the body): the arc at the seam, which way it grows toward the node, the vessel's length and its rest radius, all in figure units. */
@@ -249,7 +263,7 @@ export function drawnAxes(j: SkinJunction, tubes: ReadonlyMap<string, ArmTube>, 
   const sided = j.arms.some((a) => !!a.side);
   return j.arms.map((a, i) => {
     const tb = tubes.get(a.vesselId)!, from = a.side ? armWalk(a, tb.tubular).from : undefined;
-    return axisOf(tb, a.restR, cuts[i]!, a.at ?? j.J, from, sided, a.grow ? GROW_BACK_R : isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined, a.grow ? whole : 0, !!a.grow);
+    return axisOf(tb, a.restR, cuts[i]!, a.at ?? j.J, from, sided, isLiverBranchId(a.vesselId) ? BACK_SIDE_R : undefined, a.grow ? whole : 0, a.grow ? GROW_BACK_R : undefined);
   });
 }
 
