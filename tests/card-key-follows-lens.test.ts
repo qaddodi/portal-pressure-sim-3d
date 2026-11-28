@@ -60,7 +60,7 @@ test('every slide of every talk, at every beat, in every press of its lens butto
 
 test('the layers use it: the card asks keyHomes, a press goes through pressLens, the pressed lens is dropped with every move of the talk', () => {
   const read = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
-  assert.match(read('src/ui/cards/CardLayer.tsx'), /cardKeyAt\(stops, pos\.stop, pressedLens, here\?\.kind === 'ladder'\)/);
+  assert.match(read('src/ui/cards/CardLayer.tsx'), /cardKeyAt\(stops, pos\.stop, pressedLens, here\?\.kind === 'ladder' && !gated\)/);
   assert.match(read('src/ui/talk/controls-run.ts'), /pressLens\(lens\)/);
   assert.doesNotMatch(read('src/ui/talk/controls-run.ts'), /useLabels\.getState\(\)\.set\(\{ key:/, 'no press writes the dock key on its own');
   assert.match(read('src/scene/labels/deck-link.ts'), /key, pressed: null/);
