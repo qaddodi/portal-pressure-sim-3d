@@ -10,3 +10,6 @@ public/anatomy/circuit-skins.bin
 public/anatomy/organs-baked.bin
 public/baked/
 public/anatomy/*.bin.sig
+
+# (npm run audit writes its zips here when /mnt/project-files is not there)
+audits/
