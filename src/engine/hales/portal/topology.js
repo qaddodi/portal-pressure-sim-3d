@@ -1,6 +1,5 @@
-import { profileAt, geomOf, geomFix, kindOf, endOf, endSiteOf } from './stent-geom.js';
+import { profileAt, gateInvSq, geomOf, geomFix, kindOf, endOf, endSiteOf } from './stent-geom.js';
 import { JUNCTION_ROWS, cutGraph } from './junctions.js';
-// Vascular network definition (blueprint §7.2).
 //
 // Units: pressure mmHg, flow mL/s, resistance PRU (mmHg·s/mL), compliance mL/mmHg.
 // Each node lists its *baseline target* pressure; each calibrated edge lists its
@@ -360,7 +359,12 @@ export const stentSegments = (v, s = 0, site = 'distal', out = null, g = null) =
   for (let i = 0; i < 3; i++) {
     const k = STENT_KEYS[i];
     let x = v;
-    if (g && (narrowed || red > 0)) { const r = profileAt(g, narrowed ? s : 0, STENT_SITES[site] ?? STENT_SITES.distal, STENT_SITES[k]); if (r < 1) x = v / (r * r); }
+    if (g && (narrowed || red > 0)) {
+      // (a gate on the deliberate waist reads its point lumen, as it always did; a gate on the end stenosis reads the mean over its sample volume, stent-geom.js gateInvSq)
+      const u = STENT_SITES[k], sU = STENT_SITES[site] ?? STENT_SITES.distal;
+      if (red > 0 && profileAt(g, 0, sU, u) < 1) { const r = profileAt(g, narrowed ? s : 0, sU, u); if (r < 1) x = v / (r * r); }
+      else { const m = gateInvSq(g, narrowed ? s : 0, sU, u, g.len || 8); if (m > 1) x = v * m; }
+    }
     else if (narrowed && k === site) x = v / ((1 - s) * (1 - s));
     out[i] = x * (1 + (STENT_GRADIENT[k] - 1) * w);
   }

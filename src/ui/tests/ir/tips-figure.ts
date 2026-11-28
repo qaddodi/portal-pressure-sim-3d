@@ -167,7 +167,8 @@ export function tipsFigureFrame(st: StentState, c: ChartCtx, o: FigOpts): Frame 
     p.line([wa, yb + 4, wa, yb, wb, yb, wb, yb + 4], 'stent.dim', wOn);
     p.text((wa + wb) / 2, L.labY!, waistWord(lumenShown(d * (1 - red)), waistShown(sh.waist)), 'tf.word', W12, 'middle', wOn);
     // the end stenosis: its lumen over it
-    const esp = endSpan(sh, site) as { a1: number; b1: number }, ea = x0 + esp.a1 * span, eb = x0 + esp.b1 * span, eOn = ex * clamp((s - 0.004) / 0.03, 0, 1);
+    // (the stenosis is a taper now, so its bracket runs from where it starts to narrow to where it is open again)
+    const esp = endSpan(sh, site) as { a0: number; b0: number }, ea = x0 + esp.a0 * span, eb = x0 + esp.b0 * span, eOn = ex * clamp((s - 0.004) / 0.03, 0, 1);
     p.line([ea, yb + 4, ea, yb, eb, yb, eb, yb + 4], 'stent.dim', eOn);
     p.text(clamp((ea + eb) / 2, 24, W - 24), L.labY!, mmWord(lumenShown(d * (1 - s))), 'tf.word', W12, 'middle', eOn);
     // the Doppler's three gates: a tick down from the lumen, the number where it is taken (the lens: cm/s, or mmHg at the same three places)

@@ -119,4 +119,12 @@ export const REVIEW_28NOV = [
   // ---- ruling 10: primary SBP prophylaxis ----
   SET('tipping', 'slides.antibiotic-card.tool.rows.2', 'with **Child–Pugh ≥9** and **bilirubin ≥3 mg/dL**'),
   SET('tipping', 'slides.antibiotic-card.tool.rows.3', 'or **sodium ≤130 mEq/L** or **creatinine ≥1.2 mg/dL**'),
+
+  // ---- ruling 12: the constrictive patient keeps 800 mL, so the right atrium reads about 16 mmHg and the portal vein about 30 mmHg (it read 24.5 and 38.9 at 1,150 mL) ----
+  // (the pericardial constraint barely moves the right atrium; the retained volume sets it: pericardial 0.5 to 0.9 all gave 24.7 at 1,150 mL. The same constrictive patient is on tips-complete's heart slide.)
+  SET('two-lesions', 'slides.both.action', { kind: 'retain', mL: 800 }),
+  SET('two-lesions', 'slides.unsqueeze.action', { kind: 'retain', mL: -800 }),
+  SET('two-lesions', 'slides.together.action', { kind: 'retain', mL: 800 }),
+  SET('tips-candidacy', 'slides.heart.action', { kind: 'retain', mL: 800 }),
+  SET('tips-complete', 'slides.heart.action', { kind: 'retain', mL: 800 }),
 ];

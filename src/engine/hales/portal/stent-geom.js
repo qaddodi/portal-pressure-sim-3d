@@ -124,7 +124,7 @@ function lesion(wall, len, kq, d, s, Lw, Lt, b = 1, bIn = 1) {
   if (b < 1 || bIn < 1) {
     // (A stenosis inside the waist: its jet expands into the waist's lumen, area share b, so its loss is (1/a − 1/b)² and its inlet's (1 − a/b), b the waist's
     // lumen at its exit and its entry, and one no tighter than the waist there adds nothing. Its friction is counted once with the waist's: stentParts' overlap.)
-    const w0 = wall * (Lw / len) * (1 / Math.pow(1 - s, 4) - 1);
+    const w0 = wall * ((Lw + Lt) / len) * (1 / Math.pow(1 - s, 4) - 1);
     LES.wall = w0;
     const k = kExp(coneAngle(d, s, Lt));
     LES.jet = a < b ? k * (kq / K_ENTRY) * (1 / a - 1 / b) * (1 / a - 1 / b) : 0;
@@ -171,8 +171,8 @@ export function stentParts(kind, d, q, visc, s, g, out = null, site = END_U.dist
     }
   }
   if (s > 0) {
-    // (The end stenosis: focal, PINCH of the length, abrupt.)
-    const r = lesion(wall, len, kq, d, s, PINCH * len, 0, b, bIn);
+    // (The end stenosis: focal, PINCH of the length, a straight cone down and up with no flat, endSpan.)
+    const r = lesion(wall, len, kq, d, s, 0, (PINCH * len) / 2, b, bIn);
     waistWall = r.wall; jet = r.jet; inlet = r.inlet; jetEnd = r.jet + r.inlet; wallEnd = r.wall;
   }
   if (red > 0) {
@@ -199,13 +199,30 @@ export function waistSpan(g, out = null) {
   o.c = c; o.a0 = c - half; o.a1 = c - w; o.b1 = c + w; o.b0 = c + half;
   return o;
 }
-/** The end stenosis along the stent, the same record as waistSpan: PINCH of the length, abrupt (a0 = a1, b1 = b0), centred on `site` (the
- *  site's fraction, topology.js STENT_SITES, or an eased one between them), slid inward so it stays inside the stent. */
+/** The end stenosis along the stent, the same record as waistSpan: PINCH of the length, tapered (28 Nov 2026, owner: "show the stenosis tapered"): the lumen
+ *  narrows in a straight cone to its tightest point at the centre (a1 = b1 = c) and widens again, no step; centred on `site` (the site's fraction,
+ *  topology.js STENT_SITES, or an eased one between them), slid inward so it stays inside the stent. */
 export function endSpan(g, site, out = null) {
   const o = out || {};   // alloc-rare: only a caller that brings no record
   const w = PINCH / 2, c = clamp(site, w, 1 - w);
-  o.c = c; o.a0 = c - w; o.a1 = c - w; o.b1 = c + w; o.b0 = c + w;
+  o.c = c; o.a0 = c - w; o.a1 = c; o.b1 = c; o.b0 = c + w;
   return o;
+}
+
+/** The Doppler sample volume's length along the stent (cm): a gate reads the mean of 1/lumen² over it, so a tapered stenosis reads below its tightest point
+ *  (28 Nov 2026, owner ruling 11: the stenotic jet read 545 cm/s at the tightest point of a 65 % stenosis; over a 0.5 cm gate on the 1 cm taper it reads about 280). */
+export const GATE_CM = 0.5;
+const GATE_N = 8;
+/** The mean of 1/r² (r the lumen's share of d) over a gate of GATE_CM centred at fraction u of a stent of length len (cm): 1 in the open stent (Simpson, 8 steps). */
+export function gateInvSq(g, s, site, u, len) {
+  const h = Math.min(GATE_CM / len / 2, u, 1 - u);   // (a gate at the stent's end reads what lies inside the stent)
+  if (!(h > 0)) { const r = profileAt(g, s, site, u); return 1 / (r * r); }
+  let acc = 0;
+  for (let i = 0; i <= GATE_N; i++) {
+    const r = profileAt(g, s, site, u - h + (2 * h * i) / GATE_N);
+    acc += (i === 0 || i === GATE_N ? 1 : i % 2 ? 4 : 2) / (r * r);
+  }
+  return acc / (3 * GATE_N);
 }
 
 const SPAN = { c: 0, a0: 0, a1: 0, b1: 0, b0: 0 };   // alloc-rare: made once (profileAt's span, read at once)
