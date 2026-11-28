@@ -14,7 +14,7 @@ import { armTube } from '../src/scene/vessels/skin/braid-arm.ts';
 import { PACES } from '../src/scene/vessels/skin/mesh.ts';
 import { buildTubes } from '../src/scene/vessels/tubes.ts';
 import { samePrint } from '../src/scene/fingerprint.ts';
-import { ROUNDED_KEYS, ROUND_DROPS, decodeSkins, encodeSkins, roundInterior, roundMantissa, roundedKey, skinsDigest, type BakedSkins } from '../src/scene/vessels/skin/baked.ts';
+import { ROUNDED_KEYS, ROUND_DROPS, decodeSkins, encodeSkins, normalsAsStored, octDecode, octEncode, octable, roundInterior, roundMantissa, roundedKey, skinsDigest, type BakedSkins } from '../src/scene/vessels/skin/baked.ts';
 import type { SkinMesh } from '../src/scene/vessels/skin/types.ts';
 import { sceneSource } from './helpers/scene-source.ts';
 
@@ -37,7 +37,7 @@ function setOf(scene: CelScene, baked?: () => BakedSkins | null): { set: SkinSet
  */
 const same = (m: SkinMesh, k: 'position' | 'normal' | 'cen' | 'weight' | 'weight2' | 'restR' | 'index'): Float32Array | Uint32Array => {
   const a = m[k];
-  return k === 'position' ? roundInterior(a as Float32Array, m.seamVerts) : a instanceof Float32Array ? roundedKey(a, k) : a;
+  return k === 'position' ? roundInterior(a as Float32Array, m.seamVerts) : k === 'normal' ? normalsAsStored(a as Float32Array) : a instanceof Float32Array ? roundedKey(a, k) : a;
 };
 
 test('the baked file unpacks to the skins it was made from, and a build that is given it lays those in and meshes nothing (live build once, then the baked one)', () => {
@@ -104,7 +104,7 @@ test('the rounding is bounded: a number rounded by d bits is within 2^(d-23-1) o
     }
   }
   // (what a key steers sets how coarse it may be: no shade, share of a move or surface place is off by more than a thousandth of itself, and the surface-placing ones by a ten-thousandth)
-  for (const [k, d] of Object.entries(ROUND_DROPS)) assert.ok(d <= (k === 'normal' || k === 'weight' || k === 'weight2' ? 14 : 10), `${k}: ${d} bits is too coarse for what it steers`);
+  for (const [k, d] of Object.entries(ROUND_DROPS)) assert.ok(d <= (k === 'weight' || k === 'weight2' ? 14 : 10), `${k}: ${d} bits is too coarse for what it steers`);
   assert.ok(!ROUNDED_KEYS.has('position') && !ROUNDED_KEYS.has('index'));
   // the position: a seam ring's vertices keep every bit, any other vertex is within 2^-16 of itself
   const pos = new Float32Array([0.123456789, 1.23456789, -2.3456789, 0.5551234, 0.4441234, 0.3331234]), r = roundInterior(pos, [new Uint32Array([0])]);
@@ -159,4 +159,24 @@ test('under node the baked files are read from disk, so a scene does not remesh 
   assert.ok(bakedSkins() && bakedCircuitSkins(), 'both files are held under node');
   const t = Date.now(); new CelScene({ joins: 'old' });
   assert.ok(Date.now() - t < 15000, `a scene laid in from the baked file in ${Date.now() - t} ms (live meshing is about 35 000)`);
+});
+
+test('the normals are written octahedral: every unit normal reads back within 1e-4 radian (ten times finer than the 2^-11 rounding it replaced), unit length, on every side of the sphere; a non-unit list is kept as it is', () => {
+  const n: number[] = [];
+  let seed = 7; const rnd = (): number => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
+  for (const v of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [1e-9, 0, -1], [0.6, 0, -0.8], [-0.6, -0.8, 0], [0.577, -0.577, -0.577]]) n.push(...v);
+  for (let i = 0; i < 3000; i++) { const z = rnd() * 2 - 1, t = rnd() * 2 * Math.PI, r = Math.sqrt(1 - z * z); n.push(r * Math.cos(t), r * Math.sin(t), z); }
+  const a = new Float32Array(n);
+  assert.ok(octable(a));
+  const b = octDecode(octEncode(a));
+  let worst = 0;
+  for (let i = 0; i < a.length; i += 3) {
+    const l = Math.hypot(b[i]!, b[i + 1]!, b[i + 2]!), la = Math.hypot(a[i]!, a[i + 1]!, a[i + 2]!);
+    assert.ok(Math.abs(l - 1) < 1e-6, `unit at ${i}`);
+    // (the angle between two near vectors is the length of their difference, which float noise does not blur the way an arccosine of a dot does)
+    worst = Math.max(worst, Math.hypot(b[i]! - a[i]! / la, b[i + 1]! - a[i + 1]! / la, b[i + 2]! - a[i + 2]! / la));
+  }
+  assert.ok(worst < 1e-4, `worst angle ${worst}`);
+  const flat = new Float32Array([0, 0, 0, 1, 0, 0]);
+  assert.ok(!octable(flat) && normalsAsStored(flat) === flat, 'a zero normal is never folded to another');
 });

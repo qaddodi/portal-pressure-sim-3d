@@ -56,7 +56,7 @@ export function skinsDigest(js: readonly SkinJunction[], tubes: ReadonlyMap<stri
  * far under what a pixel can show (the cel shade steps at its thresholds, a weight is the share of an arm's move a vertex takes); the centre and the rest radius place the surface, so they
  * keep 2^-13 and 2^-15. The position is not here (its seam rings must meet the tubes' own exactly): `roundInterior` rounds the rest of it.
  */
-export const ROUND_DROPS: Readonly<Record<string, number>> = { normal: 12, cen: 10, weight: 14, weight2: 14, restR: 8 };
+export const ROUND_DROPS: Readonly<Record<string, number>> = { cen: 10, weight: 14, weight2: 14, restR: 8 };
 export const ROUNDED_KEYS: ReadonlySet<string> = new Set(Object.keys(ROUND_DROPS));
 /** Mantissa bits dropped from a vertex position that is not on a seam ring: a relative step of 2^-15 (3e-5), a thousandth of a tube's radius. */
 export const ROUND_DROP = 8;
@@ -69,6 +69,43 @@ export function roundMantissa(a: Float32Array, drop = ROUND_DROP): Float32Array 
   }
   return out;
 }
+/**
+ * The normals are written octahedral, two signed 16-bit numbers a normal instead of three floats (28 Nov, J3: they were 196 kB of the file's 1,095, the largest array in it). A unit
+ * normal has two degrees of freedom; the pair folds the sphere onto a square, each side in 32767 steps, so the angle is within 5e-5 radian (0.003 degree), ten times finer than the
+ * 2^-11 rounding it replaces (5e-4), and `unoct` gives a unit normal back. A vector that is not unit (a zero normal) is never written this way: see `octable`.
+ */
+export const OCT_STEPS = 32767;
+const sgn = (v: number): number => (v < 0 ? -1 : 1);
+/** The octahedral pair (x, y per normal) of the unit normals in `n`. */
+export function octEncode(n: Float32Array): Int16Array {
+  const out = new Int16Array((n.length / 3) * 2);
+  for (let i = 0, o = 0; i < n.length; i += 3, o += 2) {
+    const x = n[i]!, y = n[i + 1]!, z = n[i + 2]!, s = Math.abs(x) + Math.abs(y) + Math.abs(z);
+    let u = x / s, v = y / s;
+    if (z < 0) { const a = (1 - Math.abs(v)) * sgn(u), b = (1 - Math.abs(u)) * sgn(v); u = a; v = b; }
+    out[o] = Math.round(u * OCT_STEPS); out[o + 1] = Math.round(v * OCT_STEPS);
+  }
+  return out;
+}
+/** The unit normals (x, y, z each) of an octahedral pair list: what `octEncode` wrote, read back (the same arithmetic on every device: IEEE division and square root). */
+export function octDecode(q: Int16Array): Float32Array {
+  const out = new Float32Array((q.length / 2) * 3);
+  for (let i = 0, o = 0; i < q.length; i += 2, o += 3) {
+    let u = q[i]! / OCT_STEPS, v = q[i + 1]! / OCT_STEPS;
+    const z = 1 - Math.abs(u) - Math.abs(v);
+    if (z < 0) { const a = (1 - Math.abs(v)) * sgn(u), b = (1 - Math.abs(u)) * sgn(v); u = a; v = b; }
+    const l = Math.hypot(u, v, z);
+    out[o] = u / l; out[o + 1] = v / l; out[o + 2] = z / l;
+  }
+  return out;
+}
+/** Whether every normal in `n` is a unit vector (within 1e-3), so the octahedral pair holds it. */
+export const octable = (n: Float32Array): boolean => {
+  for (let i = 0; i < n.length; i += 3) if (!(Math.abs(Math.hypot(n[i]!, n[i + 1]!, n[i + 2]!) - 1) < 1e-3)) return false;
+  return n.length % 3 === 0;
+};
+/** What the file holds of a normal list: the list as it reads back (the pair, decoded); `n` itself when it is not unit. */
+export const normalsAsStored = (n: Float32Array): Float32Array => (octable(n) ? octDecode(octEncode(n)) : n);
 /** What a baked file holds of the mesh array `key` (`a` itself for a key that is not rounded). */
 export const roundedKey = (a: Float32Array, key: string): Float32Array => (ROUNDED_KEYS.has(key) ? roundMantissa(a, ROUND_DROPS[key]) : a);
 /** The vertex positions (x, y, z per vertex) with every vertex that is not on a seam ring rounded by ROUND_DROP: a seam vertex keeps its bits, so the skin still meets each tube's own ring exactly. */
@@ -89,7 +126,8 @@ export function encodeSkins(b: BakedSkins, gz?: (b: Uint8Array) => number): Uint
       for (const k of Object.keys(v)) {
         const x = (v as Record<string, unknown>)[k];
         const seams = (v as { seamVerts?: unknown }).seamVerts;
-        out[k] = x instanceof Float32Array && ROUNDED_KEYS.has(k) ? w.add(roundedKey(x, k))
+        out[k] = k === 'normal' && x instanceof Float32Array && octable(x) ? { oct: w.add(octEncode(x)) }
+          : x instanceof Float32Array && ROUNDED_KEYS.has(k) ? w.add(roundedKey(x, k))
           : k === 'position' && x instanceof Float32Array && Array.isArray(seams) ? w.add(roundInterior(x, seams as Uint32Array[]))
           : pack(x);
       }
@@ -121,6 +159,7 @@ export function decodeSkins(buf: ArrayBuffer): BakedSkins | null {
     if (v && typeof v === 'object') {
       const o = v as Record<string, unknown>;
       if (isRef(o)) return unpackRef(buf, start, o);
+      if (isRef(o.oct)) return octDecode(unpackRef(buf, start, o.oct) as Int16Array);
       const out: Record<string, unknown> = {}; for (const k of Object.keys(o)) out[k] = unpack(o[k]); return out;
     }
     return v;
