@@ -24,9 +24,9 @@ const DARKER = 0.02;
 
 test('the shade keeps the mesh normal over exactly the rows the mesh blends the tube\'s normal over', () => {
   assert.equal(SKIN_TUBE_ROWS, NORMAL_BLEND_ROWS);
-  // a strip of two rings and a row past them: 1 on the ring, a half one row in, nothing two rows in
-  const share = tubeShareOf([0, 1, 2, 2, 1, 3, 2, 3, 4], [[0, 1]], 5);
-  assert.deepEqual([...share], [1, 1, 0.5, 0.5, 0]);
+  // a strip of two ring vertices and rows past them: 1 on the ring, falling by 1 / rows a row, 0 from `rows` rows in (the strip is three rows deep, so a share of 0 shows only when the rows are two)
+  const share = tubeShareOf([0, 1, 2, 2, 1, 3, 2, 3, 4], [[0, 1]], 5), at = (row: number): number => Math.max(0, 1 - row / SKIN_TUBE_ROWS);
+  assert.deepEqual([...share].map((x) => Math.fround(x)), [1, 1, at(1), at(1), at(2)].map((x) => Math.fround(x)));
 });
 
 test('across every weld the shade is the drawn surface\'s: it turns no faster than the surface, and no vertex is darker than the surface at the same angle to the light', () => {

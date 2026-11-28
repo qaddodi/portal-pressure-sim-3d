@@ -8,7 +8,14 @@ import { createCore } from '../src/engine/hales/host/worker-core.js';
 import { collateralOpen } from '../src/scene/vessels/network.ts';
 import { gateSkins } from './skin-gate-lib.ts';
 import { closeCamera, rasterLive, swellOf } from './skin-live-lib.ts';
+import { skinKeysWithArm } from './skin-names-lib.ts';
 
+/** The lower cava's wall skin: the skin the portocaval shunt and the lumbar vein both land on, found by its arms (it is the cluster of the table's take-offs along the cava, keyed by their nodes: never typed here). */
+const cavaWall = <T extends { node: string; mesh: Parameters<typeof skinKeysWithArm>[0][number]['mesh'] }>(skins: readonly T[]): T => {
+  const key = skinKeysWithArm(skins, 'S_PC').find((k) => skinKeysWithArm(skins, 'C9').includes(k));
+  assert.ok(key, 'S_PC and C9 are arms of one skin');
+  return skins.find((x) => x.node === key)!;
+};
 const SCREEN = { w: 393, h: 852, dpr: 2, pxPerUnit: 500 } as const;
 /** The hold-out ramp these twin tests were written against (0.25 k to k): the patches they pin (heldMin, the lumen rescue, the shade union) are for the whole welded skin as it stands when a part could not be built; with the later ramp (16C, 1 k to 2 k) the stub is held in
  *  sooner and these bites are fewer, so they ask for the ramp they bite on. */
@@ -50,10 +57,11 @@ test('a growing arm that is not there leaves no hole in its host: every skin, at
 test('the test bites: with each arm held out on its own (the rule until 22 Nov) the cava wall skin of the Budd-Chiari patient (S_PC out, the lumbar vein there) has pixels unpainted (2 percent at this zoom, none with the rule)', async () => {
   const g = gateSkins();
   try {
-    const s = g.skins.find((k) => k.node.startsWith('wall:IVC_IS_1'))!, arms = s.mesh.junction.arms, fr = await frameOf('budd-chiari');
+    const s = cavaWall(g.skins), arms = s.mesh.junction.arms, fr = await frameOf('budd-chiari');
     const swell = arms.map((a) => swellOf(fr.D[a.dataIndex]!, a.baseD, a.widthKind));
     const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
-    assert.deepEqual(keep, [true, true, false, true], 'S_PC collapsed, the lumbar vein open');
+    assert.equal(keep[arms.findIndex((a) => a.vesselId === 'S_PC')], false, 'S_PC collapsed');
+    assert.equal(keep[arms.findIndex((a) => a.vesselId === 'C9')], true, 'the lumbar vein open');
     const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0.3 });
     const old = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep }, { absoluteHold: true, noRescue: true, ramp: OLD_RAMP }), now = rasterLive(s, cam, SCREEN.w, SCREEN.h, SCREEN.dpr, { swell, keep });
     assert.ok(old.hole / old.covered > 0.015, `${(100 * old.hole / old.covered).toFixed(1)} % without the fix`);
@@ -70,7 +78,7 @@ test('the outline\'s hold-out is relative to the least-held arm that is there', 
 test('the shade follows the outline: at the Budd-Chiari cava wall skin, the stub pixels the host now draws are shaded from the union of the arms that are there (the all-arm union would flip a cel band at two thirds of them: the ragged pale patch)', async () => {
   const g = gateSkins();
   try {
-    const s = g.skins.find((k) => k.node.startsWith('wall:IVC_IS_1'))!, arms = s.mesh.junction.arms, fr = await frameOf('budd-chiari');
+    const s = cavaWall(g.skins), arms = s.mesh.junction.arms, fr = await frameOf('budd-chiari');
     const swell = arms.map((a) => swellOf(fr.D[a.dataIndex]!, a.baseD, a.widthKind));
     const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
     const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0.3 });
@@ -86,7 +94,7 @@ test('the shade follows the outline: at the Budd-Chiari cava wall skin, the stub
 test('a pixel the arms\' screen union calls lumen is never dropped: the stub of the arm that is out at the Budd-Chiari cava wall skin leaves no pixel of the skin unpainted (the black crescent under a landing)', async () => {
   const g = gateSkins();
   try {
-    const s = g.skins.find((k) => k.node.startsWith('wall:IVC_IS_1'))!, arms = s.mesh.junction.arms, fr = await frameOf('budd-chiari');
+    const s = cavaWall(g.skins), arms = s.mesh.junction.arms, fr = await frameOf('budd-chiari');
     const swell = arms.map((a) => swellOf(fr.D[a.dataIndex]!, a.baseD, a.widthKind));
     const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
     const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0.3 });
@@ -106,7 +114,7 @@ test('a pixel of an absent arm\'s stub is not taken for a seam ring: the normal 
   assert.doesNotMatch(SKIN_FS, /wTop = max\(wTop, wAt\(i\)\)/);
   const g = gateSkins();
   try {
-    const s = g.skins.find((k) => k.node.startsWith('wall:IVC_IS_1'))!, arms = s.mesh.junction.arms, fr = await frameOf('budd-chiari');
+    const s = cavaWall(g.skins), arms = s.mesh.junction.arms, fr = await frameOf('budd-chiari');
     const swell = arms.map((a) => swellOf(fr.D[a.dataIndex]!, a.baseD, a.widthKind));
     const keep = arms.map((a) => (a.grow ? collateralOpen(a.vesselId, fr) : true));
     const cam = closeCamera(g.scene, SCREEN.w, SCREEN.h, s.mesh.junction.J, SCREEN.pxPerUnit, { yaw: 0 });

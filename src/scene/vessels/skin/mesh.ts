@@ -40,8 +40,12 @@ export const POLISH_ROUNDS = 2;
 export const GRADIENT_H = 0.05;
 /** Edge flips: an edge flips when that raises the sine of the smaller of its two triangles' smallest angles by `FLIP_GAIN` times and keeps the two faces facing the same way. */
 export const FLIP_GAIN = 1.05;
-/** Rows of vertices from a seam over which the normal blends from the tube's to the SDF gradient (spec 4.5.7). */
-export const NORMAL_BLEND_ROWS = 2;
+/**
+ * Rows of vertices from a seam over which the normal blends from the tube's to the SDF gradient (spec 4.5.7).
+ * Three, not two (28 Nov): across a crease the turn from the tube's normal to the gradient is spread over more edges,
+ * so the shade turns no more than 1 degree a step faster than the surface at the junction table's cluster skins (tests/skin-weld-shade.test.ts: SVC+SVC_E 1.07, PVH 1.05 with two).
+ */
+export const NORMAL_BLEND_ROWS = 3;
 /** Shading normals across a ridge: a vertex whose normal is more than `CREASE_DEG` from a neighbour's is eased `CREASE_EASE` of the way to its neighbours' mean, `CREASE_ROUNDS` times. A round tube's neighbouring rings differ by about 26 degrees (14 sides), so 35 leaves every plain stretch exact. */
 export const CREASE_DEG = 35;
 export const CREASE_EASE = 0.6;
@@ -123,24 +127,41 @@ export const BULGE_MAX = 0.45;
 /** What the neck-widening search (skin-set.ts NECK_FRACTIONS) aims for at rest: under BULGE_MAX by the room the live widths take. A skin is built at rest, and the vertex stage moves each vertex by its arms' blended swell, so a fillet that is just inside
  *  BULGE_MAX at rest stands past it when the trunks swell and a growing arm does not (IMV: 0.44 at rest, 0.46 at the CSPH patient's widths, where the colic and the inferior mesenteric veins swell 7 % and C4 is held at its built width). */
 export const BULGE_AIM = 0.4;
+/**
+ * The widths the neck-widening search also judges a build at, as the permanent arms' live swell (a growing arm stays at its built width): the patients' widths run 1.05 to 1.10 (tests/skin-joint-bulge.test.ts).
+ * The share is measured against the arm NEAREST each vertex, so
+ *  a vertex in the crotch between a trunk and a necked growing arm flips from the trunk's radius to the neck's as the trunks swell
+ *  (the splenic confluence at csph: 0.39 at rest, 0.51 swollen, by the same 0.004 of absolute distance). A constant AIM under BULGE_MAX cannot hold that room;
+ *  judging the swollen builds directly does. */
+export const BULGE_LIVE_SWELLS = [1.05, 1.1] as const;
+/** The worst bulge of a build at rest and at each of BULGE_LIVE_SWELLS (permanent arms swollen, growing arms at their built width): what the search keeps under BULGE_AIM. */
+export function searchBulge(m: BulgeMesh, axes: BulgeAxes, grows: readonly boolean[]): number {
+  let w = worstBulge(m, axes);
+  for (const s of BULGE_LIVE_SWELLS) w = Math.max(w, worstBulge(m, axes, grows.map((g) => (g ? 1 : s))));
+  return w;
+}
 /** The largest share of the local arm radius by which a vertex of `m` stands out of the union of the arms' capsules `axes` at rest (the test's `worstExcess` with every arm at its built width). */
-export function worstBulge(m: { position: ArrayLike<number>; normal: ArrayLike<number>; weight: ArrayLike<number>; weight2: ArrayLike<number>; restR: ArrayLike<number> }, axes: readonly { pts: readonly (readonly number[])[]; radii: readonly number[] }[]): number {
+type BulgeMesh = { position: ArrayLike<number>; normal: ArrayLike<number>; weight: ArrayLike<number>; weight2: ArrayLike<number>; restR: ArrayLike<number> };
+type BulgeAxes = readonly { pts: readonly (readonly number[])[]; radii: readonly number[] }[];
+export function worstBulge(m: BulgeMesh, axes: BulgeAxes, sw: readonly number[] = []): number {
   const P = m.position, N = m.normal, n = P.length / 3;
   let worst = -Infinity;
   for (let v = 0; v < n; v++) {
     let s = 0;
-    for (let i = 0; i < 4; i++) s += m.weight[4 * v + i]!;
-    for (let i = 0; i < 2; i++) s += m.weight2[2 * v + i]!;
+    for (let i = 0; i < 4; i++) s += m.weight[4 * v + i]! * (sw[i] ?? 1);
+    for (let i = 0; i < 2; i++) s += m.weight2[2 * v + i]! * (sw[4 + i] ?? 1);
     const o = m.restR[v]! * (s - 1), x = P[3 * v]! + N[3 * v]! * o, y = P[3 * v + 1]! + N[3 * v + 1]! * o, z = P[3 * v + 2]! + N[3 * v + 2]! * o;
     let out = Infinity, rr = 1;
-    for (const ax of axes) {
+    for (let a = 0; a < axes.length; a++) {
+      const ax = axes[a]!;
       let best = Infinity, br = 0;
       for (let i = 0; i < 3; i++) {
         const a = ax.pts[i]!, b = ax.pts[i + 1]!, bx = b[0]! - a[0]!, by = b[1]! - a[1]!, bz = b[2]! - a[2]!, px = x - a[0]!, py = y - a[1]!, pz = z - a[2]!, bb = bx * bx + by * by + bz * bz;
         const t = Math.max(0, Math.min(1, bb > 0 ? (px * bx + py * by + pz * bz) / bb : 0)), d = Math.hypot(px - t * bx, py - t * by, pz - t * bz);
         if (d < best) { best = d; br = ax.radii[i]! + (ax.radii[i + 1]! - ax.radii[i]!) * t; }
       }
-      if (best - br < out) { out = best - br; rr = br; }
+      const live = br * (sw[a] ?? 1);
+      if (best - live < out) { out = best - live; rr = live; }
     }
     worst = Math.max(worst, out / rr);
   }
