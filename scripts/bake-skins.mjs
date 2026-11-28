@@ -24,6 +24,7 @@ const { joinsPhase } = await import('../src/scene/vessels/skin/joins-mode.ts');
 const { encodeSkins, decodeSkins } = await import('../src/scene/vessels/skin/baked.ts');
 const { samePrint } = await import('../src/scene/fingerprint.ts');
 const { CircuitSkinSet } = await import('../src/scene/circuit/skins.ts');
+const { bakeReport } = await import('../src/scene/vessels/skin/bake-report.ts');
 
 // the figure as the page first builds it: smooth joins on, every vessel at rest, the default joins mode's phase
 setSmoothJoins(true);
@@ -58,5 +59,6 @@ const gzC = gzipSync(encodeSkins(bakedCircuit), { level: 9 });
 writeFileSync(outCircuit, gzC);
 writeSig([out, outCircuit], sig);
 console.log(`baked circuit skins: ${bakedCircuit.skins.length} skins, ${bakedCircuit.lost.length} left as lines, ${(gzC.length / 1048576).toFixed(2)} MB gzip`);
+for (const line of [...bakeReport(baked, 'body skins'), ...bakeReport(bakedCircuit, 'circuit skins')]) console.log(line);
 console.log(`baked skins: ${baked.skins.length} skins, ${baked.lost.length} left as joins, ${(gz.length / 1048576).toFixed(2)} MB gzip, ${((Date.now() - t) / 1000).toFixed(1)} s`);
 process.exit(0);

@@ -47,7 +47,7 @@ function build(node: string): { nodes: string[]; dropped: string[]; fellBack: st
     make: (mesh, axes, arms) => new SkinObject(mesh, arms[0]!, axes, arms),
     add: (o: Object3D) => new Group().add(o), remove: () => {}, warn: (m) => warnings.push(m),
   });
-  set.build(2, new Set([node]));
+  set.buildOnly(2, new Set([node]));
   return { nodes: [...set.nodes].sort(), dropped: [...set.dropped].sort(), fellBack: [...set.fellBack].sort(), warnings };
 }
 const scenes = new Map<string, CelScene>();
