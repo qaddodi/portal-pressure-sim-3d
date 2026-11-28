@@ -243,7 +243,7 @@ export class Engine {
       this.edgeExt[k] = EXT_OVERRIDE[partOf(e.id)] || NODES[f].ext;
       if ((e.Q || e.R) && !(this.Rbase[k] > 0)) throw new Error(`Non-positive baseline resistance on ${e.id}`);
     });
-    // A vein cut by junctions (topology.js JUNCTIONS): the calibrated resistance of the whole vein, which a clot or a narrowing of it adds on the piece that keeps its id (computeG).
+    // A vein cut by junctions (topology.js JUNCTIONS): the calibrated resistance of the whole vein, which a clot or a narrowing of it adds on the piece marked `clot` (computeG).
     const hostSum = new Map();
     EDGES.forEach((e, k) => { if (e.part) hostSum.set(e.part, (hostSum.get(e.part) || 0) + this.Rbase[k]); });
     this.hostR = Float64Array.from(EDGES, (e, k) => (e.part ? hostSum.get(e.part) : this.Rbase[k]));
@@ -682,9 +682,10 @@ export class Engine {
         }
       }
       R *= visc;
-      // A clot or a narrowing of a vein cut by junctions sits on the one piece that keeps the vein's id and adds the whole vein's resistance there: the other pieces stay open
-      // (the portal trunk's clot lies past the coronary vein's mouth, so the way out to the varices stays open; a hepatic vein's lies at its ostium, past the TIPS's outlet).
-      const sf = e.part && e.part !== e.id ? 1 : stenosisFactor(this.occlusion(e.id));
+      // A clot or a narrowing of a vein cut by junctions sits on the one piece its table rows name (`clotOn`, junctions.js: the piece marked `clot`) and adds the whole vein's
+      // resistance there: the other pieces stay open (the portal trunk's clot lies past the coronary vein's mouth, so the way out to the varices stays open; a hepatic
+      // vein's lies at its ostium, past the TIPS's outlet).
+      const sf = e.part && !e.clot ? 1 : stenosisFactor(this.occlusion(e.id));
       if (sf === Infinity) { this.G[k] = 0; continue; }
       if (sf !== 1) R += (sf - 1) * R * (this.hostR[k] / this.Rbase[k]);
       // Surgical ligations implied by shunt procedures
@@ -701,7 +702,7 @@ export class Engine {
   }
 
   occlusion(id) {
-    const v = partOf(id);   // (a vein cut in pieces by junctions: its clot and its narrowing are the vein's, read on the piece that keeps its id)
+    const v = partOf(id);   // (a vein cut in pieces by junctions: its clot and its narrowing are the vein's, whichever piece they sit on)
     const s1 = this.params.stenosis[v] || 0, s2 = this.params.thrombus[v] || 0;
     return 1 - (1 - s1) * (1 - s2);
   }

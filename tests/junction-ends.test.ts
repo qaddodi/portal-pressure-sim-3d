@@ -3,8 +3,7 @@
 // the row lists lands exactly there. Two things are pinned, for EVERY row and EVERY end, so a new row is held to them with no edit here:
 //   1. the junction node's drawn place is `at` of the way along its host's drawn course (the pieces chained, a draw-only branch past the end counted: the share the table is measured in);
 //   2. every collateral, shunt and tributary end that lands on a host lies within one host radius of its engine node's drawn place, along the host (the same node the flow lens, the blood and the readings turn at).
-// PENDING holds the named cases that are not at their node (one waits for the engine, one is drawn 4 radii on by rule): C2 (the short/posterior gastric veins) is drawn at SVD, where the splenic vein divides, but the engine joins it at SV, 11 vein radii away
-// (engine brief A moves its end to SVD). The test found a second, C9 (the ascending lumbar vein, drawn 4 cava radii above its engine node IVCI: no row in the table). Each is listed with its reason; it is judged like every other end, so the day the engine moves it the test turns it on by itself, and this list says so when it does.
+// PENDING holds the named cases that are not at their node (one is drawn 4 radii on by rule: C1b on the azygos arch). C2 (the short/posterior gastric veins, now joined at SVD by the engine) and C9 (the ascending lumbar vein, now an engine row on IVC_IS) left it when the engine moved. Each is listed with its reason; it is judged like every other end, and a listed end that lands fails the test until it is taken off the list.
 // Node only, about a second.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,9 +18,7 @@ const edges = EDGES as Edge[];
 const byId = new Map(edges.map((e) => [e.id, e]));
 /** The ends not yet where the engine puts them: `id|end` and why. */
 const PENDING: Readonly<Record<string, string>> = {
-  'C2|0': 'the engine joins the short/posterior gastric veins at SV, 11 vein radii from SVD where they are drawn (engine brief A moves the end to SVD)',
   'C1b|1': 'the esophageal varices land on the azygos arch 4 of its radii past AZY, where the lumbar vein runs into it: at AZY itself they would sit on the arch\'s open start when the lumbar vein is hidden, and leave the arch 3 radii to the SVC, too short for the SVC\'s skin (no ring clears its blend; placed-network.ts AZY_LEAD_R, tests/azygos-origin.test.ts)',
-  'C9|0': 'found by this test: the ascending lumbar vein leaves the cava 0.1 (4 cava radii) above IVCI, the renal veins\' node, where it is drawn; the table has no row for it (an engine row on IVC_IS would place it)',
 };
 
 const chain = (pieces: readonly string[]): V3[] => pieces.flatMap((id, i) => (PLACED_EDGE_3D[id] ?? []).slice(i ? 1 : 0) as V3[]);
@@ -51,7 +48,7 @@ test('every junction node is drawn at its table share along its host (the host\'
 });
 
 test('every collateral, shunt and tributary end that lands on a host lies within one host radius of its engine node, along the host', () => {
-  const rows: string[] = [], failing: string[] = [];
+  const rows: string[] = [], failing: string[] = [], mended: string[] = [];
   const hosts = new Map<string, string>();   // piece -> host edge
   for (const hs of Object.values(WHOLE_HOSTS)) for (const h of hs) for (const p of piecesOf(h)) hosts.set(p, h);
   for (const e of edges) {
@@ -71,6 +68,7 @@ test('every collateral, shunt and tributary end that lands on a host lies within
         const along = Math.abs(hit.s - nearest(host, place).s), key = `${e.id}|${end}`;
         rows.push(`${key.padEnd(10)} ${node.padEnd(6)} on ${h.padEnd(9)} ${(along / r).toFixed(2)} R${PENDING[key] ? '  (pending)' : ''}`);
         if (along > r) failing.push(key);
+        else if (PENDING[key]) mended.push(key);
       }
     }
   }
@@ -78,5 +76,8 @@ test('every collateral, shunt and tributary end that lands on a host lies within
   assert.ok(rows.length >= 20, `${rows.length} landings measured`);
   const unexpected = failing.filter((k) => !PENDING[k]);
   assert.deepEqual(unexpected, [], 'every landing is within one host radius of its engine node, along the host');
+  // (J5 of the 27 Nov review: a PENDING end that now lands is no longer pending; the list must shrink with the drawing, never keep a stale reason)
+  assert.deepEqual(mended, [], 'these ends now land within one host radius of their node: take them off PENDING');
+  for (const k of Object.keys(PENDING)) assert.ok(failing.includes(k) || !rows.some((r) => r.startsWith(k)), `${k} is pending but is not failing`);
   for (const k of Object.keys(PENDING)) assert.ok(byId.has(k.split('|')[0]!), `${k} is an engine edge`);
 });

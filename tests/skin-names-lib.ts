@@ -76,6 +76,6 @@ export function carriedBy(set: { nodes: readonly string[]; skinOf(node: string):
   return new Set(set.nodes.flatMap((n) => set.skinOf(n)!.junction.arms.filter((a) => a.grow).map((a) => `${a.vesselId}:${a.end}`)));
 }
 
-/** The growing arms drawn farther than GROW_REACH from their node's centre on the placed arrangement (`node:vessel`), each with why, none silent. SVD:C2, 28 Nov: the short-gastric braid's root is drawn 6.5 radii from SVD's centre where the junction table now joins it
- *  (C2 joined SV until the real junctions, and was named SV:C2 then): the drawing lands the take-offs the table cuts on the host but not this braid's root, so the skin leaves it with the tube's own flared end. A drawing fix removes the line (and this test then fails until it does). */
+/** The growing arms drawn farther than GROW_REACH from their node's centre on the placed arrangement (`node:vessel`), each with why, none silent. None now (28 Nov): the short-gastric braid C2 was named SVD:C2 while the engine joined it at SV; the table (brief A) joins it at SVD and
+ *  the drawing lands its root exactly there. A far landing is a drawing fault to fix, not to list; if one must be listed, the test that reads this names it with its reason. */
 export const FAR_PLACED: readonly string[] = [];

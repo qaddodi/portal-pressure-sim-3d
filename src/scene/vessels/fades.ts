@@ -147,22 +147,24 @@ export const LIVER_FADE_OUT: Readonly<Record<string, number>> = { [lastPieceOf('
   *  the host it does not. */
 function placedHostFade(byHost: Readonly<Record<string, readonly [number, number]>>): Readonly<Record<string, readonly [number, number]>> {
   const out: Record<string, readonly [number, number]> = {};
-  for (const [host, [f0, f1]] of Object.entries(byHost)) {
-    const ids = piecesOf(host), lens = ids.map((id) => { const c = PLACED_EDGE_3D[id]; let l = 0; for (let i = 1; c && i < c.length; i++) l += Math.hypot(c[i]![0] - c[i - 1]![0], c[i]![1] - c[i - 1]![1], c[i]![2] - c[i - 1]![2]); return l; });
-    const tot = lens.reduce((x, y) => x + y, 0);
-    let acc = 0;
-    ids.forEach((id, i) => {
-      const p = acc / tot, q = (acc + lens[i]!) / tot; acc += lens[i]!;
-      if (f0 < q) out[id] = [(f0 - p) / (q - p), (f1 - p) / (q - p)];
-    });
-  }
+  for (const [host, [f0, f1]] of Object.entries(byHost)) for (const [id, [p, q]] of Object.entries(hostRanges(host))) if (f0 < q) out[id] = [(f0 - p) / (q - p), (f1 - p) / (q - p)];
+  return out;
+}
+/** Each piece of a host as the stretch [p, q] of the host's whole drawn length it covers (0 to 1, by the pieces' own lengths):
+ *  what a fade or a narrowing written along the host reads, so no row of the junction table moves it. */
+export function hostRanges(host: string): Readonly<Record<string, readonly [number, number]>> {
+  const ids = piecesOf(host), lens = ids.map((id) => { const c = PLACED_EDGE_3D[id]; let l = 0; for (let i = 1; c && i < c.length; i++) l += Math.hypot(c[i]![0] - c[i - 1]![0], c[i]![1] - c[i - 1]![1], c[i]![2] - c[i - 1]![2]); return l; });
+  const tot = lens.reduce((x, y) => x + y, 0), out: Record<string, readonly [number, number]> = {};
+  let acc = 0;
+  ids.forEach((id, i) => { out[id] = [acc / tot, (acc + lens[i]!) / tot]; acc += lens[i]!; });
   return out;
 }
 /** Placed: the left portal vein runs on into the left lobe as one vessel (round 16) and fades out over this stretch of its second piece [from, to], earlier than LIVER_FADE_OUT's 0.4
  *  to 1, and narrows on the way
  *   (shape.ts LIVER_TAPER): it ran "too far into the left lobe, same caliber" (Mohammad, 25 Nov). It starts past the meso-Rex landing (0.31 along it) and the umbilical vein's root
   *  (0.14), so both leave a whole vein. */
-export const PLACED_LIVER_FADE: Readonly<Record<string, readonly [number, number]>> = placedHostFade({ PVH_L: [0.447, 0.782] });
+export const PLACED_LIVER_FADE_HOST: Readonly<Record<string, readonly [number, number]>> = { PVH_L: [0.447, 0.782] };
+export const PLACED_LIVER_FADE: Readonly<Record<string, readonly [number, number]>> = placedHostFade(PLACED_LIVER_FADE_HOST);
 export const LIVER_FADE_IN: Readonly<Record<string, number>> = { [piecesOf('RHV_IVC')[0]!]: 0.6, MHV_IVC: 0.6, LHV_IVC: 0.6 };
 
 /** The rectal varices run on further down (starts.ts END_ON): they fade out over the new stretch instead of the 2D one. */

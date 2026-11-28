@@ -14,7 +14,7 @@ import { BEAD_LAMBDA_FUNDAL, BEAD_SITE, beadLambda } from './varix-bead.copied.j
 import { STRAND_FROM_2D } from './coil.copied.ts';
 import { setSmoothJoins, smoothJoinsOn } from './join-mode.ts';
 import { ATTACH_REACH, BURY, CEIL, END_SHARE, SMOOTH, isPlain } from './smooth-joins.ts';
-import { fadeOf } from './fades.ts';
+import { PLACED_LIVER_FADE_HOST, fadeOf, hostRanges } from './fades.ts';
 import { PHASE_2_NODES } from './skin/nodes.ts';
 import { endShare, shuntEnds } from './shunt-ends.ts';
 import { DIVIDED, DIVIDED_RING_K } from './divide.ts';
@@ -57,13 +57,17 @@ export const varixPressRamp = (mmHg: number | undefined): number => { if (mmHg =
 export const varixPressK = (prs: number): number => 1 + (VARIX_PRESS_THICK - 1) * Math.min(1, Math.max(0, prs));
 /** What a banded strand keeps of its width: a closed varix is a thin sclerosed cord, never gone (Mohammad, 20 Nov: banding left "stumps" and floating bands). The varices shrink as each band closes one, and the path from the coronary vein to the azygos stays one tube end to end. */
 export const BANDED_CORD = 0.28;
-/** Placed: a vein that runs on into the liver and fades there narrows progressively to `tip` of its width over the last `span` of its length (the left portal vein: Mohammad, 25 Nov,
- *  "taper a bit more and fade earlier";
- *  fades.ts PLACED_LIVER_FADE). The narrowing starts past the meso-Rex landing and the umbilical vein's root, so both meet the vein at its full width.
- *   (It is the host's LAST piece now, from the arterioportal node on, so it narrows over that whole piece: 0.64 to 1 of the vein, where it was 0.45 to 1 when the vein was cut in two.
-  *  A taper is a smoothstep from the piece's end, which no
- *  piece boundary can carry on, unlike the fades, which are lines along the vein.) */
-export const LIVER_TAPER: Readonly<Record<string, { tip: number; span: number }>> = { [lastPieceOf('PVH_L')]: { tip: 0.4, span: 1 } };
+/** Placed: a host that runs on into the liver and fades there narrows progressively to `tip` of its width, from `from` (a share of the whole host's drawn length, where its fade starts: fades.ts
+ *  PLACED_LIVER_FADE_HOST) to its end (the left portal vein: Mohammad, 25 Nov, "taper a bit more and fade earlier"). It starts past the meso-Rex landing and the umbilical vein's root, so both
+ *  meet the vein at its full width. Written along the WHOLE host, as its fade is, and given to each piece as the stretch of it that piece covers (tubes.ts `along`), so a row added to the
+ *  engine's junction table, which cuts the host into one more piece, cannot move the look: a taper keyed to the last piece began at that piece's first node
+ *  instead, and the vein faded before it narrowed. */
+export const LIVER_TAPER: Readonly<Record<string, { tip: number; from: number }>> = { PVH_L: { tip: 0.4, from: PLACED_LIVER_FADE_HOST.PVH_L![0] } };
+/** The narrowing along its host that piece `id` wears (tubes.ts `along`), or none: the piece's stretch of the host and the taper's start and tip. */
+export function liverTaperOf(id: string): AlongTaper | undefined {
+  const host = hostOf(id), lt = LIVER_TAPER[host], r = lt && hostRanges(host)[id];
+  return lt && r && r[1] > lt.from ? { p: r[0], q: r[1], from: lt.from, tip: lt.tip } : undefined;
+}
 /** Whether end `e` of vessel `id` is the outer end of its segment (it meets another vessel, not its own other half): true for a vessel that is not in a segment. */
 export const outerEnd = (id: string, e: 0 | 1): boolean => { const seg = SEGMENT_OF.get(id); return !seg || (e === 0 ? seg[0] === id : seg[seg.length - 1] === id); };
 /** How far strand `i` of `n` has opened at the varix's spread `spr` (coil.ts varixSpreadK: 0.55 for a resting vein to 1 for a full varix), 0 to 1: the strands open one after another (V2, Mohammad 22 Nov), the last of the list first (the bands close the first), each over
@@ -78,8 +82,8 @@ export const strandOpen = (i: number, n: number, spr: number): number => {
 const strandLive = (banded: boolean, open: number, i: number, bands: number, cord = BANDED_CORD): number => (banded ? Math.max(cord, Math.min(1, Math.max(0, i + 1 - bands)) * open) : 1);
 /** whether a vessel beads (varix-bead.js BEAD_SITE): its strands do, and the gastrorenal shunt itself does */
 export const beadsOn = (id: string): boolean => !!(BEAD_SITE as Record<string, string>)[id];
-import { type Buried, type Course, radiusAtU, sewnAt, tubularFor } from './tubes.ts';
-import { lastPieceOf, piecesOf } from '../anatomy/whole-pieces.ts';
+import { type AlongTaper, type Buried, type Course, radiusAtU, sewnAt, tubularFor } from './tubes.ts';
+import { hostOf, piecesOf } from '../anatomy/whole-pieces.ts';
 
 export interface ShapeState { wig: number; spr: number; /** how far the varix's pressure has thickened its strands, 0 to 1 (varixPressRamp, eased) */ prs: number; /** how far the collaterals are recruited, 0 to 1 (the cavernoma's channels grow with it) */ rec: number; /** the varix's beading, 0 to 0.35 (varix-bead.js) */ bead: number; /** the bands on the esophageal varices, eased (band-ease.js) */ bands: number; /** strands drawn (a closed, dotted collateral has none) */ strandsOn: boolean; /** a feeder group's 0 to 1 live share */ live: number; /** the stretch at each end (share of the course, from its start and from its end) that stays as at rest, because a junction skin stands on it: coil.ts `pinCourse`; absent: none */ pin?: Pin }
 /** The fundal (gastric) varices' strands are drawn this much wider than the 2D figure's shares of the trunk (Mohammad, 25 Nov: the gastric varices "are small" next to the shunt, so the EUS needle and its coil missed them): the widest strand is then four fifths of the gastrorenal shunt that drains it. */
@@ -361,8 +365,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
       t[cut] = TIP; sp[cut] = 1; taper = t; taperSpan = sp;
       if (capless) { const cl: [boolean, boolean] = [capless[0], capless[1]]; cl[cut] = false; capless = cl; }
     }
-    const lt = LIVER_TAPER[v.id];
-    if (lt) { const t: [number, number] = [taper?.[0] ?? 1, Math.min(taper?.[1] ?? 1, lt.tip)], sp: [number, number] = [taperSpan?.[0] ?? 0.3, lt.span]; taper = t; taperSpan = sp; }
+    const along = liverTaperOf(v.id);
     // (a surgical shunt sewn onto a vein narrows to the host's caliber at that end, sinks inside its wall and flares at its heel: 2D SIDE_HOSTS / SINK / FLARED)
     if (sj && NARROWS_INTO_NEIGHBOUR(v) && !sj.taper) { const n0 = narrowTo(v, 0), n1 = narrowTo(v, 1); if (n0 < 1 || n1 < 1) taper = [Math.min(taper?.[0] ?? 1, n0), Math.min(taper?.[1] ?? 1, n1)]; }
     const sewn = shuntEnds(v.id);
@@ -375,7 +378,7 @@ export function coursesOf(v: NetVessel, s: ShapeState): Course[] {
       const t: [number, number] = [taper?.[0] ?? 1, taper?.[1] ?? 1]; t[e] *= v.radius / rad; taper = t; }
     // (a width change eases over a LENGTH, not a share: at least TAPER_LEN_K of the change, so a short piece or a long narrowing never steps (Mohammad, 24 Nov: "a radius that tapers over a length, never a step"))
     if (taper && cut == null) taperSpan = lengthSpans(m, taper, taperSpan);
-    const own: Course = { pts: m, radius: rad, taper, taperSpan, flare: sj && isPlain(v) && v.flare ? ([sj.attach[0] ? null : v.flare[0], sj.attach[1] ? null : v.flare[1]] as const) : v.flare, ...(sewn ? { sewn } : {}), capless, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? (cut != null ? ([sj.free?.[0] && cut !== 0, sj.free?.[1] && cut !== 1] as unknown as typeof sj.free) : sj.free) : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
+    const own: Course = { pts: m, radius: rad, taper, taperSpan, ...(along ? { along } : {}), flare: sj && isPlain(v) && v.flare ? ([sj.attach[0] ? null : v.flare[0], sj.attach[1] ? null : v.flare[1]] as const) : v.flare, ...(sewn ? { sewn } : {}), capless, clamp: buried, point: sj && !fadeOf(v.id, v.tone === 'artery') ? (cut != null ? ([sj.free?.[0] && cut !== 0, sj.free?.[1] && cut !== 1] as unknown as typeof sj.free) : sj.free) : undefined, bead: beads && v.id === 'C5' ? { b: s.bead, ph: 0.9, u0: 0, lambda: BEAD_LAMBDA_FUNDAL as number, len: len2d(main) } : undefined };
     // a varix is its few strands, each running whole from the vessel that feeds it to the one that drains it: the trunk's own tube, a solid fill the width of the bundle, is not drawn while
     // they are (Mohammad, 20 Nov: "what's that red mesh"); each strand widens to the trunk's width at its two ends, so it meets the vessels there without a step
     const bundle = s.strandsOn && strands.length > 0 && v.kind === 'collateral';   // (the cavernoma too: its trunk tube showed as a hard violet block where the clot does not cover the portal vein)

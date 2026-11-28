@@ -40,8 +40,12 @@ export const POLISH_ROUNDS = 2;
 export const GRADIENT_H = 0.05;
 /** Edge flips: an edge flips when that raises the sine of the smaller of its two triangles' smallest angles by `FLIP_GAIN` times and keeps the two faces facing the same way. */
 export const FLIP_GAIN = 1.05;
-/** Rows of vertices from a seam over which the normal blends from the tube's to the SDF gradient (spec 4.5.7). */
-export const NORMAL_BLEND_ROWS = 2;
+/**
+ * Rows of vertices from a seam over which the normal blends from the tube's to the SDF gradient (spec 4.5.7).
+ * Three, not two (28 Nov): across a crease the turn from the tube's normal to the gradient is spread over more edges,
+ * so the shade turns no more than 1 degree a step faster than the surface at the junction table's cluster skins (tests/skin-weld-shade.test.ts: SVC+SVC_E 1.07, PVH 1.05 with two).
+ */
+export const NORMAL_BLEND_ROWS = 3;
 /** Shading normals across a ridge: a vertex whose normal is more than `CREASE_DEG` from a neighbour's is eased `CREASE_EASE` of the way to its neighbours' mean, `CREASE_ROUNDS` times. A round tube's neighbouring rings differ by about 26 degrees (14 sides), so 35 leaves every plain stretch exact. */
 export const CREASE_DEG = 35;
 export const CREASE_EASE = 0.6;

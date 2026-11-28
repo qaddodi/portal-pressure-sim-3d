@@ -49,12 +49,14 @@ export function skinsDigest(js: readonly SkinJunction[], tubes: ReadonlyMap<stri
   return `${ANATOMY_ID}/${printString(p.finish())}`;
 }
 
-/** The skin mesh's blend numbers and directions whose low mantissa bits are written as zeros (25 Nov): the position is not here, so the seams still meet the tubes' own rings exactly. */
-export const ROUNDED_KEYS: ReadonlySet<string> = new Set(['normal', 'cen', 'weight', 'weight2', 'restR']);
 /**
- * Mantissa bits dropped from those: 8 of 23 leaves a relative step of 2^-15 (3e-5): a unit normal moves by 3e-5, a blend weight
- * and a radius by 3e-5 of themselves: far under what a pixel can show.
+ * The skin mesh's arrays whose low mantissa bits are written as zeros, and how many (28 Nov, review J3: the file was 3,307 kB against its 3,200 kB budget, 30% of it the parts of skins with several growing arms). What a number steers decides
+ * how coarse it may be: a unit normal and a blend weight steer a shade and a share of a move, so 2^-11 and 2^-9 of themselves are far under what a pixel can show (the cel shade steps at its thresholds, a weight is the share of an
+ * arm's move a vertex takes); the centre and the rest radius place the surface, so they keep 2^-13 and 2^-15. The position is not here (its seam rings must meet the tubes' own exactly): `roundInterior` rounds the rest of it.
  */
+export const ROUND_DROPS: Readonly<Record<string, number>> = { normal: 12, cen: 10, weight: 14, weight2: 14, restR: 8 };
+export const ROUNDED_KEYS: ReadonlySet<string> = new Set(Object.keys(ROUND_DROPS));
+/** Mantissa bits dropped from a vertex position that is not on a seam ring: a relative step of 2^-15 (3e-5), a thousandth of a tube's radius. */
 export const ROUND_DROP = 8;
 /** `a` with its `drop` lowest mantissa bits rounded to the nearest (ties up), as a new array; zeros, infinities and NaN stay as they are. */
 export function roundMantissa(a: Float32Array, drop = ROUND_DROP): Float32Array {
@@ -63,6 +65,15 @@ export function roundMantissa(a: Float32Array, drop = ROUND_DROP): Float32Array 
     const exp = (src[i]! >>> 23) & 255;
     u[i] = exp === 255 || exp === 0 ? src[i]! : (((src[i]! + half) >>> drop) << drop) >>> 0;
   }
+  return out;
+}
+/** What a baked file holds of the mesh array `key` (`a` itself for a key that is not rounded). */
+export const roundedKey = (a: Float32Array, key: string): Float32Array => (ROUNDED_KEYS.has(key) ? roundMantissa(a, ROUND_DROPS[key]) : a);
+/** The vertex positions (x, y, z per vertex) with every vertex that is not on a seam ring rounded by ROUND_DROP: a seam vertex keeps its bits, so the skin still meets each tube's own ring exactly. */
+export function roundInterior(position: Float32Array, seamVerts: readonly Uint32Array[]): Float32Array {
+  const r = roundMantissa(position), out = position.slice();
+  const seam = new Set<number>(); for (const ids of seamVerts) for (const v of ids) seam.add(v);
+  for (let v = 0; v * 3 < out.length; v++) if (!seam.has(v)) for (let c = 0; c < 3; c++) out[v * 3 + c] = r[v * 3 + c]!;
   return out;
 }
 
@@ -75,7 +86,7 @@ export function encodeSkins(b: BakedSkins, gz?: (b: Uint8Array) => number): Uint
       const out: Record<string, unknown> = {};
       for (const k of Object.keys(v)) {
         const x = (v as Record<string, unknown>)[k];
-        out[k] = x instanceof Float32Array && ROUNDED_KEYS.has(k) ? w.add(roundMantissa(x)) : pack(x);
+        out[k] = x instanceof Float32Array && ROUNDED_KEYS.has(k) ? w.add(roundedKey(x, k)) : k === 'position' && x instanceof Float32Array && Array.isArray((v as { seamVerts?: unknown }).seamVerts) ? w.add(roundInterior(x, (v as unknown as { seamVerts: Uint32Array[] }).seamVerts)) : pack(x);
       }
       return out;
     }
