@@ -36,15 +36,15 @@ export const RESPONSE: Readonly<Record<string, { gains: readonly [number, number
 
 /** Which use of the drug each HVPG response tile judges (owner, 27 Nov, C2): a fall of ≥10% in primary prophylaxis and in the acute IV propranolol test, ≥20% (or an HVPG ≤12 mmHg) after a bleed.
  *  Every slide with a response tile (`hvpgResp`) is here, and its words name the use (tests/response-rule.test.ts).
- *  The treatment talk's patient is decompensated, so its response is the secondary one. */
+ *  The treatment talk's patient has never bled, so its response is the primary one (owner, 28 Nov 2026; before that the patient was judged as after a bleed). */
 export const RESPONSE_RULE: Readonly<Record<string, 'primary' | 'acute' | 'secondary'>> = {
   'next-bleed/nsbb': 'secondary',
   'landmark-trials/predesci-test': 'acute',
   'carvedilol/start': 'primary',
   'varices/predesci': 'primary',
-  'treatment/prop': 'secondary',
-  'treatment/carv': 'secondary',
-  'treatment/carv-sin': 'secondary',
+  'treatment/prop': 'primary',
+  'treatment/carv': 'primary',
+  'treatment/carv-sin': 'primary',
   'ten-years/carv': 'primary',
 };
 

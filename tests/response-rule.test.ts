@@ -45,9 +45,9 @@ test('a secondary-prophylaxis slide never says that a fall of ≥10% is the resp
   }
 });
 
-test('the treatment talk\'s chart draws the same zone as its tile (a fall of 20%), so a 13% fall is outside it (30.11)', async () => {
+test('the treatment talk\'s chart draws the same zone as its tile (a fall of 10%, primary prophylaxis: owner, 28 Nov), so a 13% fall is inside it (30.11)', async () => {
   const s = await slideOf('treatment/relation');
-  assert.equal(s.tool?.zone?.fall, RESPONSE_CUT.secondary);
+  assert.equal(s.tool?.zone?.fall, RESPONSE_CUT.primary);
   assert.doesNotMatch(s.line, /both within the response zone/);
-  assert.match(s.line, /≥20%/);
+  assert.match(s.line, /≥10%/);
 });

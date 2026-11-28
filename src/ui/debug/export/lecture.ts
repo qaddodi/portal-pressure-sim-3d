@@ -9,6 +9,8 @@ import { planSlide } from '../../../decks/hp/plan.ts';
 import { camPlan } from '../../../decks/hp/cams.ts';
 import { parseLine } from '../../text/line.ts';
 import { valueText, type Fp } from '../../text/tokens.ts';
+import { valueText as tableValue } from '../../talk/table-model.ts';
+import { COLS } from '../../deck/from2d/table-marks.js';
 import { TILE } from '../../charts/tiles.generated.ts';
 import { SITE_TAGS } from '../../cards/card-fields.ts';
 import { UI } from '../../strings.generated.ts';
@@ -116,7 +118,9 @@ function dataCard(s: Slide, c: CopiedSlide, fps: (Fp | null)[], i: number, deck:
     out.push(`- **Instrument:** \`${tool.kind}\`, ${TOOL_WORDS[tool.kind] ?? 'an instrument'}`);
     const words: string[] = [];
     if (Array.isArray(tool.rows)) {
-      for (const r of tool.rows as (string | Record<string, unknown>)[]) if (typeof r === 'string') words.push(r);
+      for (const r of tool.rows as (string | unknown[] | Record<string, unknown>)[]) if (typeof r === 'string') words.push(r);
+      // (a row the card tests against a reading is [words, key, comparison, cut-off]: its words are the criterion)
+      else if (Array.isArray(r)) { if (typeof r[0] === 'string') words.push(r[0]); }
       else if (r && typeof r.text === 'string') words.push(`${r.text}${typeof r.note === 'string' ? ` [${r.note}]` : ''}${r.met ? ' (met)' : ''}`);
     }
     textsOf({ ...tool, rows: undefined }, 0, words);
@@ -127,13 +131,18 @@ function dataCard(s: Slide, c: CopiedSlide, fps: (Fp | null)[], i: number, deck:
   if (s.visual === 'table' && s.table) {
     const t = s.table, cols = t.cols ?? ['pv', 'whvp', 'fhvp', 'ivc', 'ra', 'hvpg', 'ppg'];
     out.push(`- **Summary table** (${t.of.length} patients${t.asc ? ', with the ascites pair' : ''}; one row per patient, one column per reading):`, '');
-    out.push(`  | ${[t.rowHead ?? 'Patient', ...cols.map((k) => TILE[k]?.n ?? TILE[k]?.t ?? k)].join(' | ')} |`, `  |${' --- |'.repeat(cols.length + 1)}`);
+    out.push(`  | ${[t.rowHead ?? 'Patient', ...cols.map((k) => (COLS as Record<string, string>)[k] ?? TILE[k]?.n ?? TILE[k]?.t ?? k)].join(' | ')} |`, `  |${' --- |'.repeat(cols.length + 1)}`);
     t.of.forEach((row, ri) => {
       const spec = typeof row === 'string' ? { id: row } : row;
       const own = spec.id ? slideFp(spec.id) : (baked?.tables?.[s.id]?.[ri] ?? null);
       const named = spec.id ? deck.slides.find((x) => x.id === spec.id) : null;
       const label = spec.title ?? spec.key ?? named?.title ?? spec.id ?? spec.preset ?? `row ${ri + 1}`;
-      out.push(`  | ${[cell(label), ...cols.map((k) => (own ? valueText(k, own as Fp) : '…'))].join(' | ')} |`);
+      const show = (k: string): string => {
+        if (k === 'wave') return '(waveform)';
+        if (!own) return '…';
+        return k === 'res' ? tableValue(k, own as Parameters<typeof tableValue>[1]) : valueText(k, own as Fp);
+      };
+      out.push(`  | ${[cell(label), ...cols.map(show)].join(' | ')} |`);
     });
     if (t.note) out.push('', `  note: ${cardWords(([] as string[]).concat(t.note).join(' '), fp, slideFp)}`);
   }
@@ -207,12 +216,15 @@ function figureMarks(s: Slide, c: CopiedSlide, sv: Survey, fp: Fp | null, slideF
   return out;
 }
 
+/** A lapse on the seconds clock (the meal step): its `days` only drive the engine's clock and are not a span of days to print. */
+const isSecondsLapse = (c: CopiedSlide): boolean => (c.lapse as { clock?: string } | null | undefined)?.clock === 'seconds';
+
 const modelWords = (c: CopiedSlide): string => {
   const bits: string[] = [];
   if (c.preset) bits.push(`patient ${c.preset}${c.presetDays ? ` (${c.presetDays} days)` : ''}`);
   if (c.params) bits.push(`changes ${JSON.stringify(c.params).slice(0, 120)}`);
   if (c.action) bits.push(`action ${JSON.stringify(c.action).slice(0, 100)}`);
-  if (c.days) bits.push(`${c.days} days pass`);
+  if (c.days) bits.push(isSecondsLapse(c) ? `a meal passes (${(c.lapse as { seconds?: number }).seconds ?? 6} s on screen)` : `${c.days} days pass`);
   if (c.sameAs) bits.push(`same as slide "${c.sameAs}"`);
   return bits.length ? bits.join('; ') : 'the patient the slide before had';
 };
@@ -295,7 +307,8 @@ export function lectureOf(inp: LectureInput, clockMs: () => number): LectureOut 
       const views = s.beats.map((b) => `${b.view}${b.lens !== plan.scene.lens ? `, lens ${b.lens}` : ''}`).join('; ');
       md.push(`- **Then, on each Next:** ${s.beats.length} more view(s) of the figure (${views}); the words and data stay`);
     }
-    if (s.lapse) md.push(`- **Time-lapse:** ${s.lapse.days} days${s.lapse.from ? `, "${s.lapse.from}" to "${s.lapse.to}"` : ''}${s.lapse.plays ? ', plays on the figure' : ''}`);
+    const lapseSpan = s.lapse ? (isSecondsLapse(c) ? 'a meal, on the seconds clock' : `${s.lapse.days} days`) : '';
+    if (s.lapse) md.push(`- **Time-lapse:** ${lapseSpan}${s.lapse.from ? `, "${s.lapse.from}" to "${s.lapse.to}"` : ''}${s.lapse.plays ? ', plays on the figure' : ''}`);
     md.push('');
     if (inp.notes) {
       md.push(`### Speaker notes`, '', s.notes, '');

@@ -19,6 +19,10 @@ export const HV_BLOCKED_KEY = 'hvBlocked';
 export const hvpgBlockedBy = (params: unknown): boolean => !!params && typeof params === 'object' && !!(cuts.hvBlocked as (p: unknown) => boolean)(params);
 /** Whether a state's HVPG cannot be measured: its fingerprint (or a readings record) carries the flag. */
 export const hvpgNotMeasurable = (fp: Readonly<Record<string, unknown>> | null | undefined): boolean => !!fp && fp[HV_BLOCKED_KEY] === 1;
+/** The readings taken through the blocked hepatic vein: the wedged and free pressures, their gradient, and the EUS-guided gradient (also read across a hepatic vein). */
+export const HV_READINGS: readonly string[] = ['hvpg', 'whvp', 'fhvp', 'eus'];
+/** Whether the reading `key` of this state cannot be taken (review 28 Nov, pattern 1: every table, tile and card says "Not measurable" for each of them, not only the HVPG). */
+export const readingNotMeasurable = (key: string, fp: Readonly<Record<string, unknown>> | null | undefined): boolean => HV_READINGS.includes(key) && hvpgNotMeasurable(fp);
 /** `fp` with the flag put in when `params` block the vein (the same object back for a patient whose vein is open: no copy, no new key). */
 export function flagFp<T extends object>(fp: T, params: unknown): T {
   return fp && hvpgBlockedBy(params) && !hvpgNotMeasurable(fp as Record<string, unknown>) ? { ...fp, [HV_BLOCKED_KEY]: 1 } : fp;

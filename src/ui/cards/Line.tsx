@@ -8,7 +8,7 @@ import { typesetter, toneVar, toneInk, type Node, type RichSlide } from '../text
 import { pillTone, type Fp } from '../text/pill-tone.ts';
 import { rateShown } from './ratings.ts';
 import { TOKEN_OF_RATE } from '../../engine/hales/portal/pressure-cuts.js';
-import { HV_BLOCKED_KEY, hvpgNotMeasurable } from '../cuts.ts';
+import { HV_BLOCKED_KEY, readingNotMeasurable } from '../cuts.ts';
 
 const style = (tone: string | null) => (tone ? { ['--tone' as string]: toneVar(tone), ['--tone-ink' as string]: toneInk(tone) } : undefined);
 
@@ -47,7 +47,7 @@ export function Line({ text, read, slide, fp, pill, still = false, seen, minus, 
         const stillHere = still || !!p.at;
         const v = read(p.key, p.at);
         // (the HVPG of a blocked hepatic vein reads "Not measurable", in no status colour: its flag rides in the readings beside the number, ui/cuts.ts)
-        const nm = p.key === 'hvpg' && hvpgNotMeasurable({ [HV_BLOCKED_KEY]: read(HV_BLOCKED_KEY, p.at) });
+        const nm = readingNotMeasurable(p.key, { [HV_BLOCKED_KEY]: read(HV_BLOCKED_KEY, p.at) });
         const text = v == null ? '…' : valueText(p.key, { [p.key]: v, ...(nm ? { [HV_BLOCKED_KEY]: 1 } : null), sbp: read('sbp', p.at), dbp: read('dbp', p.at) }, p.decimals === 0);
         const { tone, rate } = v == null || nm ? { tone: null, rate: null } : pillTone(p.key, p.at ? { ...fp, [p.key]: fp?.[`${p.key}@${p.at}`], mapFrom: undefined } : fp);
         // (its stop is set inside the reading's own box, right after the digits: the reserve is wider than a short value, and that spare width must fall after the stop, not before it)

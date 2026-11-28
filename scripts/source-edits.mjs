@@ -8,6 +8,7 @@
 //   { from, to }  replaces that text inside the field (the field must hold `from`, or the generator stops: the 2D text moved and the patch has to be looked at again)
 //   { set }       replaces the whole field          { drop: true } removes the field          { append } adds a sentence to the end of the field
 import { RIGHTS } from './credit.mjs';
+import { REVIEW_28NOV } from './review-28nov-edits.mjs';
 const P = (deck, at, from, to) => ({ deck, at, from, to });
 const SET = (deck, at, set) => ({ deck, at, set });
 const DROP = (deck, at) => ({ deck, at, drop: true });
@@ -432,13 +433,12 @@ export const CAPTURE_3531BDFA_CLINICAL = [
   SET('treatment', 'slides.relation.tool.zone.fall', 20),
   P('treatment', 'slides.relation.line', 'carvedilol lowers the HVPG from {hvpg} to {hvpg@carv} and propranolol to {hvpg@prop}, both within the response zone.', 'carvedilol lowers the HVPG from {hvpg} to {hvpg@carv}, a response in this decompensated patient (a fall of ≥20% or an HVPG ≤12 mmHg), and propranolol only to {hvpg@prop}, short of it.'),
   P('treatment', 'slides.relation.notes', 'a fall of 10% or more from baseline, or to 12 mmHg or less, which Baveno VIII carries from Baveno V and VI.', 'a fall of 20% or more from baseline, or to 12 mmHg or less, the rule after a bleed and in a decompensated patient (secondary prophylaxis); in primary prophylaxis a fall of 10% or more counts (Baveno VIII Table 3).'),
-  P('treatment', 'slides.relation.ask.1', 'a response needs a fall of ≥10% or a gradient ≤12 mmHg.', 'in a decompensated patient a response needs a fall of ≥20% or a gradient ≤12 mmHg.'),
   P('treatment', 'checks.1.1', 'a fall <10% marks a non-responder.', 'after a bleed a response needs a fall of ≥20% (≥10% in primary prophylaxis), and this is about 3%.'),
-  APPEND('treatment', 'slides.prop.line', 'For this decompensated patient a response is a fall of ≥20% or an HVPG ≤12 mmHg.'),
-  APPEND('treatment', 'slides.carv.line', 'In this decompensated patient a fall of ≥20% or an HVPG ≤12 mmHg is the response.'),
+  APPEND('treatment', 'slides.prop.line', 'For this patient, who has never bled, a response in primary prophylaxis is a fall of ≥10% or an HVPG ≤12 mmHg.'),
+  APPEND('treatment', 'slides.carv.line', 'In primary prophylaxis a fall of ≥10% or an HVPG ≤12 mmHg is the response.'),
   // (the three slides below keep their line under 200 characters, the long-line ratchet: the wording is trimmed to make room for the rule)
   P('treatment', 'slides.carv-sin.line', 'In cirrhosis most of the resistance lies in the sinusoids. The α1 blockade of carvedilol is thought to relax hepatic stellate cells,', 'Resistance is mostly sinusoidal. Carvedilol’s α1 blockade is thought to relax stellate cells,'),
-  APPEND('treatment', 'slides.carv-sin.line', 'After a bleed, ≥20% or ≤12 mmHg responds.'),
+  APPEND('treatment', 'slides.carv-sin.line', 'In primary prophylaxis, a fall of ≥10% or an HVPG ≤12 mmHg responds.'),
   P('treatment', 'slides.prop.notes', 'The tile shows the percent fall from the untreated patient: ≥10% marks a response.', 'The tile shows the percent fall from the untreated patient: for this decompensated patient (secondary prophylaxis) ≥20%, or an HVPG ≤12 mmHg, marks a response; ≥10% is the rule for primary prophylaxis.'),
   P('treatment', 'slides.target.notes', 'an HVPG fall of ≥10%, or to ≤12 mmHg, counts as a response (Baveno VIII Table 3).', 'an HVPG fall of ≥10% (primary prophylaxis) or ≥20% (secondary prophylaxis, after a bleed), or to ≤12 mmHg, counts as a response (Baveno VIII Table 3 states the ≥10% rule).'),
   APPEND('carvedilol', 'slides.start.line', 'A fall of ≥10% counts as a response before any bleed.'),
@@ -730,6 +730,7 @@ export const SOURCE_PATCHES = [
   ...CAPTURE_3531BDFA_L3,
   ...CAPTURE_3531BDFA_W,
   ...HVPG_PPG_AFTER_EUS_27NOV,
+  ...REVIEW_28NOV,
 ];
 
 function step(node, key) {
@@ -769,6 +770,8 @@ export function sourceEdits(json, patches = SOURCE_PATCHES) {
     else if (p.drop) { if (Array.isArray(node)) node.splice(last, 1); else delete node[last]; }
     else if (p.append !== undefined) node[last] = `${node[last]}${/[.!?]$/.test(node[last]) ? ' ' : '. '}${p.append}`;
     else {
+      // (a soft patch that finds neither its text nor its place does nothing: it rewrites what an earlier patch put there, which a deck that was never patched by that one does not hold)
+      if (p.soft && (typeof node[last] !== 'string' || !node[last].includes(p.from))) continue;
       if (typeof node[last] !== 'string' || !node[last].includes(p.from)) throw new Error(`source-edits: ${p.deck} ${p.at} does not hold ${JSON.stringify(p.from)} (the 2D text moved; look at this patch again)`);
       node[last] = node[last].split(p.from).join(p.to);
     }

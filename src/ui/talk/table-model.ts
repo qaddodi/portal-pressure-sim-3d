@@ -5,8 +5,9 @@
 import type { TableRowSpec, TableSpec } from '../../decks/schema.ts';
 import { COLS, CUT, PRESS, TILE, NO_ASC, atShown, dirAbs, dirRel, rateAbs, effOf, fpv, pressDp, headOf, sameHead, tileOf } from '../deck/from2d/table-marks.js';
 import { SAAG_PORTAL, TP_HIGH, saagPortal, tpHigh } from '../../engine/hales/portal/ascites-cuts.js';
+import { varixFloorWord } from '../cuts.ts';
 import { NOT_MEASURABLE } from '../../engine/hales/portal/pressure-cuts.js';
-import { hvpgNotMeasurable } from '../../engine/hv-flag.ts';
+import { hvpgNotMeasurable, HV_READINGS } from '../../engine/hv-flag.ts';
 import { lcFirst } from '../../engine/hales/portal/lc-first.js';
 import { bedsideMean } from '../../engine/hales/portal/bedside-mean.js';
 import { fmt } from '../charts/fmt.ts';
@@ -79,6 +80,8 @@ export function valueText(k: string, f: Fp): string {
   const v = fpv(k, f);
   if (v == null) return '—';
   if (k === 'map') return bpText(f.sbp, f.dbp, v);
+  const floor = varixFloorWord(k, v);
+  if (floor) return floor;
   // (a pressure is the one reading formatter's: a station whole, a gradient to a tenth: charts/readings.ts)
   if (PRESS.has(k)) return pressDp(k) ? gapText(v) : stationText(v);
   if (k === 'res') return fmt(v, 1);
@@ -110,7 +113,7 @@ export function tableModel(spec: TableSpec, rows: ResolvedRow[], fpOfId: (id: st
   };
   const isRef = (r: ResolvedRow, n: number) => !!r.spec.ref || (rel && !r.spec.vs && n === 0);
   // (a row's blank cells: the ones its words give, and the HVPG of any patient whose hepatic vein is blocked, whatever the row says: ui/cuts.ts)
-  const blank = (r: ResolvedRow) => (hvpgNotMeasurable(r.f) && !(r.spec.blank ?? []).includes('hvpg') ? [...(r.spec.blank ?? []), 'hvpg'] : r.spec.blank ?? []);
+  const blank = (r: ResolvedRow) => (hvpgNotMeasurable(r.f) ? [...new Set([...(r.spec.blank ?? []), ...HV_READINGS])] : r.spec.blank ?? []);
   const afterTips = (r: ResolvedRow, k: string, n: number) => k === 'hvpg' && !isRef(r, n) && Number.isFinite(r.f?.tipsFlow);
   const cell = (k: string, r: ResolvedRow, n: number): Cell => {
     const base: Cell = { k, kind: 'dir', text: '', arrow: 0, rate: null, eff: null, miss: '', sr: '' };

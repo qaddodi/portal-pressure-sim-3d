@@ -9,7 +9,7 @@ import { bpText } from '../tests/copied/vital-read.copied.js';
 import { fmt, NOT_SHOWN } from '../charts/fmt.ts';
 import type { CopiedSlide } from '../../decks/hp/types.ts';
 import { changes } from '../../decks/hp/numbers.ts';
-import { NOT_MEASURABLE, hvpgNotMeasurable } from '../cuts.ts';
+import { NOT_MEASURABLE, hvpgNotMeasurable, readingNotMeasurable, varixFloorWord } from '../cuts.ts';
 
 export type Fp = Record<string, number | null | undefined>;
 
@@ -52,6 +52,8 @@ const at = (k: string, v: number, f?: Fp | null): number => {
 export function tileVal(k: string, v: number | null | undefined, f: Fp | null = null): string {
   if (v == null) return '—';
   const T = tileOf(k);
+  const floor = varixFloorWord(k, v);
+  if (floor) return floor;
   return T?.bp ? bpText(f?.sbp, f?.dbp, v) : fmt(v * (T?.x ?? 1), T?.d ?? 1);
 }
 
@@ -91,7 +93,7 @@ export function tileView(k: string, f: Fp, o: { ref?: Fp | null; key?: boolean; 
   const [cls, word] = ratedShown(k, k === 'map' && ref?.map != null ? { ...f, mapFrom: tileShown('map', ref.map) } : f, tips);
   const none = cls == null && (k === 'saag' || k === 'tp');
   // (the HVPG of a blocked hepatic vein is a word, in no band: no number, no needle on the bar, no rating, no change; ui/cuts.ts)
-  const nm = k === 'hvpg' && hvpgNotMeasurable(f);
+  const nm = readingNotMeasurable(k, f);
   const on = !none && !nm && f[k] != null;
   const x = T.x ?? 1, dg = T.d ?? 1;
   const r0 = k === 'hvpgFall' ? null : ref?.[k];
@@ -114,9 +116,9 @@ export function tileView(k: string, f: Fp, o: { ref?: Fp | null; key?: boolean; 
     was: ok ? at(k, r0!, f) : null,
   } : null;
   return {
-    k, name: T.t, short: T.n ?? null, unit: none || nm ? '' : T.u, pct: T.u === '%', text, none: none || nm, rate: nm ? 'none' : cls || (none ? 'none' : 'plain'),
+    k, name: T.t, short: T.n ?? null, unit: none || nm || varixFloorWord(k, f[k]) ? '' : T.u, pct: T.u === '%', text, none: none || nm, rate: nm ? 'none' : cls || (none ? 'none' : 'plain'),
     word: nm ? NOT_MEASURABLE : word, key: !!o.key, bar, delta,
-    head: { name: T.n || T.t, text: nm ? NOT_MEASURABLE : text, unit: none || nm ? '' : T.u },
+    head: { name: T.n || T.t, text: nm ? NOT_MEASURABLE : text, unit: none || nm || varixFloorWord(k, f[k]) ? '' : T.u },
   };
 }
 
