@@ -73,7 +73,7 @@
  "src/decks/schema.ts": 4,
  "src/entry.ts": 8,
  "src/looks/follow-device.ts": 2,
- "src/looks/looks.ts": 9,
+ "src/looks/looks.ts": 7,
  "src/main.tsx": 7,
  "src/parity/b1.ts": 3,
  "src/parity/b10.ts": 4,

@@ -28,3 +28,6 @@ Not rejected anything. Not yet seen on a device: say "pushed, not yet seen". The
 
 ## 28 Nov, ruling: the cap stays
 Asked whether to allow more than 5 degrees on every slide except `sites/healthy`, Mohammad: "No tilt past what we decide." The cap is 5 degrees each way on every slide, no per-slide exceptions.
+
+## 28 Nov, later: 20 degrees as a TRIAL
+Mohammad: "Make it 20 degrees both horizontal and vertical just to test it out." The device cap is now 20 degrees each way (DEVICE_CAP_DEG), still 1:1 and in the flipped direction. This is a trial setting, not a ruling: it replaces "no tilt past what we decide" only until he has tried it. The room solver and the two "F3 at full tilt" sweeps keep the decided 5 (FRAMING_TILT_DEG), so past 5 degrees a label can come inside its 40 px margin and slides are not reframed for it; that is the known exception for the trial. He decides afterwards: back to 5, or a cap in between with slides framed for it. Ending the trial is one constant.

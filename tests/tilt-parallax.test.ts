@@ -7,7 +7,7 @@ import { Vector3 } from 'three';
 import { CameraRig } from '../src/scene/camera/rig.ts';
 import { fullRoom } from '../src/scene/camera/room.ts';
 import { installTilt, TURN_HOLD_MS } from '../src/scene/camera/tilt-input.ts';
-import { DEVICE_CAP_DEG, DEVICE_BASE_TAU, DEVICE_DEAD, DEVICE_RANGE, DeviceBase, DEVICE_PITCH_MAX, DEVICE_YAW_MAX, deviceQuat, deviceUnit, screenTurn, turnBetween, wakeStep } from '../src/scene/camera/tilt.ts';
+import { DEVICE_CAP_DEG, FRAMING_TILT_DEG, DEVICE_BASE_TAU, DEVICE_DEAD, DEVICE_RANGE, DeviceBase, DEVICE_PITCH_MAX, DEVICE_YAW_MAX, deviceQuat, deviceUnit, screenTurn, turnBetween, wakeStep } from '../src/scene/camera/tilt.ts';
 
 const deg = (r: number) => (r * 180) / Math.PI;
 type Q = readonly [number, number, number, number];
@@ -247,4 +247,10 @@ test('worked example, portrait and both landscapes: tipping the screen\'s top ed
     const rig2 = rigAt(open); rig2.tilt.set(deviceUnit(r.top, r.right), 'device'); settle(rig2);
     assert.ok(rig2.camera.position.x < rest.x - 0.01 && Math.abs(rig2.camera.position.y - rest.y) < 1e-6, `screen turn ${angle}: the camera moves left`);
   }
+});
+
+test('TRIAL: the cap is 20 degrees for a test while the framing sweeps still hold the decided 5 (the 40 px margin is not promised past 5 until the trial ends)', () => {
+  assert.equal(DEVICE_CAP_DEG, 20);
+  assert.equal(FRAMING_TILT_DEG, 5);
+  assert.ok(DEVICE_CAP_DEG >= FRAMING_TILT_DEG);
 });

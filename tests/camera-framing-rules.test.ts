@@ -259,7 +259,7 @@ test('S4: a clot on the portal trunk is framed with at least 1.5 trunk lengths o
 });
 
 // ---- F3 at full tilt (docs/approved/tilt-parallax.md, 28 Nov): the gentle tilt turns the camera 3.5 degrees side to side and 2.5 up and down about the slide's aim, on slides too ----
-import { DEVICE_PITCH_MAX, DEVICE_YAW_MAX } from '../src/scene/camera/tilt.ts';
+import { FRAMING_TILT_RAD } from '../src/scene/camera/tilt.ts';
 /** How far inside the room's edge a station stands (px) with the camera turned by (dyaw, dpitch) about the shot's aim: the exact pinhole projection, the station standing in the figure's plane. */
 export function tiltedMarginPx(shot: Shot, p: readonly [number, number], dv: { w: number; h: number; room: { w: number; h: number } }, dyaw: number, dpitch: number): number {
   const d = effectiveDistance(shot, dv.room, dv.h, dv.w), f = dv.h / (2 * TAN);
@@ -273,7 +273,7 @@ export function tiltedMarginPx(shot: Shot, p: readonly [number, number], dv: { w
   return Math.min(dv.room.w / 2 - Math.abs((f * X) / Z), dv.room.h / 2 - Math.abs((f * Y) / Z));
 }
 const TILT_CORNERS: readonly (readonly [number, number])[] = [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]];
-const worstTilted = (shot: Shot, p: readonly [number, number], dv: Parameters<typeof tiltedMarginPx>[2]) => Math.min(...TILT_CORNERS.map(([x, y]) => tiltedMarginPx(shot, p, dv, x * DEVICE_YAW_MAX, y * DEVICE_PITCH_MAX)));
+const worstTilted = (shot: Shot, p: readonly [number, number], dv: Parameters<typeof tiltedMarginPx>[2]) => Math.min(...TILT_CORNERS.map(([x, y]) => tiltedMarginPx(shot, p, dv, x * FRAMING_TILT_RAD, y * FRAMING_TILT_RAD)));
 
 test('F3 at full tilt: every labelled station stays 40 px or more inside the room at the four corners of the tilt (5 by 3.5 degrees) on a Mac, an iPad and an iPhone', () => {
   let checked = 0;

@@ -10,7 +10,13 @@
  * slide with every vein still 8 px on an iPhone (6 pulls sites/healthy under 8 px; tests/camera-framing-rules.test.ts). The pointer's lean on a laptop
  * keeps the limits below.
  */
-export const DEVICE_CAP_DEG = 5;
+export const DEVICE_CAP_DEG = 20;
+/**
+ * TRIAL (owner, 28 Nov: "Make it 20 degrees both horizontal and vertical just to test it out"): the cap is 20 for a test while the room solver still frames for the decided 5, so past 5 a label can
+ * come inside its 40 px margin. Setting DEVICE_CAP_DEG back to FRAMING_TILT_DEG ends the trial.
+ */
+export const FRAMING_TILT_DEG = 5;
+export const FRAMING_TILT_RAD = (FRAMING_TILT_DEG * Math.PI) / 180;
 /** The pointer's largest turn each way, radians: 3.5° of yaw, 2.5° of pitch (owner: at most about 3 to 4 and 2 to 3). */
 export const TILT_YAW_MAX = (3.5 * Math.PI) / 180;
 export const TILT_PITCH_MAX = (2.5 * Math.PI) / 180;
