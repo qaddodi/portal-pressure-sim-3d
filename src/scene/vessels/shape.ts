@@ -19,7 +19,7 @@ import { PHASE_2_NODES } from './skin/nodes.ts';
 import { endShare, shuntEnds } from './shunt-ends.ts';
 import { DIVIDED, DIVIDED_RING_K } from './divide.ts';
 import { fanEnd, fanOrder, leaveAsBundle } from './strand-fan.ts';
-import { fairBends } from './bend.ts';
+import { blendLead, fairBends, smoothRun } from './bend.ts';
 const DIVIDED_IDS: ReadonlySet<string> = new Set(DIVIDED.map(([, v]) => v));
 
 const len2d = (pts: readonly (readonly [number, number])[]): number => { let l = 0; for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]); return l; };
@@ -271,13 +271,32 @@ const fairCache = new Map<string, { sig: string; pts: Vec3[] }>();
 const fairDelta = new Map<string, { n: number; d: Vec3[] } | null>();
 const FAIR_ENDS_R = 12;
 const sigOf = (p: readonly Vec3[]): string => { let a = 0, b = 0, c = 0; for (let i = 0; i < p.length; i++) { const w = i + 1; a += p[i]![0] * w; b += p[i]![1] * w; c += p[i]![2] * w; } return `${p.length}|${a}|${b}|${c}`; };
+/**
+ * The last points of the vein a faired course runs on from (the plain vein that ends at its start node and points the way it
+ * leaves: the splenic vein into the Warren shunt), for the joint's bend (bend.ts blendLead); none when no vein does. That vein
+ * is not faired itself, so there is no recursion.
+ */
+function runOnTail(v: NetVessel): readonly Vec3[] {
+  let best: readonly Vec3[] = [], bestDot = 0.5;
+  const first = v.pts[0], next = v.pts.find((q, i) => i > 0 && Math.hypot(q[0] - v.pts[0]![0], q[1] - v.pts[0]![1]) > 1e-6);
+  if (!first || !next) return best;
+  for (const o of NETWORK) {
+    if (o.id === v.id || o.to !== v.from || o.kind !== 'vein' || FAIRED.has(o.id)) continue;
+    const c = coursesOf(o, REST)[0]?.pts as Vec3[] | undefined;
+    if (!c || c.length < 3) continue;
+    const e = c[c.length - 1]!, a = c[Math.max(0, c.length - 4)]!, tx = e[0] - a[0], ty = e[1] - a[1], sx = next[0] - first[0], sy = next[1] - first[1];
+    const dot = (tx * sx + ty * sy) / ((Math.hypot(tx, ty) * Math.hypot(sx, sy)) || 1);
+    if (dot > bestDot) { bestDot = dot; best = c; }
+  }
+  return best;
+}
 function fairMain(v: NetVessel, m: Vec3[], coils: boolean): Vec3[] {
   const R = v.radius;
   if (unfaired || !(R > 0) || !FAIRED.has(v.id)) return m;
   if (!coils) {
     const sig = sigOf(m), hit = fairCache.get(v.id);
     if (hit && hit.sig === sig) return hit.pts;
-    const pts = fairBends(m, R);
+    const tail = runOnTail(v), pts = fairBends(blendLead(smoothRun(m, tail, R), tail, R), R);
     fairCache.set(v.id, { sig, pts });
     return pts;
   }

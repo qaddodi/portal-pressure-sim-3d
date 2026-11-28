@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
 import { fetchBin, BIN_QUIET_MS } from '../src/boot/fetch-bin.ts';
+import { clock } from '../src/clock/frame.ts';
 import { reportFileLoss, useFileLoss } from '../src/scene/file-loss.ts';
 
 const real = globalThis.fetch;
@@ -79,4 +80,21 @@ test('a file that failed is said, once, for the note over the figure', () => {
 
 test('the quiet time is a real wait on the network, not a hair trigger', () => {
   assert.ok(BIN_QUIET_MS >= 5000);
+});
+
+test('a file that is not there (a 4xx) is asked for exactly once and leaves no timer behind; a failure that may pass leaves the one-more-try timer (so a test that counts asks answers 404, never rejects)', async () => {
+  quiet();
+  let asked = 0;
+  globalThis.fetch = (async () => { asked++; return new Response('gone', { status: 404 }); }) as typeof fetch;
+  const retryTimers = (): number => clock.stats().timers.filter((t) => t === 'fetch-retry').length;
+  assert.equal(await fetchBin('/gone.bin'), null);
+  assert.equal(asked, 1, 'a 4xx is not retried');
+  assert.equal(retryTimers(), 0, 'nothing pending that could fire in a later test and be counted as another ask');
+  globalThis.fetch = (async () => { asked++; throw new Error('offline'); }) as typeof fetch;
+  const failing = fetchBin('/offline.bin', { retries: 1 }).catch(() => null);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(retryTimers(), 1, 'a rejected read waits to ask once more: a timer that outlives whoever started it');
+  await failing;
+  assert.equal(retryTimers(), 0, 'and it is gone once the second try has failed');
+  globalThis.fetch = real;
 });

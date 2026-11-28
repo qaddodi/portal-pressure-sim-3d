@@ -72,3 +72,15 @@ test('a hole of the sampled sheet at no seam is closed by a fan, the seams\' loo
   assert.ok(Math.abs(pos[3 * before]! - 10) < 1e-9 && Math.abs(pos[3 * before + 1]!) < 1e-9);
   assert.deepEqual(capStrayLoops([seam], [], pos, cen, rad), [seam], 'a sheet with only its seams\' loops is untouched');
 });
+
+test('a small hole just inside 2 radii of a seam is still a stray loop when the sheet has more loops than arms (the Warren shunt on one smooth curve); a seam-sized loop is never taken for one', () => {
+  const pos: number[] = [], seam: number[] = [], near: number[] = [], seam2: number[] = [];
+  for (let i = 0; i < 16; i++) { seam.push(pos.length / 3); pos.push(Math.cos(i * Math.PI / 8), Math.sin(i * Math.PI / 8), 0); }
+  // 1.8 radii from the seam's centre: under the 2-radii rule
+  for (let i = 0; i < 6; i++) { near.push(pos.length / 3); pos.push(1.8 + 0.3 * Math.cos(i * Math.PI / 3), 0.3 * Math.sin(i * Math.PI / 3), 0); }
+  for (let i = 0; i < 16; i++) { seam2.push(pos.length / 3); pos.push(6 + Math.cos(i * Math.PI / 8), Math.sin(i * Math.PI / 8), 0); }
+  const cen = [[0, 0, 0] as const, [6, 0, 0] as const], rad = [1, 1];
+  assert.deepEqual(strayLoops([seam, near, seam2], pos, cen, rad), [near]);
+  assert.deepEqual(strayLoops([seam, seam2], pos, cen, rad), [], 'two seams for two arms');
+  assert.deepEqual(strayLoops([seam, seam2, near], pos, [...cen, [1.8, 0, 0] as const], [1, 1, 0.3]), [], 'a loop that is an arm\'s own seam stays');
+});

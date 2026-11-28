@@ -1352,3 +1352,9 @@
   --look-black-bg: #000000; --look-black-card: #0D0D0E; --look-black-ink: #F4F4F5; --look-black-accent: #7C9BFF;
 }
 /* END generated: theme-tokens.js */
+
+/* A station colour as WORDS (a linked term, ui/text/rich.ts toneInk): the blood-origin colours are pale on a light page (amber SMV 3.75:1 on Light and 2.88:1 on Soft at the terms' 66% share), so on the light looks
+   the words take the colour drawn further toward the text; the dark looks read at 4.6:1 or more as they are. tests/site-ink-contrast.test.ts holds every look to 4.5:1. */
+:root { --tr-smv-term: color-mix(in srgb, var(--origin-smv) 61%, var(--text)); --tr-imv-term: color-mix(in srgb, var(--origin-imv) 76%, var(--text)); }
+:root[data-theme="dark"], :root:not([data-theme="light"]):not([data-theme="soft"]) { --tr-smv-term: var(--origin-smv); --tr-imv-term: var(--origin-imv); }
+:root[data-theme="soft"] { --tr-wedge-term: color-mix(in srgb, var(--tr-wedge) 80%, var(--text)); }

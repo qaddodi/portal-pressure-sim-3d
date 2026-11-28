@@ -36,12 +36,29 @@ export function strayLoops(loops: readonly number[][], pos: readonly number[], c
     if (best >= 0) owns.add(best);
   });
   const longest = Math.max(0, ...loops.map((l) => l.length));
-  return loops.filter((loop, i) => {
+  const far = loops.filter((loop, i) => {
     if (loops.length > cen.length && loop.length * 4 < longest) return true;
     const m = means[i]!;
     if (cen.every((c, a) => Math.hypot(m[0]! - c[0], m[1]! - c[1], m[2]! - c[2]) > 2 * rad[a]!)) return true;
     return !owns.has(i) && spread(loop, m) < STRAY_MAX_SPREAD * Rmin;
   });
+  // A hole can also sit just inside 2 radii of a seam (a shunt that leaves its trunk on a long bend: 1.8 radii from the nearest seam).
+  // More loops than arms is never right, and the loops too small to be a seam (under half the smallest arm's ring round) are the extra ones:
+  // the smallest of them go too, until the count is the arms'.
+  const left = loops.filter((l) => !far.includes(l)).map((l) => ({ l, p: perimeter(l, pos) })).sort((a, b) => a.p - b.p);
+  const small = Math.PI * Math.min(...rad);
+  let count = left.length;
+  for (const e of left) { if (count <= cen.length || e.p >= small) break; far.push(e.l); count--; }
+  return far;
+}
+
+function perimeter(loop: readonly number[], pos: readonly number[]): number {
+  let t = 0;
+  for (let i = 0; i < loop.length; i++) {
+    const a = loop[i]!, b = loop[(i + 1) % loop.length]!;
+    t += Math.hypot(pos[3 * a]! - pos[3 * b]!, pos[3 * a + 1]! - pos[3 * b + 1]!, pos[3 * a + 2]! - pos[3 * b + 2]!);
+  }
+  return t;
 }
 
 /** Closes each stray loop with a fan to a new vertex at its mean (appended to `pos`), the triangles running the other way along the loop's edges as the strip of a seam does. Returns the loops left (the seams'). */

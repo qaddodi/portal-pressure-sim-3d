@@ -30,3 +30,57 @@ test('the level kicker (Sinusoidal) reads 4.5:1 on every look, every level but t
   const p = share('.pz-kick {');
   for (const [name, bg, tx, pk, sy] of LOOKS) for (const v of [1, 0.8, 0.6, 0.4]) assert.ok(ratio(mix(mix(hex(pk), hex(sy), v), hex(tx), p), hex(bg)) >= 4.5, `${name} ${v}`);
 });
+
+// ── every colour a linked term can take, on the cards of every look (27 Nov: "superior mesenteric veins" 4.05:1 on Light; the 66% share was pinned for one violet only) ──
+import { TARGETS_FIG } from '../src/scene/labels/figure2d.copied.ts';
+import { toneVar, toneInk } from '../src/ui/text/rich.ts';
+
+const TOKENS = readFileSync(new URL('../src/ui/styles/tokens.css', import.meta.url), 'utf8');
+const BLOCKS = [...TOKENS.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1]!.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ').trim(), body: m[2]! }));
+const DARK = ':root[data-theme="dark"]', DARK_AUTO = ':root:not([data-theme="light"]):not([data-theme="soft"])';
+/** The selectors that apply to each look, in the order the cascade applies them. */
+const APPLY: Record<string, string[]> = {
+  light: [':root'], soft: [':root', ':root[data-theme="soft"]'],
+  dark: [':root', DARK_AUTO, DARK], navy: [':root', DARK_AUTO, DARK, `${DARK}[data-palette="navy"]`], black: [':root', DARK_AUTO, DARK, `${DARK}[data-palette="black"]`],
+};
+/** A look's custom properties as written (later rules win), then resolved to a colour: a hex, a `var()` of another, or a `color-mix(in srgb, A N%, B)`. */
+function lookVars(look: string): (name: string) => number[] | null {
+  const raw = new Map<string, string>();
+  for (const sel of APPLY[look]!) for (const b of BLOCKS) if (b.sel.split(',').map((x) => x.trim()).includes(sel)) for (const m of b.body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) raw.set(m[1]!, m[2]!.trim());
+  const val = (v: string): number[] | null => {
+    const h = /^#([0-9A-Fa-f]{6})$/.exec(v); if (h) return hex(v);
+    const r = /^var\((--[\w-]+)\)$/.exec(v); if (r) return raw.has(r[1]!) ? val(raw.get(r[1]!)!) : null;
+    const c = /^color-mix\(in srgb, (.+) (\d+)%, (.+)\)$/.exec(v);
+    if (c) { const a = val(c[1]!), b = val(c[3]!); return a && b ? mix(a, b, +c[2]! / 100) : null; }
+    return null;
+  };
+  return (name) => (raw.has(name) ? val(raw.get(name)!) : null);
+}
+const FACE = (look: string) => {
+  const own = BLOCKS.filter((b) => APPLY[look]!.some((s) => b.sel.split(',').map((x) => x.trim()).includes(s)) && /--bg:/.test(b.body)).at(-1)!.body;
+  return { text: /--text:\s*(#[0-9A-Fa-f]{6})/.exec(own)![1]!, cards: [...own.matchAll(/--(?:surface|surface-2):\s*(#[0-9A-Fa-f]{6})/g)].map((m) => m[1]!) };
+};
+/** The colour a term takes in a look: the CSS's own mix of its tone (or its `-term` token) with the text colour. */
+const termInk = (look: string, tone: string, share: number): number[] | null => {
+  const get = lookVars(look), text = hex(FACE(look).text);
+  const css = toneInk(tone), name = (x: string) => /var\((--[\w-]+)/.exec(x)![1]!;
+  const term = get(name(css)) ?? get(name(toneVar(tone)));
+  return term ? mix(term, text, share) : null;
+};
+
+test('a linked term reads 4.5:1 on the cards of every look, whatever it points at (the share was pinned for one violet; amber SMV read 3.75:1 on Light, 2.88:1 on Soft)', () => {
+  const tones = [...new Set(Object.values(TARGETS_FIG).map((t) => t.tone).filter((t) => t !== 'accent'))];
+  const p = share('.pz-term:not(.pz-lens-t) {');
+  let n = 0;
+  const skipped = new Set<string>();
+  for (const look of Object.keys(APPLY)) for (const tone of tones) {
+    const ink = termInk(look, tone, p);
+    if (!ink) { skipped.add(`${look} ${tone}`); continue; }
+    for (const card of FACE(look).cards) {
+      n++;
+      assert.ok(ratio(ink, hex(card)) >= 4.5, `${look}: a term of tone "${tone}" on ${card}: ${ratio(ink, hex(card)).toFixed(2)}:1 at ${p * 100}%`);
+    }
+  }
+  assert.ok(n > 100, `read ${n} pairs (skipped: ${[...skipped].slice(0, 8).join(', ')})`);
+  for (const s of ['smv', 'imv', 'sv', 'pv', 'wedge']) assert.ok(![...skipped].some((k) => k.endsWith(` ${s}`)), `${s} resolves in every look`);
+});

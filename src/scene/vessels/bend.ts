@@ -73,3 +73,118 @@ export function fairBends(pts: readonly Vec3[], R: number, ends?: number): Vec3[
   }
   return best;
 }
+
+const unit = (v: readonly number[]): number[] => { const l = len(v) || 1; return [v[0]! / l, v[1]! / l, v[2]! / l]; };
+const along = (p: readonly Vec3[], cum: readonly number[], d: number): Vec3 => {
+  let i = 1; while (i < p.length - 1 && cum[i]! < d) i++;
+  const a = p[i - 1]!, b = p[i]!, s = cum[i]! - cum[i - 1]! > 0 ? Math.min(1, Math.max(0, (d - cum[i - 1]!) / (cum[i]! - cum[i - 1]!))) : 0;
+  return [a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s, a[2] + (b[2] - a[2]) * s];
+};
+/**
+ * The bend a joint between two vessels is aimed at, in radii: over the fold floor, so the turn reads as one elbow and never as a corner.
+ * What is reached is the best the stretch allows (the junction skin stops building when the stretch is longer than about 8 radii).
+ */
+export const LEAD_AIM_R = 3;
+/** The tightest circle (in radii) through samples of `p` standing at least half a radius apart. */
+function worstRatio(p: readonly Vec3[], R: number): number {
+  const s: Vec3[] = [p[0]!];
+  for (let i = 1; i < p.length; i++) if (len(sub(p[i]!, s[s.length - 1]!)) >= SAMPLE_R * R || i === p.length - 1) s.push(p[i]!);
+  let worst = Infinity;
+  for (let i = 1; i < s.length - 1; i++) worst = Math.min(worst, circumradius(s[i - 1]!, s[i]!, s[i + 1]!) / R);
+  return worst;
+}
+
+/**
+ * A course that runs on from another vessel's end leaves its node along that vessel's own direction (27 Nov, Mohammad: the distal
+ * splenorenal shunt's take-off is "kinky"). ROOT CAUSE: the bend floor looks at one course at a time, so the joint where the
+ * splenic vein (V_SPL) runs on into the shunt (S_DSR) had a corner of 1.0 radius (the floor is 2): each course was clean, the turn
+ * between them was not. The first stretch of `pts` (its first point is the partner's last, held fixed) is re-laid as a cubic curve
+ * that leaves along `tail`'s end direction and rejoins the course's own direction, as short as clears the floor. The number of
+ * points never changes (each stays at its own share of the stretch), the first point and every point past the stretch stay where
+ * they were, and a course whose joint already clears is returned as it was.
+ */
+export function blendLead(pts: readonly Vec3[], tail: readonly Vec3[], R: number): Vec3[] {
+  const n = pts.length;
+  if (n < 4 || tail.length < 2 || !(R > 0)) return pts as Vec3[];
+  const P0 = pts[0]!;
+  let back: Vec3 | null = null;
+  for (let i = tail.length - 1; i >= 0; i--) if (len(sub(P0, tail[i]!)) >= R) { back = tail[i]!; break; }
+  if (!back) return pts as Vec3[];
+  const T0 = unit(sub(P0, back));
+  const cum = [0]; for (let i = 1; i < n; i++) cum.push(cum[i - 1]! + len(sub(pts[i]!, pts[i - 1]!)));
+  // (the partner's last 5 radii and the course up to the end of the stretch (and two radii past it) are what the joint is judged on: the course's own bends further on are not the joint's)
+  const ctx = tail.filter((q) => len(sub(P0, q)) <= 5 * R && len(sub(P0, q)) >= 0.02 * R);
+  const judge = (c: readonly Vec3[], upTo: number): number => worstRatio([...ctx, ...c.filter((_, i) => cum[i]! <= upTo + 2 * R)], R);
+  const r0 = judge(pts, 6 * R);
+  if (r0 >= LEAD_AIM_R) return pts as Vec3[];
+  let best: Vec3[] = pts as Vec3[], bestRatio = r0;
+  for (let B = 3 * R; B <= Math.min(7.5 * R, 0.6 * cum[n - 1]!); B += 0.5 * R) {
+    let jq = 1; while (jq < n - 1 && cum[jq]! < B) jq++;
+    const Q = pts[jq]!, Bq = cum[jq]!, T1 = unit(sub(along(pts, cum, Math.min(cum[n - 1]!, Bq + 0.5 * R)), along(pts, cum, Math.max(0, Bq - 0.5 * R))));
+    // (the handles' length decides how the turn is shared between the two ends: the choice that bends least tightly wins)
+    for (const k of [0.25, 0.33, 0.42, 0.5]) {
+      const h = Bq * k;
+      const P1: Vec3 = [P0[0] + T0[0]! * h, P0[1] + T0[1]! * h, P0[2] + T0[2]! * h], P2: Vec3 = [Q[0] - T1[0]! * h, Q[1] - T1[1]! * h, Q[2] - T1[2]! * h];
+      const cand: Vec3[] = pts.map((q, i): Vec3 => {
+        if (i === 0 || i >= jq) return q;
+        const t = cum[i]! / Bq, a = (1 - t) ** 3, b = 3 * (1 - t) ** 2 * t, c = 3 * (1 - t) * t * t, d = t ** 3;
+        return [a * P0[0] + b * P1[0] + c * P2[0] + d * Q[0], a * P0[1] + b * P1[1] + c * P2[1] + d * Q[1], a * P0[2] + b * P1[2] + c * P2[2] + d * Q[2]];
+      });
+      const r = judge(cand, Bq);
+      if (r > bestRatio) { bestRatio = r; best = cand; }
+    }
+    if (bestRatio >= LEAD_AIM_R) return best;
+  }
+  return best;
+}
+
+/** How far (in radii) a course that runs on from another vessel may be moved to be one smooth curve with it. */
+export const RUN_DEV_R = 2.5;
+/** The bend the run's smooth curve is asked for at least, in radii (the curve found is the roundest one within `RUN_DEV_R`). */
+export const RUN_AIM_R = 5;
+/**
+ * The longest departure handle, in radii: a longer one keeps the shunt riding along the stump it leaves beside (SV_MID), so the splenic junction's seam on the stump
+ * moves out until the stub between its two skins is under 1.5 radii and the skins merge (measured: 4.5 radii merges them, 4 does not).
+ */
+export const RUN_LEAD_R = 4;
+
+/**
+ * A course that runs on from another vessel's end (the splenic vein into the Warren shunt) as ONE smooth curve with it (27 Nov, Mohammad: "seamless"). A cubic from the course's first point
+ * (the partner's last, held), leaving along the partner's end direction, to its last point (held), arriving along its own end direction, with the handles that make it the roundest curve that stays
+ * within `RUN_DEV_R` radii of the course as it was; each point stays at its own share of the length (the count never changes). A course already as round as `RUN_AIM_R` over its whole run, or with no
+ * curve that gets there, is returned as it was (blendLead then does what it can at the joint).
+ */
+export function smoothRun(pts: readonly Vec3[], tail: readonly Vec3[], R: number): Vec3[] {
+  const n = pts.length;
+  if (n < 6 || tail.length < 2 || !(R > 0)) return pts as Vec3[];
+  const P0 = pts[0]!, P3 = pts[n - 1]!;
+  let back: Vec3 | null = null;
+  for (let i = tail.length - 1; i >= 0; i--) if (len(sub(P0, tail[i]!)) >= R) { back = tail[i]!; break; }
+  let fwd: Vec3 | null = null;
+  for (let i = n - 2; i >= 0; i--) if (len(sub(P3, pts[i]!)) >= R) { fwd = pts[i]!; break; }
+  if (!back || !fwd) return pts as Vec3[];
+  const T0 = unit(sub(P0, back)), T1 = unit(sub(P3, fwd));
+  const cum = [0]; for (let i = 1; i < n; i++) cum.push(cum[i - 1]! + len(sub(pts[i]!, pts[i - 1]!)));
+  const L = cum[n - 1]!;
+  if (!(L > 0)) return pts as Vec3[];
+  const at = (t: number, h0: number, h1: number): Vec3 => {
+    const P1 = [P0[0] + T0[0]! * h0, P0[1] + T0[1]! * h0, P0[2] + T0[2]! * h0], P2 = [P3[0] - T1[0]! * h1, P3[1] - T1[1]! * h1, P3[2] - T1[2]! * h1];
+    const a = (1 - t) ** 3, b = 3 * (1 - t) ** 2 * t, c = 3 * (1 - t) * t * t, d = t ** 3;
+    return [a * P0[0] + b * P1[0]! + c * P2[0]! + d * P3[0], a * P0[1] + b * P1[1]! + c * P2[1]! + d * P3[1], a * P0[2] + b * P1[2]! + c * P2[2]! + d * P3[2]];
+  };
+  const ctx = tail.filter((q) => len(sub(P0, q)) <= 5 * R && len(sub(P0, q)) >= 0.02 * R);
+  const SAMPLES = 120;
+  let bestPts: Vec3[] | null = null, bestRatio = worstRatio([...ctx, ...pts], R);
+  if (bestRatio >= RUN_AIM_R) return pts as Vec3[];
+  for (let a = 0.1; a <= 1.2 && a * L <= RUN_LEAD_R * R; a += 0.05) for (let b = 0.1; b <= 1.2; b += 0.05) {
+    const samp: Vec3[] = []; for (let i = 0; i <= SAMPLES; i++) samp.push(at(i / SAMPLES, a * L, b * L));
+    // (how far the curve strays from the course as it was)
+    let dev = 0;
+    for (let i = 0; i < n && dev <= RUN_DEV_R * R; i++) { let m = Infinity; for (const s of samp) m = Math.min(m, len(sub(s, pts[i]!))); dev = Math.max(dev, m); }
+    if (dev > RUN_DEV_R * R) continue;
+    const cand = pts.map((_, i): Vec3 => (i === 0 || i === n - 1 ? pts[i]! : at(cum[i]! / L, a * L, b * L)));
+    const r = worstRatio([...ctx, ...cand], R);
+    if (r > bestRatio) { bestRatio = r; bestPts = cand; }
+  }
+  return bestPts ?? (pts as Vec3[]);
+}
