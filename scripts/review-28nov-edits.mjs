@@ -8,10 +8,7 @@ const MOVE_AFTER = (deck, at, target) => ({ deck, at, moveAfter: target });
 
 export const REVIEW_28NOV = [
   // ---- the clear defects of section 1b ----
-  // albumin: the two long-term trials come together (ANSWER, MACHT), then the short-term one (ATTIRE), as the outline says
-  MOVE_AFTER('albumin', 'slides.macht', 'slides.answer'),
-  // ascites: the TIPS slide for refractory ascites follows the algorithm slide, and says "if" (his ascites is not refractory on slide 15)
-  MOVE_AFTER('ascites', 'slides.tips', 'slides.path-asc'),
+  // ascites: the TIPS slide for refractory ascites says "if" (his ascites is not refractory on slide 15)
   SET('ascites', 'slides.tips.title', 'If his ascites becomes refractory, a TIPS can control it'),
   // day: "barely moves, from 17.7 to 17.7" read as a mistake
   P('day', 'slides.breath.line', 'The mean portal pressure barely moves, from {pv@fasting} to {pv}, and neither does the HVPG, from {hvpg@fasting} to {hvpg}.', 'The mean portal pressure stays at {pv}, and the HVPG barely moves, from {hvpg@fasting} to {hvpg}.'),
@@ -42,9 +39,7 @@ export const REVIEW_28NOV = [
   P('landmark-trials', 'slides.covered.vignette', 'needs large-volume paracentesis (LVP) every two weeks despite diuretics', 'refills within a week of every large-volume paracentesis (LVP) despite diuretics'),
   SET('landmark-trials', 'slides.summary.of.5.title', 'Early covered TIPS'),
   SET('landmark-trials', 'slides.summary.of.7.title', 'Covered TIPS for ascites'),
-  // meso-rex: the chart plots what the words and tiles say; the shunt is "about 5"
-  SET('meso-rex', 'slides.months.tool.lines', ['spleen', 'plt']),
-  SET('meso-rex', 'slides.months.tool.title', 'Spleen size and platelets over six months'),
+  // meso-rex: the shunt is "about 5"
   P('meso-rex', 'checks.2.0', 'Another lowers it to about 4 mmHg', 'Another lowers it to about 5 mmHg'),
   // prehepatic: ruling 1, a recent trunk thrombus over half the lumen is anticoagulated; only a smaller one is monitored
   SET('prehepatic', 'slides.untreated.title', 'A recent thrombus over half the lumen is anticoagulated; a smaller one is monitored'),
@@ -53,7 +48,6 @@ export const REVIEW_28NOV = [
   SET('prehepatic', 'slides.untreated.ask', ['A patient with cirrhosis has a recent portal trunk thrombus filling more than half the lumen. What is done, and what if it fills less?', 'Anticoagulate: Baveno VIII advises it for a recent complete or >50% trunk thrombus. A smaller thrombus is monitored: imaging within 6 weeks, then every 3 months, and anticoagulation if it progresses (9.22).']),
   SET('prehepatic', 'slides.summary.title', 'Across six patients, PVT raises the PPG and not the HVPG'),
   // shunts 11: the pressure it was before the TIPS is the pre-TIPS PPG (slide 3), not the diuretic baseline
-  P('shunts', 'slides.occl.line', 'close to the {ppg@own} it was before the TIPS', 'close to the {ppg@reasons} it was before the TIPS'),
   // ten-years: the post-TIPS pressure is the PPG, the gradient that is read
   P('ten-years', 'slides.relation.line', 'and the TIPS from {hvpg@rebleed} to {hvpg@tips}.', 'and the TIPS the PPG from {ppg@rebleed} to {ppg@tips}.'),
   P('ten-years', 'slides.summary.ask.0', 'Which treatment lowered the HVPG the most in this case?', 'Which treatment lowered the portal pressure the most in this case?'),
@@ -81,6 +75,7 @@ export const REVIEW_28NOV = [
   P('tips-complete', 'slides.pre.tool.rows.3.text', 'Also **age** <75, creatinine <3 mg/dL, no heart failure', 'Also creatinine <3 mg/dL and no heart failure'),
   P('tips-complete', 'slides.pre.tool.rows.3.note', '54, 1.1, none', '1.1, none'),
   P('treatment', 'slides.carv-sin.line', 'is thought to relax stellate cells, so the HVPG falls from {hvpg@target} to {hvpg}. In primary prophylaxis, a fall of ≥10% or an HVPG ≤12 mmHg responds.', 'may relax stellate cells, so the HVPG falls from {hvpg@target} to {hvpg}. A fall of ≥10% or an HVPG ≤12 mmHg responds.'),
+  P('treatment', 'slides.oct.line', 'Octreotide, a somatostatin analog, inhibits the release of splanchnic vasodilatory peptides, so', 'Octreotide, a somatostatin analog, blocks splanchnic vasodilatory peptides, so'),
   SET('tips-complete', 'slides.pre.line', 'Place a covered TIPS within 72 hours, ideally within 24, to lower the PPG of {ppg}. Once he meets the criteria, bilirubin, MELD and age alone do not exclude it.'),
   P('variceal-bleed', 'slides.path.ask.1', 'in a patient aged <75 with a creatinine <3 mg/dL and no heart failure', 'with a creatinine <3 mg/dL and no heart failure (trials enrolled patients <75; age alone does not exclude a TIPS)'),
   P('variceal-bleed', 'slides.tips.ask.1', 'in a patient aged <75 with a creatinine <3 mg/dL and no heart failure', 'with a creatinine <3 mg/dL and no heart failure (trials enrolled patients <75)'),

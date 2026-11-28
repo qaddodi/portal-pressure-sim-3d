@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CAPTURE_3531BDFA_CLINICAL } from '../scripts/source-edits.mjs';
+import { REVIEW_28NOV } from '../scripts/review-28nov-edits.mjs';
 import { loadSource } from '../src/decks/source.ts';
 import { AG_IDS } from '../src/decks/ag/index.ts';
 import { HP_IDS } from '../src/decks/hp/index.ts';
@@ -25,7 +26,10 @@ function fieldOf(deck: Record<string, unknown>, at: string): { parent: Record<st
 
 test('every patch of the C1 to C15 group holds in the talk the app loads', async () => {
   let n = 0;
+  // (a later ruling of the owner, 28 Nov, may rewrite the same field: tests/review-28nov.test.ts holds that one)
+  const later = new Set((REVIEW_28NOV as Patch[]).map((q) => `${q.deck} ${q.at}`));
   for (const p of CAPTURE_3531BDFA_CLINICAL as Patch[]) {
+    if (later.has(`${p.deck} ${p.at}`)) continue;
     const d = await deckOf(p.deck);
     const { parent, key } = fieldOf(d, p.at);
     const at = `${p.deck} ${p.at}`;
