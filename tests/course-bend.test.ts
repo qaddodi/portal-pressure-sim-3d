@@ -43,12 +43,13 @@ test('a course that clears the floor comes back as it was, the first and last po
 const unfaired = (id: string) => NETWORK.find((v) => v.id === id)!;
 const partnerOf = (id: string) => NETWORK.find((o) => o.to === unfaired(id).from && o.kind === 'vein')!;
 
-test('the vein that runs on into the Warren shunt and the shunt are one smooth curve: no bend tighter than four radii across the joint and the first stretch', () => {
+test('the vein that runs on into the Warren shunt and the shunt are one smooth curve: no bend tighter than three and a half radii across the joint and the first stretch', () => {
   setSmoothJoins(true);
   const sp = coursesOf(partnerOf('S_DSR'), REST)[0]!, ds = coursesOf(unfaired('S_DSR'), REST)[0]!;
   assert.deepEqual(ds.pts[0], sp.pts[sp.pts.length - 1], 'the shunt still starts where the vein ends');
   const joint = [...(sp.pts as Vec3[]).slice(-12), ...(ds.pts as Vec3[]).slice(1, 30)];
-  assert.ok(tightestBend(joint, ds.radius).ratio >= 4, 'the joint and the first stretch are one round curve (it was 1.0 radius)');
+  // (the departure handle is held to 4 radii so the splenic junction's two skins on the stump stay apart: skin-shunts.test.ts)
+  assert.ok(tightestBend(joint, ds.radius).ratio >= 3.5, 'the joint and the first stretch are one round curve (it was 1.0 radius)');
 });
 
 test('smoothRun keeps the ends and the count, stays within 2.5 radii of the course, and makes it round with its partner', () => {

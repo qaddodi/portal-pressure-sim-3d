@@ -142,6 +142,11 @@ export function blendLead(pts: readonly Vec3[], tail: readonly Vec3[], R: number
 export const RUN_DEV_R = 2.5;
 /** The bend the run's smooth curve is asked for at least, in radii (the curve found is the roundest one within `RUN_DEV_R`). */
 export const RUN_AIM_R = 5;
+/**
+ * The longest departure handle, in radii: a longer one keeps the shunt riding along the stump it leaves beside (SV_MID), so the splenic junction's seam on the stump
+ * moves out until the stub between its two skins is under 1.5 radii and the skins merge (measured: 4.5 radii merges them, 4 does not).
+ */
+export const RUN_LEAD_R = 4;
 
 /**
  * A course that runs on from another vessel's end (the splenic vein into the Warren shunt) as ONE smooth curve with it (27 Nov, Mohammad: "seamless"). A cubic from the course's first point
@@ -171,7 +176,7 @@ export function smoothRun(pts: readonly Vec3[], tail: readonly Vec3[], R: number
   const SAMPLES = 120;
   let bestPts: Vec3[] | null = null, bestRatio = worstRatio([...ctx, ...pts], R);
   if (bestRatio >= RUN_AIM_R) return pts as Vec3[];
-  for (let a = 0.1; a <= 1.2; a += 0.05) for (let b = 0.1; b <= 1.2; b += 0.05) {
+  for (let a = 0.1; a <= 1.2 && a * L <= RUN_LEAD_R * R; a += 0.05) for (let b = 0.1; b <= 1.2; b += 0.05) {
     const samp: Vec3[] = []; for (let i = 0; i <= SAMPLES; i++) samp.push(at(i / SAMPLES, a * L, b * L));
     // (how far the curve strays from the course as it was)
     let dev = 0;
