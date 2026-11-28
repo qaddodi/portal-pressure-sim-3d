@@ -22,6 +22,7 @@
     "sync:inventory": "node scripts/sync-inventory.mjs",
     "debug": "node scripts/debug.mjs",
     "audit": "node scripts/audit.mjs",
+    "export:lectures": "node scripts/export-lectures.mjs",
     "layout-check": "node scripts/layout-check.mjs",
     "gen:strings": "node scripts/gen-ui-strings.mjs",
     "look:serve": "node scripts/look-serve.mjs",
